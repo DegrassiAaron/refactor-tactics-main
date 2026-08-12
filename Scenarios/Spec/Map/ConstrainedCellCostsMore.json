@@ -1,0 +1,44 @@
+{
+  "scenarioId": "Spec.Map.ConstrainedCellCostsMore",
+  "tags": [
+    "spec",
+    "map",
+    "movement",
+    "pathfinding",
+    "flux"
+  ],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 3,
+
+  "_nota": "SPECIFICA ESEGUIBILE di #619: una cella STRETTA costa di piu', e si vede in partita. Il sovrapprezzo di occupazione (`occupancySurcharge`) e' cio' che rende `Constrained` distinguibile da `Free` per un consumatore vero — senza, sarebbe un campo che nessuno legge.",
+
+  "_nota_perche_questo_percorso": "Fra due celle sulla STESSA riga assiale il percorso piu' breve e' UNICO: da (-2,0,0) a (3,0,0) l'unica mossa che avvicina e' E, quindi non esiste una deviazione che aggiri la cella stretta. Se il percorso fosse ambiguo, un costo diverso sarebbe indistinguibile da una deviazione.",
+
+  "_nota_aritmetica": "Flux ha 5 punti movimento. Costo di ingresso cella per cella: (-1,0)=1, (0,0)=1+1 di sovrapprezzo=2, (1,0)=1, (2,0)=1, (3,0)=1, per un totale di 6. SENZA il sovrapprezzo il totale sarebbe 5, cioe' esattamente il budget, e l'unita' arriverebbe a (3,0,0).",
+
+  "_nota_cosa_dimostra_davvero": "Non «l'unita' si ferma prima», ma che il piano viene RIFIUTATO in pianificazione: superato il budget il gioco non tronca il percorso, applica il fallback Stop e l'unita' resta dov'e' — la stessa semantica di `Movement.Blocked`, dove pero' la causa era l'assenza di percorso. Qui il percorso esiste: e' il COSTO a non starci, e il costo in eccesso viene tutto dal sovrapprezzo di geometria. Verificato per controllo il 2026-08-12: tolto `occupancySurcharge`, la stessa identica partita porta A1 a (3,0,0).",
+
+  "cells": [
+    { "cell": [0, 0, 0], "occupancySurcharge": 1 }
+  ],
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [0, 3, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "move": [[3, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-2, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [0, 3, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

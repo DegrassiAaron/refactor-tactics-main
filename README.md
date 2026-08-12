@@ -71,7 +71,7 @@ docs/                          # >>> README.md e' il punto d'ingresso <<<
   balance/                     # numeri vigenti (cataloghi) + workbook
   roadmap/                     # milestone, release v0.1, DoD, requisiti F0-F6
   decisions/                   # ADR e Decision Log
-  src/                         # sorgenti non normativi (PDF di visione, brief grezzi)
+  src/                         # sorgenti non normativi (PRD di visione, brief grezzi)
   archive/                     # materiale superato
 CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 ```
@@ -91,7 +91,8 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 | ADR [0002](docs/decisions/adr-0002-griglia-esagonale.md) · [0003](docs/decisions/adr-0003-modello-azioni-v01.md) · [0004](docs/decisions/adr-0004-finestre-di-reazione.md) | Pivot esagonale · modello azioni · finestre di reazione |
 | [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md) | Cosa aspetta una decisione, e perché non è deducibile |
 
-> ⚠️ I PDF in `docs/src/` e `docs/archive/pdr-v0.1/` descrivono un prodotto più ambizioso dello scope corrente
+> ⚠️ I PRD in [`docs/src/prd/`](docs/src/README.md) e il [corpus PDR](docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
+> descrivono un prodotto più ambizioso dello scope corrente
 > e in parte si contraddicono. Le decisioni effettive sono riconciliate nel **piano canonico**, che ha la
 > precedenza; i conflitti noti sono registrati in
 > [`docs/DOC_CONFLICT_MATRIX.md`](docs/DOC_CONFLICT_MATRIX.md).

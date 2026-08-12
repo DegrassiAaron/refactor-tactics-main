@@ -139,9 +139,30 @@ struct FRTHexAttackHit
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	int32 IntentIndex = INDEX_NONE;
 
+	/**
+	 * Punti di riduzione che la DIREZIONE ha annullato: quanto il bersaglio avrebbe risparmiato se il colpo
+	 * fosse arrivato nel suo arco frontale, e non ha risparmiato perche' e' arrivato di fianco o da dietro
+	 * (CP 16.2). `0` quando non c'era copertura, o quando c'era e ha retto.
+	 *
+	 * ⚠️ **Non entra nel danno**, che `Power` porta gia' calcolato: e' il *perche'* di una sottrazione che non
+	 * c'e' stata. Esiste perche' senza di lui quell'informazione muore dentro `EffectiveCoverReduction` —
+	 * una funzione pura, senza accesso al TurnLog — e dall'esterno un colpo pieno su un bersaglio riparato
+	 * e' indistinguibile da un colpo pieno su un bersaglio scoperto.
+	 *
+	 * Il primo consumatore e' la traccia (`ERTFacingOutcome::RearHitBypassedCover`), che finora il resolver
+	 * emetteva **solo per la Guard**. Il secondo e' la misura del tasso di realizzo del bonus direzionale del
+	 * bot (`#649`): il bot conta quel danno in pianificazione, e senza questo campo nessuno puo' verificare
+	 * quante volte lo incassa davvero.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	int32 CoverBypassedByFacing = 0;
+
 	FRTHexAttackHit() = default;
 	FRTHexAttackHit(int32 InAttacker, int32 InTarget, int32 InPower, int32 InIntent)
 		: AttackerId(InAttacker), TargetId(InTarget), Power(InPower), IntentIndex(InIntent) {}
+	FRTHexAttackHit(int32 InAttacker, int32 InTarget, int32 InPower, int32 InIntent, int32 InCoverBypassed)
+		: AttackerId(InAttacker), TargetId(InTarget), Power(InPower), IntentIndex(InIntent)
+		, CoverBypassedByFacing(InCoverBypassed) {}
 };
 
 /**

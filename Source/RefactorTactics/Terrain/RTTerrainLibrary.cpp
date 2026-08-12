@@ -3,6 +3,7 @@
 #include "Core/RTGameplayTags.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h" // GraphNeighbors: la fuga segue il grafo, non la distanza (#505)
 #include "Map/RTHexMapAsset.h"
 
 namespace
@@ -253,4 +254,63 @@ TArray<FRTPropagationHit> URTTerrainLibrary::CollectElectricPropagation(const UR
 		return A.UnitId < B.UnitId;
 	});
 	return Hits;
+}
+
+bool URTTerrainLibrary::IsHazardousSurface(ERTHexSurface Surface)
+{
+	// Il catalogo decide, non un elenco qui: pericolosa = infligge danno a chi ci entra.
+	for (const FRTActionEffectSpec& Effect : FindTerrainDef(Surface).OnEnterEffects)
+	{
+		if (Effect.Effect == ERTActionEffect::Damage && Effect.Amount > 0)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+FRTCellId URTTerrainLibrary::FindEscapeCell(const URTHexMapAsset* Map, const FRTCellId& From,
+	ERTHexDirection Facing, const TArray<FRTCellId>& Occupied)
+{
+	if (!Map)
+	{
+		return From; // fail-closed: senza mappa non si sa dove si puo' andare
+	}
+
+	// Le celle davvero raggiungibili: il grafo, non i sei vicini geometrici. Un dislivello senza arco o un
+	// muro non sono una via di fuga solo perche' la cella e' adiacente sulla griglia.
+	TArray<FRTCellId> Reachable;
+	for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Map, From))
+	{
+		Reachable.Add(Step.Key);
+	}
+
+	auto IsEscapable = [Map, &Reachable, &Occupied](const FRTCellId& Candidate)
+	{
+		if (!Reachable.Contains(Candidate) || Occupied.Contains(Candidate)) { return false; }
+		const FRTHexCellData* Data = Map->FindCell(Candidate);
+		return Data != nullptr && !URTTerrainLibrary::IsHazardousSurface(Data->Surface);
+	};
+
+	// 1) Dove sta guardando: e' la scelta che il giocatore puo' prevedere senza conoscere l'ordine interno
+	//    delle direzioni.
+	const FRTCellId Ahead = URTHexLibrary::Neighbor(From, Facing);
+	if (IsEscapable(Ahead))
+	{
+		return Ahead;
+	}
+
+	// 2) Ripiego nell'ordine canonico delle direzioni (E, NE, NW, W, SW, SE): arbitrario per il giocatore ma
+	//    DICHIARATO e stabile, quindi due situazioni identiche danno la stessa fuga.
+	for (const FRTCellId& Candidate : URTHexLibrary::Neighbors(From))
+	{
+		if (IsEscapable(Candidate))
+		{
+			return Candidate;
+		}
+	}
+
+	// 3) Circondati da fuoco, unita' o bordo mappa: la reazione e' scattata e non ha dove mandarti. E' un
+	//    esito, e chi chiama lo registra — come `EmergencyDash` quando non ha una cella libera.
+	return From;
 }

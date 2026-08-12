@@ -8,6 +8,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Core/RTGameplayTags.h" // TAG_Status_Root/Slow/Burning: la lista degli stati di controllo (CP 7.5)
 #include "Turn/RTReactionLibrary.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
@@ -317,6 +318,170 @@ bool FRTReactionNoResolverWaitTest::RunTest(const FString&)
 	TestFalse(TEXT("trigger None -> mai scatta"),
 		URTReactionLibrary::EvaluateReactionTrigger(ERTReactionTrigger::None, /*SelfId*/ 0, Hits, Intents));
 
+	return true;
+}
+
+// =====================================================================================================
+// CP 7.5 (`#505`) — ogni trigger dichiara DOVE viene valutato.
+//
+// Il difetto che questo test esiste per impedire e' quello che ha tenuto fermi tre moduli del catalogo per
+// due checkpoint: un trigger presente nel dato che nessun punto del turno guarda. Non e' un errore di
+// compilazione, non rompe nessun altro test, e il test sul catalogo resta verde — semplicemente la reazione
+// non scatta mai in partita.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionTriggersHaveAPassPointTest,
+	"RefactorTactics.Reaction.EveryTriggerHasAPassPoint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionTriggersHaveAPassPointTest::RunTest(const FString&)
+{
+	const UEnum* Enum = StaticEnum<ERTReactionTrigger>();
+	if (!TestNotNull(TEXT("l'enum dei trigger e' riflesso"), Enum)) { return false; }
+
+	int32 Valutati = 0;
+	for (int32 i = 0; i < Enum->NumEnums() - 1; ++i) // -1: l'ultima voce e' `_MAX`, sintetizzata da UHT
+	{
+		const ERTReactionTrigger Trigger = static_cast<ERTReactionTrigger>(Enum->GetValueByIndex(i));
+		const ERTReactionPassPoint Point = URTReactionLibrary::PassPointFor(Trigger);
+		if (Trigger == ERTReactionTrigger::None)
+		{
+			TestTrue(TEXT("`None` non e' valutato da nessuno: e' l'ASSENZA di un trigger"),
+				Point == ERTReactionPassPoint::Never);
+			continue;
+		}
+		TestTrue(FString::Printf(TEXT("%s dichiara dove viene valutato"), *Enum->GetNameStringByIndex(i)),
+			Point != ERTReactionPassPoint::Never);
+		++Valutati;
+	}
+
+	// Un numero CONCRETO, non «almeno uno»: un trigger nuovo che entrasse nell'enum senza passare da
+	// `PassPointFor` farebbe cadere questo conteggio, e chiederebbe di essere deciso invece di scivolare via.
+	TestEqual(TEXT("i trigger valutati in partita sono cinque"), Valutati, 5);
+
+	// E il mapping esatto, che e' la parte che un refactor puo' spostare in silenzio.
+	TestTrue(TEXT("i colpi diretti si valutano sui colpi gia' raccolti"),
+		URTReactionLibrary::PassPointFor(ERTReactionTrigger::HitByDirectAttack)
+			== ERTReactionPassPoint::BlastHits);
+	TestTrue(TEXT("l'interposizione ha il suo ciclo, non il pass generale"),
+		URTReactionLibrary::PassPointFor(ERTReactionTrigger::AllyHitByDirectAttack)
+			== ERTReactionPassPoint::BlastIntercept);
+	TestTrue(TEXT("lo spostamento si valuta dov'e' deciso e non ancora applicato"),
+		URTReactionLibrary::PassPointFor(ERTReactionTrigger::AboutToBeDisplaced)
+			== ERTReactionPassPoint::BlastDisplacement);
+	TestTrue(TEXT("il controllo si valuta sugli stati raccolti, prima che vengano applicati"),
+		URTReactionLibrary::PassPointFor(ERTReactionTrigger::AboutToReceiveControl)
+			== ERTReactionPassPoint::BlastStatus);
+	TestTrue(TEXT("l'hazard si valuta nel Cleanup, fra la nascita della superficie e i suoi effetti"),
+		URTReactionLibrary::PassPointFor(ERTReactionTrigger::CellBecameHazardous)
+			== ERTReactionPassPoint::CleanupSurfaceBirth);
+	return true;
+}
+
+// =====================================================================================================
+// CP 7.5 (`#505`) — quali stati sono di CONTROLLO, e in che ordine di gravita'.
+//
+// La lista vive nel codice e non nel catalogo (la v0.1 non ha un campo per dirlo), quindi e' un limite
+// dichiarato: questo test lo pinna. Diventa rosso quando nasce un terzo stato di controllo, che e'
+// esattamente il momento in cui qualcuno deve decidere dove metterlo — invece di scoprire tre mesi dopo
+// che `Reaction.Cleanse` non lo vedeva.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTControlStatusesAreTwoTest,
+	"RefactorTactics.Reaction.ControlStatusesAreTwo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTControlStatusesAreTwoTest::RunTest(const FString&)
+{
+	const TArray<FGameplayTag>& Controls = URTReactionLibrary::ControlStatusesBySeverity();
+	if (!TestEqual(TEXT("gli stati di controllo della v0.1 sono due"), Controls.Num(), 2)) { return false; }
+
+	// L'ORDINE e' il contratto, non l'insieme: `Root` azzera il budget di movimento, `Slow` ne aumenta il
+	// costo. Con due controlli nello stesso Blast si annulla il primo di questa lista.
+	TestEqual(TEXT("`Root` e' il piu' grave"), URTReactionLibrary::ControlSeverityRank(TAG_Status_Root), 0);
+	TestEqual(TEXT("`Slow` viene dopo"), URTReactionLibrary::ControlSeverityRank(TAG_Status_Slow), 1);
+
+	// Uno stato che NON e' controllo non deve entrare nel confronto: senza questo, un rank di -1 usato come
+	// indice sarebbe un difetto silenzioso.
+	TestEqual(TEXT("`Burning` non e' un controllo"),
+		URTReactionLibrary::ControlSeverityRank(TAG_Status_Burning), static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("un tag vuoto non e' un controllo"),
+		URTReactionLibrary::ControlSeverityRank(FGameplayTag()), static_cast<int32>(INDEX_NONE));
+	return true;
+}
+
+// =====================================================================================================
+// [D-092] — «una attivazione per turno» e' un CONTATORE, non una conseguenza.
+//
+// Senza `ReactionActivationsThisTurn` la regola sarebbe comunque vera, ma solo come effetto del fatto che
+// `PassPointFor` da' a ogni trigger un punto di valutazione solo: nessuna unita' viene guardata due volte.
+// E' una garanzia che vive nella forma del mapping invece che in una regola scritta — cadrebbe **in
+// silenzio** il giorno in cui un trigger ne avesse due, o un punto girasse due volte.
+//
+// ⚠️ Questo test **pre-imposta il contatore**, e va detto perche' sembra un trucco: oggi nessun percorso di
+// gioco valuta la stessa unita' in due punti, quindi la guardia non ha un caso naturale. Pre-impostarlo e'
+// il modo di esercitare esattamente lo stato in cui l'unita' si troverebbe al SECONDO punto — cioe' la
+// condizione che la guardia esiste per gestire. Senza, il contatore sarebbe codice che nessun test tocca.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionCounterBlocksSecondTest,
+	"RefactorTactics.Reactions.CounterBlocksASecondActivation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionCounterBlocksSecondTest::RunTest(const FString&)
+{
+	// --- PREMESSA: con il contatore a zero la reazione scatta -----------------------------------------
+	// Senza, «non e' scattata» sarebbe anche l'esito di una scena in cui il colpo non arriva.
+	{
+		UWorld* World = MakeReactionWorld();
+		if (!TestNotNull(TEXT("world della premessa"), World)) { return false; }
+		SpawnReactionMap(World);
+		ARTUnit* Reactor = SpawnReactionUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Attacker = SpawnReactionUnit(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Reactor || !Attacker || !TM) { DestroyReactionWorld(World); return false; }
+
+		Reactor->PlannedReactionAbility = AddReactionAbility(Reactor, TEXT("Action.Counter"));
+		Reactor->PlannedAbilityIndex = INDEX_NONE;
+		Attacker->PlannedAbilityIndex = 0;
+		Attacker->PlannedAttackTarget = Reactor;
+		RunReactionTurn(TM);
+
+		const int32 Attivate = CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated);
+		// E il contatore torna a ZERO a fine turno: «una per TURNO» ha bisogno che il turno finisca davvero,
+		// altrimenti l'unita' non reagirebbe mai piu' per il resto della partita.
+		const int32 Residuo = Reactor->ReactionActivationsThisTurn;
+		DestroyReactionWorld(World);
+		if (!TestEqual(TEXT("premessa: con il contatore a zero la reazione si attiva"), Attivate, 1))
+		{
+			return false;
+		}
+		TestEqual(TEXT("e a fine turno il contatore e' stato azzerato"), Residuo, 0);
+	}
+
+	// --- IL CASO: il contatore gia' speso blocca la seconda attivazione ------------------------------
+	UWorld* World = MakeReactionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnReactionMap(World);
+
+	ARTUnit* Reactor = SpawnReactionUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Attacker = SpawnReactionUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Reactor || !Attacker || !TM) { DestroyReactionWorld(World); return false; }
+
+	Reactor->PlannedReactionAbility = AddReactionAbility(Reactor, TEXT("Action.Counter"));
+	Reactor->PlannedAbilityIndex = INDEX_NONE;
+
+	// Lo stato in cui l'unita' arriverebbe al SECONDO punto di valutazione dello stesso turno.
+	Reactor->ReactionActivationsThisTurn = 1;
+
+	Attacker->PlannedAbilityIndex = 0; // stesso colpo diretto della premessa
+	Attacker->PlannedAttackTarget = Reactor;
+	RunReactionTurn(TM);
+
+	TestEqual(TEXT("la seconda attivazione e' bloccata"),
+		CountSlotReactionOutcome(TM, ERTReactionOutcome::Activated), 0);
+	// E l'esito e' DETTO, non silenzioso: `Unavailable` e' la stessa voce del cooldown e dello Sprint —
+	// «pianificata ma non poteva scattare». Una reazione sparita senza riga sarebbe indistinguibile da un
+	// trigger che non e' scattato.
+	TestEqual(TEXT("e il TurnLog lo dichiara come `Unavailable`, non la tace"),
+		CountSlotReactionOutcome(TM, ERTReactionOutcome::Unavailable), 1);
+
+	DestroyReactionWorld(World);
 	return true;
 }
 

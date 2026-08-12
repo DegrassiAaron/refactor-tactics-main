@@ -52,13 +52,13 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**20 sedute** — ✅ **0** · 🟡 **11** · ⏳ **6** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**21 sedute** — ✅ **0** · 🟡 **12** · ⏳ **6** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
 ### My Editor Queue
 
-**BLOCKING** 10 · **READY** 1 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 2 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -75,14 +75,15 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
-- **U18** · Verifiche senza prerequisiti — 1/5 voci verdi
+- **U18** · Verifiche senza prerequisiti — 1/9 voci verdi
+- **U21** · Luci del graybox e inquadratura della mappa — 0/2 voci verdi
 
 **WAITING** — *Aspetta codice*
 
 - **U11** · I 4 eroi — attende `U10` —
-- **U13** · Arena v0.1 — attende `U1` ⏳
+- **U13** · Arena v0.1 — attende `U1` 🟡
 - **U14** · Ambiente in partita — attende `U13` ⏳
-- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` ⏳, `U5` 🟡, `U7` 🟡, `U8` ⏳
+- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` 🟡, `U5` 🟡, `U7` 🟡, `U8` ⏳
 - **U16** · Misura dei KPI — attende `U6` 🟡
 - **U20** · Confine fra Guard e Brace — attende `E5.2` ⏳
 
@@ -94,8 +95,8 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 | | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|---|---|:--:|:--:|:--:|
-| **U18** | Verifiche senza prerequisiti | verdetto su cinque voci che non attendono nulla | — | no | 1/5 | 🟡 |
-| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | ⏳ |
+| **U18** | Verifiche senza prerequisiti | verdetto su nove voci che non attendono nulla | — | no | 1/9 | 🟡 |
+| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | 🟡 |
 | **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 3/4 | 🟡 |
 | **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
 | **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
@@ -114,6 +115,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U16** | Misura dei KPI | numeri reali nella tabella KPI | U6 | sì | 0/1 | 🟡 |
 | **U17** | Release v0.1 | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
 | **U20** | Confine fra Guard e Brace | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
+| **U21** | Luci del graybox e inquadratura della mappa | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
 
 ### Blocco 1 — Eseguibile oggi
 
@@ -122,9 +124,9 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 #### U18 · Verifiche senza prerequisiti 🟡
 
 **Sbloccata da**: — · **Percorso critico**: no
-**Produce**: verdetto su cinque voci che non attendono nulla
-**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ⏳ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳
-**Finita quando**: le cinque voci hanno esito reale nel registro
+**Produce**: verdetto su nove voci che non attendono nulla
+**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ⏳ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳ · `PIE-HEX-LAYER-FOCUS` ⏳ · `PIE-HEX-LAYER-CLICK` ⏳ · `PIE-HEX-LAYER-PANEL` ⏳ · `PIE-V01-REACTCOND` ⏳
+**Finita quando**: le nove voci hanno esito reale nel registro
 
 **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
 prima, nessun artefatto da committare. *Senza prerequisiti* non vuol dire *senza allestimento*:
@@ -138,6 +140,13 @@ git.
 > uno scenario impostato la partita normale non viene allestita affatto e tutte e tre le voci
 > diventano non eseguibili. E' successo il 2026-08-08, uscendo da `PIE-SCEN-KEEP`.
 
+**`PIE-V01-REACTCOND`** (aggiunta il 2026-08-12, [D-109]) si fa in Play e chiede un ordine
+preciso: prima **arma una reazione** sull'unita' selezionata, poi `rt.Reaction.Condition 50`.
+Al contrario il comando rifiuta, ed e' il comportamento giusto — una condizione senza reazione
+resterebbe orfana. Si verifica il **canale**, non l'effetto: le risposte legali si riducono
+davvero, ma la finestra che quel collasso evita non esiste finche' non atterra CP 14.5, e
+quella parte e' coperta headless da `Reactions.DeclaredConditionCollapsesToImmediateCommit`.
+
 L'ordine non e' arbitrario:
 
 1. `PIE-PREVIEW-AREA` e `PIE-V01-MATCHEND` su una partita normale.
@@ -147,14 +156,24 @@ L'ordine non e' arbitrario:
 3. `PIE-HEX-LAYER` e `PIE-HEX-TRANS` in coda, sull'**editor** e non in Play: servono un
    `ARTHexMapActor` con celle su >=2 layer, che si ottiene con `GenerateIntoAsset` —
    `ActiveLayer=0`, poi `ActiveLayer=1`. Nessuna mappa da costruire a mano.
+4. Le tre `PIE-HEX-LAYER-*` **sullo stesso asset del punto 3**, senza rigenerare nulla: e' per
+   questo che stanno qui e non in una seduta propria. In piu' serve il mode **Hex Map** attivo,
+   perche' i contorni dei piani di contesto li disegnano i tool, non l'actor: con `LayerView=Focus`
+   ma senza mode attivo e senza `bShowOverlay` acceso nel pannello del tool, `Focus` e'
+   indistinguibile da `ActiveOnly` — e la voce sembrerebbe fallita mentre e' solo non allestita.
 
-> Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS` erano in U1, ma le loro precondizioni nel registro citano un asset *generato* (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso critico senza dipenderne. Issue 450. Nello stesso passaggio il titolo e' cambiato da «senza preparazione» a «senza prerequisiti»: le due voci nuove un allestimento ce l'hanno — generano celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di **attese**: nessuna dipende da codice mancante o da una seduta prima.
+   > ⚠️ **`PIE-HEX-LAYER-CLICK` va fatta con la camera OBLIQUA**, non dall'alto. Il difetto che
+   > verifica e' che il raggio del click agganci il disco di un piano superiore e venga poi
+   > proiettato su quello attivo: lo scarto e' orizzontale e proporzionale a `LayerHeight`,
+   > quindi guardando a picco vale zero e la voce passerebbe comunque, rotta o no.
 
-#### U1 · Mappa-arena hex ⏳
+> Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente: le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. **Dal 2026-08-10 ne ospita cinque**: `PIE-HEX-LAYER` e `PIE-HEX-TRANS` erano in U1, ma le loro precondizioni nel registro citano un asset *generato* (`GenerateIntoAsset`, due celle sovrapposte) e non l'arena — stavano su una seduta del percorso critico senza dipenderne. Issue 450. Nello stesso passaggio il titolo e' cambiato da «senza preparazione» a «senza prerequisiti»: le due voci nuove un allestimento ce l'hanno — generano celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di **attese**: nessuna dipende da codice mancante o da una seduta prima. **Dal 2026-08-12 sono otto**: `PIE-HEX-LAYER-FOCUS`, `-CLICK` e `-PANEL` arrivano col merge di #565 (issue 567) e riusano l'asset generato del punto 3 senza aggiungere allestimento. Sono finite qui per la stessa ragione per cui questa seduta esiste: erano nel registro e in nessuna seduta — il conteggio della EditorMap le aveva gia' contate fra le voci orfane (`PIE-HEX-*` da 9 a 12) prima che qualcuno le collocasse.
+
+#### U1 · Mappa-arena hex 🟡
 
 **Sbloccata da**: M6.0 · **Preparazione condivisa con**: U13 · **Percorso critico**: sì
 **Produce**: `DA_HexMap_Arena` e `L_HexArena`, committati
-**Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ⏳ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ⏳
+**Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ✅ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ✅
 **Verifichi**: `PIE-HEX-MODE-E` ⏳ · `PIE-HEX-MODE-F` ⏳ · `PIE-HEX-MODE-G` ⏳ · `PIE-HEX-MODE-H` ⏳ · `PIE-HEX-MODE-L` ⏳ · `PIE-HEX-MODE-N` ⏳ · `PIE-HEX-MODE-O` ⏳
 **Finita quando**: i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena soddisfa i tre criteri dei passi 3, 4 e 7
 **Sblocca**: U13, U19
@@ -308,8 +327,8 @@ giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il 
 
 **Sbloccata da**: — · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: sì
 **Produce**: i quattro Blueprint-unita' del roster v0.1, committati
-**Artefatti**: `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset` ⏳ · `Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset` ⏳ · `Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` ⏳ · `Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` ⏳
-**Verifichi**: `PIE-AS2` ⏳ · `PIE-FACING` ✅
+**Artefatti**: `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset` ✅ · `Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset` ✅ · `Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` ✅ · `Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` ✅
+**Verifichi**: `PIE-AS2` 🟡 · `PIE-FACING` ✅
 **Finita quando**: i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
 **Sblocca**: U8, U19
 
@@ -343,12 +362,35 @@ gia' una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`).
 5. `TeamRingMaterial` e `SelectionRingMaterial` → `M_TeamRing` / `M_SelectionRing` in
    `/Game/RT/Characters/Shared/Materials/`. Il colore lo mette il codice sul MID; assenti,
    l'anello resta nascosto senza rompere nulla.
-6. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
+6. **Scala del componente skeletal: World/Absolute, `1,1,1`.** ⚠️ Il cilindro e' il ROOT e porta
+   `BaseMeshScale = (1.2, 1.2, 1.8)`: un componente attaccato a lui eredita quel fattore e il
+   personaggio esce **stirato in altezza di 1,5x** (1.8 / 1.2). Peggio, la selezione rimoltiplica
+   il root per `1.15` (`RTUnit.cpp:221`), quindi la mesh **si ingrandisce quando la selezioni**.
+   Nel Details del componente, alla riga *Scale*, si commuta l'icona su **World/Absolute**.
+   Difetto strutturale registrato in **issue #593**: finche' resta, il passo va rifatto a ogni
+   nuovo `BP_Unit`.
+7. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
    (`Hero.Flux` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
    `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna
    `ARTUnit::StaticClass()`, cioe' il cilindro. Un Blueprint perfetto ma non registrato non
    viene mai istanziato.
-7. **Le statistiche non si toccano**: `MaxHealth`, `AttackPower`, `MoveRange` arrivano da
+
+   🔴 **Non confonderla con `Team0Heroes`/`Team1Heroes`**, che le stanno **accanto nella stessa
+   categoria** `RefactorTactics|Units` e sono la trappola vera di questa seduta — ci si e' caduti
+   **due volte** il 2026-08-11. Rispondono a domande diverse:
+
+   | | `Team0Heroes` / `Team1Heroes` | `HeroUnitClasses` |
+   |---|---|---|
+   | risponde a | **chi** scende in campo | **con che aspetto** |
+   | tipo | lista: un campo per riga | mappa: **due campi** per riga |
+   | contiene | `Hero.Flux` | `Hero.Flux` → `BP_Unit_Gadget` |
+
+   Se la riga che stai compilando ha **un solo campo**, sei nella proprieta' sbagliata. Mettere i
+   nomi dei Blueprint nelle formazioni produce `BP_Unit_Gadget non e' nel catalogo eroi` e
+   **`0 eroi`** in campo — il log nomina l'id introvabile, ed e' il primo posto dove guardare.
+   Per non sbagliare: filtra il pannello Details scrivendo `Hero Unit` nella barra di ricerca,
+   cosi' resta visibile solo la mappa.
+8. **Le statistiche non si toccano**: `MaxHealth`, `AttackPower`, `MoveRange` arrivano da
    `URTHeroData`. Scriverle nel Blueprint significa scrivere numeri che il catalogo sovrascrive.
 
 Procedura per animazioni e montaggi: `guida-animazioni-paragon.md` §AS.3 e §AS.4.
@@ -360,7 +402,7 @@ Procedura per animazioni e montaggi: `guida-animazioni-paragon.md` §AS.3 e §AS
 > *Candidate*: nessuno dei due e' la base visuale di un eroe della v0.1. Seguendola si sarebbero
 > costruiti due Blueprint che il gioco non istanzia.
 
-> **I quattro pack sono tutti sul disco** (verificato 2026-08-11): Gadget 1232 file, Phase 1155, Riktor 1261, Wraith 1322. `ParagonGadget` mancava ed e' stato portato con la procedura `convenzioni-contenuti-ue.md` **B.2a** (magazzino + rename headless + copia). I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica. ⚠️ **Naming deciso dall'autore il 2026-08-11**: cartelle e asset di questa seduta portano il nome del **pack Paragon**, non dell'eroe, «per non creare problemi» — in editor si vede `Gadget` e si cerca `Gadget`. Ribalta `convenzioni-contenuti-ue.md` §A, che raccomandava l'opposto perche' il nome del pack lega l'asset a una mesh sostituibile: il rischio resta, ed e' accettato consapevolmente. Se un eroe cambiasse base visuale, il Blueprint andrebbe rinominato. ⚠️ **Eccezione dichiarata**: i data asset eroe (`DA_Hero_Flux`, …) restano intitolati all'**eroe** pur stando nella cartella del pack. Sono dati di gioco, non presentazione: non dipendono dalla mesh, e `HeroId` in C++ resta `Hero.Flux`. ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni.
+> **I quattro pack sono tutti sul disco** (verificato 2026-08-11): Gadget 1232 file, Phase 1155, Riktor 1261, Wraith 1322. `ParagonGadget` mancava ed e' stato portato con la procedura `convenzioni-contenuti-ue.md` **B.2a** (magazzino + rename headless + copia). I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica. ⚠️ **Naming deciso dall'autore il 2026-08-11**: cartelle e asset di questa seduta portano il nome del **pack Paragon**, non dell'eroe, «per non creare problemi» — in editor si vede `Gadget` e si cerca `Gadget`. Ribalta `convenzioni-contenuti-ue.md` §A, che raccomandava l'opposto perche' il nome del pack lega l'asset a una mesh sostituibile: il rischio resta, ed e' accettato consapevolmente. Se un eroe cambiasse base visuale, il Blueprint andrebbe rinominato. ⚠️ **Eccezione dichiarata**: i data asset eroe (`DA_Hero_Flux`, …) restano intitolati all'**eroe** pur stando nella cartella del pack. Sono dati di gioco, non presentazione: non dipendono dalla mesh, e `HeroId` in C++ resta `Hero.Flux`. ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni. ⚠️ **E se un personaggio appare in T-pose, schiacciato o con catene lunghissime, NON e' un difetto**: senza anim BP la skeletal resta nella **posa di riferimento** dello scheletro, dove le ossa di catene e tentacoli stanno distese in fila. Riscontrato su `Riktor` il 2026-08-12. Il controllo che lo isola in dieci secondi: **apri la Skeletal Mesh nel Content Browser** — se appare cosi' anche li', fuori dal gioco e fuori dal Blueprint, e' la bind pose e la sistema **U8**. Se invece li' e' normale e in partita no, allora guarda il Blueprint.
 
 #### U8 · Animazioni ⏳
 
@@ -582,6 +624,15 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 > regola, non questa.
 
 > Nasce dal piano `BAL-1` (`plans/bal-1-guard-brace-roadmap-2026-08-10.md` §6). **Non entra nel subset `RELEASE-V01`**: `BAL-1` non blocca la consegna, e un gate che si allarga senza motivo e' il difetto che G9 ha gia' avuto due volte. La seduta ha una voce sola di proposito — e' una domanda che si risponde una volta, guardandola. ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
+
+#### U21 · Luci del graybox e inquadratura della mappa ⏳
+
+**Sbloccata da**: — · **Percorso critico**: no
+**Produce**: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
+**Verifichi**: `PIE-MAPED-LIGHT` ⏳ · `PIE-MAPED-FRAME` ⏳
+**Finita quando**: le due voci hanno un esito reale e il livello illuminato e' committato
+
+> Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e questo repository non modifica `.umap` da riga di comando. ⚠️ `artifacts` e' VUOTO di proposito, benche' la seduta committi un livello. L'oracolo degli artefatti e' `git ls-files`, che sa dire se un path esiste e non se e' stato MODIFICATO: `L_DevSandbox.umap` e' gia' tracciato da mesi, quindi dichiararlo qui farebbe derivare 🟡 («parte fatta») su una seduta non ancora aperta. Lo stato deriva dalle due voci PIE, che sono la cosa che davvero non esiste ancora. Il livello committato resta nella DoD della issue. ⚠️ Il sorgente chiedeva anche di ricostruire la navigazione della camera (MMB pan, RMB orbit, wheel zoom, WASD, F focus). **Il viewport di Unreal le fornisce gia' tutte**, e un `UEdMode` non possiede la camera del viewport: `RTCameraPawn` e' la camera di GIOCO, un oggetto diverso. Resta solo l'inquadratura della mappa, che e' `PIE-MAPED-FRAME`. ⚠️ ID assegnato al merge: preso `U21` con `U20` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
 
 > **55 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 9 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 1 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 

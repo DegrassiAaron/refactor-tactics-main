@@ -2,7 +2,13 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **48** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
+> I **51** documenti in questa cartella sono i **sorgenti** da cui è nata parte della documentazione normativa.
+> *(rimisurato il 2026-08-12 con il comando in fondo a questa intestazione — 15 + 34 + 2 — non incrementato a mano: due rami
+> lo dichiaravano diverso — «47» da una parte, «48» dall'altra — ed entrambi erano giusti sulla propria base
+> e falsi dopo l'unione. Il numero di questa riga si rimisura **dopo** un merge, mai prima. ⚠️ La tabella
+> `handoff/` ne elenca comunque meno del misurato: **tre** sorgenti del 2026-08-10 sono sul disco senza una
+> riga d'indice — tracciato in [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) — `2026-08-10-baseaction-signatures-brace-overwatch.md`,
+> `2026-08-10-facing-consolidation.md`, `2026-08-10-overwatch-runtime-lifecycle-watch-reposition.md`.)*
 > Il primo lotto era in [`../../src/`](../../src/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
@@ -25,7 +31,7 @@
 >
 > ⚠️ **Il conteggio era già sbagliato prima del 2026-08-09**: l'intestazione diceva «25» mentre le sue stesse
 > tabelle elencavano **26** righe. Il numero qui sopra è **misurato**
-> (`ls docs/archive/src/{design,handoff,audit}/*.md | wc -l` → 15 + 31 + 2), non incrementato a mano — che è
+> (`ls docs/archive/src/{design,handoff,audit}/*.md | wc -l` → 15 + 32 + 2), non incrementato a mano — che è
 > il modo in cui era andato fuori sincrono.
 >
 > ⚠️ **Ed era andato fuori sincrono di nuovo, esattamente come la nota qui sopra descrive.** Il 2026-08-11
@@ -37,6 +43,12 @@
 > *incrementato* invece che *misurato*, che è la cosa precisa contro cui questo riquadro mette in guardia.
 > Preso in code review. La lezione non regge da sola — la formula c'era, e nessuno l'ha eseguita — quindi
 > vale la riga operativa: **esegui il comando, non aggiungere uno.** Rimisurato il 2026-08-11.
+>
+> 🔁 **Il 2026-08-12 «49 · 15 + 32 + 2» è diventato il valore giusto** — e non perché la nota qui sopra
+> sbagliasse: un merge ha portato un handoff in più, e la misura è cambiata sotto una riga che restava ferma.
+> È lo stesso difetto visto da un'altra angolazione: due rami dichiaravano «47» e «48», **entrambi corretti
+> sulla propria base e falsi dopo l'unione**. Un numero che era vero quando è stato scritto non resta vero;
+> va rimisurato **dopo il merge**, come dice il registro delle verifiche PIE per il proprio conteggio.
 
 **Se cerchi la regola, non sei nel posto giusto**: la colonna «Recepito da» dice chi la possiede oggi.
 In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md),
@@ -80,6 +92,9 @@ In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../pr
 | [`2026-08-10-wait-guard-brace-overwatch-e-geometria.md`](handoff/2026-08-10-wait-guard-brace-overwatch-e-geometria.md) | Wait/Guard/Brace/Overwatch, facing e geometria muri/hex | [`handoff-geometry-reazioni-conflict-report-2026-08-10.md`](../../roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md) · [D-065](../../decisions/RT_PDR_00_Decision_Log.md) (geometria → **E23.6/23.7**) · [D-066](../../decisions/RT_PDR_00_Decision_Log.md) (Guard/Brace **non** applicata → `BAL-1`). Su 45 righe di triage **18 erano già canone**: la §7 «decisione canonica da consolidare» risolveva un problema che il repository non aveva |
 | [`2026-08-10-status-control-brace-overwatch.md`](handoff/2026-08-10-status-control-brace-overwatch.md) | Status, buff/debuff, control, Brace e Overwatch | [`handoff-status-control-triage-2026-08-10.md`](../../roadmap/plans/handoff-status-control-triage-2026-08-10.md) · **Quarto** sorgente del 2026-08-10 sullo stesso perimetro. La meta' su Brace/Overwatch era gia' decisa (catena #390 → #394 → #397) e proponeva **tre nomi gia' presi**, uno respinto il giorno prima (`Reposition` → `Withdraw`, `D-067`). La meta' sugli status ha contenuto: `RT-FEAT-STATUS-FRAMEWORK`, **DESIGNED**, e da qui l'epic **E36** (v0.2, sei checkpoint). `STA-1` e `STA-2` chiuse da `D-072` — primitive e severity si **derivano** dal dato — che ha pero' aperto `STA-4`, la tassonomia delle capability, prerequisito di entrambe. Restano aperte `STA-3` e `STA-4` |
 | [`2026-08-10-full-grid-geometry-walls-water.md`](handoff/2026-08-10-full-grid-geometry-walls-water.md) | Griglia, geometria, muri, cover, traversal, strutture, acqua ed elettricita' | [`triage-grid-geometry-water-2026-08-10.md`](../../roadmap/plans/triage-grid-geometry-water-2026-08-10.md) · **3159 righe, 55+ sezioni `LOCKED`** — il piu' grande della serie. Un conflitto sulla soglia di calpestabilita', **risolto a favore di [D-071](../../decisions/RT_PDR_00_Decision_Log.md)**; la sua «ultima decisione prima della pausa» (§53, elettricita' sulla rete d'acqua) era **gia' implementata e testata** da CP 8.3. Entrano tre feature `IDEA`: acqua dinamica, strutture, verticalita' · `GEO-1`…`GEO-3` |
+| [`2026-08-11-five-lane-roadmap-editor-replay.md`](handoff/2026-08-11-five-lane-roadmap-editor-replay.md) | Roadmap a 5 lane: Spatial/Simulation/Client + Editor/Tooling + Replay/Audit | ⛔ **Revisionato e non applicato** — [`five-lane-roadmap-spec-panel-2026-08-11.md`](../../roadmap/plans/five-lane-roadmap-spec-panel-2026-08-11.md). La premessa non regge: la «roadmap a 3 lane» che dichiara di estendere **non esiste** (zero occorrenze in `docs/`). **45 dei 51 path** che assegna alle lane non esistono — il modulo runtime non ha lo split `Public/`/`Private/` e il content root è `Content/RT/`; tutti e **11 i gate `G0`–`G10`** collidono con `G1`–`G15` già in uso, tre *quasi* con lo stesso significato. Il dominio replay è già chiuso da `D-077`/`D-078`/`D-083` con **16 test**. Sopravvivono **tre** proposte: livello `DoD Replay` (§23), checklist di gate a cinque caselle (§25), classificazione dati replay per la v0.2 (§29) |
+| [`2026-08-12-map-sketch-editor.md`](handoff/2026-08-12-map-sketch-editor.md) | Map Sketch Editor v0.1: griglia visibile, geometria quantizzata, occupancy a 12 settori | [`map-sketch-editor-spec-panel-2026-08-12.md`](../../roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md) · **Applicato in parte**. **Terzo** prompt map-editor: la sua tesi centrale (§3, muri non vincolati ai lati) aveva già un verdetto — collocata in **E23.1**, v0.2. Ciò che lo distingue: la §4 (dodici settori) **risolve** l'obiezione che aveva fermato il predecessore, cioè i float nell'hash. Su 32 voci, **16 hanno già un padrone**. Anticipato in v0.1 come tooling per decisione dell'autore (`#619`…`#621`, anticipazione dichiarata su **E23**/`#324`, che **non** si apre) · `#622` `#623` · `MSE-1`. Respinti: le priorità `P1.1`…`P2.5` (quarto asse), la roadmap editor a mano di §30 (`roadmap-editor.md` è `HISTORICAL` **proprio** per quello), il `UDeveloperSettings` di §15, gli «scenari» `MapSketch_*` (sono classe **C**) |
+| [`2026-08-12-action-economy-movement-facing.md`](handoff/2026-08-12-action-economy-movement-facing.md) | Economia delle azioni, accoppiamento col movimento, costi del facing | [`spec-economia-del-turno.md`](../../gameplay/spec-economia-del-turno.md) · **E38** (v0.2) · `AE-1`…`AE-7` · [referto](../../roadmap/plans/action-economy-consolidamento-2026-08-12.md). ⚠️ **Recepito in parte**: §6/§7/§8 sono l'unico contributo nuovo; §4/§5 contraddicono il modello a slot di `D-028`, §15 contraddice ADR-0008 ed era gia' `FAC-12`, §30 e' respinta da `balance/README.md` |
 
 ### Il pacchetto `consolidazione-chat-openai` — dodici sorgenti, un solo triage
 

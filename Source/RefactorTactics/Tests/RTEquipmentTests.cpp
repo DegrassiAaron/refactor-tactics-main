@@ -237,7 +237,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionModuleSingleActivationTest,
 bool FRTReactionModuleSingleActivationTest::RunTest(const FString&)
 {
 	const TArray<URTEquipmentData*> Modules = URTCatalogLibrary::MakeReactionModules();
-	if (!TestEqual(TEXT("tre moduli: gli altri quattro sono in #505"), Modules.Num(), 3)) { return false; }
+	// ⚠️ Il numero e' salito da 4 a 5 con `Reaction.Anchor` (CP 7.5, `#505`), e sale ancora quando arrivano gli
+	// altri due: e' un limite che si asserisce, non una costante da inseguire. I due assenti mancano per la
+	// stessa ragione — un punto di valutazione ancora da aprire (`URTReactionLibrary::PassPointFor`) — e non
+	// per un dato mancante: `HazardEscape` vuole il Cleanup fra le superfici e il danno di `Burning`,
+	// `Cleanse` il momento in cui uno stato di controllo e' stato appena applicato.
+	if (!TestEqual(TEXT("i sette moduli del catalogo §3: nessuno resta fuori"), Modules.Num(), 7))
+	{
+		return false;
+	}
 
 	TArray<const URTEquipmentData*> AsConst;
 	for (const URTEquipmentData* M : Modules) { AsConst.Add(M); }
@@ -321,35 +329,39 @@ bool FRTCounterShotUsesExistingTriggerTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEmergencyDashNotExpressibleTest,
-	"RefactorTactics.Equipment.EmergencyDashIsNotExpressibleYet",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEmergencyDashExistsTest,
+	"RefactorTactics.Equipment.EmergencyDashRepositionsTheReactor",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTEmergencyDashNotExpressibleTest::RunTest(const FString&)
+bool FRTEmergencyDashExistsTest::RunTest(const FString&)
 {
-	// ⚠️ Secondo test che **pinna un limite**, come `SplitHasNoConsumerYet`.
-	//
-	// `Reaction.EmergencyDash` ha un trigger che esiste (`sei bersagliato` → `HitByDirectAttack`), quindi la
-	// divisione fra #62 e #505 — fatta sul trigger — lo metteva in questa metà. Ma il vincolo vero è un
-	// altro: il suo effetto è `Reposition 1`, cioè «chi reagisce si sposta», e nessun `ERTActionEffect` lo
-	// esprime. `Push` e `Pull` spostano il BERSAGLIO, mai la sorgente.
-	//
-	// Il test verifica che il modulo NON sia nel catalogo, così nessuno lo aggiunge con un effetto vuoto
-	// convinto che basti il trigger. Diventerà rosso il giorno in cui esisterà un effetto di auto-spostamento,
-	// ed è il momento giusto per costruirlo.
+	// ⚠️ Questo test **era il suo contrario** fino a D-093: si chiamava `EmergencyDashIsNotExpressibleYet` e
+	// pinnava l'ASSENZA del modulo, perché nessun `ERTActionEffect` sapeva spostare la sorgente. Era scritto
+	// per diventare rosso quando il limite fosse caduto, ed è caduto: `SelfReposition` esiste, e il test
+	// cambia di segno invece di essere cancellato — così la storia resta leggibile.
 	const TArray<URTEquipmentData*> Modules = URTCatalogLibrary::MakeReactionModules();
+	const URTEquipmentData* Dash = nullptr;
 	for (const URTEquipmentData* M : Modules)
 	{
-		TestTrue(TEXT("EmergencyDash non e' nel catalogo dei moduli costruiti"),
-			M->EquipmentId != FName(TEXT("Reaction.EmergencyDash")));
+		if (M->EquipmentId == FName(TEXT("Reaction.EmergencyDash"))) { Dash = M; break; }
 	}
+	if (!TestNotNull(TEXT("Reaction.EmergencyDash e' nel catalogo"), Dash)) { return false; }
 
-	// E la ragione, verificata invece che raccontata: nessuna azione core sposta chi la usa. `Action.Reposition`
-	// esiste ma non è una reazione — è in FastMovement — quindi non può nemmeno fare da base al modulo.
-	const FRTActionDef Reposition = URTCatalogLibrary::FindCoreAction(TEXT("Action.Reposition"));
-	TestFalse(TEXT("Action.Reposition esiste"), Reposition.ActionId.IsNone());
-	TestTrue(TEXT("ma non e' una reazione: non ha trigger"),
-		Reposition.ReactionTrigger == ERTReactionTrigger::None);
-	TestTrue(TEXT("e non occupa lo slot Reaction"), Reposition.Slot != ERTActionSlot::Reaction);
+	// L'effetto è `SelfReposition`, non `Push`: la differenza è CHI si muove, ed è tutta la ragione per cui
+	// il modulo non esisteva.
+	bool bSelfMoves = false;
+	for (const FRTActionEffectSpec& Spec : Dash->GrantedEffects)
+	{
+		if (Spec.Effect == ERTActionEffect::SelfReposition && Spec.Amount == 1) { bSelfMoves = true; }
+		TestTrue(TEXT("non usa Push: quello sposterebbe il BERSAGLIO"), Spec.Effect != ERTActionEffect::Push);
+	}
+	TestTrue(TEXT("sposta di 1 chi reagisce"), bSelfMoves);
+
+	// E resta una reazione vera, con il trigger ereditato come gli altri tre moduli.
+	URTActionData* Action = URTCatalogLibrary::MakeEquipmentAction(Dash, nullptr);
+	if (!TestNotNull(TEXT("concede un'azione"), Action)) { return false; }
+	TestTrue(TEXT("slot Reaction"), Action->Def.Slot == ERTActionSlot::Reaction);
+	TestTrue(TEXT("scatta quando sei bersagliato"),
+		Action->Def.ReactionTrigger == ERTReactionTrigger::HitByDirectAttack);
 	return true;
 }
 
@@ -605,7 +617,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetsWithoutEngineSupportTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGadgetsWithoutEngineSupportTest::RunTest(const FString&)
 {
-	// ⚠️ Terzo test che **pinna limiti**, come `SplitHasNoConsumerYet` e `EmergencyDashIsNotExpressibleYet`.
+	// ⚠️ Test che **pinna limiti**, come `SplitHasNoConsumerYet`. (Il terzo era `EmergencyDashIsNotExpressibleYet`,
+	// diventato `EmergencyDashRepositionsTheReactor` quando D-093 ha fatto cadere il suo limite.)
 	// Quattro gadget del catalogo §2 non sono costruiti, per quattro ragioni diverse — e la differenza conta,
 	// perché porta a lavori diversi. Il test verifica che non compaiano, e per due di essi verifica **anche
 	// la ragione**, così non basta aggiungerli per farlo tornare verde.
@@ -966,6 +979,60 @@ bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("Power resta uguale al danno dichiarato, senza accumulare"),
 		FluxBasic->Power, DannoDichiarato);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEmergencyDashInPlayTest,
+	"RefactorTactics.Equipment.EmergencyDashMovesTheReactorInPlay",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEmergencyDashInPlayTest::RunTest(const FString&)
+{
+	// Il modulo a catalogo non basta: `SelfReposition` è nato perché nessun effetto sapeva spostare la
+	// sorgente, quindi la prova è che l'unità **finisca altrove** dopo essere stata bersagliata.
+	const TArray<URTEquipmentData*> Modules = URTCatalogLibrary::MakeReactionModules();
+	const URTEquipmentData* Dash = nullptr;
+	for (const URTEquipmentData* M : Modules)
+	{
+		if (M->EquipmentId == FName(TEXT("Reaction.EmergencyDash"))) { Dash = M; break; }
+	}
+	if (!TestNotNull(TEXT("Reaction.EmergencyDash"), Dash)) { return false; }
+
+	UWorld* World = MakeEquipWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnEquipMap(World, 8);
+
+	// L'attaccante è a (0,0), chi reagisce a (1,0): la fuga lo porta a (2,0), lontano dalla minaccia.
+	ARTUnit* Attaccante = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeVektor());
+	ARTUnit* Reattore = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeVektor());
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Attaccante || !Reattore || !TM) { DestroyEquipWorld(World); return false; }
+
+	URTActionData* Reazione = URTCatalogLibrary::MakeEquipmentAction(Dash, Reattore);
+	if (!TestNotNull(TEXT("l'azione del modulo"), Reazione)) { DestroyEquipWorld(World); return false; }
+	// L'abilita' si accoda al kit gia' costruito da `ConfigureFromHeroData` in `SpawnEquipUnit`. I cooldown
+	// sono un array PARALLELO ad `Abilities`, e `SyncAbilityCooldowns` e' privata: si riallinea passando dal
+	// costruttore del kit, che e' anche il percorso che il gioco usa davvero.
+	Reattore->Abilities.Add(Reazione);
+	Reattore->PlannedReactionAbility = Reattore->Abilities.Num() - 1;
+
+	Attaccante->PlannedAbilityIndex = 0;             // attacco base
+	Attaccante->PlannedAttackTarget = Reattore;
+	Attaccante->PlannedCell = Attaccante->Cell;
+	Reattore->PlannedAbilityIndex = INDEX_NONE;
+	Reattore->PlannedCell = Reattore->Cell;
+
+	RunEquipTurn(TM);
+
+	// La prova: si è spostato, e **allontanandosi** dall'attaccante.
+	TestTrue(TEXT("chi reagisce non e' rimasto dov'era"), Reattore->Cell != FRTCellId(1, 0));
+	const int32 DistPrima = URTHexLibrary::HexDistance(FRTCellId(0, 0), FRTCellId(1, 0));
+	const int32 DistDopo = URTHexLibrary::HexDistance(FRTCellId(0, 0), Reattore->Cell);
+	TestTrue(TEXT("e si e' ALLONTANATO dall'attaccante, non avvicinato"), DistDopo > DistPrima);
+
+	// L'attaccante non si muove: `SelfReposition` sposta la sorgente della REAZIONE, e nessun altro.
+	TestEqual(TEXT("l'attaccante resta dov'era"), Attaccante->Cell, FRTCellId(0, 0));
+
+	DestroyEquipWorld(World);
 	return true;
 }
 

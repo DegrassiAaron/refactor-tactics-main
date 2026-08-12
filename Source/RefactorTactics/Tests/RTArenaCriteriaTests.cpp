@@ -333,6 +333,23 @@ bool FRTArenaV01MeetsCriteriaTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("ArenaV01 (%d celle):\n%s"),
 		Arena->NumCells(), *URTArenaCriteriaLibrary::FormatReport(Report)));
 
+	// Diagnostica: quali celle hanno un COSTO, cioe' quali producono un rilievo nella vista dell'editor.
+	// Serve a rispondere a «ne vedo N» senza contarle a occhio: celle costose adiacenti si leggono come un
+	// blocco solo, e la differenza fra «tre elementi» e «quattro celle» e' esattamente quel tipo di equivoco.
+	{
+		FString Costly;
+		int32 CostlyCount = 0;
+		for (const FRTHexCellData& C : Arena->Cells)
+		{
+			if (C.MoveCost > 1)
+			{
+				++CostlyCount;
+				Costly += FString::Printf(TEXT("(%d,%d)=%d "), C.Id.X, C.Id.Y, C.MoveCost);
+			}
+		}
+		AddInfo(FString::Printf(TEXT("celle con costo > 1: %d --> %s"), CostlyCount, *Costly));
+	}
+
 	// Diagnostica: DOVE passano le due rotte. Senza, correggere il layout sarebbe indovinare — e il fango
 	// finisce dove nessuno cammina.
 	{
@@ -351,6 +368,51 @@ bool FRTArenaV01MeetsCriteriaTest::RunTest(const FString&)
 	TestTrue(TEXT("copertura"), Report.Coverage.bPassed);
 	TestTrue(TEXT("costo"), Report.CostBite.bPassed);
 	TestTrue(TEXT("due rotte"), Report.TwoRoutes.bPassed);
+	TestTrue(TEXT("tutto raggiungibile"), Report.Reachability.bPassed);
+
+	// La piattaforma esiste, sta su un altro layer, ed e' collegata da UNA SOLA transizione: e' il passo 5 di
+	// U1, che nessun criterio verificava. Con due archi diventerebbe una scorciatoia e le rotte cambierebbero.
+	TestEqual(TEXT("una sola transizione (bidirezionale = due archi)"), Arena->Transitions.Num(), 2);
+	TArray<int32> Layers = Arena->GetLayers();
+	TestTrue(TEXT("esistono celle su almeno due layer"), Layers.Num() >= 2);
+	return true;
+}
+
+/**
+ * Togliere l'unica transizione rende la piattaforma IRRAGGIUNGIBILE, e il criterio deve accorgersene.
+ *
+ * E' la prova che `CheckReachability` guardi il grafo tattico e non i vicini planari: una piattaforma
+ * sovrapposta e' vicina nello spazio e lontana nel grafo, e confondere le due cose direbbe «ci si arriva»
+ * di una zona dove non ci si arriva.
+ *
+ * Verifica anche il numero: quante celle restano isolate, non solo che qualcosa non va.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArenaUnreachablePlatformTest,
+	"RefactorTactics.Arena.RemovingTheOnlyTransitionIsolatesThePlatform",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArenaUnreachablePlatformTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeArenaV01(GetTransientPackage());
+	if (!Arena) { return false; }
+
+	const int32 PlatformCells = Arena->CellsInLayer(1).Num();
+	TestTrue(TEXT("la piattaforma ha celle"), PlatformCells > 0);
+
+	// Con la transizione: tutto raggiungibile.
+	const FRTArenaCriteriaReport Before = URTArenaCriteriaLibrary::EvaluateWithDerivedSpawns(Arena);
+	TestTrue(TEXT("collegata -> raggiungibile"), Before.Reachability.bPassed);
+
+	// Senza: le celle della piattaforma restano isolate, ed e' un verdetto — non un errore di misura.
+	Arena->Transitions.Reset();
+	const FRTArenaCriteriaReport After = URTArenaCriteriaLibrary::EvaluateWithDerivedSpawns(Arena);
+	AddInfo(FString::Printf(TEXT("senza transizione: %s"), *After.Reachability.Detail));
+	TestFalse(TEXT("scollegata -> NON raggiungibile"), After.Reachability.bPassed);
+	TestFalse(TEXT("ed e' un verdetto, non un'impossibilita' di misurare"), After.Reachability.bNotEvaluable);
+	TestFalse(TEXT("e AllPassed cade con lui"), After.AllPassed());
+
+	// Il dettaglio riporta il numero giusto: correggere non deve essere una caccia.
+	TestTrue(TEXT("il dettaglio cita quante celle sono isolate"),
+		After.Reachability.Detail.Contains(FString::Printf(TEXT("%d celle"), PlatformCells)));
 	return true;
 }
 

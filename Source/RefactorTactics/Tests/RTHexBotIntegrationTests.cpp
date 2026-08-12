@@ -849,3 +849,64 @@ bool FRTHexBotRemembersLastKnownTest::RunTest(const FString&)
 	DestroyHexBotWorld(World);
 	return true;
 }
+
+// =====================================================================================================
+// `#601` — il BOT arma la reazione che ha.
+//
+// E' la meta' del produttore che nessuno scenario copre: uno scenario dichiara la reazione da se' (chiave
+// `reaction`), quindi passerebbe anche se il bot non la armasse mai. Senza questo test, la ragione per cui
+// `ReactionPlanning` e' diventata una capability disponibile — «esiste un produttore nel gioco» — resterebbe
+// un'affermazione senza verifica.
+//
+// Il costo di non averlo e' concreto: meta' delle unita' della v0.1 sono bot, e se non armassero mai una
+// reazione i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in partita.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotArmsItsReactionTest,
+	"RefactorTactics.Bot.ArmsItsReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotArmsItsReactionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 5);
+
+	// Bastion porta una reazione nel kit: una del roster vero, non costruita qui.
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, -3), /*bBot*/ true);
+	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-2, 3), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Bot || !Nemico || !TM) { DestroyHexBotWorld(World); return false; }
+
+	// Premessa: il bot possiede davvero una reazione. Senza, «non l'ha armata» sarebbe l'esito di un kit vuoto,
+	// e il test passerebbe per la ragione sbagliata il giorno in cui il roster cambia.
+	int32 Reazioni = 0;
+	for (int32 I = 0; I < Bot->NumAbilities(); ++I)
+	{
+		const URTActionData* A = Bot->GetAbility(I);
+		if (A && A->Def.Slot == ERTActionSlot::Reaction) { ++Reazioni; }
+	}
+	if (!TestTrue(TEXT("premessa: il bot ha almeno una reazione nel kit"), Reazioni > 0))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("prima della pianificazione lo slot e' vuoto"),
+		Bot->PlannedReactionAbility, static_cast<int32>(INDEX_NONE));
+
+	TM->PlanBotsForTest();
+
+	if (!TestNotEqual(TEXT("il bot ha armato la sua reazione"),
+		Bot->PlannedReactionAbility, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// E ha armato una REAZIONE, non un'azione qualunque finita nello slot sbagliato.
+	const URTActionData* Armata = Bot->GetAbility(Bot->PlannedReactionAbility);
+	TestTrue(TEXT("ed e' davvero una reazione"),
+		Armata != nullptr && Armata->Def.Slot == ERTActionSlot::Reaction);
+
+	DestroyHexBotWorld(World);
+	return true;
+}

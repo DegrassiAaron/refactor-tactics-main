@@ -179,6 +179,39 @@ FColor URTHexLibrary::SurfaceColor(ERTHexSurface Surface)
 	}
 }
 
+FVector URTHexLibrary::EdgeMidpointWorld(const FRTCellId& Cell, ERTHexDirection Dir, const FVector& Origin,
+	float HexSize, float LayerHeight)
+{
+	// Punto medio fra i due centri: derivato dalla convenzione delle direzioni, non da un angolo inciso.
+	const FVector Here = AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+	const FVector There = AxialToWorld(Neighbor(Cell, Dir), Origin, HexSize, LayerHeight);
+	return (Here + There) * 0.5;
+}
+
+FRotator URTHexLibrary::EdgeRotation(const FRTCellId& Cell, ERTHexDirection Dir)
+{
+	// Lo yaw si ricava dallo spostamento fra i due centri in coordinate-mondo. La scala non conta (e' una
+	// direzione), quindi si usano origine e dimensioni neutre: cio' che importa e' l'ANGOLO.
+	const FVector Here = AxialToWorld(Cell, FVector::ZeroVector, 100.f, 0.f);
+	const FVector There = AxialToWorld(Neighbor(Cell, Dir), FVector::ZeroVector, 100.f, 0.f);
+	return (There - Here).Rotation();
+}
+
+ERTHexDirection URTHexLibrary::OppositeDirection(ERTHexDirection Dir)
+{
+	// Le sei direzioni sono in ordine stabile 0..5 e diametralmente opposte a tre di distanza: E(0)<->W(3),
+	// NE(1)<->SW(4), NW(2)<->SE(5). Derivato dall'ordine, non da una tabella da tenere allineata.
+	return static_cast<ERTHexDirection>((static_cast<int32>(Dir) + 3) % 6);
+}
+
+float URTHexLibrary::ReliefHeightForCost(int32 MoveCost)
+{
+	// Il pavimento (costo 1) sta a zero: il rilievo misura il sovrapprezzo, non il costo assoluto. Costi
+	// minori di 1 non esistono a catalogo, ma un asset editato a mano puo' contenerli: si trattano come piani
+	// invece di produrre una buca, che direbbe «qui si va piu' veloci» — cosa che il gioco non prevede.
+	return FMath::Max(0, MoveCost - 1) * ReliefUnitHeight;
+}
+
 FColor URTHexLibrary::BlockedCellColor()
 {
 	return FColor(230, 40, 40); // rosso: non ci si passa

@@ -29,6 +29,51 @@ namespace
 	constexpr float RTCellFlatScale = 0.05f;
 	constexpr float RTCellTopZ = 50.f * RTCellFlatScale; // 2.5 uu
 
+	/**
+	 * Geometria dei volumi che mostrano le regole, in frazione del raggio della cella.
+	 *
+	 * Sono ANNIDATI e in ordine: contorno di superficie 0.85 (linea) > lastra della vista 0.75 > rilievo del
+	 * costo 0.60 > colonna del blocco 0.40. Una cella che dice tre cose insieme le mostra tutte e tre, invece
+	 * di nasconderne due sotto la terza — ed e' il criterio che tiene, non l'estetica.
+	 */
+	constexpr float RTSightSlabScale = 0.75f;
+	constexpr float RTBlockColumnScale = 0.40f;
+
+	/**
+	 * Altezze (uu). La lastra della vista e' BASSA di proposito: comunica «ci si passa sopra», che e' la cosa
+	 * piu' fraintesa della mappa. La colonna del blocco e' alta abbastanza da leggersi dall'alto, che e' la
+	 * vista di lavoro, e resta due ordini di grandezza sotto `LayerHeight` (250) per non confondersi con un
+	 * piano — stesso vincolo del rilievo di costo.
+	 *
+	 * ⚠️ **La lastra deve restare sotto `URTHexLibrary::ReliefUnitHeight` (15 uu)**, e non e' una
+	 * preferenza estetica. Lastra e rilievo sono CONCENTRICI e partono dalla stessa quota, e la lastra e'
+	 * la piu' larga: se la supera anche in altezza, la inghiotte. Il costo massimo del catalogo v0.1 e'
+	 * `2`, quindi il rilievo piu' alto che una mappa possa produrre e' esattamente `ReliefUnitHeight` —
+	 * il che rende il caso peggiore l'unico caso, e ogni cella costosa che blocca la vista smetterebbe di
+	 * dire quanto costa. A 16 uu succedeva; `HexMapActor.CostReliefSurvivesTheSightSlab` lo misura.
+	 */
+	constexpr float RTSightSlabHeight = 10.f;
+	constexpr float RTBlockColumnHeight = 55.f;
+
+	/**
+	 * Pannelli di bordo (cubo engine: 100 uu per lato, centrato). Lo spessore e' sottile perche' un bordo non
+	 * ha profondita': quello che deve comunicare e' DOVE sta e QUANTO e' alto.
+	 *
+	 * Le altezze seguono la semantica, non l'estetica:
+	 * - copertura BASSA ripara e lascia passare tutto -> un muretto che si scavalca con lo sguardo;
+	 * - copertura ALTA nega vista, passo e proiettili -> alta quanto la colonna di blocco, perche' fa la
+	 *   stessa cosa su un lato invece che su una cella;
+	 * - porta CHIUSA nega passo e vista -> piena, ed e' la piu' alta: e' una barriera, non un riparo;
+	 * - porta APERTA lascia passare -> una soglia bassa, che dice «qui c'e' una porta» senza dire «e' chiusa».
+	 *   Non disegnarla affatto nasconderebbe l'informazione piu' utile: che quel passaggio puo' chiudersi.
+	 */
+	constexpr float RTEdgePanelThickness = 0.10f;
+	constexpr float RTEdgePanelWidth = 0.92f;
+	constexpr float RTCoverLowHeight = 22.f;
+	constexpr float RTCoverHighHeight = 55.f;
+	constexpr float RTDoorClosedHeight = 70.f;
+	constexpr float RTDoorOpenHeight = 5.f;
+
 	/** Quote di disegno, tutte sopra la faccia del disco e in ordine di priorita' di lettura. */
 	constexpr float RTLiftSurface = RTCellTopZ + 0.5f;  // contorno della superficie (contesto)
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
@@ -52,6 +97,44 @@ ARTHexMapActor::ARTHexMapActor()
 	if (CylinderMesh.Succeeded())
 	{
 		Cells->SetStaticMesh(CylinderMesh.Object);
+	}
+
+	// Rilievo del costo: stessa mesh, ma SENZA collisione. E' la prima delle due difese — la seconda e'
+	// `IsPickOnSelectableCell`, che scarta i colpi su qualunque componente diverso da `Cells`. Serve entrambe:
+	// questa evita lavoro inutile al raycast, quella impedisce che una geometria futura rubi i click perche'
+	// qualcuno si e' dimenticato di questa riga.
+	Relief = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Relief"));
+	Relief->SetupAttachment(Cells);
+	Relief->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Relief->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Relief->CastShadow = false; // e' uno strumento di lettura, non scenografia: le ombre confonderebbero il profilo
+	if (CylinderMesh.Succeeded())
+	{
+		Relief->SetStaticMesh(CylinderMesh.Object);
+	}
+
+	// Volumi delle regole di blocco: stessa disciplina del rilievo — nessuna collisione, nessuna ombra.
+	Blockers = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Blockers"));
+	Blockers->SetupAttachment(Cells);
+	Blockers->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Blockers->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Blockers->CastShadow = false;
+	if (CylinderMesh.Succeeded())
+	{
+		Blockers->SetStaticMesh(CylinderMesh.Object);
+	}
+
+	// Pannelli di bordo: mesh PROPRIA. Un pannello non e' un cilindro schiacciato, e nessuna scala trasforma
+	// l'uno nell'altro — e' l'unico caso in cui un secondo componente aggiunge qualcosa.
+	EdgeFeatures = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("EdgeFeatures"));
+	EdgeFeatures->SetupAttachment(Cells);
+	EdgeFeatures->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	EdgeFeatures->SetCollisionResponseToAllChannels(ECR_Ignore);
+	EdgeFeatures->CastShadow = false;
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (CubeMesh.Succeeded())
+	{
+		EdgeFeatures->SetStaticMesh(CubeMesh.Object);
 	}
 }
 
@@ -110,6 +193,15 @@ void ARTHexMapActor::BeginDestroy()
 	Super::BeginDestroy();
 }
 #endif
+
+bool ARTHexMapActor::IsPickOnSelectableCell(const UPrimitiveComponent* HitComponent, int32 InstanceIndex) const
+{
+	// L'indice di istanza appartiene al componente COLPITO: va quindi validato contro quel componente, non
+	// contro l'actor che lo contiene. Le due condizioni sono una regola sola.
+	return HitComponent != nullptr
+		&& HitComponent == Cells.Get()
+		&& InstanceCells.IsValidIndex(InstanceIndex);
+}
 
 FRTCellId ARTHexMapActor::CellForInstance(int32 InstanceIndex) const
 {
@@ -346,12 +438,30 @@ void ARTHexMapActor::RebuildInstances()
 
 	Cells->ClearInstances();
 	InstanceCells.Reset();
+	if (Relief)
+	{
+		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Relief->SetStaticMesh(Mesh); }
+		Relief->ClearInstances();
+	}
+	if (Blockers)
+	{
+		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Blockers->SetStaticMesh(Mesh); }
+		Blockers->ClearInstances();
+	}
+	if (EdgeFeatures)
+	{
+		// La mesh dei bordi NON segue `CellMesh`: quella e' la mesh della cella, e un pannello non e' una cella.
+		EdgeFeatures->ClearInstances();
+	}
 
 	// Sorgente celle: l'asset se popolato, altrimenti un graybox demo (esagono pieno di raggio DemoRadius).
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
 	const float UseLayerH = MapAsset ? MapAsset->LayerHeight : LayerHeight;
 
-	// Filtro layer (H4): in ActiveOnly mostra solo il layer attivo, cosi' i piani sovrapposti non si confondono.
+	// Filtro layer (H4): solo AllLayers impila i piani; ActiveOnly e Focus tengono le ISTANZE sul solo layer
+	// attivo. La differenza fra i due e' di sola presentazione — Focus disegna gli altri piani a contorno
+	// (`RTHexEditor::DrawSurfaceOverlay`) — e sta fuori di qui apposta: i piani di contesto non devono
+	// diventare istanze, o tornerebbero ad avere collisione e a intercettare il click del pennello.
 	auto PassesLayerFilter = [this](int32 Layer)
 	{
 		return LayerView == ERTLayerViewMode::AllLayers || Layer == ActiveLayer;
@@ -359,10 +469,19 @@ void ARTHexMapActor::RebuildInstances()
 
 	TArray<FRTCellId> CellIds;
 	TArray<int32> Heights;
+	TArray<int32> MoveCosts;
+	TArray<bool> BlocksMove;
+	TArray<bool> BlocksSight;
+	// Puntatori alle celle d'asset per leggerne coperture e porte: sparsi, quindi la stragrande maggioranza
+	// delle celle non produce nulla. Nel ramo demo restano nulli — un graybox non ha bordi d'autore.
+	TArray<const FRTHexCellData*> EdgeSources;
 	if (MapAsset && MapAsset->NumCells() > 0)
 	{
 		CellIds.Reserve(MapAsset->NumCells());
 		Heights.Reserve(MapAsset->NumCells());
+		MoveCosts.Reserve(MapAsset->NumCells());
+		BlocksMove.Reserve(MapAsset->NumCells());
+		BlocksSight.Reserve(MapAsset->NumCells());
 		for (const FRTHexCellData& C : MapAsset->Cells)
 		{
 			if (!PassesLayerFilter(C.Id.Layer))
@@ -371,6 +490,10 @@ void ARTHexMapActor::RebuildInstances()
 			}
 			CellIds.Add(C.Id);
 			Heights.Add(C.Height);
+			MoveCosts.Add(C.TotalMoveCost()); // il rilievo mostra il costo VERO: una cella stretta si alza
+			BlocksMove.Add(C.bBlocksMovement);
+			BlocksSight.Add(C.bBlocksLineOfSight);
+			EdgeSources.Add(&C);
 		}
 	}
 	else if (DemoRadius > 0)
@@ -378,6 +501,10 @@ void ARTHexMapActor::RebuildInstances()
 		// Demo graybox sul layer attivo (visibile sia in AllLayers sia in ActiveOnly).
 		CellIds = URTHexLibrary::HexArea(FRTCellId(0, 0, ActiveLayer), DemoRadius);
 		Heights.Init(0, CellIds.Num());
+		MoveCosts.Init(1, CellIds.Num()); // il graybox non ha terreni: tutto pavimento, quindi piatto
+		BlocksMove.Init(false, CellIds.Num());
+		BlocksSight.Init(false, CellIds.Num());
+		EdgeSources.Init(nullptr, CellIds.Num());
 	}
 
 	// Cilindro engine: raggio 50 uu, mezza-altezza 50 uu. Scala X,Y per coprire ~l'esagono, Z sottile (disco).
@@ -392,6 +519,74 @@ void ARTHexMapActor::RebuildInstances()
 		const FTransform Xf(FRotator::ZeroRotator, World, FVector(PlanarScale, PlanarScale, FlatScale));
 		Cells->AddInstance(Xf, /*bWorldSpace=*/ true);
 		InstanceCells.Add(CellIds[I]);
+
+		// Rilievo del costo: un blocco alto quanto il SOVRAPPREZZO della cella. Il pavimento non ne produce
+		// nessuno — una mappa senza terreni costosi resta piatta, ed e' giusto: non c'e' niente da segnalare.
+		const float ReliefHeight = URTHexLibrary::ReliefHeightForCost(MoveCosts[I]);
+		if (Relief && ReliefHeight > 0.f)
+		{
+			// Poggia sulla faccia del disco e cresce verso l'alto; il cilindro engine e' CENTRATO, quindi il
+			// suo centro sta a meta' altezza. Piu' stretto della cella (0.6) per non coprire il contorno
+			// colorato della superficie, che resta il canale del *tipo* di terreno.
+			FVector ReliefCenter = World;
+			ReliefCenter.Z += RTCellTopZ + ReliefHeight * 0.5;
+			const FTransform ReliefXf(FRotator::ZeroRotator, ReliefCenter,
+				FVector(PlanarScale * 0.6f, PlanarScale * 0.6f, ReliefHeight / 100.f));
+			Relief->AddInstance(ReliefXf, /*bWorldSpace=*/ true);
+		}
+
+		// Volumi delle due regole. Sono INDIPENDENTI: una cella puo' averne una, l'altra o entrambe, e in
+		// quest'ultimo caso si vedono tutte e due — la lastra larga e bassa attorno alla colonna stretta e
+		// alta. Confonderle e' l'errore piu' frequente su questa mappa: una cella che blocca la vista si
+		// ATTRAVERSA, ed e' cio' che serve a una rotta coperta ma percorribile.
+		if (Blockers)
+		{
+			auto AddVolume = [&](float PlanarFraction, float VolumeHeight)
+			{
+				FVector Center = World;
+				Center.Z += RTCellTopZ + VolumeHeight * 0.5;
+				const FTransform VolumeXf(FRotator::ZeroRotator, Center,
+					FVector(PlanarScale * PlanarFraction, PlanarScale * PlanarFraction, VolumeHeight / 100.f));
+				Blockers->AddInstance(VolumeXf, /*bWorldSpace=*/ true);
+			};
+
+			if (BlocksSight[I]) { AddVolume(RTSightSlabScale, RTSightSlabHeight); }
+			if (BlocksMove[I])  { AddVolume(RTBlockColumnScale, RTBlockColumnHeight); }
+		}
+
+		// Pannelli di BORDO: coperture e porte. Il punto e l'orientamento si CHIEDONO alla libreria
+		// (`EdgeMidpointWorld`, `EdgeRotation`), che li deriva dai due centri di cella: se la convenzione dei
+		// sei lati cambiasse, la geometria seguirebbe invece di mentire.
+		if (EdgeFeatures && EdgeSources[I])
+		{
+			const FRTHexCellData& Data = *EdgeSources[I];
+			auto AddEdgePanel = [&](ERTHexDirection Edge, float PanelHeight)
+			{
+				FVector Center = URTHexLibrary::EdgeMidpointWorld(CellIds[I], Edge, GetActorLocation(),
+					UseHexSize, UseLayerH);
+				Center.Z += static_cast<double>(Heights[I]) + RTCellTopZ + PanelHeight * 0.5;
+				// Il cubo engine e' 100 uu per lato: X sottile (spessore), Y lungo il bordo, Z l'altezza.
+				const FTransform PanelXf(URTHexLibrary::EdgeRotation(CellIds[I], Edge), Center,
+					FVector(RTEdgePanelThickness,
+						UseHexSize / 100.f * RTEdgePanelWidth,
+						PanelHeight / 100.f));
+				EdgeFeatures->AddInstance(PanelXf, /*bWorldSpace=*/ true);
+			};
+
+			for (const FRTHexCover& Cover : Data.Covers)
+			{
+				if (Cover.Type == ERTHexCoverType::None) { continue; }
+				AddEdgePanel(Cover.Edge,
+					Cover.Type == ERTHexCoverType::High ? RTCoverHighHeight : RTCoverLowHeight);
+			}
+			for (const FRTHexDoor& Door : Data.Doors)
+			{
+				// `Destroyed` e' terminale e non si richiude: si mostra come aperta, perche' e' cio' che e'.
+				const bool bBlocking = (Door.State == ERTHexDoorState::Closed
+					|| Door.State == ERTHexDoorState::Locked);
+				AddEdgePanel(Door.Edge, bBlocking ? RTDoorClosedHeight : RTDoorOpenHeight);
+			}
+		}
 	}
 }
 
@@ -421,25 +616,39 @@ void ARTHexMapActor::GenerateIntoAsset()
 
 void ARTHexMapActor::GenerateArenaV01IntoAsset()
 {
+	// Scorciatoia per la fixture piu' usata: la seduta U1 la nomina, e cambiarle nome costringerebbe a
+	// riscrivere una guida per un pulsante che fa gia' la cosa giusta.
+	const FString Previous = FixtureId;
+	FixtureId = TEXT("ArenaV01");
+	GenerateFixtureIntoAsset();
+	FixtureId = Previous;
+}
+
+void ARTHexMapActor::GenerateFixtureIntoAsset()
+{
 	if (!MapAsset)
 	{
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato: assegnalo prima di generare."));
 		return;
 	}
-#if WITH_EDITOR
-	const FScopedTransaction Transaction(LOCTEXT("HexGenerateArenaV01", "Hex: Generate Arena v0.1"));
-#endif
 
-	const URTHexMapAsset* Source = URTMatchSetupLibrary::MakeArenaV01(GetTransientPackage());
+	const URTHexMapAsset* Source = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), FixtureId);
 	if (!Source)
 	{
-		UE_LOG(LogRT, Warning, TEXT("[HexMap] Generazione dell'arena v0.1 fallita."));
+		// Nome sconosciuto: non si tocca nulla. Svuotare l'asset per un refuso sarebbe il danno peggiore, e
+		// il messaggio dice QUALE nome non esiste invece di lamentarsi in astratto.
+		UE_LOG(LogRT, Warning,
+			TEXT("[HexMap] Fixture '%s' sconosciuta: asset invariato. Nomi validi: ArenaV01, RelayBasin, ")
+			TEXT("RelayLite, TestArena, CoverYard, DemoArena."), *FixtureId);
 		return;
 	}
 
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("HexGenerateFixture", "Hex: Generate Fixture"));
+#endif
 	MapAsset->Modify();
-	// Sostituisce, non fonde: mescolare il layout verificato con quello che c'era darebbe una mappa che non
-	// e' ne' l'una ne' l'altra, e i tre criteri smetterebbero di dire qualcosa su cio' che si ha davanti.
+	// Sostituisce, non fonde: mescolare una fixture con quello che c'era darebbe una mappa che non e' ne'
+	// l'una ne' l'altra, e i criteri smetterebbero di dire qualcosa su cio' che si ha davanti.
 	MapAsset->Cells.Reset();
 	MapAsset->Transitions.Reset();
 	for (const FRTHexCellData& Cell : Source->Cells)
@@ -450,8 +659,8 @@ void ARTHexMapActor::GenerateArenaV01IntoAsset()
 	MapAsset->SortCells();
 	MapAsset->MarkPackageDirty();
 	RebuildInstances();
-	UE_LOG(LogRT, Log, TEXT("[HexMap] Arena v0.1 scritta nell'asset: %d celle. Verifica con rt.Arena.Check."),
-		MapAsset->NumCells());
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Fixture '%s' scritta nell'asset: %d celle, %d transizioni."),
+		*FixtureId, MapAsset->NumCells(), MapAsset->Transitions.Num());
 }
 
 void ARTHexMapActor::ClearAsset()

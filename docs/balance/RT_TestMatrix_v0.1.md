@@ -1,7 +1,9 @@
 # RT — Matrice di test v0.1
 
 > `CURRENT` · **Ultimo aggiornamento**: 2026-08-08
-> **Fonte**: `docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf` §§10–12, §§14–16 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
+> **Fonte**: catalogo di bilanciamento v0.1 §§10–12, §§14–16 · PDR-12 — oggi in
+> [`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md) e
+> [`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
 > **Checkpoint**: CP 1.2 (issue `#28`) · **Consumatori**: CP 12.2 (matrice manuale, `#82`) e CP 12.3 (suite automatica, `#83`)
 > Le voci manuali confluiscono in [`test-manuali-pie.md`](../technical/test-manuali-pie.md) (sessione E); quelle
 > automatiche diventano test dell'Automation Framework.
@@ -99,7 +101,8 @@ stesso seed, stesse definizioni, stesso ordine**, per almeno **100 ripetizioni**
 identico.
 
 > ⚠️ **Una divergenza deliberata dal catalogo, dichiarata qui perché non si scopra dal `grep`.**
-> Il catalogo (`docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf`, p.24 §15) nomina il decimo test
+> Il catalogo ([`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md)
+> §15 «Automation Test previsti» — era `catalogo-e-bilanciamento-v0.1.pdf` p.24, convertito il 2026-08-12) nomina il decimo test
 > `RefactorTactics.Simulation.DeterministicReplay`, e il DoD di CP 12.1 (`#81`) lo chiamava «nome vincolante».
 > Dal 2026-08-11 il test si chiama **`RefactorTactics.Replay.Verifier.ResimulationIsDeterministic`**
 > ([D-103](../decisions/RT_PDR_00_Decision_Log.md), [#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538)).

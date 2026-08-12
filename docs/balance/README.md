@@ -7,6 +7,25 @@
 > ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)); lo **stato di avanzamento** nella
 > [roadmap](../roadmap/roadmap-checkpoint.md) — questo README non lo duplica più.
 
+## ⚠️ Chi tocca una stat rigenera i radar, nello stesso commit
+
+I rating dei radar di personaggio **non sono scritti da nessuna parte**: si calcolano da questi cataloghi
+a ogni generazione ([D-106](../decisions/RT_PDR_00_Decision_Log.md)). Gli SVG in
+[`docs/characters/radar/`](../characters/radar/) sono **versionati con un gate**
+([D-108](../decisions/RT_PDR_00_Decision_Log.md)), quindi cambiare `Salute`, `Movimento`, un danno o un
+cooldown li rende **rossi** finché non vengono rigenerati.
+
+```sh
+node tools/radar/generate.ts           # riscrive i quattro SVG
+node tools/radar/generate.ts --check   # verifica, exit 1 se divergono
+```
+
+Serve **Node 22+** e nient'altro: nessun `npm install`, nessun build step. È il prezzo dichiarato di
+D-108 — la toolchain Node è un prerequisito del **bilanciamento**, non solo della documentazione.
+
+⚠️ **Gli SVG non si editano a mano.** Sono output: la correzione si fa qui o sulla rubrica
+(`tools/radar/`).
+
 ## Quali file sono normativi
 
 | File | Possiede | Autorevole? |
@@ -77,6 +96,7 @@ Elencate in fondo a ogni file, col motivo. La principale: le macro-fasi restano 
 dell'attacco. I codici di fase del catalogo sopravvivono come attributo dell'azione
 ([ADR-0003 §3](../decisions/adr-0003-modello-azioni-v01.md)).
 
-**Fonte**: `docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf` e
-`docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`, adottati con
-[ADR-0003](../decisions/adr-0003-modello-azioni-v01.md).
+**Fonte**: il catalogo di bilanciamento v0.1 e il PDR-12, adottati con
+[ADR-0003](../decisions/adr-0003-modello-azioni-v01.md). Erano due PDF; dal 2026-08-12 il loro testo è in
+[`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md) e
+[`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md).

@@ -1,4 +1,5 @@
 #include "Turn/RTReactionLibrary.h"
+#include "Core/RTGameplayTags.h" // TAG_Status_Root/Slow: la lista degli stati di controllo (CP 7.5)
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
@@ -24,6 +25,16 @@ namespace
 		case ERTActionEffect::Heal:
 		case ERTActionEffect::Shield:
 		case ERTActionEffect::DamageReduction:
+		// `SelfReposition` e `CancelDisplacement` sono difensivi per DEFINIZIONE: il primo sposta chi
+		// reagisce, il secondo annulla lo spostamento che sta per subire. Puntarli a chi ha innescato
+		// significherebbe spostare l'attaccante, che e' `Push` — un effetto che esiste gia' ed e' un'altra cosa.
+		case ERTActionEffect::SelfReposition:
+		case ERTActionEffect::CancelDisplacement:
+		case ERTActionEffect::CancelStatus:
+		// Le due che non colpiscono un'unita': una reazione non le dichiara oggi, ma senza i loro `case` lo
+		// switch non era esaustivo e il commento qui sopra prometteva una garanzia che non dava.
+		case ERTActionEffect::DamageStructure:
+		case ERTActionEffect::SetDoorState:
 			return false; // difendere SE STESSI
 		}
 		return false;
@@ -105,6 +116,42 @@ int32 URTReactionLibrary::FindInterceptableHit(int32 SelfId, int32 InterceptRang
 		return h;
 	}
 	return INDEX_NONE;
+}
+
+ERTReactionPassPoint URTReactionLibrary::PassPointFor(ERTReactionTrigger Trigger)
+{
+	// Senza `default`: e' l'unica forma che rende impossibile aggiungere un trigger e dimenticarsi di dire
+	// dove viene valutato. Con un `default` il trigger nuovo compilerebbe, non scatterebbe mai, e il suo test
+	// sul catalogo resterebbe verde — il modo esatto in cui i tre moduli di `#505` sono rimasti fermi.
+	switch (Trigger)
+	{
+	case ERTReactionTrigger::None:
+		return ERTReactionPassPoint::Never;
+	case ERTReactionTrigger::HitByDirectAttack:
+		return ERTReactionPassPoint::BlastHits;
+	case ERTReactionTrigger::AllyHitByDirectAttack:
+		return ERTReactionPassPoint::BlastIntercept;
+	case ERTReactionTrigger::AboutToBeDisplaced:
+		return ERTReactionPassPoint::BlastDisplacement;
+	case ERTReactionTrigger::AboutToReceiveControl:
+		return ERTReactionPassPoint::BlastStatus;
+	case ERTReactionTrigger::CellBecameHazardous:
+		return ERTReactionPassPoint::CleanupSurfaceBirth;
+	}
+	return ERTReactionPassPoint::Never;
+}
+
+const TArray<FGameplayTag>& URTReactionLibrary::ControlStatusesBySeverity()
+{
+	// `static` e non ricostruito a ogni chiamata: e' consultato una volta per stato in arrivo, dentro il
+	// Blast. L'ordine E' il contratto — vedi il commento nell'header.
+	static const TArray<FGameplayTag> Controls = { TAG_Status_Root, TAG_Status_Slow };
+	return Controls;
+}
+
+int32 URTReactionLibrary::ControlSeverityRank(const FGameplayTag& Tag)
+{
+	return ControlStatusesBySeverity().IndexOfByKey(Tag);
 }
 
 TArray<FRTActionEvent> URTReactionLibrary::BuildReactionEvents(const FRTActionDef& Def, int32 SelfId,

@@ -76,7 +76,7 @@ FRTArenaCriterionResult URTArenaCriteriaLibrary::CheckCostBite(const URTHexMapAs
 	{
 		if (const FRTHexCellData* Cell = Map->FindCell(Path.Path[i]))
 		{
-			MaxCellCost = FMath::Max(MaxCellCost, Cell->MoveCost);
+			MaxCellCost = FMath::Max(MaxCellCost, Cell->TotalMoveCost());
 		}
 	}
 
@@ -172,6 +172,61 @@ FRTArenaCriterionResult URTArenaCriteriaLibrary::CheckTwoRoutes(const URTHexMapA
 		: FRTArenaCriterionResult::Fail(Detail);
 }
 
+FRTArenaCriterionResult URTArenaCriteriaLibrary::CheckReachability(const URTHexMapAsset* Map,
+	const FRTCellId& SpawnA)
+{
+	if (!Map || !Map->ContainsCell(SpawnA))
+	{
+		return FRTArenaCriterionResult::NotEvaluable(TEXT("mappa nulla o spawn assente"));
+	}
+
+	// Visita in ampiezza sul GRAFO TATTICO, non sui vicini planari: e' `GraphNeighbors` a sapere che i layer si
+	// collegano solo con archi espliciti. Usare i sei vicini direbbe che una piattaforma sovrapposta e'
+	// raggiungibile perche' sta sopra — che e' esattamente l'errore che questo criterio deve scoprire.
+	TSet<FRTCellId> Seen;
+	TArray<FRTCellId> Frontier;
+	Seen.Add(SpawnA);
+	Frontier.Add(SpawnA);
+	while (Frontier.Num() > 0)
+	{
+		const FRTCellId Current = Frontier.Pop();
+		for (const TPair<FRTCellId, int32>& Next : URTHexPathLibrary::GraphNeighbors(Map, Current))
+		{
+			if (!Seen.Contains(Next.Key))
+			{
+				Seen.Add(Next.Key);
+				Frontier.Add(Next.Key);
+			}
+		}
+	}
+
+	// Le celle che bloccano il movimento non sono «irraggiungibili»: sono muri, e nessuno deve arrivarci.
+	// L'ordine di iterazione e' quello stabile dell'asset, quindi l'elenco riportato non dipende da una TSet.
+	TArray<FRTCellId> Unreachable;
+	for (const FRTHexCellData& Cell : Map->Cells)
+	{
+		if (!Cell.bBlocksMovement && !Seen.Contains(Cell.Id))
+		{
+			Unreachable.Add(Cell.Id);
+		}
+	}
+
+	if (Unreachable.Num() == 0)
+	{
+		return FRTArenaCriterionResult::Pass(FString::Printf(
+			TEXT("tutte le %d celle percorribili sono raggiungibili"), Seen.Num()));
+	}
+
+	FString First;
+	for (int32 I = 0; I < FMath::Min(4, Unreachable.Num()); ++I)
+	{
+		First += FString::Printf(TEXT("(%d,%d,L%d) "), Unreachable[I].X, Unreachable[I].Y, Unreachable[I].Layer);
+	}
+	return FRTArenaCriterionResult::Fail(FString::Printf(
+		TEXT("%d celle percorribili NON raggiungibili dagli spawn: %s%s"),
+		Unreachable.Num(), *First, Unreachable.Num() > 4 ? TEXT("...") : TEXT("")));
+}
+
 FRTArenaCriteriaReport URTArenaCriteriaLibrary::Evaluate(const URTHexMapAsset* Map,
 	const FRTCellId& SpawnA, const FRTCellId& SpawnB, int32 MoveBudget, float MaxCostRatio, float MinExposureGap)
 {
@@ -181,6 +236,7 @@ FRTArenaCriteriaReport URTArenaCriteriaLibrary::Evaluate(const URTHexMapAsset* M
 	Report.Coverage = CheckCoverage(Map, SpawnA, SpawnB);
 	Report.CostBite = CheckCostBite(Map, SpawnA, SpawnB, MoveBudget);
 	Report.TwoRoutes = CheckTwoRoutes(Map, SpawnA, SpawnB, MaxCostRatio, MinExposureGap);
+	Report.Reachability = CheckReachability(Map, SpawnA);
 	return Report;
 }
 
@@ -198,6 +254,7 @@ FRTArenaCriteriaReport URTArenaCriteriaLibrary::EvaluateWithDerivedSpawns(const 
 		Report.Coverage = FRTArenaCriterionResult::NotEvaluable(Why);
 		Report.CostBite = FRTArenaCriterionResult::NotEvaluable(Why);
 		Report.TwoRoutes = FRTArenaCriterionResult::NotEvaluable(Why);
+		Report.Reachability = FRTArenaCriterionResult::NotEvaluable(Why);
 		return Report;
 	}
 
@@ -217,10 +274,12 @@ FString URTArenaCriteriaLibrary::FormatReport(const FRTArenaCriteriaReport& Repo
 		TEXT("spawn (%d,%d,%d) <-> (%d,%d,%d)\n")
 		TEXT("  %s copertura : %s\n")
 		TEXT("  %s costo     : %s\n")
-		TEXT("  %s rotte     : %s"),
+		TEXT("  %s rotte     : %s\n")
+		TEXT("  %s raggiung. : %s"),
 		Report.SpawnA.X, Report.SpawnA.Y, Report.SpawnA.Layer,
 		Report.SpawnB.X, Report.SpawnB.Y, Report.SpawnB.Layer,
 		Mark(Report.Coverage), *Report.Coverage.Detail,
 		Mark(Report.CostBite), *Report.CostBite.Detail,
-		Mark(Report.TwoRoutes), *Report.TwoRoutes.Detail);
+		Mark(Report.TwoRoutes), *Report.TwoRoutes.Detail,
+		Mark(Report.Reachability), *Report.Reachability.Detail);
 }

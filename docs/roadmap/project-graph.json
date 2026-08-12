@@ -43,7 +43,8 @@
       "[RT-FEAT-MAP-WATER-DYNAMICS] nessuna pagina Wiki collegata",
       "[RT-FEAT-MAP-STRUCTURAL] nessuna pagina Wiki collegata",
       "[RT-FEAT-MAP-VERTICALITY] nessuna pagina Wiki collegata",
-      "[RT-FEAT-ACTION-COOLDOWNS] feature di gameplay TESTABLE senza scenario che la dimostri",
+      "[RT-FEAT-ACTION-MOVEMENT-COMPAT] 4 scenario/i dichiarati planned: Spec.ActionEconomy.MoveImpairsPrecision, Spec.ActionEconomy.SprintBlocksPrecision, Spec.ActionEconomy.SprintEnhancesMomentum, Spec.ActionEconomy.PathLengthChangesEffect",
+      "[RT-FEAT-ACTION-PLAN-VALIDATION] 1 scenario/i dichiarati planned: Spec.ActionEconomy.OverwatchReservesMovementSlot",
       "[RT-FEAT-ACTION-DELAYED] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-TRAPS] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-EQUIPMENT] nessuna pagina Wiki collegata",
@@ -58,8 +59,7 @@
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
       "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
       "[RT-FEAT-STRESS-4V4] 1 scenario/i dichiarati planned: Stress.4v4.CoreRoster",
-      "[RT-FEAT-BOT-FAIRNESS] feature di gameplay TESTABLE senza scenario che la dimostri",
-      "[RT-FEAT-BOT-FAIRNESS] 3 scenario/i dichiarati planned: Spec.Bot.HiddenEnemyFairness, Spec.Bot.DecoyNoiseIndistinguishable, Spec.Bot.PlansOnPartialKnowledge",
+      "[RT-FEAT-BOT-FAIRNESS] 1 scenario/i dichiarati planned: Spec.Bot.DecoyNoiseIndistinguishable",
       "[RT-FEAT-BOT-TACTICAL] 5 scenario/i dichiarati planned: Spec.Bot.TeamPlanRejectsHardConflict, Spec.Bot.CandidateDiversityKeepsControl, Spec.Bot.TemporalSynergyRequiresPhaseOrder, Spec.Bot.OverkillMovesSecondUnit, Spec.Bot.PlanHysteresisIgnoresSmallDelta",
       "[RT-FEAT-BOT-BELIEF] 3 scenario/i dichiarati planned: Spec.Bot.BeliefDoesNotBecomeKnowledge, Spec.Bot.GraphRevisionInvalidatesBelief, Spec.Bot.InformationGainIgnoresHiddenContent",
       "[RT-FEAT-BOT-PREDICTIVE] 2 scenario/i dichiarati planned: Spec.Bot.RobustPlanSurvivesFlank, Spec.Bot.HoldOnUnaccountedThreat",
@@ -241,7 +241,7 @@
     "E7.1": "⏳",
     "E7.2": "✅",
     "E7.3": "✅",
-    "E7.5": "⏳",
+    "E7.5": "✅",
     "E7.4": "🟡",
     "E8.1": "⏳",
     "E8.2": "⏳",
@@ -262,6 +262,7 @@
     "E11.4": "⏳",
     "E11.5": "⏳",
     "E11.6": "⏳",
+    "E11.7": "⏳",
     "E12.1": "✅",
     "E12.2": "⏳",
     "E12.3": "⏳",
@@ -272,7 +273,7 @@
     "E13.2": "⏳",
     "E13.3": "⏳",
     "E13.4": "⏳",
-    "E13.5": "⏳",
+    "E13.5": "🟡",
     "E14.1": "✅",
     "E14.2": "⏳",
     "E14.3": "⏳",
@@ -310,7 +311,7 @@
       "critical": false,
       "state": "🟡",
       "queue_group": "READY",
-      "produces": "verdetto su cinque voci che non attendono nulla",
+      "produces": "verdetto su nove voci che non attendono nulla",
       "artifacts": [],
       "unblocked_by": [],
       "unblocks": [],
@@ -335,29 +336,47 @@
         {
           "id": "PIE-HEX-TRANS",
           "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-LAYER-FOCUS",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-LAYER-CLICK",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-LAYER-PANEL",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-V01-REACTCOND",
+          "state": "⏳"
         }
       ],
       "issues": [
-        450
+        450,
+        567,
+        583
       ],
-      "done_when": "le cinque voci hanno esito reale nel registro"
+      "done_when": "le nove voci hanno esito reale nel registro"
     },
     {
       "id": "U1",
       "title": "Mappa-arena hex",
       "block": 1,
       "critical": true,
-      "state": "⏳",
+      "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "`DA_HexMap_Arena` e `L_HexArena`, committati",
       "artifacts": [
         {
           "path": "Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset",
-          "tracked": false
+          "tracked": true
         }
       ],
       "unblocked_by": [
@@ -696,19 +715,19 @@
       "artifacts": [
         {
           "path": "Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset",
-          "tracked": false
+          "tracked": true
         }
       ],
       "unblocked_by": [],
@@ -723,7 +742,7 @@
       "verifies": [
         {
           "id": "PIE-AS2",
-          "state": "⏳"
+          "state": "🟡"
         },
         {
           "id": "PIE-FACING",
@@ -942,7 +961,7 @@
         {
           "ref": "U1",
           "resolved": false,
-          "state": "⏳",
+          "state": "🟡",
           "kind": "seduta"
         }
       ],
@@ -1094,7 +1113,7 @@
         {
           "ref": "U1",
           "resolved": false,
-          "state": "⏳",
+          "state": "🟡",
           "kind": "seduta"
         },
         {
@@ -1221,6 +1240,33 @@
       ],
       "issues": [],
       "done_when": "la voce ha un esito reale nel registro, in un verso o nell'altro"
+    },
+    {
+      "id": "U21",
+      "title": "Luci del graybox e inquadratura della mappa",
+      "block": 6,
+      "critical": false,
+      "state": "⏳",
+      "queue_group": "READY",
+      "produces": "verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato",
+      "artifacts": [],
+      "unblocked_by": [],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [
+        {
+          "id": "PIE-MAPED-LIGHT",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-MAPED-FRAME",
+          "state": "⏳"
+        }
+      ],
+      "issues": [
+        623
+      ],
+      "done_when": "le due voci hanno un esito reale e il livello illuminato e' committato"
     }
   ],
   "editor_queue": {
@@ -1237,7 +1283,8 @@
       "U15"
     ],
     "READY": [
-      "U18"
+      "U18",
+      "U21"
     ],
     "WAITING": [
       "U11",
@@ -1272,7 +1319,7 @@
     },
     {
       "id": "PIE-AS2",
-      "state": "⏳"
+      "state": "🟡"
     },
     {
       "id": "PIE-AS4a",
@@ -1336,6 +1383,18 @@
     },
     {
       "id": "PIE-HEX-LAYER",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-LAYER-CLICK",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-LAYER-FOCUS",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-LAYER-PANEL",
       "state": "⏳"
     },
     {
@@ -1460,6 +1519,14 @@
     },
     {
       "id": "PIE-ICON-01",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-MAPED-FRAME",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-MAPED-LIGHT",
       "state": "⏳"
     },
     {
@@ -1633,6 +1700,10 @@
     {
       "id": "PIE-V01-PUSH",
       "state": "🟡"
+    },
+    {
+      "id": "PIE-V01-REACTCOND",
+      "state": "⏳"
     },
     {
       "id": "PIE-V01-READY",
@@ -1825,6 +1896,25 @@
       "path": "Scenarios/RT_Showcase_Relay_v01.json"
     },
     {
+      "id": "Spec.ActionEconomy.CooldownBlocksWithSlotFree",
+      "requires": [],
+      "path": "Scenarios/Spec/ActionEconomy/CooldownBlocksWithSlotFree.json"
+    },
+    {
+      "id": "Spec.Bot.HiddenEnemyFairness",
+      "requires": [
+        "BotPlanning"
+      ],
+      "path": "Scenarios/Spec/Bot/HiddenEnemyFairness.json"
+    },
+    {
+      "id": "Spec.Bot.PlansOnPartialKnowledge",
+      "requires": [
+        "BotPlanning"
+      ],
+      "path": "Scenarios/Spec/Bot/PlansOnPartialKnowledge.json"
+    },
+    {
       "id": "Spec.Brace.BraceWinsOnSecondHit",
       "requires": [],
       "path": "Scenarios/Spec/Brace/BraceWinsOnSecondHit.json"
@@ -1926,6 +2016,20 @@
       "path": "Scenarios/Spec/Facing/FrontAttackKeepsGuard.json"
     },
     {
+      "id": "Spec.Facing.FrontHitOnCoverIsSilent",
+      "requires": [
+        "CreateCover"
+      ],
+      "path": "Scenarios/Spec/Facing/FrontHitOnCoverIsSilent.json"
+    },
+    {
+      "id": "Spec.Facing.RearHitOnCoverIsTraced",
+      "requires": [
+        "CreateCover"
+      ],
+      "path": "Scenarios/Spec/Facing/RearHitOnCoverIsTraced.json"
+    },
+    {
       "id": "Spec.Facing.TargetingReorients",
       "requires": [],
       "path": "Scenarios/Spec/Facing/TargetingReorients.json"
@@ -1941,6 +2045,11 @@
         "EnvironmentalActionOwner"
       ],
       "path": "Scenarios/Spec/Map/BridgeBreaksThePath.json"
+    },
+    {
+      "id": "Spec.Map.ConstrainedCellCostsMore",
+      "requires": [],
+      "path": "Scenarios/Spec/Map/ConstrainedCellCostsMore.json"
     },
     {
       "id": "Spec.Movement.AntiDashTriggerIgnoresMove",
@@ -2002,6 +2111,13 @@
         "PredictiveAction"
       ],
       "path": "Scenarios/Spec/Predictive/WhiffOnEmptyCell.json"
+    },
+    {
+      "id": "Spec.Reaction.AnchorCancelsPush",
+      "requires": [
+        "ReactionPlanning"
+      ],
+      "path": "Scenarios/Spec/Reaction/AnchorCancelsPush.json"
     },
     {
       "id": "Visual.Combat.BraceReducesEveryHit",
@@ -2114,6 +2230,7 @@
     }
   ],
   "capabilities": [
+    "BotPlanning",
     "Cover",
     "CreateCover",
     "Environment",
@@ -2121,6 +2238,7 @@
     "FixtureReference",
     "PredictiveAction",
     "Reaction",
+    "ReactionPlanning",
     "Structures"
   ]
 }

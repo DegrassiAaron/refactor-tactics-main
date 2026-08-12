@@ -795,6 +795,27 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 		return;
 	}
 
+	// REAZIONE (`#601`): slot proprio, e va dichiarata prima degli altri due rami. Senza questo ramo una
+	// reazione selezionata finiva nello slot PRINCIPALE — dove il pass delle reazioni non la guarda mai — o
+	// apriva un targeting per un bersaglio che una reazione non ha: chi subira' la reazione lo decide il
+	// trigger durante la risoluzione, non il giocatore in pianificazione.
+	//
+	// E' l'anello che mancava alla catena di E5: il campo, le regole, i cinque punti di valutazione e i sette
+	// moduli esistevano, ma `PlannedReactionAbility` lo scrivevano **solo i test**.
+	if (Ability->Def.Slot == ERTActionSlot::Reaction)
+	{
+		if (!Unit->CanUseAbility(Index))
+		{
+			// Il rifiuto e' DETTO: una reazione in ricarica che sparisse in silenzio lascerebbe il giocatore
+			// convinto di averla armata, e la scoperta arriverebbe a turno risolto.
+			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta: reazione non armata"), *Ability->DisplayName.ToString());
+			return;
+		}
+		Unit->PlannedReactionAbility = Index;
+		UE_LOG(LogRT, Log, TEXT("[RT] %s arma %s (reazione)"), *Unit->GetName(), *Ability->DisplayName.ToString());
+		return;
+	}
+
 	if (Ability->bSelfTarget)
 	{
 		// Supporto: si pianifica immediatamente su se stessi (nessun bersaglio da cliccare).

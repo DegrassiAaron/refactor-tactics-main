@@ -5,7 +5,7 @@
 > [`../product/piano-canonico-mvp.md`](../product/piano-canonico-mvp.md),
 > [`../decisions/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md) e gli ADR applicabili.
 
-Qui vive il materiale **in ingresso** che non è ancora stato consumato: i PDF originari da cui è nato il
+Qui vive il materiale **in ingresso** che non è ancora stato consumato: i PRD originari da cui è nato il
 progetto, i dataset ancora in uso e le immagini a cui la documentazione punta. Un documento entra così com'è;
 diventa vincolante solo quando un **owner documentale** lo recepisce (un brief in `../gameplay/`, una spec in
 `../technical/`, un ADR in `../decisions/`).
@@ -36,7 +36,7 @@ correzione è una nota `⚠️` accanto all'affermazione sbagliata, mai una modi
 
 ```
 docs/src/
-├── prd/       11  PDF/docx originari: PRD, roadmap, idee di partenza
+├── prd/        5  PRD e prompt sorgente, tutti in Markdown
 ├── design/    27  mockup e sorgenti grafici: fazioni, infografiche, UI
 ├── media/     28  icone fazioni, icone e mockup HUD, infografiche
 ├── showcase/   5  scenario «Relay Basin» v0.1: spec, draft JSON, mappe
@@ -49,25 +49,47 @@ docs/src/
 > — dove appartiene, accanto alle 44 schede che lo citano — e il cheatsheet è
 > [`../superclaude-cheatsheet.md`](../superclaude-cheatsheet.md), perché non era un sorgente di progetto.
 
-## `prd/` — documenti originari
+## `prd/` — i PRD originari, consolidati per tema
 
-| File | Contenuto | Recepito da |
-|---|---|---|
-| [`catalogo-e-bilanciamento-v0.1.pdf`](prd/catalogo-e-bilanciamento-v0.1.pdf) | Catalogo azioni/eroi/equip/terreni + matrice di test | tutti i `../balance/`, ADR-0003, roadmap v0.1 |
-| [`editor-griglia-esagonale-e-mappa.docx`](prd/editor-griglia-esagonale-e-mappa.docx) | Griglia esagonale ed editor mappa | ADR-0002, `../roadmap/hex-map-roadmap.md` |
-| [`sequenza-risoluzione-turno.pdf`](prd/sequenza-risoluzione-turno.pdf) | Sequenza di risoluzione del turno | `../gameplay/spec-anima-risoluzione.md` |
-| [`idee-base.pdf`](prd/idee-base.pdf) | Idee fondative del progetto | `../archive/gameplay/spec-terreni.md` |
-| [`prd-intenti-condivisi.pdf`](prd/prd-intenti-condivisi.pdf) | PRD — intenti condivisi | — |
-| [`prd-personaggi-e-combattimento-reattivo.pdf`](prd/prd-personaggi-e-combattimento-reattivo.pdf) | PRD — personaggi e combattimento reattivo | — |
-| [`prd-roadmap-e-percorso-didattico.pdf`](prd/prd-roadmap-e-percorso-didattico.pdf) | PRD + roadmap + percorso didattico UE | — |
-| [`prd-e-piano-di-sviluppo.pdf`](prd/prd-e-piano-di-sviluppo.pdf) | PRD e piano completo di sviluppo | — |
-| [`prd-stampabile.pdf`](prd/prd-stampabile.pdf) | PRD, versione stampabile | — |
-| [`idee-ruoli-characters.pdf`](prd/idee-ruoli-characters.pdf) | Idee sui ruoli dei personaggi | — |
-| [`guida-trovare-asset-free.pdf`](prd/guida-trovare-asset-free.pdf) | Guida operativa: reperire asset gratuiti | — |
+> ⚠️ **Cambio di regola — 2026-08-12.** Fino a oggi qui vivevano **dieci PDF e un `.docx`**, e questo README diceva: «I PDF
+> **non si archiviano**». La regola confondeva due cose diverse — *dove* sta un sorgente e *in che formato*. La
+> posizione non cambia: i PRD restano qui, restano livello 8, restano *visione north-star* consultata di
+> continuo. Cambia il formato: **il testo vive in Markdown**, per la stessa ragione registrata in
+> [D-009](../decisions/RT_PDR_00_Decision_Log.md) e prescritta da PDR-00 §6 #5 — *«i PDF sono snapshot di
+> consultazione: le sorgenti testuali devono vivere nel repository Git»*. Un PDF non si diffa, non si `grep`-a
+> e non si cita per riga: dieci binari da 2,5 MB rendevano invisibile metà della gerarchia delle fonti.
+>
+> Gli undici binari sono stati rimossi dal working tree e restano nella storia Git — comando di recupero in
+> fondo a questa sezione. **In `docs/` non c'è più prosa in formato binario.**
 
-> I PDF **non si archiviano**: descrivono un prodotto più ambizioso dello scope corrente e sono il livello 8
-> della gerarchia delle fonti — *visione north-star*, consultata di continuo. Vanno letti come direzione, non
-> come backlog.
+| File | Cosa contiene | Da quali PDF | Recepito da |
+|---|---|---|---|
+| [`prd-visione-e-requisiti.md`](prd/prd-visione-e-requisiti.md) | Visione, obiettivi, perimetro, requisiti funzionali del gioco, idee fondative | `idee-base` · `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` | canone §2/§5/§8 · `../archive/gameplay/spec-terreni.md` (solo `idee-base`) |
+| [`prd-architettura-rete-e-intenti.md`](prd/prd-architettura-rete-e-intenti.md) | Architettura, stack, networking, modello dati, modding, **PRD «Intenti condivisi» completo** | `prd-intenti-condivisi` · `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` | canone §5 (invarianti) — **il PRD Intenti condivisi è ancora da recepire** |
+| [`prd-personaggi-azioni-e-bilanciamento.md`](prd/prd-personaggi-azioni-e-bilanciamento.md) | Roster, azioni, terreni, coperture, equipaggiamento, catalogo di bilanciamento | `prd-personaggi-e-combattimento-reattivo` · `idee-ruoli-characters` · `catalogo-e-bilanciamento-v0.1` | tutti i `../balance/` · [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) · `../roadmap/roadmap-v0.1.md` |
+| [`prd-percorso-didattico-e-produzione.md`](prd/prd-percorso-didattico-e-produzione.md) | Curriculum UE, roadmap, rischi, analytics, gate di release, guida agli asset gratuiti | `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` · `guida-trovare-asset-free` | — (fase didattica chiusa; produzione **da recepire**) |
+| [`editor-griglia-esagonale-e-mappa.md`](prd/editor-griglia-esagonale-e-mappa.md) | Il **prompt** che ha commissionato il pivot esagonale: assunzioni, architettura, editor, milestone H0–H9 | `editor-griglia-esagonale-e-mappa` (`.docx`) | [ADR-0002](../decisions/adr-0002-griglia-esagonale.md) · [`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md) — **il sorgente più consumato della cartella** |
+
+L'undicesimo PDF, `sequenza-risoluzione-turno.pdf`, **non è confluito qui**: la sua trascrizione integrale
+esisteva già in [`../archive/gameplay/sequenza-turno-exploratory.md`](../archive/gameplay/sequenza-turno-exploratory.md)
+(verificata sezione per sezione, similarità 0,91–1,00). Rimetterne il testo avrebbe creato una seconda copia
+della stessa cosa, che è precisamente ciò che il principio «una sola fonte logica per concetto» vieta.
+
+> ⚠️ **Una correzione a questa tabella.** Fino al 2026-08-12 `idee-ruoli-characters.pdf` risultava
+> **non recepito**. Non era vero: **Flux · Riva · Bastion · Vektor** nascono lì, e le quattro abilità di Flux
+> del [catalogo eroi](../balance/RT_HeroCatalog_v0.1.md) — `LinearDischarge`, `ConductiveNode`, `Overload`,
+> `ReactiveCapacitor` — sono le sue, nome per nome. Il documento era *già consumato e non registrato*: la
+> colonna diceva «c'è ancora lavoro da fare» su un lavoro fatto mesi prima.
+
+Ogni file si apre con una sezione **«Cosa resta vero, cosa no»** che separa tre stati: *recepito nel canone*,
+*superato*, *recuperabile e non ancora recepito da nessuno*. È lì che si guarda prima di riaprire un PRD.
+
+**Recuperare un PDF originale** (funziona senza conoscere lo SHA):
+
+```bash
+P=docs/src/prd/prd-stampabile.pdf
+git show "$(git rev-list -1 HEAD -- "$P")^:$P" > prd-stampabile.pdf
+```
 
 ## `showcase/` — «Relay Basin» v0.1
 

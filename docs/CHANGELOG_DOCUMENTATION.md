@@ -2,6 +2,87 @@
 
 ---
 
+## 2026-08-12 — Ventiquattro binari diventano sei Markdown: D-009 chiusa per l'intero corpus
+
+**Origine**: richiesta dell'utente — *«non voglio vedere pdf in docs»*, poi estesa all'ultimo `.docx`. La
+regola esisteva già ed era di questo repository: PDR-00 §6 regola di manutenzione **#5**, registrata come
+[D-009](decisions/RT_PDR_00_Decision_Log.md) — *«i PDF sono snapshot di consultazione: le sorgenti testuali
+devono vivere nel repository Git»*. Era stata applicata a **due** documenti su ventitré.
+
+**In `docs/` non esiste più prosa in formato binario.**
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| [`archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md`](archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md) | **nuovo** — i tredici PDR `v0.1` in un solo documento, con la tabella «cosa vale oggi» per ciascuno |
+| [`src/prd/prd-visione-e-requisiti.md`](src/prd/prd-visione-e-requisiti.md) | **nuovo** — visione, perimetro, requisiti funzionali, idee fondative |
+| [`src/prd/prd-architettura-rete-e-intenti.md`](src/prd/prd-architettura-rete-e-intenti.md) | **nuovo** — architettura, stack, networking, modding, e il PRD «Intenti condivisi» integrale |
+| [`src/prd/prd-personaggi-azioni-e-bilanciamento.md`](src/prd/prd-personaggi-azioni-e-bilanciamento.md) | **nuovo** — roster, azioni, terreni, coperture, catalogo di bilanciamento |
+| [`src/prd/prd-percorso-didattico-e-produzione.md`](src/prd/prd-percorso-didattico-e-produzione.md) | **nuovo** — curriculum UE, roadmap, rischi, analytics, guida agli asset |
+| [`src/prd/editor-griglia-esagonale-e-mappa.md`](src/prd/editor-griglia-esagonale-e-mappa.md) | **nuovo** — il prompt che ha commissionato il pivot esagonale (era `.docx`) |
+| **24 binari** | rimossi dal working tree (`docs/src/prd/` ×10 PDF + 1 `.docx`, `docs/archive/pdr-v0.1/` ×13 PDF); restano nella storia Git |
+| [`src/README.md`](src/README.md) · [`archive/README.md`](archive/README.md) | Indici riscritti; due affermazioni corrette (sotto) |
+| [`README.md`](../README.md) · [`README.md` di docs](README.md) · [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) · 5 cataloghi `balance/` · ADR-0003 · Decision Log · `roadmap-v0.1.md` · `v0.1-issue-plan.md` · `RT_PDR_10_…v0.2.md` · `gameplay/spec-anima-risoluzione.md` | Riferimenti riscritti verso i nuovi target |
+
+### Tre cose che l'estrazione ha fatto emergere, e che nessuno stava cercando
+
+**1. `archive/README.md` rassicurava su un lavoro mai fatto.** Diceva: «*le sorgenti testuali vivono in Git
+(D-009); questi restano di consultazione*». Vero per il [Decision Log](decisions/RT_PDR_00_Decision_Log.md) e
+per [PDR-10 v0.2](roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md). Per gli **altri undici PDR** il PDF era
+l'unica copia esistente: nessun `grep`, nessun diff, nessuna citazione per riga. Una riga di indice diceva
+«fatto» di una cosa da fare, ed è il motivo per cui era rimasta da fare.
+
+**2. Il roster canonico nasce in un documento marcato «non recepito».**
+`src/README.md` classificava `idee-ruoli-characters.pdf` con «Recepito da: **—**». Ma **Flux · Riva · Bastion
+· Vektor** sono lì, e le quattro abilità di Flux del [catalogo eroi](balance/RT_HeroCatalog_v0.1.md) —
+`LinearDischarge`, `ConductiveNode`, `Overload`, `ReactiveCapacitor` — sono le sue, nome per nome. Il
+documento era *già consumato e non registrato*: la colonna prometteva lavoro su un lavoro finito.
+
+**3. Un PDF aveva già una trascrizione, e nessuno dei due lo sapeva.**
+`sequenza-risoluzione-turno.pdf` è trascritto integralmente in
+[`archive/gameplay/sequenza-turno-exploratory.md`](archive/gameplay/sequenza-turno-exploratory.md) — verificato
+sezione per sezione, similarità **0,91–1,00**. È l'unico degli undici a **non** essere confluito nei nuovi
+file: rimetterne il testo avrebbe creato la seconda copia che «una sola fonte logica per concetto» vieta.
+
+### Come è stata verificata la completezza
+
+Non «a occhio sul risultato». Ogni riga non vuota di ogni estratto è stata cercata nel montato:
+**0 non ritrovate** su 7 931 per i ventidue PDF, **0 su 699** per il `.docx`. È il controllo che conta quando
+l'originale viene cancellato — la somma dei byte no, perché l'header aggiunto la falsa.
+
+### La regola che è stata riscritta, e perché non è un dietrofront
+
+`src/README.md` diceva: «I PDF **non si archiviano**». Confondeva due assi — *dove* sta un sorgente e *in che
+formato*. La posizione non è cambiata: i PRD restano in `src/prd/`, restano livello 8, restano north-star
+consultati di continuo. È cambiato il formato. Un binario da 2,5 MB non è consultabile: è citabile solo per
+titolo, e infatti veniva citato per titolo — anche quando il titolo era il path sbagliato, come in
+`piano-canonico-mvp.md` §8.1, che per mesi ha puntato a
+`docs/RefactorTactics_ Product Requirements Document e piano completo di sviluppo.pdf`, un file non più
+esistente a quel percorso.
+
+### Il `.docx` era il sorgente più consumato della cartella
+
+`editor-griglia-esagonale-e-mappa.docx` non era un PRD: era il **prompt operativo** con cui è stato
+commissionato il pivot esagonale. Da lì nascono [ADR-0002](decisions/adr-0002-griglia-esagonale.md) e le
+milestone **H0–H9** di [`roadmap/hex-map-roadmap.md`](roadmap/hex-map-roadmap.md), e le sue assunzioni §2 sono
+diventate tipi reali — `FRTCellId` assiale pointy-top, `URTHexMapAsset`, `ARTHexMapActor` su ISM, i due moduli
+`RefactorTactics`/`RefactorTacticsEditor`. Anche le sue regole di ingaggio §1 e §23 sono sopravvissute al
+documento: *«non inventare API Unreal»* e *«niente Blueprint per logica autorevole»* sono oggi in
+[`CLAUDE.md`](../CLAUDE.md).
+
+Il testo era in un `.docx` prodotto da pandoc: liste vere (`w:numPr`) e blocchi `Source Code`, non prosa
+piatta. La conversione le ha ricostruite leggendo `numbering.xml` invece del nome dello stile — che in Word
+localizzato cambia lingua e avrebbe prodotto 496 paragrafi sciolti al posto delle liste.
+
+### Cosa resta binario in `docs/`
+
+Due `.xlsx`, e sono dati tabellari, non prosa: `balance/RefactorTactics_Balance_Matrices_v0.1.xlsx`
+(`RESEARCH`, [D-023](decisions/RT_PDR_00_Decision_Log.md)) e
+`characters/data/RefactorTactics_Characters_Wiki_Data_v0.4.xlsx`. Restano dove sono.
+
+---
+
 ## 2026-08-08 — Un gate per i link, che il consolidamento ha reso necessario
 
 **Origine**: il consolidamento della voce sotto. Spostare 25 sorgenti ha rotto link in tre modi e ne ha

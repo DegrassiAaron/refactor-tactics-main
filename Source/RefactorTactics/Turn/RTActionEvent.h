@@ -78,7 +78,63 @@ enum class ERTActionEffect : uint8
 	 * semanticamente da `Interact`» e [D-025] lo ha confermato. Lo Stable ID resta interpretabile in lettura
 	 * (`URTCatalogLibrary::ResolveLegacyActionId`), ma non e' piu' il nome di un'azione che qualcuno userera'.
 	 */
-	SetDoorState
+	SetDoorState,
+
+	/**
+	 * Sposta **chi agisce**, non il bersaglio: la sorgente arretra di `Amount` celle allontanandosi da chi
+	 * l'ha innescata (D-093, CP 7.5).
+	 *
+	 * Esiste perche' `Push` e `Pull` muovono il `TargetUnitId` e **nessun effetto muoveva la sorgente** — una
+	 * invariante di fatto del registry, mai decisa, che teneva fuori dal gioco `Reaction.EmergencyDash` e
+	 * `Reaction.HazardEscape`, i cui esiti sono entrambi «chi reagisce si sposta».
+	 *
+	 * ⚠️ **In coda all'enum, mai in mezzo**: i valori entrano nel TurnLog serializzato, e inserirlo prima di
+	 * `SetDoorState` rinumererebbe una traccia gia' scritta.
+	 *
+	 * La direzione non e' un parametro: e' la linea da chi ha innescato verso chi reagisce, la stessa che
+	 * `URTHexCombatLibrary::HexKnockbackDestination` gia' calcola per le spinte — quindi si ferma davanti
+	 * agli stessi ostacoli, e non serve una seconda geometria dello spostamento.
+	 */
+	SelfReposition,
+
+	/**
+	 * ANNULLA lo spostamento forzato che sta per colpire chi reagisce (`Reaction.Anchor`, CP 7.5 `#505`).
+	 *
+	 * «Annulla» e non «riduce»: il catalogo equipaggiamento §3 dice «impedisce **una** spinta», che e' un
+	 * conteggio e non una soglia (D-094). E' la differenza con i due meccanismi vicini, che restano distinti:
+	 * `Status.Guarded` regge una spinta fino a `GuardResistedPushDistance` e cede sopra, `Status.Braced` regge
+	 * qualunque distanza ma non e' una reazione — nessuno dei due si consuma come attivazione.
+	 *
+	 * «Una» non ha bisogno di un contatore proprio: la garantisce il pass, che attiva al piu' una reazione per
+	 * unita' e per turno. Un secondo conteggio direbbe la stessa cosa in un secondo posto, e i due potrebbero
+	 * divergere.
+	 *
+	 * `Amount` e' ignorato: non c'e' un «quanto» in un annullamento. Chi lo consuma sono i rami di spinta e di
+	 * trazione di `ARTTurnManager::ResolveCombat`, che lo leggono come un quinto `ERTDisplacementBlockReason`
+	 * accanto a `Guarded`/`Braced`/`NoDestination`/`OpposingForces` — cosi' il replay dice QUALE difesa ha
+	 * retto, invece del solo «non si e' mosso».
+	 *
+	 * ⚠️ In coda all'enum, mai in mezzo: vale la stessa ragione di `SelfReposition` qui sopra.
+	 */
+	CancelDisplacement,
+
+	/**
+	 * ANNULLA lo stato di CONTROLLO che sta per colpire chi reagisce (`Reaction.Cleanse`, CP 7.5 `#505`).
+	 *
+	 * Gemello di `CancelDisplacement`: impedisce l'applicazione invece di rimuovere a posteriori. Il risultato
+	 * osservabile e' identico — lo stato non c'e' — ma il TurnLog dice «annullato» invece di «applicato e poi
+	 * tolto», che e' anche il racconto vero.
+	 *
+	 * **Non e' `Action.Cleanse`**, che e' un'azione PRINCIPALE e sceglie fra gli stati **gia' posseduti**
+	 * seguendo `ARTUnit::PlannedCleansePriority`. Li' una scelta dichiarata in pianificazione serve, perche'
+	 * l'ambiguita' e' reale; qui lo stato lo determina l'evento, e con piu' controlli nello stesso Blast si
+	 * annulla **il piu' grave** (`URTReactionLibrary::ControlStatusesBySeverity`) invece del primo arrivato:
+	 * l'ordine di raccolta dipende da CHI colpisce, non da quanto fa male, e sprecherebbe l'attivazione su uno
+	 * `Slow` da attacco base lasciando passare un `Root`.
+	 *
+	 * ⚠️ In coda all'enum, mai in mezzo: i valori entrano nel TurnLog serializzato.
+	 */
+	CancelStatus
 };
 
 /**

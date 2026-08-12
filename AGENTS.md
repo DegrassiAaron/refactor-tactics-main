@@ -31,8 +31,9 @@ Carica solo il contesto necessario, ma non saltare queste fonti quando pertinent
 6. **`docs/roadmap/roadmap-v0.1.md`** — scope e gate della release v0.1.
 7. Issue/task corrente, specifica di feature, cataloghi in `docs/balance/`, test e codice esistente.
 
-`docs/src/` contiene i sorgenti **non ancora consumati** (PDF di visione, dataset, media): **non è fonte
-normativa per default**. `docs/archive/` è storico — e dal 2026-08-08 include
+`docs/src/` contiene i sorgenti **non ancora consumati** (PRD di visione, dataset, media): **non è fonte
+normativa per default**. *(Dal 2026-08-12 sono Markdown: in `docs/` non c'è più prosa in formato binario —
+[D-009](docs/decisions/RT_PDR_00_Decision_Log.md).)* `docs/archive/` è storico — e dal 2026-08-08 include
 [`docs/archive/src/`](docs/archive/src/README.md), dove finiscono i sorgenti **già recepiti** (design, handoff,
 audit) con l'indice di chi li possiede oggi. Se cerchi la provenienza di una regola, è lì; se cerchi la regola,
 è nell'owner.
@@ -171,6 +172,22 @@ validazione · serializzazione/replay · privacy intenti.
   Vale soprattutto prima di dichiarare una **verifica di mutazione**: se il test atteso non era in lista, il
   suo «non è caduto» non significa niente.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
+- **Il repository ha due toolchain, e nessuna gira in CI**: Python in `scripts/` (`check-docs-links.py`,
+  `check-docs-symbols.py`, `feature_registry.py`) e **Node 22** in `tools/radar/` — rubrica dei rating e
+  generatore SVG dei radar di personaggio. I gate si eseguono **a mano**, ed è una scelta:
+  `.github/workflows/` è vuota apposta.
+- ⚠️ **`tools/radar/` non è solo documentazione.** I rating si calcolano dai cataloghi di bilanciamento
+  ([D-106](docs/decisions/RT_PDR_00_Decision_Log.md)), quindi cambiare `Salute`, un danno o un cooldown
+  rende rossi gli SVG versionati finché non li rigeneri **nello stesso commit**
+  ([D-108](docs/decisions/RT_PDR_00_Decision_Log.md)):
+
+  ```sh
+  node tools/radar/generate.ts --check   # exit 1 se divergono
+  node tools/radar/generate.ts           # riscrive gli otto SVG
+  ```
+
+  Zero dipendenze: Node 22 esegue TypeScript con type stripping, i test usano `node:test`. Gli SVG
+  **non si editano a mano** — sono output, la correzione si fa sul catalogo o sulla rubrica.
 
 DoD applicabile: compila Game+Editor · test mirati + regressione pertinente · determinismo/authority/privacy
 preservati · TurnLog/reason code sufficienti · docs aggiornate · nessun warning/file generato/secret nuovo ·

@@ -1,6 +1,8 @@
 # RT — Catalogo azioni v0.1
 
-> **Fonte**: `docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf` §§1–3, §12 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
+> **Fonte**: catalogo di bilanciamento v0.1 §§1–3, §12 · PDR-12 — oggi in
+> [`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md) e
+> [`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Stato**: catalogo di riferimento per la release v0.1. Questi sono i **numeri vigenti**; le *decisioni* stanno
 > nel canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)), lo *stato di avanzamento* nella
@@ -71,6 +73,13 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 
 Un piano completo dichiara: percorso di movimento · azione principale · reazione (se disponibile) · **facing
 finale** · fallback.
+
+> 🧭 **Come i quattro budget si tengono insieme** — slot, Movement Point, budget di pivot, cooldown/risorsa —
+> è di [`../gameplay/spec-economia-del-turno.md`](../gameplay/spec-economia-del-turno.md), owner dal
+> 2026-08-12. Questa sezione resta l'owner dei **numeri**; quella pagina risponde alla domanda *«questa cosa
+> cosa consuma, e chi le dice di no?»* e registra la proposta — **aperta**, non canonica — che il profilo di
+> movimento cambi anche la *legalità* delle azioni (`AE-1`, `AE-2` in
+> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)).
 
 ---
 
@@ -195,6 +204,21 @@ permette di sparare da un'altra posizione nello stesso turno, che è precisament
 > documentale romperebbe test e replay. Tracciato in
 > [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 41 → issue di refactor.
 >
+> 🔄 **Questa riga è stata vera, poi falsa, e dal 2026-08-12 è di nuovo vera.** In mezzo,
+> [D-068](../decisions/RT_PDR_00_Decision_Log.md) aveva **rovesciato** la decisione — «Sprint resta pre-Blast,
+> ed è una decisione, non un arretrato» — lasciando però il paragrafo qui sopra al suo posto: per quattro
+> giorni il catalogo ha dichiarato una regola che il canone aveva appena abbandonato, e nessun gate poteva
+> accorgersene. [D-116](../decisions/RT_PDR_00_Decision_Log.md) ha rovesciato di nuovo, e per un motivo che
+> non era sul tavolo nel 2026-08-10: restando pre-Blast lo Sprint **spara da una posizione nuova**, cioè fa
+> ciò che questa stessa sezione attribuisce al `Dash`. La migrazione della sola `ResolutionPhase` è ora
+> lavoro di **E38**.
+>
+> ⚠️ **E non si migra da sola.** Portare lo Sprint dopo il Blast rende `Status.Exposed` **inerte** — verrebbe
+> applicato quando tutti hanno già sparato, e scadrebbe nel Cleanup subito dopo. Per questo D-116 lo porta a
+> **`Turni 2`** nello stesso momento, e introduce la compatibilità con il profilo di movimento
+> ([`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md)):
+> senza le due contropartite, lo Sprint diventerebbe **un `Move` più lungo che costa solo la reazione**.
+>
 > **Il trade-off dello Sprint va migrato, non perso.** Oggi paga con `Status.Exposed` e con la rinuncia alla
 > reazione. Nel modello a profili non può diventare un potenziamento gratuito del `Move`: se perde il costo di
 > slot deve conservare un costo, altrimenti nessuno sceglierebbe più `Move`.
@@ -217,8 +241,7 @@ fretta è ciò che permette di sparare da un'altra parte nello stesso turno.
 | `Action.Reposition` | Riposizionamento | **Movimento** | **Dash** | 20 | 40 | 2 celle | 1 | `Fallback.Stop` | sì |
 
 **Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
-coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` fino al Cleanup
-(**+5** al primo danno diretto ricevuto).
+coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto). ⚠️ **Durata: da `1` a `2` turni** con [D-116](../decisions/RT_PDR_00_Decision_Log.md) — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco.
 
 > ⚠️ **Il prezzo dello Sprint ora regge tutto sui dati.** Finché consumava anche l'azione principale il costo
 > era strutturale; adesso è `Exposed` (+5 al primo danno diretto) più la rinuncia alla reazione, contro 3 MP
@@ -411,7 +434,7 @@ appena entrato nella cella.
 | `Action.Heal` | Cura | Blast | 40 | 70 | 3 | cura 20 | 1 |
 | `Action.CreateWater` | Crea acqua | Blast (+Cleanup) | 40/50 | 60 | 4 | acqua raggio 1 | 2 |
 | `Action.Ignite` | Incendia | Blast (+Cleanup) | 40/50 | 60 | 4 | fuoco su cella | 2 |
-| `Action.Electrify` | Elettrifica | **Cleanup** | 50 | 30 | 4 | propagazione elettrica | 2 |
+| `Action.Electrify` | Elettrifica | **Cleanup** | 50 | 30 | 4 | 20 danni, propagazione elettrica 12 | 2 |
 | `Action.CreateCover` | Crea copertura | **Prep** | 10 | 75 | 3 | copertura bassa | 2 |
 | `Action.ModifyArc` | Modifica arco | Blast | 40 | 75 | 3 | modifica collegamento | 2 |
 
@@ -442,7 +465,9 @@ TurnLog.
 incendiare vegetazione, olio e gas.
 
 **Electrify** — colpisce un bersaglio o una cella conduttiva · propagazione massima **3 celle** · danno iniziale
-**20**, danno propagato **12** · ogni unità è colpita **una sola volta** dallo stesso evento.
+**20**, danno propagato **12** — *ora anche in colonna nella tabella, per
+[D-115](../decisions/RT_PDR_00_Decision_Log.md): la rubrica dei radar li legge di lì e non deve estrarli da
+questa frase* · ogni unità è colpita **una sola volta** dallo stesso evento.
 
 **Create Cover** — copertura bassa su un **bordo** esagonale · integrità **30** · durata 2 turni · non può
 sovrapporsi a una copertura esistente.

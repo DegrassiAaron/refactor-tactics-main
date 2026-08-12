@@ -1,6 +1,9 @@
 #include "Misc/AutomationTest.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexCellData.h"
+#include "Terrain/RTTerrainLibrary.h"
+#include "Terrain/RTTerrainData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -301,6 +304,129 @@ bool FRTHexCentroidTest::RunTest(const FString&)
 	TestTrue(TEXT("ordine irrilevante"),
 		URTHexLibrary::CellsCentroidWorld({ B, A }, Origin, HexSize, LayerHeight)
 			.Equals(URTHexLibrary::CellsCentroidWorld({ A, B }, Origin, HexSize, LayerHeight), 0.01));
+	return true;
+}
+
+
+/**
+ * Il rilievo che mostra il costo di movimento nasce dal CATALOGO, non da numeri incisi nella vista.
+ *
+ * E' l'invariante che tiene: ribilanciare `Rough` deve cambiare la mappa da sola. Se l'altezza fosse scritta
+ * nella vista, il giorno del ribilanciamento il profilo resterebbe su un valore morto e racconterebbe un
+ * costo che il gioco non applica piu' — una vista che mente, che e' peggio di una vista che manca.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexReliefFromCatalogTest,
+	"RefactorTactics.Hex.ReliefHeightComesFromTerrainCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexReliefFromCatalogTest::RunTest(const FString&)
+{
+	// 1. Il pavimento sta a zero: il rilievo misura il SOVRAPPREZZO, non il costo assoluto. Una mappa tutta
+	//    pavimento resta piatta, ed e' giusto — non c'e' niente da segnalare.
+	TestEqual(TEXT("costo 1 -> nessun rilievo"), URTHexLibrary::ReliefHeightForCost(1), 0.f);
+
+	// 2. Monotonia: piu' caro = piu' alto. E' l'unica cosa che rende il profilo leggibile a colpo d'occhio.
+	TestTrue(TEXT("costo 2 > costo 1"),
+		URTHexLibrary::ReliefHeightForCost(2) > URTHexLibrary::ReliefHeightForCost(1));
+	TestTrue(TEXT("costo 3 > costo 2"),
+		URTHexLibrary::ReliefHeightForCost(3) > URTHexLibrary::ReliefHeightForCost(2));
+
+	// 3. Il legame col catalogo: un terreno che il catalogo dichiara piu' caro del pavimento DEVE produrre un
+	//    rilievo, e uno che costa come il pavimento no. E' cio' che rende il profilo una lettura del costo
+	//    reale invece di una decorazione — se domani `Rough` venisse ribilanciato a 1, questo cadrebbe, ed e'
+	//    giusto: il rilievo racconterebbe un sovrapprezzo che non esiste piu'.
+	//
+	//    (Confrontare `ReliefHeightForCost(RoughCost)` con `ReliefHeightForCost(2)` sarebbe tautologico:
+	//    `RoughCost` *e'* 2, quindi verificherebbe una cosa con se' stessa.)
+	const int32 RoughCost = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Rough).MoveCost;
+	const int32 FloorCost = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Floor).MoveCost;
+	TestTrue(TEXT("il catalogo dichiara Rough piu' caro del pavimento"), RoughCost > FloorCost);
+	TestTrue(TEXT("quindi Rough ha un rilievo"), URTHexLibrary::ReliefHeightForCost(RoughCost) > 0.f);
+	TestEqual(TEXT("e il pavimento resta piatto"), URTHexLibrary::ReliefHeightForCost(FloorCost), 0.f);
+
+	// 4. Un rilievo non deve MAI poter essere scambiato per un piano: e' il vincolo che tiene separati i due
+	//    significati della quota in questa vista. Anche il terreno piu' caro del catalogo resta ben sotto.
+	// L'elenco e' esplicito come in `SurfaceColorsAreDistinguishable`: l'enum non dichiara `TEnumRange`, e
+	// aggiungerlo per un test cambierebbe un tipo di dominio per comodita' di verifica.
+	const TArray<ERTHexSurface> AllSurfaces = {
+		ERTHexSurface::Floor, ERTHexSurface::ShallowWater, ERTHexSurface::Rough, ERTHexSurface::Fire,
+		ERTHexSurface::Conductive, ERTHexSurface::Ice, ERTHexSurface::Void,
+		ERTHexSurface::Smoke, ERTHexSurface::HighGround
+	};
+	int32 MaxCost = 1;
+	for (const ERTHexSurface S : AllSurfaces)
+	{
+		MaxCost = FMath::Max(MaxCost, URTTerrainLibrary::FindTerrainDef(S).MoveCost);
+	}
+	const float LayerHeightDefault = 250.f; // il default di URTHexMapAsset::LayerHeight
+	TestTrue(TEXT("il rilievo piu' alto del catalogo resta ben sotto un piano"),
+		URTHexLibrary::ReliefHeightForCost(MaxCost) < LayerHeightDefault * 0.25f);
+
+	// 5. Costi non validi non producono buche: un asset editato a mano puo' contenerli, e una buca direbbe
+	//    «qui si va piu' veloci», cosa che il gioco non prevede.
+	TestEqual(TEXT("costo 0 -> piatto"), URTHexLibrary::ReliefHeightForCost(0), 0.f);
+	TestEqual(TEXT("costo negativo -> piatto"), URTHexLibrary::ReliefHeightForCost(-5), 0.f);
+	return true;
+}
+
+
+/**
+ * Lo stesso bordo fisico ha lo stesso centro, visto dalle DUE celle che lo condividono.
+ *
+ * E' l'invariante che rende la primitiva utilizzabile: coperture e porte si dichiarano **per cella**
+ * (`FRTHexCover::Edge` e' «visto DALLA cella»), quindi lo stesso muretto puo' essere descritto da una parte o
+ * dall'altra. Se i due punti non coincidessero, la stessa copertura apparirebbe in due posti diversi a
+ * seconda di chi la dichiara — e nessuno saprebbe quale dei due e' il bordo vero.
+ *
+ * Verifica anche che il punto stia sul bordo e non da qualche altra parte: la distanza dal centro della cella
+ * dev'essere l'apotema (sqrt(3)/2 volte la dimensione), non il raggio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexEdgeMidpointTest,
+	"RefactorTactics.Hex.EdgeMidpointIsSharedByBothCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexEdgeMidpointTest::RunTest(const FString&)
+{
+	const FVector Origin(1000.0, -500.0, 250.0); // origine NON banale: un bug che ignora l'origine si vede
+	constexpr float HexSize = 100.f;
+	constexpr float LayerHeight = 250.f;
+	const FRTCellId Cell(2, -1, 0);
+
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+		const ERTHexDirection Back = URTHexLibrary::OppositeDirection(Dir);
+		const FRTCellId Other = URTHexLibrary::Neighbor(Cell, Dir);
+
+		// 1. Lo stesso bordo dalle due parti.
+		const FVector FromHere = URTHexLibrary::EdgeMidpointWorld(Cell, Dir, Origin, HexSize, LayerHeight);
+		const FVector FromThere = URTHexLibrary::EdgeMidpointWorld(Other, Back, Origin, HexSize, LayerHeight);
+		TestTrue(*FString::Printf(TEXT("direzione %d: stesso bordo dalle due celle"), D),
+			FromHere.Equals(FromThere, 0.01));
+
+		// 2. Il punto sta sul bordo: distanza dal centro = apotema, non raggio.
+		const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+		const double Apothem = FMath::Sqrt(3.0) / 2.0 * static_cast<double>(HexSize);
+		TestTrue(*FString::Printf(TEXT("direzione %d: il punto e' sul bordo (apotema)"), D),
+			FMath::IsNearlyEqual(FVector::Dist(Center, FromHere), Apothem, 0.01));
+
+		// 3. L'opposto dell'opposto e' se stesso: la tabella delle direzioni non e' scritta a mano.
+		TestTrue(TEXT("opposto involutivo"), URTHexLibrary::OppositeDirection(Back) == Dir);
+
+		// 4. Guardato dalle due parti, il pannello e' ruotato di 180 gradi.
+		const float YawHere = URTHexLibrary::EdgeRotation(Cell, Dir).Yaw;
+		const float YawThere = URTHexLibrary::EdgeRotation(Other, Back).Yaw;
+		const float Delta = FMath::Abs(FRotator::NormalizeAxis(YawHere - YawThere));
+		TestTrue(*FString::Printf(TEXT("direzione %d: yaw opposto (delta %.1f)"), D, Delta),
+			FMath::IsNearlyEqual(Delta, 180.f, 0.5f));
+	}
+
+	// Il bordo segue il LAYER: su un piano diverso il punto sale di LayerHeight, o le coperture della
+	// piattaforma finirebbero disegnate a terra.
+	const FVector Ground = URTHexLibrary::EdgeMidpointWorld(FRTCellId(0, 0, 0), ERTHexDirection::E,
+		Origin, HexSize, LayerHeight);
+	const FVector Upper = URTHexLibrary::EdgeMidpointWorld(FRTCellId(0, 0, 1), ERTHexDirection::E,
+		Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("il bordo sale di un piano"),
+		FMath::IsNearlyEqual(Upper.Z - Ground.Z, static_cast<double>(LayerHeight), 0.01));
 	return true;
 }
 

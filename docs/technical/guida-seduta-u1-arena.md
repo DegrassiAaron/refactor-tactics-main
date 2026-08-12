@@ -210,6 +210,64 @@ generato con `GenerateIntoAsset` e non hanno bisogno di quest'arena.
 
 ---
 
+## 10b. Le sette voci, in una sola passata
+
+L'ordine sotto è per **tool**, non per importanza: cambiare tool è ciò che costa, e le cinque voci dell'Arch
+si verificano quasi tutte con gli stessi gesti.
+
+**⚠️ Prima di cominciare, salva.** Diverse voci chiedono `Ctrl+Z`, e un Undo di troppo annulla il lavoro
+precedente — la generazione dell'arena sta dentro una sola transazione, quindi sparisce in un colpo.
+
+### Tool Paint — `PIE-HEX-MODE-O`
+
+Nel pannello del pennello cambia `Surface` a **`Rough`**.
+
+- ✅ `MoveCost` si aggiorna **da solo** a `2` (il valore di catalogo), e `bBlocksMovement` resta `false`
+- ❌ se `MoveCost` resta `1` o va cambiato a mano
+
+Non serve dipingere: la voce verifica il pannello, non la cella.
+
+### Tool Fill — `PIE-HEX-MODE-N`
+
+Con il pennello su una superficie diversa da quella della regione, click su una zona di celle contigue dello
+stesso terreno.
+
+- ✅ la regione si riempie tutta; **un solo** `Ctrl+Z` la ripristina **intera** (non cella per cella)
+- ✅ click su una cella vuota non fa nulla
+- ✅ tornando a Select/Paint con l'overlay acceso si vedono i colori nuovi
+- ❌ se l'undo ripristina una cella per volta, o se riempie oltre il confine della superficie
+
+### Tool Arch — le cinque restanti, in sequenza
+
+Serve la piattaforma sul layer 1 già fatta, e almeno una transizione esistente.
+
+1. **`-F`** — guarda le transizioni già presenti: ✅ appaiono come **linee colorate** (colore per `Kind`) con
+   una **freccia From→To**. ❌ se sono invisibili o senza verso.
+
+2. **`-G`** — click su una cella: compare il gizmo. Poi **click su un'altra cella**: ✅ resta **un solo**
+   gizmo, non due. Poi passa al tool **Select**: ✅ il gizmo **sparisce**. ❌ un secondo gizmo, o uno che
+   resta in scena dopo il cambio tool.
+
+3. **`-H`** — torna su Arch, click su una cella, poi **trascina** il gizmo: ✅ `To` (nel pannello) si aggancia
+   sempre al **centro di una cella**; alzandolo di circa `LayerHeight` il target passa al **layer superiore**.
+   ✅ nessun tremolio o rimbalzo durante lo snap. ❌ valori che oscillano, o un target che non sale mai di layer.
+
+4. **`-E`** — dalla stessa posizione premi **`Commit`**: ✅ la transizione compare. Poi `Ctrl+Z`: ✅ viene
+   rimossa; `Ctrl+Y`: ✅ torna. Ripeti un paio di volte. Prova anche **`ClearArch`** con un arco pendente:
+   ✅ annulla senza scrivere nulla. ❌ un undo che lascia l'arco a metà.
+
+5. **`-L`** — metti `Operation = Remove` e clicca **su un arco disegnato**: ✅ viene rimosso, e `Ctrl+Z` lo
+   ripristina. Click **nel vuoto**, lontano da ogni arco: ✅ non succede nulla. Rimetti `Operation = Add`:
+   ✅ il flusso del gizmo funziona come prima. ❌ un click nel vuoto che rimuove l'arco più vicino comunque.
+
+### Dopo
+
+`rt.Arena.Check` un'ultima volta: **tre `[ok]`**. Le voci sopra modificano la mappa (il Fill dipinge, gli
+archi si aggiungono e tolgono), e questo conferma che l'arena sia tornata al layout verificato.
+
+Se un criterio è diventato rosso, non è un difetto del mode: è la mappa cambiata sotto. Rigenera con
+`Generate Arena V01 Into Asset` e rifai piattaforma e transizione.
+
 ## 11. Chiudere
 
 - le sette voci hanno un esito reale in `test-manuali-pie.md`;

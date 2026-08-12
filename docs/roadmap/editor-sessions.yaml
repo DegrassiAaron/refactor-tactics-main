@@ -100,7 +100,7 @@ sessions:
     title: Verifiche senza prerequisiti
     block: 1
     critical: false
-    produces: verdetto su cinque voci che non attendono nulla
+    produces: verdetto su nove voci che non attendono nulla
     artifacts: []
     unblocked_by: []
     shares_setup_with: []
@@ -110,8 +110,12 @@ sessions:
       - PIE-TEST-CONSOLE
       - PIE-HEX-LAYER
       - PIE-HEX-TRANS
-    issues: [450]
-    done_when: le cinque voci hanno esito reale nel registro
+      - PIE-HEX-LAYER-FOCUS
+      - PIE-HEX-LAYER-CLICK
+      - PIE-HEX-LAYER-PANEL
+      - PIE-V01-REACTCOND
+    issues: [450, 567, 583]
+    done_when: le nove voci hanno esito reale nel registro
     unblocks: []
     steps: |
       **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
@@ -126,6 +130,13 @@ sessions:
       > uno scenario impostato la partita normale non viene allestita affatto e tutte e tre le voci
       > diventano non eseguibili. E' successo il 2026-08-08, uscendo da `PIE-SCEN-KEEP`.
 
+      **`PIE-V01-REACTCOND`** (aggiunta il 2026-08-12, [D-109]) si fa in Play e chiede un ordine
+      preciso: prima **arma una reazione** sull'unita' selezionata, poi `rt.Reaction.Condition 50`.
+      Al contrario il comando rifiuta, ed e' il comportamento giusto — una condizione senza reazione
+      resterebbe orfana. Si verifica il **canale**, non l'effetto: le risposte legali si riducono
+      davvero, ma la finestra che quel collasso evita non esiste finche' non atterra CP 14.5, e
+      quella parte e' coperta headless da `Reactions.DeclaredConditionCollapsesToImmediateCommit`.
+
       L'ordine non e' arbitrario:
 
       1. `PIE-PREVIEW-AREA` e `PIE-V01-MATCHEND` su una partita normale.
@@ -135,6 +146,16 @@ sessions:
       3. `PIE-HEX-LAYER` e `PIE-HEX-TRANS` in coda, sull'**editor** e non in Play: servono un
          `ARTHexMapActor` con celle su >=2 layer, che si ottiene con `GenerateIntoAsset` —
          `ActiveLayer=0`, poi `ActiveLayer=1`. Nessuna mappa da costruire a mano.
+      4. Le tre `PIE-HEX-LAYER-*` **sullo stesso asset del punto 3**, senza rigenerare nulla: e' per
+         questo che stanno qui e non in una seduta propria. In piu' serve il mode **Hex Map** attivo,
+         perche' i contorni dei piani di contesto li disegnano i tool, non l'actor: con `LayerView=Focus`
+         ma senza mode attivo e senza `bShowOverlay` acceso nel pannello del tool, `Focus` e'
+         indistinguibile da `ActiveOnly` — e la voce sembrerebbe fallita mentre e' solo non allestita.
+
+         > ⚠️ **`PIE-HEX-LAYER-CLICK` va fatta con la camera OBLIQUA**, non dall'alto. Il difetto che
+         > verifica e' che il raggio del click agganci il disco di un piano superiore e venga poi
+         > proiettato su quello attivo: lo scarto e' orizzontale e proporzionale a `LayerHeight`,
+         > quindi guardando a picco vale zero e la voce passerebbe comunque, rotta o no.
     notes: >-
       Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente:
       le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta
@@ -146,6 +167,11 @@ sessions:
       celle su due layer in editor — e il vecchio titolo sarebbe diventato falso per due voci su
       cinque. Cio' che accomuna le cinque non e' l'assenza di allestimento ma l'assenza di
       **attese**: nessuna dipende da codice mancante o da una seduta prima.
+      **Dal 2026-08-12 sono otto**: `PIE-HEX-LAYER-FOCUS`, `-CLICK` e `-PANEL` arrivano col merge di
+      #565 (issue 567) e riusano l'asset generato del punto 3 senza aggiungere allestimento. Sono
+      finite qui per la stessa ragione per cui questa seduta esiste: erano nel registro e in nessuna
+      seduta — il conteggio della EditorMap le aveva gia' contate fra le voci orfane (`PIE-HEX-*` da
+      9 a 12) prima che qualcuno le collocasse.
 
   - id: U1
     title: Mappa-arena hex
@@ -391,12 +417,35 @@ sessions:
       5. `TeamRingMaterial` e `SelectionRingMaterial` → `M_TeamRing` / `M_SelectionRing` in
          `/Game/RT/Characters/Shared/Materials/`. Il colore lo mette il codice sul MID; assenti,
          l'anello resta nascosto senza rompere nulla.
-      6. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
+      6. **Scala del componente skeletal: World/Absolute, `1,1,1`.** ⚠️ Il cilindro e' il ROOT e porta
+         `BaseMeshScale = (1.2, 1.2, 1.8)`: un componente attaccato a lui eredita quel fattore e il
+         personaggio esce **stirato in altezza di 1,5x** (1.8 / 1.2). Peggio, la selezione rimoltiplica
+         il root per `1.15` (`RTUnit.cpp:221`), quindi la mesh **si ingrandisce quando la selezioni**.
+         Nel Details del componente, alla riga *Scale*, si commuta l'icona su **World/Absolute**.
+         Difetto strutturale registrato in **issue #593**: finche' resta, il passo va rifatto a ogni
+         nuovo `BP_Unit`.
+      7. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
          (`Hero.Flux` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
          `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna
          `ARTUnit::StaticClass()`, cioe' il cilindro. Un Blueprint perfetto ma non registrato non
          viene mai istanziato.
-      7. **Le statistiche non si toccano**: `MaxHealth`, `AttackPower`, `MoveRange` arrivano da
+
+         🔴 **Non confonderla con `Team0Heroes`/`Team1Heroes`**, che le stanno **accanto nella stessa
+         categoria** `RefactorTactics|Units` e sono la trappola vera di questa seduta — ci si e' caduti
+         **due volte** il 2026-08-11. Rispondono a domande diverse:
+
+         | | `Team0Heroes` / `Team1Heroes` | `HeroUnitClasses` |
+         |---|---|---|
+         | risponde a | **chi** scende in campo | **con che aspetto** |
+         | tipo | lista: un campo per riga | mappa: **due campi** per riga |
+         | contiene | `Hero.Flux` | `Hero.Flux` → `BP_Unit_Gadget` |
+
+         Se la riga che stai compilando ha **un solo campo**, sei nella proprieta' sbagliata. Mettere i
+         nomi dei Blueprint nelle formazioni produce `BP_Unit_Gadget non e' nel catalogo eroi` e
+         **`0 eroi`** in campo — il log nomina l'id introvabile, ed e' il primo posto dove guardare.
+         Per non sbagliare: filtra il pannello Details scrivendo `Hero Unit` nella barra di ricerca,
+         cosi' resta visibile solo la mappa.
+      8. **Le statistiche non si toccano**: `MaxHealth`, `AttackPower`, `MoveRange` arrivano da
          `URTHeroData`. Scriverle nel Blueprint significa scrivere numeri che il catalogo sovrascrive.
 
       Procedura per animazioni e montaggi: `guida-animazioni-paragon.md` §AS.3 e §AS.4.
@@ -422,6 +471,12 @@ sessions:
       mesh, e `HeroId` in C++ resta `Hero.Flux`.
       ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft
       reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni.
+      ⚠️ **E se un personaggio appare in T-pose, schiacciato o con catene lunghissime, NON e' un
+      difetto**: senza anim BP la skeletal resta nella **posa di riferimento** dello scheletro, dove le
+      ossa di catene e tentacoli stanno distese in fila. Riscontrato su `Riktor` il 2026-08-12.
+      Il controllo che lo isola in dieci secondi: **apri la Skeletal Mesh nel Content Browser** — se
+      appare cosi' anche li', fuori dal gioco e fuori dal Blueprint, e' la bind pose e la sistema
+      **U8**. Se invece li' e' normale e in partita no, allora guarda il Blueprint.
 
   - id: U8
     title: Animazioni
@@ -741,4 +796,32 @@ sessions:
       e' il difetto che G9 ha gia' avuto due volte. La seduta ha una voce sola di proposito — e' una
       domanda che si risponde una volta, guardandola.
       ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo
+      rinumera, non contende.
+
+  - id: U21
+    title: Luci del graybox e inquadratura della mappa
+    block: 6
+    critical: false
+    produces: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
+    issues: [623]
+    done_when: le due voci hanno un esito reale e il livello illuminato e' committato
+    unblocks: []
+    notes: >-
+      Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e
+      non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e
+      questo repository non modifica `.umap` da riga di comando.
+      ⚠️ `artifacts` e' VUOTO di proposito, benche' la seduta committi un livello. L'oracolo degli
+      artefatti e' `git ls-files`, che sa dire se un path esiste e non se e' stato MODIFICATO:
+      `L_DevSandbox.umap` e' gia' tracciato da mesi, quindi dichiararlo qui farebbe derivare 🟡
+      («parte fatta») su una seduta non ancora aperta. Lo stato deriva dalle due voci PIE, che sono
+      la cosa che davvero non esiste ancora. Il livello committato resta nella DoD della issue.
+      ⚠️ Il sorgente chiedeva anche di ricostruire la navigazione della camera (MMB pan, RMB orbit,
+      wheel zoom, WASD, F focus). **Il viewport di Unreal le fornisce gia' tutte**, e un `UEdMode`
+      non possiede la camera del viewport: `RTCameraPawn` e' la camera di GIOCO, un oggetto diverso.
+      Resta solo l'inquadratura della mappa, che e' `PIE-MAPED-FRAME`.
+      ⚠️ ID assegnato al merge: preso `U21` con `U20` come ultimo su `main`. Chi arriva secondo
       rinumera, non contende.

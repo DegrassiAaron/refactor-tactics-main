@@ -11,7 +11,7 @@
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-ENV-SYSTEMIC-COMBOS` · Release: `v0.1` · Roadmap: `E8.5`  
-> Stato: **INTEGRATED** · Gate: `6/8`  
+> Stato: **INTEGRATED** · Gate: `7/9`  
 > Scenario: `Visual.Combat.WaterElectric`  
 > Verificato il `2026-08-08` su `2094b86`
 
@@ -21,7 +21,7 @@
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-ENV-ELECTRIC` · Release: `v0.1` · Roadmap: `E8.3`  
-> Stato: **INTEGRATED** · Gate: `6/8`  
+> Stato: **INTEGRATED** · Gate: `6/9`  
 > Scenario: `Visual.Combat.WaterElectric`  
 > Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.  
 > Verificato il `2026-08-09` su `f1f85b1`

@@ -1,6 +1,8 @@
 # RT — Catalogo eroi v0.1
 
-> **Fonte**: `docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf` §§7–9 · `docs/archive/pdr-v0.1/RT_PDR_12_Catalog_v0.1.pdf`
+> **Fonte**: catalogo di bilanciamento v0.1 §§7–9 · PDR-12 — oggi in
+> [`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md) e
+> [`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Implementazione**: epic **E6** (`#54`–`#59`).
 
@@ -131,7 +133,7 @@ nel vertical slice).
 | Salute | 120 |
 | Movimento | 4 MP |
 | Range visivo | 5 |
-| Resistenza Push | 1 |
+| Resistenza Push | 0 — *era 1, l'unica del roster, azzerata da [D-075](../decisions/RT_PDR_00_Decision_Log.md) (`#402`): a soglia 1 era immunità totale, non stabilità — vedi §5* |
 | Affinità | strutture |
 | Debolezza | movimento (`Affinity.Movement`) — decisa in CP 6.4, non nel PDF: simmetrica a Vektor |
 
@@ -182,7 +184,7 @@ nel vertical slice).
 |---|---:|---:|---:|---:|---|---|
 | Flux | 90 | 5 | 7 | 0 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
 | Riva | 95 | 5 | 5 | 0 | acqua | prepara il terreno agli altri e cura |
-| Bastion | 120 | 4 | 5 | 1 | strutture | cambia la forma della mappa, lento |
+| Bastion | 120 | 4 | 5 | 0 | strutture | cambia la forma della mappa, lento |
 | Vektor | 90 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
 
 ### 5.1 Percezione e risorsa firma — consolidato il 2026-08-07
@@ -216,7 +218,7 @@ Stealth 2, Tracking 1): si parte piatti e si differenzia col playtest.
 > Quali di questi parametri diventino statistiche per eroe, e con quali valori, si decide in **E13**: qui non
 > si scrive un numero che nessun sistema legge.
 
-Bastion compra HP e resistenza con **movimento** e vista; Vektor compra mobilità con **salute**; Riva sta in
+Bastion compra HP con **movimento** e vista; Vektor compra mobilità con **salute**; Riva sta in
 mezzo; Flux ha il danno combo più alto.
 
 > ✅ **Aggiornato il 2026-08-10 ([D-069](../decisions/RT_PDR_00_Decision_Log.md), `#131`): Vektor 100 → 90.**
@@ -241,6 +243,28 @@ mezzo; Flux ha il danno combo più alto.
 >
 > La compensazione nelle **abilità** resta com'era e non era in discussione: Flux ha il bonus combo più alto
 > del roster (+8 su `Wet`), Riva la cura ad area.
+
+> ✅ **Allineato il 2026-08-12 ([D-075](../decisions/RT_PDR_00_Decision_Log.md), `#402`): Bastion 1 → 0 di
+> resistenza alla spinta.** La decisione è del **2026-08-10** e `RTHeroCatalogLibrary.cpp` scrive `0` da
+> allora: questo documento era rimasto indietro, e la frase qui sopra vendeva come prezzo pagato — «compra HP
+> **e resistenza**» — una statistica che l'eroe non ha.
+>
+> Perché quell'`1` non era stabilità: la resistenza è una **soglia**
+> ([D-038](../decisions/RT_PDR_00_Decision_Log.md)) e ogni spinta del gioco vale `1`
+> ([D-074](../decisions/RT_PDR_00_Decision_Log.md)), quindi valeva **immunità a ogni spostamento, sempre,
+> senza spendere un'azione** — e svuotava metà di `Guard` e `Brace` proprio sull'eroe su cui la scelta
+> difensiva dovrebbe pesare di più. Il prezzo resta reale su **120 HP e 4 MP**: non dipendeva da questo campo.
+>
+> ⚠️ **La colonna «Push res.» è ora interamente `0`, e `PushResistance` è una meccanica dormiente**: modello e
+> resolver la implementano (ramo `ERTActionEffect::Push`), **nessun contenuto la esercita**. È dichiarato, non
+> dimenticato — si risveglia da sé se una v0.2 introduce una spinta `≥ 2`. L'esito è pinnato dallo scenario
+> `Spec.Combat.BastionIsPushedLikeAnyone`, che manda Bastion e Vektor a incassare lo stesso `Riva.PressureJet`
+> e li fa arretrare **entrambi**; la regola della soglia resta pinnata da
+> `RefactorTactics.Actions.PushResistanceIsAThreshold`, che il valore se lo costruisce da solo.
+>
+> ⚠️ Conseguenza per chi deriva viste dai cataloghi: `Resistenza Push` è **costante sul roster**, quindi non
+> discrimina. Un asse che la somma alla `Salute` ricade sulla sola salute — e lì Flux e Vektor sono **entrambi
+> a 90**.
 
 **Debolezza dichiarata**: il PDF elenca «debolezza» fra gli elementi fissi di ogni eroe ma **non la esplicita**
 per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Flux**: fissata in

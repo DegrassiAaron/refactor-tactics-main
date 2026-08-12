@@ -22,6 +22,72 @@ enum class ERTReactionOutcome : uint8
 };
 
 /**
+ * QUANDO, dentro il turno, un trigger di reazione puo' essere valutato (D-092, CP 7.5 `#505`).
+ *
+ * Nasce perche' i trigger hanno smesso di essere omogenei: `HitByDirectAttack` si legge sui colpi raccolti,
+ * ma «sto per essere spinto» si sa solo dove la spinta e' decisa, e «la mia cella e' diventata pericolosa»
+ * solo nel Cleanup. Un pass unico li valuterebbe tutti nel momento sbagliato per almeno uno.
+ *
+ * Il valore serve a due cose in un colpo: dice a `ARTTurnManager::RunReactionPass` **quali** unita' guardare,
+ * e tiene fuori le altre dal TurnLog — senza, una reazione non pertinente prenderebbe una voce
+ * `NotTriggered` in ogni punto di valutazione del turno invece che nel suo.
+ */
+UENUM()
+enum class ERTReactionPassPoint : uint8
+{
+	/** Nessun punto: il trigger non e' valutato da nessuno (`None`, cioe' dato incompleto). */
+	Never,
+	/** Sui colpi gia' raccolti del Blast, dopo il filtro di `Action.Interrupt` (`Counter`, `Deflect`). */
+	BlastHits,
+	/**
+	 * L'INTERPOSIZIONE, che ha un ciclo suo in `ResolveCombat` — le serve la mappa, le squadre e una
+	 * traiettoria libera, non i soli colpi. `RunReactionPass` la salta proprio per questo.
+	 */
+	BlastIntercept,
+	/**
+	 * Gli spostamenti DECISI e non ancora applicati (`Reaction.Anchor`). Dopo l'applicazione sarebbe tardi:
+	 * annullare vorrebbe dire rimettere indietro un'unita' gia' mossa, con due voci di TurnLog che si
+	 * contraddicono sullo stesso passo.
+	 */
+	BlastDisplacement,
+	/**
+	 * Gli stati RACCOLTI dal Blast e non ancora applicati (`Reaction.Cleanse`). Stessa forma degli
+	 * spostamenti: si decide prima che l'effetto tocchi l'unita'.
+	 *
+	 * La Prep non passa di qui — applica i propri stati direttamente — quindi il `Status.Root` che
+	 * `Action.Brace` mette **a se stesso** non e' intercettabile da questo punto. E' corretto: una reazione
+	 * anti-controllo che annullasse la propria preparazione sarebbe un difetto, non una funzione.
+	 */
+	BlastStatus,
+	/**
+	 * Le superfici appena NATE nel Cleanup, prima che i loro effetti tocchino chi ci sta sopra
+	 * (`Reaction.HazardEscape`). E' l'unico punto fuori dal Blast, ed e' il motivo per cui `#570` applica gli
+	 * effetti in fondo a `ResolveEnvironment` invece che dentro il ciclo che crea le superfici.
+	 */
+	CleanupSurfaceBirth
+};
+
+/**
+ * Esito della valutazione di un trigger: **se** e' scattato, e — quando ha senso — **chi** l'ha innescato.
+ *
+ * Due campi e non un `int32` con `INDEX_NONE` come «non scattato», che e' la convenzione di
+ * `FindTriggeringAttacker`: quella regge finche' ogni trigger nasce da un colpo, e un colpo ha sempre un
+ * attaccante. Una spinta no — ne conosciamo la cella di provenienza, non necessariamente un'unita' — e con la
+ * convenzione vecchia una reazione legittima come `Anchor` risulterebbe «mai scattata».
+ */
+struct FRTReactionTriggerHit
+{
+	/** Vero se la reazione deve attivarsi. */
+	bool bTriggered = false;
+
+	/**
+	 * CHI l'ha innescata, o `INDEX_NONE` se l'evento non ha un'unita' responsabile identificabile. Decide il
+	 * bersaglio degli effetti offensivi; quelli difensivi non ne hanno bisogno.
+	 */
+	int32 TriggeredBy = INDEX_NONE;
+};
+
+/**
  * Valutazione PURA del trigger di una reazione (CP 5.1, epic E5): nessun Actor, nessun UWorld, nessun
  * `Delay`/timeline — non puo' introdurre un'attesa nel resolver (invariante #3) perche' non ha modo di farlo.
  * Opera sui colpi GIA' raccolti del Blast (`FRTHexBlastPlan::Hits`, dopo il filtro di `Action.Interrupt`):
@@ -100,4 +166,35 @@ public:
 	 * gli eventi entrano nel turno, con lo stesso "raccogli poi applica" del resto del motore (invariante #3).
 	 */
 	static TArray<FRTActionEvent> BuildReactionEvents(const FRTActionDef& Def, int32 SelfId, int32 TriggeredBy);
+
+	/**
+	 * In quale punto del turno si valuta questo trigger. Funzione PURA e totale: ogni valore dell'enum ne ha
+	 * uno, e lo `switch` non ha `default` — un trigger nuovo non compila finche' qualcuno non dichiara **dove**
+	 * viene valutato.
+	 *
+	 * E' la guardia contro il difetto ricorrente di questo motore: aggiungere un valore al catalogo e
+	 * ottenere un modulo che non scatta mai, con un test verde che ne verifica solo il DATO. Pinnata da
+	 * `Reaction.EveryTriggerHasAPassPoint`, che fallisce se un trigger diverso da `None` finisce su `Never`.
+	 */
+	static ERTReactionPassPoint PassPointFor(ERTReactionTrigger Trigger);
+
+	/**
+	 * Gli stati che contano come CONTROLLO, dal **piu' grave al meno grave** (CP 7.5, `#505`).
+	 *
+	 * Ordine, non insieme: con due controlli nello stesso Blast `Reaction.Cleanse` ne annulla uno solo, e
+	 * quale non puo' dipendere da chi ha colpito per primo. `Root` azzera il budget di movimento, `Slow` ne
+	 * aumenta il costo per cella: il primo fa perdere il turno, il secondo lo rende piu' caro.
+	 *
+	 * ⚠️ **Limite dichiarato**: e' una lista nel codice, non un dato del catalogo. Uno stato di controllo
+	 * aggiunto domani non entra qui da solo e il modulo smetterebbe di vederlo — lo stesso difetto che
+	 * `PassPointFor` esiste per impedire, qui non evitabile senza un campo nel catalogo degli stati (che la
+	 * v0.1 non ha). Pinnato da `Reaction.ControlStatusesAreTwo`, che cade quando ne nasce un terzo.
+	 */
+	static const TArray<FGameplayTag>& ControlStatusesBySeverity();
+
+	/**
+	 * Posizione del tag in `ControlStatusesBySeverity` — **0 = il piu' grave** — o `INDEX_NONE` se non e' uno
+	 * stato di controllo. E' l'unico modo in cui il resolver deve confrontare due controlli fra loro.
+	 */
+	static int32 ControlSeverityRank(const FGameplayTag& Tag);
 };
