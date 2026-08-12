@@ -3813,7 +3813,9 @@
       "owner_specs": [
         "docs/technical/spec-pointer-interaction.md"
       ],
-      "issues": [],
+      "issues": [
+        705
+      ],
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [

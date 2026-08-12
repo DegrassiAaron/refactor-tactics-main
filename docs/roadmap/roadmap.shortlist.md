@@ -65,7 +65,7 @@ tabella sopra, che è generata.
 | 10 | Prova finale | E15 · CP 15.3–15.5 (golden replay degli 8 turni) · E17 stress 4v4 · E19 formato |
 | 11 | Release | E12 determinismo, QA, packaging |
 
-**Totale: 21 epic, 95 checkpoint.** Il collo di bottiglia dichiarato non è il codice di gioco: è la
+**Totale: 21 epic, 100 checkpoint.** Il collo di bottiglia dichiarato non è il codice di gioco: è la
 **verifica interattiva** — il playtest E2.8/M6.8 non è mai stato eseguito.
 
 ---

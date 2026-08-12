@@ -87,6 +87,23 @@ chi aggiunge un checkpoint scrive la riga di dettaglio in §5 — dove serve al 
 riassuntiva resta indietro **in silenzio**, perché nessun gate la confronta con le sezioni che riassume.
 Lo script di rimisura è ora **dentro** §3, accanto al totale, ed è stato eseguito prima di scriverlo.
 
+> 🔴 **E il totale era copiato in cinque posti, non uno.** Corretto §3 e fermatosi lì, questo lavoro avrebbe
+> lasciato quattro copie a dire «95» — cioè avrebbe **riprodotto** il difetto che stava correggendo. La
+> ricerca (`grep -rn "21 epic" docs/`) le ha trovate tutte:
+>
+> | Copia | Esito |
+> |---|---|
+> | `roadmap-v0.1.md` §3 | **fonte** — corretta |
+> | `docs/README.md` | copia viva — corretta |
+> | `roadmap-checkpoint.md` ×2 | copie vive — corrette, e una ora dichiara di **essere** una copia |
+> | `roadmap.shortlist.md` | prosa **fuori** dal blocco `RT_SHORTLIST_EPICS` generato — corretta a mano |
+> | `v0.1-issue-plan.md` | **`HISTORICAL`**, snapshot dichiarato non riscritto — **lasciata** |
+> | `plans/consolidamento-roadmap-2026-08-10.md` | referto **datato**: registra una misura del 2026-08-10 — **lasciato** |
+>
+> La lezione non è «cercare meglio»: è che un totale senza un gate che lo verifichi si moltiplica. Le copie
+> vive sopravvivono perché nessuno le confronta con la fonte, ed è **esattamente** il motivo per cui il
+> registro dei test e il registro PIE hanno smesso di tenere numeri scritti a mano.
+
 ### 4.2 `PIE-V01-GHOSTS` era citata da tre documenti e **non esisteva**
 
 Il DoD di **CP 11.6** la nomina dal 2026-08-07 in `roadmap-v0.1.md`, `brief-planning-visuale.md` e
@@ -123,7 +140,8 @@ quella cella e' vuota»* (`RTTurnManager.cpp:374`) — con `HexBotPlay.HiddenEne
 | subset `RELEASE-V01` | 17 | **17** | `grep -c` in `scenario-map.md` §7 |
 | `Visual.*` ↔ `PIE-VIS-*` | 21 = 21 | **21 = 21** | idem |
 | scenari `planned` nel registry | 50 | **56** | `feature-registry.yaml` |
-| feature nel registry | 104 | **105** | idem |
+| feature nel registry | 103 | **104** | `grep -c "^  - feature_id:"` |
+| copie vive del totale epic/CP | 5 *(una sola aggiornata)* | **5 allineate** | `grep -rn "21 epic" docs/` |
 | `validate` | 0 errori · 32 warning | **0 errori · 33 warning** | `feature_registry.py validate` |
 
 Il warning in più è **atteso e voluto**: i sei scenari `planned` di `RT-FEAT-UI-POINTER-INTERACTION`.
