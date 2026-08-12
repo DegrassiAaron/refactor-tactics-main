@@ -95,5 +95,22 @@ struct FRTTerrainDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Terrain")
 	TArray<FRTActionEffectSpec> OnEnterEffects;
 
+	/**
+	 * Quanto questa superficie SPENDE del rumore che l'attraversa, oltre al passo (CP 13.3). `0` = terreno
+	 * libero, che e' il riferimento della scala.
+	 *
+	 * Sta nel dato del terreno accanto a `MoveCost` — e non in una tabella dentro il propagatore — per la
+	 * ragione che la DoD di CP 13.3 chiede per nome: *«nessuna intensita' incisa nel `TurnManager`»*. Una
+	 * superficie nuova porta il proprio costo acustico con se', come porta il proprio costo di movimento;
+	 * dimenticarselo la lascia a `0`, che e' il valore neutro e non una bugia.
+	 *
+	 * Derivato dal workbook (`08_Terreni` -> `Noise_Mod`) con `NoiseDelta = Noise_Mod - 1`, **con una
+	 * eccezione decisa**: l'acqua bassa vale `+2` e non il `+3` che la formula darebbe (D-042 — vince il
+	 * documento sorgente, il workbook resta `RESEARCH`). E' l'unico punto in cui formula e decisione divergono,
+	 * ed e' pinnato da un test apposta.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Terrain")
+	int32 NoiseDelta = 0;
+
 	FRTTerrainDef() = default;
 };

@@ -211,6 +211,16 @@ Feature Registry: `RT-FEAT-UI-ICON-LANGUAGE`.
 
 **Obiettivo**: il bot passa da «gioca legalmente» a «gioca di squadra».
 
+> **Architettura fissata il 2026-08-11**, e non era un dettaglio: «coordinazione vera» lasciava leggere due
+> modelli incompatibili — un assegnatore che distribuisce compiti, oppure una ricerca sulle combinazioni.
+> [D-097](../decisions/RT_PDR_00_Decision_Log.md) sceglie la seconda: **Top-K per unità più una combinazione
+> valutata al centro**, con i ruoli tattici che *emergono* dal piano invece di essere assegnati prima.
+> [D-098](../decisions/RT_PDR_00_Decision_Log.md) aggiunge il vincolo che impedisce le combo immaginarie: una
+> sinergia intra-turno vale solo se l'ordine delle fasi la permette, e la compatibilità si **chiede** alle
+> regole invece di riscriverla nel bot. Owner: [`../gameplay/spec-bot-tattico.md`](../gameplay/spec-bot-tattico.md).
+> Feature Registry: `RT-FEAT-BOT-TACTICAL` — che dal 2026-08-11 copre **solo** questa epic: belief e
+> predictive sono usciti in `RT-FEAT-BOT-BELIEF` e `RT-FEAT-BOT-PREDICTIVE`.
+
 Aggiunge (§5.2 del sorgente bot): TeamKnowledge integrato, contatti last-known e acustici, threat map,
 opportunity map, information value, coordinazione vera, sinergie ambientali, belief weights, predictive
 action scoring, reaction policy migliore, stress 4v4.
@@ -397,11 +407,22 @@ Estende E13 oltre il thin slice: stealth, memoria dell'ultima posizione nota con
 propagato con occlusione, gradi di certezza. Il sorgente 4v4 §19.1 fissa il vincolo: **nessun RNG nascosto per
 la percezione base** — se un'unità è vista, lo è per una regola, non per un tiro di dado.
 
+> **«Gradi di certezza» non significa un enum nuovo**, e il 2026-08-11 è stato a un passo dal diventarlo.
+> [D-099](../decisions/RT_PDR_00_Decision_Log.md): il repository ha già tre modi di dire quanto una squadra
+> sa — `ERTAwareness`, `ERTTargetKnowledge` e il turno del ricordo — e un quarto vocabolario avrebbe dato due
+> risposte diverse alla domanda *sappiamo dov'è?*. La confidenza del bot **ordina dentro `Uncertain`**, non
+> accanto. Con la regola che vale per tutta la epic: una belief non diventa conoscenza perché è lo scenario
+> più plausibile. Feature Registry: `RT-FEAT-BOT-BELIEF`.
+
 ### E28 — Expert Bot v2 · P2
 
 Solo **dopo** la stabilizzazione del resolver (§5.3 del sorgente): simulazioni counterfactual, più ipotesi
 sul nemico, opponent model su eventi osservati, pianificazione robusta, personalità tattiche, possibile riuso
 del planner come strumento di QA.
+
+Feature Registry: `RT-FEAT-BOT-PREDICTIVE`. Il confine con la simulazione counterfactual è già tracciato da
+[D-078](../decisions/RT_PDR_00_Decision_Log.md), che separa *chi riproduce* da *chi verifica*: il planner può
+copiare lo stato logico solo quando il resolver è estraibile, ed è la stessa condizione.
 
 ### E29 — Predictive avanzato · P2
 
@@ -473,6 +494,54 @@ Vektor, la cui forma `Siege` spegnerebbe la meccanica firma.
 [`../characters/matrici-stati-personaggio.md`](../characters/matrici-stati-personaggio.md); l'ordine dei
 prototipi va **dal più leggero al più invasivo** — `Riva · Flow` non tocca alcun sistema condiviso,
 `Bastion · Bulwark` tocca cover, LOS, collisione e pathing.
+
+### E37 — Radar di personaggio e generatore Wiki · P3
+
+[D-105](../decisions/RT_PDR_00_Decision_Log.md)…[D-108](../decisions/RT_PDR_00_Decision_Log.md), owner
+[`../characters/spec-radar-profilo-personaggio.md`](../characters/spec-radar-profilo-personaggio.md).
+Due viste radar — **Profile** (sei assi, pubblica) e **Balance** (cinque assi, tuning) — su scala `1..10`, più
+un generatore SVG deterministico che le produce per la Wiki. I rating sono una **vista derivata**: nessuno
+entra nel resolver.
+
+**Non blocca nulla della v0.1** ed è deliberatamente P3: è comunicazione e supporto al bilanciamento, non
+gameplay. Sta qui e non nella roadmap di release perché competerebbe con la consegna.
+
+**I rating non si scrivono, si calcolano.** [D-106](../decisions/RT_PDR_00_Decision_Log.md): il generatore
+legge [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) — l'autorità dei numeri per
+[D-023](../decisions/RT_PDR_00_Decision_Log.md) — applica la rubrica e produce i rating in memoria. Nessun
+file di rating esiste, quindi nessuna seconda fonte può nascere né divergere.
+
+> ⚠️ **La domanda su cui l'epic sembrava bloccata era mal posta.** «Quale dei due workbook è autorità sui
+> rating» aveva già risposta nel repository: **nessuno dei due**. D-023 aveva declassato quello di balance a
+> `RESEARCH`, e [`../balance/README.md`](../balance/README.md) vieta perfino di ripararlo cella per cella —
+> *«un workbook rattoppato diventerebbe una falsa fonte corrente»*. Il conflitto non è stato risolto: si è
+> **dissolto**.
+
+**Il prerequisito di tutto è la rubrica**, non un dato. Se i rating non sono scritti, senza formula non
+esistono affatto: non c'è il ripiego «intanto li mettiamo a mano». In cambio, cambiare `Salute` o `Movimento`
+in un catalogo cambia i radar da solo.
+
+**Sei assi, e uno nasce fragile.** [D-107](../decisions/RT_PDR_00_Decision_Log.md) sceglie di modellare i tre
+assi senza fonte invece di ridurre il radar. Cinque si derivano dagli input che il catalogo dichiara per eroe;
+`information` ha come unico ingrediente la **Vista** (Flux 7, Vektor 6, Riva e Bastion 5), perché stealth e
+detection vivono solo nel workbook escluso. Si arricchisce derivando il rumore dal **kit**
+([D-042](../decisions/RT_PDR_00_Decision_Log.md)), non ripescando il foglio.
+
+**Node/TypeScript, SVG committati con gate.** [D-108](../decisions/RT_PDR_00_Decision_Log.md), scelta
+dall'autore contro la raccomandazione registrata nel consolidamento (Python accanto a `scripts/`).
+⚠️ Le due scelte si combinano in un effetto che nessuna ha da sola: poiché i rating vengono dai cataloghi, il
+gate degli SVG diventa **un test di regressione sui dati competitivi** — toccare una stat rende rosso il gate
+finché i grafici non sono rigenerati nello stesso commit. Il prezzo è che chi tocca un catalogo deve poter
+eseguire il generatore, quindi Node diventa un prerequisito del **bilanciamento**, non solo della
+documentazione.
+
+⚠️ **Finché la rubrica non esiste nessun radar è generabile**, perché un asse `TBD` non si renderizza come `0`
+(D-105) e senza formula tutti gli assi sono `TBD`. È l'esito voluto: impedisce che quattro poligoni inventati
+diventino canonici passando dalla Wiki.
+
+**Tracciata su GitHub**: epic [#555](https://github.com/DegrassiAaron/refactor-tactics-main/issues/555), con
+8 checkpoint (`CP 37.1`–`37.8`) collegati come sub-issue. Feature: `RT-FEAT-CHAR-RADAR-MODEL`,
+`RT-FEAT-CHAR-RADAR-RATINGS-V01`, `RT-FEAT-WIKI-CHART-GENERATOR`.
 
 ---
 

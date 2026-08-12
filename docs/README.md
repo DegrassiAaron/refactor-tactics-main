@@ -147,7 +147,7 @@ python scripts/feature_registry.py suite      # rimisura e riscrive il blocco qu
 ```
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**642 test unici in 85 file** — misurati su `e6ece62`.
+**701 test unici in 95 file** — misurati su `fc99e46`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
@@ -157,22 +157,22 @@ Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano
 | `Actions.*` | 71 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
 | `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
 | `Combat.*` · `HexCombat.*` | 39 | Danno dopo scudo, forme, LOS, niente fuoco amico |
-| `Reactions.*` | 27 | Attivazione singola, trigger puro, reazioni componibili, privacy |
+| `Reactions.*` | 30 | Attivazione singola, trigger puro, reazioni componibili, privacy |
 | `HexSim.*` | 28 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
 | `Match*` (allestimento, formato, fine partita) | 32 | Le tre vie di fine partita e il `RoundLimit` da formato |
 | `Heroes.*` | 32 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
 | `TurnLog.*` | 48 | Hash permutazione-invariante, serializzazione versionata, checksum |
 | `Scenario.*` · `ScenarioIndex.*` | 56 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
 | `Structures.*` | 21 | Porte come bordo (E9.3), ponti come arco (E9.4) |
-| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 23 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 26 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 24 | Presentazione e input: non decidono, riproducono |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 27 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
 | `Cover.*` | 20 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
 | `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
-| `Perf.*` | 2 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **579** | |
+| `Perf.*` | 3 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
+| **totale** | **585** | |
 
-> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`, `RefactorTactics.Arena.VerdictIsIndependentOfCellOrder`, `RefactorTactics.Door.ChangeCarriesActor`, `RefactorTactics.Equipment.PortableCover.CreatesCover`
+> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.ArenaV01MeetsAllThreeCriteria`, `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`, `RefactorTactics.Arena.VerdictIsIndependentOfCellOrder`, `RefactorTactics.Door.ChangeCarriesActor`
 <!-- RT_SUITE_COUNT:END -->
 
 ---

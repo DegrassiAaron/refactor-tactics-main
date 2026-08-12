@@ -396,6 +396,30 @@ protected:
 		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget);
 
 	/**
+	 * Applica uno spostamento FORZATO gia' deciso: i dieci passi che devono avvenire tutti, in un posto solo
+	 * (`#541`).
+	 *
+	 * Non calcola **dove** — quello lo fanno `HexKnockbackDestination` e la sua gemella per la trazione, e
+	 * restano separate perche' la direzione e' l'unica cosa che davvero distingue una spinta da un tiro.
+	 * Questa applica **come**, ed e' identica per entrambe: log, percorso, voce di TurnLog con la causa
+	 * (`#307`), evento di playback, cella nuova, facing verso la sorgente (CP 16.1), posizione visiva, hazard
+	 * di **ogni** cella attraversata (`#308`), e il piano che segue l'unita' invece di riportarla indietro.
+	 *
+	 * ⚠️ **Esisteva gia' due volte**, per `Push` e per `Pull`, riga per riga uguale tranne il verbo del log,
+	 * la mappa delle cause e la sorgente del facing. La terza copia sarebbe arrivata con `SelfReposition`
+	 * (D-093), e la terza e' quella che trasforma una duplicazione in un pattern da imitare: chi aggiunge il
+	 * quarto produttore di spostamento copia da una delle tre, e prima o poi ne copia una a cui manca un
+	 * passo. Ogni passo omesso e' un difetto gia' pagato — `#307` la causa, `#308` gli hazard, il piano che
+	 * non segue riporta l'unita' indietro nel Move.
+	 *
+	 * `FacingSource` e' la cella **verso cui** l'unita' si gira: chi spinge per la spinta, chi tira per la
+	 * trazione, chi ha innescato per una fuga ([D-104](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
+	 */
+	void ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell, const FRTCellId& FacingSource,
+		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget, const TCHAR* LogVerb,
+		const URTHexMapAsset* Map);
+
+	/**
 	 * Voce di TurnLog per uno spostamento forzato ANNULLATO (#420): la spinta e' stata registrata, risolta, e
 	 * l'unita' e' rimasta dov'era. Il gemello negativo di `AppendDisplacementEntry`, e con la stessa forma —
 	 * fase `Blast`, categoria `Move`, causa presa dalla stessa mappa.
@@ -588,6 +612,15 @@ protected:
 	/** La radice effettiva: l'override se c'e', altrimenti `Saved/Replays`. */
 	FString ResolveReplaysRoot() const;
 
+	/**
+	 * Istante reale d'inizio registrazione, per la durata nel manifest. E' l'UNICO tempo reale che tocca
+	 * l'archivio, e finisce in un campo che non entra in nessun hash.
+	 */
+	double ReplayStartRealSeconds = 0.0;
+
+	/** Istante d'inizio in UTC, per la riga dell'indice (`#416`). Il manifest porta una durata, non un inizio. */
+	FDateTime ReplayStartedUtc = FDateTime(0);
+
 	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
 	TArray<TArray<FRTCellId>> LastMoveRoutes;
 
@@ -603,6 +636,35 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	int32 TurnNumber = 1;
+
+	/**
+	 * Cosa sa ogni squadra, e che SOPRAVVIVE al turno (CP 13.2). Ordinata per `TeamId`.
+	 *
+	 * Vive qui e non nello snapshot perche' lo snapshot e' una fotografia che nasce e muore dentro una fase,
+	 * mentre la memoria del contatto e' esattamente cio' che deve attraversare il confine fra due turni — e'
+	 * la sua unica ragione di esistere. Lo snapshot ne riceve una COPIA (`FRTHexSnapshot::TeamKnowledge`),
+	 * cosi' i consumatori puri la leggono senza conoscere il TurnManager.
+	 */
+	TArray<FRTTeamKnowledge> TeamKnowledgeState;
+
+	/** La conoscenza della squadra, o una vuota e di versione corrente se la squadra non ne ha ancora. */
+	FRTTeamKnowledge KnowledgeForTeam(int32 TeamId) const;
+
+	/**
+	 * Rinfresca `TeamKnowledgeState` dalle posizioni ATTUALI delle unita' vive (CP 13.5).
+	 *
+	 * Serve a inizio pianificazione, dove `ResolveCombat` non e' ancora passato: senza, al primo turno la
+	 * conoscenza e' **vuota** e un bot che pianifica su di essa sarebbe cieco invece che parziale — cioe' il
+	 * filtro di percezione sembrerebbe funzionare mentre produce un bot che non fa niente.
+	 *
+	 * NON sostituisce il rinfresco dentro `ResolveCombat`, che resta dov'e' per la ragione scritta li': la
+	 * posizione autorevole per il Blast e' quella POST-Dash, e chi ha caricato in mezzo al campo deve essere
+	 * visto prima che si spari. Questo e' un secondo campione, allo stato di inizio turno.
+	 *
+	 * Idempotente rispetto alla scadenza dei ricordi: `Observe` scrive `TurnNumber` corrente sui contatti
+	 * freschi, quindi chiamarla due volte nello stesso turno non allunga la memoria di nessuno.
+	 */
+	void RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Live);
 
 	/**
 	 * Aggiunge una voce al TurnLog stampandoci i campi di CONTESTO della v6 (#405): turno, revisione del grafo

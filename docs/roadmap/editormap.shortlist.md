@@ -58,7 +58,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 ### My Editor Queue
 
-**BLOCKING** 7 · **READY** 4 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 1 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -66,23 +66,23 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U2** · Partita hex, primo giro — 3/4 voci verdi · sblocca U3, M6.1, M6.2
 - **U3** · Input e pianificazione — 1/4 voci verdi · sblocca U4, M6.3
 - **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
-- **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, M6.6, M6.7
+- **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, U19, M6.6, M6.7
 - **U6** · Multilivello e partita completa — 0/4 voci verdi · sblocca U16, U19, M6.8
+- **U7** · Personaggi Paragon — 1/2 voci verdi · sblocca U8, U19
+- **U8** · Animazioni — 0/2 voci verdi · sblocca U9, U19
+- **U9** · Leggibilita' e riferimento visivo — 2/4 voci verdi · sblocca M8.1, M8.2, M8.3
 - **U15** · HUD, intenti, log e comandi debug — 1/5 voci verdi · sblocca E11
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
 - **U18** · Verifiche senza prerequisiti — 1/8 voci verdi
-- **U7** · Personaggi Paragon — 2/2 voci verdi · sblocca U8
-- **U8** · Animazioni — 0/2 voci verdi · sblocca U9
-- **U9** · Leggibilita' e riferimento visivo — 2/4 voci verdi · sblocca M8.1, M8.2, M8.3
 
 **WAITING** — *Aspetta codice*
 
 - **U11** · I 4 eroi — attende `U10` —
 - **U13** · Arena v0.1 — attende `U1` 🟡
 - **U14** · Ambiente in partita — attende `U13` ⏳
-- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` 🟡
+- **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` 🟡, `U5` 🟡, `U7` 🟡, `U8` ⏳
 - **U16** · Misura dei KPI — attende `U6` 🟡
 - **U20** · Confine fra Guard e Brace — attende `E5.2` ⏳
 
@@ -101,16 +101,16 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
 | **U5** | Bot e HUD | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
 | **U6** | Multilivello e partita completa | chiusura di M6 / E2 — sessione D verde | M6.8 | sì | 0/4 | 🟡 |
-| **U7** | Personaggi Paragon | `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati | — | no | 2/2 | 🟡 |
-| **U8** | Animazioni | `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death | — | no | 0/2 | ⏳ |
-| **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | no | 2/4 | 🟡 |
+| **U7** | Personaggi Paragon | i quattro Blueprint-unita' del roster v0.1, committati | — | sì | 1/2 | 🟡 |
+| **U8** | Animazioni | gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
+| **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | sì | 2/4 | 🟡 |
 | **U10** | Data asset delle azioni | il catalogo azioni della v0.1 come dati, non come codice | E1.3, E1.4 | sì | — | — |
 | **U11** | I 4 eroi | i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa | E6, U10 | sì | 0/1 | 🟡 |
 | **U12** | Loadout | varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe | E7, U11 | no | — | — |
 | **U13** | Arena v0.1 | l'arena estesa con quanto serve alle verifiche di contenuto | E8, E9, U1 | sì | 0/1 | ⏳ |
 | **U14** | Ambiente in partita | verdetto sulle regole ambientali e strutturali | U13 | sì | 0/11 | 🟡 |
 | **U15** | HUD, intenti, log e comandi debug | verdetto su leggibilita' e osservabilita' | E11 | sì | 1/5 | 🟡 |
-| **U19** | Durata, ritmo e scala | numeri di playtest — non difetti | U6, U1 | sì | 0/4 | ⏳ |
+| **U19** | Durata, ritmo e scala | numeri di playtest — non difetti | U6, U1, U5, U7, U8 | sì | 0/4 | ⏳ |
 | **U16** | Misura dei KPI | numeri reali nella tabella KPI | U6 | sì | 0/1 | 🟡 |
 | **U17** | Release v0.1 | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
 | **U20** | Confine fra Guard e Brace | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
@@ -277,7 +277,7 @@ solo headless (`HexCombat.Knockback*`, che la spinta se la costruisce da solo).
 **Produce**: verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale
 **Verifichi**: `PIE-HEXPLAY-7` 🟡 · `PIE-HEXPLAY-9` ⏳ · `PIE-AI-01` ⏳ · `PIE-AI-02` ⏳ · `PIE-AI-03` ⏳ · `PIE-AI-04` ⏳ · `PIE-AI-05` ⏳
 **Finita quando**: le voci hanno esito reale e i pesi eventualmente modificati sono committati
-**Sblocca**: U6, M6.6, M6.7
+**Sblocca**: U6, U19, M6.6, M6.7
 
 Partita con almeno un'unita' `bIsBotControlled`; il log utility deve mostrare coordinate
 **assiali** `(q,r,L)`. Poi taratura: `TurnManager` nel World Outliner → Details ▸ *Bot*; i pesi
@@ -312,42 +312,108 @@ giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il 
 
 ### Blocco 3 — Presentazione (M8)
 
-*Sbloccato da subito: il C++ e' gia' in `main`. Fuori percorso critico: nessuna di queste sedute blocca la v0.1.*
+*Sbloccato da subito: il C++ e' gia' in `main`. ⚠️ **Dal 2026-08-10 e' percorso critico**, e prima diceva l'opposto — «nessuna di queste sedute blocca la v0.1». Era un disallineamento col canone, non una scelta: **E21 «Presentazione e leggibilita'»** e' P1 e sta **dentro** lo scope di release (`v0.1 = E1-E21`), e queste tre sedute sono il suo lavoro in editor. Confermato dall'autore: per la v0.1 i modelli e le animazioni dei personaggi ci devono essere. Il `done_when` di U9 — **nessun cilindro in campo** — e' il modo in cui lo si verifica.*
 
 #### U7 · Personaggi Paragon 🟡
 
-**Sbloccata da**: — · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: no
-**Produce**: `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati
-**Artefatti**: `Content/RT/Characters/Gideon/Blueprints/BP_Unit_Guardian.uasset` ⏳ · `Content/RT/Characters/Sparrow/Blueprints/BP_Unit_Ranger.uasset` ⏳
-**Verifichi**: `PIE-AS2` ✅ · `PIE-FACING` ✅
-**Finita quando**: i Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
-**Sblocca**: U8
+**Sbloccata da**: — · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: sì
+**Produce**: i quattro Blueprint-unita' del roster v0.1, committati
+**Artefatti**: `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset` ⏳ · `Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset` ⏳ · `Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` ⏳ · `Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` ⏳
+**Verifichi**: `PIE-AS2` ⏳ · `PIE-FACING` ✅
+**Finita quando**: i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
+**Sblocca**: U8, U19
 
-I 26 pack Paragon sono in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`,
-non `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B).
-Procedura: `guida-animazioni-paragon.md` §AS.3 e §AS.4 punto 4.
-Collocazione: `/Game/RT/Characters/<CharacterId>/Blueprints/` (§5); i pack di terze parti
-restano **fuori** da `/Game/RT`. Assegna le classi a `GuardianUnitClass` / `RangerUnitClass`
-e tieni `VisualZOffset=0`.
+**Un Blueprint per eroe, ma intitolato al PACK.** La base visuale la fissa **D-037** (tabella
+owner in `docs/characters/paragon.md`); i nomi degli asset e delle cartelle seguono il pack
+Paragon, non l'eroe (deciso 2026-08-11 — vedi `notes`):
 
-> ⚠️ Gideon, Sparrow e altri 3 pack sono stati danneggiati dalla migrazione del 2026-08-06 e **vanno riscaricati da Fab** prima di usarli. I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica.
+| Eroe | `HeroId` | Pack | Blueprint | Skeletal Mesh da assegnare |
+|---|---|---|---|---|
+| Flux | `Hero.Flux` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
+| Riva | `Hero.Riva` | `Paragon.Phase` | `BP_Unit_Phase` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
+| Bastion | `Hero.Bastion` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
+| Vektor | `Hero.Vektor` | `Paragon.Wraith` | `BP_Unit_Wraith` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
+
+⚠️ **La mesh di Phase NON si chiama `Phase`**: e' `Phase_GDC` (22,6 MB). Gli altri file in quella
+cartella pesano 0,1 MB — sono extents, shadow e skeleton. Verificato sul disco il 2026-08-11.
+⚠️ Si scrive **`Paragon.Gadget`, mai `Gadget` nudo** quando si parla del pack: `Gadget` da solo e'
+gia' una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`).
+
+1. I pack stanno in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`, mai
+   `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B).
+2. Un Blueprint in `/Game/RT/Characters/<Pack>/Blueprints/BP_Unit_<Pack>`, classe base
+   **`ARTUnit`**. I pack di terze parti restano **fuori** da `/Game/RT`: qui ci va il Blueprint,
+   non il pack.
+3. ⚠️ **Il cilindro non si sostituisce, si nasconde.** `ARTUnit::Mesh` e' uno
+   `UStaticMeshComponent` ed e' il root: nel Blueprint si **aggiunge** uno
+   `USkeletalMeshComponent` e si toglie la spunta `Visible` al cilindro, che il C++ usa ancora
+   per selezione e fallback.
+4. **`VisualZOffset = 0`.** Il default e' `UnitHalfHeight` (90), giusto per il cilindro che ha il
+   pivot al CENTRO; i personaggi UE ce l'hanno ai PIEDI. Lasciarlo fa fluttuare l'unita' a 90 cm.
+5. `TeamRingMaterial` e `SelectionRingMaterial` → `M_TeamRing` / `M_SelectionRing` in
+   `/Game/RT/Characters/Shared/Materials/`. Il colore lo mette il codice sul MID; assenti,
+   l'anello resta nascosto senza rompere nulla.
+6. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
+   (`Hero.Flux` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
+   `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna
+   `ARTUnit::StaticClass()`, cioe' il cilindro. Un Blueprint perfetto ma non registrato non
+   viene mai istanziato.
+7. **Le statistiche non si toccano**: `MaxHealth`, `AttackPower`, `MoveRange` arrivano da
+   `URTHeroData`. Scriverle nel Blueprint significa scrivere numeri che il catalogo sovrascrive.
+
+Procedura per animazioni e montaggi: `guida-animazioni-paragon.md` §AS.3 e §AS.4.
+
+> ⚠️ **Riscritta il 2026-08-10, era obsoleta su tre punti insieme**: chiedeva `BP_Unit_Guardian`
+> (Gideon) e `BP_Unit_Ranger` (Sparrow) da assegnare a `GuardianUnitClass`/`RangerUnitClass`.
+> Gli **archetipi** Guardian/Ranger sono stati rimossi, quei due campi **non esistono piu'** nel
+> codice (oggi c'e' `HeroUnitClasses`, per `HeroId`), e Gideon/Sparrow in `paragon.md` sono
+> *Candidate*: nessuno dei due e' la base visuale di un eroe della v0.1. Seguendola si sarebbero
+> costruiti due Blueprint che il gioco non istanzia.
+
+> **I quattro pack sono tutti sul disco** (verificato 2026-08-11): Gadget 1232 file, Phase 1155, Riktor 1261, Wraith 1322. `ParagonGadget` mancava ed e' stato portato con la procedura `convenzioni-contenuti-ue.md` **B.2a** (magazzino + rename headless + copia). I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica. ⚠️ **Naming deciso dall'autore il 2026-08-11**: cartelle e asset di questa seduta portano il nome del **pack Paragon**, non dell'eroe, «per non creare problemi» — in editor si vede `Gadget` e si cerca `Gadget`. Ribalta `convenzioni-contenuti-ue.md` §A, che raccomandava l'opposto perche' il nome del pack lega l'asset a una mesh sostituibile: il rischio resta, ed e' accettato consapevolmente. Se un eroe cambiasse base visuale, il Blueprint andrebbe rinominato. ⚠️ **Eccezione dichiarata**: i data asset eroe (`DA_Hero_Flux`, …) restano intitolati all'**eroe** pur stando nella cartella del pack. Sono dati di gioco, non presentazione: non dipendono dalla mesh, e `HeroId` in C++ resta `Hero.Flux`. ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni.
 
 #### U8 · Animazioni ⏳
 
-**Sbloccata da**: — · **Preparazione condivisa con**: U7, U9 · **Percorso critico**: no
-**Produce**: `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death
-**Artefatti**: `Content/RT/Characters/Gideon/Blueprints/ABP_Gideon.uasset` ⏳ · `Content/RT/Characters/Sparrow/Blueprints/ABP_Sparrow.uasset` ⏳
+**Sbloccata da**: — · **Preparazione condivisa con**: U7, U9 · **Percorso critico**: sì
+**Produce**: gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death
+**Artefatti**: `Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset` ⏳ · `Content/RT/Characters/Phase/Animation/ABP_Phase.uasset` ⏳ · `Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset` ⏳ · `Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset` ⏳
 **Verifichi**: `PIE-AS4a` ⏳ · `PIE-AS4b` ⏳
-**Finita quando**: gli asset sono tracciati da git e le due voci hanno esito reale
-**Sblocca**: U9
+**Finita quando**: i quattro anim BP sono tracciati da git e le due voci hanno esito reale
+**Sblocca**: U9, U19
 
 Procedura completa in `guida-animazioni-paragon.md` §AS.4a (locomozione Idle↔Run pilotata dai
-delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), piu' la sezione
-«Ripetere per il Ranger» per il duplicato.
+delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), poi si ripete per gli
+altri tre eroi.
+
+**Il nome segue il PACK** (deciso 2026-08-11, come U7): `ABP_Gadget`, `ABP_Phase`,
+`ABP_Riktor`, `ABP_Wraith`. La collocazione e' `/Game/RT/Characters/<Pack>/Animation/` — non
+`Blueprints/`, che ospita i `BP_Unit_*`.
+
+Ogni anim BP va costruito sullo scheletro **che la sua mesh referenzia** — letto dall'asset, non
+dedotto dal nome del file (corretto il 2026-08-11, vedi sotto):
+
+| Pack | Mesh assegnata in U7 | Skeleton da usare |
+|---|---|---|
+| `Paragon.Gadget` | `Gadget` | `Gadget_Skeleton` |
+| `Paragon.Phase` | `Phase_GDC` | `phase_Skeleton` |
+| `Paragon.Riktor` | `Riktor` | `Riktor_Skeleton` |
+| `Paragon.Wraith` | `Wraith` | `Wraith_Skeleton` |
+
+⚠️ **Lo skeleton si LEGGE dalla mesh, non si cerca nella cartella.** Una prima stesura di questa
+tabella dava `gadget_bot_Skeleton` e `belly_Riktor_Skeleton`, presi perche' erano il primo file
+`*Skeleton*` di quella cartella: appartengono pero' a **mesh diverse e piu' piccole**
+(`gadget_bot`, `belly_Riktor`), non a quelle che U7 assegna. Assegnarli avrebbe prodotto un anim
+BP legato a uno scheletro incompatibile — un errore silenzioso, come quello del punto 6 di U7.
+Il controllo, in editor: aprire la Skeletal Mesh e leggere il campo **Skeleton** nei Details.
+
+> ⚠️ **Riscritta due volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
+> `Blueprints/`: due anim BP intitolati a pack che non sono la base visuale di nessun eroe della
+> v0.1, nella cartella sbagliata. Il 2026-08-11 i nomi sono passati dall'eroe al pack per scelta
+> dell'autore — vedi le `notes` di U7 per il costo accettato.
 
 #### U9 · Leggibilita' e riferimento visivo 🟡
 
-**Sbloccata da**: — · **Preparazione condivisa con**: U7, U8 · **Percorso critico**: no
+**Sbloccata da**: — · **Preparazione condivisa con**: U7, U8 · **Percorso critico**: sì
 **Produce**: il video (o gli screenshot) di riferimento — DoD di milestone di M8
 **Verifichi**: `PIE-AS5` ✅ · `PIE-SEL` ✅ · `PIE-ICON-01` ⏳ · `PIE-FMT-01` ⏳
 **Finita quando**: nessun cilindro in campo (salvo asset mancanti) e il riferimento visivo e' nel repo
@@ -442,7 +508,7 @@ l'abitudine sbagliata).
 
 #### U19 · Durata, ritmo e scala ⏳
 
-**Sbloccata da**: U6, U1 · **Percorso critico**: sì
+**Sbloccata da**: U6, U1, U5, U7, U8 · **Percorso critico**: sì
 **Produce**: numeri di playtest — non difetti
 **Verifichi**: `PIE-V01-MATCHLEN` ⏳ · `PIE-V01-READY` ⏳ · `PIE-V01-OVERWATCH` ⏳ · `PIE-V01-MAPSCALE` ⏳
 **Finita quando**: le quattro voci hanno un numero registrato, anche fuori target
@@ -450,6 +516,19 @@ l'abitudine sbagliata).
 **Non e' una seduta di caccia ai difetti: e' una seduta di misura.** Si gioca **una partita
 intera fino alla fine**, senza fermarsi a indagare, e si annotano i numeri. Serve un cronometro
 e `bRecordPacing` attivo sul `TurnManager` (il CSV finisce in `Saved/RT/`, fuori dal versionamento).
+
+⚠️ **Non anticiparla** (deciso con l'autore il 2026-08-10). Aspetta **due** condizioni, ed e' il
+motivo per cui `U5` e `U8` sono fra i suoi prerequisiti:
+
+1. **Il bot gioca bene abbastanza** — cioe' il bot della v0.1 con i **pesi utility ritarati sulla
+   scala esagonale**, che e' esattamente il prodotto di `U5`. Non serve E26 *Tactical Bot v1*, che
+   e' post-v0.1: il gate e' la taratura, non la nuova architettura.
+2. **In campo ci sono personaggi, non cilindri** — i modelli di `U7` e le animazioni di `U8`.
+
+La ragione e' che questa seduta misura **ritmo e leggibilita' percepiti**, e nessuno dei due si
+misura su cilindri mossi da un bot non tarato: si otterrebbero numeri veri di una partita che non
+e' quella che si spedisce. Una misura presa troppo presto e' peggio di una misura assente, perche'
+finisce nella tabella KPI e sembra un dato.
 
 1. **Prima della partita**: conta i Move per attraversare la mappa da spawn a spawn e verifica
    che esistano **almeno due rotte** con trade-off diverso (`PIE-V01-MAPSCALE`). Il criterio e'
@@ -514,7 +593,7 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 > Nasce dal piano `BAL-1` (`plans/bal-1-guard-brace-roadmap-2026-08-10.md` §6). **Non entra nel subset `RELEASE-V01`**: `BAL-1` non blocca la consegna, e un gate che si allarga senza motivo e' il difetto che G9 ha gia' avuto due volte. La seduta ha una voce sola di proposito — e' una domanda che si risponde una volta, guardandola. ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
 
-> **54 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 9 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-P-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 1 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
+> **55 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 9 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 1 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 
 <!-- RT_SHORTLIST_EDITOR:END -->
 

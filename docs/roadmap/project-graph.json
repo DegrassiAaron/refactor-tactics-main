@@ -52,11 +52,17 @@
       "[RT-FEAT-REACTION-CLASH] 3 scenario/i dichiarati planned: Spec.Clash.HiddenUntilReveal, Spec.Clash.RevealIsFixedDeadline, Spec.Clash.Determinism",
       "[RT-FEAT-STATUS-FRAMEWORK] nessuna pagina Wiki collegata",
       "[RT-FEAT-ENV-ICE-ENGINE] nessuna pagina Wiki collegata",
+      "[RT-FEAT-PERCEPTION-MEMORY] feature di gameplay TESTABLE senza scenario che la dimostri",
       "[RT-FEAT-UI-ICON-LANGUAGE] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-TRANSFORMATION] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
       "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
       "[RT-FEAT-STRESS-4V4] 1 scenario/i dichiarati planned: Stress.4v4.CoreRoster",
+      "[RT-FEAT-BOT-FAIRNESS] feature di gameplay TESTABLE senza scenario che la dimostri",
+      "[RT-FEAT-BOT-FAIRNESS] 3 scenario/i dichiarati planned: Spec.Bot.HiddenEnemyFairness, Spec.Bot.DecoyNoiseIndistinguishable, Spec.Bot.PlansOnPartialKnowledge",
+      "[RT-FEAT-BOT-TACTICAL] 5 scenario/i dichiarati planned: Spec.Bot.TeamPlanRejectsHardConflict, Spec.Bot.CandidateDiversityKeepsControl, Spec.Bot.TemporalSynergyRequiresPhaseOrder, Spec.Bot.OverkillMovesSecondUnit, Spec.Bot.PlanHysteresisIgnoresSmallDelta",
+      "[RT-FEAT-BOT-BELIEF] 3 scenario/i dichiarati planned: Spec.Bot.BeliefDoesNotBecomeKnowledge, Spec.Bot.GraphRevisionInvalidatesBelief, Spec.Bot.InformationGainIgnoresHiddenContent",
+      "[RT-FEAT-BOT-PREDICTIVE] 2 scenario/i dichiarati planned: Spec.Bot.RobustPlanSurvivesFlank, Spec.Bot.HoldOnUnaccountedThreat",
       "[RT-FEAT-NET-PRIVATE-PLANNING] feature di gameplay TESTABLE senza scenario che la dimostri",
       "[RT-FEAT-INTENT-CONDITIONAL] nessuna pagina Wiki collegata",
       "[RT-FEAT-INTENT-CONDITIONAL] SPECIFIED senza issue ne' assegnazione in roadmap",
@@ -79,7 +85,7 @@
     },
     {
       "id": "G3",
-      "request": "I 10 test nominati dal catalogo esistono con quei nomi",
+      "request": "I 10 test nominati dal catalogo esistono — **nove con quei nomi, uno rinominato di proposito**",
       "state": "⏳"
     },
     {
@@ -150,17 +156,17 @@
     "E4": "✅",
     "E5": "✅",
     "E6": "✅",
-    "E7": "⏳",
+    "E7": "🟡",
     "E8": "✅",
     "E9": "✅",
     "E10": "🟡",
     "E11": "🟡",
     "E12": "🟡",
-    "E13": "⏳",
-    "E14": "⏳",
+    "E13": "🟡",
+    "E14": "🟡",
     "E15": "🟡",
     "E16": "✅",
-    "E17": "⏳",
+    "E17": "🟡",
     "E18": "✅",
     "E19": "🟡",
     "E20": "🟡",
@@ -233,9 +239,10 @@
     "E6.6": "⏳",
     "E6.7": "✅",
     "E7.1": "⏳",
-    "E7.2": "⏳",
-    "E7.3": "⏳",
-    "E7.4": "⏳",
+    "E7.2": "✅",
+    "E7.3": "✅",
+    "E7.5": "🟡",
+    "E7.4": "🟡",
     "E8.1": "⏳",
     "E8.2": "⏳",
     "E8.3": "✅",
@@ -599,6 +606,7 @@
       ],
       "unblocks": [
         "U6",
+        "U19",
         "M6.6",
         "M6.7"
       ],
@@ -694,23 +702,32 @@
       "id": "U7",
       "title": "Personaggi Paragon",
       "block": 3,
-      "critical": false,
+      "critical": true,
       "state": "🟡",
-      "queue_group": "READY",
-      "produces": "`BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati",
+      "queue_group": "BLOCKING",
+      "produces": "i quattro Blueprint-unita' del roster v0.1, committati",
       "artifacts": [
         {
-          "path": "Content/RT/Characters/Gideon/Blueprints/BP_Unit_Guardian.uasset",
+          "path": "Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset",
           "tracked": false
         },
         {
-          "path": "Content/RT/Characters/Sparrow/Blueprints/BP_Unit_Ranger.uasset",
+          "path": "Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset",
           "tracked": false
         }
       ],
       "unblocked_by": [],
       "unblocks": [
-        "U8"
+        "U8",
+        "U19"
       ],
       "shares_setup_with": [
         "U8",
@@ -719,7 +736,7 @@
       "verifies": [
         {
           "id": "PIE-AS2",
-          "state": "✅"
+          "state": "⏳"
         },
         {
           "id": "PIE-FACING",
@@ -727,29 +744,38 @@
         }
       ],
       "issues": [],
-      "done_when": "i Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi"
+      "done_when": "i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi"
     },
     {
       "id": "U8",
       "title": "Animazioni",
       "block": 3,
-      "critical": false,
+      "critical": true,
       "state": "⏳",
-      "queue_group": "READY",
-      "produces": "`ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death",
+      "queue_group": "BLOCKING",
+      "produces": "gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death",
       "artifacts": [
         {
-          "path": "Content/RT/Characters/Gideon/Blueprints/ABP_Gideon.uasset",
+          "path": "Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset",
           "tracked": false
         },
         {
-          "path": "Content/RT/Characters/Sparrow/Blueprints/ABP_Sparrow.uasset",
+          "path": "Content/RT/Characters/Phase/Animation/ABP_Phase.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset",
           "tracked": false
         }
       ],
       "unblocked_by": [],
       "unblocks": [
-        "U9"
+        "U9",
+        "U19"
       ],
       "shares_setup_with": [
         "U7",
@@ -766,15 +792,15 @@
         }
       ],
       "issues": [],
-      "done_when": "gli asset sono tracciati da git e le due voci hanno esito reale"
+      "done_when": "i quattro anim BP sono tracciati da git e le due voci hanno esito reale"
     },
     {
       "id": "U9",
       "title": "Leggibilita' e riferimento visivo",
       "block": 3,
-      "critical": false,
+      "critical": true,
       "state": "🟡",
-      "queue_group": "READY",
+      "queue_group": "BLOCKING",
       "produces": "il video (o gli screenshot) di riferimento — DoD di milestone di M8",
       "artifacts": [],
       "unblocked_by": [],
@@ -887,8 +913,8 @@
       "unblocked_by": [
         {
           "ref": "E7",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "🟡",
           "kind": "epic"
         },
         {
@@ -1083,6 +1109,24 @@
           "resolved": false,
           "state": "🟡",
           "kind": "seduta"
+        },
+        {
+          "ref": "U5",
+          "resolved": false,
+          "state": "🟡",
+          "kind": "seduta"
+        },
+        {
+          "ref": "U7",
+          "resolved": false,
+          "state": "🟡",
+          "kind": "seduta"
+        },
+        {
+          "ref": "U8",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
         }
       ],
       "unblocks": [],
@@ -1200,13 +1244,13 @@
       "U4",
       "U5",
       "U6",
+      "U7",
+      "U8",
+      "U9",
       "U15"
     ],
     "READY": [
-      "U18",
-      "U7",
-      "U8",
-      "U9"
+      "U18"
     ],
     "WAITING": [
       "U11",
@@ -1241,7 +1285,7 @@
     },
     {
       "id": "PIE-AS2",
-      "state": "✅"
+      "state": "⏳"
     },
     {
       "id": "PIE-AS4a",
@@ -1465,6 +1509,10 @@
     },
     {
       "id": "PIE-PREVIEW-PERSIST",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-REPLAY-ARCHIVE",
       "state": "⏳"
     },
     {
@@ -1955,6 +2003,16 @@
         "Facing"
       ],
       "path": "Scenarios/Spec/Overwatch/HoldThenFire.json"
+    },
+    {
+      "id": "Spec.Perception.AllySpottingLetsYouShoot",
+      "requires": [],
+      "path": "Scenarios/Spec/Perception/AllySpottingLetsYouShoot.json"
+    },
+    {
+      "id": "Spec.Perception.CannotShootWhatYouCannotSee",
+      "requires": [],
+      "path": "Scenarios/Spec/Perception/CannotShootWhatYouCannotSee.json"
     },
     {
       "id": "Spec.Perception.HeardNotSeen",

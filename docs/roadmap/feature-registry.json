@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 91,
+  "count": 98,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -219,6 +219,65 @@
         "commit": "51b5afa"
       },
       "notes": "48 test misurati su `RefactorTactics.TurnLog` (2026-08-10): ordine totale, hash permutazione-invariante, serializzazione versionata con checksum, I/O su file, letture legacy. `DescribeEntry` porta i reason code nel combat log del giocatore. Dal 2026-08-10 (#420, D-079) anche lo spostamento forzato **annullato** lascia una voce, con la causa in `Amount`: il gemello `Pull` resta scoperto ed è issue propria."
+    },
+    {
+      "feature_id": "RT-FEAT-REPLAY-ARCHIVE",
+      "title": "Replay Archive — recorder, Player e indice delle partite",
+      "area": "Core",
+      "kind": "tooling",
+      "release": "v0.2",
+      "priority": "P2",
+      "status": "INTEGRATED",
+      "status_derived": "INTEGRATED",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "done",
+        "scenario": "na",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 4,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": "E12",
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-CORE-TURNLOG"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/technical/spec-turnlog-serialize.md",
+        "docs/decisions/adr-0009-replay-logico-canonico.md"
+      ],
+      "issues": [
+        415,
+        469,
+        470,
+        471,
+        416,
+        490
+      ],
+      "tests": [
+        "RefactorTactics.Replay.*"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {
+        "date": "2026-08-10",
+        "commit": "b9c096c"
+      },
+      "notes": "26 test misurati su `RefactorTactics.Replay` (2026-08-10, suite 656/656 verde). Una partita allestita registra da sola il proprio archivio — `ARTGameMode` avvia, `ARTTurnManager` scrive il turno appena risolto e chiude il manifest a fine partita — e il checksum di fine partita ha ora **un solo produttore** (D-084, #490). Il Player (#470) riproduce senza ricalcolare e vive dove il resolver non è raggiungibile: con i suoi tre test il rischio `REPLAY-04` del risk register si chiude. L'indice `history.rtindex` (#416) elenca le partite senza aprire nessun archivio, verificato cancellandoli. ⚠️ `ui_wiki` e `packaged` sono `todo` e non è una svista: **nessuna UI** apre un replay (è R6, #472) e la registrazione non è ancora stata verificata sul pacchettizzato. `scenario: na` — l'archivio non è una regola di gioco: si verifica con l'automation, e uno scenario non aggiungerebbe niente."
     },
     {
       "feature_id": "RT-FEAT-CORE-DECISION-BOUNDARY",
@@ -1261,7 +1320,7 @@
       ],
       "issues": [],
       "tests": [
-        "RefactorTactics.Combat.EffectiveAttackPowerWithTerrainBonus",
+        "RefactorTactics.Combat.EffectiveAttackPowerAddsDeclaredBonus",
         "RefactorTactics.HexBot.ScoreElevationBonus"
       ],
       "scenarios": [
@@ -1432,7 +1491,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Delle sette azioni generiche di D-025, **quattro sono complete e testate** (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la revisione di granularità del 2026-08-08 ha corretto una nota che diceva «sei su sette esistono a catalogo e nel runtime» — vera per il catalogo, falsa per il runtime:\n\n  · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come\n              azione e si comporta come reazione. Ambiguità di modello, non di stato.\n  · `Interact` è **a catalogo senza effetto dichiarato** (`RTCatalogLibrary.cpp:281`) e\n              nessun ramo del resolver la esegue: un dato che nessuno consuma, il difetto che\n              questo progetto ha già pagato quattro volte. Lo porta E10.1 insieme ad\n              `Activate`. Dalla issue `#273` l'inerzia è **fissata da un test**\n              (`Actions.Interact.IsInertUntilImplemented`), scritto per **cadere** il giorno\n              in cui l'effetto arriva: verificato per mutazione il 2026-08-09 — dando un\n              effetto a `Interact` cade quel test e solo quello.\n  · `Overwatch` **non esiste**: `grep -rn \"Overwatch\" Source/` fuori dai test non\n              restituisce nulla. Lo porta E14.4.\n\nI gate restano `partial` perché la feature davvero non è completa; `completed_by` dice **chi** la completa, così la stessa mancanza non viene contata due volte."
+      "notes": "Delle sette azioni generiche di D-025, **quattro sono complete e testate** (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la revisione di granularità del 2026-08-08 ha corretto una nota che diceva «sei su sette esistono a catalogo e nel runtime» — vera per il catalogo, falsa per il runtime:\n\n  · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come\n              azione e si comporta come reazione. Ambiguità di modello, non di stato.\n  · `Interact` è **a catalogo senza effetto dichiarato** (`RTCatalogLibrary.cpp:281`) e\n              nessun ramo del resolver la esegue: un dato che nessuno consuma, il difetto che\n              questo progetto ha già pagato quattro volte. Lo porta E10.1 insieme ad\n              `Activate`. Dalla issue `#273` l'inerzia è **fissata da un test**\n              (`Actions.Interact.IsInertUntilImplemented`), scritto per **cadere** il giorno\n              in cui l'effetto arriva: verificato per mutazione il 2026-08-09 — dando un\n              effetto a `Interact` cade quel test e solo quello.\n  · `Overwatch` **non è ancora un'azione**, ma dal 2026-08-10 non è più «non esiste»: E14.4\n              ha portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i\n              micro-step. Resta fuori dal runtime della partita per la stessa ragione di\n              `Interact` — nessun ramo del resolver lo esegue — e il consumatore è E14.5.\n              La riga precedente citava un `grep` che oggi restituisce codice: aggiornata\n              perché una nota che descrive un'assenza smette di essere vera senza avvisare.\n\nI gate restano `partial` perché la feature davvero non è completa; `completed_by` dice **chi** la completa, così la stessa mancanza non viene contata due volte."
     },
     {
       "feature_id": "RT-FEAT-ACTION-MOVE-PROFILES",
@@ -1510,10 +1569,10 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P1",
-      "status": "IMPLEMENTING",
-      "status_derived": "IMPLEMENTING",
+      "status": "RELEASE_READY",
+      "status_derived": "RELEASE_READY",
       "gates": {
-        "spec": "partial",
+        "spec": "done",
         "data": "done",
         "runtime": "done",
         "log_debug": "done",
@@ -1524,7 +1583,7 @@
         "network_privacy": "na",
         "replay_representable": "todo"
       },
-      "gates_done": 6,
+      "gates_done": 7,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E4",
@@ -1571,7 +1630,7 @@
         "date": "2026-08-09",
         "commit": "8a43866"
       },
-      "notes": "Categoria universale, payload dell'eroe: chiude per `BasicAttack` i «profili concreti dei 4 eroi» che **D-033** aveva lasciato aperti ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)). Riva era già conforme (`PressureJet` 16 + `Wet` + `Push`); Vektor resta invariato, perché «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Flux resta damage-only, e il suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-046). **`data` è `done`**: `Bastion.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno. **`automation` è `done`** da `BasicAttackIsIndexZeroForEveryHero`, che fa valere la convenzione `Actions[0]` sul roster invece di lasciarla in un commento — è il prezzo di NON aver aggiunto un campo di ruolo. **`log_debug` è `done`** dal 2026-08-09 (issue #354): `FRTActionDef::BaseActionId` dichiara di quale generica un'azione è profilo, la voce di TurnLog lo porta (formato **v5**) e `DescribeActionIdentity` rende la coppia — `Action.BasicAttack · Bastion.ImpactShot`. Il campo sta **fuori dall'hash**, perché è una funzione di `ActionId`: includerlo non distinguerebbe nulla di più e avrebbe invalidato ogni hash golden. Le tracce v2/v3/v4 restano leggibili, col campo vuoto. Era il consumer che ADR-0007 punto 6 aspettava: la sua regola non è violata, è soddisfatta."
+      "notes": "Categoria universale, payload dell'eroe: chiude per `BasicAttack` i «profili concreti dei 4 eroi» che **D-033** aveva lasciato aperti ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)). Riva era già conforme (`PressureJet` 16 + `Wet` + `Push`); Vektor resta invariato, perché «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Flux resta damage-only, e il suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-046). **`spec` è `done` dal 2026-08-11**, e prima era `partial` per una ragione che nel frattempo è caduta: ADR-0007 aveva un «punto aperto ereditato da D-033» — il TurnLog non sapeva esprimere la coppia *azione base + profilo* — che l'ADR stesso dichiara **✅ risolto il 2026-08-09** (#354). Il rinvio di Flux non lo tiene parziale: non è una lacuna della specifica ma una **regola dichiarata** («`ArcPulse` resta damage-only in v0.1», con la ragione verificata nel codice — nessuno stato `Charged` esiste e il motore elettrico ha già un owner in `ConductiveNode`/D-039). **`data` è `done`**: `Bastion.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno. **`automation` è `done`** da `BasicAttackIsIndexZeroForEveryHero`, che fa valere la convenzione `Actions[0]` sul roster invece di lasciarla in un commento — è il prezzo di NON aver aggiunto un campo di ruolo. **`log_debug` è `done`** dal 2026-08-09 (issue #354): `FRTActionDef::BaseActionId` dichiara di quale generica un'azione è profilo, la voce di TurnLog lo porta (formato **v5**) e `DescribeActionIdentity` rende la coppia — `Action.BasicAttack · Bastion.ImpactShot`. Il campo sta **fuori dall'hash**, perché è una funzione di `ActionId`: includerlo non distinguerebbe nulla di più e avrebbe invalidato ogni hash golden. Le tracce v2/v3/v4 restano leggibili, col campo vuoto. Era il consumer che ADR-0007 punto 6 aspettava: la sua regola non è violata, è soddisfatta."
     },
     {
       "feature_id": "RT-FEAT-ACTION-DASH-DISPLACEMENT",
@@ -1950,7 +2009,8 @@
           "7.1",
           "7.2",
           "7.3",
-          "7.4"
+          "7.4",
+          "7.5"
         ],
         "out_of_release_scope": ""
       },
@@ -1967,10 +2027,28 @@
         60,
         61,
         62,
-        63
+        63,
+        505
       ],
       "tests": [
-        "RefactorTactics.Catalog.ValidatorRejectsEquipmentWithoutDrawback"
+        "RefactorTactics.Catalog.ValidatorRejectsEquipmentWithoutDrawback",
+        "RefactorTactics.Equipment.WeaponVariantHasTradeoff",
+        "RefactorTactics.Equipment.Precision.RangeAndDamage",
+        "RefactorTactics.Equipment.VariantAddsEffectsWithoutLosingTheOnesItHad",
+        "RefactorTactics.Equipment.SplitHasNoConsumerYet",
+        "RefactorTactics.Equipment.PortableCover.CreatesCover",
+        "RefactorTactics.Equipment.ReactionModule.SingleActivation",
+        "RefactorTactics.Equipment.CounterShotUsesExistingTrigger",
+        "RefactorTactics.Equipment.EmergencyDashRepositionsTheReactor",
+        "RefactorTactics.Equipment.EmergencyDashMovesTheReactorInPlay",
+        "RefactorTactics.Equipment.ImpactVariantStacksPush",
+        "RefactorTactics.Equipment.Gadget.CooldownEnforced",
+        "RefactorTactics.Equipment.Gadget.NumbersMatchCatalog",
+        "RefactorTactics.Equipment.Gadget.FourAreNotExpressibleYet",
+        "RefactorTactics.Equipment.DefaultVariantPerHero",
+        "RefactorTactics.Equipment.WarnsOnPointlessVariantPairing",
+        "RefactorTactics.Equipment.LoadoutExactlyOneEach",
+        "RefactorTactics.Equipment.NoInMatchProgression"
       ],
       "scenarios": [],
       "scenarios_planned": [],
@@ -1978,10 +2056,10 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-11",
+        "commit": "891534c"
       },
-      "notes": "`URTEquipmentData` e il catalogo esistono, e il validator impone che ogni variante abbia uno svantaggio. Manca il loadout in partita: E7 è l'epic **assente** che tiene aperta M11. Nessuna pagina Wiki la descrive."
+      "notes": "**CP 7.1 chiuso il 2026-08-11 (`#60`)**: le sei varianti d'arma esistono e il loro trade-off è applicabile, non solo raccontato — `ApplyWeaponVariant` somma i delta all'attacco base dell'eroe e il validator rifiuta una variante che non paghi in danno, portata o ricarica. Verifica di mutazione eseguita: azzerando i delta cadono esattamente i tre test che ne dipendono. Due limiti **dichiarati** invece che nascosti. `Weapon.Split` compra un bersaglio in più che il motore non sa esprimere (nessuna cardinalità dei bersagli in `FRTActionDef`), quindi in partita è solo il suo svantaggio: `Equipment.SplitHasNoConsumerYet` lo pinna e diventerà rosso il giorno in cui qualcuno la cabla. `Weapon.Environmental` dichiara il vantaggio in prosa perché nessun campo del catalogo esprime «migliora gli hazard». **CP 7.3 metà catalogo chiuso il 2026-08-11 (`#62`)**: `CounterShot`, `ReactiveShield` e `AllyIntercept` sono reazioni vere — costruite su un'azione core che è già una reazione, da cui ereditano fase, priorità e trigger, con numeri propri via `GrantedEffects`. Mutazione eseguita: azzerando il trigger ereditato cadono esattamente i due test che lo verificano. L'altra metà è `#505` (CP 7.5) e i moduli esclusi sono **quattro**, per due ragioni diverse: `HazardEscape`, `Cleanse` e `Anchor` non hanno il **trigger** (nascono da un evento, non da un colpo); `EmergencyDash` ha il trigger ma non l'**effetto** — `Reposition 1` sposta chi reagisce e nessun `ERTActionEffect` lo esprime. Il secondo vincolo è emerso implementando, non dall'analisi. Il loadout (`#63`) ha inoltre un buco nell'owner: la tabella §4 del catalogo **non assegna varianti d'arma** a nessun eroe (dice esplicitamente che le sue sono varianti di *abilità*), quindi il default 1+1+1 richiesto dal DoD non esiste ancora nei dati."
     },
     {
       "feature_id": "RT-FEAT-REACTION-PREPARED",
@@ -2185,21 +2263,21 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P2",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "done",
         "data": "partial",
-        "runtime": "todo",
+        "runtime": "partial",
         "log_debug": "todo",
-        "automation": "todo",
+        "automation": "done",
         "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo",
         "replay_representable": "todo"
       },
-      "gates_done": 1,
+      "gates_done": 2,
       "gates_applicable": 10,
       "roadmap": {
         "epic": "E14",
@@ -2223,7 +2301,12 @@
         164
       ],
       "tests": [
-        "RefactorTactics.Actions.SuppressiveLine"
+        "RefactorTactics.Actions.SuppressiveLine",
+        "RefactorTactics.Overwatch.TriggersPerMicroStep",
+        "RefactorTactics.Overwatch.SimultaneousTargetsSingleOpportunity",
+        "RefactorTactics.Overwatch.RequiresDetection",
+        "RefactorTactics.Overwatch.OrderIsDeterministic",
+        "RefactorTactics.Overwatch.SameReactionTwiceHasDistinctIds"
       ],
       "scenarios": [
         "Spec.Overwatch.HoldThenFire"
@@ -2237,13 +2320,13 @@
         "wiki:overwatch",
         "wiki:reazioni-overwatch-e-previsioni"
       ],
-      "wiki_note": "Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' implementato.",
+      "wiki_note": "Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' ancora deciso in una finestra live.",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-10",
+        "commit": "c6b56b9"
       },
-      "notes": "**Non implementata**: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla. L'aggancio tecnico esiste (`FRTSuppressiveZone` in `RTOffensiveActionLibrary`, azione `Action.SuppressiveLine`) ma è zona di soppressione, non Overwatch. Due pagine Wiki la descrivono già: il blocco di stato generato lo dichiara. `Spec.Overwatch.HoldThenFire` è la **specifica eseguibile** della finestra — con gli intent del turno 2 volutamente vuoti, perché la sintassi di HOLD/FIRE non è ancora decisa — ed esce `BLOCKED`.\n**Il `data` resta `partial` per una ragione precisa (2026-08-10)**: CP 14.4 impone che il profilo sia un dato per eroe — area, arco, trigger e risposte legali — e il test che lo pinna (`Overwatch.ProfileIsDataNotBranch`) ha bisogno di **due** profili diversi da confrontare. **Nessun catalogo ne contiene uno.** Le quattro geometrie proposte — Flux settore medio, Riva medio-corto, Bastion corto-largo frontale, Vektor stretto-lungo — sono `BAS-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): il meccanismo è deciso, il contenuto no.\n**Il lifecycle ha un modello, dal 2026-08-10**: `Watch → EndWatchStage → Reposition`. L'owner resta **fermo** durante lo Stage A della Move Phase e poi esegue un Move limitato **pianificato in Planning** — mai scelto dopo aver visto dove sono finiti gli avversari. Chiude `BAS-5`; triage in [`plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](plans/overwatch-runtime-lifecycle-triage-2026-08-10.md). Quattro punti sono gia' canone-compatibili e possono entrare nel DoD di CP 14.4/14.5 senza altre decisioni: cadence `OncePerTargetPerReactionInstance`, `MaxPrompts` che conta opportunity distinte (precisa ADR-0004 §8), eligibility **post-transition**, e la distinzione fra **hard cancel** e **soft eligibility block** — che CP 14.6 oggi non fa, e che serve perche' `NoLOS` e `Stun` non possono produrre lo stesso reason code terminale.\n**Costo e nome decisi il 2026-08-10** (`D-070`): armare l'Overwatch spende l'azione principale e **riserva** lo slot movimento a `Withdraw` — 2 MP, dichiarato in Planning, risolto nello **Stage B** dopo tutti gli altri. Il divieto di `Dash` e' una **conseguenza** dello slot impegnato, non una regola a se'; e il nome non e' `Reposition`, che e' gia' un'azione viva in fase Dash. Nessuno scenario nuovo e' ancora dichiarato: il §40 del sorgente ne elenca venti, e diventano `planned` quando E14 ha una forma eseguibile per HOLD/FIRE — la stessa ragione per cui `Spec.Overwatch.HoldThenFire` esce `BLOCKED`."
+      "notes": "**CP 14.4 chiuso il 2026-08-10.** La riga precedente diceva «Non implementata: `grep -rn \"Overwatch\" Source/` fuori dai test non restituisce nulla», ed è la prima cosa che questo checkpoint ha reso falsa: `URTReactionOpportunityLibrary::BuildOverwatchTriggers` produce le opportunity lungo i micro-step del Move.\nL'aggancio tecnico che la riga vecchia citava come *insufficiente* — `FRTSuppressiveZone` — è diventato il vincolo: l'Overwatch **riusa quella geometria** invece di averne una propria. Chi si copre da un attacco lineare si copre dalla soppressione, e ora anche dall'Overwatch; con due geometrie quella terza proprietà sarebbe decaduta senza che nessun test la interrogasse.\nLe quattro condizioni di ADR-0004 §6 sono tutte necessarie e verificate una per volta. Il caso che il checkpoint nomina esplicitamente è `Incerto`, ed è il più facile da sbagliare: è allettante trattare «la squadra sa che lì c'è qualcuno» come «lo vede». `HOLD` è **sempre** fra le risposte legali — senza, un bersaglio solo darebbe cardinalità 1, cioè un commit automatico, e l'Overwatch sparerebbe da solo.\n⚠️ **`runtime` resta `partial` e la ragione è la regola 2, non la prudenza**: `ARTTurnManager` non chiama ancora `BuildOverwatchTriggers`, quindi in partita non nasce nessuna opportunity. Il consumatore è **CP 14.5** (`#165`), che porta finestra, commit, troncamento del movimento e il cablaggio di `Vektor.InterceptShot`. Fino ad allora `log_debug` resta `todo` — nel TurnLog non arriva niente — e `Spec.Overwatch.HoldThenFire` continua a uscire `BLOCKED`, che è la verità: descrivere non è dimostrare.\nConseguenza misurata su un altro checkpoint: `Perf.ResolverAt4v4` (CP 17.2) deve riportare «opportunity di reazione per turno» e **non può**, perché uno zero per assenza di produttore si legge esattamente come uno zero per assenza di reazioni. Lo dichiara invece di stimarlo.\n⚠️ **Due difetti trovati in code review sulla prima stesura, entrambi nel caso «una unità, due reaction armate»** — che è esattamente ciò che ADR-0004 §4 chiama «più reazioni distinte nello stesso micro-step», e che nessuno dei quattro test del DoD toccava: usavano tutti due `OwnerId` diversi.\n1. I tie-break si ritrovavano con una `TMap` chiavata sull'`OwnerId`. Con due watcher della stessa\n   unità la seconda `Add` sovrascriveva la prima, e **entrambi** i trigger si ordinavano coi tie-break\n   dell'ultimo watcher inserito: cioè in base all'ordine dell'array `Watchers`, la dipendenza che\n   quell'ordinamento esiste per togliere. Ora i cinque interi viaggiano accanto al trigger.\n2. `Seq` era fisso a `0`, motivato con «un watcher apre al massimo una opportunity per micro-step» —\n   vero, e irrilevante: la chiave non identifica il watcher. Due istanze della stessa reaction sulla\n   stessa unità davano due chiavi **identiche**, quindi lo stesso `OpportunityId`. È il difetto che\n   CP 14.3 esiste per impedire, e la doc di `Seq` lo nomina parola per parola. Ora `Seq` si assegna\n   **dopo** l'ordinamento totale, così è funzione dello stato e non dell'ordine d'ingresso.\n\nVerificato per mutazione rimettendo l'implementazione pre-review: cadono **esattamente** `OrderIsDeterministic` e `SameReactionTwiceHasDistinctIds`, gli altri quattro restano verdi.\n**Il `data` resta `partial` per una ragione precisa (2026-08-10)**: CP 14.4 impone che il profilo sia un dato per eroe — area, arco, trigger e risposte legali — e il test che lo pinna (`Overwatch.ProfileIsDataNotBranch`) ha bisogno di **due** profili diversi da confrontare. **Nessun catalogo ne contiene uno.** Le quattro geometrie proposte — Flux settore medio, Riva medio-corto, Bastion corto-largo frontale, Vektor stretto-lungo — sono `BAS-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): il meccanismo è deciso, il contenuto no.\n**Il lifecycle ha un modello, dal 2026-08-10**: `Watch → EndWatchStage → Reposition`. L'owner resta **fermo** durante lo Stage A della Move Phase e poi esegue un Move limitato **pianificato in Planning** — mai scelto dopo aver visto dove sono finiti gli avversari. Chiude `BAS-5`; triage in [`plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](plans/overwatch-runtime-lifecycle-triage-2026-08-10.md). Quattro punti sono gia' canone-compatibili e possono entrare nel DoD di CP 14.4/14.5 senza altre decisioni: cadence `OncePerTargetPerReactionInstance`, `MaxPrompts` che conta opportunity distinte (precisa ADR-0004 §8), eligibility **post-transition**, e la distinzione fra **hard cancel** e **soft eligibility block** — che CP 14.6 oggi non fa, e che serve perche' `NoLOS` e `Stun` non possono produrre lo stesso reason code terminale.\n**Costo e nome decisi il 2026-08-10** (`D-070`): armare l'Overwatch spende l'azione principale e **riserva** lo slot movimento a `Withdraw` — 2 MP, dichiarato in Planning, risolto nello **Stage B** dopo tutti gli altri. Il divieto di `Dash` e' una **conseguenza** dello slot impegnato, non una regola a se'; e il nome non e' `Reposition`, che e' gia' un'azione viva in fase Dash. Nessuno scenario nuovo e' ancora dichiarato: il §40 del sorgente ne elenca venti, e diventano `planned` quando E14 ha una forma eseguibile per HOLD/FIRE — la stessa ragione per cui `Spec.Overwatch.HoldThenFire` esce `BLOCKED`."
     },
     {
       "feature_id": "RT-FEAT-REACTION-PROFILE",
@@ -3055,21 +3138,21 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P2",
-      "status": "IMPLEMENTING",
-      "status_derived": "IMPLEMENTING",
+      "status": "TESTABLE",
+      "status_derived": "TESTABLE",
       "gates": {
         "spec": "done",
         "data": "done",
-        "runtime": "partial",
+        "runtime": "done",
         "log_debug": "todo",
         "automation": "done",
-        "scenario": "todo",
+        "scenario": "done",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo",
         "replay_representable": "na"
       },
-      "gates_done": 3,
+      "gates_done": 5,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E13",
@@ -3099,18 +3182,21 @@
         "RefactorTactics.Vision.SmokeCapsContactAtTwo",
         "RefactorTactics.Vision.PermutationInvariant"
       ],
-      "scenarios": [],
+      "scenarios": [
+        "Spec.Perception.CannotShootWhatYouCannotSee",
+        "Spec.Perception.AllySpottingLetsYouShoot"
+      ],
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:visibilita-rumore-e-informazione"
       ],
-      "wiki_note": "Modello deciso per la v0.1; l'implementazione (E13, dopo E16) **non e' iniziata**: oggi la vista non decide nulla.",
+      "wiki_note": "Modello deciso per la v0.1 e **implementato** con CP 13.2: la conoscenza di squadra decide chi si puo' bersagliare. La coppia di scenari e' la specifica eseguibile del gate.",
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "La vista è oggi **una statistica a catalogo che non decide nulla**: i dati esistono (`data: partial`), il consumatore runtime no. Prerequisito di E14."
+      "notes": "Era **una statistica a catalogo che non decideva nulla**; CP 13.2 le ha dato il consumatore. Oggi `ResolveCombat` classifica il bersaglio contro la conoscenza della squadra prima di risolvere l'attacco. Prerequisito di E14."
     },
     {
       "feature_id": "RT-FEAT-PERCEPTION-VISION",
@@ -3162,7 +3248,8 @@
         "RefactorTactics.Vision.AwarenessWithinTwoCellsIgnoresFacing",
         "RefactorTactics.Vision.TeamKnowledgeIsUnion",
         "RefactorTactics.Vision.SmokeCapsContactAtTwo",
-        "RefactorTactics.Vision.PermutationInvariant"
+        "RefactorTactics.Vision.PermutationInvariant",
+        "RefactorTactics.Vision.SeesAcrossLayers"
       ],
       "scenarios": [],
       "scenarios_planned": [],
@@ -3188,17 +3275,17 @@
       "status_derived": "SPECIFIED",
       "gates": {
         "spec": "done",
-        "data": "partial",
+        "data": "done",
         "runtime": "todo",
         "log_debug": "todo",
-        "automation": "todo",
+        "automation": "done",
         "scenario": "partial",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo",
         "replay_representable": "na"
       },
-      "gates_done": 1,
+      "gates_done": 3,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E13",
@@ -3219,7 +3306,14 @@
       "issues": [
         158
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Noise.PropagationIsDeterministic",
+        "RefactorTactics.Noise.AttenuationBySurface",
+        "RefactorTactics.Noise.ThresholdDecidesDetection",
+        "RefactorTactics.Noise.UsesGraphNotEuclideanRadius",
+        "RefactorTactics.Noise.OcclusionAttenuates",
+        "RefactorTactics.Noise.PermutationInvariant"
+      ],
       "scenarios": [
         "Spec.Perception.HeardNotSeen"
       ],
@@ -3242,21 +3336,21 @@
       "kind": "gameplay",
       "release": "v0.1",
       "priority": "P2",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "TESTABLE",
+      "status_derived": "TESTABLE",
       "gates": {
         "spec": "done",
-        "data": "todo",
-        "runtime": "todo",
-        "log_debug": "todo",
-        "automation": "todo",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "partial",
+        "automation": "done",
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo",
         "replay_representable": "na"
       },
-      "gates_done": 1,
+      "gates_done": 4,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E13",
@@ -3276,7 +3370,12 @@
       "issues": [
         157
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Vision.CannotTargetUnknown",
+        "RefactorTactics.Vision.UncertainTargetsCellNotUnit",
+        "RefactorTactics.Vision.AllySpottingExtendsTargeting",
+        "RefactorTactics.Vision.LastContactExpiresAfterOneTurn"
+      ],
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -4445,14 +4544,14 @@
       "kind": "tooling",
       "release": "v0.1",
       "priority": "P3",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "done",
-        "data": "todo",
-        "runtime": "todo",
-        "log_debug": "todo",
-        "automation": "todo",
+        "data": "partial",
+        "runtime": "partial",
+        "log_debug": "partial",
+        "automation": "partial",
         "scenario": "todo",
         "ui_wiki": "na",
         "packaged": "todo",
@@ -4485,7 +4584,12 @@
         223,
         224
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Stress.CoreRoster4v4Completes",
+        "RefactorTactics.Stress.NoTeamSizeAssumptionInResolver",
+        "RefactorTactics.Stress.ReplayDivergenceZeroAt4v4",
+        "RefactorTactics.Perf.ResolverAt4v4"
+      ],
       "scenarios": [],
       "scenarios_planned": [
         "Stress.4v4.CoreRoster"
@@ -4494,10 +4598,10 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-10",
+        "commit": "c6b56b9"
       },
-      "notes": "**Misura, non produzione** (D-011): dove si rompe il sistema con otto unità. Non decide il formato competitivo finale — 3v3 resta la baseline di studio, 4v4 lo stress test."
+      "notes": "**Misura, non produzione** (D-011): dove si rompe il sistema con otto unità. Non decide il formato competitivo finale — 3v3 resta la baseline di studio, 4v4 lo stress test.\n**CP 17.1 e 17.2 chiusi il 2026-08-10.** Il roster core a quattro per squadra gioca una partita intera su un'arena r=8 con tre direttrici, e due esecuzioni identiche danno gli stessi hash — confrontati **turno per turno**, perché un hash finale uguale non esclude che due partite siano passate per stati diversi, e «diverge dal turno N» è l'unica diagnosi utile.\nIl difetto che l'epic cercava — un `if (Num == 2)` nel resolver — **non è stato trovato**. `NoTeamSizeAssumptionInResolver` interroga 1v1, 2v2, 3v3 e 4v4: con due sole dimensioni, «funziona per ogni N» e «funziona per i due N che ho provato» si leggono uguali.\nMisure registrate (playback off, 12 turni, arena r=8): resolver **2,319 ms/turno** a 4v4 contro **1,655** del 2v2 su r=6 — entrambi due ordini di grandezza sotto il target PDR di 100 ms — e TurnLog **11,7 voci/turno** (~840 byte). ⚠️ Due delle cinque metriche richieste dal DoD, «opportunity di reazione per turno» e «prompt manuali per turno», sono **NON MISURABILI** e il test lo scrive invece di riportare uno zero: il produttore in partita è CP 14.5, e uno zero per assenza di produttore si legge come uno zero per assenza di reazioni.\n⚠️ Limite dichiarato dell'arena: la direttrice «centro/obiettivo» è oggi solo **geometrica** — un corridoio, non un punto di controllo. Un obiettivo contendibile è CP 10.2 (`#75`), che non è atterrato. Resta CP 17.3, che è una voce PIE (`PIE-V01-STRESS4V4`) e un giudizio a schermo."
     },
     {
       "feature_id": "RT-FEAT-BOT-BASE",
@@ -4565,16 +4669,82 @@
       "notes": "Nessuna mossa illegale è proponibile: le candidate nascono da `ReachableCells`. L'attacco è valutato solo dalla cella in cui il bot sarà nel Blast. Pesi tunabili in PIE."
     },
     {
+      "feature_id": "RT-FEAT-BOT-FAIRNESS",
+      "title": "Il bot pianifica sulla conoscenza della sua squadra",
+      "area": "Tools",
+      "kind": "gameplay",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "TESTABLE",
+      "status_derived": "TESTABLE",
+      "gates": {
+        "spec": "done",
+        "data": "na",
+        "runtime": "done",
+        "log_debug": "todo",
+        "automation": "done",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na",
+        "replay_representable": "todo"
+      },
+      "gates_done": 3,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E13",
+        "milestone": null,
+        "checkpoints": [
+          "13.5"
+        ],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-BOT-BASE",
+        "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/gameplay/spec-bot-hex.md",
+        "docs/gameplay/spec-bot-tattico.md"
+      ],
+      "issues": [
+        160
+      ],
+      "tests": [
+        "RefactorTactics.HexBotPlay.HiddenEnemyFairness",
+        "RefactorTactics.HexBotPlay.PlansOnPartialKnowledge",
+        "RefactorTactics.HexBotPlay.SeeksContactWithoutKnowledge",
+        "RefactorTactics.HexBotPlay.ActsOnLastKnownCell"
+      ],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Spec.Bot.HiddenEnemyFairness",
+        "Spec.Bot.DecoyNoiseIndistinguishable",
+        "Spec.Bot.PlansOnPartialKnowledge"
+      ],
+      "wiki_refs": [
+        "wiki:avversario-bot"
+      ],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {
+        "date": "2026-08-11",
+        "commit": "55de13e"
+      },
+      "notes": "**Meta' bot di CP 13.5 atterrata il 2026-08-11.** `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` con la STESSA regola del targeting umano (`ClassifyTarget`), non un secondo modello: visto -> cella e condizione attuali; ricordato -> cella dell'ultimo contatto e HP **massimi** (la squadra conosce l'identita', non la condizione); ignoto -> non esiste. Owner del comportamento AS-BUILT: `spec-bot-hex.md` §6, che dichiarava il contrario e ora dichiara il vero. ⚠️ **Il gate e' `automation`, e ha una forma precisa**: `HiddenEnemyFairness` mette la stessa `FRTTeamKnowledge` davanti a due stati autorevoli diversi e pretende lo **stesso** Intent. Verificato per mutazione **due volte**, e la seconda ha chiuso un buco trovato in code review: (1) rimettendo l'onniscienza cadono `HiddenEnemyFairness`, `PlansOnPartialKnowledge` e `SeeksContactWithoutKnowledge`; (2) cancellando il ramo `CellOnly` cade **solo** `ActsOnLastKnownCell`. ⚠️ **Il ramo `CellOnly` — il piu' delicato — all'inizio aveva copertura ZERO**: `Uncertain` esiste solo dopo DUE osservazioni (vista in una, persa nella successiva) e i primi tre test pianificavano una volta sola, quindi vedevano soltanto `Allowed` o `Rejected`. Si poteva cancellare l'intero `case CellOnly:` e la suite restava verde. `ActsOnLastKnownCell` fa la sequenza a due osservazioni e mette il ricordo DENTRO la portata e la posizione vera FUORI: se il bot attacca, e' la memoria. ⚠️ Anche `SeeksContactWithoutKnowledge` era debole: bot e nemico agli ANTIPODI attraverso il centro rendono «vai al centro» e «vai al nemico» la stessa direzione, e restava verde sotto onniscienza. Geometria corretta perche' le due direzioni divergano. Il secondo e' costruito perche' possa fallire: l'ignoto e' dentro la portata e quasi morto, cosi' un bot che lo vedesse lo sceglierebbe. ⚠️ **Due cose sono cambiate oltre al filtro, e senza di esse il filtro non reggeva**: `EnsureMatchRoster` e il rinfresco della conoscenza sono stati anticipati alla pianificazione — prima vivevano solo a valle, quindi al primo turno gli `StableUnitId` erano tutti `0` (i ricordi di unita' diverse si sarebbero fusi) e la conoscenza era vuota (il bot sarebbe stato cieco, non parziale). Piu' la **condotta di ricerca** senza contatti, senza la quale la partita non finisce (`HexMatch.PlaysToCompletion`). ⚠️ **Limite dichiarato**: l'OCCUPAZIONE resta globale — `ReachableCells` e `DashHostiles` modellano cio' che il resolver fara', non cio' che la squadra sa, e il giocatore umano ha lo stesso vincolo. Rendere il bot piu' cieco dell'umano sarebbe sbagliato quanto renderlo onnisciente. ⚠️ **Perde informazione legittima**: gli HP al momento del contatto non sono conservati, perche' `FRTLastKnownContact` non ha un campo HP — aggiungerlo e' un incremento di `FRTTeamKnowledge::CurrentVersion`, cioe' una decisione di formato. L'errore va nella direzione sicura: il bot sottostima le occasioni invece di inventarle. `scenario: todo` e `ui_wiki: partial`: gli scenari `Spec.Bot.*` non sono scritti, e la meta' HUD di #160 (marker d'ultimo contatto, area d'incertezza acustica) dipende da CP 13.4."
+    },
+    {
       "feature_id": "RT-FEAT-BOT-TACTICAL",
-      "title": "Bot tattico con conoscenza e reazioni",
+      "title": "Team Planner — piano di squadra, ruoli dinamici e sinergie",
       "area": "Tools",
       "kind": "gameplay",
       "release": "v0.2",
-      "priority": "P3",
-      "status": "IDEA",
-      "status_derived": "IDEA",
+      "priority": "P2",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
       "gates": {
-        "spec": "todo",
+        "spec": "partial",
         "data": "todo",
         "runtime": "todo",
         "log_debug": "todo",
@@ -4591,29 +4761,159 @@
         "epic": null,
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": ""
+        "out_of_release_scope": "L'epic esiste e si chiama **E26** (`roadmap-post-v0.1.md`, v0.2, issue #326), ma `roadmap.epic` resta `null` come per `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende dal Team Planner."
       },
       "dependencies": [
-        "RT-FEAT-BOT-BASE",
-        "RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE",
+        "RT-FEAT-BOT-FAIRNESS",
         "RT-FEAT-REACTION-OPPORTUNITY"
       ],
       "completed_by": [],
-      "owner_specs": [],
-      "issues": [],
+      "owner_specs": [
+        "docs/gameplay/spec-bot-tattico.md"
+      ],
+      "issues": [
+        326,
+        531,
+        532,
+        533,
+        534
+      ],
       "tests": [],
       "scenarios": [],
-      "scenarios_planned": [],
+      "scenarios_planned": [
+        "Spec.Bot.TeamPlanRejectsHardConflict",
+        "Spec.Bot.CandidateDiversityKeepsControl",
+        "Spec.Bot.TemporalSynergyRequiresPhaseOrder",
+        "Spec.Bot.OverkillMovesSecondUnit",
+        "Spec.Bot.PlanHysteresisIgnoresSmallDelta"
+      ],
       "wiki_refs": [
         "wiki:avversario-bot"
       ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-11",
+        "commit": "eb3cc42"
       },
-      "notes": "Citato in `roadmap-post-v0.1.md` fra le epic E21–E32 ma senza owner documentale proprio. Non può iniziare prima di E13/E14: un bot che «sa tutto» non è un bot tattico."
+      "notes": "Architettura fissata da **D-097** (Top-K per unita' + combinazione al centro; i ruoli **emergono** dal piano, non si assegnano prima) e **D-098** (una sinergia intra-turno vale solo se l'ordine delle fasi la permette, e la compatibilita' si **chiede** alle regole invece di riscriverla nel bot). `spec: partial` e non `done`: la forma c'e', le **quote** no — `TopK`, budget di candidate e soglia di isteresi si fissano profilando codice che non esiste, e il sorgente stesso lo dice. ⚠️ Il caso **umano + bot nella stessa squadra** resta aperto e NON e' della v0.1, che e' 2v2 offline contro il bot. La forma della risposta e' pero' gia' vincolata da D-097."
+    },
+    {
+      "feature_id": "RT-FEAT-BOT-BELIEF",
+      "title": "Belief — celle plausibili, decadimento e minaccia proiettata",
+      "area": "Tools",
+      "kind": "gameplay",
+      "release": "future",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": "Epic **E27** (`roadmap-post-v0.1.md`, v0.3, issue #327). `release: future` e non `v0.3` perche' il vocabolario ammesso e' `v0.1 | v0.2 | future`: la v0.3 non ha ancora una colonna propria, e inventargliela farebbe fallire il validator."
+      },
+      "dependencies": [
+        "RT-FEAT-BOT-FAIRNESS",
+        "RT-FEAT-PERCEPTION-NOISE"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/gameplay/spec-bot-tattico.md"
+      ],
+      "issues": [
+        327,
+        535,
+        536
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Spec.Bot.BeliefDoesNotBecomeKnowledge",
+        "Spec.Bot.GraphRevisionInvalidatesBelief",
+        "Spec.Bot.InformationGainIgnoresHiddenContent"
+      ],
+      "wiki_refs": [
+        "wiki:avversario-bot"
+      ],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {
+        "date": "2026-08-11",
+        "commit": "eb3cc42"
+      },
+      "notes": "**D-099** decide la cosa che rischiava di costare di piu': la confidenza del bot **non e' un enum nuovo**. Il repository ha gia' `ERTAwareness` (`Hidden · Uncertain · Detected`), `ERTTargetKnowledge` (`Allowed · CellOnly · Rejected`) e `FRTLastKnownContact.TurnNumber`; le quattro categorie proposte dal sorgente (`Confirmed · Strong · Plausible · Weak`) sarebbero state il **quarto** vocabolario sullo stesso asse, con due risposte diverse alla domanda «sappiamo dov'e'?». La confidenza ordina **dentro** `Uncertain`, e non e' una percentuale. ⚠️ La **threat projection** e' oggi un gate di questa feature, non una feature propria. Diventa propria quando un **secondo** consumatore la legge — la UI, non il solo planner: finche' la legge solo il bot e' una struttura interna, e promuoverla creerebbe un ID che nessuno cita."
+    },
+    {
+      "feature_id": "RT-FEAT-BOT-PREDICTIVE",
+      "title": "Scenari nemici plausibili e piano robusto",
+      "area": "Tools",
+      "kind": "gameplay",
+      "release": "future",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na",
+        "replay_representable": "todo"
+      },
+      "gates_done": 0,
+      "gates_applicable": 9,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": "Epic **E28** (`roadmap-post-v0.1.md`, v0.3, issue #328), piu' il residuo di **E29** (predictive avanzato, #329). Stessa ragione di `RT-FEAT-BOT-BELIEF` per `release: future`."
+      },
+      "dependencies": [
+        "RT-FEAT-BOT-TACTICAL",
+        "RT-FEAT-BOT-BELIEF"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/gameplay/spec-bot-tattico.md"
+      ],
+      "issues": [
+        328
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "Spec.Bot.RobustPlanSurvivesFlank",
+        "Spec.Bot.HoldOnUnaccountedThreat"
+      ],
+      "wiki_refs": [
+        "wiki:avversario-bot"
+      ],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {
+        "date": "2026-08-11",
+        "commit": "eb3cc42"
+      },
+      "notes": "Pochi scenari nemici coerenti, non minimax: `RobustScore = punteggio pesato sugli scenari − penalita' sul caso peggiore`. Personalita' e difficolta' cambiano la **tolleranza** al caso peggiore, mai le informazioni disponibili. ⚠️ Il caso da testare esplicitamente e' la differenza fra **dedurre** e **sapere**: il bot puo' tenere il fuoco perche' un bersaglio vale poco *e* una minaccia non e' localizzata; non puo' tenerlo perche' «lo striker passera' dopo». I due comportamenti sono indistinguibili dall'esterno, e solo un test che manipola lo stato nascosto li separa. La simulazione counterfactual non apre prima che il resolver logico sia estraibile: **D-078** ha gia' separato chi riproduce da chi verifica, ed e' lo stesso confine."
     },
     {
       "feature_id": "RT-FEAT-TEST-SCENARIO-HARNESS",
@@ -4656,7 +4956,8 @@
         "docs/technical/scenari-validazione-visiva.md"
       ],
       "issues": [
-        169
+        169,
+        542
       ],
       "tests": [
         "RefactorTactics.Scenario.*"
@@ -4672,10 +4973,10 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-09",
-        "commit": "4c50c07"
+        "date": "2026-08-11",
+        "commit": "eb3cc42"
       },
-      "notes": "43 test. Percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, console `rt.Test.*`, auto-run via CVar, `result.json` autosufficiente, e uno scenario che **deve** fallire (`Movement.BasicFailsOnPurpose`) perché la diagnosi sia dimostrata."
+      "notes": "43 test. Percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, console `rt.Test.*`, auto-run via CVar, `result.json` autosufficiente, e uno scenario che **deve** fallire (`Movement.BasicFailsOnPurpose`) perché la diagnosi sia dimostrata. ⚠️ **D-101** (2026-08-11) fissa il seam che oggi non c'è: chi produce le decisioni entra da **due** punti ad hoc — gli intent scriptati di `FRTScenarioIntent` e `PlanBotsForTest()`, che `RTScenarioRunner.h` dichiara essere «l'unico appiglio, che esisteva gia' per i test d'integrazione». Regge per due casi; al terzo (bot vs bot, replay, umano+bot, batch) ne servirebbe un altro, ed e' cosi' che nasce un secondo harness **per accumulo**. La forma decisa e' un `DecisionProvider` che restituisce **decisioni, mai esiti**. Nessun gate si muove: e' un perimetro, non un'implementazione — il lavoro e' tracciato in **#542**, senza il quale la decisione sarebbe prosa che nessun processo legge."
     },
     {
       "feature_id": "RT-FEAT-TEST-GOLDEN",
@@ -5008,7 +5309,8 @@
         "docs/balance/RT_TestMatrix_v0.1.md"
       ],
       "issues": [
-        28
+        28,
+        543
       ],
       "tests": [
         "RefactorTactics.Heroes.RosterIsBalanced",
@@ -5023,7 +5325,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "I cataloghi versionati e la matrice di test esistono; il workbook `.xlsx` è la fonte dei numeri. Manca un banco che li **eserciti** in modo ripetibile oltre alla suite."
+      "notes": "I cataloghi versionati e la matrice di test esistono; il workbook `.xlsx` è la fonte dei numeri. Manca un banco che li **eserciti** in modo ripetibile oltre alla suite. ⚠️ **D-102** (2026-08-11) dice cosa quel banco dovra' portare con se': un risultato bot-contro-bot **non e' evidenza di bilanciamento** finche' il bot non e' certificato sulle capability che lo producono (`PASS`/`PARTIAL`/`FAIL`/`UNTESTED`, ciascuno legato a uno scenario reale). Non e' teorico: `roadmap-checkpoint.md` misura «**10** round bot-vs-bot» e annota da se' «ma e' un bot contro un bot» — il dubbio c'era, mancava il modo di scioglierlo. Un nerf deciso su un bot che non sa usare un'abilita' **sembra** funzionare, e copre il difetto vero: che quell'abilita' non entra mai fra le candidate. Tracciata in **#543**, senza milestone e con l'innesco dichiarato: l'esistenza di partite in serie, che oggi non c'e'."
     },
     {
       "feature_id": "RT-FEAT-DATA-STABLE-IDS",
@@ -5588,6 +5890,162 @@
       "pie_refs": [],
       "last_verified": {},
       "notes": "D-035, epic **E34** in `roadmap-post-v0.1.md`. Cinque famiglie — Stance, Form, Overdrive, Environmental, Configuration — su un'infrastruttura sola. **Meta' potrebbe non servire**: uno Stance e' un profilo commutabile in Planning (D-033), e i profili esistono gia' come concetto. **Nessuna trasformazione nella v0.1** e nessun eroe ha uno stato assegnato: le candidature Light/Medium/Signature per ~40 personaggi stanno in `matrici-stati-personaggio.md`, nessuna oltre PROPOSED. L'unica REJECTED e' `Vektor Siege`, respinta nel merito: Slancio recupera muovendosi, e una forma che toglie il Dash spegne la meccanica firma."
+    },
+    {
+      "feature_id": "RT-FEAT-CHAR-RADAR-MODEL",
+      "title": "Modello dei radar di profilo — Profile e Balance",
+      "area": "Characters",
+      "kind": "data",
+      "release": "future",
+      "priority": "P3",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "na",
+        "log_debug": "na",
+        "automation": "todo",
+        "scenario": "na",
+        "ui_wiki": "partial",
+        "packaged": "na",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 4,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-CHAR-V01-ROSTER"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/characters/spec-radar-profilo-personaggio.md"
+      ],
+      "issues": [
+        555,
+        562
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "wiki:Profilo-tattico"
+      ],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {
+        "date": "2026-08-11",
+        "commit": "f17cc0b"
+      },
+      "notes": "D-105. Due viste distinte — **Profile** (sei assi, pubblica) e **Balance** (cinque assi, tuning) — su scala intera `1..10`, con l'ordine dei raggi **normativo**: cambiarlo cambia la forma a parita' di valori, quindi due radar con ordini diversi non sono confrontabili. `runtime`/`log_debug` sono `na` perche' nessun rating entra nel resolver: e' una vista derivata e la freccia non torna indietro. `data: todo` finche' la rubrica non deriva davvero i rating dai cataloghi: D-106 ha stabilito che **non si scrivono, si calcolano**, e D-023 tiene l'autorita' dei numeri sui `RT_*Catalog_v0.1.md` — quindi nessun workbook e' fonte e il conflitto che teneva aperto `RAD-1` si e' **dissolto** invece di essere risolto. ⚠️ La regola che costa: un asse `TBD` **non si renderizza come `0`** e fa fallire la generazione, perche' uno zero da dato mancante e' la stessa forma di una debolezza voluta. Con i rating calcolati `TBD` cambia significato — non «cella vuota» ma «la rubrica non copre questo asse» — e resta un fallimento. ⚠️ D-107 conferma i **sei assi** e li fa modellare: cinque si derivano dagli input che il catalogo dichiara per eroe (Salute, Movimento, Range visivo, Resistenza Push, abilita' con danno/range/effetto/cooldown), mentre `information` nasce con un solo ingrediente — la **Vista** — perche' stealth e detection vivono solo nel workbook escluso. Si arricchisce derivando il rumore dal **kit** (D-042), non ripescando il foglio."
+    },
+    {
+      "feature_id": "RT-FEAT-CHAR-RADAR-RATINGS-V01",
+      "title": "Rubrica — i rating derivati dal catalogo eroi",
+      "area": "Characters",
+      "kind": "data",
+      "release": "future",
+      "priority": "P3",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "na",
+        "log_debug": "na",
+        "automation": "todo",
+        "scenario": "na",
+        "ui_wiki": "todo",
+        "packaged": "na",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 4,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-CHAR-RADAR-MODEL"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/characters/spec-radar-profilo-personaggio.md"
+      ],
+      "issues": [
+        556,
+        557,
+        558
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "D-106: i rating **non si scrivono da nessuna parte**. Il generatore legge `RT_HeroCatalog_v0.1.md` — l'autorita' dei numeri per D-023 — applica la rubrica e produce i rating **in memoria**: nessun file di rating esiste, quindi nessuna seconda fonte puo' nascere ne' divergere. ⚠️ Era `BLOCKED` su `RAD-1`, che chiedeva quale dei due workbook fosse autorita': domanda **mal posta**, perche' D-023 aveva gia' declassato quello di balance a `RESEARCH` e `balance/README.md` vieta perfino di ripararlo cella per cella. Il conflitto non e' stato risolto, **si e' dissolto**. ⚠️ Il peso si sposta sulla **rubrica**, che diventa il prerequisito di tutto: senza formula i rating non esistono affatto, e non c'e' il ripiego «intanto li mettiamo a mano». In cambio, cambiare `Salute` o `Movimento` in un catalogo cambia i radar da solo. Il gate `data` resta `todo` finche' la rubrica non legge davvero i cataloghi."
+    },
+    {
+      "feature_id": "RT-FEAT-WIKI-CHART-GENERATOR",
+      "title": "Generatore SVG deterministico dei radar",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "future",
+      "priority": "P3",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "na",
+        "ui_wiki": "todo",
+        "packaged": "na",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 1,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-CHAR-RADAR-MODEL",
+        "RT-FEAT-TOOL-VALIDATION"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/characters/spec-radar-profilo-personaggio.md"
+      ],
+      "issues": [
+        559,
+        560,
+        561,
+        563
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "`spec: done` dal 2026-08-12: D-108 chiude le due incognite che tenevano la spec `partial` — il generatore e' **Node/TypeScript** (contro la raccomandazione registrata nel consolidamento, Python accanto a `scripts/`) e gli SVG si **committano** con un `--check` che li verifica, dentro l'MVP e non nel lavoro futuro. ⚠️ Il determinismo di *questo* generatore ha un'insidia propria oltre alle solite (timestamp, UUID, ordine non stabile): le coordinate dei vertici vengono da `sin`/`cos`, quindi da float, la cui resa decimale cambia con piattaforma, libreria matematica e locale — vanno **arrotondate esplicitamente** prima di serializzare. Un test che genera due volte nello stesso processo **non dimostra** la proprieta', e il golden test va ancorato a un hash committato. ⚠️ Il determinismo viene **prima** del gate: senza arrotondamento il `--check` e' rosso su una macchina e verde su un'altra. ⚠️ Combinato con D-106 il gate diventa un **test di regressione sui dati competitivi**: cambiare `Salute` in un catalogo lo fa diventare rosso finche' gli SVG non sono rigenerati nello stesso commit — un rebalance porta con se' i suoi grafici. Il prezzo e' che chi tocca un catalogo deve poter eseguire il generatore, quindi Node diventa un prerequisito del **bilanciamento**. `scenario`/`packaged`/`network_privacy` sono `na` come per gli altri strumenti."
     }
   ]
 }

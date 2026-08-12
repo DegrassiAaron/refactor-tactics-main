@@ -19,8 +19,10 @@ La domanda sembrava una scelta fra due opzioni. Non lo è: il repository contien
 comportamenti, e li chiama con lo stesso nome.
 
 - `RefactorTactics.Simulation.DeterministicReplay` (`RTSimulationDeterminismTests.cpp`) **non riproduce una
-  traccia**: rilancia lo scenario 100 volte attraverso il resolver e confronta gli `StateHash`. Si chiama
-  «replay» ed è **ri-simulazione**.
+  traccia**: rilancia lo scenario 100 volte attraverso il resolver e confronta gli `StateHash`. Si chiamava
+  «replay» ed è **ri-simulazione**. *(Dal 2026-08-11 si chiama `Replay.Verifier.ResimulationIsDeterministic`:
+  [D-103](RT_PDR_00_Decision_Log.md), [#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538).
+  Il nome vecchio resta qui perché è la ragione per cui questo ADR è stato scritto.)*
 - `URTReplaySeekLibrary` (`#415`) fa l'opposto: si posiziona dentro una traccia già scritta e non ha modo di
   chiamare il resolver.
 
@@ -63,10 +65,14 @@ mutilato l'altra.
 | `URTReplaySeekLibrary` (`#415`) | **Player** |
 | `DeserializeTurnLog`, `LoadTurnLogFromFile` | **Player** |
 | `CompareSerializedTraces`, `DescribeFirstDivergence` | **Verifier** |
-| `Simulation.DeterministicReplay`, `HashMatchState` | **Verifier** |
+| `Replay.Verifier.ResimulationIsDeterministic`, `HashMatchState` | **Verifier** |
 
-> ⚠️ Il nome `Simulation.DeterministicReplay` **insegna il contrario di questo ADR** e va corretto: è un test
-> del Verifier. Finché porta quel nome, chi lo legge impara che «replay» significa ri-simulare.
+> ✅ **Corretto il 2026-08-11** ([#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538),
+> [D-103](RT_PDR_00_Decision_Log.md)). Il nome `Simulation.DeterministicReplay` insegnava il contrario di
+> questo ADR — chi lo leggeva imparava che «replay» significa ri-simulare — ed è ora
+> `Replay.Verifier.ResimulationIsDeterministic`. Il prezzo è dichiarato invece che nascosto: quel nome era
+> uno dei dieci **vincolanti** del catalogo (p.24 §15), e il gate **G3** della v0.1 ora dice «nove con quei
+> nomi, uno rinominato di proposito».
 
 ### 3. Il confine è reso impossibile dalla struttura, e il test è la rete
 
@@ -83,8 +89,10 @@ un `#include`; una dipendenza che non esiste no.
 riproduce una traccia in un contesto dove il resolver non è disponibile, e se funziona il confine è
 dimostrato invece che affermato.
 
-> ⚠️ **Questi test non esistono ancora**: si scrivono in **R3**, insieme al Player. Questo ADR li **richiede**,
-> e la loro assenza è la ragione per cui `REPLAY-04` resta aperto. Nessuno li citi come già presenti.
+> ✅ **Scritti il 2026-08-11** in `RTReplayPlayerTests.cpp`, insieme al Player (`#470`, PR #496). Erano la
+> condizione che questo ADR poneva, e con essi **`REPLAY-04` si chiude**: il rischio esisteva perché nessun
+> test si sarebbe accorto di un player che ri-risolve, e adesso `Replay.Player.RunsWithoutResolver` lo
+> dimostra nella forma negativa — riproduce dove il resolver non c'è.
 
 ### 4. Divergenza: il Verifier fallisce esplicito, il Player non verifica mai
 
@@ -129,6 +137,7 @@ adesso evita che qualcuno legga «verifica d'integrità» e creda di avere una g
 - Il `HashTurnLogOrdered` di D-062 ha una casa e un consumatore: sta nel manifest (D-077) ed è il Verifier a
   leggerlo.
 - `Simulation.DeterministicReplay` va rinominato: è un test del Verifier e il suo nome dice Player.
+  ✅ **Fatto il 2026-08-11** → `Replay.Verifier.ResimulationIsDeterministic` ([#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538), [D-103](RT_PDR_00_Decision_Log.md)).
 - `#415` è retroattivamente conforme: era Player-side prima che questo ADR esistesse, e lo era per la ragione
   giusta.
 
@@ -145,7 +154,9 @@ adesso evita che qualcuno legga «verifica d'integrità» e creda di avere una g
 
 ## Verifica
 
-I test seguenti sono **richiesti da questo ADR e non esistono ancora**; si scrivono in R3.
+I test seguenti erano **richiesti da questo ADR e non esistevano** alla sua stesura. ✅ **Esistono tutti dal
+2026-08-11** (`RTReplayPlayerTests.cpp`, `#470`): la tabella resta perché dice *perché* servono, non solo che
+servono.
 
 | Test | Cosa rende osservabile |
 |---|---|
@@ -153,5 +164,5 @@ I test seguenti sono **richiesti da questo ADR e non esistono ancora**; si scriv
 | `Replay.Player.RejectsIncompatibleArchive` | fail-closed in apertura su versione, topologia e checksum |
 | `Replay.Verifier.ReportsFirstDivergence` | il verdetto nomina turno, fase e `ActionId` |
 
-Già esistenti e riclassificati da questo ADR: `Simulation.DeterministicReplay` (Verifier),
-`Replay.Seek.*` (Player, `#415`).
+Già esistenti e riclassificati da questo ADR: `Replay.Verifier.ResimulationIsDeterministic` (Verifier —
+rinominato da `Simulation.DeterministicReplay` il 2026-08-11), `Replay.Seek.*` (Player, `#415`).

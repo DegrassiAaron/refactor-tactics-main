@@ -31,6 +31,7 @@
 #include "TimerManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Replay/RTMatchHistoryLibrary.h" // indice delle partite: una riga per partita, fuori dagli archivi (#416)
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Turn/RTMatchStateHash.h"
 #include "Misc/DateTime.h"
@@ -127,8 +128,48 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 	}
 }
 
+void ARTTurnManager::RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Live)
+{
+	FVector Origin; float CellSize = 0.f; float LayerH = 0.f;
+	const URTHexMapAsset* Map = GetHexContext(Origin, CellSize, LayerH);
+
+	TSet<int32> Teams;
+	for (const ARTUnit* U : Live) { if (U && U->IsAlive()) { Teams.Add(U->TeamId); } }
+	TArray<int32> SortedTeams = Teams.Array();
+	SortedTeams.Sort(); // l'ordine di un TSet dipende dall'hash: qui si itera, quindi si ordina
+
+	TArray<FRTTeamKnowledge> Refreshed;
+	for (int32 TeamId : SortedTeams)
+	{
+		TArray<FRTPerceiver> Observers;
+		TArray<FRTLastKnownContact> EnemiesNow;
+		for (ARTUnit* U : Live)
+		{
+			if (!U || !U->IsAlive()) { continue; } // un cadavere non vede e non si nasconde
+			if (U->TeamId == TeamId)
+			{
+				FRTPerceiver P;
+				P.Cell = U->Cell;
+				P.Facing = U->Facing;
+				P.VisionRange = U->VisionRange;
+				Observers.Add(P);
+			}
+			else
+			{
+				// Identita' STABILE: e' la chiave con cui la memoria attraversa i turni. `TurnNumber` in
+				// ingresso e' ignorato — lo scrive `Observe`, unica a sapere QUANDO si osserva.
+				EnemiesNow.Add(FRTLastKnownContact(U->StableUnitId, U->Cell, /*ignorato*/ 0));
+			}
+		}
+		Refreshed.Add(URTTeamKnowledgeLibrary::Observe(Map, TeamId, TurnNumber,
+			Observers, EnemiesNow, KnowledgeForTeam(TeamId)));
+	}
+	TeamKnowledgeState = MoveTemp(Refreshed);
+}
+
 void ARTTurnManager::PlanBots()
 {
+
 	// Osservabilita' del tuning: i pesi correnti, una riga per turno (verifica delle modifiche in PIE).
 	// UE_LOG diretto (non AddLogEvent) per non riempire il combat log della HUD.
 	UE_LOG(LogRT, Log, TEXT("[RT] Pesi bot: WKill=%d WDamage=%d WThreat=%d WKiteViolation=%d WApproach=%d WElevation=%d"),
@@ -137,8 +178,24 @@ void ARTTurnManager::PlanBots()
 	// Stesso snapshot autorevole del movimento e dell'input: mappa, occupazione e budget congelati.
 	// Le mosse candidate nascono da ReachableCells, quindi il bot NON puo' proporre una mossa illegale
 	// (niente celle inesistenti, bloccate, occupate o fuori budget) e non rifa' pathfinding per conto suo.
+	// CP 13.5 — l'IDENTITA' dev'esistere prima della conoscenza, perche' e' la sua chiave.
+	//
+	// `EnsureMatchRoster` viveva solo in `LockInAndResolve`, cioe' a valle della pianificazione: al primo
+	// turno ogni `StableUnitId` valeva ancora **0**. Finche' nessuno leggeva quel campo in pianificazione non
+	// si vedeva; adesso lo legge `ClassifyTarget`, e con tutti gli id a zero i contatti di unita' diverse si
+	// sarebbero fusi in uno — il ricordo di un nemico avrebbe risposto per un altro.
+	// La funzione e' idempotente per costruzione («l'identita' si assegna una volta»), quindi chiamarla anche
+	// qui non riassegna niente: sposta solo *quando* la prima assegnazione avviene.
+	EnsureMatchRoster();
+
 	TArray<ARTUnit*> Units;
 	const FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units); // solo unita' vive; Units[i].UnitId == i
+
+	// CP 13.5 — la conoscenza dev'esistere PRIMA che qualcuno ci pianifichi sopra. `ResolveCombat` la
+	// rinfresca a valle del Dash, cioe' DOPO: al primo turno sarebbe vuota, e un bot che pianifica su una
+	// conoscenza vuota non e' parziale, e' cieco — il filtro sembrerebbe funzionare mentre produce un bot
+	// che non fa niente.
+	RefreshTeamKnowledgeForPlanning(Units);
 
 	for (int32 BotIdx = 0; BotIdx < Units.Num(); ++BotIdx)
 	{
@@ -194,9 +251,20 @@ void ARTTurnManager::PlanBots()
 			continue;
 		}
 
-		// Contesto di valutazione: nemici vivi (celle, gittata effettiva, HP+scudo) e pesi dal tuning.
+		// Contesto di valutazione: i nemici che la SQUADRA DEL BOT conosce (celle, gittata effettiva,
+		// HP+scudo) e pesi dal tuning.
 		// L'ordine dei nemici viene da Units (ordine stabile dello snapshot): il punteggio non dipende
 		// dall'ordine di enumerazione degli Actor.
+		//
+		// CP 13.5 — IL BOT PIANIFICA SULLA CONOSCENZA DELLA SUA SQUADRA (#160, RT-FEAT-BOT-FAIRNESS).
+		// Fino a qui `Ctx.Enemies` conteneva *tutte* le unita' nemiche vive, senza filtro di percezione: il
+		// bot vedeva ogni posizione avversaria mentre il giocatore no. Non era una svista nascosta — la spec
+		// lo dichiarava (`docs/gameplay/spec-bot-hex.md` §6) — ma rendeva falsa la promessa che la Wiki fa al
+		// giocatore, «il bot non vede piu' di te», e invalidava per costruzione ogni playtest contro di lui.
+		//
+		// La regola e' la STESSA del targeting umano (`ClassifyTarget`, piu' sotto in questo file): non un
+		// secondo modello di conoscenza per il bot, che divergerebbe dal primo alla prima modifica.
+		const FRTTeamKnowledge BotKnowledge = KnowledgeForTeam(Bot->TeamId);
 		FRTHexBotContext Ctx;
 		Ctx.Origin = Bot->Cell;
 		// Il kiting lo DERIVA il bot dalla portata dell'attacco base: e' un comportamento dell'IA, non una
@@ -213,6 +281,10 @@ void ARTTurnManager::PlanBots()
 
 		TArray<int32> EnemyUnitIndex; // parallelo a Ctx.Enemies: indice dell'unita' in Units
 		ARTUnit* Nearest = nullptr;
+		// La cella da cui il kiter fugge, come la CONOSCE la squadra: su un contatto incerto e' il ricordo,
+		// non la posizione vera. Senza questo campo la fuga userebbe `Nearest->Cell` — cioe' il bot
+		// scapperebbe da dove il nemico e' davvero, che e' l'onniscienza rientrata dalla finestra.
+		FRTCellId NearestKnownCell;
 		int32 NearestDistance = MAX_int32;
 		for (int32 j = 0; j < Units.Num(); ++j)
 		{
@@ -239,17 +311,113 @@ void ARTTurnManager::PlanBots()
 					EnemyReach = FMath::Max(EnemyReach, EAb->RangeCells);
 				}
 			}
-			Ctx.Enemies.Add(Other->Cell);
+			// Cosa la squadra sa di questo nemico. `EnemyReach` NON passa di qui: gittate e forme sono
+			// catalogo, cioe' dato pubblico — sapere che Riva ha portata 5 non e' sapere dov'e' Riva.
+			FRTCellId KnownCell = Other->Cell;
+			int32 KnownHealth = Other->Health + Other->Shield;
+			switch (URTTeamKnowledgeLibrary::ClassifyTarget(BotKnowledge, Other->StableUnitId,
+				Other->TeamId, Other->Cell))
+			{
+			case ERTTargetKnowledge::Allowed:
+				break; // la squadra lo vede: cella e condizione attuali, come sempre
+
+			case ERTTargetKnowledge::CellOnly:
+			{
+				// Contatto INCERTO: vale la cella dell'ULTIMO contatto, mai quella attuale — altrimenti il
+				// ricordo inseguirebbe il bersaglio, che e' il modo silenzioso di continuare a vederlo.
+				if (!URTTeamKnowledgeLibrary::LastKnownCell(BotKnowledge, Other->StableUnitId, KnownCell))
+				{
+					continue; // incerto senza ricordo: non e' ne' bersaglio ne' minaccia contabilizzabile
+				}
+				// ⚠️ **Gli HP correnti sarebbero la fuga esatta che il canary deve prendere**: direbbero al
+				// bot che un'unita' che NON vede e' quasi morta, e lo manderebbe a finirla. Cio' che la
+				// squadra conosce di un ricordo e' l'IDENTITA' (`StableUnitId` -> eroe -> catalogo), non la
+				// condizione: si assume quindi integro, con un valore pubblico.
+				//
+				// ⚠️ Limite dichiarato: cosi' si PERDE anche informazione legittima — se la squadra l'ha
+				// visto a 10 HP un turno fa, quel dato c'era. Il modello corretto e' un HP nel contatto, cioe'
+				// un campo in `FRTLastKnownContact` e un incremento di `FRTTeamKnowledge::CurrentVersion`:
+				// una decisione di formato, non un dettaglio di questo checkpoint. L'errore va nella
+				// direzione sicura — il bot sottostima le occasioni, non ne inventa.
+				KnownHealth = Other->MaxHealth;
+				break;
+			}
+
+			default:
+				continue; // ignoto alla squadra: per il bot quella cella e' vuota
+			}
+
+			Ctx.Enemies.Add(KnownCell);
 			Ctx.EnemyRanges.Add(EnemyReach);
-			Ctx.EnemyHealth.Add(Other->Health + Other->Shield);
+			Ctx.EnemyHealth.Add(KnownHealth);
 			EnemyUnitIndex.Add(j);
 
-			const int32 Distance = URTHexLibrary::HexDistance(Bot->Cell, Other->Cell);
+			// La distanza si misura da cio' che si CONOSCE: su un contatto incerto e' la cella del ricordo.
+			const int32 Distance = URTHexLibrary::HexDistance(Bot->Cell, KnownCell);
 			if (Distance < NearestDistance)
 			{
 				NearestDistance = Distance;
 				Nearest = Other;
+				NearestKnownCell = KnownCell;
 			}
+		}
+
+		// CP 13.5 — NESSUN CONTATTO: si cerca, non ci si ferma.
+		//
+		// Prima del filtro di percezione questo caso non esisteva: `Ctx.Enemies` conteneva sempre tutti i
+		// nemici vivi, quindi c'era sempre qualcuno verso cui avvicinarsi. Con la conoscenza parziale una
+		// squadra puo' non sapere dove sia nessuno — ed e' la condizione NORMALE del primo turno, perche' su
+		// una mappa di raggio 5 gli schieramenti opposti distano piu' della vista di chiunque.
+		//
+		// ⚠️ **Senza questo ramo la partita non finisce.** Con `Ctx.Enemies` vuoto lo scoring perde i termini
+		// di minaccia e di avvicinamento, ogni cella vale uguale, e il bot resta fermo per sempre: due squadre
+		// cieche che si aspettano. Non e' «il bot perde il contatto e sbaglia» (che il DoD ammette): e' un bot
+		// che smette di giocare, e l'ha misurato `HexMatch.PlaysToCompletion` diventando rosso.
+		//
+		// La condotta e' la piu' povera che ristabilisce il contatto: avvicinarsi al CENTRO della mappa, che
+		// e' geometria pubblica — zero informazione nascosta. Non e' una ricerca intelligente e non pretende
+		// di esserlo: i goal veri (`SecureObjective`, `GatherInformation`) sono E26, e questo ramo e' il posto
+		// in cui atterreranno. Deterministica: distanza minima dal centro, poi `StableLess`.
+		if (Ctx.Enemies.Num() == 0)
+		{
+			if (Snapshot.Map && Snapshot.Map->Cells.Num() > 0)
+			{
+				// Centro = la cella piu' vicina al baricentro intero delle celle. `Cells` e' ordinato
+				// (`SortCells`), quindi il baricentro e la scelta non dipendono dall'ordine di scoperta.
+				int64 SumX = 0, SumY = 0;
+				for (const FRTHexCellData& C : Snapshot.Map->Cells) { SumX += C.Id.X; SumY += C.Id.Y; }
+				const int32 N = Snapshot.Map->Cells.Num();
+				const FRTCellId Barycentre(static_cast<int32>(SumX / N), static_cast<int32>(SumY / N), 0);
+
+				FRTCellId SeekCell = Snapshot.Map->Cells[0].Id;
+				int32 BestToBary = MAX_int32;
+				for (const FRTHexCellData& C : Snapshot.Map->Cells)
+				{
+					const int32 D = URTHexLibrary::HexDistance(C.Id, Barycentre);
+					if (D < BestToBary || (D == BestToBary && URTHexLibrary::StableLess(C.Id, SeekCell)))
+					{
+						BestToBary = D;
+						SeekCell = C.Id;
+					}
+				}
+
+				// Fra le celle raggiungibili, quella che avvicina di piu' al centro. Restare e' ammesso e
+				// vince a parita': e' lo stesso criterio di `ChooseBestPlan` (a parita' di punteggio, mossa
+				// minima), quindi un bot gia' al centro non oscilla.
+				FRTCellId Best = Bot->Cell;
+				int32 BestDistance = URTHexLibrary::HexDistance(Bot->Cell, SeekCell);
+				for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, BotIdx))
+				{
+					const int32 D = URTHexLibrary::HexDistance(R.Cell, SeekCell);
+					if (D < BestDistance || (D == BestDistance && URTHexLibrary::StableLess(R.Cell, Best)))
+					{
+						BestDistance = D;
+						Best = R.Cell;
+					}
+				}
+				Bot->PlannedCell = Best;
+			}
+			continue; // niente da bersagliare: nessun attacco, nessuno scatto verso un nemico che non si conosce
 		}
 
 		// Scatto disponibile per questo turno (serve sia alla fuga sia alle candidate di riposizionamento).
@@ -331,7 +499,7 @@ void ARTTurnManager::PlanBots()
 				// Anche la fuga del kiter passa da ReachableCells (grafo): se la cella scelta non e'
 				// raggiungibile in LINEA, lo scatto verrebbe rifiutato e il panico si tradurrebbe in un turno
 				// perso. Meglio non scattare e lasciare decidere al movimento normale.
-				const FRTCellId Dest = URTHexBotLibrary::BestKiteCell(DashSnapshot, BotIdx, Nearest->Cell);
+				const FRTCellId Dest = URTHexBotLibrary::BestKiteCell(DashSnapshot, BotIdx, NearestKnownCell);
 				if (Dest != Bot->Cell && IsDashReachable(DashSnapshot, Dest))
 				{
 					Bot->PlannedDashAbility = DashIdx;
@@ -341,7 +509,7 @@ void ARTTurnManager::PlanBots()
 					continue;
 				}
 			}
-			Bot->PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, Nearest->Cell);
+			Bot->PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, NearestKnownCell);
 			AddLogEvent(FString::Printf(TEXT("%s: arretra -> (q=%d,r=%d,L%d)"),
 				*Bot->GetName(), Bot->PlannedCell.X, Bot->PlannedCell.Y, Bot->PlannedCell.Layer));
 			continue;
@@ -751,6 +919,83 @@ void ARTTurnManager::LockInAndResolve()
 		return;
 	}
 	ConcludeTurn();
+}
+
+void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell,
+	const FRTCellId& FacingSource, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget,
+	const TCHAR* LogVerb, const URTHexMapAsset* Map)
+{
+	if (!IsValid(Unit))
+	{
+		return;
+	}
+	const FRTCellId OldCell = Unit->Cell;
+
+	// 1. Riga di combat log: e' per l'HUD e NON finisce nel file — la traccia e' la voce di TurnLog al passo 3.
+	AddLogEvent(FString::Printf(TEXT("%s: %s -> (q=%d,r=%d,L%d)"),
+		LogVerb, *Unit->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
+
+	// 2. Celle attraversate: la linea esagonale fra le due, i cui passi sono adiacenti per costruzione. Serve
+	// al playback E agli hazard — «lo spostamento forzato ignora il costo VOLONTARIO del terreno, non la
+	// geometria e non gli hazard» (spec-tassonomia-movimento §3).
+	const TArray<FRTCellId> Path = URTHexLibrary::HexLine(OldCell, NewCell);
+
+	// 3. La voce di TurnLog CON LA CAUSA (#307). Prima lo spostamento esisteva solo come riga di combat log:
+	// il replay registrava il danno e taceva il movimento, e chi rileggeva il file vedeva l'unita' altrove
+	// senza nulla che lo spiegasse.
+	AppendDisplacementEntry(Unit, OldCell, NewCell, Path.Num() - 1, CauseByTarget);
+
+	// 4. Evento per il playback: lo spostamento scivola OldCell -> NewCell nella fase Blast.
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::Move;
+		Ev.Source = Unit;
+		Ev.Path = Path;
+		ResolvedTimeline.Add(Ev);
+	}
+
+	// 5. La cella nuova.
+	Unit->Cell = NewCell;
+
+	// 6. Il FACING verso la sorgente (CP 16.1, ADR-0005 §3): chi subisce uno spostamento si gira verso chi
+	// l'ha causato — chi spinge, chi tira, o chi ha innescato la fuga ([D-104]). Si applica con la cella
+	// GIA' aggiornata, cosi' la voce di log porta la posizione in cui l'unita' e' finita.
+	//
+	// Un Move volontario successivo VINCE: risolve dopo, nella sua fase, e riscrive. Non serve un flag che
+	// ricordi «e' stata spostata» — e' l'ORDINE delle fasi a deciderlo, ed e' il motivo per cui
+	// `URTFacingLibrary` non tiene stato.
+	{
+		FRTHexSimUnit Moved(0, NewCell, /*InMoveBudget=*/ 0);
+		Moved.Facing = Unit->Facing;
+		const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
+			NewCell, FacingSource, ERTDisplacementCause::Forced, Moved.Facing);
+		URTFacingLibrary::RecordFacingChange(Moved, Turned,
+			ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
+		Unit->Facing = Moved.Facing;
+	}
+
+	// 7. La posizione visiva. Il contesto esagonale se lo chiede la primitiva invece di riceverlo: cosi' e'
+	// autonoma, e chi la chiamera' da una fase dove quelle locali non sono in scope — il pass del Cleanup di
+	// `SelfReposition`, D-092 — non deve procurarsele per poterla usare.
+	{
+		FVector VisualOrigin; float VisualSize; float VisualLayerH;
+		GetHexContext(VisualOrigin, VisualSize, VisualLayerH);
+		Unit->SetVisualLocation(Unit->WorldForCell(NewCell, VisualOrigin, VisualSize, VisualLayerH));
+	}
+
+	// 8. Gli hazard di OGNI cella attraversata, non solo di quella d'arrivo (#308). Chi viene spostato
+	// attraverso `asciutto -> fuoco -> fuoco -> asciutto` ha attraversato quelle due celle di fuoco e ne
+	// subisce le conseguenze, pur non avendo speso un solo punto movimento: il costo e' cio' che si paga per
+	// SCEGLIERE di passare, la geometria e' cio' che c'e'.
+	ApplyTerrainOnEnterEffects(Map, Unit, CellsEnteredAlong(Path));
+
+	// 9-10. Il piano segue l'unita' invece di riportarla indietro: la path composita dalla vecchia cella non
+	// e' piu' valida, e se non c'era un Move pianificato la destinazione diventa quella nuova — altrimenti
+	// l'unita' tornerebbe sui suoi passi nella fase Move, annullando lo spostamento.
+	Unit->PlannedPath.Reset();
+	Unit->PlannedWaypoints.Reset();
+	if (Unit->PlannedCell == OldCell) { Unit->PlannedCell = NewCell; }
 }
 
 void ARTTurnManager::AppendDisplacementEntry(const ARTUnit* Target, const FRTCellId& From, const FRTCellId& To,
@@ -1447,6 +1692,16 @@ void ARTTurnManager::BeginReplayRecording()
 		return;
 	}
 
+	// Senza un formato risolto non si registra. `SetupHexMatch` esce anticipatamente quando
+	// `ApplyMatchFormat` fallisce — la mappa resta a schermo col motivo nel log, e nessuna partita viene
+	// allestita — ma il chiamante e' fuori da quella funzione e non lo sa. Un archivio che dichiara
+	// `FormatId = None` non e' confrontabile con niente (`CompareSerializedTraces` distingue proprio il
+	// `FormatMismatch`), e sarebbe la registrazione di una partita che non e' mai cominciata.
+	if (MatchRules.FormatId.IsNone())
+	{
+		return;
+	}
+
 	ReplayManifest = FRTReplayManifest();
 	ReplayManifest.MatchId = FGuid::NewGuid();
 	// Il formato si legge ADESSO e non a `BeginPlay`: il GameMode spawna il TurnManager prima di risolvere
@@ -1454,6 +1709,17 @@ void ARTTurnManager::BeginReplayRecording()
 	// quello vero. Un manifest che dichiara il formato sbagliato e' peggio di uno che non lo dichiara.
 	ReplayManifest.FormatId = MatchRules.FormatId;
 	ReplayManifest.bHexTopology = true; // un solo substrato: `FRTCellId` e' esagonale (ADR-0002)
+
+	// L'UNICO tempo reale che tocca l'archivio: da qui esce la durata nel manifest e la data nell'indice.
+	// Nessuno dei due entra in un hash.
+	ReplayStartRealSeconds = FPlatformTime::Seconds();
+	ReplayStartedUtc = FDateTime::UtcNow();
+
+	// La partita entra nella lista ADESSO e non alla fine (`#416`): se entrasse alla fine, una partita
+	// interrotta non comparirebbe da nessuna parte pur avendo lasciato un archivio riproducibile su disco.
+	// La riga si completa alla chiusura — `AppendOrUpdate` aggiorna la stessa, non ne accoda una seconda.
+	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
+		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
 }
 
 FString ARTTurnManager::ResolveReplaysRoot() const
@@ -1489,11 +1755,20 @@ void ARTTurnManager::CloseReplayArchive()
 
 	// Il checksum e' quello catturato in `CaptureFinalStateHash`, PRIMA che le unita' morte sparissero: qui
 	// non si puo' piu' calcolare, perche' `DestroyDefeatedUnits` e' gia' passato.
+	// La DURATA si misura adesso: nasce in `BeginReplayRecording` e finisce qui. E' l'unico tempo reale che
+	// l'archivio porta, e vive in un campo che non entra in nessun hash.
+	const float WallClock = static_cast<float>(FPlatformTime::Seconds() - ReplayStartRealSeconds);
 	if (!URTReplayRecorderLibrary::CloseMatch(ResolveReplaysRoot(), ReplayManifest,
-		PendingResult.Outcome, PendingFinalStateHash, /*WallClockSeconds*/ 0.f))
+		PendingResult.Outcome, PendingFinalStateHash, WallClock))
 	{
 		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"));
 	}
+
+	// La riga della lista si completa con quello che il manifest dice ADESSO: esito, turni, durata e la
+	// disponibilita' del replay, che e' la chiusura stessa. Se la chiusura e' fallita, `bClosed` e' rimasto
+	// `false` e l'indice lo riporta — la lista non promette una partita intera che il disco non ha.
+	URTMatchHistoryLibrary::AppendOrUpdate(ResolveReplaysRoot(),
+		URTMatchHistoryLibrary::EntryFromManifest(ReplayManifest, ReplayStartedUtc));
 }
 
 void ARTTurnManager::DestroyDefeatedUnits()
@@ -2298,6 +2573,45 @@ void ARTTurnManager::ResolveCombat()
 		HexUnits.Add(HexUnit);
 	}
 
+	// CONOSCENZA DI SQUADRA (CP 13.2), rinfrescata QUI e non a inizio turno: la posizione autorevole per il
+	// Blast e' quella post-Dash, e osservare prima dello scatto darebbe una fotografia che nessuna fase usa.
+	// Chi ha caricato in mezzo al campo si e' esposto, e la squadra avversaria deve saperlo prima di sparare.
+	{
+		TSet<int32> Teams;
+		for (const FRTHexCombatUnit& HU : HexUnits) { Teams.Add(HU.TeamId); }
+		TArray<int32> SortedTeams = Teams.Array();
+		SortedTeams.Sort(); // l'ordine di un TSet dipende dall'hash: qui si itera, quindi si ordina
+
+		TArray<FRTTeamKnowledge> Refreshed;
+		for (int32 TeamId : SortedTeams)
+		{
+			TArray<FRTPerceiver> Observers;
+			TArray<FRTLastKnownContact> EnemiesNow;
+			for (int32 u = 0; u < HexUnits.Num(); ++u)
+			{
+				if (!HexUnits[u].bAlive) { continue; } // un cadavere non vede e non si nasconde
+				if (HexUnits[u].TeamId == TeamId)
+				{
+					FRTPerceiver P;
+					P.Cell = HexUnits[u].Cell;
+					P.Facing = HexUnits[u].Facing;
+					P.VisionRange = Units[u]->VisionRange;
+					Observers.Add(P);
+				}
+				else
+				{
+					// Identita' STABILE, non l'indice `u`: questo array e' ordinato per cella e si rinumera
+					// appena qualcuno si muove. `TurnNumber` in ingresso ignorato — lo scrive `Observe`, che
+					// e' l'unica a sapere QUANDO l'avvistamento avviene.
+					EnemiesNow.Add(FRTLastKnownContact(Units[u]->StableUnitId, HexUnits[u].Cell, /*ignorato*/ 0));
+				}
+			}
+			Refreshed.Add(URTTeamKnowledgeLibrary::Observe(Map, TeamId, TurnNumber, Observers, EnemiesNow,
+				KnowledgeForTeam(TeamId)));
+		}
+		TeamKnowledgeState = MoveTemp(Refreshed);
+	}
+
 	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA
 	// USA invece che su un bersaglio. Risolve PRIMA del ciclo degli intenti, per due motivi indipendenti:
 	//
@@ -2548,9 +2862,53 @@ void ARTTurnManager::ResolveCombat()
 		// supporto su se stessi, e risolvono altrove): e' un'azione che il bersaglio l'ha PERSO — eliminato e
 		// rimosso dal livello, o mai valido. Senza questa distinzione l'istanza risulterebbe valida e l'unita'
 		// finirebbe per puntare la propria cella.
-		const ERTActionInvalidReason Reason = (Instance.TargetUnitId == INDEX_NONE && !bTargetsCell)
+		ERTActionInvalidReason Reason = (Instance.TargetUnitId == INDEX_NONE && !bTargetsCell)
 			? ERTActionInvalidReason::TargetGone
 			: URTActionFallbackLibrary::ValidateInstance(Instance, HexUnits, Map);
+
+		// CP 13.2 — IL TARGETING CONSUMA LA CONOSCENZA. Si valuta DOPO la geometria e solo se la geometria
+		// regge, per la stessa ragione per cui `ValidateInstance` mette la portata prima della copertura: il
+		// motivo scritto nel log dev'essere quello che chi gioca deve correggere. «Non lo vedi» detto a chi
+		// era comunque fuori portata sposterebbe l'attenzione sul difetto sbagliato.
+		if (Reason == ERTActionInvalidReason::None && Instance.TargetUnitId != INDEX_NONE
+			&& HexUnits.IsValidIndex(Instance.TargetUnitId))
+		{
+			const FRTTeamKnowledge Knowledge = KnowledgeForTeam(Unit->TeamId);
+			const int32 TargetId = Instance.TargetUnitId;          // indice di fase: serve solo qui e ora
+			const int32 TargetStable = Units[TargetId]->StableUnitId; // identita' che la memoria usa
+			switch (URTTeamKnowledgeLibrary::ClassifyTarget(Knowledge, TargetStable,
+				HexUnits[TargetId].TeamId, HexUnits[TargetId].Cell))
+			{
+			case ERTTargetKnowledge::Allowed:
+				break; // la squadra lo vede: si mira all'unita', come sempre
+
+			case ERTTargetKnowledge::CellOnly:
+			{
+				// Contatto INCERTO: si colpisce la CELLA dell'ultimo contatto, mai l'unita'. La differenza non
+				// e' formale — mirando all'unita' il colpo la seguirebbe dove si e' spostata, cioe' userebbe
+				// una posizione che la squadra non conosce. Qui invece il colpo resta dov'era il ricordo, e se
+				// il bersaglio si e' mosso trova terra battuta. E' il costo di sparare a memoria.
+				FRTCellId Remembered;
+				if (URTTeamKnowledgeLibrary::LastKnownCell(Knowledge, TargetStable, Remembered))
+				{
+					Instance.TargetUnitId = INDEX_NONE;
+					Instance.TargetCell = Remembered;
+					// Nessuna rivalidazione qui: `ValidateInstance` su un bersaglio-cella risponde sempre
+					// `None` per costruzione. Portata e linea di tiro sulla cella ricordata le verifica
+					// `CollectHexAttacks`, che e' l'owner della geometria dei colpi a cella.
+				}
+				else
+				{
+					Reason = ERTActionInvalidReason::TargetUnknown; // incerto senza ricordo: non e' un bersaglio
+				}
+				break;
+			}
+
+			default:
+				Reason = ERTActionInvalidReason::TargetUnknown;
+				break;
+			}
+		}
 
 		// La copertura NON passa di qui: la registra il piano del Blast col suo reason code (NoLineOfSight), e
 		// con la traiettoria bloccata nemmeno un'area potrebbe partire — applicarle `AttackCell` significherebbe
@@ -2828,6 +3186,12 @@ void ARTTurnManager::ResolveCombat()
 	// finiva nel log indistinguibile da un attacco pianificato: due voci di combattimento identiche per un
 	// colpo scelto in planning e uno arrivato di rimbalzo. Qui l'ActionId c'e' — e' `Reaction->Def.ActionId`,
 	// lo stesso che la voce di categoria `Reaction` porta gia' da CP 5.5.
+	// Fughe di CHI REAGISCE (`SelfReposition`, D-093): raccolte qui e applicate DOPO il ciclo (D-094).
+	// Spostare dentro il ciclo cambierebbe la posizione che le reazioni valutate dopo vedrebbero, e
+	// `Action.Intercept` chiede l'alleato entro 2 celle: l'esito dipenderebbe dall'ordine di `Units`.
+	TArray<ARTUnit*> FleeUnits;
+	TArray<FRTCellId> FleeFrom;   // da CHI ci si allontana: e' anche la sorgente del facing (D-104)
+	TArray<int32> FleeDist;
 	TArray<FName> CounterActionId;
 	TArray<FName> CounterBaseActionId;
 	TArray<int32> CounterPriority;
@@ -2907,6 +3271,17 @@ void ARTTurnManager::ResolveCombat()
 						*EffectTarget->GetName(), Event.Amount));
 					break;
 
+				case ERTActionEffect::SelfReposition:
+					// D-093: chi reagisce si allontana da chi l'ha innescato. Si RACCOGLIE soltanto — vedi
+					// il commento sugli array, D-094.
+					if (TriggeredBy != INDEX_NONE && Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy])
+					{
+						FleeUnits.Add(EffectTarget);
+						FleeFrom.Add(Units[TriggeredBy]->Cell);
+						FleeDist.Add(Event.Amount);
+					}
+					break;
+
 				default:
 					// `Heal`, `Push`, `Pull`, `Status`: nessuna reazione del catalogo v0.1 li dichiara, e
 					// applicarli qui richiederebbe cio' che il pass non ha (una direzione per la spinta, il
@@ -2924,6 +3299,47 @@ void ARTTurnManager::ResolveCombat()
 		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
 		AppendLogEntry(Entry, Unit);
 		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
+	}
+
+	// Le FUGHE raccolte sopra si applicano ora, con tutte le reazioni gia' valutate sullo snapshot congelato
+	// (D-094). Prima si calcolano tutte le destinazioni e poi si muove: due unita' che fuggono nello stesso
+	// Blast non devono vedersi a vicenda gia' spostate, altrimenti la seconda troverebbe libera una cella che
+	// la prima sta lasciando e l'esito dipenderebbe dall'ordine.
+	if (FleeUnits.Num() > 0)
+	{
+		TArray<FRTCellId> FleeBlockers;
+		for (ARTUnit* U : Units) { if (IsValid(U) && U->IsAlive()) { FleeBlockers.Add(U->Cell); } }
+
+		TArray<FRTCellId> FleeDest;
+		FleeDest.Reserve(FleeUnits.Num());
+		for (int32 f = 0; f < FleeUnits.Num(); ++f)
+		{
+			ARTUnit* Fleeing = FleeUnits[f];
+			// Stessa geometria della spinta: ci si allontana dalla sorgente e ci si ferma davanti agli stessi
+			// ostacoli. Una fuga non attraversa muri che una spinta non attraversa.
+			FleeDest.Add((IsValid(Fleeing) && Fleeing->IsAlive())
+				? URTHexCombatLibrary::HexKnockbackDestination(
+					FleeFrom[f], Fleeing->Cell, FleeDist[f], Map, FleeBlockers)
+				: FRTCellId());
+		}
+
+		for (int32 f = 0; f < FleeUnits.Num(); ++f)
+		{
+			ARTUnit* Fleeing = FleeUnits[f];
+			if (!IsValid(Fleeing) || !Fleeing->IsAlive()) { continue; }
+			if (FleeDest[f] == Fleeing->Cell)
+			{
+				// Non c'e' dove andare: la reazione e' scattata e ha speso la sua attivazione. E' un esito, e
+				// va detto — altrimenti nel log resta una reazione senza conseguenze e sembra un difetto.
+				AddLogEvent(FString::Printf(TEXT("%s: nessuna cella libera per la fuga"), *Fleeing->GetName()));
+				continue;
+			}
+			// Gli stessi dieci passi della spinta (#541): traccia con causa, hazard attraversati, facing verso
+			// la minaccia (D-104), piano che segue. Una riga, perche' la primitiva esiste.
+			TMap<ARTUnit*, FRTDisplacementCause> FleeCause;
+			FleeCause.Add(Fleeing, FRTDisplacementCause{ FName(TEXT("Reaction.EmergencyDash")), NAME_None, 0 });
+			ApplyForcedDisplacement(Fleeing, FleeDest[f], FleeFrom[f], FleeCause, TEXT("Fuga"), Map);
+		}
 	}
 
 	// Intenti fermati dalla copertura: l'attacco non avviene e il TurnLog ne registra il motivo.
@@ -3383,6 +3799,10 @@ void ARTTurnManager::ResolveCombat()
 	TMap<ARTUnit*, FRTCellId> KnockFrom;
 	TMap<ARTUnit*, int32> KnockDist;
 	TMap<ARTUnit*, int32> KnockCount;
+	// Quali attaccanti spingono ciascun bersaglio (D-085). Serve perche' `KnockCount` deve contare gli
+	// ATTACCANTI e non gli eventi: dal CP 7.1 una sola azione puo' dichiarare due spinte (`Weapon.Impact` su
+	// `Riva.PressureJet`), e contarle come due attaccanti attivava «forze contraddittorie» su un duello.
+	TMap<ARTUnit*, TSet<int32>> KnockAttackers;
 	// Trazione (`Action.Pull`, CP 4.7): stessa disciplina della spinta, array paralleli propri — una
 	// direzione INVERTITA (verso chi tira, non lontano da lui) non e' la stessa spinta con un segno cambiato
 	// nel dato che la applica.
@@ -3482,9 +3902,26 @@ void ARTTurnManager::ResolveCombat()
 						// all'enum — non riusando `NoDestination`, che dice una cosa diversa.
 						break;
 					}
+					// D-085 — le spinte si SOMMANO, e il contatore conta gli ATTACCANTI, non gli eventi.
+					//
+					// Fino a CP 7.1 le due cose coincidevano: nessuna azione del catalogo dichiarava piu' di un
+					// `Push`, quindi un evento era un attaccante. `Weapon.Impact` rompe l'equivalenza — accoda un
+					// secondo `Push 1` all'attacco base di Riva, che ne ha gia' uno — e con il conteggio per
+					// evento il bersaglio finiva nel ramo «forze contraddittorie» qui sotto: **fermo**, con
+					// `OpposingForces` nel TurnLog e un solo attaccante in campo. Una causa scritta, precisa e
+					// falsa, che e' il difetto peggiore per una traccia che deve essere attribuibile.
+					//
+					// `KnockDist` accumula invece di sovrascrivere: `TMap::Add` teneva l'ultimo valore, quindi due
+					// spinte da 1 ne producevano una da 1. Il catalogo ne vuole **una da 2**, che attraversa la
+					// cella intermedia — non due da 1, che valutano la collisione due volte.
+					{
+						TSet<int32>& PushersOfVictim = KnockAttackers.FindOrAdd(Victim);
+						bool bAlreadyPushing = false;
+						PushersOfVictim.Add(Hit.AttackerId, &bAlreadyPushing);
+						if (!bAlreadyPushing) { KnockCount.FindOrAdd(Victim)++; }
+					}
 					KnockFrom.Add(Victim, HexUnits[Hit.AttackerId].Cell);
-					KnockDist.Add(Victim, Event.Amount);
-					KnockCount.FindOrAdd(Victim)++;
+					KnockDist.FindOrAdd(Victim) += Event.Amount;
 					PushCause.Add(Victim, bHasDef
 						? FRTDisplacementCause{ IntentDefs[Hit.IntentIndex].ActionId,
 							IntentDefs[Hit.IntentIndex].BaseActionId, IntentDefs[Hit.IntentIndex].Priority }
@@ -3635,8 +4072,12 @@ void ARTTurnManager::ResolveCombat()
 
 			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
 			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
-			// In v0.1 una spinta piu' forte NON ESISTE: il catalogo si ferma a 1, quindi questo ramo assorbe
-			// ogni spinta del gioco e il ramo `Braced` sotto non aggiunge copertura. Vedi il commento la'.
+			//
+			// ⚠️ **Dal 2026-08-11 una spinta piu' forte ESISTE** (D-085): `Weapon.Impact` su
+			// `Riva.PressureJet`, che spinge gia' di 1, produce una spinta di **2** — ed e' il loadout di
+			// DEFAULT di Riva (D-089). Fino a CP 7.1 questo ramo assorbiva ogni spinta del gioco e il commento
+			// diceva cosi'; ora cede, e il ramo `Braced` sotto **aggiunge copertura davvero**.
+			// Pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
@@ -3651,15 +4092,23 @@ void ARTTurnManager::ResolveCombat()
 			// passaggio, e un bersaglio spinto da 2+ attaccanti e' gia' escluso sopra (`*Pushes != 1`,
 			// forze contraddittorie).
 			//
-			// Il ramo non guarda `KnockDist`, quindi regge una spinta di qualunque distanza. ATTENZIONE:
-			// questo NON e' cio' che distingue `Brace` da `Guard` in v0.1, e il commento diceva il contrario
-			// fino al 2026-08-10. Il catalogo ha un solo valore di spinta, `1`, quindi il ramo `Guarded`
-			// sopra intercetta gia' OGNI spinta del gioco e questo ramo non vede mai un caso che quello non
-			// avrebbe retto. La differenza fra le due difese in v0.1 e' solo il danno (-15 sul primo colpo
-			// contro -10 su ogni colpo): D-074, uscita (B) di #400. Pinnato da
-			// `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
-			// Il ramo resta senza limite di distanza perche' e' gratis tenerlo corretto per una v0.2 che
-			// introduca una spinta >= 2; non perche' oggi si osservi.
+			// Il ramo non guarda `KnockDist`, quindi regge una spinta di qualunque distanza.
+			//
+			// ⚠️ **Questo commento e' stato riscritto due volte, e la seconda inverte la prima.** Fino al
+			// 2026-08-10 diceva che la distanza distingueva `Brace` da `Guard`; D-074 lo corresse, perche' con
+			// un solo valore di spinta (`1`) il ramo `Guarded` sopra intercettava gia' tutto e questo non
+			// vedeva mai un caso proprio. **Dal 2026-08-11 la premessa di D-074 e' caduta**: `Weapon.Impact`
+			// su un attacco che spinge gia' produce una spinta di **2** (D-085), quindi `Guard` cede e questo
+			// ramo regge. La distanza torna a essere un asse che separa le due difese, e non per una v0.2:
+			// oggi, con il loadout di default di Riva.
+			//
+			// Resta vero che le due differiscono anche nel danno (-15 sul primo colpo contro -10 su ogni
+			// colpo), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
+			// Il caso della spinta di 2 e' pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
+			//
+			// ⚠️ Ha una conseguenza su `BAL-1` ([#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403)):
+			// l'opzione «`Guard` solo danno, `Brace` solo spostamento» era stata **preclusa** perche' senza
+			// una spinta >= 2 avrebbe lasciato `Brace` senza mestiere. Quel mestiere ora esiste.
 			if (T->HasStatus(TAG_Status_Braced))
 			{
 				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));
@@ -3696,64 +4145,7 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			ARTUnit* T = KTargets[a];
-			const FRTCellId OldCell = T->Cell;
-			const FRTCellId NewCell = KFinal[a];
-			AddLogEvent(FString::Printf(TEXT("Spinta: %s -> (q=%d,r=%d,L%d)"),
-				*T->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
-
-			// Celle attraversate dalla spinta: la linea esagonale fra le due celle, i cui passi sono adiacenti
-			// per costruzione. Serve al playback E agli hazard — «lo spostamento forzato ignora il costo
-			// VOLONTARIO del terreno, non la geometria e non gli hazard» (spec-tassonomia-movimento §3).
-			const TArray<FRTCellId> KPath = URTHexLibrary::HexLine(OldCell, NewCell);
-
-			// La SPINTA nel TurnLog (#307). Prima esisteva solo come riga di combat log — una stringa per
-			// l'HUD, non una voce di traccia: il replay registrava il danno e taceva lo spostamento, e chi
-			// rileggeva il file vedeva l'unita' altrove senza nulla che lo spiegasse.
-			AppendDisplacementEntry(T, OldCell, NewCell, KPath.Num() - 1, PushCause);
-
-			// Evento di movimento per il playback: la spinta scivola OldCell -> NewCell nella fase Blast.
-			{
-				FRTResolvedEvent Ev;
-				Ev.Phase = ERTMatchPhase::Blast;
-				Ev.Type = ERTResolvedEventType::Move;
-				Ev.Source = T;
-				Ev.Path = KPath;
-				ResolvedTimeline.Add(Ev);
-			}
-
-			T->Cell = NewCell;
-
-			// Chi subisce una spinta si gira verso CHI l'ha spinto (CP 16.1, ADR-0005 §3). Con la cella nuova,
-			// quindi la voce di log porta la posizione in cui l'unita' e' finita.
-			//
-			// Un Move volontario successivo VINCE: risolve dopo, nella sua fase, e riscrive. Non serve un flag
-			// che ricordi «e' stata spinta» — e' l'ORDINE delle fasi a deciderlo, ed e' il motivo per cui
-			// `URTFacingLibrary` non tiene stato.
-			{
-				FRTHexSimUnit Pushed(0, NewCell, /*InMoveBudget=*/ 0);
-				Pushed.Facing = T->Facing;
-				const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
-					NewCell, KnockFrom[T], ERTDisplacementCause::Forced, Pushed.Facing);
-				URTFacingLibrary::RecordFacingChange(Pushed, Turned,
-					ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
-				T->Facing = Pushed.Facing;
-			}
-
-			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
-
-			// Gli hazard di OGNI cella attraversata, non solo di quella d'arrivo (#308). Chi viene spinto
-			// attraverso `asciutto -> fuoco -> fuoco -> asciutto` ha attraversato quelle due celle di fuoco e ne
-			// subisce le conseguenze, pur non avendo speso un solo punto movimento: il costo e' cio' che si paga
-			// per SCEGLIERE di passare, la geometria e' cio' che c'e'.
-			//
-			// Fino a qui `KPath` serviva solo all'animazione, e il commento diceva che il danno da
-			// attraversamento «torna con l'ambiente attivo (epic E8)». E8 e' atterrata e questo punto non e'
-			// stato ripassato: era un rinvio scaduto, non una decisione.
-			ApplyTerrainOnEnterEffects(Map, T, CellsEnteredAlong(KPath));
-
-			T->PlannedPath.Reset();      // path composita dalla vecchia cella non valida
-			T->PlannedWaypoints.Reset();
-			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; } // niente move pianificato: resta spinto
+			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause, TEXT("Spinta"), Map);
 		}
 	}
 
@@ -3786,51 +4178,7 @@ void ARTTurnManager::ResolveCombat()
 			if (bContested) { continue; }
 
 			ARTUnit* T = PTargets[a];
-			const FRTCellId OldCell = T->Cell;
-			const FRTCellId NewCell = PFinal[a];
-			AddLogEvent(FString::Printf(TEXT("Trazione: %s -> (q=%d,r=%d,L%d)"),
-				*T->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
-
-			const TArray<FRTCellId> PPath = URTHexLibrary::HexLine(OldCell, NewCell);
-
-			// La TRAZIONE nel TurnLog (#307), stessa voce della spinta. Le due si distinguono senza un esito
-			// dedicato: `SrcCell -> TgtCell` si avvicina alla sorgente invece di allontanarsene, e la sorgente
-			// e' quella del colpo che porta lo stesso `ActionId`.
-			AppendDisplacementEntry(T, OldCell, NewCell, PPath.Num() - 1, PullCause);
-			{
-				FRTResolvedEvent Ev;
-				Ev.Phase = ERTMatchPhase::Blast;
-				Ev.Type = ERTResolvedEventType::Move;
-				Ev.Source = T;
-				Ev.Path = PPath;
-				ResolvedTimeline.Add(Ev);
-			}
-
-			T->Cell = NewCell;
-
-			// Come la spinta: chi viene trascinato guarda chi lo tira. La sorgente e' `PullToward`, che e' gia'
-			// la cella verso cui si viene attirati — con la trazione le due cose coincidono.
-			{
-				FRTHexSimUnit Pulled(0, NewCell, /*InMoveBudget=*/ 0);
-				Pulled.Facing = T->Facing;
-				const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
-					NewCell, PullToward[T], ERTDisplacementCause::Forced, Pulled.Facing);
-				URTFacingLibrary::RecordFacingChange(Pulled, Turned,
-					ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
-				T->Facing = Pulled.Facing;
-			}
-
-			T->SetVisualLocation(T->WorldForCell(NewCell, HexOrigin, HexSize, HexLayerH));
-
-			// Gli hazard delle celle attraversate, come per la spinta (#308). La regola di
-			// `spec-tassonomia-movimento` §3 parla di spostamento FORZATO, non di spinta: trattare le due vie
-			// in modo diverso rifarebbe l'asimmetria `ModifyArc`/`DamageArc` corretta in #302, dove la stessa
-			// disciplina era mantenuta per una via di uscita e non per l'altra.
-			ApplyTerrainOnEnterEffects(Map, T, CellsEnteredAlong(PPath));
-
-			T->PlannedPath.Reset();
-			T->PlannedWaypoints.Reset();
-			if (T->PlannedCell == OldCell) { T->PlannedCell = NewCell; }
+			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause, TEXT("Trazione"), Map);
 		}
 	}
 
@@ -3880,6 +4228,20 @@ const URTHexMapAsset* ARTTurnManager::GetHexContext(FVector& OutOrigin, float& O
 	return nullptr;
 }
 
+FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
+{
+	for (const FRTTeamKnowledge& K : TeamKnowledgeState)
+	{
+		if (K.TeamId == TeamId) { return K; }
+	}
+	// Nessuna conoscenza ancora: una vuota, di versione CORRENTE. Non e' un dettaglio — una struttura a
+	// versione 0 verrebbe scartata da `Observe` come illeggibile, e la squadra ricomincerebbe da zero a ogni
+	// turno senza che nulla lo dichiari.
+	FRTTeamKnowledge Empty;
+	Empty.TeamId = TeamId;
+	return Empty;
+}
+
 FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
 {
 	OutUnits.Reset();
@@ -3915,7 +4277,17 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 		SimUnit.Facing = OutUnits[i]->Facing;
 		SimUnits.Add(SimUnit);
 	}
-	return URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	// La conoscenza di squadra viaggia con la fotografia (CP 13.2), cosi' i consumatori puri — il bot di
+	// CP 13.5, la HUD — la leggono dallo snapshot invece di chiederla al TurnManager. E' una COPIA: la
+	// memoria che attraversa i turni resta una sola, e sta nel TurnManager.
+	//
+	// I contatti sono chiavati su `ARTUnit::StableUnitId` e NON sull'indice di questo array: le due
+	// numerazioni sono diverse — questo snapshot scarta i morti, quello del Blast no, ed entrambi si
+	// riordinano per cella a ogni movimento. Un consumatore che volesse risalire all'Actor deve cercare per
+	// `StableUnitId`, mai indicizzare `Snapshot.Units` con `Contacts[].StableUnitId`.
+	Snapshot.TeamKnowledge = TeamKnowledgeState;
+	return Snapshot;
 }
 
 void ARTTurnManager::ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TArray<FRTHexMoveResult>& Resolved)

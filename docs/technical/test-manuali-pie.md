@@ -52,15 +52,20 @@
 
 ## Stato in numeri — 2026-08-11
 
-**123 voci**: ✅ **31 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **71 aperte**.
+**124 voci**: ✅ **30 verdi** · 🟡 **21 parziali** (regola coperta da test, resta il visivo) · ⏳ **73 aperte**.
 
 *(Rimisurate col comando qui sotto il **2026-08-11**, dopo le tre voci `PIE-HEX-LAYER-FOCUS`,
 `PIE-HEX-LAYER-CLICK` e `PIE-HEX-LAYER-PANEL` della vista a livelli `Focus`. La quota dichiarata qui il
-**2026-08-09** era già indietro: il comando su questo file, **prima** delle tre voci di oggi, dava
-`120 (31/21/68)` contro il `119 (28/21/70)` scritto — due voci promosse a ✅ e una aggiunta verde fra il 9 e
-oggi, da chi non ha rimisurato. È esattamente il difetto che le note qui sotto raccontano di aver già pagato
-quattro volte, e nessuna di quelle note lo ha impedito la quinta: la difesa non è ricordarsi del comando,
-è eseguirlo. `senza-marcatore` misurato: **0**.)*
+**2026-08-09** era già indietro: prima delle tre voci di oggi il comando dava `121 (30/21/70)` contro il
+`119 (28/21/70)` scritto — due voci aggiunte verdi fra il 9 e oggi, da chi non ha rimisurato.
+`senza-marcatore` misurato: **0**.*
+
+*Questo numero è **relativo alla base**, ed è il modo in cui questa passata ha rischiato di sbagliarlo: le tre
+voci nascono su un ramo che portava anche altre modifiche a questo file, dove la misura giusta era
+`123 (31/21/71)`. Ripiantate su `main` quelle modifiche non ci sono più e il conteggio è un altro, ma il
+merge del file **non dà conflitto** — le righe cambiate non si toccano. Un totale scritto a mano sopravvive
+al cherry-pick e diventa falso in silenzio: dopo un rebase o un cherry-pick di questo file il comando va
+rieseguito, sempre.)*
 
 *(Rimisurate col comando qui sotto il **2026-08-09**, dopo l'aggiunta di `PIE-MUT-BASTION-SLOW` — la prima
 voce del registro che **non** è una verifica visiva: è una verifica di mutazione, headless, rimasta fuori
@@ -213,9 +218,9 @@ leggibilità minima nel senso più stretto, non presentazione.
 | **PIE-AS5** | Anello di team a terra | `M_TeamRing` creato + assegnato a `TeamRingMaterial` sui `BP_Unit` | Anello **blu** (team 0) / **rosso** (team 1) sotto ogni unità, visibile dall'alto; senza `M_TeamRing` nessun anello (cilindro colorato come prima) | ✅ 2026-08-05 |
 | **PIE-SEL** | Anello di selezione (anche su skeletal) | `M_SelectionRing` creato + assegnato a `SelectionRingMaterial` sui `BP_Unit` | Selezionando un'unità compare un **anello giallo** a terra (cornice esterna al TeamRing), visibile anche quando il cilindro è nascosto (personaggio skeletal); deselezionando sparisce. Senza `M_SelectionRing`: nessun anello (fallback: resta solo l'ingrandimento del cilindro) | ✅ 2026-08-05 — **non serve un materiale dedicato**: basta assegnare `M_TeamRing` a `SelectionRingMaterial`, il colore (giallo) lo imposta il codice sul MID via parametro `Color`; i due anelli restano distinguibili per scala (1.6 team, 1.9 selezione) |
 | **PIE-P3** | Combat log mostra i reason (TurnLog) | — (funziona anche col cilindro) | Destinazione contesa → log «fermo (cella contesa)»; attacco senza LOS → «nessuna linea di tiro» | ✅ 2026-08-05 — entrambi i reason osservati nel log: contesa in fase di risoluzione, e `BP_Unit_Ranger_C_1 coperto (nessuna linea di tiro)` **in pianificazione** (il controller valida la LOS al momento del bersagliamento, non solo al lock-in) |
-| **PIE-AS2** | Personaggio skeletal appoggiato a terra | `BP_Unit_Guardian` (Gideon, `VisualZOffset=0`) → `GuardianUnitClass` | Al posto del cilindro compare il personaggio, a terra (nessun «fluttuamento») | ✅ 2026-08-05 |
-| **PIE-AS4a** | Locomozione Idle↔Run | `ABP_Gideon` + bind dei delegate (guida-animazioni-paragon) | In fase **Move** Gideon passa a `Jog_Fwd`, torna `Idle` a fine risoluzione | ⏳ |
-| **PIE-AS4b** | Colpi e morte (montages) | `AM_Gideon_Cast/Hit/Death` + bind `OnAttackResolved`/`OnUnitDefeated` | Nel **Blast**: attaccante gioca `Cast`, bersaglio `Hit`; morte → `Death` | ⏳ |
+| **PIE-AS2** | Personaggio skeletal appoggiato a terra | un `BP_Unit_<Pack>` (`VisualZOffset=0`) registrato in **`HeroUnitClasses`** con la chiave del suo `HeroId` | Al posto del cilindro compare il personaggio, a terra (nessun «fluttuamento») | ⏳ **da riverificare sui quattro BP di U7** (2026-08-11): la precondizione citava `BP_Unit_Guardian` (Gideon) → `GuardianUnitClass`, e quel campo **è stato rimosso** col suo archetipo — oggi la registrazione passa da `HeroUnitClasses`, una `TMap` per `HeroId`. Era **✅ 2026-08-05**, ma su un archetipo che non esiste più: il simbolo guida torna ⏳ perché il conteggio legge il **primo** simbolo della cella, e lasciarlo verde avrebbe dichiarato verificato ciò che sugli asset della v0.1 non è mai stato provato |
+| **PIE-AS4a** | Locomozione Idle↔Run | `ABP_<Pack>` (es. `ABP_Gadget`) + bind dei delegate (`guida-animazioni-paragon.md` §AS.4a) | In fase **Move** il personaggio passa a `Jog_Fwd`, torna `Idle` a fine risoluzione | ⏳ |
+| **PIE-AS4b** | Colpi e morte (montages) | `AM_<Pack>_Cast/Hit/Death` + bind `OnAttackResolved`/`OnUnitDefeated` | Nel **Blast**: attaccante gioca `Cast`, bersaglio `Hit`; morte → `Death` | ⏳ |
 | **PIE-FACING** | Orientamento al movimento | `bFaceMovementDirection=true` sul `BP_Unit` | L'unità ruota (yaw) verso la direzione di corsa; `Jog_Fwd` credibile in ogni direzione | ✅ 2026-08-05 — corsa orientata correttamente. **Nota di design**: a fine movimento l'unità resta voltata verso l'ultima direzione percorsa (scelta confermata: non torna a un orientamento "avanti") | 
 | **PIE-MP4** | Click → layer (multilivello) | mappa col ponte sopraelevato | Il click seleziona la cella del **layer giusto** (terra vs ponte) | 🟡 **logica coperta headless** da `RefactorTactics.Hex.WorldToCellIdRoundTripAcrossLayers` (il punto-mondo torna la cella **completa**, layer incluso, e la composizione e' la stessa usata dal click di gioco). ⏳ al PIE resta il gesto col mouse su celle sovrapposte: che cliccando il ponte si selezioni la cella del ponte e non quella sotto |
 | **PIE-CP1.4** | Evidenziazione cella sotto il cursore | — | La cella sotto il mouse è evidenziata | ✅ 2026-08-05 |
@@ -317,6 +322,7 @@ leggibilità minima nel senso più stretto, non presentazione.
 | **PIE-V01-HUD** `RELEASE-V01` | HUD di partita completo | partita v0.1 avviata | Barre HP/scudo/energia, timer, fase, **round corrente su `RoundLimit`** (il limite letto dal formato, non scritto a mano nel widget), slot occupati (movimento/principale/reazione) e cooldown residui, tutti a schermo e coerenti col simulatore | ⏳ |
 | **PIE-V01-INTENT** `RELEASE-V01` | Intenti alleati e certezza | due unità alleate in pianificazione | Gli intenti alleati mostrano i tre livelli **confermato / previsto / incerto**; **nessun** intento avversario è visibile in alcuna forma | 🟡 **metà coperta 2026-08-07**: la **privacy** sì — `Reactions.IntentNotVisibleToEnemy` e `IntentViewSkipsDeadAndKeepsOrder` (nessun intento avversario, ordine stabile). ⏳ resta l'altra metà, i **tre livelli di certezza**, che appartengono a E11 CP 11.2 e non esistono ancora |
 | **PIE-V01-LOG** `RELEASE-V01` | Combat log con reason code | un turno con un fallback e una modifica ambientale | Ogni voce riporta `ActionId`, priorità, coordinate assiali `(q,r,L)` e `ValidationResult`; i fallback e le modifiche ambientali sono espliciti | 🟡 **parzialmente coperto 2026-08-07** da `Actions.Fallback.LoggedOutcome`, `Fallback.CancelIsLoggedInMatch`, `Reactions.NotTriggeredIsLogged`, `Terrain.Status.LogMatchesState` (ciò che accade **finisce** nel log). ⏳ resta il **formato**: `ActionId`, priorità e coordinate assiali nella voce, e le modifiche ambientali — che dipendono da E8 CP 8.3/8.4, assenti |
+| **PIE-REPLAY-ARCHIVE** | L'archivio replay di una partita giocata davvero | una partita in PIE portata fino all'esito, con `rt.Replay.Record` a `1` (default) | Al termine esiste `Saved/Replays/<MatchId>/` con `match.rtmanifest` e una traccia `turn-NNN.rtlog` **per turno giocato**; il manifest è chiuso, l'esito coincide con quello mostrato a schermo e `FinalStateHash` **non è `0`**. `Saved/Replays/history.rtindex` elenca la partita con la sua durata. ⚠️ Poi: chiudere PIE a metà di una seconda partita e verificare che quell'archivio esista con il manifest **non** chiuso — è il caso per cui il recorder scrive durante il match | ⏳ **non eseguita** — il percorso è coperto headless da `Replay.Producer.*` (5 test, 2026-08-10), che però passa da `ARTTurnManager` costruito nel test: quello che resta da vedere è l'avvio dal `GameMode` reale e la scrittura sotto `Saved/` di un processo vero (gate `packaged` di `RT-FEAT-REPLAY-ARCHIVE`) |
 | **PIE-V01-DEBUG** | Comandi `rt.Debug.*` | build Development o PIE | Gli 8 comandi rispondono; le celle mostrano `CellId`/`TerrainId`/`TraversalCost`/`OccupantId`/`HazardTags`/`CoverEdges`/`ChunkRevision`; **`DrawIntent` non rivela gli intenti avversari** | 🟡 **1 comando su 8 esiste**: `rt.Debug.DrawCells` (`Map/RTHexOverlayConsole.cpp`), verificato in PIE il 2026-08-07 → voce **PIE-DEBUG-CELLS**. La roadmap dichiarava l'area «⏳ *verificato assente*»: era **falso**. Restano `DrawGrid`, `DrawPaths`, `DrawCover`, `DrawIntent`, `DrawResolution`, `DumpSnapshot`, `DumpTurnLog`, `VerifyReplay` (CP 11.4) |
 
 ### Strumenti di leggibilità (aggiunti il 2026-08-07)

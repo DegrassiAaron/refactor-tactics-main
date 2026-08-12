@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-10
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-12
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -269,7 +269,7 @@ residuo.
 |---|---|---|
 | `MAP-2` | Che succede quando la **linea di tiro sfiora l'angolo** di un muro? | È il caso che la geometria arbitraria crea e la griglia allineata non aveva: con muri a 90° che tagliano le celle, `HasLineOfSight` incontra tangenze che oggi non esistono. La risposta decide anche i corner case di proiettile e copertura, che sono lo stesso problema visto dal lato del danno. Va decisa **con una fixture in mano**, non per principio |
 | `MAP-3` | La **cottura non è invertibile**: cosa succede se qualcuno modifica a mano il dato cotto? | Registrato come rischio il 2026-08-09 e ancora aperto. Se si edita `bBlocksMovement` su una cella cotta, il prossimo ricalcolo cancella la modifica **in silenzio** — stessa classe di problema dei prefab. Le uscite sono tre (vietare l'edit, marcare la cella come «sganciata», o rinunciare al ricalcolo automatico) e nessuna è deducibile dai documenti |
-| `BAL-1` | `Guard` e `Brace` devono separarsi in **danno contro spinta**? | [D-066](decisions/RT_PDR_00_Decision_Log.md) ha misurato il modello in vigore: entrambi fanno entrambe le cose, e differiscono per *forma* (primo colpo forte vs ogni colpo; spinta di 1 cella vs spinta qualsiasi). È bilanciamento: si chiude con una partita, non con un documento. ✅ **La Fase 0 è decisa** ([D-074](decisions/RT_PDR_00_Decision_Log.md), 2026-08-10, issue [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400)): si accetta che in v0.1 ogni spinta valga 1 e si **riscrive** la clausola «senza limite di distanza» invece di introdurre una spinta `≥ 2`. Conseguenza sulle opzioni ancora in campo: restano lo **status quo** e l'**ibrido** (separare le magnitudini); l'opzione *«`Guard` solo danno, `Brace` solo spostamento»* è **preclusa**, perché senza spinta forte lascerebbe `Brace` senza mestiere. ✅ Gli scenari che servono a decidere esistono e sono verdi ([#401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/401)): `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit` pinnano il trade-off reale — *primo colpo pesante* (`Guard` 1 danno) contro *colpi ripetuti* (`Brace` 12 contro 17 su due colpi). ⏳ **Resta l'unica parte che richiede l'autore**: la seduta editor **U20** (voce `PIE-BAL1`) e la scelta fra le due opzioni superstiti. Roadmap e numeri: [`bal-1-guard-brace-roadmap-2026-08-10.md`](roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md). Issue [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403) (decisione) |
+| `BAL-1` | `Guard` e `Brace` devono separarsi in **danno contro spinta**? | [D-066](decisions/RT_PDR_00_Decision_Log.md) ha misurato il modello in vigore: entrambi fanno entrambe le cose, e differiscono per *forma* (primo colpo forte vs ogni colpo; spinta di 1 cella vs spinta qualsiasi). È bilanciamento: si chiude con una partita, non con un documento. ✅ **La Fase 0 è decisa** ([D-074](decisions/RT_PDR_00_Decision_Log.md), 2026-08-10, issue [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400)): si accetta che in v0.1 ogni spinta valga 1 e si **riscrive** la clausola «senza limite di distanza» invece di introdurre una spinta `≥ 2`. Conseguenza sulle opzioni ancora in campo: restano lo **status quo** e l'**ibrido** (separare le magnitudini); l'opzione *«`Guard` solo danno, `Brace` solo spostamento»* era **preclusa**, perché senza spinta forte lasciava `Brace` senza mestiere. 🔄 **Non più, dal 2026-08-11**: `Weapon.Impact` su `Riva.PressureJet` produce una spinta di **2** ([D-085](decisions/RT_PDR_00_Decision_Log.md)) ed è il default di Riva ([D-089](decisions/RT_PDR_00_Decision_Log.md)), quindi la spinta forte che `D-074` aveva scartato è arrivata dall'**equipaggiamento** invece che dal catalogo azioni. Misurato da `Equipment.PushTwoSeparatesGuardFromBrace`: contro una spinta di 2 **`Guard` cede e `Brace` regge**. Le opzioni tornano **tre**, con una domanda nuova — quel mestiere dipende da un equipaggiamento equipaggiato, non da una regola del turno. ✅ Gli scenari che servono a decidere esistono e sono verdi ([#401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/401)): `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit` pinnano il trade-off reale — *primo colpo pesante* (`Guard` 1 danno) contro *colpi ripetuti* (`Brace` 12 contro 17 su due colpi). ⏳ **Resta l'unica parte che richiede l'autore**: la seduta editor **U20** (voce `PIE-BAL1`) e la scelta fra le due opzioni superstiti. Roadmap e numeri: [`bal-1-guard-brace-roadmap-2026-08-10.md`](roadmap/plans/bal-1-guard-brace-roadmap-2026-08-10.md). Issue [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403) (decisione) |
 | `ECO-1` | `Guard` e `Brace` competono con il **Main Commitment**, o hanno un'altra economia? | [D-012](decisions/RT_PDR_00_Decision_Log.md) copre `Attack \| Ability \| Overwatch` e **non** dice nulla di `Guard` e `Brace`, che a catalogo occupano l'azione principale ma non compaiono in quella regola. La domanda si porta dietro la matrice Sprint/Sneak proposta dal sorgente (`Brace` e `Overwatch` senza Sprint), che **non è canonica** e non va resa tale senza playtest |
 
 ---
@@ -305,6 +305,7 @@ Tre voci su quattro. Restano qui, barrate, perché il registro deve dire **come*
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|
 | `OW-4` | Gli objective che dipendono dalla **posizione finale** si valutano dopo lo Stage B? | Il sorgente (§17) chiede di verificarlo contro il canone, e il canone **non dice nulla**: è una lacuna, non un conflitto. Con due stage di movimento nella stessa fase, «posizione finale» smette di essere ovvia. ⏳ **Non è di E14 e non è urgente**: misurato il 2026-08-10, gli objective oggi sono **solo** un motivo di fine partita (`ERTMatchEndReason::Objective`) e il punto d'ingresso per il progresso è dichiarato per **CP 10.2**. Nessun objective di posizione esiste, quindi la domanda non ha ancora un consumatore |
+| [`OW-5`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/501) | **Quali condizioni dichiarate in planning sono ammesse in v0.1**, e con quale forma? L'elenco chiuso di [D-012](decisions/RT_PDR_00_Decision_Log.md) non esiste da nessuna parte | È il **gate del DoD di CP 14.3** ([#163](https://github.com/DegrassiAaron/refactor-tactics-main/issues/163)) e blocca due dei suoi test nominati. D-012 dice che i tre regimi *Automatic/Conditional/FastSelect* **emergono dai dati** — `AllowedResponses` più la condizione — e che le condizioni ammesse sono «poche, leggibili e validate dal ruleset». Misurato il 2026-08-10: `AllowedResponses` è atterrato con CP 14.3, la condizione **no**, e l'unica traccia di contenuto è un ESEMPIO nel sorgente §19.2 — `Fire only if target HP <= 50%` — mai promosso a canone. Senza almeno una condizione valida `Reactions.DeclaredConditionCollapsesToImmediateCommit` non è scrivibile: si potrebbe solo verificare che il validator rifiuti tutto, che è vero e non dimostra il collasso a commit immediato. ⚠️ La domanda **non** è «serve un enum di policy»: quello D-012 lo esclude già. È *quali predicati* e **dove vive il loro elenco** — codice, come `IsCapabilityAvailable` in `RTScenarioSession.cpp`, o dato validato |
 
 > **Quattro punti del sorgente NON aprono una voce: sono già compatibili** e possono entrare nel DoD di E14
 > senza altre decisioni — la cadence `OncePerTargetPerReactionInstance` (§21), `MaxPrompts` che conta
@@ -347,6 +348,68 @@ Aperta e chiusa lo stesso giorno. Resta qui **solo come indice**: il contenuto v
 > La lezione non è «verificare meglio»: è che un elenco di domande aperte redatto sui documenti misura ciò che
 > l'estensore non sapeva, non ciò che il progetto non ha deciso. Vale anche quando l'estensore sono io.
 
+## Aperte — varianti d'arma, dal consolidamento del 2026-08-11
+
+Origine: [`RefactorTactics_WeaponVariants_Claude_Consolidation.md`](archive/src/RefactorTactics_WeaponVariants_Claude_Consolidation.md)
+(archiviato). Quattro decisioni del sorgente erano `Locked` e sono diventate
+[D-085](decisions/RT_PDR_00_Decision_Log.md)–[D-088](decisions/RT_PDR_00_Decision_Log.md). Queste sono le
+`Provisional` e le `Open`, che il sorgente stesso vieta di promuovere senza conferma.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| ~~`WV-1`~~ | ~~Che cosa significa **`+1 turno di ricarica`** per `Weapon.Overcharge`?~~ | ✅ **Chiusa il 2026-08-11** — [D-090](decisions/RT_PDR_00_Decision_Log.md): è una variante **burst**, bonus per fascia (+18/+14/+8) e costo `CooldownDeltaTurns = +2`. La traduzione letterale «+1» è stata **misurata e scartata**: vale zero, perché `TickCooldowns()` gira nel Cleanup dello stesso turno. Implementabile solo dopo [#509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/509), e i numeri restano `PROPOSED FOR PLAYTEST` con `WV-2` |
+| `WV-2` | Le **soglie delle fasce** di danno e i **delta per fascia** | [D-087](decisions/RT_PDR_00_Decision_Log.md) ha deciso il **principio**; i numeri sono `PROPOSED FOR PLAYTEST`. Baseline proposta: `Low 1–10` · `Medium 11–18` · `High 19+`, con `Precisione −2/−3/−4`, `Sovraccarico +3/+5/+6`, `Soppressione −2/−4/−5`. Si chiudono con una partita, non con un documento — e vanno misurati **dopo** che le fasce esistono nel codice |
+| ~~`WV-3`~~ | ~~Il **default** di variante per ciascun eroe~~ | ✅ **Chiusa il 2026-08-11** — [D-089](decisions/RT_PDR_00_Decision_Log.md): `Flux → Precisione`, `Riva → Impatto`, `Vektor → Soppressione`, `Bastion → Impatto`. Criterio: il default **rinforza l'identità**. Nessun default usa `Sovraccarico`, il cui costo è ancora `WV-1` |
+| ~~`WV-4`~~ | ~~Che cosa modifica **`Weapon.Environmental`**~~ | ✅ **Chiusa il 2026-08-11** — [D-100](decisions/RT_PDR_00_Decision_Log.md): resta fuori dalla v0.1, e non perché manchi **un parametro** ma perché manca un **produttore** — *nessun attacco base crea ambiente*. Su Flux e Vektor non avrebbe niente da migliorare. Si riapre da sé il giorno in cui un attacco base dichiarerà `bCreatesSurface` |
+| `WV-5` | Il modello di **selezione dei bersagli** per `Weapon.Split` | Prima del campo serve il modello: chi seleziona, in che ordine, automatico o manuale, distanza, prevenzione dei duplicati, ordinamento stabile, serializzazione, intento, ghost preview, bot, TurnLog, replay. ⚠️ E la domanda che viene prima di tutte: la cardinalità dei bersagli serve **anche al sistema abilità**, o si introdurrebbe per salvare una sola variante? Nel secondo caso il costo non vale il ritorno |
+
+---
+
+## Aperte — conoscenza e facing, trovata da uno scenario il 2026-08-11
+
+Non nasce da un documento ma da uno **scenario portato avanti**: `Spec.Perception.CannotShootWhatYouCannotSee`,
+scritto durante CP 13.2 e mai mergiato, è stato riscritto sull'API attuale ed **eseguito**. Il gate della
+conoscenza regge (il bersaglio ignoto non subisce danno), ma è caduta l'assertion sul facing.
+
+> ⚠️ **Da sapere prima di leggere la riga sotto**: il harness degli scenari **non deriva** il facing
+> iniziale. `RTScenarioSession` fa `Unit->Facing = Spec.Facing` — la posa dichiarata nel JSON, `E` di
+> default — e [D-044](decisions/RT_PDR_00_Decision_Log.md), «ci si schiera guardando il nemico più
+> vicino», **non viene applicata**. Ne segue che nessuno scenario oggi esercita lo schieramento, e che una
+> geometria può asserire un facing iniziale che una partita vera non produrrebbe mai. Gli scenari di questa
+> coppia restano onesti perché la loro configurazione è **raggiungibile** sotto D-044 (il secondo nemico a
+> est catturerebbe lo sguardo), ma è una proprietà scritta a mano, non verificata dal harness.
+
+| ID | Domanda | Perché serve una risposta |
+|---|---|---|
+| `PER-4` | Un'azione **rifiutata dal gate della conoscenza** deve comunque **orientare** l'attaccante verso il bersaglio? | Misurato: sì, oggi lo orienta. Il codice segue [D-020](decisions/RT_PDR_00_Decision_Log.md) — «un'azione con bersaglio orienta l'unità **prima** di risolvere» — e infatti la rotazione (`RTTurnManager.cpp:2577`, `TargetingReoriented`) precede il gate (`:2632`). ⚠️ Ma **D-020 è anteriore a CP 13.2** e non poteva prevedere un gate che *rifiuta* l'azione: il facing è **osservabile dall'avversario**, quindi girarsi verso un nemico che la squadra non conosce fa trapelare che lo si conosce — cioè tocca l'invariante #6 (privacy dell'intento) per una strada che nessuna delle due decisioni aveva davanti. Le uscite sono tre: (a) D-020 vince e si accetta il tell; (b) la rotazione si sposta **dopo** il gate, e allora va deciso cosa fa un'azione rifiutata *a metà* della timeline dei facing di D-020; (c) la rotazione avviene ma verso la **cella**, non verso l'unità, se il contatto è solo `Incerto`. ⚠️ Finché è aperta, lo scenario **non asserisce sul facing**: pinnare `E` accuserebbe il gioco di un difetto non deciso, pinnare `W` renderebbe canone per inerzia un possibile leak |
+
+---
+
+## ✅ Chiuse il 2026-08-12 — radar di personaggio
+
+Origine: [`RefactorTactics_Character_Radar_Wiki_Generator_Claude.md`](archive/src/RefactorTactics_Character_Radar_Wiki_Generator_Claude.md)
+(archiviato). Il modello era stato consolidato in [D-105](decisions/RT_PDR_00_Decision_Log.md); **tutte e
+cinque** le voci residue sono state decise dall'autore in sessione il 2026-08-12. La sezione resta come
+**indice**: il contenuto vive nel Decision Log e nell'owner
+[`spec-radar-profilo-personaggio.md`](characters/spec-radar-profilo-personaggio.md).
+
+> ⚠️ **`RAD-1` era mal posta, e il repository aveva già risposto.** Chiedeva quale dei due workbook fosse
+> autorità sui rating `*_1_10`. La risposta è **nessuno dei due**: [D-023](decisions/RT_PDR_00_Decision_Log.md)
+> aveva già declassato `RefactorTactics_Balance_Matrices_v0.1.xlsx` a `RESEARCH` e spostato l'autorità dei
+> numeri sui cataloghi `balance/RT_*Catalog_v0.1.md`, e [`balance/README.md`](balance/README.md) vieta perfino
+> la riparazione che stavo per proporre — *«non correggerlo cella per cella: un workbook rattoppato
+> diventerebbe una falsa fonte corrente»*. Il conflitto non è stato risolto: **si è dissolto**.
+
+| Era | Decisione presa | Dove vive ora |
+|---|---|---|
+| ~~`RAD-1`~~ | I rating **non si scrivono da nessuna parte: si calcolano** dai cataloghi a ogni generazione. Nessun file di rating esiste, quindi nessuna seconda fonte può nascere né divergere | [`D-106`](decisions/RT_PDR_00_Decision_Log.md) · owner §4 |
+| ~~`RAD-2`~~ | La rubrica è **codice**, non una tabella compilata: una formula si rivede in PR, un numero copiato in un foglio no. ⚠️ Diventa il **prerequisito di tutto** — senza rubrica i rating non esistono affatto, e non c'è il ripiego «intanto li mettiamo a mano» | [`D-106`](decisions/RT_PDR_00_Decision_Log.md) · owner §4.3, §7 |
+| ~~`RAD-3`~~ | I sei assi si **modellano**, non si riduce il radar a ciò che era già derivabile. ⚠️ `information` nasce con un solo ingrediente — la **Vista** — perché stealth e detection vivono solo nel workbook che D-106 esclude; si arricchisce derivando il rumore dal **kit** ([D-042](decisions/RT_PDR_00_Decision_Log.md)), non ripescando il foglio | [`D-107`](decisions/RT_PDR_00_Decision_Log.md) · owner §5, §5.1 |
+| ~~`RAD-4`~~ | Il generatore è **Node/TypeScript**, contro la raccomandazione registrata nel consolidamento (Python accanto a `scripts/`). Costo accettato: package manager e build step in un repository che li aveva evitati | [`D-108`](decisions/RT_PDR_00_Decision_Log.md) · owner §8 |
+| ~~`RAD-5`~~ | Gli SVG si **committano**, e il `--check` che li verifica entra **nell'MVP**. ⚠️ Combinato con D-106 il gate diventa un **test di regressione sui dati competitivi**: cambiare `Salute` in un catalogo lo fa diventare rosso finché i grafici non sono rigenerati nello stesso commit | [`D-108`](decisions/RT_PDR_00_Decision_Log.md) · owner §8.2 |
+
+---
+
 ## Aperte — livello prodotto
 
 Owner: [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §9. Non bloccano l'MVP tecnico.
@@ -379,6 +442,16 @@ vede di essere osservato?» — ed e' quella che e' stata decisa.
 
 E meta' di `PER-2` si e' sciolta guardando il codice invece dei documenti: la divergenza di segno riguardava
 la **vegetazione**, che non e' fra le otto superfici della v0.1. Una domanda senza terreno su cui atterrare.
+
+> ✅ **Il resto di `PER-2` chiuso il 2026-08-11** con [`D-091`](decisions/RT_PDR_00_Decision_Log.md),
+> implementando CP 13.3. Restavano **due** superfici della v0.1 senza riga nel workbook — `Rough` e
+> `Conductive` — e implementando e' emerso un **terzo** valore che nessuno aveva contato: l'attenuazione per
+> **arco**, che la DoD del checkpoint mette nella formula ma che nessun documento normativo quantificava.
+> Decisi rispettivamente **`+1`**, **`0`** e **`2`**.
+>
+> Nota di metodo: il terzo si e' visto solo scrivendo il test che doveva pinnarlo. Una formula puo' nominare
+> un termine — *«Intensita' − costo acustico − **occlusione**»* — senza che nessuno si accorga che quel
+> termine non ha un numero, finche' qualcuno non deve scriverlo.
 
 ## Aperte — livello regole
 
