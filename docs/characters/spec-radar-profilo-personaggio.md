@@ -122,6 +122,13 @@ proprio perché **non** è di Flux: è dell'azione core che sette abilità potre
 ⚠️ **Vale un valore pubblicato, non è teoria**: senza la seconda fonte Flux esce `power 5` e
 `offense 4` invece di `6` e `5`, perché i `20` danni di `ConductiveNode` non vengono letti.
 
+⚠️ **Un solo pattern risolve, e va distinto dall'altro che gli somiglia.** La tabella delle reazioni
+del catalogo eroi cita anch'essa azioni core — `Flux.ReactiveCapacitor` → `Action.Counter`,
+`Bastion.Interposition` → `Action.Intercept`, `Vektor.Deflection` → `Action.Deflect` — ma tiene i
+**propri numeri inline** (`scudo 15 e 10 danni`, `−20`). Quelle riusano la **semantica**, non i valori:
+il parser non deve risolverle contro il catalogo azioni. Solo `` è `Action.X` `` delega il dato, e nel
+roster v0.1 compare **una volta sola**.
+
 ### 4.1 Perché nessun workbook è la fonte
 
 La domanda «quale dei due workbook è autorità sui rating» era **mal posta**, e il repository aveva già
