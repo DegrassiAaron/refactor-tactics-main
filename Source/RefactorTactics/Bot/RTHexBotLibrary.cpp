@@ -4,11 +4,58 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
+#include "Turn/RTFacingLibrary.h" // CP 13.5: il facing d'arrivo si deriva con la regola, non a mano
 #include "Turn/RTHexSimLibrary.h"
+
+namespace
+{
+	/** Unita' di combattimento «leggera»: al calcolo della copertura servono cella e orientamento, nient'altro. */
+	FRTHexCombatUnit CombatProbe(const FRTCellId& Cell, ERTHexDirection Facing)
+	{
+		FRTHexCombatUnit Probe;
+		Probe.Cell = Cell;
+		Probe.Facing = Facing;
+		return Probe;
+	}
+
+	/**
+	 * L'orientamento che il bot avra' a fine turno, derivato con lo STESSO ordine del resolver.
+	 *
+	 * Il movimento orienta verso l'ultimo passo; poi il targeting vince, perche' `D-020` dice che un'azione con
+	 * bersaglio orienta l'unita' *prima* di risolvere — ed e' l'ordine che `RTTurnManager` applica davvero.
+	 * Invertirlo qui farebbe valutare al bot un orientamento che non avra': non un'imprecisione di stima, ma un
+	 * modello di un gioco diverso da quello che si gioca (`D-098`).
+	 */
+	ERTHexDirection ArrivalFacingOf(const FRTHexBotPlan& Plan, const FRTHexBotContext& Context,
+		const FRTCellId& AimCell)
+	{
+		ERTHexDirection Facing = Context.SelfFacing;
+		if (!(Plan.DestCell == Plan.FromCell))
+		{
+			Facing = URTFacingLibrary::FacingFromPath({ Plan.FromCell, Plan.DestCell }, Facing);
+		}
+		if (Plan.bHasAttack)
+		{
+			ERTHexDirection Towards = Facing;
+			if (URTHexLibrary::DirectionTowards(Plan.DestCell, AimCell, Towards))
+			{
+				Facing = Towards;
+			}
+		}
+		return Facing;
+	}
+}
 
 int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context)
 {
 	int32 Score = 0;
+
+	// Dove il piano mira, e quindi come il bot sara' orientato: serve a entrambi i termini direzionali, e si
+	// calcola una volta sola perche' e' la stessa figura in campo che li produce.
+	const FRTCellId PlanAimCell = Context.Enemies.IsValidIndex(Plan.TargetIndex)
+		? Context.Enemies[Plan.TargetIndex]
+		: Plan.DestCell;
+	const ERTHexDirection ArrivalFacing = ArrivalFacingOf(Plan, Context, PlanAimCell);
 
 	// Focus-fire: danno inflitto, con bonus se il colpo uccide (danno >= HP+scudo del bersaglio).
 	//
@@ -39,6 +86,31 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 			if (Plan.AttackDamage >= Health)
 			{
 				Score += Context.WKill;
+			}
+
+			// ORIENTAMENTO, verso offensivo (CP 13.5, ADR-0005 §4a): un colpo che non arriva dall'arco frontale
+			// ANNULLA la copertura del bersaglio (`EffectiveCoverReduction`, CP 16.2). Il bot preferisce quindi
+			// il lato scoperto — e lo fa senza un peso proprio: il termine vale il danno che la direzione
+			// aggiunge, cioe' la stessa grandezza con cui deve competere.
+			//
+			// ⚠️ La riduzione si CHIEDE alla funzione del gioco invece di ricalcolarla: la logica direzionale
+			// vive li' dentro, e riscriverla qui sarebbe una seconda verita' destinata a divergere (`D-098`).
+			// La differenza fra nominale ed effettiva e' esattamente cio' che l'orientamento ha scavalcato.
+			//
+			// ⚠️ **Guard resta fuori, ed e' deliberato**: anche lei viene annullata da un colpo posteriore
+			// (`RTTurnManager`, `bGuardHolds`), ma al momento della pianificazione «il bersaglio si guardera'» e'
+			// un INTENTO, cioe' informazione privata dell'altra squadra. Contarla renderebbe il bot piu' informato
+			// del giocatore — l'opposto di cio' che CP 13.5 ha appena finito di garantire.
+			if (Context.EnemyFacings.IsValidIndex(I))
+			{
+				const int32 Nominal = URTHexCombatLibrary::HexCoverDamageReduction(
+					Map, Plan.DestCell, Context.Enemies[I], Plan.Shape);
+				const int32 Effective = URTHexCombatLibrary::EffectiveCoverReduction(
+					Map,
+					CombatProbe(Plan.DestCell, ArrivalFacing),
+					CombatProbe(Context.Enemies[I], Context.EnemyFacings[I]),
+					Plan.Shape);
+				Score += Context.WDamage * FMath::Max(0, Nominal - Effective);
 			}
 		}
 
@@ -74,6 +146,29 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 			&& URTHexVisionLibrary::HasLineOfSight(Map, Context.Enemies[I], Plan.DestCell))
 		{
 			Score -= Context.WThreat; // sotto tiro E in linea di vista di questo nemico (la copertura protegge)
+
+			// ORIENTAMENTO, verso difensivo: la copertura che questa cella offrirebbe CONTRO questo nemico non
+			// vale se ci si arriva dandogli le spalle. Simmetrico al termine offensivo e con la stessa scala.
+			//
+			// ⚠️ **Non e' un termine inerte, ed e' l'unico punto in cui il bot legge la copertura.** Vale zero
+			// dove la cella non ha copertura verso quel nemico — cioe' spesso — ma dove ce l'ha, distingue due
+			// candidate che oggi il punteggio considera identiche. Il bot NON guadagna un bonus per stare al
+			// coperto: guadagna il non buttarlo via, che e' la sola meta' che CP 13.5 chiede.
+			//
+			// La forma e' `Single`: l'azione con cui il nemico colpira' e' un suo intento, e ipotizzarne una
+			// piu' larga renderebbe il bot timido su un attacco che nessuno ha dichiarato.
+			const int32 CoverHere = URTHexCombatLibrary::HexCoverDamageReduction(
+				Map, Context.Enemies[I], Plan.DestCell, ERTAbilityShape::Single);
+			if (CoverHere > 0)
+			{
+				const int32 CoverKept = URTHexCombatLibrary::EffectiveCoverReduction(
+					Map,
+					CombatProbe(Context.Enemies[I], Context.EnemyFacings.IsValidIndex(I)
+						? Context.EnemyFacings[I] : ERTHexDirection::E),
+					CombatProbe(Plan.DestCell, ArrivalFacing),
+					ERTAbilityShape::Single);
+				Score -= Context.WDamage * FMath::Max(0, CoverHere - CoverKept);
+			}
 		}
 		MinDist = FMath::Min(MinDist, Dist);
 	}
@@ -161,6 +256,9 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 		// Restare/spostarsi senza attaccare e' sempre un'opzione.
 		FRTHexBotPlan Move;
 		Move.DestCell = Cell.Cell;
+		// Da dove ci si arriva: e' il predecessore che `ReachableCells` conserva, e da cui `ScorePlan` deriva
+		// l'orientamento senza rifare il pathfinding per ogni candidata.
+		Move.FromCell = Cell.FromCell;
 		Out.Add(Move);
 
 		if (Context.AttackRange <= 0 || Context.AttackDamage <= 0)
@@ -195,6 +293,7 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 			Attack.AreaRadius = Context.AttackAreaRadius;
 			Attack.RangeCells = Context.AttackRange;
 			Attack.bFriendlyFire = Context.bAttackFriendlyFire;
+			Attack.FromCell = Cell.FromCell;
 			Out.Add(Attack);
 		}
 	}

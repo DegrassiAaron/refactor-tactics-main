@@ -143,10 +143,14 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 
 	// Dijkstra su costi interi: estrazione del minimo con tie-break sull'ID (nessuna dipendenza dall'ordine di TMap).
 	TMap<FRTCellId, int32> Dist;
+	// Predecessore di ogni cella: serve al FACING, che deriva dall'ultimo passo (CP 13.5). La partenza e'
+	// predecessore di se stessa — chi non si muove non ha un «da dove», e il suo orientamento non cambia.
+	TMap<FRTCellId, FRTCellId> From;
 	TArray<FRTCellId> Frontier;
 	TSet<FRTCellId> Closed;
 
 	Dist.Add(Unit->Cell, 0);
+	From.Add(Unit->Cell, Unit->Cell);
 	Frontier.Add(Unit->Cell);
 
 	while (Frontier.Num() > 0)
@@ -185,7 +189,20 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 			if (!Existing || Tentative < *Existing)
 			{
 				Dist.Add(Step.Key, Tentative);
+				From.Add(Step.Key, Current);
 				Frontier.Add(Step.Key);
+			}
+			else if (Tentative == *Existing)
+			{
+				// PARITA' di costo: due percorsi ugualmente economici arrivano sulla stessa cella, e il facing
+				// che se ne deriva dipende da quale si sceglie. Il tie-break e' esplicito e sull'ID, come quello
+				// dell'estrazione: senza, il predecessore lo deciderebbe l'ordine di visita — cioe' un dettaglio
+				// che nessuno ha dichiarato, e che il resolver non e' tenuto a riprodurre.
+				const FRTCellId* Prev = From.Find(Step.Key);
+				if (Prev && URTHexLibrary::StableLess(Current, *Prev))
+				{
+					From.Add(Step.Key, Current);
+				}
 			}
 		}
 	}
@@ -193,7 +210,8 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 	Out.Reserve(Dist.Num());
 	for (const TPair<FRTCellId, int32>& Entry : Dist)
 	{
-		Out.Add(FRTHexReachableCell(Entry.Key, Entry.Value));
+		const FRTCellId* Prev = From.Find(Entry.Key);
+		Out.Add(FRTHexReachableCell(Entry.Key, Entry.Value, Prev ? *Prev : Entry.Key));
 	}
 	Out.Sort([](const FRTHexReachableCell& A, const FRTHexReachableCell& B)
 	{

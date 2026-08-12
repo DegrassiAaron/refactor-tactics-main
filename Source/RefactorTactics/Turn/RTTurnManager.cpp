@@ -291,6 +291,9 @@ void ARTTurnManager::PlanBots()
 		const FRTTeamKnowledge BotKnowledge = KnowledgeForTeam(Bot->TeamId);
 		FRTHexBotContext Ctx;
 		Ctx.Origin = Bot->Cell;
+		// Da dove il bot guarda ORA: e' il punto di partenza della stima di come sara' orientato a fine turno
+		// (CP 13.5). Chi resta fermo e non attacca conserva questo.
+		Ctx.SelfFacing = Bot->Facing;
 		// Il kiting lo DERIVA il bot dalla portata dell'attacco base: e' un comportamento dell'IA, non una
 		// caratteristica dell'unita' (che quando la muove il giocatore non lo consulta mai).
 		Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Bot->AttackRange);
@@ -374,6 +377,18 @@ void ARTTurnManager::PlanBots()
 			Ctx.Enemies.Add(KnownCell);
 			Ctx.EnemyRanges.Add(EnemyReach);
 			Ctx.EnemyHealth.Add(KnownHealth);
+			// CP 13.5 — l'ORIENTAMENTO del nemico, che decide se la sua copertura vale (ADR-0005 §4a).
+			//
+			// Si prende quello corrente e non si filtra, ed e' corretto: il facing e' cio' che la mesh mostra,
+			// quindi il giocatore umano lo legge allo stesso modo. A restare privato e' l'INTENTO di rotazione
+			// (`Facing.IntentIsTeamFiltered`), che qui non passa.
+			//
+			// ⚠️ Su un contatto `CellOnly` la cella e' quella del RICORDO ma il facing e' quello ATTUALE: e' una
+			// piccola incoerenza voluta, perche' l'alternativa — ricordare anche l'orientamento — vorrebbe un
+			// campo in `FRTLastKnownContact` e un incremento di `FRTTeamKnowledge::CurrentVersion`, cioe' una
+			// decisione di formato. L'errore va nella direzione sicura: la copertura si calcola fra la cella
+			// ricordata e la mia, e un facing piu' aggiornato del ricordo non rivela DOVE sia l'unita'.
+			Ctx.EnemyFacings.Add(Other->Facing);
 			EnemyUnitIndex.Add(j);
 
 			// La distanza si misura da cio' che si CONOSCE: su un contatto incerto e' la cella del ricordo.
