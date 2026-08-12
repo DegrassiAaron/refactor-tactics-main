@@ -107,6 +107,25 @@ public:
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void GenerateArenaV01IntoAsset();
 
+	/**
+	 * Nome della fixture da scrivere nell'asset: `ArenaV01`, `RelayBasin`, `RelayLite`, `TestArena`,
+	 * `CoverYard`, `DemoArena`. L'elenco e' quello di `URTMatchSetupLibrary::MakeFixtureArena`.
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
+	FString FixtureId = TEXT("ArenaV01");
+
+	/**
+	 * [Editor] Scrive nell'asset la fixture indicata da `FixtureId`, **sostituendo** il contenuto.
+	 *
+	 * Esiste perche' le fixture vivevano solo in codice e nessuno poteva aprirle in editor: `CoverYard` e'
+	 * l'unica mappa con una copertura ALTA e `RelayBasin` l'unica con una porta, quindi senza questo pulsante
+	 * quei due casi non erano guardabili — e cio' che non si guarda non si verifica.
+	 *
+	 * Nome sconosciuto -> non tocca nulla e lo dice: meglio un asset invariato che uno svuotato per un refuso.
+	 */
+	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
+	void GenerateFixtureIntoAsset();
+
 	/** [Editor] Esegue il validator sull'asset e logga gli errori. */
 	UFUNCTION(CallInEditor, Category = "RefactorTactics|HexMap")
 	void ValidateAsset();

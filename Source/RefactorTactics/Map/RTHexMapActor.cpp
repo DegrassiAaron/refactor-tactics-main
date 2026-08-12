@@ -609,25 +609,39 @@ void ARTHexMapActor::GenerateIntoAsset()
 
 void ARTHexMapActor::GenerateArenaV01IntoAsset()
 {
+	// Scorciatoia per la fixture piu' usata: la seduta U1 la nomina, e cambiarle nome costringerebbe a
+	// riscrivere una guida per un pulsante che fa gia' la cosa giusta.
+	const FString Previous = FixtureId;
+	FixtureId = TEXT("ArenaV01");
+	GenerateFixtureIntoAsset();
+	FixtureId = Previous;
+}
+
+void ARTHexMapActor::GenerateFixtureIntoAsset()
+{
 	if (!MapAsset)
 	{
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato: assegnalo prima di generare."));
 		return;
 	}
-#if WITH_EDITOR
-	const FScopedTransaction Transaction(LOCTEXT("HexGenerateArenaV01", "Hex: Generate Arena v0.1"));
-#endif
 
-	const URTHexMapAsset* Source = URTMatchSetupLibrary::MakeArenaV01(GetTransientPackage());
+	const URTHexMapAsset* Source = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), FixtureId);
 	if (!Source)
 	{
-		UE_LOG(LogRT, Warning, TEXT("[HexMap] Generazione dell'arena v0.1 fallita."));
+		// Nome sconosciuto: non si tocca nulla. Svuotare l'asset per un refuso sarebbe il danno peggiore, e
+		// il messaggio dice QUALE nome non esiste invece di lamentarsi in astratto.
+		UE_LOG(LogRT, Warning,
+			TEXT("[HexMap] Fixture '%s' sconosciuta: asset invariato. Nomi validi: ArenaV01, RelayBasin, ")
+			TEXT("RelayLite, TestArena, CoverYard, DemoArena."), *FixtureId);
 		return;
 	}
 
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("HexGenerateFixture", "Hex: Generate Fixture"));
+#endif
 	MapAsset->Modify();
-	// Sostituisce, non fonde: mescolare il layout verificato con quello che c'era darebbe una mappa che non
-	// e' ne' l'una ne' l'altra, e i tre criteri smetterebbero di dire qualcosa su cio' che si ha davanti.
+	// Sostituisce, non fonde: mescolare una fixture con quello che c'era darebbe una mappa che non e' ne'
+	// l'una ne' l'altra, e i criteri smetterebbero di dire qualcosa su cio' che si ha davanti.
 	MapAsset->Cells.Reset();
 	MapAsset->Transitions.Reset();
 	for (const FRTHexCellData& Cell : Source->Cells)
@@ -638,8 +652,8 @@ void ARTHexMapActor::GenerateArenaV01IntoAsset()
 	MapAsset->SortCells();
 	MapAsset->MarkPackageDirty();
 	RebuildInstances();
-	UE_LOG(LogRT, Log, TEXT("[HexMap] Arena v0.1 scritta nell'asset: %d celle. Verifica con rt.Arena.Check."),
-		MapAsset->NumCells());
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Fixture '%s' scritta nell'asset: %d celle, %d transizioni."),
+		*FixtureId, MapAsset->NumCells(), MapAsset->Transitions.Num());
 }
 
 void ARTHexMapActor::ClearAsset()
