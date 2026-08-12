@@ -1397,4 +1397,99 @@ bool FRTBornSurfaceIsNotOnlyFireTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// CP 7.5 (`#505`) — `Reaction.HazardEscape`: si fugge PRIMA del danno, non dopo.
+//
+// L'ultimo dei sette moduli, e quello a cui mancava l'evento invece del dato: finche' una superficie che
+// nasceva sotto un'unita' ferma non le faceva niente (`#570`), non c'era nulla da cui fuggire.
+//
+// L'oracolo e' doppio, e serve: l'unita' deve **essere altrove** e **non avere `Burning`**. Solo la prima
+// meta' passerebbe anche se la fuga avvenisse dopo l'applicazione degli effetti — che e' esattamente il modo
+// in cui questo modulo sarebbe stato inutile pur sembrando funzionante.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardEscapeFleesBeforeDamageTest,
+	"RefactorTactics.Equipment.HazardEscape.FleesBeforeDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardEscapeFleesBeforeDamageTest::RunTest(const FString&)
+{
+	const URTEquipmentData* Escape = nullptr;
+	for (const URTEquipmentData* M : URTCatalogLibrary::MakeReactionModules())
+	{
+		if (M && M->EquipmentId == FName(TEXT("Reaction.HazardEscape"))) { Escape = M; break; }
+	}
+	if (!TestNotNull(TEXT("`Reaction.HazardEscape` e' nel catalogo dei moduli"), Escape)) { return false; }
+
+	// --- PREMESSA: senza il modulo, il fuoco acceso sotto i piedi brucia -----------------------------
+	{
+		UWorld* World = MakeEnvWorld();
+		if (!TestNotNull(TEXT("world della premessa"), World)) { return false; }
+		SpawnEnvMap(World);
+		ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+		const int32 HpPrima = Target->Health;
+		PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+		RunEnvTurn(TM);
+
+		const bool bBruciato = (Target->Health < HpPrima) && Target->HasStatus(TAG_Status_Burning);
+		const bool bFermo = (Target->Cell == FRTCellId(2, 0));
+		DestroyEnvWorld(World);
+		if (!TestTrue(TEXT("premessa: senza modulo l'unita' resta e brucia"), bBruciato && bFermo))
+		{
+			return false; // senza un incendio che fa male, il caso sotto non proverebbe niente
+		}
+	}
+
+	// --- IL CASO: con il modulo, si sposta e non brucia ----------------------------------------------
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	URTActionData* Reazione = URTCatalogLibrary::MakeEquipmentAction(Escape, Target);
+	if (!TestNotNull(TEXT("il modulo concede un'azione"), Reazione)) { DestroyEnvWorld(World); return false; }
+	TestTrue(TEXT("ed e' una reazione col trigger dell'ambiente, ereditato da `Action.Evade`"),
+		Reazione->Def.Slot == ERTActionSlot::Reaction
+		&& Reazione->Def.ReactionTrigger == ERTReactionTrigger::CellBecameHazardous);
+	Target->Abilities.Add(Reazione);
+	Target->PlannedReactionAbility = Target->Abilities.Num() - 1;
+
+	// Il facing e' dichiarato, non lasciato al default: e' la prima scelta della fuga, e un test che non lo
+	// fissa verificherebbe l'ordine canonico di ripiego credendo di verificare il facing.
+	Target->Facing = ERTHexDirection::E;
+	const int32 HpPrima = Target->Health;
+
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	// Premessa interna: la cella di partenza e' davvero andata a fuoco. Senza, «si e' spostato e non brucia»
+	// sarebbe vero anche in una scena dove non succede niente.
+	const FRTHexCellData* Partenza = MapActor->MapAsset ? MapActor->MapAsset->FindCell(FRTCellId(2, 0)) : nullptr;
+	if (!TestTrue(TEXT("premessa: la cella di partenza e' in fiamme"),
+		Partenza != nullptr && Partenza->Surface == ERTHexSurface::Fire))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// I due assert che contano, e servono ENTRAMBI: il primo da solo passerebbe anche se la fuga arrivasse
+	// dopo l'applicazione degli effetti — cioe' se il modulo fosse inutile.
+	TestTrue(TEXT("si e' spostato dalla cella in fiamme"), Target->Cell != FRTCellId(2, 0));
+	TestFalse(TEXT("e la fuga e' arrivata PRIMA del danno: non brucia"), Target->HasStatus(TAG_Status_Burning));
+	TestEqual(TEXT("e non ha perso salute"), Target->Health, HpPrima);
+
+	// E' andato DOVE GUARDAVA: la fuga e' prevedibile, non arbitraria.
+	TestEqual(TEXT("verso la cella che aveva davanti"), Target->Cell,
+		URTHexLibrary::Neighbor(FRTCellId(2, 0), ERTHexDirection::E));
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
