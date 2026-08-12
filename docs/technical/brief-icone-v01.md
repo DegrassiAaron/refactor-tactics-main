@@ -29,6 +29,77 @@ perché questo elenco resti vivo.
 Il prefisso `UI.Icon.` **non è decorazione**: senza, `Status.Wet` come icona e `Status.Wet` come Gameplay Tag
 sarebbero la stessa stringa in un log, e D-031 li vuole concetti distinti.
 
+## Colore
+
+> **Recepito qui il 2026-08-12** da `docs/src/design/icon/visual-language/02-color-system.md`, che dichiara
+> di essere «sorgente di design, non canone». `docs/src/` diventa vincolante solo quando un owner
+> documentale lo consuma: questa sezione è quell'atto per i token **semantici**. I token **chrome**
+> (`RT_UI_*`) restano di [`progettazione-hud.md`](progettazione-hud.md) §32 e non si riscrivono qui.
+
+### La regola che governa tutte le altre
+
+**Il colore è il secondo canale. La silhouette è il primo.** Ogni icona deve restare distinguibile in
+grayscale: il grayscale non è un tema, è il test di accettazione. Un'icona che funziona solo a colori non è
+accettata, e `Critical` (`#FF4D4D`) è **solo rinforzo** — non porta mai un segnale da solo.
+
+### Token semantici
+
+Base **Okabe-Ito**, scelta perché distinguibile per costruzione sotto protanopia, deuteranopia e tritanopia.
+
+| Token | HEX | Usato da |
+|---|---|---|
+| `RT_Sem_Movement` | `#009E73` | `Action.Move` · `Action.Sprint` · `Action.Dash` · `Action.Leap` |
+| `RT_Sem_Attack` | `#D55E00` | `Action.BasicAttack` · `Action.Charge` |
+| `RT_Sem_Utility` | `#0072B2` | `Action.Interact` |
+| `RT_Sem_Defense` | `#009E73` | `Action.Guard` · `Status.Guarded` |
+| `RT_Sem_Reaction` | `#CC79A7` | `Status.Braced` |
+| `RT_Sem_Hazard` | `#E69F00` | `Status.Exposed` · `Status.Root` · `Status.Slow` · `Status.Marked` |
+| `RT_Sem_Electric` | `#F0E442` | `Status.Electrified` — **outline scuro obbligatorio** |
+| Water | `#0072B2` | `Status.Wet` |
+| Fire | `#D55E00` | `Status.Burning` |
+| Ally / Enemy | `#56B4E9` / `#E69F00` | `Identity.Ally` · `Identity.Enemy` |
+
+### Perché non verde e rosso puri
+
+La richiesta originale era `Movement → green` e `Attack → red`. **Le associazioni sono mantenute, gli hex
+no**: `#009E73` è un verde virato al blu, `#D55E00` un rosso virato all'arancio. Un verde puro e un rosso
+puro convergono sotto deuteranopia e protanopia, e Movement e Attack sono **adiacenti nella stessa skill
+bar** — il punto in cui la confusione costa di più.
+
+Non basta da solo: Movement e Attack restano distinti soprattutto per **forma** — percorso con nodi contro
+reticolo con impatto.
+
+### Le due collisioni di hex
+
+Due coppie condividono lo stesso valore. La prima è dichiarata e accettata, la seconda no.
+
+**`Movement` e `Defense` = `#009E73`** — accettabile perché non competono mai nella stessa decisione: un
+profilo di movimento e una postura difensiva stanno in **gruppi diversi** della skill bar. Se il playtest
+mostra confusione, si separa **`Defense` prima di `Movement`**. Sono due token distinti che oggi hanno lo
+stesso valore, non un token preso in prestito.
+
+⚠️ **`Ice` e `Ally` = `#56B4E9`** — questa collisione **non è dichiarata** nei vincoli della sorgente, ed è
+più esposta della prima: un'unità alleata su una superficie ghiacciata mette i due colori **nella stessa
+vista**, mentre Movement e Defense sono separati dal layout. Non blocca la v0.1 — **non esiste uno stato
+`Ice`**: i tag sono undici (`Root, Slow, Reveal, Exposed, Guarded, Marked, Wet, Braced, Burning, Obscured,
+Electrified`) e nessuno è ghiaccio. Va risolta **prima** che un'icona `Ice` venga disegnata, non dopo.
+
+### Cosa il colore non decide
+
+- **`Certainty`** non usa il colore come canale: la grammatica è già in
+  [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §11.2 — confermato = linea piena · previsto =
+  tratteggiata + icona di squadra · incerto = dissolto + `?`.
+- **Gli elementi non cambiano per squadra.** Un fuoco alleato è dello stesso colore di un fuoco nemico: a
+  cambiare è chi lo ha causato, non che cosa è.
+- **Il colore di fazione non indica mai `Ally`/`Enemy`.** Sono due assi distinti.
+- **`Ally` e `Enemy` differiscono per forma anche in monocromia**, non solo per tinta.
+
+### Rimaste senza token
+
+Non hanno un token nella sorgente e **non si inventano qui**: `Phase.*` (quattro), `Action.Wait`,
+`Status.Reveal`, `Status.Obscured`, e i quattro eroi di `Identity`. Per la prima passata restano neutre
+(`RT_UI_White` / testo secondario) e si distinguono per silhouette — che è comunque il primo canale.
+
 ## Le 33 chiavi
 
 ### Phase — 4
