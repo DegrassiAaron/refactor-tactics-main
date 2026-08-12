@@ -12,6 +12,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
+#include "Turn/RTReactionOpportunityTypes.h" // la condizione dichiarata fa parte del piano
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -158,6 +159,9 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 	Attacker->PlannedAbilityIndex   = MainIdx;
 	Attacker->PlannedAttackTarget   = Target;
 	Attacker->PlannedReactionAbility = ReactionIdx;
+	// Compresa la CONDIZIONE sulla reazione ([D-109]): fa parte del piano quanto lo slot che la ospita.
+	Attacker->SetPlannedReactionCondition(FRTDeclaredCondition(
+		URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 50));
 
 	// Il dash e' uno slot a parte: si prende un'abilita' che sposta davvero, non una qualunque.
 	int32 DashIdx = INDEX_NONE;
@@ -193,6 +197,14 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 	TestFalse(TEXT("il bersaglio pianificato non sopravvive"), After.bHasTarget);
 	TestEqual(TEXT("lo scatto pianificato non sopravvive"), After.Dash, INDEX_NONE);
 	TestEqual(TEXT("la reazione pianificata non sopravvive"), After.Reaction, INDEX_NONE);
+
+	// E nemmeno la sua condizione. Azzerare lo slot e lasciare la condizione la renderebbe ORFANA: il turno
+	// dopo, armando una reazione qualunque, il giocatore se la ritroverebbe addosso senza averla chiesta — e
+	// ristretta com'e', gli farebbe saltare un colpo che credeva di avere. `SetPlannedReactionCondition`
+	// rifiuta di crearne una orfana all'ingresso; se il reset non la togliesse, la stessa cosa entrerebbe
+	// dalla porta di servizio.
+	TestFalse(TEXT("la condizione della reazione non sopravvive"),
+		Attacker->PlannedReactionCondition.IsDeclared());
 
 	// Il movimento si riallinea da solo (`PlaceOnCell`): qui si verifica che sia davvero cosi', perche' e'
 	// la meta' dell'invariante che nessuno aveva mai controllato.

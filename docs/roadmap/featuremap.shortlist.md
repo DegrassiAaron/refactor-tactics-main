@@ -26,13 +26,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 |---|--:|
 | `IDEA` | 6 |
 | `DESIGNED` | 14 |
-| `SPECIFIED` | 13 |
+| `SPECIFIED` | 14 |
 | `IMPLEMENTING` | 22 |
 | `TESTABLE` | 8 |
 | `INTEGRATED` | 21 |
 | `RELEASE_READY` | 16 |
 | `DONE` | 1 |
-| `BLOCKED` (fuori scala) | 1 |
 | `DEFERRED` (fuori scala) | 1 |
 
 ### Actions · 15
@@ -44,15 +43,15 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | v0.1 | RELEASE_READY | 8/9 | E4 | Ordine per priorità, permutazione-invarianza, nessun bias di Player ID |
 | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | v0.1 | RELEASE_READY | 8/9 | E4 | **Sprint è un profilo di Move, non un Dash** |
 | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | v0.1 | INTEGRATED | 7/9 | E18 | Decisa in Planning, risolta a un boundary, **senza input live** |
-| `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | v0.1 | TESTABLE | 5/9 | E4 | ⚠️ non verificabile finché i world di test non chiamano `BeginPlay()` (`#135`) |
+| `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | v0.1 | TESTABLE | 6/9 | E4 | ⚠️ non verificabile finché i world di test non chiamano `BeginPlay()` (`#135`) |
 | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | v0.1 | IMPLEMENTING | 1/8 | E7 | Scelta orizzontale: ogni variante ha uno svantaggio |
 | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo | v0.1 | IMPLEMENTING | 3/9 | E4 | Le sette di D-025: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` |
 | `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | IMPLEMENTING | 0/9 | — | Fuori dal contenuto della v0.1 |
+| `RT-FEAT-ACTION-MOVEMENT-COMPAT` — Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata | v0.2 | SPECIFIED | 1/9 | fuori scope | — |
 | `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | future | DESIGNED | 0/9 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
 | `RT-FEAT-ACTION-PLAN-VALIDATION` — Validazione del piano in Planning, con reason code deterministico | v0.2 | DESIGNED | 0/10 | fuori scope | — |
 | `RT-FEAT-STATUS-FRAMEWORK` — Framework degli status — categorie, severity e primitive | v0.2 | DESIGNED | 0/9 | fuori scope | Undici status cablati uno per uno, nessun livello che li governi: **E36** in v0.2 |
 | `RT-FEAT-ACTION-BUDGET` — Capacita' d'azione del turno: slot o budget numerico | v0.2 | DEFERRED | 0/9 | fuori scope | — |
-| `RT-FEAT-ACTION-MOVEMENT-COMPAT` — Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata | v0.2 | BLOCKED | 0/9 | fuori scope | — |
 | `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | future | IDEA | 0/9 | — | Solo un nome |
 
 ### Characters · 7

@@ -51,12 +51,12 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 
 | Classe | Quanti | Dove |
 |---|---:|---|
-| **A** — automatico | **28** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
+| **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **51** pianificati · **4** mai scritti *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Rimisurati **due volte** il 2026-08-12: prima a **52**, quando `Spec.Map.ConstrainedCellCostsMore` era solo `planned` — e questa riga diceva 53, già indietro di due; poi a **51**, quando quel piano è diventato un file e la classe **A** è salita a 28. È il meccanismo del corpus che funziona: un `planned` che si accende esce da qui ed entra là. Un totale scritto a mano non ha un lato giusto prima del merge, e non resta giusto dopo: si rilegge dal generato)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **50** pianificati · **4** mai scritti *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Rimisurati **tre volte** il 2026-08-12, e ogni volta il numero era gia' cambiato sotto: **52** con `Spec.Map.ConstrainedCellCostsMore` ancora `planned`, **51** quando quel piano è diventato un file, **50** sull'albero unito perché `#659` ne ha acceso un altro nel frattempo. È il meccanismo del corpus che funziona — un `planned` che si accende esce da qui — ma dice anche che questo numero non si incrementa a mano: si rilegge da `scenariomap.shortlist.md` **dopo** il merge. ⚠️ Le righe **A**/**B** e il totale del corpus qui sopra restano NON rimisurati, come già avverte il riquadro del 2026-08-10: il generato conta 70 scenari versionati e 58 non bloccati, che non si riconciliano con `A 27 + B 21 + D 12` — la scomposizione per classe è umana e va rifatta voce per voce, non aggiustata di uno alla volta. Un totale scritto a mano non ha un lato giusto prima del merge, e non resta giusto dopo: si rilegge dal generato)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **61** scenari (`A 28 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
+Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
 (`B 21 + C 95 + 1 fuori classe`).
 
 > ⚠️ **Rimisurato il 2026-08-10, e il conteggio era rotto in due punti diversi.** La riga `A` diceva già
@@ -302,12 +302,30 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **51**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **50**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
+> 🔴 **Perché i `planned` non si scrivono tutti in una volta — misurato il 2026-08-12.** Tentando di
+> scriverli fino alla v0.2 (**42**: 23 in v0.1, 19 in v0.2), l'ostacolo non è il tempo ma l'**oracolo**: uno
+> scenario si scrive solo se il numero atteso esiste già nel repository. Il conto:
+>
+> | Motivo per cui non si scrive | Quanti |
+> |---|---:|
+> | i valori sono `PROPOSED FOR PLAYTEST`, non canone (`Spec.TimeBank.*`, `Spec.Clash.*`) | 13 |
+> | dipende da una **decisione aperta** (`BAS-1`…`BAS-4` per i profili, `AE-2` per le soglie) | 10 |
+> | la feature è `DESIGNED` e il comportamento non esiste (`Spec.Map.*`, `Spec.Bot.*` tattici) | 11 |
+> | il roster non esiste ancora (`Team.Sentinel.*`, `Team.Resonance.*` sono E35/v0.2) | 2 |
+> | ✅ **scritto e verde** | **1** |
+>
+> ⚠️ E una scoperta che vale oltre il conteggio: **`requires` copre il runtime mancante, non un `ActionId`
+> inesistente**. `Spec.ActionEconomy.OverwatchReservesMovementSlot` è stato scritto, eseguito e **rimosso**:
+> il loader rifiuta il file perché `Action.Overwatch` **non è nel catalogo core** (`grep` → zero occorrenze),
+> e un file che non si carica fa fallire `ShippedScenariosAreValid` — cioè rompe il gate per tutti. Un
+> `BLOCKED` dichiarato con `requires` presuppone che il **dato** esista e manchi solo il **codice**.
+>
 > ➕ **+6 il 2026-08-12 dal consolidamento dell'action economy** — quattro `RT-FEAT-ACTION-MOVEMENT-COMPAT`,
 > uno `RT-FEAT-ACTION-PLAN-VALIDATION`, uno `RT-FEAT-ACTION-COOLDOWNS`. Il kit ne proponeva **dodici**
 > (`AE-S01`…`AE-S12`), in una convenzione di nomi che il repository non usa. Sei sono caduti per ragioni

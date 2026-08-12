@@ -94,7 +94,7 @@ di quelle voci, non voci in più.
 | Voce del piano | Slot | Fase di risoluzione | Esempi |
 |---|---|---|---|
 | mobilità speciale | Movimento | **`Dash`** | `Dash`, `Leap`, `Reposition` |
-| movimento normale | Movimento | **`Move`** | profili `Sneak` · `Move` · `Withdraw` — e `Sprint`, che è di questa famiglia ma risolve **pre-Blast**: vedi §3.1 |
+| movimento normale | Movimento | **`Move`** | profili `Sneak` · `Move` · `Sprint` · `Withdraw` — ⚠️ `Sprint` è **ancora pre-Blast nel codice**, e D-116 lo sta riportando qui: vedi §3.1 |
 | azione principale | Principale | dipende dall'azione | `BasicAttack`, `Interact`, `Charge` (**`Blast`**) · `Guard`, `Brace`, `Overwatch`, `CreateCover` (**`Prep`**) |
 | reazione | Reazione | al trigger | `Counter`, `Intercept`, `Deflect` |
 | facing finale | — | fine `Move` | rotazione dichiarata entro il budget di pivot |
@@ -138,13 +138,25 @@ impone l'`Overwatch`.
 I budget sono nel catalogo (`Move` 5 MP · `Sprint` 8 · `Withdraw` 2; **`Sneak` non è definito da nessuna
 fonte corrente** e non si inventa).
 
-**`Sprint` è l'eccezione che vale la pena leggere due volte**: appartiene alla famiglia `Move` — percorso a
-budget, pathfinding, slot movimento — ma **risolve pre-Blast**, in `ERTResolutionPhase::FastMovement`. Non è
-un arretrato di migrazione: è una decisione esplicita ([D-068](../decisions/RT_PDR_00_Decision_Log.md)),
-verificata da `Actions.SprintIsAMoveProfileResolvedPreBlast`, che asserisce **stile, slot e fase insieme** ed
-è scritta per *cadere* se un giorno la fase venisse spostata. «Profilo di `Move`» è un'affermazione sulla
-**famiglia**, non sul **momento**; e spostarlo dopo il Blast gli toglierebbe l'ultimo prezzo che paga,
-l'esposizione al fuoco di questo turno.
+**`Sprint` sta migrando, e conviene sapere da dove a dove.** Appartiene alla famiglia `Move` — percorso a
+budget, pathfinding, slot movimento — ma **oggi nel codice risolve pre-Blast**, in
+`ERTResolutionPhase::FastMovement`.
+
+🔴 **Dal 2026-08-12 quello è un arretrato, non una decisione** ([D-116](../decisions/RT_PDR_00_Decision_Log.md),
+che **supera** [D-068](../decisions/RT_PDR_00_Decision_Log.md)): lo `Sprint` torna **dopo il Blast**. La ragione
+non era sul tavolo quando D-068 decise il contrario — restando pre-Blast, lo `Sprint` **spara da una posizione
+nuova**, cioè fa precisamente ciò che il catalogo attribuisce al `Dash`.
+
+La migrazione **non si fa da sola**, ed è lavoro di E38: portare lo Sprint dopo il Blast rende
+`Status.Exposed` **inerte** (verrebbe applicato quando tutti hanno già sparato), quindi D-116 lo porta a **2
+turni** nello stesso momento e introduce la compatibilità col profilo di movimento
+([`spec-compatibilita-azioni-movimento.md`](spec-compatibilita-azioni-movimento.md)). Senza le due
+contropartite, lo `Sprint` diventerebbe un `Move` più lungo che costa solo la reazione — l'**upgrade puro**
+vietato da [D-015](../decisions/RT_PDR_00_Decision_Log.md).
+
+⚠️ Fino alla migrazione, `Actions.SprintIsAMoveProfileResolvedPreBlast` **resta verde** e il suo commento è
+**falso**: dichiara che la fase «resta dov'è ed è una decisione». È il gate che cadrà quando la migrazione
+atterra, ed è scritto apposta per farlo.
 
 ### 3.2 Il pivot non si paga in Movement Point
 

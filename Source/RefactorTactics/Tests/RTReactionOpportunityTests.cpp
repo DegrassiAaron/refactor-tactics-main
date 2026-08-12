@@ -6,6 +6,9 @@
 // del resolver invece che come cio' che e': un identificatore che non e' una funzione del suo stato.
 
 #include "Misc/AutomationTest.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Unit/RTUnit.h"
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionOpportunityTypes.h"
 
@@ -192,6 +195,118 @@ bool FRTOpportunityLeaksNoFutureTest::RunTest(const FString&)
 		{ TEXT("TurnNumber"), TEXT("MacroPhase"), TEXT("MicroStepIndex"),
 		  TEXT("OwnerId"), TEXT("ReactionDefId"), TEXT("Seq") });
 
+	return true;
+}
+
+/**
+ * Le condizioni dichiarabili in pianificazione sono un elenco CHIUSO, e l'elenco vive nel codice ([D-109]).
+ *
+ * Nel dato sarebbe piu' flessibile e sbagliato: dichiarare una condizione inesistente diventerebbe una
+ * modifica al JSON invece di un errore, ed e' la stessa ragione per cui `IsCapabilityAvailable` tiene il
+ * proprio elenco nel codice. La v0.1 ne ammette **una**: la soglia di salute del bersaglio.
+ *
+ * Il parametro fa parte di cio' che si valida. Una soglia oltre il 100% renderebbe la condizione sempre
+ * vera — cioe' una condizione che non condiziona, che e' peggio di nessuna condizione: il giocatore crede
+ * di aver ristretto il fuoco e non l'ha fatto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionConditionValidatorTest,
+	"RefactorTactics.Reactions.UnknownConditionIsRejectedByValidator",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionConditionValidatorTest::RunTest(const FString&)
+{
+	const FName Allowed = URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent();
+
+	TestTrue(TEXT("la soglia di salute e' la voce ammessa dalla v0.1"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition(Allowed, 50)));
+
+	// Il caso per cui il validator esiste: un id che il gioco non conosce. Senza questo controllo un piano
+	// salvato potrebbe nominare una condizione che nessuna funzione valuta, e il trigger non saprebbe dirlo.
+	TestFalse(TEXT("un id che il gioco non conosce viene rifiutato"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition(TEXT("TargetIsFlanked"), 1)));
+
+	// Assenza di condizione non e' una condizione ammessa: chi non dichiara non passa di qui.
+	TestFalse(TEXT("nessun id dichiarato non e' una condizione valida"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition()));
+
+	// La soglia e' una percentuale intera (D-109: niente float, gate G7) e deve restringere davvero.
+	TestFalse(TEXT("soglia oltre il 100% rifiutata"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition(Allowed, 101)));
+	TestFalse(TEXT("soglia negativa rifiutata"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition(Allowed, -1)));
+	TestTrue(TEXT("soglia 100 ammessa: «spara comunque» resta dichiarabile"),
+		URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(FRTDeclaredCondition(Allowed, 100)));
+
+	return true;
+}
+
+/**
+ * La condizione entra nel piano solo se e' dichiarabile, e solo se c'e' una reazione a cui applicarla.
+ *
+ * E' l'anello che rende la condizione un dato del GIOCO e non dei test: senza un punto che la scrive
+ * validandola, `FRTDeclaredCondition` sarebbe un campo con un consumatore e nessun produttore — la forma di
+ * difetto che questo repository ha gia' incontrato con `PlannedReactionAbility`, scritto per mesi dai soli
+ * test mentre il resolver lo leggeva.
+ *
+ * Il rifiuto non e' silenzioso e non e' parziale: o la condizione entra intera, o il piano resta com'era.
+ * Una condizione applicata a meta' sarebbe peggio di nessuna condizione, perche' il giocatore crederebbe di
+ * aver ristretto il fuoco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionConditionPlanTest,
+	"RefactorTactics.Reactions.DeclaredConditionEntersThePlanOnlyIfValid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionConditionPlanTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!World)
+	{
+		AddError(TEXT("mondo non creato"));
+		return false;
+	}
+	if (GEngine)
+	{
+		FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+		Ctx.SetCurrentWorld(World);
+	}
+
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>();
+	const FRTDeclaredCondition Valid(URTReactionOpportunityLibrary::TargetHealthAtOrBelowPercent(), 50);
+
+	if (Unit)
+	{
+		// 1. Senza reazione armata non c'e' niente da condizionare: la dichiarazione non ha un bersaglio nel
+		//    piano, e accettarla lascerebbe una condizione orfana che il prossimo armamento erediterebbe.
+		Unit->PlannedReactionAbility = INDEX_NONE;
+		TestFalse(TEXT("senza reazione armata la condizione e' rifiutata"),
+			Unit->SetPlannedReactionCondition(Valid));
+		TestFalse(TEXT("e il piano resta senza condizione"), Unit->PlannedReactionCondition.IsDeclared());
+
+		// 2. Con la reazione armata, una condizione che il gioco non conosce viene rifiutata e non lascia
+		//    tracce: il campo resta quello di prima, non una versione a meta'.
+		Unit->PlannedReactionAbility = 0;
+		TestFalse(TEXT("un id sconosciuto e' rifiutato"),
+			Unit->SetPlannedReactionCondition(FRTDeclaredCondition(TEXT("TargetIsFlanked"), 1)));
+		TestFalse(TEXT("il piano resta senza condizione"), Unit->PlannedReactionCondition.IsDeclared());
+
+		// 3. Il caso buono.
+		TestTrue(TEXT("la condizione ammessa entra nel piano"), Unit->SetPlannedReactionCondition(Valid));
+		TestTrue(TEXT("ed e' dichiarata"), Unit->PlannedReactionCondition.IsDeclared());
+		TestEqual(TEXT("con la sua soglia"), Unit->PlannedReactionCondition.Param, 50);
+
+		// 4. Togliere la condizione e' sempre legittimo: e' il modo di tornare a «spara comunque», e non deve
+		//    passare per il validator — `NAME_None` non e' una condizione ammessa, e infatti non lo e'.
+		TestTrue(TEXT("la condizione si puo' togliere"), Unit->SetPlannedReactionCondition(FRTDeclaredCondition()));
+		TestFalse(TEXT("e il piano torna senza condizione"), Unit->PlannedReactionCondition.IsDeclared());
+	}
+	else
+	{
+		AddError(TEXT("unita' non spawnata"));
+	}
+
+	if (GEngine)
+	{
+		GEngine->DestroyWorldContext(World);
+	}
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 	return true;
 }
 
