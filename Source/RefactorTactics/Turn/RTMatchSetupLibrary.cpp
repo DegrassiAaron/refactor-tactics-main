@@ -319,6 +319,10 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeFixtureArena(UObject* Outer, const FSt
 	{
 		return MakeTestArena(Outer);
 	}
+	if (FixtureId.Equals(TEXT("ArenaV01"), ESearchCase::IgnoreCase))
+	{
+		return MakeArenaV01(Outer);
+	}
 	if (FixtureId.Equals(TEXT("CoverYard"), ESearchCase::IgnoreCase))
 	{
 		return MakeCoverYardArena(Outer);
@@ -470,6 +474,24 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeArenaV01(UObject* Outer)
 	{
 		SetCell(FRTCellId(Q, 2, 0), /*Move=*/ false, /*Sight=*/ false, ERTHexSurface::Rough);
 	}
+
+	// 6. Piattaforma sul layer 1, collegata da UNA SOLA transizione.
+	//
+	//    Stava nei passi di U1 e in nessun criterio: il `done_when` verificava i passi 3, 4 e 7 e saltava il 5,
+	//    quindi l'arena poteva passare tutti i controlli senza avere una piattaforma. `CheckReachability` chiude
+	//    quel buco.
+	//
+	//    **Una sola** transizione, come chiede U1: con una la piattaforma e' un vicolo cieco e non altera le
+	//    rotte; con due diventerebbe una scorciatoia, e i tre criteri cambierebbero sotto i piedi. E' anche
+	//    cio' che la rende un banco vero per `PIE-HEX-MODE-E/H`, che pretendono celle su >=2 layer.
+	//
+	//    Sta a nord-est, fuori da entrambe le rotte: una piattaforma sul percorso sposterebbe il pathfinding.
+	const FRTCellId PlatformAnchor(3, -3, 0);
+	for (const FRTCellId& Id : { FRTCellId(3, -3, 1), FRTCellId(2, -3, 1), FRTCellId(3, -2, 1) })
+	{
+		Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+	}
+	Arena->AddTransition(PlatformAnchor, FRTCellId(3, -3, 1), /*Cost=*/ 2);
 
 	Arena->SortCells();
 	return Arena;

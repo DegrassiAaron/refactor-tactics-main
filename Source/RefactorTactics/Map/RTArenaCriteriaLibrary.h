@@ -66,6 +66,10 @@ struct FRTArenaCriteriaReport
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Arena")
 	FRTArenaCriterionResult TwoRoutes;
 
+	/** Passo 5: ogni cella percorribile e' raggiungibile dagli spawn. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Arena")
+	FRTArenaCriterionResult Reachability;
+
 	/** Spawn su cui i criteri sono stati valutati (derivati dalla mappa, non inventati). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Arena")
 	FRTCellId SpawnA;
@@ -74,7 +78,10 @@ struct FRTArenaCriteriaReport
 	FRTCellId SpawnB;
 
 	/** Vero se tutti e tre passano. Un criterio non valutabile NON conta come passato. */
-	bool AllPassed() const { return Coverage.bPassed && CostBite.bPassed && TwoRoutes.bPassed; }
+	bool AllPassed() const
+	{
+		return Coverage.bPassed && CostBite.bPassed && TwoRoutes.bPassed && Reachability.bPassed;
+	}
 };
 
 /**
@@ -152,6 +159,20 @@ public:
 	static FRTArenaCriterionResult CheckTwoRoutes(const URTHexMapAsset* Map, const FRTCellId& SpawnA,
 		const FRTCellId& SpawnB, float MaxCostRatio = DefaultMaxCostRatio,
 		float MinExposureGap = DefaultMinExposureGap);
+
+	/**
+	 * **Passo 5 — tutto e' raggiungibile.** Vero se ogni cella percorribile della mappa e' raggiungibile da uno
+	 * spawn, attraversando il grafo tattico (quindi passando dalle transizioni esplicite per cambiare layer).
+	 *
+	 * E' il criterio che mancava: il `done_when` di U1 verificava i passi 3, 4 e 7 e **saltava il 5**, quindi
+	 * un'arena poteva passare ogni controllo senza avere una piattaforma — o averla scollegata, che e' peggio,
+	 * perche' la si vede e non ci si arriva.
+	 *
+	 * Una zona irraggiungibile non e' una scelta di design: e' una mappa rotta, e oggi la si scopre a runtime
+	 * quando un'unita' non ci arriva. Riporta **quante** celle e le prime che trova, cosi' correggere non e'
+	 * una caccia.
+	 */
+	static FRTArenaCriterionResult CheckReachability(const URTHexMapAsset* Map, const FRTCellId& SpawnA);
 
 	/**
 	 * Valuta i tre criteri sugli spawn indicati.
