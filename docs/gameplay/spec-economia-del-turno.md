@@ -227,19 +227,39 @@ nello scope di E38.
 
 ## 5. Reason code: si estendono le famiglie, non se ne crea una
 
-Il TurnLog ha già famiglie di esito **serializzate e versionate** per fase — `ERTMoveOutcome`,
-`ERTCombatOutcome`, `ERTFallbackOutcome`, `ERTMovementStopReason` — con l'invariante che i valori nuovi si
-aggiungono **in coda**, perché viaggiano come interi nei replay.
+La famiglia da estendere è **`ERTActionInvalidReason`** (`Turn/RTActionFallbackLibrary.h`), che già
+significa *«questa azione pianificata non è più eseguibile»* — `TargetGone · TargetDead · TargetFriendly ·
+OutOfRange · NoLineOfSight · NoMap · TargetUnknown` — e che porta già scritta, nel commento dell'ultimo
+valore, l'invariante che serve: *«Valore aggiunto in coda: le tracce già scritte conservano il proprio
+significato»*.
 
+> 🔴 **Corretto il 2026-08-12 (CP 38.2).** Questa sezione indicava le famiglie di **esito** del TurnLog —
+> `ERTMoveOutcome`, `ERTCombatOutcome`, `ERTFallbackOutcome` — più un quarto nome, `ERTMovementStopReason`,
+> che **non esiste in `Source/`**: `git grep` lo trovava solo nei documenti che si citavano a vicenda
+> (questa spec, il registry, il referto, la issue `#605`). Ed erano comunque l'asse sbagliato: un `*Outcome`
+> dice **com'è andata una fase**, non **perché un'azione non è legale**.
+
+I tre valori aggiunti in coda da CP 38.2 sono `SlotOccupied`, `InsufficientMovementPoints` e `OnCooldown`.
 Un `PlanRejectionReason` parallelo con undici valori nuovi rifarebbe l'errore già respinto in
 [`spec-tassonomia-movimento.md`](spec-tassonomia-movimento.md) §6, dove dieci reason code proposti da un kit
 erano **sette duplicati** di codici esistenti con un altro nome.
 
-Resta però un buco vero, e va detto: **la validazione in Planning non esiste come componente**. `git grep
-ValidatePlan` non restituisce nulla; ciò che esiste è `ValidateInstance`/`ApplyFallback`, che agisce **in
-risoluzione**. Oggi un piano illegale si scopre quando non funziona, non quando lo si compone. È il
-contributo strutturale che E38 dà a prescindere da tutto il resto, ed è la ragione per cui l'epic non si è
-chiusa quando `AE-1` è stata decisa.
+Il buco strutturale che E38 chiude a prescindere da tutto il resto — e la ragione per cui l'epic non si è
+chiusa quando `AE-1` è stata decisa — era che **la validazione in Planning non esisteva come componente**:
+`git grep ValidatePlan` non restituiva nulla, e ciò che esisteva (`ValidateInstance`/`ApplyFallback`) agisce
+**in risoluzione**. Un piano illegale si scopriva quando non funzionava, non quando lo si componeva.
+
+✅ **CP 38.2, 2026-08-12**: `URTPlanValidationLibrary::ValidatePlan(snapshot, piano)` è quel componente.
+Funzione pura, nove test. Ma **nessuno la chiama ancora** — il gate `runtime` della feature resta `todo`, e
+un validatore senza consumatore non è una regola: il resto della DoD di
+[#605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/605) è il bot e il TurnLog.
+
+> 🔴 **E un limite dei quattro non è ancora verificabile.** Il controllo sui Movement Point legge
+> `FRTActionDef::CostMP`, che **nessuno popola**: il catalogo dichiara il budget di `Move` e `Sprint` in
+> `RangeCells` con `ERTMovementStyle::Budget` (`/*Range (MP)*/ 5` e `8`), e fuori dai test `CostMP` compare
+> solo nella propria dichiarazione e in un validatore di negatività. Finché il catalogo non dichiara un
+> costo, `InsufficientMovementPoints` **non può scattare in partita**. Non è un difetto del validatore — è
+> un campo senza produttore, ed è il primo passo di chi collegherà `ValidatePlan` al gioco.
 
 ⚠️ Due reason code proposti dal kit **non si scrivono**, e per ragioni diverse:
 `InsufficientActionCapacity` nomina uno stato che [D-114](../decisions/RT_PDR_00_Decision_Log.md) ha appena
