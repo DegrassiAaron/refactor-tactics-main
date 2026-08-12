@@ -1273,7 +1273,7 @@ features:
     owner_specs:
       - docs/gameplay/spec-dash.md
       - docs/gameplay/spec-economia-del-turno.md
-    issues: [43, 46, 641]
+    issues: [43, 46, 641, 645]
     tests:
       - RefactorTactics.Actions.Sprint
       - RefactorTactics.Actions.Charge
@@ -1304,6 +1304,16 @@ features:
       sarebbe il difetto opposto. `Withdraw` e' il quarto profilo (D-070) e **non si sceglie**: lo impone
       l'`Overwatch`. La domanda se il profilo debba cambiare anche la LEGALITA' delle azioni e' `AE-2`,
       feature `RT-FEAT-ACTION-MOVEMENT-COMPAT`.
+      🔴 **2026-08-12, dal consolidamento Teleport**: lo scenario `Spec.Movement.TeleportSkipsIntermediateCells`
+      dichiarato qui e' una SPECIFICA ESEGUIBILE scritta prima dell'implementazione, e resta `BLOCKED` di
+      proposito (`requires: ["Teleport"]`). Non prova nulla oggi, e il file lo dice da se'.
+      E c'e' un secondo fatto che il gate `scenario: done` non mostra: **`ERTMovementStyle::LinearLeap` ha
+      gia' la semantica del trasferimento** — `Result.Entered` contiene la sola destinazione, quindi
+      `Action.Leap` non prende gli hazard intermedi ne' genera micro-step intermedi — ma **nessun eroe ha
+      `Action.Leap` nel kit**. E' la QUARTA capacita' del motore irraggiungibile dal roster dopo le tre di
+      [#425], e l'unica con semantica di trasferimento. Issue **#645**; la domanda «famiglia o policy del
+      Dash?» e' `MOV-1` in `OPEN_DECISIONS.md`, e **non blocca #645**: il salto e' irraggiungibile in
+      entrambi i casi.
 
   - feature_id: RT-FEAT-ACTION-BASIC-ATTACK-PROFILES
     title: Profili di attacco base per eroe

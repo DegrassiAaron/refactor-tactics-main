@@ -66,6 +66,23 @@ Epic che le raccoglie: **E38** (v0.2).
 
 ---
 
+## Aperta — traversal contro transfer, dal consolidamento Teleport del 2026-08-12
+
+| ID | Domanda | Perché non si decide a tavolino |
+|---|---|---|
+| `MOV-1` | **`LinearLeap` è un'eccezione del Dash o il primo membro di una famiglia «trasferimento»?** | Il kit d'autore porta una tesi giusta — *«un movimento molto veloce non è un teletrasporto»* — e una premessa falsa: che nel repository esista solo il primo. `ERTMovementStyle::LinearLeap` produce `Result.Entered = { destinazione }` e nient'altro, e poiché `ApplyTerrainOnEnterEffects` legge **esattamente** `Entered`, un `Action.Leap` non prende gli hazard intermedi, non genera micro-step intermedi e collide solo all'arrivo: **le tre righe che la matrice attribuisce al Teleport**. Le due strade non sono equivalenti. *(a)* **Eccezione del Dash**: un Blink diventa un valore nuovo di `ERTMovementStyle`, zero tipi nuovi, e la matrice tiene una colonna che descrive tre stili su quattro. *(b)* **Famiglia propria**: la matrice guadagna una colonna vera, ma `ERTMovementStyle` è serializzato negli asset e la migrazione va progettata. ⚠️ Da decidere **prima** che qualcuno scriva un Blink, non dopo: è la scelta che determina se il Blink è lavoro nuovo o un dato in più. 🔗 Incrocia `STA-4`/[#436](https://github.com/DegrassiAaron/refactor-tactics-main/issues/436), che possiede la **bloccabilità** (un `Root` ferma un trasferimento?) ma non la famiglia |
+| `MOV-2` | **Un Blink entra in v0.1**, o Teleport resta post-v0.1 design-ready? | Il kit propone un `Short Blink` come primo caso, e il canone dice che il Teleport non esiste in v0.1. ⚠️ **Non c'è nessuna `D-nnn` che fissi quell'assenza**: `git grep -i teleport docs/decisions/` non restituisce nulla. L'assenza è un **fatto misurato** («nessuna azione del catalogo dichiara quella famiglia»), non una decisione presa — quindi portare un Blink in v0.1 non contraddirebbe una decisione, ma ne richiede una. La domanda vera non è tecnica: la semantica esiste già in `LinearLeap` e lo scenario che la prova è già scritto (§sotto). È di **scope**: la v0.1 ha quattro eroi e nessuno di loro salta |
+
+> **Lo scenario esiste già, ed è deliberatamente inerte.**
+> [`Scenarios/Spec/Movement/TeleportSkipsIntermediateCells.json`](../Scenarios/Spec/Movement/TeleportSkipsIntermediateCells.json)
+> è una specifica eseguibile scritta **prima** dell'implementazione: due celle di fuoco fra origine e
+> destinazione, Flux a 90 HP, e l'assertion che dopo il trasferimento sia **ancora 90**. Il turno 2 dichiara
+> `requires: ["Teleport"]`, capability che non esiste, quindi resta `BLOCKED` e i 90 HP passano perché Flux
+> non si muove mai. Il file porta dentro anche le istruzioni per chi lo completerà.
+> **Il kit ne proponeva sei di nuovi: cinque sono premature e il sesto è questo.**
+
+---
+
 ## Aperta — chi può leggere una traccia, dallo spec panel del 2026-08-12
 
 Origine: [`roadmap/plans/five-lane-roadmap-spec-panel-2026-08-11.md`](roadmap/plans/five-lane-roadmap-spec-panel-2026-08-11.md) §7C.
