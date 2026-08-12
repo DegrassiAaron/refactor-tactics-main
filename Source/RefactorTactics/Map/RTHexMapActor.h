@@ -186,6 +186,15 @@ public:
 	/** Rimuove la transizione From->To (e l'inversa se bBothDirections) dall'asset. Vero se ha rimosso. Annullabile. */
 	bool RemoveTransitionData(const FRTCellId& From, const FRTCellId& To, bool bBothDirections);
 
+	/**
+	 * Celle percorribili che nessuno raggiunge dagli spawn, aggiornate a ogni `RebuildInstances`.
+	 *
+	 * Il calcolo sta **qui e non nell'overlay** perche' una visita del grafo a ogni frame sarebbe lavoro
+	 * ripetuto per un dato che cambia solo quando cambia la mappa — e `RebuildInstances` e' gia' il punto in
+	 * cui la mappa ha finito di cambiare (`OnMapChanged`, `PostEditUndo`, apertura del livello).
+	 */
+	const TArray<FRTCellId>& GetUnreachableCells() const { return UnreachableCells; }
+
 	/** Ricostruisce tutte le istanze dalle celle (asset o demo). */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")
 	void RebuildInstances();
@@ -395,4 +404,7 @@ protected:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */
 	TArray<FRTCellId> InstanceCells;
+
+	/** Stato DERIVATO, non serializzato: ricalcolato da `RebuildInstances`. */
+	TArray<FRTCellId> UnreachableCells;
 };

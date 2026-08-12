@@ -172,21 +172,22 @@ FRTArenaCriterionResult URTArenaCriteriaLibrary::CheckTwoRoutes(const URTHexMapA
 		: FRTArenaCriterionResult::Fail(Detail);
 }
 
-FRTArenaCriterionResult URTArenaCriteriaLibrary::CheckReachability(const URTHexMapAsset* Map,
-	const FRTCellId& SpawnA)
+TArray<FRTCellId> URTArenaCriteriaLibrary::FindUnreachableCells(const URTHexMapAsset* Map,
+	const FRTCellId& From)
 {
-	if (!Map || !Map->ContainsCell(SpawnA))
+	TArray<FRTCellId> Unreachable;
+	if (!Map || !Map->ContainsCell(From))
 	{
-		return FRTArenaCriterionResult::NotEvaluable(TEXT("mappa nulla o spawn assente"));
+		return Unreachable;
 	}
 
-	// Visita in ampiezza sul GRAFO TATTICO, non sui vicini planari: e' `GraphNeighbors` a sapere che i layer si
-	// collegano solo con archi espliciti. Usare i sei vicini direbbe che una piattaforma sovrapposta e'
-	// raggiungibile perche' sta sopra — che e' esattamente l'errore che questo criterio deve scoprire.
+	// Visita in ampiezza sul GRAFO TATTICO: e' `GraphNeighbors` a sapere che i layer si collegano solo con
+	// archi espliciti. Usare i sei vicini planari direbbe che una piattaforma sovrapposta e' raggiungibile
+	// perche' sta sopra — l'errore esatto che questo calcolo deve scoprire.
 	TSet<FRTCellId> Seen;
 	TArray<FRTCellId> Frontier;
-	Seen.Add(SpawnA);
-	Frontier.Add(SpawnA);
+	Seen.Add(From);
+	Frontier.Add(From);
 	while (Frontier.Num() > 0)
 	{
 		const FRTCellId Current = Frontier.Pop();
@@ -201,8 +202,7 @@ FRTArenaCriterionResult URTArenaCriteriaLibrary::CheckReachability(const URTHexM
 	}
 
 	// Le celle che bloccano il movimento non sono «irraggiungibili»: sono muri, e nessuno deve arrivarci.
-	// L'ordine di iterazione e' quello stabile dell'asset, quindi l'elenco riportato non dipende da una TSet.
-	TArray<FRTCellId> Unreachable;
+	// L'ordine e' quello stabile dell'asset, quindi l'elenco non dipende dall'iterazione di una TSet.
 	for (const FRTHexCellData& Cell : Map->Cells)
 	{
 		if (!Cell.bBlocksMovement && !Seen.Contains(Cell.Id))
@@ -210,11 +210,21 @@ FRTArenaCriterionResult URTArenaCriteriaLibrary::CheckReachability(const URTHexM
 			Unreachable.Add(Cell.Id);
 		}
 	}
+	return Unreachable;
+}
 
+FRTArenaCriterionResult URTArenaCriteriaLibrary::CheckReachability(const URTHexMapAsset* Map,
+	const FRTCellId& SpawnA)
+{
+	if (!Map || !Map->ContainsCell(SpawnA))
+	{
+		return FRTArenaCriterionResult::NotEvaluable(TEXT("mappa nulla o spawn assente"));
+	}
+
+	const TArray<FRTCellId> Unreachable = FindUnreachableCells(Map, SpawnA);
 	if (Unreachable.Num() == 0)
 	{
-		return FRTArenaCriterionResult::Pass(FString::Printf(
-			TEXT("tutte le %d celle percorribili sono raggiungibili"), Seen.Num()));
+		return FRTArenaCriterionResult::Pass(TEXT("tutte le celle percorribili sono raggiungibili"));
 	}
 
 	FString First;

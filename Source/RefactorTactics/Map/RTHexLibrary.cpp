@@ -232,6 +232,11 @@ FColor URTHexLibrary::SpawnTeam1Color()
 	return FColor(255, 130, 40); // arancio: di qui parte la squadra 1
 }
 
+FColor URTHexLibrary::UnreachableCellColor()
+{
+	return FColor(255, 0, 255); // magenta: il colore che nella mappa non usa nessuno, perche' e' un allarme
+}
+
 TArray<FVector> URTHexLibrary::HexCorners(const FVector& Center, float Radius)
 {
 	TArray<FVector> Corners;

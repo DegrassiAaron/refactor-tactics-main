@@ -3,6 +3,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Map/RTArenaCriteriaLibrary.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "DrawDebugHelpers.h" // anteprima di pianificazione (presentazione, non logica)
 #include "EngineUtils.h" // TActorIterator
@@ -431,6 +432,19 @@ void ARTHexMapActor::RebuildInstances()
 
 	Cells->ClearInstances();
 	InstanceCells.Reset();
+
+	// Celle isolate: si ricalcolano QUI, dove la mappa ha appena finito di cambiare, e non a ogni frame di
+	// disegno. Gli spawn si chiedono alla stessa funzione che allestisce la partita — misurare la
+	// raggiungibilita' da una cella qualunque risponderebbe di una partita che non si gioca.
+	UnreachableCells.Reset();
+	if (MapAsset && MapAsset->NumCells() > 0)
+	{
+		const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(MapAsset, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+		if (Start.Num() > 0)
+		{
+			UnreachableCells = URTArenaCriteriaLibrary::FindUnreachableCells(MapAsset, Start[0]);
+		}
+	}
 	if (Relief)
 	{
 		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Relief->SetStaticMesh(Mesh); }

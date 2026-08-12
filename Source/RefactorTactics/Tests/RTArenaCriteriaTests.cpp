@@ -454,4 +454,59 @@ bool FRTArenaOrderIndependenceTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * Il criterio e l'overlay contano le stesse celle.
+ *
+ * `FindUnreachableCells` e' stata estratta da `CheckReachability` proprio per questo: il criterio ne dice
+ * QUANTE sono, l'overlay dell'editor mostra QUALI. Se fossero due visite scritte a parte, prima o poi
+ * risponderebbero diversamente — e un numero nel log che non corrisponde a cio' che si vede in scena e' peggio
+ * di nessuno dei due, perche' non si sa a quale credere.
+ *
+ * Il test lo verifica dove la differenza si vede: una piattaforma collegata, e la stessa senza il suo arco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArenaUnreachableSharedTest,
+	"RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArenaUnreachableSharedTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeArenaV01(GetTransientPackage());
+	if (!Arena) { return false; }
+
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Arena, 2, 0);
+	TestTrue(TEXT("gli spawn esistono"), Start.Num() > 0);
+	if (Start.Num() == 0) { return false; }
+
+	// Collegata: nessuna cella isolata, e il criterio passa. I due devono concordare anche sullo ZERO.
+	{
+		const TArray<FRTCellId> Isolated = URTArenaCriteriaLibrary::FindUnreachableCells(Arena, Start[0]);
+		const FRTArenaCriterionResult R = URTArenaCriteriaLibrary::CheckReachability(Arena, Start[0]);
+		TestEqual(TEXT("collegata: nessuna cella isolata"), Isolated.Num(), 0);
+		TestTrue(TEXT("collegata: il criterio passa"), R.bPassed);
+	}
+
+	// Scollegata: l'elenco e il criterio devono raccontare la STESSA cosa.
+	{
+		const int32 PlatformCells = Arena->CellsInLayer(1).Num();
+		Arena->Transitions.Reset();
+		const TArray<FRTCellId> Isolated = URTArenaCriteriaLibrary::FindUnreachableCells(Arena, Start[0]);
+		const FRTArenaCriterionResult R = URTArenaCriteriaLibrary::CheckReachability(Arena, Start[0]);
+
+		TestEqual(TEXT("l'elenco contiene tutte le celle della piattaforma"), Isolated.Num(), PlatformCells);
+		TestFalse(TEXT("e il criterio cade"), R.bPassed);
+		// Il numero nel messaggio del criterio e' quello dell'elenco: e' cio' che rende log e scena
+		// confrontabili invece di due opinioni.
+		TestTrue(TEXT("il criterio cita lo stesso numero dell'elenco"),
+			R.Detail.Contains(FString::Printf(TEXT("%d celle"), Isolated.Num())));
+
+		// Le celle isolate sono TUTTE del layer della piattaforma: una visita sui vicini planari le avrebbe
+		// dichiarate raggiungibili perche' stanno sopra celle raggiungibili.
+		for (const FRTCellId& Cell : Isolated)
+		{
+			TestEqual(TEXT("l'isolamento e' del piano staccato"), Cell.Layer, 1);
+		}
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
