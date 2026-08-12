@@ -14,6 +14,8 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTEquipmentData.h" // `Reaction.Anchor` arriva dal catalogo equipaggiamento (CP 7.5, #505)
+#include "Turn/RTReactionLibrary.h"  // ERTReactionOutcome: la voce dell'ancora dev'essere `Activated`
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -845,6 +847,341 @@ bool FRTPushedUnitFacesPusherInPlayTest::RunTest(const FString&)
 	TestEqual(TEXT("chi spinge resta dov'era"), Pusher->Cell, FRTCellId(0, 0));
 
 	DestroyCauseWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// CP 7.5 (`#505`) — `Reaction.Anchor` ANNULLA lo spostamento.
+//
+// E' il test che il DoD di `#62` nominava e che non era scrivibile: non mancava un dato, mancava il MOMENTO
+// in cui valutarlo. «Sto per essere spinto» non si legge sui colpi raccolti — si sa solo dove la spinta e'
+// gia' decisa e non ancora applicata, che e' il punto `BlastDisplacement` di `URTReactionLibrary::PassPointFor`.
+//
+// Sta in questo file e non fra gli `Equipment.*` perche' qui vive la famiglia a cui appartiene: le CAUSE per
+// cui uno spostamento non avviene, con l'allestimento della spinta (`PlanPushOn`) e la lettura delle voci
+// (`ResistedEntries`) gia' pronti. Duplicarli altrove avrebbe dato due allestimenti da tenere d'accordo.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnchorCancelsPushTest,
+	"RefactorTactics.Equipment.Anchor.CancelsPush",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnchorCancelsPushTest::RunTest(const FString&)
+{
+	const URTEquipmentData* Anchor = nullptr;
+	for (const URTEquipmentData* M : URTCatalogLibrary::MakeReactionModules())
+	{
+		if (M && M->EquipmentId == FName(TEXT("Reaction.Anchor"))) { Anchor = M; break; }
+	}
+	if (!TestNotNull(TEXT("`Reaction.Anchor` e' nel catalogo dei moduli"), Anchor)) { return false; }
+
+	// --- PREMESSA: la stessa spinta, SENZA il modulo, sposta davvero ---------------------------------
+	// Senza questo gemello il test passerebbe anche se la spinta non fosse mai avvenuta — «l'unita' e' ferma»
+	// e' l'esito atteso e anche quello di una scena che non fa niente.
+	{
+		UWorld* World = MakeCauseWorld();
+		if (!TestNotNull(TEXT("World della premessa"), World)) { return false; }
+		SpawnCauseMap(World);
+
+		ARTUnit* Pusher = SpawnCauseUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+		if (!Pusher || !Victim || !TM) { DestroyCauseWorld(World); return false; }
+
+		PlanPushOn(Pusher, Victim);
+		RunCauseTurn(TM);
+
+		const bool bMossa = (Victim->Cell != FRTCellId(1, 0));
+		DestroyCauseWorld(World);
+		if (!TestTrue(TEXT("premessa: senza ancora la spinta sposta il bersaglio"), bMossa))
+		{
+			return false; // senza una spinta che funziona, il caso sotto non proverebbe niente
+		}
+	}
+
+	// --- IL CASO: con il modulo, la stessa spinta non lo sposta --------------------------------------
+	UWorld* World = MakeCauseWorld();
+	if (!TestNotNull(TEXT("World"), World)) { return false; }
+	SpawnCauseMap(World);
+
+	ARTUnit* Pusher = SpawnCauseUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!Pusher || !Victim || !TM) { DestroyCauseWorld(World); return false; }
+
+	URTActionData* Reazione = URTCatalogLibrary::MakeEquipmentAction(Anchor, Victim);
+	if (!TestNotNull(TEXT("il modulo concede un'azione"), Reazione)) { DestroyCauseWorld(World); return false; }
+	TestTrue(TEXT("ed e' una reazione con il trigger dello spostamento, ereditato da `Action.Anchor`"),
+		Reazione->Def.Slot == ERTActionSlot::Reaction
+		&& Reazione->Def.ReactionTrigger == ERTReactionTrigger::AboutToBeDisplaced);
+	Victim->Abilities.Add(Reazione);
+	Victim->PlannedReactionAbility = Victim->Abilities.Num() - 1;
+
+	PlanPushOn(Pusher, Victim);
+	RunCauseTurn(TM);
+
+	// La prova che conta: la cella. Non un flag, non una voce di log — dove sta l'unita' a fine turno.
+	TestEqual(TEXT("l'ancora ha annullato la spinta: il bersaglio e' rimasto dov'era"),
+		Victim->Cell, FRTCellId(1, 0));
+
+	const TArray<FRTTurnLogEntry> Resisted = ResistedEntries(TM);
+	if (!TestEqual(TEXT("lo spostamento annullato lascia UNA voce nel TurnLog"), Resisted.Num(), 1))
+	{
+		DestroyCauseWorld(World);
+		return false;
+	}
+	// E dice QUALE difesa ha retto: senza il reason code proprio, un replay non distinguerebbe l'ancora da una
+	// guardia o da un bordo mappa — tre modi molto diversi di non essersi mossi.
+	TestEqual(TEXT("e dice PERCHE': ancorato, non in guardia ne' senza uscita"),
+		static_cast<ERTDisplacementBlockReason>(Resisted[0].Amount),
+		ERTDisplacementBlockReason::Anchored);
+	TestTrue(FString::Printf(TEXT("la riga leggibile lo dice: %s"),
+		*URTTurnLogLibrary::DescribeEntry(Resisted[0])),
+		URTTurnLogLibrary::DescribeEntry(Resisted[0]).Contains(TEXT("ancorato")));
+
+	// La reazione si e' ATTIVATA, e la sua voce lo dichiara: senza, l'unita' potrebbe essere rimasta ferma per
+	// un motivo qualunque e l'ancora essere ancora carica.
+	bool bAttivata = false;
+	for (const FRTTurnLogEntry& E : EntriesOfCategory(TM, ERTLogCategory::Reaction))
+	{
+		if (E.ActionId == FName(TEXT("Reaction.Anchor"))
+			&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Activated)
+		{
+			bAttivata = true;
+		}
+	}
+	TestTrue(TEXT("il TurnLog registra l'ancora come ATTIVATA, non come non scattata"), bAttivata);
+
+	DestroyCauseWorld(World);
+
+	// --- E non si spende per una spinta che la geometria ferma da sola ------------------------------
+	// Due attaccanti sullo stesso bersaglio: le forze si annullano (`OpposingForces`, `#420`) e l'unita'
+	// resta ferma comunque. L'ancora non deve attivarsi — trovato in code review, quando il valutatore
+	// chiedeva «e' in arrivo una spinta?» invece di «e' in arrivo una spinta che mi sposterebbe?».
+	// E' la stessa regola di `Reaction.Cleanse`, che resta carica se annullare non cambierebbe nulla.
+	{
+		UWorld* World2 = MakeCauseWorld();
+		if (!TestNotNull(TEXT("World delle forze opposte"), World2)) { return false; }
+		SpawnCauseMap(World2);
+		ARTUnit* Left   = SpawnCauseUnit(World2, 0, FRTCellId(0, 0));
+		ARTUnit* Victim2 = SpawnCauseUnit(World2, 1, FRTCellId(1, 0));
+		ARTUnit* Right  = SpawnCauseUnit(World2, 0, FRTCellId(2, 0));
+		ARTTurnManager* TM2 = World2->SpawnActor<ARTTurnManager>();
+		if (!Left || !Victim2 || !Right || !TM2) { DestroyCauseWorld(World2); return false; }
+
+		URTActionData* Reazione2 = URTCatalogLibrary::MakeEquipmentAction(Anchor, Victim2);
+		Victim2->Abilities.Add(Reazione2);
+		Victim2->PlannedReactionAbility = Victim2->Abilities.Num() - 1;
+
+		PlanPushOn(Left, Victim2);
+		PlanPushOn(Right, Victim2);
+		RunCauseTurn(TM2);
+
+		if (!TestTrue(TEXT("premessa: le due spinte si annullano e il bersaglio resta"),
+			Victim2->Cell == FRTCellId(1, 0)))
+		{
+			DestroyCauseWorld(World2);
+			return false;
+		}
+
+		bool bSprecata = false;
+		for (const FRTTurnLogEntry& E : EntriesOfCategory(TM2, ERTLogCategory::Reaction))
+		{
+			if (E.ActionId == FName(TEXT("Reaction.Anchor"))
+				&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Activated)
+			{
+				bSprecata = true;
+			}
+		}
+		TestFalse(TEXT("l'ancora NON si spende: quella spinta non lo avrebbe spostato"), bSprecata);
+
+		// E la causa registrata resta quella vera: le forze opposte, non un'ancora che non e' intervenuta.
+		const TArray<FRTTurnLogEntry> Resisted2 = ResistedEntries(TM2);
+		if (Resisted2.Num() == 1)
+		{
+			TestEqual(TEXT("il TurnLog dice ancora `OpposingForces`"),
+				static_cast<ERTDisplacementBlockReason>(Resisted2[0].Amount),
+				ERTDisplacementBlockReason::OpposingForces);
+		}
+		DestroyCauseWorld(World2);
+	}
+
+	return true;
+}
+
+// =====================================================================================================
+// CP 7.5 (`#505`) — `Reaction.Cleanse` annulla il controllo che sta per arrivare.
+//
+// ⚠️ L'oracolo NON e' `HasStatus` a fine turno: `Status.Root` e `Status.Slow` durano 1 turno e il Cleanup
+// dello stesso turno li ha gia' fatti scadere con `TickStatuses`. Un test scritto cosi' e' verde-e-inutile
+// (la prima stesura lo era, e a tradirla e' stata la PREMESSA, non il caso). L'oracolo e' l'esito
+// osservabile che il controllo doveva produrre: chi e' radicato **non si muove**, chi e' rallentato **si
+// muove meno**. E' la stessa nota che `RTControlActionTests.cpp` porta accanto ai suoi test di Root.
+//
+// Il caso 2 e' quello per cui la specifica e' stata riscritta: con `Root` e `Slow` insieme, annullare «il
+// primo raccolto» avrebbe sprecato l'attivazione sullo `Slow` — che arriva anche dall'attacco base con
+// `Weapon.Suppressive` — lasciando passare il `Root`, l'unico dei due che fa perdere il turno.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCleanseCancelsControlTest,
+	"RefactorTactics.Equipment.Cleanse.CancelsControl",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCleanseCancelsControlTest::RunTest(const FString&)
+{
+	const URTEquipmentData* Cleanse = nullptr;
+	for (const URTEquipmentData* M : URTCatalogLibrary::MakeReactionModules())
+	{
+		if (M && M->EquipmentId == FName(TEXT("Reaction.Cleanse"))) { Cleanse = M; break; }
+	}
+	if (!TestNotNull(TEXT("`Reaction.Cleanse` e' nel catalogo dei moduli"), Cleanse)) { return false; }
+
+	// Passa da `MakeEquipmentAction`, cioe' dal percorso che il gioco usa davvero: un `FRTActionDef` scritto
+	// a mano non proverebbe che il modulo eredita il trigger dall'azione core.
+	auto EquipCleanse = [&Cleanse](ARTUnit* Unit)
+	{
+		URTActionData* Reazione = URTCatalogLibrary::MakeEquipmentAction(Cleanse, Unit);
+		Unit->Abilities.Add(Reazione);
+		Unit->PlannedReactionAbility = Unit->Abilities.Num() - 1;
+		return Reazione;
+	};
+
+	// Chi subisce il controllo pianifica una corsa lunga: e' cio' che rende osservabili sia il Root (non si
+	// muove affatto) sia lo Slow (si muove meno).
+	auto PlanLongRun = [](ARTUnit* Unit)
+	{
+		Unit->PlannedWaypoints = { FRTCellId(0, 1), FRTCellId(0, 2), FRTCellId(0, 3), FRTCellId(0, 4) };
+		Unit->PlannedPath = { FRTCellId(0, 0), FRTCellId(0, 1), FRTCellId(0, 2), FRTCellId(0, 3), FRTCellId(0, 4) };
+		Unit->PlannedCell = FRTCellId(0, 4);
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+	};
+
+	auto WasActivated = [](const ARTTurnManager* TM)
+	{
+		for (const FRTTurnLogEntry& E : EntriesOfCategory(TM, ERTLogCategory::Reaction))
+		{
+			if (E.ActionId == FName(TEXT("Reaction.Cleanse"))
+				&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Activated)
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	// --- PREMESSA: senza il modulo, il Root inchioda il bersaglio -----------------------------------
+	{
+		UWorld* World = MakeCauseWorld();
+		if (!TestNotNull(TEXT("World della premessa"), World)) { return false; }
+		SpawnCauseMap(World);
+		ARTUnit* Rooter = SpawnCauseUnit(World, 0, FRTCellId(1, 0));
+		ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(0, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+		if (!Rooter || !Victim || !TM) { DestroyCauseWorld(World); return false; }
+
+		Rooter->PlannedAbilityIndex = AddCoreAbility(Rooter, TEXT("Action.Root"));
+		Rooter->PlannedAttackTarget = Victim;
+		Rooter->PlannedCell = Rooter->Cell;
+		PlanLongRun(Victim);
+		RunCauseTurn(TM);
+
+		const bool bFermo = (Victim->Cell == FRTCellId(0, 0));
+		DestroyCauseWorld(World);
+		if (!TestTrue(TEXT("premessa: senza modulo il Root arriva e inchioda il bersaglio"), bFermo))
+		{
+			return false; // senza un Root che funziona, i casi sotto non proverebbero niente
+		}
+	}
+
+	// --- CASO 1: con il modulo, il Root e' annullato e il bersaglio corre ----------------------------
+	int32 CelleSenzaSlow = 0;
+	{
+		UWorld* World = MakeCauseWorld();
+		if (!TestNotNull(TEXT("World"), World)) { return false; }
+		SpawnCauseMap(World);
+		ARTUnit* Rooter = SpawnCauseUnit(World, 0, FRTCellId(1, 0));
+		ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(0, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+		if (!Rooter || !Victim || !TM) { DestroyCauseWorld(World); return false; }
+
+		URTActionData* Reazione = EquipCleanse(Victim);
+		if (!TestNotNull(TEXT("il modulo concede un'azione"), Reazione)) { DestroyCauseWorld(World); return false; }
+		TestTrue(TEXT("ed e' una reazione col trigger del controllo, ereditato da `Action.Purge`"),
+			Reazione->Def.Slot == ERTActionSlot::Reaction
+			&& Reazione->Def.ReactionTrigger == ERTReactionTrigger::AboutToReceiveControl);
+
+		Rooter->PlannedAbilityIndex = AddCoreAbility(Rooter, TEXT("Action.Root"));
+		Rooter->PlannedAttackTarget = Victim;
+		Rooter->PlannedCell = Rooter->Cell;
+		PlanLongRun(Victim);
+		RunCauseTurn(TM);
+
+		CelleSenzaSlow = URTHexLibrary::HexDistance(FRTCellId(0, 0), Victim->Cell);
+		TestTrue(TEXT("il Root e' stato annullato: il bersaglio si e' mosso"), CelleSenzaSlow > 0);
+		TestTrue(TEXT("e il TurnLog registra la reazione come ATTIVATA"), WasActivated(TM));
+		DestroyCauseWorld(World);
+	}
+	if (CelleSenzaSlow <= 1)
+	{
+		AddError(TEXT("il bersaglio deve percorrere piu' di una cella, altrimenti il caso 2 non distingue"));
+		return false;
+	}
+
+	// --- CASO 2: Root + Slow insieme -> salta il PIU' GRAVE ------------------------------------------
+	{
+		UWorld* World = MakeCauseWorld();
+		if (!TestNotNull(TEXT("World"), World)) { return false; }
+		SpawnCauseMap(World);
+		ARTUnit* Rooter = SpawnCauseUnit(World, 0, FRTCellId(1, 0));
+		ARTUnit* Slower = SpawnCauseUnit(World, 0, FRTCellId(-1, 0));
+		ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(0, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+		if (!Rooter || !Slower || !Victim || !TM) { DestroyCauseWorld(World); return false; }
+
+		EquipCleanse(Victim);
+		Rooter->PlannedAbilityIndex = AddCoreAbility(Rooter, TEXT("Action.Root"));
+		Rooter->PlannedAttackTarget = Victim;
+		Rooter->PlannedCell = Rooter->Cell;
+		Slower->PlannedAbilityIndex = AddCoreAbility(Slower, TEXT("Action.Slow"));
+		Slower->PlannedAttackTarget = Victim;
+		Slower->PlannedCell = Slower->Cell;
+		PlanLongRun(Victim);
+		RunCauseTurn(TM);
+
+		const int32 CelleConSlow = URTHexLibrary::HexDistance(FRTCellId(0, 0), Victim->Cell);
+		// Il cuore del test, in due assert di verso opposto: il Root e' stato annullato (si e' mosso) ma lo
+		// Slow no (si e' mosso MENO che senza). Un solo assert non distinguerebbe «ha annullato il Root» da
+		// «ha annullato tutto».
+		TestTrue(TEXT("il Root, il piu' grave, e' stato annullato: il bersaglio si e' mosso"), CelleConSlow > 0);
+		TestTrue(FString::Printf(TEXT("lo Slow invece e' arrivato: %d celle contro %d senza"),
+			CelleConSlow, CelleSenzaSlow), CelleConSlow < CelleSenzaSlow);
+		DestroyCauseWorld(World);
+	}
+
+	// --- CASO 3: gia' sotto quel controllo -> la reazione resta CARICA -------------------------------
+	{
+		UWorld* World = MakeCauseWorld();
+		if (!TestNotNull(TEXT("World"), World)) { return false; }
+		SpawnCauseMap(World);
+		ARTUnit* Rooter = SpawnCauseUnit(World, 0, FRTCellId(1, 0));
+		ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(0, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+		if (!Rooter || !Victim || !TM) { DestroyCauseWorld(World); return false; }
+
+		EquipCleanse(Victim);
+		// Precondizione, non un aggiramento: l'unita' arriva al turno gia' radicata da prima. Il gameplay
+		// sotto test e' la REAZIONE, non il modo in cui lo stato ci e' finito.
+		Victim->ApplyStatus(TAG_Status_Root, /*Turni*/ 3);
+
+		Rooter->PlannedAbilityIndex = AddCoreAbility(Rooter, TEXT("Action.Root"));
+		Rooter->PlannedAttackTarget = Victim;
+		Rooter->PlannedCell = Rooter->Cell;
+		PlanLongRun(Victim);
+		RunCauseTurn(TM);
+
+		// Annullare un rinnovo non cambierebbe nulla di osservabile — resta radicato comunque — e l'unica
+		// attivazione del turno vale piu' di cosi'.
+		TestFalse(TEXT("con il Root gia' addosso la reazione NON si attiva"), WasActivated(TM));
+		TestTrue(TEXT("e infatti resta inchiodato"), Victim->Cell == FRTCellId(0, 0));
+		DestroyCauseWorld(World);
+	}
+
 	return true;
 }
 

@@ -88,10 +88,15 @@ enum class ERTActionSlot : uint8
 };
 
 /**
- * Condizione che fa scattare una reazione (CP 5.1), valutata sullo snapshot GIA' RACCOLTO del Blast
- * (`FRTHexBlastPlan::Hits`, dopo il filtro di `Action.Interrupt`): mai un `Delay`, una timeline o un montage
- * nel resolver (invariante #3) — e' per questo che il trigger e' un dato puro da confrontare con un array,
- * non un evento a cui reagire mentre il turno gira.
+ * Condizione che fa scattare una reazione (CP 5.1), valutata su cio' che la fase ha GIA' raccolto o prodotto:
+ * mai un `Delay`, una timeline o un montage nel resolver (invariante #3) — e' per questo che il trigger e' un
+ * dato puro da confrontare con un array, non un evento a cui reagire mentre il turno gira.
+ *
+ * **I trigger non si valutano tutti nello stesso momento** (D-092): quelli che nascono da un colpo si leggono
+ * su `FRTHexBlastPlan::Hits` dopo il filtro di `Action.Interrupt`, quelli che nascono da un evento della fase
+ * (una spinta, uno stato, una cella diventata pericolosa) si leggono dove quell'evento e' deciso. A dire quale
+ * momento spetta a ciascuno e' `URTReactionLibrary::PassPointFor`, funzione pura: un trigger che non
+ * dichiarasse il proprio punto non verrebbe valutato da nessuno e sarebbe un dato senza consumatore.
  */
 UENUM(BlueprintType)
 enum class ERTReactionTrigger : uint8
@@ -111,7 +116,35 @@ enum class ERTReactionTrigger : uint8
 	 * traiettoria dall'attaccante all'intercettore dev'essere libera). Per questo ha un punto d'ingresso suo,
 	 * `URTReactionLibrary::FindInterceptableHit`, invece di passare da `FindTriggeringAttacker`.
 	 */
-	AllyHitByDirectAttack
+	AllyHitByDirectAttack,
+
+	/**
+	 * L'unita' sta per essere SPOSTATA da una spinta o da una trazione (`Reaction.Anchor`, CP 7.5 `#505`).
+	 *
+	 * Non nasce da un colpo ma da un EVENTO gia' prodotto dalla fase, e si valuta nel momento in cui lo
+	 * spostamento e' deciso e non ancora applicato: dopo, annullarlo vorrebbe dire rimettere indietro
+	 * un'unita' gia' mossa, e il TurnLog avrebbe due voci contraddittorie per lo stesso passo.
+	 *
+	 * Aggiunto in CODA all'enum: i valori precedenti non si rinumerano, e il trigger finisce nel TurnLog
+	 * serializzato — la stessa disciplina di `ERTActionEffect::SelfReposition`.
+	 */
+	AboutToBeDisplaced,
+
+	/**
+	 * L'unita' sta per ricevere uno stato di CONTROLLO (`Reaction.Cleanse`, CP 7.5 `#505`).
+	 *
+	 * Come `AboutToBeDisplaced` nasce da un evento gia' prodotto dalla fase e si valuta prima che venga
+	 * applicato: annullare dopo vorrebbe dire togliere uno stato appena messo, e il TurnLog racconterebbe due
+	 * volte lo stesso turno.
+	 *
+	 * ⚠️ Scatta solo per un controllo che **cambierebbe qualcosa**: chi e' gia' sotto quello stato non spende
+	 * l'attivazione per un rinnovo. Il limite dichiarato che ne segue e' che il prolungamento di un controllo
+	 * gia' attivo non e' intercettabile — deciso in sessione il 2026-08-12, insieme al criterio di scelta.
+	 *
+	 * Quali stati siano «di controllo», e in che ordine di gravita', lo dice
+	 * `URTReactionLibrary::ControlStatusesBySeverity`.
+	 */
+	AboutToReceiveControl
 };
 
 /**

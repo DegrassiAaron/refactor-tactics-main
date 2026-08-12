@@ -892,6 +892,14 @@ void ARTTurnManager::LockInAndResolve()
 			Unit->ExpireTemporaryShield(); // la protezione delle abilita' di supporto vale un turno solo
 			Unit->TickStatuses();
 			Unit->TickCooldowns();
+
+			// Il piano di REAZIONE si azzera QUI, e non piu' nel pass che lo legge (`#505`). Con D-092 i punti
+			// di valutazione sono piu' d'uno e distribuiti su fasi diverse: se il primo che passa consumasse il
+			// piano, il secondo non troverebbe niente da valutare — e i trigger che nascono dopo il Blast non
+			// scatterebbero mai, restando dati senza consumatore. Questa e' la fine del turno dell'unita', ed e'
+			// dove un piano smette di valere. Pinnato da `Turn.PlansDoNotSurviveTheTurn`, che cade se questa
+			// riga sparisce (verifica di mutazione, 2026-08-12).
+			Unit->PlannedReactionAbility = INDEX_NONE;
 			(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
 		}
 	}
@@ -2530,6 +2538,197 @@ void ARTTurnManager::ResolveDash()
 	UE_LOG(LogRT, Log, TEXT("[RT] Fase Dash: %d scatti"), DasherCount);
 }
 
+void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
+	TFunctionRef<FRTReactionTriggerHit(int32, ERTReactionTrigger)> Evaluate,
+	const TArray<ARTUnit*>& Units, TArray<FRTUnitCombatState>& States,
+	const URTHexMapAsset* Map, FRTReactionPassResult& Out)
+{
+	// Reazioni (CP 5.1): valutate su cio' che la fase ha gia' raccolto o deciso — lo snapshot congelato, non
+	// un evento a cui reagire mentre il turno gira (invariante #3). Cosa sia quello snapshot dipende dal
+	// punto: i colpi di `Plan.Hits` dopo il filtro di Interrupt, o gli spostamenti decisi e non applicati.
+	// Un'unita' con piu' trigger validi nello stesso Blast si ferma comunque a UNA attivazione:
+	// `FindTriggeringAttacker` restituisce il primo colpo che soddisfa il trigger, non li conta.
+	// L'attivazione — o la non-attivazione, col motivo — finisce SEMPRE nel TurnLog, mai in silenzio.
+	//
+	// Gli EFFETTI delle reazioni attivate (CP 5.2) non si applicano qui: si raccolgono e si applicano insieme
+	// agli altri colpi, piu' sotto. E' "raccogli poi applica" (invariante #3) — una reazione che modificasse
+	// subito il danno lo farebbe su un totale ancora incompleto, e l'esito dipenderebbe dall'ordine delle unita'.
+	// Le FUGHE di chi reagisce (`SelfReposition`, D-093) si raccolgono qui e si applicano DOPO il ciclo
+	// (D-094). Spostarle dentro cambierebbe la posizione che le reazioni valutate dopo vedrebbero, e
+	// `Action.Intercept` chiede l'alleato entro 2 celle: l'esito dipenderebbe dall'ordine di `Units`.
+	TArray<ARTUnit*> FleeUnits;
+	TArray<FRTCellId> FleeFrom;   // da CHI ci si allontana: e' anche la sorgente del facing (D-104)
+	TArray<int32> FleeDist;
+	Out.DeflectDelta.Init(0, Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		const int32 ReactionIdx = Unit->PlannedReactionAbility;
+
+		const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
+		if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction)
+		{
+			continue; // nessuna reazione pianificata: niente da registrare
+		}
+
+		// Questo trigger si valuta ALTROVE: non e' affare di questo punto, e passarci sopra in silenzio e'
+		// cio' che tiene una sola voce di TurnLog per reazione. Ci finisce anche l'interposizione, che ha il
+		// suo ciclo dedicato piu' sopra — fino a `#505` a tenerla fuori bastava l'azzeramento del piano che
+		// quel ciclo faceva, ma ora il piano deve sopravvivere alla fase (D-092) e l'esclusione va DETTA.
+		if (URTReactionLibrary::PassPointFor(Reaction->Def.ReactionTrigger) != Point)
+		{
+			continue;
+		}
+
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Reaction;
+		Entry.SrcCell = Unit->Cell;
+		Entry.TgtCell = Unit->Cell;
+		Entry.ActionId = Reaction->Def.ActionId; // identita': `Vektor.Deflection` non e' `Action.Deflect` (CP 5.5)
+		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
+
+		// CHI sa se il trigger e' scattato e' il chiamante: cambia con il punto, e il pass non ha modo di
+		// saperlo senza conoscere i dati di ciascuna fase — cioe' senza tornare a essere quattro pass.
+		const FRTReactionTriggerHit Hit = Evaluate(i, Reaction->Def.ReactionTrigger);
+		const int32 TriggeredBy = Hit.TriggeredBy;
+
+		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit))
+		{
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
+		}
+		else if (Hit.bTriggered)
+		{
+			Unit->ConsumeAbility(ReactionIdx);
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+
+			// TUTTI gli effetti che la reazione DICHIARA, non il primo che questo orchestratore riconosce
+			// (CP 5.5). `URTReactionLibrary::BuildReactionEvents` decide anche CHI li subisce, per tipo di
+			// effetto: offensivi a chi ha innescato, difensivi a chi reagisce. Qui non si guarda mai
+			// l'`ActionId`: e' cio' che permette a una reazione d'eroe di riusare la semantica di
+			// `Action.Deflect`/`Action.Counter` con numeri propri senza un ramo per eroe.
+			for (const FRTActionEvent& Event : URTReactionLibrary::BuildReactionEvents(Reaction->Def, i, TriggeredBy))
+			{
+				if (!Units.IsValidIndex(Event.TargetUnitId) || !Units[Event.TargetUnitId]) { continue; }
+				ARTUnit* EffectTarget = Units[Event.TargetUnitId];
+				switch (Event.Kind)
+				{
+				case ERTActionEffect::Damage:
+					// Il colpo di ritorno entra fra gli attacchi normali, quindi risolve sullo stato iniziale
+					// come tutti gli altri: chi cade in questo stesso Blast contrattacca comunque, che e' la
+					// regola gia' dichiarata da URTCombatResolver ("un'unita' colpita a morte infligge
+					// comunque il proprio danno").
+					Out.CounterAttacks.Add(FRTAttack(Event.TargetUnitId, Event.Amount));
+					Out.CounterAttackSrc.Add(Unit->Cell);
+					Out.CounterActionId.Add(Reaction->Def.ActionId);
+					Out.CounterBaseActionId.Add(Reaction->Def.BaseActionId);
+					Out.CounterPriority.Add(Reaction->Def.Priority);
+					Out.CounterAttackActors.Add(Unit);
+					AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
+						*Unit->GetName(), *EffectTarget->GetName(), Event.Amount));
+					break;
+
+				case ERTActionEffect::DamageReduction:
+					// Vale sul colpo che ha innescato la reazione: si attiva una volta sola, quindi entra fra
+					// i delta del PRIMO danno diretto, come il -15 di Guard.
+					Out.DeflectDelta[Event.TargetUnitId] -= Event.Amount;
+					break;
+
+				case ERTActionEffect::Shield:
+					// Prima che i colpi vengano risolti, e con lo stesso aggiornamento sullo snapshot `States`
+					// da cui il resolver legge: uno scudo che arrivasse dopo scadrebbe nel Cleanup dello
+					// stesso turno senza aver protetto da niente.
+					EffectTarget->AddTemporaryShield(Event.Amount);
+					States[Event.TargetUnitId].Shield = EffectTarget->Shield;
+					AddLogEvent(FString::Printf(TEXT("%s: +%d scudo dalla reazione"),
+						*EffectTarget->GetName(), Event.Amount));
+					break;
+
+				case ERTActionEffect::SelfReposition:
+					// D-093: chi reagisce si allontana da chi l'ha innescato. Si RACCOGLIE soltanto — vedi
+					// il commento sugli array, D-094.
+					if (TriggeredBy != INDEX_NONE && Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy])
+					{
+						FleeUnits.Add(EffectTarget);
+						FleeFrom.Add(Units[TriggeredBy]->Cell);
+						FleeDist.Add(Event.Amount);
+					}
+					break;
+
+				case ERTActionEffect::CancelStatus:
+					// Come sotto: si raccoglie e basta. QUALE controllo salti lo decide chi applica gli stati,
+					// che ha davanti la lista completa di quelli in arrivo e sceglie il piu' grave.
+					Out.CancelledControls.Add(Event.TargetUnitId);
+					break;
+
+				case ERTActionEffect::CancelDisplacement:
+					// Si RACCOGLIE soltanto, come tutto il resto: chi muove e' piu' sotto e consultera' questo
+					// insieme prima di spostare. Annullare QUI non avrebbe niente da annullare — la
+					// destinazione della spinta non e' ancora stata calcolata.
+					Out.CancelledDisplacements.Add(Event.TargetUnitId);
+					break;
+
+				default:
+					// `Heal`, `Push`, `Pull`, `Status`: nessuna reazione del catalogo v0.1 li dichiara, e
+					// applicarli qui richiederebbe cio' che il pass non ha (una direzione per la spinta, il
+					// consumo degli stati insieme agli altri colpi). Il posto dove aggiungerli e' questo.
+					break;
+				}
+			}
+		}
+		else
+		{
+			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
+		}
+
+		// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
+		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
+		AppendLogEntry(Entry, Unit);
+		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
+	}
+
+	// Le FUGHE raccolte sopra si applicano ora, con tutte le reazioni gia' valutate sullo snapshot congelato
+	// (D-094). Prima si calcolano tutte le destinazioni e poi si muove: due unita' che fuggono nello stesso
+	// Blast non devono vedersi a vicenda gia' spostate, altrimenti la seconda troverebbe libera una cella che
+	// la prima sta lasciando e l'esito dipenderebbe dall'ordine.
+	if (FleeUnits.Num() > 0)
+	{
+		TArray<FRTCellId> FleeBlockers;
+		for (ARTUnit* U : Units) { if (IsValid(U) && U->IsAlive()) { FleeBlockers.Add(U->Cell); } }
+
+		TArray<FRTCellId> FleeDest;
+		FleeDest.Reserve(FleeUnits.Num());
+		for (int32 f = 0; f < FleeUnits.Num(); ++f)
+		{
+			ARTUnit* Fleeing = FleeUnits[f];
+			// Stessa geometria della spinta: ci si allontana dalla sorgente e ci si ferma davanti agli stessi
+			// ostacoli. Una fuga non attraversa muri che una spinta non attraversa.
+			FleeDest.Add((IsValid(Fleeing) && Fleeing->IsAlive())
+				? URTHexCombatLibrary::HexKnockbackDestination(
+					FleeFrom[f], Fleeing->Cell, FleeDist[f], Map, FleeBlockers)
+				: FRTCellId());
+		}
+
+		for (int32 f = 0; f < FleeUnits.Num(); ++f)
+		{
+			ARTUnit* Fleeing = FleeUnits[f];
+			if (!IsValid(Fleeing) || !Fleeing->IsAlive()) { continue; }
+			if (FleeDest[f] == Fleeing->Cell)
+			{
+				// Non c'e' dove andare: la reazione e' scattata e ha speso la sua attivazione. E' un esito, e
+				// va detto — altrimenti nel log resta una reazione senza conseguenze e sembra un difetto.
+				AddLogEvent(FString::Printf(TEXT("%s: nessuna cella libera per la fuga"), *Fleeing->GetName()));
+				continue;
+			}
+			// Gli stessi dieci passi della spinta (#541): traccia con causa, hazard attraversati, facing verso
+			// la minaccia (D-104), piano che segue. Una riga, perche' la primitiva esiste.
+			TMap<ARTUnit*, FRTDisplacementCause> FleeCause;
+			FleeCause.Add(Fleeing, FRTDisplacementCause{ FName(TEXT("Reaction.EmergencyDash")), NAME_None, 0 });
+			ApplyForcedDisplacement(Fleeing, FleeDest[f], FleeFrom[f], FleeCause, TEXT("Fuga"), Map);
+		}
+	}
+}
+
 void ARTTurnManager::ResolveCombat()
 {
 	// Mappa ESAGONALE autorevole: portata (distanza esagonale) e linea di tiro si valutano qui.
@@ -3107,7 +3306,8 @@ void ARTTurnManager::ResolveCombat()
 		}
 
 		// Da qui l'azione e' NOSTRA: il ciclo generale non deve rivalutarla ne' registrarla una seconda volta.
-		Unit->PlannedReactionAbility = INDEX_NONE;
+		// A garantirlo era l'azzeramento del piano; da `#505` lo garantisce il filtro sul trigger dentro
+		// `RunReactionPass`, perche' il piano deve restare leggibile anche dai pass delle fasi successive.
 
 		FRTTurnLogEntry Entry;
 		Entry.Phase = ERTMatchPhase::Blast;
@@ -3170,177 +3370,19 @@ void ARTTurnManager::ResolveCombat()
 			Plan.Hits[RedirectHit[r]], HexUnits, Intents, Map);
 	}
 
-	// Reazioni (CP 5.1): valutate sui colpi GIA' raccolti di `Plan.Hits`, dopo il filtro di Interrupt — lo
-	// snapshot congelato del Blast, non un evento a cui reagire mentre il turno gira (invariante #3).
-	// Un'unita' con piu' trigger validi nello stesso Blast si ferma comunque a UNA attivazione:
-	// `FindTriggeringAttacker` restituisce il primo colpo che soddisfa il trigger, non li conta.
-	// L'attivazione — o la non-attivazione, col motivo — finisce SEMPRE nel TurnLog, mai in silenzio.
-	//
-	// Gli EFFETTI delle reazioni attivate (CP 5.2) non si applicano qui: si raccolgono e si applicano insieme
-	// agli altri colpi, piu' sotto. E' "raccogli poi applica" (invariante #3) — una reazione che modificasse
-	// subito il danno lo farebbe su un totale ancora incompleto, e l'esito dipenderebbe dall'ordine delle unita'.
-	TArray<int32> DeflectDelta;       // riduzione del danno per bersaglio, DICHIARATA dalle reazioni attivate
-	TArray<FRTAttack> CounterAttacks; // colpi di ritorno delle reazioni attivate, accodati ai colpi veri
-	TArray<FRTCellId> CounterAttackSrc; // parallelo a CounterAttacks: cella di chi contrattacca, per il TurnLog
-	// Identita' della REAZIONE che ha prodotto il colpo di ritorno (CP 11.3, #79). Senza, un contrattacco
-	// finiva nel log indistinguibile da un attacco pianificato: due voci di combattimento identiche per un
-	// colpo scelto in planning e uno arrivato di rimbalzo. Qui l'ActionId c'e' — e' `Reaction->Def.ActionId`,
-	// lo stesso che la voce di categoria `Reaction` porta gia' da CP 5.5.
-	// Fughe di CHI REAGISCE (`SelfReposition`, D-093): raccolte qui e applicate DOPO il ciclo (D-094).
-	// Spostare dentro il ciclo cambierebbe la posizione che le reazioni valutate dopo vedrebbero, e
-	// `Action.Intercept` chiede l'alleato entro 2 celle: l'esito dipenderebbe dall'ordine di `Units`.
-	TArray<ARTUnit*> FleeUnits;
-	TArray<FRTCellId> FleeFrom;   // da CHI ci si allontana: e' anche la sorgente del facing (D-104)
-	TArray<int32> FleeDist;
-	TArray<FName> CounterActionId;
-	TArray<FName> CounterBaseActionId;
-	TArray<int32> CounterPriority;
-	TArray<ARTUnit*> CounterAttackActors; // e CHI contrattacca: una cella non identifica un'unita' ([D-063])
-	DeflectDelta.Init(0, Units.Num());
-	for (int32 i = 0; i < Units.Num(); ++i)
-	{
-		ARTUnit* Unit = Units[i];
-		const int32 ReactionIdx = Unit->PlannedReactionAbility;
-		Unit->PlannedReactionAbility = INDEX_NONE; // consumato per questo turno (attivata o no)
-
-		const URTActionData* Reaction = Unit->GetAbility(ReactionIdx);
-		if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction)
+	// Reazioni (CP 5.1). E' una funzione e non un blocco qui dentro perche' con D-092 i pass diventano
+	// DUE, uno per fase; cosa raccoglie, e perche' le fughe si applicano al suo interno, sta scritto su
+	// `FRTReactionPassResult` e su `RunReactionPass`.
+	FRTReactionPassResult Reactions;
+	RunReactionPass(ERTReactionPassPoint::BlastHits,
+		[&Plan, &Intents](int32 SelfId, ERTReactionTrigger Trigger)
 		{
-			continue; // nessuna reazione pianificata: niente da registrare
-		}
-
-		FRTTurnLogEntry Entry;
-		Entry.Phase = ERTMatchPhase::Blast;
-		Entry.Category = ERTLogCategory::Reaction;
-		Entry.SrcCell = Unit->Cell;
-		Entry.TgtCell = Unit->Cell;
-		Entry.ActionId = Reaction->Def.ActionId; // identita': `Vektor.Deflection` non e' `Action.Deflect` (CP 5.5)
-		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
-
-		const int32 TriggeredBy = URTReactionLibrary::FindTriggeringAttacker(
-			Reaction->Def.ReactionTrigger, i, Plan.Hits, Intents);
-
-		if (!Unit->CanUseAbility(ReactionIdx) || ReactionBlockedThisTurn.Contains(Unit))
-		{
-			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Unavailable);
-		}
-		else if (TriggeredBy != INDEX_NONE)
-		{
-			Unit->ConsumeAbility(ReactionIdx);
-			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
-
-			// TUTTI gli effetti che la reazione DICHIARA, non il primo che questo orchestratore riconosce
-			// (CP 5.5). `URTReactionLibrary::BuildReactionEvents` decide anche CHI li subisce, per tipo di
-			// effetto: offensivi a chi ha innescato, difensivi a chi reagisce. Qui non si guarda mai
-			// l'`ActionId`: e' cio' che permette a una reazione d'eroe di riusare la semantica di
-			// `Action.Deflect`/`Action.Counter` con numeri propri senza un ramo per eroe.
-			for (const FRTActionEvent& Event : URTReactionLibrary::BuildReactionEvents(Reaction->Def, i, TriggeredBy))
-			{
-				if (!Units.IsValidIndex(Event.TargetUnitId) || !Units[Event.TargetUnitId]) { continue; }
-				ARTUnit* EffectTarget = Units[Event.TargetUnitId];
-				switch (Event.Kind)
-				{
-				case ERTActionEffect::Damage:
-					// Il colpo di ritorno entra fra gli attacchi normali, quindi risolve sullo stato iniziale
-					// come tutti gli altri: chi cade in questo stesso Blast contrattacca comunque, che e' la
-					// regola gia' dichiarata da URTCombatResolver ("un'unita' colpita a morte infligge
-					// comunque il proprio danno").
-					CounterAttacks.Add(FRTAttack(Event.TargetUnitId, Event.Amount));
-					CounterAttackSrc.Add(Unit->Cell);
-					CounterActionId.Add(Reaction->Def.ActionId);
-					CounterBaseActionId.Add(Reaction->Def.BaseActionId);
-					CounterPriority.Add(Reaction->Def.Priority);
-					CounterAttackActors.Add(Unit);
-					AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
-						*Unit->GetName(), *EffectTarget->GetName(), Event.Amount));
-					break;
-
-				case ERTActionEffect::DamageReduction:
-					// Vale sul colpo che ha innescato la reazione: si attiva una volta sola, quindi entra fra
-					// i delta del PRIMO danno diretto, come il -15 di Guard.
-					DeflectDelta[Event.TargetUnitId] -= Event.Amount;
-					break;
-
-				case ERTActionEffect::Shield:
-					// Prima che i colpi vengano risolti, e con lo stesso aggiornamento sullo snapshot `States`
-					// da cui il resolver legge: uno scudo che arrivasse dopo scadrebbe nel Cleanup dello
-					// stesso turno senza aver protetto da niente.
-					EffectTarget->AddTemporaryShield(Event.Amount);
-					States[Event.TargetUnitId].Shield = EffectTarget->Shield;
-					AddLogEvent(FString::Printf(TEXT("%s: +%d scudo dalla reazione"),
-						*EffectTarget->GetName(), Event.Amount));
-					break;
-
-				case ERTActionEffect::SelfReposition:
-					// D-093: chi reagisce si allontana da chi l'ha innescato. Si RACCOGLIE soltanto — vedi
-					// il commento sugli array, D-094.
-					if (TriggeredBy != INDEX_NONE && Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy])
-					{
-						FleeUnits.Add(EffectTarget);
-						FleeFrom.Add(Units[TriggeredBy]->Cell);
-						FleeDist.Add(Event.Amount);
-					}
-					break;
-
-				default:
-					// `Heal`, `Push`, `Pull`, `Status`: nessuna reazione del catalogo v0.1 li dichiara, e
-					// applicarli qui richiederebbe cio' che il pass non ha (una direzione per la spinta, il
-					// consumo degli stati insieme agli altri colpi). Il posto dove aggiungerli e' questo.
-					break;
-				}
-			}
-		}
-		else
-		{
-			Entry.Outcome = static_cast<uint8>(ERTReactionOutcome::NotTriggered);
-		}
-
-		// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
-		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
-		AppendLogEntry(Entry, Unit);
-		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
-	}
-
-	// Le FUGHE raccolte sopra si applicano ora, con tutte le reazioni gia' valutate sullo snapshot congelato
-	// (D-094). Prima si calcolano tutte le destinazioni e poi si muove: due unita' che fuggono nello stesso
-	// Blast non devono vedersi a vicenda gia' spostate, altrimenti la seconda troverebbe libera una cella che
-	// la prima sta lasciando e l'esito dipenderebbe dall'ordine.
-	if (FleeUnits.Num() > 0)
-	{
-		TArray<FRTCellId> FleeBlockers;
-		for (ARTUnit* U : Units) { if (IsValid(U) && U->IsAlive()) { FleeBlockers.Add(U->Cell); } }
-
-		TArray<FRTCellId> FleeDest;
-		FleeDest.Reserve(FleeUnits.Num());
-		for (int32 f = 0; f < FleeUnits.Num(); ++f)
-		{
-			ARTUnit* Fleeing = FleeUnits[f];
-			// Stessa geometria della spinta: ci si allontana dalla sorgente e ci si ferma davanti agli stessi
-			// ostacoli. Una fuga non attraversa muri che una spinta non attraversa.
-			FleeDest.Add((IsValid(Fleeing) && Fleeing->IsAlive())
-				? URTHexCombatLibrary::HexKnockbackDestination(
-					FleeFrom[f], Fleeing->Cell, FleeDist[f], Map, FleeBlockers)
-				: FRTCellId());
-		}
-
-		for (int32 f = 0; f < FleeUnits.Num(); ++f)
-		{
-			ARTUnit* Fleeing = FleeUnits[f];
-			if (!IsValid(Fleeing) || !Fleeing->IsAlive()) { continue; }
-			if (FleeDest[f] == Fleeing->Cell)
-			{
-				// Non c'e' dove andare: la reazione e' scattata e ha speso la sua attivazione. E' un esito, e
-				// va detto — altrimenti nel log resta una reazione senza conseguenze e sembra un difetto.
-				AddLogEvent(FString::Printf(TEXT("%s: nessuna cella libera per la fuga"), *Fleeing->GetName()));
-				continue;
-			}
-			// Gli stessi dieci passi della spinta (#541): traccia con causa, hazard attraversati, facing verso
-			// la minaccia (D-104), piano che segue. Una riga, perche' la primitiva esiste.
-			TMap<ARTUnit*, FRTDisplacementCause> FleeCause;
-			FleeCause.Add(Fleeing, FRTDisplacementCause{ FName(TEXT("Reaction.EmergencyDash")), NAME_None, 0 });
-			ApplyForcedDisplacement(Fleeing, FleeDest[f], FleeFrom[f], FleeCause, TEXT("Fuga"), Map);
-		}
-	}
+			// Qui «scattato» e «chi l'ha innescato» coincidono: un colpo ha sempre un attaccante, ed e' la
+			// convenzione con cui `FindTriggeringAttacker` e' nato. Smettono di coincidere negli altri punti.
+			const int32 By = URTReactionLibrary::FindTriggeringAttacker(Trigger, SelfId, Plan.Hits, Intents);
+			return FRTReactionTriggerHit{ By != INDEX_NONE, By };
+		},
+		Units, States, Map, Reactions);
 
 	// Intenti fermati dalla copertura: l'attacco non avviene e il TurnLog ne registra il motivo.
 	for (const int32 BlockedIdx : Plan.BlockedIntents)
@@ -3764,7 +3806,7 @@ void ARTTurnManager::ResolveCombat()
 		// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano
 		// la semantica): una reazione si attiva UNA volta, quindi vale sul colpo che l'ha innescata — stessa
 		// meccanica di Guard, non una riduzione permanente del turno.
-		FirstHitDelta[i] += DeflectDelta[i];
+		FirstHitDelta[i] += Reactions.DeflectDelta[i];
 	}
 
 	// `Action.Brace` (CP 5.2): -10 su OGNI danno diretto, non solo sul primo. E' un secondo passaggio con una
@@ -3971,12 +4013,12 @@ void ARTTurnManager::ResolveCombat()
 	// ricevuto". `ResolveAttacks` somma comunque per bersaglio sullo stato iniziale, quindi la posizione non
 	// cambia il totale; cambia quale colpo conta come "primo" per Guard/Exposed/Deflect, ed e' giusto che sia
 	// l'attacco pianificato a consumare quei delta, non un contrattacco arrivato di rimbalzo.
-	Attacks.Append(CounterAttacks);
-	AttackSrc.Append(CounterAttackSrc);
-	AttackActionId.Append(CounterActionId);
-	AttackBaseActionId.Append(CounterBaseActionId);
-	AttackPriority.Append(CounterPriority);
-	AttackActors.Append(CounterAttackActors);
+	Attacks.Append(Reactions.CounterAttacks);
+	AttackSrc.Append(Reactions.CounterAttackSrc);
+	AttackActionId.Append(Reactions.CounterActionId);
+	AttackBaseActionId.Append(Reactions.CounterBaseActionId);
+	AttackPriority.Append(Reactions.CounterPriority);
+	AttackActors.Append(Reactions.CounterAttackActors);
 
 	if (Attacks.Num() == 0)
 	{
@@ -4040,6 +4082,45 @@ void ARTTurnManager::ResolveCombat()
 
 	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors);
 
+	// --- Ancoraggio (CP 7.5, `#505`): il punto di valutazione degli SPOSTAMENTI ----------------------
+	// Spinte e trazioni sono decise — raccolte in `KnockCount`/`PullCount` — e non ancora applicate. E' il
+	// solo momento in cui `Reaction.Anchor` puo' annullarle: dopo, annullare vorrebbe dire rimettere indietro
+	// un'unita' gia' mossa, con due voci di TurnLog che si contraddicono sullo stesso passo.
+	//
+	// UNA chiamata per spinta e trazione insieme, non due: un'unita' spinta **e** tirata nello stesso Blast
+	// deve reagire una volta sola, e «una attivazione per turno» e' una garanzia del pass — chiamandolo due
+	// volte la si perderebbe qui invece che nel catalogo.
+	//
+	// Risultato in una struct PROPRIA: `Reactions` e' gia' stata consumata piu' sopra (deflect nei delta del
+	// primo danno, contrattacchi negli attacchi), e riusarla farebbe ripartire `DeflectDelta` da zero.
+	// Di questo punto si consuma `CancelledDisplacements` e basta: un contrattacco dichiarato da una reazione
+	// allo spostamento arriverebbe a colpi gia' risolti, quindi il catalogo non lo prevede (`Reaction.Anchor`
+	// dichiara solo `CancelDisplacement`).
+	FRTReactionPassResult DisplacementReactions;
+	RunReactionPass(ERTReactionPassPoint::BlastDisplacement,
+		[&Units, &KnockCount, &PullCount](int32 SelfId, ERTReactionTrigger)
+		{
+			ARTUnit* Self = Units.IsValidIndex(SelfId) ? Units[SelfId] : nullptr;
+			const int32* Pushes = Self ? KnockCount.Find(Self) : nullptr;
+			const int32* Pulls  = Self ? PullCount.Find(Self) : nullptr;
+
+			// **Esattamente UNA**, non «almeno una»: due spinte sullo stesso bersaglio si annullano da sole
+			// per geometria (`OpposingForces`, `#420`) e il bersaglio resta fermo comunque. Con `Contains`
+			// l'ancora si spendeva per fermare uno spostamento che non sarebbe avvenuto, e il TurnLog
+			// scriveva pure un'altra causa — trovato in code review.
+			//
+			// E' la stessa regola di `Reaction.Cleanse`, che non si attiva quando annullare non cambierebbe
+			// nulla: due moduli dello stesso checkpoint non possono avere filosofie opposte su quando
+			// spendere l'unica attivazione del turno.
+			const bool bAboutToMove = (Pushes && *Pushes == 1) || (Pulls && *Pulls == 1);
+
+			// Nessun `TriggeredBy`: di uno spostamento si conosce la cella di provenienza
+			// (`KnockFrom`/`PullToward`), non un'unita' — e con due attaccanti non ce ne sarebbe una sola.
+			// Gli effetti difensivi non ne hanno bisogno, e `BuildReactionEvents` scarta gli offensivi.
+			return FRTReactionTriggerHit{ bAboutToMove, INDEX_NONE };
+		},
+		Units, States, Map, DisplacementReactions);
+
 	// --- Spinta (knockback): dopo il danno, sulle posizioni snapshot del Blast -----------------------
 	// Direzione ESAGONALE (una delle sei), non piu' cardinale: la spinta segue la linea attaccante->bersaglio
 	// e si ferma su bordo mappa, ostacolo o unita'. Spinte multiple sullo stesso bersaglio si annullano.
@@ -4069,6 +4150,22 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			if (!Pushes || *Pushes != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
+
+			// `Reaction.Anchor` (CP 7.5, `#505`) annulla lo spostamento a QUALUNQUE distanza: «impedisce una
+			// spinta» e' un conteggio, non una soglia (D-094), e «una» la garantisce l'attivazione unica del
+			// pass.
+			//
+			// Sta PRIMA di `Guarded` e `Braced`, e non e' un dettaglio d'ordine: quando si arriva qui l'ancora
+			// e' gia' stata attivata e consumata dal pass, che gira prima di sapere se una difesa passiva
+			// avrebbe retto. Metterla dopo scriverebbe nel TurnLog «spinta retta: in guardia» per un turno in
+			// cui il giocatore ha speso la reazione — un log che nomina la difesa sbagliata. Una reazione
+			// dichiarata ha la precedenza su uno stato che non si consuma.
+			if (DisplacementReactions.CancelledDisplacements.Contains(Units.IndexOfByKey(T)))
+			{
+				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la spinta non lo sposta"), *T->GetName()));
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Anchored, &PushCause);
+				continue;
+			}
 
 			// `Action.Guard` regge una spinta di UNA cella: chi si e' piantato non arretra di un passo, ma una
 			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
@@ -4164,6 +4261,17 @@ void ARTTurnManager::ResolveCombat()
 			const int32* Pulls = PullCount.Find(T);
 			if (!Pulls || *Pulls != 1 || !IsValid(T) || !T->IsAlive()) { continue; }
 
+			// `Reaction.Anchor` vale anche qui: il catalogo dice «ricevi `Push`/`Pull`», e l'ancora e' l'unica
+			// delle tre difese che la trazione incontra — `Guard` il testo lo riserva alla spinta, e la riga
+			// sopra lo dichiara. L'insieme e' lo stesso del ramo della spinta, riempito da UNA sola attivazione:
+			// chi e' spinto e tirato nello stesso Blast non paga due reazioni.
+			if (DisplacementReactions.CancelledDisplacements.Contains(Units.IndexOfByKey(T)))
+			{
+				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la trazione non lo sposta"), *T->GetName()));
+				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Anchored, &PullCause);
+				continue;
+			}
+
 			const FRTCellId Dest = URTHexCombatLibrary::HexPullDestination(
 				PullToward[T], T->Cell, PullDist[T], Map, POccupied);
 			if (Dest != T->Cell) { PTargets.Add(T); PFinal.Add(Dest); }
@@ -4202,9 +4310,75 @@ void ARTTurnManager::ResolveCombat()
 		}
 	}
 
+	// --- Purificazione (CP 7.5, `#505`): il punto di valutazione degli STATI --------------------------
+	// Gli stati sono RACCOLTI e non ancora applicati: e' il solo momento in cui `Reaction.Cleanse` puo'
+	// annullarne uno. Dopo sarebbe una rimozione — osservabilmente simile, ma il TurnLog racconterebbe due
+	// volte lo stesso turno («applicato», poi «tolto») per un evento che non e' mai avvenuto.
+	//
+	// La Prep non passa di qui: applica i suoi stati direttamente. Quindi il `Status.Root` che `Action.Brace`
+	// mette a se stesso non e' intercettabile, ed e' corretto — una reazione anti-controllo che annullasse la
+	// propria preparazione sarebbe un difetto.
+	FRTReactionPassResult ControlReactions;
+	RunReactionPass(ERTReactionPassPoint::BlastStatus,
+		[&Units, &StatusTargets, &StatusTags](int32 SelfId, ERTReactionTrigger)
+		{
+			ARTUnit* Self = Units.IsValidIndex(SelfId) ? Units[SelfId] : nullptr;
+			if (!Self) { return FRTReactionTriggerHit{ false, INDEX_NONE }; }
+
+			for (int32 s = 0; s < StatusTargets.Num(); ++s)
+			{
+				if (StatusTargets[s] != Self) { continue; }
+				if (URTReactionLibrary::ControlSeverityRank(StatusTags[s]) == INDEX_NONE) { continue; }
+				// Scatta solo per un controllo che CAMBIA qualcosa: chi e' gia' sotto quello stato non spende
+				// l'attivazione per un rinnovo (deciso il 2026-08-12). Il limite che ne segue e' dichiarato:
+				// il PROLUNGAMENTO di un controllo gia' attivo non e' intercettabile.
+				if (Self->HasStatus(StatusTags[s])) { continue; }
+				// Nessun `TriggeredBy`: chi ha applicato lo stato non serve a un effetto difensivo, e con due
+				// attaccanti non ce ne sarebbe uno solo.
+				return FRTReactionTriggerHit{ true, INDEX_NONE };
+			}
+			return FRTReactionTriggerHit{ false, INDEX_NONE };
+		},
+		Units, States, Map, ControlReactions);
+
+	// QUALE controllo salta si decide qui, dove la lista in arrivo e' completa: **il piu' grave**, non il
+	// primo raccolto. L'ordine di raccolta segue i colpi — cioe' CHI colpisce — e sprecherebbe l'attivazione
+	// su uno `Slow` da attacco base (`Weapon.Suppressive`, l'ultimate) lasciando passare un `Root`.
+	//
+	// Si itera su `Units` e non sul `TSet`: l'insieme risponde a `Contains`, ma iterarlo darebbe un ordine
+	// non deterministico (invariante #3). Qui non cambierebbe l'esito — un indice appartiene a una sola
+	// unita' — ma la regola del progetto e' non dipenderne mai, non «non dipenderne quando si vede».
+	TSet<int32> CancelledStatusIdx;
+	for (int32 u = 0; u < Units.Num(); ++u)
+	{
+		if (!ControlReactions.CancelledControls.Contains(u)) { continue; }
+		ARTUnit* Canceller = Units[u];
+		if (!Canceller) { continue; }
+
+		int32 BestIdx = INDEX_NONE;
+		int32 BestRank = MAX_int32;
+		for (int32 s = 0; s < StatusTargets.Num(); ++s)
+		{
+			if (StatusTargets[s] != Canceller || CancelledStatusIdx.Contains(s)) { continue; }
+			const int32 Rank = URTReactionLibrary::ControlSeverityRank(StatusTags[s]);
+			if (Rank == INDEX_NONE || Canceller->HasStatus(StatusTags[s])) { continue; }
+			// `<` e non `<=`: a parita' di gravita' vince il PRIMO in ordine di raccolta, che e' l'ordine
+			// canonico dei colpi.
+			if (Rank < BestRank) { BestRank = Rank; BestIdx = s; }
+		}
+
+		if (BestIdx != INDEX_NONE)
+		{
+			CancelledStatusIdx.Add(BestIdx);
+			AddLogEvent(FString::Printf(TEXT("%s: %s annullato dalla purificazione"),
+				*Canceller->GetName(), *StatusTags[BestIdx].ToString()));
+		}
+	}
+
 	// L'ultimate applica il proprio status ai bersagli sopravvissuti.
 	for (int32 i = 0; i < StatusTargets.Num(); ++i)
 	{
+		if (CancelledStatusIdx.Contains(i)) { continue; } // annullato prima di esistere (CP 7.5)
 		ARTUnit* Slowed = StatusTargets[i];
 		if (IsValid(Slowed) && Slowed->IsAlive())
 		{

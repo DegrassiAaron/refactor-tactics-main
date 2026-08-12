@@ -237,7 +237,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionModuleSingleActivationTest,
 bool FRTReactionModuleSingleActivationTest::RunTest(const FString&)
 {
 	const TArray<URTEquipmentData*> Modules = URTCatalogLibrary::MakeReactionModules();
-	if (!TestEqual(TEXT("quattro moduli: gli altri tre attendono i trigger su evento (#505)"), Modules.Num(), 4)) { return false; }
+	// ⚠️ Il numero e' salito da 4 a 5 con `Reaction.Anchor` (CP 7.5, `#505`), e sale ancora quando arrivano gli
+	// altri due: e' un limite che si asserisce, non una costante da inseguire. I due assenti mancano per la
+	// stessa ragione — un punto di valutazione ancora da aprire (`URTReactionLibrary::PassPointFor`) — e non
+	// per un dato mancante: `HazardEscape` vuole il Cleanup fra le superfici e il danno di `Burning`,
+	// `Cleanse` il momento in cui uno stato di controllo e' stato appena applicato.
+	if (!TestEqual(TEXT("sei moduli: solo `HazardEscape` attende, ed e' bloccato da #570"), Modules.Num(), 6))
+	{
+		return false;
+	}
 
 	TArray<const URTEquipmentData*> AsConst;
 	for (const URTEquipmentData* M : Modules) { AsConst.Add(M); }
