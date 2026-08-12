@@ -54,7 +54,7 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 | **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **53** pianificati · **4** mai scritti *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Sono 53 e non 54 perché lo stesso giorno `Spec.Reaction.AnchorCancelsPush` è passato da `planned` a **reale**: un totale scritto a mano non ha un lato giusto prima del merge)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **52** pianificati · **4** mai scritti *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Rimisurati di nuovo il 2026-08-12 con l'aggiunta di `Spec.Map.ConstrainedCellCostsMore`: il generato ne contava **51** prima, cioè questa riga era ferma a 53 ed era già indietro di due. Un totale scritto a mano non ha un lato giusto prima del merge, e non resta giusto dopo: si rilegge dal generato)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
 Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
 (`B 21 + C 95 + 1 fuori classe`).
@@ -130,6 +130,26 @@ Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale
 >    (*«100 − 10 − 8 = 82»*, *«Vektor resta a 100 pieni»*). Correggere solo le `expect` avrebbe lasciato una
 >    spiegazione che contraddice l'assertion accanto — e la spiegazione è **metà** del valore di uno scenario
 >    `Visual.*`, che esiste per dire a una persona cosa deve vedere. Sono state corrette entrambe.
+
+> ⚠️ **Non tutto ciò che sta sotto test è uno scenario, e non basta scriverlo in `Scenarios/` perché lo
+> diventi.** Le quattro classi ripartiscono le **verifiche**; una *fixture* è un **ingresso**, e il suo posto
+> lo decide ciò che il formato sa esprimere. `FRTScenarioCell` — l'unico modo che uno scenario ha di parlare
+> della mappa — porta `Cell`, `bBlocksMovement`, `bBlocksLineOfSight` e `MoveCost`: niente segmenti, niente
+> bordi disegnati, niente footprint. Uno scenario è una **partita**, con `scenarioId`, `fixture`, unità,
+> intent e turni.
+>
+> Il caso concreto è [`#619`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/619): chiedeva
+> quattro fixture di geometria («segmento solido, angolo, footprint solido, footprint void») in
+> `Scenarios/Spec/Map/`. Non sono partite: sono input di una funzione pura, e vanno con i dati di test del
+> modulo runtime. Ciò che merita davvero uno scenario è **uno** — la cella stretta che fa fermare
+> `ReachableCells` una casella prima — ed è di **classe A**, perché l'oracolo è l'assertion. È
+> `Spec.Map.ConstrainedCellCostsMore`, e sta in classe **D** finché non è un file: dichiarato `planned` sotto
+> `RT-FEAT-TOOL-MAP-GEOMETRY`, così il warning di `validate` lo tiene visibile come vuole §6.2.
+>
+> Regola generale, che questo caso rende esplicita: *se il formato dello scenario non può esprimere
+> l'ingresso, il file non appartiene a `Scenarios/`*. Metterlo lì prometterebbe copertura automatica e
+> consegnerebbe file che nessun runner esegue — la stessa forma di errore dell'ultima riga di §5, dove dieci
+> voci sono **classe D travestita da C**: la collocazione dichiara una promessa che il contenuto non mantiene.
 
 ---
 
@@ -282,7 +302,7 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **53**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **52**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
