@@ -58,23 +58,27 @@ namespace
 			// E18 CP 18.2 (D-016): `Vektor.InterceptShot` e' una Predictive Action — cella dichiarata in
 			// Planning, verificata al boundary del Move, nessun input durante la Resolution.
 			//
-			// Si dichiara disponibile senza il problema che tiene fuori `ReactionPlanning` e `DeclaredRotation`:
+			// Si dichiara disponibile senza il problema che tiene fuori `DeclaredRotation`:
 			// qui l'harness NON e' il primo produttore del campo. Una previsione si dichiara con `targetCell`
 			// su un'azione principale, che e' la stessa strada di qualunque AoE — un canale che il gioco ha
 			// gia', non uno aperto per gli scenari. Il verde dice quindi qualcosa di vero sul giocatore.
 			TEXT("PredictiveAction"),
+			// `#601`: da oggi `PlannedReactionAbility` ha un produttore che non e' un test — il giocatore lo
+			// scrive da `ARTPlayerController::SelectAbilityForCurrent` (slot proprio, nessun targeting: chi
+			// subira' la reazione lo decide il trigger) e il bot da `PlanBots`, che arma quella che ha.
+			//
+			// Finche' quel produttore non c'era, questa riga sarebbe stata una bugia utile a far passare gli
+			// scenari: i loro verdi avrebbero detto che il giocatore puo' preparare una parata quando non poteva.
+			// Ora dicono il vero, e il perimetro resta lo stesso — dichiarare in pianificazione, non decidere in
+			// una finestra: quella e' E14, e non passa da qui.
+			TEXT("ReactionPlanning"),
 		};
 		// NON disponibile, e la riga che manca vale quanto quelle che ci sono:
 		//
-		//   `ReactionPlanning` — dichiarare una reazione IN PIANIFICAZIONE. `PlannedReactionAbility` esiste,
-		//   il resolver lo legge in due punti e l'HUD pure, ma in tutto il progetto lo SCRIVONO solo i test:
-		//   ne' il controller ne' il bot. Dare agli scenari uno slot `reaction` renderebbe l'harness il primo
-		//   produttore di quel campo — cioe' piu' CAPACE del gioco, e i suoi verdi direbbero che il giocatore
-		//   puo' preparare una parata quando non puo'. E' il rovescio esatto del caso `ValidateActionSlots`,
-		//   dove l'harness rischiava di essere piu' SEVERO del gioco. Entrambe le asimmetrie mentono.
-		//
-		// Il produttore nasce con le finestre di reazione (E14/S5-1). Fino ad allora un turno che chiede
-		// `ReactionPlanning` e' BLOCKED, che e' la verita' e costa una riga.
+		//   `ReactionPlanning` e' USCITA da questo elenco con `#601`: il campo ha finalmente un produttore
+		//   nel gioco (controller e bot), quindi darla agli scenari non rende piu' l'harness piu' capace del
+		//   gioco. La riga sopra spiega il perimetro; questa resta a ricordare **perche'** era fuori, che e' il
+		//   criterio con cui si giudica la prossima.
 		//
 		//   `DeclaredRotation` — dichiarare una ROTAZIONE in pianificazione (D-020). Dopo #291 la catena esiste
 		//   quasi tutta: il campo sta su `ARTUnit`, entra in `FRTPlannedIntent`, passa da `FilterForTeam`, e il
@@ -252,6 +256,22 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		// Orientamento INIZIALE (CP 13.2): dove guarda la figura appena posata. Dopo `PlaceOnCell`, che non lo
 		// tocca. Non e' una rotazione dichiarata — vedi `FRTScenarioUnit::Facing`.
 		Unit->Facing = Spec.Facing;
+
+		// EQUIPAGGIAMENTO dichiarato dallo scenario (`#602`). Le azioni concesse si accodano al kit gia'
+		// costruito da `ConfigureFromHeroData`, che e' lo stesso percorso con cui i test montano un modulo: il
+		// pezzo entra come azione, non come flag.
+		//
+		// Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader, che rifiuta lo
+		// scenario con un motivo invece di lasciarlo girare a meta'. Qui si equipaggia e basta.
+		for (const FName& PieceId : Spec.Loadout)
+		{
+			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
+			if (!Piece) { continue; }
+			if (URTActionData* Granted = URTCatalogLibrary::MakeEquipmentAction(Piece, Unit))
+			{
+				Unit->Abilities.Add(Granted);
+			}
+		}
 
 		UnitsById.Add(Spec.Id, Unit);
 	}

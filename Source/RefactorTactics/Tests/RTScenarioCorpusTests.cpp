@@ -196,4 +196,56 @@ bool FRTScenarioExpectedFailTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `#601`/`#602` — lo scenario della reazione dichiarata deve PASSARE, non solo «non fallire».
+//
+// `EveryShippedScenarioRuns` accetta `BLOCKED` per costruzione, ed e' giusto: e' il meccanismo che permette
+// di versionare uno scenario prima della sua capability. Ma per uno scenario che oggi **gira davvero**
+// quell'accettazione e' troppo larga: se un domani `ReactionPlanning` tornasse indisponibile — o il
+// produttore di `PlannedReactionAbility` sparisse — il file scivolerebbe in `BLOCKED` e la suite resterebbe
+// verde, senza che nessuno sappia che il giocatore ha smesso di poter armare una reazione.
+//
+// Qui l'esito atteso e' pinnato: `Pass`. E' la stessa disciplina dei test che pinnano un limite, con il
+// segno opposto — quelli diventano rossi quando il limite cade, questo quando una capacita' si perde.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioAnchorRunsTest,
+	"RefactorTactics.Scenario.DeclaredReactionScenarioPasses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioAnchorRunsTest::RunTest(const FString&)
+{
+	const FString Id = TEXT("Spec.Reaction.AnchorCancelsPush");
+
+	FRTTestResult Result;
+	if (!RunCorpusScenario(*this, Id, Result))
+	{
+		return false; // motivo gia' riportato
+	}
+
+	if (Result.Outcome == ERTTestOutcome::Blocked)
+	{
+		AddError(FString::Printf(
+			TEXT("%s e' BLOCKED (%s): la capability c'era quando lo scenario e' stato scritto. ")
+			TEXT("O il produttore di `PlannedReactionAbility` e' sparito, o l'elenco delle capability e' regredito."),
+			*Id, *Result.BlockedReason));
+		return false;
+	}
+
+	if (Result.Outcome != ERTTestOutcome::Pass)
+	{
+		FString First = TEXT("(nessuna assertion registrata)");
+		for (const FRTAssertionResult& A : Result.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				First = FString::Printf(TEXT("%s: atteso %s, osservato %s"), *A.Description, *A.Expected, *A.Actual);
+				break;
+			}
+		}
+		AddError(FString::Printf(TEXT("%s non passa: %s"), *Id, *First));
+		return false;
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

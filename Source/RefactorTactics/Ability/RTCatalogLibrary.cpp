@@ -1339,3 +1339,27 @@ TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 	}
 	return Actions;
 }
+
+const URTEquipmentData* URTCatalogLibrary::FindEquipment(FName EquipmentId)
+{
+	if (EquipmentId.IsNone())
+	{
+		return nullptr;
+	}
+
+	// I tre cataloghi nell'ordine del documento (§1 armi, §2 gadget, §3 reazioni). Si scorre e si esce al
+	// primo: un `EquipmentId` ripetuto fra due sezioni sarebbe un difetto di catalogo che `ValidateEquipment`
+	// deve prendere, non un'ambiguita' da risolvere qui scegliendo.
+	for (const TArray<URTEquipmentData*>& Catalog :
+		{ MakeWeaponVariants(), MakeGadgets(), MakeReactionModules() })
+	{
+		for (URTEquipmentData* Item : Catalog)
+		{
+			if (Item && Item->EquipmentId == EquipmentId)
+			{
+				return Item;
+			}
+		}
+	}
+	return nullptr;
+}

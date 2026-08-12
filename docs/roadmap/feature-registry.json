@@ -2047,6 +2047,7 @@
         "RefactorTactics.Reaction.EveryTriggerHasAPassPoint",
         "RefactorTactics.Reaction.ControlStatusesAreTwo",
         "RefactorTactics.Equipment.HazardEscape.FleesBeforeDamage",
+        "RefactorTactics.Scenario.DeclaredReactionScenarioPasses",
         "RefactorTactics.Equipment.ImpactVariantStacksPush",
         "RefactorTactics.Equipment.Gadget.CooldownEnforced",
         "RefactorTactics.Equipment.Gadget.NumbersMatchCatalog",
@@ -2056,10 +2057,10 @@
         "RefactorTactics.Equipment.LoadoutExactlyOneEach",
         "RefactorTactics.Equipment.NoInMatchProgression"
       ],
-      "scenarios": [],
-      "scenarios_planned": [
+      "scenarios": [
         "Spec.Reaction.AnchorCancelsPush"
       ],
+      "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
       "pie_refs": [],
