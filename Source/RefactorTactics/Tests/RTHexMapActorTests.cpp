@@ -128,6 +128,31 @@ bool FRTHexMapActorLayerFilterTest::RunTest(const FString&)
 		TestTrue(TEXT("tutte le celle rappresentate stanno sul layer attivo"), bAllOnActiveLayer);
 	}
 
+	// Focus mostra i piani vicini come CONTORNO, non come istanze: se i piani di contesto diventassero istanze
+	// tornerebbero ad avere collisione (l'ISM e' uno solo, `ARTHexMapActor::ARTHexMapActor`) e il raycast del
+	// pennello potrebbe agganciarli, dipingendo su un piano diverso da quello attivo. L'invariante e' quindi
+	// «Focus istanzia esattamente quanto ActiveOnly», e va verificata qui perche' il disegno del contorno non
+	// e' osservabile senza schermo.
+	if (ARTHexMapActor* Focus = SpawnMapActor(World, Asset, /*ActiveLayer*/ 1, ERTLayerViewMode::Focus))
+	{
+		TestEqual(TEXT("Focus istanzia solo il layer attivo, come ActiveOnly"), Focus->NumInstanceCells(), 7);
+		bool bAllOnActiveLayer = Focus->NumInstanceCells() > 0;
+		for (int32 I = 0; I < Focus->NumInstanceCells(); ++I)
+		{
+			bAllOnActiveLayer &= Focus->CellForInstance(I).Layer == 1;
+		}
+		TestTrue(TEXT("nessuna istanza appartiene a un piano di contesto"), bAllOnActiveLayer);
+	}
+
+	// GhostLayerRange e' presentazione pura: cambiarlo non deve spostare una sola istanza, altrimenti il
+	// parametro che regola quanto contesto si vede finirebbe per decidere anche cosa e' cliccabile.
+	if (ARTHexMapActor* Wide = SpawnMapActor(World, Asset, /*ActiveLayer*/ 1, ERTLayerViewMode::Focus))
+	{
+		Wide->GhostLayerRange = 8;
+		Wide->RebuildInstances();
+		TestEqual(TEXT("GhostLayerRange non cambia le istanze"), Wide->NumInstanceCells(), 7);
+	}
+
 	DestroyMapActorWorld(World);
 	return true;
 }

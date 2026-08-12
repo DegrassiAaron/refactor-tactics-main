@@ -4703,3 +4703,130 @@ features:
       Light/Medium/Signature per ~40 personaggi stanno in `matrici-stati-personaggio.md`, nessuna
       oltre PROPOSED. L'unica REJECTED e' `Vektor Siege`, respinta nel merito: Slancio recupera
       muovendosi, e una forma che toglie il Dash spegne la meccanica firma.
+
+  - feature_id: RT-FEAT-CHAR-RADAR-MODEL
+    title: Modello dei radar di profilo — Profile e Balance
+    area: Characters
+    kind: data
+    release: future
+    priority: P3
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: todo
+      runtime: na
+      log_debug: na
+      automation: todo
+      scenario: na
+      ui_wiki: partial
+      packaged: na
+      network_privacy: na
+    dependencies:
+      - RT-FEAT-CHAR-V01-ROSTER
+    owner_specs:
+      - docs/characters/spec-radar-profilo-personaggio.md
+    issues: [555, 562]
+    tests: []
+    scenarios: []
+    wiki_refs:
+      - wiki:Profilo-tattico
+    last_verified:
+      date: 2026-08-11
+      commit: f17cc0b
+    notes: >
+      D-105. Due viste distinte — **Profile** (sei assi, pubblica) e **Balance** (cinque assi,
+      tuning) — su scala intera `1..10`, con l'ordine dei raggi **normativo**: cambiarlo cambia
+      la forma a parita' di valori, quindi due radar con ordini diversi non sono confrontabili.
+      `runtime`/`log_debug` sono `na` perche' nessun rating entra nel resolver: e' una vista
+      derivata e la freccia non torna indietro. `data: todo` finche' la rubrica non deriva davvero i
+      rating dai cataloghi: D-106 ha stabilito che **non si scrivono, si calcolano**, e D-023 tiene
+      l'autorita' dei numeri sui `RT_*Catalog_v0.1.md` — quindi nessun workbook e' fonte e il
+      conflitto che teneva aperto `RAD-1` si e' **dissolto** invece di essere risolto.
+      ⚠️ La regola che costa: un asse `TBD` **non si renderizza come `0`** e fa fallire la
+      generazione, perche' uno zero da dato mancante e' la stessa forma di una debolezza voluta. Con
+      i rating calcolati `TBD` cambia significato — non «cella vuota» ma «la rubrica non copre questo
+      asse» — e resta un fallimento. ⚠️ D-107 conferma i **sei assi** e li fa modellare: cinque si
+      derivano dagli input che il catalogo dichiara per eroe (Salute, Movimento, Range visivo,
+      Resistenza Push, abilita' con danno/range/effetto/cooldown), mentre `information` nasce con un
+      solo ingrediente — la **Vista** — perche' stealth e detection vivono solo nel workbook escluso.
+      Si arricchisce derivando il rumore dal **kit** (D-042), non ripescando il foglio.
+
+  - feature_id: RT-FEAT-CHAR-RADAR-RATINGS-V01
+    title: Rubrica — i rating derivati dal catalogo eroi
+    area: Characters
+    kind: data
+    release: future
+    priority: P3
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: todo
+      runtime: na
+      log_debug: na
+      automation: todo
+      scenario: na
+      ui_wiki: todo
+      packaged: na
+      network_privacy: na
+    dependencies:
+      - RT-FEAT-CHAR-RADAR-MODEL
+    owner_specs:
+      - docs/characters/spec-radar-profilo-personaggio.md
+    issues: [556, 557, 558]
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      D-106: i rating **non si scrivono da nessuna parte**. Il generatore legge
+      `RT_HeroCatalog_v0.1.md` — l'autorita' dei numeri per D-023 — applica la rubrica e produce i
+      rating **in memoria**: nessun file di rating esiste, quindi nessuna seconda fonte puo' nascere
+      ne' divergere. ⚠️ Era `BLOCKED` su `RAD-1`, che chiedeva quale dei due workbook fosse autorita':
+      domanda **mal posta**, perche' D-023 aveva gia' declassato quello di balance a `RESEARCH` e
+      `balance/README.md` vieta perfino di ripararlo cella per cella. Il conflitto non e' stato
+      risolto, **si e' dissolto**. ⚠️ Il peso si sposta sulla **rubrica**, che diventa il prerequisito
+      di tutto: senza formula i rating non esistono affatto, e non c'e' il ripiego «intanto li
+      mettiamo a mano». In cambio, cambiare `Salute` o `Movimento` in un catalogo cambia i radar da
+      solo. Il gate `data` resta `todo` finche' la rubrica non legge davvero i cataloghi.
+
+  - feature_id: RT-FEAT-WIKI-CHART-GENERATOR
+    title: Generatore SVG deterministico dei radar
+    area: Tools
+    kind: tooling
+    release: future
+    priority: P3
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: na
+      ui_wiki: todo
+      packaged: na
+      network_privacy: na
+    dependencies:
+      - RT-FEAT-CHAR-RADAR-MODEL
+      - RT-FEAT-TOOL-VALIDATION
+    owner_specs:
+      - docs/characters/spec-radar-profilo-personaggio.md
+    issues: [559, 560, 561, 563]
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      `spec: done` dal 2026-08-12: D-108 chiude le due incognite che tenevano la spec `partial` —
+      il generatore e' **Node/TypeScript** (contro la raccomandazione registrata nel consolidamento,
+      Python accanto a `scripts/`) e gli SVG si **committano** con un `--check` che li verifica,
+      dentro l'MVP e non nel lavoro futuro. ⚠️ Il determinismo di *questo* generatore ha un'insidia
+      propria oltre alle solite (timestamp, UUID, ordine non stabile): le coordinate dei vertici
+      vengono da `sin`/`cos`, quindi da float, la cui resa decimale cambia con piattaforma, libreria
+      matematica e locale — vanno **arrotondate esplicitamente** prima di serializzare. Un test che
+      genera due volte nello stesso processo **non dimostra** la proprieta', e il golden test va
+      ancorato a un hash committato. ⚠️ Il determinismo viene **prima** del gate: senza
+      arrotondamento il `--check` e' rosso su una macchina e verde su un'altra. ⚠️ Combinato con
+      D-106 il gate diventa un **test di regressione sui dati competitivi**: cambiare `Salute` in un
+      catalogo lo fa diventare rosso finche' gli SVG non sono rigenerati nello stesso commit — un
+      rebalance porta con se' i suoi grafici. Il prezzo e' che chi tocca un catalogo deve poter
+      eseguire il generatore, quindi Node diventa un prerequisito del **bilanciamento**.
+      `scenario`/`packaged`/`network_privacy` sono `na` come per gli altri strumenti.
