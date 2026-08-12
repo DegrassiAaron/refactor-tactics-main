@@ -307,9 +307,11 @@ silenziosa, il workbook rumorosa): due divergenze da chiudere prima di CP 13.3.
 
 ### Perimetro
 
+> **Revisione del 2026-08-12** ([D-112](../decisions/RT_PDR_00_Decision_Log.md)): il contatto acustico passa da **una** ampiezza a **due**, più la direzione — tre livelli in tutto. Il «Fuori» resta invariato: i **cinque** livelli del §13 sorgente, l'identificazione della sorgente e le abilità sonore restano fuori dalla v0.1. La modifica è registrata qui perché questo brief è **vincolante** — lo diventa *«quando i CP di §7 entrano in `roadmap-v0.1.md`»*, e CP 13.1–13.5 ci sono già: allargare il perimetro senza toccarlo avrebbe lasciato il documento a dire una cosa e il codice a farne un'altra.
+
 **Dentro**: evento sonoro (`SourceId`, `OriginCell`, `NoiseType`, `Intensity`, `TurnIndex`, `MicroStepIndex`) ·
 intensità per azione (Wait 0 → Sprint 5 → Dash 6 → esplosione 10) · attenuazione per superficie e per arco ·
-soglia d'udito per eroe · contatto incerto con area · l'attacco rivela almeno la direzione · TurnLog filtrato.
+soglia d'udito per eroe · contatto incerto con area a **due ampiezze** — larga `5`, stretta `2`, scelte dal tipo di evento e dal margine sopra soglia ([D-112](../decisions/RT_PDR_00_Decision_Log.md)) · l'attacco rivela almeno la direzione · TurnLog filtrato.
 
 **Fuori** (§9): decoy e passi fantasma · mascheramento acustico · rumore ambientale persistente · eco dei
 tunnel · cinque livelli di precisione · identificazione della sorgente · abilità sonore (Sonar Pulse, Resonance
