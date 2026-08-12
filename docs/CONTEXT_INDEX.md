@@ -155,6 +155,32 @@ generato insieme a `feature-registry.json` da `python scripts/feature_registry.p
 
 ⚠️ Entrambi sono **generati**: se il `.yaml` è più recente, sono vecchi. Nel dubbio, `generate --check`.
 
+### Le due toolchain
+
+Il repository ne ha **due**, e nessuna gira in CI: i gate si eseguono **a mano**.
+
+| | dove | cosa |
+|---|---|---|
+| **Python** | `scripts/` | `check-docs-links.py` · `check-docs-symbols.py` · `feature_registry.py` |
+| **Node 22** | `tools/radar/` | rubrica dei rating e generatore SVG dei radar di personaggio |
+
+`tools/radar/` legge i cataloghi di bilanciamento, calcola i rating dei radar e produce gli SVG in
+[`characters/radar/`](characters/radar/), che sono **versionati con un gate**:
+
+```sh
+node --test "tools/radar/**/*.test.ts"   # 41 test
+node tools/radar/generate.ts             # riscrive gli otto SVG
+node tools/radar/generate.ts --check     # verifica, exit 1 se divergono
+```
+
+⚠️ **Non è solo documentazione**: siccome i rating si calcolano dai cataloghi
+([D-106](decisions/RT_PDR_00_Decision_Log.md)), cambiare `Salute` o un cooldown rende il gate rosso
+finché i radar non sono rigenerati. **Chi tocca un catalogo deve poter eseguire il generatore** — è il
+prezzo dichiarato di [D-108](decisions/RT_PDR_00_Decision_Log.md).
+
+Nessun `npm install`, nessun build step: Node 22 esegue TypeScript con type stripping e i test usano
+`node:test`, quindi `tools/` ha **zero dipendenze**.
+
 ### Riferimenti a checkpoint
 
 `CP 6.3` **non è risolvibile**: 20 numeri di checkpoint su 22 esistono in due spazi — `6.3` è «input hex»
