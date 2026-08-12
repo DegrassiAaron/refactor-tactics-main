@@ -5555,7 +5555,7 @@
       "issues": [
         53,
         577,
-        578
+        589
       ],
       "tests": [
         "RefactorTactics.Reactions.IntentNotVisibleToEnemy",

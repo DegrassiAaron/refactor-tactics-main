@@ -4566,7 +4566,7 @@ features:
       - RT-FEAT-CORE-TURN
     owner_specs:
       - docs/product/piano-canonico-mvp.md
-    issues: [53, 577, 578]
+    issues: [53, 577, 589]
     tests:
       - RefactorTactics.Reactions.IntentNotVisibleToEnemy
       - RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed
