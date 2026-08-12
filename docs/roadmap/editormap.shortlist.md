@@ -318,8 +318,8 @@ giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il 
 
 **Sbloccata da**: — · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: sì
 **Produce**: i quattro Blueprint-unita' del roster v0.1, committati
-**Artefatti**: `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset` ⏳ · `Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset` ⏳ · `Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` ⏳ · `Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` ⏳
-**Verifichi**: `PIE-AS2` ⏳ · `PIE-FACING` ✅
+**Artefatti**: `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset` ✅ · `Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset` ✅ · `Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` ✅ · `Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` ✅
+**Verifichi**: `PIE-AS2` 🟡 · `PIE-FACING` ✅
 **Finita quando**: i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
 **Sblocca**: U8, U19
 
@@ -353,12 +353,35 @@ gia' una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`).
 5. `TeamRingMaterial` e `SelectionRingMaterial` → `M_TeamRing` / `M_SelectionRing` in
    `/Game/RT/Characters/Shared/Materials/`. Il colore lo mette il codice sul MID; assenti,
    l'anello resta nascosto senza rompere nulla.
-6. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
+6. **Scala del componente skeletal: World/Absolute, `1,1,1`.** ⚠️ Il cilindro e' il ROOT e porta
+   `BaseMeshScale = (1.2, 1.2, 1.8)`: un componente attaccato a lui eredita quel fattore e il
+   personaggio esce **stirato in altezza di 1,5x** (1.8 / 1.2). Peggio, la selezione rimoltiplica
+   il root per `1.15` (`RTUnit.cpp:221`), quindi la mesh **si ingrandisce quando la selezioni**.
+   Nel Details del componente, alla riga *Scale*, si commuta l'icona su **World/Absolute**.
+   Difetto strutturale registrato in **issue #593**: finche' resta, il passo va rifatto a ogni
+   nuovo `BP_Unit`.
+7. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
    (`Hero.Flux` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
    `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna
    `ARTUnit::StaticClass()`, cioe' il cilindro. Un Blueprint perfetto ma non registrato non
    viene mai istanziato.
-7. **Le statistiche non si toccano**: `MaxHealth`, `AttackPower`, `MoveRange` arrivano da
+
+   🔴 **Non confonderla con `Team0Heroes`/`Team1Heroes`**, che le stanno **accanto nella stessa
+   categoria** `RefactorTactics|Units` e sono la trappola vera di questa seduta — ci si e' caduti
+   **due volte** il 2026-08-11. Rispondono a domande diverse:
+
+   | | `Team0Heroes` / `Team1Heroes` | `HeroUnitClasses` |
+   |---|---|---|
+   | risponde a | **chi** scende in campo | **con che aspetto** |
+   | tipo | lista: un campo per riga | mappa: **due campi** per riga |
+   | contiene | `Hero.Flux` | `Hero.Flux` → `BP_Unit_Gadget` |
+
+   Se la riga che stai compilando ha **un solo campo**, sei nella proprieta' sbagliata. Mettere i
+   nomi dei Blueprint nelle formazioni produce `BP_Unit_Gadget non e' nel catalogo eroi` e
+   **`0 eroi`** in campo — il log nomina l'id introvabile, ed e' il primo posto dove guardare.
+   Per non sbagliare: filtra il pannello Details scrivendo `Hero Unit` nella barra di ricerca,
+   cosi' resta visibile solo la mappa.
+8. **Le statistiche non si toccano**: `MaxHealth`, `AttackPower`, `MoveRange` arrivano da
    `URTHeroData`. Scriverle nel Blueprint significa scrivere numeri che il catalogo sovrascrive.
 
 Procedura per animazioni e montaggi: `guida-animazioni-paragon.md` §AS.3 e §AS.4.
@@ -370,7 +393,7 @@ Procedura per animazioni e montaggi: `guida-animazioni-paragon.md` §AS.3 e §AS
 > *Candidate*: nessuno dei due e' la base visuale di un eroe della v0.1. Seguendola si sarebbero
 > costruiti due Blueprint che il gioco non istanzia.
 
-> **I quattro pack sono tutti sul disco** (verificato 2026-08-11): Gadget 1232 file, Phase 1155, Riktor 1261, Wraith 1322. `ParagonGadget` mancava ed e' stato portato con la procedura `convenzioni-contenuti-ue.md` **B.2a** (magazzino + rename headless + copia). I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica. ⚠️ **Naming deciso dall'autore il 2026-08-11**: cartelle e asset di questa seduta portano il nome del **pack Paragon**, non dell'eroe, «per non creare problemi» — in editor si vede `Gadget` e si cerca `Gadget`. Ribalta `convenzioni-contenuti-ue.md` §A, che raccomandava l'opposto perche' il nome del pack lega l'asset a una mesh sostituibile: il rischio resta, ed e' accettato consapevolmente. Se un eroe cambiasse base visuale, il Blueprint andrebbe rinominato. ⚠️ **Eccezione dichiarata**: i data asset eroe (`DA_Hero_Flux`, …) restano intitolati all'**eroe** pur stando nella cartella del pack. Sono dati di gioco, non presentazione: non dipendono dalla mesh, e `HeroId` in C++ resta `Hero.Flux`. ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni.
+> **I quattro pack sono tutti sul disco** (verificato 2026-08-11): Gadget 1232 file, Phase 1155, Riktor 1261, Wraith 1322. `ParagonGadget` mancava ed e' stato portato con la procedura `convenzioni-contenuti-ue.md` **B.2a** (magazzino + rename headless + copia). I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica. ⚠️ **Naming deciso dall'autore il 2026-08-11**: cartelle e asset di questa seduta portano il nome del **pack Paragon**, non dell'eroe, «per non creare problemi» — in editor si vede `Gadget` e si cerca `Gadget`. Ribalta `convenzioni-contenuti-ue.md` §A, che raccomandava l'opposto perche' il nome del pack lega l'asset a una mesh sostituibile: il rischio resta, ed e' accettato consapevolmente. Se un eroe cambiasse base visuale, il Blueprint andrebbe rinominato. ⚠️ **Eccezione dichiarata**: i data asset eroe (`DA_Hero_Flux`, …) restano intitolati all'**eroe** pur stando nella cartella del pack. Sono dati di gioco, non presentazione: non dipendono dalla mesh, e `HeroId` in C++ resta `Hero.Flux`. ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni. ⚠️ **E se un personaggio appare in T-pose, schiacciato o con catene lunghissime, NON e' un difetto**: senza anim BP la skeletal resta nella **posa di riferimento** dello scheletro, dove le ossa di catene e tentacoli stanno distese in fila. Riscontrato su `Riktor` il 2026-08-12. Il controllo che lo isola in dieci secondi: **apri la Skeletal Mesh nel Content Browser** — se appare cosi' anche li', fuori dal gioco e fuori dal Blueprint, e' la bind pose e la sistema **U8**. Se invece li' e' normale e in partita no, allora guarda il Blueprint.
 
 #### U8 · Animazioni ⏳
 

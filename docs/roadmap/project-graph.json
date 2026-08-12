@@ -709,19 +709,19 @@
       "artifacts": [
         {
           "path": "Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset",
-          "tracked": false
+          "tracked": true
         }
       ],
       "unblocked_by": [],
@@ -736,7 +736,7 @@
       "verifies": [
         {
           "id": "PIE-AS2",
-          "state": "⏳"
+          "state": "🟡"
         },
         {
           "id": "PIE-FACING",
@@ -1285,7 +1285,7 @@
     },
     {
       "id": "PIE-AS2",
-      "state": "⏳"
+      "state": "🟡"
     },
     {
       "id": "PIE-AS4a",
