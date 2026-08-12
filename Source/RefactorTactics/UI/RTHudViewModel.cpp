@@ -20,9 +20,17 @@ FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnM
 	View.Phase = TurnManager->GetPhase();
 	View.bResolving = TurnManager->IsResolving();
 
-	// Il timer risponde solo dentro il Planning. Fuori resta negativo — «non si applica» — invece di 0,
-	// che un widget leggerebbe come «scaduto adesso».
-	if (View.Phase == ERTMatchPhase::Planning && !View.bResolving)
+	// Il timer risponde solo dentro il Planning, e **solo se un timer esiste davvero**. Fuori resta negativo
+	// — «non si applica» — invece di 0, che un widget leggerebbe come «scaduto adesso».
+	//
+	// ⚠️ La seconda guardia non e' difensiva, chiude un caso REALE. `GetPlanningTimeRemaining()` restituisce
+	// `0.f` in due situazioni diverse — timer scaduto e timer **mai impostato** — perche' clampa a zero il
+	// risultato di `GetTimerRemaining` su un handle che puo' non esistere; e il timer si imposta solo
+	// `if (PlanningSeconds > 0.f)`. Un Planning senza orologio non e' un caso di laboratorio:
+	// `RTScenarioSession` chiama `SetPlanningSeconds(0.f)` per le run headless. Senza questa riga un
+	// `WBP_RT_TurnHeader` mostrerebbe `0:00` lampeggiante per tutta una partita che di proposito non ha
+	// tempo — cioe' il contratto dichiarato in `FRTMatchHeaderView` sarebbe falso proprio dove serve.
+	if (View.Phase == ERTMatchPhase::Planning && !View.bResolving && TurnManager->GetPlanningSeconds() > 0.f)
 	{
 		View.PlanningSecondsRemaining = TurnManager->GetPlanningTimeRemaining();
 	}

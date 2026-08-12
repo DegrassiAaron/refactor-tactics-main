@@ -12,6 +12,7 @@
 #include "Ability/RTHeroData.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Turn/RTTurnManager.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -170,6 +171,48 @@ bool FRTHudVmHeaderWithoutManagerTest::RunTest(const FString&)
 	TestTrue(TEXT("il timer non si applica"), View.PlanningSecondsRemaining < 0.f);
 	TestFalse(TEXT("non si sta risolvendo"), View.bResolving);
 
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Un Planning SENZA orologio non e' un Planning scaduto
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmUntimedPlanningTest,
+	"RefactorTactics.HudViewModel.UntimedPlanningIsNotExpired",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmUntimedPlanningTest::RunTest(const FString&)
+{
+	// ⚠️ Questo test esiste per un difetto trovato in code review, non per completezza.
+	//
+	// `GetPlanningTimeRemaining()` clampa a `0.f`, e restituisce quello stesso `0.f` in DUE situazioni che il
+	// giocatore vede in modo opposto: il tempo e' finito, oppure non c'e' mai stato un tempo. Il timer si
+	// imposta solo `if (PlanningSeconds > 0.f)`, e `RTScenarioSession` usa `SetPlanningSeconds(0.f)` per le
+	// run headless — quindi il secondo caso e' un percorso reale, non un'ipotesi.
+	//
+	// Il test precedente non poteva accorgersene: passando `nullptr` riceveva i default della struct senza
+	// mai attraversare il ramo del timer.
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	// Nessun orologio: e' cio' che fa l'harness headless.
+	TM->SetPlanningSeconds(0.f);
+
+	const FRTMatchHeaderView Untimed = URTHudViewModel::BuildMatchHeader(TM);
+	TestEqual(TEXT("siamo in Planning"), Untimed.Phase, ERTMatchPhase::Planning);
+	TestTrue(TEXT("senza orologio il timer NON si applica, non e' scaduto"),
+		Untimed.PlanningSecondsRemaining < 0.f);
+
+	// Con un orologio vero la domanda si applica, e la risposta non e' negativa.
+	TM->SetPlanningSeconds(30.f);
+	const FRTMatchHeaderView Timed = URTHudViewModel::BuildMatchHeader(TM);
+	TestTrue(TEXT("con un orologio il tempo residuo e' un numero utilizzabile"),
+		Timed.PlanningSecondsRemaining >= 0.f);
+
+	DestroyHudVmWorld(World);
 	return true;
 }
 

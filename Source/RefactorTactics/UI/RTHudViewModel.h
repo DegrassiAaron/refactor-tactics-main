@@ -92,6 +92,12 @@ struct FRTUnitCardView
  *
  * ⚠️ Non e' il layer §4.2. Path, AoE, fuoco amico e le barre ancorate alle unita' restano in `ARTHUD`, dove
  * la spec li vuole — «non devono essere realizzati come grandi widget HUD statici».
+ *
+ * ⚠️ **`BlueprintPure` e non `BlueprintCallable`, e la differenza si vede nel widget.** Un nodo
+ * `BlueprintCallable` porta gli exec pin, che in un **binding di proprieta'** UMG non si possono collegare:
+ * il widget sarebbe costretto a chiamare la funzione in un evento e a **tenerne una copia** in una variabile
+ * — cioe' esattamente la seconda verita' che questo view model esiste per non far nascere. Stesso motivo per
+ * cui sono `BlueprintPure` `URTIntentPrivacyLibrary::FilterForTeam` e `URTIconLibrary::MakeIconId`.
  */
 UCLASS()
 class REFACTORTACTICS_API URTHudViewModel : public UBlueprintFunctionLibrary
@@ -103,11 +109,11 @@ public:
 	 * L'intestazione. `TurnManager` nullo da' una vista neutra (round 0, nessun limite, timer negativo):
 	 * un widget che parte prima del manager mostra «—», non un «Turno 0/0» che sembra un dato.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static FRTMatchHeaderView BuildMatchHeader(const ARTTurnManager* TurnManager);
 
 	/** La carta di una singola unita', vista da `PlayerTeamId`. Unita' nulla da' una carta vuota e non viva. */
-	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static FRTUnitCardView BuildUnitCard(const ARTUnit* Unit, int32 PlayerTeamId);
 
 	/**
@@ -121,6 +127,6 @@ public:
 	 * Le unita' morte restano, con `bAlive = false`: sparire dall'elenco e' peggio che comparire barrato —
 	 * il giocatore perde il conto di quanti ne aveva.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static TArray<FRTUnitCardView> BuildTeamRoster(const TArray<ARTUnit*>& Units, int32 PlayerTeamId);
 };
