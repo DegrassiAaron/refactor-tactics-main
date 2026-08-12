@@ -67,7 +67,7 @@ processo, senza contenuto di dominio).
 | §26 issue AE-001…AE-014 | **filtrate** | vedi §5 |
 | §27 aggiornamento Overwatch | **parzialmente respinto** | il cross-reference si aggiunge; la riga «no voluntary Dash» si riscrive secondo `D-070` |
 | §28 scenari AE-S01…S12 | **filtrati** | vedi §6 |
-| §29 editor map | **rinviato, non respinto** | authoring e debug dei costi hanno senso quando `AE-1` è decisa. Nessuna seduta editor si apre oggi |
+| §29 editor map | ✅ **chiuso lo stesso giorno: non serve** | La condizione era «quando `AE-1` è decisa», e [D-114](../../decisions/RT_PDR_00_Decision_Log.md) l'ha decisa poche ore dopo: **no**. Metà di ciò che §29 chiedeva di autorare — `ActionCost`, capacità residua, costo per azione — nomina cose che non esisteranno; l'altra metà (`MovementProfile`, `PivotCostPerStep`, `FacingPolicy`) **esiste già come dato** e non ha bisogno di una seduta per essere scritta. L'authoring diventerà lavoro vero se `AE-2` passa, perché la compatibilità abilità↔movimento è una matrice per abilità × profilo, cioè la prima cosa del catalogo che si sbaglia a mano. `editor-sessions.yaml` resta invariato, e `editormap.shortlist.md` con lui |
 | §30 workbook di bilanciamento | 🔴 **respinto per iscritto** | [`docs/balance/README.md`](../../balance/README.md) vieta la correzione cella per cella e `D-023` declassa il workbook a `RESEARCH`. È lo stesso errore che `D-106` e `D-112` hanno appena chiuso due volte |
 | §31 test e determinismo | **già canone** | invarianti #2, #4; `AGENTS.md` §Test |
 | §32 rete e privacy | **già canone** | invariante #6, ADR-0004 §7-bis, `RT-FEAT-NET-PRIVATE-PLANNING` |
@@ -150,4 +150,4 @@ repository.
   `AGENTS.md` vieta di sceglierle per plausibilità. Chi decide è l'autore.
 - **Non ha toccato il codice.** Il kit stesso lo esclude (§0).
 - **Non ha toccato il workbook** (§30).
-- **Non ha aperto sedute editor** (§29): senza `AE-1` non si sa cosa si autora.
+- **Non ha aperto sedute editor** (§29): senza `AE-1` non si sapeva cosa autorare. ✅ **Aggiornato il 2026-08-12**: `AE-1` è decisa e la risposta rende gran parte di §29 senza oggetto — vedi la riga §29 in §3. La seduta si aprirà con `AE-2`, non prima.
