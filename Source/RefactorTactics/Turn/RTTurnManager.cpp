@@ -499,7 +499,7 @@ void ARTTurnManager::PlanBots()
 				int32 MaxCellCost = 1;
 				for (const FRTHexCellData& Cell : Snapshot.Map->Cells)
 				{
-					MaxCellCost = FMath::Max(MaxCellCost, Cell.MoveCost);
+					MaxCellCost = FMath::Max(MaxCellCost, Cell.TotalMoveCost());
 				}
 				CandidateBudget = DashBudget * MaxCellCost;
 			}
@@ -4080,6 +4080,34 @@ void ARTTurnManager::ResolveCombat()
 		AttackBaseActionId.Add(bHasDef ? IntentDefs[Hit.IntentIndex].BaseActionId : NAME_None);
 		AttackPriority.Add(bHasDef ? IntentDefs[Hit.IntentIndex].Priority : 0);
 		AttackActors.Add(Attacker);
+
+		// `#649` — la DIREZIONE ha annullato una copertura, e adesso la traccia lo dice.
+		//
+		// Finora `RearHitBypassedCover` — che nel nome porta proprio «Cover» — era emesso **solo** dal ramo
+		// della Guard: la copertura scavalcata spariva dentro `EffectiveCoverReduction`, che e' pura. Dal
+		// TurnLog un colpo pieno su un bersaglio riparato era indistinguibile da un colpo pieno su un
+		// bersaglio scoperto, e il bonus che il bot conta in pianificazione (CP 13.5) non era verificabile.
+		//
+		// ⚠️ **`Amount` diverge dall'uso che ne fa la voce della Guard**, che ci mette la DIREZIONE del
+		// difensore: qui porta i **punti di riduzione scavalcati**, che sono l'unico numero utile a misurare
+		// il realizzo. La divergenza e' preesistente — due significati per lo stesso esito — ed e' nominata
+		// qui invece di essere risolta: cambiare la voce della Guard e' toccare una traccia gia' spedita, con
+		// i suoi test e il suo posto nel corpus golden.
+		//
+		// Un colpo che scavalca ENTRAMBE le protezioni produce due voci, ed e' corretto: sono due
+		// annullamenti distinti dello stesso colpo.
+		if (Hit.CoverBypassedByFacing > 0 && HexUnits.IsValidIndex(Hit.AttackerId)
+			&& HexUnits.IsValidIndex(Hit.TargetId))
+		{
+			FRTTurnLogEntry BypassedCover;
+			BypassedCover.Phase = ERTMatchPhase::Blast;
+			BypassedCover.Category = ERTLogCategory::Facing;
+			BypassedCover.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+			BypassedCover.SrcCell = HexUnits[Hit.AttackerId].Cell;
+			BypassedCover.TgtCell = HexUnits[Hit.TargetId].Cell;
+			BypassedCover.Amount = Hit.CoverBypassedByFacing;
+			AppendLogEntry(BypassedCover, Attacker);
+		}
 
 		// Effetti COLLATERALI del colpo (stato, spinta) dagli EVENTI dichiarati dall'azione, non da flag
 		// letti qui: e' il motore azioni (epic E4). Il danno resta separato perche' segue una regola sua —

@@ -559,6 +559,21 @@ prototipi va **dal più leggero al più invasivo** — `Riva · Flow` non tocca 
 
 ### E37 — Radar di personaggio e generatore Wiki · P3
 
+> ✅ **Completata il 2026-08-12** — le tre feature sono `DONE` nel registry.
+>
+> **Implementata:** Dai cataloghi markdown agli SVG committati, senza che un rating
+> sia mai stato scritto a mano: parser, rubrica, gli otto assi delle due viste e il generatore
+> deterministico con `--check` vivono in `tools/radar/` — **36 test**, zero dipendenze, nessun build
+> step. I quattro Profile Radar sono in [`../characters/radar/`](../characters/radar/).
+>
+> La Wiki li mostra, i `wiki_refs` sono popolati e il Balance ha i suoi SVG: **otto artefatti**, Profile
+> e Balance per ognuno dei quattro eroi.
+>
+> ⚠️ **Il gate resta locale, e non è una mancanza**: questo repository non usa CI — `check-docs-links.py`,
+> `check-docs-symbols.py` e `feature_registry.py validate` girano tutti a mano. `--check` è documentato
+> in [`../balance/README.md`](../balance/README.md), dove i cataloghi si modificano. Il prezzo dichiarato
+> è che protegge solo chi lo esegue.
+
 [D-105](../decisions/RT_PDR_00_Decision_Log.md)…[D-108](../decisions/RT_PDR_00_Decision_Log.md), owner
 [`../characters/spec-radar-profilo-personaggio.md`](../characters/spec-radar-profilo-personaggio.md).
 Due viste radar — **Profile** (sei assi, pubblica) e **Balance** (cinque assi, tuning) — su scala `1..10`, più
@@ -569,7 +584,9 @@ entra nel resolver.
 gameplay. Sta qui e non nella roadmap di release perché competerebbe con la consegna.
 
 **I rating non si scrivono, si calcolano.** [D-106](../decisions/RT_PDR_00_Decision_Log.md): il generatore
-legge [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) — l'autorità dei numeri per
+legge [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) — più
+[`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) per le abilità che rinviano a un'azione
+core ([D-115](../decisions/RT_PDR_00_Decision_Log.md)) — l'autorità dei numeri per
 [D-023](../decisions/RT_PDR_00_Decision_Log.md) — applica la rubrica e produce i rating in memoria. Nessun
 file di rating esiste, quindi nessuna seconda fonte può nascere né divergere.
 
