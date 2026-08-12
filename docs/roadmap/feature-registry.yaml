@@ -4923,8 +4923,12 @@ features:
       `test/migrazione-asset-reale` (`#694`, chiusa unmerged), poi il branch e' stato ricollocato e
       rimergiato come `#707`: chi guardava la PR vecchia concludeva che il lavoro non fosse
       atterrato. **Lo stato di una PR non e' lo stato del lavoro** — `gh pr list --head <branch>` lo
-      e'. Un audit esterno (`mapeditor-integration-spec-panel-2026-08-12.md`) ha ripetuto lo stesso
-      errore e ha costruito su di esso una roadmap, un percorso critico e cinque azioni.
+      e'. Un handoff esterno (referto: `mapeditor-integration-spec-panel-2026-08-12.md`) ha ripetuto
+      lo stesso ragionamento e ci ha costruito sopra una roadmap, un percorso critico e cinque
+      azioni. ⏱️ Quel documento pero' era **corretto quando e' stato scritto** — timbrato
+      `20:10 CEST`, con `#707` mergiata alle `20:26:29 CEST` — ed e' scaduto sedici minuti dopo:
+      la lezione per chi legge un handoff non e' che l'autore sbagli, ma che uno stato descritto ha
+      una **scadenza** e va rimisurato al consumo.
       ➕ **Due rami hanno corretto questo record in parallelo e sono arrivati allo stesso gate**, da
       argomenti diversi — l'anello mancante della vista da un lato, il test che pinna i due
       consumatori dall'altro. Convergenza, non ridondanza: il paragrafo qui sopra tiene entrambi.

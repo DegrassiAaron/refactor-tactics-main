@@ -16,10 +16,13 @@
 
 Il sorgente è il **primo della serie map-editor che non chiede di ricostruire l'editor**: non ha duplicati di
 tool, camera o toolbar, e il suo §4 — *«niente secondo pathfinder, reachability system, edge helper o
-authority geometry»* — è la regola di questo repository scritta da chi non sapeva che fosse già scritta. In
-compenso sbaglia il fatto centrale attorno a cui costruisce metà del documento: **dichiara aperta una issue
-chiusa un'ora e quarantaquattro minuti prima che lui fosse scritto**, e ne deriva una roadmap, un percorso
-critico e un ordine pratico.
+authority geometry»* — è la regola di questo repository scritta da chi non sapeva che fosse già scritta.
+
+Il fatto centrale attorno a cui costruisce metà del documento — `#554` aperta, la PR `#694` da recuperare —
+**era vero quando è stato scritto, e ha smesso di esserlo sedici minuti dopo**. Il documento è timbrato
+`20:10 CEST`; `#707` è mergiata alle `18:26:29Z`, cioè `20:26:29 CEST`. Non è un errore di verifica
+dell'autore: è la finestra fra **quando un handoff viene scritto** e **quando viene consumato**, che qui è
+stata di circa due ore e ha invalidato cinque voci, una roadmap, un percorso critico e un ordine pratico.
 
 | | Voci | Significato |
 |---|---:|---|
@@ -116,17 +119,31 @@ Sette revisori, un focus ciascuno. Le citazioni sono ricostruzioni della metodol
 
 ### 🛡️ NYGARD — modi di guasto e invarianti
 
-> «§R2 è il guasto, e va descritto con precisione perché la sua forma è istruttiva. Il documento è timbrato
+> «§R2 va descritto con precisione, perché la precisione è tutta la lezione. Il documento è timbrato
 > **2026-08-12 20:10 CEST**. La PR `#707` — `feat/554-transizioni-visibili` → `main` — è mergiata alle
-> **18:26:29**, e `#554` è **CLOSED**. Il documento non è *datato*: è stato scritto **un'ora e quarantaquattro
-> minuti dopo** il fatto che nega, e su quella negazione costruisce cinque azioni numerate, una riga del
-> percorso critico, il punto 2 dell'ordine pratico e una riga di §5.»
+> **`18:26:29Z`**, che in ora locale è **`20:26:29 CEST`**. Il documento precede il merge di **sedici
+> minuti**: `#554` era davvero aperta quando è stato scritto, e §R2 era **corretto alla scrittura**.»
 
-> «Il modo in cui si sbaglia è più interessante dell'errore. `#694` **è** chiusa unmerged, e questo è vero: era
-> impilata su `#688` e puntava a `test/migrazione-asset-reale`, non a `main`. Chi ha scritto ha guardato la PR
-> giusta e ha concluso che il codice non fosse atterrato — ma il branch è stato **ricollocato** e rimergiato
-> come `#707`. È il difetto che questo repository ha già a catalogo: *un branch mergiato che sembra orfano*.
-> Lo stato di una PR non è lo stato del lavoro; `gh pr list --head <branch>` lo è.»
+> «Ciò che lo rende inutilizzabile non è un errore dell'autore: è che è arrivato qui **circa due ore dopo**,
+> e in quelle due ore il fatto è cambiato. È la classe di problema che questo repository conosce come
+> *fotografia datata*, ed è la ragione per cui un handoff si **riverifica al consumo**, non si giudica sul
+> momento della scrittura. Un documento che descrive uno stato ha una scadenza; questo l'ha superata prima di
+> essere letto.»
+
+> 🔴 **E la prima stesura di questo referto ha sbagliato esattamente il controllo che raccomanda.** Diceva che
+> il documento era stato scritto *«un'ora e quarantaquattro minuti dopo il fatto che nega»* — invertendo il
+> verso. L'origine: `gh pr view --json mergedAt` restituisce **UTC** (`18:26:29Z`), la shell l'aveva
+> formattato come data locale senza fuso, e quel `18:26` è stato confrontato con un `20:10` **CEST**. Due
+> orari nello stesso confronto, due fusi diversi. Il controllo giusto costa una riga —
+> `git show -s --format=%cI` sul merge commit dà `2026-08-12T20:26:28+02:00`, con l'offset scritto — e senza
+> di esso la conclusione si ribalta senza dare segnale. **Confronta timestamp solo con l'offset visibile.**
+
+> «Il modo in cui il sorgente si inganna resta interessante e vale a prescindere dalla cronologia. `#694`
+> **è** chiusa unmerged, e questo è vero: era impilata su `#688` e puntava a `test/migrazione-asset-reale`,
+> non a `main`. Chi ha scritto ha guardato la PR giusta e ha concluso che il codice non fosse atterrato — ma
+> il branch è stato **ricollocato** e rimergiato come `#707`. È il difetto che questo repository ha già a
+> catalogo: *un branch mergiato che sembra orfano*. Anche fosse arrivato in tempo, quella riga era fragile:
+> lo stato di una PR non è lo stato del lavoro; `gh pr list --head <branch>` lo è.»
 
 > «Una conseguenza operativa che nessuno ha ancora tratto, e che vale più della correzione: `#554` è chiusa e
 > **i suoi derivati no**. Il registry dichiara `log_debug: partial` e la nota che lo motiva dice, oggi, su
@@ -189,13 +206,14 @@ Sette revisori, un focus ciascuno. Le citazioni sono ricostruzioni della metodol
 
 ---
 
-## 3. `STALE` — le cinque voci che si rivolgono a uno stato che non esisteva più
+## 3. `STALE` — le cinque voci scadute fra la scrittura e il consumo
 
-Tutte discendono da un fatto solo, e vanno corrette insieme.
+Tutte discendono da un fatto solo, e vanno corrette insieme. **Erano vere alle `20:10 CEST`**; sono false
+dalle `20:26:29`.
 
 | # | § | Il sorgente dice | Misurato su `4fce92ca` |
 |---|---|---|---|
-| **S1** | §1 | `#554` · `OPEN` · *«recuperare PR #694, chiusa unmerged»* | `#554` **CLOSED**. `#707` `feat/554-transizioni-visibili` → `main` **MERGED** `2026-08-12T18:26:29` |
+| **S1** | §1 | `#554` · `OPEN` · *«recuperare PR #694, chiusa unmerged»* | `#554` **CLOSED**. `#707` `feat/554-transizioni-visibili` → `main` **MERGED** `2026-08-12T18:26:29Z` = `20:26:29 CEST` |
 | **S2** | §R2 | Cinque azioni per «portare il diff proprio di `#694` su `main`» | Il diff **è** su `main`: `2f3c53cf` (transizioni sempre visibili, celle isolate in magenta) + `7ae2ce44` (raggiungibilità pigra) |
 | **S3** | §5 | *«`#554` resta OPEN perché `#694` non è mergiata»* | La premessa è vera di `#694` e falsa del lavoro: il branch è stato ricollocato su `main` e rimergiato |
 | **S4** | §6 | Il percorso critico parte da `#554 recover PR694 ──► #622 ──► Movement Probe` | Quel nodo non esiste. `#622` e la sonda non hanno più un predecessore aperto |
@@ -291,11 +309,17 @@ Misurati sul sorgente **come istruzione per questo repository**.
 | **Completezza** | 5/10 | Zero esempi eseguibili; nessun `reason` nominato; §7 non cita gli owner che già la contengono |
 | **Testabilità** | 4/10 | Un DoD non soddisfabile (`PIE orfane`), quattordici criteri «l'autore può» senza osservazione che li falsifichi |
 | **Coerenza** | 6/10 | §4 vieta i duplicati e §R8 ne propone uno; §2 e §6 divergono sull'ordine |
-| **Allineamento al canone** | 4/10 | Il fatto centrale è **falso al momento della scrittura**, e cinque voci ne discendono — ma i divieti di §4 sono canone esatto |
+| **Allineamento al canone** | 6/10 | I divieti di §4 sono canone esatto. Il fatto centrale era **vero alla scrittura** e cinque voci sono scadute sedici minuti dopo: è un problema di **freschezza**, non di allineamento |
 
-Il voto di allineamento sarebbe stato il più alto della serie senza `#554`: non c'è un solo duplicato di
-tool, camera o toolbar, che è ciò su cui i tre predecessori avevano perso. **Il difetto non è di conoscenza
-del dominio: è di verifica dello stato.**
+Il voto di allineamento è **il più alto della serie**, e va detto perché il verdetto «applicato in parte»
+potrebbe far pensare il contrario: non c'è un solo duplicato di tool, camera o toolbar — ciò su cui i tre
+predecessori avevano perso — e i divieti di §4 coincidono con le regole di questo repository.
+
+**Il difetto non è di conoscenza del dominio, e nemmeno di verifica: è di freschezza.** Un handoff che
+descrive uno stato è una fotografia, e questa è stata scattata sedici minuti prima che il soggetto si
+muovesse. Non c'è controllo che l'autore avrebbe potuto fare per evitarlo — il controllo spetta a **chi
+consuma**, ed è il primo passo di questo referto: rimisurare ogni riga di stato prima di derivarne qualsiasi
+cosa. Delle tredici righe di §1, cinque sono scadute in due ore.
 
 ---
 
