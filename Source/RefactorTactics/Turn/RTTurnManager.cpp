@@ -1506,7 +1506,21 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 					}
 					// La cella ha cambiato superficie: chi ci si trova sopra ne subira' gli effetti, e si
 					// RACCOGLIE soltanto (vedi in fondo alla funzione, `#570`).
-					BornSurfaceCells.Add(Cell);
+					//
+					// `AddUnique` e non `Add`: due azioni ambientali possono trasformare la STESSA cella nello
+					// stesso Cleanup, e la cella comparirebbe due volte. Gli effetti si leggono dalla mappa al
+					// momento dell'applicazione, quindi sarebbero quelli della superficie FINALE applicati due
+					// volte.
+					//
+					// ⚠️ Col catalogo di oggi la differenza **non e' osservabile**, e vale la pena dirlo invece
+					// di lasciar credere che questa riga stia salvando una partita: la stessa superficie due
+					// volte non arriva qui (`ApplyDynamicSurface` scarta il caso «gia' cosi'»), il fuoco e'
+					// rifiutato su cio' che non brucia, e l'unica doppia trasformazione raggiungibile —
+					// fuoco poi acqua — riapplica `Wet`, che e' idempotente. Diventa un difetto vero il giorno
+					// in cui una superficie con `Damage` sia raggiungibile due volte nello stesso Cleanup:
+					// `AddUnique` costa zero e toglie la classe di errore a monte, invece di aspettare quel
+					// giorno.
+					BornSurfaceCells.AddUnique(Cell);
 				}
 				continue;
 			}
