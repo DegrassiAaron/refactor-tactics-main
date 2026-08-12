@@ -641,6 +641,13 @@ TArray<URTHeroData*> URTHeroCatalogLibrary::GetHeroRoster()
 	return { MakeFlux(), MakeRiva(), MakeBastion(), MakeVektor() };
 }
 
+TArray<FName> URTHeroCatalogLibrary::GetHeroIds()
+{
+	// Stesso ordine di `GetHeroRoster()`: `Heroes.HeroIdsMatchRoster` confronta le due liste posizione per
+	// posizione, quindi riordinare qui senza riordinare la' e' un rosso, non una svista che passa.
+	return { TEXT("Hero.Flux"), TEXT("Hero.Riva"), TEXT("Hero.Bastion"), TEXT("Hero.Vektor") };
+}
+
 URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName& HeroActionId,
 	const FName& CoreActionId, int32 CooldownTurns, const TArray<FRTActionEffectSpec>& Effects,
 	int32 RangeCells)

@@ -1,6 +1,8 @@
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
 #include "UI/RTIconCatalogData.h"
 #include "UI/RTIconLibrary.h"
@@ -96,6 +98,107 @@ bool FRTIconRequiredIdsTest::RunTest(const FString&)
 	// Deterministico: due chiamate danno la stessa lista nello stesso ordine (i tag arrivano da un manager
 	// che non garantisce l'ordine, ed e' per questo che vengono ordinati).
 	TestTrue(TEXT("due chiamate danno la stessa lista"), Required == URTIconLibrary::RequiredIconIds());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// CP 20.2: le cinque categorie della v0.1 sono POPOLATE, le altre sette restano dichiarate e VUOTE
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIconV01CategoriesTest,
+	"RefactorTactics.IconCatalog.V01CategoriesPopulated",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIconV01CategoriesTest::RunTest(const FString&)
+{
+	const TArray<FName> Required = URTIconLibrary::RequiredIconIds();
+
+	// Quali categorie compaiono davvero nell'insieme richiesto, dedotte dal segmento dentro ogni chiave.
+	TSet<ERTIconCategory> Populated;
+	for (const FName& Id : Required)
+	{
+		const FString Text = Id.ToString();
+		const UEnum* Enum = StaticEnum<ERTIconCategory>();
+		for (int32 i = 0; Enum && i < Enum->NumEnums() - 1; ++i)
+		{
+			if (Text.StartsWith(FString::Printf(TEXT("UI.Icon.%s."), *Enum->GetNameStringByIndex(i))))
+			{
+				Populated.Add(static_cast<ERTIconCategory>(Enum->GetValueByIndex(i)));
+				break;
+			}
+		}
+	}
+
+	// Le cinque della v0.1 (#219). `Identity` e `Certainty` sono qui perche' CP 20.2 le ha rese DERIVATE —
+	// dal roster eroi la prima, dai tre livelli di CP 11.2 la seconda. Scritte a mano nel data asset
+	// sarebbero state chiavi che nessuna macchina pretende, cioe' il difetto che CP 20.1 evita per le altre.
+	for (const ERTIconCategory Category : { ERTIconCategory::Identity, ERTIconCategory::Action,
+		ERTIconCategory::Phase, ERTIconCategory::Status, ERTIconCategory::Certainty })
+	{
+		TestTrue(*FString::Printf(TEXT("la categoria %s della v0.1 e' popolata"),
+			*URTIconLibrary::CategoryName(Category)), Populated.Contains(Category));
+	}
+
+	// Le altre sette restano VUOTE di proposito: la tassonomia e' dichiarata, gli asset no. Una chiave che
+	// comparisse qui chiederebbe un disegno per un sistema che ancora non la consuma — ed e' esattamente
+	// quello che #219 dice di non fare.
+	for (const ERTIconCategory Category : { ERTIconCategory::Environment, ERTIconCategory::MapInteraction,
+		ERTIconCategory::Information, ERTIconCategory::Reaction, ERTIconCategory::Coordination,
+		ERTIconCategory::Warning, ERTIconCategory::Objective })
+	{
+		TestFalse(*FString::Printf(TEXT("la categoria %s non e' ancora popolata"),
+			*URTIconLibrary::CategoryName(Category)), Populated.Contains(Category));
+	}
+
+	// I quattro eroi del roster, con il prefisso TRADOTTO: `Hero.Flux` -> `UI.Icon.Identity.Flux`. Senza la
+	// traduzione la chiave sarebbe `UI.Icon.Hero.Flux`, che il validator rifiuta perche' il segmento non
+	// combacia con la categoria dichiarata.
+	//
+	// ⚠️ **La fonte qui e' `GetHeroRoster()`, non `GetHeroIds()`, e la differenza e' tutto il valore del
+	// test.** `RequiredIconIds()` deriva le chiavi da `GetHeroIds()`: confrontarle con la stessa lista
+	// renderebbe questo controllo vero per costruzione — un `Hero.Vektorr` scritto per sbaglio produrrebbe
+	// `UI.Icon.Identity.Vektorr` e il test lo troverebbe, contento. Misurato: con quella mutazione attiva il
+	// test passava. Il roster e' la fonte che il gioco spedisce davvero, ed e' l'unica contro cui il
+	// confronto significa qualcosa.
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+
+		FString Name = Hero->HeroId.ToString();
+		int32 Dot = INDEX_NONE;
+		if (Name.FindLastChar(TEXT('.'), Dot)) { Name = Name.RightChop(Dot + 1); }
+
+		TestTrue(*FString::Printf(TEXT("l'eroe %s ha la sua chiave Identity"), *Name),
+			Required.Contains(FName(*FString::Printf(TEXT("UI.Icon.Identity.%s"), *Name))));
+	}
+
+	// E nessuna chiave Identity di troppo: le sei attese sono quattro eroi + due relazioni. Senza questo
+	// conteggio un eroe fantasma aggiunto a `GetHeroIds()` passerebbe inosservato — il controllo sopra
+	// verifica che ogni eroe REALE abbia la sua chiave, non che ogni chiave abbia il suo eroe.
+	int32 IdentityKeys = 0;
+	for (const FName& Id : Required)
+	{
+		if (Id.ToString().StartsWith(TEXT("UI.Icon.Identity."))) { ++IdentityKeys; }
+	}
+	TestEqual(TEXT("le chiavi Identity sono quattro eroi piu' due relazioni"),
+		IdentityKeys, URTHeroCatalogLibrary::GetHeroRoster().Num() + 2);
+	TestFalse(TEXT("nessuna chiave conserva il prefisso Hero."),
+		Required.Contains(FName(TEXT("UI.Icon.Hero.Flux"))));
+
+	// Relazione di squadra: il consumatore esiste gia' (`ARTHUD` legge `View.bIsAlly`).
+	TestTrue(TEXT("Identity.Ally"), Required.Contains(FName(TEXT("UI.Icon.Identity.Ally"))));
+	TestTrue(TEXT("Identity.Enemy"), Required.Contains(FName(TEXT("UI.Icon.Identity.Enemy"))));
+
+	// I tre livelli di certezza di CP 11.2.
+	TestTrue(TEXT("Certainty.Confirmed"), Required.Contains(FName(TEXT("UI.Icon.Certainty.Confirmed"))));
+	TestTrue(TEXT("Certainty.Predicted"), Required.Contains(FName(TEXT("UI.Icon.Certainty.Predicted"))));
+	TestTrue(TEXT("Certainty.Uncertain"), Required.Contains(FName(TEXT("UI.Icon.Certainty.Uncertain"))));
+
+	// Un catalogo che copre l'insieme richiesto non ha piu' mancanze: e' la forma che il catalogo SPEDITO
+	// dovra' avere. ⚠️ Questo test non tocca l'asset — `DA_IconCatalog` non esiste ancora e verificarlo e'
+	// un passo Editor, non una funzione pura.
+	TestEqual(TEXT("un catalogo che copre l'insieme richiesto non ha mancanze"),
+		URTIconLibrary::FindMissingRequiredIcons(MakeCoveringIconCatalog()).Num(), 0);
 
 	return true;
 }
