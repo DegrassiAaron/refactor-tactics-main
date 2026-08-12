@@ -2215,6 +2215,8 @@ features:
       - RefactorTactics.Terrain.Rough
       - RefactorTactics.Terrain.ValidateCatalog
       - RefactorTactics.Terrain.ValidateCatalogEntries
+      - RefactorTactics.Environment.BornSurfaceAffectsOccupant
+      - RefactorTactics.Environment.BornSurfaceRuleIsNotPerSurface
     scenarios:
       - Visual.Movement.RoughRefusesCharge
     wiki_refs:
