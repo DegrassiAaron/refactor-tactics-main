@@ -33,7 +33,7 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 | Release | Nome | Tema | Epic | Formato di gioco |
 |---|---|---|---|---|
 | **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E21 | Skirmish 2v2 vs bot |
-| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** · **E36** · **E38** | Standard 3v3 |
+| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** · **E36** · **E38** · **E39** | Standard 3v3 |
 | **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 · **E33** | Standard 3v3 |
 | **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** | Operations 4v4+ |
 
@@ -456,6 +456,74 @@ Referto d'origine:
 Owner della regola: [`../gameplay/spec-economia-del-turno.md`](../gameplay/spec-economia-del-turno.md).
 Feature Registry: `RT-FEAT-ACTION-BUDGET` · `RT-FEAT-ACTION-MOVEMENT-COMPAT` ·
 `RT-FEAT-ACTION-PLAN-VALIDATION`.
+
+---
+
+### E39 — Spatial Transfer — teleport, blink e movimento istantaneo · P3
+
+**Obiettivo**: rendere esplicita una semantica che il repository possiede già, darle il **resolver
+appropriato** e costruirci sopra consumatori diversi — senza duplicare Planning, Reaction, Perception,
+TurnLog, grafo o facing.
+
+> **Traversal percorre lo spazio. Transfer cambia posizione senza percorrerlo.**
+
+**Perché non è v0.1**: [D-119](../decisions/RT_PDR_00_Decision_Log.md). La v0.1 ha quattro eroi e nessuno di
+loro salta; il suo gate è che il turno simultaneo funzioni e si veda.
+
+> ✅ **39.1 è chiusa il 2026-08-12, prima che l'epic cominciasse** — come 38.1 e per la stessa ragione: la
+> decisione veniva prima del lavoro. [D-118](../decisions/RT_PDR_00_Decision_Log.md) chiude `MOV-1`
+> (**famiglia propria**), [D-119](../decisions/RT_PDR_00_Decision_Log.md) chiude `MOV-2` (**v0.2**).
+> **Non ha una issue**, e non per dimenticanza: il suo intero contenuto è documentale ed è atterrato in
+> questo stesso commit — owner della tassonomia, Decision Log, `OPEN_DECISIONS`, roadmap, registry.
+
+**Perché non è un'epic vuota, e la misura che lo dice**: la semantica **esiste già**.
+`ERTMovementStyle::LinearLeap` produce `Result.Entered = { destinazione }`, il test
+`RefactorTactics.Actions.Leap.IgnoresIntermediateCells` è verde, e lo scenario che prova la regola è già
+scritto (`Spec.Movement.TeleportSkipsIntermediateCells`, `BLOCKED`). Il buco non è la semantica: è che
+`ARTTurnManager` la ritrasforma in `Path = [Origin, Destination]` e la passa a `ResolveHexPaths`, un resolver
+progettato per il **micro-step** — destinazione contesa, priorità, collisione frontale, occupazione cella per
+cella, `Prog`, `MicroStepIndex`. Oggi c'è una semantica di trasferimento dentro un motore di attraversamento.
+
+| CP | Obiettivo | DoD misurabile |
+|---|---|---|
+| ~~**39.1**~~ | ~~Il contratto: famiglia propria o policy del Dash, e in quale release~~ | ✅ **chiusa il 2026-08-12** da [D-118](../decisions/RT_PDR_00_Decision_Log.md) e [D-119](../decisions/RT_PDR_00_Decision_Log.md). Nessun runtime nuovo è stato scritto: la decisione precede il codice, che è l'intero punto del checkpoint |
+| **39.2** 🥇 | Il resolver puro dei trasferimenti — **primo lavoro dell'epic** | Una **primitive pura**, non un Actor né un subsystem: richiesta → risultato, con `source` valida, `destination` valida/standable/libera, **nessuna** cella intermedia, nessun `MoveBudget`, nessun costo, nessun hazard, nessun crossed-boundary. Conflitto simultaneo: **stessa destinazione → falliscono tutti**, e l'ordine di iterazione **non** decide (invariante 3 di `AGENTS.md`). Il gate è la **permutation invariance**, non il numero di test |
+| **39.3** | Short Blink: targeting, validazione e Planning | Il primo consumatore giocabile. Baseline: range 2, stesso layer, destinazione visibile e libera, nessun path. ⚠️ **Non è `LinearLeap` rinominato**: il salto richiede una delle **sei direzioni lineari**, un Blink deve poter scegliere una cella valida entro range anche non allineata — ed è qui che si paga la migrazione dichiarata da D-118. Riusa [#605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/605): `ValidatePlan` resta l'**unica** autorità, i reason code si estendono **in coda** alle famiglie esistenti |
+| **39.4** | TurnManager, TurnLog, facing e replay | Il trasferimento passa dal turno reale **senza essere trasformato in un falso traversal**. Il TurnLog ricostruisce origine, destinazione, famiglia, causa, `ActionId` ed esito — e **non** registra celle intermedie inesistenti (riusa [#307](https://github.com/DegrassiAaron/refactor-tactics-main/issues/307), chiusa). ⚠️ Il facing **non** si deriva dal path, perché non c'è un ultimo passo: è policy dell'azione sull'infrastruttura di [ADR-0005](../decisions/adr-0005-orientamento.md), non un secondo sistema. Il Replay **riproduce** la traccia, non ricalcola |
+| **39.12** | Corpus scenari, determinismo e gate | `Spec.Movement.TeleportSkipsIntermediateCells` diventa **verde**: capability `Teleport` dichiarata nell'harness, intent del turno 2 riempito, assertion della cella finale aggiunta, **HP 90 invariati**. Più repeat determinism, permutation invariance, hash del TurnLog, replay, packaged. ⚠️ **La capability si dichiara qui e non prima**: l'harness non deve diventare il primo produttore di una feature che il gioco non sa fare |
+| **39.5** | Arrival trigger, Overwatch e Reactive Blink | `CrossedBoundary` → **no** (non si attraversa niente); `ArrivedInside` → **sì**, se la reaction definition lo dichiara. Il Reactive Blink è una *response* del Fast Reaction esistente — riusa [#165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/165), **non** una seconda macchina |
+| **39.6** | Rumore, percezione e privacy | `DepartureNoise` e `ArrivalNoise`; **mai** rumore lungo il percorso. In Planning la destinazione è **team-only**, sul filtro che esiste già — `URTIntentPrivacyLibrary::FilterForTeam` — e nel dominio di [#159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/159). Mai in un Actor globalmente replicato. ⚠️ Il kit nomina anche `CanonicalIntentStore`, che **non è codice**: zero occorrenze in `Source/`, come il registry già dichiara su `RT-FEAT-NET-PRIVATE-PLANNING`. Chi implementa non lo cerchi |
+| **39.7** | UI/UX, preview e bot | La preview **non disegna un path**: origine, destinazioni valide, selezione, AoE d'arrivo, reason code sulla cella invalida, intenti alleati e nessuno avversario. Il bot valuta la **destinazione**, non il percorso — che semanticamente non esiste |
+| **39.8** | Swap atomico | Una sola operazione, non due trasferimenti consecutivi: nessun overlap intermedio osservabile, entrambe le destinazioni validate insieme, arrival trigger per entrambi. Scenario `Spec.Movement.SwapIsAtomic` |
+| **39.9** | Recall / Return Point | ⚠️ **Il nome `Anchor` è occupato**: `Action.Anchor` e `Reaction.Anchor` significano resistenza allo spostamento ([D-094](../decisions/RT_PDR_00_Decision_Log.md)), e riusarlo erediterebbe una collisione. Validare: il punto esiste, non è scaduto, la destinazione è libera e ancora legale. Con la durata e il counterplay |
+| **39.10** | Portal come transizione del grafo | **Portal ≠ Blink**: è un valore in coda a `ERTHexTransitionKind`, non un'abilità. Il pathfinding lo vede, `Revision` cambia, la cache di path si invalida, il validator lo accetta. Un `Unit->SetCell(Uscita)` bypasserebbe il grafo ed è l'errore che questo checkpoint esiste per impedire. Prima riga: **audit della serializzazione** dell'enum |
+| **39.11** | Forced transfer | Il contrasto canonico con [#308](https://github.com/DegrassiAaron/refactor-tactics-main/issues/308), chiusa: uno spostamento forzato **attraversa** e prende gli hazard intermedi, un trasferimento forzato **no**. Coordinare con [#436](https://github.com/DegrassiAaron/refactor-tactics-main/issues/436) per `Root`, `Suppressed` e le immunità |
+| **39.13** | Blind/Known teleport e spatial blocker | **P3, tagliabile.** Prima la baseline *destinazione visibile*; poi eventualmente `Visible`/`Known`/`Blind` e i blocker (`SpatialJammer`, `NoTransferZone`). Non si introducono prima che esista un consumatore reale |
+
+**Ordine, e non è quello numerico**: `39.2 → 39.3 → 39.4 → 39.12` è il percorso che porta lo scenario da
+`BLOCKED` a verde. Solo dopo si aprono in parallelo `39.5` (reazione), `39.6` (rumore) e `39.7` (UI/bot), e
+poi i consumatori `39.8`–`39.11`.
+
+**Dipendenze**: `RT-FEAT-ACTION-MOVE-PROFILES` · `RT-FEAT-ACTION-PLAN-VALIDATION` (#605) ·
+`RT-FEAT-ACTION-ENGINE`. **Cross-link, non dipendenze**: E14 possiede la finestra di reazione, E13 il rumore,
+E36 la bloccabilità. Questa epic non ne riapre nessuna.
+
+**Rischi**: il rischio principale è **architetturale e ha un nome** — costruire un secondo motore. La
+mitigazione è scritta come divieto in [D-118](../decisions/RT_PDR_00_Decision_Log.md): nessun subsystem di
+trasferimento, nessun secondo validatore, nessuna seconda macchina di reazione, nessun secondo sistema di
+percezione o di facing. Il secondo rischio è la **migrazione di `ERTMovementStyle`**, che è serializzato negli
+asset: si progetta in `39.3` con compatibilità e validator, non si improvvisa.
+
+**Non fa**: assegnare il Blink a un eroe del roster (è contenuto, e ricade sul kit del suo owner) ·
+[#645](https://github.com/DegrassiAaron/refactor-tactics-main/issues/645), che è **prima** e altrove — un
+ramo del motore irraggiungibile dal roster resta tale in qualunque release.
+
+Referto d'origine:
+[`plans/spatial-transfer-epic-2026-08-12.md`](plans/spatial-transfer-epic-2026-08-12.md), che consolida il
+secondo handoff della giornata; il primo è
+[`plans/teleport-instant-movement-2026-08-12.md`](plans/teleport-instant-movement-2026-08-12.md).
+Owner della regola: [`../gameplay/spec-tassonomia-movimento.md`](../gameplay/spec-tassonomia-movimento.md).
+Feature Registry: `RT-FEAT-ACTION-SPATIAL-TRANSFER`.
 
 ---
 

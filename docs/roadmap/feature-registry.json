@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 103,
+  "count": 104,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -1556,8 +1556,7 @@
       ],
       "scenarios": [
         "Visual.Movement.Charge",
-        "Visual.Movement.RoughRefusesCharge",
-        "Spec.Movement.TeleportSkipsIntermediateCells"
+        "Visual.Movement.RoughRefusesCharge"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -1569,7 +1568,67 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "**Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati dal dato, non dedotti. Budget 5 MP con costi interi. 🔴 **2026-08-12, misurato tentando #641 — non dedotto**: i profili di movimento **non esistono come entita' nel codice** (`grep -rn MovementProfile Source/` da' zero). `Sneak`/`Move`/`Sprint`/`Withdraw` vivono solo nel catalogo markdown §2.1; nel codice `Action.Sprint` e' un ActionId con `RangeCells = 8`, e quel numero lo legge **un solo punto** (`ResolveDash`). Il movimento normale prende il budget dall'UNITA' (`GetEffectiveMoveRange`), non dall'azione pianificata. Conseguenza: spostare lo Sprint in fase `Move` come chiede D-116 gli toglierebbe la distanza — 5 MP invece di 8 — e il divieto di reazione, che `ResolveDash` registra e che dopo il Blast arriverebbe troppo tardi. Prerequisito aperto come **#653**; il tentativo verificato vive su `feat/641-sprint-post-blast` (compila su entrambi i target, 4 test rossi che sono la misura del buco). ⚠️ 2026-08-12: `RELEASE_READY` vale per i tre profili che hanno numeri. **`Sneak` non ne ha** — costo, portata e rumore non sono definiti da nessuna fonte corrente (`AE-5`) — quindi il profilo esiste come nome e non e' pianificabile. Non abbasso i gate per questo: la feature che il registro misura sono i profili implementati, e inventare tre numeri per farla sembrare completa sarebbe il difetto opposto. `Withdraw` e' il quarto profilo (D-070) e **non si sceglie**: lo impone l'`Overwatch`. La domanda se il profilo debba cambiare anche la LEGALITA' delle azioni e' `AE-2`, feature `RT-FEAT-ACTION-MOVEMENT-COMPAT`. 🔴 **2026-08-12, dal consolidamento Teleport**: lo scenario `Spec.Movement.TeleportSkipsIntermediateCells` dichiarato qui e' una SPECIFICA ESEGUIBILE scritta prima dell'implementazione, e resta `BLOCKED` di proposito (`requires: [\"Teleport\"]`). Non prova nulla oggi, e il file lo dice da se'. E c'e' un secondo fatto che il gate `scenario: done` non mostra: **`ERTMovementStyle::LinearLeap` ha gia' la semantica del trasferimento** — `Result.Entered` contiene la sola destinazione, quindi `Action.Leap` non prende gli hazard intermedi ne' genera micro-step intermedi — ma **nessun eroe ha `Action.Leap` nel kit**. E' la QUARTA capacita' del motore irraggiungibile dal roster dopo le tre di [#425], e l'unica con semantica di trasferimento. Issue **#645**; la domanda «famiglia o policy del Dash?» e' `MOV-1` in `OPEN_DECISIONS.md`, e **non blocca #645**: il salto e' irraggiungibile in entrambi i casi. 🔴 **2026-08-12, D-117**: il movimento si misura con **due** budget, non uno. I **passi** dicono quanto lontano si arriva (`StepBudget`, dichiarato dal profilo), i **punti movimento** quanta asperita' si assorbe — costo di una cella `max(0, MoveCost - 1 + MoveCostModifier)`, terreno normale a **0**. Nessun dato di mappa cambia: la linea di base si sottrae nella funzione, come `URTHexLibrary::ReliefHeightForCost` fa gia' per il rilievo. Il modificatore diventa **firmato**: un negativo significa «il terreno rotto non mi rallenta», e oggi non e' esprimibile perche' cinque punti lo clampano a zero. Prerequisito **#653** (il profilo come entita'), modello **#666**. ⚠️ `URTArenaCriteriaLibrary::CheckCostBite` non si rinumera: e' un criterio di qualita' delle mappe costruito su «MP = distanza» e con due manopole **perde la domanda**."
+      "notes": "**Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati dal dato, non dedotti. Budget 5 MP con costi interi. 🔴 **2026-08-12, misurato tentando #641 — non dedotto**: i profili di movimento **non esistono come entita' nel codice** (`grep -rn MovementProfile Source/` da' zero). `Sneak`/`Move`/`Sprint`/`Withdraw` vivono solo nel catalogo markdown §2.1; nel codice `Action.Sprint` e' un ActionId con `RangeCells = 8`, e quel numero lo legge **un solo punto** (`ResolveDash`). Il movimento normale prende il budget dall'UNITA' (`GetEffectiveMoveRange`), non dall'azione pianificata. Conseguenza: spostare lo Sprint in fase `Move` come chiede D-116 gli toglierebbe la distanza — 5 MP invece di 8 — e il divieto di reazione, che `ResolveDash` registra e che dopo il Blast arriverebbe troppo tardi. Prerequisito aperto come **#653**; il tentativo verificato vive su `feat/641-sprint-post-blast` (compila su entrambi i target, 4 test rossi che sono la misura del buco). ⚠️ 2026-08-12: `RELEASE_READY` vale per i tre profili che hanno numeri. **`Sneak` non ne ha** — costo, portata e rumore non sono definiti da nessuna fonte corrente (`AE-5`) — quindi il profilo esiste come nome e non e' pianificabile. Non abbasso i gate per questo: la feature che il registro misura sono i profili implementati, e inventare tre numeri per farla sembrare completa sarebbe il difetto opposto. `Withdraw` e' il quarto profilo (D-070) e **non si sceglie**: lo impone l'`Overwatch`. La domanda se il profilo debba cambiare anche la LEGALITA' delle azioni e' `AE-2`, feature `RT-FEAT-ACTION-MOVEMENT-COMPAT`. 🔴 **2026-08-12, dal consolidamento Teleport**: un fatto che il gate `scenario: done` non mostra — **`ERTMovementStyle::LinearLeap` ha gia' la semantica del trasferimento** — `Result.Entered` contiene la sola destinazione, quindi `Action.Leap` non prende gli hazard intermedi ne' genera micro-step intermedi — ma **nessun eroe ha `Action.Leap` nel kit**. E' la QUARTA capacita' del motore irraggiungibile dal roster dopo le tre di [#425], e l'unica con semantica di trasferimento. Issue **#645**. 🔴 **2026-08-12, D-118**: la domanda «famiglia o policy del Dash?» (`MOV-1`) e' **chiusa**: famiglia propria. Il trasferimento ha ora una feature sua, `RT-FEAT-ACTION-SPATIAL-TRANSFER`, ed e' li' che si misura — questa feature resta owner dei profili `Move`/`Sprint`/`Charge`, cioe' del `Traversal`. ⚠️ **Cosa NON cambia**: `ERTMovementStyle::LinearLeap` resta un valore di questo enum e un test di questa feature (`RefactorTactics.Actions.Leap`). La famiglia e' semantica; la separazione nel dato e' una migrazione di formato serializzato, ed e' un checkpoint di E39 (#701). E **#645 resta valida in entrambi i casi**: il salto e' irraggiungibile dal roster qualunque famiglia lo ospiti. 🔴 **2026-08-12, D-117**: il movimento si misura con **due** budget, non uno. I **passi** dicono quanto lontano si arriva (`StepBudget`, dichiarato dal profilo), i **punti movimento** quanta asperita' si assorbe — costo di una cella `max(0, MoveCost - 1 + MoveCostModifier)`, terreno normale a **0**. Nessun dato di mappa cambia: la linea di base si sottrae nella funzione, come `URTHexLibrary::ReliefHeightForCost` fa gia' per il rilievo. Il modificatore diventa **firmato**: un negativo significa «il terreno rotto non mi rallenta», e oggi non e' esprimibile perche' cinque punti lo clampano a zero. Prerequisito **#653** (il profilo come entita'), modello **#666**. ⚠️ `URTArenaCriteriaLibrary::CheckCostBite` non si rinumera: e' un criterio di qualita' delle mappe costruito su «MP = distanza» e con due manopole **perde la domanda**."
+    },
+    {
+      "feature_id": "RT-FEAT-ACTION-SPATIAL-TRANSFER",
+      "title": "Spatial Transfer — cambiare posizione senza percorrere lo spazio",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.2",
+      "priority": "P3",
+      "status": "SPECIFIED",
+      "status_derived": "SPECIFIED",
+      "gates": {
+        "spec": "done",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "todo",
+        "replay_representable": "todo"
+      },
+      "gates_done": 1,
+      "gates_applicable": 10,
+      "roadmap": {
+        "epic": null,
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": "L'epic esiste e si chiama **E39** (`roadmap-post-v0.1.md`, v0.2, tredici checkpoint di cui quattro aperti), ma `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-ACTION-PLAN-VALIDATION`/E38 e `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce solo le epic della roadmap di **release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questa epic — D-119 lo decide esplicitamente."
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-MOVE-PROFILES",
+        "RT-FEAT-ACTION-PLAN-VALIDATION",
+        "RT-FEAT-ACTION-ENGINE"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/gameplay/spec-tassonomia-movimento.md"
+      ],
+      "issues": [
+        704,
+        700,
+        701,
+        702,
+        703,
+        645
+      ],
+      "tests": [],
+      "scenarios": [
+        "Spec.Movement.TeleportSkipsIntermediateCells"
+      ],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {
+        "date": "2026-08-12",
+        "commit": "dda87f1"
+      },
+      "notes": "🔴 **Nasce il 2026-08-12 da D-118**, che chiude `MOV-1`: il trasferimento e' una **famiglia semantica propria** e non un'eccezione del Dash. La partizione e' `Traversal` (Move, Dash, Forced — percorre lo spazio, e ogni cella percorsa e' un fatto) contro `Transfer` (Leap, Blink, Swap, Recall — esistono un'origine e una destinazione, e nient'altro). ⚠️ **`spec: done` e tutto il resto `todo` non e' una svista**: e' esattamente lo stato. La regola e' scritta e decisa, e **nessuna riga di runtime e' stata aggiunta** — che era il DoD di CP 39.1. ⚠️ **`runtime: todo` e non `partial`, e la code review ha chiesto perche'** (2026-08-12). La regola 2 di `feature-registry.md` — *«un dato senza consumatore e' `partial`»* — e' un **tetto su `done`**, non un pavimento su `todo`: dice che un dato senza consumatore non puo' dichiararsi completo, non che qualunque codice esistente obblighi a `partial`. E qui il runtime di QUESTA feature e' zero: non esiste un resolver puro del trasferimento, non esiste un Blink pianificabile, e `ARTTurnManager` riscrive ancora il risultato come un path a due nodi. `LinearLeap` non e' il runtime di questa feature: e' un valore di `ERTMovementStyle`, che appartiene a `RT-FEAT-ACTION-MOVE-PROFILES` insieme al test che lo prova. 🔴 La conseguenza meccanica non e' cosmetica: `derive_status()` controlla `runtime in (done, partial)` **prima** di `spec: done`, quindi un `partial` qui porterebbe lo stato da `SPECIFIED` a `IMPLEMENTING` — cioe' direbbe alle shortlist e alla Wiki che il trasferimento e' in lavorazione quando non lo e'. 🔴 **La semantica pero' ESISTE GIA', e questo e' il punto che rende l'epic non vuota**: `ERTMovementStyle::LinearLeap` produce `Result.Entered = { destinazione }`, e il test `RefactorTactics.Actions.Leap.IgnoresIntermediateCells` e' verde. Quel test **non e' dichiarato qui** ed e' deliberato: appartiene a `RT-FEAT-ACTION-MOVE-PROFILES`, che possiede `ERTMovementStyle` come dato. Dichiararlo in due posti darebbe due risposte alla domanda «chi lo dimostra». `tests: []` finche' CP 39.2 (#700) non ne scrive di propri — e non si riempie con i nomi che l'handoff proponeva, perche' il validator verifica che ogni pattern matchi un test reale. ⚠️ **Il difetto architetturale da correggere, misurato**: `ARTTurnManager` prende il risultato di `LinearLeap` — gia' `Origin → Destination` — e lo riscrive come `Path = [Origin, Destination]` per `ResolveHexPaths`, che e' un resolver a micro-step (destinazione contesa, priorita', collisione frontale, occupazione cella per cella, `Prog`, `MicroStepIndex`). Con due nodi il micro-step degenera e il risultato non e' sbagliato **oggi**: diventa un errore appena esistono due trasferimenti nello stesso turno, o un trigger che guarda i bordi attraversati. ⚠️ **Il rischio dell'epic e' costruire un secondo motore**, e D-118 lo scrive come divieto: nessun subsystem di trasferimento, nessun `ValidateTeleportPlan` (l'autorita' e' #605), nessuna seconda macchina di reazione (#165), nessun secondo sistema di percezione (#159) o di facing (ADR-0005). ⚠️ **`Portal` non e' di questa feature**: e' topologia del grafo — `URTHexMapAsset::Transitions`, `ERTHexArcState`, `GraphNeighbors()` — e ricade su `RT-FEAT-MAP-*`. CP 39.10 lo tratta come un valore in coda a `ERTHexTransitionKind`, dopo un audit della serializzazione. ⚠️ **Nove scenari del corpus finale NON sono dichiarati `planned` qui**, e non per dimenticanza: si dichiarano quando il loro checkpoint si apre. Un corpus dichiarato in anticipo gonfia il conteggio di `scenariomap.shortlist.md` senza che nulla lo verifichi — lo stesso difetto che il documento della scenario map ha gia' pagato tre volte in un giorno rimisurando i `planned`."
     },
     {
       "feature_id": "RT-FEAT-ACTION-BASIC-ATTACK-PROFILES",

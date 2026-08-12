@@ -5,7 +5,13 @@
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
 > [Decision Log](decisions/RT_PDR_00_Decision_Log.md), che resta l'**owner**. Quando una voce qui si chiude,
-> diventa una `D-0xx` lì e sparisce da qui.
+> diventa una `D-0xx` lì e **qui resta barrata**, con l'esito e l'istruttoria che l'ha prodotta.
+>
+> 🔴 **Corretto il 2026-08-12**: questa riga diceva *«e sparisce da qui»*, e **non è mai stato vero**. Sette
+> sezioni di questo file conservano le voci chiuse — archivio replay, `GEO-*`, `MAP-1`/`STA-*`, `OD-*`,
+> `FAC-*`, `MED-1`, i radar — perché una domanda barrata col suo perché **è** il valore: il prossimo kit la
+> riproporrà, e trovarla già risposta costa meno che ridiscuterla. La regola scritta contraddiceva la
+> pratica di ogni sezione, e fra le due si è corretta la regola.
 
 ---
 
@@ -66,12 +72,18 @@ Epic che le raccoglie: **E38** (v0.2).
 
 ---
 
-## Aperta — traversal contro transfer, dal consolidamento Teleport del 2026-08-12
+## ✅ Chiuse il 2026-08-12 — traversal contro transfer
 
-| ID | Domanda | Perché non si decide a tavolino |
+> Aperte dal consolidamento Teleport del mattino, chiuse la sera dall'autore in sessione sul secondo
+> handoff ([`roadmap/plans/spatial-transfer-epic-2026-08-12.md`](roadmap/plans/spatial-transfer-epic-2026-08-12.md)).
+> Le due domande sono state poste **insieme** perché la seconda non ha senso senza la prima: decidere se un
+> Blink entra in v0.1 prima di sapere se il trasferimento è una famiglia significa decidere il calendario di
+> una cosa senza nome.
+
+| ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
 |---|---|---|
-| `MOV-1` | **`LinearLeap` è un'eccezione del Dash o il primo membro di una famiglia «trasferimento»?** | Il kit d'autore porta una tesi giusta — *«un movimento molto veloce non è un teletrasporto»* — e una premessa falsa: che nel repository esista solo il primo. `ERTMovementStyle::LinearLeap` produce `Result.Entered = { destinazione }` e nient'altro, e poiché `ApplyTerrainOnEnterEffects` legge **esattamente** `Entered`, un `Action.Leap` non prende gli hazard intermedi, non genera micro-step intermedi e collide solo all'arrivo: **le tre righe che la matrice attribuisce al Teleport**. Le due strade non sono equivalenti. *(a)* **Eccezione del Dash**: un Blink diventa un valore nuovo di `ERTMovementStyle`, zero tipi nuovi, e la matrice tiene una colonna che descrive tre stili su quattro. *(b)* **Famiglia propria**: la matrice guadagna una colonna vera, ma `ERTMovementStyle` è serializzato negli asset e la migrazione va progettata. ⚠️ Da decidere **prima** che qualcuno scriva un Blink, non dopo: è la scelta che determina se il Blink è lavoro nuovo o un dato in più. 🔗 Incrocia `STA-4`/[#436](https://github.com/DegrassiAaron/refactor-tactics-main/issues/436), che possiede la **bloccabilità** (un `Root` ferma un trasferimento?) ma non la famiglia |
-| `MOV-2` | **Un Blink entra in v0.1**, o Teleport resta post-v0.1 design-ready? | Il kit propone un `Short Blink` come primo caso, e il canone dice che il Teleport non esiste in v0.1. ⚠️ **Non c'è nessuna `D-nnn` che fissi quell'assenza**: `git grep -i teleport docs/decisions/` non restituisce nulla. L'assenza è un **fatto misurato** («nessuna azione del catalogo dichiara quella famiglia»), non una decisione presa — quindi portare un Blink in v0.1 non contraddirebbe una decisione, ma ne richiede una. La domanda vera non è tecnica: la semantica esiste già in `LinearLeap` e lo scenario che la prova è già scritto (§sotto). È di **scope**: la v0.1 ha quattro eroi e nessuno di loro salta |
+| ~~`MOV-1`~~ | ~~**`LinearLeap` è un'eccezione del Dash o il primo membro di una famiglia «trasferimento»?**~~ | ✅ **Chiusa il 2026-08-12** — [D-118](decisions/RT_PDR_00_Decision_Log.md), decisa dall'autore: **famiglia propria**. La tassonomia si partiziona in `Traversal` (percorre lo spazio, e ogni cella percorsa è un fatto) e `Transfer` (cambia posizione senza percorrerla), e `LinearLeap` **è già** il primo membro della seconda. Owner aggiornato: [`gameplay/spec-tassonomia-movimento.md`](gameplay/spec-tassonomia-movimento.md) §1–§2. Epic **E39**. ⚠️ La decisione **non** introduce un tipo nuovo oggi e **non** sceglie fra le due strade sotto: sceglie che quella scelta è una **migrazione di formato serializzato** e appartiene a un checkpoint con un test di compatibilità, non a chi scriverà il primo Blink. **L'istruttoria che l'ha prodotta**: Il kit d'autore porta una tesi giusta — *«un movimento molto veloce non è un teletrasporto»* — e una premessa falsa: che nel repository esista solo il primo. `ERTMovementStyle::LinearLeap` produce `Result.Entered = { destinazione }` e nient'altro, e poiché `ApplyTerrainOnEnterEffects` legge **esattamente** `Entered`, un `Action.Leap` non prende gli hazard intermedi, non genera micro-step intermedi e collide solo all'arrivo: **le tre righe che la matrice attribuisce al Teleport**. Le due strade non sono equivalenti. *(a)* **Eccezione del Dash**: un Blink diventa un valore nuovo di `ERTMovementStyle`, zero tipi nuovi, e la matrice tiene una colonna che descrive tre stili su quattro. *(b)* **Famiglia propria**: la matrice guadagna una colonna vera, ma `ERTMovementStyle` è serializzato negli asset e la migrazione va progettata. ⚠️ Da decidere **prima** che qualcuno scriva un Blink, non dopo: è la scelta che determina se il Blink è lavoro nuovo o un dato in più. 🔗 Incrocia `STA-4`/[#436](https://github.com/DegrassiAaron/refactor-tactics-main/issues/436), che possiede la **bloccabilità** (un `Root` ferma un trasferimento?) ma non la famiglia |
+| ~~`MOV-2`~~ | ~~**Un Blink entra in v0.1**, o Teleport resta post-v0.1 design-ready?~~ | ✅ **Chiusa il 2026-08-12** — [D-119](decisions/RT_PDR_00_Decision_Log.md), decisa dall'autore: **post-v0.1**, epic **E39** in **v0.2**. La v0.1 resta a quattro eroi che non saltano. ⚠️ È la **prima** decisione sul perimetro del Teleport: l'assenza precedente era un fatto misurato, non una scelta — quindi qui non si conferma niente, si decide. 🔴 **`#645` non è rinviata da questa chiusura**: il salto è irraggiungibile dal roster qualunque sia la release, e la sua domanda si risponde prima e altrove. **L'istruttoria che l'ha prodotta**: Il kit propone un `Short Blink` come primo caso, e il canone dice che il Teleport non esiste in v0.1. ⚠️ **Non c'è nessuna `D-nnn` che fissi quell'assenza**: `git grep -i teleport docs/decisions/` non restituisce nulla. L'assenza è un **fatto misurato** («nessuna azione del catalogo dichiara quella famiglia»), non una decisione presa — quindi portare un Blink in v0.1 non contraddirebbe una decisione, ma ne richiede una. La domanda vera non è tecnica: la semantica esiste già in `LinearLeap` e lo scenario che la prova è già scritto (§sotto). È di **scope**: la v0.1 ha quattro eroi e nessuno di loro salta |
 
 > **Lo scenario esiste già, ed è deliberatamente inerte.**
 > [`Scenarios/Spec/Movement/TeleportSkipsIntermediateCells.json`](../Scenarios/Spec/Movement/TeleportSkipsIntermediateCells.json)
