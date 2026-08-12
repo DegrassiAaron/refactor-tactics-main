@@ -4687,8 +4687,11 @@ features:
       `RebuildInstances` produce — non i valori, cosi' ritoccare le proporzioni resta libero e farle
       collassare no. ⚠️ Limite noto e dichiarato: i quattro stati di porta si mostrano con **due** forme
       (`Locked` come `Closed`, `Destroyed` come `Open`), quindi «lo stato e' visibile e cambia quando
-      cambia il dato» — acceptance di #553 — vale per il passaggio, non per chi puo' cambiarlo.
-      ⚠️ Le acceptance **visive** di entrambe le issue restano non verificate: chiudono su una seduta.
+      cambia il dato» — acceptance di #553 — vale per il passaggio, non per chi puo' cambiarlo. Aperta
+      **#695** perche' un limite scritto solo in un commento di test non e' lavoro tracciato.
+      ⚠️ Le acceptance **visive** di entrambe le issue restano non verificate: chiudono su una seduta, e
+      dal 2026-08-12 hanno le cinque voci `PIE-HEX-VIZ-*` in `test-manuali-pie.md` che le registrano —
+      prima non esistevano da nessuna parte se non nel testo di una PR.
 
 
       **Serie viz editor (2026-08-12): tre quarti atterrati, `log_debug` resta `partial` per il
