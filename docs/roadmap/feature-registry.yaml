@@ -1478,9 +1478,10 @@ features:
     kind: gameplay
     release: v0.2
     priority: P2
-    # BLOCKED, non IDEA: il modello IN VIGORE esiste, gira ed e' testato (`ERTActionSlot`, D-028). Cio' che
-    # e' bloccato non e' la costruzione ma la DECISIONE se sostituirlo. `IDEA` direbbe «non ci ha ancora
-    # pensato nessuno», che e' falso in entrambe le direzioni.
+    # `DEFERRED`, non `IDEA` ne' `BLOCKED`: la decisione e' stata PRESA, e la risposta e' no (D-114).
+    # `IDEA` direbbe «non ci ha ancora pensato nessuno» e `BLOCKED` «aspetta qualcuno»: entrambe false.
+    # La riga resta perche' il prossimo kit riproporra' l'ActionCapacity, e trovare qui la decisione con la
+    # sua ragione costa meno che ridiscuterla.
     status: DEFERRED
     gates:
       spec: partial
