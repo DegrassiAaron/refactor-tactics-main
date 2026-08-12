@@ -3426,7 +3426,7 @@ features:
     owner_specs:
       - docs/decisions/RT_PDR_00_Decision_Log.md
       - docs/technical/brief-icone-v01.md
-    issues: [217, 218, 219, 220, 265, 266, 267, 268, 269]
+    issues: [217, 218, 219, 220, 265, 266, 267, 268, 269, 637]
     tests:
       - RefactorTactics.IconCatalog.*
       - RefactorTactics.Heroes.HeroIdsMatchRoster
@@ -3434,7 +3434,7 @@ features:
     wiki_refs: []
     last_verified:
       date: 2026-08-12
-      commit: eaa8d7a
+      commit: 2471a37
     notes: >
       D-031: le icone sono un **catalogo semantico** (`URTIconCatalogData`), non texture
       referenziate nei widget. Entra in v0.1 perché E11 costruisce l'HUD adesso e riscrivere ogni

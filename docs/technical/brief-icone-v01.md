@@ -1,12 +1,19 @@
 # Brief icone della v0.1 — cosa disegnare per CP 20.2
 
 > **Tipo**: brief di produzione asset · **Creato**: 2026-08-12 · **Owner della domanda**: *quali icone servono,
-> e come si chiamano*.
+> come si chiamano e di che colore sono*.
 >
-> **Cosa è**: l'elenco delle chiavi che il catalogo della v0.1 deve coprire, con il nome file atteso.
-> **Cosa non è**: la fonte. La fonte è `URTIconLibrary::RequiredIconIds()`, che le **deriva dai dati di gioco**
-> — catalogo azioni, tag di stato, fasi del turno, roster eroi. L'elenco qui sotto è una **fotografia**: se
-> diverge, ha ragione il codice.
+> ⚠️ **Le due metà di questo documento hanno statuto diverso, e confonderle è un errore.**
+>
+> | | **Le chiavi** (§Le 33 chiavi) | **Il colore** (§Colore) |
+> |---|---|---|
+> | La fonte è | `URTIconLibrary::RequiredIconIds()`, che le **deriva dai dati di gioco** — catalogo azioni, tag di stato, fasi del turno, roster eroi | **questo documento**: nessun `RequiredColorTokens()` esiste in codice |
+> | Se diverge | ha ragione **il codice**: l'elenco qui è una fotografia | ha ragione **questa pagina**, ma vedi il vincolo qui sotto |
+>
+> ⚠️ **Il colore è provvisorio finché la sua sorgente non è versionata.** I token `RT_Sem_*` sono recepiti da
+> un file che non è in nessun branch, e la DoD dell'issue di riconciliazione lo dice: un sorgente non
+> versionato «non può essere citato come specifica». Questa sezione lo cita comunque — consapevolmente,
+> perché il batch della v0.1 non può aspettare — ma i valori si rileggono quando quella issue chiude.
 
 Regola di D-031: nessun widget referenzia una texture. Il gameplay produce una **chiave**, la UI la risolve nel
 catalogo. Rinominare una chiave costa quanto rinominare un'azione a catalogo.
@@ -28,6 +35,104 @@ perché questo elenco resti vivo.
 
 Il prefisso `UI.Icon.` **non è decorazione**: senza, `Status.Wet` come icona e `Status.Wet` come Gameplay Tag
 sarebbero la stessa stringa in un log, e D-031 li vuole concetti distinti.
+
+## Colore
+
+> **Recepito qui il 2026-08-12** da `docs/src/design/icon/visual-language/02-color-system.md`, che dichiara
+> di essere «sorgente di design, non canone». `docs/src/` diventa vincolante solo quando un owner
+> documentale lo consuma: questa sezione è quell'atto per i token **semantici**. I token **chrome**
+> (`RT_UI_*`) restano di [`progettazione-hud.md`](progettazione-hud.md) §32 e non si riscrivono qui.
+>
+> ⚠️ **La sorgente non è versionata e si è mossa durante il recepimento.** `docs/src/design/icon/` risulta
+> untracked, e la prima stesura di questa sezione ha recepito una versione superata **trentasei secondi**
+> prima che venisse corretta. Quello che segue è lo stato del **2026-08-12 ore 11:06**; finché quel materiale
+> non entra nel repository (issue di riconciliazione della tassonomia) ogni recepimento è una fotografia, e
+> il modo di accorgersene è confrontare i valori con `progettazione-hud.md`, che invece è versionato.
+
+### La regola che governa tutte le altre
+
+**Il colore è il secondo canale. La silhouette è il primo.** Ogni icona deve restare distinguibile in
+grayscale: il grayscale non è un tema, è il test di accettazione. Un'icona che funziona solo a colori non è
+accettata, e `Critical` (`#FF4D4D`) è **solo rinforzo** — non porta mai un segnale da solo.
+
+### Token semantici
+
+Base **Okabe-Ito**, scelta perché distinguibile per costruzione sotto protanopia, deuteranopia e tritanopia.
+
+⚠️ **`RT_Sem_*` e le dodici categorie di D-031 sono due assi diversi che condividono qualche nome.**
+`RT_Sem_Reaction` è una **famiglia di colore**; `Reaction` è una **categoria di chiave**, ed è una delle sette
+che la v0.1 lascia vuote. Un token può tingere una chiave di un'altra categoria — `RT_Sem_Defense` tinge
+`Status.Braced` — e la coincidenza di nome non implica nessun legame. Chi legge una tabella non deve dedurne
+l'altra.
+
+| Token | HEX | Usato da |
+|---|---|---|
+| `RT_Sem_Movement` | `#009E73` | `Action.Move` · `Action.Sprint` · `Action.Dash` · `Action.Leap` |
+| `RT_Sem_Attack` | `#D55E00` | `Action.BasicAttack` · `Action.Charge` |
+| `RT_Sem_Utility` | `#0072B2` | `Action.Interact` |
+| `RT_Sem_Defense` | `#56B4E9` | `Action.Guard` · `Status.Guarded` · `Status.Braced` |
+| `RT_Sem_Reaction` | `#CC79A7` | — *nessuna chiave della v0.1: il suo uso è `Overwatch`, che non è nel catalogo azioni* |
+| `RT_Sem_Hazard` | `#E69F00` | `Status.Exposed` · `Status.Root` · `Status.Slow` · `Status.Marked` |
+| `RT_Sem_Electric` | `#F0E442` | `Status.Electrified` — **outline scuro obbligatorio** |
+| Water | `#0072B2` | `Status.Wet` |
+| Fire | `#D55E00` | `Status.Burning` |
+| Ally / Enemy | `#56B4E9` / `#E69F00` | `Identity.Ally` · `Identity.Enemy` |
+
+### Perché non verde e rosso puri
+
+La richiesta originale era `Movement → green` e `Attack → red`. **Le associazioni sono mantenute, gli hex
+no**: `#009E73` è un verde virato al blu, `#D55E00` un rosso virato all'arancio. Un verde puro e un rosso
+puro convergono sotto deuteranopia e protanopia, e Movement e Attack sono **adiacenti nella stessa skill
+bar** — il punto in cui la confusione costa di più.
+
+Non basta da solo: Movement e Attack restano distinti soprattutto per **forma** — percorso con nodi contro
+reticolo con impatto.
+
+### Le collisioni di hex
+
+**Tre token stanno su `#56B4E9`**: `Defense`, `Ally` e `Ice`. Delle tre coppie che ne derivano, una è
+dichiarata e due no.
+
+**`Defense` e `Ally` — dichiarata, e la separazione regge**: una relazione di squadra tinge un **marker di
+unità**, una famiglia d'azione tinge uno **slot**. Non compaiono mai sulla stessa superficie. Se un giorno lo
+faranno, il primo a spostarsi è `Defense`.
+
+⚠️ **`Ice` con `Ally` e `Ice` con `Defense` — non dichiarate.** Un'unità alleata su una superficie ghiacciata
+mette i primi due colori nella stessa vista; il terzo caso è più remoto ma non impossibile. Non blocca la
+v0.1 per una ragione precisa: **non esiste uno stato `Ice`** — i tag sono undici (`Root, Slow, Reveal,
+Exposed, Guarded, Marked, Wet, Braced, Burning, Obscured, Electrified`) e nessuno è ghiaccio. Va risolta
+**prima** che un'icona `Ice` venga disegnata, non dopo.
+
+> ⚠️ **`Movement` e `Defense` non condividono più `#009E73`, e la ragione vale più della correzione.** La
+> prima stesura di questa sezione riportava quella collisione come «accettabile perché non competono mai
+> nella stessa decisione: gruppi diversi della skill bar». La premessa è **falsa**, e a falsificarla è un
+> documento **versionato**: [`progettazione-hud.md`](progettazione-hud.md) §6.7 mette `Move`, `Wait`,
+> `Guard` e `Overwatch` nella **stessa lista** «Universal Actions» dell'Action Dock — cioè sotto gli occhi
+> nello stesso momento. `Defense` è passato a `#56B4E9`.
+>
+> Il modo di non ripetere l'errore non è leggere meglio la sorgente di design: è **verificare la premessa
+> contro il canone versionato** prima di accettarla. Qui la prova stava in un file del repository.
+
+> ⚠️ **`Brace` è difesa, non reazione.** La prima stesura mappava `Status.Braced` su `RT_Sem_Reaction` per
+> associazione col nome della corsia HUD. `Brace` è un'azione generica di D-025, non un ramo del ciclo di
+> reazione — e D-047 lo conferma dal lato gameplay: *«`Brace` prepara una reazione; come si reagisce lo dice
+> il Reaction Profile»*. Prepararla non è esserlo.
+
+### Cosa il colore non decide
+
+- **`Certainty`** non usa il colore come canale: la grammatica è già in
+  [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §11.2 — confermato = linea piena · previsto =
+  tratteggiata + icona di squadra · incerto = dissolto + `?`.
+- **Gli elementi non cambiano per squadra.** Un fuoco alleato è dello stesso colore di un fuoco nemico: a
+  cambiare è chi lo ha causato, non che cosa è.
+- **Il colore di fazione non indica mai `Ally`/`Enemy`.** Sono due assi distinti.
+- **`Ally` e `Enemy` differiscono per forma anche in monocromia**, non solo per tinta.
+
+### Rimaste senza token
+
+Non hanno un token nella sorgente e **non si inventano qui**: `Phase.*` (quattro), `Action.Wait`,
+`Status.Reveal`, `Status.Obscured`, e i quattro eroi di `Identity`. Per la prima passata restano neutre
+(`RT_UI_White` / testo secondario) e si distinguono per silhouette — che è comunque il primo canale.
 
 ## Le 33 chiavi
 

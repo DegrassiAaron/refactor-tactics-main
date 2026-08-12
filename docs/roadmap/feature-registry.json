@@ -4058,7 +4058,8 @@
         266,
         267,
         268,
-        269
+        269,
+        637
       ],
       "tests": [
         "RefactorTactics.IconCatalog.*",
@@ -4071,7 +4072,7 @@
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-12",
-        "commit": "eaa8d7a"
+        "commit": "2471a37"
       },
       "notes": "D-031: le icone sono un **catalogo semantico** (`URTIconCatalogData`), non texture referenziate nei widget. Entra in v0.1 perché E11 costruisce l'HUD adesso e riscrivere ogni widget dopo costerebbe di più. La v0.1 (**E20**, `#217`–`#220`) popola cinque categorie su dodici; le altre sette e i consumer world-space, reaction e perception sono **E25** in `roadmap-post-v0.1.md` (`#265` epic, `#266`–`#269` checkpoint), aperta il 2026-08-08. Una sola feature per due epic: il catalogo è lo stesso, cambia quanto ne è popolato. ⚠️ **CP 20.2 (2026-08-12) ha reso `Certainty` e `Identity` DERIVATE**, contro la lettera di `#219` che le voleva scritte a mano nel data asset: una chiave a mano è una chiave che nessuna macchina pretende, cioè la seconda copia che CP 20.1 aveva eliminato per Action, Status e Phase. Identity viene dal roster (`URTHeroCatalogLibrary`, che `#219` dichiarava inesistente) più `Ally`/`Enemy`; Certainty dai tre livelli di CP 11.2. L'insieme richiesto è passato da 24 a **33 chiavi**. ⚠️ Il gate `data` non si chiude programmando: servono 33 texture e il missing-icon, e la creazione del `DA_IconCatalog` è un passo Editor."
     },
