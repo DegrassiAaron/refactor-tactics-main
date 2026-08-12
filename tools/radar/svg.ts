@@ -7,7 +7,7 @@
 import type { ProfileAxes } from './profile.ts';
 
 export interface AxisSpec {
-  key: keyof ProfileAxes;
+  key: string;
   label: string;
 }
 
@@ -20,6 +20,17 @@ export const PROFILE_AXES: AxisSpec[] = [
   { key: 'control', label: 'Controllo' },
   { key: 'support', label: 'Supporto' },
   { key: 'information', label: 'Informazione' },
+];
+
+/** Cinque assi, in **quest'ordine** (owner §2.2). Vale la stessa regola del Profile: cambiare
+ *  l'ordine cambia la forma a parita' di valori, quindi due radar con ordini diversi non sono
+ *  confrontabili. */
+export const BALANCE_AXES: AxisSpec[] = [
+  { key: 'precision', label: 'Precisione' },
+  { key: 'power', label: 'Potenza' },
+  { key: 'control', label: 'Controllo' },
+  { key: 'support', label: 'Supporto' },
+  { key: 'durability', label: 'Durabilità' },
 ];
 
 const SIZE = 400;
@@ -52,7 +63,7 @@ export function renderRadar(
   hero: string,
   role: string,
   axes: AxisSpec[],
-  values: Partial<Record<keyof ProfileAxes, number>>,
+  values: Record<string, number | undefined>,
 ): string {
   const missing = axes.filter((a) => typeof values[a.key] !== 'number').map((a) => a.key);
   if (missing.length > 0) {
@@ -92,6 +103,59 @@ export function renderRadar(
 ${grid}
   <polygon class="shape" points="${shape}" />
 ${labels}
+</svg>
+`;
+}
+
+/** Due profili sovrapposti sullo stesso set di assi.
+ *
+ *  Serve a rispondere «in cosa A e' avanti su B», che e' una delle due cose per cui il radar esiste.
+ *  Le due forme devono restare **distinguibili**: colore diverso, riempimento piu' leggero e una
+ *  legenda — due poligoni traslucidi senza etichetta non si leggono. */
+export function renderCompare(
+  a: { name: string; values: Record<string, number | undefined> },
+  b: { name: string; values: Record<string, number | undefined> },
+  axes: AxisSpec[],
+): string {
+  for (const side of [a, b]) {
+    const missing = axes.filter((x) => typeof side.values[x.key] !== 'number').map((x) => x.key);
+    if (missing.length > 0) {
+      throw new Error(`${side.name}: radar non generabile, assi senza valore: ${missing.join(', ')}.`);
+    }
+  }
+
+  const grid = [2, 4, 6, 8, 10]
+    .map((step) => `  <polygon class="grid" points="${axes.map((_, i) => vertex(i, axes.length, step / MAX_RATING).join(',')).join(' ')}" />`)
+    .join('\n');
+
+  const shape = (side: typeof a, cls: string) =>
+    `  <polygon class="shape ${cls}" points="${axes.map((x, i) => vertex(i, axes.length, side.values[x.key]! / MAX_RATING).join(',')).join(' ')}" />`;
+
+  const labels = axes
+    .map((x, i) => {
+      const [px, py] = vertex(i, axes.length, 1.18);
+      return `  <text class="axis" x="${px}" y="${py}">${escapeXml(x.label)}</text>`;
+    })
+    .join('\n');
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-labelledby="t">
+  <title id="t">${escapeXml(a.name)} vs ${escapeXml(b.name)} — confronto</title>
+  <style>
+    .grid { fill: none; stroke: #d0d0d0; stroke-width: 1 }
+    .shape { fill-opacity: .25; stroke-width: 2 }
+    .a { fill: #4a7fb5; stroke: #2b5c8a }
+    .b { fill: #b5764a; stroke: #8a5a2b }
+    .axis { font: 12px sans-serif; text-anchor: middle; fill: #333 }
+    .legend { font: bold 12px sans-serif }
+  </style>
+${grid}
+${shape(a, 'a')}
+${shape(b, 'b')}
+${labels}
+  <rect class="a" x="12.00" y="12.00" width="12.00" height="12.00" />
+  <text class="legend" x="30.00" y="22.00" fill="#2b5c8a">${escapeXml(a.name)}</text>
+  <rect class="b" x="12.00" y="30.00" width="12.00" height="12.00" />
+  <text class="legend" x="30.00" y="40.00" fill="#8a5a2b">${escapeXml(b.name)}</text>
 </svg>
 `;
 }

@@ -9,7 +9,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readCatalogs } from './parse-catalog.ts';
 import { profileAxes } from './profile.ts';
-import { renderRadar, PROFILE_AXES } from './svg.ts';
+import { renderRadar, PROFILE_AXES, BALANCE_AXES } from './svg.ts';
+import { balanceAxes } from './balance.ts';
 
 const HERO = new URL('../../docs/balance/RT_HeroCatalog_v0.1.md', import.meta.url);
 const ACTION = new URL('../../docs/balance/RT_ActionCatalog_v0.1.md', import.meta.url);
@@ -31,14 +32,21 @@ const diverging: string[] = [];
 if (!check && !existsSync(OUT)) mkdirSync(OUT, { recursive: true });
 
 for (const hero of heroes) {
-  const svg = renderRadar(hero.name, ROLES[hero.name] ?? '—', PROFILE_AXES, profileAxes(hero));
-  const file = `${OUT}${hero.name.toLowerCase()}-profile.svg`;
+  const role = ROLES[hero.name] ?? '—';
+  const views: [string, string][] = [
+    ['profile', renderRadar(hero.name, role, PROFILE_AXES, profileAxes(hero))],
+    ['balance', renderRadar(hero.name, role, BALANCE_AXES, balanceAxes(hero))],
+  ];
+
+  for (const [view, svg] of views) {
+  const file = `${OUT}${hero.name.toLowerCase()}-${view}.svg`;
 
   if (check) {
     const current = existsSync(file) ? readFileSync(file, 'utf8') : null;
-    if (current !== svg) diverging.push(`${hero.name.toLowerCase()}-profile.svg`);
+    if (current !== svg) diverging.push(`${hero.name.toLowerCase()}-${view}.svg`);
   } else {
     writeFileSync(file, svg, { encoding: 'utf8' });
+  }
   }
 }
 
@@ -51,4 +59,4 @@ if (check && diverging.length > 0) {
   );
   process.exit(1);
 }
-console.error(check ? 'radar allineati ai cataloghi' : `scritti ${heroes.length} radar in docs/characters/radar/`);
+console.error(check ? 'radar allineati ai cataloghi' : `scritti ${heroes.length * 2} radar in docs/characters/radar/`);
