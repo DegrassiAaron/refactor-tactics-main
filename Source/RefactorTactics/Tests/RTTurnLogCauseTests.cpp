@@ -951,6 +951,59 @@ bool FRTAnchorCancelsPushTest::RunTest(const FString&)
 	TestTrue(TEXT("il TurnLog registra l'ancora come ATTIVATA, non come non scattata"), bAttivata);
 
 	DestroyCauseWorld(World);
+
+	// --- E non si spende per una spinta che la geometria ferma da sola ------------------------------
+	// Due attaccanti sullo stesso bersaglio: le forze si annullano (`OpposingForces`, `#420`) e l'unita'
+	// resta ferma comunque. L'ancora non deve attivarsi — trovato in code review, quando il valutatore
+	// chiedeva «e' in arrivo una spinta?» invece di «e' in arrivo una spinta che mi sposterebbe?».
+	// E' la stessa regola di `Reaction.Cleanse`, che resta carica se annullare non cambierebbe nulla.
+	{
+		UWorld* World2 = MakeCauseWorld();
+		if (!TestNotNull(TEXT("World delle forze opposte"), World2)) { return false; }
+		SpawnCauseMap(World2);
+		ARTUnit* Left   = SpawnCauseUnit(World2, 0, FRTCellId(0, 0));
+		ARTUnit* Victim2 = SpawnCauseUnit(World2, 1, FRTCellId(1, 0));
+		ARTUnit* Right  = SpawnCauseUnit(World2, 0, FRTCellId(2, 0));
+		ARTTurnManager* TM2 = World2->SpawnActor<ARTTurnManager>();
+		if (!Left || !Victim2 || !Right || !TM2) { DestroyCauseWorld(World2); return false; }
+
+		URTActionData* Reazione2 = URTCatalogLibrary::MakeEquipmentAction(Anchor, Victim2);
+		Victim2->Abilities.Add(Reazione2);
+		Victim2->PlannedReactionAbility = Victim2->Abilities.Num() - 1;
+
+		PlanPushOn(Left, Victim2);
+		PlanPushOn(Right, Victim2);
+		RunCauseTurn(TM2);
+
+		if (!TestTrue(TEXT("premessa: le due spinte si annullano e il bersaglio resta"),
+			Victim2->Cell == FRTCellId(1, 0)))
+		{
+			DestroyCauseWorld(World2);
+			return false;
+		}
+
+		bool bSprecata = false;
+		for (const FRTTurnLogEntry& E : EntriesOfCategory(TM2, ERTLogCategory::Reaction))
+		{
+			if (E.ActionId == FName(TEXT("Reaction.Anchor"))
+				&& static_cast<ERTReactionOutcome>(E.Outcome) == ERTReactionOutcome::Activated)
+			{
+				bSprecata = true;
+			}
+		}
+		TestFalse(TEXT("l'ancora NON si spende: quella spinta non lo avrebbe spostato"), bSprecata);
+
+		// E la causa registrata resta quella vera: le forze opposte, non un'ancora che non e' intervenuta.
+		const TArray<FRTTurnLogEntry> Resisted2 = ResistedEntries(TM2);
+		if (Resisted2.Num() == 1)
+		{
+			TestEqual(TEXT("il TurnLog dice ancora `OpposingForces`"),
+				static_cast<ERTDisplacementBlockReason>(Resisted2[0].Amount),
+				ERTDisplacementBlockReason::OpposingForces);
+		}
+		DestroyCauseWorld(World2);
+	}
+
 	return true;
 }
 

@@ -4101,7 +4101,19 @@ void ARTTurnManager::ResolveCombat()
 		[&Units, &KnockCount, &PullCount](int32 SelfId, ERTReactionTrigger)
 		{
 			ARTUnit* Self = Units.IsValidIndex(SelfId) ? Units[SelfId] : nullptr;
-			const bool bAboutToMove = Self && (KnockCount.Contains(Self) || PullCount.Contains(Self));
+			const int32* Pushes = Self ? KnockCount.Find(Self) : nullptr;
+			const int32* Pulls  = Self ? PullCount.Find(Self) : nullptr;
+
+			// **Esattamente UNA**, non «almeno una»: due spinte sullo stesso bersaglio si annullano da sole
+			// per geometria (`OpposingForces`, `#420`) e il bersaglio resta fermo comunque. Con `Contains`
+			// l'ancora si spendeva per fermare uno spostamento che non sarebbe avvenuto, e il TurnLog
+			// scriveva pure un'altra causa — trovato in code review.
+			//
+			// E' la stessa regola di `Reaction.Cleanse`, che non si attiva quando annullare non cambierebbe
+			// nulla: due moduli dello stesso checkpoint non possono avere filosofie opposte su quando
+			// spendere l'unica attivazione del turno.
+			const bool bAboutToMove = (Pushes && *Pushes == 1) || (Pulls && *Pulls == 1);
+
 			// Nessun `TriggeredBy`: di uno spostamento si conosce la cella di provenienza
 			// (`KnockFrom`/`PullToward`), non un'unita' — e con due attaccanti non ce ne sarebbe una sola.
 			// Gli effetti difensivi non ne hanno bisogno, e `BuildReactionEvents` scarta gli offensivi.
