@@ -2090,8 +2090,15 @@ features:
       produttore non e' l'harness: `rt.Reaction.Condition [N]` scrive il piano passando dalla stessa
       validazione che usera' l'interfaccia di E11.
       `runtime: partial` e non `done`: la regola esiste ed e' pura, ma NESSUN chiamante di
-      produzione la invoca. CP 14.4 e' chiusa e `BuildOverwatchTriggers` esiste, ma i suoi soli
-      chiamanti restano l'harness e i test — il lettore vero nasce con CP 14.5, che cabla la finestra.
+      produzione la invoca. ⚠️ **Gli anelli mancanti sono DUE, e il primo commento su #583 ne nominava
+      uno solo** (misurato il 2026-08-12): *(1)* CP 14.5 cabla la finestra nel resolver — CP 14.4 e'
+      chiusa e `BuildOverwatchTriggers` esiste, ma i suoi soli chiamanti restano harness e test; *(2)*
+      **`Action.Overwatch` non esiste nel catalogo core** e nessun eroe lo ha nel kit — le reazioni del
+      roster sono `Counter`, `Intercept` e `Deflect`, tutte automatiche. Il catalogo lo dichiara
+      esplicitamente (`RTCatalogLibrary.h`: «`Overwatch` non esiste nemmeno nel catalogo core: e' E14,
+      e arrivera' con la sua infrastruttura»), e chi lo possiedera' e' la decisione `BAS-2` in
+      `OPEN_DECISIONS.md`. Finche' entrambi mancano, la condizione dichiarata e' corretta e **inerte**:
+      nessuna opportunity a due risposte nasce in partita, quindi non c'e' niente su cui possa mordere.
       Per la stessa ragione il TurnLog non registra ancora la condizione: non c'e' un'opportunity di
       partita in cui registrarla, ed e' la voce che tiene aperta la issue #583. `log_debug: todo` per la stessa ragione: niente
       serializza ancora l'id, quindi «serializzazione stabile dentro l'hash del replay» e'
