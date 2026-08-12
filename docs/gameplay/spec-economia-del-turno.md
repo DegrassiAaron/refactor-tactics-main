@@ -55,8 +55,8 @@ di quelle voci, non voci in più.
 
 | Voce del piano | Slot | Fase di risoluzione | Esempi |
 |---|---|---|---|
-| mobilità speciale | Movimento | **`Dash`** | `Dash`, `Leap`, `Reposition`, `Sprint` *(vedi §3.1)* |
-| movimento normale | Movimento | **`Move`** | profili `Sneak` · `Move` · `Sprint` · `Withdraw` |
+| mobilità speciale | Movimento | **`Dash`** | `Dash`, `Leap`, `Reposition` |
+| movimento normale | Movimento | **`Move`** | profili `Sneak` · `Move` · `Withdraw` — e `Sprint`, che è di questa famiglia ma risolve **pre-Blast**: vedi §3.1 |
 | azione principale | Principale | dipende dall'azione | `BasicAttack`, `Interact`, `Charge` (**`Blast`**) · `Guard`, `Brace`, `Overwatch`, `CreateCover` (**`Prep`**) |
 | reazione | Reazione | al trigger | `Counter`, `Intercept`, `Deflect` |
 | facing finale | — | fine `Move` | rotazione dichiarata entro il budget di pivot |
@@ -94,8 +94,15 @@ lo stesso slot e la stessa macro-fase. Cambiano **distanza, rumore ed esposizion
 impone l'`Overwatch`.
 
 I budget sono nel catalogo (`Move` 5 MP · `Sprint` 8 · `Withdraw` 2; **`Sneak` non è definito da nessuna
-fonte corrente** e non si inventa). `Sprint` resta pre-Blast per decisione esplicita e verificata
-([D-068](../decisions/RT_PDR_00_Decision_Log.md)), non per arretrato.
+fonte corrente** e non si inventa).
+
+**`Sprint` è l'eccezione che vale la pena leggere due volte**: appartiene alla famiglia `Move` — percorso a
+budget, pathfinding, slot movimento — ma **risolve pre-Blast**, in `ERTResolutionPhase::FastMovement`. Non è
+un arretrato di migrazione: è una decisione esplicita ([D-068](../decisions/RT_PDR_00_Decision_Log.md)),
+verificata da `Actions.SprintIsAMoveProfileResolvedPreBlast`, che asserisce **stile, slot e fase insieme** ed
+è scritta per *cadere* se un giorno la fase venisse spostata. «Profilo di `Move`» è un'affermazione sulla
+**famiglia**, non sul **momento**; e spostarlo dopo il Blast gli toglierebbe l'ultimo prezzo che paga,
+l'esposizione al fuoco di questo turno.
 
 ### 3.2 Il pivot non si paga in Movement Point
 

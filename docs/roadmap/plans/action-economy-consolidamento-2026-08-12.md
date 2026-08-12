@@ -29,10 +29,10 @@ Nessuna viene dal kit; tutte sono state prese sul branch.
 | # | Misura | Comando | Conseguenza |
 |---|---|---|---|
 | **M1** | L'economia del turno **è a slot**, non a budget: `ERTActionSlot` vale `None · Movement · Main · MovementAndMain · Reaction` | `RTActionDef.h:71` | `ActionCapacity` non è un'aggiunta, è una **sostituzione** del modello |
-| **M2** | «Slot ≡ Action Points, cap **2**» è **già consolidato** dal 2026-08-07 | catalogo azioni §«Slot per turno» | il kit ripropone come nuova una equivalenza già registrata, e con un cap diverso |
+| **M2** | «Slot ≡ Action Points, cap **2**» è **già consolidato** dal 2026-08-07 | catalogo azioni §«Slot per turno» | il kit ripropone come nuova una equivalenza già registrata. ⚠️ Il kit **non fissa un cap** — §5 vieta esplicitamente di canonizzare il `3` dei suoi esempi — quindi il conflitto non è sul numero: è sul fatto che una capacità si **spende** e uno slot si **occupa** |
 | **M3** | I Movement Point **esistono**: `FRTActionDef::CostMP`, `FRTHexSimUnit::MoveBudget`, costi interi, `Move` 5 MP · `Sprint` 8 · `Withdraw` 2 | `RTActionDef.h:299`, `RTHexSim.h:34`, catalogo §2.1 | §14 del kit descrive un sistema che c'è; il valore aggiunto è zero |
 | **M4** | Il pivot **non si paga in MP**: è un budget in **step per eroe**, e ADR-0008 §5 dichiara che «la rotazione **non consuma slot**» | [ADR-0008](../../decisions/adr-0008-rotazione-e-policy-di-facing.md) §1, §5 · `D-060` | §15 del kit è un **conflitto**, non un aggiornamento |
-| **M5** | La compatibilità abilità↔movimento **non esiste**: zero occorrenze fuori dall'archivio | `grep -rn "MovementCompat\|Impaired\|Enhanced" docs/ Source/` | §6, §7 e §8 sono l'unico contributo genuinamente nuovo del kit |
+| **M5** | La compatibilità abilità↔movimento **non esiste** | `grep -rn "MovementCompat" docs/ Source/` → **0** fuori dai file di questo consolidamento. ⚠️ `Impaired`/`Enhanced` **non si cercano da soli**: `Enhanced` dà 12 falsi positivi in `Source/` (`EnhancedInput`), ed è il motivo per cui il termine di ricerca è il nome del **concetto**, non quello dello stato | §6, §7 e §8 sono l'unico contributo genuinamente nuovo del kit |
 
 ## 3. Verdetto sezione per sezione
 
@@ -114,6 +114,15 @@ esattamente ciò che `AE-4` deve trovare quando verrà aperta, ed è registrato 
 | AE-012 scenari | ✅ **aperta** | §6 |
 | AE-013 privacy del piano | ❌ **non si apre**: coperta | `RT-FEAT-NET-PRIVATE-PLANNING`, `#589` |
 | AE-014 matrici di bilanciamento | 🔴 **respinta** | §30 |
+
+**Dove sono finite, con i numeri**: [#604](https://github.com/DegrassiAaron/refactor-tactics-main/issues/604)
+(CP 38.1, la decisione `AE-1` ← AE-002) · [#605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/605)
+(CP 38.2 ← AE-010, AE-001) · [#606](https://github.com/DegrassiAaron/refactor-tactics-main/issues/606)
+(CP 38.3 ← AE-004, AE-003) · [#607](https://github.com/DegrassiAaron/refactor-tactics-main/issues/607)
+(CP 38.4 ← AE-008 + AE-009) · [#608](https://github.com/DegrassiAaron/refactor-tactics-main/issues/608)
+(CP 38.5 ← AE-012, AE-011) · [#610](https://github.com/DegrassiAaron/refactor-tactics-main/issues/610)
+(← AE-007) · epic [#609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609).
+**Sei issue e un'epic**, da quattordici proposte.
 
 ## 6. I 12 scenari proposti, filtrati
 
