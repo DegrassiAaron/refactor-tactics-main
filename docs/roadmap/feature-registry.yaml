@@ -2331,7 +2331,7 @@ features:
       - RT-FEAT-ENV-TERRAIN
     owner_specs:
       - docs/gameplay/spec-stati-temporanei-cp82.md
-    issues: [65]
+    issues: [65, 625]
     tests:
       - RefactorTactics.Status.*
       - RefactorTactics.Terrain.Status
@@ -2463,7 +2463,7 @@ features:
       - RT-FEAT-ENV-STATUS
     owner_specs:
       - docs/gameplay/spec-fuoco-acqua-cp84.md
-    issues: [64, 67]
+    issues: [64, 67, 625]
     tests:
       - RefactorTactics.Terrain.Fire
       - RefactorTactics.Status.Burning

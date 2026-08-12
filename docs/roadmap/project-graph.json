@@ -58,8 +58,7 @@
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
       "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
       "[RT-FEAT-STRESS-4V4] 1 scenario/i dichiarati planned: Stress.4v4.CoreRoster",
-      "[RT-FEAT-BOT-FAIRNESS] feature di gameplay TESTABLE senza scenario che la dimostri",
-      "[RT-FEAT-BOT-FAIRNESS] 3 scenario/i dichiarati planned: Spec.Bot.HiddenEnemyFairness, Spec.Bot.DecoyNoiseIndistinguishable, Spec.Bot.PlansOnPartialKnowledge",
+      "[RT-FEAT-BOT-FAIRNESS] 1 scenario/i dichiarati planned: Spec.Bot.DecoyNoiseIndistinguishable",
       "[RT-FEAT-BOT-TACTICAL] 5 scenario/i dichiarati planned: Spec.Bot.TeamPlanRejectsHardConflict, Spec.Bot.CandidateDiversityKeepsControl, Spec.Bot.TemporalSynergyRequiresPhaseOrder, Spec.Bot.OverkillMovesSecondUnit, Spec.Bot.PlanHysteresisIgnoresSmallDelta",
       "[RT-FEAT-BOT-BELIEF] 3 scenario/i dichiarati planned: Spec.Bot.BeliefDoesNotBecomeKnowledge, Spec.Bot.GraphRevisionInvalidatesBelief, Spec.Bot.InformationGainIgnoresHiddenContent",
       "[RT-FEAT-BOT-PREDICTIVE] 2 scenario/i dichiarati planned: Spec.Bot.RobustPlanSurvivesFlank, Spec.Bot.HoldOnUnaccountedThreat",
@@ -1850,6 +1849,20 @@
       "path": "Scenarios/RT_Showcase_Relay_v01.json"
     },
     {
+      "id": "Spec.Bot.HiddenEnemyFairness",
+      "requires": [
+        "BotPlanning"
+      ],
+      "path": "Scenarios/Spec/Bot/HiddenEnemyFairness.json"
+    },
+    {
+      "id": "Spec.Bot.PlansOnPartialKnowledge",
+      "requires": [
+        "BotPlanning"
+      ],
+      "path": "Scenarios/Spec/Bot/PlansOnPartialKnowledge.json"
+    },
+    {
       "id": "Spec.Brace.BraceWinsOnSecondHit",
       "requires": [],
       "path": "Scenarios/Spec/Brace/BraceWinsOnSecondHit.json"
@@ -2139,6 +2152,7 @@
     }
   ],
   "capabilities": [
+    "BotPlanning",
     "Cover",
     "CreateCover",
     "Environment",
