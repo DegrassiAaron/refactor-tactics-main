@@ -510,7 +510,7 @@ producono **numeri di playtest** (G11 chiede di *avere* i numeri, non di centrar
 | `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | ⏳ |
 | `PIE-CAM-START` | la partita si apre sulla propria squadra | ✅ |
 | `PIE-V01-MATCHEND` | **fine partita a tre vie**, a schermo, e `R` riavvia | ⏳ |
-| `PIE-V01-HUD` | HUD di partita completo, **round** su `RoundLimit` dal formato (già conforme in `RTHUD.cpp:403`); dal 2026-08-12 copre anche l'ingombro dello Screen HUD §4.1 di CP 11.7 (`#613`), che **si aggiunge** al Canvas | ⏳ |
+| `PIE-V01-HUD` | HUD di partita completo. Il **valore** del limite di round viene già dal formato (`RTHUD.cpp:403`), la **parola** no — `:405` stampa `"Turno"`, il DoD prescrive *round*. Resta sul Canvas: lo Screen HUD §4.1 di CP 11.7 (`#613`) avrà una voce propria | ⏳ |
 | `PIE-V01-LOG` | combat log con reason code leggibili | 🟡 |
 | `PIE-V01-INTENT` | intenti alleati e **nessun** intento avversario visibile | 🟡 |
 | `PIE-V01-ROSTER` | i quattro eroi si sentono diversi da giocare | 🟡 |

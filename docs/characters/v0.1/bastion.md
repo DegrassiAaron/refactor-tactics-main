@@ -11,7 +11,7 @@
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5.1, E5.2, E5.3, E5.4, E5.5`  
-> Stato: **INTEGRATED** · Gate: `6/8`  
+> Stato: **INTEGRATED** · Gate: `7/9`  
 > Scenario: `Combat.CounterStrikesBack`  
 > Verificato il `2026-08-08` su `2094b86`
 
@@ -21,7 +21,7 @@
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-MAP-DYNAMIC-COVER` · Release: `v0.1` · Roadmap: `E9.5`  
-> Stato: **INTEGRATED** · Gate: `6/8`  
+> Stato: **INTEGRATED** · Gate: `7/9`  
 > Scenario: `Spec.Cover.TemporaryCoverExpires`  
 > Le coperture si **erigono, si spostano e scadono** in partita (CP 9.5). Resta da riscrivere la pagina wiki delle coperture, che descrive solo il dato di mappa.  
 > Verificato il `2026-08-09` su `b5e295a`

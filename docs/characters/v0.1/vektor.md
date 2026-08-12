@@ -11,7 +11,7 @@
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5.1, E5.2, E5.3, E5.4, E5.5`  
-> Stato: **INTEGRATED** · Gate: `6/8`  
+> Stato: **INTEGRATED** · Gate: `7/9`  
 > Scenario: `Combat.CounterStrikesBack`  
 > Verificato il `2026-08-08` su `2094b86`
 
@@ -21,7 +21,7 @@
 
 > **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
 > Feature: `RT-FEAT-ACTION-PREDICTIVE` · Release: `v0.1` · Roadmap: `E18.1, E18.2`  
-> Stato: **INTEGRATED** · Gate: `6/8`  
+> Stato: **INTEGRATED** · Gate: `7/9`  
 > Scenario: `Spec.Predictive.WhiffOnEmptyCell`  
 > Verificato il `2026-08-10` su `800b83a`
 

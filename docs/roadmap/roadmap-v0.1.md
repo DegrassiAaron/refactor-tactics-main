@@ -219,46 +219,47 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-DATA-STABLE-IDS` — ID stabili e versioni dei contenuti | RELEASE_READY | 5/6 |
 |  | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | IMPLEMENTING | 3/6 |
 |  | `RT-FEAT-TOOL-VALIDATION` — Validator di dati, mappe e documenti | DONE | 5/5 |
-| **E2** | `RT-FEAT-ACTION-DASH-DISPLACEMENT` — Dash e spostamento forzato | RELEASE_READY | 7/8 |
+| **E2** | `RT-FEAT-ACTION-DASH-DISPLACEMENT` — Dash e spostamento forzato | RELEASE_READY | 8/9 |
 |  | `RT-FEAT-BOT-BASE` — Bot a utility scoring deterministico | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-CORE-TURN` — Pipeline del turno simultaneo | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-MAP-HEXGRAPH` — FRTCellId e grafo esagonale multilivello | RELEASE_READY | 7/8 |
+|  | `RT-FEAT-CORE-TURN` — Pipeline del turno simultaneo | RELEASE_READY | 8/9 |
+|  | `RT-FEAT-MAP-HEXGRAPH` — FRTCellId e grafo esagonale multilivello | RELEASE_READY | 8/9 |
 |  | `RT-FEAT-MAP-LOS` — LOS, targeting e traiettoria separati | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-MAP-PATHFINDING` — A* esagonale autorevole | RELEASE_READY | 6/7 |
-| **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 5/8 |
-|  | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo — completata da `RT-FEAT-REACTION-OVERWATCH`, `RT-FEAT-OBJECTIVE-SYSTEM` | IMPLEMENTING | 3/8 |
-|  | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | RELEASE_READY | 7/8 |
+| **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | RELEASE_READY | 7/9 |
+|  | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 5/9 |
+|  | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | RELEASE_READY | 8/9 |
+|  | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo — completata da `RT-FEAT-REACTION-OVERWATCH`, `RT-FEAT-OBJECTIVE-SYSTEM` | IMPLEMENTING | 3/9 |
+|  | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | RELEASE_READY | 8/9 |
 | **E5** | `RT-FEAT-NET-PRIVATE-PLANNING` — Intenti privati per squadra | TESTABLE | 5/8 |
-|  | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | INTEGRATED | 6/8 |
+|  | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | INTEGRATED | 7/9 |
 | **E6** | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Flux, Riva, Bastion, Vektor | INTEGRATED | 6/8 |
 | **E7** | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | IMPLEMENTING | 1/8 |
-| **E8** | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-ICE` — Ghiaccio e scivolamento | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-STATUS` — Stati temporanei legati alla cella | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-STEAM` — Fumo e copertura visiva | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-SYSTEMIC-COMBOS` — Interazioni sistemiche producer/consumer | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-TERRAIN` — Otto terreni con costi e proprietà | INTEGRATED | 6/8 |
-|  | `RT-FEAT-ENV-WATER` — Acqua e stato Wet | INTEGRATED | 6/8 |
+| **E8** | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-ICE` — Ghiaccio e scivolamento | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-STATUS` — Stati temporanei legati alla cella | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-STEAM` — Fumo e copertura visiva | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-SYSTEMIC-COMBOS` — Interazioni sistemiche producer/consumer | INTEGRATED | 7/9 |
+|  | `RT-FEAT-ENV-TERRAIN` — Otto terreni con costi e proprietà | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-WATER` — Acqua e stato Wet | INTEGRATED | 6/9 |
 | **E9** | `RT-FEAT-MAP-COVER` — Copertura direzionale per bordo | INTEGRATED | 6/8 |
-|  | `RT-FEAT-MAP-DYNAMIC-COVER` — Copertura modificabile e pannello cinetico | INTEGRATED | 6/8 |
+|  | `RT-FEAT-MAP-DYNAMIC-COVER` — Copertura modificabile e pannello cinetico | INTEGRATED | 7/9 |
 |  | `RT-FEAT-MAP-HIGH-GROUND` — Altura senza bonus numerico alla vista | INTEGRATED | 6/8 |
-|  | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | INTEGRATED | 6/8 |
-|  | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | INTEGRATED | 6/8 |
-| **E10** | `RT-FEAT-MATCH-END-CONDITIONS` — Fine partita a tre vie | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | IMPLEMENTING | 2/8 |
+|  | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | INTEGRATED | 7/9 |
+|  | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | INTEGRATED | 7/9 |
+| **E10** | `RT-FEAT-MATCH-END-CONDITIONS` — Fine partita a tre vie | RELEASE_READY | 7/9 |
+|  | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | IMPLEMENTING | 2/9 |
 | **E11** | `RT-FEAT-CORE-PLAYBACK` — Playback della risoluzione | INTEGRATED | 5/7 |
 |  | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | IMPLEMENTING | 3/6 |
 |  | `RT-FEAT-UI-ACTION-GHOSTS` — Action Ghosts e Ghost Timeline | SPECIFIED | 1/8 |
 |  | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-UI-COMBAT-LOG` — Combat log e spiegabilità | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | RELEASE_READY | 6/7 |
+|  | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | SPECIFIED | 1/7 |
 |  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 1/6 |
 |  | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse — completata da `RT-FEAT-UI-CERTAINTY` | IMPLEMENTING | 3/7 |
-| **E12** | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | INTEGRATED | 5/7 |
-|  | `RT-FEAT-CORE-TURNLOG` — TurnLog, reason code, hash e replay | RELEASE_READY | 6/7 |
+| **E12** | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | INTEGRATED | 6/8 |
+|  | `RT-FEAT-CORE-TURNLOG` — TurnLog, reason code, hash e replay | RELEASE_READY | 7/8 |
 |  | `RT-FEAT-DATA-HASH` — Hash di regole e contenuti | RELEASE_READY | 5/7 |
 |  | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | TESTABLE | 5/8 |
 |  | `RT-FEAT-PROD-PACKAGED` — Verifica su build packaged | IMPLEMENTING | 2/6 |
@@ -269,19 +270,19 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 3/9 |
 |  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | TESTABLE | 5/9 |
 |  | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | IMPLEMENTING | 3/9 |
-| **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/8 |
-|  | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | SPECIFIED | 1/9 |
-|  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/9 |
-|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/9 |
-|  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/9 |
-|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 3/9 |
-|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | IMPLEMENTING | 2/9 |
-|  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/8 |
+| **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/9 |
+|  | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | SPECIFIED | 1/10 |
+|  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/10 |
+|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/10 |
+|  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/10 |
+|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 3/10 |
+|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | IMPLEMENTING | 2/10 |
+|  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/9 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
-| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | IMPLEMENTING | 5/9 |
+| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | IMPLEMENTING | 6/10 |
 | **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | IMPLEMENTING | 1/7 |
-| **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | INTEGRATED | 6/8 |
+| **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | INTEGRATED | 7/9 |
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |

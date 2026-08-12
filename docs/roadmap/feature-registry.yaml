@@ -3142,7 +3142,10 @@ features:
       runtime: todo
       log_debug: na
       automation: todo
-      scenario: na
+      # `todo` come le altre dieci feature `kind: ui`, non `na`: `na` nel registry e' riservato a
+      # cio' che sta strutturalmente fuori da `Scenarios/` (tooling, data). Un widget e' verificabile
+      # da uno scenario visivo, quindi il gate e' aperto, non inapplicabile.
+      scenario: todo
       ui_wiki: todo
       packaged: todo
       network_privacy: na
@@ -3160,7 +3163,14 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:come-si-gioca
-    pie_refs: [PIE-V01-HUD]
+    # ⚠️ **Nessun `pie_refs`, di proposito.** `PIE-V01-HUD` appartiene a `RT-FEAT-UI-PLANNING`: il
+    # testo della voce verifica barre, timer, round, slot e cooldown — cioe' il Canvas. Citarla anche
+    # qui riprodurrebbe i tre legami falsi corretti da `6fa50623`, e il danno sarebbe concreto in due
+    # modi opposti: se la voce diventa ✅ coi criteri Canvas (raggiungibili a CP 11.1, prima che un
+    # widget esista) il validator direbbe «puo' avanzare» al gate `packaged` di una feature senza
+    # widget; se invece la si estendesse davvero allo Screen HUD, `RT-FEAT-UI-PLANNING` — gia'
+    # RELEASE_READY — resterebbe appesa a un checkpoint non iniziato. La voce PIE dello Screen HUD la
+    # scrivera' CP 11.7 insieme ai widget. Campo assente = «non ancora mappato», che qui e' vero.
     last_verified:
       date: 2026-08-12
       commit: 9bb782d
