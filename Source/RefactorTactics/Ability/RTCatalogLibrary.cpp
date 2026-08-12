@@ -382,6 +382,19 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 	//
 	// Con due controlli nello stesso Blast ne annulla **il piu' grave**, e non si spende affatto se il
 	// controllo in arrivo non cambierebbe nulla — chi e' gia' radicato non brucia la reazione per un rinnovo.
+	// `Reaction.HazardEscape` — l'ULTIMO dei sette, e il piu' lungo da arrivare. Non gli mancava un dato ne'
+	// un momento: gli mancava l'EVENTO. Finche' una superficie che nasceva sotto un'unita' ferma non le faceva
+	// niente (`#570`), nel Cleanup non c'era nessun danno imminente da cui fuggire e il modulo sarebbe stato
+	// inerte — la trappola di `Riva.MistVeil` (`#353`).
+	//
+	// Si fugge verso la cella che si ha DAVANTI, e il facing lo dichiara il giocatore: la fuga e' prevedibile
+	// guardando il campo invece che arbitraria. Se davanti non si puo', si ripiega sull'ordine canonico delle
+	// direzioni; se non c'e' nessuna cella sicura, la reazione si spende senza salvare — come `EmergencyDash`.
+	Modules.Add(Module(TEXT("Reaction.HazardEscape"), TEXT("Fuga hazard"), TEXT("Action.Evade"),
+		TEXT("quando la cella sotto di te diventa pericolosa ti sposti di una, verso dove stai guardando"),
+		TEXT("una sola volta per turno, e se sei circondato dal fuoco si spreca"),
+		{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }));
+
 	Modules.Add(Module(TEXT("Reaction.Cleanse"), TEXT("Pulizia automatica"), TEXT("Action.Purge"),
 		TEXT("il controllo che stai per ricevere non ti tocca: fra due, salta il piu' grave"),
 		TEXT("uno solo per turno, e non ferma il prolungamento di un controllo che hai gia' addosso"),
@@ -959,6 +972,25 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 			ERTActionSlot::Reaction);
 		Purge.ReactionTrigger = ERTReactionTrigger::AboutToReceiveControl;
 		Catalog.Add(Purge);
+	}
+
+	// `Evade` (CP 7.5, `#505`) — la reazione core dell'AMBIENTE: ti sposti di una cella quando quella sotto di
+	// te diventa pericolosa. Sesta e ultima reazione core della v0.1.
+	//
+	// L'unica che risolve fuori dal Blast: il suo trigger nasce nel Cleanup, dove le superfici vengono create.
+	// La fase dichiarata resta `Control` come le altre reazioni — a portarla nel Cleanup e' il PUNTO di
+	// valutazione (`URTReactionLibrary::PassPointFor`), non la fase dell'azione: sono due cose diverse, e
+	// confonderle qui avrebbe fatto risolvere l'azione nel Blast insieme al resto.
+	//
+	// Non si chiama `HazardEscape` per la stessa ragione per cui `Purge` non si chiama `Cleanse`: quello e' il
+	// nome del MODULO nel catalogo §3, e l'azione core e' un'altra entita'.
+	{
+		FRTActionDef Evade = ShippedAction(TEXT("Action.Evade"), ERTResolutionPhase::Control, /*Priority*/ 5,
+			/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
+			{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }, /*bInterruptible*/ true,
+			ERTActionSlot::Reaction);
+		Evade.ReactionTrigger = ERTReactionTrigger::CellBecameHazardous;
+		Catalog.Add(Evade);
 	}
 
 	// `Brace` — azione PRINCIPALE di Prep. Dichiara DUE stati: `Braced` (-10 a ogni danno diretto e blocca la

@@ -1666,6 +1666,7 @@ features:
       - RefactorTactics.Equipment.Cleanse.CancelsControl
       - RefactorTactics.Reaction.EveryTriggerHasAPassPoint
       - RefactorTactics.Reaction.ControlStatusesAreTwo
+      - RefactorTactics.Equipment.HazardEscape.FleesBeforeDamage
       - RefactorTactics.Equipment.ImpactVariantStacksPush
       - RefactorTactics.Equipment.Gadget.CooldownEnforced
       - RefactorTactics.Equipment.Gadget.NumbersMatchCatalog
@@ -1707,9 +1708,12 @@ features:
       l'applicazione invece di rimuovere a posteriori — e con un criterio di scelta che la review della
       specifica ha corretto: fra due controlli si annulla **il più grave**, non il primo raccolto, perché
       l'ordine di raccolta segue chi colpisce e sprecherebbe l'attivazione su uno `Slow` da attacco base
-      lasciando passare un `Root`. Resta fuori solo `HazardEscape`, e non per un nodo di design: gli manca un
-      **prerequisito** — una superficie che nasce sotto un'unità ferma oggi non le fa niente (`#570`), quindi
-      nel Cleanup non ci sarebbe nessun danno imminente da cui fuggire.
+      lasciando passare un `Root`. **Il 2026-08-12 i sette moduli sono completi.** `HazardEscape` è entrato per ultimo, e a lui non
+      mancava un dato né un momento ma l'**evento**: finché una superficie che nasceva sotto un'unità ferma
+      non le faceva niente (`#570`, D-111), nel Cleanup non c'era alcun danno imminente da cui fuggire. Si
+      fugge verso la cella che si ha davanti — il facing lo dichiara il giocatore, quindi la fuga è
+      prevedibile invece che arbitraria — e il facing non cambia, perché non c'è nessuno verso cui girarsi
+      (precedente di `Facing.EnvironmentalDisplacementKeepsFacing`).
       Il loadout (`#63`) ha inoltre un buco nell'owner: la tabella §4 del
       catalogo **non assegna varianti d'arma** a nessun eroe (dice esplicitamente che le sue sono varianti
       di *abilità*), quindi il default 1+1+1 richiesto dal DoD non esiste ancora nei dati.

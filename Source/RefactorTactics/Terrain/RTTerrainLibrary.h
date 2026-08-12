@@ -91,4 +91,35 @@ public:
 	static TArray<FRTPropagationHit> CollectElectricPropagation(const URTHexMapAsset* Map,
 		const FRTCellId& SourceCell, int32 MaxSteps, int32 InitialDamage, int32 PropagatedDamage,
 		const TArray<FRTHexCombatUnit>& Units);
+
+	/**
+	 * Vero se **entrare** su questa superficie infligge danno (CP 7.5, `#505`).
+	 *
+	 * Criterio preso dal catalogo, non da un elenco scritto qui: la superficie e' pericolosa quando i suoi
+	 * `OnEnterEffects` dichiarano un `Damage`. Oggi lo fa solo `Fire` (10 danni piu' `Burning`), e la
+	 * definizione resta vera per la prossima superficie che nascera' dannosa senza che nessuno debba
+	 * ricordarsi di aggiungerla.
+	 *
+	 * ⚠️ **Non basta `CellBoundStatusesFor`** per rispondere a questa domanda, ed e' l'errore naturale: quella
+	 * restituisce solo gli stati SOSTENUTI (durata 0, «finche' sei sulla cella»), mentre `Burning` ha durata
+	 * esplicita 2 e non compare. Una cella in fiamme risulterebbe innocua.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Terrain")
+	static bool IsHazardousSurface(ERTHexSurface Surface);
+
+	/**
+	 * Dove fugge chi si trova su una cella diventata pericolosa (`Reaction.HazardEscape`, CP 7.5 `#505`), o
+	 * `From` se non c'e' dove andare.
+	 *
+	 * **La prima scelta e' la cella verso cui l'unita' e' GIRATA.** Il facing lo dichiara il giocatore, quindi
+	 * la fuga diventa prevedibile guardando il campo invece che arbitraria — e la leggibilita' tattica e' un
+	 * pilastro di prodotto. Se quella cella non e' percorribile, sicura e libera, si ripiega sulle altre
+	 * adiacenti nell'ordine canonico delle direzioni: deterministico, e dichiarato qui invece che emergente.
+	 *
+	 * Vincoli, tutti verificati sul grafo e non sulla distanza: la cella dev'essere **raggiungibile**
+	 * (`GraphNeighbors`, quindi archi e dislivelli contano), non pericolosa (`IsHazardousSurface`) e non
+	 * occupata. Senza mappa non si fugge — fail-closed, come ovunque qui.
+	 */
+	static FRTCellId FindEscapeCell(const URTHexMapAsset* Map, const FRTCellId& From,
+		ERTHexDirection Facing, const TArray<FRTCellId>& Occupied);
 };

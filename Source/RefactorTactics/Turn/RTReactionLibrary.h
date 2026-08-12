@@ -58,7 +58,13 @@ enum class ERTReactionPassPoint : uint8
 	 * `Action.Brace` mette **a se stesso** non e' intercettabile da questo punto. E' corretto: una reazione
 	 * anti-controllo che annullasse la propria preparazione sarebbe un difetto, non una funzione.
 	 */
-	BlastStatus
+	BlastStatus,
+	/**
+	 * Le superfici appena NATE nel Cleanup, prima che i loro effetti tocchino chi ci sta sopra
+	 * (`Reaction.HazardEscape`). E' l'unico punto fuori dal Blast, ed e' il motivo per cui `#570` applica gli
+	 * effetti in fondo a `ResolveEnvironment` invece che dentro il ciclo che crea le superfici.
+	 */
+	CleanupSurfaceBirth
 };
 
 /**

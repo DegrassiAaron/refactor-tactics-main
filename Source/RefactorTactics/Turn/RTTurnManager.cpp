@@ -1603,12 +1603,84 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 	//
 	// L'ordine e' quello di raccolta (`HexArea` gia' ordinata) incrociato con `Units`, ordinate per cella piu'
 	// sopra: due unita' sulla stessa trasformazione ricevono gli effetti sempre nella stessa sequenza.
+	// --- Fuga dagli hazard (CP 7.5, `#505`): il punto di valutazione del CLEANUP -----------------------
+	// Le superfici sono nate e i loro effetti non hanno ancora toccato nessuno: e' l'unico istante in cui
+	// `Reaction.HazardEscape` salva davvero. Un istante prima non c'e' niente di pericoloso; uno dopo l'unita'
+	// ha gia' `Burning` addosso, e fuggire non glielo toglie — sarebbe teatro.
+	//
+	// `NoStates`: fuori dal Blast non esiste uno snapshot di combattimento da aggiornare. Il pass lo usa solo
+	// per gli scudi, che qui non avrebbero colpi da fermare.
+	TArray<FRTUnitCombatState> NoStates;
+	FRTReactionPassResult HazardReactions;
+	RunReactionPass(ERTReactionPassPoint::CleanupSurfaceBirth,
+		[&Units, &BornSurfaceCells, Map](int32 SelfId, ERTReactionTrigger)
+		{
+			ARTUnit* Self = Units.IsValidIndex(SelfId) ? Units[SelfId] : nullptr;
+			if (!Self || !Self->IsAlive() || !BornSurfaceCells.Contains(Self->Cell))
+			{
+				return FRTReactionTriggerHit{ false, INDEX_NONE };
+			}
+			// «Diventata pericolosa», non «cambiata»: allagare la cella sotto un'unita' non le fa scattare la
+			// fuga. Il criterio lo dichiara il catalogo (`IsHazardousSurface`), non un elenco qui.
+			const FRTHexCellData* Data = Map ? Map->FindCell(Self->Cell) : nullptr;
+			const bool bDanger = Data != nullptr && URTTerrainLibrary::IsHazardousSurface(Data->Surface);
+			// Nessun `TriggeredBy`: si fugge da una CELLA, e una cella non e' un'unita' ([D-063]).
+			return FRTReactionTriggerHit{ bDanger, INDEX_NONE };
+		},
+		Units, NoStates, Map, HazardReactions);
+
+	// Le destinazioni si calcolano TUTTE prima di muovere chiunque (D-094): due unita' che fuggono nello
+	// stesso Cleanup non devono vedersi a vicenda gia' spostate, o l'esito dipenderebbe dall'ordine.
+	if (HazardReactions.HazardFlees.Num() > 0)
+	{
+		TArray<FRTCellId> Occupied;
+		for (ARTUnit* U : Units) { if (IsValid(U) && U->IsAlive()) { Occupied.Add(U->Cell); } }
+
+		TArray<FRTCellId> Dest;
+		Dest.Reserve(HazardReactions.HazardFlees.Num());
+		for (const int32 FleeingId : HazardReactions.HazardFlees)
+		{
+			ARTUnit* Fleeing = Units.IsValidIndex(FleeingId) ? Units[FleeingId] : nullptr;
+			Dest.Add((Fleeing && Fleeing->IsAlive())
+				? URTTerrainLibrary::FindEscapeCell(Map, Fleeing->Cell, Fleeing->Facing, Occupied)
+				: FRTCellId());
+		}
+
+		for (int32 f = 0; f < HazardReactions.HazardFlees.Num(); ++f)
+		{
+			ARTUnit* Fleeing = Units.IsValidIndex(HazardReactions.HazardFlees[f])
+				? Units[HazardReactions.HazardFlees[f]] : nullptr;
+			if (!Fleeing || !Fleeing->IsAlive()) { continue; }
+
+			if (Dest[f] == Fleeing->Cell)
+			{
+				// Circondato: la reazione e' scattata e ha speso la sua attivazione senza salvare nessuno.
+				// E' un esito e va detto, come per `EmergencyDash` quando non ha dove andare.
+				AddLogEvent(FString::Printf(TEXT("%s: nessuna cella sicura dove fuggire"), *Fleeing->GetName()));
+				continue;
+			}
+
+			TMap<ARTUnit*, FRTDisplacementCause> FleeCause;
+			FleeCause.Add(Fleeing, FRTDisplacementCause{ FName(TEXT("Reaction.HazardEscape")), NAME_None, 0 });
+			// La sorgente del facing e' la cella d'ARRIVO, e non e' un trucco: con sorgente e arrivo
+			// coincidenti `FacingAfterDisplacement` lascia l'orientamento invariato, che e' esattamente la
+			// regola qui — non c'e' nessuno verso cui girarsi. E' il precedente gia' pinnato da
+			// `Facing.EnvironmentalDisplacementKeepsFacing` (scivolare sul ghiaccio non ruota). [D-104] vale
+			// per la fuga da un ATTACCANTE, che ha una minaccia da tenere davanti.
+			ApplyForcedDisplacement(Fleeing, Dest[f], Dest[f], FleeCause, TEXT("Fuga"), Map);
+		}
+	}
+
 	for (const FRTCellId& Cell : BornSurfaceCells)
 	{
 		for (ARTUnit* Occupant : Units)
 		{
 			// I morti no: una scarica elettrica di questo stesso Cleanup puo' averli appena eliminati, e
 			// bruciare un caduto scriverebbe una riga di combat log per un evento che non esiste.
+			//
+			// E chi e' FUGGITO nemmeno: `Occupant->Cell` e' gia' quella nuova, quindi non combacia piu' con la
+			// cella in fiamme. Non serve una lista di esclusi — la posizione aggiornata basta, ed e' anche il
+			// motivo per cui le fughe si applicano prima di questo ciclo e non dopo.
 			if (Occupant && Occupant->IsAlive() && Occupant->Cell == Cell)
 			{
 				ApplyTerrainOnEnterEffects(Map, Occupant, { Cell });
@@ -2683,7 +2755,14 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 					// da cui il resolver legge: uno scudo che arrivasse dopo scadrebbe nel Cleanup dello
 					// stesso turno senza aver protetto da niente.
 					EffectTarget->AddTemporaryShield(Event.Amount);
-					States[Event.TargetUnitId].Shield = EffectTarget->Shield;
+					// `IsValidIndex` e non un accesso diretto: i punti di valutazione fuori dal Blast non hanno
+					// uno snapshot di combattimento da aggiornare e passano un array vuoto. Uno scudo li' non
+					// avrebbe comunque colpi da fermare — ma senza questa guardia sarebbe un accesso fuori
+					// range, cioe' un crash invece di un effetto che non serve.
+					if (States.IsValidIndex(Event.TargetUnitId))
+					{
+						States[Event.TargetUnitId].Shield = EffectTarget->Shield;
+					}
 					AddLogEvent(FString::Printf(TEXT("%s: +%d scudo dalla reazione"),
 						*EffectTarget->GetName(), Event.Amount));
 					break;
@@ -2696,6 +2775,16 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 						FleeUnits.Add(EffectTarget);
 						FleeFrom.Add(Units[TriggeredBy]->Cell);
 						FleeDist.Add(Event.Amount);
+					}
+					else
+					{
+						// Nessuna sorgente: e' una fuga da una CELLA, non da qualcuno (`Reaction.HazardEscape`).
+						// Non ha una direzione da cui allontanarsi, quindi la geometria della spinta non si
+						// applica e la destinazione la sceglie il chiamante. Prima di `#505` questo ramo non
+						// esisteva e l'effetto veniva scartato in silenzio: un modulo che dichiarava
+						// `SelfReposition` senza attaccante non si muoveva, e nessun test lo diceva.
+						Out.HazardFlees.Add(Event.TargetUnitId);
+						Out.HazardFleeDistance.Add(Event.Amount);
 					}
 					break;
 

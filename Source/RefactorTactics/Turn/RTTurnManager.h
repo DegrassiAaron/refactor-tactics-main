@@ -100,6 +100,19 @@ struct FRTReactionPassResult
 	 * scegliere due volte, in due posti che possono divergere.
 	 */
 	TSet<int32> CancelledControls;
+
+	/**
+	 * Chi fugge SENZA una sorgente da cui allontanarsi (`Reaction.HazardEscape`): indici in `Units`, e
+	 * `HazardFleeDistance` parallelo con quante celle.
+	 *
+	 * Lista separata dalle fughe del Blast, e non e' una duplicazione: quelle hanno una direzione — via da chi
+	 * ha innescato — e il pass le applica al proprio interno con la geometria della spinta. Qui la direzione
+	 * non esiste: c'e' una cella diventata pericolosa e basta, quindi **dove** si va lo decide il chiamante
+	 * (`URTTerrainLibrary::FindEscapeCell`, che guarda il facing). Un solo array per entrambe avrebbe
+	 * costretto il pass a conoscere due geometrie.
+	 */
+	TArray<int32> HazardFlees;
+	TArray<int32> HazardFleeDistance;
 };
 
 USTRUCT()

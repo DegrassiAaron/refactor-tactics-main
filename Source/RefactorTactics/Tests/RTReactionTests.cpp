@@ -355,7 +355,7 @@ bool FRTReactionTriggersHaveAPassPointTest::RunTest(const FString&)
 
 	// Un numero CONCRETO, non «almeno uno»: un trigger nuovo che entrasse nell'enum senza passare da
 	// `PassPointFor` farebbe cadere questo conteggio, e chiederebbe di essere deciso invece di scivolare via.
-	TestEqual(TEXT("i trigger valutati in partita sono quattro"), Valutati, 4);
+	TestEqual(TEXT("i trigger valutati in partita sono cinque"), Valutati, 5);
 
 	// E il mapping esatto, che e' la parte che un refactor puo' spostare in silenzio.
 	TestTrue(TEXT("i colpi diretti si valutano sui colpi gia' raccolti"),
@@ -370,6 +370,9 @@ bool FRTReactionTriggersHaveAPassPointTest::RunTest(const FString&)
 	TestTrue(TEXT("il controllo si valuta sugli stati raccolti, prima che vengano applicati"),
 		URTReactionLibrary::PassPointFor(ERTReactionTrigger::AboutToReceiveControl)
 			== ERTReactionPassPoint::BlastStatus);
+	TestTrue(TEXT("l'hazard si valuta nel Cleanup, fra la nascita della superficie e i suoi effetti"),
+		URTReactionLibrary::PassPointFor(ERTReactionTrigger::CellBecameHazardous)
+			== ERTReactionPassPoint::CleanupSurfaceBirth);
 	return true;
 }
 
