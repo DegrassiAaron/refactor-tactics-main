@@ -420,7 +420,7 @@ appena entrato nella cella.
 | `Action.Heal` | Cura | Blast | 40 | 70 | 3 | cura 20 | 1 |
 | `Action.CreateWater` | Crea acqua | Blast (+Cleanup) | 40/50 | 60 | 4 | acqua raggio 1 | 2 |
 | `Action.Ignite` | Incendia | Blast (+Cleanup) | 40/50 | 60 | 4 | fuoco su cella | 2 |
-| `Action.Electrify` | Elettrifica | **Cleanup** | 50 | 30 | 4 | propagazione elettrica | 2 |
+| `Action.Electrify` | Elettrifica | **Cleanup** | 50 | 30 | 4 | 20 danni, propagazione elettrica 12 | 2 |
 | `Action.CreateCover` | Crea copertura | **Prep** | 10 | 75 | 3 | copertura bassa | 2 |
 | `Action.ModifyArc` | Modifica arco | Blast | 40 | 75 | 3 | modifica collegamento | 2 |
 
@@ -451,7 +451,9 @@ TurnLog.
 incendiare vegetazione, olio e gas.
 
 **Electrify** — colpisce un bersaglio o una cella conduttiva · propagazione massima **3 celle** · danno iniziale
-**20**, danno propagato **12** · ogni unità è colpita **una sola volta** dallo stesso evento.
+**20**, danno propagato **12** — *ora anche in colonna nella tabella, per
+[D-115](../decisions/RT_PDR_00_Decision_Log.md): la rubrica dei radar li legge di lì e non deve estrarli da
+questa frase* · ogni unità è colpita **una sola volta** dallo stesso evento.
 
 **Create Cover** — copertura bassa su un **bordo** esagonale · integrità **30** · durata 2 turni · non può
 sovrapporsi a una copertura esistente.

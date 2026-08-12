@@ -98,13 +98,29 @@ La rubrica che converte stats e kit in un rating è **codice**, non una tabella 
 
 ```text
 RT_HeroCatalog_v0.1.md      ← autorità (D-023)
-        |
+        |                     + RT_ActionCatalog_v0.1.md per le abilità che rinviano
+        |                       a un'azione core (D-115)
         v  rubrica (codice, rivedibile in PR)
    rating 1..10             ← esistono solo durante la generazione
         |
         v
       SVG
 ```
+
+### 4.0 Due cataloghi, una sola autorità
+
+[D-115](../decisions/RT_PDR_00_Decision_Log.md). Il catalogo eroi non è autosufficiente: la riga di
+`Flux.ConductiveNode` dichiara *«**è `Action.Electrify`**»* e non porta un numero di danno, che vive in
+[`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md). La rubrica legge quindi **entrambi**,
+e il rinvio `` è `Action.X` `` è parte del contratto di lettura, non prosa libera.
+
+Non contraddice D-106, che escludeva i **workbook**: i due cataloghi markdown sono già l'autorità dei
+numeri per [D-023](../decisions/RT_PDR_00_Decision_Log.md), diffabili e revisionabili in PR. La regola
+resta «un dato ha un solo posto dove vive» — la portata di `Action.Electrify` sta nel catalogo azioni
+proprio perché **non** è di Flux: è dell'azione core che sette abilità potrebbero riusare.
+
+⚠️ **Vale un valore pubblicato, non è teoria**: senza la seconda fonte Flux esce `power 5` e
+`offense 4` invece di `6` e `5`, perché i `20` danni di `ConductiveNode` non vengono letti.
 
 ### 4.1 Perché nessun workbook è la fonte
 
