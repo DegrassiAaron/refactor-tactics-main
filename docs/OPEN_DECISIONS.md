@@ -105,16 +105,17 @@ domanda urgente: due produttori sullo stesso artefatto.
 |---|---|---|
 | `MSE-1` | Quando la geometria disegnata è **cotta** in `bBlocksMovement` / `FRTHexCover`, il sorgente resta autorevole? Cioè: se qualcuno modifica a mano un campo cotto, vince la modifica o il prossimo rebake la cancella? | È la stessa classe di problema dei **prefab**, e il panel del 2026-08-09 l'aveva già segnalata come costo da *decidere, non scoprire* — senza deciderla. Non si deduce dal codice perché oggi **la cottura non esiste**: `FRTHexCellData` ha un solo produttore, il pennello, e la domanda non si pone. Si porrà al primo segmento cotto. ⚠️ La decisione **4.2** la rende più stretta: se il layout è generato da codice e la geometria è disegnata, l'asset ha **due** produttori, e un test che confrontasse il suo hash con quello del solo generatore diventerebbe rosso al primo muro disegnato — quel test, se verrà scritto, deve avere per soggetto la parte **generata**. Innesco: [`#621`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621), che è dove la cottura nasce |
 
-> 🔎 **Ristretta il 2026-08-12, e l'innesco arriva prima del previsto.** La revisione spec panel di `#619` ha
-> preso due decisioni che tolgono a `MSE-1` la sua metà più vicina. `D1`: il confine `#619`/`#621` è **per
-> campo** — il **costo** è di `#619`, i **bordi** di `#621` — quindi la prima cottura nasce già in `#619`, che
-> nella serie viene **prima** di `#621`: il primo innesco reale è quello, non `#621` come dice la riga sopra. `D2`: il sovrapprezzo di `Constrained` **non** si scrive in
-> `MoveCost`, ma in un campo suo, proprio perché `MoveCost` ha già un produttore che lo ricalcola dalla
-> `Surface` ogni turno (`RTTurnManager.cpp:1150`, `:1294`).
+> 🔎 **Ristretta il 2026-08-12: `#619` cuoce, ma non innesca.** La revisione spec panel di `#619` ha preso due
+> decisioni che tolgono a `MSE-1` la sua metà più vicina. `D1`: il confine `#619`/`#621` è **per campo** — il
+> **costo** è di `#619`, i **bordi** di `#621` — quindi la prima cottura in ordine di serie nasce già in
+> `#619`. `D2`: il sovrapprezzo di `Constrained` **non** si scrive in `MoveCost`, ma in un campo suo, proprio
+> perché `MoveCost` ha già un produttore che lo ricalcola dalla `Surface` ogni turno
+> (`ARTTurnManager::ApplyDynamicSurface` e `TickDynamicSurfaces`).
 >
-> Effetto su questa domanda: per il **costo**, «vince la modifica a mano o il rebake?» non si pone più, perché
-> i due produttori smettono di scrivere lo stesso campo. **`MSE-1` resta aperta per i bordi** — `FRTHexCover`
-> e `bBlocksMovement` restano a produttore condiviso col pennello, ed è lì che la domanda va decisa.
+> Effetto su questa domanda: per il **costo** non si pone più, perché `D2` gli dà **un produttore solo** — e
+> `MSE-1` chiede esattamente cosa succede quando i produttori sono due. La cottura di `#619` quindi **non è un
+> innesco**, e `Innesco: #621` nella riga sopra resta corretto: `FRTHexCover` e `bBlocksMovement` restano a
+> produttore condiviso col pennello, ed è lì che la domanda va decisa.
 >
 > ⚠️ Nota di metodo: `D2` è la stessa forma di risposta che `MSE-1` cerca — *separare i produttori invece di
 > arbitrarli*. Se regge per il costo, è il primo candidato da provare sui bordi.

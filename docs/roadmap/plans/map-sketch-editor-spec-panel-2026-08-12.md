@@ -391,15 +391,18 @@ due erano decisioni dell'autore e sono state prese, e cambiano il **modello**, n
   l'effetto nella DoD: `ReachableCells` e `FindPath` leggono solo `FRTHexCellData`, quindi senza un campo
   scritto `Constrained` restava non osservabile — cioè il dato senza consumatore che l'issue voleva evitare.
 - **`D2` — il sovrapprezzo di `Constrained` non vive in `MoveCost`.** Quel campo ha già un produttore che lo
-  ricalcola dalla sola `Surface` ogni turno (`RTTurnManager.cpp:1150` e `:1294`): una superficie dinamica che
-  nasce e si ripristina su una cella stretta ne cancellerebbe il sovrapprezzo per il resto della partita.
+  ricalcola dalla sola `Surface` ogni turno — `ARTTurnManager::ApplyDynamicSurface` quando la superficie
+  cambia, `TickDynamicSurfaces` quando scade: una superficie dinamica che nasce e si ripristina su una cella
+  stretta ne cancellerebbe il sovrapprezzo per il resto della partita.
   È un intero suo, sommato dai lettori del costo — quindi `FormatVersion` da 6 a 7 e un campo in più
   in `RTMatchStateHash`.
 
 Un terzo rilievo cade su `#621` e la riga della tabella qui sopra lo porta ancora: **le fixture di geometria
 non vanno in `Scenarios/`**. `FRTScenarioCell` porta `Cell`, `bBlocksMovement`, `bBlocksLineOfSight` e
 `MoveCost`, e nessun campo per segmenti o footprint; uno scenario è una partita. In `Scenarios/Spec/Map/` va
-**uno** scenario — quello che mostra l'effetto osservabile — e le fixture sono dati di test del modulo runtime.
+**uno** scenario — `Spec.Map.ConstrainedCellCostsMore`, quello che mostra l'effetto osservabile, dichiarato
+`planned` nel registry perché resti visibile come warning finché non è un file — e le fixture sono dati di
+test del modulo runtime.
 
 ⚠️ Il gate di `#619` in tabella dice «i quattro test di §22 che mancano sono verdi». Resta vero come
 intenzione, ma la DoD in vigore è quella **nel corpo della issue**, non questa riga: dopo la revisione ha
