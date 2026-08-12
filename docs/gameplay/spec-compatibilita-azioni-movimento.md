@@ -157,6 +157,44 @@ facing.
 consumatore — il difetto ricorrente del repository. L'ordine dei checkpoint di E38 va letto così: #606
 definisce il dato, ma è #605 a renderlo una regola.
 
+## 5-bis. Il caso limite che decide il significato del dato
+
+> **Si valuta il profilo *pianificato* o quello *eseguito*?**
+
+Non è una domanda di implementazione: **l'ordine delle fasi ha già scelto per noi**, e la conseguenza va
+dichiarata perché è visibile al tavolo.
+
+Il colpo parte nel `Blast`; il `Move` normale avviene **dopo**. Al momento in cui il resolver applica
+l'attacco, **il movimento non è ancora accaduto** e nessuno sa se accadrà. Quindi la penalità può essere
+valutata solo sul **profilo dichiarato in Planning** — non c'è alternativa tecnica.
+
+Ne segue un caso che il playtest incontrerà subito:
+
+```text
+A pianifica  Move (Stability 1) + PrecisionAttack   → penalità applicata in Planning
+B pianifica  Action.Root su A                        → Blast, priorità 25  ← risolve PRIMA
+A attacca                                            → Blast, priorità 60, GIÀ ridotto
+A non si muove                                       → Status.Root porta EffectiveMoveRange a 0
+
+Risultato: A ha pagato la penalità per un movimento che non è avvenuto.
+```
+
+*(priorità verificate in `RTCatalogLibrary.cpp`: `Action.Root` 25 in `Control`, `Action.PrecisionAttack` 60
+in `Attack` — entrambe mappano su `Blast`, e l'ordine intra-fase è per priorità crescente.)*
+
+**Non è un difetto da correggere: è la regola, e va scritta.** La penalità colpisce l'**impegno dichiarato**,
+non il movimento compiuto — che è esattamente la giustificazione scelta in §2. Il caso limite la conferma
+invece di romperla, ed è la ragione per cui quella giustificazione va adottata *prima* di assegnare qualsiasi
+numero: con la motivazione «non puoi mirare mentre corri», questo esito sarebbe indifendibile.
+
+⚠️ **Vale anche per il Move troncato** ([D-045](../decisions/RT_PDR_00_Decision_Log.md)): chi viene spostato
+prima della fase `Move` vede il proprio percorso decadere, e la penalità resta. Stessa regola, stesso motivo.
+
+⚠️ **E non vale per lo `Sprint`**, che risolve in fase `Dash`: lì il movimento è *già* avvenuto quando parte
+il colpo. I due profili subiscono quindi la stessa regola per due ragioni opposte — uno perché il movimento
+non è ancora successo, l'altro perché è già successo. È un'asimmetria reale del modello di turno, non
+un'incoerenza di questa proposta, ma chi scrive il testo per il giocatore deve saperla.
+
 ## 6. Gli scenari, in forma eseguibile
 
 I tre `Spec.ActionEconomy.*` già dichiarati `planned` nel Feature Registry, scritti come oracoli:
