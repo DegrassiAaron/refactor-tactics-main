@@ -138,6 +138,13 @@ Sei revisori, un focus ciascuno. Le citazioni sono ricostruzioni della metodolog
 > lezione in corso, ed è più utile così — la grammatica di §11 nasce oggi, e può nascere con la sua rete
 > invece che acquisirla dopo.»
 
+> ⚠️ **La lezione si è chiusa lo stesso giorno, ventotto minuti dopo.** La PR `#598` è **mergiata** alle
+> `07:07:42Z` del 2026-08-12 — le issue di questa revisione erano state aperte alle `06:39:54Z` — e `#588` si è
+> chiusa un secondo dopo. Su `main` `RTHexEditorClick.cpp` confronta ora `Result.GetComponent()`.
+> Il rilievo di NYGARD sopra resta valido come **argomento** — un validator è ciò che trasforma una
+> convenzione in una regola — ma il suo esempio non è più «in corso». Chi lo cita per sostenere che la
+> grammatica di §11 nasca con la sua rete, citi `#588` **chiusa dalla sua correzione**, non lo stato della PR.
+
 > «Ultimo, su §19. *"NON ricostruire tutta la mappa a ogni movimento del mouse"* è un requisito di
 > performance senza una misura. Oggi `RebuildInstances` ricostruisce l'intero ISM a ogni cambiamento, ed è
 > agganciato a `OnMapChanged` e `PostEditUndo` — ed è **esattamente quel comportamento** che finora ha
@@ -181,6 +188,10 @@ Sei revisori, un focus ciascuno. Le citazioni sono ricostruzioni della metodolog
 > struttura del progetto, non di quel lavoro. Ne segue una regola di progettazione, non un
 > desiderio: *la maschera dei settori, la classificazione e la cottura vivono nel modulo runtime*; l'editor
 > le **chiama**. Se nascono dentro l'editor, nascono non verificabili.»
+
+> ⚠️ **`#598` è mergiata dal 2026-08-12T07:07:42Z**, quindi «(**aperta**)» sopra è scaduto. La conclusione
+> però non dipendeva da quella PR, e **è stata rimisurata**: su `origin/main`, `Source/RefactorTacticsEditor/`
+> porta 19 file e **zero** corrispondenze `*test*`. La regola di collocazione resta, con una prova nuova.
 
 ### 📐 ADZIC — esempi eseguibili
 
@@ -369,6 +380,31 @@ propose.
 
 **La `NEXT ISSUE` che §29 chiede è una sola**: [`#619`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/619).
 È l'unica interamente headless, non tocca l'editor, e ogni altra della lista la usa.
+
+### 9.1 `#619` rivista lo stesso giorno, e due decisioni in più
+
+`#619` è passata da un secondo spec panel il 2026-08-12, prima che qualcuno la implementasse. Otto rilievi;
+due erano decisioni dell'autore e sono state prese, e cambiano il **modello**, non solo il testo:
+
+- **`D1` — il confine `#619`/`#621` è per campo.** Il **costo** è di `#619`, i **bordi** (`FRTHexCover`,
+  `bBlocksMovement`) di `#621`. Serviva perché la prima stesura metteva la cottura fuori scope e ne chiedeva
+  l'effetto nella DoD: `ReachableCells` e `FindPath` leggono solo `FRTHexCellData`, quindi senza un campo
+  scritto `Constrained` restava non osservabile — cioè il dato senza consumatore che l'issue voleva evitare.
+- **`D2` — il sovrapprezzo di `Constrained` non vive in `MoveCost`.** Quel campo ha già un produttore che lo
+  ricalcola dalla sola `Surface` ogni turno (`RTTurnManager.cpp:1150` e `:1294`): una superficie dinamica che
+  nasce e si ripristina su una cella stretta ne cancellerebbe il sovrapprezzo per il resto della partita.
+  È un intero suo, sommato dai lettori del costo — quindi `FormatVersion` da 6 a 7 e un campo in più
+  in `RTMatchStateHash`.
+
+Un terzo rilievo cade su `#621` e la riga della tabella qui sopra lo porta ancora: **le fixture di geometria
+non vanno in `Scenarios/`**. `FRTScenarioCell` porta `Cell`, `bBlocksMovement`, `bBlocksLineOfSight` e
+`MoveCost`, e nessun campo per segmenti o footprint; uno scenario è una partita. In `Scenarios/Spec/Map/` va
+**uno** scenario — quello che mostra l'effetto osservabile — e le fixture sono dati di test del modulo runtime.
+
+⚠️ Il gate di `#619` in tabella dice «i quattro test di §22 che mancano sono verdi». Resta vero come
+intenzione, ma la DoD in vigore è quella **nel corpo della issue**, non questa riga: dopo la revisione ha
+sedici voci, e tre di quelle nuove (`FormatVersion`, ciclo `SurfaceChanged → Cleanup`, soglia canonica nel
+cuocere) non sono deducibili da qui.
 
 **Decisioni che aspettano l'autore: una.** `MSE-1` — l'invertibilità della cottura (§4.2), registrata in
 [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).

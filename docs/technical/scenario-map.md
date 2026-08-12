@@ -131,6 +131,24 @@ Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale
 >    spiegazione che contraddice l'assertion accanto — e la spiegazione è **metà** del valore di uno scenario
 >    `Visual.*`, che esiste per dire a una persona cosa deve vedere. Sono state corrette entrambe.
 
+> ⚠️ **Non tutto ciò che sta sotto test è uno scenario, e non basta scriverlo in `Scenarios/` perché lo
+> diventi.** Le quattro classi ripartiscono le **verifiche**; una *fixture* è un **ingresso**, e il suo posto
+> lo decide ciò che il formato sa esprimere. `FRTScenarioCell` — l'unico modo che uno scenario ha di parlare
+> della mappa — porta `Cell`, `bBlocksMovement`, `bBlocksLineOfSight` e `MoveCost`: niente segmenti, niente
+> bordi disegnati, niente footprint. Uno scenario è una **partita**, con `scenarioId`, `fixture`, unità,
+> intent e turni.
+>
+> Il caso concreto è [`#619`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/619): chiedeva
+> quattro fixture di geometria («segmento solido, angolo, footprint solido, footprint void») in
+> `Scenarios/Spec/Map/`. Non sono partite: sono input di una funzione pura, e vanno con i dati di test del
+> modulo runtime. Ciò che merita davvero uno scenario è **uno** — la cella stretta che fa fermare
+> `ReachableCells` una casella prima — ed è di **classe A**, perché l'oracolo è l'assertion.
+>
+> Regola generale, che questo caso rende esplicita: *se il formato dello scenario non può esprimere
+> l'ingresso, il file non appartiene a `Scenarios/`*. Metterlo lì prometterebbe copertura automatica e
+> consegnerebbe file che nessun runner esegue — la stessa forma di errore dell'ultima riga di §5, dove dieci
+> voci sono **classe D travestita da C**: la collocazione dichiara una promessa che il contenuto non mantiene.
+
 ---
 
 ## 3. Classe A — automatico, nessun umano
