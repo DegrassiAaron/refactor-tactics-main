@@ -48,6 +48,25 @@ namespace
 	constexpr float RTSightSlabHeight = 16.f;
 	constexpr float RTBlockColumnHeight = 55.f;
 
+	/**
+	 * Pannelli di bordo (cubo engine: 100 uu per lato, centrato). Lo spessore e' sottile perche' un bordo non
+	 * ha profondita': quello che deve comunicare e' DOVE sta e QUANTO e' alto.
+	 *
+	 * Le altezze seguono la semantica, non l'estetica:
+	 * - copertura BASSA ripara e lascia passare tutto -> un muretto che si scavalca con lo sguardo;
+	 * - copertura ALTA nega vista, passo e proiettili -> alta quanto la colonna di blocco, perche' fa la
+	 *   stessa cosa su un lato invece che su una cella;
+	 * - porta CHIUSA nega passo e vista -> piena, ed e' la piu' alta: e' una barriera, non un riparo;
+	 * - porta APERTA lascia passare -> una soglia bassa, che dice «qui c'e' una porta» senza dire «e' chiusa».
+	 *   Non disegnarla affatto nasconderebbe l'informazione piu' utile: che quel passaggio puo' chiudersi.
+	 */
+	constexpr float RTEdgePanelThickness = 0.10f;
+	constexpr float RTEdgePanelWidth = 0.92f;
+	constexpr float RTCoverLowHeight = 22.f;
+	constexpr float RTCoverHighHeight = 55.f;
+	constexpr float RTDoorClosedHeight = 70.f;
+	constexpr float RTDoorOpenHeight = 5.f;
+
 	/** Quote di disegno, tutte sopra la faccia del disco e in ordine di priorita' di lettura. */
 	constexpr float RTLiftSurface = RTCellTopZ + 0.5f;  // contorno della superficie (contesto)
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
@@ -96,6 +115,19 @@ ARTHexMapActor::ARTHexMapActor()
 	if (CylinderMesh.Succeeded())
 	{
 		Blockers->SetStaticMesh(CylinderMesh.Object);
+	}
+
+	// Pannelli di bordo: mesh PROPRIA. Un pannello non e' un cilindro schiacciato, e nessuna scala trasforma
+	// l'uno nell'altro — e' l'unico caso in cui un secondo componente aggiunge qualcosa.
+	EdgeFeatures = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("EdgeFeatures"));
+	EdgeFeatures->SetupAttachment(Cells);
+	EdgeFeatures->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	EdgeFeatures->SetCollisionResponseToAllChannels(ECR_Ignore);
+	EdgeFeatures->CastShadow = false;
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (CubeMesh.Succeeded())
+	{
+		EdgeFeatures->SetStaticMesh(CubeMesh.Object);
 	}
 }
 
@@ -409,6 +441,11 @@ void ARTHexMapActor::RebuildInstances()
 		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Blockers->SetStaticMesh(Mesh); }
 		Blockers->ClearInstances();
 	}
+	if (EdgeFeatures)
+	{
+		// La mesh dei bordi NON segue `CellMesh`: quella e' la mesh della cella, e un pannello non e' una cella.
+		EdgeFeatures->ClearInstances();
+	}
 
 	// Sorgente celle: l'asset se popolato, altrimenti un graybox demo (esagono pieno di raggio DemoRadius).
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
@@ -428,6 +465,9 @@ void ARTHexMapActor::RebuildInstances()
 	TArray<int32> MoveCosts;
 	TArray<bool> BlocksMove;
 	TArray<bool> BlocksSight;
+	// Puntatori alle celle d'asset per leggerne coperture e porte: sparsi, quindi la stragrande maggioranza
+	// delle celle non produce nulla. Nel ramo demo restano nulli — un graybox non ha bordi d'autore.
+	TArray<const FRTHexCellData*> EdgeSources;
 	if (MapAsset && MapAsset->NumCells() > 0)
 	{
 		CellIds.Reserve(MapAsset->NumCells());
@@ -446,6 +486,7 @@ void ARTHexMapActor::RebuildInstances()
 			MoveCosts.Add(C.TotalMoveCost()); // il rilievo mostra il costo VERO: una cella stretta si alza
 			BlocksMove.Add(C.bBlocksMovement);
 			BlocksSight.Add(C.bBlocksLineOfSight);
+			EdgeSources.Add(&C);
 		}
 	}
 	else if (DemoRadius > 0)
@@ -456,6 +497,7 @@ void ARTHexMapActor::RebuildInstances()
 		MoveCosts.Init(1, CellIds.Num()); // il graybox non ha terreni: tutto pavimento, quindi piatto
 		BlocksMove.Init(false, CellIds.Num());
 		BlocksSight.Init(false, CellIds.Num());
+		EdgeSources.Init(nullptr, CellIds.Num());
 	}
 
 	// Cilindro engine: raggio 50 uu, mezza-altezza 50 uu. Scala X,Y per coprire ~l'esagono, Z sottile (disco).
@@ -504,6 +546,40 @@ void ARTHexMapActor::RebuildInstances()
 			if (BlocksSight[I]) { AddVolume(RTSightSlabScale, RTSightSlabHeight); }
 			if (BlocksMove[I])  { AddVolume(RTBlockColumnScale, RTBlockColumnHeight); }
 		}
+
+		// Pannelli di BORDO: coperture e porte. Il punto e l'orientamento si CHIEDONO alla libreria
+		// (`EdgeMidpointWorld`, `EdgeRotation`), che li deriva dai due centri di cella: se la convenzione dei
+		// sei lati cambiasse, la geometria seguirebbe invece di mentire.
+		if (EdgeFeatures && EdgeSources[I])
+		{
+			const FRTHexCellData& Data = *EdgeSources[I];
+			auto AddEdgePanel = [&](ERTHexDirection Edge, float PanelHeight)
+			{
+				FVector Center = URTHexLibrary::EdgeMidpointWorld(CellIds[I], Edge, GetActorLocation(),
+					UseHexSize, UseLayerH);
+				Center.Z += static_cast<double>(Heights[I]) + RTCellTopZ + PanelHeight * 0.5;
+				// Il cubo engine e' 100 uu per lato: X sottile (spessore), Y lungo il bordo, Z l'altezza.
+				const FTransform PanelXf(URTHexLibrary::EdgeRotation(CellIds[I], Edge), Center,
+					FVector(RTEdgePanelThickness,
+						UseHexSize / 100.f * RTEdgePanelWidth,
+						PanelHeight / 100.f));
+				EdgeFeatures->AddInstance(PanelXf, /*bWorldSpace=*/ true);
+			};
+
+			for (const FRTHexCover& Cover : Data.Covers)
+			{
+				if (Cover.Type == ERTHexCoverType::None) { continue; }
+				AddEdgePanel(Cover.Edge,
+					Cover.Type == ERTHexCoverType::High ? RTCoverHighHeight : RTCoverLowHeight);
+			}
+			for (const FRTHexDoor& Door : Data.Doors)
+			{
+				// `Destroyed` e' terminale e non si richiude: si mostra come aperta, perche' e' cio' che e'.
+				const bool bBlocking = (Door.State == ERTHexDoorState::Closed
+					|| Door.State == ERTHexDoorState::Locked);
+				AddEdgePanel(Door.Edge, bBlocking ? RTDoorClosedHeight : RTDoorOpenHeight);
+			}
+		}
 	}
 }
 
@@ -533,25 +609,39 @@ void ARTHexMapActor::GenerateIntoAsset()
 
 void ARTHexMapActor::GenerateArenaV01IntoAsset()
 {
+	// Scorciatoia per la fixture piu' usata: la seduta U1 la nomina, e cambiarle nome costringerebbe a
+	// riscrivere una guida per un pulsante che fa gia' la cosa giusta.
+	const FString Previous = FixtureId;
+	FixtureId = TEXT("ArenaV01");
+	GenerateFixtureIntoAsset();
+	FixtureId = Previous;
+}
+
+void ARTHexMapActor::GenerateFixtureIntoAsset()
+{
 	if (!MapAsset)
 	{
 		UE_LOG(LogRT, Warning, TEXT("[HexMap] Nessun MapAsset assegnato: assegnalo prima di generare."));
 		return;
 	}
-#if WITH_EDITOR
-	const FScopedTransaction Transaction(LOCTEXT("HexGenerateArenaV01", "Hex: Generate Arena v0.1"));
-#endif
 
-	const URTHexMapAsset* Source = URTMatchSetupLibrary::MakeArenaV01(GetTransientPackage());
+	const URTHexMapAsset* Source = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), FixtureId);
 	if (!Source)
 	{
-		UE_LOG(LogRT, Warning, TEXT("[HexMap] Generazione dell'arena v0.1 fallita."));
+		// Nome sconosciuto: non si tocca nulla. Svuotare l'asset per un refuso sarebbe il danno peggiore, e
+		// il messaggio dice QUALE nome non esiste invece di lamentarsi in astratto.
+		UE_LOG(LogRT, Warning,
+			TEXT("[HexMap] Fixture '%s' sconosciuta: asset invariato. Nomi validi: ArenaV01, RelayBasin, ")
+			TEXT("RelayLite, TestArena, CoverYard, DemoArena."), *FixtureId);
 		return;
 	}
 
+#if WITH_EDITOR
+	const FScopedTransaction Transaction(LOCTEXT("HexGenerateFixture", "Hex: Generate Fixture"));
+#endif
 	MapAsset->Modify();
-	// Sostituisce, non fonde: mescolare il layout verificato con quello che c'era darebbe una mappa che non
-	// e' ne' l'una ne' l'altra, e i tre criteri smetterebbero di dire qualcosa su cio' che si ha davanti.
+	// Sostituisce, non fonde: mescolare una fixture con quello che c'era darebbe una mappa che non e' ne'
+	// l'una ne' l'altra, e i criteri smetterebbero di dire qualcosa su cio' che si ha davanti.
 	MapAsset->Cells.Reset();
 	MapAsset->Transitions.Reset();
 	for (const FRTHexCellData& Cell : Source->Cells)
@@ -562,8 +652,8 @@ void ARTHexMapActor::GenerateArenaV01IntoAsset()
 	MapAsset->SortCells();
 	MapAsset->MarkPackageDirty();
 	RebuildInstances();
-	UE_LOG(LogRT, Log, TEXT("[HexMap] Arena v0.1 scritta nell'asset: %d celle. Verifica con rt.Arena.Check."),
-		MapAsset->NumCells());
+	UE_LOG(LogRT, Log, TEXT("[HexMap] Fixture '%s' scritta nell'asset: %d celle, %d transizioni."),
+		*FixtureId, MapAsset->NumCells(), MapAsset->Transitions.Num());
 }
 
 void ARTHexMapActor::ClearAsset()

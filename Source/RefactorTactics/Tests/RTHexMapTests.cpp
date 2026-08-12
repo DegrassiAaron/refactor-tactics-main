@@ -587,4 +587,62 @@ bool FRTHexOnlyCellsAreClickableTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * Un nome di fixture sbagliato **non svuota l'asset**.
+ *
+ * Il pulsante SOSTITUISCE il contenuto, quindi il momento pericoloso e' il refuso: `CoverYrad` invece di
+ * `CoverYard` cancellerebbe una mappa d'autore e la sostituirebbe con niente. `MakeFixtureArena` risponde
+ * `nullptr` a un nome sconosciuto, e il chiamante deve fermarsi PRIMA di toccare l'asset — non dopo.
+ *
+ * Verifica anche il caso buono, o resterebbe verde un pulsante che non fa mai nulla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFixtureLoaderTest,
+	"RefactorTactics.HexMap.UnknownFixtureLeavesTheAssetUntouched",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexFixtureLoaderTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!World) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+	if (Actor)
+	{
+		Actor->MapAsset = NewObject<URTHexMapAsset>();
+		Actor->MapAsset->AddOrUpdateCell(FRTHexCellData(FRTCellId(7, 7, 0))); // una cella riconoscibile
+		const uint32 BeforeHash = Actor->MapAsset->ComputeHash();
+
+		// 1. Nome sbagliato: l'asset non si muove. E' la proprieta' che conta, perche' il pulsante sostituisce.
+		Actor->FixtureId = TEXT("CoverYrad"); // refuso plausibile
+		Actor->GenerateFixtureIntoAsset();
+		TestEqual(TEXT("nome sconosciuto -> asset invariato"), Actor->MapAsset->ComputeHash(), BeforeHash);
+		TestTrue(TEXT("la cella d'origine c'e' ancora"),
+			Actor->MapAsset->ContainsCell(FRTCellId(7, 7, 0)));
+
+		// 2. Nome giusto: la fixture entra davvero, e porta con se' cio' che la rende utile — CoverYard esiste
+		//    perche' e' l'unica mappa con una copertura ALTA, e senza quelle sarebbe una fixture qualunque.
+		Actor->FixtureId = TEXT("CoverYard");
+		Actor->GenerateFixtureIntoAsset();
+		TestTrue(TEXT("nome valido -> l'asset cambia"), Actor->MapAsset->ComputeHash() != BeforeHash);
+		TestFalse(TEXT("la cella d'origine e' stata sostituita, non fusa"),
+			Actor->MapAsset->ContainsCell(FRTCellId(7, 7, 0)));
+
+		int32 HighCovers = 0;
+		for (const FRTHexCellData& Cell : Actor->MapAsset->Cells)
+		{
+			for (const FRTHexCover& Cover : Cell.Covers)
+			{
+				if (Cover.Type == ERTHexCoverType::High) { ++HighCovers; }
+			}
+		}
+		TestTrue(TEXT("CoverYard porta la copertura alta, che e' la ragione per cui esiste"), HighCovers > 0);
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
