@@ -39,8 +39,8 @@ heroes.forEach(assertKnownEffects);
 for (const hero of heroes) {
   const role = ROLES[hero.name] ?? '—';
   const views: [string, string][] = [
-    ['profile', renderRadar(hero.name, role, PROFILE_AXES, profileAxes(hero))],
-    ['balance', renderRadar(hero.name, role, BALANCE_AXES, balanceAxes(hero))],
+    ['profile', renderRadar(hero.name, role, PROFILE_AXES, profileAxes(hero), 'Profile')],
+    ['balance', renderRadar(hero.name, role, BALANCE_AXES, balanceAxes(hero), 'Balance')],
   ];
 
   for (const [view, svg] of views) {

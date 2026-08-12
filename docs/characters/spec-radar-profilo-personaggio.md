@@ -409,3 +409,15 @@ Node diventa un prerequisito del **bilanciamento**, non solo della documentazion
 Scala identica in ogni confronto, nessun auto-scaling per personaggio, valori leggibili anche come
 testo, e distinzione fra poligoni che **non dipende solo dal colore** (tratto, pattern, legenda).
 L'SVG dichiara `role="img"` e una descrizione testuale.
+
+**Leggibili su entrambi i temi.** «Valori leggibili come testo» non è soddisfatto da un testo che
+*esiste* nel documento: fino al 2026-08-12 le etichette erano `#333` e i valori `#111` su fondo
+trasparente, e su tema scuro sparivano. L'SVG porta ora un blocco
+`@media (prefers-color-scheme: dark)`, che vale anche quando l'immagine è caricata come `<img>`
+perché la query legge la preferenza del **sistema**. Limite noto e accettato: segue l'OS, non
+l'interruttore di tema del sito che ospita l'immagine.
+
+**Il `<title>` dice quale vista è.** È il nome accessibile a cui punta `aria-labelledby`, e le due
+viste sono altrimenti indistinguibili — due poligoni 400×400 sugli stessi colori. Fino al 2026-08-12
+tutti e quattro i Balance Radar si annunciavano come `Profile Radar`, perché la vista non era un
+parametro. Ora lo è, ed è obbligatorio (`RadarView` in `tools/radar/svg.ts`).
