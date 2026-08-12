@@ -156,4 +156,5 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static TArray<FRTCellId> HexCone(const FRTCellId& From, const FRTCellId& Target, int32 Range);
+
 };

@@ -78,10 +78,14 @@ bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDevice
 	const FVector RayStart = ClickPos.WorldRay.Origin;
 	const FVector RayEnd = ClickPos.WorldRay.PointAt(999999.0);
 	FHitResult Result;
+	// Solo la griglia SELEZIONABILE del target: ignora unita'/ostacoli tra camera e mappa, e ignora gli altri
+	// componenti dello stesso actor. Confrontare l'ACTOR non basterebbe: `Result.Item` e' l'indice di istanza
+	// del componente colpito, quindi un colpo sul rilievo del costo verrebbe risolto contro le celle di
+	// `Cells` e produrrebbe una cella valida e SBAGLIATA — il pennello dipingerebbe altrove, senza errori.
 	bool bHitTarget = World
 		&& World->LineTraceSingleByObjectType(Result, RayStart, RayEnd,
 			FCollisionObjectQueryParams(FCollisionObjectQueryParams::AllObjects))
-		&& (Result.GetActor() == Actor); // solo l'ISM del target: ignora unita'/ostacoli tra camera e mappa
+		&& Actor->IsPickOnSelectableCell(Result.GetComponent(), Result.Item);
 
 	// In AllLayers l'ISM contiene un'istanza per OGNI piano mostrato, e il raggio colpisce la prima che incontra
 	// — che puo' stare su un layer diverso da quello attivo. Proiettare quel punto sul piano attivo lo sposta in
@@ -89,15 +93,11 @@ bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDevice
 	// alcune celle da quella sotto il cursore. Se il colpo non e' sul layer attivo si scarta e si usa il piano,
 	// che e' la geometria giusta per «dove sto puntando su QUESTO piano».
 	//
-	// `Result.Item` e' l'indice di istanza dell'ISM; va validato contro `NumInstanceCells` prima di risolverlo,
-	// perche' `CellForInstance` risponde `(0,0,0)` — una cella valida — a un indice fuori range.
-	if (bHitTarget)
+	// L'indice di istanza e' gia' stato validato sopra da `IsPickOnSelectableCell` — senza, `CellForInstance`
+	// risponderebbe `(0,0,0)`, una cella valida, a un indice fuori range. Qui resta la sola domanda sul piano.
+	if (bHitTarget && Actor->CellForInstance(Result.Item).Layer != Layer)
 	{
-		const bool bValidInstance = Result.Item >= 0 && Result.Item < Actor->NumInstanceCells();
-		if (!bValidInstance || Actor->CellForInstance(Result.Item).Layer != Layer)
-		{
-			bHitTarget = false;
-		}
+		bHitTarget = false;
 	}
 
 	if (bHitTarget)

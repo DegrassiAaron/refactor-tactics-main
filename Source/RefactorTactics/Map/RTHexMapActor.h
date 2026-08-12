@@ -7,6 +7,7 @@
 #include "RTHexMapActor.generated.h"
 
 class UInstancedStaticMeshComponent;
+class UPrimitiveComponent;
 class UStaticMesh;
 class URTHexMapAsset;
 
@@ -170,11 +171,30 @@ public:
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "RefactorTactics|HexMap")
 	void RebuildInstances();
 
-	/** Cella corrispondente a un'istanza (INDEX_NONE fuori range). */
+	/**
+	 * Cella corrispondente a un'istanza.
+	 *
+	 * ⚠️ Fuori range risponde `FRTCellId()`, cioe' `(0,0,0)` — una cella **valida**, non un sentinella: chi
+	 * chiama non puo' distinguere «origine della mappa» da «indice inesistente», e deve validare l'indice
+	 * PRIMA (`URTHexLibrary::PickTargetsSelectableCells` lo fa per il raycast di selezione).
+	 */
 	FRTCellId CellForInstance(int32 InstanceIndex) const;
 
 	/** Numero di celle attualmente rappresentate (istanze ISM). Diagnostica e test. */
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
+
+	/**
+	 * Il colpo di un raycast di selezione cade su una cella selezionabile di QUESTO actor?
+	 *
+	 * Vero solo se e' stato colpito **proprio** il componente delle celle — non un altro componente dello
+	 * stesso actor, come il rilievo del costo, che e' geometria di lettura — e se l'indice di istanza che
+	 * accompagna il colpo appartiene davvero a quel componente.
+	 *
+	 * Le due condizioni sono una regola sola: `Result.Item` si riferisce al componente COLPITO, quindi
+	 * risolverlo contro un altro componente restituisce una cella valida e sbagliata. Verificare l'ACTOR non
+	 * basta, e il difetto non si manifesterebbe come errore ma come pennello che dipinge altrove.
+	 */
+	bool IsPickOnSelectableCell(const UPrimitiveComponent* HitComponent, int32 InstanceIndex) const;
 
 	/** La mappa esagonale del livello (la prima trovata), oppure nullptr se il livello non ne ha. */
 	static ARTHexMapActor* FindInWorld(const UWorld* World);
