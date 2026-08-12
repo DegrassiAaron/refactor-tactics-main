@@ -5,7 +5,7 @@
 > **Cosa non è**: una fonte di stato. Aperto/chiuso vive su GitHub, e lo stato delle **sedute**
 > vive in [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) + `editor-sessions.yaml`.
 > In caso di divergenza **vince la fonte**, non questa fotografia.
-> **Fonte comune delle cinque lane**: [`roadmap-lane-index.md`](roadmap-lane-index.md).
+> **Fonte comune delle lane**: [`roadmap-lane-index.md`](roadmap-lane-index.md).
 
 ---
 
