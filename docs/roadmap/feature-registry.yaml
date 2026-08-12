@@ -3230,15 +3230,19 @@ features:
     kind: ui
     release: v0.1
     priority: P1
-    status: SPECIFIED
+    status: IMPLEMENTING
     gates:
       # `progettazione-hud.md` §4.1 elenca il contenuto e §45 dichiara già i nomi dei widget.
       spec: done
       # Nessun widget esiste: `Content/RT/UI` non è nel progetto e non c'è nessun `WBP_*`.
       data: todo
-      runtime: todo
+      # `URTHudViewModel` esiste e i suoi test sono verdi, ma **nessuno lo consuma** fuori dai test: i
+      # widget sono la parte Editor di CP 11.7. Regola 2 dei gate — codice senza consumatore è `partial`.
+      runtime: partial
       log_debug: na
-      automation: todo
+      # Tre test sul view model (roster filtrato per squadra, carta che riflette il simulatore, header
+      # neutro senza manager). Resta `partial`: l'ingombro e la leggibilità dei widget sono `PIE-V01-HUD`.
+      automation: partial
       # `todo` come le altre dieci feature `kind: ui`, non `na`: `na` nel registry e' riservato a
       # cio' che sta strutturalmente fuori da `Scenarios/` (tooling, data). Un widget e' verificabile
       # da uno scenario visivo, quindi il gate e' aperto, non inapplicabile.
@@ -3256,7 +3260,8 @@ features:
     owner_specs:
       - docs/technical/progettazione-hud.md
     issues: [613]
-    tests: []
+    tests:
+      - RefactorTactics.HudViewModel.*
     scenarios: []
     wiki_refs:
       - wiki:come-si-gioca
@@ -3270,7 +3275,7 @@ features:
     # scrivera' CP 11.7 insieme ai widget. Campo assente = «non ancora mappato», che qui e' vero.
     last_verified:
       date: 2026-08-12
-      commit: 9bb782d
+      commit: 05e65f6
     notes: >
       Aperta il 2026-08-12 da un panel di specifica sulla proposta «UI-0 — First Playable HUD»
       (`../roadmap/plans/ui-0-first-playable-hud-2026-08-12.md`). ⚠️ **Esiste perché il DoD di CP 11.1
