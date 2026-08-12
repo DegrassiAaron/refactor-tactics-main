@@ -26,8 +26,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 |---|--:|
 | `IDEA` | 6 |
 | `DESIGNED` | 15 |
-| `SPECIFIED` | 14 |
-| `IMPLEMENTING` | 21 |
+| `SPECIFIED` | 13 |
+| `IMPLEMENTING` | 22 |
 | `TESTABLE` | 8 |
 | `INTEGRATED` | 21 |
 | `RELEASE_READY` | 16 |
@@ -207,10 +207,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | v0.1 | INTEGRATED | 6/8 | fuori scope | Tooling di test, **fuori** dal contenuto di release per decisione |
 | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | v0.1 | IMPLEMENTING | 3/8 | E11 | Confermato / previsto / incerto — tre livelli, non una sfumatura |
 | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | v0.1 | IMPLEMENTING | 1/7 | E20 | Un **catalogo semantico**, non texture referenziate nei widget |
+| `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | v0.1 | IMPLEMENTING | 1/7 | E11 | — |
 | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | v0.1 | IMPLEMENTING | 1/6 | E11 | Tarata sulla scala esagonale |
 | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse | v0.1 | IMPLEMENTING | 3/7 | E11 | L'arancione del fuoco amico deve **notarsi** |
 | `RT-FEAT-UI-ACTION-GHOSTS` — Action Ghosts e Ghost Timeline | v0.1 | SPECIFIED | 1/8 | E11 | Il planning visuale: cosa succederà, e con quanta certezza |
-| `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | v0.1 | SPECIFIED | 1/7 | E11 | — |
 
 <!-- RT_SHORTLIST_FEATURES:END -->
 

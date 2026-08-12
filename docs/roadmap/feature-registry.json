@@ -3712,14 +3712,14 @@
       "kind": "ui",
       "release": "v0.1",
       "priority": "P1",
-      "status": "SPECIFIED",
-      "status_derived": "SPECIFIED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "done",
         "data": "todo",
-        "runtime": "todo",
+        "runtime": "partial",
         "log_debug": "na",
-        "automation": "todo",
+        "automation": "partial",
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
@@ -3747,7 +3747,9 @@
       "issues": [
         613
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.HudViewModel.*"
+      ],
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -3757,7 +3759,7 @@
       "pie_refs": [],
       "last_verified": {
         "date": "2026-08-12",
-        "commit": "9bb782d"
+        "commit": "05e65f6"
       },
       "notes": "Aperta il 2026-08-12 da un panel di specifica sulla proposta «UI-0 — First Playable HUD» (`../roadmap/plans/ui-0-first-playable-hud-2026-08-12.md`). ⚠️ **Esiste perché il DoD di CP 11.1 non nomina UMG**: chiede contenuto informativo, e cinque voci su sei sono già soddisfatte da `ARTHUD` in Canvas. Il confine fra i due layer è la ragione della feature — §4.1 qui, §4.2 in `RT-FEAT-UI-PLANNING` — e la sovrapposizione da governare è **chi disegna le barre**: quelle ancorate sopra l'unità restano Canvas, il roster e il pannello della selezionata sono UMG. Dipende da `RT-FEAT-UI-ICON-LANGUAGE` per D-031: nessun widget referenzia una texture."
     },
@@ -4966,7 +4968,8 @@
         "docs/gameplay/spec-bot-tattico.md"
       ],
       "issues": [
-        160
+        160,
+        649
       ],
       "tests": [
         "RefactorTactics.HexBotPlay.HiddenEnemyFairness",
