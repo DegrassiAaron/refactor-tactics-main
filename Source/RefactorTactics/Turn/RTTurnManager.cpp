@@ -1419,6 +1419,14 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 	// e l'ordine in cui due scariche dello stesso turno si applicano.
 	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
 
+	// Celle la cui SUPERFICIE nasce in questo Cleanup (`#570`). Si raccolgono qui e i loro effetti si
+	// applicano in fondo, a tutte le trasformazioni decise: e' lo stesso "raccogli poi applica" del resto del
+	// motore, e serve a un secondo scopo — lasciare un punto in cui una reazione puo' inserirsi PRIMA che gli
+	// effetti tocchino l'unita' (`Reaction.HazardEscape`, `#505`). Applicandoli dentro il ciclo, una fuga
+	// arriverebbe sempre tardi: l'unita' porterebbe `Burning` con se' e il danno del Cleanup la
+	// raggiungerebbe comunque.
+	TArray<FRTCellId> BornSurfaceCells;
+
 	// Snapshot delle unita' PRIMA di applicare qualunque danno: "raccogli poi applica" (invariante #3). Due
 	// scariche nello stesso Cleanup vedono lo stesso campo, quindi il loro esito non dipende dall'ordine.
 	TArray<FRTHexCombatUnit> HexUnits;
@@ -1496,19 +1504,9 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 					{
 						continue; // cella fuori mappa, gia' cosi', o che non ammette la trasformazione
 					}
-					// Le unita' GIA' presenti si bagnano subito: gli `OnEnterEffects` valgono per chi ENTRA, e
-					// aspettare che escano e rientrino per applicare `Wet` sarebbe una regola che nessuno
-					// capirebbe guardando il campo.
-					if (Created == ERTHexSurface::ShallowWater)
-					{
-						for (ARTUnit* Occupant : Units)
-						{
-							if (Occupant && Occupant->IsAlive() && Occupant->Cell == Cell)
-							{
-								Occupant->ApplyStatus(TAG_Status_Wet, ARTUnit::PersistentWhileOnCell);
-							}
-						}
-					}
+					// La cella ha cambiato superficie: chi ci si trova sopra ne subira' gli effetti, e si
+					// RACCOGLIE soltanto (vedi in fondo alla funzione, `#570`).
+					BornSurfaceCells.Add(Cell);
 				}
 				continue;
 			}
@@ -1568,6 +1566,38 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			if (!Victim->IsAlive())
 			{
 				AddLogEvent(FString::Printf(TEXT("%s eliminato dalla scarica"), *Victim->GetName()));
+			}
+		}
+	}
+
+	// Le superfici NATE in questo Cleanup fanno effetto a chi ci si trova sopra (`#570`).
+	//
+	// Fino a qui la regola esisteva per l'acqua sola, con un `if (Created == ShallowWater)` scritto a mano e
+	// un commento che dichiarava il problema nella sua forma generale: «gli `OnEnterEffects` valgono per chi
+	// ENTRA, e aspettare che escano e rientrino sarebbe una regola che nessuno capirebbe guardando il campo».
+	// Vero per l'acqua e per tutte le altre: un'unita' ferma su cui viene acceso un incendio **non prendeva
+	// fuoco**. Ora la regola e' una sola e legge il catalogo, quindi la prossima superficie non deve
+	// ricordarsi di entrare in un elenco.
+	//
+	// Si riusa `ApplyTerrainOnEnterEffects`, cioe' la stessa funzione che serve chi entra: `Damage` passa da
+	// `ApplyCombatState` (l'unica contabilita' che erode anche lo scudo temporaneo) e `Status` conserva la
+	// sentinella `PersistentWhileOnCell` per le durate 0. Riscriverla qui avrebbe prodotto una seconda
+	// versione capace di divergere — ed e' esattamente com'era nata l'asimmetria.
+	//
+	// ⚠️ Conseguenza dichiarata: creare fuoco sotto un bersaglio fermo passa da 0 a **10 danni + `Burning 2`**
+	// (catalogo terreni). E' un'apertura offensiva nuova, non un effetto collaterale.
+	//
+	// L'ordine e' quello di raccolta (`HexArea` gia' ordinata) incrociato con `Units`, ordinate per cella piu'
+	// sopra: due unita' sulla stessa trasformazione ricevono gli effetti sempre nella stessa sequenza.
+	for (const FRTCellId& Cell : BornSurfaceCells)
+	{
+		for (ARTUnit* Occupant : Units)
+		{
+			// I morti no: una scarica elettrica di questo stesso Cleanup puo' averli appena eliminati, e
+			// bruciare un caduto scriverebbe una riga di combat log per un evento che non esiste.
+			if (Occupant && Occupant->IsAlive() && Occupant->Cell == Cell)
+			{
+				ApplyTerrainOnEnterEffects(Map, Occupant, { Cell });
 			}
 		}
 	}
