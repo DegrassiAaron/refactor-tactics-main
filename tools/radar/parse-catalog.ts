@@ -81,7 +81,7 @@ export interface CatalogRead {
 export function readCatalogs(
   heroSource: URL | string,
   actionSource: URL | string,
-  expect: { expectHeroes: number },
+  expect: { expectHeroes: number; expectAbilities: number },
 ): CatalogRead {
   const heroes = parseHeroCatalog(heroSource, actionSource);
 
@@ -93,6 +93,15 @@ export function readCatalogs(
   }
 
   const abilities = heroes.reduce((n, h) => n + h.abilities.length, 0);
+
+  // Il conteggio degli eroi non copre questo caso: una riga-abilita' con una nota nella cella
+  // dell'id sparisce, e il roster resta di quattro. Servono DUE numeri, non uno.
+  if (abilities !== expect.expectAbilities) {
+    throw new Error(
+      `copertura insufficiente: letta ${abilities} abilita, attese ${expect.expectAbilities}. ` +
+        `Una riga puo' avere una nota nella cella dell'AbilityId, che la rende invisibile.`,
+    );
+  }
   const delegated = heroes.reduce(
     (n, h) => n + h.abilities.filter((a) => a.delegatesTo !== null).length,
     0,

@@ -63,7 +63,7 @@ test('risolve il rinvio `e Action.X` sul catalogo azioni (D-115)', () => {
 });
 
 test('la copertura e dichiarata, e un eroe in meno la fa fallire', () => {
-  const { heroes, coverage } = readCatalogs(HERO_CATALOG, ACTION_CATALOG, { expectHeroes: 4 });
+  const { heroes, coverage } = readCatalogs(HERO_CATALOG, ACTION_CATALOG, { expectHeroes: 4, expectAbilities: 20 });
   assert.equal(heroes.length, 4);
   assert.equal(coverage, '4/4 eroi · 20 abilita · 1 delega risolta');
 
@@ -80,8 +80,29 @@ test('la copertura e dichiarata, e un eroe in meno la fa fallire', () => {
 
   try {
     assert.throws(
-      () => readCatalogs(tmp, ACTION_CATALOG, { expectHeroes: 4 }),
+      () => readCatalogs(tmp, ACTION_CATALOG, { expectHeroes: 4, expectAbilities: 20 }),
       /letti 3 eroi, attesi 4/,
+    );
+  } finally {
+    rmSync(tmp);
+  }
+});
+
+test('anche un abilita persa fa fallire la copertura, non solo un eroe', () => {
+  // Una nota in coda alla cella dell'id rende la riga invisibile al parser — e' la forma che
+  // `Action.Sprint` usa gia' nel catalogo azioni, quindi non e' un caso inventato. Senza un
+  // atteso sulle abilita', Flux ne perderebbe una e il roster resterebbe di quattro.
+  const conNota = readFileSync(HERO_CATALOG, 'utf8').replace(
+    '| `Flux.Overload` |',
+    '| `Flux.Overload` *(vedi §7)* |',
+  );
+  const tmp = new URL('./catalogo-abilita.tmp.md', import.meta.url);
+  writeFileSync(tmp, conNota);
+
+  try {
+    assert.throws(
+      () => readCatalogs(tmp, ACTION_CATALOG, { expectHeroes: 4, expectAbilities: 20 }),
+      /letta 19 abilita, attese 20/,
     );
   } finally {
     rmSync(tmp);

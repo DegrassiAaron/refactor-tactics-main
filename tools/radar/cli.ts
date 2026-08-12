@@ -11,10 +11,13 @@ const ACTION_CATALOG = new URL('../../docs/balance/RT_ActionCatalog_v0.1.md', im
 
 /** Il roster della v0.1. Cresce a otto con E35: e' un numero atteso, non una scoperta. */
 const EXPECT_HEROES = 4;
+/** Cinque abilita' fondamentali per eroe. */
+const EXPECT_ABILITIES = 20;
 
 try {
   const { heroes, coverage } = readCatalogs(HERO_CATALOG, ACTION_CATALOG, {
     expectHeroes: EXPECT_HEROES,
+    expectAbilities: EXPECT_ABILITIES,
   });
 
   // La copertura va su stderr: stdout resta il JSON, pipe-abile senza filtri.
