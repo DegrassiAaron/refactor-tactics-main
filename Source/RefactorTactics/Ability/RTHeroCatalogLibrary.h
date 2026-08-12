@@ -107,6 +107,20 @@ public:
 	static TArray<URTHeroData*> GetHeroRoster();
 
 	/**
+	 * Solo gli `HeroId` del roster (`Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`), senza costruire
+	 * gli eroi.
+	 *
+	 * Esiste perche' `GetHeroRoster()` istanzia quattro `URTHeroData` **con tutte le loro abilita'** a ogni
+	 * chiamata, e chi ha bisogno dei soli identificatori — il catalogo icone di CP 20.2, che deriva
+	 * `UI.Icon.Identity.*` dal roster — pagherebbe quel prezzo per leggere quattro nomi.
+	 *
+	 * ⚠️ **E' una seconda copia dell'elenco, e per questo non e' silenziosa**: `Heroes.HeroIdsMatchRoster`
+	 * confronta questa lista con gli `HeroId` di `GetHeroRoster()` e cade se divergono. Un eroe nuovo aggiunto
+	 * al roster e dimenticato qui fa rosso il test, non un'icona mancante scoperta a schermo.
+	 */
+	static TArray<FName> GetHeroIds();
+
+	/**
 	 * Una reazione D'EROE costruita sopra la semantica di un'azione core (CP 5.5): dal core arrivano fase,
 	 * priorita', slot, trigger, fallback e interrompibilita' — cioe' *come* la reazione si comporta nel turno;
 	 * dall'eroe l'identita' (`HeroActionId`), il cooldown e gli effetti — cioe' *cosa* fa e quanto.

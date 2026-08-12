@@ -382,4 +382,45 @@ bool FRTHeroMobilitySlotTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// `GetHeroIds()` e' una seconda copia dell'elenco: questo test le impedisce di divergere in silenzio
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroIdsMatchRosterTest,
+	"RefactorTactics.Heroes.HeroIdsMatchRoster",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroIdsMatchRosterTest::RunTest(const FString&)
+{
+	// `GetHeroIds()` esiste per non istanziare quattro `URTHeroData` completi quando servono solo i nomi
+	// (CP 20.2 deriva `UI.Icon.Identity.*` dal roster). Il prezzo di quella scorciatoia e' una lista
+	// scritta due volte, e il prezzo si paga QUI: se le due divergono, cade questo test invece di
+	// mancare un'icona che nessuno nota finche' non apre il gioco.
+	const TArray<FName> Ids = URTHeroCatalogLibrary::GetHeroIds();
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+
+	if (!TestEqual(TEXT("le due liste hanno la stessa lunghezza"), Ids.Num(), Roster.Num()))
+	{
+		return false;
+	}
+
+	// Confronto posizione per posizione: l'ordine e' parte del contratto, perche' `RequiredIconIds()`
+	// produce una lista deterministica e un riordino cambierebbe l'ordine delle chiavi Identity.
+	for (int32 i = 0; i < Roster.Num(); ++i)
+	{
+		if (!TestNotNull(*FString::Printf(TEXT("eroe #%d non nullo"), i), Roster[i])) { continue; }
+
+		TestEqual(*FString::Printf(TEXT("HeroId #%d coincide"), i),
+			Ids[i].ToString(), Roster[i]->HeroId.ToString());
+	}
+
+	// Nessun id vuoto: un `NAME_None` qui produrrebbe la chiave `UI.Icon.Identity.` — sintatticamente una
+	// chiave, semanticamente niente.
+	for (const FName& Id : Ids)
+	{
+		TestFalse(TEXT("nessun HeroId e' vuoto"), Id.IsNone());
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

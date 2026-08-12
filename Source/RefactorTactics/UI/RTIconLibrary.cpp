@@ -3,6 +3,7 @@
 #include "RefactorTactics.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTHeroCatalogLibrary.h"
 #include "GameplayTagsManager.h"
 #include "Turn/RTTurnRules.h"
 
@@ -74,6 +75,52 @@ TArray<FName> URTIconLibrary::RequiredIconIds()
 		// produrre due liste diverse, e un confronto fra cataloghi diventerebbe rumore.
 		StatusIds.Sort([](const FName& A, const FName& B) { return A.LexicalLess(B); });
 		Ids.Append(StatusIds);
+	}
+
+	// CERTEZZA — i tre livelli di CP 11.2, che il resolver classifica e la UI mostra senza ricalcolarli.
+	//
+	// E' l'unica categoria le cui chiavi NON derivano da un tipo esistente, e resta cosi' di proposito: un
+	// `ERTCertainty` creato adesso sarebbe un enum che nessuno legge — la classificazione arriva dal resolver
+	// e non ha ancora un tipo proprio. Tre costanti che il catalogo deve coprire valgono piu' di un tipo
+	// senza consumatori; il giorno in cui CP 11.2 introduce l'enum, questo elenco diventa la sua immagine e
+	// il test lo pretende.
+	for (const TCHAR* Level : { TEXT("Confirmed"), TEXT("Predicted"), TEXT("Uncertain") })
+	{
+		Ids.AddUnique(MakeIconId(FName(*FString::Printf(
+			TEXT("%s.%s"), *CategoryName(ERTIconCategory::Certainty), Level))));
+	}
+
+	// IDENTITA' — i quattro eroi del roster, piu' la relazione di squadra.
+	//
+	// ⚠️ **Il prefisso cambia, e non e' un dettaglio**: gli `HeroId` sono `Hero.Flux`, non `Flux`, quindi
+	// `MakeIconId(HeroId)` darebbe `UI.Icon.Hero.Flux` — il cui segmento di categoria (`Hero`) non combacia
+	// con `Identity`, e il validator di CP 20.1 lo rifiuterebbe. La derivazione tiene il NOME e sostituisce
+	// il prefisso con la categoria: `Hero.Flux` -> `Identity.Flux`. E' l'unico punto in cui la regola «la
+	// chiave si deriva dall'identificatore che esiste» ha bisogno di una traduzione, ed e' scritta qui una
+	// volta invece che in quattro righe a mano.
+	for (const FName& HeroId : URTHeroCatalogLibrary::GetHeroIds())
+	{
+		FString HeroName = HeroId.ToString();
+		int32 DotIndex = INDEX_NONE;
+		if (HeroName.FindLastChar(TEXT('.'), DotIndex))
+		{
+			HeroName = HeroName.RightChop(DotIndex + 1);
+		}
+
+		if (!HeroName.IsEmpty())
+		{
+			Ids.AddUnique(MakeIconId(FName(*FString::Printf(
+				TEXT("%s.%s"), *CategoryName(ERTIconCategory::Identity), *HeroName))));
+		}
+	}
+
+	// Alleato e avversario: il consumatore esiste gia' — `ARTHUD` colora gli intenti per squadra leggendo
+	// `View.bIsAlly` (`RTHUD.cpp:285`). Sono relazione, non personaggi: restano due chiavi anche se il roster
+	// cresce.
+	for (const TCHAR* Relation : { TEXT("Ally"), TEXT("Enemy") })
+	{
+		Ids.AddUnique(MakeIconId(FName(*FString::Printf(
+			TEXT("%s.%s"), *CategoryName(ERTIconCategory::Identity), Relation))));
 	}
 
 	return Ids;

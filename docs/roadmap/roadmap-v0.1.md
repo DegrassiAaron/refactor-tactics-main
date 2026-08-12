@@ -294,6 +294,7 @@ silenzio.
 | Feature | Vista | Perché fuori scope |
 |---|---|---|
 | `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e dalla EditorMap, non dalle epic della v0.1. |
+| `RT-FEAT-TOOL-MAP-GEOMETRY` — Geometria architettonica quantizzata e cottura in dati di cella | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. E' l'ANTICIPAZIONE dichiarata della meta' di authoring di E23.1 (v0.2), decisa il 2026-08-12; l'epic #324 NON si apre, e la logica di transizione resta sua. |
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | — | Tooling di test nato dall'issue `#209`: serve a chi sviluppa, non è contenuto della release. Già costruito e coperto da test; nessun gate della v0.1 dipende da lui. |
 
 <!-- RT_FEATURE_BY_EPIC:END -->
