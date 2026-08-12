@@ -17,33 +17,9 @@
 namespace
 {
 	// Colore per tipo di transizione (solo visualizzazione).
-	FColor RTHexArchKindColor(ERTHexTransitionKind Kind)
-	{
-		switch (Kind)
-		{
-		case ERTHexTransitionKind::Stair:    return FColor(80, 200, 255);
-		case ERTHexTransitionKind::Ramp:     return FColor(120, 255, 120);
-		case ERTHexTransitionKind::Bridge:   return FColor(255, 200, 80);
-		case ERTHexTransitionKind::Tunnel:   return FColor(200, 120, 255);
-		case ERTHexTransitionKind::Elevator: return FColor(255, 120, 120);
-		case ERTHexTransitionKind::Jump:     return FColor(255, 255, 255);
-		default:                             return FColor::White;
-		}
-	}
-
-	// Linea con freccia verso B (arrowhead sul piano orizzontale).
-	void RTHexArchDrawArrow(FPrimitiveDrawInterface* PDI, const FVector& A, const FVector& B, const FColor& Color)
-	{
-		PDI->DrawLine(A, B, Color, SDPG_Foreground, 2.f);
-		const FVector Dir = (B - A).GetSafeNormal();
-		if (!Dir.IsNearlyZero())
-		{
-			const FVector Side = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal();
-			const double H = 30.0;
-			PDI->DrawLine(B, B - Dir * H + Side * (H * 0.5), Color, SDPG_Foreground, 2.f);
-			PDI->DrawLine(B, B - Dir * H - Side * (H * 0.5), Color, SDPG_Foreground, 2.f);
-		}
-	}
+	// Colore per Kind e freccia stanno in `RTHexEditor` (RTHexEditorClick.h): li usa anche l'overlay, che
+	// mostra le transizioni SEMPRE e non solo mentre le si crea. Due definizioni dello stesso vocabolario
+	// visivo prima o poi divergono.
 }
 
 UInteractiveTool* URTHexArchToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
@@ -236,7 +212,7 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 		{
 			const FVector A = URTHexLibrary::AxialToWorld(E.From, Origin, HexSize, LayerH);
 			const FVector B = URTHexLibrary::AxialToWorld(E.To, Origin, HexSize, LayerH);
-			RTHexArchDrawArrow(PDI, A, B, RTHexArchKindColor(E.Kind));
+			RTHexEditor::DrawArrow(PDI, A, B, RTHexEditor::TransitionKindColor(E.Kind));
 		}
 	}
 
@@ -247,7 +223,7 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 		if (bToValid)
 		{
 			RTHexEditor::DrawHexMarker(PDI, ToWorld, MarkerRadius, FColor::Blue);
-			RTHexArchDrawArrow(PDI, FromWorld, ToWorld, FColor::White);
+			RTHexEditor::DrawArrow(PDI, FromWorld, ToWorld, FColor::White);
 		}
 	}
 }

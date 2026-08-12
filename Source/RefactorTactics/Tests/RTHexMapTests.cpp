@@ -645,4 +645,70 @@ bool FRTHexFixtureLoaderTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * La migrazione di formato verificata su un asset **serializzato**, non su uno costruito in memoria.
+ *
+ * Tutti gli altri test di migrazione fanno `NewObject` -> impostano `FormatVersion` -> migrano: verificano la
+ * FUNZIONE, non la serializzazione. E' una distinzione che il progetto ha gia' pagato — «scrivi l'asset col
+ * binario vecchio, rileggilo col nuovo: il test in memoria non tocca la serializzazione».
+ *
+ * `DA_HexMap_Arena` e' quel binario vecchio: committato l'11 agosto quando `CurrentFormatVersion` era **6**,
+ * mentre la **7** e' arrivata il giorno dopo (#619). E' un artefatto genuinamente pre-migrazione, e finche'
+ * nessuno lo caricava la v6->v7 non aveva soggetto.
+ *
+ * L'asserzione che conta e' che **un campo nuovo nasca vuoto**: una mappa scritta prima della v7 non ha
+ * geometria cotta, quindi nessuna cella deve aver acquisito un sovrapprezzo di occupazione dal nulla. Se lo
+ * acquisisse, la stessa mappa costerebbe di piu' solo per essere stata ricaricata.
+ *
+ * ⚠️ Scrivendolo e' emerso che **la migrazione e' inerte**: `FormatVersion` non e' nei byte serializzati
+ * (delta contro il CDO), quindi un asset salvato alla versione allora corrente si ricarica gia' «aggiornato»
+ * e `MigrateToCurrentFormat` non fa nulla. Oggi e' innocuo perche' nessuna migrazione trasforma dati; il
+ * giorno in cui una dovra' farlo, non partira'. Questo test NON lo copre, e la sua prima asserzione e'
+ * vacua di proposito e dichiarata tale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSerializedAssetMigrationTest,
+	"RefactorTactics.HexMap.SerializedAssetMigratesWithoutGainingData",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSerializedAssetMigrationTest::RunTest(const FString&)
+{
+	const TCHAR* AssetPath = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena");
+	URTHexMapAsset* Loaded = LoadObject<URTHexMapAsset>(nullptr, AssetPath);
+
+	// Se l'asset sparisse, la migrazione tornerebbe senza soggetto e nessuno se ne accorgerebbe: il test deve
+	// FALLIRE, non essere saltato. E' l'unico asset mappa con contenuto reale del repository.
+	TestNotNull(TEXT("l'arena committata si carica"), Loaded);
+	if (!Loaded) { return false; }
+
+	// 1. La versione risulta quella corrente — ma **questa asserzione non prova la migrazione**, e dirlo e'
+	//    il punto. `FormatVersion` NON e' nei byte serializzati: la serializzazione delta di UE salta le
+	//    property uguali al default del CDO, e al salvataggio il valore (6) coincideva col default di allora.
+	//    Caricando, la property prende il default nuovo (7) e `MigrateToCurrentFormat` esce subito perche' si
+	//    crede gia' aggiornata. Verificato disabilitando `PostLoad`: l'asserzione resta verde.
+	//    Il meccanismo e' inerte proprio per gli asset che dovrebbe proteggere — vedi la issue collegata.
+	TestEqual(TEXT("la versione risulta corrente (vacuo: vedi commento)"),
+		Loaded->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
+
+	// 2. Ha contenuto VERO. Senza questo il test resterebbe verde su un asset vuoto — e nel repository ce n'e'
+	//    uno (`DA_HexMap_Sandbox`, 1396 byte): «migra senza perdere nulla» e' banalmente vero del nulla.
+	TestTrue(TEXT("ha celle"), Loaded->NumCells() > 0);
+	TestTrue(TEXT("ha almeno una transizione"), Loaded->Transitions.Num() > 0);
+	TestTrue(TEXT("ha celle su piu' di un layer"), Loaded->GetLayers().Num() >= 2);
+
+	// 3. Niente si e' corrotto nel viaggio.
+	TestEqual(TEXT("il validator non trova errori"), Loaded->ValidateMap().Num(), 0);
+
+	// 4. **Il campo nuovo nasce vuoto.** Una mappa scritta prima della v7 non ha geometria cotta: nessuna cella
+	//    deve aver acquisito un sovrapprezzo dal nulla, o la stessa mappa costerebbe di piu' solo per essere
+	//    stata ricaricata. Questa SI' e' una proprieta' della serializzazione, e nessun test in memoria la
+	//    tocca: e' l'asserzione per cui questo test esiste.
+	int32 WithSurcharge = 0;
+	for (const FRTHexCellData& Cell : Loaded->Cells)
+	{
+		if (Cell.TotalMoveCost() != Cell.MoveCost) { ++WithSurcharge; }
+	}
+	TestEqual(TEXT("nessuna cella ha guadagnato un sovrapprezzo migrando"), WithSurcharge, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -140,13 +140,39 @@ quella cella e' vuota»* (`RTTurnManager.cpp:374`) — con `HexBotPlay.HiddenEne
 | subset `RELEASE-V01` | 17 | **17** | `grep -c` in `scenario-map.md` §7 |
 | `Visual.*` ↔ `PIE-VIS-*` | 21 = 21 | **21 = 21** | idem |
 | scenari `planned` nel registry | 50 | **56** | `feature-registry.yaml` |
-| feature nel registry | 103 | **104** | `grep -c "^  - feature_id:"` |
+| feature nel registry | 103 | **105** | `grep -c "^  - feature_id:"` |
+| sorgenti archiviati | 55 | **56** | `find docs/archive/src -name '*.md' ! -name README.md \| wc -l` |
 | copie vive del totale epic/CP | 5 *(una sola aggiornata)* | **5 allineate** | `grep -rn "21 epic" docs/` |
-| `validate` | 0 errori · 32 warning | **0 errori · 33 warning** | `feature_registry.py validate` |
+| `validate` | 0 errori · 32 warning | **0 errori · 34 warning** | `feature_registry.py validate` |
 
-Il warning in più è **atteso e voluto**: i sei scenari `planned` di `RT-FEAT-UI-POINTER-INTERACTION`.
-Il meccanismo è quello dichiarato in `scenario-map.md` §6.2 — *un piano che non diventa un file resta
-visibile invece di sparire*.
+Dei due warning in più, **uno è di questo lavoro** e atteso: i sei scenari `planned` di
+`RT-FEAT-UI-POINTER-INTERACTION`. Il meccanismo è quello dichiarato in `scenario-map.md` §6.2 — *un piano
+che non diventa un file resta visibile invece di sparire*. Il secondo arriva da `RT-FEAT-ACTION-SPATIAL-TRANSFER`
+(«nessuna pagina Wiki collegata»), ed è il motivo della sezione qui sotto.
+
+## 6-bis. Il merge ha invalidato tre di questi numeri, e la lezione era già scritta qui sopra
+
+> 🔴 **Misurato prima del merge, falso dopo.** La **PR #706** (`spatial-transfer`) è stata aperta e
+> **mergiata mentre questo lavoro era in corso**, e tocca cinque degli stessi file. Tre numeri di questa
+> tabella erano corretti sulla propria base e sbagliati dopo l'unione:
+>
+> | Misura | Scritto pre-merge | Vero post-merge | Perché |
+> |---|---:|---:|---|
+> | feature nel registry | 104 | **105** | ogni ramo aveva contato **solo la propria** feature nuova |
+> | `validate` warning | 33 | **34** | ogni ramo aveva contato **solo il proprio** warning |
+> | sorgenti archiviati | 53 | **56** | il ramo `spatial-transfer` aveva già corretto la **formula cieca** (vedi sotto) |
+>
+> ⚠️ **Solo uno dei generati ha dato conflitto** (`featuremap.shortlist.md`, che dichiarava `104` da
+> entrambi i lati con ripartizioni v0.1/v0.2 diverse). `feature-registry.json` e `project-graph.json` si
+> sono **auto-mergiati in silenzio**, ed è il caso pericoloso: git non avverte, e i totali restano falsi
+> finché qualcuno non rigenera. Risolto riprendendo **tutti** i generati da `origin/main` e rigenerando
+> dalla sorgente unita — non risolvendo i conflitti a mano.
+>
+> 🔁 **E sull'archivio le due passate hanno trovato la stessa cosa da due lati.** Questo lavoro aveva
+> scritto **53** applicando la formula storica `design + handoff + audit`; la code review di #706 ha
+> scoperto che quella formula è **cieca ai due file in radice** — sbagliava da sei versioni — e l'ha
+> sostituita con `find docs/archive/src -name '*.md' ! -name README.md | wc -l`. Post-merge il valore è
+> **56**. Il difetto era doppio: la formula sbagliava *per struttura*, il totale *per merge*.
 
 ## 7. Next action
 

@@ -158,6 +158,15 @@ public:
 	static FColor SpawnTeam0Color();
 	static FColor SpawnTeam1Color();
 
+	/**
+	 * Colore delle celle percorribili che **nessuno raggiunge**: una zona irraggiungibile non e' una scelta di
+	 * design, e' una mappa rotta — la si vede e non ci si arriva.
+	 *
+	 * Distinto da tutto il resto perche' dice una cosa di natura diversa: gli altri marcatori descrivono cosa
+	 * la cella *e'*, questo che la cella e' **staccata dal resto**.
+	 */
+	static FColor UnreachableCellColor();
+
 	static FVector CellsCentroidWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
 		float LayerHeight);
 

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
+#include "Map/RTHexCellData.h" // ERTHexSurface, ERTHexTransitionKind
 
 class UWorld;
 class ARTHexMapActor;
@@ -39,4 +40,13 @@ namespace RTHexEditor
 
 	/** Overlay debug: ogni cella dell'asset come esagono colorato per superficie; le bloccate con un esagono rosso interno. */
 	void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor);
+
+	/**
+	 * Colore di una transizione per tipo, e freccia From->To. Stanno qui e non nel tool Arch perche' ora hanno
+	 * DUE consumatori: il tool, che le disegna mentre le si crea, e l'overlay, che le mostra sempre. Due
+	 * definizioni dello stesso vocabolario visivo prima o poi divergono — stessa ragione per cui la tavolozza
+	 * delle superfici e' una sola.
+	 */
+	FColor TransitionKindColor(ERTHexTransitionKind Kind);
+	void DrawArrow(FPrimitiveDrawInterface* PDI, const FVector& A, const FVector& B, const FColor& Color);
 }

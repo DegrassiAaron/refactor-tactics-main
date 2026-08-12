@@ -208,8 +208,11 @@ Owner principali:
 Owner principali:
 
 - `docs/decisions/adr-0002-griglia-esagonale.md`
-- `docs/gameplay/spec-tassonomia-movimento.md` — **quale famiglia di movimento**, e cosa comporta: Move, Dash,
-  Forced, Teleport, Reaction. È l'unico documento che le confronta; i singoli restano owner di sé stessi
+- `docs/gameplay/spec-tassonomia-movimento.md` — **quale famiglia di movimento**, e cosa comporta. Dal
+  2026-08-12 ([D-118](decisions/RT_PDR_00_Decision_Log.md)) la partizione è **`Traversal`** (Move · Dash ·
+  Forced — percorre lo spazio) contro **`Transfer`** (Leap · Blink · Swap · Recall — cambia posizione senza
+  percorrerlo); `Reaction` è una **causa**, non una famiglia. È l'unico documento che le confronta; i
+  singoli restano owner di sé stessi
 - `docs/technical/spec-mappa-multilivello.md`
 - `docs/technical/spec-pathfinding-pf3-pf4.md`
 - `docs/gameplay/spec-copertura-cp91.md` e successive spec CP9.x

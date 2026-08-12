@@ -96,6 +96,14 @@ speciale da programmare, è semplicemente un arco solo.
 `ERTHexTransitionKind` = `Stair · Ramp · Bridge · Tunnel · Elevator · Jump`.
 `Jump` è predisposizione; il teletrasporto resta fuori.
 
+> ⚠️ **Un `Portal` sarebbe un valore di questo enum, non un trasferimento personale**
+> ([D-118](../decisions/RT_PDR_00_Decision_Log.md)). Il confine è netto e vale la pena scriverlo qui: un
+> `Transfer` sposta **un'unità** e non tocca la mappa; un portale cambia la **raggiungibilità** e quindi
+> appartiene al grafo — `Transitions`, `Revision`, invalidazione della cache di path. Chi lo implementasse
+> come un'abilità di teletrasporto costruirebbe una scorciatoia che il pathfinding non vede. È **CP 39.10**
+> di [E39](../roadmap/roadmap-post-v0.1.md#e39--spatial-transfer--teleport-blink-e-movimento-istantaneo--p3),
+> e la sua prima riga è un audit della serializzazione di questo enum.
+
 > **Gli archi non portano trigger.** Una trap o un tripwire possiede la propria coppia `(From → To)` e la
 > confronta col micro-step del movimento; `FRTHexEdge` resta riservato ai soli salti di layer
 > ([D-013](../decisions/RT_PDR_00_Decision_Log.md)). Il motivo è nella §2 di

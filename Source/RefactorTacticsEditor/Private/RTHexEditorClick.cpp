@@ -140,6 +140,34 @@ bool SetActiveLayer(ARTHexMapActor* Actor, int32 NewLayer)
 	Actor->RebuildInstances(); // assegnare da codice non passa da PostEditChangeProperty
 	return true;
 }
+FColor TransitionKindColor(ERTHexTransitionKind Kind)
+{
+	switch (Kind)
+	{
+	case ERTHexTransitionKind::Stair:    return FColor(80, 200, 255);
+	case ERTHexTransitionKind::Ramp:     return FColor(120, 255, 120);
+	case ERTHexTransitionKind::Bridge:   return FColor(255, 200, 80);
+	case ERTHexTransitionKind::Tunnel:   return FColor(200, 120, 255);
+	case ERTHexTransitionKind::Elevator: return FColor(255, 120, 120);
+	case ERTHexTransitionKind::Jump:     return FColor(255, 255, 255);
+	default:                             return FColor(200, 200, 200);
+	}
+}
+
+void DrawArrow(FPrimitiveDrawInterface* PDI, const FVector& A, const FVector& B, const FColor& Color)
+{
+	if (!PDI) { return; }
+	PDI->DrawLine(A, B, Color, SDPG_Foreground, 2.f);
+	const FVector Dir = (B - A).GetSafeNormal();
+	if (!Dir.IsNearlyZero())
+	{
+		const float H = 18.f;
+		const FVector Side = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal();
+		PDI->DrawLine(B, B - Dir * H + Side * (H * 0.5), Color, SDPG_Foreground, 2.f);
+		PDI->DrawLine(B, B - Dir * H - Side * (H * 0.5), Color, SDPG_Foreground, 2.f);
+	}
+}
+
 FColor SurfaceColor(ERTHexSurface Surface)
 {
 	// Delega al runtime: una sola tavolozza per il marker dell'editor e per l'overlay in partita, altrimenti la
@@ -198,6 +226,27 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 	//
 	// Anello ESTERNO (1.0), piu' largo del contorno di superficie: non compete con i marcatori di regola, che
 	// stanno tutti dentro.
+	// Transizioni: l'UNICO modo in cui i layer si collegano. Fuori dal tool Arch non si vedevano, quindi chi
+	// dipingeva con Paint o Fill non sapeva se una zona fosse collegata — e una piattaforma senza arco e'
+	// irraggiungibile senza dirlo. Si disegnano sempre, non solo mentre le si crea.
+	for (const FRTHexEdge& Edge : Map->Transitions)
+	{
+		if (bActiveOnly && Edge.From.Layer != ActiveLayer && Edge.To.Layer != ActiveLayer) { continue; }
+		const FVector A = URTHexLibrary::AxialToWorld(Edge.From, Origin, HexSize, LayerH);
+		const FVector B = URTHexLibrary::AxialToWorld(Edge.To, Origin, HexSize, LayerH);
+		// Alzate sopra il disco della cella, o la linea sparirebbe dentro la mesh.
+		DrawArrow(PDI, A + FVector(0, 0, 4.0), B + FVector(0, 0, 4.0), TransitionKindColor(Edge.Kind));
+	}
+
+	// Celle che NESSUNO raggiunge: calcolate dall'actor a ogni ricostruzione, non qui — una visita del grafo a
+	// ogni frame sarebbe lavoro ripetuto per un dato che cambia solo quando la mappa cambia.
+	for (const FRTCellId& Cell : Actor->GetUnreachableCells())
+	{
+		if (bActiveOnly && Cell.Layer != ActiveLayer) { continue; }
+		const FVector Center = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH);
+		DrawHexMarker(PDI, Center, HexSize * 0.95f, URTHexLibrary::UnreachableCellColor(), 3.0f);
+	}
+
 	const int32 NumPerTeam = 2; // la v0.1 e' 2v2; il resto della scala e' un problema del formato, non dell'overlay
 	const TArray<FRTCellId> Starts = URTMatchSetupLibrary::PickStartCells(Map, NumPerTeam, ActiveLayer);
 	for (int32 I = 0; I < Starts.Num(); ++I)

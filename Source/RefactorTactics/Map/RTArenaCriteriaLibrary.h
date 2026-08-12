@@ -175,6 +175,18 @@ public:
 	static FRTArenaCriterionResult CheckReachability(const URTHexMapAsset* Map, const FRTCellId& SpawnA);
 
 	/**
+	 * Celle percorribili che il grafo tattico NON raggiunge partendo da `From`, in ordine stabile.
+	 *
+	 * Estratta da `CheckReachability` perche' ha due consumatori: il criterio, che ne conta quante sono, e
+	 * l'overlay dell'editor, che le mostra. Una seconda visita scritta a parte avrebbe finito per rispondere
+	 * diversamente — il numero e le celle marcate in scena devono venire dallo stesso calcolo.
+	 *
+	 * Visita il GRAFO, non i sei vicini planari: una cella sovrapposta e' vicina nello spazio e lontana nel
+	 * grafo, e confonderle direbbe «ci si arriva» di una zona dove non ci si arriva.
+	 */
+	static TArray<FRTCellId> FindUnreachableCells(const URTHexMapAsset* Map, const FRTCellId& From);
+
+	/**
 	 * Valuta i tre criteri sugli spawn indicati.
 	 * Mappa nulla o spawn assenti dalla mappa -> tutti e tre `bNotEvaluable`.
 	 */

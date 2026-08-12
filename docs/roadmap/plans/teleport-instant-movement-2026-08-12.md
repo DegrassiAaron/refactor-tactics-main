@@ -6,8 +6,17 @@
 >
 > **Cosa possiede**: il verdetto sezione per sezione e le misure che lo sostengono.
 > **Cosa non possiede**: nessuna regola. La regola vive in
-> [`../../gameplay/spec-tassonomia-movimento.md`](../../gameplay/spec-tassonomia-movimento.md); le domande
-> aperte in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) `MOV-1`, `MOV-2`.
+> [`../../gameplay/spec-tassonomia-movimento.md`](../../gameplay/spec-tassonomia-movimento.md).
+>
+> 🔴 **Le due domande che questo referto lascia aperte sono state chiuse la sera stessa.** `MOV-1` →
+> [D-118](../../decisions/RT_PDR_00_Decision_Log.md) (**famiglia propria**: `Traversal` contro `Transfer`) ·
+> `MOV-2` → [D-119](../../decisions/RT_PDR_00_Decision_Log.md) (**post-v0.1**, epic **E39** in v0.2). Quindi
+> le frasi «`MOV-1` va decisa prima», «non ha aperto una issue per il Blink» e «nessuna ha un delta finché
+> `MOV-2` è aperta» descrivono lo stato di **quel momento** e non più il canone: il seguito è in
+> [`spatial-transfer-epic-2026-08-12.md`](spatial-transfer-epic-2026-08-12.md). ⚠️ **Il ragionamento resta
+> valido e non va riletto come un errore**: le issue non aperte qui non erano premature per prudenza, erano
+> premature perché la loro prima riga sarebbe stata *«decidere se farla»* — e infatti la prima issue
+> dell'epic che le apre è esattamente quella decisione.
 
 ## 1. Il verdetto in una riga
 
