@@ -1538,7 +1538,8 @@
       "issues": [
         43,
         46,
-        641
+        641,
+        645
       ],
       "tests": [
         "RefactorTactics.Actions.Sprint",
@@ -1563,7 +1564,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "**Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati dal dato, non dedotti. Budget 5 MP con costi interi. ⚠️ 2026-08-12: `RELEASE_READY` vale per i tre profili che hanno numeri. **`Sneak` non ne ha** — costo, portata e rumore non sono definiti da nessuna fonte corrente (`AE-5`) — quindi il profilo esiste come nome e non e' pianificabile. Non abbasso i gate per questo: la feature che il registro misura sono i profili implementati, e inventare tre numeri per farla sembrare completa sarebbe il difetto opposto. `Withdraw` e' il quarto profilo (D-070) e **non si sceglie**: lo impone l'`Overwatch`. La domanda se il profilo debba cambiare anche la LEGALITA' delle azioni e' `AE-2`, feature `RT-FEAT-ACTION-MOVEMENT-COMPAT`."
+      "notes": "**Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati dal dato, non dedotti. Budget 5 MP con costi interi. ⚠️ 2026-08-12: `RELEASE_READY` vale per i tre profili che hanno numeri. **`Sneak` non ne ha** — costo, portata e rumore non sono definiti da nessuna fonte corrente (`AE-5`) — quindi il profilo esiste come nome e non e' pianificabile. Non abbasso i gate per questo: la feature che il registro misura sono i profili implementati, e inventare tre numeri per farla sembrare completa sarebbe il difetto opposto. `Withdraw` e' il quarto profilo (D-070) e **non si sceglie**: lo impone l'`Overwatch`. La domanda se il profilo debba cambiare anche la LEGALITA' delle azioni e' `AE-2`, feature `RT-FEAT-ACTION-MOVEMENT-COMPAT`. 🔴 **2026-08-12, dal consolidamento Teleport**: lo scenario `Spec.Movement.TeleportSkipsIntermediateCells` dichiarato qui e' una SPECIFICA ESEGUIBILE scritta prima dell'implementazione, e resta `BLOCKED` di proposito (`requires: [\"Teleport\"]`). Non prova nulla oggi, e il file lo dice da se'. E c'e' un secondo fatto che il gate `scenario: done` non mostra: **`ERTMovementStyle::LinearLeap` ha gia' la semantica del trasferimento** — `Result.Entered` contiene la sola destinazione, quindi `Action.Leap` non prende gli hazard intermedi ne' genera micro-step intermedi — ma **nessun eroe ha `Action.Leap` nel kit**. E' la QUARTA capacita' del motore irraggiungibile dal roster dopo le tre di [#425], e l'unica con semantica di trasferimento. Issue **#645**; la domanda «famiglia o policy del Dash?» e' `MOV-1` in `OPEN_DECISIONS.md`, e **non blocca #645**: il salto e' irraggiungibile in entrambi i casi."
     },
     {
       "feature_id": "RT-FEAT-ACTION-BASIC-ATTACK-PROFILES",
