@@ -15,6 +15,14 @@
 | `OPEN` | Tema deciso in un sorgente, **mai recepito** in un documento normativo |
 | `DUPLICATE` | La stessa regola definita in più posti → consolidare su un solo owner |
 
+> ➕ **Dal 2026-08-12 la colonna «Specifica precedente» è verificabile.** Molte righe dicono *«il PDR»*, *«il
+> catalogo»*, *«north-star»*: fino a ieri quelle fonti erano **ventiquattro binari** e l'unico modo di
+> controllarle era aprire un PDF a una certa pagina. Ora sono Markdown con sezioni —
+> [`archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md`](archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md) e i quattro
+> documenti di [`src/prd/`](src/README.md) — quindi una riga di questa matrice si può **falsificare con un
+> `grep`** invece che sulla parola di chi l'ha scritta. Le righe non sono state riscritte: cambia cosa si può
+> fare per verificarle.
+
 ---
 
 ## Matrice

@@ -71,7 +71,7 @@ docs/                          # >>> README.md e' il punto d'ingresso <<<
   balance/                     # numeri vigenti (cataloghi) + workbook
   roadmap/                     # milestone, release v0.1, DoD, requisiti F0-F6
   decisions/                   # ADR e Decision Log
-  src/                         # sorgenti non normativi (PDF di visione, brief grezzi)
+  src/                         # sorgenti non normativi (PRD di visione, brief grezzi)
   archive/                     # materiale superato
 CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 ```

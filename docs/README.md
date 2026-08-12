@@ -5,9 +5,11 @@ Engine 5.8.1, sviluppato da un dev singolo. Ogni turno: **pianificazione simulta
 macro-fasi **`Prep → Dash → Blast → Move → Cleanup`**, calcolate simultaneamente e applicate in ordine
 deterministico, su una griglia **esagonale multilivello**.
 
-> **Questa cartella è la fonte di verità del progetto.** I PDF sono snapshot di consultazione; il Markdown
-> versionato prevale sempre. Se due documenti si contraddicono, vince quello più in alto nella gerarchia
-> qui sotto — e la contraddizione va registrata, non risolta in silenzio.
+> **Questa cartella è la fonte di verità del progetto**, e dal **2026-08-12** è interamente in Markdown: i
+> ventiquattro binari di prosa che c'erano — dieci PDF di PRD, tredici snapshot PDR e un `.docx` — sono
+> diventati sei documenti versionati e diffabili ([D-009](decisions/RT_PDR_00_Decision_Log.md)). Se due
+> documenti si contraddicono, vince quello più in alto nella gerarchia qui sotto — e la contraddizione va
+> registrata, non risolta in silenzio.
 
 ---
 
@@ -22,7 +24,7 @@ deterministico, su una griglia **esagonale multilivello**.
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |
 | 6 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
 | 7 | **Requisiti lungo periodo** | [`roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6 — **direzione, non scope** |
-| 8 | **Visione north-star** | [`src/`](src/) (PDF dei PRD) | Prodotto a lungo termine, **non** obiettivo attuale |
+| 8 | **Visione north-star** | [`src/prd/`](src/README.md) — i PRD, in Markdown dal 2026-08-12 | Prodotto a lungo termine, **non** obiettivo attuale |
 | 9 | **Storico** | [`archive/`](archive/) | Materiale superato, conservato per provenienza |
 
 > **Il canone e gli ADR non possono divergere.** La tabella dice che il livello 1 prevale sul livello 2, ma un
@@ -210,7 +212,7 @@ docs/
 1. **I nomi dei file restano in italiano kebab-case**, non `UPPER_SNAKE` inglese come nella struttura di
    riferimento. Il repository ha una convenzione consolidata e mescolarla peggiorerebbe la leggibilità;
    la clausola «riutilizzare i file esistenti quando possibile» lo consente.
-2. **`src/` non è documentazione**: è la casella di posta dei sorgenti grezzi (PDF di visione, brief non ancora
+2. **`src/` non è documentazione**: è la casella di posta dei sorgenti grezzi (PRD di visione, brief non ancora
    triagiati). Vive accanto ai documenti perché è da lì che nascono, ma **non è normativa** e non compare nella
    gerarchia delle fonti sopra il livello 8.
    > **Dal 2026-08-08 la casella si svuota.** Un sorgente recepito si sposta in

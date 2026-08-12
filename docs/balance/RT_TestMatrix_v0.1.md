@@ -101,7 +101,8 @@ stesso seed, stesse definizioni, stesso ordine**, per almeno **100 ripetizioni**
 identico.
 
 > ⚠️ **Una divergenza deliberata dal catalogo, dichiarata qui perché non si scopra dal `grep`.**
-> Il catalogo (`docs/src/prd/catalogo-e-bilanciamento-v0.1.pdf`, p.24 §15) nomina il decimo test
+> Il catalogo ([`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md)
+> §15 «Automation Test previsti» — era `catalogo-e-bilanciamento-v0.1.pdf` p.24, convertito il 2026-08-12) nomina il decimo test
 > `RefactorTactics.Simulation.DeterministicReplay`, e il DoD di CP 12.1 (`#81`) lo chiamava «nome vincolante».
 > Dal 2026-08-11 il test si chiama **`RefactorTactics.Replay.Verifier.ResimulationIsDeterministic`**
 > ([D-103](../decisions/RT_PDR_00_Decision_Log.md), [#538](https://github.com/DegrassiAaron/refactor-tactics-main/issues/538)).

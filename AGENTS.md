@@ -31,8 +31,9 @@ Carica solo il contesto necessario, ma non saltare queste fonti quando pertinent
 6. **`docs/roadmap/roadmap-v0.1.md`** — scope e gate della release v0.1.
 7. Issue/task corrente, specifica di feature, cataloghi in `docs/balance/`, test e codice esistente.
 
-`docs/src/` contiene i sorgenti **non ancora consumati** (PDF di visione, dataset, media): **non è fonte
-normativa per default**. `docs/archive/` è storico — e dal 2026-08-08 include
+`docs/src/` contiene i sorgenti **non ancora consumati** (PRD di visione, dataset, media): **non è fonte
+normativa per default**. *(Dal 2026-08-12 sono Markdown: in `docs/` non c'è più prosa in formato binario —
+[D-009](docs/decisions/RT_PDR_00_Decision_Log.md).)* `docs/archive/` è storico — e dal 2026-08-08 include
 [`docs/archive/src/`](docs/archive/src/README.md), dove finiscono i sorgenti **già recepiti** (design, handoff,
 audit) con l'indice di chi li possiede oggi. Se cerchi la provenienza di una regola, è lì; se cerchi la regola,
 è nell'owner.
