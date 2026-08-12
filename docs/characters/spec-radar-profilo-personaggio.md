@@ -53,8 +53,19 @@ Sei assi, in **quest'ordine**:
 Cinque assi, in **quest'ordine**: Precisione (`precision`), Potenza (`power`), Controllo (`control`),
 Supporto (`support`), Durabilità (`durability`).
 
-È la vista vicina alle matrici di bilanciamento, e le sue cinque colonne **esistono già** nel
-repository (§4).
+È la vista vicina alle matrici di bilanciamento. Le sue cinque colonne **esistono** nel repository —
+`Precisione_1_10 … Durabilità_1_10` nel foglio `03_Stats_Base` di
+`RefactorTactics_Balance_Matrices_v0.1.xlsx` — ma **non sono una fonte**: per i quattro eroi della v0.1
+portano valori identici, e **§4.2** mostra come il foglio si smentisca da solo. Anche questi cinque assi
+si derivano quindi dalla rubrica ([D-112](../decisions/RT_PDR_00_Decision_Log.md)), come i sei del
+Profile.
+
+⚠️ Il foglio è anche **indietro**: dà a Vektor `HP 100`, superato da
+[D-069](../decisions/RT_PDR_00_Decision_Log.md) (oggi `90`).
+
+> ⚠️ **«Esistono» va detto**, perché cercare quei rating con `grep` nei `.md` non li trova e porta a
+> concludere che non esistano affatto — che è falso, e produrrebbe un argomento più debole di quello
+> vero: esistono, e il foglio stesso dimostra che sono default.
 
 ### 2.3 L'ordine fa parte della specifica
 
@@ -194,13 +205,23 @@ misurato.
 ## 7. Ordine di lavoro
 
 1. **Rubrica** — è il prerequisito di tutto: senza formula i rating non esistono affatto (§4.3).
-2. **Generatore** sui cinque assi Balance, dimostrato end-to-end con il gate di §8.
-3. **Assi Profile** nell'ordine di §5: prima i cinque derivabili, poi `information` col suo limite.
+2. **Assi Profile** nell'ordine di §5: prima i cinque derivabili, poi `information` col suo limite.
+3. **Generatore** sul Profile, dimostrato end-to-end con il gate di §8.
 4. **Integrazione Wiki** e pubblicazione dei primi radar.
-5. Rumore per eroe derivato dal kit, che è ciò che rende `information` un asse vero (§5.1).
+5. **Balance Radar**, che richiede prima di definire *cosa misurano* `precision` e `power`: il Profile ha
+   un solo asse `offense`, il Balance lo separa in due, e la differenza non è scritta da nessuna parte.
+6. Rumore per eroe derivato dal kit, che è ciò che rende `information` un asse vero (§5.1).
 
 Il primo punto non è più «risolvere il conflitto dei workbook»: [D-106](../decisions/RT_PDR_00_Decision_Log.md)
 lo ha dissolto.
+
+> ✅ **Il Balance non è più il passo 2** ([D-112](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-12).
+> [D-105](../decisions/RT_PDR_00_Decision_Log.md) lo metteva per primo con una motivazione esplicita —
+> *«è l'unico dei due dimostrabile end-to-end senza modellare tre assi nuovi»* — che valeva **solo**
+> finché le sue cinque colonne erano una fonte. D-106 le ha escluse e §4.2 mostra che per la v0.1 sono
+> default: da allora il Balance richiede **due** assi modellati (`precision`, `power`) che il Profile non
+> ha, mentre il Profile ne richiede tre già coperti dalla rubrica. L'ordine si inverte perché si è
+> invertito il costo, non perché sia cambiato quale radar è pubblico.
 
 ## 8. Toolchain, determinismo e gate
 
