@@ -65,7 +65,11 @@ di quelle voci, non voci in più.
 Tre conseguenze che si sbagliano spesso:
 
 - **la fase `Prep` non è uno slot.** `Guard`, `Brace` e `Overwatch` risolvono presto, ma occupano la
-  **principale**: prepararsi *è* la propria azione del turno. Un piano «`Guard` + attacco» non è legale;
+  **principale**: prepararsi *è* la propria azione del turno. Un piano «`Guard` + attacco» non è legale.
+  ⚠️ **I tre non pagano però lo stesso prezzo**, e la differenza non è scritta nel loro slot: `Brace` applica
+  a sé `Braced` **e `Root`**, quindi si pianta — `EffectiveMoveRange` va a zero già nel `Move` dello stesso
+  turno — e l'`Overwatch` riserva il movimento a `Withdraw`. Solo `Guard` costa esattamente uno slot. È la
+  ragione per cui `ECO-1` ha probabilmente **due** risposte e non una ([#617](https://github.com/DegrassiAaron/refactor-tactics-main/issues/617));
 - **la reazione non è un premio.** È indipendente da movimento e principale: chi si muove e agisce la
   conserva comunque. `Wait` non la regala, e `Sprint` la toglie per una regola propria dichiarata;
 - **armare l'`Overwatch` non vieta il `Dash` con una regola apposta.** Riserva lo slot movimento al profilo
