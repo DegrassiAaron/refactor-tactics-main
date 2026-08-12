@@ -1273,7 +1273,7 @@ features:
     owner_specs:
       - docs/gameplay/spec-dash.md
       - docs/gameplay/spec-economia-del-turno.md
-    issues: [43, 46, 641, 645]
+    issues: [43, 46, 641, 645, 653]
     tests:
       - RefactorTactics.Actions.Sprint
       - RefactorTactics.Actions.Charge
@@ -1297,6 +1297,15 @@ features:
     notes: >
       **Sprint è un profilo di Move, non un Dash** (pin del canone): fase e stile sono dichiarati
       dal dato, non dedotti. Budget 5 MP con costi interi.
+      🔴 **2026-08-12, misurato tentando #641 — non dedotto**: i profili di movimento **non esistono come
+      entita' nel codice** (`grep -rn MovementProfile Source/` da' zero). `Sneak`/`Move`/`Sprint`/`Withdraw`
+      vivono solo nel catalogo markdown §2.1; nel codice `Action.Sprint` e' un ActionId con `RangeCells = 8`,
+      e quel numero lo legge **un solo punto** (`ResolveDash`). Il movimento normale prende il budget
+      dall'UNITA' (`GetEffectiveMoveRange`), non dall'azione pianificata. Conseguenza: spostare lo Sprint in
+      fase `Move` come chiede D-116 gli toglierebbe la distanza — 5 MP invece di 8 — e il divieto di
+      reazione, che `ResolveDash` registra e che dopo il Blast arriverebbe troppo tardi. Prerequisito aperto
+      come **#653**; il tentativo verificato vive su `feat/641-sprint-post-blast` (compila su entrambi i
+      target, 4 test rossi che sono la misura del buco).
       ⚠️ 2026-08-12: `RELEASE_READY` vale per i tre profili che hanno numeri. **`Sneak` non ne ha**
       — costo, portata e rumore non sono definiti da nessuna fonte corrente (`AE-5`) — quindi il
       profilo esiste come nome e non e' pianificabile. Non abbasso i gate per questo: la feature che il
