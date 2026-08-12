@@ -60,7 +60,7 @@ Il contratto parte da ciò che esiste, non da un foglio bianco.
 | La decisione è separata dal raycast: `HandleClickOnCell` / `HandleClickOnUnit` sono verificabili headless | `RTPlayerController.h:116,123` |
 | Guardia di autorità: si pianifica solo per le proprie unità | `URTCombatLibrary::CanPlayerControlUnit`, `RTPlayerController.cpp:401,421` |
 | La modalità di targeting **non è uno stato del controller**: è `SelectedAbilityIndex` **sull'unità** | `RTPlayerController.cpp:504,606` |
-| Il controller **non conosce la fase**, tranne che in `OnLockIn` | `RTPlayerController.cpp:767` |
+| Il controller **non conosce la fase**: l'unica lettura è in `OnRestart`, e serve al fine partita | `ARTPlayerController::OnRestart` — `GetPhase() == ERTMatchPhase::MatchEnded` |
 | Il Canvas HUD **non registra alcuna hitbox** (`AddHitBox` non compare in `Source/`) | `RTHUD.cpp` — assenza verificata |
 | `bShowMouseCursor = true`; nessun `SetInputMode` esplicito | `RTPlayerController.cpp:257` |
 
