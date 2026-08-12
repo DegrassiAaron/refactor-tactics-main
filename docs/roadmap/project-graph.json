@@ -2011,6 +2011,20 @@
       "path": "Scenarios/Spec/Facing/FrontAttackKeepsGuard.json"
     },
     {
+      "id": "Spec.Facing.FrontHitOnCoverIsSilent",
+      "requires": [
+        "CreateCover"
+      ],
+      "path": "Scenarios/Spec/Facing/FrontHitOnCoverIsSilent.json"
+    },
+    {
+      "id": "Spec.Facing.RearHitOnCoverIsTraced",
+      "requires": [
+        "CreateCover"
+      ],
+      "path": "Scenarios/Spec/Facing/RearHitOnCoverIsTraced.json"
+    },
+    {
       "id": "Spec.Facing.TargetingReorients",
       "requires": [],
       "path": "Scenarios/Spec/Facing/TargetingReorients.json"
