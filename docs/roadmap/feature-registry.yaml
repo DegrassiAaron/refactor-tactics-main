@@ -4611,7 +4611,7 @@ features:
     owner_specs:
       - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
-    issues: [567, 622, 623, 551, 588]
+    issues: [567, 622, 623, 551, 588, 552]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
       - RefactorTactics.HexMap.FloodRegion
@@ -4619,11 +4619,13 @@ features:
       - RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit
       - RefactorTactics.HexMapActor.LayerFilterOnConstruction
       - RefactorTactics.HexMapActor.PickIgnoresGeometryThatIsNotTheGrid
+      - RefactorTactics.HexMapActor.BlockerVolumesComeFromCellFlags
+      - RefactorTactics.Hex.BlockerVolumesSeparateTheTwoRules
     scenarios: []
     wiki_refs: []
     last_verified:
       date: 2026-08-12
-      commit: e91c51c3
+      commit: d85d6f7f
     notes: >
       `Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono
       **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a
@@ -4659,6 +4661,19 @@ features:
       un `.umap`, e la navigazione del viewport la fornisce Unreal (`RTCameraPawn` e' la camera di
       gioco, un oggetto diverso). Referto:
       `docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md`.
+
+
+      **2026-08-12 (#552)**: un TERZO `UInstancedStaticMeshComponent`, `Blockers`, per le due regole
+      di blocco — colonna stretta e alta dove non si passa, lastra larga e bassa dove non si vede
+      attraverso. Sono nello stesso componente perche' un ISM porta una sola mesh e i tre ISM
+      condividono `CellMesh`: a distinguerli e' la **proporzione**. Le costanti stanno in
+      `URTHexLibrary` e i test le verificano come RELAZIONI — la lastra sotto il rilievo di costo
+      piu' piccolo, la colonna dentro la larghezza del rilievo, e il terreno piu' caro del catalogo
+      sotto l'altezza di un muro. Quest'ultima separa due vocabolari che la mappa non deve poter
+      confondere: «caro» e «impossibile». ⚠️ **Il giudizio «si legge?» non e' automatizzabile** e
+      resta una verifica in editor: se le proporzioni non bastassero, la strada e' un ISM per forma.
+      ⚠️ Il costo di rigenerazione con tre elementi per cella **non e' stato misurato** — e' la
+      seconda domanda aperta del brief, ancora tale.
 
   - feature_id: RT-FEAT-TOOL-MAP-GEOMETRY
     title: Geometria architettonica quantizzata e cottura in dati di cella
