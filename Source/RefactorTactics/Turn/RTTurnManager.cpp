@@ -499,7 +499,7 @@ void ARTTurnManager::PlanBots()
 				int32 MaxCellCost = 1;
 				for (const FRTHexCellData& Cell : Snapshot.Map->Cells)
 				{
-					MaxCellCost = FMath::Max(MaxCellCost, Cell.MoveCost);
+					MaxCellCost = FMath::Max(MaxCellCost, Cell.TotalMoveCost());
 				}
 				CandidateBudget = DashBudget * MaxCellCost;
 			}

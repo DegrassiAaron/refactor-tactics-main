@@ -404,7 +404,7 @@ void ARTHexMapActor::RebuildInstances()
 			}
 			CellIds.Add(C.Id);
 			Heights.Add(C.Height);
-			MoveCosts.Add(C.MoveCost);
+			MoveCosts.Add(C.TotalMoveCost()); // il rilievo mostra il costo VERO: una cella stretta si alza
 		}
 	}
 	else if (DemoRadius > 0)

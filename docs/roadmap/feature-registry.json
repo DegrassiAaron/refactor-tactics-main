@@ -5386,21 +5386,21 @@
       "kind": "tooling",
       "release": "v0.1",
       "priority": "P2",
-      "status": "DESIGNED",
-      "status_derived": "DESIGNED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "partial",
-        "data": "todo",
-        "runtime": "todo",
+        "data": "done",
+        "runtime": "partial",
         "log_debug": "todo",
-        "automation": "todo",
-        "scenario": "todo",
+        "automation": "done",
+        "scenario": "done",
         "ui_wiki": "todo",
         "packaged": "na",
         "network_privacy": "na",
         "replay_representable": "na"
       },
-      "gates_done": 0,
+      "gates_done": 3,
       "gates_applicable": 7,
       "roadmap": {
         "epic": null,
@@ -5421,11 +5421,13 @@
         620,
         621
       ],
-      "tests": [],
-      "scenarios": [],
-      "scenarios_planned": [
+      "tests": [
+        "RefactorTactics.HexOccupancy.*"
+      ],
+      "scenarios": [
         "Spec.Map.ConstrainedCellCostsMore"
       ],
+      "scenarios_planned": [],
       "wiki_refs": [],
       "wiki_note": "",
       "pie_refs": [],

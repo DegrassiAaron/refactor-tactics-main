@@ -145,6 +145,23 @@ struct FRTHexCellData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	int32 MoveCost = 1;
 
+	/**
+	 * Sovrapprezzo di traversata dovuto alla GEOMETRIA che invade la cella (#619, formato v7): quanto costa in
+	 * piu' passare da una cella stretta. Si somma a `MoveCost` — vedi `TotalMoveCost()`, che e' l'unico punto
+	 * in cui i due si sommano.
+	 *
+	 * ⚠️ **Perche' non e' dentro `MoveCost`, che sarebbe stato piu' semplice**: quel campo ha gia' un
+	 * produttore che lo RICALCOLA dalla sola `Surface` a ogni turno — `ARTTurnManager::ApplyDynamicSurface`
+	 * quando una superficie cambia, `TickDynamicSurfaces` quando scade. Un corridoio stretto su cui
+	 * un'abilita' mettesse dell'acqua tornerebbe, al ripristino, al costo del pavimento: il sovrapprezzo
+	 * sparirebbe per il resto della partita e nessun test se ne accorgerebbe. Con due campi i due produttori
+	 * non si toccano, ed e' la stessa forma di risposta che `MSE-1` cerca per i bordi.
+	 *
+	 * Non e' «un terzo booleano»: e' un intero, e i booleani accanto dicono un'altra cosa.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	int32 OccupancySurcharge = 0;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	bool bBlocksMovement = false;
 
@@ -163,6 +180,18 @@ struct FRTHexCellData
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	TArray<FRTHexDoor> Doors;
+
+	/**
+	 * Costo TOTALE di entrare in questa cella: il terreno piu' il sovrapprezzo della geometria.
+	 *
+	 * Esiste come accessore, e non come somma ripetuta nei chiamanti, perche' i lettori del costo sono
+	 * CINQUE — il costruttore di vicini del pathfinding, i due accumuli della simulazione e i due
+	 * `MaxCellCost`. Cinque copie della stessa somma sono cinque posti da cui puo' sparire.
+	 */
+	int32 TotalMoveCost() const
+	{
+		return FMath::Max(0, MoveCost) + FMath::Max(0, OccupancySurcharge);
+	}
 
 	/** Tipo di copertura sul bordo indicato (`None` se il bordo e' scoperto). */
 	ERTHexCoverType CoverOn(ERTHexDirection Edge) const
