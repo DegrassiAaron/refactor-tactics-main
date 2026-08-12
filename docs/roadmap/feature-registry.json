@@ -1856,6 +1856,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
+        "docs/gameplay/spec-compatibilita-azioni-movimento.md",
         "docs/gameplay/spec-economia-del-turno.md"
       ],
       "issues": [
@@ -1876,7 +1877,7 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "**Bloccata su `AE-2`.** E' l'unico contributo genuinamente nuovo del kit del 2026-08-12: oggi il profilo di movimento cambia distanza, rumore ed esposizione e NIENTE ALTRO — `grep` di `MovementCompat`/`Impaired`/`Enhanced` fuori dall'archivio da' zero. Risolve un difetto gia' registrato: senza costo di slot il prezzo dello `Sprint` regge tutto su `Status.Exposed` (allarme dichiarato in D-028). Costa un asse di bilanciamento per abilita' x quattro profili. Vincolo non negoziabile: dev'essere un DATO dell'abilita', mai un ramo per eroe nel resolver (invariante #7, D-029). ⚠️ `Spec.ActionEconomy.PathLengthChangesEffect` appartiene ad `AE-3` — i FATTI DEL PERCORSO, non il profilo — ed e' elencato qui perche' non ha ancora una feature propria: si sposta il giorno in cui `AE-3` viene decisa. Le due non si fondono, e la ragione e' di determinismo: il profilo e' noto in Planning, i fatti del percorso solo dopo la risoluzione, e un Move puo' decadere (D-045)."
+      "notes": "**Bloccata su `AE-2`.** E' l'unico contributo genuinamente nuovo del kit del 2026-08-12: oggi il profilo di movimento cambia distanza, rumore ed esposizione e NIENTE ALTRO. Risolve un difetto gia' registrato: senza costo di slot il prezzo dello `Sprint` regge tutto su `Status.Exposed` (allarme dichiarato in D-028). ➕ **2026-08-12, CP 38.3 (#606)**: la proposta ha ora una **spec in forma decidibile** — `spec-compatibilita-azioni-movimento.md`, stato `PROPOSED`. Modello: una **soglia** (`MinStability` sull'azione contro `Stability` sul profilo) invece della matrice azione x profilo che il kit proponeva — **31 numeri + 4 contro 124 celle**, misurati sul catalogo. Stessa forma di `PushResistance`, che D-038 tiene come soglia e non come sottrazione. ⚠️ Il gate `spec` resta `partial` **di proposito**: il documento descrive le regole e dichiara l'owner, ma quelle regole sono **proposte**. Diventa `done` quando `AE-2` e' decisa si'; se e' decisa no, il documento passa `HISTORICAL` e questa feature va `DEFERRED` come `RT-FEAT-ACTION-BUDGET`. ⚠️ **Senza `RT-FEAT-ACTION-PLAN-VALIDATION` (#605) il dato non e' osservabile**: un requisito che nessuno valuta e' un campo senza consumatore. #606 definisce il dato, #605 lo rende una regola. ⚠️ `Spec.ActionEconomy.PathLengthChangesEffect` appartiene ad `AE-3` — i FATTI DEL PERCORSO, non il profilo — ed e' elencato qui in prestito: si sposta quando `AE-3` viene decisa. Le due non si fondono, e la ragione e' di determinismo: il profilo e' noto in Planning, i fatti del percorso solo dopo la risoluzione, e un Move puo' decadere (D-045)."
     },
     {
       "feature_id": "RT-FEAT-ACTION-PLAN-VALIDATION",

@@ -165,6 +165,11 @@ budget di pivot dice quanto lo si può correggere. Un percorso più lungo può q
 
 > 🧪 **Tutto ciò che segue è un candidato, non una regola.** Nessun dato, nessun codice e nessun test lo
 > esprime oggi. Feature: `RT-FEAT-ACTION-MOVEMENT-COMPAT`, epic **E38**, release **v0.2**.
+>
+> ➕ **Dal 2026-08-12 la proposta ha una spec propria**, in forma decidibile:
+> [`spec-compatibilita-azioni-movimento.md`](spec-compatibilita-azioni-movimento.md). Questa sezione resta
+> come **inquadramento** — dove la proposta si colloca fra i quattro budget — e non si duplica: il modello,
+> il costo misurato e i criteri per dire di no vivono lì.
 
 Oggi il profilo di movimento non tocca le azioni: si può sprintare e sparare con la stessa precisione con cui
 si spara da fermi, e il prezzo dello Sprint è tutto in `Status.Exposed` e nella rinuncia alla reazione. Il
