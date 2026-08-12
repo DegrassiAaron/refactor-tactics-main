@@ -4807,7 +4807,7 @@ features:
     owner_specs:
       - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
-    issues: [567, 622, 623, 551, 552, 553, 554, 588]
+    issues: [567, 622, 623, 551, 552, 553, 554, 588, 695, 711]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
       - RefactorTactics.HexMap.FloodRegion
@@ -4899,10 +4899,39 @@ features:
       ricalcolata a ogni drag del pennello — cioe' paga il costo che quella vista introduce, invece di
       lasciarlo sul tavolo.
 
-      ⚠️ `log_debug: done` **non** significa che la vista sia verificata a schermo: le cinque voci
+
+      ⚠️ **E l'osservabilita' e' pinnata, non asserita.** `FindUnreachableCells` e' stata ESTRATTA da
+      `CheckReachability` perche' ha due consumatori — il comando di debug `rt.Arena.Check` e
+      l'overlay — e `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells` verifica che i due
+      contino le **stesse** celle. Senza quel test sarebbero due risposte alla stessa domanda, libere
+      di divergere: e' la stessa ragione per cui colore e freccia delle transizioni sono stati
+      spostati nello spazio condiviso `RTHexEditor` invece di essere duplicati.
+
+
+      ⚠️ `log_debug: done` **non** significa che la vista sia verificata a schermo: le **sei** voci
       `PIE-HEX-VIZ-*` di `test-manuali-pie.md` restano il registro di quella verifica, e sono di
       classe C. Il gate dice che l'esito **e' osservabile**, non che qualcuno l'ha osservato.
+      Dal 2026-08-12 (sera) le sei stanno in **U18**: erano nel registro e in nessuna seduta, e una
+      voce che non sta in una seduta non viene eseguita mai. La sesta — `PIE-HEX-VIZ-TRANSIZIONI` —
+      **non esisteva**: `#554` ha chiuso lasciando la propria acceptance visiva senza una riga che la
+      registrasse, mentre `#552` e `#553` ne avevano aperte cinque nello stesso passaggio.
 
+
+      🔴 **La lezione di questo record, e vale piu' della correzione.** Fino al 2026-08-12 questa
+      nota diceva *«il gate NON avanza a `done` perche' `#554` e' ancora aperta»* mentre `#554` era
+      chiusa e mergiata da ore, e il suo test non era in `tests:`. La PR era stata aperta verso
+      `test/migrazione-asset-reale` (`#694`, chiusa unmerged), poi il branch e' stato ricollocato e
+      rimergiato come `#707`: chi guardava la PR vecchia concludeva che il lavoro non fosse
+      atterrato. **Lo stato di una PR non e' lo stato del lavoro** — `gh pr list --head <branch>` lo
+      e'. Un handoff esterno (referto: `mapeditor-integration-spec-panel-2026-08-12.md`) ha ripetuto
+      lo stesso ragionamento e ci ha costruito sopra una roadmap, un percorso critico e cinque
+      azioni. ⏱️ Quel documento pero' era **corretto quando e' stato scritto** — timbrato
+      `20:10 CEST`, con `#707` mergiata alle `20:26:29 CEST` — ed e' scaduto sedici minuti dopo:
+      la lezione per chi legge un handoff non e' che l'autore sbagli, ma che uno stato descritto ha
+      una **scadenza** e va rimisurato al consumo.
+      ➕ **Due rami hanno corretto questo record in parallelo e sono arrivati allo stesso gate**, da
+      argomenti diversi — l'anello mancante della vista da un lato, il test che pinna i due
+      consumatori dall'altro. Convergenza, non ridondanza: il paragrafo qui sopra tiene entrambi.
       Ogni pezzo della serie ha portato il suo test nel modulo runtime, com'e' la regola qui:
       `OnlyTheCellsComponentIsClickable` (il pick guarda il componente, non l'actor — il secondo ISM
       dei volumi e' esattamente cio' che rendeva sbagliato il vecchio confronto),
@@ -4944,7 +4973,8 @@ features:
       - RT-FEAT-TOOL-MAP-EDITOR
     owner_specs:
       - docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md
-    issues: [619, 620, 621]
+      - docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md
+    issues: [619, 620, 621, 712]
     tests:
       - RefactorTactics.HexOccupancy.*
     scenarios:

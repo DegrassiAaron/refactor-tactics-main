@@ -314,7 +314,7 @@
       "critical": false,
       "state": "🟡",
       "queue_group": "READY",
-      "produces": "verdetto su nove voci che non attendono nulla",
+      "produces": "verdetto su quindici voci che non attendono nulla",
       "artifacts": [],
       "unblocked_by": [],
       "unblocks": [],
@@ -355,14 +355,42 @@
         {
           "id": "PIE-V01-REACTCOND",
           "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-VIZ-BLOCCHI",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-VIZ-COSTO",
+          "state": "🟡"
+        },
+        {
+          "id": "PIE-HEX-VIZ-BORDI",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-VIZ-PORTE",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-VIZ-UNDO",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-HEX-VIZ-TRANSIZIONI",
+          "state": "⏳"
         }
       ],
       "issues": [
         450,
         567,
-        583
+        583,
+        551,
+        552,
+        553,
+        554
       ],
-      "done_when": "le nove voci hanno esito reale nel registro"
+      "done_when": "le quindici voci hanno esito reale nel registro"
     },
     {
       "id": "U1",
@@ -1478,6 +1506,10 @@
     },
     {
       "id": "PIE-HEX-VIZ-PORTE",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-VIZ-TRANSIZIONI",
       "state": "⏳"
     },
     {

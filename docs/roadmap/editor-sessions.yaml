@@ -100,7 +100,7 @@ sessions:
     title: Verifiche senza prerequisiti
     block: 1
     critical: false
-    produces: verdetto su nove voci che non attendono nulla
+    produces: verdetto su quindici voci che non attendono nulla
     artifacts: []
     unblocked_by: []
     shares_setup_with: []
@@ -114,8 +114,14 @@ sessions:
       - PIE-HEX-LAYER-CLICK
       - PIE-HEX-LAYER-PANEL
       - PIE-V01-REACTCOND
-    issues: [450, 567, 583]
-    done_when: le nove voci hanno esito reale nel registro
+      - PIE-HEX-VIZ-BLOCCHI
+      - PIE-HEX-VIZ-COSTO
+      - PIE-HEX-VIZ-BORDI
+      - PIE-HEX-VIZ-PORTE
+      - PIE-HEX-VIZ-UNDO
+      - PIE-HEX-VIZ-TRANSIZIONI
+    issues: [450, 567, 583, 551, 552, 553, 554]
+    done_when: le quindici voci hanno esito reale nel registro
     unblocks: []
     steps: |
       **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
@@ -156,6 +162,19 @@ sessions:
          > verifica e' che il raggio del click agganci il disco di un piano superiore e venga poi
          > proiettato su quello attivo: lo scarto e' orizzontale e proporzionale a `LayerHeight`,
          > quindi guardando a picco vale zero e la voce passerebbe comunque, rotta o no.
+      5. Le sei `PIE-HEX-VIZ-*` **in coda, e con un allestimento proprio**: sono l'unico gruppo di
+         questa seduta che non riusa l'asset del punto 3. Servono coperture e porte, quindi si parte
+         da `MakeCoverYardArena`; `-BLOCCHI` e `-COSTO` vogliono in piu' una cella costosa che blocca
+         anche la vista, e `-TRANSIZIONI` una piattaforma **senza** archi.
+
+         > ⚠️ **`PIE-HEX-VIZ-BLOCCHI` e `-COSTO` si guardano DALL'ALTO** — e' la vista di lavoro, ed
+         > e' quella in cui il difetto del 2026-08-12 si vedeva: la lastra della vista era piu' alta
+         > E piu' larga del rilievo del costo, quindi ogni cella costosa che bloccava la vista taceva
+         > sul proprio costo. Di taglio le due forme si distinguono comunque e la voce passerebbe.
+
+         > ⚠️ **`PIE-HEX-VIZ-TRANSIZIONI` va fatta con un tool DIVERSO da Arch** (Paint o Fill). Il
+         > difetto che verifica e' che le transizioni si vedessero **solo** dentro il tool Arch: con
+         > Arch attivo la voce passerebbe sempre, prima e dopo la correzione.
     notes: >-
       Nasce dalla sessione G del registro (2026-08-08), che non aveva una seduta corrispondente:
       le tre voci erano nella checklist ma in nessuna seduta, e una voce che non sta in una seduta
@@ -172,6 +191,16 @@ sessions:
       finite qui per la stessa ragione per cui questa seduta esiste: erano nel registro e in nessuna
       seduta — il conteggio della EditorMap le aveva gia' contate fra le voci orfane (`PIE-HEX-*` da
       9 a 12) prima che qualcuno le collocasse.
+      **Dal 2026-08-12 (sera) sono quindici**: le sei `PIE-HEX-VIZ-*` della serie viz editor —
+      `-BLOCCHI`, `-COSTO`, `-BORDI`, `-PORTE`, `-UNDO` (nate coi merge di #551/#552/#553) e
+      `-TRANSIZIONI`, che **non esisteva**: #554 e' stata chiusa e mergiata (PR #707) lasciando la
+      propria acceptance **visiva** senza una voce che la registrasse, cioe' lo stesso difetto che
+      #553 aveva evitato aprendone cinque. Sono le uniche voci `PIE-HEX-*` **aperte** rimaste orfane:
+      le altre otto (`PIE-HEX`, `MODE-A`, `-B`, `-C`, `-D`, `-I`, `-J`, `-K`, `-M`) sono orfane
+      perche' gia' ✅, e non vanno collocate. A differenza delle otto precedenti queste **portano un
+      allestimento proprio** (`MakeCoverYardArena`), quindi il titolo «senza prerequisiti» regge solo
+      nel senso stretto in cui e' stato ridefinito il 2026-08-10: assenza di **attese**, non di
+      allestimento. Nessuna dipende da codice mancante — le quattro issue della serie sono chiuse.
 
   - id: U1
     title: Mappa-arena hex

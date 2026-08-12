@@ -52,15 +52,28 @@
 
 ## Stato in numeri — 2026-08-12
 
-**134 voci**: ✅ **30 verdi** · 🟡 **23 parziali** (regola coperta da test, resta il visivo) · ⏳ **81 aperte**.
+**135 voci**: ✅ **30 verdi** · 🟡 **23 parziali** (regola coperta da test, resta il visivo) · ⏳ **82 aperte**.
 
-*(Rimisurate col comando qui sotto il **2026-08-12**, dopo `PIE-V01-GHOSTS` e `PIE-V01-POINTER` del
-reconciliation di roadmap. La base era `132 (30/23/79)` e coincideva col dichiarato. **Solo una delle due
-voci è lavoro nuovo**: `PIE-V01-POINTER` nasce con CP 11.8, mentre `PIE-V01-GHOSTS` era **già citata** da
-tre documenti come verifica di CP 11.6 senza avere una riga qui — il registro non la conosceva. Il subset
-`RELEASE-V01` resta **17** e la corrispondenza `Visual.*` ↔ `PIE-VIS-*` resta **21 = 21**: nessuna delle due
-voci è visiva né di release. ⚠️ Questo ramo tocca il file mentre altri lo toccano: il totale va rieseguito
-**dopo il merge**.)*
+*(Rimisurate col comando qui sotto il **2026-08-12 dopo il merge di due rami**, ed è il caso che l'avvertenza
+qui sotto descrive — stavolta previsto da entrambi i lati invece che scoperto dopo. Il ramo del map-editor
+aggiungeva `PIE-HEX-VIZ-TRANSIZIONI` e misurava `133 (30/23/80)`; quello del reconciliation di roadmap
+aggiungeva `PIE-V01-GHOSTS` e `PIE-V01-POINTER` e misurava `134 (30/23/81)`. **Nessuno dei due valeva dopo
+l'unione**, e il merge di questo file non ha dato conflitto sulle righe delle voci — solo su questo
+paragrafo: le tre righe nuove stanno in punti diversi della tabella e si sono unite in silenzio. Il valore
+sopra è del comando, eseguito sull'albero mergiato. `senza-marcatore` misurato: **0**.)*
+
+*(⚠️ **`PIE-HEX-VIZ-TRANSIZIONI` nasce dopo la chiusura della sua issue, non prima.**
+[#554](https://github.com/DegrassiAaron/refactor-tactics-main/issues/554) è stata mergiata (PR #707)
+lasciando la propria acceptance **visiva** — «le transizioni si vedono sempre», «una zona isolata si
+riconosce» — senza nulla che la registrasse, mentre #552 e #553 ne avevano aperte cinque nello stesso
+passaggio. È il difetto che questo registro esiste per prevenire, e stavolta l'ha subito: per un giorno una
+acceptance visiva è vissuta solo nel testo di una PR. La voce è collocata in **U18** insieme alle altre
+cinque `PIE-HEX-VIZ-*`, che erano nel registro e in nessuna seduta.)*
+
+*(**Solo una delle due voci del reconciliation è lavoro nuovo**: `PIE-V01-POINTER` nasce con CP 11.8, mentre
+`PIE-V01-GHOSTS` era **già citata** da tre documenti come verifica di CP 11.6 senza avere una riga qui — il
+registro non la conosceva. Il subset `RELEASE-V01` resta **17** e la corrispondenza `Visual.*` ↔ `PIE-VIS-*`
+resta **21 = 21**: nessuna delle tre voci nuove è visiva né di release.)*
 
 *(Rimisurate col comando qui sotto il **2026-08-12**, dopo le cinque voci `PIE-HEX-VIZ-*` della serie viz
 editor ([#552](https://github.com/DegrassiAaron/refactor-tactics-main/issues/552),
@@ -267,6 +280,7 @@ leggibilità minima nel senso più stretto, non presentazione.
 | **PIE-HEX-VIZ-BORDI** | Si legge **da che lato** una cella è coperta (#553) | `MakeCoverYardArena` (la fixture che contiene coperture e porte), oppure una cella con `Covers` su due lati diversi | Senza selezionare la cella si vede su **quale** dei sei lati sta il riparo, e copertura **alta** e **bassa** si distinguono fra loro — l'alta nega l'attraversamento, la bassa ripara e basta, e confonderle fa credere percorribile un bordo che non lo è. La posizione è pinnata da `HexMapActor.EdgePanelsSitOnTheDeclaredEdge` | ⏳ |
 | **PIE-HEX-VIZ-PORTE** | Lo stato di una porta si legge, e **quanto** se ne legge (#553) | quattro celle con una porta ciascuna, negli stati `Open`, `Closed`, `Locked`, `Destroyed` | Si distingue a colpo d'occhio se **ci si passa**: `Closed`/`Locked` alte, `Open`/`Destroyed` basse. ⚠️ **Limite noto e atteso**: `Closed` e `Locked` sono **identiche**, e così `Open` e `Destroyed` — quattro stati, due forme. L'acceptance di [#553](https://github.com/DegrassiAaron/refactor-tactics-main/issues/553) chiedeva che lo stato fosse visibile: vale per il passaggio, non per **chi può cambiarlo**. Tracciato da [#695](https://github.com/DegrassiAaron/refactor-tactics-main/issues/695); questa voce serve a decidere, guardando, se quel secondo canale serve davvero | ⏳ |
 | **PIE-HEX-VIZ-UNDO** | La geometria di lettura non sopravvive a un `Ctrl+Z` (#552, #553) | una cella dipinta con un flag di blocco o una copertura, poi **annullata** | Dopo l'undo **nessun volume né pannello resta orfano**: la geometria si rigenera da `RebuildInstances` leggendo l'asset, quindi ciò che il dato non contiene più non deve restare a schermo. Verificare anche che **nulla finisca nel `.umap`** (salvare il livello, riaprirlo: la geometria deve tornare dall'asset, non dal file) | ⏳ |
+| **PIE-HEX-VIZ-TRANSIZIONI** | Le transizioni si vedono **sempre**, e una zona isolata si riconosce (#554) | `ARTHexMapActor` con celle su ≥2 layer collegate da una transizione, **più** una piattaforma senza alcun arco (es. `GenerateIntoAsset` su due layer, poi si dipinge un gruppo di celle su layer 1 senza aggiungere transizioni). Tool **qualsiasi** — è il punto della voce | Le frecce `From→To` compaiono nell'overlay anche con **Paint** o **Fill** attivi, non solo dentro il tool Arch, e il colore distingue il `Kind`. Le celle che nessuno raggiunge sono **cerchiate in magenta** — un colore che nessun altro marcatore usa, perché è un allarme e non una descrizione. ⚠️ Il conteggio è pinnato da `Arena.CriterionAndOverlayCountTheSameCells` (l'overlay e `rt.Arena.Check` contano le **stesse** celle): qui resta il giudizio «si vede senza cercarlo?», e in particolare che una piattaforma scollegata si noti **senza** far girare il pathfinding | ⏳ |
 | **PIE-HEX-MODE-A** | Editor Mode hex appare e si attiva (H5a) | modulo `RefactorTacticsEditor` compilato | Nella toolbar Modes compare «Hex Map»; attivandolo il pannello si apre senza crash (nessun tool) | ✅ 2026-08-05 |
 | **PIE-HEX-MODE-B** | Selezione a click nel viewport (H5b) | mode Hex Map attivo, `ARTHexMapActor` nel livello (selezionato o unico) | Tool «Select» attivo → click su una cella → esagono giallo sulla cella + `SelectedCell`/superficie/costo/blocco corretti nel pannello; cambiando `ActiveLayer` sull'actor seleziona il piano giusto (celle sovrapposte) | ✅ 2026-08-05 |
 | **PIE-HEX-MODE-C** | Paint a click nel viewport (H5c) | mode Hex Map attivo, tool Paint, `ARTHexMapActor` nel livello | Con `Operation=Paint`, click su una cella → esagono verde + cella creata/aggiornata (superficie/costo/blocco del pennello); `LastCell` corretto; Undo ripristina | ✅ 2026-08-05 (il refresh dopo Undo richiedeva il fix `ea51b45`) |
