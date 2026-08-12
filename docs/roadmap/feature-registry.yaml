@@ -5342,13 +5342,13 @@ features:
     kind: data
     release: future
     priority: P3
-    status: SPECIFIED
+    status: INTEGRATED
     gates:
       spec: done
-      data: todo
+      data: done
       runtime: na
       log_debug: na
-      automation: todo
+      automation: done
       scenario: na
       ui_wiki: partial
       packaged: na
@@ -5364,8 +5364,8 @@ features:
     wiki_refs:
       - wiki:Profilo-tattico
     last_verified:
-      date: 2026-08-11
-      commit: f17cc0b
+      date: 2026-08-12
+      commit: 78453953
     notes: >
       D-105. Due viste distinte — **Profile** (sei assi, pubblica) e **Balance** (cinque assi,
       tuning) — su scala intera `1..10`, con l'ordine dei raggi **normativo**: cambiarlo cambia
@@ -5390,13 +5390,13 @@ features:
     kind: data
     release: future
     priority: P3
-    status: SPECIFIED
+    status: INTEGRATED
     gates:
       spec: done
-      data: todo
+      data: done
       runtime: na
       log_debug: na
-      automation: todo
+      automation: done
       scenario: na
       ui_wiki: todo
       packaged: na
@@ -5410,6 +5410,9 @@ features:
     tests: []
     scenarios: []
     wiki_refs: []
+    last_verified:
+      date: 2026-08-12
+      commit: 78453953
     notes: >
       D-106: i rating **non si scrivono da nessuna parte**. Il generatore legge
       `RT_HeroCatalog_v0.1.md` — l'autorita' dei numeri per D-023 — applica la rubrica e produce i
@@ -5428,15 +5431,15 @@ features:
     kind: tooling
     release: future
     priority: P3
-    status: SPECIFIED
+    status: INTEGRATED
     gates:
       spec: done
-      data: todo
-      runtime: todo
-      log_debug: todo
-      automation: todo
+      data: done
+      runtime: na
+      log_debug: na
+      automation: done
       scenario: na
-      ui_wiki: todo
+      ui_wiki: partial
       packaged: na
       network_privacy: na
       replay_representable: na
@@ -5449,6 +5452,9 @@ features:
     tests: []
     scenarios: []
     wiki_refs: []
+    last_verified:
+      date: 2026-08-12
+      commit: 78453953
     notes: >
       `spec: done` dal 2026-08-12: D-108 chiude le due incognite che tenevano la spec `partial` —
       il generatore e' **Node/TypeScript** (contro la raccomandazione registrata nel consolidamento,
@@ -5465,3 +5471,6 @@ features:
       rebalance porta con se' i suoi grafici. Il prezzo e' che chi tocca un catalogo deve poter
       eseguire il generatore, quindi Node diventa un prerequisito del **bilanciamento**.
       `scenario`/`packaged`/`network_privacy` sono `na` come per gli altri strumenti.
+      AGGIORNATO 2026-08-12: la rubrica deriva davvero i rating dai cataloghi, quindi `data` passa a `done`. `ui_wiki` resta `partial`: gli SVG esistono ma la Wiki non li mostra ancora.
+      AGGIORNATO 2026-08-12: i sei assi del Profile e i due del Balance sono calcolati dal codice; i quattro profili risultano distinti su almeno quattro assi.
+      AGGIORNATO 2026-08-12: generatore deterministico e `--check` in `tools/radar/`; quattro SVG in `docs/characters/radar/`. `ui_wiki` partial: manca la pagina Wiki. Il gate NON gira in CI, Actions e' bloccato sull'account (vedi #563).
