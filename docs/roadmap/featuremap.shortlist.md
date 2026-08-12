@@ -218,8 +218,13 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 ## Da sapere prima di usare questa lista
 
-- **Le 17 feature senza issue restano tali.** Collegarle è lavoro del registry, non delle viste che lo leggono.
-  Le due che meritano attenzione perché non hanno né epic né issue: `RT-FEAT-TOOL-MAP-EDITOR` e `RT-FEAT-NET-AUTHORITY`.
+- **Le feature senza issue restano tali.** Collegarle è lavoro del registry, non delle viste che lo leggono.
+  Il numero **non si scrive qui**, perché una riga di prosa a mano invecchia mentre la tabella sopra no: al
+  2026-08-12 sono **19 su 103**, e si rimisurano leggendo `issues: []` in `feature-registry.json`.
+  Quelle che meritano attenzione sono le **15** senza issue *né* epic *né* milestone — nessun tracciamento
+  di alcun tipo. ⚠️ `RT-FEAT-TOOL-MAP-EDITOR` **non è più fra queste**: porta otto issue (`#567`, `#622`,
+  `#623`, `#551`, `#552`, `#553`, `#554`, `#588`) e la milestone `M9`. `RT-FEAT-NET-AUTHORITY` ha `M10` ma
+  nessuna issue.
 - **`INTEGRATED` non vuol dire finito**: vuol dire che gira e uno scenario lo dimostra. Mancano ancora Wiki/UI.
 - **Uno stato alto con `last_verified` vecchio è un errore del validator**, non una sfumatura: è il gate `G15`.
 - **Non si aggiorna a mano.** Dopo aver toccato il registry: `python scripts/feature_registry.py shortlist`.
