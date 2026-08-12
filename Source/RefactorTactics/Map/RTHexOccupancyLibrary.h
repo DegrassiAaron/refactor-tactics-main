@@ -51,6 +51,17 @@ struct FRTOccupancyThresholds
 	/** Da questo numero di settori occupati in su la cella e' `Blocked`. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	int32 BlockedFrom = 6;
+
+	/**
+	 * Quanto costa in piu' attraversare una cella `Constrained`. E' il CONSUMATORE della classificazione:
+	 * senza, `Constrained` e `Free` sarebbero indistinguibili per chiunque legga, cioe' un campo che nessuno
+	 * legge — il difetto che questo repository ha gia' pagato quattro volte.
+	 *
+	 * Sta qui accanto alle soglie, e non altrove, perche' e' lo stesso dato d'autore: la coppia
+	 * «quando una cella e' stretta» + «quanto costa esserlo» si legge e si registra insieme.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	int32 ConstrainedSurcharge = 1;
 };
 
 /**
@@ -165,4 +176,15 @@ public:
 	 * per cui `CoreBlocked` esiste e non e' deducibile dal conteggio.
 	 */
 	static FRTOccupancyMask ComputeMask(const TArray<FRTOccupancyPolyline>& Geometry, float HexSize);
+
+	/**
+	 * Quanto costa IN PIU' attraversare una cella con questa classificazione — la META' COSTO della cottura,
+	 * che appartiene a #619. I BORDI (`FRTHexCover`, `bBlocksMovement`) sono di #621.
+	 *
+	 * `Blocked` non paga un sovrapprezzo perche' non si attraversa affatto: chi la rende impassabile e' il
+	 * bordo, non il costo. Restituire un numero alto qui sarebbe un secondo modo di dire «non si passa», e due
+	 * modi di dire la stessa cosa divergono.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static int32 Surcharge(ERTCellOccupancy Occupancy, const FRTOccupancyThresholds& Thresholds);
 };

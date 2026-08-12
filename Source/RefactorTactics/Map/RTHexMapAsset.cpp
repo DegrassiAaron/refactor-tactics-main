@@ -240,6 +240,9 @@ uint32 URTHexMapAsset::ComputeHash() const
 		Hash = HashCombine(Hash, GetTypeHash(C.Height));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.Surface)));
 		Hash = HashCombine(Hash, GetTypeHash(C.MoveCost));
+		// Il sovrapprezzo di geometria e' dato autorevole quanto `MoveCost`: cambia quanto costa entrare, e
+		// due mappe che si giocano diversamente non possono avere lo stesso hash (formato v7, #619).
+		Hash = HashCombine(Hash, GetTypeHash(C.OccupancySurcharge));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bBlocksMovement ? 1 : 0)));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bBlocksLineOfSight ? 1 : 0)));
 

@@ -58,8 +58,11 @@ public:
 	 * v5 (CP 9.4): stato, integrita' e conduttivita' sugli archi (`FRTHexEdge`).
 	 * v6 (CP 19.1): classe di mappa (`MapClass`). Nessun dato esistente cambia significato: una mappa scritta
 	 *     prima e' `Skirmish`, che e' la classe del vertical slice, cioe' cio' che quelle mappe gia' erano.
+	 * v7 (#619): sovrapprezzo di occupazione sulla cella (`FRTHexCellData::OccupancySurcharge`). Nessun dato
+	 *     esistente cambia significato: una mappa scritta prima non ha geometria cotta, quindi il suo
+	 *     sovrapprezzo e' zero — che e' il default del campo, ed e' cio' che quelle mappe gia' erano.
 	 */
-	static constexpr int32 CurrentFormatVersion = 6;
+	static constexpr int32 CurrentFormatVersion = 7;
 
 	/** Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")

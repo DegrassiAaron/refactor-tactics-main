@@ -1,5 +1,19 @@
 #include "Misc/AutomationTest.h"
 #include "Map/RTHexOccupancyLibrary.h"
+#include "Map/RTCellId.h"
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexMapAsset.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h"
+#include "Turn/RTHexSim.h"
+#include "Turn/RTHexSimLibrary.h"
+#include "Turn/RTTurnManager.h"
+#include "Unit/RTUnit.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -276,6 +290,285 @@ bool FRTOccupancyGoldenExampleTest::RunTest(const FString&)
 	TestEqual(TEXT("cinque settori su dodici"), URTHexOccupancyLibrary::NumOccupiedSectors(M), 5);
 	TestTrue(TEXT("classificata Constrained"),
 		URTHexOccupancyLibrary::Classify(M, FRTOccupancyThresholds()) == ERTCellOccupancy::Constrained);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Il CONSUMATORE: senza, `Constrained` sarebbe indistinguibile da `Free` per chiunque legga.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Mappa piena di raggio N, tutte le celle a costo 1 e senza sovrapprezzo. */
+	URTHexMapAsset* MakeFlatMap(int32 Radius)
+	{
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		{
+			M->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+		M->SortCells();
+		return M;
+	}
+
+	void SetSurcharge(URTHexMapAsset* M, const FRTCellId& Id, int32 Surcharge)
+	{
+		if (const FRTHexCellData* Existing = M->FindCell(Id))
+		{
+			FRTHexCellData Updated = *Existing;
+			Updated.OccupancySurcharge = Surcharge;
+			M->AddOrUpdateCell(Updated);
+		}
+	}
+}
+
+/** Il sovrapprezzo si LEGGE dalle soglie, e `Blocked` non ne paga uno: non si attraversa affatto. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancySurchargeTest,
+	"RefactorTactics.HexOccupancy.SurchargeIsReadFromTheThresholds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOccupancySurchargeTest::RunTest(const FString&)
+{
+	FRTOccupancyThresholds T;
+	TestEqual(TEXT("Free non paga nulla"), URTHexOccupancyLibrary::Surcharge(ERTCellOccupancy::Free, T), 0);
+	TestEqual(TEXT("Constrained paga il sovrapprezzo di catalogo"),
+		URTHexOccupancyLibrary::Surcharge(ERTCellOccupancy::Constrained, T), 1);
+	TestEqual(TEXT("Blocked non paga: non si attraversa"),
+		URTHexOccupancyLibrary::Surcharge(ERTCellOccupancy::Blocked, T), 0);
+
+	T.ConstrainedSurcharge = 4;
+	TestEqual(TEXT("cambiare il catalogo cambia il sovrapprezzo"),
+		URTHexOccupancyLibrary::Surcharge(ERTCellOccupancy::Constrained, T), 4);
+	return true;
+}
+
+/**
+ * L'EFFETTO OSSERVABILE su `FindPath`. Il sovrapprezzo sta sulla cella di DESTINAZIONE, cosi' ogni percorso lo
+ * paga: se stesse su una cella intermedia, un costo piu' alto sarebbe indistinguibile da una deviazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancyPathCostTest,
+	"RefactorTactics.HexOccupancy.ConstrainedCellCostsMoreInFindPath",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOccupancyPathCostTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeFlatMap(3);
+	const FRTCellId Start(0, 0);
+	const FRTCellId Goal(2, 0);
+
+	const FRTHexPathResult Before = URTHexPathLibrary::FindPath(M, Start, Goal);
+	TestTrue(TEXT("il percorso esiste"), Before.Status == ERTHexPathStatus::Success);
+	TestEqual(TEXT("due passi, costo 2"), Before.TotalCost, 2);
+
+	SetSurcharge(M, Goal, 1);
+
+	const FRTHexPathResult After = URTHexPathLibrary::FindPath(M, Start, Goal);
+	TestTrue(TEXT("il percorso esiste ancora"), After.Status == ERTHexPathStatus::Success);
+	TestEqual(TEXT("con la cella stretta costa 3"), After.TotalCost, 3);
+	return true;
+}
+
+/** L'EFFETTO OSSERVABILE su `ReachableCells`: una cella stretta esce dal budget. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancyReachableTest,
+	"RefactorTactics.HexOccupancy.ConstrainedCellShrinksReachableCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOccupancyReachableTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeFlatMap(3);
+	const FRTCellId Narrow(2, 0);
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*MoveBudget=*/ 2));
+
+	auto ReachesNarrow = [&](const URTHexMapAsset* Map)
+	{
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, Units);
+		for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snap, 1))
+		{
+			if (R.Cell == Narrow) { return true; }
+		}
+		return false;
+	};
+
+	TestTrue(TEXT("col budget 2 la cella a distanza 2 si raggiunge"), ReachesNarrow(M));
+
+	SetSurcharge(M, Narrow, 1);
+	TestFalse(TEXT("resa stretta, lo stesso budget non ci arriva piu'"), ReachesNarrow(M));
+
+	// Il gemello di controllo: la cella PRIMA resta raggiungibile, cioe' non si e' rotto il movimento in
+	// generale — si e' pagato di piu' solo dove la geometria stringe.
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	bool bReachesMidpoint = false;
+	for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snap, 1))
+	{
+		if (R.Cell == FRTCellId(1, 0)) { bReachesMidpoint = true; }
+	}
+	TestTrue(TEXT("la cella intermedia resta raggiungibile"), bReachesMidpoint);
+	return true;
+}
+
+/**
+ * Il sovrapprezzo entra nell'HASH di stato. Se non ci entrasse, due mappe che si giocano diversamente
+ * avrebbero lo stesso hash e il KPI `replay divergence = 0` sarebbe verde per il motivo sbagliato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancyHashTest,
+	"RefactorTactics.HexOccupancy.SurchargeEntersTheMatchStateHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOccupancyHashTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Plain = MakeFlatMap(2);
+	URTHexMapAsset* Narrow = MakeFlatMap(2);
+	TestEqual(TEXT("due mappe identiche hanno lo stesso hash"), Plain->ComputeHash(), Narrow->ComputeHash());
+
+	SetSurcharge(Narrow, FRTCellId(1, 0), 1);
+	TestNotEqual(TEXT("il sovrapprezzo cambia l'hash"), Plain->ComputeHash(), Narrow->ComputeHash());
+	return true;
+}
+
+/** Un asset scritto PRIMA del campo si rilegge senza perdere nulla, e nasce senza sovrapprezzo. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancyMigrationTest,
+	"RefactorTactics.HexOccupancy.MigrationToV7DefaultsTheSurchargeToZero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOccupancyMigrationTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Legacy = NewObject<URTHexMapAsset>();
+	FRTHexCellData Cell(FRTCellId(0, 0));
+	Cell.MoveCost = 3;
+	Cell.Height = 2;
+	Legacy->AddOrUpdateCell(Cell);
+	Legacy->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0)));
+	Legacy->FormatVersion = 6;
+
+	Legacy->MigrateToCurrentFormat();
+
+	// Pinnato di proposito: un bump di formato deve far cadere un test, non passare inosservato.
+	TestEqual(TEXT("la versione corrente e' la 7"), URTHexMapAsset::CurrentFormatVersion, 7);
+	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion,
+		URTHexMapAsset::CurrentFormatVersion);
+	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 2);
+
+	const FRTHexCellData* Migrated = Legacy->FindCell(FRTCellId(0, 0));
+	TestTrue(TEXT("la cella esiste ancora"), Migrated != nullptr);
+	if (Migrated)
+	{
+		TestEqual(TEXT("MoveCost preservato"), Migrated->MoveCost, 3);
+		TestEqual(TEXT("Height preservata"), Migrated->Height, 2);
+		TestEqual(TEXT("nessun sovrapprezzo inventato"), Migrated->OccupancySurcharge, 0);
+	}
+	TestEqual(TEXT("mappa migrata valida"), Legacy->ValidateMap().Num(), 0);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Il guasto che ha deciso DOVE vive il sovrapprezzo, verificato sul codice vero e non su una simulazione.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	UWorld* MakeOccupancyWorld()
+	{
+		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+		if (World && GEngine)
+		{
+			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+			Ctx.SetCurrentWorld(World);
+		}
+		return World;
+	}
+
+	void DestroyOccupancyWorld(UWorld* World)
+	{
+		if (World && GEngine)
+		{
+			GEngine->DestroyWorldContext(World);
+			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+		}
+	}
+
+	ARTUnit* SpawnOccupancyUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)
+	{
+		if (!World) { return nullptr; }
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->ConfigureFromHeroData(Hero);
+		U->Cell = Cell;
+		U->FinishSpawning(FTransform::Identity);
+		return U;
+	}
+
+	void PlayOneOccupancyTurn(ARTTurnManager* TM)
+	{
+		TM->PlanBotsForTest();
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+	}
+}
+
+/**
+ * ⚠️ **Questo test e' la ragione per cui il sovrapprezzo NON vive dentro `MoveCost`.**
+ *
+ * `ApplyDynamicSurface` riscrive `MoveCost` dal catalogo della nuova superficie, e `TickDynamicSurfaces` lo
+ * riscrive di nuovo al ripristino. Se il sovrapprezzo fosse dentro quel campo, un corridoio stretto su cui
+ * un'abilita' mettesse dell'acqua tornerebbe al costo del pavimento e resterebbe largo per il resto della
+ * partita — senza che nulla protesti.
+ *
+ * Il ciclo si esercita col codice VERO (`ApplyDynamicSurfaceForTest` chiama la produzione), non simulando in
+ * un test cio' che il turno fa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancySurvivesSurfaceCycleTest,
+	"RefactorTactics.HexOccupancy.SurchargeSurvivesADynamicSurfaceCycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOccupancySurvivesSurfaceCycleTest::RunTest(const FString&)
+{
+	UWorld* World = MakeOccupancyWorld();
+	if (!World) { return false; }
+
+	URTHexMapAsset* Map = MakeFlatMap(4);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* A = SpawnOccupancyUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-3, 1));
+	SpawnOccupancyUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(3, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A) { DestroyOccupancyWorld(World); return false; }
+
+	PlayOneOccupancyTurn(TM);
+
+	// Un corridoio stretto: la geometria l'ha reso `Constrained` e la cottura ci ha messo il sovrapprezzo.
+	const FRTCellId Narrow(1, 0, 0);
+	SetSurcharge(Map, Narrow, 1);
+	const int32 CostBefore = Map->FindCell(Narrow) ? Map->FindCell(Narrow)->MoveCost : -1;
+
+	// Durata 1: il Cleanup del turno seguente la riporta com'era.
+	const bool bApplied = TM->ApplyDynamicSurfaceForTest(Map, Narrow, ERTHexSurface::ShallowWater, /*Turns=*/ 1,
+		FName(TEXT("Action.Ignite")), A);
+	if (!TestTrue(TEXT("la superficie e' stata trasformata"), bApplied))
+	{
+		DestroyOccupancyWorld(World); return false;
+	}
+
+	const FRTHexCellData* Wet = Map->FindCell(Narrow);
+	TestTrue(TEXT("la cella esiste dopo il cambio"), Wet != nullptr);
+	if (Wet)
+	{
+		TestEqual(TEXT("il cambio di superficie NON tocca il sovrapprezzo"), Wet->OccupancySurcharge, 1);
+	}
+
+	PlayOneOccupancyTurn(TM); // il Cleanup fa scadere la superficie e la ripristina
+
+	const FRTHexCellData* Restored = Map->FindCell(Narrow);
+	TestTrue(TEXT("la cella esiste dopo il ripristino"), Restored != nullptr);
+	if (Restored)
+	{
+		TestEqual(TEXT("la superficie e' tornata quella di prima"),
+			static_cast<int32>(Restored->Surface), static_cast<int32>(ERTHexSurface::Floor));
+		TestEqual(TEXT("anche il MoveCost e' tornato quello di prima"), Restored->MoveCost, CostBefore);
+		TestEqual(TEXT("e il sovrapprezzo e' SOPRAVVISSUTO al ciclo completo"), Restored->OccupancySurcharge, 1);
+	}
+
+	DestroyOccupancyWorld(World);
 	return true;
 }
 

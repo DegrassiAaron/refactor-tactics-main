@@ -169,6 +169,13 @@ FRTOccupancyMask URTHexOccupancyLibrary::ComputeMask(const TArray<FRTOccupancyPo
 	return Mask;
 }
 
+int32 URTHexOccupancyLibrary::Surcharge(ERTCellOccupancy Occupancy, const FRTOccupancyThresholds& Thresholds)
+{
+	// `Blocked` non paga: chi la rende impassabile e' il bordo, non il costo. Un numero alto qui sarebbe un
+	// secondo modo di dire «non si passa», e due modi di dire la stessa cosa prima o poi divergono.
+	return (Occupancy == ERTCellOccupancy::Constrained) ? FMath::Max(0, Thresholds.ConstrainedSurcharge) : 0;
+}
+
 int32 URTHexOccupancyLibrary::NumOccupiedSectors(const FRTOccupancyMask& Mask)
 {
 	int32 Count = 0;
