@@ -308,6 +308,24 @@ Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il ch
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
+> 🔴 **Perché i `planned` non si scrivono tutti in una volta — misurato il 2026-08-12.** Tentando di
+> scriverli fino alla v0.2 (**42**: 23 in v0.1, 19 in v0.2), l'ostacolo non è il tempo ma l'**oracolo**: uno
+> scenario si scrive solo se il numero atteso esiste già nel repository. Il conto:
+>
+> | Motivo per cui non si scrive | Quanti |
+> |---|---:|
+> | i valori sono `PROPOSED FOR PLAYTEST`, non canone (`Spec.TimeBank.*`, `Spec.Clash.*`) | 13 |
+> | dipende da una **decisione aperta** (`BAS-1`…`BAS-4` per i profili, `AE-2` per le soglie) | 10 |
+> | la feature è `DESIGNED` e il comportamento non esiste (`Spec.Map.*`, `Spec.Bot.*` tattici) | 11 |
+> | il roster non esiste ancora (`Team.Sentinel.*`, `Team.Resonance.*` sono E35/v0.2) | 2 |
+> | ✅ **scritto e verde** | **1** |
+>
+> ⚠️ E una scoperta che vale oltre il conteggio: **`requires` copre il runtime mancante, non un `ActionId`
+> inesistente**. `Spec.ActionEconomy.OverwatchReservesMovementSlot` è stato scritto, eseguito e **rimosso**:
+> il loader rifiuta il file perché `Action.Overwatch` **non è nel catalogo core** (`grep` → zero occorrenze),
+> e un file che non si carica fa fallire `ShippedScenariosAreValid` — cioè rompe il gate per tutti. Un
+> `BLOCKED` dichiarato con `requires` presuppone che il **dato** esista e manchi solo il **codice**.
+>
 > ➕ **+6 il 2026-08-12 dal consolidamento dell'action economy** — quattro `RT-FEAT-ACTION-MOVEMENT-COMPAT`,
 > uno `RT-FEAT-ACTION-PLAN-VALIDATION`, uno `RT-FEAT-ACTION-COOLDOWNS`. Il kit ne proponeva **dodici**
 > (`AE-S01`…`AE-S12`), in una convenzione di nomi che il repository non usa. Sei sono caduti per ragioni

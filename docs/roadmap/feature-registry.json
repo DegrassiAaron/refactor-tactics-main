@@ -1723,13 +1723,13 @@
         "runtime": "done",
         "log_debug": "partial",
         "automation": "done",
-        "scenario": "todo",
+        "scenario": "done",
         "ui_wiki": "done",
         "packaged": "partial",
         "network_privacy": "na",
         "replay_representable": "todo"
       },
-      "gates_done": 5,
+      "gates_done": 6,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E4",
@@ -1756,10 +1756,10 @@
         "RefactorTactics.Combat.AbilityUsableByCooldownAndEnergy",
         "RefactorTactics.Combat.GainEnergyClampsToMax"
       ],
-      "scenarios": [],
-      "scenarios_planned": [
+      "scenarios": [
         "Spec.ActionEconomy.CooldownBlocksWithSlotFree"
       ],
+      "scenarios_planned": [],
       "wiki_refs": [
         "wiki:azioni-e-movimento"
       ],
