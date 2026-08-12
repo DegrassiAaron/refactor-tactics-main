@@ -3406,7 +3406,7 @@ features:
     wiki_refs: []
     last_verified:
       date: 2026-08-12
-      commit: eaa8d7a
+      commit: 2471a37
     notes: >
       D-031: le icone sono un **catalogo semantico** (`URTIconCatalogData`), non texture
       referenziate nei widget. Entra in v0.1 perché E11 costruisce l'HUD adesso e riscrivere ogni
