@@ -240,6 +240,9 @@ uint32 URTHexMapAsset::ComputeHash() const
 		Hash = HashCombine(Hash, GetTypeHash(C.Height));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.Surface)));
 		Hash = HashCombine(Hash, GetTypeHash(C.MoveCost));
+		// Il sovrapprezzo di geometria e' dato autorevole quanto `MoveCost`: cambia quanto costa entrare, e
+		// due mappe che si giocano diversamente non possono avere lo stesso hash (formato v7, #619).
+		Hash = HashCombine(Hash, GetTypeHash(C.OccupancySurcharge));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bBlocksMovement ? 1 : 0)));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bBlocksLineOfSight ? 1 : 0)));
 
@@ -312,6 +315,13 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		if (C.MoveCost < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("Error: costo negativo su %s"), *C.Id.ToString()));
+		}
+		if (C.OccupancySurcharge < 0)
+		{
+			// `TotalMoveCost()` lo clampa, quindi un negativo non produce un costo negativo — ma passerebbe la
+			// validazione in silenzio, e questo e' il gate che deve restare verde sui dati COTTI (#621).
+			Errors.Add(FString::Printf(TEXT("Error: sovrapprezzo di occupazione negativo su %s"),
+				*C.Id.ToString()));
 		}
 
 		// Coperture: si scrivono a mano nell'editor delle proprieta', quindi qui si intercettano gli stati
@@ -503,7 +513,9 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// o la mappa cambierebbe significato solo per essere stata ricaricata.
 	// v5 -> v6 (CP 19.1): il formato guadagna la classe di mappa. Il default (`Skirmish`) e' cio' che una
 	// mappa scritta prima gia' era — il vertical slice e' 2v2 — quindi anche qui non c'e' niente da convertire.
-	// In nessuno dei due c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
+	// v6 -> v7 (#619): la cella guadagna il sovrapprezzo di occupazione. Il default (0) e' cio' che una mappa
+	// scritta prima gia' era — nessuna geometria cotta, nessuna cella stretta — quindi niente da convertire.
+	// In nessuno di questi c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per
 	// volta, in ordine.
