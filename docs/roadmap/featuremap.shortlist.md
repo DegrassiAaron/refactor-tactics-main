@@ -20,13 +20,13 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**104 feature** · v0.1 **73** · v0.2 **16** · future **15**.
+**105 feature** · v0.1 **74** · v0.2 **16** · future **15**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 6 |
 | `DESIGNED` | 14 |
-| `SPECIFIED` | 11 |
+| `SPECIFIED` | 12 |
 | `IMPLEMENTING` | 23 |
 | `TESTABLE` | 7 |
 | `INTEGRATED` | 22 |
@@ -199,7 +199,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | future | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | fuori scope | Epic E26 |
 
-### UI · 9
+### UI · 10
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -212,6 +212,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | v0.1 | IMPLEMENTING | 1/6 | E11 | Tarata sulla scala esagonale |
 | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse | v0.1 | IMPLEMENTING | 3/7 | E11 | L'arancione del fuoco amico deve **notarsi** |
 | `RT-FEAT-UI-ACTION-GHOSTS` — Action Ghosts e Ghost Timeline | v0.1 | SPECIFIED | 1/8 | E11 | Il planning visuale: cosa succederà, e con quanta certezza |
+| `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | v0.1 | SPECIFIED | 1/8 | E11 | — |
 
 <!-- RT_SHORTLIST_FEATURES:END -->
 

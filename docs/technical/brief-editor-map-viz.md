@@ -1,27 +1,37 @@
 # Brief — Layer di visualizzazione della mappa in editor
 
-> `CURRENT` · **Stato**: brief di requisiti, **tre quarti implementati** al 2026-08-12
+> `CURRENT` · **Stato**: brief di requisiti, **interamente implementato** al 2026-08-12
 > **Nato da**: la seduta U1 del 2026-08-10 ([#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)), costruendo `L_HexArena`
 > **Non è** [`E21`](../roadmap/roadmap-v0.1.md): quella è la leggibilità **in partita**, per il giocatore
 > **Lo stato non vive qui**: è in `RT-FEAT-TOOL-MAP-EDITOR` del
 > [`feature-registry.yaml`](../roadmap/feature-registry.yaml), gate `log_debug`. Questo brief dice
 > *cosa serve e perché*; quanto ne esiste lo dice il registry.
 
-> ## ✅ Serie chiusa a 3/4 — 2026-08-12
+> ## ✅ Serie chiusa 4/4 — 2026-08-12
 >
 > [`#551`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/551) (superficie e costo),
-> [`#552`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/552) (volume dei blocchi) e
+> [`#552`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/552) (volume dei blocchi),
 > [`#553`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/553) (coperture, porte e
-> transizioni sui bordi) sono **chiuse e mergiate** — PR `#670` e `#673`.
-> Resta [`#554`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/554), 4/4: le
-> transizioni e la raggiungibilità. È l'unica delle quattro che risponde alla domanda per cui questo
-> brief è nato — *una piattaforma scollegata è una mappa rotta* — e finché è aperta la vista mostra
-> la **geometria** e tace sul **grafo**. Il gate `log_debug` resta `partial` per questo, non per un
-> residuo di rifinitura.
+> transizioni sui bordi) e [`#554`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/554)
+> (transizioni e raggiungibilità) sono **tutte chiuse e mergiate** — PR `#670`, `#673`, `#707`.
+> Il gate `log_debug` di `RT-FEAT-TOOL-MAP-EDITOR` è passato a `done` con l'ultima, e lo status
+> derivato della feature è salito a `INTEGRATED`.
+>
+> `#554` era quella che rispondeva alla domanda per cui questo brief è nato — *una piattaforma
+> scollegata è una mappa rotta*. Le transizioni si vedevano **solo dentro il tool Arch**: chi
+> dipingeva con Paint o Fill non sapeva se una zona fosse collegata, e verificarlo richiedeva di far
+> girare il pathfinding invece di guardare. Ora si disegnano sempre, con la freccia `From→To` e il
+> colore per `Kind`, e la raggiungibilità si calcola **pigramente** — non a ogni drag del pennello.
 >
 > Le decisioni §3a (mesh transient rigenerate dal dato) e §3b (forma per la regola, colore per la
-> superficie) hanno retto l'implementazione e non sono state cambiate. Le domande di §7 restano
-> aperte: nessuna delle tre issue chiuse le ha decise.
+> superficie) hanno retto l'implementazione e non sono state cambiate.
+>
+> ⚠️ **Due cose restano aperte, e non sono rifiniture.** Le domande di §7 — overlay sempre attivo o
+> a comando, costo di rigenerazione, come mostrare la quota, se serve una legenda — **nessuna delle
+> quattro issue le ha decise**. E le acceptance **visive** dell'intera serie non sono verificate:
+> chiudono su una seduta, e vivono nelle cinque voci `PIE-HEX-VIZ-*` di
+> [`test-manuali-pie.md`](test-manuali-pie.md). `log_debug: done` dice che l'esito **è osservabile**,
+> non che qualcuno l'ha osservato.
 
 ## 1. Perché esiste
 
@@ -153,12 +163,16 @@ valore: superficie → blocchi → bordi → layer.
 Il primo pezzo è anche quello che chiude il difetto più votato dall'esperienza: **rendere il costo di
 movimento visibile senza aprire un pannello**.
 
-> ✅ **La forma proposta è quella che è stata seguita**, e l'ordine ha retto: `#551` → `#552` → `#553`
-> chiuse nell'ordine di frequenza, `#554` aperta. Il passo successivo **reale** è quello, ed è il solo
-> rimasto: le transizioni e la raggiungibilità.
+> ✅ **La forma proposta è quella che è stata seguita, e l'ordine ha retto fino in fondo**:
+> `#551` → `#552` → `#553` → `#554`, chiuse nell'ordine di frequenza sulla mappa, tutte lo stesso
+> giorno. Non resta un passo successivo di questo brief.
 >
-> ⚠️ Una nota che vale per chi lo raccoglie: le tre chiuse hanno aggiunto geometria alla scena, e con
+> ⚠️ Una nota che vale per chiunque tocchi ancora questa scena: la serie ha aggiunto geometria, e con
 > essa un **secondo** `UInstancedStaticMeshComponent` sull'actor. È ciò che ha reso sbagliato il
 > vecchio discriminante del click — confrontava l'*actor* invece del *componente* — e il test
-> `RefactorTactics.HexMap.OnlyTheCellsComponentIsClickable` è la rete che lo tiene fermo. `#554`
-> aggiunge altra geometria: quel test la riguarda.
+> `RefactorTactics.HexMap.OnlyTheCellsComponentIsClickable` è la rete che lo tiene fermo. Vale anche
+> per la geometria che verrà: `#620`–`#622` disegnano nella stessa scena.
+>
+> L'invariante gemella l'ha portata `#554`: `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells`
+> — il criterio d'arena e l'overlay devono contare le **stesse** celle. Senza, la vista direbbe
+> «collegata» dove il criterio dice di no, che è esattamente la *vista che mente* di §1.

@@ -273,7 +273,9 @@ aperte. Per questo l'ordine è invertito rispetto al §6 del sorgente.
 
 1. `#554` esce dalle note come «aperta»; il suo test entra in `tests:`; `log_debug` si rimisura.
 2. Le sei `PIE-HEX-VIZ-*` entrano in `U18` — **da 5 orfane aperte a 0** nel perimetro editor. Sul totale del
-   registro l'effetto è `60 → 55` orfane su `132 → 133` voci: il resto è di altre aree e resta dov'è.
+   registro l'effetto è `60 → 57` orfane su `132 → 135` voci *(rimisurato **sull'albero mergiato**: nel
+   frattempo il reconciliation di roadmap ne ha aggiunte due, e i due rami partivano dalla stessa base 132 —
+   nessuno dei due numeri pre-merge sarebbe rimasto vero)*. Il resto è di altre aree e resta dov'è.
 3. Nasce la voce PIE che `#554` non ha lasciato: la sua acceptance è **visiva** e non è verificabile headless.
 4. I cinque corpi issue di §3 si allineano allo stato reale.
 

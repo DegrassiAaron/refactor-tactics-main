@@ -3392,6 +3392,88 @@ features:
       ancorate sopra l'unità restano Canvas, il roster e il pannello della selezionata sono UMG.
       Dipende da `RT-FEAT-UI-ICON-LANGUAGE` per D-031: nessun widget referenzia una texture.
 
+  - feature_id: RT-FEAT-UI-POINTER-INTERACTION
+    title: Contratto del puntatore — Hover, LMB, RMB
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P1
+    status: SPECIFIED
+    gates:
+      # `spec-pointer-interaction.md` tiene la matrice `oggetto x contesto x input -> esito` e nomina
+      # i servizi autorevoli a cui ogni domanda va girata.
+      spec: done
+      # Le Input Action e il Mapping Context sono costruiti **interamente in C++**
+      # (`ARTPlayerController::BuildInputMappings`, nessun .uasset richiesto): non c'e' catalogo,
+      # data asset o config da rendere coerente. `na` per assenza strutturale, non per rinuncia.
+      data: na
+      # ⚠️ `todo` e NON `partial`, ed e' un giudizio che vale la pena scrivere perche' la tentazione
+      # opposta e' forte: hover, LMB e RMB **esistono e sono consumati** oggi
+      # (`RTPlayerController.cpp:231,246-247,298-321`). Ma quello e' il comportamento che il contratto
+      # governera', non una consegna parziale del contratto: nessuna delle cinque proprieta' che la
+      # feature aggiunge esiste — contesto esplicito, precedenza HUD->mondo, target logico dal resolver
+      # di hit, filtro di rilevamento sull'hover, reason code sul rifiuto. Marcarlo `partial` farebbe
+      # derivare `IMPLEMENTING` (regola: `runtime` done **o** partial) per un checkpoint che nessuno ha
+      # iniziato, ed e' esattamente il modo in cui CP 14.3 ha detto «fatto» per nove ore.
+      runtime: todo
+      # I reason code del rifiuto sono una voce di DoD, non un fatto: oggi `OnSelect` esce con un
+      # `UE_LOG` sui due rami avversari (`:423`) e in **silenzio** su tutti gli altri.
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      # ⚠️ `todo`, non `na`: la regola §6.1 dell'owner e' una regola di privacy vera — un nemico non
+      # rilevato non puo' diventare bersaglio dell'hover — e oggi `PlayerTick` non filtra per
+      # rilevamento. Vale in locale prima ancora che in rete: il leak sarebbe a schermo.
+      network_privacy: todo
+      # L'input del puntatore non e' un evento della traccia. L'unica decisione di puntatore che il
+      # replay deve ricostruire e' il commit di una Decision Window, e quella appartiene a
+      # `RT-FEAT-REACTION-OPPORTUNITY` (E14), che ha il gate suo.
+      replay_representable: na
+    roadmap:
+      epic: E11
+      checkpoints: ["11.8"]
+    dependencies:
+      - RT-FEAT-UI-PLANNING
+      - RT-FEAT-UI-SCREEN-HUD
+    owner_specs:
+      - docs/technical/spec-pointer-interaction.md
+    issues: [705]
+    # ⚠️ **Vuoto di proposito, e non e' pigrizia.** Gli otto nomi `RefactorTactics.PlayerInput.*` sono
+    # dichiarati nel DoD di CP 11.8 e nell'owner, ma **non esistono nella suite**: `validate` tratta un
+    # pattern senza corrispondenza come **errore** (`feature_registry.py:372`), non come avviso — ed e'
+    # la protezione giusta. Il gate `G3` ha gia' citato due nomi di test inesistenti prima di CP 14.3;
+    # qui il registro si rifiuta di ripetere l'esperienza. I nomi entrano quando entrano i test.
+    tests: []
+    scenarios:
+      planned:
+        - Visual.UI.SelectMoveCancel
+        - Visual.UI.TargetEnemyConfirmCancel
+        - Visual.UI.DoorHoverAndInteract
+        - Visual.UI.AllyIntentInspectReadOnly
+        - Visual.UI.ReactionWindowPreemptsWorldInput
+        - Spec.Privacy.HiddenEnemyHoverNoLeak
+    wiki_refs:
+      - wiki:come-si-gioca
+    pie_refs:
+      - PIE-V01-POINTER
+    last_verified:
+      date: 2026-08-12
+      commit: ee0da4b3
+    notes: >
+      Aperta il 2026-08-12 dal reconciliation di roadmap
+      (`plans/roadmap-reconciliation-2026-08-12.md`). ⚠️ **Non e' un redesign dell'input**: nove regole
+      su dieci del contratto descrivono cio' che il codice fa gia', e il valore della feature e'
+      renderle enunciabili e testabili. I tre delta misurati sono **assenze**: nessuno stato esplicito
+      (la modalita' di targeting vive come `SelectedAbilityIndex` **sull'unita'**, non nel controller),
+      nessuna consapevolezza di fase nell'input (`:767` e' l'unico punto che la legge, e serve al fine
+      partita), nessuna precedenza HUD -> mondo (il Canvas HUD non registra hitbox, quindi ogni click
+      passa al mondo — e con i widget UMG di CP 11.7 il problema si inverte). Le sole regole **nuove**
+      sono di privacy e ownership, e dipendono da E13 e da `RT-FEAT-UI-ACTION-GHOSTS`.
+      Riprende la domanda rimasta orfana di `../technical/spec-hover-cella.md`, `HISTORICAL` dal pivot
+      esagonale: nessun owner aveva ereditato «cosa succede sotto il cursore».
+
   - feature_id: RT-FEAT-UI-ACTION-GHOSTS
     title: Action Ghosts e Ghost Timeline
     area: UI
@@ -3423,6 +3505,13 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:come-si-gioca
+    # Aggiunto il 2026-08-12 dal reconciliation di roadmap, che ha **registrato** `PIE-V01-GHOSTS`:
+    # il DoD di CP 11.6 la nominava dal 2026-08-07 in tre documenti, ma non esisteva una riga nel
+    # registro di `test-manuali-pie.md`, quindi non c'era nulla da collegare qui. Il legame e'
+    # legittimo per la regola 6: il **testo della voce** — ghost per fase, scrubbing, ramo con `?` —
+    # verifica questa feature e nessun'altra.
+    pie_refs:
+      - PIE-V01-GHOSTS
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -4793,28 +4882,42 @@ features:
       prima non esistevano da nessuna parte se non nel testo di una PR.
 
 
-      **Serie viz editor (2026-08-12): tutte e quattro atterrate, `log_debug` avanza a `done`.**
-      Owner del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e
-      costo leggibili), `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede») e
-      `#553` (coperture, porte e transizioni sui BORDI) sono chiuse e mergiate — PR `#670` e `#673`,
-      commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`. **`#554` e' chiusa dalla PR `#707`**
-      (`feat/554-transizioni-visibili` -> `main`, mergiata `2026-08-12T18:26:29`, commit `2f3c53cf` e
-      `7ae2ce44`): le transizioni si disegnano SEMPRE nell'overlay — non piu' solo dentro il tool
-      Arch — e le celle che nessuno raggiunge sono cerchiate in magenta, il colore che nella mappa
-      non usa nessun altro perche' e' un allarme e non una descrizione.
+      **Serie viz editor: 4/4 chiusa il 2026-08-12, e `log_debug` avanza a `done` con lei.** Owner
+      del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e costo leggibili),
+      `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede»), `#553` (coperture,
+      porte e transizioni sui BORDI) e `#554` (le transizioni e la raggiungibilita') sono chiuse e
+      mergiate — PR `#670`, `#673` e `#707`, commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`, `2f3c53cf`,
+      `7ae2ce44`.
+
+      Il gate chiede che **l'esito sia osservabile**, e per una modalita' di authoring l'esito e' la
+      vista: `#554` e' l'anello che l'ha completata, perche' e' l'unica delle quattro che guarda il
+      **grafo** invece della geometria. Le transizioni sono l'unico modo in cui i layer si collegano —
+      due celle sovrapposte NON sono adiacenti senza un arco esplicito — e si vedevano solo dentro il
+      tool Arch: chi dipingeva con Paint o Fill non sapeva se una zona fosse collegata, e una
+      piattaforma senza arco e' irraggiungibile senza dirlo. Verificarlo richiedeva di far girare il
+      pathfinding invece di guardare. `7ae2ce44` rende la raggiungibilita' **pigra** invece che
+      ricalcolata a ogni drag del pennello — cioe' paga il costo che quella vista introduce, invece di
+      lasciarlo sul tavolo.
 
 
-      ⚠️ **Perche' `log_debug` puo' avanzare, e perche' non e' un'inferenza dalla chiusura di una
-      issue.** Il gate chiede che l'esito sia **osservabile**, e la coppia che lo rende vero e'
-      questa: `FindUnreachableCells` e' stata ESTRATTA da `CheckReachability` perche' ha due
-      consumatori — il comando di debug `rt.Arena.Check` e l'overlay — e
-      `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells` pinna che i due contino le
-      **stesse** celle. Senza quel test sarebbero due risposte alla stessa domanda, libere di
-      divergere: e' esattamente la ragione per cui colore e freccia delle transizioni sono stati
+      ⚠️ **E l'osservabilita' e' pinnata, non asserita.** `FindUnreachableCells` e' stata ESTRATTA da
+      `CheckReachability` perche' ha due consumatori — il comando di debug `rt.Arena.Check` e
+      l'overlay — e `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells` verifica che i due
+      contino le **stesse** celle. Senza quel test sarebbero due risposte alla stessa domanda, libere
+      di divergere: e' la stessa ragione per cui colore e freccia delle transizioni sono stati
       spostati nello spazio condiviso `RTHexEditor` invece di essere duplicati.
 
 
-      🔴 **La lezione di questo record, che vale piu' della correzione.** Fino al 2026-08-12 questa
+      ⚠️ `log_debug: done` **non** significa che la vista sia verificata a schermo: le **sei** voci
+      `PIE-HEX-VIZ-*` di `test-manuali-pie.md` restano il registro di quella verifica, e sono di
+      classe C. Il gate dice che l'esito **e' osservabile**, non che qualcuno l'ha osservato.
+      Dal 2026-08-12 (sera) le sei stanno in **U18**: erano nel registro e in nessuna seduta, e una
+      voce che non sta in una seduta non viene eseguita mai. La sesta — `PIE-HEX-VIZ-TRANSIZIONI` —
+      **non esisteva**: `#554` ha chiuso lasciando la propria acceptance visiva senza una riga che la
+      registrasse, mentre `#552` e `#553` ne avevano aperte cinque nello stesso passaggio.
+
+
+      🔴 **La lezione di questo record, e vale piu' della correzione.** Fino al 2026-08-12 questa
       nota diceva *«il gate NON avanza a `done` perche' `#554` e' ancora aperta»* mentre `#554` era
       chiusa e mergiata da ore, e il suo test non era in `tests:`. La PR era stata aperta verso
       `test/migrazione-asset-reale` (`#694`, chiusa unmerged), poi il branch e' stato ricollocato e
@@ -4822,13 +4925,18 @@ features:
       atterrato. **Lo stato di una PR non e' lo stato del lavoro** — `gh pr list --head <branch>` lo
       e'. Un audit esterno (`mapeditor-integration-spec-panel-2026-08-12.md`) ha ripetuto lo stesso
       errore e ha costruito su di esso una roadmap, un percorso critico e cinque azioni.
+      ➕ **Due rami hanno corretto questo record in parallelo e sono arrivati allo stesso gate**, da
+      argomenti diversi — l'anello mancante della vista da un lato, il test che pinna i due
+      consumatori dall'altro. Convergenza, non ridondanza: il paragrafo qui sopra tiene entrambi.
       Ogni pezzo della serie ha portato il suo test nel modulo runtime, com'e' la regola qui:
       `OnlyTheCellsComponentIsClickable` (il pick guarda il componente, non l'actor — il secondo ISM
       dei volumi e' esattamente cio' che rendeva sbagliato il vecchio confronto),
       `EdgeMidpointIsSharedByBothCells` (la primitiva che mancava: due celle adiacenti devono
       calcolare lo STESSO punto medio di bordo, o copertura e porta si disegnerebbero due volte in due
-      posti) e `UnknownFixtureLeavesTheAssetUntouched` (un nome di fixture sbagliato non svuota
-      l'asset).
+      posti), `UnknownFixtureLeavesTheAssetUntouched` (un nome di fixture sbagliato non svuota
+      l'asset) e `CriterionAndOverlayCountTheSameCells` (il criterio d'arena e l'overlay contano le
+      STESSE celle: senza, la vista direbbe «collegata» dove il criterio dice di no, ed e' esattamente
+      la vista che mente contro cui il brief mette in guardia).
 
   - feature_id: RT-FEAT-TOOL-MAP-GEOMETRY
     title: Geometria architettonica quantizzata e cottura in dati di cella
