@@ -1667,6 +1667,7 @@ features:
       - RefactorTactics.Reaction.EveryTriggerHasAPassPoint
       - RefactorTactics.Reaction.ControlStatusesAreTwo
       - RefactorTactics.Equipment.HazardEscape.FleesBeforeDamage
+      - RefactorTactics.Scenario.DeclaredReactionScenarioPasses
       - RefactorTactics.Equipment.ImpactVariantStacksPush
       - RefactorTactics.Equipment.Gadget.CooldownEnforced
       - RefactorTactics.Equipment.Gadget.NumbersMatchCatalog
@@ -1676,10 +1677,9 @@ features:
       - RefactorTactics.Equipment.LoadoutExactlyOneEach
       - RefactorTactics.Equipment.NoInMatchProgression
     scenarios:
-      # NON e' un file mancante: e' uno scenario che oggi non e' SCRIVIBILE, e le due ragioni sono
-      # entrambe fuori da questa feature. Serve a non perdere il caso mentre l'input matura.
-      - planned:
-          - Spec.Reaction.AnchorCancelsPush
+      # Da `planned` a reale il 2026-08-12: le due ragioni che lo tenevano fuori sono cadute nello stesso
+      # giorno — la chiave `loadout` (#602) e il produttore di `PlannedReactionAbility` (#601).
+      - Spec.Reaction.AnchorCancelsPush
     wiki_refs: []
     last_verified:
       date: 2026-08-11
