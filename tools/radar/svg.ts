@@ -33,6 +33,17 @@ export const BALANCE_AXES: AxisSpec[] = [
   { key: 'durability', label: 'Durabilità' },
 ];
 
+/** `SIZE` finisce sia nel `viewBox` sia in `width`/`height`, e i due servono a cose diverse.
+ *
+ *  Il `viewBox` da solo dà **proporzione senza dimensione**: un `<img>` che punta a un SVG privo di
+ *  `width`/`height` non ha misura intrinseca, e la decide il contenitore. Sulla Wiki, misurato il
+ *  2026-08-12, lo stesso radar veniva reso **896×896** da solo su una scheda eroe — l'intera colonna —
+ *  e **47×47** dentro la tabella di `Profilo-tattico`, dove le etichette da 12px scendono a ~1,4px e
+ *  spariscono. Due celle della stessa tabella divergevano (143 contro 117) perche' l'algoritmo di
+ *  layout si dimensiona sul **contenuto**, cioe' sulla lunghezza del testo alternativo.
+ *
+ *  Con `width`/`height` dichiarati il grafico ha una taglia propria e il contenitore puo' solo
+ *  ridurla (`max-width: 100%`), non inventarla. */
 const SIZE = 400;
 const CENTER = SIZE / 2;
 const RADIUS = 150;
@@ -119,7 +130,7 @@ export function renderRadar(
     })
     .join('\n');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-labelledby="t">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-labelledby="t">
   <title id="t">${escapeXml(hero)} — ${escapeXml(role)} — ${view} Radar</title>
   <style>
 ${INK}
@@ -167,7 +178,7 @@ export function renderCompare(
     })
     .join('\n');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-labelledby="t">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-labelledby="t">
   <title id="t">${escapeXml(a.name)} vs ${escapeXml(b.name)} — confronto</title>
   <style>
 ${INK}

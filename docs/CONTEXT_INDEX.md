@@ -168,7 +168,7 @@ Il repository ne ha **due**, e nessuna gira in CI: i gate si eseguono **a mano**
 [`characters/radar/`](characters/radar/), che sono **versionati con un gate**:
 
 ```sh
-node --test "tools/radar/**/*.test.ts"   # 55 test
+node --test "tools/radar/**/*.test.ts"   # 56 test
 node tools/radar/generate.ts             # riscrive gli otto SVG
 node tools/radar/generate.ts --check     # verifica, exit 1 se divergono
 node tools/radar/wiki-alt.ts --wiki-root <clone> --check   # l'alt sulla Wiki ripete i valori: exit 1 se e' rimasto indietro
