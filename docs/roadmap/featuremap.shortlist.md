@@ -20,20 +20,21 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**99 feature** · v0.1 **72** · v0.2 **12** · future **15**.
+**102 feature** · v0.1 **72** · v0.2 **15** · future **15**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 6 |
-| `DESIGNED` | 13 |
+| `DESIGNED` | 14 |
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 21 |
 | `TESTABLE` | 8 |
 | `INTEGRATED` | 21 |
 | `RELEASE_READY` | 16 |
 | `DONE` | 1 |
+| `BLOCKED` (fuori scala) | 2 |
 
-### Actions · 12
+### Actions · 15
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -47,7 +48,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo | v0.1 | IMPLEMENTING | 3/9 | E4 | Le sette di D-025: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` |
 | `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | IMPLEMENTING | 0/9 | — | Fuori dal contenuto della v0.1 |
 | `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | future | DESIGNED | 0/9 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
+| `RT-FEAT-ACTION-PLAN-VALIDATION` — Validazione del piano in Planning, con reason code deterministico | v0.2 | DESIGNED | 0/10 | fuori scope | — |
 | `RT-FEAT-STATUS-FRAMEWORK` — Framework degli status — categorie, severity e primitive | v0.2 | DESIGNED | 0/9 | fuori scope | Undici status cablati uno per uno, nessun livello che li governi: **E36** in v0.2 |
+| `RT-FEAT-ACTION-BUDGET` — Capacita' d'azione del turno: slot o budget numerico | v0.2 | BLOCKED | 0/9 | fuori scope | — |
+| `RT-FEAT-ACTION-MOVEMENT-COMPAT` — Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata | v0.2 | BLOCKED | 0/9 | fuori scope | — |
 | `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | future | IDEA | 0/9 | — | Solo un nome |
 
 ### Characters · 7

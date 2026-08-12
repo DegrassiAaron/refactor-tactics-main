@@ -54,7 +54,7 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 | **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
 | **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
-| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **38** pianificati · **4** mai scritti *(rimisurati il 2026-08-10)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
+| **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **53** pianificati · **4** mai scritti *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Sono 53 e non 54 perché lo stesso giorno `Spec.Reaction.AnchorCancelsPush` è passato da `planned` a **reale**: un totale scritto a mano non ha un lato giusto prima del merge)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
 Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
 (`B 21 + C 95 + 1 fuori classe`).
@@ -282,12 +282,24 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **47**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **53**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
 
+> ➕ **+6 il 2026-08-12 dal consolidamento dell'action economy** — quattro `RT-FEAT-ACTION-MOVEMENT-COMPAT`,
+> uno `RT-FEAT-ACTION-PLAN-VALIDATION`, uno `RT-FEAT-ACTION-COOLDOWNS`. Il kit ne proponeva **dodici**
+> (`AE-S01`…`AE-S12`), in una convenzione di nomi che il repository non usa. Sei sono caduti per ragioni
+> diverse, e la differenza conta: due **contraddicono `D-028`** (`Dash + attacco + Move` e
+> `Brace + attacco + movimento` non sono legali come regola generale — lo scatto occupa lo slot movimento, e
+> `Brace` occupa la principale); due sono **bloccati su `FAC-12`** e si scrivono quando la decisione esiste,
+> non prima; due sono **assorbiti** — «densità da fermo» non ha un fatto proprio, e la privacy del piano è
+> già di `RT-FEAT-NET-PRIVATE-PLANNING`. Il sesto sopravvissuto è riformulato:
+> `OverwatchReservesMovementSlot` asserisce la **causa** di [D-070](../decisions/RT_PDR_00_Decision_Log.md)
+> invece del divieto di `Dash`, che è una conseguenza. Referto:
+> [`../roadmap/plans/action-economy-consolidamento-2026-08-12.md`](../roadmap/plans/action-economy-consolidamento-2026-08-12.md) §6.
+>
 > ➕ **+13 il 2026-08-11 dal consolidamento Bot/AI** — tre `RT-FEAT-BOT-FAIRNESS`, cinque
 > `RT-FEAT-BOT-TACTICAL`, tre `RT-FEAT-BOT-BELIEF`, due `RT-FEAT-BOT-PREDICTIVE`. Il sorgente ne proponeva
 > **33**, in una convenzione di nomi (`AI.<Area>.<Caso>`) che il repository non usa: sarebbe stato un secondo
