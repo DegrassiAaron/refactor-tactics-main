@@ -158,6 +158,23 @@ FVector URTHexLibrary::CellsCentroidWorld(const TArray<FRTCellId>& Cells, const 
 	return Sum / static_cast<double>(Cells.Num());
 }
 
+FTransform URTHexLibrary::EdgeTransform(const FRTCellId& Cell, ERTHexDirection Edge, const FVector& Origin,
+	float HexSize, float LayerHeight)
+{
+	// I due centri sono l'UNICA sorgente: il lato e' cio' che sta in mezzo, e la direzione e' come ci si arriva.
+	// Nessun vertice, nessun angolo: se la tabella delle sei direzioni cambiasse, questo la seguirebbe.
+	const FVector CentroCella = AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+	const FVector CentroVicino = AxialToWorld(Neighbor(Cell, Edge), Origin, HexSize, LayerHeight);
+
+	const FVector Verso = CentroVicino - CentroCella;
+	// `Rotation()` su un vettore nullo darebbe l'identita' senza dirlo. Non puo' accadere — `AxialDirection`
+	// non ha la direzione (0,0) — ma la cella e il suo vicino coincidono se qualcuno estendesse l'enum con una
+	// voce «nessuna», e un pannello sul centro sarebbe un difetto muto invece che un errore.
+	const FRotator Rotazione = Verso.IsNearlyZero() ? FRotator::ZeroRotator : Verso.Rotation();
+
+	return FTransform(Rotazione, (CentroCella + CentroVicino) * 0.5);
+}
+
 FColor URTHexLibrary::SurfaceColor(ERTHexSurface Surface)
 {
 	// Tinte scelte per essere distinguibili fra loro e dal rosso del blocco (test:
@@ -185,6 +202,36 @@ float URTHexLibrary::ReliefHeightForCost(int32 MoveCost)
 	// minori di 1 non esistono a catalogo, ma un asset editato a mano puo' contenerli: si trattano come piani
 	// invece di produrre una buca, che direbbe «qui si va piu' veloci» — cosa che il gioco non prevede.
 	return FMath::Max(0, MoveCost - 1) * ReliefUnitHeight;
+}
+
+FVector URTHexLibrary::CoverPanelProfile(ERTHexCoverType Type)
+{
+	// La copertura ALTA nega l'attraversamento del bordo a vista, passo e proiettili (CP 9.2): e' un muro sul
+	// lato, e la sua altezza sta vicino a quella della colonna che dice «qui non si passa» — la stessa regola,
+	// detta su un bordo invece che su una cella. La BASSA ripara e basta: si scavalca con lo sguardo.
+	return Type == ERTHexCoverType::High
+		? FVector(1.f, 1.f, 85.f)
+		: FVector(1.f, 1.f, 32.f);
+}
+
+FVector URTHexLibrary::DoorPanelProfile(ERTHexDoorState State)
+{
+	switch (State)
+	{
+	// Chiusa: pannello pieno. Nega passo e vista, e si riapre.
+	case ERTHexDoorState::Closed:    return FVector(1.0f, 1.0f, 85.f);
+	// Bloccata: come chiusa, ma piu' spessa. `SetDoorState` non la apre — serve l'apertura autorizzata, e
+	// chi disegna la mappa deve poter vedere che quel varco non e' una via a disposizione di tutti.
+	case ERTHexDoorState::Locked:    return FVector(2.2f, 1.0f, 85.f);
+	// Sfondata: e' aperta **per sempre** (stato terminale). Il lato incompleto e' la differenza da `Open`:
+	// non e' una porta che qualcuno ha aperto, e' una porta che non c'e' piu'.
+	case ERTHexDoorState::Destroyed: return FVector(1.0f, 0.42f, 8.f);
+	// Aperta: soglia bassa sul lato intero. Il varco si attraversa, ma la porta esiste ancora e puo' chiudersi
+	// — per questo resta un segno invece di sparire: una mappa che non mostra le porte aperte nasconde
+	// esattamente le rotte che qualcuno puo' togliere.
+	case ERTHexDoorState::Open:
+	default:                         return FVector(1.0f, 1.0f, 8.f);
+	}
 }
 
 FColor URTHexLibrary::BlockedCellColor()

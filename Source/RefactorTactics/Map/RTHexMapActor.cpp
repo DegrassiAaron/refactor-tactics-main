@@ -78,6 +78,17 @@ ARTHexMapActor::ARTHexMapActor()
 	{
 		Blockers->SetStaticMesh(CylinderMesh.Object);
 	}
+
+	// Pannelli di bordo: coperture e porte. Stessa disciplina, e per la stessa ragione.
+	EdgeFeatures = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("EdgeFeatures"));
+	EdgeFeatures->SetupAttachment(Cells);
+	EdgeFeatures->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	EdgeFeatures->SetCollisionResponseToAllChannels(ECR_Ignore);
+	EdgeFeatures->CastShadow = false;
+	if (CylinderMesh.Succeeded())
+	{
+		EdgeFeatures->SetStaticMesh(CylinderMesh.Object);
+	}
 }
 
 void ARTHexMapActor::OnConstruction(const FTransform& Transform)
@@ -390,6 +401,11 @@ void ARTHexMapActor::RebuildInstances()
 		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Blockers->SetStaticMesh(Mesh); }
 		Blockers->ClearInstances();
 	}
+	if (EdgeFeatures)
+	{
+		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { EdgeFeatures->SetStaticMesh(Mesh); }
+		EdgeFeatures->ClearInstances();
+	}
 
 	// Sorgente celle: l'asset se popolato, altrimenti un graybox demo (esagono pieno di raggio DemoRadius).
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
@@ -409,6 +425,10 @@ void ARTHexMapActor::RebuildInstances()
 	TArray<int32> MoveCosts;
 	TArray<bool> BlocksMovement;
 	TArray<bool> BlocksSight;
+	// Proprieta' di BORDO. Gli array della cella sono sparsi — la quasi totalita' di una mappa non ha ne'
+	// coperture ne' porte — quindi copiarli qui costa quanto copiare degli array vuoti.
+	TArray<TArray<FRTHexCover>> Covers;
+	TArray<TArray<FRTHexDoor>> Doors;
 	if (MapAsset && MapAsset->NumCells() > 0)
 	{
 		CellIds.Reserve(MapAsset->NumCells());
@@ -430,6 +450,8 @@ void ARTHexMapActor::RebuildInstances()
 			// perderebbe proprio l'informazione utile.
 			BlocksMovement.Add(C.bBlocksMovement);
 			BlocksSight.Add(C.bBlocksLineOfSight);
+			Covers.Add(C.Covers);
+			Doors.Add(C.Doors);
 		}
 	}
 	else if (DemoRadius > 0)
@@ -440,6 +462,8 @@ void ARTHexMapActor::RebuildInstances()
 		MoveCosts.Init(1, CellIds.Num()); // il graybox non ha terreni: tutto pavimento, quindi piatto
 		BlocksMovement.Init(false, CellIds.Num()); // e nemmeno ostacoli: il graybox e' una piastra libera
 		BlocksSight.Init(false, CellIds.Num());
+		Covers.SetNum(CellIds.Num()); // ne' bordi: il graybox non ha coperture ne' porte
+		Doors.SetNum(CellIds.Num());
 	}
 
 	// Cilindro engine: raggio 50 uu, mezza-altezza 50 uu. Scala X,Y per coprire ~l'esagono, Z sottile (disco).
@@ -498,6 +522,40 @@ void ARTHexMapActor::RebuildInstances()
 			if (BlocksMovement[I])
 			{
 				AddBlocker(URTHexLibrary::MovementBlockerHeight, URTHexLibrary::MovementBlockerWidthScale);
+			}
+		}
+
+		// Proprieta' di BORDO: coperture e porte. La posa la CHIEDE la libreria — se la convenzione dei sei
+		// lati cambiasse, questi pannelli seguirebbero invece di finire silenziosamente sul lato sbagliato.
+		if (EdgeFeatures && (Covers[I].Num() > 0 || Doors[I].Num() > 0))
+		{
+			// Il lato di un esagono pointy-top misura quanto il raggio; il cilindro engine a `PlanarScale`
+			// ha diametro ~1.9 volte `HexSize`, quindi coprire un lato intero chiede circa la meta'.
+			const float SpanScale = PlanarScale * 0.53f;
+			const float ThicknessScale = PlanarScale * URTHexLibrary::EdgePanelThickness;
+
+			auto AddEdgePanel = [&](ERTHexDirection Edge, const FVector& Profile)
+			{
+				FTransform Xf = URTHexLibrary::EdgeTransform(CellIds[I], Edge, GetActorLocation(), UseHexSize,
+					UseLayerH);
+				// La quota segue la cella che DICHIARA il bordo: `World` porta gia' `Heights[I]`, mentre la
+				// libreria lavora sul piano del layer. Due celle a quote diverse dichiarano ciascuna il
+				// proprio lato, ed e' giusto che i due pannelli stiano dove stanno i rispettivi pavimenti.
+				FVector Posizione = Xf.GetLocation();
+				Posizione.Z = World.Z + RTCellTopZ + Profile.Z * 0.5;
+				Xf.SetLocation(Posizione);
+				// X e' il verso VERSO il vicino, cioe' lo spessore; Y corre lungo il lato; Z e' l'altezza.
+				Xf.SetScale3D(FVector(ThicknessScale * Profile.X, SpanScale * Profile.Y, Profile.Z / 100.f));
+				EdgeFeatures->AddInstance(Xf, /*bWorldSpace=*/ true);
+			};
+
+			for (const FRTHexCover& Cover : Covers[I])
+			{
+				AddEdgePanel(Cover.Edge, URTHexLibrary::CoverPanelProfile(Cover.Type));
+			}
+			for (const FRTHexDoor& Door : Doors[I])
+			{
+				AddEdgePanel(Door.Edge, URTHexLibrary::DoorPanelProfile(Door.State));
 			}
 		}
 	}

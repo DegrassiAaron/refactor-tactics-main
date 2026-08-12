@@ -357,6 +357,21 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> Blockers;
 
 	/**
+	 * Pannelli delle proprieta' di BORDO: coperture e porte.
+	 *
+	 * Sono l'unica famiglia che l'overlay a cerchi centrati **non poteva** mostrare: `FRTHexCover` e
+	 * `FRTHexDoor` hanno un campo `Edge`, e un cerchio attorno al centro non ha un lato. Senza questi
+	 * pannelli non si sa **da che lato** si e' riparati — che e' l'informazione che decide se una posizione
+	 * vale qualcosa, perche' la copertura ripara da un lato e non dall'altro.
+	 *
+	 * La posa arriva da `URTHexLibrary::EdgeTransform`, derivata dai due centri di cella: nessun angolo
+	 * inciso, nessun indice di `HexCorners` scelto a occhio. Stessa disciplina degli altri due ISM —
+	 * nessuna collisione, niente ombre, nessuno stato proprio.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> EdgeFeatures;
+
+	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */

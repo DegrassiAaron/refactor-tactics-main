@@ -4611,7 +4611,7 @@ features:
     owner_specs:
       - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
-    issues: [567, 622, 623, 551, 588, 552]
+    issues: [567, 622, 623, 551, 588, 552, 553]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
       - RefactorTactics.HexMap.FloodRegion
@@ -4621,6 +4621,9 @@ features:
       - RefactorTactics.HexMapActor.PickIgnoresGeometryThatIsNotTheGrid
       - RefactorTactics.HexMapActor.BlockerVolumesComeFromCellFlags
       - RefactorTactics.Hex.BlockerVolumesSeparateTheTwoRules
+      - RefactorTactics.Hex.EdgeTransformIsDerivedFromCellCenters
+      - RefactorTactics.Hex.DoorProfilesTellTheFourStatesApart
+      - RefactorTactics.HexMapActor.EdgePanelsSitOnTheDeclaredEdge
     scenarios: []
     wiki_refs: []
     last_verified:
@@ -4674,6 +4677,22 @@ features:
       resta una verifica in editor: se le proporzioni non bastassero, la strada e' un ISM per forma.
       ⚠️ Il costo di rigenerazione con tre elementi per cella **non e' stato misurato** — e' la
       seconda domanda aperta del brief, ancora tale.
+
+
+      **2026-08-12 (#553)**: un QUARTO ISM, `EdgeFeatures`, per le proprieta' di **bordo** — coperture e
+      porte. Erano l'unica famiglia che l'overlay a cerchi centrati non poteva mostrare: `FRTHexCover` e
+      `FRTHexDoor` hanno un campo `Edge`, e un cerchio attorno al centro non ha un lato. Con loro arriva
+      il prerequisito che il brief §5 chiedeva di valutare e che **mancava davvero**:
+      `URTHexLibrary::EdgeTransform`, posizione e orientamento di un lato derivati dai **due centri di
+      cella**, mai dai vertici. Un indice di `HexCorners` scelto a occhio sarebbe diventato
+      silenziosamente il bordo sbagliato il giorno in cui la convenzione dei sei lati cambiasse; la
+      proprieta' che regge al posto suo e' verificata — il bordo `E` di una cella **e'** il bordo `W` del
+      vicino, stesso punto e versi opposti. Le porte hanno **quattro** stati e senza
+      `PerInstanceCustomData` non c'e' il colore: la distinzione usa due assi indipendenti, l'altezza per
+      «ci si passa?» e l'ingombro per «chi la cambia?». ⚠️ Il secondo asse e' piu' debole del primo e va
+      guardato in editor, sulla fixture che contiene coperture e porte (`MakeCoverYardArena`).
+      ⚠️ Le **transizioni** non sono qui: appartengono a `#554`, che le rivendica esplicitamente. Lo scope
+      di `#553` le elencava ed era una sovrapposizione, non una divisione del lavoro.
 
   - feature_id: RT-FEAT-TOOL-MAP-GEOMETRY
     title: Geometria architettonica quantizzata e cottura in dati di cella

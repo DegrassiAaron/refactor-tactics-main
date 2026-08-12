@@ -243,16 +243,18 @@ bool FRTHexMapActorPickTest::RunTest(const FString&)
 	UInstancedStaticMeshComponent* Cells = nullptr;
 	UInstancedStaticMeshComponent* Relief = nullptr;
 	UInstancedStaticMeshComponent* Blockers = nullptr;
+	UInstancedStaticMeshComponent* EdgeFeatures = nullptr;
 	for (UInstancedStaticMeshComponent* Ism : Isms)
 	{
 		if (Ism->GetName() == TEXT("Cells")) { Cells = Ism; }
 		else if (Ism->GetName() == TEXT("Relief")) { Relief = Ism; }
 		else if (Ism->GetName() == TEXT("Blockers")) { Blockers = Ism; }
+		else if (Ism->GetName() == TEXT("EdgeFeatures")) { EdgeFeatures = Ism; }
 	}
 
-	if (!Cells || !Relief || !Blockers)
+	if (!Cells || !Relief || !Blockers || !EdgeFeatures)
 	{
-		AddError(TEXT("l'actor non ha tutti gli ISM attesi (Cells, Relief, Blockers)"));
+		AddError(TEXT("l'actor non ha tutti gli ISM attesi (Cells, Relief, Blockers, EdgeFeatures)"));
 		DestroyMapActorWorld(World);
 		return false;
 	}
@@ -265,6 +267,7 @@ bool FRTHexMapActorPickTest::RunTest(const FString&)
 	// Ogni geometria di lettura aggiunta va messa qui: la regola vale perche' e' strutturale, ma resta vera
 	// solo finche' qualcuno verifica che il componente NUOVO non sia diventato l'eccezione.
 	TestFalse(TEXT("colpo sui volumi di blocco"), Actor->IsPickOnSelectableCell(Blockers, 0));
+	TestFalse(TEXT("colpo sui pannelli di bordo"), Actor->IsPickOnSelectableCell(EdgeFeatures, 0));
 
 	// Un indice fuori range non e' teorico: `CellForInstance` risponde `(0,0,0)` — una cella VALIDA — a
 	// qualunque indice, quindi senza questo controllo il click finirebbe sull'origine della mappa.
@@ -359,6 +362,89 @@ bool FRTHexMapActorBlockerInstancesTest::RunTest(const FString&)
 	// La cella libera resta libera: senza questo, un bug che mettesse un volume ovunque passerebbe i due
 	// conteggi qui sopra solo perche' i numeri tornano.
 	TestEqual(TEXT("nessun volume che non venga da un flag"), Colonne + Lastre, 4);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * I pannelli di bordo nascono dagli array sparsi della cella, e stanno SUL LATO che il dato dichiara.
+ *
+ * La posizione e' l'unica cosa che conta davvero qui: una copertura ripara da un lato e non dall'altro,
+ * quindi un pannello nel posto sbagliato non e' un difetto estetico — dice il contrario del vero. E' anche
+ * l'errore piu' facile da fare in silenzio, perche' i sei lati si somigliano e nessuno si accorge di
+ * guardare quello sbagliato finche' non perde un'unita' su una rotta che credeva coperta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorEdgePanelsTest,
+	"RefactorTactics.HexMapActor.EdgePanelsSitOnTheDeclaredEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorEdgePanelsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+
+	// Una cella con due coperture su lati DIVERSI e una porta su un terzo: tre pannelli, tre lati.
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
+	FRTHexCellData Cella(FRTCellId(0, 0, 0));
+	Cella.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low));
+	Cella.Covers.Add(FRTHexCover(ERTHexDirection::NW, ERTHexCoverType::High));
+	Cella.Doors.Add(FRTHexDoor(ERTHexDirection::SW, ERTHexDoorState::Closed));
+	Asset->AddOrUpdateCell(Cella);
+	// Una seconda cella SENZA bordi: se i pannelli venissero disegnati per cella invece che per bordo, il
+	// conteggio se ne accorgerebbe.
+	Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(5, 0, 0)));
+	Asset->SortCells();
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	TArray<UInstancedStaticMeshComponent*> Isms;
+	Actor->GetComponents(Isms);
+	UInstancedStaticMeshComponent* EdgeFeatures = nullptr;
+	for (UInstancedStaticMeshComponent* Ism : Isms)
+	{
+		if (Ism->GetName() == TEXT("EdgeFeatures")) { EdgeFeatures = Ism; }
+	}
+	if (!EdgeFeatures)
+	{
+		AddError(TEXT("l'actor non ha l'ISM `EdgeFeatures`"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("tre bordi dichiarati, tre pannelli"), EdgeFeatures->GetInstanceCount(), 3);
+
+	// Ogni pannello deve stare sul punto che la libreria calcola per QUEL lato. Il confronto e' sul piano:
+	// la quota la decide l'actor (segue il pavimento della cella), il lato lo decide la libreria.
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	Actor->GetHexContext(Origin, HexSize, LayerH);
+	const TArray<ERTHexDirection> LatiAttesi = {
+		ERTHexDirection::E, ERTHexDirection::NW, ERTHexDirection::SW
+	};
+	for (const ERTHexDirection Lato : LatiAttesi)
+	{
+		const FVector Atteso = URTHexLibrary::EdgeTransform(FRTCellId(0, 0, 0), Lato, Origin, HexSize, LayerH)
+			.GetLocation();
+		bool bTrovato = false;
+		for (int32 I = 0; I < EdgeFeatures->GetInstanceCount(); ++I)
+		{
+			FTransform Xf;
+			EdgeFeatures->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true);
+			const FVector P = Xf.GetLocation();
+			if (FMath::IsNearlyEqual(P.X, Atteso.X, 0.5) && FMath::IsNearlyEqual(P.Y, Atteso.Y, 0.5))
+			{
+				bTrovato = true;
+				break;
+			}
+		}
+		TestTrue(FString::Printf(TEXT("c'e' un pannello sul lato %d"), static_cast<int32>(Lato)), bTrovato);
+	}
 
 	DestroyMapActorWorld(World);
 	return true;

@@ -76,6 +76,27 @@ public:
 	static float DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B);
 
 	/**
+	 * Posa del BORDO `Edge` della cella: posizione al centro del lato, rotazione che guarda VERSO il vicino
+	 * oltre quel bordo. La scala la decide il chiamante — qui c'e' dove e verso dove, non quanto grande.
+	 *
+	 * **Derivata dai due centri di cella, mai dai vertici.** Il punto e' il medio fra `AxialToWorld(Cell)` e
+	 * `AxialToWorld(Neighbor(Cell, Edge))`, l'orientamento e' la loro differenza. Sceglierlo invece da due
+	 * indici di `HexCorners` richiederebbe di sapere quali due vertici delimitano quel lato: un accoppiamento
+	 * inciso che, il giorno in cui la convenzione dei sei lati cambiasse, diventerebbe **silenziosamente il
+	 * bordo sbagliato**. E' l'avvertimento che `MakeCoverYardArena` porta gia' scritto, applicato alla
+	 * geometria invece che alla direzione.
+	 *
+	 * Il bordo `E` di una cella **e'** il bordo `W` del suo vicino: stesso punto, versi opposti. E' una
+	 * proprieta' verificata (`Hex.EdgeTransformIsDerivedFromCellCenters`), non una coincidenza da cui
+	 * dipendere per caso.
+	 *
+	 * Planare come il resto della famiglia: il bordo resta alla quota del centro cella, quindi appartiene al
+	 * `Layer` della cella e non scivola verso il piano vicino.
+	 */
+	static FTransform EdgeTransform(const FRTCellId& Cell, ERTHexDirection Edge, const FVector& Origin,
+		float HexSize, float LayerHeight);
+
+	/**
 	 * I 6 vertici dell'esagono attorno a Center (pointy-top, primo vertice a -30 gradi), complanari al centro.
 	 * Il chiamante chiude il contorno collegando l'ultimo al primo. Condivisa da marker dell'editor e anteprima
 	 * in gioco: un solo orientamento, cosi' i due disegni non divergono.
@@ -146,6 +167,32 @@ public:
 	static constexpr float MovementBlockerWidthScale = 0.42f;
 	static constexpr float SightBlockerHeight = 10.f;
 	static constexpr float SightBlockerWidthScale = 0.80f;
+
+	/** Spessore del pannello di bordo, in frazione del lato: sottile, perche' un bordo non ha volume proprio. */
+	static constexpr float EdgePanelThickness = 0.14f;
+
+	/**
+	 * Profilo del pannello con cui l'editor disegna una proprieta' di BORDO:
+	 * `X` = spessore (moltiplicatore di `EdgePanelThickness`) · `Y` = quanto del lato occupa (frazione) ·
+	 * `Z` = altezza in uu.
+	 *
+	 * Le coperture hanno due tipi e bastano due altezze. Le **porte hanno quattro stati**, e un solo canale
+	 * non li distingue: servono due domande indipendenti, ed e' cosi' che sono state divise —
+	 *
+	 * | | ci si passa? | e chi la cambia? | profilo |
+	 * |---|---|---|---|
+	 * | `Open` | si' | riapribile/richiudibile | soglia bassa, lato pieno |
+	 * | `Destroyed` | si', **per sempre** | nessuno: e' terminale | soglia bassa, lato **incompleto** — manca un pezzo |
+	 * | `Closed` | no | si riapre | pannello pieno |
+	 * | `Locked` | no | **non da sola** | pannello pieno e piu' **spesso** |
+	 *
+	 * L'altezza risponde alla prima domanda, l'ingombro alla seconda: «alto» = non passi, «monco» = rotto,
+	 * «spesso» = non lo apri tu. ⚠️ La seconda lettura e' piu' debole della prima e va guardata in editor —
+	 * e' la ragione per cui i quattro profili sono pinnati come **distinti a coppie**
+	 * (`Hex.DoorProfilesTellTheFourStatesApart`) invece che affidati all'occhio.
+	 */
+	static FVector CoverPanelProfile(ERTHexCoverType Type);
+	static FVector DoorPanelProfile(ERTHexDoorState State);
 
 	/** Colore del marcatore delle celle che BLOCCANO il movimento (esagono interno). */
 	static FColor BlockedCellColor();

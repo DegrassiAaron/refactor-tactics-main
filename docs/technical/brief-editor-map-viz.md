@@ -138,13 +138,19 @@ racconta qualcosa che il dato non contiene — applicato al brief invece che all
 |---|---|:--:|---|
 | 1/4 · superficie e costo | [#551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/551) | ✅ chiusa 2026-08-12 | l'ISM `Relief`, `ReliefHeightForCost`, e il pattern «forma per la regola, colore per la superficie» |
 | 2/4 · blocchi | [#552](https://github.com/DegrassiAaron/refactor-tactics-main/issues/552) | 🔄 in corso | l'ISM `Blockers`: colonna dove non si passa, lastra dove non si vede |
-| 3/4 · bordi | [#553](https://github.com/DegrassiAaron/refactor-tactics-main/issues/553) | ⏳ | — |
+| 3/4 · bordi | [#553](https://github.com/DegrassiAaron/refactor-tactics-main/issues/553) | 🔄 in corso | l'ISM `EdgeFeatures` e **`URTHexLibrary::EdgeTransform`**, il prerequisito che il §5 chiedeva |
 | 4/4 · layer e raggiungibilità | [#554](https://github.com/DegrassiAaron/refactor-tactics-main/issues/554) | ⏳ | — |
 
-⚠️ **Il §5 resta la parte non ancora affrontata**, ed è quella con il rischio geometrico: nessuna delle
-due implementazioni finora tocca i **bordi**, perché costo e blocchi sono proprietà di *cella*. La
-funzione per il centro/orientamento di un lato che il §5 propone **non esiste ancora**.
+✅ **Il §5 è stato affrontato, e la funzione che proponeva ora esiste**: `EdgeTransform` dà posizione e
+orientamento di un lato, derivandoli dai due centri di cella. La proprietà che la rende affidabile è
+verificata invece che sperata — il bordo `E` di una cella **è** il bordo `W` del suo vicino, stesso punto
+e versi opposti. Chi dovrà disegnare su un lato la chiama, invece di ricalcolarla a modo suo.
+
+⚠️ **Le transizioni non sono qui.** Lo scope di `#553` le elencava, ma appartengono a `#554`, che le
+rivendica esplicitamente. Il confine adottato: `#553` le proprietà di **bordo dentro la cella**
+(`Covers`, `Doors`), `#554` gli **archi che collegano due celle** (`FRTHexEdge`).
 
 ⚠️ Delle quattro domande del §7 nessuna è stata chiusa: sono state **aggirate**, non risolte. Il layer è
 sempre attivo perché finora costa poco, e il costo di rigenerazione con più geometria (§7, seconda
-domanda) **non è mai stato misurato** — con `Blockers` gli elementi per cella diventano fino a tre.
+domanda) **non è mai stato misurato** — con `Blockers` ed `EdgeFeatures` gli elementi per cella arrivano
+a tre più uno per ogni bordo dichiarato.
