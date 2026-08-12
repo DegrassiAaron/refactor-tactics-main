@@ -422,6 +422,14 @@ viste sono altrimenti indistinguibili — due poligoni 400×400 sugli stessi col
 tutti e quattro i Balance Radar si annunciavano come `Profile Radar`, perché la vista non era un
 parametro. Ora lo è, ed è obbligatorio (`RadarView` in `tools/radar/svg.ts`).
 
+**Il grafico dichiara la propria dimensione.** Un `viewBox` senza `width`/`height` dà proporzione
+ma non misura: dentro un `<img>` la taglia la decide il contenitore. Misurato sulla Wiki il
+2026-08-12, prima della correzione: **896×896** su una scheda eroe — l'intera colonna — e **47×47**
+dentro la tabella di `Profilo tattico`, dove le etichette da 12px scendono a circa 1,4px. Due celle
+della stessa tabella divergevano (143 contro 117) perché il layout si dimensiona sul contenuto, cioè
+sulla **lunghezza del testo alternativo**: la descrizione finiva per decidere la taglia del grafico.
+La radice porta ora `width="400" height="400"`, e il contenitore può solo ridurre.
+
 **Il testo alternativo ripete i valori, e un gate lo verifica.** Quando il radar è pubblicato come
 immagine, il `<title>` interno non raggiunge il lettore: conta l'`alt` della pagina che lo incorpora.
 Fino al 2026-08-12 sulla Wiki erano etichette senza numeri («Profile Radar di Flux»): chi vede il
