@@ -205,6 +205,21 @@ bool FRTGeometryRejectsOutsideBoundsTest::RunTest(const FString&)
 	TestTrue(TEXT("estremo oltre il limite in negativo -> OutsideEditableBounds"),
 		URTGeometryGrammarLibrary::ValidateSegment(S) == ERTGeometryViolation::OutsideEditableBounds);
 
+	// ⚠️ IL VALORE PIU' ESTREMO, che e' anche quello che scivola via.
+	// `FMath::Abs(MIN_int32)` non e' rappresentabile in `int32` e resta negativo: una validazione scritta
+	// sul valore assoluto avrebbe accettato proprio il caso peggiore. E' l'unico intero che una
+	// deserializzazione corrotta produce piu' facilmente di un valore a caso, perche' e' un bit pattern
+	// intero (`0x80000000`).
+	S = ValidSegment();
+	S.Offset = MIN_int32;
+	TestTrue(TEXT("MIN_int32 -> OutsideEditableBounds, non un overflow silenzioso"),
+		URTGeometryGrammarLibrary::ValidateSegment(S) == ERTGeometryViolation::OutsideEditableBounds);
+
+	S = ValidSegment();
+	S.AlongStart = MAX_int32;
+	TestTrue(TEXT("MAX_int32 -> OutsideEditableBounds"),
+		URTGeometryGrammarLibrary::ValidateSegment(S) == ERTGeometryViolation::OutsideEditableBounds);
+
 	return true;
 }
 

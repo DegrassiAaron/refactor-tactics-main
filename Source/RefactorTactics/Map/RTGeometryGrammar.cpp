@@ -58,12 +58,16 @@ ERTGeometryViolation URTGeometryGrammarLibrary::ValidateSegment(const FRTGeometr
 		return ERTGeometryViolation::InvalidLayer;
 	}
 
-	const int32 Extent = FMath::Max3(
-		FMath::Abs(Segment.Offset),
-		FMath::Abs(Segment.AlongStart),
-		FMath::Abs(Segment.AlongEnd));
+	// ⚠️ Il confronto e' su ENTRAMBI i versi invece che sul valore assoluto, ed e' deliberato:
+	// `FMath::Abs(MIN_int32)` non e' rappresentabile in `int32` e resta NEGATIVO, quindi un `Extent`
+	// calcolato con `Abs` farebbe passare proprio il valore piu' estremo — cioe' il caso che questa regola
+	// esiste per fermare, dato che l'unico modo in cui un intero simile entra e' una deserializzazione.
+	auto OutOfRange = [](int32 Value)
+	{
+		return Value > RT_GeometryMaxQuanta || Value < -RT_GeometryMaxQuanta;
+	};
 
-	if (Extent > RT_GeometryMaxQuanta)
+	if (OutOfRange(Segment.Offset) || OutOfRange(Segment.AlongStart) || OutOfRange(Segment.AlongEnd))
 	{
 		return ERTGeometryViolation::OutsideEditableBounds;
 	}
