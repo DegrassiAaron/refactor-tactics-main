@@ -402,4 +402,77 @@ bool FRTGeometryInvalidProducesNoGeometryTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * LO SNAP, ed è la parte del gesto d'authoring che si può verificare headless (`#712`).
+ *
+ * Un gesto è approssimativo per definizione: il mouse non cade sui quanti. Il test parte da un segmento
+ * **legale**, lo sporca di un rumore più piccolo di mezzo quanto, e pretende che lo snap ritrovi
+ * esattamente l'originale. È l'unica proprietà che conta: due gesti vicini devono produrre lo stesso dato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGeometrySnapRecoversTest,
+	"RefactorTactics.GeometryGrammar.SnapRecoversTheIntendedSegment",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGeometrySnapRecoversTest::RunTest(const FString&)
+{
+	const FRTGeometrySegment Intended = WallOnEastEdge();
+	const FRTOccupancyPolyline Exact = URTGeometryGrammarLibrary::ToPolyline(Intended, TestHexSize);
+
+	// Rumore deliberatamente asimmetrico e sotto il mezzo quanto: un gesto umano, non un valore esatto.
+	const double Quantum = TestHexSize / RT_GeometryQuanta;
+	const FVector2D NoisyA = Exact.Points[0] + FVector2D(Quantum * 0.30, -Quantum * 0.20);
+	const FVector2D NoisyB = Exact.Points[1] + FVector2D(-Quantum * 0.15, Quantum * 0.35);
+
+	FRTGeometrySegment Snapped;
+	const bool bOk = URTGeometryGrammarLibrary::SnapToGrammar(NoisyA, NoisyB, TestHexSize, Snapped);
+
+	TestTrue(TEXT("un gesto vicino a un segmento legale produce un segmento"), bOk);
+	if (bOk)
+	{
+		TestTrue(TEXT("stesso asse"), Snapped.Axis == Intended.Axis);
+		TestEqual(TEXT("stesso offset"), Snapped.Offset, Intended.Offset);
+		TestEqual(TEXT("stesso primo estremo"), Snapped.AlongStart, Intended.AlongStart);
+		TestEqual(TEXT("stesso secondo estremo"), Snapped.AlongEnd, Intended.AlongEnd);
+	}
+
+	// E ciò che esce è SEMPRE legale: è la garanzia che il tool non può committare un segmento fuori
+	// grammatica, qualunque cosa faccia il mouse.
+	TestTrue(TEXT("lo snap produce solo segmenti in grammatica"),
+		URTGeometryGrammarLibrary::ValidateSegment(Snapped) == ERTGeometryViolation::None);
+
+	return true;
+}
+
+/**
+ * IL GHOST INVALIDO: un gesto che non può produrre un segmento legale deve **fallire**, non ripiegare su
+ * qualcosa di plausibile.
+ *
+ * È la metà che rende onesto il ghost «invalido» del tool: se lo snap ripiegasse sempre su un segmento,
+ * l'autore non vedrebbe mai un rifiuto e la grammatica diventerebbe una decorazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGeometrySnapRejectsTest,
+	"RefactorTactics.GeometryGrammar.SnapRejectsWhatCannotBeLegal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGeometrySnapRejectsTest::RunTest(const FString&)
+{
+	FRTGeometrySegment Out;
+
+	// Due punti coincidenti: qualunque asse produrrebbe lunghezza zero.
+	const FVector2D P(12.0, 7.0);
+	TestTrue(TEXT("un gesto senza lunghezza non produce un segmento"),
+		!URTGeometryGrammarLibrary::SnapToGrammar(P, P, TestHexSize, Out));
+
+	// Un gesto lontanissimo: oltre i bordi editabili su entrambi gli estremi.
+	const double Far = TestHexSize * (RT_GeometryMaxQuanta / RT_GeometryQuanta) * 10.0;
+	TestTrue(TEXT("un gesto fuori dai bordi editabili non produce un segmento"),
+		!URTGeometryGrammarLibrary::SnapToGrammar(FVector2D(Far, Far), FVector2D(Far * 1.1, Far), TestHexSize, Out));
+
+	// Controprova: un gesto normale invece funziona, altrimenti questo test passerebbe con uno snap
+	// che non produce mai nulla.
+	const FRTOccupancyPolyline Exact = URTGeometryGrammarLibrary::ToPolyline(ValidSegment(), TestHexSize);
+	TestTrue(TEXT("ma un gesto normale sì"),
+		URTGeometryGrammarLibrary::SnapToGrammar(Exact.Points[0], Exact.Points[1], TestHexSize, Out));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -131,3 +131,63 @@ FRTOccupancyPolyline URTGeometryGrammarLibrary::ToPolyline(const FRTGeometrySegm
 
 	return Result;
 }
+
+bool URTGeometryGrammarLibrary::SnapToGrammar(const FVector2D& LocalA, const FVector2D& LocalB, float HexSize,
+	FRTGeometrySegment& OutSegment)
+{
+	double BestError = TNumericLimits<double>::Max();
+	bool bFound = false;
+
+	for (int32 AxisIndex = 0; AxisIndex < RT_TacticalAxisCount; ++AxisIndex)
+	{
+		const ERTTacticalAxis Axis = static_cast<ERTTacticalAxis>(AxisIndex);
+
+		// Le due direzioni sono ortogonali ma NON della stessa lunghezza — una punta a un vertice, l'altra a
+		// un punto medio di lato. La proiezione divide quindi per il quadrato di ciascuna, non per uno.
+		const FVector2D Along = AxisPoint(Axis, HexSize) / RT_GeometryQuanta;
+		const FVector2D Perp = AxisPerpendicularPoint(Axis, HexSize) / RT_GeometryQuanta;
+
+		const double AlongLenSq = Along.SizeSquared();
+		const double PerpLenSq = Perp.SizeSquared();
+		if (AlongLenSq <= UE_KINDA_SMALL_NUMBER || PerpLenSq <= UE_KINDA_SMALL_NUMBER)
+		{
+			continue;
+		}
+
+		const double AlongA = FVector2D::DotProduct(LocalA, Along) / AlongLenSq;
+		const double AlongB = FVector2D::DotProduct(LocalB, Along) / AlongLenSq;
+		const double OffsetA = FVector2D::DotProduct(LocalA, Perp) / PerpLenSq;
+		const double OffsetB = FVector2D::DotProduct(LocalB, Perp) / PerpLenSq;
+
+		FRTGeometrySegment Candidate;
+		Candidate.Axis = Axis;
+		// Un solo offset per segmento: e' una retta, non una spezzata. La media e' cio' che minimizza
+		// l'errore quando il gesto non e' perfettamente parallelo all'asse.
+		Candidate.Offset = FMath::RoundToInt((OffsetA + OffsetB) * 0.5);
+		Candidate.AlongStart = FMath::RoundToInt(AlongA);
+		Candidate.AlongEnd = FMath::RoundToInt(AlongB);
+		Candidate.Layer = 0;
+
+		if (ValidateSegment(Candidate) != ERTGeometryViolation::None)
+		{
+			continue; // un candidato illegale non e' un candidato: niente lunghezza zero, niente fuori bordi
+		}
+
+		const FRTOccupancyPolyline Line = ToPolyline(Candidate, HexSize);
+		if (Line.Points.Num() < 2)
+		{
+			continue;
+		}
+
+		// L'errore e' quanto il segmento quantizzato si scosta dal gesto: la somma delle due distanze.
+		const double Error = FVector2D::Distance(Line.Points[0], LocalA) + FVector2D::Distance(Line.Points[1], LocalB);
+		if (Error < BestError)
+		{
+			BestError = Error;
+			OutSegment = Candidate;
+			bFound = true;
+		}
+	}
+
+	return bFound;
+}
