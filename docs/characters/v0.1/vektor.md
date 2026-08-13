@@ -5,7 +5,7 @@
 > **RT Character ID:** `Hero.Vektor`  
 > **Release:** `v0.1`  
 > **Roster status:** Release v0.1  
-> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Wraith** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità di Vektor.
+> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Wraith** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
 
