@@ -1,7 +1,7 @@
 > 📦 `HISTORICAL` · **Sorgente archiviato il 2026-08-12** · **Revisionato, recepito in larga parte.**
 >
 > Il testo originale **non è stato riscritto**: quanto segue è l'esito della revisione. Referto completo:
-> [`../../../roadmap/plans/spatial-transfer-epic-2026-08-12.md`](../../../roadmap/plans/spatial-transfer-epic-2026-08-12.md).
+> [`../../roadmap-plans/spatial-transfer-epic-2026-08-12.md`](../../roadmap-plans/spatial-transfer-epic-2026-08-12.md).
 >
 > **È il secondo handoff sul trasferimento nella stessa giornata**, e presuppone il primo —
 > [`2026-08-12-teleport-instant-movement.md`](2026-08-12-teleport-instant-movement.md), che aveva chiuso con

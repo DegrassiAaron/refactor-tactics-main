@@ -33,7 +33,7 @@ si presenta. È la ragione per cui `#287`–`#289` si sono spostate.
 
 Il termine viene dal sorgente
 [archiviato](../../archive/src/handoff/2026-08-11-five-lane-roadmap-editor-replay.md) e revisionato
-in [`five-lane-roadmap-spec-panel-2026-08-11.md`](five-lane-roadmap-spec-panel-2026-08-11.md), che
+in [`five-lane-roadmap-spec-panel-2026-08-11.md`](../../roadmap/plans/five-lane-roadmap-spec-panel-2026-08-11.md), che
 proponeva molto di più e di cui **quasi nulla è stato adottato**. Va detto qui, perché è il posto in
 cui qualcuno leggerà la parola «lane» per la prima volta:
 
@@ -80,7 +80,7 @@ gh issue view <N> --json body --jq '.body' | head -20
 [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) e `editor-sessions.yaml`.
 
 ⚠️ **Le viste generate non si toccano**: `featuremap.shortlist.md`, `scenariomap.shortlist.md` ed
-[`../editormap.shortlist.md`](../editormap.shortlist.md) portano l'intestazione `GENERATA` e si
+[`../../roadmap/editormap.shortlist.md`](../../roadmap/editormap.shortlist.md) portano l'intestazione `GENERATA` e si
 riscrivono con `python scripts/feature_registry.py shortlist`. Questi cinque file **non** sono
 generati, e per questo non sono autorità.
 

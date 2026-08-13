@@ -1,5 +1,10 @@
 # TurnLog + reason codes — Implementation Plan
 
+> `HISTORICAL` · **Piano eseguito, non normativo**
+> Lo dichiarava gia' in prosa nella riga sotto; qui acquista il banner che rende la cartella
+> leggibile a un criterio meccanico. L'owner del formato e' `ERTTurnLogFormatVersion`
+> (`Source/RefactorTactics/Turn/RTTurnLog.h`) e [`../../technical/spec-turnlog.md`](../../technical/spec-turnlog.md).
+>
 > 📦 **Piano di esecuzione consegnato** — **riferimento storico, non normativo.**
 > Gli snippet di codice usano API rimosse al **CP 7.2** (`URTGridLibrary`, `FRTGridCoord`). La feature è viva: `URTTurnLogLibrary` è in `main`, con hash permutazione-invariante, serializzazione versionata e checksum.
 

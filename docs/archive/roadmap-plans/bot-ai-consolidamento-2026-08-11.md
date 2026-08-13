@@ -1,5 +1,10 @@
 # Referto — consolidamento Bot/AI, Team Planner, Belief e tracking
 
+> `HISTORICAL` · **Referto consumato** · **Data**: 2026-08-11
+> I suoi sorgenti sono archiviati in [`../../archive/src/handoff/`](../../archive/src/README.md), che lo
+> cita come «Recepito da». Il §21-§27 — sette release di roadmap bot — **non** e' stato applicato, ed e'
+> annotato nel documento stesso: il repository aveva quattro release pianificate, non sette.
+>
 > **Data**: 2026-08-11 · **Sorgenti**: [`…bot-ai-team-planner-belief-e-tracking.md`](../../archive/src/handoff/2026-08-11-bot-ai-team-planner-belief-e-tracking.md)
 > e [`…battle-simulation-harness-unificato-e-release-bot.md`](../../archive/src/handoff/2026-08-11-battle-simulation-harness-unificato-e-release-bot.md)
 > **Base verificata**: `main` @ `1f1dc24`, poi **rimisurata su `eb3cc42`** dopo che `main` si è mosso durante
@@ -94,12 +99,12 @@ prossimo handoff sul bot le riproporrà, e la risposta deve costare una riga.
 | L'handoff propone | Già scritto in |
 |---|---|
 | §3 — il bot produce Intent normali, il resolver resta autorità | [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §1 · `CLAUDE.md` §5 |
-| §4 — il bot non legge lo stato nascosto; difficoltà = più ragionamento, mai più informazione | [`roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) § E26, riquadro «Invariante di difficoltà» — con la ragione per cui è pubblicata, non interna |
+| §4 — il bot non legge lo stato nascosto; difficoltà = più ragionamento, mai più informazione | [`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) § E26, riquadro «Invariante di difficoltà» — con la ragione per cui è pubblicata, non interna |
 | §5.5 — NavMesh non è autorità del movimento | [ADR-0002](../../decisions/adr-0002-griglia-esagonale.md) · [`spec-pathfinding-pf3-pf4.md`](../../technical/spec-pathfinding-pf3-pf4.md) §1 |
 | §14 — niente `if (Character == Flux)` nello scoring | [ADR-0006](../../decisions/adr-0006-ownership-abilita-sinergie.md) (`D-029`) · [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §9 |
 | §15 — niente ordine di `TMap`/`TSet` come tie-break | `CLAUDE.md` §4 · [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §5, con il test `ChooseBestPlanOrderIndependent` |
 | §26 — Overwatch `FIRE`/`HOLD`, timeout = `HOLD` | `D-012` · [ADR-0004](../../decisions/adr-0004-finestre-di-reazione.md) · `CLAUDE.md` §2 |
-| §38 — niente look-ahead profondo/Monte Carlo in v0.1 | [`roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) § E28 (v0.3) |
+| §38 — niente look-ahead profondo/Monte Carlo in v0.1 | [`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) § E28 (v0.3) |
 | §40 — il trace privato non finisce al client avversario | `D-043` (privacy delle reazioni) · `E5.4` (#53, chiusa) |
 | §53.3 — canary sull'onniscienza | La premessa è già misurata e **negativa**: [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §6 dichiara che oggi il bot vede tutte le posizioni nemiche, ed è il lavoro di `E13.5` ([#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160)) |
 | §60 — non promuovere a `DONE` perché la spec è cresciuta | È il funzionamento del registry: `status` è derivato dai gate e il validator lo verifica |
@@ -198,7 +203,7 @@ avrebbero DoD che si riscrivono al primo profiling.
 
 Quando `RT-FEAT-BOT-TACTICAL` e `RT-FEAT-BOT-BELIEF` avranno un overlay, questi diventano voci di
 [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) e poi sedute in
-[`../editor-sessions.yaml`](../editor-sessions.yaml). Oggi sarebbero sedute bloccate da lavoro non iniziato.
+[`../../roadmap/editor-sessions.yaml`](../../roadmap/editor-sessions.yaml). Oggi sarebbero sedute bloccate da lavoro non iniziato.
 
 1. Leggibilità dell'overlay dei punteggi per cella sulla mappa esagonale.
 2. Leggibilità della confidenza di belief a 1080p — le quattro categorie devono distinguersi senza legenda.
@@ -383,7 +388,7 @@ release di gioco — senza confonderli. Il primo **non esiste nel repository**: 
 
 Non è stato creato: un asse di numerazione nuovo, senza owner e senza gate, sarebbe la terza vista di stato
 da tenere allineata a mano — ed è esattamente la gara che la Editor Map ha già perso una volta
-([`roadmap-editor.md`](../roadmap-editor.md), ritirata il 2026-08-08 perché *«tre tracker sincronizzati a
+([`roadmap-editor.md`](../../roadmap/roadmap-editor.md), ritirata il 2026-08-08 perché *«tre tracker sincronizzati a
 mano diventano tre verità diverse»*). Se servirà, nasce **generato**, come è rinata la Editor Map.
 
 Resta **aperto e non tracciato altrove che qui**, ed è una scelta: una domanda senza innesco osservabile non

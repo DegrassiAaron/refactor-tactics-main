@@ -81,7 +81,7 @@ d'arena a contare le **stesse** celle. `#620`–`#622` disegnano nella stessa sc
 
 ### 5. Map Sketch Editor — la serie geometria, `#619` → `#623`
 
-**Referto**: [`map-sketch-editor-spec-panel-2026-08-12.md`](map-sketch-editor-spec-panel-2026-08-12.md) ·
+**Referto**: [`map-sketch-editor-spec-panel-2026-08-12.md`](../../roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md) ·
 **Feature**: `RT-FEAT-TOOL-MAP-GEOMETRY` (nuova) e `RT-FEAT-TOOL-MAP-EDITOR`
 
 Nate il 2026-08-12 dal terzo prompt della famiglia map-editor. Le prime tre sono l'**anticipazione
@@ -98,7 +98,7 @@ dichiarata** della metà di authoring di E23.1 (v0.2): l'epic [`#324`](https://g
 
 ⚠️ **`#623` non è codice**: `L_DevSandbox.umap` è un `.umap`, e la navigazione del viewport la
 fornisce Unreal. Vive come seduta `U21` in `editor-sessions.yaml`, e il suo stato si legge nella
-[`editormap`](../editormap.shortlist.md) — non qui.
+[`editormap`](../../roadmap/editormap.shortlist.md) — non qui.
 
 **`#619` ha pagato il debito che aveva fermato i due prompt precedenti**: una geometria enumerabile
 in dodici settori non porta estremi in virgola mobile dentro l'hash che tiene fermo *replay

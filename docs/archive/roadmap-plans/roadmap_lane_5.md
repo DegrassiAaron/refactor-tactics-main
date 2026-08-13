@@ -108,7 +108,7 @@ voce. Se un giorno servirà rigenerare, prese insieme si rigenera **una volta so
 ## Il backlog di fondo: 32 gate `replay_representable: todo`
 
 Dal 2026-08-12 il Feature Registry ha il gate `replay_representable`
-([`../feature-registry.md`](../feature-registry.md) §4, regola 7). Distribuzione attuale:
+([`../../roadmap/feature-registry.md`](../../roadmap/feature-registry.md) §4, regola 7). Distribuzione attuale:
 **14 `done` · 32 `todo` · 45 `na`**.
 
 I 32 `todo` **non sono 32 issue**: sono le feature per cui nessuno ha ancora dimostrato che l'evento

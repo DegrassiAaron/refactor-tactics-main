@@ -1,5 +1,10 @@
 # Referto — Reconciliation di roadmap e tracking v0.1 (2026-08-12)
 
+> `SNAPSHOT` · **Data**: 2026-08-12
+> **Cosa e'**: una riconciliazione **parziale**, non un audit completo — lo dichiara la riga sotto, e
+> `meta.last_full_audit` del Feature Registry resta a quella precedente.
+> **Cosa non e'**: una fonte di stato. I numeri qui sono la fotografia di una data e invecchiano da soli.
+>
 > **Partial reconciliation**, non full audit. `meta.last_full_audit` del Feature Registry **resta al
 > 2026-08-08 / `2094b86`**: questo lavoro ha corretto contraddizioni misurate, non ha riconfrontato
 > `Source/` · `Tests/` · `Scenarios/` · `docs/` · Wiki riga per riga.

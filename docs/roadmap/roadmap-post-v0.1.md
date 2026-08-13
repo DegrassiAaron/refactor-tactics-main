@@ -536,7 +536,7 @@ si guarda alla revisione dei numeri di ADR-0008) · i fatti del percorso (`AE-3`
 bilanciamento, che [`balance/README.md`](../balance/README.md) vieta di correggere cella per cella.
 
 Referto d'origine:
-[`plans/action-economy-consolidamento-2026-08-12.md`](plans/action-economy-consolidamento-2026-08-12.md).
+[`plans/action-economy-consolidamento-2026-08-12.md`](../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md).
 Owner della regola: [`../gameplay/spec-economia-del-turno.md`](../gameplay/spec-economia-del-turno.md).
 Feature Registry: `RT-FEAT-ACTION-BUDGET` · `RT-FEAT-ACTION-MOVEMENT-COMPAT` ·
 `RT-FEAT-ACTION-PLAN-VALIDATION`.
@@ -605,9 +605,9 @@ asset: si progetta in `39.3` con compatibilità e validator, non si improvvisa.
 ramo del motore irraggiungibile dal roster resta tale in qualunque release.
 
 Referto d'origine:
-[`plans/spatial-transfer-epic-2026-08-12.md`](plans/spatial-transfer-epic-2026-08-12.md), che consolida il
+[`plans/spatial-transfer-epic-2026-08-12.md`](../archive/roadmap-plans/spatial-transfer-epic-2026-08-12.md), che consolida il
 secondo handoff della giornata; il primo è
-[`plans/teleport-instant-movement-2026-08-12.md`](plans/teleport-instant-movement-2026-08-12.md).
+[`plans/teleport-instant-movement-2026-08-12.md`](../archive/roadmap-plans/teleport-instant-movement-2026-08-12.md).
 Owner della regola: [`../gameplay/spec-tassonomia-movimento.md`](../gameplay/spec-tassonomia-movimento.md).
 Feature Registry: `RT-FEAT-ACTION-SPATIAL-TRANSFER`.
 

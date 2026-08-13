@@ -10,7 +10,7 @@
 > [`../../gameplay/spec-tassonomia-movimento.md`](../../gameplay/spec-tassonomia-movimento.md); le decisioni
 > in [D-118](../../decisions/RT_PDR_00_Decision_Log.md) e
 > [D-119](../../decisions/RT_PDR_00_Decision_Log.md); il piano in
-> [`../roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) § E39.
+> [`../../roadmap/roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) § E39.
 >
 > **È il secondo handoff sul trasferimento nella stessa giornata.** Il primo —
 > [`teleport-instant-movement-2026-08-12.md`](teleport-instant-movement-2026-08-12.md) — ha chiuso con due

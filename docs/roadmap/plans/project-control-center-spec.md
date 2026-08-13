@@ -1,5 +1,10 @@
 # Spec — Project Control Center: la dashboard è una UI, non una sesta verità
 
+> `CURRENT` · **Spec viva** · **Data**: 2026-08-10
+> `RT-FEAT-TOOL-CONTROL-CENTER` e' **`IMPLEMENTING`** nel Feature Registry: questa spec descrive lavoro
+> in corso, non un ricordo. ⚠️ Il vincolo che porta resta in vigore — la dashboard e' una **UI sopra gli
+> artefatti generati**, non una sesta verita': nessun dato nasce li'.
+>
 > **Stato**: Bozza in revisione (design) · **Data**: 2026-08-10 · **Branch**: `docs/consolidamento-roadmap`
 > **Esito di**: `/sc:spec-panel --mode critique` — panel Wiegers · Cockburn · Adzic · Fowler · Newman · Nygard · Crispin
 > **Fonte**: [`../../src/RefactorTactics_Project_Control_Center_Claude.md`](../../src/RefactorTactics_Project_Control_Center_Claude.md), handoff dell'autore
@@ -179,7 +184,7 @@ La fonte (§9) propone `editor_tasks:` dentro `feature-registry.yaml`, con `task
 `related_features`, `blocked_by_issues`, `instructions`, `evidence`.
 
 **Questa decisione è stata presa il 2026-08-10 e va nell'altra direzione**
-([`editormap-spec.md`](editormap-spec.md) §8, decisione **D-A**): file dati dedicato
+([`editormap-spec.md`](../../archive/roadmap-plans/editormap-spec.md) §8, decisione **D-A**): file dati dedicato
 `docs/roadmap/editor-sessions.yaml`, perché allargare il registry gli farebbe portare una responsabilità che
 non è la sua. L'implementazione è in `main` (issue #371, PR #373).
 

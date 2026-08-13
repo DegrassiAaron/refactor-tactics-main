@@ -7,7 +7,7 @@
 > nuovo) · [`../../../decisions/RT_PDR_00_Decision_Log.md`](../../../decisions/RT_PDR_00_Decision_Log.md)
 > `D-095`–`D-099` · [`../../../roadmap/feature-registry.yaml`](../../../roadmap/feature-registry.yaml) ·
 > referto di consolidamento
-> [`../../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md`](../../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md).
+> [`../../roadmap-plans/bot-ai-consolidamento-2026-08-11.md`](../../roadmap-plans/bot-ai-consolidamento-2026-08-11.md).
 >
 > ⚠️ **Il §42 elenca undici `RT-FEAT-BOT-*` come «stato noto da verificare». Nove non esistono, e non sono
 > mai esistiti.** Il registry ne aveva **due** — `RT-FEAT-BOT-BASE` e `RT-FEAT-BOT-TACTICAL` — e il documento
