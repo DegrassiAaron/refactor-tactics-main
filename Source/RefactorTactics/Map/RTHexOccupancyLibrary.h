@@ -108,8 +108,12 @@ struct FRTOccupancyMask
  * (chiusa, non lo contiene).
  *
  * ⚠️ **Quali polilinee siano LEGALI non si decide qui**: la grammatica quantizzata delle direttrici e' di
- * #620. Questa e' solo la forma che entra, dichiarata adesso perche' altrimenti il primo commit inventa un
- * tipo che #620 dovra' cambiare.
+ * `#620`, ed e' arrivata — `FRTGeometrySegment` in `RTGeometryGrammar.h`.
+ *
+ * 🔑 **E questo tipo NON e' l'authority** (`D-127`): e' il DERIVATO di calcolo. L'authority e' discreta —
+ * un enum e tre interi — e questa polilinea si ottiene da li' con
+ * `URTGeometryGrammarLibrary::ToPolyline`. Il float che vive in `Points` esiste per DISEGNARE, non per
+ * decidere: nessun estremo in virgola mobile entra in cio' che si serializza e si hasha.
  */
 USTRUCT(BlueprintType)
 struct FRTOccupancyPolyline
