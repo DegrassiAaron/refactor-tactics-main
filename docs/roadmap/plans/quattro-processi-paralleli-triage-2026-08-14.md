@@ -239,18 +239,27 @@ fondono. Un conflitto binario non è un conflitto di merge da risolvere — è u
 **rifare a mano dentro Unreal**. La lease non previene un conflitto: previene un lavoro perso.
 
 🔴 **E la §13 ha ragione anche sul dettaglio che sembra pedante — misurato su questo repository.** Chiede di
-verificare i *package correlati* prima di emettere una lease su un `.umap`. Le tre mappe del progetto non
-sono tre file: sono tre **cartelle da due package**, e la mappa referenzia il proprio data asset.
+verificare i *package correlati* prima di emettere una lease su un `.umap`. Una mappa non è un file: è una
+**cartella**, e quante cose contenga non si deduce dal nome.
 
 ```text
-Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
-Content/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset
+git ls-files "Content/RT/Maps/Dev/L_DevSandbox/"
+    Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
+    Content/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset   ← 2 package
+    ...
+    Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset       ← 2 package
+    Content/RT/Maps/Dev/L_Prototype/L_Prototype.umap                 ← 1 package, e basta
 ```
 
-Una lease scritta sul solo `.umap` è **incompleta per costruzione**, e lo sarebbe stata anche seguendo alla
-lettera l'esempio della §12, che il path lo scrive piatto — `Content/RT/Maps/Dev/L_DevSandbox.umap`, che nel
-repository **non esiste**. La regola operativa che ne esce è di una riga: *una lease su una mappa si emette
-sulla **cartella**, non sul file*.
+⚠️ **Due delle tre ne hanno un secondo, la terza no**, ed è precisamente ciò che rende la regola necessaria
+invece che decorativa: se il numero fosse uniforme si potrebbe scriverlo nella lease una volta e non
+guardare più. La prima stesura di questo triage aveva generalizzato a *«tre cartelle da due package»*
+guardandone **due su tre** — lo stesso difetto di metodo che il §5 rimprovera al sorgente, commesso qui.
+
+Una lease scritta sul solo `.umap` resta **incompleta per costruzione** dove il secondo package esiste, e lo
+sarebbe stata anche seguendo alla lettera l'esempio della §12, che il path lo scrive piatto —
+`Content/RT/Maps/Dev/L_DevSandbox.umap`, che nel repository **non esiste**. La regola operativa che ne esce è
+di una riga, e vale in entrambi i casi: *una lease su una mappa si emette sulla **cartella**, non sul file*.
 
 ### 7.3 Audit dei namespace monotoni (§16, §18, §19, §47)
 

@@ -309,8 +309,10 @@ binary_leases:
 - La lease vale sul `base_sha`: se `main` tocca lo stesso asset, la lease è **stale** e va riemessa.
 - `create` prenota una **destinazione**: due track non possono creare lo stesso path.
 
-⚠️ **Una lease su una mappa si emette sulla cartella, non sul file.** Le tre mappe del progetto sono
-cartelle da due package — la `.umap` e il proprio `Data/DA_HexMap_*.uasset`, che la mappa referenzia:
+⚠️ **Una lease su una mappa si emette sulla cartella, non sul file.** Una mappa non è un file: è una
+cartella, e quanti package contenga **non si deduce dal nome**. Delle tre mappe del progetto, due portano
+anche il proprio `Data/DA_HexMap_*.uasset` — che la mappa referenzia — e `L_Prototype` no. Si misura, una
+per una:
 
 ```powershell
 git ls-files "Content/RT/Maps/Dev/L_DevSandbox/"
