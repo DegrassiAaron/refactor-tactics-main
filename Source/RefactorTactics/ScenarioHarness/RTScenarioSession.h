@@ -53,6 +53,19 @@ public:
 	/** Vero quando non c'e' piu' niente da fare: assertion valutate ed esito definitivo. */
 	bool IsFinished() const { return State == EState::Finished; }
 
+	/**
+	 * Questo nome di capability esiste nel vocabolario — disponibile o no?
+	 *
+	 * Esposto perche' un refuso va colto **senza eseguire lo scenario**. Eseguendolo si vede solo il primo
+	 * turno che il runner raggiunge: `RT_Showcase_Relay_v01` chiedeva `Facing` al turno 4 e nessuno se n'e'
+	 * accorto per mesi, perche' bastava un turno precedente `Blocked` a fermare la corsa prima. Il controllo
+	 * statico non ha quel punto cieco — `RefactorTactics.Scenario.ShippedScenariosRequireKnownCapabilities`.
+	 *
+	 * ⚠️ Un `false` NON e' un'attesa: e' un errore di scrittura dello scenario. Chi lo chiama tratti i due
+	 * casi in modo diverso, o rimette insieme cio' che questa funzione serve a separare.
+	 */
+	static bool IsKnownCapability(const FString& Capability);
+
 	const FRTTestResult& GetResult() const { return Result; }
 
 	/** Turno corrente (1-based) mentre gira, per la diagnostica a schermo. 0 = non ancora partito. */

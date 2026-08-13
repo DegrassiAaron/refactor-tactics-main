@@ -27,7 +27,7 @@
     },
     {
       "_turno": "T2 — la finestra. Vektor arma l'Overwatch sul varco; Flux entra (HOLD), poi Riva entra (FIRE). Serve la sospensione della risoluzione a un decision boundary, e il facing che definisce il cono.",
-      "requires": ["DecisionBoundary", "Facing"],
+      "requires": ["DecisionBoundary", "DeclaredRotation"],
       "intents": []
     }
   ],

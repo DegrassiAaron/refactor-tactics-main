@@ -23,7 +23,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 | Scenario `BLOCKED` | Capability che manca |
 |---|---|
-| `RT_Showcase_Relay_v01` | `DecisionBoundary` · `Facing` · `InterceptRevalidation` · `Objective` |
+| `RT_Showcase_Relay_v01` | `DecisionBoundary` · `InterceptRevalidation` · `Objective` |
 | `Spec.Brace.ProfileChangesResponse` | `DecisionBoundary` |
 | `Spec.Clash.ReadBeatsStand` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.ShiftBeatsRead` | `DecisionBoundary` · `ReactionClash` |
@@ -33,7 +33,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.Movement.TeleportSkipsIntermediateCells` | `Teleport` |
 | `Spec.Movement.TripwireOnCrossEdge` | `SpatialTrigger` · `Teleport` |
 | `Spec.Objective.PointSurvivesKO` | `Objective` |
-| `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` · `Facing` |
+| `Spec.Overwatch.HoldThenFire` | `DecisionBoundary` |
 | `Spec.Perception.HeardNotSeen` | `Perception` |
 
 | Pianificato, non scritto | Feature che lo chiede |
