@@ -655,33 +655,32 @@ def status_block(entry):
 
 
 def render_execution_mermaid(execution, nodes, label):
-    """L'execution graph come diagramma Mermaid, in una pagina del REPOSITORY.
+    """L'execution graph come diagramma Mermaid, dentro la pagina Wiki che GitHub rende.
 
-    ⚠️ Non nella Wiki, e la ragione e' misurata: **GitHub non renderizza Mermaid nelle pagine
-    Wiki**. Un blocco ```mermaid``` li' esce come «Unable to render rich display» seguito dal
-    codice sorgente — verificato sulla pagina pubblicata prima con il diagramma intero, poi senza
-    monconi, poi con etichette prive di `#`, emoji e `<br/>`, e infine con **tre nodi e un arco**:
-    fallisce sempre, quindi non e' il contenuto. Nei file del repository lo stesso costrutto rende
-    (`roadmap-v0.1.md` ha due diagrammi da sempre).
+    Il Control Center disegna un SVG proprio, ma vive in locale. Qui serve una figura che stia in
+    una pagina markdown senza binari da committare: la stessa scelta che `roadmap-v0.1.md` ha gia'
+    fatto per il grafo delle epic.
 
-    La pagina Wiki quindi **linka** questa, invece di provare a contenerla.
-
-    Il Control Center disegna un SVG proprio, ma vive in locale. Qui serve una figura che stia
-    dentro una pagina markdown senza binari da committare e senza un generatore di immagini: la
-    stessa scelta che `roadmap-v0.1.md` ha gia' fatto per il grafo delle epic.
+    ⚠️ **Non fidarti di un headless anonimo per dire se rende.** Chrome headless senza sessione
+    mostra «Unable to render rich display» su qualunque diagramma — anche su `A[uno] --> B[due]`,
+    66 byte — perche' non esegue il rendering client-side di GitHub. Su quella misura ho creduto
+    rotta una figura che si e' sempre vista, ho semplificato tre volte le etichette e ho spostato
+    l'intera pagina nel repository per rimediare a un difetto che non esisteva. La verifica valida
+    e' un browser vero.
 
     Tre cose che il diagramma deve dire, e come le dice:
 
-    - **le corsie**: un `subgraph` per lane, cosi' si vede subito cosa aspetta una persona;
+    - **le corsie**: la lane si legge dalla FORMA del nodo. Un `subgraph` per lane sembrava la
+      scelta ovvia e non lo era: Mermaid dispone i blocchi dove vuole, e nella prima stesura `PIE`
+      finiva a sinistra, `CODE` al centro e `ASSET` a destra, con gli archi di evidenza a
+      traversare tutta la figura;
     - **il tipo di legame**: freccia piena per una dipendenza dura, tratteggiata per l'ordine
-      consigliato e la navigazione. Un `follows` che sembrasse un blocco sarebbe la stessa bugia
-      che il modello esiste per evitare;
-    - **i lati liberi**: un cerchietto vuoto attaccato al nodo. In una figura completa non c'e'
-      il rischio di leggere «tagliata» al posto di «finita», ma il moncone dice a colpo d'occhio
-      **dove si comincia** (nessun ingresso) e **dove si esaurisce una catena** (nessuna uscita),
-      che sono le due domande a cui una mappa di dipendenze serve.
+      consigliato e la navigazione. Un `follows` che sembrasse un blocco sarebbe la bugia che il
+      modello esiste per evitare;
+    - **i lati liberi**: un cerchietto attaccato al nodo — dove si comincia (nessun ingresso) e
+      dove una catena si esaurisce (nessuna uscita).
 
-    Gli id Mermaid non possono contenere `#` o `:`: si normalizzano, e l'etichetta resta leggibile.
+    Gli id Mermaid non ammettono `#` o `:`: si normalizzano, e l'etichetta resta leggibile.
     """
     ident = lambda nid: re.sub(r"[^A-Za-z0-9]", "_", str(nid))
     edges = execution.get("edges") or []
@@ -701,21 +700,18 @@ def render_execution_mermaid(execution, nodes, label):
     for node in execution.get("nodes") or []:
         nid = ident(node["id"])
         open_b, close_b = shape.get(node.get("execution_lane"), ("[", "]"))
-        # ⚠️ L'etichetta e' deliberatamente povera, e ogni assenza costa una prova.
+        # Il glifo di stato precede l'etichetta solo quando esiste, o il nodo nasce con uno spazio
+        # davanti al `#` — visibile nella figura resa.
         #
-        # Il renderer di Mermaid che GitHub esegue lato client e' piu' severo di quello che si
-        # carica da CDN: la prima stesura usava `"✅ #164<br/>DONE"` e rendeva in locale con
-        # **quattro** configurazioni diverse (v10 e v11, `securityLevel` strict, `htmlLabels`
-        # false) mentre sulla pagina pubblicata compariva «Unable to render rich display» e il
-        # codice grezzo. Tre costrutti sono usciti dalle etichette, uno per volta:
-        #   `#`        e' il prefisso delle entita' di Mermaid (`#35;`), non un carattere
-        #   emoji      il glifo di stato vive nella tabella sotto, dove nessun parser lo tocca
-        #   `<br/>`    un separatore HTML dentro una label
-        # Resta `164 READY`: due parole e uno spazio. La stessa forma che il diagramma delle epic
-        # di `roadmap-v0.1.md` usa da sempre — ed e' l'unico mermaid del repository che GitHub
-        # ha sempre reso.
-        head = str(label(node["id"])).lstrip("#").strip("`")
-        lines.append(f'  {nid}{open_b}"{head} {node.get("readiness")}"{close_b}')
+        # ⚠️ Fra il 2026-08-13 e la correzione, questa riga e' stata impoverita a `164 READY` —
+        # niente glifo, niente `#`, niente `<br/>` — inseguendo un difetto che **non esisteva**:
+        # Chrome headless anonimo mostra «Unable to render rich display» su qualunque Mermaid,
+        # anche su `A[uno] --> B[due]`, perche' non esegue il rendering client-side di GitHub. Su
+        # un browser vero il diagramma si e' sempre visto. Le tre semplificazioni non hanno mai
+        # corretto niente, e la lezione sta nel commit: prima di semplificare, prova lo strumento
+        # di misura su un caso che sai buono.
+        head = " ".join(x for x in (node.get("state"), label(node["id"])) if x)
+        lines.append(f'  {nid}{open_b}"{head}<br/>{node.get("readiness")}"{close_b}')
         # Il moncone: un cerchio con dentro un punto. Un nodo `(( ))` vuoto rende un pallino di
         # pochi pixel che alla scala della pagina sparisce, e un lato libero invisibile e' un lato
         # libero non detto.
@@ -965,15 +961,10 @@ def render_control_center_page(data, graph):
                 return f"`{str(nid).split(':', 1)[1]}`"
             node = nodes.get(nid) or {}
             return f"#{node['ref']}" if node.get("kind") == "issue" else node.get("ref") or nid
+        out += render_execution_mermaid(execution, nodes, label)
         out += [
             "",
-            "> 🖼 **Il diagramma** delle stesse dipendenze sta in "
-            "[`docs/roadmap/execution-map.md`]"
-            "(https://github.com/DegrassiAaron/refactor-tactics-main/blob/main/docs/roadmap/execution-map.md), "
-            "nel repository: GitHub rende Mermaid nei file versionati ma **non nelle pagine Wiki**, "
-            "dove uscirebbe come codice sorgente.",
-            "",
-            "### Le dipendenze, in tabella",
+            "### Le stesse dipendenze, in tabella",
             "",
             "| Nodo | Lane | Dominio | Readiness | Dipende da | Abilita |",
             "|---|:--:|---|:--:|---|---|",
@@ -3458,19 +3449,6 @@ def build_graph(registry):
     }
 
 
-def apply_execution_map(check=False):
-    """`docs/roadmap/execution-map.md`, scritta per intero e non a blocchi.
-
-    A differenza delle shortlist non ha una colonna umana da preservare: e' una figura, e ogni
-    riga viene dal grafo. Assente l'execution graph, la pagina non si scrive: un file che dice
-    «nessun dato» sarebbe una pagina da mantenere per niente.
-    """
-    content = render_execution_map_page(build_graph(load_registry()))
-    if content is None:
-        return []
-    return [os.path.relpath(EXECUTION_MAP_PAGE, REPO).replace("\\", "/")]         if write_if_needed(EXECUTION_MAP_PAGE, content, check) else []
-
-
 def apply_shortlist(data, check=False):
     """Riscrive i blocchi marcati nelle cinque shortlist. Fuori dai marcatori non tocca nulla."""
     renderers = {
@@ -3647,7 +3625,6 @@ def main():
 
     if args.command == "shortlist":
         changed, missing = apply_shortlist(data, args.check)
-        changed += apply_execution_map(args.check)
         for note in missing:
             print(f"WARN  {note}")
         if args.check and changed:
