@@ -37,8 +37,9 @@ esattamente ciò che questo referto misura.
 | **PR #688** aperta | **`MERGED`** il 2026-08-12T18:13:55Z |
 | **PR #694** aperta, *stacked* su #688 | **`CLOSED`** |
 
-L'unica PR concorrente reale al momento di questo lavoro era la **#718**, che il sorgente non poteva
-nominare. Una lista di PR si **ri-elenca**, non si rilegge dall'handoff.
+L'unica PR concorrente reale era la **#718**, che il sorgente non poteva nominare — ed è stata **mergiata
+mentre questo lavoro era in corso** (vedi §6). Una lista di PR si **ri-elenca**, non si rilegge
+dall'handoff: la sua è datata, e la concorrente vera può non esserci.
 
 ## 2. Cosa era stato prescritto e non eseguito
 
@@ -164,7 +165,7 @@ scomposizione dichiarata da `#219` — 4 fasi · 9 azioni · 11 status · 3 cert
 | decidere `FMT-1` | `#687` scrive *«la scelta ha implicazioni sul formato e va fatta da chi lo possiede»*, e resta vero |
 | ribilanciare `Brace` | invariato dalla prima passata: decide `BAL-1` (`#403`), applica `#404` |
 | aggiornare `meta.last_full_audit` | non è stato fatto un full audit — vedi il banner in testa |
-| toccare i file della PR **#718** | unica PR aperta durante il lavoro; nessun file delle sue aree è stato modificato |
+| toccare i file della PR **#718** | unica PR concorrente; nessun file delle sue aree è stato modificato, e infatti il merge non ha dato conflitti |
 | creare un secondo archivio del sorgente | è già in `docs/archive/src/handoff/` dal 2026-08-12: la copia in radice era un **duplicato**, non un documento nuovo |
 
 ## 6. Numeri
@@ -175,8 +176,25 @@ scomposizione dichiarata da `#219` — 4 fasi · 9 azioni · 11 status · 3 cert
 | checkbox divergenti | 7 *(non cercate)* | **0** | idem |
 | voci in `OPEN_DECISIONS.md` | — | **+4** (`FMT-1`, `FMT-2`, `FX-1`, `GEN-1`) | — |
 | piani orfani fra i documenti citati | 1 (`mappe-generate-o-dipinte`) | **0** | `grep -rl` |
-| link relativi controllati | 3091 | **3094** | `check-docs-links.py` |
+| link relativi controllati | 3091 su 308 file | **3142 su 315 file** | `check-docs-links.py` |
+| `feature_id` nel registry | 105 | **105** | `grep -c "^  - feature_id:"` |
 | `validate` | 0 errori · 34 warning | **0 errori · 34 warning** | `feature_registry.py validate` |
+| pagine Wiki da aggiornare | — | **0** | `deploy --wiki-root <clone>` |
+
+> ⚠️ **Il conteggio dei link è salito due volte, e la prima volta non per merito del contenuto.** Prima dello
+> `stage` il checker leggeva **3091 link su 308 file**: il referto appena scritto era **untracked**, e
+> `check-docs-links.py` guarda i file **versionati**. Un documento nuovo non è controllato finché non entra
+> nell'indice — quindi la misura che conta si fa **a commit fatto**, non a file salvato. Dopo lo stage: 3094
+> su 309.
+>
+> 🔴 **E la seconda volta è stato un merge.** La **PR #718** (hex geometry) è stata aperta e **mergiata mentre
+> questo lavoro era in corso**, portando sei documenti nuovi: il valore vero sull'albero unito è **3142 su
+> 315**. È la stessa lezione che il referto del 2026-08-12 aveva già scritto nel suo §6-bis, ripresentatasi
+> alla prima occasione — un numero misurato prima del merge è corretto sulla propria base e falso dopo
+> l'unione. **Rimisurati anche gli altri**: `feature_id` resta **105** (le 36 righe che #718 tocca in
+> `feature-registry.yaml` sono modifiche, non aggiunte) e `validate` resta **0 errori · 34 warning**. I
+> generati non hanno dato conflitto e `generate --check` / `shortlist --check` li dichiarano allineati
+> sull'albero unito — verificato, non dedotto dall'assenza di conflitto.
 
 ## 7. Next action
 
