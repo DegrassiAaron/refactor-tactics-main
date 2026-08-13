@@ -16,7 +16,7 @@ a ogni generazione ([D-106](../decisions/RT_PDR_00_Decision_Log.md)). Gli SVG in
 cooldown li rende **rossi** finché non vengono rigenerati.
 
 ```sh
-node tools/radar/generate.ts           # riscrive i quattro SVG
+node tools/radar/generate.ts           # riscrive gli otto SVG (Profile e Balance per quattro eroi)
 node tools/radar/generate.ts --check   # verifica, exit 1 se divergono
 ```
 

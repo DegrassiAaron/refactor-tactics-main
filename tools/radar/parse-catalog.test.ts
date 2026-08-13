@@ -6,19 +6,19 @@ import { parseHeroCatalog, readCatalogs } from './parse-catalog.ts';
 const HERO_CATALOG = new URL('../../docs/balance/RT_HeroCatalog_v0.1.md', import.meta.url);
 const ACTION_CATALOG = new URL('../../docs/balance/RT_ActionCatalog_v0.1.md', import.meta.url);
 
-test('legge le quattro statistiche di Flux dal catalogo', () => {
+test('legge le quattro statistiche di Gadget dal catalogo', () => {
   const heroes = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG);
-  const flux = heroes.find((h) => h.name === 'Flux');
+  const flux = heroes.find((h) => h.name === 'Gadget');
 
-  assert.ok(flux, 'Flux deve esistere nel catalogo');
+  assert.ok(flux, 'Gadget deve esistere nel catalogo');
   assert.equal(flux.health, 90);
   assert.equal(flux.movePoints, 5);
   assert.equal(flux.visionRange, 7);
   assert.equal(flux.pushResistance, 0);
 });
 
-test('legge le abilita di Flux con danno e cooldown', () => {
-  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Flux')!;
+test('legge le abilita di Gadget con danno e cooldown', () => {
+  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Gadget')!;
 
   assert.equal(flux.abilities.length, 5);
 
@@ -33,7 +33,10 @@ test('legge i quattro eroi del roster e le loro venti abilita', () => {
 
   assert.deepEqual(
     heroes.map((h) => h.name).sort(),
-    ['Bastion', 'Flux', 'Riva', 'Vektor'],
+    // Ordinata: il confronto e' su `.sort()`. La lista era alfabetica sui nomi VECCHI
+    // (`Bastion, Flux, Riva, Vektor`) e la rinomina di D-120 non la riordina — e' il caso in cui una
+    // sostituzione meccanica produce un letterale corretto nei nomi e sbagliato nell'ordine.
+    ['Gadget', 'Phase', 'Riktor', 'Wraith'],
   );
   assert.equal(
     heroes.reduce((n, h) => n + h.abilities.length, 0),
@@ -47,14 +50,14 @@ test('una statistica rinominata fa fallire il parser nominando il campo', () => 
   writeFileSync(tmp, rotto);
 
   try {
-    assert.throws(() => parseHeroCatalog(tmp, ACTION_CATALOG), /Bastion.*"Salute" assente/);
+    assert.throws(() => parseHeroCatalog(tmp, ACTION_CATALOG), /Riktor.*"Salute" assente/);
   } finally {
     rmSync(tmp);
   }
 });
 
 test('risolve il rinvio `e Action.X` sul catalogo azioni (D-115)', () => {
-  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Flux')!;
+  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Gadget')!;
   const node = flux.abilities.find((a) => a.id === 'Flux.ConductiveNode')!;
 
   // Il catalogo eroi non porta il numero: viene da `Action.Electrify` (20 danni).
@@ -69,14 +72,14 @@ test('la copertura e dichiarata, e un eroe in meno la fa fallire', () => {
 
   // Un eroe che sparisce non deve produrre un risultato piu' corto in silenzio. Il filtro delle
   // sezioni eroe guarda l'intestazione della tabella, non il titolo: e' quella che va rotta perche'
-  // Bastion diventi invisibile al parser.
+  // Riktor diventi invisibile al parser.
   // Il catalogo e' salvato con CRLF: la sostituzione non puo' assumere `\n`.
-  const senzaBastion = readFileSync(HERO_CATALOG, 'utf8').replace(
+  const senzaRiktor = readFileSync(HERO_CATALOG, 'utf8').replace(
     /\| Statistica \| Valore \|(\r?\n\|---\|---:\|\r?\n\| Salute \| 120 \|)/,
     '| Attributo | Valore |$1',
   );
   const tmp = new URL('./catalogo-corto.tmp.md', import.meta.url);
-  writeFileSync(tmp, senzaBastion);
+  writeFileSync(tmp, senzaRiktor);
 
   try {
     assert.throws(
@@ -91,7 +94,7 @@ test('la copertura e dichiarata, e un eroe in meno la fa fallire', () => {
 test('anche un abilita persa fa fallire la copertura, non solo un eroe', () => {
   // Una nota in coda alla cella dell'id rende la riga invisibile al parser — e' la forma che
   // `Action.Sprint` usa gia' nel catalogo azioni, quindi non e' un caso inventato. Senza un
-  // atteso sulle abilita', Flux ne perderebbe una e il roster resterebbe di quattro.
+  // atteso sulle abilita', Gadget ne perderebbe una e il roster resterebbe di quattro.
   const conNota = readFileSync(HERO_CATALOG, 'utf8').replace(
     '| `Flux.Overload` |',
     '| `Flux.Overload` *(vedi §7)* |',
@@ -123,7 +126,7 @@ test('citare un Action.X senza `e` NON delega: si tengono i numeri inline', () =
 
   try {
     const arcPulse = parseHeroCatalog(tmp, ACTION_CATALOG)
-      .find((h) => h.name === 'Flux')!
+      .find((h) => h.name === 'Gadget')!
       .abilities.find((a) => a.id === 'Flux.ArcPulse')!;
 
     assert.equal(arcPulse.delegatesTo, null, 'citare non e delegare');
@@ -135,7 +138,7 @@ test('citare un Action.X senza `e` NON delega: si tengono i numeri inline', () =
 
 test('la tabella reazioni si unisce all abilita, senza duplicarla', () => {
   const heroes = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG);
-  const flux = heroes.find((h) => h.name === 'Flux')!;
+  const flux = heroes.find((h) => h.name === 'Gadget')!;
 
   // `ReactiveCapacitor` e' dichiarato DUE volte: tabella reazioni e tabella abilita'. Deve restare
   // una sola voce, con i dati uniti — non due abilita' omonime.
@@ -151,7 +154,7 @@ test('la tabella reazioni si unisce all abilita, senza duplicarla', () => {
 });
 
 test('una reazione rinviata a E14 dichiara status deferred e nessuna semantica core', () => {
-  const vektor = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Vektor')!;
+  const vektor = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Wraith')!;
   const intercept = vektor.abilities.find((a) => a.id === 'Vektor.InterceptShot')!;
 
   assert.equal(intercept.reaction?.status, 'deferred');
@@ -161,12 +164,12 @@ test('una reazione rinviata a E14 dichiara status deferred e nessuna semantica c
 });
 
 test('un abilita che non e una reazione ha reaction null', () => {
-  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Flux')!;
+  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Gadget')!;
   assert.equal(flux.abilities.find((a) => a.id === 'Flux.ArcPulse')!.reaction, null);
 });
 
 test('il bonus condizionale esce come numero, separato dal danno garantito', () => {
-  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Flux')!;
+  const flux = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Gadget')!;
 
   // `24 danni, **+8 su bersaglio Wet**` -> garantito 24, condizionale 8.
   const linear = flux.abilities.find((a) => a.id === 'Flux.LinearDischarge')!;

@@ -8,32 +8,32 @@ import { renderRadar, renderCompare, PROFILE_AXES, BALANCE_AXES } from './svg.ts
 
 const HERO = new URL('../../docs/balance/RT_HeroCatalog_v0.1.md', import.meta.url);
 const ACTION = new URL('../../docs/balance/RT_ActionCatalog_v0.1.md', import.meta.url);
-const flux = () => parseHeroCatalog(HERO, ACTION).find((h) => h.name === 'Flux')!;
+const flux = () => parseHeroCatalog(HERO, ACTION).find((h) => h.name === 'Gadget')!;
 
 test('le coordinate hanno decimali fissi: sin/cos non lasciano code variabili', () => {
-  const svg = renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
+  const svg = renderRadar('Gadget', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
   for (const n of svg.match(/-?\d+\.\d+/g) ?? []) {
     assert.match(n, /^-?\d+\.\d{2}$/, `coordinata con decimali non fissi: ${n}`);
   }
 });
 
 test('la generazione e deterministica: stesso input, stesso byte', () => {
-  const a = renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
-  const b = renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
+  const a = renderRadar('Gadget', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
+  const b = renderRadar('Gadget', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
   assert.equal(createHash('sha256').update(a).digest('hex'), createHash('sha256').update(b).digest('hex'));
 });
 
 test('i valori sono leggibili anche testualmente, non solo come forma', () => {
-  const svg = renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
-  assert.match(svg, /<title id="t">Flux/); // id richiesto da aria-labelledby
+  const svg = renderRadar('Gadget', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
+  assert.match(svg, /<title id="t">Gadget/); // id richiesto da aria-labelledby
   for (const axis of PROFILE_AXES) assert.ok(svg.includes(axis.label), `manca l'etichetta ${axis.label}`);
-  // information 7 e' il tratto di Flux: deve comparire come testo, non solo come vertice.
+  // information 7 e' il tratto di Gadget: deve comparire come testo, non solo come vertice.
   assert.match(svg, /Informazione[^<]*<\/text>\s*<text[^>]*>7</);
 });
 
 test('un asse TBD fa fallire la generazione nominando eroe e asse', () => {
   const rotti = { ...profileAxes(flux()), control: undefined as unknown as number };
-  assert.throws(() => renderRadar('Flux', 'Controller', PROFILE_AXES, rotti, 'Profile'), /Flux.*control/);
+  assert.throws(() => renderRadar('Gadget', 'Controller', PROFILE_AXES, rotti, 'Profile'), /Gadget.*control/);
 });
 
 test('l ordine dei raggi e normativo e non cambia', () => {
@@ -47,10 +47,10 @@ test('l SVG dichiara una dimensione propria, non solo una proporzione', () => {
   // Senza width/height la misura la decide il contenitore: sulla Wiki lo stesso radar veniva reso
   // 896x896 da solo e 47x47 dentro una tabella, dove le etichette diventano illeggibili.
   for (const svg of [
-    renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile'),
+    renderRadar('Gadget', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile'),
     renderCompare(
-      { name: 'Flux', values: profileAxes(flux()) },
-      { name: 'Riva', values: profileAxes(flux()) },
+      { name: 'Gadget', values: profileAxes(flux()) },
+      { name: 'Phase', values: profileAxes(flux()) },
       PROFILE_AXES,
     ),
   ]) {
@@ -64,10 +64,10 @@ test('l SVG dichiara una dimensione propria, non solo una proporzione', () => {
 
 test('il titolo dichiara la vista: un Balance non si annuncia come Profile', () => {
   const values = { ...balanceAxes(flux()) };
-  const profile = renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
-  const balance = renderRadar('Flux', 'Controller', BALANCE_AXES, values, 'Balance');
-  assert.match(profile, /<title id="t">Flux — Controller — Profile Radar<\/title>/);
-  assert.match(balance, /<title id="t">Flux — Controller — Balance Radar<\/title>/);
+  const profile = renderRadar('Gadget', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
+  const balance = renderRadar('Gadget', 'Controller', BALANCE_AXES, values, 'Balance');
+  assert.match(profile, /<title id="t">Gadget — Controller — Profile Radar<\/title>/);
+  assert.match(balance, /<title id="t">Gadget — Controller — Balance Radar<\/title>/);
   // Il titolo e' il nome accessibile: due immagini indistinguibili non possono chiamarsi uguale.
   assert.notEqual(
     profile.match(/<title[^>]*>([^<]*)</)![1],
@@ -79,10 +79,10 @@ test('il testo resta leggibile su tema scuro, non solo su fondo chiaro', () => {
   // Le etichette sono #333 e #111 su fondo trasparente: senza una regola per il tema scuro
   // spariscono, e i valori che il §10 dell'owner vuole «leggibili come testo» non lo sono.
   for (const svg of [
-    renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile'),
+    renderRadar('Gadget', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile'),
     renderCompare(
-      { name: 'Flux', values: profileAxes(flux()) },
-      { name: 'Flux', values: profileAxes(flux()) },
+      { name: 'Gadget', values: profileAxes(flux()) },
+      { name: 'Gadget', values: profileAxes(flux()) },
       PROFILE_AXES,
     ),
   ]) {
@@ -98,8 +98,8 @@ test('la legenda del confronto prende il colore da una classe, non da un attribu
   // Un `fill=` inline sopravviverebbe alla media query solo per caso: le due etichette devono
   // poter cambiare colore col tema, e restare comunque distinte fra loro.
   const svg = renderCompare(
-    { name: 'Flux', values: profileAxes(flux()) },
-    { name: 'Riva', values: profileAxes(flux()) },
+    { name: 'Gadget', values: profileAxes(flux()) },
+    { name: 'Phase', values: profileAxes(flux()) },
     PROFILE_AXES,
   );
   assert.doesNotMatch(svg, /<text class="legend[^"]*"[^>]*fill=/);

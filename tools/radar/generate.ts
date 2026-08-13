@@ -19,11 +19,19 @@ const OUT = fileURLToPath(new URL('../../docs/characters/radar/', import.meta.ur
 
 /** Il ruolo per eroe: sta in §5.1 del catalogo, in una tabella che il parser non legge. Dichiararlo
  *  qui e' un compromesso temporaneo — va in `HeroInput` quando la Wiki lo richiedera' (#563). */
+/**
+ * Ruolo per CHIAVE STABILE, non per nome mostrato.
+ *
+ * 🔴 Era chiavata sui nomi (`Flux`, `Riva`, `Bastion`, `Vektor`) e dopo la rinomina di D-120 nessuna chiave
+ * corrispondeva piu': `ROLES[hero.name]` dava `undefined`, il `?? '—'` lo trasformava in un trattino, e i
+ * quattro radar sarebbero stati rigenerati **senza ruolo** con il gate verde. Il difetto si e' visto solo
+ * guardando il diff degli alt della Wiki: `Gadget — Controller —` era diventato `Gadget — — —`.
+ */
 const ROLES: Record<string, string> = {
-  Flux: 'Controller',
-  Riva: 'Support',
-  Bastion: 'Guardian',
-  Vektor: 'Striker',
+  flux: 'Controller',
+  riva: 'Support',
+  bastion: 'Guardian',
+  vektor: 'Striker',
 };
 
 const check = process.argv.includes('--check');
@@ -37,18 +45,31 @@ if (!check && !existsSync(OUT)) mkdirSync(OUT, { recursive: true });
 heroes.forEach(assertKnownEffects);
 
 for (const hero of heroes) {
-  const role = ROLES[hero.name] ?? '—';
+  // Un ruolo mancante FERMA, non degrada. Il `?? '—'` che c'era prima ha lasciato passare in silenzio
+  // quattro radar senza ruolo: e' la stessa disciplina di `assertKnownEffects`, che rifiuta un effetto
+  // fuori vocabolario invece di pesarlo zero (#557).
+  const role = ROLES[hero.key];
+  if (role === undefined) {
+    throw new Error(
+      `${hero.name}: nessun ruolo per la chiave "${hero.key}". Aggiungilo a ROLES in generate.ts — ` +
+        `un radar senza ruolo si disegna comunque, e nessuno se ne accorge.`,
+    );
+  }
   const views: [string, string][] = [
     ['profile', renderRadar(hero.name, role, PROFILE_AXES, profileAxes(hero), 'Profile')],
     ['balance', renderRadar(hero.name, role, BALANCE_AXES, balanceAxes(hero), 'Balance')],
   ];
 
   for (const [view, svg] of views) {
-  const file = `${OUT}${hero.name.toLowerCase()}-${view}.svg`;
+  // 🔴 `hero.key`, NON `hero.name`: il nome del file segue lo Stable ID, il titolo dentro l'SVG segue il
+  // nome mostrato. Diceva `hero.name.toLowerCase()` fino al 2026-08-13, e dopo la rinomina di D-120 il gate
+  // cercava `gadget-profile.svg` mentre sul disco c'era `flux-profile.svg`. Rinominare i file avrebbe rotto
+  // le URL che la Wiki incorpora da `raw.githubusercontent.com`.
+  const file = `${OUT}${hero.key}-${view}.svg`;
 
   if (check) {
     const current = existsSync(file) ? readFileSync(file, 'utf8') : null;
-    if (current !== svg) diverging.push(`${hero.name.toLowerCase()}-${view}.svg`);
+    if (current !== svg) diverging.push(`${hero.key}-${view}.svg`);
   } else {
     writeFileSync(file, svg, { encoding: 'utf8' });
   }
