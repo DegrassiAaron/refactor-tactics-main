@@ -2,11 +2,18 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **64** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
+> I **66** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
 > normativa. ➕ **E un file che non è Markdown**: `handoff/2026-08-12-grid-data-consolidation-audit.xlsx`.
 > Il comando qui sotto filtra `-name '*.md'` e **non lo conta**: è dichiarato qui perché un allegato invisibile
 > alla formula è esattamente il modo in cui questo numero è già andato fuori sincrono sei volte.
-> *(rimisurato il 2026-08-13 col comando completo — `find docs/archive/src -name '*.md' ! -name README.md | wc -l` → **64** = 15 `design/` + 45 `handoff/` + 2 `audit/` + **2 in radice**, dopo l'archiviazione dei due sorgenti Level Designer, dei quattro del consolidamento HexGeometry/`grid` e del pacchetto *v0.1 Focus Decisions*, ciascuno con la sua riga d'indice qui sotto.
+> *(rimisurato il 2026-08-13 sera col comando completo — `find docs/archive/src -name '*.md' ! -name README.md | wc -l` → **66** = 15 `design/` + 47 `handoff/` + 2 `audit/` + **2 in radice**, confermato da un secondo conteggio per cartella, dopo l'archiviazione del consolidamento Decision Time Bank.
+> 🔴 **Ottava volta, e stavolta il difetto è nuovo: la riga d'indice c'era, il totale no.** La riga diceva
+> **64** e il disco ne aveva **65** già prima di questa archiviazione: `handoff/2026-08-13-facing-visualdocs.md`
+> è atterrato alle 10:34 del 2026-08-13 (`482695fc`) **con** la sua riga nella tabella qui sotto — quindi
+> [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) non c'entra — e senza toccare
+> questo numero. È il difetto di #579 **ruotato**: là manca la riga e il totale regge, qui regge la riga e
+> manca il totale. Delle due metà dell'archiviazione se ne fa sempre una sola, e non è sempre la stessa: il
+> rimedio non è ricordarsene, è misurare il totale **dopo** ogni `mv`, con il comando, mai incrementandolo.
 > 🔁 **Settima volta, e questa è la più pulita: nessuno dei due rami aveva torto.** Il consolidamento
 > HexGeometry ha scritto **63** e quello *Focus Decisions* **60**, entrambi misurati col comando buono ed
 > entrambi giusti sulla propria base; l'unione ne ha fatti **64**, che non è nessuno dei due e non è la loro
@@ -151,6 +158,7 @@ dove è finita quella parte che è sopravvissuta al filtro.
 | [`2026-08-08-master-characters-e-roster.md`](handoff/2026-08-08-master-characters-e-roster.md) | Personaggi, roster, fazioni, Super | [ADR-0007](../../decisions/adr-0007-attacco-base-per-eroe.md) per l'attacco base; il residuo in [`brief-super-e-cooldown.md`](../../gameplay/brief-super-e-cooldown.md) — issue `#336`, PR `#349` |
 | [`2026-08-08-master-reaction-system.md`](handoff/2026-08-08-master-reaction-system.md) | Cluster Reaction | PR `#305` — `D-047`, `D-048`, `D-049`, CP 14.7. Era già assorbito quando il triage è iniziato |
 | [`2026-08-09-decision-time-bank.md`](handoff/2026-08-09-decision-time-bank.md) | Decision / Reaction Time Bank | [`spec-decision-time-bank.md`](../../gameplay/spec-decision-time-bank.md) (CP 14.8) · `D-050`…`D-057` · [conflict report](../../roadmap/plans/decision-time-bank-conflict-report-2026-08-09.md) |
+| [`2026-08-13-decision-time-bank-consolidamento.md`](handoff/2026-08-13-decision-time-bank-consolidamento.md) | Seguito del precedente: stato reale di CP 14.8 contro il repository — issue, feature, decisioni, scenari, TurnLog | **Recepito come conferma, non come delta**. Ogni affermazione di stato ricontrollata è risultata corretta e il documento non ha prodotto né decisioni né feature né epic: `#319` resta l'unico lavoro, dopo `#165`→`#166`→`#314`. ⚠️ Dichiarava un `HEAD` vecchio di **17 commit** (`744a25b8` contro `0cff74ec`), senza che questo invalidasse nulla. 🔴 **Il valore è stato ciò che non diceva**: affermava `#318`/`#361` chiuse e si fermava lì, mentre cinque righe in quattro file `CURRENT` più il «prerequisito bloccante» di `#319` dichiaravano ancora assente una capability consegnata il 2026-08-10 (`a7e4677b`), con i conteggi `otto`/`undici` superati da **dieci**/**tredici**. Corretti qui; il gate è [#738](https://github.com/DegrassiAaron/refactor-tactics-main/issues/738) |
 | [`2026-08-08-chat-cleanup-tracker.md`](handoff/2026-08-08-chat-cleanup-tracker.md) | *Meta* — tracker del progetto ChatGPT | ⛔ nessun owner: **sette dei nove «conflitti aperti» che elenca erano già chiusi**. Citato dal triage §4 |
 | [`2026-08-08-chat-cleanup-tracker-prima-versione.md`](handoff/2026-08-08-chat-cleanup-tracker-prima-versione.md) | *Meta* — la stessa cosa, una versione prima | ⛔ da ignorare: la seconda copia è più recente. Le due erano indistinguibili per nome |
 | [`2026-08-08-final-chat-cleanup-plan.md`](handoff/2026-08-08-final-chat-cleanup-plan.md) | *Meta* — piano di chiusura delle conversazioni | ⛔ riguarda il progetto ChatGPT, non il repository |

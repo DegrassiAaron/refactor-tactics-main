@@ -466,29 +466,42 @@ resta visibile invece di sparire.
 | `Spec.Map.WallCrossesCellStillStandable` · `…FootprintCollisionBlocksCell` · `…NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` | v0.2 · E23 · CP 23.6 |
 | `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.2 · E23 · CP 23.7 |
 
-> ⚠️ **I tre `Spec.Clash.*` non sono «da scrivere»: oggi sono *impossibili*.** È la stessa situazione già
-> incontrata dal facing prima di CP 16.1. `ERTAssertionKind` ha cinque assertion — `UnitAtCell`,
-> `TurnsCompleted`, `UnitHpEquals`, `UnitAlive`, `UnitFacing` — e leggono **tutte lo stato finale**; nessuna
-> legge il TurnLog, l'ordine degli eventi o un hash. Questi tre chiedono esattamente quello: che una scelta non
-> sia visibile *prima* di un certo evento, che il reveal non anticipi, che due run producano lo stesso
-> `LogHash`. Servono **assertion nuove nell'harness** prima dei file, e finché non ci sono un file scritto
-> sarebbe verde per il motivo sbagliato. Gli altri quattro `Spec.Clash.*` esistono perché il loro esito è
-> osservabile nello stato finale.
+> ✅ **I tre `Spec.Clash.*` e i dieci `Spec.TimeBank.*` sono scrivibili — rimisurato il 2026-08-13.** Questa
+> sezione ha portato per giorni le due note qui sotto, che li dichiaravano *impossibili*: erano vere quando
+> furono scritte e hanno smesso di esserlo il **2026-08-10**, senza che nessuno le riaprisse.
+> `ERTAssertionKind` ha oggi **otto** assertion, non cinque — alle cinque di stato finale (`UnitAtCell`,
+> `TurnsCompleted`, `UnitHpEquals`, `UnitAlive`, `UnitFacing`) si sono aggiunte `LogEventCount` e
+> `LogEventOrder` (`#318`) e `LogEventAmount` (`#361`, commit `a7e4677b`, verificata su parser, valutatore e
+> test). Le tre leggono il TurnLog, che è esattamente ciò che mancava. Restano **da scrivere**: li scrivono
+> CP 14.7 e CP 14.8, e non aspettano più nulla dell'harness.
 
-> ⚠️ **Gli otto `Spec.TimeBank.*` hanno lo stesso problema, ma per intero.** Nessuno dei tre riguarda una
-> posizione, una salute o un facing: riguardano **quanto tempo è stato speso**, cioè un valore che vive nel
-> TurnLog e non nello stato finale della mappa. Con le cinque assertion di oggi non se ne può scrivere
-> *nessuno* — non sette su otto, zero. Serve almeno un'assertion che legga un contatore del log
-> (`BankAfterMs`, o l'evento di consumo) prima che questi file abbiano senso, e la dipendenza è la stessa che
-> blocca i tre `Spec.Clash.*`: **una sola capability dell'harness sblocca undici scenari**. Finché non c'è,
-> l'unica verifica onesta del bank sono i test C++ di CP 14.8, che non passano dall'harness.
-> La capability ha un owner: issue **`#318`**, che dichiara le tre primitive minime (evento, ordine, contatore).
+> ~~⚠️ **I tre `Spec.Clash.*` non sono «da scrivere»: oggi sono *impossibili*.**~~ *(superata il 2026-08-10)*
+> Era la stessa situazione già incontrata dal facing prima di CP 16.1: le assertion leggevano **tutte lo stato
+> finale**, e questi tre chiedono esattamente il contrario — che una scelta non sia visibile *prima* di un
+> certo evento, che il reveal non anticipi, che due run producano lo stesso `LogHash`. Gli altri quattro
+> `Spec.Clash.*` esistevano già perché il loro esito è osservabile nello stato finale.
+
+> ~~⚠️ **Gli otto `Spec.TimeBank.*` hanno lo stesso problema, ma per intero.**~~ *(superata, e sbagliata due
+> volte nel frattempo)* Sono **dieci** dalla riconciliazione di `#361`, non otto; e la frase «nessuno dei tre»
+> con cui la nota si apriva non aveva alcun antecedente — nel blocco non c'era nessun «tre». Il contenuto che
+> resta vero è il **perché**: riguardano quanto tempo è stato speso, cioè un valore che vive nel TurnLog e non
+> nello stato finale della mappa, ed è per questo che l'assertion sul contatore era il blocco. Il conteggio di
+> ciò che quella capability ha sbloccato è **tredici** — tre `Spec.Clash.*` più dieci `Spec.TimeBank.*` — mai
+> undici.
+
+> 🔴 **La lezione è la forma del difetto, non i numeri.** `#318` e `#361` sono state chiuse il 2026-08-09 e la
+> terza assertion è atterrata poche ore dopo; le righe che le dichiaravano bloccanti sono rimaste in **quattro**
+> derivati — questa sezione, il commento di [`feature-registry.yaml`](../roadmap/feature-registry.yaml),
+> [`scenariomap.shortlist.md`](../roadmap/scenariomap.shortlist.md) §6.2 e il «prerequisito bloccante» di
+> [`#319`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/319) — per **quattro giorni**, tutte
+> con lo stesso numero sbagliato. Chiudere l'issue che porta una capability non chiude le righe che la
+> dichiaravano assente: quelle si cercano per **numero di issue**, non per argomento.
 
 > ✅ **I cinque `Spec.Map.*` sono il caso opposto, e vale la pena dirlo.** Non chiedono nessuna assertion
 > nuova: «l'unità è arrivata» e «l'unità è rimasta dov'era» si scrivono con `UnitAtCell`, che c'è. Quello che
 > manca è **il dato**, non l'oracolo — le celle cotte da geometria arrivano con CP 23.6/23.7, in v0.2. Sono
-> quindi `planned` per una ragione diversa dalle undici sopra, e non entrano nel conteggio di ciò che `#318`
-> sblocca.
+> quindi `planned` per una ragione diversa dai tredici sopra, e non entrano nel conteggio di ciò che `#318`
+> e `#361` hanno sbloccato.
 >
 > Con un'eccezione da non nascondere: `Spec.Map.NinetyDegreeCornerBakesCorrectly` verifica anche LOS e
 > traiettoria vicino all'angolo, e lì l'oracolo diretto non esiste — si osserverebbe **di rimbalzo**, dal
@@ -541,8 +554,10 @@ resta visibile invece di sparire.
 >
 > Conteggio onesto dopo la riconciliazione: **tredici** scenari sbloccati — i tre `Spec.Clash.*` e i dieci
 > `Spec.TimeBank.*` — e nessuno di essi è scritto. Li scrivono CP 14.7 e CP 14.8.
-> Resta da fare **l'assertion sul contatore** (`LogEventAmount` o equivalente), che ora ha un formato da
-> leggere e non è più bloccata da una decisione.
+> ✅ **L'assertion sul contatore è fatta**, e questa riga diceva il contrario fino al 2026-08-13:
+> `LogEventAmount` è atterrata il **2026-08-10** con `a7e4677b`, poche ore dopo la decisione di formato che la
+> sbloccava. Dei tredici scenari non ne resta bloccato **nessuno** dall'harness — restano da scrivere, che è
+> un'altra cosa.
 
 Le **10 voci `PIE-STATE-*`** del registro sono la controparte umana di questi cinque: nascono ⏳ e restano ⏳
 finché E34 non esiste. Stanno nel registro perché il ciclo *docs → epic → scenario → PIE* resti chiuso, non
