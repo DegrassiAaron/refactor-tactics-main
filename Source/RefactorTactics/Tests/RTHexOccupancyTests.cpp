@@ -208,6 +208,124 @@ bool FRTOccupancyCornerTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * IL CASO CHE LE PRIME QUATTRO FIXTURE EVITANO: un segmento adagiato esattamente su un confine di settore.
+ *
+ * `SegmentsIntersect` decide di proposito che il contatto sul bordo CONTA — *«un muro appoggiato
+ * esattamente al confine fra due settori li invade entrambi»* — ma finora nessun test lo proteggeva,
+ * perche' tutte le fixture usavano angoli lontani dai multipli di 30.
+ *
+ * Serve adesso perche' **#620** vuole imporre assi tattici a 0/30/60/90/120/150 gradi, che sono
+ * ESATTAMENTE gli angoli dei confini di settore: il caso collineare sta per passare da «mai» a «sempre».
+ * Se qualcuno un giorno rendesse la regola esclusiva invece che conservativa, e' questo test a cadere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancySectorBoundaryTest,
+	"RefactorTactics.HexOccupancy.SegmentOnSectorBoundaryOccupiesBothAdjacentSectors",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOccupancySectorBoundaryTest::RunTest(const FString&)
+{
+	// Sul confine: l'asse a 0 gradi separa il settore 0 ([-30,0)) dal settore 1 ([0,30)).
+	const FRTOccupancyMask OnBoundary =
+		URTHexOccupancyLibrary::ComputeMask(RTOccupancyFixtures::SegmentOnSectorBoundary(), TestHexSize);
+	TestEqual(TEXT("il contatto sul confine invade ENTRAMBI i settori adiacenti"),
+		OnBoundary.Sectors, (1 << 0) | (1 << 1));
+	TestEqual(TEXT("due settori occupati"),
+		URTHexOccupancyLibrary::NumOccupiedSectors(OnBoundary), 2);
+	TestFalse(TEXT("il centro resta libero: il segmento parte da 0.2R"), OnBoundary.bCoreBlocked);
+
+	// Gemello di controllo: stesso segmento, ruotato di 15 gradi, tutto dentro il settore 1.
+	// Senza questo, «due settori» passerebbe anche con un'implementazione che ne accende sempre due.
+	const FRTOccupancyMask OffBoundary =
+		URTHexOccupancyLibrary::ComputeMask(RTOccupancyFixtures::SegmentJustOffSectorBoundary(), TestHexSize);
+	TestEqual(TEXT("fuori dal confine ne accende UNO solo"), OffBoundary.Sectors, (1 << 1));
+	TestEqual(TEXT("un settore occupato"),
+		URTHexOccupancyLibrary::NumOccupiedSectors(OffBoundary), 1);
+
+	// Il punto della coppia: la stessa geometria, ruotata di 15 gradi, raddoppia l'occupazione misurata.
+	TestTrue(TEXT("il segmento sul confine occupa piu' del suo gemello fuori asse"),
+		URTHexOccupancyLibrary::NumOccupiedSectors(OnBoundary)
+			> URTHexOccupancyLibrary::NumOccupiedSectors(OffBoundary));
+	return true;
+}
+
+/**
+ * MURI PERIMETRALI E SOGLIE: questo test REGISTRA il comportamento, non lo approva.
+ *
+ * Le soglie (`ConstrainedFrom = 4`, `BlockedFrom = 6`) sono state tarate quando l'unica geometria
+ * misurata era fuori asse. Un muro su un lato hex e' invece per costruzione collineare a due confini di
+ * settore, e i suoi estremi cadono su punti di confine: accende piu' settori di quanti il designer se ne
+ * aspetti guardando la cella.
+ *
+ * L'asserzione qui e' solo la MONOTONIA — aggiungere un muro non puo' ridurre l'occupazione, perche'
+ * `ComputeMask` fa OR — che e' vera per costruzione e quindi non puo' essere sbagliata. I numeri veri
+ * finiscono in `AddInfo`: sono la risposta alla domanda D0-bis della revisione del 2026-08-12, e vanno
+ * letti da un umano la prima volta che questa suite gira.
+ *
+ * Se un muro solo, o due, bastano a portare la cella a `Blocked` mentre restano quattro o cinque lati
+ * aperti, allora le soglie vanno ritarate PRIMA che #621 cuocia quel `Blocked` in `bBlocksMovement`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancyPerimeterWallsTest,
+	"RefactorTactics.HexOccupancy.PerimeterWallsOccupancyIsRecorded",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOccupancyPerimeterWallsTest::RunTest(const FString&)
+{
+	const FRTOccupancyThresholds Thresholds;
+	int32 PreviousSectors = 0;
+
+	for (int32 NumWalls = 1; NumWalls <= 3; ++NumWalls)
+	{
+		const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(
+			RTOccupancyFixtures::WallsOnConsecutiveEdges(NumWalls), TestHexSize);
+
+		const int32 Occupied = URTHexOccupancyLibrary::NumOccupiedSectors(M);
+		const ERTCellOccupancy Class = URTHexOccupancyLibrary::Classify(M, Thresholds);
+
+		// QUALI settori, non solo quanti: il conteggio da solo non distingue un settore invaso lungo un
+		// segmento da uno toccato nel solo vertice, e quella distinzione e' la risposta a D0-bis.
+		FString SectorList;
+		for (int32 Sector = 0; Sector < RT_OccupancySectorCount; ++Sector)
+		{
+			if ((M.Sectors & (1 << Sector)) != 0)
+			{
+				SectorList += FString::Printf(TEXT("%s%d"), SectorList.IsEmpty() ? TEXT("") : TEXT(","), Sector);
+			}
+		}
+
+		AddInfo(FString::Printf(
+			TEXT("%d muro/i su lati consecutivi -> %d settori occupati su 12 {%s}, classificata %d "
+				 "(0=Free 1=Constrained 2=Blocked), lati ancora aperti: %d"),
+			NumWalls, Occupied, *SectorList, static_cast<int32>(Class), 6 - NumWalls));
+
+		// L'OR non toglie bit: la maschera con N+1 muri contiene quella con N.
+		TestEqual(TEXT("aggiungere un muro non puo' spegnere un settore"),
+			M.Sectors & PreviousSectors, PreviousSectors);
+		PreviousSectors = M.Sectors;
+	}
+
+	// Il muro perimetrale DEVE occupare qualcosa: se non accendesse niente, il resto non direbbe nulla.
+	TestTrue(TEXT("tre muri perimetrali occupano almeno un settore"), PreviousSectors != 0);
+
+	// DA COSA nasce quel conteggio: lo stesso muro rientrato di un ventesimo agli estremi non tocca piu' i
+	// due vertici dell'esagono. Cio' che sparisce e' il contributo PUNTUALE — settori toccati in un solo
+	// punto, area invasa nulla — e cio' che resta e' l'invasione vera.
+	const FRTOccupancyMask Whole =
+		URTHexOccupancyLibrary::ComputeMask({ RTOccupancyFixtures::WallOnHexEdge(0) }, TestHexSize);
+	const FRTOccupancyMask Inset =
+		URTHexOccupancyLibrary::ComputeMask({ RTOccupancyFixtures::WallOnHexEdgeInset(0) }, TestHexSize);
+
+	const int32 WholeCount = URTHexOccupancyLibrary::NumOccupiedSectors(Whole);
+	const int32 InsetCount = URTHexOccupancyLibrary::NumOccupiedSectors(Inset);
+	AddInfo(FString::Printf(
+		TEXT("un muro intero -> %d settori; lo stesso muro rientrato del 5%% agli estremi -> %d settori. "
+			 "La differenza (%d) e' contatto sul solo VERTICE, non area invasa."),
+		WholeCount, InsetCount, WholeCount - InsetCount));
+
+	// I settori del muro rientrato sono un SOTTOINSIEME di quelli del muro intero: rientrare non puo'
+	// accendere nulla di nuovo. Questa e' vera per costruzione, e protegge il confronto dall'essere casuale.
+	TestEqual(TEXT("rientrare non accende settori nuovi"), Inset.Sectors & Whole.Sectors, Inset.Sectors);
+	return true;
+}
+
 /** Fixture «footprint solido»: un contorno chiuso che contiene il centro lo blocca. */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancySolidFootprintTest,
 	"RefactorTactics.HexOccupancy.SolidFootprintAroundTheCentreBlocksTheCore",
