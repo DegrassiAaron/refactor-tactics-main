@@ -67,28 +67,25 @@ namespace
 			// E18 CP 18.2 (D-016): `Vektor.InterceptShot` e' una Predictive Action — cella dichiarata in
 			// Planning, verificata al boundary del Move, nessun input durante la Resolution.
 			//
-			// 🔴 **La motivazione originale di questa riga era FALSA, ed e' stata corretta il 2026-08-13.**
-			// Diceva: «qui l'harness NON e' il primo produttore del campo. Una previsione si dichiara con
-			// `targetCell` su un'azione principale, che e' la stessa strada di qualunque AoE — un canale che
-			// il gioco ha gia'». Misurato su `3cec1d57`: quel canale NON esiste. `PlannedAttackCell` e
-			// `bAttackTargetsCell` sono letti dal `TurnManager` (`:2038-2039`, `:2329-2333`, `:3239-3241`) e
-			// scritti SOLO da questo file (`:640-641`) e dai test. Il `PlayerController` sa dichiarare un
-			// bersaglio-UNITA' (`PlannedAttackTarget`, `RTPlayerController.cpp:540`) e un percorso: mai una
-			// cella. `HandleClickOnCell` gestisce waypoint e dash, e non tocca questi due campi.
+			// ✅ **La motivazione di questa riga e' tornata VERA il 2026-08-13 sera, e vale la pena dire come.**
+			//
+			// Diceva: «un canale che il gioco ha gia'». Misurato la mattina dello stesso giorno, era FALSO:
+			// `PlannedAttackCell` e `bAttackTargetsCell` erano letti dal `TurnManager` e scritti SOLO da
+			// questo file e dai test — il `PlayerController` sapeva dichiarare un bersaglio-UNITA' e un
+			// percorso, mai una cella. L'harness era quindi il primo produttore, esattamente l'asimmetria che
+			// tiene fuori `DeclaredRotation` piu' sotto, e il verde NON diceva qualcosa di vero sul giocatore.
+			// La capability era rimasta disponibile per SCELTA — quattro scenari la usano su regole vere — col
+			// debito tracciato su `#737`.
+			//
+			// `#737` e' atterrata: `ARTPlayerController::HandleTargetCell` scrive i due campi da
+			// `ERTPointerContext::Targeting` con `TargetKind::Cell`, coperto da
+			// `PlayerInput.TargetCellProducesPlannedAttackCell`. Il comando che lo verifica:
 			//
 			//   grep -rn "PlannedAttackCell *=\|bAttackTargetsCell *=" Source/ \
 			//     | grep -v "RTScenarioSession\|RTTurnManager\|RTUnit.h\|Tests/"
 			//
-			// Oggi non stampa nulla. Quindi l'harness E' il primo produttore, ed e' esattamente l'asimmetria
-			// che tiene fuori `DeclaredRotation` piu' sotto: il verde NON dice qualcosa di vero sul giocatore.
-			//
-			// ⚠️ **Resta disponibile per SCELTA, non per svista.** Quattro scenari usano `targetCell` e
-			// coprono regole vere (`Spec/Cover/TemporaryCoverExpires`, `Spec/Facing/FrontHitOnCoverIsSilent`,
-			// `Spec/Facing/RearHitOnCoverIsTraced`, `Spec/Predictive/WhiffOnEmptyCell`): toglierla adesso
-			// costerebbe copertura reale per un debito che e' gia' tracciato. Il debito e' `#737` — il
-			// produttore UI di bersaglio a cella, bordo di copertura e rotazione — e quando atterra questa
-			// motivazione torna vera da sola, senza toccare questa riga. Owner della regola:
-			// `docs/technical/spec-pointer-interaction.md` §2.1 e §6.5.
+			// Ora stampa il produttore. Il verde di questi scenari dice qualcosa di vero sul giocatore, e
+			// questa riga non e' piu' un debito. Owner: `docs/technical/spec-pointer-interaction.md` §2.2.
 			TEXT("PredictiveAction"),
 			// CP 13.5 (#160): un'unita' dello scenario puo' essere guidata dal BOT invece che dal file.
 			//
@@ -149,13 +146,23 @@ namespace
 		//   restando fermo, mentre non ha alcun modo di chiederlo. L'input e' lavoro di E11, e senza l'insieme
 		//   legale mostrato a schermo il giocatore non saprebbe nemmeno quali tre direzioni gli restano.
 		//
-		//   🔁 2026-08-13: `DeclaredRotation` NON e' un caso isolato, ed e' il motivo per cui la riga di
-		//   `PredictiveAction` qui sopra e' stata corretta. I campi di piano senza produttore nel gioco sono
-		//   TRE, non uno: `PlannedFacing`, `PlannedAttackCell` e `PlannedCoverEdge`. Di questi, solo il primo
-		//   e' stato tenuto fuori dalle capability; gli altri due sono raggiungibili dagli scenari da sempre.
-		//   Il criterio non e' cambiato — e' stato applicato a meta'. Il produttore mancante e' `#737`, e
-		//   quando atterra si rivedono INSIEME `Facing`, `DeclaredRotation` e la motivazione di
-		//   `PredictiveAction`: sono la stessa riga di lavoro vista da tre punti diversi.
+		//   🔁 2026-08-13 mattina: `DeclaredRotation` NON era un caso isolato. I campi di piano senza
+		//   produttore nel gioco erano TRE — `PlannedFacing`, `PlannedAttackCell`, `PlannedCoverEdge` — e solo
+		//   il primo era stato tenuto fuori dalle capability. Il criterio non era cambiato: era stato
+		//   applicato a meta'. Il produttore mancante era `#737`.
+		//
+		//   ✅ **2026-08-13 sera: il produttore esiste, per tutti e tre.**
+		//   `ARTPlayerController::HandleFacingSector` scrive `PlannedFacing`/`bDeclaresPlannedFacing` da
+		//   `ERTPointerContext::Facing`, validando su `URTFacingLibrary::TryApplyDeclaredFacing` e
+		//   **rifiutando** una dichiarazione illegale invece di correggerla
+		//   (`PlayerInput.FacingSectorProducesPlannedFacing`, `PlayerInput.IllegalFacingIsRejectedNotCorrected`).
+		//
+		//   ⚠️ **`Facing`/`DeclaredRotation` restano comunque FUORI da questo elenco, e ora per un'altra
+		//   ragione.** La condizione che le teneva fuori — «l'harness sarebbe il primo produttore» — non vale
+		//   piu'. Quel che manca ora e' solo la chiave `facing` in `FRTScenarioIntent` e il test che la
+		//   dimostri sul percorso reale, che sono due righe aperte di `#291` e vanno fatte insieme, non
+		//   dedotte da qui. Aggiungere la capability senza la chiave produrrebbe un `BLOCKED` che mente sul
+		//   motivo. Chi apre `#291`: la premessa e' soddisfatta, resta il lavoro.
 		return Available.Contains(Capability);
 	}
 

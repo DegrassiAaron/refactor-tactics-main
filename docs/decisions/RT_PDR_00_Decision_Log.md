@@ -161,6 +161,13 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
 
 ## Note
 
+- **D-128** (2026-08-13): ✅ **implementata la sera stessa.** `SelectedAbilityIndex` nasce a `INDEX_NONE`
+  (`RTUnit.h`), `ARTUnit::SelectAbility` accetta `INDEX_NONE` per disarmare, e `RMB` ci torna dal livello
+  `Declaration` dell'ordine di Back. Coperta da `PlayerInput.NeutralEnemyClickDoesNotPlan`, che porta nello
+  stesso test la controprova del percorso rapido. 🔴 **Lo stato neutro è portante in tre punti, non uno**:
+  la verifica di mutazione — default riportato a `0` — fa cadere **tre** test, il click neutro, la
+  dichiarazione di facing e l'ordine del Back. Non era prevedibile leggendo la decisione, ed è il tipo di
+  cosa che si scopre solo rompendola apposta.
 - **D-128** (2026-08-13): **rinumerata da `D-127`**, contenuto invariato. **Quindicesima** collisione.
   Il controllo iniziale dava `D-126` come ultima riga; mentre il branch lavorava, `D-127` e' stata presa
   dal consolidamento della grammatica di authoring (#620) ed e' atterrata su `main`. Rinumerata la

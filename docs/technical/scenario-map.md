@@ -395,15 +395,28 @@ resta visibile invece di sparire.
 > `…InteractionReasonPrivacy`, `…GhostFocusDoesNotEdit`) sono già coperti, per contenuto, dai sei `planned`
 > qui sopra: non servono altri nomi, serve l'oracolo.
 >
-> ⚠️ **Lo stesso criterio è già violato altrove, e ora è misurato.** La capability `PredictiveAction` è
-> dichiarata disponibile in `RTScenarioSession.cpp` motivandolo con *«un canale che il gioco ha già»*: alla
-> misura del 2026-08-13 il canale **non esiste** — `PlannedAttackCell` non ha alcun produttore in `Player/`
-> o `UI/`. Quattro scenari usano `targetCell` (`Spec/Cover/TemporaryCoverExpires`,
-> `Spec/Facing/FrontHitOnCoverIsSilent`, `Spec/Facing/RearHitOnCoverIsTraced`,
-> `Spec/Predictive/WhiffOnEmptyCell`) e **restano verdi per scelta**: coprono regole vere, e toglierli ora
-> costerebbe copertura reale per un debito che [`#737`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737)
-> traccia. Il commento nell'harness è stato corretto con la misura. Quando il produttore esiste, la
-> motivazione torna vera da sola — e `Facing`/`DeclaredRotation` possono uscire dai non disponibili.
+> ✅ **Lo stesso criterio era violato altrove, e si è chiuso in giornata.** La capability `PredictiveAction`
+> era dichiarata disponibile in `RTScenarioSession.cpp` motivandolo con *«un canale che il gioco ha già»*:
+> alla misura del 2026-08-13 **mattina** quel canale non esisteva — `PlannedAttackCell` non aveva alcun
+> produttore in `Player/` o `UI/`. I quattro scenari che usano `targetCell`
+> (`Spec/Cover/TemporaryCoverExpires`, `Spec/Facing/FrontHitOnCoverIsSilent`,
+> `Spec/Facing/RearHitOnCoverIsTraced`, `Spec/Predictive/WhiffOnEmptyCell`) erano stati lasciati verdi per
+> scelta, col debito su [`#737`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737).
+> **La sera `#737` è atterrata**: `ARTPlayerController::HandleTargetCell` scrive i due campi, la motivazione
+> è tornata vera e quei verdi ora dicono qualcosa di vero sul giocatore.
+>
+> ⚠️ **`Facing`/`DeclaredRotation` restano fuori dalle capability, e la ragione è cambiata.** Non è più
+> «l'harness sarebbe il primo produttore» — `HandleFacingSector` esiste. Manca la chiave `facing` in
+> `FRTScenarioIntent` e lo scenario che la dimostri sul percorso reale: due righe aperte di
+> [`#291`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291), da fare **insieme**.
+> Aggiungere la capability senza la chiave darebbe un `BLOCKED` che mente sul motivo.
+>
+> 🔎 **E i sei `planned` qui sopra ora hanno l'oracolo.** Il contesto esplicito esiste
+> (`ARTPlayerController::GetPointerContext`), quindi la ragione dichiarata in testa — *manca l'oracolo, non
+> il tempo* — non vale più per tutti e sei. Restano bloccati da altro:
+> `Visual.UI.DoorHoverAndInteract` da #74/#613, `Visual.UI.ReactionWindowPreemptsWorldInput` da E14,
+> `Spec.Privacy.HiddenEnemyHoverNoLeak` da E13, e i due `Visual.UI.SelectMoveCancel`/`TargetEnemyConfirmCancel`
+> dalla grammatica di scenario per il puntatore, che resta deliberatamente non aggiunta.
 
 > 🔴 **Perché i `planned` non si scrivono tutti in una volta — misurato il 2026-08-12.** Tentando di
 > scriverli fino alla v0.2 (**42**: 23 in v0.1, 19 in v0.2), l'ostacolo non è il tempo ma l'**oracolo**: uno

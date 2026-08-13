@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Core/RTTypes.h"
+#include "Player/RTPointerInteraction.h" // il contesto esplicito di CP 11.8 e i suoi tipi
 #include "RTPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -147,4 +148,92 @@ public:
 
 	/** Ricostruisce il percorso dai waypoint correnti, come fa l'annullamento (per i test dell'interazione). */
 	void RebuildPlannedPathForTest() { RebuildPlannedPath(); }
+
+	// ---- Contratto del puntatore (CP 11.8) ------------------------------------------------------------
+	//
+	// Owner della regola: `docs/technical/spec-pointer-interaction.md`. Qui c'e' lo STATO ESPLICITO che il
+	// DoD chiedeva al posto della cascata di `if` sul tipo di Actor colpito.
+
+	/**
+	 * Il contesto corrente, **derivato** e non memorizzato.
+	 *
+	 * Derivato di proposito: un secondo stato accanto a `SelectedActor`, `SelectedAbilityIndex` e
+	 * `PlannedWaypoints` sarebbe una copia che diverge, ed e' il difetto che questo repository paga di
+	 * continuo con i totali scritti a mano. Qui il contesto e' una *lettura* di quei tre, piu' la fase.
+	 *
+	 * ⚠️ **Due contesti non sono ancora producibili, e non e' una svista.** `ReactionWindow` e `Modal`
+	 * esistono nell'enum e in `URTPointerLibrary::ResolveBack` — che li ordina correttamente — ma nessuno li
+	 * produce: la finestra di reazione e' **E14** e il modale e' **#613**. Aggiungere qui un flag che nessuno
+	 * scrive avrebbe creato un campo senza produttore, che e' il difetto che CP 11.8 ha appena finito di
+	 * documentare. Quando quegli owner arrivano, aggiungono il proprio ramo qui.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
+	ERTPointerContext GetPointerContext() const;
+
+	/** Che forma di bersaglio chiede l'azione armata. `None` se non c'e' targeting in corso. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
+	ERTPointerTargetKind GetPointerTargetKind() const;
+
+	/**
+	 * §5.5 — applica il Back e dichiara **quale livello** ha smontato.
+	 *
+	 * Restituisce il livello invece di `void` perche' l'ordine e' la cosa da provare: un test che guarda solo
+	 * l'effetto non distingue «ha rimosso il waypoint perche' era il livello giusto» da «ha rimosso il
+	 * waypoint perche' e' l'unica cosa che sa fare».
+	 */
+	ERTPointerBackStep ApplyBack();
+
+	/**
+	 * `Targeting`/`Cell` -> `PlannedAttackCell` + `bAttackTargetsCell`. Primo produttore di questo campo che
+	 * non sia lo Scenario Harness (#737).
+	 * @return true se il bersaglio e' stato registrato.
+	 */
+	bool HandleTargetCell(const FRTCellId& Cell);
+
+	/**
+	 * `Targeting`/`Edge` -> `PlannedCoverEdge` + `bHasPlannedCoverEdge`, insieme alla cella su cui agire.
+	 * @return true se il lato e' stato registrato.
+	 */
+	bool HandleTargetEdge(const FRTCellId& Cell, ERTHexDirection Edge);
+
+	/**
+	 * `Facing` -> `PlannedFacing` + `bDeclaresPlannedFacing`. Chiude l'anello che #291 aveva lasciato aperto:
+	 * le regole della rotazione dichiarata esistevano e nessun input le raggiungeva.
+	 *
+	 * ⚠️ Rifiuta un settore **illegale** invece di correggerlo in silenzio: e' la regola di
+	 * `URTFacingLibrary`, e qui la si chiede, non la si riscrive.
+	 * @return true se la rotazione e' stata dichiarata.
+	 */
+	bool HandleFacingSector(ERTHexDirection Sector);
+
+	/** Entra nel contesto `Facing` (l'unita' selezionata deve esserci). */
+	void BeginFacingDeclaration();
+
+	/** Esce da `Facing` senza dichiarare nulla. */
+	void EndFacingDeclaration();
+
+	/** Vero mentre si sta dichiarando una rotazione. */
+	bool IsDeclaringFacing() const { return bDeclaringFacing; }
+
+	/**
+	 * Inspector pinnato: livello 3 del Back. Il produttore e' lo Screen HUD (#613); qui c'e' il flag perche'
+	 * l'ORDINE del Back e' di questo contratto e senza il livello l'elenco sarebbe incompleto.
+	 */
+	void SetInspectorPinned(bool bPinned) { bInspectorPinned = bPinned; }
+	bool IsInspectorPinned() const { return bInspectorPinned; }
+
+	/**
+	 * `PhaseFocus` pinnato: livello 7, l'ultimo prima di `NoOp`. Owner dello scrubbing: CP 11.6 (#173).
+	 * Qui c'e' solo il fatto che `RMB` lo smonta **per ultimo**.
+	 */
+	void SetPhaseFocusPinned(bool bPinned) { bPhaseFocusPinned = bPinned; }
+	bool IsPhaseFocusPinned() const { return bPhaseFocusPinned; }
+
+protected:
+	/** Vero fra `BeginFacingDeclaration` e la conferma/annullamento. */
+	bool bDeclaringFacing = false;
+
+	bool bInspectorPinned = false;
+
+	bool bPhaseFocusPinned = false;
 };

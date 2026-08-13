@@ -887,6 +887,26 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 > proposito un comportamento esistente invece di enunciarlo, e va contata a parte quando si stima il
 > checkpoint. Le voci (d) ed (e) sono comunque lavoro **runtime**, non riscrittura di documentazione.
 
+> ✅ **2026-08-13 sera — tre delta su cinque chiusi, e il checkpoint passa a `IMPLEMENTING`.**
+> **(a)** contesto esplicito: `ARTPlayerController::GetPointerContext()`, derivato da selezione, azione
+> armata e fase invece che memorizzato — una copia in più diverge. **(d)** stato neutro:
+> `SelectedAbilityIndex` nasce a `INDEX_NONE`, quindi cliccare un nemico ispeziona
+> ([D-128](../decisions/RT_PDR_00_Decision_Log.md)). **(e)** i tre produttori:
+> `HandleTargetCell`, `HandleTargetEdge`, `HandleFacingSector` — chiude
+> [`#737`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737) e l'ultima riga di
+> [`#291`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291). Più la **precedenza semantica
+> intra-mondo** (§4.1) e l'**ordine totale del Back** (§5.5), che non erano fra i delta perché nessuno li
+> aveva ancora enunciati. Dieci test `PlayerInput.*`, tutti passati per la verifica di mutazione;
+> suite completa **802 eseguiti su 802 dichiarati, 0 falliti** — rimisurata sull'albero rebasato, dove sono
+> arrivati anche gli undici della grammatica di authoring (#741). *(Il branch ne aveva contati 791 prima del
+> rebase, ed era giusto sulla propria base: un totale di test si rimisura dopo il merge, non si riporta.)*
+>
+> ⏳ **Restano (b) e (c), ed entrambi aspettano un produttore, non del tempo**: la precedenza HUD → mondo
+> dipende dalle hitbox UMG di [`#613`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613)
+> — finché il Canvas HUD non registra hitbox non c'è nulla da consumare — e il filtro di rilevamento
+> sull'hover dipende da **E13**. `PIE-V01-POINTER` resta ⏳: i passi 1-9 e 13 sono eseguibili, i 10-12
+> aspettano #74 e #613.
+
 > **CP 11.7 viene da** [`plans/ui-0-first-playable-hud-2026-08-12.md`](plans/ui-0-first-playable-hud-2026-08-12.md),
 > panel di specifica del 2026-08-12. Esiste **separato da CP 11.1** perché il DoD di 11.1 non nomina UMG in
 > nessuna delle sue voci: chiede contenuto informativo, e `ARTHUD` ne soddisfa già cinque su sei in Canvas.

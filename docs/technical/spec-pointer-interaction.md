@@ -86,21 +86,31 @@ grep -rn "PlannedAttackCell *=\|bAttackTargetsCell *=\|PlannedCoverEdge *=\|bHas
   | grep -v "RTScenarioSession\|RTTurnManager\|RTUnit.h\|Tests/"
 ```
 
-Oggi non stampa nulla. Il giorno in cui stampa qualcosa, il produttore esiste — ed è il lavoro di
-[#737](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737).
+~~Oggi non stampa nulla.~~ ✅ **Superata il 2026-08-13 sera.** Il comando stampa ora otto righe in
+`Player/RTPlayerController.cpp` — `HandleTargetCell`, `HandleTargetEdge`, `HandleFacingSector`. Le due
+assenze di questa sezione **non descrivono più il codice**, e la tabella qui sopra resta come misura
+d'origine, non come stato.
 
-I delta reali sono **cinque**, e nessuno è un difetto di ciò che c'è: sono assenze.
+### 2.2 Stato dopo la prima consegna — 2026-08-13 sera
 
-1. **Nessuno stato esplicito** — la modalità di targeting vive come `SelectedAbilityIndex` *sull'unità*.
-2. **Nessuna consapevolezza di fase nell'input**.
-3. **Nessuna precedenza HUD → mondo**.
-4. **Nessuno stato neutro**: un'abilità è sempre armata, quindi «clicca senza voler agire» non è esprimibile.
-5. **Nessun produttore UI** per bersaglio a cella, bordo di copertura e rotazione dichiarata.
+| Delta | Stato |
+|---|---|
+| 1. Nessuno stato esplicito | ✅ **chiuso** — `ARTPlayerController::GetPointerContext()`, derivato e non memorizzato |
+| 2. Nessuna consapevolezza di fase nell'input | ✅ **chiuso** — `ResolutionPlayback` esce dalla fase del `TurnManager` |
+| 3. Nessuna precedenza HUD → mondo | ⏳ **aperto** — dipende dai widget UMG di [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613): senza hitbox non c'è nulla che consumi il puntatore |
+| 4. Nessuno stato neutro | ✅ **chiuso** — [D-128](../decisions/RT_PDR_00_Decision_Log.md): `SelectedAbilityIndex` nasce a `INDEX_NONE` |
+| 5. Nessun produttore UI | ✅ **chiuso** — i tre produttori esistono e sono coperti |
 
-> ⚠️ Le voci 4 e 5 sono la stessa storia vista da due lati, ed è il motivo per cui il puntatore non è solo
-> una tabella di UX. Il giocatore **non può** dichiarare un bersaglio a terra, un lato di copertura o una
-> rotazione; e **non può** non dichiarare un attacco, perché lo slot `0` è armato dall'avvio. Il resolver sa
-> eseguire tutte e tre le dichiarazioni: le esegue già negli scenari.
+> ⚠️ **`ReactionWindow` e `Modal` esistono nell'enum e nessuno li produce.** Sono ordinati correttamente in
+> `URTPointerLibrary::ResolveBack` — e testati lì — ma `GetPointerContext()` non li restituisce mai: la
+> finestra di reazione è **E14** e il modale è **#613**. È deliberato, e la ragione è quella di §2.1: un flag
+> che nessuno scrive sarebbe un campo senza produttore, cioè il difetto che questo checkpoint ha appena
+> finito di documentare. Quando quegli owner arrivano, aggiungono il proprio ramo in `GetPointerContext()`.
+
+> ⚠️ **La legalità del facing dichiarato in Planning è una PREVISIONE, non il verdetto.** `HandleFacingSector`
+> valida su `PlannedPath` con stile `Budget`/`None`; il resolver rivalida a fine Move su
+> `MovementStyleThisTurn` e `WalkedThisTurn`, cioè su quel che è successo davvero. Un percorso interrotto fa
+> cadere la dichiarazione con `DeclarationRejected`, ed è corretto: la UI propone, il servizio decide (§3).
 
 ---
 
@@ -388,7 +398,7 @@ al mondo. Con lo Screen HUD di CP 11.7 (`#613`) i widget UMG intercetteranno l'i
 diventa il suo opposto: garantire che l'input consumato **non** raggiunga anche il mondo. La precedenza di
 §4 va resa esplicita e coperta da test, non lasciata al comportamento di default di Slate.
 
-### 6.4 Un'abilità è sempre armata, quindi non esiste un neutro
+### 6.4 ✅ Chiusa — un'abilità era sempre armata, quindi non esisteva un neutro
 
 `SelectedAbilityIndex` nasce a `0` (`RTUnit.h:170`) e le sole scritture lo portano su un altro indice valido
 (`ARTUnit::SelectAbility`, chiamata dagli hotkey `1`–`4`). Non c'è alcun percorso che lo riporti a
@@ -397,46 +407,70 @@ lo slot `0` di quell'eroe — e il giocatore non l'ha armato, l'ha trovato armat
 
 È il motivo per cui l'incoerenza che questo documento portava nella propria §5.1 era reale: l'hover su un
 nemico diceva `Inspect`, il click faceva `Confirm`. [D-128](../decisions/RT_PDR_00_Decision_Log.md) la chiude
-scegliendo il lato dell'affordance — in `Planning` il click **ispeziona**, e per bersagliare bisogna armare —
-ma la scelta **non è implementabile finché il neutro non esiste**. Costruirlo è §4.
+scegliendo il lato dell'affordance — in `Planning` il click **ispeziona**, e per bersagliare bisogna armare.
 
-### 6.5 Tre dichiarazioni che il resolver sa eseguire e il giocatore non sa chiedere
+✅ **Consegnata il 2026-08-13 sera.** `SelectedAbilityIndex` nasce a `INDEX_NONE`, `ARTUnit::SelectAbility`
+accetta `INDEX_NONE` per disarmare, e `RMB` ci torna dal livello `Declaration` di §5.5. Coperta da
+`PlayerInput.NeutralEnemyClickDoesNotPlan`, che porta **nello stesso test** la controprova del percorso
+rapido: armata l'azione, lo stesso click pianifica. Senza quella metà il test passerebbe anche con un
+controller che non sa più bersagliare nulla.
 
-Bersaglio a cella, bordo di copertura e rotazione dichiarata hanno regole, consumo nel `TurnManager` e test.
-Non hanno un produttore nel gioco (§2.1). Il puntatore è l'anello mancante di tutte e tre, e senza di esso
-tre pezzi di gameplay già pagati restano inerti in partita mentre negli scenari risultano verdi.
+⚠️ Lo stato neutro è **portante in tre punti**, e la verifica di mutazione lo mostra: riportare il default a
+`0` fa cadere tre test, non uno — il click neutro, la dichiarazione di facing e l'ordine del Back.
 
-Lavoro tracciato da [#737](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737); la rotazione è
-anche la riga aperta di [#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291).
+### 6.5 ✅ Chiusa — tre dichiarazioni che il resolver sapeva eseguire e il giocatore non sapeva chiedere
 
-> ⚠️ **L'asimmetria è già dichiarata altrove, e con la motivazione giusta.** `RTScenarioSession.cpp` tiene
-> `DeclaredRotation` **fuori** dalle capability disponibili proprio perché darla renderebbe l'harness il
-> primo produttore del campo. Lo stesso criterio non è stato applicato a `targetCell`: la capability
-> `PredictiveAction` è disponibile, e la sua motivazione — *«un canale che il gioco ha già»* — è falsa alla
-> misura del 2026-08-13. Resta disponibile per scelta (quattro scenari la usano e coprono regole vere), con
-> il commento corretto e il debito su #737. Quando il produttore esiste, la motivazione torna vera da sola.
+Bersaglio a cella, bordo di copertura e rotazione dichiarata avevano regole, consumo nel `TurnManager` e
+test, e nessun produttore nel gioco (§2.1): tre pezzi di gameplay già pagati, inerti in partita e verdi
+negli scenari.
+
+✅ **Consegnati il 2026-08-13 sera** ([#737](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737)):
+
+| Modo | Produttore | Copertura |
+|---|---|---|
+| `Targeting`/`Cell` | `ARTPlayerController::HandleTargetCell` | `PlayerInput.TargetCellProducesPlannedAttackCell` |
+| `Targeting`/`Edge` | `ARTPlayerController::HandleTargetEdge` | `PlayerInput.TargetEdgeProducesPlannedCoverEdge` |
+| `Facing` | `ARTPlayerController::HandleFacingSector` | `PlayerInput.FacingSectorProducesPlannedFacing` · `PlayerInput.IllegalFacingIsRejectedNotCorrected` |
+
+Il `TargetKind` è **derivato dal catalogo** (`URTPointerLibrary::TargetKindForAction`), non un campo nuovo:
+`StructureOp != None` → `Edge`, `Shape == Area` → `Cell`, altrimenti `Unit`. Aggiungere un campo al dato
+avrebbe creato una seconda fonte di verità accanto a due che lo dicevano già.
+
+> ✅ **E l'asimmetria delle capability si è chiusa da sé.** `RTScenarioSession.cpp` dichiarava
+> `PredictiveAction` disponibile con la motivazione *«un canale che il gioco ha già»*, **falsa** alla misura
+> della mattina. Ora il canale esiste, il verde di quei quattro scenari dice qualcosa di vero sul giocatore,
+> e il commento è stato riscritto con la storia intera invece che con la sola conclusione.
+>
+> ⚠️ **`Facing`/`DeclaredRotation` restano però fuori dalle capability dell'harness, e ora per un'altra
+> ragione.** La premessa che le teneva fuori — «l'harness sarebbe il primo produttore» — non vale più.
+> Mancano la chiave `facing` in `FRTScenarioIntent` e lo scenario che la dimostri sul percorso reale: sono
+> due righe aperte di [#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291) e vanno
+> fatte insieme. Aggiungere la capability senza la chiave produrrebbe un `BLOCKED` che mente sul motivo.
 
 ---
 
 ## 7. Definition of Done
 
-- [ ] La matrice §5 è completa e ogni combinazione rilevante produce uno degli otto esiti dell'elenco chiuso
-- [ ] Le precedenze `Modal/Reaction UI > HUD > world tactical hit` sono esplicite nel codice, non implicite
-- [ ] Il resolver di hit restituisce un **target logico** (`FRTCellId` · `UnitId` · StableObjectId), mai una decisione di gameplay
-- [ ] Il `PlayerController` usa un **contesto esplicito** (§4); niente cascata di `if` sul tipo di Actor colpito
-- [ ] Esiste uno stato **neutro**: entrando in Planning nessuna abilità è armata, e il click su un nemico ispeziona ([D-128](../decisions/RT_PDR_00_Decision_Log.md), §6.4)
-- [ ] `Targeting` porta un `TargetKind` dichiarato dall'azione (§4), non una modalità che il giocatore sceglie a parte
-- [ ] La precedenza **intra-mondo** di §4.1 è esplicita: in `Pathing` la cella vince sulla mesh di porta/ponte/hazard, e in `Targeting`/`Cell` vince sull'unità che la occupa
-- [ ] Un oggetto multi-mesh (porta a segmenti, ponte ad archi) risolve all'**oggetto logico intero**
-- [ ] Un elemento con **più verbi legali** produce `OpenContext`, non un `Confirm` che ne sceglie uno implicitamente
-- [ ] Click-through HUD → mondo coperto da test
-- [ ] `RMB` segue l'**ordine totale** di §5.5, non deseleziona mai l'unità e non tocca un piano già `LockIn`
+*(Spuntate il 2026-08-13 sera. Le caselle aperte portano **chi** le blocca: nessuna è aperta per mancanza di
+tempo.)*
+
+- [ ] La matrice §5 è completa e ogni combinazione rilevante produce uno degli otto esiti dell'elenco chiuso — ⏳ manca la parte HUD (§5.2) e `OpenContext`
+- [ ] Le precedenze `Modal/Reaction UI > HUD > world tactical hit` sono esplicite nel codice, non implicite — ⏳ **#613**: senza hitbox UMG non c'è nulla che consumi il puntatore
+- [x] Il resolver di hit restituisce un **target logico** (`FRTCellId` · `UnitId` · StableObjectId), mai una decisione di gameplay — `URTPointerLibrary::ResolveTarget`
+- [x] Il `PlayerController` usa un **contesto esplicito** (§4); niente cascata di `if` sul tipo di Actor colpito — `GetPointerContext()`, derivato
+- [x] Esiste uno stato **neutro**: entrando in Planning nessuna abilità è armata, e il click su un nemico ispeziona ([D-128](../decisions/RT_PDR_00_Decision_Log.md), §6.4)
+- [x] `Targeting` porta un `TargetKind` dichiarato dall'azione (§4), non una modalità che il giocatore sceglie a parte
+- [x] La precedenza **intra-mondo** di §4.1 è esplicita: in `Pathing` la cella vince sulla mesh di porta/ponte/hazard, e in `Targeting`/`Cell` vince sull'unità che la occupa
+- [ ] Un oggetto multi-mesh (porta a segmenti, ponte ad archi) risolve all'**oggetto logico intero** — 🟡 il resolver ha il ramo `Object`, ma nessun produttore di candidati lo popola: serve il raycast di `OnSelect` che riconosca gli elementi logici (**#74** per le porte)
+- [ ] Un elemento con **più verbi legali** produce `OpenContext`, non un `Confirm` che ne sceglie uno implicitamente — ⏳ **#74** (i verbi) + **#613** (il contenitore)
+- [ ] Click-through HUD → mondo coperto da test — ⏳ **#613**
+- [x] `RMB` segue l'**ordine totale** di §5.5, non deseleziona mai l'unità e non tocca un piano già `LockIn`
 - [ ] Hover su nemico **non rilevato** non produce target né tooltip che riveli dato privato
 - [ ] Hover e click su `AllyIntentGhost` non consentono modifica dell'intento alleato
 - [ ] Door, Cover, Bridge e Objective risolvono l'**oggetto logico** e chiedono la legalità ai servizi di §3
 - [ ] Durante `ResolutionPlayback` le sole scelte di gameplay possibili sono le Decision Boundary autorizzate da E14
-- [ ] Ogni rifiuto porta un **reason code**: `Blocked` senza motivo è un difetto, non un esito
-- [ ] `PIE-V01-POINTER` registrata in [`test-manuali-pie.md`](test-manuali-pie.md)
+- [ ] Ogni rifiuto porta un **reason code**: `Blocked` senza motivo è un difetto, non un esito — 🟡 i tre produttori nuovi lo dicono (`UE_LOG` con la ragione); i rami preesistenti di `OnSelect` no, e il reason **a schermo** è **#613**
+- [x] `PIE-V01-POINTER` registrata in [`test-manuali-pie.md`](test-manuali-pie.md) — registrata; ⏳ **non ancora eseguita**
 
 ### Test automatici minimi
 
@@ -451,21 +485,34 @@ anche la riga aperta di [#291](https://github.com/DegrassiAaron/refactor-tactics
 - `ReactionWindowOwnsInputPriority`
 - `LogicalMapObjectResolvedFromStableId`
 
-Aggiunti con la revisione del 2026-08-13, uno per ogni regola nuova — nessuno è una variante dei precedenti:
+✅ **Scritti il 2026-08-13 sera** — dieci, ognuno per una regola nuova, tutti verdi e tutti passati per la
+verifica di mutazione:
 
-- `NeutralEnemyClickDoesNotPlan` — D-128, §6.4
-- `ArmedAbilityThenEnemyClickPlans` — il percorso rapido `2 → click` non è stato tolto
-- `PathingCellWinsOverDoorMesh` — §4.1, conseguenza 1
-- `TargetCellIgnoresOccupyingUnit` — §4.1, conseguenza 2
-- `GhostIsNeverAGameplayTarget` — §4.1, conseguenza 3
-- `RightClickBackFollowsTotalOrder` — §5.5
-- `RightClickNeverDeselects` — §5.5
-- `MultiVerbElementOpensContext` — §5.4
+| Test | Regola |
+|---|---|
+| `NeutralEnemyClickDoesNotPlan` | D-128, §6.4 — e nello stesso test la **controprova**: armata l'azione, lo stesso click pianifica |
+| `PathingCellWinsOverDoorMesh` | §4.1 conseguenza 1, con la controprova che in `Planning` la stessa porta è invece l'oggetto giusto |
+| `TargetCellIgnoresOccupyingUnit` | §4.1 conseguenza 2, con la controprova su `TargetKind::Unit` |
+| `GhostIsNeverAGameplayTarget` | §4.1 conseguenza 3 |
+| `RightClickBackFollowsTotalOrder` | §5.5 — tutti i livelli montati insieme, si verifica che cada il più prioritario |
+| `RightClickNeverDeselects` | §5.5 — la regola che si nota solo usando il gioco |
+| `TargetCellProducesPlannedAttackCell` | §6.5 — il produttore, più il rifiuto fuori portata che **non** distrugge il piano precedente |
+| `TargetEdgeProducesPlannedCoverEdge` | §6.5 — il produttore |
+| `FacingSectorProducesPlannedFacing` | §6.5 — il produttore |
+| `IllegalFacingIsRejectedNotCorrected` | §6.5 — **nessuna correzione silenziosa**; la direzione illegale si **cerca** interrogando `LegalFacings`, non si hardcoda |
 
-> ⚠️ **Nessuno di questi sedici nomi esiste oggi nella suite**, ed è il motivo per cui il campo `tests` di
-> `RT-FEAT-UI-POINTER-INTERACTION` è **vuoto** nel Feature Registry invece di elencarli: `validate` tratta un
-> pattern senza corrispondenza come errore, non come avviso, e ha ragione. I nomi entrano nel registro quando
-> entrano i test. Qui sono un impegno, non una misura.
+> ⚠️ **`ArmedAbilityThenEnemyClickPlans` non esiste come test a sé**, ed è deliberato: vive come seconda metà
+> di `NeutralEnemyClickDoesNotPlan`, dove condivide il setup e dice la cosa che conta — che il neutro **non**
+> ha allungato il percorso rapido. Un nome in meno nell'elenco, la stessa proprietà verificata. È scritto qui
+> perché un elenco di nomi attesi che non corrisponde alla suite è esattamente il difetto che il gate `G3` ha
+> già pagato due volte.
+
+⏳ **Restano da scrivere, e ognuno porta chi lo blocca**: gli otto originali qui sopra (HUD, privacy,
+playback, `ReactionWindow`) più `MultiVerbElementOpensContext` (§5.4, dipende da **#74** e **#613**).
+
+> ⚠️ Il campo `tests` di `RT-FEAT-UI-POINTER-INTERACTION` nel Feature Registry elenca ora **solo i dieci che
+> esistono**: `validate` tratta un pattern senza corrispondenza come errore, non come avviso, e ha ragione.
+> I nomi entrano nel registro quando entrano i test — mai prima.
 
 > I test vivono sul percorso **headless**: `HandleClickOnCell` / `HandleClickOnUnit` sono già separate dal
 > raycast proprio perché la decisione sia verificabile senza viewport (`RTPlayerController.h:110-123`). Il

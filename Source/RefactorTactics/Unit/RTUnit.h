@@ -165,9 +165,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	TArray<TObjectPtr<URTActionData>> Abilities;
 
-	/** Abilita' selezionata dal giocatore per la pianificazione. */
+	/**
+	 * Abilita' ARMATA dal giocatore per la pianificazione. `INDEX_NONE` = **nessuna**, ed e' lo stato in cui
+	 * un'unita' nasce e a cui torna dopo aver pianificato.
+	 *
+	 * 🔴 **Nasceva a `0`, e quello era il difetto** ([D-128](docs/decisions/RT_PDR_00_Decision_Log.md)). Con
+	 * un default valido un'abilita' era **sempre** armata: non esisteva uno stato neutro, e cliccare un
+	 * nemico pianificava sempre lo slot `0` — che il giocatore non aveva scelto, aveva trovato armato
+	 * all'avvio. L'affordance mostrata prima del click non prediceva il click, che e' l'invariante di
+	 * `docs/technical/spec-pointer-interaction.md`.
+	 *
+	 * Ora il neutro esiste ed e' rappresentabile: `ERTPointerContext::Planning` con `INDEX_NONE`,
+	 * `ERTPointerContext::Targeting` con un indice valido. Il giocatore arma con gli hotkey `1`-`4`, e
+	 * l'HUD lo mostra — `RTHUD.cpp` evidenzia lo slot solo quando l'indice coincide, quindi nello stato
+	 * neutro nessuno slot risulta acceso.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Ability")
-	int32 SelectedAbilityIndex = 0;
+	int32 SelectedAbilityIndex = INDEX_NONE;
 
 	/** Abilita' pianificata per il turno (INDEX_NONE = nessun attacco). */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Ability")
