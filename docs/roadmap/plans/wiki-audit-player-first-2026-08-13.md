@@ -115,6 +115,31 @@ D-130, tracciata da **#757**, e una seconda migrazione concorrente è esattament
 §1.2 vieta. Le due occorrenze player-facing fuori da quel perimetro — `sinergie-e-combinazioni` e
 `acqua-e-elettricita` — entrano invece nelle wave di riscrittura.
 
+## ⚠️ La classificazione di `Personaggi/` descrive la destinazione, non lo stato
+
+*(Correzione del 2026-08-14, dalla review di #757.)* Le regole qui sopra marcano `gadget`, `phase`,
+`riktor`, `wraith` come `PLAYER-REWRITE` e `flux`, `riva`, `bastion`, `vektor` come
+`REMOVE/ARCHIVE`. **Rispetto allo stato pubblicato è rovesciato**: le pagine vive sono le legacy.
+
+| Pagina raggiungibile | Parole | Link entranti | Pagina nuova | Parole | Link entranti |
+|---|--:|---|---|--:|---|
+| `flux.md` | 3 269 | sidebar + 5 pagine | `gadget.md` | 729 | solo `paragon.md` |
+| `riva.md` | 3 232 | sidebar + 5 | `phase.md` | 744 | solo `paragon.md` |
+| `bastion.md` | 3 195 | sidebar + 5 | `riktor.md` | 735 | solo `paragon.md` |
+| `vektor.md` | 3 195 | sidebar + 5 | `wraith.md` | 725 | solo `paragon.md` |
+
+E la sidebar dichiara già i nomi nuovi puntando alle pagine vecchie — `[[Gadget|flux]]` — quindi un
+giocatore che clicca «Gadget» legge oggi una pagina che scrive «Flux» quattordici volte.
+
+**Cosa resta valido**: le classi dicono dove ogni pagina deve *arrivare*, e su questo non cambia
+nulla. **Cosa era sbagliato**: leggerle come una fotografia dello stato. Una pagina `PLAYER-REWRITE`
+con 729 parole e un solo link entrante non è «da riscrivere», è **da riempire**; e una
+`REMOVE/ARCHIVE` con 3 269 parole e sei link entranti non si rimuove — prima si svuota, migrando il
+contenuto altrove.
+
+Il perimetro corretto è nella **#757**, riscritta il 2026-08-14: 12 891 parole da migrare, non
+quattro file da rinominare.
+
 ## Pagine orfane
 
 Sette, e nessuna è un problema di navigazione: sono file di servizio (`_Sidebar`, `_Footer`), guide di
