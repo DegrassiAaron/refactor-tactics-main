@@ -1,6 +1,6 @@
 # Guida — Workflow prototipo Paragon: animare un personaggio (AS.3 / AS.4)
 
-> `CURRENT` come **metodo**, `HISTORICAL` come **casting** · **Ultimo aggiornamento**: 2026-08-08
+> `CURRENT` come **metodo**, `HISTORICAL` come **casting** · **Ultimo aggiornamento**: 2026-08-13
 >
 > **Il procedimento vale; i nomi dei personaggi no.** Questa guida usa **Gideon** e **Sparrow** con gli
 > archetipi *Guardian* e *Ranger*: erano il prototipo del 2026-08-03, **non** il roster canonico, che è
@@ -60,6 +60,49 @@ l'IK Retargeter finché non vuoi condividere animazioni tra scheletri diversi o 
 > Per **Sparrow** (Ranger), quando è scaricato, cerca gli equivalenti in
 > `/Game/FabAsset/Paragon/ParagonSparrow/.../Animations/` (`Idle`, `Jog_Fwd`, un attacco tipo `Primary`/`Fire`, `HitReact_Front`, `Death_Fwd`).
 
+## AS.3b — Le clip dei quattro pack del roster
+
+🔴 **I cinque nomi qui sopra non esistono in nessuno dei quattro pack della v0.1.** La tabella di Gideon è
+l'esempio di *quali ruoli* servono, non di come si chiamano i file: su **venti** caselle (quattro pack × cinque
+ruoli) solo **otto** portano il nome che ci si aspetta. È lo stesso errore già costato una correzione un piano
+più in basso — gli skeleton presi dal nome del file invece che dalla mesh — e si evita nello stesso modo:
+**leggendo la cartella, non deducendo il nome**.
+
+Misurata sul disco il **2026-08-13**, cartella
+`/Game/FabAsset/Paragon/Paragon<Pack>/Characters/Heroes/<Pack>/Animations/`:
+
+| Ruolo | `Paragon.Gadget` | `Paragon.Phase` | `Paragon.Riktor` | `Paragon.Wraith` |
+|---|---|---|---|---|
+| **Idle** | `Idle` | `Idle` | `Idle` | 🔴 `Idle_NonCombat` |
+| **Corsa** (Move) | 🔴 `Run_Fwd` | `Jog_Fwd` | `Jog_Fwd` | `Jog_Fwd` |
+| **Attacco** (Blast) | `Cast` | `Cast` | `Cast` | `Cast` |
+| **Colpito** (Hit) | 🔴 `Hitreact_Fwd` | 🔴 `HitReact_Fwd` | `HitReact_Front` | `HitReact_Front` |
+| **Morte** (Defeated) | `Death_Fwd` | 🔴 `Death` | `Death_Fwd` | 🔴 `Death_Forward` |
+
+Le quattro caselle che fanno perdere più tempo, e perché:
+
+- **Gadget non ha `Jog_Fwd`.** Ha `Jog_Fwd_Start`, `_Stop`, `_CircleLeft`, `_Pivot180` — tutte transizioni, non
+  loop. La corsa in ciclo è la famiglia **`Run_*`** (`Run_Fwd`, `Run_Bwd`, `Run_Lft`, `Run_Rt`, `Run_Zero`), che
+  è anche quella che alimenta il suo blendspace `Run_Direction_1D`. Cercare `Jog_Fwd` qui dà zero risultati e
+  sembra un pack incompleto: non lo è, è nominato diversamente.
+- **Wraith non ha un `Idle` nudo.** Ha `Idle_Ability_Q`, `Idle_Noise_A/B`, `Idle_NonCombat` e — in una
+  **sottocartella** — `Locomotion_Combat/Idle_Combat`.
+- **`Hitreact` di Gadget ha la `r` minuscola** (`Hitreact_Fwd`), Phase la maiuscola (`HitReact_Fwd`). Il
+  Content Browser cerca senza distinguere maiuscole, ma un path scritto a mano no.
+- **Morte**: tre nomi diversi su quattro pack (`Death_Fwd`, `Death`, `Death_Forward`). Gadget ne ha anche uno
+  intitolato al personaggio, `Gadget_Death_A`.
+
+⚠️ **Idle e corsa si scelgono in coppia, non a due voci indipendenti.** Wraith e Phase hanno una locomozione
+*combat* completa e separata (`Locomotion_Combat/` per Wraith, `Jog_Fwd_Combat` per Phase): mescolare un idle
+in posa di combattimento con una corsa fuori combattimento — o viceversa — fa cambiare postura al personaggio a
+ogni transizione. Per Wraith le due coppie coerenti sono `Idle_NonCombat` + `Jog_Fwd` (entrambe in root) oppure
+`Locomotion_Combat/Idle_Combat` + `Locomotion_Combat/Jog_Fwd_Combat`.
+
+⚠️ **Quello che questa tabella non dice**: se la clip sia marcata **loop**. Il flag sta dentro l'asset e si
+legge solo aprendolo. `Idle` e la corsa devono esserlo, altrimenti lo stato gioca una volta e si ferma — un
+personaggio immobile con l'AnimBP che *sembra* funzionare. Si controlla al primo PIE, prima di ripetere la
+procedura sugli altri tre.
+
 ---
 
 ## AS.4a — Locomozione Idle ↔ Run (obiettivo: Gideon corre nel Move)
@@ -76,6 +119,9 @@ l'IK Retargeter finché non vuoi condividere animazioni tra scheletri diversi o 
 - Doppio clic sulla state machine:
   - **Entry** → nuovo stato **Idle**: dentro trascina l'anim **`Idle`** ▸ collega a **Output Animation Pose**.
   - Nuovo stato **Run**: dentro l'anim **`Jog_Fwd`** ▸ Output Animation Pose.
+  - ⚠️ **I due nomi valgono per Gideon.** Per i pack del roster prendili dalla riga *Idle* e *Corsa* di
+    [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster): su Gadget la corsa è `Run_Fwd`, su Wraith l'idle è
+    `Idle_NonCombat`.
   - Transizione **Idle → Run**: doppio clic sulla freccia ▸ condizione **`bIsMoving` == true** (trascina `bIsMoving` → `Return Value` del Can Enter Transition).
   - Transizione **Run → Idle**: condizione **`bIsMoving` == false** (usa un nodo **NOT**).
 - **Compile ▸ Save**.
@@ -114,6 +160,11 @@ solo i 3 eventi nel BP (uniforme per ogni personaggio; se un evento non è imple
 1. **Montaggi** (tasto destro sull'anim ▸ **Create ▸ Create AnimMontage**):
    - Gideon: `Cast`→`AM_Gideon_Attack`, `HitReact_Front`→`AM_Gideon_Hit`, `Death_Fwd`→`AM_Gideon_Death`.
    - Sparrow: attacco (tiro), `HitReact`, `Death` → `AM_Sparrow_*`.
+   - **Per il roster della v0.1**, clip di partenza dalle righe *Attacco*, *Colpito* e *Morte* di
+     [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster). Il nome del montaggio segue il **pack** come tutto il
+     resto (`AM_Gadget_Attack`, `AM_Gadget_Hit`, `AM_Gadget_Death`, e così per Phase, Riktor, Wraith), e le
+     sette caselle che non si chiamano come ci si aspetta stanno lì: `Hitreact_Fwd` con la `r` minuscola per
+     Gadget, `Death` nudo per Phase, `Death_Forward` per Wraith.
 2. **Slot** in `ABP_Gideon`/`ABP_Sparrow` ▸ AnimGraph: inserisci un nodo **Slot 'DefaultSlot'** tra la State
    Machine `Locomotion` e l'Output Pose (i montaggi vanno in override su idle/run).
 3. **BP_Unit** (Guardian/Ranger) ▸ Event Graph: aggiungi gli eventi (tasto destro ▸ cerca il nome) e collega
