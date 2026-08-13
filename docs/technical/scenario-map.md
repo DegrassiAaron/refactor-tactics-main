@@ -25,7 +25,7 @@ verificabile, ed è la seconda volta che succede a G9: la formulazione precedent
 `PIE-V01-*`» quando il registro ne contava 74.
 
 La causa non è la distrazione: è che **la ripartizione fra automatico e umano non stava scritta da nessuna
-parte**. Vive implicita in quattro posti diversi — il corpus `Scenarios/`, le 116 voci del registro PIE, il
+parte**. Vive implicita in quattro posti diversi — il corpus `Scenarios/`, le 135 voci del registro PIE, il
 gate `scenario` del Feature Registry, e le fasce di `scenari-validazione-visiva.md` — e ricomporla a memoria
 produce ogni volta un numero diverso. Questo file la scrive una volta, con i comandi per rimisurarla.
 
@@ -53,11 +53,37 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 |---|---:|---|
 | **A** — automatico | **27** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
-| **C** — solo umano | **95** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima |
+| **C** — solo umano | **112** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima, **meno** le `PIE-MUT-*` |
 | **D** — dichiarato | **12** scenari `Spec.*` ancora `BLOCKED` · **50** pianificati · **4** mai scritti *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Rimisurati **tre volte** il 2026-08-12, e ogni volta il numero era gia' cambiato sotto: **52** con `Spec.Map.ConstrainedCellCostsMore` ancora `planned`, **51** quando quel piano è diventato un file, **50** sull'albero unito perché `#659` ne ha acceso un altro nel frattempo. È il meccanismo del corpus che funziona — un `planned` che si accende esce da qui — ma dice anche che questo numero non si incrementa a mano: si rilegge da `scenariomap.shortlist.md` **dopo** il merge. ⚠️ Le righe **A**/**B** e il totale del corpus qui sopra restano NON rimisurati, come già avverte il riquadro del 2026-08-10: il generato conta 70 scenari versionati e 58 non bloccati, che non si riconciliano con `A 27 + B 21 + D 12` — la scomposizione per classe è umana e va rifatta voce per voce, non aggiustata di uno alla volta. Un totale scritto a mano non ha un lato giusto prima del merge, e non resta giusto dopo: si rilegge dal generato)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
-Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale registro PIE: **117** voci
-(`B 21 + C 95 + 1 fuori classe`).
+Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale registro PIE: **135** voci
+(`B 21 + C 112 + 2 fuori classe`).
+
+> 🔴 **Rimisurato il 2026-08-13: il totale PIE diceva 117 e ne erano 135.** Il numero fu scritto il
+> 2026-08-09 (`362b717a`) e da allora **non è più stato toccato**, mentre il registro cresceva di diciotto
+> voci. Lo stesso documento lo diceva in due modi diversi: la §1 parlava di **116** voci e questa riga di
+> **117** — due numeri vecchi in modi diversi nello stesso file, che è la firma esatta del difetto già
+> registrato per i `planned` nella riga `D`.
+>
+> ⚠️ **Non era un difetto di merge**: `135` era già il valore su `origin/main` (`6e109776`) prima che questa
+> sessione iniziasse. Nessun gate confronta questi totali col registro, ed è il motivo per cui sono
+> sopravvissuti quattro giorni a ogni `validate` verde.
+>
+> I tre comandi, che sono quelli della §7 e vanno rieseguiti invece che ricordati:
+>
+> ```bash
+> grep -c '^| \*\*PIE-'     docs/technical/test-manuali-pie.md   # 135  totale
+> grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md   #  21  classe B
+> grep -c '^| \*\*PIE-MUT-' docs/technical/test-manuali-pie.md   #   2  fuori classe
+> ```
+>
+> `C` **non** è stata contata a mano: è `135 − 21 − 2 = 112`, cioè la definizione della sua riga resa
+> aritmetica. La partizione ora è esaustiva e la somma si verifica da sé — prima non lo era, perché
+> `21 + 95 + 1` faceva `117` e nessuna delle tre parti veniva dal registro.
+>
+> ⚠️ **Restano NON rimisurate le righe `A` e `D` e il totale del corpus**: hanno per soggetto gli scenari di
+> `Scenarios/`, non il registro PIE, e la loro scomposizione per classe è **umana** — l'avvertenza del
+> riquadro del 2026-08-10 vale ancora e non è stata aggirata da questa passata.
 
 > ⚠️ **Rimisurato il 2026-08-10, e il conteggio era rotto in due punti diversi.** La riga `A` diceva già
 > **27** mentre il totale sotto continuava a sommare `A 26`; la riga `D` diceva **9** bloccati e **21**
@@ -79,6 +105,20 @@ Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale
 > Il modello a quattro classi divide per *dove sta l'oracolo*. Questa voce dice che esiste un secondo asse —
 > **chi controlla le precondizioni** — e che finora coincideva col primo. Se ne arriva una seconda, vale la
 > pena farne una classe.
+>
+> 🔴 **La seconda è arrivata, e nessuno se n'era accorto — 2026-08-13.** `PIE-MUT-ACTIONS-ZERO` è nel
+> registro accanto a `PIE-MUT-BASTION-SLOW`: le voci di mutazione sono **due**, non una, e la riga qui sopra
+> aveva dichiarato in anticipo cosa fare in quel caso.
+>
+> È il caso più insidioso di numero stantio, perché **non è un numero**: è una **condizione d'innesco**
+> scritta correttamente, verificabile con un `grep`, e scattata in silenzio. Un totale sbagliato prima o poi
+> stona; una condizione già soddisfatta non stona mai — resta lì a sembrare futura. Nessun gate la controlla,
+> per la stessa ragione per cui nessuno controlla i totali di questa tabella.
+>
+> ➡️ **Aperta, non decisa qui**: se `PIE-MUT-*` diventi una classe **E** — *oracolo automatico, precondizione
+> umana* — è una scelta sul modello, e questa passata è documentale. Il conteggio nel frattempo le tiene
+> **fuori da `C`**, che è ciò che la riga originale prescriveva; la classe le darebbe un nome, non un numero
+> diverso.
 
 > ⚠️ **Corretto il 2026-08-09, e non a occhio.** Questa tabella diceva `A 21` · `D-bloccati 12` ·
 > `13 pianificati`. Due numeri erano sbagliati e uno era invecchiato nello stesso giorno in cui è stato

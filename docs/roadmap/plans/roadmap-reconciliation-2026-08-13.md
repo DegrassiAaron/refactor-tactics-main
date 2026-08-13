@@ -156,12 +156,67 @@ Le 33 non sono trascritte: sono **derivate a runtime** da `RequiredIconIds()`
 (`Source/RefactorTactics/UI/RTIconLibrary.cpp`), e `FindMissingRequiredIcons` vuoto è il gate. La
 scomposizione dichiarata da `#219` — 4 fasi · 9 azioni · 11 status · 3 certezza · 6 identità — somma a 33.
 
+## 4-bis. Il registro PIE diceva 117 e ne erano 135 — e una condizione d'innesco era già scattata
+
+Trovato consolidando la scenario map, non cercandolo. `scenario-map.md` dichiarava il totale del registro PIE
+in **due modi diversi nello stesso file**: **116** in §1 e **117** in fondo alla tabella delle classi.
+
+Il valore reale, col comando che quel documento pubblica nella propria §7:
+
+```bash
+grep -c '^| \*\*PIE-'     docs/technical/test-manuali-pie.md   # 135
+grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md   #  21
+grep -c '^| \*\*PIE-MUT-' docs/technical/test-manuali-pie.md   #   2
+```
+
+⚠️ **Non è un difetto di merge.** `135` era già il valore su `origin/main` (`6e109776`) prima che questa
+sessione iniziasse; il `117` fu scritto il **2026-08-09** (`362b717a`) e non è più stato toccato mentre il
+registro cresceva di **diciotto** voci. Nessun gate confronta quel totale col registro: è sopravvissuto
+quattro giorni a ogni `validate` verde, esattamente come i totali epic/CP prima del 2026-08-12.
+
+La partizione ora è **esaustiva e verificabile da sé** — `B 21 + C 112 + 2 fuori classe = 135` — e `C` non è
+stata contata a mano: è la sottrazione, cioè la definizione della sua riga resa aritmetica. Prima
+`21 + 95 + 1 = 117` tornava, e **nessuna delle tre parti veniva dal registro**: è il caso peggiore, un totale
+che si verifica contro sé stesso.
+
+> 🔴 **E la scoperta vera non è un numero: è una condizione d'innesco già scattata.** Il riquadro sulla voce
+> fuori classe si chiudeva così, dal 2026-08-09:
+>
+> > «Il modello a quattro classi divide per *dove sta l'oracolo*. […] **Se ne arriva una seconda, vale la pena
+> > farne una classe.**»
+>
+> La seconda è arrivata: `PIE-MUT-ACTIONS-ZERO` sta nel registro accanto a `PIE-MUT-BASTION-SLOW`. Le voci di
+> mutazione sono **due**.
+>
+> Un totale sbagliato prima o poi stona. Una **condizione già soddisfatta non stona mai** — resta a sembrare
+> futura, e si legge come una previsione invece che come un arretrato. Era scritta bene, verificabile con un
+> `grep`, e nessuno l'ha rieseguita. ➡️ Se `PIE-MUT-*` debba diventare una classe **E** — *oracolo automatico,
+> precondizione umana* — è una scelta sul modello e **non** è stata presa qui.
+
+### Le copie del totale, cercate prima di fermarsi alla fonte
+
+Correggere `scenario-map.md` e fermarsi lì avrebbe riprodotto il difetto del 2026-08-12, che era proprio
+questo. `grep -rnE "\b11[567]\b" docs/ --include=*.md` filtrato sul contesto PIE:
+
+| Copia | Esito |
+|---|---|
+| `technical/scenario-map.md` ×2 (§1 e tabella) | **fonte** — corrette entrambe |
+| `roadmap/plans/editormap-spec.md` | spec **in revisione**, descrive lo stato corrente dei documenti fratelli — **corretta** |
+| `technical/scenari-validazione-visiva.md` | misura **auto-datata** («Al 2026-08-09») — lasciata, e **affiancata** dalla misura di oggi |
+| `roadmap/plans/map-editor-brief-spec-panel-2026-08-09.md` | **referto datato** — **lasciato** |
+
+⚠️ **Le righe `A` e `D` e il totale del corpus restano NON rimisurate**: hanno per soggetto gli scenari di
+`Scenarios/`, non il registro PIE, e la loro scomposizione per classe è **umana** — l'avvertenza del riquadro
+del 2026-08-10 vale ancora, e questa passata non l'ha aggirata.
+
 ## 5. Cosa è stato deliberatamente **non** fatto
 
 | Non fatto | Perché |
 |---|---|
 | aprire epic per `FX-1` e `GEN-1` | sono **proposte senza decisione**: il loro posto è `OPEN_DECISIONS.md`, ed è la stessa scelta della prima passata |
 | chiudere `#214` (E19) | lo stato è **derivato dai gate**, non dalle issue figlie — vedi §3 |
+| rimisurare le righe `A`/`D` e il totale del corpus in `scenario-map.md` | hanno per soggetto `Scenarios/`, non il registro PIE, e la loro scomposizione è **umana**: va rifatta voce per voce, non aggiustata di uno — lo dichiara il riquadro del 2026-08-10 |
+| fare di `PIE-MUT-*` una classe **E** | l'innesco è scattato (§4-bis) ma è una scelta sul **modello** delle classi, e questa passata è documentale |
 | decidere `FMT-1` | `#687` scrive *«la scelta ha implicazioni sul formato e va fatta da chi lo possiede»*, e resta vero |
 | ribilanciare `Brace` | invariato dalla prima passata: decide `BAL-1` (`#403`), applica `#404` |
 | aggiornare `meta.last_full_audit` | non è stato fatto un full audit — vedi il banner in testa |
@@ -176,6 +231,9 @@ scomposizione dichiarata da `#219` — 4 fasi · 9 azioni · 11 status · 3 cert
 | checkbox divergenti | 7 *(non cercate)* | **0** | idem |
 | voci in `OPEN_DECISIONS.md` | — | **+4** (`FMT-1`, `FMT-2`, `FX-1`, `GEN-1`) | — |
 | piani orfani fra i documenti citati | 1 (`mappe-generate-o-dipinte`) | **0** | `grep -rl` |
+| totale registro PIE dichiarato | 116 *(§1)* · 117 *(tabella)* | **135 · 135** | `grep -c '^\| \*\*PIE-'` |
+| copie vive di quel totale | 3 *(nessuna aggiornata)* | **3 allineate** *(+2 datate, lasciate)* | `grep -rnE "\b11[567]\b" docs/` |
+| voci `PIE-MUT-*` *(fuori classe)* | 1 *(dichiarata)* | **2** *(misurate)* | `grep -c '^\| \*\*PIE-MUT-'` |
 | link relativi controllati | 3091 su 308 file | **3142 su 315 file** | `check-docs-links.py` |
 | `feature_id` nel registry | 105 | **105** | `grep -c "^  - feature_id:"` |
 | `validate` | 0 errori · 34 warning | **0 errori · 34 warning** | `feature_registry.py validate` |

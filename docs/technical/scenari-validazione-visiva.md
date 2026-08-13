@@ -512,3 +512,10 @@ stesse 7 non assegnate di prima.
 > ```
 >
 > Al 2026-08-09: **21 e 21**. Registro PIE complessivo: `116 (26/21/69)`, `senza-marcatore = 0`.
+>
+> ➕ **Al 2026-08-13: ancora 21 e 21** — l'invariante che questa riga protegge **regge**. Il registro
+> complessivo è invece cresciuto a **135** voci: il `116` qui sopra è una misura datata e resta com'è, ma il
+> totale vivo sta in `scenario-map.md`, dove il 2026-08-13 è stato corretto da `117` a `135`. ⚠️ Le due cose
+> si misurano con comandi diversi e **solo la prima ha un innesco**: questa riga si riesegue quando si
+> aggiunge uno scenario `Visual.*`, il totale complessivo non lo controlla nessuno — ed è per questo che era
+> rimasto indietro di diciotto voci.
