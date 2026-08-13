@@ -52,13 +52,13 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**21 sedute** — ✅ **0** · 🟡 **12** · ⏳ **6** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**22 sedute** — ✅ **0** · 🟡 **12** · ⏳ **7** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
 ### My Editor Queue
 
-**BLOCKING** 10 · **READY** 3 · **WAITING** 5 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 3 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -77,7 +77,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 - **U18** · Verifiche senza prerequisiti — 1/15 voci verdi
 - **U20** · Confine fra Guard e Brace — 0/1 voci verdi
-- **U21** · Luci del graybox e inquadratura della mappa — 0/2 voci verdi
+- **U21** · Luci del graybox e inquadratura della mappa — 0/2 voci verdi · sblocca U22
 
 **WAITING** — *Aspetta codice*
 
@@ -86,6 +86,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U14** · Ambiente in partita — attende `U13` ⏳
 - **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` 🟡, `U5` 🟡, `U7` 🟡, `U8` ⏳
 - **U16** · Misura dei KPI — attende `U6` 🟡
+- **U22** · Il gesto dell'autore — ghost, snap e Undo del tool Geometry — attende `U21` ⏳
 
 **DONE** — *Finite*
 
@@ -116,8 +117,9 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U17** | Release v0.1 | `PIE` | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
 | **U20** | Confine fra Guard e Brace | `PIE` | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
 | **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
+| **U22** | Il gesto dell'autore — ghost, snap e Undo del tool Geometry | `PIE` | verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo | U21 | no | 0/4 | ⏳ |
 
-**Lane**: `PIE` **18** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
+**Lane**: `PIE` **19** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
 
 ### Blocco 1 — Eseguibile oggi
 
@@ -642,12 +644,22 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 #### U21 · Luci del graybox e inquadratura della mappa ⏳
 
-**Sbloccata da**: — · **Percorso critico**: no
+**Sbloccata da**: — · **Preparazione condivisa con**: U22 · **Percorso critico**: no
 **Produce**: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
 **Verifichi**: `PIE-MAPED-LIGHT` ⏳ · `PIE-MAPED-FRAME` ⏳
 **Finita quando**: le due voci hanno un esito reale e il livello illuminato e' committato
+**Sblocca**: U22
 
 > Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e questo repository non modifica `.umap` da riga di comando. ⚠️ `artifacts` e' VUOTO di proposito, benche' la seduta committi un livello. L'oracolo degli artefatti e' `git ls-files`, che sa dire se un path esiste e non se e' stato MODIFICATO: `L_DevSandbox.umap` e' gia' tracciato da mesi, quindi dichiararlo qui farebbe derivare 🟡 («parte fatta») su una seduta non ancora aperta. Lo stato deriva dalle due voci PIE, che sono la cosa che davvero non esiste ancora. Il livello committato resta nella DoD della issue. ⚠️ Il sorgente chiedeva anche di ricostruire la navigazione della camera (MMB pan, RMB orbit, wheel zoom, WASD, F focus). **Il viewport di Unreal le fornisce gia' tutte**, e un `UEdMode` non possiede la camera del viewport: `RTCameraPawn` e' la camera di GIOCO, un oggetto diverso. Resta solo l'inquadratura della mappa, che e' `PIE-MAPED-FRAME`. ⚠️ ID assegnato al merge: preso `U21` con `U20` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
+
+#### U22 · Il gesto dell'autore — ghost, snap e Undo del tool Geometry ⏳
+
+**Sbloccata da**: U21 · **Preparazione condivisa con**: U21 · **Percorso critico**: no
+**Produce**: verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo
+**Verifichi**: `PIE-GEO-GHOST` ⏳ · `PIE-GEO-SNAP` ⏳ · `PIE-GEO-UNDO` ⏳ · `PIE-GEO-RESIDUI` ⏳
+**Finita quando**: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
+
+> Nasce da #712, il gesto dell'autore. La seduta esiste perche' QUATTRO voci del suo DoD non sono osservabili headless: ghost, snap, Undo e residui vivono nell'occhio di chi disegna, non in una asserzione. La parte verificabile e' gia' nel runtime — `SnapToGrammar` con i suoi due test, `ValidateSegment` con i cinque di #620, `BakeCell` con i sette di #621 — e il tool d'editor NON contiene una sola regola: misurato, tre chiamate al runtime e zero logica duplicata. ⚠️ `unblocked_by: [U21]` non e' una dipendenza tecnica ma pratica: `L_DevSandbox` va illuminato prima, o il ghost si valuta su una scena in cui non si vede niente — e il verdetto direbbe piu' sulle luci che sul tool. ⚠️ `PIE-GEO-RESIDUI` chiede anche un `git status` pulito sul `.umap`: la geometria non si salva nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`. ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch remoti. Chi arriva secondo rinumera, non contende.
 
 > **58 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-HEX-*` 9 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-NAME-*` 1 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 3 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 
