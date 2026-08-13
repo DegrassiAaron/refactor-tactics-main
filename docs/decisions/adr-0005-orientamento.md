@@ -138,6 +138,10 @@ facing si ottiene il cono del facing **senza scrivere una seconda geometria** �
 > Questa è la scelta architetturale più importante dell'ADR: **vista, difesa e reazioni direzionali usano
 > letteralmente la stessa funzione**. Non possono divergere, perché non esistono due definizioni di «davanti».
 
+> ⚠️ **Emendato il 2026-08-13 da [D-126](RT_PDR_00_Decision_Log.md)**: la frase qui sopra resta vera per i
+> consumatori d'**area**, che non si spostano di lato, ma `HexCone` **non è più la primitiva semantica** del
+> facing. Vedi la [§4-bis](#4-bis-emendamento-2026-08-13--la-primitiva-semantica-sono-i-sei-lati-il-cono-resta-la-geometria-d-126).
+
 #### 4a. Difesa — l'emisfero posteriore è scoperto
 
 Un colpo la cui origine **non** è nell'arco frontale della vittima **annulla** la riduzione da **copertura
@@ -163,6 +167,29 @@ punizione arbitraria.
 La zona controllata di un Overwatch armato nasce dal facing dell'unità, **non** da una direzione dichiarata a
 parte come proponeva la nota sorgente (§10: `Direction: North-East`). Due sorgenti per la stessa cosa
 sarebbero due verità: chi arma la guardia decide dove guardare **orientandosi**.
+
+### 4-bis. Emendamento 2026-08-13 — la primitiva semantica sono i sei lati, il cono resta la geometria (`D-126`)
+
+[D-126](RT_PDR_00_Decision_Log.md) chiude `FAC-11` e separa due cose che la §4 teneva insieme:
+
+| Domanda | Chi risponde | Cosa restituisce |
+|---|---|---|
+| **da quale lato** arriva questo colpo? | relazione a sei direzioni (`IncomingDirection` relativa a `TargetFacing`) | una di `Front · FrontRight · RearRight · Rear · RearLeft · FrontLeft` |
+| **quale area** copre questa unità? | `URTHexLibrary::HexCone` | un ventaglio di 120° profondo quanto serve |
+
+Le quattro direzioni non frontali restano **distinte** — niente `Side`/`Flank` generico — e un'abilità può
+raggruppare i lati che le servono (`{FrontLeft, Front, FrontRight}`), ma quell'insieme appartiene al
+**consumatore**, non al canone. Non esiste più una banda globale obbligatoria `Front Arc / Flank / Rear`.
+
+🔴 **Nessuno dei tre consumatori di questa sezione cambia comportamento, e il motivo è misurato.** Il cono a
+120° è **strettamente contenuto** nell'insieme dei tre lati frontali: replicando `HexCone`/`HexLine` con le
+costanti reali su un difensore e raggio `1..10` si contano **50** celle di divergenza, **tutte** nel verso
+«tre-lati dentro / cono fuori» e **zero** nel verso opposto, con la prima a distanza **2**. Spostare §4a, §4b
+o §4c sull'insieme dei lati sarebbe quindi un **buff difensivo netto**, non una rinomina — e il divieto di
+avere due definizioni di «davanti» resta in vigore proprio perché nessun consumatore d'area si muove.
+
+Il lavoro runtime che la relazione a sei lati richiede è
+[#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726): oggi in `Source/` non esiste.
 
 ### 5. Determinismo e privacy
 

@@ -168,7 +168,13 @@ non va toccato. `Reposition` resta una **mobilità** a catalogo e non entra in q
 ### 5. Cosa **non** cambia
 
 Il facing resta stato di gioco intero a sei valori · l'arco frontale resta `HexCone` e resta **uno solo** per
-difesa, percezione e reazioni (ADR-0005 §4) · la difesa direzionale (§4a), la consapevolezza ravvicinata a 2
+difesa, percezione e reazioni (ADR-0005 §4) — ⚠️ **emendato il 2026-08-13 da
+[D-126](RT_PDR_00_Decision_Log.md)**: `HexCone` resta la **geometria d'area** dei tre consumatori, che non
+cambiano, ma **non è più la primitiva semantica** del facing; quella sono le sei direzioni relative, e
+l'insieme di lati che un'abilità dichiara appartiene al consumatore. Il cono è **strettamente contenuto**
+nell'insieme dei tre lati frontali (**50** celle di divergenza a raggio `1..10`, tutte nello stesso verso),
+quindi sostituirlo cambierebbe il bilanciamento: vedi [ADR-0005 §4-bis](adr-0005-orientamento.md) e
+[#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726) · la difesa direzionale (§4a), la consapevolezza ravvicinata a 2
 celle (§4b) e il cono dell'Overwatch derivato dal facing (§4c) sono **invariati** · la rotazione **non consuma
 slot** · la timeline di D-020 e i suoi sei punti restano quelli · `Deflect`, `Brace`, `Shield` continuano a
 proteggere da ogni direzione — `FAC-3` **non è decisa da questo ADR** e resta aperta.

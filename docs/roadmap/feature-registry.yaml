@@ -802,7 +802,7 @@ features:
       - docs/decisions/adr-0008-rotazione-e-policy-di-facing.md
       - docs/decisions/RT_PDR_00_Decision_Log.md
       - docs/technical/spec-turnlog.md
-    issues: [175, 176, 177, 291, 341, 339]
+    issues: [175, 176, 177, 291, 341, 339, 726]
     # La rotazione DICHIARATA (girarsi restando fermi) e' regola implementata ma senza produttore: nessun
     # input la scrive. Il gate `runtime` resta `done` perche' l'orientamento DERIVATO — quello che un'unita'
     # ha in quasi tutti i turni — e' cablato ovunque; il pezzo mancante e' input, ed e' tracciato in #291.
@@ -835,13 +835,22 @@ features:
       - Spec.Facing.BackAttackIgnoresGuard
       - Spec.Facing.FrontAttackKeepsGuard
       - Spec.Facing.BraceHoldsFromBehind
+      - Spec.Facing.TurningPathUsesLastCompletedStep
     wiki_refs:
       - wiki:facing-e-direzionalita
+    # 🔴 Questa nota diceva «Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui
+    # descrive come funzionera', non come funziona oggi», e il 2026-08-13 era falsa da tempo — contraddetta
+    # dai gate della sua stessa voce (`scenario: done`, `automation: done`, `runtime: partial`) e da nove
+    # scenari verdi. Finiva nel blocco di stato pubblicato sulla Wiki, quindi il giocatore leggeva «non
+    # implementata» di una meccanica che il gioco esegue. Corretta al merge di questo consolidamento.
     wiki_note: >-
-      Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui descrive come funzionera', non come funziona oggi.
+      Il facing e' **stato di gioco autorevole** e il turno lo esegue: deriva dal movimento, un'azione con
+      bersaglio riorienta prima di risolvere, e la difesa direzionale lo legge. Restano scoperti l'**input**
+      della rotazione dichiarata (#291) e l'**indicatore in HUD** dell'arco frontale: la regola c'e', il
+      modo di sceglierla e di vederla no.
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-13
+      commit: 83fb5ee9
     notes: >
       ADR-0005 e D-020 accettati, nessun codice. `Playback.DirectionYawFacesTarget` è
       presentazione, non stato di gioco: non vale come gate `runtime`. Prerequisito di E13.
@@ -870,6 +879,20 @@ features:
       chiedono la stessa cosa. L'argomento nuovo e' che **un tetto non si spende**, quindi non produce da
       solo la scelta «viaggio piu' lontano o arrivo orientato bene?». Il costo del pivot resta fuori dai
       gate di questa feature finche' e' aperto.
+      ⚠️ **2026-08-13 — `FAC-11` chiusa da `D-126`, e nessun gate cambia.** La primitiva **semantica** del
+      facing diventa la relazione a sei direzioni relative; `HexCone` resta la **geometria d'area** dei tre
+      consumatori di ADR-0005 §4, che non si spostano. Il motivo e' misurato, non prudenziale: il cono a
+      120° e' **strettamente contenuto** nell'insieme dei tre lati frontali — **50** celle di divergenza su
+      raggio `1..10`, **tutte** nel verso «tre-lati dentro / cono fuori», **zero** nel verso opposto, la
+      prima a distanza **2** — quindi sostituirlo sarebbe un **buff difensivo**, non una rinomina.
+      🔴 **Il gate `scenario` resta `done` ma la copertura non e' completa**, e va detto: la relazione a sei
+      lati **non esiste in `Source/`** (grep di `RelativeDirection`/`ERTRelativeDir`/`RelativeFacing` →
+      zero), quindi `Spec.Facing.SixRelativeSides` **non e' stato creato**: senza l'assertion che la legge
+      sarebbe una scatola vuota, e il loader rifiuta per scelta i nomi sconosciuti. Nasce nel DoD di
+      **#726** insieme alla funzione che dimostra. **Aggiunto invece** `Spec.Facing.TurningPathUsesLastCompletedStep`
+      (nono scenario, elencato sopra): fino a oggi l'unico scenario con un `move` era `DerivesFromMove`, ed
+      era **rettilineo** — un percorso dritto non distingue «ultimo passo compiuto» da «direzione del
+      viaggio», che e' proprio la regola di ADR-0008 §2.
 
   - feature_id: RT-FEAT-MAP-COVER
     title: Copertura direzionale per bordo

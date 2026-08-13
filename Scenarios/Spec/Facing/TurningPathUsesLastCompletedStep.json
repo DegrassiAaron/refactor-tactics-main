@@ -1,0 +1,34 @@
+{
+  "scenarioId": "Spec.Facing.TurningPathUsesLastCompletedStep",
+  "tags": ["facing", "movement", "core", "spec", "flux", "bastion"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "ADR-0008 §2: il facing deriva dall'ULTIMO PASSO COMPIUTO, non dalla direzione complessiva del percorso ne' dal primo passo. Fino al 2026-08-13 nessuno scenario lo dimostrava: `Spec.Facing.DerivesFromMove` era l'unico con un `move`, ed era RETTILINEO verso E — un percorso dritto non distingue «ultimo passo» da «direzione del viaggio», perche' coincidono. Qui il percorso SVOLTA: A1 parte da (-2,0,0), fa un passo a E fino a (-1,0,0) e poi un passo a NE fino a (0,-1,0). Le tre letture danno risposte diverse e solo una e' quella giusta.",
+
+  "_nota_cosa_distingue": "Primo passo -> E. Direzione complessiva (-2,0) -> (0,-1) -> delta (2,-1), che non e' nemmeno una delle sei direzioni pure. Ultimo passo compiuto -> NE. L'assertion pretende NE: se il resolver tornasse a derivare il facing dalla direzione del viaggio o dal primo passo, questo scenario diventa rosso mentre `DerivesFromMove` resta verde.",
+
+  "_nota_perche_non_asserisce_il_boundary": "L'harness non sa asserire uno stato INTERMEDIO: `UnitFacing` legge lo snapshot a fine turno. Il facing ai micro-step e' coperto dai test unitari (`Facing.MicroStepFacingIsLastCompletedStep`, `Facing.MicroStepZeroKeepsEntryFacing`), e duplicare qui il resolver per osservare il boundary renderebbe l'harness piu' capace del gioco. Questo scenario prova la REGOLA sul percorso reale (Intent -> Planning -> Snapshot -> Resolver); il boundary resta ai test unitari finche' un consumatore reale non lo osserva a fine turno.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [3, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — un passo a E, poi un passo a NE: la svolta e' dentro lo stesso movimento.",
+      "intents": [
+        { "unit": "A1", "move": [[-1, 0, 0], [0, -1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [0, -1, 0] },
+    { "type": "UnitFacing", "unit": "A1", "value": "NE" },
+    { "type": "UnitFacing", "unit": "B1", "value": "E" },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
