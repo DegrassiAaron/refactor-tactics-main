@@ -635,10 +635,13 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md"
+        "docs/roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md",
+        "docs/technical/spec-hex-geometry-authoring.md",
+        "docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md"
       ],
       "issues": [
-        324
+        324,
+        717
       ],
       "tests": [],
       "scenarios": [],
@@ -5540,7 +5543,7 @@
         "log_debug": "todo",
         "automation": "done",
         "scenario": "done",
-        "ui_wiki": "todo",
+        "ui_wiki": "partial",
         "packaged": "na",
         "network_privacy": "na",
         "replay_representable": "na"
@@ -5559,14 +5562,17 @@
       ],
       "completed_by": [],
       "owner_specs": [
+        "docs/technical/spec-hex-geometry-authoring.md",
         "docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md",
-        "docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md"
+        "docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md",
+        "docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md"
       ],
       "issues": [
         619,
         620,
         621,
-        712
+        712,
+        717
       ],
       "tests": [
         "RefactorTactics.HexOccupancy.*"
@@ -5575,14 +5581,16 @@
         "Spec.Map.ConstrainedCellCostsMore"
       ],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:griglia-e-geometria"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-12",
-        "commit": "52c08286"
+        "date": "2026-08-13",
+        "commit": "05bbe3dc"
       },
-      "notes": "Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked` ne esce per soglia. I dodici settori NON sono direzioni di movimento: quelle restano sei, pointy-top.\n\n`spec: partial` e non `done` perche' una domanda di modello resta aperta — `MSE-1` in `OPEN_DECISIONS.md`: la cottura non e' invertibile senza conservare il sorgente, e nessuno ha ancora deciso cosa succede se qualcuno modifica a mano un campo cotto. La ristrettezza del 2026-08-12 vale la pena rileggerla prima di toccare questo gate: `D2` da' al **costo** un produttore solo, quindi `#619` cuoce ma **non** innesca `MSE-1`; l'innesco resta `#621`, dove `FRTHexCover` e `bBlocksMovement` tornano a produttore condiviso col pennello.\n\n**`#619` e' chiusa (2026-08-12), ed e' la prima delle tre a esserlo.** Quel che era `tests: []` e `scenarios: []` non lo e' piu': `Source/RefactorTactics/Map/RTHexOccupancyLibrary.{h,cpp}` esiste nel modulo **runtime** (com'era il vincolo di collocazione, non una preferenza), i **sedici** test `RefactorTactics.HexOccupancy.*` girano — fra loro `GoldenExampleFromTheSource`, che pinna l'esempio di §14 del sorgente, `ThresholdBoundaries`, `SurchargeEntersTheMatchStateHash` e `SurchargeSurvivesADynamicSurfaceCycle`, cioe' esattamente le tre voci di DoD che `D2` aveva aggiunto — e `Scenarios/Spec/Map/ConstrainedCellCostsMore.json` non e' piu' `planned`: e' il file che mostra `Constrained` cambiare un risultato osservabile. Il campo con un consumatore era la condizione perche' `P1` non producesse un dato morto, ed e' soddisfatta.\n\n`runtime: partial` e non `done` **per i due anelli che restano**, non per incompletezza di `#619`: `#620` (la grammatica delle direttrici e il validator che la rende una regola invece che una convenzione) e `#621` (la cottura verso i bordi) sono aperte. Finche' `#620` non chiude, un segmento fuori grammatica e' rifiutato da una convenzione, non da un test.\n\nRevisione spec panel del 2026-08-12 su #619, due decisioni dell'autore che vincolano il modello. **D1**: il confine #619/#621 e' **per campo** — il costo e' di #619, i bordi (`FRTHexCover`, `bBlocksMovement`) sono di #621. Serviva perche' `ReachableCells` e `FindPath` leggono solo `FRTHexCellData`, quindi `Constrained` non era osservabile senza che qualcuno scrivesse un campo. **D2**: il sovrapprezzo di `Constrained` **non** vive in `MoveCost`, che ha gia' un produttore che lo ricalcola dalla sola `Surface` ogni turno (`ARTTurnManager::ApplyDynamicSurface` e `TickDynamicSurfaces`); e' un intero suo, sommato dai lettori del costo. Ne segue che `FormatVersion` sale da 6 a 7 e il campo entra in `RTMatchStateHash`. La `D-0xx` la prende la PR che implementa.\n\n⚠️ Le quattro fixture di geometria **non** vanno in `Scenarios/`: `FRTScenarioCell` porta `Cell`, `bBlocksMovement`, `bBlocksLineOfSight`, `MoveCost` e nessun campo per segmenti o footprint. Sono dati di test del modulo runtime; in `Scenarios/Spec/Map/` — che contiene oggi **un solo file**, `BridgeBreaksThePath.json` — va **un** solo scenario nuovo, quello che mostra l'effetto di `Constrained` su `ReachableCells`: e' `Spec.Map.ConstrainedCellCostsMore`, dichiarato `planned` qui sopra perche' resti visibile come warning finche' non e' un file.\n\nVincolo di collocazione, non preferenza: maschera, classificazione e cottura vivono nel modulo **runtime** e l'editor le chiama. In `Source/RefactorTacticsEditor/` non esiste alcun test — rimisurato su `origin/main` il 2026-08-12: 19 file, zero corrispondenze `*test*`. Cio' che nasce dentro l'editor nasce non verificabile. *(Questa nota citava la PR #598 come «aperta, non mergiata»: e' mergiata dal 2026-08-12T07:07:42Z. L'argomento non dipendeva da quella PR ed e' stato rimisurato.)*\n\nPerche' e' una feature separata da `RT-FEAT-TOOL-MAP-EDITOR` invece di una sua nota: quella e' una **modalita' d'editor** con i suoi quattro tool, questa e' un **modello di dati** con una cottura verso `FRTHexCover` e `bBlocksMovement`. Tenerle insieme farebbe dipendere lo stato di uno strumento maturo (`TESTABLE`) da un lavoro non cominciato."
+      "notes": "Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked` ne esce per soglia. I dodici settori NON sono direzioni di movimento: quelle restano sei, pointy-top.\n\n`spec: partial` e non `done` perche' una domanda di modello resta aperta — `MSE-1` in `OPEN_DECISIONS.md`: la cottura non e' invertibile senza conservare il sorgente, e nessuno ha ancora deciso cosa succede se qualcuno modifica a mano un campo cotto. La ristrettezza del 2026-08-12 vale la pena rileggerla prima di toccare questo gate: `D2` da' al **costo** un produttore solo, quindi `#619` cuoce ma **non** innesca `MSE-1`; l'innesco resta `#621`, dove `FRTHexCover` e `bBlocksMovement` tornano a produttore condiviso col pennello.\n\n**`#619` e' chiusa (2026-08-12), ed e' la prima delle tre a esserlo.** Quel che era `tests: []` e `scenarios: []` non lo e' piu': `Source/RefactorTactics/Map/RTHexOccupancyLibrary.{h,cpp}` esiste nel modulo **runtime** (com'era il vincolo di collocazione, non una preferenza), i **19** test `RefactorTactics.HexOccupancy.*` girano — questa riga diceva «sedici», ed era vera quando fu scritta: rimisurata il 2026-08-13 contando le macro nel file, non incrementata a mano. La crescita e' verificabile commit per commit: `b0c94a62` 16 -> `1c4422f7` 17 (il fix sul sovrapprezzo negativo) -> `964deb70` 19 (il caso collineare che le prime quattro fixture evitavano di proposito) — fra loro `GoldenExampleFromTheSource`, che pinna l'esempio di §14 del sorgente, `ThresholdBoundaries`, `SurchargeEntersTheMatchStateHash` e `SurchargeSurvivesADynamicSurfaceCycle`, cioe' esattamente le tre voci di DoD che `D2` aveva aggiunto — e `Scenarios/Spec/Map/ConstrainedCellCostsMore.json` non e' piu' `planned`: e' il file che mostra `Constrained` cambiare un risultato osservabile. Il campo con un consumatore era la condizione perche' `P1` non producesse un dato morto, ed e' soddisfatta.\n\n`runtime: partial` e non `done` **per i due anelli che restano**, non per incompletezza di `#619`: `#620` (la grammatica delle direttrici e il validator che la rende una regola invece che una convenzione) e `#621` (la cottura verso i bordi) sono aperte. Finche' `#620` non chiude, un segmento fuori grammatica e' rifiutato da una convenzione, non da un test.\n\nRevisione spec panel del 2026-08-12 su #619, due decisioni dell'autore che vincolano il modello. **D1**: il confine #619/#621 e' **per campo** — il costo e' di #619, i bordi (`FRTHexCover`, `bBlocksMovement`) sono di #621. Serviva perche' `ReachableCells` e `FindPath` leggono solo `FRTHexCellData`, quindi `Constrained` non era osservabile senza che qualcuno scrivesse un campo. **D2**: il sovrapprezzo di `Constrained` **non** vive in `MoveCost`, che ha gia' un produttore che lo ricalcola dalla sola `Surface` ogni turno (`ARTTurnManager::ApplyDynamicSurface` e `TickDynamicSurfaces`); e' un intero suo, sommato dai lettori del costo. Ne segue che `FormatVersion` sale da 6 a 7 e il campo entra in `RTMatchStateHash`. La `D-0xx` la prende la PR che implementa.\n\n⚠️ Le quattro fixture di geometria **non** vanno in `Scenarios/`: `FRTScenarioCell` porta `Cell`, `bBlocksMovement`, `bBlocksLineOfSight`, `MoveCost` e nessun campo per segmenti o footprint. Sono dati di test del modulo runtime; in `Scenarios/Spec/Map/` — che contiene oggi **un solo file**, `BridgeBreaksThePath.json` — va **un** solo scenario nuovo, quello che mostra l'effetto di `Constrained` su `ReachableCells`: e' `Spec.Map.ConstrainedCellCostsMore`, dichiarato `planned` qui sopra perche' resti visibile come warning finche' non e' un file.\n\nVincolo di collocazione, non preferenza: maschera, classificazione e cottura vivono nel modulo **runtime** e l'editor le chiama. In `Source/RefactorTacticsEditor/` non esiste alcun test — rimisurato su `origin/main` il 2026-08-12: 19 file, zero corrispondenze `*test*`. Cio' che nasce dentro l'editor nasce non verificabile. *(Questa nota citava la PR #598 come «aperta, non mergiata»: e' mergiata dal 2026-08-12T07:07:42Z. L'argomento non dipendeva da quella PR ed e' stato rimisurato.)*\n\nPerche' e' una feature separata da `RT-FEAT-TOOL-MAP-EDITOR` invece di una sua nota: quella e' una **modalita' d'editor** con i suoi quattro tool, questa e' un **modello di dati** con una cottura verso `FRTHexCover` e `bBlocksMovement`. Tenerle insieme farebbe dipendere lo stato di uno strumento maturo (`TESTABLE`) da un lavoro non cominciato."
     },
     {
       "feature_id": "RT-FEAT-TOOL-VALIDATION",

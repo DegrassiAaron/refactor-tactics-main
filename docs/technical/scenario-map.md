@@ -146,6 +146,13 @@ Totale corpus versionato: **60** scenari (`A 27 + B 21 + D-bloccati 12`). Totale
 > `Spec.Map.ConstrainedCellCostsMore`, e sta in classe **D** finché non è un file: dichiarato `planned` sotto
 > `RT-FEAT-TOOL-MAP-GEOMETRY`, così il warning di `validate` lo tiene visibile come vuole §6.2.
 >
+> ➕ **Dal 2026-08-13 quella regola ha un owner che la enuncia**:
+> [`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md) §14 dice quali verifiche di quest'area
+> vanno in automation e quali in seduta PIE, e ripete che le fixture geometriche vivono in
+> `RTOccupancyFixtures.h`. La stessa revisione ha respinto sette scenari `Spec.Environment.*` proposti da un
+> handoff: descrivono capability che non esistono, e uno scenario scritto prima della capability verifica il
+> nulla — è la classe **D** usata come promessa invece che come inventario.
+>
 > Regola generale, che questo caso rende esplicita: *se il formato dello scenario non può esprimere
 > l'ingresso, il file non appartiene a `Scenarios/`*. Metterlo lì prometterebbe copertura automatica e
 > consegnerebbe file che nessun runner esegue — la stessa forma di errore dell'ultima riga di §5, dove dieci

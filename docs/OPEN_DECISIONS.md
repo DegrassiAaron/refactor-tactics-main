@@ -259,7 +259,7 @@ asse.
 
 | ID | Domanda | Perché non si deduce |
 |---|---|---|
-| `MSE-2` | Le soglie di occupancy vanno **ritarate** ora che la grammatica di `#620` produce solo geometria collineare ai confini di settore, o la regola conservativa va resa esclusiva, o si accetta il conteggio più alto come semantica voluta? | Non si deduce dal codice perché **oggi la geometria in asse non esiste**: `#620` è aperta, e nessuna fixture esercita il caso. I numeri invece **ora esistono** — misurati il 2026-08-13, vedi il blocco qui sotto — e quello che resta aperto è una scelta di semantica, che nessuna misura può fare al posto dell'autore. ⚠️ E non è più un'ipotesi: **due** muri su sei lati portano la cella a `Blocked` mentre **quattro lati restano aperti**, e `#621` cuocerebbe quel `Blocked` in `bBlocksMovement` rendendo **impassabile una cella attraversabile**. Cinque uscite, e la quinta è emersa dalla misura: ritarare le soglie (non tocca codice chiuso, solo default) · rendere esclusiva la regola collineare (cambia una regola chiusa, va motivata) · **scartare il contatto di misura nulla** — un settore toccato in un solo punto non è invaso — che è più fine della precedente e lascia le soglie dove sono · contare i **lati murati** invece dei settori quando la geometria è perimetrale (è il conteggio che il designer ha in testa) · accettare e dichiararlo. Innesco: [`#620`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/620), prima che la grammatica fissi la forma dei segmenti |
+| `MSE-2` | Le soglie di occupancy vanno **ritarate** ora che la grammatica di `#620` produce solo geometria collineare ai confini di settore, o la regola conservativa va resa esclusiva, o si accetta il conteggio più alto come semantica voluta? | Non si deduce dal codice perché **oggi la geometria in asse non esiste**: `#620` è aperta, e nessuna fixture esercita il caso. I numeri invece **ora esistono** — misurati il 2026-08-13, vedi il blocco qui sotto — e quello che resta aperto è una scelta di semantica, che nessuna misura può fare al posto dell'autore. ⚠️ E non è più un'ipotesi: **due** muri su sei lati portano la cella a `Blocked` mentre **quattro lati restano aperti**, e `#621` cuocerebbe quel `Blocked` in `bBlocksMovement` rendendo **impassabile una cella attraversabile**. Cinque uscite, e la quinta è emersa dalla misura: ritarare le soglie (non tocca codice chiuso, solo default) · rendere esclusiva la regola collineare (cambia una regola chiusa, va motivata) · **scartare il contatto di misura nulla** — un settore toccato in un solo punto non è invaso — che è più fine della precedente e lascia le soglie dove sono · contare i **lati murati** invece dei settori quando la geometria è perimetrale (è il conteggio che il designer ha in testa) · accettare e dichiararlo. Innesco: [`#620`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/620), prima che la grammatica fissi la forma dei segmenti. **Tracciata in [`#717`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/717)** insieme a `MSE-3` |
 
 > 🔎 **La suite è girata il 2026-08-13, e il margine NON regge.** 19 test `HexOccupancy.*` dichiarati,
 > 19 eseguiti, 0 falliti (build `RefactorTacticsEditor` Development, `-nullrhi`). I numeri che
@@ -285,6 +285,36 @@ asse.
 > protegge: là il contatto è lungo un *segmento*, e resterebbe occupazione. La distinzione è fra contatto
 > di misura nulla e contatto esteso, non fra collineare e non collineare. Cambia comunque una regola di
 > `#619` già chiusa, quindi resta una **decisione**, non una correzione: va presa prima di `#621`.
+
+---
+
+## Aperta — due modelli di calpestabilità, dallo spec panel del 2026-08-13
+
+Origine: [revisione spec panel del brief HexGeometry e del bundle `grid/`](roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md) §C1.
+Come `MSE-2`, non nasce da una contraddizione fra documenti ma da **due decisioni entrambe corrette, prese a
+settimane di distanza e mai messe una accanto all'altra**. Questa volta però i due modelli sono entrambi
+documentati, e uno dei due è già **implementato**.
+
+Il repository risponde alla domanda «questa cella è calpestabile?» in due modi:
+
+| | Modello | Dove vive | Stato |
+|---|---|---|---|
+| **A** | **Cerchio inscritto**: l'ingombro dell'unità è il cerchio più grande dentro l'esagono; se tocca il muro la cella non è valida. **Binario** | [`D-071`](decisions/RT_PDR_00_Decision_Log.md) · Wiki `Meccaniche/griglia-e-geometria.md` · `RT-FEAT-MAP-STANDABILITY` | `DESIGNED`, gate 0/8, **v0.2** |
+| **B** | **Dodici settori con soglie**: `≥4` → `Constrained`, `≥6` → `Blocked`. **Ternario** | `#619` · `RTHexOccupancyLibrary` | **implementato**, 19 test verdi |
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `MSE-3` | I due modelli sono **lo stesso modello a due livelli di dettaglio** — e allora quale produce `bBlocksMovement` — oppure sono **due regole concorrenti**, e una va ritirata? | Non si deduce dal codice perché **il modello A non è implementato**: esiste come decisione e come pagina Wiki, non come funzione. Non si deduce dai documenti perché **nessuno dei due li cita insieme**: il brief HexGeometry §7 presenta solo B come «baseline corrente», il bundle `grid/` §1 dichiara solo che «prevale D-071». ⚠️ Danno **risposte diverse sulla stessa geometria**: un muro appoggiato a un lato è *tangente* al cerchio inscritto — caso limite per A — mentre B gli assegna 4/12 settori, cioè `Constrained`; con due muri B dice `Blocked` mentre quattro lati restano aperti. Tre uscite: A è il **gate** e B è il **dettaglio del costo** (i due si compongono, e `Blocked` di B smette di produrre impassabilità) · B assorbe A e `D-071` diventa la *motivazione* delle soglie invece di una regola separata · restano separati per **domande diverse** — A per «ci sta un'unità», B per «quanto è stretta» — e allora va detto quale scrive `bBlocksMovement`. Innesco: [`#621`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621), la cottura, che è il primo codice che deve **scegliere**. **Tracciata in [`#717`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/717)** insieme a `MSE-2` |
+
+> 🔎 **Perché non la chiude la revisione che l'ha trovata.** La prima uscita è tecnicamente attraente — `D-071`
+> come gate binario e le soglie come modulazione del costo — e risolverebbe anche `MSE-2`, perché toglierebbe a
+> `Blocked` il compito di rendere impassabile. Ma `D-071` è una decisione d'autore registrata nel Decision Log
+> e spiegata al giocatore in una pagina Wiki: ridefinirne il ruolo è una scelta di design, non un refactor.
+>
+> ⚠️ **`MSE-2` e `MSE-3` vanno decise insieme**: la seconda uscita di `MSE-2` (scartare il contatto di misura
+> nulla) e la prima di `MSE-3` risolvono lo stesso sintomo — celle dichiarate `Blocked` con lati aperti — da
+> due lati diversi. Prenderne una sola rischia di lasciare l'altra senza problema da risolvere, o di risolverlo
+> due volte.
 
 ---
 
