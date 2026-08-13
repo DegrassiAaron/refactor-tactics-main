@@ -5227,6 +5227,10 @@ features:
       # `ProvenanceDoesNotChangeTheHash` pinna il vincolo di D-131: `bGenerated` e' metadato d'authoring
       # e non deve entrare nell'hash, o due mappe che si giocano identiche divergerebbero.
       - RefactorTactics.GeometryBake.*
+      # #712: lo SNAP del gesto d'autore vive nel runtime e non nel tool, perche' in
+      # `Source/RefactorTacticsEditor/` non esiste alcun test. I due test stanno in
+      # `RefactorTactics.GeometryGrammar.Snap*` -- gia' coperti dal glob qui sopra.
+      # Il resto di #712 (ghost, snap percepibile, Undo, residui) e' seduta U22: non e' headless.
     scenarios:
       # L'unico scenario che questa feature produce: le quattro fixture di geometria NON sono
       # scenari (`FRTScenarioCell` non sa esprimere un segmento) e vivono in

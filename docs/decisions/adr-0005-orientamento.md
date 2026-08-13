@@ -274,6 +274,28 @@ stabile, formato versionato) · **#6** rispettato (la rotazione **intesa** è fi
 > produttore del campo, cioè più capace del gioco. La capability `DeclaredRotation` è dichiarata **non
 > disponibile** in `RTScenarioSession.cpp`, accanto a `ReactionPlanning`, che ha la stessa forma.
 
+> ✅ **Aggiornamento 2026-08-13 — l'ultimo capoverso qui sopra non descrive più il repository.** Resta
+> scritto perché il ragionamento era giusto ed è la ragione per cui la chiave è stata tenuta fuori per
+> quattro giorni; ma la sua **premessa è caduta**, e va detto dove qualcuno la leggerebbe.
+>
+> | Cosa diceva | Stato misurato oggi |
+> |---|---|
+> | «nessun comando permette al giocatore di dichiarare una rotazione» | `ARTPlayerController::HandleFacingSector` ([#737](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737), PR #743) |
+> | «l'harness **non** ha una chiave `facing`» | `FRTScenarioIntent::Facing` + `bDeclaresFacing` (`RTTestScenario.h:372`), letta a `RTScenarioLoader.cpp:489` (PR #744) |
+> | «`DeclaredRotation` è dichiarata **non disponibile**» | è **fra le disponibili** (`RTScenarioSession.cpp:124`) |
+>
+> L'harness non è più il primo produttore, quindi il verde dice ora qualcosa di vero sul giocatore — che è
+> esattamente la condizione che il capoverso poneva. Due scenari la esercitano sul percorso reale,
+> `Spec.Facing.IllegalDeclaredRotationIsRejected` e `Spec.Facing.StationaryDeclaredRotationApplies`, e
+> l'ancora `RefactorTactics.Scenario.DeclaredRotationScenariosPass` ne pinna il `Pass` perché uno
+> scivolamento in `BLOCKED` non passi in silenzio. **`ReactionPlanning` invece non è cambiata**: il
+> paragone regge solo per la forma, non per lo stato.
+>
+> Di [#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291) restano **il bot** — che non
+> dichiara rotazioni — e **l'insieme legale a schermo**, che è
+> [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613): il comando esiste, la sua
+> leggibilità no, e oggi il rifiuto è un `UE_LOG` invece di un reason code visibile.
+
 ## Perimetro — cosa questo ADR non decide *(nota 2026-08-08)*
 
 L'ADR decide **come si determina** il facing e **chi lo consuma**. Non decide, e non va letto come se lo

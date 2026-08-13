@@ -3,7 +3,11 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexOccupancyLibrary.h"
 
-namespace
+// ⚠️ Namespace NOMINATO, non anonimo: `RTHexOccupancyLibrary.cpp` ha helper con gli stessi nomi nel suo
+// namespace anonimo, e nella unity build i due .cpp possono finire nella stessa unit di traduzione — dove
+// due `Cross2D` anonimi collidono. Non e' un'ipotesi: e' successo, e la build precedente passava solo per
+// come i file erano raggruppati in quel momento.
+namespace RTGeometryBakeInternal
 {
 	double Cross2D(const FVector2D& O, const FVector2D& A, const FVector2D& B)
 	{
@@ -95,7 +99,7 @@ void URTGeometryBakeLibrary::EdgesTouchedBy(const FRTGeometrySegment& Segment, f
 		const FVector2D& V0 = Boundary[(2 * Edge) % RT_OccupancySectorCount];
 		const FVector2D& V1 = Boundary[(2 * Edge + 2) % RT_OccupancySectorCount];
 
-		if (SegmentClosesEdge(Line.Points[0], Line.Points[1], V0, V1))
+		if (RTGeometryBakeInternal::SegmentClosesEdge(Line.Points[0], Line.Points[1], V0, V1))
 		{
 			OutEdges.Add(static_cast<ERTHexDirection>(Edge));
 		}

@@ -10,14 +10,17 @@
 namespace
 {
 	constexpr float BakeHexSize = 100.0f;
-	const FRTCellId Origin{ 0, 0, 0 };
+	// ⚠️ Nome specifico, non `Origin`: nella unity build questo namespace anonimo finisce nella stessa unit
+	// di traduzione di altri test, e un `Origin` qui NASCONDE l'omonimo la' (C4459, che qui e' un errore).
+	// Non e' teoria: e' successo appena il raggruppamento dei file e' cambiato.
+	const FRTCellId BakeOrigin{ 0, 0, 0 };
 
 	/** Una mappa con una sola cella all'origine: il minimo su cui una cottura di bordi sia osservabile. */
 	URTHexMapAsset* MakeOneCellMap()
 	{
 		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
 		FRTHexCellData Cell;
-		Cell.Id = Origin;
+		Cell.Id = BakeOrigin;
 		Map->AddOrUpdateCell(Cell);
 		return Map;
 	}
@@ -37,7 +40,7 @@ namespace
 
 	const FRTHexCover* FindCover(const URTHexMapAsset* Map, ERTHexDirection Edge)
 	{
-		const FRTHexCellData* Cell = Map->FindCell(Origin);
+		const FRTHexCellData* Cell = Map->FindCell(BakeOrigin);
 		if (Cell == nullptr) { return nullptr; }
 		return Cell->Covers.FindByPredicate([Edge](const FRTHexCover& C) { return C.Edge == Edge; });
 	}
@@ -58,7 +61,7 @@ bool FRTBakeWallToCoverTest::RunTest(const FString&)
 	URTHexMapAsset* Map = MakeOneCellMap();
 
 	const int32 Generated = URTGeometryBakeLibrary::BakeCell(
-		Map, Origin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
+		Map, BakeOrigin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
 
 	TestEqual(TEXT("un muro perimetrale genera una copertura"), Generated, 1);
 
@@ -72,12 +75,12 @@ bool FRTBakeWallToCoverTest::RunTest(const FString&)
 	}
 
 	// Nessun altro bordo è stato murato: un bake che marcasse tutti i sei bordi passerebbe il controllo sopra.
-	const FRTHexCellData* Cell = Map->FindCell(Origin);
+	const FRTHexCellData* Cell = Map->FindCell(BakeOrigin);
 	TestEqual(TEXT("un solo bordo murato"), Cell ? Cell->Covers.Num() : -1, 1);
 
 	// Il muretto cuoce nell'altro valore canonico, con la sua integrità.
 	URTHexMapAsset* LowMap = MakeOneCellMap();
-	URTGeometryBakeLibrary::BakeCell(LowMap, Origin, { WallOnEdge(ERTHexCoverType::Low) }, BakeHexSize);
+	URTGeometryBakeLibrary::BakeCell(LowMap, BakeOrigin, { WallOnEdge(ERTHexCoverType::Low) }, BakeHexSize);
 	const FRTHexCover* LowCover = FindCover(LowMap, ERTHexDirection::E);
 	TestNotNull(TEXT("anche il muretto cuoce"), LowCover);
 	if (LowCover)
@@ -103,14 +106,14 @@ bool FRTBakeIsIdempotentTest::RunTest(const FString&)
 	URTHexMapAsset* Map = MakeOneCellMap();
 	const TArray<FRTGeometrySegment> Geometry{ WallOnEdge(ERTHexCoverType::High) };
 
-	URTGeometryBakeLibrary::BakeCell(Map, Origin, Geometry, BakeHexSize);
+	URTGeometryBakeLibrary::BakeCell(Map, BakeOrigin, Geometry, BakeHexSize);
 	const uint32 AfterFirst = Map->ComputeHash();
 
-	URTGeometryBakeLibrary::BakeCell(Map, Origin, Geometry, BakeHexSize);
+	URTGeometryBakeLibrary::BakeCell(Map, BakeOrigin, Geometry, BakeHexSize);
 	const uint32 AfterSecond = Map->ComputeHash();
 
 	TestEqual(TEXT("rieseguire il bake non cambia l'asset"), AfterSecond, AfterFirst);
-	TestEqual(TEXT("e non accumula coperture"), URTGeometryBakeLibrary::CountGeneratedCovers(Map, Origin), 1);
+	TestEqual(TEXT("e non accumula coperture"), URTGeometryBakeLibrary::CountGeneratedCovers(Map, BakeOrigin), 1);
 
 	// E l'hash non è banalmente costante: senza questo, l'uguaglianza sopra passerebbe con un `ComputeHash`
 	// che ignora le coperture.
@@ -136,18 +139,18 @@ bool FRTBakeProvenanceTest::RunTest(const FString&)
 
 	// Una copertura dipinta a mano su un bordo DIVERSO da quello che il muro murerà.
 	{
-		FRTHexCellData Cell = *Map->FindCell(Origin);
+		FRTHexCellData Cell = *Map->FindCell(BakeOrigin);
 		Cell.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::Low, 30));
 		Map->AddOrUpdateCell(Cell);
 	}
 
-	URTGeometryBakeLibrary::BakeCell(Map, Origin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
+	URTGeometryBakeLibrary::BakeCell(Map, BakeOrigin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
 
 	TestNotNull(TEXT("la copertura a mano è ancora lì dopo il bake"), FindCover(Map, ERTHexDirection::W));
 	TestNotNull(TEXT("e quella generata è stata scritta"), FindCover(Map, ERTHexDirection::E));
 
 	// TOGLIERE il segmento: la copertura generata sparisce, quella a mano no.
-	URTGeometryBakeLibrary::BakeCell(Map, Origin, {}, BakeHexSize);
+	URTGeometryBakeLibrary::BakeCell(Map, BakeOrigin, {}, BakeHexSize);
 
 	TestNull(TEXT("tolto il segmento, la sua copertura non c'è più"), FindCover(Map, ERTHexDirection::E));
 	const FRTHexCover* Hand = FindCover(Map, ERTHexDirection::W);
@@ -173,13 +176,13 @@ bool FRTBakeHandPaintedWinsTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeOneCellMap();
 	{
-		FRTHexCellData Cell = *Map->FindCell(Origin);
+		FRTHexCellData Cell = *Map->FindCell(BakeOrigin);
 		Cell.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low, 30));
 		Map->AddOrUpdateCell(Cell);
 	}
 
 	const int32 Generated = URTGeometryBakeLibrary::BakeCell(
-		Map, Origin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
+		Map, BakeOrigin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
 
 	TestEqual(TEXT("il bake non genera nulla su un bordo già dell'autore"), Generated, 0);
 
@@ -209,13 +212,13 @@ bool FRTBakeProvenanceIsNotInHashTest::RunTest(const FString&)
 	// Stessa copertura, stesso bordo, stesso tipo, stessa integrità: cambia SOLO la provenienza.
 	URTHexMapAsset* Painted = MakeOneCellMap();
 	{
-		FRTHexCellData Cell = *Painted->FindCell(Origin);
+		FRTHexCellData Cell = *Painted->FindCell(BakeOrigin);
 		Cell.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::High, 50));
 		Painted->AddOrUpdateCell(Cell);
 	}
 
 	URTHexMapAsset* Baked = MakeOneCellMap();
-	URTGeometryBakeLibrary::BakeCell(Baked, Origin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
+	URTGeometryBakeLibrary::BakeCell(Baked, BakeOrigin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
 
 	// Le due coperture sono identiche salvo `bGenerated`: la controprova è qui sotto, altrimenti il test
 	// direbbe solo che due mappe a caso hanno lo stesso hash.
@@ -251,13 +254,13 @@ bool FRTBakeOrderAndValidationTest::RunTest(const FString&)
 	WallW.Offset = -RT_GeometryQuanta;
 
 	URTHexMapAsset* Forward = MakeOneCellMap();
-	URTGeometryBakeLibrary::BakeCell(Forward, Origin, { WallE, WallW }, BakeHexSize);
+	URTGeometryBakeLibrary::BakeCell(Forward, BakeOrigin, { WallE, WallW }, BakeHexSize);
 
 	URTHexMapAsset* Backward = MakeOneCellMap();
-	URTGeometryBakeLibrary::BakeCell(Backward, Origin, { WallW, WallE }, BakeHexSize);
+	URTGeometryBakeLibrary::BakeCell(Backward, BakeOrigin, { WallW, WallE }, BakeHexSize);
 
 	TestEqual(TEXT("stesso hash comunque ordinati i segmenti"), Backward->ComputeHash(), Forward->ComputeHash());
-	TestEqual(TEXT("due bordi murati"), URTGeometryBakeLibrary::CountGeneratedCovers(Forward, Origin), 2);
+	TestEqual(TEXT("due bordi murati"), URTGeometryBakeLibrary::CountGeneratedCovers(Forward, BakeOrigin), 2);
 
 	// `ValidateMap` continua a passare sui dati cotti: un bordo con due coperture, o un'integrità nulla,
 	// sarebbero errori che il bake può introdurre senza accorgersene.
@@ -284,14 +287,14 @@ bool FRTBakeDoesNotTouchVolumeTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeOneCellMap();
 
-	const FRTHexCellData* Before = Map->FindCell(Origin);
+	const FRTHexCellData* Before = Map->FindCell(BakeOrigin);
 	const bool bBlockedBefore = Before && Before->bBlocksMovement;
 	const bool bLosBefore = Before && Before->bBlocksLineOfSight;
 	const int32 SurchargeBefore = Before ? Before->OccupancySurcharge : -1;
 
-	URTGeometryBakeLibrary::BakeCell(Map, Origin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
+	URTGeometryBakeLibrary::BakeCell(Map, BakeOrigin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
 
-	const FRTHexCellData* After = Map->FindCell(Origin);
+	const FRTHexCellData* After = Map->FindCell(BakeOrigin);
 	TestTrue(TEXT("bBlocksMovement invariato"), After && After->bBlocksMovement == bBlockedBefore);
 	TestTrue(TEXT("bBlocksLineOfSight invariato"), After && After->bBlocksLineOfSight == bLosBefore);
 	TestEqual(TEXT("il sovrapprezzo di occupancy resta di #619"),
