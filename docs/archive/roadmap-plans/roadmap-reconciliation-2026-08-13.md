@@ -1,5 +1,11 @@
 # Referto — Secondo passaggio sull'handoff di reconciliation (2026-08-13)
 
+> `SNAPSHOT` · **Data**: 2026-08-13
+> **Cosa e'**: il secondo passaggio sullo stesso handoff, riconciliazione **parziale**.
+> **Cosa non e'**: una fonte di stato. ⚠️ Contiene affermazioni **superate lo stesso giorno**: dice che
+> `FMT-1` e' da decidere, e [`D-137`](../../decisions/RT_PDR_00_Decision_Log.md) l'ha chiusa la sera. E'
+> il comportamento normale di uno `SNAPSHOT`, ed e' il motivo per cui ne porta il banner.
+>
 > **Partial reconciliation**, non full audit. `meta.last_full_audit` del Feature Registry **resta al
 > 2026-08-08 / `2094b86`**: questo lavoro ha corretto contraddizioni misurate e registrato decisioni
 > orfane, non ha riconfrontato `Source/` · `Tests/` · `Scenarios/` · `docs/` · Wiki riga per riga.
@@ -88,7 +94,7 @@ migrazione e' inerte»*. Il difetto è ora dimostrato sul binario e **nessuna** 
 scelta.
 
 Registrata come `FMT-1`, insieme a `FMT-2` — perché il piano
-[`mappe-generate-o-dipinte-2026-08-12.md`](mappe-generate-o-dipinte-2026-08-12.md) §6 conclude che *«le due
+[`mappe-generate-o-dipinte-2026-08-12.md`](../../roadmap/plans/mappe-generate-o-dipinte-2026-08-12.md) §6 conclude che *«le due
 cose vanno decise insieme, o si costruisce un secondo controllo sopra un meccanismo inerte»*.
 
 ⚠️ **Quel piano era orfano**: `grep -rl "mappe-generate-o-dipinte" docs/` non restituiva **nulla**. Un

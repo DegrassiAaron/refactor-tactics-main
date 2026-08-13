@@ -266,5 +266,5 @@ di quello di E4: *aggiungere «Wraith spara in corsa» non deve toccare `ARTTurn
 | [`spec-economia-del-turno.md`](spec-economia-del-turno.md) | la regola in vigore e i quattro budget |
 | [`spec-tassonomia-movimento.md`](spec-tassonomia-movimento.md) | il confronto fra le famiglie di movimento |
 | [`../balance/RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) | i numeri dei profili |
-| [`../roadmap/plans/action-economy-consolidamento-2026-08-12.md`](../roadmap/plans/action-economy-consolidamento-2026-08-12.md) | da dove viene la proposta |
+| [`../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md`](../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md) | da dove viene la proposta |
 | *questa pagina* | **la proposta in forma decidibile**, e i criteri per dirle di no |

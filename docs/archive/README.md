@@ -19,7 +19,8 @@ La fonte di verità del progetto è:
 
 | Cartella / file | Cos'è |
 |---|---|
-| [`src/`](src/README.md) | **I 28 sorgenti recepiti** — `design/`, `handoff/`, `audit/`, spostati qui dal 2026-08-08. Hanno un indice proprio con la colonna «Recepito da». Dal 2026-08-09 include anche i sorgenti **revisionati e non applicati**, con l'esito in testa al file |
+| [`src/`](src/README.md) | **I 69 sorgenti recepiti** — `design/`, `handoff/`, `audit/`, spostati qui dal 2026-08-08. Hanno un indice proprio con la colonna «Recepito da». Dal 2026-08-09 include anche i sorgenti **revisionati e non applicati**, con l'esito in testa al file. *(Diceva **28** fino al 2026-08-14: un totale scritto a mano che nessun gate confronta con la cartella. Rimisurato con `find docs/archive/src -name '*.md' ! -name README.md \| wc -l` → **69**, che è anche ciò che `src/README.md` dichiara.)* |
+| [`roadmap-plans/`](roadmap-plans/README.md) | **I 20 piani e referti storici** spostati da `docs/roadmap/plans/` il 2026-08-14 — **10** `HISTORICAL` e **10** `SNAPSHOT`. ⚠️ Il criterio è il **banner**, non la data nel nome: quella ne coglieva 35 su 68, e di quei 35 ne prendeva **22 dichiarati `CURRENT`**. I `CURRENT` restano in [`../roadmap/plans/`](../roadmap/plans/README.md), che ha un indice del criterio |
 | [`pdr-v0.1/`](pdr-v0.1/RT_PDR_v0.1_consolidato.md) | Il corpus dei tredici PDR `v0.1` in **un solo Markdown**, con la tabella «cosa vale oggi» documento per documento. I PDF sono stati rimossi il 2026-08-12 e restano nella storia Git |
 | `gameplay/` | Spec superate: terreni, knockback, bot utility, sequenza turno esplorativa |
 | `technical/` | Le versioni **a griglia quadrata** di mappa multilivello e pathfinding, superate dal pivot esagonale (ADR-0002) |

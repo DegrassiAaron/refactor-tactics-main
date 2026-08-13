@@ -59,7 +59,7 @@ intercetta. `scripts/check-docs-symbols.py` non copre gli elenchi di azioni in p
 3. **Nessuno esegue il check.** 13 pagine pubblicate portano blocchi di stato derivati da uno stato
    vecchio; il repository è allineato (`wiki --check` → «pagine gia' allineate»), il clone no.
 4. **Il processo non ha una casa.** È descritto solo dentro
-   [`../feature-registry.md`](../feature-registry.md), che è un documento **generato**.
+   [`../../roadmap/feature-registry.md`](../../roadmap/feature-registry.md), che è un documento **generato**.
 
 ### Difetto latente da correggere
 
