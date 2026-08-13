@@ -196,6 +196,59 @@ scenari, golden replay e mappe salvate.
 > cotto sparisce al ricalcolo successivo, in silenzio. Rischio di produzione registrato dal 2026-08-09 e non
 > ancora chiuso.
 
+#### Dove sta il lavoro — misurato il 2026-08-14 ([D-138](../decisions/RT_PDR_00_Decision_Log.md))
+
+| CP | Issue | Stato | Feature |
+|---|---|---|---|
+| **23.1** | [#619](https://github.com/DegrassiAaron/refactor-tactics-main/issues/619) [#620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/620) [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) [#712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712) | tre chiuse, una aperta — *authoring anticipato* | `RT-FEAT-TOOL-MAP-GEOMETRY` |
+| **23.2** | — | ✅ **già consegnato in v0.1** | `RT-FEAT-MAP-INTERACTIVE-EDGES` |
+| **23.3** | [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832) | ⬜ aperta | `RT-FEAT-MAP-STRUCTURE-IDENTITY` |
+| **23.4** | [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833) | ⬜ aperta | `RT-FEAT-MAP-INTERACTION-GRAPH` |
+| **23.5** | [#834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/834) | ⬜ aperta | `RT-FEAT-UI-STRUCTURE-READABILITY` |
+| **23.6** | — | `DESIGNED` | `RT-FEAT-MAP-STANDABILITY` |
+| **23.7** | — | `DESIGNED` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` |
+
+> 🔴 **`23.2` non è lavoro da fare, ed è la correzione che vale la pena leggere.** Il gruppo atomico
+> multi-transition **esiste dalla v0.1**: `FRTHexDoor::DoorId` raggruppa i bordi, `SetDoorState` li muta
+> insieme incrementando la revisione **una sola volta**. Due test lo dimostrano, e vanno citati per quello che
+> fanno davvero: `Structures.Door.GroupClosesTogether` prova il **raggruppamento** — tre bordi di **una stessa
+> cella** con `DoorId 3`, più una quarta porta senza gruppo che resta ferma, e il suo commento avverte che «il
+> gruppo non deve essere rettilineo» — mentre `Structures.Door.StateChangeBumpsRevision` prova il caso della
+> **porta larga**: «Portone largo tre bordi: un comando, una revisione», tre **celle** allineate sul bordo E
+> con `DoorId 7`, e l'asserzione `Revision == Before + 1`. È quest'ultimo, non il primo, a essere «la porta
+> larga circa 3 m» che i documenti di visione continuano a proporre come obiettivo futuro.
+>
+> Chi legge questa riga cercando la porta multi-transition **da costruire** riscriverebbe qualcosa che ha già
+> dei test verdi, e li romperebbe.
+>
+> Il delta reale è **l'identità** (`23.3`): `DoorId` è un `int32` locale all'asset — non sopravvive al cook,
+> nessuno scenario può citarlo per nome, e senza un nome l'interaction graph di `23.4` non ha come citare il
+> proprio bersaglio. Il codice lo dichiarava già: *«`DoorId` e arco esistono già e bastano. L'identità stabile
+> è E23 (#324)»* — [`RTPointerInteraction.h`](../../Source/RefactorTactics/Player/RTPointerInteraction.h).
+
+#### L'orizzonte del dominio oltre la v0.2
+
+Il dominio non finisce con `E23`, ma **non genera epic proprie**: si innesta su quelle che già esistono. La
+catena è di dipendenza, non di ambizione — e il vincolo lo detta l'owner delle interazioni,
+[`spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) §11, che mette il controllo
+remoto sorgente → bersaglio fuori scope perché *«richiede la privacy dei collegamenti e quindi la rete»*.
+
+| Release | Epic ospite | Che cosa il dominio vi aggiunge |
+|---|---|---|
+| **v0.2** | `E23` | il grafo è un **dato**: cardinalità, ordine deterministico, validator dei binding |
+| **v0.3** | `E27` — Percezione completa | la relazione ha un **pubblico**: `Known`/`Unknown` per squadra, `Controller: ???`, discovery |
+| **v0.4** | `E30` — Classe di mappa Operations | **scala**: molte strutture, gate ampi, churn di path cache, leggibilità su mappe grandi |
+| **v0.5** | `E40` — Il turno simultaneo in rete | la privacy diventa **verificabile**: stato autoritativo, canary di leak, late join e reconnect |
+| **v0.9** | `E44` — Feature freeze | determinismo, soak, corpus di replay, validator sulle mappe di shipping |
+| **v1.0** | `E45` — Gate di produzione | il dominio entra nel gate, non porta feature nuove |
+
+⚠️ **Due proposte non hanno un owner, e restano proposte.** Un *production authoring* di strutture (validator
+a lotti, migrazione di schema, stabilità del cook) e un *interaction graph v2* (`N sorgenti → 1 bersaglio` con
+semantica `AND`/`OR`, power network, interazioni condizionali) sono stati proposti per le release intermedie:
+nella taxonomy reale quelle release appartengono a `E41` (GAS come runtime) e `E42` (dedicated server), che
+sono altri domini. **Non si creano epic per simmetria.** Se il gameplay le chiederà, la decisione precede
+l'epic — e per il graph v2 la decisione ha già un ID: `INT-5`.
+
 ### E24 — Formato Standard 3v3 · P1
 
 **Tracciata su GitHub**: epic [#325](https://github.com/DegrassiAaron/refactor-tactics-main/issues/325).

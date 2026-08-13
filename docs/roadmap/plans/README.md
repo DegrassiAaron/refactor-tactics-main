@@ -23,16 +23,16 @@ dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
 | Banner | Vocabolario | Significa | Quanti *(2026-08-14)* |
 |---|---|---|--:|
-| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 25 |
+| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 26 |
 | `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 1 |
 | `📦 DELIVERED PLAN` | secondo | *Piano già eseguito, non normativo* — equivale a `HISTORICAL` | 14 |
 | `🧱 AS-BUILT` | secondo | *Specifica di ciò che fu consegnato* — equivale a `HISTORICAL` | 7 |
 | `DONE` · `PLAN`/consumato · `BRIEF` | secondo | Casi singoli, già consumati — equivalgono a `HISTORICAL` | 3 |
 
-**50 documenti**, `README.md` escluso. I due totali si rimisurano eseguendo:
+**51 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **due volte in un giorno** perche' tre rami hanno toccato la cartella senza vedersi. `26 + 1 + 14 + 7 + 3 = 51`, e la somma delle categorie e' il controllo che il totale da solo non offre. I due totali si rimisurano eseguendo:
 
 ```sh
-ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 50
+ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 51
 ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
 ```
 

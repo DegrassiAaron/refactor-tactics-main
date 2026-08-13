@@ -20,12 +20,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**107 feature** · v0.1 **74** · v0.2 **16** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
+**110 feature** · v0.1 **74** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 7 |
-| `DESIGNED` | 15 |
+| `DESIGNED` | 18 |
 | `SPECIFIED` | 11 |
 | `IMPLEMENTING` | 24 |
 | `TESTABLE` | 7 |
@@ -116,7 +116,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-CHARACTER-STATE` — Character State / Configuration System | v0.4 | SPECIFIED | 1/10 | E34 | Epic E34, `#244` |
 | `RT-FEAT-INTENT-CONDITIONAL` — Conditional Intent — un intento con una biforcazione | v0.3 | SPECIFIED | 1/10 | E33 | Un intento con **una** biforcazione — epic E33, `#330` |
 
-### Map · 14
+### Map · 16
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -129,7 +129,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | v0.1 | INTEGRATED | 7/9 | E9 | Una porta chiusa toglie passo **e** linea di tiro con lo stesso `BlocksTraversal` |
 | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | v0.1 | INTEGRATED | 7/9 | E9 | L'arco è **additivo**: romperlo annulla il percorso, non lo allunga |
 | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | v0.1 | IMPLEMENTING | 6/10 | E16 | Deriva da Move e Dash, entra in snapshot e hash, e da dietro annulla `Guard` |
+| `RT-FEAT-MAP-INTERACTION-GRAPH` — Interaction graph: la relazione sorgente -> bersaglio e' un dato | v0.2 | DESIGNED | 0/10 | E23 | — |
 | `RT-FEAT-MAP-STANDABILITY` — Standability derivata da anchor, footprint e clearance | v0.2 | DESIGNED | 0/8 | E23 | — |
+| `RT-FEAT-MAP-STRUCTURE-IDENTITY` — Identita' stabile di una struttura attraverso cook, scenari e replay | v0.2 | DESIGNED | 0/8 | E23 | — |
 | `RT-FEAT-MAP-TRANSITION-CLEARANCE` — Validità della transizione distinta da quella della cella | v0.2 | DESIGNED | 0/8 | E23 | — |
 | `RT-FEAT-MAP-STRUCTURAL` — Strutture: integrita', crolli a catena e macerie | future | IDEA | 0/9 | — | Lo slot si chiama **`Bulkhead`** (D-082): il verbo *breach* resta un'azione, e `BreachCharge` è ciò che lo apre |
 | `RT-FEAT-MAP-VERTICALITY` — Verticalita': vault, drop, salita e cadute | future | IDEA | 0/9 | — | — |
@@ -201,7 +203,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | E26 | Epic E26 |
 | `RT-FEAT-BOT-COMPETENCE` — Schema di competenza del bot — cosa il bot sa davvero usare | v0.8 | IDEA | 0/6 | E43 | — |
 
-### UI · 10
+### UI · 11
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -215,6 +217,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | v0.1 | IMPLEMENTING | 1/6 | E11 | Tarata sulla scala esagonale |
 | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse | v0.1 | IMPLEMENTING | 3/7 | E11 | L'arancione del fuoco amico deve **notarsi** |
 | `RT-FEAT-UI-ACTION-GHOSTS` — Action Ghosts e Ghost Timeline | v0.1 | SPECIFIED | 1/8 | E11 | Il planning visuale: cosa succederà, e con quanta certezza |
+| `RT-FEAT-UI-STRUCTURE-READABILITY` — Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio | v0.2 | DESIGNED | 0/7 | E23 | — |
 
 <!-- RT_SHORTLIST_FEATURES:END -->
 
