@@ -46,8 +46,10 @@ namespace
 	// dell'eroe che non compare qui (nessuno ha deciso che farne) e un campo dichiarato qui che il codice non
 	// trasporta davvero.
 	//
-	// Per esentare un campo servono due cose: `UnitField = nullptr` e un motivo scritto. Il motivo non e'
-	// decorazione — e' cio' che impedisce di esentare un campo per farlo smettere di essere rosso.
+	// Per esentare un campo servono due cose: `UnitField = nullptr` e un motivo scritto. ⚠️ Il test verifica
+	// solo che il motivo NON SIA VUOTO, non che sia buono: `TEXT("x")` lo soddisfa. L'esenzione e' quindi
+	// un'ammissione visibile nel diff, non una barriera — chi rivede la PR e' l'unico che puo' respingerla.
+	// Detto altrimenti: questa riga rende il silenziamento *esplicito*, non *difficile*.
 	const FRTHeroFieldRoute Routes[] = {
 		{ TEXT("HeroId"),           TEXT("HeroId"),           ERTTransport::Exact,  nullptr },
 		{ TEXT("DisplayName"),      TEXT("HeroDisplayName"),  ERTTransport::Exact,  nullptr },
@@ -77,12 +79,22 @@ namespace
 		return nullptr;
 	}
 
-	/** Valore di una proprieta' come testo: unico confronto che regge int32, FName, FText e TArray insieme. */
-	FString ValueAsText(const FProperty* Prop, const void* Container)
+	/**
+	 * Valore di una proprieta' come testo, SOLO per il messaggio d'errore.
+	 *
+	 * 🔴 **Non usarlo per decidere se due valori sono uguali.** Con `Delta = nullptr`,
+	 * `ExportText_InContainer` non scrive niente quando il valore coincide con il default del TIPO
+	 * (`ExportText_Direct` salta l'export se `Identical(Data, nullptr)`): un `int32` a `0` e un `FName` a
+	 * `NAME_None` esportano stringa vuota. Confrontare quelle stringhe fa passare qualunque campo il cui
+	 * valore di catalogo sia il default — che e' esattamente la classe di difetto che questo test esiste per
+	 * scoprire. Preso in code review dopo che il gate era rimasto VERDE con il trasporto di
+	 * `PushResistance` (0 su Phase, come il default di `ARTUnit`) rimosso.
+	 */
+	FString ValueAsTextForMessage(const FProperty* Prop, const void* Container)
 	{
 		FString Out;
 		Prop->ExportText_InContainer(0, Out, Container, nullptr, nullptr, PPF_None);
-		return Out;
+		return Out.IsEmpty() ? FString(TEXT("<default del tipo>")) : Out;
 	}
 }
 
@@ -146,13 +158,32 @@ bool FRTHeroDataBoundaryTest::RunTest(const FString&)
 	// Il punto 2 da solo direbbe che il campo esiste, non che qualcuno lo riempie: e' la differenza fra una
 	// dichiarazione e un produttore, ed e' il difetto che questo repository ha gia' pagato piu' volte.
 	//
-	// L'eroe scelto e' quello con i valori piu' distinguibili dai default di `ARTUnit`: la soglia d'udito di
-	// Phase e' 3 contro il default 5, quindi un campo NON copiato resta 5 e si vede.
-	const URTHeroData* Hero = URTHeroCatalogLibrary::MakeRiva();
-	if (!TestNotNull(TEXT("il catalogo produce l'eroe di prova"), Hero))
+	// 🔴 **L'eroe di prova e' SINTETICO, e non e' un vezzo.** La prima versione usava `MakeRiva()`, e il
+	// gate restava VERDE anche togliendo il trasporto di `PushResistance`: il valore di Phase e' `0`, che e'
+	// **identico al default di `ARTUnit`**, quindi «copiato 0» e «mai copiato, default 0» sono lo stesso
+	// stato e nessun confronto puo' distinguerli. Preso in code review, e il rimedio proposto — cambiare il
+	// modo di confrontare i valori — **non bastava**: il difetto non era il confronto, era la fixture.
+	//
+	// Qui ogni campo vale qualcosa che NESSUN default dell'unita' produce (`MaxHealth` 100, `MoveRange` 4,
+	// `VisionRange` 5, `HearingThreshold` 5, `PushResistance` 0, i due `FName` a `NAME_None`), quindi un
+	// campo non trasportato resta al default e la differenza si vede. Il test verifica il MECCANISMO del
+	// confine; che i numeri di catalogo siano quelli giusti e' un'altra domanda, e ha altri test.
+	URTHeroData* Hero = NewObject<URTHeroData>();
+	if (!TestNotNull(TEXT("l'eroe di prova esiste"), Hero))
 	{
 		return false;
 	}
+	Hero->HeroId = TEXT("Hero.Fixture");
+	Hero->DisplayName = FText::FromString(TEXT("Fixture"));
+	Hero->MaxHealth = 137;
+	Hero->MovePoints = 9;
+	Hero->VisionRange = 11;
+	Hero->HearingThreshold = 7;
+	Hero->PushResistance = 3;
+	Hero->Affinity = TEXT("Fixture.Affinita");
+	Hero->Weakness = TEXT("Fixture.Debolezza");
+	// Almeno un'azione: serve al ramo `Prefix`, che pretende le azioni dell'eroe PIU' le generiche.
+	Hero->Actions = URTHeroCatalogLibrary::MakeFlux()->Actions;
 
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("l'unita' di prova esiste"), Unit))
@@ -182,9 +213,13 @@ bool FRTHeroDataBoundaryTest::RunTest(const FString&)
 			// Confronto strutturale, non testuale: il testo esportato di una TArray non si presta a un
 			// «inizia per», e il punto qui e' che i primi N elementi siano gli STESSI oggetti.
 			const int32 Attesi = Hero->Actions.Num();
+			// `>` e non `>=`: `Prefix` significa «le azioni dell'eroe PIU' qualcosa dell'unita'», e quel
+			// qualcosa sono le azioni generiche di D-025. Con `>=` un `MakeGenericActions` che smettesse di
+			// accodare lascerebbe il test verde, e il nome del trasporto direbbe il falso.
 			if (!TestTrue(*FString::Printf(
-					TEXT("ARTUnit::%s contiene almeno le %d azioni dell'eroe"), R.UnitField, Attesi),
-					Unit->Abilities.Num() >= Attesi))
+					TEXT("ARTUnit::%s contiene le %d azioni dell'eroe E le generiche accodate"),
+					R.UnitField, Attesi),
+					Unit->Abilities.Num() > Attesi))
 			{
 				continue;
 			}
@@ -197,10 +232,24 @@ bool FRTHeroDataBoundaryTest::RunTest(const FString&)
 			continue;
 		}
 
-		const FString Atteso = ValueAsText(HeroProp, Hero);
-		const FString Trovato = ValueAsText(UnitProp, Unit);
-		TestEqual(*FString::Printf(
-			TEXT("URTHeroData::%s arriva su ARTUnit::%s"), R.HeroField, R.UnitField), Trovato, Atteso);
+		// Il tipo prima del valore: un instradamento che mappa `int32` su `FName` non e' un valore sbagliato,
+		// e' una tabella sbagliata — e confrontare due layout diversi non avrebbe senso.
+		if (!TestTrue(*FString::Printf(
+				TEXT("URTHeroData::%s e ARTUnit::%s hanno lo stesso tipo"), R.HeroField, R.UnitField),
+				HeroProp->SameType(UnitProp)))
+		{
+			continue;
+		}
+
+		// `Identical` con entrambi i puntatori: confronta i due VALORI. Vedi il commento di
+		// `ValueAsTextForMessage` sul perche' il confronto per testo esportato era vacuo.
+		const void* HeroValue = HeroProp->ContainerPtrToValuePtr<void>(Hero);
+		const void* UnitValue = UnitProp->ContainerPtrToValuePtr<void>(Unit);
+		TestTrue(*FString::Printf(
+			TEXT("URTHeroData::%s arriva su ARTUnit::%s (atteso %s, trovato %s)"),
+			R.HeroField, R.UnitField,
+			*ValueAsTextForMessage(HeroProp, Hero), *ValueAsTextForMessage(UnitProp, Unit)),
+			HeroProp->Identical(HeroValue, UnitValue, PPF_None));
 	}
 
 	return true;

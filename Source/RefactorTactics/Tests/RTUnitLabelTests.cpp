@@ -74,6 +74,11 @@ bool FRTRosterCanonicalNamesTest::RunTest(const FString&)
 {
 	// I quattro nomi di D-120, pinnati sul percorso REALE: catalogo -> ConfigureFromHeroData -> etichetta.
 	// Verificarli sul solo catalogo direbbe meno: e' il trasporto che si era rotto, non la dichiarazione.
+	//
+	// ⚠️ **E' questa mappa a difendere il vincolo di D-120 «nessuno Stable ID si rinomina»**: le chiavi sono
+	// i quattro ID LEGACY scritti a mano, quindi rinominare `Hero.Flux` in catalogo fa fallire il `Find` qui
+	// sotto. Il test non copre il percorso di disegno: `ARTHUD::DrawHUD` non e' esercitato da nessun test
+	// automatico, e che l'etichetta si veda davvero resta la voce `PIE-NAME`.
 	const TMap<FName, FString> Attesi = {
 		{ TEXT("Hero.Flux"),    TEXT("Gadget") },
 		{ TEXT("Hero.Riva"),    TEXT("Phase")  },
@@ -105,9 +110,10 @@ bool FRTRosterCanonicalNamesTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("%s mostra il nome canonico"), *Hero->HeroId.ToString()),
 			ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()), *Atteso);
 
-		// ⚠️ Lo Stable ID NON cambia: e' il vincolo di D-120, e un test che guarda solo il nome mostrato
-		// non se ne accorgerebbe.
-		TestEqual(TEXT("lo Stable ID resta quello legacy"), Unit->HeroId, Hero->HeroId);
+		// Fedelta' della copia: l'ID che l'unita' porta e' quello del catalogo. ⚠️ Questa riga da sola NON
+		// difende il vincolo di D-120 — passerebbe anche se il catalogo avesse rinominato l'ID. A difenderlo
+		// sono le chiavi letterali della mappa qui sopra.
+		TestEqual(TEXT("l'unita' porta lo Stable ID del catalogo"), Unit->HeroId, Hero->HeroId);
 	}
 
 	return true;
