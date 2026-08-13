@@ -323,6 +323,30 @@ se c'è copertura o se una cella è calpestabile: legge dati tattici.
 > attraverso», e distingue un precipizio da un muro.
 > [Decisione](../OPEN_DECISIONS.md) · [referto](../roadmap/plans/level-designer-handoff-spec-panel-2026-08-12.md).
 
+### 8.2 Una copertura sa se l'ha prodotta il bake — `D-131`
+
+`FRTHexCover` porta `bGenerated`, e il rebake della regione investita:
+
+```text
+1. rimuove le coperture con bGenerated = true
+2. riscrive quelle derivate dai segmenti correnti
+3. non tocca MAI quelle a false — dipinte a mano
+```
+
+Ne segue che il bake è **idempotente** e che *togliere* un segmento rimuove la sua copertura. È il nodo
+vero di `MSE-1`, e non era la sovrascrittura: senza provenienza, un rebake non sa distinguere «la copertura
+che avevo prodotto io e ora va tolta» da «quella dipinta a mano che va preservata».
+
+> ⚠️ **`bGenerated` non entra in `ComputeHash`.** Le coperture ci entrano *«perché sono dato autorevole —
+> cambiano il danno subito»* (`RTHexMapAsset.cpp:249`), ma la **provenienza** non cambia una partita. Se
+> entrasse, due mappe che si giocano in modo **identico** avrebbero hash diversi solo perché una copertura è
+> stata disegnata invece che dipinta — un falso positivo di divergenza contro *replay divergence = 0*.
+> Va pinnato da un test.
+
+> 🔎 **La metà runtime di `MSE-1` non esisteva.** `RTGameMode.cpp:264` **duplica** la mappa d'autore a inizio
+> partita (CP 8.4), quindi `Action.CreateCover` e lo spostamento delle coperture scrivono sulla **copia**:
+> nessun rebake può cancellarli. Misurato, non assunto.
+
 Un `LOW WALL` visuale che non cuocesse in `FRTHexCover{Low}` creerebbe **due rappresentazioni dello stesso
 oggetto**. Non esiste un secondo `Walls[]` autorevole interrogato dal gameplay.
 
@@ -407,7 +431,7 @@ Nessuna di queste si decide in un commit di implementazione. Vivono in
 
 | ID | Domanda | Innesco |
 |---|---|---|
-| `MSE-1` | Chi vince fra una **copertura cotta** e una **creata in partita**, se poi si rifà il bake? — ⚠️ **ristretta due volte**: `D-127` ha tolto *in che tipo* vive il source, `D-129` ha tolto `bBlocksMovement` dal bake. Resta il soggetto più acuto: `FRTHexCover` ha già produttori **runtime** (`AddCover` ← `Action.CreateCover`) che scrivono sull'asset | [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) |
+| ~~`MSE-1`~~ | ✅ **Chiusa da `D-131`**: `FRTHexCover` acquista `bGenerated`, il rebake tocca solo le proprie — vedi §8.2 | — |
 | `MSE-4` | Un settore toccato in un **solo punto** dal bordo di un footprint va contato come occupato, o serve un'intersezione di lunghezza non nulla? — ⚠️ **non più innescata da `#621`** (`D-129`): il bake non cuoce footprint, quindi nessun produttore la pone ancora | il **primo footprint di produzione** |
 | ~~`MSE-2`~~ | ✅ **Sciolta da `D-125`**: misurava i **muri**, che non alimentano l'occupancy — vedi §5.1 | — |
 | ~~`MSE-3`~~ | ✅ **Chiusa da `D-125`**: i due modelli misurano la stessa cosa a due granularità | — |
