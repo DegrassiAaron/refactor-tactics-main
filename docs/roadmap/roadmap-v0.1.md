@@ -18,7 +18,7 @@
 
 Un vertical slice **2v2 offline contro bot** su griglia **esagonale multilivello** con:
 
-- **4 eroi** distinti (Flux, Riva, Bastion, Vektor), 4 abilità ciascuno + 1 variante;
+- **4 eroi** distinti (Gadget, Phase, Riktor, Wraith — [D-120](../decisions/RT_PDR_00_Decision_Log.md); i loro Stable ID restano `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`), 4 abilità ciascuno + 1 variante;
 - **catalogo azioni** completo (~35 azioni con ID stabile, fase, priorità intera, fallback, cooldown);
 - **reazioni** preparate in planning (1 attivazione per turno);
 - **8 terreni attivi** con stati (Wet, Burning, Electrified, Obscured, …) e propagazione deterministica;
@@ -232,7 +232,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | RELEASE_READY | 8/9 |
 | **E5** | `RT-FEAT-NET-PRIVATE-PLANNING` — Intenti privati per squadra | TESTABLE | 5/8 |
 |  | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | INTEGRATED | 7/9 |
-| **E6** | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Flux, Riva, Bastion, Vektor | INTEGRATED | 6/8 |
+| **E6** | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Gadget, Phase, Riktor, Wraith | INTEGRATED | 6/8 |
 | **E7** | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | IMPLEMENTING | 1/8 |
 | **E8** | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | INTEGRATED | 6/9 |
 |  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 6/9 |
@@ -522,6 +522,23 @@ LANE D — CONSISTENCY     #625 + #687 + #649 ── #512 ── #170 ── #17
 > (Reaction Clash, Time Bank) e la Fast Reaction standard resta intera. L'ordine di taglio dichiarato in §8
 > non cambia; questa riga dice solo **dove** si taglia dentro la lane.
 
+> ✅ **Lane A — [D-122](../decisions/RT_PDR_00_Decision_Log.md) chiude `BAS-2` (2026-08-12).** I profili
+> `Overwatch` della v0.1 sono **Gadget/`Conductive` · Phase/`Pressure` · Riktor/`Frontline` ·
+> Wraith/`Predictive`**: dati e geometria sopra la macchina di CP 14.4, non quattro rami di resolver. La
+> condizione HP di [D-109](../decisions/RT_PDR_00_Decision_Log.md) è **opzionale** e il bot v0.1 **non la
+> dichiara automaticamente** — risponde subito all'opportunity sanitizzata via `DecisionProvider`.
+> ⚠️ **Non allarga la lane**: `#165` resta il gate della Decision Window viva e nessun checkpoint cambia
+> numero. 🔴 Nei KPI il pacing **tecnico** (immediato) e quello **umano** (3,0 s in PIE) restano due misure
+> separate: un campione raccolto col bot va etichettato come tale.
+
+> ✅ **Lane B — [D-123](../decisions/RT_PDR_00_Decision_Log.md) chiude la parte di design di `#690`
+> (2026-08-12).** Ogni azione o abilità che emette rumore **possiede** `NoiseIntensity` nel catalogo, scala
+> `0..10`, incluse le signature. Il valore **può essere condiviso** fra azioni: possedere il campo non
+> significa avere un numero unico, ed è ciò che impedisce al volume di diventare un identificatore implicito
+> della sorgente. ⏳ `#690` **resta aperta** per il lavoro vero — colonne dei cataloghi e validator — e la
+> lettura in coppia con `#686` non cambia: sono i due lati della stessa comparazione acustica. La precisione
+> del contatto resta di [D-113](../decisions/RT_PDR_00_Decision_Log.md); `Sneak` resta ad `AE-5`.
+
 ---
 
 ## 4. Convenzione dei checkpoint
@@ -674,7 +691,7 @@ turno**, senza attese nel resolver (invariante #3).
 > raggiungibile in partita e sul colpo singolo `Guard` **dominava** `Brace` (1 danno contro 6, stessa
 > immunità alla spinta). Non era un bug del resolver: era una DoD scritta per un gioco con spinte più forti
 > di quelle che esistono. [D-074](../decisions/RT_PDR_00_Decision_Log.md) sceglie di riscrivere la clausola
-> invece di introdurre la spinta forte; [D-075](../decisions/RT_PDR_00_Decision_Log.md) toglie a Bastion la
+> invece di introdurre la spinta forte; [D-075](../decisions/RT_PDR_00_Decision_Log.md) toglie a Riktor la
 > resistenza nativa, che con quella premessa era immunità totale e gratuita.
 > Il trade-off vero — *primo colpo pesante* contro *colpi ripetuti* — ora è **pinnato** invece che descritto:
 > `Spec.Brace.GuardAndBraceOnMixedHit` (su un colpo `Guard` domina) e `Spec.Brace.BraceWinsOnSecondHit`
@@ -708,10 +725,10 @@ turno**, senza attese nel resolver (invariante #3).
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **6.1** | `URTHeroData` e statistiche | Salute, movimento (MP), range visivo, resistenza push, affinità ambientale, debolezza; attacco base per fascia (corpo a corpo 28/r1, corto 25/r3, medio 22/r4, lungo 20/r6) | `Heroes.StatsFromData`, `Heroes.BasicAttackByRangeBand` |
-| **6.2** | Flux — tecnico della conduzione | 90 HP, 5 MP, vista 7 *(era 6: D-073, `#131`)*, affinità elettricità; `ArcPulse` (22, r4), `LinearDischarge` (24, +8 su Wet), `ConductiveNode`, `Overload` (18 + Interrupt dispositivi), `ReactiveCapacitor`; variante concentrata/ramificata | `Heroes.Flux.WetBonus`, `Heroes.Flux.VariantTradeoff` |
-| **6.3** | Riva — manipolatrice dell'acqua | 95 HP, 5 MP, vista 5, affinità acqua; `PressureJet` (16 + Wet + Push 1), `CircularTide` (cura 18 alleati / Wet nemici), `FluidTrail` (Dash 3 + acqua), `MistVeil` (fumo r1), `FlowReaction`; variante curativa/urto | `Heroes.Riva.TideHealsAlliesWetsEnemies` |
-| **6.4** | Bastion — architetto del campo | 120 HP, 4 MP, vista 5, resistenza push 1, affinità strutture; `ImpactShot` (8 + `Slow`, r3 — 24 fino ad [ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)), `KineticPanel` (copertura 30 HP), `Reconfigure`, `Ram` (Charge 20 + Push 1), `Interposition`; variante rinforzato/adattivo | `Heroes.Bastion.PanelCreatesCover`, `Heroes.Bastion.PushResistance` |
-| **6.5** | Vektor — duellante predittivo | 90 HP *(era 100: D-069, `#131`)*, 6 MP, vista 6, affinità movimento; `PulseShot` (21, r4), `InterceptShot` (16 + stop movimento), `PassingBlade` (Dash 3, 20 attraversando), `Deflection` (−20), `Feint`; variante preciso/esteso | `Heroes.Vektor.InterceptShotStopsMovement` |
+| **6.2** | Gadget — tecnico della conduzione *(legacy id: `Hero.Flux`)* | 90 HP, 5 MP, vista 7 *(era 6: D-073, `#131`)*, affinità elettricità; `ArcPulse` (22, r4), `LinearDischarge` (24, +8 su Wet), `ConductiveNode`, `Overload` (18 + Interrupt dispositivi), `ReactiveCapacitor`; variante concentrata/ramificata | `Heroes.Flux.WetBonus`, `Heroes.Flux.VariantTradeoff` |
+| **6.3** | Phase — manipolatrice dell'acqua *(legacy id: `Hero.Riva`)* | 95 HP, 5 MP, vista 5, affinità acqua; `PressureJet` (16 + Wet + Push 1), `CircularTide` (cura 18 alleati / Wet nemici), `FluidTrail` (Dash 3 + acqua), `MistVeil` (fumo r1), `FlowReaction`; variante curativa/urto | `Heroes.Riva.TideHealsAlliesWetsEnemies` |
+| **6.4** | Riktor — architetto del campo *(legacy id: `Hero.Bastion`)* | 120 HP, 4 MP, vista 5, resistenza push 1, affinità strutture; `ImpactShot` (8 + `Slow`, r3 — 24 fino ad [ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)), `KineticPanel` (copertura 30 HP), `Reconfigure`, `Ram` (Charge 20 + Push 1), `Interposition`; variante rinforzato/adattivo | `Heroes.Bastion.PanelCreatesCover`, `Heroes.Bastion.PushResistance` |
+| **6.5** | Wraith — duellante predittivo *(legacy id: `Hero.Vektor`)* | 90 HP *(era 100: D-069, `#131`)*, 6 MP, vista 6, affinità movimento; `PulseShot` (21, r4), `InterceptShot` (16 + stop movimento), `PassingBlade` (Dash 3, 20 attraversando), `Deflection` (−20), `Feint`; variante preciso/esteso | `Heroes.Vektor.InterceptShotStopsMovement` |
 | **6.6** | Selezione e spawn 2v2 | `ARTGameMode` spawna 4 eroi da `URTHeroData` (non più `RangerUnitClass`/`GuardianUnitClass` hard-coded); fallback visivo al cilindro se l'asset manca | Test d'integrazione (4 eroi distinti in `UWorld`); `PIE-V01-ROSTER` |
 | **6.7** ✅ *(chiuso 2026-08-07)* | Le reazioni degli eroi **funzionano in partita** | Quattro reazioni cablate sul motore E5 riusando la semantica core (CP 5.5): `Bastion.Interposition` → `Action.Intercept` (trigger `AllyHitByDirectAttack`, range 2), `Vektor.Deflection` → `Action.Deflect` (−20), `Flux.ReactiveCapacitor` → `Shield 15` **+** 10 all'attaccante, `Riva.FlowReaction` → **rinviata a E14** e dichiarata tale (produce movimento dentro un boundary). Ogni reazione occupa lo **slot `Reaction`** ed è soggetta a «una attivazione per turno». I commenti «arriva con E5» spariscono dal catalogo eroi e i test che oggi **fissano l'assenza** (`Effects.Num() == 0`) sono sostituiti da test di comportamento | `Heroes.BastionInterpositionRedirectsDirectHit`, `Heroes.BastionInterpositionUsesReactionSlot`, `Heroes.VektorDeflectionReducesDirectHit`, `Heroes.FluxReactiveCapacitorShieldsAndCounters` |
 
@@ -742,7 +759,7 @@ in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
 | **7.2** ✅ | Gadget — **4 degli 8** | `Medkit` (cura 18), `BreachCharge` (35 alla struttura e **zero** alle unità), `Sprinkler` (acqua r1, raggio ereditato da `Action.CreateWater`), `PortableCover`; cooldown **3** per tutti, che sostituisce quello dell'azione core. ⚠️ I quattro assenti mancano per **quattro ragioni diverse**, e la differenza porta a lavori diversi: `SmokeEmitter` — nessuna azione core crea fumo (`Riva.MistVeil` è d'eroe e in `Preparation`, cfr. `#353`); `Insulator` — l'immunità per categoria è E36; `Sensor` — la conoscenza parziale è E13, e i suoi numeri non sono nella fonte; `Anchor` — `PushResistance` è una **soglia** permanente, non un consumo per turno, e alzarla reintrodurrebbe l'immunità che `D-075` ha appena tolto | `Equipment.Gadget.CooldownEnforced`, `Equipment.Gadget.NumbersMatchCatalog`, `Equipment.Gadget.FourAreNotExpressibleYet` |
 | **7.3** ✅ | Moduli reazione — **catalogo** (3 dei 7) | `CounterShot` (14), `ReactiveShield` (15), `AllyIntercept`: costruiti su un'azione core che è **già** una reazione, da cui ereditano fase, priorità e `ReactionTrigger`, con numeri propri via `GrantedEffects`. Una attivazione per turno la garantisce il percorso E5, non un cooldown dell'oggetto. ⚠️ `EmergencyDash` è sceso a **7.5 implementando**, per un vincolo su un asse diverso dal trigger: il suo trigger esiste, ma `Reposition 1` sposta *chi reagisce* e nessun `ERTActionEffect` lo esprime — `Push`/`Pull` spostano il bersaglio | `Equipment.ReactionModule.SingleActivation`, `Equipment.CounterShotUsesExistingTrigger`, `Equipment.EmergencyDashIsNotExpressibleYet` |
 | **7.5** ✅ | Moduli reazione — **motore** (`#505`) | ✅ **`EmergencyDash` fatto**: nasce `ERTActionEffect::SelfReposition` ([D-093](../decisions/RT_PDR_00_Decision_Log.md)) — il primo effetto che sposta la **sorgente** e non il bersaglio — e il modulo si allontana da chi l'ha bersagliato restando fronte alla minaccia ([D-104](../decisions/RT_PDR_00_Decision_Log.md)). Lo spostamento passa dalla primitiva di `#541`, quindi porta traccia con causa, hazard attraversati e facing come una spinta qualsiasi. Le fughe si **raccolgono** e si applicano dopo il pass ([D-094](../decisions/RT_PDR_00_Decision_Log.md)) · ✅ **`Anchor` fatto (2026-08-12)** col pezzo architetturale del checkpoint: i trigger non si valutano più tutti nello stesso momento ma nel punto in cui il loro evento è deciso (`PassPointFor`, `switch` senza `default`: un trigger nuovo non compila finché non dichiara dove viene valutato). Il blocco vero non era il contatore di [D-092](../decisions/RT_PDR_00_Decision_Log.md) ma `PlannedReactionAbility` **consumato dal primo pass** — ora sopravvive alla fase. `Anchor` annulla a qualunque distanza ed è un quinto `ERTDisplacementBlockReason`, prima di `Guarded`/`Braced` perché l'attivazione è già spesa quando quei rami girano · ✅ **`Cleanse` fatto (2026-08-12)**: stessa forma di `Anchor` — impedisce l'applicazione invece di rimuovere — e fra due controlli annulla **il più grave**, non il primo raccolto, perché l'ordine di raccolta segue *chi colpisce* e sprecherebbe l'attivazione su uno `Slow` da attacco base lasciando passare un `Root`. Non si spende per un rinnovo di un controllo già attivo · ✅ **`HazardEscape` fatto (2026-08-12), e i sette moduli sono completi**: il prerequisito era [`#570`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/570) ([D-111](../decisions/RT_PDR_00_Decision_Log.md)) — senza, nel Cleanup non ci sarebbe stato nulla da cui fuggire. Si fugge verso la cella che si ha **davanti** (il facing lo dichiara il giocatore: la fuga è prevedibile, non arbitraria), con ripiego sull'ordine canonico; il facing non cambia, perché non c'è nessuno verso cui girarsi | `Equipment.EmergencyDashRepositionsTheReactor`, `Equipment.EmergencyDashMovesTheReactorInPlay`, `Equipment.Anchor.CancelsPush`, `Equipment.Cleanse.CancelsControl`, `Reaction.EveryTriggerHasAPassPoint`, `Reaction.ControlStatusesAreTwo`, `Equipment.HazardEscape.FleesBeforeDamage` |
-| **7.4** 🟡 | Loadout — **regola** | `ValidateLoadout` impone **1+1+1** e distingue *zero* da *due*, che portano a correzioni opposte; un loadout della forma giusta con un pezzo invalido è rifiutato lo stesso. Nessuna progressione: verificata **sul tipo** con la reflection (`URTEquipmentData` non ha `Level`/`Rarity`/`Tier`/…), così un campo aggiunto domani diventa rosso il giorno stesso · ⏳ **i default restano bloccati**, e non dalla variante — quella è decisa ([D-089](../decisions/RT_PDR_00_Decision_Log.md)): dei quattro loadout di catalogo §4 solo **Bastion** è interamente costruibile, mancano `Gadget.Insulator` (E36), `Gadget.Sensor` (E13) e i moduli `HazardEscape`/`EmergencyDash` (`#505`) | `Equipment.LoadoutExactlyOneEach`, `Equipment.NoInMatchProgression`, `Equipment.DefaultVariantPerHero` |
+| **7.4** 🟡 | Loadout — **regola** | `ValidateLoadout` impone **1+1+1** e distingue *zero* da *due*, che portano a correzioni opposte; un loadout della forma giusta con un pezzo invalido è rifiutato lo stesso. Nessuna progressione: verificata **sul tipo** con la reflection (`URTEquipmentData` non ha `Level`/`Rarity`/`Tier`/…), così un campo aggiunto domani diventa rosso il giorno stesso · ⏳ **i default restano bloccati**, e non dalla variante — quella è decisa ([D-089](../decisions/RT_PDR_00_Decision_Log.md)): dei quattro loadout di catalogo §4 solo quello di **Riktor** è interamente costruibile, mancano `Gadget.Insulator` (E36), `Gadget.Sensor` (E13) e i moduli `HazardEscape`/`EmergencyDash` (`#505`) | `Equipment.LoadoutExactlyOneEach`, `Equipment.NoInMatchProgression`, `Equipment.DefaultVariantPerHero` |
 
 ---
 
@@ -939,7 +956,7 @@ Fonti: [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md
 |---|---|---|---|
 | **13.1** | Celle visibili e conoscenza di squadra | Funzione **pura** e headless: unione per squadra, ordine stabile; tre livelli `Nascosto / Incerto / Rilevato`; nessun consumatore ancora — **ma con scadenza**: se CP 13.2 non chiude nella stessa PR, `RT-FEAT-PERCEPTION-VISION` resta `runtime: partial`, perché un dato che nessuno legge non è una feature che esiste. **Vista a cono** *(ADR-0005, 2026-08-07)*: vista piena fino a `VisionRange` **nell'arco frontale** — la stessa `HexCone(Cella, Neighbor(Cella, Facing), Range)` della difesa direzionale — più **consapevolezza ravvicinata a 360° entro 2 celle** (stesso cap del fumo); oltre le 2 celle, fuori dall'arco, nulla. LOS richiesta in entrambi i casi. ~~**Dipende da CP 16.1**~~ — **dipendenza soddisfatta il 2026-08-09** (E16 chiusa, PR #290): `Facing` è autorevole sull'unità e nello snapshot, e `URTHexCombatLibrary::IsInFrontalArc` è già la forma del cono da riusare. ⚠️ `Vision.SmokeCapsContactAtTwo` deve **riusare** `URTTerrainLibrary::EffectiveTargetingRange`, non ricalcolare il cap: il progetto ha già rifiutato una volta di farne un secondo gate (`Status.Obscured.AppliedBySmokeWithoutChangingGate`, decisione D4) | `Vision.VisibleCellsRespectsSight`, `Vision.ConeUsesHexConePrimitive`, `Vision.AwarenessWithinTwoCellsIgnoresFacing`, `Vision.TeamKnowledgeIsUnion`, `Vision.SmokeCapsContactAtTwo`, `Vision.PermutationInvariant` |
 | **13.2** | Il targeting consuma la conoscenza + memoria del contatto | Le azioni offensive rifiutano bersagli **ignoti alla squadra**; un bersaglio solo `Incerto` è bersagliabile solo per cella, mai per unità; `FRTLastKnownContact` per squadra nello snapshot, formato **versionato**, persistenza 1 turno | `Vision.CannotTargetUnknown`, `Vision.UncertainTargetsCellNotUnit`, `Vision.AllySpottingExtendsTargeting`, `Vision.LastContactExpiresAfterOneTurn` |
-| **13.3** | Propagazione del rumore | Flood fill **intero** sul grafo tattico limitato dall'intensità (`ReceivedNoise = Intensity − costo acustico`); `Noise_Mod` per superficie (**acqua bassa `+2`**, ghiaccio `+1`, terreno libero `0` — [D-042](../decisions/RT_PDR_00_Decision_Log.md)); **soglia d'udito per eroe** dal catalogo, che COMPENSA la vista: Flux 5 · Riva 3 · Bastion 3 · Vektor 5 ([D-041](../decisions/RT_PDR_00_Decision_Log.md)) — statistica **da aggiungere** a `URTHeroData`, oggi assente; nessun `SphereOverlap`; ordine deterministico | `Noise.PropagationIsDeterministic`, `Noise.AttenuationBySurface`, `Noise.ThresholdDecidesDetection`, `Noise.PermutationInvariant` |
+| **13.3** | Propagazione del rumore | Flood fill **intero** sul grafo tattico limitato dall'intensità (`ReceivedNoise = Intensity − costo acustico`); `Noise_Mod` per superficie (**acqua bassa `+2`**, ghiaccio `+1`, terreno libero `0` — [D-042](../decisions/RT_PDR_00_Decision_Log.md)); **soglia d'udito per eroe** dal catalogo, che COMPENSA la vista: Gadget 5 · Phase 3 · Riktor 3 · Wraith 5 ([D-041](../decisions/RT_PDR_00_Decision_Log.md)) — 🔄 statistica **presente** in `URTHeroData` (`RTHeroData.h:64`), popolata dal catalogo per tutti e quattro e **validata** (`RTHeroCatalogLibrary.cpp:119-121`) — questa riga diceva «da aggiungere, oggi assente» ed era scaduta, corretta il 2026-08-13. ⚠️ Ciò che manca è il **trasporto**: `ConfigureFromHeroData` non la copia sull'unità, quindi `URTAcousticPropagationLibrary::IsAudible` non è alimentabile da una partita vera. Sbloccato da [#715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/715); nessun `SphereOverlap`; ordine deterministico | `Noise.PropagationIsDeterministic`, `Noise.AttenuationBySurface`, `Noise.ThresholdDecidesDetection`, `Noise.PermutationInvariant` |
 | **13.4** | Rumore → contatto incerto | Un evento sonoro sopra soglia produce un contatto **`Incerto`** con area, mai la cella esatta; l'attacco rivela almeno la direzione; l'evento entra nel TurnLog **completo** — quindi nell'hash — e ciò che raggiunge un osservatore passa da un **filtro proprio**, che per una squadra che non lo ha udito non produce **nessuna voce**, non una voce vuota. ⚠️ **Corretto il 2026-08-09** (#295): la formulazione precedente chiedeva un TurnLog «sanitizzato per squadra», e il TurnLog è **uno solo** ed è la sorgente di `HashTurnLog` — filtrarlo avrebbe reso il checksum dipendente da chi guarda. Stessa disciplina di `FRTPlannedIntent → FilterForTeam → FRTIntentView` | `Noise.ProducesUncertainContact`, `Noise.AttackRevealsDirection`, `Noise.ObserverViewOmitsUnheard`, `Noise.HashIsIndependentOfObserver` |
 | **13.5** 🟡 | Bot e HUD sulla conoscenza parziale | `URTHexBotLibrary` pianifica sulla conoscenza della **propria** squadra e non bersaglia ciò che non conosce; HUD con marker d'ultimo contatto e area d'incertezza acustica. **Con ADR-0005** il bot valuta anche **da dove è visto e da dove può essere colpito**: l'orientamento entra nel punteggio delle candidate. ✅ **Bot fatto** (2026-08-12, `#615` scenari + `#628` orientamento) — ⚠️ solo la copertura, non Guard: in pianificazione e' un intento privato. ⏳ **Resta l'HUD**, dietro CP 13.4 | `Bot.PlansOnPartialKnowledge`, `Bot.DoesNotTargetUnknown`, `Bot.ConsidersExposedRearArc`; PIE `PIE-V01-VISION`, `PIE-V01-NOISE` |
 
@@ -1045,7 +1062,7 @@ cosa di `AllowedResponses ≤ 1` (ADR-0004 §2), che la deriva dai dati invece d
 > ([D-011](../decisions/RT_PDR_00_Decision_Log.md)) e in 3v3 il terzo prompt torna possibile — ma il rientro
 > `MaxPromptsPerReaction = 1` che ADR-0004 §Revisione teneva pronto diventa molto meno probabile che serva.
 > ⚠️ **È un conto, non una misura**: quella di CP 14.5 va fatta comunque. La cadence ha già la sua specifica
-> eseguibile in `Spec.Overwatch.HoldThenFire`, dove Vektor fa `HOLD` su Flux e `FIRE` su Riva — due bersagli
+> eseguibile in `Spec.Overwatch.HoldThenFire`, dove Wraith fa `HOLD` su Gadget e `FIRE` su Phase — due bersagli
 > diversi. Triage: [`plans/overwatch-runtime-lifecycle-triage-2026-08-10.md`](plans/overwatch-runtime-lifecycle-triage-2026-08-10.md);
 > costo e nome del ciclo Watch/Reposition restano `OW-1`/`OW-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
 
@@ -1093,7 +1110,7 @@ Nessuna stima temporale: il repository non ne usa.
 | **S6** | Smoke + strutture + `GraphRevision` | S2 · ✅ CP 9.3 (gate) | `RT.Scenario.Showcase.T5` | `EdgeDisabled → EdgeEnabled`, revisione che sale, un percorso che **prima non esisteva** |
 | **S7** | Interposizione e redirect | S2 · **D-017** (rivalidazione) | `RT.Scenario.Showcase.T6` | Test **discriminante**: A e B a copertura diversa, o passa anche col comportamento sbagliato |
 | **S8** | Payoff ambientale | S2 · ✅ **E8 chiusa** | `RT.Scenario.Showcase.T7` | Acqua spegne il fuoco; propagazione ordinata, **una volta sola** per evento; slide deterministica |
-| **S9** | Objective Relay + 8 turni completi | S2…S8 · **E10 CP 10.1/10.2** | `RT.Scenario.Showcase.Full` | Blue vince **con Flux a terra**: l'obiettivo batte il KO |
+| **S9** | Objective Relay + 8 turni completi | S2…S8 · **E10 CP 10.1/10.2** | `RT.Scenario.Showcase.Full` | Blue vince **con Gadget a terra**: l'obiettivo batte il KO |
 | **S10** | Golden replay, repeat, packaged smoke | S9 · CP 12.3/12.5 | `.Repeat` · `.Visual` · `.Packaged` | `Repeat 1000` (da 100, già raggiunto a CP 12.1) + equivalenza `Visual`/`Fast`/`Headless` |
 
 > **Il collo di bottiglia è S2, non i sistemi mancanti.** Otto tranche su undici dipendono da *una* cosa: che
@@ -1126,7 +1143,7 @@ T8  ->  FixtureReference + PredictiveAction + Objective
 | **T3** | — | — | ✅ dopo `S2-1` |
 | **T4** | `HOLD` poi `FIRE` su **due** opportunity distinte | `DecisionBoundary` + `Reaction` + `Facing` | **E14** (dopo E13) + **E16** |
 | **T5** | — | — | ✅ dopo `S2-1` — il gate è una porta, CP 9.3 è chiuso |
-| **T6** | la copertura va rivalidata **su Bastion**, non su Vektor | `InterceptRevalidation` | [D-017](../decisions/RT_PDR_00_Decision_Log.md) |
+| **T6** | la copertura va rivalidata **su Riktor**, non su Wraith | `InterceptRevalidation` | [D-017](../decisions/RT_PDR_00_Decision_Log.md) |
 | **T7** | — | — | ✅ dopo `S2-1` — E8 è chiusa |
 | **T8** | whiff della predizione **e** punto sul Relay | `PredictiveAction` + `Objective` | **E18** + **E10** CP 10.1/10.2 |
 
@@ -1406,6 +1423,24 @@ editor**, che nessun test automatico può chiudere.
 | **E21.1** | Personaggi sui centri esagonali | I `BP_Unit_*` (Paragon) sono posati sui centri, a terra, senza compenetrazione; se l'asset manca si vede il cilindro, non un buco | `PIE-AS2`, `PIE-FACING` |
 | **E21.2** | Animazioni di locomozione e impatto | `ABP_*` con Idle↔Run nella fase Move; montaggi Cast/Hit/Death nel Blast. **La morte visiva resta differita**: la presentazione non decide (invariante #1) | `PIE-AS4a`, `PIE-AS4b` |
 | **E21.3** | Leggibilità tattica | `M_TeamRing` e `M_SelectionRing` assegnati; colori delle superfici leggibili **in partita**, non solo nell'overlay dell'editor; camera tarata su scala esagonale | `PIE-AS5`, `PIE-SEL` + giudizio a schermo |
+
+> ✅ **Il ceiling della v0.1 è fissato da [D-124](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-12).**
+> **Dentro**: skeletal posate sugli hex per i quattro eroi · locomozione `Idle ↔ Run` · `Cast / Hit / Death` ·
+> team e selection ring leggibili · superfici riconoscibili **senza console debug** · camera sulla scala
+> esagonale · Sessione C verde · **misura FPS rappresentativa dopo** l'integrazione delle mesh.
+> **Fuori**: VFX completo per tutti gli status, Niagara per ogni abilità, foot IK raffinato, locomotion set
+> bespoke, cinematic death, e ogni presentation framework che nessun gate v0.1 misura.
+>
+> ⚠️ **Perché il confine è scritto**: E21 è l'unica epic della v0.1 il cui DoD non è chiudibile in
+> automation, e senza un ceiling «leggibile» scivola in «bello» a costo zero apparente. 🔴 **L'FPS ha un
+> ordine obbligato**: misurato prima delle mesh definitive misura i cilindri.
+>
+> 🔗 **Roster player-facing**: Gadget · Phase · Riktor · Wraith
+> ([D-120](../decisions/RT_PDR_00_Decision_Log.md)). ⚠️ Ma ciò che si **legge a schermo** è ancora derivato
+> dallo Stable ID (`ARTUnit::ShortHeroName`), quindi la leggibilità dei **nomi** non è verificabile in
+> Sessione C finché [#715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/715) non porta il
+> `DisplayName` del catalogo — che **esiste ed è popolato** — fino alla HUD. La presentazione resta
+> **consumer** del resolver, mai autorità dell'esito.
 
 **Gate di chiusura dell'epic**: la sessione C di [`test-manuali-pie.md`](../technical/test-manuali-pie.md)
 è verde · nessun cilindro nel gioco se non per asset mancante · una partita registrata (video o

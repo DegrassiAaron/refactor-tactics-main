@@ -27,13 +27,22 @@ qui non si duplica.
 
 | | Cos'è | Cosa non è |
 |---|---|---|
-| **Identità RefactorTactics** | `Hero.Flux`, kit, lore, fazione | non cambia perché cambia l'asset |
+| **Identità RefactorTactics** | nome canonico (**Gadget**), kit, lore, fazione | non cambia perché cambia l'asset |
+| **Stable ID** | `Hero.Flux` — chiave tecnica di codice, scenari e replay | **non è il nome** del personaggio |
 | **Slot asset Paragon** | mesh, scheletro, animazioni del prototipo | non è un personaggio del roster |
 | **Release** | quando l'eroe entra nel roster operativo | non si assegna a un candidato |
 
-Conseguenze pratiche: `Hero.Flux` **non** diventa `Hero.Gadget`; un asset Paragon usato come base visuale non
-guadagna una release; e si scrive sempre `Paragon.Gadget`, mai `Gadget` nudo — che qui è già una categoria di
-equipaggiamento.
+🔄 **Riga aggiornata il 2026-08-13 da [D-120](../decisions/RT_PDR_00_Decision_Log.md).** Prima di quella
+decisione le colonne erano **tre** e il nome canonico coincideva con lo Stable ID; oggi sono quattro perché
+i due si sono separati.
+
+Conseguenze pratiche: `Hero.Flux` continua a **non** diventare `Hero.Gadget` — nessun ID si rinomina — ma la
+ragione non è più che «lo slot non è l'identità»: è che la migrazione ha un costo proprio e un blocker
+misurato, [#716](https://github.com/DegrassiAaron/refactor-tactics-main/issues/716). Un asset Paragon usato
+come base visuale non guadagna una release. ⚠️ **E `Gadget` nudo ora è ambiguo, non vietato**: nomina il
+personaggio in prosa player-facing, mentre `Gadget.<Oggetto>` resta il namespace dell'equipaggiamento
+(`Gadget.Medkit`, `ERTEquipmentSlot::Gadget`). Nei contesti tecnici si continua a scrivere `Paragon.Gadget`
+per lo slot e `Hero.Flux` per l'ID.
 
 ## Ownership dei kit
 
@@ -62,8 +71,8 @@ Il campo si compila **dal kit esistente**, non dall'intuizione: se la meccanica 
 definiti, non ha nemmeno un modo definito di fallire. Vale la regola generale della cartella — *i campi
 mancanti restano mancanti*.
 
-Le quattro voci v0.1 non sono intercambiabili, ed è il test che il campo funziona: Vektor fallisce **nel
-turno** (whiff, [D-016](../decisions/RT_PDR_00_Decision_Log.md)), Flux **in silenzio** (carica spesa senza
-picco), Bastion **in modo persistente** (la struttura resta e ostacola gli alleati), Riva **a favore
+Le quattro voci v0.1 non sono intercambiabili, ed è il test che il campo funziona: Wraith fallisce **nel
+turno** (whiff, [D-016](../decisions/RT_PDR_00_Decision_Log.md)), Gadget **in silenzio** (carica spesa senza
+picco), Riktor **in modo persistente** (la struttura resta e ostacola gli alleati), Phase **a favore
 dell'avversario** (`Wet` non sa chi l'ha applicato, [D-029](../decisions/RT_PDR_00_Decision_Log.md)). Quattro
 modi diversi di sbagliare, non quattro modi di fare meno danno.

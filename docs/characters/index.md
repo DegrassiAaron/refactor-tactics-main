@@ -26,10 +26,26 @@ slot Paragon usa come base visuale ([D-037](../decisions/RT_PDR_00_Decision_Log.
 
 ## Roster v0.1 — RefactorTactics
 
-- [Flux](v0.1/flux.md) — base visuale: `Paragon.Gadget`
-- [Riva](v0.1/riva.md) — base visuale: `Paragon.Phase`
-- [Bastion](v0.1/bastion.md) — base visuale: `Paragon.Riktor`
-- [Vektor](v0.1/vektor.md) — base visuale: `Paragon.Wraith`
+I nomi canonici del roster sono fissati da [D-120](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-12) e dal
+2026-08-13 **coincidono** con lo slot Paragon che ciascun eroe usa come base visuale.
+
+| Nome canonico | Scheda | Stable ID (legacy) | Base visuale |
+|---|---|---|---|
+| **Gadget** | [scheda](v0.1/flux.md) | `Hero.Flux` | `Paragon.Gadget` |
+| **Phase** | [scheda](v0.1/riva.md) | `Hero.Riva` | `Paragon.Phase` |
+| **Riktor** | [scheda](v0.1/bastion.md) | `Hero.Bastion` | `Paragon.Riktor` |
+| **Wraith** | [scheda](v0.1/vektor.md) | `Hero.Vektor` | `Paragon.Wraith` |
+
+> **I token della colonna «Stable ID» sono legacy implementation identifiers, non nomi del personaggio.**
+> Sopravvivono dove esistono già — codice, asset, scenari, replay — e **non si rinominano**: una migrazione
+> di ID richiede compatibilità, versioning e replay-safety propri, e ha un blocker misurato ancora aperto
+> ([#716](https://github.com/DegrassiAaron/refactor-tactics-main/issues/716)). Anche i file delle schede
+> conservano per ora il nome storico: cambiarlo è un `move` che rompe i link, non un rename di prosa.
+>
+> ⚠️ **Quello che si legge a schermo non è ancora questo.** L'etichetta sopra ogni unità è *derivata* dallo
+> Stable ID da `ARTUnit::ShortHeroName`, quindi in gioco compaiono tuttora i nomi storici. Il campo canonico
+> **esiste già** (`URTHeroData::DisplayName`) ed è popolato: quello che manca è il trasporto fino alla HUD.
+> È [#715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/715).
 
 ## Roster v0.2 — asset base Paragon
 
