@@ -24,7 +24,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | Scenario `BLOCKED` | Capability che manca |
 |---|---|
 | `RT_Showcase_Relay_v01` | `DecisionBoundary` · `Facing` · `InterceptRevalidation` · `Objective` |
-| `Spec.Brace.ProfileChangesResponse` | `DecisionBoundary` · `ReactionClash` |
+| `Spec.Brace.ProfileChangesResponse` | `DecisionBoundary` |
 | `Spec.Clash.ReadBeatsStand` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.ShiftBeatsRead` | `DecisionBoundary` · `ReactionClash` |
 | `Spec.Clash.StandBeatsShift` | `DecisionBoundary` · `ReactionClash` |
@@ -54,9 +54,9 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.Bot.RobustPlanSurvivesFlank` | `RT-FEAT-BOT-PREDICTIVE` |
 | `Spec.Bot.TeamPlanRejectsHardConflict` | `RT-FEAT-BOT-TACTICAL` |
 | `Spec.Bot.TemporalSynergyRequiresPhaseOrder` | `RT-FEAT-BOT-TACTICAL` |
-| `Spec.Brace.AnchorResistsDisplacement` | `RT-FEAT-REACTION-PROFILE` |
-| `Spec.Brace.DeflectOffersOnlyLegalSides` | `RT-FEAT-REACTION-PROFILE` |
-| `Spec.Brace.FlowRedirectsToLegalHexOnly` | `RT-FEAT-REACTION-PROFILE` |
+| `Spec.Brace.GlanceOffersOnlyLegalSides` | `RT-FEAT-REACTION-PROFILE` |
+| `Spec.Brace.GroundingChargesOnDeclaredTerrain` | `RT-FEAT-REACTION-PROFILE` |
+| `Spec.Brace.SidestepRedirectsToLegalHexOnly` | `RT-FEAT-REACTION-PROFILE` |
 | `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` |
 | `Spec.Clash.HiddenUntilReveal` | `RT-FEAT-REACTION-CLASH` |
 | `Spec.Clash.RevealIsFixedDeadline` | `RT-FEAT-REACTION-CLASH` |
