@@ -15,6 +15,8 @@ import { dirname, join } from 'node:path';
 import {
   githubBase, issueUrl, docUrl, wikiRefUrl, epicCheckpointKey, roadmapContainer,
   buildIndex, brokenRefs, dependencyCycles, filterFeatures, stalenessVerdict,
+  executionIndex, executionIncoming, executionOutgoing, danglingEnds, topologicalDepths,
+  filterExecution, executionNeighborhood,
 } from './graph.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -226,5 +228,205 @@ test('CONTRATTO — ogni seduta in coda ha un gruppo, e i gruppi coprono le sedu
   for (const s of graph.editor_sessions) {
     assert.equal(s.queue_group === null, s.state === '—',
       `${s.id}: senza stato derivabile non sta in coda, e viceversa`);
+  }
+});
+
+test('CONTRATTO — ogni seduta dichiara una lane fra pie e asset, e il default e pie', () => {
+  const graph = readJson('docs/roadmap/project-graph.json');
+  const lanes = new Set(graph.editor_sessions.map((s) => s.execution_lane));
+  assert.deepEqual([...lanes].sort(), ['asset', 'pie'],
+    'il generatore serializza solo le due lane note');
+  for (const s of graph.editor_sessions) {
+    assert.ok(s.execution_lane, `${s.id}: lane assente — il default non e stato applicato`);
+  }
+  // Il campo e' facoltativo nel YAML: se la serializzazione lo perdesse, TUTTE le sedute
+  // uscirebbero `pie` e il test sopra passerebbe lo stesso. Serve una seduta che il default NON
+  // spiega — e' la sola forma in cui questo contratto sa fallire.
+  const asset = graph.editor_sessions.filter((s) => s.execution_lane === 'asset').map((s) => s.id);
+  assert.ok(asset.length > 0, 'nessuna seduta ASSET: il campo non arriva dal YAML');
+  assert.deepEqual(asset.sort(), ['U1', 'U7', 'U8'],
+    'le sedute il cui output primario e un asset committato');
+});
+
+test('CONTRATTO — la release di ogni feature sta fra quelle che la roadmap dichiara', () => {
+  const registry = readJson('docs/roadmap/feature-registry.json');
+  const known = new Set(['v0.1', 'v0.2', 'v0.3', 'v0.4', 'future']);
+  for (const f of registry.features) {
+    assert.ok(known.has(f.release), `${f.feature_id}: release ${f.release} sconosciuta`);
+  }
+  // v0.3 esiste nei DATI, non solo nell'enum: prima del 2026-08-13 il registry non sapeva
+  // esprimerla e cinque feature stavano in `future` per assenza di un valore, non di una
+  // decisione. L'insieme e' pinnato per esteso e non con un `some(...)`: con `some` bastava una
+  // sola feature per far passare il test, e riportarne quattro in `future` non avrebbe rotto
+  // niente — cioe' il test avrebbe smesso di verificare proprio la migrazione che esiste per
+  // proteggere. Quando la roadmap owner assegnera' altre feature a v0.3, questa lista cresce
+  // insieme a lei: e' il punto in cui il cambiamento si dichiara.
+  const v03 = registry.features.filter((f) => f.release === 'v0.3').map((f) => f.feature_id);
+  assert.deepEqual(v03.sort(), [
+    'RT-FEAT-ACTION-DELAYED',    // E29 · #329
+    'RT-FEAT-ACTION-TRAPS',      // E29 · #329
+    'RT-FEAT-BOT-BELIEF',        // E27 · #327
+    'RT-FEAT-BOT-PREDICTIVE',    // E28 · #328
+    'RT-FEAT-INTENT-CONDITIONAL', // E33 · #330
+  ], 'le feature che le issue epic v0.3 nominano per nome');
+  // Le Feature `RT-FEAT-PERCEPTION-*` restano v0.1 anche se E27 le cita: E27 le **estende**, e
+  // un'epic che estende una capacita' non ne riscrive retroattivamente la release.
+  assert.ok(registry.features.filter((f) => f.feature_id.startsWith('RT-FEAT-PERCEPTION-'))
+    .every((f) => f.release === 'v0.1'), 'la percezione base e nata in v0.1 e ci resta');
+});
+
+// --- Execution graph ----------------------------------------------------------------------------
+
+const execFixture = () => ({
+  execution: {
+    nodes: [
+      { id: 'issue:1', kind: 'issue', ref: '1', release: 'v0.1', execution_lane: 'code', domain_group: 'core_simulation', readiness: 'READY', feature_ids: [] },
+      { id: 'issue:2', kind: 'issue', ref: '2', release: 'v0.1', execution_lane: 'code', domain_group: 'core_simulation', readiness: 'BLOCKED', feature_ids: [] },
+      { id: 'issue:3', kind: 'issue', ref: '3', release: 'v0.2', execution_lane: 'code', domain_group: 'ui_presentation', readiness: 'UNKNOWN', feature_ids: [] },
+      { id: 'session:U9', kind: 'session', ref: 'U9', release: 'v0.1', execution_lane: 'pie', domain_group: 'core_simulation', readiness: 'READY', feature_ids: [] },
+    ],
+    edges: [
+      { from: 'issue:1', to: 'issue:2', type: 'requires', hard: true },
+      { from: 'issue:2', to: 'issue:3', type: 'follows', hard: false },
+      { from: 'issue:3', to: 'session:U9', type: 'related', hard: false },
+    ],
+    capabilities: [],
+  },
+});
+
+test('un follows non conta come dipendenza dura, e non sposta la profondita', () => {
+  const index = executionIndex(execFixture());
+  assert.equal(executionIncoming(index, 'issue:3', { hardOnly: true }).length, 0);
+  assert.equal(executionIncoming(index, 'issue:3').length, 1, 'larco soft esiste comunque');
+  const depths = topologicalDepths(index);
+  assert.equal(depths.get('issue:1'), 0);
+  assert.equal(depths.get('issue:2'), 1, 'un salto hard');
+  assert.equal(depths.get('issue:3'), 0, 'il follows non spinge a destra: nulla lo trattiene');
+});
+
+test('i lati liberi si riconoscono, ed e come la vista sa disegnare un moncone', () => {
+  const index = executionIndex(execFixture());
+  // Radice: nessun arco hard entrante.
+  assert.deepEqual(danglingEnds(index, 'issue:1'), { inbound: true, outbound: false });
+  // Foglia: ha un entrante hard, e in uscita solo un follows — che non e una dipendenza.
+  assert.deepEqual(danglingEnds(index, 'issue:2'), { inbound: false, outbound: true });
+  // Un nodo toccato solo da archi soft e libero da entrambi i lati: se il moncone guardasse
+  // TUTTI gli archi, questo caso mostrerebbe due lati collegati e direbbe il falso.
+  assert.deepEqual(danglingEnds(index, 'issue:3'), { inbound: true, outbound: true });
+});
+
+test('i filtri della Execution Map sono esatti e componibili', () => {
+  const nodes = execFixture().execution.nodes;
+  assert.deepEqual(filterExecution(nodes, { release: 'v0.1' }).map((n) => n.id),
+    ['issue:1', 'issue:2', 'session:U9']);
+  assert.deepEqual(filterExecution(nodes, { lane: 'pie' }).map((n) => n.id), ['session:U9']);
+  assert.deepEqual(filterExecution(nodes, { readiness: 'BLOCKED' }).map((n) => n.id), ['issue:2']);
+  assert.deepEqual(filterExecution(nodes, { release: 'v0.1', domain: 'core_simulation', lane: 'code' })
+    .map((n) => n.id), ['issue:1', 'issue:2']);
+  assert.equal(filterExecution(nodes, {}).length, 4, 'nessun filtro non nasconde nulla');
+});
+
+test('il vicinato si allarga nei due versi e si ferma alla profondita chiesta', () => {
+  const index = executionIndex(execFixture());
+  assert.deepEqual([...executionNeighborhood(index, 'issue:2', 1)].sort(),
+    ['issue:1', 'issue:2', 'issue:3']);
+  assert.deepEqual([...executionNeighborhood(index, 'issue:1', 1)].sort(),
+    ['issue:1', 'issue:2']);
+  assert.deepEqual([...executionNeighborhood(index, 'issue:1', 2)].sort(),
+    ['issue:1', 'issue:2', 'issue:3']);
+});
+
+test('un grafo assente non rompe la vista', () => {
+  const index = executionIndex({});
+  assert.deepEqual(index.nodes, []);
+  assert.deepEqual(danglingEnds(index, 'issue:1'), { inbound: true, outbound: true });
+});
+
+test('CONTRATTO — l execution graph esiste, e nessuna readiness nasce nel browser', () => {
+  const graph = readJson('docs/roadmap/project-graph.json');
+  const ex = graph.execution;
+  assert.ok(ex, 'project-graph.json non contiene execution');
+  assert.equal(ex.schema_version, 1);
+  const known = ['READY', 'BLOCKED', 'WAITING_FOR_PIE', 'WAITING_FOR_ASSET', 'DONE', 'UNKNOWN'];
+  for (const n of ex.nodes) {
+    assert.ok(n.readiness, `${n.id}: readiness assente — il generatore deve derivarla`);
+    assert.ok(known.includes(n.readiness), `${n.id}: readiness ${n.readiness} fuori dai valori noti`);
+  }
+  const source = readFileSync(join(HERE, 'graph.js'), 'utf8');
+  for (const forbidden of ['deriveReadiness', 'function isBlocked', 'function isDone']) {
+    assert.ok(!source.includes(forbidden),
+      `graph.js definisce ${forbidden}: lo stato si deriva in Python, non qui`);
+  }
+});
+
+test('CONTRATTO — la fetta reale mostra il fork, il junction e la capability', () => {
+  const graph = readJson('docs/roadmap/project-graph.json');
+  const index = executionIndex(graph);
+  // #165 e un fork: una sola issue apre tre strade dure.
+  const fork = executionOutgoing(index, 'issue:165', { hardOnly: true }).map((e) => e.to).sort();
+  assert.deepEqual(fork, ['issue:166', 'issue:314', 'issue:512']);
+  // #170 e un junction: tre ingressi duri da tre domini diversi.
+  const junction = executionIncoming(index, 'issue:170', { hardOnly: true }).map((e) => e.from).sort();
+  assert.deepEqual(junction, ['issue:512', 'issue:66', 'issue:75']);
+  const domains = new Set(junction.map((id) => index.byId.get(id).domain_group));
+  assert.ok(domains.size >= 3, 'un junction converge da domini distinti');
+  // #593 e related a U7: non deve entrare fra i prerequisiti duri.
+  assert.equal(executionIncoming(index, 'session:U7', { hardOnly: true }).length, 0);
+  assert.ok(executionOutgoing(index, 'issue:593').some((e) => e.to === 'session:U7' && !e.hard));
+  // Le sedute portano la lane derivata dal loro owner.
+  assert.equal(index.byId.get('session:U7').execution_lane, 'asset');
+  assert.equal(index.byId.get('session:U9').execution_lane, 'pie');
+  // La capability ha un provider, e i consumatori veri sono gli scenari del corpus.
+  const cap = graph.execution.capabilities.find((c) => c.id === 'DecisionBoundary');
+  assert.ok(cap, 'DecisionBoundary assente dal grafo');
+  assert.deepEqual(cap.providers, ['issue:165']);
+  assert.equal(cap.available, false, 'il runtime non la elenca e il provider non e chiuso');
+  assert.ok(cap.scenario_consumers.length >= 7,
+    'gli scenari che la chiedono sono quelli del corpus, non una lista scritta a mano');
+});
+
+// --- Difetti trovati dalla review, pinnati -------------------------------------------------------
+
+test('la ricerca usa la chiave che il campo di ricerca scrive davvero', () => {
+  const nodes = execFixture().execution.nodes;
+  // `search()` scrive `filters.text`. Con `filters.q` il campo era inerte: si digitava e non
+  // filtrava niente, e nessun test se ne accorgeva perche nessuno passava mai quella chiave.
+  assert.deepEqual(filterExecution(nodes, { text: 'issue:2' }).map((n) => n.id), ['issue:2']);
+  assert.deepEqual(filterExecution(nodes, { text: 'U9' }).map((n) => n.id), ['session:U9']);
+  assert.equal(filterExecution(nodes, { text: 'ISSUE:2' }).length, 1, 'case-insensitive');
+  assert.equal(filterExecution(nodes, { text: 'nulla-che-esista' }).length, 0);
+  // La chiave vecchia non deve piu filtrare: se qualcuno la ripristina, questo cade.
+  assert.equal(filterExecution(nodes, { q: 'issue:2' }).length, 4,
+    '`q` non e una chiave di filtro: non deve nascondere nulla');
+});
+
+test('sotto filtro un lato i cui archi puntano a nodi nascosti conta come libero', () => {
+  const index = executionIndex(execFixture());
+  // Senza `visible`, `issue:2` ha un padre hard e riporta `inbound: false`: nessun moncone. Ma
+  // l'arco non viene disegnato, perche il padre e nascosto — e il nodo resta con il lato sinistro
+  // nudo, cioe proprio l'ambiguita «la catena finisce qui» / «la figura e tagliata qui» che il
+  // moncone esiste per togliere.
+  const visible = new Set(['issue:2', 'issue:3']);   // `issue:1` filtrato via
+  assert.deepEqual(danglingEnds(index, 'issue:2'), { inbound: false, outbound: true },
+    'senza il contesto della vista, il lato risulta collegato');
+  assert.deepEqual(danglingEnds(index, 'issue:2', visible), { inbound: true, outbound: true },
+    'nella vista corrente quel lato e libero, e va disegnato come tale');
+  // Con tutto visibile il verdetto non cambia rispetto alla forma senza parametro.
+  const all = new Set(index.nodes.map((n) => n.id));
+  assert.deepEqual(danglingEnds(index, 'issue:2', all), danglingEnds(index, 'issue:2'));
+});
+
+test('CONTRATTO — ogni tipo di arco del grafo reale ha una regola di stile propria', () => {
+  const graph = readJson('docs/roadmap/project-graph.json');
+  const css = readFileSync(join(HERE, 'index.html'), 'utf8');
+  const styled = new Set([...css.matchAll(/\.edge\.([a-z_]+)\s*[,{]/g)].map((m) => m[1]));
+  const drawn = new Set(graph.execution.edges
+    .filter((e) => !e.hard)                 // le hard usano `.edge.hard`
+    .map((e) => e.type)
+    .filter((t) => t !== 'provides'));      // `provides` punta a una capability, non disegnata
+  for (const type of drawn) {
+    assert.ok(styled.has(type),
+      `l'arco \`${type}\` non ha una regola CSS: eredita il tratto pieno di \`.edge\`, `
+      + 'cioe la figura afferma una dipendenza dura dove il modello non ne dichiara nessuna');
   }
 });

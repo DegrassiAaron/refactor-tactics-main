@@ -1,0 +1,355 @@
+# Execution graph — la topologia del lavoro, e nient'altro
+#
+# Owner della sola cosa che oggi non ha un owner strutturato: **chi blocca chi, e chi fornisce
+# cosa**. Tutto il resto — stato delle feature, delle issue, dei checkpoint, delle sedute, degli
+# scenari — resta dei rispettivi owner, e questo file NON lo ripete.
+#
+# La vista leggibile e' il tab «Execution Map» del Control Center, alimentato da
+# `project-graph.json`. Nessuno dei due si modifica a mano.
+#
+# ## Cosa NON va scritto qui
+#
+#   status / state / open / closed     lo stato non e' topologia. Il generatore lo deriva dagli
+#                                      owner; dove non ha una fonte offline scrive `UNKNOWN`,
+#                                      che e' un'informazione — «inventato READY» non lo e'.
+#   il titolo di una issue             vive su GitHub e cambia senza avvisare
+#   `blocks:`                          e' l'inversa di `requires`, e il generatore la deriva.
+#                                      Scrivere entrambe crea due verita' che divergono al primo
+#                                      edit di una sola.
+#   `junction: true`                   deriva dal numero di ingressi hard
+#   `follows` fra due sedute           lo dichiara gia' `editor-sessions.yaml`, che distingue la
+#                                      dipendenza dura (`unblocked_by`) dall'ordine di lavoro
+#                                      (`unblocks` senza reciproco, stesso blocco). Riscriverlo
+#                                      qui sarebbe la seconda dichiarazione della stessa
+#                                      relazione, in un file che l'altro validator non legge.
+#
+# ## Riferimenti ammessi
+#
+#   issue:<numero>        una issue GitHub
+#   session:U<n>          una seduta di `editor-sessions.yaml`
+#   capability:<Nome>     una capability del corpus scenari (`Scenarios/**/*.json` -> `requires`)
+#   epic:E<n>             un'epic della roadmap
+#
+# ## Tipi di relazione
+#
+#   requires             HARD. `from` deve essere finito prima che `to` possa cominciare.
+#   requires_capability  HARD, verso una capability.
+#   provides             chi fa esistere una capability.
+#   follows              SOFT. Ordine consigliato, mai un blocco. Serve un `rationale`.
+#   related              SOFT. Navigazione. Non entra nel calcolo della readiness.
+#
+# `follows` e `related` non rendono BLOCKED un nodo: e' la regola che questo file esiste per
+# rendere verificabile, ed e' pinnata da un test.
+
+schema_version: 1
+
+meta:
+  status: THIN_SLICE
+  note: >-
+    Tre catene reali invece di tutto il backlog: se non si leggono nel Control Center, non si
+    legge nemmeno la v0.1 intera. Le issue citate sono state verificate su GitHub il 2026-08-13.
+
+# --- Tassonomia ------------------------------------------------------------------------------
+
+execution_lanes:
+  - id: code
+    title: CODE
+    note: lavoro sul repository, eseguibile da un agente o da chi sviluppa
+
+  - id: pie
+    title: PIE
+    note: serve una persona davanti all'editor, e l'uscita e' un verdetto
+
+  - id: asset
+    title: ASSET
+    note: serve una persona davanti all'editor, e l'uscita e' un asset committato
+
+# I raggruppamenti di lettura del lavoro CODE. `feature_areas` mappa le `area` del Feature
+# Registry: la copertura e' **totale ed esclusiva** — ogni area sta in esattamente un gruppo — e
+# il validator lo verifica, cosi' un'area nuova non finisce in nessun gruppo in silenzio.
+#
+# Non sono gruppi teorici: la prima stesura ne proponeva nove con aree `Match`, `Presentation`,
+# `AI`, `Bot`, `Tooling`, `QA`, `Release` che **nel registry non esistono**, e ometteva
+# `Production` e `Gameplay` che esistono. Un gruppo `ai_bots` sarebbe rimasto vuoto: le feature
+# del bot hanno `area: Tools`.
+domain_groups:
+  - id: core_simulation
+    title: Core & Simulation
+    order: 10
+    feature_areas: [Core, Gameplay]
+
+  - id: map_environment
+    title: Map & Environment
+    order: 20
+    feature_areas: [Map, Environment]
+
+  - id: actions_reactions
+    title: Actions & Reactions
+    order: 30
+    feature_areas: [Actions, Reactions]
+
+  - id: perception_network
+    title: Perception & Networking
+    order: 40
+    feature_areas: [Perception, Networking]
+
+  - id: characters_content
+    title: Characters & Content
+    order: 50
+    feature_areas: [Characters, Factions]
+
+  - id: objectives_match
+    title: Objectives & Match
+    order: 60
+    feature_areas: [Objectives]
+
+  - id: ui_presentation
+    title: UI & Presentation
+    order: 70
+    feature_areas: [UI]
+
+  - id: tooling_data_qa
+    title: Tooling, Data, QA & Release
+    order: 80
+    feature_areas: [Tools, Data, Production]
+
+# --- Nodi ------------------------------------------------------------------------------------
+#
+# `checkpoint:` collega la issue al proprio checkpoint di roadmap, ed e' l'unica fonte di stato
+# offline che il generatore ha per un nodo CODE. ⚠️ Vale solo quando l'owner dichiara il glifo:
+# `roadmap-v0.1.md` lo scrive per **18 checkpoint su 100**, e per gli altri 82 l'assenza e'
+# ambigua — «non cominciato» oppure «chiuso e mai annotato», e per 65 di essi esiste una issue
+# GitHub chiusa. Il generatore non prova a distinguerli: marca lo stato `UNKNOWN` e ne dichiara
+# la ragione, invece di leggere un default come se fosse una misura.
+
+nodes:
+
+  # --- Catena A · Reactions / Decision Boundary ---------------------------------------------
+  #
+  # Perche' questa catena: #165 e' un FORK. Sblocca la prosecuzione di E14 e, separatamente,
+  # #512 — perche' un DecisionProvider non ha interlocutore finche' nessuno produce una vera
+  # opportunity in partita. E' la ragione per cui `DecisionBoundary` merita di essere un nodo e
+  # non una falsa dipendenza «E14 dipende da tutta E13».
+
+  - id: issue:164
+    release: v0.1
+    domain_group: actions_reactions
+    checkpoint: E14.4
+
+  - id: issue:165
+    release: v0.1
+    domain_group: actions_reactions
+    checkpoint: E14.5
+    provides:
+      - DecisionBoundary
+
+  - id: issue:166
+    release: v0.1
+    domain_group: actions_reactions
+    checkpoint: E14.6
+
+  - id: issue:314
+    release: v0.1
+    domain_group: actions_reactions
+    checkpoint: E14.7
+
+  - id: issue:319
+    release: v0.1
+    domain_group: actions_reactions
+    checkpoint: E14.8
+
+  - id: issue:512
+    release: v0.1
+    domain_group: core_simulation
+    checkpoint: E15.3
+
+  # --- Catena B · Golden replay / Showcase ---------------------------------------------------
+  #
+  # Perche' questa catena: #170 e' un JUNCTION — riceve la catena del DecisionProvider,
+  # l'obiettivo contestabile e la combo ambientale, da tre domini diversi. E mostra la differenza
+  # fra ordine raccomandato e blocco reale: #625 conviene chiuderla prima del pinning del golden,
+  # ma non lo blocca.
+
+  - id: issue:66
+    release: v0.1
+    domain_group: map_environment
+    checkpoint: E8.3
+
+  - id: issue:75
+    release: v0.1
+    domain_group: objectives_match
+    checkpoint: E10.2
+
+  - id: issue:170
+    release: v0.1
+    domain_group: tooling_data_qa
+    checkpoint: E15.4
+
+  - id: issue:171
+    release: v0.1
+    domain_group: tooling_data_qa
+    checkpoint: E15.5
+    execution_lane: pie
+
+  - id: issue:625
+    release: v0.1
+    domain_group: tooling_data_qa
+
+  - id: issue:649
+    release: v0.1
+    domain_group: tooling_data_qa
+
+  - id: issue:687
+    release: v0.1
+    domain_group: tooling_data_qa
+
+  # --- Catena C · Character presentation / ASSET / PIE ---------------------------------------
+  #
+  # Perche' questa catena: e' la sola dove CODE, ASSET e PIE convivono. E mostra che lo stesso
+  # allestimento non e' una dipendenza dura — U7/U8/U9 si fanno nella stessa apertura di editor,
+  # e `editor-sessions.yaml` lo dichiara gia'.
+
+  - id: issue:287
+    release: v0.1
+    domain_group: characters_content
+    checkpoint: E21.1
+
+  - id: issue:288
+    release: v0.1
+    domain_group: characters_content
+    checkpoint: E21.2
+
+  - id: issue:289
+    release: v0.1
+    domain_group: characters_content
+    checkpoint: E21.3
+
+  - id: issue:593
+    release: v0.1
+    domain_group: characters_content
+
+  # Le sedute sono gia' descritte da `editor-sessions.yaml`: qui si dichiara solo che
+  # partecipano a questa fetta e in quale dominio si leggono. Lane e stato arrivano da la'.
+  - id: session:U7
+    release: v0.1
+    domain_group: characters_content
+
+  - id: session:U8
+    release: v0.1
+    domain_group: characters_content
+
+  - id: session:U9
+    release: v0.1
+    domain_group: characters_content
+
+# --- Relazioni -------------------------------------------------------------------------------
+
+relations:
+
+  # Hard — «prima questo, o l'altro non puo' cominciare»
+  - from: issue:164
+    to: issue:165
+    type: requires
+
+  - from: issue:165
+    to: issue:166
+    type: requires
+
+  - from: issue:165
+    to: issue:314
+    type: requires
+
+  - from: issue:165
+    to: issue:512
+    type: requires
+
+  - from: issue:512
+    to: issue:170
+    type: requires
+
+  - from: issue:66
+    to: issue:170
+    type: requires
+
+  - from: issue:75
+    to: issue:170
+    type: requires
+
+  - from: issue:170
+    to: issue:171
+    type: requires
+
+  - from: issue:287
+    to: issue:288
+    type: requires
+
+  - from: issue:287
+    to: issue:289
+    type: requires
+
+  # Capability — un provider e sette consumatori
+  #
+  # `DecisionBoundary` non e' un nome nuovo: e' la capability che sette scenari del corpus
+  # dichiarano in `requires` e che `RTScenarioSession.cpp` non elenca fra le disponibili. Sono
+  # quindi BLOCKED per una regola che gia' esiste; cio' che mancava era **chi la fornira'**.
+  - from: issue:165
+    to: capability:DecisionBoundary
+    type: provides
+
+  - from: capability:DecisionBoundary
+    to: issue:512
+    type: requires_capability
+
+  # Soft — ordine, non blocco
+  - from: issue:166
+    to: issue:314
+    type: follows
+    rationale: CP 14.7 dichiara di seguire CP 14.6.
+
+  - from: issue:314
+    to: issue:319
+    type: follows
+    rationale: CP 14.8 segue CP 14.7, e dichiara di non precedere 14.5/14.6.
+
+  - from: issue:625
+    to: issue:170
+    type: follows
+    rationale: >-
+      Chiudere la traccia del danno da hazard prima del pinning del golden evita una
+      rebaseline. E' un risparmio, non un prerequisito.
+
+  # Related — navigazione, mai readiness
+  - from: issue:593
+    to: session:U7
+    type: related
+    rationale: La issue dichiara esplicitamente che il workaround regge e che non blocca U7.
+
+  - from: issue:593
+    to: session:U9
+    type: related
+    rationale: Influenza il giudizio visivo di U9 senza esserne un prerequisito dichiarato.
+
+  - from: issue:649
+    to: issue:170
+    type: related
+    rationale: Consistency del TurnLog; nessuna dipendenza dura dichiarata verso CP 15.4.
+
+  - from: issue:687
+    to: issue:170
+    type: related
+    rationale: >-
+      Rischio di versioning e migrazione del formato. Finche' un owner non lo rende un gate,
+      resta una relazione di consistenza.
+
+  # Evidenza — chi realizza e chi giudica
+  - from: session:U7
+    to: issue:287
+    type: implements
+
+  - from: session:U8
+    to: issue:288
+    type: implements
+
+  - from: session:U9
+    to: issue:289
+    type: verifies

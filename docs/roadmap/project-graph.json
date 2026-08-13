@@ -7,7 +7,9 @@
     "release_gates": "docs/roadmap/v0.1-definition-of-done.md",
     "epics": "docs/roadmap/roadmap-v0.1.md",
     "milestones": "docs/roadmap/roadmap-checkpoint.md",
-    "scenarios": "Scenarios/"
+    "scenarios": "Scenarios/",
+    "execution_graph": "docs/roadmap/execution-graph.yaml",
+    "post_v01_releases": "docs/roadmap/roadmap-post-v0.1.md"
   },
   "meta": {
     "registry_version": 1,
@@ -69,7 +71,8 @@
       "[RT-FEAT-INTENT-CONDITIONAL] nessuna pagina Wiki collegata",
       "[RT-FEAT-INTENT-CONDITIONAL] SPECIFIED senza issue ne' assegnazione in roadmap",
       "[RT-FEAT-CHARACTER-STATE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Riva.Flow, State.Flux.Charged, State.Bastion.Bulwark, State.Howitzer.Siege, State.MultiState.Stress"
+      "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Riva.Flow, State.Flux.Charged, State.Bastion.Bulwark, State.Howitzer.Siege, State.MultiState.Stress",
+      "[execution-graph] 10 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
     ],
     "unresolved_prerequisites": [],
     "milestone_conflicts": []
@@ -205,48 +208,48 @@
     "M10.1": "⏳",
     "M10.2": "⏳",
     "M10.3": "⏳",
-    "E1.1": "⏳",
-    "E1.2": "⏳",
-    "E1.3": "⏳",
-    "E1.4": "⏳",
-    "E2.1": "⏳",
-    "E2.2": "⏳",
-    "E2.3": "⏳",
-    "E2.4": "⏳",
-    "E2.5": "⏳",
-    "E2.6": "⏳",
-    "E2.7": "⏳",
+    "E1.1": "✅",
+    "E1.2": "✅",
+    "E1.3": "✅",
+    "E1.4": "✅",
+    "E2.1": "✅",
+    "E2.2": "✅",
+    "E2.3": "✅",
+    "E2.4": "✅",
+    "E2.5": "✅",
+    "E2.6": "✅",
+    "E2.7": "✅",
     "E2.8": "⏳",
-    "E3.1": "⏳",
-    "E3.2": "⏳",
+    "E3.1": "✅",
+    "E3.2": "✅",
     "E3.3": "⏳",
-    "E4.1": "⏳",
-    "E4.2": "⏳",
-    "E4.3": "⏳",
-    "E4.4": "⏳",
-    "E4.5": "⏳",
-    "E4.6": "⏳",
-    "E4.7": "⏳",
-    "E4.8": "⏳",
-    "E5.1": "⏳",
-    "E5.2": "⏳",
-    "E5.3": "⏳",
-    "E5.4": "⏳",
+    "E4.1": "✅",
+    "E4.2": "✅",
+    "E4.3": "✅",
+    "E4.4": "✅",
+    "E4.5": "✅",
+    "E4.6": "✅",
+    "E4.7": "✅",
+    "E4.8": "✅",
+    "E5.1": "✅",
+    "E5.2": "✅",
+    "E5.3": "✅",
+    "E5.4": "✅",
     "E5.5": "✅",
-    "E6.1": "⏳",
-    "E6.2": "⏳",
-    "E6.3": "⏳",
-    "E6.4": "⏳",
-    "E6.5": "⏳",
-    "E6.6": "⏳",
+    "E6.1": "✅",
+    "E6.2": "✅",
+    "E6.3": "✅",
+    "E6.4": "✅",
+    "E6.5": "✅",
+    "E6.6": "✅",
     "E6.7": "✅",
-    "E7.1": "⏳",
+    "E7.1": "✅",
     "E7.2": "✅",
     "E7.3": "✅",
     "E7.5": "✅",
     "E7.4": "🟡",
-    "E8.1": "⏳",
-    "E8.2": "⏳",
+    "E8.1": "✅",
+    "E8.2": "✅",
     "E8.3": "✅",
     "E8.4": "✅",
     "E8.5": "✅",
@@ -257,7 +260,7 @@
     "E9.5": "✅",
     "E10.1": "⏳",
     "E10.2": "⏳",
-    "E10.3": "⏳",
+    "E10.3": "✅",
     "E11.1": "⏳",
     "E11.2": "⏳",
     "E11.3": "✅",
@@ -271,35 +274,35 @@
     "E12.3": "⏳",
     "E12.4": "⏳",
     "E12.5": "⏳",
-    "E12.6": "⏳",
-    "E13.1": "⏳",
-    "E13.2": "⏳",
-    "E13.3": "⏳",
-    "E13.4": "⏳",
+    "E12.6": "✅",
+    "E13.1": "✅",
+    "E13.2": "✅",
+    "E13.3": "✅",
+    "E13.4": "🟡",
     "E13.5": "🟡",
     "E14.1": "✅",
-    "E14.2": "⏳",
-    "E14.3": "⏳",
-    "E14.4": "⏳",
+    "E14.2": "✅",
+    "E14.3": "✅",
+    "E14.4": "✅",
     "E14.5": "⏳",
     "E14.6": "⏳",
     "E14.7": "⏳",
     "E14.8": "⏳",
-    "E15.1": "⏳",
-    "E15.2": "⏳",
-    "E15.3": "⏳",
+    "E15.1": "✅",
+    "E15.2": "✅",
+    "E15.3": "🟡",
     "E15.4": "⏳",
     "E15.5": "⏳",
-    "E16.1": "⏳",
-    "E16.2": "⏳",
-    "E17.1": "⏳",
-    "E17.2": "⏳",
+    "E16.1": "✅",
+    "E16.2": "✅",
+    "E17.1": "✅",
+    "E17.2": "✅",
     "E17.3": "⏳",
-    "E18.1": "⏳",
-    "E18.2": "⏳",
-    "E19.1": "⏳",
-    "E19.2": "⏳",
-    "E20.1": "⏳",
+    "E18.1": "✅",
+    "E18.2": "✅",
+    "E19.1": "✅",
+    "E19.2": "✅",
+    "E20.1": "✅",
     "E20.2": "⏳",
     "E20.3": "⏳",
     "E21.1": "⏳",
@@ -312,6 +315,7 @@
       "title": "Verifiche senza prerequisiti",
       "block": 1,
       "critical": false,
+      "execution_lane": "pie",
       "state": "🟡",
       "queue_group": "READY",
       "produces": "verdetto su quindici voci che non attendono nulla",
@@ -397,6 +401,7 @@
       "title": "Mappa-arena hex",
       "block": 1,
       "critical": true,
+      "execution_lane": "asset",
       "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "`DA_HexMap_Arena` e `L_HexArena`, committati",
@@ -467,6 +472,7 @@
       "title": "Partita hex, primo giro",
       "block": 2,
       "critical": true,
+      "execution_lane": "pie",
       "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "verdetto su allestimento e movimento",
@@ -522,6 +528,7 @@
       "title": "Input e pianificazione",
       "block": 2,
       "critical": true,
+      "execution_lane": "pie",
       "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "verdetto su selezione, budget e anteprima del percorso",
@@ -572,6 +579,7 @@
       "title": "Combat e linea di tiro",
       "block": 2,
       "critical": true,
+      "execution_lane": "pie",
       "state": "⏳",
       "queue_group": "BLOCKING",
       "produces": "verdetto su forme d'attacco, LOS esagonale e knockback",
@@ -623,6 +631,7 @@
       "title": "Bot e HUD",
       "block": 2,
       "critical": true,
+      "execution_lane": "pie",
       "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale",
@@ -691,6 +700,7 @@
       "title": "Multilivello e partita completa",
       "block": 2,
       "critical": true,
+      "execution_lane": "pie",
       "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "chiusura di M6 / E2 — sessione D verde",
@@ -740,6 +750,7 @@
       "title": "Personaggi Paragon",
       "block": 3,
       "critical": true,
+      "execution_lane": "asset",
       "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "i quattro Blueprint-unita' del roster v0.1, committati",
@@ -788,6 +799,7 @@
       "title": "Animazioni",
       "block": 3,
       "critical": true,
+      "execution_lane": "asset",
       "state": "⏳",
       "queue_group": "BLOCKING",
       "produces": "gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death",
@@ -836,6 +848,7 @@
       "title": "Leggibilita' e riferimento visivo",
       "block": 3,
       "critical": true,
+      "execution_lane": "pie",
       "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "il video (o gli screenshot) di riferimento — DoD di milestone di M8",
@@ -876,6 +889,7 @@
       "title": "Data asset delle azioni",
       "block": 4,
       "critical": true,
+      "execution_lane": "pie",
       "state": "—",
       "queue_group": null,
       "produces": "il catalogo azioni della v0.1 come dati, non come codice",
@@ -883,14 +897,14 @@
       "unblocked_by": [
         {
           "ref": "E1.3",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "checkpoint"
         },
         {
           "ref": "E1.4",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "checkpoint"
         }
       ],
@@ -907,6 +921,7 @@
       "title": "I 4 eroi",
       "block": 4,
       "critical": true,
+      "execution_lane": "pie",
       "state": "🟡",
       "queue_group": "WAITING",
       "produces": "i data asset di Gadget, Phase, Riktor e Wraith, e lo spawn 2v2 che li usa",
@@ -943,6 +958,7 @@
       "title": "Loadout",
       "block": 4,
       "critical": false,
+      "execution_lane": "pie",
       "state": "—",
       "queue_group": null,
       "produces": "varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe",
@@ -972,6 +988,7 @@
       "title": "Arena v0.1",
       "block": 5,
       "critical": true,
+      "execution_lane": "pie",
       "state": "⏳",
       "queue_group": "WAITING",
       "produces": "l'arena estesa con quanto serve alle verifiche di contenuto",
@@ -1016,6 +1033,7 @@
       "title": "Ambiente in partita",
       "block": 5,
       "critical": true,
+      "execution_lane": "pie",
       "state": "🟡",
       "queue_group": "WAITING",
       "produces": "verdetto sulle regole ambientali e strutturali",
@@ -1084,6 +1102,7 @@
       "title": "HUD, intenti, log e comandi debug",
       "block": 6,
       "critical": true,
+      "execution_lane": "pie",
       "state": "🟡",
       "queue_group": "BLOCKING",
       "produces": "verdetto su leggibilita' e osservabilita'",
@@ -1130,6 +1149,7 @@
       "title": "Durata, ritmo e scala",
       "block": 6,
       "critical": true,
+      "execution_lane": "pie",
       "state": "⏳",
       "queue_group": "WAITING",
       "produces": "numeri di playtest — non difetti",
@@ -1194,6 +1214,7 @@
       "title": "Misura dei KPI",
       "block": 6,
       "critical": true,
+      "execution_lane": "pie",
       "state": "🟡",
       "queue_group": "WAITING",
       "produces": "numeri reali nella tabella KPI",
@@ -1226,6 +1247,7 @@
       "title": "Release v0.1",
       "block": 6,
       "critical": true,
+      "execution_lane": "pie",
       "state": "—",
       "queue_group": null,
       "produces": "build Windows Development e Shipping, e una partita giocata senza editor",
@@ -1249,15 +1271,16 @@
       "title": "Confine fra Guard e Brace",
       "block": 6,
       "critical": false,
+      "execution_lane": "pie",
       "state": "⏳",
-      "queue_group": "WAITING",
+      "queue_group": "READY",
       "produces": "verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere",
       "artifacts": [],
       "unblocked_by": [
         {
           "ref": "E5.2",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "checkpoint"
         }
       ],
@@ -1277,6 +1300,7 @@
       "title": "Luci del graybox e inquadratura della mappa",
       "block": 6,
       "critical": false,
+      "execution_lane": "pie",
       "state": "⏳",
       "queue_group": "READY",
       "produces": "verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato",
@@ -1315,6 +1339,7 @@
     ],
     "READY": [
       "U18",
+      "U20",
       "U21"
     ],
     "WAITING": [
@@ -1322,8 +1347,7 @@
       "U13",
       "U14",
       "U19",
-      "U16",
-      "U20"
+      "U16"
     ],
     "DONE": []
   },
@@ -2327,5 +2351,1020 @@
     "Reaction",
     "ReactionPlanning",
     "Structures"
-  ]
+  ],
+  "execution": {
+    "schema_version": 1,
+    "status": "THIN_SLICE",
+    "lanes": [
+      {
+        "id": "code",
+        "title": "CODE",
+        "note": "lavoro sul repository, eseguibile da un agente o da chi sviluppa"
+      },
+      {
+        "id": "pie",
+        "title": "PIE",
+        "note": "serve una persona davanti all'editor, e l'uscita e' un verdetto"
+      },
+      {
+        "id": "asset",
+        "title": "ASSET",
+        "note": "serve una persona davanti all'editor, e l'uscita e' un asset committato"
+      }
+    ],
+    "domain_groups": [
+      {
+        "id": "core_simulation",
+        "title": "Core & Simulation",
+        "order": 10,
+        "feature_areas": [
+          "Core",
+          "Gameplay"
+        ]
+      },
+      {
+        "id": "map_environment",
+        "title": "Map & Environment",
+        "order": 20,
+        "feature_areas": [
+          "Map",
+          "Environment"
+        ]
+      },
+      {
+        "id": "actions_reactions",
+        "title": "Actions & Reactions",
+        "order": 30,
+        "feature_areas": [
+          "Actions",
+          "Reactions"
+        ]
+      },
+      {
+        "id": "perception_network",
+        "title": "Perception & Networking",
+        "order": 40,
+        "feature_areas": [
+          "Perception",
+          "Networking"
+        ]
+      },
+      {
+        "id": "characters_content",
+        "title": "Characters & Content",
+        "order": 50,
+        "feature_areas": [
+          "Characters",
+          "Factions"
+        ]
+      },
+      {
+        "id": "objectives_match",
+        "title": "Objectives & Match",
+        "order": 60,
+        "feature_areas": [
+          "Objectives"
+        ]
+      },
+      {
+        "id": "ui_presentation",
+        "title": "UI & Presentation",
+        "order": 70,
+        "feature_areas": [
+          "UI"
+        ]
+      },
+      {
+        "id": "tooling_data_qa",
+        "title": "Tooling, Data, QA & Release",
+        "order": 80,
+        "feature_areas": [
+          "Tools",
+          "Data",
+          "Production"
+        ]
+      }
+    ],
+    "nodes": [
+      {
+        "id": "issue:164",
+        "kind": "issue",
+        "ref": "164",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "actions_reactions",
+        "checkpoint": "E14.4",
+        "state": "✅",
+        "state_source": "checkpoint:E14.4",
+        "state_note": null,
+        "feature_ids": [
+          "RT-FEAT-REACTION-OVERWATCH"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:164",
+            "to": "issue:165",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "DONE",
+        "readiness_reason": "checkpoint:E14.4"
+      },
+      {
+        "id": "issue:165",
+        "kind": "issue",
+        "ref": "165",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "actions_reactions",
+        "checkpoint": "E14.5",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-REACTION-FAST"
+        ],
+        "provides": [
+          "DecisionBoundary"
+        ],
+        "incoming": [
+          {
+            "from": "issue:164",
+            "to": "issue:165",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:165",
+            "to": "issue:166",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:165",
+            "to": "issue:314",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:165",
+            "to": "issue:512",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:165",
+            "to": "capability:DecisionBoundary",
+            "type": "provides",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "tutti i prerequisiti hard sono risolti"
+      },
+      {
+        "id": "issue:166",
+        "kind": "issue",
+        "ref": "166",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "actions_reactions",
+        "checkpoint": "E14.6",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-REACTION-FAST",
+          "RT-FEAT-REACTION-FAST-ACTION"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:165",
+            "to": "issue:166",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:166",
+            "to": "issue:314",
+            "type": "follows",
+            "hard": false,
+            "rationale": "CP 14.7 dichiara di seguire CP 14.6."
+          }
+        ],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:165"
+      },
+      {
+        "id": "issue:314",
+        "kind": "issue",
+        "ref": "314",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "actions_reactions",
+        "checkpoint": "E14.7",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:165",
+            "to": "issue:314",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:166",
+            "to": "issue:314",
+            "type": "follows",
+            "hard": false,
+            "rationale": "CP 14.7 dichiara di seguire CP 14.6."
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:314",
+            "to": "issue:319",
+            "type": "follows",
+            "hard": false,
+            "rationale": "CP 14.8 segue CP 14.7, e dichiara di non precedere 14.5/14.6."
+          }
+        ],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:165"
+      },
+      {
+        "id": "issue:319",
+        "kind": "issue",
+        "ref": "319",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "actions_reactions",
+        "checkpoint": "E14.8",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-CORE-DECISION-TIME-BANK"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:314",
+            "to": "issue:319",
+            "type": "follows",
+            "hard": false,
+            "rationale": "CP 14.8 segue CP 14.7, e dichiara di non precedere 14.5/14.6."
+          }
+        ],
+        "outgoing": [],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:512",
+        "kind": "issue",
+        "ref": "512",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "core_simulation",
+        "checkpoint": "E15.3",
+        "state": "🟡",
+        "state_source": "checkpoint:E15.3",
+        "state_note": null,
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:165",
+            "to": "issue:512",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "capability:DecisionBoundary",
+            "to": "issue:512",
+            "type": "requires_capability",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:512",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "BLOCKED",
+        "readiness_reason": "aspetta capability:DecisionBoundary"
+      },
+      {
+        "id": "issue:66",
+        "kind": "issue",
+        "ref": "66",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "map_environment",
+        "checkpoint": "E8.3",
+        "state": "✅",
+        "state_source": "checkpoint:E8.3",
+        "state_note": null,
+        "feature_ids": [
+          "RT-FEAT-ENV-ELECTRIC"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:66",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "DONE",
+        "readiness_reason": "checkpoint:E8.3"
+      },
+      {
+        "id": "issue:75",
+        "kind": "issue",
+        "ref": "75",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "objectives_match",
+        "checkpoint": "E10.2",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-OBJECTIVE-SYSTEM"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:75",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:170",
+        "kind": "issue",
+        "ref": "170",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "checkpoint": "E15.4",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-TEST-GOLDEN"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:512",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:66",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:75",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:625",
+            "to": "issue:170",
+            "type": "follows",
+            "hard": false,
+            "rationale": "Chiudere la traccia del danno da hazard prima del pinning del golden evita una rebaseline. E' un risparmio, non un prerequisito."
+          },
+          {
+            "from": "issue:649",
+            "to": "issue:170",
+            "type": "related",
+            "hard": false,
+            "rationale": "Consistency del TurnLog; nessuna dipendenza dura dichiarata verso CP 15.4."
+          },
+          {
+            "from": "issue:687",
+            "to": "issue:170",
+            "type": "related",
+            "hard": false,
+            "rationale": "Rischio di versioning e migrazione del formato. Finche' un owner non lo rende un gate, resta una relazione di consistenza."
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:170",
+            "to": "issue:171",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "BLOCKED",
+        "readiness_reason": "aspetta issue:512"
+      },
+      {
+        "id": "issue:171",
+        "kind": "issue",
+        "ref": "171",
+        "release": "v0.1",
+        "execution_lane": "pie",
+        "domain_group": "tooling_data_qa",
+        "checkpoint": "E15.5",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-TEST-GOLDEN"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:170",
+            "to": "issue:171",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:170"
+      },
+      {
+        "id": "issue:625",
+        "kind": "issue",
+        "ref": "625",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "checkpoint": null,
+        "state": null,
+        "state_source": null,
+        "state_note": "issue senza checkpoint: lo stato vive su GitHub",
+        "feature_ids": [
+          "RT-FEAT-ENV-FIRE",
+          "RT-FEAT-ENV-STATUS"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:625",
+            "to": "issue:170",
+            "type": "follows",
+            "hard": false,
+            "rationale": "Chiudere la traccia del danno da hazard prima del pinning del golden evita una rebaseline. E' un risparmio, non un prerequisito."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:649",
+        "kind": "issue",
+        "ref": "649",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "checkpoint": null,
+        "state": null,
+        "state_source": null,
+        "state_note": "issue senza checkpoint: lo stato vive su GitHub",
+        "feature_ids": [
+          "RT-FEAT-BOT-FAIRNESS"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:649",
+            "to": "issue:170",
+            "type": "related",
+            "hard": false,
+            "rationale": "Consistency del TurnLog; nessuna dipendenza dura dichiarata verso CP 15.4."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:687",
+        "kind": "issue",
+        "ref": "687",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "checkpoint": null,
+        "state": null,
+        "state_source": null,
+        "state_note": "issue senza checkpoint: lo stato vive su GitHub",
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:687",
+            "to": "issue:170",
+            "type": "related",
+            "hard": false,
+            "rationale": "Rischio di versioning e migrazione del formato. Finche' un owner non lo rende un gate, resta una relazione di consistenza."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:287",
+        "kind": "issue",
+        "ref": "287",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "characters_content",
+        "checkpoint": "E21.1",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-CHAR-PRESENTATION"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "session:U7",
+            "to": "issue:287",
+            "type": "implements",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:287",
+            "to": "issue:288",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:287",
+            "to": "issue:289",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:288",
+        "kind": "issue",
+        "ref": "288",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "characters_content",
+        "checkpoint": "E21.2",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-CHAR-PRESENTATION"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:287",
+            "to": "issue:288",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "session:U8",
+            "to": "issue:288",
+            "type": "implements",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "outgoing": [],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:287"
+      },
+      {
+        "id": "issue:289",
+        "kind": "issue",
+        "ref": "289",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "characters_content",
+        "checkpoint": "E21.3",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-CHAR-PRESENTATION"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:287",
+            "to": "issue:289",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "session:U9",
+            "to": "issue:289",
+            "type": "verifies",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "outgoing": [],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:287"
+      },
+      {
+        "id": "issue:593",
+        "kind": "issue",
+        "ref": "593",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "characters_content",
+        "checkpoint": null,
+        "state": null,
+        "state_source": null,
+        "state_note": "issue senza checkpoint: lo stato vive su GitHub",
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:593",
+            "to": "session:U7",
+            "type": "related",
+            "hard": false,
+            "rationale": "La issue dichiara esplicitamente che il workaround regge e che non blocca U7."
+          },
+          {
+            "from": "issue:593",
+            "to": "session:U9",
+            "type": "related",
+            "hard": false,
+            "rationale": "Influenza il giudizio visivo di U9 senza esserne un prerequisito dichiarato."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "session:U7",
+        "kind": "session",
+        "ref": "U7",
+        "release": "v0.1",
+        "execution_lane": "asset",
+        "domain_group": "characters_content",
+        "checkpoint": null,
+        "state": "🟡",
+        "state_source": "session:U7",
+        "state_note": null,
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:593",
+            "to": "session:U7",
+            "type": "related",
+            "hard": false,
+            "rationale": "La issue dichiara esplicitamente che il workaround regge e che non blocca U7."
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "session:U7",
+            "to": "issue:287",
+            "type": "implements",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "session:U8",
+        "kind": "session",
+        "ref": "U8",
+        "release": "v0.1",
+        "execution_lane": "asset",
+        "domain_group": "characters_content",
+        "checkpoint": null,
+        "state": "⏳",
+        "state_source": "session:U8",
+        "state_note": null,
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "session:U8",
+            "to": "issue:288",
+            "type": "implements",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "session:U9",
+        "kind": "session",
+        "ref": "U9",
+        "release": "v0.1",
+        "execution_lane": "pie",
+        "domain_group": "characters_content",
+        "checkpoint": null,
+        "state": "🟡",
+        "state_source": "session:U9",
+        "state_note": null,
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:593",
+            "to": "session:U9",
+            "type": "related",
+            "hard": false,
+            "rationale": "Influenza il giudizio visivo di U9 senza esserne un prerequisito dichiarato."
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "session:U9",
+            "to": "issue:289",
+            "type": "verifies",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      }
+    ],
+    "edges": [
+      {
+        "from": "issue:164",
+        "to": "issue:165",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:165",
+        "to": "issue:166",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:165",
+        "to": "issue:314",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:165",
+        "to": "issue:512",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:512",
+        "to": "issue:170",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:66",
+        "to": "issue:170",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:75",
+        "to": "issue:170",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:170",
+        "to": "issue:171",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:287",
+        "to": "issue:288",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:287",
+        "to": "issue:289",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:165",
+        "to": "capability:DecisionBoundary",
+        "type": "provides",
+        "hard": false,
+        "rationale": null
+      },
+      {
+        "from": "capability:DecisionBoundary",
+        "to": "issue:512",
+        "type": "requires_capability",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:166",
+        "to": "issue:314",
+        "type": "follows",
+        "hard": false,
+        "rationale": "CP 14.7 dichiara di seguire CP 14.6."
+      },
+      {
+        "from": "issue:314",
+        "to": "issue:319",
+        "type": "follows",
+        "hard": false,
+        "rationale": "CP 14.8 segue CP 14.7, e dichiara di non precedere 14.5/14.6."
+      },
+      {
+        "from": "issue:625",
+        "to": "issue:170",
+        "type": "follows",
+        "hard": false,
+        "rationale": "Chiudere la traccia del danno da hazard prima del pinning del golden evita una rebaseline. E' un risparmio, non un prerequisito."
+      },
+      {
+        "from": "issue:593",
+        "to": "session:U7",
+        "type": "related",
+        "hard": false,
+        "rationale": "La issue dichiara esplicitamente che il workaround regge e che non blocca U7."
+      },
+      {
+        "from": "issue:593",
+        "to": "session:U9",
+        "type": "related",
+        "hard": false,
+        "rationale": "Influenza il giudizio visivo di U9 senza esserne un prerequisito dichiarato."
+      },
+      {
+        "from": "issue:649",
+        "to": "issue:170",
+        "type": "related",
+        "hard": false,
+        "rationale": "Consistency del TurnLog; nessuna dipendenza dura dichiarata verso CP 15.4."
+      },
+      {
+        "from": "issue:687",
+        "to": "issue:170",
+        "type": "related",
+        "hard": false,
+        "rationale": "Rischio di versioning e migrazione del formato. Finche' un owner non lo rende un gate, resta una relazione di consistenza."
+      },
+      {
+        "from": "session:U7",
+        "to": "issue:287",
+        "type": "implements",
+        "hard": false,
+        "rationale": null
+      },
+      {
+        "from": "session:U8",
+        "to": "issue:288",
+        "type": "implements",
+        "hard": false,
+        "rationale": null
+      },
+      {
+        "from": "session:U9",
+        "to": "issue:289",
+        "type": "verifies",
+        "hard": false,
+        "rationale": null
+      }
+    ],
+    "capabilities": [
+      {
+        "id": "DecisionBoundary",
+        "providers": [
+          "issue:165"
+        ],
+        "consumers": [
+          "issue:512"
+        ],
+        "scenario_consumers": [
+          "RT_Showcase_Relay_v01",
+          "Spec.Brace.ProfileChangesResponse",
+          "Spec.Clash.ReadBeatsStand",
+          "Spec.Clash.ShiftBeatsRead",
+          "Spec.Clash.StandBeatsShift",
+          "Spec.Clash.TieAppliesOnce",
+          "Spec.Overwatch.HoldThenFire"
+        ],
+        "available": false,
+        "available_source": "provider"
+      }
+    ],
+    "stats": {
+      "nodes": 20,
+      "edges": 22,
+      "hard_edges": 11,
+      "soft_edges": 7,
+      "by_readiness": {
+        "BLOCKED": 2,
+        "DONE": 2,
+        "READY": 11,
+        "UNKNOWN": 5
+      },
+      "by_execution_lane": {
+        "asset": 2,
+        "code": 16,
+        "pie": 2
+      },
+      "by_domain_group": {
+        "actions_reactions": 5,
+        "characters_content": 7,
+        "core_simulation": 1,
+        "map_environment": 1,
+        "objectives_match": 1,
+        "tooling_data_qa": 5
+      },
+      "by_release": {
+        "v0.1": 20
+      },
+      "state_unknown": 14
+    }
+  }
 }

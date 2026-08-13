@@ -40,6 +40,8 @@ REGISTRY_JSON = os.path.join(REPO, "docs", "roadmap", "feature-registry.json")
 PROJECT_GRAPH_JSON = os.path.join(REPO, "docs", "roadmap", "project-graph.json")
 ROADMAP_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-v0.1.md")
 ROADMAP_CHECKPOINT = os.path.join(REPO, "docs", "roadmap", "roadmap-checkpoint.md")
+ROADMAP_POST_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-post-v0.1.md")
+EXECUTION_GRAPH = os.path.join(REPO, "docs", "roadmap", "execution-graph.yaml")
 TESTS_DIR = os.path.join(REPO, "Source", "RefactorTactics", "Tests")
 SCENARIOS_DIR = os.path.join(REPO, "Scenarios")
 
@@ -50,7 +52,17 @@ GATE_NAMES = [
     "replay_representable",
 ]
 GATE_VALUES = {"done", "partial", "todo", "na"}
-RELEASES = {"v0.1", "v0.2", "future"}
+
+# Le release, **in ordine**, e l'insieme che le valida: una tupla sola invece di quattro elenchi
+# paralleli. Fino al 2026-08-13 i valori ammessi erano `{v0.1, v0.2, future}` mentre
+# `roadmap-post-v0.1.md` era gia' owner dichiarato di v0.2, v0.3 e v0.4: il registry non sapeva
+# esprimere la roadmap che il repository aveva gia' scritto, e cinque feature stavano in `future`
+# per assenza di un valore, non per assenza di una decisione. L'ordine viveva ricopiato in tre
+# punti (`render_status_page` due volte, `render_shortlist_features` una) e aggiungere una release
+# voleva dire trovarli tutti e tre: chi ne mancava uno otteneva una vista che ometteva in silenzio
+# una release intera, che e' esattamente il difetto che §3 di `roadmap.shortlist.md` aveva.
+RELEASE_ORDER = ("v0.1", "v0.2", "v0.3", "v0.4", "future")
+RELEASES = set(RELEASE_ORDER)
 PRIORITIES = {"P0", "P1", "P2", "P3"}
 KINDS = {"gameplay", "ui", "tooling", "data", "infra", "content"}
 
@@ -486,6 +498,10 @@ def validate(registry, wiki_root=None, editor_ctx=None):
     errors += session_errors
     warnings += session_warnings
 
+    exec_errors, exec_warnings = validate_execution_graph(editor_ctx, registry)
+    errors += exec_errors
+    warnings += exec_warnings
+
     return errors, warnings
 
 
@@ -638,7 +654,7 @@ def status_block(entry):
 
 
 def render_status_page(data):
-    by_release = {"v0.1": [], "v0.2": [], "future": []}
+    by_release = {rel: [] for rel in RELEASE_ORDER}
     for entry in data["features"]:
         by_release.setdefault(entry["release"], []).append(entry)
 
@@ -675,8 +691,13 @@ def render_status_page(data):
         "",
     ]
 
-    titles = {"v0.1": "Release v0.1", "v0.2": "Release v0.2", "future": "Oltre la v0.2"}
-    for release in ("v0.1", "v0.2", "future"):
+    # Il titolo di `future` nomina l'ultima release pianificata, e scriverlo a mano l'aveva gia'
+    # lasciato indietro: diceva «Oltre la v0.2» mentre `roadmap-post-v0.1.md` pianificava v0.3 e
+    # v0.4. Derivarlo da `RELEASE_ORDER` fa si' che la prossima release lo aggiorni da sola.
+    last_planned = [rel for rel in RELEASE_ORDER if rel != "future"][-1]
+    titles = {rel: f"Release {rel}" for rel in RELEASE_ORDER if rel != "future"}
+    titles["future"] = f"Oltre la {last_planned}"
+    for release in RELEASE_ORDER:
         entries = by_release.get(release) or []
         if not entries:
             continue
@@ -1399,6 +1420,7 @@ PIE_REGISTRY = os.path.join(REPO, "docs", "technical", "test-manuali-pie.md")
 
 SHORTLIST_MARKERS = {
     "epics": "RT_SHORTLIST_EPICS",
+    "releases": "RT_SHORTLIST_RELEASES",
     "features": "RT_SHORTLIST_FEATURES",
     "scenarios": "RT_SHORTLIST_SCENARIOS",
     "milestones": "RT_SHORTLIST_MILESTONES",
@@ -1407,6 +1429,7 @@ SHORTLIST_MARKERS = {
 }
 SHORTLIST_FILES = {
     "epics": os.path.join(SHORTLIST_DIR, "roadmap.shortlist.md"),
+    "releases": os.path.join(SHORTLIST_DIR, "roadmap.shortlist.md"),
     "features": os.path.join(SHORTLIST_DIR, "featuremap.shortlist.md"),
     "scenarios": os.path.join(SHORTLIST_DIR, "scenariomap.shortlist.md"),
     "milestones": os.path.join(SHORTLIST_DIR, "milestonemap.shortlist.md"),
@@ -1454,6 +1477,61 @@ def milestone_status():
         else:
             seen.setdefault(milestone, glyph)
     return seen, conflicts
+
+
+def post_v01_epics():
+    """Le epic oltre la v0.1, da `roadmap-post-v0.1.md` — owner dichiarato delle release v0.2-v0.4.
+
+    Tre letture dallo stesso file, perche' tre fatti diversi vivono in tre posti diversi:
+
+    - la **release** dalla tabella «Le release». E' la sola riga che decide dove sta un'epic, e la
+      colonna mescola intervalli (`E22-E26`) ed elenchi (`**E35** · **E36**`): entrambi vanno
+      espansi, perche' un'epic dentro un intervallo non e' meno assegnata di una nominata.
+    - **titolo e priorita'** dall'heading della propria sezione.
+    - la **issue** dalla riga `**Tracciata su GitHub**`.
+
+    Fino al 2026-08-13 questa vista era ricopiata a mano nella §3 di `roadmap.shortlist.md`, che si
+    dichiarava «non generata». Aveva gia' perso **E36**, **E38** ed **E39** — tre epic che la
+    tabella owner elenca in v0.2 — e mostrava **E25** senza issue benche' `#265` esista dal
+    2026-08-08 e il documento owner la citi. Non erano sviste: una tabella copiata diverge dal suo
+    owner appena l'owner cambia, e nessun gate confrontava le due.
+
+    Un'epic con una sezione ma senza riga nella tabella resta **senza release**, e non e' un buco
+    del parser: e' il caso di `E37`. La sua issue `#555` si intitola `[EPIC v0.4]`, la tabella owner
+    non la assegna a nessuna release, e le due fonti non si conciliano indovinando — tanto meno
+    dalla posizione del testo, che la mette dopo il titolo «v0.4» per ragioni di impaginazione.
+    La vista dichiara lo scarto e lo lascia a chi possiede la tabella.
+    """
+    if not os.path.isfile(ROADMAP_POST_V01):
+        return []
+    text = open(ROADMAP_POST_V01, encoding="utf-8").read()
+
+    release_of = {}
+    for release, cell in re.findall(r"^\|\s*\*\*(v0\.\d)\*\*\s*\|[^|]*\|[^|]*\|([^|]*)\|", text, re.M):
+        epics = []
+        for first, last in re.findall(r"E(\d+)\s*[–—-]\s*E(\d+)", cell):
+            epics += [f"E{n}" for n in range(int(first), int(last) + 1)]
+        # Gli intervalli si tolgono prima di raccogliere i singoli, o `E22-E26` conterebbe anche
+        # i suoi due estremi una seconda volta.
+        singles = re.sub(r"E\d+\s*[–—-]\s*E\d+", " ", cell)
+        epics += [f"E{n}" for n in re.findall(r"E(\d+)", singles)]
+        for epic in epics:
+            release_of[epic] = release
+
+    sections = list(re.finditer(r"^### (E\d+) — (.+?) · (P\d)\s*$", text, re.M))
+    out = []
+    for index, match in enumerate(sections):
+        end = sections[index + 1].start() if index + 1 < len(sections) else len(text)
+        body = text[match.start():end]
+        issue = re.search(r"\*\*Tracciata su GitHub\*\*[^\n]*?epic \[#(\d+)\]", body)
+        out.append({
+            "epic": match.group(1),
+            "title": match.group(2).strip(),
+            "priority": match.group(3),
+            "release": release_of.get(match.group(1)),
+            "issue": int(issue.group(1)) if issue else None,
+        })
+    return out
 
 
 def release_gates():
@@ -1605,6 +1683,109 @@ def render_shortlist_epics(data):
     return wrap_block(marker, lines)
 
 
+def render_shortlist_releases(data):
+    """§3 di `roadmap.shortlist.md`: gli step oltre la v0.1, generati dal loro owner.
+
+    La colonna *In una riga* resta umana e viene conservata, come nelle altre shortlist. Tutto il
+    resto — release, titolo, priorita', issue — arriva da `roadmap-post-v0.1.md`, cosi' che
+    aggiungere un'epic la' la faccia comparire qui senza che nessuno se ne ricordi.
+
+    Le Feature per epic si contano dal registry: e' la riga che dice se un'epic pianificata ha gia'
+    una capacita' dichiarata o e' ancora solo un titolo, ed e' proprio la domanda che la §3
+    manuale non sapeva rispondere.
+    """
+    marker = SHORTLIST_MARKERS["releases"]
+    kept = preserved_column(SHORTLIST_FILES["releases"], marker, r"\*\*(E\d+)\*\*")
+    epics = [e for e in post_v01_epics() if e["release"] != "v0.1"]
+
+    by_epic = {}
+    for entry in data["features"]:
+        epic = entry["roadmap"].get("epic")
+        if epic:
+            by_epic.setdefault(epic, []).append(entry)
+
+    lines = [
+        "| Step | Rel. | Issue | Feature | In una riga |",
+        "|---|:--:|---|--:|---|",
+    ]
+    unassigned = []
+    # L'ordine delle release e' `RELEASE_ORDER`, non quello alfabetico: era l'ultima delle quattro
+    # copie che questa stessa consegna esiste per eliminare, e sarebbe bastata una `v0.10` — o una
+    # release con un nome invece che un numero — per farla divergere in silenzio dalle altre viste.
+    rel_rank = {rel: i for i, rel in enumerate(RELEASE_ORDER)}
+    def release_key(rel):
+        return rel_rank.get(rel, len(RELEASE_ORDER))
+    for entry in sorted(epics, key=lambda e: (release_key(e["release"]), int(e["epic"][1:]))):
+        epic = entry["epic"]
+        if entry["release"] is None:
+            unassigned.append(entry)
+            continue
+        issue = f"`#{entry['issue']}`" if entry["issue"] else "—"
+        count = len(by_epic.get(epic, []))
+        lines.append(
+            f"| **{epic}** {entry['title']} · {entry['priority']} | {entry['release']} | {issue} | "
+            f"{count or '—'} | {kept.get(epic, '—')} |")
+
+    releases = sorted({e["release"] for e in epics if e["release"]}, key=release_key)
+    lines += [
+        "",
+        f"**{len([e for e in epics if e['release']])} epic** su {len(releases)} release "
+        f"({' · '.join(releases)}) · release, titolo e issue da "
+        f"[`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.",
+    ]
+
+    # Perche' la colonna Feature e' quasi tutta `—`, e perche' dirlo invece di nasconderlo: il
+    # registry dichiara `roadmap.epic` quasi solo per E1-E21. Fra le 21 feature post-v0.1 **una**
+    # lo dichiara (`RT-FEAT-REPLAY-ARCHIVE` -> `E12`, un'epic della v0.1 che la sua estensione
+    # v0.2 continua a citare); le altre 20 no, e senza quel campo la §3 non puo' rispondere a
+    # «quali capacita' porta questa epic».
+    #
+    # ⚠️ Il conteggio si misura, non si arrotonda a «nessuna»: la prima stesura di questo commento
+    # diceva «nessuna dice a quale epic appartiene» mentre il dato — che avevo davanti — ne
+    # mostrava una. Il numero qui sotto e' derivato, cosi' la frase non puo' piu' divergere.
+    #
+    # La menzione di un `RT-FEAT-*` nel testo dell'owner NON basta a dedurre l'appartenenza: E38
+    # nomina `RT-FEAT-ACTION-ENGINE` come dipendenza gia' consegnata in v0.1, non come proprio
+    # contenuto. Dedurlo avrebbe collegato una feature v0.1 chiusa a un'epic v0.2 aperta.
+    orphan = {}
+    for entry in data["features"]:
+        if entry["release"] in releases and not entry["roadmap"].get("epic"):
+            orphan[entry["release"]] = orphan.get(entry["release"], 0) + 1
+
+    no_issue = [e["epic"] for e in epics if e["release"] and not e["issue"]]
+    if no_issue:
+        lines += [
+            "",
+            "> ⚠️ **Senza issue dichiarata nell'owner**: " + ", ".join(f"**{e}**" for e in no_issue) +
+            ". La epic puo' esistere su GitHub: questo script non parla con la rete, e cio' che "
+            "l'owner non dichiara non compare.",
+        ]
+    if unassigned:
+        lines += [
+            "",
+            "> ⚠️ **Con una sezione ma senza release**: "
+            + ", ".join(f"**{e['epic']}**" for e in unassigned) +
+            ". La tabella «Le release» non le assegna, e la posizione del testo non e' "
+            "un'assegnazione: la decisione manca nell'owner, non qui.",
+        ]
+    if orphan:
+        total = sum(orphan.values())
+        bound = sum(1 for e in data["features"]
+                    if e["release"] in releases and e["roadmap"].get("epic"))
+        detail = " · ".join(f"{rel} **{orphan[rel]}**" for rel in sorted(orphan, key=release_key))
+        lines += [
+            "",
+            f"> ⚠️ **La colonna Feature e' quasi vuota perche' il registry non dichiara l'epic**: "
+            f"{total} feature post-v0.1 ({detail}) hanno `roadmap.epic` nullo, "
+            f"**{bound}** lo dichiara. Il legame esiste nella prosa di "
+            "[`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non in un campo: "
+            "finche' non lo e', questa colonna non puo' dire quali capacita' porta un'epic, e il "
+            "conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` su **E34** non "
+            "e' diagnosticabile da nessun controllo.",
+        ]
+    return wrap_block(marker, lines)
+
+
 def render_shortlist_features(data):
     marker = SHORTLIST_MARKERS["features"]
     kept = preserved_column(SHORTLIST_FILES["features"], marker, r"`(RT-FEAT-[A-Z0-9-]+)`")
@@ -1620,7 +1801,7 @@ def render_shortlist_features(data):
 
     lines = [
         f"**{data['count']} feature** · "
-        + " · ".join(f"{rel} **{releases[rel]}**" for rel in ("v0.1", "v0.2", "future") if rel in releases)
+        + " · ".join(f"{rel} **{releases[rel]}**" for rel in RELEASE_ORDER if rel in releases)
         + ".",
         "",
         "| Stato | Quante |",
@@ -1911,7 +2092,23 @@ def resolve_prerequisite(ref, sessions_state, checkpoints, epics, milestones):
 
 SESSION_FIELDS = {"id", "title", "block", "critical", "produces", "artifacts", "unblocked_by",
                   "shares_setup_with", "verifies", "issues", "done_when", "unblocks",
-                  "steps", "notes"}
+                  "execution_lane", "steps", "notes"}
+
+# Le due lane del lavoro umano. Non e' una terza sorgente: `editor-sessions.yaml` resta l'owner
+# delle sedute, e questo campo dice soltanto *che tipo* di lavoro sono. Il default esiste perche'
+# il campo e' nato dopo le sedute: assente = `pie`, che e' cio' che tutte e 21 erano prima.
+SESSION_LANES = ("pie", "asset")
+SESSION_LANE_DEFAULT = "pie"
+
+
+def session_lane(session):
+    """La lane di una seduta, col default retrocompatibile.
+
+    Una funzione e non `session.get("execution_lane", "pie")` sparso: il default e' una regola —
+    «prima del 2026-08-13 ogni seduta era PIE» — e una regola scritta in cinque punti diventa
+    cinque regole al primo che ne cambia uno.
+    """
+    return (session.get("execution_lane") or SESSION_LANE_DEFAULT).strip()
 
 
 def editor_context():
@@ -2018,6 +2215,13 @@ def validate_editor_sessions(ctx=None):
         if session.get("block") not in blocks:
             errors.append(f"{where} block {session.get('block')!r} assente da meta.blocks: "
                           "la vista lo stamperebbe senza titolo")
+        # Il campo e' facoltativo, ma un valore *sbagliato* non e' un'assenza: `execution_lane: PIE`
+        # o `editor` passerebbe il default e la seduta finirebbe nella lane opposta senza che nulla
+        # lo dica. Si controlla solo quando e' dichiarato.
+        if "execution_lane" in session and session_lane(session) not in SESSION_LANES:
+            errors.append(f"{where} execution_lane non valida: "
+                          f"{session.get('execution_lane')!r} — attese "
+                          + " o ".join(f"`{lane}`" for lane in SESSION_LANES))
         for field in session:
             if field not in SESSION_FIELDS:
                 errors.append(f"{where} campo non documentato nell'header del file: {field}")
@@ -2233,8 +2437,8 @@ def render_shortlist_editor(_data):
     lines += [
         "### Tutte le sedute",
         "",
-        "| | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |",
-        "|---|---|---|---|:--:|:--:|:--:|",
+        "| | Seduta | Lane | Produce | Sbloccata da | Critico | Voci | Stato |",
+        "|---|---|:--:|---|---|:--:|:--:|:--:|",
     ]
     for session in sessions:
         verifies = session.get("verifies") or []
@@ -2244,10 +2448,24 @@ def render_shortlist_editor(_data):
         sid = session.get("id")
         lines.append(
             f"| **{sid or NO_SESSION_ID_MD}** | {session.get('title')} | "
+            f"`{session_lane(session).upper()}` | "
             f"{session.get('produces') or '—'} | "
             f"{unblocked} | {'sì' if session.get('critical') else 'no'} | {ratio} | "
             f"{states.get(sid, '—')} |"
         )
+    lanes = {}
+    for session in sessions:
+        lane = session_lane(session)
+        lanes[lane] = lanes.get(lane, 0) + 1
+    lines += [
+        "",
+        "**Lane**: " + " · ".join(f"`{lane.upper()}` **{lanes[lane]}**"
+                                 for lane in SESSION_LANES if lane in lanes) +
+        ". `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un "
+        "verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due "
+        "voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco "
+        "che gira o gli asset che non ho ancora?*",
+    ]
 
     seen_blocks = []
     for session in sessions:
@@ -2316,6 +2534,452 @@ def render_shortlist_editor(_data):
     return wrap_block(marker, lines)
 
 
+EXEC_HARD = {"requires", "requires_capability"}
+EXEC_SOFT = {"follows", "related"}
+EXEC_TRACE = {"provides", "implements", "verifies"}
+EXEC_RELATIONS = EXEC_HARD | EXEC_SOFT | EXEC_TRACE
+# Nomi che il generatore DERIVA e che quindi non si scrivono nel source. Vivono in un dizionario
+# proprio, e non in un `if` dentro il loop, perche' il controllo va fatto prima di «tipo
+# sconosciuto»: sono per definizione fuori da `EXEC_RELATIONS`.
+EXEC_DERIVED = {
+    "blocks": "e' l'inversa di `requires`, e due direzioni scritte a mano divergono al primo edit",
+    "converges_into": "un junction si riconosce dal numero di ingressi hard, non si dichiara",
+}
+EXEC_SCHEMA_VERSION = 1
+
+
+def load_execution_graph():
+    """La topologia del lavoro. Assente = non e' un errore: il grafo e' una fetta opzionale."""
+    if not os.path.isfile(EXECUTION_GRAPH):
+        return {}
+    try:
+        import yaml
+    except ImportError:
+        sys.exit("Serve PyYAML: pip install pyyaml")
+    with open(EXECUTION_GRAPH, encoding="utf-8") as fh:
+        return yaml.safe_load(fh) or {}
+
+
+def checkpoint_declared():
+    """I checkpoint per cui l'owner DICHIARA un glifo, distinti da quelli che lo ricevono a default.
+
+    `checkpoint_status()` restituisce ⏳ anche quando la riga non porta simbolo, e per il suo uso
+    — i prerequisiti delle sedute — e' la scelta giusta: la convenzione di `roadmap-v0.1.md` e'
+    che il glifo si scrive alla chiusura, quindi l'assenza vale «non chiuso».
+
+    Per l'execution graph quella fusione non regge, e il numero dice perche': su **100**
+    checkpoint di epic l'owner dichiara il glifo per **18**. Degli 82 restanti, **65** hanno una
+    issue GitHub chiusa che nessuno ha annotato. Leggere quel ⏳ come una misura significherebbe
+    dipingere di BLOCKED meta' della roadmap sulla base di un default — e un BLOCKED falso in una
+    vista che esiste per dire cosa fare adesso e' peggio di un UNKNOWN onesto.
+
+    Questa funzione non cambia il comportamento esistente: chi vuole il default continua a
+    chiamare `checkpoint_status()`. Serve a sapere **se ci si puo' fidare** del valore.
+    """
+    declared = set()
+    for path, pattern in ((ROADMAP_CHECKPOINT, r"^\| \*\*M(\d+\.\d+)\*\*\s*([" + STATUS_GLYPHS + r"])"),
+                          (ROADMAP_V01, r"^\| \*\*E?(\d+\.\d+)\*\*\s*([" + STATUS_GLYPHS + r"])")):
+        if not os.path.isfile(path):
+            continue
+        prefix = "M" if path == ROADMAP_CHECKPOINT else "E"
+        text = open(path, encoding="utf-8").read()
+        for num, _glyph in re.findall(pattern, text, re.M):
+            declared.add(f"{prefix}{num}")
+    return declared
+
+
+def execution_node_state(node, ctx, declared):
+    """Stato di un nodo e **da dove viene**, o `None` quando nessuna fonte offline lo sa.
+
+    Tre casi, in ordine di affidabilita':
+      - `session:U<n>`  -> `session_state()`, che misura voci PIE e `git ls-files`. Affidabile.
+      - `issue:` con `checkpoint:` **dichiarato** -> il glifo dell'owner. Affidabile.
+      - tutto il resto   -> `None`. Una issue standalone non ha sorgente offline, e il generatore
+        non parla con la rete: fingere `⏳` la farebbe sembrare non cominciata anche quando e'
+        chiusa da settimane.
+    """
+    nid = node["id"]
+    if nid.startswith("session:"):
+        sid = nid.split(":", 1)[1]
+        state = ctx["states"].get(sid)
+        return (state, f"session:{sid}") if state else (None, None)
+    cp = node.get("checkpoint")
+    if cp and cp in declared:
+        return ctx["checkpoints"].get(cp), f"checkpoint:{cp}"
+    return None, None
+
+
+def build_execution(ctx, registry, corpus=None, available=None):
+    """Nodi, archi, capability e conteggi dell'execution graph. Tutto derivato, niente dichiarato.
+
+    ## Readiness: si calcola sui PREREQUISITI, non sul lavoro proprio
+
+    `READY` qui significa **«nessun prerequisito hard lo trattiene»**, non «da fare». La
+    distinzione conta perche' lo stato proprio di un nodo spesso non e' misurabile offline, e
+    aspettarlo avrebbe reso `UNKNOWN` anche i nodi che nulla blocca — cioe' avrebbe tolto la
+    risposta alla sola domanda per cui questa vista esiste.
+
+    Ordine di decisione, dal piu' forte al piu' debole:
+      1. il nodo e' ✅            -> `DONE`
+      2. un prerequisito hard e' NOTO non risolto:
+           - e' una seduta `asset` -> `WAITING_FOR_ASSET`
+           - e' una seduta `pie`   -> `WAITING_FOR_PIE`
+           - altrimenti            -> `BLOCKED`
+      3. un prerequisito hard ha stato ignoto -> `UNKNOWN` (non `BLOCKED`: non saperlo non e'
+         un blocco, ed e' il punto in cui una dashboard comincia a mentire)
+      4. altrimenti -> `READY`
+
+    `follows` e `related` non entrano in nessuno dei quattro rami. Due test lo pinnano.
+    """
+    doc = load_execution_graph()
+    if not doc:
+        return None
+
+    declared = checkpoint_declared()
+    lanes = [dict(l) for l in (doc.get("execution_lanes") or [])]
+    groups = [dict(g) for g in (doc.get("domain_groups") or [])]
+    nodes = doc.get("nodes") or []
+    relations = doc.get("relations") or []
+
+    # Feature per issue: l'inversa delle `issues:` del registry. Il mapping esiste gia' la', e
+    # riscriverlo nel source dell'execution graph avrebbe creato la copia che diverge.
+    feature_of_issue = {}
+    for entry in registry["features"]:
+        for num in entry.get("issues") or []:
+            feature_of_issue.setdefault(num, []).append(entry["feature_id"])
+
+    lane_of_session = {s.get("id"): session_lane(s) for s in ctx["sessions"]}
+    by_id, out = {}, []
+    for node in nodes:
+        nid = node["id"]
+        kind = nid.split(":", 1)[0]
+        ref = nid.split(":", 1)[1]
+        if kind == "issue":
+            lane = node.get("execution_lane") or "code"
+        elif kind == "session":
+            lane = lane_of_session.get(ref, SESSION_LANE_DEFAULT)
+        else:
+            lane = node.get("execution_lane")
+        state, source = execution_node_state(node, ctx, declared)
+        record = {
+            "id": nid, "kind": kind, "ref": ref,
+            "release": node.get("release"),
+            "execution_lane": lane,
+            "domain_group": node.get("domain_group"),
+            "checkpoint": node.get("checkpoint"),
+            "state": state,
+            "state_source": source,
+            "state_note": None if source else (
+                "nessuna fonte offline: il checkpoint non dichiara il glifo"
+                if node.get("checkpoint") else "issue senza checkpoint: lo stato vive su GitHub"),
+            "feature_ids": sorted(feature_of_issue.get(int(ref), [])) if kind == "issue" and ref.isdigit() else [],
+            "provides": list(node.get("provides") or []),
+            "incoming": [], "outgoing": [],
+            "readiness": None, "readiness_reason": None,
+        }
+        by_id[nid] = record
+        out.append(record)
+
+    edges = []
+    for rel in relations:
+        edge = {
+            "from": rel.get("from"), "to": rel.get("to"), "type": rel.get("type"),
+            "hard": rel.get("type") in EXEC_HARD,
+            "rationale": (rel.get("rationale") or "").strip() or None,
+        }
+        edges.append(edge)
+        if edge["from"] in by_id:
+            by_id[edge["from"]]["outgoing"].append(edge)
+        if edge["to"] in by_id:
+            by_id[edge["to"]]["incoming"].append(edge)
+
+    # Capability: i consumatori veri sono gli scenari del corpus, che le dichiarano in
+    # `requires`. Il provider arriva da qui — ed e' l'unica cosa che il repository non sapeva.
+    # Passati da `build_graph`, che li usa comunque per le proprie chiavi: senza, ogni
+    # `generate` faceva due `os.walk` di `Scenarios/` con ~73 `json.load` e due letture del
+    # sorgente delle capability. E' lo stesso motivo per cui `editor_ctx` viaggia come parametro.
+    available = available if available is not None else available_capabilities()
+    scenario_consumers = {}
+    for scenario in (corpus if corpus is not None else scenario_corpus()):
+        for cap in scenario.get("requires") or []:
+            scenario_consumers.setdefault(cap, []).append(scenario["id"])
+    capabilities = {}
+    for edge in edges:
+        for side in ("from", "to"):
+            if str(edge[side]).startswith("capability:"):
+                capabilities.setdefault(edge[side].split(":", 1)[1],
+                                        {"providers": [], "consumers": []})
+    for edge in edges:
+        if edge["type"] == "provides" and str(edge["to"]).startswith("capability:"):
+            capabilities[edge["to"].split(":", 1)[1]]["providers"].append(edge["from"])
+        if edge["type"] == "requires_capability" and str(edge["from"]).startswith("capability:"):
+            capabilities[edge["from"].split(":", 1)[1]]["consumers"].append(edge["to"])
+
+    def resolved(nid):
+        """`True` risolto · `False` noto non risolto · `None` non misurabile offline.
+
+        I glifi coperti sono tutti e quattro quelli di `STATUS_GLYPHS`: `⌫` («rimosso dal repo»)
+        vale **non risolto**, come gia' fa `resolve_prerequisite()` per le sedute, che accetta
+        solo `✅` e `🟡`. Senza, un glifo *dichiarato* dall'owner ricadeva nel `return None`
+        finale e il nodo usciva «stato non misurabile offline» avendo in JSON `state: "⌫"` e uno
+        `state_source` valorizzato — l'artefatto che contraddice se stesso. Nessun checkpoint usa
+        `⌫` oggi: e' una latenza, e costa una riga chiuderla.
+        """
+        record = by_id.get(nid)
+        if record is None:
+            return None
+        if record["state"] == "✅":
+            return True
+        if record["state"] in ("🟡", "⏳", "⌫"):
+            return False
+        return None
+
+    for record in out:
+        if record["state"] == "✅":
+            record["readiness"], record["readiness_reason"] = "DONE", record["state_source"]
+            continue
+        blocking, unknown = [], []
+        for edge in record["incoming"]:
+            if not edge["hard"]:
+                continue
+            origin = edge["from"]
+            if str(origin).startswith("capability:"):
+                name = origin.split(":", 1)[1]
+                cap = capabilities.get(name, {})
+                # Disponibile per due strade indipendenti: il runtime la elenca gia'
+                # (`RTScenarioSession.cpp`), oppure un provider del grafo e' chiuso. La prima e'
+                # la verita' del codice e vince: una capability che il gioco possiede non torna
+                # indisponibile perche' il grafo non ne conosce il provider.
+                if name not in available and not any(
+                        resolved(p) is True for p in cap.get("providers") or []):
+                    blocking.append(origin)
+                continue
+            verdict = resolved(origin)
+            if verdict is False:
+                blocking.append(origin)
+            elif verdict is None:
+                unknown.append(origin)
+        if blocking:
+            # `WAITING_FOR_*` dice **chi deve intervenire**, quindi lo si afferma solo quando
+            # l'attesa e' tutta di quella persona: se anche un solo prerequisito e' codice, il
+            # nodo e' `BLOCKED` e mandare qualcuno in editor non lo sbloccherebbe.
+            #
+            # Prima decideva `blocking[0]`, cioe' l'ordine in cui le relazioni comparivano nello
+            # YAML: riordinare due stanze indipendenti cambiava il verdetto della dashboard e il
+            # conteggio `by_readiness` che un test pinna. Un verdetto non puo' dipendere da come
+            # e' impaginato il source.
+            # `blocking_lanes`, non `lanes`: quel nome appartiene gia' alla tassonomia serializzata
+            # poche righe piu' su, e riusarlo qui la sostituiva con un set — che `json.dump` non
+            # sa scrivere. Il gate l'ha preso al primo `generate`.
+            blocking_lanes = {by_id.get(b, {}).get("execution_lane") for b in blocking}
+            if blocking_lanes == {"asset"}:
+                record["readiness"] = "WAITING_FOR_ASSET"
+            elif blocking_lanes <= {"asset", "pie"}:
+                record["readiness"] = "WAITING_FOR_PIE"
+            else:
+                record["readiness"] = "BLOCKED"
+            record["readiness_reason"] = "aspetta " + ", ".join(sorted(blocking))
+        elif unknown:
+            record["readiness"] = "UNKNOWN"
+            record["readiness_reason"] = ("stato non misurabile offline di " + ", ".join(unknown))
+        else:
+            record["readiness"] = "READY"
+            record["readiness_reason"] = ("nessun prerequisito hard"
+                                          if not any(e["hard"] for e in record["incoming"])
+                                          else "tutti i prerequisiti hard sono risolti")
+
+    cap_out = []
+    for name, data in sorted(capabilities.items()):
+        cap_out.append({
+            "id": name,
+            "providers": data["providers"],
+            "consumers": data["consumers"],
+            "scenario_consumers": sorted(scenario_consumers.get(name, [])),
+            "available": name in available or any(resolved(p) is True for p in data["providers"]),
+            "available_source": "runtime" if name in available else "provider",
+        })
+
+    def tally(key):
+        counts = {}
+        for record in out:
+            counts[record[key] or "—"] = counts.get(record[key] or "—", 0) + 1
+        return dict(sorted(counts.items()))
+
+    return {
+        "schema_version": doc.get("schema_version"),
+        "status": (doc.get("meta") or {}).get("status"),
+        "lanes": lanes,
+        "domain_groups": groups,
+        "nodes": out,
+        "edges": edges,
+        "capabilities": cap_out,
+        "stats": {
+            "nodes": len(out),
+            "edges": len(edges),
+            "hard_edges": sum(1 for e in edges if e["hard"]),
+            "soft_edges": sum(1 for e in edges if e["type"] in EXEC_SOFT),
+            "by_readiness": tally("readiness"),
+            "by_execution_lane": tally("execution_lane"),
+            "by_domain_group": tally("domain_group"),
+            "by_release": tally("release"),
+            "state_unknown": sum(1 for r in out if r["state"] is None),
+        },
+    }
+
+
+def validate_execution_graph(ctx=None, registry=None):
+    """`execution-graph.yaml`: riferimenti risolvibili, cicli hard, tassonomia esaustiva.
+
+    Le due regole meno ovvie, e sono quelle che il file esiste per far rispettare:
+
+    - **`blocks` non si autorializza.** E' l'inversa di `requires` e il generatore la deriva.
+      Scriverle entrambe produce due verita' che divergono al primo edit di una sola, ed e' il
+      difetto piu' facile da introdurre in un grafo scritto a mano.
+    - **`follows` fra due sedute e' vietato.** `editor-sessions.yaml` distingue gia' la
+      dipendenza dura (`unblocked_by`) dall'ordine di lavoro nello stesso allestimento
+      (`unblocks` senza reciproco, stesso blocco) e ha un validator che lo verifica. Riscrivere
+      quell'ordine qui lo dichiarerebbe due volte, in due file che non si controllano a vicenda.
+
+    Verifica anche che i `domain_groups` coprano **tutte** le `area` del registry e nessuna due
+    volte: senza, un'area nuova non finirebbe in nessun gruppo e i suoi nodi sparirebbero dai
+    filtri senza che niente lo dica.
+    """
+    doc = load_execution_graph()
+    if not doc:
+        return [], []
+    ctx = ctx or editor_context()
+    registry = registry or load_registry()
+    errors, warnings = [], []
+
+    if doc.get("schema_version") != EXEC_SCHEMA_VERSION:
+        errors.append(f"[execution-graph] schema_version {doc.get('schema_version')!r} "
+                      f"sconosciuta: attesa {EXEC_SCHEMA_VERSION}")
+
+    lanes = {l.get("id") for l in (doc.get("execution_lanes") or [])}
+    groups = {g.get("id") for g in (doc.get("domain_groups") or [])}
+
+    mapped = {}
+    for group in doc.get("domain_groups") or []:
+        for area in group.get("feature_areas") or []:
+            if area in mapped:
+                errors.append(f"[execution-graph] area {area!r} mappata due volte: "
+                              f"{mapped[area]} e {group.get('id')}")
+            mapped[area] = group.get("id")
+    areas = {entry["area"] for entry in registry["features"]}
+    for area in sorted(areas - set(mapped)):
+        errors.append(f"[execution-graph] area {area!r} del registry non appartiene a nessun "
+                      "domain_group: i suoi nodi sparirebbero dai filtri")
+    for area in sorted(set(mapped) - areas):
+        warnings.append(f"[execution-graph] domain_group mappa l'area {area!r}, che il registry "
+                        "non usa: e' un mapping senza soggetto")
+
+    session_ids = {s.get("id") for s in ctx["sessions"]}
+    checkpoints = ctx["checkpoints"]
+    seen, node_ids = set(), set()
+    for node in doc.get("nodes") or []:
+        nid = node.get("id")
+        where = f"[execution-graph {nid}]"
+        if nid in seen:
+            errors.append(f"{where} nodo duplicato")
+        seen.add(nid)
+        node_ids.add(nid)
+        if not re.fullmatch(r"(issue:\d+|session:U\d+|epic:E\d+|capability:[A-Za-z0-9_]+)", nid or ""):
+            errors.append(f"{where} id non conforme: attesi issue:<n>, session:U<n>, "
+                          "epic:E<n>, capability:<Nome>")
+            continue
+        if node.get("execution_lane") and node["execution_lane"] not in lanes:
+            errors.append(f"{where} execution_lane {node['execution_lane']!r} sconosciuta")
+        if node.get("domain_group") and node["domain_group"] not in groups:
+            errors.append(f"{where} domain_group {node['domain_group']!r} sconosciuto")
+        if node.get("release") and node["release"] not in RELEASES:
+            errors.append(f"{where} release {node['release']!r} non valida")
+        if nid.startswith("session:") and nid.split(":", 1)[1] not in session_ids:
+            errors.append(f"{where} seduta inesistente in editor-sessions.yaml")
+        cp = node.get("checkpoint")
+        if cp and cp not in checkpoints:
+            errors.append(f"{where} checkpoint {cp!r} che nessun owner dichiara")
+        for field in ("state", "status", "readiness", "open", "closed"):
+            if field in node:
+                errors.append(f"{where} campo {field!r}: lo stato non e' topologia e non si "
+                              "scrive qui — lo deriva il generatore dagli owner")
+
+    adjacency = {}
+    for rel in doc.get("relations") or []:
+        origin, target, kind = rel.get("from"), rel.get("to"), rel.get("type")
+        where = f"[execution-graph {origin} -> {target}]"
+        # I nomi derivati si controllano PRIMA di «tipo sconosciuto», e non dopo: non stanno in
+        # `EXEC_RELATIONS`, quindi il controllo generico scattava per primo e il messaggio
+        # specifico non e' mai stato raggiungibile. La regola sopravviveva per caso — e sarebbe
+        # sparita del tutto il giorno in cui qualcuno avesse aggiunto `blocks` all'insieme.
+        if kind in EXEC_DERIVED:
+            errors.append(f"{where} {kind!r} e' derivata e non si autorializza: "
+                          + EXEC_DERIVED[kind])
+            continue
+        if kind not in EXEC_RELATIONS:
+            errors.append(f"{where} tipo di relazione sconosciuto: {kind!r}")
+            continue
+        for side, ref in (("from", origin), ("to", target)):
+            if str(ref).startswith("capability:"):
+                continue
+            if ref not in node_ids:
+                errors.append(f"{where} il lato {side} non e' un nodo dichiarato: {ref!r}")
+        if origin == target:
+            errors.append(f"{where} un nodo non puo' richiedere se stesso")
+        if kind == "follows" and str(origin).startswith("session:") and str(target).startswith("session:"):
+            errors.append(
+                f"{where} `follows` fra due sedute e' gia' dichiarato da editor-sessions.yaml "
+                "(`unblocks` senza reciproco, stesso blocco): qui sarebbe la seconda verita'")
+        if kind == "follows" and not (rel.get("rationale") or "").strip():
+            warnings.append(f"{where} `follows` senza `rationale`: un ordine consigliato che non "
+                            "dice perche' diventa indistinguibile da un blocco dimenticato")
+        if kind in EXEC_HARD:
+            adjacency.setdefault(origin, []).append(target)
+
+    colour = {}
+
+    def visit(node, trail):
+        if colour.get(node) == 2:
+            return
+        if colour.get(node) == 1:
+            errors.append("[execution-graph] ciclo fra dipendenze hard: "
+                          + " -> ".join(trail + [node]))
+            return
+        colour[node] = 1
+        for nxt in adjacency.get(node, []):
+            visit(nxt, trail + [node])
+        colour[node] = 2
+
+    for node in list(adjacency):
+        visit(node, [])
+
+    # Il collo di bottiglia della vista, misurato invece che intuito. Un nodo il cui checkpoint
+    # non dichiara il glifo non ha stato offline, e la sua ignoranza si propaga a valle: ogni
+    # discendente diventa UNKNOWN. Il warning nomina i checkpoint da annotare, perche' la
+    # correzione e' una riga nell'owner e non un cambio di modello.
+    declared = checkpoint_declared()
+    silent = sorted({node["checkpoint"] for node in (doc.get("nodes") or [])
+                     if node.get("checkpoint") and node["checkpoint"] not in declared})
+    if silent:
+        warnings.append(
+            f"[execution-graph] {len(silent)} checkpoint citati dal grafo non dichiarano il "
+            f"glifo in roadmap-v0.1.md ({', '.join(silent)}): i loro nodi restano UNKNOWN e "
+            "l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e "
+            "65 dei restanti hanno gia' una issue chiusa")
+
+    providers = {r.get("to") for r in (doc.get("relations") or []) if r.get("type") == "provides"}
+    # Misurata una volta: dentro il loop questa chiamata riapriva e ri-regexava
+    # `RTScenarioSession.cpp` una volta per ogni relazione `requires_capability`.
+    available = available_capabilities()
+    for rel in doc.get("relations") or []:
+        if rel.get("type") == "requires_capability" and rel.get("from") not in providers:
+            name = str(rel.get("from")).split(":", 1)[1]
+            if name not in available:
+                warnings.append(f"[execution-graph] la capability {name!r} non e' disponibile a "
+                                "runtime e nessun nodo dichiara di fornirla: chi la aspetta "
+                                "resta bloccato senza che il grafo sappia dire da chi")
+    return errors, warnings
+
+
 def build_graph(registry):
     """Il contratto delle viste non-feature: diagnostica, roadmap, sedute, PIE, scenari.
 
@@ -2332,6 +2996,11 @@ def build_graph(registry):
     # `generate` — una qui e una dentro `validate`.
     ctx = editor_context()
     errors, warnings = validate(registry, editor_ctx=ctx)
+    # Le due misure che servono sia alle chiavi di questo dizionario sia all'execution graph:
+    # `scenario_corpus()` cammina `Scenarios/` e apre ~73 JSON, `available_capabilities()` legge
+    # il sorgente delle capability. Una volta sola, e poi passate.
+    corpus = scenario_corpus()
+    available = available_capabilities()
     pie = ctx["pie"]
     sessions = ctx["sessions"]
     tracked = ctx["tracked"]
@@ -2357,6 +3026,7 @@ def build_graph(registry):
             "title": session.get("title"),
             "block": session.get("block"),
             "critical": bool(session.get("critical")),
+            "execution_lane": session_lane(session),
             "state": states.get(sid, "—"),
             "queue_group": group_of.get(sid),
             "produces": (session.get("produces") or "").strip(),
@@ -2380,6 +3050,8 @@ def build_graph(registry):
             "epics": "docs/roadmap/roadmap-v0.1.md",
             "milestones": "docs/roadmap/roadmap-checkpoint.md",
             "scenarios": "Scenarios/",
+            "execution_graph": "docs/roadmap/execution-graph.yaml",
+            "post_v01_releases": "docs/roadmap/roadmap-post-v0.1.md",
         },
         "meta": jsonable(registry.get("meta") or {}),
         "project": jsonable((registry.get("meta") or {}).get("project") or {}),
@@ -2398,8 +3070,9 @@ def build_graph(registry):
         "editor_sessions": graph_sessions,
         "editor_queue": {group: [s.get("id") for s, _b in queue[group]] for group in QUEUE_GROUPS},
         "pie_entries": [{"id": k, "state": v} for k, v in sorted(pie.items())],
-        "scenarios": scenario_corpus(),
-        "capabilities": sorted(available_capabilities()),
+        "scenarios": corpus,
+        "capabilities": sorted(available),
+        "execution": build_execution(ctx, registry, corpus=corpus, available=available),
     }
 
 
@@ -2407,6 +3080,7 @@ def apply_shortlist(data, check=False):
     """Riscrive i blocchi marcati nelle cinque shortlist. Fuori dai marcatori non tocca nulla."""
     renderers = {
         "epics": render_shortlist_epics,
+        "releases": render_shortlist_releases,
         "features": render_shortlist_features,
         "scenarios": render_shortlist_scenarios,
         "milestones": render_shortlist_milestones,

@@ -24,14 +24,50 @@ del registry. Senza rete la pagina funziona e lo dichiara («freschezza non veri
 |---|---|
 | **Overview** | quanto è avanti il progetto, quali gate mancano di più, quanti warning |
 | **Roadmap** | epic e milestone con il loro stato, le feature e i checkpoint di ciascuna |
-| **Feature Map** | le 85 feature con dieci filtri e ricerca; una card per feature, gate a barre |
-| **Scenario Map** | i 57 scenari, le capability che chiedono, chi li dichiara |
-| **Editor Map** | le 19 sedute con prerequisiti, artefatti e stato |
+| **Feature Map** | le feature con dieci filtri e ricerca; una card per feature, gate a barre |
+| **Execution Map** | cosa blocca cosa e chi deve intervenire: dipendenze dure, ordine consigliato, capability |
+| **Scenario Map** | gli scenari, le capability che chiedono, chi li dichiara |
+| **Editor Map** | le sedute con lane `PIE`/`ASSET`, prerequisiti, artefatti e stato |
 | **My Editor Queue** | `BLOCKING` · `READY` · `WAITING` · `DONE` |
 | **Diagnostica** | riferimenti che non risolvono, cicli, i warning del validator per classe |
 
+> Fino al 2026-08-13 questa tabella diceva «le **85** feature», «i **57** scenari», «le **19**
+> sedute». Erano 105, 73 e 21: tre conteggi scritti a mano nel documento che descrive la pagina dei
+> conteggi derivati, e nessun gate li guardava. Il rimedio non è aggiornarli — sarebbero già
+> vecchi — ma toglierli: **il numero lo dice la vista**, che lo prende dal generatore.
+
 Cliccando un elemento si apre un pannello con le sue relazioni **nei due versi**: da una feature
 alle sue issue e ai suoi scenari, e da uno scenario alle feature che lo dichiarano.
+
+## La Execution Map, e i lati liberi
+
+Risponde a una domanda che le altre viste non pongono: **cosa blocca cosa**. Owner della topologia
+è [`../roadmap/execution-graph.yaml`](../roadmap/execution-graph.yaml), che contiene *solo*
+relazioni — nessuno stato, che resta dei rispettivi owner.
+
+Tre tipi di collegamento, distinti anche senza colore: **linea piena** una dipendenza dura,
+**tratteggio** un ordine consigliato (`follows`, non blocca), **puntini** una relazione di
+navigazione (`related`, non blocca).
+
+Un nodo senza dipendenze in entrata, o che non abilita niente, **non viene disegnato senza
+frecce**: porta un collegamento *staccato* — un tratto corto che finisce in un cerchietto vuoto.
+Serve a distinguere due cose che l'assenza di disegno confonde: «la catena finisce qui davvero» e
+«qui la figura è tagliata». A sinistra significa *niente lo trattiene*, a destra *non sblocca
+niente di dichiarato*.
+
+`#hash` nell'URL apre una vista: `…/docs/control-center/#execution`.
+
+⚠️ **`UNKNOWN` non è un difetto della vista.** Il generatore non parla con GitHub, e lo stato di
+un nodo CODE viene dal glifo del suo checkpoint: `roadmap-v0.1.md` lo dichiara per **18**
+checkpoint su 100, e 65 dei restanti hanno una issue già chiusa che nessuno ha annotato. Finché
+quei glifi non ci sono, la vista dice `UNKNOWN` invece di inventare un `BLOCKED`. Il validator
+nomina i checkpoint da annotare.
+
+La **lane** di una seduta dice che *tipo* di lavoro è, non che evidenza produce: `ASSET` quando
+l'uscita è un asset da costruire e committare, `PIE` quando è un verdetto da dare guardando il
+gioco. `U7` è `ASSET` **e** verifica due voci `PIE-*` — le due cose non si escludono. Owner del
+campo è [`../roadmap/editor-sessions.yaml`](../roadmap/editor-sessions.yaml); assente significa
+`pie`.
 
 ## La regola che la tiene onesta
 
@@ -62,7 +98,7 @@ sorgente è più recente, lo dice in testa. Non può impedire il drift; può ren
 |---|---|
 | `index.html` | la pagina: markup, stile e rendering, senza dipendenze |
 | `graph.js` | le funzioni pure — link, indice, relazioni inverse, riferimenti rotti, cicli, filtri |
-| `graph.test.mjs` | 18 test: `node --test docs/control-center/graph.test.mjs` |
+| `graph.test.mjs` | i test: `node --test docs/control-center/graph.test.mjs` — il conteggio lo stampa il runner |
 | `package.json` | dichiara ES module per il runner. Nessuna dipendenza, nessun build step |
 
 I test si dividono in due gruppi, e la differenza conta: quelli su fixture dicono che la **regola**
