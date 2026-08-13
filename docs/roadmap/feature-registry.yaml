@@ -512,7 +512,13 @@ features:
       - RT-FEAT-TOOL-MAP-EDITOR
     owner_specs:
       - docs/roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md
-    issues: [324]
+      # MSE-3 (2026-08-13): questa feature e RT-FEAT-TOOL-MAP-GEOMETRY rispondono ALLA STESSA
+      # domanda con due modelli diversi — cerchio inscritto (D-071, qui, non implementato) e dodici
+      # settori con soglie (#619, la', implementato) — e danno risposte diverse sulla stessa
+      # geometria. Quale dei due scrive `bBlocksMovement` non e' deciso; l'innesco e' #621.
+      - docs/technical/spec-hex-geometry-authoring.md
+      - docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md
+    issues: [324, 717]
     tests: []
     scenarios:
       - planned:
@@ -4956,7 +4962,10 @@ features:
       log_debug: todo
       automation: done
       scenario: done
-      ui_wiki: todo
+      # partial dal 2026-08-13: la pagina Wiki spiega ora sei-direzioni-vs-dodici-settori, che e' il
+      # vocabolario di questa feature. Resta partial perche' la cottura (#621) non e' spiegabile
+      # finche' MSE-1/MSE-2/MSE-3 sono aperte: non c'e' ancora un comportamento da raccontare.
+      ui_wiki: partial
       packaged: na
       network_privacy: na
       replay_representable: na
@@ -4972,9 +4981,14 @@ features:
       - RT-FEAT-MAP-HEXGRAPH
       - RT-FEAT-TOOL-MAP-EDITOR
     owner_specs:
+      # Owner tecnico del modello, creato il 2026-08-13: prima il tema viveva solo in referti,
+      # archivio e registry. I tre sotto restano come provenienza della decisione, non come regola.
+      - docs/technical/spec-hex-geometry-authoring.md
       - docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md
       - docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md
-    issues: [619, 620, 621, 712]
+      - docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md
+    # 717 e' la DECISIONE (MSE-2 + MSE-3) che blocca 620 e 621, non un'implementazione.
+    issues: [619, 620, 621, 712, 717]
     tests:
       - RefactorTactics.HexOccupancy.*
     scenarios:
@@ -4982,10 +4996,13 @@ features:
       # scenari (`FRTScenarioCell` non sa esprimere un segmento) e vivono in
       # `Source/RefactorTactics/Tests/RTOccupancyFixtures.h`, da dove le useranno anche #620 e #621.
       - Spec.Map.ConstrainedCellCostsMore
-    wiki_refs: []
+    wiki_refs:
+      # La pagina spiega dal 2026-08-13 il vocabolario dei dodici settori, che e' di questa feature:
+      # sei direzioni per muoversi, dodici settori per MISURARE quanto una cella e' invasa.
+      - wiki:griglia-e-geometria
     last_verified:
-      date: 2026-08-12
-      commit: 52c08286
+      date: 2026-08-13
+      commit: 05bbe3dc
     notes: >
       Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici
       settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked`
