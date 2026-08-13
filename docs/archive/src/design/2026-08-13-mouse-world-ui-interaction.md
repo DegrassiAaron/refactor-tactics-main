@@ -1,7 +1,33 @@
+> 🗄️ **RECEPITO e ARCHIVIATO il 2026-08-13.** `HISTORICAL` · **materiale non autorevole**.
+>
+> ⚠️ **Questo documento NON è diventato un owner, e la riga qui sotto che lo propone è superata.** La
+> superficie che descrive aveva già un owner dal 2026-08-12:
+> [`../../../technical/spec-pointer-interaction.md`](../../../technical/spec-pointer-interaction.md)
+> (CP 11.8, [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)). Adottarlo avrebbe
+> creato **due** contratti del puntatore, con due nomenclature (`PointerMode` contro i contesti di §4), due
+> spazi di nomi di test (`RefactorTactics.UI.Mouse.*` contro `RefactorTactics.PlayerInput.*`) e due voci PIE
+> (`PIE-V01-MOUSE-INTERACTION` contro `PIE-V01-POINTER`) per la stessa cosa.
+>
+> **Cosa è stato recepito** — il contenuto, dentro la nomenclatura esistente:
+> §2.1 (i tre produttori mancanti, misurati), §4.1 (la mesh non governa la UX), §5.4 (`OpenContext`),
+> §5.5 (l'ordine totale del Back), §5.6 (`PhaseFocus`), §6.4–§6.5 e otto righe nuove della matrice.
+> Il «cambio intenzionale» del §6 è diventato
+> [D-128](../../../decisions/RT_PDR_00_Decision_Log.md); i produttori mancanti sono
+> [#737](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737).
+>
+> **Cosa NON è stato recepito, e perché**: il documento come owner (ne esisteva uno); i nomi di test
+> paralleli (la suite ha già `RefactorTactics.PlayerInput.*`); la voce PIE nuova (`PIE-V01-POINTER` esiste,
+> ed è stata **estesa** col percorso a tappe del §22); l'issue ausiliaria E11 del piano di integrazione
+> (#705 è già quella issue). La §21 — *non creare JSON UI finti adesso* — è stata invece **confermata**, ed
+> è la sezione più utile del documento: coincide col criterio con cui l'harness tiene fuori le capability
+> senza produttore.
+>
+> Il testo originale non è stato riscritto. Resta per **provenienza**.
+
 # Mouse ↔ mondo ↔ HUD — contratto semantico di interazione
 
-> `CURRENT` · **Owner proposto**: questo documento · **Target**: v0.1, PC-first · **Engine**: Unreal Engine 5.8  
-> **Path repository previsto**: `docs/technical/spec-mouse-world-ui-interaction.md`  
+> ~~`CURRENT` · **Owner proposto**: questo documento~~ · **Target**: v0.1, PC-first · **Engine**: Unreal Engine 5.8  
+> ~~**Path repository previsto**: `docs/technical/spec-mouse-world-ui-interaction.md`~~  
 > **Ambito**: significato di Hover / LMB / RMB in funzione dello stato di interazione e del bersaglio semantico sotto il cursore.
 >
 > Non è owner di pathfinding, targeting, porte, interaction verbs, facing, privacy, Ghost Timeline o Decision Window. Compone quelle regole in un contratto di input unico.

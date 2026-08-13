@@ -386,6 +386,25 @@ resta visibile invece di sparire.
 > ha in più una dipendenza di contenuto: il filtro di rilevamento sull'hover è E13.
 > Referto: [`../roadmap/plans/roadmap-reconciliation-2026-08-12.md`](../roadmap/plans/roadmap-reconciliation-2026-08-12.md).
 
+> 🔴 **E un settimo non si aggiunge, il 2026-08-13.** Un sorgente di consolidamento proponeva di estendere la
+> grammatica di scenario con `hover` / `lmb` / `rmb` / `pointerMode` per coprire il contratto del puntatore.
+> **Rifiutato, e per la regola di questa cartella**: il formato non ha quelle chiavi, e aggiungerle prima che
+> esista un produttore runtime renderebbe l'harness il **primo** produttore della capability — cioè più
+> capace del gioco. È lo stesso criterio che tiene `DeclaredRotation` fuori dalle capability disponibili.
+> I quattro nomi proposti (`Spec.UI.Mouse.EnemyInspectIsReadOnly`, `…TargetCellUnderUnit`,
+> `…InteractionReasonPrivacy`, `…GhostFocusDoesNotEdit`) sono già coperti, per contenuto, dai sei `planned`
+> qui sopra: non servono altri nomi, serve l'oracolo.
+>
+> ⚠️ **Lo stesso criterio è già violato altrove, e ora è misurato.** La capability `PredictiveAction` è
+> dichiarata disponibile in `RTScenarioSession.cpp` motivandolo con *«un canale che il gioco ha già»*: alla
+> misura del 2026-08-13 il canale **non esiste** — `PlannedAttackCell` non ha alcun produttore in `Player/`
+> o `UI/`. Quattro scenari usano `targetCell` (`Spec/Cover/TemporaryCoverExpires`,
+> `Spec/Facing/FrontHitOnCoverIsSilent`, `Spec/Facing/RearHitOnCoverIsTraced`,
+> `Spec/Predictive/WhiffOnEmptyCell`) e **restano verdi per scelta**: coprono regole vere, e toglierli ora
+> costerebbe copertura reale per un debito che [`#737`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737)
+> traccia. Il commento nell'harness è stato corretto con la misura. Quando il produttore esiste, la
+> motivazione torna vera da sola — e `Facing`/`DeclaredRotation` possono uscire dai non disponibili.
+
 > 🔴 **Perché i `planned` non si scrivono tutti in una volta — misurato il 2026-08-12.** Tentando di
 > scriverli fino alla v0.2 (**42**: 23 in v0.1, 19 in v0.2), l'ostacolo non è il tempo ma l'**oracolo**: uno
 > scenario si scrive solo se il numero atteso esiste già nel repository. Il conto:
