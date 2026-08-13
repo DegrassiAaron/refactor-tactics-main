@@ -48,8 +48,8 @@ Sette punti su venti del §20 sono **già canone**. Vanno letti come conferma es
 
 ## 3. Conflitti e trappole
 
-**C1 — Il roster degli esempi è superato.** §7 usa *Aegis* e *Drift*. Roster vigente: **Flux · Riva ·
-Bastion · Vektor** (`showcase-v0.1.md` §0). Gli esempi restano validi come forma, non come contenuto.
+**C1 — Il roster degli esempi è superato.** §7 usa *Aegis* e *Drift*. Roster vigente: **Gadget · Phase ·
+Riktor · Wraith** (`showcase-v0.1.md` §0). Gli esempi restano validi come forma, non come contenuto.
 
 **C2 — «Fog of War» non è il modello di questo progetto.** §6 elenca la FoW fra le cause d'incertezza. Il
 canone non ha fog of war: la mappa statica resta nota, e la **conoscenza parziale** (tre livelli

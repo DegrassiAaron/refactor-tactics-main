@@ -60,7 +60,7 @@ Questa sezione è una **mappa rapida**, non un posto dove mantenere numeri di bi
 
 - Engine bloccato: **Unreal Engine 5.8.1**.
 - Scope v0.1: **vertical slice 2v2 offline contro bot**.
-- Roster v0.1: **Flux · Riva · Bastion · Vektor**.
+- Roster v0.1: **Gadget · Phase · Riktor · Wraith**.
 - Loop: `Planning → Prep → Dash → Blast → Move → Cleanup`.
 - Il `Move` normale resta l'ultima fase volontaria.
 - Griglia: **esagonale multilivello**, unico substrato, coordinate `FRTCellId{X=q, Y=r, Layer}`.
@@ -185,7 +185,7 @@ Nessun `npm install`, nessun build step: Node 22 esegue TypeScript con type stri
 ### Riferimenti a checkpoint
 
 `CP 6.3` **non è risolvibile**: 20 numeri di checkpoint su 22 esistono in due spazi — `6.3` è «input hex»
-in **M6** e «Riva» in **E6**. Scrivi sempre la forma prefissata: `M6.3` (owner `roadmap-checkpoint.md`),
+in **M6** e «Phase» in **E6**. Scrivi sempre la forma prefissata: `M6.3` (owner `roadmap-checkpoint.md`),
 `E1.3` (owner `roadmap-v0.1.md` §2.2), `E8` (epic intera), `U13` (seduta in editor).
 
 ### Turni / action engine / reazioni

@@ -11,10 +11,10 @@ Set di infografiche per la Wiki, basato sul canone corrente della v0.1.
 7. Combo ambientali v0.1
 8. Facing, LOS, Cover & Percezione
 9. Planning & coordinazione di squadra
-10. Flux — scheda Wiki
-11. Riva — scheda Wiki
-12. Bastion — scheda Wiki
-13. Vektor — scheda Wiki
+10. Gadget — scheda Wiki
+11. Phase — scheda Wiki
+12. Riktor — scheda Wiki
+13. Wraith — scheda Wiki
 14. TurnLog & determinismo
 
 Nota: le tavole 3–5 seguono il modello di gameplay deciso (inclusi Dash come slot Movimento e Overwatch universale);

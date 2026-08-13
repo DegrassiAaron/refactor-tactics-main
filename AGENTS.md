@@ -15,7 +15,8 @@ Loop canonico:
 Il **Move normale resta l'ultima fase volontaria**. Dash e spostamenti speciali possono avvenire prima solo
 perché appartengono alla loro fase/regola specifica.
 
-Roster v0.1 corrente: **Flux · Riva · Bastion · Vektor**.
+Roster v0.1 corrente: **Gadget · Phase · Riktor · Wraith** (D-120). `Hero.Flux`, `Hero.Riva`, `Hero.Bastion` e
+`Hero.Vektor` restano gli **Stable ID**: sono chiavi di codice, scenari e replay, non nomi, e non si rinominano.
 Il formato competitivo finale non è ancora bloccato: **3v3 è una baseline di studio, 4v4 uno stress test**, non
 trasformarli in una decisione definitiva.
 

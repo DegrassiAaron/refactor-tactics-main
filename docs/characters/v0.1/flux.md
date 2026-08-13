@@ -1,4 +1,4 @@
-# Flux
+# Gadget
 
 > **Asset base:** Paragon — Gadget  
 > **Hero_Key:** `ASSET_FLUX`  
@@ -63,26 +63,26 @@ Tecnico della conduzione: fragile, controlla il campo e converte setup elettrici
 
 > **Nota bilanciamento:** Canonico v0.1. 90 HP, 5 MP, **vista 7**; bonus +8 di LinearDischarge contro Wet.
 > La vista è salita da 6 a 7 il 2026-08-10 ([D-073](../../decisions/RT_PDR_00_Decision_Log.md), `#131`): è ciò
-> che toglie a Vektor la dominanza statistica su Flux, e rende Flux **l'unico del roster a vedere oltre il
+> che toglie a Wraith la dominanza statistica su Gadget, e rende Gadget **l'unico del roster a vedere oltre il
 > raggio 6**.
 
-> **Nota su `Water-Electric Combo`:** è un'etichetta storica della meccanica secondaria. Indica l'interazione sistemica acqua/Wet ↔ elettricità, **non** una coppia obbligatoria Flux+Riva.
+> **Nota su `Water-Electric Combo`:** è un'etichetta storica della meccanica secondaria. Indica l'interazione sistemica acqua/Wet ↔ elettricità, **non** una coppia obbligatoria Gadget+Phase.
 
 ## Meccanica firma
 
 ### Descrizione della meccanica
 
-**Conduction** è il nucleo del gameplay di Flux. Il personaggio non ottiene il massimo valore sparando semplicemente al primo bersaglio disponibile: prepara invece condizioni conduttive e cerca il momento in cui trasformarle in pressione offensiva. La meccanica combina la **Carica Conduttiva** con stati e superfici che rendono l'elettricità più efficace, in particolare `Wet`.
+**Conduction** è il nucleo del gameplay di Gadget. Il personaggio non ottiene il massimo valore sparando semplicemente al primo bersaglio disponibile: prepara invece condizioni conduttive e cerca il momento in cui trasformarle in pressione offensiva. La meccanica combina la **Carica Conduttiva** con stati e superfici che rendono l'elettricità più efficace, in particolare `Wet`.
 
 La Carica Conduttiva ha cap 4 e si rigenera di 1 tramite un'interazione elettrica; il valore iniziale non è ancora specificato. Nel kit v0.1 la meccanica ha due facce concrete: `LinearDischarge`, che ottiene +8 danni contro un bersaglio `Wet`, e `ConductiveNode`, che dal **2026-08-09** **è** `Action.Electrify` ([D-046](../../decisions/RT_PDR_00_Decision_Log.md)) — la propagazione sul grafo conduttivo, prima verde nei test e non innescabile in partita perché nessun eroe la possedeva.
 
-Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambientale e mettere pressione su Flux prima che possa convertire il campo preparato in un vantaggio.
+Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambientale e mettere pressione su Gadget prima che possa convertire il campo preparato in un vantaggio.
 
 ### Lettura tattica
 
 **Obiettivo del giocatore.** Preparare `Wet` o condizioni conduttive e scegliere quando convertire quel setup in danno/pressione. Quando il setup non è disponibile, `ArcPulse` mantiene una pressione stabile.
 
-**Misplay / Failure State.** Preparare la conduzione dove il nemico non arriverà, o scaricare prima che il bersaglio sia `Wet`. `LinearDischarge` **parte comunque**: perde gli +8, non l'azione. Il costo vero è la Carica Conduttiva, che ha cap 4 e si rigenera di 1 per interazione elettrica — un setup speso male non si recupera nel turno, e a Flux resta `ArcPulse`, cioè pressione stabile senza il picco che giustifica il personaggio. È il failure state più *silenzioso* del roster: il turno sembra normale, e la differenza si vede solo nel confronto con ciò che la stessa carica avrebbe reso al momento giusto.
+**Misplay / Failure State.** Preparare la conduzione dove il nemico non arriverà, o scaricare prima che il bersaglio sia `Wet`. `LinearDischarge` **parte comunque**: perde gli +8, non l'azione. Il costo vero è la Carica Conduttiva, che ha cap 4 e si rigenera di 1 per interazione elettrica — un setup speso male non si recupera nel turno, e a Gadget resta `ArcPulse`, cioè pressione stabile senza il picco che giustifica il personaggio. È il failure state più *silenzioso* del roster: il turno sembra normale, e la differenza si vede solo nel confronto con ciò che la stessa carica avrebbe reso al momento giusto.
 
 **Counterplay / rischio.** È il personaggio più fragile del roster v0.1. Se il nemico evita `Wet`, rompe il setup o lo costringe a spendere azioni difensive, la sua meccanica firma rende meno.
 
@@ -102,7 +102,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | Activation / Trigger | Interazioni elettriche e abilità di setup |
 | Payoff | Trasforma setup ambientali in pressione, incluso +8 su Wet con LinearDischarge |
 | Misplay / Failure State | Conduzione preparata nella zona sbagliata o scarica anticipata: `LinearDischarge` parte senza i +8 e la Carica Conduttiva è spesa; resta `ArcPulse` senza picco |
-| Counterplay | Uscire da Wet, interrompere setup, pressione sul fragile Flux |
+| Counterplay | Uscire da Wet, interrompere setup, pressione sul fragile Gadget |
 | Telegraphing | Stato pubblico/ambientale; risorsa team-visible |
 | Design Status | IMPLEMENTED |
 
@@ -189,13 +189,13 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | Payload oltre il danno | **nessuno in v0.1** |
 | Dipendenza dal base | ★★★☆☆ — colpo affidabile mentre le sue abilità sono in ricarica |
 
-> ⚠️ **La famiglia descrive il kit, non ancora l'attacco base.** Il motore elettrico di Flux **esiste** — è
+> ⚠️ **La famiglia descrive il kit, non ancora l'attacco base.** Il motore elettrico di Gadget **esiste** — è
 > `ConductiveNode`, cablata su `Action.Electrify` da [D-046](../../decisions/RT_PDR_00_Decision_Log.md) — ma
 > non passa da `ArcPulse`, che in v0.1 fa solo danno. ADR-0007 ha rinviato il payload di carica sull'attacco
 > base per una ragione precisa: darebbe alla generazione elettrica un **secondo produttore**, cioè il
 > contrario di quello che D-046 ha appena messo in ordine. Nessuno stato `Charged` esiste nel codice.
 >
-> Finché vale questo, **non dichiarare Flux «Engine Attack» come se fosse già così**: sarebbe uno stato che
+> Finché vale questo, **non dichiarare Gadget «Engine Attack» come se fosse già così**: sarebbe uno stato che
 > il codice non sostiene.
 
 > `ArcPulse` è anche l'**unico** attacco base del roster che prende i numeri dalla tabella a fasce condivisa
@@ -205,18 +205,18 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 | Domanda | Risposta |
 | --- | --- |
-| Quando è la scelta corretta? | Quando `LinearDischarge` e `Overload` sono in ricarica e serve pressione affidabile a medio raggio. A 22 danni non è affatto debole: dopo il nerf di Bastion è il **più alto** dei quattro attacchi base |
-| Quando è inferiore a un'abilità firma? | Quando il bersaglio è **bagnato**: lì `LinearDischarge` vale 24 + 8 = 32 contro 22, e sprecare la finestra di `Wet` su un attacco base è l'errore tipico della coppia con Riva |
+| Quando è la scelta corretta? | Quando `LinearDischarge` e `Overload` sono in ricarica e serve pressione affidabile a medio raggio. A 22 danni non è affatto debole: dopo il nerf di Riktor è il **più alto** dei quattro attacchi base |
+| Quando è inferiore a un'abilità firma? | Quando il bersaglio è **bagnato**: lì `LinearDischarge` vale 24 + 8 = 32 contro 22, e sprecare la finestra di `Wet` su un attacco base è l'errore tipico della coppia con Phase |
 | Che cosa risparmia? | Il cooldown di `LinearDischarge` per il turno in cui l'acqua ci sarà davvero |
 | Che counterplay esiste? | Quello ordinario — coperture, angoli, distanza. Non ha un counterplay proprio, perché non ha ancora un payload proprio |
-| Che cosa impara il giocatore? | Che con Flux la domanda non è «quanto tolgo adesso» ma «l'acqua è già arrivata». L'attacco base è ciò che si fa **aspettando** che lo sia |
+| Che cosa impara il giocatore? | Che con Gadget la domanda non è «quanto tolgo adesso» ma «l'acqua è già arrivata». L'attacco base è ciò che si fa **aspettando** che lo sia |
 
 ### Prove
 
 | Che cosa | Dove |
 | --- | --- |
 | Il payload è nel dato | `RefactorTactics.Heroes.Flux.MatchesCatalog` · `RefactorTactics.Heroes.BasicAttackByRangeBand` — è l'unico legato alla fascia condivisa |
-| L'effetto si vede in partita | `Combat.BasicAttack` — 120 − 22 = 98 su Bastion |
+| L'effetto si vede in partita | `Combat.BasicAttack` — 120 − 22 = 98 su Riktor |
 | Il payload di carica | ⏳ **non esiste** — dipende da `RT-FEAT-ENV-ELECTRIC`, non da questa pagina |
 
 ## Abilità
@@ -225,7 +225,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 #### Descrizione
 
-Arc Pulse è l'attacco base affidabile di Flux. Infligge 22 danni a range 4 e non richiede setup ambientale: serve come opzione stabile quando non conviene investire una risorsa o preparare un payoff sistemico.
+Arc Pulse è l'attacco base affidabile di Gadget. Infligge 22 danni a range 4 e non richiede setup ambientale: serve come opzione stabile quando non conviene investire una risorsa o preparare un payoff sistemico.
 
 | Campo | Valore |
 | --- | --- |
@@ -255,7 +255,7 @@ Arc Pulse è l'attacco base affidabile di Flux. Infligge 22 danni a range 4 e no
 
 #### Descrizione
 
-Linear Discharge è l'attacco lineare firma di Flux. Infligge 24 danni a range 5 e, se il bersaglio è `Wet`, aggiunge +8 danni. Il fallback è `AttackCell`, quindi la linea dichiarata resta rilevante anche se la situazione cambia durante la resolution.
+Linear Discharge è l'attacco lineare firma di Gadget. Infligge 24 danni a range 5 e, se il bersaglio è `Wet`, aggiunge +8 danni. Il fallback è `AttackCell`, quindi la linea dichiarata resta rilevante anche se la situazione cambia durante la resolution.
 
 | Campo | Valore |
 | --- | --- |
@@ -279,7 +279,7 @@ Linear Discharge è l'attacco lineare firma di Flux. Infligge 24 danni a range 5
 
 #### Uso tattico e limiti
 
-Premia il setup di Riva o di altre fonti di `Wet`. Le varianti spostano l'abilità verso burst singolo (`Concentrated`) o pressione multi-target (`Branched`).
+Premia il setup di Phase o di altre fonti di `Wet`. Le varianti spostano l'abilità verso burst singolo (`Concentrated`) o pressione multi-target (`Branched`).
 
 ### Conductive Node
 
@@ -311,15 +311,15 @@ Il concetto di Conduction si estende comunque oltre `Wet`, ma per la via della *
 
 #### Uso tattico e limiti
 
-L'azione **non prepara** il terreno: lo **sfrutta**. Vale quanto il circuito che qualcuno ha già costruito — l'acqua di Riva, una superficie `Conductive` della mappa — e su un campo asciutto colpisce un bersaglio solo. È il rovescio esatto della lettura vecchia, in cui era lei a creare la conduttività.
+L'azione **non prepara** il terreno: lo **sfrutta**. Vale quanto il circuito che qualcuno ha già costruito — l'acqua di Phase, una superficie `Conductive` della mappa — e su un campo asciutto colpisce un bersaglio solo. È il rovescio esatto della lettura vecchia, in cui era lei a creare la conduttività.
 
-⚠️ **Fuoco amico sul circuito**: la scarica colpisce ogni unità sul grafo una volta sola, e il grafo non distingue le squadre. Chi allaga per Flux allaga anche per l'avversario.
+⚠️ **Fuoco amico sul circuito**: la scarica colpisce ogni unità sul grafo una volta sola, e il grafo non distingue le squadre. Chi allaga per Gadget allaga anche per l'avversario.
 
 ### Overload
 
 #### Descrizione
 
-Overload è l'AoE di Flux: 18 danni, range 3, raggio 1 e cooldown 3. La specifica prevede anche un'interruzione dei dispositivi, ma questa parte dipende da sistemi non ancora completati.
+Overload è l'AoE di Gadget: 18 danni, range 3, raggio 1 e cooldown 3. La specifica prevede anche un'interruzione dei dispositivi, ma questa parte dipende da sistemi non ancora completati.
 
 | Campo | Valore |
 | --- | --- |
@@ -349,7 +349,7 @@ Overload è l'AoE di Flux: 18 danni, range 3, raggio 1 e cooldown 3. La specific
 
 #### Descrizione
 
-Reactive Capacitor è la reazione difensiva/offensiva di Flux. Quando subisce un attacco diretto, applica scudo 15 a Flux e 10 danni all'attaccante, con cooldown 3.
+Reactive Capacitor è la reazione difensiva/offensiva di Gadget. Quando subisce un attacco diretto, applica scudo 15 a Gadget e 10 danni all'attaccante, con cooldown 3.
 
 | Campo | Valore |
 | --- | --- |
@@ -379,11 +379,11 @@ Nella v0.1 attuale è una reazione deterministica che riusa `Action.Counter`; no
 
 ### Descrizione delle reazioni
 
-- **`Flux.ReactiveCapacitor`** — Si attiva quando Flux subisce un attacco diretto. Nella v0.1 corrente il commit è automatico: applica scudo 15 e 10 danni all'attaccante. È già descritta anche fra le abilità.
+- **`Flux.ReactiveCapacitor`** — Si attiva quando Gadget subisce un attacco diretto. Nella v0.1 corrente il commit è automatico: applica scudo 15 e 10 danni all'attaccante. È già descritta anche fra le abilità.
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Flux.ReactiveCapacitor | Subisce un attacco diretto | Counter | — | — | 20 | Commit automatico (v0.1 attuale) | — | — | Scudo 15 + 10 danni all'attaccante | IMPLEMENTED |
+| `Flux.ReactiveCapacitor` | Subisce un attacco diretto | Counter | — | — | 20 | Commit automatico (v0.1 attuale) | — | — | Scudo 15 + 10 danni all'attaccante | IMPLEMENTED |
 
 > `Flux.ReactiveCapacitor` — Reazione deterministica attuale: nessuna finestra live; il modello opportunity→commit arriva con E14.
 
@@ -419,8 +419,8 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 
 | Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| Flux.LinearDischarge.Concentrated | Scarica concentrata | +6 danni (30 totali) | Non si propaga a un secondo bersaglio | Flux.LinearDischarge.Branched | Burst | CANONICAL |
-| Flux.LinearDischarge.Branched | Scarica ramificata | Un bersaglio aggiuntivo | −6 danni per bersaglio (18 ciascuno) | Flux.LinearDischarge.Concentrated | Multi-target | CANONICAL |
+| `Flux.LinearDischarge.Concentrated` | Scarica concentrata | +6 danni (30 totali) | Non si propaga a un secondo bersaglio | `Flux.LinearDischarge.Branched` | Burst | CANONICAL |
+| `Flux.LinearDischarge.Branched` | Scarica ramificata | Un bersaglio aggiuntivo | −6 danni per bersaglio (18 ciascuno) | `Flux.LinearDischarge.Concentrated` | Multi-target | CANONICAL |
 
 ## Talenti
 

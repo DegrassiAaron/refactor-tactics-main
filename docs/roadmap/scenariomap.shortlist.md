@@ -163,7 +163,7 @@ l'oracolo è chi guarda.
 
 | Gruppo | Scenari | Cosa deve **vedersi** |
 |---|--:|---|
-| `Visual.Combat.*` | 8 | `Guard` toglie 15 al **primo** colpo, `Brace` 10 a **ogni** colpo · il KO mai prima del colpo · il piano rivalidato invece di un colpo a caso · Bastion incassa e non arretra · il fumo lascia **vedere** e non colpire · il bonus elettrico viene dal **terreno** |
+| `Visual.Combat.*` | 8 | `Guard` toglie 15 al **primo** colpo, `Brace` 10 a **ogni** colpo · il KO mai prima del colpo · il piano rivalidato invece di un colpo a caso · Riktor incassa e non arretra · il fumo lascia **vedere** e non colpire · il bonus elettrico viene dal **terreno** |
 | `Visual.Environment.*` | 3 | Fuoco in **due** momenti distinti (ingresso e Cleanup) · il terzo passo su ghiaccio è **subìto** · `Wet` è un'**assenza**: i danni del Cleanup che non arrivano |
 | `Visual.Map.*` | 5 | La copertura è di un **bordo** e si vede quale · la barriera alta **nega**, la bassa **riduce** · due colpi identici dall'altura (nessun bonus, D-024) · la porta chiusa allunga il giro · l'**unica** transizione fra layer |
 | `Visual.Movement.*` | 2 | La carica si legge diversa dal passo · un rifiuto è **muto**: non deve accadere niente |

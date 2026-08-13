@@ -154,8 +154,8 @@ Totale corpus versionato: **73** scenari (`A 40 + B 21 + D-bloccati 12`) — *ri
 > percorso: le cartelle sono storage e non promettono nulla ([`scenario-index-e-tag.md`](scenario-index-e-tag.md) §2).
 
 > 🔁 **Il corpus si rimisura quando cambia un numero di bilanciamento — 2026-08-10, `#131`.**
-> Vektor è sceso da 100 a 90 HP ([D-069](../decisions/RT_PDR_00_Decision_Log.md)) e **11 scenari** sono
-> diventati rossi in blocco, tutti con lo **stesso** delta di −10 su un'unità Vektor: `Combat.LineHitsThrough`,
+> Wraith è sceso da 100 a 90 HP ([D-069](../decisions/RT_PDR_00_Decision_Log.md)) e **11 scenari** sono
+> diventati rossi in blocco, tutti con lo **stesso** delta di −10 su un'unità Wraith: `Combat.LineHitsThrough`,
 > `Combat.SplashHitsAlliesNotSelf`, `Spec.Environment.{ElectricPropagation, WaterQuenchesFire}`,
 > `Visual.Combat.{PushResistance, WaterElectric, WaterElectricCoordinated}`,
 > `Visual.Environment.{FireOnEnter, WetExtinguishesFire}`, `Visual.Reaction.{Deflection, Interposition}`.
@@ -167,7 +167,7 @@ Totale corpus versionato: **73** scenari (`A 40 + B 21 + D-bloccati 12`) — *ri
 >    «una statistica è cambiata», non «undici regole si sono rotte». Un delta *disomogeneo* avrebbe voluto
 >    dire l'opposto, e sarebbe stato il momento di fermarsi.
 > 2. **La prosa scade insieme ai numeri.** Sei di quegli undici file spiegano l'aritmetica a parole
->    (*«100 − 10 − 8 = 82»*, *«Vektor resta a 100 pieni»*). Correggere solo le `expect` avrebbe lasciato una
+>    (*«100 − 10 − 8 = 82»*, *«`Vektor` resta a 100 pieni»*). Correggere solo le `expect` avrebbe lasciato una
 >    spiegazione che contraddice l'assertion accanto — e la spiegazione è **metà** del valore di uno scenario
 >    `Visual.*`, che esiste per dire a una persona cosa deve vedere. Sono state corrette entrambe.
 
@@ -259,7 +259,7 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 | `Visual.Combat.Defeat` | r4 | `PIE-VIS-KO` | barra che scende due volte, poi la rimozione — mai prima del colpo |
 | `Visual.Combat.FallbackTargetMoved` | r5 | `PIE-VIS-FALLBACK` | il piano rivalidato, non un colpo a caso |
 | `Visual.Combat.GuardReducesFirstHit` | r4 | `PIE-VIS-GUARD` | `Guard` toglie 15 al **primo** colpo e finisce lì |
-| `Visual.Combat.PushResistance` | r4 | `PIE-VIS-PUSH` | Bastion incassa e **non arretra**, Vektor arretra |
+| `Visual.Combat.PushResistance` | r4 | `PIE-VIS-PUSH` | Riktor incassa e **non arretra**, Wraith arretra |
 | `Visual.Combat.SmokeCapsTargeting` | RelayLite | `PIE-VIS-SMOKE` | il bersaglio **si vede** e non si può colpire |
 | `Visual.Combat.WaterElectric` | RelayLite | `PIE-VIS-COMBO` | il bonus viene dal **terreno**, non da chi bagna |
 | `Visual.Combat.WaterElectricCoordinated` | r5 | `PIE-VIS-COORD` | la **coordinazione fra due eroi** dentro lo stesso Blast |

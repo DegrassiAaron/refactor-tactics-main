@@ -46,7 +46,7 @@ Lo slice adotta **tre stati** invece di cinque: `Nascosto`, `ContattoIncerto`, `
 | **D5** | Il **targeting** è limitato alla conoscenza **di squadra**, non individuale | È la «copertura informativa»: chi vede più lontano estende la portata utile di chi vede meno. Emerge dai numeri esistenti, senza una regola nuova |
 | **D6** | Il **bot** pianifica sulla **stessa** conoscenza parziale | In un 2v2 offline, nascondersi da un avversario onnisciente è teatro. È la voce più costosa dello slice ed è deliberata |
 | **D7** | ~~Nessuna finestra~~ → ~~finestra come presentazione~~ → **finestra interattiva vera** (rivista **due volte** il 2026-08-07) | **Superata da D16–D22** in [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md). Il documento sorgente sull'Overwatch, emerso dopo, mostra che il bait/bluff non è recuperabile con condizioni dichiarate: se dichiaro «spara al primo che entra», il tank brucia sempre la reaction. La via (b) di `spec-sequenza-turno.md` §3 riconcilia la finestra con l'invariante #3 **per composizione** (sequenza di sotto-risoluzioni). ✅ Formalizzata in [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) |
-| **D8** | Il vertical slice è **Flux · Riva · Bastion · Vektor**; i 4 archetipi Paragon del workbook tornano `Candidate` | I cataloghi `.md` sono il canone (regola «`.md` > `.pdf`»); il workbook allinea roster e scale |
+| **D8** | Il vertical slice è **Gadget · Phase · Riktor · Wraith**; i 4 archetipi Paragon del workbook tornano `Candidate` | I cataloghi `.md` sono il canone (regola «`.md` > `.pdf`»); il workbook allinea roster e scale |
 | **D9** | I valori numerici partono dalla **scala più bassa**: statistiche dai cataloghi `.md`, parametri nuovi al **minimo di colonna**, uguali per tutti | Si parte piatti e conservativi; la differenziazione la produce il playtest, non una stima a tavolino |
 | **D10** | **AP ≡ slot**: `RES_ACTION` (cap 2) copre Movimento + Principale, `RES_REACTION` (cap 1) è lo slot Reazione | Non erano due sistemi in conflitto, erano due nomi dello stesso. Nessuna regola cambia |
 | **D11** | «Energia» è una **risorsa firma per personaggio**: nome e trigger di ricarica cambiano, la regola no (cap 4, ricarica 1) | Dà identità senza moltiplicare le meccaniche — coerente col pilastro «scelta orizzontale» |
@@ -55,7 +55,7 @@ Lo slice adotta **tre stati** invece di cinque: `Nascosto`, `ContattoIncerto`, `
 
 **In scope**
 
-- Raggio di vista per eroe (`Vista` del catalogo: Flux **7**, Riva 5, Bastion 5, Vektor 6) che **decide qualcosa**.
+- Raggio di vista per eroe (`Vista` del catalogo: Gadget **7**, Phase 5, Riktor 5, Wraith 6) che **decide qualcosa**.
 - Celle visibili per unità = `HexDistance ≤ Vista` **e** `HasLineOfSight`; conoscenza di squadra = unione.
 - Tre stati di contatto: `Nascosto`, `ContattoIncerto`, `Rilevato`, più `UltimoContatto` (persistenza **1 turno**).
 - **Canale acustico**: eventi di rumore, propagazione intera sul grafo, soglia d'udito, contatto `Incerto` (§12).
@@ -87,8 +87,8 @@ la vista lunga concede *anticipo*, non un colpo gratis. L'argomento non cambia c
 a 7, perché dipende dal fatto che **nessuna** azione ci arrivi.
 
 > ⚠️ **Aggiornato il 2026-08-10.** Questo paragrafo diceva «il delta **vista 6 vs 5**» e chiudeva con
-> *«questo evita di aggravare la dominanza di Vektor su Flux e Riva già registrata in CP 6.5»*. Entrambe le
-> affermazioni sono superate: dopo [D-073](../decisions/RT_PDR_00_Decision_Log.md) Flux ha **vista 7**, quindi
+> *«questo evita di aggravare la dominanza di `Vektor` su `Flux` e `Riva` già registrata in CP 6.5»*. Entrambe le
+> affermazioni sono superate: dopo [D-073](../decisions/RT_PDR_00_Decision_Log.md) Gadget ha **vista 7**, quindi
 > lo scarto massimo è di **due** punti, e la dominanza non è più «da evitare di aggravare» — **non esiste
 > più** (`#131` chiusa: nessun eroe domina nessun altro sulle quattro statistiche base).
 >
@@ -108,7 +108,7 @@ a 7, perché dipende dal fatto che **nessuna** azione ci arrivi.
 | [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §8 | «fog of war» è classificata north-star P1. Lo slice **non** è fog of war (la mappa statica resta nota), ma la distinzione va scritta, altrimenti sembra scope creep |
 | [`h6-4-hex-vision-spec.md`](../technical/h6-4-hex-vision-spec.md) §6 | dichiara `VisibleCells` fuori scope. Va aggiornata: lo slice la introduce |
 | [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) | il fumo ha già una regola (`Obscured`, cap targeting a **2**). **Prevale il catalogo**: niente densità progressiva |
-| [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) | la frase «Bastion compra HP e resistenza con movimento **e vista**» diventa vera solo con questo slice; oggi è falsa |
+| [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) | la frase «Riktor compra HP e resistenza con movimento **e vista**» diventa vera solo con questo slice; oggi è falsa |
 | `Core/RTGameplayTags.h` | `Status.Reveal` è già dichiarato e mai implementato: è il gancio naturale per «rivelato per un turno» |
 | [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) | +3 CP → **62** invece di 59. Va dichiarato, non assorbito in silenzio |
 | `docs/RefactorTactics_Balance_Matrices_v0.1.xlsx` | ⚠️ **fonte numerica parallela**: contiene già il sistema di visione completo (foglio `04_Visione_Stealth` + `04b_Visione_Parametri`), ma su un **roster e una scala diversi** dai cataloghi in `balance/` — vedi §11 |
@@ -202,7 +202,7 @@ Il workbook contiene già l'intero sistema di visione — inclusa la parte che �
 
 | Dimensione | Cataloghi `balance/` (repo) | Workbook `.xlsx` |
 |---|---|---|
-| Roster vertical slice | Flux · Riva · Bastion · Vektor | **Aurora · Kwang · Murdock · Steel** (su 38 eroi Paragon) |
+| Roster vertical slice | Gadget · Phase · Riktor · Wraith | **Aurora · Kwang · Murdock · Steel** (su 38 eroi Paragon) |
 | Salute | 90 – 120 | **780 – 1150** |
 | Raggio visivo | 5 – 6 | **6 – 11** |
 | Movimento | 5 MP, costi 1/2 | **6 hex** + Sprint bonus + Dash 5 |
@@ -292,8 +292,8 @@ silenziosa, il workbook rumorosa): due divergenze da chiudere prima di CP 13.3.
 > transito, ma senza valori: resta fuori.
 
 > ✅ **Soglia d'udito, decisa lo stesso giorno** ([D-041](../decisions/RT_PDR_00_Decision_Log.md)):
-> è una statistica **per eroe** che **compensa** la vista invece di seguirla — Flux 5 · Riva 3 ·
-> Bastion 3 · Vektor 5, soglia bassa = orecchio fine. Chi vede lontano sente meno. Va **aggiunta** a
+> è una statistica **per eroe** che **compensa** la vista invece di seguirla — Gadget 5 · Phase 3 ·
+> Riktor 3 · Wraith 5, soglia bassa = orecchio fine. Chi vede lontano sente meno. Va **aggiunta** a
 > `URTHeroData`, che oggi ha quattro statistiche e nessuna è l'udito.
 
 ### Decisioni

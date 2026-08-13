@@ -4987,7 +4987,10 @@ features:
       scenario: done
       # partial dal 2026-08-13: la pagina Wiki spiega ora sei-direzioni-vs-dodici-settori, che e' il
       # vocabolario di questa feature. Resta partial perche' la cottura (#621) non e' spiegabile
-      # finche' MSE-1/MSE-2/MSE-3 sono aperte: non c'e' ancora un comportamento da raccontare.
+      # finche' MSE-1 e MSE-4 sono aperte: non c'e' ancora un comportamento da raccontare.
+      # Rivisto il 2026-08-13 dopo D-125: MSE-2 e MSE-3 sono SCIOLTE (i muri sono bordi e non
+      # alimentano l'occupancy), e MSE-4 - il contatto su un vertice - le sostituisce nell'elenco.
+      # Entrambe le residue hanno innesco #621, non #620.
       ui_wiki: partial
       packaged: na
       network_privacy: na
@@ -5010,7 +5013,9 @@ features:
       - docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md
       - docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md
       - docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md
-    # 717 e' la DECISIONE (MSE-2 + MSE-3) che blocca 620 e 621, non un'implementazione.
+    # 717 era la DECISIONE (MSE-2 + MSE-3) che bloccava 620 e 621, non un'implementazione.
+    # CHIUSA il 2026-08-13 alle 08:23Z da D-125: resta qui per provenienza, non blocca piu' nulla.
+    # Nessuna decisione aperta ha innesco #620 - MSE-1 e MSE-4 innescano entrambe #621.
     issues: [619, 620, 621, 712, 717]
     tests:
       - RefactorTactics.HexOccupancy.*
@@ -5024,8 +5029,10 @@ features:
       # sei direzioni per muoversi, dodici settori per MISURARE quanto una cella e' invasa.
       - wiki:griglia-e-geometria
     last_verified:
+      # Rimisurato dopo D-125: il commit precedente (05bbe3dc, merge di #714) e' ANTENATO di c1c96a30,
+      # cioe' la voce era stata verificata due ore prima della decisione che la cambia.
       date: 2026-08-13
-      commit: 05bbe3dc
+      commit: 17cc1400
     notes: >
       Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici
       settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked`

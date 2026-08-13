@@ -119,7 +119,7 @@ non serve ricostruirlo dai blocchi di revisione.
 | Vittoria `Squadra eliminata` | Eliminazione **oppure** obiettivi **oppure** `RoundLimit` raggiunto (fine partita a più vie). Il `RoundLimit` è un **parametro del formato di partita**, non la costante «12»: 10–14 in 2v2, 16–20 in 3v3 Standard | [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) · [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) §6, §12 |
 | Movimento `4 celle` / Dash `3` (§6) | **5 MP**, costo intero per cella (1 normale, 2 difficile/rampa); Sprint 8 MP; Dash/Charge/Leap a distanza fissa | [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) |
 | Reazioni «north-star, escluse» (§8.2) | **In scope** per la v0.1: slot Reazione con trigger, **1 attivazione per turno** | [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) |
-| Roster `2 archetipi` | **4 eroi** (Flux, Riva, Bastion, Vektor) con varianti d'equipaggiamento | [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) |
+| Roster `2 archetipi` | **4 eroi** (Gadget, Phase, Riktor, Wraith) con varianti d'equipaggiamento | [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) |
 
 **Non** superato, e vale la pena ripeterlo perché il catalogo v0.1 dice altro: le **macro-fasi restano quelle di
 Atlas Reactor** — `Planning → Prep → Dash → Blast → Move → Cleanup`, con il **Move dopo il Blast**. I codici di

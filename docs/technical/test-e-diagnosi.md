@@ -365,7 +365,7 @@ ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate c
 | `Movement.Blocked` | un muro rende il percorso impossibile: il piano è rifiutato, l'unità resta ferma, il turno si chiude lo stesso |
 | `Movement.Collision` | due unità verso la stessa cella si fermano **entrambe** |
 | `Movement.LongWalk` | due unità attraversano l'arena, 3 celle per turno per 2 turni — **fatto per essere guardato** in PIE |
-| `Combat.BasicAttack` | Flux colpisce Bastion: 120 → 98 HP. Il primo scenario che verifica un **danno** |
+| `Combat.BasicAttack` | Gadget colpisce Riktor: 120 → 98 HP. Il primo scenario che verifica un **danno** |
 | `Combat.BlockedByWall` | stesso attacco con un muro in mezzo: il colpo **non parte** |
 | `Combat.SplashHitsAlliesNotSelf` | l'area colpisce i vicini **e** l'alleato, ma non chi la lancia |
 | `Combat.LineHitsThrough` | la linea colpisce chi sta in mezzo, non solo il bersaglio |
@@ -402,7 +402,7 @@ questo è un campo suo e non riusa `ability`/`target`: sono due slot diversi del
 può attaccare **e** tenere armata una reazione nello stesso turno.
 
 > Una reazione difensiva protegge dal colpo **che l'ha innescata**, non dai successivi. In
-> `Combat.CounterStrikesBack` lo scudo 15 assorbe i 24 in arrivo e Flux resta a 81, non a 66. È la ragione
+> `Combat.CounterStrikesBack` lo scudo 15 assorbe i 24 in arrivo e Gadget resta a 81, non a 66. È la ragione
 > per cui `Action.Deflect` (una `DamageReduction`) ha senso: se agisse solo sui colpi futuri, rispondere a
 > chi ti ha appena sparato non servirebbe a niente.
 

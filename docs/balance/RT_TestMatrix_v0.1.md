@@ -42,9 +42,9 @@ priorità intere del motore azioni (epic E4).
 ## 2. Combo da verificare
 
 ### Acqua + elettricità
-1. Riva crea acqua.
+1. Phase crea acqua.
 2. Un'unità entra o si trova nell'acqua.
-3. Flux usa `Electrify` o `LinearDischarge`.
+3. Gadget usa `Electrify` o `LinearDischarge`.
 4. La propagazione segue le celle conduttive (max 3, ordine: distanza → `CellId` → `UnitId`).
 5. Ogni bersaglio è colpito **una sola volta**.
 
@@ -53,13 +53,13 @@ priorità intere del motore azioni (epic E4).
 nello snapshot corrente · *incerto* = una cella potrebbe essere occupata o modificata durante il movimento.
 
 ### Copertura + tiro d'intercetto
-1. Bastion crea un pannello.
+1. Riktor crea un pannello.
 2. Il pannello chiude il percorso più sicuro.
-3. Vektor prepara `InterceptShot`.
+3. Wraith prepara `InterceptShot`.
 4. Il nemico sceglie se attraversare la linea o perdere posizione.
 
 ### Push + hazard
-1. Riva o Bastion applicano `Push`.
+1. Phase o Riktor applicano `Push`.
 2. Il bersaglio entra in acqua, fuoco o area elettrificata.
 3. L'effetto della cella si applica **al termine** dello spostamento.
 4. La propagazione ambientale si risolve nella fase 50 (→ `Cleanup`, dopo il Move).

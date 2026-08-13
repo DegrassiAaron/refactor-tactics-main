@@ -201,7 +201,7 @@ E       il tipo di movimento è QUALUNQUE
 
 **Conseguenza sull'Overwatch**, che è la ragione pratica per cui questa distinzione conta: la condizione
 standard deve essere **spaziale**, non «il nemico ha usato Move». Altrimenti una spinta che porta un avversario
-dentro l'area controllata non lo farebbe scattare — e la combo *Riva spinge → il nemico entra nell'area di un
+dentro l'area controllata non lo farebbe scattare — e la combo *Phase spinge → il nemico entra nell'area di un
 alleato → opportunità di reazione* smetterebbe di esistere senza che nessuno l'abbia decisa.
 
 Owner dell'Overwatch: [`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md) e

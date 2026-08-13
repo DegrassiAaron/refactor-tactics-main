@@ -14,7 +14,7 @@ danneggiare. Da qui:
 - `Action.CreateCover` erige una copertura bassa su un bordo, con integrità e durata;
 - `Bastion.KineticPanel` è quell'azione con un nome d'eroe, e la sua **variante** decide i due numeri;
 - `Bastion.Reconfigure` sposta una copertura esistente senza duplicarla;
-- `Gadget.PortableCover` dà la stessa capacità a chi non è Bastion;
+- `Gadget.PortableCover` dà la stessa capacità a chi non è Riktor;
 - una copertura temporanea **scade nel Cleanup**, e la sua rimozione passa dal canale che invalida le cache.
 
 Tre identità a `Effects` vuoto smettono di essere inerti. Erano dichiarate tali di proposito — il catalogo
@@ -54,7 +54,7 @@ nessuna può fare da «non dichiarata».
 `ERTMovementStyle` per le cariche.
 
 Senza, il resolver avrebbe **tre** confronti di ActionId per la stessa semantica — l'azione core, l'abilità di
-Bastion, il gadget — cioè un ramo per eroe nel core, che il progetto vieta. `Ignite`, `CreateWater` ed
+Riktor, il gadget — cioè un ramo per eroe nel core, che il progetto vieta. `Ignite`, `CreateWater` ed
 `Electrify` restano riconosciute per ActionId: lì il produttore è uno ciascuno, e il campo si aggiungerà
 quando smetteranno di esserlo.
 
@@ -106,7 +106,7 @@ numeri. Di suo sostituisce l'identità nel TurnLog (chi legge il replay deve ved
 
 **Lo svantaggio non è inventato.** Il validator ne esige uno dichiarato, il catalogo equipaggiamento non ne dà
 uno specifico per questo gadget, e allora si dichiara quello che i cataloghi già dicono: **cooldown 3** di ogni
-gadget contro il **2** del pannello d'eroe, più l'unico slot gadget occupato. Chi non è Bastion può erigere
+gadget contro il **2** del pannello d'eroe, più l'unico slot gadget occupato. Chi non è Riktor può erigere
 pannelli, ma più di rado e rinunciando a medkit, isolante o sensore.
 
 ## 3. Il TurnLog

@@ -4,7 +4,7 @@
 >
 > **Il procedimento vale; i nomi dei personaggi no.** Questa guida usa **Gideon** e **Sparrow** con gli
 > archetipi *Guardian* e *Ranger*: erano il prototipo del 2026-08-03, **non** il roster canonico, che è
-> **Flux · Riva · Bastion · Vektor**.
+> **Gadget · Phase · Riktor · Wraith**.
 >
 > **Il casting non è più aperto** (2026-08-08, [D-037](../decisions/RT_PDR_00_Decision_Log.md)) e dal
 > **2026-08-11 gli asset portano il nome del pack**, non dell'eroe
@@ -14,15 +14,15 @@
 >
 > | Eroe | Pack | Blueprint / AnimBP | Skeletal Mesh | Skeleton |
 > |---|---|---|---|---|
-> | Flux | `Paragon.Gadget` | `BP_Unit_Gadget` · `ABP_Gadget` | `Gadget` | `Gadget_Skeleton` |
-> | Riva | `Paragon.Phase` | `BP_Unit_Phase` · `ABP_Phase` | ⚠️ `Phase_GDC` | `phase_Skeleton` |
-> | Bastion | `Paragon.Riktor` | `BP_Unit_Riktor` · `ABP_Riktor` | `Riktor` | `Riktor_Skeleton` |
-> | Vektor | `Paragon.Wraith` | `BP_Unit_Wraith` · `ABP_Wraith` | `Wraith` | `Wraith_Skeleton` |
+> | Gadget | `Paragon.Gadget` | `BP_Unit_Gadget` · `ABP_Gadget` | `Gadget` | `Gadget_Skeleton` |
+> | Phase | `Paragon.Phase` | `BP_Unit_Phase` · `ABP_Phase` | ⚠️ `Phase_GDC` | `phase_Skeleton` |
+> | Riktor | `Paragon.Riktor` | `BP_Unit_Riktor` · `ABP_Riktor` | `Riktor` | `Riktor_Skeleton` |
+> | Wraith | `Paragon.Wraith` | `BP_Unit_Wraith` · `ABP_Wraith` | `Wraith` | `Wraith_Skeleton` |
 >
 > Cartelle: `/Game/RT/Characters/<Pack>/{Blueprints,Animation}/`. Pack in
 > `/Game/FabAsset/Paragon/Paragon<Pack>/Characters/Heroes/<Pack>/…`.
 >
-> ⚠️ **La mesh di Riva non si chiama `Phase`**: è `Phase_GDC` (22,6 MB — gli altri file in quella cartella
+> ⚠️ **La mesh di Phase non si chiama `Phase`**: è `Phase_GDC` (22,6 MB — gli altri file in quella cartella
 > pesano 0,1 MB e sono extents, shadow e skeleton). È l'errore che costa mezz'ora a cercare un asset che
 > non esiste.
 >

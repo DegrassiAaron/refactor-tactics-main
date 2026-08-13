@@ -38,7 +38,7 @@ formula è coperta da un test sulla funzione pura, e nessuno in partita gliene p
 | `Slow` | ✅ `:7` | `Action.Slow`, `Ranger.Burst` | ✅ +1 costo per cella (`RTTurnManager.cpp:1782`) | **completo** |
 | `Exposed` | ✅ `:9` | `Action.Sprint` (`RTCatalogLibrary.cpp:245`) | ✅ +5 al primo danno diretto (`RTTurnManager.cpp:1399`) | **completo** |
 | `Marked` | ✅ `:11` | `Action.MarkTarget` (`RTCatalogLibrary.cpp:381`) | ❌ **mai letto**: il loop `FirstHitDelta` legge solo `Exposed`/`Guarded` | **issue `#137`** |
-| `Wet` | ✅ `:16` | `ShallowWater` con durata **0** (`RTTerrainLibrary.cpp:33`), Riva con durata 1 | ❌ doppio buco: la durata 0 è scartata da `ApplyStatus`, e `FluxWetDischargeBonus` compare **solo nei test** | **inerte** |
+| `Wet` | ✅ `:16` | `ShallowWater` con durata **0** (`RTTerrainLibrary.cpp:33`), Phase con durata 1 | ❌ doppio buco: la durata 0 è scartata da `ApplyStatus`, e `FluxWetDischargeBonus` compare **solo nei test** | **inerte** |
 | `Burning` | ✅ `:20` | `Fire`, durata 2 (`RTTerrainLibrary.cpp:36`) | ❌ il Cleanup non infligge alcun danno (`RTTurnManager.cpp:558-578`) | **inerte** |
 | `Obscured` | ✅ `:21` | `Smoke` con durata **0** (`RTTerrainLibrary.cpp:39`) | 🟡 il cap di targeting a 2 celle **esiste e funziona**, ma deriva dal terreno (`EffectiveTargetingRange`), non dallo stato | **stato inerte, regola viva** |
 | `Electrified` | ❌ assente | — | ⏳ propagazione = CP 8.3 (`#66`) | **da dichiarare** |
@@ -55,12 +55,12 @@ formula è coperta da un test sulla funzione pura, e nessuno in partita gliene p
 decrementa, non scade da sola**. Nel Cleanup, *prima* del tick delle durate, ogni stato persistente viene
 **revocato** se la cella su cui l'unità ha terminato il turno non lo dichiara più fra i propri `OnEnterEffects`.
 
-*Perché*: `StatusTurns` resta l'**unica verità** e `HasStatus` l'unica API. Flux, l'HUD, il bot e il combat log
+*Perché*: `StatusTurns` resta l'**unica verità** e `HasStatus` l'unica API. Gadget, l'HUD, il bot e il combat log
 continuano a leggere lo stato senza dover conoscere la mappa — che è il costo dell'alternativa «stato derivato
 al volo». Non introduce latenza: la revoca guarda la posizione **finale** del turno, quindi chi esce dall'acqua
 nel Move di T non è più `Wet` nel Blast di T+1.
 
-*Convivenza con le durate esplicite*: `ApplyStatus` mantiene la regola «non accorciare» — un `Wet` di Riva
+*Convivenza con le durate esplicite*: `ApplyStatus` mantiene la regola «non accorciare» — un `Wet` di Phase
 (1 turno) applicato a chi sta già in acqua non degrada il persistente, e un persistente non cancella una durata
 in corso. La regola di precedenza è: **il persistente vince finché la cella lo sostiene**, poi resta l'eventuale
 durata residua.
@@ -97,7 +97,7 @@ marchio»). Tre conseguenze di progetto:
 
 Il catalogo terreni §2 lo definisce **istantaneo** («una sola volta per evento»), quindi non è uno stato con
 durata e **non entra in `StatusTurns`**. Qui si consegna il tag e la semantica documentata; l'applicazione reale
-nasce con la propagazione di CP 8.3. È lo stesso pattern di `PushResistance` di Bastion: dato pronto,
+nasce con la propagazione di CP 8.3. È lo stesso pattern di `PushResistance` di Riktor: dato pronto,
 consumatore dichiarato assente — non un effetto finto con durata inventata.
 
 ### D4 — `Obscured` non diventa un secondo gate del targeting *(motivata, non opzionale)*
@@ -146,7 +146,7 @@ tutte le altre.
 |---|---|---|---|
 | **1** | Durata sentinella in `ARTUnit` + revoca nel Cleanup; il catalogo terreni smette di essere inerte | `Status.PersistsWhileOnCell`, `Status.RevokedOnLeavingCell`, `Status.ExpiresInCleanup` | ✅ |
 | **2** | `Burning`: 8 danni nel Cleanup, 2 turni, prima dei KO | `Status.Burning.DamagesInCleanup`, `Status.Burning.ExpiresAfterTwoTurns`, `Status.Burning.DefeatCountsThisTurn` | ✅ |
-| **3** | `Wet` rimuove `Burning` + cablaggio del +8 di Flux | `Status.WetRemovesBurning`, `Status.Wet.AmplifiesFluxDischarge` (integrazione) | ✅ |
+| **3** | `Wet` rimuove `Burning` + cablaggio del +8 di Gadget | `Status.WetRemovesBurning`, `Status.Wet.AmplifiesFluxDischarge` (integrazione) | ✅ |
 | **4** | `Marked`: pass a priorità e consumo dal primo colpo alleato (chiude `#137`) | `Status.Marked.AllyHitConsumesBonus`, `Status.Marked.EnemyHitDoesNotConsume` | ✅ |
 | **5** | `Obscured` reale + `Electrified` dichiarato | `Status.Obscured.AppliedBySmokeWithoutChangingGate` | ✅ |
 | **6** | Documentazione: cataloghi, `spec-terreni-e8.md` §6-bis, roadmap (entrambe le viste), PR | — | ✅ |

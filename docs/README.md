@@ -86,7 +86,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | **Ownership di abilità, interazioni e sinergie** | [`gameplay/spec-ownership-abilita-interazioni-sinergie.md`](gameplay/spec-ownership-abilita-interazioni-sinergie.md) · [ADR-0006](decisions/adr-0006-ownership-abilita-sinergie.md) | ✅ **normativa** ([D-029](decisions/RT_PDR_00_Decision_Log.md)) · nessun runtime nuovo |
 | Trigger su transizione (trap, tripwire) | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) §6-bis | ✅ deciso ([D-013](decisions/RT_PDR_00_Decision_Log.md)) · nessuna epic |
 | **Profilo** di azione generica (il modificatore per eroe) | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) §4-bis | ✅ [D-033](decisions/RT_PDR_00_Decision_Log.md) · nome unico: **non** `GenericActionModifier` · profili concreti ⏳ |
-| **Profilo di `BasicAttack` per i 4 eroi** | [ADR-0007](decisions/adr-0007-attacco-base-per-eroe.md) | ✅ **normativa** · chiude per `BasicAttack` i profili concreti lasciati aperti da [D-033](decisions/RT_PDR_00_Decision_Log.md) · Bastion cambia i numeri, Flux resta rinviato ([#315](https://github.com/DegrassiAaron/refactor-tactics-main/issues/315)) |
+| **Profilo di `BasicAttack` per i 4 eroi** | [ADR-0007](decisions/adr-0007-attacco-base-per-eroe.md) | ✅ **normativa** · chiude per `BasicAttack` i profili concreti lasciati aperti da [D-033](decisions/RT_PDR_00_Decision_Log.md) · Riktor cambia i numeri, Gadget resta rinviato ([#315](https://github.com/DegrassiAaron/refactor-tactics-main/issues/315)) |
 | Schema della Signature e **`Misplay / Failure State`** | [`characters/_Template.md`](characters/_Template.md) | ✅ [D-032](decisions/RT_PDR_00_Decision_Log.md) · compilato sulle 4 schede v0.1 |
 | Intento condizionale (`ConditionalIntent`) | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) §7 | 📅 [D-034](decisions/RT_PDR_00_Decision_Log.md) · **post-v0.1**, epic E33 · bloccato dai boundary |
 | Stati del personaggio e trasformazioni | [`gameplay/brief-stati-personaggio-e-trasformazioni.md`](gameplay/brief-stati-personaggio-e-trasformazioni.md) · candidature in [`characters/matrici-stati-personaggio.md`](characters/matrici-stati-personaggio.md) | 📅 [D-035](decisions/RT_PDR_00_Decision_Log.md) · **post-v0.1**, epic E34 · nessun eroe assegnato |
@@ -129,7 +129,7 @@ di cui quello attuale è il caso `AllowedResponses ≤ 1`. L'Overwatch apre una 
 `FIRE`/`HOLD`, `Timeout → HOLD`. Epic **E14**, dipende da E13.
 
 **Qual è lo scope della v0.1?** Vertical slice **2v2 offline contro bot** su hex multilivello: 4 eroi
-(Flux · Riva · Bastion · Vektor), ~35 azioni a catalogo, reazioni, 8 terreni attivi, coperture e strutture,
+(Gadget · Phase · Riktor · Wraith), ~35 azioni a catalogo, reazioni, 8 terreni attivi, coperture e strutture,
 obiettivi dinamici, HUD leggibile, determinismo verificato, build packaged. **Fuori**: rete, 4v4, GAS,
 progressione, modding.
 
