@@ -90,10 +90,24 @@ EXEMPT_FILES = (
     "docs/decisions/RT_PDR_00_Decision_Log.md",
     "docs/OPEN_DECISIONS.md",
     "docs/CHANGELOG_DOCUMENTATION.md",
+    # ⚠️ I due seguenti si riconoscono dal BANNER, non dalla cartella, e sono stati
+    # scoperti solo perche' una review li ha letti: il gate invertito li aveva resi
+    # obbligatori, e la prima stesura di questa PR li ha riscritti davvero.
+    #   v0.1-issue-plan  «SNAPSHOT DI CREAZIONE DELLE ISSUE, NON NORMATIVO ... i corpi
+    #     usati per creare le issue»: rinominarli fa dire al file che avevamo scritto
+    #     «Gadget» in issue che su GitHub portano ancora «Flux».
+    #   roadmap-editor   «VISTA RITIRATA IL 2026-08-08 ... il corpo resta come
+    #     provenienza».
+    "docs/roadmap/v0.1-issue-plan.md",
+    "docs/roadmap/roadmap-editor.md",
 )
 EXEMPT_PREFIXES = (
     "docs/decisions/adr-",      # una ADR e' datata e firmata: si annota, non si riscrive
-    "docs/roadmap/plans/",      # referti e triage, datati nel nome
+    # ⚠️ Referti, triage e audit: fotografano un momento, e la data sta nel corpo.
+    # NON dire «datati nel nome» — e' falso per circa 27 dei file di questa cartella
+    # (roadmap_lane_*.md, showcase-v01-audit.md, pacing-turno-plan.md, ...), e una
+    # giustificazione sbagliata regge finche' qualcuno non la verifica.
+    "docs/roadmap/plans/",
 )
 
 
