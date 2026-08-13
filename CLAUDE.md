@@ -67,6 +67,11 @@ Per implementazioni non banali, preflight breve:
 - Non modificare `.uasset`/`.umap` a mano; i passi Editor restano verifiche manuali finché non eseguiti.
 - Prima di cancellare/rinominare cerca riferimenti C++, config, reflection, soft reference e Blueprint.
 - Un handoff/audit non è autorità e non autorizza da solo a implementare tutto ciò che contiene.
+- Lavoro parallelo: **una sessione esecutiva per worktree**. Se due task condividono una working
+  directory, dillo invece di conviverci.
+- `D-nnn` non si sceglie a mano: `python scripts/rt_shared_id.py reserve D` — si usa l'ID che stampa
+  (**D-135**).
+- Prima del merge: `rt_shared_id.py check`, poi `git fetch --prune origin` e `audit-refs`.
 
 ## 5. Decision Boundary
 
