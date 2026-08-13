@@ -2448,6 +2448,9 @@ features:
     gates:
       spec: done
       # `Action.Brace` esiste a catalogo con i suoi numeri; il *profilo* come dato non esiste.
+      # ⚠️ Resta `partial` anche dopo D-132 (2026-08-13), e il motivo e' CAMBIATO: prima i quattro
+      # profili non erano decisi (`BAS-1`), ora lo sono — tre, nel namespace `Profile.<Nome>` — ma
+      # nessun campo li porta. `grep ReactionProfile Source/` da' zero. Deciso != scritto.
       data: partial
       # L'esito di `Hold Ground` gira gia' in partita (-10 a ogni colpo, blocco della prima spinta);
       # quello che manca e' il profilo che possa dichiararne un secondo. `partial`, non `todo`.
@@ -2477,13 +2480,21 @@ features:
       - Spec.Brace.ProfileChangesResponse
       # Dichiarati dal triage del 2026-08-10 (`plans/baseaction-signatures-spec-panel-2026-08-10.md`).
       # `Spec.Brace.ProfileChangesResponse` sopra e' il caso GENERICO — un profilo cambia le risposte;
-      # questi tre sono i profili CONCRETI, e restano `planned` finche' `BAS-1` non li decide.
+      # questi sono i profili CONCRETI. `BAS-1` li ha decisi il 2026-08-13 (D-132), quindi restano
+      # `planned` per il solo motivo che nessuno li ha ancora scritti.
+      #
+      # ⚠️ **Rinominati con D-132, e uno e' CADUTO**: i tre nomi del triage nascevano dai profili
+      # proposti — `Anchor`, `Flow`, `Deflect` — e due di quei nomi non esistono piu'.
+      #   `Spec.Brace.AnchorResistsDisplacement` **non si riscrive**: Riktor non ha un profilo, perche'
+      #   `Status.Braced` resiste gia' allo spostamento a qualunque distanza. Lo scenario avrebbe
+      #   dimostrato il comportamento BASE spacciandolo per un profilo, ed e' verde per il motivo
+      #   sbagliato — la trappola che `ProfileChangesResponse` documenta gia' in `_nota_perche_esiste`.
       # `CHAR-BASE-009` (Guard != Brace) non entra: il suo posto e' il test unit
       # `Reactions.Brace.BaseProfileHasSingleResponse`, gia' previsto dal DoD di CP 14.7.
       - planned:
-          - Spec.Brace.AnchorResistsDisplacement
-          - Spec.Brace.FlowRedirectsToLegalHexOnly
-          - Spec.Brace.DeflectOffersOnlyLegalSides
+          - Spec.Brace.GroundingChargesOnDeclaredTerrain
+          - Spec.Brace.SidestepRedirectsToLegalHexOnly
+          - Spec.Brace.GlanceOffersOnlyLegalSides
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
     wiki_note: >-
@@ -2497,21 +2508,42 @@ features:
       (`RTCombatLibrary.h:112`, `RTTurnManager.cpp:2819` e `:3033`), quindi i due scenari restano verdi e
       nessun valore di bilanciamento si muove.
 
-      **Un test scritto per pinnare lo stato attuale deve cadere**: `Reactions.Brace.IsNotAReaction`
-      (`RTDefensiveReactionTests.cpp:162`) asserisce `ReactionTrigger == None`. Va **sostituito**, non
-      cancellato in silenzio, da `Brace.BaseProfileHasSingleResponse` (col profilo base nessun boundary si
+      **Un'asserzione scritta per pinnare lo stato attuale deve cadere** — e non e' un test a se', come
+      questa voce ha detto fino al 2026-08-13: `ReactionTrigger == None` su `Action.Brace` sta **dentro**
+      `Reactions.DefensivesMatchCatalog` (`RTDefensiveReactionTests.cpp:171`), insieme al pinning di costo,
+      priorita', cooldown, slot e macro-fase delle cinque difensive. Il nome `Reactions.Brace.IsNotAReaction`
+      non esiste in `Source/` (`grep -rn` e `git log -S` entrambi vuoti), quindi **si sostituisce la riga, non
+      si cancella il test** — da `Brace.BaseProfileHasSingleResponse` (col profilo base nessun boundary si
       apre: e' la garanzia che nulla di verde rallenta) e `Brace.RicherProfileOpensWindow`. Finche' la
       sostituzione non e' fatta, `automation` resta `partial` anche se la suite e' verde: e' verde sulla
       classificazione **vecchia**.
 
-      **`data` resta `partial` anche dopo il triage del 2026-08-10**, e il motivo si e' precisato: i quattro
-      profili concreti — Flux `Grounding`, Riva `Flow`, Bastion `Anchor`, Vektor `Deflection` — sono
-      proposti da un sorgente ma **non decisi** (`BAS-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)).
-      Due dei quattro nomi sono gia' occupati nel roster con semantica **diversa**: `Vektor.Deflection` e'
-      riduzione danno (−20 sul colpo, `RTHeroCatalogLibrary.cpp:557`) proprio dove il profilo `Brace`
-      dovrebbe essere anti-displacement, e `Riva.FlowReaction` reagisce a un **colpo subito**, non a un
-      Forced Movement. Sono `BAS-3` e `BAS-4`: collisioni di nome, non dettagli di naming — vanno sciolte
-      prima di CP 14.7, non durante.
+      ✅ **Il contenuto e' deciso dal 2026-08-13** ([D-132](../decisions/RT_PDR_00_Decision_Log.md), chiude
+      `BAS-1`, `BAS-3` e `BAS-4`). I profili sono **tre**, non quattro, e vivono nel namespace di catalogo
+      `Profile.<Nome>` — l'eroe li referenzia da un campo dato, nessun prefisso d'eroe nel token:
+
+        - Gadget `Profile.Grounding` — risposta `GROUND`
+        - Phase  `Profile.Sidestep`  — risposta `SIDESTEP` (hex adiacente legale)
+        - Wraith `Profile.Glance`    — risposte `GLANCE LEFT` / `GLANCE RIGHT`
+
+      🔴 **Riktor non ne prende uno, e la ragione e' misurata**: `ANCHOR` prometteva «annulla lo spostamento»,
+      che `Hold Ground` (`Status.Braced`) fa **gia' e con la stessa ampiezza** — il ramo `Braced` del resolver
+      non controlla `KnockDist`, a differenza di `Guarded`. Cardinalita' 1, nessun boundary: sarebbe stata la
+      terza scrittura della stessa regola dopo `Reaction.Anchor` e `Gadget.Anchor`. Il roster conserva cosi'
+      **un eroe senza finestra sul `Brace`**, che e' la baseline della misura di pacing di CP 14.6.
+
+      Le due collisioni di nome sono sciolte cedendo il nome a **chi arriva dopo**: `Vektor.Deflection`
+      (`RTHeroCatalogLibrary.cpp:604`, −20 sul colpo diretto) e `Riva.FlowReaction` (`:377`, `Reposition 1`
+      dopo un colpo subito) **non si toccano qui**. ⚠️ *Giustificazione rimisurata il 2026-08-13*: questa
+      nota diceva «sono token serializzati, e D-120 vieta i rename automatici», e **D-130 supera D-120
+      esattamente li'** — quei due token si rinominano davvero, in `Hero.Wraith.Deflection` e
+      `Hero.Phase.FlowReaction`. La conclusione regge e si irrigidisce: non sono intoccabili, sono **gia'
+      impegnati** in una migrazione con destinazione dichiarata, e un profilo omonimo vi entrerebbe come
+      terza entita'. Per Phase restano **due entita'**: il caso che le separa, «Phase colpita ma non
+      spostata», sopravvive.
+
+      ⚠️ **Restano aperti i numeri**, che non erano di `BAS-1`: resistenza del `Brace`, Charge del
+      `Grounding`, ampiezza della deviazione. Sono bilanciamento e si restringono al playtest.
 
   - feature_id: RT-FEAT-REACTION-CLASH
     title: Reaction Clash (opportunity contested)
@@ -2559,6 +2591,13 @@ features:
       # leggono il TurnLog — `LogEventCount`/`LogEventOrder` (#318) e `LogEventAmount` (#361,
       # a7e4677b del 2026-08-10). Questi tre chiedevano esattamente quello: ordine degli eventi,
       # assenza di una voce prima del reveal, hash uguale fra due run. Restano da scrivere (CP 14.7).
+      #
+      # ⚠️ `Spec.Clash.Determinism` resta l'eccezione, e non per mancanza di capability: **nessuna
+      # assertion di hash esiste** nell'enum, e `#318` ha chiuso quel bullet con la *motivazione scritta*
+      # invece che con l'assertion — `URTTurnLogLibrary::HashTurnLog` ordina prima di mescolare, quindi e'
+      # invariante per permutazione e non vedrebbe l'ordine (`RTScenarioSession.h:152`). Il determinismo si
+      # verifica **eseguendo due volte**: e' una proprieta' del runner, non del file
+      # (`test-automatico-unreal.md` §5.1, `scenario-map.md` §9).
       - planned:
           - Spec.Clash.HiddenUntilReveal
           - Spec.Clash.RevealIsFixedDeadline

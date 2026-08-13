@@ -55,16 +55,64 @@ degenere `AllowedResponses ≤ 1` — commit immediato, nessun boundary. La prec
 Non serve nessuna regola nuova, nessun enum di tipo, nessuna eccezione. `Counter`, `Deflect`, `Shield` e
 `Cleanse` restano dove sono: la loro cardinalità è 1 perché non hanno profili alternativi dichiarati.
 
-### 2.4 Il test che deve cadere
+### 2.4 L'asserzione che deve cadere
 
-`RefactorTactics.Reactions.Brace.IsNotAReaction` (`RTDefensiveReactionTests.cpp:162`) asserisce oggi
-`ReactionTrigger == ERTReactionTrigger::None`. È un test scritto per **pinnare** lo stato attuale, e D-047 lo
-supera. Va **sostituito**, mai cancellato in silenzio, dalla coppia:
+La classificazione vecchia non è pinnata da un test dedicato: è **un'asserzione dentro un altro test** —
+`TestTrue(TEXT("Brace non e' una reazione: nessun trigger"), … ReactionTrigger == ERTReactionTrigger::None)`
+a `RTDefensiveReactionTests.cpp:171`, dentro `RefactorTactics.Reactions.DefensivesMatchCatalog`.
+
+> ⚠️ **Corretto il 2026-08-13.** Fino a oggi questo paragrafo, il [Decision Log](../decisions/RT_PDR_00_Decision_Log.md)
+> (D-047), `roadmap-v0.1.md` §5, `feature-registry.yaml` e la issue `#314` nominavano un test
+> `Reactions.Brace.IsNotAReaction` a `RTDefensiveReactionTests.cpp:162`. Quel nome **non è mai esistito**:
+> `grep -rn "IsNotAReaction" Source/` non trova nulla e `git log -S` nemmeno. La differenza non è di forma —
+> «sostituire il test» eseguito alla lettera cancellerebbe anche il pinning di costo, priorità, cooldown,
+> slot e macro-fase delle cinque azioni difensive, che vive **nello stesso test**.
+
+D-047 supera quell'asserzione. Va **rimossa dal ciclo di conformità e sostituita**, mai cancellata in
+silenzio, dalla coppia:
 
 - `Reactions.Brace.BaseProfileHasSingleResponse` — col solo profilo base la cardinalità resta 1 e **nessun
   boundary si apre**: è la garanzia che nulla di verde rallenta;
 - `Reactions.Brace.RicherProfileOpensWindow` — un profilo con due risposte legali apre il boundary senza che
   il resolver conosca l'eroe.
+
+Il resto di `DefensivesMatchCatalog` — costi, priorità, cooldown, slot e macro-fasi delle difensive — **resta
+invariato**: non è ciò che D-047 tocca, e un test che perde metà delle sue asserzioni per un cambio di
+classificazione è un test che smette di sorvegliare in silenzio.
+
+### 2.5 I profili del roster v0.1 — [D-132](../decisions/RT_PDR_00_Decision_Log.md), contenuto deciso
+
+Un profilo è un'entità di **catalogo**, non un'abilità d'eroe: vive nel namespace `Profile.<Nome>` come
+`Action.Brace` e `Reaction.Anchor`, e l'eroe lo **referenzia da un campo dato**. È la forma letterale di
+«profilo come dato, non ramo nel resolver», e ha tre conseguenze che un prefisso d'eroe non avrebbe dato:
+nessun profilo può collidere con un'abilità, nessun token nuovo nasce con un nome che
+[D-120](../decisions/RT_PDR_00_Decision_Log.md) ha declassato a legacy, e un profilo si riassegna fra eroi
+senza rename quando il roster cresce.
+
+| Eroe | Profilo | Risposte oltre `Hold Ground` | Cardinalità |
+|---|---|---|---|
+| **Gadget** | `Profile.Grounding` | `GROUND` | 2 → apre la finestra |
+| **Phase** | `Profile.Sidestep` | `SIDESTEP` — hex adiacente legale | 2 → apre la finestra |
+| **Wraith** | `Profile.Glance` | `GLANCE LEFT` · `GLANCE RIGHT` | 3 → apre la finestra |
+| **Riktor** | — solo profilo base | — | **1 → nessuna finestra** |
+
+**Perché Riktor non ne prende uno.** La proposta gli assegnava `ANCHOR`, «il riferimento anti-displacement del
+roster». Ma `Hold Ground` — cioè `Status.Braced` — lo fa **già e con la stessa ampiezza**: il ramo `Braced` del
+resolver non controlla `KnockDist`, a differenza di `Guarded`, che regge solo fino a
+`GuardResistedPushDistance`. Una seconda risposta che coincide con la prima lascia la cardinalità a **1**,
+quindi per §2.3 non apre nulla — e sarebbe stata la terza scrittura della stessa regola, dopo `Reaction.Anchor`
+(«la prima spinta o trazione del turno non ti sposta, a qualunque distanza») e `Gadget.Anchor`. Non è un taglio
+di contenuto: è che quel contenuto **esisteva già**, due volte.
+
+Il roster conserva così un eroe **senza finestra sul `Brace`**, ed è la baseline con cui confrontare gli altri
+tre quando CP 14.6 misura il pacing.
+
+**Quante finestre.** Il `Brace` segue `MaxPromptsPerReaction` (**3**) come ogni altra reazione: nessun cap
+dedicato, nessuna eccezione nel modello unificato. Il tetto teorico di una resolution sale, ed è dichiarato —
+è la configurazione in cui la misura di CP 14.6 può davvero fallire.
+
+⚠️ **Nessun numero è deciso qui**: resistenza del `Brace`, Charge del `Grounding` e ampiezza della deviazione
+restano aperti come li elencava il triage del 2026-08-10. Sono bilanciamento, e si restringono al playtest.
 
 ## 3. Reaction Clash — [D-048](../decisions/RT_PDR_00_Decision_Log.md)
 

@@ -195,6 +195,19 @@ forma con e senza finestra aperta. Se in v0.1 (offline, contro bot) il requisito
 verificabile, si documenta l'architettura e si apre la issue per il multiplayer: **non si degrada il
 requisito** a «lo sistemeremo con la UI».
 
+> ✅ **La issue esiste dal 2026-08-13: [#759](https://github.com/DegrassiAaron/refactor-tactics-main/issues/759)**,
+> `post-v0.1`, milestone di roadmap **M10**. Fino a quel giorno questa prescrizione non aveva un destinatario
+> — nessuno dei tre checkpoint di E14 aveva una voce di DoD per il canale temporale, e la riga qui sopra si
+> leggeva come se il lavoro fosse tracciato.
+>
+> **Cosa è già coperto**: il livello **DTO** lo è da CP 14.3 — `Overwatch.OpportunityLeaksNoFuture`
+> (`RTReactionOpportunityTests.cpp:159`) verifica l'**elenco chiuso dei campi per riflessione**, quindi chi
+> aggiunge un campo deve passare di lì e dichiarare perché non è informazione futura. Scoperta resta la
+> **presentazione avversaria**: nessuna pausa variabile correlata alla scelta privata. In v0.1 — offline,
+> contro bot — non c'è un avversario umano che osservi la resolution, quindi il requisito non è
+> falsificabile: è la ragione per cui #759 nasce `post-v0.1` invece di entrare in un DoD che non potrebbe
+> verificarla.
+
 ### 8. Parametri iniziali *(risolve §8.3)*
 
 | Parametro | Valore | Origine |
@@ -214,6 +227,13 @@ resta volutamente non limitato. I due non sono in contraddizione.
 > a scadenza fissa rende ogni finestra **incomprimibile**: con quella regola i `3 × 3,0 s = 9 s` diventano un
 > **minimo garantito** invece di un massimo raggiunto solo per indecisione. È una misura di **CP 14.7**, non
 > una stima.
+>
+> 🔎 **Precisata il 2026-08-13 ([D-133](RT_PDR_00_Decision_Log.md)): le due frasi qui sopra parlano di
+> statistiche diverse.** «Non va rimisurata da capo» vale per il **massimo**, che con un solo prompt per
+> boundary resta quello di questa tabella; «da misurare, non da stimare» vale per il **minimo garantito**, che
+> il reveal fisso alza. Poiché la soglia si legge come `p50`/`p90` (§Revisione), dopo CP 14.7 la taratura si
+> **ripete** — non si riapre la decisione, si riesegue la misura sul regime nuovo. La distinzione non era
+> esplicita e le due letture sembravano contraddirsi.
 
 ### 9. Cosa **non** cambia
 
@@ -271,13 +291,46 @@ contiene **solo il presente** — mai trigger futuri, percorsi futuri, opportuni
 
 Checkpoint in [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) epic **E14** (CP 14.1–14.5); questo ADR **è** il CP 14.1.
 
-## Revisione
+## Revisione → **punto di taratura** *(riformulato il 2026-08-13, [D-133](RT_PDR_00_Decision_Log.md))*
 
-Rivedere alla chiusura di **CP 14.5**, che misura la durata reale della resolution con 1, 2 e 3 unità armate.
+Alla chiusura di **CP 14.6**, che misura la durata reale della resolution con 1, 2 e 3 unità armate.
 
-**Soglia di allarme**: resolution stabilmente sopra i **20 secondi**. In quel caso rientrano le due opzioni già
-valutate — *cap aggregato per turno condiviso fra le unità* oppure `MaxPromptsPerReaction = 1` — senza toccare
-il modello, perché sono entrambe parametri.
+> ⚠️ **Questa sezione diceva «Rivedere alla chiusura di CP 14.5», ed erano sbagliate due cose.** Il
+> checkpoint: la misura con 1/2/3 unità armate è di **CP 14.6** — `roadmap-v0.1.md` §5 e
+> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) lo dicono da tempo, e CP 14.5 misura a decisore immediato,
+> cioè con Decision Time nullo per costruzione. E il **verbo**: quello che 14.6 produce non è l'apertura di
+> una revisione architetturale, sono i numeri con cui si **tarano** i parametri.
+>
+> I due rientri che questa sezione teneva pronti sono stati **consumati prima della misura**, e registrarlo
+> vale più che prometterli:
+>
+> | Rientro | Stato |
+> |---|---|
+> | *cap aggregato per turno condiviso* | **già scelto** da [D-050](RT_PDR_00_Decision_Log.md) — il Decision Time Bank *è* un cap aggregato, in tempo anziché in prompt. `DOC_CONFLICT_MATRIX` riga 60 marca `D20` `SUPERSEDED` |
+> | `MaxPromptsPerReaction = 1` | **disponibile**, ma il [triage del 2026-08-10](../roadmap/plans/overwatch-runtime-lifecycle-triage-2026-08-10.md) ha misurato che in 2v2 il valore `3` è **già irraggiungibile** da una singola Overwatch: «diventa molto meno probabile che serva» |
+>
+> Restano entrambi validi e **compatibili** col bank — sono parametri, si attivano insieme. Ciò che cade è
+> l'idea che 14.6 debba *scegliere* fra loro: quella scelta è già stata fatta altrove.
+> [`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) §2.2 lo scrive già in forma negativa
+> — «si tarano i valori, **non si riapre ADR-0004**» — ed era l'unico documento a dirlo.
+
+**Soglia di allarme**: `ReactionDecisionSeconds` **stabilmente** sopra i **20 secondi**, letta come **`p50` e
+`p90`** — non come massimo osservato. La parola «stabilmente» era già qui e indicava il caso **tipico**; ora
+lo dice anche la statistica, perché un massimo su poche esecuzioni è rumore e una soglia che non può scattare
+non sorveglia niente.
+
+> **Perché il tipico e non il peggiore** *(precisa [D-048](RT_PDR_00_Decision_Log.md), non la cambia)*. D-048
+> contiene entrambe le letture a mezza riga di distanza: «il caso peggiore di §8 e la soglia d'allarme di 20 s
+> **non si rimisurano da capo**», e subito dopo «il reveal fisso rende i 9 s un **minimo garantito** … **da
+> misurare**, non da stimare». Non litigano, si dividono il lavoro: un boundary *contested* vale **un solo**
+> prompt, quindi il **massimo** non cambia; ma il reveal a scadenza fissa alza il **pavimento**, ed è il `p50`
+> a vederlo. Conseguenza operativa: dopo CP 14.7 la taratura si **ripete**, non si riapre.
+>
+> **Campione**: ≥ **10 partite**, lo stesso di `InitialBankMs` in
+> [`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) §3.2 — così le due misure leggono lo
+> stesso campione e sono confrontabili. Se il costo è proibitivo con una UI appena consegnata, l'alternativa
+> è N resolution con risposte scriptate a tempi realistici, **dichiarando N e la provenienza**: è una scelta
+> di strumentazione, non di modello.
 
 > **La soglia dei 20 s è coerente con le bande di formato** ([`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md)
 > §9): playback tipico **8–15 s** in 2v2 e **12–20 s** in 3v3 Standard. Attenzione a **cosa** si confronta: le

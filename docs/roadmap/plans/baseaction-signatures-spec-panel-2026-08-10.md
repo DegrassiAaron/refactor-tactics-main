@@ -177,7 +177,7 @@ Il documento avverte esso stesso «se il registry usa ID diversi, usare quelli r
 |---|---|
 | CHAR-BASE-006 — HOLD poi INTERCEPT su secondo nemico | **è** `Spec.Overwatch.HoldThenFire`, già dichiarato (esce `BLOCKED`) |
 | CHAR-BASE-010 — identità del Basic Attack | già coperto da `Heroes.BasicAttackDeclaresItsBaseAction` + `BasicAttackIsIndexZeroForEveryHero` (verdi) |
-| CHAR-BASE-009 — Guard ≠ Brace | è un test unit, e il suo posto è occupato: `Reactions.Brace.IsNotAReaction` **va sostituito** (CP 14.7), non affiancato |
+| CHAR-BASE-009 — Guard ≠ Brace | è un test unit, e il suo posto è occupato: l'asserzione `ReactionTrigger == None` dentro `Reactions.DefensivesMatchCatalog` (`RTDefensiveReactionTests.cpp:171`) **va sostituita** (CP 14.7), non affiancata *(riferimento corretto il 2026-08-13: questa riga diceva `Reactions.Brace.IsNotAReaction`, un test che non esiste)* |
 
 ## 3. Che cosa si tiene
 
@@ -196,6 +196,24 @@ repository possiede, sopra un meccanismo che è già deciso e già pianificato.
 Regge sul canone: D-047 dice che un profilo con **≥ 2 risposte legali** apre la finestra, e questi ne
 dichiarano due o tre. Il vincolo «mostrare solo risposte legali» (§11.2, §11.4) è già l'invariante di
 ADR-0004. ⚠️ = collisione di nome, §2.4.
+
+> ✅ **Esito, 2026-08-13** — [D-132](../../decisions/RT_PDR_00_Decision_Log.md) chiude `BAS-1`, `BAS-3` e
+> `BAS-4`. La tabella sopra **resta com'era proposta**, perché è ciò che il triage aveva effettivamente
+> raccolto; l'esito la corregge in tre punti, e non la riscrive.
+>
+> | Riga proposta | Eroe | Esito |
+> |---|---|---|
+> | `Flux` · `Grounding` | Gadget | ✅ entra come **`Profile.Grounding`** |
+> | `Riva` · `Flow` | Phase | ✅ entra come **`Profile.Sidestep`** — «Flow» erano già **tre** entità su questo eroe, non due come diceva `BAS-4` |
+> | `Bastion` · `Anchor` | Riktor | ❌ **non entra** — `Status.Braced` resiste già allo spostamento a qualunque distanza: cardinalità 1, nessuna finestra. Non era contenuto, era un nome |
+> | `Vektor` · `Deflection` ⚠️ | Wraith | ✅ entra come **`Profile.Glance`** — cede il nome chi arriva dopo; `Vektor.Deflection` è già impegnata dalla migrazione di [D-130](../../decisions/RT_PDR_00_Decision_Log.md) verso `Hero.Wraith.Deflection` |
+>
+> *(la prima colonna cita i nomi come li scriveva il triage; il roster canonico è nella seconda — [D-120](../../decisions/RT_PDR_00_Decision_Log.md))*
+>
+> I profili sono entità di **catalogo** (`Profile.<Nome>`), non abilità d'eroe: il namespace è la ragione per
+> cui `BAS-3` e `BAS-4` si sciolgono invece di essere arbitrate caso per caso. Vale anche per i quattro
+> profili `Overwatch` di §3.2, che [D-122](../../decisions/RT_PDR_00_Decision_Log.md) aveva approvato
+> nominandoli solo in prosa.
 
 ### 3.2 Profili `Overwatch` per eroe — contenuto per CP 14.4
 
@@ -218,6 +236,16 @@ Vektor non deve diventare tank per via del Brace*. Si tiene nel triage, non nel 
 ## 4. Decisioni aperte
 
 Nessuna viene chiusa qui. Nessun valore numerico viene inventato.
+
+> ✅ **Tutte chiuse al 2026-08-13**, e non da questo documento: `BAS-5` dal triage gemello del 2026-08-10,
+> `BAS-2` da [D-122](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-12), `BAS-1`/`BAS-3`/`BAS-4` da
+> [D-132](../../decisions/RT_PDR_00_Decision_Log.md). La tabella resta come registro di ciò che era aperto e
+> perché; lo stato vive in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
+>
+> ⚠️ **Il §18 sopra ha retto meglio del previsto**: «[Riktor] non deve dominare anche l'Overwatch» era un
+> criterio di revisione, e la decisione lo ha applicato senza saperlo — Riktor è l'unico eroe a **non**
+> ricevere un profilo `Brace`, per una ragione tecnica indipendente (`Status.Braced` copre già il caso).
+> *(la citazione del §18 diceva il nome legacy; la parentesi quadra è l'adattamento, non il testo originale)*
 
 | ID | Domanda | Perché non si chiude da sola |
 |---|---|---|
