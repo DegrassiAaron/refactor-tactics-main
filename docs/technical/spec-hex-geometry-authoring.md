@@ -121,7 +121,8 @@ Ciò che il designer disegna si serializza **senza estremi float**. `FRTOccupanc
 > primo commit ne inventasse uno — solo che quel tipo è il **derivato**, non la sorgente.
 
 `MSE-1` ne esce **ristretta**: decide *dove* vive il source editabile e chi vince al rebake, non più *in che
-tipo*.
+tipo*. — E una seconda volta con `D-129`, che togliendo il volume dal bake ne cambia anche il **soggetto**:
+non più `bBlocksMovement`, ma `FRTHexCover`. Vedi §12.
 
 > 🔑 **Il quanto è relativo al punto notevole della direzione, non a `HexSize` — ed è questo che rende
 > esprimibile la terza famiglia.** Un quanto lineare uniforme non può esprimere insieme i due punti
@@ -302,8 +303,17 @@ se c'è copertura o se una cella è calpestabile: legge dati tattici.
 |---|---|
 | `LOW WALL` | `FRTHexCover{Low}` sul bordo |
 | `WALL` | `FRTHexCover{High}` sul bordo |
-| footprint solido | `bBlocksMovement`, secondo la classificazione di §6 |
-| footprint void / precipizio | `bBlocksMovement = true` **+** `bBlocksLineOfSight = false` |
+
+> 🔑 **La cottura si ferma ai bordi — `D-129`.** La tabella aveva due righe in più: `footprint solido →
+> bBlocksMovement` e `footprint void/precipizio → bBlocksMovement + !bBlocksLineOfSight`. **Sono uscite**, e
+> la ragione è la §5.1 letta fino in fondo: il volume viene da *«unità, materiali, elementi interattivi e
+> statici, props»* — cose che si **piazzano**, non che si **disegnano**. Coerentemente la grammatica di
+> `#620` esprime **solo segmenti aperti** (`FRTGeometrySegment` non ha campo di chiusura), quindi il
+> footprint non è mai stato un suo ingresso.
+>
+> `bBlocksMovement` e `bBlocksLineOfSight` restano scritti dal **dato d'autore** — un produttore solo. Il
+> volume non è cancellato: è un lavoro che avrà un owner quando esisteranno entità con footprint proprio,
+> e quell'owner non è `#621`.
 
 > 🔎 **Il bake NON scrive `Surface`.** La proposta `void/cliff → ERTHexSurface::Void` è stata valutata e
 > **respinta** il 2026-08-12. `Void` sarebbe una superficie *dipinta* fra nove valori, e nessuna regola
@@ -397,8 +407,8 @@ Nessuna di queste si decide in un commit di implementazione. Vivono in
 
 | ID | Domanda | Innesco |
 |---|---|---|
-| `MSE-1` | Dove vive il **source editabile** della geometria d'authoring, e chi vince se un dato cotto viene modificato a mano e poi si rifà il bake? — ⚠️ **ristretta da `D-127`**: *in che tipo* non è più parte della domanda | [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) |
-| `MSE-4` | Un settore toccato in un **solo punto** dal bordo di un footprint va contato come occupato, o serve un'intersezione di lunghezza non nulla? | [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) |
+| `MSE-1` | Chi vince fra una **copertura cotta** e una **creata in partita**, se poi si rifà il bake? — ⚠️ **ristretta due volte**: `D-127` ha tolto *in che tipo* vive il source, `D-129` ha tolto `bBlocksMovement` dal bake. Resta il soggetto più acuto: `FRTHexCover` ha già produttori **runtime** (`AddCover` ← `Action.CreateCover`) che scrivono sull'asset | [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) |
+| `MSE-4` | Un settore toccato in un **solo punto** dal bordo di un footprint va contato come occupato, o serve un'intersezione di lunghezza non nulla? — ⚠️ **non più innescata da `#621`** (`D-129`): il bake non cuoce footprint, quindi nessun produttore la pone ancora | il **primo footprint di produzione** |
 | ~~`MSE-2`~~ | ✅ **Sciolta da `D-125`**: misurava i **muri**, che non alimentano l'occupancy — vedi §5.1 | — |
 | ~~`MSE-3`~~ | ✅ **Chiusa da `D-125`**: i due modelli misurano la stessa cosa a due granularità | — |
 

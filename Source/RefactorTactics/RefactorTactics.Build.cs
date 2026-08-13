@@ -16,7 +16,17 @@ public class RefactorTactics : ModuleRules
 			"Engine",
 			"InputCore",
 			"EnhancedInput",
-			"GameplayTags"
+			"GameplayTags",
+			// CP 11.7: le classi BASE dei widget dello Screen HUD (§4.1). Il layer §4.2 — path, AoE, facing,
+			// barre ancorate alle unita' — resta in Canvas dentro `ARTHUD`, dove la spec lo vuole: aggiungere
+			// UMG non autorizza a migrarlo, e `progettazione-hud.md` dice testualmente che quel layer «non
+			// deve essere realizzato come grandi widget HUD statici».
+			//
+			// `Slate`/`SlateCore` accanto a `UMG` perche' `FSlateBrush` e i tipi di stile vivono li': un
+			// widget che espone un brush senza di essi non compila, e il messaggio d'errore non lo dice.
+			"UMG",
+			"Slate",
+			"SlateCore"
 		});
 
 		// Json/JsonUtilities: scenari di test e report machine-readable dello Scenario Harness

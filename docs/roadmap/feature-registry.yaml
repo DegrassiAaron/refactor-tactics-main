@@ -3434,9 +3434,12 @@ features:
       - RT-FEAT-UI-ICON-LANGUAGE
     owner_specs:
       - docs/technical/progettazione-hud.md
+      # La ricetta d'Editor: cosa il codice NON puo' preparare, perche' i `.uasset` non si versionano.
+      - docs/technical/guida-screen-hud-umg.md
     issues: [613]
     tests:
       - RefactorTactics.HudViewModel.*
+      - RefactorTactics.ScreenHud.*
     scenarios: []
     wiki_refs:
       - wiki:come-si-gioca
@@ -3484,6 +3487,27 @@ features:
 
       ⏳ I gate restano `partial`: i widget UMG sono `.uasset` e questo repository non li versiona
       (`Content/**/*.uasset` in `.gitignore`). Il view model e' pronto, il suo consumatore no.
+
+
+      ➕ **2026-08-13: le classi BASE dei widget esistono** (`UI/RTScreenHudWidgets.h`), e con esse il
+      modulo `UMG` fra le dipendenze — che prima non c'era, come non c'era **nessun** `UUserWidget` in
+      C++. Sette classi per i sei `WBP_RT_*` che il DoD nomina, piu' la base di contesto. Tre vincoli del
+      DoD diventano proprieta' della FIRMA invece che disciplina: nessun accessor restituisce
+      `ARTTurnManager` o `ARTUnit` a un Blueprint (quindi non c'e' il modo di ricalcolare), le icone
+      viaggiano come `FName` e non come asset, `bShowDebug` nasce `false` sulla classe.
+
+
+      🔴 **Il vincolo delle icone e' verificabile via REFLECTION**, non raccomandato:
+      `ScreenHud.WidgetApiExposesNoTexture` itera le `UPROPERTY` delle sette classi e nomina quella
+      colpevole. Provato rompendolo. ⚠️ Copre la superficie **C++**: un Blueprint derivato puo' sempre
+      aggiungersi una `Texture2D`, e nessun gate lo impedisce perche' i `.uasset` non sono versionati.
+      Quella meta' e' scritta come regola nella guida.
+
+
+      ⚠️ **Cosa manca ancora, ed e' tutto lavoro d'Editor**: i sei `.uasset` (`Content/RT/UI/` non
+      esiste), l'aggancio del contenitore al viewport (nessun codice lo fa: `ARTHUD` e' un `AHUD` in
+      Canvas e non conosce UMG), il catalogo icone di `#220`, e `PIE-V01-HUD`. La ricetta e' in
+      `../technical/guida-screen-hud-umg.md`.
 
   - feature_id: RT-FEAT-UI-POINTER-INTERACTION
     title: Contratto del puntatore — Hover, LMB, RMB
