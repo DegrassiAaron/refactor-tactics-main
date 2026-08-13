@@ -198,6 +198,11 @@ L'atomicità copre tutti i worktree di **questo clone** — lock nel git common 
 altri PC: là `audit-refs` diagnostica prima del merge invece di prevenire. Meccanismo e recovery in
 [`technical/workflow-parallel-claude.md`](technical/workflow-parallel-claude.md).
 
+⚠️ **L'allocatore risolve la collisione di numerazione e nient'altro: due worktree possono ancora scrivere
+lo stesso file.** Per quello serve il write-set del batch — [`roadmap/parallel-batch.yaml`](roadmap/parallel-batch.yaml),
+[D-139](decisions/RT_PDR_00_Decision_Log.md) — con la regola *file non assegnato = STOP* e la **Binary
+Asset Lease** sui `.uasset`/`.umap`, che sono human-first ma non human-only.
+
 ### Riferimenti a checkpoint
 
 `CP 6.3` **non è risolvibile**: 20 numeri di checkpoint su 22 esistono in due spazi — `6.3` è «input hex»

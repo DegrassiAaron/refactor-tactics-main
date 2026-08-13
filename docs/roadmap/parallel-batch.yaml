@@ -1,0 +1,164 @@
+# Parallel batch — chi può scrivere cosa, in questo giro
+#
+# Owner della sola cosa che il repository non aveva: **il write-set di un lotto di sessioni
+# parallele**. `D-135` dice che una sessione esecutiva = un worktree + un branch, e si ferma lì;
+# due worktree possono ancora editare lo stesso file, e finora l'unica difesa era che se ne
+# accorgesse il merge. Decisione: `D-139`.
+#
+# Questo file descrive il **batch**, non le feature. Vive quanto il batch e viene riscritto al
+# successivo: non è un registro storico, e non si accumula.
+#
+# ## Cosa NON va scritto qui
+#
+#   status / done / progress          lo stato di una feature vive nel Feature Registry, quello di
+#                                     un task su GitHub. Un write-set non è un avanzamento.
+#   conteggi di test / gate outcome   stessa ragione: sono misure, e qui non si misura niente
+#   la classificazione delle feature  `execution-graph.yaml` ha già `execution_lanes` e
+#                                     `domain_groups`, entrambi validati. Un terzo vocabolario
+#                                     sugli stessi oggetti è ciò che il triage del 2026-08-14 ha
+#                                     respinto: `plans/quattro-processi-paralleli-triage-2026-08-14.md` §4
+#   il titolo di una issue            vive su GitHub e cambia senza avvisare
+#
+# ## La regola che questo file esiste per rendere verificabile
+#
+# Prima di modificare un file: il path deve appartenere al `writable` della tua track. Altrimenti
+# **stop** — si registra una richiesta di riallocazione, non si fa «solo questa piccola fix».
+# Vale per C++, docs, scripts, Config, `.uasset`, `.umap`, test e output generati.
+#
+#   WritableSet(T1) ∩ WritableSet(T2) = ∅
+#   BinaryLeaseSet(T1) ∩ BinaryLeaseSet(T2) = ∅
+#
+# ## `integration_only`
+#
+# I file che più branch potrebbero voler toccare non si assegnano: si aggiornano **una volta in
+# integrazione**. Non è ownership permanente — è una proprietà di questo batch.
+#
+# ## Le lease binarie
+#
+# Due `.uasset`/`.umap` non si fondono: un conflitto binario è una delle due versioni da rifare a
+# mano dentro Unreal. La lease non previene un conflitto, previene un lavoro perso.
+# `key` semantica e legata a GitHub, mai `LEASE-001`. Una lease vale sul `base_sha`: se `main`
+# tocca lo stesso asset, la lease è **stale** e va riemessa.
+
+schema_version: 1
+
+meta:
+  status: ACTIVE
+  note: >-
+    Primo batch dopo D-139. Due track su quattro sono IDLE, e non è un difetto: il parallelismo
+    minimizza il wall-clock, non massimizza il numero di branch. Le issue sono state verificate
+    con `gh issue view` il 2026-08-14; i write-set sono **dichiarazioni da confermare** alla
+    prima apertura del branch, non misure di un lavoro finito.
+
+batch:
+  id: "BATCH-ce9e4365-gh41-gh583"
+  base_sha: "ce9e43656d9eace054a6b61435a955ec1826365f"
+  created_at: "2026-08-14"
+
+# --- Track già occupate al momento del calcolo ------------------------------------------------
+#
+# Non sono parte del batch: sono il vincolo che l'ha determinato. `git worktree list` +
+# `gh pr list --state open` il 2026-08-14.
+
+preexisting:
+  - branch: docs/consolidamento-walls-doors-v1
+    worktree: rt-wt-walls-doors
+    pr: 836
+    note: >-
+      16 file, prevalentemente integration_only. Ha tolto dal batch il validator del parallelismo,
+      che voleva estendere `scripts/feature_registry.py`.
+
+  - branch: fix/capability-sconosciuta-non-e-blocked
+    worktree: wt-cap
+    issue: 767
+    note: tiene `Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp`
+
+  - branch: docs/consolidamento-4-processi
+    worktree: rt-wt-4processi
+    note: questo consolidamento; il suo write-set è la sezione `integration_only` più i tre file nuovi
+
+# --- Le quattro track -------------------------------------------------------------------------
+
+tracks:
+
+  spatial:
+    issue: 41
+    branch: feat/41-kpi-hex
+    note: CP 3.3 — misurazione dei budget su hex. Due voci su quattro sono già registrate.
+    writable:
+      - docs/roadmap/v0.1-definition-of-done.md
+      - Source/RefactorTactics/Map/
+      - Source/RefactorTactics/Pathfinding/
+      - Source/RefactorTactics/Tests/RTHexMapTests.cpp
+      - Source/RefactorTactics/Tests/RTHexPathTests.cpp
+    binary_leases: []
+
+  simulation:
+    issue: 583
+    branch: feat/583-produttore-d109
+    note: >-
+      Il produttore della condizione dichiarata di D-109. Consumatore CP 14.3 (#163), gemella #582.
+      ⚠️ `Tests/RTScenarioCorpusTests.cpp` NON è scrivibile: lo tiene `wt-cap`.
+    writable:
+      - Source/RefactorTactics/Turn/
+      - Source/RefactorTactics/Bot/
+      - Source/RefactorTactics/ScenarioHarness/
+      - Source/RefactorTactics/Tests/RTReactionTests.cpp
+    binary_leases: []
+
+  client_tools:
+    issue: null
+    branch: null
+    status: IDLE
+    note: >-
+      Nessun task utile con write-set disgiunto. #625 e #170 vivono in `Turn/` e `Replay/` accanto
+      a #583; #77 (CP 11.1) tocca `UI/` ma anche i test che le altre due track già scrivono.
+      Rientra al prossimo batch, quando `simulation` avrà liberato `Turn/`.
+
+  content_editor:
+    issue: null
+    session: null
+    status: IDLE
+    note: >-
+      La coda umana è ferma su un binario già conteso. #623 / U21 richiede una lease su
+      `Content/RT/Maps/Dev/L_DevSandbox/` — che è **due** package, non uno: `L_DevSandbox.umap` e
+      `Data/DA_HexMap_Sandbox.uasset`, e la mappa referenzia il data asset. E
+      `Content/RT/Characters/Gadget/Animation/` è untracked nella working directory principale:
+      finché non è committata o scartata, la destinazione non è prenotabile e una lease sarebbe
+      emessa su una base che non esiste in git.
+
+# --- Aggiornati una volta in integrazione ------------------------------------------------------
+
+integration_only:
+  - AGENTS.md
+  - CLAUDE.md
+  - docs/decisions/RT_PDR_00_Decision_Log.md
+  - docs/OPEN_DECISIONS.md
+  - docs/DOC_CONFLICT_MATRIX.md
+  - docs/CONTEXT_INDEX.md
+  - docs/roadmap/roadmap-checkpoint.md
+  - docs/roadmap/roadmap-v0.1.md
+  - docs/roadmap/roadmap-post-v0.1.md
+  - docs/roadmap/feature-registry.yaml
+  - docs/roadmap/execution-graph.yaml
+  - docs/roadmap/editor-sessions.yaml
+  - docs/roadmap/parallel-batch.yaml
+  - docs/archive/src/README.md
+  - docs/roadmap/plans/README.md
+  - scripts/feature_registry.py
+  - RefactorTactics.uproject
+  - Source/RefactorTactics/RefactorTactics.Build.cs
+  - Config/
+
+# Output generati: si rigenerano **dopo** il merge dei branch, mai su un branch singolo, o due
+# rami producono due versioni dello stesso file da una sorgente che nessuno dei due vede intera.
+generated_only:
+  - docs/roadmap/feature-registry.json
+  - docs/roadmap/project-graph.json
+  - docs/roadmap/roadmap.shortlist.md
+  - docs/roadmap/featuremap.shortlist.md
+  - docs/roadmap/scenariomap.shortlist.md
+  - docs/roadmap/milestonemap.shortlist.md
+  - docs/roadmap/editormap.shortlist.md
+
+binary_leases: []

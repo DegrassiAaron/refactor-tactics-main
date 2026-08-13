@@ -23,16 +23,16 @@ dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
 | Banner | Vocabolario | Significa | Quanti *(2026-08-14)* |
 |---|---|---|--:|
-| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 25 |
+| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 26 |
 | `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 1 |
 | `📦 DELIVERED PLAN` | secondo | *Piano già eseguito, non normativo* — equivale a `HISTORICAL` | 14 |
 | `🧱 AS-BUILT` | secondo | *Specifica di ciò che fu consegnato* — equivale a `HISTORICAL` | 7 |
 | `DONE` · `PLAN`/consumato · `BRIEF` | secondo | Casi singoli, già consumati — equivalgono a `HISTORICAL` | 3 |
 
-**50 documenti**, `README.md` escluso. I due totali si rimisurano eseguendo:
+**51 documenti**, `README.md` escluso. I due totali si rimisurano eseguendo:
 
 ```sh
-ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 50
+ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 51
 ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
 ```
 
@@ -40,6 +40,12 @@ ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
 > e il merge ha portato `wiki-audit-player-first-2026-08-13.md` da una sessione parallela. È la regola che
 > il repository ha già imparato più volte: **un totale scritto a mano si rimisura sull'albero mergiato**,
 > non si incrementa e non si copia da prima del merge.
+>
+> 🟡 **E succede di nuovo oggi, stavolta previsto.** `51` è misurato su `docs/consolidamento-4-processi`,
+> che aggiunge il triage dei quattro processi. [#836](https://github.com/DegrassiAaron/refactor-tactics-main/pull/836)
+> aggiunge `walls-doors-interaction-spec-panel-2026-08-13.md` alla stessa cartella: dopo il merge di
+> entrambe il totale sarà **52** e i `CURRENT` **27**. Letto con `gh pr list --state open` *prima* di
+> scrivere il numero — che è l'unica differenza fra prevedere lo scarto e scoprirlo.
 
 ✅ **Nessun `HISTORICAL` canonico resta qui**: dal 2026-08-14 vivono tutti in
 [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/README.md).
