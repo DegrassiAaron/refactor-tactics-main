@@ -1221,6 +1221,16 @@ FRTActionDef URTCatalogLibrary::MakePrecisionAttack(int32 WeaponRangeCells)
 	return MakeWeaponAttack(TEXT("Action.PrecisionAttack"), FMath::Max(1, WeaponRangeCells) + 1);
 }
 
+bool URTCatalogLibrary::TakesMovementSlot(const FRTActionDef& Action)
+{
+	return Action.Slot == ERTActionSlot::Movement || Action.Slot == ERTActionSlot::MovementAndMain;
+}
+
+bool URTCatalogLibrary::TakesMainSlot(const FRTActionDef& Action)
+{
+	return Action.Slot == ERTActionSlot::Main || Action.Slot == ERTActionSlot::MovementAndMain;
+}
+
 TArray<FString> URTCatalogLibrary::ValidateActionSlots(const TArray<FRTActionDef>& PlannedActions)
 {
 	TArray<FString> Errors;
@@ -1232,10 +1242,8 @@ TArray<FString> URTCatalogLibrary::ValidateActionSlots(const TArray<FRTActionDef
 
 	for (const FRTActionDef& Action : PlannedActions)
 	{
-		const bool bTakesMovement = Action.Slot == ERTActionSlot::Movement
-			|| Action.Slot == ERTActionSlot::MovementAndMain;
-		const bool bTakesMain = Action.Slot == ERTActionSlot::Main
-			|| Action.Slot == ERTActionSlot::MovementAndMain;
+		const bool bTakesMovement = TakesMovementSlot(Action);
+		const bool bTakesMain = TakesMainSlot(Action);
 
 		if (bTakesMovement)
 		{

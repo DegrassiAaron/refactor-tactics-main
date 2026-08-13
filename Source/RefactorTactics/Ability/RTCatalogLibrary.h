@@ -309,6 +309,22 @@ public:
 	static TArray<FString> ValidateActionSlots(const TArray<FRTActionDef>& PlannedActions);
 
 	/**
+	 * Quale dei due slot del turno consuma un'azione. `MovementAndMain` (`Action.Sprint`) risponde **vero a
+	 * entrambe**, ed e' l'unico motivo per cui queste sono due funzioni e non un `== Slot`.
+	 *
+	 * Estratte da `ValidateActionSlots` il 2026-08-13, quando la HUD di CP 11.1 ha avuto bisogno della stessa
+	 * domanda al contrario — non «questo piano e' valido?» ma «quali slot risultano occupati?». La regola
+	 * resta una sola: due copie di `Slot == Movement || Slot == MovementAndMain` sarebbero divergite alla
+	 * prima azione che consuma gli slot in un modo nuovo, e il widget avrebbe mostrato uno slot libero che il
+	 * validatore considera pieno.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
+	static bool TakesMovementSlot(const FRTActionDef& Action);
+
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
+	static bool TakesMainSlot(const FRTActionDef& Action);
+
+	/**
 	 * Gli `ActionId` delle azioni **generiche** che ogni unita' possiede in aggiunta al proprio kit (D-025).
 	 *
 	 * Sono **tre** delle sette dichiarate, e le altre quattro mancano per ragioni diverse che vale la pena
