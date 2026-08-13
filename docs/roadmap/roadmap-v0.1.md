@@ -515,7 +515,7 @@ LANE D — CONSISTENCY     #625 + #687 + #649 ── #512 ── #170 ── #17
 |---|---|---|
 | **A** Reactions | il livello `Rilevato` che le serve esiste da CP 13.2 | `#314` e `#319` vengono **dopo** `#166`: è lì che la durata della resolution si misura per la prima volta, e tarare prima significherebbe scegliere i valori a occhio |
 | **B** Perception | `#690` e `#686` sono **data-only** sui cataloghi, non toccano il runtime | sono i due lati della stessa comparazione acustica (intensità del rumore ↔ soglia d'udito): vanno letti insieme, non uno senza l'altro |
-| **C** UI / Icons | non condivide file con A e B | `#637` è il linguaggio **esteso** e non deve bloccare le **33 chiavi** che la v0.1 richiede a `#219` |
+| **C** UI / Icons | non condivide file con A e B | `#637` è il linguaggio **esteso** e non deve bloccare le chiavi che la v0.1 richiede a `#219` — **60** al 2026-08-13, non 33: l'insieme è **derivato** da `RequiredIconIds()` e cresce col catalogo azioni |
 | **D** Consistency | è la sola lane che **precede un gate**: `#170` | `#625` e `#687` vanno chiusi **prima** del pinning del golden replay — un mutatore di stato fuori dal TurnLog rende il replay incapace di spiegare la propria divergenza |
 
 > ⚠️ **`#314` e `#319` sono i candidati al taglio, non `#165`.** Se E14 va accorciata escono le estensioni

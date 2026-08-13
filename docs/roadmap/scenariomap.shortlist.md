@@ -104,13 +104,13 @@ una persona. I conteggi qui sotto sono quelli di
 [`../technical/scenario-map.md`](../technical/scenario-map.md), misurati il **2026-08-09**; il totale del
 corpus e i bloccati sono invece generati in §1 e vincono sempre.
 
-| Classe | Chi esegue | Chi giudica | Quanti *(owner, 2026-08-09)* |
+| Classe | Chi esegue | Chi giudica | Quanti *(owner; `C` e fuori classe rimisurati il 2026-08-13)* |
 |:--:|---|---|---|
 | **A** | la macchina | l'assertion | **26** scenari |
 | **B** | la macchina | **una persona** che guarda | **21** scenari ↔ 21 voci `PIE-VIS-*` |
-| **C** | una persona | una persona | **95** voci PIE |
+| **C** | una persona | una persona | **112** voci PIE *(diceva `95`)* |
 | **D** | — | — | vedi §1: i `BLOCKED` e i `planned` sono misurati |
-| *fuori classe* | la macchina | una persona sceglie **quando** | 1 voce — `PIE-MUT-BASTION-SLOW` |
+| *fuori classe* | la macchina | una persona sceglie **quando** | **2** voci — `PIE-MUT-BASTION-SLOW` e `PIE-MUT-ACTIONS-ZERO` *(diceva 1)* |
 
 In B l'assertion esiste comunque: garantisce che ciò che stai guardando sia lo **stato giusto**, perché uno
 scenario visivo senza assertion può mostrarti una bellissima animazione di un colpo che ha mancato.
@@ -170,15 +170,16 @@ l'oracolo è chi guarda.
 | `Visual.Reaction.*` | 2 | 22 diventano 2 (`Deflection`) · il colpo **cambia destinatario** a mezz'aria (`Interposition`) |
 | `Visual.Core.PhaseOrder` | 1 | `Dash → Blast → Move` in tre momenti separati |
 
-## 5. Classe C — solo input umano · 95 voci PIE
+## 5. Classe C — solo input umano · 112 voci PIE
 
 Nessuno scenario può sostituirle: richiedono mouse, editor, giudizio o cronometro.
 
 | Sezione del registro | Voci | Perché serve una persona |
 |---|--:|---|
-| Checklist principale (materiali, editor mode, bot) | 31 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor |
+| Checklist principale (materiali, editor mode, bot) | 43 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor |
 | Partita su griglia esagonale (M6) | 16 | **Ciò che solo l'occhio vede**: unità centrate, fluidità del playback |
-| Contenuto della v0.1 | 18 | **Leggibilità**: che il giocatore *capisca* dal log |
+| Contenuto della v0.1 | 22 | **Leggibilità**: che il giocatore *capisca* dal log |
+| Verifiche di mutazione — **solo `PIE-V01-ARENA`** | 1 | Le altre due della sezione sono `PIE-MUT-*`, *fuori classe* |
 | Stati del personaggio (E34) | 10 | Nessuna: **verificano un sistema che non esiste** — classe D travestita da C |
 | Scenario Test Harness | 6 | «Premo Play e parte da solo», con esito leggibile senza aprire l'Output Log |
 | Durata, ritmo e scala | 5 | **Cronometro**: producono numeri di playtest, non superano gate |
@@ -187,6 +188,12 @@ Nessuno scenario può sostituirle: richiedono mouse, editor, giudizio o cronomet
 | Formato e icone | 2 | Riconoscibilità alla dimensione reale dell'HUD |
 
 Registro: [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md).
+
+> 🔁 **Rimisurata il 2026-08-13.** Diceva **95** su nove sezioni; le sezioni di classe C sono **dieci** —
+> mancava *«Verifiche di mutazione»* per intero — e due erano indietro (Checklist `31`→`43`, Contenuto
+> `18`→`22`). ⚠️ Queste righe stanno **fuori** dal blocco `RT_SHORTLIST_SCENARIOS` generato: sono prosa a
+> mano in un file generato, e nessun `--check` le confronta con l'owner. Si rileggono da
+> [`../technical/scenario-map.md`](../technical/scenario-map.md) §5, con l'`awk` per sezione che sta lì.
 
 ## 6. Classe D — dichiarato, non eseguibile
 

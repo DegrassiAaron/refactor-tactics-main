@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-12
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-13
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -12,6 +12,78 @@
 > `FAC-*`, `MED-1`, i radar — perché una domanda barrata col suo perché **è** il valore: il prossimo kit la
 > riproporrà, e trovarla già risposta costa meno che ridiscuterla. La regola scritta contraddiceva la
 > pratica di ogni sezione, e fra le due si è corretta la regola.
+
+---
+
+## Aperta — la versione di formato che non viaggia, e la mappa che dipende da lei
+
+Origine: [`#687`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/687) e
+[`roadmap/plans/mappe-generate-o-dipinte-2026-08-12.md`](roadmap/plans/mappe-generate-o-dipinte-2026-08-12.md) §6.
+
+Il [referto del 2026-08-12](roadmap/plans/roadmap-reconciliation-2026-08-12.md) §5 aveva **rinviato**
+questa decisione, e con una ragione precisa: *«finché il meccanismo non è verificato su asset serializzato
+con binario vecchio/nuovo — ed è ciò che fa la PR #688, aperta»*. **La PR #688 è stata mergiata il
+2026-08-12T18:13:55Z.** La condizione che teneva sospesa la decisione non esiste più: il rinvio era
+motivato, la motivazione è scaduta.
+
+Cosa ha portato quella PR: **la verifica, non la correzione**. Ha aggiunto
+`RefactorTactics.HexMap.SerializedAssetMigratesWithoutGainingData`
+(`Source/RefactorTactics/Tests/RTHexMapTests.cpp:671`) e il commento a `:664` scrive l'esito —
+*«la migrazione e' inerte: `FormatVersion` non e' nei byte serializzati»*. Il difetto è ora **dimostrato
+sul binario**, e nessuna delle quattro direzioni di `#687` è stata scelta.
+
+⚠️ **Le due domande stanno insieme perché il piano lo dice**, non per comodità di redazione: la §6 di
+`mappe-generate-o-dipinte` conclude che *«le due cose vanno decise insieme, o si costruisce un secondo
+controllo sopra un meccanismo inerte»*. Un test che lega asset e generatore via `ComputeHash` funziona
+comunque — `ComputeHash` non passa dalla serializzazione delta — ma direbbe «l'asset corrisponde al codice»
+senza poter dire **con quale versione di formato** è stato scritto.
+
+> 🔴 **Una terza affermazione di quel piano è stata verificata e respinta.** La sua §5 registra come debito
+> che *«`MakeArenaV01` va nel registry `MakeFixtureArena`: oggi non c'è, quindi nessuno scenario può riferirla
+> per nome»*. **C'è.** `Source/RefactorTactics/Turn/RTMatchSetupLibrary.cpp:322-325` risolve
+> `FixtureId == "ArenaV01"` su `MakeArenaV01`, ed è entrata con `115f59a3` il **2026-08-12 alle 03:03** —
+> cioè **quindici ore prima** che il piano che la denuncia venisse committato (`0485a7b6`, ore 18:52).
+>
+> Il debito era già chiuso quando è stato scritto. Vale la pena registrarlo perché la tentazione era di
+> ricopiarlo qui: un piano è una fonte **interna**, e la regola «rimisura, non trascrivere» non fa sconti
+> alle fonti di casa — è dove costa di più, perché nessuno le sospetta.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `FMT-1` | Quale delle quattro direzioni di `#687` si prende: `SaveGame`/serializzazione esplicita su `FormatVersion`, `Serialize()` custom fuori dal delta, **custom object version** di UE (`FCustomVersionRegistry`), oppure **accettare** che le migrazioni restino dichiarative e ritirare la promessa scritta in `MigrateToCurrentFormat`? | `#687` chiude dicendo *«Non ne propongo una: la scelta ha implicazioni sul formato e va fatta da chi lo possiede»*, ed è la posizione giusta — le quattro direzioni non differiscono per costo ma per **cosa promettono al prossimo lettore**. Oggi il difetto è **innocuo**, e questo è il problema: tutte le migrazioni fatte finora sono dichiarative, quindi non partire non ha conseguenze e il meccanismo *sembra* sano. Il giorno in cui una migrazione dovrà **trasformare** dati, l'asset arriverà al gioco con dati interpretati secondo regole nuove, e **nessun test lo prenderebbe**: tutti i test di migrazione fanno `NewObject` e impostano `FormatVersion` a mano (`RTHexMapTests.cpp:310`), cosa che nella realtà non accade mai. ⚠️ Lo stesso meccanismo morde `MapClass` e `HexSize`: un'arena salvata come `Skirmish` — il default — diventerebbe **silenziosamente** un'altra classe il giorno in cui il default cambiasse, e la classe serve al validator per rifiutare l'accoppiata sbagliata prima dell'allestimento. La quarta direzione è legittima ma **va scritta**, o il prossimo che apre quel file crederà a una rete che non c'è. Innesco: **scaduto** — la verifica su asset serializzato esiste dal 2026-08-12 |
+| `FMT-2` | Se le mappe si **generano** invece di dipingersi, quante se ne committano: **una** che faccia da rivelatore per la serializzazione, o entrambi i `DA_HexMap_*` che l'allowlist ammette oggi? | Non si deduce perché la risposta dipende da `FMT-1`. L'asset committato ha **una sola funzione che il codice non può svolgere**: essere un binario scritto *ieri* da rileggere *oggi*. Se `FormatVersion` viaggia, un rivelatore basta e il resto è codice; se non viaggia, nemmeno quello rivela nulla e committarne due è **due volte lo stesso silenzio**. ⚠️ **I numeri qui sono misurati, non ripresi dal piano**: `.gitignore` ha **18** righe `!Content`, di cui **5** di mappa — tre livelli `.umap` e **due** data asset (`DA_HexMap_Sandbox`, `DA_HexMap_Arena`). Il piano parlava di «nove»: non corrisponde a nessuna lettura dell'allowlist. Innesco: la prima mappa generata che entri in `Content/` |
+
+---
+
+## Aperte — le due aree davvero senza owner delle proposte §10, dal secondo passaggio del 2026-08-13
+
+Origine: [`archive/src/handoff/2026-08-12-roadmap-reconciliation.md`](archive/src/handoff/2026-08-12-roadmap-reconciliation.md) §10.
+Il banner d'archivio di quel sorgente dichiara: *«❌ Non recepito: le cinque epic proposte in §10 […] il
+posto di una proposta senza decisione è `docs/OPEN_DECISIONS.md`»*. **Non ci sono mai arrivate.** È la
+stessa forma del difetto che quel referto stava correggendo: una prescrizione scritta, e nessuno che la
+esegua.
+
+🔴 **Ma cinque non è il numero giusto, e trascriverle tutte avrebbe canonizzato tre affermazioni false.**
+Il sorgente §10 premette *«Le ricerche live non trovano un owner dedicato completo per queste aree»*.
+Rimisurato contro i **105 `feature_id`** di `feature-registry.yaml`, per tre aree su cinque è **falso**:
+
+| Area §10 | Il sorgente dice | Il registry dice | Esito |
+|---|---|---|---|
+| **A. Super Actions** | «Epic da creare post-v0.1» | `RT-FEAT-ACTION-SUPERS` — v0.2, P2, **`IMPLEMENTING`**, **sei** gate `partial` | **owner esiste**, ed è già in lavorazione |
+| **B. Modular Effects + Presentation/VFX** | pipeline da proporre | la **catena esiste già quasi tutta**: `FRTActionEffectSpec` a monte, `FRTResolvedEvent` in mezzo (owner `RT-FEAT-CORE-PLAYBACK`, **`INTEGRATED`** in v0.1), `RT-FEAT-CHAR-PRESENTATION` a valle. Manca **solo** il legame dichiarativo *evento → asset VFX/SFX*: di Niagara nel registry non c'è nulla | **gap reale ma stretto** → `FX-1` |
+| **C. Seeded Map Generation** | prototipo v0.3 | nessuna feature di generazione. `RT-FEAT-TOOL-MAP-GEOMETRY` e `RT-FEAT-TOOL-MAP-EDITOR` sono **authoring**, non generazione da seed | **gap reale** → `GEN-1` |
+| **D. Production Map Generator / Level Designer** | v0.5 da proporre | `RT-FEAT-TOOL-MAP-EDITOR` è **`INTEGRATED`** in v0.1 | **coperto per la parte di authoring**; il resto è il seguito di `GEN-1`, non un'area propria |
+| **E. Networking / Dedicated server** | proposta v0.6 | **tre** feature, e **non** sono tutte future: `RT-FEAT-NET-PRIVATE-PLANNING` è **`TESTABLE` in v0.1**, `RT-FEAT-NET-AUTHORITY` è `SPECIFIED`, solo `RT-FEAT-NET-DEDICATED` è `IDEA`/`future` | **owner esiste**, e un terzo è **già in v0.1** |
+
+La lezione è la stessa di `REP-1` e di `MSE-1`: una proposta si registra **dopo** aver cercato chi
+possiede già l'area, non prima. Le tre righe «owner esiste» restano qui apposta — il prossimo kit le
+riproporrà, e trovarle già risposte costa meno che ridiscuterle.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `FX-1` | Il legame *evento risolto → asset VFX/SFX* è un **dato dichiarativo** — una tabella che l'artista riempie — o resta codice in Blueprint, un ramo per tipo di evento? | 🔴 **La domanda è stata riscritta il 2026-08-13: la sua prima stesura era falsa.** Diceva che «nessun documento nomina l'anello centrale», e l'anello **esiste**: `Source/RefactorTactics/Turn/RTResolvedEvent.h` dichiara `ERTResolvedEventType { Move, Attack, HazardDamage, Defeated }` e `FRTResolvedEvent`, col commento che scrive già l'invariante — *«L'animazione legge questi eventi: non decide nulla (invariante #1)»*. Owner: **`RT-FEAT-CORE-PLAYBACK`**, `INTEGRATED` in v0.1, con spec `gameplay/spec-anima-risoluzione.md` §4 che lo chiama *timeline di eventi risolti*. La ricerca si era fermata all'area `Characters` senza guardare `Core` — **lo stesso errore** che la tabella qui sopra rimprovera al sorgente, commesso mentre lo si rimproverava. Cade con essa anche «la presentazione della v0.1 è ferma a mesh e anelli». ✅ Quel che **resta** davvero aperto è più stretto e non ha owner: di `Niagara`, `VFX` o `SFX` nel registry non c'è **una riga**, e il piano di `AN.4` si limita a nominare *«Delegate BP (camera/VFX/SFX)»* — cioè la scelta «dato o codice» non è stata fatta, è stata rinviata a un delegate. Innesco: `#288` (locomotion/cast/hit/death), primo consumatore reale |
+| `FX-2` | Quando `ERTResolvedEventType` cresce oltre i suoi **quattro** valori, chi si accorge che l'evento nuovo **non ha presentazione**? | ⚠️ **Separata da `FX-1` il 2026-08-13**: erano una voce sola, e una voce con due domande si chiude a metà senza che si veda. Sono legate ma non identiche — `FX-1` sceglie la **forma** del legame, `FX-2` chiede chi **sorveglia** che resti completo. Oggi la risposta è *nessuno*: `ERTResolvedEventType` non ha un test di esaustività, e i quattro valori (`Move`, `Attack`, `HazardDamage`, `Defeated`) sono consumati da delegate Blueprint che il C++ non conta. Un quinto valore compilerebbe, risolverebbe correttamente la logica, e **sparirebbe a schermo** — il fallimento più silenzioso possibile, perché il gioco resta giusto e solo la presentazione mente per omissione. ⚠️ Se `FX-1` sceglie il **dato**, questa si chiude quasi da sé — una tabella dichiarativa può avere un gate di copertura, com'è già per le icone (`FindMissingRequiredIcons`). Se sceglie il **ramo in Blueprint**, resta aperta e serve un test apposta. Innesco: il primo `ERTResolvedEventType` aggiunto dopo i quattro |
+| `GEN-1` | La relazione **numero di celle → `RoundLimit`** è una formula canonica o una taratura da misurare? E un generatore da seed deve **validare** connettività, macro-rotte, choke, raggiungibilità degli obiettivi, densità di copertura, alture, transizioni e equità degli spawn — o è il playtest a dirlo? | Il sorgente stesso marca la relazione come *«ipotesi da misurare, non formula canonica»*, ed è la parte che va conservata: è una **taratura**, e questo file ha una sezione apposta per le tarature. Non si deduce perché il generatore non esiste e non c'è nulla da misurare: `RT-FEAT-TOOL-MAP-GEOMETRY` e `RT-FEAT-TOOL-MAP-EDITOR` producono geometria **d'autore**, con un umano che decide. ⚠️ Il vincolo che sopravvive alla proposta è di **formato**, non di algoritmo, e va rispettato dal primo giorno: un generatore deve riusare i dati canonici del filone editor (`#619`–`#623`, `#695`) — **niente secondo formato di mappa**. È lo stesso vincolo che `MSE-1` sta perimetrando dal lato della cottura, ed è il motivo per cui `GEN-1` non può essere decisa senza guardarla. Innesco: v0.3, o la prima mappa non disegnata a mano |
 
 ---
 
