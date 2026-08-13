@@ -47,6 +47,12 @@ Uso
     python scripts/check-docs-naming.py             # referto completo
     python scripts/check-docs-naming.py --check     # gate: esce 1 se un file protetto e' sporco
     python scripts/check-docs-naming.py --all       # elenca anche i registri esenti, file per file
+    python scripts/check-docs-naming.py --check --wiki-root <clone>   # anche la Wiki pubblicata
+
+La Wiki e' un repository separato (D-076: il clone E' la fonte), quindi non viene
+guardata se non le si passa il percorso. Il 2026-08-13, con `docs/` gia' pulita,
+dichiarava ancora il roster legacy in 193 punti su 24 pagine: e' il posto che il
+giocatore legge davvero, ed era l'ultimo senza gate.
 """
 
 from __future__ import annotations
@@ -208,6 +214,50 @@ def markdown_files() -> list[Path]:
     return files
 
 
+# --- la Wiki pubblicata (repo separato, D-076: il clone E' la fonte) ----------
+#
+# La Wiki e' cio' che un giocatore legge davvero, ed era rimasta indietro: al
+# 2026-08-13, con `docs/` gia' bonificata, dichiarava ancora il roster legacy in
+# **193** punti su 24 pagine. Nessun gate la guardava.
+#
+# ⚠️ Qui esiste un token che nel repository non esiste: nei wiki-link
+# `[[Etichetta|target]]` il **target e' il nome del file della pagina**, e resta
+# legacy per scelta — rinominarlo romperebbe i link e la cronologia della pagina
+# pubblicata, esattamente come per le schede di `docs/characters/v0.1/`. Senza
+# questa maschera il gate sarebbe rosso per sempre su ~48 link corretti, e un
+# gate che non puo' diventare verde viene disattivato.
+WIKI_LINK_TARGET = re.compile(r"\[\[[^\]\n]*?\\?\|([^\]\n]+)\]\]")
+
+
+def mask_wiki(text: str) -> str:
+    """`mask()` piu' i target dei wiki-link, che sono nomi di pagina, non prosa."""
+    text = mask(text)
+
+    def blank_target(match: re.Match) -> str:
+        whole, target = match.group(0), match.group(1)
+        start = match.start(1) - match.start(0)
+        return whole[:start] + " " * len(target) + whole[start + len(target):]
+
+    return WIKI_LINK_TARGET.sub(blank_target, text)
+
+
+def scan_wiki(path: Path) -> list[tuple[int, str, str]]:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    raw_lines = raw.splitlines()
+    hits: list[tuple[int, str, str]] = []
+    for lineno, line in enumerate(mask_wiki(raw).splitlines(), start=1):
+        for match in NAME_RE.finditer(line):
+            hits.append((lineno, match.group(1), raw_lines[lineno - 1].strip()[:120]))
+    return hits
+
+
+def wiki_files(root: Path) -> list[Path]:
+    return [p for p in sorted(root.rglob("*.md")) if ".git" not in p.parts]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -219,6 +269,11 @@ def main() -> int:
         "--all",
         action="store_true",
         help="elenca anche le occorrenze nei registri esenti, file per file",
+    )
+    parser.add_argument(
+        "--wiki-root",
+        metavar="PATH",
+        help="clone della Wiki pubblicata: le sue pagine sono tutte protette",
     )
     args = parser.parse_args()
 
@@ -281,7 +336,31 @@ def main() -> int:
           " bonificano: si annotano accanto all'affermazione. Il numero qui sopra si"
           " rimisura eseguendo lo script.")
 
-    if args.check and enforced_hits:
+    # --- Wiki pubblicata, se il clone e' stato indicato ----------------------
+    wiki_hits: dict[str, list[tuple[int, str, str]]] = {}
+    if args.wiki_root:
+        root = Path(args.wiki_root)
+        if not root.is_dir():
+            print(f"\nERRORE — clone Wiki non trovato: {root}")
+            return 2
+        pages = wiki_files(root)
+        for path in pages:
+            hits = scan_wiki(path)
+            if hits:
+                wiki_hits[path.relative_to(root).as_posix()] = hits
+        print()
+        print(f"Wiki pubblicata: {len(pages)} pagine, tutte protette"
+              f" (i target dei wiki-link sono nomi di pagina, non prosa).")
+        if wiki_hits:
+            n = sum(len(h) for h in wiki_hits.values())
+            print(f"ERRORE — prosa legacy in {n} punti su {len(wiki_hits)} pagine:")
+            for rel, hits in sorted(wiki_hits.items(), key=lambda kv: -len(kv[1])):
+                for lineno, name, text in hits:
+                    print(f"  {rel}:{lineno}: {name} -> {text}")
+        else:
+            print("OK — nessun nome legacy come prosa player-facing nella Wiki.")
+
+    if args.check and (enforced_hits or wiki_hits):
         return 1
     return 0
 
