@@ -93,6 +93,39 @@ class OwnerTableIsParsed(unittest.TestCase):
                           f"rifiuterebbe in `roadmap.epic`")
 
 
+class ReleaseTableIsParsedExactly(unittest.TestCase):
+    """La tabella «Le release» ha tante righe quante le release pianificate, e **nient'altro**.
+
+    🔴 Il difetto che questi test pinnano non e' ipotetico: una tabella `| **vX.Y** | ... | ... |`
+    aggiunta altrove nello stesso file produceva **tre coppie fantasma** perche' `[^|]*` include
+    `\\n` e la cella andava a cercarsi oltre il ritorno a capo. `check_release_order()` contava le
+    fantasma come «release dichiarate dall'owner» e taceva su `v0.2`, `v0.4` e `v0.9` — il gate di
+    `D-136` reso muto da una tabella di prosa, senza che nulla diventasse rosso.
+
+    Un'asserzione di sola presenza non l'avrebbe vista: le release c'erano, **due volte**. Serve il
+    **conteggio**.
+    """
+
+    def test_one_row_per_planned_release_and_no_more(self):
+        rows = fr.release_table_rows()
+        planned = [r for r in fr.RELEASE_ORDER if r != "future"]
+        self.assertEqual(len(rows), len(planned),
+                         f"la tabella «Le release» produce {len(rows)} righe per {len(planned)} "
+                         f"release: {[r[0] for r in rows]}")
+
+    def test_no_row_has_an_empty_epic_cell(self):
+        # Una cella epic vuota o di solo whitespace e' la firma della riga fantasma.
+        for release, epic_cell in fr.release_table_rows():
+            self.assertTrue(epic_cell.strip(),
+                            f"{release} ha una cella epic vuota: il parser ha agganciato una riga "
+                            f"che non appartiene alla tabella «Le release»")
+
+    def test_rows_are_unique(self):
+        seen = [r[0] for r in fr.release_table_rows()]
+        self.assertEqual(len(seen), len(set(seen)),
+                         f"release duplicate nella lettura della tabella: {seen}")
+
+
 class PostV01CheckpointsAreAssignable(unittest.TestCase):
     """Il gemello del difetto sopra, e ne condivide la forma: `epics` aveva imparato a leggere
     l'owner post-v0.1, `checkpoints` no.

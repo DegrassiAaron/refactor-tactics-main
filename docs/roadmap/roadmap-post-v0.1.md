@@ -210,10 +210,16 @@ scenari, golden replay e mappe salvate.
 
 > 🔴 **`23.2` non è lavoro da fare, ed è la correzione che vale la pena leggere.** Il gruppo atomico
 > multi-transition **esiste dalla v0.1**: `FRTHexDoor::DoorId` raggruppa i bordi, `SetDoorState` li muta
-> insieme incrementando la revisione **una sola volta**, e `RefactorTactics.Structures.Door.GroupClosesTogether`
-> lo prova su **tre** bordi con `DoorId = 7` — cioè esattamente la «porta larga circa 3 m» che i documenti di
-> visione continuano a proporre come obiettivo futuro. Chi legge questa riga cercando la porta multi-transition
-> da costruire riscriverebbe qualcosa che ha già dei test verdi, e li romperebbe.
+> insieme incrementando la revisione **una sola volta**. Due test lo dimostrano, e vanno citati per quello che
+> fanno davvero: `Structures.Door.GroupClosesTogether` prova il **raggruppamento** — tre bordi di **una stessa
+> cella** con `DoorId 3`, più una quarta porta senza gruppo che resta ferma, e il suo commento avverte che «il
+> gruppo non deve essere rettilineo» — mentre `Structures.Door.StateChangeBumpsRevision` prova il caso della
+> **porta larga**: «Portone largo tre bordi: un comando, una revisione», tre **celle** allineate sul bordo E
+> con `DoorId 7`, e l'asserzione `Revision == Before + 1`. È quest'ultimo, non il primo, a essere «la porta
+> larga circa 3 m» che i documenti di visione continuano a proporre come obiettivo futuro.
+>
+> Chi legge questa riga cercando la porta multi-transition **da costruire** riscriverebbe qualcosa che ha già
+> dei test verdi, e li romperebbe.
 >
 > Il delta reale è **l'identità** (`23.3`): `DoorId` è un `int32` locale all'asset — non sopravvive al cook,
 > nessuno scenario può citarlo per nome, e senza un nome l'interaction graph di `23.4` non ha come citare il

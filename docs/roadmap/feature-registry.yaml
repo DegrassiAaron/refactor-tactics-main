@@ -615,6 +615,7 @@ features:
       - RT-FEAT-MAP-INTERACTIVE-EDGES
       - RT-FEAT-MAP-SPECIAL-TRANSITIONS
     owner_specs:
+      - docs/roadmap/roadmap-post-v0.1.md
       - docs/roadmap/plans/walls-doors-interaction-spec-panel-2026-08-13.md
     issues: [324, 832]
     tests: []
@@ -625,7 +626,10 @@ features:
       Il giocatore vede una porta e il suo stato; che quella porta abbia un nome stabile e' un fatto di formato, non di gioco.
     notes: >
       Il gruppo atomico ESISTE gia': `FRTHexDoor::DoorId` raggruppa i bordi e `SetDoorState` li muta insieme
-      incrementando la revisione una sola volta — `Structures.Door.GroupClosesTogether` lo prova su tre bordi.
+      incrementando la revisione una sola volta. Due test distinti lo dimostrano, e vanno citati per quello che
+      fanno: `Structures.Door.GroupClosesTogether` prova il RAGGRUPPAMENTO — tre bordi di una stessa cella con
+      `DoorId 3`, piu' una quarta porta senza gruppo che non si muove — mentre `Structures.Door.StateChangeBumpsRevision`
+      prova il caso della PORTA LARGA: tre celle allineate sul bordo E con `DoorId 7`, un comando, UNA revisione.
       Cio' che manca e' l'IDENTITA': `DoorId` e' un `int32` locale all'asset, quindi non sopravvive al cook e
       nessuno scenario puo' citarlo per nome. Il codice lo dichiara gia' in `RTPointerInteraction.h` —
       «`DoorId` e arco esistono gia' e bastano. L'identita' stabile e' E23 (#324)». E' il **prerequisito** di
@@ -4036,7 +4040,7 @@ features:
       scenario: na
       ui_wiki: partial
       packaged: todo
-      network_privacy: na
+      network_privacy: todo
       replay_representable: na
     roadmap:
       epic: E23
@@ -4047,6 +4051,7 @@ features:
       - RT-FEAT-UI-ICON-LANGUAGE
       - RT-FEAT-UI-CERTAINTY
     owner_specs:
+      - docs/roadmap/roadmap-post-v0.1.md
       - docs/roadmap/plans/walls-doors-interaction-spec-panel-2026-08-13.md
     issues: [324, 834]
     tests: []

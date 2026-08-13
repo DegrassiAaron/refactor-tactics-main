@@ -13,8 +13,10 @@
 >
 > **Cosa NON è entrato, e perché.** 🔴 **Le §7.B, §7.D, §7.G e §25 danno per mancante ciò che ha test verdi
 > dalla v0.1.** La porta multi-transition **esiste**: `FRTHexDoor::DoorId` raggruppa i bordi, `SetDoorState`
-> li muta insieme incrementando la revisione una sola volta, e `Structures.Door.GroupClosesTogether` lo prova
-> su **tre** bordi con `DoorId = 7` — cioè la «porta larga circa 3 m» che la §4.3 propone come obiettivo. Con
+> li muta insieme incrementando la revisione una sola volta. Due test lo dimostrano:
+> `Structures.Door.GroupClosesTogether` prova il **raggruppamento** (tre bordi di una cella, `DoorId 3`) e
+> `Structures.Door.StateChangeBumpsRevision` la **porta larga** — tre **celle** sul bordo E con `DoorId 7`, un
+> comando e una revisione — cioè quella che la §4.3 propone come obiettivo. Con
 > essa: invalidazione della path cache, ordine indipendente e determinismo dell'hash. Applicare quelle sezioni
 > avrebbe **rotto** i test che le dimostrano già. Il delta reale è l'**identità** (`23.3`), non il gruppo.
 >

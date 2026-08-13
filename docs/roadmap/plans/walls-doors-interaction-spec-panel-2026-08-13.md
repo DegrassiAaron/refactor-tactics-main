@@ -43,7 +43,7 @@ come *stato del bordo*, `INTEGRATED`, con dodici test.
 
 | L'handoff chiede | Realtà misurata su `f4cae9f5` | Esito |
 |---|---|---|
-| §7.B «porta larga ~3 m: 1 DoorId, N transition, stato atomico» | `FRTHexDoor::DoorId` esiste; `SetDoorState` muta **il gruppo** e incrementa la revisione **una volta**; `Structures.Door.GroupClosesTogether` lo testa con **tre** bordi a `DoorId=7` | ✅ **esiste** |
+| §7.B «porta larga ~3 m: 1 DoorId, N transition, stato atomico» | `FRTHexDoor::DoorId` esiste e `SetDoorState` muta **il gruppo**. Due test, e fanno cose diverse: `Structures.Door.GroupClosesTogether` prova il **raggruppamento** (tre bordi di **una** cella, `DoorId 3`, più una quarta senza gruppo che resta ferma); `Structures.Door.StateChangeBumpsRevision` prova la **porta larga** — «Portone largo tre bordi: un comando, una revisione», tre **celle** sul bordo E con `DoorId 7` e `Revision == Before + 1` | ✅ **esiste** |
 | §7.G «structure change → revision → path cache invalidation» | `Structures.Door.StateChangeBumpsRevision`, `…InvalidatesPathCache`, `…TruncatesPlannedPath` | ✅ **esiste** |
 | §7.D «A valida, B valida, A→B bloccata» | `BlocksBetween` legge il bordo, non la cella; `TruncatePathToTopology` ferma il path con `BlockedByTopology` | ✅ **esiste** per la porta; ⬜ manca per la **geometria cotta** (CP 23.7) |
 | §25 «deterministic sort, hash normalization» | `Structures.Door.OpsOrderIndependent`, `HexMap.DoorHashDeterminism`; `DoorId` entra in `RTMatchStateHash` | ✅ **esiste** |
@@ -116,7 +116,7 @@ Procedura §22 eseguita: `gh issue list` open+closed, ricerca per `wall|door|str
 | Proposta handoff §8 | Azione | Motivo |
 |---|---|---|
 | Logical Structure Runtime Model | **NO ACTION** | `FRTHexDoor` + `FRTHexArc` + `ERTStructureOp` esistono e sono `INTEGRATED`. Un «modello runtime» nuovo sarebbe il secondo |
-| Door Multi-Transition Atomic State | **NO ACTION** | `SetDoorState` lo fa, `GroupClosesTogether` lo prova |
+| Door Multi-Transition Atomic State | **NO ACTION** | `SetDoorState` lo fa; `GroupClosesTogether` prova il gruppo e `StateChangeBumpsRevision` la porta larga |
 | Transition State Independent from Cell Validity | **UPDATE** `#324` CP 23.7 | Esiste per la porta, manca per la geometria cotta: è il delta, non una issue nuova |
 | Interaction Graph v1 | **NEW** | Gap reale |
 | Interaction UX v1 | **NEW** | Gap reale |
@@ -205,6 +205,62 @@ portavano `checkpoints: []` pur avendo `23.6` e `23.7` nell'owner da `D-065`.
 Corretto in `scripts/feature_registry.py`, con tre test in `scripts/test_feature_registry_releases.py`.
 Verifica di mutazione: disattivata la lettura dell'owner post-v0.1 cade **esattamente**
 `test_e23_checkpoints_from_the_post_v01_owner_are_known`, gli altri 29 restano verdi.
+
+---
+
+## H. Che cosa ha trovato la code review
+
+Undici findings, e **due erano difetti introdotti da questo stesso lavoro**. Vale la pena elencarli perché
+uno dei due è la forma di difetto che questo referto passa il tempo a denunciare negli altri.
+
+### 🔴 Il gate reso muto da una tabella di prosa
+
+La tabella §*L'orizzonte del dominio oltre la v0.2* usa `| **v0.2** |` come prima colonna — nello stesso file
+che `release_table_rows()` parsa per sapere quali release l'owner dichiara. Il regex usava `[^|]*` per le
+celle, e `[^|]` **include `\n`**: non trovando la terza colonna sulla stessa riga, la cercava oltre il ritorno
+a capo e agganciava la riga successiva.
+
+Misurato: `release_table_rows()` passava da **10** a **13** righe, con tre coppie fantasma `('v0.2','\n')`,
+`('v0.4','\n')`, `('v0.9','\n')`. `check_release_order()` le contava come *«release dichiarate dall'owner»* —
+quindi il gate che `D-136` aveva creato per impedire una release esprimibile e non descritta **taceva su tre
+release**, e nulla diventava rosso: le release c'erano, due volte.
+
+Corretto con `[^|\n]*`. Tre test lo pinnano, e sono **nati rossi** sul difetto presente: contano le righe,
+rifiutano le celle epic vuote, rifiutano i duplicati. Verifica di mutazione: tolta la riga canonica di `v0.9`
+dall'owner, il gate torna a dire *«è esprimibile e non descritta»*.
+
+> Che sia successo **qui** è la parte istruttiva. Il referto apre dicendo che un pacchetto si filtra e si
+> misura; e un gate è stato disattivato da una tabella di prosa scritta per **spiegare** la misura.
+
+### 🔴 La citazione trascritta invece che misurata
+
+`D-138` attribuiva a `Structures.Door.GroupClosesTogether` il `DoorId 7`, le tre celle e l'incremento singolo
+della revisione. Nessuno dei tre gli appartiene: quel test usa `DoorId 3` su tre bordi di **una sola** cella —
+e il suo commento avverte che *«il gruppo non deve essere rettilineo»*, cioè non è la porta larga. Il caso della
+porta larga è `Structures.Door.StateChangeBumpsRevision`, che apre con *«Portone largo tre bordi: un comando,
+una revisione»*.
+
+La tesi regge — il gruppo atomico esiste ed è testato — ma **la prova citata era quella sbagliata**, e chi
+l'avesse verificata aprendo `GroupClosesTogether` avrebbe trovato altri numeri. Il dato veniva dall'handoff,
+non dal file: esattamente ciò che questo referto rimprovera all'handoff. Corretto in cinque punti.
+
+### Applicati
+
+`network_privacy` di `RT-FEAT-UI-STRUCTURE-READABILITY` passa da `na` a `todo` — `na` conta come **soddisfatto**
+in `SATISFIED`, e la feature sarebbe potuta salire a `DONE` mentre `INT-6`, aperta dalla stessa decisione,
+dice che la risposta serve *prima* che `#834` scelga dove filtrare. Le due feature che avevano il solo referto
+come `owner_specs` prendono anche `roadmap-post-v0.1.md`: il referto dichiara in intestazione di non possedere
+regole, quindi non poteva essere l'unico owner di nulla. E `known_roadmap_refs()` ora **itera** sui due owner
+invece di duplicare i tre regex — con due forme che mancavano davvero: le righe barrate `| ~~**38.1**~~ |`
+(un checkpoint *chiuso* resta *dichiarato*) e gli intervalli `` `CP 34.1`–`34.11` ``, che valgono 17 checkpoint
+fra `E34` ed `E37`.
+
+### Non applicati, e perché
+
+| Finding | Decisione |
+|---|---|
+| La validazione dei checkpoint non è *scoped* per epic: `E23` accetta `39.13` | **Registrato, non corretto.** Il buco è **preesistente** (`if str(cp) not in checkpoints` ignora l'epic da sempre); questo lavoro lo allarga da 103 a 167 valori accettabili, il che lo rende più rilevante ma non lo introduce. Misurato l'impatto della correzione: **2 coppie** già incoerenti — `RT-FEAT-CORE-TURN` e `RT-FEAT-ACTION-DASH-DISPLACEMENT`, entrambe `epic: E2` con checkpoint di `E4`. Renderle rosse richiede decidere **quale dei due campi sia giusto**, che è una decisione sui dati e non sul parser. Issue [#841](https://github.com/DegrassiAaron/refactor-tactics-main/issues/841) |
+| La tabella «Dove sta il lavoro» è una seconda copia di stato senza generatore | **Accettato in parte.** Le colonne *Issue* e *Feature* sono navigazione — l'owner dello stato resta il registry, e il referto lo dice. La colonna *Stato* invecchia davvero: è stata lasciata perché rimuoverla toglierebbe la risposta a «a che punto è `23.x`», ma non è generata e va riletta contro il registry, non creduta |
 
 ---
 
