@@ -450,10 +450,14 @@ void ARTHUD::DrawHUD()
 	{
 		// Contatore del turno: con un formato in vigore mostra anche il limite, altrimenti resta il solo
 		// numero — un "su 0" direbbe che la partita e' gia' scaduta, che non e' cio' che accade.
+		// «Round», non «Turno»: nel progetto il TURNO e' la sequenza di fasi DENTRO il round
+		// (`Planning -> Prep -> Dash -> Blast -> Move -> Cleanup`), e il contatore qui e' quello che si
+		// confronta con `RoundLimit` del formato. Il DoD di CP 11.1 lo chiede esplicitamente, e la riga
+		// diceva «Turno %d/%d» — cioe' nominava una cosa e ne mostrava un'altra.
 		const int32 RoundLimit = TurnManager->GetMatchRules().RoundLimit;
 		const FString TurnCounter = RoundLimit > 0
-			? FString::Printf(TEXT("Turno %d/%d"), TurnManager->GetTurnNumber(), RoundLimit)
-			: FString::Printf(TEXT("Turno %d"), TurnManager->GetTurnNumber());
+			? FString::Printf(TEXT("Round %d/%d"), TurnManager->GetTurnNumber(), RoundLimit)
+			: FString::Printf(TEXT("Round %d"), TurnManager->GetTurnNumber());
 
 		FString Status;
 		if (TurnManager->IsResolving())

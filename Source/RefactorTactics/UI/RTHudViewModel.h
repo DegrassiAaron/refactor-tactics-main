@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Turn/RTTurnRules.h"
+#include "Ability/RTActionDef.h" // ERTActionSlot: la vista dei cooldown raggruppa per slot
 #include "RTHudViewModel.generated.h"
 
 class ARTTurnManager;
@@ -84,6 +85,90 @@ struct FRTUnitCardView
 };
 
 /**
+ * Uno dei tre slot del turno, come lo vede il pannello: occupato o libero, e **da cosa**.
+ *
+ * «Occupato» e «da cosa» sono due dati distinti perche' non coincidono sempre: un movimento normale occupa
+ * lo slot movimento e **non ha un `ActionId`** — il piano lo rappresenta come una lista di waypoint
+ * (`PlannedWaypoints`), non come un'azione scelta. Uno scatto invece e' un'azione, e si puo' nominare.
+ * Un widget che avesse solo `ActionId` mostrerebbe lo slot movimento vuoto per chi ha appena tracciato un
+ * percorso, che e' il caso piu' comune del gioco.
+ */
+USTRUCT(BlueprintType)
+struct FRTPlannedSlotView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bOccupied = false;
+
+	/** `None` quando lo slot e' libero **o** quando cio' che lo occupa non e' un'azione (un percorso). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName ActionId;
+
+	/** Vuoto quando `ActionId` e' `None`: il widget mette l'etichetta generica dello slot. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText DisplayName;
+};
+
+/**
+ * I tre slot di un turno: movimento, azione principale, reazione.
+ *
+ * ⚠️ **Non sono tre booleani indipendenti.** `Action.Sprint` dichiara `MovementAndMain` e ne occupa **due**,
+ * ed e' il caso che rende sbagliata la mappatura ovvia «un'azione, uno slot». Chi decide resta
+ * `URTCatalogLibrary::TakesMovementSlot`/`TakesMainSlot`, gli stessi predicati che usa il validatore del
+ * piano: qui non si riscrive la regola, la si interroga.
+ */
+USTRUCT(BlueprintType)
+struct FRTUnitSlotsView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTPlannedSlotView Movement;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTPlannedSlotView Main;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTPlannedSlotView Reaction;
+};
+
+/** La ricarica residua di una singola azione del kit, in TURNI INTERI. */
+USTRUCT(BlueprintType)
+struct FRTAbilityCooldownView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName ActionId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText DisplayName;
+
+	/** Indice nel kit dell'unita': e' cio' che l'hotkey arma, quindi il widget ne ha bisogno. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 AbilityIndex = INDEX_NONE;
+
+	/** Quale slot consuma: il pannello raggruppa per slot, non per ordine nel kit. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTActionSlot Slot = ERTActionSlot::None;
+
+	/** Turni interi che mancano. `0` = ricarica finita. **Mai negativo.** */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 TurnsRemaining = 0;
+
+	/**
+	 * Usabile **adesso**, che non e' `TurnsRemaining == 0`: serve anche l'energia.
+	 *
+	 * I due dati restano separati perche' rispondono a domande diverse e il giocatore le pone entrambe —
+	 * «quanto manca?» e «posso adesso?». Un widget che mostrasse solo il primo direbbe «pronta» di
+	 * un'ultimate senza energia.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bUsableNow = false;
+};
+
+/**
  * Le viste che alimentano lo Screen HUD (§4.1 di `progettazione-hud.md`, CP 11.7).
  *
  * Statiche e pure per la stessa ragione per cui lo e' `ARTHUD::ComputePlannedHitMarks`: l'indipendenza dallo
@@ -129,4 +214,25 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static TArray<FRTUnitCardView> BuildTeamRoster(const TArray<ARTUnit*>& Units, int32 PlayerTeamId);
+
+	/**
+	 * Gli slot occupati dal piano corrente dell'unita' (CP 11.1). Unita' nulla da' tre slot liberi.
+	 *
+	 * ⚠️ **Riporta, non arbitra.** Se un piano occupasse due volte lo stesso slot — cosa che
+	 * `URTCatalogLibrary::ValidateActionSlots` dichiara errore — questa vista mostra cio' che c'e', non
+	 * decide chi vince. La HUD non e' il posto dove si applica una regola di legalita': mostrarne una
+	 * versione «pulita» nasconderebbe proprio il piano che il validatore rifiutera'.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	static FRTUnitSlotsView BuildUnitSlots(const ARTUnit* Unit);
+
+	/**
+	 * La ricarica di **ogni** azione del kit, nell'ordine del kit (CP 11.1). Unita' nulla da' un elenco vuoto.
+	 *
+	 * I numeri si LEGGONO dal simulatore (`ARTUnit::GetAbilityCooldown`, `CanUseAbility`): il widget non ne
+	 * tiene una copia, ed e' la voce di DoD che esiste per impedire la seconda verita' che si scollega al
+	 * primo turno in cui qualcuno dimentica di aggiornarla.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	static TArray<FRTAbilityCooldownView> BuildAbilityCooldowns(const ARTUnit* Unit);
 };
