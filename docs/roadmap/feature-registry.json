@@ -3918,7 +3918,7 @@
       ],
       "last_verified": {
         "date": "2026-08-13",
-        "commit": "5f11a88f"
+        "commit": "80e10a1d"
       },
       "notes": "Aperta il 2026-08-12 dal reconciliation di roadmap (`plans/roadmap-reconciliation-2026-08-12.md`). ⚠️ **Non e' un redesign dell'input**: nove regole su dieci del contratto descrivono cio' che il codice fa gia', e il valore della feature e' renderle enunciabili e testabili. I tre delta misurati sono **assenze**: nessuno stato esplicito (la modalita' di targeting vive come `SelectedAbilityIndex` **sull'unita'**, non nel controller), nessuna consapevolezza di fase nell'input (`:767` e' l'unico punto che la legge, e serve al fine partita), nessuna precedenza HUD -> mondo (il Canvas HUD non registra hitbox, quindi ogni click passa al mondo — e con i widget UMG di CP 11.7 il problema si inverte). Le sole regole **nuove** sono di privacy e ownership, e dipendono da E13 e da `RT-FEAT-UI-ACTION-GHOSTS`. Riprende la domanda rimasta orfana di `../technical/spec-hover-cella.md`, `HISTORICAL` dal pivot esagonale: nessun owner aveva ereditato «cosa succede sotto il cursore».\n\n🔁 **Rimisurata il 2026-08-13 su `3cec1d57`, e i delta sono cinque.** Consolidando due sorgenti (archiviati in `../archive/src/design/`) sono emerse due assenze che la misura del 2026-08-12 non aveva contato, ed entrambe sono lavoro runtime, non prosa. **(d) Non esiste uno stato neutro**: `SelectedAbilityIndex` nasce a `0` (`RTUnit.h:170`) e le sole scritture lo portano su un altro indice valido (`ARTUnit::SelectAbility`, dagli hotkey) — nessun percorso lo riporta a `INDEX_NONE`. Un'abilita' e' quindi **sempre** armata, e `RTPlayerController.cpp:411-415` pianifica lo slot `0` a ogni click su un nemico. E' l'incoerenza che l'owner portava nella propria §5.1 — hover `Inspect`, click `Confirm` — e che **D-128** chiude scegliendo il lato dell'affordance. **(e) Non esiste un produttore UI** per tre campi che il resolver gia' consuma: `PlannedAttackCell`/`bAttackTargetsCell`, `PlannedCoverEdge`/`bHasPlannedCoverEdge`, `PlannedFacing`/`bDeclaresPlannedFacing` sono letti dal `TurnManager` e scritti **solo** dallo Scenario Harness (`RTScenarioSession.cpp:666-675`) e dai test. Nessuna assegnazione in `Player/` o `UI/` — verificabile col comando in §2.1 dell'owner, che oggi non stampa nulla. E' `#737`, che chiude anche la riga aperta di `#291`.\n\n⚠️ **Il gate `runtime` resta `todo` e non diventa `partial`**, e le due voci nuove rafforzano il giudizio invece di indebolirlo: sono altre due proprieta' assenti, non consegne parziali. Il gate `scenario` resta `todo` per la stessa ragione di sempre — i sei scenari non si possono scrivere prima che il contesto esista — ma va letto insieme a una nota che ora e' misurata: la capability `PredictiveAction` e' dichiarata disponibile nell'harness con la motivazione *«un canale che il gioco ha gia'»*, che alla misura del 2026-08-13 e' **falsa**. Resta disponibile per scelta (quattro scenari la usano e coprono regole vere: `Spec/Cover/TemporaryCoverExpires`, `Spec/Facing/FrontHitOnCoverIsSilent`, `Spec/Facing/RearHitOnCoverIsTraced`, `Spec/Predictive/WhiffOnEmptyCell`), col commento corretto in `RTScenarioSession.cpp` e il debito su `#737`. Quando il produttore esiste, la motivazione torna vera da sola.\n\n✅ **2026-08-13 sera — `#737` e' atterrata, e con essa la prima meta' del contratto.** I tre produttori esistono: `HandleTargetCell`, `HandleTargetEdge`, `HandleFacingSector` in `ARTPlayerController`. Il `TargetKind` e' **derivato dal catalogo** (`URTPointerLibrary::TargetKindForAction`: `StructureOp != None` -> `Edge`, `Shape == Area` -> `Cell`, altrimenti `Unit`) e non un campo nuovo, cosi' non nasce una seconda fonte di verita' accanto a due che lo dicevano gia'. `SelectedAbilityIndex` nasce a `INDEX_NONE` (D-128): lo stato neutro esiste, e con esso la possibilita' di ispezionare senza pianificare.\n\n⚠️ **La motivazione di `PredictiveAction` e' tornata vera da sola**, come previsto: il canale ora esiste e il verde di quei quattro scenari dice qualcosa di vero sul giocatore. `Facing` e `DeclaredRotation` restano invece FUORI dalle capability dell'harness, ma per un'altra ragione — la premessa «l'harness sarebbe il primo produttore» non vale piu', e cio' che manca e' la chiave `facing` in `FRTScenarioIntent` piu' lo scenario che la dimostri: due righe aperte di `#291`, da fare insieme. Aggiungere la capability senza la chiave darebbe un `BLOCKED` che mente sul motivo.\n\n⏳ **Cio' che resta ha un nome e un blocco, mai «del tempo»**: precedenza HUD -> mondo e reason a schermo dipendono da `#613` (senza hitbox UMG non c'e' nulla che consumi il puntatore); il filtro di rilevamento sull'hover dipende da E13; `OpenContext` dipende da `#74` per i verbi e da `#613` per il contenitore. `ReactionWindow` e `Modal` sono ordinati e testati in `ResolveBack` ma `GetPointerContext()` non li restituisce mai: nessuno li produce, e inventare un flag sarebbe il difetto che questa stessa voce documenta."
     },
@@ -5560,7 +5560,7 @@
       "gates": {
         "spec": "partial",
         "data": "done",
-        "runtime": "partial",
+        "runtime": "done",
         "log_debug": "todo",
         "automation": "done",
         "scenario": "done",
@@ -5569,7 +5569,7 @@
         "network_privacy": "na",
         "replay_representable": "na"
       },
-      "gates_done": 3,
+      "gates_done": 4,
       "gates_applicable": 7,
       "roadmap": {
         "epic": null,
@@ -5597,7 +5597,8 @@
       ],
       "tests": [
         "RefactorTactics.HexOccupancy.*",
-        "RefactorTactics.GeometryGrammar.*"
+        "RefactorTactics.GeometryGrammar.*",
+        "RefactorTactics.GeometryBake.*"
       ],
       "scenarios": [
         "Spec.Map.ConstrainedCellCostsMore"

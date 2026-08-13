@@ -59,6 +59,24 @@ struct FRTHexCover
 	int32 Integrity = 30;
 
 	/**
+	 * PROVENIENZA: questa copertura l'ha prodotta la cottura della geometria (`#621`), non la mano di un
+	 * designer. Default `false` = dipinta a mano — che e' anche cio' che ogni copertura scritta prima di
+	 * questo campo diventa rileggendosi, ed e' esattamente cio' che quelle coperture gia' erano.
+	 *
+	 * ⚠️ **Il rebake tocca SOLO le proprie** (`D-131`): rimuove le `bGenerated`, riscrive quelle derivate dai
+	 * segmenti correnti, e non tocca mai le altre. Senza questo campo un rebake non saprebbe distinguere «la
+	 * copertura che avevo prodotto io e ora va tolta» da «quella dipinta a mano che va preservata», quindi
+	 * TOGLIERE un segmento non potrebbe togliere la sua copertura. E' cio' che rende il bake idempotente.
+	 *
+	 * 🔑 **NON entra in `ComputeHash`, ed e' la parte da non sbagliare.** Le coperture ci entrano perche' sono
+	 * dato autorevole — cambiano il danno subito — ma la PROVENIENZA non cambia una partita: se entrasse, due
+	 * mappe che si giocano in modo identico avrebbero hash diversi solo perche' una copertura e' stata
+	 * disegnata invece che dipinta, cioe' un falso positivo contro il KPI `replay divergence = 0`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	bool bGenerated = false;
+
+	/**
 	 * Integrita' di catalogo per tipo: 30 la bassa, 50 l'alta (v0.1). Sta qui e non in `URTCombatLibrary`
 	 * perche' `Map/` non puo' dipendere da `Combat/`; la RIDUZIONE del danno, che e' della stessa famiglia dei
 	 * numeri di `Guard`/`Deflect`/`Brace`, resta invece di la'.

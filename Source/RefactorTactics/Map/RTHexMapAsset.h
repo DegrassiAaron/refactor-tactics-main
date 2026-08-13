@@ -61,8 +61,13 @@ public:
 	 * v7 (#619): sovrapprezzo di occupazione sulla cella (`FRTHexCellData::OccupancySurcharge`). Nessun dato
 	 *     esistente cambia significato: una mappa scritta prima non ha geometria cotta, quindi il suo
 	 *     sovrapprezzo e' zero — che e' il default del campo, ed e' cio' che quelle mappe gia' erano.
+	 * v8 (#621): provenienza della copertura (`FRTHexCover::bGenerated`). Nessun dato esistente cambia
+	 *     significato: una mappa scritta prima non ha coperture cotte, quindi ogni sua copertura e' dipinta
+	 *     a mano — che e' il default `false`, ed e' cio' che quelle coperture gia' erano.
+	 *     ⚠️ Nessuna migrazione TRASFORMATIVA: non si riclassificano coperture esistenti. Finche' #687 e'
+	 *     aperta una trasformazione non verrebbe eseguita, e il difetto sarebbe silenzioso.
 	 */
-	static constexpr int32 CurrentFormatVersion = 7;
+	static constexpr int32 CurrentFormatVersion = 8;
 
 	/** Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
