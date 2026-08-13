@@ -33,6 +33,22 @@ namespace
 	}
 }
 
+FVector2D ARTHUD::ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
+	float AboveAnchor, float BelowAnchor, const FVector2D& Viewport, float Margin)
+{
+	const float MinX = Margin + HalfWidth;
+	const float MaxX = Viewport.X - Margin - HalfWidth;
+	const float MinY = Margin + AboveAnchor;
+	const float MaxY = Viewport.Y - Margin - BelowAnchor;
+
+	// Blocco piu' largo/alto del viewport: `Min` supera `Max` e un `Clamp` normale restituirebbe il bordo
+	// sbagliato (l'ordine degli argomenti decide, non la geometria). Si sceglie esplicitamente il minimo —
+	// bordo superiore/sinistro — perche' il nome sta in alto ed e' cio' che identifica l'unita'.
+	const float X = (MinX <= MaxX) ? FMath::Clamp(Anchor.X, MinX, MaxX) : MinX;
+	const float Y = (MinY <= MaxY) ? FMath::Clamp(Anchor.Y, MinY, MaxY) : MinY;
+	return FVector2D(X, Y);
+}
+
 void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerTeamId,
 	TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells)
 {
@@ -117,8 +133,43 @@ void ARTHUD::DrawHUD()
 			continue; // dietro la camera
 		}
 
-		const float X = Screen.X - BarWidth * 0.5f;
-		const float Y = Screen.Y - BarHeight;
+		// Il NOME si compone qui, prima di disegnare, perche' la sua larghezza serve al vincolo orizzontale:
+		// l'etichetta e' spesso piu' larga della barra, e vincolare sulla sola barra la lascerebbe uscire.
+		FString HeroName = ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName());
+		FLinearColor NameColor = ARTUnit::TeamColorFor(Unit->TeamId,
+			FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
+		if (PlannedAllyHitCells.Contains(Unit->Cell))
+		{
+			// Fuoco amico: l'avviso deve essere piu' forte del colore di squadra, perche' e' l'unico caso
+			// in cui chi guarda potrebbe voler cambiare idea. E deve restare finche' il piano esiste, non
+			// finche' l'unita' e' selezionata.
+			HeroName = TEXT("! ") + HeroName;
+			NameColor = FLinearColor(1.f, 0.6f, 0.12f, 1.f);
+		}
+		else if (PlannedHitCells.Contains(Unit->Cell))
+		{
+			HeroName = TEXT("* ") + HeroName;
+			NameColor = FLinearColor(1.f, 0.35f, 0.3f, 1.f);
+		}
+
+		float NameW = 0.f;
+		float NameH = 0.f;
+		GetTextSize(HeroName, NameW, NameH, nullptr, 0.9f);
+
+		// L'ancora si vincola al viewport PRIMA di disegnare: senza, un'unita' vicina alla camera perde
+		// l'intera sovrapposizione — nome e barre insieme, che condividono questa Y (#729).
+		// Il blocco va da `Y - 36` (riga del nome) a `Y + BarHeight + 4` (fondo della barra energia).
+		const FVector2D Anchor = ClampOverlayAnchor(
+			FVector2D(Screen.X, Screen.Y - BarHeight),
+			FMath::Max(BarWidth, NameW) * 0.5f,
+			/*AboveAnchor=*/ 36.f,
+			/*BelowAnchor=*/ BarHeight + 4.f,
+			FVector2D(Canvas->SizeX, Canvas->SizeY),
+			/*Margin=*/ 4.f);
+
+		const float CenterX = Anchor.X;
+		const float X = CenterX - BarWidth * 0.5f;
+		const float Y = Anchor.Y;
 
 		// Sfondo.
 		DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.6f), X - 1.f, Y - 1.f, BarWidth + 2.f, BarHeight + 2.f);
@@ -158,9 +209,8 @@ void ARTHUD::DrawHUD()
 		// salta quando arriva un ROOT si legge peggio di una ferma.
 		// Il nome CANONICO del catalogo (D-120), non l'ID stabile: `Hero.Flux` si legge `Gadget`. Il ripiego
 		// sull'ID resta dentro `DisplayLabel` per le unita' che nessun eroe ha configurato.
-		FString HeroName = ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName());
-
-		// CHI viene colpito, marcato sull'UNITA' e non solo sulla cella.
+		// CHI viene colpito, marcato sull'UNITA' e non solo sulla cella — il prefisso e il colore sono stati
+		// decisi sopra, insieme al nome, perche' la larghezza serviva al vincolo.
 		//
 		// L'anteprima a terra dice quali CELLE entrano nella zona; la domanda che ci si fa guardando lo schermo
 		// e' un'altra — «questo cilindro lo prendo o no?». Sono due informazioni diverse, e finche' c'era solo
@@ -169,29 +219,11 @@ void ARTHUD::DrawHUD()
 		//
 		// Il nome sopra la testa e' il posto giusto: c'e' gia', l'occhio ci va gia' per sapere chi e' chi, e
 		// non aggiunge un elemento nuovo da imparare.
-		FLinearColor NameColor = ARTUnit::TeamColorFor(Unit->TeamId,
-			FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
-		if (PlannedAllyHitCells.Contains(Unit->Cell))
-		{
-			// Fuoco amico: l'avviso deve essere piu' forte del colore di squadra, perche' e' l'unico caso
-			// in cui chi guarda potrebbe voler cambiare idea. E deve restare finche' il piano esiste, non
-			// finche' l'unita' e' selezionata.
-			HeroName = TEXT("! ") + HeroName;
-			NameColor = FLinearColor(1.f, 0.6f, 0.12f, 1.f);
-		}
-		else if (PlannedHitCells.Contains(Unit->Cell))
-		{
-			HeroName = TEXT("* ") + HeroName;
-			NameColor = FLinearColor(1.f, 0.35f, 0.3f, 1.f);
-		}
-
-		float NameW = 0.f;
-		float NameH = 0.f;
-		GetTextSize(HeroName, NameW, NameH, nullptr, 0.9f);
+		//
 		// Ombra di 1px: il testo chiaro su cielo chiaro sparirebbe, e la camera tattica guarda spesso il vuoto.
 		DrawText(HeroName, FLinearColor(0.f, 0.f, 0.f, 0.75f),
-			Screen.X - NameW * 0.5f + 1.f, Y - 36.f + 1.f, nullptr, 0.9f);
-		DrawText(HeroName, NameColor, Screen.X - NameW * 0.5f, Y - 36.f, nullptr, 0.9f);
+			CenterX - NameW * 0.5f + 1.f, Y - 36.f + 1.f, nullptr, 0.9f);
+		DrawText(HeroName, NameColor, CenterX - NameW * 0.5f, Y - 36.f, nullptr, 0.9f);
 	}
 
 	const ARTTurnManager* TurnManager =
@@ -326,7 +358,23 @@ void ARTHUD::DrawHUD()
 			if (HeadScreen.Z > 0.f)
 			{
 				const TCHAR* Prefix = bOwn ? TEXT("[PIANO] ") : TEXT("[REVEAL] ");
-				DrawText(FString(Prefix) + Intent, Color, HeadScreen.X - BarWidth * 0.5f, HeadScreen.Y - 36.f, nullptr, 0.85f);
+				const FString Label = FString(Prefix) + Intent;
+
+				// Stesso vincolo della sovrapposizione dell'unita' (#729): l'ancora nasce dallo stesso offset
+				// world space, quindi soffriva dello stesso difetto — l'intento di un'unita' vicina alla
+				// camera finiva sopra il bordo. Qui il blocco e' una riga sola.
+				float LabelW = 0.f;
+				float LabelH = 0.f;
+				GetTextSize(Label, LabelW, LabelH, nullptr, 0.85f);
+				const FVector2D LabelAnchor = ClampOverlayAnchor(
+					FVector2D(HeadScreen.X, HeadScreen.Y),
+					FMath::Max(BarWidth, LabelW) * 0.5f,
+					/*AboveAnchor=*/ 36.f,
+					/*BelowAnchor=*/ 0.f,
+					FVector2D(Canvas->SizeX, Canvas->SizeY),
+					/*Margin=*/ 4.f);
+
+				DrawText(Label, Color, LabelAnchor.X - LabelW * 0.5f, LabelAnchor.Y - 36.f, nullptr, 0.85f);
 			}
 
 			// Percorso pianificato: la rotta composita se la vista la porta, altrimenti lo stesso A* dell'autorita'.

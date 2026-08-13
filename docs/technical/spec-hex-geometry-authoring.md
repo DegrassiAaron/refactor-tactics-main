@@ -73,12 +73,11 @@ GEOMETRIA = gesto d'authoring, forma architettonica
 
 ### 3.1 Ma non è nemmeno float arbitrario
 
-La geometria **tatticamente significativa** è quantizzata. La grammatica ammette quattro famiglie:
+La geometria **tatticamente significativa** è quantizzata. La grammatica ammette tre famiglie:
 
 1. direttrici principali derivate dall'esagono;
 2. ortogonali a tali direttrici;
-3. segmenti sul lato o sul perimetro dell'esagono;
-4. junction compatibili con la grammatica.
+3. segmenti sul lato o sul perimetro dell'esagono.
 
 L'effetto pratico: sono possibili configurazioni a **90°** senza ridurre la mappa a sei soli muri possibili.
 
@@ -91,6 +90,12 @@ la geometria tattica NON PUÒ avere endpoint o angoli float arbitrari nell'autho
 > la continuità strutturale ne discende: `ComputeMask` fa l'OR dei settori attraversati, quindi una junction
 > è trasparente al modello. Deciso il 2026-08-12 —
 > [referto](../roadmap/plans/level-designer-handoff-spec-panel-2026-08-12.md) §6.
+>
+> ⚠️ **L'elenco qui sopra diceva «quattro famiglie» e la quarta era `junction compatibili`**: la nota la
+> toglieva, la lista la rimetteva. Portato a **tre** il 2026-08-13 — perché quella lista è la stessa che
+> #620 copia nel proprio *Scope*, e da lì finiva nel suo elenco di validator e quindi in un DoD che chiedeva
+> «un caso rosso e uno verde» per un concetto già cancellato dalla suite. Una lista e la sua eccezione non
+> possono convivere in due paragrafi consecutivi: chi copia, copia la lista.
 
 **Stato**: la grammatica e il suo validator sono
 [#620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/620), **aperta**. Il tipo d'ingresso

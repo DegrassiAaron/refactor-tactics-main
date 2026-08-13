@@ -36,6 +36,34 @@ public:
 	static void ComputePlannedHitMarks(const TArray<class ARTUnit*>& Units, int32 PlayerTeamId,
 		TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells);
 
+	/**
+	 * Vincola l'ancora di una sovrapposizione ai bordi del viewport.
+	 *
+	 * Serve perche' l'ancora nasce da un punto in WORLD space (`ActorLocation + WorldHeadOffset`) che viene
+	 * proiettato: un offset fisso nel mondo produce uno spostamento **variabile** sullo schermo, tanto piu'
+	 * grande quanto l'unita' e' vicina alla camera. Senza vincolo la sovrapposizione di un'unita' vicina
+	 * finisce sopra il bordo e sparisce — nome **e** barre insieme, perche' condividono questa ancora.
+	 * Osservato in PIE il 2026-08-13 (`PIE-NAME`), diagnosticato in #729.
+	 *
+	 * ⚠️ **Sceglie di ancorare al margine, non di nascondere.** Il motivo per cui l'etichetta esiste e' che
+	 * quattro cilindri identici rendono impossibile dire chi sta facendo cosa: un'etichetta appiccicata al
+	 * bordo si legge ancora e conserva il colore di squadra, una assente no. La via alternativa — offset
+	 * costante in *screen* space invece che nel mondo — e' stata scartata perche' smetterebbe di seguire
+	 * l'altezza dell'unita' e finirebbe **sopra la mesh** da vicino.
+	 *
+	 * @param Anchor      punto desiderato: X centro del blocco, Y riga della barra HP.
+	 * @param HalfWidth   meta' larghezza del blocco piu' largo (barra o nome).
+	 * @param AboveAnchor quanto il blocco sale sopra `Anchor.Y` (nome e status).
+	 * @param BelowAnchor quanto scende sotto `Anchor.Y` (barra ed energia).
+	 * @param Viewport    dimensioni del canvas.
+	 * @param Margin      distanza minima dal bordo.
+	 *
+	 * Se il blocco e' piu' grande del viewport il vincolo e' insoddisfacibile: si preferisce il bordo
+	 * **superiore/sinistro**, perche' il nome sta in alto ed e' la parte che identifica l'unita'.
+	 */
+	static FVector2D ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
+		float AboveAnchor, float BelowAnchor, const FVector2D& Viewport, float Margin);
+
 protected:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")
 	float BarWidth = 64.f;
