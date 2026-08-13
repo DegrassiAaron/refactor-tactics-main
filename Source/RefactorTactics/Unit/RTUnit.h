@@ -617,12 +617,19 @@ public:
 	static FLinearColor TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1);
 
 	/**
-	 * Nome breve da mostrare sopra l'unita': `Hero.Flux` -> `Flux`. Serve al playtest, dove quattro cilindri
-	 * identici rendono impossibile dire chi sta facendo cosa — e senza quello un giudizio sul comportamento
-	 * del bot o sul ritmo della partita non vale nulla.
+	 * Ultimo segmento di uno Stable ID: `Hero.Flux` -> `Flux`.
 	 *
-	 * `NAME_None` (unita' legacy da archetipo) -> `Fallback`, cosi' l'etichetta non sparisce mai. Pura e
-	 * testabile: la presentazione non deve inventarsi il nome, lo deriva dall'ID stabile.
+	 * ⚠️ **Non e' piu' il nome mostrato a schermo, ed e' cambiato il 2026-08-13** (#715). Fino ad allora
+	 * questa funzione ERA l'etichetta, e la sua descrizione lo diceva; oggi l'etichetta la sceglie
+	 * `DisplayLabel`, che preferisce il nome canonico dichiarato dal catalogo (D-120) e chiama questa solo
+	 * quando quel nome manca. Resta quindi il **ripiego**, non la regola.
+	 *
+	 * `NAME_None` -> `Fallback`, cosi' l'etichetta non sparisce mai. ⚠️ La descrizione precedente motivava
+	 * quel caso con «unita' legacy da archetipo»: `ARTUnit::ConfigureAsArchetype` non esiste piu'. Il caso
+	 * resta raggiungibile per altra via — un'unita' piazzata a mano in livello, o una che riceve
+	 * `ConfigureFromHeroData(nullptr)` e viene lasciata dal `return` fail-closed.
+	 *
+	 * Pura e testabile: `RefactorTactics.Unit.ShortHeroNameFromStableId`.
 	 */
 	static FString ShortHeroName(FName InHeroId, const FString& Fallback);
 

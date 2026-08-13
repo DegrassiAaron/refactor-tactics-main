@@ -1,6 +1,11 @@
-// Etichetta dell'unita' a schermo: la parte PURA (da quale ID nasce il nome mostrato).
-// Che l'etichetta si VEDA sopra la testa resta al PIE (`PIE-HEXPLAY-9`); qui si verifica che la
-// presentazione non si inventi il nome ma lo derivi dall'ID stabile dell'eroe.
+// Etichetta dell'unita' a schermo: la parte PURA — da dove nasce il nome mostrato.
+//
+// Dal 2026-08-13 (#715) la fonte primaria e' il nome CANONICO dichiarato dal catalogo (D-120), e lo Stable
+// ID e' il ripiego: `ShortHeroName` non e' piu' la regola ma il fallback, e `DisplayLabel` sceglie fra i due.
+//
+// ⚠️ Che l'etichetta si VEDA sopra la testa resta al PIE (`PIE-NAME`, `PIE-HEXPLAY-9`): `ARTHUD::DrawHUD`
+// non e' esercitato da nessun test automatico, quindi rimettere la vecchia chiamata in `RTHUD.cpp`
+// lascerebbe VERDE tutto questo file. E' una lacuna dichiarata, non coperta.
 
 #include "Misc/AutomationTest.h"
 
