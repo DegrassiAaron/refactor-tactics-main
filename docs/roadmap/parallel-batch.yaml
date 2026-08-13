@@ -64,13 +64,23 @@
 #   una vista generata non si assegna mai direttamente: **segue la propria sorgente**.
 #   Chi possiede la sorgente nel proprio `writable` è autorizzato — e obbligato — a rigenerare
 #   esattamente le viste che quella sorgente alimenta, e nient'altro.
-#   Se due track possiedono sorgenti della **stessa** vista, quella vista è contesa: una delle due
-#   esce dal batch. È il test da fare in fase di selezione, non al merge.
 #
-# `derives_from` qui sotto rende la catena verificabile invece che ricordata. E in ogni caso le
-# viste si rigenerano **un'ultima volta sull'albero unito**: due rami che rigenerano ciascuno sulla
-# propria base producono due versioni dello stesso file da una sorgente che nessuno dei due vede
-# intera.
+# ⚠️ **Due track possono legittimamente alimentare la stessa vista, e non è un conflitto.** La
+# seconda stesura di questa regola diceva *«allora una delle due esce dal batch»*, e sarebbe stata
+# troppo stretta fino all'inutilità: `Source/RefactorTactics/Tests/` è sorgente delle viste per
+# **qualunque** track scriva un test, cioè quasi sempre tutte. Il criterio che decide chi esce dal
+# batch resta **uno solo — la sovrapposizione dei `writable`** — e qui è soddisfatto, perché i test
+# sono assegnati per file.
+#
+# Quando due track alimentano la stessa vista, quella vista si comporta come `integration_only`:
+# ciascun branch la rigenera per tenere verde il proprio `--check`, ma **nessuna delle due copie è
+# autoritativa** e l'unica che conta è quella rigenerata **sull'albero unito**. È il passo 8 della
+# chiusura del batch, e non è negoziabile: due rami che rigenerano sulla propria base producono due
+# versioni dello stesso file da una sorgente che nessuno dei due vede intera.
+#
+# `derives_from` qui sotto rende la catena verificabile invece che ricordata — ed è stata
+# ricostruita leggendo le costanti di `scripts/feature_registry.py`, non a memoria: la prima
+# stesura ne aveva mancate due (`Tests/` e `test-manuali-pie.md`).
 #
 # ## Le lease binarie
 #
@@ -173,6 +183,12 @@ tracks:
     derives_from:
       - source: docs/roadmap/v0.1-definition-of-done.md
         regenerates: [docs/roadmap/milestonemap.shortlist.md]
+      # ⚠️ Sorgente CONDIVISA con `simulation`: entrambe scrivono in `Tests/`, per file diversi.
+      # I `writable` restano disgiunti, quindi il batch e' valido; ma le viste che ne derivano
+      # sono autoritative solo dopo la rigenerazione sull'albero unito (passo 8).
+      - source: Source/RefactorTactics/Tests/
+        shared_with: [simulation]
+        regenerates: [docs/roadmap/featuremap.shortlist.md, docs/roadmap/project-graph.json]
     binary_leases: []
 
   simulation:
@@ -188,7 +204,10 @@ tracks:
       - Source/RefactorTactics/Turn/
       - Source/RefactorTactics/Bot/
       - Source/RefactorTactics/Tests/RTReactionTests.cpp
-    derives_from: []
+    derives_from:
+      - source: Source/RefactorTactics/Tests/
+        shared_with: [spatial]
+        regenerates: [docs/roadmap/featuremap.shortlist.md, docs/roadmap/project-graph.json]
     binary_leases: []
 
   client_tools:
@@ -238,6 +257,7 @@ integration_only:
   - docs/roadmap/plans/README.md
   - docs/technical/workflow-parallel-claude.md
   - docs/technical/scenario-map.md
+  - docs/technical/test-manuali-pie.md
   - scripts/feature_registry.py
   - scripts/test_feature_registry_releases.py
   - RefactorTactics.uproject
@@ -247,8 +267,9 @@ integration_only:
 # --- Viste generate: non si assegnano, seguono la sorgente -------------------------------------
 #
 # Nessuna track le mette nel proprio `writable`. Chi possiede una `source` la rigenera, e lo
-# dichiara nel proprio `derives_from`. Due track che possiedono sorgenti della stessa vista sono
-# in conflitto: una esce dal batch.
+# dichiara nel proprio `derives_from`. Due track che alimentano la stessa vista la dichiarano
+# entrambe con `shared_with`: non è un conflitto — lo sarebbe una sovrapposizione dei `writable` —
+# ma nessuna delle due copie è autoritativa prima della rigenerazione sull'albero unito.
 #
 # ⚠️ Il repository ha **due** toolchain (`CONTEXT_INDEX.md` §«Le due toolchain»), e la prima
 # stesura di questo elenco copriva solo Python: gli otto SVG dei radar sono versionati con un
@@ -263,12 +284,19 @@ generated_only:
       - docs/roadmap/feature-registry.yaml
       - docs/roadmap/editor-sessions.yaml
       - docs/roadmap/execution-graph.yaml
+      - docs/roadmap/roadmap-checkpoint.md
+      - Scenarios/
+      - Source/RefactorTactics/Tests/
+      - docs/technical/test-manuali-pie.md
     tool: "feature_registry.py generate"
   - path: docs/roadmap/roadmap.shortlist.md
     derives_from: [docs/roadmap/feature-registry.yaml, docs/roadmap/roadmap-v0.1.md]
     tool: "feature_registry.py shortlist"
   - path: docs/roadmap/featuremap.shortlist.md
-    derives_from: [docs/roadmap/feature-registry.yaml]
+    derives_from:
+      - docs/roadmap/feature-registry.yaml
+      - Source/RefactorTactics/Tests/          # i nomi dei test che le `tests:` devono matchare
+      - docs/technical/test-manuali-pie.md     # le voci PIE che i `pie_refs` dichiarano
     tool: "feature_registry.py shortlist"
   - path: docs/roadmap/scenariomap.shortlist.md
     derives_from:

@@ -255,9 +255,14 @@ Tre categorie non si assegnano a nessuno:
   volta**, in integrazione. Non è ownership permanente: è una proprietà del batch.
 - **`generated_only`** — le viste generate. **Non si assegnano mai direttamente: seguono la propria
   sorgente.** Chi possiede la sorgente nel proprio `writable` è autorizzato — e obbligato — a rigenerare
-  esattamente le viste che quella sorgente alimenta, e nient'altro. Se due track possiedono sorgenti della
-  **stessa** vista, quella vista è contesa e una delle due esce dal batch: è un test da fare in fase di
-  **selezione**, non al merge.
+  esattamente le viste che quella sorgente alimenta, e nient'altro.
+
+  ⚠️ *Due track possono alimentare la stessa vista, e non è un conflitto.* Una stesura intermedia diceva
+  «allora una delle due esce dal batch», e sarebbe stata stretta fino all'inutilità:
+  `Source/RefactorTactics/Tests/` è sorgente delle viste per **qualunque** track scriva un test. Il criterio
+  che decide chi esce resta **uno solo — la sovrapposizione dei `writable`**. Quando due track alimentano
+  la stessa vista, quella vista si comporta come `integration_only`: ciascun branch la rigenera per tenere
+  verde il proprio `--check`, ma **nessuna delle due copie è autoritativa**.
 
   ⚠️ *«Vietato a tutti» è la formulazione sbagliata, e la prima stesura di questa riga la usava.* Produce
   una coppia di regole **insoddisfacibile**: chi tocca una sorgente non può né rigenerare (path non

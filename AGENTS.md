@@ -251,8 +251,8 @@ docs, scripts, Config, `.uasset`, `.umap`, test e output generati.
 
 Tre categorie non si assegnano: `integration_only` si aggiorna **una volta** in integrazione;
 `generated_only` **segue la propria sorgente** — chi possiede la sorgente rigenera quella vista, ed è
-l'unico a poterlo fare, mentre due track che possiedono sorgenti della stessa vista sono in conflitto e una
-esce dal batch; `preexisting` sono i branch già vivi, che non fanno parte del batch ma lo determinano. Il
+l'unico a poterlo fare; se due track alimentano la **stessa** vista non è un conflitto (`Tests/` lo è per
+quasi tutte), ma nessuna delle due copie è autoritativa finché non si rigenera sull'albero unito; `preexisting` sono i branch già vivi, che non fanno parte del batch ma lo determinano. Il
 write-set di un branch aperto si **misura**, mai si intuisce — dichiararlo a memoria ha già prodotto una
 collisione al primo batch:
 
