@@ -100,6 +100,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 PushResistance = 0;
 
+	/**
+	 * Soglia d'udito dell'eroe (D-041): COMPENSA la vista invece di seguirla — chi vede lontano sente meno.
+	 * Il valore canonico vive nel catalogo (`URTHeroData::HearingThreshold`) e arriva qui da
+	 * `ConfigureFromHeroData`; il default 5 vale solo per un'unità che non è stata configurata da un eroe.
+	 *
+	 * Serve a `URTAcousticPropagationLibrary::IsAudible`, che prende la soglia come parametro e prima di
+	 * questo campo non aveva modo di ottenerla da un'unità in partita.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 HearingThreshold = 5;
+
 	/** Affinità e debolezza ambientale dell'eroe (identità per le combo fra eroi, es. Flux su bersaglio Wet). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FName Affinity;
@@ -107,9 +118,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FName Weakness;
 
-	/** Eroe configurato via `ConfigureFromHeroData` (`NAME_None` = unità legacy configurata via archetipo). */
+	/**
+	 * Eroe configurato via `ConfigureFromHeroData`. `NAME_None` = unità mai configurata da un eroe: oggi
+	 * accade a un'unità piazzata a mano in livello o quando `ConfigureFromHeroData` riceve `nullptr` e
+	 * ritorna fail-closed. ⚠️ Fino al 2026-08-13 questo commento diceva «unità legacy configurata via
+	 * archetipo», e citava un percorso che non esiste più: `ConfigureAsArchetype` è stato rimosso.
+	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FName HeroId;
+
+	/**
+	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Riktor · Wraith), dichiarato dal
+	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
+	 * deve restare localizzabile.
+	 *
+	 * ⚠️ **Non è lo Stable ID.** `HeroId` resta `Hero.Flux` e non si rinomina: D-120 tiene i due piani
+	 * separati, e la migrazione degli identificatori ha un blocker proprio ancora aperto (#716).
+	 * Vuoto = nessun eroe l'ha dichiarato: la presentazione ricade su `ShortHeroName`, mai su stringa vuota.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	FText HeroDisplayName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 MaxEnergy = 100;
@@ -597,6 +625,20 @@ public:
 	 * testabile: la presentazione non deve inventarsi il nome, lo deriva dall'ID stabile.
 	 */
 	static FString ShortHeroName(FName InHeroId, const FString& Fallback);
+
+	/**
+	 * Etichetta da mostrare sopra l'unita': il nome CANONICO dichiarato dal catalogo (D-120), con ripiego
+	 * sull'ID stabile quando non c'e'.
+	 *
+	 * Tre casi, e nessuno produce una stringa vuota — che e' il difetto che `ShortHeroName` esisteva per
+	 * impedire e che un `FText` vuoto reintrodurrebbe in silenzio, perche' vuoto e' un valore legale:
+	 *   1. `InDisplayName` valorizzato        -> il nome canonico (`Gadget`, `Phase`, ...);
+	 *   2. `InDisplayName` vuoto              -> `ShortHeroName(InHeroId)`, cioe' l'ultimo segmento dell'ID;
+	 *   3. anche `InHeroId` a `NAME_None`     -> `Fallback` (il nome dell'attore).
+	 *
+	 * Pura e testabile: la presentazione sceglie fra due fonti, non inventa.
+	 */
+	static FString DisplayLabel(const FText& InDisplayName, FName InHeroId, const FString& Fallback);
 
 	/**
 	 * Offset Z LOCALE per portare un anello a terra (TeamRing/SelectionRing, figlio della mesh) al piano della

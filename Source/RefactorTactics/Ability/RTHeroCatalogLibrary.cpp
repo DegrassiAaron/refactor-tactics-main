@@ -164,7 +164,12 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 {
 	URTHeroData* Flux = NewObject<URTHeroData>();
 	Flux->HeroId = TEXT("Hero.Flux");
-	Flux->DisplayName = FText::FromString(TEXT("Flux"));
+	// ⚠️ La variabile dice `Flux` e il nome dice `Gadget`, e NON e' un refuso: D-120 separa i due piani.
+	// `Hero.Flux` e' lo Stable ID — chiave di codice, scenari e replay, che non si rinomina finche' #716 non
+	// scioglie la collisione di namespace. `Gadget` e' il nome canonico/player-facing del personaggio.
+	// Da qui il nome raggiunge l'unita' (`ConfigureFromHeroData`) e poi la HUD; il gate del confine e'
+	// `RefactorTactics.Unit.HeroDataCrossesTheBoundary`.
+	Flux->DisplayName = FText::FromString(TEXT("Gadget"));
 	Flux->MaxHealth = 90;
 	Flux->MovePoints = 5;
 	// 6 -> 7 (#131, [D-073]). E' la seconda meta' del lavoro cominciato con Vektor 100->90: quel calo aveva
@@ -276,7 +281,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 {
 	URTHeroData* Riva = NewObject<URTHeroData>();
 	Riva->HeroId = TEXT("Hero.Riva");
-	Riva->DisplayName = FText::FromString(TEXT("Riva"));
+	Riva->DisplayName = FText::FromString(TEXT("Phase")); // D-120: nome canonico; `Hero.Riva` resta lo Stable ID
 	Riva->MaxHealth = 95;
 	Riva->MovePoints = 5;
 	Riva->VisionRange = 5;
@@ -400,7 +405,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 {
 	URTHeroData* Bastion = NewObject<URTHeroData>();
 	Bastion->HeroId = TEXT("Hero.Bastion");
-	Bastion->DisplayName = FText::FromString(TEXT("Bastion"));
+	Bastion->DisplayName = FText::FromString(TEXT("Riktor")); // D-120: nome canonico; `Hero.Bastion` resta lo Stable ID
 	Bastion->MaxHealth = 120;
 	Bastion->MovePoints = 4;
 	Bastion->VisionRange = 5;
@@ -532,7 +537,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 {
 	URTHeroData* Vektor = NewObject<URTHeroData>();
 	Vektor->HeroId = TEXT("Hero.Vektor");
-	Vektor->DisplayName = FText::FromString(TEXT("Vektor"));
+	Vektor->DisplayName = FText::FromString(TEXT("Wraith")); // D-120: nome canonico; `Hero.Vektor` resta lo Stable ID
 	// 100 -> 90 (#131). A 100 HP Vektor DOMINAVA Flux (90/5/6/0) e Riva (95/5/5/0) sulle quattro statistiche
 	// base: migliore o pari ovunque, strettamente migliore in salute e movimento. Il catalogo §5 scriveva
 	// «Vektor compra mobilita' con l'assenza di difese», che sui numeri era falso — non pagava nulla.

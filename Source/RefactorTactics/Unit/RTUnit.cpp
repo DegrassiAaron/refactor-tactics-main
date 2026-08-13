@@ -124,6 +124,17 @@ FString ARTUnit::ShortHeroName(FName InHeroId, const FString& Fallback)
 	return Full;
 }
 
+FString ARTUnit::DisplayLabel(const FText& InDisplayName, FName InHeroId, const FString& Fallback)
+{
+	// `IsEmptyOrWhitespace` e non `IsEmpty`: un nome fatto di soli spazi a schermo e' indistinguibile da
+	// un'etichetta assente, quindi vale come non dichiarato.
+	if (!InDisplayName.IsEmptyOrWhitespace())
+	{
+		return InDisplayName.ToString();
+	}
+	return ShortHeroName(InHeroId, Fallback);
+}
+
 float ARTUnit::RingLocalZ(float VisualZOffset, float ParentScaleZ)
 {
 	// La posizione relativa Z del figlio e' scalata dalla scala Z del genitore: compensa VisualZOffset
@@ -415,10 +426,17 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 		return;
 	}
 
+	// ⚠️ Questo elenco è il confine, ed è la ragione per cui esiste
+	// `RefactorTactics.Unit.HeroDataCrossesTheBoundary`: `ARTUnit` è una COPIA PER VALORE di `URTHeroData`,
+	// quindi ogni campo non nominato qui si perde in silenzio. È già successo due volte —
+	// `HeroDisplayName` e `HearingThreshold` erano dichiarati e popolati a catalogo, e non arrivavano.
+	// Un campo aggiunto all'eroe senza una riga qui rende rosso quel test il giorno stesso.
 	HeroId = Hero->HeroId;
+	HeroDisplayName = Hero->DisplayName;
 	MaxHealth = Hero->MaxHealth;
 	MoveRange = Hero->MovePoints;
 	VisionRange = Hero->VisionRange;
+	HearingThreshold = Hero->HearingThreshold;
 	PushResistance = Hero->PushResistance;
 	Affinity = Hero->Affinity;
 	Weakness = Hero->Weakness;
