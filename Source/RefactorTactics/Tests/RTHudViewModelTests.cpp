@@ -216,4 +216,225 @@ bool FRTHudVmUntimedPlanningTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// CP 11.1 — gli SLOT occupati derivano dal piano, e `MovementAndMain` ne occupa due
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * A parita' di piano, la stessa terna. E soprattutto: un'azione che dichiara `MovementAndMain` occupa
+ * **entrambi** gli slot, che e' il caso in cui la mappatura ovvia «un'azione, uno slot» sbaglia.
+ *
+ * Senza quest'ultima meta' il pannello mostrerebbe il movimento libero a chi ha speso tutto il turno per
+ * correre — e chi legge lo schermo pianificherebbe un movimento che il validatore poi rifiuta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSlotsTest,
+	"RefactorTactics.HudViewModel.SlotsDeriveFromThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSlotsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Flux"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	// 1. Piano vuoto: tre slot liberi. Un'unita' appena selezionata non deve sembrare gia' impegnata.
+	{
+		const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
+		TestFalse(TEXT("movimento libero"), Slots.Movement.bOccupied);
+		TestFalse(TEXT("principale libera"), Slots.Main.bOccupied);
+		TestFalse(TEXT("reazione libera"), Slots.Reaction.bOccupied);
+	}
+
+	// 2. Un PERCORSO occupa il movimento e non ha un ActionId: e' la distinzione che il tipo dichiara.
+	{
+		Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+		const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
+		TestTrue(TEXT("un percorso occupa il movimento"), Slots.Movement.bOccupied);
+		TestTrue(TEXT("e non lo nomina: un percorso non e' un'azione scelta"),
+			Slots.Movement.ActionId.IsNone());
+		Unit->PlannedWaypoints.Reset();
+	}
+
+	// 3. Un'azione principale occupa la principale, e la NOMINA.
+	{
+		int32 MainIdx = INDEX_NONE;
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && A->Def.Slot == ERTActionSlot::Main) { MainIdx = i; break; }
+		}
+		if (TestTrue(TEXT("premessa: il kit ha un'azione principale"), MainIdx != INDEX_NONE))
+		{
+			Unit->PlannedAbilityIndex = MainIdx;
+			const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
+			TestTrue(TEXT("la principale risulta occupata"), Slots.Main.bOccupied);
+			TestEqual(TEXT("e porta l'ActionId dell'azione scelta"),
+				Slots.Main.ActionId, Unit->GetAbility(MainIdx)->Def.ActionId);
+			TestFalse(TEXT("il movimento resta libero: una Main non lo tocca"), Slots.Movement.bOccupied);
+			Unit->PlannedAbilityIndex = INDEX_NONE;
+		}
+	}
+
+	// 4. 🔴 `MovementAndMain`: UN'azione, DUE slot. E' il caso che rende sbagliata la mappatura ovvia.
+	//    L'azione si costruisce qui invece di cercarla nel kit: nessun eroe del roster ne possiede una
+	//    (`Action.Sprint` e' nel catalogo core), e un test che dipendesse da questo resterebbe verde
+	//    smettendo di verificare il giorno in cui il kit cambia.
+	{
+		URTActionData* Sprint = NewObject<URTActionData>(Unit);
+		Sprint->Def.ActionId = TEXT("Test.SprintLike");
+		Sprint->Def.Slot = ERTActionSlot::MovementAndMain;
+		Sprint->DisplayName = FText::FromString(TEXT("Scatto lungo"));
+		Unit->Abilities.Add(Sprint);
+		const int32 SprintIdx = Unit->NumAbilities() - 1;
+
+		Unit->PlannedAbilityIndex = SprintIdx;
+		const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
+		TestTrue(TEXT("MovementAndMain occupa la principale"), Slots.Main.bOccupied);
+		TestTrue(TEXT("e ANCHE il movimento"), Slots.Movement.bOccupied);
+		TestEqual(TEXT("il movimento e' nominato dalla stessa azione"),
+			Slots.Movement.ActionId, FName(TEXT("Test.SprintLike")));
+
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->Abilities.Pop();
+	}
+
+	// 5. La reazione e' uno slot INDIPENDENTE: non tocca gli altri due.
+	{
+		int32 ReactionIdx = INDEX_NONE;
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && A->Def.Slot == ERTActionSlot::Reaction) { ReactionIdx = i; break; }
+		}
+		if (TestTrue(TEXT("premessa: il kit ha una reazione"), ReactionIdx != INDEX_NONE))
+		{
+			Unit->PlannedReactionAbility = ReactionIdx;
+			const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
+			TestTrue(TEXT("la reazione risulta armata"), Slots.Reaction.bOccupied);
+			TestFalse(TEXT("e non occupa il movimento"), Slots.Movement.bOccupied);
+			TestFalse(TEXT("ne' la principale"), Slots.Main.bOccupied);
+		}
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// CP 11.1 — i COOLDOWN vengono dal simulatore, sono interi e non negativi
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * La vista non tiene una copia: legge `ARTUnit`. Il test lo dimostra **muovendo il simulatore** e
+ * ricostruendo la vista — se ci fosse una copia, il secondo valore sarebbe uguale al primo.
+ *
+ * ⚠️ E `bUsableNow` non e' `TurnsRemaining == 0`: serve anche l'energia. Sono due domande diverse, e un
+ * widget che ne mostrasse una sola direbbe «pronta» di un'ultimate che non si puo' lanciare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmCooldownTest,
+	"RefactorTactics.HudViewModel.CooldownsMirrorTheSimulator",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmCooldownTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Flux"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	// Una riga per ogni azione del kit, nell'ordine del kit: l'indice serve all'hotkey.
+	{
+		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("una riga per azione del kit"), Cds.Num(), Unit->NumAbilities());
+		for (int32 i = 0; i < Cds.Num(); ++i)
+		{
+			TestEqual(TEXT("l'indice e' quello del kit"), Cds[i].AbilityIndex, i);
+			TestTrue(TEXT("mai negativo"), Cds[i].TurnsRemaining >= 0);
+			TestEqual(TEXT("e coincide con il simulatore"),
+				Cds[i].TurnsRemaining, FMath::Max(0, Unit->GetAbilityCooldown(i)));
+		}
+	}
+
+	// Si muove il SIMULATORE e la vista lo segue: e' la prova che non c'e' una copia.
+	{
+		int32 Idx = INDEX_NONE;
+		for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && A->CooldownTurns > 0) { Idx = i; break; }
+		}
+		if (TestTrue(TEXT("premessa: il kit ha un'azione con ricarica"), Idx != INDEX_NONE))
+		{
+			const int32 Before = URTHudViewModel::BuildAbilityCooldowns(Unit)[Idx].TurnsRemaining;
+			Unit->ConsumeAbility(Idx);
+			const TArray<FRTAbilityCooldownView> After = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+			TestTrue(TEXT("dopo l'uso la ricarica e' salita"), After[Idx].TurnsRemaining > Before);
+			TestEqual(TEXT("e vale quella del simulatore"),
+				After[Idx].TurnsRemaining, Unit->GetAbilityCooldown(Idx));
+			TestFalse(TEXT("un'azione in ricarica non e' usabile adesso"), After[Idx].bUsableNow);
+		}
+	}
+
+	// Unita' nulla: elenco vuoto, non una riga fantasma.
+	TestEqual(TEXT("nessuna unita' -> nessuna riga"),
+		URTHudViewModel::BuildAbilityCooldowns(nullptr).Num(), 0);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// CP 11.1 — il limite di round viene dal FORMATO, non da una costante
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Cambiando `RoundLimit` nelle regole di formato, il valore della vista cambia. E' la voce di DoD che esiste
+ * per impedire a un widget di stampare `12` — il valore del formato di ripiego, non una costante del gioco.
+ *
+ * Il test usa **due** valori e nessuno dei due e' `12`: pinnare il default renderebbe verde anche una vista
+ * che restituisce sempre la stessa costante.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmRoundLimitTest,
+	"RefactorTactics.HudViewModel.RoundLimitComesFromTheFormat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmRoundLimitTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	{
+		FRTMatchRules Rules;
+		Rules.RoundLimit = 7;
+		TM->SetMatchRules(Rules);
+		TestEqual(TEXT("il limite e' quello del formato (7)"),
+			URTHudViewModel::BuildMatchHeader(TM).RoundLimit, 7);
+	}
+
+	{
+		FRTMatchRules Rules;
+		Rules.RoundLimit = 14;
+		TM->SetMatchRules(Rules);
+		TestEqual(TEXT("cambiato il formato, cambia la vista (14)"),
+			URTHudViewModel::BuildMatchHeader(TM).RoundLimit, 14);
+	}
+
+	// `0` non e' «scaduta»: e' «nessun limite dichiarato», e la vista lo distingue perche' il widget deve
+	// poter mostrare «Round 3» invece di «Round 3/0».
+	{
+		FRTMatchRules Rules;
+		Rules.RoundLimit = 0;
+		TM->SetMatchRules(Rules);
+		TestEqual(TEXT("nessun limite dichiarato resta 0"),
+			URTHudViewModel::BuildMatchHeader(TM).RoundLimit, 0);
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

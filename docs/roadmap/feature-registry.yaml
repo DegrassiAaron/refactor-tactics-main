@@ -3445,8 +3445,8 @@ features:
     # RELEASE_READY — resterebbe appesa a un checkpoint non iniziato. La voce PIE dello Screen HUD la
     # scrivera' CP 11.7 insieme ai widget. Campo assente = «non ancora mappato», che qui e' vero.
     last_verified:
-      date: 2026-08-12
-      commit: 05e65f6
+      date: 2026-08-13
+      commit: 7afe6264
     notes: >
       Aperta il 2026-08-12 da un panel di specifica sulla proposta «UI-0 — First Playable HUD»
       (`../roadmap/plans/ui-0-first-playable-hud-2026-08-12.md`). ⚠️ **Esiste perché il DoD di CP 11.1
@@ -3455,6 +3455,31 @@ features:
       `RT-FEAT-UI-PLANNING` — e la sovrapposizione da governare è **chi disegna le barre**: quelle
       ancorate sopra l'unità restano Canvas, il roster e il pannello della selezionata sono UMG.
       Dipende da `RT-FEAT-UI-ICON-LANGUAGE` per D-031: nessun widget referenzia una texture.
+
+
+      ➕ **2026-08-13: il view model copre le due voci headless che il DoD di CP 11.1 chiedeva e nessuno
+      aveva.** `BuildUnitSlots` (slot movimento/principale/reazione, con cosa li occupa) e
+      `BuildAbilityCooldowns` (turni interi, mai negativi, letti dal simulatore). Piu' il test che pinna
+      il **limite di round** al formato — la voce che esiste per impedire a un widget di stampare `12`.
+
+
+      ⚠️ **Le due voci NON erano nella stessa condizione, e vale la pena distinguerle.** I cooldown il
+      Canvas li mostrava gia' (`RTHUD.cpp`, «ricarica N» per abilita'): quel che mancava era una vista
+      **testabile headless**, cioe' la garanzia che il numero venga dal simulatore e non da una copia —
+      ed e' letteralmente cio' che il DoD chiede. Gli **slot occupati** invece non esistevano da nessuna
+      parte, ne' Canvas ne' UMG.
+
+
+      🔴 **La sottigliezza che rende la feature non banale: `Action.Sprint` dichiara `MovementAndMain` e
+      occupa DUE slot.** La mappatura ovvia «un'azione, uno slot» mostrerebbe il movimento libero a chi
+      ha speso tutto il turno per correre. Chi risponde e' `URTCatalogLibrary::TakesMovementSlot` /
+      `TakesMainSlot`, **estratti** da `ValidateActionSlots` nello stesso commit: due copie della stessa
+      condizione sarebbero divergite, e il widget avrebbe mostrato libero uno slot che il validatore
+      considera pieno.
+
+
+      ⏳ I gate restano `partial`: i widget UMG sono `.uasset` e questo repository non li versiona
+      (`Content/**/*.uasset` in `.gitignore`). Il view model e' pronto, il suo consumatore no.
 
   - feature_id: RT-FEAT-UI-POINTER-INTERACTION
     title: Contratto del puntatore — Hover, LMB, RMB
