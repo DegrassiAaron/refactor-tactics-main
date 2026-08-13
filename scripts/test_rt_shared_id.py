@@ -260,6 +260,52 @@ class TestAllocator(RepoTestCase):
         self.assertEqual(entry["reason"], "#621 prova")
         self.assertEqual(entry["branch"], "main")
 
+    def test_cedere_un_id_non_lo_libera(self):
+        """Cedere toglie la diagnostica, non riapre il numero.
+
+        Il caso reale: `D-134` riservato qui e poi ceduto a una sessione che l'aveva gia' scritto nel
+        proprio worktree. Senza `release`, la regola `reserved-by-other-branch` avrebbe segnalato come
+        collisione l'uso legittimo che quella sessione ne faceva.
+        """
+        self.repo.write_log(row("D-010", "Una"))
+        self.repo.commit()
+        ceduto = self.repo.run("reserve", "D")[1].strip()
+        self.assertEqual(ceduto, "D-011")
+
+        code, out, err = self.repo.run("release", ceduto)
+        self.assertEqual(code, 0, err)
+        self.assertEqual([r["id"] for r in self.repo.state()["reservations"]], [])
+        # Il contatore NON scende: il prossimo resta D-012, non D-011.
+        self.assertEqual(self.repo.state()["namespaces"]["D"]["last_issued"], 11)
+        self.assertEqual(self.repo.run("reserve", "D")[1].strip(), "D-012")
+
+    def test_cedere_un_id_inesistente_e_rosso(self):
+        self.repo.write_log(row("D-010", "Una"))
+        self.repo.commit()
+        code, out, err = self.repo.run("release", "D-999")
+        self.assertEqual(code, 1)
+        self.assertIn("nessuna reservation", err)
+
+    def test_check_non_segnala_un_id_ceduto(self):
+        """La regola `reserved-by-other-branch` deve tacere dopo la cessione, e parlare prima."""
+        self.repo.write_log(row("D-010", "Una"))
+        self.repo.commit()
+        self.repo._git("remote", "add", "origin", self.repo.path)
+        self.repo._git("update-ref", "refs/remotes/origin/main", "HEAD")
+        ceduto = self.repo.run("reserve", "D")[1].strip()      # D-011, a nome di `main`
+
+        self.repo.branch("feat/altra-sessione")
+        self.repo.write_log(row("D-010", "Una") + row(ceduto, "Usata da un'altra sessione"))
+        self.repo.commit()
+
+        code, out, err = self.repo.run("check")                 # prima: segnalato
+        self.assertEqual(code, 1)
+        self.assertIn("reserved-by-other-branch", err)
+
+        self.repo.run("release", ceduto)
+        code, out, err = self.repo.run("check")                 # dopo: silenzio
+        self.assertEqual(code, 0, err)
+
     def test_status_elenca_le_reservation(self):
         self.repo.write_log(row("D-005", "Una"))
         self.repo.commit()

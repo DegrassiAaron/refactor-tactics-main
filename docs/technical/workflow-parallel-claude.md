@@ -155,6 +155,19 @@ caso si sceglie un valore **maggiore**: mai tentare di recuperare i gap.
 `orfana`, e resta così finché la decisione non atterra. **Non torna disponibile.** «Orfana» qui significa
 anche solo «dichiarata su un branch che questo worktree non ha»: è diagnostica, non un verdetto.
 
+**Cedere un ID a un'altra sessione**
+
+```powershell
+python scripts/rt_shared_id.py release D-134
+```
+
+Quando l'ID che hai riservato lo sta già usando qualcun altro — capita se quella sessione non passa
+dall'allocatore — la reservation a tuo nome diventa una diagnostica **falsa**: `check` segnalerebbe come
+collisione (`reserved-by-other-branch`) un uso perfettamente legittimo. `release` la toglie.
+
+⚠️ **Cedere non è liberare.** `last_issued` non scende: il numero resta bruciato per chiunque altro, e
+chi lo sta già usando se lo tiene. È successo il giorno dell'introduzione, con `D-134`.
+
 ## 10. Cleanup dei worktree
 
 ```powershell
