@@ -2,11 +2,20 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **68** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
+> 🔴 **Decima volta, e questa era prevedibile prima di scriverla.** Il numero qui sotto vale
+> **su questo ramo**: `docs/wiki-player-first` archivia l'handoff Wiki player-first e porta la radice
+> da 2 a 3. Ma la **PR #818** (`docs/consolidamento-roadmap-v1-0`), aperta mentre scrivo, archivia
+> `RefactorTactics_Claude_Consolidamento_Roadmap_v1_0_2026-08-13.md` **nella stessa radice**: quando
+> entrambe atterrano il totale sarà **70**, e nessuno dei due rami può scriverlo perché nessuno dei
+> due lo vede. **Chi mergia per secondo rimisura col comando**, non somma i delta — è la regola che
+> questa cartella ha già imparato nove volte e che stavolta è dichiarata *prima* dello scarto invece
+> che dopo.
+>
+> I **69** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
 > normativa. ➕ **E un file che non è Markdown**: `handoff/2026-08-12-grid-data-consolidation-audit.xlsx`.
 > Il comando qui sotto filtra `-name '*.md'` e **non lo conta**: è dichiarato qui perché un allegato invisibile
 > alla formula è esattamente il modo in cui questo numero è già andato fuori sincrono sei volte.
-> *(rimisurato il 2026-08-13 sera **sull'albero mergiato** col comando completo — `find docs/archive/src -name '*.md' ! -name README.md | wc -l` → **68** = 17 `design/` + 47 `handoff/` + 2 `audit/` + **2 in radice**, dopo l'archiviazione del consolidamento *Decision Time Bank* e dei due sorgenti *mouse interaction*, ciascuno con la sua riga d'indice qui sotto.
+> *(rimisurato il 2026-08-13 sera **sull'albero mergiato** col comando completo — `find docs/archive/src -name '*.md' ! -name README.md | wc -l` → **69** = 17 `design/` + 47 `handoff/` + 2 `audit/` + **3 in radice**, dopo l'archiviazione del consolidamento *Decision Time Bank*, dei due sorgenti *mouse interaction* e dell'handoff *Wiki player-first*, ciascuno con la sua riga d'indice qui sotto — e **da rimisurare dopo il merge di #818**, vedi la nota sopra.
 > 🔴 **Ottava volta, e stavolta la lezione è doppia perché i rami erano due e avevano ragione entrambi.**
 > Due consolidamenti paralleli hanno trovato **lo stesso** off-by-one preesistente da due angoli diversi, e
 > nessuno dei due lo aveva introdotto: la riga diceva **64** mentre il disco ne aveva **65** già prima di
@@ -198,6 +207,7 @@ dove è finita quella parte che è sopravvissuta al filtro.
 | File | Oggetto | Recepito da |
 |---|---|---|
 | [`RefactorTactics_WeaponVariants_Claude_Consolidation.md`](RefactorTactics_WeaponVariants_Claude_Consolidation.md) | Varianti d'arma, affinità eroe/variante, fasce di danno | [D-085](../../decisions/RT_PDR_00_Decision_Log.md)…[D-088](../../decisions/RT_PDR_00_Decision_Log.md) (le quattro `Locked`) · `WV-1`…`WV-5` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) · catalogo owner [`RT_EquipmentCatalog_v0.1.md`](../../balance/RT_EquipmentCatalog_v0.1.md). Revisione dell'esito: [`weapon-variants-spec-panel-2026-08-11.md`](../../roadmap/plans/weapon-variants-spec-panel-2026-08-11.md) — le §18–§29 **non** sono state applicate, costruite su una fotografia più arretrata del repository stesso |
+| [`RefactorTactics_Wiki_PlayerFirst_Claude_Handoff_2026-08-13.md`](RefactorTactics_Wiki_PlayerFirst_Claude_Handoff_2026-08-13.md) | Ristrutturazione della Wiki in manuale player-first con Developer Zone separata: IA target, quattro template di pagina, visual e icon grammar, otto wave | Audit: [`wiki-audit-player-first-2026-08-13.md`](../../roadmap/plans/wiki-audit-player-first-2026-08-13.md) · epic [#422](https://github.com/DegrassiAaron/refactor-tactics-main/issues/422) **riscritta**, non duplicata · wave [#821](https://github.com/DegrassiAaron/refactor-tactics-main/issues/821)–[#828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/828) · relation su [#757](https://github.com/DegrassiAaron/refactor-tactics-main/issues/757). Le wave 1–8 **non** sono state eseguite: il documento stesso vieta il big bang (§15, §26) |
 
 > ⚠️ **Il conteggio in testa è alla deriva**: la riga 5 dichiara **40** documenti, ma la cartella ne
 > contiene **47** (`find docs/archive/src -name '*.md' ! -name README.md | wc -l`). Lo scarto è
