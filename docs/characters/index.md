@@ -43,9 +43,9 @@ I nomi canonici del roster sono fissati da [D-120](../decisions/RT_PDR_00_Decisi
 > conservano per ora il nome storico: cambiarlo è un `move` che rompe i link, non un rename di prosa.
 >
 > ⚠️ **Quello che si legge a schermo non è ancora questo.** L'etichetta sopra ogni unità è *derivata* dallo
-> Stable ID da `ARTUnit::ShortHeroName`, quindi in gioco compaiono tuttora i nomi storici finché
-> [#715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/715) non introduce un `DisplayName`
-> dichiarato.
+> Stable ID da `ARTUnit::ShortHeroName`, quindi in gioco compaiono tuttora i nomi storici. Il campo canonico
+> **esiste già** (`URTHeroData::DisplayName`) ed è popolato: quello che manca è il trasporto fino alla HUD.
+> È [#715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/715).
 
 ## Roster v0.2 — asset base Paragon
 
