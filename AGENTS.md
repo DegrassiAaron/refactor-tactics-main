@@ -222,20 +222,51 @@ Repository: `DegrassiAaron/refactor-tactics-main`.
 - Niente commit, push, merge, force, delete remoti o operazioni distruttive senza richiesta esplicita.
 - Non confondere “ho modificato i file” con “ho verificato build/PIE/packaged” (§*Test e Definition of Done*).
 
-### I contatori condivisi si assegnano al merge
+### Una sessione esecutiva = un worktree
 
-`D-nnn` del Decision Log, numeri di **epic** (`Enn`) e ID di decisione aperta (`XXX-n`) vivono in uno spazio
-condiviso fra sessioni, e **nessuna sessione può vedere le altre**. Il repository ha già pagato **tredici**
-collisioni su `D-nnn` — tutte registrate in fondo al Decision Log — e una su `E21`.
+Due sessioni nella stessa working directory si scrivono addosso: stesso file, stesso `git status`, branch
+cambiato sotto i piedi dell'altra. Se te ne accorgi, **non «gestirlo con attenzione»**: dillo, e la task
+va spostata in un worktree dedicato.
 
-- Il controllo *«qual è il primo numero libero»* **scade mentre lavori**: in una sessione lunga una PR può
-  portarne otto in un colpo. Rifallo **subito prima del merge**, non all'inizio.
-- Un numero non si hardcoda da un documento di handoff: si **verifica sul remote**
-  (`gh issue list --search "EPIC in:title"`, l'ultima riga del Decision Log).
-- Se collide, **rinumera prima del merge** e correggi i rimandi per coppia `(file, riga)`: contenuto
-  invariato, numero nuovo. Se è già atterrata su `main`, rinumera la **seconda** e registrala nelle Note.
+```powershell
+git worktree add ..\rt-wt-621 -b feat/621-geometry-bake origin/main
+```
 
-⚠️ Se lavori in un **worktree**, questo vale il doppio: il tuo albero è isolato, il contatore no.
+Non creare né distruggere worktree senza richiesta esplicita: vale la regola non distruttiva qui sopra.
+
+### `D-nnn` non si sceglie a mano
+
+```powershell
+python scripts/rt_shared_id.py reserve D --reason "<issue/task>"
+```
+
+Stampa l'ID da usare, e **si usa esattamente quello**. È vietato dedurlo — *«l'ultimo è D-135, quindi
+prendo D-136»* è la race, non la sua mitigazione: due sessioni che leggono lo stesso stato scelgono lo
+stesso numero, e il progetto ne ha pagate **sedici** ([D-135](docs/decisions/RT_PDR_00_Decision_Log.md),
+tutte registrate in fondo al Decision Log, più una su `E21`).
+
+L'allocatore è atomico fra tutti i worktree di **questo clone** e considera già preso ogni ID che compaia
+in un working tree, in un branch locale o in uno remoto — anche non committato, anche non mergiato. Non
+copre altri cloni o altri PC: per quelli c'è `audit-refs`, che diagnostica invece di prevenire.
+
+Prima della consegna, i due gate (il `fetch` è tuo, lo script non fa rete):
+
+```powershell
+python scripts/rt_shared_id.py check
+git fetch --prune origin
+python scripts/rt_shared_id.py audit-refs
+```
+
+Se `audit-refs` è rosso, **rinumera prima del merge**: `reserve` per un ID nuovo, rimandi corretti per
+coppia `(file, riga)` — mai con una sostituzione globale — contenuto invariato. Se l'altra è già su
+`main`, rinumeri la **seconda** e la registri nelle Note.
+
+⚠️ Restano a mano gli altri contatori condivisi — numeri di **epic** (`Enn`) e ID di decisione aperta
+(`XXX-n`): si verificano sul remote (`gh issue list --search "EPIC in:title"`) subito prima del merge,
+perché il controllo *«qual è il primo numero libero»* scade mentre lavori. L'estensione dell'allocatore a
+questi namespace è deliberatamente rimandata a dopo che `D-nnn` avrà dimostrato il meccanismo.
+
+Meccanismo, recovery e cleanup: [`docs/technical/workflow-parallel-claude.md`](docs/technical/workflow-parallel-claude.md).
 
 ## Lingua
 
