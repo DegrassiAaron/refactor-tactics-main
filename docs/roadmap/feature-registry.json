@@ -1481,7 +1481,7 @@
         "RefactorTactics.Actions.BasicAttack",
         "RefactorTactics.Actions.Guard",
         "RefactorTactics.Actions.Interact.IsInertUntilImplemented",
-        "RefactorTactics.Actions.RetiredStableIdRedirectsToHeir",
+        "RefactorTactics.Actions.RetiredStableIdIsGoneEntirely",
         "RefactorTactics.Actions.SprintIsAMoveProfileResolvedPreBlast",
         "RefactorTactics.Actions.CoreActionsMatchCatalog",
         "RefactorTactics.Actions.ControlActionsMatchCatalog",
@@ -5883,9 +5883,7 @@
         "RefactorTactics.TurnLog.ActionIdRoundTrip",
         "RefactorTactics.Unit.ShortHeroNameFromStableId",
         "RefactorTactics.ScenarioIndex.IdIsIndependentOfPath",
-        "RefactorTactics.Actions.RetiredStableIdRedirectsToHeir",
-        "RefactorTactics.Catalog.ValidatorRejectsRetiredStableId",
-        "RefactorTactics.TurnLog.RetiredActionIdIsStillReadableFromDisk"
+        "RefactorTactics.Actions.RetiredStableIdIsGoneEntirely"
       ],
       "scenarios": [],
       "scenarios_planned": [],

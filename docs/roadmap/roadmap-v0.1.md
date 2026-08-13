@@ -851,8 +851,9 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 > **CP 10.1 riscritta il 2026-08-09**, e sono due correzioni distinte, nessuna delle quali cambia il design.
 > (a) Il titolo diceva «`Activate` / `Interact`»: [D-025](../decisions/RT_PDR_00_Decision_Log.md) ha assorbito
 > `Activate` in `Interact` e le azioni generiche sono **sette**. ✅ **Dal 2026-08-10 (`#199`) lo Stable ID non
-> è più nel catalogo**: `Action.Activate` è stata ritirata e il suo ID viene **reindirizzato in lettura** a
-> `Action.Interact`, così le tracce già scritte restano interpretabili. CP 10.1 costruisce su una sola azione.
+> è più nel catalogo**: `Action.Activate` è stata ritirata. Il suo ID è stato reindirizzato in lettura a
+> `Action.Interact` fino al 2026-08-13, quando [D-132](../decisions/RT_PDR_00_Decision_Log.md) ha rimosso il
+> redirect: nessuna traccia versionata lo conteneva. CP 10.1 costruisce su una sola azione.
 > (b) La DoD metteva le conseguenze topologiche nel **Cleanup**: superato da **CP 9.3**, dove `SetDoorState` è
 > un effetto raccolto nel Blast e applicato a fase conclusa, e da **CP 9.4**, che ha spostato `ModifyArc` dal
 > Cleanup al Blast. Una topologia che cambia dopo il Move non può fermare un movimento: è precisamente il

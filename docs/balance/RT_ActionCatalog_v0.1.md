@@ -119,10 +119,15 @@ confermata da [D-025](../decisions/RT_PDR_00_Decision_Log.md)): erano la stessa 
 dispositivo» è un'interazione.
 
 > ✅ **Migrazione eseguita il 2026-08-10 (`#199`).** Il catalogo **non spedisce più** `Action.Activate`: da
-> quella data il codice ha una sola azione di interazione. Lo Stable ID **non è stato cancellato** — D-014 lo
-> vieta perché gli ActionId entrano nel TurnLog serializzato — ma **reindirizzato in lettura** a
-> `Action.Interact` da `URTCatalogLibrary::ResolveLegacyActionId`, così una traccia scritta prima resta
-> interpretabile. Verificato da `RefactorTactics.Actions.RetiredStableIdRedirectsToHeir`.
+> quella data il codice ha una sola azione di interazione.
+>
+> ⚠️ **Aggiornato il 2026-08-13 ([D-132](../decisions/RT_PDR_00_Decision_Log.md)): lo Stable ID è stato
+> cancellato del tutto.** Fino a quella data era **reindirizzato in lettura** a `Action.Interact` da
+> `URTCatalogLibrary::ResolveLegacyActionId`, perché D-014 vietava di cancellare un ID che entra nel TurnLog
+> serializzato. Il redirect è stato rimosso quando si è misurato che **non proteggeva nulla**: nessuna traccia
+> versionata contiene `Action.Activate` — il corpus golden porta solo `Action.Move` — e il gioco non è ancora
+> uscito. `FindCoreAction("Action.Activate")` oggi risponde con una definizione **vuota**, ed è quello che
+> verifica `RefactorTactics.Actions.RetiredStableIdIsGoneEntirely`.
 >
 > La riga qui sopra **resta barrata invece di sparire**: la tabella è il catalogo *storico* delle identità, e
 > un ID ritirato che scompare dal documento è un ID che nessuno saprà più leggere quando lo incontra in un

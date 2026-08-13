@@ -1266,8 +1266,8 @@ features:
       - RefactorTactics.Actions.Interact.IsInertUntilImplemented
       # `Actions.Activate.IsInertUntilImplemented` non esiste piu' (#199): l'azione e' uscita dal
       # catalogo (D-014 + D-025), quindi «non fa nulla» non e' piu' la proprieta' da verificare.
-      # Al suo posto la migrazione: sparita dal catalogo E ancora interpretabile come ID.
-      - RefactorTactics.Actions.RetiredStableIdRedirectsToHeir
+      # Al suo posto, dal D-132: sparita dal catalogo E non piu' reindirizzata da nulla.
+      - RefactorTactics.Actions.RetiredStableIdIsGoneEntirely
       - RefactorTactics.Actions.SprintIsAMoveProfileResolvedPreBlast
       - RefactorTactics.Actions.CoreActionsMatchCatalog
       - RefactorTactics.Actions.ControlActionsMatchCatalog
@@ -5478,9 +5478,9 @@ features:
     dependencies: []
     owner_specs:
       - docs/technical/convenzioni-contenuti-ue.md
-      # Gli ID stabili esistono e reggono; cio' che manca e' il ritiro dei TRE legacy (`Action.Guard`,
-      # `Action.Activate`, `Action.Sprint`), la cui tassonomia e' decisa da D-014/D-015 ma la cui migrazione
-      # non e' mai stata pianificata. Il piano esiste dal 2026-08-10 e non e' eseguito (#199).
+      # Gli ID stabili esistono e reggono. Il ritiro dei TRE legacy (`Action.Guard`, `Action.Activate`,
+      # `Action.Sprint`) e' eseguito (#199); il piano che lo descriveva e' `HISTORICAL` dal D-132, che ha
+      # rimosso il redirect invece di estenderlo — nessuna traccia versionata lo consumava.
       - docs/technical/piano-migrazione-stable-id.md
     issues: [29, 199]
     tests:
@@ -5488,9 +5488,11 @@ features:
       - RefactorTactics.TurnLog.ActionIdRoundTrip
       - RefactorTactics.Unit.ShortHeroNameFromStableId
       - RefactorTactics.ScenarioIndex.IdIsIndependentOfPath
-      - RefactorTactics.Actions.RetiredStableIdRedirectsToHeir
-      - RefactorTactics.Catalog.ValidatorRejectsRetiredStableId
-      - RefactorTactics.TurnLog.RetiredActionIdIsStillReadableFromDisk
+      # `Catalog.ValidatorRejectsRetiredStableId` e `TurnLog.RetiredActionIdIsStillReadableFromDisk` sono
+      # stati rimossi col redirect (D-132): il primo verificava un divieto che non esiste piu', il secondo
+      # era sussunto da `TurnLog.ActionIdRoundTrip`, che pinna round-trip e hash su un ID che il catalogo
+      # non conosce.
+      - RefactorTactics.Actions.RetiredStableIdIsGoneEntirely
     scenarios: []
     wiki_refs: []
     last_verified:

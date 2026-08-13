@@ -19,6 +19,10 @@
 > Gli Stable ID `Action.Guard`, `Action.Activate` e `Action.Sprint` **restano nel codice** e sono consumati:
 > la nuova tassonomia è semantica di gameplay, **non un rename già fatto**. La migrazione è tracciata come
 > issue. Questa spec **non va riscritta** come se il nuovo modello fosse sempre esistito.
+>
+> ⚠️ **La riga qui sopra è datata 2026-08-06 e la migrazione l'ha superata**: `Action.Activate` è uscita dal
+> catalogo il 2026-08-10 (`#199`) e il suo Stable ID è stato **cancellato** il 2026-08-13
+> ([D-132](../decisions/RT_PDR_00_Decision_Log.md)). `Guard` e `Sprint` restano, per D-025 e D-068.
 
 > **Stato**: proposta di design, **da approvare** · **Data**: 2026-08-06 · **Epic**: E4 (`#42`–`#46`)
 > **Prerequisiti già in `main`**: `FRTActionDef` + `URTCatalogLibrary` (CP 1.3/1.4), cataloghi in

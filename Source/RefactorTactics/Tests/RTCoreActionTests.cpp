@@ -41,8 +41,8 @@ bool FRTCoreActionsMatchDocumentTest::RunTest(const FString&)
 		{ TEXT("Action.BasicAttack"), ERTMatchPhase::Blast,  50, ERTActionFallback::Cancel, ERTActionSlot::Main },
 		{ TEXT("Action.Guard"),       ERTMatchPhase::Prep,   40, ERTActionFallback::Cancel, ERTActionSlot::Main },
 		// `Action.Activate` non e' piu' qui (#199): [D-025] la dichiara assorbita da `Interact`, e il
-		// catalogo non spedisce piu' due azioni per una cosa sola. Il suo Stable ID vive in
-		// `Actions.RetiredStableIdRedirectsToHeir`, che e' dove la migrazione e' verificata.
+		// catalogo non spedisce piu' due azioni per una cosa sola. Dal [D-132] il suo Stable ID non esiste
+		// piu' nemmeno come redirect: lo verifica `Actions.RetiredStableIdIsGoneEntirely`.
 		{ TEXT("Action.Interact"),    ERTMatchPhase::Blast,  80, ERTActionFallback::Cancel, ERTActionSlot::Main },
 	};
 
@@ -230,42 +230,37 @@ bool FRTInteractIsInertTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRetiredStableIdTest,
-	"RefactorTactics.Actions.RetiredStableIdRedirectsToHeir",
+	"RefactorTactics.Actions.RetiredStableIdIsGoneEntirely",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTRetiredStableIdTest::RunTest(const FString&)
 {
-	// #199 — la migrazione di `Action.Activate`, decisa da [D-014] e confermata da [D-025].
+	// [D-132] — `Action.Activate` non esiste piu' in NESSUNA forma: ne' a catalogo (#199, D-014 + D-025),
+	// ne' come voce di redirect.
 	//
-	// Sostituisce `Actions.Activate.IsInertUntilImplemented`: quel test verificava che l'azione non facesse
-	// nulla, e ora l'azione non c'e'. Le due meta' della migrazione vanno verificate INSIEME, perche' una
-	// sola sarebbe un difetto — sparire senza redirect rompe le tracce, restare col redirect e' la doppia
-	// verita' che l'issue vieta.
+	// Fino al 2026-08-13 questo test si chiamava `RetiredStableIdRedirectsToHeir` e verificava l'opposto
+	// della seconda meta': che l'ID morto rispondesse con l'erede. La macchina che lo faceva
+	// (`ResolveLegacyActionId`) e' stata rimossa perche' non aveva nulla da proteggere — nessuna traccia
+	// versionata la nomina, e il corpus golden porta solo `Action.Move`. Il test resta perche' la PRIMA
+	// meta' e' ancora una regola viva: il catalogo spedisce una azione sola per una cosa sola.
 
-	// 1. NON e' piu' nel catalogo spedito: una cosa sola, una azione sola.
+	// 1. NON e' nel catalogo spedito: una cosa sola, una azione sola.
 	const TArray<FRTActionDef> Core = URTCatalogLibrary::GetCoreActionCatalog();
 	bool bStillShipped = false;
 	for (const FRTActionDef& Def : Core)
 	{
 		if (Def.ActionId == FName(TEXT("Action.Activate"))) { bStillShipped = true; break; }
 	}
-	TestFalse(TEXT("Action.Activate non e' piu' nel catalogo generico"), bStillShipped);
+	TestFalse(TEXT("Action.Activate non e' nel catalogo generico"), bStillShipped);
 
-	// 2. Ma l'ID resta INTERPRETABILE: una traccia scritta prima della migrazione deve restare leggibile.
-	TestEqual(TEXT("l'ID ritirato si risolve nell'erede"),
-		URTCatalogLibrary::ResolveLegacyActionId(TEXT("Action.Activate")), FName(TEXT("Action.Interact")));
+	// 2. E l'ingresso per ID non lo traduce: chi cerca l'ID morto ottiene una def VUOTA, non l'erede. E'
+	//    la meta' che [D-132] ha cambiato, ed e' quella che un redirect reintrodotto per sbaglio romperebbe.
+	const FRTActionDef Dead = URTCatalogLibrary::FindCoreAction(TEXT("Action.Activate"));
+	TestTrue(TEXT("FindCoreAction non reindirizza un ID ritirato"), Dead.ActionId.IsNone());
 
-	// 3. E il redirect passa dall'ingresso vero del catalogo, non solo dalla tabella: chi cerca l'ID morto
-	//    ottiene la definizione dell'erede, con l'identita' dell'erede — non un'azione muta.
-	const FRTActionDef Redirected = URTCatalogLibrary::FindCoreAction(TEXT("Action.Activate"));
-	TestEqual(TEXT("FindCoreAction risponde con Interact"), Redirected.ActionId, FName(TEXT("Action.Interact")));
-	TestEqual(TEXT("...e con la sua portata di adiacenza"), Redirected.RangeCells, 1);
-
-	// 4. Un ID che non e' ritirato passa invariato: la tabella traduce le voci che ha, non tutto cio' che
-	//    riceve. Senza questo caso, un redirect troppo largo passerebbe inosservato.
-	TestEqual(TEXT("un ID vivo non viene tradotto"),
-		URTCatalogLibrary::ResolveLegacyActionId(TEXT("Action.Move")), FName(TEXT("Action.Move")));
-	TestEqual(TEXT("un ID inesistente resta se stesso"),
-		URTCatalogLibrary::ResolveLegacyActionId(TEXT("Action.NonEsiste")), FName(TEXT("Action.NonEsiste")));
+	// 3. L'erede si raggiunge col PROPRIO nome, e nient'altro lo raggiunge.
+	const FRTActionDef Heir = URTCatalogLibrary::FindCoreAction(TEXT("Action.Interact"));
+	TestEqual(TEXT("Action.Interact risponde per se stessa"), Heir.ActionId, FName(TEXT("Action.Interact")));
+	TestEqual(TEXT("...con la sua portata di adiacenza"), Heir.RangeCells, 1);
 
 	return true;
 }
