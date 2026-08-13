@@ -24,8 +24,11 @@ utile per la provenienza, mai per la regola.
 ## 2. Pin rapidi
 
 - UE **5.8.1**; v0.1 **2v2 offline vs bot**; hex multilivello; roster **Gadget/Phase/Riktor/Wraith**
-  (**D-120**). `Hero.Flux` / `Hero.Riva` / `Hero.Bastion` / `Hero.Vektor` restano gli **Stable ID**: non
-  sono nomi e non si rinominano (blocker [#716](https://github.com/DegrassiAaron/refactor-tactics-main/issues/716)).
+  (**D-120**). I nomi legacy **escono dal repository** (**D-130**): `Flux→Gadget`, `Riva→Phase`,
+  `Bastion→Riktor`, `Vektor→Wraith`. Gli `Hero.<Nome>` si **rinominano** (non sono nel TurnLog); i token
+  abilità sono `ActionId` **serializzati**, quindi si **redirigono** e atterrano su `Hero.<Nome>.<Abilità>`.
+  ⚠️ Fino all'esecuzione del piano il codice porta ancora i nomi vecchi: non trattarli come corretti, e non
+  fare search/replace fuori dalle fette — [`docs/technical/piano-migrazione-roster.md`](docs/technical/piano-migrazione-roster.md).
   Gate: `python scripts/check-docs-naming.py --check`.
 - Fasi: `Planning → Prep → Dash → Blast → Move → Cleanup`; Move normale resta dopo Blast.
 - Un solo substrato: `FRTCellId`; no gameplay quadrato parallelo.
