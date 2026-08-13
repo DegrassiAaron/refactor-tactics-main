@@ -76,22 +76,6 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 		else
 		{
 			Seen.Add(Action.ActionId);
-			// Stable ID RITIRATO usato per DICHIARARE un'azione (#199, fetta 2). Il redirect di
-			// `ResolveLegacyActionId` esiste per la LETTURA — una traccia gia' su disco deve restare
-			// interpretabile — e non per la scrittura: un'azione nuova che si chiama con un nome ritirato
-			// ricrea la doppia verita' che la migrazione ha appena tolto.
-			//
-			// L'errore **nomina l'erede**, e non e' cortesia: senza, chi lo incontra sa che qualcosa e'
-			// vietato e non cosa scrivere al suo posto — e la risposta sta in una tabella che non ha motivo
-			// di conoscere.
-			const FName Heir = ResolveLegacyActionId(Action.ActionId);
-			if (Heir != Action.ActionId)
-			{
-				Errors.Add(FString::Printf(
-					TEXT("%s: Stable ID RITIRATO — usa `%s`. Il vecchio ID resta valido solo in LETTURA, ")
-					TEXT("per le tracce gia' scritte (D-014: gli Stable ID legacy non si cancellano)"),
-					*Where, *Heir.ToString()));
-			}
 		}
 
 		if (Action.Priority < 0)
@@ -765,9 +749,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// Toglierla ORA costa una riga; dopo CP 10.1, quando gli oggetti interagibili esisteranno davvero, il
 	// costo sarebbe ogni consumatore scritto nel frattempo.
 	//
-	// Lo Stable ID **non si cancella**: vedi `ResolveLegacyActionId`, che lo reindirizza in lettura. D-014
-	// lo chiede esplicitamente — «gli Stable ID legacy non si cancellano» — perche' entrano nel TurnLog
-	// serializzato, e una traccia gia' scritta deve restare interpretabile.
+	// Lo Stable ID e' stato cancellato del tutto con [D-134], che supera la clausola di D-014 «gli Stable ID
+	// legacy non si cancellano»: quella regola proteggeva le tracce gia' scritte, e nessuna traccia versionata
+	// contiene `Action.Activate` — il corpus golden porta solo `Action.Move`.
 	Catalog.Add(ShippedAction(TEXT("Action.Interact"), ERTResolutionPhase::Attack, /*Priority*/ 80,
 		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
 		/*bInterruptible*/ true, ERTActionSlot::Main));
@@ -1275,37 +1259,15 @@ TArray<FString> URTCatalogLibrary::ValidateActionSlots(const TArray<FRTActionDef
 	return Errors;
 }
 
-FName URTCatalogLibrary::ResolveLegacyActionId(const FName& ActionId)
-{
-	// Stable ID ritirati e il loro erede (#199). La tabella e' l'unico posto dove un ID morto sopravvive:
-	// non risolve un'azione, dice **da chi farsi rispondere**.
-	//
-	// Perche' esiste: gli ActionId entrano nel TurnLog SERIALIZZATO (formato v3 in poi). Una traccia scritta
-	// quando `Action.Activate` era nel catalogo resta su disco, e chi la rilegge deve poterla interpretare —
-	// cancellare l'ID renderebbe illeggibile un file valido. E' la richiesta letterale di [D-014]: «gli
-	// Stable ID legacy non si cancellano».
-	//
-	// Si reindirizza in LETTURA soltanto. Nessun produttore scrive piu' `Action.Activate`: il catalogo non la
-	// contiene, quindi nessun intento puo' nominarla. Se un giorno la tabella crescesse abbastanza da meritare
-	// un dato invece di una funzione, il posto e' il catalogo — non un secondo `if` sparso altrove.
-	static const TMap<FName, FName> Retired = {
-		// [D-014] + [D-025]: «attivare un dispositivo» **e'** un'interazione, non una seconda azione.
-		{ FName(TEXT("Action.Activate")), FName(TEXT("Action.Interact")) },
-	};
-
-	const FName* Heir = Retired.Find(ActionId);
-	return Heir ? *Heir : ActionId;
-}
-
 FRTActionDef URTCatalogLibrary::FindCoreAction(const FName& ActionId)
 {
-	// Il redirect sta QUI e non nei chiamanti: e' l'unico ingresso del catalogo per ID, quindi e' l'unico
-	// punto in cui un ID ritirato puo' essere tradotto una volta per tutti. Metterlo nei chiamanti
-	// significherebbe che chi ne dimentica uno riapre il buco in silenzio.
-	const FName Resolved = ResolveLegacyActionId(ActionId);
+	// Nessuna traduzione: l'ID che arriva e' l'ID che si cerca. Fino a [D-134] qui passava
+	// `ResolveLegacyActionId`, che traduceva gli Stable ID ritirati nel loro erede; la macchina e' stata
+	// rimossa perche' non aveva nulla da proteggere — il corpus di tracce versionate non contiene un solo
+	// ID ritirato, e il gioco non e' ancora uscito.
 	for (const FRTActionDef& Def : GetCoreActionCatalog())
 	{
-		if (Def.ActionId == Resolved) { return Def; }
+		if (Def.ActionId == ActionId) { return Def; }
 	}
 	return FRTActionDef();
 }

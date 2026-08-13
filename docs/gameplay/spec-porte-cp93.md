@@ -164,8 +164,9 @@ dall'esterno. Perché una porta si chiuda *durante* il turno serve un vettore in
 fase conclusa — la stessa forma che CP 9.2 ha dato a `DamageStructure`.
 
 - **Non** è un'azione nuova nel catalogo: l'azione di gioco che apre e chiude porte è CP 10.1
-  (`Action.Activate`/`Interact`, test `Objectives.ActivateDoorChangesGraph`). Anticiparla qui sarebbe scope
-  creep, e andrebbe bilanciata (costo, portata, slot).
+  (`Action.Interact` — una sola, dopo `#199` e [D-134](../decisions/RT_PDR_00_Decision_Log.md); test
+  `Objectives.ActivateDoorChangesGraph`). Anticiparla qui sarebbe scope creep, e andrebbe bilanciata
+  (costo, portata, slot).
 - Il bordo su cui agisce è la **prima porta attraversata** dalla linea attaccante → bersaglio, per simmetria
   con `DamageStructure`, che colpisce il primo bordo **coperto** attraversato.
 - Lo stato richiesto viaggia in `Amount` (valore di `ERTHexDoorState`): è la convenzione già in uso nel

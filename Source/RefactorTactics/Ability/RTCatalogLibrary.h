@@ -257,17 +257,10 @@ public:
 	static TArray<FRTActionDef> GetCoreActionCatalog();
 
 	/**
-	 * Traduce uno Stable ID **ritirato** nel suo erede; restituisce l'ID invariato se non lo e' (#199).
-	 *
-	 * Serve perche' gli ActionId entrano nel TurnLog serializzato: un ID tolto dal catalogo resta scritto nei
-	 * file gia' su disco, e [D-014] richiede che non venga cancellato ma reindirizzato. Oggi la tabella ha
-	 * una voce sola — `Action.Activate` -> `Action.Interact`, per [D-025].
-	 */
-	static FName ResolveLegacyActionId(const FName& ActionId);
-
-	/**
 	 * Azione generica con l'ActionId dato, o una definizione vuota se l'ID non e' nel catalogo.
-	 * Gli ID ritirati passano da `ResolveLegacyActionId`, quindi rispondono con l'azione erede.
+	 *
+	 * Non esiste un redirect di ID ritirati: [D-134] lo ha rimosso. Un ID che il catalogo non conosce
+	 * torna vuoto e basta — chi legge una traccia vede l'ID che la traccia dichiaro', non un erede.
 	 */
 	static FRTActionDef FindCoreAction(const FName& ActionId);
 

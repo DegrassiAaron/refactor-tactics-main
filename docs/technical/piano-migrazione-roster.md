@@ -58,9 +58,14 @@ Sono citati in `docs/roadmap/feature-registry.yaml`. **Un ID di test che cambia 
 sparire un test dalla run**, mentre il registry continua a citare un nome che non esiste. Il gate non diventa
 rosso — smette di esistere. Vanno cambiati **nello stesso commit** del registry.
 
-## 2. Perché gli `HeroId` si rinominano e i token abilità no
+## 2. Perché si rinominano tutti, `HeroId` e token abilità
 
-È il discrimine che rende questo piano più corto di quanto #716 lasciasse credere, e non è un'opinione:
+> 🔴 **Riscritta il 2026-08-13 da [D-134](../decisions/RT_PDR_00_Decision_Log.md).** Fino a quella data questa
+> sezione si intitolava *«Perché gli `HeroId` si rinominano e i token abilità no»* e prescriveva per i venti
+> token un **redirect** via `URTCatalogLibrary::ResolveLegacyActionId`. Il redirect è stato **rimosso**, non
+> esteso, e con lui sono cadute le fette 1 e 2. La misura che ha ribaltato la scelta è in fondo alla sezione.
+
+Il discrimine originale non era un'opinione, ed è ancora vero come descrizione del formato:
 
 ```
 FRTTurnLogEntry:  Phase · Category · Outcome · SrcCell · TgtCell · Amount
@@ -73,17 +78,29 @@ FRTTurnLogEntry:  Phase · Category · Outcome · SrcCell · TgtCell · Amount
 | Token | Serializzato | Trattamento |
 |---|---|---|
 | `Hero.Flux` → `Hero.Gadget` | no | **rinomina**: nessun redirect, nessuna doppia verità, nessuna finestra di transizione |
-| `Flux.ArcPulse` → `Hero.Gadget.ArcPulse` | **sì**, come `ActionId` | **redirect** in lettura via `ResolveLegacyActionId`; in scrittura il validator lo rifiuta |
+| `Flux.ArcPulse` → `Hero.Gadget.ArcPulse` | **sì**, come `ActionId` | **rinomina** anche questo — vedi sotto |
 
-La regola che tiene insieme le fette è quella di #199, invariata: **il redirect vale in lettura, mai in
-scrittura**. Non esiste un momento in cui due ID sono entrambi autorevoli.
+Il fatto che un token sia serializzato dice che **potrebbe** esistere una traccia da proteggere, non che esista.
+Tre misure dicono che non esiste:
+
+1. **Il corpus versionato non li contiene.** `Tests/Golden/*/turn-01.rttl` sono 142 byte ciascuno e portano
+   `RTTL` + `Action.Move` ×2. Nessun token d'eroe, nessun ID ritirato.
+2. **Il redirect non aveva lettori per questi token.** `ResolveLegacyActionId` aveva **due** consumatori di
+   produzione: `ValidateActions` (scrittura) e `FindCoreAction`, che cerca in `GetCoreActionCatalog()` — dove
+   le abilità d'eroe **non sono mai state**. Chi legge un'abilità d'eroe per ID lo fa per uguaglianza cruda
+   (`RTScenarioSession::FindAbilityIndex`, `RTTurnManager.cpp` per il bonus `Wet`), e un redirect non li tocca.
+3. **Il gioco non è uscito.** Non esiste un replay di qualcun altro da non invalidare.
+
+Ne segue che i venti token si rinominano come gli `HeroId`. **Non esiste un momento in cui due ID sono
+entrambi autorevoli** — la regola di #199 sopravvive alla macchina che la implementava, ed è più facile
+rispettarla senza.
 
 ### Perché `Hero.<Nome>.<Abilità>` e non `<Nome>.<Abilità>`
 
 `Gadget.ArcPulse` finirebbe accanto a `Gadget.Medkit`, e `Phase.FlowReaction` accanto a un sostantivo che il
 turno usa 503 volte (`ERTMatchPhase` 367 + `ERTResolutionPhase` 136). Il prefisso `Hero.` toglie l'ambiguità
 per costruzione, e **non costa nulla**: nessun punto del codice legge la struttura interna di un token
-abilità. `ValidateActions` verifica `IsNone`, i duplicati e il redirect — mai la forma. I due soli split di
+abilità. `ValidateActions` verifica `IsNone` e i duplicati — mai la forma. I due soli split di
 `Source/` (`ARTUnit::ShortHeroName`, `URTIconLibrary`) usano `FindLastChar` e operano su `HeroId`, quindi
 `Hero.Gadget.ArcPulse` → `ArcPulse` funziona già oggi.
 
@@ -92,31 +109,38 @@ abilità. `ValidateActions` verifica `IsNone`, i duplicati e il redirect — mai
 Ogni fetta chiude con la suite verde. Nessuna fetta lascia il repository in uno stato con due nomi correnti
 per la stessa cosa.
 
+> 🔴 **Le fette 1 e 2 sono state cancellate il 2026-08-13 da D-134** — erano la «rete di sicurezza» (redirect
+> esteso ai 20 token) e la sua prova di rilettura. Senza redirect non hanno oggetto. Le issue
+> [#751](https://github.com/DegrassiAaron/refactor-tactics-main/issues/751) e
+> [#752](https://github.com/DegrassiAaron/refactor-tactics-main/issues/752) sono chiuse per questo. La
+> numerazione qui sotto è **quella nuova**; fra parentesi la vecchia, perché le issue #753–#757 la citano.
+
 | # | Fetta | Tocca la serializzazione? | Dipende da | Gate |
 |---:|---|---|---|---|
-| 1 | **Rete di sicurezza**: `ResolveLegacyActionId` esteso ai 20 token; `ValidateActions` rifiuta un token legacy **dichiarato**, nominando l'erede | in lettura | — | `Catalog.ValidatorRejectsRetiredHeroAbilityId` (nasce **rosso**: i 20 token legacy sono ancora a catalogo) |
-| 2 | **Prova di rilettura**: una traccia `.rttl` scritta col vocabolario vecchio si rilegge, l'ID resta scritto com'era, il catalogo risponde con l'erede, l'hash è riproducibile | sì | 1 | `TurnLog.RetiredHeroAbilityIdIsStillReadableFromDisk` |
-| 3 | **`HeroId` + simboli C++**: `Hero.Flux` → `Hero.Gadget` e i quattro `MakeFlux`/`MakeRiva`/`MakeBastion`/`MakeVektor`; 4 file di test rinominati | no | 2 | `Unit.CanonicalHeroIdHasNoLegacyName` sostituisce `ShortHeroNameFromStableId` |
-| 4 | **Token abilità a catalogo** → `Hero.<Nome>.<Abilità>`; scenari JSON e i 2 file scenario rinominati | no (il catalogo non è una traccia) | 3 | i 5 ID di test aggiornati **con** il registry, `feature_registry.py generate` **e** `shortlist` |
-| 5 | **Documentazione viva** — 1600 occorrenze, 106 file | — | 4 | `check-docs-naming.py --check` **senza esenzioni** per i file vivi |
-| 6 | **Archivio e citazioni datate** — 1128 occorrenze, 40 file; rimozione delle esenzioni «registri datati» dal gate | — | 5 | `check-docs-naming.py --check` verde con **zero** esenzioni |
-| 7 | **Wiki** (repo separato): 4 PNG rinominati, pagine rigenerate da un checkout col registry aggiornato | — | 4 | `deploy --wiki-root` da albero allineato |
+| 1 *(era 3)* | **`HeroId` + simboli C++**: `Hero.Flux` → `Hero.Gadget` e i quattro `MakeFlux`/`MakeRiva`/`MakeBastion`/`MakeVektor`; 4 file di test rinominati | no | — | `Unit.CanonicalHeroIdHasNoLegacyName` sostituisce `ShortHeroNameFromStableId` |
+| 2 *(era 4)* | **Token abilità a catalogo** → `Hero.<Nome>.<Abilità>`; scenari JSON e i 2 file scenario rinominati | no (il catalogo non è una traccia) | 1 | i 5 ID di test aggiornati **con** il registry, `feature_registry.py generate` **e** `shortlist` |
+| 3 *(era 5)* | **Documentazione viva** — 1600 occorrenze, 106 file | — | 2 | `check-docs-naming.py --check` **senza esenzioni** per i file vivi |
+| 4 *(era 6)* | **Archivio e citazioni datate** — 1128 occorrenze, 40 file; rimozione delle esenzioni «registri datati» dal gate | — | 3 | `check-docs-naming.py --check` verde con **zero** esenzioni |
+| 5 *(era 7)* | **Wiki** (repo separato): 4 PNG rinominati, pagine rigenerate da un checkout col registry aggiornato | — | 2 | `deploy --wiki-root` da albero allineato |
 
 ### Ordine, e perché non è negoziabile
 
-Le fette 1-2 **non cambiano un solo nome**: costruiscono la rete che rende i nomi sostituibili senza rompere i
-replay. Farle dopo significherebbe avere una finestra in cui una traccia scritta ieri non si rilegge — che è
-esattamente il rischio che D-130 accetta di non correre.
+La fetta 2 **non può precedere la 1**: i due `FindAbilityIndex` e il confronto hard-coded del bonus `Wet`
+(`RTTurnManager.cpp`, «LIMITE DICHIARATO CP 8.2») confrontano `ActionId` per uguaglianza cruda. Rinominare i
+token prima degli `HeroId` non rompe niente, ma rinominarli **senza toccare quel confronto** fa sparire il
+bonus in silenzio: nessun test diventa rosso. Va cambiato nello stesso commit della fetta 2.
 
-La fetta 6 **non può precedere la 5**: finché il gate ha esenzioni non può dimostrare che i file vivi sono
+La fetta 4 **non può precedere la 3**: finché il gate ha esenzioni non può dimostrare che i file vivi sono
 puliti, e un gate che non può fallire non prova nulla.
 
 ## 4. Cosa **non** si tocca, e non è un'eccezione al perimetro
 
 1. **I corpi di issue e PR già chiuse su GitHub.** Non sono file di questo repository. Restano a dire il nome vecchio, ed
    è la ragione per cui la §6 registra il costo invece di negarlo.
-2. **I byte dentro le tracce `.rttl` già scritte.** È precisamente ciò che il redirect esiste per leggere:
-   riscriverli sarebbe falsificare un replay, che è l'unica cosa che questo progetto tratta come prova.
+2. **I byte dentro le tracce `.rttl` già scritte.** Riscriverli sarebbe falsificare un replay, che è l'unica
+   cosa che questo progetto tratta come prova. Dopo D-134 una traccia col vocabolario vecchio **resta
+   leggibile ma non più interpretabile dal catalogo**: l'ID che dichiara non risolve più a nulla. È il costo
+   che D-134 accetta, e lo accetta perché di tracce simili non ne esiste una versionata.
 
 Il corpus golden **non li contiene**: `Tests/Golden/Movement.Basic/turn-01.rttl` e `Movement.Collision/…`
 sono 142 byte ciascuno e portano solo `RTTL` e `Action.Move`. Quindi i due test golden restano verdi **per
@@ -163,5 +187,5 @@ che non ripristina la provenienza ma dice a chi legge cosa cercare. Da decidere 
 - [ ] `check-docs-naming.py --check` verde **con zero esenzioni** dichiarate nello script
 - [ ] Suite verde, con il conto dei test **misurato sul branch**, non copiato da qui
 - [ ] I 5 ID di test rinominati esistono con il nome nuovo e il registry li cita
-- [ ] Una traccia `.rttl` scritta prima della migrazione si rilegge e produce lo stesso hash
+- [ ] Il confronto hard-coded del bonus `Wet` (`RTTurnManager.cpp`) nomina il token nuovo
 - [ ] I due test golden verdi, con il `grep` di §4 nel corpo della PR

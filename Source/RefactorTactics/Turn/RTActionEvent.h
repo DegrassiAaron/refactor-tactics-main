@@ -75,8 +75,8 @@ enum class ERTActionEffect : uint8
 	 *
 	 * Non e' un'azione di catalogo: l'azione che apre e chiude porte e' CP 10.1 (`Action.Interact`).
 	 * Diceva `Action.Activate` fino a `#199`, che l'ha ritirata: [D-014] la dichiarava «assorbita
-	 * semanticamente da `Interact`» e [D-025] lo ha confermato. Lo Stable ID resta interpretabile in lettura
-	 * (`URTCatalogLibrary::ResolveLegacyActionId`), ma non e' piu' il nome di un'azione che qualcuno userera'.
+	 * semanticamente da `Interact`» e [D-025] lo ha confermato. Con [D-134] quell'ID non esiste piu' in
+	 * nessuna forma — nemmeno come voce di redirect.
 	 */
 	SetDoorState,
 

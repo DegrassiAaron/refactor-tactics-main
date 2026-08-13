@@ -1,6 +1,5 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTTurnLogLibrary.h"
-#include "Ability/RTCatalogLibrary.h" // #199: il redirect degli Stable ID ritirati vive nel catalogo
 #include "Turn/RTTurnLog.h"
 #include "Core/RTTypes.h"
 #include "Algo/Reverse.h"
@@ -1120,92 +1119,6 @@ bool FRTTurnLogLegacyWithoutPriorityTest::RunTest(const FString&)
 	// E la riga leggibile non mostra «p0»: zero significa «non dichiarata», non «priorita' zero».
 	TestFalse(TEXT("il combat log non stampa una priorita' che la traccia non aveva"),
 		URTTurnLogLibrary::DescribeEntry(Out[0]).Contains(TEXT("p0")));
-	return true;
-}
-
-/**
- * `#199` **fetta 6** — la verifica che il piano di migrazione chiamava «a due binari»: un TurnLog scritto col
- * vocabolario VECCHIO si rilegge col binario nuovo e conserva l'informazione.
- *
- * **Perche' questo test e' equivalente a usare davvero due binari, e non una scorciatoia.** Il formato non e'
- * cambiato per gli ActionId da quando `Action.Activate` era a catalogo: dalla v3 in poi l'ID e' lunghezza
- * `uint16` + byte UTF-8, e nessuna versione successiva ha toccato quella posizione. I byte prodotti qui per
- * `Action.Activate` sono percio' **gli stessi byte** che il binario di allora avrebbe scritto — non una
- * simulazione: la stessa sequenza. Cio' che il test verifica e' il LETTORE di oggi su quei byte.
- *
- * Il punto non e' che l'ID sopravviva — quello lo fa qualunque stringa. E' che sopravviva **senza essere
- * riscritto**: il redirect vive nella lettura del CATALOGO, non nel loader. Una traccia dice cio' che disse.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogRetiredActionIdSurvivesOnDiskTest,
-	"RefactorTactics.TurnLog.RetiredActionIdIsStillReadableFromDisk",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTTurnLogRetiredActionIdSurvivesOnDiskTest::RunTest(const FString&)
-{
-	// Una voce col vocabolario di prima della migrazione.
-	FRTTurnLogEntry Old;
-	Old.Phase = ERTMatchPhase::Blast;
-	Old.Category = ERTLogCategory::Combat;
-	Old.Outcome = static_cast<uint8>(ERTCombatOutcome::Hit);
-	Old.SrcCell = FRTCellId(0, 0);
-	Old.TgtCell = FRTCellId(1, 0);
-	Old.Amount = 0;
-	Old.ActionId = FName(TEXT("Action.Activate")); // ID RITIRATO il 2026-08-10
-
-	TArray<FRTTurnLogEntry> In{ Old };
-	const TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(In, ERTLogTopology::Hex, NAME_None);
-
-	TArray<FRTTurnLogEntry> Out;
-	if (!TestTrue(TEXT("la traccia col vocabolario vecchio si rilegge"),
-		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr))) { return false; }
-	if (!TestEqual(TEXT("una voce"), Out.Num(), 1)) { return false; }
-
-	// 1. Il loader NON riscrive: la traccia conserva l'ID che aveva. Se il redirect fosse nel loader, qui
-	//    leggeremmo `Action.Interact` e avremmo perso l'informazione di cosa il turno dichiaro' davvero.
-	TestEqual(TEXT("#199: l'ID ritirato resta scritto com'era, il loader non lo riscrive"),
-		Out[0].ActionId, FName(TEXT("Action.Activate")));
-
-	// 2. Ma resta INTERPRETABILE: chi vuole sapere che azione fosse la ottiene dal catalogo, che reindirizza.
-	TestEqual(TEXT("#199: e resta interpretabile — il catalogo risponde con l'erede"),
-		URTCatalogLibrary::FindCoreAction(Out[0].ActionId).ActionId, FName(TEXT("Action.Interact")));
-
-	// 3. L'hash della traccia vecchia e' RIPRODUCIBILE: la migrazione non ha invalidato i replay esistenti.
-	TestEqual(TEXT("#199: l'hash della traccia vecchia non e' cambiato con la migrazione"),
-		URTTurnLogLibrary::HashTurnLog(In), URTTurnLogLibrary::HashTurnLog(Out));
-
-	return true;
-}
-
-/**
- * `#199` **fetta 2** — il validator rifiuta uno Stable ID ritirato usato per DICHIARARE un'azione, e nomina
- * l'erede. Il redirect vale in lettura; in scrittura ricreerebbe la doppia verita' appena rimossa.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTValidatorRejectsRetiredIdTest,
-	"RefactorTactics.Catalog.ValidatorRejectsRetiredStableId",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTValidatorRejectsRetiredIdTest::RunTest(const FString&)
-{
-	// Un'azione per il resto valida, col solo difetto di chiamarsi con un ID ritirato.
-	FRTActionDef Retired = URTCatalogLibrary::FindCoreAction(TEXT("Action.Interact"));
-	Retired.ActionId = FName(TEXT("Action.Activate"));
-
-	const TArray<FString> Errors = URTCatalogLibrary::ValidateActions({ Retired });
-	if (!TestTrue(TEXT("#199: il validator rifiuta l'ID ritirato"), Errors.Num() > 0)) { return false; }
-
-	// L'errore deve NOMINARE l'erede: senza, chi lo incontra sa che qualcosa e' vietato e non cosa scrivere.
-	bool bNamesHeir = false;
-	for (const FString& Err : Errors)
-	{
-		if (Err.Contains(TEXT("Action.Activate")) && Err.Contains(TEXT("Action.Interact")))
-		{
-			bNamesHeir = true; break;
-		}
-	}
-	TestTrue(TEXT("#199: e l'errore nomina l'erede, non solo il divieto"), bNamesHeir);
-
-	// Il catalogo vero resta valido: la regola nuova non introduce falsi positivi.
-	const TArray<FString> CoreErrors = URTCatalogLibrary::ValidateActions(URTCatalogLibrary::GetCoreActionCatalog());
-	for (const FString& Err : CoreErrors) { AddError(Err); }
-	TestEqual(TEXT("il catalogo spedito resta valido"), CoreErrors.Num(), 0);
 	return true;
 }
 
