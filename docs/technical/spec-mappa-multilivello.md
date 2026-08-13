@@ -47,10 +47,27 @@ distruggere. Due conseguenze che vincolano tutto il resto:
 |---|---|---|
 | `Height` | `int32` | quota; vale per **geometria** — LOS, occlusione, accessibilità. **Nessun bonus a danno o vista** ([D-018](../decisions/RT_PDR_00_Decision_Log.md) · [D-024](../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Surface` | `ERTHexSurface` | pavimento, acqua, fuoco, ghiaccio… (E8) |
-| `MoveCost` | `int32` | costo **intero** per entrare nella cella |
+| `MoveCost` | `int32` | costo **intero** del terreno per entrare nella cella |
+| `OccupancySurcharge` | `int32` | sovrapprezzo dovuto alla **geometria** che invade la cella (formato v7, `#619`) — vedi §3a |
 | `bBlocksMovement` | `bool` | cella impenetrabile |
 | `bBlocksLineOfSight` | `bool` | cella opaca |
 | `Covers` | `TArray<FRTHexCover>` | coperture **sui bordi**, non sulla cella — vedi §4 |
+| `Doors` | `TArray<FRTHexDoor>` | porte per bordo (formato v4, CP 9.3), sparse come `Covers` |
+
+### 3a. Perché il sovrapprezzo geometrico non sta dentro `MoveCost`
+
+Sono due campi perché hanno **due produttori diversi**, e fonderli farebbe perdere un dato in silenzio:
+`MoveCost` viene **ricalcolato dalla sola `Surface`** a ogni cambio dinamico — `ApplyDynamicSurface` quando
+una superficie cambia, `TickDynamicSurfaces` quando scade. Un corridoio stretto su cui un'abilità mettesse
+dell'acqua tornerebbe, al ripristino, al costo del pavimento: il sovrapprezzo geometrico sparirebbe per il
+resto della partita, e nessun test se ne accorgerebbe.
+
+Il costo totale si legge da `FRTHexCellData::TotalMoveCost()` — `max(0, MoveCost) + max(0, OccupancySurcharge)` —
+che esiste come accessore, e non come somma ripetuta, perché i lettori del costo sono **cinque**. Cinque copie
+della stessa somma sono cinque posti da cui può sparire.
+
+Il modello che produce quel numero è in
+[`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md) §5–§7.
 
 ## 4. Le coperture stanno sui bordi
 
@@ -117,10 +134,28 @@ speciale da programmare, è semplicemente un arco solo.
 | Elemento | Valore |
 |---|---|
 | Tipo | `URTHexMapAsset : UPrimaryDataAsset` |
-| Versione di formato | `CurrentFormatVersion = 3`, con `MigrateToCurrentFormat()` in `PostLoad()` |
+| Versione di formato | `CurrentFormatVersion = 7`, con `MigrateToCurrentFormat()` in `PostLoad()` |
 | Ordine | `SortCells()` — ordine stabile, indipendente dall'inserimento |
 | Identità | `ComputeHash()` — hash deterministico del contenuto |
 | Revisione | `Revision`, incrementata a ogni modifica strutturale |
+
+> ⚠️ **Questa riga diceva `3`, e il codice era a `7` da quattro versioni.** Corretta il 2026-08-13 contro
+> `RTHexMapAsset.h:65`, dove la storia del formato è documentata per intero:
+>
+> | | Cosa aggiunge |
+> |---|---|
+> | `v2` | le transizioni entrano nell'hash, campo `Kind` sugli archi |
+> | `v3` (CP 9.1) | coperture per bordo (`Covers`) |
+> | `v4` (CP 9.3) | porte per bordo (`Doors`) |
+> | `v5` (CP 9.4) | stato, integrità e conduttività sugli archi |
+> | `v6` (CP 19.1) | classe di mappa (`MapClass`) |
+> | `v7` (`#619`) | `OccupancySurcharge` sulla cella |
+>
+> 🔴 **La migrazione però non parte**: `FormatVersion` ha lo stesso valore del default del CDO, quindi la
+> delta serialization può non scriverlo, e un asset vecchio caricato col codice nuovo prende il default nuovo —
+> `MigrateToCurrentFormat` lo crede già aggiornato. È
+> [`#687`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/687), **bug P1 aperto**: finché lo è,
+> nessuna DoD può dipendere dall'avvio di una migrazione trasformativa.
 
 `Revision` e `ComputeHash()` servono insieme allo **snapshot** di simulazione: `FRTHexSimSnapshot` cattura
 entrambi e si dichiara obsoleto se uno dei due cambia. Sono il meccanismo che impedisce a un turno di essere
@@ -135,6 +170,7 @@ editor**: il modulo runtime non dipende da UnrealEd.
 
 | Tema | Owner |
 |---|---|
+| Geometria architettonica, grammatica quantizzata, occupancy a 12 settori, cottura verso i dati tattici, confine runtime/editor | [`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md) |
 | A\*, archi percorribili, costi del cammino | [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) |
 | Regole di copertura e distruzione | [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) · [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md) |
 | Superfici, stati, propagazione | [`../gameplay/spec-terreni-e8.md`](../gameplay/spec-terreni-e8.md) |
