@@ -102,6 +102,31 @@
   .pill { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 5px;
     background: var(--panel2); border: 1px solid var(--line); font-size: 12px; cursor: pointer; }
   .load { max-width: 640px; margin: 40px auto; text-align: center; }
+
+  /* --- Execution Map --- */
+  .execwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); padding: 4px 0; }
+  .execwrap svg { display: block; }
+  .execnode { cursor: pointer; }
+  .execnode rect { fill: var(--panel2); stroke: var(--line); }
+  .execnode:hover rect { stroke: var(--dim); }
+  .execnode text { font-size: 11px; fill: var(--fg); }
+  .execnode .sub { font-size: 9.5px; fill: var(--dim); }
+  .lanelabel { font-size: 10px; fill: var(--dim); text-transform: uppercase;
+    letter-spacing: .6px; }
+  .lanerule { stroke: var(--line); stroke-dasharray: 2 4; }
+  .edge { fill: none; stroke: var(--dim); }
+  .edge.hard { stroke-width: 1.6; }
+  .edge.follows { stroke-dasharray: 6 4; }
+  .edge.related { stroke-dasharray: 1 4; }
+  .edge.capability { stroke-dasharray: 5 3; }
+  /* Il moncone: un lato libero si DISEGNA, non si omette. Il cerchietto vuoto in punta dice
+     «la catena finisce qui», che è diverso da «la figura è tagliata qui». */
+  .stub { stroke: var(--dim); stroke-width: 1.4; stroke-dasharray: 3 3; }
+  .stub-cap { fill: var(--panel); stroke: var(--dim); stroke-width: 1.2; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+    font-size: 12px; color: var(--dim); margin: 10px 0 4px; }
+  .legend svg { vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -120,6 +145,8 @@
 import {
   githubBase, issueUrl, milestoneUrl, docUrl, wikiRefUrl, epicCheckpointKey, roadmapContainer,
   buildIndex, brokenRefs, dependencyCycles, filterFeatures, sessionsForFeature, stalenessVerdict,
+  executionIndex, executionIncoming, executionOutgoing, danglingEnds, topologicalDepths,
+  filterExecution,
 } from './graph.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -131,6 +158,9 @@ const el = (tag, props = {}, kids = []) => {
 const esc = (s) => String(s ?? '');
 
 let REG = null, GRAPH = null, INDEX = null, BROKEN = [], PROJECT = null;
+// La vista aperta sta nell'hash: `#execution` apre la Execution Map. Serve a due cose concrete
+// — mandare a qualcuno il link della vista che si sta guardando, e ricaricare la pagina senza
+// tornare all'Overview. Un hash sconosciuto non rompe niente: resta `overview`.
 let tab = 'overview';
 const filters = {};
 
@@ -180,6 +210,8 @@ function boot(reg, graph) {
   INDEX = buildIndex(REG, GRAPH);
   BROKEN = brokenRefs(REG, GRAPH, INDEX);
   renderSource();
+  const wanted = location.hash.replace('#', '');
+  if (TABS.some(([id]) => id === wanted)) tab = wanted;
   renderTabs();
   render();
   checkStaleness();
@@ -243,6 +275,7 @@ function banner(html, bad = false) {
 
 const TABS = [
   ['overview', 'Overview'], ['roadmap', 'Roadmap'], ['features', 'Feature Map'],
+  ['execution', 'Execution Map'],
   ['scenarios', 'Scenario Map'], ['editor', 'Editor Map'], ['queue', 'My Editor Queue'],
   ['warnings', 'Diagnostica'],
 ];
@@ -251,7 +284,7 @@ function renderTabs() {
   $('#tabs').replaceChildren(...TABS.map(([id, label]) => {
     const b = el('button', { textContent: label });
     b.setAttribute('aria-selected', String(id === tab));
-    b.onclick = () => { tab = id; renderTabs(); render(); };
+    b.onclick = () => { tab = id; location.hash = id; renderTabs(); render(); };
     return b;
   }));
 }
@@ -259,7 +292,7 @@ function renderTabs() {
 function render() {
   const view = $('#view');
   view.replaceChildren();
-  ({ overview, roadmap, features, scenarios, editor, queue, warnings })[tab](view);
+  ({ overview, roadmap, features, execution, scenarios, editor, queue, warnings })[tab](view);
 }
 
 // --- Overview ------------------------------------------------------------------------------
@@ -455,6 +488,313 @@ function queue(view) {
 }
 
 // --- Diagnostica ---------------------------------------------------------------------------
+
+// --- Execution Map -------------------------------------------------------------------------
+//
+// Risponde a una domanda che nessun'altra vista risponde: **cosa blocca cosa, e chi deve
+// intervenire**. Non ricalcola nulla — `readiness` e `state` arrivano dal generatore; qui si
+// filtra e si dispone. Il layout SÌ, perché è struttura visiva e non un giudizio.
+
+const SVGNS = 'http://www.w3.org/2000/svg';
+const svgEl = (name, attrs = {}, kids = []) => {
+  const node = document.createElementNS(SVGNS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+  for (const kid of [].concat(kids)) if (kid) node.append(kid);
+  return node;
+};
+
+const READINESS_LABEL = {
+  READY: 'nulla lo blocca',
+  BLOCKED: 'bloccato',
+  WAITING_FOR_PIE: 'aspetta una seduta PIE',
+  WAITING_FOR_ASSET: 'aspetta un asset',
+  DONE: 'fatto',
+  UNKNOWN: 'stato non misurabile senza rete',
+};
+
+function execution(view) {
+  const ex = GRAPH.execution;
+  if (!ex) {
+    view.append(el('p', { className: 'muted', textContent:
+      'Execution Map non ancora generata: `docs/roadmap/execution-graph.yaml` non esiste, '
+      + 'oppure il grafo è stato rigenerato senza di esso.' }));
+    return;
+  }
+  const index = executionIndex(GRAPH);
+  const shown = filterExecution(ex.nodes, filters);
+  const uniq = (fn) => [...new Set(ex.nodes.map(fn).filter(Boolean))].sort();
+
+  view.append(el('p', { className: 'muted', textContent:
+    `${ex.stats.nodes} nodi · ${ex.stats.hard_edges} dipendenze dure · `
+    + `${ex.stats.soft_edges} relazioni molli · fetta «${ex.status}». `
+    + `Lo stato di ${ex.stats.state_unknown} nodi non è misurabile senza rete: il generatore `
+    + 'non parla con GitHub, e il checkpoint di quei nodi non dichiara il glifo nell’owner.' }));
+
+  view.append(el('div', { className: 'filters' }, [
+    select('release', 'Release', uniq((n) => n.release)),
+    select('lane', 'Lane', uniq((n) => n.execution_lane)),
+    select('domain', 'Dominio', uniq((n) => n.domain_group)),
+    select('readiness', 'Readiness', uniq((n) => n.readiness)),
+    search(),
+  ]));
+
+  view.append(executionDiagram(index, shown));
+  view.append(executionLegend());
+
+  // Le capability non stanno nel disegno: un nodo in piu' per ognuna raddoppierebbe le frecce
+  // senza aggiungere una posizione. Stanno qui, dove si legge la cosa che contano davvero —
+  // quanti scenari del corpus aspettano, e chi li sbloccherà.
+  const caps = ex.capabilities || [];
+  if (caps.length) {
+    view.append(el('h2', { textContent: 'Capability' }));
+    view.append(table(
+      ['Capability', 'Disponibile', 'La fornisce', 'Nodi in attesa', 'Scenari in attesa'],
+      caps.map((c) => [
+        el('strong', { textContent: c.id }),
+        c.available ? `sì — ${c.available_source}` : 'no',
+        el('span', { className: 'chips' }, c.providers.map((p) =>
+          chip(execLabel(index.byId.get(p)) || p, () => openExecutionNode(p)))),
+        el('span', { className: 'chips' }, c.consumers.map((p) =>
+          chip(execLabel(index.byId.get(p)) || p, () => openExecutionNode(p)))),
+        el('span', {}, [
+          el('strong', { textContent: String(c.scenario_consumers.length) }),
+          el('div', { className: 'muted', textContent: c.scenario_consumers.join(' · ') }),
+        ]),
+      ])));
+  }
+
+  view.append(el('h2', { textContent: 'Roads' }));
+  view.append(table(
+    ['Nodo', 'Lane', 'Dominio', 'Readiness', 'Dipende da', 'Abilita', 'Feature'],
+    shown.map((n) => {
+      const ends = danglingEnds(index, n.id);
+      const upstream = executionIncoming(index, n.id, { hardOnly: true });
+      const downstream = executionOutgoing(index, n.id, { hardOnly: true });
+      return [
+        chip(execLabel(n), () => openExecutionNode(n.id)),
+        tag((n.execution_lane || '—').toUpperCase()),
+        n.domain_group || '—',
+        el('span', { title: n.readiness_reason || '' }, [
+          tag(n.readiness || '—'), ' ',
+          el('span', { className: 'muted', textContent: READINESS_LABEL[n.readiness] || '' }),
+        ]),
+        ends.inbound
+          ? stubCell('inbound', 'niente lo trattiene: è una radice della catena')
+          : el('span', { className: 'chips' }, upstream.map((e) =>
+              chip(execLabel(index.byId.get(e.from)) || e.from, () => openExecutionNode(e.from)))),
+        ends.outbound
+          ? stubCell('outbound', 'non sblocca niente di dichiarato: è una foglia della catena')
+          : el('span', { className: 'chips' }, downstream.map((e) =>
+              chip(execLabel(index.byId.get(e.to)) || e.to, () => openExecutionNode(e.to)))),
+        el('span', { className: 'chips' }, (n.feature_ids || []).map((f) =>
+          chip(f, () => openFeature(f)))),
+      ];
+    })));
+}
+
+/** Il moncone in forma di cella: stessa semantica del disegno, per chi legge la tabella. */
+function stubCell(side, title) {
+  const svg = svgEl('svg', { width: 34, height: 14, viewBox: '0 0 34 14' });
+  const x1 = side === 'inbound' ? 5 : 0;
+  const x2 = side === 'inbound' ? 30 : 25;
+  svg.append(svgEl('line', { x1, y1: 7, x2, y2: 7, class: 'stub' }));
+  svg.append(svgEl('circle', {
+    cx: side === 'inbound' ? 4 : 30, cy: 7, r: 3, class: 'stub-cap' }));
+  return el('span', { title, className: 'muted' }, [svg]);
+}
+
+const execLabel = (n) => {
+  if (!n) return null;
+  if (n.kind === 'issue') return `#${n.ref}`;
+  if (n.kind === 'session') return n.ref;
+  return n.id;
+};
+
+/**
+ * Il diagramma. X = profondità topologica sulle sole dipendenze dure, Y = lane e dominio.
+ *
+ * Deterministico e senza librerie: due caricamenti danno la stessa figura, e la figura non
+ * dipende da una simulazione fisica che nessuno può rifare uguale.
+ */
+function executionDiagram(index, shown) {
+  const visible = new Set(shown.map((n) => n.id));
+  const depths = topologicalDepths(index);
+  const COL = 132, ROW = 46, W = 96, H = 30, PAD = 18, LANEW = 62;
+
+  // Un gruppo = una coppia (lane, dominio). Puo' occupare PIU' righe: se due nodi cadono nella
+  // stessa colonna, il secondo scende. Le righe del gruppo si allocano tutte insieme, prima di
+  // disegnare, perche' l'etichetta di lane va scritta su ognuna — la prima stesura la scriveva
+  // solo sulla riga iniziale e lasciava le altre con l'etichetta del gruppo successivo:
+  // `#649` compariva sotto `PIE` mentre e' `CODE`, cioe' la figura diceva il falso proprio sul
+  // dato per cui esiste la corsia.
+  const groups = new Map();
+  for (const n of shown) {
+    const key = `${n.execution_lane}|${n.domain_group || ''}`;
+    if (!groups.has(key)) groups.set(key, { lane: n.execution_lane, domain: n.domain_group, nodes: [] });
+    groups.get(key).nodes.push(n);
+  }
+  const place = new Map();
+  const laneRows = [];
+  for (const group of groups.values()) {
+    const perColumn = new Map();
+    const base = laneRows.length;
+    let used = 1;
+    for (const n of group.nodes) {
+      const col = depths.get(n.id) || 0;
+      const offset = perColumn.get(col) || 0;
+      perColumn.set(col, offset + 1);
+      used = Math.max(used, offset + 1);
+      place.set(n.id, { row: base + offset, col });
+    }
+    for (let i = 0; i < used; i += 1) laneRows.push({ lane: group.lane, domain: group.domain });
+  }
+  const cols = Math.max(1, ...[...place.values()].map((p) => p.col + 1));
+  const width = LANEW + PAD * 2 + cols * COL;
+  const height = PAD * 2 + laneRows.length * ROW + 10;
+  const xy = (id) => {
+    const p = place.get(id);
+    return p ? { x: LANEW + PAD + p.col * COL, y: PAD + p.row * ROW } : null;
+  };
+  const rows = laneRows;
+
+  const svg = svgEl('svg', { width, height, viewBox: `0 0 ${width} ${height}`,
+    role: 'img', 'aria-label': 'Mappa delle dipendenze di esecuzione' });
+
+  rows.forEach((r, i) => {
+    const y = PAD + i * ROW + H / 2;
+    svg.append(svgEl('text', { x: 6, y: y + 3, class: 'lanelabel' },
+      document.createTextNode((r.lane || '').toUpperCase())));
+    svg.append(svgEl('line', { x1: LANEW - 6, y1: y, x2: width - PAD, y2: y, class: 'lanerule' }));
+  });
+
+  for (const edge of (GRAPH.execution.edges || [])) {
+    const from = xy(edge.from);
+    const to = xy(edge.to);
+    if (!from || !to || !visible.has(edge.from) || !visible.has(edge.to)) continue;
+    const x1 = from.x + W;
+    const y1 = from.y + H / 2;
+    const x2 = to.x;
+    const y2 = to.y + H / 2;
+    const mid = (x1 + x2) / 2;
+    const cls = `edge ${edge.hard ? 'hard' : edge.type}`;
+    svg.append(svgEl('path', {
+      d: `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`,
+      class: cls, 'marker-end': edge.hard ? 'url(#arrow)' : '',
+    }, svgEl('title', {}, document.createTextNode(
+      `${edge.from} → ${edge.to} · ${edge.type}${edge.rationale ? ` — ${edge.rationale}` : ''}`))));
+  }
+
+  const defs = svgEl('defs', {}, svgEl('marker', {
+    id: 'arrow', viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7,
+    orient: 'auto-start-reverse',
+  }, svgEl('path', { d: 'M 0 0 L 8 4 L 0 8 z', fill: 'currentColor', class: 'edge' })));
+  svg.prepend(defs);
+
+  for (const n of shown) {
+    const p = xy(n.id);
+    if (!p) continue;
+    const ends = danglingEnds(index, n.id);
+    // I due monconi. Sono la richiesta esplicita di questa vista: un lato senza collegamenti
+    // si vede COME lato libero, non come assenza di disegno.
+    if (ends.inbound) {
+      svg.append(svgEl('line', { x1: p.x - 22, y1: p.y + H / 2, x2: p.x, y2: p.y + H / 2, class: 'stub' }));
+      svg.append(svgEl('circle', { cx: p.x - 25, cy: p.y + H / 2, r: 3.4, class: 'stub-cap' },
+        svgEl('title', {}, document.createTextNode('niente lo trattiene: radice della catena'))));
+    }
+    if (ends.outbound) {
+      svg.append(svgEl('line', { x1: p.x + W, y1: p.y + H / 2, x2: p.x + W + 22, y2: p.y + H / 2, class: 'stub' }));
+      svg.append(svgEl('circle', { cx: p.x + W + 25, cy: p.y + H / 2, r: 3.4, class: 'stub-cap' },
+        svgEl('title', {}, document.createTextNode('non sblocca niente di dichiarato: foglia della catena'))));
+    }
+    const g = svgEl('g', { class: 'execnode', tabindex: 0,
+      'aria-label': `${execLabel(n)} — ${n.readiness}` });
+    g.append(svgEl('rect', { x: p.x, y: p.y, width: W, height: H, rx: 5,
+      'stroke-width': n.readiness === 'BLOCKED' ? 2 : 1 }));
+    g.append(svgEl('text', { x: p.x + 8, y: p.y + 13 }, document.createTextNode(execLabel(n))));
+    g.append(svgEl('text', { x: p.x + 8, y: p.y + 24, class: 'sub' },
+      document.createTextNode(`${n.state || '—'} ${n.readiness}`)));
+    g.append(svgEl('title', {}, document.createTextNode(
+      `${n.id}\n${n.readiness} — ${n.readiness_reason || ''}`)));
+    g.onclick = () => openExecutionNode(n.id);
+    g.onkeydown = (e) => { if (e.key === 'Enter') openExecutionNode(n.id); };
+    svg.append(g);
+  }
+
+  return el('div', { className: 'execwrap' }, [svg]);
+}
+
+function executionLegend() {
+  const sample = (cls, extra = {}) => {
+    const s = svgEl('svg', { width: 30, height: 10, viewBox: '0 0 30 10' });
+    s.append(svgEl('line', Object.assign({ x1: 0, y1: 5, x2: 30, y2: 5, class: cls }, extra)));
+    return s;
+  };
+  const stub = svgEl('svg', { width: 30, height: 10, viewBox: '0 0 30 10' });
+  stub.append(svgEl('line', { x1: 6, y1: 5, x2: 30, y2: 5, class: 'stub' }));
+  stub.append(svgEl('circle', { cx: 4, cy: 5, r: 3, class: 'stub-cap' }));
+  return el('div', { className: 'legend' }, [
+    el('span', {}, [sample('edge hard'), ' dipendenza dura']),
+    el('span', {}, [sample('edge follows'), ' ordine consigliato (non blocca)']),
+    el('span', {}, [sample('edge related'), ' collegata (non blocca)']),
+    el('span', {}, [stub, ' lato libero: niente lo trattiene, o non sblocca niente']),
+  ]);
+}
+
+function openExecutionNode(id) {
+  const index = executionIndex(GRAPH);
+  const n = index.byId.get(id);
+  if (!n) return;
+  const dl = el('dl');
+  const add = (label, node) => { dl.append(el('dt', { textContent: label }), el('dd', {}, node)); };
+  add('Readiness', el('span', {}, [
+    tag(n.readiness), ' ',
+    el('span', { className: 'muted', textContent: READINESS_LABEL[n.readiness] || '' }),
+    el('div', { className: 'muted', textContent: n.readiness_reason || '' }),
+  ]));
+  add('Stato', n.state
+    ? `${n.state} — da ${n.state_source}`
+    : `non misurabile: ${n.state_note || 'nessuna fonte offline'}`);
+  add('Classificazione', `${(n.execution_lane || '—').toUpperCase()} · ${n.domain_group || '—'} · `
+    + `${n.release || '—'}${n.checkpoint ? ` · ${n.checkpoint}` : ''}`);
+  if (n.kind === 'issue') add('Su GitHub', link(issueUrl(PROJECT, Number(n.ref)), `#${n.ref}`));
+  if (n.kind === 'session') add('Seduta', chip(n.ref, () => openSession(n.ref)));
+
+  const hardIn = executionIncoming(index, id, { hardOnly: true });
+  add('Dipende da', hardIn.length
+    ? el('span', { className: 'chips' }, hardIn.map((e) =>
+        chip(execLabel(index.byId.get(e.from)) || e.from, () => openExecutionNode(e.from))))
+    : stubCell('inbound', 'radice: niente lo trattiene'));
+  const hardOut = executionOutgoing(index, id, { hardOnly: true });
+  add('Abilita', hardOut.length
+    ? el('span', { className: 'chips' }, hardOut.map((e) =>
+        chip(execLabel(index.byId.get(e.to)) || e.to, () => openExecutionNode(e.to))))
+    : stubCell('outbound', 'foglia: non sblocca niente di dichiarato'));
+
+  const soft = [...executionIncoming(index, id), ...executionOutgoing(index, id)]
+    .filter((e) => !e.hard && e.type !== 'provides');
+  if (soft.length) add('Relazioni molli', el('div', {}, soft.map((e) => el('div', { className: 'muted' },
+    document.createTextNode(`${e.type}: ${e.from} → ${e.to}${e.rationale ? ` — ${e.rationale}` : ''}`)))));
+
+  for (const cap of (GRAPH.execution.capabilities || [])) {
+    if (cap.providers.includes(id)) {
+      add(`Fornisce ${cap.id}`, el('div', {}, [
+        el('div', { textContent: cap.available ? 'disponibile' : 'non ancora disponibile' }),
+        el('div', { className: 'muted', textContent:
+          `${cap.scenario_consumers.length} scenari la aspettano` }),
+        // Gli scenari non hanno un drawer proprio: si nominano, e la Scenario Map li mostra.
+        el('span', { className: 'chips' }, cap.scenario_consumers.map((s) =>
+          el('span', { className: 'pill', textContent: s }))),
+      ]));
+    }
+    if (cap.consumers.includes(id)) {
+      add(`Aspetta ${cap.id}`, el('span', { className: 'chips' },
+        cap.providers.map((p) => chip(execLabel(index.byId.get(p)) || p, () => openExecutionNode(p)))));
+    }
+  }
+  if (n.feature_ids.length) add('Feature', el('span', { className: 'chips' },
+    n.feature_ids.map((f) => chip(f, () => openFeature(f)))));
+  showDrawer(execLabel(n), n.id, dl);
+}
 
 function warnings(view) {
   const d = GRAPH.diagnostics;

@@ -41,6 +41,7 @@ PROJECT_GRAPH_JSON = os.path.join(REPO, "docs", "roadmap", "project-graph.json")
 ROADMAP_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-v0.1.md")
 ROADMAP_CHECKPOINT = os.path.join(REPO, "docs", "roadmap", "roadmap-checkpoint.md")
 ROADMAP_POST_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-post-v0.1.md")
+EXECUTION_GRAPH = os.path.join(REPO, "docs", "roadmap", "execution-graph.yaml")
 TESTS_DIR = os.path.join(REPO, "Source", "RefactorTactics", "Tests")
 SCENARIOS_DIR = os.path.join(REPO, "Scenarios")
 
@@ -496,6 +497,10 @@ def validate(registry, wiki_root=None, editor_ctx=None):
     session_errors, session_warnings = validate_editor_sessions(editor_ctx)
     errors += session_errors
     warnings += session_warnings
+
+    exec_errors, exec_warnings = validate_execution_graph(editor_ctx, registry)
+    errors += exec_errors
+    warnings += exec_warnings
 
     return errors, warnings
 
@@ -2514,6 +2519,411 @@ def render_shortlist_editor(_data):
     return wrap_block(marker, lines)
 
 
+EXEC_HARD = {"requires", "requires_capability"}
+EXEC_SOFT = {"follows", "related"}
+EXEC_TRACE = {"provides", "implements", "verifies"}
+EXEC_RELATIONS = EXEC_HARD | EXEC_SOFT | EXEC_TRACE
+EXEC_SCHEMA_VERSION = 1
+
+
+def load_execution_graph():
+    """La topologia del lavoro. Assente = non e' un errore: il grafo e' una fetta opzionale."""
+    if not os.path.isfile(EXECUTION_GRAPH):
+        return {}
+    try:
+        import yaml
+    except ImportError:
+        sys.exit("Serve PyYAML: pip install pyyaml")
+    with open(EXECUTION_GRAPH, encoding="utf-8") as fh:
+        return yaml.safe_load(fh) or {}
+
+
+def checkpoint_declared():
+    """I checkpoint per cui l'owner DICHIARA un glifo, distinti da quelli che lo ricevono a default.
+
+    `checkpoint_status()` restituisce ⏳ anche quando la riga non porta simbolo, e per il suo uso
+    — i prerequisiti delle sedute — e' la scelta giusta: la convenzione di `roadmap-v0.1.md` e'
+    che il glifo si scrive alla chiusura, quindi l'assenza vale «non chiuso».
+
+    Per l'execution graph quella fusione non regge, e il numero dice perche': su **100**
+    checkpoint di epic l'owner dichiara il glifo per **18**. Degli 82 restanti, **65** hanno una
+    issue GitHub chiusa che nessuno ha annotato. Leggere quel ⏳ come una misura significherebbe
+    dipingere di BLOCKED meta' della roadmap sulla base di un default — e un BLOCKED falso in una
+    vista che esiste per dire cosa fare adesso e' peggio di un UNKNOWN onesto.
+
+    Questa funzione non cambia il comportamento esistente: chi vuole il default continua a
+    chiamare `checkpoint_status()`. Serve a sapere **se ci si puo' fidare** del valore.
+    """
+    declared = set()
+    for path, pattern in ((ROADMAP_CHECKPOINT, r"^\| \*\*M(\d+\.\d+)\*\*\s*([" + STATUS_GLYPHS + r"])"),
+                          (ROADMAP_V01, r"^\| \*\*E?(\d+\.\d+)\*\*\s*([" + STATUS_GLYPHS + r"])")):
+        if not os.path.isfile(path):
+            continue
+        prefix = "M" if path == ROADMAP_CHECKPOINT else "E"
+        text = open(path, encoding="utf-8").read()
+        for num, _glyph in re.findall(pattern, text, re.M):
+            declared.add(f"{prefix}{num}")
+    return declared
+
+
+def execution_node_state(node, ctx, declared):
+    """Stato di un nodo e **da dove viene**, o `None` quando nessuna fonte offline lo sa.
+
+    Tre casi, in ordine di affidabilita':
+      - `session:U<n>`  -> `session_state()`, che misura voci PIE e `git ls-files`. Affidabile.
+      - `issue:` con `checkpoint:` **dichiarato** -> il glifo dell'owner. Affidabile.
+      - tutto il resto   -> `None`. Una issue standalone non ha sorgente offline, e il generatore
+        non parla con la rete: fingere `⏳` la farebbe sembrare non cominciata anche quando e'
+        chiusa da settimane.
+    """
+    nid = node["id"]
+    if nid.startswith("session:"):
+        sid = nid.split(":", 1)[1]
+        state = ctx["states"].get(sid)
+        return (state, f"session:{sid}") if state else (None, None)
+    cp = node.get("checkpoint")
+    if cp and cp in declared:
+        return ctx["checkpoints"].get(cp), f"checkpoint:{cp}"
+    return None, None
+
+
+def build_execution(ctx, registry):
+    """Nodi, archi, capability e conteggi dell'execution graph. Tutto derivato, niente dichiarato.
+
+    ## Readiness: si calcola sui PREREQUISITI, non sul lavoro proprio
+
+    `READY` qui significa **«nessun prerequisito hard lo trattiene»**, non «da fare». La
+    distinzione conta perche' lo stato proprio di un nodo spesso non e' misurabile offline, e
+    aspettarlo avrebbe reso `UNKNOWN` anche i nodi che nulla blocca — cioe' avrebbe tolto la
+    risposta alla sola domanda per cui questa vista esiste.
+
+    Ordine di decisione, dal piu' forte al piu' debole:
+      1. il nodo e' ✅            -> `DONE`
+      2. un prerequisito hard e' NOTO non risolto:
+           - e' una seduta `asset` -> `WAITING_FOR_ASSET`
+           - e' una seduta `pie`   -> `WAITING_FOR_PIE`
+           - altrimenti            -> `BLOCKED`
+      3. un prerequisito hard ha stato ignoto -> `UNKNOWN` (non `BLOCKED`: non saperlo non e'
+         un blocco, ed e' il punto in cui una dashboard comincia a mentire)
+      4. altrimenti -> `READY`
+
+    `follows` e `related` non entrano in nessuno dei quattro rami. Due test lo pinnano.
+    """
+    doc = load_execution_graph()
+    if not doc:
+        return None
+
+    declared = checkpoint_declared()
+    lanes = [dict(l) for l in (doc.get("execution_lanes") or [])]
+    groups = [dict(g) for g in (doc.get("domain_groups") or [])]
+    nodes = doc.get("nodes") or []
+    relations = doc.get("relations") or []
+
+    # Feature per issue: l'inversa delle `issues:` del registry. Il mapping esiste gia' la', e
+    # riscriverlo nel source dell'execution graph avrebbe creato la copia che diverge.
+    feature_of_issue = {}
+    for entry in registry["features"]:
+        for num in entry.get("issues") or []:
+            feature_of_issue.setdefault(num, []).append(entry["feature_id"])
+
+    lane_of_session = {s.get("id"): session_lane(s) for s in ctx["sessions"]}
+    by_id, out = {}, []
+    for node in nodes:
+        nid = node["id"]
+        kind = nid.split(":", 1)[0]
+        ref = nid.split(":", 1)[1]
+        if kind == "issue":
+            lane = node.get("execution_lane") or "code"
+        elif kind == "session":
+            lane = lane_of_session.get(ref, SESSION_LANE_DEFAULT)
+        else:
+            lane = node.get("execution_lane")
+        state, source = execution_node_state(node, ctx, declared)
+        record = {
+            "id": nid, "kind": kind, "ref": ref,
+            "release": node.get("release"),
+            "execution_lane": lane,
+            "domain_group": node.get("domain_group"),
+            "checkpoint": node.get("checkpoint"),
+            "state": state,
+            "state_source": source,
+            "state_note": None if source else (
+                "nessuna fonte offline: il checkpoint non dichiara il glifo"
+                if node.get("checkpoint") else "issue senza checkpoint: lo stato vive su GitHub"),
+            "feature_ids": sorted(feature_of_issue.get(int(ref), [])) if kind == "issue" and ref.isdigit() else [],
+            "provides": list(node.get("provides") or []),
+            "incoming": [], "outgoing": [],
+            "readiness": None, "readiness_reason": None,
+        }
+        by_id[nid] = record
+        out.append(record)
+
+    edges = []
+    for rel in relations:
+        edge = {
+            "from": rel.get("from"), "to": rel.get("to"), "type": rel.get("type"),
+            "hard": rel.get("type") in EXEC_HARD,
+            "rationale": (rel.get("rationale") or "").strip() or None,
+        }
+        edges.append(edge)
+        if edge["from"] in by_id:
+            by_id[edge["from"]]["outgoing"].append(edge)
+        if edge["to"] in by_id:
+            by_id[edge["to"]]["incoming"].append(edge)
+
+    # Capability: i consumatori veri sono gli scenari del corpus, che le dichiarano in
+    # `requires`. Il provider arriva da qui — ed e' l'unica cosa che il repository non sapeva.
+    available = available_capabilities()
+    scenario_consumers = {}
+    for scenario in scenario_corpus():
+        for cap in scenario.get("requires") or []:
+            scenario_consumers.setdefault(cap, []).append(scenario["id"])
+    capabilities = {}
+    for edge in edges:
+        for side in ("from", "to"):
+            if str(edge[side]).startswith("capability:"):
+                capabilities.setdefault(edge[side].split(":", 1)[1],
+                                        {"providers": [], "consumers": []})
+    for edge in edges:
+        if edge["type"] == "provides" and str(edge["to"]).startswith("capability:"):
+            capabilities[edge["to"].split(":", 1)[1]]["providers"].append(edge["from"])
+        if edge["type"] == "requires_capability" and str(edge["from"]).startswith("capability:"):
+            capabilities[edge["from"].split(":", 1)[1]]["consumers"].append(edge["to"])
+
+    def resolved(nid):
+        """`True` risolto · `False` noto non risolto · `None` non misurabile offline."""
+        record = by_id.get(nid)
+        if record is None:
+            return None
+        if record["state"] in ("✅",):
+            return True
+        if record["state"] in ("🟡", "⏳"):
+            return False
+        return None
+
+    for record in out:
+        if record["state"] == "✅":
+            record["readiness"], record["readiness_reason"] = "DONE", record["state_source"]
+            continue
+        blocking, unknown = [], []
+        for edge in record["incoming"]:
+            if not edge["hard"]:
+                continue
+            origin = edge["from"]
+            if str(origin).startswith("capability:"):
+                name = origin.split(":", 1)[1]
+                cap = capabilities.get(name, {})
+                # Disponibile per due strade indipendenti: il runtime la elenca gia'
+                # (`RTScenarioSession.cpp`), oppure un provider del grafo e' chiuso. La prima e'
+                # la verita' del codice e vince: una capability che il gioco possiede non torna
+                # indisponibile perche' il grafo non ne conosce il provider.
+                if name not in available and not any(
+                        resolved(p) is True for p in cap.get("providers") or []):
+                    blocking.append(origin)
+                continue
+            verdict = resolved(origin)
+            if verdict is False:
+                blocking.append(origin)
+            elif verdict is None:
+                unknown.append(origin)
+        if blocking:
+            first = blocking[0]
+            lane = by_id.get(first, {}).get("execution_lane")
+            record["readiness"] = {"asset": "WAITING_FOR_ASSET",
+                                   "pie": "WAITING_FOR_PIE"}.get(lane, "BLOCKED")
+            record["readiness_reason"] = "aspetta " + ", ".join(blocking)
+        elif unknown:
+            record["readiness"] = "UNKNOWN"
+            record["readiness_reason"] = ("stato non misurabile offline di " + ", ".join(unknown))
+        else:
+            record["readiness"] = "READY"
+            record["readiness_reason"] = ("nessun prerequisito hard"
+                                          if not any(e["hard"] for e in record["incoming"])
+                                          else "tutti i prerequisiti hard sono risolti")
+
+    cap_out = []
+    for name, data in sorted(capabilities.items()):
+        cap_out.append({
+            "id": name,
+            "providers": data["providers"],
+            "consumers": data["consumers"],
+            "scenario_consumers": sorted(scenario_consumers.get(name, [])),
+            "available": name in available or any(resolved(p) is True for p in data["providers"]),
+            "available_source": "runtime" if name in available else "provider",
+        })
+
+    def tally(key):
+        counts = {}
+        for record in out:
+            counts[record[key] or "—"] = counts.get(record[key] or "—", 0) + 1
+        return dict(sorted(counts.items()))
+
+    return {
+        "schema_version": doc.get("schema_version"),
+        "status": (doc.get("meta") or {}).get("status"),
+        "lanes": lanes,
+        "domain_groups": groups,
+        "nodes": out,
+        "edges": edges,
+        "capabilities": cap_out,
+        "stats": {
+            "nodes": len(out),
+            "edges": len(edges),
+            "hard_edges": sum(1 for e in edges if e["hard"]),
+            "soft_edges": sum(1 for e in edges if e["type"] in EXEC_SOFT),
+            "by_readiness": tally("readiness"),
+            "by_execution_lane": tally("execution_lane"),
+            "by_domain_group": tally("domain_group"),
+            "by_release": tally("release"),
+            "state_unknown": sum(1 for r in out if r["state"] is None),
+        },
+    }
+
+
+def validate_execution_graph(ctx=None, registry=None):
+    """`execution-graph.yaml`: riferimenti risolvibili, cicli hard, tassonomia esaustiva.
+
+    Le due regole meno ovvie, e sono quelle che il file esiste per far rispettare:
+
+    - **`blocks` non si autorializza.** E' l'inversa di `requires` e il generatore la deriva.
+      Scriverle entrambe produce due verita' che divergono al primo edit di una sola, ed e' il
+      difetto piu' facile da introdurre in un grafo scritto a mano.
+    - **`follows` fra due sedute e' vietato.** `editor-sessions.yaml` distingue gia' la
+      dipendenza dura (`unblocked_by`) dall'ordine di lavoro nello stesso allestimento
+      (`unblocks` senza reciproco, stesso blocco) e ha un validator che lo verifica. Riscrivere
+      quell'ordine qui lo dichiarerebbe due volte, in due file che non si controllano a vicenda.
+
+    Verifica anche che i `domain_groups` coprano **tutte** le `area` del registry e nessuna due
+    volte: senza, un'area nuova non finirebbe in nessun gruppo e i suoi nodi sparirebbero dai
+    filtri senza che niente lo dica.
+    """
+    doc = load_execution_graph()
+    if not doc:
+        return [], []
+    ctx = ctx or editor_context()
+    registry = registry or load_registry()
+    errors, warnings = [], []
+
+    if doc.get("schema_version") != EXEC_SCHEMA_VERSION:
+        errors.append(f"[execution-graph] schema_version {doc.get('schema_version')!r} "
+                      f"sconosciuta: attesa {EXEC_SCHEMA_VERSION}")
+
+    lanes = {l.get("id") for l in (doc.get("execution_lanes") or [])}
+    groups = {g.get("id") for g in (doc.get("domain_groups") or [])}
+
+    mapped = {}
+    for group in doc.get("domain_groups") or []:
+        for area in group.get("feature_areas") or []:
+            if area in mapped:
+                errors.append(f"[execution-graph] area {area!r} mappata due volte: "
+                              f"{mapped[area]} e {group.get('id')}")
+            mapped[area] = group.get("id")
+    areas = {entry["area"] for entry in registry["features"]}
+    for area in sorted(areas - set(mapped)):
+        errors.append(f"[execution-graph] area {area!r} del registry non appartiene a nessun "
+                      "domain_group: i suoi nodi sparirebbero dai filtri")
+    for area in sorted(set(mapped) - areas):
+        warnings.append(f"[execution-graph] domain_group mappa l'area {area!r}, che il registry "
+                        "non usa: e' un mapping senza soggetto")
+
+    session_ids = {s.get("id") for s in ctx["sessions"]}
+    checkpoints = ctx["checkpoints"]
+    seen, node_ids = set(), set()
+    for node in doc.get("nodes") or []:
+        nid = node.get("id")
+        where = f"[execution-graph {nid}]"
+        if nid in seen:
+            errors.append(f"{where} nodo duplicato")
+        seen.add(nid)
+        node_ids.add(nid)
+        if not re.fullmatch(r"(issue:\d+|session:U\d+|epic:E\d+|capability:[A-Za-z0-9_]+)", nid or ""):
+            errors.append(f"{where} id non conforme: attesi issue:<n>, session:U<n>, "
+                          "epic:E<n>, capability:<Nome>")
+            continue
+        if node.get("execution_lane") and node["execution_lane"] not in lanes:
+            errors.append(f"{where} execution_lane {node['execution_lane']!r} sconosciuta")
+        if node.get("domain_group") and node["domain_group"] not in groups:
+            errors.append(f"{where} domain_group {node['domain_group']!r} sconosciuto")
+        if node.get("release") and node["release"] not in RELEASES:
+            errors.append(f"{where} release {node['release']!r} non valida")
+        if nid.startswith("session:") and nid.split(":", 1)[1] not in session_ids:
+            errors.append(f"{where} seduta inesistente in editor-sessions.yaml")
+        cp = node.get("checkpoint")
+        if cp and cp not in checkpoints:
+            errors.append(f"{where} checkpoint {cp!r} che nessun owner dichiara")
+        for field in ("state", "status", "readiness", "open", "closed"):
+            if field in node:
+                errors.append(f"{where} campo {field!r}: lo stato non e' topologia e non si "
+                              "scrive qui — lo deriva il generatore dagli owner")
+
+    adjacency = {}
+    for rel in doc.get("relations") or []:
+        origin, target, kind = rel.get("from"), rel.get("to"), rel.get("type")
+        where = f"[execution-graph {origin} -> {target}]"
+        if kind not in EXEC_RELATIONS:
+            errors.append(f"{where} tipo di relazione sconosciuto: {kind!r}")
+            continue
+        if kind in ("blocks", "converges_into"):
+            errors.append(f"{where} {kind!r} e' derivata, non si autorializza")
+        for side, ref in (("from", origin), ("to", target)):
+            if str(ref).startswith("capability:"):
+                continue
+            if ref not in node_ids:
+                errors.append(f"{where} il lato {side} non e' un nodo dichiarato: {ref!r}")
+        if origin == target:
+            errors.append(f"{where} un nodo non puo' richiedere se stesso")
+        if kind == "follows" and str(origin).startswith("session:") and str(target).startswith("session:"):
+            errors.append(
+                f"{where} `follows` fra due sedute e' gia' dichiarato da editor-sessions.yaml "
+                "(`unblocks` senza reciproco, stesso blocco): qui sarebbe la seconda verita'")
+        if kind == "follows" and not (rel.get("rationale") or "").strip():
+            warnings.append(f"{where} `follows` senza `rationale`: un ordine consigliato che non "
+                            "dice perche' diventa indistinguibile da un blocco dimenticato")
+        if kind in EXEC_HARD:
+            adjacency.setdefault(origin, []).append(target)
+
+    colour = {}
+
+    def visit(node, trail):
+        if colour.get(node) == 2:
+            return
+        if colour.get(node) == 1:
+            errors.append("[execution-graph] ciclo fra dipendenze hard: "
+                          + " -> ".join(trail + [node]))
+            return
+        colour[node] = 1
+        for nxt in adjacency.get(node, []):
+            visit(nxt, trail + [node])
+        colour[node] = 2
+
+    for node in list(adjacency):
+        visit(node, [])
+
+    # Il collo di bottiglia della vista, misurato invece che intuito. Un nodo il cui checkpoint
+    # non dichiara il glifo non ha stato offline, e la sua ignoranza si propaga a valle: ogni
+    # discendente diventa UNKNOWN. Il warning nomina i checkpoint da annotare, perche' la
+    # correzione e' una riga nell'owner e non un cambio di modello.
+    declared = checkpoint_declared()
+    silent = sorted({node["checkpoint"] for node in (doc.get("nodes") or [])
+                     if node.get("checkpoint") and node["checkpoint"] not in declared})
+    if silent:
+        warnings.append(
+            f"[execution-graph] {len(silent)} checkpoint citati dal grafo non dichiarano il "
+            f"glifo in roadmap-v0.1.md ({', '.join(silent)}): i loro nodi restano UNKNOWN e "
+            "l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e "
+            "65 dei restanti hanno gia' una issue chiusa")
+
+    providers = {r.get("to") for r in (doc.get("relations") or []) if r.get("type") == "provides"}
+    for rel in doc.get("relations") or []:
+        if rel.get("type") == "requires_capability" and rel.get("from") not in providers:
+            name = str(rel.get("from")).split(":", 1)[1]
+            if name not in available_capabilities():
+                warnings.append(f"[execution-graph] la capability {name!r} non e' disponibile a "
+                                "runtime e nessun nodo dichiara di fornirla: chi la aspetta "
+                                "resta bloccato senza che il grafo sappia dire da chi")
+    return errors, warnings
+
+
 def build_graph(registry):
     """Il contratto delle viste non-feature: diagnostica, roadmap, sedute, PIE, scenari.
 
@@ -2579,6 +2989,8 @@ def build_graph(registry):
             "epics": "docs/roadmap/roadmap-v0.1.md",
             "milestones": "docs/roadmap/roadmap-checkpoint.md",
             "scenarios": "Scenarios/",
+            "execution_graph": "docs/roadmap/execution-graph.yaml",
+            "post_v01_releases": "docs/roadmap/roadmap-post-v0.1.md",
         },
         "meta": jsonable(registry.get("meta") or {}),
         "project": jsonable((registry.get("meta") or {}).get("project") or {}),
@@ -2599,6 +3011,7 @@ def build_graph(registry):
         "pie_entries": [{"id": k, "state": v} for k, v in sorted(pie.items())],
         "scenarios": scenario_corpus(),
         "capabilities": sorted(available_capabilities()),
+        "execution": build_execution(ctx, registry),
     }
 
 

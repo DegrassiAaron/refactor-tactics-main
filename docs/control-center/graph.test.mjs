@@ -15,6 +15,8 @@ import { dirname, join } from 'node:path';
 import {
   githubBase, issueUrl, docUrl, wikiRefUrl, epicCheckpointKey, roadmapContainer,
   buildIndex, brokenRefs, dependencyCycles, filterFeatures, stalenessVerdict,
+  executionIndex, executionIncoming, executionOutgoing, danglingEnds, topologicalDepths,
+  filterExecution, executionNeighborhood,
 } from './graph.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -271,4 +273,114 @@ test('CONTRATTO — la release di ogni feature sta fra quelle che la roadmap dic
   // un'epic che estende una capacita' non ne riscrive retroattivamente la release.
   assert.ok(registry.features.filter((f) => f.feature_id.startsWith('RT-FEAT-PERCEPTION-'))
     .every((f) => f.release === 'v0.1'), 'la percezione base e nata in v0.1 e ci resta');
+});
+
+// --- Execution graph ----------------------------------------------------------------------------
+
+const execFixture = () => ({
+  execution: {
+    nodes: [
+      { id: 'issue:1', kind: 'issue', ref: '1', release: 'v0.1', execution_lane: 'code', domain_group: 'core_simulation', readiness: 'READY', feature_ids: [] },
+      { id: 'issue:2', kind: 'issue', ref: '2', release: 'v0.1', execution_lane: 'code', domain_group: 'core_simulation', readiness: 'BLOCKED', feature_ids: [] },
+      { id: 'issue:3', kind: 'issue', ref: '3', release: 'v0.2', execution_lane: 'code', domain_group: 'ui_presentation', readiness: 'UNKNOWN', feature_ids: [] },
+      { id: 'session:U9', kind: 'session', ref: 'U9', release: 'v0.1', execution_lane: 'pie', domain_group: 'core_simulation', readiness: 'READY', feature_ids: [] },
+    ],
+    edges: [
+      { from: 'issue:1', to: 'issue:2', type: 'requires', hard: true },
+      { from: 'issue:2', to: 'issue:3', type: 'follows', hard: false },
+      { from: 'issue:3', to: 'session:U9', type: 'related', hard: false },
+    ],
+    capabilities: [],
+  },
+});
+
+test('un follows non conta come dipendenza dura, e non sposta la profondita', () => {
+  const index = executionIndex(execFixture());
+  assert.equal(executionIncoming(index, 'issue:3', { hardOnly: true }).length, 0);
+  assert.equal(executionIncoming(index, 'issue:3').length, 1, 'larco soft esiste comunque');
+  const depths = topologicalDepths(index);
+  assert.equal(depths.get('issue:1'), 0);
+  assert.equal(depths.get('issue:2'), 1, 'un salto hard');
+  assert.equal(depths.get('issue:3'), 0, 'il follows non spinge a destra: nulla lo trattiene');
+});
+
+test('i lati liberi si riconoscono, ed e come la vista sa disegnare un moncone', () => {
+  const index = executionIndex(execFixture());
+  // Radice: nessun arco hard entrante.
+  assert.deepEqual(danglingEnds(index, 'issue:1'), { inbound: true, outbound: false });
+  // Foglia: ha un entrante hard, e in uscita solo un follows — che non e una dipendenza.
+  assert.deepEqual(danglingEnds(index, 'issue:2'), { inbound: false, outbound: true });
+  // Un nodo toccato solo da archi soft e libero da entrambi i lati: se il moncone guardasse
+  // TUTTI gli archi, questo caso mostrerebbe due lati collegati e direbbe il falso.
+  assert.deepEqual(danglingEnds(index, 'issue:3'), { inbound: true, outbound: true });
+});
+
+test('i filtri della Execution Map sono esatti e componibili', () => {
+  const nodes = execFixture().execution.nodes;
+  assert.deepEqual(filterExecution(nodes, { release: 'v0.1' }).map((n) => n.id),
+    ['issue:1', 'issue:2', 'session:U9']);
+  assert.deepEqual(filterExecution(nodes, { lane: 'pie' }).map((n) => n.id), ['session:U9']);
+  assert.deepEqual(filterExecution(nodes, { readiness: 'BLOCKED' }).map((n) => n.id), ['issue:2']);
+  assert.deepEqual(filterExecution(nodes, { release: 'v0.1', domain: 'core_simulation', lane: 'code' })
+    .map((n) => n.id), ['issue:1', 'issue:2']);
+  assert.equal(filterExecution(nodes, {}).length, 4, 'nessun filtro non nasconde nulla');
+});
+
+test('il vicinato si allarga nei due versi e si ferma alla profondita chiesta', () => {
+  const index = executionIndex(execFixture());
+  assert.deepEqual([...executionNeighborhood(index, 'issue:2', 1)].sort(),
+    ['issue:1', 'issue:2', 'issue:3']);
+  assert.deepEqual([...executionNeighborhood(index, 'issue:1', 1)].sort(),
+    ['issue:1', 'issue:2']);
+  assert.deepEqual([...executionNeighborhood(index, 'issue:1', 2)].sort(),
+    ['issue:1', 'issue:2', 'issue:3']);
+});
+
+test('un grafo assente non rompe la vista', () => {
+  const index = executionIndex({});
+  assert.deepEqual(index.nodes, []);
+  assert.deepEqual(danglingEnds(index, 'issue:1'), { inbound: true, outbound: true });
+});
+
+test('CONTRATTO — l execution graph esiste, e nessuna readiness nasce nel browser', () => {
+  const graph = readJson('docs/roadmap/project-graph.json');
+  const ex = graph.execution;
+  assert.ok(ex, 'project-graph.json non contiene execution');
+  assert.equal(ex.schema_version, 1);
+  const known = ['READY', 'BLOCKED', 'WAITING_FOR_PIE', 'WAITING_FOR_ASSET', 'DONE', 'UNKNOWN'];
+  for (const n of ex.nodes) {
+    assert.ok(n.readiness, `${n.id}: readiness assente — il generatore deve derivarla`);
+    assert.ok(known.includes(n.readiness), `${n.id}: readiness ${n.readiness} fuori dai valori noti`);
+  }
+  const source = readFileSync(join(HERE, 'graph.js'), 'utf8');
+  for (const forbidden of ['deriveReadiness', 'function isBlocked', 'function isDone']) {
+    assert.ok(!source.includes(forbidden),
+      `graph.js definisce ${forbidden}: lo stato si deriva in Python, non qui`);
+  }
+});
+
+test('CONTRATTO — la fetta reale mostra il fork, il junction e la capability', () => {
+  const graph = readJson('docs/roadmap/project-graph.json');
+  const index = executionIndex(graph);
+  // #165 e un fork: una sola issue apre tre strade dure.
+  const fork = executionOutgoing(index, 'issue:165', { hardOnly: true }).map((e) => e.to).sort();
+  assert.deepEqual(fork, ['issue:166', 'issue:314', 'issue:512']);
+  // #170 e un junction: tre ingressi duri da tre domini diversi.
+  const junction = executionIncoming(index, 'issue:170', { hardOnly: true }).map((e) => e.from).sort();
+  assert.deepEqual(junction, ['issue:512', 'issue:66', 'issue:75']);
+  const domains = new Set(junction.map((id) => index.byId.get(id).domain_group));
+  assert.ok(domains.size >= 3, 'un junction converge da domini distinti');
+  // #593 e related a U7: non deve entrare fra i prerequisiti duri.
+  assert.equal(executionIncoming(index, 'session:U7', { hardOnly: true }).length, 0);
+  assert.ok(executionOutgoing(index, 'issue:593').some((e) => e.to === 'session:U7' && !e.hard));
+  // Le sedute portano la lane derivata dal loro owner.
+  assert.equal(index.byId.get('session:U7').execution_lane, 'asset');
+  assert.equal(index.byId.get('session:U9').execution_lane, 'pie');
+  // La capability ha un provider, e i consumatori veri sono gli scenari del corpus.
+  const cap = graph.execution.capabilities.find((c) => c.id === 'DecisionBoundary');
+  assert.ok(cap, 'DecisionBoundary assente dal grafo');
+  assert.deepEqual(cap.providers, ['issue:165']);
+  assert.equal(cap.available, false, 'il runtime non la elenca e il provider non e chiuso');
+  assert.ok(cap.scenario_consumers.length >= 7,
+    'gli scenari che la chiedono sono quelli del corpus, non una lista scritta a mano');
 });

@@ -7,7 +7,9 @@
     "release_gates": "docs/roadmap/v0.1-definition-of-done.md",
     "epics": "docs/roadmap/roadmap-v0.1.md",
     "milestones": "docs/roadmap/roadmap-checkpoint.md",
-    "scenarios": "Scenarios/"
+    "scenarios": "Scenarios/",
+    "execution_graph": "docs/roadmap/execution-graph.yaml",
+    "post_v01_releases": "docs/roadmap/roadmap-post-v0.1.md"
   },
   "meta": {
     "registry_version": 1,
@@ -69,7 +71,8 @@
       "[RT-FEAT-INTENT-CONDITIONAL] nessuna pagina Wiki collegata",
       "[RT-FEAT-INTENT-CONDITIONAL] SPECIFIED senza issue ne' assegnazione in roadmap",
       "[RT-FEAT-CHARACTER-STATE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Riva.Flow, State.Flux.Charged, State.Bastion.Bulwark, State.Howitzer.Siege, State.MultiState.Stress"
+      "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Riva.Flow, State.Flux.Charged, State.Bastion.Bulwark, State.Howitzer.Siege, State.MultiState.Stress",
+      "[execution-graph] 12 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.4, E14.5, E14.6, E14.7, E14.8, E15.3, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
     ],
     "unresolved_prerequisites": [],
     "milestone_conflicts": []
@@ -2333,5 +2336,1020 @@
     "Reaction",
     "ReactionPlanning",
     "Structures"
-  ]
+  ],
+  "execution": {
+    "schema_version": 1,
+    "status": "THIN_SLICE",
+    "lanes": [
+      {
+        "id": "code",
+        "title": "CODE",
+        "note": "lavoro sul repository, eseguibile da un agente o da chi sviluppa"
+      },
+      {
+        "id": "pie",
+        "title": "PIE",
+        "note": "serve una persona davanti all'editor, e l'uscita e' un verdetto"
+      },
+      {
+        "id": "asset",
+        "title": "ASSET",
+        "note": "serve una persona davanti all'editor, e l'uscita e' un asset committato"
+      }
+    ],
+    "domain_groups": [
+      {
+        "id": "core_simulation",
+        "title": "Core & Simulation",
+        "order": 10,
+        "feature_areas": [
+          "Core",
+          "Gameplay"
+        ]
+      },
+      {
+        "id": "map_environment",
+        "title": "Map & Environment",
+        "order": 20,
+        "feature_areas": [
+          "Map",
+          "Environment"
+        ]
+      },
+      {
+        "id": "actions_reactions",
+        "title": "Actions & Reactions",
+        "order": 30,
+        "feature_areas": [
+          "Actions",
+          "Reactions"
+        ]
+      },
+      {
+        "id": "perception_network",
+        "title": "Perception & Networking",
+        "order": 40,
+        "feature_areas": [
+          "Perception",
+          "Networking"
+        ]
+      },
+      {
+        "id": "characters_content",
+        "title": "Characters & Content",
+        "order": 50,
+        "feature_areas": [
+          "Characters",
+          "Factions"
+        ]
+      },
+      {
+        "id": "objectives_match",
+        "title": "Objectives & Match",
+        "order": 60,
+        "feature_areas": [
+          "Objectives"
+        ]
+      },
+      {
+        "id": "ui_presentation",
+        "title": "UI & Presentation",
+        "order": 70,
+        "feature_areas": [
+          "UI"
+        ]
+      },
+      {
+        "id": "tooling_data_qa",
+        "title": "Tooling, Data, QA & Release",
+        "order": 80,
+        "feature_areas": [
+          "Tools",
+          "Data",
+          "Production"
+        ]
+      }
+    ],
+    "nodes": [
+      {
+        "id": "issue:164",
+        "kind": "issue",
+        "ref": "164",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "actions_reactions",
+        "checkpoint": "E14.4",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-REACTION-OVERWATCH"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:164",
+            "to": "issue:165",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:165",
+        "kind": "issue",
+        "ref": "165",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "actions_reactions",
+        "checkpoint": "E14.5",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-REACTION-FAST"
+        ],
+        "provides": [
+          "DecisionBoundary"
+        ],
+        "incoming": [
+          {
+            "from": "issue:164",
+            "to": "issue:165",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:165",
+            "to": "issue:166",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:165",
+            "to": "issue:314",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:165",
+            "to": "issue:512",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:165",
+            "to": "capability:DecisionBoundary",
+            "type": "provides",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:164"
+      },
+      {
+        "id": "issue:166",
+        "kind": "issue",
+        "ref": "166",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "actions_reactions",
+        "checkpoint": "E14.6",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-REACTION-FAST",
+          "RT-FEAT-REACTION-FAST-ACTION"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:165",
+            "to": "issue:166",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:166",
+            "to": "issue:314",
+            "type": "follows",
+            "hard": false,
+            "rationale": "CP 14.7 dichiara di seguire CP 14.6."
+          }
+        ],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:165"
+      },
+      {
+        "id": "issue:314",
+        "kind": "issue",
+        "ref": "314",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "actions_reactions",
+        "checkpoint": "E14.7",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:165",
+            "to": "issue:314",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:166",
+            "to": "issue:314",
+            "type": "follows",
+            "hard": false,
+            "rationale": "CP 14.7 dichiara di seguire CP 14.6."
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:314",
+            "to": "issue:319",
+            "type": "follows",
+            "hard": false,
+            "rationale": "CP 14.8 segue CP 14.7, e dichiara di non precedere 14.5/14.6."
+          }
+        ],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:165"
+      },
+      {
+        "id": "issue:319",
+        "kind": "issue",
+        "ref": "319",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "actions_reactions",
+        "checkpoint": "E14.8",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-CORE-DECISION-TIME-BANK"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:314",
+            "to": "issue:319",
+            "type": "follows",
+            "hard": false,
+            "rationale": "CP 14.8 segue CP 14.7, e dichiara di non precedere 14.5/14.6."
+          }
+        ],
+        "outgoing": [],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:512",
+        "kind": "issue",
+        "ref": "512",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "core_simulation",
+        "checkpoint": "E15.3",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:165",
+            "to": "issue:512",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "capability:DecisionBoundary",
+            "to": "issue:512",
+            "type": "requires_capability",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:512",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "BLOCKED",
+        "readiness_reason": "aspetta capability:DecisionBoundary"
+      },
+      {
+        "id": "issue:66",
+        "kind": "issue",
+        "ref": "66",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "map_environment",
+        "checkpoint": "E8.3",
+        "state": "✅",
+        "state_source": "checkpoint:E8.3",
+        "state_note": null,
+        "feature_ids": [
+          "RT-FEAT-ENV-ELECTRIC"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:66",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "DONE",
+        "readiness_reason": "checkpoint:E8.3"
+      },
+      {
+        "id": "issue:75",
+        "kind": "issue",
+        "ref": "75",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "objectives_match",
+        "checkpoint": "E10.2",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-OBJECTIVE-SYSTEM"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:75",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:170",
+        "kind": "issue",
+        "ref": "170",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "checkpoint": "E15.4",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-TEST-GOLDEN"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:512",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:66",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:75",
+            "to": "issue:170",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:625",
+            "to": "issue:170",
+            "type": "follows",
+            "hard": false,
+            "rationale": "Chiudere la traccia del danno da hazard prima del pinning del golden evita una rebaseline. E' un risparmio, non un prerequisito."
+          },
+          {
+            "from": "issue:649",
+            "to": "issue:170",
+            "type": "related",
+            "hard": false,
+            "rationale": "Consistency del TurnLog; nessuna dipendenza dura dichiarata verso CP 15.4."
+          },
+          {
+            "from": "issue:687",
+            "to": "issue:170",
+            "type": "related",
+            "hard": false,
+            "rationale": "Rischio di versioning e migrazione del formato. Finche' un owner non lo rende un gate, resta una relazione di consistenza."
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:170",
+            "to": "issue:171",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:512, issue:75"
+      },
+      {
+        "id": "issue:171",
+        "kind": "issue",
+        "ref": "171",
+        "release": "v0.1",
+        "execution_lane": "pie",
+        "domain_group": "tooling_data_qa",
+        "checkpoint": "E15.5",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-TEST-GOLDEN"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:170",
+            "to": "issue:171",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:170"
+      },
+      {
+        "id": "issue:625",
+        "kind": "issue",
+        "ref": "625",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "checkpoint": null,
+        "state": null,
+        "state_source": null,
+        "state_note": "issue senza checkpoint: lo stato vive su GitHub",
+        "feature_ids": [
+          "RT-FEAT-ENV-FIRE",
+          "RT-FEAT-ENV-STATUS"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:625",
+            "to": "issue:170",
+            "type": "follows",
+            "hard": false,
+            "rationale": "Chiudere la traccia del danno da hazard prima del pinning del golden evita una rebaseline. E' un risparmio, non un prerequisito."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:649",
+        "kind": "issue",
+        "ref": "649",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "checkpoint": null,
+        "state": null,
+        "state_source": null,
+        "state_note": "issue senza checkpoint: lo stato vive su GitHub",
+        "feature_ids": [
+          "RT-FEAT-BOT-FAIRNESS"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:649",
+            "to": "issue:170",
+            "type": "related",
+            "hard": false,
+            "rationale": "Consistency del TurnLog; nessuna dipendenza dura dichiarata verso CP 15.4."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:687",
+        "kind": "issue",
+        "ref": "687",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "checkpoint": null,
+        "state": null,
+        "state_source": null,
+        "state_note": "issue senza checkpoint: lo stato vive su GitHub",
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:687",
+            "to": "issue:170",
+            "type": "related",
+            "hard": false,
+            "rationale": "Rischio di versioning e migrazione del formato. Finche' un owner non lo rende un gate, resta una relazione di consistenza."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:287",
+        "kind": "issue",
+        "ref": "287",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "characters_content",
+        "checkpoint": "E21.1",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-CHAR-PRESENTATION"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "session:U7",
+            "to": "issue:287",
+            "type": "implements",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:287",
+            "to": "issue:288",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:287",
+            "to": "issue:289",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:288",
+        "kind": "issue",
+        "ref": "288",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "characters_content",
+        "checkpoint": "E21.2",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-CHAR-PRESENTATION"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:287",
+            "to": "issue:288",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "session:U8",
+            "to": "issue:288",
+            "type": "implements",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "outgoing": [],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:287"
+      },
+      {
+        "id": "issue:289",
+        "kind": "issue",
+        "ref": "289",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "characters_content",
+        "checkpoint": "E21.3",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-CHAR-PRESENTATION"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:287",
+            "to": "issue:289",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "session:U9",
+            "to": "issue:289",
+            "type": "verifies",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "outgoing": [],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:287"
+      },
+      {
+        "id": "issue:593",
+        "kind": "issue",
+        "ref": "593",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "characters_content",
+        "checkpoint": null,
+        "state": null,
+        "state_source": null,
+        "state_note": "issue senza checkpoint: lo stato vive su GitHub",
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:593",
+            "to": "session:U7",
+            "type": "related",
+            "hard": false,
+            "rationale": "La issue dichiara esplicitamente che il workaround regge e che non blocca U7."
+          },
+          {
+            "from": "issue:593",
+            "to": "session:U9",
+            "type": "related",
+            "hard": false,
+            "rationale": "Influenza il giudizio visivo di U9 senza esserne un prerequisito dichiarato."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "session:U7",
+        "kind": "session",
+        "ref": "U7",
+        "release": "v0.1",
+        "execution_lane": "asset",
+        "domain_group": "characters_content",
+        "checkpoint": null,
+        "state": "🟡",
+        "state_source": "session:U7",
+        "state_note": null,
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:593",
+            "to": "session:U7",
+            "type": "related",
+            "hard": false,
+            "rationale": "La issue dichiara esplicitamente che il workaround regge e che non blocca U7."
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "session:U7",
+            "to": "issue:287",
+            "type": "implements",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "session:U8",
+        "kind": "session",
+        "ref": "U8",
+        "release": "v0.1",
+        "execution_lane": "asset",
+        "domain_group": "characters_content",
+        "checkpoint": null,
+        "state": "⏳",
+        "state_source": "session:U8",
+        "state_note": null,
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "session:U8",
+            "to": "issue:288",
+            "type": "implements",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "session:U9",
+        "kind": "session",
+        "ref": "U9",
+        "release": "v0.1",
+        "execution_lane": "pie",
+        "domain_group": "characters_content",
+        "checkpoint": null,
+        "state": "🟡",
+        "state_source": "session:U9",
+        "state_note": null,
+        "feature_ids": [],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:593",
+            "to": "session:U9",
+            "type": "related",
+            "hard": false,
+            "rationale": "Influenza il giudizio visivo di U9 senza esserne un prerequisito dichiarato."
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "session:U9",
+            "to": "issue:289",
+            "type": "verifies",
+            "hard": false,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      }
+    ],
+    "edges": [
+      {
+        "from": "issue:164",
+        "to": "issue:165",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:165",
+        "to": "issue:166",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:165",
+        "to": "issue:314",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:165",
+        "to": "issue:512",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:512",
+        "to": "issue:170",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:66",
+        "to": "issue:170",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:75",
+        "to": "issue:170",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:170",
+        "to": "issue:171",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:287",
+        "to": "issue:288",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:287",
+        "to": "issue:289",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:165",
+        "to": "capability:DecisionBoundary",
+        "type": "provides",
+        "hard": false,
+        "rationale": null
+      },
+      {
+        "from": "capability:DecisionBoundary",
+        "to": "issue:512",
+        "type": "requires_capability",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:166",
+        "to": "issue:314",
+        "type": "follows",
+        "hard": false,
+        "rationale": "CP 14.7 dichiara di seguire CP 14.6."
+      },
+      {
+        "from": "issue:314",
+        "to": "issue:319",
+        "type": "follows",
+        "hard": false,
+        "rationale": "CP 14.8 segue CP 14.7, e dichiara di non precedere 14.5/14.6."
+      },
+      {
+        "from": "issue:625",
+        "to": "issue:170",
+        "type": "follows",
+        "hard": false,
+        "rationale": "Chiudere la traccia del danno da hazard prima del pinning del golden evita una rebaseline. E' un risparmio, non un prerequisito."
+      },
+      {
+        "from": "issue:593",
+        "to": "session:U7",
+        "type": "related",
+        "hard": false,
+        "rationale": "La issue dichiara esplicitamente che il workaround regge e che non blocca U7."
+      },
+      {
+        "from": "issue:593",
+        "to": "session:U9",
+        "type": "related",
+        "hard": false,
+        "rationale": "Influenza il giudizio visivo di U9 senza esserne un prerequisito dichiarato."
+      },
+      {
+        "from": "issue:649",
+        "to": "issue:170",
+        "type": "related",
+        "hard": false,
+        "rationale": "Consistency del TurnLog; nessuna dipendenza dura dichiarata verso CP 15.4."
+      },
+      {
+        "from": "issue:687",
+        "to": "issue:170",
+        "type": "related",
+        "hard": false,
+        "rationale": "Rischio di versioning e migrazione del formato. Finche' un owner non lo rende un gate, resta una relazione di consistenza."
+      },
+      {
+        "from": "session:U7",
+        "to": "issue:287",
+        "type": "implements",
+        "hard": false,
+        "rationale": null
+      },
+      {
+        "from": "session:U8",
+        "to": "issue:288",
+        "type": "implements",
+        "hard": false,
+        "rationale": null
+      },
+      {
+        "from": "session:U9",
+        "to": "issue:289",
+        "type": "verifies",
+        "hard": false,
+        "rationale": null
+      }
+    ],
+    "capabilities": [
+      {
+        "id": "DecisionBoundary",
+        "providers": [
+          "issue:165"
+        ],
+        "consumers": [
+          "issue:512"
+        ],
+        "scenario_consumers": [
+          "RT_Showcase_Relay_v01",
+          "Spec.Brace.ProfileChangesResponse",
+          "Spec.Clash.ReadBeatsStand",
+          "Spec.Clash.ShiftBeatsRead",
+          "Spec.Clash.StandBeatsShift",
+          "Spec.Clash.TieAppliesOnce",
+          "Spec.Overwatch.HoldThenFire"
+        ],
+        "available": false,
+        "available_source": "provider"
+      }
+    ],
+    "stats": {
+      "nodes": 20,
+      "edges": 22,
+      "hard_edges": 11,
+      "soft_edges": 7,
+      "by_readiness": {
+        "BLOCKED": 1,
+        "DONE": 1,
+        "READY": 11,
+        "UNKNOWN": 7
+      },
+      "by_execution_lane": {
+        "asset": 2,
+        "code": 16,
+        "pie": 2
+      },
+      "by_domain_group": {
+        "actions_reactions": 5,
+        "characters_content": 7,
+        "core_simulation": 1,
+        "map_environment": 1,
+        "objectives_match": 1,
+        "tooling_data_qa": 5
+      },
+      "by_release": {
+        "v0.1": 20
+      },
+      "state_unknown": 16
+    }
+  }
 }

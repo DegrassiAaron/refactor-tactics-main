@@ -276,3 +276,114 @@ export function stalenessVerdict(yamlCommit, jsonCommit) {
     yamlSha: yamlCommit.sha, jsonSha: jsonCommit.sha,
   };
 }
+
+// --- Execution graph ---------------------------------------------------------------------------
+//
+// Topologia, non stato. `readiness` e `state` arrivano gia' derivati dal generatore (R-1): qui si
+// indicizza, si filtra e si calcola il LAYOUT, che e' struttura visiva e non un giudizio.
+
+/** Indice dell'execution graph: nodi per id, archi nei due versi, hard e soft separati. */
+export function executionIndex(graph) {
+  const execution = (graph && graph.execution) || null;
+  const empty = { nodes: [], byId: new Map(), incoming: new Map(), outgoing: new Map(), capabilities: new Map() };
+  if (!execution) return empty;
+  const byId = new Map(execution.nodes.map((n) => [n.id, n]));
+  const incoming = new Map();
+  const outgoing = new Map();
+  for (const edge of execution.edges || []) {
+    if (!outgoing.has(edge.from)) outgoing.set(edge.from, []);
+    if (!incoming.has(edge.to)) incoming.set(edge.to, []);
+    outgoing.get(edge.from).push(edge);
+    incoming.get(edge.to).push(edge);
+  }
+  return {
+    nodes: execution.nodes,
+    byId,
+    incoming,
+    outgoing,
+    capabilities: new Map((execution.capabilities || []).map((c) => [c.id, c])),
+  };
+}
+
+export function executionIncoming(index, id, { hardOnly = false } = {}) {
+  return (index.incoming.get(id) || []).filter((e) => !hardOnly || e.hard);
+}
+
+export function executionOutgoing(index, id, { hardOnly = false } = {}) {
+  return (index.outgoing.get(id) || []).filter((e) => !hardOnly || e.hard);
+}
+
+/**
+ * I due lati liberi di un nodo — quelli che la vista disegna come collegamenti STACCATI.
+ *
+ * Un nodo senza archi hard entranti non e' un nodo «senza freccia»: e' una RADICE, e nulla lo
+ * trattiene. Un nodo senza archi hard uscenti e' una FOGLIA: finirlo non sblocca niente di
+ * dichiarato. Disegnare il nulla renderebbe le due cose indistinguibili dal margine della
+ * figura, e il moncone e' il modo di dire «qui la catena finisce davvero» invece di «qui la
+ * figura e' tagliata».
+ */
+export function danglingEnds(index, id) {
+  return {
+    inbound: executionIncoming(index, id, { hardOnly: true }).length === 0,
+    outbound: executionOutgoing(index, id, { hardOnly: true }).length === 0,
+  };
+}
+
+/**
+ * Profondita' topologica sul solo sottografo hard: la X del layout.
+ *
+ * `follows` e `related` non partecipano — sono ordine e navigazione, e farli contare
+ * spingerebbe a destra nodi che nulla blocca, cioe' direbbe con la posizione l'opposto di
+ * quello che la readiness dice a parole. Un ciclo (che il validator gia' rifiuta) non manda in
+ * loop: i nodi visitati non si rivisitano.
+ */
+export function topologicalDepths(index) {
+  const depth = new Map();
+  const visiting = new Set();
+  const compute = (id) => {
+    if (depth.has(id)) return depth.get(id);
+    if (visiting.has(id)) return 0;
+    visiting.add(id);
+    const parents = executionIncoming(index, id, { hardOnly: true })
+      .filter((e) => index.byId.has(e.from));
+    const value = parents.length === 0 ? 0 : Math.max(...parents.map((e) => compute(e.from) + 1));
+    visiting.delete(id);
+    depth.set(id, value);
+    return value;
+  };
+  for (const node of index.nodes) compute(node.id);
+  return depth;
+}
+
+export function filterExecution(nodes, filters = {}) {
+  return nodes.filter((n) => {
+    if (filters.release && n.release !== filters.release) return false;
+    if (filters.lane && n.execution_lane !== filters.lane) return false;
+    if (filters.domain && n.domain_group !== filters.domain) return false;
+    if (filters.readiness && n.readiness !== filters.readiness) return false;
+    if (filters.q) {
+      const hay = `${n.id} ${n.ref} ${(n.feature_ids || []).join(' ')} ${n.checkpoint || ''}`;
+      if (!hay.toLowerCase().includes(filters.q.toLowerCase())) return false;
+    }
+    return true;
+  });
+}
+
+/** Il vicinato di un nodo entro `depth` salti, nei due versi. Per il focus, non per il globale. */
+export function executionNeighborhood(index, id, depth = 1) {
+  const seen = new Set([id]);
+  let frontier = [id];
+  for (let step = 0; step < depth; step += 1) {
+    const next = [];
+    for (const current of frontier) {
+      for (const edge of executionIncoming(index, current)) {
+        if (index.byId.has(edge.from) && !seen.has(edge.from)) { seen.add(edge.from); next.push(edge.from); }
+      }
+      for (const edge of executionOutgoing(index, current)) {
+        if (index.byId.has(edge.to) && !seen.has(edge.to)) { seen.add(edge.to); next.push(edge.to); }
+      }
+    }
+    frontier = next;
+  }
+  return seen;
+}
