@@ -156,7 +156,9 @@ void ARTHUD::DrawHUD()
 		// impossibile dire chi sta facendo cosa — e un giudizio sul bot o sul ritmo della partita, che e' cio'
 		// che il playtest deve dare, non varrebbe nulla. Posizione FISSA (non sotto lo status): un'etichetta che
 		// salta quando arriva un ROOT si legge peggio di una ferma.
-		FString HeroName = ARTUnit::ShortHeroName(Unit->HeroId, Unit->GetName());
+		// Il nome CANONICO del catalogo (D-120), non l'ID stabile: `Hero.Flux` si legge `Gadget`. Il ripiego
+		// sull'ID resta dentro `DisplayLabel` per le unita' che nessun eroe ha configurato.
+		FString HeroName = ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName());
 
 		// CHI viene colpito, marcato sull'UNITA' e non solo sulla cella.
 		//
