@@ -206,9 +206,9 @@ Il repository sa che **una sessione = un worktree** (`D-135`, `AGENTS.md`), e no
 possono editare lo stesso file, e l'unica difesa è che se ne accorga il merge.
 
 🔴 **Il problema non è ipotetico: è successo mentre scrivevo questo documento.** Il piano iniziale prevedeva
-di estendere `scripts/feature_registry.py` col validator della §48. Il write-set del branch vivo
+di estendere `scripts/feature_registry.py` col validator della §48. Il write-set del branch
 `docs/consolidamento-walls-doors-v1` ([PR #836](https://github.com/DegrassiAaron/refactor-tactics-main/pull/836)),
-misurato con `git diff --name-only origin/main...<branch>`, contiene **16 file**, fra cui:
+allora **aperto** e misurato con `git diff --name-only origin/main...<branch>`, contiene **16 file**, fra cui:
 
 ```text
 scripts/feature_registry.py            ← il file che stavo per riscrivere
@@ -221,6 +221,19 @@ docs/OPEN_DECISIONS.md
 
 Sei file su sedici erano nel mio piano. **Il validator è quindi uscito da questa PR** ed è diventato una
 issue: applicare la regola che si sta scrivendo è l'unica prova che valga qualcosa.
+
+⚠️ **E poi #836 è atterrata mentre questa PR era aperta** — `84cbb70c`, 22:56 UTC — portando su `main` **9**
+commit. Il vincolo che aveva prodotto resta valido, ma la riga che lo descriveva è diventata falsa in
+un'ora, in **quattro** documenti che dicevano «viva». È il limite del meccanismo, e va scritto invece che
+scoperto: **un `preexisting` è una fotografia di `gh pr list`, non un lock.** Nessun gate lo vede — i link
+risolvono, i totali tornano, e il documento descrive un repository che non c'è più. L'unica difesa è
+rileggere `origin/main` **dopo ogni passo lungo e prima del merge**.
+
+✅ **Il dividendo della previsione è però misurabile.** `git merge origin/main` ha dato **tre** conflitti, e
+tutti e tre erano righe che questo ramo aveva già dichiarato contese in `integration_only`: il Decision Log
+(risolto tenendo entrambe le decisioni, `D-138` e `D-139`, in ordine numerico) e i due totali degli archivi,
+rimisurati col comando invece che scegliendo un lato — **72** e **52**, esattamente i valori previsti. Nessun
+file di codice, nessuna vista generata, nessuna scelta arbitraria.
 
 Ne segue la forma minima del meccanismo, in [`../parallel-batch.yaml`](../parallel-batch.yaml): un file che
 descrive **il batch**, non lo stato delle feature — niente `status`, `done`, `progress`, conteggi di test.
@@ -306,7 +319,7 @@ lease binaria. Le garanzie di `D-135` sono preservate: nessuna riga delle §1–
 
 | § | Cosa | Perché non ora |
 |---:|---|---|
-| 48 | validator del parallelismo (7 controlli: doppia assegnazione, lease doppia, lease senza issue/`base_sha`, integration-only assegnato, track sconosciuto, destinazione duplicata) | il file da estendere — `scripts/feature_registry.py` — è nel write-set di [PR #836](https://github.com/DegrassiAaron/refactor-tactics-main/pull/836), **viva** |
+| 48 | validator del parallelismo (7 controlli: doppia assegnazione, lease doppia, lease senza issue/`base_sha`, integration-only assegnato, track sconosciuto, destinazione duplicata) | il file da estendere — `scripts/feature_registry.py` — era nel write-set di [PR #836](https://github.com/DegrassiAaron/refactor-tactics-main/pull/836), aperta al momento del calcolo. → [#840](https://github.com/DegrassiAaron/refactor-tactics-main/issues/840) |
 | 49 | test di batch e lease | seguono il validator |
 
 Gli altri test della §49 non servono: quelli sugli **shared ID** esistono già

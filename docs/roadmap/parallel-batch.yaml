@@ -51,8 +51,8 @@ meta:
     prima apertura del branch, non misure di un lavoro finito.
 
 batch:
-  id: "BATCH-ce9e4365-gh41-gh583"
-  base_sha: "ce9e43656d9eace054a6b61435a955ec1826365f"
+  id: "BATCH-84cbb70c-gh41-gh583"
+  base_sha: "84cbb70c6f5082682e59a71d442b71e78fac4322"
   created_at: "2026-08-14"
 
 # --- Track già occupate al momento del calcolo ------------------------------------------------
@@ -64,11 +64,16 @@ preexisting:
   - branch: docs/consolidamento-walls-doors-v1
     worktree: rt-wt-walls-doors
     pr: 836
+    state: MERGED          # 2026-08-13T22:56Z, in `84cbb70c` — ⚠️ mentre questo batch era aperto
     note: >-
-      16 file, di cui **13** sono `integration_only` (8) o `generated_only` (5) di questo batch: è la
-      forma tipica di un consolidamento documentale, e la ragione per cui due consolidamenti non
-      girano bene insieme. Ha tolto dal batch il validator del parallelismo, che voleva estendere
-      `scripts/feature_registry.py`.
+      16 file, di cui **12** coperti dalle categorie di questo batch: `integration_only` (7) e
+      `generated_only` (5). È la forma tipica di un consolidamento documentale, e la ragione per cui
+      due consolidamenti non girano bene insieme: ha tolto dal batch il validator del parallelismo,
+      che voleva estendere `scripts/feature_registry.py`.
+      ⚠️ **Era `OPEN` quando questo write-set è stato calcolato ed è atterrata un'ora dopo.** È il
+      limite del meccanismo, e va scritto invece che scoperto: un `preexisting` è una fotografia di
+      `gh pr list`, non un lock. Il vincolo che ne è derivato resta valido — il validator è uscito
+      dal batch e la sua issue esiste — ma `base_sha` va **riletto prima del merge**, sempre.
 
   - branch: fix/capability-sconosciuta-non-e-blocked
     worktree: wt-cap

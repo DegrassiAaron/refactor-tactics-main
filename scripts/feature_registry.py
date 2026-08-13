@@ -184,10 +184,40 @@ def known_roadmap_refs():
         text = open(ROADMAP_V01, encoding="utf-8").read()
         epics.update(re.findall(r"^### (E\d+) —", text, re.M))
         epics.update(re.findall(r"\*\*(E\d+)\*\*", text))
+
+    # ⚠️ Il gemello del difetto descritto qui sopra, sopravvissuto alla sua correzione. Il 2026-08-13
+    # `epics` ha imparato a leggere l'owner post-v0.1; `checkpoints` no, ed e' rimasto a conoscere i soli
+    # checkpoint della v0.1. La conseguenza e' identica e altrettanto silenziosa: `roadmap-post-v0.1.md`
+    # DICHIARA i propri checkpoint nella stessa forma tabellare di `roadmap-v0.1.md` — `| **23.6** | ... |`
+    # — ma una feature che li citasse riceveva «checkpoint inesistente». Ecco perche'
+    # `RT-FEAT-MAP-STANDABILITY` e `RT-FEAT-MAP-TRANSITION-CLEARANCE` portavano `checkpoints: []` pur
+    # avendo `23.6` e `23.7` scritti nell'owner da `D-065`: per impossibilita', non per scelta (`D-138`).
+    #
+    # 🔴 **I due owner si iterano, non si copiano.** La prima stesura di questa correzione duplicava i tre
+    # regex in un secondo blocco identico carattere per carattere — cioe' riproduceva la forma stessa del
+    # difetto che stava correggendo, perche' un terzo owner o una quarta forma di dichiarazione andrebbe
+    # aggiunta in N punti e chi ne dimentica uno riottiene «checkpoint inesistente» in silenzio. La code
+    # review l'ha trovato insieme a **due forme che mancavano davvero**, ed e' la prova che il rischio non
+    # era teorico:
+    #   - `| ~~**38.1**~~ |` — un checkpoint dichiarato E POI CHIUSO resta dichiarato: la riga barrata e'
+    #     la forma in cui l'owner registra «fatto», non «mai esistito»;
+    #   - `CP 34.1`–`34.11` — la dichiarazione a INTERVALLO, dove catturare il solo estremo iniziale
+    #     lasciava fuori 17 checkpoint fra `E34` ed `E37`.
+    for path in (ROADMAP_V01, ROADMAP_POST_V01):
+        if not os.path.isfile(path):
+            continue
+        text = open(path, encoding="utf-8").read()
         checkpoints.update(re.findall(r"CP (\d+\.\d+)", text))
-        checkpoints.update(re.findall(r"^\| \*\*(\d+\.\d+)\*\*", text, re.M))
+        # `~~` opzionale: una riga barrata dichiara un checkpoint chiuso, non inesistente.
+        checkpoints.update(re.findall(r"^\|\s*(?:~~)?\*\*(\d+\.\d+)\*\*", text, re.M))
         # Forma prefissata: `E9.1` dichiara il checkpoint 9.1 dell'epic E9.
         checkpoints.update(re.findall(r"\bE(\d+\.\d+)\b", text))
+        # Intervalli: `CP 34.1`–`34.11` dichiara tutti gli undici, non solo il primo.
+        for epic_no, first, last in re.findall(
+                r"CP (\d+)\.(\d+)`?\s*[–—-]\s*`?(?:\d+\.)?(\d+)", text):
+            lo, hi = int(first), int(last)
+            if lo <= hi and hi - lo <= 50:   # un intervallo di roadmap non e' un range aperto
+                checkpoints.update(f"{epic_no}.{n}" for n in range(lo, hi + 1))
     if os.path.isfile(ROADMAP_CHECKPOINT):
         text = open(ROADMAP_CHECKPOINT, encoding="utf-8").read()
         milestones.update(re.findall(r"\*\*(M\d+)\*\*", text))
@@ -314,12 +344,22 @@ def release_table_rows():
     ⚠️ Il numero di versione e' `v\\d+\\.\\d+` e non una finestra fissa di cifre: `v[01]\\.\\d`
     scartava `v2.0` e `v0.10` **in silenzio**, cioe' ripeteva un digit piu' in la' il difetto che
     aveva appena corretto.
+
+    🔴 **E le celle sono `[^|\\n]*`, non `[^|]*`: la differenza e' se il parser puo' scavalcare una
+    riga.** `[^|]` include `\\n`, quindi su una tabella a TRE colonne il regex trovava le prime due
+    celle, non trovava la terza sulla stessa riga e la cercava **oltre il ritorno a capo**,
+    agganciando la riga successiva. Misurato (`D-138`): una tabella di prosa `| **vX.Y** | ... | ... |`
+    aggiunta altrove nello stesso file produceva TRE coppie fantasma — `('v0.2', '\\n')`,
+    `('v0.4', '\\n')`, `('v0.9', '\\n')` — e `check_release_order()` le contava come release
+    **dichiarate dall'owner**. Il gate che `D-136` ha creato per impedire una release esprimibile e non
+    descritta taceva su tre release, e nulla diventava rosso: le release c'erano, **due volte**.
+    Una cella di tabella non attraversa mai una riga.
     """
     if not os.path.isfile(ROADMAP_POST_V01):
         return []
     with open(ROADMAP_POST_V01, encoding="utf-8") as fh:
         text = fh.read()
-    return re.findall(r"^\|\s*\*\*(v\d+\.\d+)\*\*\s*\|[^|]*\|[^|]*\|([^|]*)\|", text, re.M)
+    return re.findall(r"^\|\s*\*\*(v\d+\.\d+)\*\*\s*\|[^|\n]*\|[^|\n]*\|([^|\n]*)\|", text, re.M)
 
 
 def check_release_order():

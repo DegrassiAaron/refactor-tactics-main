@@ -42,6 +42,7 @@
       "[RT-FEAT-MAP-HEXGRAPH] tutte le voci PIE che la dimostrano sono verdi (PIE-HEXPLAY-1) ma il gate packaged e' ancora partial: puo' avanzare",
       "[RT-FEAT-MAP-STANDABILITY] 3 scenario/i dichiarati planned: Spec.Map.WallCrossesCellStillStandable, Spec.Map.FootprintCollisionBlocksCell, Spec.Map.NinetyDegreeCornerBakesCorrectly",
       "[RT-FEAT-MAP-TRANSITION-CLEARANCE] 2 scenario/i dichiarati planned: Spec.Map.ValidCellsBlockedTransition, Spec.Map.DoorOpensTransition",
+      "[RT-FEAT-MAP-INTERACTION-GRAPH] 3 scenario/i dichiarati planned: Spec.Map.Interaction.SwitchOpensDoor, Spec.Map.Interaction.SwitchControlsMultipleDoors, Spec.Map.Interaction.OpenFailsDependentMoveBlocks",
       "[RT-FEAT-MAP-WATER-DYNAMICS] nessuna pagina Wiki collegata",
       "[RT-FEAT-MAP-STRUCTURAL] nessuna pagina Wiki collegata",
       "[RT-FEAT-MAP-VERTICALITY] nessuna pagina Wiki collegata",
