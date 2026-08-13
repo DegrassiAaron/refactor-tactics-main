@@ -255,7 +255,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-UI-COMBAT-LOG` — Combat log e spiegabilità | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | RELEASE_READY | 6/7 |
-|  | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | SPECIFIED | 1/8 |
+|  | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | IMPLEMENTING | 1/8 |
 |  | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | IMPLEMENTING | 1/7 |
 |  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 1/6 |
 |  | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse — completata da `RT-FEAT-UI-CERTAINTY` | IMPLEMENTING | 3/7 |
@@ -265,7 +265,6 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | TESTABLE | 5/8 |
 |  | `RT-FEAT-PROD-PACKAGED` — Verifica su build packaged | IMPLEMENTING | 2/6 |
 |  | `RT-FEAT-PROD-PERFORMANCE` — Budget di performance misurati | IMPLEMENTING | 3/6 |
-|  | `RT-FEAT-REPLAY-ARCHIVE` — Replay Archive — recorder, Player e indice delle partite | INTEGRATED | 4/6 |
 | **E13** | `RT-FEAT-BOT-FAIRNESS` — Il bot pianifica sulla conoscenza della sua squadra | TESTABLE | 3/7 |
 |  | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | TESTABLE | 4/9 |
 |  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 3/9 |
@@ -288,6 +287,26 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
 
+> ⚠️ **Feature con una release e senza epic** — lavoro dentro lo scope di una release che nessuna
+> epic copre e che nessuno ha dichiarato fuori scope.
+>
+> Per la **v0.1** questa tabella **deve restare vuota**: se compare una riga, o le si assegna
+> un'epic o si dichiara `out_of_release_scope` con un motivo. Per le release successive una riga
+> significa *«l'epic non è ancora aperta»*, che è legittimo ma non deve essere silenzioso: la
+> motivazione va nelle `notes` della feature, ed è il posto dove il prossimo audit la cerca.
+> ⚠️ Fino al 2026-08-13 il filtro guardava la sola v0.1, quindi le righe post-v0.1 non
+> comparivano affatto — non perché fossero assegnate, ma perché nessuno le contava.
+
+| Feature | Vista | Stato | Gate |
+|---|---|---|---:|
+| `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | — | DESIGNED | 0/9 |
+| `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | — | IMPLEMENTING | 0/9 |
+| `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | — | IDEA | 0/9 |
+| `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | — | DESIGNED | 0/9 |
+| `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | — | DESIGNED | 0/9 |
+| `RT-FEAT-ENV-ICE-ENGINE` — Motore del ghiaccio (momentum, rottura, prone) | — | DESIGNED | 0/9 |
+| `RT-FEAT-FACTION-SCENARIOS` — Scenari di cooperazione per fazione | — | DESIGNED | 0/7 |
+
 **Fuori dalla vista di release, per decisione** — esiste, è tracciato, ma non è contenuto
 della v0.1. Dichiararlo è tracciabilità quanto assegnare un'epic: quello che non va bene è il
 silenzio.
@@ -297,6 +316,15 @@ silenzio.
 | `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e dalla EditorMap, non dalle epic della v0.1. |
 | `RT-FEAT-TOOL-MAP-GEOMETRY` — Geometria architettonica quantizzata e cottura in dati di cella | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. E' l'ANTICIPAZIONE dichiarata della meta' di authoring di E23.1 (v0.2), decisa il 2026-08-12; l'epic #324 NON si apre, e la logica di transizione resta sua. |
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | — | Tooling di test nato dall'issue `#209`: serve a chi sviluppa, non è contenuto della release. Già costruito e coperto da test; nessun gate della v0.1 dipende da lui. |
+
+> ⚠️ **Feature la cui epic appartiene a un'altra release** — la feature dichiara una release,
+> la sua epic ne dichiara un'altra, e le due non si conciliano indovinando. Non compare nella
+> tabella qui sopra (che è la vista della **v0.1**) e non è un buco: è una **contraddizione fra
+> due campi**, e va risolta scegliendo quale dei due mente.
+
+| Feature | Release dichiarata | Epic | Release dell'epic |
+|---|---|---|---|
+| `RT-FEAT-REPLAY-ARCHIVE` — Replay Archive — recorder, Player e indice delle partite | v0.2 | **E12** | v0.1 |
 
 <!-- RT_FEATURE_BY_EPIC:END -->
 

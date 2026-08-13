@@ -512,7 +512,7 @@ features:
       network_privacy: na
       replay_representable: na
     roadmap:
-      epic: null
+      epic: E23
       checkpoints: []
     dependencies:
       - RT-FEAT-MAP-HEXGRAPH
@@ -563,7 +563,7 @@ features:
       network_privacy: na
       replay_representable: na
     roadmap:
-      epic: null
+      epic: E23
       checkpoints: []
     dependencies:
       - RT-FEAT-MAP-STANDABILITY
@@ -1432,15 +1432,8 @@ features:
       network_privacy: todo
       replay_representable: todo
     roadmap:
-      epic: null
+      epic: E39
       checkpoints: []
-      out_of_release_scope: >-
-        L'epic esiste e si chiama **E39** (`roadmap-post-v0.1.md`, v0.2, tredici checkpoint di cui
-        quattro aperti), ma `roadmap.epic` resta `null` per la stessa ragione di
-        `RT-FEAT-ACTION-PLAN-VALIDATION`/E38 e `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce
-        solo le epic della roadmap di **release**, e assegnarne una qui farebbe comparire una feature
-        v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questa epic — D-119 lo
-        decide esplicitamente.
     dependencies:
       - RT-FEAT-ACTION-MOVE-PROFILES
       - RT-FEAT-ACTION-PLAN-VALIDATION
@@ -1501,6 +1494,12 @@ features:
       si dichiarano quando il loro checkpoint si apre. Un corpus dichiarato in anticipo gonfia il
       conteggio di `scenariomap.shortlist.md` senza che nulla lo verifichi — lo stesso difetto che il
       documento della scenario map ha gia' pagato tre volte in un giorno rimisurando i `planned`.
+      Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13:
+      diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic
+      post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i
+      vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release
+      — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende da questa
+      epic — D-119 lo decide esplicitamente.
 
   - feature_id: RT-FEAT-ACTION-BASIC-ATTACK-PROFILES
     title: Profili di attacco base per eroe
@@ -1691,14 +1690,8 @@ features:
       network_privacy: na
       replay_representable: todo
     roadmap:
-      epic: null
+      epic: E38
       checkpoints: []
-      out_of_release_scope: >-
-        L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma
-        `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il
-        validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe
-        comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da
-        questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato.
     dependencies:
       - RT-FEAT-ACTION-ENGINE
       - RT-FEAT-ACTION-GENERIC
@@ -1720,6 +1713,12 @@ features:
       l'`ActionCapacity`, e trovare qui la decisione con la sua ragione costa meno che ridiscuterla. Se un
       giorno servisse una grandezza, il caso che la giustifica dovrà essere un piano che il modello a slot
       sbaglia — `ECO-1` ne cerca uno da agosto e non l'ha trovato.
+      Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13:
+      diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic
+      post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i
+      vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release
+      — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende da questa
+      epic: il modello a slot che la v0.1 usa gira gia', ed e' testato.
 
   - feature_id: RT-FEAT-ACTION-MOVEMENT-COMPAT
     title: "Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata"
@@ -1740,14 +1739,8 @@ features:
       network_privacy: na
       replay_representable: todo
     roadmap:
-      epic: null
+      epic: E38
       checkpoints: []
-      out_of_release_scope: >-
-        L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma
-        `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il
-        validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe
-        comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da
-        questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato.
     dependencies:
       - RT-FEAT-ACTION-MOVE-PROFILES
       - RT-FEAT-ACTION-BUDGET
@@ -1782,6 +1775,12 @@ features:
       (`grep -rn MovementProfile Source/` da' zero), vivono solo nel catalogo markdown.
       ⚠️ `Spec.ActionEconomy.PathLengthChangesEffect` appartiene ad `AE-3` — i FATTI DEL PERCORSO, ancora
       aperti — ed e' elencato qui in prestito.
+      Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13:
+      diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic
+      post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i
+      vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release
+      — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende da questa
+      epic: il modello a slot che la v0.1 usa gira gia', ed e' testato.
 
   - feature_id: RT-FEAT-ACTION-PLAN-VALIDATION
     title: Validazione del piano in Planning, con reason code deterministico
@@ -1802,14 +1801,8 @@ features:
       network_privacy: partial
       replay_representable: todo
     roadmap:
-      epic: null
+      epic: E38
       checkpoints: []
-      out_of_release_scope: >-
-        L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma
-        `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il
-        validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe
-        comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da
-        questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato.
     dependencies:
       - RT-FEAT-ACTION-ENGINE
     owner_specs:
@@ -1860,6 +1853,12 @@ features:
       Il cooldown residuo entra come **parametro** e non come campo dello snapshot perche' oggi vive su
       `ARTUnit::AbilityCooldowns` (privato, sull'Actor): stesso pattern di
       `URTCombatLibrary::IsAbilityUsable`.
+      Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13:
+      diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic
+      post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i
+      vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release
+      — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende da questa
+      epic: il modello a slot che la v0.1 usa gira gia', ed e' testato.
 
   - feature_id: RT-FEAT-ACTION-SUPERS
     title: Ultimate e azioni ad alto impegno
@@ -2694,14 +2693,8 @@ features:
       network_privacy: na
       replay_representable: todo
     roadmap:
-      epic: null
+      epic: E36
       checkpoints: []
-      out_of_release_scope: >-
-        L'epic esiste e si chiama **E36** (`roadmap-post-v0.1.md`, v0.2, sei checkpoint), ma
-        `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-CHAR-V02-ROSTER`/E35: il
-        validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe
-        comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da
-        questo framework — gli undici status che la v0.1 usa girano gia' senza.
     dependencies:
       - RT-FEAT-ENV-STATUS
       - RT-FEAT-ACTION-ENGINE
@@ -2727,6 +2720,12 @@ features:
       dichiarato. Chiuderle ha pero' aperto cio' che serviva a entrambe — la **tassonomia delle capability**
       (`STA-4`), primo lavoro del framework: senza, non si deriva ne' la primitiva ne' la severity. Resta
       aperta anche `STA-3`.
+      Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13:
+      diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic
+      post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i
+      vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release
+      — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende da questo
+      framework — gli undici status che la v0.1 usa girano gia' senza.
 
       **Epic `E36` aperta il 2026-08-10**, v0.2, sei checkpoint in `roadmap-post-v0.1.md`. L'ordine non e'
       stilistico: `36.1` E' `STA-4`, ed e' il prerequisito di `36.3` (primitive) e `36.4` (severity), che
@@ -4015,7 +4014,7 @@ features:
       network_privacy: na
       replay_representable: na
     roadmap:
-      epic: null
+      epic: E35
       checkpoints: []
     dependencies:
       - RT-FEAT-CHAR-V01-ROSTER
@@ -4101,9 +4100,9 @@ features:
     kind: gameplay
     release: v0.2
     priority: P3
-    status: IDEA
+    status: DESIGNED
     gates:
-      spec: todo
+      spec: partial
       data: todo
       runtime: todo
       log_debug: todo
@@ -4118,7 +4117,8 @@ features:
       checkpoints: []
     dependencies:
       - RT-FEAT-CHAR-V01-ROSTER
-    owner_specs: []
+    owner_specs:
+      - docs/gameplay/brief-stati-personaggio-e-trasformazioni.md
     issues: []
     tests: []
     scenarios: []
@@ -4191,7 +4191,7 @@ features:
       network_privacy: na
       replay_representable: na
     roadmap:
-      epic: null
+      epic: E35
       checkpoints: []
     dependencies:
       - RT-FEAT-CHAR-V01-ROSTER
@@ -4729,13 +4729,8 @@ features:
       network_privacy: na
       replay_representable: na
     roadmap:
-      epic: null
+      epic: E26
       checkpoints: []
-      out_of_release_scope: >-
-        L'epic esiste e si chiama **E26** (`roadmap-post-v0.1.md`, v0.2, issue #326), ma
-        `roadmap.epic` resta `null` come per `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce
-        solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una
-        feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende dal Team Planner.
     dependencies:
       - RT-FEAT-BOT-FAIRNESS
       - RT-FEAT-REACTION-OPPORTUNITY
@@ -4764,6 +4759,12 @@ features:
       soglia di isteresi si fissano profilando codice che non esiste, e il sorgente stesso lo dice.
       ⚠️ Il caso **umano + bot nella stessa squadra** resta aperto e NON e' della v0.1, che e' 2v2
       offline contro il bot. La forma della risposta e' pero' gia' vincolata da D-097.
+      Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13:
+      diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic
+      post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i
+      vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release
+      — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende dal Team
+      Planner.
 
   - feature_id: RT-FEAT-BOT-BELIEF
     title: Belief — celle plausibili, decadimento e minaccia proiettata
@@ -4784,14 +4785,8 @@ features:
       network_privacy: na
       replay_representable: na
     roadmap:
-      epic: null
+      epic: E27
       checkpoints: []
-      out_of_release_scope: >-
-        Epic **E27** (`roadmap-post-v0.1.md`, v0.3, issue #327). ⚠️ Fino al 2026-08-13 questa
-        riga diceva `release: future` **perche' il vocabolario ammesso era** `v0.1 | v0.2 |
-        future`: era una limitazione dello schema, non una scelta di scope. Con v0.3 esprimibile
-        la feature sta nella release che l'epic dichiara, e questa nota resta per dire che il
-        `future` di prima non significava «non pianificata».
     dependencies:
       - RT-FEAT-BOT-FAIRNESS
       - RT-FEAT-PERCEPTION-NOISE
@@ -4820,6 +4815,13 @@ features:
       Diventa propria quando un **secondo** consumatore la legge — la UI, non il solo planner:
       finche' la legge solo il bot e' una struttura interna, e promuoverla creerebbe un ID che
       nessuno cita.
+      Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13:
+      diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic
+      post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i
+      vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release
+      — quindi l'epic e' scritta nel campo che le compete. Fino al 2026-08-13 la release diceva
+      `future` perche' il vocabolario ammesso era `v0.1 | v0.2 | future`: era una limitazione dello
+      schema, non una scelta di scope.
 
   - feature_id: RT-FEAT-BOT-PREDICTIVE
     title: Scenari nemici plausibili e piano robusto
@@ -4840,12 +4842,8 @@ features:
       network_privacy: na
       replay_representable: na
     roadmap:
-      epic: null
+      epic: E28
       checkpoints: []
-      out_of_release_scope: >-
-        Epic **E28** (`roadmap-post-v0.1.md`, v0.3, issue #328), piu' il residuo di **E29**
-        (predictive avanzato, #329). ⚠️ Come `RT-FEAT-BOT-BELIEF`, stava in `future` perche' lo
-        schema non sapeva dire `v0.3`; dal 2026-08-13 lo dice.
     dependencies:
       - RT-FEAT-BOT-TACTICAL
       - RT-FEAT-BOT-BELIEF
@@ -4872,6 +4870,13 @@ features:
       dall'esterno, e solo un test che manipola lo stato nascosto li separa.
       La simulazione counterfactual non apre prima che il resolver logico sia estraibile: **D-078**
       ha gia' separato chi riproduce da chi verifica, ed e' lo stesso confine.
+      Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13:
+      diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic
+      post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i
+      vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release
+      — quindi l'epic e' scritta nel campo che le compete. Come `RT-FEAT-BOT-BELIEF`, stava in
+      `future` perche' lo schema non sapeva dire `v0.3`; dal 2026-08-13 lo dice. Porta anche il
+      residuo di **E29** (predictive avanzato, #329).
 
   - feature_id: RT-FEAT-TEST-SCENARIO-HARNESS
     title: Scenario Test Harness automatizzato
@@ -5630,7 +5635,7 @@ features:
     title: Multiplayer con autorità server
     area: Networking
     kind: infra
-    release: future
+    release: v0.5
     priority: P2
     status: SPECIFIED
     gates:
@@ -5645,7 +5650,7 @@ features:
       network_privacy: todo
       replay_representable: na
     roadmap:
-      epic: null
+      epic: E40
       milestone: M10
       checkpoints: []
     dependencies:
@@ -5672,7 +5677,7 @@ features:
     title: Dedicated server
     area: Networking
     kind: infra
-    release: future
+    release: v0.7
     priority: P3
     status: IDEA
     gates:
@@ -5687,7 +5692,7 @@ features:
       network_privacy: todo
       replay_representable: na
     roadmap:
-      epic: null
+      epic: E42
       checkpoints: []
     dependencies:
       - RT-FEAT-NET-AUTHORITY
@@ -5701,6 +5706,88 @@ features:
       commit: 2094b86
     notes: >
       Nella seed list e nel PDR come direzione, senza documento owner nel repository. IDEA.
+
+  - feature_id: RT-FEAT-ABILITY-RUNTIME
+    title: Runtime delle abilita' — GAS come esecutore, non come autorita'
+    area: Actions
+    kind: gameplay
+    release: v0.6
+    priority: P1
+    status: IDEA
+    gates:
+      spec: todo
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: todo
+      replay_representable: todo
+    roadmap:
+      epic: E41
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-ACTION-ENGINE
+      - RT-FEAT-CORE-DETERMINISM
+      - RT-FEAT-NET-AUTHORITY
+    owner_specs:
+      - docs/roadmap/roadmap-post-v0.1.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      Nasce IDEA e con tutti i gate `todo`: e' l'unica misura onesta di una feature che non ha
+      una riga di codice. Il confine invece **e' gia' deciso** — D-005, `Consolidata`: GAS non e'
+      l'autorita' del simulatore. La v0.1 la applica per assenza (`URTActionData`, `URTHeroData`
+      e `URTEquipmentData` sono data asset, non `GameplayAbility`), e questa feature esiste per
+      metterla alla prova nel solo modo che conta: introdurre GAS e verificare che il TurnLog non
+      diverga. Il gate `replay_representable` e' quello che decide se il confine ha retto — se un
+      `AbilityTask` determina un esito, il replay lo dice prima di qualunque revisione.
+      ⚠️ Non risuscita `RT-FEAT-ACTION-BUDGET` (`DEFERRED`, D-114): il bridge **legge** l'economia
+      a slot, non la sostituisce con `GameplayEffect`.
+
+  - feature_id: RT-FEAT-BOT-COMPETENCE
+    title: Schema di competenza del bot — cosa il bot sa davvero usare
+    area: Tools
+    kind: data
+    release: v0.8
+    priority: P0
+    status: IDEA
+    gates:
+      spec: todo
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: na
+      packaged: na
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E43
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-BOT-TACTICAL
+      - RT-FEAT-TOOL-BALANCE-GROUND
+    owner_specs:
+      - docs/roadmap/roadmap-post-v0.1.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      La feature che rende interpretabile ogni dato di `RT-FEAT-TOOL-BALANCE-GROUND`. Un bot che
+      non sa usare `Overwatch` produce un win-rate in cui `Overwatch` sembra debole: il numero e'
+      vero, la conclusione e' falsa, e **niente nel numero lo segnala**. Ogni capability porta uno
+      stato fra `PASS`, `PARTIAL`, `FAIL` e `UNTESTED`, sostenuto da uno scenario riproducibile.
+      `UNTESTED` e' il valore che rende lo schema utile: senza, l'assenza di prova si legge come
+      prova d'assenza. ⚠️ E' `data` e non `tooling` di proposito — lo stato di competenza e' un
+      dato del report, non una funzione del runner, ed e' quello che va versionato accanto ai
+      numeri che qualifica.
 
   - feature_id: RT-FEAT-PROD-PERFORMANCE
     title: Budget di performance misurati
@@ -5813,6 +5900,9 @@ features:
       packaged: todo
       network_privacy: todo
       replay_representable: todo
+    roadmap:
+      epic: E33
+      checkpoints: []
     dependencies:
       - RT-FEAT-CORE-TURN
     owner_specs:
@@ -5833,7 +5923,7 @@ features:
     title: Character State / Configuration System
     area: Gameplay
     kind: gameplay
-    release: future
+    release: v0.4
     priority: P3
     status: SPECIFIED
     gates:
@@ -5847,6 +5937,9 @@ features:
       packaged: todo
       network_privacy: todo
       replay_representable: todo
+    roadmap:
+      epic: E34
+      checkpoints: []
     dependencies:
       - RT-FEAT-CORE-TURN
     owner_specs:
@@ -5875,7 +5968,7 @@ features:
     title: Modello dei radar di profilo — Profile e Balance
     area: Characters
     kind: data
-    release: future
+    release: v0.4
     priority: P3
     status: DONE
     gates:
@@ -5889,6 +5982,9 @@ features:
       packaged: na
       network_privacy: na
       replay_representable: na
+    roadmap:
+      epic: E37
+      checkpoints: []
     dependencies:
       - RT-FEAT-CHAR-V01-ROSTER
     owner_specs:
@@ -5932,7 +6028,7 @@ features:
     title: Rubrica — i rating derivati dal catalogo eroi
     area: Characters
     kind: data
-    release: future
+    release: v0.4
     priority: P3
     status: DONE
     gates:
@@ -5946,6 +6042,9 @@ features:
       packaged: na
       network_privacy: na
       replay_representable: na
+    roadmap:
+      epic: E37
+      checkpoints: []
     dependencies:
       - RT-FEAT-CHAR-RADAR-MODEL
     owner_specs:
@@ -5974,7 +6073,7 @@ features:
     title: Generatore SVG deterministico dei radar
     area: Tools
     kind: tooling
-    release: future
+    release: v0.4
     priority: P3
     status: DONE
     gates:
@@ -5988,6 +6087,9 @@ features:
       packaged: na
       network_privacy: na
       replay_representable: na
+    roadmap:
+      epic: E37
+      checkpoints: []
     dependencies:
       - RT-FEAT-CHAR-RADAR-MODEL
       - RT-FEAT-TOOL-VALIDATION

@@ -68,8 +68,8 @@
       "[RT-FEAT-BOT-BELIEF] 3 scenario/i dichiarati planned: Spec.Bot.BeliefDoesNotBecomeKnowledge, Spec.Bot.GraphRevisionInvalidatesBelief, Spec.Bot.InformationGainIgnoresHiddenContent",
       "[RT-FEAT-BOT-PREDICTIVE] 2 scenario/i dichiarati planned: Spec.Bot.RobustPlanSurvivesFlank, Spec.Bot.HoldOnUnaccountedThreat",
       "[RT-FEAT-NET-PRIVATE-PLANNING] feature di gameplay TESTABLE senza scenario che la dimostri",
+      "[RT-FEAT-ABILITY-RUNTIME] nessuna pagina Wiki collegata",
       "[RT-FEAT-INTENT-CONDITIONAL] nessuna pagina Wiki collegata",
-      "[RT-FEAT-INTENT-CONDITIONAL] SPECIFIED senza issue ne' assegnazione in roadmap",
       "[RT-FEAT-CHARACTER-STATE] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Riva.Flow, State.Flux.Charged, State.Bastion.Bulwark, State.Howitzer.Siege, State.MultiState.Stress",
       "[execution-graph] 10 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"

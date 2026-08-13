@@ -35,10 +35,35 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 | **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E21 | Skirmish 2v2 vs bot |
 | **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** · **E36** · **E38** · **E39** | Standard 3v3 |
 | **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 · **E33** | Standard 3v3 |
-| **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** | Operations 4v4+ |
+| **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** · **E37** | Operations 4v4+ |
+| **v0.5** | Online Foundation | Il turno simultaneo regge la rete | **E40** | Standard 3v3 online, lobby privata |
+| **v0.6** | Ability Runtime | Le abilità hanno un runtime, il resolver resta l'autorità | **E41** | Standard 3v3 online |
+| **v0.7** | Competitive Alpha | Si gioca su un server che non è il client di nessuno | **E42** | Standard 3v3 su dedicated |
+| **v0.8** | Beta / Balance | Le partite si misurano a lotti, e la misura dice cosa vale | **E43** | 3v3 + batch bot-vs-bot |
+| **v0.9** | Release Candidate | Niente di nuovo: quello che c'è deve reggere | **E44** | Feature freeze |
+| **v1.0** | Launch | Una partita competitiva completa su infrastruttura di produzione | **E45** | Standard 3v3 ranked |
 
-Oltre la v0.4 resta **north-star non pianificato**: multiplayer in rete (milestone M10 del piano canonico),
-progressione, modding, editor mappe a runtime. Non si aprono epic per ciò che non ha una release.
+> **Le sei release da v0.5 a v1.0 sono state aggiunte il 2026-08-13**
+> ([D-136](../decisions/RT_PDR_00_Decision_Log.md)). Fino a quel giorno questo documento chiudeva qui
+> dicendo *«oltre la v0.4 resta **north-star non pianificato**: multiplayer in rete (milestone M10 del
+> piano canonico), progressione, modding, editor mappe a runtime. Non si aprono epic per ciò che non ha
+> una release»* — e la regola era giusta, ma si era chiusa addosso: `RELEASE_ORDER` non sapeva esprimere
+> `v0.5`, quindi la rete **non poteva** avere una release, quindi non poteva avere un'epic. `future`
+> significava due cose incompatibili — *pianificata oltre l'orizzonte esprimibile* e *non pianificata* —
+> e con esse `RT-FEAT-NET-AUTHORITY` (`SPECIFIED`, milestone **M10**, tre dipendenze dichiarate) stava
+> accanto a `RT-FEAT-MAP-WATER-DYNAMICS` (`IDEA`, nessun owner). Non è una promessa di date: **nessuna
+> di queste sei righe ne ha una**, esattamente come le quattro sopra.
+>
+> ⚠️ **Queste sei release non creano una seconda tassonomia della rete.** La vista di **esecuzione** resta
+> di [`roadmap-checkpoint.md`](roadmap-checkpoint.md): **M10** (Rete e privacy — `M10.1` listen server,
+> `M10.2` piani team-only, `M10.3` canary anti-leak) e **M11** (Production readiness) esistono da prima e
+> restano owner dei loro checkpoint. E40 ed E45 sono la vista di **release** dello stesso lavoro, e la
+> citano invece di ricopiarla — è la stessa relazione che E12 ha con M7/M11. I due spazi di numerazione
+> collidono per costruzione (`CP 10.1` è «Activate e Interact» in E10 e «listen server» in M10): per
+> questo `RT-FEAT-NET-AUTHORITY` dichiara `milestone: M10` e non `checkpoints`.
+
+Oltre la v1.0 resta **north-star non pianificato**: progressione, modding pubblico, editor mappe a runtime.
+Non si aprono epic per ciò che non ha una release.
 
 > **Numerazione continua.** Le epic proseguono da E18 (ultima della v0.1) senza azzerarsi per release: un
 > riferimento a «E23» resta univoco per sempre. Le due epic **E19** ed **E20** appartengono alla **v0.1** pur
@@ -717,6 +742,215 @@ diventino canonici passando dalla Wiki.
 **Tracciata su GitHub**: epic [#555](https://github.com/DegrassiAaron/refactor-tactics-main/issues/555), con
 8 checkpoint (`CP 37.1`–`37.8`) collegati come sub-issue. Feature: `RT-FEAT-CHAR-RADAR-MODEL`,
 `RT-FEAT-CHAR-RADAR-RATINGS-V01`, `RT-FEAT-WIKI-CHART-GENERATOR`.
+
+---
+
+## v0.5 — «Online Foundation»
+
+### E40 — Il turno simultaneo in rete · P0
+
+**Tema**: portare il gioco reale in rete **senza matchmaking prematuro**. Lobby privata, due squadre, una
+partita che finisce.
+
+⚠️ **Questa epic non introduce la rete: la rende una release.** Il lavoro è specificato da prima, in due
+posti che restano owner e che questa sezione **cita** invece di ricopiare:
+
+| Owner | Cosa possiede | Stato misurato |
+|---|---|---|
+| **M10** in [`roadmap-checkpoint.md`](roadmap-checkpoint.md#m10--rete-e-privacy) | i tre checkpoint d'esecuzione: `M10.1` listen server + autorità, `M10.2` piani team-only, `M10.3` canary anti-leak | ⏳ nessuno chiuso |
+| `RT-FEAT-NET-AUTHORITY` | la feature, con `milestone: M10` e tre dipendenze dichiarate | `SPECIFIED` |
+| `RT-FEAT-NET-PRIVATE-PLANNING` | il filtro per squadra, **già in v0.1** | `TESTABLE`, gate `network_privacy` **`todo`** |
+
+**Il pezzo che il repository possiede già, ed è più di quanto sembri.** `FRTPlannedIntent → FilterForTeam →
+FRTIntentView` esiste ed è testato da `RefactorTactics.Reactions.IntentNotVisibleToEnemy` e
+`RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed`. Ma il registry annota accanto la
+sola frase che conta: *«oggi la privacy è **banale perché il gioco è offline**»*. Un filtro che nessuno prova
+ad aggirare non è una difesa — è una convenzione. Il canary di `M10.3` è la prima riga di quel test che vale.
+
+**Il vincolo che nessuno aveva quando M10 è stata scritta.**
+[ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) introduce **N round-trip per turno** — una finestra
+di reazione è un'attesa di risposta, non un tick — e `roadmap-checkpoint.md` lo registra già come *«nuovo
+vincolo»* su M10. È il motivo per cui `preview ally-only` e `ready/commit` hanno budget di rete **diversi**:
+la preview è continua e perdibile, il commit è raro e non può perdersi.
+
+**Percorso critico** — l'ordine è dettato dalle dipendenze, non dal tema:
+
+1. **Lifecycle di partita autoritativo** — chi crea, chi entra, chi è autorità, quando finisce.
+2. **Store canonico degli intenti** — un solo posto dove l'intento vive, sul server.
+3. **Relay della preview di squadra** — 8–12 Hz, unreliable, sequenced. È il budget KPI *Intent updates* già
+   scritto in [`roadmap-checkpoint.md`](roadmap-checkpoint.md#kpi--performance-budget), oggi `⏳ con M10`.
+4. **Protocollo ready/commit** — reliable e **idempotente**: un commit riprodotto due volte non è due commit.
+5. **Risoluzione autoritativa** — il resolver gira sul server e da nessun'altra parte.
+6. **Canary anti-leak** (`M10.3`) — fallisce se un client riceve **un solo byte** del piano avversario prima
+   del reveal. Il KPI *Intent leak = 0* smette di essere vero per costruzione e comincia a essere verificato.
+7. **Scenario packaged a due squadre** — la prova che il percorso regge fuori dall'editor.
+
+**Fuori perimetro**, e non per fretta: matchmaking, ranked, dedicated server, riconnessione. Il dedicated è
+**E42** e non è un dettaglio d'infrastruttura — cambia chi possiede l'autorità.
+
+> ⚠️ **`scenario-decision-provider` non appartiene a questa epic.** Il kit sorgente lo propone qui come
+> candidato `P1`; misurato contro `main`, il seam è già deciso da
+> [D-101](../decisions/RT_PDR_00_Decision_Log.md) e tracciato da
+> [`#542`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542), **milestone v0.2**. Portarlo in
+> v0.5 sposterebbe indietro un lavoro già assegnato, e ne creerebbe una seconda copia. Resta dov'è.
+
+**Gate**: una partita completa fra due client · autorità di stato stabile · **zero intent leak** dimostrato
+dal canary · replay divergence 0 sulla partita registrata.
+
+---
+
+## v0.6 — «Ability Runtime»
+
+### E41 — GAS come runtime delle abilità, mai come autorità · P1
+
+**Il confine è deciso da prima di questa epic.** [D-005](../decisions/RT_PDR_00_Decision_Log.md) — *«GAS non è
+l'autorità del simulatore»* — è **Consolidata**, e la v0.1 la applica per assenza: `URTActionData`,
+`URTHeroData` e `URTEquipmentData` sono data asset, non `GameplayAbility`. Questa epic non riapre quella
+decisione: la mette alla prova nel solo modo che conta, cioè **introducendo GAS e verificando che il confine
+regga**.
+
+```text
+Resolver decide        →  cosa accade, quando, a chi, con che priorità
+GAS applica/presenta   →  lifecycle, cue, durata, cleanup
+```
+
+Non:
+
+```text
+Montage/AbilityTask decide se il colpo va a segno
+```
+
+**Perché v0.6 e non prima.** Non per tema, per rischio: GAS in rete prima che la rete sia autoritativa
+significa due sistemi non verificati che si accusano a vicenda al primo desync. La v0.5 chiude l'autorità;
+questa epic ci appoggia sopra un runtime.
+
+**Percorso critico**: confine architetturale scritto e verificato da un test negativo · `ASC` per unità ·
+binding stabile `ActionId ↔ ability` — gli `ActionId` sono **serializzati nel TurnLog**, quindi il binding è
+un contratto di compatibilità, non una comodità · applicazione degli eventi risolti · audit di privacy in
+rete · **regressione di determinismo del replay**, che è il gate vero: se il TurnLog diverge dopo GAS, GAS ha
+deciso qualcosa.
+
+**Fuori perimetro**: usare `GameplayEffect` come sorgente di verità di costi e cooldown. Il bridge legge
+l'economia esistente, non la sostituisce — `RT-FEAT-ACTION-BUDGET` è `DEFERRED` e questa epic non lo risuscita.
+
+**Gate**: suite verde con GAS attivo · replay di una partita v0.5 riprodotto **senza divergenza** · nessun
+percorso in cui un `AbilityTask` determini un esito competitivo.
+
+---
+
+## v0.7 — «Competitive Alpha»
+
+### E42 — Dedicated server e loop online reale · P0
+
+**Tema**: si gioca su un server che **non è il client di nessuno**.
+
+`RT-FEAT-NET-DEDICATED` esiste nel registry come `IDEA` e senza documento owner — è la misura onesta di dove
+siamo. La v0.5 costruisce l'autorità su un listen server, dove l'autorità coincide con un giocatore: è la
+scelta giusta per validare il protocollo e quella sbagliata per una partita competitiva, perché chi ospita ha
+latenza zero verso sé stesso.
+
+**Percorso critico**: target di build dedicated · lifecycle di partita lato server · lobby privata custom ·
+**riconnessione e resync** — che non è una comodità: senza, una disconnessione è una partita persa e il
+formato non è competitivo · soak 3v3 su packaged dedicated.
+
+**Gate**, ed è un percorso, non una lista:
+
+```text
+launch client → lobby → join/create → play → disconnect → reconnect → finish
+```
+
+su **dedicated server packaged**. Se un solo passo richiede l'Editor, il gate non è passato.
+
+**Fuori perimetro**: matchmaking pubblico e ranked. Assegnazione squadre e party sono qui perché la lobby
+esiste qui; il rating è **E44**.
+
+---
+
+## v0.8 — «Beta / Balance»
+
+### E43 — Misura a lotti, e il bot che sa cosa sta misurando · P1
+
+**Il principio precede lo strumento**, ed è la parte che si dimentica per prima:
+
+> Un dato bot-vs-bot **non è evidenza di bilanciamento** finché non sappiamo che il bot sa usare la capability
+> misurata.
+
+Un bot che non sa usare `Overwatch` produce un win-rate in cui `Overwatch` sembra debole. Il numero è vero, la
+conclusione è falsa, e nulla nel numero lo segnala. Per questo ogni capability del bot deve poter dichiarare
+uno stato **sostenuto da uno scenario riproducibile**:
+
+```text
+PASS · PARTIAL · FAIL · UNTESTED
+```
+
+`UNTESTED` è il valore che rende lo schema utile: senza, l'assenza di prova si legge come prova d'assenza.
+
+**Non è un simulatore separato.** Il batch runner esercita il gioco reale attraverso il percorso canonico
+`Intent → Planning → Snapshot → Resolver → TurnLog` — lo stesso dello Scenario Harness, che esiste già in
+[`Source/RefactorTactics/ScenarioHarness/`](../../Source/RefactorTactics/ScenarioHarness/). Un banco di prova
+con regole proprie misurerebbe sé stesso. `RT-FEAT-TOOL-BALANCE-GROUND` è **già in v0.1** (`IMPLEMENTING`,
+P3): questa epic gli dà la scala e la qualificazione, non lo rifonda.
+
+**Provenienza obbligatoria.** Ogni report di balance porta con sé: build · versione delle regole · hash del
+contenuto · profilo del bot · **stato di competenza** delle capability misurate · policy dei seed · formato.
+Un report senza queste righe non è confrontabile col precedente, e due numeri non confrontabili sono peggio di
+un numero solo.
+
+⚠️ **Win-rate e metriche di balance NON diventano gate.** Informano il design. Diventano gate: crash,
+divergence del replay, leak, stato invalido. La differenza non è di severità ma di natura — un win-rate
+sbilanciato è un'informazione su un gioco che funziona, un desync è un gioco che ha smesso di funzionare.
+
+**Gate**: batch riproducibile a parità di seed · schema di competenza popolato per il roster · budget di
+performance misurati su packaged · soak lungo senza crash.
+
+---
+
+## v0.9 — «Release Candidate»
+
+### E44 — Feature freeze, e ciò che regge · P0
+
+**Niente di nuovo.** Questa epic non aggiunge meccaniche: chiude il contenuto, indurisce ciò che esiste e
+prepara il rilascio.
+
+**Percorso critico**: freeze del contenuto · **hardening sicurezza/abuso** · **migrazione di versione di
+save/replay** — che è la sola riga davvero tecnica qui, ed è già una domanda **aperta** del repository
+(`FMT-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): oggi `FormatVersion` **non viaggia nei byte
+serializzati**, dimostrato da `RefactorTactics.HexMap.SerializedAssetMigratesWithoutGainingData`). Se `FMT-1`
+non è deciso prima, questa epic la eredita come debito su un formato che gli utenti avranno già scritto ·
+soak da release candidate.
+
+**Ranked e rating** stanno qui e non in E42: un rating ha senso quando le regole non cambiano più.
+
+⚠️ **Cuttable, dichiarato in anticipo**: progressione orizzontale e modding data-only. Non devono bloccare la
+1.0 se il core competitivo è pronto — e dirlo ora costa meno che negoziarlo sotto scadenza.
+
+**Gate**: nessuna feature nuova dopo il freeze · migrazione di formato provata su artefatti scritti dalla
+build precedente · soak senza crash né divergence.
+
+---
+
+## v1.0 — «Launch»
+
+### E45 — Un gate di produzione, non una release di feature · P0
+
+**La v1.0 non aggiunge niente.** È la verifica che tutto il resto esiste **su infrastruttura di produzione**,
+e la sua vista d'esecuzione è **M11** in [`roadmap-checkpoint.md`](roadmap-checkpoint.md#m11--production-readiness),
+che possiede già budget, validator commandlet, soak packaged e replay audit.
+
+**Percorso critico**: deployment dedicated di produzione · rollout del matchmaking · osservabilità · audit di
+sicurezza e privacy · audit del replay · certificazione di performance · validazione del contenuto · matrice
+di smoke su packaged · **piano di rollback**.
+
+**Gate finale**, e si legge come una sola frase perché è una sola cosa:
+
+> Una partita competitiva completa può essere **trovata, giocata, risolta, spiegata, registrata e riprodotta**
+> su infrastruttura di produzione, senza replay divergence, senza intent leak e senza dipendenze dall'Editor.
+
+⚠️ **«Senza dipendenze dall'Editor» è il gate che il repository rischia di mancare in silenzio**, ed è
+misurabile oggi: il registro delle verifiche manuali
+[`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) esiste perché una parte della v0.1 è
+provata **in PIE**. Ogni voce `PIE-*` che non abbia una controparte automatica su packaged è una riga di
+questo gate ancora aperta.
 
 ---
 

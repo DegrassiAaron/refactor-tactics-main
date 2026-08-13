@@ -87,6 +87,33 @@ riproporrà, e trovarle già risposte costa meno che ridiscuterle.
 
 ---
 
+## Aperte — due contraddizioni fra campi, dal consolidamento roadmap→v1.0 del 2026-08-13
+
+Origine: [`archive/src/RefactorTactics_Claude_Consolidamento_Roadmap_v1_0_2026-08-13.md`](archive/src/RefactorTactics_Claude_Consolidamento_Roadmap_v1_0_2026-08-13.md)
+§12, e [D-136](decisions/RT_PDR_00_Decision_Log.md).
+
+Il sorgente chiedeva di riconciliare «feature v0.2 senza owner/epic chiara» e i «conflitti fra
+CHARACTER-STATE / CHAR-TRANSFORMATION / E34 e release v0.2/v0.4». Misurando, **la maggior parte non era
+un conflitto**: era un campo che il registry non sapeva scrivere, e `D-136` l'ha reso scrivibile — 19
+feature hanno preso l'epic che il loro owner o le loro `notes` **già dichiaravano**, senza che nessuno
+scegliesse niente.
+
+Restano **due** casi, e sono di natura diversa da quello: non manca un campo, due campi si contraddicono.
+Nessuno dei due si chiude leggendo — si chiudono decidendo quale dei due mente.
+
+🔴 **Non erano invisibili per caso.** Entrambi vivevano dove nessun gate guardava: `REL-1` era
+*renderizzato* nella tabella §2.2 della v0.1 come se fosse una feature della v0.1, e `REL-2` stava in una
+nota della shortlist che si concludeva con *«finché l'audit non dice se sono due scope o un duplicato,
+**nessuna delle due si sposta**»*. Questo è quell'audit, e per `REL-2` la risposta onesta è che **non si
+deduce**: il criterio per distinguere «due scope» da «un duplicato» è una scelta di prodotto.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `REL-1` | `RT-FEAT-REPLAY-ARCHIVE` dichiara `release: v0.2` e `epic: E12`, che è un'epic della **v0.1**. Quale dei due si corregge: la feature scende a **v0.1** (e allora entra nel perimetro dei gate di release, oggi a `4/6`), oppure resta **v0.2** e le si assegna un'epic v0.2 — che però **non esiste**? | Le prove tirano da entrambe le parti e nessuna è decisiva. **Per la v0.1**: la feature è `INTEGRATED` con 26 test verdi misurati il 2026-08-10, l'epic `E12` (*Determinismo, QA e release*) è v0.1, e [D-083](decisions/RT_PDR_00_Decision_Log.md) rinvia alla v0.2 **soltanto** `ContentManifestHash` e `RulesVersion` — che sono `RT-FEAT-DATA-HASH`, una feature **diversa**, già `RELEASE_READY` in v0.1. Cioè il `v0.2` potrebbe essere D-083 applicato all'oggetto sbagliato. **Contro**: far scendere a v0.1 una feature a `4/6` gate **allarga il perimetro di una release che sta chiudendo**, e non è una correzione di bookkeeping — è una decisione di scope, e la prende chi possiede la release. ⚠️ Nessuna epic v0.2 la rivendica: `roadmap-post-v0.1.md` non la nomina in nessuna delle sue sezioni, quindi la terza via «resta v0.2 con la sua epic» oggi **non ha un posto dove atterrare**. Innesco: **scaduto** — dal 2026-08-13 la contraddizione è visibile nella tabella dedicata di `roadmap-v0.1.md` §2.2 invece di mimetizzarsi fra le feature della v0.1 |
+| `REL-2` | `RT-FEAT-CHARACTER-STATE` (`v0.4`, `E34`, `SPECIFIED`, 5 scenari `planned`) e `RT-FEAT-CHAR-TRANSFORMATION` (`v0.2`, `DESIGNED`, nessuno scenario) sono **due scope distinti** o **un duplicato con due ID**? E se è un duplicato, quale ID sopravvive? | I due puntano allo **stesso brief** (`../gameplay/brief-stati-personaggio-e-trasformazioni.md`) e alla stessa decisione [D-035](decisions/RT_PDR_00_Decision_Log.md), che presenta il sistema in **cinque famiglie** — `Stance · Form · Overdrive · Environmental · Configuration`. Una lettura plausibile è che `CHAR-TRANSFORMATION` sia `Form`/`Overdrive` (v0.2, il pezzo leggero) e `CHARACTER-STATE` l'infrastruttura completa (v0.4): il documento owner dice che *«metà dell'epic potrebbe non servire»* perché uno `Stance` è un profilo commutabile, il che **suggerisce** una separabilità ma non la disegna. ⚠️ Non si deduce perché **un Feature ID è identità persistente**: fonderli è una migrazione, e la shortlist avvertiva già che *«cambiare release a un ID stabile per far quadrare un'epic è la migrazione che poi nessuno sa più motivare»*. Finché la domanda è aperta, `CHAR-TRANSFORMATION` resta **senza epic** — assegnarle `E34` le darebbe un'epic di **v0.4** mentre lei è `v0.2`, cioè creerebbe un secondo `REL-1` invece di risolvere il primo. ✅ Una cosa si è chiusa da sé: la sua nota diceva che il brief *«esiste nel branch […] non in `main`»* e che lo stato andava rialzato **al merge** — il merge c'è (`c2560c37`), quindi la condizione era **scattata** e lo stato è passato a `DESIGNED`. Innesco: la prima issue che apra `E34` |
+
+---
+
 ## ✅ Chiuse — archivio replay, dal conflict report del 2026-08-10
 
 Origine: [conflict report replay](roadmap/plans/replay-system-conflict-report-2026-08-10.md) §9.

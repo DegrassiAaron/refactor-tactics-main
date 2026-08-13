@@ -38,8 +38,25 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
 | **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
+| **E23** | — | 2 | 0/16 | — |
+| **E26** | — | 1 | 0/8 | — |
+| **E27** | — | 1 | 0/8 | — |
+| **E28** | — | 1 | 0/8 | — |
+| **E33** | — | 1 | 1/10 | — |
+| **E34** | — | 1 | 1/10 | — |
+| **E35** | — | 2 | 0/15 | — |
+| **E36** | — | 1 | 0/9 | — |
+| **E37** | — | 3 | 12/12 | — |
+| **E38** | — | 3 | 1/28 | — |
+| **E39** | — | 1 | 1/10 | — |
+| **E40** | — | 1 | 1/8 | — |
+| **E41** | — | 1 | 0/10 | — |
+| **E42** | — | 1 | 0/8 | — |
+| **E43** | — | 1 | 0/6 | — |
 
-**21 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
+**36 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
+
+> ⚠️ **Senza stato dichiarato nell'owner**: **E23**, **E26**, **E27**, **E28**, **E33**, **E34**, **E35**, **E36**, **E37**, **E38**, **E39**, **E40**, **E41**, **E42**, **E43**. §2.1 non le copre — non è una svista di questa vista, è una riga che manca là.
 
 <!-- RT_SHORTLIST_EPICS:END -->
 
@@ -83,28 +100,35 @@ tabella sopra, che è generata.
 | Step | Rel. | Issue | Feature | In una riga |
 |---|:--:|---|--:|---|
 | **E22** Cover Window: OPEN → FIRE → SEAL · P1 | v0.2 | `#323` | — | La copertura diventa una finestra temporale, non uno stato fisso |
-| **E23** Muri, porte e interaction graph · P1 | v0.2 | `#324` | — | Il grafo di interazione generalizza il bordo commutabile di E9 |
+| **E23** Muri, porte e interaction graph · P1 | v0.2 | `#324` | 2 | Il grafo di interazione generalizza il bordo commutabile di E9 |
 | **E24** Formato Standard 3v3 · P1 | v0.2 | `#325` | — | La baseline competitiva dichiarata (4v4 resta stress test) |
 | **E25** Icon Language completo · P2 | v0.2 | `#265` | — | Estensione di E20 all'intero HUD |
-| **E26** Tactical Bot v1 · P1 | v0.2 | `#326` | — | Il bot usa conoscenza parziale e reazioni |
-| **E35** Roster 8: Sentinel Directorate e Resonance · P0 | v0.2 | `#322` | — | Steel, Aurora, Murdock, Kwang: da 4 a 8 eroi |
-| **E36** Framework degli status: capability, primitive e severity · P2 | v0.2 | `#435` | — | — |
-| **E38** Economia del turno, accoppiamento col movimento e validazione del piano · P2 | v0.2 | `#609` | — | — |
-| **E39** Spatial Transfer — teleport, blink e movimento istantaneo · P3 | v0.2 | `#704` | — | — |
-| **E27** Percezione completa: vista, udito, memoria · P1 | v0.3 | `#327` | — | Oltre E13: identificazione, firma, sensori |
-| **E28** Expert Bot v2 · P2 | v0.3 | `#328` | — | Bot che pianifica contro l'incertezza |
+| **E26** Tactical Bot v1 · P1 | v0.2 | `#326` | 1 | Il bot usa conoscenza parziale e reazioni |
+| **E35** Roster 8: Sentinel Directorate e Resonance · P0 | v0.2 | `#322` | 2 | Steel, Aurora, Murdock, Kwang: da 4 a 8 eroi |
+| **E36** Framework degli status: capability, primitive e severity · P2 | v0.2 | `#435` | 1 | — |
+| **E38** Economia del turno, accoppiamento col movimento e validazione del piano · P2 | v0.2 | `#609` | 3 | — |
+| **E39** Spatial Transfer — teleport, blink e movimento istantaneo · P3 | v0.2 | `#704` | 1 | — |
+| **E27** Percezione completa: vista, udito, memoria · P1 | v0.3 | `#327` | 1 | Oltre E13: identificazione, firma, sensori |
+| **E28** Expert Bot v2 · P2 | v0.3 | `#328` | 1 | Bot che pianifica contro l'incertezza |
 | **E29** Predictive avanzato · P2 | v0.3 | `#329` | — | Oltre la thin slice di E18: il framework completo |
-| **E33** Conditional Intent · P2 | v0.3 | `#330` | — | Un intento con una biforcazione dichiarata in planning |
+| **E33** Conditional Intent · P2 | v0.3 | `#330` | 1 | Un intento con una biforcazione dichiarata in planning |
 | **E30** Classe di mappa Operations · P2 | v0.4 | `#331` | — | La terza classe di mappa, fuori scope in v0.1 |
 | **E31** Obiettivi multipli e logistica · P3 | v0.4 | `#332` | — | Più obiettivi contemporanei con dipendenze |
 | **E32** Formato 4v4 competitivo · P3 | v0.4 | `#333` | — | Se E17 dice che regge |
-| **E34** Stati del personaggio e trasformazioni · P3 | v0.4 | `#244` | — | Stance e trasformazioni — le 10 voci `PIE-STATE-*` sono la sua controparte umana. ⚠️ **Due Feature ID si sovrappongono e nessuno è stato scelto**: `RT-FEAT-CHARACTER-STATE` (`future`, `SPECIFIED`, 5 scenari planned) e `RT-FEAT-CHAR-TRANSFORMATION` (`v0.2`, `IDEA`). Finché l'audit non dice se sono due scope o un duplicato, **nessuna delle due si sposta**: cambiare release a un ID stabile per far quadrare un'epic è la migrazione che poi nessuno sa più motivare |
+| **E34** Stati del personaggio e trasformazioni · P3 | v0.4 | `#244` | 1 | Stance e trasformazioni — le 10 voci `PIE-STATE-*` sono la sua controparte umana. ⚠️ **Due Feature ID si sovrappongono e nessuno è stato scelto**: `RT-FEAT-CHARACTER-STATE` (`future`, `SPECIFIED`, 5 scenari planned) e `RT-FEAT-CHAR-TRANSFORMATION` (`v0.2`, `IDEA`). Finché l'audit non dice se sono due scope o un duplicato, **nessuna delle due si sposta**: cambiare release a un ID stabile per far quadrare un'epic è la migrazione che poi nessuno sa più motivare |
+| **E37** Radar di personaggio e generatore Wiki · P3 | v0.4 | `#555` | 3 | — |
+| **E40** Il turno simultaneo in rete · P0 | v0.5 | — | 1 | — |
+| **E41** GAS come runtime delle abilità, mai come autorità · P1 | v0.6 | — | 1 | — |
+| **E42** Dedicated server e loop online reale · P0 | v0.7 | — | 1 | — |
+| **E43** Misura a lotti, e il bot che sa cosa sta misurando · P1 | v0.8 | — | 1 | — |
+| **E44** Feature freeze, e ciò che regge · P0 | v0.9 | — | — | — |
+| **E45** Un gate di produzione, non una release di feature · P0 | v1.0 | — | — | — |
 
-**17 epic** su 3 release (v0.2 · v0.3 · v0.4) · release, titolo e issue da [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.
+**24 epic** su 9 release (v0.2 · v0.3 · v0.4 · v0.5 · v0.6 · v0.7 · v0.8 · v0.9 · v1.0) · release, titolo e issue da [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.
 
-> ⚠️ **Con una sezione ma senza release**: **E37**. La tabella «Le release» non le assegna, e la posizione del testo non e' un'assegnazione: la decisione manca nell'owner, non qui.
+> ⚠️ **Senza issue dichiarata nell'owner**: **E40**, **E41**, **E42**, **E43**, **E44**, **E45**. La epic puo' esistere su GitHub: questo script non parla con la rete, e cio' che l'owner non dichiara non compare.
 
-> ⚠️ **La colonna Feature e' quasi vuota perche' il registry non dichiara l'epic**: 20 feature post-v0.1 (v0.2 **15** · v0.3 **5**) hanno `roadmap.epic` nullo, **1** lo dichiara. Il legame esiste nella prosa di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non in un campo: finche' non lo e', questa colonna non puo' dire quali capacita' porta un'epic, e il conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` su **E34** non e' diagnosticabile da nessun controllo.
+> ⚠️ **La colonna Feature e' quasi vuota perche' il registry non dichiara l'epic**: 7 feature post-v0.1 (v0.2 **5** · v0.3 **2**) hanno `roadmap.epic` nullo, **22** lo dichiara. Il legame esiste nella prosa di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non in un campo: finche' non lo e', questa colonna non puo' dire quali capacita' porta un'epic, e il conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` su **E34** non e' diagnosticabile da nessun controllo.
 
 <!-- RT_SHORTLIST_RELEASES:END -->
 

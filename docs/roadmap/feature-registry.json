@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 105,
+  "count": 107,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -624,7 +624,7 @@
       "gates_done": 0,
       "gates_applicable": 8,
       "roadmap": {
-        "epic": null,
+        "epic": "E23",
         "milestone": null,
         "checkpoints": [],
         "out_of_release_scope": ""
@@ -682,7 +682,7 @@
       "gates_done": 0,
       "gates_applicable": 8,
       "roadmap": {
-        "epic": null,
+        "epic": "E23",
         "milestone": null,
         "checkpoints": [],
         "out_of_release_scope": ""
@@ -1604,10 +1604,10 @@
       "gates_done": 1,
       "gates_applicable": 10,
       "roadmap": {
-        "epic": null,
+        "epic": "E39",
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": "L'epic esiste e si chiama **E39** (`roadmap-post-v0.1.md`, v0.2, tredici checkpoint di cui quattro aperti), ma `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-ACTION-PLAN-VALIDATION`/E38 e `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce solo le epic della roadmap di **release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questa epic — D-119 lo decide esplicitamente."
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-MOVE-PROFILES",
@@ -1638,7 +1638,7 @@
         "date": "2026-08-12",
         "commit": "dda87f1"
       },
-      "notes": "🔴 **Nasce il 2026-08-12 da D-118**, che chiude `MOV-1`: il trasferimento e' una **famiglia semantica propria** e non un'eccezione del Dash. La partizione e' `Traversal` (Move, Dash, Forced — percorre lo spazio, e ogni cella percorsa e' un fatto) contro `Transfer` (Leap, Blink, Swap, Recall — esistono un'origine e una destinazione, e nient'altro). ⚠️ **`spec: done` e tutto il resto `todo` non e' una svista**: e' esattamente lo stato. La regola e' scritta e decisa, e **nessuna riga di runtime e' stata aggiunta** — che era il DoD di CP 39.1. ⚠️ **`runtime: todo` e non `partial`, e la code review ha chiesto perche'** (2026-08-12). La regola 2 di `feature-registry.md` — *«un dato senza consumatore e' `partial`»* — e' un **tetto su `done`**, non un pavimento su `todo`: dice che un dato senza consumatore non puo' dichiararsi completo, non che qualunque codice esistente obblighi a `partial`. E qui il runtime di QUESTA feature e' zero: non esiste un resolver puro del trasferimento, non esiste un Blink pianificabile, e `ARTTurnManager` riscrive ancora il risultato come un path a due nodi. `LinearLeap` non e' il runtime di questa feature: e' un valore di `ERTMovementStyle`, che appartiene a `RT-FEAT-ACTION-MOVE-PROFILES` insieme al test che lo prova. 🔴 La conseguenza meccanica non e' cosmetica: `derive_status()` controlla `runtime in (done, partial)` **prima** di `spec: done`, quindi un `partial` qui porterebbe lo stato da `SPECIFIED` a `IMPLEMENTING` — cioe' direbbe alle shortlist e alla Wiki che il trasferimento e' in lavorazione quando non lo e'. 🔴 **La semantica pero' ESISTE GIA', e questo e' il punto che rende l'epic non vuota**: `ERTMovementStyle::LinearLeap` produce `Result.Entered = { destinazione }`, e il test `RefactorTactics.Actions.Leap.IgnoresIntermediateCells` e' verde. Quel test **non e' dichiarato qui** ed e' deliberato: appartiene a `RT-FEAT-ACTION-MOVE-PROFILES`, che possiede `ERTMovementStyle` come dato. Dichiararlo in due posti darebbe due risposte alla domanda «chi lo dimostra». `tests: []` finche' CP 39.2 (#700) non ne scrive di propri — e non si riempie con i nomi che l'handoff proponeva, perche' il validator verifica che ogni pattern matchi un test reale. ⚠️ **Il difetto architetturale da correggere, misurato**: `ARTTurnManager` prende il risultato di `LinearLeap` — gia' `Origin → Destination` — e lo riscrive come `Path = [Origin, Destination]` per `ResolveHexPaths`, che e' un resolver a micro-step (destinazione contesa, priorita', collisione frontale, occupazione cella per cella, `Prog`, `MicroStepIndex`). Con due nodi il micro-step degenera e il risultato non e' sbagliato **oggi**: diventa un errore appena esistono due trasferimenti nello stesso turno, o un trigger che guarda i bordi attraversati. ⚠️ **Il rischio dell'epic e' costruire un secondo motore**, e D-118 lo scrive come divieto: nessun subsystem di trasferimento, nessun `ValidateTeleportPlan` (l'autorita' e' #605), nessuna seconda macchina di reazione (#165), nessun secondo sistema di percezione (#159) o di facing (ADR-0005). ⚠️ **`Portal` non e' di questa feature**: e' topologia del grafo — `URTHexMapAsset::Transitions`, `ERTHexArcState`, `GraphNeighbors()` — e ricade su `RT-FEAT-MAP-*`. CP 39.10 lo tratta come un valore in coda a `ERTHexTransitionKind`, dopo un audit della serializzazione. ⚠️ **Nove scenari del corpus finale NON sono dichiarati `planned` qui**, e non per dimenticanza: si dichiarano quando il loro checkpoint si apre. Un corpus dichiarato in anticipo gonfia il conteggio di `scenariomap.shortlist.md` senza che nulla lo verifichi — lo stesso difetto che il documento della scenario map ha gia' pagato tre volte in un giorno rimisurando i `planned`."
+      "notes": "🔴 **Nasce il 2026-08-12 da D-118**, che chiude `MOV-1`: il trasferimento e' una **famiglia semantica propria** e non un'eccezione del Dash. La partizione e' `Traversal` (Move, Dash, Forced — percorre lo spazio, e ogni cella percorsa e' un fatto) contro `Transfer` (Leap, Blink, Swap, Recall — esistono un'origine e una destinazione, e nient'altro). ⚠️ **`spec: done` e tutto il resto `todo` non e' una svista**: e' esattamente lo stato. La regola e' scritta e decisa, e **nessuna riga di runtime e' stata aggiunta** — che era il DoD di CP 39.1. ⚠️ **`runtime: todo` e non `partial`, e la code review ha chiesto perche'** (2026-08-12). La regola 2 di `feature-registry.md` — *«un dato senza consumatore e' `partial`»* — e' un **tetto su `done`**, non un pavimento su `todo`: dice che un dato senza consumatore non puo' dichiararsi completo, non che qualunque codice esistente obblighi a `partial`. E qui il runtime di QUESTA feature e' zero: non esiste un resolver puro del trasferimento, non esiste un Blink pianificabile, e `ARTTurnManager` riscrive ancora il risultato come un path a due nodi. `LinearLeap` non e' il runtime di questa feature: e' un valore di `ERTMovementStyle`, che appartiene a `RT-FEAT-ACTION-MOVE-PROFILES` insieme al test che lo prova. 🔴 La conseguenza meccanica non e' cosmetica: `derive_status()` controlla `runtime in (done, partial)` **prima** di `spec: done`, quindi un `partial` qui porterebbe lo stato da `SPECIFIED` a `IMPLEMENTING` — cioe' direbbe alle shortlist e alla Wiki che il trasferimento e' in lavorazione quando non lo e'. 🔴 **La semantica pero' ESISTE GIA', e questo e' il punto che rende l'epic non vuota**: `ERTMovementStyle::LinearLeap` produce `Result.Entered = { destinazione }`, e il test `RefactorTactics.Actions.Leap.IgnoresIntermediateCells` e' verde. Quel test **non e' dichiarato qui** ed e' deliberato: appartiene a `RT-FEAT-ACTION-MOVE-PROFILES`, che possiede `ERTMovementStyle` come dato. Dichiararlo in due posti darebbe due risposte alla domanda «chi lo dimostra». `tests: []` finche' CP 39.2 (#700) non ne scrive di propri — e non si riempie con i nomi che l'handoff proponeva, perche' il validator verifica che ogni pattern matchi un test reale. ⚠️ **Il difetto architetturale da correggere, misurato**: `ARTTurnManager` prende il risultato di `LinearLeap` — gia' `Origin → Destination` — e lo riscrive come `Path = [Origin, Destination]` per `ResolveHexPaths`, che e' un resolver a micro-step (destinazione contesa, priorita', collisione frontale, occupazione cella per cella, `Prog`, `MicroStepIndex`). Con due nodi il micro-step degenera e il risultato non e' sbagliato **oggi**: diventa un errore appena esistono due trasferimenti nello stesso turno, o un trigger che guarda i bordi attraversati. ⚠️ **Il rischio dell'epic e' costruire un secondo motore**, e D-118 lo scrive come divieto: nessun subsystem di trasferimento, nessun `ValidateTeleportPlan` (l'autorita' e' #605), nessuna seconda macchina di reazione (#165), nessun secondo sistema di percezione (#159) o di facing (ADR-0005). ⚠️ **`Portal` non e' di questa feature**: e' topologia del grafo — `URTHexMapAsset::Transitions`, `ERTHexArcState`, `GraphNeighbors()` — e ricade su `RT-FEAT-MAP-*`. CP 39.10 lo tratta come un valore in coda a `ERTHexTransitionKind`, dopo un audit della serializzazione. ⚠️ **Nove scenari del corpus finale NON sono dichiarati `planned` qui**, e non per dimenticanza: si dichiarano quando il loro checkpoint si apre. Un corpus dichiarato in anticipo gonfia il conteggio di `scenariomap.shortlist.md` senza che nulla lo verifichi — lo stesso difetto che il documento della scenario map ha gia' pagato tre volte in un giorno rimisurando i `planned`. Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13: diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende da questa epic — D-119 lo decide esplicitamente."
     },
     {
       "feature_id": "RT-FEAT-ACTION-BASIC-ATTACK-PROFILES",
@@ -1868,10 +1868,10 @@
       "gates_done": 0,
       "gates_applicable": 9,
       "roadmap": {
-        "epic": null,
+        "epic": "E38",
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": "L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato."
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE",
@@ -1895,7 +1895,7 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "🔴 **Decisa NO il 2026-08-12** — [D-114](../decisions/RT_PDR_00_Decision_Log.md), issue #604. L'economia del turno **resta a slot**: due azioni leggere non valgono una pesante, e senza una grandezza non c'è modo di farle valere. Il differenziale di potenza si esprime con un **drawback dichiarato sull'azione** — cooldown, status auto-inflitto, rinuncia alla reazione, esposizione — che è ciò che il catalogo già applica (`HeavyAttack` 35/cooldown 2 contro `PrecisionAttack` 24/cooldown 1). `DEFERRED` e non cancellata **di proposito**: la riga resta perché il prossimo kit riproporrà l'`ActionCapacity`, e trovare qui la decisione con la sua ragione costa meno che ridiscuterla. Se un giorno servisse una grandezza, il caso che la giustifica dovrà essere un piano che il modello a slot sbaglia — `ECO-1` ne cerca uno da agosto e non l'ha trovato."
+      "notes": "🔴 **Decisa NO il 2026-08-12** — [D-114](../decisions/RT_PDR_00_Decision_Log.md), issue #604. L'economia del turno **resta a slot**: due azioni leggere non valgono una pesante, e senza una grandezza non c'è modo di farle valere. Il differenziale di potenza si esprime con un **drawback dichiarato sull'azione** — cooldown, status auto-inflitto, rinuncia alla reazione, esposizione — che è ciò che il catalogo già applica (`HeavyAttack` 35/cooldown 2 contro `PrecisionAttack` 24/cooldown 1). `DEFERRED` e non cancellata **di proposito**: la riga resta perché il prossimo kit riproporrà l'`ActionCapacity`, e trovare qui la decisione con la sua ragione costa meno che ridiscuterla. Se un giorno servisse una grandezza, il caso che la giustifica dovrà essere un piano che il modello a slot sbaglia — `ECO-1` ne cerca uno da agosto e non l'ha trovato. Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13: diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende da questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato."
     },
     {
       "feature_id": "RT-FEAT-ACTION-MOVEMENT-COMPAT",
@@ -1921,10 +1921,10 @@
       "gates_done": 1,
       "gates_applicable": 9,
       "roadmap": {
-        "epic": null,
+        "epic": "E38",
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": "L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato."
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-MOVE-PROFILES",
@@ -1954,7 +1954,7 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "✅ **`AE-2` ACCETTATA il 2026-08-12** — [D-116](../decisions/RT_PDR_00_Decision_Log.md), issue #606. Il profilo di movimento determina la **legalita'** e l'efficacia di un'azione. Modello a **soglia** (`MinStability` sull'azione contro `Stability` sul profilo): **31 numeri + 4** invece delle 124 celle di una matrice azione x profilo. Categorie nominate dall'autore: **precisione, preparazione, azioni pesanti**. Owner: `spec-compatibilita-azioni-movimento.md`, ora `CURRENT`. `spec: done` — il documento descrive le regole e ne dichiara l'owner, e da oggi quelle regole sono canone. Tutti gli altri gate restano `todo`: **nessuna riga di codice la esprime**. ⚠️ **Non e' separabile dalle altre due voci di D-116**: lo `Sprint` torna dopo il Blast (supera D-068) e `Status.Exposed` passa a 2 turni. La migrazione di fase da sola produrrebbe l'upgrade puro vietato da D-015 — `Exposed` diventerebbe inerte e allo Sprint resterebbe un solo prezzo. Chi implementa questa feature senza le altre due rompe il bilanciamento. ⚠️ **Senza `RT-FEAT-ACTION-PLAN-VALIDATION` (#605) il dato non e' osservabile**: #606 definisce il dato, #605 lo rende una regola. ⚠️ Il primo lavoro **non e'** assegnare soglie: i profili di movimento non esistono come tipo (`grep -rn MovementProfile Source/` da' zero), vivono solo nel catalogo markdown. ⚠️ `Spec.ActionEconomy.PathLengthChangesEffect` appartiene ad `AE-3` — i FATTI DEL PERCORSO, ancora aperti — ed e' elencato qui in prestito."
+      "notes": "✅ **`AE-2` ACCETTATA il 2026-08-12** — [D-116](../decisions/RT_PDR_00_Decision_Log.md), issue #606. Il profilo di movimento determina la **legalita'** e l'efficacia di un'azione. Modello a **soglia** (`MinStability` sull'azione contro `Stability` sul profilo): **31 numeri + 4** invece delle 124 celle di una matrice azione x profilo. Categorie nominate dall'autore: **precisione, preparazione, azioni pesanti**. Owner: `spec-compatibilita-azioni-movimento.md`, ora `CURRENT`. `spec: done` — il documento descrive le regole e ne dichiara l'owner, e da oggi quelle regole sono canone. Tutti gli altri gate restano `todo`: **nessuna riga di codice la esprime**. ⚠️ **Non e' separabile dalle altre due voci di D-116**: lo `Sprint` torna dopo il Blast (supera D-068) e `Status.Exposed` passa a 2 turni. La migrazione di fase da sola produrrebbe l'upgrade puro vietato da D-015 — `Exposed` diventerebbe inerte e allo Sprint resterebbe un solo prezzo. Chi implementa questa feature senza le altre due rompe il bilanciamento. ⚠️ **Senza `RT-FEAT-ACTION-PLAN-VALIDATION` (#605) il dato non e' osservabile**: #606 definisce il dato, #605 lo rende una regola. ⚠️ Il primo lavoro **non e'** assegnare soglie: i profili di movimento non esistono come tipo (`grep -rn MovementProfile Source/` da' zero), vivono solo nel catalogo markdown. ⚠️ `Spec.ActionEconomy.PathLengthChangesEffect` appartiene ad `AE-3` — i FATTI DEL PERCORSO, ancora aperti — ed e' elencato qui in prestito. Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13: diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende da questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato."
     },
     {
       "feature_id": "RT-FEAT-ACTION-PLAN-VALIDATION",
@@ -1980,10 +1980,10 @@
       "gates_done": 0,
       "gates_applicable": 10,
       "roadmap": {
-        "epic": null,
+        "epic": "E38",
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": "L'epic esiste e si chiama **E38** (`roadmap-post-v0.1.md`, v0.2, cinque checkpoint), ma `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato."
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ACTION-ENGINE"
@@ -2018,7 +2018,7 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "**Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque modello di economia. ✅ **La fetta pura e' atterrata il 2026-08-12**: `URTPlanValidationLibrary::ValidatePlan(snapshot, piano)` risponde LEGALE / ILLEGALE + motivo PRIMA del commit, dove `ValidateInstance`/`ApplyFallback` agisce IN RISOLUZIONE. Nove test `RefactorTactics.Plan.*`, tre mutazioni verificate. ⚠️ `runtime` resta **todo** e non e' una svista: la funzione esiste ma **nessuno la chiama** ancora — il bot e la HUD non ci passano, ed e' il resto della DoD di `#605`. Un validatore senza consumatore non e' una regola. 🔴 **Due premesse di questa nota erano false e sono corrette qui.** (1) La famiglia da estendere non e' quella degli `*Outcome`: e' **`ERTActionInvalidReason`** (`RTActionFallbackLibrary.h`), che gia' significa «questa azione pianificata non e' eseguibile» e gia' porta scritta l'invariante dei valori in coda. Gli `*Outcome` dicono com'e' andata una FASE — un altro asse. E `ERTMovementStopReason`, citato qui e nella issue, **non esiste in `Source/`**: compariva solo nei documenti che si citavano a vicenda. I tre valori nuovi (`SlotOccupied`, `InsufficientMovementPoints`, `OnCooldown`) sono in coda a `ERTActionInvalidReason`. (2) `CanonicalIntentStore` **non e' codice**: zero occorrenze in `Source/`. E' un concetto di design del PDR, citato in `docs/archive/` e `docs/src/` — ma anche, ⚠️ **come se fosse un simbolo**, nella DoD di CP 25.3 di `roadmap-post-v0.1.md`, che ne chiede la prova «dimostrato da un test». Il seam reale e' `RTIntentPrivacyLibrary` / `FRTPlannedIntent`. 🔴 **Un limite dei quattro non e' ancora verificabile**: il controllo sui Movement Point legge `FRTActionDef::CostMP`, che **nessuno popola** — il catalogo dichiara il budget di `Move` e `Sprint` in `RangeCells` con `ERTMovementStyle::Budget`. Finche' il catalogo non dichiara un costo, `InsufficientMovementPoints` non puo' scattare in partita: campo senza produttore, e primo passo di chi collegherà `ValidatePlan` al gioco. `network_privacy: partial` resta, per la ragione giusta: la validazione legge il piano completo, che e' dato di squadra, e nessuna verifica in rete e' possibile prima di M10. Il cooldown residuo entra come **parametro** e non come campo dello snapshot perche' oggi vive su `ARTUnit::AbilityCooldowns` (privato, sull'Actor): stesso pattern di `URTCombatLibrary::IsAbilityUsable`."
+      "notes": "**Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque modello di economia. ✅ **La fetta pura e' atterrata il 2026-08-12**: `URTPlanValidationLibrary::ValidatePlan(snapshot, piano)` risponde LEGALE / ILLEGALE + motivo PRIMA del commit, dove `ValidateInstance`/`ApplyFallback` agisce IN RISOLUZIONE. Nove test `RefactorTactics.Plan.*`, tre mutazioni verificate. ⚠️ `runtime` resta **todo** e non e' una svista: la funzione esiste ma **nessuno la chiama** ancora — il bot e la HUD non ci passano, ed e' il resto della DoD di `#605`. Un validatore senza consumatore non e' una regola. 🔴 **Due premesse di questa nota erano false e sono corrette qui.** (1) La famiglia da estendere non e' quella degli `*Outcome`: e' **`ERTActionInvalidReason`** (`RTActionFallbackLibrary.h`), che gia' significa «questa azione pianificata non e' eseguibile» e gia' porta scritta l'invariante dei valori in coda. Gli `*Outcome` dicono com'e' andata una FASE — un altro asse. E `ERTMovementStopReason`, citato qui e nella issue, **non esiste in `Source/`**: compariva solo nei documenti che si citavano a vicenda. I tre valori nuovi (`SlotOccupied`, `InsufficientMovementPoints`, `OnCooldown`) sono in coda a `ERTActionInvalidReason`. (2) `CanonicalIntentStore` **non e' codice**: zero occorrenze in `Source/`. E' un concetto di design del PDR, citato in `docs/archive/` e `docs/src/` — ma anche, ⚠️ **come se fosse un simbolo**, nella DoD di CP 25.3 di `roadmap-post-v0.1.md`, che ne chiede la prova «dimostrato da un test». Il seam reale e' `RTIntentPrivacyLibrary` / `FRTPlannedIntent`. 🔴 **Un limite dei quattro non e' ancora verificabile**: il controllo sui Movement Point legge `FRTActionDef::CostMP`, che **nessuno popola** — il catalogo dichiara il budget di `Move` e `Sprint` in `RangeCells` con `ERTMovementStyle::Budget`. Finche' il catalogo non dichiara un costo, `InsufficientMovementPoints` non puo' scattare in partita: campo senza produttore, e primo passo di chi collegherà `ValidatePlan` al gioco. `network_privacy: partial` resta, per la ragione giusta: la validazione legge il piano completo, che e' dato di squadra, e nessuna verifica in rete e' possibile prima di M10. Il cooldown residuo entra come **parametro** e non come campo dello snapshot perche' oggi vive su `ARTUnit::AbilityCooldowns` (privato, sull'Actor): stesso pattern di `URTCombatLibrary::IsAbilityUsable`. Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13: diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende da questa epic: il modello a slot che la v0.1 usa gira gia', ed e' testato."
     },
     {
       "feature_id": "RT-FEAT-ACTION-SUPERS",
@@ -2876,10 +2876,10 @@
       "gates_done": 0,
       "gates_applicable": 9,
       "roadmap": {
-        "epic": null,
+        "epic": "E36",
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": "L'epic esiste e si chiama **E36** (`roadmap-post-v0.1.md`, v0.2, sei checkpoint), ma `roadmap.epic` resta `null` per la stessa ragione di `RT-FEAT-CHAR-V02-ROSTER`/E35: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende da questo framework — gli undici status che la v0.1 usa girano gia' senza."
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-ENV-STATUS",
@@ -2906,7 +2906,7 @@
       "wiki_note": "Nessuna pagina: il framework non esiste ancora, e una pagina che lo descrivesse sarebbe la Wiki che promette ciò che il gioco non fa.",
       "pie_refs": [],
       "last_verified": {},
-      "notes": "Il repository ha **undici** status implementati (`TAG_Status_*`: Braced, Burning, Electrified, Exposed, Guarded, Marked, Obscured, Reveal, Root, Slow, Wet) e **nessun livello che li governi**: ogni effetto e' cablato dove serve. Funziona, ed e' esattamente il motivo per cui il dodicesimo costera' come i primi undici messi insieme. Mancano: categoria e polarita', severity C0-C3, le sei primitive riusabili (MODIFY, DEGRADE, RESTRICT, INTERRUPT, CONVERT, CONSUME), stacking policy ed expiration dichiarate sul dato, reapply policy e prevenzione dei loop, reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro** questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale. **`STA-1` e `STA-2` sono chiuse da `D-072`**: primitive e severity si DERIVANO dal dato, nessun enum dichiarato. Chiuderle ha pero' aperto cio' che serviva a entrambe — la **tassonomia delle capability** (`STA-4`), primo lavoro del framework: senza, non si deriva ne' la primitiva ne' la severity. Resta aperta anche `STA-3`.\n**Epic `E36` aperta il 2026-08-10**, v0.2, sei checkpoint in `roadmap-post-v0.1.md`. L'ordine non e' stilistico: `36.1` E' `STA-4`, ed e' il prerequisito di `36.3` (primitive) e `36.4` (severity), che `D-072` ha reso derivazioni invece di campi.\n⚠️ **Correzione misurata aprendo l'epic**: il triage elencava fra i mancanti anche «resistance/immunity/cleanse», e su due dei tre era sbagliato. **`Action.Cleanse` gira in partita** (azione principale, Blast, priorita' 25, CP 5.2: rimuove UN solo stato dalla lista che il giocatore dichiara in `PlannedCleansePriority`, fail-closed) e **`PushResistance`** e' una resistenza reale su un dominio solo. Assente e' la sola **Immunity**. Quindi `36.5` **estende** due meccanismi vivi e ne costruisce uno da zero — il costo dei tre non e' lo stesso.\n**Nessuno scenario `planned`, ed e' deliberato**: il vocabolario di ogni scenario del framework — quale capability un effetto toglie — e' esattamente cio' che `36.1` deve ancora decidere. Stessa ragione per cui `RT-FEAT-REACTION-OVERWATCH` non dichiara i venti scenari del suo sorgente. Gli scenari status che il sorgente §59 propone e che il repository gia' soddisfa non entrano come `planned` perche' non sono da fare: `Wet` che spegne `Burning` e' `Spec.Environment.WaterQuenchesFire`, e «`Wet` non conduce» e' gia' fissato in `RTElectricPropagationTests` e `RTTerrainTests` — la conduzione dipende dalla cella (`bConductsElectricity`), non dallo stato dell'unita'."
+      "notes": "Il repository ha **undici** status implementati (`TAG_Status_*`: Braced, Burning, Electrified, Exposed, Guarded, Marked, Obscured, Reveal, Root, Slow, Wet) e **nessun livello che li governi**: ogni effetto e' cablato dove serve. Funziona, ed e' esattamente il motivo per cui il dodicesimo costera' come i primi undici messi insieme. Mancano: categoria e polarita', severity C0-C3, le sei primitive riusabili (MODIFY, DEGRADE, RESTRICT, INTERRUPT, CONVERT, CONSUME), stacking policy ed expiration dichiarate sul dato, reapply policy e prevenzione dei loop, reason code, validator. I due status nuovi del sorgente — `Suppressed` e `Dazed` — stanno **dentro** questa feature e non prima: `Suppressed` E' un DEGRADE, `Dazed` E' un INTERRUPT sulla scelta manuale. **`STA-1` e `STA-2` sono chiuse da `D-072`**: primitive e severity si DERIVANO dal dato, nessun enum dichiarato. Chiuderle ha pero' aperto cio' che serviva a entrambe — la **tassonomia delle capability** (`STA-4`), primo lavoro del framework: senza, non si deriva ne' la primitiva ne' la severity. Resta aperta anche `STA-3`. Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13: diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende da questo framework — gli undici status che la v0.1 usa girano gia' senza.\n**Epic `E36` aperta il 2026-08-10**, v0.2, sei checkpoint in `roadmap-post-v0.1.md`. L'ordine non e' stilistico: `36.1` E' `STA-4`, ed e' il prerequisito di `36.3` (primitive) e `36.4` (severity), che `D-072` ha reso derivazioni invece di campi.\n⚠️ **Correzione misurata aprendo l'epic**: il triage elencava fra i mancanti anche «resistance/immunity/cleanse», e su due dei tre era sbagliato. **`Action.Cleanse` gira in partita** (azione principale, Blast, priorita' 25, CP 5.2: rimuove UN solo stato dalla lista che il giocatore dichiara in `PlannedCleansePriority`, fail-closed) e **`PushResistance`** e' una resistenza reale su un dominio solo. Assente e' la sola **Immunity**. Quindi `36.5` **estende** due meccanismi vivi e ne costruisce uno da zero — il costo dei tre non e' lo stesso.\n**Nessuno scenario `planned`, ed e' deliberato**: il vocabolario di ogni scenario del framework — quale capability un effetto toglie — e' esattamente cio' che `36.1` deve ancora decidere. Stessa ragione per cui `RT-FEAT-REACTION-OVERWATCH` non dichiara i venti scenari del suo sorgente. Gli scenari status che il sorgente §59 propone e che il repository gia' soddisfa non entrano come `planned` perche' non sono da fare: `Wet` che spegne `Burning` e' `Spec.Environment.WaterQuenchesFire`, e «`Wet` non conduce» e' gia' fissato in `RTElectricPropagationTests` e `RTTerrainTests` — la conduzione dipende dalla cella (`bConductsElectricity`), non dallo stato dell'unita'."
     },
     {
       "feature_id": "RT-FEAT-ENV-STATUS",
@@ -4408,7 +4408,7 @@
       "gates_done": 0,
       "gates_applicable": 8,
       "roadmap": {
-        "epic": null,
+        "epic": "E35",
         "milestone": null,
         "checkpoints": [],
         "out_of_release_scope": ""
@@ -4513,10 +4513,10 @@
       "kind": "gameplay",
       "release": "v0.2",
       "priority": "P3",
-      "status": "IDEA",
-      "status_derived": "IDEA",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
       "gates": {
-        "spec": "todo",
+        "spec": "partial",
         "data": "todo",
         "runtime": "todo",
         "log_debug": "todo",
@@ -4539,7 +4539,9 @@
         "RT-FEAT-CHAR-V01-ROSTER"
       ],
       "completed_by": [],
-      "owner_specs": [],
+      "owner_specs": [
+        "docs/gameplay/brief-stati-personaggio-e-trasformazioni.md"
+      ],
       "issues": [],
       "tests": [],
       "scenarios": [],
@@ -4627,7 +4629,7 @@
       "gates_done": 0,
       "gates_applicable": 7,
       "roadmap": {
-        "epic": null,
+        "epic": "E35",
         "milestone": null,
         "checkpoints": [],
         "out_of_release_scope": ""
@@ -5183,10 +5185,10 @@
       "gates_done": 0,
       "gates_applicable": 8,
       "roadmap": {
-        "epic": null,
+        "epic": "E26",
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": "L'epic esiste e si chiama **E26** (`roadmap-post-v0.1.md`, v0.2, issue #326), ma `roadmap.epic` resta `null` come per `RT-FEAT-STATUS-FRAMEWORK`/E36: il validator conosce solo le epic della **roadmap di release**, e assegnarne una qui farebbe comparire una feature v0.2 nella tabella §2.2 della v0.1. Nessun gate della v0.1 dipende dal Team Planner."
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-BOT-FAIRNESS",
@@ -5221,7 +5223,7 @@
         "date": "2026-08-11",
         "commit": "eb3cc42"
       },
-      "notes": "Architettura fissata da **D-097** (Top-K per unita' + combinazione al centro; i ruoli **emergono** dal piano, non si assegnano prima) e **D-098** (una sinergia intra-turno vale solo se l'ordine delle fasi la permette, e la compatibilita' si **chiede** alle regole invece di riscriverla nel bot). `spec: partial` e non `done`: la forma c'e', le **quote** no — `TopK`, budget di candidate e soglia di isteresi si fissano profilando codice che non esiste, e il sorgente stesso lo dice. ⚠️ Il caso **umano + bot nella stessa squadra** resta aperto e NON e' della v0.1, che e' 2v2 offline contro il bot. La forma della risposta e' pero' gia' vincolata da D-097."
+      "notes": "Architettura fissata da **D-097** (Top-K per unita' + combinazione al centro; i ruoli **emergono** dal piano, non si assegnano prima) e **D-098** (una sinergia intra-turno vale solo se l'ordine delle fasi la permette, e la compatibilita' si **chiede** alle regole invece di riscriverla nel bot). `spec: partial` e non `done`: la forma c'e', le **quote** no — `TopK`, budget di candidate e soglia di isteresi si fissano profilando codice che non esiste, e il sorgente stesso lo dice. ⚠️ Il caso **umano + bot nella stessa squadra** resta aperto e NON e' della v0.1, che e' 2v2 offline contro il bot. La forma della risposta e' pero' gia' vincolata da D-097. Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13: diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release — quindi l'epic e' scritta nel campo che le compete. Nessun gate della v0.1 dipende dal Team Planner."
     },
     {
       "feature_id": "RT-FEAT-BOT-BELIEF",
@@ -5247,10 +5249,10 @@
       "gates_done": 0,
       "gates_applicable": 8,
       "roadmap": {
-        "epic": null,
+        "epic": "E27",
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": "Epic **E27** (`roadmap-post-v0.1.md`, v0.3, issue #327). ⚠️ Fino al 2026-08-13 questa riga diceva `release: future` **perche' il vocabolario ammesso era** `v0.1 | v0.2 | future`: era una limitazione dello schema, non una scelta di scope. Con v0.3 esprimibile la feature sta nella release che l'epic dichiara, e questa nota resta per dire che il `future` di prima non significava «non pianificata»."
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-BOT-FAIRNESS",
@@ -5281,7 +5283,7 @@
         "date": "2026-08-11",
         "commit": "eb3cc42"
       },
-      "notes": "**D-099** decide la cosa che rischiava di costare di piu': la confidenza del bot **non e' un enum nuovo**. Il repository ha gia' `ERTAwareness` (`Hidden · Uncertain · Detected`), `ERTTargetKnowledge` (`Allowed · CellOnly · Rejected`) e `FRTLastKnownContact.TurnNumber`; le quattro categorie proposte dal sorgente (`Confirmed · Strong · Plausible · Weak`) sarebbero state il **quarto** vocabolario sullo stesso asse, con due risposte diverse alla domanda «sappiamo dov'e'?». La confidenza ordina **dentro** `Uncertain`, e non e' una percentuale. ⚠️ La **threat projection** e' oggi un gate di questa feature, non una feature propria. Diventa propria quando un **secondo** consumatore la legge — la UI, non il solo planner: finche' la legge solo il bot e' una struttura interna, e promuoverla creerebbe un ID che nessuno cita."
+      "notes": "**D-099** decide la cosa che rischiava di costare di piu': la confidenza del bot **non e' un enum nuovo**. Il repository ha gia' `ERTAwareness` (`Hidden · Uncertain · Detected`), `ERTTargetKnowledge` (`Allowed · CellOnly · Rejected`) e `FRTLastKnownContact.TurnNumber`; le quattro categorie proposte dal sorgente (`Confirmed · Strong · Plausible · Weak`) sarebbero state il **quarto** vocabolario sullo stesso asse, con due risposte diverse alla domanda «sappiamo dov'e'?». La confidenza ordina **dentro** `Uncertain`, e non e' una percentuale. ⚠️ La **threat projection** e' oggi un gate di questa feature, non una feature propria. Diventa propria quando un **secondo** consumatore la legge — la UI, non il solo planner: finche' la legge solo il bot e' una struttura interna, e promuoverla creerebbe un ID che nessuno cita. Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13: diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release — quindi l'epic e' scritta nel campo che le compete. Fino al 2026-08-13 la release diceva `future` perche' il vocabolario ammesso era `v0.1 | v0.2 | future`: era una limitazione dello schema, non una scelta di scope."
     },
     {
       "feature_id": "RT-FEAT-BOT-PREDICTIVE",
@@ -5307,10 +5309,10 @@
       "gates_done": 0,
       "gates_applicable": 8,
       "roadmap": {
-        "epic": null,
+        "epic": "E28",
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": "Epic **E28** (`roadmap-post-v0.1.md`, v0.3, issue #328), piu' il residuo di **E29** (predictive avanzato, #329). ⚠️ Come `RT-FEAT-BOT-BELIEF`, stava in `future` perche' lo schema non sapeva dire `v0.3`; dal 2026-08-13 lo dice."
+        "out_of_release_scope": ""
       },
       "dependencies": [
         "RT-FEAT-BOT-TACTICAL",
@@ -5338,7 +5340,7 @@
         "date": "2026-08-11",
         "commit": "eb3cc42"
       },
-      "notes": "Pochi scenari nemici coerenti, non minimax: `RobustScore = punteggio pesato sugli scenari − penalita' sul caso peggiore`. Personalita' e difficolta' cambiano la **tolleranza** al caso peggiore, mai le informazioni disponibili. ⚠️ Il caso da testare esplicitamente e' la differenza fra **dedurre** e **sapere**: il bot puo' tenere il fuoco perche' un bersaglio vale poco *e* una minaccia non e' localizzata; non puo' tenerlo perche' «lo striker passera' dopo». I due comportamenti sono indistinguibili dall'esterno, e solo un test che manipola lo stato nascosto li separa. La simulazione counterfactual non apre prima che il resolver logico sia estraibile: **D-078** ha gia' separato chi riproduce da chi verifica, ed e' lo stesso confine."
+      "notes": "Pochi scenari nemici coerenti, non minimax: `RobustScore = punteggio pesato sugli scenari − penalita' sul caso peggiore`. Personalita' e difficolta' cambiano la **tolleranza** al caso peggiore, mai le informazioni disponibili. ⚠️ Il caso da testare esplicitamente e' la differenza fra **dedurre** e **sapere**: il bot puo' tenere il fuoco perche' un bersaglio vale poco *e* una minaccia non e' localizzata; non puo' tenerlo perche' «lo striker passera' dopo». I due comportamenti sono indistinguibili dall'esterno, e solo un test che manipola lo stato nascosto li separa. La simulazione counterfactual non apre prima che il resolver logico sia estraibile: **D-078** ha gia' separato chi riproduce da chi verifica, ed e' lo stesso confine. Il campo `out_of_release_scope` che portava questa motivazione e' stato rimosso il 2026-08-13: diceva che `roadmap.epic` doveva restare `null` perche' il validator non conosceva le epic post-v0.1 e la tabella §2.2 avrebbe mostrato la feature fra quelle della v0.1. Entrambi i vincoli sono caduti — `known_roadmap_refs()` legge l'altro owner e la tabella filtra per release — quindi l'epic e' scritta nel campo che le compete. Come `RT-FEAT-BOT-BELIEF`, stava in `future` perche' lo schema non sapeva dire `v0.3`; dal 2026-08-13 lo dice. Porta anche il residuo di **E29** (predictive avanzato, #329)."
     },
     {
       "feature_id": "RT-FEAT-TEST-SCENARIO-HARNESS",
@@ -6083,7 +6085,7 @@
       "title": "Multiplayer con autorità server",
       "area": "Networking",
       "kind": "infra",
-      "release": "future",
+      "release": "v0.5",
       "priority": "P2",
       "status": "SPECIFIED",
       "status_derived": "SPECIFIED",
@@ -6102,7 +6104,7 @@
       "gates_done": 1,
       "gates_applicable": 8,
       "roadmap": {
-        "epic": null,
+        "epic": "E40",
         "milestone": "M10",
         "checkpoints": [],
         "out_of_release_scope": ""
@@ -6134,7 +6136,7 @@
       "title": "Dedicated server",
       "area": "Networking",
       "kind": "infra",
-      "release": "future",
+      "release": "v0.7",
       "priority": "P3",
       "status": "IDEA",
       "status_derived": "IDEA",
@@ -6153,7 +6155,7 @@
       "gates_done": 0,
       "gates_applicable": 8,
       "roadmap": {
-        "epic": null,
+        "epic": "E42",
         "milestone": null,
         "checkpoints": [],
         "out_of_release_scope": ""
@@ -6175,6 +6177,101 @@
         "commit": "2094b86"
       },
       "notes": "Nella seed list e nel PDR come direzione, senza documento owner nel repository. IDEA."
+    },
+    {
+      "feature_id": "RT-FEAT-ABILITY-RUNTIME",
+      "title": "Runtime delle abilita' — GAS come esecutore, non come autorita'",
+      "area": "Actions",
+      "kind": "gameplay",
+      "release": "v0.6",
+      "priority": "P1",
+      "status": "IDEA",
+      "status_derived": "IDEA",
+      "gates": {
+        "spec": "todo",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "todo",
+        "replay_representable": "todo"
+      },
+      "gates_done": 0,
+      "gates_applicable": 10,
+      "roadmap": {
+        "epic": "E41",
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-ACTION-ENGINE",
+        "RT-FEAT-CORE-DETERMINISM",
+        "RT-FEAT-NET-AUTHORITY"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/roadmap/roadmap-post-v0.1.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "Nasce IDEA e con tutti i gate `todo`: e' l'unica misura onesta di una feature che non ha una riga di codice. Il confine invece **e' gia' deciso** — D-005, `Consolidata`: GAS non e' l'autorita' del simulatore. La v0.1 la applica per assenza (`URTActionData`, `URTHeroData` e `URTEquipmentData` sono data asset, non `GameplayAbility`), e questa feature esiste per metterla alla prova nel solo modo che conta: introdurre GAS e verificare che il TurnLog non diverga. Il gate `replay_representable` e' quello che decide se il confine ha retto — se un `AbilityTask` determina un esito, il replay lo dice prima di qualunque revisione. ⚠️ Non risuscita `RT-FEAT-ACTION-BUDGET` (`DEFERRED`, D-114): il bridge **legge** l'economia a slot, non la sostituisce con `GameplayEffect`."
+    },
+    {
+      "feature_id": "RT-FEAT-BOT-COMPETENCE",
+      "title": "Schema di competenza del bot — cosa il bot sa davvero usare",
+      "area": "Tools",
+      "kind": "data",
+      "release": "v0.8",
+      "priority": "P0",
+      "status": "IDEA",
+      "status_derived": "IDEA",
+      "gates": {
+        "spec": "todo",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "na",
+        "packaged": "na",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 6,
+      "roadmap": {
+        "epic": "E43",
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-BOT-TACTICAL",
+        "RT-FEAT-TOOL-BALANCE-GROUND"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/roadmap/roadmap-post-v0.1.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "La feature che rende interpretabile ogni dato di `RT-FEAT-TOOL-BALANCE-GROUND`. Un bot che non sa usare `Overwatch` produce un win-rate in cui `Overwatch` sembra debole: il numero e' vero, la conclusione e' falsa, e **niente nel numero lo segnala**. Ogni capability porta uno stato fra `PASS`, `PARTIAL`, `FAIL` e `UNTESTED`, sostenuto da uno scenario riproducibile. `UNTESTED` e' il valore che rende lo schema utile: senza, l'assenza di prova si legge come prova d'assenza. ⚠️ E' `data` e non `tooling` di proposito — lo stato di competenza e' un dato del report, non una funzione del runner, ed e' quello che va versionato accanto ai numeri che qualifica."
     },
     {
       "feature_id": "RT-FEAT-PROD-PERFORMANCE",
@@ -6311,7 +6408,7 @@
       "gates_done": 1,
       "gates_applicable": 10,
       "roadmap": {
-        "epic": null,
+        "epic": "E33",
         "milestone": null,
         "checkpoints": [],
         "out_of_release_scope": ""
@@ -6338,7 +6435,7 @@
       "title": "Character State / Configuration System",
       "area": "Gameplay",
       "kind": "gameplay",
-      "release": "future",
+      "release": "v0.4",
       "priority": "P3",
       "status": "SPECIFIED",
       "status_derived": "SPECIFIED",
@@ -6357,7 +6454,7 @@
       "gates_done": 1,
       "gates_applicable": 10,
       "roadmap": {
-        "epic": null,
+        "epic": "E34",
         "milestone": null,
         "checkpoints": [],
         "out_of_release_scope": ""
@@ -6408,7 +6505,7 @@
       "title": "Modello dei radar di profilo — Profile e Balance",
       "area": "Characters",
       "kind": "data",
-      "release": "future",
+      "release": "v0.4",
       "priority": "P3",
       "status": "DONE",
       "status_derived": "DONE",
@@ -6427,7 +6524,7 @@
       "gates_done": 4,
       "gates_applicable": 4,
       "roadmap": {
-        "epic": null,
+        "epic": "E37",
         "milestone": null,
         "checkpoints": [],
         "out_of_release_scope": ""
@@ -6462,7 +6559,7 @@
       "title": "Rubrica — i rating derivati dal catalogo eroi",
       "area": "Characters",
       "kind": "data",
-      "release": "future",
+      "release": "v0.4",
       "priority": "P3",
       "status": "DONE",
       "status_derived": "DONE",
@@ -6481,7 +6578,7 @@
       "gates_done": 4,
       "gates_applicable": 4,
       "roadmap": {
-        "epic": null,
+        "epic": "E37",
         "milestone": null,
         "checkpoints": [],
         "out_of_release_scope": ""
@@ -6517,7 +6614,7 @@
       "title": "Generatore SVG deterministico dei radar",
       "area": "Tools",
       "kind": "tooling",
-      "release": "future",
+      "release": "v0.4",
       "priority": "P3",
       "status": "DONE",
       "status_derived": "DONE",
@@ -6536,7 +6633,7 @@
       "gates_done": 4,
       "gates_applicable": 4,
       "roadmap": {
-        "epic": null,
+        "epic": "E37",
         "milestone": null,
         "checkpoints": [],
         "out_of_release_scope": ""
