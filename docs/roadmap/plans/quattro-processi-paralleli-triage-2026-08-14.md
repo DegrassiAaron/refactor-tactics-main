@@ -1,7 +1,9 @@
 # Quattro processi paralleli — triage del consolidamento
 
 > `CURRENT` · **Stato**: revisione chiusa, residuo applicato · **Data**: 2026-08-14
-> **HEAD della revisione**: `ce9e4365` · branch `docs/consolidamento-4-processi`
+> **HEAD della revisione**: `ce9e4365`, poi riallineato a `84cbb70c` — ⚠️ `origin/main` si è mosso di **9
+> commit** *durante* la revisione (#836), e le misure di questo documento sono state rieseguite sull'albero
+> unito, non incrementate. Vedi §7.1. · branch `docs/consolidamento-4-processi`
 > **Sorgente revisionato**: `RefactorTactics_4_Process_Parallel_Roadmap_Claude_Consolidation.md`
 > (1552 righe, 57 sezioni, untracked), archiviato a fine sessione in
 > [`../../archive/src/RefactorTactics_4_Process_Parallel_Roadmap_Claude_Consolidation.md`](../../archive/src/RefactorTactics_4_Process_Parallel_Roadmap_Claude_Consolidation.md)
@@ -42,9 +44,10 @@ Il documento contiene il proprio antidoto e va citato, perché è la lettura pi�
 
 **57 sezioni.** Si rimisura con `grep -c '^# [0-9]' <sorgente>`.
 
-Il rapporto è coerente con i sette consolidamenti precedenti: **il repository era avanti alla fonte**, e il
-prodotto vero è ciò che il triage ha **impedito** di aggiungere — un file di classificazione, quattro
-shortlist generate, un campo nel Feature Registry, un filtro nel Control Center e dieci sezioni di roadmap.
+Il rapporto ha la forma che i triage precedenti di questa cartella hanno già misurato: **il repository era
+avanti alla fonte**, e il prodotto vero è ciò che il triage ha **impedito** di aggiungere — un file di
+classificazione, quattro shortlist generate, un campo nel Feature Registry, un filtro nel Control Center e
+dieci sezioni di roadmap.
 
 ---
 
@@ -333,9 +336,14 @@ al §4.
 La §41 vieta di scegliere il primo batch senza verifica live. Eseguita: `git fetch --prune origin`,
 `git worktree list`, `gh pr list --state open`, `gh issue view` sulle 24 issue della §30.
 
-**Lo stato di partenza non è quattro track libere: è una track già occupata.** Il worktree
-`rt-wt-walls-doors` sta lavorando `docs/consolidamento-walls-doors-v1` con un write-set di 16 file
-prevalentemente `integration_only`, e `wt-cap` tiene `Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp`.
+**Lo stato di partenza non era quattro track libere: era una track già occupata.** Il worktree
+`rt-wt-walls-doors` lavorava `docs/consolidamento-walls-doors-v1` con un write-set di 16 file, **12** dei
+quali coperti dalle categorie non assegnabili di questo batch — `integration_only` (7) e `generated_only`
+(5) — e `wt-cap` tiene `Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp`.
+
+⚠️ **Quel branch è poi atterrato** (§7.1), e il batch è stato riallineato a `84cbb70c`. La track resta
+occupata finché il worktree esiste: `git worktree list` e `gh pr list` rispondono a due domande diverse, e
+va guardata anche la prima.
 
 Il batch è in [`../parallel-batch.yaml`](../parallel-batch.yaml). In forma leggibile:
 
@@ -363,8 +371,8 @@ CLIENT / REPLAY / TOOLS
 
 CONTENT / EDITOR
   IDLE — la coda umana è ferma su un binario già conteso.
-  #623 / U21 richiede una lease su Content/RT/Maps/Dev/L_DevSandbox/, che è DUE package
-  (L_DevSandbox.umap + Data/DA_HexMap_Sandbox.uasset), e
+  #623 / U21 richiede una lease su Content/RT/Maps/Dev/L_DevSandbox/, che qui è DUE
+  package (L_DevSandbox.umap + Data/DA_HexMap_Sandbox.uasset) — misurati, non dedotti, e
   Content/RT/Characters/Gadget/Animation/ è untracked nella working directory principale:
   finché non è committata o scartata, la destinazione non è prenotabile.
 ```
