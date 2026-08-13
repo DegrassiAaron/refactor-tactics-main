@@ -78,6 +78,10 @@ La struttura completa di §3 è il **target**; il progetto ne usa oggi solo ques
 servano dipende dal lavoro in corso, ma **questo documento non è un tracker**: per sapere a che punto è il
 progetto si legge [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md), che ne è l'unico owner.
 
+Per la domanda vicina ma diversa — **quali asset servono, quali esistono e quanti ne mancano** — l'owner è
+[`asset-map.md`](asset-map.md) *(dal 2026-08-13)*, che deriva da qui ogni percorso e misura lo stato
+sull'allowlist di `.gitignore`.
+
 *(Fino al 2026-08-08 questa sezione si intitolava «struttura attiva nella milestone corrente» e nominava la
 **M6 — Parità hex**, chiusa da tempo: una convenzione che invecchia insieme a una milestone smette di essere
 una convenzione.)*
