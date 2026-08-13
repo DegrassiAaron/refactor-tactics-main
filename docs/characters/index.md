@@ -3,7 +3,7 @@
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-PRESENTATION -->
 
 > 🚧 **Parzialmente giocabile.** Il codice esiste ma la feature non è completa: i gate qui sotto dicono quanto manca. Blocco generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CHAR-PRESENTATION` · Release: `v0.1` · Roadmap: `E21.1, E21.2, E21.3`  
+> Feature: `RT-FEAT-CHAR-PRESENTATION` · Release: `v0.1` · Roadmap: `E21.1, E21.2, E21.3 · M8`  
 > Stato: **IMPLEMENTING** · Gate: `1/7`  
 > Scenario: `—`  
 > Verificato il `2026-08-08` su `2094b86`
