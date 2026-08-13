@@ -314,6 +314,60 @@ bool FRTScenarioRotationAnchorTest::RunTest(const FString&)
 // inventata resterebbe nel corpus per sempre come rumore, e `ShippedScenariosAreTagged` dovrebbe farci
 // spazio. Qui il caso vive dentro il test che lo verifica.
 // =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioUnknownCapabilityIsErrorTest,
+	"RefactorTactics.Scenario.UnknownCapabilityIsErrorNotBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioUnknownCapabilityIsErrorTest::RunTest(const FString&)
+{
+	// Due casi, e servono ENTRAMBI. Con il solo primo un gate che rifiuta *qualunque* capability non
+	// disponibile passerebbe: bloccherebbe anche i nove scenari legittimamente in attesa, e il verde direbbe
+	// il contrario di cio' che e' successo.
+	auto Esegui = [this](const TCHAR* Capability) -> FRTTestResult
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Harness.CapabilityProbe",
+		  "tags": ["spec", "harness"],
+		  "version": 1, "seed": 0, "mapRadius": 4,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Vektor", "team": 0, "cell": [-1, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Riva",   "team": 1, "cell": [1, 0, 0] }
+		  ],
+		  "turns": [ { "requires": ["%s"], "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Capability);
+
+		FRTTestScenario Scenario;
+		FString LoadError;
+		if (!URTScenarioLoader::LoadFromString(Json, Scenario, LoadError))
+		{
+			AddError(FString::Printf(TEXT("scenario di prova malformato: %s"), *LoadError));
+			return FRTTestResult();
+		}
+		UWorld* World = MakeCorpusWorld();
+		const FRTTestResult R = URTScenarioRunner::Run(World, Scenario);
+		DestroyCorpusWorld(World);
+		return R;
+	};
+
+	// (1) Un nome che nessuno ha mai dichiarato e' un REFUSO, ed e' un difetto del TEST: `Error`.
+	// Prima di questo test produceva un `Blocked` identico a quello di un'attesa legittima, quindi uno
+	// scenario con un refuso restava bloccato per sempre senza che nulla lo segnalasse.
+	const FRTTestResult Refuso = Esegui(TEXT("DecisionBoundry"));
+	TestTrue(FString::Printf(TEXT("capability sconosciuta => Error, non %s"), *Refuso.OutcomeString()),
+		Refuso.Outcome == ERTTestOutcome::Error);
+	TestTrue(TEXT("e il messaggio nomina il refuso, perche' chi legge deve poterlo correggere"),
+		Refuso.ErrorMessage.Contains(TEXT("DecisionBoundry")));
+
+	// (2) Un nome NOTO ma non ancora disponibile resta un'attesa legittima: `Blocked`. E' il regime dei nove
+	// scenari in repo, e non deve cambiare.
+	const FRTTestResult Attesa = Esegui(TEXT("DecisionBoundary"));
+	TestTrue(FString::Printf(TEXT("capability nota non disponibile => Blocked, non %s"), *Attesa.OutcomeString()),
+		Attesa.Outcome == ERTTestOutcome::Blocked);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBlockedBeatsFinalAssertionsTest,
 	"RefactorTactics.Scenario.BlockedFirstTurnStaysBlocked",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
