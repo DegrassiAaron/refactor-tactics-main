@@ -72,7 +72,7 @@
       "[RT-FEAT-INTENT-CONDITIONAL] SPECIFIED senza issue ne' assegnazione in roadmap",
       "[RT-FEAT-CHARACTER-STATE] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Riva.Flow, State.Flux.Charged, State.Bastion.Bulwark, State.Howitzer.Siege, State.MultiState.Stress",
-      "[execution-graph] 12 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.4, E14.5, E14.6, E14.7, E14.8, E15.3, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
+      "[execution-graph] 10 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
     ],
     "unresolved_prerequisites": [],
     "milestone_conflicts": []
@@ -208,48 +208,48 @@
     "M10.1": "⏳",
     "M10.2": "⏳",
     "M10.3": "⏳",
-    "E1.1": "⏳",
-    "E1.2": "⏳",
-    "E1.3": "⏳",
-    "E1.4": "⏳",
-    "E2.1": "⏳",
-    "E2.2": "⏳",
-    "E2.3": "⏳",
-    "E2.4": "⏳",
-    "E2.5": "⏳",
-    "E2.6": "⏳",
-    "E2.7": "⏳",
+    "E1.1": "✅",
+    "E1.2": "✅",
+    "E1.3": "✅",
+    "E1.4": "✅",
+    "E2.1": "✅",
+    "E2.2": "✅",
+    "E2.3": "✅",
+    "E2.4": "✅",
+    "E2.5": "✅",
+    "E2.6": "✅",
+    "E2.7": "✅",
     "E2.8": "⏳",
-    "E3.1": "⏳",
-    "E3.2": "⏳",
+    "E3.1": "✅",
+    "E3.2": "✅",
     "E3.3": "⏳",
-    "E4.1": "⏳",
-    "E4.2": "⏳",
-    "E4.3": "⏳",
-    "E4.4": "⏳",
-    "E4.5": "⏳",
-    "E4.6": "⏳",
-    "E4.7": "⏳",
-    "E4.8": "⏳",
-    "E5.1": "⏳",
-    "E5.2": "⏳",
-    "E5.3": "⏳",
-    "E5.4": "⏳",
+    "E4.1": "✅",
+    "E4.2": "✅",
+    "E4.3": "✅",
+    "E4.4": "✅",
+    "E4.5": "✅",
+    "E4.6": "✅",
+    "E4.7": "✅",
+    "E4.8": "✅",
+    "E5.1": "✅",
+    "E5.2": "✅",
+    "E5.3": "✅",
+    "E5.4": "✅",
     "E5.5": "✅",
-    "E6.1": "⏳",
-    "E6.2": "⏳",
-    "E6.3": "⏳",
-    "E6.4": "⏳",
-    "E6.5": "⏳",
-    "E6.6": "⏳",
+    "E6.1": "✅",
+    "E6.2": "✅",
+    "E6.3": "✅",
+    "E6.4": "✅",
+    "E6.5": "✅",
+    "E6.6": "✅",
     "E6.7": "✅",
-    "E7.1": "⏳",
+    "E7.1": "✅",
     "E7.2": "✅",
     "E7.3": "✅",
     "E7.5": "✅",
     "E7.4": "🟡",
-    "E8.1": "⏳",
-    "E8.2": "⏳",
+    "E8.1": "✅",
+    "E8.2": "✅",
     "E8.3": "✅",
     "E8.4": "✅",
     "E8.5": "✅",
@@ -260,7 +260,7 @@
     "E9.5": "✅",
     "E10.1": "⏳",
     "E10.2": "⏳",
-    "E10.3": "⏳",
+    "E10.3": "✅",
     "E11.1": "⏳",
     "E11.2": "⏳",
     "E11.3": "✅",
@@ -274,35 +274,35 @@
     "E12.3": "⏳",
     "E12.4": "⏳",
     "E12.5": "⏳",
-    "E12.6": "⏳",
-    "E13.1": "⏳",
-    "E13.2": "⏳",
-    "E13.3": "⏳",
-    "E13.4": "⏳",
+    "E12.6": "✅",
+    "E13.1": "✅",
+    "E13.2": "✅",
+    "E13.3": "✅",
+    "E13.4": "🟡",
     "E13.5": "🟡",
     "E14.1": "✅",
-    "E14.2": "⏳",
-    "E14.3": "⏳",
-    "E14.4": "⏳",
+    "E14.2": "✅",
+    "E14.3": "✅",
+    "E14.4": "✅",
     "E14.5": "⏳",
     "E14.6": "⏳",
     "E14.7": "⏳",
     "E14.8": "⏳",
-    "E15.1": "⏳",
-    "E15.2": "⏳",
-    "E15.3": "⏳",
+    "E15.1": "✅",
+    "E15.2": "✅",
+    "E15.3": "🟡",
     "E15.4": "⏳",
     "E15.5": "⏳",
-    "E16.1": "⏳",
-    "E16.2": "⏳",
-    "E17.1": "⏳",
-    "E17.2": "⏳",
+    "E16.1": "✅",
+    "E16.2": "✅",
+    "E17.1": "✅",
+    "E17.2": "✅",
     "E17.3": "⏳",
-    "E18.1": "⏳",
-    "E18.2": "⏳",
-    "E19.1": "⏳",
-    "E19.2": "⏳",
-    "E20.1": "⏳",
+    "E18.1": "✅",
+    "E18.2": "✅",
+    "E19.1": "✅",
+    "E19.2": "✅",
+    "E20.1": "✅",
     "E20.2": "⏳",
     "E20.3": "⏳",
     "E21.1": "⏳",
@@ -897,14 +897,14 @@
       "unblocked_by": [
         {
           "ref": "E1.3",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "checkpoint"
         },
         {
           "ref": "E1.4",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "checkpoint"
         }
       ],
@@ -1273,14 +1273,14 @@
       "critical": false,
       "execution_lane": "pie",
       "state": "⏳",
-      "queue_group": "WAITING",
+      "queue_group": "READY",
       "produces": "verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere",
       "artifacts": [],
       "unblocked_by": [
         {
           "ref": "E5.2",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "checkpoint"
         }
       ],
@@ -1339,6 +1339,7 @@
     ],
     "READY": [
       "U18",
+      "U20",
       "U21"
     ],
     "WAITING": [
@@ -1346,8 +1347,7 @@
       "U13",
       "U14",
       "U19",
-      "U16",
-      "U20"
+      "U16"
     ],
     "DONE": []
   },
@@ -2439,9 +2439,9 @@
         "execution_lane": "code",
         "domain_group": "actions_reactions",
         "checkpoint": "E14.4",
-        "state": null,
-        "state_source": null,
-        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "state": "✅",
+        "state_source": "checkpoint:E14.4",
+        "state_note": null,
         "feature_ids": [
           "RT-FEAT-REACTION-OVERWATCH"
         ],
@@ -2456,8 +2456,8 @@
             "rationale": null
           }
         ],
-        "readiness": "READY",
-        "readiness_reason": "nessun prerequisito hard"
+        "readiness": "DONE",
+        "readiness_reason": "checkpoint:E14.4"
       },
       {
         "id": "issue:165",
@@ -2515,8 +2515,8 @@
             "rationale": null
           }
         ],
-        "readiness": "UNKNOWN",
-        "readiness_reason": "stato non misurabile offline di issue:164"
+        "readiness": "READY",
+        "readiness_reason": "tutti i prerequisiti hard sono risolti"
       },
       {
         "id": "issue:166",
@@ -2632,9 +2632,9 @@
         "execution_lane": "code",
         "domain_group": "core_simulation",
         "checkpoint": "E15.3",
-        "state": null,
-        "state_source": null,
-        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "state": "🟡",
+        "state_source": "checkpoint:E15.3",
+        "state_note": null,
         "feature_ids": [],
         "provides": [],
         "incoming": [
@@ -2789,8 +2789,8 @@
             "rationale": null
           }
         ],
-        "readiness": "UNKNOWN",
-        "readiness_reason": "stato non misurabile offline di issue:512, issue:75"
+        "readiness": "BLOCKED",
+        "readiness_reason": "aspetta issue:512"
       },
       {
         "id": "issue:171",
@@ -3328,10 +3328,10 @@
       "hard_edges": 11,
       "soft_edges": 7,
       "by_readiness": {
-        "BLOCKED": 1,
-        "DONE": 1,
+        "BLOCKED": 2,
+        "DONE": 2,
         "READY": 11,
-        "UNKNOWN": 7
+        "UNKNOWN": 5
       },
       "by_execution_lane": {
         "asset": 2,
@@ -3349,7 +3349,7 @@
       "by_release": {
         "v0.1": 20
       },
-      "state_unknown": 16
+      "state_unknown": 14
     }
   }
 }

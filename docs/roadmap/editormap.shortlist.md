@@ -58,7 +58,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 ### My Editor Queue
 
-**BLOCKING** 10 · **READY** 2 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 3 · **WAITING** 5 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -76,6 +76,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
 - **U18** · Verifiche senza prerequisiti — 1/15 voci verdi
+- **U20** · Confine fra Guard e Brace — 0/1 voci verdi
 - **U21** · Luci del graybox e inquadratura della mappa — 0/2 voci verdi
 
 **WAITING** — *Aspetta codice*
@@ -85,7 +86,6 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U14** · Ambiente in partita — attende `U13` ⏳
 - **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` 🟡, `U5` 🟡, `U7` 🟡, `U8` ⏳
 - **U16** · Misura dei KPI — attende `U6` 🟡
-- **U20** · Confine fra Guard e Brace — attende `E5.2` ⏳
 
 **DONE** — *Finite*
 
