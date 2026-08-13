@@ -17,9 +17,9 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**73 scenari versionati** — misurati su `Scenarios/`: **61** eseguibili · **12** `BLOCKED` per una capability assente · **56** dichiarati `planned` nel registry e non ancora scritti.
+**75 scenari versionati** — misurati su `Scenarios/`: **63** eseguibili · **12** `BLOCKED` per una capability assente · **56** dichiarati `planned` nel registry e non ancora scritti.
 
-**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
+**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `DeclaredRotation` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
 
 | Scenario `BLOCKED` | Capability che manca |
 |---|---|
@@ -226,11 +226,12 @@ Chi li accende: `DecisionBoundary`/`ReactionClash` → **E14** (CP 14.7) · `Per
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: […]}`, dove compaiono come **warning** del
 validator — un piano che non diventa un file resta visibile invece di sparire.
 
-> ⚠️ **Gli 11 scenari `Spec.Clash.*` / `Spec.TimeBank.*` non sono «da scrivere»: oggi sono *impossibili*.**
-> `ERTAssertionKind` ha cinque assertion — `UnitAtCell`, `TurnsCompleted`, `UnitHpEquals`, `UnitAlive`,
-> `UnitFacing` — e leggono **tutte lo stato finale**. Questi chiedono l'ordine degli eventi, un hash e un
-> contatore del TurnLog. Serve prima una capability dell'harness: **una sola** ne sblocca undici.
-> Owner: issue **`#318`**.
+> ✅ **I 13 scenari `Spec.Clash.*` / `Spec.TimeBank.*` sono «da scrivere», e nient'altro** — rimisurato il
+> 2026-08-13. Questa nota li dichiarava *impossibili* e ne contava **11**: erano tre `Spec.Clash.*` più otto
+> `Spec.TimeBank.*`, che la riconciliazione di `#361` ha portato a **dieci**. `ERTAssertionKind` ha oggi
+> **otto** assertion: alle cinque di stato finale si sono aggiunte `LogEventCount` e `LogEventOrder` (`#318`)
+> e `LogEventAmount` (`#361`, `a7e4677b` del 2026-08-10). Ordine degli eventi, contatore e valore del TurnLog
+> — ciò che mancava — si leggono tutti. Li scrivono CP 14.7 e CP 14.8.
 
 ### 6.3 Dichiarati e mai scritti · 4
 

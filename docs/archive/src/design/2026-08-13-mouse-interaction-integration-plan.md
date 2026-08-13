@@ -1,8 +1,33 @@
+> 🗄️ **RECEPITO e ARCHIVIATO il 2026-08-13.** `HISTORICAL` · **materiale non autorevole**.
+>
+> Piano di integrazione del documento archiviato accanto
+> ([`2026-08-13-mouse-world-ui-interaction.md`](2026-08-13-mouse-world-ui-interaction.md)). **Applicato in
+> parte, e le parti scartate contano quanto quelle applicate** — il repository era più avanti del piano di
+> un giorno, e il piano non poteva saperlo.
+>
+> | Voce del piano | Esito |
+> |---|---|
+> | §1 nuova issue ausiliaria E11 | ⛔ **non aperta**: [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) (CP 11.8) è già quella issue, dal 2026-08-12 |
+> | §1 quattordici test `RefactorTactics.UI.Mouse.*` | 🔄 **rinominati** nello spazio esistente `RefactorTactics.PlayerInput.*`; otto nuovi, uno per regola nuova |
+> | §2 cross-link a #25 #613 #172 #173 #291 #74 #324 | ✅ **applicati**, più #737 che il piano non prevedeva |
+> | §3 niente JSON `hover/lmb/rmb` adesso | ✅ **confermato** — è il criterio con cui l'harness tiene fuori le capability senza produttore |
+> | §4 `PIE-V01-MOUSE-INTERACTION` | ⛔ **non creata**: `PIE-V01-POINTER` esiste ed è stata **estesa** col percorso a tappe |
+> | §5 roadmap MI-0…MI-6 | 🔄 **assorbita** dai checkpoint esistenti: CP 11.8 (contratto e contesto), #737 (produttori), #613, #291, #74, #172/#173, E14 |
+> | §6 commit suggeriti | 🔄 riscritti sui documenti reali toccati |
+>
+> Il documento **aveva ragione su un fatto che l'owner non aveva misurato**: `ARTUnit` possiede già i campi
+> di piano per bersaglio a cella, bordo di copertura e rotazione — e nessuno li scrive dal gioco. Quella
+> riga è diventata [#737](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737) e le §2.1/§6.5
+> dell'owner.
+>
+> Il testo originale non è stato riscritto. Resta per **provenienza**.
+
 # Mouse Interaction — piano di integrazione repository
 
 **Data:** 2026-08-12  
 **Target:** RefactorTactics v0.1 / E11  
-**Documento owner da aggiungere:** `docs/technical/spec-mouse-world-ui-interaction.md`
+~~**Documento owner da aggiungere:** `docs/technical/spec-mouse-world-ui-interaction.md`~~
+→ **owner reale**: [`../../../technical/spec-pointer-interaction.md`](../../../technical/spec-pointer-interaction.md)
 
 ## 1. Nuova issue
 

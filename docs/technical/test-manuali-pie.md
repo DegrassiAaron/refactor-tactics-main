@@ -380,7 +380,7 @@ leggibilità minima nel senso più stretto, non presentazione.
 | **PIE-V01-DEBUG** | Comandi `rt.Debug.*` | build Development o PIE | Gli 8 comandi rispondono; le celle mostrano `CellId`/`TerrainId`/`TraversalCost`/`OccupantId`/`HazardTags`/`CoverEdges`/`ChunkRevision`; **`DrawIntent` non rivela gli intenti avversari** | 🟡 **1 comando su 8 esiste**: `rt.Debug.DrawCells` (`Map/RTHexOverlayConsole.cpp`), verificato in PIE il 2026-08-07 → voce **PIE-DEBUG-CELLS**. La roadmap dichiarava l'area «⏳ *verificato assente*»: era **falso**. Restano `DrawGrid`, `DrawPaths`, `DrawCover`, `DrawIntent`, `DrawResolution`, `DumpSnapshot`, `DumpTurnLog`, `VerifyReplay` (CP 11.4) |
 | **PIE-V01-REACTCOND** | Condizione dichiarata sulla reazione | partita in PIE, unità selezionata con una reazione armata | `rt.Reaction.Condition 50` accetta e lo **dice**; senza reazione armata rifiuta spiegando perché; `rt.Reaction.Condition` senza argomenti la toglie; una soglia oltre 100 è rifiutata. ⚠️ L'effetto sul gioco — meno risposte legali, quindi nessuna finestra — non è osservabile finché CP 14.5 non cabla l'Overwatch nel resolver: qui si verifica il **canale**, non il collasso, che è coperto headless da `Reactions.DeclaredConditionCollapsesToImmediateCommit` | ⏳ |
 | **PIE-V01-GHOSTS** | Ghost Timeline e scrubbing delle fasi | partita in PIE, unità propria con un piano su più fasi | Un ghost **per fase** (Prep · Dash · Blast · Move) mostra dove sarà l'unità e da dove agirà; selezionandone uno gli altri si attenuano; i warning sono marcati *previsto*/*incerto*, mai *confermato*; la reaction armata compare come **ramo con `?`**, non come quinta fase | ⏳ — **registrata il 2026-08-12**, non nuova: il DoD di **CP 11.6** la nominava dal 2026-08-07 in [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md), in [`brief-planning-visuale.md`](brief-planning-visuale.md) e in [`../roadmap/v0.1-issue-plan.md`](../roadmap/v0.1-issue-plan.md), ma **non esisteva una riga in questo registro**. Il link checker non poteva vederlo — `PIE-V01-GHOSTS` è un identificatore, non un link — ed è lo stesso difetto dei due nomi di test inesistenti citati dal gate `G3` prima di CP 14.3 |
-| **PIE-V01-POINTER** | Contratto del puntatore: Hover / LMB / RMB | partita in PIE, unità propria selezionata | Hover non committa **mai**; `LMB` ha un solo significato per contesto; `RMB` annulla targeting e preview di percorso senza toccare un piano già lockato; un click sull'HUD **non** raggiunge la cella sotto; durante il playback nessun input cambia il piano; un nemico **non rilevato** non produce highlight né tooltip. Ogni rifiuto porta un reason code a schermo, non silenzio | ⏳ — owner [`spec-pointer-interaction.md`](spec-pointer-interaction.md), **CP 11.8** |
+| **PIE-V01-POINTER** | Contratto del puntatore: Hover / LMB / RMB | partita in PIE, unità propria selezionata | Hover non committa **mai**; `LMB` ha un solo significato per contesto; `RMB` annulla targeting e preview di percorso senza toccare un piano già lockato; un click sull'HUD **non** raggiunge la cella sotto; durante il playback nessun input cambia il piano; un nemico **non rilevato** non produce highlight né tooltip. Ogni rifiuto porta un reason code a schermo, non silenzio. ➕ *(esteso 2026-08-13)* Il percorso a tappe qui sotto va eseguito **in ordine**, e il gate è uno solo: **il tester non deve mai cliccare per scoprire cosa fa il click** | ⏳ — owner [`spec-pointer-interaction.md`](spec-pointer-interaction.md), **CP 11.8** |
 
 > **Nessuna delle due entra nel subset `RELEASE-V01`.** Il criterio del §8 di
 > [`scenario-map.md`](scenario-map.md) è «senza di essa la v0.1 non è consegnabile», e nomina tre cose:
@@ -388,6 +388,44 @@ leggibilità minima nel senso più stretto, non presentazione.
 > già presidiata da `PIE-V01-HUD` e `PIE-PREVIEW-AREA`; queste due verificano **coerenza e privacy**
 > dell'interazione, che è una quarta cosa. Aggiungerle al subset allargherebbe il gate `G9` di due voci
 > aperte senza che la DoD lo chieda.
+
+#### `PIE-V01-POINTER` — il percorso a tappe
+
+Tredici passi in una sola sessione, senza riavviare. Ogni passo dichiara **cosa si guarda prima di
+cliccare**: se l'affordance non è già a schermo, il passo è fallito anche quando il click fa la cosa giusta.
+
+| # | Azione | Cosa deve essere vero *prima* del click |
+|---|---|---|
+| 1 | Seleziona Gadget | l'unità si evidenzia; nessuna azione risulta armata |
+| 2 | Hover su una cella libera raggiungibile | percorso e costo in preview; il cursore dice `Move` |
+| 3 | `LMB` sulla cella | il waypoint compare dove diceva la preview |
+| 4 | `RMB` | l'ultimo waypoint sparisce; **la selezione non si perde** |
+| 5 | Hover su un nemico rilevato | tooltip pubblico; il cursore dice `Inspect`, **non** un mirino |
+| 6 | `LMB` sul nemico | apre l'inspector e **non pianifica nulla** — [D-128](../decisions/RT_PDR_00_Decision_Log.md) |
+| 7 | Premi `2` | l'azione risulta armata a schermo; il cursore cambia in `TargetUnit` |
+| 8 | Hover sullo stesso nemico | ora c'è il preview dell'attacco: portata, copertura sul lato, esito atteso |
+| 9 | `LMB` | l'attacco è pianificato; `RMB` lo annulla **senza** perdere la selezione |
+| 10 | Hover su una porta con più verbi (quando CP 10.1 la rende interagibile) | stato della porta **intera**, non del segmento colpito |
+| 11 | `LMB` sulla porta | si apre un **elenco di verbi**, ognuno con il proprio motivo; hover su un verbo mostra cosa cambierebbe **senza applicarlo** |
+| 12 | `RMB` | l'inspector si chiude; niente è stato applicato |
+| 13 | `LMB` sul ghost della fase Blast, poi `RMB` | il focus si sposta sulla fase e **non modifica il piano**; `RMB` riporta `PhaseFocus = Auto` |
+
+Due controlli che non sono passi ma vanno fatti lungo tutto il percorso:
+
+- **Una porta non deve rubare il Move.** Al passo 2, se fra il cursore e la cella c'è la mesh di una porta,
+  la cella resta indicabile: il rifiuto, se arriva, deve venire dal percorso e portare un reason.
+- **Un'unità non deve rubare la cella.** Con un'azione ad area armata, la cella occupata da un'unità deve
+  restare bersagliabile. ✅ **Verificabile dal 2026-08-13 sera**: `#737` è atterrata e
+  `ARTPlayerController::HandleTargetCell` dichiara il bersaglio a terra. *(Questa riga diceva «atteso rosso,
+  non è un difetto della sessione»: non vale più, e un controllo che qualcuno salta perché lo crede atteso
+  rosso è peggio di un controllo assente.)*
+
+⚠️ **Cosa in questo percorso è ancora atteso rosso, e perché.** I passi **10-12** — porta, elenco dei verbi,
+chiusura dell'inspector — dipendono da [`#74`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/74)
+per i verbi e da [`#613`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) per il
+contenitore: oggi `OpenContext` non ha nulla da aprire. E un click sull'HUD **raggiunge ancora la cella
+sotto**, perché il Canvas HUD non registra hitbox: è la voce di DoD che aspetta i widget UMG. Il resto del
+percorso — passi 1-9 e 13 — è eseguibile.
 
 ### Strumenti di leggibilità (aggiunti il 2026-08-07)
 

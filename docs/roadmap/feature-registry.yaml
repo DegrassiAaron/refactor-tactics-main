@@ -321,8 +321,11 @@ features:
     owner_specs:
       - docs/gameplay/spec-decision-time-bank.md
       - docs/decisions/adr-0004-finestre-di-reazione.md
-    # 319 = il checkpoint; 318 = la capability dell'harness senza cui gli scenari
-    # di questa feature non sono scrivibili (zero su otto, non sette).
+    # 319 = il checkpoint; 318 = la capability dell'harness senza cui gli scenari di questa
+    # feature non erano scrivibili. CONSEGNATA: `LogEventCount`/`LogEventOrder` (#318) e
+    # `LogEventAmount` (#361, commit a7e4677b del 2026-08-10). Questo commento diceva «zero su
+    # otto, non sette» e restava vero solo fino alla riconciliazione: gli scenari sono DIECI, e
+    # oggi nessuno e' bloccato dall'harness — restano da scrivere, che e' un'altra cosa (CP 14.8).
     issues: [319, 318]
     tests: []
     scenarios:
@@ -347,8 +350,8 @@ features:
       Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest.
       La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.
     last_verified:
-      date: 2026-08-09
-      commit: 75eb0f3
+      date: 2026-08-13
+      commit: 0cff74e
     notes: >
       Sostituisce D20 («nessun cap aggregato, si misura al playtest») **prima** della misura che
       l'avrebbe informata: rischio assunto e dichiarato in §2.1 della spec. I due rientri di
@@ -802,10 +805,30 @@ features:
       - docs/decisions/adr-0008-rotazione-e-policy-di-facing.md
       - docs/decisions/RT_PDR_00_Decision_Log.md
       - docs/technical/spec-turnlog.md
-    issues: [175, 176, 177, 291, 341, 339, 726]
+    issues: [175, 176, 177, 291, 341, 339, 726, 737]
     # La rotazione DICHIARATA (girarsi restando fermi) e' regola implementata ma senza produttore: nessun
     # input la scrive. Il gate `runtime` resta `done` perche' l'orientamento DERIVATO — quello che un'unita'
     # ha in quasi tutti i turni — e' cablato ovunque; il pezzo mancante e' input, ed e' tracciato in #291.
+    #
+    # 🔁 2026-08-13: quel pezzo mancante NON e' isolato, ed e' il motivo per cui #737 compare qui accanto a
+    # #291. `PlannedFacing`/`bDeclaresPlannedFacing` sono uno di TRE campi di piano nella stessa condizione —
+    # gli altri due sono `PlannedAttackCell`/`bAttackTargetsCell` e `PlannedCoverEdge`/`bHasPlannedCoverEdge`:
+    # letti dal `TurnManager`, scritti solo dallo Scenario Harness, mai da `Player/` o `UI/`. Trattarli come
+    # un solo lavoro non e' un accorpamento di comodo: hanno un produttore solo — il contratto del puntatore
+    # (CP 11.8, #705) — e servono lo stesso contesto esplicito. #737 li possiede tutti e tre; #291 resta
+    # aperta per il suo, e la sua ultima casella si spunta li'.
+    #
+    # ✅ **2026-08-13 sera: l'input esiste e la catena e' completa.**
+    # `ARTPlayerController::HandleFacingSector` scrive il campo dal contesto `ERTPointerContext::Facing`,
+    # chiedendo la legalita' a `URTFacingLibrary` e RIFIUTANDO una dichiarazione illegale invece di
+    # correggerla. Caduta la premessa che teneva fuori la chiave di scenario, sono entrate anche quella
+    # (`facing` in `FRTScenarioIntent`) e la capability `DeclaredRotation`: la rotazione dichiarata e' ora
+    # dimostrata sul percorso reale `Intent -> Planning -> Snapshot -> Resolver -> TurnLog`, non solo in
+    # libreria pura.
+    #
+    # ⏳ Di `#291` restano **due** righe, entrambe con un blocco che non e' questo: l'insieme legale
+    # mostrato a schermo (`#613`, senza il quale il giocatore scopre il rifiuto provando) e il bot, che
+    # non dichiara rotazioni. Nessuna delle due impedisce di usare la feature: impediscono di usarla bene.
     completed_by:
       - RT-FEAT-UI-PLANNING
     tests:
@@ -822,6 +845,11 @@ features:
       - RefactorTactics.Facing.TurnLogNamesConsumerAndReason
       - RefactorTactics.Facing.PermutationInvariant
       - RefactorTactics.Facing.IntentIsTeamFiltered
+      # La chiave `facing` dell'intent di scenario, e l'ANCORA che impedisce ai due scenari nuovi di
+      # scivolare in `BLOCKED` in silenzio. La seconda e' nata da una misura: togliendo la capability,
+      # i due scenari passavano a `BLOCKED` e l'intera suite restava **verde**.
+      - RefactorTactics.Scenario.LoaderReadsDeclaredFacing
+      - RefactorTactics.Scenario.DeclaredRotationScenariosPass
       - RefactorTactics.Combat.BackAttackIgnoresCover
       - RefactorTactics.Combat.FlankAttackKeepsCover
       - RefactorTactics.Combat.ShieldWorksFromAnyDirection
@@ -836,6 +864,12 @@ features:
       - Spec.Facing.FrontAttackKeepsGuard
       - Spec.Facing.BraceHoldsFromBehind
       - Spec.Facing.TurningPathUsesLastCompletedStep
+      # 🔁 2026-08-13: i due della ROTAZIONE DICHIARATA, che fino a stamattina non erano scrivibili —
+      # non per tempo, ma perche' la chiave `facing` nell'intent avrebbe reso l'harness il primo
+      # produttore di `PlannedFacing`. Con `#737` il produttore esiste e la premessa e' caduta.
+      # Si reggono a vicenda: il rifiuto da solo passerebbe anche con un resolver che rifiuta tutto.
+      - Spec.Facing.IllegalDeclaredRotationIsRejected
+      - Spec.Facing.StationaryDeclaredRotationApplies
     wiki_refs:
       - wiki:facing-e-direzionalita
     # 🔴 Questa nota diceva «Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui
@@ -2516,10 +2550,11 @@ features:
       - Spec.Clash.StandBeatsShift
       - Spec.Clash.ShiftBeatsRead
       - Spec.Clash.TieAppliesOnce
-      # Non e' «da scrivere»: oggi e' **impossibile**. `ERTAssertionKind` ha cinque assertion
-      # (`UnitAtCell`, `TurnsCompleted`, `UnitHpEquals`, `UnitAlive`, `UnitFacing`) e leggono tutte
-      # lo **stato finale**; nessuna legge il TurnLog, l'ordine degli eventi o un hash. Questi tre
-      # scenari chiedono esattamente quello. Servono assertion nuove nell'harness prima dei file.
+      # Erano «impossibili» e non lo sono piu' — rimisurato il 2026-08-13. Questo commento diceva che
+      # `ERTAssertionKind` ha cinque assertion di solo stato finale: ne ha OTTO, e le tre aggiunte
+      # leggono il TurnLog — `LogEventCount`/`LogEventOrder` (#318) e `LogEventAmount` (#361,
+      # a7e4677b del 2026-08-10). Questi tre chiedevano esattamente quello: ordine degli eventi,
+      # assenza di una voce prima del reveal, hash uguale fra due run. Restano da scrivere (CP 14.7).
       - planned:
           - Spec.Clash.HiddenUntilReveal
           - Spec.Clash.RevealIsFixedDeadline
@@ -3427,7 +3462,9 @@ features:
     kind: ui
     release: v0.1
     priority: P1
-    status: SPECIFIED
+    # Derivato dai gate, non dichiarato: `runtime: partial` -> `IMPLEMENTING`. Era `SPECIFIED` fino al
+    # 2026-08-13 mattina, quando nessuna delle cinque proprieta' esisteva.
+    status: IMPLEMENTING
     gates:
       # `spec-pointer-interaction.md` tiene la matrice `oggetto x contesto x input -> esito` e nomina
       # i servizi autorevoli a cui ogni domanda va girata.
@@ -3436,19 +3473,26 @@ features:
       # (`ARTPlayerController::BuildInputMappings`, nessun .uasset richiesto): non c'e' catalogo,
       # data asset o config da rendere coerente. `na` per assenza strutturale, non per rinuncia.
       data: na
-      # ⚠️ `todo` e NON `partial`, ed e' un giudizio che vale la pena scrivere perche' la tentazione
-      # opposta e' forte: hover, LMB e RMB **esistono e sono consumati** oggi
-      # (`RTPlayerController.cpp:231,246-247,298-321`). Ma quello e' il comportamento che il contratto
-      # governera', non una consegna parziale del contratto: nessuna delle cinque proprieta' che la
-      # feature aggiunge esiste — contesto esplicito, precedenza HUD->mondo, target logico dal resolver
-      # di hit, filtro di rilevamento sull'hover, reason code sul rifiuto. Marcarlo `partial` farebbe
-      # derivare `IMPLEMENTING` (regola: `runtime` done **o** partial) per un checkpoint che nessuno ha
-      # iniziato, ed e' esattamente il modo in cui CP 14.3 ha detto «fatto» per nove ore.
-      runtime: todo
-      # I reason code del rifiuto sono una voce di DoD, non un fatto: oggi `OnSelect` esce con un
-      # `UE_LOG` sui due rami avversari (`:423`) e in **silenzio** su tutti gli altri.
-      log_debug: todo
-      automation: todo
+      # 🔁 **Era `todo` fino al 2026-08-13 mattina, ed era il giudizio giusto allora**: nessuna delle
+      # cinque proprieta' della feature esisteva, e marcarlo `partial` avrebbe fatto derivare
+      # `IMPLEMENTING` per un checkpoint che nessuno aveva iniziato — il modo in cui CP 14.3 ha detto
+      # «fatto» per nove ore.
+      #
+      # ✅ Ora `partial`, e le proprieta' consegnate sono TRE su cinque, misurate: contesto esplicito
+      # (`ARTPlayerController::GetPointerContext`, derivato e non memorizzato), target logico dal
+      # resolver di hit (`URTPointerLibrary::ResolveTarget`), stato neutro (D-128). ⏳ Restano la
+      # precedenza HUD->mondo, che dipende dalle hitbox UMG di `#613`, e il filtro di rilevamento
+      # sull'hover, che dipende da E13. Nessuna delle due e' rimandata per tempo: mancano i produttori.
+      runtime: partial
+      # `partial`: i tre produttori nuovi dichiarano il MOTIVO del rifiuto (`UE_LOG` con la ragione:
+      # non pronta, fuori portata, illegale per lo stile). I rami preesistenti di `OnSelect` restano in
+      # silenzio su tutto tranne i due avversari, e il reason **a schermo** e' `#613`.
+      log_debug: partial
+      # `partial` e non `done`: dieci test coprono cio' che e' stato consegnato — contesto, precedenza
+      # semantica, ordine del Back, i tre produttori — e tutti e dieci sono passati per la verifica di
+      # mutazione. Ne restano nove dichiarati e non scritti (HUD, privacy, playback, `ReactionWindow`,
+      # `OpenContext`), e ognuno aspetta un produttore, non del tempo.
+      automation: partial
       scenario: todo
       ui_wiki: todo
       packaged: todo
@@ -3468,13 +3512,24 @@ features:
       - RT-FEAT-UI-SCREEN-HUD
     owner_specs:
       - docs/technical/spec-pointer-interaction.md
-    issues: [705]
-    # ⚠️ **Vuoto di proposito, e non e' pigrizia.** Gli otto nomi `RefactorTactics.PlayerInput.*` sono
-    # dichiarati nel DoD di CP 11.8 e nell'owner, ma **non esistono nella suite**: `validate` tratta un
-    # pattern senza corrispondenza come **errore** (`feature_registry.py:372`), non come avviso — ed e'
-    # la protezione giusta. Il gate `G3` ha gia' citato due nomi di test inesistenti prima di CP 14.3;
-    # qui il registro si rifiuta di ripetere l'esperienza. I nomi entrano quando entrano i test.
-    tests: []
+    issues: [705, 737]
+    # 🔁 **Era vuoto di proposito fino al 2026-08-13 mattina**, e la ragione vale ancora per i nove nomi
+    # che restano dichiarati nell'owner e non scritti: `validate` tratta un pattern senza corrispondenza
+    # come **errore** (`feature_registry.py:372`), non come avviso, ed e' la protezione giusta. Il gate
+    # `G3` ha gia' citato due nomi di test inesistenti prima di CP 14.3.
+    #
+    # ✅ Questi dieci ESISTONO e sono verdi. Gli altri entrano quando entrano i test, mai prima.
+    tests:
+      - RefactorTactics.PlayerInput.NeutralEnemyClickDoesNotPlan
+      - RefactorTactics.PlayerInput.PathingCellWinsOverDoorMesh
+      - RefactorTactics.PlayerInput.TargetCellIgnoresOccupyingUnit
+      - RefactorTactics.PlayerInput.GhostIsNeverAGameplayTarget
+      - RefactorTactics.PlayerInput.RightClickBackFollowsTotalOrder
+      - RefactorTactics.PlayerInput.RightClickNeverDeselects
+      - RefactorTactics.PlayerInput.TargetCellProducesPlannedAttackCell
+      - RefactorTactics.PlayerInput.TargetEdgeProducesPlannedCoverEdge
+      - RefactorTactics.PlayerInput.FacingSectorProducesPlannedFacing
+      - RefactorTactics.PlayerInput.IllegalFacingIsRejectedNotCorrected
     scenarios:
       planned:
         - Visual.UI.SelectMoveCancel
@@ -3488,8 +3543,8 @@ features:
     pie_refs:
       - PIE-V01-POINTER
     last_verified:
-      date: 2026-08-12
-      commit: ee0da4b3
+      date: 2026-08-13
+      commit: 5f11a88f
     notes: >
       Aperta il 2026-08-12 dal reconciliation di roadmap
       (`plans/roadmap-reconciliation-2026-08-12.md`). ⚠️ **Non e' un redesign dell'input**: nove regole
@@ -3502,6 +3557,58 @@ features:
       sono di privacy e ownership, e dipendono da E13 e da `RT-FEAT-UI-ACTION-GHOSTS`.
       Riprende la domanda rimasta orfana di `../technical/spec-hover-cella.md`, `HISTORICAL` dal pivot
       esagonale: nessun owner aveva ereditato «cosa succede sotto il cursore».
+
+
+      🔁 **Rimisurata il 2026-08-13 su `3cec1d57`, e i delta sono cinque.** Consolidando due sorgenti
+      (archiviati in `../archive/src/design/`) sono emerse due assenze che la misura del 2026-08-12 non
+      aveva contato, ed entrambe sono lavoro runtime, non prosa. **(d) Non esiste uno stato neutro**:
+      `SelectedAbilityIndex` nasce a `0` (`RTUnit.h:170`) e le sole scritture lo portano su un altro
+      indice valido (`ARTUnit::SelectAbility`, dagli hotkey) — nessun percorso lo riporta a `INDEX_NONE`.
+      Un'abilita' e' quindi **sempre** armata, e `RTPlayerController.cpp:411-415` pianifica lo slot `0` a
+      ogni click su un nemico. E' l'incoerenza che l'owner portava nella propria §5.1 — hover `Inspect`,
+      click `Confirm` — e che **D-128** chiude scegliendo il lato dell'affordance. **(e) Non esiste un
+      produttore UI** per tre campi che il resolver gia' consuma: `PlannedAttackCell`/`bAttackTargetsCell`,
+      `PlannedCoverEdge`/`bHasPlannedCoverEdge`, `PlannedFacing`/`bDeclaresPlannedFacing` sono letti dal
+      `TurnManager` e scritti **solo** dallo Scenario Harness (`RTScenarioSession.cpp:666-675`) e dai test.
+      Nessuna assegnazione in `Player/` o `UI/` — verificabile col comando in §2.1 dell'owner, che oggi
+      non stampa nulla. E' `#737`, che chiude anche la riga aperta di `#291`.
+
+
+      ⚠️ **Il gate `runtime` resta `todo` e non diventa `partial`**, e le due voci nuove rafforzano il
+      giudizio invece di indebolirlo: sono altre due proprieta' assenti, non consegne parziali. Il gate
+      `scenario` resta `todo` per la stessa ragione di sempre — i sei scenari non si possono scrivere
+      prima che il contesto esista — ma va letto insieme a una nota che ora e' misurata: la capability
+      `PredictiveAction` e' dichiarata disponibile nell'harness con la motivazione *«un canale che il
+      gioco ha gia'»*, che alla misura del 2026-08-13 e' **falsa**. Resta disponibile per scelta (quattro
+      scenari la usano e coprono regole vere: `Spec/Cover/TemporaryCoverExpires`,
+      `Spec/Facing/FrontHitOnCoverIsSilent`, `Spec/Facing/RearHitOnCoverIsTraced`,
+      `Spec/Predictive/WhiffOnEmptyCell`), col commento corretto in `RTScenarioSession.cpp` e il debito su
+      `#737`. Quando il produttore esiste, la motivazione torna vera da sola.
+
+
+      ✅ **2026-08-13 sera — `#737` e' atterrata, e con essa la prima meta' del contratto.** I tre
+      produttori esistono: `HandleTargetCell`, `HandleTargetEdge`, `HandleFacingSector` in
+      `ARTPlayerController`. Il `TargetKind` e' **derivato dal catalogo**
+      (`URTPointerLibrary::TargetKindForAction`: `StructureOp != None` -> `Edge`, `Shape == Area` ->
+      `Cell`, altrimenti `Unit`) e non un campo nuovo, cosi' non nasce una seconda fonte di verita'
+      accanto a due che lo dicevano gia'. `SelectedAbilityIndex` nasce a `INDEX_NONE` (D-128): lo stato
+      neutro esiste, e con esso la possibilita' di ispezionare senza pianificare.
+
+
+      ⚠️ **La motivazione di `PredictiveAction` e' tornata vera da sola**, come previsto: il canale ora
+      esiste e il verde di quei quattro scenari dice qualcosa di vero sul giocatore. `Facing` e
+      `DeclaredRotation` restano invece FUORI dalle capability dell'harness, ma per un'altra ragione —
+      la premessa «l'harness sarebbe il primo produttore» non vale piu', e cio' che manca e' la chiave
+      `facing` in `FRTScenarioIntent` piu' lo scenario che la dimostri: due righe aperte di `#291`, da
+      fare insieme. Aggiungere la capability senza la chiave darebbe un `BLOCKED` che mente sul motivo.
+
+
+      ⏳ **Cio' che resta ha un nome e un blocco, mai «del tempo»**: precedenza HUD -> mondo e reason a
+      schermo dipendono da `#613` (senza hitbox UMG non c'e' nulla che consumi il puntatore); il filtro
+      di rilevamento sull'hover dipende da E13; `OpenContext` dipende da `#74` per i verbi e da `#613`
+      per il contenitore. `ReactionWindow` e `Modal` sono ordinati e testati in `ResolveBack` ma
+      `GetPointerContext()` non li restituisce mai: nessuno li produce, e inventare un flag sarebbe il
+      difetto che questa stessa voce documenta.
 
   - feature_id: RT-FEAT-UI-ACTION-GHOSTS
     title: Action Ghosts e Ghost Timeline
@@ -4981,6 +5088,11 @@ features:
     gates:
       spec: partial
       data: done
+      # partial dal 2026-08-13 dopo #620: la GRAMMATICA e il suo validator esistono nel modulo runtime
+      # (`RTGeometryGrammar.h`, 11 test verdi, sei mutazioni nessuna sopravvissuta). Resta partial perche'
+      # la COTTURA verso `FRTHexCover`/`bBlocksMovement` e' #621 e non esiste: oggi la grammatica ha un
+      # produttore di test e nessun consumatore di produzione, che e' la sequenza voluta -- fissare la
+      # regola prima del bake costa zero, come per D-125.
       runtime: partial
       log_debug: todo
       automation: done
@@ -5019,6 +5131,9 @@ features:
     issues: [619, 620, 621, 712, 717]
     tests:
       - RefactorTactics.HexOccupancy.*
+      # #620: la grammatica quantizzata. Undici test, e cinque di essi hanno per soggetto UNA regola
+      # ciascuno perche' la verifica di mutazione del DoD chiede che cada esattamente quello atteso.
+      - RefactorTactics.GeometryGrammar.*
     scenarios:
       # L'unico scenario che questa feature produce: le quattro fixture di geometria NON sono
       # scenari (`FRTScenarioCell` non sa esprimere un segmento) e vivono in
@@ -5032,7 +5147,7 @@ features:
       # Rimisurato dopo D-125: il commit precedente (05bbe3dc, merge di #714) e' ANTENATO di c1c96a30,
       # cioe' la voce era stata verificata due ore prima della decisione che la cambia.
       date: 2026-08-13
-      commit: 17cc1400
+      commit: 5f11a88f
     notes: >
       Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici
       settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked`

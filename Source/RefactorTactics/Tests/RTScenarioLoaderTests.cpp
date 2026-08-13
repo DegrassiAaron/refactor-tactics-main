@@ -116,7 +116,18 @@ bool FRTScenarioLoaderRejectsTest::RunTest(const FString&)
 	// Chiave di INTENT sconosciuta (CP 16.1). Prima veniva ignorata in silenzio, e uno scenario che chiedeva
 	// qualcosa che l'harness non sa fare girava verde verificando tutto tranne quello. Vale anche per un refuso
 	// su una chiave vera: `dashCell` al posto di `dashTo` e' l'errore che questo controllo coglie per primo.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Flux","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","facing":"NE"}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	//
+	// 🔴 **La fixture era `"facing":"NE"`, ed e' stata cambiata il 2026-08-13 perche' ha smesso di essere
+	// inventata.** Era stata scelta proprio perche' `facing` era l'esempio canonico di «cosa che l'harness non
+	// sa fare» — il commento del loader lo dice ancora: *«uno scenario che chiedeva un orientamento
+	// dichiarato, per dire»*. Con #291/#737 la chiave esiste, quindi quel JSON ora si CARICA e il test
+	// falliva chiedendo un rifiuto che non doveva piu' arrivare.
+	//
+	// Il test non aveva torto: la sua fixture dipendeva dall'ASSENZA di una feature, e nessun gate lo
+	// segnala. Sostituita con `dashCell`, il refuso che il commento qui sopra nomina da sempre — che ha il
+	// pregio di essere un errore realistico invece di una chiave impossibile, e nessuno ha in programma di
+	// implementarlo.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Flux","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("chiave sconosciuta"), TEXT("chiave di intent inventata"));
 
 	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Bastion","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dash":"Bastion.Ram","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
@@ -508,6 +519,76 @@ bool FRTScenarioLoaderVariantsTest::RunTest(const FString&)
 			         { "name": "b", "units": [ { "id": "A1", "cell": [-3, 0, 0] } ] })"),
 			TEXT(R"("expectSameAcrossVariants": true,)"), Scenario, Error);
 		TestFalse(TEXT("spostare un'unita' non schierata e' rifiutato"), bOk);
+	}
+
+	return true;
+}
+
+/**
+ * La rotazione DICHIARATA nell'intent (D-020, #291): la chiave si legge, il flag distingue «E» dichiarato da
+ * «campo assente», e una direzione inventata viene rifiutata con un motivo.
+ *
+ * ⚠️ **Il flag e' la meta' che conta.** `ERTHexDirection::E` e' il valore di default del campo *e* una
+ * direzione legittima: senza `bDeclaresFacing` un intent che non nomina `facing` sarebbe indistinguibile da
+ * uno che chiede di girarsi a est, e ogni unita' di ogni scenario dichiarerebbe una rotazione senza saperlo.
+ * E' la stessa ragione per cui `TargetCell` ha `bTargetsCell` e `CoverEdge` ha `bHasCoverEdge`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDeclaredFacingTest,
+	"RefactorTactics.Scenario.LoaderReadsDeclaredFacing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDeclaredFacingTest::RunTest(const FString&)
+{
+	auto Load = [](const TCHAR* IntentJson, FRTTestScenario& Out, FString& Error)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Test.DeclaredFacing",
+		  "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [0, 0, 0] },
+		             { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [2, 0, 0] } ],
+		  "turns": [ { "requires": ["DeclaredRotation"], "intents": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), IntentJson);
+		return URTScenarioLoader::LoadFromString(Json, Out, Error);
+	};
+
+	// 1. Dichiarata: arriva la direzione E si alza il flag.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "unit": "A1", "facing": "NW" })"), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk)
+			&& TestTrue(TEXT("un turno con un intent"),
+				Scenario.Turns.Num() == 1 && Scenario.Turns[0].Intents.Num() == 1))
+		{
+			const FRTScenarioIntent& Intent = Scenario.Turns[0].Intents[0];
+			TestTrue(TEXT("il flag dichiara che la rotazione c'e'"), Intent.bDeclaresFacing);
+			TestEqual(TEXT("ed e' quella scritta nel file"), Intent.Facing, ERTHexDirection::NW);
+		}
+	}
+
+	// 2. NON dichiarata: il flag resta falso. Senza questa meta' il caso 1 passerebbe anche con un flag
+	//    sempre vero, e ogni intent del repository si porterebbe dietro una rotazione mai chiesta.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "unit": "A1", "move": [[1, 0, 0]] })"), Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk)
+			&& Scenario.Turns.Num() == 1 && Scenario.Turns[0].Intents.Num() == 1)
+		{
+			TestFalse(TEXT("senza la chiave, nessuna rotazione dichiarata"),
+				Scenario.Turns[0].Intents[0].bDeclaresFacing);
+		}
+	}
+
+	// 3. Direzione inventata: rifiutata con un motivo, non ricondotta silenziosamente a `E`.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = Load(TEXT(R"({ "unit": "A1", "facing": "NNE" })"), Scenario, Error);
+		TestFalse(TEXT("una direzione inesistente e' rifiutata"), bOk);
+		TestTrue(FString::Printf(TEXT("e il motivo la nomina (era: '%s')"), *Error),
+			Error.Contains(TEXT("NNE")));
 	}
 
 	return true;
