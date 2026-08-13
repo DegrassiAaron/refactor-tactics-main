@@ -249,9 +249,12 @@ Prima di modificare un file, il path deve appartenere al `writable` della tua tr
 ferma** e si registra una richiesta di riallocazione: non si fa «solo questa piccola fix». Vale per C++,
 docs, scripts, Config, `.uasset`, `.umap`, test e output generati.
 
-Tre categorie non si assegnano: `integration_only` si aggiorna **una volta** in integrazione,
-`generated_only` si rigenera **dopo** il merge, `preexisting` sono i branch già vivi — che non fanno parte
-del batch, ma lo determinano. Il write-set di un branch aperto si **misura**:
+Tre categorie non si assegnano: `integration_only` si aggiorna **una volta** in integrazione;
+`generated_only` **segue la propria sorgente** — chi possiede la sorgente rigenera quella vista, ed è
+l'unico a poterlo fare, mentre due track che possiedono sorgenti della stessa vista sono in conflitto e una
+esce dal batch; `preexisting` sono i branch già vivi, che non fanno parte del batch ma lo determinano. Il
+write-set di un branch aperto si **misura**, mai si intuisce — dichiararlo a memoria ha già prodotto una
+collisione al primo batch:
 
 ```powershell
 git worktree list

@@ -359,15 +359,17 @@ SPATIAL
 SIMULATION
   issue:            #583 — il produttore della condizione dichiarata di D-109
   branch:           feat/583-produttore-d109
-  writable:         Source/RefactorTactics/Turn/, Bot/, ScenarioHarness/
+  writable:         Source/RefactorTactics/Turn/, Bot/
                     Tests/RTReactionTests.cpp
   binary leases:    nessuna
-  ⚠️                Tests/RTScenarioCorpusTests.cpp NON è scrivibile: lo tiene wt-cap
+  ⚠️                ScenarioHarness/ TOLTA dal write-set: la tiene wt-cap (misurato)
 
 CLIENT / REPLAY / TOOLS
-  IDLE — nessun task utile con write-set disgiunto.
-  #625 e #170 vivono in Turn/ e Replay/ accanto a #583; #77 (CP 11.1) tocca UI/ ma
-  anche i test che le altre due track già scrivono.
+  IDLE per DIPENDENZA, non per adiacenza di dominio.
+  #170 (CP 15.4) dichiara «Dipende da: CP 15.3» = #512, aperta: il gate non è
+  raggiungibile in questo giro. #77 (CP 11.1) tocca UI/ ma anche i test che le
+  altre due track già scrivono.
+  Source/RefactorTactics/Replay/ resta LIBERA e non assegnata.
 
 CONTENT / EDITOR
   IDLE — la coda umana è ferma su un binario già conteso.
@@ -379,6 +381,38 @@ CONTENT / EDITOR
 
 ⚠️ **Due track su quattro sono IDLE, e questo batch è quindi da due processi, non da quattro.** È il §40
 applicato alla lettera: il conto giusto non è quante track hai riempito, è quanti merge conflict non avrai.
+
+### 9-bis. Il primo batch violava il proprio invariante, e l'ha trovato la code review
+
+🔴 **La prima stesura assegnava `Source/RefactorTactics/ScenarioHarness/` a `simulation` mentre `wt-cap` la
+stava riscrivendo.** Il write-set di quel branch era stato **dichiarato a memoria** — «tiene
+`RTScenarioCorpusTests.cpp`» — invece che misurato col comando che la §12 di
+[`workflow-parallel-claude.md`](../../technical/workflow-parallel-claude.md) prescrive tre righe sopra:
+
+```powershell
+git diff --name-only 84cbb70c...fix/capability-sconosciuta-non-e-blocked
+```
+
+Restituisce **sette** file, non uno. `WritableSet(simulation) ∩ WritableSet(wt-cap) ≠ ∅`, alla **prima
+applicazione** del meccanismo, e per il difetto esatto contro cui il meccanismo esiste. Corretto togliendo
+la directory e riportando i sette path misurati in `preexisting.holds`.
+
+🔴 **E la regola su `generated_only` era insoddisfacibile.** Scritta come *«non si assegnano a nessuno»*,
+lasciava chi tocca una sorgente senza uscite legali: né rigenerare (path non assegnato) né lasciar stare
+(`--check` rosso). Il caso non è teorico — `wt-cap` possiede `RTScenarioSession.cpp`, che è la sorgente
+delle capability di `scenariomap.shortlist.md`, e ha già rigenerato la vista, **correttamente**. La regola
+è stata riscritta: *una vista non si assegna, **segue la propria sorgente***; due track che possiedono
+sorgenti della stessa vista sono in conflitto, e il test si fa in **selezione**, non al merge. Il campo
+`derives_from` rende la catena verificabile invece che ricordata.
+
+⚠️ **Anche questa PR violava la regola che stava scrivendo**: modificava ~200 righe di
+`workflow-parallel-claude.md` senza che il file fosse in nessuna categoria del batch. Aggiunto a
+`integration_only`, dove stanno già `AGENTS.md` e il Decision Log.
+
+Il valore di queste tre righe non è la correzione: è che **un meccanismo dichiarativo senza gate produce
+esattamente i difetti che descrive**, e li produce nel documento che li descrive. È l'argomento più forte
+per [#840](https://github.com/DegrassiAaron/refactor-tactics-main/issues/840), e non era disponibile prima
+di provare a usarlo.
 
 ---
 

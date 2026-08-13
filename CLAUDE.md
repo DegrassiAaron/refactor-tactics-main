@@ -73,7 +73,9 @@ Per implementazioni non banali, preflight breve:
   directory, dillo invece di conviverci.
 - **File non assegnato = STOP** (**D-139**): il path deve stare nel `writable` della tua track in
   `docs/roadmap/parallel-batch.yaml`. Altrimenti ti fermi e lo dici — niente «solo questa piccola fix».
-  `integration_only` si aggiorna una volta in integrazione, i generati **dopo** il merge.
+  `integration_only` si aggiorna una volta in integrazione; una vista generata **segue la sorgente** —
+  la rigenera chi possiede la sorgente, e nessun altro. Il write-set di un branch aperto si **misura**
+  (`git diff --name-only origin/main...<branch>`), non si ricorda.
 - `D-nnn` non si sceglie a mano: `python scripts/rt_shared_id.py reserve D` — si usa l'ID che stampa
   (**D-135**).
 - Prima del merge: `rt_shared_id.py check`, poi `git fetch --prune origin` e `audit-refs`.

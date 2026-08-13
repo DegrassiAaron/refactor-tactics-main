@@ -253,13 +253,25 @@ Tre categorie non si assegnano a nessuno:
 - **`integration_only`** — i file che più branch potrebbero voler toccare (`AGENTS.md`, il Decision Log,
   `feature-registry.yaml`, `scripts/feature_registry.py`, il `.uproject`, `Config/`). Si aggiornano **una
   volta**, in integrazione. Non è ownership permanente: è una proprietà del batch.
-- **`generated_only`** — le viste generate. Non si **modificano** mai a mano e non si rigenerano per
-  abitudine: un branch le tocca **solo se ha toccato una sorgente**, perché in quel caso il `--check` è
-  rosso e consegnarlo così sarebbe peggio. La regola è quindi al contrario di come verrebbe da scriverla —
-  ⚠️ *un branch che non ha toccato sorgenti e rigenera lo stesso porta dentro modifiche altrui*, e sembrano
-  sue. E in ogni caso **si rigenera un'ultima volta sull'albero unito**: due rami che rigenerano ciascuno
-  sulla propria base producono due versioni dello stesso file da una sorgente che nessuno dei due vede
-  intera, e il conflitto che ne esce non si risolve scegliendo un lato.
+- **`generated_only`** — le viste generate. **Non si assegnano mai direttamente: seguono la propria
+  sorgente.** Chi possiede la sorgente nel proprio `writable` è autorizzato — e obbligato — a rigenerare
+  esattamente le viste che quella sorgente alimenta, e nient'altro. Se due track possiedono sorgenti della
+  **stessa** vista, quella vista è contesa e una delle due esce dal batch: è un test da fare in fase di
+  **selezione**, non al merge.
+
+  ⚠️ *«Vietato a tutti» è la formulazione sbagliata, e la prima stesura di questa riga la usava.* Produce
+  una coppia di regole **insoddisfacibile**: chi tocca una sorgente non può né rigenerare (path non
+  assegnato) né lasciar stare (`--check` rosso). Il caso è reale — `wt-cap` possiede `RTScenarioSession.cpp`
+  e ha già dovuto rigenerare `scenariomap.shortlist.md`, correttamente.
+
+  ⚠️ *Un branch che **non** ha toccato sorgenti e rigenera lo stesso porta dentro modifiche altrui*, e
+  sembrano sue. E in ogni caso **si rigenera un'ultima volta sull'albero unito**: due rami che rigenerano
+  ciascuno sulla propria base producono due versioni dello stesso file da una sorgente che nessuno dei due
+  vede intera, e il conflitto che ne esce non si risolve scegliendo un lato.
+
+  ➕ Il repository ha **due** toolchain: `feature_registry.py` in Python e `tools/radar/` in Node, che
+  produce otto SVG versionati con un `--check` proprio ([D-108](../decisions/RT_PDR_00_Decision_Log.md)).
+  Chi tocca `docs/balance/` rende rosso il secondo gate senza che il primo dica niente.
 - **`preexisting`** — i branch già vivi al momento del calcolo. Non fanno parte del batch: sono il vincolo
   che lo determina.
 
