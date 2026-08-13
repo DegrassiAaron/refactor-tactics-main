@@ -93,6 +93,37 @@ class OwnerTableIsParsed(unittest.TestCase):
                           f"rifiuterebbe in `roadmap.epic`")
 
 
+class PostV01CheckpointsAreAssignable(unittest.TestCase):
+    """Il gemello del difetto sopra, e ne condivide la forma: `epics` aveva imparato a leggere
+    l'owner post-v0.1, `checkpoints` no.
+
+    `roadmap-post-v0.1.md` dichiara i propri checkpoint nella stessa forma tabellare della v0.1 —
+    `| **23.6** | ... |` — ma `known_roadmap_refs()` li leggeva dal solo `roadmap-v0.1.md`. Una
+    feature che li citasse riceveva «checkpoint inesistente», ed e' la ragione per cui le due feature
+    di `E23` portavano `checkpoints: []` pur avendo `23.6` e `23.7` scritti nell'owner da `D-065`:
+    per **impossibilita'**, non per scelta. Corretto da `D-138`.
+    """
+
+    def setUp(self):
+        _epics, self.checkpoints, _milestones = fr.known_roadmap_refs()
+
+    def test_e23_checkpoints_from_the_post_v01_owner_are_known(self):
+        # I due che l'owner dichiara da D-065, piu' i tre del consolidamento di D-138.
+        for cp in ("23.3", "23.4", "23.5", "23.6", "23.7"):
+            self.assertIn(cp, self.checkpoints,
+                          f"{cp} e' dichiarato da roadmap-post-v0.1.md ma il validator lo "
+                          f"rifiuterebbe in `roadmap.checkpoints`")
+
+    def test_v01_checkpoints_are_still_read(self):
+        # La correzione aggiunge una sorgente, non la sostituisce.
+        self.assertIn("9.3", self.checkpoints)
+
+    def test_an_undeclared_checkpoint_is_still_rejected(self):
+        # Il gate deve sapere ancora fallire: allargare la sorgente non e' accettare qualunque cosa.
+        self.assertNotIn("23.9", self.checkpoints)
+        self.assertNotIn("99.1", self.checkpoints)
+
+
 class ReleaseViewIsFilteredByRelease(unittest.TestCase):
     """La tabella §2.2 e' la vista della v0.1, e una feature di un'altra release non ci entra."""
 

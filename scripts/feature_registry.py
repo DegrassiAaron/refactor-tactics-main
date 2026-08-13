@@ -188,6 +188,18 @@ def known_roadmap_refs():
         checkpoints.update(re.findall(r"^\| \*\*(\d+\.\d+)\*\*", text, re.M))
         # Forma prefissata: `E9.1` dichiara il checkpoint 9.1 dell'epic E9.
         checkpoints.update(re.findall(r"\bE(\d+\.\d+)\b", text))
+    # ⚠️ Il gemello del difetto descritto qui sopra, sopravvissuto alla sua correzione. Il 2026-08-13
+    # `epics` ha imparato a leggere l'owner post-v0.1; `checkpoints` no, ed e' rimasto a conoscere i soli
+    # checkpoint della v0.1. La conseguenza e' identica e altrettanto silenziosa: `roadmap-post-v0.1.md`
+    # DICHIARA 44 checkpoint nella stessa forma tabellare di `roadmap-v0.1.md` — `| **23.6** | ... |` — ma
+    # una feature che li citasse riceveva «checkpoint inesistente». Ecco perche' `RT-FEAT-MAP-STANDABILITY`
+    # e `RT-FEAT-MAP-TRANSITION-CLEARANCE` portano `checkpoints: []` pur avendo `23.6` e `23.7` scritti
+    # nell'owner da `D-065`: per impossibilita', non per scelta. Stessa forma, stesso rimedio (`D-138`).
+    if os.path.isfile(ROADMAP_POST_V01):
+        text = open(ROADMAP_POST_V01, encoding="utf-8").read()
+        checkpoints.update(re.findall(r"CP (\d+\.\d+)", text))
+        checkpoints.update(re.findall(r"^\| \*\*(\d+\.\d+)\*\*", text, re.M))
+        checkpoints.update(re.findall(r"\bE(\d+\.\d+)\b", text))
     if os.path.isfile(ROADMAP_CHECKPOINT):
         text = open(ROADMAP_CHECKPOINT, encoding="utf-8").read()
         milestones.update(re.findall(r"\*\*(M\d+)\*\*", text))
