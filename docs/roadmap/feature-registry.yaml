@@ -513,7 +513,7 @@ features:
       replay_representable: na
     roadmap:
       epic: E23
-      checkpoints: []
+      checkpoints: ["23.6"]
     dependencies:
       - RT-FEAT-MAP-HEXGRAPH
       - RT-FEAT-TOOL-MAP-EDITOR
@@ -564,7 +564,7 @@ features:
       replay_representable: na
     roadmap:
       epic: E23
-      checkpoints: []
+      checkpoints: ["23.7"]
     dependencies:
       - RT-FEAT-MAP-STANDABILITY
       - RT-FEAT-MAP-PATHFINDING
@@ -589,6 +589,96 @@ features:
       Include la *swept clearance* — la transizione verifica il corridoio attraversato, non i soli estremi —
       che per `D-071` usa **lo stesso raggio** del footprint. Costo dichiarato: il varco «ci passo ma non ci
       sto» non e' modellabile, perche' calpestabile e attraversabile condividono la soglia.
+
+  - feature_id: RT-FEAT-MAP-STRUCTURE-IDENTITY
+    title: Identita' stabile di una struttura attraverso cook, scenari e replay
+    area: Map
+    kind: gameplay
+    release: v0.2
+    priority: P1
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: na
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+      replay_representable: todo
+    roadmap:
+      epic: E23
+      checkpoints: ["23.3"]
+    dependencies:
+      - RT-FEAT-MAP-INTERACTIVE-EDGES
+      - RT-FEAT-MAP-SPECIAL-TRANSITIONS
+    owner_specs:
+      - docs/roadmap/plans/walls-doors-interaction-spec-panel-2026-08-13.md
+    issues: [324, 832]
+    tests: []
+    scenarios: []
+    wiki_refs:
+      - wiki:topologia-dinamica
+    wiki_note: >-
+      Il giocatore vede una porta e il suo stato; che quella porta abbia un nome stabile e' un fatto di formato, non di gioco.
+    notes: >
+      Il gruppo atomico ESISTE gia': `FRTHexDoor::DoorId` raggruppa i bordi e `SetDoorState` li muta insieme
+      incrementando la revisione una sola volta — `Structures.Door.GroupClosesTogether` lo prova su tre bordi.
+      Cio' che manca e' l'IDENTITA': `DoorId` e' un `int32` locale all'asset, quindi non sopravvive al cook e
+      nessuno scenario puo' citarlo per nome. Il codice lo dichiara gia' in `RTPointerInteraction.h` —
+      «`DoorId` e arco esistono gia' e bastano. L'identita' stabile e' E23 (#324)». E' il **prerequisito** di
+      `RT-FEAT-MAP-INTERACTION-GRAPH`: senza un nome, un binding non ha come citare il proprio bersaglio.
+      `scenario: na` e' deliberato — nessuna delle otto `ERTAssertionKind` legge l'identita' di una struttura,
+      e uno scenario la verificherebbe solo di rimbalzo. Si verifica in automation.
+
+  - feature_id: RT-FEAT-MAP-INTERACTION-GRAPH
+    title: "Interaction graph: la relazione sorgente -> bersaglio e' un dato"
+    area: Map
+    kind: gameplay
+    release: v0.2
+    priority: P1
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: todo
+      replay_representable: todo
+    roadmap:
+      epic: E23
+      checkpoints: ["23.4"]
+    dependencies:
+      - RT-FEAT-MAP-STRUCTURE-IDENTITY
+      - RT-FEAT-MAP-INTERACTIVE-EDGES
+    owner_specs:
+      - docs/gameplay/spec-interazioni-mappa-cp101.md
+      - docs/roadmap/plans/walls-doors-interaction-spec-panel-2026-08-13.md
+    issues: [324, 833]
+    tests: []
+    scenarios:
+      - planned:
+          - Spec.Map.Interaction.SwitchOpensDoor
+          - Spec.Map.Interaction.SwitchControlsMultipleDoors
+          - Spec.Map.Interaction.OpenFailsDependentMoveBlocks
+    wiki_refs:
+      - wiki:topologia-dinamica
+    wiki_note: >-
+      La pagina spiega che una porta cambia la topologia; che qualcuno possa aprirla da lontano non esiste ancora.
+    notes: >
+      Misurato: zero occorrenze di switch, leva, terminale o controller nel dominio mappa. Non e' un rifacimento,
+      e' un sistema che manca. `spec-interazioni-mappa-cp101.md` §11 lo dichiara fuori scope v0.1 con una
+      motivazione che ne decide la forma — «il controllo REMOTO sorgente -> bersaglio richiede la privacy dei
+      collegamenti e quindi la rete». Ne segue la divisione: qui (v0.2) il grafo e' un DATO — cardinalita' 1->1
+      e 1->N, ordine deterministico, validator dei binding; il PUBBLICO della relazione arriva con E27 (v0.3),
+      e la privacy diventa VERIFICABILE con E40 (v0.5). Uno scenario di leak scritto ora passerebbe per assenza
+      di rete, non per correttezza. `N Sources -> 1 Target` con semantica AND/OR resta fuori: e' `INT-5`.
 
   - feature_id: RT-FEAT-MAP-WATER-DYNAMICS
     title: "Acqua tattica: profondita', flooding e corrente"
@@ -3929,6 +4019,50 @@ features:
       `Ally`/`Enemy`; Certainty dai tre livelli di CP 11.2. L'insieme richiesto è passato da 24 a
       **33 chiavi**. ⚠️ Il gate `data` non si chiude programmando: servono 33 texture e il
       missing-icon, e la creazione del `DA_IconCatalog` è un passo Editor.
+
+  - feature_id: RT-FEAT-UI-STRUCTURE-READABILITY
+    title: "Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio"
+    area: UI
+    kind: ui
+    release: v0.2
+    priority: P2
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: na
+      automation: todo
+      scenario: na
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E23
+      checkpoints: ["23.5"]
+    dependencies:
+      - RT-FEAT-MAP-INTERACTION-GRAPH
+      - RT-FEAT-UI-POINTER-INTERACTION
+      - RT-FEAT-UI-ICON-LANGUAGE
+      - RT-FEAT-UI-CERTAINTY
+    owner_specs:
+      - docs/roadmap/plans/walls-doors-interaction-spec-panel-2026-08-13.md
+    issues: [324, 834]
+    tests: []
+    scenarios: []
+    wiki_refs:
+      - wiki:porte
+    wiki_note: >-
+      La pagina descrive che cosa fa una porta; le etichette tattiche e il legame con chi la comanda non esistono ancora.
+    notes: >
+      Due domande senza risposta in UI: «che cosa controlla S1?» e «come si apre D1?». Senza, il controllo
+      remoto si impara per tentativi — in un tattico a turni simultanei, dove il turno e' un impegno, e' una
+      trappola. Vincolo non negoziabile del DoD di 23.5: **mai il solo colore** a distinguere uno stato, e le
+      icone entrano nel registro esistente dell'Icon Language, non in un secondo. L'incertezza della dipendenza
+      da un alleato riusa i livelli gia' esistenti di `RT-FEAT-UI-CERTAINTY`. `scenario: na`: l'oracolo per
+      «e' leggibile» non esiste nell'harness e non va simulato contando ferite — la verifica e' manuale (PIE),
+      e dove serve una soglia si misura il contrasto invece di dichiararlo.
 
   - feature_id: RT-FEAT-UI-SCENARIO-BROWSER
     title: Selettore e indice degli scenari
