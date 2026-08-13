@@ -1,7 +1,13 @@
 # Muri, porte e interaction graph fino alla v1.0 — referto spec-panel
 
-**Data**: 2026-08-13 · **Sorgente**: `RefactorTactics_Walls_Doors_InteractionGraph_v1_Claude_Handoff_2026-08-13.md`
-(archiviato in [`docs/archive/src/`](../../archive/src/README.md)) · **Decisione**: [D-138](../../decisions/RT_PDR_00_Decision_Log.md)
+> `CURRENT` · **Stato**: revisione chiusa, **applicata** · **Data**: 2026-08-13, concluso il 2026-08-14
+> **HEAD della revisione**: `f4cae9f5`
+> **Sorgente revisionato**: `RefactorTactics_Walls_Doors_InteractionGraph_v1_Claude_Handoff_2026-08-13.md`
+> (1383 righe, untracked), archiviato a fine sessione in
+> [`../../archive/src/RefactorTactics_Walls_Doors_InteractionGraph_v1_Claude_Handoff_2026-08-13.md`](../../archive/src/RefactorTactics_Walls_Doors_InteractionGraph_v1_Claude_Handoff_2026-08-13.md)
+> **Scopo**: classificare ogni voce dell'handoff contro il repository **misurato**, prima che qualcuno la
+> implementi — quattro delle sue richieste hanno già dei test verdi
+> **Decisione**: [D-138](../../decisions/RT_PDR_00_Decision_Log.md)
 
 > **Che cosa possiede questo documento**: la *provenienza* del piano e il **filtro** applicato all'handoff.
 > Le regole restano nei loro owner — `roadmap-post-v0.1.md` §E23 per il piano, `feature-registry.yaml` per lo

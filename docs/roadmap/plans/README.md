@@ -23,15 +23,15 @@ dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
 | Banner | Vocabolario | Significa | Quanti *(2026-08-14)* |
 |---|---|---|--:|
-| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 25 |
+| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 26 |
 | `📦 DELIVERED PLAN` | secondo | *Piano già eseguito, non normativo* — equivale a `HISTORICAL` | 14 |
 | `🧱 AS-BUILT` | secondo | *Specifica di ciò che fu consegnato* — equivale a `HISTORICAL` | 7 |
-| `DONE` · `PLAN`/consumato · `BRIEF` | secondo | Casi singoli, già consumati — equivalgono a `HISTORICAL` | 3 |
+| `DONE` · `PLAN`/consumato · `BRIEF` | secondo | Casi singoli, già consumati — equivalgono a `HISTORICAL` | 4 |
 
-**49 documenti**, `README.md` escluso. I due totali si rimisurano eseguendo:
+**51 documenti**, `README.md` escluso — ⚠️ **rimisurati il 2026-08-14 dopo il merge**, non incrementati: `docs/wiki-player-first` ha portato `wiki-audit-player-first-2026-08-13.md` (che sposta i «casi singoli» da 3 a 4) e il consolidamento *walls/doors* un referto `CURRENT`. Nessuno dei due rami vedeva l'altro. I due totali si rimisurano eseguendo:
 
 ```sh
-ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 49
+ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 51
 ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
 ```
 
@@ -39,7 +39,7 @@ ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
 [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/README.md), e la regola è esatta invece che
 approssimata.
 
-⚠️ **Ma 24 documenti restano storici nel secondo vocabolario**, ed è un arretrato **dichiarato**, non
+⚠️ **Ma 25 documenti restano storici nel secondo vocabolario**, ed è un arretrato **dichiarato**, non
 nascosto: `DELIVERED PLAN` e `AS-BUILT` significano *già consegnato*, quindi per contenuto appartengono
 all'archivio. Non sono stati spostati in questo giro perché l'archiviazione del 2026-08-14 ha applicato il
 criterio del **banner canonico**, e mescolarci una traduzione di vocabolario avrebbe reso una
