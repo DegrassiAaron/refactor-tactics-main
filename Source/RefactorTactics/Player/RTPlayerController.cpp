@@ -1019,11 +1019,19 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 		break;
 	}
 
+	// ⚠️ **Solo il waypoint conta come `Undo`, e la distinzione non e' pedanteria.** `ERTPlanningInput::Undo`
+	// e' documentato come «waypoint annullato» (`RTPacing.h:21`) ed e' un segnale di INDECISIONE nelle
+	// metriche di ritmo. Chiudere un inspector, uscire da un targeting o togliere il pin a una fase sono
+	// attivita' del giocatore, non ripensamenti su un piano: contarli come `Undo` gonfierebbe una metrica di
+	// `PIE-V01-MATCHLEN` con eventi che non significano quel che il numero dice. `Click` aggiorna i tempi
+	// senza incrementare nulla, che e' esattamente cio' che serve.
 	if (Step != ERTPointerBackStep::None)
 	{
 		if (ARTTurnManager* TM = PacingTurnManager(this))
 		{
-			TM->RecordPlanningInput(ERTPlanningInput::Undo);
+			TM->RecordPlanningInput(Step == ERTPointerBackStep::Waypoint
+				? ERTPlanningInput::Undo
+				: ERTPlanningInput::Click);
 		}
 	}
 
@@ -1139,6 +1147,11 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 	Unit->PlannedCoverEdge = Edge;
 	Unit->bHasPlannedCoverEdge = true;
 
+	// ⚠️ **Niente `RefreshPlanningPreview` qui, a differenza di `HandleTargetCell`, e non e' una svista.**
+	// Quella anteprima disegna l'AREA COLPITA dell'azione: per un'azione su struttura di bordo l'esito non e'
+	// un'area ma un LATO, e mostrare un ventaglio di celle direbbe al giocatore una cosa che non succedera'.
+	// L'anteprima del bordo e' lavoro di presentazione (#613), e finche' non esiste e' meglio non disegnare
+	// nulla che disegnare la forma sbagliata.
 	if (ARTTurnManager* TM = PacingTurnManager(this))
 	{
 		TM->RecordPlanningInput(ERTPlanningInput::Order);
