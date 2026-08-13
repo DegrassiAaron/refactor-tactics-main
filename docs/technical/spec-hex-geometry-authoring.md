@@ -115,7 +115,7 @@ Ciò che il designer disegna si serializza **senza estremi float**. `FRTOccupanc
 > d'ingresso (`FRTOccupancyPolyline`) esiste già, dichiarato in anticipo perché altrimenti il primo commit
 > avrebbe inventato un tipo che #620 avrebbe dovuto cambiare»* — che si legge come «è l'authority». Ma quel
 > tipo è `USTRUCT(BlueprintType)` con `UPROPERTY(EditAnywhere)` su `TArray<FVector2D>`
-> (`RTHexOccupancyLibrary.h:115-127`), cioè **già pronto a essere salvato**: in quella lettura la voce di DoD
+> (`RTHexOccupancyLibrary.h:114-126`), cioè **già pronto a essere salvato**: in quella lettura la voce di DoD
 > di `#620` *«la grammatica è espressa in interi o enum»* era **insoddisfacibile**, e il difetto sarebbe
 > emerso al primo salvataggio. Resta vero il motivo per cui il tipo fu dichiarato in anticipo — evitare che il
 > primo commit ne inventasse uno — solo che quel tipo è il **derivato**, non la sorgente.
