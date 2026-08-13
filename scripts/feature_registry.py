@@ -653,6 +653,110 @@ def status_block(entry):
     return "\n".join(lines)
 
 
+def render_execution_mermaid(execution, nodes, label):
+    """L'execution graph come diagramma, per la Wiki: Mermaid, che GitHub rende da solo.
+
+    Il Control Center disegna un SVG proprio, ma vive in locale. Qui serve una figura che stia
+    dentro una pagina markdown senza binari da committare e senza un generatore di immagini: la
+    stessa scelta che `roadmap-v0.1.md` ha gia' fatto per il grafo delle epic.
+
+    Tre cose che il diagramma deve dire, e come le dice:
+
+    - **le corsie**: un `subgraph` per lane, cosi' si vede subito cosa aspetta una persona;
+    - **il tipo di legame**: freccia piena per una dipendenza dura, tratteggiata per l'ordine
+      consigliato e la navigazione. Un `follows` che sembrasse un blocco sarebbe la stessa bugia
+      che il modello esiste per evitare;
+    - **i lati liberi**: un cerchietto vuoto attaccato al nodo. In una figura completa non c'e'
+      il rischio di leggere «tagliata» al posto di «finita», ma il moncone dice a colpo d'occhio
+      **dove si comincia** (nessun ingresso) e **dove si esaurisce una catena** (nessuna uscita),
+      che sono le due domande a cui una mappa di dipendenze serve.
+
+    Gli id Mermaid non possono contenere `#` o `:`: si normalizzano, e l'etichetta resta leggibile.
+    """
+    ident = lambda nid: re.sub(r"[^A-Za-z0-9]", "_", str(nid))
+    edges = execution.get("edges") or []
+    visible = {n["id"] for n in execution.get("nodes") or []}
+    hard_in, hard_out = {}, {}
+    for edge in edges:
+        if edge.get("hard") and edge["from"] in visible and edge["to"] in visible:
+            hard_in.setdefault(edge["to"], []).append(edge["from"])
+            hard_out.setdefault(edge["from"], []).append(edge["to"])
+
+    # La lane si legge dalla FORMA, non da un `subgraph`. Mermaid dispone i subgraph come blocchi
+    # separati e non come corsie: nella prima stesura `PIE` finiva a sinistra, `CODE` al centro e
+    # `ASSET` a destra, con gli archi di evidenza a traversare tutta la figura. La forma viaggia
+    # col nodo e non impone un layout.
+    shape = {"code": ("[", "]"), "asset": ("[[", "]]"), "pie": ("([", "])")}
+    lines = ["", "```mermaid", "flowchart LR"]
+    for node in execution.get("nodes") or []:
+        nid = ident(node["id"])
+        open_b, close_b = shape.get(node.get("execution_lane"), ("[", "]"))
+        # Il glifo di stato precede l'etichetta solo quando esiste: senza questo controllo il
+        # nodo nasceva con uno spazio davanti al `#`, visibile nella figura resa.
+        head = " ".join(x for x in (node.get("state"), label(node["id"])) if x)
+        lines.append(f'  {nid}{open_b}"{head}<br/>{node.get("readiness")}"{close_b}')
+        # Il moncone: un cerchio piccolo legato da un tratto. Il carattere dentro non e'
+        # decorativo — un nodo `(( ))` vuoto rende un pallino di pochi pixel che alla scala della
+        # pagina sparisce, e un lato libero invisibile e' un lato libero non detto.
+        if not hard_in.get(node["id"]):
+            lines.append(f'  i_{nid}(("&nbsp;")) -.- {nid}')
+        if not hard_out.get(node["id"]):
+            lines.append(f'  {nid} -.- o_{nid}(("&nbsp;"))')
+
+    for edge in edges:
+        if edge["from"] not in visible or edge["to"] not in visible:
+            continue
+        a, b = ident(edge["from"]), ident(edge["to"])
+        if edge.get("hard"):
+            lines.append(f"  {a} ==> {b}")
+        elif edge["type"] in ("follows", "related"):
+            lines.append(f'  {a} -. {edge["type"]} .-> {b}')
+        elif edge["type"] in ("implements", "verifies"):
+            lines.append(f'  {a} -. {edge["type"]} .-> {b}')
+
+    # Il colore non e' l'unico portatore: la readiness e' scritta dentro ogni nodo. Serve a
+    # scorrere la figura, non a decodificarla.
+    lines += [
+        "  classDef ready fill:#173a2a,stroke:#4ec98a,color:#e6e9ef;",
+        "  classDef blocked fill:#3a1f22,stroke:#e06c75,color:#e6e9ef;",
+        "  classDef waiting fill:#3a3320,stroke:#e0b050,color:#e6e9ef;",
+        "  classDef done fill:#1e2b24,stroke:#4ec98a,color:#99a1b3;",
+        "  classDef unknown fill:#22262f,stroke:#4a5162,color:#99a1b3;",
+        "  classDef stub fill:none,stroke:#5a6273,stroke-dasharray:2 3;",
+    ]
+    by_class = {}
+    for node in execution.get("nodes") or []:
+        key = {"READY": "ready", "BLOCKED": "blocked", "DONE": "done",
+               "WAITING_FOR_PIE": "waiting", "WAITING_FOR_ASSET": "waiting"}.get(
+                   node.get("readiness"), "unknown")
+        by_class.setdefault(key, []).append(ident(node["id"]))
+    stubs = []
+    for node in execution.get("nodes") or []:
+        nid = ident(node["id"])
+        if not hard_in.get(node["id"]):
+            stubs.append(f"i_{nid}")
+        if not hard_out.get(node["id"]):
+            stubs.append(f"o_{nid}")
+    if stubs:
+        by_class["stub"] = stubs
+    for key, ids in by_class.items():
+        lines.append(f"  class {','.join(ids)} {key};")
+    lines += ["```", ""]
+    lines += [
+        "**Come si legge.** Freccia piena `==>` una dipendenza dura: finche' l'origine non e' fatta,",
+        "la destinazione non puo' cominciare. Freccia tratteggiata un legame che **non blocca** —",
+        "`follows` e' ordine consigliato, `related` navigazione, `implements`/`verifies` dicono chi",
+        "realizza e chi giudica. Il cerchietto attaccato a un nodo e' un **lato libero**: a sinistra",
+        "vuol dire che niente lo trattiene, a destra che non sblocca niente di dichiarato.",
+        "",
+        "La **forma** dice chi deve intervenire: rettangolo `CODE` (repository), rettangolo doppio",
+        "`ASSET` (un asset da costruire e committare), rettangolo arrotondato `PIE` (un verdetto",
+        "davanti all'editor). Il colore ripete la readiness, che e' scritta dentro ogni nodo: serve",
+        "a scorrere la figura, non a decodificarla.",
+    ]
+    return lines
+
+
 def render_control_center_page(data, graph):
     """La pagina Wiki dello stato del progetto: quello che il Control Center risponde, senza server.
 
@@ -799,7 +903,10 @@ def render_control_center_page(data, graph):
                 return f"`{str(nid).split(':', 1)[1]}`"
             node = nodes.get(nid) or {}
             return f"#{node['ref']}" if node.get("kind") == "issue" else node.get("ref") or nid
+        out += render_execution_mermaid(execution, nodes, label)
         out += [
+            "",
+            "### Le stesse dipendenze, in tabella",
             "",
             "| Nodo | Lane | Dominio | Readiness | Dipende da | Abilita |",
             "|---|:--:|---|:--:|---|---|",
