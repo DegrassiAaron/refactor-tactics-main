@@ -20,12 +20,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**105 feature** · v0.1 **74** · v0.2 **16** · v0.3 **5** · future **10**.
+**107 feature** · v0.1 **74** · v0.2 **16** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
 
 | Stato | Quante |
 |---|--:|
-| `IDEA` | 6 |
-| `DESIGNED` | 14 |
+| `IDEA` | 7 |
+| `DESIGNED` | 15 |
 | `SPECIFIED` | 11 |
 | `IMPLEMENTING` | 24 |
 | `TESTABLE` | 7 |
@@ -34,7 +34,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `DONE` | 4 |
 | `DEFERRED` (fuori scala) | 1 |
 
-### Actions · 16
+### Actions · 17
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -47,25 +47,26 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | v0.1 | IMPLEMENTING | 1/8 | E7 | Scelta orizzontale: ogni variante ha uno svantaggio |
 | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo | v0.1 | IMPLEMENTING | 3/9 | E4 | Le sette di D-025: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch` |
 | `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | IMPLEMENTING | 0/9 | — | Fuori dal contenuto della v0.1 |
-| `RT-FEAT-ACTION-MOVEMENT-COMPAT` — Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata | v0.2 | SPECIFIED | 1/9 | fuori scope | — |
-| `RT-FEAT-ACTION-SPATIAL-TRANSFER` — Spatial Transfer — cambiare posizione senza percorrere lo spazio | v0.2 | SPECIFIED | 1/10 | fuori scope | — |
+| `RT-FEAT-ACTION-MOVEMENT-COMPAT` — Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata | v0.2 | SPECIFIED | 1/9 | E38 | — |
+| `RT-FEAT-ACTION-SPATIAL-TRANSFER` — Spatial Transfer — cambiare posizione senza percorrere lo spazio | v0.2 | SPECIFIED | 1/10 | E39 | — |
 | `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | v0.3 | DESIGNED | 0/9 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
-| `RT-FEAT-ACTION-PLAN-VALIDATION` — Validazione del piano in Planning, con reason code deterministico | v0.2 | DESIGNED | 0/10 | fuori scope | — |
-| `RT-FEAT-STATUS-FRAMEWORK` — Framework degli status — categorie, severity e primitive | v0.2 | DESIGNED | 0/9 | fuori scope | Undici status cablati uno per uno, nessun livello che li governi: **E36** in v0.2 |
-| `RT-FEAT-ACTION-BUDGET` — Capacita' d'azione del turno: slot o budget numerico | v0.2 | DEFERRED | 0/9 | fuori scope | — |
+| `RT-FEAT-ACTION-PLAN-VALIDATION` — Validazione del piano in Planning, con reason code deterministico | v0.2 | DESIGNED | 0/10 | E38 | — |
+| `RT-FEAT-STATUS-FRAMEWORK` — Framework degli status — categorie, severity e primitive | v0.2 | DESIGNED | 0/9 | E36 | Undici status cablati uno per uno, nessun livello che li governi: **E36** in v0.2 |
+| `RT-FEAT-ABILITY-RUNTIME` — Runtime delle abilita' — GAS come esecutore, non come autorita' | v0.6 | IDEA | 0/10 | E41 | — |
+| `RT-FEAT-ACTION-BUDGET` — Capacita' d'azione del turno: slot o budget numerico | v0.2 | DEFERRED | 0/9 | E38 | — |
 | `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | v0.3 | IDEA | 0/9 | — | Solo un nome |
 
 ### Characters · 7
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
-| `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | future | DONE | 4/4 | — | — |
-| `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | future | DONE | 4/4 | — | — |
+| `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | v0.4 | DONE | 4/4 | E37 | — |
+| `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | v0.4 | DONE | 4/4 | E37 | — |
 | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Gadget, Phase, Riktor, Wraith | v0.1 | INTEGRATED | 6/8 | E6 | I 4 eroi corrispondono al catalogo; **3 reazioni su 5** cablate |
-| `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | v0.1 | IMPLEMENTING | 1/7 | E21 | Il lavoro che viveva solo in M8, reso visibile dal registry |
+| `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | v0.1 | IMPLEMENTING | 1/7 | E21 · M8 | Il lavoro che viveva solo in M8, reso visibile dal registry |
 | `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | v0.2 | DESIGNED | 0/9 | — | — |
-| `RT-FEAT-CHAR-V02-ROSTER` — Roster v0.2 — Steel, Aurora, Murdock, Kwang | v0.2 | DESIGNED | 0/8 | — | Epic E35 |
-| `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | v0.2 | IDEA | 0/9 | — | Le 10 voci `PIE-STATE-*` sono la sua controparte umana, e restano ⏳ |
+| `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | v0.2 | DESIGNED | 0/9 | — | Le 10 voci `PIE-STATE-*` sono la sua controparte umana, e restano ⏳ |
+| `RT-FEAT-CHAR-V02-ROSTER` — Roster v0.2 — Steel, Aurora, Murdock, Kwang | v0.2 | DESIGNED | 0/8 | E35 | Epic E35 |
 
 ### Core · 7
 
@@ -106,14 +107,14 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-FACTION-SCENARIOS` — Scenari di cooperazione per fazione | v0.2 | DESIGNED | 0/7 | — | Quattro scenari `Team.*` dichiarati `planned`: la sinergia è un **esempio**, non un kit di coppia (D-029) |
-| `RT-FEAT-FACTION-SYSTEM` — Fazioni, identità e iconografia | v0.2 | DESIGNED | 0/7 | — | L'appartenenza dà identità visiva, **non** regole: nessun branch `if fazione` nel core |
+| `RT-FEAT-FACTION-SYSTEM` — Fazioni, identità e iconografia | v0.2 | DESIGNED | 0/7 | E35 | L'appartenenza dà identità visiva, **non** regole: nessun branch `if fazione` nel core |
 
 ### Gameplay · 2
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
-| `RT-FEAT-CHARACTER-STATE` — Character State / Configuration System | future | SPECIFIED | 1/10 | — | Epic E34, `#244` |
-| `RT-FEAT-INTENT-CONDITIONAL` — Conditional Intent — un intento con una biforcazione | v0.3 | SPECIFIED | 1/10 | — | Un intento con **una** biforcazione — epic E33, `#330` |
+| `RT-FEAT-CHARACTER-STATE` — Character State / Configuration System | v0.4 | SPECIFIED | 1/10 | E34 | Epic E34, `#244` |
+| `RT-FEAT-INTENT-CONDITIONAL` — Conditional Intent — un intento con una biforcazione | v0.3 | SPECIFIED | 1/10 | E33 | Un intento con **una** biforcazione — epic E33, `#330` |
 
 ### Map · 14
 
@@ -128,8 +129,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | v0.1 | INTEGRATED | 7/9 | E9 | Una porta chiusa toglie passo **e** linea di tiro con lo stesso `BlocksTraversal` |
 | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | v0.1 | INTEGRATED | 7/9 | E9 | L'arco è **additivo**: romperlo annulla il percorso, non lo allunga |
 | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | v0.1 | IMPLEMENTING | 6/10 | E16 | Deriva da Move e Dash, entra in snapshot e hash, e da dietro annulla `Guard` |
-| `RT-FEAT-MAP-STANDABILITY` — Standability derivata da anchor, footprint e clearance | v0.2 | DESIGNED | 0/8 | — | — |
-| `RT-FEAT-MAP-TRANSITION-CLEARANCE` — Validità della transizione distinta da quella della cella | v0.2 | DESIGNED | 0/8 | — | — |
+| `RT-FEAT-MAP-STANDABILITY` — Standability derivata da anchor, footprint e clearance | v0.2 | DESIGNED | 0/8 | E23 | — |
+| `RT-FEAT-MAP-TRANSITION-CLEARANCE` — Validità della transizione distinta da quella della cella | v0.2 | DESIGNED | 0/8 | E23 | — |
 | `RT-FEAT-MAP-STRUCTURAL` — Strutture: integrita', crolli a catena e macerie | future | IDEA | 0/9 | — | Lo slot si chiama **`Bulkhead`** (D-082): il verbo *breach* resta un'azione, e `BreachCharge` è ciò che lo apre |
 | `RT-FEAT-MAP-VERTICALITY` — Verticalita': vault, drop, salita e cadute | future | IDEA | 0/9 | — | — |
 | `RT-FEAT-MAP-WATER-DYNAMICS` — Acqua tattica: profondita', flooding e corrente | future | IDEA | 0/9 | — | La profondità è una **superficie**, non un asse (D-081): il flooding esiste già come cambio di superficie |
@@ -139,8 +140,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-NET-PRIVATE-PLANNING` — Intenti privati per squadra | v0.1 | TESTABLE | 5/8 | E5 | Nessun byte del piano avversario prima del reveal (invariante #6) |
-| `RT-FEAT-NET-AUTHORITY` — Multiplayer con autorità server | future | SPECIFIED | 1/8 | M10 | Nessuna epic né issue: vive in M10 |
-| `RT-FEAT-NET-DEDICATED` — Dedicated server | future | IDEA | 0/8 | — | — |
+| `RT-FEAT-NET-AUTHORITY` — Multiplayer con autorità server | v0.5 | SPECIFIED | 1/8 | E40 · M10 | Nessuna epic né issue: vive in M10 |
+| `RT-FEAT-NET-DEDICATED` — Dedicated server | v0.7 | IDEA | 0/8 | E42 | — |
 
 ### Objectives · 5
 
@@ -180,12 +181,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | v0.1 | SPECIFIED | 1/10 | E14 | Finestra **3,0 s**, `Timeout → HOLD`; Fast/Headless risponde subito via policy |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/10 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
-### Tools · 14
+### Tools · 15
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-TOOL-VALIDATION` — Validator di dati, mappe e documenti | v0.1 | DONE | 5/5 | E1 | L'unica feature `DONE` del registry |
-| `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | future | DONE | 4/4 | — | — |
+| `RT-FEAT-WIKI-CHART-GENERATOR` — Generatore SVG deterministico dei radar | v0.4 | DONE | 4/4 | E37 | — |
 | `RT-FEAT-BOT-BASE` — Bot a utility scoring deterministico | v0.1 | RELEASE_READY | 7/8 | E2 | Deterministico; le candidate nascono da `ReachableCells`, mai mosse illegali |
 | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | v0.1 | INTEGRATED | 6/8 | E15 | `PASS/FAIL/ERROR/BLOCKED`, corpus scoperto dall'indice, niente bypass |
 | `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | v0.1 | INTEGRATED | 5/6 | M9 | **Fuori** dalla vista di release: non entra nella build di gioco |
@@ -195,9 +196,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | IMPLEMENTING | 2/6 | — | — |
 | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | v0.1 | IMPLEMENTING | 3/6 | E11 | Ne esistono 2 su 8: senza, si debugga a occhio |
 | `RT-FEAT-TOOL-MAP-GEOMETRY` — Geometria architettonica quantizzata e cottura in dati di cella | v0.1 | IMPLEMENTING | 4/7 | M9 | — |
-| `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | v0.3 | DESIGNED | 0/8 | fuori scope | — |
-| `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | v0.3 | DESIGNED | 0/8 | fuori scope | — |
-| `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | fuori scope | Epic E26 |
+| `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | v0.3 | DESIGNED | 0/8 | E27 | — |
+| `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | v0.3 | DESIGNED | 0/8 | E28 | — |
+| `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | E26 | Epic E26 |
+| `RT-FEAT-BOT-COMPETENCE` — Schema di competenza del bot — cosa il bot sa davvero usare | v0.8 | IDEA | 0/6 | E43 | — |
 
 ### UI · 10
 

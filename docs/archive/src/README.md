@@ -2,20 +2,26 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> 🔴 **Decima volta, e questa era prevedibile prima di scriverla.** Il numero qui sotto vale
-> **su questo ramo**: `docs/wiki-player-first` archivia l'handoff Wiki player-first e porta la radice
-> da 2 a 3. Ma la **PR #818** (`docs/consolidamento-roadmap-v1-0`), aperta mentre scrivo, archivia
-> `RefactorTactics_Claude_Consolidamento_Roadmap_v1_0_2026-08-13.md` **nella stessa radice**: quando
-> entrambe atterrano il totale sarà **70**, e nessuno dei due rami può scriverlo perché nessuno dei
-> due lo vede. **Chi mergia per secondo rimisura col comando**, non somma i delta — è la regola che
-> questa cartella ha già imparato nove volte e che stavolta è dichiarata *prima* dello scarto invece
-> che dopo.
+> 🟢 **Undicesima volta — e la prima in cui lo scarto è stato dichiarato prima di prodursi, poi
+> verificato.** Il ramo `docs/wiki-player-first` ha scritto nel proprio README, *prima* di aprire la
+> PR: «questo ramo porta la radice da 2 a 3, ma #818 archivia nella stessa radice: quando entrambe
+> atterrano il totale sarà **70**, e nessuno dei due rami può scriverlo perché nessuno dei due vede
+> l'altro». Al merge il comando ha risposto **70** = 17 + 47 + 2 + **4**. Entrambi i rami avevano
+> scritto `69`, entrambi misurati col comando buono, entrambi giusti sulla propria base — la nona
+> lezione, alla lettera.
 >
+> La differenza rispetto alle nove volte precedenti non è il rimedio, che è sempre lo stesso
+> (**rimisurare dopo il merge**, mai sommare i delta): è che il conflitto è stato **previsto
+> leggendo `gh pr list`**, non scoperto dopo. Una PR aperta che tocca la tua stessa riga è
+> un'informazione disponibile *prima* di scrivere il numero.
+>
+
 > I **69** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
 > normativa. ➕ **E un file che non è Markdown**: `handoff/2026-08-12-grid-data-consolidation-audit.xlsx`.
 > Il comando qui sotto filtra `-name '*.md'` e **non lo conta**: è dichiarato qui perché un allegato invisibile
 > alla formula è esattamente il modo in cui questo numero è già andato fuori sincrono sei volte.
-> *(rimisurato il 2026-08-13 sera **sull'albero mergiato** col comando completo — `find docs/archive/src -name '*.md' ! -name README.md | wc -l` → **69** = 17 `design/` + 47 `handoff/` + 2 `audit/` + **3 in radice**, dopo l'archiviazione del consolidamento *Decision Time Bank*, dei due sorgenti *mouse interaction* e dell'handoff *Wiki player-first*, ciascuno con la sua riga d'indice qui sotto — e **da rimisurare dopo il merge di #818**, vedi la nota sopra.
+> *(rimisurato il 2026-08-13 sera **sull'albero mergiato** col comando completo — `find docs/archive/src -name '*.md' ! -name README.md | wc -l` → **70** = 17 `design/` + 47 `handoff/` + 2 `audit/` + **4 in radice**, dopo l'archiviazione del consolidamento *Decision Time Bank*, dei due sorgenti *mouse interaction*, del consolidamento *roadmap→v1.0* e dell'handoff *Wiki player-first*, ciascuno con la sua riga d'indice qui sotto. ⚠️ **Il valore va rimisurato dopo il merge**, non incrementato: è la lezione che questa riga ha già imparato nove volte, e un `+1` scritto prima dell'unione è giusto solo se nessun altro ramo archivia oggi.
+> 🔵 **Decima volta, ma per un motivo nuovo: la formula era giusta e l'indice no.** Le tre colonne tornavano — `17 + 47 + 2 + 2 = 68` — e il disco confermava. Quello che non tornava era il **rapporto fra il totale e la tabella**: la radice conteneva **due** file e ne indicizzava **uno**, con `RefactorTactics_Character_Radar_Wiki_Generator_Claude.md` sul disco e assente dall'elenco. È il difetto di [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) — righe d'indice mancanti — ma **fuori da `handoff/`**, dove nessuno lo cercava perché la radice sembrava troppo piccola per nasconderne. La riga è stata ricostruita al 2026-08-13 dalle fonti che quel sorgente ha prodotto, ed è marcata come tale. La lezione non è aritmetica: **un totale corretto non dice nulla sull'indice che riassume**, e i due si controllano con due comandi diversi.
 > 🔴 **Ottava volta, e stavolta la lezione è doppia perché i rami erano due e avevano ragione entrambi.**
 > Due consolidamenti paralleli hanno trovato **lo stesso** off-by-one preesistente da due angoli diversi, e
 > nessuno dei due lo aveva introdotto: la riga diceva **64** mentre il disco ne aveva **65** già prima di
@@ -207,6 +213,8 @@ dove è finita quella parte che è sopravvissuta al filtro.
 | File | Oggetto | Recepito da |
 |---|---|---|
 | [`RefactorTactics_WeaponVariants_Claude_Consolidation.md`](RefactorTactics_WeaponVariants_Claude_Consolidation.md) | Varianti d'arma, affinità eroe/variante, fasce di danno | [D-085](../../decisions/RT_PDR_00_Decision_Log.md)…[D-088](../../decisions/RT_PDR_00_Decision_Log.md) (le quattro `Locked`) · `WV-1`…`WV-5` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) · catalogo owner [`RT_EquipmentCatalog_v0.1.md`](../../balance/RT_EquipmentCatalog_v0.1.md). Revisione dell'esito: [`weapon-variants-spec-panel-2026-08-11.md`](../../roadmap/plans/weapon-variants-spec-panel-2026-08-11.md) — le §18–§29 **non** sono state applicate, costruite su una fotografia più arretrata del repository stesso |
+| [`RefactorTactics_Character_Radar_Wiki_Generator_Claude.md`](RefactorTactics_Character_Radar_Wiki_Generator_Claude.md) | Radar di personaggio, rubrica dei rating e generatore SVG per la Wiki | [D-105](../../decisions/RT_PDR_00_Decision_Log.md)…[D-108](../../decisions/RT_PDR_00_Decision_Log.md) · epic **E37** in [`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) · owner [`spec-radar-profilo-personaggio.md`](../../characters/spec-radar-profilo-personaggio.md) · generatore in [`tools/radar/`](../../../tools/radar/). ⚠️ **Riga ricostruita il 2026-08-13**: il file era archiviato sul disco senza comparire in questo indice, ed è la stessa forma di [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) fuori da `handoff/`. Ricostruita dalle fonti che il sorgente ha prodotto, non dal ricordo di chi l'ha archiviato |
+| [`RefactorTactics_Claude_Consolidamento_Roadmap_v1_0_2026-08-13.md`](RefactorTactics_Claude_Consolidamento_Roadmap_v1_0_2026-08-13.md) | Consolidamento roadmap, documentazione, Wiki e issue fino alla v1.0 | [D-136](../../decisions/RT_PDR_00_Decision_Log.md) (modello di release fino a `v1.0`, epic post-v0.1 esprimibili) · epic **E40**–**E45** in [`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) · `REL-1` e `REL-2` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). Le §3–§9 descrivevano come da preservare cose **già vere**, e la §12 diagnosticava come ownership mancante ciò che era un campo non scrivibile: il banner del sorgente elenca cosa non è entrato e perché |
 | [`RefactorTactics_Wiki_PlayerFirst_Claude_Handoff_2026-08-13.md`](RefactorTactics_Wiki_PlayerFirst_Claude_Handoff_2026-08-13.md) | Ristrutturazione della Wiki in manuale player-first con Developer Zone separata: IA target, quattro template di pagina, visual e icon grammar, otto wave | Audit: [`wiki-audit-player-first-2026-08-13.md`](../../roadmap/plans/wiki-audit-player-first-2026-08-13.md) · epic [#422](https://github.com/DegrassiAaron/refactor-tactics-main/issues/422) **riscritta**, non duplicata · wave [#821](https://github.com/DegrassiAaron/refactor-tactics-main/issues/821)–[#828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/828) · relation su [#757](https://github.com/DegrassiAaron/refactor-tactics-main/issues/757). Le wave 1–8 **non** sono state eseguite: il documento stesso vieta il big bang (§15, §26) |
 
 > ⚠️ **Il conteggio in testa è alla deriva**: la riga 5 dichiara **40** documenti, ma la cartella ne
