@@ -45,6 +45,9 @@ import time
 # Percorso del Decision Log, relativo alla radice del repository.
 DECISION_LOG = "docs/decisions/RT_PDR_00_Decision_Log.md"
 
+# Il ref rispetto a cui si giudica «gia' integrato». E' anche l'unico che il filtro non puo' saltare.
+BASE_REF = "origin/main"
+
 STATE_DIRNAME = "rt-shared-ids"
 STATE_FILE = "state.json"
 LOCK_FILE = "allocator.lock"
@@ -323,6 +326,15 @@ def all_refs(cwd=None):
     return out
 
 
+def is_merged(ref, cwd=None):
+    """Il ref e' gia' antenato di `origin/main`, cioe' la sua storia e' interamente integrata."""
+    proc = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ref, BASE_REF], cwd=cwd,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    return proc.returncode == 0
+
+
 def canonical_max(cwd=None):
     """Il massimo ID dichiarato su **tutti** i ref, piu' il working tree corrente.
 
@@ -491,7 +503,7 @@ def cmd_check(args):
     directory = state_dir()
     state = load_state(directory)
     branch = current_branch()
-    base = read_blob("origin/main", DECISION_LOG)
+    base = read_blob(BASE_REF, DECISION_LOG)
     if base is not None:
         on_main = {d.id for d in parse_declarations(base)}
         reserved_elsewhere = {
@@ -529,7 +541,26 @@ def cmd_audit_refs(args):
     collisione che vive solo nella working directory di un'altra sessione resta invisibile fino al
     primo commit: e' il caso che il lock di `reserve` esiste per prevenire a monte.
     """
-    refs = all_refs()
+    # ⚠️ I ref gia' **antenati di `origin/main`** si saltano, e non e' un'ottimizzazione: e' cio' che
+    # separa una collisione da una cicatrice. Un branch mergiato porta la storia com'era prima del
+    # merge, comprese le collisioni che il merge ha gia' risolto rinumerando. Misurato su questo
+    # repository: `docs/wv4-environmental` e `docs/505-pass-per-fase` (PR #524 e #525, mergiate
+    # l'11 agosto) dichiarano ancora `D-091` due volte, mentre in `main` quella decisione e' `D-100`
+    # da allora — rinumerata proprio per quella collisione, e registrata nelle Note. Segnalarli
+    # significa chiedere di correggere qualcosa di gia' corretto, su rami che nessuno tocchera' piu':
+    # dodici ref su ventidue erano in questo stato, cioe' piu' della meta' del rumore.
+    #
+    # Non introduce falsi negativi: la storia di un ref mergiato e' contenuta in `main`, quindi una
+    # collisione ancora viva la' e' visibile a `check`, che guarda l'albero corrente.
+    # ⚠️ `origin/main` e' antenato di se' stesso, quindi il filtro lo escluderebbe — e con lui il
+    # termine di paragone di ogni confronto. Il test `..._con_la_stessa_collisione_suona` e' nato
+    # rosso proprio su questo: senza l'eccezione il gate diventava verde su `D-132`, che e' viva.
+    # Un filtro contro il rumore che si mangia il riferimento non riduce i falsi positivi: produce
+    # falsi negativi, che costano molto di piu'.
+    live, merged = [], []
+    for ref in all_refs():
+        (merged if ref != BASE_REF and is_merged(ref) else live).append(ref)
+    refs = live
     seen = {}
     duplicates = []
     for ref in refs:
@@ -569,11 +600,19 @@ def cmd_audit_refs(args):
 
     if collisions:
         sys.stderr.write(
-            "\n%d collisione/i: stesso ID, decisioni diverse. Rinumera la seconda **prima** del merge "
-            "e registrala nelle Note del Decision Log.\n" % collisions
+            "\n%d collisione/i su %d ref vivi: stesso ID, decisioni diverse. Rinumera la seconda "
+            "**prima** del merge e registrala nelle Note del Decision Log.\n" % (collisions, len(refs))
         )
+        if merged:
+            sys.stderr.write(
+                "(%d ref gia' antenati di origin/main non sono stati confrontati: la loro storia e' "
+                "integrata, e le collisioni che contengono sono gia' state risolte al merge.)\n"
+                % len(merged)
+            )
         return 1
-    print("audit-refs: %d ref confrontati, %d ID, nessuna collisione." % (len(refs), len(seen)))
+    print("audit-refs: %d ref confrontati, %d ID, nessuna collisione.%s" % (
+        len(refs), len(seen),
+        " (%d ref gia' in main, saltati)" % len(merged) if merged else ""))
     return 0
 
 
