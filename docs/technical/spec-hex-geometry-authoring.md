@@ -97,10 +97,53 @@ la geometria tattica NON PUÒ avere endpoint o angoli float arbitrari nell'autho
 > «un caso rosso e uno verde» per un concetto già cancellato dalla suite. Una lista e la sua eccezione non
 > possono convivere in due paragrafi consecutivi: chi copia, copia la lista.
 
-**Stato**: la grammatica e il suo validator sono
-[#620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/620), **aperta**. Il tipo d'ingresso
-(`FRTOccupancyPolyline`) esiste già, dichiarato in anticipo perché altrimenti il primo commit avrebbe
-inventato un tipo che #620 avrebbe dovuto cambiare.
+### 3.2 Il tipo dell'authority è discreto, la polilinea è un derivato — `D-127`
+
+```text
+AUTHORITY          asse (enum) + offset (interi) + layer     serializzata, hashabile
+      │
+      │ conversione
+      ▼
+CALCOLO            FRTOccupancyPolyline { Points, bClosed }  float, ingresso di ComputeMask
+```
+
+Ciò che il designer disegna si serializza **senza estremi float**. `FRTOccupancyPolyline` non è l'authority:
+è il tipo che entra in `ComputeMask`, e il float ci sta legittimamente — è la §11, *«il mondo Unreal usa
+`FVector` per disegnare»*.
+
+> ⚠️ **Questa riga diceva un'altra cosa, e la lettura opposta era quella naturale.** Diceva: *«Il tipo
+> d'ingresso (`FRTOccupancyPolyline`) esiste già, dichiarato in anticipo perché altrimenti il primo commit
+> avrebbe inventato un tipo che #620 avrebbe dovuto cambiare»* — che si legge come «è l'authority». Ma quel
+> tipo è `USTRUCT(BlueprintType)` con `UPROPERTY(EditAnywhere)` su `TArray<FVector2D>`
+> (`RTHexOccupancyLibrary.h:114-126`), cioè **già pronto a essere salvato**: in quella lettura la voce di DoD
+> di `#620` *«la grammatica è espressa in interi o enum»* era **insoddisfacibile**, e il difetto sarebbe
+> emerso al primo salvataggio. Resta vero il motivo per cui il tipo fu dichiarato in anticipo — evitare che il
+> primo commit ne inventasse uno — solo che quel tipo è il **derivato**, non la sorgente.
+
+`MSE-1` ne esce **ristretta**: decide *dove* vive il source editabile e chi vince al rebake, non più *in che
+tipo*.
+
+### 3.3 Il validator dice **quale** regola è caduta, e non blocca da solo
+
+Il rifiuto è a **due strati**, e il precedente esiste già nel repository:
+
+| Strato | Forma | Precedente |
+|---|---|---|
+| **Segnala** | lista di violazioni, non blocca | `URTHexMapAsset::ValidateMap()` → `TArray<FString>` (`RTHexMapAsset.h:199`) |
+| **Rifiuta** | l'operazione d'authoring non avviene | `URTHexCoverLibrary`, *«più severo di `ValidateMap`»* (`RTHexCoverLibrary.h:136`) |
+
+La violazione è un **reason code enumerato**, non una stringa: §10 elenca già `reason code` fra ciò che il
+runtime possiede, e il pattern è consolidato in cinque enum — `ERTActionInvalidReason`,
+`ERTHexTargetReason`, `ERTHexWaypointReason`, `ERTDisplacementBlockReason`, `ERTMatchEndReason` — tutti
+`UENUM(BlueprintType)`, con `None` come primo valore e un commento per voce che dice **perché** è separata
+dalle altre.
+
+> 🔑 **Non è una preferenza di stile: è ciò che rende possibile la verifica di mutazione.** Se il validator
+> restituisce testo libero, «allentata una regola, cade *esattamente* il test che la protegge» non è
+> asseribile — due regole diverse producono messaggi simili e il test dovrebbe confrontare stringhe.
+
+**Stato**: la grammatica, il suo tipo e il suo validator sono
+[#620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/620), **aperta**.
 
 ---
 
@@ -340,7 +383,7 @@ Nessuna di queste si decide in un commit di implementazione. Vivono in
 
 | ID | Domanda | Innesco |
 |---|---|---|
-| `MSE-1` | Dove vive il **source editabile** della geometria d'authoring, e chi vince se un dato cotto viene modificato a mano e poi si rifà il bake? | [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) |
+| `MSE-1` | Dove vive il **source editabile** della geometria d'authoring, e chi vince se un dato cotto viene modificato a mano e poi si rifà il bake? — ⚠️ **ristretta da `D-127`**: *in che tipo* non è più parte della domanda | [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) |
 | `MSE-4` | Un settore toccato in un **solo punto** dal bordo di un footprint va contato come occupato, o serve un'intersezione di lunghezza non nulla? | [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) |
 | ~~`MSE-2`~~ | ✅ **Sciolta da `D-125`**: misurava i **muri**, che non alimentano l'occupancy — vedi §5.1 | — |
 | ~~`MSE-3`~~ | ✅ **Chiusa da `D-125`**: i due modelli misurano la stessa cosa a due granularità | — |
