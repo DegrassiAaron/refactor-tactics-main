@@ -119,7 +119,13 @@
   .edge.hard { stroke-width: 1.6; }
   .edge.follows { stroke-dasharray: 6 4; }
   .edge.related { stroke-dasharray: 1 4; }
-  .edge.capability { stroke-dasharray: 5 3; }
+  /* Le tracce — chi realizza (`implements`) e chi giudica (`verifies`) — non sono dipendenze, e
+     senza una regola propria ereditavano il tratto pieno di `.edge`: la figura affermava una
+     dipendenza dura dove il modello non ne dichiara nessuna. */
+  .edge.implements, .edge.verifies { stroke-dasharray: 4 2 1 2; opacity: .75; }
+  /* Il marker eredita `.edge { fill: none }` se gli si mette quella classe, e in SVG una regola
+     CSS batte l'attributo di presentazione: la punta usciva vuota, cioè illeggibile a 7px. */
+  .arrowhead { fill: var(--dim); stroke: none; }
   /* Il moncone: un lato libero si DISEGNA, non si omette. Il cerchietto vuoto in punta dice
      «la catena finisce qui», che è diverso da «la figura è tagliata qui». */
   .stub { stroke: var(--dim); stroke-width: 1.4; stroke-dasharray: 3 3; }
@@ -162,7 +168,20 @@ let REG = null, GRAPH = null, INDEX = null, BROKEN = [], PROJECT = null;
 // — mandare a qualcuno il link della vista che si sta guardando, e ricaricare la pagina senza
 // tornare all'Overview. Un hash sconosciuto non rompe niente: resta `overview`.
 let tab = 'overview';
-const filters = {};
+
+// I filtri sono PER VISTA, non globali. Con un oggetto solo la chiave `release` era condivisa fra
+// Feature Map ed Execution Map: scegliere `v0.2` di là svuotava la mappa di qua — e siccome `v0.2`
+// non e' fra le release dei nodi, nessuna `<option>` risultava selezionata e il menu mostrava
+// l'etichetta neutra. Una vista vuota senza filtro visibile e' il modo peggiore di sbagliare,
+// perche' sembra un dato assente e non una scelta.
+const FILTERS = {};
+const tabFilters = () => (FILTERS[tab] = FILTERS[tab] || {});
+
+/** L'hash decide la vista. Un valore sconosciuto non rompe niente: la vista resta dov'è. */
+function applyHash() {
+  const wanted = location.hash.replace('#', '');
+  if (TABS.some(([id]) => id === wanted)) tab = wanted;
+}
 
 // --- Caricamento ---------------------------------------------------------------------------
 
@@ -210,8 +229,10 @@ function boot(reg, graph) {
   INDEX = buildIndex(REG, GRAPH);
   BROKEN = brokenRefs(REG, GRAPH, INDEX);
   renderSource();
-  const wanted = location.hash.replace('#', '');
-  if (TABS.some(([id]) => id === wanted)) tab = wanted;
+  applyHash();
+  // Senza questo, Back e Forward cambiavano l'URL lasciando la vista dov'era: l'hash veniva letto
+  // una volta sola al caricamento, e ogni passo indietro allargava lo scarto fra barra e pagina.
+  window.addEventListener('hashchange', () => { applyHash(); renderTabs(); render(); });
   renderTabs();
   render();
   checkStaleness();
@@ -335,7 +356,7 @@ function overview(view) {
   view.append(table(['Gate', 'Feature che non lo hanno chiuso'],
     Object.entries(missing).sort((a, b) => b[1] - a[1]).map(([gate, n]) => {
       const link = el('span', { className: 'pill', textContent: `${gate} · ${n}` });
-      link.onclick = () => { tab = 'features'; filters.gate = gate; renderTabs(); render(); };
+      link.onclick = () => { tab = 'features'; tabFilters().gate = gate; renderTabs(); render(); };
       return [link, `${n} feature`];
     })));
 }
@@ -389,7 +410,7 @@ function features(view) {
     select('scenarioReady', 'Scenari', ['yes', 'planned']),
     search(),
   ]));
-  const shown = filterFeatures(feats, filters, INDEX);
+  const shown = filterFeatures(feats, tabFilters(), INDEX);
   view.append(el('p', { className: 'muted',
     textContent: `${shown.length} di ${feats.length} feature` }));
   view.append(el('div', { className: 'cards' }, shown.map(featureCard)));
@@ -521,7 +542,7 @@ function execution(view) {
     return;
   }
   const index = executionIndex(GRAPH);
-  const shown = filterExecution(ex.nodes, filters);
+  const shown = filterExecution(ex.nodes, tabFilters());
   const uniq = (fn) => [...new Set(ex.nodes.map(fn).filter(Boolean))].sort();
 
   view.append(el('p', { className: 'muted', textContent:
@@ -564,12 +585,17 @@ function execution(view) {
   }
 
   view.append(el('h2', { textContent: 'Roads' }));
+  // Stessa regola del disegno: sotto filtro, un prerequisito nascosto non si elenca e il lato
+  // conta come libero. Tabella e figura devono dire la stessa cosa della stessa vista.
+  const visibleIds = new Set(shown.map((n) => n.id));
   view.append(table(
     ['Nodo', 'Lane', 'Dominio', 'Readiness', 'Dipende da', 'Abilita', 'Feature'],
     shown.map((n) => {
-      const ends = danglingEnds(index, n.id);
-      const upstream = executionIncoming(index, n.id, { hardOnly: true });
-      const downstream = executionOutgoing(index, n.id, { hardOnly: true });
+      const ends = danglingEnds(index, n.id, visibleIds);
+      const upstream = executionIncoming(index, n.id, { hardOnly: true })
+        .filter((e) => visibleIds.has(e.from));
+      const downstream = executionOutgoing(index, n.id, { hardOnly: true })
+        .filter((e) => visibleIds.has(e.to));
       return [
         chip(execLabel(n), () => openExecutionNode(n.id)),
         tag((n.execution_lane || '—').toUpperCase()),
@@ -687,13 +713,13 @@ function executionDiagram(index, shown) {
   const defs = svgEl('defs', {}, svgEl('marker', {
     id: 'arrow', viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7,
     orient: 'auto-start-reverse',
-  }, svgEl('path', { d: 'M 0 0 L 8 4 L 0 8 z', fill: 'currentColor', class: 'edge' })));
+  }, svgEl('path', { d: 'M 0 0 L 8 4 L 0 8 z', class: 'arrowhead' })));
   svg.prepend(defs);
 
   for (const n of shown) {
     const p = xy(n.id);
     if (!p) continue;
-    const ends = danglingEnds(index, n.id);
+    const ends = danglingEnds(index, n.id, visible);
     // I due monconi. Sono la richiesta esplicita di questa vista: un lato senza collegamenti
     // si vede COME lato libero, non come assenza di disegno.
     if (ends.inbound) {
@@ -736,6 +762,7 @@ function executionLegend() {
     el('span', {}, [sample('edge hard'), ' dipendenza dura']),
     el('span', {}, [sample('edge follows'), ' ordine consigliato (non blocca)']),
     el('span', {}, [sample('edge related'), ' collegata (non blocca)']),
+    el('span', {}, [sample('edge implements'), ' realizza / verifica (non blocca)']),
     el('span', {}, [stub, ' lato libero: niente lo trattiene, o non sblocca niente']),
   ]);
 }
@@ -988,14 +1015,14 @@ function select(key, label, options) {
   const s = el('select');
   s.append(el('option', { value: '', textContent: label }));
   for (const o of options) s.append(el('option', { value: o, textContent: o,
-    selected: filters[key] === o }));
-  s.onchange = () => { filters[key] = s.value || undefined; render(); };
+    selected: tabFilters()[key] === o }));
+  s.onchange = () => { tabFilters()[key] = s.value || undefined; render(); };
   return s;
 }
 function search() {
   const i = el('input', { type: 'search', placeholder: 'Feature, titolo, #issue, scenario, spec…',
-    value: filters.text || '' });
-  i.oninput = () => { filters.text = i.value; render(); };
+    value: tabFilters().text || '' });
+  i.oninput = () => { tabFilters().text = i.value; render(); };
   return i;
 }
 

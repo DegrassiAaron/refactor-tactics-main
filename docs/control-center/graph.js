@@ -322,10 +322,18 @@ export function executionOutgoing(index, id, { hardOnly = false } = {}) {
  * figura, e il moncone e' il modo di dire «qui la catena finisce davvero» invece di «qui la
  * figura e' tagliata».
  */
-export function danglingEnds(index, id) {
+export function danglingEnds(index, id, visible = null) {
+  // `visible` e' l'insieme dei nodi che la vista sta disegnando. Serve perche' un filtro puo'
+  // nascondere il padre di un nodo: l'arco non viene disegnato (l'altro capo non c'e'), e senza
+  // questo parametro nemmeno il moncone — il nodo resterebbe con il lato sinistro nudo, che e'
+  // esattamente l'ambiguita' «la catena finisce qui» / «la figura e' tagliata qui» che il moncone
+  // esiste per togliere. Un lato i cui archi sono tutti verso nodi nascosti conta come libero
+  // *nella figura corrente*, ed e' l'unica lettura onesta di quel disegno.
+  const free = (edges) => edges.length === 0
+    || (visible !== null && edges.every((e) => !visible.has(e.from) || !visible.has(e.to)));
   return {
-    inbound: executionIncoming(index, id, { hardOnly: true }).length === 0,
-    outbound: executionOutgoing(index, id, { hardOnly: true }).length === 0,
+    inbound: free(executionIncoming(index, id, { hardOnly: true })),
+    outbound: free(executionOutgoing(index, id, { hardOnly: true })),
   };
 }
 
@@ -361,9 +369,12 @@ export function filterExecution(nodes, filters = {}) {
     if (filters.lane && n.execution_lane !== filters.lane) return false;
     if (filters.domain && n.domain_group !== filters.domain) return false;
     if (filters.readiness && n.readiness !== filters.readiness) return false;
-    if (filters.q) {
+    // `text`, non `q`: e' la chiave che scrive il controllo di ricerca condiviso della pagina, la
+    // stessa che `filterFeatures` legge. Con `q` il campo era inerte — si digitava e non filtrava
+    // niente, e nessun test se ne accorgeva perche' nessuno passava mai quella chiave.
+    if (filters.text) {
       const hay = `${n.id} ${n.ref} ${(n.feature_ids || []).join(' ')} ${n.checkpoint || ''}`;
-      if (!hay.toLowerCase().includes(filters.q.toLowerCase())) return false;
+      if (!hay.toLowerCase().includes(filters.text.toLowerCase())) return false;
     }
     return true;
   });

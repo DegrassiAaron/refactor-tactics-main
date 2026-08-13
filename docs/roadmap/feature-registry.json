@@ -5248,7 +5248,7 @@
         "epic": null,
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": "Epic **E27** (`roadmap-post-v0.1.md`, v0.3, issue #327). `release: future` e non `v0.3` perche' il vocabolario ammesso e' `v0.1 | v0.2 | future`: la v0.3 non ha ancora una colonna propria, e inventargliela farebbe fallire il validator."
+        "out_of_release_scope": "Epic **E27** (`roadmap-post-v0.1.md`, v0.3, issue #327). ⚠️ Fino al 2026-08-13 questa riga diceva `release: future` **perche' il vocabolario ammesso era** `v0.1 | v0.2 | future`: era una limitazione dello schema, non una scelta di scope. Con v0.3 esprimibile la feature sta nella release che l'epic dichiara, e questa nota resta per dire che il `future` di prima non significava «non pianificata»."
       },
       "dependencies": [
         "RT-FEAT-BOT-FAIRNESS",
@@ -5308,7 +5308,7 @@
         "epic": null,
         "milestone": null,
         "checkpoints": [],
-        "out_of_release_scope": "Epic **E28** (`roadmap-post-v0.1.md`, v0.3, issue #328), piu' il residuo di **E29** (predictive avanzato, #329). Stessa ragione di `RT-FEAT-BOT-BELIEF` per `release: future`."
+        "out_of_release_scope": "Epic **E28** (`roadmap-post-v0.1.md`, v0.3, issue #328), piu' il residuo di **E29** (predictive avanzato, #329). ⚠️ Come `RT-FEAT-BOT-BELIEF`, stava in `future` perche' lo schema non sapeva dire `v0.3`; dal 2026-08-13 lo dice."
       },
       "dependencies": [
         "RT-FEAT-BOT-TACTICAL",

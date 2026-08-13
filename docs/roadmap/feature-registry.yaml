@@ -15,7 +15,11 @@
 #   gates.*      : done | partial | todo | na
 #   status       : IDEA | DESIGNED | SPECIFIED | IMPLEMENTING | TESTABLE | INTEGRATED
 #                  | RELEASE_READY | DONE | DEFERRED | BLOCKED
-#   release      : v0.1 | v0.2 | future
+#   release      : v0.1 | v0.2 | v0.3 | v0.4 | future
+#                  L'elenco vive in `RELEASE_ORDER` (`scripts/feature_registry.py`), che ne fissa
+#                  anche l'ORDINE per tutte le viste. v0.3 e v0.4 sono state aggiunte il
+#                  2026-08-13: prima non erano esprimibili e cinque feature stavano in `future`
+#                  per assenza di un valore, non di una decisione.
 #   priority     : P0 | P1 | P2 | P3
 #   kind         : gameplay | ui | tooling | data | infra | content
 #   tests        : pattern di nome test, con `*` finale ammesso; devono matchare test reali
@@ -4734,9 +4738,11 @@ features:
       epic: null
       checkpoints: []
       out_of_release_scope: >-
-        Epic **E27** (`roadmap-post-v0.1.md`, v0.3, issue #327). `release: future` e non `v0.3`
-        perche' il vocabolario ammesso e' `v0.1 | v0.2 | future`: la v0.3 non ha ancora una
-        colonna propria, e inventargliela farebbe fallire il validator.
+        Epic **E27** (`roadmap-post-v0.1.md`, v0.3, issue #327). ⚠️ Fino al 2026-08-13 questa
+        riga diceva `release: future` **perche' il vocabolario ammesso era** `v0.1 | v0.2 |
+        future`: era una limitazione dello schema, non una scelta di scope. Con v0.3 esprimibile
+        la feature sta nella release che l'epic dichiara, e questa nota resta per dire che il
+        `future` di prima non significava «non pianificata».
     dependencies:
       - RT-FEAT-BOT-FAIRNESS
       - RT-FEAT-PERCEPTION-NOISE
@@ -4789,7 +4795,8 @@ features:
       checkpoints: []
       out_of_release_scope: >-
         Epic **E28** (`roadmap-post-v0.1.md`, v0.3, issue #328), piu' il residuo di **E29**
-        (predictive avanzato, #329). Stessa ragione di `RT-FEAT-BOT-BELIEF` per `release: future`.
+        (predictive avanzato, #329). ⚠️ Come `RT-FEAT-BOT-BELIEF`, stava in `future` perche' lo
+        schema non sapeva dire `v0.3`; dal 2026-08-13 lo dice.
     dependencies:
       - RT-FEAT-BOT-TACTICAL
       - RT-FEAT-BOT-BELIEF

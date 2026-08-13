@@ -104,7 +104,7 @@ tabella sopra, che è generata.
 
 > ⚠️ **Con una sezione ma senza release**: **E37**. La tabella «Le release» non le assegna, e la posizione del testo non e' un'assegnazione: la decisione manca nell'owner, non qui.
 
-> ⚠️ **La colonna Feature e' vuota perche' il registry non dichiara l'epic**: 20 feature post-v0.1 (v0.2 **15** · v0.3 **5**) hanno `roadmap.epic` nullo. Il legame esiste nella prosa di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non in un campo: finche' non lo e', questa colonna non puo' dire quali capacita' porta un'epic, e il conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` su **E34** non e' diagnosticabile da nessun controllo.
+> ⚠️ **La colonna Feature e' quasi vuota perche' il registry non dichiara l'epic**: 20 feature post-v0.1 (v0.2 **15** · v0.3 **5**) hanno `roadmap.epic` nullo, **1** lo dichiara. Il legame esiste nella prosa di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non in un campo: finche' non lo e', questa colonna non puo' dire quali capacita' porta un'epic, e il conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` su **E34** non e' diagnosticabile da nessun controllo.
 
 <!-- RT_SHORTLIST_RELEASES:END -->
 

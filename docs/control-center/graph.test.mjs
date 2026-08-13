@@ -384,3 +384,49 @@ test('CONTRATTO — la fetta reale mostra il fork, il junction e la capability',
   assert.ok(cap.scenario_consumers.length >= 7,
     'gli scenari che la chiedono sono quelli del corpus, non una lista scritta a mano');
 });
+
+// --- Difetti trovati dalla review, pinnati -------------------------------------------------------
+
+test('la ricerca usa la chiave che il campo di ricerca scrive davvero', () => {
+  const nodes = execFixture().execution.nodes;
+  // `search()` scrive `filters.text`. Con `filters.q` il campo era inerte: si digitava e non
+  // filtrava niente, e nessun test se ne accorgeva perche nessuno passava mai quella chiave.
+  assert.deepEqual(filterExecution(nodes, { text: 'issue:2' }).map((n) => n.id), ['issue:2']);
+  assert.deepEqual(filterExecution(nodes, { text: 'U9' }).map((n) => n.id), ['session:U9']);
+  assert.equal(filterExecution(nodes, { text: 'ISSUE:2' }).length, 1, 'case-insensitive');
+  assert.equal(filterExecution(nodes, { text: 'nulla-che-esista' }).length, 0);
+  // La chiave vecchia non deve piu filtrare: se qualcuno la ripristina, questo cade.
+  assert.equal(filterExecution(nodes, { q: 'issue:2' }).length, 4,
+    '`q` non e una chiave di filtro: non deve nascondere nulla');
+});
+
+test('sotto filtro un lato i cui archi puntano a nodi nascosti conta come libero', () => {
+  const index = executionIndex(execFixture());
+  // Senza `visible`, `issue:2` ha un padre hard e riporta `inbound: false`: nessun moncone. Ma
+  // l'arco non viene disegnato, perche il padre e nascosto — e il nodo resta con il lato sinistro
+  // nudo, cioe proprio l'ambiguita «la catena finisce qui» / «la figura e tagliata qui» che il
+  // moncone esiste per togliere.
+  const visible = new Set(['issue:2', 'issue:3']);   // `issue:1` filtrato via
+  assert.deepEqual(danglingEnds(index, 'issue:2'), { inbound: false, outbound: true },
+    'senza il contesto della vista, il lato risulta collegato');
+  assert.deepEqual(danglingEnds(index, 'issue:2', visible), { inbound: true, outbound: true },
+    'nella vista corrente quel lato e libero, e va disegnato come tale');
+  // Con tutto visibile il verdetto non cambia rispetto alla forma senza parametro.
+  const all = new Set(index.nodes.map((n) => n.id));
+  assert.deepEqual(danglingEnds(index, 'issue:2', all), danglingEnds(index, 'issue:2'));
+});
+
+test('CONTRATTO — ogni tipo di arco del grafo reale ha una regola di stile propria', () => {
+  const graph = readJson('docs/roadmap/project-graph.json');
+  const css = readFileSync(join(HERE, 'index.html'), 'utf8');
+  const styled = new Set([...css.matchAll(/\.edge\.([a-z_]+)\s*[,{]/g)].map((m) => m[1]));
+  const drawn = new Set(graph.execution.edges
+    .filter((e) => !e.hard)                 // le hard usano `.edge.hard`
+    .map((e) => e.type)
+    .filter((t) => t !== 'provides'));      // `provides` punta a una capability, non disegnata
+  for (const type of drawn) {
+    assert.ok(styled.has(type),
+      `l'arco \`${type}\` non ha una regola CSS: eredita il tratto pieno di \`.edge\`, `
+      + 'cioe la figura afferma una dipendenza dura dove il modello non ne dichiara nessuna');
+  }
+});

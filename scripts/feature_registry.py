@@ -1709,7 +1709,13 @@ def render_shortlist_releases(data):
         "|---|:--:|---|--:|---|",
     ]
     unassigned = []
-    for entry in sorted(epics, key=lambda e: (e["release"] or "zz", int(e["epic"][1:]))):
+    # L'ordine delle release e' `RELEASE_ORDER`, non quello alfabetico: era l'ultima delle quattro
+    # copie che questa stessa consegna esiste per eliminare, e sarebbe bastata una `v0.10` — o una
+    # release con un nome invece che un numero — per farla divergere in silenzio dalle altre viste.
+    rel_rank = {rel: i for i, rel in enumerate(RELEASE_ORDER)}
+    def release_key(rel):
+        return rel_rank.get(rel, len(RELEASE_ORDER))
+    for entry in sorted(epics, key=lambda e: (release_key(e["release"]), int(e["epic"][1:]))):
         epic = entry["epic"]
         if entry["release"] is None:
             unassigned.append(entry)
@@ -1720,7 +1726,7 @@ def render_shortlist_releases(data):
             f"| **{epic}** {entry['title']} · {entry['priority']} | {entry['release']} | {issue} | "
             f"{count or '—'} | {kept.get(epic, '—')} |")
 
-    releases = sorted({e["release"] for e in epics if e["release"]})
+    releases = sorted({e["release"] for e in epics if e["release"]}, key=release_key)
     lines += [
         "",
         f"**{len([e for e in epics if e['release']])} epic** su {len(releases)} release "
@@ -1728,13 +1734,19 @@ def render_shortlist_releases(data):
         f"[`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.",
     ]
 
-    # Perche' la colonna Feature e' oggi tutta `—`, e perche' dirlo invece di nasconderlo: il
-    # registry dichiara `roadmap.epic` solo per E1-E21. Le feature post-v0.1 esistono — 16 in v0.2,
-    # 5 in v0.3 — ma nessuna dice a quale epic appartiene, e senza quel campo la §3 non puo'
-    # rispondere a «quali capacita' porta questa epic». La menzione di un `RT-FEAT-*` nel testo
-    # dell'owner NON basta a dedurlo: E38 nomina `RT-FEAT-ACTION-ENGINE` come dipendenza gia'
-    # consegnata in v0.1, non come proprio contenuto. Dedurre l'appartenenza dalla menzione
-    # avrebbe collegato una feature v0.1 chiusa a un'epic v0.2 aperta.
+    # Perche' la colonna Feature e' quasi tutta `—`, e perche' dirlo invece di nasconderlo: il
+    # registry dichiara `roadmap.epic` quasi solo per E1-E21. Fra le 21 feature post-v0.1 **una**
+    # lo dichiara (`RT-FEAT-REPLAY-ARCHIVE` -> `E12`, un'epic della v0.1 che la sua estensione
+    # v0.2 continua a citare); le altre 20 no, e senza quel campo la §3 non puo' rispondere a
+    # «quali capacita' porta questa epic».
+    #
+    # ⚠️ Il conteggio si misura, non si arrotonda a «nessuna»: la prima stesura di questo commento
+    # diceva «nessuna dice a quale epic appartiene» mentre il dato — che avevo davanti — ne
+    # mostrava una. Il numero qui sotto e' derivato, cosi' la frase non puo' piu' divergere.
+    #
+    # La menzione di un `RT-FEAT-*` nel testo dell'owner NON basta a dedurre l'appartenenza: E38
+    # nomina `RT-FEAT-ACTION-ENGINE` come dipendenza gia' consegnata in v0.1, non come proprio
+    # contenuto. Dedurlo avrebbe collegato una feature v0.1 chiusa a un'epic v0.2 aperta.
     orphan = {}
     for entry in data["features"]:
         if entry["release"] in releases and not entry["roadmap"].get("epic"):
@@ -1758,15 +1770,18 @@ def render_shortlist_releases(data):
         ]
     if orphan:
         total = sum(orphan.values())
-        detail = " · ".join(f"{rel} **{orphan[rel]}**" for rel in sorted(orphan))
+        bound = sum(1 for e in data["features"]
+                    if e["release"] in releases and e["roadmap"].get("epic"))
+        detail = " · ".join(f"{rel} **{orphan[rel]}**" for rel in sorted(orphan, key=release_key))
         lines += [
             "",
-            f"> ⚠️ **La colonna Feature e' vuota perche' il registry non dichiara l'epic**: "
-            f"{total} feature post-v0.1 ({detail}) hanno `roadmap.epic` nullo. Il legame esiste "
-            "nella prosa di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non "
-            "in un campo: finche' non lo e', questa colonna non puo' dire quali capacita' porta "
-            "un'epic, e il conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` "
-            "su **E34** non e' diagnosticabile da nessun controllo.",
+            f"> ⚠️ **La colonna Feature e' quasi vuota perche' il registry non dichiara l'epic**: "
+            f"{total} feature post-v0.1 ({detail}) hanno `roadmap.epic` nullo, "
+            f"**{bound}** lo dichiara. Il legame esiste nella prosa di "
+            "[`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non in un campo: "
+            "finche' non lo e', questa colonna non puo' dire quali capacita' porta un'epic, e il "
+            "conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` su **E34** non "
+            "e' diagnosticabile da nessun controllo.",
         ]
     return wrap_block(marker, lines)
 
@@ -2523,6 +2538,13 @@ EXEC_HARD = {"requires", "requires_capability"}
 EXEC_SOFT = {"follows", "related"}
 EXEC_TRACE = {"provides", "implements", "verifies"}
 EXEC_RELATIONS = EXEC_HARD | EXEC_SOFT | EXEC_TRACE
+# Nomi che il generatore DERIVA e che quindi non si scrivono nel source. Vivono in un dizionario
+# proprio, e non in un `if` dentro il loop, perche' il controllo va fatto prima di «tipo
+# sconosciuto»: sono per definizione fuori da `EXEC_RELATIONS`.
+EXEC_DERIVED = {
+    "blocks": "e' l'inversa di `requires`, e due direzioni scritte a mano divergono al primo edit",
+    "converges_into": "un junction si riconosce dal numero di ingressi hard, non si dichiara",
+}
 EXEC_SCHEMA_VERSION = 1
 
 
@@ -2587,7 +2609,7 @@ def execution_node_state(node, ctx, declared):
     return None, None
 
 
-def build_execution(ctx, registry):
+def build_execution(ctx, registry, corpus=None, available=None):
     """Nodi, archi, capability e conteggi dell'execution graph. Tutto derivato, niente dichiarato.
 
     ## Readiness: si calcola sui PREREQUISITI, non sul lavoro proprio
@@ -2673,9 +2695,12 @@ def build_execution(ctx, registry):
 
     # Capability: i consumatori veri sono gli scenari del corpus, che le dichiarano in
     # `requires`. Il provider arriva da qui — ed e' l'unica cosa che il repository non sapeva.
-    available = available_capabilities()
+    # Passati da `build_graph`, che li usa comunque per le proprie chiavi: senza, ogni
+    # `generate` faceva due `os.walk` di `Scenarios/` con ~73 `json.load` e due letture del
+    # sorgente delle capability. E' lo stesso motivo per cui `editor_ctx` viaggia come parametro.
+    available = available if available is not None else available_capabilities()
     scenario_consumers = {}
-    for scenario in scenario_corpus():
+    for scenario in (corpus if corpus is not None else scenario_corpus()):
         for cap in scenario.get("requires") or []:
             scenario_consumers.setdefault(cap, []).append(scenario["id"])
     capabilities = {}
@@ -2691,13 +2716,21 @@ def build_execution(ctx, registry):
             capabilities[edge["from"].split(":", 1)[1]]["consumers"].append(edge["to"])
 
     def resolved(nid):
-        """`True` risolto · `False` noto non risolto · `None` non misurabile offline."""
+        """`True` risolto · `False` noto non risolto · `None` non misurabile offline.
+
+        I glifi coperti sono tutti e quattro quelli di `STATUS_GLYPHS`: `⌫` («rimosso dal repo»)
+        vale **non risolto**, come gia' fa `resolve_prerequisite()` per le sedute, che accetta
+        solo `✅` e `🟡`. Senza, un glifo *dichiarato* dall'owner ricadeva nel `return None`
+        finale e il nodo usciva «stato non misurabile offline» avendo in JSON `state: "⌫"` e uno
+        `state_source` valorizzato — l'artefatto che contraddice se stesso. Nessun checkpoint usa
+        `⌫` oggi: e' una latenza, e costa una riga chiuderla.
+        """
         record = by_id.get(nid)
         if record is None:
             return None
-        if record["state"] in ("✅",):
+        if record["state"] == "✅":
             return True
-        if record["state"] in ("🟡", "⏳"):
+        if record["state"] in ("🟡", "⏳", "⌫"):
             return False
         return None
 
@@ -2727,11 +2760,25 @@ def build_execution(ctx, registry):
             elif verdict is None:
                 unknown.append(origin)
         if blocking:
-            first = blocking[0]
-            lane = by_id.get(first, {}).get("execution_lane")
-            record["readiness"] = {"asset": "WAITING_FOR_ASSET",
-                                   "pie": "WAITING_FOR_PIE"}.get(lane, "BLOCKED")
-            record["readiness_reason"] = "aspetta " + ", ".join(blocking)
+            # `WAITING_FOR_*` dice **chi deve intervenire**, quindi lo si afferma solo quando
+            # l'attesa e' tutta di quella persona: se anche un solo prerequisito e' codice, il
+            # nodo e' `BLOCKED` e mandare qualcuno in editor non lo sbloccherebbe.
+            #
+            # Prima decideva `blocking[0]`, cioe' l'ordine in cui le relazioni comparivano nello
+            # YAML: riordinare due stanze indipendenti cambiava il verdetto della dashboard e il
+            # conteggio `by_readiness` che un test pinna. Un verdetto non puo' dipendere da come
+            # e' impaginato il source.
+            # `blocking_lanes`, non `lanes`: quel nome appartiene gia' alla tassonomia serializzata
+            # poche righe piu' su, e riusarlo qui la sostituiva con un set — che `json.dump` non
+            # sa scrivere. Il gate l'ha preso al primo `generate`.
+            blocking_lanes = {by_id.get(b, {}).get("execution_lane") for b in blocking}
+            if blocking_lanes == {"asset"}:
+                record["readiness"] = "WAITING_FOR_ASSET"
+            elif blocking_lanes <= {"asset", "pie"}:
+                record["readiness"] = "WAITING_FOR_PIE"
+            else:
+                record["readiness"] = "BLOCKED"
+            record["readiness_reason"] = "aspetta " + ", ".join(sorted(blocking))
         elif unknown:
             record["readiness"] = "UNKNOWN"
             record["readiness_reason"] = ("stato non misurabile offline di " + ", ".join(unknown))
@@ -2860,11 +2907,17 @@ def validate_execution_graph(ctx=None, registry=None):
     for rel in doc.get("relations") or []:
         origin, target, kind = rel.get("from"), rel.get("to"), rel.get("type")
         where = f"[execution-graph {origin} -> {target}]"
+        # I nomi derivati si controllano PRIMA di «tipo sconosciuto», e non dopo: non stanno in
+        # `EXEC_RELATIONS`, quindi il controllo generico scattava per primo e il messaggio
+        # specifico non e' mai stato raggiungibile. La regola sopravviveva per caso — e sarebbe
+        # sparita del tutto il giorno in cui qualcuno avesse aggiunto `blocks` all'insieme.
+        if kind in EXEC_DERIVED:
+            errors.append(f"{where} {kind!r} e' derivata e non si autorializza: "
+                          + EXEC_DERIVED[kind])
+            continue
         if kind not in EXEC_RELATIONS:
             errors.append(f"{where} tipo di relazione sconosciuto: {kind!r}")
             continue
-        if kind in ("blocks", "converges_into"):
-            errors.append(f"{where} {kind!r} e' derivata, non si autorializza")
         for side, ref in (("from", origin), ("to", target)):
             if str(ref).startswith("capability:"):
                 continue
@@ -2914,10 +2967,13 @@ def validate_execution_graph(ctx=None, registry=None):
             "65 dei restanti hanno gia' una issue chiusa")
 
     providers = {r.get("to") for r in (doc.get("relations") or []) if r.get("type") == "provides"}
+    # Misurata una volta: dentro il loop questa chiamata riapriva e ri-regexava
+    # `RTScenarioSession.cpp` una volta per ogni relazione `requires_capability`.
+    available = available_capabilities()
     for rel in doc.get("relations") or []:
         if rel.get("type") == "requires_capability" and rel.get("from") not in providers:
             name = str(rel.get("from")).split(":", 1)[1]
-            if name not in available_capabilities():
+            if name not in available:
                 warnings.append(f"[execution-graph] la capability {name!r} non e' disponibile a "
                                 "runtime e nessun nodo dichiara di fornirla: chi la aspetta "
                                 "resta bloccato senza che il grafo sappia dire da chi")
@@ -2940,6 +2996,11 @@ def build_graph(registry):
     # `generate` — una qui e una dentro `validate`.
     ctx = editor_context()
     errors, warnings = validate(registry, editor_ctx=ctx)
+    # Le due misure che servono sia alle chiavi di questo dizionario sia all'execution graph:
+    # `scenario_corpus()` cammina `Scenarios/` e apre ~73 JSON, `available_capabilities()` legge
+    # il sorgente delle capability. Una volta sola, e poi passate.
+    corpus = scenario_corpus()
+    available = available_capabilities()
     pie = ctx["pie"]
     sessions = ctx["sessions"]
     tracked = ctx["tracked"]
@@ -3009,9 +3070,9 @@ def build_graph(registry):
         "editor_sessions": graph_sessions,
         "editor_queue": {group: [s.get("id") for s, _b in queue[group]] for group in QUEUE_GROUPS},
         "pie_entries": [{"id": k, "state": v} for k, v in sorted(pie.items())],
-        "scenarios": scenario_corpus(),
-        "capabilities": sorted(available_capabilities()),
-        "execution": build_execution(ctx, registry),
+        "scenarios": corpus,
+        "capabilities": sorted(available),
+        "execution": build_execution(ctx, registry, corpus=corpus, available=available),
     }
 
 
