@@ -60,7 +60,7 @@ portano valori identici, e **§4.2** mostra come il foglio si smentisca da solo.
 si derivano quindi dalla rubrica ([D-112](../decisions/RT_PDR_00_Decision_Log.md)), come i sei del
 Profile.
 
-⚠️ Il foglio è anche **indietro**: dà a Vektor `HP 100`, superato da
+⚠️ Il foglio è anche **indietro**: dà a Wraith `HP 100`, superato da
 [D-069](../decisions/RT_PDR_00_Decision_Log.md) (oggi `90`).
 
 > ⚠️ **«Esistono» va detto**, perché cercare quei rating con `grep` nei `.md` non li trova e porta a
@@ -118,9 +118,9 @@ workbook faceva sommando i cinque assi in `Indice_Combat`. Ma è una **scelta**,
 altrimenti fra sei mesi qualcuno somma quei numeri senza sapere di averlo deciso.
 
 ⚠️ **Ne segue la regola che tiene insieme i due assi**: un bonus condizionale non può contribuire a
-entrambi. Se `power` contasse il potenziale, il `+8 su Wet` di Flux **alzerebbe** `power` e
+entrambi. Se `power` contasse il potenziale, il `+8 su Wet` di Gadget **alzerebbe** `power` e
 **abbasserebbe** `precision`, e in un indice sommabile i due movimenti **si cancellerebbero** — il
-tratto più identitario di Flux sparirebbe dal costo. Perciò `power` conta solo il danno **garantito**
+tratto più identitario di Gadget sparirebbe dal costo. Perciò `power` conta solo il danno **garantito**
 (§5.2), e il condizionale vive interamente in `precision`.
 
 ### 2.3 L'ordine fa parte della specifica
@@ -173,9 +173,9 @@ e il rinvio `` è `Action.X` `` è parte del contratto di lettura, non prosa lib
 Non contraddice D-106, che escludeva i **workbook**: i due cataloghi markdown sono già l'autorità dei
 numeri per [D-023](../decisions/RT_PDR_00_Decision_Log.md), diffabili e revisionabili in PR. La regola
 resta «un dato ha un solo posto dove vive» — la portata di `Action.Electrify` sta nel catalogo azioni
-proprio perché **non** è di Flux: è dell'azione core che sette abilità potrebbero riusare.
+proprio perché **non** è di Gadget: è dell'azione core che sette abilità potrebbero riusare.
 
-⚠️ **Vale un valore pubblicato, non è teoria**: senza la seconda fonte Flux esce `power 5` e
+⚠️ **Vale un valore pubblicato, non è teoria**: senza la seconda fonte Gadget esce `power 5` e
 `offense 4` invece di `6` e `5`, perché i `20` danni di `ConductiveNode` non vengono letti.
 
 ⚠️ **Un solo pattern risolve, e va distinto dall'altro che gli somiglia.** La tabella delle reazioni
@@ -209,7 +209,7 @@ Il conflitto fra i due workbook quindi non si risolve: **si dissolve**. Nessuno 
 Vale la pena conservare cosa sarebbe successo riusando il workbook, perché è il difetto che la
 regola previene.
 
-Il foglio `03_Stats_Base` assegna a Flux, Riva, Bastion e Vektor **la stessa identica riga**
+Il foglio `03_Stats_Base` assegna a Gadget, Phase, Riktor e Wraith **la stessa identica riga**
 (`6/4/4/2/2`, `Indice_Combat 45.6`, `Budget 60`). Che siano default lo dimostra il modo in cui tratta
 tutti gli altri: le restanti 38 righe si distribuiscono su **12 combinazioni assegnate per ruolo** —
 otto Controller condividono `7/6/10/6/5`, sei Bruiser `7/8/6/3/7`. Il foglio discrimina per ruolo, e i
@@ -251,8 +251,8 @@ danno, range, effetto e cooldown.
 
 Va detto adesso, perché è la parte che promette più di quanto oggi mantenga.
 
-L'unico input per eroe è la **Vista**: Flux 7 ([D-073](../decisions/RT_PDR_00_Decision_Log.md)),
-Vektor 6, Riva e Bastion 5. Stealth, detection e tracking **esistono solo** in `03_Hero_Vision` del
+L'unico input per eroe è la **Vista**: Gadget 7 ([D-073](../decisions/RT_PDR_00_Decision_Log.md)),
+Wraith 6, Phase e Riktor 5. Stealth, detection e tracking **esistono solo** in `03_Hero_Vision` del
 workbook character, che §4 esclude dalle fonti — quindi non entrano.
 
 Ne segue che `information` è una funzione quasi monovariata, e sul roster v0.1 produrrà **tre valori
@@ -281,9 +281,9 @@ rosso **senza** che nessuno abbia toccato un dato competitivo.
 
 **Il cooldown pesa `disponibilità(CD) = 10 / (1 + CD/2)`** — `CD 0 → 10 · 1 → 6.67 · 2 → 5 · 3 → 4`.
 Risolve `CD 0` senza casi speciali, con **una sola costante** da giustificare invece di una tabella di
-quattro. Scartata la frequenza pura `10/(1+CD)`, che fa collidere Bastion e Riva.
+quattro. Scartata la frequenza pura `10/(1+CD)`, che fa collidere Riktor e Phase.
 
-> ⚠️ **La curva non è taratura: cambia il carattere di un eroe.** Flux ha quattro abilità su cinque a
+> ⚠️ **La curva non è taratura: cambia il carattere di un eroe.** Gadget ha quattro abilità su cinque a
 > `CD 2–3`, quindi una curva severa le svaluta tutte — e siccome le sue abilità **non selettive** sono
 > proprio quelle a cooldown alto, la sua selettività *sale*. Con una tabella piatta usciva
 > `power 7 / precision 6`; con questa curva esce `6 / 7`.
@@ -432,7 +432,7 @@ La radice porta ora `width="400" height="400"`, e il contenitore può solo ridur
 
 **Il testo alternativo ripete i valori, e un gate lo verifica.** Quando il radar è pubblicato come
 immagine, il `<title>` interno non raggiunge il lettore: conta l'`alt` della pagina che lo incorpora.
-Fino al 2026-08-12 sulla Wiki erano etichette senza numeri («Profile Radar di Flux»): chi vede il
+Fino al 2026-08-12 sulla Wiki erano etichette senza numeri («Profile Radar di Gadget»): chi vede il
 grafico leggeva sei valori, chi usa uno screen reader ne riceveva zero. L'`alt` è ora
 `<title>: <asse> <valore>, …` e si ricava **dall'SVG**, mai da una tabella parallela.
 

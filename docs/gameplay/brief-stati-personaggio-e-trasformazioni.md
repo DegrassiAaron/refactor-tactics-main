@@ -86,7 +86,7 @@ framework senza toccare il kit.
    `Prep`, durata minima, cooldown o costo di risorsa.
 3. **Le fasi non si piegano.** Dichiarazione in Planning, risoluzione in `Prep`, effetti sulle fasi successive.
    La sequenza resta `Planning → Prep → Dash → Blast → Move → Cleanup`, e **il `Cleanup` è dove scade** una
-   forma a durata fissa — la stessa fase in cui Bastion recupera `Integrità Strutturale`.
+   forma a durata fissa — la stessa fase in cui Riktor recupera `Integrità Strutturale`.
 4. **Niente GAS** ([D-005](../decisions/RT_PDR_00_Decision_Log.md)): i dati vivono in
    `URTActionData`/`URTHeroData`/`URTEquipmentData`.
 5. **Niente branch per eroe** nel core (ADR-0006). Uno stato può sostituire le abilità **del proprio**
@@ -139,7 +139,7 @@ che non gira è peggio di uno che manca — sembra copertura. Gli ID seguono la 
 | `State.Riva.Flow` | Trigger su sequenza, stato leggero, nessun override | **Il primo da scrivere.** È l'unico che non tocca cover, LOS, collisione o pathing: se fallisce, il difetto è nel framework, non nell'integrazione |
 | `State.Flux.Charged` | Trigger ambientale, mutazione di skill, interazione con `Wet` | Valida la pipeline `ambiente → stato → abilità → ambiente`. Il caso interessante è che il bonus legge `Status.Wet` **senza sapere chi l'ha applicato** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)) |
 | `State.Bastion.Bulwark` | Pseudo-cover, LOS, protezione dell'alleato, pathing | Il più invasivo: quattro sistemi condivisi in un colpo solo. Va scritto **dopo** i due leggeri |
-| `State.Howitzer.Siege` | Alternate Form completa: override movimento + skill, revert a costo di `Prep` | Il banco di prova di `Mobile ↔ Siege`. **Non Vektor**: vedi §2 |
+| `State.Howitzer.Siege` | Alternate Form completa: override movimento + skill, revert a costo di `Prep` | Il banco di prova di `Mobile ↔ Siege`. **Non Wraith**: vedi §2 |
 | `State.MultiState.Stress` | Più unità in stati diversi nello stesso turno | Il solo che può rompere il determinismo. Deve dimostrare **permutazione-invarianza**: stessi stati, ordine di inserimento diverso, `TurnLog` e hash identici |
 
 Nessun bypass del gameplay: percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, niente

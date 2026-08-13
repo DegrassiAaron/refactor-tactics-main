@@ -239,8 +239,8 @@ ciò che questa spec afferma.
 > dell'eroe: un'unità che muove il giocatore non lo consulta mai. Per questo lo standoff non è un campo
 > di `URTHeroData` né di `ARTUnit` — lo **deriva il bot** dalla portata dell'attacco base, con
 > `URTHexBotLibrary::DeriveKiteStandoff`. La regola riproduce i due archetipi che il comportamento lo
-> producevano (portata 6 → standoff 4, portata 3 → 0), e sul roster v0.1 rende kiter la sola **Riva**
-> (`PressureJet`, portata 5 → standoff 3): Flux e Vektor (4) e Bastion (3) chiudono la distanza.
+> producevano (portata 6 → standoff 4, portata 3 → 0), e sul roster v0.1 rende kiter la sola **Phase**
+> (`PressureJet`, portata 5 → standoff 3): Gadget e Wraith (4) e Riktor (3) chiudono la distanza.
 
 > **Cosa i test non coprono**, e va detto: nessuno di essi esercita conoscenza parziale, facing o reazioni —
 > perché nessuna delle tre esiste ancora nel bot (§6). I verdi di `HexBotPlay.*` provano che il bot gioca

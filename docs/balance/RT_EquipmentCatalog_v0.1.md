@@ -122,10 +122,10 @@ Regole comuni a **ogni** modulo:
 
 | Eroe | Variante *(d'abilità)* | Gadget | Reazione | **Variante d'arma** *(D-089)* |
 |---|---|---|---|---|
-| **Flux** | Scarica ramificata | Isolante | Scudo reattivo | **Precisione** — 18 a portata 5: vede a 7 e sparava a 4 |
-| **Riva** | Marea curativa | Sprinkler | Fuga hazard | **Impatto** — Push 2: rinforza il mestiere di setter |
-| **Bastion** | Pannello adattivo | Copertura portatile | Interposizione | **Impatto** — l'unica che non gli toglie danno |
-| **Vektor** | Intercetto esteso | Sensore | Dash d'emergenza | **Soppressione** — il più mobile impedisce agli altri di esserlo |
+| **Gadget** | Scarica ramificata | Isolante | Scudo reattivo | **Precisione** — 18 a portata 5: vede a 7 e sparava a 4 |
+| **Phase** | Marea curativa | Sprinkler | Fuga hazard | **Impatto** — Push 2: rinforza il mestiere di setter |
+| **Riktor** | Pannello adattivo | Copertura portatile | Interposizione | **Impatto** — l'unica che non gli toglie danno |
+| **Wraith** | Intercetto esteso | Sensore | Dash d'emergenza | **Soppressione** — il più mobile impedisce agli altri di esserlo |
 
 Le *varianti* citate qui sono varianti di **abilità** dell'eroe (una per eroe), non varianti d'arma: dettaglio nel
 [catalogo eroi](RT_HeroCatalog_v0.1.md).
@@ -159,5 +159,5 @@ da `Gadget.PortableCover`~~ · se l'immunità di
 > **Il suo svantaggio non è nel PDF e non è stato inventato.** Il validator ne esige uno dichiarato — un
 > equipaggiamento senza svantaggio è una scelta verticale — e allora si dichiara ciò che i cataloghi già
 > dicono: **cooldown 3** come ogni gadget (§2) contro il **2** del pannello d'eroe, più l'unico slot gadget
-> occupato. Chi non è Bastion può erigere pannelli, ma più di rado e rinunciando a medkit, isolante o sensore.
+> occupato. Chi non è Riktor può erigere pannelli, ma più di rado e rinunciando a medkit, isolante o sensore.
 > Se E7 vorrà uno svantaggio più caratterizzato, questo è il posto dove cambiarlo.

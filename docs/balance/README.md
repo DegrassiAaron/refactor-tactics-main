@@ -43,7 +43,7 @@ D-108 — la toolchain Node è un prerequisito del **bilanciamento**, non solo d
 | File | Possiede | Autorevole? |
 |---|---|---|
 | [`RT_ActionCatalog_v0.1.md`](RT_ActionCatalog_v0.1.md) | ~35 azioni: ID stabile, macro-fase, priorità, range, costo, cooldown, fallback, interrompibilità | ✅ **sì** |
-| [`RT_HeroCatalog_v0.1.md`](RT_HeroCatalog_v0.1.md) | Flux · Riva · Bastion · Vektor: statistiche, abilità, varianti, loadout | ✅ **sì** |
+| [`RT_HeroCatalog_v0.1.md`](RT_HeroCatalog_v0.1.md) | Gadget · Phase · Riktor · Wraith: statistiche, abilità, varianti, loadout | ✅ **sì** |
 | [`RT_TerrainCatalog_v0.1.md`](RT_TerrainCatalog_v0.1.md) | 8 terreni, stati ambientali, coperture e strutture | ✅ **sì** |
 | [`RT_EquipmentCatalog_v0.1.md`](RT_EquipmentCatalog_v0.1.md) | Varianti arma, gadget, moduli di reazione | ✅ **sì** |
 | [`RT_TestMatrix_v0.1.md`](RT_TestMatrix_v0.1.md) | Requisito → test → criterio di accettazione | ✅ come **mappa dei test**, non come stato |
@@ -59,7 +59,7 @@ Contiene ancora, e sono tutte esplorazioni superate:
 
 | Foglio | Cosa dice | Perché non vale |
 |---|---|---|
-| `02_Roster` | banca archetipi Paragon | il roster è Flux · Riva · Bastion · Vektor |
+| `02_Roster` | banca archetipi Paragon | il roster è Gadget · Phase · Riktor · Wraith |
 | `06_Abilita_VS` | Steel · Aurora · Murdock · Kwang | personaggi mai adottati |
 | `07_Fast_Reactions` | finestra **5–7 s** | la baseline è **3,0 s** ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §8) |
 | `15_Azioni_Turni` | `FastReaction_sec = 6`; planning 35/35/40; `Max_Turni = 12` | `RoundLimit` è un parametro di formato ([D-010](../decisions/RT_PDR_00_Decision_Log.md)), non una costante |

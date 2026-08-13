@@ -6,8 +6,8 @@
 > è in codice (`ARTUnit`, con `RingLocalZ` che compensa `VisualZOffset` e la scala del genitore) e la
 > verifica interattiva è registrata nel registro PIE.
 >
-> **Non aggancia una resa visiva definitiva del roster**: quale personaggio corrisponda a Flux, Riva, Bastion
-> o Vektor è una decisione **aperta** ([`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)). L'anello funziona
+> **Non aggancia una resa visiva definitiva del roster**: quale personaggio corrisponda a Gadget, Phase, Riktor
+> o Wraith è una decisione **aperta** ([`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)). L'anello funziona
 > indipendentemente da quella scelta — è esattamente il motivo per cui fu preferito al MID `"Color"`.
 
 > Brainstorming del **2026-08-03** (dopo AS.1–AS.4). Obiettivo: rendere i due team distinguibili **dall'alto** con

@@ -201,7 +201,7 @@ secondo, questa spec descriverebbe un motore ancora non collaudato — esattamen
 | `Flux.ReactiveCapacitor` | `Action.Counter` (trigger `HitByDirectAttack`) | cooldown 3, effetti `{Shield 15, Damage 10}` | `Heroes.FluxReactiveCapacitorShieldsAndCounters` |
 
 `Interposition` non dichiara effetti propri, ed è **corretto**: interporsi cambia CHI subisce un colpo altrui,
-non cosa succede — è la stessa ragione per cui `Action.Intercept` non ne ha. Il test di Bastion che prima
+non cosa succede — è la stessa ragione per cui `Action.Intercept` non ne ha. Il test di Riktor che prima
 contava «zero effetti perché E5 non c'è» ora verifica che l'azione sia una reazione: il numero è lo stesso, il
 significato no, ed è per questo che è stato **sostituito** e non lasciato com'era.
 

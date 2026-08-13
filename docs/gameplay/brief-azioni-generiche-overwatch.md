@@ -68,7 +68,7 @@ Quello che nessun documento del repo copriva:
 
 | Tema | Stato prima | Ora |
 |---|---|---|
-| L'Overwatch è di **tutti** o di Vektor? | implicito: skill di Vektor | **di tutti**, come azione di Planning |
+| L'Overwatch è di **tutti** o di Wraith? | implicito: skill di Wraith | **di tutti**, come azione di Planning |
 | Che cosa **costa** andare in Overwatch? | mai scritto | **D-012**: compete con l'azione offensiva |
 | Tutte le opportunity aprono una finestra? | implicito: sì | **no**: tre policy, solo `FastSelect` ferma la resolution |
 | `Sneak`/`Move`/`Sprint`: tre azioni o tre profili? | assenti | **profili** della stessa azione Move |

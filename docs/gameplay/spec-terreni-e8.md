@@ -36,7 +36,7 @@ comportamento di movimento/LOS/targeting dei terreni. **Fuori scope**: il sistem
 durata/scadenza in Cleanup (CP 8.2, `#65`), la propagazione elettrica (CP 8.3, `#66`), le interazioni
 fuoco/acqua e l'ignite dinamico (CP 8.4, `#67`), le azioni ambientali (CP 8.5, `#68`). Dove CP 8.1 deve
 dichiarare un effetto che dipende da questi (es. `Wet` applicato ma non ancora scaduto/consumato da nessuno),
-si dichiara il limite — stesso pattern già usato da CP 6.4/6.5 (Bastion/Vektor) per le dipendenze da E5/E9.
+si dichiara il limite — stesso pattern già usato da CP 6.4/6.5 (Riktor/Wraith) per le dipendenze da E5/E9.
 
 ## 2. Modello dati
 
@@ -120,7 +120,7 @@ che da `1`/`false` statici — la libertà di override resta, ma il default arri
 | `Ice` | 1 | no | no | — | sliding, vedi §5 |
 | `HighGround` | 1 | no | no | — | "bonus visuale" **non implementato** in CP 8.1: nessun
   meccanismo di vista/quota esiste ancora da consumarlo. Dichiarato come limite in PR, stesso pattern di
-  `PushResistance` di Bastion. |
+  `PushResistance` di Riktor. |
 
 ## 4. Call site da aggiornare (rename enum)
 
@@ -246,7 +246,7 @@ scadenza/durata degli stati di **CP 8.2** (`#65`), che questo CP dichiara esplic
 valore arbitrario tipo `StatusDuration = 1` renderebbe l'effetto tecnicamente "attivo" ma con una semantica
 sbagliata (scade dopo un turno anche restando sulla cella), quindi non è la correzione giusta. **Dichiarare
 nella PR**: `Fire`/`Burning` funziona (durata 2, valore fisso, non serve il modello "finché sulla cella");
-`Wet`/`Obscured` restano dati pronti-ma-inerti fino a CP 8.2, stesso pattern di `PushResistance` di Bastion.
+`Wet`/`Obscured` restano dati pronti-ma-inerti fino a CP 8.2, stesso pattern di `PushResistance` di Riktor.
 
 ## 6. Fuori scope dichiarato (CP 8.1)
 

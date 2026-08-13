@@ -128,17 +128,17 @@ esso l'errore di aprire la cartella sbagliata.
 
 | Eroe (gioco) | `HeroId` (C++) | `<CharacterId>` (contenuti) |
 |---|---|---|
-| Flux | `Hero.Flux` | **`Gadget`** |
-| Riva | `Hero.Riva` | **`Phase`** |
-| Bastion | `Hero.Bastion` | **`Riktor`** |
-| Vektor | `Hero.Vektor` | **`Wraith`** |
+| Gadget | `Hero.Flux` | **`Gadget`** |
+| Phase | `Hero.Riva` | **`Phase`** |
+| Riktor | `Hero.Bastion` | **`Riktor`** |
+| Wraith | `Hero.Vektor` | **`Wraith`** |
 
 Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Blueprints/BP_Unit_Gadget`,
 `Characters/Gadget/Animation/ABP_Gadget`.
 
 **Eccezione: i dati restano intitolati all'eroe.** `DA_Hero_Flux` sta in `Characters/Gadget/Data/` ma non
 diventa `DA_Hero_Gadget`. Un data asset eroe descrive *statistiche e abilità*, che non dipendono dalla mesh:
-se Flux cambiasse base visuale, quel file resterebbe valido parola per parola. Lo stesso vale per `HeroId`,
+se Gadget cambiasse base visuale, quel file resterebbe valido parola per parola. Lo stesso vale per `HeroId`,
 che in C++ è e resta `Hero.Flux`. La mappatura fra i due mondi è **D-037**, tabella owner in
 [`../characters/paragon.md`](../characters/paragon.md).
 

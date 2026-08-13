@@ -5,7 +5,7 @@
 > | Parte | Stato |
 > |---|---|
 > | **Principi della pipeline** — presentazione-only, riferimenti **soft** con fallback, Blueprint e AnimBP che *consumano* eventi autorevoli e non decidono nulla, licenze da registrare | `CURRENT`. Reggono, e discendono dall'invariante #1 |
-> | **«Stato attuale» e pipeline a due archetipi** (Gideon/Sparrow, Guardian/Ranger) | `HISTORICAL`. Era l'esperimento del 2026-08-03: il roster canonico è **Flux · Riva · Bastion · Vektor**. La mappatura Paragon → eroe **non è più aperta**: [D-037](../decisions/RT_PDR_00_Decision_Log.md) del 2026-08-08 assegna `Gadget`, `Phase`, `Riktor` e `Wraith`, tabella owner in [`../characters/paragon.md`](../characters/paragon.md#mapping-visuale-del-roster) |
+> | **«Stato attuale» e pipeline a due archetipi** (Gideon/Sparrow, Guardian/Ranger) | `HISTORICAL`. Era l'esperimento del 2026-08-03: il roster canonico è **Gadget · Phase · Riktor · Wraith**. La mappatura Paragon → eroe **non è più aperta**: [D-037](../decisions/RT_PDR_00_Decision_Log.md) del 2026-08-08 assegna gli slot `Paragon.Gadget`, `Paragon.Phase`, `Paragon.Riktor` e `Paragon.Wraith`, tabella owner in [`../characters/paragon.md`](../characters/paragon.md#mapping-visuale-del-roster) |
 >
 > **Non è l'owner di percorsi e naming**: quello è
 > [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md), che è normativo. Dove i due divergono, vince

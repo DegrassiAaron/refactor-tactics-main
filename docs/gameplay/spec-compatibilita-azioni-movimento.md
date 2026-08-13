@@ -248,7 +248,7 @@ Perché la decisione sia falsificabile e non una preferenza:
 
 **Vincolo non negoziabile**, invariato dal kit: dev'essere un **dato dell'abilità**, mai un ramo per eroe nel
 resolver (invariante #7, [D-029](../decisions/RT_PDR_00_Decision_Log.md)). Criterio d'accettazione nella forma
-di quello di E4: *aggiungere «Vektor spara in corsa» non deve toccare `ARTTurnManager`*.
+di quello di E4: *aggiungere «Wraith spara in corsa» non deve toccare `ARTTurnManager`*.
 
 ## 8. Cosa questa pagina non fa
 

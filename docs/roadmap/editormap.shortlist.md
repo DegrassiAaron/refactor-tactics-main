@@ -106,7 +106,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U8** | Animazioni | gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
 | **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | sì | 2/4 | 🟡 |
 | **U10** | Data asset delle azioni | il catalogo azioni della v0.1 come dati, non come codice | E1.3, E1.4 | sì | — | — |
-| **U11** | I 4 eroi | i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa | E6, U10 | sì | 0/1 | 🟡 |
+| **U11** | I 4 eroi | i data asset di Gadget, Phase, Riktor e Wraith, e lo spawn 2v2 che li usa | E6, U10 | sì | 0/1 | 🟡 |
 | **U12** | Loadout | varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe | E7, U11 | no | — | — |
 | **U13** | Arena v0.1 | l'arena estesa con quanto serve alle verifiche di contenuto | E8, E9, U1 | sì | 0/1 | ⏳ |
 | **U14** | Ambiente in partita | verdetto sulle regole ambientali e strutturali | U13 | sì | 0/11 | 🟡 |
@@ -284,7 +284,7 @@ Attacco attraverso una cella che blocca la vista, poi da una cella di lato; osta
 **altro layer** (regola di elevazione). Il knockback a 6 direzioni e' l'unico punto di M6 con
 una decisione di design dietro: **guardalo**, non solo verificarlo.
 
-Per la spinta usa **Riva** (`PressureJet`) o **Bastion** (`Ram`). Fino al 2026-08-10
+Per la spinta usa **Phase** (`PressureJet`) o **Riktor** (`Ram`). Fino al 2026-08-10
 `PIE-HEXPLAY-6c` chiedeva `Guardian.Sweep` (knockback 2), un archetipo legacy che nessun eroe
 della v0.1 aveva — la voce **non era eseguibile** come scritta (#410); quell'azione e' poi
 sparita del tutto con gli archetipi (#426), ed era l'ultimo `Push 2` del progetto. Ora la voce
@@ -351,10 +351,10 @@ Paragon, non l'eroe (deciso 2026-08-11 — vedi `notes`):
 
 | Eroe | `HeroId` | Pack | Blueprint | Skeletal Mesh da assegnare |
 |---|---|---|---|---|
-| Flux | `Hero.Flux` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
-| Riva | `Hero.Riva` | `Paragon.Phase` | `BP_Unit_Phase` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
-| Bastion | `Hero.Bastion` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
-| Vektor | `Hero.Vektor` | `Paragon.Wraith` | `BP_Unit_Wraith` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
+| Gadget | `Hero.Flux` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
+| Phase | `Hero.Riva` | `Paragon.Phase` | `BP_Unit_Phase` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
+| Riktor | `Hero.Bastion` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
+| Wraith | `Hero.Vektor` | `Paragon.Wraith` | `BP_Unit_Wraith` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
 
 ⚠️ **La mesh di Phase NON si chiama `Phase`**: e' `Phase_GDC` (22,6 MB). Gli altri file in quella
 cartella pesano 0,1 MB — sono extents, shadow e skeleton. Verificato sul disco il 2026-08-11.
@@ -493,7 +493,7 @@ Il validator deve **rifiutare** ID duplicato, fallback mancante e variante senza
 #### U11 · I 4 eroi 🟡
 
 **Sbloccata da**: E6, U10 · **Percorso critico**: sì
-**Produce**: i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa
+**Produce**: i data asset di Gadget, Phase, Riktor e Wraith, e lo spawn 2v2 che li usa
 **Verifichi**: `PIE-V01-ROSTER` 🟡
 **Finita quando**: i quattro asset sono tracciati da git e la voce ha esito reale
 **Sblocca**: U12
@@ -621,8 +621,8 @@ Nessuna guida copre questa procedura, quindi i passi stanno qui.
 **Finita quando**: la voce ha un esito reale nel registro, in un verso o nell'altro
 
 **Non e' una caccia ai difetti: e' una domanda di leggibilita'.** Tre unita' con
-`PushResistance = 0` (Flux, Riva, Vektor) — una in `Action.Guard`, una in `Action.Brace`, una
-senza difesa — e una Riva avversaria che usa `Riva.PressureJet` su ciascuna nello stesso turno.
+`PushResistance = 0` (Gadget, Phase, Wraith) — una in `Action.Guard`, una in `Action.Brace`, una
+senza difesa — e una Phase avversaria che usa `Riva.PressureJet` su ciascuna nello stesso turno.
 E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 1. Guarda il turno **senza leggere i numeri**. «Questo si e' piantato» dev'essere distinguibile

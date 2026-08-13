@@ -23,7 +23,10 @@ utile per la provenienza, mai per la regola.
 
 ## 2. Pin rapidi
 
-- UE **5.8.1**; v0.1 **2v2 offline vs bot**; hex multilivello; roster **Flux/Riva/Bastion/Vektor**.
+- UE **5.8.1**; v0.1 **2v2 offline vs bot**; hex multilivello; roster **Gadget/Phase/Riktor/Wraith**
+  (**D-120**). `Hero.Flux` / `Hero.Riva` / `Hero.Bastion` / `Hero.Vektor` restano gli **Stable ID**: non
+  sono nomi e non si rinominano (blocker [#716](https://github.com/DegrassiAaron/refactor-tactics-main/issues/716)).
+  Gate: `python scripts/check-docs-naming.py --check`.
 - Fasi: `Planning → Prep → Dash → Blast → Move → Cleanup`; Move normale resta dopo Blast.
 - Un solo substrato: `FRTCellId`; no gameplay quadrato parallelo.
 - **No GAS nella v0.1**: `URTActionData` / `URTHeroData` / `URTEquipmentData`.

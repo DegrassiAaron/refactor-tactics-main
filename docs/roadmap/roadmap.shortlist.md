@@ -22,7 +22,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E3** | ✅ | — | — | `FRTGridCoord`, `URTGridLibrary` e `ARTGridActor` non esistono più: doppia manutenzione = ambiguità su dove va scritta una regola |
 | **E4** | ✅ | 5 | 32/45 | Priorità intera intra-fase, fallback, collisioni senza bias di Player ID — regge azioni, reazioni, ambiente e obiettivi |
 | **E5** | ✅ | 2 | 12/17 | Counter/Deflect/Brace/Shield/Cleanse/Intercept preparate in planning, una attivazione per turno, **nessuna attesa nel resolver** |
-| **E6** | ✅ | 1 | 6/8 | Flux, Riva, Bastion, Vektor da dati; **3 reazioni su 5** cablate, `InterceptShot`→E18 e `FlowReaction`→E14 |
+| **E6** | ✅ | 1 | 6/8 | Gadget, Phase, Riktor, Wraith da dati; **3 reazioni su 5** cablate, `InterceptShot`→E18 e `FlowReaction`→E14 |
 | **E7** | 🟡 | 1 | 1/8 | Scelta orizzontale: ogni variante ha uno svantaggio |
 | **E8** | ✅ | 8 | 49/72 | 8 superfici, stati temporanei legati alla cella, propagazione elettrica sul grafo dell'acqua, fuoco/acqua dinamici |
 | **E9** | ✅ | 5 | 33/43 | Copertura per **bordo**, porte come bordo (mappa v4), ponti come **arco** (v5), pannello cinetico temporaneo |

@@ -28,7 +28,7 @@
 > ### Punto risolto: sì, serve una Predictive Action vera
 >
 > Era registrato come da valutare. **Deciso** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)): la showcase
-> deve mostrare **una** azione predittiva reale su **Vektor** — dichiarata interamente in Planning, con
+> deve mostrare **una** azione predittiva reale su **Wraith** — dichiarata interamente in Planning, con
 > payoff se la previsione è corretta e fallback dichiarato se no. È il pilastro della **scommessa sul
 > movimento**, e senza di essa la showcase mostra tutto tranne ciò che distingue il gioco.
 >
@@ -66,21 +66,21 @@ showcase → codice speciale → demo che funziona una volta sola
 |---|---|
 | Nome di lavoro | `RT_Showcase_Relay_v01` |
 | Arena | `L_Showcase_Relay` (asset d'autore) · fixture generata equivalente per i test |
-| Squadre | **Team 0**: Flux + Riva — **Team 1**: Bastion + Vektor (bot) |
+| Squadre | **Team 0**: Gadget + Phase — **Team 1**: Riktor + Wraith (bot) |
 | Durata | 8 turni scriptati *(dato di scenario, non il `RoundLimit` del gioco — §3)* |
 | Classe di mappa | **Skirmish** (~3–4 Move di attraversamento, primo contatto ~1 round) |
 | Obiettivo mostrato | il controllo di un relè contestabile decide la partita, **non** l'eliminazione |
 
 ### Roster vigente — e cosa è storico
 
-Il roster canonico della v0.1 è **Flux · Riva · Bastion · Vektor**
+Il roster canonico della v0.1 è **Gadget · Phase · Riktor · Wraith**
 ([`balance/RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md)).
 
 Materiale **storico, non canone**, presente in PDF e documenti precedenti — da non reintrodurre:
 
 | Elemento superato | Valore vigente |
 |---|---|
-| Aegis · Nyx · Drift · Vex | Flux · Riva · Bastion · Vektor |
+| Aegis · Nyx · Drift · Vex | Gadget · Phase · Riktor · Wraith |
 | 100 HP per tutti | 90 / 95 / 120 / 100 (per eroe, dal catalogo) |
 | Finestra di interrupt da 5 s | **3.0 s** ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §8) |
 | Mappa piatta, griglia quadrata | esagonale assiale multilivello, `FRTCellId{X,Y,Layer}` |
@@ -149,11 +149,11 @@ dall'handoff §7 è stata eseguita su questa tabella.
 
 | Superficie | Celle | Ruolo tattico |
 |---|---|---|
-| `Smoke` | `(-3,0)` `(-2,0)` | Corridoio ovest: Flux ci passa al turno 1; al turno 5 `MistVeil` ne aggiunge |
-| `ShallowWater` | `(-3,1)` `(-2,1)` `(-1,1)` `(0,1)` | Lane di Riva; è **conduttiva**, ed è ciò che rende possibile il payoff del turno 7 |
+| `Smoke` | `(-3,0)` `(-2,0)` | Corridoio ovest: Gadget ci passa al turno 1; al turno 5 `MistVeil` ne aggiunge |
+| `ShallowWater` | `(-3,1)` `(-2,1)` `(-1,1)` `(0,1)` | Lane di Phase; è **conduttiva**, ed è ciò che rende possibile il payoff del turno 7 |
 | `Conductive` | `(1,1)` `(2,1)` | Prosegue la lane verso est: il `ConductiveNode` del turno 2 la collega all'acqua |
 | `Rough` | `(1,0)` `(2,0)` | Sbarra la via diretta est→Relay ai movimenti lineari: è ciò che invalida il `Ram` del turno 7 |
-| `Fire` | `(2,-1)` `(1,-1)` | Fascia sull'approccio **nord** al Relay: Vektor la attraversa al turno 3 scendendo dalla cresta |
+| `Fire` | `(2,-1)` `(1,-1)` | Fascia sull'approccio **nord** al Relay: Wraith la attraversa al turno 3 scendendo dalla cresta |
 | `HighGround` | `(2,-2)` `(3,-1)` | Cresta nord-est, `Height = 1`. Vantaggio **geometrico**, nessun bonus numerico ([D-024](../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Ice` | `(-1,2)` `(0,2)` `(1,2)` | Ripiano sud: scivolata deterministica al turno 7 |
 
@@ -165,17 +165,17 @@ Le sette superfici più `Floor` coprono **tutte e otto** quelle richieste dall'h
 | | Cella | Squadra |
 |---|---|---|
 | **Relay** | `(0,0,0)` | `Objective.Relay`, contendibile |
-| Flux | `(-4,0,0)` | **Blue** |
-| Riva | `(-4,1,0)` | **Blue** |
-| Bastion | `(4,0,0)` | **Red** |
-| Vektor | `(4,1,0)` | **Red** |
+| Gadget | `(-4,0,0)` | **Blue** |
+| Phase | `(-4,1,0)` | **Blue** |
+| Riktor | `(4,0,0)` | **Red** |
+| Wraith | `(4,1,0)` | **Red** |
 
 ### 2.3 Elementi di bordo
 
 | Elemento | Bordo | Stato iniziale | Dipendenza |
 |---|---|---|---|
 | **Copertura bassa** | `(0,0)` ↔ `(0,-1)` | `Low`, integrità 30 | ✅ CP 9.1 |
-| **Gate** | `(0,1)` ↔ `(1,1)` | **`Closed`** — Bastion lo apre al turno 5 | ✅ **CP 9.3**: è una porta, non un meccanismo nuovo |
+| **Gate** | `(0,1)` ↔ `(1,1)` | **`Closed`** — Riktor lo apre al turno 5 | ✅ **CP 9.3**: è una porta, non un meccanismo nuovo |
 | **Ponte** | `(2,1)` ↔ `(2,2)` | dichiarato, **non attraversato dagli 8 turni** | ⏳ **CP 9.4** |
 
 > **Perché il ponte non è nei turni.** L'handoff §7 chiede un `Bridge Edge` e insieme fissa `Layer = 0` per
@@ -214,26 +214,26 @@ si verifica. La regola vale per tutti: **nessun turno introduce codice speciale 
 
 ### Turno 1 — mappa e posizionamento
 
-**Flux** muove dallo spawn verso il centro attraversando `Smoke` a `(-3,0)`/`(-2,0)` e chiude con **facing a
-Est**. **Riva** usa `FluidTrail` e percorre la lane d'acqua. **Bastion** usa `KineticPanel`, creando una
-copertura direzionale verso il centro, e avanza. **Vektor** raggiunge la cresta `HighGround`.
+**Gadget** muove dallo spawn verso il centro attraversando `Smoke` a `(-3,0)`/`(-2,0)` e chiude con **facing a
+Est**. **Phase** usa `FluidTrail` e percorre la lane d'acqua. **Riktor** usa `KineticPanel`, creando una
+copertura direzionale verso il centro, e avanza. **Wraith** raggiunge la cresta `HighGround`.
 
 *Expected*: quattro unità mosse, nessuna collisione, `Smoke` applica il cap di targeting, il TurnLog registra
 quattro `Move` con le celle attraversate.
 
 ### Turno 2 — Wet e predizione
 
-**Flux** `ConductiveNode` verso la lane acqua/conduttiva. **Riva** `PressureJet` su Vektor: danno, `Wet` e Push
-se legalmente valido. **Bastion** `Reconfigure` sul pannello. **Vektor** dichiara `InterceptShot` su una cella
-prevista — e **Riva non la attraversa**.
+**Gadget** `ConductiveNode` verso la lane acqua/conduttiva. **Phase** `PressureJet` su Wraith: danno, `Wet` e Push
+se legalmente valido. **Riktor** `Reconfigure` sul pannello. **Wraith** dichiara `InterceptShot` su una cella
+prevista — e **Phase non la attraversa**.
 
 *Expected*: `PredictionWhiffed` con reason code. La previsione sbagliata **costa** l'azione, e questo si deve
 vedere: è metà del valore di una Predictive Action.
 
 ### Turno 3 — bersaglio in movimento e fuoco
 
-**Flux** `LinearDischarge` su Vektor. **Vektor** usa `PassingBlade` e attraversa `Fire` a `(2,-1)` **prima** del
-Blast, prendendo `Burning`. **Riva** `CircularTide`. **Bastion** un'azione difensiva realmente a catalogo.
+**Gadget** `LinearDischarge` su Wraith. **Wraith** usa `PassingBlade` e attraversa `Fire` a `(2,-1)` **prima** del
+Blast, prendendo `Burning`. **Phase** `CircularTide`. **Riktor** un'azione difensiva realmente a catalogo.
 
 *Expected*: il bersaglio si è spostato fra dichiarazione e risoluzione, quindi si applica la **policy di moving
 target del catalogo**, e il TurnLog dice quale. `Burning` scade nel Cleanup.
@@ -246,7 +246,7 @@ target del catalogo**, e il TurnLog dice quale. `Burning` scade nel Cleanup.
 >
 > Fino al 2026-08-08 questo documento lasciava intendere il contrario, e la combo firma della v0.1 **non era
 > eseguibile in nessuna forma** (#242). Le due forme che funzionano oggi hanno entrambe uno scenario:
-> `Visual.Combat.WaterElectricCoordinated` (Riva bagna e Flux scarica nello stesso turno) e
+> `Visual.Combat.WaterElectricCoordinated` (Phase bagna e Gadget scarica nello stesso turno) e
 > `Visual.Combat.WaterElectric` (il bersaglio entra nell'acqua nel Dash, e arriva al Blast già bagnato).
 
 > 🔒 **Decisione bloccata.** *Quale* sia quella policy va **letta dai dati** di `LinearDischarge`. Se il
@@ -254,8 +254,8 @@ target del catalogo**, e il TurnLog dice quale. `Burning` scade nel Cleanup.
 
 ### Turno 4 — Overwatch
 
-**Vektor** sceglie `Overwatch`: il **facing** definisce il cono controllato. **Flux** entra per primo →
-opportunity con risposta **`HOLD`**. **Riva** entra dopo → **seconda** opportunity, risposta **`FIRE`**.
+**Wraith** sceglie `Overwatch`: il **facing** definisce il cono controllato. **Gadget** entra per primo →
+opportunity con risposta **`HOLD`**. **Phase** entra dopo → **seconda** opportunity, risposta **`FIRE`**.
 
 *Expected* — e sono queste le asserzioni che contano:
 
@@ -272,36 +272,36 @@ tempo.
 
 ### Turno 5 — fumo e struttura
 
-**Riva** `MistVeil`. **Flux** dichiara **di proposito** un piano non valido attraverso il fumo: il validator di
-planning deve restituire un **reason**, e poi Flux committa un'azione valida. **Bastion** fa `Interact` sul
-**gate** `(0,1)↔(1,1)`: la topologia cambia, `GraphRevision` sale, la cache dei path si invalida. **Vektor**
+**Phase** `MistVeil`. **Gadget** dichiara **di proposito** un piano non valido attraverso il fumo: il validator di
+planning deve restituire un **reason**, e poi Gadget committa un'azione valida. **Riktor** fa `Interact` sul
+**gate** `(0,1)↔(1,1)`: la topologia cambia, `GraphRevision` sale, la cache dei path si invalida. **Wraith**
 `Deflection`.
 
 *Expected*: `EdgeDisabled → EdgeEnabled`, `GraphRevisionChanged`, e un percorso che **prima non esisteva**.
 
 ### Turno 6 — interposizione
 
-**Flux** attacca Vektor. **Bastion** interpone: bersaglio originale `Vektor`, bersaglio effettivo `Bastion`. La
-geometria si **rivalida su Bastion** — LOS, traiettoria, copertura — senza aprire una reaction annidata
-([D-017](../decisions/RT_PDR_00_Decision_Log.md)). **Riva** `PressureJet` su Bastion. **Vektor** attacca Flux.
+**Gadget** attacca Wraith. **Riktor** interpone: bersaglio originale `Vektor`, bersaglio effettivo `Bastion`. La
+geometria si **rivalida su Riktor** — LOS, traiettoria, copertura — senza aprire una reaction annidata
+([D-017](../decisions/RT_PDR_00_Decision_Log.md)). **Phase** `PressureJet` su Riktor. **Wraith** attacca Gadget.
 
 *Expected*: `OriginalTargetEquals(Vektor)`, `EffectiveTargetEquals(Bastion)`, e la copertura applicata è
-**quella di Bastion**. Serve un test **discriminante** — A e B a copertura diversa — altrimenti passerebbe
+**quella di Riktor**. Serve un test **discriminante** — A e B a copertura diversa — altrimenti passerebbe
 anche col comportamento sbagliato.
 
 ### Turno 7 — combo ambientale
 
-**Riva** porta acqua su una zona `Fire`. **Flux** usa il miglior attacco elettrico disponibile. **Vektor** fa un
-`Move` normale su `Ice`. **Bastion** dichiara un `Ram` attraverso `Rough` a `(1,0)`: **il planning lo rifiuta**
-con un reason di restrizione di terreno, e Bastion corregge prima del Commit.
+**Phase** porta acqua su una zona `Fire`. **Gadget** usa il miglior attacco elettrico disponibile. **Wraith** fa un
+`Move` normale su `Ice`. **Riktor** dichiara un `Ram` attraverso `Rough` a `(1,0)`: **il planning lo rifiuta**
+con un reason di restrizione di terreno, e Riktor corregge prima del Commit.
 
 *Expected*: il fuoco si spegne; la propagazione elettrica è ordinata e **non colpisce due volte** per lo stesso
 evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel TurnLog.
 
 > **Cos'è «combo» qui** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)). Questo turno è uno **scenario
-> dimostrativo di interazioni sistemiche**, non una combo di squadra: Riva e Flux non condividono un'abilità e
-> non ricevono un bonus perché sono insieme. Riva pubblica uno stato (`Wet` / acqua sulla cella), il sistema
-> ambientale lo propaga, e `Flux.LinearDischarge` legge **lo stato**, non l'identità di Riva. La stessa
+> dimostrativo di interazioni sistemiche**, non una combo di squadra: Phase e Gadget non condividono un'abilità e
+> non ricevono un bonus perché sono insieme. Phase pubblica uno stato (`Wet` / acqua sulla cella), il sistema
+> ambientale lo propaga, e `Flux.LinearDischarge` legge **lo stato**, non l'identità di Phase. La stessa
 > sequenza vale con qualunque altra sorgente d'acqua autorizzata. Lo scenario **dimostra** la cooperazione:
 > non la implementa e non introduce regole competitive proprie
 > ([ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) ·
@@ -309,9 +309,9 @@ evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel Tur
 
 ### Turno 8 — l'obiettivo batte il KO
 
-**Vektor** `InterceptShot` sull'accesso previsto al Relay. **Riva** prende una **rotta alternativa**, non
-attraversa la cella prevista (`PredictionWhiffed`) e termina **sul Relay**. **Bastion** tenta di contestare e
-non riesce. **Flux** completa un'ultima azione offensiva e va **KO**.
+**Wraith** `InterceptShot` sull'accesso previsto al Relay. **Phase** prende una **rotta alternativa**, non
+attraversa la cella prevista (`PredictionWhiffed`) e termina **sul Relay**. **Riktor** tenta di contestare e
+non riesce. **Gadget** completa un'ultima azione offensiva e va **KO**.
 
 *Expected final state*:
 
@@ -325,7 +325,7 @@ Match = terminato, Blue vince
 Il punto è assegnato **dopo** ambiente e KO: si vince con un eroe a terra. È il pilastro «obiettivo, non
 deathmatch» — e senza il turno 8 la showcase dimostrerebbe soltanto un deathmatch riuscito bene.
 
-> 🔒 **Decisione bloccata.** *Perché* Bastion fallisce la contesa deve essere una causa reale del ruleset
+> 🔒 **Decisione bloccata.** *Perché* Riktor fallisce la contesa deve essere una causa reale del ruleset
 > (costo, path, stato). Il sistema objective non esiste ancora: la causa non si può scegliere prima di sapere
 > quali cause il ruleset ammetterà.
 
@@ -376,7 +376,7 @@ Queste regole valgono nello scenario e vivono nei **dati**, mai nel codice delle
 
 Costruibile **oggi** (CP 15.2). Usa solo regole atterrate e serve da fixture d'integrazione:
 
-1. spawn Flux/Riva vs Bastion/Vektor su arena generata deterministica;
+1. spawn Gadget/Phase vs Riktor/Wraith su arena generata deterministica;
 2. percorsi e collisioni simultanee;
 3. `Rough` nega un Dash;
 4. `Ice` fa scivolare nel Move;

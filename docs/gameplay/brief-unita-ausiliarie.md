@@ -14,7 +14,7 @@ Il documento sorgente descrive sette famiglie — pet, drone, torretta, summon, 
 chiede di trattarle come **un concetto solo**, `AuxiliaryUnit`, data-driven.
 
 La parte di gameplay è chiaramente fuori scope: il canone lo dice già («la v0.1 deve usare questi sistemi solo
-se necessari al roster definitivo», sorgente §19) e il roster definitivo — Flux, Riva, Bastion, Vektor — non ne
+se necessari al roster definitivo», sorgente §19) e il roster definitivo — Gadget, Phase, Riktor, Wraith — non ne
 ha bisogno.
 
 Ma c'è una parte che **non si può rimandare**, ed è la sola ragione di questo file: l'assunzione

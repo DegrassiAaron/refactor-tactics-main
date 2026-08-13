@@ -40,21 +40,21 @@ un buco da riempire: la maggior parte dei personaggi non deve avere uno stato sp
 
 | CharacterId | Nome | Versione | Stance | Form | Overdrive | Environmental | Configuration | PrimaryStateType | Candidato consigliato | DesignStatus |
 |---|---|---|---|:--:|:--:|:--:|:--:|---|---|---|
-| `Hero.Flux` | Flux | v0.1 | | | | ✅ | | Environmental | Charged | `PROPOSED` |
-| `Hero.Riva` | Riva | v0.1 | ✅ | | | | | Stance (leggero) | Flow State | `PROPOSED` |
-| `Hero.Bastion` | Bastion | v0.1 | ✅ | | | | ✅ | Stance/Configuration | Bulwark | `PROPOSED` |
-| `Hero.Vektor` | Vektor | v0.1 | | ⚠️ | | | | Form | — **vedi nota** | `REJECTED` |
+| `Hero.Flux` | Gadget | v0.1 | | | | ✅ | | Environmental | Charged | `PROPOSED` |
+| `Hero.Riva` | Phase | v0.1 | ✅ | | | | | Stance (leggero) | Flow State | `PROPOSED` |
+| `Hero.Bastion` | Riktor | v0.1 | ✅ | | | | ✅ | Stance/Configuration | Bulwark | `PROPOSED` |
+| `Hero.Vektor` | Wraith | v0.1 | | ⚠️ | | | | Form | — **vedi nota** | `REJECTED` |
 | `Hero.Steel` | Steel | v0.2 | ✅ | | | | | Stance | Guard ↔ Assault | `PROPOSED` |
 | `Hero.Aurora` | Aurora | v0.2 | | ✅ | | ✅ | | Environmental | Frostbound | `PROPOSED` |
 | `Hero.Murdock` | Murdock | v0.2 | ✅ | | | | ✅ | Configuration | Targeting Mode | `PROPOSED` |
 | `Hero.Kwang` | Kwang | v0.2 | ✅ | | | ✅ | | Environmental | Stormbound | `IDEA` |
 | *34 candidati Paragon* | — | — | | | | | | vedi Matrix 2 | — | `IDEA` |
 
-> ⚠️ **Vektor è l'unico `REJECTED`, ed è deliberato.** Sia il documento sorgente sia il prompt di
+> ⚠️ **Wraith è l'unico `REJECTED`, ed è deliberato.** Sia il documento sorgente sia il prompt di
 > consolidamento lo indicano come candidato principale per `Mobile ↔ Siege`. La candidatura è respinta nel
 > merito: `Slancio` **recupera muovendosi** e la player question è «dove passerà il nemico?». Una forma che
 > toglie il Dash non sospende una statistica, spegne la meccanica firma. Non si scarta l'idea `Mobile ↔ Siege`
-> — si scarta **Vektor** come suo portatore: i kit già costruiti sul trade-off mobilità/precisione sono
+> — si scarta **Wraith** come suo portatore: i kit già costruiti sul trade-off mobilità/precisione sono
 > Howitzer e Murdock.
 
 ---
@@ -71,10 +71,10 @@ Peso indicativo su 10, dal documento sorgente: **non misurato**, serve a confron
 
 | Character | L — Light | M — Medium | S — Signature | Consigliato | Tier | Decisione | Target |
 |---|---|---|---|---|---|---|---|
-| Flux | Charged State *(3)* | Conductor Mode *(5)* | Living Current *(7)* | **Charged** | L | `PROPOSED` | post-v0.1 |
-| Riva | Flow State *(2)* | Mist Form *(5)* | Tidal Form *(7)* | **Flow State** | L | `PROPOSED` | post-v0.1 |
-| Bastion | Fortified *(2)* | Bulwark Mode *(5)* | Citadel Form *(7)* | **Bulwark** | M | `PROPOSED` | post-v0.1 |
-| Vektor | Stabilized *(3)* | Siege Mode *(5)* | Weapons Platform *(7)* | — | — | `REJECTED` | — |
+| Gadget | Charged State *(3)* | Conductor Mode *(5)* | Living Current *(7)* | **Charged** | L | `PROPOSED` | post-v0.1 |
+| Phase | Flow State *(2)* | Mist Form *(5)* | Tidal Form *(7)* | **Flow State** | L | `PROPOSED` | post-v0.1 |
+| Riktor | Fortified *(2)* | Bulwark Mode *(5)* | Citadel Form *(7)* | **Bulwark** | M | `PROPOSED` | post-v0.1 |
+| Wraith | Stabilized *(3)* | Siege Mode *(5)* | Weapons Platform *(7)* | — | — | `REJECTED` | — |
 
 ### Roster v0.2
 
@@ -136,9 +136,9 @@ trasformazione non è mai locale al personaggio.
 
 | Stato | Attivazione | Prep | Dash | Blast | Move | Terreno | Cover | LOS | Overwatch | Ghost | Note |
 |---|---|---|---|---|---|---|---|---|---|:--:|---|
-| Flux · Charged | trigger ambientale | — | modificato | modificato | normale | **forte** | — | — | possibile | ✅ | Dipende dal canale ambientale di **E13** |
-| Riva · Flow | trigger su sequenza | — | normale | bonus possibile | normale | possibile | — | — | — | consigliato | Il più leggero: nessun override di kit |
-| Bastion · Bulwark | stance in Planning | transform | normale | normale | ridotto | — | **pseudo-cover** | **modifica** | modificato | ✅ | Tocca collisione e pathfinding: il più invasivo dei tre |
+| Gadget · Charged | trigger ambientale | — | modificato | modificato | normale | **forte** | — | — | possibile | ✅ | Dipende dal canale ambientale di **E13** |
+| Phase · Flow | trigger su sequenza | — | normale | bonus possibile | normale | possibile | — | — | — | consigliato | Il più leggero: nessun override di kit |
+| Riktor · Bulwark | stance in Planning | transform | normale | normale | ridotto | — | **pseudo-cover** | **modifica** | modificato | ✅ | Tocca collisione e pathfinding: il più invasivo dei tre |
 | Steel · Guard↔Assault | stance in Planning | transform | modificato | modificato | normale | — | — | — | modificato | ✅ | Nessun sistema nuovo: è un cambio di profilo |
 
 **Lettura**: `Riva · Flow` è l'unico che non tocca nessun sistema condiviso — ed è per questo il primo
@@ -153,13 +153,13 @@ deve essere più semplice altrove.*
 
 | Character | Passive | Skill | Terreno | Reaction | Overwatch | Summon | Trap | Risorse | Trasformazione | Banda | Rischio |
 |---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|---|---|
-| Flux | basso | medio | **alto** | basso | basso | — | — | medio | +basso (L) | `MEDIUM` | Il terreno è già la sua identità: uno stato ambientale **raddoppia** lo stesso asse |
-| Riva | basso | medio | **alto** | medio | basso | — | — | medio | +minimo (L) | `MEDIUM` | Stesso rischio di Flux, mitigato dal fatto che Flow non tocca il terreno |
-| Bastion | basso | medio | basso | **alto** | medio | — | — | medio | +medio (M) | `HIGH` | Reaction + strutture + pseudo-cover: è già il più carico del roster v0.1 |
-| Vektor | basso | medio | basso | **alto** | **alto** | — | — | medio | — | `MEDIUM` | Predictive + reaction + mobilità. Una Form lo porterebbe a `VERY_HIGH` |
+| Gadget | basso | medio | **alto** | basso | basso | — | — | medio | +basso (L) | `MEDIUM` | Il terreno è già la sua identità: uno stato ambientale **raddoppia** lo stesso asse |
+| Phase | basso | medio | **alto** | medio | basso | — | — | medio | +minimo (L) | `MEDIUM` | Stesso rischio di Gadget, mitigato dal fatto che Flow non tocca il terreno |
+| Riktor | basso | medio | basso | **alto** | medio | — | — | medio | +medio (M) | `HIGH` | Reaction + strutture + pseudo-cover: è già il più carico del roster v0.1 |
+| Wraith | basso | medio | basso | **alto** | **alto** | — | — | medio | — | `MEDIUM` | Predictive + reaction + mobilità. Una Form lo porterebbe a `VERY_HIGH` |
 | GRIM.exe | ? | ? | ? | ? | ? | — | — | ? | +medio (S) | `?` | Kit non definito: la banda si misura quando esiste |
 
-> **Il caso che la matrice rende visibile**: Flux e Riva sono entrambi personaggi *ambientali*, e i loro stati
+> **Il caso che la matrice rende visibile**: Gadget e Phase sono entrambi personaggi *ambientali*, e i loro stati
 > consigliati sono entrambi ambientali. Il budget non si spende due volte sullo stesso asse — è il motivo per
 > cui `Riva · Flow` è preferibile a `Riva · Mist Form`.
 
@@ -172,12 +172,12 @@ un'informazione: nessuno stato è stato validato, perché nessuno è stato costr
 
 | StateId | Character | DesignStatus | Target | Issue | Scenario | PIE | Automazione | Validato |
 |---|---|---|---|---|---|---|---|---|
-| `State.Riva.Flow` | Riva | `PROPOSED` | post-v0.1 | [#256](https://github.com/DegrassiAaron/refactor-tactics-main/issues/256) | `State.Riva.Flow` 📋 | `PIE-STATE-01…05` | ❌ | ❌ |
-| `State.Flux.Charged` | Flux | `PROPOSED` | post-v0.1 | [#257](https://github.com/DegrassiAaron/refactor-tactics-main/issues/257) | `State.Flux.Charged` 📋 | `PIE-STATE-08` | ❌ | ❌ |
-| `State.Bastion.Bulwark` | Bastion | `PROPOSED` | post-v0.1 | [#258](https://github.com/DegrassiAaron/refactor-tactics-main/issues/258) | `State.Bastion.Bulwark` 📋 | `PIE-STATE-06…07` | ❌ | ❌ |
+| `State.Riva.Flow` | Phase | `PROPOSED` | post-v0.1 | [#256](https://github.com/DegrassiAaron/refactor-tactics-main/issues/256) | `State.Riva.Flow` 📋 | `PIE-STATE-01…05` | ❌ | ❌ |
+| `State.Flux.Charged` | Gadget | `PROPOSED` | post-v0.1 | [#257](https://github.com/DegrassiAaron/refactor-tactics-main/issues/257) | `State.Flux.Charged` 📋 | `PIE-STATE-08` | ❌ | ❌ |
+| `State.Bastion.Bulwark` | Riktor | `PROPOSED` | post-v0.1 | [#258](https://github.com/DegrassiAaron/refactor-tactics-main/issues/258) | `State.Bastion.Bulwark` 📋 | `PIE-STATE-06…07` | ❌ | ❌ |
 | `State.Howitzer.Siege` | Howitzer | `PROPOSED` | post-v0.1 | [#259](https://github.com/DegrassiAaron/refactor-tactics-main/issues/259) | `State.Howitzer.Siege` 📋 | `PIE-STATE-02…04` | ❌ | ❌ |
 | — *(trasversale)* | — | — | post-v0.1 | [#255](https://github.com/DegrassiAaron/refactor-tactics-main/issues/255) | `State.MultiState.Stress` 📋 | `PIE-STATE-09…10` | ❌ | ❌ |
-| `State.Vektor.Siege` | Vektor | `REJECTED` | — | — | — | — | — | — |
+| `State.Vektor.Siege` | Wraith | `REJECTED` | — | — | — | — | — | — |
 
 📋 = **definito, non scritto**. Gli scenari vivono in
 [`../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../gameplay/brief-stati-personaggio-e-trasformazioni.md) §9
