@@ -280,7 +280,7 @@ del 2026-08-10 vale ancora, e questa passata non l'ha aggirata.
 | copie vive di quel totale | 3 *(nessuna aggiornata)* | **3 allineate** *(+2 datate, lasciate)* | ⚠️ `grep -rnE "\b11[567]\b" docs/` — **insufficiente**: cerca il totale, non le parti. Vedi §7, Famiglia 2 |
 | copie delle **parti** *(`C 95`, `1 fuori classe`)* | 3 *(non cercate)* | **3 allineate** | `grep -nE "\b95\b\|fuori classe" docs/roadmap/*.md docs/technical/*.md` |
 | voci `PIE-MUT-*` *(fuori classe)* | 1 *(dichiarata)* | **2** *(misurate)* | `grep -c '^\| \*\*PIE-MUT-'` |
-| link relativi controllati | 3091 su 308 file | **3143 su 315 file** | `check-docs-links.py` |
+| link relativi controllati | 3091 su 308 file | **3178 su 317 file** | `check-docs-links.py` |
 | affermazioni fattuali respinte dalla code review | — | **3 critiche · 5 importanti** | §7 |
 | `feature_id` nel registry | 105 | **105** | `grep -c "^  - feature_id:"` |
 | `validate` | 0 errori · 34 warning | **0 errori · 34 warning** | `feature_registry.py validate` |
@@ -292,14 +292,29 @@ del 2026-08-10 vale ancora, e questa passata non l'ha aggirata.
 > nell'indice — quindi la misura che conta si fa **a commit fatto**, non a file salvato. Dopo lo stage: 3094
 > su 309.
 >
-> 🔴 **E la seconda volta è stato un merge.** La **PR #718** (hex geometry) è stata aperta e **mergiata mentre
-> questo lavoro era in corso**, portando sei documenti nuovi: il valore vero sull'albero unito è **3142 su
-> 315**. È la stessa lezione che il referto del 2026-08-12 aveva già scritto nel suo §6-bis, ripresentatasi
-> alla prima occasione — un numero misurato prima del merge è corretto sulla propria base e falso dopo
-> l'unione. **Rimisurati anche gli altri**: `feature_id` resta **105** (le 36 righe che #718 tocca in
-> `feature-registry.yaml` sono modifiche, non aggiunte) e `validate` resta **0 errori · 34 warning**. I
-> generati non hanno dato conflitto e `generate --check` / `shortlist --check` li dichiarano allineati
-> sull'albero unito — verificato, non dedotto dall'assenza di conflitto.
+> 🔴 **E poi è stato un merge. Tre volte.** `origin/main` si è mossa **tre volte** mentre questo lavoro era
+> in corso — **#718** (hex geometry), **#723** (soglia d'udito) e i loro seguiti — e ogni volta il conteggio
+> dei link è cambiato sotto: `3094` → `3142` → `3143` → **`3178` su 317 file**, che è il valore sull'albero
+> unito finale. È la stessa lezione del §6-bis del referto del 2026-08-12, ripresentatasi a ogni occasione:
+> un numero misurato prima del merge è corretto sulla propria base e falso dopo l'unione.
+>
+> ✅ **Rimisurati tutti gli altri dopo l'ultimo merge, non ricalcolati**: `feature_id` **105**, voci PIE
+> **135**, `PIE-VIS-` **21**, `PIE-MUT-` **2**, azioni del catalogo **36**, `validate` **0 errori · 34
+> warning**. Reggono tutti: solo i link dipendevano dai file che i merge portavano.
+>
+> ⚠️ I generati non hanno mai dato conflitto, e `generate --check` / `shortlist --check` li dichiarano
+> allineati sull'albero unito — **verificato, non dedotto dall'assenza di conflitto**: `feature-registry.json`
+> si auto-mergia in silenzio, ed è il caso in cui git non avverte. Anche le modifiche alla **prosa fuori dal
+> blocco generato** di `scenariomap.shortlist.md` sono state ricontrollate dopo ogni merge, perché quel file
+> è generato e un rigenerato avrebbe potuto perderle.
+>
+> ➕ L'ultimo merge ha portato un **gate nuovo**, `scripts/check-docs-naming.py`, eseguito su questo albero:
+> **exit 0**. Cerca i nomi legacy del roster (`Flux`, `Riva`, `Bastion`, `Vektor`) usati come prosa
+> player-facing, e per scelta dichiarata fallisce **solo** sui file in `ENFORCED` — che oggi sono **3 su
+> 220**, cioè l'1% di copertura, con **832** occorrenze di arretrato in 72 file. `OPEN_DECISIONS.md` vi
+> compare con 29 occorrenze, **preesistenti**: verificato che il diff di questo lavoro non ne aggiunga
+> nessuna (`git diff origin/main...HEAD | grep '^+' | grep -cE '\b(Flux\|Riva\|Bastion\|Vektor)\b'` → **0**,
+> su tutti i file toccati).
 
 ## 7. Cosa la code review ha respinto — e il difetto comune alle otto voci
 
