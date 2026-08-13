@@ -42,6 +42,7 @@ ROADMAP_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-v0.1.md")
 ROADMAP_CHECKPOINT = os.path.join(REPO, "docs", "roadmap", "roadmap-checkpoint.md")
 ROADMAP_POST_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-post-v0.1.md")
 EXECUTION_GRAPH = os.path.join(REPO, "docs", "roadmap", "execution-graph.yaml")
+EXECUTION_MAP_PAGE = os.path.join(REPO, "docs", "roadmap", "execution-map.md")
 TESTS_DIR = os.path.join(REPO, "Source", "RefactorTactics", "Tests")
 SCENARIOS_DIR = os.path.join(REPO, "Scenarios")
 
@@ -654,7 +655,16 @@ def status_block(entry):
 
 
 def render_execution_mermaid(execution, nodes, label):
-    """L'execution graph come diagramma, per la Wiki: Mermaid, che GitHub rende da solo.
+    """L'execution graph come diagramma Mermaid, in una pagina del REPOSITORY.
+
+    ⚠️ Non nella Wiki, e la ragione e' misurata: **GitHub non renderizza Mermaid nelle pagine
+    Wiki**. Un blocco ```mermaid``` li' esce come «Unable to render rich display» seguito dal
+    codice sorgente — verificato sulla pagina pubblicata prima con il diagramma intero, poi senza
+    monconi, poi con etichette prive di `#`, emoji e `<br/>`, e infine con **tre nodi e un arco**:
+    fallisce sempre, quindi non e' il contenuto. Nei file del repository lo stesso costrutto rende
+    (`roadmap-v0.1.md` ha due diagrammi da sempre).
+
+    La pagina Wiki quindi **linka** questa, invece di provare a contenerla.
 
     Il Control Center disegna un SVG proprio, ma vive in locale. Qui serve una figura che stia
     dentro una pagina markdown senza binari da committare e senza un generatore di immagini: la
@@ -691,17 +701,28 @@ def render_execution_mermaid(execution, nodes, label):
     for node in execution.get("nodes") or []:
         nid = ident(node["id"])
         open_b, close_b = shape.get(node.get("execution_lane"), ("[", "]"))
-        # Il glifo di stato precede l'etichetta solo quando esiste: senza questo controllo il
-        # nodo nasceva con uno spazio davanti al `#`, visibile nella figura resa.
-        head = " ".join(x for x in (node.get("state"), label(node["id"])) if x)
-        lines.append(f'  {nid}{open_b}"{head}<br/>{node.get("readiness")}"{close_b}')
-        # Il moncone: un cerchio piccolo legato da un tratto. Il carattere dentro non e'
-        # decorativo — un nodo `(( ))` vuoto rende un pallino di pochi pixel che alla scala della
-        # pagina sparisce, e un lato libero invisibile e' un lato libero non detto.
+        # ⚠️ L'etichetta e' deliberatamente povera, e ogni assenza costa una prova.
+        #
+        # Il renderer di Mermaid che GitHub esegue lato client e' piu' severo di quello che si
+        # carica da CDN: la prima stesura usava `"✅ #164<br/>DONE"` e rendeva in locale con
+        # **quattro** configurazioni diverse (v10 e v11, `securityLevel` strict, `htmlLabels`
+        # false) mentre sulla pagina pubblicata compariva «Unable to render rich display» e il
+        # codice grezzo. Tre costrutti sono usciti dalle etichette, uno per volta:
+        #   `#`        e' il prefisso delle entita' di Mermaid (`#35;`), non un carattere
+        #   emoji      il glifo di stato vive nella tabella sotto, dove nessun parser lo tocca
+        #   `<br/>`    un separatore HTML dentro una label
+        # Resta `164 READY`: due parole e uno spazio. La stessa forma che il diagramma delle epic
+        # di `roadmap-v0.1.md` usa da sempre — ed e' l'unico mermaid del repository che GitHub
+        # ha sempre reso.
+        head = str(label(node["id"])).lstrip("#").strip("`")
+        lines.append(f'  {nid}{open_b}"{head} {node.get("readiness")}"{close_b}')
+        # Il moncone: un cerchio con dentro un punto. Un nodo `(( ))` vuoto rende un pallino di
+        # pochi pixel che alla scala della pagina sparisce, e un lato libero invisibile e' un lato
+        # libero non detto.
         if not hard_in.get(node["id"]):
-            lines.append(f'  i_{nid}(("&nbsp;")) -.- {nid}')
+            lines.append(f"  i_{nid}((.)) -.- {nid}")
         if not hard_out.get(node["id"]):
-            lines.append(f'  {nid} -.- o_{nid}(("&nbsp;"))')
+            lines.append(f"  {nid} -.- o_{nid}((.))")
 
     for edge in edges:
         if edge["from"] not in visible or edge["to"] not in visible:
@@ -722,7 +743,7 @@ def render_execution_mermaid(execution, nodes, label):
         "  classDef waiting fill:#3a3320,stroke:#e0b050,color:#e6e9ef;",
         "  classDef done fill:#1e2b24,stroke:#4ec98a,color:#99a1b3;",
         "  classDef unknown fill:#22262f,stroke:#4a5162,color:#99a1b3;",
-        "  classDef stub fill:none,stroke:#5a6273,stroke-dasharray:2 3;",
+        "  classDef stub fill:#0f1115,stroke:#5a6273;",
     ]
     by_class = {}
     for node in execution.get("nodes") or []:
@@ -755,6 +776,47 @@ def render_execution_mermaid(execution, nodes, label):
         "a scorrere la figura, non a decodificarla.",
     ]
     return lines
+
+
+def render_execution_map_page(graph):
+    """`docs/roadmap/execution-map.md`: la figura delle dipendenze, dove GitHub la rende.
+
+    Sta nel repository e non nella Wiki per un fatto misurato, non per gusto: le pagine Wiki non
+    renderizzano Mermaid — nemmeno un diagramma di tre nodi — mentre i file versionati si'.
+    """
+    execution = (graph or {}).get("execution")
+    if not execution:
+        return None
+    nodes = {n["id"]: n for n in execution.get("nodes") or []}
+
+    def label(nid):
+        if str(nid).startswith("capability:"):
+            return str(nid).split(":", 1)[1]
+        node = nodes.get(nid) or {}
+        return f"#{node['ref']}" if node.get("kind") == "issue" else node.get("ref") or nid
+
+    stats = execution.get("stats") or {}
+    out = [
+        "# Execution map — cosa blocca cosa",
+        "",
+        "> `GENERATO` · lo riscrive `python scripts/feature_registry.py shortlist`.",
+        "> **Cosa e'**: la figura delle dipendenze di esecuzione, con lo stato di ogni nodo.",
+        "> **Cosa non e'**: una fonte. Nodi, archi e readiness vengono da",
+        "> [`project-graph.json`](project-graph.json), che li deriva dagli owner; la topologia da",
+        "> [`execution-graph.yaml`](execution-graph.yaml).",
+        "",
+        "La stessa figura, interattiva e filtrabile, e' il tab **Execution Map** del",
+        "[Project Control Center](../control-center/README.md). I conteggi e le tabelle stanno",
+        "sulla Wiki, in [Stato del progetto]"
+        "(https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Stato-del-progetto):",
+        "li' il diagramma non compare perche' **le pagine Wiki non rendono Mermaid**.",
+        "",
+        f"Fetta «{execution.get('status')}» · **{stats.get('nodes')} nodi** · "
+        f"**{stats.get('hard_edges')} dipendenze dure** · "
+        f"**{stats.get('soft_edges')} relazioni molli**.",
+    ]
+    out += render_execution_mermaid(execution, nodes, label)
+    return "\n".join(out) + "\n"
 
 
 def render_control_center_page(data, graph):
@@ -903,10 +965,15 @@ def render_control_center_page(data, graph):
                 return f"`{str(nid).split(':', 1)[1]}`"
             node = nodes.get(nid) or {}
             return f"#{node['ref']}" if node.get("kind") == "issue" else node.get("ref") or nid
-        out += render_execution_mermaid(execution, nodes, label)
         out += [
             "",
-            "### Le stesse dipendenze, in tabella",
+            "> 🖼 **Il diagramma** delle stesse dipendenze sta in "
+            "[`docs/roadmap/execution-map.md`]"
+            "(https://github.com/DegrassiAaron/refactor-tactics-main/blob/main/docs/roadmap/execution-map.md), "
+            "nel repository: GitHub rende Mermaid nei file versionati ma **non nelle pagine Wiki**, "
+            "dove uscirebbe come codice sorgente.",
+            "",
+            "### Le dipendenze, in tabella",
             "",
             "| Nodo | Lane | Dominio | Readiness | Dipende da | Abilita |",
             "|---|:--:|---|:--:|---|---|",
@@ -3391,6 +3458,19 @@ def build_graph(registry):
     }
 
 
+def apply_execution_map(check=False):
+    """`docs/roadmap/execution-map.md`, scritta per intero e non a blocchi.
+
+    A differenza delle shortlist non ha una colonna umana da preservare: e' una figura, e ogni
+    riga viene dal grafo. Assente l'execution graph, la pagina non si scrive: un file che dice
+    «nessun dato» sarebbe una pagina da mantenere per niente.
+    """
+    content = render_execution_map_page(build_graph(load_registry()))
+    if content is None:
+        return []
+    return [os.path.relpath(EXECUTION_MAP_PAGE, REPO).replace("\\", "/")]         if write_if_needed(EXECUTION_MAP_PAGE, content, check) else []
+
+
 def apply_shortlist(data, check=False):
     """Riscrive i blocchi marcati nelle cinque shortlist. Fuori dai marcatori non tocca nulla."""
     renderers = {
@@ -3567,6 +3647,7 @@ def main():
 
     if args.command == "shortlist":
         changed, missing = apply_shortlist(data, args.check)
+        changed += apply_execution_map(args.check)
         for note in missing:
             print(f"WARN  {note}")
         if args.check and changed:
