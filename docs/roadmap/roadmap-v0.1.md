@@ -1438,8 +1438,9 @@ editor**, che nessun test automatico può chiudere.
 > 🔗 **Roster player-facing**: Gadget · Phase · Riktor · Wraith
 > ([D-120](../decisions/RT_PDR_00_Decision_Log.md)). ⚠️ Ma ciò che si **legge a schermo** è ancora derivato
 > dallo Stable ID (`ARTUnit::ShortHeroName`), quindi la leggibilità dei **nomi** non è verificabile in
-> Sessione C finché [#715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/715) non introduce
-> un `DisplayName` dichiarato. La presentazione resta **consumer** del resolver, mai autorità dell'esito.
+> Sessione C finché [#715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/715) non porta il
+> `DisplayName` del catalogo — che **esiste ed è popolato** — fino alla HUD. La presentazione resta
+> **consumer** del resolver, mai autorità dell'esito.
 
 **Gate di chiusura dell'epic**: la sessione C di [`test-manuali-pie.md`](../technical/test-manuali-pie.md)
 è verde · nessun cilindro nel gioco se non per asset mancante · una partita registrata (video o

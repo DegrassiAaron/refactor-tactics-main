@@ -11,12 +11,16 @@
 >
 > 🔴 **Due lacune trovate applicandolo, entrambe di merito e non di forma:**
 >
-> 1. **Il nome player-facing non ha un produttore.** Il pacchetto assume che vietare il rename degli Stable
->    ID basti a lasciare la UI coerente. Non basta: l'etichetta a schermo è **derivata** dallo Stable ID da
->    `ARTUnit::ShortHeroName` (`RTUnit.cpp:110`, disegnata da `RTHUD.cpp:159`) e il comportamento è pinnato
->    da `RefactorTactics.Unit.ShortHeroNameFromStableId`. Il §8 chiede che «#286/#287 non presentino più i
->    nomi storici come roster player-facing» senza accorgersi che **il prodotto li presenta comunque, perché
->    li calcola**. → [#715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/715).
+> 1. **Il nome canonico non raggiunge la presentazione.** Il pacchetto assume che vietare il rename degli
+>    Stable ID basti a lasciare la UI coerente. Non basta: l'etichetta a schermo è **derivata** dallo Stable
+>    ID da `ARTUnit::ShortHeroName` (`RTUnit.cpp:110`, disegnata da `RTHUD.cpp:159`) e il comportamento è
+>    pinnato da `RefactorTactics.Unit.ShortHeroNameFromStableId`. Il §8 chiede che «#286/#287 non presentino
+>    più i nomi storici come roster player-facing» senza accorgersi che **il prodotto li presenta comunque,
+>    perché li calcola**. → [#715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/715).
+>    🔄 **Questa nota diceva «non ha un produttore», e la correzione è del 2026-08-13.** Il produttore c'è:
+>    `URTHeroData::DisplayName` (`RTHeroData.h:37`) è popolato per tutti e quattro da
+>    `RTHeroCatalogLibrary.cpp`. A mancare è il **trasporto** — `ConfigureFromHeroData` copia sette campi
+>    sull'unità e salta il nome — quindi il lavoro è più piccolo di come la nota lo descriveva.
 > 2. **D-120 supera D-037 senza rispondere alla sua prova.** D-037 vietava `Gadget` nudo per una ragione
 >    misurata — è già una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`, **8** oggetti `Gadget.*`) —
 >    e quella ragione non è venuta meno. Con la convenzione `<Eroe>.<Abilità>` la migrazione porterebbe
