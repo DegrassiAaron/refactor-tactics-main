@@ -188,9 +188,10 @@ Nessun `npm install`, nessun build step: Node 22 esegue TypeScript con type stri
 ```sh
 python scripts/rt_shared_id.py reserve D --reason "#621 bake"   # stampa l'ID da usare
 python scripts/rt_shared_id.py status                           # contatore e reservation del clone
+python scripts/rt_shared_id.py release D-134                    # cede un ID a chi lo usa gia' (non lo libera)
 python scripts/rt_shared_id.py check                            # exit 1 su duplicati o ID malformati
 git fetch --prune origin && python scripts/rt_shared_id.py audit-refs   # exit 1 se due rami collidono
-python scripts/test_rt_shared_id.py                             # 28 test, uno a venti processi
+python scripts/test_rt_shared_id.py                             # 33 test, uno a venti processi
 ```
 
 L'atomicità copre tutti i worktree di **questo clone** — lock nel git common dir — e non altri cloni o

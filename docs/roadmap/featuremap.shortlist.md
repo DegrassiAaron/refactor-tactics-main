@@ -140,7 +140,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-NET-PRIVATE-PLANNING` — Intenti privati per squadra | v0.1 | TESTABLE | 5/8 | E5 | Nessun byte del piano avversario prima del reveal (invariante #6) |
-| `RT-FEAT-NET-AUTHORITY` — Multiplayer con autorità server | v0.5 | SPECIFIED | 1/8 | E40 · M10 | Epic **E40** (v0.5) più la milestone **M10**, che resta owner della vista di esecuzione: le due sono complementari. 8 issue |
+| `RT-FEAT-NET-AUTHORITY` — Multiplayer con autorità server | v0.5 | SPECIFIED | 1/8 | E40 · M10 | Nessuna epic né issue: vive in M10 |
 | `RT-FEAT-NET-DEDICATED` — Dedicated server | v0.7 | IDEA | 0/8 | E42 | — |
 
 ### Objectives · 5

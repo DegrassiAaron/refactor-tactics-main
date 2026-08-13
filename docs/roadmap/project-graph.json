@@ -52,7 +52,7 @@
       "[RT-FEAT-ACTION-TRAPS] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-EQUIPMENT] nessuna pagina Wiki collegata",
       "[RT-FEAT-REACTION-OVERWATCH] 3 scenario/i dichiarati planned: Spec.Overwatch.ConductiveDischargeUsesStandardConduction, Spec.Overwatch.PressurePushChangesResolvedPath, Spec.Overwatch.FrontlineFollowsFacing",
-      "[RT-FEAT-REACTION-PROFILE] 3 scenario/i dichiarati planned: Spec.Brace.AnchorResistsDisplacement, Spec.Brace.FlowRedirectsToLegalHexOnly, Spec.Brace.DeflectOffersOnlyLegalSides",
+      "[RT-FEAT-REACTION-PROFILE] 3 scenario/i dichiarati planned: Spec.Brace.GroundingChargesOnDeclaredTerrain, Spec.Brace.SidestepRedirectsToLegalHexOnly, Spec.Brace.GlanceOffersOnlyLegalSides",
       "[RT-FEAT-REACTION-CLASH] 3 scenario/i dichiarati planned: Spec.Clash.HiddenUntilReveal, Spec.Clash.RevealIsFixedDeadline, Spec.Clash.Determinism",
       "[RT-FEAT-STATUS-FRAMEWORK] nessuna pagina Wiki collegata",
       "[RT-FEAT-ENV-ICE-ENGINE] nessuna pagina Wiki collegata",
@@ -2084,8 +2084,7 @@
     {
       "id": "Spec.Brace.ProfileChangesResponse",
       "requires": [
-        "DecisionBoundary",
-        "ReactionClash"
+        "DecisionBoundary"
       ],
       "path": "Scenarios/Spec/Brace/ProfileChangesResponse.json"
     },
