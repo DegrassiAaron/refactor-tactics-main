@@ -40,6 +40,7 @@ REGISTRY_JSON = os.path.join(REPO, "docs", "roadmap", "feature-registry.json")
 PROJECT_GRAPH_JSON = os.path.join(REPO, "docs", "roadmap", "project-graph.json")
 ROADMAP_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-v0.1.md")
 ROADMAP_CHECKPOINT = os.path.join(REPO, "docs", "roadmap", "roadmap-checkpoint.md")
+ROADMAP_POST_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-post-v0.1.md")
 TESTS_DIR = os.path.join(REPO, "Source", "RefactorTactics", "Tests")
 SCENARIOS_DIR = os.path.join(REPO, "Scenarios")
 
@@ -50,7 +51,17 @@ GATE_NAMES = [
     "replay_representable",
 ]
 GATE_VALUES = {"done", "partial", "todo", "na"}
-RELEASES = {"v0.1", "v0.2", "future"}
+
+# Le release, **in ordine**, e l'insieme che le valida: una tupla sola invece di quattro elenchi
+# paralleli. Fino al 2026-08-13 i valori ammessi erano `{v0.1, v0.2, future}` mentre
+# `roadmap-post-v0.1.md` era gia' owner dichiarato di v0.2, v0.3 e v0.4: il registry non sapeva
+# esprimere la roadmap che il repository aveva gia' scritto, e cinque feature stavano in `future`
+# per assenza di un valore, non per assenza di una decisione. L'ordine viveva ricopiato in tre
+# punti (`render_status_page` due volte, `render_shortlist_features` una) e aggiungere una release
+# voleva dire trovarli tutti e tre: chi ne mancava uno otteneva una vista che ometteva in silenzio
+# una release intera, che e' esattamente il difetto che §3 di `roadmap.shortlist.md` aveva.
+RELEASE_ORDER = ("v0.1", "v0.2", "v0.3", "v0.4", "future")
+RELEASES = set(RELEASE_ORDER)
 PRIORITIES = {"P0", "P1", "P2", "P3"}
 KINDS = {"gameplay", "ui", "tooling", "data", "infra", "content"}
 
@@ -638,7 +649,7 @@ def status_block(entry):
 
 
 def render_status_page(data):
-    by_release = {"v0.1": [], "v0.2": [], "future": []}
+    by_release = {rel: [] for rel in RELEASE_ORDER}
     for entry in data["features"]:
         by_release.setdefault(entry["release"], []).append(entry)
 
@@ -675,8 +686,13 @@ def render_status_page(data):
         "",
     ]
 
-    titles = {"v0.1": "Release v0.1", "v0.2": "Release v0.2", "future": "Oltre la v0.2"}
-    for release in ("v0.1", "v0.2", "future"):
+    # Il titolo di `future` nomina l'ultima release pianificata, e scriverlo a mano l'aveva gia'
+    # lasciato indietro: diceva «Oltre la v0.2» mentre `roadmap-post-v0.1.md` pianificava v0.3 e
+    # v0.4. Derivarlo da `RELEASE_ORDER` fa si' che la prossima release lo aggiorni da sola.
+    last_planned = [rel for rel in RELEASE_ORDER if rel != "future"][-1]
+    titles = {rel: f"Release {rel}" for rel in RELEASE_ORDER if rel != "future"}
+    titles["future"] = f"Oltre la {last_planned}"
+    for release in RELEASE_ORDER:
         entries = by_release.get(release) or []
         if not entries:
             continue
@@ -1399,6 +1415,7 @@ PIE_REGISTRY = os.path.join(REPO, "docs", "technical", "test-manuali-pie.md")
 
 SHORTLIST_MARKERS = {
     "epics": "RT_SHORTLIST_EPICS",
+    "releases": "RT_SHORTLIST_RELEASES",
     "features": "RT_SHORTLIST_FEATURES",
     "scenarios": "RT_SHORTLIST_SCENARIOS",
     "milestones": "RT_SHORTLIST_MILESTONES",
@@ -1407,6 +1424,7 @@ SHORTLIST_MARKERS = {
 }
 SHORTLIST_FILES = {
     "epics": os.path.join(SHORTLIST_DIR, "roadmap.shortlist.md"),
+    "releases": os.path.join(SHORTLIST_DIR, "roadmap.shortlist.md"),
     "features": os.path.join(SHORTLIST_DIR, "featuremap.shortlist.md"),
     "scenarios": os.path.join(SHORTLIST_DIR, "scenariomap.shortlist.md"),
     "milestones": os.path.join(SHORTLIST_DIR, "milestonemap.shortlist.md"),
@@ -1454,6 +1472,61 @@ def milestone_status():
         else:
             seen.setdefault(milestone, glyph)
     return seen, conflicts
+
+
+def post_v01_epics():
+    """Le epic oltre la v0.1, da `roadmap-post-v0.1.md` — owner dichiarato delle release v0.2-v0.4.
+
+    Tre letture dallo stesso file, perche' tre fatti diversi vivono in tre posti diversi:
+
+    - la **release** dalla tabella «Le release». E' la sola riga che decide dove sta un'epic, e la
+      colonna mescola intervalli (`E22-E26`) ed elenchi (`**E35** · **E36**`): entrambi vanno
+      espansi, perche' un'epic dentro un intervallo non e' meno assegnata di una nominata.
+    - **titolo e priorita'** dall'heading della propria sezione.
+    - la **issue** dalla riga `**Tracciata su GitHub**`.
+
+    Fino al 2026-08-13 questa vista era ricopiata a mano nella §3 di `roadmap.shortlist.md`, che si
+    dichiarava «non generata». Aveva gia' perso **E36**, **E38** ed **E39** — tre epic che la
+    tabella owner elenca in v0.2 — e mostrava **E25** senza issue benche' `#265` esista dal
+    2026-08-08 e il documento owner la citi. Non erano sviste: una tabella copiata diverge dal suo
+    owner appena l'owner cambia, e nessun gate confrontava le due.
+
+    Un'epic con una sezione ma senza riga nella tabella resta **senza release**, e non e' un buco
+    del parser: e' il caso di `E37`. La sua issue `#555` si intitola `[EPIC v0.4]`, la tabella owner
+    non la assegna a nessuna release, e le due fonti non si conciliano indovinando — tanto meno
+    dalla posizione del testo, che la mette dopo il titolo «v0.4» per ragioni di impaginazione.
+    La vista dichiara lo scarto e lo lascia a chi possiede la tabella.
+    """
+    if not os.path.isfile(ROADMAP_POST_V01):
+        return []
+    text = open(ROADMAP_POST_V01, encoding="utf-8").read()
+
+    release_of = {}
+    for release, cell in re.findall(r"^\|\s*\*\*(v0\.\d)\*\*\s*\|[^|]*\|[^|]*\|([^|]*)\|", text, re.M):
+        epics = []
+        for first, last in re.findall(r"E(\d+)\s*[–—-]\s*E(\d+)", cell):
+            epics += [f"E{n}" for n in range(int(first), int(last) + 1)]
+        # Gli intervalli si tolgono prima di raccogliere i singoli, o `E22-E26` conterebbe anche
+        # i suoi due estremi una seconda volta.
+        singles = re.sub(r"E\d+\s*[–—-]\s*E\d+", " ", cell)
+        epics += [f"E{n}" for n in re.findall(r"E(\d+)", singles)]
+        for epic in epics:
+            release_of[epic] = release
+
+    sections = list(re.finditer(r"^### (E\d+) — (.+?) · (P\d)\s*$", text, re.M))
+    out = []
+    for index, match in enumerate(sections):
+        end = sections[index + 1].start() if index + 1 < len(sections) else len(text)
+        body = text[match.start():end]
+        issue = re.search(r"\*\*Tracciata su GitHub\*\*[^\n]*?epic \[#(\d+)\]", body)
+        out.append({
+            "epic": match.group(1),
+            "title": match.group(2).strip(),
+            "priority": match.group(3),
+            "release": release_of.get(match.group(1)),
+            "issue": int(issue.group(1)) if issue else None,
+        })
+    return out
 
 
 def release_gates():
@@ -1605,6 +1678,94 @@ def render_shortlist_epics(data):
     return wrap_block(marker, lines)
 
 
+def render_shortlist_releases(data):
+    """§3 di `roadmap.shortlist.md`: gli step oltre la v0.1, generati dal loro owner.
+
+    La colonna *In una riga* resta umana e viene conservata, come nelle altre shortlist. Tutto il
+    resto — release, titolo, priorita', issue — arriva da `roadmap-post-v0.1.md`, cosi' che
+    aggiungere un'epic la' la faccia comparire qui senza che nessuno se ne ricordi.
+
+    Le Feature per epic si contano dal registry: e' la riga che dice se un'epic pianificata ha gia'
+    una capacita' dichiarata o e' ancora solo un titolo, ed e' proprio la domanda che la §3
+    manuale non sapeva rispondere.
+    """
+    marker = SHORTLIST_MARKERS["releases"]
+    kept = preserved_column(SHORTLIST_FILES["releases"], marker, r"\*\*(E\d+)\*\*")
+    epics = [e for e in post_v01_epics() if e["release"] != "v0.1"]
+
+    by_epic = {}
+    for entry in data["features"]:
+        epic = entry["roadmap"].get("epic")
+        if epic:
+            by_epic.setdefault(epic, []).append(entry)
+
+    lines = [
+        "| Step | Rel. | Issue | Feature | In una riga |",
+        "|---|:--:|---|--:|---|",
+    ]
+    unassigned = []
+    for entry in sorted(epics, key=lambda e: (e["release"] or "zz", int(e["epic"][1:]))):
+        epic = entry["epic"]
+        if entry["release"] is None:
+            unassigned.append(entry)
+            continue
+        issue = f"`#{entry['issue']}`" if entry["issue"] else "—"
+        count = len(by_epic.get(epic, []))
+        lines.append(
+            f"| **{epic}** {entry['title']} · {entry['priority']} | {entry['release']} | {issue} | "
+            f"{count or '—'} | {kept.get(epic, '—')} |")
+
+    releases = sorted({e["release"] for e in epics if e["release"]})
+    lines += [
+        "",
+        f"**{len([e for e in epics if e['release']])} epic** su {len(releases)} release "
+        f"({' · '.join(releases)}) · release, titolo e issue da "
+        f"[`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.",
+    ]
+
+    # Perche' la colonna Feature e' oggi tutta `—`, e perche' dirlo invece di nasconderlo: il
+    # registry dichiara `roadmap.epic` solo per E1-E21. Le feature post-v0.1 esistono — 16 in v0.2,
+    # 5 in v0.3 — ma nessuna dice a quale epic appartiene, e senza quel campo la §3 non puo'
+    # rispondere a «quali capacita' porta questa epic». La menzione di un `RT-FEAT-*` nel testo
+    # dell'owner NON basta a dedurlo: E38 nomina `RT-FEAT-ACTION-ENGINE` come dipendenza gia'
+    # consegnata in v0.1, non come proprio contenuto. Dedurre l'appartenenza dalla menzione
+    # avrebbe collegato una feature v0.1 chiusa a un'epic v0.2 aperta.
+    orphan = {}
+    for entry in data["features"]:
+        if entry["release"] in releases and not entry["roadmap"].get("epic"):
+            orphan[entry["release"]] = orphan.get(entry["release"], 0) + 1
+
+    no_issue = [e["epic"] for e in epics if e["release"] and not e["issue"]]
+    if no_issue:
+        lines += [
+            "",
+            "> ⚠️ **Senza issue dichiarata nell'owner**: " + ", ".join(f"**{e}**" for e in no_issue) +
+            ". La epic puo' esistere su GitHub: questo script non parla con la rete, e cio' che "
+            "l'owner non dichiara non compare.",
+        ]
+    if unassigned:
+        lines += [
+            "",
+            "> ⚠️ **Con una sezione ma senza release**: "
+            + ", ".join(f"**{e['epic']}**" for e in unassigned) +
+            ". La tabella «Le release» non le assegna, e la posizione del testo non e' "
+            "un'assegnazione: la decisione manca nell'owner, non qui.",
+        ]
+    if orphan:
+        total = sum(orphan.values())
+        detail = " · ".join(f"{rel} **{orphan[rel]}**" for rel in sorted(orphan))
+        lines += [
+            "",
+            f"> ⚠️ **La colonna Feature e' vuota perche' il registry non dichiara l'epic**: "
+            f"{total} feature post-v0.1 ({detail}) hanno `roadmap.epic` nullo. Il legame esiste "
+            "nella prosa di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non "
+            "in un campo: finche' non lo e', questa colonna non puo' dire quali capacita' porta "
+            "un'epic, e il conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` "
+            "su **E34** non e' diagnosticabile da nessun controllo.",
+        ]
+    return wrap_block(marker, lines)
+
+
 def render_shortlist_features(data):
     marker = SHORTLIST_MARKERS["features"]
     kept = preserved_column(SHORTLIST_FILES["features"], marker, r"`(RT-FEAT-[A-Z0-9-]+)`")
@@ -1620,7 +1781,7 @@ def render_shortlist_features(data):
 
     lines = [
         f"**{data['count']} feature** · "
-        + " · ".join(f"{rel} **{releases[rel]}**" for rel in ("v0.1", "v0.2", "future") if rel in releases)
+        + " · ".join(f"{rel} **{releases[rel]}**" for rel in RELEASE_ORDER if rel in releases)
         + ".",
         "",
         "| Stato | Quante |",
@@ -1911,7 +2072,23 @@ def resolve_prerequisite(ref, sessions_state, checkpoints, epics, milestones):
 
 SESSION_FIELDS = {"id", "title", "block", "critical", "produces", "artifacts", "unblocked_by",
                   "shares_setup_with", "verifies", "issues", "done_when", "unblocks",
-                  "steps", "notes"}
+                  "execution_lane", "steps", "notes"}
+
+# Le due lane del lavoro umano. Non e' una terza sorgente: `editor-sessions.yaml` resta l'owner
+# delle sedute, e questo campo dice soltanto *che tipo* di lavoro sono. Il default esiste perche'
+# il campo e' nato dopo le sedute: assente = `pie`, che e' cio' che tutte e 21 erano prima.
+SESSION_LANES = ("pie", "asset")
+SESSION_LANE_DEFAULT = "pie"
+
+
+def session_lane(session):
+    """La lane di una seduta, col default retrocompatibile.
+
+    Una funzione e non `session.get("execution_lane", "pie")` sparso: il default e' una regola —
+    «prima del 2026-08-13 ogni seduta era PIE» — e una regola scritta in cinque punti diventa
+    cinque regole al primo che ne cambia uno.
+    """
+    return (session.get("execution_lane") or SESSION_LANE_DEFAULT).strip()
 
 
 def editor_context():
@@ -2018,6 +2195,13 @@ def validate_editor_sessions(ctx=None):
         if session.get("block") not in blocks:
             errors.append(f"{where} block {session.get('block')!r} assente da meta.blocks: "
                           "la vista lo stamperebbe senza titolo")
+        # Il campo e' facoltativo, ma un valore *sbagliato* non e' un'assenza: `execution_lane: PIE`
+        # o `editor` passerebbe il default e la seduta finirebbe nella lane opposta senza che nulla
+        # lo dica. Si controlla solo quando e' dichiarato.
+        if "execution_lane" in session and session_lane(session) not in SESSION_LANES:
+            errors.append(f"{where} execution_lane non valida: "
+                          f"{session.get('execution_lane')!r} — attese "
+                          + " o ".join(f"`{lane}`" for lane in SESSION_LANES))
         for field in session:
             if field not in SESSION_FIELDS:
                 errors.append(f"{where} campo non documentato nell'header del file: {field}")
@@ -2233,8 +2417,8 @@ def render_shortlist_editor(_data):
     lines += [
         "### Tutte le sedute",
         "",
-        "| | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |",
-        "|---|---|---|---|:--:|:--:|:--:|",
+        "| | Seduta | Lane | Produce | Sbloccata da | Critico | Voci | Stato |",
+        "|---|---|:--:|---|---|:--:|:--:|:--:|",
     ]
     for session in sessions:
         verifies = session.get("verifies") or []
@@ -2244,10 +2428,24 @@ def render_shortlist_editor(_data):
         sid = session.get("id")
         lines.append(
             f"| **{sid or NO_SESSION_ID_MD}** | {session.get('title')} | "
+            f"`{session_lane(session).upper()}` | "
             f"{session.get('produces') or '—'} | "
             f"{unblocked} | {'sì' if session.get('critical') else 'no'} | {ratio} | "
             f"{states.get(sid, '—')} |"
         )
+    lanes = {}
+    for session in sessions:
+        lane = session_lane(session)
+        lanes[lane] = lanes.get(lane, 0) + 1
+    lines += [
+        "",
+        "**Lane**: " + " · ".join(f"`{lane.upper()}` **{lanes[lane]}**"
+                                 for lane in SESSION_LANES if lane in lanes) +
+        ". `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un "
+        "verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due "
+        "voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco "
+        "che gira o gli asset che non ho ancora?*",
+    ]
 
     seen_blocks = []
     for session in sessions:
@@ -2357,6 +2555,7 @@ def build_graph(registry):
             "title": session.get("title"),
             "block": session.get("block"),
             "critical": bool(session.get("critical")),
+            "execution_lane": session_lane(session),
             "state": states.get(sid, "—"),
             "queue_group": group_of.get(sid),
             "produces": (session.get("produces") or "").strip(),
@@ -2407,6 +2606,7 @@ def apply_shortlist(data, check=False):
     """Riscrive i blocchi marcati nelle cinque shortlist. Fuori dai marcatori non tocca nulla."""
     renderers = {
         "epics": render_shortlist_epics,
+        "releases": render_shortlist_releases,
         "features": render_shortlist_features,
         "scenarios": render_shortlist_scenarios,
         "milestones": render_shortlist_milestones,

@@ -414,10 +414,13 @@ function scenarios(view) {
 // --- Editor Map ----------------------------------------------------------------------------
 
 function editor(view) {
+  // `execution_lane` arriva gia' derivata dal generatore, default incluso: qui si stampa e basta.
   view.append(table(
-    ['', 'Seduta', 'Stato', 'Coda', 'Critico', 'Produce', 'Attende', 'Sblocca'],
+    ['', 'Seduta', 'Lane', 'Stato', 'Coda', 'Critico', 'Produce', 'Attende', 'Sblocca'],
     (GRAPH.editor_sessions || []).map((s) => [
-      el('strong', { textContent: s.id }), s.title, s.state, s.queue_group || '—',
+      el('strong', { textContent: s.id }), s.title,
+      tag((s.execution_lane || '—').toUpperCase()),
+      s.state, s.queue_group || '—',
       s.critical ? 'sì' : 'no', stripMd(s.produces),
       el('span', { className: 'chips' }, (s.unblocked_by || []).map((p) => p.kind
         ? chip(`${p.ref} ${p.state || ''}`, () => openCheckpoint(p.ref))
@@ -561,6 +564,9 @@ function openSession(sid) {
   const add = (label, node) => { dl.append(el('dt', { textContent: label }), el('dd', {}, node)); };
   add('Stato', `${s.state} · coda ${s.queue_group || '—'} · ${s.critical
     ? 'percorso critico' : 'fuori percorso critico'}`);
+  add('Tipo di lavoro', s.execution_lane === 'asset'
+    ? 'ASSET — costruisci e committi un asset'
+    : 'PIE — guardi il gioco e dai un verdetto');
   if (s.produces) add('Produce', stripMd(s.produces));
   if (s.artifacts.length) add('Artefatti', el('div', {}, s.artifacts.map((a) =>
     el('div', {}, [link(docUrl(PROJECT, a.path), a.path), ' ', a.tracked ? '✅' : '⏳']))));

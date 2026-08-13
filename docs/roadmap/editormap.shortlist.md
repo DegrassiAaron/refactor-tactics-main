@@ -93,29 +93,31 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 ### Tutte le sedute
 
-| | Seduta | Produce | Sbloccata da | Critico | Voci | Stato |
-|---|---|---|---|:--:|:--:|:--:|
-| **U18** | Verifiche senza prerequisiti | verdetto su quindici voci che non attendono nulla | — | no | 1/15 | 🟡 |
-| **U1** | Mappa-arena hex | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | 🟡 |
-| **U2** | Partita hex, primo giro | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 3/4 | 🟡 |
-| **U3** | Input e pianificazione | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
-| **U4** | Combat e linea di tiro | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
-| **U5** | Bot e HUD | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
-| **U6** | Multilivello e partita completa | chiusura di M6 / E2 — sessione D verde | M6.8 | sì | 0/4 | 🟡 |
-| **U7** | Personaggi Paragon | i quattro Blueprint-unita' del roster v0.1, committati | — | sì | 1/2 | 🟡 |
-| **U8** | Animazioni | gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
-| **U9** | Leggibilita' e riferimento visivo | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | sì | 2/4 | 🟡 |
-| **U10** | Data asset delle azioni | il catalogo azioni della v0.1 come dati, non come codice | E1.3, E1.4 | sì | — | — |
-| **U11** | I 4 eroi | i data asset di Gadget, Phase, Riktor e Wraith, e lo spawn 2v2 che li usa | E6, U10 | sì | 0/1 | 🟡 |
-| **U12** | Loadout | varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe | E7, U11 | no | — | — |
-| **U13** | Arena v0.1 | l'arena estesa con quanto serve alle verifiche di contenuto | E8, E9, U1 | sì | 0/1 | ⏳ |
-| **U14** | Ambiente in partita | verdetto sulle regole ambientali e strutturali | U13 | sì | 0/11 | 🟡 |
-| **U15** | HUD, intenti, log e comandi debug | verdetto su leggibilita' e osservabilita' | E11 | sì | 1/5 | 🟡 |
-| **U19** | Durata, ritmo e scala | numeri di playtest — non difetti | U6, U1, U5, U7, U8 | sì | 0/4 | ⏳ |
-| **U16** | Misura dei KPI | numeri reali nella tabella KPI | U6 | sì | 0/1 | 🟡 |
-| **U17** | Release v0.1 | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
-| **U20** | Confine fra Guard e Brace | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
-| **U21** | Luci del graybox e inquadratura della mappa | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
+| | Seduta | Lane | Produce | Sbloccata da | Critico | Voci | Stato |
+|---|---|:--:|---|---|:--:|:--:|:--:|
+| **U18** | Verifiche senza prerequisiti | `PIE` | verdetto su quindici voci che non attendono nulla | — | no | 1/15 | 🟡 |
+| **U1** | Mappa-arena hex | `ASSET` | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 0/7 | 🟡 |
+| **U2** | Partita hex, primo giro | `PIE` | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 3/4 | 🟡 |
+| **U3** | Input e pianificazione | `PIE` | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
+| **U4** | Combat e linea di tiro | `PIE` | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
+| **U5** | Bot e HUD | `PIE` | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
+| **U6** | Multilivello e partita completa | `PIE` | chiusura di M6 / E2 — sessione D verde | M6.8 | sì | 0/4 | 🟡 |
+| **U7** | Personaggi Paragon | `ASSET` | i quattro Blueprint-unita' del roster v0.1, committati | — | sì | 1/2 | 🟡 |
+| **U8** | Animazioni | `ASSET` | gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
+| **U9** | Leggibilita' e riferimento visivo | `PIE` | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | sì | 2/4 | 🟡 |
+| **U10** | Data asset delle azioni | `PIE` | il catalogo azioni della v0.1 come dati, non come codice | E1.3, E1.4 | sì | — | — |
+| **U11** | I 4 eroi | `PIE` | i data asset di Gadget, Phase, Riktor e Wraith, e lo spawn 2v2 che li usa | E6, U10 | sì | 0/1 | 🟡 |
+| **U12** | Loadout | `PIE` | varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe | E7, U11 | no | — | — |
+| **U13** | Arena v0.1 | `PIE` | l'arena estesa con quanto serve alle verifiche di contenuto | E8, E9, U1 | sì | 0/1 | ⏳ |
+| **U14** | Ambiente in partita | `PIE` | verdetto sulle regole ambientali e strutturali | U13 | sì | 0/11 | 🟡 |
+| **U15** | HUD, intenti, log e comandi debug | `PIE` | verdetto su leggibilita' e osservabilita' | E11 | sì | 1/5 | 🟡 |
+| **U19** | Durata, ritmo e scala | `PIE` | numeri di playtest — non difetti | U6, U1, U5, U7, U8 | sì | 0/4 | ⏳ |
+| **U16** | Misura dei KPI | `PIE` | numeri reali nella tabella KPI | U6 | sì | 0/1 | 🟡 |
+| **U17** | Release v0.1 | `PIE` | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
+| **U20** | Confine fra Guard e Brace | `PIE` | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
+| **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
+
+**Lane**: `PIE` **18** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
 
 ### Blocco 1 — Eseguibile oggi
 

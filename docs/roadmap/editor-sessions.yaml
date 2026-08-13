@@ -49,6 +49,18 @@
 #                      la dipendenza dura. `U13` estende l'asset che `U1` committa **e** ne condivide
 #                      il setup; scusare ogni coppia col setto condiviso avrebbe reso invisibile
 #                      proprio quella dipendenza. Blocchi diversi = aperture diverse.
+#   execution_lane     `pie` | `asset` — che TIPO di lavoro e', non che evidenza produce.
+#                      Facoltativo: assente significa `pie`, che era il caso di tutte le sedute
+#                      prima che il campo esistesse. Il criterio e' l'OUTPUT PRIMARIO:
+#                        pie    il risultato e' un verdetto umano, un playtest, una verifica a
+#                               schermo — la persona guarda e giudica
+#                        asset  il risultato e' un asset importato/configurato/committato — la
+#                               persona costruisce, e il verdetto viene dopo
+#                      La distinzione non e' `verifies`: U7 produce quattro Blueprint (`asset`) e
+#                      verifica anche PIE-AS2/PIE-FACING. Il tipo di lavoro e l'evidenza sono due
+#                      cose diverse, e confonderle rimetterebbe tutto in `pie` — cioe' toglierebbe
+#                      al campo la sola domanda a cui serve rispondere: **cosa mi serve per farla,
+#                      il gioco che gira o gli asset che non ho ancora?**
 #   steps              prosa umana; solo dove NESSUNA guida copre ancora la procedura
 #   notes              avvertenze e debiti noti
 #
@@ -206,6 +218,7 @@ sessions:
     title: Mappa-arena hex
     block: 1
     critical: true
+    execution_lane: asset
     produces: "`DA_HexMap_Arena` e `L_HexArena`, committati"
     artifacts:
       - Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
@@ -403,6 +416,7 @@ sessions:
     title: Personaggi Paragon
     block: 3
     critical: true
+    execution_lane: asset
     produces: i quattro Blueprint-unita' del roster v0.1, committati
     artifacts:
       - Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset
@@ -511,6 +525,7 @@ sessions:
     title: Animazioni
     block: 3
     critical: true
+    execution_lane: asset
     produces: gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death
     artifacts:
       - Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset
@@ -558,6 +573,10 @@ sessions:
     title: Leggibilita' e riferimento visivo
     block: 3
     critical: true
+    # Dichiarata anche se `pie` e' il default: nel blocco 3 le tre sedute condividono
+    # l'allestimento ma non il tipo di lavoro, e U9 e' l'unica che GIUDICA cio' che U7 e U8
+    # costruiscono. Lasciarla implicita avrebbe fatto sembrare il contrasto una dimenticanza.
+    execution_lane: pie
     produces: il video (o gli screenshot) di riferimento — DoD di milestone di M8
     artifacts: []
     unblocked_by: []

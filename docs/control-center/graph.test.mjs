@@ -228,3 +228,47 @@ test('CONTRATTO — ogni seduta in coda ha un gruppo, e i gruppi coprono le sedu
       `${s.id}: senza stato derivabile non sta in coda, e viceversa`);
   }
 });
+
+test('CONTRATTO — ogni seduta dichiara una lane fra pie e asset, e il default e pie', () => {
+  const graph = readJson('docs/roadmap/project-graph.json');
+  const lanes = new Set(graph.editor_sessions.map((s) => s.execution_lane));
+  assert.deepEqual([...lanes].sort(), ['asset', 'pie'],
+    'il generatore serializza solo le due lane note');
+  for (const s of graph.editor_sessions) {
+    assert.ok(s.execution_lane, `${s.id}: lane assente — il default non e stato applicato`);
+  }
+  // Il campo e' facoltativo nel YAML: se la serializzazione lo perdesse, TUTTE le sedute
+  // uscirebbero `pie` e il test sopra passerebbe lo stesso. Serve una seduta che il default NON
+  // spiega — e' la sola forma in cui questo contratto sa fallire.
+  const asset = graph.editor_sessions.filter((s) => s.execution_lane === 'asset').map((s) => s.id);
+  assert.ok(asset.length > 0, 'nessuna seduta ASSET: il campo non arriva dal YAML');
+  assert.deepEqual(asset.sort(), ['U1', 'U7', 'U8'],
+    'le sedute il cui output primario e un asset committato');
+});
+
+test('CONTRATTO — la release di ogni feature sta fra quelle che la roadmap dichiara', () => {
+  const registry = readJson('docs/roadmap/feature-registry.json');
+  const known = new Set(['v0.1', 'v0.2', 'v0.3', 'v0.4', 'future']);
+  for (const f of registry.features) {
+    assert.ok(known.has(f.release), `${f.feature_id}: release ${f.release} sconosciuta`);
+  }
+  // v0.3 esiste nei DATI, non solo nell'enum: prima del 2026-08-13 il registry non sapeva
+  // esprimerla e cinque feature stavano in `future` per assenza di un valore, non di una
+  // decisione. L'insieme e' pinnato per esteso e non con un `some(...)`: con `some` bastava una
+  // sola feature per far passare il test, e riportarne quattro in `future` non avrebbe rotto
+  // niente — cioe' il test avrebbe smesso di verificare proprio la migrazione che esiste per
+  // proteggere. Quando la roadmap owner assegnera' altre feature a v0.3, questa lista cresce
+  // insieme a lei: e' il punto in cui il cambiamento si dichiara.
+  const v03 = registry.features.filter((f) => f.release === 'v0.3').map((f) => f.feature_id);
+  assert.deepEqual(v03.sort(), [
+    'RT-FEAT-ACTION-DELAYED',    // E29 · #329
+    'RT-FEAT-ACTION-TRAPS',      // E29 · #329
+    'RT-FEAT-BOT-BELIEF',        // E27 · #327
+    'RT-FEAT-BOT-PREDICTIVE',    // E28 · #328
+    'RT-FEAT-INTENT-CONDITIONAL', // E33 · #330
+  ], 'le feature che le issue epic v0.3 nominano per nome');
+  // Le Feature `RT-FEAT-PERCEPTION-*` restano v0.1 anche se E27 le cita: E27 le **estende**, e
+  // un'epic che estende una capacita' non ne riscrive retroattivamente la release.
+  assert.ok(registry.features.filter((f) => f.feature_id.startsWith('RT-FEAT-PERCEPTION-'))
+    .every((f) => f.release === 'v0.1'), 'la percezione base e nata in v0.1 e ci resta');
+});

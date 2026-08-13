@@ -1870,7 +1870,7 @@ features:
     title: Delayed Action ai boundary di fase
     area: Actions
     kind: gameplay
-    release: future
+    release: v0.3
     priority: P3
     status: DESIGNED
     gates:
@@ -1970,7 +1970,7 @@ features:
     title: Trappole e gambit tattici
     area: Actions
     kind: gameplay
-    release: future
+    release: v0.3
     priority: P3
     status: IDEA
     gates:
@@ -4609,7 +4609,7 @@ features:
     title: Belief — celle plausibili, decadimento e minaccia proiettata
     area: Tools
     kind: gameplay
-    release: future
+    release: v0.3
     priority: P3
     status: DESIGNED
     gates:
@@ -4663,7 +4663,7 @@ features:
     title: Scenari nemici plausibili e piano robusto
     area: Tools
     kind: gameplay
-    release: future
+    release: v0.3
     priority: P3
     status: DESIGNED
     gates:
@@ -5621,7 +5621,7 @@ features:
     title: Conditional Intent — un intento con una biforcazione
     area: Gameplay
     kind: gameplay
-    release: future
+    release: v0.3
     priority: P2
     status: SPECIFIED
     gates:

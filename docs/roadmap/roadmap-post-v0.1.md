@@ -94,6 +94,8 @@ Cover Window dimostrabile in scenario automatico, suite verde, replay determinis
 
 ### E35 — Roster 8: Sentinel Directorate e Resonance · P0
 
+**Tracciata su GitHub**: epic [#322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/322).
+
 **Obiettivo**: portare il roster da 4 a 8 eroi aggiungendo le due fazioni v0.2, senza introdurre bonus di
 fazione né kit di coppia — [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) vale invariato.
 
@@ -111,6 +113,8 @@ Le schede esistono già come `DATA_SPEC`/`DESIGN_SPEC`: [`../characters/v0.2/`](
 il costo non è lineare.
 
 ### E22 — Cover Window: OPEN → FIRE → SEAL · P1
+
+**Tracciata su GitHub**: epic [#323](https://github.com/DegrassiAaron/refactor-tactics-main/issues/323).
 
 **Obiettivo**: rendere possibile che un alleato apra temporaneamente una copertura, un secondo sfrutti la
 linea di tiro e un terzo la richiuda — **senza combo hard-coded fra tre personaggi**.
@@ -130,6 +134,8 @@ arco/transizione). Se serve una regola speciale «se A ha aperto e B spara», la
 fissarla (scenario 4 del sorgente).
 
 ### E23 — Muri, porte e interaction graph · P1
+
+**Tracciata su GitHub**: epic [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324).
 
 **Obiettivo**: muri e porte come **oggetti logici sugli archi**, non come mesh che il gameplay interroga.
 
@@ -166,6 +172,8 @@ scenari, golden replay e mappe salvate.
 > ancora chiuso.
 
 ### E24 — Formato Standard 3v3 · P1
+
+**Tracciata su GitHub**: epic [#325](https://github.com/DegrassiAaron/refactor-tactics-main/issues/325).
 
 **Obiettivo**: il formato competitivo principale diventa giocabile: 3v3 su mappa di classe Standard.
 
@@ -208,6 +216,8 @@ con 4 checkpoint (`CP 25.1`–`25.4`). Fondazione v0.1 in
 Feature Registry: `RT-FEAT-UI-ICON-LANGUAGE`.
 
 ### E26 — Tactical Bot v1 · P1
+
+**Tracciata su GitHub**: epic [#326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326).
 
 **Obiettivo**: il bot passa da «gioca legalmente» a «gioca di squadra».
 
@@ -399,6 +409,8 @@ Feature Registry: `RT-FEAT-STATUS-FRAMEWORK`.
 
 ### E38 — Economia del turno, accoppiamento col movimento e validazione del piano · P2
 
+**Tracciata su GitHub**: epic [#609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609).
+
 **Obiettivo**: decidere se l'economia del turno resta a **slot** o diventa una **capacità numerica**, e —
 qualunque sia la risposta — rendere il piano **validabile in Planning** invece che scopribile in risoluzione.
 
@@ -460,6 +472,8 @@ Feature Registry: `RT-FEAT-ACTION-BUDGET` · `RT-FEAT-ACTION-MOVEMENT-COMPAT` ·
 ---
 
 ### E39 — Spatial Transfer — teleport, blink e movimento istantaneo · P3
+
+**Tracciata su GitHub**: epic [#704](https://github.com/DegrassiAaron/refactor-tactics-main/issues/704).
 
 **Obiettivo**: rendere esplicita una semantica che il repository possiede già, darle il **resolver
 appropriato** e costruirci sopra consumatori diversi — senza duplicare Planning, Reaction, Perception,
@@ -533,6 +547,8 @@ La release in cui l'informazione incompleta smette di essere un modificatore e d
 
 ### E27 — Percezione completa: vista, udito, memoria · P1
 
+**Tracciata su GitHub**: epic [#327](https://github.com/DegrassiAaron/refactor-tactics-main/issues/327).
+
 Estende E13 oltre il thin slice: stealth, memoria dell'ultima posizione nota condivisa nel team, rumore
 propagato con occlusione, gradi di certezza. Il sorgente 4v4 §19.1 fissa il vincolo: **nessun RNG nascosto per
 la percezione base** — se un'unità è vista, lo è per una regola, non per un tiro di dado.
@@ -546,6 +562,8 @@ la percezione base** — se un'unità è vista, lo è per una regola, non per un
 
 ### E28 — Expert Bot v2 · P2
 
+**Tracciata su GitHub**: epic [#328](https://github.com/DegrassiAaron/refactor-tactics-main/issues/328).
+
 Solo **dopo** la stabilizzazione del resolver (§5.3 del sorgente): simulazioni counterfactual, più ipotesi
 sul nemico, opponent model su eventi osservati, pianificazione robusta, personalità tattiche, possibile riuso
 del planner come strumento di QA.
@@ -556,10 +574,14 @@ copiare lo stato logico solo quando il resolver è estraibile, ed è la stessa c
 
 ### E29 — Predictive avanzato · P2
 
+**Tracciata su GitHub**: epic [#329](https://github.com/DegrassiAaron/refactor-tactics-main/issues/329).
+
 Ciò che E18 ha dichiarato fuori scope: trap persistenti, mine, tripwire su arco, catene di azioni predittive.
 Si apre solo se il thin slice E18 ha retto al playtest.
 
 ### E33 — Conditional Intent · P2
+
+**Tracciata su GitHub**: epic [#330](https://github.com/DegrassiAaron/refactor-tactics-main/issues/330).
 
 [D-034](../decisions/RT_PDR_00_Decision_Log.md). Un intento con **1** condizione e **2** rami, dichiarati per
 intero in Planning e valutati a un boundary nominato. Non è un sistema nuovo: è la **condizione dichiarata**
@@ -584,6 +606,8 @@ sia una decisione, non una configurazione.
 
 ### E30 — Classe di mappa Operations · P2
 
+**Tracciata su GitHub**: epic [#331](https://github.com/DegrassiAaron/refactor-tactics-main/issues/331).
+
 Mappe grandi, partite da **45–60+ minuti**, più obiettivi, esplorazione, repositioning strategico, valore
 reale di rumore e logistica (§4.3 del sorgente match-timing). Il sorgente è esplicito: «l'architettura deve
 poterlo supportare, ma **non implementarlo ora**» — E19 e E23 sono ciò che rende questa epic possibile senza
@@ -591,7 +615,11 @@ riscritture.
 
 ### E31 — Obiettivi multipli e logistica · P3
 
+**Tracciata su GitHub**: epic [#332](https://github.com/DegrassiAaron/refactor-tactics-main/issues/332).
+
 ### E32 — Formato 4v4 competitivo · P3
+
+**Tracciata su GitHub**: epic [#333](https://github.com/DegrassiAaron/refactor-tactics-main/issues/333).
 
 La v0.1 usa il 4v4 solo come **stress test** (E17). Qui diventerebbe un formato vero — ma solo se il playtest
 del 3v3 dice che il sistema regge la densità. Resta la nota del piano canonico: il formato competitivo finale

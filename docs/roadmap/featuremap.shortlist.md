@@ -20,7 +20,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**105 feature** · v0.1 **74** · v0.2 **16** · future **15**.
+**105 feature** · v0.1 **74** · v0.2 **16** · v0.3 **5** · future **10**.
 
 | Stato | Quante |
 |---|--:|
@@ -49,11 +49,11 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | IMPLEMENTING | 0/9 | — | Fuori dal contenuto della v0.1 |
 | `RT-FEAT-ACTION-MOVEMENT-COMPAT` — Compatibilita' abilita' <-> movimento: normale, ridotta, potenziata, bloccata | v0.2 | SPECIFIED | 1/9 | fuori scope | — |
 | `RT-FEAT-ACTION-SPATIAL-TRANSFER` — Spatial Transfer — cambiare posizione senza percorrere lo spazio | v0.2 | SPECIFIED | 1/10 | fuori scope | — |
-| `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | future | DESIGNED | 0/9 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
+| `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | v0.3 | DESIGNED | 0/9 | — | Brief scritto, **nessuna epic aperta**: attende una decisione di scope |
 | `RT-FEAT-ACTION-PLAN-VALIDATION` — Validazione del piano in Planning, con reason code deterministico | v0.2 | DESIGNED | 0/10 | fuori scope | — |
 | `RT-FEAT-STATUS-FRAMEWORK` — Framework degli status — categorie, severity e primitive | v0.2 | DESIGNED | 0/9 | fuori scope | Undici status cablati uno per uno, nessun livello che li governi: **E36** in v0.2 |
 | `RT-FEAT-ACTION-BUDGET` — Capacita' d'azione del turno: slot o budget numerico | v0.2 | DEFERRED | 0/9 | fuori scope | — |
-| `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | future | IDEA | 0/9 | — | Solo un nome |
+| `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | v0.3 | IDEA | 0/9 | — | Solo un nome |
 
 ### Characters · 7
 
@@ -113,7 +113,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-CHARACTER-STATE` — Character State / Configuration System | future | SPECIFIED | 1/10 | — | Epic E34, `#244` |
-| `RT-FEAT-INTENT-CONDITIONAL` — Conditional Intent — un intento con una biforcazione | future | SPECIFIED | 1/10 | — | Un intento con **una** biforcazione — epic E33, `#330` |
+| `RT-FEAT-INTENT-CONDITIONAL` — Conditional Intent — un intento con una biforcazione | v0.3 | SPECIFIED | 1/10 | — | Un intento con **una** biforcazione — epic E33, `#330` |
 
 ### Map · 14
 
@@ -195,8 +195,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-TOOL-CONTROL-CENTER` — Project Control Center — la UI web del registry | future | IMPLEMENTING | 2/6 | — | — |
 | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | v0.1 | IMPLEMENTING | 3/6 | E11 | Ne esistono 2 su 8: senza, si debugga a occhio |
 | `RT-FEAT-TOOL-MAP-GEOMETRY` — Geometria architettonica quantizzata e cottura in dati di cella | v0.1 | IMPLEMENTING | 3/7 | M9 | — |
-| `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | future | DESIGNED | 0/8 | fuori scope | — |
-| `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | future | DESIGNED | 0/8 | fuori scope | — |
+| `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | v0.3 | DESIGNED | 0/8 | fuori scope | — |
+| `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | v0.3 | DESIGNED | 0/8 | fuori scope | — |
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | fuori scope | Epic E26 |
 
 ### UI · 10

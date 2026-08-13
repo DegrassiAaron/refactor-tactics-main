@@ -72,25 +72,41 @@ tabella sopra, che è generata.
 
 ## 3. Gli step oltre la v0.1
 
-Non generate: queste epic non hanno feature nel registry, e nessuna si apre prima che **i 15 gate della
-v0.1 siano verdi** ([`roadmap-post-v0.1.md`](roadmap-post-v0.1.md)).
+> `GENERATA` dal 2026-08-13 · il blocco qui sotto lo riscrive `python scripts/feature_registry.py shortlist`.
+> Prima era ricopiata a mano e aveva perso **E36**, **E38** ed **E39** — tre epic che la tabella «Le
+> release» di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) elenca in v0.2 — e mostrava **E25** senza
+> issue benché `#265` esista. Release, titolo, priorità e issue vengono da lì; il conteggio Feature dal
+> Feature Registry. Nessuna si apre prima che **i 15 gate della v0.1 siano verdi**.
 
-| Step | Rel. | Issue | In una riga |
-|---|:--:|---|---|
-| **E35** Roster 8 — Sentinel Directorate e Resonance | v0.2 | `#322` | Steel, Aurora, Murdock, Kwang: da 4 a 8 eroi |
-| **E22** Cover Window: OPEN → FIRE → SEAL | v0.2 | `#323` | La copertura diventa una finestra temporale, non uno stato fisso |
-| **E23** Muri, porte e interaction graph | v0.2 | `#324` | Il grafo di interazione generalizza il bordo commutabile di E9 |
-| **E24** Formato Standard 3v3 | v0.2 | `#325` | La baseline competitiva dichiarata (4v4 resta stress test) |
-| **E25** Icon Language completo | v0.2 | — | Estensione di E20 all'intero HUD |
-| **E26** Tactical Bot v1 | v0.2 | `#326` | Il bot usa conoscenza parziale e reazioni |
-| **E27** Percezione completa: vista, udito, memoria | v0.3 | `#327` | Oltre E13: identificazione, firma, sensori |
-| **E28** Expert Bot v2 | v0.3 | `#328` | Bot che pianifica contro l'incertezza |
-| **E29** Predictive avanzato | v0.3 | `#329` | Oltre la thin slice di E18: il framework completo |
-| **E33** Conditional Intent | v0.3 | `#330` | Un intento con una biforcazione dichiarata in planning |
-| **E30** Classe di mappa Operations | v0.4 | `#331` | La terza classe di mappa, fuori scope in v0.1 |
-| **E31** Obiettivi multipli e logistica | v0.4 | `#332` | Più obiettivi contemporanei con dipendenze |
-| **E32** Formato 4v4 competitivo | v0.4 | `#333` | Se E17 dice che regge |
-| **E34** Stati del personaggio e trasformazioni | v0.4 | `#244` | Stance e trasformazioni — le 10 voci `PIE-STATE-*` sono la sua controparte umana |
+<!-- RT_SHORTLIST_RELEASES:BEGIN -->
+
+| Step | Rel. | Issue | Feature | In una riga |
+|---|:--:|---|--:|---|
+| **E22** Cover Window: OPEN → FIRE → SEAL · P1 | v0.2 | `#323` | — | La copertura diventa una finestra temporale, non uno stato fisso |
+| **E23** Muri, porte e interaction graph · P1 | v0.2 | `#324` | — | Il grafo di interazione generalizza il bordo commutabile di E9 |
+| **E24** Formato Standard 3v3 · P1 | v0.2 | `#325` | — | La baseline competitiva dichiarata (4v4 resta stress test) |
+| **E25** Icon Language completo · P2 | v0.2 | `#265` | — | Estensione di E20 all'intero HUD |
+| **E26** Tactical Bot v1 · P1 | v0.2 | `#326` | — | Il bot usa conoscenza parziale e reazioni |
+| **E35** Roster 8: Sentinel Directorate e Resonance · P0 | v0.2 | `#322` | — | Steel, Aurora, Murdock, Kwang: da 4 a 8 eroi |
+| **E36** Framework degli status: capability, primitive e severity · P2 | v0.2 | `#435` | — | — |
+| **E38** Economia del turno, accoppiamento col movimento e validazione del piano · P2 | v0.2 | `#609` | — | — |
+| **E39** Spatial Transfer — teleport, blink e movimento istantaneo · P3 | v0.2 | `#704` | — | — |
+| **E27** Percezione completa: vista, udito, memoria · P1 | v0.3 | `#327` | — | Oltre E13: identificazione, firma, sensori |
+| **E28** Expert Bot v2 · P2 | v0.3 | `#328` | — | Bot che pianifica contro l'incertezza |
+| **E29** Predictive avanzato · P2 | v0.3 | `#329` | — | Oltre la thin slice di E18: il framework completo |
+| **E33** Conditional Intent · P2 | v0.3 | `#330` | — | Un intento con una biforcazione dichiarata in planning |
+| **E30** Classe di mappa Operations · P2 | v0.4 | `#331` | — | La terza classe di mappa, fuori scope in v0.1 |
+| **E31** Obiettivi multipli e logistica · P3 | v0.4 | `#332` | — | Più obiettivi contemporanei con dipendenze |
+| **E32** Formato 4v4 competitivo · P3 | v0.4 | `#333` | — | Se E17 dice che regge |
+| **E34** Stati del personaggio e trasformazioni · P3 | v0.4 | `#244` | — | Stance e trasformazioni — le 10 voci `PIE-STATE-*` sono la sua controparte umana. ⚠️ **Due Feature ID si sovrappongono e nessuno è stato scelto**: `RT-FEAT-CHARACTER-STATE` (`future`, `SPECIFIED`, 5 scenari planned) e `RT-FEAT-CHAR-TRANSFORMATION` (`v0.2`, `IDEA`). Finché l'audit non dice se sono due scope o un duplicato, **nessuna delle due si sposta**: cambiare release a un ID stabile per far quadrare un'epic è la migrazione che poi nessuno sa più motivare |
+
+**17 epic** su 3 release (v0.2 · v0.3 · v0.4) · release, titolo e issue da [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.
+
+> ⚠️ **Con una sezione ma senza release**: **E37**. La tabella «Le release» non le assegna, e la posizione del testo non e' un'assegnazione: la decisione manca nell'owner, non qui.
+
+> ⚠️ **La colonna Feature e' vuota perche' il registry non dichiara l'epic**: 20 feature post-v0.1 (v0.2 **15** · v0.3 **5**) hanno `roadmap.epic` nullo. Il legame esiste nella prosa di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non in un campo: finche' non lo e', questa colonna non puo' dire quali capacita' porta un'epic, e il conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` su **E34** non e' diagnosticabile da nessun controllo.
+
+<!-- RT_SHORTLIST_RELEASES:END -->
 
 ---
 
