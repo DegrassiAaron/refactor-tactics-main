@@ -11,6 +11,14 @@ python -m http.server 8000        # dalla radice del repository
 # poi: http://localhost:8000/docs/control-center/
 ```
 
+**Senza checkout**: la stessa sostanza è pubblicata sulla Wiki come
+[`Stato del progetto`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Stato-del-progetto)
+— gate di release, coda delle sedute, execution graph e capability, in markdown. La genera
+`deploy --wiki-root <clone> --write`, dallo stesso `project-graph.json` che alimenta questa pagina:
+nessun numero viene ricalcolato, quindi le due non possono divergere se non per **quando** sono
+state generate. Questa è interattiva (filtri, focus, drawer), quella è leggibile da chiunque abbia
+il link.
+
 Serve un server perché il browser blocca `fetch` e i moduli ES da `file://`. Aperta comunque da
 file, la pagina se ne accorge e chiede i due `.json` con un selettore di file: stesso dato, stessa
 vista. Nessuna delle due strade usa la rete — i dati vengono dal working tree.
