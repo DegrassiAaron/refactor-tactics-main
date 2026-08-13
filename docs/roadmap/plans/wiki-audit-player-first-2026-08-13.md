@@ -143,6 +143,22 @@ nessuna stima in giorni, coerentemente con la roadmap.
 | **7** Developer Zone | [#827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/827) | 12 pagine `MOVE-DEV` + hub | 13 | 1 |
 | **8** Cleanup | [#828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/828) | link, redirect, sidebar finale, verifica a schermo | — | tutte |
 
+## Due pagine classificate che nessuna wave copre
+
+Trovato dalla code review della PR, e non dalla tabella: **l'aritmetica dei `SPLIT` tornava** — 6
+classificati, 6 distribuiti fra le wave 2, 3 e 4 — ma non erano gli stessi sei.
+
+| Pagina | Classe | Problema |
+|---|---|---|
+| `Guida/combattimento-e-targeting.md` | `SPLIT` | densità di rumore **26,6**, top-10 della Wiki. Nessuna delle otto issue la nomina: la Wave 2 conta tre `SPLIT` che sono azioni-e-movimento, planning-e-coordinazione e reazioni-overwatch |
+| `Guida/sinergie-e-combinazioni.md` | `PLAYER-REWRITE` | **12 occorrenze legacy**, e questo documento prometteva che «entra nelle wave di riscrittura». Nessuna wave la nomina: a wave completate le 12 occorrenze resterebbero pubblicate, contro D-130 |
+
+Entrambe vanno aggiunte al perimetro: `combattimento-e-targeting` alla **Wave 2** (#822),
+`sinergie-e-combinazioni` alla **Wave 5** (#825), dove stanno le sinergie fra personaggi.
+
+⚠️ La lezione non è l'omissione: è che **un totale che torna non dimostra che gli elementi siano gli
+stessi**. Sei classificati e sei assegnati erano due insiemi diversi con la stessa cardinalità.
+
 ## Cosa questo audit non ha fatto
 
 - **Nessuna pagina è stata riscritta.** L'handoff vieta il big bang e prescrive wave; questa è la Wave 0.

@@ -8,15 +8,16 @@
 > atterrano il totale sarà **70**, e nessuno dei due rami può scriverlo perché nessuno dei due vede
 > l'altro». Al merge il comando ha risposto **70** = 17 + 47 + 2 + **4**. Entrambi i rami avevano
 > scritto `69`, entrambi misurati col comando buono, entrambi giusti sulla propria base — la nona
-> lezione, alla lettera.
+> lezione, alla lettera. ⚠️ **E la prima stesura di questo stesso banner aveva lasciato `69` nella
+> frase qui sotto** mentre la formula diceva `70`: il numero corretto in un posto e non nell'altro,
+> dentro il paragrafo che celebra di aver previsto lo scarto. Trovato dalla code review, non da me.
 >
 > La differenza rispetto alle nove volte precedenti non è il rimedio, che è sempre lo stesso
 > (**rimisurare dopo il merge**, mai sommare i delta): è che il conflitto è stato **previsto
 > leggendo `gh pr list`**, non scoperto dopo. Una PR aperta che tocca la tua stessa riga è
 > un'informazione disponibile *prima* di scrivere il numero.
 >
-
-> I **69** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
+> I **70** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
 > normativa. ➕ **E un file che non è Markdown**: `handoff/2026-08-12-grid-data-consolidation-audit.xlsx`.
 > Il comando qui sotto filtra `-name '*.md'` e **non lo conta**: è dichiarato qui perché un allegato invisibile
 > alla formula è esattamente il modo in cui questo numero è già andato fuori sincrono sei volte.

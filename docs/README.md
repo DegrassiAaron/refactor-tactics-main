@@ -77,6 +77,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | HUD e leggibilità | [`technical/progettazione-hud.md`](technical/progettazione-hud.md) · [`technical/brief-planning-visuale.md`](technical/brief-planning-visuale.md) | ⏳ E11 |
 | Mappa delle classi C++ | [`technical/architettura-codice.md`](technical/architettura-codice.md) | ✅ |
 | Struttura di `Content/`, naming asset | [`technical/convenzioni-contenuti-ue.md`](technical/convenzioni-contenuti-ue.md) | ✅ **normativo** |
+| Quali asset servono, quali esistono, quanti mancano | [`technical/asset-map.md`](technical/asset-map.md) | registro, misurato sull'allowlist |
 | Test automatici e scenari | [`technical/test-automatico-unreal.md`](technical/test-automatico-unreal.md) | ✅ harness consegnato · ⏳ assertion oltre il movimento |
 | Verifiche interattive in editor | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | 🟡 |
 | Scenario della showcase | [`product/showcase-v0.1.md`](product/showcase-v0.1.md) | ⏳ E15 |
