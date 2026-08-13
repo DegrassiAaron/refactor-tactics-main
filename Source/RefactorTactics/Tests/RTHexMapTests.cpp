@@ -314,7 +314,7 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
 	// Il numero e' pinnato di proposito: un bump di formato deve far cadere un test, non passare inosservato.
 	// v7 (#619) aggiunge il sovrapprezzo di occupazione; nessun dato precedente cambia significato.
-	TestEqual(TEXT("la versione corrente e' la 7"), URTHexMapAsset::CurrentFormatVersion, 7);
+	TestEqual(TEXT("la versione corrente e' la 8"), URTHexMapAsset::CurrentFormatVersion, 8);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 

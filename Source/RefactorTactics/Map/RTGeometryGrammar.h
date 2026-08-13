@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
+#include "Map/RTHexCellData.h"
 #include "RTGeometryGrammar.generated.h"
 
 /**
@@ -141,6 +142,21 @@ struct FRTGeometrySegment
 	/** Il piano su cui il segmento vive. Stessa semantica di `FRTCellId::Layer`. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	int32 Layer = 0;
+
+	/**
+	 * CHE COSA e' questo muro, non dove sta: `Low` e' il muretto, `High` il muro pieno.
+	 *
+	 * Aggiunto da `#621`, e la divisione e' voluta: `#620` ha fissato la GRAMMATICA — dove un segmento puo'
+	 * stare — mentre il tipo e' la SEMANTICA che la cottura consuma per scegliere fra `FRTHexCover{Low}` e
+	 * `{High}`. Senza, il bake dovrebbe indovinare.
+	 *
+	 * Riusa `ERTHexCoverType` invece di introdurre un `ERTWallKind` parallelo: i due valori canonici esistono
+	 * gia', con le definizioni scritte in `RTHexCellData.h` e l'integrita' di catalogo (30 / 50). Un secondo
+	 * enum con gli stessi due valori sarebbe la «seconda rappresentazione dello stesso oggetto» che il corpo
+	 * di `#621` vieta esplicitamente.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTHexCoverType WallType = ERTHexCoverType::High;
 
 	bool operator==(const FRTGeometrySegment& Other) const
 	{

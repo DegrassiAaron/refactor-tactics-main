@@ -3597,7 +3597,7 @@ features:
       - PIE-V01-POINTER
     last_verified:
       date: 2026-08-13
-      commit: 5f11a88f
+      commit: 80e10a1d
     notes: >
       Aperta il 2026-08-12 dal reconciliation di roadmap
       (`plans/roadmap-reconciliation-2026-08-12.md`). ⚠️ **Non e' un redesign dell'input**: nove regole
@@ -5144,12 +5144,11 @@ features:
     gates:
       spec: partial
       data: done
-      # partial dal 2026-08-13 dopo #620: la GRAMMATICA e il suo validator esistono nel modulo runtime
-      # (`RTGeometryGrammar.h`, 11 test verdi, sei mutazioni nessuna sopravvissuta). Resta partial perche'
-      # la COTTURA verso `FRTHexCover`/`bBlocksMovement` e' #621 e non esiste: oggi la grammatica ha un
-      # produttore di test e nessun consumatore di produzione, che e' la sequenza voluta -- fissare la
-      # regola prima del bake costa zero, come per D-125.
-      runtime: partial
+      # done dal 2026-08-13 dopo #621: tutto il codice RUNTIME della feature esiste ed e' testato --
+      # grammatica e validator (`RTGeometryGrammar.h`), cottura verso i bordi (`RTGeometryBake.h`),
+      # provenienza (`FRTHexCover::bGenerated`, formato v8). Cio' che resta e' #712, che e' uno strumento
+      # d'EDITOR: il gesto che produce i segmenti. Il volume non e' mai stato di questa feature (D-129).
+      runtime: done
       log_debug: todo
       automation: done
       scenario: done
@@ -5190,6 +5189,10 @@ features:
       # #620: la grammatica quantizzata. Undici test, e cinque di essi hanno per soggetto UNA regola
       # ciascuno perche' la verifica di mutazione del DoD chiede che cada esattamente quello atteso.
       - RefactorTactics.GeometryGrammar.*
+      # #621: la cottura verso i BORDI. Sette test; cinque mutazioni, nessuna sopravvissuta. Fra questi
+      # `ProvenanceDoesNotChangeTheHash` pinna il vincolo di D-131: `bGenerated` e' metadato d'authoring
+      # e non deve entrare nell'hash, o due mappe che si giocano identiche divergerebbero.
+      - RefactorTactics.GeometryBake.*
     scenarios:
       # L'unico scenario che questa feature produce: le quattro fixture di geometria NON sono
       # scenari (`FRTScenarioCell` non sa esprimere un segmento) e vivono in

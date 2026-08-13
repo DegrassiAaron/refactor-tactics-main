@@ -511,6 +511,11 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// v4 -> v5 (CP 9.4): gli archi guadagnano stato, integrita' e conduttivita'. I default sono quelli di un
 	// ponte SANO (`Active`, 40, non conduttivo): un arco letto da un asset vecchio non deve risultare spento,
 	// o la mappa cambierebbe significato solo per essere stata ricaricata.
+	// v7 -> v8 (#621): le coperture guadagnano la PROVENIENZA (`bGenerated`). Il default `false` significa
+	// «dipinta a mano», che e' esattamente cio' che ogni copertura scritta prima di questo campo era: nessun
+	// dato cambia significato, e non c'e' nulla da trasformare. ⚠️ E non deve essercene: finche' #687 e'
+	// aperta una migrazione trasformativa NON verrebbe eseguita, quindi riclassificare coperture esistenti
+	// qui sarebbe un difetto silenzioso.
 	// v5 -> v6 (CP 19.1): il formato guadagna la classe di mappa. Il default (`Skirmish`) e' cio' che una
 	// mappa scritta prima gia' era — il vertical slice e' 2v2 — quindi anche qui non c'e' niente da convertire.
 	// v6 -> v7 (#619): la cella guadagna il sovrapprezzo di occupazione. Il default (0) e' cio' che una mappa

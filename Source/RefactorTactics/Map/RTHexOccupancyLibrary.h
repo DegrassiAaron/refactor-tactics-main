@@ -181,6 +181,7 @@ public:
 	 */
 	static FRTOccupancyMask ComputeMask(const TArray<FRTOccupancyPolyline>& Geometry, float HexSize);
 
+
 	/**
 	 * Quanto costa IN PIU' attraversare una cella con questa classificazione — la META' COSTO della cottura,
 	 * che appartiene a #619. I BORDI (`FRTHexCover`, `bBlocksMovement`) sono di #621.
