@@ -137,6 +137,33 @@ Non hanno un token nella sorgente e **non si inventano qui**: `Phase.*` (quattro
 
 ## Le 33 chiavi
 
+> 🔴 **Non sono più 33: rimisurate il 2026-08-13, sono 60.** E il difetto non è nel numero — è nell'aver
+> scritto **un numero** per un insieme che è una **funzione**.
+>
+> `URTIconLibrary::RequiredIconIds()` non legge questo documento: deriva l'insieme richiesto dalle sorgenti
+> vive, e la sola che sia cresciuta è il catalogo azioni. Composizione misurata oggi:
+>
+> | Categoria | Qui sotto | Misurata | Da dove deriva |
+> |---|---:|---:|---|
+> | `Phase` | 4 | **4** | le quattro fasi volontarie, elencate in codice |
+> | `Action` | 9 | **36** | `URTCatalogLibrary::GetCoreActionCatalog()` — `RTCatalogLibrary.cpp:709-1172` |
+> | `Status` | 11 | **11** | i tag sotto `Status.` in `Core/RTGameplayTags.cpp` |
+> | `Certainty` | 3 | **3** | tre costanti dichiarate in codice |
+> | `Identity` | 6 | **6** | 4 eroi del roster + `Ally` + `Enemy` |
+> | | **33** | **60** | |
+>
+> ```bash
+> sed -n '709,1172p' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp | grep -c 'Catalog.Add('   # 36
+> ```
+>
+> ⚠️ **Conseguenza di scope, non nota a margine**: il gate di `#219` è `FindMissingRequiredIcons` **vuoto**, e
+> quella funzione pretende **tutte** le chiavi derivate. Finché il catalogo azioni resta a 36, la v0.1 chiede
+> **60 disegni + il missing-icon**, non 34. Se 60 sono troppi, la leva **non** è ritoccare questo elenco: è
+> decidere quali azioni del catalogo entrano nell'insieme richiesto, e quella decisione va presa in `#219`.
+>
+> Il numero nel titolo resta `33` di proposito, come i totali sbagliati che questo repository conserva
+> barrati: serve a far riconoscere il documento a chi lo cita.
+
 ### Phase — 4
 
 Le quattro fasi **volontarie**. `Planning` e `Cleanup` non sono fasi in cui il giocatore agisce, e la reaction
@@ -151,6 +178,16 @@ Ogni azione che il catalogo generico dichiara davvero. Non la lista canonica dei
 qualcosa che nessuno può pianificare.
 
 `Sprint` · `Wait` · `Move` · `BasicAttack` · `Guard` · `Interact` · `Dash` · `Charge` · `Leap`
+
+> ⚠️ **Queste nove erano il catalogo del giorno in cui la riga fu scritta; oggi ne dichiara 36.** La
+> motivazione qui sopra — *«ogni azione che il catalogo generico dichiara davvero»* — è ancora quella giusta
+> ed è la stessa del commento in `RTIconLibrary.cpp:46-48`. È l'**elenco** ad aver smesso di seguirla, perché
+> è stato **trascritto** invece che derivato. L'elenco vivo:
+>
+> ```bash
+> sed -n '709,1172p' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp \
+>   | grep -oE 'TEXT\("Action\.[A-Za-z0-9.]+"\)' | sort -u
+> ```
 
 > ⚠️ **`Move` e `Dash` compaiono due volte, in categorie diverse, e sono due disegni distinti.**
 > `UI.Icon.Phase.Move` è *il momento del turno in cui il movimento risolve*; `UI.Icon.Action.Move` è *la scelta

@@ -52,7 +52,7 @@ Questo goal **non è coperto** dalle altre viste, ed è il test di non-ridondanz
 
 | Vista | Risponde a | Perché non basta qui |
 |---|---|---|
-| `test-manuali-pie.md` | *cosa devo verificare, e com'è andata* | è un **registro**: 135 voci in ordine tematico, senza sequenza né prerequisiti *(diceva `117`, rimisurato il 2026-08-13 con `grep -c '^| \*\*PIE-'`)* |
+| `test-manuali-pie.md` | *cosa devo verificare, e com'è andata* | è un **registro**: 135 voci in ordine tematico, senza sequenza né prerequisiti *(diceva `117`, rimisurato il 2026-08-13 con `grep -c '^\| \*\*PIE-'`)* |
 | `roadmap-checkpoint.md` | *a che punto è il lavoro* | ragiona in checkpoint di **codice**, non in sedute d'editor |
 | `scenariomap.shortlist.md` | *chi esegue cosa* | classifica (A/B/C/D), non ordina |
 | `featuremap.shortlist.md` | *questa cosa esiste* | stato per feature, non lavoro per persona |

@@ -287,7 +287,7 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 
 ## 5. Classe C — solo input umano
 
-95 voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
+112 voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
 registro — che è verificabile — con la ragione per cui serve una persona. Il dettaglio di ogni voce (esito
 atteso, stato, copertura headless già esistente) resta in [`test-manuali-pie.md`](test-manuali-pie.md), che
 ne è l'owner: qui non se ne ricopia nessuno, perché è esattamente la duplicazione che questo repository ha già
@@ -295,15 +295,36 @@ pagato quattro volte.
 
 | Sezione del registro | Voci | Perché serve una persona |
 |---|---:|---|
-| Checklist principale (materiali, editor mode, bot) | 31 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor. Un test può dire che `HandleClickOnCell` ha scelto la cella giusta, non che il mouse ci arrivi |
+| Checklist principale (materiali, editor mode, bot) | 43 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor. Un test può dire che `HandleClickOnCell` ha scelto la cella giusta, non che il mouse ci arrivi |
 | Partita su griglia esagonale (M6) | 16 | **Ciò che solo l'occhio vede**: unità centrate sui centri-cella, fluidità del playback, nessun residuo di griglia quadrata. La logica è coperta headless per 5 voci su 15 |
-| Contenuto della v0.1 | 18 | **Leggibilità e asset**: che il giocatore *capisca* dal log, che l'arancione del fuoco amico si **noti**, che l'asset mappa si editi a mano |
+| Contenuto della v0.1 | 22 | **Leggibilità e asset**: che il giocatore *capisca* dal log, che l'arancione del fuoco amico si **noti**, che l'asset mappa si editi a mano |
 | Strumenti di leggibilità | 2 | **Giudizio a schermo puro**: `PIE-PREVIEW-AREA` ha già trovato due difetti che nessun test poteva vedere — un contorno disegnato sotto il cilindro, e un linguaggio che parlava di celle mentre la domanda era sulle unità |
 | Scenario Test Harness | 6 | **Ciò che l'utente non deve dover fare**: «premo Play e parte da solo», e un esito che si legga **senza aprire l'Output Log** |
+| Verifiche di mutazione — **solo `PIE-V01-ARENA`** | 1 | La sezione ne contiene **tre**, ma le due `PIE-MUT-*` sono *fuori classe* e vanno contate a parte. `PIE-V01-ARENA` resta C a pieno titolo: chiede l'editor |
 | Durata, ritmo e scala | 5 | **Cronometro**: producono numeri di playtest, non superano gate. Si misura il **2v2** e lo si registra come tale |
 | Bot — leggibilità delle decisioni | 5 | **Il perché, non il cosa**: un test può dire che lo score era il più alto, non che la scelta sembrasse sensata a chi guarda |
 | Formato e icone | 2 | **Riconoscibilità alla dimensione reale** dell'HUD, e il caso di **errore** del formato |
 | Stati del personaggio (E34) | 10 | Nessuna: **verificano un sistema che non esiste**. Sono classe D travestita da C — vedi §6 |
+
+**Somma: 112** — e la somma è il punto. `43 + 16 + 22 + 2 + 6 + 1 + 5 + 5 + 2 + 10` va confrontata con la
+riga `C` della §2 **prima** di toccare l'una o l'altra.
+
+> 🔴 **Rimisurata il 2026-08-13, e il difetto non era in un numero: era in una sezione mancante.** Questa
+> tabella dichiarava **95** e ne elencava nove sezioni; il registro ne ha **dieci** di classe C. Mancava
+> *«Verifiche di mutazione»* per intero — comprese le due `PIE-MUT-*` che la §2 conta come fuori classe, e
+> `PIE-V01-ARENA` che non lo è. Due sezioni erano inoltre indietro: **Checklist** da `31` a `43`,
+> **Contenuto della v0.1** da `18` a `22`.
+>
+> ⚠️ **La prima passata di oggi aveva corretto la §2 e si era fermata lì**, lasciando questa tabella a
+> dichiarare `95`. Il documento sarebbe uscito dalla correzione **contraddicendosi ancora**, che è esattamente
+> il difetto che quella correzione dichiarava di aver chiuso. Il confine «la scomposizione per classe è
+> umana, non la tocco» vale per le righe `A` e `D` — che hanno per soggetto `Scenarios/` — e **non** per
+> questa, che ha per soggetto il registro PIE ed è misurabile con lo stesso comando.
+>
+> ```bash
+> awk '/^#{2,3} /{s=$0} /^\| \*\*PIE-/{c[s]++} END{for(k in c) print c[k], k}' \
+>     docs/technical/test-manuali-pie.md | sort -rn
+> ```
 
 **Una parte della classe C si riproduce con uno scenario, e vale la pena saperlo**: `PIE-PREVIEW-AREA` si
 allestisce in un clic con `Scenario To Run = Combat.FriendlyFire` e `Scenario Turn Pause Seconds = 30`, grazie
@@ -552,7 +573,19 @@ find Scenarios -name '*.json' ! -name '_*' | wc -l                        # 54
 find Scenarios/Visual -name '*.json' | wc -l                              # 21  (B)
 find Scenarios/Spec   -name '*.json' | wc -l                              # 19  (12 in D + 7 accesi in A)
 
-# Registro PIE — verdi / parziali / aperte, e il totale
+# Registro PIE — i totali della tabella §2 e della §5
+# ⚠️ Aggiunti il 2026-08-13: la §2 diceva 117 e la §5 diceva 95 perche' NESSUN comando qui sotto
+#    produceva quei due numeri. Il blocco `awk` seguente conta i marcatori, non le voci.
+grep -c '^| \*\*PIE-'     docs/technical/test-manuali-pie.md            # 135  totale
+grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md            #  21  classe B
+grep -c '^| \*\*PIE-MUT-' docs/technical/test-manuali-pie.md            #   2  fuori classe
+#                                                        classe C = 135 - 21 - 2 = 112
+
+# La ripartizione per sezione della §5 — deve sommare a 112 una volta tolte le due PIE-MUT-*
+awk '/^#{2,3} /{s=$0} /^\| \*\*PIE-/{c[s]++} END{for(k in c) print c[k], k}' \
+    docs/technical/test-manuali-pie.md | sort -rn
+
+# Registro PIE — verdi / parziali / aperte
 awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   if (match(s, /✅|🟡|⏳/)) c[substr(s, RSTART, RLENGTH)]++; else c["nessuno"]++ }
   END {printf "verde=%d parziale=%d aperta=%d senza-marcatore=%d\n",

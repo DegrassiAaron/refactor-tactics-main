@@ -17,10 +17,13 @@ Il sorgente è arrivato una seconda volta come file in radice. Non è una ripeti
 **riapplicarlo sarebbe stato il danno**, perché avrebbe creato una seconda `CP 11.8` e riscritto correzioni
 già fatte.
 
-La verifica costa un comando, e non passa dalla lettura:
+La verifica costa un comando, e non passa dalla lettura. ⚠️ Il sorgente arrivava come file **untracked nella
+radice del repository**, quindi il comando non è rieseguibile da questo albero: va rifatto contro il file che
+si ha in mano, ogni volta che ne arriva uno.
 
 ```bash
-diff <(tr -d '\r' < RefactorTactics_Roadmap_Reconciliation_2026-08-12_Claude.md) \
+# $SORGENTE = il file appena ricevuto, ovunque stia
+diff <(tr -d '\r' < "$SORGENTE") \
      <(tr -d '\r' < docs/archive/src/handoff/2026-08-12-roadmap-reconciliation.md)
 ```
 
@@ -94,8 +97,10 @@ file non raggiunto non è un link rotto. Ora è citato da `OPEN_DECISIONS.md`.
 
 ## 3. Il difetto che nessuna delle due passate aveva cercato
 
-La prima passata ha corretto le checkbox stale di **tre** epic (`#14`, `#25`, `#152`), che erano quelle
-nominate dal sorgente. Nessuno ha chiesto **se ce ne fossero altre**.
+La prima passata ha corretto le **tre** epic nominate dal sorgente — `#14`, `#25`, `#152` — ma solo su `#14`
+il difetto era una **checkbox** (`#22` e `#175` chiuse e non spuntate); in `#25` era un'affermazione falsa su
+`FAutoConsoleCommand` e in `#152` una lista di checkpoint incompleta. Nessuno ha chiesto **se di checkbox
+stale ce ne fossero altre**, in altre epic.
 
 Verificate **tutte e 40** le epic del repository, confrontando ogni riga `- [ ] #NNN` con lo stato live della
 figlia: **7 divergenze su 4 epic**, tutte nello stesso verso — figlia chiusa, casella vuota.
@@ -149,12 +154,34 @@ Il confine ora è scritto in `#217`, e i due soggetti sono diversi:
 
 | | Soggetto | Numero | Dove si chiude |
 |---|---|---|---|
-| **E20 (v0.1)** | chiavi che i widget **usano davvero** | **33** + missing-icon | `#219`, `#220` |
+| **E20 (v0.1)** | chiavi che i widget **usano davvero** | **60** + missing-icon | `#219`, `#220` |
 | **#637** | il **linguaggio** del manifest di design | **10** decisioni tassonomiche | E25 (`#265`), post-v0.1 |
 
-Le 33 non sono trascritte: sono **derivate a runtime** da `RequiredIconIds()`
-(`Source/RefactorTactics/UI/RTIconLibrary.cpp`), e `FindMissingRequiredIcons` vuoto è il gate. La
-scomposizione dichiarata da `#219` — 4 fasi · 9 azioni · 11 status · 3 certezza · 6 identità — somma a 33.
+L'insieme è **derivato a runtime** da `URTIconLibrary::RequiredIconIds()`
+(`Source/RefactorTactics/UI/RTIconLibrary.cpp:27`), e `FindMissingRequiredIcons` vuoto è il gate.
+
+> 🔴 **La prima stesura di questa sezione diceva «33», e l'ha trascritto.** È l'errore esatto che questo
+> referto rimprovera al sorgente, commesso mentre lo si rimproverava — e per la stessa ragione: la
+> scomposizione «4 fasi · **9 azioni** · 11 status · 3 certezza · 6 identità» viene da `#219` e da
+> `brief-icone-v01.md`, che sono fonti **interne**, e a quelle non era stato applicato il vaglio.
+>
+> Misurato: `RequiredIconIds()` itera **tutto** `URTCatalogLibrary::GetCoreActionCatalog()` aggiungendo una
+> chiave per `ActionId`, e quel catalogo dichiara **36** azioni (`RTCatalogLibrary.cpp:709-1172`), non nove.
+> Le altre quattro categorie reggono: 4 · 11 · 3 · 6 verificate una per una. **Totale 60.**
+>
+> ```bash
+> sed -n '709,1172p' Source/RefactorTactics/Ability/RTCatalogLibrary.cpp | grep -c 'Catalog.Add('   # 36
+> ```
+>
+> ⚠️ **Non è un numero cosmetico**: era già stato pubblicato su `#217` come confine di scope autorevole fra
+> E20 e `#637`. Corretto lì, in `brief-icone-v01.md` (§«Le 33 chiavi» e §«Action — 9», le due fonti a monte)
+> e in `roadmap-v0.1.md`. ⚠️ **Conseguenza reale**: il gate di `#219` pretende *tutte* le chiavi derivate, e
+> quindi la v0.1 chiede oggi **60 disegni**, non 34. Se sono troppi, la leva è decidere quali azioni entrano
+> nell'insieme richiesto — una decisione di `#219`, non un ritocco all'elenco.
+>
+> La lezione, in una riga: **un numero scritto per un insieme che è una funzione invecchia in silenzio**, e
+> qui era stato scritto tre volte. È lo stesso difetto dei totali epic/CP e del registro PIE, sulla terza
+> famiglia di numeri in due giorni.
 
 ## 4-bis. Il registro PIE diceva 117 e ne erano 135 — e una condizione d'innesco era già scattata
 
@@ -234,7 +261,8 @@ del 2026-08-10 vale ancora, e questa passata non l'ha aggirata.
 | totale registro PIE dichiarato | 116 *(§1)* · 117 *(tabella)* | **135 · 135** | `grep -c '^\| \*\*PIE-'` |
 | copie vive di quel totale | 3 *(nessuna aggiornata)* | **3 allineate** *(+2 datate, lasciate)* | `grep -rnE "\b11[567]\b" docs/` |
 | voci `PIE-MUT-*` *(fuori classe)* | 1 *(dichiarata)* | **2** *(misurate)* | `grep -c '^\| \*\*PIE-MUT-'` |
-| link relativi controllati | 3091 su 308 file | **3142 su 315 file** | `check-docs-links.py` |
+| link relativi controllati | 3091 su 308 file | **3143 su 315 file** | `check-docs-links.py` |
+| affermazioni fattuali respinte dalla code review | — | **3 critiche · 5 importanti** | §7 |
 | `feature_id` nel registry | 105 | **105** | `grep -c "^  - feature_id:"` |
 | `validate` | 0 errori · 34 warning | **0 errori · 34 warning** | `feature_registry.py validate` |
 | pagine Wiki da aggiornare | — | **0** | `deploy --wiki-root <clone>` |
@@ -254,7 +282,35 @@ del 2026-08-10 vale ancora, e questa passata non l'ha aggirata.
 > generati non hanno dato conflitto e `generate --check` / `shortlist --check` li dichiarano allineati
 > sull'albero unito — verificato, non dedotto dall'assenza di conflitto.
 
-## 7. Next action
+## 7. Cosa la code review ha respinto — e il difetto comune alle otto voci
+
+La revisione ha rimisurato invece di rileggere, e ha bocciato **tre** affermazioni critiche e **cinque**
+importanti di questo stesso lavoro. Restano scritte qui perché sono la parte più istruttiva.
+
+| # | Affermazione respinta | Cosa dice la misura |
+|---|---|---|
+| C1 | «ho corretto il totale PIE» | la §5 dello **stesso file** continuava a dire `95`: il documento usciva dalla correzione **contraddicendosi ancora** |
+| C2 | «le **33** chiavi sono derivate a runtime» | derivate sì, ma sono **60**: `RequiredIconIds()` itera 36 azioni, non 9 — ed era già pubblicato su `#217` |
+| C3 | «`MakeArenaV01` non è nel registry» | c'è, `RTMatchSetupLibrary.cpp:322-325`, dal 2026-08-12 03:03 |
+| I1 | «nessun documento nomina l'*outcome event*» | `RTResolvedEvent.h` lo dichiara, owner `RT-FEAT-CORE-PLAYBACK`, **`INTEGRATED`** |
+| I2 | — | pipe non escapato in una cella di `editormap-spec.md`: la riga si rompe in render |
+| I3 | «cercate le copie del totale» | cercato il **totale**, non le **parti**: `C 95` e `1 voce fuori classe` erano rimaste in `scenariomap.shortlist.md` |
+| I4 | «le tre `RT-FEAT-NET-*` (`IDEA`, `future`)» | `NET-PRIVATE-PLANNING` è **`TESTABLE` in v0.1** |
+| I5 | «cinque gate `partial`» | sono **sei** |
+
+> 🔴 **Sei voci su otto hanno la stessa causa: il rigore è stato applicato al sorgente e non alle fonti di
+> casa.** C2 viene da `brief-icone-v01.md` e `#219`; C3 e M1 dal piano `mappe-generate-o-dipinte`; C1 e I3
+> da altre sezioni dei documenti che si stavano correggendo. Ognuna è stata **trascritta** — esattamente il
+> verbo che questo referto usa per accusare il sorgente, tre sezioni più su.
+>
+> Un handoff esterno arriva col sospetto addosso e viene misurato. Un documento del repository arriva con la
+> presunzione di essere già stato verificato **da qualcuno, una volta**, e quella presunzione non scade mai.
+> È il motivo per cui `117` è sopravvissuto quattro giorni e `9 azioni` parecchi di più.
+>
+> ➡️ La regola non cambia, cambia il suo perimetro: **rimisura, non trascrivere — anche quando la fonte è
+> tua.** In pratica: se stai per scrivere un numero che un comando può produrre, esegui il comando.
+
+## 8. Next action
 
 Le lane di `roadmap-v0.1.md` §3 restano quelle della prima passata e **non si aspettano fra loro**:
 
