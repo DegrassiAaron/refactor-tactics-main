@@ -415,9 +415,17 @@ Due controlli che non sono passi ma vanno fatti lungo tutto il percorso:
 - **Una porta non deve rubare il Move.** Al passo 2, se fra il cursore e la cella c'è la mesh di una porta,
   la cella resta indicabile: il rifiuto, se arriva, deve venire dal percorso e portare un reason.
 - **Un'unità non deve rubare la cella.** Con un'azione ad area armata, la cella occupata da un'unità deve
-  restare bersagliabile. ⚠️ Non verificabile finché esiste il produttore di
-  [`#737`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737): oggi nessun input dichiara un
-  bersaglio a terra, quindi questo controllo è **atteso rosso** e non è un difetto della sessione.
+  restare bersagliabile. ✅ **Verificabile dal 2026-08-13 sera**: `#737` è atterrata e
+  `ARTPlayerController::HandleTargetCell` dichiara il bersaglio a terra. *(Questa riga diceva «atteso rosso,
+  non è un difetto della sessione»: non vale più, e un controllo che qualcuno salta perché lo crede atteso
+  rosso è peggio di un controllo assente.)*
+
+⚠️ **Cosa in questo percorso è ancora atteso rosso, e perché.** I passi **10-12** — porta, elenco dei verbi,
+chiusura dell'inspector — dipendono da [`#74`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/74)
+per i verbi e da [`#613`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) per il
+contenitore: oggi `OpenContext` non ha nulla da aprire. E un click sull'HUD **raggiunge ancora la cella
+sotto**, perché il Canvas HUD non registra hitbox: è la voce di DoD che aspetta i widget UMG. Il resto del
+percorso — passi 1-9 e 13 — è eseguibile.
 
 ### Strumenti di leggibilità (aggiunti il 2026-08-07)
 

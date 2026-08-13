@@ -3439,7 +3439,9 @@ features:
     kind: ui
     release: v0.1
     priority: P1
-    status: SPECIFIED
+    # Derivato dai gate, non dichiarato: `runtime: partial` -> `IMPLEMENTING`. Era `SPECIFIED` fino al
+    # 2026-08-13 mattina, quando nessuna delle cinque proprieta' esisteva.
+    status: IMPLEMENTING
     gates:
       # `spec-pointer-interaction.md` tiene la matrice `oggetto x contesto x input -> esito` e nomina
       # i servizi autorevoli a cui ogni domanda va girata.
@@ -3448,19 +3450,26 @@ features:
       # (`ARTPlayerController::BuildInputMappings`, nessun .uasset richiesto): non c'e' catalogo,
       # data asset o config da rendere coerente. `na` per assenza strutturale, non per rinuncia.
       data: na
-      # ⚠️ `todo` e NON `partial`, ed e' un giudizio che vale la pena scrivere perche' la tentazione
-      # opposta e' forte: hover, LMB e RMB **esistono e sono consumati** oggi
-      # (`RTPlayerController.cpp:231,246-247,298-321`). Ma quello e' il comportamento che il contratto
-      # governera', non una consegna parziale del contratto: nessuna delle cinque proprieta' che la
-      # feature aggiunge esiste — contesto esplicito, precedenza HUD->mondo, target logico dal resolver
-      # di hit, filtro di rilevamento sull'hover, reason code sul rifiuto. Marcarlo `partial` farebbe
-      # derivare `IMPLEMENTING` (regola: `runtime` done **o** partial) per un checkpoint che nessuno ha
-      # iniziato, ed e' esattamente il modo in cui CP 14.3 ha detto «fatto» per nove ore.
-      runtime: todo
-      # I reason code del rifiuto sono una voce di DoD, non un fatto: oggi `OnSelect` esce con un
-      # `UE_LOG` sui due rami avversari (`:423`) e in **silenzio** su tutti gli altri.
-      log_debug: todo
-      automation: todo
+      # 🔁 **Era `todo` fino al 2026-08-13 mattina, ed era il giudizio giusto allora**: nessuna delle
+      # cinque proprieta' della feature esisteva, e marcarlo `partial` avrebbe fatto derivare
+      # `IMPLEMENTING` per un checkpoint che nessuno aveva iniziato — il modo in cui CP 14.3 ha detto
+      # «fatto» per nove ore.
+      #
+      # ✅ Ora `partial`, e le proprieta' consegnate sono TRE su cinque, misurate: contesto esplicito
+      # (`ARTPlayerController::GetPointerContext`, derivato e non memorizzato), target logico dal
+      # resolver di hit (`URTPointerLibrary::ResolveTarget`), stato neutro (D-128). ⏳ Restano la
+      # precedenza HUD->mondo, che dipende dalle hitbox UMG di `#613`, e il filtro di rilevamento
+      # sull'hover, che dipende da E13. Nessuna delle due e' rimandata per tempo: mancano i produttori.
+      runtime: partial
+      # `partial`: i tre produttori nuovi dichiarano il MOTIVO del rifiuto (`UE_LOG` con la ragione:
+      # non pronta, fuori portata, illegale per lo stile). I rami preesistenti di `OnSelect` restano in
+      # silenzio su tutto tranne i due avversari, e il reason **a schermo** e' `#613`.
+      log_debug: partial
+      # `partial` e non `done`: dieci test coprono cio' che e' stato consegnato — contesto, precedenza
+      # semantica, ordine del Back, i tre produttori — e tutti e dieci sono passati per la verifica di
+      # mutazione. Ne restano nove dichiarati e non scritti (HUD, privacy, playback, `ReactionWindow`,
+      # `OpenContext`), e ognuno aspetta un produttore, non del tempo.
+      automation: partial
       scenario: todo
       ui_wiki: todo
       packaged: todo
@@ -3481,12 +3490,23 @@ features:
     owner_specs:
       - docs/technical/spec-pointer-interaction.md
     issues: [705, 737]
-    # ⚠️ **Vuoto di proposito, e non e' pigrizia.** Gli otto nomi `RefactorTactics.PlayerInput.*` sono
-    # dichiarati nel DoD di CP 11.8 e nell'owner, ma **non esistono nella suite**: `validate` tratta un
-    # pattern senza corrispondenza come **errore** (`feature_registry.py:372`), non come avviso — ed e'
-    # la protezione giusta. Il gate `G3` ha gia' citato due nomi di test inesistenti prima di CP 14.3;
-    # qui il registro si rifiuta di ripetere l'esperienza. I nomi entrano quando entrano i test.
-    tests: []
+    # 🔁 **Era vuoto di proposito fino al 2026-08-13 mattina**, e la ragione vale ancora per i nove nomi
+    # che restano dichiarati nell'owner e non scritti: `validate` tratta un pattern senza corrispondenza
+    # come **errore** (`feature_registry.py:372`), non come avviso, ed e' la protezione giusta. Il gate
+    # `G3` ha gia' citato due nomi di test inesistenti prima di CP 14.3.
+    #
+    # ✅ Questi dieci ESISTONO e sono verdi. Gli altri entrano quando entrano i test, mai prima.
+    tests:
+      - RefactorTactics.PlayerInput.NeutralEnemyClickDoesNotPlan
+      - RefactorTactics.PlayerInput.PathingCellWinsOverDoorMesh
+      - RefactorTactics.PlayerInput.TargetCellIgnoresOccupyingUnit
+      - RefactorTactics.PlayerInput.GhostIsNeverAGameplayTarget
+      - RefactorTactics.PlayerInput.RightClickBackFollowsTotalOrder
+      - RefactorTactics.PlayerInput.RightClickNeverDeselects
+      - RefactorTactics.PlayerInput.TargetCellProducesPlannedAttackCell
+      - RefactorTactics.PlayerInput.TargetEdgeProducesPlannedCoverEdge
+      - RefactorTactics.PlayerInput.FacingSectorProducesPlannedFacing
+      - RefactorTactics.PlayerInput.IllegalFacingIsRejectedNotCorrected
     scenarios:
       planned:
         - Visual.UI.SelectMoveCancel
@@ -3501,7 +3521,7 @@ features:
       - PIE-V01-POINTER
     last_verified:
       date: 2026-08-13
-      commit: 3cec1d57
+      commit: 5f11a88f
     notes: >
       Aperta il 2026-08-12 dal reconciliation di roadmap
       (`plans/roadmap-reconciliation-2026-08-12.md`). ⚠️ **Non e' un redesign dell'input**: nove regole
@@ -3541,6 +3561,31 @@ features:
       `Spec/Facing/FrontHitOnCoverIsSilent`, `Spec/Facing/RearHitOnCoverIsTraced`,
       `Spec/Predictive/WhiffOnEmptyCell`), col commento corretto in `RTScenarioSession.cpp` e il debito su
       `#737`. Quando il produttore esiste, la motivazione torna vera da sola.
+
+
+      ✅ **2026-08-13 sera — `#737` e' atterrata, e con essa la prima meta' del contratto.** I tre
+      produttori esistono: `HandleTargetCell`, `HandleTargetEdge`, `HandleFacingSector` in
+      `ARTPlayerController`. Il `TargetKind` e' **derivato dal catalogo**
+      (`URTPointerLibrary::TargetKindForAction`: `StructureOp != None` -> `Edge`, `Shape == Area` ->
+      `Cell`, altrimenti `Unit`) e non un campo nuovo, cosi' non nasce una seconda fonte di verita'
+      accanto a due che lo dicevano gia'. `SelectedAbilityIndex` nasce a `INDEX_NONE` (D-128): lo stato
+      neutro esiste, e con esso la possibilita' di ispezionare senza pianificare.
+
+
+      ⚠️ **La motivazione di `PredictiveAction` e' tornata vera da sola**, come previsto: il canale ora
+      esiste e il verde di quei quattro scenari dice qualcosa di vero sul giocatore. `Facing` e
+      `DeclaredRotation` restano invece FUORI dalle capability dell'harness, ma per un'altra ragione —
+      la premessa «l'harness sarebbe il primo produttore» non vale piu', e cio' che manca e' la chiave
+      `facing` in `FRTScenarioIntent` piu' lo scenario che la dimostri: due righe aperte di `#291`, da
+      fare insieme. Aggiungere la capability senza la chiave darebbe un `BLOCKED` che mente sul motivo.
+
+
+      ⏳ **Cio' che resta ha un nome e un blocco, mai «del tempo»**: precedenza HUD -> mondo e reason a
+      schermo dipendono da `#613` (senza hitbox UMG non c'e' nulla che consumi il puntatore); il filtro
+      di rilevamento sull'hover dipende da E13; `OpenContext` dipende da `#74` per i verbi e da `#613`
+      per il contenitore. `ReactionWindow` e `Modal` sono ordinati e testati in `ResolveBack` ma
+      `GetPointerContext()` non li restituisce mai: nessuno li produce, e inventare un flag sarebbe il
+      difetto che questa stessa voce documenta.
 
   - feature_id: RT-FEAT-UI-ACTION-GHOSTS
     title: Action Ghosts e Ghost Timeline

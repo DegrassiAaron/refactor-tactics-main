@@ -524,7 +524,10 @@ bool ARTUnit::CanUseAbility(int32 Index) const
 
 void ARTUnit::SelectAbility(int32 Index)
 {
-	if (Abilities.IsValidIndex(Index))
+	// `INDEX_NONE` DISARMA, ed e' un ingresso legittimo e non un errore da scartare: senza di esso non
+	// esisterebbe un modo di tornare allo stato neutro di D-128, e `RMB` non potrebbe uscire da un
+	// targeting. Ogni altro indice non valido resta ignorato, com'era.
+	if (Index == INDEX_NONE || Abilities.IsValidIndex(Index))
 	{
 		SelectedAbilityIndex = Index;
 	}

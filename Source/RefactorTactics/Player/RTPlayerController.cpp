@@ -12,6 +12,7 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
+#include "Turn/RTFacingLibrary.h" // CP 11.8: la legalita' della rotazione si CHIEDE, non si riscrive qui
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
@@ -891,4 +892,333 @@ void ARTPlayerController::RebuildPlannedPath()
 	{
 		HexMap->SetPreviewPath(Unit->PlannedPath);
 	}
+}
+
+// ======================================================================================================
+// Contratto del puntatore (CP 11.8) — owner: docs/technical/spec-pointer-interaction.md
+// ======================================================================================================
+
+ERTPointerContext ARTPlayerController::GetPointerContext() const
+{
+	// ⚠️ `ReactionWindow` e `Modal` non compaiono, e non e' una dimenticanza: nessuno li produce ancora.
+	// La finestra di reazione e' E14, il modale e' lo Screen HUD (#613). Mettere qui un flag che nessuno
+	// scrive avrebbe creato un campo senza produttore — il difetto che questo stesso checkpoint ha appena
+	// finito di documentare in §2.1 dell'owner. Quando quegli owner arrivano, aggiungono il proprio ramo.
+
+	// Il playback sovrascrive tutto: dal primo segmento risolto al Cleanup nessun input cambia il piano.
+	//
+	// ⚠️ `MatchEnded` e' escluso di proposito e NON diventa un contesto suo: il contratto ne dichiara otto e
+	// non ne prevede un nono. A partita finita il puntatore resta in `IdleSelection`/`Planning`, e cio' che
+	// impedisce di pianificare e' lo snapshot del `TurnManager`, che rifiuta a valle — la stessa autorita'
+	// di §3. Aggiungere qui un ramo significherebbe far decidere al puntatore quando il gioco e' finito.
+	if (const ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		const ERTMatchPhase Phase = TM->GetPhase();
+		if (Phase != ERTMatchPhase::Planning && Phase != ERTMatchPhase::MatchEnded)
+		{
+			return ERTPointerContext::ResolutionPlayback;
+		}
+	}
+
+	const ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return ERTPointerContext::IdleSelection;
+	}
+
+	if (bDeclaringFacing)
+	{
+		return ERTPointerContext::Facing;
+	}
+
+	// Un'abilita' armata porta in `Targeting` — SALVO la mobilita' rapida, che non chiede un bersaglio ma
+	// una destinazione e passa da `HandleClickOnCell` come qualunque waypoint.
+	const int32 Armed = Unit->SelectedAbilityIndex;
+	if (Armed != INDEX_NONE)
+	{
+		const URTActionData* Ability = Unit->GetAbility(Armed);
+		if (Ability && !URTCatalogLibrary::IsFastMovement(Ability->Def))
+		{
+			return ERTPointerContext::Targeting;
+		}
+	}
+
+	if (Unit->PlannedWaypoints.Num() > 0)
+	{
+		return ERTPointerContext::Pathing;
+	}
+
+	// Lo stato NEUTRO di D-128: unita' selezionata, niente armato, nessun waypoint. Qui un click su un
+	// nemico ISPEZIONA e non pianifica.
+	return ERTPointerContext::Planning;
+}
+
+ERTPointerTargetKind ARTPlayerController::GetPointerTargetKind() const
+{
+	const ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit) { return ERTPointerTargetKind::None; }
+
+	const int32 Armed = Unit->SelectedAbilityIndex;
+	if (Armed == INDEX_NONE) { return ERTPointerTargetKind::None; }
+
+	const URTActionData* Ability = Unit->GetAbility(Armed);
+	if (!Ability) { return ERTPointerTargetKind::None; }
+
+	return URTPointerLibrary::TargetKindForAction(Ability->Def, Ability->bSelfTarget, Ability->Shape);
+}
+
+ERTPointerBackStep ARTPlayerController::ApplyBack()
+{
+	ARTUnit* Unit = GetSelectedUnit();
+	const int32 Waypoints = Unit ? Unit->PlannedWaypoints.Num() : 0;
+
+	const ERTPointerBackStep Step = URTPointerLibrary::ResolveBack(
+		GetPointerContext(), bInspectorPinned, Waypoints, bPhaseFocusPinned);
+
+	switch (Step)
+	{
+	case ERTPointerBackStep::Inspector:
+		bInspectorPinned = false;
+		break;
+
+	case ERTPointerBackStep::Declaration:
+		// Esce da `Targeting` o da `Facing` e torna al neutro. **Non deseleziona**: uscire da un targeting
+		// non deve costare la selezione, che e' l'errore che costringe a ricliccare la propria unita' dopo
+		// ogni ripensamento.
+		bDeclaringFacing = false;
+		if (Unit)
+		{
+			Unit->SelectAbility(INDEX_NONE);
+		}
+		break;
+
+	case ERTPointerBackStep::Waypoint:
+		if (Unit && Unit->PlannedWaypoints.Num() > 0)
+		{
+			Unit->PlannedWaypoints.Pop();
+			RebuildPlannedPath();
+		}
+		break;
+
+	case ERTPointerBackStep::Pathing:
+		// Nessun waypoint da togliere: si esce dal contesto e basta. Non c'e' stato da azzerare — `Pathing`
+		// e' derivato dal numero di waypoint, e a zero e' gia' `Planning`.
+		break;
+
+	case ERTPointerBackStep::PhaseFocus:
+		bPhaseFocusPinned = false;
+		break;
+
+	case ERTPointerBackStep::ReactionFallback:
+	case ERTPointerBackStep::Modal:
+		// Nessun produttore: vedi la nota in `GetPointerContext`. L'ordine e' dichiarato e testato nella
+		// libreria pura; l'effetto arrivera' col proprio owner.
+		break;
+
+	default:
+		break;
+	}
+
+	// ⚠️ **Solo il waypoint conta come `Undo`, e la distinzione non e' pedanteria.** `ERTPlanningInput::Undo`
+	// e' documentato come «waypoint annullato» (`RTPacing.h:21`) ed e' un segnale di INDECISIONE nelle
+	// metriche di ritmo. Chiudere un inspector, uscire da un targeting o togliere il pin a una fase sono
+	// attivita' del giocatore, non ripensamenti su un piano: contarli come `Undo` gonfierebbe una metrica di
+	// `PIE-V01-MATCHLEN` con eventi che non significano quel che il numero dice. `Click` aggiorna i tempi
+	// senza incrementare nulla, che e' esattamente cio' che serve.
+	if (Step != ERTPointerBackStep::None)
+	{
+		if (ARTTurnManager* TM = PacingTurnManager(this))
+		{
+			TM->RecordPlanningInput(Step == ERTPointerBackStep::Waypoint
+				? ERTPlanningInput::Undo
+				: ERTPlanningInput::Click);
+		}
+	}
+
+	return Step;
+}
+
+bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
+{
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return false;
+	}
+	if (GetPointerContext() != ERTPointerContext::Targeting
+		|| GetPointerTargetKind() != ERTPointerTargetKind::Cell)
+	{
+		// Il rifiuto e' DETTO: `Blocked` senza motivo e' un difetto, non un esito.
+		UE_LOG(LogRT, Log, TEXT("[RT] Bersaglio a cella: nessuna azione ad area armata"));
+		return false;
+	}
+
+	const int32 Armed = Unit->SelectedAbilityIndex;
+	const URTActionData* Ability = Unit->GetAbility(Armed);
+	if (!Ability) { return false; }
+
+	if (!Unit->CanUseAbility(Armed))
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+		return false;
+	}
+
+	// La legalita' la CHIEDE al servizio autorevole, non la calcola. Nota: si valida la CELLA, non l'unita'
+	// che ci sta sopra — un'area si centra dove si vuole, anche su un varco vuoto.
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!Map || !Map->ContainsCell(Cell))
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Bersaglio a cella fuori mappa"));
+		return false;
+	}
+
+	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
+		Map, Unit->Cell, Cell, Ability->RangeCells);
+	if (Reason != ERTHexTargetReason::Ok)
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Cella non bersagliabile (%s, portata %d)"),
+			Reason == ERTHexTargetReason::OutOfRange ? TEXT("fuori portata") : TEXT("bloccata"),
+			Ability->RangeCells);
+		return false;
+	}
+
+	Unit->PlannedAbilityIndex = Armed;
+	Unit->PlannedAttackTarget = nullptr; // il bersaglio e' la CELLA: un target-unita' residuo la sovrascriverebbe
+	Unit->PlannedAttackCell = Cell;
+	Unit->bAttackTargetsCell = true;
+
+	RefreshPlanningPreview(GetWorld(), Unit);
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		TM->RecordPlanningInput(ERTPlanningInput::Order);
+	}
+	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s usa %s sulla cella (%d,%d,%d)"), *Unit->GetName(),
+		*Ability->DisplayName.ToString(), Cell.X, Cell.Y, Cell.Layer);
+	return true;
+}
+
+bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirection Edge)
+{
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return false;
+	}
+	if (GetPointerContext() != ERTPointerContext::Targeting
+		|| GetPointerTargetKind() != ERTPointerTargetKind::Edge)
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Bersaglio a bordo: nessuna azione su struttura armata"));
+		return false;
+	}
+
+	const int32 Armed = Unit->SelectedAbilityIndex;
+	const URTActionData* Ability = Unit->GetAbility(Armed);
+	if (!Ability) { return false; }
+
+	if (!Unit->CanUseAbility(Armed))
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta (ricarica/energia)"), *Ability->DisplayName.ToString());
+		return false;
+	}
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!Map || !Map->ContainsCell(Cell))
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Bordo fuori mappa"));
+		return false;
+	}
+
+	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
+		Map, Unit->Cell, Cell, Ability->RangeCells);
+	if (Reason != ERTHexTargetReason::Ok)
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Bordo non raggiungibile (portata %d)"), Ability->RangeCells);
+		return false;
+	}
+
+	// Cella E direzione: il resolver di CP 9.5 rifiuta con `CoverRejected` se il piano non dichiara il lato,
+	// e a portata 3 il bordo non si deduce piu' dalla coppia di celle.
+	Unit->PlannedAbilityIndex = Armed;
+	Unit->PlannedAttackTarget = nullptr;
+	Unit->PlannedAttackCell = Cell;
+	Unit->bAttackTargetsCell = true;
+	Unit->PlannedCoverEdge = Edge;
+	Unit->bHasPlannedCoverEdge = true;
+
+	// ⚠️ **Niente `RefreshPlanningPreview` qui, a differenza di `HandleTargetCell`, e non e' una svista.**
+	// Quella anteprima disegna l'AREA COLPITA dell'azione: per un'azione su struttura di bordo l'esito non e'
+	// un'area ma un LATO, e mostrare un ventaglio di celle direbbe al giocatore una cosa che non succedera'.
+	// L'anteprima del bordo e' lavoro di presentazione (#613), e finche' non esiste e' meglio non disegnare
+	// nulla che disegnare la forma sbagliata.
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		TM->RecordPlanningInput(ERTPlanningInput::Order);
+	}
+	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s agisce sul bordo %d della cella (%d,%d,%d)"), *Unit->GetName(),
+		(int32)Edge, Cell.X, Cell.Y, Cell.Layer);
+	return true;
+}
+
+void ARTPlayerController::BeginFacingDeclaration()
+{
+	if (!GetSelectedUnit())
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Rotazione: nessuna unita' selezionata"));
+		return;
+	}
+	bDeclaringFacing = true;
+}
+
+void ARTPlayerController::EndFacingDeclaration()
+{
+	bDeclaringFacing = false;
+}
+
+bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
+{
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return false;
+	}
+	if (GetPointerContext() != ERTPointerContext::Facing)
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Rotazione: non si sta dichiarando un facing"));
+		return false;
+	}
+
+	// Lo stile su cui si misura la legalita' e' quello del movimento PIANIFICATO: chi non si e' mosso ruota
+	// libero (`None`, sei direzioni), chi ha un percorso a budget ha le tre dell'ultimo passo.
+	//
+	// ⚠️ Questa e' una PREVISIONE, non il verdetto. Il resolver rivalida a fine Move su `MovementStyleThisTurn`
+	// e `WalkedThisTurn`, cioe' su quel che e' successo davvero: un percorso puo' essere interrotto, e la
+	// dichiarazione allora cade con `DeclarationRejected`. La UI propone, il servizio decide — §3 dell'owner.
+	const bool bHasPlannedMove = Unit->PlannedPath.Num() > 1;
+	const ERTMovementStyle Style = bHasPlannedMove ? ERTMovementStyle::Budget : ERTMovementStyle::None;
+
+	ERTHexDirection Applied = Unit->Facing;
+	const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(
+		Style, Unit->PlannedPath, Unit->Facing, Sector, Applied);
+
+	if (!bLegal)
+	{
+		// Rifiutata, MAI corretta in silenzio verso la legale piu' vicina: e' la regola di `URTFacingLibrary`,
+		// e qui la si rispetta invece di riscriverla.
+		UE_LOG(LogRT, Log, TEXT("[RT] Rotazione %d illegale per lo stile di movimento pianificato"),
+			(int32)Sector);
+		return false;
+	}
+
+	Unit->PlannedFacing = Sector;
+	Unit->bDeclaresPlannedFacing = true;
+	bDeclaringFacing = false;
+
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		TM->RecordPlanningInput(ERTPlanningInput::Order);
+	}
+	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s dichiara rotazione %d"), *Unit->GetName(), (int32)Sector);
+	return true;
 }
