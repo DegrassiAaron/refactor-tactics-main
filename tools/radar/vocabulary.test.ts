@@ -17,13 +17,15 @@ test('un effetto sconosciuto e un ERRORE, non uno zero silenzioso', () => {
   const tmp = new URL('./voc.tmp.md', import.meta.url);
   writeFileSync(tmp, s);
   try {
-    const flux = parseHeroCatalog(tmp, A).find((x) => x.name === 'Flux')!;
+    const flux = parseHeroCatalog(tmp, A).find((x) => x.name === 'Gadget')!;
+    // `Flux.Overload` e' un AbilityId, NON il nome mostrato: D-120 ha rinominato l'eroe in `Gadget` e
+    // lasciato fermi gli Stable ID. L'errore del vocabolario nomina l'abilita', quindi qui resta `Flux.`.
     assert.throws(() => assertKnownEffects(flux), /Flux\.Overload.*Confonde/);
   } finally { rmSync(tmp); }
 });
 
 test('monotonia: aumentare un input non fa scendere il rating che ne dipende', () => {
-  const base = parseHeroCatalog(H, A).find((x) => x.name === 'Riva')!;
+  const base = parseHeroCatalog(H, A).find((x) => x.name === 'Phase')!;
   for (const [hp, atteso] of [[95, 7], [140, 9]] as const) {
     const h = { ...base, health: hp };
     assert.equal(profileAxes(h).durability, atteso, `durability a ${hp} HP`);
@@ -39,7 +41,7 @@ test('monotonia: aumentare un input non fa scendere il rating che ne dipende', (
 
 test('sensibilita: il delta dichiarato muove l asse di almeno 1', () => {
   // La spec dichiara: 17 punti di Salute muovono `durability` di 1 (ancora 150 su nove passi).
-  const base = parseHeroCatalog(H, A).find((x) => x.name === 'Riva')!;
+  const base = parseHeroCatalog(H, A).find((x) => x.name === 'Phase')!;
   const a = profileAxes({ ...base, health: 95 }).durability;
   const b = profileAxes({ ...base, health: 95 + 17 }).durability;
   assert.ok(b >= a + 1, `+17 HP deve muovere durability: ${a} -> ${b}`);

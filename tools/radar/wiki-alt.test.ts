@@ -10,20 +10,20 @@ import { expectedAlt, scanMarkdown, rewrite } from './wiki-alt.ts';
 
 const HERO = new URL('../../docs/balance/RT_HeroCatalog_v0.1.md', import.meta.url);
 const ACTION = new URL('../../docs/balance/RT_ActionCatalog_v0.1.md', import.meta.url);
-const flux = () => parseHeroCatalog(HERO, ACTION).find((h) => h.name === 'Flux')!;
+const flux = () => parseHeroCatalog(HERO, ACTION).find((h) => h.name === 'Gadget')!;
 const RADAR = fileURLToPath(new URL('../../docs/characters/radar/', import.meta.url));
 
 test('l alt atteso ripete il nome accessibile e vi aggiunge i valori disegnati', () => {
-  const svg = renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
+  const svg = renderRadar('Gadget', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
   const alt = expectedAlt(svg);
-  assert.match(alt, /^Flux — Controller — Profile Radar: /);
+  assert.match(alt, /^Gadget — Controller — Profile Radar: /);
   for (const axis of PROFILE_AXES) assert.ok(alt.includes(axis.label), `manca l'asse ${axis.label}`);
 });
 
 test('l alt viene dall SVG, non da una tabella parallela', () => {
   // Se l'atteso fosse ricopiato da qualche parte, cambiare l'SVG non lo cambierebbe: e' esattamente
   // il drift che questo gate esiste per impedire.
-  const vero = renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
+  const vero = renderRadar('Gadget', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile');
   const alterato = vero.replace(
     /(class="axis"[^>]*>Offesa<\/text>\s*<text class="value"[^>]*>)\d+/,
     '$19',
@@ -34,8 +34,8 @@ test('l alt viene dall SVG, non da una tabella parallela', () => {
 });
 
 test('le due viste non producono lo stesso alt', () => {
-  const p = expectedAlt(renderRadar('Flux', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile'));
-  const b = expectedAlt(renderRadar('Flux', 'Controller', BALANCE_AXES, balanceAxes(flux()), 'Balance'));
+  const p = expectedAlt(renderRadar('Gadget', 'Controller', PROFILE_AXES, profileAxes(flux()), 'Profile'));
+  const b = expectedAlt(renderRadar('Gadget', 'Controller', BALANCE_AXES, balanceAxes(flux()), 'Balance'));
   assert.notEqual(p, b);
   assert.match(b, /Balance Radar: .*Precisione/);
 });
@@ -62,10 +62,10 @@ test('lo scan trova i radar per URL raw e per percorso relativo, e ignora il res
 
 test('la riscrittura tocca l alt e lascia intatti URL e riga', () => {
   const url = 'https://raw.githubusercontent.com/x/y/main/docs/characters/radar/flux-profile.svg';
-  const riga = `| ![vecchio](${url}) | **[[Flux\\|flux]]** |`;
+  const riga = `| ![vecchio](${url}) | **[[Gadget\\|flux]]** |`;
   const fixes = new Map([[`![vecchio](${url})`, `![nuovo](${url})`]]);
   const out = rewrite(riga, fixes);
-  assert.equal(out, `| ![nuovo](${url}) | **[[Flux\\|flux]]** |`);
+  assert.equal(out, `| ![nuovo](${url}) | **[[Gadget\\|flux]]** |`);
   assert.ok(out.includes(url), 'l URL non deve cambiare');
 });
 

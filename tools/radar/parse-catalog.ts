@@ -36,7 +36,29 @@ export interface ReactionInput {
 }
 
 export interface HeroInput {
+  /**
+   * Nome MOSTRATO, dall'intestazione del catalogo. Cambia: D-120 ha rinominato il roster
+   * (`Flux` -> `Gadget`, `Riva` -> `Phase`, `Bastion` -> `Riktor`, `Vektor` -> `Wraith`).
+   * Va nel titolo del radar, mai in un nome di file o in una URL.
+   */
   name: string;
+
+  /**
+   * Chiave STABILE, in minuscolo: il prefisso degli `AbilityId` dell'eroe (`Flux.ArcPulse` -> `flux`).
+   *
+   * 🔴 **Esiste perche' il nome del file non puo' seguire il nome mostrato.** Fino al 2026-08-13 il
+   * generatore scriveva `${hero.name.toLowerCase()}-profile.svg`: dopo la rinomina di D-120 cercava
+   * `gadget-profile.svg`, sul disco c'era `flux-profile.svg`, e il gate era rosso — con in piu' otto file
+   * che sarebbero rimasti orfani rigenerando.
+   *
+   * Rinominare i file avrebbe rotto le **URL pubblicate**: la Wiki incorpora i radar via
+   * `raw.githubusercontent.com/.../docs/characters/radar/flux-profile.svg`, e `wiki-alt.ts` rifiuta un
+   * riferimento a un file che non esiste. Un nome di file derivato da un'etichetta rinominabile e' una URL
+   * che si rompe a ogni rinomina — ed e' esattamente cio' che D-120 evitava tenendo fermi gli Stable ID.
+   *
+   * Il prefisso delle abilita' e' l'unico identificatore stabile che la sezione di catalogo contiene.
+   */
+  key: string;
   health: number;
   movePoints: number;
   visionRange: number;
@@ -243,7 +265,23 @@ export function parseHeroCatalog(source: URL | string, actionSource: URL | strin
         throw new Error(`${name}: statistica "${label}" assente dal catalogo`);
       }
     }
-    heroes.push({ ...(stats as Omit<HeroInput, 'abilities'>), abilities });
+
+    // La chiave STABILE: il prefisso degli `AbilityId`. Si esige che sia UNO SOLO per eroe invece di
+    // prendere il primo — un kit con due prefissi significa che la sezione ne mescola due, e sceglierne uno
+    // in silenzio scriverebbe il radar di un eroe nel file di un altro.
+    const prefixes = [...new Set(abilities.map((a) => a.id.split('.')[0]))];
+    if (prefixes.length !== 1) {
+      throw new Error(
+        `${name}: gli AbilityId devono condividere un solo prefisso (trovati: ${prefixes.join(', ') || 'nessuno'}). ` +
+          `E' la chiave stabile con cui si nomina il file del radar.`,
+      );
+    }
+
+    heroes.push({
+      ...(stats as Omit<HeroInput, 'abilities' | 'key'>),
+      key: prefixes[0].toLowerCase(),
+      abilities,
+    });
   }
 
   return heroes;
