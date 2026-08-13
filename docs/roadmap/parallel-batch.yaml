@@ -67,10 +67,16 @@
 #
 # ⚠️ **Due track possono legittimamente alimentare la stessa vista, e non è un conflitto.** La
 # seconda stesura di questa regola diceva *«allora una delle due esce dal batch»*, e sarebbe stata
-# troppo stretta fino all'inutilità: `Source/RefactorTactics/Tests/` è sorgente delle viste per
-# **qualunque** track scriva un test, cioè quasi sempre tutte. Il criterio che decide chi esce dal
-# batch resta **uno solo — la sovrapposizione dei `writable`** — e qui è soddisfatto, perché i test
-# sono assegnati per file.
+# troppo stretta fino all'inutilità: `project-graph.json` ha **dieci** sorgenti, quindi due track
+# che lo alimentano entrambe sono il caso normale, non l'eccezione. Il criterio che decide chi esce
+# dal batch resta **uno solo — la sovrapposizione dei `writable`**.
+#
+# 🔴 La terza stesura giustificava la stessa regola con `Source/RefactorTactics/Tests/`, «sorgente
+# delle viste per qualunque track scriva un test». **È falso, ed è stato misurato**: toccare un
+# test lascia `generate --check` e `shortlist --check` verdi. `TESTS_DIR` è letto solo da
+# `validate`, per far combaciare i pattern `tests:`. L'arco era stato dedotto da una costante letta
+# nel codice invece che dall'esperimento — lo stesso difetto, al terzo giro, dentro la correzione
+# del secondo.
 #
 # Quando due track alimentano la stessa vista, quella vista si comporta come `integration_only`:
 # ciascun branch la rigenera per tenere verde il proprio `--check`, ma **nessuna delle due copie è
@@ -78,9 +84,16 @@
 # chiusura del batch, e non è negoziabile: due rami che rigenerano sulla propria base producono due
 # versioni dello stesso file da una sorgente che nessuno dei due vede intera.
 #
-# `derives_from` qui sotto rende la catena verificabile invece che ricordata — ed è stata
-# ricostruita leggendo le costanti di `scripts/feature_registry.py`, non a memoria: la prima
-# stesura ne aveva mancate due (`Tests/` e `test-manuali-pie.md`).
+# `derives_from` qui sotto rende la catena verificabile invece che ricordata, ed è **misurata**:
+# per ogni sorgente candidata la si sposta via, si rigenera, e si guarda quali viste cambiano.
+# Leggere le costanti di `scripts/feature_registry.py` non basta — ne dichiara di lette anche da
+# `validate`, che non producono nessuna vista.
+#
+# ➕ E per `project-graph.json` non serve neppure misurare: **l'artefatto pubblica le proprie
+# sorgenti**, nella chiave `sources`. Quello è l'elenco autoritativo; la copia qui sotto esiste per
+# il validator e si riallinea con:
+#
+#     python -c "import json;print(json.load(open('docs/roadmap/project-graph.json'))['sources'])"
 #
 # ## Le lease binarie
 #
@@ -181,14 +194,11 @@ tracks:
     # (`DOD_V01`, feature_registry.py:2044). Questa track è quindi l'unica autorizzata a
     # rigenerare quella vista, e deve farlo.
     derives_from:
+      # Misurato: rimossa la sorgente, cambiano ESATTAMENTE queste due viste.
       - source: docs/roadmap/v0.1-definition-of-done.md
-        regenerates: [docs/roadmap/milestonemap.shortlist.md]
-      # ⚠️ Sorgente CONDIVISA con `simulation`: entrambe scrivono in `Tests/`, per file diversi.
-      # I `writable` restano disgiunti, quindi il batch e' valido; ma le viste che ne derivano
-      # sono autoritative solo dopo la rigenerazione sull'albero unito (passo 8).
-      - source: Source/RefactorTactics/Tests/
-        shared_with: [simulation]
-        regenerates: [docs/roadmap/featuremap.shortlist.md, docs/roadmap/project-graph.json]
+        regenerates:
+          - docs/roadmap/milestonemap.shortlist.md
+          - docs/roadmap/project-graph.json
     binary_leases: []
 
   simulation:
@@ -204,10 +214,9 @@ tracks:
       - Source/RefactorTactics/Turn/
       - Source/RefactorTactics/Bot/
       - Source/RefactorTactics/Tests/RTReactionTests.cpp
-    derives_from:
-      - source: Source/RefactorTactics/Tests/
-        shared_with: [spatial]
-        regenerates: [docs/roadmap/featuremap.shortlist.md, docs/roadmap/project-graph.json]
+    # Misurato: nessun path di questo write-set alimenta una vista generata. `Turn/`, `Bot/` e i
+    # test entrano in `validate`, non nei generati — quindi questa track non rigenera niente.
+    derives_from: []
     binary_leases: []
 
   client_tools:
@@ -258,6 +267,8 @@ integration_only:
   - docs/technical/workflow-parallel-claude.md
   - docs/technical/scenario-map.md
   - docs/technical/test-manuali-pie.md
+  - docs/balance/          # sorgente dei radar (toolchain Node)
+  - Scenarios/             # sorgente di scenariomap + project-graph; oggi la tiene wt-cap
   - scripts/feature_registry.py
   - scripts/test_feature_registry_releases.py
   - RefactorTactics.uproject
@@ -279,39 +290,57 @@ generated_only:
   - path: docs/roadmap/feature-registry.json
     derives_from: [docs/roadmap/feature-registry.yaml]
     tool: "feature_registry.py generate"
+
+  # ⚠️ Alimentata da TUTTO. L'elenco autoritativo e' la chiave `sources` dentro l'artefatto
+  # stesso (9 voci) piu' `RTScenarioSession.cpp`, che `available_capabilities()` aggiunge.
+  # Questa copia esiste per il validator e si riallinea rileggendo quella chiave, non a memoria.
   - path: docs/roadmap/project-graph.json
     derives_from:
       - docs/roadmap/feature-registry.yaml
       - docs/roadmap/editor-sessions.yaml
       - docs/roadmap/execution-graph.yaml
       - docs/roadmap/roadmap-checkpoint.md
-      - Scenarios/
-      - Source/RefactorTactics/Tests/
+      - docs/roadmap/roadmap-v0.1.md
+      - docs/roadmap/roadmap-post-v0.1.md
+      - docs/roadmap/v0.1-definition-of-done.md
       - docs/technical/test-manuali-pie.md
+      - Scenarios/
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
     tool: "feature_registry.py generate"
+
   - path: docs/roadmap/roadmap.shortlist.md
-    derives_from: [docs/roadmap/feature-registry.yaml, docs/roadmap/roadmap-v0.1.md]
-    tool: "feature_registry.py shortlist"
-  - path: docs/roadmap/featuremap.shortlist.md
     derives_from:
       - docs/roadmap/feature-registry.yaml
-      - Source/RefactorTactics/Tests/          # i nomi dei test che le `tests:` devono matchare
-      - docs/technical/test-manuali-pie.md     # le voci PIE che i `pie_refs` dichiarano
+      - docs/roadmap/roadmap-v0.1.md
+      - docs/roadmap/roadmap-post-v0.1.md
     tool: "feature_registry.py shortlist"
+
+  - path: docs/roadmap/featuremap.shortlist.md
+    derives_from: [docs/roadmap/feature-registry.yaml]
+    tool: "feature_registry.py shortlist"
+
   - path: docs/roadmap/scenariomap.shortlist.md
     derives_from:
       - Scenarios/
       - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
     tool: "feature_registry.py shortlist"
+
   - path: docs/roadmap/milestonemap.shortlist.md
     derives_from:
       - docs/roadmap/feature-registry.yaml
       - docs/roadmap/roadmap-checkpoint.md
       - docs/roadmap/v0.1-definition-of-done.md
     tool: "feature_registry.py shortlist"
+
   - path: docs/roadmap/editormap.shortlist.md
-    derives_from: [docs/roadmap/editor-sessions.yaml]
+    derives_from:
+      - docs/roadmap/editor-sessions.yaml
+      - docs/roadmap/roadmap-checkpoint.md
+      - docs/roadmap/roadmap-v0.1.md
+      - docs/technical/test-manuali-pie.md
     tool: "feature_registry.py shortlist"
+
+  # Seconda toolchain: Node, gate proprio (D-108). `feature_registry.py` non la vede.
   - path: docs/characters/radar/
     derives_from: [docs/balance/]
-    tool: "node tools/radar/generate.ts"      # toolchain Node, gate proprio (D-108)
+    tool: "node tools/radar/generate.ts"

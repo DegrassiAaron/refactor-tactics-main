@@ -308,25 +308,32 @@ I binari Unreal sono **human-first, non human-only**: il processo Content/Editor
 Claude può creare, modificare, rinominare, risalvare o migrare un binario **solo** con una lease esclusiva
 dichiarata nel batch.
 
+⚠️ **La lease vive DENTRO la propria track**, non a livello di documento: l'invariante
+`BinaryLeaseSet(T1) ∩ BinaryLeaseSet(T2) = ∅` è definita per track, e una lease scritta fuori non appartiene
+a nessun insieme e non entra nel confronto. Per questo `holder:` non compare: **è la track che la contiene**.
+
 ```yaml
-binary_leases:
-  - key: "BINARY-GH623-DEVSANDBOX-LIGHTING"
-    holder: content_editor
-    issue: 623
-    base_sha: "<sha su cui la lease è valida>"
-    operation: modify          # create | modify | rename | resave | migrate
-    paths:
-      - Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
-      - Content/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset
-    verification:
-      - load_in_editor
-      - save_without_errors
-      - run_validator
+tracks:
+  content_editor:
+    status: ACTIVE
+    session: U21
+    binary_leases:
+      - key: "BINARY-GH623-DEVSANDBOX-LIGHTING"
+        issue: 623
+        base_sha: "<sha su cui la lease è valida>"
+        operation: modify          # create | modify | rename | resave | migrate
+        paths:
+          - Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
+          - Content/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset
+        verification:
+          - load_in_editor
+          - save_without_errors
+          - run_validator
 ```
 
 - `key` **semantica e legata a GitHub**, mai `LEASE-001`: un identificatore progressivo è un altro contatore
   condiviso, e questo documento esiste perché quelli collidono.
-- **Un solo holder** per path. Nessun secondo holder, né umano né Claude.
+- **Un solo holder** per path: la track che contiene la lease. Nessun secondo holder, né umano né Claude.
 - La lease vale sul `base_sha`: se `main` tocca lo stesso asset, la lease è **stale** e va riemessa.
 - `create` prenota una **destinazione**: due track non possono creare lo stesso path.
 
@@ -390,7 +397,7 @@ Il dettaglio della misura è nel triage
 ## 15. Chiudere un batch
 
 Non serve un `Gxx` nuovo: l'integration gate è **operativo**, e l'identità del batch non è progressiva —
-`BATCH-<base_sha>-gh41-gh583`.
+`BATCH-<base_sha:8>-gh41-gh583` — lo sha troncato a 8, come in tutta la prosa del repository, con il campo `base_sha` completo accanto nel file.
 
 1. freeze delle sessioni attive;
 2. `git fetch --prune origin`;

@@ -399,11 +399,24 @@ la directory e riportando i sette path misurati in `preexisting.holds`.
 
 🔴 **E la regola su `generated_only` era insoddisfacibile.** Scritta come *«non si assegnano a nessuno»*,
 lasciava chi tocca una sorgente senza uscite legali: né rigenerare (path non assegnato) né lasciar stare
-(`--check` rosso). Il caso non è teorico — `wt-cap` possiede `RTScenarioSession.cpp`, che è la sorgente
-delle capability di `scenariomap.shortlist.md`, e ha già rigenerato la vista, **correttamente**. La regola
-è stata riscritta: *una vista non si assegna, **segue la propria sorgente***; due track che possiedono
-sorgenti della stessa vista sono in conflitto, e il test si fa in **selezione**, non al merge. Il campo
-`derives_from` rende la catena verificabile invece che ricordata.
+(`--check` rosso). Il caso non è teorico — `wt-cap` possiede `RTScenarioSession.cpp`, sorgente delle
+capability, e ha già rigenerato **due** viste (`scenariomap.shortlist.md` e `project-graph.json`),
+correttamente. La regola è stata riscritta: *una vista non si assegna, **segue la propria sorgente***, e il
+campo `derives_from` rende la catena verificabile invece che ricordata.
+
+⚠️ **Le due correzioni successive di questa stessa regola sono la parte istruttiva.** La seconda stesura
+diceva *«due track che alimentano la stessa vista: una esce dal batch»* — troppo stretta, perché
+`project-graph.json` ha **dieci** sorgenti e quel caso è la norma. La terza la giustificava con
+`Source/RefactorTactics/Tests/`, «sorgente delle viste per qualunque track scriva un test»: **falso, e
+misurato** — toccare un test lascia `generate --check` e `shortlist --check` verdi, perché `TESTS_DIR` è
+letto solo da `validate`. Quell'arco era stato dedotto da una **costante letta nel codice** invece che
+dall'esperimento, cioè lo stesso difetto di metodo, al terzo giro, dentro la correzione del secondo.
+
+Il metodo che funziona è uno solo, e costa un minuto: **sposta via la sorgente, rigenera, guarda cosa
+cambia.** Applicato alle sei sorgenti candidate riproduce esattamente la tabella della code review — e per
+`project-graph.json` non serve nemmeno, perché **l'artefatto pubblica le proprie sorgenti** nella chiave
+`sources`. Un elenco scritto a mano accanto a uno che il generatore già dichiara è una seconda verità: è
+precisamente ciò che questo triage ha respinto al §4.
 
 ⚠️ **Anche questa PR violava la regola che stava scrivendo**: modificava ~200 righe di
 `workflow-parallel-claude.md` senza che il file fosse in nessuna categoria del batch. Aggiunto a
