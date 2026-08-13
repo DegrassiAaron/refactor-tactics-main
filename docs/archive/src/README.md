@@ -2,11 +2,35 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **69** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
+> 🟢 **Undicesima volta — e la prima in cui lo scarto è stato dichiarato prima di prodursi, poi
+> verificato.** Il ramo `docs/wiki-player-first` ha scritto nel proprio README, *prima* di aprire la
+> PR: «questo ramo porta la radice da 2 a 3, ma #818 archivia nella stessa radice: quando entrambe
+> atterrano il totale sarà **70**, e nessuno dei due rami può scriverlo perché nessuno dei due vede
+> l'altro». Al merge il comando ha risposto **70** = 17 + 47 + 2 + **4**. Entrambi i rami avevano
+> scritto `69`, entrambi misurati col comando buono, entrambi giusti sulla propria base — la nona
+> lezione, alla lettera. ⚠️ **E la prima stesura di questo stesso banner aveva lasciato `69` nella
+> frase qui sotto** mentre la formula diceva `70`: il numero corretto in un posto e non nell'altro,
+> dentro il paragrafo che celebra di aver previsto lo scarto. Trovato dalla code review, non da me.
+>
+> La differenza rispetto alle nove volte precedenti non è il rimedio, che è sempre lo stesso
+> (**rimisurare dopo il merge**, mai sommare i delta): è che il conflitto è stato **previsto
+> leggendo `gh pr list`**, non scoperto dopo. Una PR aperta che tocca la tua stessa riga è
+> un'informazione disponibile *prima* di scrivere il numero.
+>
+> 🟢 **Dodicesima volta, e questa non ha una previsione da rivendicare: solo il rimedio, applicato.** Il ramo
+> `docs/consolidamento-walls-doors-v1` ha archiviato l'handoff *Walls/Doors/InteractionGraph* senza dichiarare
+> in anticipo lo scarto — a differenza dell'undicesima — e nel frattempo `docs/wiki-player-first` è atterrato
+> su `main` portando la radice da 3 a 4. Il totale non è stato dedotto: **rimisurato sull'albero mergiato** col
+> comando completo, **71** = 17 + 47 + 2 + **5**. La riga qui sotto non è stata incrementata a mano.
+>
+> Vale la pena dirlo così: la previsione è un lusso, il rimedio no. Undici volte su undici il numero è tornato
+> giusto **eseguendo il comando dopo l'unione**, che funziona anche quando nessuno ha guardato `gh pr list`.
+>
+> I **71** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
 > normativa. ➕ **E un file che non è Markdown**: `handoff/2026-08-12-grid-data-consolidation-audit.xlsx`.
 > Il comando qui sotto filtra `-name '*.md'` e **non lo conta**: è dichiarato qui perché un allegato invisibile
 > alla formula è esattamente il modo in cui questo numero è già andato fuori sincrono sei volte.
-> *(rimisurato il 2026-08-13 col comando completo — `find docs/archive/src -name '*.md' ! -name README.md | wc -l` → **69** = 17 `design/` + 47 `handoff/` + 2 `audit/` + **3 in radice**, dopo l'archiviazione del consolidamento *roadmap→v1.0*, con la sua riga d'indice qui sotto. ⚠️ **Il valore va rimisurato dopo il merge**, non incrementato: è la lezione che questa riga ha già imparato nove volte, e un `+1` scritto prima dell'unione è giusto solo se nessun altro ramo archivia oggi.
+> *(rimisurato il 2026-08-14 **sull'albero mergiato** col comando completo — `find docs/archive/src -name '*.md' ! -name README.md | wc -l` → **71** = 17 `design/` + 47 `handoff/` + 2 `audit/` + **5 in radice**, dopo l'archiviazione del consolidamento *Decision Time Bank*, dei due sorgenti *mouse interaction*, del consolidamento *roadmap→v1.0*, dell'handoff *Wiki player-first* e dell'handoff *Walls/Doors/InteractionGraph*, ciascuno con la sua riga d'indice qui sotto. ⚠️ **Il valore va rimisurato dopo il merge**, non incrementato: è la lezione che questa riga ha già imparato nove volte, e un `+1` scritto prima dell'unione è giusto solo se nessun altro ramo archivia oggi.
 > 🔵 **Decima volta, ma per un motivo nuovo: la formula era giusta e l'indice no.** Le tre colonne tornavano — `17 + 47 + 2 + 2 = 68` — e il disco confermava. Quello che non tornava era il **rapporto fra il totale e la tabella**: la radice conteneva **due** file e ne indicizzava **uno**, con `RefactorTactics_Character_Radar_Wiki_Generator_Claude.md` sul disco e assente dall'elenco. È il difetto di [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) — righe d'indice mancanti — ma **fuori da `handoff/`**, dove nessuno lo cercava perché la radice sembrava troppo piccola per nasconderne. La riga è stata ricostruita al 2026-08-13 dalle fonti che quel sorgente ha prodotto, ed è marcata come tale. La lezione non è aritmetica: **un totale corretto non dice nulla sull'indice che riassume**, e i due si controllano con due comandi diversi.
 > 🔴 **Ottava volta, e stavolta la lezione è doppia perché i rami erano due e avevano ragione entrambi.**
 > Due consolidamenti paralleli hanno trovato **lo stesso** off-by-one preesistente da due angoli diversi, e
@@ -202,6 +226,7 @@ dove è finita quella parte che è sopravvissuta al filtro.
 | [`RefactorTactics_Character_Radar_Wiki_Generator_Claude.md`](RefactorTactics_Character_Radar_Wiki_Generator_Claude.md) | Radar di personaggio, rubrica dei rating e generatore SVG per la Wiki | [D-105](../../decisions/RT_PDR_00_Decision_Log.md)…[D-108](../../decisions/RT_PDR_00_Decision_Log.md) · epic **E37** in [`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) · owner [`spec-radar-profilo-personaggio.md`](../../characters/spec-radar-profilo-personaggio.md) · generatore in [`tools/radar/`](../../../tools/radar/). ⚠️ **Riga ricostruita il 2026-08-13**: il file era archiviato sul disco senza comparire in questo indice, ed è la stessa forma di [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) fuori da `handoff/`. Ricostruita dalle fonti che il sorgente ha prodotto, non dal ricordo di chi l'ha archiviato |
 | [`RefactorTactics_Walls_Doors_InteractionGraph_v1_Claude_Handoff_2026-08-13.md`](RefactorTactics_Walls_Doors_InteractionGraph_v1_Claude_Handoff_2026-08-13.md) | Muri, porte, strutture e interaction graph dalla v0.1 alla v1.0 | [D-138](../../decisions/RT_PDR_00_Decision_Log.md) · epic **E23** [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324) con sette sub-issue · issue [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832)/[#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833)/[#834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/834) · `INT-5` e `INT-6` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) · owner [`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) §E23. Referto del filtro: [`walls-doors-interaction-spec-panel-2026-08-13.md`](../../roadmap/plans/walls-doors-interaction-spec-panel-2026-08-13.md). ⚠️ **La sua §5 e la sua §18 erano superate da `D-136` di sette ore**, e le §7/§25/§27 davano per mancante il gruppo atomico multi-transition, che ha test verdi dalla v0.1: il banner del sorgente elenca cosa non è entrato e perché |
 | [`RefactorTactics_Claude_Consolidamento_Roadmap_v1_0_2026-08-13.md`](RefactorTactics_Claude_Consolidamento_Roadmap_v1_0_2026-08-13.md) | Consolidamento roadmap, documentazione, Wiki e issue fino alla v1.0 | [D-136](../../decisions/RT_PDR_00_Decision_Log.md) (modello di release fino a `v1.0`, epic post-v0.1 esprimibili) · epic **E40**–**E45** in [`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) · `REL-1` e `REL-2` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). Le §3–§9 descrivevano come da preservare cose **già vere**, e la §12 diagnosticava come ownership mancante ciò che era un campo non scrivibile: il banner del sorgente elenca cosa non è entrato e perché |
+| [`RefactorTactics_Wiki_PlayerFirst_Claude_Handoff_2026-08-13.md`](RefactorTactics_Wiki_PlayerFirst_Claude_Handoff_2026-08-13.md) | Ristrutturazione della Wiki in manuale player-first con Developer Zone separata: IA target, quattro template di pagina, visual e icon grammar, otto wave | Audit: [`wiki-audit-player-first-2026-08-13.md`](../../roadmap/plans/wiki-audit-player-first-2026-08-13.md) · epic [#422](https://github.com/DegrassiAaron/refactor-tactics-main/issues/422) **riscritta**, non duplicata · wave [#821](https://github.com/DegrassiAaron/refactor-tactics-main/issues/821)–[#828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/828) · relation su [#757](https://github.com/DegrassiAaron/refactor-tactics-main/issues/757). Le wave 1–8 **non** sono state eseguite: il documento stesso vieta il big bang (§15, §26) |
 
 > ⚠️ **Il conteggio in testa è alla deriva**: la riga 5 dichiara **40** documenti, ma la cartella ne
 > contiene **47** (`find docs/archive/src -name '*.md' ! -name README.md | wc -l`). Lo scarto è
