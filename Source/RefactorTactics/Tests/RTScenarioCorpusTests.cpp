@@ -208,44 +208,94 @@ bool FRTScenarioExpectedFailTest::RunTest(const FString&)
 // Qui l'esito atteso e' pinnato: `Pass`. E' la stessa disciplina dei test che pinnano un limite, con il
 // segno opposto — quelli diventano rossi quando il limite cade, questo quando una capacita' si perde.
 // =====================================================================================================
+namespace
+{
+	/**
+	 * Uno scenario ANCORATO: deve passare, e in particolare **non** deve scivolare in `BLOCKED`.
+	 *
+	 * Estratto in helper il 2026-08-13, quando le ancore sono diventate tre: la forma era gia' stata scritta
+	 * due volte identica, e la terza copia sarebbe stata quella che smette di essere aggiornata.
+	 *
+	 * @param WhatWouldBeLost cosa e' sparito, se lo scenario e' `BLOCKED`. Va nel messaggio d'errore perche'
+	 *        «e' bloccato» non dice a chi legge dove guardare, e le due cause — produttore sparito o elenco
+	 *        delle capability regredito — stanno in file diversi.
+	 */
+	bool AnchorScenarioMustPass(FAutomationTestBase& Test, const FString& Id, const TCHAR* WhatWouldBeLost)
+	{
+		FRTTestResult Result;
+		if (!RunCorpusScenario(Test, Id, Result))
+		{
+			return false; // motivo gia' riportato
+		}
+
+		if (Result.Outcome == ERTTestOutcome::Blocked)
+		{
+			Test.AddError(FString::Printf(
+				TEXT("%s e' BLOCKED (%s): la capability c'era quando lo scenario e' stato scritto. ")
+				TEXT("O %s e' sparito, o l'elenco delle capability e' regredito."),
+				*Id, *Result.BlockedReason, WhatWouldBeLost));
+			return false;
+		}
+
+		if (Result.Outcome != ERTTestOutcome::Pass)
+		{
+			FString First = TEXT("(nessuna assertion registrata)");
+			for (const FRTAssertionResult& A : Result.Assertions)
+			{
+				if (!A.bPassed)
+				{
+					First = FString::Printf(TEXT("%s: atteso %s, osservato %s"),
+						*A.Description, *A.Expected, *A.Actual);
+					break;
+				}
+			}
+			Test.AddError(FString::Printf(TEXT("%s non passa: %s"), *Id, *First));
+			return false;
+		}
+
+		return true;
+	}
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioAnchorRunsTest,
 	"RefactorTactics.Scenario.DeclaredReactionScenarioPasses",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioAnchorRunsTest::RunTest(const FString&)
 {
-	const FString Id = TEXT("Spec.Reaction.AnchorCancelsPush");
+	return AnchorScenarioMustPass(*this, TEXT("Spec.Reaction.AnchorCancelsPush"),
+		TEXT("il produttore di `PlannedReactionAbility`"));
+}
 
-	FRTTestResult Result;
-	if (!RunCorpusScenario(*this, Id, Result))
-	{
-		return false; // motivo gia' riportato
-	}
+// =====================================================================================================
+// `#291`/`#737` — la stessa ancora per la ROTAZIONE dichiarata.
+//
+// Aggiunta il 2026-08-13, e la ragione e' stata **misurata invece che supposta**: togliendo
+// `DeclaredRotation` dall'elenco delle capability, i due scenari passano a `BLOCKED` e l'intera suite resta
+// **verde**. `EveryShippedScenarioRuns` accetta `BLOCKED` per costruzione — giustamente, perche' e' il
+// meccanismo che permette di versionare uno scenario prima della sua capability — ma per uno scenario che
+// oggi gira davvero quell'accettazione lascia scoperta proprio la regressione che conta: il giocatore smette
+// di poter dichiarare una rotazione e nessuno se ne accorge.
+//
+// E' lo stesso buco che `#601` aveva chiuso per la reazione. Qui si chiude per il facing, ed e' il momento
+// giusto: la capability e' entrata **oggi**, quindi l'ancora nasce insieme a cio' che protegge.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRotationAnchorTest,
+	"RefactorTactics.Scenario.DeclaredRotationScenariosPass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRotationAnchorTest::RunTest(const FString&)
+{
+	// Tutti e due, e non uno solo: il rifiuto e la sua controprova si reggono a vicenda. Uno scenario che
+	// dimostra un rifiuto passerebbe anche con un resolver che rifiuta tutto, e la meta' che lo esclude e'
+	// proprio quella da fermo.
+	const bool bRejected = AnchorScenarioMustPass(*this,
+		TEXT("Spec.Facing.IllegalDeclaredRotationIsRejected"),
+		TEXT("il produttore di `PlannedFacing` (`ARTPlayerController::HandleFacingSector`)"));
+	const bool bApplied = AnchorScenarioMustPass(*this,
+		TEXT("Spec.Facing.StationaryDeclaredRotationApplies"),
+		TEXT("il produttore di `PlannedFacing` (`ARTPlayerController::HandleFacingSector`)"));
 
-	if (Result.Outcome == ERTTestOutcome::Blocked)
-	{
-		AddError(FString::Printf(
-			TEXT("%s e' BLOCKED (%s): la capability c'era quando lo scenario e' stato scritto. ")
-			TEXT("O il produttore di `PlannedReactionAbility` e' sparito, o l'elenco delle capability e' regredito."),
-			*Id, *Result.BlockedReason));
-		return false;
-	}
-
-	if (Result.Outcome != ERTTestOutcome::Pass)
-	{
-		FString First = TEXT("(nessuna assertion registrata)");
-		for (const FRTAssertionResult& A : Result.Assertions)
-		{
-			if (!A.bPassed)
-			{
-				First = FString::Printf(TEXT("%s: atteso %s, osservato %s"), *A.Description, *A.Expected, *A.Actual);
-				break;
-			}
-		}
-		AddError(FString::Printf(TEXT("%s non passa: %s"), *Id, *First));
-		return false;
-	}
-
-	return true;
+	// `&` e non `&&`: si vogliono entrambi gli esiti riportati, non il primo che cade.
+	return bRejected & bApplied;
 }
 
 // =====================================================================================================

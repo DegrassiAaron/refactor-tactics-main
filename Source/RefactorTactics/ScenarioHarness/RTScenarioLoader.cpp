@@ -372,7 +372,11 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 							// `edge` — bordo bersagliato dalle azioni su STRUTTURA (CP 9.5). Mancava, e la sua
 							// assenza e' costata due test rossi su `main`: il parser che lo LEGGE e questo elenco
 							// che lo RIFIUTAVA sono nati su rami diversi, e il merge testuale non poteva vederlo.
-							TEXT("edge")
+							TEXT("edge"),
+							// `facing` — rotazione DICHIARATA in pianificazione (D-020, #291). Aggiunta qui e nel
+							// parser **nello stesso commit**, che e' la lezione lasciata da `edge`: le due copie
+							// vivono a trecento righe di distanza e nessun gate le confronta.
+							TEXT("facing")
 						};
 						// Si RACCOGLIE e si ORDINA prima di riportare: `IntentObj->Values` e' una TMap, e con due
 						// chiavi sbagliate nello stesso intent il messaggio nominerebbe l'una o l'altra a seconda
@@ -475,6 +479,22 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 						}
 						Intent.CoverEdge = *Found;
 						Intent.bHasCoverEdge = true;
+					}
+
+					// Rotazione DICHIARATA (D-020, #291): come si chiede di FINIRE girati, non come si comincia.
+					// Usa `ParseDirection`, l'helper che gia' serve il facing di PIAZZAMENTO poche righe piu' su:
+					// il blocco di `edge` qui sopra si porta dietro una copia della mappa delle direzioni, e due
+					// copie divergono alla prima direzione aggiunta.
+					FString IntentFacingText;
+					if (IntentObj->TryGetStringField(TEXT("facing"), IntentFacingText) && !IntentFacingText.IsEmpty())
+					{
+						const FString Where = FString::Printf(
+							TEXT("intent di '%s': rotazione dichiarata"), *Intent.UnitId);
+						if (!ParseDirection(IntentFacingText, Intent.Facing, OutError, *Where))
+						{
+							return false;
+						}
+						Intent.bDeclaresFacing = true;
 					}
 
 					FString DashText;

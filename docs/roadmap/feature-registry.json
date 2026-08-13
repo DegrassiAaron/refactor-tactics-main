@@ -991,6 +991,8 @@
         "RefactorTactics.Facing.TurnLogNamesConsumerAndReason",
         "RefactorTactics.Facing.PermutationInvariant",
         "RefactorTactics.Facing.IntentIsTeamFiltered",
+        "RefactorTactics.Scenario.LoaderReadsDeclaredFacing",
+        "RefactorTactics.Scenario.DeclaredRotationScenariosPass",
         "RefactorTactics.Combat.BackAttackIgnoresCover",
         "RefactorTactics.Combat.FlankAttackKeepsCover",
         "RefactorTactics.Combat.ShieldWorksFromAnyDirection",
@@ -1005,7 +1007,9 @@
         "Spec.Facing.BackAttackIgnoresGuard",
         "Spec.Facing.FrontAttackKeepsGuard",
         "Spec.Facing.BraceHoldsFromBehind",
-        "Spec.Facing.TurningPathUsesLastCompletedStep"
+        "Spec.Facing.TurningPathUsesLastCompletedStep",
+        "Spec.Facing.IllegalDeclaredRotationIsRejected",
+        "Spec.Facing.StationaryDeclaredRotationApplies"
       ],
       "scenarios_planned": [],
       "wiki_refs": [

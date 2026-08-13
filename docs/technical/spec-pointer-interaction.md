@@ -441,11 +441,15 @@ avrebbe creato una seconda fonte di verità accanto a due che lo dicevano già.
 > della mattina. Ora il canale esiste, il verde di quei quattro scenari dice qualcosa di vero sul giocatore,
 > e il commento è stato riscritto con la storia intera invece che con la sola conclusione.
 >
-> ⚠️ **`Facing`/`DeclaredRotation` restano però fuori dalle capability dell'harness, e ora per un'altra
-> ragione.** La premessa che le teneva fuori — «l'harness sarebbe il primo produttore» — non vale più.
-> Mancano la chiave `facing` in `FRTScenarioIntent` e lo scenario che la dimostri sul percorso reale: sono
-> due righe aperte di [#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291) e vanno
-> fatte insieme. Aggiungere la capability senza la chiave produrrebbe un `BLOCKED` che mente sul motivo.
+> ✅ **E `DeclaredRotation` è entrata fra le capability la sera stessa**, con la chiave `facing` in
+> `FRTScenarioIntent` e i due scenari che dimostrano la rotazione dichiarata sul percorso reale
+> (`Spec.Facing.IllegalDeclaredRotationIsRejected` e `Spec.Facing.StationaryDeclaredRotationApplies`).
+> Era l'ultima delle tre asimmetrie storiche di quell'elenco: non ne resta nessuna aperta.
+>
+> 🔴 **Un buco trovato misurando, non supponendo**: togliendo la capability i due scenari passano a
+> `BLOCKED` e la suite resta **verde**. `RefactorTactics.Scenario.DeclaredRotationScenariosPass` pinna
+> l'esito a `Pass` — la stessa disciplina di #601 per la reazione. Quando una capability atterra, l'ancora
+> va scritta **nello stesso commit**.
 
 ---
 

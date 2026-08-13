@@ -351,6 +351,28 @@ struct FRTScenarioIntent
 	 */
 	UPROPERTY()
 	FName Reaction;
+
+	/**
+	 * Rotazione DICHIARATA in pianificazione (D-020): `"facing": "NE"`. Da non confondere con
+	 * `FRTScenarioUnit::Facing`, che e' dato di **piazzamento** — quello dice come un'unita' comincia il
+	 * turno, questo dice come chiede di finirlo.
+	 *
+	 * 🔴 **Questa chiave e' arrivata TARDI di proposito, ed e' la storia che spiega il flag.** Fino al
+	 * 2026-08-13 non esisteva, e non per dimenticanza: `PlannedFacing` non aveva alcun produttore nel gioco,
+	 * quindi darla agli scenari avrebbe reso l'harness il **primo** produttore del campo — verdi che dicevano
+	 * che il giocatore poteva girarsi restando fermo, mentre non aveva alcun modo di chiederlo (#291). La
+	 * capability `DeclaredRotation` e' rimasta fuori dall'elenco dei disponibili per tutto quel tempo.
+	 * Con `#737` il produttore esiste (`ARTPlayerController::HandleFacingSector`), quindi la premessa e'
+	 * caduta e la chiave puo' entrare: ora un verde dice qualcosa di vero sul giocatore.
+	 *
+	 * Vale solo con `bDeclaresFacing`, per la stessa ragione di `CoverEdge`: `E` e' una direzione legittima e
+	 * non puo' fare da «campo non dichiarato».
+	 */
+	UPROPERTY()
+	ERTHexDirection Facing = ERTHexDirection::E;
+
+	UPROPERTY()
+	bool bDeclaresFacing = false;
 };
 
 /** Una cella riscritta da una variante: la stessa unita', altrove. */
