@@ -16,7 +16,7 @@
 
 ## 1. Il verdetto in una riga
 
-Il brief HexGeometry è **il documento più accurato della serie** — trentanove verifiche indipendenti, zero
+Il brief HexGeometry è **il documento più accurato della serie** — ventinove verifiche di stato, zero
 premesse false — e proprio per questo il suo unico errore è interessante: prescrive al §12 una cosa che è
 stata **decisa in senso contrario venti ore prima**. Il bundle `grid/` ha un perimetro diverso, in gran parte
 già recepito, e propone una roadmap manuale che il brief stesso elenca fra gli errori da non fare.
@@ -36,7 +36,11 @@ calpestabilità** che nessuno ha mai messo uno accanto all'altro. Vedi `C1`.
 
 Fatte contro HEAD `05bbe3dc`, non contro lo snapshot dei documenti.
 
-### 2.1 Il brief HexGeometry è accurato — 25 verifiche su 25
+### 2.1 Il brief HexGeometry è accurato — 29 verifiche di stato su 29
+
+Il conteggio è la somma delle entità che il brief **dichiara**: 10 issue + 7 simboli + 8 feature ID +
+4 decisioni = **29**. La quinta riga della tabella non è una di quelle: è la ricerca che ha prodotto il
+lavoro, e si conta a parte.
 
 | Verifica | Esito |
 |---|---|
@@ -161,7 +165,7 @@ Giudizio qualitativo del panel, **non** una misura.
 
 | Dimensione | Brief HexGeometry | Bundle `grid/` | Motivo |
 |---|---:|---:|---|
-| Accuratezza dello stato | **10/10** | 7/10 | 25 verifiche su 25 nel primo; il secondo propone gate già verdi |
+| Accuratezza dello stato | **10/10** | 7/10 | 29 verifiche di stato su 29 nel primo; il secondo propone gate già verdi |
 | Chiarezza | 9/10 | 8/10 | Il §45 «sintesi non negoziabile» è il miglior riassunto del modello prodotto finora |
 | Testabilità | 8/10 | 5/10 | Il §33 separa correttamente automation e PIE; il bundle elenca scenari per capability inesistenti |
 | Non-duplicazione | 9/10 | 4/10 | Il §40 del brief è una checklist di anti-duplicazione esemplare; il bundle duplica il registry |

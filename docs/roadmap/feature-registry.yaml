@@ -5021,7 +5021,12 @@ features:
       **`#619` e' chiusa (2026-08-12), ed e' la prima delle tre a esserlo.** Quel che era `tests: []`
       e `scenarios: []` non lo e' piu': `Source/RefactorTactics/Map/RTHexOccupancyLibrary.{h,cpp}`
       esiste nel modulo **runtime** (com'era il vincolo di collocazione, non una preferenza), i
-      **sedici** test `RefactorTactics.HexOccupancy.*` girano — fra loro `GoldenExampleFromTheSource`,
+      **19** test `RefactorTactics.HexOccupancy.*` girano — questa riga diceva «sedici», ed era vera
+      quando fu scritta: rimisurata il 2026-08-13 contando le macro nel file, non incrementata a mano.
+      La crescita e' verificabile commit per commit: `b0c94a62` 16 -> `1c4422f7` 17 (il fix sul
+      sovrapprezzo negativo) -> `964deb70` 19 (il caso collineare che le prime quattro fixture
+      evitavano di proposito)
+      — fra loro `GoldenExampleFromTheSource`,
       che pinna l'esempio di §14 del sorgente, `ThresholdBoundaries`, `SurchargeEntersTheMatchStateHash`
       e `SurchargeSurvivesADynamicSurfaceCycle`, cioe' esattamente le tre voci di DoD che `D2` aveva
       aggiunto — e `Scenarios/Spec/Map/ConstrainedCellCostsMore.json` non e' piu' `planned`: e' il

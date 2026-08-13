@@ -1,7 +1,7 @@
 > 🔎 **ESITO DELLA REVISIONE — 2026-08-13.** Sorgente **recepito in parte**. Referto:
 > [`hexgeometry-editor-spec-panel-2026-08-13.md`](../../../roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md).
 >
-> ✅ **È il documento più accurato della serie**: 25 verifiche di stato su 25 corrette — dieci issue, sette
+> ✅ **È il documento più accurato della serie**: 29 verifiche di stato su 29 corrette — dieci issue, sette
 > simboli di codice, otto feature ID, quattro decisioni. Nessuna premessa falsa, primo caso in sei handoff.
 > Il suo §27 aveva ragione: l'owner tecnico mancava davvero, ed è stato creato —
 > [`spec-hex-geometry-authoring.md`](../../../technical/spec-hex-geometry-authoring.md). Il §45 e il §26 sono
