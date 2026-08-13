@@ -923,11 +923,22 @@ performance misurati su packaged · soak lungo senza crash.
 prepara il rilascio.
 
 **Percorso critico**: freeze del contenuto · **hardening sicurezza/abuso** · **migrazione di versione di
-save/replay** — che è la sola riga davvero tecnica qui, ed è già una domanda **aperta** del repository
-(`FMT-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): oggi `FormatVersion` **non viaggia nei byte
-serializzati**, dimostrato da `RefactorTactics.HexMap.SerializedAssetMigratesWithoutGainingData`). Se `FMT-1`
-non è deciso prima, questa epic la eredita come debito su un formato che gli utenti avranno già scritto ·
-soak da release candidate.
+save/replay** · soak da release candidate.
+
+> ✅ **Il debito che questa sezione dichiarava è stato deciso il 2026-08-13, poche ore dopo essere stato
+> scritto qui** ([D-137](../decisions/RT_PDR_00_Decision_Log.md)). Diceva che la migrazione di versione «è già
+> una domanda **aperta** del repository» e che «se `FMT-1` non è deciso prima, questa epic la eredita come
+> debito su un formato che gli utenti avranno già scritto». `FMT-1` **è** deciso: `URTHexMapAsset` passa a
+> `FCustomVersionRegistry`, e il lavoro è di
+> [`#687`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/687), non della v0.9.
+>
+> ⚠️ **Ciò che questa epic eredita è cambiato, non è sparito**: non più *una decisione da prendere sotto
+> scadenza* ma *un meccanismo da avere già in piedi*. Se `#687` non è chiusa prima del freeze, la v0.9 si
+> trova con la decisione presa e la rete assente — che è una posizione migliore ma non buona.
+>
+> La ragione per cui si è potuto decidere adesso vale la pena di restare scritta: **tutti e sette i passi di
+> migrazione v1→v8 sono dichiarativi**, quindi oggi il cambio di meccanismo ha **rischio dati zero**. Dal
+> primo passo trasformativo in poi non è più vero, e il costo cresce da solo.
 
 **Ranked e rating** stanno qui e non in E42: un rating ha senso quando le regole non cambiano più.
 
