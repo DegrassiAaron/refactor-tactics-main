@@ -1,19 +1,12 @@
 #include "Map/RTHexOccupancyLibrary.h"
+#include "Map/RTGeometry2D.h"
 
 namespace
 {
-	/** Prodotto vettoriale 2D di `OA` x `OB`: il segno dice da che parte sta `B` rispetto alla retta `OA`. */
-	double Cross2D(const FVector2D& O, const FVector2D& A, const FVector2D& B)
-	{
-		return (A.X - O.X) * (B.Y - O.Y) - (A.Y - O.Y) * (B.X - O.X);
-	}
-
-	int32 SignOf(double Value)
-	{
-		if (Value > UE_KINDA_SMALL_NUMBER) { return 1; }
-		if (Value < -UE_KINDA_SMALL_NUMBER) { return -1; }
-		return 0;
-	}
+	// `Cross2D` e `SignOf` vivono in `RTGeometry2D.h`: erano duplicate qui e in `RTGeometryBake.cpp`, e
+	// nella unity build le due copie finiscono nello stesso anonymous namespace.
+	using RTGeometry2D::Cross2D;
+	using RTGeometry2D::SignOf;
 
 	/** `P` collineare con `AB`: ci sta dentro? */
 	bool WithinSegmentBounds(const FVector2D& A, const FVector2D& B, const FVector2D& P)

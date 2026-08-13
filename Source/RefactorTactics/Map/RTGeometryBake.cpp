@@ -2,20 +2,15 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexOccupancyLibrary.h"
+#include "Map/RTGeometry2D.h"
 
 namespace
 {
-	double Cross2D(const FVector2D& O, const FVector2D& A, const FVector2D& B)
-	{
-		return (A.X - O.X) * (B.Y - O.Y) - (A.Y - O.Y) * (B.X - O.X);
-	}
-
-	int32 SignOf(double Value)
-	{
-		if (Value > UE_KINDA_SMALL_NUMBER) { return 1; }
-		if (Value < -UE_KINDA_SMALL_NUMBER) { return -1; }
-		return 0;
-	}
+	// `Cross2D` e `SignOf` vivono in `RTGeometry2D.h`: erano duplicate qui e in
+	// `RTHexOccupancyLibrary.cpp`, e nella unity build le due copie finiscono nello stesso anonymous
+	// namespace. Le REGOLE che le usano restano due, e il commento qui sotto dice perche'.
+	using RTGeometry2D::Cross2D;
+	using RTGeometry2D::SignOf;
 
 	/**
 	 * IL MURO CHIUDE QUESTO BORDO? — e la risposta NON e' quella di `ComputeMask`.
