@@ -60,8 +60,9 @@ definizioni di «davanti» — resta valido perché nessun consumatore d'area si
 
 ### L'unico scenario creato
 
-`Spec.Facing.TurningPathUsesLastCompletedStep`. Il gap era **reale e misurato**: dei nove scenari
-`Spec.Facing.*`, **uno solo** aveva un `move` (`DerivesFromMove`) ed era **rettilineo**. Su una linea dritta
+`Spec.Facing.TurningPathUsesLastCompletedStep`, che porta la cartella da **otto** scenari a **nove**. Il gap
+era **reale e misurato**: degli **otto** che esistevano prima di oggi, **uno solo** aveva un `move`
+(`DerivesFromMove`) ed era **rettilineo**. Su una linea dritta
 «ultimo passo compiuto», «primo passo» e «direzione del viaggio» **coincidono**, quindi nessuno scenario
 distingueva la regola di ADR-0008 §2 dalle sue approssimazioni. Il nuovo percorso svolta: `E` poi `NE`, e
 pretende `NE`.
