@@ -107,6 +107,21 @@ namespace
 			// Ora dicono il vero, e il perimetro resta lo stesso — dichiarare in pianificazione, non decidere in
 			// una finestra: quella e' E14, e non passa da qui.
 			TEXT("ReactionPlanning"),
+			// `#291`/`#737`: dichiarare una ROTAZIONE in pianificazione (D-020). E' USCITA dall'elenco dei non
+			// disponibili il 2026-08-13 sera, ed e' l'ultima delle tre a farlo — le altre due sono
+			// `ReactionPlanning` (`#601`) e `PredictiveAction`.
+			//
+			// Il criterio e' sempre lo stesso: la capability entra quando il campo ha un produttore che NON e'
+			// l'harness. Qui e' `ARTPlayerController::HandleFacingSector`, che scrive `PlannedFacing` e
+			// `bDeclaresPlannedFacing` dal contesto `ERTPointerContext::Facing` chiedendo la legalita' a
+			// `URTFacingLibrary` e RIFIUTANDO una dichiarazione illegale invece di correggerla
+			// (`PlayerInput.FacingSectorProducesPlannedFacing`, `PlayerInput.IllegalFacingIsRejectedNotCorrected`).
+			//
+			// ⚠️ Il perimetro e' `facing` come MOSSA, non come piazzamento: `FRTScenarioUnit::Facing` c'e' da
+			// sempre ed e' un'altra cosa. Restano fuori l'insieme legale mostrato a schermo (`#613`) e il bot,
+			// che non dichiara rotazioni: nessuno dei due e' un prerequisito di questa chiave, perche' il
+			// giocatore un modo di chiederla ce l'ha.
+			TEXT("DeclaredRotation"),
 		};
 		// NON disponibili, e le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato
 		// completato con `#582`: prima ne nominava due, mentre gli scenari in repo ne chiedono **sei** — e una
@@ -118,9 +133,11 @@ namespace
 		//   finestra da 3 s e' CP 14.5. Sono due nomi e non uno perche' separano due cose che possono atterrare
 		//   in tempi diversi: fermarsi a un boundary, e risolvere il confronto fra due risposte contese.
 		//
-		//   `Facing` — la ROTAZIONE dichiarata come mossa, da non confondere con `FRTScenarioUnit::Facing`, che
-		//   e' dato di piazzamento e c'e'. Vedi `DeclaredRotation` piu' sotto: stessa cosa, altro nome, e i due
-		//   vanno riconciliati quando l'input arrivera' (#291).
+		//   `Facing` — ✅ **riconciliata il 2026-08-13**: era il doppione di `DeclaredRotation` con un altro
+		//   nome, e i due dovevano essere unificati «quando l'input arrivera'» (#291). L'input e' arrivato, e
+		//   il nome che resta e' **`DeclaredRotation`**, ora fra i disponibili qui sopra. `Facing` non e' un
+		//   nome di capability: chi scrive uno scenario chiede `DeclaredRotation`. Il facing di PIAZZAMENTO
+		//   (`FRTScenarioUnit::Facing`) non ha mai avuto bisogno di una capability e continua a non averne.
 		//
 		//   `InterceptRevalidation`, `Objective`, `Perception` — chieste da scenari gia' in repo. Restano fuori
 		//   finche' qualcuno non misura, come si e' fatto qui per `Reaction`, che il gioco le sappia fare in
@@ -151,18 +168,15 @@ namespace
 		//   il primo era stato tenuto fuori dalle capability. Il criterio non era cambiato: era stato
 		//   applicato a meta'. Il produttore mancante era `#737`.
 		//
-		//   ✅ **2026-08-13 sera: il produttore esiste, per tutti e tre.**
-		//   `ARTPlayerController::HandleFacingSector` scrive `PlannedFacing`/`bDeclaresPlannedFacing` da
-		//   `ERTPointerContext::Facing`, validando su `URTFacingLibrary::TryApplyDeclaredFacing` e
-		//   **rifiutando** una dichiarazione illegale invece di correggerla
-		//   (`PlayerInput.FacingSectorProducesPlannedFacing`, `PlayerInput.IllegalFacingIsRejectedNotCorrected`).
+		//   ✅ **2026-08-13 sera: chiuso il cerchio.** `#737` ha portato i tre produttori, e questa stessa
+		//   sessione ha aggiunto la chiave `facing` all'intent di scenario piu' `DeclaredRotation` fra i
+		//   disponibili. Delle tre asimmetrie storiche di questo elenco — `ReactionPlanning` (#601),
+		//   `PredictiveAction` (motivazione tornata vera), `DeclaredRotation` — non ne resta nessuna aperta.
 		//
-		//   ⚠️ **`Facing`/`DeclaredRotation` restano comunque FUORI da questo elenco, e ora per un'altra
-		//   ragione.** La condizione che le teneva fuori — «l'harness sarebbe il primo produttore» — non vale
-		//   piu'. Quel che manca ora e' solo la chiave `facing` in `FRTScenarioIntent` e il test che la
-		//   dimostri sul percorso reale, che sono due righe aperte di `#291` e vanno fatte insieme, non
-		//   dedotte da qui. Aggiungere la capability senza la chiave produrrebbe un `BLOCKED` che mente sul
-		//   motivo. Chi apre `#291`: la premessa e' soddisfatta, resta il lavoro.
+		//   La regola che le ha governate tutte e tre vale per la prossima, e conviene rileggerla prima di
+		//   aggiungere una riga qui sopra: **nessuna chiave di scenario finche' non esiste un produttore che
+		//   non sia l'harness.** Il prossimo caso noto e' la CONDIZIONE dichiarata di [D-109]
+		//   (`TargetHealthAtOrBelowPercent`), citata poco piu' su.
 		return Available.Contains(Capability);
 	}
 
@@ -701,6 +715,20 @@ void FRTScenarioSession::BeginTurn()
 			}
 			// Nessun ramo d'errore: che l'eroe possieda la reazione e che sia davvero una reazione lo ha gia'
 			// verificato il loader, che rifiuta lo scenario con un motivo invece di lasciarlo girare a vuoto.
+		}
+
+		// --- rotazione dichiarata (D-020, #291) ------------------------------------------------------------
+		// Si scrive e basta: la LEGALITA' non si valuta qui. Il resolver la verifica a fine Move su
+		// `MovementStyleThisTurn` e `WalkedThisTurn` — cioe' su quel che e' successo davvero — e produce
+		// `DeclaredInPlanning` oppure `DeclarationRejected` nel TurnLog.
+		//
+		// ⚠️ **Un rifiuto e' un esito che uno scenario puo' voler dimostrare, non un errore da prevenire.**
+		// Se l'harness filtrasse qui le rotazioni illegali, `Spec.Facing.IllegalDeclaredRotationIsRejected`
+		// non sarebbe scrivibile: verificherebbe che l'harness sa contare, non che il gioco sa rifiutare.
+		if (Intent.bDeclaresFacing)
+		{
+			Unit->PlannedFacing = Intent.Facing;
+			Unit->bDeclaresPlannedFacing = true;
 		}
 
 		if (Intent.Move.Num() == 0)

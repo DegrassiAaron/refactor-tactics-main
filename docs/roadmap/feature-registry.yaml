@@ -817,6 +817,18 @@ features:
     # un solo lavoro non e' un accorpamento di comodo: hanno un produttore solo — il contratto del puntatore
     # (CP 11.8, #705) — e servono lo stesso contesto esplicito. #737 li possiede tutti e tre; #291 resta
     # aperta per il suo, e la sua ultima casella si spunta li'.
+    #
+    # ✅ **2026-08-13 sera: l'input esiste e la catena e' completa.**
+    # `ARTPlayerController::HandleFacingSector` scrive il campo dal contesto `ERTPointerContext::Facing`,
+    # chiedendo la legalita' a `URTFacingLibrary` e RIFIUTANDO una dichiarazione illegale invece di
+    # correggerla. Caduta la premessa che teneva fuori la chiave di scenario, sono entrate anche quella
+    # (`facing` in `FRTScenarioIntent`) e la capability `DeclaredRotation`: la rotazione dichiarata e' ora
+    # dimostrata sul percorso reale `Intent -> Planning -> Snapshot -> Resolver -> TurnLog`, non solo in
+    # libreria pura.
+    #
+    # ⏳ Di `#291` restano **due** righe, entrambe con un blocco che non e' questo: l'insieme legale
+    # mostrato a schermo (`#613`, senza il quale il giocatore scopre il rifiuto provando) e il bot, che
+    # non dichiara rotazioni. Nessuna delle due impedisce di usare la feature: impediscono di usarla bene.
     completed_by:
       - RT-FEAT-UI-PLANNING
     tests:
@@ -833,6 +845,11 @@ features:
       - RefactorTactics.Facing.TurnLogNamesConsumerAndReason
       - RefactorTactics.Facing.PermutationInvariant
       - RefactorTactics.Facing.IntentIsTeamFiltered
+      # La chiave `facing` dell'intent di scenario, e l'ANCORA che impedisce ai due scenari nuovi di
+      # scivolare in `BLOCKED` in silenzio. La seconda e' nata da una misura: togliendo la capability,
+      # i due scenari passavano a `BLOCKED` e l'intera suite restava **verde**.
+      - RefactorTactics.Scenario.LoaderReadsDeclaredFacing
+      - RefactorTactics.Scenario.DeclaredRotationScenariosPass
       - RefactorTactics.Combat.BackAttackIgnoresCover
       - RefactorTactics.Combat.FlankAttackKeepsCover
       - RefactorTactics.Combat.ShieldWorksFromAnyDirection
@@ -847,6 +864,12 @@ features:
       - Spec.Facing.FrontAttackKeepsGuard
       - Spec.Facing.BraceHoldsFromBehind
       - Spec.Facing.TurningPathUsesLastCompletedStep
+      # 🔁 2026-08-13: i due della ROTAZIONE DICHIARATA, che fino a stamattina non erano scrivibili —
+      # non per tempo, ma perche' la chiave `facing` nell'intent avrebbe reso l'harness il primo
+      # produttore di `PlannedFacing`. Con `#737` il produttore esiste e la premessa e' caduta.
+      # Si reggono a vicenda: il rifiuto da solo passerebbe anche con un resolver che rifiuta tutto.
+      - Spec.Facing.IllegalDeclaredRotationIsRejected
+      - Spec.Facing.StationaryDeclaredRotationApplies
     wiki_refs:
       - wiki:facing-e-direzionalita
     # 🔴 Questa nota diceva «Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui

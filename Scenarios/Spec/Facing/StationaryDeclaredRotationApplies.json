@@ -1,0 +1,35 @@
+{
+  "scenarioId": "Spec.Facing.StationaryDeclaredRotationApplies",
+  "tags": ["facing", "planning", "turnlog", "spec", "flux", "bastion"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "D-020 / #291. Chi non si muove ruota LIBERO: tutte e sei le direzioni sono legali, quindi A1 puo' restare ferma e girarsi a ovest. E' il caso «resto fermo e mi giro», che prima di #359 il resolver non sapeva eseguire e fino a #737 il giocatore non sapeva chiedere.",
+
+  "_nota_perche": "E' la META' DI CONTROLLO di `Spec.Facing.IllegalDeclaredRotationIsRejected`, e serve tanto quanto: quello dimostra che una rotazione illegale viene respinta, ma da solo passerebbe anche con un resolver che respinge OGNI dichiarazione. Qui la direzione e' la stessa — W — e l'unica differenza e' che A1 non si e' mossa. Se il verde di la' dipendesse dal rifiuto sistematico, questo sarebbe rosso.",
+
+  "_nota_stile": "Lo stile di movimento e' `None` perche' l'intent non dichiara `move`, non perche' lo scenario lo imposti: e' il resolver a derivarlo da quel che e' successo. Un'unita' ferma che dichiara una rotazione e' l'unico modo di cambiare orientamento senza spendere il movimento.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [0, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [3, 0, 0], "facing": "W" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "A1 resta ferma e chiede di girarsi a OVEST. Da fermi si ruota liberi: accettata.",
+      "requires": ["DeclaredRotation"],
+      "intents": [
+        { "unit": "A1", "facing": "W" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [0, 0, 0] },
+    { "type": "UnitFacing", "unit": "A1", "value": "W" },
+    { "type": "LogEventCount", "category": "Facing", "outcome": "DeclaredInPlanning", "value": 1 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

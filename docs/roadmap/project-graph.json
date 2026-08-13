@@ -2090,11 +2090,25 @@
       "path": "Scenarios/Spec/Facing/FrontHitOnCoverIsSilent.json"
     },
     {
+      "id": "Spec.Facing.IllegalDeclaredRotationIsRejected",
+      "requires": [
+        "DeclaredRotation"
+      ],
+      "path": "Scenarios/Spec/Facing/IllegalDeclaredRotationIsRejected.json"
+    },
+    {
       "id": "Spec.Facing.RearHitOnCoverIsTraced",
       "requires": [
         "CreateCover"
       ],
       "path": "Scenarios/Spec/Facing/RearHitOnCoverIsTraced.json"
+    },
+    {
+      "id": "Spec.Facing.StationaryDeclaredRotationApplies",
+      "requires": [
+        "DeclaredRotation"
+      ],
+      "path": "Scenarios/Spec/Facing/StationaryDeclaredRotationApplies.json"
     },
     {
       "id": "Spec.Facing.TargetingReorients",
@@ -2305,6 +2319,7 @@
     "BotPlanning",
     "Cover",
     "CreateCover",
+    "DeclaredRotation",
     "Environment",
     "EnvironmentalActionOwner",
     "FixtureReference",

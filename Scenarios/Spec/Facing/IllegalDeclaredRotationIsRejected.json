@@ -1,0 +1,39 @@
+{
+  "scenarioId": "Spec.Facing.IllegalDeclaredRotationIsRejected",
+  "tags": ["facing", "movement", "planning", "turnlog", "spec", "flux", "bastion"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "D-020 / #291. Una rotazione DICHIARATA fuori dall'insieme legale viene RIFIUTATA, non corretta verso la legale piu' vicina. A1 cammina verso est — quindi finisce derivata a E, e a budget le sole legali sono l'ultimo passo e le due adiacenti (SE, E, NE) — e dichiara W, che non c'e' dentro. Il facing resta quello derivato dal movimento e il TurnLog dice che la dichiarazione e' stata respinta.",
+
+  "_nota_perche": "E' la riga che #291 teneva aperta: «uno scenario che dimostri il rifiuto di una rotazione illegale nel percorso reale». Le regole di URTFacingLibrary erano testate da mesi in unita' pure; qui si verifica che il PERCORSO VERO le applichi — Intent -> Planning -> Snapshot -> Resolver -> TurnLog. Se il TurnManager smettesse di consumare `bDeclaresPlannedFacing`, i test unitari resterebbero verdi e questo diventerebbe rosso.",
+
+  "_nota_perche_ora": "Questo scenario non era scrivibile prima del 2026-08-13, e non per mancanza di tempo: la chiave `facing` nell'intent non esisteva, perche' darla avrebbe reso l'harness il PRIMO produttore di `PlannedFacing` — un verde che diceva che il giocatore poteva girarsi mentre non aveva modo di chiederlo. Con #737 il produttore esiste (`ARTPlayerController::HandleFacingSector`), la premessa e' caduta, e la capability `DeclaredRotation` e' entrata fra le disponibili.",
+
+  "_nota_silenzio": "⚠️ Il rifiuto lascia una voce nel TurnLog PROPRIO perche' non cambia nulla: senza, sarebbe indistinguibile da una dichiarazione mai fatta. E' l'assertion `DeclarationRejected` qui sotto — la sola che separa «respinta» da «dimenticata».",
+
+  "_nota_controllo": "Il caso di controllo e' `Spec.Facing.StationaryDeclaredRotationApplies`: la stessa direzione W, dichiarata da fermo, viene ACCETTATA. Senza quella meta' questo scenario passerebbe anche con un resolver che rifiuta ogni rotazione dichiarata.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [3, 0, 0], "facing": "W" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "A1 cammina verso est e chiede di finire girata a OVEST: illegale dopo un movimento a budget.",
+      "requires": ["DeclaredRotation"],
+      "intents": [
+        { "unit": "A1", "move": [[-1, 0, 0], [0, 0, 0]], "facing": "W" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [0, 0, 0] },
+    { "type": "UnitFacing", "unit": "A1", "value": "E" },
+    { "type": "LogEventCount", "category": "Facing", "outcome": "DeclarationRejected", "value": 1 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

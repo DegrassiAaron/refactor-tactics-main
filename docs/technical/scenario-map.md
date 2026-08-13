@@ -405,11 +405,22 @@ resta visibile invece di sparire.
 > **La sera `#737` è atterrata**: `ARTPlayerController::HandleTargetCell` scrive i due campi, la motivazione
 > è tornata vera e quei verdi ora dicono qualcosa di vero sul giocatore.
 >
-> ⚠️ **`Facing`/`DeclaredRotation` restano fuori dalle capability, e la ragione è cambiata.** Non è più
-> «l'harness sarebbe il primo produttore» — `HandleFacingSector` esiste. Manca la chiave `facing` in
-> `FRTScenarioIntent` e lo scenario che la dimostri sul percorso reale: due righe aperte di
-> [`#291`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291), da fare **insieme**.
-> Aggiungere la capability senza la chiave darebbe un `BLOCKED` che mente sul motivo.
+> ✅ **E `DeclaredRotation` è entrata la sera stessa** — l'ultima delle tre asimmetrie storiche di
+> quell'elenco, dopo `ReactionPlanning` (#601) e `PredictiveAction`. La chiave `facing` è in
+> `FRTScenarioIntent`, la capability è disponibile, e i due scenari nuovi dimostrano la rotazione dichiarata
+> sul percorso reale: `Spec.Facing.IllegalDeclaredRotationIsRejected` (rifiutata, non corretta) e
+> `Spec.Facing.StationaryDeclaredRotationApplies` (da fermo si ruota liberi). Il secondo esiste perché il
+> primo, da solo, passerebbe anche con un resolver che rifiuta **ogni** rotazione.
+>
+> 🔴 **E qui è emerso un buco che non riguarda solo il facing.** Togliendo `DeclaredRotation` dalle
+> capability, i due scenari passano a `BLOCKED` e **l'intera suite resta verde**: `EveryShippedScenarioRuns`
+> accetta `BLOCKED` per costruzione — giustamente, è il meccanismo che permette di versionare uno scenario
+> prima della sua capability — ma per uno scenario che *oggi gira davvero* quell'accettazione lascia
+> scoperta proprio la regressione che conta. Il rimedio esisteva già per la reazione (#601) e ora c'è anche
+> qui: `RefactorTactics.Scenario.DeclaredRotationScenariosPass` pinna l'esito a `Pass`.
+>
+> ⚠️ **Vale per ogni scenario che passa da `BLOCKED` a verde**: quando una capability atterra, l'ancora va
+> scritta **nello stesso commit**, o la capacità appena guadagnata può sparire in silenzio.
 >
 > 🔎 **E i sei `planned` qui sopra ora hanno l'oracolo.** Il contesto esplicito esiste
 > (`ARTPlayerController::GetPointerContext`), quindi la ragione dichiarata in testa — *manca l'oracolo, non
