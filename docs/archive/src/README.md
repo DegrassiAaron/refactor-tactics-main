@@ -2,18 +2,31 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> I **66** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
+> I **68** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
 > normativa. ➕ **E un file che non è Markdown**: `handoff/2026-08-12-grid-data-consolidation-audit.xlsx`.
 > Il comando qui sotto filtra `-name '*.md'` e **non lo conta**: è dichiarato qui perché un allegato invisibile
 > alla formula è esattamente il modo in cui questo numero è già andato fuori sincrono sei volte.
-> *(rimisurato il 2026-08-13 sera col comando completo — `find docs/archive/src -name '*.md' ! -name README.md | wc -l` → **66** = 15 `design/` + 47 `handoff/` + 2 `audit/` + **2 in radice**, confermato da un secondo conteggio per cartella, dopo l'archiviazione del consolidamento Decision Time Bank.
-> 🔴 **Ottava volta, e stavolta il difetto è nuovo: la riga d'indice c'era, il totale no.** La riga diceva
-> **64** e il disco ne aveva **65** già prima di questa archiviazione: `handoff/2026-08-13-facing-visualdocs.md`
-> è atterrato alle 10:34 del 2026-08-13 (`482695fc`) **con** la sua riga nella tabella qui sotto — quindi
-> [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) non c'entra — e senza toccare
-> questo numero. È il difetto di #579 **ruotato**: là manca la riga e il totale regge, qui regge la riga e
-> manca il totale. Delle due metà dell'archiviazione se ne fa sempre una sola, e non è sempre la stessa: il
-> rimedio non è ricordarsene, è misurare il totale **dopo** ogni `mv`, con il comando, mai incrementandolo.
+> *(rimisurato il 2026-08-13 sera **sull'albero mergiato** col comando completo — `find docs/archive/src -name '*.md' ! -name README.md | wc -l` → **68** = 17 `design/` + 47 `handoff/` + 2 `audit/` + **2 in radice**, dopo l'archiviazione del consolidamento *Decision Time Bank* e dei due sorgenti *mouse interaction*, ciascuno con la sua riga d'indice qui sotto.
+> 🔴 **Ottava volta, e stavolta la lezione è doppia perché i rami erano due e avevano ragione entrambi.**
+> Due consolidamenti paralleli hanno trovato **lo stesso** off-by-one preesistente da due angoli diversi, e
+> nessuno dei due lo aveva introdotto: la riga diceva **64** mentre il disco ne aveva **65** già prima di
+> qualunque archiviazione di oggi.
+>
+> - *Time Bank* l'ha diagnosticato **dal file**: `handoff/2026-08-13-facing-visualdocs.md` è atterrato alle
+>   10:34 (`482695fc`) **con** la sua riga nella tabella qui sotto — quindi
+>   [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) non c'entra — e senza toccare
+>   questo numero. È il difetto di #579 **ruotato**: là manca la riga e il totale regge, qui regge la riga e
+>   manca il totale.
+> - *Mouse interaction* l'ha diagnosticato **dalla colonna**: `handoff/` ne conteneva **46** mentre la
+>   formula ne dichiarava **45**, verificato con
+>   `git ls-tree -r HEAD --name-only docs/archive/src/handoff | grep -c '\.md$'`. Una colonna sbagliata e un
+>   totale aritmeticamente coerente con essa — il caso più difficile da vedere, perché la somma torna.
+>
+> **E i due totali che ne sono usciti sono entrambi falsi dopo l'unione**: `66` da una parte, `67`
+> dall'altra, ciascuno giusto sulla propria base. Il valore di questa riga è stato **rimisurato eseguendo il
+> comando sull'albero mergiato**, non scegliendo un lato né sommando i delta — che è la nona volta che
+> questa cartella impara la stessa cosa. Delle due metà dell'archiviazione se ne fa sempre una sola, e non è
+> sempre la stessa: il rimedio non è ricordarsene, è misurare **dopo** ogni `mv` **e dopo ogni merge**.
 > 🔁 **Settima volta, e questa è la più pulita: nessuno dei due rami aveva torto.** Il consolidamento
 > HexGeometry ha scritto **63** e quello *Focus Decisions* **60**, entrambi misurati col comando buono ed
 > entrambi giusti sulla propria base; l'unione ne ha fatti **64**, che non è nessuno dei due e non è la loro
@@ -105,6 +118,8 @@ In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../pr
 | [`2026-08-08-cover-window-open-fire-seal.md`](design/2026-08-08-cover-window-open-fire-seal.md) | Cover Window, Open → Fire → Seal | 📅 **E22** (v0.2), con i 12 scenari di test |
 | [`2026-08-08-muri-porte-e-interazioni.md`](design/2026-08-08-muri-porte-e-interazioni.md) | Muri, porte, interazioni, validazione | 📅 **E23** (v0.2) |
 | [`trasformazioni-e-stati-personaggio.md`](design/trasformazioni-e-stati-personaggio.md) | Trasformazioni, stance, stati del personaggio | [`brief-stati-personaggio-e-trasformazioni.md`](../../gameplay/brief-stati-personaggio-e-trasformazioni.md) · D-035 · 📅 **E34** |
+| [`2026-08-13-mouse-world-ui-interaction.md`](design/2026-08-13-mouse-world-ui-interaction.md) | Hover / LMB / RMB, target mode, priorità semantica | ⚠️ **proponeva un secondo owner**, non adottato: la superficie era già di [`spec-pointer-interaction.md`](../../technical/spec-pointer-interaction.md) (CP 11.8). Contenuto recepito in §2.1, §4.1, §5.4–§5.6, §6.4–§6.5 · [D-128](../../decisions/RT_PDR_00_Decision_Log.md) · [#737](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737) |
+| [`2026-08-13-mouse-interaction-integration-plan.md`](design/2026-08-13-mouse-interaction-integration-plan.md) | Piano di integrazione del precedente: issue, cross-link, PIE, roadmap MI-0…MI-6 | 🔄 **applicato in parte** — la tabella degli esiti è nel banner del file. Scartati: issue ausiliaria (era #705), test `UI.Mouse.*` (esiste `PlayerInput.*`), `PIE-V01-MOUSE-INTERACTION` (esiste `PIE-V01-POINTER`) |
 
 ## `handoff/` — task esecutivi
 
