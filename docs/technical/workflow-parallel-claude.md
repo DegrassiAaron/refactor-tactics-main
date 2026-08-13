@@ -107,6 +107,16 @@ python scripts/rt_shared_id.py audit-refs   # fra i rami
 intero. Una decisione ereditata da `main` e poi ampliata su un branch è la stessa decisione: confrontare
 il corpo la segnalerebbe a ogni revisione, e un gate che suona sempre viene spento.
 
+E salta i ref **già antenati di `origin/main`**, perché una cicatrice non è una ferita: un branch
+mergiato porta la storia com'era *prima* del merge, comprese le collisioni che il merge ha già risolto
+rinumerando. Su questo repository erano **12 ref su 22** — più della metà del rumore, tutto su rami che
+nessuno toccherà più. Non produce falsi negativi: la storia di un ref mergiato è contenuta in `main`,
+quindi una collisione ancora viva lì la vede `check`.
+
+⚠️ L'unico ref che il filtro **non** può saltare è `origin/main` stesso, che è antenato di sé stesso.
+Escluderlo toglie il termine di paragone e rende verde una collisione viva — è successo, ed è il motivo
+per cui esiste `test_un_ref_vivo_con_la_stessa_collisione_suona`.
+
 ⚠️ Il `fetch` **non** è dentro lo script: è un'operazione di rete, e qui le operazioni di rete si fanno
 esplicitamente. Senza fetch, `audit-refs` giudica su ref vecchi.
 

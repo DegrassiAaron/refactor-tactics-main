@@ -447,6 +447,49 @@ class TestAuditRefs(RepoTestCase):
         code, out, err = self.repo.run("audit-refs")
         self.assertEqual(code, 0, err)
 
+    def test_un_ref_gia_mergiato_non_e_una_collisione(self):
+        """Una cicatrice non e' una ferita.
+
+        Caso reale: `docs/wv4-environmental` e `docs/505-pass-per-fase` (PR #524 e #525, mergiate
+        l'11 agosto) dichiarano ancora `D-091` due volte, mentre in `main` quella decisione e' `D-100`
+        da allora — rinumerata proprio per quella collisione. Segnalarli chiede di correggere qualcosa
+        di gia' corretto, su rami che nessuno tocchera' piu': dodici ref su ventidue erano cosi'.
+        """
+        self.repo.write_log(row("D-001", "Una"))
+        self.repo.commit()
+        self.repo.branch("docs/vecchio-lavoro")
+        self.repo.write_log(row("D-001", "Una") + row("D-091", "Testo di allora"))
+        self.repo.commit()
+        self.repo.checkout("main")
+        self.repo._git("merge", "docs/vecchio-lavoro", "--no-edit")   # ora il branch e' antenato
+        # `main` rinumera, come fece il merge vero.
+        self.repo.write_log(row("D-001", "Una") + row("D-100", "Testo di allora"))
+        self.repo.commit()
+        self.repo._git("remote", "add", "origin", self.repo.path)
+        self.repo._git("update-ref", "refs/remotes/origin/main", "HEAD")
+
+        code, out, err = self.repo.run("audit-refs")
+        self.assertEqual(code, 0, err)
+        self.assertIn("saltati", out)
+
+    def test_un_ref_vivo_con_la_stessa_collisione_suona(self):
+        """Il verso opposto del test qui sopra: cambia solo che il branch NON e' mergiato."""
+        self.repo.write_log(row("D-001", "Una"))
+        self.repo.commit()
+        self.repo._git("remote", "add", "origin", self.repo.path)
+        self.repo._git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.repo.branch("docs/lavoro-in-corso")
+        self.repo.write_log(row("D-001", "Una") + row("D-091", "Tesi del branch"))
+        self.repo.commit()
+        self.repo.checkout("main")
+        self.repo.write_log(row("D-001", "Una") + row("D-091", "Tesi diversa su main"))
+        self.repo.commit()
+        self.repo._git("update-ref", "refs/remotes/origin/main", "HEAD")
+
+        code, out, err = self.repo.run("audit-refs")
+        self.assertEqual(code, 1)
+        self.assertIn("COLLISION D-091", err)
+
     def test_duplicato_dentro_lo_stesso_ref(self):
         """Il caso misurato su `origin/docs/wv4-environmental`: D-091 dichiarata due volte nello stesso
         file, una ereditata e una nuova. Il merge non lo risolve, perche' il file e' gia' incoerente."""
