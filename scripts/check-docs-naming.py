@@ -166,8 +166,22 @@ def scan(path: Path) -> list[tuple[int, str, str]]:
     return hits
 
 
+# ⚠️ I file di governance stanno FUORI da `docs/`, e questo gate li ha mancati fino
+# al 2026-08-13: `AGENTS.md` ha continuato a dichiarare «Roster v0.1 corrente: Flux ·
+# Riva · Bastion · Vektor» per un giorno intero dopo D-120, mentre ogni documento
+# sotto `docs/` era stato corretto — ed e' il primo file che CLAUDE.md §1 impone di
+# leggere. Un gate che copre la periferia e non il centro e' peggio di nessun gate:
+# rassicura. Si elencano per nome perche' la root contiene anche kit datati, che
+# sarebbero esenti per la stessa ragione dei registri.
+ROOT_GOVERNANCE = ("CLAUDE.md", "AGENTS.md", "README.md")
+
+
 def markdown_files() -> list[Path]:
     files = []
+    for name in ROOT_GOVERNANCE:
+        path = REPO / name
+        if path.is_file():
+            files.append(path)
     for path in sorted(DOCS.rglob("*.md")):
         rel_parts = path.relative_to(DOCS).parts
         if rel_parts and rel_parts[0] in EXCLUDED_DIRS:
@@ -212,7 +226,7 @@ def main() -> int:
     backlog_count = sum(len(h) for h in backlog_hits.values())
 
     print(f"File markdown normativi analizzati: {total_files}"
-          f" (esclusi {'/'.join(EXCLUDED_DIRS)})")
+          f" (governance di root + docs/, esclusi {'/'.join(EXCLUDED_DIRS)})")
     if total_files:
         print(f"Protetti dal gate: {enforced_files}/{total_files} file"
               f" — copertura {enforced_files / total_files:.0%}"

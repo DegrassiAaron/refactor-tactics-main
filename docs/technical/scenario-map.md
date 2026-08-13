@@ -167,7 +167,7 @@ Totale corpus versionato: **73** scenari (`A 40 + B 21 + D-bloccati 12`) — *ri
 >    «una statistica è cambiata», non «undici regole si sono rotte». Un delta *disomogeneo* avrebbe voluto
 >    dire l'opposto, e sarebbe stato il momento di fermarsi.
 > 2. **La prosa scade insieme ai numeri.** Sei di quegli undici file spiegano l'aritmetica a parole
->    (*«100 − 10 − 8 = 82»*, *«Wraith resta a 100 pieni»*). Correggere solo le `expect` avrebbe lasciato una
+>    (*«100 − 10 − 8 = 82»*, *«`Vektor` resta a 100 pieni»*). Correggere solo le `expect` avrebbe lasciato una
 >    spiegazione che contraddice l'assertion accanto — e la spiegazione è **metà** del valore di uno scenario
 >    `Visual.*`, che esiste per dire a una persona cosa deve vedere. Sono state corrette entrambe.
 

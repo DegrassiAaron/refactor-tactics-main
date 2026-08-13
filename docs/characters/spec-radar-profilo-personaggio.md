@@ -432,7 +432,7 @@ La radice porta ora `width="400" height="400"`, e il contenitore può solo ridur
 
 **Il testo alternativo ripete i valori, e un gate lo verifica.** Quando il radar è pubblicato come
 immagine, il `<title>` interno non raggiunge il lettore: conta l'`alt` della pagina che lo incorpora.
-Fino al 2026-08-12 sulla Wiki erano etichette senza numeri («Profile Radar di Gadget»): chi vede il
+Fino al 2026-08-12 sulla Wiki erano etichette senza numeri («Profile Radar di `Flux`»): chi vede il
 grafico leggeva sei valori, chi usa uno screen reader ne riceveva zero. L'`alt` è ora
 `<title>: <asse> <valore>, …` e si ricava **dall'SVG**, mai da una tabella parallela.
 
