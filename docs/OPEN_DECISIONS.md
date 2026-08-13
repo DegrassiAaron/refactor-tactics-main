@@ -250,10 +250,32 @@ Il repository risponde alla domanda «questa cella è calpestabile?» in due mod
 > `Blocked` il compito di rendere impassabile. Ma `D-071` è una decisione d'autore registrata nel Decision Log
 > e spiegata al giocatore in una pagina Wiki: ridefinirne il ruolo è una scelta di design, non un refactor.
 >
-> ⚠️ **`MSE-2` e `MSE-3` vanno decise insieme**: la seconda uscita di `MSE-2` (scartare il contatto di misura
-> nulla) e la prima di `MSE-3` risolvono lo stesso sintomo — celle dichiarate `Blocked` con lati aperti — da
-> due lati diversi. Prenderne una sola rischia di lasciare l'altra senza problema da risolvere, o di risolverlo
-> due volte.
+> 🔑 **Rivisto il 2026-08-13: `MSE-2` e `MSE-3` non vanno «decise insieme» — sono la STESSA domanda.**
+> [Referto](roadmap/plans/mse-contatto-misura-nulla-spec-panel-2026-08-13.md), che rivede `#717`.
+>
+> Entrambi i modelli trattano un **contatto di misura nulla** come invasione: in `B` è il **vertice**
+> dell'esagono, in comune fra quattro triangoli di settore; in `A` è la **tangenza** del cerchio inscritto.
+> Una sola risposta le chiude entrambe.
+>
+> 🔴 **E il caso di `A` è più grave di come era stato scritto.** `D-071` dice «calpestabile se il cerchio
+> inscritto **non tocca** blocking geometry», con raggio = **apotema**. Misurato: un muro appoggiato al lato
+> dell'esagono dista dal centro `86.602540` con `HexSize = 100`, e l'apotema è `86.602540` — **differenza
+> zero**, cioè tangenza esatta. Alla lettera, *ogni cella adiacente a una parete di stanza sarebbe
+> inagibile*. La prima stesura di `MSE-3` diceva che la tangenza è un «caso limite per `A`» e lasciava
+> intendere che `A` fosse il modello più permissivo: **è il contrario**, e il verso era invertito.
+>
+> Nessuno pensa che `D-071` intendesse questo — la sua riga distingue già il muro che «taglia gli **angoli**»
+> da quello che «entra nel **nucleo**» — ma la regola **scritta** non distingue *toccare* da *entrare*, che è
+> esattamente la distinzione richiesta dai settori.
+>
+> **Le uscite si riducono a due**: il contatto di misura nulla non è invasione in nessuno dei due modelli
+> (`2N` settori per `N` muri, soglie invariate, e `D-071` acquista la parola che le manca) · oppure si
+> accetta e lo si dichiara in entrambi (soglie da ritarare, `D-071` da riscrivere).
+>
+> ✅ **Costo misurato: nessuno dei 19 test cade.** L'unica fixture con contatto puntuale è il muro
+> perimetrale, e il solo test che la usa asserisce monotonia e sottoinsieme — vere per costruzione e
+> indipendenti dai valori. ⚠️ Il che significa «la suite non copre la scelta», non «la scelta è innocua»:
+> le quattro fixture originali evitano i multipli di 30 **di proposito**.
 
 ---
 
