@@ -399,6 +399,31 @@ def cmd_reserve(args):
     return 0
 
 
+def cmd_release(args):
+    """Cede una reservation **senza** liberare l'ID.
+
+    Nasce da un falso positivo osservato il giorno stesso dell'introduzione. Avevo riservato `D-134` e
+    poi ceduto a un'altra sessione che l'aveva gia' scritto; la reservation pero' restava registrata a
+    nome del mio branch, e la regola `reserved-by-other-branch` di `check` avrebbe segnalato come
+    collisione l'uso **legittimo** che quella sessione ne stava facendo.
+
+    ⚠️ `last_issued` non si tocca: cedere non e' liberare. L'ID resta bruciato per chiunque altro, e chi
+    lo sta gia' usando lo tiene. Serve solo a togliere di mezzo una diagnostica diventata falsa.
+    """
+    directory = state_dir()
+    with FileLock(os.path.join(directory, LOCK_FILE)):
+        state = load_state(directory)
+        before = state.get("reservations", [])
+        kept = [entry for entry in before if entry.get("id") != args.id]
+        if len(kept) == len(before):
+            sys.stderr.write("nessuna reservation per %s su questo clone.\n" % args.id)
+            return 1
+        state["reservations"] = kept
+        save_state(directory, state)
+    print("%s ceduto: %d reservation rimosse, il contatore non e' sceso." % (args.id, len(before) - len(kept)))
+    return 0
+
+
 def cmd_status(args):
     directory = state_dir()
     state = load_state(directory)
@@ -564,6 +589,10 @@ def main(argv=None):
     reserve.add_argument("--reason", help="a cosa serve: issue, checkpoint, task")
     reserve.add_argument("--count", type=int, default=1, help="quanti ID contigui riservare")
     reserve.set_defaults(func=cmd_reserve)
+
+    release = sub.add_parser("release", help="cede una reservation, senza liberare l'ID")
+    release.add_argument("id", help="l'ID ceduto, es. D-134")
+    release.set_defaults(func=cmd_release)
 
     status = sub.add_parser("status", help="stato del contatore e reservation di questo clone")
     status.set_defaults(func=cmd_status)
