@@ -1,0 +1,320 @@
+# RefactorTactics — execution graph v1
+#
+# PROPOSTA per thin slice. Non e' source of truth finche' non consolidata.
+#
+# Possiede TOPOLOGIA DI ESECUZIONE, non stato.
+# Stati live/derivati arrivano dai rispettivi owner e vengono serializzati in project-graph.json.
+
+schema_version: 1
+
+meta:
+  status: PROPOSED
+  releases:
+    - v0.1
+    - v0.2
+    - v0.3
+    - v0.4
+    - future
+
+execution_lanes:
+  - id: code
+    title: CODE
+    default_actor: agent_or_developer
+
+  - id: pie
+    title: PIE
+    default_actor: user
+
+  - id: asset
+    title: ASSET
+    default_actor: user
+
+domain_groups:
+  - id: core_simulation
+    title: Core & Simulation
+    order: 10
+    feature_areas: [Core]
+
+  - id: map_environment
+    title: Map & Environment
+    order: 20
+    feature_areas: [Map, Environment]
+
+  - id: actions_reactions
+    title: Actions & Reactions
+    order: 30
+    feature_areas: [Actions, Reactions]
+
+  - id: perception_network
+    title: Perception & Networking
+    order: 40
+    feature_areas: [Perception, Networking]
+
+  - id: characters_content
+    title: Characters & Content
+    order: 50
+    feature_areas: [Characters, Factions]
+
+  - id: objectives_match
+    title: Objectives & Match
+    order: 60
+    feature_areas: [Objectives, Match]
+
+  - id: ui_presentation
+    title: UI & Presentation
+    order: 70
+    feature_areas: [UI, Presentation]
+
+  - id: ai_bots
+    title: AI & Bots
+    order: 80
+    feature_areas: [AI, Bot]
+
+  - id: tooling_data_qa
+    title: Tooling, Data, QA & Release
+    order: 90
+    feature_areas: [Tooling, Tools, Data, QA, Release]
+
+nodes:
+
+  # --- Reactions ------------------------------------------------------------
+
+  - id: issue:165
+    release: v0.1
+    domain_group: actions_reactions
+    checkpoint: E14.5
+    provides:
+      - DecisionBoundary
+
+  - id: issue:166
+    release: v0.1
+    domain_group: actions_reactions
+    checkpoint: E14.6
+
+  - id: issue:314
+    release: v0.1
+    domain_group: actions_reactions
+    checkpoint: E14.7
+
+  - id: issue:319
+    release: v0.1
+    domain_group: actions_reactions
+    checkpoint: E14.8
+
+  - id: issue:512
+    release: v0.1
+    domain_group: core_simulation
+    checkpoint: E15.3
+
+  - id: issue:318
+    release: v0.1
+    domain_group: tooling_data_qa
+    provides:
+      - TurnLogAssertions
+
+  - id: issue:361
+    release: v0.1
+    domain_group: tooling_data_qa
+    provides:
+      - TimeBankLogContract
+
+  # --- Golden / showcase ----------------------------------------------------
+
+  - id: issue:66
+    release: v0.1
+    domain_group: map_environment
+    checkpoint: E8.3
+
+  - id: issue:75
+    release: v0.1
+    domain_group: objectives_match
+    checkpoint: E10.2
+
+  - id: issue:625
+    release: v0.1
+    domain_group: tooling_data_qa
+
+  - id: issue:649
+    release: v0.1
+    domain_group: ai_bots
+
+  - id: issue:687
+    release: v0.1
+    domain_group: tooling_data_qa
+
+  - id: issue:170
+    release: v0.1
+    domain_group: tooling_data_qa
+    checkpoint: E15.4
+    provides:
+      - GoldenReplayV01
+
+  - id: issue:171
+    release: v0.1
+    domain_group: tooling_data_qa
+    checkpoint: E15.5
+    execution_lane: pie
+
+  # --- Character ------------------------------------------------------------
+
+  - id: issue:287
+    release: v0.1
+    domain_group: characters_content
+    checkpoint: E21.1
+
+  - id: issue:288
+    release: v0.1
+    domain_group: characters_content
+    checkpoint: E21.2
+
+  - id: issue:289
+    release: v0.1
+    domain_group: characters_content
+    checkpoint: E21.3
+
+  - id: issue:593
+    release: v0.1
+    domain_group: characters_content
+
+  - id: issue:715
+    release: v0.1
+    domain_group: characters_content
+
+  # Session node metadata is owned by editor-sessions.yaml.
+  # These declarations only make them explicit participants of this thin slice.
+  - id: session:U7
+    release: v0.1
+    domain_group: characters_content
+
+  - id: session:U8
+    release: v0.1
+    domain_group: characters_content
+
+  - id: session:U9
+    release: v0.1
+    domain_group: characters_content
+
+relations:
+
+  # Hard
+  - from: issue:165
+    to: issue:166
+    type: requires
+
+  - from: issue:165
+    to: issue:314
+    type: requires
+
+  - from: issue:165
+    to: issue:512
+    type: requires
+
+  - from: issue:512
+    to: issue:170
+    type: requires
+
+  - from: issue:66
+    to: issue:170
+    type: requires
+
+  - from: issue:75
+    to: issue:170
+    type: requires
+
+  - from: issue:170
+    to: issue:171
+    type: requires
+
+  - from: issue:287
+    to: issue:288
+    type: requires
+
+  - from: issue:287
+    to: issue:289
+    type: requires
+
+  # Soft
+  - from: issue:166
+    to: issue:314
+    type: follows
+    rationale: "CP 14.7 dichiara che segue CP 14.6."
+
+  - from: issue:314
+    to: issue:319
+    type: follows
+    rationale: "CP 14.8 segue CP 14.7 e non precede 14.5/14.6."
+
+  - from: issue:625
+    to: issue:170
+    type: follows
+    rationale: "Meglio chiudere la traccia Burning prima di pinning/rebaseline del golden."
+
+  - from: session:U7
+    to: session:U8
+    type: follows
+    rationale: "Stesso setup; ordine operativo, non hard block."
+
+  - from: session:U8
+    to: session:U9
+    type: follows
+    rationale: "Stesso setup; U9 giudica la presentazione completa."
+
+  # Capability
+  - from: issue:165
+    to: capability:DecisionBoundary
+    type: provides
+
+  - from: capability:DecisionBoundary
+    to: issue:512
+    type: requires_capability
+
+  - from: issue:318
+    to: capability:TurnLogAssertions
+    type: provides
+
+  - from: issue:361
+    to: capability:TimeBankLogContract
+    type: provides
+
+  - from: capability:TimeBankLogContract
+    to: issue:319
+    type: requires_capability
+
+  # Evidence
+  - from: session:U7
+    to: issue:287
+    type: implements
+
+  - from: session:U8
+    to: issue:288
+    type: implements
+
+  - from: session:U9
+    to: issue:289
+    type: verifies
+
+  # Non-blocking
+  - from: issue:593
+    to: session:U7
+    type: related
+    rationale: "La issue dichiara esplicitamente che il workaround regge e non blocca U7."
+
+  - from: issue:593
+    to: session:U9
+    type: related
+    rationale: "Influenza il giudizio visivo ma non e' un prerequisito hard dichiarato."
+
+  - from: issue:649
+    to: issue:170
+    type: related
+    rationale: "Consistency/TurnLog; nessuna hard dependency dichiarata verso CP 15.4."
+
+  - from: issue:687
+    to: issue:170
+    type: related
+    rationale: "Rischio di versioning/migrazione, non hard dependency dichiarata."
+
+  - from: issue:715
+    to: epic:E21
+    type: related
+    rationale: "Lavoro collegato di E21, esplicitamente non checkpoint."

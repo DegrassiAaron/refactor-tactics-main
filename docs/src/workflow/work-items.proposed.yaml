@@ -1,0 +1,87 @@
+# PROPOSED seed only.
+# Questo file NON e' una copia di tutte le issue GitHub.
+# Contiene soltanto work item per cui il grafo necessita di identita', relazione o capability esplicita.
+# Prima della migrazione Claude deve verificare issue, checkpoint e Feature ID su origin/main.
+
+schema_version: 1
+status: PROPOSED
+
+meta:
+  seed_examples_only: true
+  github_state_owner: GitHub
+  feature_state_owner: docs/roadmap/feature-registry.yaml
+  human_session_owner: docs/roadmap/editor-sessions.yaml
+
+work_items:
+
+  # Esempio: Decision Boundary / Overwatch.
+  # Verificare il mapping reale prima di adottarlo.
+  - id: WI-E14-5
+    type: checkpoint
+    checkpoint: E14.5
+    issue: 165
+    release: v0.1
+    execution_lane: code
+    domain_group: actions_reactions
+    features:
+      - RT-FEAT-CORE-DECISION-BOUNDARY
+      - RT-FEAT-REACTION-OVERWATCH
+    requires: []
+    requires_capabilities: []
+    provides_capabilities:
+      - DecisionBoundary
+    follows: []
+    notes: >-
+      Seed dimostrativo. Non significa che E14 dipenda da tutta la Perception epic.
+
+  - id: WI-E14-6
+    type: checkpoint
+    checkpoint: E14.6
+    issue: 166
+    release: v0.1
+    execution_lane: code
+    domain_group: actions_reactions
+    features:
+      - RT-FEAT-REACTION-OVERWATCH
+    requires:
+      - WI-E14-5
+    requires_capabilities:
+      - DecisionBoundary
+    provides_capabilities: []
+    follows: []
+
+  # Junction/integration example.
+  - id: WI-V01-GOLDEN
+    type: checkpoint
+    issue: 170
+    release: v0.1
+    execution_lane: code
+    domain_group: tooling_data_qa
+    features: []
+    requires: []
+    requires_capabilities: []
+    provides_capabilities:
+      - GoldenReplayV01
+    follows: []
+    notes: >-
+      Migrare solo dopo aver ricostruito i reali prerequisiti dal roadmap owner e dalle issue live.
+      Il fatto che piu' strade convergano qui deve essere derivato dal grafo, non da `junction: true`.
+
+# Regole schema:
+#
+# - `id`: stabile nel graph source.
+# - `issue`: riferimento operativo; lo stato viene da GitHub, non dal YAML.
+# - `features`: Feature ID esistenti nel registry.
+# - `execution_lane`: code | pie | asset.
+# - `domain_group`: uno dei gruppi definiti da workstreams.yaml.
+# - `requires`: dipendenze hard work-item -> work-item.
+# - `requires_capabilities`: evita dipendenze artificialmente rigide verso intere epic.
+# - `provides_capabilities`: capability prodotte da questo lavoro.
+# - `follows`: ordine raccomandato, non blocker.
+#
+# NON aggiungere:
+# - status manuale;
+# - percentuali;
+# - titolo feature duplicato;
+# - stato issue duplicato;
+# - gate release duplicato.
