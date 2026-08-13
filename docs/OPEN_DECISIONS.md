@@ -152,6 +152,79 @@ domanda urgente: due produttori sullo stesso artefatto.
 > ⚠️ Nota di metodo: `D2` è la stessa forma di risposta che `MSE-1` cerca — *separare i produttori invece di
 > arbitrarli*. Se regge per il costo, è il primo candidato da provare sui bordi.
 
+> 🔎 **Ristretta di nuovo il 2026-08-12: `MSE-1` resta a DUE campi, e non diventerà tre.**
+> Origine: [revisione spec panel dei due handoff Level Designer](roadmap/plans/level-designer-handoff-spec-panel-2026-08-12.md).
+>
+> L'handoff proponeva `footprint void/cliff → ERTHexSurface::Void`, che avrebbe creato un **terzo** campo a
+> produttore condiviso — e nessuno l'aveva contato. **Deciso: il bake non scrive `Surface`.** Tre ragioni,
+> la seconda è quella che decide:
+>
+> 1. `Void` è una **superficie dipinta**, membro di un enum di nove valori accanto a `Floor`,
+>    `ShallowWater`, `Rough`, `Fire`, `Conductive`, `Ice`, `Smoke`, `HighGround`: nessuna regola
+>    geometrica sa scegliere fra nove.
+> 2. **`Fill` propaga sulla contiguità di superficie.** Una `Surface` cotta non cambierebbe una cella:
+>    cambierebbe il confine di *ogni futuro flood fill* che la attraversa. È un effetto sullo **strumento**,
+>    non sul dato — categoria peggiore di `MSE-1`, non uguale. È il motivo per cui non basta estendere
+>    la domanda: bisogna non porla.
+> 3. Il precipizio è già esprimibile: `bBlocksMovement = true` + `bBlocksLineOfSight = false` dice «non ci
+>    si sta sopra, ma ci si vede attraverso», e lo distingue da un muro. Entrambi i campi sono già di
+>    `#621` per `D1`.
+>
+> È la forma di `D2` nella sua versione più economica: non separare i produttori — **non creare il secondo
+> produttore**. La `D-0xx` la prende la PR che implementa `#621`.
+>
+> ⚠️ Collisione di terminologia registrata qui perché continuerà a mordere: `VoidFootprint()` in
+> `Source/RefactorTactics/Tests/RTOccupancyFixtures.h` significa «contorno chiuso che **non contiene il
+> centro**», cioè il gemello di controllo del solido. **Non** significa `ERTHexSurface::Void`.
+
+---
+
+## Aperta — le soglie di occupancy contro la grammatica di #620, dallo spec panel del 2026-08-12
+
+Origine: [revisione spec panel dei due handoff Level Designer](roadmap/plans/level-designer-handoff-spec-panel-2026-08-12.md) §D0-bis.
+Non nasce da una contraddizione fra documenti, ma da una **collisione fra due decisioni entrambe corrette**,
+prese a settimane di distanza e mai messe una accanto all'altra.
+
+I confini radiali dei dodici settori di `#619` stanno a `-30 + 30k` gradi
+(`RTHexOccupancyLibrary.cpp:99`). Gli assi tattici che `#620` vuole imporre sono `0/30/60/90/120/150`.
+**Sono lo stesso insieme di angoli.** E il contatto su un confine conta come occupazione di *entrambi* i
+settori adiacenti — scelta deliberata e commentata (`RTHexOccupancyLibrary.cpp:38`), giusta presa da sola.
+
+Ne segue che ogni segmento canonico di `#620` nascerà nel caso collineare: quello che le **quattro fixture
+evitano di proposito** — usano `-20`, `-10`, `10`, `40`, `-15` gradi, e il commento della prima lo dichiara
+— e che **nessuno dei diciassette test `HexOccupancy.*` copre**. Le soglie `ConstrainedFrom = 4` e
+`BlockedFrom = 6` sono state calibrate contro geometria fuori asse e stanno per ricevere solo geometria in
+asse.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `MSE-2` | Le soglie di occupancy vanno **ritarate** ora che la grammatica di `#620` produce solo geometria collineare ai confini di settore, o la regola conservativa va resa esclusiva, o si accetta il conteggio più alto come semantica voluta? | Non si deduce dal codice perché **oggi la geometria in asse non esiste**: `#620` è aperta, e nessuna fixture esercita il caso. I numeri invece **ora esistono** — misurati il 2026-08-13, vedi il blocco qui sotto — e quello che resta aperto è una scelta di semantica, che nessuna misura può fare al posto dell'autore. ⚠️ E non è più un'ipotesi: **due** muri su sei lati portano la cella a `Blocked` mentre **quattro lati restano aperti**, e `#621` cuocerebbe quel `Blocked` in `bBlocksMovement` rendendo **impassabile una cella attraversabile**. Cinque uscite, e la quinta è emersa dalla misura: ritarare le soglie (non tocca codice chiuso, solo default) · rendere esclusiva la regola collineare (cambia una regola chiusa, va motivata) · **scartare il contatto di misura nulla** — un settore toccato in un solo punto non è invaso — che è più fine della precedente e lascia le soglie dove sono · contare i **lati murati** invece dei settori quando la geometria è perimetrale (è il conteggio che il designer ha in testa) · accettare e dichiararlo. Innesco: [`#620`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/620), prima che la grammatica fissi la forma dei segmenti |
+
+> 🔎 **La suite è girata il 2026-08-13, e il margine NON regge.** 19 test `HexOccupancy.*` dichiarati,
+> 19 eseguiti, 0 falliti (build `RefactorTacticsEditor` Development, `-nullrhi`). I numeri che
+> `PerimeterWallsOccupancyIsRecorded` registra:
+>
+> | Muri su lati consecutivi | Settori occupati | Quali | Classificazione | Lati ancora aperti |
+> |---:|---:|---|---|---:|
+> | 1 | 4 / 12 | `{0,1,2,11}` | `Constrained` | 5 |
+> | 2 | 6 / 12 | `{0,1,2,3,4,11}` | 🔴 **`Blocked`** | 4 |
+> | 3 | 8 / 12 | `{0,1,2,3,4,5,6,11}` | `Blocked` | 3 |
+>
+> **Due muri sono l'angolo di una stanza**: la geometria più comune che un designer disegni, e già oggi
+> supera `BlockedFrom`.
+>
+> 🔑 **La causa è isolata, e non sono le soglie.** Lo stesso muro rientrato del 5% agli estremi — stessa
+> giacitura, stesso lato, ma senza toccare i due vertici — occupa **2 settori invece di 4**. Metà del
+> conteggio è **contatto sul solo vertice**, cioè area invasa nulla: un vertice dell'esagono è il punto in
+> comune fra quattro triangoli di settore, e un estremo che ci cade sopra ne accende due che la geometria
+> non invade. Scartando il contatto di misura nulla il conteggio diventa `2N` — 1 muro `Free`, 2
+> `Constrained`, 3 `Blocked` — che è esattamente la lettura del designer, **con le soglie attuali intatte**.
+>
+> ⚠️ Questa quinta uscita **non contraddice** la regola conservativa che `SegmentOnSectorBoundary...`
+> protegge: là il contatto è lungo un *segmento*, e resterebbe occupazione. La distinzione è fra contatto
+> di misura nulla e contatto esteso, non fra collineare e non collineare. Cambia comunque una regola di
+> `#619` già chiusa, quindi resta una **decisione**, non una correzione: va presa prima di `#621`.
+
 ---
 
 ## ✅ Chiuse il 2026-08-10 — geometria, acqua e strutture, dal quinto sorgente
