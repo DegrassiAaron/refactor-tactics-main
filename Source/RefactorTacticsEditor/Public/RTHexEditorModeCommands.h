@@ -24,6 +24,9 @@ public:
 	/** Tool secchiello / flood-fill (H5c.7). */
 	TSharedPtr<FUICommandInfo> FillTool;
 
+	/** #712: il gesto dell'autore — disegna un muro quantizzato che cuoce in coperture. */
+	TSharedPtr<FUICommandInfo> GeometryTool;
+
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
 };

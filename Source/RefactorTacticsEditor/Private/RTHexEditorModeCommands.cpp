@@ -29,6 +29,10 @@ void FRTHexEditorModeCommands::RegisterCommands()
 	UI_COMMAND(FillTool, "Fill", "Secchiello: riempie la regione contigua della stessa superficie col pennello corrente.",
 		EUserInterfaceActionType::ToggleButton, FInputChord());
 	ToolCommands.Add(FillTool);
+
+	UI_COMMAND(GeometryTool, "Geometry", "Disegna un muro quantizzato: si trascina, il ghost mostra prima del rilascio se il segmento e' legale, e al rilascio la cottura lo trasforma in coperture.",
+		EUserInterfaceActionType::ToggleButton, FInputChord());
+	ToolCommands.Add(GeometryTool);
 }
 
 TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> FRTHexEditorModeCommands::GetCommands()

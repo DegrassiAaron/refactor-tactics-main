@@ -853,11 +853,11 @@ sessions:
     produces: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
     artifacts: []
     unblocked_by: []
-    shares_setup_with: []
+    shares_setup_with: [U22]
     verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
     issues: [623]
     done_when: le due voci hanno un esito reale e il livello illuminato e' committato
-    unblocks: []
+    unblocks: [U22]
     notes: >-
       Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e
       non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e
@@ -873,3 +873,29 @@ sessions:
       Resta solo l'inquadratura della mappa, che e' `PIE-MAPED-FRAME`.
       ⚠️ ID assegnato al merge: preso `U21` con `U20` come ultimo su `main`. Chi arriva secondo
       rinumera, non contende.
+
+  - id: U22
+    title: Il gesto dell'autore — ghost, snap e Undo del tool Geometry
+    block: 6
+    critical: false
+    produces: verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo
+    artifacts: []
+    unblocked_by: [U21]
+    shares_setup_with: [U21]
+    verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI]
+    issues: [712]
+    done_when: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
+    unblocks: []
+    notes: >-
+      Nasce da #712, il gesto dell'autore. La seduta esiste perche' QUATTRO voci del suo DoD non sono
+      osservabili headless: ghost, snap, Undo e residui vivono nell'occhio di chi disegna, non in una
+      asserzione. La parte verificabile e' gia' nel runtime — `SnapToGrammar` con i suoi due test,
+      `ValidateSegment` con i cinque di #620, `BakeCell` con i sette di #621 — e il tool d'editor NON
+      contiene una sola regola: misurato, tre chiamate al runtime e zero logica duplicata.
+      ⚠️ `unblocked_by: [U21]` non e' una dipendenza tecnica ma pratica: `L_DevSandbox` va illuminato
+      prima, o il ghost si valuta su una scena in cui non si vede niente — e il verdetto direbbe piu'
+      sulle luci che sul tool.
+      ⚠️ `PIE-GEO-RESIDUI` chiede anche un `git status` pulito sul `.umap`: la geometria non si salva
+      nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`.
+      ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch
+      remoti. Chi arriva secondo rinumera, non contende.

@@ -251,4 +251,25 @@ public:
 	 * polilinea vuota invece di coordinate arbitrarie: chi non ha validato non ottiene geometria.
 	 */
 	static FRTOccupancyPolyline ToPolyline(const FRTGeometrySegment& Segment, float HexSize);
+
+	/**
+	 * LO SNAP: dai due punti che il mouse ha tracciato al segmento della grammatica piu' vicino.
+	 *
+	 * E' il cuore del gesto d'authoring (`#712`), e vive QUI e non nell'editor per la ragione di sempre: in
+	 * `Source/RefactorTacticsEditor/` non esiste alcun test, e uno snap che nessun test puo' far cadere non e'
+	 * una regola ma un'abitudine. Il tool la CHIAMA, e resta sottile.
+	 *
+	 * Prova tutti e sei gli assi, proietta i due punti sulla base ortogonale (asse, perpendicolare) di
+	 * ciascuno — le due direzioni hanno lunghezze diverse, vertice e apotema, quindi la proiezione divide per
+	 * il quadrato di ciascuna — arrotonda a quanti interi e tiene l'asse che sbaglia meno.
+	 *
+	 * Restituisce `false` se il gesto non produce un segmento legale: due punti troppo vicini collassano in
+	 * lunghezza zero, e un gesto lontano dalla cella esce dai bordi editabili. In quel caso `OutSegment` non
+	 * e' definito, e chi disegna deve mostrare un ghost invalido invece di committare.
+	 *
+	 * ⚠️ **`Layer` non si deduce dalla geometria**: e' contesto d'editor — il layer attivo — e resta al
+	 * chiamante. Qui vale sempre zero.
+	 */
+	static bool SnapToGrammar(const FVector2D& LocalA, const FVector2D& LocalB, float HexSize,
+		FRTGeometrySegment& OutSegment);
 };

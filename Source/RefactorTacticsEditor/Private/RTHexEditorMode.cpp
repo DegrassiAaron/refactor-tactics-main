@@ -5,6 +5,7 @@
 #include "Tools/RTHexSelectTool.h"
 #include "Tools/RTHexPaintTool.h"
 #include "Tools/RTHexArchTool.h"
+#include "Tools/RTHexGeometryTool.h"
 #include "Tools/RTHexFillTool.h"
 
 #define LOCTEXT_NAMESPACE "RTHexEditorMode"
@@ -30,6 +31,7 @@ void URTHexEditorMode::Enter()
 	RegisterTool(Commands.PaintTool, TEXT("RTHexPaintTool"), NewObject<URTHexPaintToolBuilder>(this));
 	RegisterTool(Commands.ArchTool, TEXT("RTHexArchTool"), NewObject<URTHexArchToolBuilder>(this));
 	RegisterTool(Commands.FillTool, TEXT("RTHexFillTool"), NewObject<URTHexFillToolBuilder>(this));
+	RegisterTool(Commands.GeometryTool, TEXT("RTHexGeometryTool"), NewObject<URTHexGeometryToolBuilder>(this));
 
 	GetToolManager()->SelectActiveToolType(EToolSide::Left, TEXT("RTHexSelectTool"));
 }
