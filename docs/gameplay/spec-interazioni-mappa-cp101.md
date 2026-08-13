@@ -91,8 +91,8 @@ Interaction.Remote        Interaction.Demolition
 
 E il mapping per eroe resta **fuori** dal canone:
 
-> ⚠️ **`INTERACTION-CAPABILITY-01`.** Le assegnazioni discusse — Flux → `Electric`/`Tech`, Riva → `Fluid`,
-> Bastion → `Engineering`/`Force`, Vektor → `Precision`/`Sensor` — sono **coerenti** con le identità già
+> ⚠️ **`INTERACTION-CAPABILITY-01`.** Le assegnazioni discusse — Gadget → `Electric`/`Tech`, Phase → `Fluid`,
+> Riktor → `Engineering`/`Force`, Wraith → `Precision`/`Sensor` — sono **coerenti** con le identità già
 > canoniche, e proprio per questo è facile scambiarle per decise. Non lo sono: nessuna compare nel
 > [catalogo eroi](../balance/RT_HeroCatalog_v0.1.md) né nel Decision Log. Vanno decise con l'autore prima di
 > diventare dato, perché sono un **asse di bilanciamento**: assegnare `Force` a un solo eroe rende quel

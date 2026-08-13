@@ -221,7 +221,7 @@ ha dichiarato apertamente per gli otto numeri del pivot. E costa in leggibilità
 **prima di confermare** perché un'abilità è grigia.
 
 **Vincolo non negoziabile**: dev'essere un **dato dell'abilità**, mai un ramo per eroe nel resolver
-(invariante #7, [D-029](../decisions/RT_PDR_00_Decision_Log.md)). Se per aggiungere «Vektor spara in corsa»
+(invariante #7, [D-029](../decisions/RT_PDR_00_Decision_Log.md)). Se per aggiungere «Wraith spara in corsa»
 serve toccare `ARTTurnManager`, il modello non serve.
 
 ### 4.3 I fatti del percorso sono un'altra cosa

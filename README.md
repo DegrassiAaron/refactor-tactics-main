@@ -27,7 +27,7 @@ Griglia **esagonale** multilivello (`FRTCellId`, coordinate assiali/cubiche) con
 
 Un *vertical slice* giocabile **2v2 offline contro bot** su griglia esagonale multilivello, con:
 
-- **4 eroi** distinti (Flux, Riva, Bastion, Vektor), 4 abilità ciascuno + una variante;
+- **4 eroi** distinti (Gadget, Phase, Riktor, Wraith), 4 abilità ciascuno + una variante;
 - **catalogo azioni** completo (~35 azioni con ID stabile, fase, priorità intera, fallback, cooldown);
 - **reazioni** preparate in pianificazione (una attivazione per turno);
 - **terreni attivi** (acqua, fuoco, elettricità, fumo, ghiaccio) con stati e propagazione deterministica;

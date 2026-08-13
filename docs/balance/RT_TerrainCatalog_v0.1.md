@@ -112,7 +112,7 @@ costruzione).
 
 | Stato | Origine | Effetto | Durata |
 |---|---|---|---|
-| `Wet` | acqua bassa, `CreateWater`, Riva | conduce elettricità, rimuove `Burning` | finché sulla cella / **1 turno** se applicato da un'abilità (CP 8.2) |
+| `Wet` | acqua bassa, `CreateWater`, Phase | conduce elettricità, rimuove `Burning` | finché sulla cella / **1 turno** se applicato da un'abilità (CP 8.2) |
 | `Burning` | fuoco, `Ignite` | 8 danni nel Cleanup | 2 turni, rimosso da `Wet` |
 | `Electrified` | propagazione elettrica | danno dell'evento | istantaneo (una sola volta per evento) |
 | `Obscured` | fumo | targeting limitato a 2 celle | finché nel fumo |

@@ -16,27 +16,37 @@ Perche' non e' un search/replace
 Un replace globale romperebbe simboli C++, Stable ID, link e riferimenti storici
 insieme: D-120 lo vieta esplicitamente. Il gate segnala, non riscrive.
 
-Perche' la copertura e' parziale *per scelta*
----------------------------------------------
-Al momento di scrivere questo gate la prosa legacy misurata e' molto piu' grande di
-quanto una sola PR possa correggere onestamente. Un gate rosso ovunque non protegge
-niente: diventa rumore che si impara a ignorare, e il repository ha gia' pagato
-questo difetto (vedi `docs/archive/src/README.md` sul conteggio dei sorgenti).
+La copertura era parziale, e dal 2026-08-13 non lo e' piu'
+----------------------------------------------------------
+Alla nascita di questo gate la prosa legacy misurata era **832 occorrenze in 72
+file**: molto piu' di quanto una sola PR potesse correggere onestamente. Un gate
+rosso ovunque non protegge niente — diventa rumore che si impara a ignorare, e il
+repository ha gia' pagato questo difetto (vedi `docs/archive/src/README.md` sul
+conteggio dei sorgenti). Percio' partiva con una **allowlist** di tre file.
 
-Quindi il gate ha due modi:
+Quella ragione e' scaduta: l'arretrato bonificabile e' stato chiuso, e cio' che
+resta sono **solo** i registri datati, che non si bonificano per definizione. Una
+allowlist ora farebbe il danno opposto — elencherebbe i file gia' bonificati e
+lascerebbe **muta** una regressione in tutti gli altri, che sono la maggioranza.
 
-* i file in ENFORCED sono **puliti e vanno tenuti puliti**: una violazione li' e'
-  un errore e fa uscire 1;
-* tutto il resto e' misurato e stampato come arretrato, senza far fallire il gate.
+⚠️ Nessun conteggio e' scritto qui, ed e' deliberato. La prima stesura ne fissava
+due — «47 file» e «175» — ed erano **sbagliati**: derivati a mano sommando i file
+toccati da un solo passaggio, mentre i file passati da sporchi a puliti erano
+**52** (72 sporchi alla base, meno i 20 registri esenti che restano tali). Il
+referto stampa i numeri veri a ogni esecuzione: si leggono li'.
 
-Un file si sposta in ENFORCED quando e' stato bonificato, mai prima. Il numero
-dell'arretrato si **rimisura** eseguendo lo script: non si copia da un documento.
+Quindi il gate e' invertito: **tutto e' protetto tranne cio' che e' esente**, e
+l'esenzione e' esplicita e motivata. Un file nuovo nasce protetto senza che nessuno
+si ricordi di aggiungerlo a una lista.
+
+Il numero dell'arretrato esente si **rimisura** eseguendo lo script: non si copia
+da un documento.
 
 Uso
 ---
     python scripts/check-docs-naming.py             # referto completo
-    python scripts/check-docs-naming.py --check     # gate: esce 1 se ENFORCED e' sporco
-    python scripts/check-docs-naming.py --all       # elenca anche l'arretrato, file per file
+    python scripts/check-docs-naming.py --check     # gate: esce 1 se un file protetto e' sporco
+    python scripts/check-docs-naming.py --all       # elenca anche i registri esenti, file per file
 """
 
 from __future__ import annotations
@@ -64,22 +74,45 @@ LEGACY = ("Flux", "Riva", "Bastion", "Vektor")
 #   src/      -> input non ancora recepito, non e' autorita' (CLAUDE.md §1)
 EXCLUDED_DIRS = ("archive", "src")
 
-# File bonificati e da tenere puliti. Cresce, non si svuota.
+# Esenzioni: gli unici documenti dove un nome legacy in prosa NON e' un difetto.
 #
-# ⚠️ I registri datati NON entrano qui, e non e' una dimenticanza. Il Decision Log e
-# OPEN_DECISIONS sono *log*: ogni riga e' un'affermazione con una data, e D-037,
-# D-041, D-058, D-069 descrivono il roster com'era chiamato quando furono scritte.
-# D-120 le supera nella parte nominale; non le rende false a posteriori. Riscriverle
-# per far passare un gate sarebbe la stessa falsificazione che
-# `docs/archive/src/README.md` vieta per i sorgenti — la correzione e' una nota
-# accanto all'affermazione, non una modifica del paragrafo.
+# ⚠️ Sono **registri datati**, e l'esenzione non e' una dimenticanza. Il Decision
+# Log, OPEN_DECISIONS, il changelog, gli ADR e i referti di `roadmap/plans/` sono
+# *log*: ogni riga e' un'affermazione con una data, e D-037, D-041, D-058, D-069
+# descrivono il roster com'era chiamato quando furono scritte. D-120 le supera nella
+# parte nominale; non le rende false a posteriori. Riscriverle per far passare un
+# gate sarebbe la stessa falsificazione che `docs/archive/src/README.md` vieta per i
+# sorgenti — la correzione e' una **nota accanto all'affermazione**, non una modifica
+# del paragrafo.
 #
-# Qui entrano i documenti che descrivono il roster **corrente** a chi legge oggi.
-ENFORCED = (
-    "docs/characters/index.md",
-    "docs/characters/README.md",
-    "docs/roadmap/roadmap-v0.1.md",
+# Tutto il resto e' protetto: e' il roster **corrente** letto da chi apre il file oggi.
+EXEMPT_FILES = (
+    "docs/decisions/RT_PDR_00_Decision_Log.md",
+    "docs/OPEN_DECISIONS.md",
+    "docs/CHANGELOG_DOCUMENTATION.md",
+    # ⚠️ I due seguenti si riconoscono dal BANNER, non dalla cartella, e sono stati
+    # scoperti solo perche' una review li ha letti: il gate invertito li aveva resi
+    # obbligatori, e la prima stesura di questa PR li ha riscritti davvero.
+    #   v0.1-issue-plan  «SNAPSHOT DI CREAZIONE DELLE ISSUE, NON NORMATIVO ... i corpi
+    #     usati per creare le issue»: rinominarli fa dire al file che avevamo scritto
+    #     «Gadget» in issue che su GitHub portano ancora «Flux».
+    #   roadmap-editor   «VISTA RITIRATA IL 2026-08-08 ... il corpo resta come
+    #     provenienza».
+    "docs/roadmap/v0.1-issue-plan.md",
+    "docs/roadmap/roadmap-editor.md",
 )
+EXEMPT_PREFIXES = (
+    "docs/decisions/adr-",      # una ADR e' datata e firmata: si annota, non si riscrive
+    # ⚠️ Referti, triage e audit: fotografano un momento, e la data sta nel corpo.
+    # NON dire «datati nel nome» — e' falso per circa 27 dei file di questa cartella
+    # (roadmap_lane_*.md, showcase-v01-audit.md, pacing-turno-plan.md, ...), e una
+    # giustificazione sbagliata regge finche' qualcuno non la verifica.
+    "docs/roadmap/plans/",
+)
+
+
+def is_exempt(rel: str) -> bool:
+    return rel in EXEMPT_FILES or rel.startswith(EXEMPT_PREFIXES)
 
 # --- maschere: ciò che NON è prosa player-facing -----------------------------
 # L'ordine conta: i blocchi recintati spariscono prima degli inline, altrimenti un
@@ -151,8 +184,22 @@ def scan(path: Path) -> list[tuple[int, str, str]]:
     return hits
 
 
+# ⚠️ I file di governance stanno FUORI da `docs/`, e questo gate li ha mancati fino
+# al 2026-08-13: `AGENTS.md` ha continuato a dichiarare «Roster v0.1 corrente: Flux ·
+# Riva · Bastion · Vektor» per un giorno intero dopo D-120, mentre ogni documento
+# sotto `docs/` era stato corretto — ed e' il primo file che CLAUDE.md §1 impone di
+# leggere. Un gate che copre la periferia e non il centro e' peggio di nessun gate:
+# rassicura. Si elencano per nome perche' la root contiene anche kit datati, che
+# sarebbero esenti per la stessa ragione dei registri.
+ROOT_GOVERNANCE = ("CLAUDE.md", "AGENTS.md", "README.md")
+
+
 def markdown_files() -> list[Path]:
     files = []
+    for name in ROOT_GOVERNANCE:
+        path = REPO / name
+        if path.is_file():
+            files.append(path)
     for path in sorted(DOCS.rglob("*.md")):
         rel_parts = path.relative_to(DOCS).parts
         if rel_parts and rel_parts[0] in EXCLUDED_DIRS:
@@ -166,54 +213,58 @@ def main() -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="esce 1 se un file ENFORCED contiene prosa legacy",
+        help="esce 1 se un file protetto contiene prosa legacy",
     )
     parser.add_argument(
         "--all",
         action="store_true",
-        help="elenca anche l'arretrato, file per file",
+        help="elenca anche le occorrenze nei registri esenti, file per file",
     )
     args = parser.parse_args()
 
     files = markdown_files()
     enforced_hits: dict[str, list[tuple[int, str, str]]] = {}
     backlog_hits: dict[str, list[tuple[int, str, str]]] = {}
+    enforced_files = 0
 
     for path in files:
         rel = path.relative_to(REPO).as_posix()
+        exempt = is_exempt(rel)
+        if not exempt:
+            enforced_files += 1
         hits = scan(path)
         if not hits:
             continue
-        if rel in ENFORCED:
-            enforced_hits[rel] = hits
-        else:
+        if exempt:
             backlog_hits[rel] = hits
+        else:
+            enforced_hits[rel] = hits
 
     total_files = len(files)
-    enforced_present = sum(1 for f in ENFORCED if (REPO / f).exists())
     backlog_count = sum(len(h) for h in backlog_hits.values())
 
     print(f"File markdown normativi analizzati: {total_files}"
-          f" (esclusi {'/'.join(EXCLUDED_DIRS)})")
+          f" (governance di root + docs/, esclusi {'/'.join(EXCLUDED_DIRS)})")
     if total_files:
-        print(f"Sotto gate ENFORCED: {enforced_present}/{total_files} file"
-              f" — copertura {enforced_present / total_files:.0%}")
+        print(f"Protetti dal gate: {enforced_files}/{total_files} file"
+              f" — copertura {enforced_files / total_files:.0%}"
+              f" · esenti (registri datati): {total_files - enforced_files}")
     else:
         # Checkout parziale o `docs/` spostata: meglio dirlo che dividere per zero.
         print("Nessun file markdown trovato sotto docs/ — controlla il checkout.")
     print()
 
     if enforced_hits:
-        print("ERRORE — prosa legacy in file che devono restare puliti:")
+        print("ERRORE — prosa legacy in file protetti dal gate:")
         for rel, hits in enforced_hits.items():
             for lineno, name, text in hits:
                 print(f"  {rel}:{lineno}: {name} -> {text}")
         print()
     else:
-        print("OK — nessun nome legacy come prosa player-facing nei file ENFORCED.")
+        print("OK — nessun nome legacy come prosa player-facing nei file protetti.")
         print()
 
-    print(f"Arretrato fuori gate: {backlog_count} occorrenze in {len(backlog_hits)} file.")
+    print(f"Nei registri esenti: {backlog_count} occorrenze in {len(backlog_hits)} file.")
     if backlog_hits:
         ordered = sorted(backlog_hits.items(), key=lambda kv: -len(kv[1]))
         if args.all:
@@ -226,8 +277,9 @@ def main() -> int:
             for rel, hits in ordered[:10]:
                 print(f"      {len(hits):4d}  {rel}")
     print()
-    print("L'arretrato non fa fallire il gate: si bonifica un file per volta e lo si"
-          " aggiunge a ENFORCED. Il numero qui sopra si rimisura eseguendo lo script.")
+    print("Le occorrenze nei registri datati non fanno fallire il gate e non si"
+          " bonificano: si annotano accanto all'affermazione. Il numero qui sopra si"
+          " rimisura eseguendo lo script.")
 
     if args.check and enforced_hits:
         return 1

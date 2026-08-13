@@ -106,7 +106,7 @@ Serve quando l'elemento da guardare è **di bordo**, e sta solo qui:
 - HighGround `(2,-2)` `(3,-1)`; Ice `(-1,2)` `(0,2)` `(1,2)`; Fire `(2,-1)` `(1,-1)`;
   Water `(-3,1)`…`(0,1)`; Conductive `(1,1)` `(2,1)`; Rough `(1,0)` `(2,0)`; Smoke `(-3,0)` `(-2,0)`.
 
-Spawn canonici: Flux `(-4,0)`, Riva `(-4,1)`, Bastion `(4,0)`, Vektor `(4,1)`.
+Spawn canonici: Gadget `(-4,0)`, Phase `(-4,1)`, Riktor `(4,0)`, Wraith `(4,1)`.
 
 ### `CoverYard` — i bordi, e nient'altro (raggio 3, 37 celle)
 
@@ -137,10 +137,10 @@ ostacoli `(-1,2)` `(1,-2)` `(2,1)` e la fascia Rough a costo 3 su `q=-2`.
 
 | Eroe | HP | MP | Attacco base | Note |
 |---|---:|---:|---|---|
-| Flux | 90 | 5 | `Flux.ArcPulse` 22, r4 | `LinearDischarge` 24 r5 linea cd2 · `Overload` 18 AoE r1 |
-| Riva | 95 | 5 | `Riva.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
-| Bastion | 120 | 4 | `Bastion.ImpactShot` 8 + Slow(1), r3 | PushResistance 1 · `Ram` = carica 20 + Push 1 |
-| Vektor | 90 | 6 | `Vektor.PulseShot` 21, r4 | il più mobile |
+| Gadget | 90 | 5 | `Flux.ArcPulse` 22, r4 | `LinearDischarge` 24 r5 linea cd2 · `Overload` 18 AoE r1 |
+| Phase | 95 | 5 | `Riva.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
+| Riktor | 120 | 4 | `Bastion.ImpactShot` 8 + Slow(1), r3 | PushResistance 1 · `Ram` = carica 20 + Push 1 |
+| Wraith | 90 | 6 | `Vektor.PulseShot` 21, r4 | il più mobile |
 
 I danni da terreno vengono dal catalogo terreni (Fire: 10 + `Burning`) e vanno confermati al primo run.
 
@@ -159,20 +159,20 @@ progetto a usare una fixture invece di un'arena generata.
 | ID | Fixture | Allestimento | Cosa guardi | Assertion | Stato |
 |---|---|---|---|---|---|
 | `Movement.LongWalk` *(esiste)* | r5 | due unità attraversano l'arena, 3 celle per turno × 2 | passo, orientamento, velocità, camera che segue | *(già sue)* | già `animation` |
-| `Combat.BasicAttack` *(esiste)* | r4 | Flux `ArcPulse` su Bastion a distanza 2 | partenza, volo, impatto, numero di danno | `UnitHpEquals B1 98` | già `animation` |
-| `Visual.Environment.FireOnEnter` | RelayLite | Vektor `(0,-3)` → move `(0,-2)` Fire | **due** momenti: 10 danni all'ingresso, 8 nel Cleanup per `Burning` | `UnitHpEquals V1 82` · `UnitAtCell (0,-2,0)` | scritto |
-| `Visual.Combat.Defeat` | r4 | Flux `(-1,0)`; Bastion `ImpactShot` + Vektor `PulseShot` per **quattro turni** | l'unità che incassa, poi sparisce: 8+21=29 a turno, KO nel quarto (ADR-0007; con ImpactShot a 24 erano 45 e bastavano due) | `UnitAlive F1 false` · `TurnsCompleted 4` | scritto |
-| `Visual.Movement.Charge` | r4 | Bastion `(3,0)` usa `Ram` su Flux `(1,0)` (distanza 2, portata 3) | la carica **si legge diversa** dal passo: accelerazione, impatto, arresto addosso | `UnitHpEquals F1 70` (90−20) | scritto |
-| `Visual.Environment.IceSlide` | RelayLite | Flux `(-2,4)` → move `(-2,3)` `(-2,2)` Ice, restano 3 MP | il passo extra deve leggersi come **scivolata**, non come un passo in più | `UnitAtCell F1 (-2,1,0)` | scritto |
+| `Combat.BasicAttack` *(esiste)* | r4 | Gadget `ArcPulse` su Riktor a distanza 2 | partenza, volo, impatto, numero di danno | `UnitHpEquals B1 98` | già `animation` |
+| `Visual.Environment.FireOnEnter` | RelayLite | Wraith `(0,-3)` → move `(0,-2)` Fire | **due** momenti: 10 danni all'ingresso, 8 nel Cleanup per `Burning` | `UnitHpEquals V1 82` · `UnitAtCell (0,-2,0)` | scritto |
+| `Visual.Combat.Defeat` | r4 | Gadget `(-1,0)`; Riktor `ImpactShot` + Wraith `PulseShot` per **quattro turni** | l'unità che incassa, poi sparisce: 8+21=29 a turno, KO nel quarto (ADR-0007; con ImpactShot a 24 erano 45 e bastavano due) | `UnitAlive F1 false` · `TurnsCompleted 4` | scritto |
+| `Visual.Movement.Charge` | r4 | Riktor `(3,0)` usa `Ram` su Gadget `(1,0)` (distanza 2, portata 3) | la carica **si legge diversa** dal passo: accelerazione, impatto, arresto addosso | `UnitHpEquals F1 70` (90−20) | scritto |
+| `Visual.Environment.IceSlide` | RelayLite | Gadget `(-2,4)` → move `(-2,3)` `(-2,2)` Ice, restano 3 MP | il passo extra deve leggersi come **scivolata**, non come un passo in più | `UnitAtCell F1 (-2,1,0)` | scritto |
 
 Tre cose emerse verificando i numeri prima di scrivere i file, e nessuna era ovvia:
 
-- **`Burning` costa 8 danni nel Cleanup**, per due turni. Vektor non finisce a 90 ma a **82**, e lo scenario
+- **`Burning` costa 8 danni nel Cleanup**, per due turni. Wraith non finisce a 90 ma a **82**, e lo scenario
   del fuoco ha quindi *due* momenti da guardare invece di uno. Un VFX che li copre con la stessa animazione
   sta nascondendo una regola.
 - **`Action.Charge` ha portata 3** (catalogo azioni), ereditata da `Ram`: la distanza 2 dell'allestimento
   sta dentro con un margine che sopravvive a un ritocco di bilanciamento.
-- **Lo scivolamento richiede budget residuo ≥ 2**, e prosegue *nella direzione dell'ultimo passo*. Flux ha
+- **Lo scivolamento richiede budget residuo ≥ 2**, e prosegue *nella direzione dell'ultimo passo*. Gadget ha
   5 MP, il percorso ne costa 2, ne restano 3: scivola. Spostare la cella di partenza spegne l'effetto senza
   che niente sembri rotto.
 
@@ -180,20 +180,20 @@ Resta un'incognita dichiarata: in `Visual.Movement.Charge` le **celle finali** d
 arresto e spinta. Non sono assertion — stanno in `_nota_celle`, e il primo run le promuove. Scriverle a
 indovinare produrrebbe un rosso che accusa il gioco di un errore proprio.
 
-Quello scenario porta anche il **push**: Flux finisce spinto di una cella senza che nessun evento lo dica. Se
+Quello scenario porta anche il **push**: Gadget finisce spinto di una cella senza che nessun evento lo dica. Se
 la spinta non si legge, non è un difetto del VFX — è la §8.1.
 
 ### Fascia B — leggibilità: si capisce cosa è successo?
 
 | ID | Fixture | Cosa guardi | Stato |
 |---|---|---|---|
-| `Visual.Combat.WaterElectric` | r5 | Riva bagna (prio 50), Flux scarica potenziato (prio 55): **due regole in un colpo** — la combo firma e la priorità intra-fase. 100−16−32 = 52 | scritto |
-| `Visual.Combat.FallbackTargetMoved` | r4 | Bastion lascia la cella nel Dash, la scarica arriva sulla cella **vuota**: il piano è rivalidato, non annullato | scritto |
+| `Visual.Combat.WaterElectric` | r5 | Phase bagna (prio 50), Gadget scarica potenziato (prio 55): **due regole in un colpo** — la combo firma e la priorità intra-fase. 100−16−32 = 52 | scritto |
+| `Visual.Combat.FallbackTargetMoved` | r4 | Riktor lascia la cella nel Dash, la scarica arriva sulla cella **vuota**: il piano è rivalidato, non annullato | scritto |
 | `Visual.Core.PhaseOrder` | r4 | tre azioni in tre fasi separate — carica, colpo, camminata: `Dash → Blast → Move` deve **vedersi** | scritto |
-| `Visual.Combat.PushResistance` | r4 | la stessa spinta su Bastion (assorbita, PushResist 1) e su Vektor (subìta): una statistica invisibile diventa visibile | scritto |
+| `Visual.Combat.PushResistance` | r4 | la stessa spinta su Riktor (assorbita, PushResist 1) e su Wraith (subìta): una statistica invisibile diventa visibile | scritto |
 | `Visual.Combat.SmokeCapsTargeting` | RelayLite | il bersaglio **si vede** e non si può colpire: il fumo accorcia, non acceca | scritto |
 | `Visual.Movement.RoughRefusesCharge` | RelayLite | il rifiuto in **pianificazione**: a schermo non deve accadere niente | scritto |
-| `Visual.Reaction.Interposition` | r4 | il proiettile **cambia destinatario** a mezz'aria: Bastion incassa al posto di Vektor. Il caso più difficile del corpus — se non si vede, si legge «Flux ha sbagliato mira» | scritto |
+| `Visual.Reaction.Interposition` | r4 | il proiettile **cambia destinatario** a mezz'aria: Riktor incassa al posto di Wraith. Il caso più difficile del corpus — se non si vede, si legge «Gadget ha sbagliato mira» | scritto |
 | `Visual.Reaction.Deflection` | r4 | l'opposto: il colpo arriva dove doveva e **quasi non fa niente** (22 → 2). Se la parata non si vede, si legge un attacco debole invece di una difesa riuscita | scritto |
 | `Visual.Combat.GuardReducesFirstHit` | r4 | `Guard` toglie 15 al **primo** colpo e finisce lì: 120 → 92 | scritto |
 | `Visual.Combat.BraceReducesEveryHit` | r4 | `Brace` toglie 10 a **ogni** colpo e non finisce mai: 120 → 97 | scritto |
@@ -210,9 +210,9 @@ fare, lo scenario non lo sa dire. Vedi §8.2.
 | ID | Fixture | Cosa guardi | Stato |
 |---|---|---|---|
 | `Visual.Environment.WetExtinguishesFire` | RelayLite | CP 8.4: l'acqua spegne le fiamme. Ciò che si guarda è un'**assenza** — gli 8 danni del Cleanup che non arrivano. 66, non 58 | scritto |
-| `Visual.Map.LowCoverEdge` | RelayBasin | due colpi simultanei sullo stesso bersaglio, **entità diverse**: la copertura è di un bordo. 90−11−8 = 71. Da ADR-0007 è **Vektor** a tirare dal lato riparato: con ImpactShot a 8 contro una riduzione di 10 il danno si troncava a zero e lo scenario smetteva di misurare la grandezza della copertura | scritto |
-| `Visual.Map.ClosedDoor` | RelayBasin | Riva arriva **girando**: la porta è un bordo, e il percorso deve raccontare da sé perché è lungo | scritto |
-| `Visual.Map.HighGroundNoBonus` | RelayBasin | due Vektor identici, dalla cresta e dal piano: 21+21, nessun bonus (D-024) | scritto |
+| `Visual.Map.LowCoverEdge` | RelayBasin | due colpi simultanei sullo stesso bersaglio, **entità diverse**: la copertura è di un bordo. 90−11−8 = 71. Da ADR-0007 è **Wraith** a tirare dal lato riparato: con ImpactShot a 8 contro una riduzione di 10 il danno si troncava a zero e lo scenario smetteva di misurare la grandezza della copertura | scritto |
+| `Visual.Map.ClosedDoor` | RelayBasin | Phase arriva **girando**: la porta è un bordo, e il percorso deve raccontare da sé perché è lungo | scritto |
+| `Visual.Map.HighGroundNoBonus` | RelayBasin | due Wraith identici, dalla cresta e dal piano: 21+21, nessun bonus (D-024) | scritto |
 | `Visual.Map.HighCoverBlocks` | **CoverYard** | la barriera **alta** nega vista *e* passo in un turno solo: il colpo non parte e il percorso gira | scritto |
 | `Visual.Map.MultiLevel` | TestArena | la salita attraverso l'unica transizione: i layer non hanno adiacenza implicita | scritto |
 | `Combat.BlockedByWall` *(esiste)* | r4 | il muro ferma la **vista**, non il passaggio | già nel corpus |
@@ -227,7 +227,7 @@ Le tre avvertenze della fascia C, per non scoprirle scrivendo i file:
 - `Visual.Cover.LowEdge` — l'entità della riduzione (la spec CP 9.1 dice 10 su danno diretto dal lato
   protetto) non è stata verificata nel codice mentre si scriveva. Il valore dell'assertion lo fissa il primo
   run: quello che questo scenario deve dimostrare è che i **due colpi differiscono**, non di quanto.
-- `Visual.Map.ClosedDoor` — che i 5 MP di Riva bastino a girare intorno alla porta passando da Rough dipende
+- `Visual.Map.ClosedDoor` — che i 5 MP di Phase bastino a girare intorno alla porta passando da Rough dipende
   dal costo di quella cella. Se non bastano, il percorso alternativo va accorciato: lo scenario deve mostrare
   una deviazione, non un fallimento di budget.
 - `Visual.HighGround.NoBonus` — usa **due unità con lo stesso `HeroId`**, che il formato consente (l'`Id` è
@@ -363,7 +363,7 @@ RefactorTactics.Scenario.ExpectedFailScenariosReallyFail     Success
 **Tre erano difetti miei, con una causa sola.** Lo scatto si dichiara con `dash` + `dashTo`, non con
 `ability`: dopo [D-028] occupano slot diversi — lo scatto prende il movimento, l'abilità la principale, e
 «schivo e sparo» dev'essere esprimibile. Dichiarato con `ability`, `Bastion.Ram` finiva nello slot del Blast
-e non partiva. Da qui `Charge` (Flux illeso), `PhaseOrder` (mancavano i 20 della carica) e
+e non partiva. Da qui `Charge` (Gadget illeso), `PhaseOrder` (mancavano i 20 della carica) e
 `FallbackTargetMoved` (il bersaglio non si spostava).
 
 Il quarto scenario con lo stesso errore, `RoughRefusesCharge`, **era verde**. Si aspettava che non accadesse
@@ -371,17 +371,17 @@ nulla, e infatti non accadeva nulla — ma perché la carica non partiva, non pe
 verde che tace è peggio di un rosso: senza gli altri quattro rossi a indicare la causa comune, sarebbe
 rimasto lì a dare una falsa sicurezza.
 
-**Uno era una mia assunzione sbagliata sulla regola.** `FallbackTargetMoved` faceva uscire Bastion
+**Uno era una mia assunzione sbagliata sulla regola.** `FallbackTargetMoved` faceva uscire Riktor
 dall'allineamento restando a quattro celle, e il colpo lo raggiungeva lo stesso. La forma `Line` descrive
 *chi altro* viene preso sulla traiettoria, non un vincolo di allineamento del bersaglio: il fallback scatta
-sulla **portata**. Lo scenario ora fa caricare Bastion in direzione opposta, fino a sette celle da Flux.
+sulla **portata**. Lo scenario ora fa caricare Riktor in direzione opposta, fino a sette celle da Gadget.
 
 **Due erano difetti del gioco**, e nessun test esistente li vedeva:
 
 | Difetto | Perché nessuno se n'era accorto |
 |---|---|
 | `PushResistance` non riduce le spinte ([#241], **chiuso**) | era un **dato senza consumatore**: catalogo → `ARTUnit` → test che ne verificano il *valore*. Nessuno lo leggeva quando applicava una spinta |
-| la combo Riva→Flux non è realizzabile ([#242]) | `Heroes.Flux.WetBonus` verifica l'**aritmetica** di `EffectiveAttackPower` senza passare dal `TurnManager`. Il `Wet` di `PressureJet` arriva *durante* il Blast, quando i colpi sono già preparati — e su due turni scade nel Cleanup prima di servire |
+| la combo Phase→Gadget non è realizzabile ([#242]) | `Heroes.Flux.WetBonus` verifica l'**aritmetica** di `EffectiveAttackPower` senza passare dal `TurnManager`. Il `Wet` di `PressureJet` arriva *durante* il Blast, quando i colpi sono già preparati — e su due turni scade nel Cleanup prima di servire |
 
 Il secondo è il più istruttivo del lotto: la combo firma della v0.1 era documentata, aveva un test verde, ed
 era **ineseguibile**.

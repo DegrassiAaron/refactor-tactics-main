@@ -339,7 +339,7 @@ sessions:
       **altro layer** (regola di elevazione). Il knockback a 6 direzioni e' l'unico punto di M6 con
       una decisione di design dietro: **guardalo**, non solo verificarlo.
 
-      Per la spinta usa **Riva** (`PressureJet`) o **Bastion** (`Ram`). Fino al 2026-08-10
+      Per la spinta usa **Phase** (`PressureJet`) o **Riktor** (`Ram`). Fino al 2026-08-10
       `PIE-HEXPLAY-6c` chiedeva `Guardian.Sweep` (knockback 2), un archetipo legacy che nessun eroe
       della v0.1 aveva — la voce **non era eseguibile** come scritta (#410); quell'azione e' poi
       sparita del tutto con gli archetipi (#426), ed era l'ultimo `Push 2` del progetto. Ora la voce
@@ -422,10 +422,10 @@ sessions:
 
       | Eroe | `HeroId` | Pack | Blueprint | Skeletal Mesh da assegnare |
       |---|---|---|---|---|
-      | Flux | `Hero.Flux` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
-      | Riva | `Hero.Riva` | `Paragon.Phase` | `BP_Unit_Phase` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
-      | Bastion | `Hero.Bastion` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
-      | Vektor | `Hero.Vektor` | `Paragon.Wraith` | `BP_Unit_Wraith` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
+      | Gadget | `Hero.Flux` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
+      | Phase | `Hero.Riva` | `Paragon.Phase` | `BP_Unit_Phase` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
+      | Riktor | `Hero.Bastion` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
+      | Wraith | `Hero.Vektor` | `Paragon.Wraith` | `BP_Unit_Wraith` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
 
       ⚠️ **La mesh di Phase NON si chiama `Phase`**: e' `Phase_GDC` (22,6 MB). Gli altri file in quella
       cartella pesano 0,1 MB — sono extents, shadow e skeleton. Verificato sul disco il 2026-08-11.
@@ -602,7 +602,7 @@ sessions:
     title: I 4 eroi
     block: 4
     critical: true
-    produces: i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa
+    produces: i data asset di Gadget, Phase, Riktor e Wraith, e lo spawn 2v2 che li usa
     artifacts: []
     unblocked_by: [E6, U10]
     shares_setup_with: []
@@ -805,8 +805,8 @@ sessions:
     unblocks: []
     steps: |
       **Non e' una caccia ai difetti: e' una domanda di leggibilita'.** Tre unita' con
-      `PushResistance = 0` (Flux, Riva, Vektor) — una in `Action.Guard`, una in `Action.Brace`, una
-      senza difesa — e una Riva avversaria che usa `Riva.PressureJet` su ciascuna nello stesso turno.
+      `PushResistance = 0` (Gadget, Phase, Wraith) — una in `Action.Guard`, una in `Action.Brace`, una
+      senza difesa — e una Phase avversaria che usa `Riva.PressureJet` su ciascuna nello stesso turno.
       E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
       1. Guarda il turno **senza leggere i numeri**. «Questo si e' piantato» dev'essere distinguibile

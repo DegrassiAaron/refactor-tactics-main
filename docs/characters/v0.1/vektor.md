@@ -1,11 +1,11 @@
-# Vektor
+# Wraith
 
 > **Asset base:** Paragon — Wraith  
 > **Hero_Key:** `ASSET_VEKTOR`  
 > **RT Character ID:** `Hero.Vektor`  
 > **Release:** `v0.1`  
 > **Roster status:** Release v0.1  
-> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Wraith** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità di Vektor.
+> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Wraith** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
 
@@ -66,19 +66,19 @@ Duellante predittivo: il più mobile del roster, punisce traiettorie e movimento
 
 ### Descrizione della meccanica
 
-**Predictive Interception** premia la lettura delle traiettorie avversarie. Vektor ha il movimento più alto del roster v0.1 e usa questo vantaggio per occupare linee favorevoli, attraversare il campo e punire movimenti che diventano prevedibili.
+**Predictive Interception** premia la lettura delle traiettorie avversarie. Wraith ha il movimento più alto del roster v0.1 e usa questo vantaggio per occupare linee favorevoli, attraversare il campo e punire movimenti che diventano prevedibili.
 
 Lo **Slancio** ha cap 4 e recupera 1 quando viene eseguito movimento; il valore iniziale non è ancora specificato. `InterceptShot` è la manifestazione più diretta della meccanica, ma richiede le decision boundary di E14; `PassingBlade`, `Deflection` e `Feint` coprono rispettivamente mobilità offensiva, difesa reattiva e previsione.
 
-Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le linee preparate, fare bait delle reazioni e impedire a Vektor di convertire mobilità in un duello favorevole.
+Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le linee preparate, fare bait delle reazioni e impedire a Wraith di convertire mobilità in un duello favorevole.
 
 ### Lettura tattica
 
 **Obiettivo del giocatore.** Usare 6 MP e Dash per prendere linee favorevoli, leggere dove passerà l'avversario e trasformare quella previsione in intercetto, attraversamento offensivo o controllo.
 
-**Misplay / Failure State.** Leggere male la traiettoria. La previsione è dichiarata per intero in Planning e non riceve informazione nuova: se il nemico non passa dove Vektor ha scommesso, l'azione **risolve lo stesso** come whiff o fallback dichiarato — è la regola di [D-016](../../decisions/RT_PDR_00_Decision_Log.md), non una nota editoriale. Il costo non è il danno mancato ma il turno: l'azione offensiva è già spesa ([D-012](../../decisions/RT_PDR_00_Decision_Log.md), `Attack` **oppure** `Ability` **oppure** `Overwatch`), e Vektor ha speso mobilità per mettersi sulla linea sbagliata. È l'unico failure state del roster v0.1 che è già una **regola decisa** invece che una descrizione.
+**Misplay / Failure State.** Leggere male la traiettoria. La previsione è dichiarata per intero in Planning e non riceve informazione nuova: se il nemico non passa dove Wraith ha scommesso, l'azione **risolve lo stesso** come whiff o fallback dichiarato — è la regola di [D-016](../../decisions/RT_PDR_00_Decision_Log.md), non una nota editoriale. Il costo non è il danno mancato ma il turno: l'azione offensiva è già spesa ([D-012](../../decisions/RT_PDR_00_Decision_Log.md), `Attack` **oppure** `Ability` **oppure** `Overwatch`), e Wraith ha speso mobilità per mettersi sulla linea sbagliata. È l'unico failure state del roster v0.1 che è già una **regola decisa** invece che una descrizione.
 
-**Counterplay / rischio.** Se l'avversario cambia rotta, chiude LOS o forza Vektor a spendere la reazione sul bersaglio sbagliato, il payoff predittivo cala. `InterceptShot` resta rinviata a E14.
+**Counterplay / rischio.** Se l'avversario cambia rotta, chiude LOS o forza Wraith a spendere la reazione sul bersaglio sbagliato, il payoff predittivo cala. `InterceptShot` resta rinviata a E14.
 
 ### Dati della meccanica
 
@@ -184,7 +184,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 | Dipendenza dal base | ★★★★★ — il più alto del roster |
 
 > ⚠️ **«Primary» descrive quanto spesso lo usa, non quanto è forte.** Con 21 danni `PulseShot` non è il più
-> forte del roster — `Flux.ArcPulse` ne fa 22 — e non è il più lungo, perché Riva arriva a 5: **nessun numero
+> forte del roster — `Flux.ArcPulse` ne fa 22 — e non è il più lungo, perché Phase arriva a 5: **nessun numero
 > lo rende «l'arma primaria»**.
 > A renderlo tale è il kit, che crea le occasioni in cui sparare è già la mossa giusta. ADR-0007 ha scelto
 > di **non** cambiare i numeri: alzarli contraddirebbe la motivazione scritta nel catalogo («−1 pagato in
@@ -194,9 +194,9 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 
 | Domanda | Risposta |
 | --- | --- |
-| Quando è la scelta corretta? | Ogni volta che c'è una linea pulita. È l'azione più frequente di Vektor, e il resto del kit serve a produrre quelle linee |
+| Quando è la scelta corretta? | Ogni volta che c'è una linea pulita. È l'azione più frequente di Wraith, e il resto del kit serve a produrre quelle linee |
 | Quando è inferiore a un'abilità firma? | Quando conviene prima **costruire** la geometria — `PassingBlade` per attraversare, `Feint` per spostare la lettura dell'avversario — invece di sparare da dove si è |
-| Che cosa risparmia? | Tutto: costa zero e non ha ricarica. La domanda per Vektor non è «posso permettermelo» ma «è questo il momento» |
+| Che cosa risparmia? | Tutto: costa zero e non ha ricarica. La domanda per Wraith non è «posso permettermelo» ma «è questo il momento» |
 | Che counterplay esiste? | La geometria. Una copertura bassa toglie 10 su 21, e chi gli nega gli angoli lo disinnesca senza toccarlo — è il motivo per cui la sua debolezza dichiarata è `Affinity.Structures` |
 | Che cosa impara il giocatore? | Che la bravura è nel posizionamento, non nel pulsante |
 
@@ -213,7 +213,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 
 #### Descrizione
 
-Pulse Shot è l'attacco base di Vektor: 21 danni a range 4. Offre pressione a medio raggio senza compromettere il posizionamento per le sue azioni predittive.
+Pulse Shot è l'attacco base di Wraith: 21 danni a range 4. Offre pressione a medio raggio senza compromettere il posizionamento per le sue azioni predittive.
 
 | Campo | Valore |
 | --- | --- |
@@ -297,7 +297,7 @@ Passing Blade è un Dash lineare di 3 celle che infligge 20 danni alle unità at
 
 #### Uso tattico e limiti
 
-È la conversione più diretta della mobilità di Vektor in pressione offensiva e permette di cambiare lato dello scontro mentre si produce danno.
+È la conversione più diretta della mobilità di Wraith in pressione offensiva e permette di cambiare lato dello scontro mentre si produce danno.
 
 ### Deflection
 
@@ -364,12 +364,12 @@ Feint è un'azione di controllo predittivo: marca una cella per 1 turno e conced
 ### Descrizione delle reazioni
 
 - **`Vektor.InterceptShot`** — Quando un nemico entra nella cella/zona controllata, la specifica prevede `FIRE/HOLD`; `FIRE` infligge 16 danni e ferma il movimento. Resta `DEFERRED_E14`.
-- **`Vektor.Deflection`** — Quando Vektor subisce un attacco diretto, riduce automaticamente di 20 il danno del colpo nella v0.1 corrente. È già descritta anche fra le abilità.
+- **`Vektor.Deflection`** — Quando Wraith subisce un attacco diretto, riduce automaticamente di 20 il danno del colpo nella v0.1 corrente. È già descritta anche fra le abilità.
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Vektor.InterceptShot | Nemico entra nella cella/zona controllata | Overwatch | 3 | — | 30 | FIRE | HOLD | HOLD | 16 danni + stop movimento | DEFERRED_E14 |
-| Vektor.Deflection | Subisce un attacco diretto | Deflect | — | — | 15 | Deflect automatico (v0.1 attuale) | — | — | -20 danno sul colpo | IMPLEMENTED |
+| `Vektor.InterceptShot` | Nemico entra nella cella/zona controllata | Overwatch | 3 | — | 30 | FIRE | HOLD | HOLD | 16 danni + stop movimento | DEFERRED_E14 |
+| `Vektor.Deflection` | Subisce un attacco diretto | Deflect | — | — | 15 | Deflect automatico (v0.1 attuale) | — | — | -20 danno sul colpo | IMPLEMENTED |
 
 > ⚠️ **Review required:** una o più finestre temporali sono valori sorgente/storici. Il modello corrente di Fast Reaction usa una baseline di 3,0 s; questi valori vanno riallineati prima dell'implementazione.
 > `Vektor.InterceptShot` — Rinviata a E14; richiede trigger su movimento e decision boundary.
@@ -407,8 +407,8 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 
 | Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| Vektor.InterceptShot.Precise | Intercetto preciso | 20 danni | Controlla una sola cella | Vektor.InterceptShot.Extended | Duelist | CANONICAL |
-| Vektor.InterceptShot.Extended | Intercetto esteso | Controlla linea di 3 celle | 14 danni | Vektor.InterceptShot.Precise | Control | CANONICAL |
+| `Vektor.InterceptShot.Precise` | Intercetto preciso | 20 danni | Controlla una sola cella | `Vektor.InterceptShot.Extended` | Duelist | CANONICAL |
+| `Vektor.InterceptShot.Extended` | Intercetto esteso | Controlla linea di 3 celle | 14 danni | `Vektor.InterceptShot.Precise` | Control | CANONICAL |
 
 ## Talenti
 

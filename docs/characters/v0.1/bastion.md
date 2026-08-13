@@ -1,11 +1,11 @@
-# Bastion
+# Riktor
 
 > **Asset base:** Paragon — Riktor  
 > **Hero_Key:** `ASSET_BASTION`  
 > **RT Character ID:** `Hero.Bastion`  
 > **Release:** `v0.1`  
 > **Roster status:** Release v0.1  
-> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Riktor** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità di Bastion.
+> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Riktor** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
 
 <!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
 
@@ -63,23 +63,23 @@ Guardian/architetto del campo: crea e riconfigura coperture, controlla gli spazi
 
 > **Nota bilanciamento:** Canonico v0.1. 120 HP, 4 MP, vista 5, Push Resistance **0**: compra HP con mobilità
 > ridotta. *Era `1` — l'unica del roster — fino a [D-075](../../decisions/RT_PDR_00_Decision_Log.md) (`#402`,
-> 2026-08-10): a soglia `1` non comprava stabilità, rendeva Bastion immune a ogni spinta del gioco.*
+> 2026-08-10): a soglia `1` non comprava stabilità, rendeva Riktor immune a ogni spinta del gioco.*
 
 ## Meccanica firma
 
 ### Descrizione della meccanica
 
-**Field Architecture** permette a Bastion di trattare coperture e strutture come parte del proprio kit. Il suo valore non deriva solo dagli HP: decide quali linee rendere sicure, quali spazi chiudere e quando trasformare la propria resistenza in protezione diretta per un alleato.
+**Field Architecture** permette a Riktor di trattare coperture e strutture come parte del proprio kit. Il suo valore non deriva solo dagli HP: decide quali linee rendere sicure, quali spazi chiudere e quando trasformare la propria resistenza in protezione diretta per un alleato.
 
 L'**Integrità Strutturale** ha cap 4 e recupera 1 nel Cleanup; il valore iniziale non è ancora specificato. `KineticPanel` e `Reconfigure` esprimono il lato di controllo della mappa, mentre `Ram` e `Interposition` gli permettono di convertire presenza fisica e posizione in pressione e protezione.
 
-Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irrilevanti le strutture, separare Bastion dagli alleati che vuole proteggere e costringerlo a scegliere tra tenere una linea e intervenire altrove.
+Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irrilevanti le strutture, separare Riktor dagli alleati che vuole proteggere e costringerlo a scegliere tra tenere una linea e intervenire altrove.
 
 ### Lettura tattica
 
 **Obiettivo del giocatore.** Controllare una porzione di mappa con coperture e presenza fisica, quindi proteggere l'alleato giusto con `Interposition` o convertire la posizione in pressione con `Ram`.
 
-**Misplay / Failure State.** Chiudere lo spazio sbagliato. Una struttura non è un effetto che scade: resta sulla mappa e modifica le rotte **di entrambe le squadre**, quindi una linea chiusa male ostacola anche gli alleati che Bastion doveva proteggere. Il costo di rimediare è il più alto del roster, perché Bastion ha 4 MP — il valore più basso — e `Reconfigure` gli consuma un altro turno per disfare ciò che ha appena costruito. La domanda «quale spazio chiudo» ha quindi una risposta sbagliata che **persiste**, mentre quella di Flux o Vektor si esaurisce nel turno.
+**Misplay / Failure State.** Chiudere lo spazio sbagliato. Una struttura non è un effetto che scade: resta sulla mappa e modifica le rotte **di entrambe le squadre**, quindi una linea chiusa male ostacola anche gli alleati che Riktor doveva proteggere. Il costo di rimediare è il più alto del roster, perché Riktor ha 4 MP — il valore più basso — e `Reconfigure` gli consuma un altro turno per disfare ciò che ha appena costruito. La domanda «quale spazio chiudo» ha quindi una risposta sbagliata che **persiste**, mentre quella di Gadget o Wraith si esaurisce nel turno.
 
 **Counterplay / rischio.** Ha 4 MP, il valore più basso del roster v0.1. Flank, separazione dagli alleati e distruzione delle strutture riducono il valore della sua architettura.
 
@@ -191,11 +191,11 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 
 | Domanda | Risposta |
 | --- | --- |
-| Quando è la scelta corretta? | Finire un bersaglio a pochi HP · rallentare chi sta attraversando il varco che Bastion controlla, **nello stesso turno**: lo `Slow` è letto fresco dallo snapshot, quindi agisce sulla fase Move che segue il Blast · avere una risposta affidabile senza spendere niente |
+| Quando è la scelta corretta? | Finire un bersaglio a pochi HP · rallentare chi sta attraversando il varco che Riktor controlla, **nello stesso turno**: lo `Slow` è letto fresco dallo snapshot, quindi agisce sulla fase Move che segue il Blast · avere una risposta affidabile senza spendere niente |
 | Quando è inferiore a un'abilità firma? | Quasi sempre, se `KineticPanel` o `Interposition` sono disponibili: 8 danni non cambiano una partita, una copertura nel posto giusto sì |
 | Che cosa risparmia? | Il cooldown di `KineticPanel` e `Ram`, e lo slot di reazione |
 | Che counterplay esiste? | Restare oltre le 3 celle. È la portata più corta del roster su un eroe da 4 MP, il più lento: chi lo tiene a distanza non lo subisce mai |
-| Che cosa impara il giocatore? | Che il danno di Bastion non è il punto. Se prova a vincere sparando, perde — ed è il motivo per cui il numero è 8 e non 24 |
+| Che cosa impara il giocatore? | Che il danno di Riktor non è il punto. Se prova a vincere sparando, perde — ed è il motivo per cui il numero è 8 e non 24 |
 
 ### Prove
 
@@ -211,7 +211,7 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 
 #### Descrizione
 
-Impact Shot è l'attacco base di Bastion: 24 danni a range 3. È semplice e corto, coerente con un Guardian che vuole stare vicino alle linee e agli alleati che protegge.
+Impact Shot è l'attacco base di Riktor: 24 danni a range 3. È semplice e corto, coerente con un Guardian che vuole stare vicino alle linee e agli alleati che protegge.
 
 | Campo | Valore |
 | --- | --- |
@@ -241,7 +241,7 @@ Serve come pressione diretta quando non è necessario spendere il turno per cost
 
 #### Descrizione
 
-Kinetic Panel è un'azione di Prep che crea una copertura con integrità base 30. È la manifestazione principale di Field Architecture: Bastion modifica il campo prima che gli attacchi del Blast vengano risolti.
+Kinetic Panel è un'azione di Prep che crea una copertura con integrità base 30. È la manifestazione principale di Field Architecture: Riktor modifica il campo prima che gli attacchi del Blast vengano risolti.
 
 | Campo | Valore |
 | --- | --- |
@@ -325,13 +325,13 @@ Ram riusa la semantica di `Action.Charge`: movimento lineare fino a 3 celle, 20 
 
 #### Uso tattico e limiti
 
-È l'opzione con cui Bastion trasforma massa e presenza in spostamento offensivo. Essendo una charge, può essere fermata dalla topologia e usa `Fallback.Stop`.
+È l'opzione con cui Riktor trasforma massa e presenza in spostamento offensivo. Essendo una charge, può essere fermata dalla topologia e usa `Fallback.Stop`.
 
 ### Interposition
 
 #### Descrizione
 
-Interposition è la reazione firma di protezione: quando un alleato entro 2 celle è bersagliato da un attacco diretto, Bastion diventa il bersaglio del colpo.
+Interposition è la reazione firma di protezione: quando un alleato entro 2 celle è bersagliato da un attacco diretto, Riktor diventa il bersaglio del colpo.
 
 | Campo | Valore |
 | --- | --- |
@@ -346,7 +346,7 @@ Interposition è la reazione firma di protezione: quando un alleato entro 2 cell
 | Control Strength | 0 |
 | Durata (turni) | 0 |
 | Loss/Contact Policy | Reaction.Trigger.AllyTargeted |
-| Interazione terreno | Bastion diventa il bersaglio di un attacco diretto a un alleato entro 2 |
+| Interazione terreno | Riktor diventa il bersaglio di un attacco diretto a un alleato entro 2 |
 | Gameplay Tags | `Ability.Reaction.Intercept` |
 | Implementation Status | IMPLEMENTED |
 | Data Status | CANONICAL |
@@ -355,17 +355,17 @@ Interposition è la reazione firma di protezione: quando un alleato entro 2 cell
 
 #### Uso tattico e limiti
 
-È già implementata riusando `Action.Intercept`. Non aggiunge danno o scudo: il suo valore è cambiare chi riceve l'attacco, sfruttando la maggiore resistenza di Bastion.
+È già implementata riusando `Action.Intercept`. Non aggiunge danno o scudo: il suo valore è cambiare chi riceve l'attacco, sfruttando la maggiore resistenza di Riktor.
 
 ## Fast Reactions / Reaction
 
 ### Descrizione delle reazioni
 
-- **`Bastion.Interposition`** — Quando un alleato entro 2 celle è bersagliato da un attacco diretto, Bastion intercetta automaticamente nella v0.1 corrente e diventa il bersaglio. È già descritta anche fra le abilità.
+- **`Bastion.Interposition`** — Quando un alleato entro 2 celle è bersagliato da un attacco diretto, Riktor intercetta automaticamente nella v0.1 corrente e diventa il bersaglio. È già descritta anche fra le abilità.
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Bastion.Interposition | Alleato entro 2 celle bersagliato da attacco diretto | Intercept | — | — | 10 | Intercept automatico (v0.1 attuale) | — | — | Bastion diventa bersaglio | IMPLEMENTED |
+| `Bastion.Interposition` | Alleato entro 2 celle bersagliato da attacco diretto | Intercept | — | — | 10 | Intercept automatico (v0.1 attuale) | — | — | Riktor diventa bersaglio | IMPLEMENTED |
 
 > `Bastion.Interposition` — Reazione deterministica attuale; nessuna finestra live.
 
@@ -401,8 +401,8 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 
 | Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| Bastion.KineticPanel.Reinforced | Pannello rinforzato | Integrità 45 | Durata 1 turno | Bastion.KineticPanel.Adaptive | Guardian | CANONICAL |
-| Bastion.KineticPanel.Adaptive | Pannello adattivo | 1 rotazione gratuita | Integrità 25 | Bastion.KineticPanel.Reinforced | Controller | CANONICAL |
+| `Bastion.KineticPanel.Reinforced` | Pannello rinforzato | Integrità 45 | Durata 1 turno | `Bastion.KineticPanel.Adaptive` | Guardian | CANONICAL |
+| `Bastion.KineticPanel.Adaptive` | Pannello adattivo | 1 rotazione gratuita | Integrità 25 | `Bastion.KineticPanel.Reinforced` | Controller | CANONICAL |
 
 ## Talenti
 

@@ -10,7 +10,7 @@
 
 **Aggiornato al 2026-08-06 (epic E6 completata)**: i quattro eroi esistono come dati
 (`URTHeroCatalogLibrary::MakeFlux/MakeRiva/MakeBastion/MakeVektor`) e `ARTGameMode` allestisce il 2v2 con loro
-— formazione di default **Flux + Riva** contro **Bastion + Vektor**. I due archetipi (`ERTArchetype`) non
+— formazione di default **Gadget + Phase** contro **Riktor + Wraith**. I due archetipi (`ERTArchetype`) non
 partecipano più allo spawn di partita; restano come helper nei test d'integrazione.
 
 **Aggiornamento 2026-08-08.** Di quel «non ancora costruito» resta solo una voce: **E8** (terreni dinamici,
@@ -61,7 +61,7 @@ nel vertical slice).
 
 ---
 
-## 1. Flux — tecnico della conduzione
+## 1. Gadget — tecnico della conduzione
 
 **Ruolo**: attacco · controllo · combo elettrica · disattivazione dispositivi.
 
@@ -72,7 +72,7 @@ nel vertical slice).
 | Range visivo | 7 — *era 6, alzata da [D-073](../decisions/RT_PDR_00_Decision_Log.md) (`#131`): è l'unico del roster che vede oltre il raggio 6* |
 | Resistenza Push | 0 |
 | Affinità | elettricità |
-| Debolezza | acqua (`Affinity.Water`) — decisa in CP 6.2, non nel PDF: stesso identificatore dell'affinità di Riva |
+| Debolezza | acqua (`Affinity.Water`) — decisa in CP 6.2, non nel PDF: stesso identificatore dell'affinità di Phase |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -84,11 +84,11 @@ nel vertical slice).
 
 > **Ownership del bonus `Wet`** ([D-029](../decisions/RT_PDR_00_Decision_Log.md) ·
 > [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+8` di `Flux.LinearDischarge` è una
-> condizione **dell'abilità di Flux** su uno **stato del sistema**: dipende da `Status.Wet` sul bersaglio, non
-> dall'eroe che ha applicato `Wet`. Riva è oggi la sorgente più comune, ma **non** è un requisito: qualsiasi
+> condizione **dell'abilità di Gadget** su uno **stato del sistema**: dipende da `Status.Wet` sul bersaglio, non
+> dall'eroe che ha applicato `Wet`. Phase è oggi la sorgente più comune, ma **non** è un requisito: qualsiasi
 > sorgente di `Wet` autorizzata dalle regole (`Gadget.Sprinkler`, acqua bassa del terreno, una futura abilità)
-> abilita lo stesso payoff. Le etichette storiche **`Water-Electric Combo`** (Signature secondaria di Flux) e
-> «combo elettrica» qui sopra nominano quell'**interazione sistemica**, non una coppia Flux + Riva: restano
+> abilita lo stesso payoff. Le etichette storiche **`Water-Electric Combo`** (Signature secondaria di Gadget) e
+> «combo elettrica» qui sopra nominano quell'**interazione sistemica**, non una coppia Gadget + Phase: restano
 > invariate perché sono dati canonici e un rename richiede migrazione, non una PR documentale.
 
 **Variante di `LinearDischarge`**
@@ -97,7 +97,7 @@ nel vertical slice).
 
 ---
 
-## 2. Riva — manipolatrice dell'acqua
+## 2. Phase — manipolatrice dell'acqua
 
 **Ruolo**: supporto · controllo del terreno · setup di combo · riposizionamento.
 
@@ -108,7 +108,7 @@ nel vertical slice).
 | Range visivo | 5 |
 | Resistenza Push | 0 |
 | Affinità | acqua |
-| Debolezza | elettricità (`Affinity.Electricity`) — decisa in CP 6.3, non nel PDF: simmetrica a Flux |
+| Debolezza | elettricità (`Affinity.Electricity`) — decisa in CP 6.3, non nel PDF: simmetrica a Gadget |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -124,7 +124,7 @@ nel vertical slice).
 
 ---
 
-## 3. Bastion — architetto del campo
+## 3. Riktor — architetto del campo
 
 **Ruolo**: difesa · controllo dello spazio · modifica degli archi · protezione degli alleati.
 
@@ -135,7 +135,7 @@ nel vertical slice).
 | Range visivo | 5 |
 | Resistenza Push | 0 — *era 1, l'unica del roster, azzerata da [D-075](../decisions/RT_PDR_00_Decision_Log.md) (`#402`): a soglia 1 era immunità totale, non stabilità — vedi §5* |
 | Affinità | strutture |
-| Debolezza | movimento (`Affinity.Movement`) — decisa in CP 6.4, non nel PDF: simmetrica a Vektor |
+| Debolezza | movimento (`Affinity.Movement`) — decisa in CP 6.4, non nel PDF: simmetrica a Wraith |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -151,7 +151,7 @@ nel vertical slice).
 
 ---
 
-## 4. Vektor — duellante predittivo
+## 4. Wraith — duellante predittivo
 
 **Ruolo**: assalto · interruzione · punizione del movimento · duello.
 
@@ -162,7 +162,7 @@ nel vertical slice).
 | Range visivo | 6 |
 | Resistenza Push | 0 |
 | Affinità | movimento |
-| Debolezza | strutture (`Affinity.Structures`) — decisa in CP 6.5, non nel PDF: simmetrica a Bastion |
+| Debolezza | strutture (`Affinity.Structures`) — decisa in CP 6.5, non nel PDF: simmetrica a Riktor |
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
@@ -182,10 +182,10 @@ nel vertical slice).
 
 | Eroe | HP | MP | Vista | Push res. | Affinità | Identità in una riga |
 |---|---:|---:|---:|---:|---|---|
-| Flux | 90 | 5 | 7 | 0 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
-| Riva | 95 | 5 | 5 | 0 | acqua | prepara il terreno agli altri e cura |
-| Bastion | 120 | 4 | 5 | 0 | strutture | cambia la forma della mappa, lento |
-| Vektor | 90 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
+| Gadget | 90 | 5 | 7 | 0 | elettricità | fragile, trasforma l'acqua altrui in danno, e **vede più lontano di tutti** |
+| Phase | 95 | 5 | 5 | 0 | acqua | prepara il terreno agli altri e cura |
+| Riktor | 120 | 4 | 5 | 0 | strutture | cambia la forma della mappa, lento |
+| Wraith | 90 | 6 | 6 | 0 | movimento | punisce chi si muove, il più mobile |
 
 ### 5.1 Percezione e risorsa firma — consolidato il 2026-08-07
 
@@ -196,10 +196,10 @@ non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione*
 
 | Eroe | Vista | Ruolo | Risorsa firma | Ricarica su | Cap |
 |---|---:|---|---|---|---:|
-| Flux | 7 | Controller | Carica Conduttiva | interazione elettrica | 4 |
-| Riva | 5 | Support | Riserva Idrica | interazione con acqua | 4 |
-| Bastion | 5 | Guardian | Integrità Strutturale | Cleanup | 4 |
-| Vektor | 6 | Striker | Slancio | movimento eseguito | 4 |
+| Gadget | 7 | Controller | Carica Conduttiva | interazione elettrica | 4 |
+| Phase | 5 | Support | Riserva Idrica | interazione con acqua | 4 |
+| Riktor | 5 | Guardian | Integrità Strutturale | Cleanup | 4 |
+| Wraith | 6 | Striker | Slancio | movimento eseguito | 4 |
 
 I restanti parametri di percezione (`Detection`, `Identification`, `Stealth`, `Tracking`, firme) sono
 inizializzati **al valore più basso disponibile, uguale per tutti** (Detection 48, Identification 45,
@@ -218,22 +218,22 @@ Stealth 2, Tracking 1): si parte piatti e si differenzia col playtest.
 > Quali di questi parametri diventino statistiche per eroe, e con quali valori, si decide in **E13**: qui non
 > si scrive un numero che nessun sistema legge.
 
-Bastion compra HP con **movimento** e vista; Vektor compra mobilità con **salute**; Riva sta in
-mezzo; Flux ha il danno combo più alto.
+Riktor compra HP con **movimento** e vista; Wraith compra mobilità con **salute**; Phase sta in
+mezzo; Gadget ha il danno combo più alto.
 
-> ✅ **Aggiornato il 2026-08-10 ([D-069](../decisions/RT_PDR_00_Decision_Log.md), `#131`): Vektor 100 → 90.**
-> La frase qui sopra diceva che Vektor «compra mobilità con l'assenza di difese» mentre sulle quattro
-> statistiche base **non comprava nulla**: a 100/6/6/0 era migliore o pari ovunque rispetto a Flux (90/5/6/0)
-> *e* a Riva (95/5/5/0), e strettamente migliore in salute **e** movimento. Adesso il costo è un numero.
+> ✅ **Aggiornato il 2026-08-10 ([D-069](../decisions/RT_PDR_00_Decision_Log.md), `#131`): Wraith 100 → 90.**
+> La frase qui sopra diceva che Wraith «compra mobilità con l'assenza di difese» mentre sulle quattro
+> statistiche base **non comprava nulla**: a 100/6/6/0 era migliore o pari ovunque rispetto a Gadget (90/5/6/0)
+> *e* a Phase (95/5/5/0), e strettamente migliore in salute **e** movimento. Adesso il costo è un numero.
 >
-> ✅ **Chiusa il 2026-08-10 con la seconda leva: Flux 6 → 7 di vista ([D-073](../decisions/RT_PDR_00_Decision_Log.md)).**
-> Il calo di Vektor aveva tolto la dominanza su Riva e lasciato quella su Flux, dove a parità di salute e
-> vista Vektor restava avanti di un punto movimento. Con la vista 7 Flux ha qualcosa di strettamente
+> ✅ **Chiusa il 2026-08-10 con la seconda leva: Gadget 6 → 7 di vista ([D-073](../decisions/RT_PDR_00_Decision_Log.md)).**
+> Il calo di Wraith aveva tolto la dominanza su Phase e lasciato quella su Gadget, dove a parità di salute e
+> vista Wraith restava avanti di un punto movimento. Con la vista 7 Gadget ha qualcosa di strettamente
 > migliore, e **nessun eroe domina più nessun altro** sulle quattro statistiche base.
 >
-> **Perché la vista e non il movimento**, misurato e non intuito: dare 6 MP a Flux — o toglierne uno a
-> Vektor — renderebbe i due profili **identici**, e `RosterIsBalanced` verifica che nessuna coppia li
-> condivida; si sarebbe rotto un test per ripararne un altro. E una `PushResistance` negativa per Vektor
+> **Perché la vista e non il movimento**, misurato e non intuito: dare 6 MP a Gadget — o toglierne uno a
+> Wraith — renderebbe i due profili **identici**, e `RosterIsBalanced` verifica che nessuna coppia li
+> condivida; si sarebbe rotto un test per ripararne un altro. E una `PushResistance` negativa per Wraith
 > sarebbe stata un numero **senza effetto osservabile**: è una soglia, e le spinte del catalogo valgono
 > almeno 1.
 >
@@ -241,10 +241,10 @@ mezzo; Flux ha il danno combo più alto.
 > roster. È la forma che regge quando il roster crescerà a otto (E35) — un eroe nuovo che dominasse qualcuno
 > fa cadere il test da solo, senza che nessuno debba ricordarsi di aggiungere una riga.
 >
-> La compensazione nelle **abilità** resta com'era e non era in discussione: Flux ha il bonus combo più alto
-> del roster (+8 su `Wet`), Riva la cura ad area.
+> La compensazione nelle **abilità** resta com'era e non era in discussione: Gadget ha il bonus combo più alto
+> del roster (+8 su `Wet`), Phase la cura ad area.
 
-> ✅ **Allineato il 2026-08-12 ([D-075](../decisions/RT_PDR_00_Decision_Log.md), `#402`): Bastion 1 → 0 di
+> ✅ **Allineato il 2026-08-12 ([D-075](../decisions/RT_PDR_00_Decision_Log.md), `#402`): Riktor 1 → 0 di
 > resistenza alla spinta.** La decisione è del **2026-08-10** e `RTHeroCatalogLibrary.cpp` scrive `0` da
 > allora: questo documento era rimasto indietro, e la frase qui sopra vendeva come prezzo pagato — «compra HP
 > **e resistenza**» — una statistica che l'eroe non ha.
@@ -258,21 +258,21 @@ mezzo; Flux ha il danno combo più alto.
 > ⚠️ **La colonna «Push res.» è ora interamente `0`, e `PushResistance` è una meccanica dormiente**: modello e
 > resolver la implementano (ramo `ERTActionEffect::Push`), **nessun contenuto la esercita**. È dichiarato, non
 > dimenticato — si risveglia da sé se una v0.2 introduce una spinta `≥ 2`. L'esito è pinnato dallo scenario
-> `Spec.Combat.BastionIsPushedLikeAnyone`, che manda Bastion e Vektor a incassare lo stesso `Riva.PressureJet`
+> `Spec.Combat.BastionIsPushedLikeAnyone`, che manda Riktor e Wraith a incassare lo stesso `Riva.PressureJet`
 > e li fa arretrare **entrambi**; la regola della soglia resta pinnata da
 > `RefactorTactics.Actions.PushResistanceIsAThreshold`, che il valore se lo costruisce da solo.
 >
 > ⚠️ Conseguenza per chi deriva viste dai cataloghi: `Resistenza Push` è **costante sul roster**, quindi non
-> discrimina. Un asse che la somma alla `Salute` ricade sulla sola salute — e lì Flux e Vektor sono **entrambi
+> discrimina. Un asse che la somma alla `Salute` ricade sulla sola salute — e lì Gadget e Wraith sono **entrambi
 > a 90**.
 
 **Debolezza dichiarata**: il PDF elenca «debolezza» fra gli elementi fissi di ogni eroe ma **non la esplicita**
-per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Flux**: fissata in
-CP 6.2, acqua (`Affinity.Water`) — vedi §1. **Riva**: fissata in CP 6.3, elettricità (`Affinity.Electricity`),
-simmetrica a Flux — vedi §2. **Bastion**: fissata in CP 6.4, movimento (`Affinity.Movement`), simmetrica a
-Vektor — vedi §3. **Vektor**: fissata in CP 6.5, strutture (`Affinity.Structures`) — vedi §4.
+per nessuno dei quattro. Va fissata in E6 e scritta qui: senza, l'identità resta metà. **Gadget**: fissata in
+CP 6.2, acqua (`Affinity.Water`) — vedi §1. **Phase**: fissata in CP 6.3, elettricità (`Affinity.Electricity`),
+simmetrica a Gadget — vedi §2. **Riktor**: fissata in CP 6.4, movimento (`Affinity.Movement`), simmetrica a
+Wraith — vedi §3. **Wraith**: fissata in CP 6.5, strutture (`Affinity.Structures`) — vedi §4.
 
-Il roster chiude in **due coppie simmetriche**: Flux↔Riva sull'acqua/elettricità, Bastion↔Vektor sullo
+Il roster chiude in **due coppie simmetriche**: Gadget↔Phase sull'acqua/elettricità, Riktor↔Wraith sullo
 spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verificato da
 `RefactorTactics.Heroes.RosterIsBalanced`.
 
@@ -282,10 +282,10 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 
 | Eroe | Variante d'abilità | Gadget | Modulo di reazione |
 |---|---|---|---|
-| Flux | Scarica ramificata | `Gadget.Insulator` | `Reaction.ReactiveShield` |
-| Riva | Marea curativa | `Gadget.Sprinkler` | `Reaction.HazardEscape` |
-| Bastion | Pannello adattivo | `Gadget.PortableCover` | `Reaction.AllyIntercept` |
-| Vektor | Intercetto esteso | `Gadget.Sensor` | `Reaction.EmergencyDash` |
+| Gadget | Scarica ramificata | `Gadget.Insulator` | `Reaction.ReactiveShield` |
+| Phase | Marea curativa | `Gadget.Sprinkler` | `Reaction.HazardEscape` |
+| Riktor | Pannello adattivo | `Gadget.PortableCover` | `Reaction.AllyIntercept` |
+| Wraith | Intercetto esteso | `Gadget.Sensor` | `Reaction.EmergencyDash` |
 
 ---
 
@@ -297,10 +297,10 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 | 2 | «Debolezza» dichiarata fra gli elementi fissi | ~~Assente~~ → **fissata in E6** per tutti e quattro (CP 6.2–6.5), in due coppie simmetriche | Non è stata inventata: decisa esplicitamente eroe per eroe |
 | 3 | 4 eroi | ~~In codice esistono 2 archetipi~~ → **risolto in E6**: i quattro eroi sono in codice e in partita | Lo stato aggiornato è dichiarato in testa |
 | 4 | Cooldown di `Riva.PressureJet` non leggibile nella colonna | Assunto **0** (è l'attacco base per la sua colonna «Tipo: linea» a costo 0) | Coerente con gli altri attacchi base, tutti a CD 0 — assunzione **marcata** |
-| 5 | `Bastion.ImpactShot`: 24 danni | **8 danni + `Slow` 1 turno**, range 3 invariato ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md), 2026-08-09) | A 24 era l'attacco base **più forte del roster**, mentre il ruolo dichiarato di Bastion è Utility/Emergency: la contraddizione stava nei numeri, non nel ruolo. 8 è la metà esatta di `Riva.PressureJet` (16), che sta un gradino sopra. Lo `Slow` è l'unica delle utility candidate insieme esprimibile e coerente — `ERTStructureOp` non danneggia coperture, e uno `Status` si applica al bersaglio, quindi «genera Guard su di sé» non è rappresentabile |
+| 5 | `Bastion.ImpactShot`: 24 danni | **8 danni + `Slow` 1 turno**, range 3 invariato ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md), 2026-08-09) | A 24 era l'attacco base **più forte del roster**, mentre il ruolo dichiarato di Riktor è Utility/Emergency: la contraddizione stava nei numeri, non nel ruolo. 8 è la metà esatta di `Riva.PressureJet` (16), che sta un gradino sopra. Lo `Slow` è l'unica delle utility candidate insieme esprimibile e coerente — `ERTStructureOp` non danneggia coperture, e uno `Status` si applica al bersaglio, quindi «genera Guard su di sé» non è rappresentabile |
 
-**Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (**tutte fissate**: Flux CP 6.2, Riva
-CP 6.3, Bastion CP 6.4, Vektor CP 6.5) ·
+**Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (**tutte fissate**: Gadget CP 6.2, Phase
+CP 6.3, Riktor CP 6.4, Wraith CP 6.5) ·
 range di `Flux.Overload` (fissato in CP 6.2: **3**, coerente con `ConductiveNode`) e `Riva.CircularTide`
 (fissato in CP 6.3: **4**, come `Flux.Overload`) · durata di `Status.Wet` (fissata in CP 6.3: **1 turno**, come
 `Guard`/`Exposed`/`Marked` — finestra di combo stretta) · durata di `Vektor.Feint` (fissata in CP 6.5: **1 turno**, come `Wet`/`Marked`) · se le reazioni

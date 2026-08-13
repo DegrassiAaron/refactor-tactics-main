@@ -402,7 +402,7 @@ Ogni pagina referenziata da `wiki_refs` riceve un blocco delimitato:
 
 **Non si edita a mano.** Chi lo riscrive dipende da dove vive la pagina: `wiki` per quelle nel
 repository (`docs/characters/`), `deploy --wiki-root` per quelle che vivono nel clone. Una pagina può
-averne più d'uno (la pagina di Flux ne ha tre: roster, elettricità, interazioni sistemiche). Il
+averne più d'uno (la pagina di Gadget ne ha tre: roster, elettricità, interazioni sistemiche). Il
 blocco va dopo il titolo e la citazione introduttiva, prima del corpo.
 
 Un blocco che cita un `feature_id` non più nel registry è un **errore**; un blocco per una feature
