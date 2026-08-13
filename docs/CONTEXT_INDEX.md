@@ -275,6 +275,7 @@ Carica:
 Carica:
 
 - `docs/technical/convenzioni-contenuti-ue.md`
+- `docs/technical/asset-map.md` — quali asset servono e quanti ne mancano (registro)
 - `Content/RT/`
 - eventuali guide feature-specifiche
 
