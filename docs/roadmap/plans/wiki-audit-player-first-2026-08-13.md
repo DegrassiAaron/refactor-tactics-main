@@ -10,11 +10,12 @@
 
 ## Il metodo, prima dei numeri
 
-Ogni riga è misurata sul clone reale, non letta a occhio. Lo script sta in
-[`scripts/`](#come-si-rimisura) e conta per pagina: righe, parole, immagini, link in uscita e in
-ingresso, nomi legacy e **rumore tecnico** — cioè le occorrenze dei pattern che l'handoff §17 vuole
-fuori dal corpo Player (`USTRUCT`/`UObject`/`TArray`, simboli `URT*`/`ARTt*`, `.h`/`.cpp`, `RT-FEAT-*`,
-`#issue`, gate `G*`/`CP x.y`, Automation, hash/determinismo).
+Ogni riga è misurata sul clone reale, non letta a occhio. Per ciascuna pagina si contano righe,
+parole, immagini, link in uscita e in ingresso, nomi legacy e **rumore tecnico** — cioè le occorrenze
+dei pattern che l'handoff §17 vuole fuori dal corpo Player (`USTRUCT`/`UObject`/`TArray`, simboli
+`URT*`/`ART*`, `.h`/`.cpp`, `RT-FEAT-*`, `#issue`, gate `G*`/`CP x.y`, Automation,
+hash/determinismo). Lo script **non è versionato** — vedi [§ come si rimisura](#come-si-rimisura):
+quel che deve restare riproducibile è il metodo, non il file.
 
 ⚠️ **Una misura sbagliata, corretta prima di scrivere.** Il primo passaggio dichiarava **89 pagine
 orfane su 91**: il conteggio dei link leggeva solo la sintassi markdown `[testo](url)`, mentre questa
