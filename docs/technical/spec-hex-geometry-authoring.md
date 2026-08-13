@@ -323,7 +323,7 @@ se c'è copertura o se una cella è calpestabile: legge dati tattici.
 > attraverso», e distingue un precipizio da un muro.
 > [Decisione](../OPEN_DECISIONS.md) · [referto](../roadmap/plans/level-designer-handoff-spec-panel-2026-08-12.md).
 
-### 8.2 Una copertura sa se l'ha prodotta il bake — `D-130`
+### 8.2 Una copertura sa se l'ha prodotta il bake — `D-131`
 
 `FRTHexCover` porta `bGenerated`, e il rebake della regione investita:
 
@@ -431,7 +431,7 @@ Nessuna di queste si decide in un commit di implementazione. Vivono in
 
 | ID | Domanda | Innesco |
 |---|---|---|
-| ~~`MSE-1`~~ | ✅ **Chiusa da `D-130`**: `FRTHexCover` acquista `bGenerated`, il rebake tocca solo le proprie — vedi §8.2 | — |
+| ~~`MSE-1`~~ | ✅ **Chiusa da `D-131`**: `FRTHexCover` acquista `bGenerated`, il rebake tocca solo le proprie — vedi §8.2 | — |
 | `MSE-4` | Un settore toccato in un **solo punto** dal bordo di un footprint va contato come occupato, o serve un'intersezione di lunghezza non nulla? — ⚠️ **non più innescata da `#621`** (`D-129`): il bake non cuoce footprint, quindi nessun produttore la pone ancora | il **primo footprint di produzione** |
 | ~~`MSE-2`~~ | ✅ **Sciolta da `D-125`**: misurava i **muri**, che non alimentano l'occupancy — vedi §5.1 | — |
 | ~~`MSE-3`~~ | ✅ **Chiusa da `D-125`**: i due modelli misurano la stessa cosa a due granularità | — |
