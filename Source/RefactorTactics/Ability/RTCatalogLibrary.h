@@ -259,7 +259,7 @@ public:
 	/**
 	 * Azione generica con l'ActionId dato, o una definizione vuota se l'ID non e' nel catalogo.
 	 *
-	 * Non esiste un redirect di ID ritirati: [D-132] lo ha rimosso. Un ID che il catalogo non conosce
+	 * Non esiste un redirect di ID ritirati: [D-134] lo ha rimosso. Un ID che il catalogo non conosce
 	 * torna vuoto e basta — chi legge una traccia vede l'ID che la traccia dichiaro', non un erede.
 	 */
 	static FRTActionDef FindCoreAction(const FName& ActionId);

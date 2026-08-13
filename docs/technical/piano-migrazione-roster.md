@@ -60,7 +60,7 @@ rosso — smette di esistere. Vanno cambiati **nello stesso commit** del registr
 
 ## 2. Perché si rinominano tutti, `HeroId` e token abilità
 
-> 🔴 **Riscritta il 2026-08-13 da [D-132](../decisions/RT_PDR_00_Decision_Log.md).** Fino a quella data questa
+> 🔴 **Riscritta il 2026-08-13 da [D-134](../decisions/RT_PDR_00_Decision_Log.md).** Fino a quella data questa
 > sezione si intitolava *«Perché gli `HeroId` si rinominano e i token abilità no»* e prescriveva per i venti
 > token un **redirect** via `URTCatalogLibrary::ResolveLegacyActionId`. Il redirect è stato **rimosso**, non
 > esteso, e con lui sono cadute le fette 1 e 2. La misura che ha ribaltato la scelta è in fondo alla sezione.
@@ -109,7 +109,7 @@ abilità. `ValidateActions` verifica `IsNone` e i duplicati — mai la forma. I 
 Ogni fetta chiude con la suite verde. Nessuna fetta lascia il repository in uno stato con due nomi correnti
 per la stessa cosa.
 
-> 🔴 **Le fette 1 e 2 sono state cancellate il 2026-08-13 da D-132** — erano la «rete di sicurezza» (redirect
+> 🔴 **Le fette 1 e 2 sono state cancellate il 2026-08-13 da D-134** — erano la «rete di sicurezza» (redirect
 > esteso ai 20 token) e la sua prova di rilettura. Senza redirect non hanno oggetto. Le issue
 > [#751](https://github.com/DegrassiAaron/refactor-tactics-main/issues/751) e
 > [#752](https://github.com/DegrassiAaron/refactor-tactics-main/issues/752) sono chiuse per questo. La
@@ -138,9 +138,9 @@ puliti, e un gate che non può fallire non prova nulla.
 1. **I corpi di issue e PR già chiuse su GitHub.** Non sono file di questo repository. Restano a dire il nome vecchio, ed
    è la ragione per cui la §6 registra il costo invece di negarlo.
 2. **I byte dentro le tracce `.rttl` già scritte.** Riscriverli sarebbe falsificare un replay, che è l'unica
-   cosa che questo progetto tratta come prova. Dopo D-132 una traccia col vocabolario vecchio **resta
+   cosa che questo progetto tratta come prova. Dopo D-134 una traccia col vocabolario vecchio **resta
    leggibile ma non più interpretabile dal catalogo**: l'ID che dichiara non risolve più a nulla. È il costo
-   che D-132 accetta, e lo accetta perché di tracce simili non ne esiste una versionata.
+   che D-134 accetta, e lo accetta perché di tracce simili non ne esiste una versionata.
 
 Il corpus golden **non li contiene**: `Tests/Golden/Movement.Basic/turn-01.rttl` e `Movement.Collision/…`
 sono 142 byte ciascuno e portano solo `RTTL` e `Action.Move`. Quindi i due test golden restano verdi **per

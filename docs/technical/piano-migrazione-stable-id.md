@@ -4,11 +4,11 @@
 > **Consegue da**: [D-014 e D-015](../decisions/RT_PDR_00_Decision_Log.md) — la **tassonomia** è decisa, la **migrazione** no
 > **Issue**: [#199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/199) · **Milestone**: v0.1 · Gate di release
 >
-> 🔴 **`HISTORICAL` dal 2026-08-13 — non è più la regola.** [D-132](../decisions/RT_PDR_00_Decision_Log.md) ha
+> 🔴 **`HISTORICAL` dal 2026-08-13 — non è più la regola.** [D-134](../decisions/RT_PDR_00_Decision_Log.md) ha
 > **rimosso** `URTCatalogLibrary::ResolveLegacyActionId`, cioè la fetta 1 di questo piano e il presupposto
 > delle fette 2 e 6. La ragione è una misura, non un cambio di gusto: il redirect aveva **un solo consumatore
 > di produzione** (`FindCoreAction`) e **nessuna traccia da servire** — i due file `.rttl` versionati portano
-> solo `Action.Move`. Chi cerca la regola corrente sugli Stable ID va a D-132; questo documento resta perché
+> solo `Action.Move`. Chi cerca la regola corrente sugli Stable ID va a D-134; questo documento resta perché
 > dice **come ci si è arrivati**, e perché la §7 conserva il ragionamento sul formato che vale ancora.
 >
 > ⚠️ *(banner precedente, 2026-08-10)* Le fette **1** e **3** sono atterrate, la **4** è stata **cancellata da

@@ -749,7 +749,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// Toglierla ORA costa una riga; dopo CP 10.1, quando gli oggetti interagibili esisteranno davvero, il
 	// costo sarebbe ogni consumatore scritto nel frattempo.
 	//
-	// Lo Stable ID e' stato cancellato del tutto con [D-132], che supera la clausola di D-014 «gli Stable ID
+	// Lo Stable ID e' stato cancellato del tutto con [D-134], che supera la clausola di D-014 «gli Stable ID
 	// legacy non si cancellano»: quella regola proteggeva le tracce gia' scritte, e nessuna traccia versionata
 	// contiene `Action.Activate` — il corpus golden porta solo `Action.Move`.
 	Catalog.Add(ShippedAction(TEXT("Action.Interact"), ERTResolutionPhase::Attack, /*Priority*/ 80,
@@ -1261,7 +1261,7 @@ TArray<FString> URTCatalogLibrary::ValidateActionSlots(const TArray<FRTActionDef
 
 FRTActionDef URTCatalogLibrary::FindCoreAction(const FName& ActionId)
 {
-	// Nessuna traduzione: l'ID che arriva e' l'ID che si cerca. Fino a [D-132] qui passava
+	// Nessuna traduzione: l'ID che arriva e' l'ID che si cerca. Fino a [D-134] qui passava
 	// `ResolveLegacyActionId`, che traduceva gli Stable ID ritirati nel loro erede; la macchina e' stata
 	// rimossa perche' non aveva nulla da proteggere — il corpus di tracce versionate non contiene un solo
 	// ID ritirato, e il gioco non e' ancora uscito.

@@ -41,7 +41,7 @@ bool FRTCoreActionsMatchDocumentTest::RunTest(const FString&)
 		{ TEXT("Action.BasicAttack"), ERTMatchPhase::Blast,  50, ERTActionFallback::Cancel, ERTActionSlot::Main },
 		{ TEXT("Action.Guard"),       ERTMatchPhase::Prep,   40, ERTActionFallback::Cancel, ERTActionSlot::Main },
 		// `Action.Activate` non e' piu' qui (#199): [D-025] la dichiara assorbita da `Interact`, e il
-		// catalogo non spedisce piu' due azioni per una cosa sola. Dal [D-132] il suo Stable ID non esiste
+		// catalogo non spedisce piu' due azioni per una cosa sola. Dal [D-134] il suo Stable ID non esiste
 		// piu' nemmeno come redirect: lo verifica `Actions.RetiredStableIdIsGoneEntirely`.
 		{ TEXT("Action.Interact"),    ERTMatchPhase::Blast,  80, ERTActionFallback::Cancel, ERTActionSlot::Main },
 	};
@@ -234,7 +234,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRetiredStableIdTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTRetiredStableIdTest::RunTest(const FString&)
 {
-	// [D-132] — `Action.Activate` non esiste piu' in NESSUNA forma: ne' a catalogo (#199, D-014 + D-025),
+	// [D-134] — `Action.Activate` non esiste piu' in NESSUNA forma: ne' a catalogo (#199, D-014 + D-025),
 	// ne' come voce di redirect.
 	//
 	// Fino al 2026-08-13 questo test si chiamava `RetiredStableIdRedirectsToHeir` e verificava l'opposto
@@ -253,7 +253,7 @@ bool FRTRetiredStableIdTest::RunTest(const FString&)
 	TestFalse(TEXT("Action.Activate non e' nel catalogo generico"), bStillShipped);
 
 	// 2. E l'ingresso per ID non lo traduce: chi cerca l'ID morto ottiene una def VUOTA, non l'erede. E'
-	//    la meta' che [D-132] ha cambiato, ed e' quella che un redirect reintrodotto per sbaglio romperebbe.
+	//    la meta' che [D-134] ha cambiato, ed e' quella che un redirect reintrodotto per sbaglio romperebbe.
 	const FRTActionDef Dead = URTCatalogLibrary::FindCoreAction(TEXT("Action.Activate"));
 	TestTrue(TEXT("FindCoreAction non reindirizza un ID ritirato"), Dead.ActionId.IsNone());
 

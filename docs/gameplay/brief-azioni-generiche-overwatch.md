@@ -24,12 +24,12 @@
 > ✅ **La migrazione è chiusa per due voci su tre, il 2026-08-10 (`#199`).**
 > `Action.Activate` **non è più nel catalogo**: ritirata. Fino al 2026-08-13 il suo Stable ID era
 > reindirizzato in lettura a `Action.Interact`, perché D-014 vietava di cancellare un ID che entra nel TurnLog
-> serializzato; [D-132](../decisions/RT_PDR_00_Decision_Log.md) lo ha **cancellato del tutto** dopo aver
+> serializzato; [D-134](../decisions/RT_PDR_00_Decision_Log.md) lo ha **cancellato del tutto** dopo aver
 > misurato che nessuna traccia versionata lo contiene.
 > `Action.Sprint` **resta**, ed è una decisione ([D-068](../decisions/RT_PDR_00_Decision_Log.md)), non un
 > arretrato: è profilo di `Move` per stile e per slot, e la fase rapida è il suo prezzo, non un'incoerenza.
 > `Action.Guard` **non faceva parte della migrazione**: dopo D-025 è di nuovo uno Stable ID canonico.
-> Il piano che descriveva le fette è `HISTORICAL` da D-132:
+> Il piano che descriveva le fette è `HISTORICAL` da D-134:
 > [`../technical/piano-migrazione-stable-id.md`](../technical/piano-migrazione-stable-id.md).
 >
 > Restano **tunable**, non bloccanti: costi MP, rumore, exposure, eventuale costo extra di slot dello Sprint,

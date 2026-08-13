@@ -121,7 +121,7 @@ dispositivo» è un'interazione.
 > ✅ **Migrazione eseguita il 2026-08-10 (`#199`).** Il catalogo **non spedisce più** `Action.Activate`: da
 > quella data il codice ha una sola azione di interazione.
 >
-> ⚠️ **Aggiornato il 2026-08-13 ([D-132](../decisions/RT_PDR_00_Decision_Log.md)): lo Stable ID è stato
+> ⚠️ **Aggiornato il 2026-08-13 ([D-134](../decisions/RT_PDR_00_Decision_Log.md)): lo Stable ID è stato
 > cancellato del tutto.** Fino a quella data era **reindirizzato in lettura** a `Action.Interact` da
 > `URTCatalogLibrary::ResolveLegacyActionId`, perché D-014 vietava di cancellare un ID che entra nel TurnLog
 > serializzato. Il redirect è stato rimosso quando si è misurato che **non proteggeva nulla**: nessuna traccia
