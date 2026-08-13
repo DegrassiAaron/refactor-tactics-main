@@ -214,9 +214,14 @@ tracks:
       - Source/RefactorTactics/Turn/
       - Source/RefactorTactics/Bot/
       - Source/RefactorTactics/Tests/RTReactionTests.cpp
-    # Misurato: nessun path di questo write-set alimenta una vista generata. `Turn/`, `Bot/` e i
-    # test entrano in `validate`, non nei generati — quindi questa track non rigenera niente.
-    derives_from: []
+    # Misurato: `Turn/` e `Bot/` non alimentano nessuna vista, e **aggiungere** un test nemmeno.
+    # ⚠️ Ma RINOMINARE o cancellare un test che il registry cita in `tests:` flippa
+    # `project-graph.json`, perche' `build_graph()` incorpora le `diagnostics` di `validate()`.
+    # `RTReactionTests.cpp` ha 8 test, di cui 2 citati. Vale quindi la condizione, non il fatto:
+    derives_from:
+      - source: Source/RefactorTactics/Tests/RTReactionTests.cpp
+        only_if: "rinomini o cancelli un test citato in `tests:` dal registry (2 su 8)"
+        regenerates: [docs/roadmap/project-graph.json]
     binary_leases: []
 
   client_tools:
