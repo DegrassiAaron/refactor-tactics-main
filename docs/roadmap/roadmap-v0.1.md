@@ -297,15 +297,18 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 > ⚠️ Fino al 2026-08-13 il filtro guardava la sola v0.1, quindi le righe post-v0.1 non
 > comparivano affatto — non perché fossero assegnate, ma perché nessuno le contava.
 
-| Feature | Vista | Stato | Gate |
-|---|---|---|---:|
-| `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | — | DESIGNED | 0/9 |
-| `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | — | IMPLEMENTING | 0/9 |
-| `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | — | IDEA | 0/9 |
-| `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | — | DESIGNED | 0/9 |
-| `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | — | DESIGNED | 0/9 |
-| `RT-FEAT-ENV-ICE-ENGINE` — Motore del ghiaccio (momentum, rottura, prone) | — | DESIGNED | 0/9 |
-| `RT-FEAT-FACTION-SCENARIOS` — Scenari di cooperazione per fazione | — | DESIGNED | 0/7 |
+> La colonna **Release** è quella che distingue i due casi, e senza di lei la riga d'errore
+> e quella legittima si leggono identiche: `v0.1` va corretta, il resto va motivato.
+
+| Feature | Release | Vista | Stato | Gate |
+|---|---|---|---|---:|
+| `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | — | IMPLEMENTING | 0/9 |
+| `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | v0.2 | — | DESIGNED | 0/9 |
+| `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | v0.2 | — | DESIGNED | 0/9 |
+| `RT-FEAT-ENV-ICE-ENGINE` — Motore del ghiaccio (momentum, rottura, prone) | v0.2 | — | DESIGNED | 0/9 |
+| `RT-FEAT-FACTION-SCENARIOS` — Scenari di cooperazione per fazione | v0.2 | — | DESIGNED | 0/7 |
+| `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | v0.3 | — | DESIGNED | 0/9 |
+| `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | v0.3 | — | IDEA | 0/9 |
 
 **Fuori dalla vista di release, per decisione** — esiste, è tracciato, ma non è contenuto
 della v0.1. Dichiararlo è tracciabilità quanto assegnare un'epic: quello che non va bene è il

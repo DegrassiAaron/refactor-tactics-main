@@ -6,7 +6,7 @@
 > Feature: `RT-FEAT-CHAR-V02-ROSTER` · Release: `v0.2` · Roadmap: `E35`  
 > Stato: **DESIGNED** · Gate: `0/8`  
 > Scenario: `—`  
-> Pagina di **progetto**: nessun dato di gioco e nessuna epic aperta per questo personaggio.  
+> Pagina di **progetto**: il personaggio non ha dato di gioco a runtime. L'epic e' **E35** (`#322`), aperta: cio' che manca e' l'implementazione, non il tracciamento.  
 > Verificato il `2026-08-08` su `2094b86`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V02-ROSTER -->

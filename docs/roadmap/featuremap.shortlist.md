@@ -63,7 +63,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | v0.4 | DONE | 4/4 | E37 | — |
 | `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | v0.4 | DONE | 4/4 | E37 | — |
 | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Gadget, Phase, Riktor, Wraith | v0.1 | INTEGRATED | 6/8 | E6 | I 4 eroi corrispondono al catalogo; **3 reazioni su 5** cablate |
-| `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | v0.1 | IMPLEMENTING | 1/7 | E21 | Il lavoro che viveva solo in M8, reso visibile dal registry |
+| `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | v0.1 | IMPLEMENTING | 1/7 | E21 · M8 | Il lavoro che viveva solo in M8, reso visibile dal registry |
 | `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | v0.2 | DESIGNED | 0/9 | — | — |
 | `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | v0.2 | DESIGNED | 0/9 | — | Le 10 voci `PIE-STATE-*` sono la sua controparte umana, e restano ⏳ |
 | `RT-FEAT-CHAR-V02-ROSTER` — Roster v0.2 — Steel, Aurora, Murdock, Kwang | v0.2 | DESIGNED | 0/8 | E35 | Epic E35 |
@@ -140,7 +140,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-NET-PRIVATE-PLANNING` — Intenti privati per squadra | v0.1 | TESTABLE | 5/8 | E5 | Nessun byte del piano avversario prima del reveal (invariante #6) |
-| `RT-FEAT-NET-AUTHORITY` — Multiplayer con autorità server | v0.5 | SPECIFIED | 1/8 | E40 | Nessuna epic né issue: vive in M10 |
+| `RT-FEAT-NET-AUTHORITY` — Multiplayer con autorità server | v0.5 | SPECIFIED | 1/8 | E40 · M10 | Epic **E40** (v0.5) più la milestone **M10**, che resta owner della vista di esecuzione: le due sono complementari. 8 issue |
 | `RT-FEAT-NET-DEDICATED` — Dedicated server | v0.7 | IDEA | 0/8 | E42 | — |
 
 ### Objectives · 5

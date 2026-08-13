@@ -4029,7 +4029,8 @@ features:
       - docs/characters/v0.2/murdock.md
       - docs/characters/v0.2/kwang.md
     wiki_note: >-
-      Pagina di **progetto**: nessun dato di gioco e nessuna epic aperta per questo personaggio.
+      Pagina di **progetto**: il personaggio non ha dato di gioco a runtime. L'epic e' **E35**
+      (`#322`), aperta: cio' che manca e' l'implementazione, non il tracciamento.
     last_verified:
       date: 2026-08-08
       commit: 2094b86

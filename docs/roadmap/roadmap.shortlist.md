@@ -38,25 +38,8 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
 | **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
-| **E23** | — | 2 | 0/16 | — |
-| **E26** | — | 1 | 0/8 | — |
-| **E27** | — | 1 | 0/8 | — |
-| **E28** | — | 1 | 0/8 | — |
-| **E33** | — | 1 | 1/10 | — |
-| **E34** | — | 1 | 1/10 | — |
-| **E35** | — | 2 | 0/15 | — |
-| **E36** | — | 1 | 0/9 | — |
-| **E37** | — | 3 | 12/12 | — |
-| **E38** | — | 3 | 1/28 | — |
-| **E39** | — | 1 | 1/10 | — |
-| **E40** | — | 1 | 1/8 | — |
-| **E41** | — | 1 | 0/10 | — |
-| **E42** | — | 1 | 0/8 | — |
-| **E43** | — | 1 | 0/6 | — |
 
-**36 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
-
-> ⚠️ **Senza stato dichiarato nell'owner**: **E23**, **E26**, **E27**, **E28**, **E33**, **E34**, **E35**, **E36**, **E37**, **E38**, **E39**, **E40**, **E41**, **E42**, **E43**. §2.1 non le copre — non è una svista di questa vista, è una riga che manca là.
+**21 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
 
 <!-- RT_SHORTLIST_EPICS:END -->
 
@@ -115,7 +98,7 @@ tabella sopra, che è generata.
 | **E30** Classe di mappa Operations · P2 | v0.4 | `#331` | — | La terza classe di mappa, fuori scope in v0.1 |
 | **E31** Obiettivi multipli e logistica · P3 | v0.4 | `#332` | — | Più obiettivi contemporanei con dipendenze |
 | **E32** Formato 4v4 competitivo · P3 | v0.4 | `#333` | — | Se E17 dice che regge |
-| **E34** Stati del personaggio e trasformazioni · P3 | v0.4 | `#244` | 1 | Stance e trasformazioni — le 10 voci `PIE-STATE-*` sono la sua controparte umana. ⚠️ **Due Feature ID si sovrappongono e nessuno è stato scelto**: `RT-FEAT-CHARACTER-STATE` (`future`, `SPECIFIED`, 5 scenari planned) e `RT-FEAT-CHAR-TRANSFORMATION` (`v0.2`, `IDEA`). Finché l'audit non dice se sono due scope o un duplicato, **nessuna delle due si sposta**: cambiare release a un ID stabile per far quadrare un'epic è la migrazione che poi nessuno sa più motivare |
+| **E34** Stati del personaggio e trasformazioni · P3 | v0.4 | `#244` | 1 | Stance e trasformazioni — le 10 voci `PIE-STATE-*` sono la sua controparte umana. ⚠️ **Due Feature ID si sovrappongono e la scelta resta aperta** — `REL-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), dal consolidamento del 2026-08-13. `RT-FEAT-CHARACTER-STATE` (`v0.4`, `SPECIFIED`, epic **E34**, 5 scenari planned) e `RT-FEAT-CHAR-TRANSFORMATION` (`v0.2`, `DESIGNED`, **senza epic**). ⚠️ La prima **si è mossa**: le sue `notes` nominavano già `E34`, e `E34` sta in v0.4 — un'assegnazione derivata, non una scelta. La seconda **no**, e resta senza epic apposta: darle `E34` la metterebbe su un'epic di v0.4 mentre lei è `v0.2`, cioè creerebbe una contraddizione invece di risolverla. Fonderle è una migrazione di un ID stabile, e quella la decide una persona |
 | **E37** Radar di personaggio e generatore Wiki · P3 | v0.4 | `#555` | 3 | — |
 | **E40** Il turno simultaneo in rete · P0 | v0.5 | `#773` | 1 | — |
 | **E41** GAS come runtime delle abilità, mai come autorità · P1 | v0.6 | `#774` | 1 | — |
@@ -126,7 +109,7 @@ tabella sopra, che è generata.
 
 **24 epic** su 9 release (v0.2 · v0.3 · v0.4 · v0.5 · v0.6 · v0.7 · v0.8 · v0.9 · v1.0) · release, titolo e issue da [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.
 
-> ⚠️ **La colonna Feature e' quasi vuota perche' il registry non dichiara l'epic**: 7 feature post-v0.1 (v0.2 **5** · v0.3 **2**) hanno `roadmap.epic` nullo, **22** lo dichiara. Il legame esiste nella prosa di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non in un campo: finche' non lo e', questa colonna non puo' dire quali capacita' porta un'epic, e il conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` su **E34** non e' diagnosticabile da nessun controllo.
+> ⚠️ **Epic non ancora aperte**: 7 feature post-v0.1 (v0.2 **5** · v0.3 **2**) hanno `roadmap.epic` nullo; **22** la dichiarano. Un campo nullo qui non e' piu' un limite dello schema — dal 2026-08-13 le epic post-v0.1 sono scrivibili — quindi significa **l'epic non e' ancora aperta**, e la motivazione va nelle `notes` della feature. Le contraddizioni fra release della feature e release della sua epic sono diagnosticate dalla §2.2 di [`roadmap-v0.1.md`](roadmap-v0.1.md), che ha una tabella apposta.
 
 <!-- RT_SHORTLIST_RELEASES:END -->
 

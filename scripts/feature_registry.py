@@ -287,15 +287,54 @@ def git_remote_slug():
         return None
 
 
+def release_sort_key(release):
+    """`v0.10` viene DOPO `v0.9`, che l'ordine lessicografico sbaglierebbe.
+
+    Il repository ha gia' pagato questo confronto altrove — il commento di
+    `render_shortlist_features` scrive che *«sarebbe bastata una v0.10 per farla divergere in
+    silenzio»* — e un gate che rifiuta una tupla corretta e' peggio di nessun gate: non c'e' edit
+    della tupla che lo faccia passare.
+    """
+    match = re.fullmatch(r"v(\d+)\.(\d+)", release)
+    if not match:
+        return (10 ** 6, 0, release)
+    return (int(match.group(1)), int(match.group(2)), "")
+
+
+def release_table_rows():
+    """Le righe della tabella «Le release» di `roadmap-post-v0.1.md`: `(release, cella epic)`.
+
+    ⚠️ **Un parser solo, e non e' pedanteria.** Fino al 2026-08-13 questa tabella veniva letta da
+    due espressioni regolari diverse — una a una colonna in `check_release_order()`, una a quattro
+    in `post_v01_epics()` — e le due sarebbero divergute al primo cambio di colonne: `post_v01_epics`
+    avrebbe restituito `[]` (ogni epic senza release, la vista di §2.2 muta) mentre il gate avrebbe
+    continuato a vedere ogni release come «dichiarata» e taciuto. E' esattamente il *«due meccanismi
+    che si coprivano a vicenda»* che `D-136` racconta come gia' successo una volta.
+
+    ⚠️ Il numero di versione e' `v\\d+\\.\\d+` e non una finestra fissa di cifre: `v[01]\\.\\d`
+    scartava `v2.0` e `v0.10` **in silenzio**, cioe' ripeteva un digit piu' in la' il difetto che
+    aveva appena corretto.
+    """
+    if not os.path.isfile(ROADMAP_POST_V01):
+        return []
+    with open(ROADMAP_POST_V01, encoding="utf-8") as fh:
+        text = fh.read()
+    return re.findall(r"^\|\s*\*\*(v\d+\.\d+)\*\*\s*\|[^|]*\|[^|]*\|([^|]*)\|", text, re.M)
+
+
 def check_release_order():
-    """Le release esprimibili devono essere descritte dall'owner documentale.
+    """`RELEASE_ORDER` e l'owner documentale devono descrivere lo stesso insieme di release.
 
     Estendere `RELEASE_ORDER` e' una riga; renderla vera e' un documento. Senza questo gate le due
     cose divergono in silenzio e nel modo peggiore: le viste elencano una release, il registry le
     assegna feature, e nessuno puo' dire cosa contiene ne' quando e' finita — una roadmap che
     risponde «v0.7» alla domanda «qual e' la prossima release» senza avere una riga che lo spieghi.
 
-    `v0.1` e' l'unica esclusa: il suo owner e' `roadmap-v0.1.md`, non questo file.
+    Il controllo e' **nei due versi**, e la prima stesura ne aveva solo uno. Una release che il
+    documento dichiara e la tupla non ammette e' lo stesso difetto visto dall'altro lato — `v0.5`
+    era esattamente cosi': descrivibile in prosa e non scrivibile nel registry — e con `epic_release_map()`
+    produrrebbe feature che finiscono nella tabella delle contraddizioni, dove sembrerebbero un
+    errore del dato invece che del modello.
     """
     problems = []
     if RELEASE_ORDER[-1] != "future":
@@ -305,21 +344,31 @@ def check_release_order():
         problems.append("RELEASE_ORDER contiene duplicati")
 
     planned = [r for r in RELEASE_ORDER if r != "future"]
-    if planned != sorted(planned):
+    if planned != sorted(planned, key=release_sort_key):
         problems.append("RELEASE_ORDER non e' in ordine crescente: l'ordine E' il dato, "
                         "le viste lo usano per impaginare le release")
 
-    if os.path.isfile(ROADMAP_POST_V01):
-        text = open(ROADMAP_POST_V01, encoding="utf-8").read()
-        declared = set(re.findall(r"^\|\s*\*\*(v[01]\.\d)\*\*\s*\|", text, re.M))
-        for release in planned:
-            if release == "v0.1":
-                continue
-            if release not in declared:
-                problems.append(
-                    f"release {release} e' in RELEASE_ORDER ma la tabella «Le release» di "
-                    f"{os.path.basename(ROADMAP_POST_V01)} non la dichiara: e' esprimibile e non "
-                    f"descritta")
+    # Un owner assente non e' «nessun problema»: e' l'unico caso in cui NESSUNA release e'
+    # descritta. La guardia `if os.path.isfile(...)` che stava qui rendeva verde il gate proprio
+    # quando aveva piu' da dire — la stessa forma di silenzio che questo modulo condanna altrove.
+    if not os.path.isfile(ROADMAP_POST_V01):
+        problems.append(
+            f"{os.path.relpath(ROADMAP_POST_V01, REPO)} non esiste: e' l'owner delle release oltre "
+            f"la v0.1, e senza di lui nessuna delle {len(planned) - 1} release pianificate e' "
+            f"descritta")
+        return problems
+
+    declared = {release for release, _cell in release_table_rows()}
+    for release in planned:
+        if release not in declared:
+            problems.append(
+                f"release {release} e' in RELEASE_ORDER ma la tabella «Le release» di "
+                f"{os.path.basename(ROADMAP_POST_V01)} non la dichiara: e' esprimibile e non "
+                f"descritta")
+    for release in sorted(declared - set(RELEASE_ORDER), key=release_sort_key):
+        problems.append(
+            f"release {release} e' dichiarata dalla tabella «Le release» ma non e' in "
+            f"RELEASE_ORDER: il registry non sa esprimerla, quindi nessuna feature puo' entrarci")
     return problems
 
 
@@ -664,14 +713,29 @@ def roadmap_ref(roadmap):
     in E10 **e** «listen server» in M10, e `CP 6.1` e' due cose diverse in E2 e in E6. Il prefisso
     non e' decorazione, e' cio' che rende il riferimento risolvibile.
     """
-    container = roadmap.get("epic") or roadmap.get("milestone")
+    epic = roadmap.get("epic")
+    milestone = roadmap.get("milestone")
+    container = epic or milestone
     if not container:
         return "fuori scope" if roadmap.get("out_of_release_scope") else "—"
+
     checkpoints = roadmap.get("checkpoints") or []
-    if not checkpoints:
-        return container
-    # Il checkpoint prefissato contiene gia' il contenitore: ripeterlo darebbe «E14 · E14.4».
-    return ", ".join(f"{container}.{c.split('.', 1)[-1]}" for c in checkpoints)
+    if checkpoints:
+        # Il checkpoint prefissato contiene gia' il contenitore: ripeterlo darebbe «E14 · E14.4».
+        ref = ", ".join(f"{container}.{c.split('.', 1)[-1]}" for c in checkpoints)
+    else:
+        ref = container
+
+    # ⚠️ **Epic e milestone sono complementari, non alternative**, e fino al 2026-08-13 questa riga
+    # era un `or`: la prima ha sempre vinto. Finche' nessuna feature dichiarava entrambe la cosa non
+    # si vedeva; il giorno in cui `RT-FEAT-NET-AUTHORITY` ha preso `epic: E40` accanto al suo
+    # `milestone: M10`, **`M10` e' sparita da ogni vista generata** — mentre `roadmap-post-v0.1.md`
+    # §E40, scritto lo stesso giorno, dichiarava che *«M10 e M11 restano owner della vista di
+    # esecuzione»*. Due documenti dello stesso commit che si contraddicono, e la contraddizione
+    # prodotta da un `or`.
+    if epic and milestone:
+        return f"{ref} · {milestone}"
+    return ref
 
 
 def status_block(entry):
@@ -1612,7 +1676,8 @@ def epic_release_map():
     """
     out = {entry["epic"]: entry["release"] for entry in post_v01_epics() if entry["release"]}
     if os.path.isfile(ROADMAP_V01):
-        text = open(ROADMAP_V01, encoding="utf-8").read()
+        with open(ROADMAP_V01, encoding="utf-8") as fh:
+            text = fh.read()
         for epic in re.findall(r"^### (E\d+) —", text, re.M):
             out.setdefault(epic, "v0.1")
     return out
@@ -1634,13 +1699,24 @@ def render_features_by_epic(data):
     unassigned = []
     out_of_scope = []
     mismatched = []
+    unplaceable = []
     for entry in data["features"]:
         epic = entry["roadmap"].get("epic")
         if epic:
             where = epic_release.get(epic)
-            if entry["release"] == "v0.1" and (where is None or where == "v0.1"):
-                by_epic.setdefault(epic, []).append(entry)
-            elif where and where != entry["release"]:
+            if where == entry["release"]:
+                # L'epic e la feature concordano. Solo la v0.1 si impagina qui: questa tabella vive
+                # nella roadmap DELLA v0.1, e le altre release hanno le proprie viste.
+                if where == "v0.1":
+                    by_epic.setdefault(epic, []).append(entry)
+            elif where is None:
+                # ⚠️ Un'epic senza release nella tabella owner e' un caso **legittimo** (era `E37`
+                # fino al 2026-08-13), ma una feature che la cita non puo' sparire per questo: la
+                # prima stesura di questo blocco la lasciava cadere fra tutti i rami — non in
+                # `by_epic`, non in `mismatched`, non in `unassigned` — cioe' costruiva la stessa
+                # omissione silenziosa che questa funzione esiste per rendere visibile.
+                unplaceable.append((entry, epic))
+            else:
                 mismatched.append((entry, epic, where))
         elif entry["release"] != "future":
             # Un buco e una decisione non si mescolano: la prima tabella deve poter restare vuota.
@@ -1686,13 +1762,18 @@ def render_features_by_epic(data):
             "> ⚠️ Fino al 2026-08-13 il filtro guardava la sola v0.1, quindi le righe post-v0.1 non",
             "> comparivano affatto — non perché fossero assegnate, ma perché nessuno le contava.",
             "",
-            "| Feature | Vista | Stato | Gate |",
-            "|---|---|---|---:|",
+            "> La colonna **Release** è quella che distingue i due casi, e senza di lei la riga d'errore",
+            "> e quella legittima si leggono identiche: `v0.1` va corretta, il resto va motivato.",
+            "",
+            "| Feature | Release | Vista | Stato | Gate |",
+            "|---|---|---|---|---:|",
         ]
-        for entry in sorted(unassigned, key=lambda e: e["feature_id"]):
+        for entry in sorted(unassigned,
+                            key=lambda e: (release_sort_key(e["release"]), e["feature_id"])):
             where = entry["roadmap"].get("milestone") or "—"
+            flag = "**v0.1**" if entry["release"] == "v0.1" else entry["release"]
             lines.append(
-                f"| `{entry['feature_id']}` — {entry['title']} | {where} | "
+                f"| `{entry['feature_id']}` — {entry['title']} | {flag} | {where} | "
                 f"{entry['status']} | {entry['gates_done']}/{entry['gates_applicable']} |"
             )
         lines.append("")
@@ -1724,6 +1805,21 @@ def render_features_by_epic(data):
             lines.append(
                 f"| `{entry['feature_id']}` — {entry['title']} | {entry['release']} | "
                 f"**{epic}** | {where} |")
+        lines.append("")
+    if unplaceable:
+        lines += [
+            "> ⚠️ **Feature la cui epic non ha una release** — l'epic esiste (ha una sezione in",
+            "> `roadmap-post-v0.1.md`) ma la tabella «Le release» non la assegna a nessuna release. È un",
+            "> caso **legittimo** dal lato dell'epic — lo è stato per `E37` fino al 2026-08-13 — e non lo è",
+            "> dal lato della feature: qui sotto c'è del lavoro che nessuna vista di release può collocare.",
+            "> Si chiude aggiungendo l'epic alla tabella owner.",
+            "",
+            "| Feature | Release dichiarata | Epic senza release |",
+            "|---|---|---|",
+        ]
+        for entry, epic in sorted(unplaceable, key=lambda t: t[0]["feature_id"]):
+            lines.append(
+                f"| `{entry['feature_id']}` — {entry['title']} | {entry['release']} | **{epic}** |")
         lines.append("")
     lines.append(ROADMAP_MARKER_END)
     return "\n".join(lines)
@@ -2000,12 +2096,10 @@ def post_v01_epics():
     text = open(ROADMAP_POST_V01, encoding="utf-8").read()
 
     release_of = {}
-    # `v[01]\.\d` e non `v0\.\d`: la tupla arriva a `v1.0` dal 2026-08-13, e un parser fermo allo zero
-    # avrebbe scartato la riga della release finale **senza dirlo** — le sue epic sarebbero risultate
-    # «senza release», che e' il caso legittimo di E37 e quindi non sospetto. La svista non avrebbe
-    # rotto nessun gate: avrebbe prodotto una vista che omette in silenzio una release intera, cioe'
-    # esattamente il difetto che il commento di `RELEASE_ORDER` racconta come gia' pagato una volta.
-    for release, cell in re.findall(r"^\|\s*\*\*(v[01]\.\d)\*\*\s*\|[^|]*\|[^|]*\|([^|]*)\|", text, re.M):
+    # Le righe della tabella le legge `release_table_rows()`, che e' anche cio' che il gate
+    # `check_release_order()` usa: un parser solo, o le due letture divergono al primo cambio di
+    # colonne e una delle due tace.
+    for release, cell in release_table_rows():
         epics = []
         for first, last in re.findall(r"E(\d+)\s*[–—-]\s*E(\d+)", cell):
             epics += [f"E{n}" for n in range(int(first), int(last) + 1)]
@@ -2148,12 +2242,29 @@ def render_shortlist_epics(data):
     marker = SHORTLIST_MARKERS["epics"]
     kept = preserved_column(SHORTLIST_FILES["epics"], marker, r"\*\*(E\d+)\*\*")
     statuses = epic_status()
+    # ⚠️ **Questa tabella e' la vista della v0.1**, e lo dichiara due righe sotto: *«stato da
+    # roadmap-v0.1.md §2.1»*. Fino al 2026-08-13 raccoglieva pero' qualunque epic il registry
+    # nominasse — cosa che non si vedeva solo perche' nessuna feature post-v0.1 riusciva ad avere
+    # un'epic. Il giorno in cui `D-136` le ha rese scrivibili, quindici righe vuote
+    # (`| **E40** | — | 1 | 1/8 | — |`) sono entrate nella tabella della v0.1, il contatore e'
+    # passato da «21 epic» a «36», e l'avviso qui sotto ha cominciato a chiedere a `roadmap-v0.1.md`
+    # §2.1 righe per epic della v0.7 — una richiesta **impossibile da soddisfare**, cioe' un allarme
+    # rosso per sempre. E' lo stesso difetto che `render_features_by_epic` ha corretto nello stesso
+    # commit, lasciato nel renderer gemello e innescato dal dato che quel commit cambiava.
+    # Le epic oltre la v0.1 vivono nella §3 dello stesso file, sessanta righe piu' sotto.
+    epic_release = epic_release_map()
     by_epic = {}
     for entry in data["features"]:
         epic = entry["roadmap"].get("epic")
         if epic:
             by_epic.setdefault(epic, []).append(entry)
-    epics = sorted(set(statuses) | set(by_epic), key=lambda e: int(e[1:]))
+    # Il filtro sta **qui e in un posto solo**: `by_epic` viene poi letto per le sole epic di questo
+    # elenco, quindi filtrarlo due volte non aggiunge una difesa — aggiunge un ramo che una verifica
+    # di mutazione puo' rompere senza che nessun test se ne accorga, che e' come sono nate meta'
+    # delle omissioni silenziose che questo file racconta.
+    epics = sorted(
+        (e for e in set(statuses) | set(by_epic) if epic_release.get(e, "v0.1") == "v0.1"),
+        key=lambda e: int(e[1:]))
     lines = [
         "| Epic | Stato | Feature | Gate | In una riga |",
         "|---|:--:|--:|--:|---|",
@@ -2271,15 +2382,22 @@ def render_shortlist_releases(data):
         bound = sum(1 for e in data["features"]
                     if e["release"] in releases and e["roadmap"].get("epic"))
         detail = " · ".join(f"{rel} **{orphan[rel]}**" for rel in sorted(orphan, key=release_key))
+        # ⚠️ La frase si DERIVA dai due numeri invece di affermarne il rapporto. La stesura
+        # precedente scriveva «la colonna Feature e' quasi vuota» accanto a un conteggio che il
+        # 2026-08-13 e' diventato 22 dichiarate contro 7 nulle — cioe' un giudizio qualitativo
+        # scolpito accanto al dato che lo smentiva, e nessun gate confronta una prosa con il numero
+        # che le sta a fianco. Stessa ragione per cui la vecchia coda («il conflitto E34 non e'
+        # diagnosticabile da nessun controllo») e' sparita: dal 2026-08-13 lo diagnostica la
+        # tabella delle contraddizioni di `render_features_by_epic`.
+        verb = "la dichiara" if bound == 1 else "la dichiarano"
         lines += [
             "",
-            f"> ⚠️ **La colonna Feature e' quasi vuota perche' il registry non dichiara l'epic**: "
-            f"{total} feature post-v0.1 ({detail}) hanno `roadmap.epic` nullo, "
-            f"**{bound}** lo dichiara. Il legame esiste nella prosa di "
-            "[`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non in un campo: "
-            "finche' non lo e', questa colonna non puo' dire quali capacita' porta un'epic, e il "
-            "conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` su **E34** non "
-            "e' diagnosticabile da nessun controllo.",
+            f"> ⚠️ **Epic non ancora aperte**: {total} feature post-v0.1 ({detail}) hanno "
+            f"`roadmap.epic` nullo; **{bound}** {verb}. Un campo nullo qui non e' piu' un limite "
+            "dello schema — dal 2026-08-13 le epic post-v0.1 sono scrivibili — quindi significa "
+            "**l'epic non e' ancora aperta**, e la motivazione va nelle `notes` della feature. "
+            "Le contraddizioni fra release della feature e release della sua epic sono diagnosticate "
+            "dalla §2.2 di [`roadmap-v0.1.md`](roadmap-v0.1.md), che ha una tabella apposta.",
         ]
     return wrap_block(marker, lines)
 
@@ -2324,7 +2442,9 @@ def render_shortlist_features(data):
         ]
         for entry in entries:
             roadmap = entry["roadmap"]
-            where = roadmap.get("epic") or roadmap.get("milestone") or (
+            # Stesso `or` che `roadmap_ref` ha smesso di usare il 2026-08-13, e per lo stesso
+            # motivo: epic e milestone sono complementari, e la prima cancellava la seconda.
+            where = " · ".join(x for x in (roadmap.get("epic"), roadmap.get("milestone")) if x) or (
                 "fuori scope" if roadmap.get("out_of_release_scope") else "—")
             lines.append(
                 f"| `{entry['feature_id']}` — {entry['title']} | {entry['release']} | "
