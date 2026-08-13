@@ -406,8 +406,8 @@
       "wiki_note": "Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest. La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-09",
-        "commit": "75eb0f3"
+        "date": "2026-08-13",
+        "commit": "0cff74e"
       },
       "notes": "Sostituisce D20 («nessun cap aggregato, si misura al playtest») **prima** della misura che l'avrebbe informata: rischio assunto e dichiarato in §2.1 della spec. I due rientri di ADR-0004 §Revisione — cap per turno e `MaxPromptsPerReaction = 1` — restano validi e compatibili col bank. CP 14.8 **non precede** CP 14.5/14.6: la prima misura arriva comunque prima della taratura. Nessun codice: la feature nasce come specifica."
     },

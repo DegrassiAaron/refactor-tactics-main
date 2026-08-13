@@ -124,7 +124,9 @@ dell'enum, e rinumerarli riscriverebbe il significato dei file già scritti.
 ### 5.1 Le tre assertion che leggono il TurnLog
 
 Le prime cinque guardano tutte lo **stato finale**. Ordine degli eventi e contatori del log erano fuori
-portata, e con essi undici scenari già dichiarati nel Feature Registry.
+portata, e con essi undici scenari già dichiarati nel Feature Registry — **undici allora, tredici oggi**: la
+riconciliazione di `#361` ha portato i `Spec.TimeBank.*` da otto a dieci, e i `Spec.Clash.*` restano tre.
+Con le tre assertion di questa sezione nessuno dei tredici è più bloccato: restano da scrivere.
 
 La terza è arrivata dopo, e non per dimenticanza: `LogEventAmount` legge un numero, e finché non fu deciso
 **quale** numero il Decision Time Bank scrive nel log ([`spec-turnlog.md`](spec-turnlog.md) §4.2, issue

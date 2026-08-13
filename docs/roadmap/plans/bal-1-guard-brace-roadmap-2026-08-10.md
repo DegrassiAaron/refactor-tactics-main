@@ -94,7 +94,10 @@ Oggi `Guard` e `Brace` sono verificati **separatamente** (`Visual.Combat.GuardRe
 | `Spec.Combat.BastionIgnoresAllPushes` | §1.4 — immunità totale allo spostamento, in un verso o nell'altro | — |
 
 **L'oracolo esiste già**: bastano `UnitHpEquals` e `UnitAtCell`, le assertion che l'harness ha. A differenza
-degli undici `Spec.Clash.*`/`Spec.TimeBank.*` che aspettano `#318`, qui non manca nessuna capability.
+degli undici `Spec.Clash.*`/`Spec.TimeBank.*` che al 2026-08-10 aspettavano `#318`, qui non manca nessuna
+capability. *(aggiornato il 2026-08-13: quei gruppi sono **tredici** dopo la riconciliazione di `#361`, e non
+aspettano più — `LogEventAmount` è atterrata il 2026-08-10 con `a7e4677b`. Il contrasto di questa riga vale
+ancora per la data in cui fu scritta, non per oggi.)*
 
 **Anche la fixture esiste già**: `Riva.PressureJet` è a catalogo con 16 danni, `Push 1`, `Wet`, forma a linea,
 ed è pinnata da `RTHeroRivaTests.cpp`. Non c'è niente da costruire — era la fixture che l'handoff proponeva,
