@@ -5,7 +5,7 @@
 >
 > ⚠️ **Le due metà di questo documento hanno statuto diverso, e confonderle è un errore.**
 >
-> | | **Le chiavi** (§Le 33 chiavi) | **Il colore** (§Colore) |
+> | | **Le chiavi** (§Le chiavi richieste) | **Il colore** (§Colore) |
 > |---|---|---|
 > | La fonte è | `URTIconLibrary::RequiredIconIds()`, che le **deriva dai dati di gioco** — catalogo azioni, tag di stato, fasi del turno, roster eroi | **questo documento**: nessun `RequiredColorTokens()` esiste in codice |
 > | Se diverge | ha ragione **il codice**: l'elenco qui è una fotografia | ha ragione **questa pagina**, ma vedi il vincolo qui sotto |
@@ -135,7 +135,11 @@ Non hanno un token nella sorgente e **non si inventano qui**: `Phase.*` (quattro
 `Status.Reveal`, `Status.Obscured`, e i quattro eroi di `Identity`. Per la prima passata restano neutre
 (`RT_UI_White` / testo secondario) e si distinguono per silhouette — che è comunque il primo canale.
 
-## Le 33 chiavi
+## Le chiavi richieste
+
+> 🔁 **Si chiamava «Le 33 chiavi»**, rinominata il 2026-08-13. Il nome vecchio non è citato da nessun link né
+> da nessun documento — verificato — e un titolo che porta un numero sbagliato è la copia più difficile da
+> correggere, perché nessuno la legge come un dato.
 
 > 🔴 **Non sono più 33: rimisurate il 2026-08-13, sono 60.** E il difetto non è nel numero — è nell'aver
 > scritto **un numero** per un insieme che è una **funzione**.
@@ -161,8 +165,11 @@ Non hanno un token nella sorgente e **non si inventano qui**: `Phase.*` (quattro
 > **60 disegni + il missing-icon**, non 34. Se 60 sono troppi, la leva **non** è ritoccare questo elenco: è
 > decidere quali azioni del catalogo entrano nell'insieme richiesto, e quella decisione va presa in `#219`.
 >
-> Il numero nel titolo resta `33` di proposito, come i totali sbagliati che questo repository conserva
-> barrati: serve a far riconoscere il documento a chi lo cita.
+> ⚠️ **Il titolo portava il numero, ed è stato rinominato.** L'argomento per tenerlo — *«serve a far
+> riconoscere il documento a chi lo cita»* — è stato verificato e non regge: nessun link punta all'ancora e
+> nessun documento cita la sezione per nome. L'unico riferimento interno, nella tabella in testa a questo
+> file, è stato aggiornato con il rename. Un numero in un titolo è la copia peggiore: nessuno lo legge come
+> un dato, quindi nessuno lo rimisura.
 
 ### Phase — 4
 
@@ -246,7 +253,7 @@ decisa allora.
 
 ## Il missing-icon
 
-Oltre alle 33 serve **un'icona in più**: `MissingIcon`, obbligatoria nel catalogo. È quella che `ResolveIcon`
+Oltre alle chiavi richieste serve **un'icona in più**: `MissingIcon`, obbligatoria nel catalogo. È quella che `ResolveIcon`
 restituisce quando una chiave non si risolve, e senza di lei il validator rifiuta il catalogo. Deve essere
 riconoscibile a colpo d'occhio come *«qui manca qualcosa»*, non un quadrato neutro che si confonde con
 un'icona vera.
@@ -256,7 +263,12 @@ un'icona vera.
 Due passi **in Editor**, che nessuno script del repository può fare al posto di una persona:
 
 1. importare le texture in `/Game/RT/UI/Icons/`;
-2. creare `DA_IconCatalog` (`URTIconCatalogData`), popolare `Icons` con le 33 voci e impostare `MissingIcon`.
+2. creare `DA_IconCatalog` (`URTIconCatalogData`), popolare `Icons` con **tutte le chiavi che
+   `RequiredIconIds()` produce** — **60** al 2026-08-13 — e impostare `MissingIcon`.
+
+⚠️ **Non fidarti di questo numero il giorno in cui esegui il passo 2.** L'insieme è derivato e cresce col
+catalogo azioni: la lista vera si legge dal codice, e il gate che la pretende è `FindMissingRequiredIcons`
+vuoto. Se il conteggio qui sopra non coincide con quello che il validator chiede, ha ragione il validator.
 
 Solo allora `FindMissingRequiredIcons` sul catalogo **spedito** è vuoto, che è la parte del DoD di CP 20.2 che
 richiede l'asset. La parte in codice — le chiavi derivate e i test che le pretendono — non la aspetta.

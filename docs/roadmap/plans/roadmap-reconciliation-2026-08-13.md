@@ -174,10 +174,27 @@ L'insieme è **derivato a runtime** da `URTIconLibrary::RequiredIconIds()`
 > ```
 >
 > ⚠️ **Non è un numero cosmetico**: era già stato pubblicato su `#217` come confine di scope autorevole fra
-> E20 e `#637`. Corretto lì, in `brief-icone-v01.md` (§«Le 33 chiavi» e §«Action — 9», le due fonti a monte)
-> e in `roadmap-v0.1.md`. ⚠️ **Conseguenza reale**: il gate di `#219` pretende *tutte* le chiavi derivate, e
-> quindi la v0.1 chiede oggi **60 disegni**, non 34. Se sono troppi, la leva è decidere quali azioni entrano
-> nell'insieme richiesto — una decisione di `#219`, non un ritocco all'elenco.
+> E20 e `#637`. **Cinque copie corrette**, e la prima passata ne aveva prese solo due — il riepilogo, non il
+> posto dove il lavoro si esegue:
+>
+> | Copia | Cosa diceva | Perché conta |
+> |---|---|---|
+> | `#217` | `33` nel confine di scope | l'epic che **riassume** |
+> | referto §4 | «le 33 sono derivate» | qui |
+> | `roadmap-v0.1.md` | «le 33 chiavi» | lane C |
+> | `brief-icone-v01.md` ×4 | titolo, `Action — 9`, «oltre alle 33», **«popolare `Icons` con le 33 voci»** | l'ultima è **l'istruzione che una persona esegue** |
+> | **`#219`** ×3 | riga dell'insieme, **DoD non spuntata «33 icone»**, «33 texture reali» | il checkpoint che **si fa**, e la sua DoD **è il gate** |
+>
+> 🔴 Le ultime due righe erano sopravvissute alla prima correzione, che aveva sistemato il riepilogo e
+> lasciato il numero **dove il lavoro atterra**. È la forma esatta di `C1` — un documento che esce dalla
+> correzione contraddicendosi — applicata al numero di `C2`, nello stesso commit che diagnosticava `C1`.
+> La sezione «Le 33 chiavi» del brief è stata **rinominata** in «Le chiavi richieste»: verificato che nessun
+> link punti alla sua ancora, e un numero in un titolo non viene mai riletto come un dato.
+>
+> ⚠️ **Conseguenza reale**: il gate di `#219` pretende *tutte* le chiavi derivate, quindi la v0.1 chiede oggi
+> **60 disegni + il missing-icon**, non 34. Se sono troppi, la leva è decidere quali azioni entrano
+> nell'insieme richiesto — una decisione di `#219`, non un ritocco all'elenco: oggi `RequiredIconIds()` non
+> filtra nulla.
 >
 > La lezione, in una riga: **un numero scritto per un insieme che è una funzione invecchia in silenzio**, e
 > qui era stato scritto tre volte. È lo stesso difetto dei totali epic/CP e del registro PIE, sulla terza
@@ -256,10 +273,12 @@ del 2026-08-10 vale ancora, e questa passata non l'ha aggirata.
 |---|---:|---:|---|
 | epic verificate contro le figlie | 3 *(quelle nominate)* | **40** *(tutte)* | script §3 |
 | checkbox divergenti | 7 *(non cercate)* | **0** | idem |
-| voci in `OPEN_DECISIONS.md` | — | **+4** (`FMT-1`, `FMT-2`, `FX-1`, `GEN-1`) | — |
+| voci in `OPEN_DECISIONS.md` | — | **+5** (`FMT-1`, `FMT-2`, `FX-1`, `FX-2`, `GEN-1`) | — |
+| copie del «33» corrette | 2 *(solo il riepilogo)* | **12** su 5 documenti/issue | §4 |
 | piani orfani fra i documenti citati | 1 (`mappe-generate-o-dipinte`) | **0** | `grep -rl` |
 | totale registro PIE dichiarato | 116 *(§1)* · 117 *(tabella)* | **135 · 135** | `grep -c '^\| \*\*PIE-'` |
-| copie vive di quel totale | 3 *(nessuna aggiornata)* | **3 allineate** *(+2 datate, lasciate)* | `grep -rnE "\b11[567]\b" docs/` |
+| copie vive di quel totale | 3 *(nessuna aggiornata)* | **3 allineate** *(+2 datate, lasciate)* | ⚠️ `grep -rnE "\b11[567]\b" docs/` — **insufficiente**: cerca il totale, non le parti. Vedi §7, Famiglia 2 |
+| copie delle **parti** *(`C 95`, `1 fuori classe`)* | 3 *(non cercate)* | **3 allineate** | `grep -nE "\b95\b\|fuori classe" docs/roadmap/*.md docs/technical/*.md` |
 | voci `PIE-MUT-*` *(fuori classe)* | 1 *(dichiarata)* | **2** *(misurate)* | `grep -c '^\| \*\*PIE-MUT-'` |
 | link relativi controllati | 3091 su 308 file | **3143 su 315 file** | `check-docs-links.py` |
 | affermazioni fattuali respinte dalla code review | — | **3 critiche · 5 importanti** | §7 |
@@ -298,17 +317,45 @@ importanti di questo stesso lavoro. Restano scritte qui perché sono la parte pi
 | I4 | «le tre `RT-FEAT-NET-*` (`IDEA`, `future`)» | `NET-PRIVATE-PLANNING` è **`TESTABLE` in v0.1** |
 | I5 | «cinque gate `partial`» | sono **sei** |
 
-> 🔴 **Sei voci su otto hanno la stessa causa: il rigore è stato applicato al sorgente e non alle fonti di
-> casa.** C2 viene da `brief-icone-v01.md` e `#219`; C3 e M1 dal piano `mappe-generate-o-dipinte`; C1 e I3
-> da altre sezioni dei documenti che si stavano correggendo. Ognuna è stata **trascritta** — esattamente il
-> verbo che questo referto usa per accusare il sorgente, tre sezioni più su.
->
-> Un handoff esterno arriva col sospetto addosso e viene misurato. Un documento del repository arriva con la
-> presunzione di essere già stato verificato **da qualcuno, una volta**, e quella presunzione non scade mai.
-> È il motivo per cui `117` è sopravvissuto quattro giorni e `9 azioni` parecchi di più.
->
-> ➡️ La regola non cambia, cambia il suo perimetro: **rimisura, non trascrivere — anche quando la fonte è
-> tua.** In pratica: se stai per scrivere un numero che un comando può produrre, esegui il comando.
+### Le famiglie sono **due**, e la seconda ha un rimedio diverso
+
+> ⚠️ La prima stesura di questa sezione diceva *«sei voci su otto hanno la stessa causa»*. **Non è vero**, e
+> il difetto della frase è lo stesso che elenca: un'affermazione più larga della misura. Ricontate sul
+> **meccanismo** invece che sull'origine, le famiglie sono due e tre voci restano isolate.
+
+**Famiglia 1 — un numero trascritto da una fonte interna** *(C1, C2, C3, e M1)*
+
+C2 viene da `brief-icone-v01.md` e `#219`; C3 e M1 dal piano `mappe-generate-o-dipinte`; C1 da un'altra
+sezione del documento che si stava correggendo. Ognuna è stata **trascritta** — lo stesso verbo che questo
+referto usa per accusare il sorgente, tre sezioni più su.
+
+Un handoff esterno arriva col sospetto addosso e viene misurato. Un documento del repository arriva con la
+presunzione di essere già stato verificato **da qualcuno, una volta**, e quella presunzione non scade mai. È
+il motivo per cui `117` è sopravvissuto quattro giorni e `9 azioni` parecchi di più.
+
+➡️ **Rimedio: se stai per scrivere un numero che un comando può produrre, esegui il comando** — anche quando
+la fonte è di casa.
+
+**Famiglia 2 — un'assenza dichiarata senza enumerare il dominio** *(I1, I3)*
+
+Queste due **non sono trascrizioni**: sono conclusioni **originali**, prodotte da una ricerca che non ha
+dichiarato su quale insieme girava. *«Nessun documento nomina l'outcome event»* nasce da un `grep` sull'area
+`Characters` che non ha guardato `Core`; *«cercate le copie del totale»* ha cercato il **totale** e non le
+**parti**, lasciando `C 95` e `1 voce fuori classe` nella shortlist.
+
+🔴 È la regola che questo stesso referto scrive **bene** in §2.1 — *«la ricerca va fatta sull'elenco completo,
+105 voci, non sui nomi che il sorgente suggerisce»* — e che non ha applicato a sé stesso due sezioni dopo.
+Fondere queste due nella Famiglia 1 farebbe perdere proprio la lezione già imparata: «esegui il comando» non
+avrebbe prevenuto né I1 né I3, perché il comando c'era ed era **il comando sbagliato**.
+
+➡️ **Rimedio: un'assenza si afferma solo dicendo su quale insieme completo è stata cercata.** «Non esiste X»
+senza «cercato fra questi N» è un'opinione.
+
+**Isolate — nessun pattern** *(I2, I4, I5)*
+
+`I2` è una regola di sintassi nota e non applicata in un punto su due; `I4` una sintesi imprecisa di una
+lettura corretta; `I5` un conteggio sbagliato, sei letti come cinque. Dichiararle parte di un pattern
+sarebbe la terza sovra-generalizzazione della stessa pagina.
 
 ## 8. Next action
 
