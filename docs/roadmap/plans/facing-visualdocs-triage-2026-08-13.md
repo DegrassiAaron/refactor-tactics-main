@@ -12,7 +12,7 @@ cosa è stato **respinto sui fatti**, e cosa il pacchetto **non sapeva di sbagli
 
 | | |
 |---|---:|
-| Decisione formalizzata | **1** (`FAC-11` → [D-125](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| Decisione formalizzata | **1** (`FAC-11` → [D-126](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | Scenari creati | **1** su 5 proposti |
 | Issue create | **1** ([#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726)) |
 | Issue corrette perché stale | **2** ([#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339), [#172](https://github.com/DegrassiAaron/refactor-tactics-main/issues/172)) |
@@ -40,7 +40,7 @@ Il cono è **strettamente contenuto** nell'insieme dei tre lati. Sostituire la p
 d'area non sarebbe stata una rinomina: sarebbe stato un **buff difensivo** — `Guard` che tiene e copertura
 che regge su colpi che oggi le annullano — cioè un cambio di bilanciamento fatto per via lessicale.
 
-Quindi D-125 separa i due ruoli: la **relazione a sei lati** dice *da quale lato* è arrivato un colpo, il
+Quindi D-126 separa i due ruoli: la **relazione a sei lati** dice *da quale lato* è arrivato un colpo, il
 **cono** dice *quale area* un'unità copre. `IsInFrontalArc` non si tocca, e ADR-0005 §4 — che vieta due
 definizioni di «davanti» — resta valido perché nessun consumatore d'area si sposta.
 
@@ -99,7 +99,7 @@ Il pacchetto chiedeva di correggere documenti stale. Cercandoli ne sono emersi t
 |---|---|---|
 | Il blocco di stato pubblicato sulla Wiki diceva *«Decisione accettata (ADR-0005) ma **non implementata**»* — contraddetto dai gate della sua stessa voce (`scenario: done`, `automation: done`) e da nove scenari verdi. Il giocatore leggeva «non implementata» di una meccanica che il gioco esegue | `wiki_note` di `RT-FEAT-MAP-FACING` | Riscritta: la regola c'è, mancano **input** e **indicatore HUD** |
 | La scomposizione del corpus scenari per classe era ferma al **2026-08-09** e sbagliava di **13**: `A 27 + B 21 + D 12 = 60` contro un corpus reale di **73**. Il documento **sapeva** di essere disallineato e chiedeva di rifare il conto «voce per voce» | [`../../technical/scenario-map.md`](../../technical/scenario-map.md) §Conteggio | Rifatta classificando ogni file con la regola dichiarata: `A 40 + B 21 + D 12 = 73`, verificata contro il generato |
-| La riga **E16** della roadmap dichiarava `HexCone` *«una sola primitiva»* | [`../roadmap-v0.1.md`](../roadmap-v0.1.md) | Emendata con D-125 |
+| La riga **E16** della roadmap dichiarava `HexCone` *«una sola primitiva»* | [`../roadmap-v0.1.md`](../roadmap-v0.1.md) | Emendata con D-126 |
 
 ## 5. Decisioni che restano aperte
 

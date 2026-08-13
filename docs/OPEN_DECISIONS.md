@@ -251,7 +251,56 @@ domanda urgente: due produttori sullo stesso artefatto.
 
 ---
 
-## Aperta — le soglie di occupancy contro la grammatica di #620, dallo spec panel del 2026-08-12
+## Aperta — il footprint che sfiora un vertice, da `D-125`
+
+Ciò che sopravvive di `MSE-2` dopo che [`D-125`](decisions/RT_PDR_00_Decision_Log.md) ne ha corretto
+l'ingresso. Molto più stretta della domanda originale, e senza urgenza: richiede un **footprint**, non un
+muro.
+
+Un vertice dell'esagono è il punto in comune fra **quattro** triangoli di settore. Un footprint il cui bordo
+ci passa esattamente sopra accende quindi due settori che non invade per area — la regola collineare di
+`SegmentsIntersect` (`RTHexOccupancyLibrary.cpp:38`) tratta il contatto puntuale come occupazione.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `MSE-4` | Un settore toccato in un **solo punto** dal bordo di un footprint va contato come occupato, o serve un'intersezione di lunghezza non nulla? | Non si deduce dal codice perché la regola c'è ed è **deliberata**: il commento la dichiara scelta conservativa, e va bene per il contatto lungo un **segmento** — un footprint appoggiato al confine fra due settori li invade entrambi, ed è giusto. Il caso puntuale è un'altra cosa e nessuno l'ha considerato separatamente. ⚠️ Non si deduce dai numeri perché **oggi non esiste un produttore**: `ComputeMask` non ha chiamanti di produzione, quindi nessun footprint reale è mai stato misurato. Due uscite: **contare solo l'intersezione di lunghezza non nulla** (più preciso, e negli esagoni non apre varchi perché non esiste adiacenza per solo vertice) · **lasciare la regola conservativa** e accettare che un footprint tangente a un vertice pesi due settori in più. Innesco: [`#621`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621), quando scriverà il primo produttore vero |
+
+> 🔎 **Perché non è urgente come sembrava.** Un footprint che *sfiora* un vertice senza entrare nella cella
+> è un caso di bordo raro, e le sue due uscite differiscono di due settori su dodici — mai abbastanza da
+> cambiare `Free` in `Blocked` da solo. La versione precedente di questa domanda sembrava urgente perché era
+> misurata sui **muri**, che arrivano al vertice *sempre*: vedi il blocco qui sotto.
+
+---
+
+## ✅ Sciolta il 2026-08-13 da `D-125` — misurava un ingresso che la pipeline non produce
+
+> ### L'occupancy misura il volume, non i muri
+>
+> **[`D-125`](decisions/RT_PDR_00_Decision_Log.md)**, decisione dell'autore: una cella è **libera**,
+> **ingombrata** o **piena**, e ciò che la riempie sono **entità con volume** — unità, materiali, elementi
+> interattivi e statici. Un **muro è un concetto di bordo**: occupa uno spessore trascurabile, sta *fra* due
+> celle, e cuoce in `FRTHexCover` come `#621` già stabiliva. **Non entra nel conteggio dei settori.**
+>
+> 🔴 **Quindi questa domanda era mal posta, e la sua misura misurava la cosa sbagliata.** Il numero che
+> l'aveva resa urgente — *«due muri consecutivi rendono la cella `Blocked` con quattro lati aperti»* — è
+> stato ottenuto passando **muri perimetrali** a `ComputeMask`. Nella pipeline reale quei muri non arrivano
+> mai lì: diventano coperture sul bordo.
+>
+> ⚠️ **Il segnale c'era, ed era nel codice.** Le quattro fixture originali stanno tutte a raggio `0.3`–`0.6`,
+> cioè **dentro** la cella; quella perimetrale a raggio `1.0` è stata aggiunta il 2026-08-13 *per indagare il
+> caso collineare*, e poi usata come se descrivesse l'ingresso tipico. Una fixture scritta per esplorare un
+> confine non è una fixture che descrive l'uso.
+>
+> ✅ **Resta vero, e non era in nessun documento**: negli esagoni non esiste adiacenza per solo vertice — le
+> sei direzioni condividono ciascuna un **lato intero** (`RTCellId.h:11-19`) — quindi il *varco diagonale*,
+> l'argomento classico per cui il contatto puntuale deve contare, qui non è rappresentabile.
+>
+> ➡️ Ciò che sopravvive è **`MSE-4`** più sotto, molto più stretta: un *footprint* il cui bordo passa per un
+> vertice. Le soglie `4` e `6` restano invariate, e non c'è nulla da ritarare.
+
+---
+
+### Il testo originale della domanda, conservato perché la sua misura è ciò che ha portato a `D-125`
 
 Origine: [revisione spec panel dei due handoff Level Designer](roadmap/plans/level-designer-handoff-spec-panel-2026-08-12.md) §D0-bis.
 Non nasce da una contraddizione fra documenti, ma da una **collisione fra due decisioni entrambe corrette**,
@@ -299,7 +348,30 @@ asse.
 
 ---
 
-## Aperta — due modelli di calpestabilità, dallo spec panel del 2026-08-13
+## ✅ Chiusa il 2026-08-13 da `D-125` — due modelli di calpestabilità
+
+> **Non erano due modelli in competizione: misurano la stessa cosa a due granularità.**
+> [`D-125`](decisions/RT_PDR_00_Decision_Log.md) stabilisce che l'occupancy misura il **volume** che ingombra
+> una cella, ed è esattamente ciò che il cerchio inscritto di `D-071` chiede: *ci sta un'unità?*
+>
+> | | Domanda | Risposta |
+> |---|---|---|
+> | `D-071` — cerchio inscritto | ci sta un'unità? | **binaria** |
+> | #619 — dodici settori | e quanto ci sta stretta? | **ternaria**: libera · ingombrata · piena |
+>
+> Il secondo **raffina** il primo, non lo contraddice. La domanda «quale dei due scrive `bBlocksMovement`»
+> aveva una premessa falsa: nessuno dei due lo scrive per i **muri**, che sono bordi e diventano
+> `FRTHexCover`; entrambi lo fanno per il **volume**, e sono d'accordo perché misurano la stessa cosa.
+>
+> 🔧 **Una precisazione a `D-071` resta necessaria** ed è registrata nella sua riga del
+> [Decision Log](decisions/RT_PDR_00_Decision_Log.md): *«non tocca»* si legge *«non vi entra»*. Un muro
+> appoggiato al lato dell'esagono è **esattamente tangente** al cerchio inscritto — misurato, `86.602540`
+> contro un'apotema di `86.602540`, differenza **zero** — e alla lettera avrebbe reso non calpestabile ogni
+> cella addossata a una parete. `D-071` **non è superseded**: le mancava una parola.
+
+---
+
+### Il testo originale della domanda
 
 Origine: [revisione spec panel del brief HexGeometry e del bundle `grid/`](roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md) §C1.
 Come `MSE-2`, non nasce da una contraddizione fra documenti ma da **due decisioni entrambe corrette, prese a
@@ -484,7 +556,7 @@ Quattro domande che **nessun documento poneva**, estratte da un pacchetto di 69 
 canoniche. Triage completo in
 [`roadmap/plans/facing-consolidation-triage-2026-08-10.md`](roadmap/plans/facing-consolidation-triage-2026-08-10.md).
 
-> **Stato al 2026-08-13**: `FAC-11` è **chiusa** da [D-125](decisions/RT_PDR_00_Decision_Log.md). **Ne restano
+> **Stato al 2026-08-13**: `FAC-11` è **chiusa** da [D-126](decisions/RT_PDR_00_Decision_Log.md). **Ne restano
 > tre aperte** — `FAC-12`, `FAC-13`, `FAC-14` — e nessuna delle tre è decisa dalla chiusura della prima:
 > `FAC-12` aspetta la revisione dei numeri di ADR-0008, `FAC-13` aspetta che E8/E9 diano una direzione agli
 > effetti d'area, `FAC-14` aspetta un caso che la richieda. Referto del secondo passaggio in
@@ -492,7 +564,7 @@ canoniche. Triage completo in
 
 | ID | Domanda | Cosa cambierebbe |
 |---|---|---|
-| ~~`FAC-11`~~ | ~~I **sei lati** devono diventare la primitiva, con gli archi **derivati** per abilità?~~ | **✅ Decisa il 2026-08-13 da [D-125](decisions/RT_PDR_00_Decision_Log.md)**: **sì**, la primitiva semantica sono le sei direzioni relative, e l'insieme di lati appartiene al **consumatore** che lo dichiara. ⚠️ **Ma la parte difficile della domanda ha ricevuto una risposta diversa da quella che sembrava implicarla**: `HexCone` **non** viene sostituito nei consumatori d'area, e nessun esito di `Guard`, copertura, vista o Overwatch cambia. Il dubbio registrato qui — *«per un attaccante lontano un cono e un insieme di tre lati non coincidono»* — è stato **misurato** invece che stimato: replicando `HexCone`/`HexLine` con le costanti reali su raggio `1..10` ci sono **50** celle di divergenza, **tutte** nel verso «tre-lati **dentro** / cono **fuori**», **zero** nel verso opposto, la prima a distanza **2**. Il cono è cioè **strettamente contenuto** nell'insieme dei tre lati, e sostituirlo sarebbe un **buff difensivo netto** — un cambio di bilanciamento travestito da rinomina. `FAC-3` resta aperta e non è toccata. Il lavoro runtime che ne nasce è [#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726) |
+| ~~`FAC-11`~~ | ~~I **sei lati** devono diventare la primitiva, con gli archi **derivati** per abilità?~~ | **✅ Decisa il 2026-08-13 da [D-126](decisions/RT_PDR_00_Decision_Log.md)**: **sì**, la primitiva semantica sono le sei direzioni relative, e l'insieme di lati appartiene al **consumatore** che lo dichiara. ⚠️ **Ma la parte difficile della domanda ha ricevuto una risposta diversa da quella che sembrava implicarla**: `HexCone` **non** viene sostituito nei consumatori d'area, e nessun esito di `Guard`, copertura, vista o Overwatch cambia. Il dubbio registrato qui — *«per un attaccante lontano un cono e un insieme di tre lati non coincidono»* — è stato **misurato** invece che stimato: replicando `HexCone`/`HexLine` con le costanti reali su raggio `1..10` ci sono **50** celle di divergenza, **tutte** nel verso «tre-lati **dentro** / cono **fuori**», **zero** nel verso opposto, la prima a distanza **2**. Il cono è cioè **strettamente contenuto** nell'insieme dei tre lati, e sostituirlo sarebbe un **buff difensivo netto** — un cambio di bilanciamento travestito da rinomina. `FAC-3` resta aperta e non è toccata. Il lavoro runtime che ne nasce è [#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726) |
 | `FAC-12` | Il pivot **si paga** in punti movimento, o resta solo un **tetto**? | ADR-0008 §1 misura la rotazione in step e la tratta come un tetto (`MoveEndPivotMaxSteps`): ruotare fin dove è consentito è **gratis**. La fonte §10 propone un prezzo — `Move 2 celle + Pivot 60° = 3 MP` — che mette *quanto mi muovo* contro *quanto ruoto*, e farebbe pagare 3 MP anche a chi ruota da fermo (oggi libero e universale). Sono due assi di scelta diversi, non due formulazioni. Da guardare alla **prima revisione dei numeri di ADR-0008**, cioè alla chiusura di CP 16.2. 🔄 **Riproposta il 2026-08-12** dal kit dell'action economy (§15), che la presenta come «*latest explicit direction*» senza sapere di ADR-0008. Non cambia la risposta e **non cambia la data della revisione**: cambia il peso della domanda, perché due sorgenti indipendenti hanno chiesto la stessa cosa a due giorni di distanza. Il secondo aggiunge un argomento che il primo non aveva — *«viaggio più lontano o arrivo orientato bene?»* è la scelta che il **tetto** non produce, perché un tetto non si spende |
 | `FAC-13` | Da dove «arriva» un colpo che **non ha una sorgente puntuale**? | Oggi la direzione d'impatto è implicitamente la cella dell'attaccante (`IsInFrontalArc(…, OriginCell)`), e non c'è risposta per proiettile con traiettoria, esplosione con centro d'area o terreno che brucia — `grep` di `ImpactDirection`/`FromTrajectory` in `Source/` dà **zero**. La fonte propone una policy esplicita (`FromSource`, `FromTrajectory`, `FromImpactCenter`, `NonDirectional`). **Non è un difetto attivo**: il danno ambientale non passa da `Plan.Hits` e un'area azzera già la copertura per costruzione. Diventa un caso da correggere quando **E8/E9** daranno una direzione agli effetti d'area |
 | `FAC-14` | La **rotazione forzata** è un effetto di controllo a catalogo? | `ERTActionEffect` ha `Damage · Heal · Shield · Push · Pull · Status · DamageReduction · DamageStructure`: **nessuna rotazione**. Girare un avversario è geometricamente equivalente a spostarlo — apre un lato — e `Push`/`Pull` esistono già. ⚠️ Si tiene con `FAC-3` e `FAC-11`: se una difesa diventasse direzionale, la rotazione forzata sarebbe **l'unico modo di aggirarla senza spostare nessuno**, quindi decidere l'una senza l'altra lascia il modello sbilanciato in un verso o nell'altro |

@@ -138,9 +138,9 @@ facing si ottiene il cono del facing **senza scrivere una seconda geometria** �
 > Questa è la scelta architetturale più importante dell'ADR: **vista, difesa e reazioni direzionali usano
 > letteralmente la stessa funzione**. Non possono divergere, perché non esistono due definizioni di «davanti».
 
-> ⚠️ **Emendato il 2026-08-13 da [D-125](RT_PDR_00_Decision_Log.md)**: la frase qui sopra resta vera per i
+> ⚠️ **Emendato il 2026-08-13 da [D-126](RT_PDR_00_Decision_Log.md)**: la frase qui sopra resta vera per i
 > consumatori d'**area**, che non si spostano di lato, ma `HexCone` **non è più la primitiva semantica** del
-> facing. Vedi la [§4-bis](#4-bis-emendamento-2026-08-13--la-primitiva-semantica-sono-i-sei-lati-il-cono-resta-la-geometria-d-125).
+> facing. Vedi la [§4-bis](#4-bis-emendamento-2026-08-13--la-primitiva-semantica-sono-i-sei-lati-il-cono-resta-la-geometria-d-126).
 
 #### 4a. Difesa — l'emisfero posteriore è scoperto
 
@@ -168,9 +168,9 @@ La zona controllata di un Overwatch armato nasce dal facing dell'unità, **non**
 parte come proponeva la nota sorgente (§10: `Direction: North-East`). Due sorgenti per la stessa cosa
 sarebbero due verità: chi arma la guardia decide dove guardare **orientandosi**.
 
-### 4-bis. Emendamento 2026-08-13 — la primitiva semantica sono i sei lati, il cono resta la geometria (`D-125`)
+### 4-bis. Emendamento 2026-08-13 — la primitiva semantica sono i sei lati, il cono resta la geometria (`D-126`)
 
-[D-125](RT_PDR_00_Decision_Log.md) chiude `FAC-11` e separa due cose che la §4 teneva insieme:
+[D-126](RT_PDR_00_Decision_Log.md) chiude `FAC-11` e separa due cose che la §4 teneva insieme:
 
 | Domanda | Chi risponde | Cosa restituisce |
 |---|---|---|

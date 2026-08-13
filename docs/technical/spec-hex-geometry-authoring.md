@@ -137,14 +137,44 @@ I dodici triangoli **pavimentano l'esagono esattamente**: i punti di confine alt
 (raggio pieno) e punto medio di lato (raggio inscritto), e fra un vertice e il punto medio adiacente il bordo
 dell'esagono è un segmento dritto.
 
-### 5.1 Il contatto sul confine conta
+### 5.1 Che cosa alimenta la misura: il volume, non i muri — `D-125`
 
-Un segmento appoggiato esattamente al confine fra due settori **li invade entrambi**. È una scelta
+È la distinzione che decide tutto il resto di questa sezione.
+
+```text
+entità con VOLUME   →  footprint chiuso  →  occupancy  →  libera · ingombrata · piena
+muro                →  polilinea aperta  →  bordo      →  FRTHexCover{Low|High}
+```
+
+Una cella è **libera**, **ingombrata** o **piena** — `Free`, `Constrained`, `Blocked` — e ciò che la riempie
+sono **unità, materiali, elementi interattivi e statici, props**: cose che stanno *dentro* la cella e tolgono
+spazio a chi vorrebbe starci.
+
+**Un muro no.** È un concetto di **bordo**: sta *fra* due celle, ha spessore trascurabile, e la domanda a cui
+risponde non è «quanto è ingombra questa cella» ma «cosa succede attraversando questo lato». Cuoce in
+`FRTHexCover` — vedi §8.1 — e **non entra nel conteggio dei settori**.
+
+> 🔑 **Il tipo d'ingresso lo diceva già, e nessuno l'aveva letto così.** `FRTOccupancyPolyline` ha due campi:
+> `Points` e `bClosed`. **Nessuno spessore.** Le due forme che ammette non sono due sintassi per la stessa
+> cosa — sono le **due domande**: chiusa = un footprint, cioè volume; aperta = un bordo.
+
+⚠️ **Un numero di questo repository è stato misurato sull'ingresso sbagliato.** `MSE-2` dava «due muri
+consecutivi rendono la cella `Blocked` con quattro lati aperti», ottenuto passando muri perimetrali a
+`ComputeMask`. Nella pipeline reale quei muri diventano coperture. Il segnale c'era: le quattro fixture
+originali stanno tutte a raggio `0.3`–`0.6`, **dentro** la cella.
+
+### 5.2 Il contatto sul confine conta
+
+Un footprint appoggiato esattamente al confine fra due settori **li invade entrambi**. È una scelta
 conservativa e deliberata, protetta da
 `RefactorTactics.HexOccupancy.SegmentOnSectorBoundaryOccupiesBothAdjacentSectors`.
 
-⚠️ Ha una conseguenza che va conosciuta prima di usarla: gli assi che #620 vuole imporre
-(`0/30/60/90/120/150`) **coincidono** con i confini dei dodici settori (`−30 + 30k`). Vedi `MSE-2` in §12.
+Resta aperto il solo caso **puntuale** — un bordo che passa esattamente per un **vertice**, punto in comune
+fra quattro triangoli di settore: è `MSE-4` in §12.
+
+> Negli esagoni la regola conservativa non deve difendere il *varco diagonale*: le sei direzioni di
+> `ERTHexDirection` condividono ciascuna un **lato intero** (`RTCellId.h:11-19`), e non esiste adiacenza per
+> solo vertice.
 
 ---
 
@@ -306,8 +336,19 @@ Nessuna di queste si decide in un commit di implementazione. Vivono in
 | ID | Domanda | Innesco |
 |---|---|---|
 | `MSE-1` | Dove vive il **source editabile** della geometria d'authoring, e chi vince se un dato cotto viene modificato a mano e poi si rifà il bake? | [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) |
-| `MSE-2` | Le soglie di §6 sono tarate su geometria fuori asse, ma #620 produrrà geometria **collineare** ai confini di settore. Misurato: **due** muri perimetrali → `Blocked` con quattro lati aperti | [#620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/620) |
-| `MSE-3` | Il repository ha **due** modelli di calpestabilità — cerchio inscritto (`D-071`) e dodici settori con soglie (#619) — che danno risposte diverse sulla stessa geometria | [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) |
+| `MSE-4` | Un settore toccato in un **solo punto** dal bordo di un footprint va contato come occupato, o serve un'intersezione di lunghezza non nulla? | [#621](https://github.com/DegrassiAaron/refactor-tactics-main/issues/621) |
+| ~~`MSE-2`~~ | ✅ **Sciolta da `D-125`**: misurava i **muri**, che non alimentano l'occupancy — vedi §5.1 | — |
+| ~~`MSE-3`~~ | ✅ **Chiusa da `D-125`**: i due modelli misurano la stessa cosa a due granularità | — |
+
+> 🔑 **`MSE-3` non era un conflitto.** Il cerchio inscritto di `D-071` chiede *«ci sta un'unità?»* — binario —
+> e i dodici settori chiedono *«e quanto ci sta stretta?»* — ternario. Il secondo **raffina** il primo.
+> La domanda «quale dei due scrive `bBlocksMovement`» aveva una premessa falsa: nessuno dei due lo scrive per
+> i **muri**, che sono bordi; entrambi lo fanno per il **volume**, e concordano perché misurano la stessa cosa.
+>
+> 🔧 **`D-071` acquista una parola, e non è superseded**: *«non tocca»* si legge *«non vi entra»*. Un muro
+> appoggiato al lato dell'esagono è **esattamente tangente** al cerchio inscritto (misurato: `86.602540`
+> contro un'apotema di `86.602540`, differenza **zero**), e alla lettera avrebbe reso non calpestabile ogni
+> cella addossata a una parete.
 
 **Vincolo che vale già**: non salvare la geometria tattica come mesh autorevole nel `.umap`, e non introdurre
 una seconda authority mentre `MSE-1` è aperta.

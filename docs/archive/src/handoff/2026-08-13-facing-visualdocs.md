@@ -6,7 +6,7 @@
 >
 > | Esito | Sezioni |
 > |---|---|
-> | ✅ **Recepito** — contributo nuovo | §3 (`FAC-11` → **D-125**, ma nel verso opposto a quello implicito: vedi sotto) · §6/§8/§25 (import dei sette asset e mappa immagini→pagine) · §11 (riconciliazione issue) · §12 (**1** scenario su 5) |
+> | ✅ **Recepito** — contributo nuovo | §3 (`FAC-11` → **D-126**, ma nel verso opposto a quello implicito: vedi sotto) · §6/§8/§25 (import dei sette asset e mappa immagini→pagine) · §11 (riconciliazione issue) · §12 (**1** scenario su 5) |
 > | **Già canone** — nessuna azione | §5 (principi del facing) · §17 (privacy) · §18 (determinismo/TurnLog) · §19 (gerarchia delle fonti) |
 > | ⚠️ **Recepito con esito diverso** | §3.1/§3.2: i sei lati diventano la primitiva **semantica**, ma `HexCone` **non** viene sostituito nei consumatori. Misurato: il cono è **strettamente contenuto** nell'insieme dei tre lati (**50** celle di divergenza su raggio `1..10`, **zero** nel verso opposto), quindi la sostituzione sarebbe un **buff difensivo**, non una rinomina |
 > | 🔴 **Difetto del pacchetto** | I file `F4_*` e `F6_*` contenevano il diagramma **l'uno dell'altro**. I sette SHA-256 e i byte corrispondono al manifest §27: l'audit per hash prescritto da §8 dà **verde**, perché a mentire erano i **nomi**. Corretti in entrambe le sedi |

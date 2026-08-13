@@ -169,7 +169,7 @@ non va toccato. `Reposition` resta una **mobilità** a catalogo e non entra in q
 
 Il facing resta stato di gioco intero a sei valori · l'arco frontale resta `HexCone` e resta **uno solo** per
 difesa, percezione e reazioni (ADR-0005 §4) — ⚠️ **emendato il 2026-08-13 da
-[D-125](RT_PDR_00_Decision_Log.md)**: `HexCone` resta la **geometria d'area** dei tre consumatori, che non
+[D-126](RT_PDR_00_Decision_Log.md)**: `HexCone` resta la **geometria d'area** dei tre consumatori, che non
 cambiano, ma **non è più la primitiva semantica** del facing; quella sono le sei direzioni relative, e
 l'insieme di lati che un'abilità dichiara appartiene al consumatore. Il cono è **strettamente contenuto**
 nell'insieme dei tre lati frontali (**50** celle di divergenza a raggio `1..10`, tutte nello stesso verso),
