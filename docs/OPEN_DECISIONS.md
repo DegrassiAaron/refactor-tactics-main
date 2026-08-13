@@ -20,7 +20,7 @@
 Origine: [`#687`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/687) e
 [`roadmap/plans/mappe-generate-o-dipinte-2026-08-12.md`](roadmap/plans/mappe-generate-o-dipinte-2026-08-12.md) §6.
 
-Il [referto del 2026-08-12](roadmap/plans/roadmap-reconciliation-2026-08-12.md) §5 aveva **rinviato**
+Il [referto del 2026-08-12](archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md) §5 aveva **rinviato**
 questa decisione, e con una ragione precisa: *«finché il meccanismo non è verificato su asset serializzato
 con binario vecchio/nuovo — ed è ciò che fa la PR #688, aperta»*. **La PR #688 è stata mergiata il
 2026-08-12T18:13:55Z.** La condizione che teneva sospesa la decisione non esiste più: il rinvio era
@@ -135,7 +135,7 @@ persona: questa sezione colma il buco.
 
 ## Aperte — economia delle azioni e accoppiamento col movimento, dal consolidamento del 2026-08-12
 
-Origine: [referto del kit action economy](roadmap/plans/action-economy-consolidamento-2026-08-12.md).
+Origine: [referto del kit action economy](archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md).
 Il kit d'autore proponeva 39 sezioni; **la maggior parte è già canone** e tre contraddicono decisioni prese
 fra il 2026-08-07 e il 2026-08-10. Ciò che resta sono queste sette domande, di cui **cinque aperte**: `AE-1` e `AE-2` sono state chiuse il
 2026-08-12 — da [D-114](decisions/RT_PDR_00_Decision_Log.md) e [D-116](decisions/RT_PDR_00_Decision_Log.md) — e
@@ -173,7 +173,7 @@ Epic che le raccoglie: **E38** (v0.2).
 ## ✅ Chiuse il 2026-08-12 — traversal contro transfer
 
 > Aperte dal consolidamento Teleport del mattino, chiuse la sera dall'autore in sessione sul secondo
-> handoff ([`roadmap/plans/spatial-transfer-epic-2026-08-12.md`](roadmap/plans/spatial-transfer-epic-2026-08-12.md)).
+> handoff ([`roadmap/plans/spatial-transfer-epic-2026-08-12.md`](archive/roadmap-plans/spatial-transfer-epic-2026-08-12.md)).
 > Le due domande sono state poste **insieme** perché la seconda non ha senso senza la prima: decidere se un
 > Blink entra in v0.1 prima di sapere se il trasferimento è una famiglia significa decidere il calendario di
 > una cosa senza nome.

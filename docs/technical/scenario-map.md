@@ -384,7 +384,7 @@ resta visibile invece di sparire.
 > [`spec-pointer-interaction.md`](spec-pointer-interaction.md) §5, e finché il `PlayerController` non ha un
 > **contesto esplicito** quell'esito non è leggibile da uno scenario in nessun formato. `Spec.Privacy.HiddenEnemyHoverNoLeak`
 > ha in più una dipendenza di contenuto: il filtro di rilevamento sull'hover è E13.
-> Referto: [`../roadmap/plans/roadmap-reconciliation-2026-08-12.md`](../roadmap/plans/roadmap-reconciliation-2026-08-12.md).
+> Referto: [`../archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md`](../archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md).
 
 > 🔴 **E un settimo non si aggiunge, il 2026-08-13.** Un sorgente di consolidamento proponeva di estendere la
 > grammatica di scenario con `hover` / `lmb` / `rmb` / `pointerMode` per coprire il contratto del puntatore.
@@ -459,7 +459,7 @@ resta visibile invece di sparire.
 > invece del divieto di `Dash`, che è una conseguenza.
 >
 > ⚠️ **Uno dei sei non si scriverà con questa epic**, e resta `planned` di proposito: `Spec.ActionEconomy.PathLengthChangesEffect` dipende dai **fatti del percorso** (`AE-3`), non dal profilo di movimento, ed è dichiarato *in prestito* sotto `RT-FEAT-ACTION-MOVEMENT-COMPAT` finché `AE-3` non ha una feature propria. Stesso motivo per cui `Spec.ActionEconomy.SprintEnhancesMomentum` è scrivibile solo a metà: la parte «lo Sprint potenzia» esiste, la parte «di quanto» dipende da quante celle hai percorso. Registrato in [`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md) §6. Referto:
-> [`../roadmap/plans/action-economy-consolidamento-2026-08-12.md`](../roadmap/plans/action-economy-consolidamento-2026-08-12.md) §6.
+> [`../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md`](../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md) §6.
 >
 > ➕ **+13 il 2026-08-11 dal consolidamento Bot/AI** — tre `RT-FEAT-BOT-FAIRNESS`, cinque
 > `RT-FEAT-BOT-TACTICAL`, tre `RT-FEAT-BOT-BELIEF`, due `RT-FEAT-BOT-PREDICTIVE`. Il sorgente ne proponeva
@@ -467,7 +467,7 @@ resta visibile invece di sparire.
 > spazio di nomi accanto a quello che l'indice e l'harness già risolvono. Venti dei 33 descrivevano
 > comportamenti di feature senza spec né gate — un nome pianificato per un sistema che non ha ancora una
 > forma è un nome che verrà rinominato. Referto:
-> [`../roadmap/plans/bot-ai-consolidamento-2026-08-11.md`](../roadmap/plans/bot-ai-consolidamento-2026-08-11.md) §4.4.
+> [`../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md`](../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md) §4.4.
 >
 > ⚠️ **Il titolo di questa sezione diceva «38» mentre il suo primo paragrafo diceva «trentaquattro»**, ed
 > erano entrambi vecchi. Rimisurato il 2026-08-11 su `scenariomap.shortlist.md`, che è **generato**: è la

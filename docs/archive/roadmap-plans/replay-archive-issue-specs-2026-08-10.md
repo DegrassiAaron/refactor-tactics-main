@@ -7,7 +7,7 @@
 >
 > **Scritto su**: `main` a `781e586` · **Panel**: Wiegers (requisiti), Adzic (esempi), Fowler (confini),
 > Nygard (compatibilità e guasti), Cockburn (attore primario), Crispin (testabilità)
-> **Fonte**: [conflict report replay](replay-system-conflict-report-2026-08-10.md) §6 — le sette voci
+> **Fonte**: [conflict report replay](../../roadmap/plans/replay-system-conflict-report-2026-08-10.md) §6 — le sette voci
 > genuinamente nuove, meno l'ADR che è un prerequisito e non una di queste sei.
 > **Regola applicata**: nessuna issue dichiara un criterio che il repository non sappia misurare oggi.
 

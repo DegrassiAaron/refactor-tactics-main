@@ -1,5 +1,10 @@
 # E9.5 — Pannello cinetico e coperture temporanee · piano
 
+> `HISTORICAL` · **Piano eseguito** · **Data**: 2026-08-09
+> Epic **E9** e issue [`#73`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/73) sono
+> **chiuse**: questo documento e' il piano di un lavoro atterrato, e si legge per la provenienza.
+> La regola vive in [`../../gameplay/`](../../gameplay/) e nel Feature Registry.
+>
 > Issue [`#73`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/73) · epic **E9** (`#23`) ·
 > branch `feat/73-coperture-temporanee` · piano scritto il **2026-08-09**, prima del codice.
 > Chiude l'ultima casella aperta di E9.

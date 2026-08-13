@@ -3,7 +3,7 @@
 > `CURRENT` · **Owner** della domanda «quanto può fare un'unità in un turno, e che cosa il movimento scelto
 > toglie o aggiunge alle sue azioni». · Creato il **2026-08-12** consolidando il kit d'autore
 > `CLAUDE_ActionEconomy_Movement_Facing_Consolidation_2026-08-12.md` — referto:
-> [`../roadmap/plans/action-economy-consolidamento-2026-08-12.md`](../roadmap/plans/action-economy-consolidamento-2026-08-12.md).
+> [`../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md`](../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md).
 >
 > **Non sostituisce nessuno**: [`spec-sequenza-turno.md`](spec-sequenza-turno.md) resta owner dell'**ordine
 > delle fasi**, [`spec-tassonomia-movimento.md`](spec-tassonomia-movimento.md) del confronto **fra le famiglie
