@@ -26,8 +26,10 @@ conteggio dei sorgenti). Percio' partiva con una **allowlist** di tre file.
 
 Quella ragione e' scaduta: l'arretrato bonificabile e' stato chiuso, e cio' che
 resta sono **solo** i registri datati, che non si bonificano per definizione. Una
-allowlist ora farebbe il danno opposto — proteggerebbe 47 file su 222 e lascerebbe
-**muta** una regressione negli altri 175.
+allowlist ora farebbe il danno opposto — al 2026-08-13 avrebbe elencato i 47 file
+gia' toccati e lasciato **muta** una regressione negli altri 175. Quei due numeri
+sono una misura di quel giorno, non un invariante: il referto li ristampa a ogni
+esecuzione, ed e' quello che va letto.
 
 Quindi il gate e' invertito: **tutto e' protetto tranne cio' che e' esente**, e
 l'esenzione e' esplicita e motivata. Un file nuovo nasce protetto senza che nessuno
