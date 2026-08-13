@@ -5020,6 +5020,11 @@ features:
     gates:
       spec: partial
       data: done
+      # partial dal 2026-08-13 dopo #620: la GRAMMATICA e il suo validator esistono nel modulo runtime
+      # (`RTGeometryGrammar.h`, 11 test verdi, sei mutazioni nessuna sopravvissuta). Resta partial perche'
+      # la COTTURA verso `FRTHexCover`/`bBlocksMovement` e' #621 e non esiste: oggi la grammatica ha un
+      # produttore di test e nessun consumatore di produzione, che e' la sequenza voluta -- fissare la
+      # regola prima del bake costa zero, come per D-125.
       runtime: partial
       log_debug: todo
       automation: done
@@ -5058,6 +5063,9 @@ features:
     issues: [619, 620, 621, 712, 717]
     tests:
       - RefactorTactics.HexOccupancy.*
+      # #620: la grammatica quantizzata. Undici test, e cinque di essi hanno per soggetto UNA regola
+      # ciascuno perche' la verifica di mutazione del DoD chiede che cada esattamente quello atteso.
+      - RefactorTactics.GeometryGrammar.*
     scenarios:
       # L'unico scenario che questa feature produce: le quattro fixture di geometria NON sono
       # scenari (`FRTScenarioCell` non sa esprimere un segmento) e vivono in
@@ -5071,7 +5079,7 @@ features:
       # Rimisurato dopo D-125: il commit precedente (05bbe3dc, merge di #714) e' ANTENATO di c1c96a30,
       # cioe' la voce era stata verificata due ore prima della decisione che la cambia.
       date: 2026-08-13
-      commit: 17cc1400
+      commit: 5f11a88f
     notes: >
       Il modello: un segmento quantizzato investe delle celle, l'occupazione si misura su **dodici
       settori** (uno ogni 30°) piu' il centro, e la classificazione `Free`/`Constrained`/`Blocked`

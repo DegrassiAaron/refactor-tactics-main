@@ -123,6 +123,19 @@ Ciò che il designer disegna si serializza **senza estremi float**. `FRTOccupanc
 `MSE-1` ne esce **ristretta**: decide *dove* vive il source editabile e chi vince al rebake, non più *in che
 tipo*.
 
+> 🔑 **Il quanto è relativo al punto notevole della direzione, non a `HexSize` — ed è questo che rende
+> esprimibile la terza famiglia.** Un quanto lineare uniforme non può esprimere insieme i due punti
+> notevoli dell'esagono: l'apotema vale `HexSize · √3/2`, e nessun numero di suddivisioni di `HexSize` la
+> rende intera — con `HexSize = 100` fa `86,602540…`. Un muro appoggiato al lato avrebbe quindi un offset
+> **non rappresentabile**, e «segmenti sui lati / perimetro» sarebbe inesprimibile in interi.
+>
+> Qui `Q` quanti lungo una direzione valgono *esattamente il suo punto di confine* — vertice a raggio
+> pieno o punto medio di lato ad apotema, a seconda della direzione. Le due lunghezze diverse diventano lo
+> stesso intero: il muro sul lato `E` è `Offset = Q`, estremi `±Q/2`, e ricostruisce i due vertici a meno
+> dell'epsilon di macchina. Lo dimostra
+> `RefactorTactics.GeometryGrammar.PerimeterWallReconstructsHexVertices`; mutando la perpendicolare in una
+> direzione normalizzata, quel test cade.
+
 ### 3.3 Il validator dice **quale** regola è caduta, e non blocca da solo
 
 Il rifiuto è a **due strati**, e il precedente esiste già nel repository:
@@ -142,8 +155,9 @@ dalle altre.
 > restituisce testo libero, «allentata una regola, cade *esattamente* il test che la protegge» non è
 > asseribile — due regole diverse producono messaggi simili e il test dovrebbe confrontare stringhe.
 
-**Stato**: la grammatica, il suo tipo e il suo validator sono
-[#620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/620), **aperta**.
+I simboli: `FRTGeometrySegment` (l'authority), `ERTTacticalAxis`, `ERTGeometryViolation` e
+`URTGeometryGrammarLibrary` in `Source/RefactorTactics/Map/RTGeometryGrammar.h`. Lo stato di avanzamento
+vive nel [`feature-registry.yaml`](../roadmap/feature-registry.yaml) e nelle issue, non qui — §1.
 
 ---
 
