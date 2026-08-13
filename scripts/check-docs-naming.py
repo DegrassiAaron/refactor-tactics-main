@@ -26,10 +26,14 @@ conteggio dei sorgenti). Percio' partiva con una **allowlist** di tre file.
 
 Quella ragione e' scaduta: l'arretrato bonificabile e' stato chiuso, e cio' che
 resta sono **solo** i registri datati, che non si bonificano per definizione. Una
-allowlist ora farebbe il danno opposto — al 2026-08-13 avrebbe elencato i 47 file
-gia' toccati e lasciato **muta** una regressione negli altri 175. Quei due numeri
-sono una misura di quel giorno, non un invariante: il referto li ristampa a ogni
-esecuzione, ed e' quello che va letto.
+allowlist ora farebbe il danno opposto — elencherebbe i file gia' bonificati e
+lascerebbe **muta** una regressione in tutti gli altri, che sono la maggioranza.
+
+⚠️ Nessun conteggio e' scritto qui, ed e' deliberato. La prima stesura ne fissava
+due — «47 file» e «175» — ed erano **sbagliati**: derivati a mano sommando i file
+toccati da un solo passaggio, mentre i file passati da sporchi a puliti erano
+**52** (72 sporchi alla base, meno i 20 registri esenti che restano tali). Il
+referto stampa i numeri veri a ogni esecuzione: si leggono li'.
 
 Quindi il gate e' invertito: **tutto e' protetto tranne cio' che e' esente**, e
 l'esenzione e' esplicita e motivata. Un file nuovo nasce protetto senza che nessuno

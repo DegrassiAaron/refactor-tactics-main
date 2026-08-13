@@ -285,7 +285,7 @@ planning deve restituire un **reason**, e poi Gadget committa un'azione valida. 
 geometria si **rivalida su Riktor** — LOS, traiettoria, copertura — senza aprire una reaction annidata
 ([D-017](../decisions/RT_PDR_00_Decision_Log.md)). **Phase** `PressureJet` su Riktor. **Wraith** attacca Gadget.
 
-*Expected*: `OriginalTargetEquals(Vektor)`, `EffectiveTargetEquals(Bastion)`, e la copertura applicata è
+*Expected*: `OriginalTargetEquals(Hero.Vektor)`, `EffectiveTargetEquals(Hero.Bastion)`, e la copertura applicata è
 **quella di Riktor**. Serve un test **discriminante** — A e B a copertura diversa — altrimenti passerebbe
 anche col comportamento sbagliato.
 
