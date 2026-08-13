@@ -18,15 +18,16 @@
 >    nomi storici come roster player-facing» senza accorgersi che **il prodotto li presenta comunque, perché
 >    li calcola**. → [#715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/715).
 > 2. **D-120 supera D-037 senza rispondere alla sua prova.** D-037 vietava `Gadget` nudo per una ragione
->    misurata — è già una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`, 10 oggetti `Gadget.*`) —
+>    misurata — è già una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`, **8** oggetti `Gadget.*`) —
 >    e quella ragione non è venuta meno. Con la convenzione `<Eroe>.<Abilità>` la migrazione porterebbe
 >    `Flux.ArcPulse` in `Gadget.ArcPulse`, accanto a `Gadget.Medkit`; `Phase` collide con `ERTMatchPhase`
->    (367 usi). → [#716](https://github.com/DegrassiAaron/refactor-tactics-main/issues/716).
+>    (**367** occorrenze in 64 file di `Source/`). → [#716](https://github.com/DegrassiAaron/refactor-tactics-main/issues/716).
 >
 > ⚠️ **Il §6 «canary naming» è stato applicato come script, non come CI**
 > (`scripts/check-docs-naming.py`): `.github/workflows/` è vuota **per scelta**
-> ([D-108](../../../decisions/RT_PDR_00_Decision_Log.md)). E la copertura è dichiarata parziale: al momento
-> dell'applicazione l'arretrato misurato era **836 occorrenze in 73 file**, troppo per una sola PR onesta.
+> ([D-108](../../../decisions/RT_PDR_00_Decision_Log.md)). E la copertura è dichiarata parziale: dopo la
+> bonifica dei tre file sotto gate resta un arretrato di **832 occorrenze in 72 file** (erano 836 in 73 prima
+> della bonifica), troppo per una sola PR onesta. Il numero si **rimisura** eseguendo lo script.
 
 # RefactorTactics — v0.1 Focus Decisions Consolidation
 **Data:** 2026-08-12  

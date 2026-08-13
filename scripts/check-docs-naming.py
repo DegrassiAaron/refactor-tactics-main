@@ -84,8 +84,25 @@ ENFORCED = (
 # --- maschere: ciò che NON è prosa player-facing -----------------------------
 # L'ordine conta: i blocchi recintati spariscono prima degli inline, altrimenti un
 # backtick dentro un blocco sbilancia il conteggio degli inline.
-FENCED = re.compile(r"```.*?```", re.DOTALL)
-INDENTED = re.compile(r"^(?: {4,}|\t).*$", re.MULTILINE)
+#
+# ⚠️ La chiusura e' opzionale (`|\Z`). Con `` ```.*?``` `` un blocco **aperto e mai
+# chiuso** non veniva mascherato affatto: la regex non trovava il delimitatore finale
+# e lasciava tutto il resto del file come prosa, facendo fallire il gate per una
+# svista di formattazione invece che per un problema di naming.
+FENCED = re.compile(r"```.*?(?:```|\Z)", re.DOTALL)
+
+# ⚠️ **Non esiste una maschera per i blocchi di codice indentati, ed e' deliberato.**
+# La versione precedente aveva `^(?: {4,}|\t).*$`, che in Markdown non distingue un
+# blocco di codice dalla **continuazione di una lista annidata** — e questo repository
+# scrive prosa dentro sotto-punti a ogni pagina. Il risultato misurato era un falso
+# negativo silenzioso: un sotto-punto che nominava `Bastion` come personaggio passava
+# il gate con exit 0.
+#
+# Per un gate le due direzioni non hanno lo stesso costo. Un falso **positivo** e'
+# rumoroso e si chiude mettendo il token in backtick, cioe' facendo esattamente cio'
+# che la convenzione chiede. Un falso **negativo** non lo nota nessuno, ed e' il modo
+# in cui un gate smette di proteggere restando verde. I blocchi recintati coprono gia'
+# il codice che questi documenti scrivono davvero.
 INLINE_CODE = re.compile(r"`[^`\n]*`")
 HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 # Target di link e immagini: `](qualcosa)` — il testo dell'etichetta resta visibile.
@@ -105,7 +122,6 @@ def mask(text: str) -> str:
     for pattern in (
         HTML_COMMENT,
         FENCED,
-        INDENTED,
         INLINE_CODE,
         LINK_TARGET,
         BARE_URL,
@@ -179,8 +195,12 @@ def main() -> int:
 
     print(f"File markdown normativi analizzati: {total_files}"
           f" (esclusi {'/'.join(EXCLUDED_DIRS)})")
-    print(f"Sotto gate ENFORCED: {enforced_present}/{total_files} file"
-          f" — copertura {enforced_present / total_files:.0%}")
+    if total_files:
+        print(f"Sotto gate ENFORCED: {enforced_present}/{total_files} file"
+              f" — copertura {enforced_present / total_files:.0%}")
+    else:
+        # Checkout parziale o `docs/` spostata: meglio dirlo che dividere per zero.
+        print("Nessun file markdown trovato sotto docs/ — controlla il checkout.")
     print()
 
     if enforced_hits:
