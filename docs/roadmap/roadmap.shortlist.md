@@ -117,16 +117,14 @@ tabella sopra, che è generata.
 | **E32** Formato 4v4 competitivo · P3 | v0.4 | `#333` | — | Se E17 dice che regge |
 | **E34** Stati del personaggio e trasformazioni · P3 | v0.4 | `#244` | 1 | Stance e trasformazioni — le 10 voci `PIE-STATE-*` sono la sua controparte umana. ⚠️ **Due Feature ID si sovrappongono e nessuno è stato scelto**: `RT-FEAT-CHARACTER-STATE` (`future`, `SPECIFIED`, 5 scenari planned) e `RT-FEAT-CHAR-TRANSFORMATION` (`v0.2`, `IDEA`). Finché l'audit non dice se sono due scope o un duplicato, **nessuna delle due si sposta**: cambiare release a un ID stabile per far quadrare un'epic è la migrazione che poi nessuno sa più motivare |
 | **E37** Radar di personaggio e generatore Wiki · P3 | v0.4 | `#555` | 3 | — |
-| **E40** Il turno simultaneo in rete · P0 | v0.5 | — | 1 | — |
-| **E41** GAS come runtime delle abilità, mai come autorità · P1 | v0.6 | — | 1 | — |
-| **E42** Dedicated server e loop online reale · P0 | v0.7 | — | 1 | — |
-| **E43** Misura a lotti, e il bot che sa cosa sta misurando · P1 | v0.8 | — | 1 | — |
-| **E44** Feature freeze, e ciò che regge · P0 | v0.9 | — | — | — |
-| **E45** Un gate di produzione, non una release di feature · P0 | v1.0 | — | — | — |
+| **E40** Il turno simultaneo in rete · P0 | v0.5 | `#773` | 1 | — |
+| **E41** GAS come runtime delle abilità, mai come autorità · P1 | v0.6 | `#774` | 1 | — |
+| **E42** Dedicated server e loop online reale · P0 | v0.7 | `#775` | 1 | — |
+| **E43** Misura a lotti, e il bot che sa cosa sta misurando · P1 | v0.8 | `#776` | 1 | — |
+| **E44** Feature freeze, e ciò che regge · P0 | v0.9 | `#777` | — | — |
+| **E45** Un gate di produzione, non una release di feature · P0 | v1.0 | `#778` | — | — |
 
 **24 epic** su 9 release (v0.2 · v0.3 · v0.4 · v0.5 · v0.6 · v0.7 · v0.8 · v0.9 · v1.0) · release, titolo e issue da [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.
-
-> ⚠️ **Senza issue dichiarata nell'owner**: **E40**, **E41**, **E42**, **E43**, **E44**, **E45**. La epic puo' esistere su GitHub: questo script non parla con la rete, e cio' che l'owner non dichiara non compare.
 
 > ⚠️ **La colonna Feature e' quasi vuota perche' il registry non dichiara l'epic**: 7 feature post-v0.1 (v0.2 **5** · v0.3 **2**) hanno `roadmap.epic` nullo, **22** lo dichiara. Il legame esiste nella prosa di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) e nelle issue, ma non in un campo: finche' non lo e', questa colonna non puo' dire quali capacita' porta un'epic, e il conflitto `RT-FEAT-CHARACTER-STATE` / `RT-FEAT-CHAR-TRANSFORMATION` su **E34** non e' diagnosticabile da nessun controllo.
 

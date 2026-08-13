@@ -749,6 +749,8 @@ diventino canonici passando dalla Wiki.
 
 ### E40 — Il turno simultaneo in rete · P0
 
+**Tracciata su GitHub**: epic [#773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/773).
+
 **Tema**: portare il gioco reale in rete **senza matchmaking prematuro**. Lobby privata, due squadre, una
 partita che finisce.
 
@@ -803,6 +805,8 @@ dal canary · replay divergence 0 sulla partita registrata.
 
 ### E41 — GAS come runtime delle abilità, mai come autorità · P1
 
+**Tracciata su GitHub**: epic [#774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/774).
+
 **Il confine è deciso da prima di questa epic.** [D-005](../decisions/RT_PDR_00_Decision_Log.md) — *«GAS non è
 l'autorità del simulatore»* — è **Consolidata**, e la v0.1 la applica per assenza: `URTActionData`,
 `URTHeroData` e `URTEquipmentData` sono data asset, non `GameplayAbility`. Questa epic non riapre quella
@@ -842,6 +846,8 @@ percorso in cui un `AbilityTask` determini un esito competitivo.
 
 ### E42 — Dedicated server e loop online reale · P0
 
+**Tracciata su GitHub**: epic [#775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/775).
+
 **Tema**: si gioca su un server che **non è il client di nessuno**.
 
 `RT-FEAT-NET-DEDICATED` esiste nel registry come `IDEA` e senza documento owner — è la misura onesta di dove
@@ -869,6 +875,8 @@ esiste qui; il rating è **E44**.
 ## v0.8 — «Beta / Balance»
 
 ### E43 — Misura a lotti, e il bot che sa cosa sta misurando · P1
+
+**Tracciata su GitHub**: epic [#776](https://github.com/DegrassiAaron/refactor-tactics-main/issues/776).
 
 **Il principio precede lo strumento**, ed è la parte che si dimentica per prima:
 
@@ -909,6 +917,8 @@ performance misurati su packaged · soak lungo senza crash.
 
 ### E44 — Feature freeze, e ciò che regge · P0
 
+**Tracciata su GitHub**: epic [#777](https://github.com/DegrassiAaron/refactor-tactics-main/issues/777).
+
 **Niente di nuovo.** Questa epic non aggiunge meccaniche: chiude il contenuto, indurisce ciò che esiste e
 prepara il rilascio.
 
@@ -932,6 +942,8 @@ build precedente · soak senza crash né divergence.
 ## v1.0 — «Launch»
 
 ### E45 — Un gate di produzione, non una release di feature · P0
+
+**Tracciata su GitHub**: epic [#778](https://github.com/DegrassiAaron/refactor-tactics-main/issues/778).
 
 **La v1.0 non aggiunge niente.** È la verifica che tutto il resto esiste **su infrastruttura di produzione**,
 e la sua vista d'esecuzione è **M11** in [`roadmap-checkpoint.md`](roadmap-checkpoint.md#m11--production-readiness),

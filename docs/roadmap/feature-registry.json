@@ -6118,7 +6118,16 @@
       "owner_specs": [
         "docs/roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md"
       ],
-      "issues": [],
+      "issues": [
+        773,
+        779,
+        780,
+        781,
+        782,
+        783,
+        784,
+        785
+      ],
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [],
@@ -6165,7 +6174,14 @@
       ],
       "completed_by": [],
       "owner_specs": [],
-      "issues": [],
+      "issues": [
+        775,
+        792,
+        793,
+        794,
+        795,
+        796
+      ],
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [],
@@ -6216,7 +6232,15 @@
       "owner_specs": [
         "docs/roadmap/roadmap-post-v0.1.md"
       ],
-      "issues": [],
+      "issues": [
+        774,
+        786,
+        787,
+        788,
+        789,
+        790,
+        791
+      ],
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [],
@@ -6263,7 +6287,15 @@
       "owner_specs": [
         "docs/roadmap/roadmap-post-v0.1.md"
       ],
-      "issues": [],
+      "issues": [
+        776,
+        797,
+        798,
+        799,
+        800,
+        801,
+        802
+      ],
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [],
