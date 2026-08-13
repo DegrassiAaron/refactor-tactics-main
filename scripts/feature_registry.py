@@ -653,6 +653,205 @@ def status_block(entry):
     return "\n".join(lines)
 
 
+def render_control_center_page(data, graph):
+    """La pagina Wiki dello stato del progetto: quello che il Control Center risponde, senza server.
+
+    Il Control Center e' una pagina locale — serve `python -m http.server` e un checkout. Chi legge
+    la Wiki non ha ne' l'uno ne' l'altro, e fino a qui poteva sapere *quali feature esistono*
+    (`Stato-delle-feature`) ma non **a che punto e' la consegna** ne' **cosa blocca cosa**.
+
+    Non duplica `Stato-delle-feature`: quella elenca le feature per release e area, questa
+    risponde alle domande che il Control Center aggiunge — i gate di release, la coda del lavoro
+    umano, e l'execution graph. Ogni numero e' letto da `project-graph.json`, che e' generato:
+    nessun conteggio nasce qui, e nessuna regola di stato viene riapplicata.
+    """
+    gates = graph.get("release_gates") or []
+    green = sum(1 for g in gates if g.get("state") == "✅")
+    queue = graph.get("editor_queue") or {}
+    sessions = {s["id"]: s for s in (graph.get("editor_sessions") or [])}
+    execution = graph.get("execution") or None
+    diagnostics = graph.get("diagnostics") or {}
+    counts = {}
+    for entry in data["features"]:
+        counts[entry["status"]] = counts.get(entry["status"], 0) + 1
+    releases = {}
+    for entry in data["features"]:
+        releases[entry["release"]] = releases.get(entry["release"], 0) + 1
+
+    out = [
+        "# Stato del progetto",
+        "",
+        "> `GENERATO` · Vista d'insieme sopra gli artefatti del Feature Registry.",
+        "> Non modificare a mano: si rigenera con "
+        "`python scripts/feature_registry.py deploy --wiki-root <clone> --write`.",
+        "> E' la stessa cosa che il **Project Control Center** mostra nel repository, per chi legge",
+        "> la Wiki e non ha un checkout: la pagina locale e' interattiva, questa e' leggibile.",
+        "",
+        "## Quanto manca alla v0.1",
+        "",
+        f"**{green} gate di release verdi su {len(gates)}**. Il progresso si legge `N/M`, mai in",
+        "percentuale: un gate `na` esce dal denominatore invece di gonfiare la frazione.",
+        "",
+        "| Gate | Cosa chiede | Stato |",
+        "|---|---|:--:|",
+    ]
+    for gate in gates:
+        request = (gate.get("request") or "—").replace("|", "\\|")
+        out.append(f"| **{gate.get('id')}** | {request} | {gate.get('state') or '—'} |")
+
+    out += [
+        "",
+        "## Le feature, in due tagli",
+        "",
+        f"**{data['count']} feature** · "
+        + " · ".join(f"{rel} **{releases[rel]}**" for rel in RELEASE_ORDER if rel in releases)
+        + ".",
+        "",
+        "| Stato | Quante |",
+        "|---|--:|",
+    ]
+    for status in STATUS_ORDER:
+        if counts.get(status):
+            out.append(f"| `{status}` | {counts[status]} |")
+    for status in sorted(s for s in counts if s in STATUS_OFF_SCALE):
+        out.append(f"| `{status}` (fuori scala) | {counts[status]} |")
+    out += [
+        "",
+        "L'elenco per release e area sta in [Stato delle feature](Stato-delle-feature).",
+        "",
+        "## Il lavoro che aspetta una persona",
+        "",
+        "Le sedute in editor, nell'ordine in cui la coda le mette. `ASSET` significa che l'uscita e'",
+        "un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco:",
+        "e' il **tipo di lavoro**, non l'evidenza — `U7` e' `ASSET` e verifica anche due voci `PIE-*`.",
+        "",
+    ]
+    labels = {"BLOCKING": "Blocca la v0.1 e si puo' fare adesso", "READY": "Si puo' fare",
+              "WAITING": "Aspetta qualcosa", "DONE": "Chiuse"}
+    for group in ("BLOCKING", "READY", "WAITING", "DONE"):
+        ids = queue.get(group) or []
+        if not ids:
+            continue
+        out += ["", f"### {group} — {labels[group]} ({len(ids)})", "",
+                "| Seduta | Lane | Stato | Produce |", "|---|:--:|:--:|---|"]
+        for sid in ids:
+            session = sessions.get(sid) or {}
+            produces = (session.get("produces") or "—").replace("|", "\\|")
+            out.append(f"| **{sid}** {session.get('title') or ''} | "
+                       f"`{(session.get('execution_lane') or '—').upper()}` | "
+                       f"{session.get('state') or '—'} | {produces} |")
+
+    if execution:
+        stats = execution.get("stats") or {}
+        by_readiness = stats.get("by_readiness") or {}
+        out += [
+            "",
+            "## Cosa blocca cosa",
+            "",
+            f"La fetta «{execution.get('status')}» dell'execution graph: **{stats.get('nodes')} nodi**, "
+            f"**{stats.get('hard_edges')} dipendenze dure**, "
+            f"**{stats.get('soft_edges')} relazioni molli** (ordine consigliato o navigazione, che "
+            "non bloccano).",
+            "",
+            "| Readiness | Quanti | Significa |",
+            "|---|--:|---|",
+        ]
+        meaning = {
+            "READY": "nessun prerequisito duro lo trattiene",
+            "BLOCKED": "un prerequisito duro non e' risolto",
+            "WAITING_FOR_PIE": "aspetta una seduta davanti all'editor",
+            "WAITING_FOR_ASSET": "aspetta un asset da costruire",
+            "DONE": "fatto",
+            "UNKNOWN": "stato non misurabile senza rete",
+        }
+        for state in ("READY", "BLOCKED", "WAITING_FOR_PIE", "WAITING_FOR_ASSET", "DONE", "UNKNOWN"):
+            if by_readiness.get(state):
+                out.append(f"| `{state}` | {by_readiness[state]} | {meaning[state]} |")
+        # Due numeri diversi che sembrano lo stesso, e vanno distinti a parole: `state_unknown`
+        # conta i nodi **il cui stato** non e' leggibile offline; `by_readiness["UNKNOWN"]` conta
+        # quelli la cui **readiness** non e' decidibile — cioe' quelli che *dipendono* da uno di
+        # quelli. Il primo e' sempre >= il secondo, e affiancarli senza spiegarli produce due
+        # cifre che il lettore non sa riconciliare (qui: 14 e 5).
+        unknown = stats.get("state_unknown") or 0
+        if unknown:
+            blocked_by_ignorance = by_readiness.get("UNKNOWN", 0)
+            out += [
+                "",
+                f"> ⚠️ Di **{unknown}** nodi su {stats.get('nodes')} non si conosce lo **stato**: il",
+                "> generatore non parla con GitHub, e il checkpoint di quei nodi non dichiara il glifo",
+                "> nell'owner. Non e' la stessa cosa della riga `UNKNOWN` qui sopra, che ne conta"
+                f" **{blocked_by_ignorance}**: quella e' la *readiness* — i nodi che non si sa se",
+                "> siano liberi perche' **dipendono** da uno di stato ignoto. Chi non ha prerequisiti",
+                "> resta `READY` anche senza stato proprio, perche' nulla lo trattiene comunque.",
+            ]
+
+        nodes = {n["id"]: n for n in execution.get("nodes") or []}
+        incoming, outgoing = {}, {}
+        for edge in execution.get("edges") or []:
+            if edge.get("hard"):
+                incoming.setdefault(edge["to"], []).append(edge["from"])
+                outgoing.setdefault(edge["from"], []).append(edge["to"])
+        def label(nid):
+            """Il nome corto di un endpoint. Una capability non e' un nodo del grafo — compare solo
+            come estremo di un arco — quindi `nodes` non la conosce e senza questo ramo finiva in
+            tabella come `capability:DecisionBoundary`, l'unico id grezzo fra venti etichette."""
+            if str(nid).startswith("capability:"):
+                return f"`{str(nid).split(':', 1)[1]}`"
+            node = nodes.get(nid) or {}
+            return f"#{node['ref']}" if node.get("kind") == "issue" else node.get("ref") or nid
+        out += [
+            "",
+            "| Nodo | Lane | Dominio | Readiness | Dipende da | Abilita |",
+            "|---|:--:|---|:--:|---|---|",
+        ]
+        for node in execution.get("nodes") or []:
+            up = ", ".join(label(x) for x in sorted(incoming.get(node["id"], []))) or "—"
+            down = ", ".join(label(x) for x in sorted(outgoing.get(node["id"], []))) or "—"
+            out.append(
+                f"| **{label(node['id'])}** | `{(node.get('execution_lane') or '—').upper()}` | "
+                f"{node.get('domain_group') or '—'} | `{node.get('readiness') or '—'}` | {up} | {down} |")
+        out += [
+            "",
+            "Un `—` non e' un dato mancante: a sinistra significa che **niente lo trattiene**, a",
+            "destra che **non sblocca niente di dichiarato**. Nella pagina locale gli stessi due casi",
+            "si vedono come un collegamento staccato.",
+        ]
+
+        capabilities = execution.get("capabilities") or []
+        if capabilities:
+            out += [
+                "",
+                "### Capability",
+                "",
+                "Una capacita' che gli scenari chiedono e che il gioco non ha ancora. Finche' manca,",
+                "gli scenari che la dichiarano restano `BLOCKED` — e questa tabella dice **chi la",
+                "portera'**, che e' l'unica cosa che nessun'altra fonte sapeva.",
+                "",
+                "| Capability | Disponibile | La fornisce | Scenari in attesa |",
+                "|---|:--:|---|--:|",
+            ]
+            for cap in capabilities:
+                providers = ", ".join(label(p) for p in cap.get("providers") or []) or "—"
+                out.append(f"| `{cap['id']}` | {'sì' if cap.get('available') else 'no'} | "
+                           f"{providers} | {len(cap.get('scenario_consumers') or [])} |")
+
+    errors = diagnostics.get("errors") or []
+    warnings = diagnostics.get("warnings") or []
+    out += [
+        "",
+        "## Diagnostica",
+        "",
+        f"**{len(errors)} errori** · **{len(warnings)} warning** dal validator del registry. "
+        "Un errore fa fallire il gate e blocca la consegna; un warning e' una lacuna dichiarata.",
+        "",
+        "---",
+        "",
+        "Le viste di dettaglio vivono nel repository e non sulla Wiki, perche' citano file e righe:",
+        "`docs/roadmap/*.shortlist.md` per epic, feature, scenari, milestone e sedute.",
+    ]
+    return "\n".join(out) + "\n"
+
+
 def render_status_page(data):
     by_release = {rel: [] for rel in RELEASE_ORDER}
     for entry in data["features"]:
@@ -910,14 +1109,23 @@ def apply_wiki_deploy(data, wiki_root, check=True):
     # `docs/wiki/feature-status.md`: il comando `wiki` la generava li', il deploy la **copiava** nel
     # clone, e fra i due passaggi c'era una finestra in cui la copia pubblicata era vecchia senza che
     # nulla lo dicesse. Ora si genera direttamente qui: una copia sola, nessuna finestra.
-    target = os.path.join(wiki_root, "Stato-delle-feature.md")
-    content = render_status_page(data)
-    current = open(target, encoding="utf-8").read() if os.path.isfile(target) else None
-    if current != content:
-        changed.append("Stato-delle-feature.md")
-        if not check:
-            with open(target, "w", encoding="utf-8", newline="\n") as fh:
-                fh.write(content)
+    # Due pagine generate direttamente qui, per la stessa ragione: una copia sola e nessuna
+    # finestra in cui il pubblicato e' vecchio senza che nulla lo dica. `Stato-del-progetto` ha
+    # bisogno anche del grafo — gate, coda, execution — e lo costruisce da se': e' l'unico punto
+    # del deploy che lo richiede, e passarlo da fuori avrebbe obbligato ogni chiamante ad averlo.
+    generated = [
+        ("Stato-delle-feature.md", lambda: render_status_page(data)),
+        ("Stato-del-progetto.md", lambda: render_control_center_page(data, build_graph(load_registry()))),
+    ]
+    for name, render in generated:
+        target = os.path.join(wiki_root, name)
+        content = render()
+        current = open(target, encoding="utf-8").read() if os.path.isfile(target) else None
+        if current != content:
+            changed.append(name)
+            if not check:
+                with open(target, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(content)
     return changed, missing
 
 
