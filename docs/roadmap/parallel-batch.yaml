@@ -65,8 +65,10 @@ preexisting:
     worktree: rt-wt-walls-doors
     pr: 836
     note: >-
-      16 file, prevalentemente integration_only. Ha tolto dal batch il validator del parallelismo,
-      che voleva estendere `scripts/feature_registry.py`.
+      16 file, di cui **13** sono `integration_only` (8) o `generated_only` (5) di questo batch: è la
+      forma tipica di un consolidamento documentale, e la ragione per cui due consolidamenti non
+      girano bene insieme. Ha tolto dal batch il validator del parallelismo, che voleva estendere
+      `scripts/feature_registry.py`.
 
   - branch: fix/capability-sconosciuta-non-e-blocked
     worktree: wt-cap
@@ -150,8 +152,11 @@ integration_only:
   - Source/RefactorTactics/RefactorTactics.Build.cs
   - Config/
 
-# Output generati: si rigenerano **dopo** il merge dei branch, mai su un branch singolo, o due
-# rami producono due versioni dello stesso file da una sorgente che nessuno dei due vede intera.
+# Output generati. Non si modificano a mano, e un branch li tocca **solo se ha toccato una
+# sorgente** — in quel caso deve, o consegna un `--check` rosso. ⚠️ Un branch che NON ha toccato
+# sorgenti e rigenera lo stesso porta dentro modifiche altrui, che sembrano sue. In ogni caso si
+# rigenera un'ultima volta sull'albero unito: due rami che rigenerano sulla propria base
+# producono due versioni dello stesso file da una sorgente che nessuno dei due vede intera.
 generated_only:
   - docs/roadmap/feature-registry.json
   - docs/roadmap/project-graph.json

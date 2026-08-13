@@ -253,9 +253,13 @@ Tre categorie non si assegnano a nessuno:
 - **`integration_only`** — i file che più branch potrebbero voler toccare (`AGENTS.md`, il Decision Log,
   `feature-registry.yaml`, `scripts/feature_registry.py`, il `.uproject`, `Config/`). Si aggiornano **una
   volta**, in integrazione. Non è ownership permanente: è una proprietà del batch.
-- **`generated_only`** — le viste generate. Si rigenerano **dopo** il merge, mai su un branch singolo: due
-  rami che rigenerano producono due versioni dello stesso file da una sorgente che nessuno dei due vede
-  intera.
+- **`generated_only`** — le viste generate. Non si **modificano** mai a mano e non si rigenerano per
+  abitudine: un branch le tocca **solo se ha toccato una sorgente**, perché in quel caso il `--check` è
+  rosso e consegnarlo così sarebbe peggio. La regola è quindi al contrario di come verrebbe da scriverla —
+  ⚠️ *un branch che non ha toccato sorgenti e rigenera lo stesso porta dentro modifiche altrui*, e sembrano
+  sue. E in ogni caso **si rigenera un'ultima volta sull'albero unito**: due rami che rigenerano ciascuno
+  sulla propria base producono due versioni dello stesso file da una sorgente che nessuno dei due vede
+  intera, e il conflitto che ne esce non si risolve scegliendo un lato.
 - **`preexisting`** — i branch già vivi al momento del calcolo. Non fanno parte del batch: sono il vincolo
   che lo determina.
 
