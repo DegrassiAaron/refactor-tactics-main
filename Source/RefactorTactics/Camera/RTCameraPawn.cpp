@@ -20,7 +20,11 @@ ARTCameraPawn::ARTCameraPawn()
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
 	SpringArm->SetupAttachment(SceneRoot);
-	SpringArm->TargetArmLength = DefaultArmLength;
+	// Clampata anche qui: e' il **quinto** punto che scrive questa distanza, e la prima stesura di #873 lo
+	// aveva mancato — il commento diceva «clampata ovunque si scriva» mentre questa riga non lo faceva.
+	// Oggi e' innocuo perche' i default di classe sono in scala, ma il giorno in cui il costruttore
+	// ricevesse un valore da config o da un archetipo Blueprint tornerebbe a passare nudo.
+	SpringArm->TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, MaxArmLength);
 	SpringArm->SetRelativeRotation(FRotator(CameraPitch, 0.f, 0.f)); // inclinazione tunabile (era fissa a -55)
 	SpringArm->bDoCollisionTest = false;
 	SpringArm->bInheritPitch = false;
@@ -185,13 +189,15 @@ void ARTCameraPawn::RecenterView()
 	// Anche la ROTAZIONE torna a zero. `Home` e' il tasto del «riportami a un'inquadratura che conosco»: se
 	// riportasse la posizione ma lasciasse la vista girata, chi si e' perso ruotando resterebbe perso.
 	CameraYaw = 0.f;
-	if (SpringArm)
-	{
-		// Clampata come ovunque si scriva questa distanza. Era l'unico dei quattro punti a non farlo, e
-		// bastava un `DefaultArmLength` fuori intervallo — tarabile dall'editor — perche' `Home` portasse
-		// il braccio dove lo zoom non lo lascerebbe mai stare: la prima rotellina lo riportava dentro di
-		// scatto, che e' esattamente il difetto che `ApplyViewSettings` dichiara di voler evitare.
-		SpringArm->TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, MaxArmLength);
-		SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
-	}
+
+	// Distanza e orientamento di default li applica `ApplyViewSettings`, che e' esattamente cio' che
+	// serve qui: `Home` e' «riportami all'inquadratura di partenza». Il difetto che #873 chiude era che
+	// questa funzione scriveva `DefaultArmLength` **nudo**, mentre gli altri punti lo clampavano — con
+	// `DefaultArmLength` fuori scala, `Home` portava il braccio dove lo zoom non lo lascia stare.
+	//
+	// ⚠️ La prima stesura della correzione **copiava** le due righe di `ApplyViewSettings` invece di
+	// chiamarla, clamp compreso. Il fix funzionava e il test era verde, ma lasciava la stessa espressione
+	// in due punti da tenere allineati a mano — cioe' ricreava la divergenza che #873 esiste per chiudere,
+	// un livello piu' in la'. Trovato in code review.
+	ApplyViewSettings();
 }

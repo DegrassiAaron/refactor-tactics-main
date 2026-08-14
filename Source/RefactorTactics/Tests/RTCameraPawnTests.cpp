@@ -447,13 +447,25 @@ bool FRTCameraRecenterClampsArmTest::RunTest(const FString&)
 	Cam->RecenterView();
 	TestEqual(TEXT("Home si ferma al massimo, non al default fuori scala"), Arm->TargetArmLength, 4000.f);
 
-	// La prova che conta per il giocatore: la prima tacca di zoom **dopo** `Home` non deve riportare
-	// dentro di scatto. Se `RecenterView` avesse lasciato 5000, questo passo scenderebbe a 4000 — un
-	// salto di mille unita' che nessun input ha chiesto.
+	// La prova che conta per il giocatore: la prima tacca di zoom **dopo** `Home` deve muovere di un passo
+	// e basta. Si zooma **avvicinando** (`-1`), perche' e' la sola direzione in cui il risultato e' un
+	// valore esatto e non un altro clamp: 4000 - `ZoomStep`.
+	//
+	// 🔴 La prima stesura zoomava allontanando (`+1`) e verificava `Abs(nuovo - vecchio) <= 150`. Era una
+	// **tautologia**: dopo il clamp il braccio sta gia' al massimo, quindi `Clamp(4150, 100, 4000)` non
+	// puo' che restituire 4000 e la differenza e' sempre zero. Passava con qualunque implementazione, e
+	// il commento la chiamava «la prova che conta». Trovata in code review.
 	const float AfterHome = Arm->TargetArmLength;
-	Cam->AddZoom(+1.f);
-	TestTrue(TEXT("la prima rotellina non fa saltare l'inquadratura"),
-		FMath::Abs(Arm->TargetArmLength - AfterHome) <= 150.f); // 150 = ZoomStep, un passo pieno
+	Cam->AddZoom(-1.f);
+	const float AfterOneStep = Arm->TargetArmLength;
+	TestTrue(TEXT("la prima rotellina muove di un passo, non di un salto"),
+		AfterOneStep < AfterHome && AfterOneStep > AfterHome - 1000.f);
+	// E il passo e' quello dello zoom, non un valore qualsiasi: lo si ricava dal comportamento —
+	// due tacche coprono il doppio di una — invece di riscrivere la costante `ZoomStep`, che e'
+	// `protected` e che i test di questo file per convenzione non duplicano.
+	const float Step = AfterHome - AfterOneStep;
+	Cam->AddZoom(-1.f);
+	TestEqual(TEXT("il secondo passo e' uguale al primo"), AfterOneStep - Arm->TargetArmLength, Step);
 
 	// E il limite inferiore vale allo stesso modo, per non lasciare mezza guardia.
 	Cam->SetArmLengthRangeForTest(/*Default=*/ 10.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
