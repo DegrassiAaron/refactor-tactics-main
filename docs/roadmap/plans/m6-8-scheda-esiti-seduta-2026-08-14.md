@@ -99,10 +99,19 @@ contro `DefaultArmLength` 800. **Osservabile solo nel primo istante**, prima di 
 **`PIE-HEXPLAY-2`** — selezione e cella sotto il cursore · *partenza* 🟡
 Selezione, guardia sulle avversarie ed evidenziazione gialla sono già ✅. **Manca solo il layer**: cliccando
 la piattaforma si evidenzia la cella del **layer 1**, non quella sotto con gli stessi `q,r`.
-- Esito: 🟡 invariata — quattro selezioni, tutte su unità proprie (`RTUnit_0`, `RTUnit_1`).
-- Evidenza: `Selezionata: RTUnit_1` ×2 · `Selezionata: RTUnit_0` ×2
-- Resta: **il layer**, che è ciò che tiene aperta la voce — nessuna cella `L1` compare nel log di questa run.
-  Serve un click sulla piattaforma.
+- Esito: 🟡 **avanzata molto, 2026-08-14 (log `_3`)** — la **guardia** sulle avversarie è ✅ (3 occorrenze), e
+  **il layer risolve**: un click sulla piattaforma ha prodotto un waypoint sulla cella `L1`, non su quella
+  con gli stessi `q,r` sotto. È la metà logica della voce, ed è la parte che tiene aperta la 🟡 dal 6 agosto.
+- Evidenza:
+  ```
+  RTUnit_3 e' avversaria: seleziona prima una tua unita' per bersagliarla     ← 3 occorrenze
+  Waypoint (3,-1,L1) rifiutato: oltre il budget (gia' spesi 0 di 5) per RTUnit_0
+  ```
+  ⚠️ Il waypoint su `L1` è stato **rifiutato per budget** con «già spesi 0 di 5»: la piattaforma costava più
+  di 5 dal punto di partenza. Non è un difetto — ma significa che **nessuna unità ci è salita**, quindi
+  `PIE-HEXPLAY-8` (salita di quota nel playback) resta senza osservazione.
+- Resta: la conferma **visiva** che l'evidenziazione gialla stia sulla cella del layer giusto. Il log prova
+  che il raycast risolve la quota, non che il contorno si disegni dove deve.
 
 **`PIE-HEXPLAY-3`** — pianificazione entro budget · *partenza* ✅ (2026-08-10)
 Verificata anche nel visivo. Si rilegge in U6.
@@ -119,8 +128,12 @@ Verificata anche nel visivo. Si rilegge in U6.
   Waypoint (1,-2,L0)  rifiutato: cella bloccata (RTUnit_1)                          ← 5 occorrenze
   Annullato waypoint: RTUnit_1 -> N waypoint                                        ← 2 occorrenze
   ```
-- Resta: **cliccare una cella occupata da un'altra unità** e **una fuori dalla mappa**, verificando che il
-  log dica il motivo giusto e che il piano non si azzeri. Due click, e la voce chiude.
+  ➕ **Seconda run, log `RefactorTactics_3.log` (20:17)** — il terzo rifiuto è arrivato:
+  ```
+  Waypoint (4,0,L0)  rifiutato: cella occupata da un'altra unita' (RTUnit_0)        ← 5 occorrenze
+  ```
+- Resta: **un solo gesto** — cliccare una cella **fuori dalla mappa**. `rifiutato: cella fuori dalla mappa`
+  ha ancora **0** occorrenze su entrambi i log. Poi la voce chiude.
   Vedi anche `OSS-1` (#877), che nasce da questa stessa osservazione ma **non** appartiene a questa voce.
 
 **`PIE-HEXPLAY-3b`** — il rifiuto dice il motivo giusto · *partenza* 🟡
@@ -179,8 +192,17 @@ guardando la partita? La run precedente durava 5 round — «un lampo» — e no
   RTUnit_2: utility -> (q=0,r=0,L0) attacca RTUnit_0 score=-10
   RTUnit_3: utility -> (q=-1,r=-1,L0) score=-30
   ```
-- Resta: **il giudizio sul comportamento** su una partita intera — quattro decisioni non bastano a dire se
-  gli score hanno senso.
+  ➕ **Seconda run (log `_3`): il layer 1 è tornato nelle valutazioni**, e non solo come cella di passaggio —
+  il bot ci ha visto un attacco:
+  ```
+  RTUnit_3: utility -> (q=2,r=-1,L1) score=-10
+  RTUnit_3: utility -> (q=2,r=-1,L1) attacca RTUnit_0 score=70
+  Pesi bot: WKill=10000 WDamage=10 WThreat=100 WKiteViolation=50 WApproach=10 WElevation=20
+  ```
+  ⚠️ I pesi in vigore sono i **default**, `WElevation` compreso: non sono stati ritarati in questa seduta, e
+  il `done_when` di U5 chiede che se li si modifica vengano committati.
+- Resta: **il giudizio sul comportamento** su una partita intera — sei decisioni non bastano a dire se gli
+  score hanno senso.
 
 **`PIE-HEXPLAY-9`** — HUD e anteprima piani · *partenza* ⏳
 Barre HP/scudo/energia, timer, fase, combat log invariati; anteprima **ciano**, marker waypoint, preview
@@ -223,12 +245,20 @@ traiettoria o **compare** sulla cella d'arrivo? Serve una run lenta.
 **Mancano tre cose**: «PARTITA FINITA» a schermo, il riavvio con **`R`**, e una chiusura **per
 eliminazione**. ⚠️ Se chiude per scadenza dei round **non è un fallimento**: è un numero per G11. La DoD
 chiede **tre run** prima di trarne una conclusione.
-- Esito run 1: ⏳ **la run del 2026-08-14 non è arrivata a conclusione** — zero `Eliminata:` e zero
-  `Partita finita` nel log. Non è un esito negativo: è una run interrotta, e va rifatta fino in fondo.
-- Esito run 2:
-- Esito run 3:
-- Evidenza (`Partita finita: <esito> (round n/12, obiettivo x-y, formato Format.Skirmish2v2)`): —
-- Resta: **tutto** — «PARTITA FINITA», il riavvio con `R`, e la chiusura per eliminazione.
+- Esito run 1 (log `_2`): ⏳ **non arrivata a conclusione** — zero `Eliminata:`, zero `Partita finita`. Run
+  interrotta, non un esito negativo.
+- Esito run 2 (log `_3`): 🟡 **la partita è finita, e col limite nuovo** — ma **ancora per scadenza dei
+  round**, non per eliminazione:
+  ```
+  Eliminata: RTUnit_1 (team 0)
+  Partita finita: Pareggio - allo scadere dei round (round 12/12, obiettivo 0-0, formato Format.Skirmish2v2)
+  ```
+  ⚠️ **Questo è un numero, e va portato a G11.** Il dato di riferimento della voce dice che *bot contro bot*
+  la partita si decide al **turno 10**, dentro il limite. Qui, con un umano al comando del team 0, si è
+  arrivati a **12/12** con una sola eliminazione e nessuna decisione. Due run su due chiudono per scadenza —
+  la prima con `RoundLimit 5`, questa con **12**, quindi il limite non è più la spiegazione.
+- Esito run 3: — *(la DoD ne chiede tre prima di trarre una conclusione)*
+- Resta: una chiusura **per eliminazione**, «PARTITA FINITA» a schermo e il riavvio con **`R`**.
 
 **`PIE-FACING-1`** — l'orientamento visto è quello della regola · *partenza* ⏳
 A fine playback la mesh **guarda dove guarda la regola**: chi si è mosso lungo l'ultimo passo, chi ha
@@ -265,7 +295,24 @@ possibili senza che nessuno l'avesse scelta.
 approccio e test. ⚠️ `Player/` non è nel `writable` di nessuna track: chi la prende dichiara il write-set
 prima (**D-139**).
 
-### `OSS-2` — …
+### `OSS-2` — il click sull'avversario non muove la camera → **nessun difetto**
+
+**Osservato il 2026-08-14**: *«il click sull'avversario non ha modificato la posizione della cam»*.
+
+**Verificato sul codice: è il comportamento previsto, e l'aspettativa era doppia.** `FocusOn` ha **un solo
+chiamante** — `ARTPlayerController::OnFocusSelected` — legato a **`EKeys::F`**: la camera non segue la
+selezione, si centra su comando. E cliccare un'avversaria **non seleziona** (`RTUnit_3 e' avversaria:
+seleziona prima una tua unita' per bersagliarla`, 3 occorrenze nel log), quindi non c'era neppure un soggetto
+da inquadrare. Nella run: `Focus su …` **0 occorrenze** — `F` non è mai stato premuto.
+
+⚠️ **Da dove nasce l'equivoco, che è la parte utile.** Il corpo di `#865` (chiusa) scrive che
+*«`RTPlayerController` usa `FocusOn` **sulla selezione**»*: vero che il soggetto è l'unità selezionata, falso
+che l'innesco sia la selezione. Una riga imprecisa in una issue chiusa produce, un mese dopo, un difetto
+riferito che non esiste. Non la correggo — non è di questa seduta — ma la sequenza operativa ora dichiara
+`F` e il divieto di aspettarsi che la camera segua il click.
+
+**Nessuna issue aperta**: non c'è niente da riparare. Se si volesse *cambiare* il design — camera che segue
+la selezione — sarebbe una decisione, non un fix, e andrebbe posta come tale.
 
 ---
 

@@ -69,8 +69,15 @@ previsto (li produce U7).
 | **click destro** o **Backspace** | annulla l'ultimo waypoint |
 | **1** · **2** · **3** | abilità · **4** = **scatto** |
 | **Spazio** | lock-in **oppure** salta il playback — vedi sotto |
-| **Home** | ricentra la camera e azzera lo zoom |
+| **Home** | ricentra sul centro della griglia e azzera lo zoom (`DefaultArmLength` 800) |
+| **F** | centra sull'unità **selezionata**, mantenendo zoom e quota (`FocusOn`) |
 | **R** | riavvia la partita — attivo **solo** a match concluso |
+
+⚠️ **La camera non segue il click.** Selezionare un'unità **non** muove l'inquadratura: il focus è un gesto
+esplicito (**`F`**), e `Home` e `F` sono due inquadrature diverse per scelta — centro mappa contro unità.
+Cliccare un'**avversaria** non la seleziona nemmeno (`e' avversaria: seleziona prima una tua unita'`), quindi
+non esiste un soggetto da inquadrare. Aspettativa emersa in seduta il 2026-08-14 e verificata sul codice:
+`FocusOn` ha un solo chiamante, `OnFocusSelected`, legato a `EKeys::F`.
 
 ### ⚠️ Premere Spazio fino alla fine non è una run valida
 
