@@ -454,9 +454,22 @@ preexisting:
       sezione è stata scritta la prima volta: nel frattempo ha preso un branch.
 
   - branch: feat/865-camera-focus-tests
-    state: LOCAL           # worktree `D:/rt-telecamera`, creato su `c371c9a0`
-    measured: 0
+    state: LIVE            # worktree `D:/rt-telecamera`, su `c371c9a0` · 2 commit
+    measured: 6
+    holds:
+      - Source/RefactorTactics/Tests/RTCameraPawnTests.cpp
+      - docs/roadmap/feature-registry.yaml
+      - docs/roadmap/parallel-batch.yaml
+      - docs/roadmap/feature-registry.json        # generated: segue la sorgente
+      - docs/roadmap/featuremap.shortlist.md      # generated: segue la sorgente
+      - docs/roadmap/roadmap.shortlist.md         # generated: segue la sorgente
     note: >-
+      ✅ **`LOCAL · 0` → `LIVE · 6`, misurato al primo commit** con
+      `git diff --name-only origin/main...HEAD`. È il passaggio che questa sezione descrive: la
+      prenotazione diventa un vincolo quando il branch scrive. ⚠️ Tre dei sei sono viste generate —
+      il gate `automation → done` cambia `featuremap` e `roadmap.shortlist`, cosa che una
+      dichiarazione a priori non avrebbe previsto: le shortlist leggono i **gate**, non solo i
+      campi che si stanno editando.
       Sessione su `#865`, aperta dal consolidamento camera di `#867`: i test che mancano a
       `FocusOn` e `FrameOwnTeam`, cioè la ragione per cui il gate `automation` di
       `RT-FEAT-UI-TACTICAL-CAMERA` è `partial` e non `done`. Zero commit, quindi oggi non è un
