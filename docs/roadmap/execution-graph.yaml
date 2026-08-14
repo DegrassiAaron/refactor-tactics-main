@@ -17,6 +17,17 @@
 #                                      Scrivere entrambe crea due verita' che divergono al primo
 #                                      edit di una sola.
 #   `junction: true`                   deriva dal numero di ingressi hard
+#   `domain_group:` derivabile         lo deriva il generatore: `feature.issues` del registry dice
+#                                      quali feature possiedono la issue, `feature_areas` in quale
+#                                      gruppo sta la loro `area`. Scriverlo a mano era una copia
+#                                      che poteva solo sbagliare — e sbagliava, su 2 nodi su 17,
+#                                      perche' il gruppo *sembra* leggibile dal checkpoint
+#                                      (`E14.8` suona reazioni) mentre mappa l'`area`.
+#                                      Si dichiara **solo** dove non e' derivabile: nessuna
+#                                      feature dichiara la issue (4 nodi), la issue attraversa
+#                                      piu' domini, oppure il nodo non e' una issue (le sedute).
+#                                      Il validator rifiuta un valore che contraddice il registry
+#                                      e segnala i nodi che restano senza gruppo.
 #   `follows` fra due sedute           lo dichiara gia' `editor-sessions.yaml`, che distingue la
 #                                      dipendenza dura (`unblocked_by`) dall'ordine di lavoro
 #                                      (`unblocks` senza reciproco, stesso blocco). Riscriverlo
@@ -133,19 +144,16 @@ nodes:
 
   - id: issue:164
     release: v0.1
-    domain_group: actions_reactions
     checkpoint: E14.4
 
   - id: issue:165
     release: v0.1
-    domain_group: actions_reactions
     checkpoint: E14.5
     provides:
       - DecisionBoundary
 
   - id: issue:166
     release: v0.1
-    domain_group: actions_reactions
     checkpoint: E14.6
 
   - id: issue:314
@@ -155,7 +163,6 @@ nodes:
 
   - id: issue:319
     release: v0.1
-    domain_group: actions_reactions
     checkpoint: E14.8
 
   - id: issue:512
@@ -172,36 +179,29 @@ nodes:
 
   - id: issue:66
     release: v0.1
-    domain_group: map_environment
     checkpoint: E8.3
 
   - id: issue:75
     release: v0.1
-    domain_group: objectives_match
     checkpoint: E10.2
 
   - id: issue:170
     release: v0.1
-    domain_group: tooling_data_qa
     checkpoint: E15.4
 
   - id: issue:171
     release: v0.1
-    domain_group: tooling_data_qa
     checkpoint: E15.5
     execution_lane: pie
 
   - id: issue:625
     release: v0.1
-    domain_group: tooling_data_qa
 
   - id: issue:649
     release: v0.1
-    domain_group: tooling_data_qa
 
   - id: issue:687
     release: v0.1
-    domain_group: tooling_data_qa
 
   # --- Catena C · Character presentation / ASSET / PIE ---------------------------------------
   #
@@ -211,17 +211,14 @@ nodes:
 
   - id: issue:287
     release: v0.1
-    domain_group: characters_content
     checkpoint: E21.1
 
   - id: issue:288
     release: v0.1
-    domain_group: characters_content
     checkpoint: E21.2
 
   - id: issue:289
     release: v0.1
-    domain_group: characters_content
     checkpoint: E21.3
 
   - id: issue:593
