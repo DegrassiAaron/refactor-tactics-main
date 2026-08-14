@@ -3721,6 +3721,76 @@ def epic_domain_groups(registry, doc=None):
     return derived
 
 
+V01_ISSUE_PLAN = os.path.join(REPO, "docs", "roadmap", "v0.1-issue-plan.md")
+
+
+def reconcile_epic_issues(lista, heading):
+    """Incrocia le due letture di `v0.1-issue-plan.md`. Dove divergono, **nessuna vince**.
+
+    Funzione pura, e lo e' per un motivo misurato: finche' la riconciliazione stava dentro
+    `epic_issue_map()` — che legge i file veri — il test sui conflitti non poteva distinguere «non
+    ci sono conflitti» da «non li cerco piu'». Disattivando il controllo la lista restava vuota e i
+    test restavano verdi. E' la seconda volta in questa figura che la verifica di mutazione trova
+    un test che non prova cio' che dichiara; qui la cura e' rendere testabile la regola invece di
+    testarla attraverso il filesystem.
+
+    Un'epic su cui le due letture non concordano **esce**: il numero non si sceglie qui, perche' la
+    contraddizione va corretta nell'owner. Chi chiama riceve il conflitto e decide se dirlo.
+    """
+    out, conflicts = {}, []
+    for epic in sorted(set(lista) | set(heading)):
+        primo, secondo = lista.get(epic), heading.get(epic)
+        if primo and secondo and primo != secondo:
+            conflicts.append((epic, primo, secondo))
+            continue
+        out[epic] = primo or secondo
+    return out, conflicts
+
+
+def epic_issue_map():
+    """Epic della v0.1 → issue GitHub, **offline**. Due letture che devono concordare.
+
+    La prima stesura della Roadmap Map dichiarava questo dato «non derivabile senza GitHub», e la
+    conclusione era sbagliata per il motivo piu' banale: era stata cercata in `roadmap-v0.1.md`, il
+    cui §2.1 porta nome, stato ed evidenza ma non il numero, e da li' estesa a tutto il repository.
+    L'owner e' un altro file — `v0.1-issue-plan.md` — e lo dichiara due volte:
+
+        - [ ] #26 — E12 · Determinismo, QA e release (P0, 6 CP)
+        ### #26 · [EPIC v0.1] E12 — Determinismo, QA e release
+
+    Le due letture si incrociano invece di sceglierne una: la lista copre venti epic, gli heading
+    sedici, e dove entrambe parlano **devono dire lo stesso numero**. Se divergono il valore non si
+    indovina — l'epic resta senza issue e il conflitto torna in `conflicts`, perche' la correzione
+    va fatta nell'owner e non qui.
+
+    `E21` non sta in quel file ed e' un caso dichiarato, non un buco del parser: la sua sezione in
+    `roadmap-v0.1.md` porta *«Tracciata su GitHub … epic #286 … Era l'unica epic della v0.1 senza
+    issue»*. Si legge da li', ed e' l'unica epic per cui serve la seconda fonte.
+    """
+    lista, heading = {}, {}
+    if os.path.isfile(V01_ISSUE_PLAN):
+        with open(V01_ISSUE_PLAN, encoding="utf-8") as fh:
+            text = fh.read()
+        lista = {epic: int(num)
+                 for num, epic in re.findall(r"^- \[[ x]\] #(\d+) — (E\d+) ·", text, re.M)}
+        heading = {epic: int(num)
+                   for num, epic in re.findall(r"^### #(\d+) · \[EPIC[^\]]*\] (E\d+) —", text, re.M)}
+
+    out, conflicts = reconcile_epic_issues(lista, heading)
+
+    if os.path.isfile(ROADMAP_V01):
+        with open(ROADMAP_V01, encoding="utf-8") as fh:
+            text = fh.read()
+        sections = re.split(r"^### (E\d+) — ", text, flags=re.M)
+        for epic, body in zip(sections[1::2], sections[2::2]):
+            if epic in out:
+                continue
+            match = re.search(r"\*\*Tracciata su GitHub\*\*[^\n]*?epic \[#(\d+)\]", body)
+            if match:
+                out[epic] = int(match.group(1))
+    return out, conflicts
+
+
 def epic_catalog():
     """Epic → titolo, priorita', release, glifo, checkpoint chiusi/totali. Due owner, una vista.
 
@@ -3772,10 +3842,14 @@ def epic_catalog():
 
     glyphs = epic_status()
     releases = epic_release_map()
+    issues, _ = epic_issue_map()
     for epic, entry in catalog.items():
         entry.setdefault("cp_done", 0)
         entry.setdefault("cp_total", 0)
         entry["glyph"] = glyphs.get(epic, "")
+        # `post_v01_epics()` porta gia' la issue per le epic oltre la v0.1: quella vince, perche'
+        # e' il suo owner. `epic_issue_map()` copre solo il buco della v0.1.
+        entry["issue"] = entry.get("issue") or issues.get(epic)
         # `epic_release_map()` e' l'owner della release: se dice qualcosa, vince sul default
         # `v0.1` messo qui sopra dalla presenza di una sezione.
         entry["release"] = releases.get(epic) or entry.get("release")
@@ -4076,11 +4150,17 @@ def render_roadmap_map_svg(model):
                 # riquadri sarebbe rumore, e la figura deve far risaltare le poche epic che
                 # bloccano molto, non ripetere zero ovunque.
                 uscenti = (model.get("fanout") or {}).get(epic["epic"], 0)
-                if uscenti:
+                issue = epic.get("issue")
+                if uscenti or issue:
                     peso = "700" if uscenti >= 8 else "400"
-                    out.append(f'<text x="{x + box_w - 8}" y="{top + 18}" fill="#3fb950" '
-                               f'font-size="11" font-weight="{peso}" text-anchor="end">'
-                               f'→{uscenti}</text>')
+                    pezzi = []
+                    if issue:
+                        pezzi.append(f'<tspan fill="{MAP_DIM}" font-weight="400">#{issue}</tspan>')
+                    if uscenti:
+                        pezzi.append(f'<tspan fill="#3fb950" font-weight="{peso}"> →{uscenti}'
+                                     f'</tspan>')
+                    out.append(f'<text x="{x + box_w - 8}" y="{top + 18}" font-size="10" '
+                               f'text-anchor="end">{"".join(pezzi)}</text>')
                 title = epic.get("title") or ""
                 if len(title) > 21:
                     title = title[:20] + "…"

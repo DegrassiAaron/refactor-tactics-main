@@ -174,6 +174,49 @@ class GliArchiSiDerivanoENonSiInventano(unittest.TestCase):
         self.assertEqual(len(model["edges"]), svg.count("<path d="))
 
 
+class LIssueDellEpicSiLeggeOffline(unittest.TestCase):
+    """La prima stesura dichiarava questo dato «non derivabile senza GitHub». Era falso, e il modo
+    in cui era falso conta: la ricerca era stata fatta in `roadmap-v0.1.md` — che davvero non lo
+    porta — e la conclusione estesa a tutto il repository senza guardare `v0.1-issue-plan.md`."""
+
+    def test_le_due_letture_concordi_danno_il_numero(self):
+        mappa, conflicts = fr.epic_issue_map()
+        self.assertEqual([], conflicts, "lista e heading di v0.1-issue-plan.md divergono")
+        self.assertEqual(26, mappa.get("E12"))
+
+    def test_quando_le_due_letture_divergono_il_numero_non_si_sceglie(self):
+        """🔴 Il gate sui conflitti, su fixture: sul repository reale non poteva essere provato.
+
+        Con la riconciliazione dentro `epic_issue_map()` questo controllo era invisibile ai test —
+        disattivandolo la lista dei conflitti restava vuota **perche' nessuno la riempiva**, e
+        `assertEqual([], conflicts)` passava lo stesso. Serve una contraddizione costruita.
+        """
+        out, conflicts = fr.reconcile_epic_issues({"E1": 15, "E2": 99}, {"E1": 15, "E2": 16})
+        self.assertEqual([("E2", 99, 16)], conflicts)
+        self.assertNotIn("E2", out, "un'epic contraddetta non deve ricevere un numero")
+        self.assertEqual(15, out["E1"])
+
+    def test_una_lettura_sola_basta_quando_l_altra_tace(self):
+        out, conflicts = fr.reconcile_epic_issues({"E1": 15}, {"E2": 16})
+        self.assertEqual({"E1": 15, "E2": 16}, out)
+        self.assertEqual([], conflicts)
+
+    def test_l_epic_fuori_dal_piano_si_legge_dalla_sua_sezione(self):
+        # E21 non e' in `v0.1-issue-plan.md`: la sua sezione in `roadmap-v0.1.md` dichiara
+        # «Tracciata su GitHub … epic #286 … Era l'unica epic della v0.1 senza issue».
+        mappa, _ = fr.epic_issue_map()
+        self.assertEqual(286, mappa.get("E21"))
+
+    def test_oggi_nessuna_epic_del_catalogo_resta_senza_issue(self):
+        senza = sorted(e for e, v in fr.epic_catalog().items() if not v.get("issue"))
+        self.assertEqual([], senza)
+
+    def test_la_figura_stampa_il_numero(self):
+        registry = {"features": [_feature("F1", "Core", "E1")]}
+        model = fr.roadmap_map_model(registry, _doc(), {"E1": _entry("E1", issue=26)})
+        self.assertIn("#26", fr.render_roadmap_map_svg(model))
+
+
 class SulRepositoryReale(unittest.TestCase):
     """Qui non serve una fixture: la domanda e' se **oggi** la vista perde qualcosa."""
 

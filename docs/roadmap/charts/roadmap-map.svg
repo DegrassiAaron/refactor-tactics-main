@@ -144,200 +144,215 @@
 <path d="M 305.0 399.0 C 305.0 435.7, 305.0 472.3, 305.0 509.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <rect x="92" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#f85149" stroke-width="1.5"/>
 <text x="100" y="158" fill="#e6edf3" font-size="14" font-weight="700">E12<tspan fill="#8b949e" font-weight="400" font-size="11"> P0 +2</tspan></text>
-<text x="218" y="158" fill="#3fb950" font-size="11" font-weight="700" text-anchor="end">→8</text>
+<text x="218" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#26</tspan><tspan fill="#3fb950" font-weight="700"> →8</tspan></text>
 <text x="100" y="174" fill="#e6edf3" font-size="11">Determinismo, QA e r…</text>
 <text x="100" y="190" fill="#8b949e" font-size="10">2/6 CP</text>
 <rect x="146" y="184" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="146" y="184" width="24" height="4" rx="2" fill="#e6edf3"/>
 <rect x="92" y="744" width="134" height="58" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="100" y="762" fill="#e6edf3" font-size="14" font-weight="700">E33<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="218" y="762" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#330</tspan></text>
 <text x="100" y="778" fill="#e6edf3" font-size="11">Conditional Intent</text>
 <text x="100" y="794" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="92" y="912" width="134" height="58" rx="6" fill="#161b22" stroke="#6e7681" stroke-width="1.5"/>
 <text x="100" y="930" fill="#e6edf3" font-size="14" font-weight="700">E34<tspan fill="#8b949e" font-weight="400" font-size="11"> P3</tspan></text>
+<text x="218" y="930" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#244</tspan></text>
 <text x="100" y="946" fill="#e6edf3" font-size="11">Stati del personaggi…</text>
 <text x="100" y="962" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="238" y="140" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
 <text x="246" y="158" fill="#e6edf3" font-size="14" font-weight="700">E16<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
-<text x="364" y="158" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→2</text>
+<text x="364" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#175</tspan><tspan fill="#3fb950" font-weight="400"> →2</tspan></text>
 <text x="246" y="174" fill="#e6edf3" font-size="11">Orientamento e direz…</text>
 <text x="246" y="190" fill="#8b949e" font-size="10">2/2 CP</text>
 <rect x="292" y="184" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="292" y="184" width="72" height="4" rx="2" fill="#e6edf3"/>
 <rect x="238" y="207" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#f85149" stroke-width="1.5"/>
 <text x="246" y="225" fill="#e6edf3" font-size="14" font-weight="700">E2<tspan fill="#8b949e" font-weight="400" font-size="11"> P0 +3</tspan></text>
-<text x="364" y="225" fill="#3fb950" font-size="11" font-weight="700" text-anchor="end">→14</text>
+<text x="364" y="225" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#16</tspan><tspan fill="#3fb950" font-weight="700"> →14</tspan></text>
 <text x="246" y="241" fill="#e6edf3" font-size="11">Parità hex del subst…</text>
 <text x="246" y="257" fill="#8b949e" font-size="10">7/8 CP</text>
 <rect x="292" y="251" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="292" y="251" width="63" height="4" rx="2" fill="#e6edf3"/>
 <rect x="238" y="274" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
 <text x="246" y="292" fill="#e6edf3" font-size="14" font-weight="700">E8<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
-<text x="364" y="292" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→2</text>
+<text x="364" y="292" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#22</tspan><tspan fill="#3fb950" font-weight="400"> →2</tspan></text>
 <text x="246" y="308" fill="#e6edf3" font-size="11">Terreni, stati e amb…</text>
 <text x="246" y="324" fill="#8b949e" font-size="10">5/5 CP</text>
 <rect x="292" y="318" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="292" y="318" width="72" height="4" rx="2" fill="#e6edf3"/>
 <rect x="238" y="341" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="246" y="359" fill="#e6edf3" font-size="14" font-weight="700">E9<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
-<text x="364" y="359" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→3</text>
+<text x="364" y="359" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#23</tspan><tspan fill="#3fb950" font-weight="400"> →3</tspan></text>
 <text x="246" y="375" fill="#e6edf3" font-size="11">Coperture e strutture</text>
 <text x="246" y="391" fill="#8b949e" font-size="10">5/5 CP</text>
 <rect x="292" y="385" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="292" y="385" width="72" height="4" rx="2" fill="#e6edf3"/>
 <rect x="238" y="509" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
 <text x="246" y="527" fill="#e6edf3" font-size="14" font-weight="700">E23<tspan fill="#8b949e" font-weight="400" font-size="11"> P1 +1</tspan></text>
+<text x="364" y="527" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#324</tspan></text>
 <text x="246" y="543" fill="#e6edf3" font-size="11">Muri, porte e intera…</text>
 <text x="246" y="559" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="384" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="392" y="158" fill="#e6edf3" font-size="14" font-weight="700">E14<tspan fill="#8b949e" font-weight="400" font-size="11"> P2 +1</tspan></text>
-<text x="510" y="158" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="510" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#152</tspan><tspan fill="#3fb950" font-weight="400"> →1</tspan></text>
 <text x="392" y="174" fill="#e6edf3" font-size="11">Overwatch e reazioni…</text>
 <text x="392" y="190" fill="#8b949e" font-size="10">4/8 CP</text>
 <rect x="438" y="184" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="438" y="184" width="36" height="4" rx="2" fill="#e6edf3"/>
 <rect x="384" y="207" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="392" y="225" fill="#e6edf3" font-size="14" font-weight="700">E18<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="510" y="225" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#225</tspan></text>
 <text x="392" y="241" fill="#e6edf3" font-size="11">Predictive Action, t…</text>
 <text x="392" y="257" fill="#8b949e" font-size="10">2/2 CP</text>
 <rect x="438" y="251" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="438" y="251" width="72" height="4" rx="2" fill="#e6edf3"/>
 <rect x="384" y="274" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#f85149" stroke-width="1.5"/>
 <text x="392" y="292" fill="#e6edf3" font-size="14" font-weight="700">E4<tspan fill="#8b949e" font-weight="400" font-size="11"> P0</tspan></text>
-<text x="510" y="292" fill="#3fb950" font-size="11" font-weight="700" text-anchor="end">→10</text>
+<text x="510" y="292" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#18</tspan><tspan fill="#3fb950" font-weight="700"> →10</tspan></text>
 <text x="392" y="308" fill="#e6edf3" font-size="11">Motore delle azioni …</text>
 <text x="392" y="324" fill="#8b949e" font-size="10">8/8 CP</text>
 <rect x="438" y="318" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="438" y="318" width="72" height="4" rx="2" fill="#e6edf3"/>
 <rect x="384" y="341" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
 <text x="392" y="359" fill="#e6edf3" font-size="14" font-weight="700">E5<tspan fill="#8b949e" font-weight="400" font-size="11"> P1 +1</tspan></text>
-<text x="510" y="359" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→4</text>
+<text x="510" y="359" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#19</tspan><tspan fill="#3fb950" font-weight="400"> →4</tspan></text>
 <text x="392" y="375" fill="#e6edf3" font-size="11">Reazioni</text>
 <text x="392" y="391" fill="#8b949e" font-size="10">5/5 CP</text>
 <rect x="438" y="385" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="438" y="385" width="72" height="4" rx="2" fill="#e6edf3"/>
 <rect x="384" y="408" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="392" y="426" fill="#e6edf3" font-size="14" font-weight="700">E7<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="510" y="426" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#21</tspan></text>
 <text x="392" y="442" fill="#e6edf3" font-size="11">Equipaggiamento e lo…</text>
 <text x="392" y="458" fill="#8b949e" font-size="10">4/5 CP</text>
 <rect x="438" y="452" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="438" y="452" width="57" height="4" rx="2" fill="#e6edf3"/>
 <rect x="384" y="509" width="134" height="58" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="392" y="527" fill="#e6edf3" font-size="14" font-weight="700">E36<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="510" y="527" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#435</tspan></text>
 <text x="392" y="543" fill="#e6edf3" font-size="11">Framework degli stat…</text>
 <text x="392" y="559" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="384" y="576" width="134" height="58" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="392" y="594" fill="#e6edf3" font-size="14" font-weight="700">E38<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
-<text x="510" y="594" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="510" y="594" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#609</tspan><tspan fill="#3fb950" font-weight="400"> →1</tspan></text>
 <text x="392" y="610" fill="#e6edf3" font-size="11">Economia del turno, …</text>
 <text x="392" y="626" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="384" y="643" width="134" height="58" rx="6" fill="#161b22" stroke="#6e7681" stroke-width="1.5"/>
 <text x="392" y="661" fill="#e6edf3" font-size="14" font-weight="700">E39<tspan fill="#8b949e" font-weight="400" font-size="11"> P3</tspan></text>
+<text x="510" y="661" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#704</tspan></text>
 <text x="392" y="677" fill="#e6edf3" font-size="11">Spatial Transfer — t…</text>
 <text x="392" y="693" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="384" y="1114" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
 <text x="392" y="1132" fill="#e6edf3" font-size="14" font-weight="700">E41<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="510" y="1132" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#774</tspan></text>
 <text x="392" y="1148" fill="#e6edf3" font-size="11">GAS come runtime del…</text>
 <text x="392" y="1164" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="530" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="538" y="158" fill="#e6edf3" font-size="14" font-weight="700">E13<tspan fill="#8b949e" font-weight="400" font-size="11"> P2 +1</tspan></text>
-<text x="656" y="158" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→3</text>
+<text x="656" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#151</tspan><tspan fill="#3fb950" font-weight="400"> →3</tspan></text>
 <text x="538" y="174" fill="#e6edf3" font-size="11">Conoscenza parziale:…</text>
 <text x="538" y="190" fill="#8b949e" font-size="10">3/5 CP</text>
 <rect x="584" y="184" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="584" y="184" width="43" height="4" rx="2" fill="#e6edf3"/>
 <rect x="530" y="1013" width="134" height="58" rx="6" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
 <text x="538" y="1031" fill="#e6edf3" font-size="14" font-weight="700">E40<tspan fill="#8b949e" font-weight="400" font-size="11"> P0</tspan></text>
-<text x="656" y="1031" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→2</text>
+<text x="656" y="1031" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#773</tspan><tspan fill="#3fb950" font-weight="400"> →2</tspan></text>
 <text x="538" y="1047" fill="#e6edf3" font-size="11">Il turno simultaneo …</text>
 <text x="538" y="1063" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="530" y="1215" width="134" height="58" rx="6" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
 <text x="538" y="1233" fill="#e6edf3" font-size="14" font-weight="700">E42<tspan fill="#8b949e" font-weight="400" font-size="11"> P0</tspan></text>
+<text x="656" y="1233" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#775</tspan></text>
 <text x="538" y="1249" fill="#e6edf3" font-size="11">Dedicated server e l…</text>
 <text x="538" y="1265" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="676" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#db6d28" stroke-width="1.5"/>
 <text x="684" y="158" fill="#e6edf3" font-size="14" font-weight="700">E21<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="802" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#286</tspan></text>
 <text x="684" y="174" fill="#e6edf3" font-size="11">Presentazione e legg…</text>
 <text x="684" y="190" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="676" y="207" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
 <text x="684" y="225" fill="#e6edf3" font-size="14" font-weight="700">E6<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
-<text x="802" y="225" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→6</text>
+<text x="802" y="225" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#20</tspan><tspan fill="#3fb950" font-weight="400"> →6</tspan></text>
 <text x="684" y="241" fill="#e6edf3" font-size="11">Roster: 4 eroi</text>
 <text x="684" y="257" fill="#8b949e" font-size="10">7/7 CP</text>
 <rect x="730" y="251" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="730" y="251" width="72" height="4" rx="2" fill="#e6edf3"/>
 <rect x="676" y="509" width="134" height="58" rx="6" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
 <text x="684" y="527" fill="#e6edf3" font-size="14" font-weight="700">E35<tspan fill="#8b949e" font-weight="400" font-size="11"> P0</tspan></text>
+<text x="802" y="527" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#322</tspan></text>
 <text x="684" y="543" fill="#e6edf3" font-size="11">Roster 8: Sentinel D…</text>
 <text x="684" y="559" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="676" y="912" width="134" height="58" rx="6" fill="#161b22" stroke="#6e7681" stroke-width="1.5"/>
 <text x="684" y="930" fill="#e6edf3" font-size="14" font-weight="700">E37<tspan fill="#8b949e" font-weight="400" font-size="11"> P3 +1</tspan></text>
+<text x="802" y="930" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#555</tspan></text>
 <text x="684" y="946" fill="#e6edf3" font-size="11">Radar di personaggio…</text>
 <text x="684" y="962" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="822" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="830" y="158" fill="#e6edf3" font-size="14" font-weight="700">E10<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
-<text x="948" y="158" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="948" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#24</tspan><tspan fill="#3fb950" font-weight="400"> →1</tspan></text>
 <text x="830" y="174" fill="#e6edf3" font-size="11">Obiettivi dinamici e…</text>
 <text x="830" y="190" fill="#8b949e" font-size="10">1/3 CP</text>
 <rect x="876" y="184" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="876" y="184" width="24" height="4" rx="2" fill="#e6edf3"/>
 <rect x="822" y="207" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#6e7681" stroke-width="1.5"/>
 <text x="830" y="225" fill="#e6edf3" font-size="14" font-weight="700">E17<tspan fill="#8b949e" font-weight="400" font-size="11"> P3</tspan></text>
+<text x="948" y="225" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#221</tspan></text>
 <text x="830" y="241" fill="#e6edf3" font-size="11">Validazione di stres…</text>
 <text x="830" y="257" fill="#8b949e" font-size="10">2/3 CP</text>
 <rect x="876" y="251" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="876" y="251" width="48" height="4" rx="2" fill="#e6edf3"/>
 <rect x="822" y="274" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="830" y="292" fill="#e6edf3" font-size="14" font-weight="700">E19<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
-<text x="948" y="292" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="948" y="292" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#214</tspan><tspan fill="#3fb950" font-weight="400"> →1</tspan></text>
 <text x="830" y="308" fill="#e6edf3" font-size="11">Classe di mappa e co…</text>
 <text x="830" y="324" fill="#8b949e" font-size="10">2/2 CP</text>
 <rect x="876" y="318" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="876" y="318" width="72" height="4" rx="2" fill="#e6edf3"/>
 <rect x="968" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#db6d28" stroke-width="1.5"/>
 <text x="976" y="158" fill="#e6edf3" font-size="14" font-weight="700">E11<tspan fill="#8b949e" font-weight="400" font-size="11"> P1 +2</tspan></text>
-<text x="1094" y="158" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→3</text>
+<text x="1094" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#25</tspan><tspan fill="#3fb950" font-weight="400"> →3</tspan></text>
 <text x="976" y="174" fill="#e6edf3" font-size="11">HUD, log e debug</text>
 <text x="976" y="190" fill="#8b949e" font-size="10">1/8 CP</text>
 <rect x="1022" y="184" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="1022" y="184" width="9" height="4" rx="2" fill="#e6edf3"/>
 <rect x="968" y="207" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="976" y="225" fill="#e6edf3" font-size="14" font-weight="700">E20<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
-<text x="1094" y="225" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→2</text>
+<text x="1094" y="225" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#217</tspan><tspan fill="#3fb950" font-weight="400"> →2</tspan></text>
 <text x="976" y="241" fill="#e6edf3" font-size="11">HUD Icon Language</text>
 <text x="976" y="257" fill="#8b949e" font-size="10">1/3 CP</text>
 <rect x="1022" y="251" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="1022" y="251" width="24" height="4" rx="2" fill="#e6edf3"/>
 <rect x="1114" y="140" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#f85149" stroke-width="1.5"/>
 <text x="1122" y="158" fill="#e6edf3" font-size="14" font-weight="700">E1<tspan fill="#8b949e" font-weight="400" font-size="11"> P0</tspan></text>
-<text x="1240" y="158" fill="#3fb950" font-size="11" font-weight="700" text-anchor="end">→8</text>
+<text x="1240" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#15</tspan><tspan fill="#3fb950" font-weight="700"> →8</tspan></text>
 <text x="1122" y="174" fill="#e6edf3" font-size="11">Canone, cataloghi e …</text>
 <text x="1122" y="190" fill="#8b949e" font-size="10">4/4 CP</text>
 <rect x="1168" y="184" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="1168" y="184" width="72" height="4" rx="2" fill="#e6edf3"/>
 <rect x="1114" y="207" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#db6d28" stroke-width="1.5"/>
 <text x="1122" y="225" fill="#e6edf3" font-size="14" font-weight="700">E15<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
-<text x="1240" y="225" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="1240" y="225" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#153</tspan><tspan fill="#3fb950" font-weight="400"> →1</tspan></text>
 <text x="1122" y="241" fill="#e6edf3" font-size="11">Showcase «Il Relè» e…</text>
 <text x="1122" y="257" fill="#8b949e" font-size="10">2/5 CP</text>
 <rect x="1168" y="251" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="1168" y="251" width="28" height="4" rx="2" fill="#e6edf3"/>
 <rect x="1114" y="509" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
 <text x="1122" y="527" fill="#e6edf3" font-size="14" font-weight="700">E26<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
-<text x="1240" y="527" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→2</text>
+<text x="1240" y="527" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#326</tspan><tspan fill="#3fb950" font-weight="400"> →2</tspan></text>
 <text x="1122" y="543" fill="#e6edf3" font-size="11">Tactical Bot v1</text>
 <text x="1122" y="559" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="1114" y="744" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
 <text x="1122" y="762" fill="#e6edf3" font-size="14" font-weight="700">E27<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
-<text x="1240" y="762" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="1240" y="762" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#327</tspan><tspan fill="#3fb950" font-weight="400"> →1</tspan></text>
 <text x="1122" y="778" fill="#e6edf3" font-size="11">Percezione completa:…</text>
 <text x="1122" y="794" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="1114" y="811" width="134" height="58" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="1122" y="829" fill="#e6edf3" font-size="14" font-weight="700">E28<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="1240" y="829" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#328</tspan></text>
 <text x="1122" y="845" fill="#e6edf3" font-size="11">Expert Bot v2</text>
 <text x="1122" y="861" fill="#8b949e" font-size="10">0/0 CP</text>
 <rect x="1114" y="1316" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
 <text x="1122" y="1334" fill="#e6edf3" font-size="14" font-weight="700">E43<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="1240" y="1334" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#776</tspan></text>
 <text x="1122" y="1350" fill="#e6edf3" font-size="11">Misura a lotti, e il…</text>
 <text x="1122" y="1366" fill="#8b949e" font-size="10">0/0 CP</text>
 <text x="22" y="1433" fill="#8b949e" font-size="10">riempimento = stato · bordo = priorità · +n = feature anche in altre corsie</text>
