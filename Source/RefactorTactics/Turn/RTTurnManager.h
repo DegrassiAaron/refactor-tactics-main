@@ -213,6 +213,18 @@ struct FRTArmedOverwatch
 	UPROPERTY()
 	bool bCharged = true;
 
+	/**
+	 * Quante finestre questa reaction ha gia' APERTO in questo turno (ADR-0004 §8, cap a
+	 * `MaxPromptsPerReaction`).
+	 *
+	 * Separato da `bCharged` perche' contano cose diverse, e la differenza si vede subito: la charge limita i
+	 * `FIRE` — uno solo — mentre questo limita le DOMANDE, che un `HOLD` non consuma. Senza, un bersaglio che
+	 * percorre cinque celle dentro la zona verrebbe chiesto cinque volte con una sola Overwatch: e' il numero
+	 * che la misura di overhead di questo checkpoint ha registrato prima che il cap esistesse.
+	 */
+	UPROPERTY()
+	int32 PromptsUsed = 0;
+
 	FRTArmedOverwatch() = default;
 };
 

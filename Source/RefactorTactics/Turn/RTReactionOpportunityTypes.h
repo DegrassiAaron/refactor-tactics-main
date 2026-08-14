@@ -287,6 +287,23 @@ public:
 	/** La risposta che NON spende niente. `Timeout -> HOLD` (ADR-0004 §3) sceglie questa. */
 	static const TCHAR* HoldResponse() { return TEXT("HOLD"); }
 
+	/**
+	 * Quante volte UNA reaction armata puo' aprire una finestra nello stesso turno (ADR-0004 §8: **3**).
+	 *
+	 * ⚠️ Serve, e non e' un limite teorico: senza, un bersaglio che percorre cinque celle dentro la zona apre
+	 * **cinque** finestre con la stessa Overwatch, perche' `Charges = 1` limita i `FIRE` e non le domande. E'
+	 * il numero che la misura di overhead di CP 14.5 ha registrato prima che questo cap esistesse.
+	 *
+	 * Limita i **prompt**, cioe' le finestre che chiedono davvero qualcosa: un'opportunity a cardinalita' <= 1
+	 * si committa da sola senza interrompere nessuno, e contarla spenderebbe il budget del giocatore per una
+	 * domanda che non gli e' stata posta.
+	 *
+	 * Da non confondere col cap AGGREGATO per turno, che ADR-0004 §8 lascia volutamente assente (D-20) e che
+	 * [D-050] ha poi risolto altrove col Decision Time Bank — in tempo anziche' in prompt. I due non sono in
+	 * contraddizione: questo limita una reaction, quello limita un giocatore.
+	 */
+	static constexpr int32 MaxPromptsPerReaction() { return 3; }
+
 	/** La risposta che spende la reaction su un bersaglio: `FIRE:<UnitId>`. */
 	static FString FireResponse(int32 TargetUnitId);
 

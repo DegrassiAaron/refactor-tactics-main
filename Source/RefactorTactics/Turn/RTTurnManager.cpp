@@ -5004,6 +5004,15 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 		{
 			continue;
 		}
+
+		// Cap dei prompt (ADR-0004 §8). Sta QUI, prima di costruire il watcher, e non a valle della
+		// decisione: una reaction che ha esaurito le proprie domande non deve nemmeno comparire fra quelle
+		// che il resolver valuta — altrimenti il lavoro si farebbe comunque, e il cap sarebbe una tenda
+		// davanti a un calcolo gia' avvenuto.
+		if (Armed.PromptsUsed >= URTReactionOpportunityLibrary::MaxPromptsPerReaction())
+		{
+			continue;
+		}
 		const int32 OwnerIdx = Units.IndexOfByKey(WatchOwner);
 		if (OwnerIdx == INDEX_NONE || !State.Pos.IsValidIndex(OwnerIdx))
 		{
@@ -5108,6 +5117,14 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 			// scattare insieme, e l'ordine totale di ADR-0004 §4 dice quale arriva prima. Il secondo non trova
 			// piu' la charge, ed e' corretto — `Charges = 1`.
 			continue;
+		}
+
+		// Un PROMPT e' una finestra che chiede davvero: si conta prima di chiedere, e solo se c'e' una scelta.
+		// Un'opportunity a cardinalita' <= 1 si committa da sola senza interrompere nessuno, e spenderle
+		// contro il budget significherebbe far pagare al giocatore una domanda che non gli e' stata posta.
+		if (URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
+		{
+			++ArmedOverwatches[ArmedIndex].PromptsUsed;
 		}
 
 		const ARTUnit* DecidingOwner = ArmedOverwatches[ArmedIndex].Owner.Get();

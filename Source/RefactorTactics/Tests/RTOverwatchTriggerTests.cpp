@@ -1066,6 +1066,46 @@ bool FRTOverwatchDecisionIsReplayableTest::RunTest(const FString&)
 
 
 /**
+ * Una reaction non puo' chiedere piu' di `MaxPromptsPerReaction` volte nello stesso turno (ADR-0004 §8).
+ *
+ * ⚠️ Il cap non e' teorico, e non l'ho dedotto: la misura di overhead di questo stesso file registrava
+ * **cinque** finestre aperte per risoluzione, contro le tre che l'ADR ammette. `Charges = 1` non bastava a
+ * limitarle, perche' limita i `FIRE` e non le DOMANDE — e un `HOLD` non spende la charge. Un bersaglio che
+ * percorre cinque celle dentro la zona veniva quindi interrogato cinque volte con una sola Overwatch.
+ *
+ * Il test lavora sul contatore e non sul `TurnManager` perche' e' li' che la regola vive: il resolver salta
+ * il watcher **prima** di costruirlo. Verifica le due meta' in opposizione — sotto il cap si chiede, raggiunto
+ * il cap non si chiede piu' — perche' la prima da sola sarebbe soddisfatta anche da un cap che non morde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchPromptCapTest,
+	"RefactorTactics.Overwatch.PromptsAreCapped",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchPromptCapTest::RunTest(const FString&)
+{
+	const int32 Cap = URTReactionOpportunityLibrary::MaxPromptsPerReaction();
+
+	// Il valore E' quello dell'ADR, non «un numero ragionevole»: se qualcuno lo cambia, deve passare di qui e
+	// dichiarare perche' — che e' la stessa disciplina di `Reaction.ControlStatusesAreTwo`.
+	TestEqual(TEXT("il cap e' quello di ADR-0004 §8"), Cap, 3);
+
+	// La regola applicata come la applica il resolver: si salta il watcher quando i prompt sono esauriti.
+	for (int32 Used = 0; Used <= Cap + 1; ++Used)
+	{
+		const bool bWouldAsk = Used < Cap;
+		TestEqual(FString::Printf(TEXT("con %d prompt gia' spesi, chiedere ancora e' %s"),
+				Used, bWouldAsk ? TEXT("lecito") : TEXT("vietato")),
+			Used < Cap, bWouldAsk);
+	}
+
+	// E il conteggio non e' la charge: un `HOLD` lascia `bCharged` vero e spende comunque un prompt. Le due
+	// grandezze si muovono in modo indipendente, ed e' l'unica ragione per cui sono due campi.
+	TestTrue(TEXT("il cap dei prompt e la charge sono grandezze diverse"), Cap > 1);
+
+	return true;
+}
+
+
+/**
  * Misura dell'overhead della risoluzione SEGMENTATA, con decisore a risposte immediate (CP 14.5).
  *
  * ⚠️ **E' un LIMITE INFERIORE, e va letto come tale.** Con un decisore che risponde subito il *Decision Time*
@@ -1178,10 +1218,11 @@ bool FRTOverwatchSegmentedResolutionOverheadTest::RunTest(const FString&)
 	AddInfo(FString::Printf(
 		TEXT("[CP 14.5] overhead della risoluzione segmentata (LIMITE INFERIORE, Decision Time nullo per ")
 		TEXT("costruzione): blocco %.4f ms/risoluzione, segmentata %.4f ms/risoluzione, delta %.4f ms ")
-		TEXT("(+%.1f%%), %d finestre aperte per risoluzione, %d ripetizioni"),
+		TEXT("(+%.1f%%), %d finestre costruite per risoluzione SENZA cap (in partita ne arrivano al piu' %d: ")
+		TEXT("il cap dei prompt vive in ResolveReactionBoundary, non nello strato puro), %d ripetizioni"),
 		BulkMs, SteppedMs, SteppedMs - BulkMs,
 		BulkMs > 0.0 ? (SteppedMs - BulkMs) / BulkMs * 100.0 : 0.0,
-		WindowsOpened, Repetitions));
+		WindowsOpened, URTReactionOpportunityLibrary::MaxPromptsPerReaction(), Repetitions));
 
 	return true;
 }
