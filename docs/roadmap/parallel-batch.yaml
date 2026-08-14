@@ -393,17 +393,50 @@ preexisting:
   # chiunque calcoli l'invariante dall'elenco, che è l'unico modo in cui un validator la calcola.
   # Chi riconcilia si misura come tutti gli altri.
 
-  - branch: docs/riconciliazione-batch-2026-08-14b
-    state: LIVE
-    measured: 1
+  # 🔵 **`docs/riconciliazione-batch-2026-08-14b` è uscita da qui, e l'ha decisa la sua stessa
+  # regola.** La voce diceva `state: LIVE · measured: 1` e si chiudeva spiegando di aver tolto
+  # `feat/telecamera` *«ora che è MERGED»* — la stessa cosa che è successa a lei ventidue minuti
+  # dopo: PR #869 mergiata alle `12:54Z` in `c371c9a0`, branch cancellato lato server, verificato
+  # con `git ls-remote` **e** `git merge-base --is-ancestor`. Per l'enum: *«MERGED … Esce dalla
+  # sezione: un branch atterrato non è più un vincolo, e questo file non è un registro storico»*.
+  # Non è un errore di chi l'ha scritta — era vera al minuto — ed è la terza volta oggi che questo
+  # file mostra la stessa cosa: **una voce di batch non invecchia in giorni, invecchia in minuti**,
+  # e l'unico che può toglierla è chi arriva dopo il merge.
+  # ➕ Quello che portava e che vale la pena non perdere: il commit `6ea76f4e` — 28 file non
+  # correlati, fra cui un `.uasset` e tre `.png` — è stato **tolto dalla PR** invece che mergiato.
+  # Quei file restano non tracciati nella working directory principale, e la decisione se
+  # versionarli non appartiene a una riconciliazione di batch. Verificato che nessuno dei 28 sia in
+  # `origin/main`.
+
+  - branch: feat/865-camera-focus-tests
+    state: LIVE            # worktree `D:/rt-telecamera` · PR #872 aperta · su `c371c9a0`
+    measured: 6
+    collides_with:
+      - branch: wip/icon-visual-language
+        state: LIVE
+        paths: [docs/roadmap/feature-registry.yaml, docs/roadmap/feature-registry.json]
+      - branch: docs/five-lane-roadmap
+        state: DORMANT
+        paths: [docs/roadmap/feature-registry.yaml, docs/roadmap/feature-registry.json]
     note: >-
-      Questa riconciliazione. Un solo file — `docs/roadmap/parallel-batch.yaml` — che è
-      `integration_only` e quindi nel `writable` di nessuno: nessuna intersezione con una track,
-      per costruzione. ⚠️ Ha **conteso** quel file con `feat/telecamera` fino a `#867`; il conflitto
-      testuale è stato risolto qui, togliendo la voce di quel branch ora che è `MERGED`.
-      ➕ Il commit `6ea76f4e` — 28 file non correlati, fra cui un `.uasset` e tre `.png` — è stato
-      **tolto dalla PR** invece che mergiato: quei file restano non tracciati, e la decisione se
-      versionarli non appartiene a una riconciliazione di batch.
+      Sessione su `#865`, aperta dal consolidamento camera di `#867`.
+      🔴 **Questa voce è stata scritta tre volte, e le prime due erano nel posto sbagliato.** Nasceva
+      `LOCAL · 0` sotto «Sessioni locali», che è corretto per un branch mai pushato; al push con PR
+      aperta è diventata `LIVE` **restando lì**, cioè sotto un'intestazione che dice «esistono in un
+      worktree e in nessun altro posto» mentre `git ls-remote` la vedeva. Spostata qui, fra i branch
+      remoti, dove l'invariante si calcola. Ed è il caso che la sezione LOCAL esiste per coprire
+      *perché* quel comando non li vede: applicarla a un branch che invece si vede sbaglia il perimetro.
+      ⚠️ **La nota portava anche testo stantio della prima stesura** — «Zero commit, quindi oggi non è
+      un vincolo» dentro una voce che dichiarava `measured: 6` — e **esiti di gate**, che §«Cosa NON va
+      scritto qui» vieta per nome: un write-set non è un avanzamento. Rimossi entrambi.
+      ✅ **Set disgiunto dalle track, verificato e non assunto**: `Tests/RTCameraPawnTests.cpp` non è nel
+      `writable` di nessuna — `simulation` tiene `RTReactionTests.cpp` e `RTReactionOpportunityTests.cpp`,
+      `client_tools` `RTIntentPrivacyTests.cpp` e `UI/`, `content_editor` `test-manuali-pie.md`.
+      ⚠️ Le **quattro** collisioni qui sopra sono con branch fuori dalle track, e cadono tutte su
+      `feature-registry.yaml` e la sua vista: è `integration_only`, quindi si riconcilia in integrazione
+      e chi merge per secondo rigenera sull'albero unito.
+      ➕ `parallel-batch.yaml` è nel write-set e in nessun `writable`: registrare la propria track lo
+      richiede, ed è l'atto di integrazione che questa sezione descrive.
 
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
@@ -450,10 +483,23 @@ preexisting:
       **prima** del primo commit, non dopo. Il worktree era in detached su `f521f6b8` quando questa
       sezione è stata scritta la prima volta: nel frattempo ha preso un branch.
 
-  # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **quattro**, e
-  # questa sezione ne rende conto di tutti e quattro — tre voci `LOCAL` più la working directory
-  # principale, che è dove questa riconciliazione è stata scritta e il cui write-set è la voce
-  # `docs/riconciliazione-batch-2026-08-14b` qui sopra.
+  # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **cinque**, e questo
+  # file ne rende conto di tutti e cinque — **tre** voci `LOCAL` qui sopra, la voce `LIVE` di
+  # `feat/865-camera-focus-tests` fra i branch remoti, e la working directory
+  # principale, che ora è su `main` a `c371c9a0` con write-set **vuoto**, quindi non è un vincolo e
+  # non ha voce.
+  # 🔴 **La stesura precedente scriveva «quattro voci `LOCAL`» e le contava in questa sezione**: erano
+  # tre `LOCAL` più una `LIVE`, e quella `LIVE` non apparteneva nemmeno a questo blocco — la cui
+  # intestazione dice «esistono in un worktree e in nessun altro posto». Il totale di cinque era giusto,
+  # la composizione no, ed è stata scritta **nello stesso commit** che l'ha resa falsa. È la terza volta
+  # che questo file registra «un elenco e il suo conteggio si rileggono insieme, perché nessun gate lo fa».
+  # ⚠️ Fino al merge di #869 il write-set della working directory *era* la voce
+  # `docs/riconciliazione-batch-2026-08-14b`: togliendo quella voce si sarebbe rotto il riferimento,
+  # ed è il motivo per cui questo paragrafo si aggiorna **nello stesso commit** e non dopo.
+  # ➕ **Il quinto è `D:/rt-telecamera`, ricreato dopo il merge di #867** — quel worktree era stato
+  # rimosso alla chiusura della PR e il suo branch cancellato; il nuovo parte da `c371c9a0` con un
+  # branch diverso (`feat/865-camera-focus-tests`). Stesso path, sessione nuova: il conto va rifatto
+  # col comando, non dedotto dal nome della cartella.
   # 🔴 La stesura precedente diceva «ne mostra cinque, questa sezione ne elenca due» e ne nominava
   # due come esclusi: quattro su cinque. Il quinto non nominato era **la working directory
   # principale**, cioè l'unica delle cinque con un write-set non vuoto in quel momento. Il paragrafo
