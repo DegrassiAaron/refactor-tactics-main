@@ -910,3 +910,84 @@ bool FRTBotArmsItsReactionTest::RunTest(const FString&)
 	DestroyHexBotWorld(World);
 	return true;
 }
+
+/**
+ * IL BOT CARICA, E IL BERSAGLIO INCASSA — `#880`, la terza voce di DoD di `#145`.
+ *
+ * `#145` fu chiusa dichiaratamente nella sua «forma minima»: il bot sa proporre una carica, ma nessun test
+ * la vedeva **arrivare a segno**. La misura del 2026-08-14: in questo file dodici test, nessuno sulla
+ * carica, e l'unico punto che la nomina sta dentro `PlanDoesNotBlastDyingAlly` come un `||` —
+ * *«attacco **o** carica»* — che passa anche se il bot non carica affatto. E si ferma alla
+ * pianificazione: nessun test del bot risolve un turno.
+ *
+ * Il test che il DoD di `#145` citava come insufficiente, `HexMatch.GuardianChargeStopsOnEnemyAndHits`,
+ * non esiste piu' sotto nessun nome: `Guardian.*` e' un archetipo legacy che nessuno schiera, ed e' uscito
+ * con lui. Non e' stato sostituito — il buco e' rimasto.
+ *
+ * ⚠️ **Il piano non viene imposto**: nessuna scrittura di `PlannedDashCell` o `PlannedDashAbility`. Il bot
+ * sceglie da solo, e il test verifica prima *che* abbia scelto una carica, poi *cosa* produce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotChargeLandsTest,
+	"RefactorTactics.HexBotPlay.ChargeItPlannedActuallyLands",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotChargeLandsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 5);
+
+	// Stessa geometria di `PlanDoesNotBlastDyingAlly` caso 2, dove la carica e' gia' misurata come la mossa
+	// che l'utility preferisce: Bastion ha `Ram` (20 + spinta 1) contro `ImpactShot` (8).
+	// Nessun alleato in scena: qui non si misura il collaterale, e un terzo attore aggiungerebbe solo un
+	// modo per cui il piano potrebbe cambiare senza che il test lo dica.
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	Foe->Shield = 0;          // il danno si legge sulla salute, senza passare da uno scudo
+	Foe->PushResistance = 0;  // la soglia dorme dopo D-075: azzerarla e' dichiararlo, non aggirarlo
+	const int32 HealthBefore = Foe->Health;
+
+	TM->PlanBotsForTest();
+
+	// --- 1. Il bot ha scelto una CARICA, e l'ha scelta da solo -------------------------------------
+	if (!TestTrue(TEXT("il bot ha pianificato uno scatto"), Bot->PlannedDashAbility != INDEX_NONE))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
+	if (!TestTrue(TEXT("ed e' una carica, non uno scatto qualunque"),
+		Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	// Una carica punta la cella OCCUPATA dal bersaglio: e' la differenza fra caricare e riposizionarsi.
+	TestEqual(TEXT("e punta la cella del nemico"), Bot->PlannedDashCell, FRTCellId(2, 0));
+
+	// --- 2. Il turno viene RISOLTO, non solo pianificato -------------------------------------------
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	// --- 3. Il bersaglio incassa DANNO e SPINTA, con valori concreti -------------------------------
+	TestEqual(TEXT("il bersaglio incassa i 20 danni della carica"), Foe->Health, HealthBefore - 20);
+	// Spinta 1 lungo la direzione della carica: da (2,0) verso est.
+	TestEqual(TEXT("e viene spinto di una cella"), Foe->Cell, FRTCellId(3, 0));
+	// La carica si FERMA addosso al nemico invece di attraversarlo: e' cio' che distingue
+	// `LinearCharge` da `LinearDash`, ed e' un dato del catalogo, non un `if` sull'ActionId.
+	TestEqual(TEXT("e chi carica si ferma davanti alla cella di partenza del bersaglio"),
+		Bot->Cell, FRTCellId(1, 0));
+
+	// --- 4. Il TurnLog nomina la carica ------------------------------------------------------------
+	int32 ChargeEntries = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Bastion.Ram"))) { ++ChargeEntries; }
+	}
+	TestTrue(TEXT("il TurnLog registra la carica col suo ActionId"), ChargeEntries > 0);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
