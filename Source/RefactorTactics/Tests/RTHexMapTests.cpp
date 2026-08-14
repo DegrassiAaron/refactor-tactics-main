@@ -960,4 +960,84 @@ bool FRTHexMapPackageOnDiskTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **I default di `URTHexMapAsset` non si cambiano senza una migrazione** (#830).
+ *
+ * ## Perche' un default e' un dato di gioco, qui
+ *
+ * La serializzazione delta di UE salta le property uguali al CDO. Misurato sui byte di `DA_HexMap_Arena`
+ * (#687): `MapClass` e `HexSize` **non ci sono**. Un'arena salvata come `Skirmish` — il default — non porta
+ * quel valore nei propri byte: lo *eredita* al caricamento.
+ *
+ * Quindi il giorno in cui il default cambiasse, **ogni mappa gia' committata cambierebbe significato in
+ * silenzio**, senza che nessuno tocchi un asset. E non e' decorativo: la classe serve al validator per
+ * rifiutare l'accoppiata mappa/formato sbagliata **prima** dell'allestimento. Una mappa che cambia classe da
+ * sola non produce un errore — produce un allestimento che passa la validazione sbagliata.
+ *
+ * ⚠️ **Nessuna rete a valle lo prenderebbe**: `MapClass` **non** entra in `ComputeHash` (deliberato — non
+ * cambia un esito di turno), quindi una mappa che cambia classe non produce nemmeno replay divergence.
+ *
+ * ## Cosa fa questo test, e cosa NON fa
+ *
+ * Non impedisce il cambio: lo rende **rosso**. Costringe chi lo fa a scrivere la migrazione nello stesso
+ * commit invece di scoprirlo dopo — lo stesso ruolo che `D-108` ha dato al gate degli SVG radar, e
+ * `D-141` al pin sull'assenza di `FormatVersion`.
+ *
+ * ## I due rischi sono diversi, e servono due asserzioni diverse
+ *
+ * La issue ne nomina due, e un pin sul solo default ne copre uno:
+ *
+ * 1. **il default cambia** (`= ERTMapClass::Operations`) → le mappe che non portano il valore lo ereditano
+ *    nuovo. Lo vede il pin sui default, sotto;
+ * 2. **l'enum si riordina** (`Operations` messo prima di `Skirmish`) → il default resta scritto
+ *    *simbolicamente* `Skirmish` e il pin passerebbe, ma ogni mappa che ha `MapClass` **nei byte** ha
+ *    memorizzato un **numero**, e quel numero ora significa un'altra classe. Lo vede il pin sui valori.
+ *    Il commento di `ERTMapClass` lo dichiara gia' — *«Aggiungere valori solo IN CODA»* — e finora nessuna
+ *    macchina lo verificava.
+ *
+ * ## Perche' tre campi e non due
+ *
+ * La issue nomina `MapClass` e `HexSize`. `LayerHeight` ha lo **stesso** difetto tre righe piu' sotto ed
+ * entra in `axial <-> world` esattamente come `HexSize`, che e' la ragione per cui `HexSize` e' nella lista.
+ *
+ * ⚠️ `Revision` e `MapId` restano **deliberatamente fuori**: la prima cambia al primo `AddOrUpdateCell`,
+ * quindi in pratica non e' mai uguale al default e viaggia; il secondo e' un GUID assegnato, e un default
+ * vuoto non e' un significato che qualcuno possa ereditare per sbaglio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapPinnedDefaultsTest,
+	"RefactorTactics.HexMap.SerializationDefaultsArePinned",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapPinnedDefaultsTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Fresh = NewObject<URTHexMapAsset>();
+
+	// --- 1. I default che le mappe gia' committate EREDITANO -----------------------------------------
+	// Un'asserzione per campo: se cadono tutte insieme senza dire quale, chi legge il log deve bisecare.
+	TestEqual(
+		TEXT("il default di MapClass NON si cambia senza migrazione: non e' nei byte delle mappe salvate "
+			 "(#687), quindi cambiarlo riclassifica in silenzio ogni mappa gia' committata"),
+		Fresh->MapClass, ERTMapClass::Skirmish);
+
+	TestEqual(
+		TEXT("il default di HexSize NON si cambia senza migrazione: entra in axial<->world, quindi "
+			 "cambiarlo sposta la geometria di ogni mappa che non lo porta nei byte"),
+		Fresh->HexSize, 100.f);
+
+	TestEqual(
+		TEXT("il default di LayerHeight NON si cambia senza migrazione: stessa ragione di HexSize, "
+			 "e' la quota fra un layer e il successivo"),
+		Fresh->LayerHeight, 250.f);
+
+	// --- 2. I valori dell'enum, che i byte gia' scritti portano come NUMERI --------------------------
+	// Aggiungere in coda e' sicuro; riordinare no. Qui non si pinna il simbolo ma la sua rappresentazione.
+	TestEqual(TEXT("ERTMapClass::Skirmish resta 0: i byte gia' scritti lo dicono cosi'"),
+		static_cast<int32>(ERTMapClass::Skirmish), 0);
+	TestEqual(TEXT("ERTMapClass::Standard resta 1"),
+		static_cast<int32>(ERTMapClass::Standard), 1);
+	TestEqual(TEXT("ERTMapClass::Operations resta 2"),
+		static_cast<int32>(ERTMapClass::Operations), 2);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
