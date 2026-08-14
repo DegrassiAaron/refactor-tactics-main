@@ -24,14 +24,17 @@
 Questi sei campi decidono se la run **conta**. Se uno solo è sbagliato, gli esiti sotto non valgono e vanno
 rifatti: meglio scoprirlo adesso che dopo quattordici voci.
 
-| Campo | Atteso | Osservato |
+| Campo | Atteso | Osservato — **run del 2026-08-14** |
 |---|---|---|
-| Data e ora della run | — | |
-| `MapSource` | `GeneratedTestArena` (il default è `LevelAsset`: **va cambiato**) | |
-| Riga di avvio | `[RT] Board 2v2 esagonale avviata su N celle con 4 eroi` | |
-| `RoundLimit` nell'HUD | **12** — se legge `n/5` la build è vecchia: **fermati** | |
-| Formato | `Format.Skirmish2v2` | |
-| Percorso del log | `Saved/Logs/….log` (non si allega: si incollano le righe) | |
+| Data e ora della run | — | 2026-08-14, log fino alle **20:08** |
+| `MapSource` | `GeneratedTestArena` (il default è `LevelAsset`: **va cambiato**) | ✅ `MapSource=GeneratedTestArena: uso la mappa di PROVA generata (65 celle, con ostacoli, muri, terreno costoso e piattaforma). La mappa del livello e' ignorata.` |
+| Riga di avvio | `[RT] Board 2v2 esagonale avviata su N celle con 4 eroi` | ✅ `Board 2v2 esagonale avviata su 65 celle con 4 eroi` |
+| `RoundLimit` | **12** — se legge `n/5` la build è vecchia: **fermati** | ✅ `Formato di partita in vigore: 'Format.Skirmish2v2' (RoundLimit 12, soglia obiettivo 0, 2 unita' per squadra)` |
+| Formato | `Format.Skirmish2v2` | ✅ formato **spedito** (nessun `URTMatchFormatData` assegnato al GameMode) |
+| Percorso del log | `Saved/Logs/….log` (non si allega: si incollano le righe) | `Saved/Logs/RefactorTactics_2.log` (279 KB) |
+
+**I sei campi passano: questa run conta.** ⚠️ Ma **non è arrivata a conclusione** — zero `Eliminata:` e zero
+`Partita finita` nel log — quindi tutto ciò che dipende dalla fine partita resta aperto.
 
 ⚠️ **Le unità sono cilindri**: i `BP_Unit_*` non esistono in `Content/`, il fallback è previsto e non è un
 difetto da registrare.
@@ -59,9 +62,9 @@ legittimo: `⏳ non raggiunta in questa run` è informazione, un ✅ ottimista n
 
 **`PIE-HEXPLAY-1`** — allestimento · *partenza* ✅ (2026-08-10)
 Serve solo alla rilettura finale di U6. Se qualcosa è regredito, va scritto qui.
-- Esito:
-- Evidenza:
-- Resta:
+- Esito: ✅ **riconfermato 2026-08-14** — nessuna regressione: 65 celle, 4 eroi, arena di prova.
+- Evidenza: `Board 2v2 esagonale avviata su 65 celle con 4 eroi`
+- Resta: nulla.
 
 **`PIE-HEXPLAY-4`** — playback del movimento · *partenza* ⏳
 Le unità scorrono di cella in cella; a fine playback ognuna è **esattamente** sul centro della cella finale,
@@ -73,35 +76,52 @@ nessuna deriva accumulata. Il test headless (`HexMove.UnitReachesPlannedCell`) c
 **`PIE-HEXPLAY-5`** — collisione simultanea · *partenza* ✅ (2026-08-10)
 Prima metà verificata. ⚠️ La seconda (scambio A↔B) è **dichiarata falsa** nel registro: non è pianificabile,
 quindi non c'è nulla da osservare. Non riaprirla.
-- Esito:
+- Esito: ✅ **riconfermata 2026-08-14** — due unità fermate nello stesso turno, reason code e coordinate
+  **assiali**, con la novità del suffisso di priorità `p50`.
 - Evidenza:
-- Resta:
+  ```
+  RTUnit_2: fermo: cella contesa (q=4,r=0,L=0) (Action.Move, p50)
+  RTUnit_3: fermo: cella contesa (q=4,r=-1,L=0) (Action.Move, p50)
+  ```
+- Resta: nulla su questa run.
 
 **`PIE-CAM-START`** — apertura della camera · *partenza* ⏳
 Centrata sul **punto medio delle proprie unità**, non sul centro mappa; braccio `MatchStartArmLength` 450
 contro `DefaultArmLength` 800. **Osservabile solo nel primo istante**, prima di toccare il mouse.
-- Esito:
-- Evidenza (`Camera sulla squadra <TeamId> (<N> unità, arm=…)`):
-- Resta:
+- Esito: 🟡 **2026-08-14** — la metà misurabile è ✅, ed è proprio la riga che la voce prescrive: braccio a
+  **450** (non 800) e squadra **propria** (team 0, 2 unità).
+- Evidenza: `Camera sulla squadra 0 (2 unita', arm=450)`
+- Resta: la metà visiva — che l'inquadratura sia sul **punto medio delle proprie unità** e non sul centro
+  della mappa. Il log dice il braccio, non dove punta.
 
 ### `U3` — Input e pianificazione
 
 **`PIE-HEXPLAY-2`** — selezione e cella sotto il cursore · *partenza* 🟡
 Selezione, guardia sulle avversarie ed evidenziazione gialla sono già ✅. **Manca solo il layer**: cliccando
 la piattaforma si evidenzia la cella del **layer 1**, non quella sotto con gli stessi `q,r`.
-- Esito:
-- Evidenza:
-- Resta:
+- Esito: 🟡 invariata — quattro selezioni, tutte su unità proprie (`RTUnit_0`, `RTUnit_1`).
+- Evidenza: `Selezionata: RTUnit_1` ×2 · `Selezionata: RTUnit_0` ×2
+- Resta: **il layer**, che è ciò che tiene aperta la voce — nessuna cella `L1` compare nel log di questa run.
+  Serve un click sulla piattaforma.
 
 **`PIE-HEXPLAY-3`** — pianificazione entro budget · *partenza* ✅ (2026-08-10)
 Verificata anche nel visivo. Si rilegge in U6.
-- Esito: 🟡 **parziale, 2026-08-14** — riferito dall'utente: *«si muovono, vanno sui waypoint»*. La parte
-  della voce che riguarda i waypoint e il percorso **regge**. ⚠️ Non è un ✅: rifiuti (oltre budget /
-  bloccata / occupata / fuori mappa), undo e budget cumulativo **non sono stati esercitati** in questa
-  osservazione, e la voce li chiede tutti.
-- Evidenza: da raccogliere — servono le righe `costo n/m` e almeno un rifiuto col motivo
-- Resta: i quattro rifiuti, l'undo, il costo cumulativo. Vedi anche `OSS-1` (#877), che nasce da questa
-  stessa osservazione ma **non** appartiene a questa voce.
+- Esito: 🟡 **parziale, 2026-08-14 — misurato sul log, non riferito.** Reggono: **budget cumulativo**,
+  **due rifiuti su quattro** col motivo giusto, **undo**, e il *«piano precedente resta intatto»* (dopo un
+  rifiuto il conteggio riprende da dove era). ⚠️ **Due rifiuti su quattro non sono mai stati provocati**:
+  `cella occupata` e `cella fuori dalla mappa` hanno **0 occorrenze** nel log.
+- Evidenza:
+  ```
+  Piano: RTUnit_1 -> 1 waypoint (costo 3/5)      ← cumulativo, tre passi
+  Piano: RTUnit_1 -> 2 waypoint (costo 4/5)
+  Piano: RTUnit_1 -> 3 waypoint (costo 5/5)
+  Waypoint (0,0,L0)   rifiutato: oltre il budget (gia' spesi 4 di 5) per RTUnit_1   ← 5 occorrenze
+  Waypoint (1,-2,L0)  rifiutato: cella bloccata (RTUnit_1)                          ← 5 occorrenze
+  Annullato waypoint: RTUnit_1 -> N waypoint                                        ← 2 occorrenze
+  ```
+- Resta: **cliccare una cella occupata da un'altra unità** e **una fuori dalla mappa**, verificando che il
+  log dica il motivo giusto e che il piano non si azzeri. Due click, e la voce chiude.
+  Vedi anche `OSS-1` (#877), che nasce da questa stessa osservazione ma **non** appartiene a questa voce.
 
 **`PIE-HEXPLAY-3b`** — il rifiuto dice il motivo giusto · *partenza* 🟡
 «fuori portata (max N)» è ✅. **Manca «coperto»**: serve il bersaglio dietro la cella con
@@ -149,9 +169,18 @@ ostacolo a **due** celle non è più osservabile in partita (nessuna azione spin
 Il log utility in coordinate assiali è ✅, **anche sul layer 1**. **Manca il giudizio**: gli score hanno senso
 guardando la partita? La run precedente durava 5 round — «un lampo» — e non permetteva di giudicare. Con
 `RoundLimit 12` questa è la prima occasione vera.
-- Esito:
-- Evidenza (`RTUnit_2: utility -> (q=1,r=0,L0) score=-50`):
-- Resta:
+- Esito: 🟡 — quattro valutazioni, coordinate assiali, e **tre forme di mossa distinte**: scatto composto,
+  carica e riposizionamento. ⚠️ Tutte su **`L0`**: in questa run il bot non ha valutato la piattaforma
+  (nella run del 2026-08-10 sì, con `(q=2,r=-1,L1)`).
+- Evidenza:
+  ```
+  RTUnit_2: utility -> scatto (q=0,r=0,L0) + attacca RTUnit_1 score=100
+  RTUnit_3: utility -> CARICA su RTUnit_1 (impatto da (q=1,r=-1,L0)) score=-10
+  RTUnit_2: utility -> (q=0,r=0,L0) attacca RTUnit_0 score=-10
+  RTUnit_3: utility -> (q=-1,r=-1,L0) score=-30
+  ```
+- Resta: **il giudizio sul comportamento** su una partita intera — quattro decisioni non bastano a dire se
+  gli score hanno senso.
 
 **`PIE-HEXPLAY-9`** — HUD e anteprima piani · *partenza* ⏳
 Barre HP/scudo/energia, timer, fase, combat log invariati; anteprima **ciano**, marker waypoint, preview
@@ -180,19 +209,26 @@ scivolare sul piano. ⚠️ «Rimuovi l'arco» **non si fa qui**: la transizione
 **`PIE-HEXPLAY-4b`** — scatto su hex · *partenza* ⏳
 La fase Dash esiste e **precede** il Blast (già osservato). **Manca il visivo**: l'unità scivola lungo la
 traiettoria o **compare** sulla cella d'arrivo? Serve una run lenta.
-- Esito:
-- Evidenza (`Fase Dash: N scatti` → `Playback fase: Dash` → `Playback fase: Blast`):
-- Resta:
+- Esito: 🟡 **2026-08-14** — l'**ordine delle fasi** è riconfermato dal log, ed è la metà verificabile senza
+  guardare. ⚠️ Gli scatti osservati sono dei **bot** (team 1): lo scatto pianificato dal giocatore (tasto
+  **4**) non compare in questa run.
+- Evidenza:
+  ```
+  Scatto: RTUnit_2 -> (q=0,r=0,L0)   ·   Scatto: RTUnit_3 -> (q=1,r=-1,L0)   ·   Fase Dash: 2 scatti
+  Playback fase: Dash  →  Playback fase: Blast  →  Playback fase: Move
+  ```
+- Resta: il **visivo** (scivola o compare?) e uno scatto **pianificato dal giocatore**.
 
 **`PIE-HEXPLAY-10`** — partita completa · *partenza* 🟡
 **Mancano tre cose**: «PARTITA FINITA» a schermo, il riavvio con **`R`**, e una chiusura **per
 eliminazione**. ⚠️ Se chiude per scadenza dei round **non è un fallimento**: è un numero per G11. La DoD
 chiede **tre run** prima di trarne una conclusione.
-- Esito run 1:
+- Esito run 1: ⏳ **la run del 2026-08-14 non è arrivata a conclusione** — zero `Eliminata:` e zero
+  `Partita finita` nel log. Non è un esito negativo: è una run interrotta, e va rifatta fino in fondo.
 - Esito run 2:
 - Esito run 3:
-- Evidenza (`Partita finita: <esito> (round n/12, obiettivo x-y, formato Format.Skirmish2v2)`):
-- Resta:
+- Evidenza (`Partita finita: <esito> (round n/12, obiettivo x-y, formato Format.Skirmish2v2)`): —
+- Resta: **tutto** — «PARTITA FINITA», il riavvio con `R`, e la chiusura per eliminazione.
 
 **`PIE-FACING-1`** — l'orientamento visto è quello della regola · *partenza* ⏳
 A fine playback la mesh **guarda dove guarda la regola**: chi si è mosso lungo l'ultimo passo, chi ha
