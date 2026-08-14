@@ -621,7 +621,7 @@ tracks:
     status: ACTIVE
     issue: 165
     branch: feat/165-finestra-overwatch
-    worktree: "D:/rt-simulation"     # 0 commit, 0 file su `90dfaf69` — misurato
+    worktree: "D:/rt-simulation"     # 2 commit, 14 file su `d5aef89e` — misurato (era «0 e 0»)
     note: >-
       CP 14.5 — il resolver costruisce opportunity in partita e apre la finestra.
       🔴 **Questa track puntava a #583 su una premessa già falsa quando il batch è stato scritto**:
@@ -659,6 +659,33 @@ tracks:
       dall'elenco**: era lì per il cablaggio di `InterceptShot`»*. Il primo consumatore è
       l'**Overwatch universale** di `D-014`, che per definizione non passa da un'abilità d'eroe —
       `D-016` ha spostato `InterceptShot` in E18, dove è chiusa dal 2026-08-10.
+      🔴 **E la riga qui sopra è FALSA, misurata sul codice all'apertura della sessione.** È vera di
+      `RTHeroCatalogLibrary` — l'unico file di `Ability/` che la issue nomina, ed è il file che
+      *esce* — e falsa di `Ability/` come dominio: **`Action.Overwatch` non esisteva nel catalogo
+      core**, e lo dichiarava `RTCatalogLibrary.h:330` di suo (*«è E14, e arriverà con la sua
+      infrastruttura»*). L'infrastruttura era arrivata prima di lei con CP 14.3 e CP 14.4, quindi i
+      `FRTOverwatchWatcher` li costruivano **solo i test** (34 riferimenti, tutti in `Tests/`) e in
+      partita nessuno poteva armare un Overwatch: la finestra non aveva innesco. È il difetto che
+      #583 e #512 esistono per evitare, e questa riga lo nascondeva citando l'elenco della issue —
+      che elencava i file assumendo un produttore che, misurato, non c'era.
+      **Riallocazione concordata**: `Ability/RTCatalogLibrary.{h,cpp}`,
+      `Tests/RTOverwatchTriggerTests.cpp` e `Tests/RTHexBotIntegrationTests.cpp` entrano nel
+      `writable` qui sotto. Misurato contro tutti e sette i branch vivi prima di prenderli: i due
+      file di test **non erano tenuti da nessuno**; `RTCatalogLibrary.cpp` era conteso con
+      `feat/641-sprint-post-blast` (12 inserzioni, 2 rimozioni), fermo dall'11 agosto, 522 commit
+      indietro e senza PR — la contesa è stata risolta a favore di questa track, e `feat/641` rifà
+      il proprio innesto quando riparte, su una base che deve comunque rifare.
+      ✅ **La contesa su `Turn/` con `feat/cp75-selfreposition` è stata decisa allo stesso modo**:
+      la track prende `Turn/`. Quel branch ha 1 commit WIP dichiarato (*«enum ed evento fatti,
+      l'applicazione NO»*), 522 commit di ritardo e nessuna PR — il costo del rebase cade su chi è
+      già da ricostruire. La decisione che il giro precedente registrava come «ancora da prendere»
+      **è presa**.
+      ✅ **Write-set MISURATO al termine, non dichiarato**
+      (`git diff --name-only origin/main...feat/165-finestra-overwatch`): **14 file**, tutti dentro
+      il `writable` qui sotto, `RTIntentPrivacyLibrary.{h,cpp}` compresi nell'esclusione e non
+      toccati. `ScenarioHarness/` non è servita, quindi il vincolo che la teneva fuori non è mai
+      stato messo alla prova — resta una scelta, come il giro precedente aveva registrato.
+      PR **#878** verso `main`.
       ⚠️ **Il write-set dei test è più largo di `RTReactionTests.cpp`**, misurato sugli 8 test che
       la issue nomina: **7 non esistono ancora** e vanno scritti; l'unico che esiste,
       `Overwatch.OpportunityLeaksNoFuture`, vive in `Tests/RTReactionOpportunityTests.cpp` —
@@ -668,11 +695,36 @@ tracks:
       (fermo a `c1e151ef` dell'11 agosto), quindi la decisione registrata sotto `preexisting` —
       cedere o non cedere `Turn/` — è ancora **da prendere** da chi possiede questa track, e non
       è scaduta né si è risolta da sola.
+      ➕ **Spec panel su #165 del 2026-08-14**, che rilegge la issue contro il codice che la chiude
+      (`docs/roadmap/plans/cp145-finestra-overwatch-spec-panel-2026-08-14.md`, riallocazione dichiarata
+      qui sotto). Due rilievi 🔴 non sono lavoro mancante ma specifica mal collocata — la casella dei
+      «3,0 s» non è falsificabile in questo checkpoint (`FastReactionDuration` non esiste in `Source/`
+      se non dentro un commento) e «il replay la riproduce» è verificata come round-trip di
+      serializzazione, non come replay. Il secondo esce da questa track: è un requisito di ADR-0009 e
+      atterra su una issue propria dipendente da #166.
     writable:
       - Source/RefactorTactics/Turn/
       - Source/RefactorTactics/Bot/
       - Source/RefactorTactics/Tests/RTReactionTests.cpp
       - Source/RefactorTactics/Tests/RTReactionOpportunityTests.cpp
+      # --- Riallocati in corsa, vedi la nota: il produttore mancava e la issue non lo sapeva -----
+      # ⚠️ `Ability/` NON per prefisso, ma per FILE: `RTHeroCatalogLibrary.{h,cpp}` resta fuori — la
+      # issue la esclude per nome, ed è tenuta da `wip/icon-visual-language` (misurato). Dichiarare
+      # la directory intera avrebbe violato l'invariante per un file che questa track non tocca.
+      - Source/RefactorTactics/Ability/RTCatalogLibrary.h
+      - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+      # I due file dove atterrano i gemelli dei test. `RTOverwatchTriggerTests.cpp` ospita già i
+      # cinque `Overwatch.*` di CP 14.4; `RTHexBotIntegrationTests.cpp` è dove vivono i `Bot.*`.
+      # Nessuno dei due era assegnato, e nessun branch vivo li tocca.
+      - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
+      - Source/RefactorTactics/Tests/RTHexBotIntegrationTests.cpp
+      # Il referto dello spec panel su #165 (2026-08-14), che rilegge la issue contro il codice che la
+      # chiude. ⚠️ Path per FILE e non per prefisso, ed è una misura non una prudenza:
+      # `docs/roadmap/plans/` è toccata da **cinque** branch vivi — `docs/38-spec-panel-playtest-hex`,
+      # `docs/five-lane-roadmap`, `docs/lane-6-7`, `docs/lane-7-vault`, `wip/icon-visual-language` —
+      # quindi dichiarare la directory violerebbe l'invariante su file che questa track non tocca.
+      # Sul singolo path la misura è zero collisioni: nessuno dei cinque lo nomina (è nuovo).
+      - docs/roadmap/plans/cp145-finestra-overwatch-spec-panel-2026-08-14.md
     # ⚠️ `Turn/` meno due file: la contesa con `client_tools` (#78) era di GRANULARITA', non di
     # dominio. #78 deve scrivere la classificazione di certezza lato simulatore — il suo DoD vieta
     # di calcolarla nell'UI — e quella classe vive in `Turn/RTIntentPrivacyLibrary.{h,cpp}`, che
@@ -898,6 +950,65 @@ tracks:
     # `Content/RT/Characters/Gadget/Animation/` è **tuttora untracked** nella working directory
     # principale — finché non è committata o scartata, la destinazione non è prenotabile e una
     # lease `create` starebbe su una base che in git non esiste.
+
+  verification:
+    status: ACTIVE
+    issue: 879              # più #880, #881, #882, #883: cinque issue, un solo write-set
+    branch: fix/residui-istruttoria-dod
+    note: >-
+      I cinque residui di DoD trovati dall'istruttoria del 2026-08-14 sulle issue chiuse: #879
+      (#588), #880 (#145), #881 (#548), #882 (#405), #883 (#621). Quattro sono test mancanti, il
+      quinto è un'estrazione più tre commenti che dicevano il falso.
+      ⚠️ **Una track sola per cinque issue, e non è pigrizia**: `parallel-batch.yaml` è
+      `integration_only`, quindi cinque track significherebbero cinque riscritture dello stesso file
+      `integration_only` in cinque branch — cioè fabbricare la contesa che questo file esiste per
+      evitare. Il write-set è unico e disgiunto; le issue restano cinque su GitHub, dove lo stato
+      vive.
+      ✅ **Intersezione con le tre track ACTIVE: vuota, misurata** file per file, non dedotta dal
+      dominio. `Turn/` e `Bot/` sono di `simulation` e questo branch non li tocca: i test nuovi
+      stanno in `Tests/`, e la sola modifica non-test è in `Map/` — che è il write-set libero
+      lasciato da `spatial` quando è passata IDLE, e che la sua nota dichiara *«disponibile al primo
+      task che lo richieda con set disgiunto»*.
+      🔴 **Con i branch vivi invece NON è vuota, e il file non poteva saperlo**:
+      `feat/165-finestra-overwatch` era registrato a **zero commit** e oggi ne porta 15, fra cui
+      `Tests/RTHexBotIntegrationTests.cpp` — vedi la sua voce in `preexisting` per la misura. Il
+      confronto è stato fatto contro **tutti e dieci** i branch remoti vivi
+      (`git ls-remote --heads` + `git diff --name-only origin/main...<branch>`), uno per uno: quella
+      è l'unica intersezione, e le altre nove sono vuote.
+      ⚠️ **Il test conteso non si sposta in un file nuovo**, benché sarebbe la via ovvia per azzerare
+      l'intersezione: l'allestimento del bot (`MakeHexBotWorld`, `SpawnHexBotUnit`, …) vive in un
+      namespace anonimo di quel file, e duplicarlo darebbe due allestimenti da tenere d'accordo —
+      che è il motivo per cui `RTTurnLogCauseTests.cpp` tiene insieme la famiglia delle cause invece
+      di spargerla. Fra un conflitto testuale di dieci righe e una duplicazione permanente si sceglie
+      il primo, ma **la scelta va scritta qui**, non lasciata al merge.
+      ✅ **La collisione si è materializzata ed è stata pagata come previsto.** `feat/165` è atterrato
+      per primo (PR #878, `53ec531f`), e il merge di `origin/main` in questo branch ha prodotto
+      esattamente il conflitto descritto: tre marker in `RTHexBotIntegrationTests.cpp`, due test
+      indipendenti in coda, risolti tenendoli **entrambi** — `HexBotPlay.ChargeItPlannedActuallyLands`
+      fuori dalle guardie come tutti i test preesistenti del file, `Bot.DecidesWithoutFutureKnowledge`
+      dentro il proprio `#if WITH_DEV_AUTOMATION_TESTS`, che è la forma in cui è arrivato. Nessuna
+      riga persa da nessuna delle due parti, verificato contando i test prima e dopo. **La previsione
+      scritta prima del conflitto è ciò che ha reso la risoluzione meccanica**: chi l'ha trovata
+      sapeva già cosa aspettarsi e perché.
+    writable:
+      - Source/RefactorTactics/Map/RTHexLibrary.h
+      - Source/RefactorTactics/Map/RTHexLibrary.cpp
+      - Source/RefactorTactics/Map/RTHexMapActor.h
+      - Source/RefactorTactics/Tests/RTHexTests.cpp
+      - Source/RefactorTactics/Tests/RTHexMapTests.cpp
+      - Source/RefactorTactics/Tests/RTGeometryBakeTests.cpp
+      - Source/RefactorTactics/Tests/RTTurnLogCauseTests.cpp
+      - Source/RefactorTactics/Tests/RTEnvironmentActionTests.cpp
+      - Source/RefactorTactics/Tests/RTHexBotIntegrationTests.cpp
+      - Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp
+    # Misurato con lo stesso metodo del resto del file. Vale la condizione dei test già scritta per
+    # `simulation`: **aggiungere** un test non muove nessuna vista, rinominarne o cancellarne uno
+    # citato in `tests:` sì. Qui i test sono tutti **nuovi**, e nessuno dei nomi esistenti cambia:
+    # `generate --check` e `shortlist --check` restano verdi. Non è una deduzione dalle costanti —
+    # è la stessa misura che la nota di `simulation` riporta, applicata a un write-set che aggiunge
+    # soltanto.
+    derives_from: []
+    binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #

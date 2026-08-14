@@ -231,6 +231,103 @@ bool FRTHexWorldToCellIdTest::RunTest(const FString&)
 }
 
 /**
+ * `#879`: la risoluzione del click e' **pura e qui**, non nel modulo Editor dove nessun test la raggiunge.
+ *
+ * Il chiamante decide se il colpo VALE — componente giusto, layer giusto — e passa la risposta come
+ * `bHasValidHit`. Questo test tiene ferma la conseguenza di quella decisione: con il colpo si usa il colpo,
+ * senza si usa il piano, e i due danno celle DIVERSE. Se non fossero diverse il test passerebbe anche
+ * scambiando il ramo, che e' esattamente la mutazione da cui difende.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexResolveRayValidatedHitTest,
+	"RefactorTactics.Hex.ResolveRayToCellOnLayerUsesValidatedHit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexResolveRayValidatedHitTest::RunTest(const FString&)
+{
+	const FVector Origin = FVector::ZeroVector;
+	const float HexSize = 100.f;
+	const float LayerHeight = 250.f;
+	const int32 ActiveLayer = 1;
+
+	// Raggio verticale che colpisce il piano del layer attivo esattamente sul centro di (0,0,1).
+	const FVector RayOrigin(0.0, 0.0, 1000.0);
+	const FVector RayDir(0.0, 0.0, -1.0);
+	const FRTCellId PlaneCell(0, 0, ActiveLayer);
+	const FRTCellId HitCell(2, 1, ActiveLayer);
+	const FVector HitPoint = URTHexLibrary::AxialToWorld(HitCell, Origin, HexSize, LayerHeight);
+
+	// Le due celle DEVONO essere diverse, o il resto del test non proverebbe niente.
+	TestTrue(TEXT("il caso e' discriminante: cella del colpo != cella del piano"), HitCell != PlaneCell);
+
+	const FRTCellId WithHit = URTHexLibrary::ResolveRayToCellOnLayer(RayOrigin, RayDir,
+		Origin, HexSize, LayerHeight, ActiveLayer, /*bHasValidHit=*/ true, HitPoint);
+	TestTrue(FString::Printf(TEXT("colpo valido -> cella del colpo (%s)"), *WithHit.ToString()),
+		WithHit == HitCell);
+
+	// Stesso raggio, stesso HitPoint, colpo NON valido: il punto d'impatto va ignorato del tutto.
+	const FRTCellId WithoutHit = URTHexLibrary::ResolveRayToCellOnLayer(RayOrigin, RayDir,
+		Origin, HexSize, LayerHeight, ActiveLayer, /*bHasValidHit=*/ false, HitPoint);
+	TestTrue(FString::Printf(TEXT("colpo scartato -> cella del piano (%s)"), *WithoutHit.ToString()),
+		WithoutHit == PlaneCell);
+
+	return true;
+}
+
+/**
+ * `#879`: il piano su cui si risolve e' quello del layer **attivo**, non quello dedotto dalla quota del
+ * raggio o del colpo. E' la ragione per cui il chiamante scarta i colpi di un altro piano: proiettarli
+ * sposterebbe la cella in orizzontale di circa `LayerHeight` con la camera obliqua del viewport.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexResolveRayActivePlaneTest,
+	"RefactorTactics.Hex.ResolveRayToCellOnLayerFallsBackToActivePlane",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexResolveRayActivePlaneTest::RunTest(const FString&)
+{
+	const FVector Origin(1000.0, -500.0, 200.0);
+	const float HexSize = 100.f;
+	const float LayerHeight = 250.f;
+
+	// Raggio OBLIQUO: la quota a cui incontra il piano cambia il punto X/Y, quindi il layer attivo non
+	// e' solo un'etichetta sul risultato — sposta davvero la cella. Un raggio verticale non lo direbbe.
+	//
+	// La pendenza non e' arbitraria: con `dX = 2*dZ` un piano in piu' sposta il punto di `2*LayerHeight`
+	// = 500 unita', contro una larghezza di cella pointy-top di `sqrt(3)*HexSize` ~ 173. Il margine e'
+	// ~2.9 celle, quindi l'asserzione «la cella cambia» non dipende da dove cadono gli arrotondamenti.
+	// Con una pendenza piu' ripida (`dX = dZ/2`, 125 unita') il passo sarebbe MINORE di una cella e il
+	// test fallirebbe a intermittenza per una ragione che non ha niente a che vedere con la regola.
+	const FVector RayOrigin(1000.0, -500.0, 200.0 + 2000.0);
+	const FVector RayDir = FVector(2.0, 0.0, -1.0).GetSafeNormal();
+
+	FRTCellId Previous;
+	for (int32 Layer = 0; Layer <= 3; ++Layer)
+	{
+		const FRTCellId Cell = URTHexLibrary::ResolveRayToCellOnLayer(RayOrigin, RayDir,
+			Origin, HexSize, LayerHeight, Layer, /*bHasValidHit=*/ false, FVector::ZeroVector);
+
+		TestEqual(FString::Printf(TEXT("layer %d: la cella sta sul piano attivo"), Layer), Cell.Layer, Layer);
+
+		if (Layer > 0)
+		{
+			// Salendo di un piano il raggio obliquo incontra il piano piu' vicino alla camera: la coppia
+			// assiale cambia. Se restasse identica, il piano non starebbe entrando nel calcolo.
+			TestTrue(FString::Printf(TEXT("layer %d: la coppia assiale si sposta col piano"), Layer),
+				Cell.X != Previous.X || Cell.Y != Previous.Y);
+		}
+		Previous = Cell;
+	}
+
+	// `LayerHeight` 0: tutti i piani coincidono, quindi la coppia assiale non puo' dipendere dal layer.
+	{
+		const FRTCellId A = URTHexLibrary::ResolveRayToCellOnLayer(RayOrigin, RayDir,
+			Origin, HexSize, 0.f, 0, /*bHasValidHit=*/ false, FVector::ZeroVector);
+		const FRTCellId B = URTHexLibrary::ResolveRayToCellOnLayer(RayOrigin, RayDir,
+			Origin, HexSize, 0.f, 2, /*bHasValidHit=*/ false, FVector::ZeroVector);
+		TestTrue(TEXT("LayerHeight 0: stessa coppia assiale su piani diversi"), A.X == B.X && A.Y == B.Y);
+		TestEqual(TEXT("LayerHeight 0: il layer resta quello dichiarato"), B.Layer, 2);
+	}
+	return true;
+}
+
+/**
  * CP 6.3: i vertici dell'esagono servono sia al marker dell'editor sia all'anteprima in gioco. Una sola
  * definizione, cosi' i due disegni non divergono di orientamento (pointy-top, primo vertice a -30 gradi).
  */

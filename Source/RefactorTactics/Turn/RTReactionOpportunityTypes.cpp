@@ -72,6 +72,49 @@ FString URTReactionOpportunityLibrary::FireResponse(int32 TargetUnitId)
 	return FString::Printf(TEXT("FIRE:%d"), TargetUnitId);
 }
 
+int32 URTReactionOpportunityLibrary::FireResponseTarget(const FString& Response)
+{
+	// Il prefisso si ricava dalla funzione che lo SCRIVE, non da una seconda costante: `FireResponse(0)` da'
+	// «FIRE:0», e togliere l'ultimo carattere lascia «FIRE:». Con una `TEXT("FIRE:")` scritta qui, cambiare il
+	// formato in un posto solo lo spezzerebbe nell'altro senza che niente smetta di compilare.
+	static const FString Prefix = FireResponse(0).LeftChop(1);
+
+	if (!Response.StartsWith(Prefix, ESearchCase::CaseSensitive))
+	{
+		return INDEX_NONE; // `HOLD`, o qualunque altra cosa: non c'e' un bersaglio, e non e' un errore
+	}
+
+	const FString Digits = Response.RightChop(Prefix.Len());
+	if (Digits.IsEmpty() || !Digits.IsNumeric())
+	{
+		// `FIRE:` senza numero, o con qualcosa che numero non e'. `Atoi` darebbe 0, che e' un UnitId valido:
+		// sarebbe una risposta malformata che spara alla prima unita' invece di essere rifiutata.
+		return INDEX_NONE;
+	}
+
+	return FCString::Atoi(*Digits);
+}
+
+bool URTReactionOpportunityLibrary::IsResponseAllowed(const FRTReactionOpportunity& Opportunity,
+	const FString& Response)
+{
+	// Confronto ESATTO e case-sensitive: `AllowedResponses` e' un elenco chiuso costruito dal produttore, e
+	// una tolleranza qui — trim, case-insensitive, prefisso — significherebbe accettare risposte che quel
+	// produttore non ha mai offerto.
+	return Opportunity.AllowedResponses.ContainsByPredicate([&Response](const FString& Allowed)
+	{
+		return Allowed.Equals(Response, ESearchCase::CaseSensitive);
+	});
+}
+
+FRTReactionDecision URTReactionOpportunityLibrary::DecisionOnTimeout(const FRTReactionOpportunity&)
+{
+	// PURA e costante: `HOLD`, sempre. Non guarda l'opportunity di proposito — se la guardasse, esisterebbe
+	// un'opportunity per cui lo scadere potrebbe spendere la charge, e ADR-0004 §3 dice che non ne esiste
+	// nessuna. Il parametro resta nella firma perche' il chiamante non debba conoscere la stringa `HOLD`.
+	return FRTReactionDecision(HoldResponse(), ERTReactionDecisionOutcome::HoldTimeout);
+}
+
 bool URTReactionOpportunityLibrary::IsConditionSatisfied(const FRTDeclaredCondition& Condition,
 	const FRTTargetVitals* Vitals)
 {
@@ -102,7 +145,7 @@ bool URTReactionOpportunityLibrary::IsConditionSatisfied(const FRTDeclaredCondit
 
 TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTriggers(const URTHexMapAsset* Map,
 	int32 TurnNumber, const TArray<FRTOverwatchWatcher>& Watchers, const TArray<FRTSuppressionMover>& Movers,
-	const TMap<int32, FRTTargetVitals>& TargetVitals)
+	const TMap<int32, FRTTargetVitals>& TargetVitals, int32 FirstMicroStepIndex)
 {
 	TArray<FRTOverwatchTrigger> Triggers;
 
@@ -210,7 +253,9 @@ TArray<FRTOverwatchTrigger> URTReactionOpportunityLibrary::BuildOverwatchTrigger
 
 			Trigger.Opportunity.Key.TurnNumber = TurnNumber;
 			Trigger.Opportunity.Key.MacroPhase = ERTMatchPhase::Move; // l'Overwatch scatta sui micro-step del Move
-			Trigger.Opportunity.Key.MicroStepIndex = Step;
+			// `Step` e' relativo ai `Movers` ricevuti; l'indice della CHIAVE e' quello del turno. Coincidono
+			// solo quando il chiamante passa i percorsi interi — vedi `FirstMicroStepIndex` nell'header.
+			Trigger.Opportunity.Key.MicroStepIndex = FirstMicroStepIndex + Step;
 			Trigger.Opportunity.Key.OwnerId = Watcher.Zone.OwnerUnitId;
 			Trigger.Opportunity.Key.ReactionDefId = Watcher.ReactionDefId;
 			// `Seq` NON si assegna qui: dipenderebbe dall'ordine di `Watchers`. Si assegna dopo

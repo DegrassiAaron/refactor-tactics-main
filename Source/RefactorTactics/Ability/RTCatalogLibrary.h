@@ -320,19 +320,26 @@ public:
 	/**
 	 * Gli `ActionId` delle azioni **generiche** che ogni unita' possiede in aggiunta al proprio kit (D-025).
 	 *
-	 * Sono **tre** delle sette dichiarate, e le altre quattro mancano per ragioni diverse che vale la pena
+	 * Sono **quattro** delle sette dichiarate, e le altre tre mancano per ragioni diverse che vale la pena
 	 * distinguere:
 	 *
 	 * - `Move` e `BasicAttack` **ci sono gia'**, per altre strade: il movimento passa da `PlannedPath` e non
 	 *   da uno slot azione, e l'attacco base e' l'indice 0 del kit di ogni eroe (catalogo v0.1);
 	 * - `Interact` non ha un **consumatore**: nessun codice risolve un'interazione. Aggiungerla darebbe a ogni
-	 *   unita' un comando che non fa niente — cioe' lo stesso difetto che questa lista corregge;
-	 * - `Overwatch` non esiste nemmeno nel catalogo core: e' **E14** (ADR-0004, finestre di reazione), e
-	 *   arrivera' con la sua infrastruttura.
+	 *   unita' un comando che non fa niente — cioe' lo stesso difetto che questa lista corregge.
 	 *
 	 * `Guard`, `Brace` e `Wait` entrano perche' sono complete dall'altra parte: `Status.Guarded` e
 	 * `Status.Braced` hanno gia' quattro consumatori nel `TurnManager` — riduzione del danno e resistenza alle
 	 * spinte — che senza un produttore restavano irraggiungibili in partita.
+	 *
+	 * ➕ `Overwatch` e' entrata con **CP 14.5**, e questo commento diceva il contrario: «non esiste nemmeno nel
+	 * catalogo core: e' E14, e arrivera' con la sua infrastruttura». L'infrastruttura era arrivata prima di
+	 * lei — CP 14.3 e CP 14.4 hanno consegnato `FRTReactionOpportunity` e `BuildOverwatchTriggers` — e la
+	 * riga era diventata la descrizione del difetto invece che di un rinvio: i `FRTOverwatchWatcher` li
+	 * costruivano **solo i test**, quindi nessuna partita poteva aprire una finestra. E' lo stesso criterio
+	 * con cui `Guard` e `Brace` erano entrate: si aggiunge la generica quando l'altra meta' esiste.
+	 *
+	 * ⚠️ L'ordine e' un indice stabile: vedi il commento all'implementazione. `Overwatch` va in CODA.
 	 */
 	static TArray<FName> GetGenericActionIds();
 

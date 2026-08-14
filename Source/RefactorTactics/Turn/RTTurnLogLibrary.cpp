@@ -34,7 +34,14 @@ bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntr
 	if (A.UnitId != B.UnitId)             { return A.UnitId < B.UnitId; }
 	// `Priority` (v7) chiude l'ordine per la stessa ragione dei tre campi qui sopra: e' SCRITTO da
 	// `SerializeTurnLog`, e un campo scritto che il confronto non guarda lascia due voci a pari merito.
-	return A.Priority < B.Priority;
+	if (A.Priority != B.Priority) { return A.Priority < B.Priority; }
+
+	// I tre campi della v8, per la stessa ragione ancora: sono scritti, quindi devono spareggiare. Due
+	// decisioni della **stessa** unita' nello stesso micro-step — due Overwatch armate — pareggiano su tutto
+	// il resto e si distinguono solo qui.
+	if (A.OpportunityId != B.OpportunityId) { return A.OpportunityId < B.OpportunityId; }
+	if (A.ReactionInstanceId != B.ReactionInstanceId) { return A.ReactionInstanceId < B.ReactionInstanceId; }
+	return A.SelectedTargetUnitId < B.SelectedTargetUnitId;
 }
 
 void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
@@ -77,6 +84,11 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// La cella e' LIBERA: a fermarla e' stato un colpo deciso un turno prima (E18). Dirlo «occupata»
 		// manderebbe il giocatore a cercare un'unita' che non c'e'.
 		case ERTMoveOutcome::StoppedByPrediction: Reason = TEXT("fermo: colto da una previsione"); break;
+		// Come la previsione, la cella e' libera — ma il giocatore deve poter distinguere le due cose, perche'
+		// insegnano lezioni diverse: la previsione era una scommessa fatta al buio un turno prima, l'Overwatch
+		// e' qualcuno che ti ha visto arrivare e ha scelto TE. «Colto da una previsione» qui manderebbe a
+		// cercare un errore di lettura dove c'e' stata una lettura riuscita (CP 14.5).
+		case ERTMoveOutcome::StoppedByOverwatch: Reason = TEXT("fermo: colpito in overwatch"); break;
 		// Subito, non scelto (#307): «si muove» direbbe una cosa falsa di un'unita' che e' stata spinta.
 		case ERTMoveOutcome::Displaced:         Reason = TEXT("spostata"); break;
 		// Spinta annullata (#420). Il testo NON e' costante: il valore di questa voce sta tutto nel dire
@@ -185,6 +197,45 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		}
 		return FString::Printf(TEXT("%s -> %s: previsione a vuoto, nessuno e' entrato (%s)"),
 			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Who);
+	}
+
+	// La DECISIONE di una finestra di reazione (CP 14.5). Il testo dice sempre e per prima cosa il MOTIVO,
+	// perche' e' li' che sta l'informazione: `HOLD` scelto e `HOLD` per scadenza hanno lo stesso effetto e
+	// raccontano due turni diversi, e un combat log che scrivesse «tiene il colpo» per entrambi cancellerebbe
+	// proprio la distinzione per cui il motivo esiste.
+	if (Entry.Category == ERTLogCategory::ReactionDecision)
+	{
+		const FString Who = Entry.ActionId.IsNone()
+			? FString(TEXT("overwatch")) : DescribeActionIdentity(Entry);
+
+		switch (static_cast<ERTReactionDecisionOutcome>(Entry.Outcome))
+		{
+		case ERTReactionDecisionOutcome::FireChosen:
+			return FString::Printf(TEXT("%s -> %s: overwatch spara sull'unita' %d, %d danni (%s)"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.SelectedTargetUnitId,
+				Entry.Amount, *Who);
+		// I cinque `Hold` NON condividono un testo, ed e' il punto della voce: applicano tutti lo stesso
+		// effetto — nessuno — e rispondono in modo diverso all'unica domanda che il giocatore pone davvero,
+		// *perche' non ha sparato?*. Un «tiene il colpo» per tutti cancellerebbe proprio quella differenza.
+		case ERTReactionDecisionOutcome::HoldChosen:
+			return FString::Printf(TEXT("%s: overwatch tiene il colpo, resta armato (%s)"),
+				*CellText(Entry.SrcCell), *Who);
+		case ERTReactionDecisionOutcome::HoldTimeout:
+			return FString::Printf(TEXT("%s: overwatch non risponde in tempo, resta armato (%s)"),
+				*CellText(Entry.SrcCell), *Who);
+		case ERTReactionDecisionOutcome::HoldNoDecider:
+			return FString::Printf(TEXT("%s: overwatch senza decisore, resta armato (%s)"),
+				*CellText(Entry.SrcCell), *Who);
+		case ERTReactionDecisionOutcome::HoldRejected:
+			return FString::Printf(TEXT("%s: risposta non ammessa, overwatch resta armato (%s)"),
+				*CellText(Entry.SrcCell), *Who);
+		case ERTReactionDecisionOutcome::HoldImmediate:
+			return FString::Printf(TEXT("%s: nessun bersaglio ammesso, overwatch resta armato (%s)"),
+				*CellText(Entry.SrcCell), *Who);
+		}
+		// Un valore aggiunto in coda e non ancora tradotto: si dice cosi', invece di mentire su quale sia.
+		// Stessa disciplina di `ERTDisplacementBlockReason` piu' sopra.
+		return FString::Printf(TEXT("%s: overwatch, esito non tradotto (%s)"), *CellText(Entry.SrcCell), *Who);
 	}
 
 	// Orientamento: quando cambia, e chi lo ha letto (CP 16.1). Senza queste righe il combat log direbbe che
@@ -314,6 +365,26 @@ namespace
 		// `UnitId` e `TurnNumber` NON entrano, per lo stesso criterio (D-063): servono a rendere la traccia
 		// spiegabile — chi ha agito, in quale turno — non a discriminarla. Includerli invaliderebbe in blocco
 		// ogni hash golden senza aggiungere potere discriminante.
+		//
+		// La DECISIONE di una finestra ENTRA (v8, CP 14.5), e mescolarla e' il punto: due partite con gli
+		// stessi movimenti in cui un giocatore ha sparato e l'altro ha tenuto sono due partite diverse, ed e'
+		// esattamente cio' che E14 aggiunge al gioco. `Outcome` e `Amount` — la risposta e il suo motivo —
+		// sono gia' mescolati sopra insieme a tutti gli altri esiti; qui restano i due che li qualificano.
+		//
+		// ⚠️ Un id VUOTO non mescola nulla, ed e' questo che tiene fermi gli hash golden delle tracce senza
+		// decisioni: il ciclo non gira, e `SelectedTargetUnitId` e' mescolato solo dentro il ramo. Se lo si
+		// mescolasse incondizionatamente, `INDEX_NONE` cambierebbe l'hash di **ogni** voce del progetto.
+		for (const TCHAR Ch : E.OpportunityId)
+		{
+			Mix(static_cast<uint32>(Ch));
+		}
+		if (!E.OpportunityId.IsEmpty())
+		{
+			Mix(static_cast<uint32>(E.SelectedTargetUnitId));
+		}
+		// `ReactionInstanceId` NON entra: e' un numero d'ordine dell'armamento, quindi spiega e non discrimina.
+		// Due tracce che differissero solo per lui differirebbero gia' per l'`OpportunityId`, che l'istanza la
+		// porta dentro attraverso `Seq`.
 	}
 }
 
@@ -461,7 +532,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithPriority));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -489,6 +560,11 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		AppendI32LE(Out, E.TurnNumber);
 		AppendI32LE(Out, E.GraphRevision);
 		AppendI32LE(Out, E.Priority); // v7: in CODA, i campi precedenti non si spostano
+		// v8: la decisione di una finestra di reazione. La stringa per prima, con lo schema di `ActionId`,
+		// poi i due interi — stesso ordine in cui il lettore li ripesca.
+		AppendStringUtf8(Out, E.OpportunityId);
+		AppendI32LE(Out, E.ReactionInstanceId);
+		AppendI32LE(Out, E.SelectedTargetUnitId);
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -516,7 +592,10 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// altro valore e' rifiutato: interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
-	const bool bHasPriority = (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithPriority));
+	const bool bHasReactionDecision =
+		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
+	const bool bHasPriority = bHasReactionDecision
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithPriority));
 	const bool bHasUnitId = bHasPriority
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithUnitId));
 	const bool bHasBaseActionId = bHasUnitId
@@ -560,8 +639,9 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	constexpr int32 FixedEntryBytes = 31;         // 3 uint8 + 7 int32
 	// + 2 byte di lunghezza per ogni stringa presente nel formato: ActionId da v3, BaseActionId da v5.
 	// + 12 byte fissi per UnitId, TurnNumber e GraphRevision da v6, + 4 per Priority da v7.
+	// + 2 di lunghezza per `OpportunityId` e 8 per i due interi della decisione, da v8.
 	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0)
-		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0);
+		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0) + (bHasReactionDecision ? 10 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{
@@ -635,6 +715,19 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		// sarebbe possibile. Sarebbe la stessa inferenza che D-063 ha dichiarato non valida per l'unita': il
 		// catalogo di oggi puo' non essere quello con cui la traccia fu scritta, e una priorita' inventata
 		// racconterebbe un ordine di risoluzione che quel turno non ha avuto.
+		if (bHasReactionDecision)
+		{
+			if (!ReadStringUtf8(Bytes, Pos, E.OpportunityId)
+				|| !ReadI32LE(Bytes, Pos, E.ReactionInstanceId)
+				|| !ReadI32LE(Bytes, Pos, E.SelectedTargetUnitId))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
+		// Sotto la v8 i tre campi restano ai loro default — id vuoto, `INDEX_NONE` sui due interi — e qui non
+		// c'e' nemmeno la tentazione di dedurli: in quelle versioni nessuna finestra si apriva in partita, e
+		// una traccia senza decisioni e' completa cosi' com'e', non monca.
 		OutEntries.Add(E);
 	}
 
