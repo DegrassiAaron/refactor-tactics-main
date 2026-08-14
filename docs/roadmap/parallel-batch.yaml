@@ -191,8 +191,12 @@ tracks:
       - Source/RefactorTactics/Tests/RTHexMapTests.cpp
       - Source/RefactorTactics/Tests/RTHexPathTests.cpp
     # La sorgente `v0.1-definition-of-done.md` alimenta la sezione `gates` di milestonemap
-    # (`DOD_V01`, feature_registry.py:2044). Questa track è quindi l'unica autorizzata a
-    # rigenerare quella vista, e deve farlo.
+    # (costante `DOD_V01` in `scripts/feature_registry.py`). Questa track è quindi l'unica
+    # autorizzata a rigenerare quella vista, e deve farlo.
+    # ⚠️ Il numero di riga è stato tolto di proposito: era `feature_registry.py:2044`, e la prima
+    # modifica al modulo che aggiungesse righe più in alto lo faceva puntare a codice estraneo —
+    # un riferimento che invecchia da solo, esattamente ciò che questo file evita altrove. Il
+    # nome della costante è l'ancora: `grep -n "^DOD_V01" scripts/feature_registry.py`.
     derives_from:
       # Misurato: rimossa la sorgente, cambiano ESATTAMENTE queste due viste.
       - source: docs/roadmap/v0.1-definition-of-done.md
@@ -276,6 +280,7 @@ integration_only:
   - Scenarios/             # sorgente di scenariomap + project-graph; oggi la tiene wt-cap
   - scripts/feature_registry.py
   - scripts/test_feature_registry_releases.py
+  - scripts/test_feature_registry_lanes.py
   - RefactorTactics.uproject
   - Source/RefactorTactics/RefactorTactics.Build.cs
   - Config/

@@ -242,7 +242,14 @@ python scripts/feature_registry.py wiki        # blocchi di stato + pagina Stato
 python scripts/feature_registry.py workbook    # sheet 15_Wiki_Feature_Refs del workbook character
 python scripts/feature_registry.py shortlist   # le cinque viste corte di docs/roadmap/*.shortlist.md
 python scripts/feature_registry.py report      # tabella di audit su stdout
+python scripts/feature_registry.py lanes       # le issue per domain_group, derivate dal registry
+python scripts/feature_registry.py lanes --github   # + la copertura sulle aperte, misurata adesso
 ```
+
+`lanes` non introduce una classificazione: compone `issues:` del registry con i `feature_areas` dei
+`domain_groups` di [`execution-graph.yaml`](execution-graph.yaml). Con `--github` interroga `gh` e
+riporta quante issue aperte hanno un gruppo derivabile e quante no — un numero che **non viene
+scritto in nessun file**, perché uno stato committato invecchia senza dirlo.
 
 `generate`, `wiki`, `workbook`, `shortlist` e `deploy` accettano `--check`: non scrivono e falliscono se
 l'output è disallineato dalla sorgente. È la forma da usare in un gate automatico (**G15** della Definition

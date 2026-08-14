@@ -119,8 +119,15 @@ class GraphNodeCannotContradictTheRegistry(unittest.TestCase):
 
     def test_disambiguating_an_ambiguous_issue_is_allowed(self):
         # Una issue che attraversa due domini ne ammette due: il nodo che ne sceglie uno sta
-        # disambiguando, e non contraddice niente. Senza questa regola il gate accenderebbe un
-        # errore su `#77`, `#84` e `#324`, che sono legittime.
+        # disambiguando, e non contraddice niente.
+        #
+        # ⚠️ La prima stesura giustificava questa regola con «senza, il gate accenderebbe un
+        # errore su `#77`, `#84` e `#324`». **Era falso, ed e' stato misurato**: nessuno dei 17
+        # nodi del grafo cita una delle 11 issue ambigue del registry — l'intersezione e' vuota.
+        # Il ramo permissivo non e' esercitato da nessun dato reale, e senza di esso il gate oggi
+        # non segnalerebbe niente. La regola resta perche' e' la semantica giusta il giorno in cui
+        # un nodo citera' una di quelle issue, non perche' ne stia salvando tre adesso: e' una
+        # scelta di design, e questo test e' l'unico posto in cui e' esercitata.
         registry = _registry(("RT-FEAT-A", "Core", [77]), ("RT-FEAT-B", "UI", [77]))
         for chosen in ("core_simulation", "ui_presentation"):
             errors, _ = self._validate(
@@ -128,6 +135,24 @@ class GraphNodeCannotContradictTheRegistry(unittest.TestCase):
             self.assertEqual([e for e in errors if "contraddice" in e], [],
                              f"scegliere {chosen} fra i due gruppi derivati non e' una "
                              "contraddizione")
+
+    def test_a_node_without_a_group_is_not_silent(self):
+        # Il buco che il gate aveva: senza `domain_group:` il nodo spariva da ogni filtro e
+        # `validate` restava verde. Il generatore ora deriva il gruppo quando puo'; quando non
+        # puo', questo warning e' l'unica cosa che lo dice.
+        errors, warnings = self._validate(
+            _doc([{"id": "issue:999"}]), _registry(("RT-FEAT-A", "Core", [10])))
+        self.assertEqual(errors, [])
+        self.assertTrue([w for w in warnings if "issue:999" in w and "nessun domain_group" in w],
+                        "un nodo senza gruppo e senza derivazione passa in silenzio")
+
+    def test_an_ambiguous_node_without_a_group_says_why(self):
+        errors, warnings = self._validate(
+            _doc([{"id": "issue:77"}]),
+            _registry(("RT-FEAT-A", "Core", [77]), ("RT-FEAT-B", "UI", [77])))
+        self.assertEqual(errors, [])
+        self.assertTrue([w for w in warnings if "issue:77" in w and "piu' domini" in w],
+                        "l'ambiguita' non viene distinta dall'assenza di feature")
 
     def test_issue_no_feature_declares_is_a_warning_not_an_error(self):
         # Il nodo esiste, la issue no: il gruppo non e' verificabile. Non e' un errore — quattro
@@ -138,6 +163,73 @@ class GraphNodeCannotContradictTheRegistry(unittest.TestCase):
         self.assertEqual([e for e in errors if "contraddice" in e], [])
         self.assertTrue([w for w in warnings if "issue:999" in w and "verificabile" in w],
                         "un gruppo non verificabile non viene segnalato")
+
+
+class TheGeneratedViewDerivesInsteadOfCopying(unittest.TestCase):
+    """Un nodo senza `domain_group` non sparisce dai filtri: il generatore lo deriva.
+
+    E' la regola del modulo — «la copia e' generata» — applicata al `domain_group`. Prima il
+    valore era scritto a mano su ogni nodo, e per 13 dei 17 nodi reali il registry ne derivava
+    esattamente uno: la copia non portava informazione, poteva solo essere sbagliata.
+    """
+
+    def _node(self, node, features):
+        original_doc, original_reg = fr.load_execution_graph, fr.load_registry
+        fr.load_execution_graph = lambda: _doc([node])
+        fr.load_registry = lambda: _registry(*features)
+        try:
+            graph = fr.build_execution(fr.editor_context(), _registry(*features))
+        finally:
+            fr.load_execution_graph, fr.load_registry = original_doc, original_reg
+        return graph["nodes"][0]
+
+    def test_absent_group_is_derived(self):
+        record = self._node({"id": "issue:10"}, [("RT-FEAT-A", "Core", [10])])
+        self.assertEqual(record["domain_group"], "core_simulation")
+        self.assertEqual(record["domain_group_source"], "derived")
+
+    def test_declared_group_wins_and_says_so(self):
+        record = self._node({"id": "issue:10", "domain_group": "ui_presentation"},
+                            [("RT-FEAT-A", "UI", [10])])
+        self.assertEqual(record["domain_group"], "ui_presentation")
+        self.assertEqual(record["domain_group_source"], "declared")
+
+    def test_ambiguous_is_not_guessed(self):
+        record = self._node({"id": "issue:77"},
+                            [("RT-FEAT-A", "Core", [77]), ("RT-FEAT-B", "UI", [77])])
+        self.assertIsNone(record["domain_group"],
+                          "un'issue che attraversa due domini e' stata assegnata a indovinare")
+        self.assertIsNone(record["domain_group_source"])
+
+
+class AMalformedIdDoesNotKillTheGate(unittest.TestCase):
+    """Un `issue:abc` deve produrre l'errore che il validator ha gia', non un traceback.
+
+    Il controllo sul `domain_group` gira in un loop **diverso** da quello che rifiuta gli id non
+    conformi, quindi la prima stesura ci arrivava con `int('abc')` e moriva — sopprimendo anche
+    il messaggio leggibile che il validator aveva gia' preparato.
+    """
+
+    def _doc_with_bad_id(self):
+        doc = _doc([{"id": "issue:abc", "domain_group": "core_simulation"}])
+        return doc
+
+    def test_validate_reports_instead_of_crashing(self):
+        original = fr.load_execution_graph
+        fr.load_execution_graph = lambda: self._doc_with_bad_id()
+        try:
+            errors, _ = fr.validate_execution_graph(
+                ctx={"sessions": [], "checkpoints": set()},
+                registry=_registry(("RT-FEAT-A", "Core", [10])))
+        finally:
+            fr.load_execution_graph = original
+        self.assertTrue([e for e in errors if "id non conforme" in e],
+                        "l'id malformato non e' stato dichiarato")
+
+    def test_render_lanes_survives(self):
+        view = fr.render_lanes(_registry(("RT-FEAT-A", "Core", [10])),
+                               doc=self._doc_with_bad_id())
+        self.assertIn("core_simulation", view)
 
 
 class CoverageIsMeasuredNotAssumed(unittest.TestCase):

@@ -2025,25 +2025,49 @@ def render_audit(data):
     return "\n".join(out)
 
 
+GITHUB_ISSUE_LIMIT = 500
+
+
 def open_issues_from_github():
-    """Le issue aperte, chieste a GitHub adesso. `None` se `gh` non risponde.
+    """Le issue aperte, chieste a GitHub adesso. `(numeri, None)` oppure `(None, causa)`.
 
     Volutamente **non** scritta in nessun file. Uno stato committato e' precisamente il difetto
     che ha mandato in archivio i sette file di lane: veri il giorno in cui li scrivi, e nessuno
     li rilegge sapendo quanti giorni hanno — sei delle ottantatre issue che citavano avevano
     cambiato stato fra la stesura e il commit. Qui il numero si misura quando serve e muore su
     stdout.
+
+    Due cose che la prima stesura sbagliava, ed erano entrambe il difetto che questa funzione
+    dichiara di evitare:
+
+    - **il tetto di `--limit` tronca senza dirlo.** `gh` restituisce esattamente N e uscita 0:
+      ogni issue oltre il tetto sarebbe stata contata come chiusa, e la tabella avrebbe stampato
+      una copertura sbagliata con l'aria di averla misurata. Oggi le aperte sono ~200 e il
+      margine c'e'; il giorno in cui non ci fosse, il guasto sarebbe muto.
+    - **la causa dell'errore veniva buttata.** `gh auth login`, rete assente, rate limit e binario
+      mancante producevano lo stesso messaggio, e per sapere quale bisognava rilanciare `gh` a
+      mano.
     """
     try:
         import subprocess
-        out = subprocess.run(["gh", "issue", "list", "--state", "open", "--limit", "500",
-                              "--json", "number"], cwd=REPO,
+        out = subprocess.run(["gh", "issue", "list", "--state", "open",
+                              "--limit", str(GITHUB_ISSUE_LIMIT), "--json", "number"], cwd=REPO,
                              capture_output=True, text=True, timeout=60)
-        if out.returncode != 0:
-            return None
-        return {int(entry["number"]) for entry in json.loads(out.stdout)}
-    except Exception:
-        return None
+    except FileNotFoundError:
+        return None, "`gh` non e' sul PATH"
+    except Exception as exc:  # timeout, permessi, sottoprocesso morto
+        return None, f"{type(exc).__name__}: {exc}"
+    if out.returncode != 0:
+        return None, (out.stderr or out.stdout or "").strip() or f"gh e' uscito {out.returncode}"
+    try:
+        entries = json.loads(out.stdout)
+    except ValueError as exc:
+        return None, f"risposta di gh illeggibile: {exc}"
+    if len(entries) >= GITHUB_ISSUE_LIMIT:
+        return None, (f"gh ha restituito {len(entries)} issue, cioe' il tetto di "
+                      f"--limit {GITHUB_ISSUE_LIMIT}: la lista e' troncata e la copertura "
+                      "sarebbe falsa. Alza GITHUB_ISSUE_LIMIT")
+    return {int(entry["number"]) for entry in entries}, None
 
 
 def render_lanes(registry, doc=None, open_numbers=None):
@@ -2063,30 +2087,57 @@ def render_lanes(registry, doc=None, open_numbers=None):
     groups = sorted((doc or {}).get("domain_groups") or [], key=lambda g: g.get("order") or 0)
     in_graph = {int(str(n["id"]).split(":", 1)[1]): n
                 for n in ((doc or {}).get("nodes") or [])
-                if str(n.get("id", "")).startswith("issue:")}
+                if re.fullmatch(r"issue:\d+", str(n.get("id", "")))}
 
-    def scope(number):
-        return "aperta" if open_numbers is None or number in open_numbers else "chiusa"
+    def in_scope(number):
+        return open_numbers is None or number in open_numbers
 
     out = ["| domain_group | titolo | issue | nel grafo |", "|---|---|---:|---:|"]
+    counted = set()
     for group in groups:
         gid = group.get("id")
-        members = sorted(n for n, owners in derived.items() if gid in owners
-                         and (open_numbers is None or n in open_numbers))
+        members = sorted(n for n, owners in derived.items() if gid in owners and in_scope(n))
+        counted.update(members)
         out.append(f"| `{gid}` | {group.get('title')} | {len(members)} | "
                    f"{sum(1 for n in members if n in in_graph)} |")
 
-    ambiguous = sorted((n, owners) for n, owners in derived.items() if len(owners) > 1
-                       and (open_numbers is None or n in open_numbers))
+    # ⚠️ Le due colonne NON sommano ai totali di sotto, e taceva. Un'issue ambigua compare in
+    # ogni gruppo che la deriva, quindi la colonna `issue` conta piu' della copertura; e i nodi
+    # del grafo per cui il registry non deriva niente non stanno in nessuna riga, quindi la
+    # colonna `nel grafo` conta meno. Chi sommava una delle due otteneva un numero che
+    # contraddiceva il riquadro sotto — e la vista non diceva perche'.
+    graph_in_scope = {n for n in in_graph if in_scope(n)}
+    ungrouped = sorted(graph_in_scope - counted)
+    duplicated = sorted(n for n in counted if len(derived[n]) > 1)
+    if duplicated or ungrouped:
+        out.append("")
+        note = []
+        if duplicated:
+            note.append(f"la colonna `issue` conta {len(duplicated)} issue **due volte** — sono "
+                        "quelle ambigue qui sotto, presenti in ogni gruppo che le deriva")
+        if ungrouped:
+            note.append(f"la colonna `nel grafo` **esclude** {len(ungrouped)} nodi "
+                        f"({', '.join('#%d' % n for n in ungrouped)}) per cui il registry non "
+                        "deriva nessun gruppo, e che quindi non stanno in nessuna riga")
+        out.append("⚠️ Le colonne non sommano ai totali di sotto: " + "; ".join(note) + ".")
+
+    ambiguous = sorted((n, owners) for n, owners in derived.items()
+                       if len(owners) > 1 and in_scope(n))
     out.append("")
     out.append(f"**Ambigue** — dichiarate da feature di gruppi diversi: {len(ambiguous)}. Non e' "
                "un errore: una issue puo' attraversare due domini. Ma il gruppo non si deriva da "
                "solo, e chi lo scrive sul nodo sta scegliendo.")
     for number, owners in ambiguous:
         node = in_graph.get(number)
-        decided = f"il grafo sceglie `{node['domain_group']}`" if node and node.get("domain_group") \
-            else "**nessun nodo lo dichiara**"
-        out.append(f"- `#{number}` ({scope(number)}): {' + '.join(sorted(owners))} — {decided}")
+        if node is None:
+            decided = "**nessun nodo del grafo la cita**"
+        elif node.get("domain_group"):
+            decided = f"il grafo sceglie `{node['domain_group']}`"
+        else:
+            # Distinguere i due casi non e' pedanteria: il primo manda a cercare nel registry,
+            # il secondo nel nodo — che e' dove sta la riga da scrivere.
+            decided = "**il nodo esiste ma non dichiara il gruppo**"
+        out.append(f"- `#{number}`: {' + '.join(sorted(owners))} — {decided}")
 
     if open_numbers is not None:
         covered = sorted(n for n in open_numbers if n in derived)
@@ -3388,10 +3439,21 @@ def build_execution(ctx, registry, corpus=None, available=None):
 
     # Feature per issue: l'inversa delle `issues:` del registry. Il mapping esiste gia' la', e
     # riscriverlo nel source dell'execution graph avrebbe creato la copia che diverge.
+    # ⚠️ `int(num)` e non `num`: la lettura poco sotto fa `feature_of_issue.get(int(ref))`, e una
+    # sola voce scritta `issues: ["319"]` avrebbe archiviato la chiave `'319'` per poi cercare
+    # `319` — `feature_ids` vuoto, in silenzio. Le due normalizzazioni ora combaciano, e
+    # `issue_domain_groups` usa la stessa.
     feature_of_issue = {}
     for entry in registry["features"]:
         for num in entry.get("issues") or []:
-            feature_of_issue.setdefault(num, []).append(entry["feature_id"])
+            feature_of_issue.setdefault(int(num), []).append(entry["feature_id"])
+
+    # Il `domain_group` di un nodo issue si **deriva** quando il nodo non lo dichiara: e' la
+    # regola del modulo — la copia e' generata — applicata al caso che il gate da solo non
+    # copriva. Un nodo senza `domain_group:` restava fuori da ogni filtro senza che niente lo
+    # dicesse: lo stesso «vista filtrata male, in silenzio» che il gate esiste per chiudere,
+    # entrato dalla porta dell'omissione invece che da quella dell'errore.
+    derived_groups = issue_domain_groups(registry, doc)
 
     lane_of_session = {s.get("id"): session_lane(s) for s in ctx["sessions"]}
     by_id, out = {}, []
@@ -3406,11 +3468,21 @@ def build_execution(ctx, registry, corpus=None, available=None):
         else:
             lane = node.get("execution_lane")
         state, source = execution_node_state(node, ctx, declared)
+        group, group_source = node.get("domain_group"), None
+        if group:
+            group_source = "declared"
+        elif kind == "issue" and ref.isdigit():
+            owners = derived_groups.get(int(ref)) or {}
+            # Solo se univoco: un'issue che attraversa due domini non si assegna a indovinare,
+            # e resta senza gruppo finche' il nodo non sceglie. Il validator lo dice.
+            if len(owners) == 1:
+                group, group_source = next(iter(owners)), "derived"
         record = {
             "id": nid, "kind": kind, "ref": ref,
             "release": node.get("release"),
             "execution_lane": lane,
-            "domain_group": node.get("domain_group"),
+            "domain_group": group,
+            "domain_group_source": group_source,
             "checkpoint": node.get("checkpoint"),
             "state": state,
             "state_source": source,
@@ -3698,9 +3770,29 @@ def validate_execution_graph(ctx=None, registry=None):
     derived_groups = issue_domain_groups(registry, doc)
     for node in doc.get("nodes") or []:
         nid = str(node.get("id") or "")
-        if not nid.startswith("issue:") or not node.get("domain_group"):
+        # `issue:\d+` e non `startswith`: il loop che rifiuta gli id non conformi e' un altro, e
+        # un `issue:abc` arriverebbe fin qui. Con `int()` nudo il validator moriva di traceback
+        # **prima** di stampare l'errore leggibile che aveva gia' preparato — un gate che si
+        # rompe invece di parlare vale meno del gate che sostituisce.
+        if not re.fullmatch(r"issue:\d+", nid):
             continue
         owners = derived_groups.get(int(nid.split(":", 1)[1]))
+        if not node.get("domain_group"):
+            # L'omissione era il buco del gate: senza `domain_group:` il nodo spariva da ogni
+            # filtro e il validator taceva — lo stesso difetto dell'errore, entrato dalla porta
+            # accanto. Ora il generatore lo deriva quando puo'; qui resta da dire i casi in cui
+            # non puo', che sono gli unici in cui il nodo sparisce davvero.
+            if not owners:
+                warnings.append(
+                    f"[execution-graph {nid}] nessun domain_group, e il registry non ne deriva "
+                    "uno: nessuna feature dichiara questa issue, quindi il nodo non compare in "
+                    "nessun filtro di dominio")
+            elif len(owners) > 1:
+                warnings.append(
+                    f"[execution-graph {nid}] nessun domain_group e il registry ne deriva "
+                    f"{len(owners)} ({', '.join(sorted(owners))}): l'issue attraversa piu' "
+                    "domini, e finche' il nodo non sceglie resta fuori dai filtri")
+            continue
         if not owners:
             warnings.append(
                 f"[execution-graph {nid}] nessuna feature del registry dichiara questa issue: il "
@@ -3958,7 +4050,10 @@ def main():
     args = parser.parse_args()
 
     registry = load_registry()
-    data = build_json(registry)
+    # `build_json` cammina `Scenarios/`, lancia `git ls-files` e rilegge roadmap e corpus PIE.
+    # `lanes` non ne usa niente, e pagarlo per poi buttarlo rendeva il comando piu' lento del
+    # lavoro che fa.
+    data = None if args.command == "lanes" else build_json(registry)
 
     if args.command == "validate":
         errors, warnings = validate(registry, args.wiki_root)
@@ -4129,10 +4224,11 @@ def main():
     if args.command == "lanes":
         open_numbers = None
         if args.github:
-            open_numbers = open_issues_from_github()
+            open_numbers, why = open_issues_from_github()
             if open_numbers is None:
-                print("ERROR `gh` non ha risposto: senza lo stato reale la copertura sarebbe "
-                      "una stima, e una stima qui vale meno di niente")
+                print(f"ERROR lo stato reale non e' misurabile: {why}")
+                print("      senza, la copertura sarebbe una stima — e una stima qui vale meno "
+                      "di niente")
                 return 1
         print(render_lanes(registry, open_numbers=open_numbers))
         return 0
