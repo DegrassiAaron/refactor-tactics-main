@@ -36,6 +36,22 @@
 #   note           obbligatorio     perché questa track è ACTIVE o IDLE, con la misura
 #   writable       se ACTIVE        path o prefissi di directory. Il confronto è per **prefisso
 #                                   normalizzato**: `Turn/` e `Turn/RTTurnManager.cpp` collidono.
+#   excludes       facoltativo      path che il `writable` includerebbe per prefisso e che questa
+#                                   track NON possiede. Sottratti prima del confronto, quindi
+#                                   `WritableSet(T) = writable − excludes`.
+#                                   ⚠️ Serve perché il prefisso è l'unica granularità che il
+#                                   confronto ha, e una directory è spesso più grossa del dominio
+#                                   di un checkpoint: due track possono avere bisogno di due file
+#                                   diversi della stessa cartella senza contendersi niente.
+#                                   Senza questo campo la scelta sarebbe fra elencare 46 file —
+#                                   che invecchiano al primo file nuovo — e dichiarare falsa
+#                                   un'invariante vera. **Ogni voce va motivata sul DoD delle due
+#                                   track**, non sulla comodità: se il confine si scopre a metà
+#                                   lavoro, vale la regola di sempre — riallocazione, non fix.
+#                                   Introdotto il 2026-08-14 con la track `client_tools` su #78;
+#                                   il validator di #840 deve leggerlo, altrimenti calcola
+#                                   un'intersezione più grande del vero e segnala conflitti che
+#                                   non esistono.
 #   binary_leases  se ACTIVE        elenco, eventualmente vuoto. ⚠️ Vivono **solo** qui, dentro la
 #                                   track: l'invariante è definita per track, e una lease fuori da
 #                                   una track non appartiene a nessun insieme e non entra nel
@@ -107,17 +123,37 @@ schema_version: 1
 meta:
   status: ACTIVE
   note: >-
-    Primo batch dopo D-139. Due track su quattro sono IDLE, e non è un difetto: il parallelismo
-    minimizza il wall-clock, non massimizza il numero di branch. Le issue sono state verificate con
-    `gh issue view` il 2026-08-14; i write-set delle track ACTIVE sono **dichiarazioni da
-    confermare** alla prima apertura del branch, mentre quelli in `preexisting` sono **misurati**.
+    Primo batch dopo D-139. Il parallelismo minimizza il wall-clock, non massimizza il numero di
+    branch: le track IDLE non sono un difetto. I write-set delle track ACTIVE sono **dichiarazioni
+    da confermare** alla prima apertura del branch, mentre quelli in `preexisting` sono **misurati**.
+    🔴 **Riconciliato il 2026-08-14, e la misura ha trovato il file stantio in quattro punti** —
+    `spatial` ACTIVE su una issue chiusa da un'ora, tutte e tre le voci `preexisting` atterrate,
+    sei branch vivi non elencati, `base_sha` fermo tredici PR indietro. È il difetto che questo
+    file rende visibile applicato a sé stesso: un write-set **si misura**, e un batch che dura più
+    di mezza giornata va rimisurato prima di essere riletto come vincolo.
+    ⚠️ Non è una fotografia più fresca della precedente — è la stessa fotografia rifatta: le due
+    track ancora ACTIVE (`simulation` #165, `client_tools` #78) non hanno cambiato write-set, e
+    `content_editor` è stata attivata su #451 nello stesso giro.
 
 batch:
   # ⚠️ Lo sha è troncato a 8 caratteri, come in tutta la prosa del repository. `base_sha` resta
   # completo: l'identità è leggibile, il confronto è esatto.
+  #
+  # ⚠️ `id` e `base_sha` **divergono dopo una riconciliazione, ed è voluto.** L'id è coniato una
+  # volta sulla base di creazione (`workflow-parallel-claude.md` §«L'identità del batch» lo lega al
+  # `base_sha:8` del momento in cui il batch nasce) e nomina le due issue di allora — `gh41`, oggi
+  # chiusa, e `gh583`, sostituita da #165 quando la sua premessa si è rivelata falsa. Cambiarlo
+  # significherebbe dire che questo è un batch diverso, e non lo è: stesse track, stesso lotto.
+  # Il `base_sha` invece **è** la base corrente, ed è il campo su cui si misura: i write-set qui
+  # sotto sono calcolati con `git diff --name-only <base_sha>...<branch>` su questo valore, non su
+  # quello dell'id.
   id: "BATCH-84cbb70c-gh41-gh583"
-  base_sha: "84cbb70c6f5082682e59a71d442b71e78fac4322"
+  base_sha: "1b511644c80c45b76e40cda6f262eb525f71f52f"
   created_at: "2026-08-14"
+  # Base di creazione, tenuta perché è ciò che l'`id` nomina: `84cbb70c6f5082682e59a71d442b71e78fac4322`.
+  # Verificato che sia ancora antenato della base corrente (`git merge-base --is-ancestor`): sì —
+  # il batch non è stato rebasato via, è avanzato.
+  reconciled_at: "2026-08-14"
 
 # --- Branch già vivi al momento del calcolo ---------------------------------------------------
 #
@@ -129,81 +165,123 @@ batch:
 # RTScenarioCorpusTests.cpp») e sbagliava: il comando ne restituisce **sette**, fra cui una
 # directory che una track ACTIVE si era assegnata. L'invariante era violata alla prima
 # applicazione del meccanismo, e il difetto era esattamente quello contro cui il meccanismo esiste.
+#
+# 🔴 **E la seconda stesura ha sbagliato il comando, non la memoria.** Questa sezione elencava tre
+# branch — walls-doors, wt-cap, consolidamento-4-processi — ed erano **tutti e tre atterrati**
+# (PR #836, #848, #842) quando la riconciliazione del 2026-08-14 li ha riletti: zero worktree
+# residui, branch cancellati lato server. Nel frattempo `gh pr list --state open` restituiva
+# **vuoto**, e la conclusione ovvia — «nessun branch vivo» — era falsa: `git ls-remote --heads`
+# ne mostra **sei**. La lezione è che `gh pr list` non vede i branch senza PR, e un WIP parcheggiato
+# è esattamente il branch che una PR non l'ha mai avuta. La fotografia va scattata con **due**
+# comandi, e quello che conta è il secondo.
+#
+# ⚠️ Un `preexisting` è una fotografia, non un lock — vale sia in avanti («era `OPEN` quando il
+# write-set è stato calcolato ed è atterrata un'ora dopo», walls-doors) sia all'indietro, come qui.
+# `base_sha` va **riletto prima del merge**, sempre.
+#
+# `state: DORMANT` = nessuna PR aperta, divergente da `origin/main`, ultimo commit ≥ 2 giorni.
+# È un fatto misurato, non un giudizio sul lavoro: dice solo che nessuno ci sta scrivendo *adesso*,
+# quindi il conflitto non è simultaneo — è **differito al giorno in cui quel branch riprende**.
 
 preexisting:
-  - branch: docs/consolidamento-walls-doors-v1
-    worktree: rt-wt-walls-doors
-    pr: 836
-    state: MERGED          # 2026-08-13T22:56Z, in `84cbb70c` — ⚠️ mentre questo batch era aperto
-    measured: 16
-    note: >-
-      12 dei 16 file coperti dalle categorie non assegnabili: `integration_only` (7) e
-      `generated_only` (5). È la forma tipica di un consolidamento documentale, e la ragione per cui
-      due consolidamenti non girano bene insieme: ha tolto dal batch il validator del parallelismo,
-      che voleva estendere `scripts/feature_registry.py`.
-      ⚠️ **Era `OPEN` quando questo write-set è stato calcolato ed è atterrata un'ora dopo.** È il
-      limite del meccanismo, e va scritto invece che scoperto: un `preexisting` è una fotografia di
-      `gh pr list`, non un lock. `base_sha` va **riletto prima del merge**, sempre.
+  # Rimisurati il 2026-08-14 su `base_sha` 1b511644, con `git ls-remote --heads origin` per l'elenco
+  # e `git diff --name-only origin/main...origin/<branch>` per il conteggio. `measured` è il numero
+  # di file; `collides_with` è l'intersezione con il `writable` di una track ACTIVE, calcolata e non
+  # dedotta — le quattro voci senza quel campo hanno intersezione **vuota**.
 
-  - branch: fix/capability-sconosciuta-non-e-blocked
-    worktree: wt-cap
-    issue: 767
-    state: OPEN
-    measured: 7
-    holds:
-      - Scenarios/RT_Showcase_Relay_v01.json
-      - Scenarios/Spec/Overwatch/HoldThenFire.json
-      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.h
-      - Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp
-      - docs/roadmap/project-graph.json
-      - docs/roadmap/scenariomap.shortlist.md
+  - branch: wip/icon-visual-language
+    state: DORMANT         # ultimo commit 2026-08-12 19:22 · b1f22300
+    measured: 342
+    collides_with:
+      track: client_tools
+      paths: [Source/RefactorTactics/UI/RTIconLibrary.cpp]
     note: >-
-      Tiene l'intera `ScenarioHarness/` e i due `Scenarios/` che ne sono corpus. ⚠️ Ha già
-      rigenerato `scenariomap.shortlist.md` e `project-graph.json`, ed è **corretto**: possiede
-      `RTScenarioSession.cpp`, che è la sorgente delle capability. È il caso che ha costretto a
-      riscrivere la regola su `generated_only` — la vista segue la sorgente.
+      Il branch più grosso del repository, e l'unico che tocca due track. ⚠️ Sul **codice** la
+      collisione è un solo file: `UI/RTIconLibrary.cpp`, dentro `UI/` che `client_tools` dichiara
+      per prefisso. Sui **binari** è la ragione per cui `content_editor` non emette la lease su
+      `Content/RT/Maps/Dev/L_HexArena/` — vedi la nota di quella track, dove la divergenza del Data
+      asset è misurata sull'header dei due package.
 
-  - branch: docs/consolidamento-4-processi
-    worktree: rt-wt-4processi
-    state: OPEN
+  - branch: feat/cp75-selfreposition
+    state: DORMANT         # ultimo commit 2026-08-11 20:17 · c1e151ef
+    measured: 3
+    collides_with:
+      track: simulation
+      paths:
+        - Source/RefactorTactics/Turn/RTActionEffectLibrary.cpp
+        - Source/RefactorTactics/Turn/RTActionEvent.h
+        - Source/RefactorTactics/Turn/RTTurnManager.cpp
     note: >-
-      Questo consolidamento. Il suo write-set è la sezione `integration_only` più i tre file nuovi
-      — il triage, questo file e la riga d'archivio. ⚠️ `docs/technical/workflow-parallel-claude.md`
-      è stato aggiunto a `integration_only` **dopo** che la code review ha misurato che il branch lo
-      modificava senza averlo assegnato a nessuna categoria: la PR violava la propria regola.
+      🔴 **La collisione più seria del batch, e non era registrata da nessuna parte.** I tre file
+      sono l'intero write-set del branch, e stanno tutti dentro `Turn/`, che `simulation` dichiara
+      per prefisso: `RTTurnManager.cpp` è nominato *esplicitamente* dal DoD di CP 14.5. Il commit è
+      `wip(cp75): SelfReposition — enum ed evento fatti, l'applicazione manca`, cioè un lavoro
+      **interrotto a metà** proprio sui file che CP 14.5 riscrive.
+      ⚠️ **Non è il caso di `wt-cap`, e la differenza decide.** Là `simulation` ha ceduto
+      `ScenarioHarness/` perché una sessione ci stava scrivendo *in quel momento*; qui il branch è
+      fermo da tre giorni e senza PR. Cedere `Turn/` bloccherebbe un checkpoint attivo per un lavoro
+      che nessuno sta facendo — ma **il costo non sparisce, si sposta**: quando cp75 riprende, il
+      merge lo paga lui, su un `RTTurnManager.cpp` che nel frattempo ha cambiato forma.
+      ⚠️ **Questa riga non decide per `simulation`.** Il confine di un'altra track non si sposta da
+      qui: §«la regola» dice riallocazione, non fix. Registrato perché sia una decisione presa da
+      chi possiede la track, e non una sorpresa scoperta al merge.
+
+  - branch: feat/641-sprint-post-blast
+    state: DORMANT         # ultimo commit 2026-08-12 13:02 · 5ab34eac
+    measured: 4
+    note: >-
+      `WIP: migrazione Sprint post-Blast (D-116) — da verificare`. Nessuna intersezione con i
+      `writable` di questo batch, misurata.
+
+  - branch: docs/five-lane-roadmap
+    state: DORMANT         # ultimo commit 2026-08-12 12:33 · 5ade6c8c
+    measured: 8
+    note: >-
+      Prima delle tre lane documentali. Nessuna intersezione con i `writable`; il rischio qui è
+      un altro — sono documenti `integration_only`, che per definizione non si assegnano.
+
+  - branch: docs/lane-6-7
+    state: DORMANT         # ultimo commit 2026-08-12 14:00 · 3e23580a
+    measured: 8
+    note: >-
+      Seconda lane documentale. Nessuna intersezione con i `writable`.
+
+  - branch: docs/lane-7-vault
+    state: DORMANT         # ultimo commit 2026-08-12 14:09 · d12f728e
+    measured: 2
+    note: >-
+      Terza lane documentale. Nessuna intersezione con i `writable`. Le tre `docs/lane*` sommano
+      **18** file, che è il numero già citato dalla nota di `content_editor`: rimisurato, regge.
 
 # --- Le quattro track -------------------------------------------------------------------------
 
 tracks:
 
   spatial:
-    status: ACTIVE
-    issue: 41
-    branch: feat/41-kpi-hex
+    status: IDLE
+    issue: null
+    branch: null
     note: >-
-      Misure di budget su hex: due delle quattro voci risultano già registrate, quindi il lavoro è
-      più piccolo di quanto la issue lasci pensare ed è il candidato meno invasivo del backlog.
-    writable:
-      - docs/roadmap/v0.1-definition-of-done.md
-      - Source/RefactorTactics/Map/
-      - Source/RefactorTactics/Pathfinding/
-      - Source/RefactorTactics/Tests/RTHexMapTests.cpp
-      - Source/RefactorTactics/Tests/RTHexPathTests.cpp
-    # La sorgente `v0.1-definition-of-done.md` alimenta la sezione `gates` di milestonemap
-    # (costante `DOD_V01` in `scripts/feature_registry.py`). Questa track è quindi l'unica
-    # autorizzata a rigenerare quella vista, e deve farlo.
-    # ⚠️ Il numero di riga è stato tolto di proposito: era `feature_registry.py:2044`, e la prima
-    # modifica al modulo che aggiungesse righe più in alto lo faceva puntare a codice estraneo —
-    # un riferimento che invecchia da solo, esattamente ciò che questo file evita altrove. Il
-    # nome della costante è l'ancora: `grep -n "^DOD_V01" scripts/feature_registry.py`.
-    derives_from:
-      # Misurato: rimossa la sorgente, cambiano ESATTAMENTE queste due viste.
-      - source: docs/roadmap/v0.1-definition-of-done.md
-        regenerates:
-          - docs/roadmap/milestonemap.shortlist.md
-          - docs/roadmap/project-graph.json
-    binary_leases: []
+      IDLE perché **il candidato è atterrato**, non per dipendenza. `#41` (CP 3.3, misure di budget
+      su hex) è chiusa: PR #846 mergiata alle `06:38Z`, la issue chiusa alle `07:12Z` da #850 —
+      `Client FPS` non è stato rinviato ma **collocato** su CP 12.4 (`#84`), che chiede le stesse
+      quattro voci con in più la condizione che qui mancava, «sulla build della v0.1». Il branch
+      `feat/41-kpi-hex` non esiste più lato server (`git ls-remote --heads`).
+      🔴 **Questa track è rimasta `ACTIVE` su una issue chiusa per il resto della giornata**, ed è
+      il difetto che il file esiste per rendere visibile applicato a sé stesso: un batch è un
+      documento che invecchia da solo, e nessun gate lo rilegge. È il caso d'uso del validator di
+      #840 — `status: ACTIVE` con una `issue` chiusa è una contraddizione **decidibile**, non un
+      giudizio, e va fatta cadere lì invece che alla prossima lettura umana.
+      ✅ Il write-set torna **libero e non assegnato**: `Map/`, `Pathfinding/`, i due test hex e
+      `docs/roadmap/v0.1-definition-of-done.md`. Misurato che nessuno dei sei branch `DORMANT` lo
+      tocca, quindi è disponibile al primo task che lo richieda con set disgiunto.
+      ⚠️ **Con la track IDLE, `milestonemap.shortlist.md` resta senza proprietario in questo
+      batch.** Era `spatial` l'unica autorizzata a rigenerarla, perché possedeva la sorgente
+      (`v0.1-definition-of-done.md` → sezione `gates`, costante `DOD_V01` in
+      `scripts/feature_registry.py`; l'ancora è il nome della costante, non il numero di riga).
+      Non è un buco: è la regola che funziona: la vista segue la sorgente, e una sorgente non
+      assegnata non va toccata. Chi ha bisogno di scrivere il DoD **riattiva questa track** — non
+      rigenera «di passaggio».
 
   simulation:
     status: ACTIVE
@@ -237,6 +315,17 @@ tracks:
       - Source/RefactorTactics/Bot/
       - Source/RefactorTactics/Tests/RTReactionTests.cpp
       - Source/RefactorTactics/Tests/RTReactionOpportunityTests.cpp
+    # ⚠️ `Turn/` meno due file: la contesa con `client_tools` (#78) era di GRANULARITA', non di
+    # dominio. #78 deve scrivere la classificazione di certezza lato simulatore — il suo DoD vieta
+    # di calcolarla nell'UI — e quella classe vive in `Turn/RTIntentPrivacyLibrary.{h,cpp}`, che
+    # dichiarando la directory intera finiva qui dentro. Misurato sui due DoD: CP 14.5 nomina
+    # `RTTurnManager`, `RTReactionOpportunityLibrary` (che sta in `RTReactionOpportunityTypes.*`),
+    # `Bot/RTHexBotLibrary` e il TurnLog; **nessuno dei due tocca il file dell'altro**.
+    # Senza questa riga l'invariante `WritableSet(simulation) ∩ WritableSet(client_tools) = ∅`
+    # sarebbe falsa per un file che nessuna delle due track si contende davvero.
+    excludes:
+      - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
+      - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
     # Misurato: `Turn/` e `Bot/` non alimentano nessuna vista, e **aggiungere** un test nemmeno.
     # ⚠️ Ma RINOMINARE o cancellare un test che il registry cita in `tests:` flippa
     # `project-graph.json`, perche' `build_graph()` incorpora le `diagnostics` di `validate()`.
@@ -254,28 +343,120 @@ tracks:
     binary_leases: []
 
   client_tools:
-    status: IDLE
-    issue: null
-    branch: null
+    status: ACTIVE
+    issue: 78
+    branch: feat/78-intenti-certezza
     note: >-
-      IDLE per **dipendenza**, non per adiacenza di dominio — che §12 dichiara insufficiente.
-      `#170` (CP 15.4, golden replay) dichiara «Dipende da: CP 15.3», cioè `#512`, aperta: il suo
-      gate non è raggiungibile in questo giro. `#77` (CP 11.1) tocca `UI/` ma anche i test che le
-      altre due track già scrivono. `Source/RefactorTactics/Replay/` resta quindi **libera e non
-      assegnata**: è disponibile al primo task che la richieda con set disgiunto.
+      CP 11.2 — il livello di certezza degli intenti alleati. La track era IDLE per **dipendenza**,
+      e delle due ragioni scritte allora ne resta una sola:
+      ✅ **caduta**: *«`#77` tocca `UI/` ma anche i test che le altre due track già scrivono»*.
+      `#77` è chiusa sul codice da #746 — quattro test headless verdi — e non è più un candidato:
+      le resta `PIE-V01-HUD`, che è la coda umana, non questa track.
+      ⚠️ **regge**: `#170` (CP 15.4, golden replay) dipende da `#512`, tuttora aperta. Il golden
+      replay non è raggiungibile in questo giro, e `Source/RefactorTactics/Replay/` resta quindi
+      **libera e non assegnata** — non per adiacenza di dominio, che §12 dichiara insufficiente.
+      🔴 **La contesa su `Turn/` era di granularità, non di dominio, ed è stata sciolta invece che
+      aggirata.** Il DoD di #78 dice *«la classificazione è calcolata dal simulatore, non
+      dall'UI»*, e quella classe vive in `Turn/RTIntentPrivacyLibrary.{h,cpp}` — misurato, non
+      dedotto: `FilterForTeam` è l'unico produttore di `FRTIntentView`, e **nessuno dei due DTO ha
+      oggi un campo di certezza** (`RTIntentPrivacyLibrary.h`, letto per intero). Restringere #78
+      al solo `UI/` avrebbe lasciato scoperta la voce che la issue esiste per chiudere; prendersi
+      `Turn/` intera avrebbe rubato a CP 14.5 file che non servono qui. Da cui `excludes` sopra.
+    writable:
+      - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
+      - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
+      - Source/RefactorTactics/UI/
+      - Source/RefactorTactics/Tests/RTIntentPrivacyTests.cpp
+    # Misurato con lo stesso metodo del resto del file — sposta la sorgente, rigenera, guarda cosa
+    # cambia: `UI/` e `RTIntentPrivacyLibrary.*` non alimentano nessuna vista. Vale però la stessa
+    # condizione di `simulation` sui test: `RTIntentPrivacyTests.cpp` ha 2 test, ed **entrambi**
+    # sono citati da `RT-FEAT-UI-CERTAINTY` (`Combat.IntentVisibleToAllies…`,
+    # `Reactions.IntentViewSkipsDeadAndKeepsOrder`). Il rapporto è 2 su 2, non 2 su 8: qui
+    # rinominare è la norma, non l'eccezione, e la rigenerazione va messa in conto.
+    derives_from:
+      - source: Source/RefactorTactics/Tests/RTIntentPrivacyTests.cpp
+        only_if: "rinomini o cancelli un test citato in `tests:` dal registry (2 su 2)"
+        regenerates: [docs/roadmap/project-graph.json]
+    binary_leases: []
 
   content_editor:
-    status: IDLE
-    issue: null
-    session: null
+    status: ACTIVE
+    issue: 451
+    session: U1
     note: >-
-      La coda umana è ferma su un binario conteso. `#623` / `U21` richiede una lease su
-      `Content/RT/Maps/Dev/L_DevSandbox/`, che **qui** è due package — `L_DevSandbox.umap` e
-      `Data/DA_HexMap_Sandbox.uasset` — misurati con `git ls-files`, non dedotti: `L_Prototype` ne
-      ha uno solo, quindi il numero non si generalizza. E
-      `Content/RT/Characters/Gadget/Animation/` è untracked nella working directory principale:
-      finché non è committata o scartata la destinazione non è prenotabile, e una lease sarebbe
-      emessa su una base che non esiste in git.
+      U1 / `#451` — le sette voci `PIE-HEX-MODE-E/F/G/H/L/N/O` del mode.
+      🔴 **La issue nega un lavoro che è già stato fatto per metà.** Il suo corpo dice
+      *«`DA_HexMap_Arena` e `L_HexArena` non esistono — né in git né su disco»*: era vero quando è
+      stata scritta, è falso adesso. Misurato con `git ls-files`, non dedotto — entrambi i package
+      esistono, introdotti da `2e2caff6` e presenti in `origin/main`, e
+      `DA_HexMap_Arena.uasset` pesa **48245 byte** contro i 1396 di `DA_HexMap_Sandbox.uasset`:
+      è il primo asset mappa con contenuto reale del repository, come la seduta prevedeva. Il primo
+      criterio d'accettazione di `#451` è quindi **già soddisfatto**, e il residuo è la seduta vera —
+      le sette voci, tutte ⏳ in `test-manuali-pie.md`, più il controllo dei criteri di U1-B
+      sull'arena che c'è.
+      ⚠️ **La lease su `Content/RT/Maps/Dev/L_HexArena/` NON è emessa, e non è una dimenticanza.**
+      `wip/icon-visual-language` è `preexisting` e tiene una versione divergente dello stesso
+      package: blob `7f7cb735`, **29895 byte**, contro `e31b644b` / 48245 byte che `origin/main`
+      condivide col merge-base `2d184220`. Due `.uasset` non si fondono: una lease `modify` qui
+      significherebbe due holder sullo stesso path, cioè il lavoro perso che §13 esiste per
+      evitare.
+      🔴 **E il lavoro perso è già misurato, leggendo l'header dei due package** (`.uasset` non
+      cooked, `LegacyFileVersion -9`; nessun editor coinvolto, sola lettura). La versione su `wip`
+      non è un risalvataggio innocuo — è **l'arena regredita al passo 2 della procedura**:
+      · `Cells` **98 → 61** elementi, e 61 è esattamente `3·4·5+1`, l'esagono pieno di raggio 4 che
+        il passo 2 dipinge con un click: mancano le 37 celle dei passi 3–7, cioè piattaforma sul
+        layer 1, zona a costo alto e ostacoli;
+      · l'array `Transitions` **non è più serializzato affatto** — dei 48 nomi della name table ne
+        restano 35, e i 13 che spariscono sono *esattamente* i campi di `FRTHexEdge` (`From`, `To`,
+        `Cost`, `Kind`, `State`, `Integrity`, `bConductsElectricity`), il nome della struct, quello
+        dell'array e i due enum usati solo lì. Nessun nome aggiunto: è una sottrazione pura.
+      · l'aritmetica torna da sola, ed è la verifica indipendente del conteggio: 44986/98 e
+        28003/61 danno **459,0 byte per cella** in entrambi, e 16983 (celle) + 1099 (transizioni)
+        = 18082 = il delta di payload esatto.
+      Senza transizioni la piattaforma del layer 1 è irraggiungibile e `PIE-HEXPLAY-6` non
+      dimostra niente. ⚠️ **Quel branch non va mergiato su questo path così com'è**: per gli altri
+      cinque binari che tocca è additivo (i quattro `BP_Unit_*` e `BP_GameMode` crescono), per
+      questo è distruttivo. `L_HexArena.umap` invece **non** diverge — l'editor ha risalvato solo
+      il Data asset.
+      ✅ **La divergenza è caduta il 2026-08-14 con `#858`**, che ha riportato su quel branch il blob
+      `e31b644b` già in `main` — `f27a9d72`, un solo file toccato, gli altri cinque binari invariati
+      byte per byte. Verificato **dal remoto** dopo `git fetch --prune`, non dal commit locale:
+      `git diff --name-only origin/main...origin/wip/icon-visual-language -- Content/RT/Maps/` è
+      vuoto, e i cinque additivi restano cinque. ⚠️ Quindi la lease su `L_HexArena/` **torna
+      emettibile**: c'era un secondo holder di fatto, ora non c'è. Resta non emessa per una ragione
+      diversa e più semplice — la seduta non ha bisogno di modificare il package, perché i due
+      artefatti sono già committati. La seduta resta comunque vincolata a **non salvare** il
+      package finché la lease non è emessa. Le sette voci verificano
+      il *mode* — Arch, Fill, ciclo del gizmo, snap cross-layer, catalogo terreni — non il terreno, e
+      la issue lo dichiara nel proprio *Out of scope*. Se il controllo dei criteri U1-B mostrasse
+      che l'arena va corretta, la track **si ferma e chiede la riallocazione**: emettere la lease è
+      un atto di batch, non una decisione di questa seduta.
+      ➕ **`docs/technical/test-manuali-pie.md` esce da `integration_only` ed entra qui**, per
+      questo giro. Era là per una contesa che in questo batch **non esiste**, misurata sui write-set
+      dei branch vivi (`git diff --name-only origin/main...<branch>`): `feat/165` 0 file, `feat/78`
+      il solo `parallel-batch.yaml`, `wt-cap` / `#767` 7 file, `feat/641` 4, `feat/cp75` 3, i tre
+      `docs/lane*` 18 in totale, `wip/icon-visual-language` 342 — e **nessuno di essi lo tocca**.
+      Senza quel file una track ACTIVE non avrebbe dove scrivere il proprio prodotto, che è il
+      verdetto: `produces` di U1 è un asset *e* sette esiti, e l'asset è già committato.
+    writable:
+      - docs/technical/test-manuali-pie.md
+    # Catena già misurata da questo file (vedi `generated_only`): la sorgente delle voci alimenta
+    # due viste, e possederla obbliga a rigenerarle. `project-graph.json` ha altre nove sorgenti —
+    # `spatial` ne possiede una — quindi qui vale la regola dell'albero unito: ciascun ramo
+    # rigenera per tenere verde il proprio `--check`, nessuna delle due copie è autoritativa.
+    derives_from:
+      - source: docs/technical/test-manuali-pie.md
+        regenerates:
+          - docs/roadmap/editormap.shortlist.md
+          - docs/roadmap/project-graph.json
+    binary_leases: []
+    # ⚠️ Perché `#623` / U21 **non** è il candidato, benché sia `READY` nella coda generata: la sua
+    # lease su `Content/RT/Maps/Dev/L_DevSandbox/` — due package qui, uno solo in `L_Prototype`,
+    # misurati e non dedotti — è emettibile, ma U21 non blocca la v0.1 (`critical: false`, `P3`)
+    # e U1 sì. E `#712` / U22 attende U21. Resta vero, e va riletto prima di attivare U8:
+    # `Content/RT/Characters/Gadget/Animation/` è **tuttora untracked** nella working directory
+    # principale — finché non è committata o scartata, la destinazione non è prenotabile e una
+    # lease `create` starebbe su una base che in git non esiste.
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
@@ -300,7 +481,8 @@ integration_only:
   - docs/roadmap/plans/README.md
   - docs/technical/workflow-parallel-claude.md
   - docs/technical/scenario-map.md
-  - docs/technical/test-manuali-pie.md
+  # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14: lo tiene `content_editor`
+  # su `#451`. Vedi la nota della track per la misura che lo consente. Torna qui al prossimo batch.
   - docs/balance/          # sorgente dei radar (toolchain Node)
   - Scenarios/             # sorgente di scenariomap + project-graph; oggi la tiene wt-cap
   - scripts/feature_registry.py

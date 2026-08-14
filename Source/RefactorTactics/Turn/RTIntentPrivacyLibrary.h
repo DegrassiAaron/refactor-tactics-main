@@ -7,6 +7,34 @@
 #include "RTIntentPrivacyLibrary.generated.h"
 
 /**
+ * Quanto e' certo che un intento si realizzi come e' scritto (CP 11.2).
+ *
+ * ⚠️ **Non e' una probabilita' e non si deriva dai piani avversari.** Sarebbe il calcolo piu' naturale —
+ * `FilterForTeam` riceve anche gli intenti nemici — ed e' esattamente cio' che l'invariante #6 vieta: un
+ * tratteggio che comparisse solo quando un avversario incrocia la mia rotta gli direbbe dove si trova. Una
+ * deduzione affidabile e' un'esposizione, e l'occultamento «non e' grafico»: il livello e' funzione del
+ * SOLO intento osservato, e due scene identiche per l'osservatore danno lo stesso livello quali che siano
+ * i piani altrui. `RefactorTactics.UI.NoEnemyIntentExposed` e' il test che lo pinna, con due scene che
+ * differiscono SOLO per i piani nemici.
+ */
+UENUM(BlueprintType)
+enum class ERTIntentCertainty : uint8
+{
+	/** Niente puo' cambiarlo: nessun movimento, nessun bersaglio. Una `Guard` sul posto. */
+	Confirmed,
+
+	/** Valido nello snapshot corrente: c'e' un bersaglio, ma l'unita' non si sposta. */
+	Predicted,
+
+	/**
+	 * Dipende da una scelta che l'avversario puo' ancora fare. Muoversi basta: le celle del percorso sono
+	 * contendibili, e il resolver puo' troncare la rotta a meta'. Vale **sempre** per una reazione armata,
+	 * che per definizione attende un trigger che non decidiamo noi.
+	 */
+	Uncertain
+};
+
+/**
  * Piano COMPLETO di un'unita': il dato autorevole, che vive dove vive lo stato del turno (il server, quando
  * la rete arrivera' a M10). Non va mai spedito a un client cosi' com'e' — e' `FRTIntentView` cio' che si
  * spedisce, dopo il filtro per squadra.
@@ -162,6 +190,19 @@ struct FRTIntentView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	ERTHexDirection DeclaredFacing = ERTHexDirection::E;
 
+	/** Quanto e' certo il PIANO (movimento e azione). Calcolato dal simulatore, mai dal widget. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	ERTIntentCertainty Certainty = ERTIntentCertainty::Confirmed;
+
+	/**
+	 * Quanto e' certa la REAZIONE armata. Campo separato perche' i due livelli DIVERGONO: un'unita' ferma
+	 * che tiene pronto un contrattacco ha un piano `Confirmed` e una reazione `Uncertain`, ed e' il caso che
+	 * rende questo campo un dato invece di una costante. Ha significato solo dove `ReactionName` e'
+	 * valorizzata — cioe' mai per un avversario, rivelato o meno.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	ERTIntentCertainty ReactionCertainty = ERTIntentCertainty::Confirmed;
+
 	FRTIntentView() = default;
 };
 
@@ -195,4 +236,16 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Privacy")
 	static TArray<FRTIntentView> FilterForTeam(int32 ObserverTeamId, const TArray<FRTPlannedIntent>& Intents);
+
+	/**
+	 * Il livello di certezza del PIANO di un intento (CP 11.2). Il DoD chiede che la classificazione sia
+	 * «calcolata dal simulatore, non dall'UI»: questa e' la funzione, e vive accanto al filtro di privacy
+	 * perche' e' la stessa classe di decisione.
+	 *
+	 * ⚠️ Prende UN intento, non la lista, e la firma e' il punto: cosi' non PUO' guardare i piani avversari
+	 * neanche per sbaglio. Il precedente e' `IsIntentVisibleTo` (#507) — una regola riscritta inline resta
+	 * verde su una copia che nessuno chiama, e la divergenza non la vede nessuno.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Privacy")
+	static ERTIntentCertainty ClassifyPlan(const FRTPlannedIntent& Intent);
 };

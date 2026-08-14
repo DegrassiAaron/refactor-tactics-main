@@ -2,6 +2,29 @@
 
 #include "Combat/RTCombatLibrary.h"
 
+ERTIntentCertainty URTIntentPrivacyLibrary::ClassifyPlan(const FRTPlannedIntent& Intent)
+{
+	// L'ordine dei rami e' la regola, non una comodita': muoversi VINCE su avere un bersaglio. Un'unita' che
+	// spara mentre corre non e' piu' certa di una che corre e basta — le celle che attraversa restano
+	// contendibili, e il resolver puo' troncarle la rotta prima che arrivi a tiro.
+	//
+	// ⚠️ `bMoving` e `bDashing` sono flag DISTINTI: guardare solo il primo lascerebbe uno scatto
+	// «confermato», che e' il caso in cui la rotta e' piu' lunga e piu' facile da interrompere.
+	if (Intent.bMoving || Intent.bDashing)
+	{
+		return ERTIntentCertainty::Uncertain;
+	}
+
+	// Ferma, ma punta qualcosa: vale nello snapshot corrente. Non promette l'esito — promette che adesso il
+	// collegamento e' valido.
+	if (Intent.bHasTarget)
+	{
+		return ERTIntentCertainty::Predicted;
+	}
+
+	return ERTIntentCertainty::Confirmed;
+}
+
 TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamId,
 	const TArray<FRTPlannedIntent>& Intents)
 {
@@ -40,6 +63,10 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 		View.DashStyle = Intent.DashStyle;
 		View.Facing = Intent.Facing; // posa attuale: si vede guardando l'unita', non e' un piano
 
+		// Il livello di certezza (CP 11.2) si calcola da QUESTO intento e da nient'altro: `Intents` contiene
+		// anche i piani nemici, e derivarne il livello sarebbe un canale laterale — vedi `ERTIntentCertainty`.
+		View.Certainty = ClassifyPlan(Intent);
+
 		// Reazione, waypoint e rotazione DICHIARATA si copiano SOLO per un alleato. Non c'e' un ramo che li copia
 		// e poi li cancella: per chiunque altro restano semplicemente non valorizzati, rivelato o meno.
 		if (bIsAlly)
@@ -48,6 +75,13 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 			View.PlannedWaypoints = Intent.PlannedWaypoints;
 			View.bDeclaresRotation = Intent.bDeclaresRotation;
 			View.DeclaredFacing = Intent.DeclaredFacing;
+
+			// Il livello della reazione segue la reazione: dove non c'e' una reazione da qualificare il campo
+			// non afferma niente. Per un avversario non si valorizza mai, perche' `ReactionName` non arriva.
+			if (!Intent.ReactionName.IsEmpty())
+			{
+				View.ReactionCertainty = ERTIntentCertainty::Uncertain;
+			}
 		}
 
 		Views.Add(View);
