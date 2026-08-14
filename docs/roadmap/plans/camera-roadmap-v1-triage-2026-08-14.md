@@ -135,13 +135,18 @@ cross-layer targeting): sono **premesse di design**, e una decisione presa prima
 
 ### 6.3 Tre issue, non cinquantuno
 
-Aperte solo per i gap misurati sul codice v0.1, dentro E11:
+Aperte solo per i gap misurati sul codice v0.1, dentro E11 ([#25](https://github.com/DegrassiAaron/refactor-tactics-main/issues/25)):
 
-| Gap | Misura |
-|---|---|
-| yaw libero continuo | `AddYaw` avanza solo di `YawStep`: non esiste rotazione continua |
-| pitch a runtime | `CameraPitch` è `EditAnywhere` e non ha input: non si inclina in partita |
-| zoom verso il cursore + soft bounds | `AddZoom` varia solo l'arm length; nessun bound esiste |
+| Issue | Gap | Misura |
+|---|---|---|
+| [#863](https://github.com/DegrassiAaron/refactor-tactics-main/issues/863) | yaw continuo, pitch a runtime | `AddYaw` avanza solo di `YawStep`, quindi otto orientamenti; `CameraPitch` è `EditAnywhere` e nessun input la tocca |
+| [#864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/864) | zoom al cursore, soft bounds | `AddZoom` varia la sola arm length; `AddPlanarMovement` non ha limiti |
+| [#865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/865) | `FocusOn` e `FrameOwnTeam` senza test | è la ragione per cui `automation` è `partial` e non `done` |
+
+⚠️ **La camera non aveva una issue propria.** Il registry dichiarava `issues: [77]`, ma il DoD di CP 11.1
+riguarda l'HUD e non contiene nulla di camera: era il legame nominale che il registry stesso descrive nel
+commento sui `pie_refs` — più feature che dichiarano la stessa issue. `77` resta perché
+`checkpoints: ["11.1"]` lo implica, e accanto ora ci sono le tre che parlano di camera.
 
 ## 7. `PROPOSED` differito — cosa diventa scope di epic
 

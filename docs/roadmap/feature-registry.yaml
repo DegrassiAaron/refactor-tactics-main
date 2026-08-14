@@ -3472,7 +3472,11 @@ features:
     dependencies: []
     owner_specs:
       - docs/technical/progettazione-hud.md
-    issues: [77]
+    # ⚠️ `77` è il checkpoint CP 11.1, e il suo DoD riguarda l'**HUD**: non contiene nulla di camera.
+    # Resta perché `checkpoints: ["11.1"]` lo implica, ma è il legame nominale che il commento sui
+    # `pie_refs` in testa a questo file descrive — stessa issue dichiarata da più feature. Le tre
+    # aperte il 2026-08-14 sono invece specifiche della camera.
+    issues: [77, 863, 864, 865]
     tests:
       # Quattro test in `Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`:
       # YawTurnsInStepsAndStaysNormalized · RotatingDoesNotResetZoom · PanIsRelativeToTheView ·

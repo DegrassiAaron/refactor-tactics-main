@@ -3822,7 +3822,10 @@
         "docs/technical/progettazione-hud.md"
       ],
       "issues": [
-        77
+        77,
+        863,
+        864,
+        865
       ],
       "tests": [
         "RefactorTactics.Camera.*"

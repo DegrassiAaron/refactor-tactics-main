@@ -644,6 +644,25 @@ Quattro dei temi sono stati poi scritti come **`Spec.*`** (Overwatch, Predictive
 Non è un difetto da correggere scrivendo otto file: è una **fascia da riscrivere** come intenzione, perché
 oggi promette file che non ci sono. Registrato in §8.
 
+> 🔵 **La camera non è nemmeno in fascia D, ed è un caso diverso da quello sopra** *(2026-08-14)*.
+> `RT-FEAT-UI-TACTICAL-CAMERA` ha `scenarios: []` e gate `scenario: todo`: **zero** scenari, né scritti né
+> pianificati né promessi. `grep -ci camera docs/technical/scenario-map.md` rispondeva **0** prima di questa
+> riga. Non è una promessa non mantenuta come i quattro `Visual.*` — è un'assenza che **nessun documento
+> dichiarava**, e la differenza conta: una fascia D sbagliata si corregge riscrivendo l'intenzione, un vuoto
+> non dichiarato non ha niente da correggere finché qualcuno non decide cosa vada verificato.
+>
+> Il consolidamento del *Camera Roadmap v1.0* ne ha proposti **34**
+> ([triage](../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md)), e **nessuno è stato aggiunto qui**:
+> i loro nomi (`CAMERA-BASIC-PAN-ZOOM-ROTATE`, `CAMERA-CUTAWAY-ROOF`, …) non seguono la convenzione del
+> corpus — `Visual.*`, `Spec.*`, `Movement.*` — e trenta dei trentaquattro verificano sistemi che non
+> esistono (Strategic View, Camera Director, `ActiveLayer`, cutaway, spectator). Uno ScenarioId scritto
+> prima del suo soggetto è una voce che esce `BLOCKED` e resta a sembrare copertura.
+>
+> Quello che oggi **è** verificabile senza inventare sistemi sono `FocusOn` e `FrameOwnTeam`, e non serve
+> uno scenario: sono automation test puri, aperti come
+> [#865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/865). La camera entra in questo
+> documento quando avrà qualcosa che un occhio deve guardare — non prima.
+
 ---
 
 ## 7. Come si rimisura
