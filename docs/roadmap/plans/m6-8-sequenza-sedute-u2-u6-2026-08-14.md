@@ -58,6 +58,20 @@ previsto (li produce U7).
 [RT] Board 2v2 esagonale avviata su N celle con 4 eroi
 ```
 
+### I comandi — letti da `MappingContext->MapKey`, non dalla memoria
+
+| Tasto | Azione |
+|---|---|
+| **W A S D** | pan della camera |
+| **rotellina** | zoom |
+| **Q** · **E** | rotazione |
+| **click sinistro** | seleziona un'unità · aggiunge un waypoint · sceglie il bersaglio |
+| **click destro** o **Backspace** | annulla l'ultimo waypoint |
+| **1** · **2** · **3** | abilità · **4** = **scatto** |
+| **Spazio** | lock-in **oppure** salta il playback — vedi sotto |
+| **Home** | ricentra la camera e azzera lo zoom |
+| **R** | riavvia la partita — attivo **solo** a match concluso |
+
 ### ⚠️ Premere Spazio fino alla fine non è una run valida
 
 **Spazio è contestuale, non un «avanti»** — `Player/RTPlayerController.cpp` (`OnLockIn`):
