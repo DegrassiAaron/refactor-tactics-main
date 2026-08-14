@@ -5098,9 +5098,18 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 	{
 		const FRTReactionOpportunity& Opportunity = Trigger.Opportunity;
 
-		// L'armamento a cui questa opportunity appartiene. `OwnerId` e' l'indice del proprietario, che puo'
-		// avere due Overwatch: a distinguerli e' `ReactionDefId` piu' l'istanza, ed e' per questo che si cerca
-		// il watcher e non l'unita'.
+		// L'armamento a cui questa opportunity appartiene, cercato sul WATCHER e non sull'unita': `OwnerId` e'
+		// un indice di unita', e cio' che va ritrovato e' l'armamento.
+		//
+		// ⚠️ Il confronto NON distingue due Overwatch della stessa unita', e va detto invece che promesso:
+		// `ReactionDefId` e' `Action.Overwatch` per entrambi, e `FRTReactionOpportunityKey` non porta
+		// l'istanza (i suoi sei campi sono turno, macro-fase, micro-step, proprietario, reaction e `Seq`). Il
+		// secondo armamento ricadrebbe sull'indice del primo e verrebbe saltato in silenzio alla riga sotto,
+		// trovando `bCharged` gia' falso.
+		// Oggi il caso NON si produce — un'unita' pianifica una sola abilita' per turno, quindi
+		// `ArmedOverwatches` non ne contiene due dello stesso proprietario. Quando servira', a disambiguare
+		// non basta un confronto in piu': serve che `FRTOverwatchTrigger` porti l'indice del watcher da cui
+		// nasce, che oggi non ha (i suoi campi sono `Opportunity` e `TargetUnitIds`).
 		int32 ArmedIndex = INDEX_NONE;
 		for (int32 w = 0; w < Watchers.Num(); ++w)
 		{

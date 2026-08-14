@@ -630,6 +630,13 @@ tracks:
       (fermo a `c1e151ef` dell'11 agosto), quindi la decisione registrata sotto `preexisting` —
       cedere o non cedere `Turn/` — è ancora **da prendere** da chi possiede questa track, e non
       è scaduta né si è risolta da sola.
+      ➕ **Spec panel su #165 del 2026-08-14**, che rilegge la issue contro il codice che la chiude
+      (`docs/roadmap/plans/cp145-finestra-overwatch-spec-panel-2026-08-14.md`, riallocazione dichiarata
+      qui sotto). Due rilievi 🔴 non sono lavoro mancante ma specifica mal collocata — la casella dei
+      «3,0 s» non è falsificabile in questo checkpoint (`FastReactionDuration` non esiste in `Source/`
+      se non dentro un commento) e «il replay la riproduce» è verificata come round-trip di
+      serializzazione, non come replay. Il secondo esce da questa track: è un requisito di ADR-0009 e
+      atterra su una issue propria dipendente da #166.
     writable:
       - Source/RefactorTactics/Turn/
       - Source/RefactorTactics/Bot/
@@ -646,6 +653,13 @@ tracks:
       # Nessuno dei due era assegnato, e nessun branch vivo li tocca.
       - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
       - Source/RefactorTactics/Tests/RTHexBotIntegrationTests.cpp
+      # Il referto dello spec panel su #165 (2026-08-14), che rilegge la issue contro il codice che la
+      # chiude. ⚠️ Path per FILE e non per prefisso, ed è una misura non una prudenza:
+      # `docs/roadmap/plans/` è toccata da **cinque** branch vivi — `docs/38-spec-panel-playtest-hex`,
+      # `docs/five-lane-roadmap`, `docs/lane-6-7`, `docs/lane-7-vault`, `wip/icon-visual-language` —
+      # quindi dichiarare la directory violerebbe l'invariante su file che questa track non tocca.
+      # Sul singolo path la misura è zero collisioni: nessuno dei cinque lo nomina (è nuovo).
+      - docs/roadmap/plans/cp145-finestra-overwatch-spec-panel-2026-08-14.md
     # ⚠️ `Turn/` meno due file: la contesa con `client_tools` (#78) era di GRANULARITA', non di
     # dominio. #78 deve scrivere la classificazione di certezza lato simulatore — il suo DoD vieta
     # di calcolarla nell'UI — e quella classe vive in `Turn/RTIntentPrivacyLibrary.{h,cpp}`, che
