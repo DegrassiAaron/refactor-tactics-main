@@ -644,6 +644,29 @@ Quattro dei temi sono stati poi scritti come **`Spec.*`** (Overwatch, Predictive
 Non è un difetto da correggere scrivendo otto file: è una **fascia da riscrivere** come intenzione, perché
 oggi promette file che non ci sono. Registrato in §8.
 
+> 🔵 **La camera non è nemmeno in fascia D, ed è un caso diverso da quello sopra** *(2026-08-14)*.
+> `RT-FEAT-UI-TACTICAL-CAMERA` ha `scenarios: []` e gate `scenario: todo`: **zero** scenari, né scritti né
+> pianificati né promessi. `grep -ci camera docs/technical/scenario-map.md` rispondeva **0** prima di questa
+> riga. Non è una promessa non mantenuta come i quattro `Visual.*` — è un'assenza che **nessun documento
+> dichiarava**, e la differenza conta: una fascia D sbagliata si corregge riscrivendo l'intenzione, un vuoto
+> non dichiarato non ha niente da correggere finché qualcuno non decide cosa vada verificato.
+>
+> Il consolidamento del *Camera Roadmap v1.0* ne ha proposti **34**
+> ([triage](../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md)), e **nessuno è stato aggiunto qui**:
+> i loro nomi (`CAMERA-BASIC-PAN-ZOOM-ROTATE`, `CAMERA-CUTAWAY-ROOF`, …) non seguono la convenzione del
+> corpus — `Visual.*`, `Spec.*`, `Movement.*` — e **la maggior parte** verifica sistemi che non esistono:
+> Strategic View, Camera Director, `ActiveLayer`, cutaway, spectator, marker verticali. Uno ScenarioId
+> scritto prima del suo soggetto è una voce che esce `BLOCKED` e resta a sembrare copertura.
+> ⚠️ **«La maggior parte» è deliberatamente non un numero.** La prima stesura diceva «trenta dei
+> trentaquattro», che nessuna partizione dei 34 nomi produce — e stava accanto a un `grep -ci camera → 0`
+> misurato, quindi si leggeva come misurato anch'esso. Contarli richiederebbe decidere caso per caso se un
+> nome descrive un sistema assente, e quella classificazione non è stata fatta. Trovato in code review.
+>
+> Quello che oggi **è** verificabile senza inventare sistemi sono `FocusOn` e `FrameOwnTeam`, e non serve
+> uno scenario: sono automation test puri, aperti come
+> [#865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/865). La camera entra in questo
+> documento quando avrà qualcosa che un occhio deve guardare — non prima. Registrato in §9.
+
 ---
 
 ## 7. Come si rimisura
@@ -774,6 +797,7 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | **Effetti muti** — `Wet`, `Burning`, reazione armata e cella conduttiva non emettono alcun evento | Due scenari di classe B non si possono scrivere (`Visual.Water.Wet`, `Visual.Conductive.Network`): si aprirebbero mostrando il terreno che c'era già | `scenari-validazione-visiva.md` §8.1 |
 | ~~**Azioni core senza possessore**~~ — ✅ **chiuso il 2026-08-09** (`#282`, `75b8264`): `Flux.ConductiveNode` è `Action.Electrify` e `Riva.FluidTrail` è `Action.CreateWater` | I tre scenari sono passati in classe **A**. `Ignite` e `ModifyArc` restano **senza owner per decisione**, non per debito ([D-046](../decisions/RT_PDR_00_Decision_Log.md)): nessun eroe del roster ha affinità col fuoco, i ponti non appartengono a nessun kit | — |
 | **Fascia D mai atterrata** — 8 `Visual.*` descritti come scritti, 0 file | Il catalogo promette vetrine che non esistono; 4 temi vivono come `Spec.*` | §6.3, da riscrivere in `scenari-validazione-visiva.md` |
+| **La camera non ha copertura, e non è un debito rinviato** — `RT-FEAT-UI-TACTICAL-CAMERA` ha `scenarios: []` e gate `scenario: todo`: zero scenari, né scritti né pianificati né promessi | Nessuno **oggi**: ciò che è verificabile della camera attuale sono automation test puri ([#865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/865)), non scenari. Il buco si apre davvero quando esisterà qualcosa da *guardare* — marker verticali, cutaway, transizione Strategic — e allora servirà anche una convenzione di ScenarioId per la camera, che non esiste | §6.3 · [`../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md`](../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md) |
 | **`Visual.Reaction.*` esiste, `Spec` no** — il campo `reaction` nell'intent c'è ed è validato | Nessuno: è un buco **chiuso**, registrato perché la documentazione lo dichiarava aperto per una working copy indietro di qualche commit | `scenari-validazione-visiva.md` §8.2 |
 | **Nessuna assertion su punteggio e conoscenza** — mancano `TeamScoreEquals` e un modo di asserire sulla conoscenza di squadra | Due scenari-spec non potranno diventare verdi anche quando la capability atterra | `_nota_da_completare` di `Spec.Objective.*` e `Spec.Perception.*` |
 | ~~**Nessuna assertion che legga il TurnLog**~~ — ✅ **chiuso il 2026-08-09** (`#318`): `LogEventCount` e `LogEventOrder` leggono il log accumulato dalla sessione, e l'evento si nomina per nome | I tre `Spec.Clash.*` sono **scrivibili** (li scrive CP 14.7). Gli otto `Spec.TimeBank.*` **no**: manca il contatore, e prima serve la decisione su come tre valori in millisecondi entrano in un `FRTTurnLogEntry` che ha un solo `Amount` — vedi §6.2 | `test-automatico-unreal.md` §5.1 |
