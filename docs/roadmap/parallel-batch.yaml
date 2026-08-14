@@ -36,6 +36,22 @@
 #   note           obbligatorio     perché questa track è ACTIVE o IDLE, con la misura
 #   writable       se ACTIVE        path o prefissi di directory. Il confronto è per **prefisso
 #                                   normalizzato**: `Turn/` e `Turn/RTTurnManager.cpp` collidono.
+#   excludes       facoltativo      path che il `writable` includerebbe per prefisso e che questa
+#                                   track NON possiede. Sottratti prima del confronto, quindi
+#                                   `WritableSet(T) = writable − excludes`.
+#                                   ⚠️ Serve perché il prefisso è l'unica granularità che il
+#                                   confronto ha, e una directory è spesso più grossa del dominio
+#                                   di un checkpoint: due track possono avere bisogno di due file
+#                                   diversi della stessa cartella senza contendersi niente.
+#                                   Senza questo campo la scelta sarebbe fra elencare 46 file —
+#                                   che invecchiano al primo file nuovo — e dichiarare falsa
+#                                   un'invariante vera. **Ogni voce va motivata sul DoD delle due
+#                                   track**, non sulla comodità: se il confine si scopre a metà
+#                                   lavoro, vale la regola di sempre — riallocazione, non fix.
+#                                   Introdotto il 2026-08-14 con la track `client_tools` su #78;
+#                                   il validator di #840 deve leggerlo, altrimenti calcola
+#                                   un'intersezione più grande del vero e segnala conflitti che
+#                                   non esistono.
 #   binary_leases  se ACTIVE        elenco, eventualmente vuoto. ⚠️ Vivono **solo** qui, dentro la
 #                                   track: l'invariante è definita per track, e una lease fuori da
 #                                   una track non appartiene a nessun insieme e non entra nel
@@ -237,6 +253,17 @@ tracks:
       - Source/RefactorTactics/Bot/
       - Source/RefactorTactics/Tests/RTReactionTests.cpp
       - Source/RefactorTactics/Tests/RTReactionOpportunityTests.cpp
+    # ⚠️ `Turn/` meno due file: la contesa con `client_tools` (#78) era di GRANULARITA', non di
+    # dominio. #78 deve scrivere la classificazione di certezza lato simulatore — il suo DoD vieta
+    # di calcolarla nell'UI — e quella classe vive in `Turn/RTIntentPrivacyLibrary.{h,cpp}`, che
+    # dichiarando la directory intera finiva qui dentro. Misurato sui due DoD: CP 14.5 nomina
+    # `RTTurnManager`, `RTReactionOpportunityLibrary` (che sta in `RTReactionOpportunityTypes.*`),
+    # `Bot/RTHexBotLibrary` e il TurnLog; **nessuno dei due tocca il file dell'altro**.
+    # Senza questa riga l'invariante `WritableSet(simulation) ∩ WritableSet(client_tools) = ∅`
+    # sarebbe falsa per un file che nessuna delle due track si contende davvero.
+    excludes:
+      - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
+      - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
     # Misurato: `Turn/` e `Bot/` non alimentano nessuna vista, e **aggiungere** un test nemmeno.
     # ⚠️ Ma RINOMINARE o cancellare un test che il registry cita in `tests:` flippa
     # `project-graph.json`, perche' `build_graph()` incorpora le `diagnostics` di `validate()`.
@@ -254,15 +281,41 @@ tracks:
     binary_leases: []
 
   client_tools:
-    status: IDLE
-    issue: null
-    branch: null
+    status: ACTIVE
+    issue: 78
+    branch: feat/78-intenti-certezza
     note: >-
-      IDLE per **dipendenza**, non per adiacenza di dominio — che §12 dichiara insufficiente.
-      `#170` (CP 15.4, golden replay) dichiara «Dipende da: CP 15.3», cioè `#512`, aperta: il suo
-      gate non è raggiungibile in questo giro. `#77` (CP 11.1) tocca `UI/` ma anche i test che le
-      altre due track già scrivono. `Source/RefactorTactics/Replay/` resta quindi **libera e non
-      assegnata**: è disponibile al primo task che la richieda con set disgiunto.
+      CP 11.2 — il livello di certezza degli intenti alleati. La track era IDLE per **dipendenza**,
+      e delle due ragioni scritte allora ne resta una sola:
+      ✅ **caduta**: *«`#77` tocca `UI/` ma anche i test che le altre due track già scrivono»*.
+      `#77` è chiusa sul codice da #746 — quattro test headless verdi — e non è più un candidato:
+      le resta `PIE-V01-HUD`, che è la coda umana, non questa track.
+      ⚠️ **regge**: `#170` (CP 15.4, golden replay) dipende da `#512`, tuttora aperta. Il golden
+      replay non è raggiungibile in questo giro, e `Source/RefactorTactics/Replay/` resta quindi
+      **libera e non assegnata** — non per adiacenza di dominio, che §12 dichiara insufficiente.
+      🔴 **La contesa su `Turn/` era di granularità, non di dominio, ed è stata sciolta invece che
+      aggirata.** Il DoD di #78 dice *«la classificazione è calcolata dal simulatore, non
+      dall'UI»*, e quella classe vive in `Turn/RTIntentPrivacyLibrary.{h,cpp}` — misurato, non
+      dedotto: `FilterForTeam` è l'unico produttore di `FRTIntentView`, e **nessuno dei due DTO ha
+      oggi un campo di certezza** (`RTIntentPrivacyLibrary.h`, letto per intero). Restringere #78
+      al solo `UI/` avrebbe lasciato scoperta la voce che la issue esiste per chiudere; prendersi
+      `Turn/` intera avrebbe rubato a CP 14.5 file che non servono qui. Da cui `excludes` sopra.
+    writable:
+      - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
+      - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
+      - Source/RefactorTactics/UI/
+      - Source/RefactorTactics/Tests/RTIntentPrivacyTests.cpp
+    # Misurato con lo stesso metodo del resto del file — sposta la sorgente, rigenera, guarda cosa
+    # cambia: `UI/` e `RTIntentPrivacyLibrary.*` non alimentano nessuna vista. Vale però la stessa
+    # condizione di `simulation` sui test: `RTIntentPrivacyTests.cpp` ha 2 test, ed **entrambi**
+    # sono citati da `RT-FEAT-UI-CERTAINTY` (`Combat.IntentVisibleToAllies…`,
+    # `Reactions.IntentViewSkipsDeadAndKeepsOrder`). Il rapporto è 2 su 2, non 2 su 8: qui
+    # rinominare è la norma, non l'eccezione, e la rigenerazione va messa in conto.
+    derives_from:
+      - source: Source/RefactorTactics/Tests/RTIntentPrivacyTests.cpp
+        only_if: "rinomini o cancelli un test citato in `tests:` dal registry (2 su 2)"
+        regenerates: [docs/roadmap/project-graph.json]
+    binary_leases: []
 
   content_editor:
     status: IDLE
