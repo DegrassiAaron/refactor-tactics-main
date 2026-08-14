@@ -12,6 +12,7 @@
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTScenarioSession.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 
@@ -314,13 +315,170 @@ bool FRTScenarioRotationAnchorTest::RunTest(const FString&)
 // inventata resterebbe nel corpus per sempre come rumore, e `ShippedScenariosAreTagged` dovrebbe farci
 // spazio. Qui il caso vive dentro il test che lo verifica.
 // =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioUnknownCapabilityIsErrorTest,
+	"RefactorTactics.Scenario.UnknownCapabilityIsErrorNotBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioUnknownCapabilityIsErrorTest::RunTest(const FString&)
+{
+	// TRE casi, e servono tutti e tre. Con il solo primo un gate che rifiuta *qualunque* capability non
+	// disponibile passerebbe: bloccherebbe anche i dodici scenari legittimamente in attesa, e il verde direbbe
+	// il contrario di cio' che e' successo. Il terzo pinna l'ORDINE delle due passate, che e' la parte che il
+	// repository ha gia' pagato una volta — vedi il caso `Facing` piu' sotto.
+	auto Esegui = [this](const TArray<FString>& Capabilities) -> FRTTestResult
+	{
+		FString Elenco;
+		for (const FString& C : Capabilities)
+		{
+			if (!Elenco.IsEmpty()) { Elenco += TEXT(", "); }
+			Elenco += FString::Printf(TEXT("\"%s\""), *C);
+		}
+
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Harness.CapabilityProbe",
+		  "tags": ["spec", "harness"],
+		  "version": 1, "seed": 0, "mapRadius": 4,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Vektor", "team": 0, "cell": [-1, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Riva",   "team": 1, "cell": [1, 0, 0] }
+		  ],
+		  "turns": [ { "requires": [%s], "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), *Elenco);
+
+		FRTTestScenario Scenario;
+		FString LoadError;
+		if (!URTScenarioLoader::LoadFromString(Json, Scenario, LoadError))
+		{
+			AddError(FString::Printf(TEXT("scenario di prova malformato: %s"), *LoadError));
+			return FRTTestResult();
+		}
+		UWorld* World = MakeCorpusWorld();
+		const FRTTestResult R = URTScenarioRunner::Run(World, Scenario);
+		DestroyCorpusWorld(World);
+		return R;
+	};
+
+	// (1) Un nome che nessuno ha mai dichiarato e' un REFUSO, ed e' un difetto del TEST: `Error`.
+	// Prima di questo test produceva un `Blocked` identico a quello di un'attesa legittima, quindi uno
+	// scenario con un refuso restava bloccato per sempre senza che nulla lo segnalasse.
+	const FRTTestResult Refuso = Esegui({TEXT("DecisionBoundry")});
+	TestTrue(FString::Printf(TEXT("capability sconosciuta => Error, non %s"), *Refuso.OutcomeString()),
+		Refuso.Outcome == ERTTestOutcome::Error);
+	TestTrue(TEXT("e il messaggio nomina il refuso, perche' chi legge deve poterlo correggere"),
+		Refuso.ErrorMessage.Contains(TEXT("DecisionBoundry")));
+
+	// (2) Un nome NOTO ma non ancora disponibile resta un'attesa legittima: `Blocked`. E' il regime dei nove
+	// scenari in repo, e non deve cambiare.
+	const FRTTestResult Attesa = Esegui({TEXT("DecisionBoundary")});
+	TestTrue(FString::Printf(TEXT("capability nota non disponibile => Blocked, non %s"), *Attesa.OutcomeString()),
+		Attesa.Outcome == ERTTestOutcome::Blocked);
+
+	// (3) Un refuso ACCANTO a un'attesa legittima resta un `Error`, e l'ordine dei due nomi non lo salva.
+	//
+	// E' il caso che il repository ha gia' pagato: `RT_Showcase_Relay_v01` e `Spec.Overwatch.HoldThenFire`
+	// chiedevano `["DecisionBoundary", "Facing"]`, e `Facing` aveva smesso di essere un nome di capability con
+	// `#291`. Chiedendo prima la disponibilita', il refuso si nasconde dietro il `Blocked` del primo nome e
+	// nessuno lo vede — che e' precisamente cio' che e' successo, per mesi, in due file.
+	//
+	// Senza questo caso, invertire le due passate in `BeginTurn()` non farebbe cadere NIENTE: i casi (1) e (2)
+	// hanno un solo nome per turno e non distinguono l'ordine.
+	const FRTTestResult Misto = Esegui({TEXT("DecisionBoundary"), TEXT("DecisionBoundry")});
+	TestTrue(FString::Printf(TEXT("refuso accanto a un'attesa => Error, non %s"), *Misto.OutcomeString()),
+		Misto.Outcome == ERTTestOutcome::Error);
+	TestTrue(TEXT("e il messaggio nomina il refuso, non l'attesa che gli stava davanti"),
+		Misto.ErrorMessage.Contains(TEXT("DecisionBoundry")));
+	return true;
+}
+
+/**
+ * Ogni `requires` di ogni scenario versionato nomina una capability che ESISTE — disponibile o no.
+ *
+ * ⚠️ Non e' il doppione del test qui sopra, e la differenza e' il motivo per cui questo file ne ha due.
+ * Quello prova che il RUNNER sa distinguere un refuso da un'attesa; questo guarda il CORPUS, e lo guarda
+ * **senza eseguirlo**. La distinzione conta perche' l'esecuzione ha un punto cieco preciso: il runner si
+ * ferma al primo turno bloccato, quindi un refuso in un turno successivo non viene mai raggiunto.
+ *
+ * Non e' un'ipotesi. `RT_Showcase_Relay_v01` chiedeva `Facing` al turno 4 — `["DecisionBoundary", "Facing"]` —
+ * e `Facing` aveva smesso di essere un nome di capability con `#291`. Nessuno se n'e' accorto: il turno era
+ * gia' `Blocked` per il primo dei due nomi, e `EveryShippedScenarioRuns` vedeva un `BLOCKED` regolare.
+ *
+ * Un nome nuovo in uno scenario diventa quindi rosso QUI, subito, invece di aspettare che il gioco arrivi a
+ * quel turno — cosa che per un refuso non succede mai.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioKnownCapabilitiesTest,
+	"RefactorTactics.Scenario.ShippedScenariosRequireKnownCapabilities",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioKnownCapabilitiesTest::RunTest(const FString&)
+{
+	const TArray<FString> AllIds = URTScenarioIndex::ListIds(FString(), FString());
+	if (!TestTrue(TEXT("l'indice trova gli scenari"), AllIds.Num() >= 10))
+	{
+		AddError(FString::Printf(TEXT("l'indice ha restituito %d scenari: il controllo non guarderebbe nulla"), AllIds.Num()));
+		return false;
+	}
+
+	// Gli `expected-fail` NON si escludono: il loro mestiere e' fallire sulle assertion, non essere scritti male.
+	int32 Controllate = 0;
+	for (const FString& Id : AllIds)
+	{
+		FString ResolveError;
+		const FString Path = URTScenarioIndex::ResolvePath(Id, ResolveError);
+		if (Path.IsEmpty())
+		{
+			AddError(FString::Printf(TEXT("%s: l'indice non lo risolve — %s"), *Id, *ResolveError));
+			continue;
+		}
+
+		FRTTestScenario Scenario;
+		FString LoadError;
+		if (!URTScenarioLoader::LoadFromFile(Path, Scenario, LoadError))
+		{
+			AddError(FString::Printf(TEXT("%s: non si carica — %s"), *Id, *LoadError));
+			continue;
+		}
+
+		for (int32 T = 0; T < Scenario.Turns.Num(); ++T)
+		{
+			for (const FString& Required : Scenario.Turns[T].Requires)
+			{
+				++Controllate;
+				if (!FRTScenarioSession::IsKnownCapability(Required))
+				{
+					AddError(FString::Printf(
+						TEXT("%s turno %d: la capability '%s' non esiste in nessuno dei due elenchi di ")
+						TEXT("`RTScenarioSession.cpp`. O e' un refuso, o e' un nome nuovo da dichiarare la' ")
+						TEXT("prima di usarlo qui."),
+						*Id, T + 1, *Required));
+				}
+			}
+		}
+	}
+
+	// Il conteggio e' l'oracolo: se un domani `Requires` smettesse di essere popolato dal loader, il ciclo
+	// girerebbe a vuoto e questo test resterebbe verde senza aver guardato niente.
+	AddInfo(FString::Printf(TEXT("capability controllate: %d su %d scenari"), Controllate, AllIds.Num()));
+	TestTrue(TEXT("gli scenari in repo dichiarano almeno una capability: se e' zero, il loader non le carica piu'"),
+		Controllate > 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBlockedBeatsFinalAssertionsTest,
 	"RefactorTactics.Scenario.BlockedFirstTurnStaysBlocked",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioBlockedBeatsFinalAssertionsTest::RunTest(const FString&)
 {
-	// Capability inventata di proposito: il test verifica il MECCANISMO, non una capability vera che un domani
-	// potrebbe diventare disponibile e far passare il test per la ragione sbagliata.
+	// ⚠️ `NeverAvailable`: nome **riservato**, dichiarato fra i noti-non-disponibili con il vincolo scritto che
+	// non diventera' mai disponibile. Il test chiedeva `CapabilityCheNonEsistera Mai` — inventato di proposito,
+	// perche' una capability VERA che un domani atterra farebbe misurare a questo test un'altra cosa. Da quando
+	// un nome sconosciuto vale `Error` (`UnknownCapabilityIsErrorNotBlocked`) quel veicolo non prova piu' il
+	// meccanismo `BLOCKED`: lo aggira, e il test cadeva sul proprio assert.
+	//
+	// La cura NON e' sostituirlo con una capability vera tipo `DecisionBoundary`: quella un giorno atterra, e
+	// da quel giorno questo test non parlerebbe piu' del meccanismo. Il nome riservato conserva la proprieta'
+	// che serve — non atterra mai — pagando l'unica cosa che il vecchio veicolo non poteva piu' dare: essere
+	// riconosciuto come nome esistente.
 	const FString Json = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Harness.BlockedProbe",
@@ -334,7 +492,7 @@ bool FRTScenarioBlockedBeatsFinalAssertionsTest::RunTest(const FString&)
 	  ],
 	  "turns": [
 	    {
-	      "requires": ["CapabilityCheNonEsistera Mai"],
+	      "requires": ["NeverAvailable"],
 	      "intents": []
 	    }
 	  ],
@@ -369,7 +527,7 @@ bool FRTScenarioBlockedBeatsFinalAssertionsTest::RunTest(const FString&)
 	}
 
 	TestTrue(TEXT("e il motivo nomina la capability mancante"),
-		Result.BlockedReason.Contains(TEXT("CapabilityCheNonEsistera Mai")));
+		Result.BlockedReason.Contains(TEXT("NeverAvailable")));
 
 	// E le assertion finali non sono state valutate: misurerebbero una partita che non e' stata giocata.
 	TestEqual(TEXT("nessuna assertion finale valutata su un turno mai giocato"), Result.Assertions.Num(), 0);

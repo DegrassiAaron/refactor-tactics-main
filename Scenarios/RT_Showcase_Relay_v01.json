@@ -37,7 +37,7 @@
     },
     {
       "_turno": "T4 — Overwatch. Il facing da' il cono, ma HOLD e FIRE SONO la finestra: senza Decision Boundary il turno non esiste.",
-      "requires": ["DecisionBoundary", "Facing"],
+      "requires": ["DecisionBoundary", "DeclaredRotation"],
       "intents": []
     },
     {

@@ -1488,6 +1488,10 @@
       "state": "⏳"
     },
     {
+      "id": "PIE-FMTVER",
+      "state": "⏳"
+    },
+    {
       "id": "PIE-GEO-GHOST",
       "state": "⏳"
     },
@@ -2050,7 +2054,7 @@
       "id": "RT_Showcase_Relay_v01",
       "requires": [
         "DecisionBoundary",
-        "Facing",
+        "DeclaredRotation",
         "InterceptRevalidation",
         "Objective",
         "PredictiveAction"
@@ -2264,7 +2268,7 @@
       "id": "Spec.Overwatch.HoldThenFire",
       "requires": [
         "DecisionBoundary",
-        "Facing"
+        "DeclaredRotation"
       ],
       "path": "Scenarios/Spec/Overwatch/HoldThenFire.json"
     },
@@ -2986,7 +2990,9 @@
         "state": null,
         "state_source": null,
         "state_note": "issue senza checkpoint: lo stato vive su GitHub",
-        "feature_ids": [],
+        "feature_ids": [
+          "RT-FEAT-MAP-HEXGRAPH"
+        ],
         "provides": [],
         "incoming": [],
         "outgoing": [
