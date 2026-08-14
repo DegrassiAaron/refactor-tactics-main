@@ -431,8 +431,8 @@ preexisting:
     state: LIVE            # worktree `D:/rt-simulation` · pushato · 44a6af96
     measured: 15
     collides_with:
-      - branch: feat/874-beginplay-fallback
-        state: LIVE
+      - branch: feat/887-focus-quota
+        state: LOCAL
         paths: [docs/roadmap/parallel-batch.yaml]
     note: >-
       ➕ **È il branch che la track `simulation` dichiarava sparito, ricreato mentre questo file
@@ -444,7 +444,7 @@ preexisting:
       quindi per l'enum è `LIVE` e appartiene alla sezione dei remoti, non a «esistono in un worktree e
       in nessun altro posto».
       ⚠️ **La collisione qui sopra è reale**: `docs/roadmap/parallel-batch.yaml` è anche nel write-set di
-      `#874`. È `integration_only` — nessuna delle due la tiene per diritto — quindi si riconcilia in
+      `#887`. È `integration_only` — nessuna delle due la tiene per diritto — quindi si riconcilia in
       integrazione, e chi merge per secondo la riscrive sull'albero unito.
       🔴 **Questa riga ha citato `#873` per un commit intero dopo che quel branch era stato mergiato e
       cancellato.** Il campo `collides_with` era stato ripuntato su `#874`, la prosa no: la stessa
@@ -457,37 +457,10 @@ preexisting:
   # entrambe erano aperte, e va tolta dalla voce di `165` invece di restarci come vincolo fantasma.
 
 
-  - branch: feat/874-beginplay-fallback
-    state: LIVE            # worktree `D:/rt-telecamera` · PR #889 aperta · su `376013a7`
-    measured: 2
-    collides_with:
-      - branch: feat/165-finestra-overwatch
-        state: LIVE
-        paths: [docs/roadmap/parallel-batch.yaml]
-      - branch: fix/residui-istruttoria-dod
-        state: LOCAL
-        paths: [docs/roadmap/parallel-batch.yaml]
-    note: >-
-      `#874`: il ripiego di `BeginPlay` — `FrameOwnTeam` → ritenta al tick → `RecenterView` — decide la
-      prima inquadratura della partita e non aveva test.
-      ✅ **Solo copertura**: `Camera/RTCameraPawn.cpp` resta **identico a `main`**, verificato con
-      `git diff --stat origin/main --`. Il write-set è il file di test più questo.
-      ✅ **Set disgiunto dalle track ACTIVE, rimisurato e non ereditato**:
-      `Tests/RTCameraPawnTests.cpp` non è nel `writable` di nessuna — `simulation` tiene
-      `RTReactionTests.cpp` e `RTReactionOpportunityTests.cpp`, `client_tools` `RTIntentPrivacyTests.cpp` e
-      `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`. La voce di `#873` portava questa
-      verifica e la sostituzione l'aveva persa — **per la seconda volta**, dopo quella di `#865`: una
-      verifica che vive solo dentro una voce sparisce quando la voce viene rimpiazzata.
-      🔴 **«La collisione è dichiarata dall'inizio» diceva UNA collisione, e sono DUE.**
-      `fix/residui-istruttoria-dod` — il branch del checkout principale — tocca anch'esso
-      `parallel-batch.yaml`: misurato con `git diff --name-only origin/main...`, **11 file**, non i sette
-      che il paragrafo del conto dichiarava. La voce di `#873` aveva sbagliato dimenticando *il proprio*
-      quarto file; questa ha sbagliato dimenticando *un altro branch*, e nello stesso file che esiste per
-      renderlo visibile.
-      ✅ **`measured: 2` era una previsione, ed è stata confermata dalla misura** al push:
-      `git diff --name-only origin/main...HEAD` restituisce esattamente i due file previsti. È la prima
-      volta in questo batch che un numero dichiarato regge alla verifica — e `LOCAL → LIVE` è stato
-      applicato **nello stesso momento del push**, invece di essere scoperto da una review come per `#873`.
+  # 🔵 **`feat/874-beginplay-fallback` è uscita**: PR #889 mergiata alle `19:03Z` in `e9003c96`,
+  # branch cancellato. `MERGED` esce dalla sezione — la quarta voce a farlo oggi.
+  # ⚠️ Con lei cade la collisione che dichiarava con `feat/165` su questo file, e quella di `165`
+  # verso di lei: un vincolo senza due lati non è un vincolo.
 
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
@@ -522,10 +495,39 @@ preexisting:
   # ⚠️ **L'ha mergiata questo stesso branch**, col merge di `origin/main` fatto per verificare che
   # `#876` non rompesse i test della camera: la riga è diventata falsa per mano di chi la leggeva.
 
+  - branch: feat/887-focus-quota
+    state: LOCAL           # worktree `D:/rt-telecamera`, creato su `e9003c96`
+    measured: 0
+    collides_with:
+      - branch: feat/165-finestra-overwatch
+        state: LIVE
+        paths: [docs/roadmap/parallel-batch.yaml]
+      - branch: fix/residui-istruttoria-dod
+        state: LOCAL
+        paths: [docs/roadmap/parallel-batch.yaml]
+    note: >-
+      `#887`, aperta da un'altra sessione dal playtest di M6.8: `FocusOn` scarta la `Z` del bersaglio e
+      tiene quella con cui il pawn è nato — il PlayerStart del livello, che non ha relazione con il piano
+      della mappa. Diagnosi **verificata** prima di prenderla, sui tre anelli che la issue dichiara:
+      `RTGameMode` imposta davvero `DefaultPawnClass = ARTCameraPawn`, `CellsCentroidWorld` somma
+      `AxialToWorld` e quindi **calcola** una quota valida, e `FocusOn` la butta via.
+      🔴 **Tocca un test che ho scritto io in `#865`, e la issue ha ragione sul perché**:
+      `FocusKeepsHeightZoomAndOrientation` verifica che la quota sia *conservata*, quindi **difende il
+      difetto** invece di trovarlo. La domanda giusta non è «la quota resta invariata?» ma «invariata
+      rispetto a cosa?». Va riscritto, non affiancato.
+      ✅ **Set disgiunto dalle track ACTIVE**: `Camera/` e `Tests/RTCameraPawnTests.cpp` non sono nel
+      `writable` di nessuna — `simulation` tiene `Turn/` e `Bot/`, `client_tools`
+      `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`.
+      ⚠️ **Le due collisioni su `parallel-batch.yaml` sono dichiarate qui e misurate**, non dedotte: è
+      `integration_only`, si riconcilia in integrazione.
+      ➕ La issue avverte di verificare `feat/865-camera-focus-tests`, «vivo in `D:/rt-telecamera`»:
+      **non lo è più** — mergiato con #872 e cancellato prima che questa issue fosse scritta. È lo stesso
+      invecchiamento che questo file registra a ogni giro, visto stavolta dal lato di chi legge.
+
   # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**:
   #
   #   D:/wt-451           `feat/451-u1-voci-hex-mode`       LOCAL, 0 file
-  #   D:/rt-telecamera    `feat/874-beginplay-fallback`     LIVE, 2 file · PR #889 — fra i remoti
+  #   D:/rt-telecamera    `feat/887-focus-quota`            LOCAL, non ancora pushato
   #   D:/rt-client        `docs/38-spec-panel-playtest-hex` LIVE  — fra i branch remoti
   #   D:/rt-simulation    `feat/165-finestra-overwatch`     LIVE, 15 file — fra i branch remoti
   #   D:/rt-spatial       detached su `8ea9c229`            0 file, nessun vincolo, nessuna voce

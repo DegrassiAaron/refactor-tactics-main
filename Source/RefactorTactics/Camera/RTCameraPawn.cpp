@@ -39,9 +39,25 @@ ARTCameraPawn::ARTCameraPawn()
 
 void ARTCameraPawn::FocusOn(const FVector& WorldLocation)
 {
-	// Solo X/Y: la quota del pawn resta la sua (il braccio ci pensa da se'). Lo zoom corrente non si tocca,
-	// cosi' il comando inquadra senza sorprendere chi si era gia' regolato la distanza.
-	SetActorLocation(FVector(WorldLocation.X, WorldLocation.Y, GetActorLocation().Z));
+	// Il pivot va **dove sta il bersaglio**, quota compresa. Lo zoom corrente non si tocca: quello resta
+	// del giocatore, ed e' la meta' di contratto che #887 lascia esplicitamente intatta.
+	//
+	// 🔴 **Prima teneva la `Z` del pawn**, con il commento «la quota del pawn resta la sua (il braccio ci
+	// pensa da se')». L'intento era ragionevole ma poggiava su una premessa mai verificata — che quella
+	// quota fosse gia' quella del piano di gioco. Non lo era: `ARTGameMode` spawna il pawn al PlayerStart
+	// del livello, e da li' **nessuno** la correggeva. `AddPlanarMovement` produce un delta con `Z = 0`
+	// per scelta, `AddZoom` tocca solo il braccio, `AddYaw` solo la rotazione: l'unica funzione che
+	// stabiliva una quota vera era `RecenterView`, cioe' il tasto `Home`.
+	//
+	// Risultato in partita (playtest M6.8, `#38`): premendo `F` la camera orbitava attorno a un punto
+	// sospeso sopra o sotto l'unita' e si vedeva il vuoto — tanto piu' fuori quadro quanto piu' il
+	// PlayerStart era distante dal piano. `Home` «riparava», ed e' il motivo per cui il difetto si notava
+	// su `F` e non su `Home`.
+	//
+	// ⚠️ Entrambi i chiamanti reali passano gia' una quota sensata, quindi il fix e' qui e non da loro:
+	// `FrameOwnTeam` passa `CellsCentroidWorld`, che somma `AxialToWorld` e la calcola; il controller
+	// passa `Unit->GetActorLocation()`, cioe' l'unita' sul terreno.
+	SetActorLocation(WorldLocation);
 }
 
 void ARTCameraPawn::ApplyViewSettings()
