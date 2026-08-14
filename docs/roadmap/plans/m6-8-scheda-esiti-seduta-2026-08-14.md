@@ -95,9 +95,13 @@ la piattaforma si evidenzia la cella del **layer 1**, non quella sotto con gli s
 
 **`PIE-HEXPLAY-3`** — pianificazione entro budget · *partenza* ✅ (2026-08-10)
 Verificata anche nel visivo. Si rilegge in U6.
-- Esito:
-- Evidenza:
-- Resta:
+- Esito: 🟡 **parziale, 2026-08-14** — riferito dall'utente: *«si muovono, vanno sui waypoint»*. La parte
+  della voce che riguarda i waypoint e il percorso **regge**. ⚠️ Non è un ✅: rifiuti (oltre budget /
+  bloccata / occupata / fuori mappa), undo e budget cumulativo **non sono stati esercitati** in questa
+  osservazione, e la voce li chiede tutti.
+- Evidenza: da raccogliere — servono le righe `costo n/m` e almeno un rifiuto col motivo
+- Resta: i quattro rifiuti, l'undo, il costo cumulativo. Vedi anche `OSS-1` (#877), che nasce da questa
+  stessa osservazione ma **non** appartiene a questa voce.
 
 **`PIE-HEXPLAY-3b`** — il rifiuto dice il motivo giusto · *partenza* 🟡
 «fuori portata (max N)» è ✅. **Manca «coperto»**: serve il bersaglio dietro la cella con
@@ -196,6 +200,36 @@ attaccato verso il bersaglio. Premendo **Spazio** per saltare il playback l'esit
 - Esito:
 - Evidenza:
 - Resta:
+
+---
+
+## 1-bis. Osservazioni fuori voce
+
+Cose viste in partita che **nessuna delle quattordici voci copre**. Non sono esiti: sono lacune del registro,
+e vanno da qualche parte prima di essere dimenticate.
+
+### `OSS-1` — il ventaglio verde non si restringe coi waypoint → **#877**
+
+**Osservato il 2026-08-14**: *«si muovono, vanno sui waypoint, ma l'area dove possono arrivare non cambia»*.
+Il percorso ciano si allunga e il costo cresce nel log; il ventaglio di celle raggiungibili resta identico.
+
+**Non falsifica nessuna voce.** `PIE-HEXPLAY-3` chiede budget cumulativo e anteprima del **percorso** che si
+accorcia — entrambi funzionano. `PIE-PREVIEW-AREA` (✅ dal 2026-08-09) parla del **fango** che accorcia il
+raggio, non dei waypoint. È una **lacuna di specifica**, e il codice implementava una delle due letture
+possibili senza che nessuno l'avesse scelta.
+
+**Causa, misurata sul codice** — due strati, e il primo da solo non basta:
+1. `HandleClickOnCell` e `RebuildPlannedPath` aggiornano `SetPreviewPath` ma non chiamano mai
+   `RefreshPlanningPreview`, quindi `SetPreviewReachableCells` non si riaggiorna;
+2. anche chiamandolo, `MakeCurrentSnapshot` (`RTTurnManager.cpp:4661`) fotografa `Unit->Cell` e
+   `GetEffectiveMoveRange()` — posizione reale e budget pieno — quindi `ReachableCells` restituirebbe lo
+   stesso insieme byte per byte.
+
+**Deciso in sessione dall'autore**: il fan **si restringe** e mostra il residuo. Aperta **#877** con DoD,
+approccio e test. ⚠️ `Player/` non è nel `writable` di nessuna track: chi la prende dichiara il write-set
+prima (**D-139**).
+
+### `OSS-2` — …
 
 ---
 
