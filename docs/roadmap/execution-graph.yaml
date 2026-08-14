@@ -202,7 +202,6 @@ nodes:
 
   - id: issue:687
     release: v0.1
-    domain_group: tooling_data_qa
 
   # --- Catena C · Character presentation / ASSET / PIE ---------------------------------------
   #
