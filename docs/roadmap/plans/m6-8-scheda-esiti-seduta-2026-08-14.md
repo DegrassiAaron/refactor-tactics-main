@@ -36,6 +36,17 @@ rifatti: meglio scoprirlo adesso che dopo quattordici voci.
 ⚠️ **Le unità sono cilindri**: i `BP_Unit_*` non esistono in `Content/`, il fallback è previsto e non è un
 difetto da registrare.
 
+⚠️ **Il team 0 è tuo** (`bIsBotControlled = (TeamId == 1)`): senza ordini le tue unità restano ferme. E
+**Spazio è contestuale** — durante il playback lo **salta**, fuori chiude la pianificazione. Una run
+«tutto Spazio» non è la partita completa: vale solo per «PARTITA FINITA» e il riavvio con `R`. Dettaglio e
+codice nella sequenza, §1.
+
+| Tipo di questa run | |
+|---|---|
+| ☐ completa — ordini al team 0, playback **guardato** | |
+| ☐ «tutto Spazio» — degenerata, vale solo per fine partita e `R` | |
+| ☐ confronto `PIE-FACING-1` — stessa situazione, una guardata e una saltata | |
+
 ---
 
 ## 1. Le quattordici voci

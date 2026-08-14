@@ -58,6 +58,34 @@ previsto (li produce U7).
 [RT] Board 2v2 esagonale avviata su N celle con 4 eroi
 ```
 
+### ⚠️ Premere Spazio fino alla fine non è una run valida
+
+**Spazio è contestuale, non un «avanti»** — `Player/RTPlayerController.cpp` (`OnLockIn`):
+
+```cpp
+// Durante il playback lo stesso tasto (Spazio) salta la risoluzione; altrimenti chiude la pianificazione.
+if (TurnManager->IsResolving()) { TurnManager->SkipPlayback(); }
+else { RefreshPlanningPreview(GetWorld(), nullptr); TurnManager->LockInAndResolve(); }
+```
+
+Premuto in sequenza chiude la pianificazione **e poi salta la risoluzione che ha appena avviato**. Tre
+conseguenze, tutte misurate:
+
+1. **Il team 0 è tuo.** `RTGameMode.cpp` assegna `bIsBotControlled = (TeamId == 1)`: solo il team 1 è
+   pilotato dal bot. Senza ordini le tue due unità «restano ferme», e la partita diventa il bot che elimina
+   due bersagli immobili.
+2. **Il playback sparisce**, ed è l'oggetto di `-4` (scorrimento e centri cella), `-4b` (lo scatto scivola o
+   compare?) e `-8` (salita di quota). Sono le voci che i test headless **non** possono coprire: saltarle
+   lascia in piedi solo ciò che è già verde in automatico.
+3. **Ritmo e score di quella run non valgono** per `-7` e `-10`: sono stati prodotti contro unità ferme.
+
+**Resta legittimo un uso**: una run «tutto Spazio» chiude rapidamente per eliminazione, e serve a vedere
+«PARTITA FINITA» a schermo e a provare **`R`** — un terzo di `-10`. Dichiarala come tale nell'esito, non come
+la partita completa.
+
+**E un caso in cui il salto È la verifica**: `PIE-FACING-1` chiede che, saltando il playback con Spazio,
+l'orientamento finale sia lo **stesso** di quando lo si guarda. Servono due run, e il confronto.
+
 ---
 
 ## 2. `U2` — Partita hex, primo giro
