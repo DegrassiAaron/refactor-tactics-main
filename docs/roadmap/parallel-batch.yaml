@@ -207,17 +207,36 @@ tracks:
 
   simulation:
     status: ACTIVE
-    issue: 583
-    branch: feat/583-produttore-d109
+    issue: 165
+    branch: feat/165-finestra-overwatch
     note: >-
-      La condizione dichiarata di `D-109` non ha un produttore: nessun input in partita la scrive.
-      ⚠️ **`ScenarioHarness/` è stata TOLTA da questo write-set**: `wt-cap` la sta riscrivendo
+      CP 14.5 — il resolver costruisce opportunity in partita e apre la finestra.
+      🔴 **Questa track puntava a #583 su una premessa già falsa quando il batch è stato scritto**:
+      «la condizione di `D-109` non ha un produttore». Il produttore è atterrato il 2026-08-12 con
+      #639 (`5cc2d6de`) e si chiama `rt.Reaction.Condition [N]`
+      (`Source/RefactorTactics/Turn/RTReactionConditionConsole.cpp`). Di #583 restano due voci di
+      DoD, e **nessuna delle due è scrivibile senza CP 14.5**: `BuildOverwatchTriggers` ha come
+      soli chiamanti l'harness e i test, quindi non esiste un'opportunity di partita in cui
+      registrare la condizione nel TurnLog. Scriverla adesso sarebbe un dato che nessuna partita
+      produce — la forma di difetto che #583 esiste per evitare, spostata di un livello.
+      ⚠️ **`ScenarioHarness/` è TOLTA da questo write-set**: `wt-cap` la sta riscrivendo
       (misurato, non dedotto). Se il lavoro dovesse richiederla, questa track esce dal batch —
       non si negozia il confine a metà lavoro.
+      ✅ **`Ability/` NON serve, e lo dichiara la issue** — non è una deduzione: #165 elenca i file
+      coinvolti (`Turn/RTTurnManager.*`, `Turn/RTReactionOpportunityLibrary.*`,
+      `Bot/RTHexBotLibrary.*`, `Tests/`) e aggiunge *«`Ability/RTHeroCatalogLibrary.*` **esce
+      dall'elenco**: era lì per il cablaggio di `InterceptShot`»*. Il primo consumatore è
+      l'**Overwatch universale** di `D-014`, che per definizione non passa da un'abilità d'eroe —
+      `D-016` ha spostato `InterceptShot` in E18, dove è chiusa dal 2026-08-10.
+      ⚠️ **Il write-set dei test è più largo di `RTReactionTests.cpp`**, misurato sugli 8 test che
+      la issue nomina: **7 non esistono ancora** e vanno scritti; l'unico che esiste,
+      `Overwatch.OpportunityLeaksNoFuture`, vive in `Tests/RTReactionOpportunityTests.cpp` —
+      quindi è quel file, non `RTReactionTests.cpp`, il posto dove atterrano i gemelli.
     writable:
       - Source/RefactorTactics/Turn/
       - Source/RefactorTactics/Bot/
       - Source/RefactorTactics/Tests/RTReactionTests.cpp
+      - Source/RefactorTactics/Tests/RTReactionOpportunityTests.cpp
     # Misurato: `Turn/` e `Bot/` non alimentano nessuna vista, e **aggiungere** un test nemmeno.
     # ⚠️ Ma RINOMINARE o cancellare un test che il registry cita in `tests:` flippa
     # `project-graph.json`, perche' `build_graph()` incorpora le `diagnostics` di `validate()`.
@@ -225,6 +244,12 @@ tracks:
     derives_from:
       - source: Source/RefactorTactics/Tests/RTReactionTests.cpp
         only_if: "rinomini o cancelli un test citato in `tests:` dal registry (2 su 8)"
+        regenerates: [docs/roadmap/project-graph.json]
+      # Stessa condizione, misurata sul file entrato ora nel write-set: 6 test, di cui 2 citati —
+      # `Reactions.OpportunityIdIsDerivedNotRandom` e `Reactions.OpportunityIdUsesEveryField`,
+      # coperti anche dal pattern `RefactorTactics.Reactions.*`.
+      - source: Source/RefactorTactics/Tests/RTReactionOpportunityTests.cpp
+        only_if: "rinomini o cancelli un test citato in `tests:` dal registry (2 su 6)"
         regenerates: [docs/roadmap/project-graph.json]
     binary_leases: []
 
