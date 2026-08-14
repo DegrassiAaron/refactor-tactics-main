@@ -37,7 +37,7 @@ namespace
 	 * L'elenco sta nel CODICE e non nei dati: se stesse nello scenario, dichiarare disponibile una capability
 	 * inesistente sarebbe una modifica al JSON, e il primo scenario verde e bugiardo arriverebbe da li'.
 	 */
-	bool IsCapabilityAvailable(const FString& Capability)
+	const TSet<FString>& AvailableCapabilities()
 	{
 		static const TSet<FString> Available = {
 			TEXT("FixtureReference"),  // lo scenario riferisce la geometria per nome
@@ -123,9 +123,71 @@ namespace
 			// giocatore un modo di chiederla ce l'ha.
 			TEXT("DeclaredRotation"),
 		};
-		// NON disponibili, e le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato
-		// completato con `#582`: prima ne nominava due, mentre gli scenari in repo ne chiedono **sei** — e una
-		// capability che nessuno documenta produce un `BLOCKED` senza spiegazione, che e' meta' del valore.
+		return Available;
+	}
+
+	/**
+	 * L'altra meta' del VOCABOLARIO: i nomi che uno scenario puo' legittimamente chiedere e che il gioco non
+	 * sa ancora fare. Un turno che ne chiede uno resta `Blocked`, come sempre.
+	 *
+	 * ⚠️ Perche' esiste come DATO e non piu' come prosa. Fino a qui l'elenco dei non disponibili viveva nel
+	 * commento qui sotto, e nessuno poteva interrogarlo: un nome **sbagliato** — `DecisionBoundry` per
+	 * `DecisionBoundary` — produceva un `Blocked` identico a quello di un'attesa legittima, quindi uno
+	 * scenario con un refuso restava bloccato per sempre senza che nulla lo segnalasse. Con i due insiemi
+	 * separati, «non lo so ancora fare» e «questo nome non esiste» smettono di avere lo stesso esito:
+	 * `RefactorTactics.Scenario.UnknownCapabilityIsErrorNotBlocked`.
+	 *
+	 * ⚠️ La prosa diceva **sei**, e gli scenari in repo ne chiedono **nove**. Le tre che mancavano —
+	 * `SpatialTrigger`, `SemanticTrigger`, `Teleport` — non erano un'omissione da poco: erano gli unici tre
+	 * nomi che un test non avrebbe potuto distinguere da un refuso. Il numero si rimisura, non si ricopia:
+	 *
+	 *   python - <<'PY'  (radice del repo)
+	 *   import json, os, collections
+	 *   req = collections.Counter()
+	 *   for root, _, names in os.walk("Scenarios"):
+	 *       for n in [x for x in names if x.endswith(".json")]:
+	 *           d = json.load(open(os.path.join(root, n), encoding="utf-8-sig"))
+	 *           for t in d.get("turns", []):
+	 *               for c in (t.get("requires") or []): req[c] += 1
+	 *   print(sorted(req))
+	 *   PY
+	 *
+	 * L'ancora che tiene allineati i due elenchi al corpus e' `ShippedScenariosRequireKnownCapabilities`: un
+	 * nome nuovo in uno scenario e' rosso subito, non un `BLOCKED` che nessuno legge.
+	 */
+	const TSet<FString>& KnownUnavailableCapabilities()
+	{
+		static const TSet<FString> KnownUnavailable = {
+			TEXT("DecisionBoundary"),
+			TEXT("ReactionClash"),
+			TEXT("InterceptRevalidation"),
+			TEXT("Objective"),
+			TEXT("Perception"),
+			// Le tre che la prosa non nominava, chieste da `Spec/Movement/`: `SpatialTrigger` (tripwire che
+			// scatta attraversando un bordo), `SemanticTrigger` (trigger che distingue Dash da Move) e
+			// `Teleport` (spostamento che non attraversa le celle intermedie). Restano fuori per lo stesso
+			// criterio delle altre — nessun produttore in partita — e sono documentate in
+			// `docs/roadmap/scenariomap.shortlist.md`, che le elenca accanto agli scenari che le chiedono.
+			TEXT("SpatialTrigger"),
+			TEXT("SemanticTrigger"),
+			TEXT("Teleport"),
+			// 🔒 RISERVATA AI TEST, e non diventera' MAI disponibile. Non e' una feature: e' il veicolo con cui
+			// `BlockedFirstTurnStaysBlocked` prova che un turno bloccato batte le assertion finali.
+			//
+			// Quel test usava un nome inventato — `CapabilityCheNonEsistera Mai` — proprio perche' non sarebbe
+			// mai atterrato: con un nome vero, il giorno in cui la capability diventa disponibile il turno
+			// verrebbe giocato e il test misurerebbe un'altra cosa. Da quando un nome sconosciuto vale `Error`
+			// quel veicolo non funziona piu', ma la ragione per cui era inventato resta valida — quindi il
+			// nome e' dichiarato QUI invece che scomparire, ed e' l'unica riga di questo elenco che non
+			// descrive un pezzo di gioco futuro.
+			//
+			// ⚠️ Non spostarla fra le disponibili per nessun motivo: `AvailableCapabilities()` e' l'insieme di
+			// cio' che il gioco sa fare, e questo nome non e' niente.
+			TEXT("NeverAvailable"),
+		};
+		// Le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato completato con `#582`:
+		// prima ne nominava due — e una capability che nessuno documenta produce un `BLOCKED` senza
+		// spiegazione, che e' meta' del valore.
 		//
 		//   `DecisionBoundary` e `ReactionClash` — la FINESTRA: sospendere la risoluzione e chiedere una
 		//   risposta. CP 14.4 ha consegnato la regola che riconosce un'opportunity contesa
@@ -138,6 +200,13 @@ namespace
 		//   il nome che resta e' **`DeclaredRotation`**, ora fra i disponibili qui sopra. `Facing` non e' un
 		//   nome di capability: chi scrive uno scenario chiede `DeclaredRotation`. Il facing di PIAZZAMENTO
 		//   (`FRTScenarioUnit::Facing`) non ha mai avuto bisogno di una capability e continua a non averne.
+		//
+		//   ⚠️ E infatti `Facing` **non e' in nessuno dei due insiemi**: da qui in avanti chiederlo e' un
+		//   `Error`. La riconciliazione era rimasta a meta' — `RT_Showcase_Relay_v01` lo chiedeva ancora al
+		//   turno 4, `["DecisionBoundary", "Facing"]` — e non se ne accorgeva nessuno perche' quel turno era
+		//   gia' `Blocked` per il primo dei due nomi. Lo scenario ora chiede `DeclaredRotation`, e il suo
+		//   esito non cambia di una riga: resta bloccato su `DecisionBoundary`, che e' il punto — la
+		//   correzione di un refuso non deve spostare un verdetto.
 		//
 		//   `InterceptRevalidation`, `Objective`, `Perception` — chieste da scenari gia' in repo. Restano fuori
 		//   finche' qualcuno non misura, come si e' fatto qui per `Reaction`, che il gioco le sappia fare in
@@ -177,7 +246,24 @@ namespace
 		//   aggiungere una riga qui sopra: **nessuna chiave di scenario finche' non esiste un produttore che
 		//   non sia l'harness.** Il prossimo caso noto e' la CONDIZIONE dichiarata di [D-109]
 		//   (`TargetHealthAtOrBelowPercent`), citata poco piu' su.
-		return Available.Contains(Capability);
+		return KnownUnavailable;
+	}
+
+	/** Il gioco sa fare questa cosa **oggi**? Un `no` e' un'attesa legittima, e vale `Blocked`. */
+	bool IsCapabilityAvailable(const FString& Capability)
+	{
+		return AvailableCapabilities().Contains(Capability);
+	}
+
+	/**
+	 * Questo nome esiste nel vocabolario, disponibile o no?
+	 *
+	 * Un `no` non e' un'attesa: e' un REFUSO nello scenario, e vale `Error`. La distinzione e' l'intera
+	 * ragione per cui i due insiemi sono separati — vedi `KnownUnavailableCapabilities()`.
+	 */
+	bool IsCapabilityKnown(const FString& Capability)
+	{
+		return AvailableCapabilities().Contains(Capability) || KnownUnavailableCapabilities().Contains(Capability);
 	}
 
 	/**
@@ -269,6 +355,11 @@ namespace
 		}
 		return nullptr;
 	}
+}
+
+bool FRTScenarioSession::IsKnownCapability(const FString& Capability)
+{
+	return IsCapabilityKnown(Capability);
 }
 
 bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenario)
@@ -518,6 +609,27 @@ void FRTScenarioSession::BeginTurn()
 	{
 		Finish();
 		return;
+	}
+
+	// PRIMA passata: un nome che il vocabolario non conosce e' un refuso di chi ha scritto lo scenario, non
+	// un'attesa del gioco — `Error`, che ha precedenza su tutto (vedi `ErroredBy`).
+	//
+	// ⚠️ Va PRIMA della disponibilita', e non e' un dettaglio d'ordine: nello stesso `requires` un refuso puo'
+	// stare accanto a una capability legittimamente assente, e chiedendo prima la disponibilita' il refuso si
+	// nasconderebbe dietro il `Blocked` dell'altra senza che nulla lo dica. E' esattamente il caso che ha
+	// tenuto invisibile `Facing` in `RT_Showcase_Relay_v01` turno 4: `["DecisionBoundary", "Facing"]`.
+	for (const FString& Required : Scenario.Turns[TurnIndex].Requires)
+	{
+		if (!IsCapabilityKnown(Required))
+		{
+			ErroredBy = FString::Printf(
+				TEXT("turno %d: la capability '%s' non esiste. Non e' un'attesa: e' un nome che nessun elenco ")
+				TEXT("dichiara, quindi lo scenario e' scritto male. I nomi validi stanno in ")
+				TEXT("`RTScenarioSession.cpp`, `AvailableCapabilities()` e `KnownUnavailableCapabilities()`."),
+				TurnIndex + 1, *Required);
+			Finish();
+			return;
+		}
 	}
 
 	// Il turno chiede qualcosa che il gioco non sa ancora fare? Ci si ferma QUI, dichiarando cosa manca.

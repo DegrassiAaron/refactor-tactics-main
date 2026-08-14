@@ -2046,7 +2046,7 @@
       "id": "RT_Showcase_Relay_v01",
       "requires": [
         "DecisionBoundary",
-        "Facing",
+        "DeclaredRotation",
         "InterceptRevalidation",
         "Objective",
         "PredictiveAction"
@@ -2260,7 +2260,7 @@
       "id": "Spec.Overwatch.HoldThenFire",
       "requires": [
         "DecisionBoundary",
-        "Facing"
+        "DeclaredRotation"
       ],
       "path": "Scenarios/Spec/Overwatch/HoldThenFire.json"
     },
