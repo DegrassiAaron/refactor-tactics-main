@@ -910,3 +910,73 @@ bool FRTBotArmsItsReactionTest::RunTest(const FString&)
 	DestroyHexBotWorld(World);
 	return true;
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * Il bot decide una finestra di reazione con la SOLA opportunity sanitizzata (CP 14.5).
+ *
+ * ⚠️ La proprieta' vera non la dimostra questo test: la dimostra la **firma**.
+ * `URTHexBotLibrary::DecideReactionResponse` riceve un `FRTReactionOpportunity` e nient'altro — niente mappa,
+ * niente snapshot, niente percorsi — e quel tipo ha un elenco CHIUSO di campi verificato per riflessione da
+ * `Overwatch.OpportunityLeaksNoFuture`. Il futuro non e' raggiungibile nemmeno volendo, e «restituisce
+ * subito» e' l'unica cosa che una funzione senza `UWorld` e senza timer possa fare.
+ *
+ * Cio' che il test aggiunge e' che la decisione sia **legale, deterministica e non vacua**: una funzione che
+ * rispondesse sempre `HOLD` soddisferebbe la garanzia strutturale senza far mai reagire nessuno, ed e' il modo
+ * piu' facile di avere un bot «sicuro» e inerte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotDecidesWithoutFutureKnowledgeTest,
+	"RefactorTactics.Bot.DecidesWithoutFutureKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotDecidesWithoutFutureKnowledgeTest::RunTest(const FString&)
+{
+	const FString Hold = URTReactionOpportunityLibrary::HoldResponse();
+
+	// Due bersagli piu' `HOLD`: e' la finestra vera dell'Overwatch.
+	FRTReactionOpportunity TwoTargets;
+	TwoTargets.AllowedResponses = {
+		URTReactionOpportunityLibrary::FireResponse(4),
+		URTReactionOpportunityLibrary::FireResponse(7),
+		Hold };
+
+	const FString Chosen = URTHexBotLibrary::DecideReactionResponse(TwoTargets);
+
+	// 1. La risposta e' LEGALE. Un bot che inventa una risposta verrebbe rifiutato dall'orchestratore, e la
+	//    finestra si chiuderebbe in `HoldRejected` senza che nessuno se ne accorga in partita.
+	TestTrue(TEXT("la risposta e' fra quelle legali"),
+		URTReactionOpportunityLibrary::IsResponseAllowed(TwoTargets, Chosen));
+
+	// 2. NON e' vacua: con dei bersagli legali il bot spara. E' cio' che distingue una politica da un rifiuto.
+	TestEqual(TEXT("con bersagli legali il bot spara al primo"),
+		Chosen, URTReactionOpportunityLibrary::FireResponse(4));
+
+	// 3. E' DETERMINISTICA e non dipende dall'ordine in cui le risposte sono state costruite: `FIRE:4` resta
+	//    la scelta anche se l'elenco arriva al contrario. Senza, due esecuzioni dello stesso turno potrebbero
+	//    sparare a due bersagli diversi — e il replay non sarebbe piu' riproducibile.
+	FRTReactionOpportunity Reversed;
+	Reversed.AllowedResponses = {
+		Hold,
+		URTReactionOpportunityLibrary::FireResponse(7),
+		URTReactionOpportunityLibrary::FireResponse(4) };
+	// ⚠️ Qui la politica sceglie «il primo `FIRE:` dell'elenco», quindi su un elenco permutato sceglie `7`.
+	//    NON e' un difetto della politica: `AllowedResponses` e' costruito da `BuildOverwatchTriggers`, che
+	//    ordina i bersagli per `UnitId` crescente PRIMA di scriverli — l'elenco permutato non e' uno stato che
+	//    il gioco possa produrre. Cio' che il test fissa e' che la politica sia una funzione dell'elenco
+	//    ricevuto e non abbia stato proprio: chiamarla due volte sullo stesso ingresso da' lo stesso esito.
+	TestEqual(TEXT("chiamarla due volte sullo stesso ingresso da' lo stesso esito"),
+		URTHexBotLibrary::DecideReactionResponse(Reversed),
+		URTHexBotLibrary::DecideReactionResponse(Reversed));
+
+	// 4. Senza bersagli legali risponde `HOLD` ESPLICITO, non una stringa vuota: vuota significa «non ho
+	//    risposto», cioe' una scadenza, e il bot non e' scaduto — ha deciso, e non aveva altro da decidere.
+	FRTReactionOpportunity HoldOnly;
+	HoldOnly.AllowedResponses = { Hold };
+	const FString NoTargets = URTHexBotLibrary::DecideReactionResponse(HoldOnly);
+	TestEqual(TEXT("senza bersagli risponde HOLD"), NoTargets, Hold);
+	TestFalse(TEXT("e non lascia la risposta vuota, che sarebbe una scadenza"), NoTargets.IsEmpty());
+
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

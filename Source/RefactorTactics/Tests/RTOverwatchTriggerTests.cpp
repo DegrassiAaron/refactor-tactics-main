@@ -8,10 +8,19 @@
 //   3. `Rilevato` e' necessario: un contatto `Incerto` e' informazione, non un bersaglio;
 //   4. l'ordine fra reazioni diverse e' totale e non dipende da come il chiamante ha costruito gli array.
 //
-// Cio' che questi test NON coprono, e va detto: la finestra di 3,0 s, il commit, il troncamento del movimento
-// e il cablaggio di `Vektor.InterceptShot` sono CP 14.5. Qui si produce l'opportunity, non la si risolve.
+// Cio' che questi test NON coprono, e va detto: la finestra di 3,0 s, il commit e il troncamento del movimento
+// sono CP 14.5. Qui si produce l'opportunity, non la si risolve.
+//
+// ⚠️ Questa riga nominava anche «il cablaggio di `Vektor.InterceptShot`», ed era doppiamente falsa: [D-016]
+// ha reso `InterceptShot` una Predictive Action — decisa in Planning, risolta a un boundary, senza input live,
+// quindi senza finestra — e l'ha spostata in **E18**, dove e' chiusa dal 2026-08-10.
+//
+// ➕ Da CP 14.5 il file ospita anche `Overwatch.ActionIsInCoreCatalog`, che sta qui e non fra i test del
+// catalogo per una ragione di contesa: `RTCatalogTests.cpp` e' tenuto da un altro branch. La collocazione e'
+// comunque difendibile — cio' che il test pinna e' il PRODUTTORE di questi trigger, non il catalogo in se'.
 
 #include "Misc/AutomationTest.h"
+#include "Ability/RTCatalogLibrary.h" // `Action.Overwatch`: il produttore che CP 14.5 aggiunge al catalogo core
 #include "Combat/RTOffensiveActionLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
@@ -19,7 +28,11 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Perception/RTPerceptionLibrary.h"
+#include "Turn/RTHexSim.h"           // FRTMovementResolutionState: il ciclo che CP 14.5 guida da fuori
+#include "Turn/RTHexSimLibrary.h"    // Begin/ResolveNext/Finish + StopUnitInPlace
 #include "Turn/RTReactionOpportunityTypes.h"
+#include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h"   // serializzazione e hash: il replay della decisione
 #include "Turn/RTTurnRules.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -596,6 +609,579 @@ bool FRTOverwatchDeclaredConditionTest::RunTest(const FString&)
 			TestEqual(TEXT("senza il dato non si offre di sparare"), T[0].Opportunity.AllowedResponses.Num(), 1);
 		}
 	}
+
+	return true;
+}
+
+
+/**
+ * Chiamare la funzione UN PASSO ALLA VOLTA da' le stesse opportunity della chiamata sul percorso intero
+ * (CP 14.5).
+ *
+ * E' la proprieta' che rende lecito guidare il ciclo da fuori. `ARTTurnManager::ResolveMovement` non puo'
+ * passare i percorsi completi — calcolerebbe i trigger di micro-step non ancora avvenuti, e un `FIRE` alla
+ * finestra corrente cambia il futuro di chi viene fermato — quindi passa il solo passo appena compiuto. Se le
+ * due vie divergessero, i test di CP 14.4 continuerebbero a essere verdi verificando una funzione che in
+ * partita nessuno chiama piu' in quel modo.
+ *
+ * ⚠️ Il confronto e' sugli `OpportunityId`, non sul conteggio: il conteggio tornerebbe anche se ogni chiamata
+ * producesse `MicroStepIndex = 0`, che e' esattamente il difetto contro cui `FirstMicroStepIndex` esiste —
+ * tre opportunity con la stessa chiave, quindi lo stesso id, e un replay che ne confonde le decisioni.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSteppedCallMatchesWholePathTest,
+	"RefactorTactics.Overwatch.SteppedCallMatchesWholePath",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchSteppedCallMatchesWholePathTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeOverwatchMap();
+
+	FRTOverwatchWatcher Watcher = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, /*TeamId*/ 0,
+		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0));
+	Watcher.TeamAwareness.Add(9, ERTAwareness::Detected);
+
+	const TArray<FRTCellId> Path = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+
+	// (a) la via in BLOCCO: percorso intero, un colpo solo. E' quella che CP 14.4 gia' verifica.
+	TArray<FString> WholeIds;
+	for (const FRTOverwatchTrigger& T : URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+			Map, /*TurnNumber*/ 4, { Watcher }, { MakeOverwatchMover(9, /*TeamId*/ 1, Path) }))
+	{
+		WholeIds.Add(URTReactionOpportunityLibrary::DeriveOpportunityId(T.Opportunity.Key));
+	}
+
+	// (b) la via a PASSI: un mover di una cella sola per volta, con l'indice del turno accanto.
+	TArray<FString> SteppedIds;
+	for (int32 Step = 0; Step < Path.Num(); ++Step)
+	{
+		const TArray<FRTSuppressionMover> OneStep = { MakeOverwatchMover(9, /*TeamId*/ 1, { Path[Step] }) };
+		for (const FRTOverwatchTrigger& T : URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+				Map, /*TurnNumber*/ 4, { Watcher }, OneStep, /*Vitals*/ {}, /*FirstMicroStepIndex*/ Step))
+		{
+			SteppedIds.Add(URTReactionOpportunityLibrary::DeriveOpportunityId(T.Opportunity.Key));
+		}
+	}
+
+	TestEqual(TEXT("la via in blocco apre tre opportunity"), WholeIds.Num(), 3);
+	TestEqual(TEXT("la via a passi ne apre altrettante"), SteppedIds.Num(), WholeIds.Num());
+	for (int32 i = 0; i < WholeIds.Num() && i < SteppedIds.Num(); ++i)
+	{
+		TestEqual(FString::Printf(TEXT("l'opportunity %d ha lo stesso id nelle due vie"), i),
+			SteppedIds[i], WholeIds[i]);
+	}
+
+	// E i tre id sono DISTINTI fra loro: senza, l'uguaglianza qui sopra sarebbe soddisfatta anche da tre
+	// copie dello stesso id — cioe' proprio il collasso che il parametro deve impedire.
+	TSet<FString> Distinct(SteppedIds);
+	TestEqual(TEXT("i tre id sono distinti"), Distinct.Num(), SteppedIds.Num());
+
+	return true;
+}
+
+
+/**
+ * `Action.Overwatch` esiste nel catalogo core, ed e' l'ULTIMA delle generiche (CP 14.5).
+ *
+ * Fino a qui l'Overwatch era un `ReactionDefId` che solo i test scrivevano: `RTCatalogLibrary.h` lo dichiarava
+ * assente («e' E14, e arrivera' con la sua infrastruttura»), quindi in partita nessuno poteva armarlo e la
+ * finestra non aveva un innesco reale. Questo test pinna il produttore.
+ *
+ * ⚠️ La seconda meta' — l'ordine — non e' pedanteria. Le generiche sono ACCODATE al kit di ogni unita'
+ * (`URTCatalogLibrary::MakeGenericActions`), quindi la loro posizione diventa un indice stabile, e
+ * `PlannedAbilityIndex` / `PlannedReactionAbility` sono indici. Inserire `Overwatch` in mezzo sposterebbe
+ * `Guard` e `Brace` sotto i piedi di ogni piano gia' scritto, senza che nulla smetta di compilare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchActionIsInCoreCatalogTest,
+	"RefactorTactics.Overwatch.ActionIsInCoreCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchActionIsInCoreCatalogTest::RunTest(const FString&)
+{
+	const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Overwatch"));
+
+	TestFalse(TEXT("`Action.Overwatch` e' nel catalogo core"), Def.ActionId.IsNone());
+
+	// I valori del catalogo di bilanciamento (`docs/balance/RT_ActionCatalog_v0.1.md` §1), non scelti qui.
+	TestEqual(TEXT("si arma nel Prep"), Def.ResolutionPhase, ERTResolutionPhase::Preparation);
+	TestEqual(TEXT("priorita' 45"), Def.Priority, 45);
+	TestEqual(TEXT("nessun cooldown"), Def.CooldownTurns, 0);
+	TestEqual(TEXT("fallback `Cancel`"), Def.Fallback, ERTActionFallback::Cancel);
+	TestEqual(TEXT("costa l'azione principale, non lo slot reazione"), Def.Slot, ERTActionSlot::Main);
+	TestFalse(TEXT("non interrompibile: una volta armata, c'e'"), Def.bCanBeInterrupted);
+
+	// PORTATA ed EFFETTO restano fuori, come per `Action.BasicAttack` e per la stessa ragione: dipendono dal
+	// PROFILO — area, arco, raggio e cosa scatta — e i profili dei quattro eroi della v0.1 sono ancora una
+	// domanda aperta (`brief-azioni-generiche-overwatch.md` §8). Un numero qui ne sceglierebbe uno arbitrario
+	// per tutti, e sarebbe indistinguibile da una decisione presa.
+	TestEqual(TEXT("la portata la dichiara il profilo, non l'azione"), Def.RangeCells, 0);
+	TestEqual(TEXT("l'effetto lo dichiara il profilo, non l'azione"), Def.Effects.Num(), 0);
+
+	// L'azione e' generica: ogni eroe la possiede, non e' la skill di nessuno (D-025, catalogo eroi §Overwatch).
+	const TArray<FName> Generic = URTCatalogLibrary::GetGenericActionIds();
+	TestTrue(TEXT("e' fra le azioni generiche"), Generic.Contains(FName(TEXT("Action.Overwatch"))));
+
+	// L'ordine, per intero e non solo «l'ultima»: cosi' il test cade anche se qualcuno ne inserisse una quinta
+	// prima delle esistenti invece che dopo.
+	const TArray<FName> Expected = {
+		TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch") };
+	TestEqual(TEXT("le generiche sono quattro"), Generic.Num(), Expected.Num());
+	for (int32 i = 0; i < Expected.Num() && i < Generic.Num(); ++i)
+	{
+		TestEqual(FString::Printf(TEXT("la generica %d e' `%s`"), i, *Expected[i].ToString()),
+			Generic[i], Expected[i]);
+	}
+
+	return true;
+}
+
+
+/**
+ * Allo scadere della finestra vale `HOLD`, sempre e per costruzione (ADR-0004 §3, CP 14.5).
+ *
+ * Mai `FIRE`, e l'asimmetria e' il punto: `FIRE` consuma una risorsa irreversibile, e un input mancato non
+ * deve poterla spendere. Il test interroga la funzione su opportunity **diverse** — una con due bersagli, una
+ * con uno solo — perche' «restituisce sempre HOLD» sia una proprieta' e non il caso che ho scritto io.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchTimeoutIsHoldTest,
+	"RefactorTactics.Overwatch.TimeoutIsHold",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchTimeoutIsHoldTest::RunTest(const FString&)
+{
+	const FString Hold = URTReactionOpportunityLibrary::HoldResponse();
+
+	FRTReactionOpportunity TwoTargets;
+	TwoTargets.AllowedResponses = {
+		URTReactionOpportunityLibrary::FireResponse(3),
+		URTReactionOpportunityLibrary::FireResponse(9),
+		Hold };
+
+	FRTReactionOpportunity OneTarget;
+	OneTarget.AllowedResponses = { URTReactionOpportunityLibrary::FireResponse(3), Hold };
+
+	FRTReactionOpportunity HoldOnly;
+	HoldOnly.AllowedResponses = { Hold };
+
+	for (const FRTReactionOpportunity* O : { &TwoTargets, &OneTarget, &HoldOnly })
+	{
+		const FRTReactionDecision D = URTReactionOpportunityLibrary::DecisionOnTimeout(*O);
+		TestEqual(TEXT("lo scadere risponde HOLD"), D.Response, Hold);
+		TestEqual(TEXT("e lo dichiara come scadenza, non come scelta"),
+			D.Outcome, ERTReactionDecisionOutcome::HoldTimeout);
+		// Il controllo che conta davvero: non e' un `FIRE` sotto mentite spoglie.
+		TestEqual(TEXT("nessun bersaglio: lo scadere non spende la charge"),
+			URTReactionOpportunityLibrary::FireResponseTarget(D.Response), (int32)INDEX_NONE);
+	}
+
+	return true;
+}
+
+
+/**
+ * `HOLD` perde l'OPPORTUNITY, non la reaction (CP 14.5): finche' il watcher resta armato, un micro-step
+ * successivo puo' aprirne un'altra.
+ *
+ * E' la proprieta' che rende possibile il *bait*: lascio passare il primo perche' penso che dietro arrivi di
+ * meglio. Senza, la prima unita' che entra brucerebbe sempre l'Overwatch — che e' esattamente l'alternativa
+ * che ADR-0004 ha scartato («il bait diventa banale»).
+ *
+ * ⚠️ Le due meta' si verificano insieme e in opposizione: armato apre, disarmato non apre. Solo la prima
+ * sarebbe soddisfatta anche da un trigger che ignora del tutto `bArmed`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchHoldKeepsArmedTest,
+	"RefactorTactics.Overwatch.HoldKeepsArmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchHoldKeepsArmedTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeOverwatchMap();
+
+	FRTOverwatchWatcher Armed = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, /*TeamId*/ 0,
+		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0));
+	Armed.TeamAwareness.Add(9, ERTAwareness::Detected);
+
+	// Il bersaglio attraversa DUE celle controllate: il passo 0 e' l'opportunity che si lascia cadere, il
+	// passo 1 e' quella che deve ancora potersi aprire.
+	const TArray<FRTCellId> Path = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) };
+
+	const TArray<FRTOverwatchTrigger> Step0 = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 2, { Armed }, { MakeOverwatchMover(9, 1, { Path[0] }) }, {}, /*Step*/ 0);
+	TestEqual(TEXT("il primo passo apre una finestra"), Step0.Num(), 1);
+
+	// Dopo un `HOLD` la charge NON si spende, quindi il watcher del passo dopo e' ancora questo.
+	const TArray<FRTOverwatchTrigger> Step1 = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 2, { Armed }, { MakeOverwatchMover(9, 1, { Path[1] }) }, {}, /*Step*/ 1);
+	TestEqual(TEXT("dopo un HOLD il passo successivo ne apre un'altra"), Step1.Num(), 1);
+
+	if (Step0.Num() == 1 && Step1.Num() == 1)
+	{
+		// Due opportunity DISTINTE, non la stessa riofferta: e' cio' che il replay deve poter separare.
+		TestNotEqual(TEXT("sono due finestre diverse"),
+			URTReactionOpportunityLibrary::DeriveOpportunityId(Step0[0].Opportunity.Key),
+			URTReactionOpportunityLibrary::DeriveOpportunityId(Step1[0].Opportunity.Key));
+	}
+
+	// L'altra meta': speso il colpo, il watcher non arma piu' niente. `bArmed` E' il `ReactionStillArmed`
+	// della condizione di trigger (ADR-0004 §6), ed e' cio' che il boundary azzera su un `FIRE`.
+	FRTOverwatchWatcher Spent = Armed;
+	Spent.bArmed = false;
+	const TArray<FRTOverwatchTrigger> AfterFire = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 2, { Spent }, { MakeOverwatchMover(9, 1, { Path[1] }) }, {}, /*Step*/ 1);
+	TestEqual(TEXT("dopo un FIRE la reaction non apre piu' nulla"), AfterFire.Num(), 0);
+
+	return true;
+}
+
+
+/**
+ * Un `FIRE` TRONCA il movimento residuo del bersaglio, che resta nella cella raggiunta (CP 14.5).
+ *
+ * Il troncamento avviene **dentro** il calcolo, non correggendo i risultati a movimento concluso: e' la
+ * differenza fra fermare un'unita' e riscrivere dove era arrivata. La verifica e' su tutte e tre le cose che
+ * devono cambiare insieme — la cella finale, le celle attraversate, e il reason code — perche' una sola
+ * potrebbe tornare anche con un troncamento fatto male.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchFireTruncatesFutureMovementTest,
+	"RefactorTactics.Overwatch.FireTruncatesFutureMovement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchFireTruncatesFutureMovementTest::RunTest(const FString&)
+{
+	// Percorso di tre passi: (0,0,0) -> (1,0,0) -> (2,0,0) -> (3,0,0).
+	const TArray<TArray<FRTCellId>> Paths = { {
+		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) } };
+
+	// (a) senza interruzione: arriva in fondo. E' il controllo che rende significativo il (b).
+	{
+		const TArray<FRTHexMoveResult> Full = URTHexSimLibrary::ResolveHexPaths(Paths);
+		TestTrue(TEXT("senza overwatch arriva a destinazione"), Full[0].Final == FRTCellId(3, 0, 0));
+		TestEqual(TEXT("e ha percorso tre celle"), Full[0].Entered.Num(), 3);
+	}
+
+	// (b) fermata dopo il PRIMO micro-step, come farebbe un `FIRE` alla finestra del passo 0.
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths);
+	TestTrue(TEXT("il primo micro-step muove"), URTHexSimLibrary::ResolveNextHexMicroStep(State));
+	URTHexSimLibrary::StopUnitInPlace(State, /*UnitId*/ 0, ERTMoveOutcome::StoppedByOverwatch);
+	const TArray<FRTHexMoveResult> Truncated = URTHexSimLibrary::FinishHexMovement(State);
+
+	TestTrue(TEXT("resta nella cella raggiunta"), Truncated[0].Final == FRTCellId(1, 0, 0));
+	TestEqual(TEXT("ha percorso una cella sola"), Truncated[0].Entered.Num(), 1);
+	// Il reason code e' il suo, non «cella occupata»: la cella davanti era libera, a fermarla e' stato un colpo.
+	TestTrue(TEXT("il TurnLog dira' che l'ha fermata un overwatch"),
+		Truncated[0].Outcome == ERTMoveOutcome::StoppedByOverwatch);
+
+	return true;
+}
+
+
+/**
+ * L'interruzione cambia le COLLISIONI dei micro-step successivi (CP 14.5).
+ *
+ * E' la ragione per cui la finestra deve aprirsi dentro il calcolo e non a movimento concluso: un'unita'
+ * fermata al passo 1 non contende piu' la cella del passo 2, e chi la contendeva con lei ora ci entra. Se il
+ * troncamento fosse una correzione a posteriori sui risultati, questo test resterebbe rosso — i risultati
+ * dell'altra unita' sarebbero gia' stati scritti su un mondo in cui la prima era passata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchInterruptionAffectsLaterCollisionTest,
+	"RefactorTactics.Overwatch.InterruptionAffectsLaterCollision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchInterruptionAffectsLaterCollisionTest::RunTest(const FString&)
+{
+	// Due unita' che convergono sulla STESSA cella finale, ciascuna in due passi.
+	const TArray<TArray<FRTCellId>> Paths = {
+		{ FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) },
+		{ FRTCellId(4, 0, 0), FRTCellId(3, 0, 0), FRTCellId(2, 0, 0) } };
+
+	// (a) senza interruzione: al secondo passo la cella e' contesa a parita' di priorita' -> restano ferme
+	// entrambe. E' lo stato del mondo che l'interruzione deve poter cambiare.
+	{
+		const TArray<FRTHexMoveResult> Both = URTHexSimLibrary::ResolveHexPaths(Paths);
+		TestTrue(TEXT("senza overwatch la cella contesa ferma la seconda"), Both[1].Final == FRTCellId(3, 0, 0));
+		TestTrue(TEXT("e il motivo e' la contesa"), Both[1].Outcome == ERTMoveOutcome::BlockedContested);
+	}
+
+	// (b) la prima viene fermata dopo il passo 1: al passo 2 non contende piu' niente.
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths);
+	TestTrue(TEXT("il primo micro-step muove entrambe"), URTHexSimLibrary::ResolveNextHexMicroStep(State));
+	URTHexSimLibrary::StopUnitInPlace(State, /*UnitId*/ 0, ERTMoveOutcome::StoppedByOverwatch);
+	const TArray<FRTHexMoveResult> After = URTHexSimLibrary::FinishHexMovement(State);
+
+	TestTrue(TEXT("la fermata resta dov'era"), After[0].Final == FRTCellId(1, 0, 0));
+	// IL PUNTO: l'altra unita' ora entra, e non perche' qualcuno abbia toccato il suo risultato.
+	TestTrue(TEXT("l'altra ora entra nella cella che era contesa"), After[1].Final == FRTCellId(2, 0, 0));
+	TestTrue(TEXT("e il suo esito diventa `Moved`"), After[1].Outcome == ERTMoveOutcome::Moved);
+
+	return true;
+}
+
+
+/**
+ * Guidare il ciclo a passi senza rispondere niente da' ESATTAMENTE la risoluzione in blocco (CP 14.5).
+ *
+ * E' la garanzia di non-regressione del checkpoint: `ResolveMovement` ha smesso di chiamare `ResolveHexPaths`
+ * e ora pilota `Begin`/`ResolveNext`/`Finish`, quindi ogni turno senza Overwatch armati deve restare identico
+ * a prima. Un `HOLD` non e' altro che questo — una finestra che si apre e non cambia nulla — ed e' per questo
+ * che il test si chiama cosi': verifica che dopo una finestra il movimento **riprenda dallo stesso stato**.
+ *
+ * Il confronto e' su tutte e tre le uscite di ogni unita', non sulla sola cella finale: due risoluzioni
+ * possono finire nello stesso posto avendo attraversato celle diverse, e sono due partite diverse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchHoldResumesSameMovementStateTest,
+	"RefactorTactics.Overwatch.HoldResumesSameMovementState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchHoldResumesSameMovementStateTest::RunTest(const FString&)
+{
+	// Tre unita' con lunghezze diverse, una contesa e uno scambio: se le due vie divergono, divergono qui.
+	const TArray<TArray<FRTCellId>> Paths = {
+		{ FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) },
+		{ FRTCellId(5, 0, 0), FRTCellId(4, 0, 0), FRTCellId(3, 0, 0) },
+		{ FRTCellId(0, 1, 0), FRTCellId(1, 1, 0) } };
+
+	const TArray<FRTHexMoveResult> Bulk = URTHexSimLibrary::ResolveHexPaths(Paths);
+
+	// La via a passi, con una "finestra" a ogni micro-step che risponde HOLD — cioe' non fa niente.
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths);
+	int32 Steps = 0;
+	while (URTHexSimLibrary::ResolveNextHexMicroStep(State))
+	{
+		++Steps; // il boundary si apre qui e lascia cadere l'opportunity: nessuna chiamata, nessun effetto
+	}
+	const TArray<FRTHexMoveResult> Stepped = URTHexSimLibrary::FinishHexMovement(State);
+
+	// Il ciclo ha girato davvero: senza questo, due array vuoti sarebbero «uguali» e il test sarebbe vacuo.
+	TestTrue(TEXT("il ciclo ha eseguito almeno un micro-step"), Steps > 0);
+	TestEqual(TEXT("stesso numero di unita'"), Stepped.Num(), Bulk.Num());
+	for (int32 i = 0; i < Bulk.Num() && i < Stepped.Num(); ++i)
+	{
+		TestTrue(FString::Printf(TEXT("unita' %d: stessa cella finale"), i), Stepped[i].Final == Bulk[i].Final);
+		TestTrue(FString::Printf(TEXT("unita' %d: stesso esito"), i), Stepped[i].Outcome == Bulk[i].Outcome);
+		TestEqual(FString::Printf(TEXT("unita' %d: stesse celle attraversate"), i),
+			Stepped[i].Entered.Num(), Bulk[i].Entered.Num());
+		for (int32 c = 0; c < Bulk[i].Entered.Num() && c < Stepped[i].Entered.Num(); ++c)
+		{
+			TestTrue(FString::Printf(TEXT("unita' %d: cella %d"), i, c),
+				Stepped[i].Entered[c] == Bulk[i].Entered[c]);
+		}
+	}
+
+	return true;
+}
+
+
+/**
+ * La decisione entra nel TurnLog come DATO e il replay la ritrova (CP 14.5).
+ *
+ * «Replayabile» qui significa una cosa precisa e verificabile: i byte scritti si rileggono identici, e la
+ * traccia che ne esce ha lo stesso hash. Senza, la decisione di un giocatore vivrebbe solo nella memoria
+ * della sessione che l'ha presa, e rieseguire il turno vorrebbe dire richiedergliela — cioe' non sarebbe un
+ * replay.
+ *
+ * ⚠️ Il test verifica anche la meta' NEGATIVA, ed e' quella che rende il resto significativo: due decisioni
+ * che differiscono solo per il bersaglio scelto devono dare hash **diversi**. Senza, un formato che scartasse
+ * `SelectedTargetUnitId` passerebbe tutti i controlli di round-trip dicendo che sparare ad A e sparare a B
+ * sono la stessa partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchDecisionIsReplayableTest,
+	"RefactorTactics.Overwatch.DecisionIsReplayable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchDecisionIsReplayableTest::RunTest(const FString&)
+{
+	FRTReactionOpportunityKey Key;
+	Key.TurnNumber = 3;
+	Key.MacroPhase = ERTMatchPhase::Move;
+	Key.MicroStepIndex = 2;
+	Key.OwnerId = 1;
+	Key.ReactionDefId = TEXT("Action.Overwatch");
+
+	FRTTurnLogEntry Fire;
+	Fire.Phase = ERTMatchPhase::Move;
+	Fire.Category = ERTLogCategory::ReactionDecision;
+	Fire.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
+	Fire.ActionId = TEXT("Action.Overwatch");
+	Fire.SrcCell = FRTCellId(0, 0, 0);
+	Fire.TgtCell = FRTCellId(2, 0, 0);
+	Fire.Amount = 12;
+	Fire.TurnNumber = 3;
+	Fire.OpportunityId = URTReactionOpportunityLibrary::DeriveOpportunityId(Key);
+	Fire.ReactionInstanceId = 0;
+	Fire.SelectedTargetUnitId = 9;
+
+	const TArray<FRTTurnLogEntry> Log = { Fire };
+
+	// (a) round-trip: i byte si rileggono, e i tre campi della v8 sopravvivono.
+	const TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(Log, ERTLogTopology::Hex, NAME_None);
+	TArray<FRTTurnLogEntry> Back;
+	TestTrue(TEXT("la traccia con una decisione si rilegge"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Back, nullptr, nullptr));
+	TestEqual(TEXT("una voce"), Back.Num(), 1);
+	if (Back.Num() == 1)
+	{
+		TestEqual(TEXT("l'id della finestra sopravvive"), Back[0].OpportunityId, Fire.OpportunityId);
+		TestEqual(TEXT("il bersaglio scelto sopravvive"), Back[0].SelectedTargetUnitId, 9);
+		TestEqual(TEXT("l'istanza sopravvive"), Back[0].ReactionInstanceId, 0);
+		TestEqual(TEXT("l'esito sopravvive"), Back[0].Outcome, Fire.Outcome);
+		TestEqual(TEXT("il danno sopravvive"), Back[0].Amount, 12);
+	}
+
+	// (b) l'hash e' lo stesso: rieseguire lo stesso turno con le stesse risposte da' la stessa traccia.
+	TestEqual(TEXT("stesse decisioni, stesso hash"),
+		URTTurnLogLibrary::HashTurnLog(Back), URTTurnLogLibrary::HashTurnLog(Log));
+
+	// (c) la meta' NEGATIVA: una decisione diversa e' una partita diversa.
+	FRTTurnLogEntry OtherTarget = Fire;
+	OtherTarget.SelectedTargetUnitId = 8;
+	TestNotEqual(TEXT("sparare a un altro bersaglio cambia l'hash"),
+		URTTurnLogLibrary::HashTurnLog({ OtherTarget }), URTTurnLogLibrary::HashTurnLog(Log));
+
+	FRTTurnLogEntry Held = Fire;
+	Held.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
+	Held.SelectedTargetUnitId = INDEX_NONE;
+	Held.Amount = 0;
+	TestNotEqual(TEXT("tenere il colpo invece di sparare cambia l'hash"),
+		URTTurnLogLibrary::HashTurnLog({ Held }), URTTurnLogLibrary::HashTurnLog(Log));
+
+	// (d) i campi della v8 non possono perturbare una voce che NON e' una decisione — e' la garanzia che il
+	// corpus golden esistente non si sposta. La guardia nel mixer e' `if (!OpportunityId.IsEmpty())`, quindi
+	// il modo di provarla e' cambiare `SelectedTargetUnitId` su una voce con id VUOTO: se l'hash si muove, la
+	// guardia non c'e' o non copre.
+	//
+	// ⚠️ Questo controllo era scritto come «copia contro copia» e non dimostrava nulla: due strutture
+	// identiche hanno lo stesso hash qualunque cosa faccia il mixer.
+	FRTTurnLogEntry PlainMove;
+	PlainMove.Phase = ERTMatchPhase::Move;
+	PlainMove.Category = ERTLogCategory::Move;
+	PlainMove.Outcome = static_cast<uint8>(ERTMoveOutcome::Moved);
+	PlainMove.SrcCell = FRTCellId(0, 0, 0);
+	PlainMove.TgtCell = FRTCellId(1, 0, 0);
+
+	FRTTurnLogEntry Perturbed = PlainMove;
+	Perturbed.SelectedTargetUnitId = 7;   // un valore che su una voce di decisione cambierebbe l'hash
+	Perturbed.ReactionInstanceId = 4;
+	TestEqual(TEXT("senza un id di finestra i campi della v8 non toccano l'hash"),
+		URTTurnLogLibrary::HashTurnLog({ Perturbed }), URTTurnLogLibrary::HashTurnLog({ PlainMove }));
+
+	// E la controprova, perche' il controllo di sopra sarebbe soddisfatto anche da un mixer che ignora
+	// `SelectedTargetUnitId` SEMPRE: con l'id presente, lo stesso campo deve invece contare. E' gia' il
+	// punto (c), ripetuto qui accanto perche' i due si leggono insieme.
+	TestNotEqual(TEXT("con un id di finestra, invece, conta"),
+		URTTurnLogLibrary::HashTurnLog({ OtherTarget }), URTTurnLogLibrary::HashTurnLog(Log));
+
+	return true;
+}
+
+
+/**
+ * Misura dell'overhead della risoluzione SEGMENTATA, con decisore a risposte immediate (CP 14.5).
+ *
+ * ⚠️ **E' un LIMITE INFERIORE, e va letto come tale.** Con un decisore che risponde subito il *Decision Time*
+ * e' nullo **per costruzione**, quindi questo numero non puo' falsificare la soglia dei 20 s di ADR-0004: la
+ * componente di decisione e' aritmetica (`MaxPromptsPerReaction × FastReactionDuration`) e si misura con
+ * decisori veri in CP 14.6 (`#166`), che e' il punto di taratura ([D-128]). Cio' che si misura qui e' l'altra
+ * meta' — quanto costa **spezzare** la risoluzione in segmenti — ed e' reale, utile e sotto il vero.
+ *
+ * Cosa e' incluso: il ciclo a micro-step, la costruzione dei mover a ogni passo, `BuildOverwatchTriggers` e la
+ * decisione del bot. Cosa **non** e' incluso, e va detto: la proiezione della conoscenza di squadra, che
+ * `ARTTurnManager::ResolveReactionBoundary` ricalcola a ogni passo e che qui e' un dato costante. Il numero
+ * vero in partita e' quindi piu' alto anche di questo — un limite inferiore del limite inferiore.
+ *
+ * Non asserisce una soglia: una soglia temporale in una suite che gira su macchine diverse sarebbe rossa a
+ * giorni alterni senza dire niente su nessuno. Asserisce che la misura sia stata **presa davvero** e che le
+ * due vie diano lo stesso esito — un overhead misurato su due risoluzioni diverse non sarebbe un overhead.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSegmentedResolutionOverheadTest,
+	"RefactorTactics.Overwatch.SegmentedResolutionOverhead",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchSegmentedResolutionOverheadTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeOverwatchMap();
+
+	// Quattro unita' che percorrono cinque celle: la forma di un 2v2 in cui tutti si muovono.
+	TArray<TArray<FRTCellId>> Paths;
+	for (int32 u = 0; u < 4; ++u)
+	{
+		TArray<FRTCellId> P;
+		for (int32 s = 0; s <= 5; ++s)
+		{
+			P.Add(FRTCellId(s, u, 0));
+		}
+		Paths.Add(MoveTemp(P));
+	}
+
+	// Un Overwatch armato che controlla la corsia di una delle quattro: il caso che apre finestre davvero.
+	FRTOverwatchWatcher Watcher = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, /*TeamId*/ 0,
+		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), /*Range*/ 5);
+	for (int32 u = 0; u < 4; ++u)
+	{
+		Watcher.TeamAwareness.Add(u, ERTAwareness::Detected);
+	}
+
+	constexpr int32 Repetitions = 200;
+
+	// (a) la via IN BLOCCO: la risoluzione di prima di CP 14.5.
+	const double BulkStart = FPlatformTime::Seconds();
+	TArray<FRTHexMoveResult> BulkResult;
+	for (int32 r = 0; r < Repetitions; ++r)
+	{
+		BulkResult = URTHexSimLibrary::ResolveHexPaths(Paths);
+	}
+	const double BulkSeconds = FPlatformTime::Seconds() - BulkStart;
+
+	// (b) la via SEGMENTATA, col boundary a ogni micro-step e un decisore che risponde subito.
+	int32 WindowsOpened = 0;
+	const double SteppedStart = FPlatformTime::Seconds();
+	TArray<FRTHexMoveResult> SteppedResult;
+	for (int32 r = 0; r < Repetitions; ++r)
+	{
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths);
+		TArray<int32> EnteredBefore;
+		EnteredBefore.Init(0, Paths.Num());
+
+		int32 Step = 0;
+		while (URTHexSimLibrary::ResolveNextHexMicroStep(State))
+		{
+			TArray<FRTSuppressionMover> Movers;
+			for (int32 i = 0; i < State.Num(); ++i)
+			{
+				const int32 Now = State.Results[i].Entered.Num();
+				if (Now > EnteredBefore[i])
+				{
+					Movers.Add(MakeOverwatchMover(i, /*TeamId*/ 1, { State.Pos[i] }));
+				}
+				EnteredBefore[i] = Now;
+			}
+
+			for (const FRTOverwatchTrigger& T : URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+					Map, /*TurnNumber*/ 1, { Watcher }, Movers, /*Vitals*/ {}, Step))
+			{
+				// Decisore a risposta IMMEDIATA: nessun timer, nessuna attesa. E' il «decisore di test locale
+				// a questo checkpoint» che il DoD nomina, ed e' la ragione per cui il Decision Time e' zero.
+				(void)URTReactionOpportunityLibrary::IsResponseAllowed(T.Opportunity,
+					URTReactionOpportunityLibrary::HoldResponse());
+				if (r == 0) { ++WindowsOpened; }
+			}
+			++Step;
+		}
+		SteppedResult = URTHexSimLibrary::FinishHexMovement(State);
+	}
+	const double SteppedSeconds = FPlatformTime::Seconds() - SteppedStart;
+
+	// La misura vale solo se le due vie hanno risolto la STESSA cosa.
+	TestEqual(TEXT("le due vie risolvono lo stesso numero di unita'"), SteppedResult.Num(), BulkResult.Num());
+	for (int32 i = 0; i < BulkResult.Num() && i < SteppedResult.Num(); ++i)
+	{
+		TestTrue(FString::Printf(TEXT("unita' %d: stessa cella finale"), i),
+			SteppedResult[i].Final == BulkResult[i].Final);
+	}
+
+	// E solo se qualche finestra si e' davvero aperta: senza, si sarebbe misurato il ciclo a vuoto.
+	TestTrue(TEXT("almeno una finestra si e' aperta durante la misura"), WindowsOpened > 0);
+	TestTrue(TEXT("la misura e' stata presa"), SteppedSeconds > 0.0 && BulkSeconds > 0.0);
+
+	// REGISTRATA nel log, che e' cio' che il DoD chiede: il numero va nella PR, non in un assert.
+	const double BulkMs = BulkSeconds * 1000.0 / Repetitions;
+	const double SteppedMs = SteppedSeconds * 1000.0 / Repetitions;
+	AddInfo(FString::Printf(
+		TEXT("[CP 14.5] overhead della risoluzione segmentata (LIMITE INFERIORE, Decision Time nullo per ")
+		TEXT("costruzione): blocco %.4f ms/risoluzione, segmentata %.4f ms/risoluzione, delta %.4f ms ")
+		TEXT("(+%.1f%%), %d finestre aperte per risoluzione, %d ripetizioni"),
+		BulkMs, SteppedMs, SteppedMs - BulkMs,
+		BulkMs > 0.0 ? (SteppedMs - BulkMs) / BulkMs * 100.0 : 0.0,
+		WindowsOpened, Repetitions));
 
 	return true;
 }

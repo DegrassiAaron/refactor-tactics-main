@@ -8,6 +8,9 @@
 #include "Turn/RTMovementActionLibrary.h"
 #include "Turn/RTReactionLibrary.h"
 #include "Turn/RTPredictiveLibrary.h" // boundary della Predictive Action (E18): la decisione sta nel puro
+#include "Turn/RTReactionOpportunityTypes.h" // Decision Boundary dell'Overwatch (CP 14.5): opportunity e decisione
+#include "Combat/RTOffensiveActionLibrary.h" // MakeSuppressiveZone: la zona dell'Overwatch E' quella della soppressione
+#include "Perception/RTPerceptionLibrary.h" // TeamAwarenessOfCell: il trigger richiede `Rilevato` (ADR-0004 §6)
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
@@ -2345,6 +2348,65 @@ void ARTTurnManager::ResolvePrep()
 
 			// L'abilita' e' comunque SPESA: chi ha scommesso ha pagato il cooldown, che la previsione sia
 			// giusta o no. E' la meta' del costo che rende il whiff una scelta e non un tentativo gratuito.
+			Unit->ConsumeAbility(Index);
+			Unit->PlannedAbilityIndex = INDEX_NONE;
+			Unit->PlannedAttackTarget = nullptr;
+			continue;
+		}
+
+		// OVERWATCH (CP 14.5): si ARMA qui e reagisce ai micro-step del Move, quindi — come la predittiva —
+		// non entra fra le istanze che producono eventi adesso. La ragione e' anche piu' semplice: non ha
+		// `Effects` da tradurre, perche' cosa scatta lo dice il PROFILO e non l'azione.
+		//
+		// ⚠️ Il confronto e' sull'`ActionId`, non su un campo del `Def`, e va detto perche' il repository
+		// preferisce i discriminanti di dato: qui e' legittimo perche' `Action.Overwatch` e' un'azione
+		// GENERICA e universale, non l'abilita' di un eroe. E' lo stesso trattamento che il resolver riserva
+		// gia' a `Action.Cleanse`, `Action.Heal`, `Action.Interrupt` e `Action.ModifyArc`. La regola che
+		// `AGENTS.md`/`CLAUDE.md` pongono vieta i branch **per eroe**, ed e' un'altra cosa: quella nasce
+		// perche' il roster cresce, mentre le generiche sono sette e chiuse da D-025.
+		if (Ability->Def.ActionId == FName(TEXT("Action.Overwatch")))
+		{
+			FRTArmedOverwatch Armed;
+			Armed.Owner = Unit;
+			Armed.Facing = Unit->Facing; // il cono E' il facing (ADR-0005 §4c), dichiarato in Planning
+			Armed.ActionId = Ability->Def.ActionId;
+			Armed.BaseActionId = Ability->Def.BaseActionId;
+
+			// La condizione dichiarata ([D-109]). ⚠️ **Limite dichiarato**: il suo unico produttore in
+			// partita — `rt.Reaction.Condition` — passa da `SetPlannedReactionCondition`, che pretende un
+			// `PlannedReactionAbility` armato, cioe' lo **slot reazione**. L'Overwatch costa l'azione
+			// PRINCIPALE (catalogo §1: «armare l'Overwatch costa l'azione principale; lo slot reazione
+			// preparato e' un'altra cosa»), quindi oggi un piano di solo-Overwatch non riesce a dichiararne
+			// una. Il campo si legge lo stesso — e' quello che [D-109] definisce, e `BuildOverwatchTriggers`
+			// gia' lo consuma — ma finche' i due slot non sono riconciliati resta vuoto nel caso tipico.
+			// E' la meta' di `#583` che questo checkpoint sblocca senza chiudere.
+			Armed.Condition = Unit->PlannedReactionCondition;
+
+			// Portata e danno vengono dall'ARMA dell'eroe. L'attacco base si trova per `BaseActionId` e non
+			// per indice: «l'attacco base e' l'indice 0 del kit» e' vero oggi ma e' una convenzione, mentre
+			// `BaseActionId` e' una dichiarazione che il roster deve rispettare — e
+			// `Heroes.BasicAttackDeclaresItsBaseAction` la fa valere. Se un giorno l'indice 0 cambiasse, con
+			// la convenzione l'Overwatch avrebbe silenziosamente la portata di un'altra azione.
+			for (int32 A = 0; A < Unit->NumAbilities(); ++A)
+			{
+				const URTActionData* Weapon = Unit->GetAbility(A);
+				if (!Weapon || Weapon->Def.BaseActionId != FName(TEXT("Action.BasicAttack"))) { continue; }
+
+				Armed.RangeCells = FMath::Max(1, Weapon->Def.RangeCells);
+				for (const FRTActionEffectSpec& Effect : Weapon->Def.Effects)
+				{
+					if (Effect.Effect == ERTActionEffect::Damage) { Armed.Damage += Effect.Amount; }
+				}
+				break;
+			}
+
+			ArmedOverwatches.Add(Armed);
+			bPrepActiveThisTurn = true; // armare e' un beat di Prep osservabile, come la previsione
+
+			// L'azione principale e' SPESA nel momento in cui si arma, non quando si spara: e' il
+			// costo-opportunita' di D-012, ed e' cio' che rende la scommessa una scommessa. «Se nessun
+			// trigger avviene, l'investimento e' perso» (`brief-azioni-generiche-overwatch.md` §6).
+			// Da non confondere con la CHARGE, che `bCharged` tiene e che solo un `FIRE` consuma.
 			Unit->ConsumeAbility(Index);
 			Unit->PlannedAbilityIndex = INDEX_NONE;
 			Unit->PlannedAttackTarget = nullptr;
@@ -4777,6 +4839,284 @@ void ARTTurnManager::ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TA
 	}
 }
 
+FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportunity& Opportunity,
+	int32 OwnerUnitId, bool bOwnerIsBot) const
+{
+	// Cardinalita' <= 1: nessuna finestra si apre e non si chiede niente a nessuno (ADR-0004 §2). Il caso
+	// arriva davvero — una condizione dichiarata che filtri via tutti i bersagli lascia il solo `HOLD` — ed e'
+	// cosi' che il regime *Conditional* emerge dai dati invece che da un enum di policy parallelo.
+	if (!URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
+	{
+		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+			ERTReactionDecisionOutcome::HoldImmediate);
+	}
+
+	// Il decisore INIETTATO ha la precedenza su tutto, bot compreso: e' il punto di sostituzione, e un test
+	// che ne collega uno deve poter scriptare anche le risposte di un'unita' del bot.
+	if (!ReactionDecider.IsBound())
+	{
+		// Il bot decide da se', con la sola opportunity: la firma di `DecideReactionResponse` non gli lascia
+		// altro. Non passa dal delegate perche' non e' una configurazione — e' cio' che un'unita' del bot
+		// **e'**, e collegarlo a BeginPlay lo renderebbe scollegabile per sbaglio.
+		if (bOwnerIsBot)
+		{
+			const FString BotResponse = URTHexBotLibrary::DecideReactionResponse(Opportunity);
+			// Passa dalla stessa validazione di una risposta esterna. Non e' diffidenza verso il bot: e' che
+			// la legalita' di una risposta dev'essere decisa in UN posto, o due politiche diverse potrebbero
+			// applicare risposte che l'altra rifiuta.
+			if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, BotResponse))
+			{
+				return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+					ERTReactionDecisionOutcome::HoldRejected);
+			}
+			const bool bBotFires = URTReactionOpportunityLibrary::FireResponseTarget(BotResponse) != INDEX_NONE;
+			return FRTReactionDecision(BotResponse,
+				bBotFires ? ERTReactionDecisionOutcome::FireChosen : ERTReactionDecisionOutcome::HoldChosen);
+		}
+
+		// Un'unita' umana senza UI: la finestra esiste e nessuno puo' rispondere. Fail-closed nel verso
+		// giusto — senza decisore la charge non si spende. Il contrario, sparare per default, spenderebbe una
+		// risorsa irreversibile per una configurazione mancante. La UI e' CP 14.6 (`#166`).
+		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+			ERTReactionDecisionOutcome::HoldNoDecider);
+	}
+
+	// ⚠️ **Qui non si aspetta.** L'unica cosa che questa riga fa e' chiedere e ricevere: nessun `Sleep`,
+	// nessun `Delay`, nessun timer, nessuna Timeline. Chi decide in fretta — il bot, un decisore di test —
+	// risponde subito; una UI umana (CP 14.6) rispondera' invece con una stringa vuota fino a che il
+	// giocatore non ha scelto, e sara' l'orchestratore a richiamare. Il risultato LOGICO non dipende dal
+	// tempo reale in nessuno dei due casi, ed e' precisamente cio' che `Reactions.NoResolverWait` protegge.
+	const FString Response = ReactionDecider.Execute(Opportunity, OwnerUnitId);
+
+	// Vuota = «non ho risposto». Non e' un errore: e' la scadenza, e cosa valga allo scadere lo dice una
+	// funzione pura, non questo `if`.
+	if (Response.IsEmpty())
+	{
+		return URTReactionOpportunityLibrary::DecisionOnTimeout(Opportunity);
+	}
+
+	// Risposta STALE o inventata: rifiutata, e sostituita dal default. Non si applica «quello che voleva
+	// dire» — una risposta che nomina un bersaglio non piu' offerto e' una decisione presa su un mondo che
+	// non c'e' piu'.
+	if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, Response))
+	{
+		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+			ERTReactionDecisionOutcome::HoldRejected);
+	}
+
+	const bool bFire = URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE;
+	return FRTReactionDecision(Response,
+		bFire ? ERTReactionDecisionOutcome::FireChosen : ERTReactionDecisionOutcome::HoldChosen);
+}
+
+void ARTTurnManager::ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State,
+	const FRTReactionOpportunity& Opportunity, const FRTReactionDecision& Decision, int32 ArmedIndex)
+{
+	if (!ArmedOverwatches.IsValidIndex(ArmedIndex))
+	{
+		return;
+	}
+	FRTArmedOverwatch& Armed = ArmedOverwatches[ArmedIndex];
+	ARTUnit* WatchOwner = Armed.Owner.Get();
+	const int32 OwnerIdx = Opportunity.Key.OwnerId;
+	if (!IsValid(WatchOwner) || !State.Pos.IsValidIndex(OwnerIdx))
+	{
+		return;
+	}
+
+	// La voce e' COMUNE ai sei esiti, e non solo al `FIRE`: un `HOLD` che non lascia traccia renderebbe
+	// indistinguibile «ha scelto di non sparare» da «la finestra non si e' mai aperta», che sono la lettura
+	// riuscita e il difetto. E' la stessa ragione per cui `ERTReactionOutcome::NotTriggered` esiste dal CP 5.1.
+	FRTTurnLogEntry Entry;
+	Entry.Phase = ERTMatchPhase::Move;
+	Entry.Category = ERTLogCategory::ReactionDecision;
+	Entry.Outcome = static_cast<uint8>(Decision.Outcome);
+	Entry.ActionId = Armed.ActionId;
+	Entry.BaseActionId = Armed.BaseActionId;
+	Entry.OpportunityId = URTReactionOpportunityLibrary::DeriveOpportunityId(Opportunity.Key);
+	Entry.ReactionInstanceId = ArmedIndex;
+	Entry.SrcCell = State.Pos[OwnerIdx];
+	Entry.TgtCell = Entry.SrcCell;
+	Entry.Priority = URTCatalogLibrary::FindCoreAction(Armed.ActionId).Priority;
+
+	const int32 TargetIdx = URTReactionOpportunityLibrary::FireResponseTarget(Decision.Response);
+	const bool bFire = Decision.Outcome == ERTReactionDecisionOutcome::FireChosen
+		&& Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx]) && State.Pos.IsValidIndex(TargetIdx);
+
+	if (!bFire)
+	{
+		// `HOLD`, in tutte e cinque le sue forme: si perde l'OPPORTUNITY, non la reaction. `bCharged` resta
+		// vero, quindi un micro-step successivo puo' ancora aprire una finestra nuova — ed e' precisamente
+		// cio' che rende possibile il bait: lascio passare il tank perche' penso che dietro arrivi di meglio.
+		AppendLogEntry(Entry, WatchOwner);
+		return;
+	}
+
+	ARTUnit* Target = Units[TargetIdx];
+	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Armed.Damage, Target->Shield, Target->Health);
+	Target->ApplyCombatState(Result.Health, Result.Shield);
+
+	// La charge si spende QUI e in nessun altro punto: `Charges = 1` (ADR-0004 §8). Da questo momento il
+	// watcher non entra piu' fra quelli costruiti al micro-step successivo — `bArmed` falso e' il
+	// `ReactionStillArmed` della condizione di trigger.
+	Armed.bCharged = false;
+
+	// E il movimento residuo si TRONCA, dentro il calcolo. E' la meta' del `FIRE` che il DoD chiede per nome:
+	// il bersaglio resta nella cella raggiunta, e le collisioni dei micro-step successivi cambiano di
+	// conseguenza perche' quell'unita' non e' piu' dove sarebbe arrivata.
+	URTHexSimLibrary::StopUnitInPlace(State, TargetIdx, ERTMoveOutcome::StoppedByOverwatch);
+
+	Entry.Amount = Armed.Damage;
+	Entry.SelectedTargetUnitId = TargetIdx;
+	Entry.TgtCell = State.Pos[TargetIdx];
+	AppendLogEntry(Entry, WatchOwner);
+
+	AddLogEvent(FString::Printf(TEXT("%s: overwatch su %s, %d danni e movimento troncato"),
+		*WatchOwner->GetName(), *Target->GetName(), Armed.Damage));
+}
+
+void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
+	FRTMovementResolutionState& State, const TArray<int32>& MovedUnitIds, int32 MicroStepIndex)
+{
+	// Fail-closed su tutti e tre: senza mappa non c'e' LOS (quindi nessun trigger), senza Overwatch armati non
+	// c'e' chi reagisce, e senza nessuno che si sia mosso non c'e' l'ingresso in una cella controllata — che
+	// e' l'evento, non la presenza.
+	if (!Map || ArmedOverwatches.Num() == 0 || MovedUnitIds.Num() == 0)
+	{
+		return;
+	}
+
+	// --- 1. I WATCHER, derivati dallo stato CORRENTE -------------------------------------------------------
+	//
+	// Si ricostruiscono a ogni micro-step invece di essere tenuti: la cella del proprietario cambia se anche
+	// lui si sta muovendo, e la conoscenza di squadra cambia perche' il bersaglio si sta avvicinando. Un
+	// watcher costruito una volta nel Prep avrebbe la LOS di tre celle fa.
+	TArray<FRTOverwatchWatcher> Watchers;
+	TArray<int32> ArmedIndexForWatcher; // per ritrovare l'armamento a cui ogni trigger appartiene
+	for (int32 a = 0; a < ArmedOverwatches.Num(); ++a)
+	{
+		const FRTArmedOverwatch& Armed = ArmedOverwatches[a];
+		ARTUnit* WatchOwner = Armed.Owner.Get();
+
+		// `bCharged` E' il `ReactionStillArmed` della condizione di trigger (ADR-0004 §6): una reaction gia'
+		// spesa non ne apre altre. Chi e' caduto nel Blast non spara, in silenzio, come per la predittiva.
+		if (!Armed.bCharged || !IsValid(WatchOwner) || !WatchOwner->IsAlive())
+		{
+			continue;
+		}
+		const int32 OwnerIdx = Units.IndexOfByKey(WatchOwner);
+		if (OwnerIdx == INDEX_NONE || !State.Pos.IsValidIndex(OwnerIdx))
+		{
+			continue;
+		}
+
+		// La cella CORRENTE nella risoluzione, non `WatchOwner->Cell`: durante il Move le posizioni vere stanno in
+		// `State.Pos` — `PlaceOnCell` le scrive sull'attore solo alla fine. Leggere l'attore darebbe la cella
+		// di partenza del turno, e un Overwatch che si e' spostato guarderebbe da dove non e' piu'.
+		const FRTCellId OwnerCell = State.Pos[OwnerIdx];
+
+		FRTOverwatchWatcher W;
+		W.Zone = URTOffensiveActionLibrary::MakeSuppressiveZone(Map, OwnerIdx, WatchOwner->TeamId, OwnerCell,
+			URTHexLibrary::Neighbor(OwnerCell, Armed.Facing), Armed.RangeCells, Armed.Damage);
+		W.OwnerCell = OwnerCell;
+		W.ReactionDefId = Armed.ActionId;
+		W.DeclaredCondition = Armed.Condition;
+		W.bArmed = true;
+
+		// I cinque tie-break di ADR-0004 §4. `UnitInitiative` resta 0 perche' un'iniziativa per unita' non
+		// esiste in v0.1: non e' un valore inventato, e' un criterio che non discrimina — l'ordine totale lo
+		// garantiscono comunque i due successivi. `ReactionInstanceId` e' l'indice nell'armamento, che e'
+		// stabile dentro il turno ed e' cio' che distingue due Overwatch della **stessa** unita'.
+		W.ReactionPriority = URTCatalogLibrary::FindCoreAction(Armed.ActionId).Priority;
+		W.AbilityPriority = W.ReactionPriority;
+		W.UnitInitiative = 0;
+		W.StableUnitId = WatchOwner->StableUnitId;
+		W.ReactionInstanceId = a;
+
+		// Quanto sa la SQUADRA del proprietario di ciascun bersaglio in movimento (E13). Si calcola sulle
+		// posizioni correnti degli osservatori, per la stessa ragione di `OwnerCell`. Una chiave assente vale
+		// `Hidden`, quindi qui entrano solo i nemici: un alleato non e' un bersaglio e non serve dichiararlo.
+		TArray<FRTPerceiver> Observers;
+		for (int32 u = 0; u < Units.Num(); ++u)
+		{
+			if (!IsValid(Units[u]) || !Units[u]->IsAlive() || Units[u]->TeamId != WatchOwner->TeamId) { continue; }
+			FRTPerceiver P;
+			P.Cell = State.Pos.IsValidIndex(u) ? State.Pos[u] : Units[u]->Cell;
+			P.Facing = Units[u]->Facing;
+			P.VisionRange = Units[u]->VisionRange;
+			Observers.Add(P);
+		}
+		for (int32 TargetIdx : MovedUnitIds)
+		{
+			if (!Units.IsValidIndex(TargetIdx) || Units[TargetIdx]->TeamId == WatchOwner->TeamId) { continue; }
+			W.TeamAwareness.Add(TargetIdx,
+				URTPerceptionLibrary::TeamAwarenessOfCell(Map, Observers, State.Pos[TargetIdx]));
+		}
+
+		Watchers.Add(MoveTemp(W));
+		ArmedIndexForWatcher.Add(a);
+	}
+	if (Watchers.Num() == 0)
+	{
+		return;
+	}
+
+	// --- 2. I MOVER: il solo passo APPENA compiuto ---------------------------------------------------------
+	//
+	// Una cella per mover, non il percorso: passare i percorsi interi farebbe calcolare i trigger di micro-step
+	// non ancora avvenuti, e un `FIRE` qui **cambia** quel futuro. L'indice vero del passo viaggia accanto.
+	TArray<FRTSuppressionMover> Movers;
+	TMap<int32, FRTTargetVitals> Vitals;
+	for (int32 TargetIdx : MovedUnitIds)
+	{
+		if (!Units.IsValidIndex(TargetIdx) || !IsValid(Units[TargetIdx])) { continue; }
+		FRTSuppressionMover M;
+		M.UnitId = TargetIdx;
+		M.TeamId = Units[TargetIdx]->TeamId;
+		M.Path = { State.Pos[TargetIdx] };
+		Movers.Add(MoveTemp(M));
+
+		// Le vitals servono solo alle condizioni dichiarate ([D-109]), e sono fail-closed: senza il dato, un
+		// bersaglio sotto condizione non diventa una risposta legale.
+		Vitals.Add(TargetIdx, FRTTargetVitals(Units[TargetIdx]->Health, Units[TargetIdx]->MaxHealth));
+	}
+
+	const TArray<FRTOverwatchTrigger> Triggers = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, TurnNumber, Watchers, Movers, Vitals, MicroStepIndex);
+
+	// --- 3. Per ogni opportunity: finestra, decisione, commit ----------------------------------------------
+	for (const FRTOverwatchTrigger& Trigger : Triggers)
+	{
+		const FRTReactionOpportunity& Opportunity = Trigger.Opportunity;
+
+		// L'armamento a cui questa opportunity appartiene. `OwnerId` e' l'indice del proprietario, che puo'
+		// avere due Overwatch: a distinguerli e' `ReactionDefId` piu' l'istanza, ed e' per questo che si cerca
+		// il watcher e non l'unita'.
+		int32 ArmedIndex = INDEX_NONE;
+		for (int32 w = 0; w < Watchers.Num(); ++w)
+		{
+			if (Watchers[w].Zone.OwnerUnitId == Opportunity.Key.OwnerId
+				&& Watchers[w].ReactionDefId == Opportunity.Key.ReactionDefId)
+			{
+				ArmedIndex = ArmedIndexForWatcher[w];
+				break;
+			}
+		}
+		if (!ArmedOverwatches.IsValidIndex(ArmedIndex) || !ArmedOverwatches[ArmedIndex].bCharged)
+		{
+			// Gia' spesa da un'opportunity precedente **dello stesso micro-step**: piu' watcher possono
+			// scattare insieme, e l'ordine totale di ADR-0004 §4 dice quale arriva prima. Il secondo non trova
+			// piu' la charge, ed e' corretto — `Charges = 1`.
+			continue;
+		}
+
+		const ARTUnit* DecidingOwner = ArmedOverwatches[ArmedIndex].Owner.Get();
+		const FRTReactionDecision Decision = AskReactionDecision(Opportunity, Opportunity.Key.OwnerId,
+			IsValid(DecidingOwner) && DecidingOwner->bIsBotControlled);
+		ApplyReactionDecision(Units, State, Opportunity, Decision, ArmedIndex);
+	}
+}
+
 void ARTTurnManager::ResolveMovement()
 {
 	UWorld* World = GetWorld();
@@ -4848,7 +5188,55 @@ void ARTTurnManager::ResolveMovement()
 		Paths.Add(Path);
 	}
 
-	TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths);
+	// RISOLUZIONE SEGMENTATA (CP 14.5). Fino a qui questa riga era `ResolveHexPaths(Paths)`, cioe' un colpo
+	// solo. Non lo e' piu' perche' una finestra di reazione deve poter aprirsi **dentro** il calcolo: se si
+	// aprisse a movimento concluso, i micro-step successivi sarebbero gia' stati risolti con un'unita' nelle
+	// celle che il colpo le ha appena impedito di raggiungere, e il prompt mostrerebbe una scelta che non
+	// cambia piu' niente. E' il motivo per cui `FRTMovementResolutionState` esiste (CP 14.2), scritto nel suo
+	// stesso commento: «un Overwatch interattivo deve poter fermare il movimento dentro il calcolo».
+	//
+	// La via a passi e quella in blocco sono LO STESSO codice — `ResolveHexPaths` e' esattamente questo ciclo
+	// — quindi il comportamento senza Overwatch armati e' invariato per costruzione, non per verifica.
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths);
+	{
+		// CHI si e' mosso in questo micro-step, misurato e non dedotto: `Entered` cresce di una cella per ogni
+		// unita' che ha davvero avanzato, quindi il confronto col valore precedente e' l'unica lettura che
+		// distingue «ha fatto un passo» da «era ferma». Serve perche' un mover fermo non deve poter armare un
+		// trigger: l'Overwatch scatta su chi ENTRA nella cella controllata, non su chi ci sta.
+		TArray<int32> EnteredBefore;
+		EnteredBefore.Init(0, Paths.Num());
+
+		int32 MicroStepIndex = 0;
+		while (URTHexSimLibrary::ResolveNextHexMicroStep(State))
+		{
+			TArray<int32> MovedUnitIds;
+			for (int32 i = 0; i < State.Num(); ++i)
+			{
+				const int32 EnteredNow = State.Results[i].Entered.Num();
+				if (EnteredNow > EnteredBefore[i])
+				{
+					MovedUnitIds.Add(i);
+				}
+				EnteredBefore[i] = EnteredNow;
+			}
+
+			// IL DECISION BOUNDARY. La «sospensione globale» di ADR-0004 §5 e' il fatto che questa chiamata
+			// stia fra due micro-step e debba ritornare prima del successivo: nessuna unita' avanza mentre una
+			// finestra e' aperta, e non perche' qualcuno le fermi — perche' il ciclo non gira.
+			ResolveReactionBoundary(Snapshot.Map, Units, State, MovedUnitIds, MicroStepIndex);
+			++MicroStepIndex;
+		}
+	}
+	// Non esegue nulla: il ciclo qui sopra e' uscito perche' `ResolveNextHexMicroStep` ha restituito falso,
+	// cioe' quando lo stato era gia' finito e gli `Outcome` gia' scritti. Resta perche' e' la funzione che
+	// **dichiara** dove finisce la risoluzione — e perche' se un giorno il ciclo dovesse uscire prima, per un
+	// cap sul numero di finestre, questa riga eviterebbe di consegnare risultati a meta'.
+	TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::FinishHexMovement(State);
+
+	// Ripulisce SEMPRE, come per le previsioni e per la stessa ragione: un Overwatch non vale due turni. Chi
+	// non ha mai sparato ha perso l'investimento — e' il costo-opportunita' che rende la scommessa una
+	// scommessa (`brief-azioni-generiche-overwatch.md` §6) — e chi ha sparato ha gia' speso la charge.
+	ArmedOverwatches.Reset();
 
 	// BOUNDARY DELLA PREDICTIVE ACTION (E18 CP 18.2). Sta QUI — dopo che le rotte sono calcolate, prima che
 	// il log sia costruito e le posizioni applicate — perche' e' l'unico punto in cui esistono entrambe le

@@ -14,6 +14,8 @@
 #include "Combat/RTCombatResolver.h" // FRTAttack, FRTUnitCombatState: il pass reazioni raccoglie i primi e aggiorna i secondi
 #include "Combat/RTHexCombatLibrary.h" // FRTHexAttackHit/FRTHexAttackIntent: cio' su cui il pass reazioni valuta i trigger
 #include "Turn/RTReactionLibrary.h" // ERTReactionPassPoint/FRTReactionTriggerHit: la firma del pass reazioni li usa
+#include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: l'Overwatch armato porta con se' la condizione dichiarata
+#include "Turn/RTReactionOpportunityTypes.h" // FRTReactionOpportunity/FRTReactionDecision: le firme del boundary li usano
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -140,6 +142,78 @@ struct FRTArmedPrediction
 	int32 Damage = 0;
 
 	FRTArmedPrediction() = default;
+};
+
+/**
+ * Un `Action.Overwatch` ARMATO nel Prep, in attesa dei micro-step del Move (CP 14.5).
+ *
+ * Tiene i fatti DUREVOLI dell'armamento — chi, con che portata, con che danno, con quale condizione — e non
+ * la zona: `FRTOverwatchWatcher` si **deriva** da qui a ogni micro-step, quando la cella del proprietario e la
+ * conoscenza di squadra sono quelle correnti.
+ *
+ * ⚠️ La separazione non e' un gusto architetturale, evita un difetto misurato: `ResolvePrep` costruisce il
+ * proprio array di unita' ordinandolo per cella (`StableLess`), `ResolveMovement` usa quello dello snapshot.
+ * I due ordini NON coincidono, quindi un indice catturato nel Prep indicherebbe un'altra unita' nel Move —
+ * e `FRTOverwatchWatcher::TeamAwareness` e `FRTSuppressionMover::UnitId` sono indici. Tenere il PUNTATORE e
+ * risolverlo al momento dell'uso e' esattamente cio' che `FRTArmedPrediction` fa qui sopra, e per la stessa
+ * ragione (`ResolvePredictiveBoundary` chiama `Units.IndexOfByKey(Shooter)`).
+ */
+USTRUCT()
+struct FRTArmedOverwatch
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Transient)
+	TObjectPtr<ARTUnit> Owner = nullptr;
+
+	/**
+	 * Il facing DICHIARATO quando l'Overwatch e' stato armato, non quello corrente.
+	 *
+	 * Il cono e' il facing (ADR-0005 §4c) e si dichiara in Planning «insieme a settore e facing»
+	 * (`RT_ActionCatalog_v0.1.md` §2). Rileggerlo a ogni micro-step lo renderebbe una direzione che cambia
+	 * dopo l'impegno, cioe' il contrario di una scommessa.
+	 */
+	UPROPERTY()
+	ERTHexDirection Facing = ERTHexDirection::E;
+
+	/** Identita' dell'azione, per il TurnLog. */
+	UPROPERTY()
+	FName ActionId;
+
+	/** L'azione generica di cui `ActionId` e' un profilo (D-033), quando ne ha una. */
+	UPROPERTY()
+	FName BaseActionId;
+
+	/**
+	 * Portata e danno vengono dall'ARMA dell'eroe, catturate al momento di armare.
+	 *
+	 * Non sono numeri scelti qui, e non sono nel catalogo: `Action.Overwatch` dichiara solo la parte
+	 * universale, perche' area, raggio ed effetto sono il **profilo** e i profili dei quattro eroi della v0.1
+	 * sono ancora una domanda aperta (`brief-azioni-generiche-overwatch.md` §8). Derivarli dall'attacco base
+	 * riusa dati gia' decisi per eroe invece di inventarne di nuovi, differenzia gli eroi da solo — che e' il
+	 * gate anti-omogeneizzazione del §7 — e corrisponde alla semantica dell'azione: si trattiene il colpo e
+	 * si spara con la propria arma quando qualcuno passa.
+	 */
+	UPROPERTY()
+	int32 RangeCells = 1;
+
+	UPROPERTY()
+	int32 Damage = 0;
+
+	/** La condizione dichiarata in pianificazione ([D-109]). Vuota = nessuna. */
+	UPROPERTY()
+	FRTDeclaredCondition Condition;
+
+	/**
+	 * La charge: `Charges = 1` in v0.1 (ADR-0004 §8). `FIRE` la consuma, `HOLD` **no**.
+	 *
+	 * E' il campo che rende `Overwatch.HoldKeepsArmed` una proprieta' e non una speranza: finche' e' vero, un
+	 * micro-step successivo puo' ancora aprire una nuova opportunity.
+	 */
+	UPROPERTY()
+	bool bCharged = true;
+
+	FRTArmedOverwatch() = default;
 };
 
 // Delegate per la presentazione in Blueprint (camera/VFX/SFX): il playback riproduce eventi gia' risolti.
@@ -452,6 +526,17 @@ protected:
 	TArray<FRTArmedPrediction> ArmedPredictions;
 
 	/**
+	 * Overwatch armati nella Prep di QUESTO turno, consumati durante i micro-step del Move (CP 14.5).
+	 *
+	 * Stesse due ragioni del gemello qui sopra — la Prep azzera `PlannedAbilityIndex` appena consuma
+	 * l'abilita', e un armamento non sopravvive al proprio turno — piu' una terza che e' solo sua: a
+	 * differenza della previsione, che si valuta UNA volta al boundary, questo si rilegge a **ogni**
+	 * micro-step, e fra un passo e l'altro il suo stato cambia (`bCharged` cade al primo `FIRE`).
+	 */
+	UPROPERTY(Transient)
+	TArray<FRTArmedOverwatch> ArmedOverwatches;
+
+	/**
 	 * Risolve i colpi predittivi armati contro le rotte appena calcolate, e TRONCA il movimento di chi viene
 	 * colto (E18 CP 18.2). Modifica `Resolved` in luogo: chiamata prima che il TurnLog sia costruito.
 	 *
@@ -460,6 +545,71 @@ protected:
 	 * che permette a `Predictive.PermutationInvariant` di esistere come test senza un `UWorld`.
 	 */
 	void ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TArray<FRTHexMoveResult>& Resolved);
+
+	/**
+	 * Apre le finestre di reazione del micro-step appena eseguito, raccoglie le decisioni e le applica
+	 * (CP 14.5). Chiamata FRA un `ResolveNextHexMicroStep` e il successivo.
+	 *
+	 * E' l'orchestratore del Decision Boundary: costruisce i watcher dallo stato corrente, chiede allo strato
+	 * puro quali opportunity esistono, e per quelle con `AllowedResponses >= 2` interroga il decisore. Il
+	 * resolver non attende mai: non c'e' `Sleep`, `Delay`, timer ne' Timeline qui dentro ne' sotto: la
+	 * sospensione e' il fatto che questa funzione **ritorni** prima del micro-step successivo.
+	 *
+	 * `MicroStepIndex` e' l'indice del passo nel TURNO, e viaggia fino dentro `FRTReactionOpportunityKey`:
+	 * senza, due passi dello stesso turno avrebbero lo stesso `OpportunityId`.
+	 */
+	void ResolveReactionBoundary(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
+		FRTMovementResolutionState& State, const TArray<int32>& MovedUnitIds, int32 MicroStepIndex);
+
+	/**
+	 * Apre UNA finestra e ne restituisce l'esito (CP 14.5). Non applica nulla: decide soltanto.
+	 *
+	 * Separata da `ApplyReactionDecision` perche' sono due responsabilita' che falliscono in modi diversi —
+	 * qui si sbaglia a raccogliere una risposta, li' a tradurla in effetti — e perche' e' la separazione che
+	 * rende il replay possibile: rieseguire un turno significa **saltare** questa e chiamare solo quella, con
+	 * le risposte lette dal TurnLog invece che chieste a qualcuno.
+	 *
+	 * Cardinalita' <= 1 non apre nessuna finestra e non interroga nessuno (ADR-0004 §2).
+	 */
+	FRTReactionDecision AskReactionDecision(const FRTReactionOpportunity& Opportunity, int32 OwnerUnitId,
+		bool bOwnerIsBot) const;
+
+	/**
+	 * Applica l'esito di una finestra: `FIRE` colpisce, spende la charge e TRONCA il movimento residuo del
+	 * bersaglio; `HOLD` non fa nulla e lascia la reaction armata (CP 14.5).
+	 *
+	 * `ArmedIndex` indicizza `ArmedOverwatches`: e' l'armamento la cui charge si consuma, e tenerlo esplicito
+	 * evita di ricercarlo una seconda volta con una regola che potrebbe non coincidere con la prima.
+	 */
+	void ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State,
+		const FRTReactionOpportunity& Opportunity, const FRTReactionDecision& Decision, int32 ArmedIndex);
+
+	/**
+	 * Chi risponde per l'unita' `OwnerUnitId` a questa opportunity. Restituisce una delle `AllowedResponses`,
+	 * oppure una stringa vuota per «non ho risposto» — che l'orchestratore tratta come scadenza.
+	 *
+	 * ⚠️ **Non e' il seam dei `DecisionProvider` di [D-101]** (`#542`, v0.2), ne' il `DecisionProvider`
+	 * iniettabile di CP 15.3 meta' B (`#512`). Sono tre cose in tre release, e la issue di questo checkpoint
+	 * avverte per nome di non confonderle: questa e' la piu' semplice delle tre — un solo punto di
+	 * sostituzione, nessuna politica, nessun contratto sugli esiti. Quando D-101 arrivera', questo delegate e'
+	 * cio' che verra' sostituito, non un concorrente da riconciliare.
+	 *
+	 * Non legato: default di sistema, cioe' `Timeout -> HOLD`. E' fail-closed nel verso giusto — senza un
+	 * decisore la charge non si spende.
+	 */
+	DECLARE_DELEGATE_RetVal_TwoParams(FString, FRTReactionDeciderSignature,
+		const FRTReactionOpportunity& /*Opportunity*/, int32 /*OwnerUnitId*/);
+
+	/**
+	 * Il decisore corrente. Sostituibile dai test per scriptare le risposte senza un timer reale, che e'
+	 * l'unico modo in cui `Overwatch.DecisionIsReplayable` puo' essere un test e non una sessione manuale.
+	 *
+	 * Pubblico perche' iniettarlo E' il suo scopo; `Transient` perche' un delegate non si serializza.
+	 */
+public:
+	FRTReactionDeciderSignature ReactionDecider;
+
+protected:
 
 	/**
 	 * Applica le cure raccolte da `ResolveCombat` (CP 8.5). Chiamata da DUE punti — dopo i danni, e nel ramo
