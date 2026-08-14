@@ -3473,8 +3473,10 @@ features:
       # coperti e verificati per mutazione.
       # ⏳ **Resta scoperto un consumatore, ed è dichiarato invece che sottinteso**: il ripiego di
       # `BeginPlay` (`FrameOwnTeam` → ritenta al tick → `RecenterView`) non ha test. È lavoro di #874.
-      # ➕ E la stessa review ha trovato un difetto **di codice** che i test non catturano perché girano
-      # coi valori di default: `RecenterView` non clampa la distanza — #873.
+      # ✅ **Chiuso #873**: `RecenterView` non clampava la distanza, e i test non lo catturavano perché
+      # giravano tutti coi valori di default, dove il clamp non cambia nulla. Ora chiama
+      # `ApplyViewSettings` invece di duplicarla, e `RecenterKeepsArmWithinZoomLimits` costruisce
+      # l'intervallo fuori scala con `SetArmLengthRangeForTest`.
       automation: done
       scenario: todo
       ui_wiki: partial
@@ -3512,7 +3514,7 @@ features:
       # le `notes` qui sotto post-morteggiano. Un `last_verified` che punta a un albero anteriore ai test
       # che giustificano il gate è una firma su un documento che non si è letto.
       date: 2026-08-14
-      commit: a8bcbd2b
+      commit: 4286f667
     notes: >
       `ARTCameraPawn` esiste e la build packaged la usa; la taratura su scala esagonale resta una
       verifica PIE aperta (CP 8.3 di M8). Non promuovere per «si vede che funziona».

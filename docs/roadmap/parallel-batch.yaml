@@ -427,6 +427,63 @@ preexisting:
       una volta in senso opposto.
 
 
+  - branch: feat/165-finestra-overwatch
+    state: LIVE            # worktree `D:/rt-simulation` · pushato · 44a6af96
+    measured: 15
+    collides_with:
+      - branch: feat/873-recenter-clamp
+        state: LIVE
+        paths: [docs/roadmap/parallel-batch.yaml]
+    note: >-
+      ➕ **È il branch che la track `simulation` dichiarava sparito, ricreato mentre questo file
+      veniva scritto.** La track lo nomina in `simulation.branch`.
+      🔴 **`measured: 0` → `14` → `15`, e `LOCAL` → `LIVE`: tre correzioni, tutte misurate.** La
+      prenotazione è diventata un vincolo mentre il file la descriveva come ferma. Poi il numero è
+      scivolato ancora — `git diff --name-only origin/main...` ne conta **15** — nella stessa sessione in
+      cui era appena stato rimisurato. E `git ls-remote --heads origin` vede il branch (`44a6af96`),
+      quindi per l'enum è `LIVE` e appartiene alla sezione dei remoti, non a «esistono in un worktree e
+      in nessun altro posto».
+      ⚠️ **La collisione qui sopra è reale**: `docs/roadmap/parallel-batch.yaml` è anche nel write-set di
+      `#873`. È `integration_only` — nessuna delle due la tiene per diritto — quindi si riconcilia in
+      integrazione, e chi merge per secondo la riscrive sull'albero unito.
+
+  - branch: feat/873-recenter-clamp
+    state: LIVE            # worktree `D:/rt-telecamera` · PR #884 aperta · su `d5aef89e`
+    measured: 4
+    collides_with:
+      - branch: feat/165-finestra-overwatch
+        state: LIVE
+        paths: [docs/roadmap/parallel-batch.yaml]
+    note: >-
+      Sessione su `#873`: `RecenterView` è l'unico dei quattro scrittori di `TargetArmLength` a non
+      clampare, e con `DefaultArmLength` fuori da `[Min, Max]` il tasto `Home` porta il braccio fuori
+      intervallo — la prima rotellina lo riporta dentro di scatto. Prenotazione visibile prima del primo
+      commit, come chiede la sezione.
+      ✅ **Set disgiunto, verificato contro le tre track ACTIVE**: `Source/RefactorTactics/Camera/` non è
+      nel `writable` di nessuna — `simulation` tiene `Turn/` e `Bot/`, `client_tools`
+      `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`.
+      ⚠️ **A differenza di #865 questa track tocca il codice della camera, non solo i test**: il write-set
+      previsto è `Camera/RTCameraPawn.{h,cpp}` più il proprio file di test. Il registry **non** è
+      coinvolto: il gate `automation` è già `done` e questo lavoro non lo muove — aggiunge un test a una
+      feature che ne ha già, cioè non cambia nessun gate.
+      ✅ **Set disgiunto sul CODICE, misurato su dieci branch**: `Camera/` e `RTCameraPawnTests.cpp` non
+      compaiono nel write-set di nessuno, incluso `wip/icon-visual-language` che ne tocca 341.
+      🔴 **Ma «zero collisioni» era falso, e a smentirlo è il quarto file del mio stesso write-set.** La
+      prima stesura dichiarava tre file — i due sorgenti più il test — dimenticando
+      `parallel-batch.yaml`, che questa voce sta scrivendo nel momento in cui lo nega. `feat/165` lo tocca
+      a sua volta: la collisione è **una**, non zero. La voce di `#865` che questa ha sostituito portava
+      già l'avvertenza — «`parallel-batch.yaml` è nel write-set e in nessun `writable`» — ed è andata
+      persa nella sostituzione invece di essere riportata.
+      🔴 **E `LOCAL · 0` è sopravvissuto al push**: `git ls-remote` vede il branch, `git diff` conta
+      quattro file, e le voci sorelle venivano rimisurate nello stesso commit. La nota qui sotto dice che
+      la sezione «si deduce da un comando»: il comando non è stato rieseguito dopo il push.
+      🔴 **E questa voce ha commesso ENTRAMBI gli errori di posizione nello stesso commit, un'ora dopo
+      averli criticati**: nasceva fra i branch remoti pur non essendo mai stata pushata, e nello stesso
+      edit `docs/38-spec-panel-playtest-hex` — che è pushata — finiva fra le sessioni locali. Due voci,
+      due sezioni, scambiate. Corretto qui. La lezione non è «stare attenti»: è che la sezione giusta
+      **si deduce da un comando** (`git ls-remote --heads origin | grep <branch>`), e va eseguito al
+      momento di scrivere la voce invece che dopo.
+
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
   # 🔴 **La stesura precedente aveva due regole opposte per lo stesso caso, a venti righe di
@@ -453,61 +510,31 @@ preexisting:
       stimate: la stesura precedente scriveva «due PR fa» e sbagliava di tre. Chi riprende quella
       seduta rebasa prima di committare, o misura il proprio write-set su una base che non esiste più.
 
-  - branch: feat/165-finestra-overwatch
-    state: LOCAL           # worktree `D:/rt-simulation`
-    measured: 14
-    note: >-
-      ➕ **È il branch che la track `simulation` dichiarava sparito, ricreato mentre questo file
-      veniva scritto.** La track lo nomina in `simulation.branch`.
-      🔴 **`measured: 0` → `14`, rimisurato il 2026-08-14 alle `17:5x`.** La prenotazione è diventata
-      un vincolo: quando questa voce è stata scritta il branch era fermo sulla base, e nel frattempo
-      ha committato. È il caso che la sezione descrive — «il vincolo nasce al primo commit» — visto
-      accadere invece che previsto.
 
-  - branch: feat/832-stable-structure-id
-    state: LOCAL           # worktree `D:/rt-spatial`
-    measured: 11
-    note: >-
-      Sessione aperta su `#832`, che **non è una track di questo batch**. Il write-set libero di
-      `spatial` (`Map/`, `Pathfinding/`, i due test hex, il DoD) era il candidato ovvio per un lavoro
-      su structure id.
-      🔴 **`measured: 0` → `11`, rimisurato lo stesso giro di `feat/165`.** Due voci su tre sono
-      passate da prenotazione a vincolo nell'arco di un'ora, e nessun gate lo ha segnalato: questo
-      file si rilegge col comando, non con la memoria di chi l'ha scritto.
+  # 🔵 **`feat/832-stable-structure-id` è uscita**: PR #876 mergiata (`8ea9c229`), branch cancellato
+  # lato server, write-set misurato **0**. La voce diceva `LOCAL · 11` e le tre affermazioni erano
+  # false insieme — non pushato (lo era), non mergiato (lo è), undici file (zero).
+  # ⚠️ **L'ha mergiata questo stesso branch**, col merge di `origin/main` fatto per verificare che
+  # `#876` non rompesse i test della camera: la riga è diventata falsa per mano di chi la leggeva.
 
-  - branch: feat/873-recenter-clamp
-    state: LOCAL           # worktree `D:/rt-telecamera`, creato su `d5aef89e`
-    measured: 0
-    note: >-
-      Sessione su `#873`: `RecenterView` è l'unico dei quattro scrittori di `TargetArmLength` a non
-      clampare, e con `DefaultArmLength` fuori da `[Min, Max]` il tasto `Home` porta il braccio fuori
-      intervallo — la prima rotellina lo riporta dentro di scatto. Prenotazione visibile prima del primo
-      commit, come chiede la sezione.
-      ✅ **Set disgiunto, verificato contro le tre track ACTIVE**: `Source/RefactorTactics/Camera/` non è
-      nel `writable` di nessuna — `simulation` tiene `Turn/` e `Bot/`, `client_tools`
-      `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`.
-      ⚠️ **A differenza di #865 questa track tocca il codice della camera, non solo i test**: il write-set
-      previsto è `Camera/RTCameraPawn.{h,cpp}` più il proprio file di test. Il registry **non** è
-      coinvolto: il gate `automation` è già `done` e questo lavoro non lo muove — aggiunge un test a una
-      feature che ne ha già, cioè non cambia nessun gate.
-      ✅ **Zero collisioni, misurate su dieci branch** e non su quelli che ricordavo: `Camera/` e
-      `RTCameraPawnTests.cpp` non compaiono nel write-set di nessuno dei dieci, incluso
-      `wip/icon-visual-language` che ne tocca 341.
-      🔴 **E questa voce ha commesso ENTRAMBI gli errori di posizione nello stesso commit, un'ora dopo
-      averli criticati**: nasceva fra i branch remoti pur non essendo mai stata pushata, e nello stesso
-      edit `docs/38-spec-panel-playtest-hex` — che è pushata — finiva fra le sessioni locali. Due voci,
-      due sezioni, scambiate. Corretto qui. La lezione non è «stare attenti»: è che la sezione giusta
-      **si deduce da un comando** (`git ls-remote --heads origin | grep <branch>`), e va eseguito al
-      momento di scrivere la voce invece che dopo.
-
-
-  # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**, e questo
-  # file ne rende conto di tutti e sei — **quattro** voci `LOCAL` qui sopra (`451`, `165`, `832`,
-  # `873`), la voce `LIVE` di `docs/38-spec-panel-playtest-hex`, e la working directory principale,
-  # che è su `main` con write-set **vuoto**, quindi non è un vincolo e non ha voce.
-  # 🔴 **Era cinque un'ora fa, ed è la seconda volta oggi che questa riga invecchia mentre la si
-  # scrive**: `D:/rt-client` è comparso mentre `#873` apriva il proprio branch. Il conto si rifà col
-  # comando — `git worktree list` — non incrementando quello scritto prima.
+  # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**:
+  #
+  #   D:/wt-451           `feat/451-u1-voci-hex-mode`      LOCAL, 0 file — l'unica voce di questa sezione
+  #   D:/rt-client        `docs/38-spec-panel-playtest-hex` LIVE, 3 file  — fra i branch remoti
+  #   D:/rt-simulation    `feat/165-finestra-overwatch`     LIVE, 15 file — fra i branch remoti
+  #   D:/rt-telecamera    `feat/873-recenter-clamp`         LIVE, 4 file  — fra i branch remoti
+  #   D:/rt-spatial       detached su `8ea9c229`            0 file, nessun vincolo, nessuna voce
+  #   working directory   `fix/residui-istruttoria-dod`     **7 file, non pushato, NON REGISTRATO**
+  #
+  # 🔴 **L'ultima riga è un buco aperto, e va detta invece che chiusa in fretta.** Il checkout principale
+  # non è più su `main`: ha un branch con sette file e nessuna voce qui. Misurato che **non collide** con
+  # `#873` (né `Camera/` né `parallel-batch.yaml`), quindi non blocca questo lavoro — ma chi lo possiede
+  # deve registrarlo, e non posso farlo io senza attribuirgli un write-set che non ho concordato.
+  # 🔴 **Era cinque un'ora fa, quattro stamattina, e questa riga è invecchiata mentre la si scriveva per
+  # la terza volta**: `D:/rt-client` è comparso mentre `#873` apriva il branch, e il tree principale ha
+  # cambiato branch mentre la si correggeva. Il conto si rifà col comando, mai incrementando il numero
+  # scritto prima — ed è il motivo per cui qui sopra c'è l'elenco e non solo il totale: un totale giusto
+  # non dice nulla sulla composizione, che è dove questo file ha sbagliato tre volte su tre.
   # 🔴 Una stesura precedente scriveva «quattro voci `LOCAL`» quando erano tre più una `LIVE`, e quella
   # `LIVE` non apparteneva nemmeno a questo blocco — la cui intestazione dice «esistono in un worktree e
   # in nessun altro posto». Il totale era giusto, la composizione no, ed è stata scritta **nello stesso
@@ -516,10 +543,14 @@ preexisting:
   # ⚠️ Fino al merge di #869 il write-set della working directory *era* la voce
   # `docs/riconciliazione-batch-2026-08-14b`: togliendo quella voce si sarebbe rotto il riferimento,
   # ed è il motivo per cui questo paragrafo si aggiorna **nello stesso commit** e non dopo.
-  # ➕ **Il quinto è `D:/rt-telecamera`, ricreato dopo il merge di #867** — quel worktree era stato
-  # rimosso alla chiusura della PR e il suo branch cancellato; il nuovo parte da `c371c9a0` con un
-  # branch diverso (`feat/865-camera-focus-tests`). Stesso path, sessione nuova: il conto va rifatto
-  # col comando, non dedotto dal nome della cartella.
+  # ➕ **`D:/rt-telecamera` è lo stesso path e tre sessioni diverse**, ed è la ragione per cui l'elenco
+  # qui sopra nomina il **branch** e non la cartella: rimosso alla chiusura di #867 con il suo branch
+  # cancellato, ricreato per `#865`, e ora su `feat/873-recenter-clamp`. Il nome della cartella non
+  # dice quale lavoro ci sia dentro — solo `git worktree list` lo dice.
+  # 🔴 **Questa riga citava «il quinto … (`feat/865-camera-focus-tests`)» dopo che il commit precedente
+  # aveva tolto quella voce**: un riferimento pendente a una voce cancellata, per giunta con l'ordinale
+  # sbagliato rispetto al conteggio otto righe sopra. Il file avverte di questo esatto rischio quattro
+  # righe più giù — «togliendo quella voce si sarebbe rotto il riferimento» — e poi lo ha commesso.
   # 🔴 La stesura precedente diceva «ne mostra cinque, questa sezione ne elenca due» e ne nominava
   # due come esclusi: quattro su cinque. Il quinto non nominato era **la working directory
   # principale**, cioè l'unica delle cinque con un write-set non vuoto in quel momento. Il paragrafo
