@@ -434,6 +434,110 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 				*E.From.ToString(), *E.To.ToString()));
 		}
 	}
+
+	// Identita' stabile delle strutture (CP 23.3, #832): UN nome, UNA struttura.
+	//
+	// La condivisione fra i bordi di uno stesso portone e' LEGITTIMA — e' cio' che `DoorId` gia' esprime —
+	// quindi la regola non e' «un nome, un bordo» ma «un nome, un GRUPPO». Se fosse la prima, validare una
+	// porta larga diventerebbe impossibile, e la porta larga ha gia' dei test verdi.
+	//
+	// ⚠️ `INDEX_NONE` non e' un gruppo: e' l'ASSENZA di gruppo, e tutte le porte singole della mappa la
+	// condividono. Trattarlo come un gruppo farebbe passare due porte scollegate con lo stesso nome, che e'
+	// il difetto preciso che questa validazione esiste per intercettare.
+	{
+		struct FRTNamedDoorEdge
+		{
+			ERTHexDirection Edge;
+			int32 DoorId;
+		};
+		struct FRTNamedStructure
+		{
+			TArray<FRTNamedDoorEdge> DoorEdges;
+			TArray<FRTHexEdge> Arcs;
+		};
+		TMap<FName, FRTNamedStructure> ByName;
+
+		for (const FRTHexCellData& C : Cells)
+		{
+			for (const FRTHexDoor& Door : C.Doors)
+			{
+				if (Door.StableId.IsNone())
+				{
+					continue; // il nome vuoto non e' un nome: le anonime non collidono fra loro
+				}
+				ByName.FindOrAdd(Door.StableId).DoorEdges.Add({ Door.Edge, Door.DoorId });
+			}
+		}
+		for (const FRTHexEdge& Arc : Transitions)
+		{
+			if (Arc.StableId.IsNone())
+			{
+				continue;
+			}
+			ByName.FindOrAdd(Arc.StableId).Arcs.Add(Arc);
+		}
+
+		// L'ordine di iterazione di una `TMap` non e' deterministico (invariante n. 3): i nomi si ordinano
+		// prima di emettere, o due validazioni della stessa mappa darebbero gli stessi errori in ordine
+		// diverso — e un diff di validazione smetterebbe di essere leggibile.
+		TArray<FName> Names;
+		ByName.GetKeys(Names);
+		Names.Sort([](const FName& A, const FName& B) { return A.Compare(B) < 0; });
+
+		for (const FName& Name : Names)
+		{
+			const FRTNamedStructure& Parts = ByName[Name];
+
+			// Un nome non attraversa i domini: una porta e un arco sono due strutture diverse, e `Interact
+			// <nome>` non saprebbe quale ha davanti.
+			if (Parts.DoorEdges.Num() > 0 && Parts.Arcs.Num() > 0)
+			{
+				Errors.Add(FString::Printf(
+					TEXT("Error: identita' di struttura '%s' usata sia da una porta sia da un arco"),
+					*Name.ToString()));
+				continue;
+			}
+
+			// Porte: piu' bordi con lo stesso nome sono legittimi solo se sono lo STESSO gruppo.
+			// `INDEX_NONE` non e' un gruppo — e' l'assenza di gruppo, che tutte le porte singole
+			// condividono — quindi prenderlo per tale farebbe passare due porte scollegate omonime.
+			if (Parts.DoorEdges.Num() > 1)
+			{
+				const int32 Group = Parts.DoorEdges[0].DoorId;
+				bool bSameGroup = (Group != INDEX_NONE);
+				for (const FRTNamedDoorEdge& NamedEdge : Parts.DoorEdges)
+				{
+					if (NamedEdge.DoorId != Group)
+					{
+						bSameGroup = false;
+						break;
+					}
+				}
+				if (!bSameGroup)
+				{
+					Errors.Add(FString::Printf(
+						TEXT("Error: identita' di struttura duplicata '%s' su %d bordi che non sono un gruppo"),
+						*Name.ToString(), Parts.DoorEdges.Num()));
+				}
+			}
+
+			// Archi: qui il gruppo non e' un campo, e' una RELAZIONE. Due archi condividono legittimamente
+			// il nome solo se sono reciproci — `UpdateTransitions` lo dichiara gia': «bidirezionale sono due
+			// archi ma un evento solo». Tre archi omonimi non sono un ponte, sono un errore d'asset.
+			if (Parts.Arcs.Num() > 1)
+			{
+				const bool bReciprocalPair = Parts.Arcs.Num() == 2
+					&& Parts.Arcs[0].From == Parts.Arcs[1].To
+					&& Parts.Arcs[0].To == Parts.Arcs[1].From;
+				if (!bReciprocalPair)
+				{
+					Errors.Add(FString::Printf(
+						TEXT("Error: identita' di struttura duplicata '%s' su %d archi non reciproci"),
+						*Name.ToString(), Parts.Arcs.Num()));
+				}
+			}
+		}
+	}
 	return Errors;
 }
 
@@ -534,6 +638,9 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// mappa scritta prima gia' era — il vertical slice e' 2v2 — quindi anche qui non c'e' niente da convertire.
 	// v6 -> v7 (#619): la cella guadagna il sovrapprezzo di occupazione. Il default (0) e' cio' che una mappa
 	// scritta prima gia' era — nessuna geometria cotta, nessuna cella stretta — quindi niente da convertire.
+	// v8 -> v9 (#832, CP 23.3): porte e archi guadagnano un nome pubblico stabile (`StableId`). Il default
+	// (`NAME_None`) e' cio' che una mappa scritta prima gia' era — nessuna struttura nominata — quindi anche
+	// qui non c'e' niente da convertire, e nessun nome viene inventato da una ricarica.
 	// In nessuno di questi c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per

@@ -65,6 +65,14 @@ struct FRTHexMapCustomVersion
 		 */
 		CoverProvenance = 8,
 
+		/**
+		 * #832 (CP 23.3): porte e archi guadagnano un nome pubblico stabile (`StableId`).
+		 *
+		 * Passo DICHIARATIVO come tutti i precedenti: il campo nasce `NAME_None`, e una mappa scritta prima
+		 * non nominava le proprie strutture — quindi «anonima» e' cio' che gia' era, non una perdita.
+		 */
+		StructureIdentity = 9,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
