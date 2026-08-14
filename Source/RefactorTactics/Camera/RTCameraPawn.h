@@ -45,7 +45,10 @@ public:
 	/** Direzione di sguardo corrente sul piano, in gradi. Serve al pan relativo e ai test. */
 	float GetCameraYaw() const { return CameraYaw; }
 
-	/** Riporta la camera al centro della griglia e ripristina lo zoom di default (DefaultArmLength). */
+	/**
+	 * Riporta la camera al centro della griglia e ripristina l'inquadratura di default: distanza
+	 * `DefaultArmLength` **clampata** in `[MinArmLength, MaxArmLength]`, e orientamento dritto.
+	 */
 	void RecenterView();
 
 	/**
@@ -63,6 +66,29 @@ public:
 	 * Sola presentazione: legge lo stato, non lo cambia.
 	 */
 	bool FrameOwnTeam();
+
+	/**
+	 * Imposta i tre limiti di distanza in un colpo solo (per i test).
+	 *
+	 * Servono insieme perche' insieme definiscono uno **stato di partenza**: il difetto che questo setter
+	 * esiste per rendere verificabile — `Home` che porta il braccio fuori intervallo — si manifesta solo
+	 * con un default fuori da `[Min, Max]`, cioe' con una combinazione, non con un valore.
+	 *
+	 * Il nome dichiara che si sta scavalcando la taratura dell'editor: in partita questi valori vengono
+	 * dal Details, e restano `protected` perche' sono configurazione del designer, non API.
+	 */
+	void SetArmLengthRangeForTest(float InDefault, float InMin, float InMax)
+	{
+		// Un intervallo rovesciato non e' uno scenario da coprire, e' un test scritto male: senza questa
+		// guardia ogni `Clamp` inchioderebbe la distanza a un estremo e le assertion passerebbero o
+		// fallirebbero per ragioni scollegate dal codice in prova. E' raggiungibile anche dall'editor,
+		// perche' `MinArmLength` e `MaxArmLength` non hanno `ClampMin`/`ClampMax`.
+		checkf(InMin <= InMax, TEXT("SetArmLengthRangeForTest: intervallo rovesciato (Min=%.1f > Max=%.1f)"),
+			InMin, InMax);
+		DefaultArmLength = InDefault;
+		MinArmLength = InMin;
+		MaxArmLength = InMax;
+	}
 
 protected:
 	virtual void BeginPlay() override;
@@ -86,7 +112,7 @@ protected:
 	/**
 	 * Distanza all'avvio della partita, quando la camera si posiziona sulla squadra del giocatore: piu' piccola
 	 * di `DefaultArmLength` perche' si parte guardando le proprie unita', non l'intera mappa. `Home`
-	 * (`RecenterView`) resta a `DefaultArmLength`: sono due inquadrature diverse.
+	 * (`RecenterView`) resta a `DefaultArmLength` clampata: sono due inquadrature diverse.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	float MatchStartArmLength = 450.f;

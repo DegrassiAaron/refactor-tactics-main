@@ -15,6 +15,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
+#include "TimerManager.h"
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -45,13 +46,20 @@ namespace
 	/**
 	 * Mappa piatta minima. Il raggio 2 non e' decorativo: `RecenterView` centra su `GetCenterCell()`, quindi
 	 * senza celle il confronto con l'inquadratura di squadra perderebbe il proprio riferimento.
+	 *
+	 * ⚠️ **Il default NON e' l'origine, ed e' deliberato.** Una mappa centrata in `(0,0)` rende degeneri i
+	 * confronti di posizione: «dove `RecenterView` mette la camera» e «l'origine del mondo» diventano lo
+	 * stesso punto, e un'assertion che li distingue passa per coincidenza. La prima stesura lasciava
+	 * `(0,0,0)` come default e affidava a questo commento il compito di avvisare — cioe' teneva la trappola
+	 * armata per ogni chiamante futuro che il commento non lo avesse letto. Ora il caso pericoloso si
+	 * ottiene solo chiedendolo.
 	 */
-	ARTHexMapActor* SpawnCameraTestMap(UWorld* World)
+	ARTHexMapActor* SpawnCameraTestMap(UWorld* World, const FRTCellId& Center = FRTCellId(4, 1, 0))
 	{
 		if (!World) { return nullptr; }
 
 		URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), /*Radius=*/ 2))
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(Center, /*Radius=*/ 2))
 		{
 			Asset->AddOrUpdateCell(FRTHexCellData(Id));
 		}
@@ -411,6 +419,175 @@ bool FRTCameraFrameTeamZoomTest::RunTest(const FString&)
 	// `FrameOwnTeam` a riscriverlo dopo. Le due responsabilita' restano distinte.
 	Cam->FocusOn(FVector(999.f, 999.f, 0.f));
 	TestEqual(TEXT("centrare altrove non cambia la distanza appena scelta"), Arm->TargetArmLength, MatchArm);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * La PRIMA inquadratura della partita: la camera aspetta le unita', e se non arrivano ripiega.
+ *
+ * `BeginPlay` prova `FrameOwnTeam`, e se fallisce riprova **al tick successivo** — perche' l'ordine di
+ * `BeginPlay` fra actor non e' garantito e la camera puo' svegliarsi prima delle unita'. Solo se anche il
+ * secondo tentativo fallisce ripiega su `RecenterView`.
+ *
+ * ⚠️ La mappa e' deliberatamente **non centrata sull'origine**: `RecenterView` porta la camera su
+ * `GetCenterCell()`, e con una mappa centrata in `(0,0)` quel punto coinciderebbe con la posizione di
+ * partenza del pawn — il test passerebbe qualunque cosa faccia il ripiego. E' lo stesso difetto che la
+ * code review di #872 ha trovato nelle unita' simmetriche.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraBeginPlayRetriesTest,
+	"RefactorTactics.Camera.BeginPlayWaitsOneTickForLateUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraBeginPlayRetriesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	// Mappa lontana dall'origine: e' il riferimento che rende distinguibili le tre posizioni in gioco
+	// (partenza del pawn, centro mappa, squadra).
+	if (!TestNotNull(TEXT("mappa"), SpawnCameraTestMap(World, FRTCellId(6, 2))))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	Cam->SetActorLocation(FVector::ZeroVector);
+
+	// `BeginPlay` con il mondo ancora vuoto: `FrameOwnTeam` fallisce e registra il ritentativo.
+	Cam->DispatchBeginPlay();
+	const FVector AfterBeginPlay = Cam->GetActorLocation();
+
+	// Le unita' arrivano DOPO, che e' l'intero caso d'uso. Verificate: se lo spawn fallisse, il
+	// ritentativo non troverebbe nessuno, ripiegherebbe, e il test proverebbe l'altro ramo credendo di
+	// provare questo.
+	if (!TestNotNull(TEXT("prima unita' in ritardo"), SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(7, 2)))
+		|| !TestNotNull(TEXT("seconda unita' in ritardo"), SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(8, 2))))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	// Un tick di timer: e' qui che il ritentativo deve scattare.
+	World->GetTimerManager().Tick(0.05f);
+
+	const FVector AfterRetry = Cam->GetActorLocation();
+	TestNotEqual(TEXT("al tick successivo la camera si e' mossa"), AfterRetry, AfterBeginPlay);
+
+	// ⚠️ «Si e' mossa» NON basta, ed e' il difetto che questa riga chiude: anche il **ripiego** su
+	// `RecenterView` sposta la camera, sul centro mappa. Le due destinazioni vanno distinte, altrimenti
+	// il test resta verde anche se il secondo `FrameOwnTeam` non trova nessuno.
+	// `RecenterView` ci porta dove sarebbe finita ripiegando: se ci fosse gia', non si muoverebbe.
+	Cam->RecenterView();
+	TestNotEqual(TEXT("e non era il ripiego: la squadra non sta sul centro mappa"),
+		Cam->GetActorLocation(), AfterRetry);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * Se le unita' non arrivano mai, la camera finisce sul centro mappa — non dove si trovava.
+ *
+ * E' il ramo che in partita non si vede: due `FrameOwnTeam` falliti di fila e il ripiego su
+ * `RecenterView`. Senza test, togliere quella chiamata aprirebbe la partita su una vista non
+ * inizializzata, e nulla lo segnalerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraBeginPlayFallsBackTest,
+	"RefactorTactics.Camera.BeginPlayFallsBackToMapCentreWithoutUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraBeginPlayFallsBackTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	if (!TestNotNull(TEXT("mappa"), SpawnCameraTestMap(World, FRTCellId(6, 2))))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	Cam->SetActorLocation(FVector::ZeroVector);
+
+	Cam->DispatchBeginPlay();
+	World->GetTimerManager().Tick(0.05f);
+
+	// Nessuna unita' e' mai arrivata: la camera deve essere sul centro mappa, che con questa mappa NON
+	// e' l'origine — cioe' non dove il pawn e' stato messo.
+	const FVector Fallback = Cam->GetActorLocation();
+	TestNotEqual(TEXT("ha ripiegato, non e' rimasta dov'era"), Fallback, FVector::ZeroVector);
+
+	// E il punto e' proprio quello di `Home`: se il ripiego chiamasse altro, le due posizioni divergono.
+	// ⚠️ La Z di partenza e' **diversa** da quella del ripiego, di proposito: riusare `Fallback.Z`
+	// renderebbe il confronto cieco proprio sull'asse che distingue `RecenterView` — che scrive il
+	// vettore intero — da `FocusOn`, che conserva la quota corrente.
+	Cam->SetActorLocation(FVector(-9999.f, -9999.f, 4321.f));
+	Cam->RecenterView();
+	TestEqual(TEXT("ed e' esattamente dove porta Home"), Cam->GetActorLocation(), Fallback);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * `Home` non porta il braccio dove lo zoom non lo lascerebbe mai stare.
+ *
+ * `RecenterView` era l'unico dei quattro scrittori di `TargetArmLength` a non clampare. Il difetto **non
+ * e' riproducibile con i valori di default** — `DefaultArmLength = 800` sta gia' dentro `[100, 4000]`, e
+ * il clamp non cambierebbe niente — quindi il test deve costruire la combinazione che lo espone: un
+ * default **oltre** il massimo, che dall'editor si ottiene con due campi e nessuna riga di codice.
+ *
+ * La conseguenza in partita non e' un numero fuori posto: e' che la prima tacca di rotellina dopo `Home`
+ * riporta dentro di scatto, spostando l'inquadratura di colpo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraRecenterClampsArmTest,
+	"RefactorTactics.Camera.RecenterKeepsArmWithinZoomLimits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraRecenterClampsArmTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	// Il default sfora il massimo: e' la sola configurazione in cui il clamp mancante si vede.
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 5000.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+
+	Cam->RecenterView();
+	TestEqual(TEXT("Home si ferma al massimo, non al default fuori scala"), Arm->TargetArmLength, 4000.f);
+
+	// La prova che conta per il giocatore: la prima tacca di zoom **dopo** `Home` deve muovere di un passo
+	// e basta. Si zooma **avvicinando** (`-1`), perche' e' la sola direzione in cui il risultato e' un
+	// valore esatto e non un altro clamp: 4000 - `ZoomStep`.
+	//
+	// 🔴 La prima stesura zoomava allontanando (`+1`) e verificava `Abs(nuovo - vecchio) <= 150`. Era una
+	// **tautologia**: dopo il clamp il braccio sta gia' al massimo, quindi `Clamp(4150, 100, 4000)` non
+	// puo' che restituire 4000 e la differenza e' sempre zero. Passava con qualunque implementazione, e
+	// il commento la chiamava «la prova che conta». Trovata in code review.
+	const float AfterHome = Arm->TargetArmLength;
+	Cam->AddZoom(-1.f);
+	const float AfterOneStep = Arm->TargetArmLength;
+	TestTrue(TEXT("la prima rotellina muove di un passo, non di un salto"),
+		AfterOneStep < AfterHome && AfterOneStep > AfterHome - 1000.f);
+	// E il passo e' quello dello zoom, non un valore qualsiasi: lo si ricava dal comportamento —
+	// due tacche coprono il doppio di una — invece di riscrivere la costante `ZoomStep`, che e'
+	// `protected` e che i test di questo file per convenzione non duplicano.
+	const float Step = AfterHome - AfterOneStep;
+	Cam->AddZoom(-1.f);
+	TestEqual(TEXT("il secondo passo e' uguale al primo"), AfterOneStep - Arm->TargetArmLength, Step);
+
+	// E il limite inferiore vale allo stesso modo, per non lasciare mezza guardia.
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 10.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->RecenterView();
+	TestEqual(TEXT("e non scende sotto il minimo"), Arm->TargetArmLength, 100.f);
 
 	DestroyCameraWorld(World);
 	return true;
