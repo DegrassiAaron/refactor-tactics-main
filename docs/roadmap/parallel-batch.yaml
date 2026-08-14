@@ -179,9 +179,18 @@ batch:
 # write-set è stato calcolato ed è atterrata un'ora dopo», walls-doors) sia all'indietro, come qui.
 # `base_sha` va **riletto prima del merge**, sempre.
 #
-# `state: DORMANT` = nessuna PR aperta, divergente da `origin/main`, ultimo commit ≥ 2 giorni.
-# È un fatto misurato, non un giudizio sul lavoro: dice solo che nessuno ci sta scrivendo *adesso*,
-# quindi il conflitto non è simultaneo — è **differito al giorno in cui quel branch riprende**.
+# `state:` qui dentro descrive il **branch**, non una PR — è la correzione che serviva, visto che
+# i sei branch vivi una PR non ce l'hanno mai avuta:
+#
+#   LIVE      divergente da `origin/main`, con almeno un commit nelle ultime 24 h.
+#   DORMANT   divergente da `origin/main`, nessuna PR aperta, ultimo commit ≥ 2 giorni.
+#   MERGED    già contenuto in `origin/main` (`git merge-base --is-ancestor`). Esce dalla sezione:
+#             un branch atterrato non è più un vincolo, e questo file non è un registro storico.
+#
+# ⚠️ `DORMANT` è un fatto misurato, non un giudizio sul lavoro: dice solo che nessuno ci sta
+# scrivendo *adesso*, quindi il conflitto non è simultaneo — è **differito al giorno in cui quel
+# branch riprende**, e chi riprende paga il merge. Va riletto a ogni riconciliazione: in questo
+# stesso giro `wip/icon-visual-language` è passato da `DORMANT` a `LIVE` mentre lo si scriveva.
 
 preexisting:
   # Rimisurati il 2026-08-14 su `base_sha` 1b511644, con `git ls-remote --heads origin` per l'elenco
@@ -190,17 +199,26 @@ preexisting:
   # dedotta — le quattro voci senza quel campo hanno intersezione **vuota**.
 
   - branch: wip/icon-visual-language
-    state: DORMANT         # ultimo commit 2026-08-12 19:22 · b1f22300
-    measured: 342
+    state: LIVE            # ultimo commit 2026-08-14 11:18 · f27a9d72
+    measured: 341
     collides_with:
       track: client_tools
       paths: [Source/RefactorTactics/UI/RTIconLibrary.cpp]
     note: >-
-      Il branch più grosso del repository, e l'unico che tocca due track. ⚠️ Sul **codice** la
-      collisione è un solo file: `UI/RTIconLibrary.cpp`, dentro `UI/` che `client_tools` dichiara
-      per prefisso. Sui **binari** è la ragione per cui `content_editor` non emette la lease su
-      `Content/RT/Maps/Dev/L_HexArena/` — vedi la nota di quella track, dove la divergenza del Data
-      asset è misurata sull'header dei due package.
+      Il branch più grosso del repository, e **l'unico `LIVE` di questa sezione**: ha ricevuto un
+      commit oggi, mentre gli altri cinque sono fermi al 11–12 agosto.
+      ⚠️ Sul **codice** la collisione è un solo file: `UI/RTIconLibrary.cpp`, dentro `UI/` che
+      `client_tools` dichiara per prefisso. Regge, ed è misurata.
+      ✅ Sui **binari** invece **è caduta, nelle ore in cui questa riga veniva scritta.** La prima
+      stesura diceva che la divergenza di `DA_HexMap_Arena.uasset` era la ragione per cui
+      `content_editor` non emette la lease su `Content/RT/Maps/Dev/L_HexArena/`: `#858` (chiusa) ha
+      riportato il blob a quello di `main` con `f27a9d72`, e adesso i due lati sono **identici** —
+      `e31b644b`, 48245 byte da entrambe le parti, riletto dal remoto dopo `git fetch --prune`, non
+      dal commit locale. Il write-set scende da 342 a **341** file per lo stesso motivo.
+      La lease resta non emessa, ma per la ragione più semplice che la nota di `content_editor`
+      ora dichiara — la seduta non ha bisogno di modificare il package — e non più per una contesa
+      che non esiste. È esattamente il modo in cui un batch smette di essere una misura: tenere in
+      piedi il vincolo giusto sulla giustificazione sbagliata.
 
   - branch: feat/cp75-selfreposition
     state: DORMANT         # ultimo commit 2026-08-11 20:17 · c1e151ef
@@ -286,7 +304,7 @@ tracks:
   simulation:
     status: ACTIVE
     issue: 165
-    branch: feat/165-finestra-overwatch
+    branch: null           # ⚠️ era `feat/165-finestra-overwatch`, sparito — vedi la nota
     note: >-
       CP 14.5 — il resolver costruisce opportunity in partita e apre la finestra.
       🔴 **Questa track puntava a #583 su una premessa già falsa quando il batch è stato scritto**:
@@ -297,9 +315,22 @@ tracks:
       soli chiamanti l'harness e i test, quindi non esiste un'opportunity di partita in cui
       registrare la condizione nel TurnLog. Scriverla adesso sarebbe un dato che nessuna partita
       produce — la forma di difetto che #583 esiste per evitare, spostata di un livello.
-      ⚠️ **`ScenarioHarness/` è TOLTA da questo write-set**: `wt-cap` la sta riscrivendo
+      ⚠️ **`ScenarioHarness/` è TOLTA da questo write-set**: `wt-cap` la stava riscrivendo
       (misurato, non dedotto). Se il lavoro dovesse richiederla, questa track esce dal batch —
       non si negozia il confine a metà lavoro.
+      ✅ **La ragione è caduta il 2026-08-14**: `wt-cap` è atterrato (PR #848 alle `06:44Z`, `#767`
+      chiusa alle `07:03Z`), il branch non esiste più lato server e `ScenarioHarness/` **non è
+      tenuta da nessuno**. La riga sopra resta perché il vincolo può essere ancora quello giusto —
+      ma ora è una **scelta** di questa track, non una contesa misurata, e va riletta da chi la
+      possiede. Registrarlo qui è ciò che impedisce a un vincolo caduto di sopravvivere alla
+      propria giustificazione.
+      🔴 **E il `branch:` di questa track non esiste più.** `feat/165-finestra-overwatch` e il suo
+      worktree (`D:/wt-165`) sono spariti mentre questo file veniva riconciliato, con **zero
+      commit** fatti (`git diff --name-only origin/main...` restituiva 0 file finché il branch era
+      risolvibile). `#165` resta `OPEN`, quindi la track è legittima e non passa a IDLE — ma il
+      campo è stato messo a `null` perché `feat/165-finestra-overwatch` era **falso**, e fra un
+      valore vero-e-incompleto e uno falso si sceglie il primo. Va ricreato alla prima apertura,
+      e il write-set qui sotto resta una dichiarazione da confermare in quel momento.
       ✅ **`Ability/` NON serve, e lo dichiara la issue** — non è una deduzione: #165 elenca i file
       coinvolti (`Turn/RTTurnManager.*`, `Turn/RTReactionOpportunityLibrary.*`,
       `Bot/RTHexBotLibrary.*`, `Tests/`) e aggiunge *«`Ability/RTHeroCatalogLibrary.*` **esce
@@ -347,8 +378,18 @@ tracks:
     issue: 78
     branch: feat/78-intenti-certezza
     note: >-
-      CP 11.2 — il livello di certezza degli intenti alleati. La track era IDLE per **dipendenza**,
-      e delle due ragioni scritte allora ne resta una sola:
+      CP 11.2 — il livello di certezza degli intenti alleati.
+      🔴 **`#78` ha DUE branch e DUE worktree, con lo stesso identico write-set.** Misurato, non
+      dedotto: `feat/78-intenti-certezza` (qui) e `feat/78-certezza-intenti` (`D:/wt-78`)
+      restituiscono gli stessi quattro file — `RTIntentPrivacyLibrary.{h,cpp}`,
+      `RTIntentPrivacyTests.cpp`, `parallel-batch.yaml` — e il secondo è staccato dal primo a
+      `b82ed3f5`, quindi oggi è un suo antenato e non una divergenza. **Ma è la violazione che
+      D-139 esiste per impedire**, arrivata dal lato che il meccanismo non copre: l'invariante è
+      scritta fra *track*, e qui la stessa track ha due sessioni. Finché uno dei due è antenato
+      dell'altro il costo è zero; al primo commit sul ramo indietro sono due versioni dello stesso
+      file da fondere a mano. **Va chiuso scegliendone uno**, e non è una decisione di questa
+      riga — è la riallocazione di §«la regola».
+      La track era IDLE per **dipendenza**, e delle due ragioni scritte allora ne resta una sola:
       ✅ **caduta**: *«`#77` tocca `UI/` ma anche i test che le altre due track già scrivono»*.
       `#77` è chiusa sul codice da #746 — quattro test headless verdi — e non è più un candidato:
       le resta `PIE-V01-HUD`, che è la coda umana, non questa track.
@@ -433,9 +474,14 @@ tracks:
       un atto di batch, non una decisione di questa seduta.
       ➕ **`docs/technical/test-manuali-pie.md` esce da `integration_only` ed entra qui**, per
       questo giro. Era là per una contesa che in questo batch **non esiste**, misurata sui write-set
-      dei branch vivi (`git diff --name-only origin/main...<branch>`): `feat/165` 0 file, `feat/78`
-      il solo `parallel-batch.yaml`, `wt-cap` / `#767` 7 file, `feat/641` 4, `feat/cp75` 3, i tre
-      `docs/lane*` 18 in totale, `wip/icon-visual-language` 342 — e **nessuno di essi lo tocca**.
+      dei branch vivi (`git diff --name-only origin/main...<branch>`). ⚠️ **Rimisurato il
+      2026-08-14 dopo `git fetch --prune`**, perché tre delle cifre erano invecchiate in poche ore:
+      `feat/78` **4** file (non «il solo `parallel-batch.yaml`»: i tre di `RTIntentPrivacy*` sono
+      atterrati nel frattempo), `wip/icon-visual-language` **341** (era 342: `#858` ha riportato il
+      blob dell'arena), e `wt-cap` / `#767` **esce dal conteggio** — è mergiato. Restano
+      `feat/641` 4, `feat/cp75` 3, i tre `docs/lane*` 18 in totale. `feat/165` non è più
+      misurabile: il branch non esiste. **Nessuno dei branch vivi tocca `test-manuali-pie.md`** —
+      verificato uno per uno, ed è l'unica cosa che questa riga deve dimostrare.
       Senza quel file una track ACTIVE non avrebbe dove scrivere il proprio prodotto, che è il
       verdetto: `produces` di U1 è un asset *e* sette esiti, e l'asset è già committato.
     writable:
@@ -484,7 +530,9 @@ integration_only:
   # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14: lo tiene `content_editor`
   # su `#451`. Vedi la nota della track per la misura che lo consente. Torna qui al prossimo batch.
   - docs/balance/          # sorgente dei radar (toolchain Node)
-  - Scenarios/             # sorgente di scenariomap + project-graph; oggi la tiene wt-cap
+  # ⚠️ Diceva «oggi la tiene wt-cap»: quel branch è atterrato il 2026-08-14 (PR #848) e non tiene
+  # più niente. `Scenarios/` torna quindi `integration_only` piena — non assegnata a nessuno.
+  - Scenarios/             # sorgente di scenariomap + project-graph
   - scripts/feature_registry.py
   - scripts/test_feature_registry_releases.py
   - scripts/test_feature_registry_lanes.py
