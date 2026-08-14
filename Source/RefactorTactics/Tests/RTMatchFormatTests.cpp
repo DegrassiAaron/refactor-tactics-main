@@ -235,4 +235,54 @@ bool FRTMatchFormatDeclaresUnitsPerTeamTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Un numero di versione non torna su questa classe senza la macchina che lo regge** (`D-141`, #844).
+ *
+ * ## Perche' un test che pinna un'ASSENZA
+ *
+ * Questo test non difende un comportamento — non c'e' comportamento da difendere. Difende una **decisione**,
+ * ed e' l'asimmetria che il panel di revisione ha trovato: #687 ha chiuso il proprio difetto lasciando tre
+ * test e uno `static_assert`; `D-141` lo ha chiuso **rimuovendo** un campo e non lasciando niente. Rimuovere
+ * sembra non richiedere protezione, e qui non e' vero: il giorno in cui qualcuno crea il formato 3v3 e pensa
+ * *«serve una versione»*, `int32 FormatVersion = 1` rientra in una riga e nulla diventa rosso.
+ *
+ * `URTMatchFormatData` aveva quel campo con il **vocabolario** di una versione e nessuna macchina: niente
+ * `CurrentFormatVersion`, niente `MigrateToCurrentFormat`, niente `PostLoad`, e nessuno che lo scrivesse.
+ * Un numero di versione **da solo** non protegge niente — produce l'illusione di una rete, che e' cio' che
+ * #687 ha pagato per otto versioni su `URTHexMapAsset`.
+ *
+ * ## Quando questo test va aggiornato, e come
+ *
+ * ⚠️ **Non e' un divieto perpetuo, ed e' deliberato che sia rosso e non un commento**: il giorno in cui un
+ * formato **autorato come asset** dovra' sopravvivere a un campo che cambia significato, la versione torna —
+ * ma torna **insieme** al meccanismo (`FCustomVersionRegistry`, come `Map/RTHexMapCustomVersion.h`, che ha
+ * gia' il suo test a due binari) e al primo passo di migrazione. Allora questo test si aggiorna nello stesso
+ * commit, che e' esattamente il punto: costringe chi lo riaggiunge a leggere **perche'** era stato tolto.
+ *
+ * E' lo stesso ruolo che #830 ha scelto per i default di `MapClass`/`HexSize`: il test non impedisce il
+ * cambio, lo rende **rosso**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatHasNoOrphanVersionTest,
+	"RefactorTactics.MatchFormat.NoVersionFieldWithoutItsMachinery",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchFormatHasNoOrphanVersionTest::RunTest(const FString&)
+{
+	const UClass* FormatClass = URTMatchFormatData::StaticClass();
+
+	// Il nome si cerca per stringa **di proposito**: se fosse un riferimento simbolico, questo test non
+	// compilerebbe nel momento stesso in cui deve diventare rosso.
+	TestNull(
+		TEXT("URTMatchFormatData non dichiara FormatVersion: un numero di versione senza migrazione ne' "
+			 "lato-scrittura promette una rete che non esiste (D-141, #844) — se lo stai riaggiungendo, "
+			 "portalo con FCustomVersionRegistry e il suo passo di migrazione, poi aggiorna questo test"),
+		FormatClass->FindPropertyByName(TEXT("FormatVersion")));
+
+	// La controprova che il test guarda la classe giusta e con lo strumento giusto: un campo che ESISTE
+	// dev'essere trovato dalla stessa chiamata. Senza, un errore di nome o di classe renderebbe la riga
+	// sopra verde per sempre — e sarebbe una guardia che misura se stessa.
+	TestNotNull(TEXT("controprova: la reflection su questa classe funziona (FormatId esiste)"),
+		FormatClass->FindPropertyByName(TEXT("FormatId")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
