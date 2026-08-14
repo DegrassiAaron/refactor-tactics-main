@@ -122,4 +122,149 @@ bool FRTIntentPrivacyDeadAndOrderTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/** Piano SPOGLIO: un'unita' ferma che non fa niente. Base su cui accendere una condizione per volta. */
+	FRTPlannedIntent MakeIdleIntent(int32 TeamId)
+	{
+		FRTPlannedIntent I;
+		I.OwnerCell = FRTCellId(0, 0);
+		I.TeamId = TeamId;
+		I.bAlive = true;
+		return I;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIntentCertaintyClassificationTest,
+	"RefactorTactics.UI.IntentCertaintyClassification",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIntentCertaintyClassificationTest::RunTest(const FString&)
+{
+	// CP 11.2. Un livello per volta, accendendo una sola condizione sul piano spoglio: cosi' il test dice
+	// QUALE campo decide, non solo che la terna esiste.
+
+	// CONFERMATO — niente puo' cambiarlo: l'unita' sta ferma e non punta niente.
+	{
+		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { MakeIdleIntent(0) });
+		if (!TestEqual(TEXT("l'alleato fermo produce una vista"), V.Num(), 1)) { return false; }
+		TestEqual(TEXT("fermo e senza bersaglio: confermato"), V[0].Certainty, ERTIntentCertainty::Confirmed);
+	}
+
+	// PREVISTO — c'e' un bersaglio, ma l'unita' non si sposta: vale nello snapshot corrente.
+	{
+		FRTPlannedIntent Aiming = MakeIdleIntent(0);
+		Aiming.bHasTarget = true;
+		Aiming.TargetCell = FRTCellId(3, 0);
+		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { Aiming });
+		if (!TestEqual(TEXT("una vista"), V.Num(), 1)) { return false; }
+		TestEqual(TEXT("bersaglio senza movimento: previsto"), V[0].Certainty, ERTIntentCertainty::Predicted);
+	}
+
+	// INCERTO — muoversi basta: le celle del percorso sono contendibili e il resolver puo' troncare.
+	{
+		FRTPlannedIntent Moving = MakeIdleIntent(0);
+		Moving.bMoving = true;
+		Moving.PlannedCell = FRTCellId(2, 0);
+		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { Moving });
+		if (!TestEqual(TEXT("una vista"), V.Num(), 1)) { return false; }
+		TestEqual(TEXT("in movimento: incerto"), V[0].Certainty, ERTIntentCertainty::Uncertain);
+	}
+
+	// Lo SCATTO conta come movimento anche senza `bMoving`: e' una rotta, e ha le stesse celle contendibili.
+	// Sono due flag distinti in `FRTPlannedIntent` e guardarne uno solo lascerebbe lo scatto «confermato».
+	{
+		FRTPlannedIntent Dashing = MakeIdleIntent(0);
+		Dashing.bDashing = true;
+		Dashing.DashCell = FRTCellId(1, 1);
+		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { Dashing });
+		if (!TestEqual(TEXT("una vista"), V.Num(), 1)) { return false; }
+		TestEqual(TEXT("in scatto: incerto"), V[0].Certainty, ERTIntentCertainty::Uncertain);
+	}
+
+	// La REAZIONE ha il suo livello, e DIVERGE dal piano: e' il caso che rende `ReactionCertainty` un dato
+	// invece di una costante. Il piano di un'unita' ferma e' confermato; la reazione che tiene pronta
+	// aspetta un trigger che decide l'avversario, quindi no.
+	{
+		FRTPlannedIntent Armed = MakeIdleIntent(0);
+		Armed.ReactionName = FText::FromString(TEXT("Contrattacco"));
+		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { Armed });
+		if (!TestEqual(TEXT("una vista"), V.Num(), 1)) { return false; }
+		TestEqual(TEXT("il piano resta confermato"), V[0].Certainty, ERTIntentCertainty::Confirmed);
+		TestEqual(TEXT("ma la reazione armata e' incerta"), V[0].ReactionCertainty,
+			ERTIntentCertainty::Uncertain);
+	}
+
+	// Senza reazione il campo non afferma niente: resta al default, e il widget non ha una riga da disegnare
+	// perche' `ReactionName` e' vuota.
+	{
+		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { MakeIdleIntent(0) });
+		if (!TestEqual(TEXT("una vista"), V.Num(), 1)) { return false; }
+		TestTrue(TEXT("nessuna reazione da qualificare"), V[0].ReactionName.IsEmpty());
+		TestEqual(TEXT("il livello della reazione resta al default"), V[0].ReactionCertainty,
+			ERTIntentCertainty::Confirmed);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoEnemyIntentExposedTest,
+	"RefactorTactics.UI.NoEnemyIntentExposed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoEnemyIntentExposedTest::RunTest(const FString&)
+{
+	// 🔴 Il test che pinna la DECISIONE DI DESIGN, non l'implementazione.
+	//
+	// Derivare la certezza dai piani avversari sarebbe il calcolo piu' naturale — `FilterForTeam` li riceve
+	// tutti — e produrrebbe un CANALE LATERALE: un tratteggio che compare solo quando un nemico incrocia la
+	// mia rotta gli dice dove si trova. L'invariante #6 vieta di esporre l'intento avversario, e una
+	// deduzione affidabile e' un'esposizione: il DoD scrive che «l'occultamento non e' grafico».
+	//
+	// ⚠️ L'alleato di questa scena sta FERMO, ed e' una scelta senza la quale il test non morderebbe.
+	// La prima stesura lo faceva muovere: sarebbe partito gia' `Uncertain`, cioe' dal livello massimo, e un
+	// canale laterale che ALZA il livello non avrebbe avuto niente da alzare. Il test sarebbe rimasto verde
+	// su un leak reale. Partendo da `Confirmed` ogni contaminazione si vede.
+	// Trovato con la verifica di mutazione, non ragionando sul codice.
+	FRTPlannedIntent Ally = MakeIdleIntent(0);
+
+	// Un nemico che gli marcia addosso, lo punta e tiene pronta un'intercettazione: e' la scena piu'
+	// "incerta" immaginabile, ed e' esattamente cio' che NON deve trasparire dal livello dell'alleato.
+	FRTPlannedIntent Enemy = MakeIdleIntent(1);
+	Enemy.bMoving = true;
+	Enemy.PlannedCell = FRTCellId(0, 0); // la cella su cui l'alleato sta fermo: collisione
+	Enemy.PlannedPath = { FRTCellId(2, 0), FRTCellId(1, 0), FRTCellId(0, 0) };
+	Enemy.bHasTarget = true;
+	Enemy.TargetCell = FRTCellId(0, 0);
+	Enemy.ReactionName = FText::FromString(TEXT("Intercetta"));
+
+	const TArray<FRTIntentView> Alone = URTIntentPrivacyLibrary::FilterForTeam(0, { Ally });
+	const TArray<FRTIntentView> Contested = URTIntentPrivacyLibrary::FilterForTeam(0, { Ally, Enemy });
+
+	if (!TestEqual(TEXT("scena senza nemici: una vista"), Alone.Num(), 1)) { return false; }
+	if (!TestEqual(TEXT("il nemico non rivelato non aggiunge righe"), Contested.Num(), 1)) { return false; }
+
+	// Il valore di partenza e' ancorato: se un giorno `MakeIdleIntent` cambiasse e l'alleato nascesse gia'
+	// `Uncertain`, i due confronti qui sotto resterebbero verdi confrontando due massimi. Questa riga fa
+	// fallire il test invece di lasciarlo smettere di verificare in silenzio.
+	if (!TestEqual(TEXT("l'alleato fermo parte da confermato, o il test non morde"),
+		Alone[0].Certainty, ERTIntentCertainty::Confirmed)) { return false; }
+
+	// Il cuore: la classificazione non si muove di un livello.
+	TestEqual(TEXT("la certezza del piano e' cieca ai piani nemici"),
+		Contested[0].Certainty, Alone[0].Certainty);
+	TestEqual(TEXT("e quella della reazione pure"),
+		Contested[0].ReactionCertainty, Alone[0].ReactionCertainty);
+
+	// E il nemico RIVELATO non porta comunque il proprio livello di reazione: `Reveal` mostra cosa un'unita'
+	// sta per fare, non cosa e' pronta a parare — quindi non c'e' una reazione da qualificare.
+	{
+		FRTPlannedIntent RevealedEnemy = Enemy;
+		RevealedEnemy.bRevealed = true;
+		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { RevealedEnemy });
+		if (!TestEqual(TEXT("il nemico rivelato produce una vista"), V.Num(), 1)) { return false; }
+		TestTrue(TEXT("senza la sua reazione"), V[0].ReactionName.IsEmpty());
+		TestEqual(TEXT("e senza un livello che la qualifichi"), V[0].ReactionCertainty,
+			ERTIntentCertainty::Confirmed);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
