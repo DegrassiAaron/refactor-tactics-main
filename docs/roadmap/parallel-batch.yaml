@@ -445,7 +445,7 @@ preexisting:
 
   - branch: feat/887-focus-quota
     state: LIVE            # worktree `D:/rt-telecamera` · PR #890 aperta · su `e9003c96`
-    measured: 4
+    measured: 7
     collides_with: []   # entrambe cadute: #878 e #885 mergiate mentre il lavoro era in corso
     note: >-
       `#887`, aperta da un'altra sessione dal playtest di M6.8: `FocusOn` scarta la `Z` del bersaglio e
@@ -457,11 +457,19 @@ preexisting:
       `FocusKeepsHeightZoomAndOrientation` verifica che la quota sia *conservata*, quindi **difende il
       difetto** invece di trovarlo. La domanda giusta non è «la quota resta invariata?» ma «invariata
       rispetto a cosa?». Va riscritto, non affiancato.
-      ✅ **Set disgiunto dalle track ACTIVE**: `Camera/` e `Tests/RTCameraPawnTests.cpp` non sono nel
-      `writable` di nessuna — `simulation` tiene `Turn/` e `Bot/`, `client_tools`
-      `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`.
-      ⚠️ **Le due collisioni su `parallel-batch.yaml` sono dichiarate qui e misurate**, non dedotte: è
-      `integration_only`, si riconcilia in integrazione.
+      ✅ **Set disgiunto dalle track ACTIVE**: `Camera/`, `Player/RTPlayerController.cpp` e
+      `Tests/RTCameraPawnTests.cpp` non sono nel `writable` di nessuna — `simulation` tiene `Turn/` e
+      `Bot/`, `client_tools` `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor`
+      `docs/technical/test-manuali-pie.md`.
+      🔴 **`measured` diceva 4 e sono 7**, misurati con `git diff --name-only origin/main...HEAD`: ai due
+      sorgenti della camera e al test si aggiungono `Player/RTPlayerController.cpp` — dove la code review
+      ha spostato metà del fix — e i due del Feature Registry, `yaml` e `json`. Il numero era **ricordato**
+      dalla stesura iniziale e non rimisurato dopo che lo scope si era allargato.
+      🔵 **Le due collisioni che questa voce dichiarava sono CADUTE**, ed è il campo `collides_with` a
+      dirlo per primo: `feat/165` è atterrata con #878 e `fix/residui-istruttoria-dod` con #885, entrambe
+      mentre il lavoro era in corso. ⚠️ La prosa qui sotto ha continuato a citarle come vive per un commit
+      intero dopo che il campo era già `[]`: la stessa informazione in due forme, aggiornata in una sola —
+      la recidiva che la voce di `feat/165` aveva registrato prima di uscire.
       ➕ La issue avverte di verificare `feat/865-camera-focus-tests`, «vivo in `D:/rt-telecamera`»:
       **non lo è più** — mergiato con #872 e cancellato prima che questa issue fosse scritta. È lo stesso
       invecchiamento che questo file registra a ogni giro, visto stavolta dal lato di chi legge.
@@ -504,9 +512,9 @@ preexisting:
   #   D:/wt-451           `feat/451-u1-voci-hex-mode`       LOCAL, 0 file
   #   D:/rt-telecamera    `feat/887-focus-quota`            LIVE, 4 file · PR #890 — fra i remoti
   #   D:/rt-client        `docs/38-spec-panel-playtest-hex` LIVE  — fra i branch remoti
-  #   D:/rt-simulation    `feat/165-finestra-overwatch`     LIVE, 15 file — fra i branch remoti
+  #   D:/rt-simulation    `feat/165-finestra-overwatch`     **mergiata #878**, write-set 0 — nessuna voce
   #   D:/rt-spatial       detached su `8ea9c229`            0 file, nessun vincolo, nessuna voce
-  #   working directory   `fix/residui-istruttoria-dod`     **11 file, non pushato, NON REGISTRATO**
+  #   working directory   `fix/residui-istruttoria-dod`     **mergiata #885** — il buco si e' chiuso da se'
   #
   # 🔴 **I conteggi erano stati CANCELLATI invece che rimisurati**, e il paragrafo qui sotto continuava a
   # dire «sette file» quando erano **11**. Togliere il numero da una riga non la rende meno falsa: la
@@ -535,7 +543,10 @@ preexisting:
   # qui sopra nomina il **branch** e non la cartella: rimosso alla chiusura di #867 con il suo branch
   # cancellato, ricreato per `#865`, e ora su `feat/873-recenter-clamp`. Il nome della cartella non
   # dice quale lavoro ci sia dentro — solo `git worktree list` lo dice, e oggi risponde
-  # `feat/874-beginplay-fallback`.
+  # `feat/887-focus-quota`.
+  # 🔴 **Questa riga ha nominato il branch sbagliato per tre giri di fila** — `#873`, poi `#874`, poi
+  # ancora `#874` — in un paragrafo che esiste per dire che il nome della cartella non basta a
+  # saperlo. Va riletto dal comando **nello stesso commit** che lo scrive, non al giro dopo.
   # 🔴 **Questa riga citava «il quinto … (`feat/865-camera-focus-tests`)» dopo che il commit precedente
   # aveva tolto quella voce**: un riferimento pendente a una voce cancellata, per giunta con l'ordinale
   # sbagliato rispetto al conteggio otto righe sopra. Il file avverte di questo esatto rischio quattro

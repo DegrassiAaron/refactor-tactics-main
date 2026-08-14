@@ -3460,7 +3460,10 @@ features:
       log_debug: na
       # `todo` → `partial` → `done` in due passi lo stesso giorno.
       #   `partial` (#867): i quattro test esistevano già e nessuno li aveva dichiarati.
-      #   `done`    (#865): aggiunti i quattro che mancavano — `FocusOn` conserva zoom e orientamento
+      #   `done`    (#865): aggiunti i quattro che mancavano — `FocusOn` conserva quota/zoom/orientamento
+      #                     ⚠️ La clausola sulla **quota** era il difetto di #887, e resta scritta qui
+      #                     perché è ciò che #865 dichiarò davvero: riscriverla cancellerebbe la prova
+      #                     su cui poggia la nota qui sotto.
       #                     (campo **e** braccio), i due rami `false` di `FrameOwnTeam`,
       #                     `MatchStartArmLength` distinto da `DefaultArmLength`, il **centraggio** sul
       #                     centroide e la squadra letta dal **controller** invece che assunta 0.
@@ -3473,7 +3476,7 @@ features:
       # coperti e verificati per mutazione.
       # ⏳ **Resta scoperto un consumatore, ed è dichiarato invece che sottinteso**: il ripiego di
       # `BeginPlay` (`FrameOwnTeam` → ritenta al tick → `RecenterView`) non ha test. È lavoro di #874.
-      # 🔴 **Chiuso #887, e la lezione vale più del fix**: `FocusOn` scartava la quota del bersaglio e
+      # 🟡 **#887 — in corso (PR #890 aperta), e la lezione vale più del fix**: `FocusOn` scartava la quota del bersaglio e
       # teneva quella con cui il pawn nasce — il PlayerStart — quindi premendo `F` la camera orbitava
       # sopra il vuoto. **Il test che #865 aveva prescritto difendeva quel difetto**: verificava che la
       # quota fosse *conservata*, cioè misurava la conservazione invece della correttezza. Riscritto, non
@@ -3519,7 +3522,7 @@ features:
       # le `notes` qui sotto post-morteggiano. Un `last_verified` che punta a un albero anteriore ai test
       # che giustificano il gate è una firma su un documento che non si è letto.
       date: 2026-08-14
-      commit: e9003c96
+      commit: a330ba79
     notes: >
       `ARTCameraPawn` esiste e la build packaged la usa; la taratura su scala esagonale resta una
       verifica PIE aperta (CP 8.3 di M8). Non promuovere per «si vede che funziona».
