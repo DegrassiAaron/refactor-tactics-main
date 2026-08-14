@@ -207,13 +207,27 @@ tracks:
 
   simulation:
     status: ACTIVE
-    issue: 583
-    branch: feat/583-produttore-d109
+    issue: 165
+    branch: feat/165-finestra-overwatch
     note: >-
-      La condizione dichiarata di `D-109` non ha un produttore: nessun input in partita la scrive.
-      ⚠️ **`ScenarioHarness/` è stata TOLTA da questo write-set**: `wt-cap` la sta riscrivendo
+      CP 14.5 — il resolver costruisce opportunity in partita e apre la finestra.
+      🔴 **Questa track puntava a #583 su una premessa già falsa quando il batch è stato scritto**:
+      «la condizione di `D-109` non ha un produttore». Il produttore è atterrato il 2026-08-12 con
+      #639 (`5cc2d6de`) e si chiama `rt.Reaction.Condition [N]`
+      (`Source/RefactorTactics/Turn/RTReactionConditionConsole.cpp`). Di #583 restano due voci di
+      DoD, e **nessuna delle due è scrivibile senza CP 14.5**: `BuildOverwatchTriggers` ha come
+      soli chiamanti l'harness e i test, quindi non esiste un'opportunity di partita in cui
+      registrare la condizione nel TurnLog. Scriverla adesso sarebbe un dato che nessuna partita
+      produce — la forma di difetto che #583 esiste per evitare, spostata di un livello.
+      ⚠️ **`ScenarioHarness/` è TOLTA da questo write-set**: `wt-cap` la sta riscrivendo
       (misurato, non dedotto). Se il lavoro dovesse richiederla, questa track esce dal batch —
       non si negozia il confine a metà lavoro.
+      ⚠️ **`Ability/` non è assegnata, e CP 14.5 quasi certamente la richiede**: `Action.Overwatch`
+      **non esiste nel catalogo core** e nessun eroe del roster lo ha nel kit — le loro reazioni
+      sono `Counter`, `Intercept`, `Deflect`, tutte automatiche. Il catalogo lo dichiara a
+      `RTCatalogLibrary.h:321`. Il write-set qui sotto copre il resolver, non il catalogo: se il
+      lavoro tocca `Source/RefactorTactics/Ability/`, si registra una riallocazione **prima**,
+      non «solo questa piccola fix». Oggi nessun'altra track la dichiara, quindi è allocabile.
     writable:
       - Source/RefactorTactics/Turn/
       - Source/RefactorTactics/Bot/
