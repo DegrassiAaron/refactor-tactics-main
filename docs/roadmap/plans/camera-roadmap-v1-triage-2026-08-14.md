@@ -18,11 +18,17 @@ Registry, che dichiara `automation: todo` e `tests: []` su una feature coperta d
 
 | Oggetto dell'handoff | Quanti | Entrati ora | Perché |
 |---|--:|--:|---|
-| Issue candidate | 51 | 3 | 48 descrivono release da v0.2 in poi: diventano scope di epic già esistenti, non issue aperte oggi |
+| Issue candidate | 51 | 3 | delle 5 candidate **v0.1**, tre sono aperte (§6.3) e due hanno già un owner (§7); le altre **46** descrivono release da v0.2 in poi |
 | Scenari proposti | 34 | 0 nuovi ID | `scenario-map.md` non ha **nessuna** voce camera: il gap è reale, ma va aperto con la convenzione del repository, non con questi nomi |
-| Decisioni da registrare | 9 | 2 | 4 sono già in vigore, 2 sono premesse false, 1 è tuning aperto |
+| Decisioni del §13 | 9 | **0** | nessuna delle nove entra come tale (§6.2) |
+| Decisioni nuove registrate | — | 2 | `D-142` e `D-143`, che **non** vengono dal §13 ma dal §8 e dal §3.1 |
 | Feature ID citati | 13 | — | **6 non esistono** (§3) |
-| Sezioni | 18 | — | 1257 righe |
+| Sezioni | 19 | — | 1257 righe |
+
+> ⚠️ **Le due righe sulle decisioni erano una sola, e il conto non tornava.** Diceva «9 candidate → 2
+> entrate, 4 già in vigore, 2 premesse false, 1 tuning aperto»: un `4+2+1+2 = 9` che sommava voci prese da
+> **tre sezioni diverse** dell'handoff. Le due decisioni effettivamente registrate non sono nell'elenco del
+> §13 — nascono dal §8 (lo snap) e dal §3.1 (presentation-only). Trovato in code review.
 
 ## 3. `WRONG` — le premesse false, misurate
 
@@ -78,18 +84,24 @@ L'handoff §3.8 chiede di *«evitare comportamento standard SpringArm che accorc
 sezione teme non può verificarsi. Resta vero il resto della sezione (safety collision assente), ma la
 premessa — «la camera oggi popping per collisione» — è falsa.
 
-## 4. `CURRENT` — quattro decisioni già in vigore
+## 4. `CURRENT` — tre proposte già in vigore
 
 | § handoff | Cosa propone | Dove è già scritto |
 |---|---|---|
 | 3.13 | «nessuna minimappa tradizionale obbligatoria per v0.1» | [`../../technical/progettazione-hud.md`](../../technical/progettazione-hud.md) §30, con quattro motivi fra cui «overview separata più leggibile» |
 | 3.1 | «pan relativo alla camera» | `AddPlanarMovement` lo implementa, con la motivazione in commento |
 | 3.9 | «focus conserva zoom» | `FocusOn` «mantenendo la quota e lo zoom correnti» |
-| 3.1 | «camera presentation-only, nessuna authority» | `FrameOwnTeam`: «Sola presentazione: legge lo stato, non lo cambia» |
-
 ⚠️ §3.13 chiede di *«risolvere il conflitto minimap/Strategic View»*. **Non c'è nessun conflitto**: il
 documento owner nega già la minimap permanente, e per gli stessi motivi. Ciò che manca non è una decisione,
 è il legame fra quella riga e l'overview — che oggi non ha né feature né issue.
+
+> 🔵 **Una quarta riga è stata tolta da questa tabella: «camera presentation-only».** Ci stava per una
+> ragione debole — il commento di `FrameOwnTeam` dice «Sola presentazione: legge lo stato, non lo cambia» —
+> e la contava fra le decisioni *già in vigore* mentre §6.2 la registrava come `D-143`, cioè fra quelle che
+> il repository **non ha**. Lo stesso item in due bucket opposti: il conto del §2 lo contava due volte.
+> La distinzione che risolve: *vero nel codice* non è *dichiarato come vincolo*. Un commento in una
+> funzione non è un invariante che qualcuno debba rispettare, ed è esattamente perché non lo era che
+> `D-143` ha ragione di esistere. Trovato in code review.
 
 ## 5. Il difetto vero: il registry sottodichiara la camera
 
@@ -104,12 +116,21 @@ RefactorTactics.Camera.RecenterAlsoResetsRotation
 ```
 
 Il registry dichiara per la stessa feature `automation: todo`, `tests: []`, `scenarios: []`, e in `notes`:
-«**nessun test automatico** la copre». È **falso dal 2026-08-08**, la data di `last_verified`.
+«**nessun test automatico** la copre».
 
-> **Perché nessun gate se ne accorge.** `validate` verifica che i pattern dichiarati in `tests:` matchino
-> test reali — cioè il verso *dichiarato → esistente*. Il verso opposto, *esistente → dichiarato*, non è
-> controllato da nulla: una lista vuota è sempre coerente. È lo stesso difetto del gate che confronta un
-> generato con sé stesso, applicato al registry.
+> 🔵 **Quella nota era vera quando è stata scritta, e la prima stesura di questo triage lo ha sbagliato.**
+> Diceva «è falso dal 2026-08-08, la data di `last_verified`» — ma i due eventi distano **58 minuti**, non
+> zero: `last_verified.commit` è `2094b867`, del 2026-08-08 alle `17:57:05`, e `RTCameraPawnTests.cpp` è
+> nato con `07620c42` alle `18:55:16`. La verifica era corretta al momento in cui è stata fatta.
+> **La causa non è una misura sbagliata, è un `last_verified` mai avanzato**: la data serve esattamente a
+> dire «questo era vero *allora*», e chi legge il registry non ha modo di sapere che il mondo è cambiato
+> un'ora dopo. Trovato in code review confrontando i *timestamp* invece delle date.
+
+**Il gate gap resta, ed è una constatazione separata.** Una volta invecchiata, quella nota non aveva nessuna
+rete: `validate` verifica che i pattern dichiarati in `tests:` matchino test reali — il verso *dichiarato →
+esistente*. Il verso opposto, *esistente → dichiarato*, non è controllato da nulla, e una lista vuota è
+sempre coerente. È lo stesso difetto del gate che confronta un generato con sé stesso, applicato al
+registry, ed è la ragione per cui l'errore è sopravvissuto sei giorni invece di un'ora.
 
 Questa correzione è l'unica parte dell'handoff che chiude un difetto **misurato** invece di aprire lavoro
 futuro, ed è entrata per prima.
@@ -121,17 +142,25 @@ futuro, ed è entrata per prima.
 `RT-FEAT-UI-TACTICAL-CAMERA` passa `automation: todo → partial` con i quattro test dichiarati. **Non**
 `done`: i quattro coprono yaw, zoom e pan relativo, non coprono focus, bounds né `FrameOwnTeam`.
 
-### 6.2 Due decisioni, non nove
+### 6.2 Due decisioni — e nessuna delle nove
 
-Delle nove decisioni §13, entrano le due che il repository non ha e che non dipendono da codice futuro:
+Il §13 elenca nove decisioni «da verificare/registrare». **Nessuna entra come tale**: #8 (niente minimap) è
+già in vigore (§4); #1 (yaw libero, pitch vincolato) e #2 (RMB contestuale) non sono decisioni ma
+comportamenti da scrivere, e hanno un owner — [#863](https://github.com/DegrassiAaron/refactor-tactics-main/issues/863)
+e [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705); le restanti sei (#3 Strategic
+View, #4 targeting cross-layer, #5 `ActiveLayer`, #6 cutaway, #7 Camera Director, #9 replay/spectator)
+descrivono sistemi che non esistono, e una decisione presa prima del suo primo consumatore è un dato che
+nessuna partita produce.
+
+Entrano invece **due decisioni che il §13 non contiene**, nate da altre due sezioni, perché riguardano
+codice che esiste già oggi:
 
 - **lo yaw canonico è a 45°, e non si aggancia agli assi della griglia** — promuove a decisione la
   motivazione che oggi vive in un commento C++, dove nessun documento la trova;
 - **la camera è presentation-only** — nessuna authority su gameplay, LOS, targeting o visibilità.
-
-Le altre sette descrivono sistemi che non esistono (Strategic View, Camera Director, ActiveLayer,
-cross-layer targeting): sono **premesse di design**, e una decisione presa prima del suo primo consumatore
-è un dato che nessuna partita produce.
+  ⚠️ Con un limite che `D-143` dichiara da sé: `FrameOwnTeam` itera **tutte** le unità del mondo e legge
+  `TeamId`/`IsAlive()` anche dei nemici. La proprietà «non modifica lo stato» è vera; «legge una vista già
+  sanificata» **non lo è ancora**, ed è il primo debito che quella decisione crea invece di nascondere.
 
 ### 6.3 Tre issue, non cinquantuno
 
@@ -150,9 +179,19 @@ commento sui `pie_refs` — più feature che dichiarano la stessa issue. `77` re
 
 ## 7. `PROPOSED` differito — cosa diventa scope di epic
 
-Le 48 issue candidate restanti non si aprono oggi: descrivono release da v0.2 a v1.0 le cui epic
-**esistono già** (E23, E27, E40, E42, E44, E45 verificate su GitHub). Aprirle ora produrrebbe 48 issue
-ferme su dipendenze non scritte — e il loro contenuto è già nell'handoff archiviato, che resta consultabile.
+**46** delle 48 candidate restanti descrivono release da v0.2 a v1.0 le cui epic **esistono già** (E23, E27,
+E40, E42, E44, E45 verificate su GitHub). Aprirle ora produrrebbe 46 issue ferme su dipendenze non scritte —
+e il loro contenuto è già nell'handoff archiviato, che resta consultabile.
+
+> ⚠️ **Le altre due sono v0.1, e questa sezione le copriva con una giustificazione che non le riguarda.**
+> Diceva «48 … descrivono release da v0.2 in poi»: falso per due di esse, perché la sezione v0.1
+> dell'handoff contiene **cinque** candidate, non tre. Trovato in code review. Le due hanno già un owner, e
+> per ragioni diverse fra loro:
+>
+> | Candidata v0.1 | Owner | Perché non una issue nuova |
+> |---|---|---|
+> | 1. *Reconcile tactical camera baseline with current input and focus contract* | **questo triage** | «riconciliare la baseline» è il lavoro che il consolidamento ha appena fatto: il registry ora dichiara i test che esistono, e i tre gap residui sono #863/#864/#865. Non resta niente da riconciliare in una issue |
+> | 4. *Integrate selection, focus and planning ability camera contexts* | [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) — CP 11.8 | il *Pointer Interaction Contract* possiede già selezione e contesto esplicito; agganciarci il framing prima che quel contratto sia chiuso creerebbe una seconda sede della stessa decisione |
 
 ## 8. Cosa questo triage NON decide
 

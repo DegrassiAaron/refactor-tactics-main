@@ -276,58 +276,65 @@ preexisting:
     state: LIVE            # aperto 2026-08-14 su origin/main 747f4e82
     measured: 9
     collides_with:
-      track: content_editor
-      paths: [docs/technical/test-manuali-pie.md]
-    note: >-
-      Consolidamento del `Camera Roadmap v1.0`. ✅ **`measured`**: `git diff --name-only
-      origin/main...feat/telecamera` dopo il terzo commit. La prima stesura di questa voce diceva
-      `declared: 7` ed è stata sostituita dalla misura, non incrementata — i due numeri differiscono
-      per **due** file che nessuna dichiarazione avrebbe previsto bene: `feature-registry.json`, che
-      è `generated_only` e segue la sua sorgente, e **questo file**, che non è nel `writable` di
-      nessuno. ⚠️ `docs/roadmap/roadmap-post-v0.1.md` era dichiarato e **non è stato toccato**:
-      integrare sei release di lavoro camera senza issue avrebbe prodotto la roadmap parallela che
-      l'handoff stesso vieta al §17.
-      Come il consolidamento a 4 processi prima di lui, il suo write-set **è** la sezione
-      `integration_only`: è la forma tipica di un consolidamento documentale, e la ragione per cui
-      due non girano bene insieme. Oggi non ce ne sono altri aperti — `gh pr list --state open` è
-      vuota — quindi la track è libera.
-      🔴 **`docs/technical/test-manuali-pie.md` è ESCLUSO, ed è l'unica collisione.** È nel
-      `writable` di `content_editor` (#451), che è ACTIVE: le verifiche PIE della camera non
-      entrano in questo lavoro e restano da riallocare. Non è una svista da recuperare a fine
-      lavoro — è il caso che la regola descrive, e la fix «piccola» qui sarebbe scrivere in un
-      file di un'altra sessione.
-    writable:
+      # Intersezione **calcolata**, come vuole l'intestazione della sezione: per ogni branch vivo
+      # `git diff --name-only origin/main...origin/<branch>` ∩ il mio write-set misurato.
+      - branch: wip/icon-visual-language
+        state: LIVE
+        paths:
+          - docs/decisions/RT_PDR_00_Decision_Log.md
+          - docs/roadmap/feature-registry.yaml
+          - docs/roadmap/feature-registry.json
+      - branch: docs/five-lane-roadmap
+        state: DORMANT
+        paths:
+          - docs/roadmap/feature-registry.yaml
+          - docs/roadmap/feature-registry.json
+    holds:
       - docs/roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md   # nuovo
       - docs/archive/src/RefactorTactics_Camera_Roadmap_v1.0_Claude_Consolidation_2026-08-14.md  # nuovo
       - docs/roadmap/feature-registry.yaml
-      - docs/roadmap/roadmap-post-v0.1.md
+      - docs/roadmap/feature-registry.json                          # generated: segue la sorgente
       - docs/decisions/RT_PDR_00_Decision_Log.md
       - docs/technical/scenario-map.md
       - docs/archive/src/README.md
-      # Aggiunto dopo aver letto il README: la cartella tiene un **conteggio** dei propri file e una
-      # tabella per banner. Aggiungere un triage senza toccarlo lascerebbe entrambi falsi — è lo
-      # stesso difetto che quel README documenta tre volte su sé stesso.
       - docs/roadmap/plans/README.md
-    derives_from:
-      # `feature-registry.yaml` alimenta quattro viste; `roadmap-post-v0.1.md` due delle stesse.
-      # Elenco riletto dalla sezione `generated_only` di questo file, non ricordato.
-      - source: docs/roadmap/feature-registry.yaml
-        regenerates:
-          - docs/roadmap/feature-registry.json
-          - docs/roadmap/featuremap.shortlist.md
-          - docs/roadmap/roadmap.shortlist.md
-          - docs/roadmap/project-graph.json
-      - source: docs/roadmap/roadmap-post-v0.1.md
-        regenerates:
-          - docs/roadmap/roadmap.shortlist.md
-          - docs/roadmap/project-graph.json
-      # `scenario-map.md` non alimenta nessuna vista: la sua unica occorrenza in `scripts/*.py` è
-      # dentro un commento di `feature_registry.py:633`, non una lettura. Verificato col grep sui
-      # consumatori, non spostando la sorgente — il metodo forte resta quello, e qui non serviva
-      # perché un file che nessuno apre non può produrre niente.
-      - source: docs/technical/scenario-map.md
-        regenerates: []
-    binary_leases: []
+      - docs/roadmap/parallel-batch.yaml
+    note: >-
+      Consolidamento del `Camera Roadmap v1.0`. ✅ **`measured`**: `git diff --name-only
+      origin/main...feat/telecamera`. La prima stesura diceva `declared: 7` ed è stata sostituita
+      dalla misura, non incrementata — i due numeri differiscono per `feature-registry.json`, che è
+      `generated_only` e segue la sua sorgente, e **questo file**, che non è nel `writable` di
+      nessuno. ⚠️ `docs/roadmap/roadmap-post-v0.1.md` era dichiarato e **non è stato toccato**:
+      integrare sei release di lavoro camera senza issue avrebbe prodotto la roadmap parallela che
+      l'handoff stesso vieta al §17. È uscito dall'elenco, invece di restare a prenotare un file
+      conteso per niente.
+      Come il consolidamento a 4 processi prima di lui, il suo write-set **è** la sezione
+      `integration_only`: è la forma tipica di un consolidamento documentale, e la ragione per cui
+      due non girano bene insieme.
+      🔴 **Le prime tre stesure di questa voce sbagliavano tutte e tre allo stesso modo, e le ha
+      trovate la code review.** (a) Dicevano *«`test-manuali-pie.md` è ESCLUSO, ed è l'unica
+      collisione»*: quel file **non è nel mio write-set misurato**, quindi l'intersezione con
+      `content_editor` è **vuota** e il campo non doveva contenerlo — `collides_with` è una misura,
+      non un'intenzione, e riempirlo con un path deliberatamente evitato avrebbe fatto segnalare al
+      validator di #840 un conflitto inesistente mentre quelli veri restavano muti. Resta vero che
+      le verifiche PIE della camera **non** entrano in questo lavoro, ed è scritto nel triage §8,
+      che è il posto per le intenzioni. (b) Concludevano *«la track è libera»* da `gh pr list
+      --state open` vuota — la **cecità esatta** che l'intestazione di questa sezione documenta:
+      un branch pushato senza PR non compare lì. Misurato con il secondo comando, le collisioni
+      reali sono **cinque**, su due branch, e `wip/icon-visual-language` è `LIVE`. (c) Usavano
+      `writable`/`derives_from`, che sono campi di **track**: una voce `preexisting` non è parte
+      del batch e non entra nell'invariante degli insiemi disgiunti, quindi il campo giusto è
+      `holds`, come per `fix/capability-sconosciuta-non-e-blocked`.
+      ⚠️ **Le cinque collisioni non si risolvono qui**: `feature-registry.yaml` e il Decision Log
+      sono `integration_only`, cioè esattamente i file che più rami toccano e che si riconciliano
+      **una volta in integrazione**. Chi merge per secondo rigenera `feature-registry.json`
+      sull'albero unito — nessuna delle due copie è autoritativa prima di allora.
+      ➕ Niente `binary_leases`: è anch'esso un campo di track, e questo lavoro non tocca binari.
+      ➕ E niente `derives_from`: la catena resta vera — `feature-registry.yaml` alimenta le quattro
+      viste elencate in `generated_only`, e `scenario-map.md` **nessuna** (unica occorrenza in
+      `scripts/*.py`: un commento a `feature_registry.py:633`, non una lettura) — ma dichiararla qui
+      la farebbe leggere come l'obbligo di rigenerazione di una track. Le viste sono state comunque
+      rigenerate, e `generate --check` / `shortlist --check` sono verdi sull'albero mergiato.
 
 # --- Le quattro track -------------------------------------------------------------------------
 
