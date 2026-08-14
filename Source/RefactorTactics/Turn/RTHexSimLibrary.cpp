@@ -698,6 +698,26 @@ bool URTHexSimLibrary::ResolveNextHexMicroStep(FRTMovementResolutionState& State
 	return bAnyMoved;
 }
 
+void URTHexSimLibrary::StopUnitInPlace(FRTMovementResolutionState& State, int32 UnitId, ERTMoveOutcome Reason)
+{
+	if (!State.Done.IsValidIndex(UnitId))
+	{
+		return; // indice non valido: non c'e' un'unita' da fermare, e inventarne una sarebbe peggio
+	}
+
+	// `Done` e' cio' che il microstep legge (`Moving[i] = !Done[i]`): da qui in poi questa unita' non avanza.
+	State.Done[UnitId] = true;
+
+	// La posizione corrente E' quella finale. `Pos` e `Results[].Final` sono gia' allineati dal microstep
+	// appena eseguito — non si riscrive `Entered`, perche' le celle attraversate fin qui sono state
+	// attraversate davvero, ed e' esattamente cio' che il TurnLog deve raccontare.
+	State.Results[UnitId].Final = State.Pos[UnitId];
+
+	// Terminale, quindi vince sulla memoria del primo congelamento: vedi il commento nell'header.
+	State.BlockReason[UnitId] = Reason;
+	State.ReasonLocked[UnitId] = true;
+}
+
 TArray<FRTHexMoveResult> URTHexSimLibrary::FinishHexMovement(FRTMovementResolutionState& State)
 {
 	// Chi salta il ciclo e chiede il risultato subito ottiene comunque una risposta coerente: il movimento si

@@ -217,6 +217,27 @@ public:
 	static TArray<FRTHexMoveResult> FinishHexMovement(FRTMovementResolutionState& State);
 
 	/**
+	 * Ferma `UnitId` dove si trova: il resto del suo percorso non verra' percorso (CP 14.5).
+	 *
+	 * E' la meta' mancante di CP 14.2. Quel checkpoint ha reso il ciclo **sospendibile** — si puo' fermare il
+	 * mondo fra un passo e l'altro — ma non ha dato modo di fermare **una** unita': senza, un `FIRE` che
+	 * tronca il movimento del bersaglio non ha come dirlo al resolver, e l'unico modo sarebbe correggere i
+	 * `Results` a movimento concluso, cioe' dopo che i micro-step successivi hanno gia' calcolato collisioni e
+	 * occupazioni con un'unita' che non doveva essere li'. E' precisamente cio' che il DoD chiede di evitare:
+	 * *«le collisioni dei micro-step successivi cambiano di conseguenza»*.
+	 *
+	 * Chiamarla fra un `ResolveNextHexMicroStep` e il successivo. Idempotente, e innocua su un'unita' gia'
+	 * ferma o su un indice non valido.
+	 *
+	 * ⚠️ `Reason` **sovrascrive** la memoria del primo congelamento, a differenza di cio' che accade dentro il
+	 * micro-step. Quella memoria esiste perche' i blocchi sono transitori — chi perde una cella contesa la
+	 * ritenta al passo dopo, e il motivo vero e' il primo — mentre un arresto chiesto da qui e' **terminale**:
+	 * e' l'ultima parola sul perche' quell'unita' non e' arrivata. Non sovrascriverlo produrrebbe un TurnLog
+	 * che attribuisce a «cella occupata» un'unita' fermata da un colpo.
+	 */
+	static void StopUnitInPlace(FRTMovementResolutionState& State, int32 UnitId, ERTMoveOutcome Reason);
+
+	/**
 	 * Voci di TurnLog dagli esiti del movimento simultaneo: una per unita', nell'ordine dell'input
 	 * (Phase/Category = Move, Outcome = ERTMoveOutcome, SrcCell = cella di PARTENZA del turno — chiave stabile
 	 * dell'unita', mai un pointer —, TgtCell = cella finale, Amount = celle percorse). L'invarianza per
