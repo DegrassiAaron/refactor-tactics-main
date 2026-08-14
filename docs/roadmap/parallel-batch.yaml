@@ -318,17 +318,76 @@ tracks:
     binary_leases: []
 
   content_editor:
-    status: IDLE
-    issue: null
-    session: null
+    status: ACTIVE
+    issue: 451
+    session: U1
     note: >-
-      La coda umana è ferma su un binario conteso. `#623` / `U21` richiede una lease su
-      `Content/RT/Maps/Dev/L_DevSandbox/`, che **qui** è due package — `L_DevSandbox.umap` e
-      `Data/DA_HexMap_Sandbox.uasset` — misurati con `git ls-files`, non dedotti: `L_Prototype` ne
-      ha uno solo, quindi il numero non si generalizza. E
-      `Content/RT/Characters/Gadget/Animation/` è untracked nella working directory principale:
-      finché non è committata o scartata la destinazione non è prenotabile, e una lease sarebbe
-      emessa su una base che non esiste in git.
+      U1 / `#451` — le sette voci `PIE-HEX-MODE-E/F/G/H/L/N/O` del mode.
+      🔴 **La issue nega un lavoro che è già stato fatto per metà.** Il suo corpo dice
+      *«`DA_HexMap_Arena` e `L_HexArena` non esistono — né in git né su disco»*: era vero quando è
+      stata scritta, è falso adesso. Misurato con `git ls-files`, non dedotto — entrambi i package
+      esistono, introdotti da `2e2caff6` e presenti in `origin/main`, e
+      `DA_HexMap_Arena.uasset` pesa **48245 byte** contro i 1396 di `DA_HexMap_Sandbox.uasset`:
+      è il primo asset mappa con contenuto reale del repository, come la seduta prevedeva. Il primo
+      criterio d'accettazione di `#451` è quindi **già soddisfatto**, e il residuo è la seduta vera —
+      le sette voci, tutte ⏳ in `test-manuali-pie.md`, più il controllo dei criteri di U1-B
+      sull'arena che c'è.
+      ⚠️ **La lease su `Content/RT/Maps/Dev/L_HexArena/` NON è emessa, e non è una dimenticanza.**
+      `wip/icon-visual-language` è `preexisting` e tiene una versione divergente dello stesso
+      package: blob `7f7cb735`, **29895 byte**, contro `e31b644b` / 48245 byte che `origin/main`
+      condivide col merge-base `2d184220`. Due `.uasset` non si fondono: una lease `modify` qui
+      significherebbe due holder sullo stesso path, cioè il lavoro perso che §13 esiste per
+      evitare.
+      🔴 **E il lavoro perso è già misurato, leggendo l'header dei due package** (`.uasset` non
+      cooked, `LegacyFileVersion -9`; nessun editor coinvolto, sola lettura). La versione su `wip`
+      non è un risalvataggio innocuo — è **l'arena regredita al passo 2 della procedura**:
+      · `Cells` **98 → 61** elementi, e 61 è esattamente `3·4·5+1`, l'esagono pieno di raggio 4 che
+        il passo 2 dipinge con un click: mancano le 37 celle dei passi 3–7, cioè piattaforma sul
+        layer 1, zona a costo alto e ostacoli;
+      · l'array `Transitions` **non è più serializzato affatto** — dei 48 nomi della name table ne
+        restano 35, e i 13 che spariscono sono *esattamente* i campi di `FRTHexEdge` (`From`, `To`,
+        `Cost`, `Kind`, `State`, `Integrity`, `bConductsElectricity`), il nome della struct, quello
+        dell'array e i due enum usati solo lì. Nessun nome aggiunto: è una sottrazione pura.
+      · l'aritmetica torna da sola, ed è la verifica indipendente del conteggio: 44986/98 e
+        28003/61 danno **459,0 byte per cella** in entrambi, e 16983 (celle) + 1099 (transizioni)
+        = 18082 = il delta di payload esatto.
+      Senza transizioni la piattaforma del layer 1 è irraggiungibile e `PIE-HEXPLAY-6` non
+      dimostra niente. ⚠️ **Quel branch non va mergiato su questo path così com'è**: per gli altri
+      cinque binari che tocca è additivo (i quattro `BP_Unit_*` e `BP_GameMode` crescono), per
+      questo è distruttivo. `L_HexArena.umap` invece **non** diverge — l'editor ha risalvato solo
+      il Data asset. La divergenza è tracciata da `#858`, che la chiude riportando su quel branch il
+      blob già in `main`: finché le due versioni esistono la lease avrebbe due holder, dopo ne ha
+      uno. La seduta resta comunque vincolata a **non salvare** il package. Le sette voci verificano
+      il *mode* — Arch, Fill, ciclo del gizmo, snap cross-layer, catalogo terreni — non il terreno, e
+      la issue lo dichiara nel proprio *Out of scope*. Se il controllo dei criteri U1-B mostrasse
+      che l'arena va corretta, la track **si ferma e chiede la riallocazione**: emettere la lease è
+      un atto di batch, non una decisione di questa seduta.
+      ➕ **`docs/technical/test-manuali-pie.md` esce da `integration_only` ed entra qui**, per
+      questo giro. Era là per una contesa che in questo batch **non esiste**, misurata sui write-set
+      dei branch vivi (`git diff --name-only origin/main...<branch>`): `feat/165` 0 file, `feat/78`
+      il solo `parallel-batch.yaml`, `wt-cap` / `#767` 7 file, `feat/641` 4, `feat/cp75` 3, i tre
+      `docs/lane*` 18 in totale, `wip/icon-visual-language` 342 — e **nessuno di essi lo tocca**.
+      Senza quel file una track ACTIVE non avrebbe dove scrivere il proprio prodotto, che è il
+      verdetto: `produces` di U1 è un asset *e* sette esiti, e l'asset è già committato.
+    writable:
+      - docs/technical/test-manuali-pie.md
+    # Catena già misurata da questo file (vedi `generated_only`): la sorgente delle voci alimenta
+    # due viste, e possederla obbliga a rigenerarle. `project-graph.json` ha altre nove sorgenti —
+    # `spatial` ne possiede una — quindi qui vale la regola dell'albero unito: ciascun ramo
+    # rigenera per tenere verde il proprio `--check`, nessuna delle due copie è autoritativa.
+    derives_from:
+      - source: docs/technical/test-manuali-pie.md
+        regenerates:
+          - docs/roadmap/editormap.shortlist.md
+          - docs/roadmap/project-graph.json
+    binary_leases: []
+    # ⚠️ Perché `#623` / U21 **non** è il candidato, benché sia `READY` nella coda generata: la sua
+    # lease su `Content/RT/Maps/Dev/L_DevSandbox/` — due package qui, uno solo in `L_Prototype`,
+    # misurati e non dedotti — è emettibile, ma U21 non blocca la v0.1 (`critical: false`, `P3`)
+    # e U1 sì. E `#712` / U22 attende U21. Resta vero, e va riletto prima di attivare U8:
+    # `Content/RT/Characters/Gadget/Animation/` è **tuttora untracked** nella working directory
+    # principale — finché non è committata o scartata, la destinazione non è prenotabile e una
+    # lease `create` starebbe su una base che in git non esiste.
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
@@ -353,7 +412,8 @@ integration_only:
   - docs/roadmap/plans/README.md
   - docs/technical/workflow-parallel-claude.md
   - docs/technical/scenario-map.md
-  - docs/technical/test-manuali-pie.md
+  # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14: lo tiene `content_editor`
+  # su `#451`. Vedi la nota della track per la misura che lo consente. Torna qui al prossimo batch.
   - docs/balance/          # sorgente dei radar (toolchain Node)
   - Scenarios/             # sorgente di scenariomap + project-graph; oggi la tiene wt-cap
   - scripts/feature_registry.py
