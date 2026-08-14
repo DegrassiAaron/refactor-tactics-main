@@ -28,8 +28,7 @@ public:
 	static TArray<FString> ValidateRules(const FRTMatchRules& Rules);
 
 	/**
-	 * Errori dell'asset: quelli delle regole che ne derivano, piu' `FormatVersion` non dichiarata e round
-	 * attesi oltre il limite. `nullptr` produce un errore, non un crash. Elenca TUTTI gli errori
+	 * Errori dell'asset: quelli delle regole che ne derivano, piu' i round attesi oltre il limite. `nullptr` produce un errore, non un crash. Elenca TUTTI gli errori
 	 * indipendenti: chi corregge l'asset vuole la lista, non un errore per volta. I controlli DERIVATI da un
 	 * campo gia' invalido non si sommano (con `RoundLimit` invalido, confrontarci i round attesi direbbe due
 	 * volte lo stesso difetto).

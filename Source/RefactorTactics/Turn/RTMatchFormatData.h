@@ -76,9 +76,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
 	FName FormatId;
 
-	/** Versione del formato dati dell'asset (per migrazioni future), come `URTHexMapAsset::FormatVersion`. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
-	int32 FormatVersion = 1;
+	// ⚠️ Qui c'era `FormatVersion`, rimossa il 2026-08-14 (**D-141**, #844). Non era una versione: era il
+	// **vocabolario** di una versione senza la macchina che lo regge — nessun `CurrentFormatVersion`, nessuna
+	// `MigrateToCurrentFormat`, nessun `PostLoad`, e nessuno che la scrivesse (`FindShippedFormat` la lasciava
+	// al default). Prometteva una rete che non esisteva, che e' esattamente cio' che #687 ha pagato per otto
+	// versioni su `URTHexMapAsset`.
+	//
+	// Quando servira' davvero — cioe' quando un formato **autorato come asset** dovra' sopravvivere a un
+	// cambio di significato dei suoi campi — si aggiunge insieme al primo passo di migrazione, e con il
+	// meccanismo giusto: `FCustomVersionRegistry`, come in `Map/RTHexMapCustomVersion.h`, che ha gia' il suo
+	// test a due binari da imitare. Un numero di versione da solo non protegge niente.
 
 	/** Numero massimo di round. Valore iniziale del 2v2 v0.1; banda 10-14, cap 14-16 (spec §6). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")

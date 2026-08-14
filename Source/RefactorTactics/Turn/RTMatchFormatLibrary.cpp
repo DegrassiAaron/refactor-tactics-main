@@ -76,10 +76,10 @@ TArray<FString> URTMatchFormatLibrary::ValidateFormat(const URTMatchFormatData* 
 
 	TArray<FString> Errors = ValidateRules(Rules);
 
-	if (Format->FormatVersion <= 0)
-	{
-		Errors.Add(FString::Printf(TEXT("FormatVersion %d: versione non dichiarata"), Format->FormatVersion));
-	}
+	// ⚠️ Qui c'era il controllo su `FormatVersion <= 0`, rimosso con il campo (**D-141**, #844). Era una
+	// guardia quasi impossibile da far scattare: il default e' 1, `FindShippedFormat` non lo tocca, e un
+	// asset che non modifica il campo non lo porta nemmeno nei byte — restava il solo caso di un designer
+	// che scrivesse `0` a mano nell'editor. Proteggeva dall'unico valore che nessuno avrebbe messo.
 
 	// Solo con un limite valido il confronto ha senso: sommarlo a un RoundLimit gia' rifiutato direbbe due
 	// volte lo stesso difetto.
