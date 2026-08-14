@@ -1,7 +1,7 @@
 > 📦 `HISTORICAL` · **Sorgente archiviato il 2026-08-12** · **Revisionato, recepito in parte.**
 >
 > Il testo originale **non è stato riscritto**: quanto segue è l'esito della revisione. Referto completo:
-> [`../../../roadmap/plans/teleport-instant-movement-2026-08-12.md`](../../../roadmap/plans/teleport-instant-movement-2026-08-12.md).
+> [`../../roadmap-plans/teleport-instant-movement-2026-08-12.md`](../../roadmap-plans/teleport-instant-movement-2026-08-12.md).
 >
 > | Esito | Sezioni |
 > |---|---|

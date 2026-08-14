@@ -17,7 +17,7 @@ python scripts/feature_registry.py deploy --wiki-root <clone> --write
 
 **Decisione dell'autore, 2026-08-10: gli asset restano qui.** La domanda — se archiviarli dopo la
 cancellazione delle pagine — è chiusa, e l'item corrispondente in
-[`wiki-consolidamento-2026-08-10.md`](../roadmap/plans/wiki-consolidamento-2026-08-10.md) §"Fase 3"
+[`wiki-consolidamento-2026-08-10.md`](../archive/roadmap-plans/wiki-consolidamento-2026-08-10.md) §"Fase 3"
 non è più aperto.
 
 Contiene materiale che **non è duplicato nel clone**:

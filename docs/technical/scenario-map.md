@@ -384,7 +384,7 @@ resta visibile invece di sparire.
 > [`spec-pointer-interaction.md`](spec-pointer-interaction.md) §5, e finché il `PlayerController` non ha un
 > **contesto esplicito** quell'esito non è leggibile da uno scenario in nessun formato. `Spec.Privacy.HiddenEnemyHoverNoLeak`
 > ha in più una dipendenza di contenuto: il filtro di rilevamento sull'hover è E13.
-> Referto: [`../roadmap/plans/roadmap-reconciliation-2026-08-12.md`](../roadmap/plans/roadmap-reconciliation-2026-08-12.md).
+> Referto: [`../archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md`](../archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md).
 
 > 🔴 **E un settimo non si aggiunge, il 2026-08-13.** Un sorgente di consolidamento proponeva di estendere la
 > grammatica di scenario con `hover` / `lmb` / `rmb` / `pointerMode` per coprire il contratto del puntatore.
@@ -459,7 +459,7 @@ resta visibile invece di sparire.
 > invece del divieto di `Dash`, che è una conseguenza.
 >
 > ⚠️ **Uno dei sei non si scriverà con questa epic**, e resta `planned` di proposito: `Spec.ActionEconomy.PathLengthChangesEffect` dipende dai **fatti del percorso** (`AE-3`), non dal profilo di movimento, ed è dichiarato *in prestito* sotto `RT-FEAT-ACTION-MOVEMENT-COMPAT` finché `AE-3` non ha una feature propria. Stesso motivo per cui `Spec.ActionEconomy.SprintEnhancesMomentum` è scrivibile solo a metà: la parte «lo Sprint potenzia» esiste, la parte «di quanto» dipende da quante celle hai percorso. Registrato in [`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md) §6. Referto:
-> [`../roadmap/plans/action-economy-consolidamento-2026-08-12.md`](../roadmap/plans/action-economy-consolidamento-2026-08-12.md) §6.
+> [`../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md`](../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md) §6.
 >
 > ➕ **+13 il 2026-08-11 dal consolidamento Bot/AI** — tre `RT-FEAT-BOT-FAIRNESS`, cinque
 > `RT-FEAT-BOT-TACTICAL`, tre `RT-FEAT-BOT-BELIEF`, due `RT-FEAT-BOT-PREDICTIVE`. Il sorgente ne proponeva
@@ -467,7 +467,7 @@ resta visibile invece di sparire.
 > spazio di nomi accanto a quello che l'indice e l'harness già risolvono. Venti dei 33 descrivevano
 > comportamenti di feature senza spec né gate — un nome pianificato per un sistema che non ha ancora una
 > forma è un nome che verrà rinominato. Referto:
-> [`../roadmap/plans/bot-ai-consolidamento-2026-08-11.md`](../roadmap/plans/bot-ai-consolidamento-2026-08-11.md) §4.4.
+> [`../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md`](../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md) §4.4.
 >
 > ⚠️ **Il titolo di questa sezione diceva «38» mentre il suo primo paragrafo diceva «trentaquattro»**, ed
 > erano entrambi vecchi. Rimisurato il 2026-08-11 su `scenariomap.shortlist.md`, che è **generato**: è la
@@ -508,6 +508,7 @@ resta visibile invece di sparire.
 | `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
 | `Spec.Map.WallCrossesCellStillStandable` · `…FootprintCollisionBlocksCell` · `…NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` | v0.2 · E23 · CP 23.6 |
 | `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.2 · E23 · CP 23.7 |
+| `Spec.Map.Interaction.SwitchOpensDoor` · `…SwitchControlsMultipleDoors` · `…OpenFailsDependentMoveBlocks` | `RT-FEAT-MAP-INTERACTION-GRAPH` | v0.2 · E23 · CP 23.4 (`#833`) |
 
 > ✅ **I tre `Spec.Clash.*` e i dieci `Spec.TimeBank.*` sono scrivibili — rimisurato il 2026-08-13.** Questa
 > sezione ha portato per giorni le due note qui sotto, che li dichiaravano *impossibili*: erano vere quando
@@ -550,6 +551,29 @@ resta visibile invece di sparire.
 > traiettoria vicino all'angolo, e lì l'oracolo diretto non esiste — si osserverebbe **di rimbalzo**, dal
 > danno andato a segno o no (`UnitHpEquals`). È un oracolo indiretto, e un test che misura la vista contando
 > ferite è più fragile di quanto sembri. Va deciso quando `MAP-2` si chiude.
+
+> ✅ **I tre `Spec.Map.Interaction.*` sono stati scelti, non trascritti — 2026-08-14, [D-138](../decisions/RT_PDR_00_Decision_Log.md).**
+> Il consolidamento del dominio muri/porte
+> ([referto](../roadmap/plans/walls-doors-interaction-spec-panel-2026-08-13.md)) ne proponeva **quattordici**,
+> distribuiti su privacy, rete, Operations e authoring. Tre sono entrati, e il criterio è l'unico che conti:
+> **hanno un oracolo oggi**. «L'unità è arrivata oltre la porta» e «l'unità è rimasta dov'era» si scrivono con
+> `UnitAtCell`, che c'è.
+>
+> Gli altri undici sono rimasti fuori, e non per prudenza:
+>
+> - i cinque di **privacy** (`HiddenControllerRelation`, `NoHiddenRelationLeak`, `KnownToOneTeamOnly`…)
+>   passerebbero **per assenza di rete**, non per correttezza — un test che non può fallire non è un test.
+>   Il loro oracolo nasce con `E27` (v0.3, Team Knowledge) e diventa verificabile con `E40` (v0.5);
+> - i tre di **identità e validazione** (`StableIdSurvivesCook`, `DuplicateBindingFailsValidation`…) non sono
+>   scenari: nessuna delle otto `ERTAssertionKind` legge l'identità di una struttura o l'esito di una
+>   validazione d'asset. Vivono in automation, e le issue `#832`/`#833` li elencano lì;
+> - i tre di **scala** (`Gate.MultiTransitionLarge`, `Operations.InteractionScale`…) misurano performance su
+>   mappe che `E30` (v0.4) non ha ancora prodotto.
+>
+> 🔴 È la stessa forma già pagata dai `Spec.Clash.*`, ruotata: **là** un oracolo mancante teneva bloccati
+> scenari scrivibili, e le righe che li dichiaravano impossibili sono sopravvissute quattro giorni alla
+> capability che li sbloccava. **Qui** il rischio è l'opposto — scrivere lo scenario prima dell'oracolo e
+> lasciarlo verde per assenza. Un `BLOCKED` che scivola in verde non lo denuncia nessuno.
 
 > ✅ **I `BAL-1` non sono più in questa lista: chiusi il 2026-08-10** (`#401`, `#402`). Tre scritti e verdi
 > al primo run — `Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.BraceWinsOnSecondHit` e

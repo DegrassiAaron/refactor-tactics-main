@@ -16,7 +16,7 @@
 > - ⚠️ **`docs/wiki/` non è sparita del tutto**: restano le 14 infografiche v0.1, il loro zip e tre
 >   manifest. Il clone pubblica la **v0.2** — verificato per hash, **zero** immagini in comune — e
 >   cancellarle avrebbe distrutto l'unica copia fuori dalla storia di git. La loro pulizia è lavoro
->   aperto già registrato in [`wiki-consolidamento-2026-08-10.md`](wiki-consolidamento-2026-08-10.md)
+>   aperto già registrato in [`wiki-consolidamento-2026-08-10.md`](../../archive/roadmap-plans/wiki-consolidamento-2026-08-10.md)
 >   §D, con un owner diverso da questa migrazione.
 
 ## 1. La decisione e come ci si è arrivati

@@ -40,7 +40,7 @@ Sostituisce i target mitici con numeri reali, **prima** che entri il contenuto d
 - [ ] path mediana
 - [ ] preview completa
 - [ ] tempo del resolver per turno
-- [ ] valori nella tabella KPI di [`../v0.1-definition-of-done.md`](../v0.1-definition-of-done.md) §4, con data e metodo
+- [ ] valori nella tabella KPI di [`../../roadmap/v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) §4, con data e metodo
 - [ ] un valore **fuori target** si registra come tale, non si nasconde né si arrotonda
 
 ⚠️ **Tre KPI su quattro sono misurabili adesso; `FPS client` no** — o meglio: il numero che misuri

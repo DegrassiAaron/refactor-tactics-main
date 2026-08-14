@@ -3,8 +3,8 @@
 > ## 📸 `HISTORICAL` — REFERTO DI UN AUDIT, NON UNA VISTA DI STATO
 >
 > Questo documento registra **cosa è stato trovato** costruendo il Feature Registry, su HEAD
-> `2094b86`. Non si aggiorna: lo stato vive in [`../feature-registry.yaml`](../feature-registry.yaml)
-> e il modello in [`../feature-registry.md`](../feature-registry.md). Serve a rispondere fra sei mesi
+> `2094b86`. Non si aggiorna: lo stato vive in [`../../roadmap/feature-registry.yaml`](../../roadmap/feature-registry.yaml)
+> e il modello in [`../../roadmap/feature-registry.md`](../../roadmap/feature-registry.md). Serve a rispondere fra sei mesi
 > alla domanda «perché quella feature è marcata così».
 >
 > **Origine**: handoff `RefactorTactics_FeatureRegistry_Roadmap_Wiki_Claude_2026-08-08.md`.

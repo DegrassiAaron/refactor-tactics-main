@@ -1,5 +1,10 @@
 # UI-0 — First Playable HUD
 
+> `CURRENT` · **Piano in esecuzione** · **Data**: 2026-08-12
+> `RT-FEAT-UI-SCREEN-HUD` e' **`IMPLEMENTING`** in v0.1: la sequenza descritta qui non e' finita.
+> ⚠️ I riferimenti a issue e stato invecchiano — aperto/chiuso vive su GitHub, e in caso di divergenza
+> **vince GitHub**.
+>
 > **Tipo**: piano di sequenza · **Data**: 2026-08-12 · **Stato**: consolidato in sessione
 > **Origine**: proposta «UI-0» rivista da un panel di specifica (`/sc:spec-panel`, modalità critique,
 > focus requirements + architecture).

@@ -146,6 +146,10 @@ possiede livelli di conoscenza su unità/eventi.
 - Naming e dipendenze contenuti: **`docs/technical/convenzioni-contenuti-ue.md`** è normativo.
 - Terze parti/Paragon restano fuori da `/Game/RT` salvo pipeline esplicitamente documentata.
 - Non modificare `.uasset`/`.umap` a mano e non spostarli da filesystem: usare Content Browser + Fix Up Redirectors.
+- I binari Unreal sono **human-first, non human-only** ([D-139](docs/decisions/RT_PDR_00_Decision_Log.md)):
+  l'autore davanti all'Editor è l'holder predefinito, e una sessione Claude li tocca solo con una **Binary
+  Asset Lease** esclusiva dichiarata nel batch. Un holder per path, e due `.uasset` **non si fondono**: un
+  conflitto binario è una delle due versioni da rifare a mano dentro Unreal.
 - Non versionare `Binaries/`, `DerivedDataCache/`, `Intermediate/`, `Saved/`, `.vs/`, segreti o output locali.
 
 ## Metodo di lavoro
@@ -233,6 +237,30 @@ git worktree add ..\rt-wt-621 -b feat/621-geometry-bake origin/main
 ```
 
 Non creare né distruggere worktree senza richiesta esplicita: vale la regola non distruttiva qui sopra.
+
+### File non assegnato = STOP
+
+Il worktree isola la working directory, non il repository: due sessioni possono ancora scrivere lo stesso
+file, e finora l'unica difesa era che se ne accorgesse il merge. Un lotto di sessioni parallele dichiara
+prima chi scrive cosa in [`docs/roadmap/parallel-batch.yaml`](docs/roadmap/parallel-batch.yaml)
+([D-139](docs/decisions/RT_PDR_00_Decision_Log.md)).
+
+Prima di modificare un file, il path deve appartenere al `writable` della tua track. Altrimenti **ci si
+ferma** e si registra una richiesta di riallocazione: non si fa «solo questa piccola fix». Vale per C++,
+docs, scripts, Config, `.uasset`, `.umap`, test e output generati.
+
+Tre categorie non si assegnano: `integration_only` si aggiorna **una volta** in integrazione;
+`generated_only` **segue la propria sorgente** — chi possiede la sorgente rigenera quella vista, ed è
+l'unico a poterlo fare; se due track alimentano la **stessa** vista non è un conflitto (`Tests/` lo è per
+quasi tutte), ma nessuna delle due copie è autoritativa finché non si rigenera sull'albero unito; `preexisting` sono i branch già vivi, che non fanno parte del batch ma lo determinano. Il
+write-set di un branch aperto si **misura**, mai si intuisce — dichiararlo a memoria ha già prodotto una
+collisione al primo batch:
+
+```powershell
+git worktree list
+gh pr list --state open
+git diff --name-only origin/main...<branch>
+```
 
 ### `D-nnn` non si sceglie a mano
 

@@ -1,0 +1,351 @@
+# Parallel batch — chi può scrivere cosa, in questo giro
+#
+# Owner della sola cosa che il repository non aveva: **il write-set di un lotto di sessioni
+# parallele**. `D-135` dice che una sessione esecutiva = un worktree + un branch, e si ferma lì;
+# due worktree possono ancora editare lo stesso file, e finora l'unica difesa era che se ne
+# accorgesse il merge. Decisione: `D-139`.
+#
+# Questo file descrive il **batch**, non le feature. Vive quanto il batch e viene riscritto al
+# successivo: non è un registro storico, e non si accumula.
+#
+# ## Cosa NON va scritto qui
+#
+#   lo stato di una feature / di un task     vive nel Feature Registry e su GitHub. Un write-set
+#                                            non è un avanzamento: niente `done`, `progress`,
+#                                            conteggi di test, esito dei gate.
+#   il titolo di una issue                   vive su GitHub e cambia senza avvisare. Le `note`
+#                                            dicono **perché** la track esiste, mai come si chiama
+#                                            il task: il numero è l'identità.
+#   la classificazione delle feature         `execution-graph.yaml` ha già `execution_lanes` e
+#                                            `domain_groups`, entrambi validati. Un terzo
+#                                            vocabolario sugli stessi oggetti è ciò che il triage
+#                                            del 2026-08-14 ha respinto (§4).
+#
+# ⚠️ `status:` **è** ammesso, ed è l'unica eccezione: è il ciclo di vita del *batch*, non lo stato
+# di una feature. Serve a distinguere una track deliberatamente `IDLE` da una track scritta a metà
+# — `issue: null` da solo non lo dice — e per questo è l'unico campo che il validator di #840
+# **deve** leggere, in deroga al suo «niente stato».
+#
+# ## Schema di una track  (`schema_version: 1`)
+#
+#   status         obbligatorio     ACTIVE | IDLE
+#   issue          obbligatorio     numero GitHub, oppure null se IDLE
+#   branch         se ACTIVE        il branch della sessione. La track umana usa `session:`
+#                                   (una seduta di `editor-sessions.yaml`) al posto di `branch:`,
+#                                   perché la sua unità di lavoro è un'apertura di editor.
+#   note           obbligatorio     perché questa track è ACTIVE o IDLE, con la misura
+#   writable       se ACTIVE        path o prefissi di directory. Il confronto è per **prefisso
+#                                   normalizzato**: `Turn/` e `Turn/RTTurnManager.cpp` collidono.
+#   binary_leases  se ACTIVE        elenco, eventualmente vuoto. ⚠️ Vivono **solo** qui, dentro la
+#                                   track: l'invariante è definita per track, e una lease fuori da
+#                                   una track non appartiene a nessun insieme e non entra nel
+#                                   confronto.
+#
+# ## La regola che questo file esiste per rendere verificabile
+#
+# Prima di modificare un file: il path deve appartenere al `writable` della tua track. Altrimenti
+# **stop** — si registra una richiesta di riallocazione, non si fa «solo questa piccola fix».
+# Vale per C++, docs, scripts, Config, `.uasset`, `.umap`, test e output generati.
+#
+#   WritableSet(T1) ∩ WritableSet(T2) = ∅
+#   BinaryLeaseSet(T1) ∩ BinaryLeaseSet(T2) = ∅
+#
+# ## `integration_only`
+#
+# I file che più branch potrebbero voler toccare non si assegnano: si aggiornano **una volta in
+# integrazione**. Non è ownership permanente — è una proprietà di questo batch.
+#
+# ## `generated_only`: la vista segue la sorgente
+#
+# ⚠️ Non significa «vietato a tutti», e la prima stesura lo diceva — producendo una coppia di
+# regole **insoddisfacibile**: chi tocca una sorgente non poteva né rigenerare (path non assegnato)
+# né lasciar stare (`--check` rosso). La regola giusta:
+#
+#   una vista generata non si assegna mai direttamente: **segue la propria sorgente**.
+#   Chi possiede la sorgente nel proprio `writable` è autorizzato — e obbligato — a rigenerare
+#   esattamente le viste che quella sorgente alimenta, e nient'altro.
+#
+# ⚠️ **Due track possono legittimamente alimentare la stessa vista, e non è un conflitto.** La
+# seconda stesura di questa regola diceva *«allora una delle due esce dal batch»*, e sarebbe stata
+# troppo stretta fino all'inutilità: `project-graph.json` ha **dieci** sorgenti, quindi due track
+# che lo alimentano entrambe sono il caso normale, non l'eccezione. Il criterio che decide chi esce
+# dal batch resta **uno solo — la sovrapposizione dei `writable`**.
+#
+# 🔴 La terza stesura giustificava la stessa regola con `Source/RefactorTactics/Tests/`, «sorgente
+# delle viste per qualunque track scriva un test». **È falso, ed è stato misurato**: toccare un
+# test lascia `generate --check` e `shortlist --check` verdi. `TESTS_DIR` è letto solo da
+# `validate`, per far combaciare i pattern `tests:`. L'arco era stato dedotto da una costante letta
+# nel codice invece che dall'esperimento — lo stesso difetto, al terzo giro, dentro la correzione
+# del secondo.
+#
+# Quando due track alimentano la stessa vista, quella vista si comporta come `integration_only`:
+# ciascun branch la rigenera per tenere verde il proprio `--check`, ma **nessuna delle due copie è
+# autoritativa** e l'unica che conta è quella rigenerata **sull'albero unito**. È il passo 8 della
+# chiusura del batch, e non è negoziabile: due rami che rigenerano sulla propria base producono due
+# versioni dello stesso file da una sorgente che nessuno dei due vede intera.
+#
+# `derives_from` qui sotto rende la catena verificabile invece che ricordata, ed è **misurata**:
+# per ogni sorgente candidata la si sposta via, si rigenera, e si guarda quali viste cambiano.
+# Leggere le costanti di `scripts/feature_registry.py` non basta — ne dichiara di lette anche da
+# `validate`, che non producono nessuna vista.
+#
+# ➕ E per `project-graph.json` non serve neppure misurare: **l'artefatto pubblica le proprie
+# sorgenti**, nella chiave `sources`. Quello è l'elenco autoritativo; la copia qui sotto esiste per
+# il validator e si riallinea con:
+#
+#     python -c "import json;print(json.load(open('docs/roadmap/project-graph.json'))['sources'])"
+#
+# ## Le lease binarie
+#
+# Due `.uasset`/`.umap` non si fondono: un conflitto binario è una delle due versioni da rifare a
+# mano dentro Unreal. La lease non previene un conflitto, previene un lavoro perso.
+# `key` semantica e legata a GitHub, mai `LEASE-001`. Una lease vale sul `base_sha`: se `main`
+# tocca lo stesso asset, la lease è **stale** e va riemessa.
+
+schema_version: 1
+
+meta:
+  status: ACTIVE
+  note: >-
+    Primo batch dopo D-139. Due track su quattro sono IDLE, e non è un difetto: il parallelismo
+    minimizza il wall-clock, non massimizza il numero di branch. Le issue sono state verificate con
+    `gh issue view` il 2026-08-14; i write-set delle track ACTIVE sono **dichiarazioni da
+    confermare** alla prima apertura del branch, mentre quelli in `preexisting` sono **misurati**.
+
+batch:
+  # ⚠️ Lo sha è troncato a 8 caratteri, come in tutta la prosa del repository. `base_sha` resta
+  # completo: l'identità è leggibile, il confronto è esatto.
+  id: "BATCH-84cbb70c-gh41-gh583"
+  base_sha: "84cbb70c6f5082682e59a71d442b71e78fac4322"
+  created_at: "2026-08-14"
+
+# --- Branch già vivi al momento del calcolo ---------------------------------------------------
+#
+# Non sono parte del batch: sono il vincolo che l'ha determinato. I loro write-set sono
+# **misurati**, non intuiti — `git worktree list`, `gh pr list --state open`, e per ciascuno
+# `git diff --name-only <base_sha>...<branch>`.
+#
+# 🔴 La prima stesura di questo file ne aveva **dichiarato** uno a memoria («wt-cap tiene
+# RTScenarioCorpusTests.cpp») e sbagliava: il comando ne restituisce **sette**, fra cui una
+# directory che una track ACTIVE si era assegnata. L'invariante era violata alla prima
+# applicazione del meccanismo, e il difetto era esattamente quello contro cui il meccanismo esiste.
+
+preexisting:
+  - branch: docs/consolidamento-walls-doors-v1
+    worktree: rt-wt-walls-doors
+    pr: 836
+    state: MERGED          # 2026-08-13T22:56Z, in `84cbb70c` — ⚠️ mentre questo batch era aperto
+    measured: 16
+    note: >-
+      12 dei 16 file coperti dalle categorie non assegnabili: `integration_only` (7) e
+      `generated_only` (5). È la forma tipica di un consolidamento documentale, e la ragione per cui
+      due consolidamenti non girano bene insieme: ha tolto dal batch il validator del parallelismo,
+      che voleva estendere `scripts/feature_registry.py`.
+      ⚠️ **Era `OPEN` quando questo write-set è stato calcolato ed è atterrata un'ora dopo.** È il
+      limite del meccanismo, e va scritto invece che scoperto: un `preexisting` è una fotografia di
+      `gh pr list`, non un lock. `base_sha` va **riletto prima del merge**, sempre.
+
+  - branch: fix/capability-sconosciuta-non-e-blocked
+    worktree: wt-cap
+    issue: 767
+    state: OPEN
+    measured: 7
+    holds:
+      - Scenarios/RT_Showcase_Relay_v01.json
+      - Scenarios/Spec/Overwatch/HoldThenFire.json
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.h
+      - Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp
+      - docs/roadmap/project-graph.json
+      - docs/roadmap/scenariomap.shortlist.md
+    note: >-
+      Tiene l'intera `ScenarioHarness/` e i due `Scenarios/` che ne sono corpus. ⚠️ Ha già
+      rigenerato `scenariomap.shortlist.md` e `project-graph.json`, ed è **corretto**: possiede
+      `RTScenarioSession.cpp`, che è la sorgente delle capability. È il caso che ha costretto a
+      riscrivere la regola su `generated_only` — la vista segue la sorgente.
+
+  - branch: docs/consolidamento-4-processi
+    worktree: rt-wt-4processi
+    state: OPEN
+    note: >-
+      Questo consolidamento. Il suo write-set è la sezione `integration_only` più i tre file nuovi
+      — il triage, questo file e la riga d'archivio. ⚠️ `docs/technical/workflow-parallel-claude.md`
+      è stato aggiunto a `integration_only` **dopo** che la code review ha misurato che il branch lo
+      modificava senza averlo assegnato a nessuna categoria: la PR violava la propria regola.
+
+# --- Le quattro track -------------------------------------------------------------------------
+
+tracks:
+
+  spatial:
+    status: ACTIVE
+    issue: 41
+    branch: feat/41-kpi-hex
+    note: >-
+      Misure di budget su hex: due delle quattro voci risultano già registrate, quindi il lavoro è
+      più piccolo di quanto la issue lasci pensare ed è il candidato meno invasivo del backlog.
+    writable:
+      - docs/roadmap/v0.1-definition-of-done.md
+      - Source/RefactorTactics/Map/
+      - Source/RefactorTactics/Pathfinding/
+      - Source/RefactorTactics/Tests/RTHexMapTests.cpp
+      - Source/RefactorTactics/Tests/RTHexPathTests.cpp
+    # La sorgente `v0.1-definition-of-done.md` alimenta la sezione `gates` di milestonemap
+    # (`DOD_V01`, feature_registry.py:2044). Questa track è quindi l'unica autorizzata a
+    # rigenerare quella vista, e deve farlo.
+    derives_from:
+      # Misurato: rimossa la sorgente, cambiano ESATTAMENTE queste due viste.
+      - source: docs/roadmap/v0.1-definition-of-done.md
+        regenerates:
+          - docs/roadmap/milestonemap.shortlist.md
+          - docs/roadmap/project-graph.json
+    binary_leases: []
+
+  simulation:
+    status: ACTIVE
+    issue: 583
+    branch: feat/583-produttore-d109
+    note: >-
+      La condizione dichiarata di `D-109` non ha un produttore: nessun input in partita la scrive.
+      ⚠️ **`ScenarioHarness/` è stata TOLTA da questo write-set**: `wt-cap` la sta riscrivendo
+      (misurato, non dedotto). Se il lavoro dovesse richiederla, questa track esce dal batch —
+      non si negozia il confine a metà lavoro.
+    writable:
+      - Source/RefactorTactics/Turn/
+      - Source/RefactorTactics/Bot/
+      - Source/RefactorTactics/Tests/RTReactionTests.cpp
+    # Misurato: `Turn/` e `Bot/` non alimentano nessuna vista, e **aggiungere** un test nemmeno.
+    # ⚠️ Ma RINOMINARE o cancellare un test che il registry cita in `tests:` flippa
+    # `project-graph.json`, perche' `build_graph()` incorpora le `diagnostics` di `validate()`.
+    # `RTReactionTests.cpp` ha 8 test, di cui 2 citati. Vale quindi la condizione, non il fatto:
+    derives_from:
+      - source: Source/RefactorTactics/Tests/RTReactionTests.cpp
+        only_if: "rinomini o cancelli un test citato in `tests:` dal registry (2 su 8)"
+        regenerates: [docs/roadmap/project-graph.json]
+    binary_leases: []
+
+  client_tools:
+    status: IDLE
+    issue: null
+    branch: null
+    note: >-
+      IDLE per **dipendenza**, non per adiacenza di dominio — che §12 dichiara insufficiente.
+      `#170` (CP 15.4, golden replay) dichiara «Dipende da: CP 15.3», cioè `#512`, aperta: il suo
+      gate non è raggiungibile in questo giro. `#77` (CP 11.1) tocca `UI/` ma anche i test che le
+      altre due track già scrivono. `Source/RefactorTactics/Replay/` resta quindi **libera e non
+      assegnata**: è disponibile al primo task che la richieda con set disgiunto.
+
+  content_editor:
+    status: IDLE
+    issue: null
+    session: null
+    note: >-
+      La coda umana è ferma su un binario conteso. `#623` / `U21` richiede una lease su
+      `Content/RT/Maps/Dev/L_DevSandbox/`, che **qui** è due package — `L_DevSandbox.umap` e
+      `Data/DA_HexMap_Sandbox.uasset` — misurati con `git ls-files`, non dedotti: `L_Prototype` ne
+      ha uno solo, quindi il numero non si generalizza. E
+      `Content/RT/Characters/Gadget/Animation/` è untracked nella working directory principale:
+      finché non è committata o scartata la destinazione non è prenotabile, e una lease sarebbe
+      emessa su una base che non esiste in git.
+
+# --- Aggiornati una volta in integrazione ------------------------------------------------------
+#
+# ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test
+# **deve** esserlo. Vale per `feature_registry.py` / `test_feature_registry_releases.py`.
+
+integration_only:
+  - AGENTS.md
+  - CLAUDE.md
+  - docs/decisions/RT_PDR_00_Decision_Log.md
+  - docs/OPEN_DECISIONS.md
+  - docs/DOC_CONFLICT_MATRIX.md
+  - docs/CONTEXT_INDEX.md
+  - docs/roadmap/roadmap-checkpoint.md
+  - docs/roadmap/roadmap-v0.1.md
+  - docs/roadmap/roadmap-post-v0.1.md
+  - docs/roadmap/feature-registry.yaml
+  - docs/roadmap/execution-graph.yaml
+  - docs/roadmap/editor-sessions.yaml
+  - docs/roadmap/parallel-batch.yaml
+  - docs/archive/src/README.md
+  - docs/roadmap/plans/README.md
+  - docs/technical/workflow-parallel-claude.md
+  - docs/technical/scenario-map.md
+  - docs/technical/test-manuali-pie.md
+  - docs/balance/          # sorgente dei radar (toolchain Node)
+  - Scenarios/             # sorgente di scenariomap + project-graph; oggi la tiene wt-cap
+  - scripts/feature_registry.py
+  - scripts/test_feature_registry_releases.py
+  - RefactorTactics.uproject
+  - Source/RefactorTactics/RefactorTactics.Build.cs
+  - Config/
+
+# --- Viste generate: non si assegnano, seguono la sorgente -------------------------------------
+#
+# Nessuna track le mette nel proprio `writable`. Chi possiede una `source` la rigenera, e lo
+# dichiara nel proprio `derives_from`. Due track che alimentano la stessa vista la dichiarano
+# entrambe con `shared_with`: non è un conflitto — lo sarebbe una sovrapposizione dei `writable` —
+# ma nessuna delle due copie è autoritativa prima della rigenerazione sull'albero unito.
+#
+# ⚠️ Il repository ha **due** toolchain (`CONTEXT_INDEX.md` §«Le due toolchain»), e la prima
+# stesura di questo elenco copriva solo Python: gli otto SVG dei radar sono versionati con un
+# proprio `--check` in Node, e chi tocca `docs/balance/` li rende rossi senza saperlo.
+
+generated_only:
+  - path: docs/roadmap/feature-registry.json
+    derives_from: [docs/roadmap/feature-registry.yaml]
+    tool: "feature_registry.py generate"
+
+  # ⚠️ Alimentata da TUTTO. L'elenco autoritativo e' la chiave `sources` dentro l'artefatto
+  # stesso (9 voci) piu' `RTScenarioSession.cpp`, che `available_capabilities()` aggiunge.
+  # Questa copia esiste per il validator e si riallinea rileggendo quella chiave, non a memoria.
+  - path: docs/roadmap/project-graph.json
+    derives_from:
+      - docs/roadmap/feature-registry.yaml
+      - docs/roadmap/editor-sessions.yaml
+      - docs/roadmap/execution-graph.yaml
+      - docs/roadmap/roadmap-checkpoint.md
+      - docs/roadmap/roadmap-v0.1.md
+      - docs/roadmap/roadmap-post-v0.1.md
+      - docs/roadmap/v0.1-definition-of-done.md
+      - docs/technical/test-manuali-pie.md
+      - Scenarios/
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+    tool: "feature_registry.py generate"
+
+  - path: docs/roadmap/roadmap.shortlist.md
+    derives_from:
+      - docs/roadmap/feature-registry.yaml
+      - docs/roadmap/roadmap-v0.1.md
+      - docs/roadmap/roadmap-post-v0.1.md
+    tool: "feature_registry.py shortlist"
+
+  - path: docs/roadmap/featuremap.shortlist.md
+    derives_from: [docs/roadmap/feature-registry.yaml]
+    tool: "feature_registry.py shortlist"
+
+  - path: docs/roadmap/scenariomap.shortlist.md
+    derives_from:
+      - Scenarios/
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+    tool: "feature_registry.py shortlist"
+
+  - path: docs/roadmap/milestonemap.shortlist.md
+    derives_from:
+      - docs/roadmap/feature-registry.yaml
+      - docs/roadmap/roadmap-checkpoint.md
+      - docs/roadmap/v0.1-definition-of-done.md
+    tool: "feature_registry.py shortlist"
+
+  - path: docs/roadmap/editormap.shortlist.md
+    derives_from:
+      - docs/roadmap/editor-sessions.yaml
+      - docs/roadmap/roadmap-checkpoint.md
+      - docs/roadmap/roadmap-v0.1.md
+      - docs/technical/test-manuali-pie.md
+    tool: "feature_registry.py shortlist"
+
+  # Seconda toolchain: Node, gate proprio (D-108). `feature_registry.py` non la vede.
+  - path: docs/characters/radar/
+    derives_from: [docs/balance/]
+    tool: "node tools/radar/generate.ts"

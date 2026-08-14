@@ -62,7 +62,7 @@ deformato non vale.
 ⚠️ **Nessuna delle tre dichiara `#593` come dipendenza, e nessuna dichiara le altre due.** L'ordine è
 ovvio a chi legge i titoli e invisibile a qualsiasi strumento. Se conta, va scritto nelle issue.
 
-**Seduta collegata**: **U7** «Personaggi Paragon» in [`../editor-sessions.yaml`](../editor-sessions.yaml) —
+**Seduta collegata**: **U7** «Personaggi Paragon» in [`../../roadmap/editor-sessions.yaml`](../../roadmap/editor-sessions.yaml) —
 è lì che il difetto di `#593` è stato visto.
 
 ### Catena B — Roster e dati

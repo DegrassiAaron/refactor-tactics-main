@@ -7,7 +7,7 @@
 > [`../../../technical/test-e-diagnosi.md`](../../../technical/test-e-diagnosi.md) ·
 > [`../../../decisions/RT_PDR_00_Decision_Log.md`](../../../decisions/RT_PDR_00_Decision_Log.md) `D-101`,
 > `D-102` · referto
-> [`../../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md`](../../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md) §9.
+> [`../../roadmap-plans/bot-ai-consolidamento-2026-08-11.md`](../../roadmap-plans/bot-ai-consolidamento-2026-08-11.md) §9.
 >
 > ✅ **È il secondo handoff Bot/AI dello stesso giorno, ed è calibrato molto meglio del primo.** Il §1.1
 > nomina i **due** Feature ID reali invece di undici inventati, il §1.2 nomina `#326` e `#328` con i numeri
@@ -33,7 +33,7 @@
 > ## 🔴 PRIMA DI IMPLEMENTARE IL BATTLE LAB — due prescrizioni farebbero REGREDIRE il progetto
 >
 > Revisione del panel, 2026-08-11, misurata su `main`. Referto completo:
-> [`…/bot-ai-consolidamento-2026-08-11.md`](../../../roadmap/plans/bot-ai-consolidamento-2026-08-11.md) §10.
+> [`…/bot-ai-consolidamento-2026-08-11.md`](../../roadmap-plans/bot-ai-consolidamento-2026-08-11.md) §10.
 >
 > **1. Il §16 («seed corpus», run appaiate «stesso seed») e il §38 («Repeat 1000») presuppongono un RNG che
 > in questo progetto NON esiste.** Misurato: `FMath::Rand`, `FRandomStream` e `RandRange` hanno **zero**

@@ -3,7 +3,7 @@
 > **Owner documentale** di `RT-FEAT-BOT-FAIRNESS`, `RT-FEAT-BOT-TACTICAL`, `RT-FEAT-BOT-BELIEF`,
 > `RT-FEAT-BOT-PREDICTIVE`.
 > Sorgente: [`../archive/src/handoff/2026-08-11-bot-ai-team-planner-belief-e-tracking.md`](../archive/src/handoff/2026-08-11-bot-ai-team-planner-belief-e-tracking.md),
-> filtrato dal [referto del 2026-08-11](../roadmap/plans/bot-ai-consolidamento-2026-08-11.md).
+> filtrato dal [referto del 2026-08-11](../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md).
 
 > ## ⚠️ Questo documento non descrive codice che esiste
 >
@@ -329,5 +329,5 @@ dedurlo da eventi pubblici · bonus di HP o danno come livello di difficoltà ·
 - Reazioni: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) · [`brief-overwatch-reazioni.md`](brief-overwatch-reazioni.md)
 - Ownership e sinergie: [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)
 - Decisioni: `D-095`–`D-099` in [`../decisions/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md)
-- Referto di consolidamento: [`../roadmap/plans/bot-ai-consolidamento-2026-08-11.md`](../roadmap/plans/bot-ai-consolidamento-2026-08-11.md)
+- Referto di consolidamento: [`../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md`](../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md)
 - Wiki, lato giocatore: [`avversario-bot` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/avversario-bot)
