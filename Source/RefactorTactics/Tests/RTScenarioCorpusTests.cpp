@@ -469,15 +469,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBlockedBeatsFinalAssertionsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioBlockedBeatsFinalAssertionsTest::RunTest(const FString&)
 {
-	// ⚠️ Capability **nota e non disponibile**, non piu' inventata. Il test chiedeva
-	// `CapabilityCheNonEsistera Mai` proprio perche' non sarebbe mai diventata disponibile — ma da quando un
-	// nome sconosciuto vale `Error` (`UnknownCapabilityIsErrorNotBlocked`) quel nome non prova piu' il
-	// meccanismo `BLOCKED`: lo aggira, e il test cadeva sul suo stesso assert.
+	// ⚠️ `NeverAvailable`: nome **riservato**, dichiarato fra i noti-non-disponibili con il vincolo scritto che
+	// non diventera' mai disponibile. Il test chiedeva `CapabilityCheNonEsistera Mai` — inventato di proposito,
+	// perche' una capability VERA che un domani atterra farebbe misurare a questo test un'altra cosa. Da quando
+	// un nome sconosciuto vale `Error` (`UnknownCapabilityIsErrorNotBlocked`) quel veicolo non prova piu' il
+	// meccanismo `BLOCKED`: lo aggira, e il test cadeva sul proprio assert.
 	//
-	// Il rischio che il commento precedente paventava — «un domani diventa disponibile e il test passa per la
-	// ragione sbagliata» — con `DecisionBoundary` non si presenta nella forma temuta: se atterrasse, il turno
-	// verrebbe GIOCATO e l'esito non sarebbe piu' `Blocked`, quindi il test diventa **rosso**, non verde. Un
-	// fallimento che dice «aggiornami» e' l'esito giusto per un test che pinna un'attesa.
+	// La cura NON e' sostituirlo con una capability vera tipo `DecisionBoundary`: quella un giorno atterra, e
+	// da quel giorno questo test non parlerebbe piu' del meccanismo. Il nome riservato conserva la proprieta'
+	// che serve — non atterra mai — pagando l'unica cosa che il vecchio veicolo non poteva piu' dare: essere
+	// riconosciuto come nome esistente.
 	const FString Json = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Harness.BlockedProbe",
@@ -491,7 +492,7 @@ bool FRTScenarioBlockedBeatsFinalAssertionsTest::RunTest(const FString&)
 	  ],
 	  "turns": [
 	    {
-	      "requires": ["DecisionBoundary"],
+	      "requires": ["NeverAvailable"],
 	      "intents": []
 	    }
 	  ],
@@ -526,7 +527,7 @@ bool FRTScenarioBlockedBeatsFinalAssertionsTest::RunTest(const FString&)
 	}
 
 	TestTrue(TEXT("e il motivo nomina la capability mancante"),
-		Result.BlockedReason.Contains(TEXT("DecisionBoundary")));
+		Result.BlockedReason.Contains(TEXT("NeverAvailable")));
 
 	// E le assertion finali non sono state valutate: misurerebbero una partita che non e' stata giocata.
 	TestEqual(TEXT("nessuna assertion finale valutata su un turno mai giocato"), Result.Assertions.Num(), 0);

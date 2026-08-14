@@ -171,6 +171,19 @@ namespace
 			TEXT("SpatialTrigger"),
 			TEXT("SemanticTrigger"),
 			TEXT("Teleport"),
+			// 🔒 RISERVATA AI TEST, e non diventera' MAI disponibile. Non e' una feature: e' il veicolo con cui
+			// `BlockedFirstTurnStaysBlocked` prova che un turno bloccato batte le assertion finali.
+			//
+			// Quel test usava un nome inventato — `CapabilityCheNonEsistera Mai` — proprio perche' non sarebbe
+			// mai atterrato: con un nome vero, il giorno in cui la capability diventa disponibile il turno
+			// verrebbe giocato e il test misurerebbe un'altra cosa. Da quando un nome sconosciuto vale `Error`
+			// quel veicolo non funziona piu', ma la ragione per cui era inventato resta valida — quindi il
+			// nome e' dichiarato QUI invece che scomparire, ed e' l'unica riga di questo elenco che non
+			// descrive un pezzo di gioco futuro.
+			//
+			// ⚠️ Non spostarla fra le disponibili per nessun motivo: `AvailableCapabilities()` e' l'insieme di
+			// cio' che il gioco sa fare, e questo nome non e' niente.
+			TEXT("NeverAvailable"),
 		};
 		// Le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato completato con `#582`:
 		// prima ne nominava due — e una capability che nessuno documenta produce un `BLOCKED` senza
