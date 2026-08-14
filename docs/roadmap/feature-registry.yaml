@@ -3458,7 +3458,9 @@ features:
       data: na
       runtime: done
       log_debug: na
-      automation: todo
+      # `todo` → `partial` il 2026-08-14: i quattro test esistevano già e nessuno li aveva dichiarati.
+      # Non `done` — coprono yaw, zoom e pan relativo, non `FocusOn`, `FrameOwnTeam` né i bounds.
+      automation: partial
       scenario: todo
       ui_wiki: partial
       packaged: partial
@@ -3471,17 +3473,30 @@ features:
     owner_specs:
       - docs/technical/progettazione-hud.md
     issues: [77]
-    tests: []
+    tests:
+      # Quattro test in `Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`:
+      # YawTurnsInStepsAndStaysNormalized · RotatingDoesNotResetZoom · PanIsRelativeToTheView ·
+      # RecenterAlsoResetsRotation. Il pattern li copre tutti e non invecchia se se ne aggiunge uno.
+      # Verificato per mutazione: sostituirlo con un nome inesistente fa fallire `validate` con
+      # «test ref senza corrispondenza nella suite», quindi il gate morde davvero.
+      - RefactorTactics.Camera.*
     scenarios: []
     wiki_refs:
       - wiki:come-si-gioca
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-14
+      commit: 747f4e82
     notes: >
-      `ARTCameraPawn` esiste e la build packaged la usa, ma **nessun test automatico** la copre e
-      la taratura su scala esagonale è una verifica PIE aperta (CP 8.3 di M8). Non promuovere per
-      «si vede che funziona».
+      `ARTCameraPawn` esiste e la build packaged la usa; la taratura su scala esagonale resta una
+      verifica PIE aperta (CP 8.3 di M8). Non promuovere per «si vede che funziona».
+      🔴 **Questa nota diceva «nessun test automatico la copre», ed era falsa dal 2026-08-08**: i
+      quattro `RefactorTactics.Camera.*` erano già in repository e il campo `tests:` era vuoto.
+      Nessun gate poteva accorgersene — `validate` verifica il verso *dichiarato → esistente*, cioè
+      che i pattern matchino test reali, e una lista vuota lo soddisfa sempre. Il verso opposto,
+      *esistente → dichiarato*, non è controllato da nulla.
+      ⚠️ Il campo `spec` resta `partial` per una ragione che i test non toccano: `YawStep = 45°` è
+      motivato in un commento C++ e non in un documento owner — vedi
+      `docs/roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md` §3.3.
 
   - feature_id: RT-FEAT-UI-PLANNING
     title: HUD di planning, selezione e preview

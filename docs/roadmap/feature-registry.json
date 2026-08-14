@@ -3799,7 +3799,7 @@
         "data": "na",
         "runtime": "done",
         "log_debug": "na",
-        "automation": "todo",
+        "automation": "partial",
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "partial",
@@ -3824,7 +3824,9 @@
       "issues": [
         77
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Camera.*"
+      ],
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
@@ -3833,10 +3835,10 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-14",
+        "commit": "747f4e82"
       },
-      "notes": "`ARTCameraPawn` esiste e la build packaged la usa, ma **nessun test automatico** la copre e la taratura su scala esagonale è una verifica PIE aperta (CP 8.3 di M8). Non promuovere per «si vede che funziona»."
+      "notes": "`ARTCameraPawn` esiste e la build packaged la usa; la taratura su scala esagonale resta una verifica PIE aperta (CP 8.3 di M8). Non promuovere per «si vede che funziona». 🔴 **Questa nota diceva «nessun test automatico la copre», ed era falsa dal 2026-08-08**: i quattro `RefactorTactics.Camera.*` erano già in repository e il campo `tests:` era vuoto. Nessun gate poteva accorgersene — `validate` verifica il verso *dichiarato → esistente*, cioè che i pattern matchino test reali, e una lista vuota lo soddisfa sempre. Il verso opposto, *esistente → dichiarato*, non è controllato da nulla. ⚠️ Il campo `spec` resta `partial` per una ragione che i test non toccano: `YawStep = 45°` è motivato in un commento C++ e non in un documento owner — vedi `docs/roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md` §3.3."
     },
     {
       "feature_id": "RT-FEAT-UI-PLANNING",

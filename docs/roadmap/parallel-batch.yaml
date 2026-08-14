@@ -271,6 +271,59 @@ preexisting:
       Terza lane documentale. Nessuna intersezione con i `writable`. Le tre `docs/lane*` sommano
       **18** file, che è il numero già citato dalla nota di `content_editor`: rimisurato, regge.
 
+  - branch: feat/telecamera
+    worktree: rt-telecamera
+    state: LIVE            # aperto 2026-08-14 su origin/main 747f4e82
+    declared: 7
+    collides_with:
+      track: content_editor
+      paths: [docs/technical/test-manuali-pie.md]
+    note: >-
+      Consolidamento del `Camera Roadmap v1.0`. ⚠️ **`declared`, non `measured`**: il branch nasce
+      ora e non ha commit, quindi il numero è una dichiarazione da confermare al primo push — la
+      sezione richiede una misura e questa voce non può ancora fornirla.
+      Come il consolidamento a 4 processi prima di lui, il suo write-set **è** la sezione
+      `integration_only`: è la forma tipica di un consolidamento documentale, e la ragione per cui
+      due non girano bene insieme. Oggi non ce ne sono altri aperti — `gh pr list --state open` è
+      vuota — quindi la track è libera.
+      🔴 **`docs/technical/test-manuali-pie.md` è ESCLUSO, ed è l'unica collisione.** È nel
+      `writable` di `content_editor` (#451), che è ACTIVE: le verifiche PIE della camera non
+      entrano in questo lavoro e restano da riallocare. Non è una svista da recuperare a fine
+      lavoro — è il caso che la regola descrive, e la fix «piccola» qui sarebbe scrivere in un
+      file di un'altra sessione.
+    writable:
+      - docs/roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md   # nuovo
+      - docs/archive/src/RefactorTactics_Camera_Roadmap_v1.0_Claude_Consolidation_2026-08-14.md  # nuovo
+      - docs/roadmap/feature-registry.yaml
+      - docs/roadmap/roadmap-post-v0.1.md
+      - docs/decisions/RT_PDR_00_Decision_Log.md
+      - docs/technical/scenario-map.md
+      - docs/archive/src/README.md
+      # Aggiunto dopo aver letto il README: la cartella tiene un **conteggio** dei propri file e una
+      # tabella per banner. Aggiungere un triage senza toccarlo lascerebbe entrambi falsi — è lo
+      # stesso difetto che quel README documenta tre volte su sé stesso.
+      - docs/roadmap/plans/README.md
+    derives_from:
+      # `feature-registry.yaml` alimenta quattro viste; `roadmap-post-v0.1.md` due delle stesse.
+      # Elenco riletto dalla sezione `generated_only` di questo file, non ricordato.
+      - source: docs/roadmap/feature-registry.yaml
+        regenerates:
+          - docs/roadmap/feature-registry.json
+          - docs/roadmap/featuremap.shortlist.md
+          - docs/roadmap/roadmap.shortlist.md
+          - docs/roadmap/project-graph.json
+      - source: docs/roadmap/roadmap-post-v0.1.md
+        regenerates:
+          - docs/roadmap/roadmap.shortlist.md
+          - docs/roadmap/project-graph.json
+      # `scenario-map.md` non alimenta nessuna vista: la sua unica occorrenza in `scripts/*.py` è
+      # dentro un commento di `feature_registry.py:633`, non una lettura. Verificato col grep sui
+      # consumatori, non spostando la sorgente — il metodo forte resta quello, e qui non serviva
+      # perché un file che nessuno apre non può produrre niente.
+      - source: docs/technical/scenario-map.md
+        regenerates: []
+    binary_leases: []
+
 # --- Le quattro track -------------------------------------------------------------------------
 
 tracks:

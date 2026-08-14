@@ -23,16 +23,16 @@ dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
 | Banner | Vocabolario | Significa | Quanti *(2026-08-14)* |
 |---|---|---|--:|
-| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 27 |
+| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 28 |
 | `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 1 |
 | `📦 DELIVERED PLAN` | secondo | *Piano già eseguito, non normativo* — equivale a `HISTORICAL` | 14 |
 | `🧱 AS-BUILT` | secondo | *Specifica di ciò che fu consegnato* — equivale a `HISTORICAL` | 7 |
 | `DONE` · `PLAN`/consumato · `BRIEF` | secondo | Casi singoli, già consumati — equivalgono a `HISTORICAL` | 3 |
 
-**52 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `27 + 1 + 14 + 7 + 3 = 52`, e la somma delle categorie e' il controllo che il totale da solo non offre. I due totali si rimisurano eseguendo:
+**53 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `28 + 1 + 14 + 7 + 3 = 53`, e la somma delle categorie e' il controllo che il totale da solo non offre. I due totali si rimisurano eseguendo:
 
 ```sh
-ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 52
+ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 53
 ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
 ```
 
@@ -46,6 +46,12 @@ ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
 > entrambe sarà **52** e i `CURRENT` **27**». #836 è atterrata mentre quella PR era aperta, e il comando
 > eseguito sull'albero unito ha risposto **52** e **27**. La previsione si legge con
 > `gh pr list --state open`; il numero si scrive col comando, **dopo**. Le due cose non si sostituiscono.
+>
+> 🟡 **Quarto giro, stesso metodo.** `feat/telecamera` aggiunge `camera-roadmap-v1-triage-2026-08-14.md`:
+> `52 → 53`, `CURRENT 27 → 28`, misurati sulla propria base (`747f4e82`) con `gh pr list --state open`
+> **vuota** — nessun altro ramo può portare un file in questa cartella mentre la PR è aperta. Resta una
+> previsione finché non è rieseguito sull'albero mergiato: se una PR compare nel frattempo, questa cella
+> si rimisura prima del merge e non si incrementa.
 
 ✅ **Nessun `HISTORICAL` canonico resta qui**: dal 2026-08-14 vivono tutti in
 [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/README.md).
