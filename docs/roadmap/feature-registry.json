@@ -3799,14 +3799,14 @@
         "data": "na",
         "runtime": "done",
         "log_debug": "na",
-        "automation": "partial",
+        "automation": "done",
         "scenario": "todo",
         "ui_wiki": "partial",
         "packaged": "partial",
         "network_privacy": "na",
         "replay_representable": "na"
       },
-      "gates_done": 1,
+      "gates_done": 2,
       "gates_applicable": 6,
       "roadmap": {
         "epic": "E11",
