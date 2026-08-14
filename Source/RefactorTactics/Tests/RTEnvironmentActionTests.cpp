@@ -485,7 +485,9 @@ bool FRTGraphRevisionRisesWithinATurnTest::RunTest(const FString&)
 	{
 		const int32 QuietTurn = TM->GetTurnNumber(); // preso dal manager, non contato a mano
 		PlanEnvAction(Guarder, TEXT("Action.Guard"), nullptr);
-		PlanEnvAction(Mover, TEXT("Action.Move"), nullptr);
+		// ⚠️ Il movimento si dichiara con `PlannedCell` e basta: `Action.Move` non e' un'azione di slot,
+		// e' il budget della fase Move. Metterlo in `PlannedAbilityIndex` sarebbe un allestimento che
+		// nessun altro test di questo repository usa — misurato, non supposto.
 		Mover->PlannedCell = FRTCellId(-2, 0);
 		RunEnvTurn(TM);
 
@@ -503,8 +505,7 @@ bool FRTGraphRevisionRisesWithinATurnTest::RunTest(const FString&)
 	// --- LA PROVA: un turno in cui un ponte si apre a meta' risoluzione ----------------------------
 	PlanEnvAction(Guarder, TEXT("Action.Guard"), nullptr);
 	PlanEnvAction(Modifier, TEXT("Action.ModifyArc"), Target);
-	PlanEnvAction(Mover, TEXT("Action.Move"), nullptr);
-	Mover->PlannedCell = FRTCellId(-1, 0);
+	Mover->PlannedCell = FRTCellId(-1, 0); // come sopra: il Move non passa da uno slot
 	RunEnvTurn(TM);
 
 	TestEqual(TEXT("l'evento strutturale e' avvenuto una volta sola"),
