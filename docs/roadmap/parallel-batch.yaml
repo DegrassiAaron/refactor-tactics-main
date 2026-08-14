@@ -408,6 +408,36 @@ preexisting:
   # versionarli non appartiene a una riconciliazione di batch. Verificato che nessuno dei 28 sia in
   # `origin/main`.
 
+  - branch: feat/865-camera-focus-tests
+    state: LIVE            # worktree `D:/rt-telecamera` · PR #872 aperta · su `c371c9a0`
+    measured: 6
+    collides_with:
+      - branch: wip/icon-visual-language
+        state: LIVE
+        paths: [docs/roadmap/feature-registry.yaml, docs/roadmap/feature-registry.json]
+      - branch: docs/five-lane-roadmap
+        state: DORMANT
+        paths: [docs/roadmap/feature-registry.yaml, docs/roadmap/feature-registry.json]
+    note: >-
+      Sessione su `#865`, aperta dal consolidamento camera di `#867`.
+      🔴 **Questa voce è stata scritta tre volte, e le prime due erano nel posto sbagliato.** Nasceva
+      `LOCAL · 0` sotto «Sessioni locali», che è corretto per un branch mai pushato; al push con PR
+      aperta è diventata `LIVE` **restando lì**, cioè sotto un'intestazione che dice «esistono in un
+      worktree e in nessun altro posto» mentre `git ls-remote` la vedeva. Spostata qui, fra i branch
+      remoti, dove l'invariante si calcola. Ed è il caso che la sezione LOCAL esiste per coprire
+      *perché* quel comando non li vede: applicarla a un branch che invece si vede sbaglia il perimetro.
+      ⚠️ **La nota portava anche testo stantio della prima stesura** — «Zero commit, quindi oggi non è
+      un vincolo» dentro una voce che dichiarava `measured: 6` — e **esiti di gate**, che §«Cosa NON va
+      scritto qui» vieta per nome: un write-set non è un avanzamento. Rimossi entrambi.
+      ✅ **Set disgiunto dalle track, verificato e non assunto**: `Tests/RTCameraPawnTests.cpp` non è nel
+      `writable` di nessuna — `simulation` tiene `RTReactionTests.cpp` e `RTReactionOpportunityTests.cpp`,
+      `client_tools` `RTIntentPrivacyTests.cpp` e `UI/`, `content_editor` `test-manuali-pie.md`.
+      ⚠️ Le **quattro** collisioni qui sopra sono con branch fuori dalle track, e cadono tutte su
+      `feature-registry.yaml` e la sua vista: è `integration_only`, quindi si riconcilia in integrazione
+      e chi merge per secondo rigenera sull'albero unito.
+      ➕ `parallel-batch.yaml` è nel write-set e in nessun `writable`: registrare la propria track lo
+      richiede, ed è l'atto di integrazione che questa sezione descrive.
+
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
   # 🔴 **La stesura precedente aveva due regole opposte per lo stesso caso, a venti righe di
@@ -453,44 +483,17 @@ preexisting:
       **prima** del primo commit, non dopo. Il worktree era in detached su `f521f6b8` quando questa
       sezione è stata scritta la prima volta: nel frattempo ha preso un branch.
 
-  - branch: feat/865-camera-focus-tests
-    state: LIVE            # worktree `D:/rt-telecamera`, su `c371c9a0` · 2 commit
-    measured: 6
-    holds:
-      - Source/RefactorTactics/Tests/RTCameraPawnTests.cpp
-      - docs/roadmap/feature-registry.yaml
-      - docs/roadmap/parallel-batch.yaml
-      - docs/roadmap/feature-registry.json        # generated: segue la sorgente
-      - docs/roadmap/featuremap.shortlist.md      # generated: segue la sorgente
-      - docs/roadmap/roadmap.shortlist.md         # generated: segue la sorgente
-    note: >-
-      ✅ **`LOCAL · 0` → `LIVE · 6`, misurato al primo commit** con
-      `git diff --name-only origin/main...HEAD`. È il passaggio che questa sezione descrive: la
-      prenotazione diventa un vincolo quando il branch scrive. ⚠️ Tre dei sei sono viste generate —
-      il gate `automation → done` cambia `featuremap` e `roadmap.shortlist`, cosa che una
-      dichiarazione a priori non avrebbe previsto: le shortlist leggono i **gate**, non solo i
-      campi che si stanno editando.
-      Sessione su `#865`, aperta dal consolidamento camera di `#867`: i test che mancano a
-      `FocusOn` e `FrameOwnTeam`, cioè la ragione per cui il gate `automation` di
-      `RT-FEAT-UI-TACTICAL-CAMERA` è `partial` e non `done`. Zero commit, quindi oggi non è un
-      vincolo — è la prenotazione visibile che questa sezione chiede di fare *prima* del primo
-      commit.
-      ✅ **Set disgiunto, verificato contro le tre track ACTIVE e non assunto**:
-      `Tests/RTCameraPawnTests.cpp` non è nel `writable` di nessuna — `simulation` tiene
-      `RTReactionTests.cpp` e `RTReactionOpportunityTests.cpp`, `client_tools` tiene
-      `RTIntentPrivacyTests.cpp` e `UI/`, `content_editor` tiene `test-manuali-pie.md`. Nessuna
-      di queste è toccata.
-      ⚠️ **Il secondo file del write-set è `feature-registry.yaml`, che è `integration_only`**: il
-      DoD di #865 chiede che il gate passi a `done` **nello stesso commit** dei test, quindi la
-      voce non può separarli. Vale la regola della sezione: si riconcilia in integrazione, e chi
-      merge per secondo rigenera le viste sull'albero unito.
-      ⚠️ Non tocca `Source/RefactorTactics/Camera/`: #865 è **solo** copertura. Yaw/pitch (#863) e
-      zoom/bounds (#864) sono lavoro diverso e non sono aperti.
-
-  # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **cinque**, e
-  # questa sezione ne rende conto di tutti e cinque — quattro voci `LOCAL` più la working directory
+  # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **cinque**, e questo
+  # file ne rende conto di tutti e cinque — **tre** voci `LOCAL` qui sopra, la voce `LIVE` di
+  # `feat/865-camera-focus-tests` fra i branch remoti, e la working directory
   # principale, che ora è su `main` a `c371c9a0` con write-set **vuoto**, quindi non è un vincolo e
-  # non ha voce. ⚠️ Fino al merge di #869 il suo write-set *era* la voce
+  # non ha voce.
+  # 🔴 **La stesura precedente scriveva «quattro voci `LOCAL`» e le contava in questa sezione**: erano
+  # tre `LOCAL` più una `LIVE`, e quella `LIVE` non apparteneva nemmeno a questo blocco — la cui
+  # intestazione dice «esistono in un worktree e in nessun altro posto». Il totale di cinque era giusto,
+  # la composizione no, ed è stata scritta **nello stesso commit** che l'ha resa falsa. È la terza volta
+  # che questo file registra «un elenco e il suo conteggio si rileggono insieme, perché nessun gate lo fa».
+  # ⚠️ Fino al merge di #869 il write-set della working directory *era* la voce
   # `docs/riconciliazione-batch-2026-08-14b`: togliendo quella voce si sarebbe rotto il riferimento,
   # ed è il motivo per cui questo paragrafo si aggiorna **nello stesso commit** e non dopo.
   # ➕ **Il quinto è `D:/rt-telecamera`, ricreato dopo il merge di #867** — quel worktree era stato

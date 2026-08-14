@@ -14,6 +14,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Player/RTPlayerController.h"
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -41,11 +42,16 @@ namespace
 		}
 	}
 
-	/** Mappa piatta minima: a `FrameOwnTeam` serve solo che `FindInWorld` la trovi e dia un contesto. */
-	ARTHexMapActor* SpawnCameraTestMap(UWorld* World, int32 Radius = 2)
+	/**
+	 * Mappa piatta minima. Il raggio 2 non e' decorativo: `RecenterView` centra su `GetCenterCell()`, quindi
+	 * senza celle il confronto con l'inquadratura di squadra perderebbe il proprio riferimento.
+	 */
+	ARTHexMapActor* SpawnCameraTestMap(UWorld* World)
 	{
+		if (!World) { return nullptr; }
+
 		URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), /*Radius=*/ 2))
 		{
 			Asset->AddOrUpdateCell(FRTHexCellData(Id));
 		}
@@ -63,6 +69,7 @@ namespace
 	 */
 	ARTUnit* SpawnCameraTestUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell)
 	{
+		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
@@ -252,12 +259,23 @@ bool FRTCameraFocusKeepsFramingTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
 
 	// Uno stato «regolato dal giocatore»: girato e zoomato, a una quota sua.
+	const float ZoomAtRest = Arm->TargetArmLength;
 	Cam->AddYaw(+1.f);
 	Cam->AddZoom(+1.f);
 	Cam->SetActorLocation(FVector(0.f, 0.f, 1234.f));
 	const float ZoomBefore = Arm->TargetArmLength;
 	const float YawBefore = Cam->GetCameraYaw();
 	const float PitchBefore = static_cast<float>(Arm->GetRelativeRotation().Pitch);
+
+	// La premessa va DIMOSTRATA, non assunta: se `AddZoom`/`AddYaw` regredissero a no-op, i valori
+	// «prima» sarebbero i default e le tre verifiche «non si tocca» passerebbero senza provare niente.
+	// E' la stessa guardia che `RotatingDoesNotResetZoom` mette prima di procedere.
+	if (!TestNotEqual(TEXT("lo zoom e' stato davvero cambiato"), ZoomBefore, ZoomAtRest)
+		|| !TestNotEqual(TEXT("la vista e' stata davvero girata"), YawBefore, 0.f))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
 
 	// La Z del bersaglio e' deliberatamente assurda: se `FocusOn` la usasse, la camera finirebbe li'.
 	Cam->FocusOn(FVector(500.f, -300.f, 99999.f));
@@ -273,6 +291,11 @@ bool FRTCameraFocusKeepsFramingTest::RunTest(const FString&)
 	TestEqual(TEXT("la rotazione non si tocca"), Cam->GetCameraYaw(), YawBefore);
 	TestEqual(TEXT("nemmeno l'inclinazione"),
 		static_cast<float>(Arm->GetRelativeRotation().Pitch), PitchBefore);
+	// ⚠️ Il campo del pawn e il BRACCIO sono due cose diverse, e guardare solo il primo lascia passare
+	// un `FocusOn` che raddrizzi la vista: `CameraYaw` resterebbe 45 mentre lo schermo torna a 0, e il pan
+	// — che legge il campo — si sfaserebbe da quello che il giocatore vede.
+	TestEqual(TEXT("e il braccio guarda ancora dove dice il campo"),
+		static_cast<float>(Arm->GetRelativeRotation().Yaw), YawBefore);
 
 	DestroyCameraWorld(World);
 	return true;
@@ -317,7 +340,10 @@ bool FRTCameraFrameTeamFalseBranchesTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("mappa"), SpawnCameraTestMap(World))) { DestroyCameraWorld(World); return false; }
 
 		// Senza PlayerController la squadra assunta e' la 0: queste due unita' non la compongono.
-		SpawnCameraTestUnit(World, /*TeamId=*/ 1, FRTCellId(1, 0));
+		// Il nemico VIVO e' il discriminante del test — senza di lui questo sarebbe «un mondo con una
+		// mappa e un cadavere» — quindi va verificato che esista, non solo spawnato.
+		ARTUnit* Enemy = SpawnCameraTestUnit(World, /*TeamId=*/ 1, FRTCellId(1, 0));
+		if (!TestNotNull(TEXT("nemico vivo"), Enemy)) { DestroyCameraWorld(World); return false; }
 		ARTUnit* Fallen = SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(0, 1));
 		if (!TestNotNull(TEXT("unita' della squadra 0"), Fallen)) { DestroyCameraWorld(World); return false; }
 		// Uccisa con l'API di gioco, non azzerando il campo: e' `IsAlive()` che il filtro interroga.
@@ -356,11 +382,15 @@ bool FRTCameraFrameTeamZoomTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
 	if (!TestNotNull(TEXT("mappa"), SpawnCameraTestMap(World))) { DestroyCameraWorld(World); return false; }
 
-	SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(-1, 0));
+	// ⚠️ Celle ASIMMETRICHE rispetto al centro mappa. Con `(-1,0)` e `(1,0)` il centroide cadrebbe
+	// sull'origine, cioe' esattamente dove `RecenterView` ha appena messo la camera: il confronto di
+	// posizione sarebbe vero per coincidenza e non proverebbe nulla.
 	SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(1, 0));
+	SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(2, 0));
 
 	Cam->RecenterView();
 	const float HomeArm = Arm->TargetArmLength;
+	const FVector HomeLocation = Cam->GetActorLocation();
 
 	if (!TestTrue(TEXT("con due unita' vive l'inquadratura riesce"), Cam->FrameOwnTeam()))
 	{
@@ -371,10 +401,67 @@ bool FRTCameraFrameTeamZoomTest::RunTest(const FString&)
 
 	TestTrue(TEXT("inizio partita e' piu' vicino di Home"), MatchArm < HomeArm);
 
+	// L'altra meta' del contratto — «centra sul punto medio delle sue unita'» — che senza questa riga
+	// nessun test toccava: cancellando la chiamata a `CellsCentroidWorld` la suite restava verde e la
+	// camera avrebbe smesso in silenzio di inquadrare la squadra all'avvio.
+	TestNotEqual(TEXT("si e' spostata dal centro mappa verso le proprie unita'"),
+		Cam->GetActorLocation(), HomeLocation);
+
 	// E lo zoom non e' un effetto collaterale di `FocusOn`, che per contratto non lo tocca: e'
 	// `FrameOwnTeam` a riscriverlo dopo. Le due responsabilita' restano distinte.
 	Cam->FocusOn(FVector(999.f, 999.f, 0.f));
 	TestEqual(TEXT("centrare altrove non cambia la distanza appena scelta"), Arm->TargetArmLength, MatchArm);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * «La propria squadra» e' quella del CONTROLLER, non la 0.
+ *
+ * `FrameOwnTeam` legge `PlayerTeamId` e ripiega sulla squadra 0 solo quando un controller non c'e' — una
+ * comodita' da demo. Senza questo test la lettura del controller e' cancellabile senza far cadere niente, e
+ * in una partita in cui il giocatore e' la squadra 1 la camera aprirebbe inquadrando **il nemico**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraFrameTeamFollowsControllerTest,
+	"RefactorTactics.Camera.FrameOwnTeamFramesTheControllersTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraFrameTeamFollowsControllerTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	if (!TestNotNull(TEXT("mappa"), SpawnCameraTestMap(World))) { DestroyCameraWorld(World); return false; }
+
+	// Due squadre su lati opposti: quale delle due si inquadra e' l'intera domanda del test.
+	SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(-2, 0));
+	SpawnCameraTestUnit(World, /*TeamId=*/ 1, FRTCellId(2, 0));
+
+	// Senza controller: ripiego sulla squadra 0.
+	if (!TestTrue(TEXT("senza controller inquadra comunque"), Cam->FrameOwnTeam()))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	const FVector FramedTeamZero = Cam->GetActorLocation();
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC)) { DestroyCameraWorld(World); return false; }
+	PC->PlayerTeamId = 1;
+	PC->Possess(Cam);
+
+	if (!TestTrue(TEXT("con il controller inquadra"), Cam->FrameOwnTeam()))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	// Se la lettura di `PlayerTeamId` sparisse, questa resterebbe l'inquadratura della squadra 0 e le due
+	// posizioni coinciderebbero.
+	TestNotEqual(TEXT("la squadra 1 non si inquadra dove sta la squadra 0"),
+		Cam->GetActorLocation(), FramedTeamZero);
 
 	DestroyCameraWorld(World);
 	return true;
