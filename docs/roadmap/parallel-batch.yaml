@@ -453,6 +453,26 @@ preexisting:
   # entrambe erano aperte, e va tolta dalla voce di `165` invece di restarci come vincolo fantasma.
 
 
+  - branch: feat/874-beginplay-fallback
+    state: LIVE            # worktree `D:/rt-telecamera` · PR #889 aperta · su `376013a7`
+    measured: 2
+    collides_with:
+      - branch: feat/165-finestra-overwatch
+        state: LIVE
+        paths: [docs/roadmap/parallel-batch.yaml]
+    note: >-
+      `#874`: il ripiego di `BeginPlay` — `FrameOwnTeam` → ritenta al tick → `RecenterView` — decide la
+      prima inquadratura della partita e non aveva test.
+      ✅ **Solo copertura**: `Camera/RTCameraPawn.cpp` resta **identico a `main`**, verificato con
+      `git diff --stat origin/main --`. Il write-set è il file di test più questo.
+      ⚠️ **La collisione su `parallel-batch.yaml` è dichiarata dall'inizio**, invece di essere scoperta
+      dopo: `feat/165` lo tocca, è `integration_only`, e nessuna delle due lo tiene per diritto. È la
+      lezione della voce di `#873`, dove «zero collisioni» era falso proprio per questo file.
+      ✅ **`measured: 2` era una previsione, ed è stata confermata dalla misura** al push:
+      `git diff --name-only origin/main...HEAD` restituisce esattamente i due file previsti. È la prima
+      volta in questo batch che un numero dichiarato regge alla verifica — e `LOCAL → LIVE` è stato
+      applicato **nello stesso momento del push**, invece di essere scoperto da una review come per `#873`.
+
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
   # 🔴 **La stesura precedente aveva due regole opposte per lo stesso caso, a venti righe di
@@ -485,24 +505,6 @@ preexisting:
   # false insieme — non pushato (lo era), non mergiato (lo è), undici file (zero).
   # ⚠️ **L'ha mergiata questo stesso branch**, col merge di `origin/main` fatto per verificare che
   # `#876` non rompesse i test della camera: la riga è diventata falsa per mano di chi la leggeva.
-
-  - branch: feat/874-beginplay-fallback
-    state: LOCAL           # worktree `D:/rt-telecamera`, creato su `376013a7`
-    measured: 2
-    collides_with:
-      - branch: feat/165-finestra-overwatch
-        state: LIVE
-        paths: [docs/roadmap/parallel-batch.yaml]
-    note: >-
-      `#874`: il ripiego di `BeginPlay` — `FrameOwnTeam` → ritenta al tick → `RecenterView` — decide la
-      prima inquadratura della partita e non aveva test.
-      ✅ **Solo copertura**: `Camera/RTCameraPawn.cpp` resta **identico a `main`**, verificato con
-      `git diff --stat origin/main --`. Il write-set è il file di test più questo.
-      ⚠️ **La collisione su `parallel-batch.yaml` è dichiarata dall'inizio**, invece di essere scoperta
-      dopo: `feat/165` lo tocca, è `integration_only`, e nessuna delle due lo tiene per diritto. È la
-      lezione della voce di `#873`, dove «zero collisioni» era falso proprio per questo file.
-      ➕ `measured: 2` è una **previsione**, non una misura: il branch non ha ancora commit. Si rilegge
-      col comando al primo push, come è successo — in ritardo — a `#873`.
 
   # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**:
   #
