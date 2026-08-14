@@ -408,35 +408,24 @@ preexisting:
   # versionarli non appartiene a una riconciliazione di batch. Verificato che nessuno dei 28 sia in
   # `origin/main`.
 
-  - branch: feat/865-camera-focus-tests
-    state: LIVE            # worktree `D:/rt-telecamera` · PR #872 aperta · su `c371c9a0`
-    measured: 6
-    collides_with:
-      - branch: wip/icon-visual-language
-        state: LIVE
-        paths: [docs/roadmap/feature-registry.yaml, docs/roadmap/feature-registry.json]
-      - branch: docs/five-lane-roadmap
-        state: DORMANT
-        paths: [docs/roadmap/feature-registry.yaml, docs/roadmap/feature-registry.json]
+  # 🔵 **`feat/865-camera-focus-tests` è uscita da qui**: PR #872 mergiata alle `16:47Z` in `d5aef89e`,
+  # branch cancellato lato server — verificato con `git ls-remote` **e** `git merge-base --is-ancestor`.
+  # Per l'enum: `MERGED` esce dalla sezione. È la seconda voce a uscire oggi con la stessa regola, e
+  # l'ha tolta — come vuole il file — **chi è arrivato dopo il merge**, non chi l'aveva scritta.
+
+
+  - branch: docs/38-spec-panel-playtest-hex
+    state: LIVE            # worktree `D:/rt-client` · pushato · 951f37e1
+    measured: 3
     note: >-
-      Sessione su `#865`, aperta dal consolidamento camera di `#867`.
-      🔴 **Questa voce è stata scritta tre volte, e le prime due erano nel posto sbagliato.** Nasceva
-      `LOCAL · 0` sotto «Sessioni locali», che è corretto per un branch mai pushato; al push con PR
-      aperta è diventata `LIVE` **restando lì**, cioè sotto un'intestazione che dice «esistono in un
-      worktree e in nessun altro posto» mentre `git ls-remote` la vedeva. Spostata qui, fra i branch
-      remoti, dove l'invariante si calcola. Ed è il caso che la sezione LOCAL esiste per coprire
-      *perché* quel comando non li vede: applicarla a un branch che invece si vede sbaglia il perimetro.
-      ⚠️ **La nota portava anche testo stantio della prima stesura** — «Zero commit, quindi oggi non è
-      un vincolo» dentro una voce che dichiarava `measured: 6` — e **esiti di gate**, che §«Cosa NON va
-      scritto qui» vieta per nome: un write-set non è un avanzamento. Rimossi entrambi.
-      ✅ **Set disgiunto dalle track, verificato e non assunto**: `Tests/RTCameraPawnTests.cpp` non è nel
-      `writable` di nessuna — `simulation` tiene `RTReactionTests.cpp` e `RTReactionOpportunityTests.cpp`,
-      `client_tools` `RTIntentPrivacyTests.cpp` e `UI/`, `content_editor` `test-manuali-pie.md`.
-      ⚠️ Le **quattro** collisioni qui sopra sono con branch fuori dalle track, e cadono tutte su
-      `feature-registry.yaml` e la sua vista: è `integration_only`, quindi si riconcilia in integrazione
-      e chi merge per secondo rigenera sull'albero unito.
-      ➕ `parallel-batch.yaml` è nel write-set e in nessun `writable`: registrare la propria track lo
-      richiede, ed è l'atto di integrazione che questa sezione descrive.
+      ⚠️ **Sessione che non c'era alla stesura precedente**, comparsa mentre `#873` apriva il proprio
+      branch: `git worktree list` è passato da cinque a sei voci nello spazio di pochi minuti.
+      Tre file, tutti in `docs/roadmap/plans/` (spec-panel M6-8, scheda esiti, sequenza sedute):
+      nessuna intersezione con `#873`, che tocca `Camera/` e il proprio test.
+      ➕ **È `LIVE` e non `LOCAL`**: `git ls-remote --heads origin` la vede. La distinzione conta
+      perché è l'unica cosa che separa i due stati, e la stesura di stamattina l'aveva già sbagliata
+      una volta in senso opposto.
+
 
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
@@ -466,33 +455,64 @@ preexisting:
 
   - branch: feat/165-finestra-overwatch
     state: LOCAL           # worktree `D:/rt-simulation`
-    measured: 0
+    measured: 14
     note: >-
       ➕ **È il branch che la track `simulation` dichiarava sparito, ricreato mentre questo file
-      veniva scritto.** Zero commit, zero file: nessun vincolo oggi. La track ora lo nomina — vedi
-      `simulation.branch` — perché un branch che esiste e non si può nominare è esattamente ciò che
-      lo schema di `session_branch` è stato aggiunto per impedire.
+      veniva scritto.** La track lo nomina in `simulation.branch`.
+      🔴 **`measured: 0` → `14`, rimisurato il 2026-08-14 alle `17:5x`.** La prenotazione è diventata
+      un vincolo: quando questa voce è stata scritta il branch era fermo sulla base, e nel frattempo
+      ha committato. È il caso che la sezione descrive — «il vincolo nasce al primo commit» — visto
+      accadere invece che previsto.
 
   - branch: feat/832-stable-structure-id
     state: LOCAL           # worktree `D:/rt-spatial`
+    measured: 11
+    note: >-
+      Sessione aperta su `#832`, che **non è una track di questo batch**. Il write-set libero di
+      `spatial` (`Map/`, `Pathfinding/`, i due test hex, il DoD) era il candidato ovvio per un lavoro
+      su structure id.
+      🔴 **`measured: 0` → `11`, rimisurato lo stesso giro di `feat/165`.** Due voci su tre sono
+      passate da prenotazione a vincolo nell'arco di un'ora, e nessun gate lo ha segnalato: questo
+      file si rilegge col comando, non con la memoria di chi l'ha scritto.
+
+  - branch: feat/873-recenter-clamp
+    state: LOCAL           # worktree `D:/rt-telecamera`, creato su `d5aef89e`
     measured: 0
     note: >-
-      Sessione aperta su `#832`, che **non è una track di questo batch**. Zero commit, quindi
-      nessuna collisione misurabile; il write-set libero di `spatial` (`Map/`, `Pathfinding/`, i due
-      test hex, il DoD) è il candidato ovvio per un lavoro su structure id, e va confrontato
-      **prima** del primo commit, non dopo. Il worktree era in detached su `f521f6b8` quando questa
-      sezione è stata scritta la prima volta: nel frattempo ha preso un branch.
+      Sessione su `#873`: `RecenterView` è l'unico dei quattro scrittori di `TargetArmLength` a non
+      clampare, e con `DefaultArmLength` fuori da `[Min, Max]` il tasto `Home` porta il braccio fuori
+      intervallo — la prima rotellina lo riporta dentro di scatto. Prenotazione visibile prima del primo
+      commit, come chiede la sezione.
+      ✅ **Set disgiunto, verificato contro le tre track ACTIVE**: `Source/RefactorTactics/Camera/` non è
+      nel `writable` di nessuna — `simulation` tiene `Turn/` e `Bot/`, `client_tools`
+      `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`.
+      ⚠️ **A differenza di #865 questa track tocca il codice della camera, non solo i test**: il write-set
+      previsto è `Camera/RTCameraPawn.{h,cpp}` più il proprio file di test. Il registry **non** è
+      coinvolto: il gate `automation` è già `done` e questo lavoro non lo muove — aggiunge un test a una
+      feature che ne ha già, cioè non cambia nessun gate.
+      ✅ **Zero collisioni, misurate su dieci branch** e non su quelli che ricordavo: `Camera/` e
+      `RTCameraPawnTests.cpp` non compaiono nel write-set di nessuno dei dieci, incluso
+      `wip/icon-visual-language` che ne tocca 341.
+      🔴 **E questa voce ha commesso ENTRAMBI gli errori di posizione nello stesso commit, un'ora dopo
+      averli criticati**: nasceva fra i branch remoti pur non essendo mai stata pushata, e nello stesso
+      edit `docs/38-spec-panel-playtest-hex` — che è pushata — finiva fra le sessioni locali. Due voci,
+      due sezioni, scambiate. Corretto qui. La lezione non è «stare attenti»: è che la sezione giusta
+      **si deduce da un comando** (`git ls-remote --heads origin | grep <branch>`), e va eseguito al
+      momento di scrivere la voce invece che dopo.
 
-  # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **cinque**, e questo
-  # file ne rende conto di tutti e cinque — **tre** voci `LOCAL` qui sopra, la voce `LIVE` di
-  # `feat/865-camera-focus-tests` fra i branch remoti, e la working directory
-  # principale, che ora è su `main` a `c371c9a0` con write-set **vuoto**, quindi non è un vincolo e
-  # non ha voce.
-  # 🔴 **La stesura precedente scriveva «quattro voci `LOCAL`» e le contava in questa sezione**: erano
-  # tre `LOCAL` più una `LIVE`, e quella `LIVE` non apparteneva nemmeno a questo blocco — la cui
-  # intestazione dice «esistono in un worktree e in nessun altro posto». Il totale di cinque era giusto,
-  # la composizione no, ed è stata scritta **nello stesso commit** che l'ha resa falsa. È la terza volta
-  # che questo file registra «un elenco e il suo conteggio si rileggono insieme, perché nessun gate lo fa».
+
+  # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**, e questo
+  # file ne rende conto di tutti e sei — **quattro** voci `LOCAL` qui sopra (`451`, `165`, `832`,
+  # `873`), la voce `LIVE` di `docs/38-spec-panel-playtest-hex`, e la working directory principale,
+  # che è su `main` con write-set **vuoto**, quindi non è un vincolo e non ha voce.
+  # 🔴 **Era cinque un'ora fa, ed è la seconda volta oggi che questa riga invecchia mentre la si
+  # scrive**: `D:/rt-client` è comparso mentre `#873` apriva il proprio branch. Il conto si rifà col
+  # comando — `git worktree list` — non incrementando quello scritto prima.
+  # 🔴 Una stesura precedente scriveva «quattro voci `LOCAL`» quando erano tre più una `LIVE`, e quella
+  # `LIVE` non apparteneva nemmeno a questo blocco — la cui intestazione dice «esistono in un worktree e
+  # in nessun altro posto». Il totale era giusto, la composizione no, ed è stata scritta **nello stesso
+  # commit** che l'ha resa falsa. È la terza volta che questo file registra «un elenco e il suo
+  # conteggio si rileggono insieme, perché nessun gate lo fa».
   # ⚠️ Fino al merge di #869 il write-set della working directory *era* la voce
   # `docs/riconciliazione-batch-2026-08-14b`: togliendo quella voce si sarebbe rotto il riferimento,
   # ed è il motivo per cui questo paragrafo si aggiorna **nello stesso commit** e non dopo.
