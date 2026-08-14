@@ -15,6 +15,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
+#include "TimerManager.h"
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -45,13 +46,18 @@ namespace
 	/**
 	 * Mappa piatta minima. Il raggio 2 non e' decorativo: `RecenterView` centra su `GetCenterCell()`, quindi
 	 * senza celle il confronto con l'inquadratura di squadra perderebbe il proprio riferimento.
+	 *
+	 * `Center` esiste perche' una mappa centrata sull'origine rende **degeneri** i confronti di posizione:
+	 * «dove `RecenterView` mette la camera» e «l'origine del mondo» diventano lo stesso punto, e
+	 * un'assertion che li distingue passa per coincidenza. Chi ha bisogno di distinguerli passa un centro
+	 * spostato.
 	 */
-	ARTHexMapActor* SpawnCameraTestMap(UWorld* World)
+	ARTHexMapActor* SpawnCameraTestMap(UWorld* World, const FRTCellId& Center = FRTCellId(0, 0, 0))
 	{
 		if (!World) { return nullptr; }
 
 		URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), /*Radius=*/ 2))
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(Center, /*Radius=*/ 2))
 		{
 			Asset->AddOrUpdateCell(FRTHexCellData(Id));
 		}
@@ -411,6 +417,98 @@ bool FRTCameraFrameTeamZoomTest::RunTest(const FString&)
 	// `FrameOwnTeam` a riscriverlo dopo. Le due responsabilita' restano distinte.
 	Cam->FocusOn(FVector(999.f, 999.f, 0.f));
 	TestEqual(TEXT("centrare altrove non cambia la distanza appena scelta"), Arm->TargetArmLength, MatchArm);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * La PRIMA inquadratura della partita: la camera aspetta le unita', e se non arrivano ripiega.
+ *
+ * `BeginPlay` prova `FrameOwnTeam`, e se fallisce riprova **al tick successivo** — perche' l'ordine di
+ * `BeginPlay` fra actor non e' garantito e la camera puo' svegliarsi prima delle unita'. Solo se anche il
+ * secondo tentativo fallisce ripiega su `RecenterView`.
+ *
+ * ⚠️ La mappa e' deliberatamente **non centrata sull'origine**: `RecenterView` porta la camera su
+ * `GetCenterCell()`, e con una mappa centrata in `(0,0)` quel punto coinciderebbe con la posizione di
+ * partenza del pawn — il test passerebbe qualunque cosa faccia il ripiego. E' lo stesso difetto che la
+ * code review di #872 ha trovato nelle unita' simmetriche.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraBeginPlayRetriesTest,
+	"RefactorTactics.Camera.BeginPlayWaitsOneTickForLateUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraBeginPlayRetriesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	// Mappa lontana dall'origine: e' il riferimento che rende distinguibili le tre posizioni in gioco
+	// (partenza del pawn, centro mappa, squadra).
+	if (!TestNotNull(TEXT("mappa"), SpawnCameraTestMap(World, FRTCellId(6, 2))))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	Cam->SetActorLocation(FVector::ZeroVector);
+
+	// `BeginPlay` con il mondo ancora vuoto: `FrameOwnTeam` fallisce e registra il ritentativo.
+	Cam->DispatchBeginPlay();
+	const FVector AfterBeginPlay = Cam->GetActorLocation();
+
+	// Le unita' arrivano DOPO, che e' l'intero caso d'uso.
+	SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(7, 2));
+	SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(8, 2));
+
+	// Un tick di timer: e' qui che il ritentativo deve scattare.
+	World->GetTimerManager().Tick(0.05f);
+
+	TestNotEqual(TEXT("al tick successivo la camera ha trovato la squadra"),
+		Cam->GetActorLocation(), AfterBeginPlay);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * Se le unita' non arrivano mai, la camera finisce sul centro mappa — non dove si trovava.
+ *
+ * E' il ramo che in partita non si vede: due `FrameOwnTeam` falliti di fila e il ripiego su
+ * `RecenterView`. Senza test, togliere quella chiamata aprirebbe la partita su una vista non
+ * inizializzata, e nulla lo segnalerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraBeginPlayFallsBackTest,
+	"RefactorTactics.Camera.BeginPlayFallsBackToMapCentreWithoutUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraBeginPlayFallsBackTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	if (!TestNotNull(TEXT("mappa"), SpawnCameraTestMap(World, FRTCellId(6, 2))))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	Cam->SetActorLocation(FVector::ZeroVector);
+
+	Cam->DispatchBeginPlay();
+	World->GetTimerManager().Tick(0.05f);
+
+	// Nessuna unita' e' mai arrivata: la camera deve essere sul centro mappa, che con questa mappa NON
+	// e' l'origine — cioe' non dove il pawn e' stato messo.
+	const FVector Fallback = Cam->GetActorLocation();
+	TestNotEqual(TEXT("ha ripiegato, non e' rimasta dov'era"), Fallback, FVector::ZeroVector);
+
+	// E il punto e' proprio quello di `Home`: se il ripiego chiamasse altro, le due posizioni divergono.
+	Cam->SetActorLocation(FVector(-9999.f, -9999.f, Fallback.Z));
+	Cam->RecenterView();
+	TestEqual(TEXT("ed e' esattamente dove porta Home"), Cam->GetActorLocation(), Fallback);
 
 	DestroyCameraWorld(World);
 	return true;

@@ -431,8 +431,8 @@ preexisting:
     state: LIVE            # worktree `D:/rt-simulation` · pushato · 44a6af96
     measured: 15
     collides_with:
-      - branch: feat/873-recenter-clamp
-        state: LIVE
+      - branch: feat/874-beginplay-fallback
+        state: LOCAL
         paths: [docs/roadmap/parallel-batch.yaml]
     note: >-
       ➕ **È il branch che la track `simulation` dichiarava sparito, ricreato mentre questo file
@@ -447,42 +447,11 @@ preexisting:
       `#873`. È `integration_only` — nessuna delle due la tiene per diritto — quindi si riconcilia in
       integrazione, e chi merge per secondo la riscrive sull'albero unito.
 
-  - branch: feat/873-recenter-clamp
-    state: LIVE            # worktree `D:/rt-telecamera` · PR #884 aperta · su `d5aef89e`
-    measured: 4
-    collides_with:
-      - branch: feat/165-finestra-overwatch
-        state: LIVE
-        paths: [docs/roadmap/parallel-batch.yaml]
-    note: >-
-      Sessione su `#873`: `RecenterView` è l'unico dei quattro scrittori di `TargetArmLength` a non
-      clampare, e con `DefaultArmLength` fuori da `[Min, Max]` il tasto `Home` porta il braccio fuori
-      intervallo — la prima rotellina lo riporta dentro di scatto. Prenotazione visibile prima del primo
-      commit, come chiede la sezione.
-      ✅ **Set disgiunto, verificato contro le tre track ACTIVE**: `Source/RefactorTactics/Camera/` non è
-      nel `writable` di nessuna — `simulation` tiene `Turn/` e `Bot/`, `client_tools`
-      `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`.
-      ⚠️ **A differenza di #865 questa track tocca il codice della camera, non solo i test**: il write-set
-      previsto è `Camera/RTCameraPawn.{h,cpp}` più il proprio file di test. Il registry **non** è
-      coinvolto: il gate `automation` è già `done` e questo lavoro non lo muove — aggiunge un test a una
-      feature che ne ha già, cioè non cambia nessun gate.
-      ✅ **Set disgiunto sul CODICE, misurato su dieci branch**: `Camera/` e `RTCameraPawnTests.cpp` non
-      compaiono nel write-set di nessuno, incluso `wip/icon-visual-language` che ne tocca 341.
-      🔴 **Ma «zero collisioni» era falso, e a smentirlo è il quarto file del mio stesso write-set.** La
-      prima stesura dichiarava tre file — i due sorgenti più il test — dimenticando
-      `parallel-batch.yaml`, che questa voce sta scrivendo nel momento in cui lo nega. `feat/165` lo tocca
-      a sua volta: la collisione è **una**, non zero. La voce di `#865` che questa ha sostituito portava
-      già l'avvertenza — «`parallel-batch.yaml` è nel write-set e in nessun `writable`» — ed è andata
-      persa nella sostituzione invece di essere riportata.
-      🔴 **E `LOCAL · 0` è sopravvissuto al push**: `git ls-remote` vede il branch, `git diff` conta
-      quattro file, e le voci sorelle venivano rimisurate nello stesso commit. La nota qui sotto dice che
-      la sezione «si deduce da un comando»: il comando non è stato rieseguito dopo il push.
-      🔴 **E questa voce ha commesso ENTRAMBI gli errori di posizione nello stesso commit, un'ora dopo
-      averli criticati**: nasceva fra i branch remoti pur non essendo mai stata pushata, e nello stesso
-      edit `docs/38-spec-panel-playtest-hex` — che è pushata — finiva fra le sessioni locali. Due voci,
-      due sezioni, scambiate. Corretto qui. La lezione non è «stare attenti»: è che la sezione giusta
-      **si deduce da un comando** (`git ls-remote --heads origin | grep <branch>`), e va eseguito al
-      momento di scrivere la voce invece che dopo.
+  # 🔵 **`feat/873-recenter-clamp` è uscita**: PR #884 mergiata alle `18:38Z` in `376013a7`, branch
+  # cancellato. `MERGED` esce dalla sezione — la terza voce a farlo oggi con la stessa regola.
+  # ⚠️ Con lei cade anche la collisione che dichiarava con `feat/165` su questo file: era reale finché
+  # entrambe erano aperte, e va tolta dalla voce di `165` invece di restarci come vincolo fantasma.
+
 
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
@@ -517,14 +486,32 @@ preexisting:
   # ⚠️ **L'ha mergiata questo stesso branch**, col merge di `origin/main` fatto per verificare che
   # `#876` non rompesse i test della camera: la riga è diventata falsa per mano di chi la leggeva.
 
+  - branch: feat/874-beginplay-fallback
+    state: LOCAL           # worktree `D:/rt-telecamera`, creato su `376013a7`
+    measured: 2
+    collides_with:
+      - branch: feat/165-finestra-overwatch
+        state: LIVE
+        paths: [docs/roadmap/parallel-batch.yaml]
+    note: >-
+      `#874`: il ripiego di `BeginPlay` — `FrameOwnTeam` → ritenta al tick → `RecenterView` — decide la
+      prima inquadratura della partita e non aveva test.
+      ✅ **Solo copertura**: `Camera/RTCameraPawn.cpp` resta **identico a `main`**, verificato con
+      `git diff --stat origin/main --`. Il write-set è il file di test più questo.
+      ⚠️ **La collisione su `parallel-batch.yaml` è dichiarata dall'inizio**, invece di essere scoperta
+      dopo: `feat/165` lo tocca, è `integration_only`, e nessuna delle due lo tiene per diritto. È la
+      lezione della voce di `#873`, dove «zero collisioni» era falso proprio per questo file.
+      ➕ `measured: 2` è una **previsione**, non una misura: il branch non ha ancora commit. Si rilegge
+      col comando al primo push, come è successo — in ritardo — a `#873`.
+
   # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**:
   #
-  #   D:/wt-451           `feat/451-u1-voci-hex-mode`      LOCAL, 0 file — l'unica voce di questa sezione
-  #   D:/rt-client        `docs/38-spec-panel-playtest-hex` LIVE, 3 file  — fra i branch remoti
+  #   D:/wt-451           `feat/451-u1-voci-hex-mode`       LOCAL, 0 file
+  #   D:/rt-telecamera    `feat/874-beginplay-fallback`     LOCAL, non ancora pushato
+  #   D:/rt-client        `docs/38-spec-panel-playtest-hex` LIVE  — fra i branch remoti
   #   D:/rt-simulation    `feat/165-finestra-overwatch`     LIVE, 15 file — fra i branch remoti
-  #   D:/rt-telecamera    `feat/873-recenter-clamp`         LIVE, 4 file  — fra i branch remoti
   #   D:/rt-spatial       detached su `8ea9c229`            0 file, nessun vincolo, nessuna voce
-  #   working directory   `fix/residui-istruttoria-dod`     **7 file, non pushato, NON REGISTRATO**
+  #   working directory   `fix/residui-istruttoria-dod`     **non pushato, NON REGISTRATO**
   #
   # 🔴 **L'ultima riga è un buco aperto, e va detta invece che chiusa in fretta.** Il checkout principale
   # non è più su `main`: ha un branch con sette file e nessuna voce qui. Misurato che **non collide** con
