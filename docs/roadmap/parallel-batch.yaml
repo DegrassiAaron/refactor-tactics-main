@@ -274,14 +274,19 @@ preexisting:
   - branch: feat/telecamera
     worktree: rt-telecamera
     state: LIVE            # aperto 2026-08-14 su origin/main 747f4e82
-    declared: 7
+    measured: 9
     collides_with:
       track: content_editor
       paths: [docs/technical/test-manuali-pie.md]
     note: >-
-      Consolidamento del `Camera Roadmap v1.0`. ⚠️ **`declared`, non `measured`**: il branch nasce
-      ora e non ha commit, quindi il numero è una dichiarazione da confermare al primo push — la
-      sezione richiede una misura e questa voce non può ancora fornirla.
+      Consolidamento del `Camera Roadmap v1.0`. ✅ **`measured`**: `git diff --name-only
+      origin/main...feat/telecamera` dopo il terzo commit. La prima stesura di questa voce diceva
+      `declared: 7` ed è stata sostituita dalla misura, non incrementata — i due numeri differiscono
+      per **due** file che nessuna dichiarazione avrebbe previsto bene: `feature-registry.json`, che
+      è `generated_only` e segue la sua sorgente, e **questo file**, che non è nel `writable` di
+      nessuno. ⚠️ `docs/roadmap/roadmap-post-v0.1.md` era dichiarato e **non è stato toccato**:
+      integrare sei release di lavoro camera senza issue avrebbe prodotto la roadmap parallela che
+      l'handoff stesso vieta al §17.
       Come il consolidamento a 4 processi prima di lui, il suo write-set **è** la sezione
       `integration_only`: è la forma tipica di un consolidamento documentale, e la ragione per cui
       due non girano bene insieme. Oggi non ce ne sono altri aperti — `gh pr list --state open` è
