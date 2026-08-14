@@ -393,17 +393,20 @@ preexisting:
   # chiunque calcoli l'invariante dall'elenco, che è l'unico modo in cui un validator la calcola.
   # Chi riconcilia si misura come tutti gli altri.
 
-  - branch: docs/riconciliazione-batch-2026-08-14b
-    state: LIVE
-    measured: 1
-    note: >-
-      Questa riconciliazione. Un solo file — `docs/roadmap/parallel-batch.yaml` — che è
-      `integration_only` e quindi nel `writable` di nessuno: nessuna intersezione con una track,
-      per costruzione. ⚠️ Ha **conteso** quel file con `feat/telecamera` fino a `#867`; il conflitto
-      testuale è stato risolto qui, togliendo la voce di quel branch ora che è `MERGED`.
-      ➕ Il commit `6ea76f4e` — 28 file non correlati, fra cui un `.uasset` e tre `.png` — è stato
-      **tolto dalla PR** invece che mergiato: quei file restano non tracciati, e la decisione se
-      versionarli non appartiene a una riconciliazione di batch.
+  # 🔵 **`docs/riconciliazione-batch-2026-08-14b` è uscita da qui, e l'ha decisa la sua stessa
+  # regola.** La voce diceva `state: LIVE · measured: 1` e si chiudeva spiegando di aver tolto
+  # `feat/telecamera` *«ora che è MERGED»* — la stessa cosa che è successa a lei ventidue minuti
+  # dopo: PR #869 mergiata alle `12:54Z` in `c371c9a0`, branch cancellato lato server, verificato
+  # con `git ls-remote` **e** `git merge-base --is-ancestor`. Per l'enum: *«MERGED … Esce dalla
+  # sezione: un branch atterrato non è più un vincolo, e questo file non è un registro storico»*.
+  # Non è un errore di chi l'ha scritta — era vera al minuto — ed è la terza volta oggi che questo
+  # file mostra la stessa cosa: **una voce di batch non invecchia in giorni, invecchia in minuti**,
+  # e l'unico che può toglierla è chi arriva dopo il merge.
+  # ➕ Quello che portava e che vale la pena non perdere: il commit `6ea76f4e` — 28 file non
+  # correlati, fra cui un `.uasset` e tre `.png` — è stato **tolto dalla PR** invece che mergiato.
+  # Quei file restano non tracciati nella working directory principale, e la decisione se
+  # versionarli non appartiene a una riconciliazione di batch. Verificato che nessuno dei 28 sia in
+  # `origin/main`.
 
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
@@ -450,10 +453,37 @@ preexisting:
       **prima** del primo commit, non dopo. Il worktree era in detached su `f521f6b8` quando questa
       sezione è stata scritta la prima volta: nel frattempo ha preso un branch.
 
-  # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **quattro**, e
-  # questa sezione ne rende conto di tutti e quattro — tre voci `LOCAL` più la working directory
-  # principale, che è dove questa riconciliazione è stata scritta e il cui write-set è la voce
-  # `docs/riconciliazione-batch-2026-08-14b` qui sopra.
+  - branch: feat/865-camera-focus-tests
+    state: LOCAL           # worktree `D:/rt-telecamera`, creato su `c371c9a0`
+    measured: 0
+    note: >-
+      Sessione su `#865`, aperta dal consolidamento camera di `#867`: i test che mancano a
+      `FocusOn` e `FrameOwnTeam`, cioè la ragione per cui il gate `automation` di
+      `RT-FEAT-UI-TACTICAL-CAMERA` è `partial` e non `done`. Zero commit, quindi oggi non è un
+      vincolo — è la prenotazione visibile che questa sezione chiede di fare *prima* del primo
+      commit.
+      ✅ **Set disgiunto, verificato contro le tre track ACTIVE e non assunto**:
+      `Tests/RTCameraPawnTests.cpp` non è nel `writable` di nessuna — `simulation` tiene
+      `RTReactionTests.cpp` e `RTReactionOpportunityTests.cpp`, `client_tools` tiene
+      `RTIntentPrivacyTests.cpp` e `UI/`, `content_editor` tiene `test-manuali-pie.md`. Nessuna
+      di queste è toccata.
+      ⚠️ **Il secondo file del write-set è `feature-registry.yaml`, che è `integration_only`**: il
+      DoD di #865 chiede che il gate passi a `done` **nello stesso commit** dei test, quindi la
+      voce non può separarli. Vale la regola della sezione: si riconcilia in integrazione, e chi
+      merge per secondo rigenera le viste sull'albero unito.
+      ⚠️ Non tocca `Source/RefactorTactics/Camera/`: #865 è **solo** copertura. Yaw/pitch (#863) e
+      zoom/bounds (#864) sono lavoro diverso e non sono aperti.
+
+  # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **cinque**, e
+  # questa sezione ne rende conto di tutti e cinque — quattro voci `LOCAL` più la working directory
+  # principale, che ora è su `main` a `c371c9a0` con write-set **vuoto**, quindi non è un vincolo e
+  # non ha voce. ⚠️ Fino al merge di #869 il suo write-set *era* la voce
+  # `docs/riconciliazione-batch-2026-08-14b`: togliendo quella voce si sarebbe rotto il riferimento,
+  # ed è il motivo per cui questo paragrafo si aggiorna **nello stesso commit** e non dopo.
+  # ➕ **Il quinto è `D:/rt-telecamera`, ricreato dopo il merge di #867** — quel worktree era stato
+  # rimosso alla chiusura della PR e il suo branch cancellato; il nuovo parte da `c371c9a0` con un
+  # branch diverso (`feat/865-camera-focus-tests`). Stesso path, sessione nuova: il conto va rifatto
+  # col comando, non dedotto dal nome della cartella.
   # 🔴 La stesura precedente diceva «ne mostra cinque, questa sezione ne elenca due» e ne nominava
   # due come esclusi: quattro su cinque. Il quinto non nominato era **la working directory
   # principale**, cioè l'unica delle cinque con un write-set non vuoto in quel momento. Il paragrafo
