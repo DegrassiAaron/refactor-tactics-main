@@ -54,9 +54,11 @@ void ARTCameraPawn::FocusOn(const FVector& WorldLocation)
 	// PlayerStart era distante dal piano. `Home` «riparava», ed e' il motivo per cui il difetto si notava
 	// su `F` e non su `Home`.
 	//
-	// ⚠️ Entrambi i chiamanti reali passano gia' una quota sensata, quindi il fix e' qui e non da loro:
-	// `FrameOwnTeam` passa `CellsCentroidWorld`, che somma `AxialToWorld` e la calcola; il controller
-	// passa `Unit->GetActorLocation()`, cioe' l'unita' sul terreno.
+	// ⚠️ **La quota che arriva deve essere quella del PIANO, e non tutti i chiamanti la avevano.**
+	// `FrameOwnTeam` passa `CellsCentroidWorld`, che somma `AxialToWorld` e la calcola. Il controller
+	// passava `Unit->GetActorLocation()`, che sta **mezzo corpo sopra** il piano (`VisualZOffset`): ora
+	// converte la cella. La prima stesura di #887 dava per buoni entrambi — sbagliato, e la divergenza
+	// sarebbe stata una costante fra l'inquadratura di `F` e quella di `Home`.
 	SetActorLocation(WorldLocation);
 }
 

@@ -339,7 +339,24 @@ void ARTPlayerController::OnFocusSelected(const FInputActionValue& Value)
 	}
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
-		Cam->FocusOn(Unit->GetActorLocation());
+		// La CELLA, non l'attore: `ARTUnit` si posiziona con `VisualZOffset` (= `UnitHalfHeight`), quindi
+		// `GetActorLocation()` sta mezzo corpo **sopra** il piano. Inquadrare li' porterebbe il pivot di
+		// `F` a una quota che nessun'altra inquadratura usa — `Home` e l'avvio partita stanno sul piano —
+		// e le due divergerebbero di una costante.
+		// ⚠️ La prima stesura di #887 passava `GetActorLocation()` e giustificava il fix dicendo che il
+		// controller «passa l'unita' sul terreno»: falso, e trovato in code review.
+		if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+		{
+			FVector Origin; float HexSize; float LayerHeight;
+			HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+			Cam->FocusOn(URTHexLibrary::AxialToWorld(Unit->Cell, Origin, HexSize, LayerHeight));
+		}
+		else
+		{
+			// Senza mappa non c'e' un piano a cui ancorarsi: si ripiega sull'attore, che e' comunque
+			// meglio di non inquadrare.
+			Cam->FocusOn(Unit->GetActorLocation());
+		}
 		UE_LOG(LogRT, Log, TEXT("[RT] Focus su %s"), *Unit->GetName());
 	}
 }

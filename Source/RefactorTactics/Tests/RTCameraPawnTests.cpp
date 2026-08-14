@@ -337,9 +337,19 @@ bool FRTCameraFrameTeamIgnoresSpawnHeightTest::RunTest(const FString&)
 
 	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
 	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
-	if (!TestNotNull(TEXT("mappa"), SpawnCameraTestMap(World))) { DestroyCameraWorld(World); return false; }
 
-	if (!TestNotNull(TEXT("unita'"), SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(4, 1))))
+	ARTHexMapActor* Map = SpawnCameraTestMap(World);
+	if (!TestNotNull(TEXT("mappa"), Map)) { DestroyCameraWorld(World); return false; }
+
+	// ⚠️ Il piano sta a una quota **non nulla**, ed e' cio' che rende il test discriminante: `Origin` di
+	// `GetHexContext` e' la posizione dell'actor mappa. Con il piano a zero, «la quota giusta», «zero» e
+	// «l'origine del mondo» sarebbero lo stesso numero, e un regresso a `Z = 0.f` passerebbe.
+	const double PlaneZ = 300.0;
+	Map->SetActorLocation(FVector(0.f, 0.f, PlaneZ));
+
+	// ⚠️ E l'unita' NON sta sul centro mappa: `RecenterView` va su `GetCenterCell()`, quindi con l'unita'
+	// li' sopra le due inquadrature coinciderebbero e il confronto non proverebbe niente.
+	if (!TestNotNull(TEXT("unita'"), SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(6, 1))))
 	{
 		DestroyCameraWorld(World);
 		return false;
@@ -355,14 +365,15 @@ bool FRTCameraFrameTeamIgnoresSpawnHeightTest::RunTest(const FString&)
 		return false;
 	}
 
-	TestNotEqual(TEXT("la quota NON e' quella con cui il pawn e' nato"),
-		Cam->GetActorLocation().Z, SpawnHeight);
+	const FVector Framed = Cam->GetActorLocation();
+	TestNotEqual(TEXT("la quota NON e' quella con cui il pawn e' nato"), Framed.Z, SpawnHeight);
+	TestEqual(TEXT("ed e' quella del PIANO, che qui non e' zero"), Framed.Z, PlaneZ);
 
-	// E la quota e' quella che la mappa stabilisce: la stessa a cui porta `Home`, che e' l'unica funzione
-	// che gia' prima di #887 la calcolava davvero.
-	const double AfterFrame = Cam->GetActorLocation().Z;
+	// La prova che non ha semplicemente ricentrato: `Home` porta altrove, perche' l'unita' non sta sul
+	// centro mappa.
 	Cam->RecenterView();
-	TestEqual(TEXT("ed e' la stessa quota di Home"), Cam->GetActorLocation().Z, AfterFrame);
+	TestNotEqual(TEXT("e non e' il ricentramento: la squadra non sta sul centro mappa"),
+		Cam->GetActorLocation(), Framed);
 
 	DestroyCameraWorld(World);
 	return true;
@@ -582,8 +593,9 @@ bool FRTCameraBeginPlayFallsBackTest::RunTest(const FString&)
 
 	// E il punto e' proprio quello di `Home`: se il ripiego chiamasse altro, le due posizioni divergono.
 	// ⚠️ La Z di partenza e' **diversa** da quella del ripiego, di proposito: riusare `Fallback.Z`
-	// renderebbe il confronto cieco proprio sull'asse che distingue `RecenterView` — che scrive il
-	// vettore intero — da `FocusOn`, che conserva la quota corrente.
+	// renderebbe il confronto cieco sull'asse verticale, cioe' su un terzo delle componenti che deve
+	// verificare. (La prima stesura motivava la stessa riga con «`FocusOn` conserva la quota corrente»:
+	// dopo `#887` non e' piu' vero — entrambe scrivono il vettore intero — ma la precauzione resta buona.)
 	Cam->SetActorLocation(FVector(-9999.f, -9999.f, 4321.f));
 	Cam->RecenterView();
 	TestEqual(TEXT("ed e' esattamente dove porta Home"), Cam->GetActorLocation(), Fallback);
