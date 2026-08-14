@@ -118,6 +118,62 @@ class LaFiguraNonPerdePezzi(unittest.TestCase):
         self.assertIn("non colloca", page)
 
 
+class GliArchiSiDerivanoENonSiInventano(unittest.TestCase):
+    """Gli archi sono il pezzo per cui questa e' una figura: senza, l'imbuto si conta invece di
+    vederlo. E sono anche il pezzo che mente piu' facilmente, perche' una linea in piu' e' bella."""
+
+    def _registry(self):
+        # F1 (E1) e' dipendenza di F2 (E2) e F3 (E3): E1 ne sblocca due.
+        return {"features": [
+            {"feature_id": "F1", "area": "Core", "roadmap": {"epic": "E1"}, "dependencies": []},
+            {"feature_id": "F2", "area": "Map", "roadmap": {"epic": "E2"}, "dependencies": ["F1"]},
+            {"feature_id": "F3", "area": "Map", "roadmap": {"epic": "E3"}, "dependencies": ["F1"]},
+        ]}
+
+    def test_l_arco_nasce_dalle_dipendenze_fra_feature(self):
+        catalog = {e: _entry(e) for e in ("E1", "E2", "E3")}
+        model = fr.roadmap_map_model(self._registry(), _doc(), catalog)
+        self.assertEqual([("E1", "E2"), ("E1", "E3")], model["edges"])
+        self.assertEqual(2, model["fanout"]["E1"])
+
+    def test_un_arco_verso_un_epic_non_disegnata_non_si_disegna(self):
+        # E3 esce dalla griglia: l'arco E1->E3 non ha una destinazione sulla figura, e una linea
+        # che finisce nel vuoto e' peggio di una linea assente — `unplaced` dice gia' chi manca.
+        catalog = {"E1": _entry("E1"), "E2": _entry("E2"), "E3": _entry("E3", release=None)}
+        model = fr.roadmap_map_model(self._registry(), _doc(), catalog)
+        self.assertEqual([("E1", "E2")], model["edges"])
+        self.assertEqual(1, model["fanout"]["E1"])
+
+    def test_un_arco_che_PARTE_da_un_epic_non_disegnata_non_si_disegna(self):
+        """🔴 Il gemello del test sopra, e senza di lui quello sopra non prova quel che dice.
+
+        La verifica di mutazione l'ha misurato: togliendo il filtro sul **source** i test restavano
+        tutti verdi, perche' il caso costruito sopra viene gia' scartato dal filtro sul **target**
+        — E3 non e' disegnata *come destinazione*. Il filtro sul source non era coperto da nessuno.
+
+        Qui la direzione e' invertita: E1 esce dalla griglia, E2 resta. L'arco E1->E2 ha una
+        destinazione valida e una **partenza che non esiste sulla figura**, ed e' l'unico caso in
+        cui quel filtro parla.
+        """
+        catalog = {"E1": _entry("E1", release=None), "E2": _entry("E2"), "E3": _entry("E3")}
+        model = fr.roadmap_map_model(self._registry(), _doc(), catalog)
+        self.assertEqual([], model["edges"])
+        self.assertEqual({}, model["fanout"])
+
+    def test_conta_solo_come_attraversanti_quelli_che_cambiano_cella(self):
+        # E1 sta in `alpha`, E2 ed E3 in `beta`: entrambi gli archi attraversano una corsia.
+        catalog = {e: _entry(e) for e in ("E1", "E2", "E3")}
+        model = fr.roadmap_map_model(self._registry(), _doc(), catalog)
+        self.assertEqual(2, model["totals"]["crossing"])
+        self.assertEqual(2, model["totals"]["edges"])
+
+    def test_la_figura_disegna_una_linea_per_arco(self):
+        catalog = {e: _entry(e) for e in ("E1", "E2", "E3")}
+        model = fr.roadmap_map_model(self._registry(), _doc(), catalog)
+        svg = fr.render_roadmap_map_svg(model)
+        self.assertEqual(len(model["edges"]), svg.count("<path d="))
+
+
 class SulRepositoryReale(unittest.TestCase):
     """Qui non serve una fixture: la domanda e' se **oggi** la vista perde qualcosa."""
 

@@ -1,222 +1,345 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1784" height="1374" viewBox="0 0 1784 1374" font-family="system-ui,-apple-system,sans-serif">
-<rect width="1784" height="1374" fill="#0d1117"/>
-<text x="191" y="34" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">Core &amp; Simulation</text>
-<line x1="88" y1="52" x2="88" y2="1350" stroke="#30363d" stroke-width="1"/>
-<text x="399" y="34" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">Map &amp; Environment</text>
-<line x1="296" y1="52" x2="296" y2="1350" stroke="#30363d" stroke-width="1"/>
-<text x="607" y="34" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">Actions &amp; Reactions</text>
-<line x1="504" y1="52" x2="504" y2="1350" stroke="#30363d" stroke-width="1"/>
-<text x="815" y="34" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">Perception &amp; Networking</text>
-<line x1="712" y1="52" x2="712" y2="1350" stroke="#30363d" stroke-width="1"/>
-<text x="1023" y="34" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">Characters &amp; Content</text>
-<line x1="920" y1="52" x2="920" y2="1350" stroke="#30363d" stroke-width="1"/>
-<text x="1231" y="34" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">Objectives &amp; Match</text>
-<line x1="1128" y1="52" x2="1128" y2="1350" stroke="#30363d" stroke-width="1"/>
-<text x="1439" y="34" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">UI &amp; Presentation</text>
-<line x1="1336" y1="52" x2="1336" y2="1350" stroke="#30363d" stroke-width="1"/>
-<text x="1647" y="34" fill="#e6edf3" font-size="13" font-weight="600" text-anchor="middle">Tooling, Data, QA &amp; Release</text>
-<line x1="1544" y1="52" x2="1544" y2="1350" stroke="#30363d" stroke-width="1"/>
-<line x1="24" y1="72" x2="1760" y2="72" stroke="#30363d" stroke-width="1"/>
-<text x="24" y="94" fill="#e6edf3" font-size="15" font-weight="700">v0.1</text>
-<text x="24" y="112" fill="#8b949e" font-size="11">20 epic</text>
-<line x1="24" y1="436" x2="1760" y2="436" stroke="#30363d" stroke-width="1"/>
-<text x="24" y="458" fill="#e6edf3" font-size="15" font-weight="700">v0.2</text>
-<text x="24" y="476" fill="#8b949e" font-size="11">6 epic</text>
-<line x1="24" y1="668" x2="1760" y2="668" stroke="#30363d" stroke-width="1"/>
-<text x="24" y="690" fill="#e6edf3" font-size="15" font-weight="700">v0.3</text>
-<text x="24" y="708" fill="#8b949e" font-size="11">3 epic</text>
-<line x1="24" y1="834" x2="1760" y2="834" stroke="#30363d" stroke-width="1"/>
-<text x="24" y="856" fill="#e6edf3" font-size="15" font-weight="700">v0.4</text>
-<text x="24" y="874" fill="#8b949e" font-size="11">2 epic</text>
-<line x1="24" y1="934" x2="1760" y2="934" stroke="#30363d" stroke-width="1"/>
-<text x="24" y="956" fill="#e6edf3" font-size="15" font-weight="700">v0.5</text>
-<text x="24" y="974" fill="#8b949e" font-size="11">1 epic</text>
-<line x1="24" y1="1034" x2="1760" y2="1034" stroke="#30363d" stroke-width="1"/>
-<text x="24" y="1056" fill="#e6edf3" font-size="15" font-weight="700">v0.6</text>
-<text x="24" y="1074" fill="#8b949e" font-size="11">1 epic</text>
-<line x1="24" y1="1134" x2="1760" y2="1134" stroke="#30363d" stroke-width="1"/>
-<text x="24" y="1156" fill="#e6edf3" font-size="15" font-weight="700">v0.7</text>
-<text x="24" y="1174" fill="#8b949e" font-size="11">1 epic</text>
-<line x1="24" y1="1234" x2="1760" y2="1234" stroke="#30363d" stroke-width="1"/>
-<text x="24" y="1256" fill="#e6edf3" font-size="15" font-weight="700">v0.8</text>
-<text x="24" y="1274" fill="#8b949e" font-size="11">1 epic</text>
-<rect x="96" y="88" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#f85149" stroke-width="1.5"/>
-<text x="106" y="107" fill="#e6edf3" font-size="12" font-weight="700">E12<tspan fill="#8b949e" font-weight="400"> P0 +2</tspan></text>
-<text x="106" y="123" fill="#e6edf3" font-size="11">Determinismo, QA e release</text>
-<text x="106" y="137" fill="#8b949e" font-size="10">2/6 CP</text>
-<rect x="158" y="131" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="158" y="131" width="38" height="4" rx="2" fill="#e6edf3"/>
-<rect x="96" y="684" width="190" height="56" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="106" y="703" fill="#e6edf3" font-size="12" font-weight="700">E33<tspan fill="#8b949e" font-weight="400"> P2</tspan></text>
-<text x="106" y="719" fill="#e6edf3" font-size="11">Conditional Intent</text>
-<text x="106" y="733" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="96" y="850" width="190" height="56" rx="6" fill="#161b22" stroke="#6e7681" stroke-width="1.5"/>
-<text x="106" y="869" fill="#e6edf3" font-size="12" font-weight="700">E34<tspan fill="#8b949e" font-weight="400"> P3</tspan></text>
-<text x="106" y="885" fill="#e6edf3" font-size="11">Stati del personaggio e trasf…</text>
-<text x="106" y="899" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="304" y="88" width="190" height="56" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
-<text x="314" y="107" fill="#e6edf3" font-size="12" font-weight="700">E16<tspan fill="#8b949e" font-weight="400"> P1</tspan></text>
-<text x="314" y="123" fill="#e6edf3" font-size="11">Orientamento e direzionalità</text>
-<text x="314" y="137" fill="#8b949e" font-size="10">2/2 CP</text>
-<rect x="366" y="131" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="366" y="131" width="116" height="4" rx="2" fill="#e6edf3"/>
-<rect x="304" y="154" width="190" height="56" rx="6" fill="#1f6f3f" stroke="#f85149" stroke-width="1.5"/>
-<text x="314" y="173" fill="#e6edf3" font-size="12" font-weight="700">E2<tspan fill="#8b949e" font-weight="400"> P0 +3</tspan></text>
-<text x="314" y="189" fill="#e6edf3" font-size="11">Parità hex del substrato</text>
-<text x="314" y="203" fill="#8b949e" font-size="10">7/8 CP</text>
-<rect x="366" y="197" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="366" y="197" width="101" height="4" rx="2" fill="#e6edf3"/>
-<rect x="304" y="220" width="190" height="56" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
-<text x="314" y="239" fill="#e6edf3" font-size="12" font-weight="700">E8<tspan fill="#8b949e" font-weight="400"> P1</tspan></text>
-<text x="314" y="255" fill="#e6edf3" font-size="11">Terreni, stati e ambiente</text>
-<text x="314" y="269" fill="#8b949e" font-size="10">5/5 CP</text>
-<rect x="366" y="263" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="366" y="263" width="116" height="4" rx="2" fill="#e6edf3"/>
-<rect x="304" y="286" width="190" height="56" rx="6" fill="#1f6f3f" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="314" y="305" fill="#e6edf3" font-size="12" font-weight="700">E9<tspan fill="#8b949e" font-weight="400"> P2</tspan></text>
-<text x="314" y="321" fill="#e6edf3" font-size="11">Coperture e strutture</text>
-<text x="314" y="335" fill="#8b949e" font-size="10">5/5 CP</text>
-<rect x="366" y="329" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="366" y="329" width="116" height="4" rx="2" fill="#e6edf3"/>
-<rect x="304" y="452" width="190" height="56" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
-<text x="314" y="471" fill="#e6edf3" font-size="12" font-weight="700">E23<tspan fill="#8b949e" font-weight="400"> P1 +1</tspan></text>
-<text x="314" y="487" fill="#e6edf3" font-size="11">Muri, porte e interaction gra…</text>
-<text x="314" y="501" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="512" y="88" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="522" y="107" fill="#e6edf3" font-size="12" font-weight="700">E14<tspan fill="#8b949e" font-weight="400"> P2 +1</tspan></text>
-<text x="522" y="123" fill="#e6edf3" font-size="11">Overwatch e reazioni interatt…</text>
-<text x="522" y="137" fill="#8b949e" font-size="10">4/8 CP</text>
-<rect x="574" y="131" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="574" y="131" width="58" height="4" rx="2" fill="#e6edf3"/>
-<rect x="512" y="154" width="190" height="56" rx="6" fill="#1f6f3f" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="522" y="173" fill="#e6edf3" font-size="12" font-weight="700">E18<tspan fill="#8b949e" font-weight="400"> P2</tspan></text>
-<text x="522" y="189" fill="#e6edf3" font-size="11">Predictive Action, thin slice</text>
-<text x="522" y="203" fill="#8b949e" font-size="10">2/2 CP</text>
-<rect x="574" y="197" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="574" y="197" width="116" height="4" rx="2" fill="#e6edf3"/>
-<rect x="512" y="220" width="190" height="56" rx="6" fill="#1f6f3f" stroke="#f85149" stroke-width="1.5"/>
-<text x="522" y="239" fill="#e6edf3" font-size="12" font-weight="700">E4<tspan fill="#8b949e" font-weight="400"> P0</tspan></text>
-<text x="522" y="255" fill="#e6edf3" font-size="11">Motore delle azioni a priorità</text>
-<text x="522" y="269" fill="#8b949e" font-size="10">8/8 CP</text>
-<rect x="574" y="263" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="574" y="263" width="116" height="4" rx="2" fill="#e6edf3"/>
-<rect x="512" y="286" width="190" height="56" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
-<text x="522" y="305" fill="#e6edf3" font-size="12" font-weight="700">E5<tspan fill="#8b949e" font-weight="400"> P1 +1</tspan></text>
-<text x="522" y="321" fill="#e6edf3" font-size="11">Reazioni</text>
-<text x="522" y="335" fill="#8b949e" font-size="10">5/5 CP</text>
-<rect x="574" y="329" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="574" y="329" width="116" height="4" rx="2" fill="#e6edf3"/>
-<rect x="512" y="352" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="522" y="371" fill="#e6edf3" font-size="12" font-weight="700">E7<tspan fill="#8b949e" font-weight="400"> P2</tspan></text>
-<text x="522" y="387" fill="#e6edf3" font-size="11">Equipaggiamento e loadout</text>
-<text x="522" y="401" fill="#8b949e" font-size="10">4/5 CP</text>
-<rect x="574" y="395" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="574" y="395" width="92" height="4" rx="2" fill="#e6edf3"/>
-<rect x="512" y="452" width="190" height="56" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="522" y="471" fill="#e6edf3" font-size="12" font-weight="700">E36<tspan fill="#8b949e" font-weight="400"> P2</tspan></text>
-<text x="522" y="487" fill="#e6edf3" font-size="11">Framework degli status: capab…</text>
-<text x="522" y="501" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="512" y="518" width="190" height="56" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="522" y="537" fill="#e6edf3" font-size="12" font-weight="700">E38<tspan fill="#8b949e" font-weight="400"> P2</tspan></text>
-<text x="522" y="553" fill="#e6edf3" font-size="11">Economia del turno, accoppiam…</text>
-<text x="522" y="567" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="512" y="584" width="190" height="56" rx="6" fill="#161b22" stroke="#6e7681" stroke-width="1.5"/>
-<text x="522" y="603" fill="#e6edf3" font-size="12" font-weight="700">E39<tspan fill="#8b949e" font-weight="400"> P3</tspan></text>
-<text x="522" y="619" fill="#e6edf3" font-size="11">Spatial Transfer — teleport, …</text>
-<text x="522" y="633" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="512" y="1050" width="190" height="56" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
-<text x="522" y="1069" fill="#e6edf3" font-size="12" font-weight="700">E41<tspan fill="#8b949e" font-weight="400"> P1</tspan></text>
-<text x="522" y="1085" fill="#e6edf3" font-size="11">GAS come runtime delle abilit…</text>
-<text x="522" y="1099" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="720" y="88" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="730" y="107" fill="#e6edf3" font-size="12" font-weight="700">E13<tspan fill="#8b949e" font-weight="400"> P2 +1</tspan></text>
-<text x="730" y="123" fill="#e6edf3" font-size="11">Conoscenza parziale: vista e …</text>
-<text x="730" y="137" fill="#8b949e" font-size="10">3/5 CP</text>
-<rect x="782" y="131" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="782" y="131" width="69" height="4" rx="2" fill="#e6edf3"/>
-<rect x="720" y="950" width="190" height="56" rx="6" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
-<text x="730" y="969" fill="#e6edf3" font-size="12" font-weight="700">E40<tspan fill="#8b949e" font-weight="400"> P0</tspan></text>
-<text x="730" y="985" fill="#e6edf3" font-size="11">Il turno simultaneo in rete</text>
-<text x="730" y="999" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="720" y="1150" width="190" height="56" rx="6" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
-<text x="730" y="1169" fill="#e6edf3" font-size="12" font-weight="700">E42<tspan fill="#8b949e" font-weight="400"> P0</tspan></text>
-<text x="730" y="1185" fill="#e6edf3" font-size="11">Dedicated server e loop onlin…</text>
-<text x="730" y="1199" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="928" y="88" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#db6d28" stroke-width="1.5"/>
-<text x="938" y="107" fill="#e6edf3" font-size="12" font-weight="700">E21<tspan fill="#8b949e" font-weight="400"> P1</tspan></text>
-<text x="938" y="123" fill="#e6edf3" font-size="11">Presentazione e leggibilità</text>
-<text x="938" y="137" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="928" y="154" width="190" height="56" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
-<text x="938" y="173" fill="#e6edf3" font-size="12" font-weight="700">E6<tspan fill="#8b949e" font-weight="400"> P1</tspan></text>
-<text x="938" y="189" fill="#e6edf3" font-size="11">Roster: 4 eroi</text>
-<text x="938" y="203" fill="#8b949e" font-size="10">7/7 CP</text>
-<rect x="990" y="197" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="990" y="197" width="116" height="4" rx="2" fill="#e6edf3"/>
-<rect x="928" y="452" width="190" height="56" rx="6" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
-<text x="938" y="471" fill="#e6edf3" font-size="12" font-weight="700">E35<tspan fill="#8b949e" font-weight="400"> P0</tspan></text>
-<text x="938" y="487" fill="#e6edf3" font-size="11">Roster 8: Sentinel Directorat…</text>
-<text x="938" y="501" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="928" y="850" width="190" height="56" rx="6" fill="#161b22" stroke="#6e7681" stroke-width="1.5"/>
-<text x="938" y="869" fill="#e6edf3" font-size="12" font-weight="700">E37<tspan fill="#8b949e" font-weight="400"> P3 +1</tspan></text>
-<text x="938" y="885" fill="#e6edf3" font-size="11">Radar di personaggio e genera…</text>
-<text x="938" y="899" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="1136" y="88" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="1146" y="107" fill="#e6edf3" font-size="12" font-weight="700">E10<tspan fill="#8b949e" font-weight="400"> P2</tspan></text>
-<text x="1146" y="123" fill="#e6edf3" font-size="11">Obiettivi dinamici e fine par…</text>
-<text x="1146" y="137" fill="#8b949e" font-size="10">1/3 CP</text>
-<rect x="1198" y="131" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="1198" y="131" width="38" height="4" rx="2" fill="#e6edf3"/>
-<rect x="1136" y="154" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#6e7681" stroke-width="1.5"/>
-<text x="1146" y="173" fill="#e6edf3" font-size="12" font-weight="700">E17<tspan fill="#8b949e" font-weight="400"> P3</tspan></text>
-<text x="1146" y="189" fill="#e6edf3" font-size="11">Validazione di stress 4v4</text>
-<text x="1146" y="203" fill="#8b949e" font-size="10">2/3 CP</text>
-<rect x="1198" y="197" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="1198" y="197" width="77" height="4" rx="2" fill="#e6edf3"/>
-<rect x="1136" y="220" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="1146" y="239" fill="#e6edf3" font-size="12" font-weight="700">E19<tspan fill="#8b949e" font-weight="400"> P2</tspan></text>
-<text x="1146" y="255" fill="#e6edf3" font-size="11">Classe di mappa e composizion…</text>
-<text x="1146" y="269" fill="#8b949e" font-size="10">2/2 CP</text>
-<rect x="1198" y="263" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="1198" y="263" width="116" height="4" rx="2" fill="#e6edf3"/>
-<rect x="1344" y="88" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#db6d28" stroke-width="1.5"/>
-<text x="1354" y="107" fill="#e6edf3" font-size="12" font-weight="700">E11<tspan fill="#8b949e" font-weight="400"> P1 +2</tspan></text>
-<text x="1354" y="123" fill="#e6edf3" font-size="11">HUD, log e debug</text>
-<text x="1354" y="137" fill="#8b949e" font-size="10">1/8 CP</text>
-<rect x="1406" y="131" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="1406" y="131" width="14" height="4" rx="2" fill="#e6edf3"/>
-<rect x="1344" y="154" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="1354" y="173" fill="#e6edf3" font-size="12" font-weight="700">E20<tspan fill="#8b949e" font-weight="400"> P2</tspan></text>
-<text x="1354" y="189" fill="#e6edf3" font-size="11">HUD Icon Language</text>
-<text x="1354" y="203" fill="#8b949e" font-size="10">1/3 CP</text>
-<rect x="1406" y="197" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="1406" y="197" width="38" height="4" rx="2" fill="#e6edf3"/>
-<rect x="1552" y="88" width="190" height="56" rx="6" fill="#1f6f3f" stroke="#f85149" stroke-width="1.5"/>
-<text x="1562" y="107" fill="#e6edf3" font-size="12" font-weight="700">E1<tspan fill="#8b949e" font-weight="400"> P0</tspan></text>
-<text x="1562" y="123" fill="#e6edf3" font-size="11">Canone, cataloghi e modello d…</text>
-<text x="1562" y="137" fill="#8b949e" font-size="10">4/4 CP</text>
-<rect x="1614" y="131" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="1614" y="131" width="116" height="4" rx="2" fill="#e6edf3"/>
-<rect x="1552" y="154" width="190" height="56" rx="6" fill="#8a6d1f" stroke="#db6d28" stroke-width="1.5"/>
-<text x="1562" y="173" fill="#e6edf3" font-size="12" font-weight="700">E15<tspan fill="#8b949e" font-weight="400"> P1</tspan></text>
-<text x="1562" y="189" fill="#e6edf3" font-size="11">Showcase «Il Relè» e golden r…</text>
-<text x="1562" y="203" fill="#8b949e" font-size="10">2/5 CP</text>
-<rect x="1614" y="197" width="116" height="4" rx="2" fill="#30363d"/>
-<rect x="1614" y="197" width="46" height="4" rx="2" fill="#e6edf3"/>
-<rect x="1552" y="452" width="190" height="56" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
-<text x="1562" y="471" fill="#e6edf3" font-size="12" font-weight="700">E26<tspan fill="#8b949e" font-weight="400"> P1</tspan></text>
-<text x="1562" y="487" fill="#e6edf3" font-size="11">Tactical Bot v1</text>
-<text x="1562" y="501" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="1552" y="684" width="190" height="56" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
-<text x="1562" y="703" fill="#e6edf3" font-size="12" font-weight="700">E27<tspan fill="#8b949e" font-weight="400"> P1</tspan></text>
-<text x="1562" y="719" fill="#e6edf3" font-size="11">Percezione completa: vista, u…</text>
-<text x="1562" y="733" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="1552" y="750" width="190" height="56" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="1562" y="769" fill="#e6edf3" font-size="12" font-weight="700">E28<tspan fill="#8b949e" font-weight="400"> P2</tspan></text>
-<text x="1562" y="785" fill="#e6edf3" font-size="11">Expert Bot v2</text>
-<text x="1562" y="799" fill="#8b949e" font-size="10">0/0 CP</text>
-<rect x="1552" y="1250" width="190" height="56" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
-<text x="1562" y="1269" fill="#e6edf3" font-size="12" font-weight="700">E43<tspan fill="#8b949e" font-weight="400"> P1</tspan></text>
-<text x="1562" y="1285" fill="#e6edf3" font-size="11">Misura a lotti, e il bot che …</text>
-<text x="1562" y="1299" fill="#8b949e" font-size="10">0/0 CP</text>
-<text x="24" y="1368" fill="#8b949e" font-size="10">riempimento = stato · bordo = priorità · +n = feature anche in altre corsie</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1282" height="1439" viewBox="0 0 1282 1439" font-family="system-ui,-apple-system,sans-serif">
+<rect width="1282" height="1439" fill="#0d1117"/>
+<text x="22" y="48" fill="#e6edf3" font-size="26" font-weight="700">35</text>
+<text x="22" y="66" fill="#8b949e" font-size="11">epic nella figura</text>
+<text x="274" y="48" fill="#e6edf3" font-size="26" font-weight="700">75</text>
+<text x="274" y="66" fill="#8b949e" font-size="11">dipendenze fra epic</text>
+<text x="526" y="48" fill="#e6edf3" font-size="26" font-weight="700">61</text>
+<text x="526" y="66" fill="#8b949e" font-size="11">attraversano corsia o release</text>
+<text x="778" y="48" fill="#e6edf3" font-size="26" font-weight="700">67/94</text>
+<text x="778" y="66" fill="#8b949e" font-size="11">checkpoint chiusi</text>
+<text x="1030" y="48" fill="#e6edf3" font-size="26" font-weight="700">10</text>
+<text x="1030" y="66" fill="#8b949e" font-size="11">epic non collocabili</text>
+<line x1="22" y1="92" x2="1260" y2="92" stroke="#30363d" stroke-width="1"/>
+<text x="159" y="110" fill="#e6edf3" font-size="12" font-weight="600" text-anchor="middle">Core &amp; Simulation</text>
+<text x="159" y="124" fill="#8b949e" font-size="10" text-anchor="middle">9 feature</text>
+<line x1="86" y1="130" x2="86" y2="1417" stroke="#30363d" stroke-width="1"/>
+<text x="305" y="110" fill="#e6edf3" font-size="12" font-weight="600" text-anchor="middle">Map &amp; Environment</text>
+<text x="305" y="124" fill="#8b949e" font-size="10" text-anchor="middle">25 feature</text>
+<line x1="232" y1="130" x2="232" y2="1417" stroke="#30363d" stroke-width="1"/>
+<text x="451" y="110" fill="#e6edf3" font-size="12" font-weight="600" text-anchor="middle">Actions &amp; Reactions</text>
+<text x="451" y="124" fill="#8b949e" font-size="10" text-anchor="middle">23 feature</text>
+<line x1="378" y1="130" x2="378" y2="1417" stroke="#30363d" stroke-width="1"/>
+<text x="597" y="110" fill="#e6edf3" font-size="12" font-weight="600" text-anchor="middle">Perception &amp; Networking</text>
+<text x="597" y="124" fill="#8b949e" font-size="10" text-anchor="middle">7 feature</text>
+<line x1="524" y1="130" x2="524" y2="1417" stroke="#30363d" stroke-width="1"/>
+<text x="743" y="110" fill="#e6edf3" font-size="12" font-weight="600" text-anchor="middle">Characters &amp; Content</text>
+<text x="743" y="124" fill="#8b949e" font-size="10" text-anchor="middle">7 feature</text>
+<line x1="670" y1="130" x2="670" y2="1417" stroke="#30363d" stroke-width="1"/>
+<text x="889" y="110" fill="#e6edf3" font-size="12" font-weight="600" text-anchor="middle">Objectives &amp; Match</text>
+<text x="889" y="124" fill="#8b949e" font-size="10" text-anchor="middle">4 feature</text>
+<line x1="816" y1="130" x2="816" y2="1417" stroke="#30363d" stroke-width="1"/>
+<text x="1035" y="110" fill="#e6edf3" font-size="12" font-weight="600" text-anchor="middle">UI &amp; Presentation</text>
+<text x="1035" y="124" fill="#8b949e" font-size="10" text-anchor="middle">11 feature</text>
+<line x1="962" y1="130" x2="962" y2="1417" stroke="#30363d" stroke-width="1"/>
+<text x="1181" y="110" fill="#e6edf3" font-size="12" font-weight="600" text-anchor="middle">Tooling, Data, QA &amp; Release</text>
+<text x="1181" y="124" fill="#8b949e" font-size="10" text-anchor="middle">10 feature</text>
+<line x1="1108" y1="130" x2="1108" y2="1417" stroke="#30363d" stroke-width="1"/>
+<line x1="22" y1="124" x2="1260" y2="124" stroke="#30363d" stroke-width="1"/>
+<text x="22" y="148" fill="#e6edf3" font-size="16" font-weight="700">v0.1</text>
+<text x="22" y="166" fill="#8b949e" font-size="10">20 epic</text>
+<text x="22" y="180" fill="#8b949e" font-size="10">67/94 CP</text>
+<line x1="22" y1="493" x2="1260" y2="493" stroke="#30363d" stroke-width="1"/>
+<text x="22" y="517" fill="#e6edf3" font-size="16" font-weight="700">v0.2</text>
+<text x="22" y="535" fill="#8b949e" font-size="10">6 epic</text>
+<text x="22" y="549" fill="#8b949e" font-size="10">0/0 CP</text>
+<line x1="22" y1="728" x2="1260" y2="728" stroke="#30363d" stroke-width="1"/>
+<text x="22" y="752" fill="#e6edf3" font-size="16" font-weight="700">v0.3</text>
+<text x="22" y="770" fill="#8b949e" font-size="10">3 epic</text>
+<text x="22" y="784" fill="#8b949e" font-size="10">0/0 CP</text>
+<line x1="22" y1="896" x2="1260" y2="896" stroke="#30363d" stroke-width="1"/>
+<text x="22" y="920" fill="#e6edf3" font-size="16" font-weight="700">v0.4</text>
+<text x="22" y="938" fill="#8b949e" font-size="10">2 epic</text>
+<text x="22" y="952" fill="#8b949e" font-size="10">0/0 CP</text>
+<line x1="22" y1="997" x2="1260" y2="997" stroke="#30363d" stroke-width="1"/>
+<text x="22" y="1021" fill="#e6edf3" font-size="16" font-weight="700">v0.5</text>
+<text x="22" y="1039" fill="#8b949e" font-size="10">1 epic</text>
+<text x="22" y="1053" fill="#8b949e" font-size="10">0/0 CP</text>
+<line x1="22" y1="1098" x2="1260" y2="1098" stroke="#30363d" stroke-width="1"/>
+<text x="22" y="1122" fill="#e6edf3" font-size="16" font-weight="700">v0.6</text>
+<text x="22" y="1140" fill="#8b949e" font-size="10">1 epic</text>
+<text x="22" y="1154" fill="#8b949e" font-size="10">0/0 CP</text>
+<line x1="22" y1="1199" x2="1260" y2="1199" stroke="#30363d" stroke-width="1"/>
+<text x="22" y="1223" fill="#e6edf3" font-size="16" font-weight="700">v0.7</text>
+<text x="22" y="1241" fill="#8b949e" font-size="10">1 epic</text>
+<text x="22" y="1255" fill="#8b949e" font-size="10">0/0 CP</text>
+<line x1="22" y1="1300" x2="1260" y2="1300" stroke="#30363d" stroke-width="1"/>
+<text x="22" y="1324" fill="#e6edf3" font-size="16" font-weight="700">v0.8</text>
+<text x="22" y="1342" fill="#8b949e" font-size="10">1 epic</text>
+<text x="22" y="1356" fill="#8b949e" font-size="10">0/0 CP</text>
+<path d="M 1114.0 169.0 C 670.0 169.0, 670.0 169.0, 226.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 1114.0 169.0 C 1035.0 169.0, 1035.0 303.0, 956.0 303.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 1114.0 169.0 C 962.0 169.0, 962.0 941.0, 810.0 941.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 1114.0 169.0 C 816.0 169.0, 816.0 303.0, 518.0 303.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 1181.0 198.0 C 1181.0 570.7, 1181.0 943.3, 1181.0 1316.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 1114.0 169.0 C 962.0 169.0, 962.0 236.0, 810.0 236.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 1114.0 169.0 C 816.0 169.0, 816.0 437.0, 518.0 437.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 1114.0 169.0 C 743.0 169.0, 743.0 303.0, 372.0 303.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 956.0 169.0 C 1035.0 169.0, 1035.0 236.0, 1114.0 236.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 1035.0 198.0 C 1035.0 222.0, 1035.0 183.0, 1035.0 207.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 968.0 169.0 C 889.0 169.0, 889.0 169.0, 810.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 968.0 169.0 C 670.0 169.0, 670.0 538.0, 372.0 538.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 226.0 169.0 C 670.0 169.0, 670.0 169.0, 1114.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 226.0 169.0 C 597.0 169.0, 597.0 169.0, 968.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 226.0 169.0 C 305.0 169.0, 305.0 169.0, 384.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 226.0 169.0 C 670.0 169.0, 670.0 236.0, 1114.0 236.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 226.0 169.0 C 524.0 169.0, 524.0 236.0, 822.0 236.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 226.0 169.0 C 305.0 169.0, 305.0 303.0, 384.0 303.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 226.0 169.0 C 378.0 169.0, 378.0 1042.0, 530.0 1042.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 226.0 169.0 C 305.0 169.0, 305.0 1143.0, 384.0 1143.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 530.0 169.0 C 494.0 169.0, 554.0 169.0, 518.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 664.0 169.0 C 889.0 169.0, 889.0 538.0, 1114.0 538.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 664.0 169.0 C 889.0 169.0, 889.0 773.0, 1114.0 773.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 518.0 169.0 C 816.0 169.0, 816.0 538.0, 1114.0 538.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 1114.0 236.0 C 1035.0 236.0, 1035.0 236.0, 956.0 236.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 169.0 C 451.0 169.0, 451.0 169.0, 530.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 169.0 C 408.0 169.0, 348.0 169.0, 384.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 889.0 332.0 C 889.0 396.0, 889.0 76.0, 889.0 140.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 236.0 C 597.0 236.0, 597.0 169.0, 822.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 372.0 236.0 C 670.0 236.0, 670.0 169.0, 968.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 238.0 236.0 C 202.0 236.0, 262.0 169.0, 226.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 372.0 236.0 C 451.0 236.0, 451.0 169.0, 530.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 372.0 236.0 C 408.0 236.0, 348.0 169.0, 384.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 372.0 236.0 C 743.0 236.0, 743.0 236.0, 1114.0 236.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 305.0 265.0 C 305.0 306.7, 305.0 98.3, 305.0 140.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 305.0 265.0 C 305.0 346.3, 305.0 427.7, 305.0 509.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 238.0 236.0 C 202.0 236.0, 262.0 773.0, 226.0 773.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 238.0 236.0 C 202.0 236.0, 262.0 941.0, 226.0 941.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 372.0 236.0 C 408.0 236.0, 348.0 303.0, 384.0 303.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 372.0 236.0 C 408.0 236.0, 348.0 370.0, 384.0 370.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 305.0 265.0 C 305.0 289.0, 305.0 250.0, 305.0 274.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 305.0 265.0 C 305.0 290.3, 305.0 315.7, 305.0 341.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 1035.0 265.0 C 1035.0 306.7, 1035.0 98.3, 1035.0 140.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 968.0 236.0 C 670.0 236.0, 670.0 538.0, 372.0 538.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 1181.0 567.0 C 1181.0 648.3, 1181.0 729.7, 1181.0 811.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 1181.0 567.0 C 1181.0 816.7, 1181.0 1066.3, 1181.0 1316.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 1181.0 802.0 C 1181.0 826.0, 1181.0 787.0, 1181.0 811.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 451.0 634.0 C 451.0 658.0, 451.0 619.0, 451.0 643.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 518.0 303.0 C 670.0 303.0, 670.0 169.0, 822.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 451.0 332.0 C 451.0 396.0, 451.0 76.0, 451.0 140.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 451.0 332.0 C 451.0 373.7, 451.0 165.3, 451.0 207.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 384.0 303.0 C 348.0 303.0, 408.0 236.0, 372.0 236.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 451.0 332.0 C 451.0 391.0, 451.0 450.0, 451.0 509.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 451.0 332.0 C 451.0 413.3, 451.0 494.7, 451.0 576.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 451.0 332.0 C 451.0 435.7, 451.0 539.3, 451.0 643.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 451.0 332.0 C 451.0 592.7, 451.0 853.3, 451.0 1114.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 451.0 332.0 C 451.0 356.0, 451.0 317.0, 451.0 341.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 518.0 303.0 C 597.0 303.0, 597.0 236.0, 676.0 236.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 530.0 1042.0 C 494.0 1042.0, 554.0 1143.0, 518.0 1143.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 597.0 1071.0 C 597.0 1119.0, 597.0 1167.0, 597.0 1215.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 518.0 370.0 C 743.0 370.0, 743.0 169.0, 968.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 451.0 399.0 C 451.0 485.3, 451.0 53.7, 451.0 140.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 518.0 370.0 C 554.0 370.0, 494.0 1042.0, 530.0 1042.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 518.0 370.0 C 597.0 370.0, 597.0 236.0, 676.0 236.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 676.0 236.0 C 597.0 236.0, 597.0 236.0, 518.0 236.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 743.0 265.0 C 743.0 306.7, 743.0 98.3, 743.0 140.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 743.0 265.0 C 743.0 346.3, 743.0 427.7, 743.0 509.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 743.0 265.0 C 743.0 480.7, 743.0 696.3, 743.0 912.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 676.0 236.0 C 597.0 236.0, 597.0 303.0, 518.0 303.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 676.0 236.0 C 597.0 236.0, 597.0 437.0, 518.0 437.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 303.0 C 408.0 303.0, 348.0 538.0, 384.0 538.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 303.0 C 408.0 303.0, 348.0 303.0, 384.0 303.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 370.0 C 597.0 370.0, 597.0 169.0, 822.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 305.0 399.0 C 305.0 485.3, 305.0 53.7, 305.0 140.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 305.0 399.0 C 305.0 435.7, 305.0 472.3, 305.0 509.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<rect x="92" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#f85149" stroke-width="1.5"/>
+<text x="100" y="158" fill="#e6edf3" font-size="14" font-weight="700">E12<tspan fill="#8b949e" font-weight="400" font-size="11"> P0 +2</tspan></text>
+<text x="218" y="158" fill="#3fb950" font-size="11" font-weight="700" text-anchor="end">→8</text>
+<text x="100" y="174" fill="#e6edf3" font-size="11">Determinismo, QA e r…</text>
+<text x="100" y="190" fill="#8b949e" font-size="10">2/6 CP</text>
+<rect x="146" y="184" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="146" y="184" width="24" height="4" rx="2" fill="#e6edf3"/>
+<rect x="92" y="744" width="134" height="58" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="100" y="762" fill="#e6edf3" font-size="14" font-weight="700">E33<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="100" y="778" fill="#e6edf3" font-size="11">Conditional Intent</text>
+<text x="100" y="794" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="92" y="912" width="134" height="58" rx="6" fill="#161b22" stroke="#6e7681" stroke-width="1.5"/>
+<text x="100" y="930" fill="#e6edf3" font-size="14" font-weight="700">E34<tspan fill="#8b949e" font-weight="400" font-size="11"> P3</tspan></text>
+<text x="100" y="946" fill="#e6edf3" font-size="11">Stati del personaggi…</text>
+<text x="100" y="962" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="238" y="140" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
+<text x="246" y="158" fill="#e6edf3" font-size="14" font-weight="700">E16<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="364" y="158" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→2</text>
+<text x="246" y="174" fill="#e6edf3" font-size="11">Orientamento e direz…</text>
+<text x="246" y="190" fill="#8b949e" font-size="10">2/2 CP</text>
+<rect x="292" y="184" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="292" y="184" width="72" height="4" rx="2" fill="#e6edf3"/>
+<rect x="238" y="207" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#f85149" stroke-width="1.5"/>
+<text x="246" y="225" fill="#e6edf3" font-size="14" font-weight="700">E2<tspan fill="#8b949e" font-weight="400" font-size="11"> P0 +3</tspan></text>
+<text x="364" y="225" fill="#3fb950" font-size="11" font-weight="700" text-anchor="end">→14</text>
+<text x="246" y="241" fill="#e6edf3" font-size="11">Parità hex del subst…</text>
+<text x="246" y="257" fill="#8b949e" font-size="10">7/8 CP</text>
+<rect x="292" y="251" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="292" y="251" width="63" height="4" rx="2" fill="#e6edf3"/>
+<rect x="238" y="274" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
+<text x="246" y="292" fill="#e6edf3" font-size="14" font-weight="700">E8<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="364" y="292" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→2</text>
+<text x="246" y="308" fill="#e6edf3" font-size="11">Terreni, stati e amb…</text>
+<text x="246" y="324" fill="#8b949e" font-size="10">5/5 CP</text>
+<rect x="292" y="318" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="292" y="318" width="72" height="4" rx="2" fill="#e6edf3"/>
+<rect x="238" y="341" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="246" y="359" fill="#e6edf3" font-size="14" font-weight="700">E9<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="364" y="359" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→3</text>
+<text x="246" y="375" fill="#e6edf3" font-size="11">Coperture e strutture</text>
+<text x="246" y="391" fill="#8b949e" font-size="10">5/5 CP</text>
+<rect x="292" y="385" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="292" y="385" width="72" height="4" rx="2" fill="#e6edf3"/>
+<rect x="238" y="509" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
+<text x="246" y="527" fill="#e6edf3" font-size="14" font-weight="700">E23<tspan fill="#8b949e" font-weight="400" font-size="11"> P1 +1</tspan></text>
+<text x="246" y="543" fill="#e6edf3" font-size="11">Muri, porte e intera…</text>
+<text x="246" y="559" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="384" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="392" y="158" fill="#e6edf3" font-size="14" font-weight="700">E14<tspan fill="#8b949e" font-weight="400" font-size="11"> P2 +1</tspan></text>
+<text x="510" y="158" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="392" y="174" fill="#e6edf3" font-size="11">Overwatch e reazioni…</text>
+<text x="392" y="190" fill="#8b949e" font-size="10">4/8 CP</text>
+<rect x="438" y="184" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="438" y="184" width="36" height="4" rx="2" fill="#e6edf3"/>
+<rect x="384" y="207" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="392" y="225" fill="#e6edf3" font-size="14" font-weight="700">E18<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="392" y="241" fill="#e6edf3" font-size="11">Predictive Action, t…</text>
+<text x="392" y="257" fill="#8b949e" font-size="10">2/2 CP</text>
+<rect x="438" y="251" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="438" y="251" width="72" height="4" rx="2" fill="#e6edf3"/>
+<rect x="384" y="274" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#f85149" stroke-width="1.5"/>
+<text x="392" y="292" fill="#e6edf3" font-size="14" font-weight="700">E4<tspan fill="#8b949e" font-weight="400" font-size="11"> P0</tspan></text>
+<text x="510" y="292" fill="#3fb950" font-size="11" font-weight="700" text-anchor="end">→10</text>
+<text x="392" y="308" fill="#e6edf3" font-size="11">Motore delle azioni …</text>
+<text x="392" y="324" fill="#8b949e" font-size="10">8/8 CP</text>
+<rect x="438" y="318" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="438" y="318" width="72" height="4" rx="2" fill="#e6edf3"/>
+<rect x="384" y="341" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
+<text x="392" y="359" fill="#e6edf3" font-size="14" font-weight="700">E5<tspan fill="#8b949e" font-weight="400" font-size="11"> P1 +1</tspan></text>
+<text x="510" y="359" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→4</text>
+<text x="392" y="375" fill="#e6edf3" font-size="11">Reazioni</text>
+<text x="392" y="391" fill="#8b949e" font-size="10">5/5 CP</text>
+<rect x="438" y="385" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="438" y="385" width="72" height="4" rx="2" fill="#e6edf3"/>
+<rect x="384" y="408" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="392" y="426" fill="#e6edf3" font-size="14" font-weight="700">E7<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="392" y="442" fill="#e6edf3" font-size="11">Equipaggiamento e lo…</text>
+<text x="392" y="458" fill="#8b949e" font-size="10">4/5 CP</text>
+<rect x="438" y="452" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="438" y="452" width="57" height="4" rx="2" fill="#e6edf3"/>
+<rect x="384" y="509" width="134" height="58" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="392" y="527" fill="#e6edf3" font-size="14" font-weight="700">E36<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="392" y="543" fill="#e6edf3" font-size="11">Framework degli stat…</text>
+<text x="392" y="559" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="384" y="576" width="134" height="58" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="392" y="594" fill="#e6edf3" font-size="14" font-weight="700">E38<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="510" y="594" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="392" y="610" fill="#e6edf3" font-size="11">Economia del turno, …</text>
+<text x="392" y="626" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="384" y="643" width="134" height="58" rx="6" fill="#161b22" stroke="#6e7681" stroke-width="1.5"/>
+<text x="392" y="661" fill="#e6edf3" font-size="14" font-weight="700">E39<tspan fill="#8b949e" font-weight="400" font-size="11"> P3</tspan></text>
+<text x="392" y="677" fill="#e6edf3" font-size="11">Spatial Transfer — t…</text>
+<text x="392" y="693" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="384" y="1114" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
+<text x="392" y="1132" fill="#e6edf3" font-size="14" font-weight="700">E41<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="392" y="1148" fill="#e6edf3" font-size="11">GAS come runtime del…</text>
+<text x="392" y="1164" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="530" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="538" y="158" fill="#e6edf3" font-size="14" font-weight="700">E13<tspan fill="#8b949e" font-weight="400" font-size="11"> P2 +1</tspan></text>
+<text x="656" y="158" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→3</text>
+<text x="538" y="174" fill="#e6edf3" font-size="11">Conoscenza parziale:…</text>
+<text x="538" y="190" fill="#8b949e" font-size="10">3/5 CP</text>
+<rect x="584" y="184" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="584" y="184" width="43" height="4" rx="2" fill="#e6edf3"/>
+<rect x="530" y="1013" width="134" height="58" rx="6" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
+<text x="538" y="1031" fill="#e6edf3" font-size="14" font-weight="700">E40<tspan fill="#8b949e" font-weight="400" font-size="11"> P0</tspan></text>
+<text x="656" y="1031" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→2</text>
+<text x="538" y="1047" fill="#e6edf3" font-size="11">Il turno simultaneo …</text>
+<text x="538" y="1063" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="530" y="1215" width="134" height="58" rx="6" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
+<text x="538" y="1233" fill="#e6edf3" font-size="14" font-weight="700">E42<tspan fill="#8b949e" font-weight="400" font-size="11"> P0</tspan></text>
+<text x="538" y="1249" fill="#e6edf3" font-size="11">Dedicated server e l…</text>
+<text x="538" y="1265" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="676" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#db6d28" stroke-width="1.5"/>
+<text x="684" y="158" fill="#e6edf3" font-size="14" font-weight="700">E21<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="684" y="174" fill="#e6edf3" font-size="11">Presentazione e legg…</text>
+<text x="684" y="190" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="676" y="207" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
+<text x="684" y="225" fill="#e6edf3" font-size="14" font-weight="700">E6<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="802" y="225" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→6</text>
+<text x="684" y="241" fill="#e6edf3" font-size="11">Roster: 4 eroi</text>
+<text x="684" y="257" fill="#8b949e" font-size="10">7/7 CP</text>
+<rect x="730" y="251" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="730" y="251" width="72" height="4" rx="2" fill="#e6edf3"/>
+<rect x="676" y="509" width="134" height="58" rx="6" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
+<text x="684" y="527" fill="#e6edf3" font-size="14" font-weight="700">E35<tspan fill="#8b949e" font-weight="400" font-size="11"> P0</tspan></text>
+<text x="684" y="543" fill="#e6edf3" font-size="11">Roster 8: Sentinel D…</text>
+<text x="684" y="559" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="676" y="912" width="134" height="58" rx="6" fill="#161b22" stroke="#6e7681" stroke-width="1.5"/>
+<text x="684" y="930" fill="#e6edf3" font-size="14" font-weight="700">E37<tspan fill="#8b949e" font-weight="400" font-size="11"> P3 +1</tspan></text>
+<text x="684" y="946" fill="#e6edf3" font-size="11">Radar di personaggio…</text>
+<text x="684" y="962" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="822" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="830" y="158" fill="#e6edf3" font-size="14" font-weight="700">E10<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="948" y="158" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="830" y="174" fill="#e6edf3" font-size="11">Obiettivi dinamici e…</text>
+<text x="830" y="190" fill="#8b949e" font-size="10">1/3 CP</text>
+<rect x="876" y="184" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="876" y="184" width="24" height="4" rx="2" fill="#e6edf3"/>
+<rect x="822" y="207" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#6e7681" stroke-width="1.5"/>
+<text x="830" y="225" fill="#e6edf3" font-size="14" font-weight="700">E17<tspan fill="#8b949e" font-weight="400" font-size="11"> P3</tspan></text>
+<text x="830" y="241" fill="#e6edf3" font-size="11">Validazione di stres…</text>
+<text x="830" y="257" fill="#8b949e" font-size="10">2/3 CP</text>
+<rect x="876" y="251" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="876" y="251" width="48" height="4" rx="2" fill="#e6edf3"/>
+<rect x="822" y="274" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="830" y="292" fill="#e6edf3" font-size="14" font-weight="700">E19<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="948" y="292" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="830" y="308" fill="#e6edf3" font-size="11">Classe di mappa e co…</text>
+<text x="830" y="324" fill="#8b949e" font-size="10">2/2 CP</text>
+<rect x="876" y="318" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="876" y="318" width="72" height="4" rx="2" fill="#e6edf3"/>
+<rect x="968" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#db6d28" stroke-width="1.5"/>
+<text x="976" y="158" fill="#e6edf3" font-size="14" font-weight="700">E11<tspan fill="#8b949e" font-weight="400" font-size="11"> P1 +2</tspan></text>
+<text x="1094" y="158" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→3</text>
+<text x="976" y="174" fill="#e6edf3" font-size="11">HUD, log e debug</text>
+<text x="976" y="190" fill="#8b949e" font-size="10">1/8 CP</text>
+<rect x="1022" y="184" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="1022" y="184" width="9" height="4" rx="2" fill="#e6edf3"/>
+<rect x="968" y="207" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="976" y="225" fill="#e6edf3" font-size="14" font-weight="700">E20<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="1094" y="225" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→2</text>
+<text x="976" y="241" fill="#e6edf3" font-size="11">HUD Icon Language</text>
+<text x="976" y="257" fill="#8b949e" font-size="10">1/3 CP</text>
+<rect x="1022" y="251" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="1022" y="251" width="24" height="4" rx="2" fill="#e6edf3"/>
+<rect x="1114" y="140" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#f85149" stroke-width="1.5"/>
+<text x="1122" y="158" fill="#e6edf3" font-size="14" font-weight="700">E1<tspan fill="#8b949e" font-weight="400" font-size="11"> P0</tspan></text>
+<text x="1240" y="158" fill="#3fb950" font-size="11" font-weight="700" text-anchor="end">→8</text>
+<text x="1122" y="174" fill="#e6edf3" font-size="11">Canone, cataloghi e …</text>
+<text x="1122" y="190" fill="#8b949e" font-size="10">4/4 CP</text>
+<rect x="1168" y="184" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="1168" y="184" width="72" height="4" rx="2" fill="#e6edf3"/>
+<rect x="1114" y="207" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#db6d28" stroke-width="1.5"/>
+<text x="1122" y="225" fill="#e6edf3" font-size="14" font-weight="700">E15<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="1240" y="225" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="1122" y="241" fill="#e6edf3" font-size="11">Showcase «Il Relè» e…</text>
+<text x="1122" y="257" fill="#8b949e" font-size="10">2/5 CP</text>
+<rect x="1168" y="251" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="1168" y="251" width="28" height="4" rx="2" fill="#e6edf3"/>
+<rect x="1114" y="509" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
+<text x="1122" y="527" fill="#e6edf3" font-size="14" font-weight="700">E26<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="1240" y="527" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→2</text>
+<text x="1122" y="543" fill="#e6edf3" font-size="11">Tactical Bot v1</text>
+<text x="1122" y="559" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="1114" y="744" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
+<text x="1122" y="762" fill="#e6edf3" font-size="14" font-weight="700">E27<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="1240" y="762" fill="#3fb950" font-size="11" font-weight="400" text-anchor="end">→1</text>
+<text x="1122" y="778" fill="#e6edf3" font-size="11">Percezione completa:…</text>
+<text x="1122" y="794" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="1114" y="811" width="134" height="58" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="1122" y="829" fill="#e6edf3" font-size="14" font-weight="700">E28<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="1122" y="845" fill="#e6edf3" font-size="11">Expert Bot v2</text>
+<text x="1122" y="861" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="1114" y="1316" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
+<text x="1122" y="1334" fill="#e6edf3" font-size="14" font-weight="700">E43<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="1122" y="1350" fill="#e6edf3" font-size="11">Misura a lotti, e il…</text>
+<text x="1122" y="1366" fill="#8b949e" font-size="10">0/0 CP</text>
+<text x="22" y="1433" fill="#8b949e" font-size="10">riempimento = stato · bordo = priorità · +n = feature anche in altre corsie</text>
+<text x="22" y="1419" fill="#3fb950" font-size="10">le linee sono dipendenze fra epic, spesse quando partono da un'epic che ne blocca 8 o piu'. Il numero verde nel riquadro dice quante ne sblocca.</text>
 </svg>
