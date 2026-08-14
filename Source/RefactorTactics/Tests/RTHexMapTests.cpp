@@ -849,6 +849,28 @@ bool FRTHexMapFormatVersionTravelsTest::RunTest(const FString&)
 		TestEqual(TEXT("B: nessuna cella ha guadagnato un sovrapprezzo migrando"), WithSurcharge, 0);
 	}
 
+	// --- Verso C: un archivio in memoria QUALUNQUE (undo/redo, duplicazione) ------------------------
+	//
+	// Il caso che i due versi sopra non coprono, e che nell'editor capita ogni giorno: `Serialize` viene
+	// chiamato da archivi che nessuno ha configurato — il transaction buffer di un undo, una duplicazione.
+	// Se li' `CustomVer` rispondesse `-1`, ogni undo su una mappa lascerebbe `FormatVersion` a zero in
+	// memoria, e `MigrateToCurrentFormat` non lo correggerebbe (vive in `PostLoad`, che un undo non chiama).
+	//
+	// Non succede, e la ragione è la stessa trappola di sopra letta al contrario: su un archivio **in
+	// lettura** non configurato, `GetCustomVersions()` carica **tutte** le versioni registrate globalmente.
+	// È il comportamento giusto qui — ma è dedotto da un'implementazione dell'engine, quindi va pinnato:
+	// se cambiasse, il difetto sarebbe silenzioso e visibile solo dopo un undo.
+	{
+		URTHexMapAsset* Undone = NewObject<URTHexMapAsset>();
+		FMemoryReader Reader(Bytes); // nessun `SetCustomVersions`: com'è l'archivio di un undo
+		Undone->Serialize(Reader);
+
+		TestEqual(TEXT("C: un archivio non configurato non degrada l'asset a legacy"),
+			Undone->LoadedFormatVersion, static_cast<int32>(FRTHexMapCustomVersion::LatestVersion));
+		TestEqual(TEXT("C: e la versione resta quella corrente senza bisogno di migrare"),
+			Undone->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
+	}
+
 	return true;
 }
 
