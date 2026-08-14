@@ -427,29 +427,10 @@ preexisting:
       una volta in senso opposto.
 
 
-  - branch: feat/165-finestra-overwatch
-    state: LIVE            # worktree `D:/rt-simulation` · pushato · 44a6af96
-    measured: 15
-    collides_with:
-      - branch: feat/887-focus-quota
-        state: LOCAL
-        paths: [docs/roadmap/parallel-batch.yaml]
-    note: >-
-      ➕ **È il branch che la track `simulation` dichiarava sparito, ricreato mentre questo file
-      veniva scritto.** La track lo nomina in `simulation.branch`.
-      🔴 **`measured: 0` → `14` → `15`, e `LOCAL` → `LIVE`: tre correzioni, tutte misurate.** La
-      prenotazione è diventata un vincolo mentre il file la descriveva come ferma. Poi il numero è
-      scivolato ancora — `git diff --name-only origin/main...` ne conta **15** — nella stessa sessione in
-      cui era appena stato rimisurato. E `git ls-remote --heads origin` vede il branch (`44a6af96`),
-      quindi per l'enum è `LIVE` e appartiene alla sezione dei remoti, non a «esistono in un worktree e
-      in nessun altro posto».
-      ⚠️ **La collisione qui sopra è reale**: `docs/roadmap/parallel-batch.yaml` è anche nel write-set di
-      `#887`. È `integration_only` — nessuna delle due la tiene per diritto — quindi si riconcilia in
-      integrazione, e chi merge per secondo la riscrive sull'albero unito.
-      🔴 **Questa riga ha citato `#873` per un commit intero dopo che quel branch era stato mergiato e
-      cancellato.** Il campo `collides_with` era stato ripuntato su `#874`, la prosa no: la stessa
-      informazione in due forme, aggiornata in una sola. Trovato in code review — ed è la ragione per cui
-      un numero di issue dentro una nota vale meno del campo strutturato che gli sta sopra.
+  # 🔵 **`feat/165-finestra-overwatch` è uscita**: PR #878 mergiata, write-set misurato **0**.
+  # `MERGED` esce dalla sezione. ⚠️ Con lei cade la collisione che `#887` dichiarava verso di lei —
+  # e resta l'altra, con `fix/residui-istruttoria-dod`, che invece è **anch'essa** atterrata (#885):
+  # entrambe le contese su questo file si sono chiuse da sole mentre `#887` lavorava.
 
   # 🔵 **`feat/873-recenter-clamp` è uscita**: PR #884 mergiata alle `18:38Z` in `376013a7`, branch
   # cancellato. `MERGED` esce dalla sezione — la terza voce a farlo oggi con la stessa regola.
@@ -461,6 +442,29 @@ preexisting:
   # branch cancellato. `MERGED` esce dalla sezione — la quarta voce a farlo oggi.
   # ⚠️ Con lei cade la collisione che dichiarava con `feat/165` su questo file, e quella di `165`
   # verso di lei: un vincolo senza due lati non è un vincolo.
+
+  - branch: feat/887-focus-quota
+    state: LIVE            # worktree `D:/rt-telecamera` · PR #890 aperta · su `e9003c96`
+    measured: 4
+    collides_with: []   # entrambe cadute: #878 e #885 mergiate mentre il lavoro era in corso
+    note: >-
+      `#887`, aperta da un'altra sessione dal playtest di M6.8: `FocusOn` scarta la `Z` del bersaglio e
+      tiene quella con cui il pawn è nato — il PlayerStart del livello, che non ha relazione con il piano
+      della mappa. Diagnosi **verificata** prima di prenderla, sui tre anelli che la issue dichiara:
+      `RTGameMode` imposta davvero `DefaultPawnClass = ARTCameraPawn`, `CellsCentroidWorld` somma
+      `AxialToWorld` e quindi **calcola** una quota valida, e `FocusOn` la butta via.
+      🔴 **Tocca un test che ho scritto io in `#865`, e la issue ha ragione sul perché**:
+      `FocusKeepsHeightZoomAndOrientation` verifica che la quota sia *conservata*, quindi **difende il
+      difetto** invece di trovarlo. La domanda giusta non è «la quota resta invariata?» ma «invariata
+      rispetto a cosa?». Va riscritto, non affiancato.
+      ✅ **Set disgiunto dalle track ACTIVE**: `Camera/` e `Tests/RTCameraPawnTests.cpp` non sono nel
+      `writable` di nessuna — `simulation` tiene `Turn/` e `Bot/`, `client_tools`
+      `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`.
+      ⚠️ **Le due collisioni su `parallel-batch.yaml` sono dichiarate qui e misurate**, non dedotte: è
+      `integration_only`, si riconcilia in integrazione.
+      ➕ La issue avverte di verificare `feat/865-camera-focus-tests`, «vivo in `D:/rt-telecamera`»:
+      **non lo è più** — mergiato con #872 e cancellato prima che questa issue fosse scritta. È lo stesso
+      invecchiamento che questo file registra a ogni giro, visto stavolta dal lato di chi legge.
 
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
@@ -495,39 +499,10 @@ preexisting:
   # ⚠️ **L'ha mergiata questo stesso branch**, col merge di `origin/main` fatto per verificare che
   # `#876` non rompesse i test della camera: la riga è diventata falsa per mano di chi la leggeva.
 
-  - branch: feat/887-focus-quota
-    state: LOCAL           # worktree `D:/rt-telecamera`, creato su `e9003c96`
-    measured: 0
-    collides_with:
-      - branch: feat/165-finestra-overwatch
-        state: LIVE
-        paths: [docs/roadmap/parallel-batch.yaml]
-      - branch: fix/residui-istruttoria-dod
-        state: LOCAL
-        paths: [docs/roadmap/parallel-batch.yaml]
-    note: >-
-      `#887`, aperta da un'altra sessione dal playtest di M6.8: `FocusOn` scarta la `Z` del bersaglio e
-      tiene quella con cui il pawn è nato — il PlayerStart del livello, che non ha relazione con il piano
-      della mappa. Diagnosi **verificata** prima di prenderla, sui tre anelli che la issue dichiara:
-      `RTGameMode` imposta davvero `DefaultPawnClass = ARTCameraPawn`, `CellsCentroidWorld` somma
-      `AxialToWorld` e quindi **calcola** una quota valida, e `FocusOn` la butta via.
-      🔴 **Tocca un test che ho scritto io in `#865`, e la issue ha ragione sul perché**:
-      `FocusKeepsHeightZoomAndOrientation` verifica che la quota sia *conservata*, quindi **difende il
-      difetto** invece di trovarlo. La domanda giusta non è «la quota resta invariata?» ma «invariata
-      rispetto a cosa?». Va riscritto, non affiancato.
-      ✅ **Set disgiunto dalle track ACTIVE**: `Camera/` e `Tests/RTCameraPawnTests.cpp` non sono nel
-      `writable` di nessuna — `simulation` tiene `Turn/` e `Bot/`, `client_tools`
-      `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`.
-      ⚠️ **Le due collisioni su `parallel-batch.yaml` sono dichiarate qui e misurate**, non dedotte: è
-      `integration_only`, si riconcilia in integrazione.
-      ➕ La issue avverte di verificare `feat/865-camera-focus-tests`, «vivo in `D:/rt-telecamera`»:
-      **non lo è più** — mergiato con #872 e cancellato prima che questa issue fosse scritta. È lo stesso
-      invecchiamento che questo file registra a ogni giro, visto stavolta dal lato di chi legge.
-
   # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**:
   #
   #   D:/wt-451           `feat/451-u1-voci-hex-mode`       LOCAL, 0 file
-  #   D:/rt-telecamera    `feat/887-focus-quota`            LOCAL, non ancora pushato
+  #   D:/rt-telecamera    `feat/887-focus-quota`            LIVE, 4 file · PR #890 — fra i remoti
   #   D:/rt-client        `docs/38-spec-panel-playtest-hex` LIVE  — fra i branch remoti
   #   D:/rt-simulation    `feat/165-finestra-overwatch`     LIVE, 15 file — fra i branch remoti
   #   D:/rt-spatial       detached su `8ea9c229`            0 file, nessun vincolo, nessuna voce
