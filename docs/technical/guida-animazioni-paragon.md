@@ -62,11 +62,33 @@ l'IK Retargeter finché non vuoi condividere animazioni tra scheletri diversi o 
 
 ## AS.3b — Le clip dei quattro pack del roster
 
-🔴 **I cinque nomi qui sopra non esistono in nessuno dei quattro pack della v0.1.** La tabella di Gideon è
-l'esempio di *quali ruoli* servono, non di come si chiamano i file: su **venti** caselle (quattro pack × cinque
-ruoli) solo **otto** portano il nome che ci si aspetta. È lo stesso errore già costato una correzione un piano
-più in basso — gli skeleton presi dal nome del file invece che dalla mesh — e si evita nello stesso modo:
-**leggendo la cartella, non deducendo il nome**.
+🔴 **Nessuno dei cinque nomi di Gideon vale per tutti e quattro i pack, e sei caselle su venti hanno un nome
+diverso da quello che ci si aspetta.** La tabella di Gideon è l'esempio di *quali ruoli* servono, non di come si
+chiamano i file. È lo stesso errore già costato una correzione un piano più in basso — gli skeleton presi dal
+nome del file invece che dalla mesh — e si evita nello stesso modo: **leggendo la cartella, non deducendo il
+nome**.
+
+I due numeri, misurati e non stimati: **14 caselle su 20** portano lo stesso nome che porta in Gideon, e la
+distribuzione conta più del totale — `Cast` regge **4** volte su 4, `Idle` e `Jog_Fwd` **3**, `HitReact_Front` e
+`Death_Fwd` solo **2**. Cioè: più della metà dei nomi si trasferisce, ma **nessun ruolo tranne l'attacco** si
+trasferisce sempre, ed è per questo che dedurre il nome non funziona mai per un pack intero.
+
+<!-- I due numeri si rimisurano leggendo la cartella, non ricopiando questa riga:
+     python - <<'PY'   (dalla radice del repo)
+     import os
+     B = "Content/FabAsset/Paragon"
+     G = {"Idle":"Idle","Corsa":"Jog_Fwd","Attacco":"Cast","Hit":"HitReact_Front","Morte":"Death_Fwd"}
+     R = {"Gadget": {"Idle":"Idle","Corsa":"Run_Fwd","Attacco":"Cast","Hit":"Hitreact_Fwd","Morte":"Death_Fwd"},
+          "Phase":  {"Idle":"Idle","Corsa":"Jog_Fwd","Attacco":"Cast","Hit":"HitReact_Fwd","Morte":"Death"},
+          "Riktor": {"Idle":"Idle","Corsa":"Jog_Fwd","Attacco":"Cast","Hit":"HitReact_Front","Morte":"Death_Fwd"},
+          "Wraith": {"Idle":"Idle_NonCombat","Corsa":"Jog_Fwd","Attacco":"Cast","Hit":"HitReact_Front","Morte":"Death_Forward"}}
+     print(sum(1 for r,a in G.items() for p in R if R[p][r] == a), "caselle su 20")
+     PY -->
+
+⚠️ **La prima stesura di questa sezione diceva altro, e le due frasi erano false**: «i cinque nomi non esistono
+in nessuno dei quattro pack» (`Cast` c'è in tutti e quattro) e «solo otto portano il nome che ci si aspetta»
+(sono quattordici). La tabella qui sotto era invece corretta in tutte e venti le caselle — è la **frase di
+sintesi** ad aver divergato dai dati che riassumeva, e si rilegge contro la tabella, non a memoria.
 
 Misurata sul disco il **2026-08-13**, cartella
 `/Game/FabAsset/Paragon/Paragon<Pack>/Characters/Heroes/<Pack>/Animations/`:
