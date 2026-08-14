@@ -432,13 +432,27 @@ preexisting:
       seduta rebasa prima di committare, o misura il proprio write-set su una base che non esiste più.
 
   - branch: feat/165-finestra-overwatch
-    state: LOCAL           # worktree `D:/rt-simulation`
-    measured: 0
+    state: LIVE            # worktree `D:/rt-simulation`, pushato
+    measured: 15
+    collides_with:
+      track: verification
+      paths: [Source/RefactorTactics/Tests/RTHexBotIntegrationTests.cpp]
     note: >-
       ➕ **È il branch che la track `simulation` dichiarava sparito, ricreato mentre questo file
       veniva scritto.** Zero commit, zero file: nessun vincolo oggi. La track ora lo nomina — vedi
       `simulation.branch` — perché un branch che esiste e non si può nominare è esattamente ciò che
       lo schema di `session_branch` è stato aggiunto per impedire.
+      🔴 **`measured: 0` è invecchiato: oggi il branch porta 15 file**, misurati il 2026-08-14 con
+      `git diff --name-only origin/main...origin/feat/165-finestra-overwatch` dopo `fetch --prune`.
+      La riga sopra resta perché descrive com'è nato, ma la cifra che conta è questa — ed è la terza
+      volta in questo batch che una voce `preexisting` invecchia fra due letture.
+      ⚠️ **Uno dei 15 è fuori dal `writable` della sua track**: `Tests/RTHexBotIntegrationTests.cpp`
+      non è fra i due file di `Tests/` che `simulation` dichiara (`RTReactionTests.cpp` e
+      `RTReactionOpportunityTests.cpp`), e non sta sotto `Turn/` né `Bot/`. Non è una contesa di
+      dominio — sono due test indipendenti, entrambi aggiunti **in coda** dopo la riga 910, quindi
+      un conflitto testuale al merge e niente di più. Registrato perché lo scopra il merge di chi
+      arriva secondo, non la sorpresa: chi atterra per primo lascia all'altro un rebase di dieci
+      righe.
 
   - branch: feat/832-stable-structure-id
     state: LOCAL           # worktree `D:/rt-spatial`
@@ -787,6 +801,56 @@ tracks:
     # `Content/RT/Characters/Gadget/Animation/` è **tuttora untracked** nella working directory
     # principale — finché non è committata o scartata, la destinazione non è prenotabile e una
     # lease `create` starebbe su una base che in git non esiste.
+
+  verification:
+    status: ACTIVE
+    issue: 879              # più #880, #881, #882, #883: cinque issue, un solo write-set
+    branch: fix/residui-istruttoria-dod
+    note: >-
+      I cinque residui di DoD trovati dall'istruttoria del 2026-08-14 sulle issue chiuse: #879
+      (#588), #880 (#145), #881 (#548), #882 (#405), #883 (#621). Quattro sono test mancanti, il
+      quinto è un'estrazione più tre commenti che dicevano il falso.
+      ⚠️ **Una track sola per cinque issue, e non è pigrizia**: `parallel-batch.yaml` è
+      `integration_only`, quindi cinque track significherebbero cinque riscritture dello stesso file
+      `integration_only` in cinque branch — cioè fabbricare la contesa che questo file esiste per
+      evitare. Il write-set è unico e disgiunto; le issue restano cinque su GitHub, dove lo stato
+      vive.
+      ✅ **Intersezione con le tre track ACTIVE: vuota, misurata** file per file, non dedotta dal
+      dominio. `Turn/` e `Bot/` sono di `simulation` e questo branch non li tocca: i test nuovi
+      stanno in `Tests/`, e la sola modifica non-test è in `Map/` — che è il write-set libero
+      lasciato da `spatial` quando è passata IDLE, e che la sua nota dichiara *«disponibile al primo
+      task che lo richieda con set disgiunto»*.
+      🔴 **Con i branch vivi invece NON è vuota, e il file non poteva saperlo**:
+      `feat/165-finestra-overwatch` era registrato a **zero commit** e oggi ne porta 15, fra cui
+      `Tests/RTHexBotIntegrationTests.cpp` — vedi la sua voce in `preexisting` per la misura. Il
+      confronto è stato fatto contro **tutti e dieci** i branch remoti vivi
+      (`git ls-remote --heads` + `git diff --name-only origin/main...<branch>`), uno per uno: quella
+      è l'unica intersezione, e le altre nove sono vuote.
+      ⚠️ **Il test conteso non si sposta in un file nuovo**, benché sarebbe la via ovvia per azzerare
+      l'intersezione: l'allestimento del bot (`MakeHexBotWorld`, `SpawnHexBotUnit`, …) vive in un
+      namespace anonimo di quel file, e duplicarlo darebbe due allestimenti da tenere d'accordo —
+      che è il motivo per cui `RTTurnLogCauseTests.cpp` tiene insieme la famiglia delle cause invece
+      di spargerla. Fra un conflitto testuale di dieci righe e una duplicazione permanente si sceglie
+      il primo, ma **la scelta va scritta qui**, non lasciata al merge.
+    writable:
+      - Source/RefactorTactics/Map/RTHexLibrary.h
+      - Source/RefactorTactics/Map/RTHexLibrary.cpp
+      - Source/RefactorTactics/Map/RTHexMapActor.h
+      - Source/RefactorTactics/Tests/RTHexTests.cpp
+      - Source/RefactorTactics/Tests/RTHexMapTests.cpp
+      - Source/RefactorTactics/Tests/RTGeometryBakeTests.cpp
+      - Source/RefactorTactics/Tests/RTTurnLogCauseTests.cpp
+      - Source/RefactorTactics/Tests/RTEnvironmentActionTests.cpp
+      - Source/RefactorTactics/Tests/RTHexBotIntegrationTests.cpp
+      - Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp
+    # Misurato con lo stesso metodo del resto del file. Vale la condizione dei test già scritta per
+    # `simulation`: **aggiungere** un test non muove nessuna vista, rinominarne o cancellarne uno
+    # citato in `tests:` sì. Qui i test sono tutti **nuovi**, e nessuno dei nomi esistenti cambia:
+    # `generate --check` e `shortlist --check` restano verdi. Non è una deduzione dalle costanti —
+    # è la stessa misura che la nota di `simulation` riporta, applicata a un write-set che aggiunge
+    # soltanto.
+    derives_from: []
+    binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
