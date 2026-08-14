@@ -2969,7 +2969,9 @@
         "state": null,
         "state_source": null,
         "state_note": "issue senza checkpoint: lo stato vive su GitHub",
-        "feature_ids": [],
+        "feature_ids": [
+          "RT-FEAT-MAP-HEXGRAPH"
+        ],
         "provides": [],
         "incoming": [],
         "outgoing": [

@@ -1,5 +1,21 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTHexMapCustomVersion.h"
+#include "Serialization/CustomVersion.h"
+
+const FGuid FRTHexMapCustomVersion::GUID(0x7A3C1E44, 0x9B2D4F10, 0xA6E85C37, 0x1D0F62B9);
+
+// Registrazione nel registro globale: da qui in poi ogni package che salva un `URTHexMapAsset` porta GUID
+// e versione nel proprio summary.
+FCustomVersionRegistration GRegisterRTHexMapCustomVersion(
+	FRTHexMapCustomVersion::GUID, FRTHexMapCustomVersion::LatestVersion, TEXT("RTHexMapVer"));
+
+// I due numeri sono lo STESSO numero e devono restare tali. Alzare `CurrentFormatVersion` senza aggiungere
+// il valore corrispondente all'enum rimetterebbe in piedi il difetto di #687 sotto un altro nome: la
+// migrazione partirebbe da una versione che nessun archivio puo' dichiarare.
+static_assert(FRTHexMapCustomVersion::LatestVersion == URTHexMapAsset::CurrentFormatVersion,
+	"La versione del custom version e CurrentFormatVersion sono divergenti: aggiungi il valore mancante "
+	"a FRTHexMapCustomVersion::Type nello stesso commit in cui alzi CurrentFormatVersion.");
 
 void URTHexMapAsset::EnsureLookup() const
 {
@@ -513,9 +529,7 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// o la mappa cambierebbe significato solo per essere stata ricaricata.
 	// v7 -> v8 (#621): le coperture guadagnano la PROVENIENZA (`bGenerated`). Il default `false` significa
 	// «dipinta a mano», che e' esattamente cio' che ogni copertura scritta prima di questo campo era: nessun
-	// dato cambia significato, e non c'e' nulla da trasformare. ⚠️ E non deve essercene: finche' #687 e'
-	// aperta una migrazione trasformativa NON verrebbe eseguita, quindi riclassificare coperture esistenti
-	// qui sarebbe un difetto silenzioso.
+	// dato cambia significato, e non c'e' nulla da trasformare.
 	// v5 -> v6 (CP 19.1): il formato guadagna la classe di mappa. Il default (`Skirmish`) e' cio' che una
 	// mappa scritta prima gia' era — il vertical slice e' 2v2 — quindi anche qui non c'e' niente da convertire.
 	// v6 -> v7 (#619): la cella guadagna il sovrapprezzo di occupazione. Il default (0) e' cio' che una mappa
@@ -524,7 +538,37 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per
 	// volta, in ordine.
+	//
+	// ✅ E da #687 quel giorno e' possibile: `FormatVersion` arriva qui dai BYTE (via `FRTHexMapCustomVersion`,
+	// letta in `Serialize`) e non piu' dal default del CDO. Prima di allora questa funzione era inerte per
+	// gli asset che avrebbe dovuto proteggere — usciva alla prima riga credendosi gia' aggiornata.
 	FormatVersion = CurrentFormatVersion;
+}
+
+void URTHexMapAsset::Serialize(FArchive& Ar)
+{
+	// Il lato-SCRITTURA: e' questa chiamata che fa finire GUID e versione nel summary del package, ed e'
+	// l'unica ragione per cui il numero viaggia. In lettura e' un no-op dichiarato (`FArchive::
+	// UsingCustomVersion` esce subito se `IsLoading`): li' il container arriva gia' pieno dal summary, ed
+	// e' cio' che `CustomVer` interroga qui sotto. Sta in cima al metodo per leggibilita', non perche'
+	// l'ordine rispetto a `Super::Serialize` sia vincolante.
+	Ar.UsingCustomVersion(FRTHexMapCustomVersion::GUID);
+
+	Super::Serialize(Ar);
+
+	if (Ar.IsLoading())
+	{
+		// -1 = l'archivio non porta questa chiave, cioe' l'asset e' stato scritto PRIMA che il meccanismo
+		// esistesse. Non e' «versione 1»: e' «non lo sappiamo», e si riparte dall'inizio della catena.
+		// Vedi `FRTHexMapCustomVersion::BeforeCustomVersionWasAdded` per il perche' oggi costa zero.
+		const int32 Declared = Ar.CustomVer(FRTHexMapCustomVersion::GUID);
+		LoadedFormatVersion = (Declared < 0) ? FRTHexMapCustomVersion::BeforeCustomVersionWasAdded : Declared;
+
+		// La property e' il canale di lettura del resto del codice, ma non e' la fonte: il valore che
+		// `Super::Serialize` le ha appena dato viene dal CDO, non dai byte (#687). Si sovrascrive con la
+		// versione vera, altrimenti `MigrateToCurrentFormat` torna a credersi gia' aggiornata.
+		FormatVersion = LoadedFormatVersion;
+	}
 }
 
 void URTHexMapAsset::PostLoad()
