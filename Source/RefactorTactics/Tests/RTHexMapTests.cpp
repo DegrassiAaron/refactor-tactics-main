@@ -883,7 +883,7 @@ bool FRTHexMapFormatVersionTravelsTest::RunTest(const FString&)
  * `FormatVersionTravelsInSerializedBytes` prova il meccanismo su un archivio **in memoria**, dove le custom
  * version le mette e le toglie il test stesso. In un package vero non è così: le scrive il *summary*, e chi
  * lo popola è UE. Restava quindi una domanda che nessun test headless copriva — *«UE scrive davvero GUID e
- * versione nel file?»* — ed era stata registrata come verifica manuale (`PIE-FMT1`).
+ * versione nel file?»* — ed era stata registrata come verifica manuale (`PIE-FMTVER`).
  *
  * ⚠️ **La verifica manuale aveva un difetto che questo test non ha: consumava il proprio soggetto.** Chiedeva
  * di risalvare `DA_HexMap_Arena` dall'editor, cioè di distruggere l'unico binario **pre-meccanismo** del
