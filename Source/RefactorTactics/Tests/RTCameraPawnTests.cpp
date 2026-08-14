@@ -47,12 +47,14 @@ namespace
 	 * Mappa piatta minima. Il raggio 2 non e' decorativo: `RecenterView` centra su `GetCenterCell()`, quindi
 	 * senza celle il confronto con l'inquadratura di squadra perderebbe il proprio riferimento.
 	 *
-	 * `Center` esiste perche' una mappa centrata sull'origine rende **degeneri** i confronti di posizione:
-	 * «dove `RecenterView` mette la camera» e «l'origine del mondo» diventano lo stesso punto, e
-	 * un'assertion che li distingue passa per coincidenza. Chi ha bisogno di distinguerli passa un centro
-	 * spostato.
+	 * ⚠️ **Il default NON e' l'origine, ed e' deliberato.** Una mappa centrata in `(0,0)` rende degeneri i
+	 * confronti di posizione: «dove `RecenterView` mette la camera» e «l'origine del mondo» diventano lo
+	 * stesso punto, e un'assertion che li distingue passa per coincidenza. La prima stesura lasciava
+	 * `(0,0,0)` come default e affidava a questo commento il compito di avvisare — cioe' teneva la trappola
+	 * armata per ogni chiamante futuro che il commento non lo avesse letto. Ora il caso pericoloso si
+	 * ottiene solo chiedendolo.
 	 */
-	ARTHexMapActor* SpawnCameraTestMap(UWorld* World, const FRTCellId& Center = FRTCellId(0, 0, 0))
+	ARTHexMapActor* SpawnCameraTestMap(UWorld* World, const FRTCellId& Center = FRTCellId(4, 1, 0))
 	{
 		if (!World) { return nullptr; }
 
@@ -458,15 +460,29 @@ bool FRTCameraBeginPlayRetriesTest::RunTest(const FString&)
 	Cam->DispatchBeginPlay();
 	const FVector AfterBeginPlay = Cam->GetActorLocation();
 
-	// Le unita' arrivano DOPO, che e' l'intero caso d'uso.
-	SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(7, 2));
-	SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(8, 2));
+	// Le unita' arrivano DOPO, che e' l'intero caso d'uso. Verificate: se lo spawn fallisse, il
+	// ritentativo non troverebbe nessuno, ripiegherebbe, e il test proverebbe l'altro ramo credendo di
+	// provare questo.
+	if (!TestNotNull(TEXT("prima unita' in ritardo"), SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(7, 2)))
+		|| !TestNotNull(TEXT("seconda unita' in ritardo"), SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(8, 2))))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
 
 	// Un tick di timer: e' qui che il ritentativo deve scattare.
 	World->GetTimerManager().Tick(0.05f);
 
-	TestNotEqual(TEXT("al tick successivo la camera ha trovato la squadra"),
-		Cam->GetActorLocation(), AfterBeginPlay);
+	const FVector AfterRetry = Cam->GetActorLocation();
+	TestNotEqual(TEXT("al tick successivo la camera si e' mossa"), AfterRetry, AfterBeginPlay);
+
+	// ⚠️ «Si e' mossa» NON basta, ed e' il difetto che questa riga chiude: anche il **ripiego** su
+	// `RecenterView` sposta la camera, sul centro mappa. Le due destinazioni vanno distinte, altrimenti
+	// il test resta verde anche se il secondo `FrameOwnTeam` non trova nessuno.
+	// `RecenterView` ci porta dove sarebbe finita ripiegando: se ci fosse gia', non si muoverebbe.
+	Cam->RecenterView();
+	TestNotEqual(TEXT("e non era il ripiego: la squadra non sta sul centro mappa"),
+		Cam->GetActorLocation(), AfterRetry);
 
 	DestroyCameraWorld(World);
 	return true;
@@ -506,7 +522,10 @@ bool FRTCameraBeginPlayFallsBackTest::RunTest(const FString&)
 	TestNotEqual(TEXT("ha ripiegato, non e' rimasta dov'era"), Fallback, FVector::ZeroVector);
 
 	// E il punto e' proprio quello di `Home`: se il ripiego chiamasse altro, le due posizioni divergono.
-	Cam->SetActorLocation(FVector(-9999.f, -9999.f, Fallback.Z));
+	// ⚠️ La Z di partenza e' **diversa** da quella del ripiego, di proposito: riusare `Fallback.Z`
+	// renderebbe il confronto cieco proprio sull'asse che distingue `RecenterView` — che scrive il
+	// vettore intero — da `FocusOn`, che conserva la quota corrente.
+	Cam->SetActorLocation(FVector(-9999.f, -9999.f, 4321.f));
 	Cam->RecenterView();
 	TestEqual(TEXT("ed e' esattamente dove porta Home"), Cam->GetActorLocation(), Fallback);
 

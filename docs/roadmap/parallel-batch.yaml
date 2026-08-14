@@ -432,7 +432,7 @@ preexisting:
     measured: 15
     collides_with:
       - branch: feat/874-beginplay-fallback
-        state: LOCAL
+        state: LIVE
         paths: [docs/roadmap/parallel-batch.yaml]
     note: >-
       ➕ **È il branch che la track `simulation` dichiarava sparito, ricreato mentre questo file
@@ -444,8 +444,12 @@ preexisting:
       quindi per l'enum è `LIVE` e appartiene alla sezione dei remoti, non a «esistono in un worktree e
       in nessun altro posto».
       ⚠️ **La collisione qui sopra è reale**: `docs/roadmap/parallel-batch.yaml` è anche nel write-set di
-      `#873`. È `integration_only` — nessuna delle due la tiene per diritto — quindi si riconcilia in
+      `#874`. È `integration_only` — nessuna delle due la tiene per diritto — quindi si riconcilia in
       integrazione, e chi merge per secondo la riscrive sull'albero unito.
+      🔴 **Questa riga ha citato `#873` per un commit intero dopo che quel branch era stato mergiato e
+      cancellato.** Il campo `collides_with` era stato ripuntato su `#874`, la prosa no: la stessa
+      informazione in due forme, aggiornata in una sola. Trovato in code review — ed è la ragione per cui
+      un numero di issue dentro una nota vale meno del campo strutturato che gli sta sopra.
 
   # 🔵 **`feat/873-recenter-clamp` è uscita**: PR #884 mergiata alle `18:38Z` in `376013a7`, branch
   # cancellato. `MERGED` esce dalla sezione — la terza voce a farlo oggi con la stessa regola.
@@ -460,14 +464,26 @@ preexisting:
       - branch: feat/165-finestra-overwatch
         state: LIVE
         paths: [docs/roadmap/parallel-batch.yaml]
+      - branch: fix/residui-istruttoria-dod
+        state: LOCAL
+        paths: [docs/roadmap/parallel-batch.yaml]
     note: >-
       `#874`: il ripiego di `BeginPlay` — `FrameOwnTeam` → ritenta al tick → `RecenterView` — decide la
       prima inquadratura della partita e non aveva test.
       ✅ **Solo copertura**: `Camera/RTCameraPawn.cpp` resta **identico a `main`**, verificato con
       `git diff --stat origin/main --`. Il write-set è il file di test più questo.
-      ⚠️ **La collisione su `parallel-batch.yaml` è dichiarata dall'inizio**, invece di essere scoperta
-      dopo: `feat/165` lo tocca, è `integration_only`, e nessuna delle due lo tiene per diritto. È la
-      lezione della voce di `#873`, dove «zero collisioni» era falso proprio per questo file.
+      ✅ **Set disgiunto dalle track ACTIVE, rimisurato e non ereditato**:
+      `Tests/RTCameraPawnTests.cpp` non è nel `writable` di nessuna — `simulation` tiene
+      `RTReactionTests.cpp` e `RTReactionOpportunityTests.cpp`, `client_tools` `RTIntentPrivacyTests.cpp` e
+      `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`. La voce di `#873` portava questa
+      verifica e la sostituzione l'aveva persa — **per la seconda volta**, dopo quella di `#865`: una
+      verifica che vive solo dentro una voce sparisce quando la voce viene rimpiazzata.
+      🔴 **«La collisione è dichiarata dall'inizio» diceva UNA collisione, e sono DUE.**
+      `fix/residui-istruttoria-dod` — il branch del checkout principale — tocca anch'esso
+      `parallel-batch.yaml`: misurato con `git diff --name-only origin/main...`, **11 file**, non i sette
+      che il paragrafo del conto dichiarava. La voce di `#873` aveva sbagliato dimenticando *il proprio*
+      quarto file; questa ha sbagliato dimenticando *un altro branch*, e nello stesso file che esiste per
+      renderlo visibile.
       ✅ **`measured: 2` era una previsione, ed è stata confermata dalla misura** al push:
       `git diff --name-only origin/main...HEAD` restituisce esattamente i due file previsti. È la prima
       volta in questo batch che un numero dichiarato regge alla verifica — e `LOCAL → LIVE` è stato
@@ -509,16 +525,22 @@ preexisting:
   # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**:
   #
   #   D:/wt-451           `feat/451-u1-voci-hex-mode`       LOCAL, 0 file
-  #   D:/rt-telecamera    `feat/874-beginplay-fallback`     LOCAL, non ancora pushato
+  #   D:/rt-telecamera    `feat/874-beginplay-fallback`     LIVE, 2 file · PR #889 — fra i remoti
   #   D:/rt-client        `docs/38-spec-panel-playtest-hex` LIVE  — fra i branch remoti
   #   D:/rt-simulation    `feat/165-finestra-overwatch`     LIVE, 15 file — fra i branch remoti
   #   D:/rt-spatial       detached su `8ea9c229`            0 file, nessun vincolo, nessuna voce
-  #   working directory   `fix/residui-istruttoria-dod`     **non pushato, NON REGISTRATO**
+  #   working directory   `fix/residui-istruttoria-dod`     **11 file, non pushato, NON REGISTRATO**
+  #
+  # 🔴 **I conteggi erano stati CANCELLATI invece che rimisurati**, e il paragrafo qui sotto continuava a
+  # dire «sette file» quando erano **11**. Togliere il numero da una riga non la rende meno falsa: la
+  # rende non falsificabile, che è peggio — ed è l'opposto di ciò che questa tabella esiste per fare.
   #
   # 🔴 **L'ultima riga è un buco aperto, e va detta invece che chiusa in fretta.** Il checkout principale
-  # non è più su `main`: ha un branch con sette file e nessuna voce qui. Misurato che **non collide** con
-  # `#873` (né `Camera/` né `parallel-batch.yaml`), quindi non blocca questo lavoro — ma chi lo possiede
-  # deve registrarlo, e non posso farlo io senza attribuirgli un write-set che non ho concordato.
+  # non è più su `main`: ha un branch con **11** file e nessuna voce qui.
+  # 🔴 **E «non collide» era falso**: `docs/roadmap/parallel-batch.yaml` è nel suo write-set e nel mio.
+  # L'affermazione era stata scritta guardando `Camera/`, cioè misurando il lato che mi interessava e
+  # deducendo l'altro. Chi lo possiede deve registrarlo — non posso farlo io senza attribuirgli un
+  # write-set che non ho concordato — ma la collisione è ora dichiarata nella voce di `#874`.
   # 🔴 **Era cinque un'ora fa, quattro stamattina, e questa riga è invecchiata mentre la si scriveva per
   # la terza volta**: `D:/rt-client` è comparso mentre `#873` apriva il branch, e il tree principale ha
   # cambiato branch mentre la si correggeva. Il conto si rifà col comando, mai incrementando il numero
@@ -535,7 +557,8 @@ preexisting:
   # ➕ **`D:/rt-telecamera` è lo stesso path e tre sessioni diverse**, ed è la ragione per cui l'elenco
   # qui sopra nomina il **branch** e non la cartella: rimosso alla chiusura di #867 con il suo branch
   # cancellato, ricreato per `#865`, e ora su `feat/873-recenter-clamp`. Il nome della cartella non
-  # dice quale lavoro ci sia dentro — solo `git worktree list` lo dice.
+  # dice quale lavoro ci sia dentro — solo `git worktree list` lo dice, e oggi risponde
+  # `feat/874-beginplay-fallback`.
   # 🔴 **Questa riga citava «il quinto … (`feat/865-camera-focus-tests`)» dopo che il commit precedente
   # aveva tolto quella voce**: un riferimento pendente a una voce cancellata, per giunta con l'ordinale
   # sbagliato rispetto al conteggio otto righe sopra. Il file avverte di questo esatto rischio quattro
