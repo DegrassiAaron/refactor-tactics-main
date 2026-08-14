@@ -132,8 +132,25 @@ Verificata anche nel visivo. Si rilegge in U6.
   ```
   Waypoint (4,0,L0)  rifiutato: cella occupata da un'altra unita' (RTUnit_0)        ← 5 occorrenze
   ```
-- Resta: **un solo gesto** — cliccare una cella **fuori dalla mappa**. `rifiutato: cella fuori dalla mappa`
-  ha ancora **0** occorrenze su entrambi i log. Poi la voce chiude.
+  ✅ **Terza run (23:35): il quarto rifiuto non arriva, e non arriverà mai.** `rifiutato: cella fuori dalla
+  mappa` resta a **0** su tutti e tre i log, ed è stato provato. Non è un gesto mancato: **non è
+  riproducibile in partita**.
+  - `OnSelect` esce **in silenzio** quando il raggio non colpisce nulla — `if (!GetHitResultUnderCursor(...)
+    || !Hit.GetActor()) { return; }` — senza log e senza toccare il piano;
+  - la sola geometria cliccabile della mappa è `Cells`, un `UInstancedStaticMeshComponent` con
+    `QueryOnly` + `Block` che ha **un'istanza per cella esistente**. `Relief`, `Blockers` ed `EdgeFeatures`
+    sono `NoCollision`. Quindi **ogni hit sulla mappa produce una cella valida**, e una cella fuori mappa non
+    è generabile col mouse.
+  - Il test headless che il registro cita per questo caso —
+    `RefactorTactics.PlayerInput.WaypointClicksBuildAndRejectPlans`, verificato esistere in
+    `RTPlayerInteractionTests.cpp:67` — lo copre chiamando `HandleClickOnCell(FRTCellId(99,99,0))`
+    **direttamente**, cioè bypassando il raycast. È l'unico modo di raggiungere quel ramo.
+- Esito finale: ✅ **per quanto è osservabile**. Tre rifiuti su quattro visti in partita col motivo giusto,
+  budget cumulativo, undo, piano intatto. Il quarto è **coperto solo headless**, per la stessa ragione
+  strutturale del cono in `-6b`.
+- ⚠️ **Da riportare nella voce del registro**, che oggi elenca «fuori mappa» fra i rifiuti attesi senza
+  dichiararne l'irriproducibilità: un esito atteso non raggiungibile impedisce alla voce di chiudersi per
+  sempre — è già successo a `-5` (scambio A↔B) e a `-6c` (`Guardian.Sweep`).
   Vedi anche `OSS-1` (#877), che nasce da questa stessa osservazione ma **non** appartiene a questa voce.
 
 **`PIE-HEXPLAY-3b`** — il rifiuto dice il motivo giusto · *partenza* 🟡
@@ -224,9 +241,14 @@ letale, hazard — invece di un totale opaco.
 **`PIE-HEXPLAY-8`** — movimento via arco · *partenza* 🟡
 **Manca il playback**: l'unità **sale di quota** (`LayerHeight`) attraversando la transizione, invece di
 scivolare sul piano. ⚠️ «Rimuovi l'arco» **non si fa qui**: la transizione è generata da codice.
-- Esito:
-- Evidenza:
-- Resta:
+- Esito: ⏳ **nessuna osservazione dopo tre run.** Nessuna unità è mai salita: celle `L1` nei piani = **0**
+  nella terza run, e nella seconda l'unico waypoint su `L1` era stato **rifiutato per budget**
+  (`(3,-1,L1) … gia' spesi 0 di 5`).
+- Evidenza: —
+- Resta: tutto. ⚠️ **Serve una condizione di partenza diversa**: con 5 MP e la transizione lontana, la
+  piattaforma non è raggiungibile in un turno. O si muove l'unità per due turni verso la transizione, o si
+  usa un eroe con più MP (**Wraith**, 6 MP), o si accetta che questa voce richieda una mappa d'autore con la
+  rampa più vicina — che è U1/U13, non questa seduta.
 
 **`PIE-HEXPLAY-4b`** — scatto su hex · *partenza* ⏳
 La fase Dash esiste e **precede** il Blast (già osservato). **Manca il visivo**: l'unità scivola lungo la
