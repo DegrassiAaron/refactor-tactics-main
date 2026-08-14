@@ -241,14 +241,25 @@ letale, hazard — invece di un totale opaco.
 **`PIE-HEXPLAY-8`** — movimento via arco · *partenza* 🟡
 **Manca il playback**: l'unità **sale di quota** (`LayerHeight`) attraversando la transizione, invece di
 scivolare sul piano. ⚠️ «Rimuovi l'arco» **non si fa qui**: la transizione è generata da codice.
-- Esito: ⏳ **nessuna osservazione dopo tre run.** Nessuna unità è mai salita: celle `L1` nei piani = **0**
-  nella terza run, e nella seconda l'unico waypoint su `L1` era stato **rifiutato per budget**
-  (`(3,-1,L1) … gia' spesi 0 di 5`).
-- Evidenza: —
-- Resta: tutto. ⚠️ **Serve una condizione di partenza diversa**: con 5 MP e la transizione lontana, la
-  piattaforma non è raggiungibile in un turno. O si muove l'unità per due turni verso la transizione, o si
-  usa un eroe con più MP (**Wraith**, 6 MP), o si accetta che questa voce richieda una mappa d'autore con la
-  rampa più vicina — che è U1/U13, non questa seduta.
+- Esito: ✅ **la metà PIE è verificata — 2026-08-14, quarta run.** Confermato a schermo dall'utente:
+  l'unità **sale di quota lungo il percorso**, attraversando la transizione, invece di scivolare sul piano e
+  saltare in alto all'arrivo. È esattamente ciò che la voce chiede al playback e che i test headless non
+  possono mostrare.
+- Evidenza: **il log non ha il canale per dimostrarlo, e va detto**: le righe di movimento **riuscito** non
+  riportano le coordinate — nel file compaiono con la quota solo i fallimenti (`fermo: cella contesa
+  (q=..,L=0)`), le reazioni e l'utility del bot. Gli unici `L1` presenti sono i due tentativi **rifiutati
+  per budget** del turno di avvicinamento:
+  ```
+  Waypoint (2,-1,L1) rifiutato: oltre il budget (gia' spesi 2 di 5) per RTUnit_0
+  Waypoint (2,0,L1)  rifiutato: oltre il budget (gia' spesi 3 di 5) per RTUnit_0
+  ```
+  Il verdetto di questa voce è **visivo per costruzione**: appartiene a chi guarda, non al file.
+  ⚠️ Sono serviti **due turni**: con 5 MP la piattaforma non è raggiungibile in uno solo dalla posizione di
+  partenza. Non è un difetto — è aritmetica, e va scritto perché la prossima seduta non lo riscopra.
+- Resta: **il crollo del ponte**, che è la seconda metà della voce e **non è osservabile in questa seduta** —
+  su `GeneratedTestArena` la transizione è generata da `MakeTestArena` e non c'è un arco da rimuovere (§0
+  della sequenza). Vive su un asset mappa vero, cioè **U1/U13**, ed è coperta headless da
+  `Structures.Bridge.RemovalBreaksPath` e `…NoTeleportOnRemoval`.
 
 **`PIE-HEXPLAY-4b`** — scatto su hex · *partenza* ⏳
 La fase Dash esiste e **precede** il Blast (già osservato). **Manca il visivo**: l'unità scivola lungo la
