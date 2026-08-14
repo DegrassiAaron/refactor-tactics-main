@@ -12,6 +12,11 @@
 #include "Serialization/CustomVersion.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
+#include "UObject/Package.h"
+#include "UObject/SavePackage.h"
+#include "Misc/PackageName.h"
+#include "Misc/FileHelper.h"
+#include "HAL/FileManager.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -844,6 +849,92 @@ bool FRTHexMapFormatVersionTravelsTest::RunTest(const FString&)
 		TestEqual(TEXT("B: nessuna cella ha guadagnato un sovrapprezzo migrando"), WithSurcharge, 0);
 	}
 
+	return true;
+}
+
+
+/**
+ * **La versione finisce nei byte di un `.uasset` scritto su disco** — l'ultimo pezzo di #687.
+ *
+ * ## Perché serviva ancora un test
+ *
+ * `FormatVersionTravelsInSerializedBytes` prova il meccanismo su un archivio **in memoria**, dove le custom
+ * version le mette e le toglie il test stesso. In un package vero non è così: le scrive il *summary*, e chi
+ * lo popola è UE. Restava quindi una domanda che nessun test headless copriva — *«UE scrive davvero GUID e
+ * versione nel file?»* — ed era stata registrata come verifica manuale (`PIE-FMT1`).
+ *
+ * ⚠️ **La verifica manuale aveva un difetto che questo test non ha: consumava il proprio soggetto.** Chiedeva
+ * di risalvare `DA_HexMap_Arena` dall'editor, cioè di distruggere l'unico binario **pre-meccanismo** del
+ * repository — quello che `FMT-2` ha scelto come rivelatore e su cui poggia
+ * `SerializedAssetMigratesWithoutGainingData`. Qui il package se lo crea e se lo cancella.
+ *
+ * ## Il metodo è quello che ha diagnosticato il difetto
+ *
+ * #687 non è stata trovata leggendo il codice ma **guardando i byte** dell'asset committato
+ * (*«FormatVersion presente nei byte: False»*). Questo test fa la stessa domanda al contrario, e su un file
+ * che scrive lui: i 16 byte del GUID devono comparire nel `.uasset`. Se `Serialize` smette di dichiarare la
+ * versione, il GUID non c'è e la riga diventa rossa — senza dipendere da come UE impagina il summary.
+ *
+ * ✅ **Misurato per mutazione, e il costo si vede**: rimuovendo `UsingCustomVersion` da `Serialize` il
+ * package passa da **2786 a 2766 byte** — venti in meno, cioè i 16 del GUID più i 4 della versione — e il
+ * GUID risulta `ASSENTE`. La versione occupa spazio reale nel file: è il modo più concreto di dire che
+ * *viaggia*, e prima di #687 quei venti byte non c'erano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapPackageOnDiskTest,
+	"RefactorTactics.HexMap.CustomVersionIsWrittenIntoThePackageFile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapPackageOnDiskTest::RunTest(const FString&)
+{
+	// `/Temp/` è un mount point sempre presente e fuori da `Content/`: il file non entra in git, non finisce
+	// nell'asset registry e non può essere scambiato per contenuto di gioco.
+	const FString PackageName = TEXT("/Temp/RT_FmtOnDiskProbe");
+	const FString FileName = FPackageName::LongPackageNameToFilename(
+		PackageName, FPackageName::GetAssetPackageExtension());
+
+	UPackage* Package = CreatePackage(*PackageName);
+	if (!TestNotNull(TEXT("package di prova creato"), Package)) { return false; }
+
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(
+		Package, TEXT("DA_FmtOnDiskProbe"), RF_Public | RF_Standalone);
+	Asset->AddOrUpdateCell(Cell(0, 0));
+	Asset->AddOrUpdateCell(Cell(1, 0));
+	Asset->SortCells();
+	Package->MarkPackageDirty();
+
+	FSavePackageArgs SaveArgs;
+	SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+	SaveArgs.SaveFlags = SAVE_NoError;
+	SaveArgs.bSlowTask = false;
+	const bool bSaved = UPackage::SavePackage(Package, Asset, *FileName, SaveArgs);
+	if (!TestTrue(TEXT("il package è stato scritto su disco"), bSaved)) { return false; }
+
+	TArray<uint8> Bytes;
+	const bool bRead = FFileHelper::LoadFileToArray(Bytes, *FileName);
+	TestTrue(TEXT("il file si rilegge"), bRead);
+
+	// Il GUID si costruisce dalla costante, non si trascrive: una copia a mano qui diventerebbe una seconda
+	// fonte, ed è esattamente la classe di difetto che #687 ha pagato.
+	const FGuid& Key = FRTHexMapCustomVersion::GUID;
+	const uint32 Parts[4] = { Key.A, Key.B, Key.C, Key.D };
+	TArray<uint8> Needle;
+	Needle.Append(reinterpret_cast<const uint8*>(Parts), sizeof(Parts));
+
+	bool bFound = false;
+	for (int32 I = 0; bRead && I + Needle.Num() <= Bytes.Num() && !bFound; ++I)
+	{
+		bFound = (FMemory::Memcmp(Bytes.GetData() + I, Needle.GetData(), Needle.Num()) == 0);
+	}
+
+	// ⛔ L'asserzione per cui questo test esiste. Rossa se `Serialize` smette di chiamare
+	// `UsingCustomVersion`: il package tornerebbe a non dichiarare nulla, e ogni asset scritto da lì in poi
+	// nascerebbe indistinguibile da uno legacy.
+	TestTrue(TEXT("il .uasset su disco porta il GUID della versione di formato nel proprio summary"), bFound);
+	AddInfo(FString::Printf(TEXT("package di %d byte, GUID %s %s"),
+		Bytes.Num(), *Key.ToString(), bFound ? TEXT("presente") : TEXT("ASSENTE")));
+
+	// Il file di prova non deve sopravvivere al test: `Saved/` è già pieno di artefatti che nessuno rilegge.
+	Package->ClearFlags(RF_Standalone);
+	IFileManager::Get().Delete(*FileName, /*RequireExists=*/ false, /*EvenReadOnly=*/ true);
 	return true;
 }
 
