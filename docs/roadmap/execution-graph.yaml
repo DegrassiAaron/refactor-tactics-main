@@ -153,9 +153,11 @@ nodes:
     domain_group: actions_reactions
     checkpoint: E14.7
 
+  # ⚠️ `core_simulation`, non `actions_reactions`: il checkpoint `E14.8` dice reazioni, ma il
+  # gruppo mappa l'`area` della feature e `RT-FEAT-CORE-DECISION-TIME-BANK` ha `area: Core`.
   - id: issue:319
     release: v0.1
-    domain_group: actions_reactions
+    domain_group: core_simulation
     checkpoint: E14.8
 
   - id: issue:512
@@ -191,9 +193,12 @@ nodes:
     checkpoint: E15.5
     execution_lane: pie
 
+  # `map_environment`: le due sole feature che dichiarano la issue — `RT-FEAT-ENV-FIRE` e
+  # `RT-FEAT-ENV-STATUS` — sono `area: Environment`. Il TurnLog che la issue nomina e' il
+  # consumatore del difetto, non il suo dominio.
   - id: issue:625
     release: v0.1
-    domain_group: tooling_data_qa
+    domain_group: map_environment
 
   - id: issue:649
     release: v0.1
