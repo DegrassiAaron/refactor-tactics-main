@@ -417,6 +417,66 @@ bool FRTCameraFrameTeamZoomTest::RunTest(const FString&)
 }
 
 /**
+ * `Home` non porta il braccio dove lo zoom non lo lascerebbe mai stare.
+ *
+ * `RecenterView` era l'unico dei quattro scrittori di `TargetArmLength` a non clampare. Il difetto **non
+ * e' riproducibile con i valori di default** — `DefaultArmLength = 800` sta gia' dentro `[100, 4000]`, e
+ * il clamp non cambierebbe niente — quindi il test deve costruire la combinazione che lo espone: un
+ * default **oltre** il massimo, che dall'editor si ottiene con due campi e nessuna riga di codice.
+ *
+ * La conseguenza in partita non e' un numero fuori posto: e' che la prima tacca di rotellina dopo `Home`
+ * riporta dentro di scatto, spostando l'inquadratura di colpo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraRecenterClampsArmTest,
+	"RefactorTactics.Camera.RecenterKeepsArmWithinZoomLimits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraRecenterClampsArmTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	// Il default sfora il massimo: e' la sola configurazione in cui il clamp mancante si vede.
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 5000.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+
+	Cam->RecenterView();
+	TestEqual(TEXT("Home si ferma al massimo, non al default fuori scala"), Arm->TargetArmLength, 4000.f);
+
+	// La prova che conta per il giocatore: la prima tacca di zoom **dopo** `Home` deve muovere di un passo
+	// e basta. Si zooma **avvicinando** (`-1`), perche' e' la sola direzione in cui il risultato e' un
+	// valore esatto e non un altro clamp: 4000 - `ZoomStep`.
+	//
+	// 🔴 La prima stesura zoomava allontanando (`+1`) e verificava `Abs(nuovo - vecchio) <= 150`. Era una
+	// **tautologia**: dopo il clamp il braccio sta gia' al massimo, quindi `Clamp(4150, 100, 4000)` non
+	// puo' che restituire 4000 e la differenza e' sempre zero. Passava con qualunque implementazione, e
+	// il commento la chiamava «la prova che conta». Trovata in code review.
+	const float AfterHome = Arm->TargetArmLength;
+	Cam->AddZoom(-1.f);
+	const float AfterOneStep = Arm->TargetArmLength;
+	TestTrue(TEXT("la prima rotellina muove di un passo, non di un salto"),
+		AfterOneStep < AfterHome && AfterOneStep > AfterHome - 1000.f);
+	// E il passo e' quello dello zoom, non un valore qualsiasi: lo si ricava dal comportamento —
+	// due tacche coprono il doppio di una — invece di riscrivere la costante `ZoomStep`, che e'
+	// `protected` e che i test di questo file per convenzione non duplicano.
+	const float Step = AfterHome - AfterOneStep;
+	Cam->AddZoom(-1.f);
+	TestEqual(TEXT("il secondo passo e' uguale al primo"), AfterOneStep - Arm->TargetArmLength, Step);
+
+	// E il limite inferiore vale allo stesso modo, per non lasciare mezza guardia.
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 10.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->RecenterView();
+	TestEqual(TEXT("e non scende sotto il minimo"), Arm->TargetArmLength, 100.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
  * «La propria squadra» e' quella del CONTROLLER, non la 0.
  *
  * `FrameOwnTeam` legge `PlayerTeamId` e ripiega sulla squadra 0 solo quando un controller non c'e' — una
