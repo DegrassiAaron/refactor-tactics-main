@@ -73,8 +73,10 @@ bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDevice
 	Actor->GetHexContext(Origin, HexSize, LayerH);
 	const int32 Layer = Actor->ActiveLayer; // in editor il piano lo decide il layer attivo, non la quota del click
 
-	// Punto-mondo del click: colpo sull'ISM del TARGET se c'e', altrimenti intersezione col piano del layer attivo.
-	FVector HitPoint;
+	// Qui resta la sola parte che ha bisogno del MONDO: sparare il raggio e decidere se il colpo vale. La
+	// geometria — punto scelto, cella, centro — vive in `URTHexLibrary::ResolveRayToCellOnLayer`, dove e'
+	// pura e ha dei test: in questo modulo non ce ne sono, e non e' una dimenticanza ma una proprieta' di
+	// `Source/RefactorTacticsEditor/`.
 	const FVector RayStart = ClickPos.WorldRay.Origin;
 	const FVector RayEnd = ClickPos.WorldRay.PointAt(999999.0);
 	FHitResult Result;
@@ -88,10 +90,8 @@ bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDevice
 		&& Actor->IsPickOnSelectableCell(Result.GetComponent(), Result.Item);
 
 	// In AllLayers l'ISM contiene un'istanza per OGNI piano mostrato, e il raggio colpisce la prima che incontra
-	// — che puo' stare su un layer diverso da quello attivo. Proiettare quel punto sul piano attivo lo sposta in
-	// orizzontale di circa `LayerHeight` (la camera del viewport e' obliqua): si dipingerebbe una cella lontana
-	// alcune celle da quella sotto il cursore. Se il colpo non e' sul layer attivo si scarta e si usa il piano,
-	// che e' la geometria giusta per «dove sto puntando su QUESTO piano».
+	// — che puo' stare su un layer diverso da quello attivo. Se il colpo non e' sul layer attivo si scarta: la
+	// funzione pura ripiega sul piano, e il perche' e' scritto li'.
 	//
 	// L'indice di istanza e' gia' stato validato sopra da `IsPickOnSelectableCell` — senza, `CellForInstance`
 	// risponderebbe `(0,0,0)`, una cella valida, a un indice fuori range. Qui resta la sola domanda sul piano.
@@ -100,18 +100,8 @@ bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDevice
 		bHitTarget = false;
 	}
 
-	if (bHitTarget)
-	{
-		HitPoint = Result.ImpactPoint;
-	}
-	else
-	{
-		const double PlaneZ = Origin.Z + static_cast<double>(Layer) * static_cast<double>(LayerH);
-		const FPlane LayerPlane(FVector(0, 0, PlaneZ), FVector(0, 0, 1));
-		HitPoint = FMath::RayPlaneIntersection(ClickPos.WorldRay.Origin, ClickPos.WorldRay.Direction, LayerPlane);
-	}
-
-	OutCell = URTHexLibrary::WorldToAxial(HitPoint, Origin, HexSize, Layer);
+	OutCell = URTHexLibrary::ResolveRayToCellOnLayer(ClickPos.WorldRay.Origin, ClickPos.WorldRay.Direction,
+		Origin, HexSize, LayerH, Layer, bHitTarget, Result.ImpactPoint);
 	OutCenter = URTHexLibrary::AxialToWorld(OutCell, Origin, HexSize, LayerH);
 	return true;
 }

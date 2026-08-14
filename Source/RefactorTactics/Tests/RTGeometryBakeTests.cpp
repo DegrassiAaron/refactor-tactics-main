@@ -3,6 +3,7 @@
 #include "Map/RTGeometryGrammar.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -43,6 +44,50 @@ namespace
 		const FRTHexCellData* Cell = Map->FindCell(BakeOrigin);
 		if (Cell == nullptr) { return nullptr; }
 		return Cell->Covers.FindByPredicate([Edge](const FRTHexCover& C) { return C.Edge == Edge; });
+	}
+
+	/** L'origine piu' i suoi sei vicini: il minimo su cui «quante celle ha toccato» sia una domanda vera. */
+	URTHexMapAsset* MakeNeighbourhoodMap()
+	{
+		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+		FRTHexCellData Centre;
+		Centre.Id = BakeOrigin;
+		Map->AddOrUpdateCell(Centre);
+		for (const FRTCellId& N : URTHexLibrary::Neighbors(BakeOrigin))
+		{
+			FRTHexCellData Cell;
+			Cell.Id = N;
+			Map->AddOrUpdateCell(Cell);
+		}
+		return Map;
+	}
+
+	/**
+	 * Le coperture di ogni cella, in forma confrontabile. Non l'hash della mappa: quello dice **che**
+	 * qualcosa e' cambiato, non **dove** — e qui la domanda e' esattamente dove.
+	 */
+	TMap<FRTCellId, FString> SnapshotCovers(const URTHexMapAsset* Map)
+	{
+		TMap<FRTCellId, FString> Out;
+		for (const FRTHexCellData& Cell : Map->Cells)
+		{
+			// Ordine di bordo crescente: `Covers` e' un array, e due mappe uguali non devono differire
+			// per come le coperture ci sono finite dentro.
+			TArray<FString> Parts;
+			for (int32 EdgeIndex = 0; EdgeIndex < 6; ++EdgeIndex)
+			{
+				const ERTHexDirection Edge = static_cast<ERTHexDirection>(EdgeIndex);
+				const FRTHexCover* Cover = Cell.Covers.FindByPredicate(
+					[Edge](const FRTHexCover& C) { return C.Edge == Edge; });
+				if (Cover)
+				{
+					Parts.Add(FString::Printf(TEXT("%d:%d/%d/%d"), EdgeIndex,
+						static_cast<int32>(Cover->Type), Cover->Integrity, Cover->bGenerated ? 1 : 0));
+				}
+			}
+			Out.Add(Cell.Id, FString::Join(Parts, TEXT(",")));
+		}
+		return Out;
 	}
 }
 
@@ -299,6 +344,82 @@ bool FRTBakeDoesNotTouchVolumeTest::RunTest(const FString&)
 	TestTrue(TEXT("bBlocksLineOfSight invariato"), After && After->bBlocksLineOfSight == bLosBefore);
 	TestEqual(TEXT("il sovrapprezzo di occupancy resta di #619"),
 		After ? After->OccupancySurcharge : -1, SurchargeBefore);
+
+	return true;
+}
+
+/**
+ * L'ESTENSIONE del rebake — `#883`, la voce di DoD di `#621` rimasta scoperta.
+ *
+ * Lo scope di `#621` diceva *«rebake della sola regione investita, non dell'intera mappa»*, e nessuno dei
+ * sette test esistenti misura **quante** celle il bake tocca. `RebakeIsIdempotent` è la più vicina e non
+ * basta: l'idempotenza è vera anche per un bake che riscrivesse **tutta** la mappa, purché la riscriva
+ * sempre uguale.
+ *
+ * ⚠️ **Il caso da non sbagliare è il vicino a Est.** Quel bordo è condiviso, e la tentazione ovvia —
+ * *«scrivo la copertura su tutte e due le facce, così è coerente»* — sarebbe un difetto: `CoverBetween`
+ * legge già entrambe le facce (*«la barriera è fisica, non un attributo di chi la possiede»*), quindi la
+ * seconda scrittura non aggiunge nulla al gioco e aggiunge un elemento all'array che entra in
+ * `ComputeHash`. Due mappe che si giocano identiche avrebbero hash diversi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBakeTouchesOnlyTheInvestedRegionTest,
+	"RefactorTactics.GeometryBake.RebakeTouchesOnlyTheInvestedRegion",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBakeTouchesOnlyTheInvestedRegionTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeNeighbourhoodMap();
+	TestEqual(TEXT("la fixture ha sette celle"), Map->Cells.Num(), 7);
+
+	// Una copertura DIPINTA A MANO su un vicino: se il bake allargasse la regione, questa è la prima a
+	// cadere — ed è anche il dato che `bGenerated` esiste per proteggere.
+	const FRTCellId NorthEast = URTHexLibrary::Neighbor(BakeOrigin, ERTHexDirection::NE);
+	{
+		FRTHexCellData Cell = *Map->FindCell(NorthEast);
+		FRTHexCover Hand(ERTHexDirection::W, ERTHexCoverType::Low, 30);
+		Hand.bGenerated = false;
+		Cell.Covers.Add(Hand);
+		Map->AddOrUpdateCell(Cell);
+	}
+
+	const TMap<FRTCellId, FString> Before = SnapshotCovers(Map);
+
+	URTGeometryBakeLibrary::BakeCell(Map, BakeOrigin, { WallOnEdge(ERTHexCoverType::High) }, BakeHexSize);
+
+	const TMap<FRTCellId, FString> After = SnapshotCovers(Map);
+
+	TestEqual(TEXT("il bake non aggiunge né toglie celle"), After.Num(), Before.Num());
+
+	// Il conteggio, che è il criterio della voce di DoD: **una** cella cambiata, e si sa quale.
+	TArray<FRTCellId> Changed;
+	for (const TPair<FRTCellId, FString>& Pair : After)
+	{
+		const FString* Old = Before.Find(Pair.Key);
+		if (Old == nullptr || *Old != Pair.Value)
+		{
+			Changed.Add(Pair.Key);
+		}
+	}
+	TestEqual(TEXT("il bake ha toccato esattamente una cella"), Changed.Num(), 1);
+	if (Changed.Num() == 1)
+	{
+		TestTrue(FString::Printf(TEXT("ed è la cella investita, non %s"), *Changed[0].ToString()),
+			Changed[0] == BakeOrigin);
+	}
+
+	// Il verso opposto, esplicito: il vicino che CONDIVIDE il bordo murato non ha ricevuto niente.
+	const FRTCellId East = URTHexLibrary::Neighbor(BakeOrigin, ERTHexDirection::E);
+	const FRTHexCellData* EastCell = Map->FindCell(East);
+	TestEqual(TEXT("il vicino a Est non riceve la faccia opposta del bordo"),
+		EastCell ? EastCell->Covers.Num() : -1, 0);
+
+	// E la copertura dipinta a mano su un altro vicino è ancora lì, intatta.
+	const FRTHexCellData* NorthEastCell = Map->FindCell(NorthEast);
+	TestEqual(TEXT("la copertura a mano di un vicino sopravvive"),
+		NorthEastCell ? NorthEastCell->Covers.Num() : -1, 1);
+	if (NorthEastCell && NorthEastCell->Covers.Num() == 1)
+	{
+		TestFalse(TEXT("e non è stata riclassificata come generata"), NorthEastCell->Covers[0].bGenerated);
+	}
 
 	return true;
 }

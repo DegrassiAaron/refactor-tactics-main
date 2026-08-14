@@ -550,10 +550,13 @@ bool FRTHexBrushLineOfSightTest::RunTest(const FString&)
  * **Solo `Cells` ha collisione.** E' l'invariante da cui dipende la selezione, e ogni componente aggiunto
  * all'actor puo' romperla senza che nulla se ne accorga.
  *
- * `ResolveClickedCell` valida `Result.GetActor() == Actor` — l'ACTOR, non il componente — quindi geometria
- * collidibile su `Relief` o `Blockers` intercetterebbe il raycast del pennello. Si manifesterebbe come
- * «dipinge dove non ho cliccato», e nessuno lo attribuirebbe alla visualizzazione: e' il motivo per cui
- * questa regola va pinnata invece che ricordata.
+ * `ResolveClickedCell` valida il COMPONENTE colpito (`IsPickOnSelectableCell`), non l'actor: dal
+ * 2026-08-12 geometria collidibile su `Relief` o `Blockers` non produce piu' una cella sbagliata, viene
+ * scartata e la risoluzione ripiega sul piano del layer. Resta pero' una precisione persa in silenzio, e
+ * questo test tiene ferma la sola cosa che nessun altro guarda: **quali componenti collidono**.
+ *
+ * ⚠️ Questo test copre la collisione dei componenti, NON la risoluzione. La risoluzione e' pura e vive in
+ * `URTHexLibrary::ResolveRayToCellOnLayer`, coperta da `Hex.ResolveRayToCellOnLayer*` in `RTHexTests.cpp`.
  *
  * Verifica anche il verso opposto: `Cells` la collisione DEVE averla, o la selezione smetterebbe di
  * funzionare del tutto — e un test che controllasse solo «gli altri non collidono» resterebbe verde.

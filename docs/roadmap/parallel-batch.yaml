@@ -949,6 +949,65 @@ tracks:
     # principale — finché non è committata o scartata, la destinazione non è prenotabile e una
     # lease `create` starebbe su una base che in git non esiste.
 
+  verification:
+    status: ACTIVE
+    issue: 879              # più #880, #881, #882, #883: cinque issue, un solo write-set
+    branch: fix/residui-istruttoria-dod
+    note: >-
+      I cinque residui di DoD trovati dall'istruttoria del 2026-08-14 sulle issue chiuse: #879
+      (#588), #880 (#145), #881 (#548), #882 (#405), #883 (#621). Quattro sono test mancanti, il
+      quinto è un'estrazione più tre commenti che dicevano il falso.
+      ⚠️ **Una track sola per cinque issue, e non è pigrizia**: `parallel-batch.yaml` è
+      `integration_only`, quindi cinque track significherebbero cinque riscritture dello stesso file
+      `integration_only` in cinque branch — cioè fabbricare la contesa che questo file esiste per
+      evitare. Il write-set è unico e disgiunto; le issue restano cinque su GitHub, dove lo stato
+      vive.
+      ✅ **Intersezione con le tre track ACTIVE: vuota, misurata** file per file, non dedotta dal
+      dominio. `Turn/` e `Bot/` sono di `simulation` e questo branch non li tocca: i test nuovi
+      stanno in `Tests/`, e la sola modifica non-test è in `Map/` — che è il write-set libero
+      lasciato da `spatial` quando è passata IDLE, e che la sua nota dichiara *«disponibile al primo
+      task che lo richieda con set disgiunto»*.
+      🔴 **Con i branch vivi invece NON è vuota, e il file non poteva saperlo**:
+      `feat/165-finestra-overwatch` era registrato a **zero commit** e oggi ne porta 15, fra cui
+      `Tests/RTHexBotIntegrationTests.cpp` — vedi la sua voce in `preexisting` per la misura. Il
+      confronto è stato fatto contro **tutti e dieci** i branch remoti vivi
+      (`git ls-remote --heads` + `git diff --name-only origin/main...<branch>`), uno per uno: quella
+      è l'unica intersezione, e le altre nove sono vuote.
+      ⚠️ **Il test conteso non si sposta in un file nuovo**, benché sarebbe la via ovvia per azzerare
+      l'intersezione: l'allestimento del bot (`MakeHexBotWorld`, `SpawnHexBotUnit`, …) vive in un
+      namespace anonimo di quel file, e duplicarlo darebbe due allestimenti da tenere d'accordo —
+      che è il motivo per cui `RTTurnLogCauseTests.cpp` tiene insieme la famiglia delle cause invece
+      di spargerla. Fra un conflitto testuale di dieci righe e una duplicazione permanente si sceglie
+      il primo, ma **la scelta va scritta qui**, non lasciata al merge.
+      ✅ **La collisione si è materializzata ed è stata pagata come previsto.** `feat/165` è atterrato
+      per primo (PR #878, `53ec531f`), e il merge di `origin/main` in questo branch ha prodotto
+      esattamente il conflitto descritto: tre marker in `RTHexBotIntegrationTests.cpp`, due test
+      indipendenti in coda, risolti tenendoli **entrambi** — `HexBotPlay.ChargeItPlannedActuallyLands`
+      fuori dalle guardie come tutti i test preesistenti del file, `Bot.DecidesWithoutFutureKnowledge`
+      dentro il proprio `#if WITH_DEV_AUTOMATION_TESTS`, che è la forma in cui è arrivato. Nessuna
+      riga persa da nessuna delle due parti, verificato contando i test prima e dopo. **La previsione
+      scritta prima del conflitto è ciò che ha reso la risoluzione meccanica**: chi l'ha trovata
+      sapeva già cosa aspettarsi e perché.
+    writable:
+      - Source/RefactorTactics/Map/RTHexLibrary.h
+      - Source/RefactorTactics/Map/RTHexLibrary.cpp
+      - Source/RefactorTactics/Map/RTHexMapActor.h
+      - Source/RefactorTactics/Tests/RTHexTests.cpp
+      - Source/RefactorTactics/Tests/RTHexMapTests.cpp
+      - Source/RefactorTactics/Tests/RTGeometryBakeTests.cpp
+      - Source/RefactorTactics/Tests/RTTurnLogCauseTests.cpp
+      - Source/RefactorTactics/Tests/RTEnvironmentActionTests.cpp
+      - Source/RefactorTactics/Tests/RTHexBotIntegrationTests.cpp
+      - Source/RefactorTacticsEditor/Private/RTHexEditorClick.cpp
+    # Misurato con lo stesso metodo del resto del file. Vale la condizione dei test già scritta per
+    # `simulation`: **aggiungere** un test non muove nessuna vista, rinominarne o cancellarne uno
+    # citato in `tests:` sì. Qui i test sono tutti **nuovi**, e nessuno dei nomi esistenti cambia:
+    # `generate --check` e `shortlist --check` restano verdi. Non è una deduzione dalle costanti —
+    # è la stessa misura che la nota di `simulation` riporta, applicata a un write-set che aggiunge
+    # soltanto.
+    derives_from: []
+    binary_leases: []
+
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test
