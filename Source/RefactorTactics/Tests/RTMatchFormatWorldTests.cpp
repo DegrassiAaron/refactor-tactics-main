@@ -59,7 +59,6 @@ namespace
 	{
 		URTMatchFormatData* Format = NewObject<URTMatchFormatData>();
 		Format->FormatId = FName(Id);
-		Format->FormatVersion = 1;
 		Format->RoundLimit = RoundLimit;
 		Format->ExpectedRounds = RoundLimit;
 		Format->ScoreToWin = 0;

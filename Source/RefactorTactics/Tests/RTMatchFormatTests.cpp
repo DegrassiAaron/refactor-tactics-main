@@ -14,7 +14,6 @@ namespace
 	{
 		URTMatchFormatData* Format = NewObject<URTMatchFormatData>();
 		Format->FormatId = FName(TEXT("Format.Test2v2"));
-		Format->FormatVersion = 1;
 		Format->RoundLimit = 12;
 		Format->ExpectedRounds = 10;
 		Format->ScoreToWin = 0;
@@ -56,12 +55,6 @@ bool FRTMatchFormatValidatorTest::RunTest(const FString&)
 		URTMatchFormatData* Format = MakeValidFormat();
 		Format->FormatId = NAME_None;
 		TestEqual(TEXT("FormatId assente"),
-			URTMatchFormatLibrary::ValidateFormat(Format).Num(), 1);
-	}
-	{
-		URTMatchFormatData* Format = MakeValidFormat();
-		Format->FormatVersion = 0;
-		TestEqual(TEXT("FormatVersion non dichiarata"),
 			URTMatchFormatLibrary::ValidateFormat(Format).Num(), 1);
 	}
 	{
