@@ -314,6 +314,29 @@ riferito che non esiste. Non la correggo — non è di questa seduta — ma la s
 **Nessuna issue aperta**: non c'è niente da riparare. Se si volesse *cambiare* il design — camera che segue
 la selezione — sarebbe una decisione, non un fix, e andrebbe posta come tale.
 
+### `OSS-3` — `F` porta la vista fuori dalla mappa → **#887**
+
+**Osservato il 2026-08-14**, dopo `OSS-2`: premuto `F` come previsto, *«salta via, fuori dalla mappa»*. E il
+secondo sintomo riferito — *«forse la selezionavo, non si capiva»* — **non era un difetto di selezione**: era
+la conseguenza di aver perso l'inquadratura. Un difetto solo, che ne produceva due apparenti.
+
+**Causa, per lettura del codice**: `RecenterView` (Home) calcola la quota — `AxialToWorld` dà
+`Z = Origin.Z + Layer * LayerHeight` — mentre `FocusOn` (F, e `FrameOwnTeam`) **conserva la `Z` corrente del
+pawn**. Quella `Z` nasce al **PlayerStart** (`DefaultPawnClass = ARTCameraPawn`) e nessuno la corregge mai:
+`FrameOwnTeam` passa da `FocusOn`, che scarta la quota del centroide; il pan produce delta con `Z = 0`; zoom e
+yaw non la toccano. **`Home` è l'unico che la stabilisce**, ed è per questo che il difetto si vede su `F`.
+
+⚠️ **Il test che #865 prescriveva avrebbe cementato il difetto**: chiedeva di verificare che `FocusOn`
+*conserva* la quota — un test che passa anche quando la quota conservata è sbagliata. La domanda giusta non è
+«resta invariata?» ma «invariata **rispetto a cosa**?».
+
+⚠️ **Per riprodurre non premere `Home` prima**: da lì in avanti la quota è corretta e `F` si comporta bene
+fino al ricaricamento del livello. È anche il motivo per cui il difetto è sopravvissuto a diverse sedute.
+
+**Limite dichiarato**: diagnosi per lettura, non misurando la `Z` a runtime — il log non la stampa e il
+PlayerStart vive in un `.umap`. La struttura del difetto non dipende dal valore preciso; il test della DoD
+di #887 la falsifica in un verso o nell'altro.
+
 ---
 
 ## 2. La rilettura finale (`U6.done_when`)
