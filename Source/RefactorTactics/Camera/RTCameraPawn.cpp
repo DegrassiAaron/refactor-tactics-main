@@ -187,7 +187,11 @@ void ARTCameraPawn::RecenterView()
 	CameraYaw = 0.f;
 	if (SpringArm)
 	{
-		SpringArm->TargetArmLength = DefaultArmLength;
+		// Clampata come ovunque si scriva questa distanza. Era l'unico dei quattro punti a non farlo, e
+		// bastava un `DefaultArmLength` fuori intervallo — tarabile dall'editor — perche' `Home` portasse
+		// il braccio dove lo zoom non lo lascerebbe mai stare: la prima rotellina lo riportava dentro di
+		// scatto, che e' esattamente il difetto che `ApplyViewSettings` dichiara di voler evitare.
+		SpringArm->TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, MaxArmLength);
 		SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
 	}
 }

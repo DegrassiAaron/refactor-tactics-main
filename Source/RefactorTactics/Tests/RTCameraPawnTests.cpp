@@ -417,6 +417,54 @@ bool FRTCameraFrameTeamZoomTest::RunTest(const FString&)
 }
 
 /**
+ * `Home` non porta il braccio dove lo zoom non lo lascerebbe mai stare.
+ *
+ * `RecenterView` era l'unico dei quattro scrittori di `TargetArmLength` a non clampare. Il difetto **non
+ * e' riproducibile con i valori di default** — `DefaultArmLength = 800` sta gia' dentro `[100, 4000]`, e
+ * il clamp non cambierebbe niente — quindi il test deve costruire la combinazione che lo espone: un
+ * default **oltre** il massimo, che dall'editor si ottiene con due campi e nessuna riga di codice.
+ *
+ * La conseguenza in partita non e' un numero fuori posto: e' che la prima tacca di rotellina dopo `Home`
+ * riporta dentro di scatto, spostando l'inquadratura di colpo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraRecenterClampsArmTest,
+	"RefactorTactics.Camera.RecenterKeepsArmWithinZoomLimits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraRecenterClampsArmTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	// Il default sfora il massimo: e' la sola configurazione in cui il clamp mancante si vede.
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 5000.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+
+	Cam->RecenterView();
+	TestEqual(TEXT("Home si ferma al massimo, non al default fuori scala"), Arm->TargetArmLength, 4000.f);
+
+	// La prova che conta per il giocatore: la prima tacca di zoom **dopo** `Home` non deve riportare
+	// dentro di scatto. Se `RecenterView` avesse lasciato 5000, questo passo scenderebbe a 4000 — un
+	// salto di mille unita' che nessun input ha chiesto.
+	const float AfterHome = Arm->TargetArmLength;
+	Cam->AddZoom(+1.f);
+	TestTrue(TEXT("la prima rotellina non fa saltare l'inquadratura"),
+		FMath::Abs(Arm->TargetArmLength - AfterHome) <= 150.f); // 150 = ZoomStep, un passo pieno
+
+	// E il limite inferiore vale allo stesso modo, per non lasciare mezza guardia.
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 10.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->RecenterView();
+	TestEqual(TEXT("e non scende sotto il minimo"), Arm->TargetArmLength, 100.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
  * «La propria squadra» e' quella del CONTROLLER, non la 0.
  *
  * `FrameOwnTeam` legge `PlayerTeamId` e ripiega sulla squadra 0 solo quando un controller non c'e' — una

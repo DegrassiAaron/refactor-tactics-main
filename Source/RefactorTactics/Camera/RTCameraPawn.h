@@ -64,6 +64,23 @@ public:
 	 */
 	bool FrameOwnTeam();
 
+	/**
+	 * Imposta i tre limiti di distanza in un colpo solo (per i test).
+	 *
+	 * Servono insieme perche' insieme definiscono uno **stato di partenza**: il difetto che questo setter
+	 * esiste per rendere verificabile — `Home` che porta il braccio fuori intervallo — si manifesta solo
+	 * con un default fuori da `[Min, Max]`, cioe' con una combinazione, non con un valore.
+	 *
+	 * Il nome dichiara che si sta scavalcando la taratura dell'editor: in partita questi valori vengono
+	 * dal Details, e restano `protected` perche' sono configurazione del designer, non API.
+	 */
+	void SetArmLengthRangeForTest(float InDefault, float InMin, float InMax)
+	{
+		DefaultArmLength = InDefault;
+		MinArmLength = InMin;
+		MaxArmLength = InMax;
+	}
+
 protected:
 	virtual void BeginPlay() override;
 
