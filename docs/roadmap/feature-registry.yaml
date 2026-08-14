@@ -3458,7 +3458,9 @@ features:
       data: na
       runtime: done
       log_debug: na
-      automation: todo
+      # `todo` → `partial` il 2026-08-14: i quattro test esistevano già e nessuno li aveva dichiarati.
+      # Non `done` — coprono yaw, zoom e pan relativo, non `FocusOn`, `FrameOwnTeam` né i bounds.
+      automation: partial
       scenario: todo
       ui_wiki: partial
       packaged: partial
@@ -3470,18 +3472,44 @@ features:
     dependencies: []
     owner_specs:
       - docs/technical/progettazione-hud.md
-    issues: [77]
-    tests: []
+    # ⚠️ `77` è il checkpoint CP 11.1, e il suo DoD riguarda l'**HUD**: non contiene nulla di camera.
+    # Resta perché `checkpoints: ["11.1"]` lo implica, ma è il legame nominale che il commento sui
+    # `pie_refs` in testa a questo file descrive — stessa issue dichiarata da più feature. Le tre
+    # aperte il 2026-08-14 sono invece specifiche della camera.
+    issues: [77, 863, 864, 865]
+    tests:
+      # Quattro test in `Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`:
+      # YawTurnsInStepsAndStaysNormalized · RotatingDoesNotResetZoom · PanIsRelativeToTheView ·
+      # RecenterAlsoResetsRotation. Il pattern li copre tutti e non invecchia se se ne aggiunge uno.
+      # Verificato per mutazione: sostituirlo con un nome inesistente fa fallire `validate` con
+      # «test ref senza corrispondenza nella suite», quindi il gate morde davvero.
+      - RefactorTactics.Camera.*
     scenarios: []
     wiki_refs:
       - wiki:come-si-gioca
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-14
+      commit: 747f4e82
     notes: >
-      `ARTCameraPawn` esiste e la build packaged la usa, ma **nessun test automatico** la copre e
-      la taratura su scala esagonale è una verifica PIE aperta (CP 8.3 di M8). Non promuovere per
-      «si vede che funziona».
+      `ARTCameraPawn` esiste e la build packaged la usa; la taratura su scala esagonale resta una
+      verifica PIE aperta (CP 8.3 di M8). Non promuovere per «si vede che funziona».
+      🔵 **Questa nota diceva «nessun test automatico la copre», ed era VERA quando è stata
+      scritta**: il `last_verified` era `2094b867`, del 2026-08-08 alle **17:57**, e
+      `RTCameraPawnTests.cpp` è nato con `07620c42` alle **18:55** — 58 minuti dopo. Non è un
+      difetto di misura: è una nota corretta che è invecchiata nell'ora successiva, e che nessuno
+      ha rivisto perché `last_verified` non è stato avanzato. ⚠️ **La prima stesura di questa
+      correzione diceva «era falsa dal 2026-08-08» e attribuiva la colpa al gate**: sbagliato nella
+      causa, e trovato in code review confrontando i timestamp invece delle date.
+      ➕ **Resta però vero, e separatamente, che nessun gate poteva accorgersene** una volta
+      invecchiata: `validate` verifica il verso *dichiarato → esistente*, cioè che i pattern
+      matchino test reali, e una lista vuota lo soddisfa sempre. Il verso opposto, *esistente →
+      dichiarato*, non è controllato da nulla — quindi una nota stantia qui non ha nessuna rete,
+      ed è la ragione per cui è sopravvissuta sei giorni.
+      ⚠️ Il campo `spec` resta `partial`, ma **non** più perché la motivazione di `YawStep = 45°`
+      vive solo in un commento C++: `D-142` l'ha portata nel Decision Log con questo stesso commit.
+      Resta `partial` perché il *comportamento* della camera — pan relativo, focus, bounds, stati —
+      non ha un documento owner: `progettazione-hud.md` la nomina al §30 solo per negare la
+      minimap. Vedi `docs/roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md` §3.3.
 
   - feature_id: RT-FEAT-UI-PLANNING
     title: HUD di planning, selezione e preview
