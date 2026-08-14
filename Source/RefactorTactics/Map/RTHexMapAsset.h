@@ -64,14 +64,42 @@ public:
 	 * v8 (#621): provenienza della copertura (`FRTHexCover::bGenerated`). Nessun dato esistente cambia
 	 *     significato: una mappa scritta prima non ha coperture cotte, quindi ogni sua copertura e' dipinta
 	 *     a mano — che e' il default `false`, ed e' cio' che quelle coperture gia' erano.
-	 *     ⚠️ Nessuna migrazione TRASFORMATIVA: non si riclassificano coperture esistenti. Finche' #687 e'
-	 *     aperta una trasformazione non verrebbe eseguita, e il difetto sarebbe silenzioso.
+	 *
+	 * ⚠️ **Questo numero non viaggia da solo**: la sua storia e' qui, ma il valore che un asset porta nei
+	 * propri byte e' `FRTHexMapCustomVersion` (#687, D-137). Alzarlo senza aggiungere il valore
+	 * corrispondente all'enum non compila — e' voluto, vedi lo `static_assert` in `RTHexMapAsset.cpp`.
+	 *
+	 * Tutti i passi v1->v8 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
+	 * significato. Il primo passo TRASFORMATIVO e' ora eseguibile — prima di #687 non lo era, perche' la
+	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
+	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
 	static constexpr int32 CurrentFormatVersion = 8;
 
-	/** Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti. */
+	/**
+	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.
+	 *
+	 * ⚠️ **Questa property NON e' la fonte della versione, e non puo' esserlo** (#687, [D-137]): il suo
+	 * default e' mobile, quindi la serializzazione delta la salta sempre e non finisce mai nei byte. La
+	 * fonte e' `FRTHexMapCustomVersion`, che viaggia nel summary del package; `Serialize()` scrive qui
+	 * quel valore in lettura, cosi' chi legge questo campo a runtime trova comunque la verita'.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	int32 FormatVersion = CurrentFormatVersion;
+
+	/**
+	 * Versione che i BYTE dichiaravano al caricamento, prima di qualunque migrazione.
+	 *
+	 * Transient e non serializzata: e' un'osservazione sul viaggio, non un dato della mappa. Serve a
+	 * rendere la migrazione **verificabile** — senza, dopo `PostLoad` ogni asset risulta alla versione
+	 * corrente e «migrato da 0» e' indistinguibile da «creduto gia' aggiornato», che e' esattamente il
+	 * difetto che #687 ha scoperto restando invisibile per otto versioni.
+	 *
+	 * `INDEX_NONE` significa «mai caricato da un archivio»: un asset costruito con `NewObject` non passa
+	 * dalla serializzazione e non ha una versione d'origine da dichiarare.
+	 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	int32 LoadedFormatVersion = INDEX_NONE;
 
 	/**
 	 * Per quale formato questa mappa e' stata disegnata (CP 19.1).
@@ -212,6 +240,15 @@ public:
 
 	/** Migra l'asset appena caricato: un asset scritto con un formato vecchio non deve mai arrivare al gioco. */
 	virtual void PostLoad() override;
+
+	/**
+	 * Dichiara la versione di formato all'archivio e, in lettura, la RICAVA da li' invece che dalla property.
+	 *
+	 * E' il lato che mancava: senza, `FormatVersion` prende il default del CDO e ogni asset si crede gia'
+	 * aggiornato. La migrazione resta in `PostLoad` — questo metodo non migra, stabilisce **da dove si
+	 * parte**.
+	 */
+	virtual void Serialize(FArchive& Ar) override;
 
 	/**
 	 * Invalida la cache Id->indice. Va chiamata quando Cells viene modificato SENZA passare dalle API di questa

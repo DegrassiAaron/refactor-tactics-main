@@ -509,7 +509,8 @@
         "docs/technical/spec-mappa-multilivello.md"
       ],
       "issues": [
-        31
+        31,
+        687
       ],
       "tests": [
         "RefactorTactics.Hex.*",
@@ -531,7 +532,7 @@
         "date": "2026-08-08",
         "commit": "2094b86"
       },
-      "notes": "Un solo substrato: `FRTGridCoord` e `Grid/` non esistono più (CP 3.2). Il formato mappa è alla v5 con migrazione verificata sulla serializzazione reale."
+      "notes": "Un solo substrato: `FRTGridCoord` e `Grid/` non esistono più (CP 3.2). Il formato mappa è alla **v8**. ⚠️ Questa riga diceva «v5 con migrazione verificata sulla serializzazione reale» ed era falsa due volte: la versione era ferma, e la migrazione **non partiva affatto** — `FormatVersion` non finiva nei byte (delta contro il CDO), quindi ogni asset si ricaricava già «aggiornato». Chiuso il 2026-08-14 da #687 (D-137): la versione viaggia in `FRTHexMapCustomVersion`, fuori dal delta, e il gate è `RefactorTactics.HexMap.FormatVersionTravelsInSerializedBytes` — provato nei due versi e con verifica di mutazione."
     },
     {
       "feature_id": "RT-FEAT-MAP-PATHFINDING",

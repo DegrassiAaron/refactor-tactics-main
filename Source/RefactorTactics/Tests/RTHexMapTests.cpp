@@ -2,12 +2,16 @@
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexMapCustomVersion.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Serialization/CustomVersion.h"
+#include "Serialization/MemoryReader.h"
+#include "Serialization/MemoryWriter.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -661,11 +665,14 @@ bool FRTHexFixtureLoaderTest::RunTest(const FString&)
  * geometria cotta, quindi nessuna cella deve aver acquisito un sovrapprezzo di occupazione dal nulla. Se lo
  * acquisisse, la stessa mappa costerebbe di piu' solo per essere stata ricaricata.
  *
- * ⚠️ Scrivendolo e' emerso che **la migrazione e' inerte**: `FormatVersion` non e' nei byte serializzati
- * (delta contro il CDO), quindi un asset salvato alla versione allora corrente si ricarica gia' «aggiornato»
- * e `MigrateToCurrentFormat` non fa nulla. Oggi e' innocuo perche' nessuna migrazione trasforma dati; il
- * giorno in cui una dovra' farlo, non partira'. Questo test NON lo copre, e la sua prima asserzione e'
- * vacua di proposito e dichiarata tale.
+ * ✅ **Scrivendolo era emerso che la migrazione era inerte** — `FormatVersion` non finiva nei byte (delta
+ * contro il CDO), quindi ogni asset si ricaricava gia' «aggiornato». Chiuso da #687 ([D-137]): la versione
+ * viaggia ora in `FRTHexMapCustomVersion`, e la prima asserzione qui sotto ha smesso di essere vacua.
+ *
+ * Questo test e l'altro guardano due cose diverse e servono entrambi:
+ * `FormatVersionTravelsInSerializedBytes` prova il **meccanismo** su byte scritti nel test, questo lo prova
+ * sull'**artefatto reale** committato nel repository — l'unico binario che nessuno puo' aver costruito per
+ * far passare il test.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSerializedAssetMigrationTest,
 	"RefactorTactics.HexMap.SerializedAssetMigratesWithoutGainingData",
@@ -680,14 +687,25 @@ bool FRTHexSerializedAssetMigrationTest::RunTest(const FString&)
 	TestNotNull(TEXT("l'arena committata si carica"), Loaded);
 	if (!Loaded) { return false; }
 
-	// 1. La versione risulta quella corrente — ma **questa asserzione non prova la migrazione**, e dirlo e'
-	//    il punto. `FormatVersion` NON e' nei byte serializzati: la serializzazione delta di UE salta le
-	//    property uguali al default del CDO, e al salvataggio il valore (6) coincideva col default di allora.
-	//    Caricando, la property prende il default nuovo (7) e `MigrateToCurrentFormat` esce subito perche' si
-	//    crede gia' aggiornata. Verificato disabilitando `PostLoad`: l'asserzione resta verde.
-	//    Il meccanismo e' inerte proprio per gli asset che dovrebbe proteggere — vedi la issue collegata.
-	TestEqual(TEXT("la versione risulta corrente (vacuo: vedi commento)"),
+	// 1. La versione viene dai BYTE, non dal default del CDO — che e' il difetto chiuso da #687.
+	//    `LoadedFormatVersion` e' `INDEX_NONE` solo per un asset costruito in memoria: se lo fosse qui,
+	//    significherebbe che `Serialize` non ha letto la versione dall'archivio, cioe' che il meccanismo
+	//    non ha agito sull'unico artefatto reale del repository.
+	TestNotEqual(TEXT("la versione arriva dall'archivio, non dal CDO"),
+		Loaded->LoadedFormatVersion, static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("dopo PostLoad la versione e' corrente"),
 		Loaded->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
+
+	//    Oggi `DA_HexMap_Arena` e' un binario pre-meccanismo (committato l'11 agosto), quindi la migrazione
+	//    ha avuto un soggetto vero. Il giorno in cui qualcuno lo risalvera' dall'editor acquisira' la voce
+	//    nel registro e questa riga cambiera' valore: e' un'informazione, non un guasto, e per questo si
+	//    registra nel log invece di far cadere il test. Il meccanismo resta coperto in entrambi i versi da
+	//    `RefactorTactics.HexMap.FormatVersionTravelsInSerializedBytes`.
+	AddInfo(FString::Printf(TEXT("versione dichiarata dai byte dell'arena committata: %d (%s)"),
+		Loaded->LoadedFormatVersion,
+		Loaded->LoadedFormatVersion == FRTHexMapCustomVersion::BeforeCustomVersionWasAdded
+			? TEXT("pre-meccanismo: la migrazione ha girato per intero")
+			: TEXT("asset risalvato dopo #687")));
 
 	// 2. Ha contenuto VERO. Senza questo il test resterebbe verde su un asset vuoto — e nel repository ce n'e'
 	//    uno (`DA_HexMap_Sandbox`, 1396 byte): «migra senza perdere nulla» e' banalmente vero del nulla.
@@ -708,6 +726,124 @@ bool FRTHexSerializedAssetMigrationTest::RunTest(const FString&)
 		if (Cell.TotalMoveCost() != Cell.MoveCost) { ++WithSurcharge; }
 	}
 	TestEqual(TEXT("nessuna cella ha guadagnato un sovrapprezzo migrando"), WithSurcharge, 0);
+	return true;
+}
+
+
+/**
+ * **Il test a due binari** — criterio di chiusura di #687 ([D-137]), e non e' negoziabile:
+ *
+ * ```
+ * scrivi un asset con il binario di IERI  ->  rileggilo con quello di OGGI  ->  la migrazione DEVE partire
+ * ```
+ *
+ * ## Perche' serviva, e perche' nessun test esistente lo copriva
+ *
+ * Tutti gli altri test di migrazione fanno `NewObject` -> impostano `FormatVersion` a mano -> migrano:
+ * verificano la FUNZIONE, mai il viaggio. E' la distinzione che il progetto ha gia' pagato — *«scrivi
+ * l'asset col binario vecchio, rileggilo col nuovo: il test in memoria non tocca la serializzazione»* — e
+ * il difetto e' vissuto **otto versioni di formato** dentro quel punto cieco.
+ *
+ * ## Cosa distingue i due versi, in una riga
+ *
+ * L'unica differenza fra i due binari e' se l'archivio porta la chiave di `FRTHexMapCustomVersion`:
+ * un package scritto prima di quel meccanismo non ce l'ha, e `FArchive::CustomVer` restituisce `-1`
+ * (verificato sull'implementazione della 5.8: nessun fallback sul registro globale, quindi «assente»
+ * resta assente). Sono gli stessi byte in entrambi i casi — cambia solo cosa l'archivio **dichiara**.
+ *
+ * ⚠️ **Il verso «binario di oggi» non e' decorativo.** Senza, un `Serialize` che dichiarasse tutti gli
+ * asset legacy passerebbe: la migrazione partirebbe sempre, e a ogni caricamento — che e' il difetto del
+ * «default fisso» che D-137 ha escluso per iscritto. Un gate provato in un verso solo non e' un gate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapFormatVersionTravelsTest,
+	"RefactorTactics.HexMap.FormatVersionTravelsInSerializedBytes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapFormatVersionTravelsTest::RunTest(const FString&)
+{
+	// Un asset con contenuto VERO: «migra senza perdere nulla» e' banalmente vero del nulla.
+	URTHexMapAsset* Source = NewObject<URTHexMapAsset>();
+	Source->AddOrUpdateCell(Cell(0, 0));
+	Source->AddOrUpdateCell(Cell(1, 0));
+	Source->AddOrUpdateCell(Cell(0, 1, /*Layer=*/ 1));
+	Source->Transitions.Add(FRTHexEdge(FRTCellId(0, 0), FRTCellId(0, 1, 1), /*Cost=*/ 2));
+	Source->SortCells();
+	const int32 SourceCells = Source->NumCells();
+
+	// --- Scrittura ---------------------------------------------------------------------------------
+	TArray<uint8> Bytes;
+	FCustomVersionContainer WrittenVersions;
+	{
+		FMemoryWriter Writer(Bytes);
+		Source->Serialize(Writer);
+		WrittenVersions = Writer.GetCustomVersions();
+	}
+
+	// Il lato-scrittura esiste. Se qualcuno togliesse `UsingCustomVersion` da `Serialize`, il numero
+	// smetterebbe di viaggiare e TUTTO il resto continuerebbe a passare: e' l'asserzione che tiene in
+	// piedi le altre.
+	const FCustomVersion* Written = WrittenVersions.GetVersion(FRTHexMapCustomVersion::GUID);
+	TestNotNull(TEXT("l'archivio in scrittura dichiara la versione di formato"), Written);
+	if (!Written) { return false; }
+	TestEqual(TEXT("e la dichiara alla versione corrente"),
+		Written->Version, static_cast<int32>(FRTHexMapCustomVersion::LatestVersion));
+
+	// --- Verso A: il binario di OGGI ---------------------------------------------------------------
+	// L'archivio porta la chiave, quindi l'asset dichiara la propria versione e non c'e' niente da migrare.
+	{
+		URTHexMapAsset* Today = NewObject<URTHexMapAsset>();
+		FMemoryReader Reader(Bytes);
+		Reader.SetCustomVersions(WrittenVersions);
+		Today->Serialize(Reader);
+
+		TestEqual(TEXT("A: la versione letta dai byte e' quella corrente"),
+			Today->LoadedFormatVersion, static_cast<int32>(FRTHexMapCustomVersion::LatestVersion));
+
+		// La migrazione non deve avere nulla da fare: se ne avesse, girerebbe a ogni caricamento.
+		Today->MigrateToCurrentFormat();
+		TestEqual(TEXT("A: la migrazione non ha spostato niente"),
+			Today->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
+	}
+
+	// --- Verso B: il binario di IERI ---------------------------------------------------------------
+	// Stessi byte, archivio SENZA la chiave: e' esattamente com'e' un package committato prima di #687.
+	{
+		URTHexMapAsset* Yesterday = NewObject<URTHexMapAsset>();
+		FMemoryReader Reader(Bytes);
+
+		// ⚠️ Un container VUOTO esplicito, non `ResetCustomVersions()`: su un archivio in lettura quel
+		// metodo non svuota niente: alla prima interrogazione ricarica **tutte** le versioni registrate
+		// globalmente (`Archive.cpp`, `GetCustomVersions`). Il nome inganna, e usandolo qui questo test
+		// avrebbe misurato il proprio setup invece del meccanismo — verde per il motivo sbagliato.
+		Reader.SetCustomVersions(FCustomVersionContainer());
+		Yesterday->Serialize(Reader);
+
+		// ⛔ **L'asserzione per cui questo test esiste.** Prima della fix qui si leggeva
+		// `CurrentFormatVersion`: la property prendeva il default del CDO e la migrazione usciva alla
+		// prima riga credendosi gia' aggiornata. Se questa riga torna verde su un valore corrente, il
+		// meccanismo e' di nuovo inerte.
+		TestEqual(TEXT("B: un asset senza voce nel registro si dichiara pre-meccanismo"),
+			Yesterday->LoadedFormatVersion,
+			static_cast<int32>(FRTHexMapCustomVersion::BeforeCustomVersionWasAdded));
+		TestTrue(TEXT("B: e la migrazione ha quindi un soggetto reale"),
+			Yesterday->FormatVersion < URTHexMapAsset::CurrentFormatVersion);
+
+		Yesterday->MigrateToCurrentFormat();
+		TestEqual(TEXT("B: dopo la migrazione la versione e' corrente"),
+			Yesterday->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
+
+		// E il viaggio non ha inventato ne' perso dati: la migrazione e' conservativa per costruzione,
+		// ma e' proprio cio' che un passo TRASFORMATIVO futuro cambiera' — e allora questa riga sara' il
+		// posto in cui accorgersene.
+		TestEqual(TEXT("B: le celle sono sopravvissute al giro"), Yesterday->NumCells(), SourceCells);
+		TestEqual(TEXT("B: la transizione e' sopravvissuta al giro"), Yesterday->Transitions.Num(), 1);
+		int32 WithSurcharge = 0;
+		for (const FRTHexCellData& C : Yesterday->Cells)
+		{
+			if (C.TotalMoveCost() != C.MoveCost) { ++WithSurcharge; }
+		}
+		TestEqual(TEXT("B: nessuna cella ha guadagnato un sovrapprezzo migrando"), WithSurcharge, 0);
+	}
+
 	return true;
 }
 
