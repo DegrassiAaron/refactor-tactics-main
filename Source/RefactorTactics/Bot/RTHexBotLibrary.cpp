@@ -348,3 +348,22 @@ FRTCellId URTHexBotLibrary::BestKiteCell(const FRTHexSnapshot& Snapshot, int32 U
 	}
 	return Best;
 }
+
+FString URTHexBotLibrary::DecideReactionResponse(const FRTReactionOpportunity& Opportunity)
+{
+	// Il primo `FIRE:` dell'elenco. L'ordine NON e' quello di arrivo: `BuildOverwatchTriggers` ordina i
+	// bersagli per `UnitId` crescente prima di costruire le risposte, proprio perche' `AllowedResponses` sia
+	// una funzione dello stato — quindi «il primo» qui e' una scelta stabile, non la prima che capita.
+	for (const FString& Response : Opportunity.AllowedResponses)
+	{
+		if (URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE)
+		{
+			return Response;
+		}
+	}
+
+	// Nessun `FIRE` legale — la condizione dichiarata li ha filtrati tutti, o la finestra offre solo `HOLD`.
+	// Si risponde `HOLD` esplicitamente invece di lasciare la stringa vuota: vuota significa «non ho
+	// risposto», cioe' una scadenza, e il bot non e' scaduto — ha deciso, e non aveva altro da decidere.
+	return URTReactionOpportunityLibrary::HoldResponse();
+}

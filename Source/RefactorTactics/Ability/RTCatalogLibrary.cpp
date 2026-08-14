@@ -756,6 +756,31 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
 		/*bInterruptible*/ true, ERTActionSlot::Main));
 
+	// `Action.Overwatch` (CP 14.5) — si ARMA nel Prep e reagisce durante i micro-step del Move. E' l'azione
+	// che rende reale l'infrastruttura di E14: fino a qui `FRTOverwatchWatcher` esisteva e lo costruivano solo
+	// i test, quindi nessuna partita poteva aprire una finestra.
+	//
+	// PORTATA ed EFFETTO restano fuori di proposito, ed e' la stessa scelta di `Action.BasicAttack` poche
+	// righe sopra: area, arco, raggio e «cosa scatta» sono il **profilo**, non l'azione
+	// ([D-014], [D-033] — «un'azione generica e' universale come comando, framework e semantica di fase; il
+	// suo effetto concreto dipende dal profilo dell'eroe»). I profili dei quattro eroi della v0.1 sono ancora
+	// una domanda aperta (`brief-azioni-generiche-overwatch.md` §8: «quali profili per i quattro eroi»), e un
+	// numero scritto qui ne sceglierebbe uno arbitrario per tutti — indistinguibile, dopo un mese, da una
+	// decisione presa davvero.
+	//
+	// Non interrompibile e senza cooldown, come da catalogo §1. Il cono NON e' un parametro: **e' il facing**
+	// dell'unita' (ADR-0005 §4c), quindi non c'e' una direzione da dichiarare qui.
+	Catalog.Add(ShippedAction(TEXT("Action.Overwatch"), ERTResolutionPhase::Preparation, /*Priority*/ 45,
+		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
+		/*bInterruptible*/ false, ERTActionSlot::Main));
+	// Come `Guard` e `Brace`: in pianificazione non si sceglie un bersaglio — l'Overwatch arma una zona, e chi
+	// entrera' nel cono e' esattamente cio' che al momento di armare non si sa. Il bersaglio si sceglie al
+	// `FIRE`, dentro la finestra, e non e' un dato di catalogo.
+	// ⚠️ Il flag ha un secondo effetto voluto: tiene l'Overwatch fuori dalle candidate d'ATTACCO del bot
+	// (`RTTurnManager.cpp` ~610), dove sarebbe entrato con `Power` 0. Non lo fa invece entrare nel ramo «se
+	// ferito usa un supporto» (~242), che richiede anche un effetto che ripristini — e qui non ce ne sono.
+	Catalog.Last().bSelfTarget = true;
+
 	// --- Mobilita' LINEARI (catalogo §2) ---------------------------------------------------------------
 	// Tutte in macro-fase Dash: riposizionarsi in fretta e' cio' che permette di sparare da un'altra parte
 	// nello stesso turno (ADR-0003 §3). Tutte con `Fallback.Stop`: se la traiettoria si chiude ci si ferma
@@ -1274,9 +1299,15 @@ FRTActionDef URTCatalogLibrary::FindCoreAction(const FName& ActionId)
 
 TArray<FName> URTCatalogLibrary::GetGenericActionIds()
 {
-	// L'ordine e' quello di D-025 per le tre che entrano, e conta: sono accodate al kit, quindi diventano
+	// L'ordine e' quello di D-025 per le quattro che entrano, e conta: sono accodate al kit, quindi diventano
 	// indici stabili. Cambiarlo sposta gli indici di ogni unita' — e `PlannedAbilityIndex` e' un indice.
-	return { TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace") };
+	//
+	// ⚠️ `Action.Overwatch` entra IN CODA (CP 14.5), e la posizione non e' estetica: in D-025 e' comunque
+	// l'ultima delle sette, ma soprattutto accodarla lascia `Wait`/`Guard`/`Brace` agli indici 0/1/2 che
+	// avevano. Inserirla in mezzo avrebbe spostato `Guard` e `Brace` sotto i piedi di ogni piano gia' scritto
+	// — `PlannedAbilityIndex` e `PlannedReactionAbility` sono indici — senza che nulla smettesse di compilare.
+	// Pinnato da `Overwatch.ActionIsInCoreCatalog`, che confronta la lista per intero e non solo l'ultima.
+	return { TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch") };
 }
 
 TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)

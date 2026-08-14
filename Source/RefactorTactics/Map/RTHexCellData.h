@@ -134,6 +134,20 @@ struct FRTHexDoor
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	int32 DoorId = INDEX_NONE;
 
+	/**
+	 * Nome PUBBLICO della struttura (CP 23.3, #832), stabile attraverso salvataggio, ricarica e cottura.
+	 *
+	 * `DoorId` sopra resta l'indice interno del gruppo e non cambia mestiere: distingue i gruppi dentro
+	 * l'asset, e chi rieditasse la mappa potrebbe riassegnarlo. Questo invece e' il nome che uno scenario
+	 * puo' citare e che un replay puo' risolvere — l'anello che a `DoorId` manca.
+	 *
+	 * I bordi che lo condividono sono la STESSA struttura, con la stessa forma con cui `DoorId` gia'
+	 * definisce il gruppo. `NAME_None` = struttura senza nome pubblico, che e' cio' che ogni porta scritta
+	 * prima di questo campo diventa rileggendosi — ed e' esattamente cio' che quelle porte gia' erano.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	FName StableId;
+
 	FRTHexDoor() = default;
 	explicit FRTHexDoor(ERTHexDirection InEdge, ERTHexDoorState InState = ERTHexDoorState::Closed,
 		int32 InDoorId = INDEX_NONE)
@@ -313,6 +327,17 @@ struct FRTHexEdge
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	bool bConductsElectricity = false;
+
+	/**
+	 * Nome PUBBLICO della struttura (CP 23.3, #832), come per `FRTHexDoor::StableId`.
+	 *
+	 * ⚠️ Qui non c'e' un `DoorId` su cui appoggiare il gruppo: un arco e' identificato dalla coppia
+	 * `(From, To)` e nient'altro. Il gruppo pero' la semantica del repository ce l'ha gia' — un ponte
+	 * bidirezionale sono **due archi reciproci ma un evento solo** (`UpdateTransitions`, con lo stesso
+	 * argomento del portone di CP 9.3) — ed e' l'unica condivisione di nome ammessa fra archi.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	FName StableId;
 
 	/** Integrita' di catalogo di un ponte (v0.1). Sta qui per la stessa ragione di `FRTHexCover`. */
 	static constexpr int32 DefaultIntegrity = 40;

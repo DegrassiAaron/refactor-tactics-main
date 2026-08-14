@@ -5,6 +5,7 @@
 #include "Ability/RTActionData.h"
 #include "Map/RTCellId.h"
 #include "Turn/RTHexSim.h"
+#include "Turn/RTReactionOpportunityTypes.h" // FRTReactionOpportunity: l'UNICO ingresso della decisione del bot
 #include "RTHexBotLibrary.generated.h"
 
 class URTHexMapAsset;
@@ -210,6 +211,28 @@ public:
 
 	/** Piano scelto per l'unita': ChooseBestPlan sulle candidate generate. */
 	static FRTHexBotPlan PlanUnit(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTHexBotContext& Context);
+
+	/**
+	 * La risposta del bot a una finestra di reazione (CP 14.5). Restituisce una delle `AllowedResponses`.
+	 *
+	 * ⚠️ **La firma E' il requisito.** Il DoD chiede che il bot decida «con la sola opportunity sanitizzata e
+	 * restituisca subito: nessuna attesa reale, nessun accesso a percorsi futuri, trigger futuri o esiti
+	 * precalcolati». Questa funzione non ha modo di violarlo: non riceve la mappa, non riceve lo snapshot, non
+	 * riceve i percorsi, e `FRTReactionOpportunity` ha un elenco CHIUSO di campi verificato per riflessione da
+	 * `Overwatch.OpportunityLeaksNoFuture`. E' una garanzia strutturale, non una promessa da testare — un test
+	 * che asserisse «non ha guardato il futuro» potrebbe solo verificare l'esito, mentre qui il futuro non e'
+	 * raggiungibile nemmeno volendo.
+	 *
+	 * Pura anche nel senso stretto: nessun `UWorld`, nessun Actor, nessun timer. «Restituisce subito» non e'
+	 * una qualita' dell'implementazione, e' l'unica cosa che puo' fare.
+	 *
+	 * **Politica della v0.1**: spara al primo bersaglio legale, che e' quello di `UnitId` minore perche'
+	 * `AllowedResponses` e' ordinato cosi'. Deterministica e deliberatamente semplice: tenere il colpo in
+	 * attesa di un bersaglio migliore e' il *bait*, e vale quanto la stima di cosa arrivera' dopo — che e'
+	 * esattamente cio' che il bot non puo' sapere qui, e che appartiene al Tactical Bot v1 (E26) e alla
+	 * taratura di CP 14.6. Una politica piu' ambiziosa oggi sarebbe indistinguibile da un'euristica inventata.
+	 */
+	static FString DecideReactionResponse(const FRTReactionOpportunity& Opportunity);
 
 	/**
 	 * Cella di FUGA: fra quelle raggiungibili entro il budget, quella piu' lontana (distanza esagonale) dalla

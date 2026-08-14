@@ -64,17 +64,22 @@ public:
 	 * v8 (#621): provenienza della copertura (`FRTHexCover::bGenerated`). Nessun dato esistente cambia
 	 *     significato: una mappa scritta prima non ha coperture cotte, quindi ogni sua copertura e' dipinta
 	 *     a mano — che e' il default `false`, ed e' cio' che quelle coperture gia' erano.
+	 * v9 (#832, CP 23.3): identita' stabile delle strutture (`FRTHexDoor::StableId`,
+	 *     `FRTHexEdge::StableId`). Nessun dato esistente cambia significato: una mappa scritta prima non
+	 *     nomina le proprie strutture, quindi ogni sua porta e ogni suo arco sono anonimi — che e' il
+	 *     default `NAME_None`, ed e' cio' che quelle strutture gia' erano. `DoorId` non cambia mestiere:
+	 *     resta l'indice di gruppo interno all'asset.
 	 *
 	 * ⚠️ **Questo numero non viaggia da solo**: la sua storia e' qui, ma il valore che un asset porta nei
 	 * propri byte e' `FRTHexMapCustomVersion` (#687, D-137). Alzarlo senza aggiungere il valore
 	 * corrispondente all'enum non compila — e' voluto, vedi lo `static_assert` in `RTHexMapAsset.cpp`.
 	 *
-	 * Tutti i passi v1->v8 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
+	 * Tutti i passi v1->v9 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
 	 * significato. Il primo passo TRASFORMATIVO e' ora eseguibile — prima di #687 non lo era, perche' la
 	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
 	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
-	static constexpr int32 CurrentFormatVersion = 8;
+	static constexpr int32 CurrentFormatVersion = 9;
 
 	/**
 	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.

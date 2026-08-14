@@ -322,8 +322,8 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
 	// Il numero e' pinnato di proposito: un bump di formato deve far cadere un test, non passare inosservato.
-	// v7 (#619) aggiunge il sovrapprezzo di occupazione; nessun dato precedente cambia significato.
-	TestEqual(TEXT("la versione corrente e' la 8"), URTHexMapAsset::CurrentFormatVersion, 8);
+	// v9 (#832) aggiunge l'identita' stabile delle strutture; nessun dato precedente cambia significato.
+	TestEqual(TEXT("la versione corrente e' la 9"), URTHexMapAsset::CurrentFormatVersion, 9);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 
@@ -734,6 +734,24 @@ bool FRTHexSerializedAssetMigrationTest::RunTest(const FString&)
 		if (Cell.TotalMoveCost() != Cell.MoveCost) { ++WithSurcharge; }
 	}
 	TestEqual(TEXT("nessuna cella ha guadagnato un sovrapprezzo migrando"), WithSurcharge, 0);
+
+	// 5. **Stessa domanda per il campo di v9** (#832, CP 23.3). L'arena e' stata scritta quando le
+	//    strutture non avevano un nome pubblico: nessuna porta e nessun arco deve averne guadagnato uno
+	//    ricaricandosi. Un nome inventato dalla migrazione sarebbe un bersaglio che nessun designer ha
+	//    dichiarato — e da #833 in poi qualcuno potrebbe citarlo.
+	int32 NamedStructures = 0;
+	for (const FRTHexCellData& Cell : Loaded->Cells)
+	{
+		for (const FRTHexDoor& Door : Cell.Doors)
+		{
+			if (!Door.StableId.IsNone()) { ++NamedStructures; }
+		}
+	}
+	for (const FRTHexEdge& Arc : Loaded->Transitions)
+	{
+		if (!Arc.StableId.IsNone()) { ++NamedStructures; }
+	}
+	TestEqual(TEXT("nessuna struttura ha guadagnato un nome migrando"), NamedStructures, 0);
 	return true;
 }
 

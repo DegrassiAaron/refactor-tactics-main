@@ -3458,9 +3458,26 @@ features:
       data: na
       runtime: done
       log_debug: na
-      # `todo` → `partial` il 2026-08-14: i quattro test esistevano già e nessuno li aveva dichiarati.
-      # Non `done` — coprono yaw, zoom e pan relativo, non `FocusOn`, `FrameOwnTeam` né i bounds.
-      automation: partial
+      # `todo` → `partial` → `done` in due passi lo stesso giorno.
+      #   `partial` (#867): i quattro test esistevano già e nessuno li aveva dichiarati.
+      #   `done`    (#865): aggiunti i quattro che mancavano — `FocusOn` conserva quota/zoom/orientamento
+      #                     (campo **e** braccio), i due rami `false` di `FrameOwnTeam`,
+      #                     `MatchStartArmLength` distinto da `DefaultArmLength`, il **centraggio** sul
+      #                     centroide e la squadra letta dal **controller** invece che assunta 0.
+      # ⚠️ `done` copre l'API della camera **attuale**: non i bounds e non lo zoom al cursore, che non
+      # esistono (#864), né lo yaw continuo e il pitch (#863). Un gate verde non è una feature completa.
+      # 🔴 **Una stesura precedente scriveva «ogni funzione pubblica ha un test» ed era sovradichiarato**,
+      # trovato in code review: il centraggio sul centroide non era asserito da nessuno (cancellando la
+      # chiamata a `CellsCentroidWorld` la suite restava verde) e il ramo `PlayerTeamId` non era esercitato
+      # — in una partita con il giocatore in squadra 1 la camera avrebbe aperto sul nemico. Entrambi ora
+      # coperti e verificati per mutazione.
+      # ⏳ **Resta scoperto un consumatore, ed è dichiarato invece che sottinteso**: il ripiego di
+      # `BeginPlay` (`FrameOwnTeam` → ritenta al tick → `RecenterView`) non ha test. È lavoro di #874.
+      # ✅ **Chiuso #873**: `RecenterView` non clampava la distanza, e i test non lo catturavano perché
+      # giravano tutti coi valori di default, dove il clamp non cambia nulla. Ora chiama
+      # `ApplyViewSettings` invece di duplicarla, e `RecenterKeepsArmWithinZoomLimits` costruisce
+      # l'intervallo fuori scala con `SetArmLengthRangeForTest`.
+      automation: done
       scenario: todo
       ui_wiki: partial
       packaged: partial
@@ -3478,18 +3495,26 @@ features:
     # aperte il 2026-08-14 sono invece specifiche della camera.
     issues: [77, 863, 864, 865]
     tests:
-      # Quattro test in `Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`:
-      # YawTurnsInStepsAndStaysNormalized · RotatingDoesNotResetZoom · PanIsRelativeToTheView ·
-      # RecenterAlsoResetsRotation. Il pattern li copre tutti e non invecchia se se ne aggiunge uno.
-      # Verificato per mutazione: sostituirlo con un nome inesistente fa fallire `validate` con
-      # «test ref senza corrispondenza nella suite», quindi il gate morde davvero.
+      # I test vivono in `Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`; il pattern li copre tutti
+      # e non invecchia quando se ne aggiunge uno.
+      # ⚠️ **Qui non sta né il numero né l'elenco dei nomi, ed è deliberato**: una stesura precedente
+      # scriveva «**Sette**» e li elencava uno per uno, argomentando nella stessa riga che i numeri a mano
+      # vanno fuori sincrono. Un `7` in un commento invecchia esattamente come un `7` in un campo —
+      # niente valida i commenti — e l'elenco è proprio l'enumerazione che il pattern esiste per evitare.
+      # Il conteggio si misura: `grep -c 'IMPLEMENT_SIMPLE_AUTOMATION_TEST' <quel file>`.
+      # Verificato per mutazione che il **campo** morda: sostituirlo con un nome inesistente fa fallire
+      # `validate` con «test ref senza corrispondenza nella suite».
       - RefactorTactics.Camera.*
     scenarios: []
     wiki_refs:
       - wiki:come-si-gioca
     last_verified:
+      # 🔴 **Avanzato con il commit che cambia il gate, e non è un dettaglio**: la stesura di #867 aveva
+      # lasciato `747f4e82` mentre portava `automation` a `partial`, ripetendo alla lettera il difetto che
+      # le `notes` qui sotto post-morteggiano. Un `last_verified` che punta a un albero anteriore ai test
+      # che giustificano il gate è una firma su un documento che non si è letto.
       date: 2026-08-14
-      commit: 747f4e82
+      commit: 4286f667
     notes: >
       `ARTCameraPawn` esiste e la build packaged la usa; la taratura su scala esagonale resta una
       verifica PIE aperta (CP 8.3 di M8). Non promuovere per «si vede che funziona».
