@@ -29,6 +29,7 @@ Opzioni comuni:
     --check             `generate`/`wiki`/`shortlist`/`deploy` non scrivono: falliscono se disallineati
 """
 import argparse
+import collections
 import json
 import os
 import re
@@ -3830,13 +3831,71 @@ def roadmap_map_model(registry, doc=None, catalog=None):
         })
 
     releases = sorted({e["release"] for e in placed}, key=release_key)
+    epics = sorted(placed, key=lambda e: (release_key(e["release"]),
+                                          order_of_lane(lanes, e["lane"]), e["epic"]))
+
+    # Gli archi sono il motivo per cui questa e' una figura e non una tabella: senza, «la v0.1 e'
+    # un imbuto» non si vede, si deve contare. Si derivano dalle `dependencies` fra feature —
+    # nessun elenco nuovo da tenere allineato.
+    epic_of, visible = {}, {e["epic"] for e in epics}
+    for feature in registry.get("features") or []:
+        epic = (feature.get("roadmap") or {}).get("epic")
+        if epic:
+            epic_of[feature["feature_id"]] = epic
+    edges = set()
+    for feature in registry.get("features") or []:
+        target = epic_of.get(feature["feature_id"])
+        if target not in visible:
+            continue
+        for dependency in feature.get("dependencies") or []:
+            source = epic_of.get(dependency)
+            # Un arco verso un'epic che la figura non disegna non si puo' mostrare, e fingerlo
+            # sarebbe peggio che ometterlo: resta fuori, e `unplaced` dice gia' chi manca.
+            if source in visible and source != target:
+                edges.add((source, target))
+
+    fanout = collections.Counter(src for src, _ in edges)
+    fanin = collections.Counter(dst for _, dst in edges)
+
+    lane_of = {e["epic"]: e["lane"] for e in epics}
+    release_of = {e["epic"]: e["release"] for e in epics}
+    crossing = sum(1 for a, b in edges
+                   if lane_of.get(a) != lane_of.get(b) or release_of.get(a) != release_of.get(b))
+
+    features_of_lane = collections.Counter()
+    for feature in registry.get("features") or []:
+        epic = (feature.get("roadmap") or {}).get("epic")
+        if epic in lane_of:
+            features_of_lane[lane_of[epic]] += 1
+
+    stats = {}
+    for release in releases:
+        in_release = [e for e in epics if e["release"] == release]
+        stats[release] = {
+            "epics": len(in_release),
+            "cp_done": sum(e.get("cp_done") or 0 for e in in_release),
+            "cp_total": sum(e.get("cp_total") or 0 for e in in_release),
+        }
+
     return {
-        "lanes": [{"id": g.get("id"), "title": lane_title.get(g.get("id")), "order": g.get("order")}
+        "lanes": [{"id": g.get("id"), "title": lane_title.get(g.get("id")), "order": g.get("order"),
+                   "features": features_of_lane.get(g.get("id"), 0)}
                   for g in lanes],
         "releases": releases,
-        "epics": sorted(placed, key=lambda e: (release_key(e["release"]),
-                                               order_of_lane(lanes, e["lane"]), e["epic"])),
+        "epics": epics,
         "unplaced": sorted(unplaced, key=lambda e: e["epic"]),
+        "edges": sorted(edges),
+        "fanout": dict(fanout),
+        "fanin": dict(fanin),
+        "release_stats": stats,
+        "totals": {
+            "epics": len(epics),
+            "unplaced": len(unplaced),
+            "edges": len(edges),
+            "crossing": crossing,
+            "cp_done": sum(e.get("cp_done") or 0 for e in epics),
+            "cp_total": sum(e.get("cp_total") or 0 for e in epics),
+        },
     }
 
 
@@ -3882,8 +3941,12 @@ def render_roadmap_map_svg(model):
     """
     lanes = model["lanes"]
     releases = model["releases"]
-    pad, head, label_w = 24, 64, 96
-    col_w, box_w, box_h, gap = 208, 190, 56, 10
+    pad, head, label_w = 22, 118, 92
+    # ⚠️ La larghezza totale e' un vincolo di **leggibilita'**, non di gusto: GitHub comprime
+    # l'immagine alla larghezza della colonna di testo, ~880px. A 1784px di figura la scala era
+    # 0.49 e un font da 11 finiva a 5px reali — illeggibile senza cliccare. A ~1260 la scala e'
+    # 0.70 e lo stesso testo resta leggibile in pagina. Le colonne si stringono, i font crescono.
+    col_w, box_w, box_h, gap = 146, 134, 58, 9
 
     # L'altezza di ogni fascia la decide la corsia piu' affollata di quella release: una griglia a
     # passo fisso o taglierebbe la v0.1 o lascerebbe sette fasce quasi vuote.
@@ -3904,22 +3967,95 @@ def render_roadmap_map_svg(model):
            f'viewBox="0 0 {width} {height}" font-family="system-ui,-apple-system,sans-serif">',
            f'<rect width="{width}" height="{height}" fill="{MAP_BG}"/>']
 
+    # --- Intestazione: i numeri che la figura riassume ------------------------------------------
+    # Stanno qui e non nella pagina perche' l'SVG viene aperto anche da solo, e un totale che vive
+    # solo nella pagina che lo ospita e' un totale che si perde al primo link diretto.
+    totals = model.get("totals") or {}
+    cifre = [
+        (str(totals.get("epics", 0)), "epic nella figura"),
+        (str(totals.get("edges", 0)), "dipendenze fra epic"),
+        (str(totals.get("crossing", 0)), "attraversano corsia o release"),
+        (f'{totals.get("cp_done", 0)}/{totals.get("cp_total", 0)}', "checkpoint chiusi"),
+        (str(totals.get("unplaced", 0)), "epic non collocabili"),
+    ]
+    for index, (value, caption) in enumerate(cifre):
+        cx = pad + index * 252
+        out.append(f'<text x="{cx}" y="{pad + 26}" fill="{MAP_INK}" font-size="26" '
+                   f'font-weight="700">{_svg_text(value)}</text>')
+        out.append(f'<text x="{cx}" y="{pad + 44}" fill="{MAP_DIM}" font-size="11">'
+                   f'{_svg_text(caption)}</text>')
+    out.append(f'<line x1="{pad}" y1="{head - 26}" x2="{width - pad}" y2="{head - 26}" '
+               f'stroke="{MAP_LINE}" stroke-width="1"/>')
+
     for index, lane in enumerate(lanes):
         x = label_w + index * col_w
-        out.append(f'<text x="{x + box_w // 2}" y="34" fill="{MAP_INK}" font-size="13" '
-                   f'font-weight="600" text-anchor="middle">{_svg_text(lane["title"])}</text>')
-        out.append(f'<line x1="{x - 8}" y1="{head - 12}" x2="{x - 8}" y2="{height - pad}" '
+        out.append(f'<text x="{x + box_w // 2}" y="{head - 8}" fill="{MAP_INK}" font-size="12" '
+                   f'font-weight="600" text-anchor="middle">'
+                   f'{_svg_text(lane["title"])}</text>')
+        out.append(f'<text x="{x + box_w // 2}" y="{head + 6}" fill="{MAP_DIM}" font-size="10" '
+                   f'text-anchor="middle">{lane.get("features", 0)} feature</text>')
+        out.append(f'<line x1="{x - 6}" y1="{head + 12}" x2="{x - 6}" y2="{height - pad}" '
                    f'stroke="{MAP_LINE}" stroke-width="1"/>')
 
     for release in releases:
         top = band_y[release]
+        stats = (model.get("release_stats") or {}).get(release) or {}
         out.append(f'<line x1="{pad}" y1="{top - 16}" x2="{width - pad}" y2="{top - 16}" '
                    f'stroke="{MAP_LINE}" stroke-width="1"/>')
-        out.append(f'<text x="{pad}" y="{top + 6}" fill="{MAP_INK}" font-size="15" '
+        out.append(f'<text x="{pad}" y="{top + 8}" fill="{MAP_INK}" font-size="16" '
                    f'font-weight="700">{_svg_text(release)}</text>')
-        count = sum(len(v) for (r, _), v in per_cell.items() if r == release)
-        out.append(f'<text x="{pad}" y="{top + 24}" fill="{MAP_DIM}" font-size="11">'
-                   f'{count} epic</text>')
+        out.append(f'<text x="{pad}" y="{top + 26}" fill="{MAP_DIM}" font-size="10">'
+                   f'{stats.get("epics", 0)} epic</text>')
+        out.append(f'<text x="{pad}" y="{top + 40}" fill="{MAP_DIM}" font-size="10">'
+                   f'{stats.get("cp_done", 0)}/{stats.get("cp_total", 0)} CP</text>')
+
+    # --- Le posizioni, calcolate prima di disegnare ---------------------------------------------
+    # Servono agli archi: una linea si traccia fra due riquadri, e per saperlo entrambi devono
+    # gia' avere una coordinata. Da cui due passaggi invece di uno.
+    pos = {}
+    for index, lane in enumerate(lanes):
+        x = label_w + index * col_w
+        for release in releases:
+            cell = sorted(per_cell.get((release, lane["id"]), []), key=lambda e: e["epic"])
+            for row, epic in enumerate(cell):
+                pos[epic["epic"]] = (x, band_y[release] + row * (box_h + gap))
+
+    # --- Gli archi, sotto i riquadri ------------------------------------------------------------
+    # Disegnati **prima** dei box perche' in SVG l'ordine del documento e' l'ordine di sovrapposi-
+    # zione: dopo, coprirebbero il testo che spiegano. Peso e opacita' vengono dal fan-out della
+    # sorgente: 61 archi tutti uguali sono una ragnatela, e la ragnatela nasconde proprio la cosa
+    # che questa figura esiste per mostrare — quali poche epic ne bloccano molte.
+    grosso = 8
+    for source, target in model.get("edges") or []:
+        if source not in pos or target not in pos:
+            continue
+        sx, sy = pos[source]
+        tx, ty = pos[target]
+        pesante = (model.get("fanout") or {}).get(source, 0) >= grosso
+        larghezza = 1.6 if pesante else 0.7
+        opacita = 0.55 if pesante else 0.20
+
+        # Il lato da cui l'arco esce cambia il disegno piu' di qualunque colore. Uscire sempre dal
+        # fondo produce fasci verticali che attraversano tutta la figura e si sovrappongono ai
+        # riquadri sotto; uscire **dal lato rivolto al bersaglio** da' le curve larghe che si
+        # leggono una per una. Il caso «stessa colonna» resta verticale, perche' li' un fianco
+        # farebbe un cappio.
+        if abs(tx - sx) < box_w / 2:
+            x1, y1 = sx + box_w / 2, sy + box_h
+            x2, y2 = tx + box_w / 2, ty
+            curva = max(24, abs(y2 - y1) / 3)
+            d = (f"M {x1:.1f} {y1:.1f} C {x1:.1f} {y1 + curva:.1f}, "
+                 f"{x2:.1f} {y2 - curva:.1f}, {x2:.1f} {y2:.1f}")
+        else:
+            verso = 1 if tx > sx else -1
+            x1 = sx + (box_w if verso > 0 else 0)
+            x2 = tx + (0 if verso > 0 else box_w)
+            y1, y2 = sy + box_h / 2, ty + box_h / 2
+            curva = max(36, abs(x2 - x1) / 2)
+            d = (f"M {x1:.1f} {y1:.1f} C {x1 + verso * curva:.1f} {y1:.1f}, "
+                 f"{x2 - verso * curva:.1f} {y2:.1f}, {x2:.1f} {y2:.1f}")
+        out.append(f'<path d="{d}" fill="none" stroke="#3fb950" '
+                   f'stroke-width="{larghezza}" opacity="{opacita}"/>')
 
     for index, lane in enumerate(lanes):
         x = label_w + index * col_w
@@ -3932,25 +4068,35 @@ def render_roadmap_map_svg(model):
                 out.append(f'<rect x="{x}" y="{top}" width="{box_w}" height="{box_h}" rx="6" '
                            f'fill="{fill}" stroke="{edge}" stroke-width="1.5"/>')
                 extra = f' +{len(epic["also_in"])}' if epic.get("also_in") else ""
-                out.append(f'<text x="{x + 10}" y="{top + 19}" fill="{MAP_INK}" font-size="12" '
+                out.append(f'<text x="{x + 8}" y="{top + 18}" fill="{MAP_INK}" font-size="14" '
                            f'font-weight="700">{_svg_text(epic["epic"])}'
-                           f'<tspan fill="{MAP_DIM}" font-weight="400"> '
+                           f'<tspan fill="{MAP_DIM}" font-weight="400" font-size="11"> '
                            f'{_svg_text((epic.get("priority") or "") + extra)}</tspan></text>')
+                # Il fan-out sta in alto a destra e **solo quando c'e'**: un `→0` su trenta
+                # riquadri sarebbe rumore, e la figura deve far risaltare le poche epic che
+                # bloccano molto, non ripetere zero ovunque.
+                uscenti = (model.get("fanout") or {}).get(epic["epic"], 0)
+                if uscenti:
+                    peso = "700" if uscenti >= 8 else "400"
+                    out.append(f'<text x="{x + box_w - 8}" y="{top + 18}" fill="#3fb950" '
+                               f'font-size="11" font-weight="{peso}" text-anchor="end">'
+                               f'→{uscenti}</text>')
                 title = epic.get("title") or ""
-                if len(title) > 30:
-                    title = title[:29] + "…"
-                out.append(f'<text x="{x + 10}" y="{top + 35}" fill="{MAP_INK}" '
+                if len(title) > 21:
+                    title = title[:20] + "…"
+                out.append(f'<text x="{x + 8}" y="{top + 34}" fill="{MAP_INK}" '
                            f'font-size="11">{_svg_text(title)}</text>')
                 total = epic.get("cp_total") or 0
                 done = epic.get("cp_done") or 0
-                out.append(f'<text x="{x + 10}" y="{top + 49}" fill="{MAP_DIM}" font-size="10">'
+                out.append(f'<text x="{x + 8}" y="{top + 50}" fill="{MAP_DIM}" font-size="10">'
                            f'{done}/{total} CP</text>')
                 if total:
-                    bar = int((box_w - 74) * done / total)
-                    out.append(f'<rect x="{x + 62}" y="{top + 43}" width="{box_w - 74}" '
+                    bar_x, bar_w = x + 54, box_w - 62
+                    bar = int(bar_w * done / total)
+                    out.append(f'<rect x="{bar_x}" y="{top + 44}" width="{bar_w}" '
                                f'height="4" rx="2" fill="{MAP_LINE}"/>')
                     if bar:
-                        out.append(f'<rect x="{x + 62}" y="{top + 43}" width="{bar}" height="4" '
+                        out.append(f'<rect x="{bar_x}" y="{top + 44}" width="{bar}" height="4" '
                                    f'rx="2" fill="{MAP_INK}"/>')
 
     # La legenda vive **dentro** l'SVG, non nella pagina che lo ospita: il file viene aperto anche
@@ -3959,6 +4105,10 @@ def render_roadmap_map_svg(model):
     ly = height - 6
     out.append(f'<text x="{pad}" y="{ly}" fill="{MAP_DIM}" font-size="10">'
                f'riempimento = stato · bordo = priorità · +n = feature anche in altre corsie'
+               f'</text>')
+    out.append(f'<text x="{pad}" y="{ly - 14}" fill="#3fb950" font-size="10">'
+               f"le linee sono dipendenze fra epic, spesse quando partono da un'epic che ne "
+               f"blocca 8 o piu'. Il numero verde nel riquadro dice quante ne sblocca."
                f'</text>')
 
     out.append("</svg>")
