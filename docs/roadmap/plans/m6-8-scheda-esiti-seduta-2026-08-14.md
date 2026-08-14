@@ -225,9 +225,24 @@ guardando la partita? La run precedente durava 5 round — «un lampo» — e no
 Barre HP/scudo/energia, timer, fase, combat log invariati; anteprima **ciano**, marker waypoint, preview
 scatto **magenta**, traccia **grigia** post-lock sui centri esagonali e coincidenti col percorso eseguito;
 reason code con coordinate assiali; **`Home`** ricentra.
-- Esito:
-- Evidenza:
-- Resta:
+- Esito: 🔴 **la voce non è eseguibile come dichiarata, e va spaccata in due.** Riferito in seduta:
+  *«l'HUD so già che non c'è»* — verificato sul codice, ed è vero per una ragione strutturale:
+  · `UI/RTScreenHudWidgets.h` dichiara **sette classi base C++** e scrive lui stesso che *«qui non c'è
+    layout: il `.uasset` `WBP_RT_*` fa aspetto e disposizione»*;
+  · **`Content/RT/UI` non esiste** e nessun `.uasset` di UI è tracciato — la stessa forma dei `BP_Unit_*`
+    che diventano cilindri;
+  · e non manca solo il Blueprint: **nessun `CreateWidget` né `AddToViewport`** compare in tutto
+    `Source/RefactorTactics/`. Manca anche chi lo metterebbe a schermo.
+  L'owner esiste già ed è aperto: **#613 — CP 11.7 · Screen HUD in UMG**. Nessuna issue nuova da aprire.
+- ⚠️ **Finding sulla voce**: dichiara *«eseguibile da CP 6.7»*, e per metà del proprio contenuto è falso —
+  la metà HUD dipende da **CP 11.7**. Una precondizione sbagliata è ciò che tiene una voce ⏳ per sempre:
+  chi la legge crede di poterla eseguire e scopre solo a partita avviata che non c'è nulla da guardare.
+  Da riportare a chi possiede il registro, insieme alla proposta di dividerla in `-9a` (anteprima piani,
+  eseguibile oggi) e `-9b` (HUD, bloccata da #613).
+- Evidenza: la metà **anteprima** è invece osservabile ora, e in parte già confermata da `-3` (anteprima
+  ciano coincidente col percorso eseguito, marker dei waypoint).
+- Resta: `-9a` — preview **magenta** dello scatto, traccia **grigia** post-lock, e **`Home`** che ricentra.
+  Tre cose osservabili in una manciata di secondi. `-9b` non è materia di questa seduta.
 
 **`PIE-AI-01`…`05`** — comportamento del bot · *partenza* ⏳ (cinque voci)
 Intent sempre legali, nessun rifiuto silenzioso, e lo **score breakdown** che spiega *perché* — copertura,
