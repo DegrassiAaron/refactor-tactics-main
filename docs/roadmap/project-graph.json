@@ -2275,6 +2275,11 @@
       "path": "Scenarios/Spec/Movement/AntiDashTriggerIgnoresMove.json"
     },
     {
+      "id": "Spec.Movement.DashDiscardsPlannedMove",
+      "requires": [],
+      "path": "Scenarios/Spec/Movement/DashDiscardsPlannedMove.json"
+    },
+    {
       "id": "Spec.Movement.TeleportSkipsIntermediateCells",
       "requires": [
         "Teleport"

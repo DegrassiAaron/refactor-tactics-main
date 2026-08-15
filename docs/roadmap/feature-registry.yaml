@@ -1705,6 +1705,10 @@ features:
       - RefactorTactics.HexSim.DashIsLinear
     scenarios:
       - Visual.Combat.PushResistance
+      # Lo scatto CONSUMA il movimento del turno: `ResolveDash` scarta il percorso pianificato e porta
+      # `PlannedCell` sulla cella d'arrivo. Era scritto nel codice e in nessuno scenario — su sei intent
+      # con `dash` nel corpus, nessuno dichiarava anche `move`. Misurato il 2026-08-15 (#924).
+      - Spec.Movement.DashDiscardsPlannedMove
     wiki_refs:
       - wiki:azioni-e-movimento
       - wiki:collisioni
