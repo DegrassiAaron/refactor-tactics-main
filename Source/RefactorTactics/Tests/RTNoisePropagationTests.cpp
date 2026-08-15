@@ -366,7 +366,6 @@ bool FRTNoisePermutationInvariantTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
 
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -512,3 +511,15 @@ bool FRTNoisePlausibleAreaCappedTest::RunTest(const FString&)
 	TestTrue(TEXT("ordine canonico StableLess, non quello di scoperta"), bSorted);
 	return true;
 }
+
+// La guardia si chiude QUI, alla fine del file, e non a meta'.
+//
+// Stava alla riga 369 su 514, e i tre test di CP 13.4 aggiunti dopo (`58bbb3bc`) restavano fuori: in
+// Editor `WITH_DEV_AUTOMATION_TESTS` vale 1, gli helper esistono e tutto compila, quindi nessun test lo
+// vedeva; nel target `Game` Shipping vale 0, `MakeNoiseMap` e `HeardAt` spariscono e restano 145 righe
+// che li chiamano -> `error C3861`. La suite gira sul target Editor, e il target Game non lo compila
+// niente di automatico: e' il difetto del 2026-08-09 (`RTHexSimTests.cpp`, 197 righe) ripetuto qui.
+//
+// Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga. Il controllo che lo
+// dimostra non e' la suite ma `Build.bat RefactorTactics Win64 Shipping` — vedi `test-e-diagnosi.md` §1.
+#endif // WITH_DEV_AUTOMATION_TESTS
