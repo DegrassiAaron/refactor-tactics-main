@@ -48,6 +48,13 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> RotateAction;
 
+	/** #863 — orbita continua: il modificatore arma il gesto, l'asse 2D lo guida (X = yaw, Y = pitch). */
+	UPROPERTY()
+	TObjectPtr<UInputAction> OrbitAction;
+
+	UPROPERTY()
+	TObjectPtr<UInputAction> OrbitModifierAction;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> SelectAction;
 
@@ -87,6 +94,13 @@ protected:
 	void OnPan(const FInputActionValue& Value);
 	void OnZoom(const FInputActionValue& Value);
 	void OnRotate(const FInputActionValue& Value);
+
+	/** #863 — orbita continua. `bOrbiting` distingue «il mouse si muove» da «il giocatore sta orbitando». */
+	void OnOrbit(const FInputActionValue& Value);
+	void OnOrbitPressed(const FInputActionValue& Value);
+	void OnOrbitReleased(const FInputActionValue& Value);
+
+	bool bOrbiting = false;
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
 	void OnRestart(const FInputActionValue& Value);

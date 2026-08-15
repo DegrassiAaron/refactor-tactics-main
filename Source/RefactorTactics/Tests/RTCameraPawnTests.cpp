@@ -132,6 +132,149 @@ bool FRTCameraYawStepsTest::RunTest(const FString&)
 }
 
 /**
+ * La rotazione CONTINUA si ferma dove il giocatore la lascia, e convive con lo scatto.
+ *
+ * Prima di `#863` la vista aveva otto orientamenti: guardare *fra* due file di celle — il caso d'uso per
+ * cui `D-142` tiene lo step a 45° e non a un divisore di 60 — era impossibile proprio con lo strumento
+ * che quella decisione motiva.
+ *
+ * ⚠️ I due gesti scrivono lo **stesso** stato: e' cio' che rende `Q` dopo un trascinamento un passo
+ * avanti, e non un salto verso una griglia di angoli parallela.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraContinuousYawTest,
+	"RefactorTactics.Camera.ContinuousYawStopsWhereItIsLeftAndKeepsTheSnap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraContinuousYawTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	// Un trascinamento che NON e' un multiplo dello step: e' esattamente cio' che prima non si poteva fare.
+	Cam->AddYawContinuous(20.f);
+	const float Free = Cam->GetCameraYaw();
+	TestTrue(TEXT("la vista si e' mossa"), Free > 0.f);
+	TestFalse(TEXT("e si e' fermata FRA due passi canonici, non su uno di essi"),
+		FMath::IsNearlyZero(FMath::Fmod(Free, 45.f), 0.01f));
+	TestEqual(TEXT("il braccio segue il campo"),
+		static_cast<float>(Arm->GetRelativeRotation().Yaw), Free);
+
+	// Lo scatto riparte da li': stesso stato, non due sistemi che si contendono la vista.
+	// `ClampAxis` restituisce `double` (LWC), e `GetCameraYaw` un `float`: il cast rende esplicito quale
+	// overload di `TestEqual` si sta chiedendo, invece di lasciarlo ambiguo (`error C2666`).
+	Cam->AddYaw(+1.f);
+	TestEqual(TEXT("Q/E fa un passo DA dove il trascinamento ha lasciato"),
+		Cam->GetCameraYaw(), static_cast<float>(FRotator::ClampAxis(Free + 45.f)));
+
+	// Input nullo: nessuna rotazione, come per lo scatto.
+	const float Before = Cam->GetCameraYaw();
+	Cam->AddYawContinuous(0.f);
+	TestEqual(TEXT("input a zero non ruota"), Cam->GetCameraYaw(), Before);
+
+	// E resta normalizzato: e' la ragione per cui lo scatto usa `ClampAxis`, e vale identica qui.
+	for (int32 I = 0; I < 40; ++I) { Cam->AddYawContinuous(30.f); }
+	TestTrue(TEXT("dopo molti giri il valore resta leggibile"),
+		Cam->GetCameraYaw() >= 0.f && Cam->GetCameraYaw() < 360.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * L'inclinazione si regola in partita, e non sfonda gli estremi.
+ *
+ * Il clamp e' in `AddPitch`, **non** nel `meta` del campo: `ClampMin`/`ClampMax` vincolano il widget del
+ * Details e non le assegnazioni da codice — `#863` lo dava per un vincolo a runtime, e non lo e'. Gli
+ * estremi non sono una preferenza: a `0` il piano di gioco sparisce in una linea, a `-90` `FRotator`
+ * perde un grado di liberta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPitchTest,
+	"RefactorTactics.Camera.PitchIsAdjustableAndClampedInCode",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraPitchTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	const float Start = Cam->GetCameraPitch();
+	Cam->AddPitch(+10.f);
+	const float Raised = Cam->GetCameraPitch();
+	if (!TestNotEqual(TEXT("l'inclinazione e' cambiata"), Raised, Start))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("e il braccio la segue"),
+		static_cast<float>(Arm->GetRelativeRotation().Pitch), Raised);
+
+	// Verso l'alto: si ferma a 0, dove la camera guarda l'orizzonte.
+	for (int32 I = 0; I < 100; ++I) { Cam->AddPitch(+10.f); }
+	TestEqual(TEXT("non supera lo zero"), Cam->GetCameraPitch(), 0.f);
+
+	// Verso il basso: si ferma un grado prima dello zenit.
+	for (int32 I = 0; I < 100; ++I) { Cam->AddPitch(-10.f); }
+	TestEqual(TEXT("e non scende sotto -89"), Cam->GetCameraPitch(), -89.f);
+
+	// Input nullo non inclina.
+	const float Before = Cam->GetCameraPitch();
+	Cam->AddPitch(0.f);
+	TestEqual(TEXT("input a zero non inclina"), Cam->GetCameraPitch(), Before);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * `Home` riporta anche l'INCLINAZIONE, non solo posizione e rotazione.
+ *
+ * Da `#863` il pitch e' regolabile, quindi «riportami a un'inquadratura che conosco» deve includerlo: e'
+ * la ragione per cui `DefaultPitch` esiste come campo separato da `CameraPitch`. Prima bastava non
+ * toccarlo — un campo solo faceva da default *e* da stato, e nessun input lo muoveva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraRecenterRestoresPitchTest,
+	"RefactorTactics.Camera.RecenterRestoresTheDefaultPitch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraRecenterRestoresPitchTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	// Default e stato corrente **distinti**: se fossero lo stesso campo — com'era prima di #863 — questo
+	// test non potrebbe nemmeno essere scritto.
+	Cam->SetPitchForTest(/*Default=*/ -40.f, /*Current=*/ -70.f);
+	if (!TestEqual(TEXT("si parte dall'inclinazione regolata"), Cam->GetCameraPitch(), -70.f))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	Cam->RecenterView();
+	TestEqual(TEXT("Home riporta alla taratura"), Cam->GetCameraPitch(), -40.f);
+	TestEqual(TEXT("e il braccio la applica"),
+		static_cast<float>(Arm->GetRelativeRotation().Pitch), -40.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
  * Lo ZOOM sopravvive alla rotazione.
  *
  * Difetto evitato per un soffio scrivendo il codice: `ApplyViewSettings()` riporta il braccio a

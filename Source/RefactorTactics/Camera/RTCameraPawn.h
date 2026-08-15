@@ -42,8 +42,28 @@ public:
 	 */
 	void AddYaw(float AxisValue);
 
+	/**
+	 * Ruota la vista in modo CONTINUO, di un angolo proporzionale all'input (trascinamento).
+	 *
+	 * Convive con `AddYaw`, che resta lo scatto di `Q`/`E`: sono due gesti diversi sullo stesso stato.
+	 * Guardare *fra* due file di celle — la ragione per cui `D-142` fissa lo step a 45° e non a un
+	 * divisore di 60 — richiede di potersi fermare dove si vuole, non solo su otto orientamenti.
+	 */
+	void AddYawContinuous(float AxisValue);
+
+	/**
+	 * Inclina la vista, clampata in `[-89, 0]`.
+	 *
+	 * ⚠️ Il clamp e' **qui, in codice**: il `meta = (ClampMin/ClampMax)` del campo vincola solo il widget
+	 * del Details, e la issue lo dava per un vincolo a runtime che non e'.
+	 */
+	void AddPitch(float AxisValue);
+
 	/** Direzione di sguardo corrente sul piano, in gradi. Serve al pan relativo e ai test. */
 	float GetCameraYaw() const { return CameraYaw; }
+
+	/** Inclinazione corrente, in gradi (negativa = verso il basso). */
+	float GetCameraPitch() const { return CameraPitch; }
 
 	/**
 	 * Riporta la camera al centro della griglia e ripristina l'inquadratura di default: distanza
@@ -83,6 +103,19 @@ public:
 	 * Il nome dichiara che si sta scavalcando la taratura dell'editor: in partita questi valori vengono
 	 * dal Details, e restano `protected` perche' sono configurazione del designer, non API.
 	 */
+	/**
+	 * Imposta l'inclinazione di default e quella corrente (per i test).
+	 *
+	 * Servono insieme per la stessa ragione dei tre limiti di distanza: quello che un test deve poter
+	 * stabilire e' uno **stato di partenza**. Il nome dichiara che si sta scavalcando la taratura
+	 * dell'editor.
+	 */
+	void SetPitchForTest(float InDefault, float InCurrent)
+	{
+		DefaultPitch = InDefault;
+		CameraPitch = InCurrent;
+	}
+
 	void SetArmLengthRangeForTest(float InDefault, float InMin, float InMax)
 	{
 		// Un intervallo rovesciato non e' uno scenario da coprire, e' un test scritto male: senza questa
@@ -131,13 +164,47 @@ protected:
 	float MaxArmLength = 4000.f;
 
 	/**
-	 * Inclinazione del braccio in gradi (negativa = guarda verso il basso). -55 e' una vista a volo d'uccello;
-	 * valori meno ripidi (-40, -35) danno un'inquadratura piu' laterale, in cui i personaggi si leggono meglio.
-	 * Era una costante nel costruttore: esposta qui per poterla tarare in editor senza ricompilare.
+	 * Inclinazione a cui `Home` riporta la vista, in gradi (negativa = guarda verso il basso). -55 e' una
+	 * vista a volo d'uccello; valori meno ripidi (-40, -35) danno un'inquadratura piu' laterale, in cui i
+	 * personaggi si leggono meglio. E' la **taratura del designer**.
+	 *
+	 * 🔴 Esiste da `#863` perche' prima non c'era: `CameraPitch` faceva da default *e* da stato corrente, e
+	 * finche' nessun input lo toccava la cosa non si vedeva. Appena il pitch e' diventato regolabile a
+	 * runtime, il valore a cui tornare sarebbe andato perso al primo trascinamento — lo zoom ha
+	 * `DefaultArmLength` accanto a `TargetArmLength`, lo yaw ha lo zero: il pitch non aveva nulla.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
 		meta = (ClampMin = "-89.0", ClampMax = "0.0"))
+	float DefaultPitch = -40.f;
+
+	/**
+	 * Inclinazione **corrente**: parte da `DefaultPitch` e cambia con `AddPitch`.
+	 *
+	 * ⚠️ Il clamp sta in `AddPitch`, **non** nel `meta`: `ClampMin`/`ClampMax` vincolano il widget del
+	 * Details e non le assegnazioni da codice. Il `meta` resta perche' serve a chi tara in editor.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "-89.0", ClampMax = "0.0"))
 	float CameraPitch = -40.f;
+
+	/** Gradi di inclinazione per unita' di input. Taratura aperta: nessun numero e' stato istruito. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.01"))
+	float PitchSensitivity = 0.5f;
+
+	/**
+	 * Estremi dell'inclinazione. **Costanti, non tarabili**: non sono una preferenza ma il punto in cui la
+	 * vista degenera — a `0` la camera guarda l'orizzonte e il piano di gioco sparisce in una linea, a
+	 * `-90` `FRotator` perde un grado di liberta' (gimbal) e lo yaw smette di avere effetto visibile.
+	 * `-89` sta un grado prima di quel bordo.
+	 */
+	static constexpr float MinPitch = -89.f;
+	static constexpr float MaxPitch = 0.f;
+
+	/** Gradi di rotazione per unita' di input nel trascinamento continuo. Taratura aperta. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.01"))
+	float YawSensitivity = 0.5f;
 
 	/**
 	 * Direzione di sguardo sul piano, in gradi. 0 = l'orientamento di partenza, quello di ogni inquadratura

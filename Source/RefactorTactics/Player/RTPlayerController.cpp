@@ -168,6 +168,14 @@ void ARTPlayerController::BuildInputMappings()
 	RotateAction = NewObject<UInputAction>(this, TEXT("IA_Rotate"));
 	RotateAction->ValueType = EInputActionValueType::Axis1D;
 
+	// #863: orbita CONTINUA, distinta dallo scatto di Q/E. Due gesti sullo stesso stato — il tasto
+	// riparte da dove il trascinamento ha lasciato.
+	OrbitAction = NewObject<UInputAction>(this, TEXT("IA_Orbit"));
+	OrbitAction->ValueType = EInputActionValueType::Axis2D;
+
+	OrbitModifierAction = NewObject<UInputAction>(this, TEXT("IA_OrbitModifier"));
+	OrbitModifierAction->ValueType = EInputActionValueType::Boolean;
+
 	SelectAction = NewObject<UInputAction>(this, TEXT("IA_Select"));
 	SelectAction->ValueType = EInputActionValueType::Boolean;
 
@@ -228,6 +236,12 @@ void ARTPlayerController::BuildInputMappings()
 		M.Modifiers.Add(NewObject<UInputModifierNegate>(this));
 	}
 
+	// Orbita continua (#863): il tasto centrale **tenuto** arma il gesto, il movimento del mouse lo guida.
+	// X = yaw, Y = pitch, come dichiara la §3.2 dell'handoff camera. `RMB` resta gameplay contestuale e
+	// non entra qui: e' un guardrail esplicito di quel documento.
+	MappingContext->MapKey(OrbitModifierAction, EKeys::MiddleMouseButton);
+	MappingContext->MapKey(OrbitAction, EKeys::Mouse2D);
+
 	// Select (Boolean): tasto sinistro del mouse.
 	MappingContext->MapKey(SelectAction, EKeys::LeftMouseButton);
 
@@ -279,6 +293,13 @@ void ARTPlayerController::SetupInputComponent()
 		// `Started` e non `Triggered`: la rotazione e' a SCATTI di `YawStep`, quindi deve avvenire una volta
 		// per pressione. Con `Triggered` un tasto tenuto giu' avrebbe girato la vista di 45 gradi per frame.
 		EIC->BindAction(RotateAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRotate);
+
+		// #863 — l'orbita continua ha bisogno di `Triggered` (ogni frame in cui il mouse si muove), non di
+		// `Started`: `Started` scatta una volta sola all'inizio del gesto, che e' giusto per un tasto e
+		// sbagliato per un trascinamento.
+		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Started, this, &ARTPlayerController::OnOrbitPressed);
+		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnOrbitReleased);
+		EIC->BindAction(OrbitAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnOrbit);
 		EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
 		EIC->BindAction(LockInAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLockIn);
 		EIC->BindAction(RestartAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRestart);
@@ -389,6 +410,36 @@ void ARTPlayerController::OnRotate(const FInputActionValue& Value)
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
 		Cam->AddYaw(Value.Get<float>());
+	}
+}
+
+void ARTPlayerController::OnOrbitPressed(const FInputActionValue& Value)
+{
+	bOrbiting = true;
+}
+
+void ARTPlayerController::OnOrbitReleased(const FInputActionValue& Value)
+{
+	// ⚠️ Nessuno snap al rilascio: la spec lo vieta esplicitamente. Chi si e' fermato *fra* due file di
+	// celle — il caso d'uso per cui `D-142` tiene lo step a 45° — vedrebbe la vista scattare via da sola.
+	bOrbiting = false;
+}
+
+void ARTPlayerController::OnOrbit(const FInputActionValue& Value)
+{
+	// Il movimento del mouse arriva a ogni frame: senza questa guardia la vista ruoterebbe di continuo,
+	// senza che nessuno abbia chiesto di orbitare.
+	if (!bOrbiting)
+	{
+		return;
+	}
+	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	{
+		const FVector2D Delta = Value.Get<FVector2D>();
+		Cam->AddYawContinuous(Delta.X);
+		// Y invertita: trascinare **verso il basso** abbassa lo sguardo. `CameraPitch` e' negativo verso
+		// il basso, e un delta positivo del mouse va verso l'alto sullo schermo.
+		Cam->AddPitch(-Delta.Y);
 	}
 }
 

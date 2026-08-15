@@ -443,36 +443,8 @@ preexisting:
   # ⚠️ Con lei cade la collisione che dichiarava con `feat/165` su questo file, e quella di `165`
   # verso di lei: un vincolo senza due lati non è un vincolo.
 
-  - branch: feat/887-focus-quota
-    state: LIVE            # worktree `D:/rt-telecamera` · PR #890 aperta · su `e9003c96`
-    measured: 7
-    collides_with: []   # entrambe cadute: #878 e #885 mergiate mentre il lavoro era in corso
-    note: >-
-      `#887`, aperta da un'altra sessione dal playtest di M6.8: `FocusOn` scarta la `Z` del bersaglio e
-      tiene quella con cui il pawn è nato — il PlayerStart del livello, che non ha relazione con il piano
-      della mappa. Diagnosi **verificata** prima di prenderla, sui tre anelli che la issue dichiara:
-      `RTGameMode` imposta davvero `DefaultPawnClass = ARTCameraPawn`, `CellsCentroidWorld` somma
-      `AxialToWorld` e quindi **calcola** una quota valida, e `FocusOn` la butta via.
-      🔴 **Tocca un test che ho scritto io in `#865`, e la issue ha ragione sul perché**:
-      `FocusKeepsHeightZoomAndOrientation` verifica che la quota sia *conservata*, quindi **difende il
-      difetto** invece di trovarlo. La domanda giusta non è «la quota resta invariata?» ma «invariata
-      rispetto a cosa?». Va riscritto, non affiancato.
-      ✅ **Set disgiunto dalle track ACTIVE**: `Camera/`, `Player/RTPlayerController.cpp` e
-      `Tests/RTCameraPawnTests.cpp` non sono nel `writable` di nessuna — `simulation` tiene `Turn/` e
-      `Bot/`, `client_tools` `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor`
-      `docs/technical/test-manuali-pie.md`.
-      🔴 **`measured` diceva 4 e sono 7**, misurati con `git diff --name-only origin/main...HEAD`: ai due
-      sorgenti della camera e al test si aggiungono `Player/RTPlayerController.cpp` — dove la code review
-      ha spostato metà del fix — e i due del Feature Registry, `yaml` e `json`. Il numero era **ricordato**
-      dalla stesura iniziale e non rimisurato dopo che lo scope si era allargato.
-      🔵 **Le due collisioni che questa voce dichiarava sono CADUTE**, ed è il campo `collides_with` a
-      dirlo per primo: `feat/165` è atterrata con #878 e `fix/residui-istruttoria-dod` con #885, entrambe
-      mentre il lavoro era in corso. ⚠️ La prosa qui sotto ha continuato a citarle come vive per un commit
-      intero dopo che il campo era già `[]`: la stessa informazione in due forme, aggiornata in una sola —
-      la recidiva che la voce di `feat/165` aveva registrato prima di uscire.
-      ➕ La issue avverte di verificare `feat/865-camera-focus-tests`, «vivo in `D:/rt-telecamera`»:
-      **non lo è più** — mergiato con #872 e cancellato prima che questa issue fosse scritta. È lo stesso
-      invecchiamento che questo file registra a ogni giro, visto stavolta dal lato di chi legge.
+  # 🔵 **`feat/887-focus-quota` è uscita**: PR #890 mergiata in `3c2f537e`, branch cancellato.
+  # `MERGED` esce dalla sezione — la quinta voce a farlo con la stessa regola.
 
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
@@ -507,10 +479,35 @@ preexisting:
   # ⚠️ **L'ha mergiata questo stesso branch**, col merge di `origin/main` fatto per verificare che
   # `#876` non rompesse i test della camera: la riga è diventata falsa per mano di chi la leggeva.
 
+  - branch: feat/863-yaw-pitch
+    state: LOCAL           # worktree `D:/rt-telecamera`, creato su `3c2f537e`
+    measured: 0
+    # `[]` **misurato**, non asserito: `git diff --name-only origin/main...<branch>` ∩ write-set previsto,
+    # su tutti e otto i branch della sezione. Le due voci precedenti dichiaravano zero collisioni e ne
+    # avevano — una per il proprio quarto file dimenticato, l'altra per un branch non guardato.
+    collides_with: []
+    note: >-
+      `#863`: yaw continuo e pitch a runtime. Prima la vista aveva **otto orientamenti e una sola
+      inclinazione** — guardare *fra* due file di celle era impossibile proprio con lo strumento che
+      `D-142` motiva.
+      ⚠️ **Il valore `45°` dello step NON si tocca**: è deciso da `D-142` e la issue lo mette fuori scope.
+      Il continuo si aggiunge accanto allo scatto e scrive lo **stesso** stato, così `Q` dopo un
+      trascinamento è un passo avanti e non un salto verso una griglia di angoli parallela.
+      ✅ **Set disgiunto dalle track ACTIVE**: `Camera/`, `Player/RTPlayerController.*` e
+      `Tests/RTCameraPawnTests.cpp` non sono nel `writable` di nessuna.
+      ➕ Tre cose che la issue dava per scontate e non lo erano, tutte già corrette nello scope:
+      `ClampMin`/`ClampMax` del `meta` vincola il **widget del Details**, non il codice — il clamp è in
+      `AddPitch`; `DefaultPitch` non esisteva, e senza di esso il valore a cui `Home` torna si sarebbe
+      perso al primo trascinamento; i campi erano `protected`, quindi serviva `SetPitchForTest` secondo la
+      convenzione dei sei precedenti.
+      ⏳ **`PitchSensitivity` e `YawSensitivity` restano taratura aperta**: la issue lo dichiara
+      («la taratura delle sensibilità resta tuning aperto, senza numeri»), e i default sono un punto di
+      partenza da playtest, non una decisione.
+
   # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**:
   #
   #   D:/wt-451           `feat/451-u1-voci-hex-mode`       LOCAL, 0 file
-  #   D:/rt-telecamera    `feat/887-focus-quota`            LIVE, 4 file · PR #890 — fra i remoti
+  #   D:/rt-telecamera    `feat/863-yaw-pitch`              LOCAL, non ancora pushato
   #   D:/rt-client        `docs/38-spec-panel-playtest-hex` LIVE  — fra i branch remoti
   #   D:/rt-simulation    `feat/165-finestra-overwatch`     **mergiata #878**, write-set 0 — nessuna voce
   #   D:/rt-spatial       detached su `8ea9c229`            0 file, nessun vincolo, nessuna voce
