@@ -751,8 +751,8 @@ tracks:
 
   simulation:
     status: ACTIVE
-    issue: 578
-    branch: feat/578-determinismo-procedure-mancanti
+    issue: 915
+    branch: feat/915-fixture-mondo-condivisa
     worktree: "D:/rt-simulation"
     note: >-
       IDLE perché **il lavoro è atterrato**, non per dipendenza. `#165` (CP 14.5, finestra e primo
@@ -794,9 +794,40 @@ tracks:
       Misurato: il piano **non** è `integration_only`, **non** alimenta viste generate (le due occorrenze
       in `feature-registry.yaml` sono riferimenti di feature, non `derives_from`), e **nessuno** dei nove
       branch vivi lo tocca.
+      ✅ **`#578` è passata da 5 voci aperte a 1: PR #912 mergiata in `9fd7504f`**, quattro voci del DoD
+      chiuse e spuntate, `Packaged` sola aperta. La issue resta `OPEN` per quella — ma il suo residuo
+      **non è scrivibile da qui**: la procedura operativa vive in `docs/technical/test-e-diagnosi.md`,
+      che non è nel `writable` di nessuna track. Registrato come STOP nella PR, non scritto.
+      ➕ **La track passa quindi a `#915`, che è il delta del mandato** e non un secondo taglio dello
+      stesso: `#578` chiedeva *quali* procedure verificare, `#915` chiede l'infrastruttura con cui i test
+      costruiscono il mondo. Il `branch:` precedente è **mergiato e cancellato** lato server — verificato
+      con `git ls-remote`, non ricordato.
+      ➕ **`Source/RefactorTactics/Tests/RTWorldFixtures.h` entra nel `writable`, e il file non esiste
+      ancora.** È il caso più semplice di intersezione vuota — nessun branch può toccare un path che non
+      c'è — ma va scritto qui lo stesso, perché è il **motivo** che invecchia, non la misura:
+      · misurato che **43** file di test dichiarano `Make*World` in **una sola forma** normalizzata, e 43
+        dichiarano `Destroy*World` in **due** (41 + 2, la differenza è un early-return). Estratto il corpo
+        di ogni funzione che chiama `UWorld::CreateWorld`, tolti commenti e whitespace, raggruppato per
+        corpo: non tre campioni letti a occhio;
+      · la causa è **scritta nel codice** — *«Nomi distinti da ogni altro file di test: la unity build
+        condivide la translation unit»* (`RTSimulationDeterminismTests.cpp:36`). Due namespace anonimi con
+        la stessa funzione collidono quando la unity build li fonde. Un header `inline` in un namespace
+        nominato scioglie il vincolo; rinominare per file lo aggira quarantatré volte.
+      ⛔ **Perché non `RTOccupancyFixtures.h`, che pure è già assegnato.** È l'unico `.h` di `Tests/`, ma
+      è geometria di occupancy — `FRTOccupancyPolyline`, settori, i gemelli di controllo di **#620**/**#621**.
+      Ospitarci il mondo di test costerebbe zero in riallocazione e renderebbe falso il nome del file, che
+      è il tipo di risparmio che si paga alla prima persona che lo apre.
+      ⚠️ **Restano fuori i 40 file non migrati**, ed è voluto: il mandato §2 dice «migra pochi consumatori,
+      non tutti» e il §8 vieta i mega-refactor. Tre consumatori sono il merge target §10; il quarantesimo
+      lo paga chi tocca quel file per un'altra ragione.
+      ✅ **Intersezione rimisurata il 2026-08-15 su `9fd7504f`**, non ereditata: cinque dei nove branch
+      remoti vivi toccano `Tests/` — `feat/641` (3 file), `feat/77` (1), `fix/892` (1) — e **nessuno**
+      tocca uno dei cinque path di questa track. `git diff --name-only origin/main...origin/<b>` per ognuno
+      dei nove, `git worktree list` per le sei sessioni aperte.
     mandate: docs/technical/qa-prompt-terminal-a-determinismo.md
     writable:
       - Source/RefactorTactics/Tests/RTOccupancyFixtures.h
+      - Source/RefactorTactics/Tests/RTWorldFixtures.h
       - Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp
       - Source/RefactorTactics/Tests/RTStress4v4Tests.cpp
       - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
