@@ -611,147 +611,31 @@ tracks:
       su un set che non è assegnato a nessuno.
 
   simulation:
-    status: ACTIVE
-    issue: 165
-    branch: feat/165-finestra-overwatch
-    worktree: "D:/rt-simulation"     # 2 commit, 14 file su `d5aef89e` — misurato (era «0 e 0»)
+    status: IDLE
+    issue: null
+    branch: null
     note: >-
-      CP 14.5 — il resolver costruisce opportunity in partita e apre la finestra.
-      🔴 **Questa track puntava a #583 su una premessa già falsa quando il batch è stato scritto**:
-      «la condizione di `D-109` non ha un produttore». Il produttore è atterrato il 2026-08-12 con
-      #639 (`5cc2d6de`) e si chiama `rt.Reaction.Condition [N]`
-      (`Source/RefactorTactics/Turn/RTReactionConditionConsole.cpp`). Di #583 restano due voci di
-      DoD, e **nessuna delle due è scrivibile senza CP 14.5**: `BuildOverwatchTriggers` ha come
-      soli chiamanti l'harness e i test, quindi non esiste un'opportunity di partita in cui
-      registrare la condizione nel TurnLog. Scriverla adesso sarebbe un dato che nessuna partita
-      produce — la forma di difetto che #583 esiste per evitare, spostata di un livello.
-      ⚠️ **`ScenarioHarness/` è TOLTA da questo write-set**: `wt-cap` la stava riscrivendo
-      (misurato, non dedotto). Se il lavoro dovesse richiederla, questa track esce dal batch —
-      non si negozia il confine a metà lavoro.
-      ✅ **La ragione è caduta il 2026-08-14**: `wt-cap` è atterrato (PR #848 alle `06:44Z`, `#767`
-      chiusa alle `07:03Z`), il branch non esiste più lato server e `ScenarioHarness/` **non è
-      tenuta da nessuno**. La riga sopra resta perché il vincolo può essere ancora quello giusto —
-      ma ora è una **scelta** di questa track, non una contesa misurata, e va riletta da chi la
-      possiede. Registrarlo qui è ciò che impedisce a un vincolo caduto di sopravvivere alla
-      propria giustificazione.
-      🔴 **Il `branch:` di questa track è sparito e poi è tornato, nello spazio di poche ore.**
-      `feat/165-finestra-overwatch` e il suo worktree (`D:/wt-165`) erano spariti con **zero commit**
-      fatti, e il campo era passato a `null` — la sentinella che lo schema ora documenta — perché il
-      nome scritto era **falso** e fra un valore vero-e-incompleto e uno falso si sceglie il primo.
-      ✅ **Ricreato**: il branch esiste di nuovo, in `D:/rt-simulation`, sempre a zero commit e zero
-      file. Il campo torna a nominarlo. 🔴 La stesura precedente l'aveva **visto e non l'aveva
-      scritto** — «la track resta com'è, `branch: null` era vero al momento della misura» — che è
-      vero e inutile: lo schema di `session_branch` era stato aggiunto **in quello stesso commit**
-      con la motivazione che «un branch che non si può nominare non entra nell'invariante», e
-      `simulation` restava l'unica track ACTIVE la cui sessione viva non era localizzabile dal file.
-      Trovato dalla code review. Il write-set qui sotto resta una dichiarazione da confermare al
-      primo commit.
-      ✅ **`Ability/` NON serve, e lo dichiara la issue** — non è una deduzione: #165 elenca i file
-      coinvolti (`Turn/RTTurnManager.*`, `Turn/RTReactionOpportunityLibrary.*`,
-      `Bot/RTHexBotLibrary.*`, `Tests/`) e aggiunge *«`Ability/RTHeroCatalogLibrary.*` **esce
-      dall'elenco**: era lì per il cablaggio di `InterceptShot`»*. Il primo consumatore è
-      l'**Overwatch universale** di `D-014`, che per definizione non passa da un'abilità d'eroe —
-      `D-016` ha spostato `InterceptShot` in E18, dove è chiusa dal 2026-08-10.
-      🔴 **E la riga qui sopra è FALSA, misurata sul codice all'apertura della sessione.** È vera di
-      `RTHeroCatalogLibrary` — l'unico file di `Ability/` che la issue nomina, ed è il file che
-      *esce* — e falsa di `Ability/` come dominio: **`Action.Overwatch` non esisteva nel catalogo
-      core**, e lo dichiarava `RTCatalogLibrary.h:330` di suo (*«è E14, e arriverà con la sua
-      infrastruttura»*). L'infrastruttura era arrivata prima di lei con CP 14.3 e CP 14.4, quindi i
-      `FRTOverwatchWatcher` li costruivano **solo i test** (34 riferimenti, tutti in `Tests/`) e in
-      partita nessuno poteva armare un Overwatch: la finestra non aveva innesco. È il difetto che
-      #583 e #512 esistono per evitare, e questa riga lo nascondeva citando l'elenco della issue —
-      che elencava i file assumendo un produttore che, misurato, non c'era.
-      **Riallocazione concordata**: `Ability/RTCatalogLibrary.{h,cpp}`,
-      `Tests/RTOverwatchTriggerTests.cpp` e `Tests/RTHexBotIntegrationTests.cpp` entrano nel
-      `writable` qui sotto. Misurato contro tutti e sette i branch vivi prima di prenderli: i due
-      file di test **non erano tenuti da nessuno**; `RTCatalogLibrary.cpp` era conteso con
-      `feat/641-sprint-post-blast` (12 inserzioni, 2 rimozioni), fermo dall'11 agosto, 522 commit
-      indietro e senza PR — la contesa è stata risolta a favore di questa track, e `feat/641` rifà
-      il proprio innesto quando riparte, su una base che deve comunque rifare.
-      ✅ **La contesa su `Turn/` con `feat/cp75-selfreposition` è stata decisa allo stesso modo**:
-      la track prende `Turn/`. Quel branch ha 1 commit WIP dichiarato (*«enum ed evento fatti,
-      l'applicazione NO»*), 522 commit di ritardo e nessuna PR — il costo del rebase cade su chi è
-      già da ricostruire. La decisione che il giro precedente registrava come «ancora da prendere»
-      **è presa**.
-      ✅ **Write-set MISURATO al termine, non dichiarato**
-      (`git diff --name-only origin/main...feat/165-finestra-overwatch`): **14 file**, tutti dentro
-      il `writable` qui sotto, `RTIntentPrivacyLibrary.{h,cpp}` compresi nell'esclusione e non
-      toccati. `ScenarioHarness/` non è servita, quindi il vincolo che la teneva fuori non è mai
-      stato messo alla prova — resta una scelta, come il giro precedente aveva registrato.
-      PR **#878** verso `main`.
-      ⚠️ **Il write-set dei test è più largo di `RTReactionTests.cpp`**, misurato sugli 8 test che
-      la issue nomina: **7 non esistono ancora** e vanno scritti; l'unico che esiste,
-      `Overwatch.OpportunityLeaksNoFuture`, vive in `Tests/RTReactionOpportunityTests.cpp` —
-      quindi è quel file, non `RTReactionTests.cpp`, il posto dove atterrano i gemelli.
-      ✅ **Al secondo giro la collisione con `feat/cp75-selfreposition` regge invariata**: gli
-      stessi tre file di `Turn/`, misurati di nuovo sulla base nuova. Il branch non si è mosso
-      (fermo a `c1e151ef` dell'11 agosto), quindi la decisione registrata sotto `preexisting` —
-      cedere o non cedere `Turn/` — è ancora **da prendere** da chi possiede questa track, e non
-      è scaduta né si è risolta da sola.
-      ➕ **Spec panel su #165 del 2026-08-14**, che rilegge la issue contro il codice che la chiude
-      (`docs/roadmap/plans/cp145-finestra-overwatch-spec-panel-2026-08-14.md`, riallocazione dichiarata
-      qui sotto). Due rilievi 🔴 non sono lavoro mancante ma specifica mal collocata — la casella dei
-      «3,0 s» non è falsificabile in questo checkpoint (`FastReactionDuration` non esiste in `Source/`
-      se non dentro un commento) e «il replay la riproduce» è verificata come round-trip di
-      serializzazione, non come replay. Il secondo esce da questa track: è un requisito di ADR-0009 e
-      atterra su una issue propria dipendente da #166.
-    writable:
-      - Source/RefactorTactics/Turn/
-      - Source/RefactorTactics/Bot/
-      - Source/RefactorTactics/Tests/RTReactionTests.cpp
-      - Source/RefactorTactics/Tests/RTReactionOpportunityTests.cpp
-      # --- Riallocati in corsa, vedi la nota: il produttore mancava e la issue non lo sapeva -----
-      # ⚠️ `Ability/` NON per prefisso, ma per FILE: `RTHeroCatalogLibrary.{h,cpp}` resta fuori — la
-      # issue la esclude per nome, ed è tenuta da `wip/icon-visual-language` (misurato). Dichiarare
-      # la directory intera avrebbe violato l'invariante per un file che questa track non tocca.
-      - Source/RefactorTactics/Ability/RTCatalogLibrary.h
-      - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
-      # I due file dove atterrano i gemelli dei test. `RTOverwatchTriggerTests.cpp` ospita già i
-      # cinque `Overwatch.*` di CP 14.4; `RTHexBotIntegrationTests.cpp` è dove vivono i `Bot.*`.
-      # Nessuno dei due era assegnato, e nessun branch vivo li tocca.
-      - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
-      - Source/RefactorTactics/Tests/RTHexBotIntegrationTests.cpp
-      # Il referto dello spec panel su #165 (2026-08-14), che rilegge la issue contro il codice che la
-      # chiude. ⚠️ Path per FILE e non per prefisso, ed è una misura non una prudenza:
-      # `docs/roadmap/plans/` è toccata da **cinque** branch vivi — `docs/38-spec-panel-playtest-hex`,
-      # `docs/five-lane-roadmap`, `docs/lane-6-7`, `docs/lane-7-vault`, `wip/icon-visual-language` —
-      # quindi dichiarare la directory violerebbe l'invariante su file che questa track non tocca.
-      # Sul singolo path la misura è zero collisioni: nessuno dei cinque lo nomina (è nuovo).
-      - docs/roadmap/plans/cp145-finestra-overwatch-spec-panel-2026-08-14.md
-    # ⚠️ `Turn/` meno due file: la contesa con `client_tools` (#78) era di GRANULARITA', non di
-    # dominio. #78 deve scrivere la classificazione di certezza lato simulatore — il suo DoD vieta
-    # di calcolarla nell'UI — e quella classe vive in `Turn/RTIntentPrivacyLibrary.{h,cpp}`, che
-    # dichiarando la directory intera finiva qui dentro. Misurato sui due DoD: CP 14.5 nomina
-    # `RTTurnManager`, `RTReactionOpportunityLibrary` (che sta in `RTReactionOpportunityTypes.*`),
-    # `Bot/RTHexBotLibrary` e il TurnLog; **nessuno dei due tocca il file dell'altro**.
-    # Senza questa riga l'invariante `WritableSet(simulation) ∩ WritableSet(client_tools) = ∅`
-    # sarebbe falsa per un file che nessuna delle due track si contende davvero.
-    excludes:
-      - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
-      - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
-    # Misurato: `Turn/` e `Bot/` non alimentano nessuna vista, e **aggiungere** un test nemmeno.
-    # ⚠️ Ma RINOMINARE o cancellare un test che il registry cita in `tests:` flippa
-    # `project-graph.json`, perche' `build_graph()` incorpora le `diagnostics` di `validate()`.
-    #
-    # 🔴 **I due `only_if` qui sotto dicevano «2 su 8» e «2 su 6», ed erano falsi — in senso
-    # permissivo, cioe' quello che non protegge.** I citati si contavano a occhio sui riferimenti
-    # *espliciti*, dimenticando che `RT-FEAT-REACTION-PREPARED` dichiara il **pattern**
-    # `RefactorTactics.Reactions.*`, che li prende quasi tutti. Rimisurato chiamando la funzione
-    # vera del registry — `fr.test_pattern_matches(pattern, [nome])` per ogni nome estratto dai
-    # file, non un regex riscritto qui — il rapporto e' **8 su 8** e **6 su 6**.
-    # La condizione resta scritta perche' resta vera come regola (aggiungere un test non muove
-    # niente), ma oggi non filtra nulla: in questi due file **qualunque** rinomina rigenera.
-    derives_from:
-      - source: Source/RefactorTactics/Tests/RTReactionTests.cpp
-        only_if: "rinomini o cancelli un test citato in `tests:` dal registry (misurato: 8 su 8)"
-        regenerates: [docs/roadmap/project-graph.json]
-      # Stessa condizione, stesso esito: 6 test, **6** citati. Cinque per riferimento esplicito da
-      # `RT-FEAT-REACTION-OPPORTUNITY` e il sesto — `Overwatch.OpportunityLeaksNoFuture` — pure,
-      # quindi qui non e' nemmeno il pattern a fare la differenza.
-      - source: Source/RefactorTactics/Tests/RTReactionOpportunityTests.cpp
-        only_if: "rinomini o cancelli un test citato in `tests:` dal registry (misurato: 6 su 6)"
-        regenerates: [docs/roadmap/project-graph.json]
-    binary_leases: []
+      IDLE perché **il lavoro è atterrato**, non per dipendenza. `#165` (CP 14.5, finestra e primo
+      consumatore) è chiusa: PR **#878** mergiata in `main` alle `21:16Z` del 2026-08-14
+      (`53ec531f`), issue chiusa il 2026-08-15. Il branch `feat/165-finestra-overwatch` non esiste
+      più — cancellato lato server e in locale, `git ls-remote` non lo trova.
+      ✅ **Il write-set torna libero e non assegnato**: `Turn/`, `Bot/`, i quattro file di test,
+      `Ability/RTCatalogLibrary.{h,cpp}` e il referto dello spec panel. Con esso cadono le due
+      contese che questa track aveva deciso a proprio favore e che vanno rilette da chi riparte:
+      `Ability/RTCatalogLibrary.cpp` con `feat/641-sprint-post-blast` e `Turn/` con
+      `feat/cp75-selfreposition` — **entrambi i branch esistono ancora** ed entrambi dovranno
+      rifare il proprio innesto su una base che comunque era da rifare.
+      ⚠️ **Il worktree `D:/rt-simulation` resta in piedi, staccato su `main`.** Non è un residuo da
+      ripulire: tiene `Binaries/` e `Intermediate/` costruiti, e cancellarlo costa una ricompilazione
+      intera. Chi lo riusa fa `git switch -c <branch>` da lì.
+      ⚠️ **Ciò che questa track ha imparato e che non muore con lei**: la issue elencava i file
+      coinvolti assumendo un produttore che, misurato, non c'era — `Action.Overwatch` non era nel
+      catalogo core, quindi i `FRTOverwatchWatcher` li costruivano solo i test e in partita nessuno
+      poteva armare un Overwatch. La riallocazione di `Ability/` è nata da lì, e il difetto non era
+      nel write-set: era nell'elenco della issue. Il referto dello spec panel lo registra
+      (`docs/roadmap/plans/cp145-finestra-overwatch-spec-panel-2026-08-14.md`), insieme alle due
+      issue che ne sono uscite — **#886** (il Verifier rilegge le decisioni dal TurnLog) e **#888**
+      (il danno ai boundary ignora la copertura, in due punti).
 
   client_tools:
     status: ACTIVE

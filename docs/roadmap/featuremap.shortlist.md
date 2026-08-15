@@ -26,9 +26,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 |---|--:|
 | `IDEA` | 7 |
 | `DESIGNED` | 18 |
-| `SPECIFIED` | 11 |
-| `IMPLEMENTING` | 24 |
-| `TESTABLE` | 7 |
+| `SPECIFIED` | 10 |
+| `IMPLEMENTING` | 23 |
+| `TESTABLE` | 9 |
 | `INTEGRATED` | 22 |
 | `RELEASE_READY` | 16 |
 | `DONE` | 4 |
@@ -176,11 +176,11 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | v0.1 | INTEGRATED | 7/9 | E5 | Una attivazione per turno, **nessuna attesa nel resolver** |
-| `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | v0.1 | IMPLEMENTING | 3/10 | E14 | Il modello unico di tutte le finestre; mai annidate |
-| `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | v0.1 | IMPLEMENTING | 2/10 | E14 | Profilabile, non un'abilità d'eroe |
+| `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | v0.1 | TESTABLE | 5/10 | E14 | Finestra **3,0 s**, `Timeout → HOLD`; Fast/Headless risponde subito via policy |
+| `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | v0.1 | TESTABLE | 5/10 | E14 | Profilabile, non un'abilità d'eroe |
+| `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | v0.1 | IMPLEMENTING | 4/10 | E14 | Il modello unico di tutte le finestre; mai annidate |
 | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | v0.1 | IMPLEMENTING | 1/9 | E14 | `Brace` non è solo riduzione danno: arma un profilo di risposta |
 | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | v0.1 | SPECIFIED | 1/10 | E14 | Due opportunity contese: chi vince, e una sola volta |
-| `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | v0.1 | SPECIFIED | 1/10 | E14 | Finestra **3,0 s**, `Timeout → HOLD`; Fast/Headless risponde subito via policy |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/10 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
 ### Tools · 15
