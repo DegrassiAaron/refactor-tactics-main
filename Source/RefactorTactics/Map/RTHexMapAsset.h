@@ -195,6 +195,22 @@ public:
 	 */
 	bool ClearAll();
 
+	/**
+	 * **Sostituisce** celle e transizioni con quelle date, incrementando la revisione **una volta sola**;
+	 * vero se dopo la chiamata l'asset contiene qualcosa.
+	 *
+	 * E' il caso che alla famiglia mancava: `AddOrUpdateCell` e' la singola, `UpdateCells` il gruppo,
+	 * `ClearAll` lo svuotamento — e «rimpiazza tutto» finiva scritto a mano dai chiamanti, con un
+	 * `AddOrUpdateCell` per cella. Generare l'arena della v0.1 muoveva cosi' la revisione **98 volte**
+	 * per un evento solo, e le transizioni — assegnate direttamente — per niente.
+	 *
+	 * Vale la regola che `UpdateCells` enuncia: *«un portone largo tre bordi si apre una volta, non tre»*.
+	 * Rimpiazzare la mappa e' un evento, e chi osserva `Revision` per invalidare una cache deve vederne uno.
+	 *
+	 * Sostituire con contenuto **vuoto** e' uno svuotamento: delega a `ClearAll`, guardia inclusa.
+	 */
+	bool ReplaceContent(const TArray<FRTHexCellData>& InCells, const TArray<FRTHexEdge>& InTransitions);
+
 	/** Puntatore alla cella con l'Id dato, o nullptr se assente. */
 	const FRTHexCellData* FindCell(const FRTCellId& Id) const;
 

@@ -130,6 +130,22 @@ bool URTHexMapAsset::ClearAll()
 	return true;
 }
 
+bool URTHexMapAsset::ReplaceContent(const TArray<FRTHexCellData>& InCells,
+	const TArray<FRTHexEdge>& InTransitions)
+{
+	if (InCells.Num() == 0 && InTransitions.Num() == 0)
+	{
+		ClearAll(); // sostituire con NIENTE e' uno svuotamento: la guardia sta li', non duplicata qui
+		return false;
+	}
+
+	Cells = InCells;
+	Transitions = InTransitions;
+	bLookupDirty = true; // gli indici non sopravvivono a una sostituzione
+	++Revision;          // UNA volta: rimpiazzare la mappa e' un evento, non N
+	return true;
+}
+
 bool URTHexMapAsset::RemoveCell(const FRTCellId& Id)
 {
 	EnsureLookup();
