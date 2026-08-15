@@ -750,9 +750,10 @@ tracks:
           - docs/roadmap/scenariomap.shortlist.md
 
   simulation:
-    status: IDLE
-    issue: null
-    branch: null
+    status: ACTIVE
+    issue: 578
+    branch: feat/578-determinismo-procedure-mancanti
+    worktree: "D:/rt-simulation"
     note: >-
       IDLE perché **il lavoro è atterrato**, non per dipendenza. `#165` (CP 14.5, finestra e primo
       consumatore) è chiusa: PR **#878** mergiata in `main` alle `21:16Z` del 2026-08-14
@@ -775,6 +776,32 @@ tracks:
       (`docs/roadmap/plans/cp145-finestra-overwatch-spec-panel-2026-08-14.md`), insieme alle due
       issue che ne sono uscite — **#886** (il Verifier rilegge le decisioni dal TurnLog) e **#888**
       (il danno ai boundary ignora la copertura, in due punti).
+      ➕ **Riattivata il 2026-08-15 su `#578`, con il mandato QA Terminal A** (`mandate`, sotto).
+      ⚠️ **Il mandato e la issue leggono lo stesso dominio in due tagli diversi, e vanno letti insieme.**
+      Il mandato dice *«il delta è la fixture»* — `RTOccupancyFixtures.h`, 187 righe, **1 consumatore su
+      105 file di test**, rimisurato oggi dopo `#907`, che ha toccato `Map/` e non la fixture. `#578`
+      dice *«tre procedure su sei mancano»*, misurate contro **PDR-05 §10**. Non si contraddicono: la
+      issue elenca *cosa* verificare, il mandato dice *con quale infrastruttura*.
+      ✅ **L'oracolo che `#578` pubblica, rieseguito oggi**: `Repeat`, `FrameRate`, `Packaged` e `Seed`
+      **restano senza match** — le tre voci rosse e il gap giallo reggono a tre giorni di distanza. Le
+      due verdi invece sono cresciute e la issue le sottostima: `Permutation` da **4** a **≥13**,
+      `Golden` da **1** a **5**. Un oracolo pubblicato nella issue è la ragione per cui questo si
+      misura invece di dedurlo.
+      ⚠️ **`docs/product/piano-canonico-mvp.md` entra nel `writable`**, e non per comodità: il DoD di
+      `#578` chiede che ogni procedura dichiarata *«fuori scope»* o *«non applicabile»* porti la ragione
+      **accanto all'invariante #4**, non solo nella issue — «una procedura scartata in silenzio si
+      ripropone fra sei mesi». Senza quel file la track non ha dove scrivere metà del proprio DoD.
+      Misurato: il piano **non** è `integration_only`, **non** alimenta viste generate (le due occorrenze
+      in `feature-registry.yaml` sono riferimenti di feature, non `derives_from`), e **nessuno** dei nove
+      branch vivi lo tocca.
+    mandate: docs/technical/qa-prompt-terminal-a-determinismo.md
+    writable:
+      - Source/RefactorTactics/Tests/RTOccupancyFixtures.h
+      - Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp
+      - Source/RefactorTactics/Tests/RTStress4v4Tests.cpp
+      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+      - docs/product/piano-canonico-mvp.md
+    binary_leases: []
 
   client_tools:
     status: ACTIVE
