@@ -69,6 +69,7 @@ Tutti i gadget hanno **cooldown 3**.
 | `Gadget.SmokeEmitter` | Emettitore di fumo | fumo raggio 1 |
 | `Gadget.PortableCover` | Copertura portatile | crea una **copertura bassa su un bordo** (modello E9) |
 | `Gadget.Sensor` | Sensore | **alza la Team Knowledge** in un'area (modello E13) |
+| `Gadget.Anchor` | Ancora | impedisce **una** spinta |
 
 > **Allineamento 2026-08-08 — due gadget parlavano una lingua che non esiste più.**
 >
@@ -81,7 +82,6 @@ Tutti i gadget hanno **cooldown 3**.
 >   livello** su ciò che copre — tipicamente da `Nascosto`/`ContattoIncerto` a `Rilevato` — e alimenta la
 >   **Team Knowledge**, non una visione onnisciente. Raggio e durata restano **non specificati** dalla fonte:
 >   si fissano in E7, non qui.
-| `Gadget.Anchor` | Ancora | impedisce **una** spinta |
 
 ---
 
