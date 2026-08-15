@@ -458,11 +458,11 @@
         },
         {
           "id": "PIE-HEX-MODE-N",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-MODE-O",
-          "state": "⏳"
+          "state": "✅"
         }
       ],
       "issues": [
@@ -1613,11 +1613,11 @@
     },
     {
       "id": "PIE-HEX-MODE-N",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-MODE-O",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-TRANS",

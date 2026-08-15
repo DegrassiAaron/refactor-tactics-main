@@ -94,6 +94,12 @@ Content/**/*.txt
 # non fa nulla e non segnala nulla, e la seduta si chiude senza che gli artefatti entrino.
 !Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
 !Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
+# Materiale delle celle hex (#896): legge `PerInstanceCustomData` come Base Color, ed e' cio' che rende
+# visibile il colore per superficie che `ARTHexMapActor` gia' scrive su ogni istanza. Ammesso QUI, prima che
+# l'asset esista: al contrario `git add` non farebbe nulla e non lo direbbe — e' il difetto che #449 ha
+# corretto per l'arena. L'oracolo e' `git check-ignore -q <file>` -> exit 1; con `-v` esce 0 in entrambi i
+# casi e non distingue.
+!Content/RT/Core/Grid/M_HexCell.uasset
 # I Blueprint-unita' e gli anim BP del roster v0.1 — sedute U7 e U8. Stessa ragione dell'arena qui
 # sopra: riammessi PRIMA che esistano.
 # Il nome e la cartella seguono il **pack Paragon**, non l'eroe (decisione dell'autore, 2026-08-11):
