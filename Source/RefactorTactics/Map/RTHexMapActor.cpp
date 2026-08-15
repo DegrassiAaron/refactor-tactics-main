@@ -469,6 +469,13 @@ void ARTHexMapActor::RebuildInstances()
 	// Dopo `SetStaticMesh`, che riporta gli slot ai materiali della mesh: invertire l'ordine perderebbe
 	// l'override senza dirlo. Solo `Cells` — gli altri tre ISM non portano custom data, e tingerli col
 	// colore della superficie direbbe una cosa falsa (il rilievo non e' terreno, e' il costo).
+	//
+	// ⚠️ Conseguenza VISTA a schermo e accettata il 2026-08-15, non un effetto collaterale non notato:
+	// in Unlit il materiale di default rende i blocchi di `Relief` **la cosa piu' luminosa della scena**,
+	// piu' delle celle colorate che stanno sotto. Le alternative erano tingerli come la cella (piu' scuri)
+	// o dargli un grigio neutro; si e' scelto di lasciarli cosi', perche' il sovrapprezzo di movimento
+	// DEVE saltare all'occhio. Se un giorno sembrera' un difetto, e' una decisione di leggibilita' e si
+	// riapre in M8 / U9 — non si "corregge" qui.
 	if (UMaterialInterface* Mat = CellMaterial.LoadSynchronous())
 	{
 		Cells->SetMaterial(0, Mat);
