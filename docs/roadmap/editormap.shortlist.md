@@ -62,8 +62,8 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
-- **U1** · Mappa-arena hex — 2/7 voci verdi · sblocca U13, U19
-- **U2** · Partita hex, primo giro — 3/8 voci verdi · sblocca U3, M6.1, M6.2
+- **U1** · Mappa-arena hex — 4/7 voci verdi · sblocca U13, U19
+- **U2** · Partita hex, primo giro — 7/8 voci verdi · sblocca U3, M6.1, M6.2
 - **U3** · Input e pianificazione — 1/4 voci verdi · sblocca U4, M6.3
 - **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
 - **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, U19, M6.6, M6.7
@@ -97,8 +97,8 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | | Seduta | Lane | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|:--:|---|---|:--:|:--:|:--:|
 | **U18** | Verifiche senza prerequisiti | `PIE` | verdetto su quindici voci che non attendono nulla | — | no | 1/15 | 🟡 |
-| **U1** | Mappa-arena hex | `ASSET` | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 2/7 | 🟡 |
-| **U2** | Partita hex, primo giro | `PIE` | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 3/8 | 🟡 |
+| **U1** | Mappa-arena hex | `ASSET` | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 4/7 | 🟡 |
+| **U2** | Partita hex, primo giro | `PIE` | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 7/8 | 🟡 |
 | **U3** | Input e pianificazione | `PIE` | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
 | **U4** | Combat e linea di tiro | `PIE` | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
 | **U5** | Bot e HUD | `PIE` | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
@@ -191,7 +191,7 @@ L'ordine non e' arbitrario:
 **Sbloccata da**: M6.0 · **Preparazione condivisa con**: U13 · **Percorso critico**: sì
 **Produce**: `DA_HexMap_Arena` e `L_HexArena`, committati
 **Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ✅ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ✅
-**Verifichi**: `PIE-HEX-MODE-E` ⏳ · `PIE-HEX-MODE-F` ⏳ · `PIE-HEX-MODE-G` ⏳ · `PIE-HEX-MODE-H` ⏳ · `PIE-HEX-MODE-L` ⏳ · `PIE-HEX-MODE-N` ✅ · `PIE-HEX-MODE-O` ✅
+**Verifichi**: `PIE-HEX-MODE-E` ⏳ · `PIE-HEX-MODE-F` ✅ · `PIE-HEX-MODE-G` ✅ · `PIE-HEX-MODE-H` ❓ · `PIE-HEX-MODE-L` ⏳ · `PIE-HEX-MODE-N` ✅ · `PIE-HEX-MODE-O` ✅
 **Finita quando**: i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena soddisfa i tre criteri dei passi 3, 4 e 7
 **Sblocca**: U13, U19
 
@@ -248,7 +248,7 @@ Nessuna guida copre ancora questa procedura, quindi i passi stanno qui.
 
 **Sbloccata da**: M6.1, M6.2 · **Preparazione condivisa con**: U3, U4, U5, U6 · **Percorso critico**: sì
 **Produce**: verdetto su allestimento e movimento
-**Verifichi**: `PIE-HEXPLAY-1` ✅ · `PIE-HEXPLAY-4` ⏳ · `PIE-HEXPLAY-5` ✅ · `PIE-CAM-START` ✅ · `PIE-CAM-ORBIT` ⏳ · `PIE-CAM-ZOOM-ANCHOR` ⏳ · `PIE-CAM-BOUNDS` ⏳ · `PIE-CAM-FOCUS` ⏳
+**Verifichi**: `PIE-HEXPLAY-1` ✅ · `PIE-HEXPLAY-4` ⏳ · `PIE-HEXPLAY-5` ✅ · `PIE-CAM-START` ✅ · `PIE-CAM-ORBIT` ✅ · `PIE-CAM-ZOOM-ANCHOR` ✅ · `PIE-CAM-BOUNDS` ✅ · `PIE-CAM-FOCUS` ✅
 **Finita quando**: le voci hanno esito reale nel registro
 **Sblocca**: U3, M6.1, M6.2
 
@@ -661,7 +661,7 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 > Nasce da #712, il gesto dell'autore. La seduta esiste perche' QUATTRO voci del suo DoD non sono osservabili headless: ghost, snap, Undo e residui vivono nell'occhio di chi disegna, non in una asserzione. La parte verificabile e' gia' nel runtime — `SnapToGrammar` con i suoi due test, `ValidateSegment` con i cinque di #620, `BakeCell` con i sette di #621 — e il tool d'editor NON contiene una sola regola: misurato, tre chiamate al runtime e zero logica duplicata. ⚠️ `unblocked_by: [U21]` non e' una dipendenza tecnica ma pratica: `L_DevSandbox` va illuminato prima, o il ghost si valuta su una scena in cui non si vede niente — e il verdetto direbbe piu' sulle luci che sul tool. ⚠️ `PIE-GEO-RESIDUI` chiede anche un `git status` pulito sul `.umap`: la geometria non si salva nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`. ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch remoti. Chi arriva secondo rinumera, non contende.
 
-> **59 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-FMTVER-*` 1 · `PIE-HEX-*` 9 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-NAME-*` 1 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 3 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
+> **60 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-FMTVER-*` 1 · `PIE-HEX-*` 10 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-NAME-*` 1 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 3 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 
 <!-- RT_SHORTLIST_EDITOR:END -->
 

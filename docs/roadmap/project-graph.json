@@ -452,15 +452,15 @@
         },
         {
           "id": "PIE-HEX-MODE-F",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-MODE-G",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-MODE-H",
-          "state": "⏳"
+          "state": ""
         },
         {
           "id": "PIE-HEX-MODE-L",
@@ -536,19 +536,19 @@
         },
         {
           "id": "PIE-CAM-ORBIT",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-CAM-ZOOM-ANCHOR",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-CAM-BOUNDS",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-CAM-FOCUS",
-          "state": "⏳"
+          "state": "✅"
         }
       ],
       "issues": [],
@@ -1491,15 +1491,15 @@
     },
     {
       "id": "PIE-CAM-BOUNDS",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-CAM-FOCUS",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-CAM-ORBIT",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-CAM-START",
@@ -1507,7 +1507,7 @@
     },
     {
       "id": "PIE-CAM-ZOOM-ANCHOR",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-CP1.4",
@@ -1591,15 +1591,15 @@
     },
     {
       "id": "PIE-HEX-MODE-F",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-MODE-G",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-MODE-H",
-      "state": "⏳"
+      "state": ""
     },
     {
       "id": "PIE-HEX-MODE-I",
@@ -1628,6 +1628,10 @@
     {
       "id": "PIE-HEX-MODE-O",
       "state": "✅"
+    },
+    {
+      "id": "PIE-HEX-MODE-P",
+      "state": "⏳"
     },
     {
       "id": "PIE-HEX-TRANS",
