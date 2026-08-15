@@ -34,7 +34,11 @@
 # La code review l'ha trovato. Un elenco chiuso è più onesto di un singolare che invecchia — e la
 # prossima aggiunta va argomentata contro **questo** elenco, non contro l'abitudine.
 #
-# ## Schema di una track  (`schema_version: 2`)
+# ## Schema di una track  (`schema_version: 3`)
+#
+# 🔴 Questa intestazione ha detto `2` per un commit intero **dopo** che il dato diceva `3`, e l'ha
+# trovata la code review: due numeri di versione in contraddizione dentro lo stesso file sono peggio
+# di uno solo stantio, perché chi implementa #840 «contro lo schema scritto» legge proprio qui.
 #
 #   status         obbligatorio     ACTIVE | IDLE
 #   issue          obbligatorio     numero GitHub, oppure null se IDLE
@@ -63,6 +67,24 @@
 #   worktree       facoltativo      il path del worktree, quando la sessione ne ha uno. Serve a
 #                                   `git worktree list` — il terzo comando della fotografia — per
 #                                   avere un riscontro invece di una corrispondenza a memoria.
+#   blocked_by     facoltativo      numero di PR che deve atterrare **prima** che questa track apra la
+#                                   sessione. Solo per una track ACTIVE con `branch: null`.
+#                                   ⚠️ **Argomentato contro l'elenco chiuso dei campi di stato, come
+#                                   quel paragrafo prescrive — e non è uno di quelli.** `status` e
+#                                   `reconciled_count` sono ciclo di vita del *lotto*; `blocked_by` è
+#                                   un **vincolo fra due write-set**, cioè la cosa che questo file
+#                                   esiste per rendere verificabile. Non dice a che punto è un lavoro
+#                                   (quello sta su GitHub e nel Feature Registry): dice che due
+#                                   sessioni si contendono gli stessi path e quale delle due passa
+#                                   prima. Senza il campo, il vincolo vive solo in prosa — e questo
+#                                   file ha già dimostrato quattro volte che una collisione descritta
+#                                   a parole e assente dai dati è invisibile a chiunque calcoli
+#                                   l'invariante dall'elenco.
+#                                   ⚠️ **Si cancella al merge, non alla lettura**: una `blocked_by` su
+#                                   una PR già `MERGED` è una contraddizione decidibile, esattamente
+#                                   come `status: ACTIVE` con una `issue` chiusa. Verifica in un
+#                                   comando: `gh pr view <n> --json state`.
+#                                   Nasce il 2026-08-16 con `client_tools` bloccata su #904.
 #   note           obbligatorio     perché questa track è ACTIVE o IDLE, con la misura
 #   writable       se ACTIVE        path o prefissi di directory. Il confronto è per **prefisso
 #                                   normalizzato**: `Turn/` e `Turn/RTTurnManager.cpp` collidono.
@@ -206,7 +228,16 @@
 # leggibili — non poteva distinguere un campo nuovo da un refuso, né un file v1 scritto prima dal
 # medesimo scritto dopo. Il numero non e' decorazione: e' l'unico modo che ha un lettore automatico
 # di sapere quale contratto sta leggendo.
-schema_version: 2
+#
+# ⚠️ Bump da 2 a 3 il 2026-08-16: questo giro ha aggiunto `blocked_by`, argomentato nello schema qui
+# sopra. La regola applicata è la stessa del bump precedente e vale **anche se oggi non costa niente
+# a nessuno**: 🔴 misurato che il validator di #840 **non esiste** — `grep -rl "parallel-batch"
+# scripts/` non trova un solo file, e la issue è tuttora `OPEN`. Questo documento lo invoca in cinque
+# punti come ragione per cui i campi devono essere leggibili, e per cinque volte parla di un lettore
+# che non c'è: dichiarato · trasportato · **non letto**. Il bump serve a chi implementerà #840 contro
+# lo schema scritto, che è l'unico consumatore che questo file avrà — e che, trovando un campo non
+# dichiarato, non potrebbe distinguerlo da un refuso.
+schema_version: 3
 
 meta:
   status: ACTIVE
@@ -260,6 +291,38 @@ meta:
     all'ora e non al giorno per la ragione che il paragrafo sopra dimostra: al terzo giro la
     granularità giusta non è più la data. Chi la rilegge domani non deve chiedersi se sia di
     stamattina o di ieri sera — deve **rimisurarla**, e il costo è tre comandi.
+    ⏱️ **La fotografia corrente è delle `2026-08-15 22:46Z`, cioè le `00:46` del 2026-08-16 in ora
+    locale, su `base_sha` 4ab36b48.** 🔴 I due timbri **non concordano sul giorno**, e va detto invece
+    che scelto in silenzio: `reconciled_at` è `2026-08-16` perché il file data in ora locale come tutta
+    la prosa del repository, mentre le PR che questa riconciliazione cita — #930 `22:30:06Z`, #932
+    `22:37:22Z` — sono timbrate `2026-08-15` perché `gh` risponde in UTC. Chi confronta una data di
+    questo file con un `mergedAt` sta confrontando due fusi, ed è il modo in cui una riconciliazione
+    sembra precedere le PR che ha misurato.
+    ✅ **2026-08-16 — la track `client_tools` è RIAPERTA su `#78`, ed è la ragione per cui questo giro
+    esiste.** Non è manutenzione del file: è una richiesta di riattivazione, e la misura fatta per
+    servirla ha trovato il batch stantio in **cinque** punti — 🔴 la prima stesura diceva «sei» e ne
+    elencava cinque, come la voce camera diceva «cinque» e ne elencava sei: lo stesso difetto in due
+    versi, nello stesso commit.
+    · `base_sha` **24 PR** indietro, e avanzato altre tre volte durante il giro;
+    · **quattro** voci `preexisting` atterrate — `wip/icon-visual-language` (#909), `feat/451` (#930),
+      `feat/864` (#899) e `docs/riconciliazione-batch-2026-08-15` (#897). 🔴 Diceva «tre» qui e
+      «quattro» venti righe più sotto, per la stessa rimozione;
+    · **due** prenotazioni `LOCAL · 0` diventate PR aperte (#904, #908);
+    · **due** worktree spariti e **tre** comparsi, uno dei quali — `D:/rt-menu` — esisteva già quando
+      la tabella che lo ometteva dichiarava la propria ora;
+    · **due** collisioni su questo file da branch nati dopo l'apertura del giro (#942, #943).
+    ⏱️ **E i quattro dati della domanda «chiudere il batch?» qui sopra sono del 2026-08-15: tre su
+    quattro sono falsi dopo questo giro.** Rimisurati: le riconciliazioni sono **cinque**, non quattro;
+    le track sono **sei** — `playtest` è nata con #942 — di cui **tre IDLE** (`spatial`, `playtest`,
+    `verification`) e tre ACTIVE, non «tre su cinque IDLE»; le voci `preexisting` sono **nove**, non
+    undici. Regge solo il terzo, ed è il più grave: le sessioni sullo stesso `integration_only` non
+    sono più due — sono state **tre** in un'ora.
+    🔴 **E la riapertura ha trovato l'invariante caduta, esattamente dove il file aveva scritto che
+    sarebbe caduta.** La voce di `feat/77-hud-slot-terna` diceva, a zero commit: *«il nome dice HUD, e
+    `Source/RefactorTactics/UI/` è il `writable` di `client_tools` (#78): se questa sessione committa
+    lì, l'invariante cade»*. Ha committato lì — `UI/RTHUD.{h,cpp}`, PR #904 — e l'intersezione è
+    misurata, non prevista. È la prima volta che questo file **prevede** una collisione prima che
+    esista e la ritrova alla riapertura: la prenotazione a zero file ha fatto il suo lavoro.
 
 batch:
   # ⚠️ Lo sha è troncato a 8 caratteri, come in tutta la prosa del repository. `base_sha` resta
@@ -274,7 +337,7 @@ batch:
   # sotto sono calcolati con `git diff --name-only <base_sha>...<branch>` su questo valore, non su
   # quello dell'id.
   id: "BATCH-84cbb70c-gh41-gh583"
-  base_sha: "18a19be0246ca563431e6c72698e599f8e329585"
+  base_sha: "6bdf4619bb9486635bc7cf4ac9dc466705cae9aa"
   created_at: "2026-08-14"
   # Base di creazione, tenuta perché è ciò che l'`id` nomina: `84cbb70c6f5082682e59a71d442b71e78fac4322`.
   # Verificato che sia ancora antenato della base corrente (`git merge-base --is-ancestor`): sì —
@@ -285,7 +348,7 @@ batch:
   # sono ricalcolati su `base_sha`, e tenere due basi vive significherebbe avere due misure che si
   # somigliano. Serve solo a dire che fra le due riconciliazioni il batch è **avanzato di sette
   # PR** — misurate, non elencate a memoria — non che sia stato riscritto.
-  reconciled_at: "2026-08-15"
+  reconciled_at: "2026-08-16"
   # ⚠️ `reconciled_at` da solo non distingue una riconciliazione da due nello stesso giorno, ed è
   # esattamente il caso di oggi: la data era già corretta *prima* di questo giro, quindi non
   # segnalava nulla. Il contatore è ciclo di vita del **batch**, come `status:`, e non stato di una
@@ -299,7 +362,39 @@ batch:
   # ⚠️ Il contatore non è decorazione: **quattro in due giorni** è il dato che dice che questo lotto è
   # durato più di quanto un lotto possa durare. La domanda «chiudere il batch?» è dell'autore, e sta
   # in `meta`.
-  reconciled_count: 4
+  #
+  # 🔴 **Quinta riconciliazione, chiesta per riaprire `client_tools` e non per manutenzione.** `base_sha`
+  # era fermo a `18a19be0` mentre `origin/main` era a `4ab36b48`: **24 PR** di distanza, contate con
+  # `git log --oneline 18a19be0..4ab36b48 --grep="Merge pull request" | wc -l`. ⚠️ Il `--merges` nudo ne
+  # dice **31**, perché conta anche i merge di `origin/main` dentro un branch: due comandi, due numeri,
+  # e quello che risponde alla domanda «quante PR sono atterrate» è **24**, cioè il `--grep`.
+  # 🔴 Questa riga diceva «è il secondo», e il secondo comando nominato era `--merges`, cioè **31** —
+  # il numero che il file *non* usa: l'istruzione mandava il lettore a rifare il conto sbagliato e a
+  # concludere che la cifra in `meta` fosse errata. Trovato dalla code review. Si nomina il **numero**,
+  # non la posizione nella frase. Chi rilegge rifaccia il comando invece di ereditare la cifra.
+  # 🔴 **E `origin/main` è avanzato DURANTE la fotografia**: la prima misura di questo giro leggeva
+  # `311da2d7` (#930, `22:30:06Z`), e sette minuti dopo `#932` la spostava a `4ab36b48` (`22:37:22Z`) —
+  # cancellando `chore/926-staging-scenari`, che era un worktree vivo mentre lo si misurava. È la
+  # quarta volta che questo file registra lo stesso fatto, e stavolta è successo fra due comandi della
+  # stessa sessione: `base_sha` si rilegge **subito prima** di scrivere, non all'inizio del giro.
+  #
+  # 🔴 **E poi altre TRE volte, nella stessa riconciliazione: `4ab36b48` → `5f00ade9` (#942) →
+  # `6bdf4619` (#943).** Due delle tre hanno toccato **questo file** — #942 ha aggiunto la track
+  # `playtest` e le ha ceduto `test-manuali-pie.md`, #943 ha consuntivato tre voci PIE — quindi non era
+  # un `base_sha` da aggiornare: era un merge da fare, due volte, con la verifica del **risultato** e
+  # non della lista dei conflitti (un auto-merge riuscito è il caso in cui si perde in silenzio).
+  # 🔴 **Una stesura di questa riga ha scritto uno sha completo MAI MISURATO**, inventando le 32 cifre
+  # dopo il prefisso corto letto a schermo. Corretto con `git rev-parse origin/main` prima del commit.
+  # Un `base_sha` sbagliato non fallisce: fa misurare tutti i write-set del file contro un albero che
+  # non esiste, e nessun gate se ne accorge. Lo sha lungo si **copia da un comando**, mai si completa.
+  # ⚠️ I ref remoti sono **condivisi fra tutti i worktree** (`.git` è uno solo): `origin/main` può
+  # avanzare perché un'altra sessione ha fatto `fetch`, senza che questa ne esegua nessuno. Misurato
+  # qui: fra due comandi consecutivi il ref è passato da `5f00ade9` a `6bdf4619` senza che questa
+  # sessione lo chiedesse.
+  # ∴ **Questo è il dato che decide la domanda di `meta`**: quattro basi in una riconciliazione, e due
+  # collisioni su questo file da branch nati dopo la sua apertura. Non è un file da rimisurare più
+  # spesso — è un lotto da chiudere.
+  reconciled_count: 5
 
 # --- Branch già vivi al momento del calcolo ---------------------------------------------------
 #
@@ -383,38 +478,40 @@ preexisting:
   # La lezione non è il numero: è che un elenco e il suo conteggio vanno riletti insieme, perché
   # nessun gate lo fa.
 
-  - branch: wip/icon-visual-language
-    state: DORMANT         # ultimo commit 2026-08-14 11:18 · f27a9d72 — fermo da ieri
-    measured: 341
-    collides_with:
-      track: client_tools
-      paths: [Source/RefactorTactics/UI/RTIconLibrary.cpp]
-    note: >-
-      Il branch più grosso del repository, e **l'unico `LIVE` di questa sezione**: ha ricevuto un
-      commit oggi, mentre gli altri cinque sono fermi al 11–12 agosto.
-      ⚠️ Sul **codice** la collisione è un solo file: `UI/RTIconLibrary.cpp`, dentro `UI/` che
-      `client_tools` dichiara per prefisso. Regge, ed è misurata.
-      ✅ Sui **binari** invece **è caduta, nelle ore in cui questa riga veniva scritta.** La prima
-      stesura diceva che la divergenza di `DA_HexMap_Arena.uasset` era la ragione per cui
-      `content_editor` non emette la lease su `Content/RT/Maps/Dev/L_HexArena/`: `#858` (chiusa) ha
-      riportato il blob a quello di `main` con `f27a9d72`, e adesso i due lati sono **identici** —
-      `e31b644b`, 48245 byte da entrambe le parti, riletto dal remoto dopo `git fetch --prune`, non
-      dal commit locale. Il write-set scende da 342 a **341** file per lo stesso motivo.
-      La lease resta non emessa, ma per la ragione più semplice che la nota di `content_editor`
-      ora dichiara — la seduta non ha bisogno di modificare il package — e non più per una contesa
-      che non esiste. È esattamente il modo in cui un batch smette di essere una misura: tenere in
-      piedi il vincolo giusto sulla giustificazione sbagliata.
+  # 🔵 **`wip/icon-visual-language` è uscita**: PR **#909** mergiata il `2026-08-15T06:41:44Z` in
+  # `8880b3cd` — *«il kit Icon Visual Language entra filtrato, e la tabella delle decisioni torna una
+  # sola»* — branch cancellato lato server, verificato con `git ls-remote --heads` **e**
+  # `git merge-base --is-ancestor f27a9d72 4ab36b48`. `MERGED` esce dalla sezione.
+  # ⚠️ **Era il branch più grosso del repository — 341 file — e con lui cadono DUE vincoli che questo
+  # file teneva in piedi da tre giri**, entrambi da rileggere invece che da dimenticare:
+  # · la collisione `UI/RTIconLibrary.cpp` verso `client_tools`, che era l'unica intersezione di codice
+  #   fra quel branch e una track. Non esiste più: la riapertura di `client_tools` più sotto trova
+  #   `RTIconLibrary.cpp` libero, e la contesa che eredita è un'altra — `RTHUD.{h,cpp}` con #904;
+  # · la ragione per cui `content_editor` **non** emette la lease su `Content/RT/Maps/Dev/L_HexArena/`,
+  #   cioè la divergenza del blob `DA_HexMap_Arena.uasset`. ⚠️ La nota di quella track dichiara *già*
+  #   una seconda ragione, più semplice e ancora valida — la seduta non ha bisogno di modificare il
+  #   package — quindi la lease resta non emessa e la conclusione non cambia. Ma la **giustificazione**
+  #   sì, ed è il caso che la voce uscente descriveva con le sue parole: *«tenere in piedi il vincolo
+  #   giusto sulla giustificazione sbagliata»*. Registrato qui perché chi possiede quella track la
+  #   rilegga, non perché sia deciso da questa riconciliazione.
 
   - branch: feat/cp75-selfreposition
     state: DORMANT         # ultimo commit 2026-08-11 20:17 · c1e151ef
-    measured: 3
-    collides_with:
-      track: simulation
-      paths:
-        - Source/RefactorTactics/Turn/RTActionEffectLibrary.cpp
-        - Source/RefactorTactics/Turn/RTActionEvent.h
-        - Source/RefactorTactics/Turn/RTTurnManager.cpp
+    measured: 3            # rimisurato su `base_sha` 4ab36b48: stessi tre file, quinto giro di fila
+    collides_with: []
     note: >-
+      🔵 **La collisione con `simulation` è CADUTA il 2026-08-16, e non perché il branch sia cambiato:
+      perché è cambiata la track.** I tre file sono gli stessi da cinque riconciliazioni, tutti dentro
+      `Turn/` — ma `simulation` non dichiara più `Turn/` per prefisso: è ripartita su `#926` con un
+      `writable` di quattro path (`RTGameMode.cpp`, il suo test e due documenti), e l'intersezione con
+      questi tre è **vuota**, verificata sui path e non sul dominio.
+      ⚠️ **Non vuol dire che il costo sia sparito.** `Turn/` è oggi **libero e non assegnato**: chi lo
+      prenderà in un batch futuro riaprirà la stessa contesa, e la troverà con un branch fermo dal
+      2026-08-11 e **672 commit** indietro — misurati con `git rev-list --count` sulla base corrente,
+      🔴 non i «522+» che questa riga ha ereditato per tre giri senza rieseguire il comando. La decisione registrata sotto — presa allora a favore di CP 14.5
+      — non vale automaticamente per la prossima track: si rilegge, perché l'altro lato è cambiato due
+      volte da quando è stata scritta.
+      ⏱️ Il testo qui sotto è il registro di quella decisione, tenuto perché dice **perché** fu presa:
       🔴 **La collisione più seria del batch, e non era registrata da nessuna parte.** I tre file
       sono l'intero write-set del branch, e stanno tutti dentro `Turn/`, che `simulation` dichiara
       per prefisso: `RTTurnManager.cpp` è nominato *esplicitamente* dal DoD di CP 14.5. Il commit è
@@ -487,9 +584,16 @@ preexisting:
 
 
   - branch: docs/38-spec-panel-playtest-hex
-    state: LIVE            # pushato · 7cff9456 · ⚠️ NON è più il branch di `D:/rt-client`
-    measured: 2
+    state: LIVE            # pushato · 7cff9456 · ultimo commit 18 ore fa · nessun worktree aperto
+    measured: 2            # rimisurato su 4ab36b48: regge
     note: >-
+      ⏱️ **Rimisurata il 2026-08-16: due file, invariati, e adesso il branch non ha PIÙ nessun
+      worktree.** `git worktree list` non lo nomina in nessuna delle sei righe — `D:/rt-client` era
+      passato a `fix/892` già ieri, e da allora nessuna sessione l'ha ripreso. Resta `LIVE` per
+      l'enum, che misura l'**età del commit** (18 ore) e non l'esistenza di una sessione: sono due
+      cose diverse e il file le tiene separate apposta. ⚠️ Un branch pushato senza worktree e senza
+      PR è il caso in cui `git worktree list` non aiuta e `gh pr list` neppure: lo vede solo
+      `git ls-remote`, che è il primo dei tre comandi e l'unico che qui risponde.
       🔴 **Rimisurata il 2026-08-15: `3` → `2` file, e il worktree non è più suo.** `D:/rt-client` è
       passato a `fix/892-displayname-abilita`; questo branch è vivo sul remoto (`7cff9456`) e non ha
       più una sessione aperta che ci scriva. È la stessa classe di errore che questo file ha già
@@ -531,51 +635,34 @@ preexisting:
   # vincolo ha bisogno di **due** lati vivi, e uno dei due è atterrato. La contesa resta, e ha cambiato
   # controparte: adesso è verso `docs/riconciliazione-batch-2026-08-15`, elencata più sotto.
 
-  - branch: feat/451-u1-voci-hex-mode
-    state: LOCAL           # worktree `D:/rt-content` · 4 commit · mai pushato
-    measured: 8
-    collides_with:
-      - branch: docs/riconciliazione-batch-2026-08-15
-        state: LIVE
-        paths: [docs/roadmap/parallel-batch.yaml]
-    note: >-
-      🔴 **`measured: 0` → `8`, e `D:/wt-451` → `D:/rt-content`: la prenotazione è diventata un
-      vincolo, ed è la quarta voce di questo file a cadere sullo stesso punto.** Quattro commit,
-      misurati con `git rev-list --count origin/main..`; il write-set con
-      `git diff --name-only origin/main...`.
-      ⚠️ **Sette degli otto file sono FUORI dal `writable` della sua track.** `content_editor`
-      dichiara `docs/technical/test-manuali-pie.md` e basta; il branch tocca anche
-      `Map/RTHexMapActor.cpp`, `Tests/RTHexMapActorInstanceColorTests.cpp`, i due di
-      `Tools/RTHexFillTool.*`, `editormap.shortlist.md`, `project-graph.json` e **questo file**.
-      Non è un rimprovero e non si risolve da qui: la seduta ha trovato lavoro che il suo write-set
-      non prevedeva, ed è esattamente il caso in cui §«la regola» dice **riallocazione**. Registrato
-      perché la decisione sia presa da chi possiede la track, non scoperta al merge.
-      ⚠️ **La collisione su `parallel-batch.yaml` è reale e questa riconciliazione la sta creando.**
-      È `integration_only`, quindi per costruzione non è nel `writable` di nessuno — ma «si riconcilia
-      in integrazione» non impedisce due scritture concorrenti, impedisce solo che siano *ownership*.
-      Chi atterra secondo paga il conflitto, e questa riga esiste perché sappia in anticipo quale:
-      `verification` passata a `IDLE`, `base_sha`, i tre campi del contatore e sei voci `preexisting`.
-      ➕ **`project-graph.json` è conteso anche con `wip/icon-visual-language`** (misurato: è l'unica
-      intersezione fra le sessioni vive). È una vista generata: vale la regola dell'albero unito —
-      ciascun ramo la rigenera per il proprio `--check`, e l'unica copia autoritativa è quella
-      rigenerata dopo il merge.
-      ➕ **È la sessione della track `content_editor`, e la stesura precedente non sapeva che
-      esistesse**: la track dichiara `session: U1` — corretto, perché la sua unità di lavoro è
-      un'apertura di editor — ma la seduta ha aperto anche un branch, e un branch è dove il
-      write-set atterra. Zero commit misurati (`git rev-list --count origin/main..` = 0), quindi
-      oggi non è un vincolo per nessuno; è elencato perché il primo commit lo renderà tale, e a
-      quel punto va confrontato con `docs/technical/test-manuali-pie.md`, che la sua track possiede.
-      ⚠️ **È indietro di cinque PR**, misurate con `git log --merges 42bcb0e2..origin/main`, non
-      stimate: la stesura precedente scriveva «due PR fa» e sbagliava di tre. Chi riprende quella
-      seduta rebasa prima di committare, o misura il proprio write-set su una base che non esiste più.
+  # 🔵 **`feat/451-u1-voci-hex-mode` è uscita**: PR **#930** (`integrazione/451`) mergiata il
+  # `2026-08-15T22:30:06Z` in `311da2d7`, write-set misurato **0** su `4ab36b48`, `merge-base
+  # --is-ancestor 863df552 4ab36b48` verde. `MERGED` esce dalla sezione.
+  # ⚠️ La riga che stava qui diceva *«il worktree `D:/rt-content` è ancora sul branch atterrato»* ed è
+  # **già invecchiata**: rimisurato il 2026-08-16 con `git worktree list`, quel worktree è passato a
+  # **detached su `6bdf4619`**, cioè sulla punta di `main`. Non c'è più nulla da riaprire con un
+  # `git switch`. È la stessa proprietà che il file registra da tre giorni — una coppia branch↔worktree
+  # invecchia **indipendentemente** dal write-set — applicata alla nota che la descriveva.
+  # ➕ Ciò che quella voce aveva misurato e che vale la pena non perdere: **sette degli otto file erano
+  # fuori dal `writable` della sua track** — `content_editor` dichiarava `test-manuali-pie.md` e basta,
+  # mentre la seduta ha toccato `Map/`, `Tools/RTHexFillTool.*`, due viste generate e questo file. Non
+  # fu un rimprovero e non lo è adesso: è il caso in cui §«la regola» dice **riallocazione**, ed è
+  # atterrato passando da un branch di integrazione invece che dalla seduta. Chi apre la prossima
+  # seduta U-qualcosa dichiari il write-set che il lavoro ha, non quello che la seduta prevedeva.
+  # 🔴 **Le sue prime due righe erano `measured: 0` e `D:/wt-451`**: la prenotazione è diventata un
+  # vincolo da otto file e il worktree ha cambiato nome, entrambi fra due riconciliazioni. È la ragione
+  # per cui una prenotazione a zero file si elenca — e la stessa cosa è appena successa a
+  # `feat/77-hud-slot-terna`, che era `LOCAL · 0` ieri ed è la collisione di oggi.
 
   - branch: docs/menu-frontend-consolidamento
     state: LOCAL           # worktree `D:/rt-menu` · mai pushato al momento della misura
     measured: 14
     collides_with:
-      - branch: feat/451-u1-voci-hex-mode
-        state: LOCAL
-        paths: [docs/roadmap/parallel-batch.yaml]
+      - branch: docs/voci-pie-mancanti
+        state: LIVE
+        paths:
+          - docs/roadmap/parallel-batch.yaml
+          - docs/roadmap/project-graph.json
     note: >-
       Consolidamento dell'handoff *Frontend/Menu Features e Tracking* (D-144, epic #934). Write-set
       misurato con `git diff --name-only origin/main...HEAD` più `git status --short`, non ricordato:
@@ -597,12 +684,18 @@ preexisting:
       dei due casi), ma **la procedura sì**: `playtest` dichiara che chi finisce una feature con una voce
       `PIE-*` la **propone in handoff**, invece di aspettare che il file torni `integration_only`.
       ⚠️ **La collisione su questo file è reale e la sta creando questa voce**, come tutte le altre
-      prima: `feat/451` lo tocca, misurato. Chi atterra secondo paga il conflitto, e questa riga esiste
-      perché sappia in anticipo quale — una voce `preexisting` in più, e nient'altro.
+      prima. ⏱️ **Ha cambiato controparte due volte in un giorno, ed è misurata**: era `feat/451`
+      quando la voce è stata scritta — atterrato con #930 — ed è oggi `docs/voci-pie-mancanti`, che
+      tocca `parallel-batch.yaml` **e** `project-graph.json`
+      (`git diff --name-only origin/main...origin/docs/voci-pie-mancanti`). Chi atterra secondo paga
+      il conflitto, e questa riga esiste perché sappia in anticipo quale — una voce `preexisting` in
+      più, e nient'altro.
       ⚠️ **Le cinque viste generate seguono la sorgente**, non sono assegnate: `feature-registry.json`,
       `project-graph.json`, `roadmap-map.svg`, `featuremap.shortlist.md`, `roadmap.shortlist.md`. Vale
       la regola dell'albero unito — l'unica copia autoritativa è quella rigenerata **dopo** il merge.
-
+      ➕ **`project-graph.json` è conteso con `docs/voci-pie-mancanti`**, ed è proprio il caso che la
+      regola descrive: entrambe lo rigenerano per il proprio `--check`, e nessuna delle due copie è
+      autoritativa prima dell'unione.
 
   # 🔵 **`feat/832-stable-structure-id` è uscita**: PR #876 mergiata (`8ea9c229`), branch cancellato
   # lato server, write-set misurato **0**. La voce diceva `LOCAL · 11` e le tre affermazioni erano
@@ -633,6 +726,48 @@ preexisting:
   #
   # ∴ un elenco di worktree scade **fra una riconciliazione e l'altra**, non fra un batch e il
   # successivo: quattro branch su sei sono cambiati in un giorno. Si rilegge dal comando.
+  #
+  # 🔴 **La prima stesura di questa tabella diceva «Sei worktree» e ne mancava uno, trovato dalla code
+  # review: `D:/rt-menu`, creato alle `00:45:01` — un minuto PRIMA dell'ora che la tabella dichiarava.**
+  # Non era invecchiamento: era un elenco incompleto al momento in cui è stato scritto, nella sezione
+  # che esiste per dire che un elenco e il suo conteggio si rileggono insieme. E il worktree mancante
+  # è un branch **docs** mai pushato — cioè la classe che contende gli `integration_only` come questo
+  # file, invisibile a `ls-remote` e a `gh pr list`: esattamente ciò che il terzo comando serve a vedere.
+  #
+  # ⏱️ **Rifatto col comando sulla base `6bdf4619`. OTTO worktree, e SETTE righe su otto sono cambiate
+  # rispetto all'elenco del giorno prima** — misura, non stima:
+  #
+  #   D:/Repositories/refactor-tactics-main  `main` a `89e280c1`  ⚠️ **8 merge / 22 commit indietro**
+  #   D:/rt-batch        `docs/riconciliazione-batch-2026-08-16`  questa sessione · PR #933
+  #   D:/rt-client       `fix/892-displayname-abilita`            2 file · PR #908
+  #   D:/rt-content      detached su `6bdf4619`                   0 file — era `feat/451`, mergiato (#930)
+  #   D:/rt-menu         `docs/menu-frontend-consolidamento`      **10 file** · LOCAL — ⚠️ vedi sotto
+  #   D:/rt-simulation   `feat/926-porta-scenario-shipping`       0 file · LOCAL
+  #   D:/rt-spatial      `feat/77-hud-slot-terna`                 3 file · PR #904 — ⚠️ **la contesa**
+  #   D:/rt-telecamera   `docs/esito-pie-camera`                  4 file · pushato
+  #
+  # ⚠️ **`D:/rt-menu` è la sessione più pericolosa del lotto e non ha una voce in `preexisting` perché
+  # è nata dopo**: dieci file, fra cui `docs/decisions/RT_PDR_00_Decision_Log.md` e
+  # `docs/roadmap/roadmap-v0.1.md` — **due `integration_only`** — più quattro viste generate
+  # (`project-graph.json`, `feature-registry.json`, `featuremap.shortlist.md`, `roadmap.shortlist.md`,
+  # `roadmap-map.svg`). Non tocca *questo* file, misurato. Chi la possiede la dichiari.
+  # ⚠️ **`D:/rt-telecamera` è tornato**, dopo essere sparito fra ieri e oggi: `docs/esito-pie-camera`,
+  # quattro file, e uno è `docs/technical/test-manuali-pie.md` — che dal 2026-08-16 è il `writable`
+  # della track `playtest` (#942). Prenotato, non in uso: `playtest` è `IDLE`, quindi non c'è due
+  # sessioni che scrivono, ma la voce PIE che quel branch consuntiva appartiene a quella track.
+  # ∴ **In una sola riconciliazione: due worktree spariti, tre comparsi, tre branch cambiati sotto lo
+  # stesso path.** `D:/rt-spatial` è passato da `feat/77` a `docs/451-voci-fgh` e **di nuovo** a
+  # `feat/77` mentre questo file veniva scritto. Il nome della cartella non dice il lavoro, e stavolta
+  # non lo dice nemmeno per due misure consecutive dello stesso giro.
+  # 🔴 **E il checkout principale è su `main` senza essere aggiornato**: `89e280c1` contro `4ab36b48`,
+  # cioè #929, #930 e #932 non ci sono. `git worktree list` dice il branch, non la distanza: chi misura
+  # un write-set da lì con `origin/main` prende la base giusta, chi lo misura con `HEAD` prende una base
+  # di tre PR fa. Nessun campo di questo file lo registrava, ed è la ragione per cui la riga porta lo sha.
+  # ✅ **Due worktree su sei stanno su un branch già contenuto in `main`** (`D:/rt-content`,
+  # `D:/rt-simulation`): write-set vuoto, nessun vincolo, nessuna voce in questa sezione. Non sono
+  # residui da ripulire — tengono `Binaries/` e `Intermediate/` costruiti, che è la ragione dichiarata
+  # dalla track `simulation` — ma chi li riusa fa `git switch -c` da lì **dopo** un `fetch`, o misura
+  # il proprio lavoro contro una base che `main` ha già superato.
   #
   # 🔴 **I conteggi erano stati CANCELLATI invece che rimisurati**, e il paragrafo qui sotto continuava a
   # dire «sette file» quando erano **11**. Togliere il numero da una riga non la rende meno falsa: la
@@ -679,69 +814,152 @@ preexisting:
   # --- Sessioni comparse il 2026-08-15, che il file non conosceva ------------------------------
 
   - branch: fix/892-displayname-abilita
-    state: LOCAL           # worktree `D:/rt-client` · 0 commit · mai pushato
-    measured: 0
+    state: LIVE            # worktree `D:/rt-client` · 1 commit `775c1189` · PR #908 aperta · 16 ore fa
+    measured: 2
+    collides_with: []      # `Ability/RTHeroCatalogLibrary.cpp` + il suo test: in nessun `writable`
     note: >-
+      ⏱️ **Rimisurata il 2026-08-16: `LOCAL · 0` → `LIVE · 2`, con PR #908 aperta.** La prenotazione è
+      diventata un vincolo, ed è la **seconda** voce di questo giro a farlo — l'altra è
+      `feat/77-hud-slot-terna`. Due su due delle prenotazioni a zero file scritte ieri hanno committato
+      entro un giorno: elencarle costava tre righe.
+      🔴 **Ma «entrambe le collisioni si sarebbero scoperte al merge» era falso, e lo smentisce la riga
+      sopra di questa stessa voce**: `collides_with: []`. Delle due prenotazioni **una sola** ha
+      prodotto una collisione (`feat/77` su `UI/RTHUD.*`); questa no, e la sua utilità è un'altra —
+      una prenotazione visibile che si è chiusa senza contendere nulla. Sopravvalutare il beneficio
+      della pratica proprio nella voce che lo smentisce è il modo più rapido per renderla sospetta.
+      ✅ **Intersezione vuota, misurata e non dedotta**: `Ability/RTHeroCatalogLibrary.cpp` e
+      `Tests/RTHeroCatalogTests.cpp` non stanno in nessun `writable` di questo batch. ⚠️ Il gemello
+      `Ability/RTCatalogLibrary.cpp` è invece nel write-set di `feat/641-sprint-post-blast` — file
+      diverso, nessuna contesa, ma i due nomi si somigliano abbastanza da rendere la misura per path
+      l'unica affidabile: `RTHeroCatalogLibrary` ≠ `RTCatalogLibrary`.
       ➕ **Ha preso il worktree che la voce di `docs/38-spec-panel-playtest-hex` dichiarava suo.** È il
       motivo per cui quella riga è stata corretta: un worktree cambia branch senza che nessun campo di
       questo file se ne accorga, e la coppia branch↔worktree va rimisurata come i `measured`.
       `measured: 0` è una prenotazione visibile, non un vincolo: lo diventa al primo commit, e a quel
       punto la voce esiste già invece di dover essere ricordata.
 
-  - branch: feat/864-zoom-bounds
-    state: LIVE            # worktree `D:/rt-telecamera` · 3 commit · PR #899 aperta
-    measured: 5
-    collides_with:
-      - branch: feat/451-u1-voci-hex-mode
-        state: LOCAL
-        paths: [docs/roadmap/parallel-batch.yaml]
-    note: >-
-      `#864`, l'ultima delle camera: lo zoom andava al centro dell'inquadratura invece che dove il
-      giocatore guarda, e il pan non aveva limiti — ci si poteva allontanare fino a perdere la mappa.
-      ✅ **I due numeri erano gia' decisi prima di scrivere codice**, ed e' il passo che lo spec-panel
-      aveva messo davanti all'implementazione: tolleranza dell'ancoraggio **0.5 celle**, margine dei bounds
-      **3 celle**. Istruiti sulla scala reale — una cella e' `√3 × 100 ≈ 173` unita' fra centri — e
-      registrati sulla issue con le alternative scartate e il perche'.
-      ⚠️ **Espressi in celle e non in unita' mondo**: a zoom 4000 una cella occupa pochi pixel, a 100
-      riempie lo schermo. Un numero fisso sarebbe arbitrario a un estremo e insensato all'altro.
-      ✅ **Il codice e' disgiunto**: `Camera/`, `Player/RTPlayerController.cpp` e
-      `Tests/RTCameraPawnTests.cpp` non sono nel `writable` di nessuna track ACTIVE, misurato sui sei
-      worktree e non sui soli branch remoti.
-      🔴 **Ma `collides_with: []` era falso, ed e' la QUARTA voce di fila a caderci.** Il quinto file del
-      write-set e' `parallel-batch.yaml` — questo — e `feat/451-u1-voci-hex-mode` lo tocca a sua volta. La
-      nota enumerava i tre path di `Source/` e ometteva proprio quello conteso, esattamente come le tre
-      voci precedenti: si misura il lato che interessa e si deduce l'altro. E `measured: 4` mancava lo
-      stesso file, mentre `state: LOCAL · non ancora pushato` era gia' falso al push.
-      ⚠️ E' `integration_only`: si riconcilia in integrazione, e chi merge per secondo lo riscrive
-      sull'albero unito.
-      ➕ **`Map/` non e' stata toccata**, pur essendo libera: il calcolo dei bounds vive nel pawn, cosi' il
-      write-set resta dentro il perimetro che la issue dichiara.
+  # 🔵 **`feat/864-zoom-bounds` è uscita**: PR **#899** mergiata il `2026-08-15T05:52:52Z` in `4cf8d3f7`,
+  # branch cancellato lato server. `MERGED` esce dalla sezione — ed era l'ultima delle cinque sessioni
+  # camera che questo file ha inseguito per due giorni (`#863`, `#865`, `#873`, `#874`, `#887`, `#864`).
+  # 🔴 La prima stesura di questa riga diceva «l'ultima delle **cinque** sessioni camera» e ne elencava
+  # **sei** fra parentesi. Sono sei (`#863`, `#865`, `#873`, `#874`, `#887`, `#864`), e il difetto è
+  # quello che questo file spiega tre volte — un elenco e il suo conteggio si rileggono insieme —
+  # commesso nel paragrafo che lo cita. Trovato dalla code review.
+  # ➕ **Ciò che la sua voce aveva imparato e che vale oltre la camera**: i due numeri — tolleranza
+  # dell'ancoraggio `0.5` celle, margine dei bounds `3` celle — erano stati **decisi prima di scrivere
+  # codice** e registrati sulla issue con le alternative scartate, espressi in celle e non in unità
+  # mondo perché a zoom 4000 una cella è pochi pixel e a 100 riempie lo schermo. È il modello per una
+  # riapertura come quella di `client_tools` qui sotto: la grammatica visiva della certezza (linea
+  # piena / tratteggiata / ghost dissolto) è già decisa nel commento del `2026-08-07` su `#78`, e va
+  # letta prima di aprire l'editor, non inventata durante.
+  # 🔴 E il suo difetto è quello che questa sezione continua a ripetere: `collides_with: []` era falso —
+  # il quinto file era `parallel-batch.yaml`, conteso, e la nota enumerava solo i tre path di `Source/`
+  # che interessavano a chi scriveva. **Quarta voce di fila a caderci**, ed è il motivo per cui le due
+  # voci nuove di oggi dichiarano la contesa su questo file *prima* di elencare il codice.
 
   - branch: feat/77-hud-slot-terna
-    state: LOCAL           # worktree `D:/rt-spatial` · 0 commit · mai pushato
-    measured: 0
-    note: >-
-      ➕ Sessione su `#77`, che **non è una track di questo batch**. Zero commit, quindi nessuna
-      collisione misurabile. ⚠️ Il nome dice `HUD`, e `Source/RefactorTactics/UI/` è il `writable` di
-      `client_tools` (#78): se questa sessione committa lì, l'invariante cade. Va confrontata **prima**
-      del primo commit, non dopo — ed è la ragione per cui una prenotazione a zero file si elenca.
-
-  - branch: docs/riconciliazione-batch-2026-08-15
-    state: LIVE
-    measured: 1
+    state: LIVE            # worktree `D:/rt-spatial` · 1 commit `a23a2798` · PR #904 aperta · 16 ore fa
+    measured: 3
     collides_with:
-      - branch: feat/451-u1-voci-hex-mode
-        state: LOCAL
-        paths: [docs/roadmap/parallel-batch.yaml]
+      - track: client_tools
+        paths:
+          - Source/RefactorTactics/UI/RTHUD.cpp
+          - Source/RefactorTactics/UI/RTHUD.h
     note: >-
-      Questa riconciliazione, la **quarta**. Un solo file — `docs/roadmap/parallel-batch.yaml` — che è
-      `integration_only` e quindi nel `writable` di nessuno.
-      ⚠️ **Ma «di nessuno» non vuol dire «di uno solo»**: `feat/451-u1-voci-hex-mode` lo sta scrivendo
-      adesso, con quattro commit. La contesa è dichiarata da entrambi i lati — vedi la sua voce — ed è
-      stata **scelta**, non subita: l'alternativa era passare la misura a quella sessione senza
-      scrivere, e l'autore ha deciso di riconciliare comunque. Chi atterra secondo paga il conflitto
-      sapendo in anticipo quali righe cambiano: `verification` a `IDLE`, `base_sha`, i tre campi del
-      contatore, sei voci `preexisting`.
+      🔴 **La collisione che questa voce PREVEDEVA a zero commit è avvenuta, ed è il motivo per cui il
+      batch si riapre con un vincolo invece che con un write-set libero.** La stesura di ieri diceva,
+      testualmente: *«il nome dice HUD, e `Source/RefactorTactics/UI/` è il `writable` di `client_tools`
+      (#78): se questa sessione committa lì, l'invariante cade»*. Ha committato lì — `UI/RTHUD.cpp`,
+      `UI/RTHUD.h` e `Tests/RTHudSlotLinesTests.cpp`, commit `a23a2798` del 2026-08-15 08:22, PR #904 —
+      e l'intersezione è **misurata** con `git diff --name-only 4ab36b48...origin/feat/77-hud-slot-terna`,
+      non dedotta dal nome del branch.
+      ⚠️ **Non è una violazione: è una contesa dichiarata.** L'invariante `WritableSet(T1) ∩
+      WritableSet(T2) = ∅` è definita **fra track**, e `#77` non è una track di questo batch — quindi
+      ciò che cade non è l'invariante ma il presupposto pratico che `UI/` fosse libera per chi la
+      dichiara. La differenza conta perché cambia il rimedio: non riallocazione fra track, ma una
+      decisione su chi scrive per primo.
+      ✅ **Decisione presa il 2026-08-16 da chi possiede `client_tools`: passa PRIMA #904.** La track C
+      si riapre su `#78` — vedi la sua voce — ma la **sessione non parte finché #904 non atterra**, e
+      il `writable` di `client_tools` resta dichiarato senza che nessuno ci scriva nel frattempo. Le
+      ragioni, in ordine di peso:
+      · **#904 è avanti**: un commit già scritto, una PR già aperta da 16 ore. Il residuo di `#78` non
+        ha ancora una riga;
+      · 🔴 **QUESTA RAGIONE ERA FALSA, e l'ha trovata la code review.** Diceva: *«è lo stesso codice,
+        non lo stesso file per caso: `#78` deve mostrare i tre livelli dentro `RTHUD.cpp:265-352`, la
+        funzione che #904 sta riscrivendo»*. **#904 non riscrive niente**: `git diff --stat` dà
+        **70 inserzioni e 0 delezioni**, e `git diff -U0 | grep '^@@'` dà tre hunk — `@@ -1,0 +2 @@`
+        (un include), `@@ -95,0 +97,44 @@` (l'helper `ComposeOneSlotLine`, nuovo, prima di `DrawHUD`)
+        e `@@ -575,0 +621,25 @@`. **Nessuno cade dentro 265–352**, e la chiamata a `FilterForTeam`
+        (riga 314) è intatta. L'affermazione era stata dedotta da `--name-only`, che misura la
+        sovrapposizione dei **file** e non può dire quale funzione cambia: il comando giusto per la
+        domanda sbagliata, che è il difetto che questo file insegue da cinque riconciliazioni;
+      · ∴ **la conseguenza pratica si rovescia**: gli hunk di #904 e il residuo di #78 sono
+        **disgiunti**, quindi git li fonde senza conflitto e l'alternativa non bloccante era
+        praticabile. Il blocco resta perché lo ha **deciso chi possiede la track**, non perché il
+        codice lo imponga — e la differenza va scritta, perché una decisione presa su una premessa
+        falsa si rilegge quando la premessa cade;
+      · **il costo del secondo è più basso del costo del primo**: #904 ha 3 file e 1 commit, `#78` ha
+        due voci di DoD di presentazione più larghe. Chi rifà l'innesto su una base cambiata paga meno
+        se è il lavoro piccolo ad aspettare... e infatti **non è quello che si è deciso**: aspetta il
+        grande. La ragione che vince è la prima — chi è già in PR non si rifà per chi non ha cominciato.
+      ⚠️ **Il rischio di questa decisione, detto invece che taciuto**: #904 è ferma da 16 ore senza
+      review e con `mergeable: UNKNOWN`. Se non atterra, `client_tools` resta ACTIVE con `branch: null`
+      per la seconda riconciliazione di fila — cioè la track è riaperta *sulla carta*. La condizione di
+      sblocco è una sola e si misura in un comando: `gh pr view 904 --json state` risponde `MERGED`.
+
+  # 🔵 **`docs/riconciliazione-batch-2026-08-15` è uscita**: PR **#897** mergiata il
+  # `2026-08-15T05:21:16Z` in `40d77af9`, branch cancellato. `MERGED` esce dalla sezione. La contesa
+  # che dichiarava verso `feat/451-u1-voci-hex-mode` si è chiusa da sé: anche l'altro lato è atterrato
+  # (#930), e un vincolo senza due lati non è un vincolo.
+
+  - branch: docs/riconciliazione-batch-2026-08-16
+    state: LIVE            # worktree `D:/rt-batch` · commit `f709baab` · PR #933 aperta
+    measured: 1
+    collides_with: []      # misurato su tutti gli otto branch remoti vivi, non dedotto
+    note: >-
+      Questa riconciliazione, la **quinta**, aperta per riattivare `client_tools` e non per manutenere
+      il file. Un solo file — `docs/roadmap/parallel-batch.yaml` — che è `integration_only` e quindi nel
+      `writable` di nessuno.
+      ⏱️ **`LOCAL` → `LIVE` nello stesso giro, e non è una correzione: è la riga che diventa falsa al
+      push.** La stesura di un'ora fa diceva *«creato su 4ab36b48 · non ancora pushato»*, vero al minuto
+      in cui è stato scritto e falso al comando successivo. Il file lo aveva già registrato una volta,
+      sulla voce di `feat/864-zoom-bounds`: *«`state: LOCAL · non ancora pushato` era gia' falso al
+      push»*. Stavolta la riga è stata aggiornata **prima** che qualcun altro la leggesse, che è l'unica
+      differenza fra un difetto ripetuto e uno chiuso.
+      ✅ **`collides_with: []` è MISURATO, ed è la prima volta in questo batch che quel campo è vuoto
+      per davvero.** Le quattro voci precedenti l'hanno scritto e sbagliato — sempre allo stesso modo:
+      enumerando i path di `Source/` che interessavano a chi scriveva e deducendo il resto. Qui il
+      controllo è stato fatto al contrario, cercando **questo file** nel write-set di ciascuno degli
+      otto branch remoti vivi: `docs/five-lane-roadmap`, `docs/lane-6-7`, `docs/lane-7-vault` e
+      `docs/38-spec-panel-playtest-hex` rispondono `0`; `feat/77`, `fix/892`, `feat/cp75` e `feat/641`
+      hanno write-set di solo codice, elencati file per file più sopra. Nessuno lo tocca.
+      🔴 **E «`collides_with: []` misurato» è durato meno di un'ora: era FALSO al merge, due volte.**
+      L'ha trovato la code review. `feat/926-porta-scenario-packaged` (#942) e `docs/451-voci-fgh`
+      (#943) hanno entrambi toccato **questo file** e sono atterrati mentre la riga li dichiarava
+      inesistenti; il secondo era vivo in `D:/rt-spatial` proprio mentre la misura girava. L'errore
+      non è nel numero: è nel **metodo**. L'enumerazione usava `git ls-remote` sugli otto branch
+      remoti — il *primo* dei tre comandi — e i due branch colpevoli erano, in quel momento, uno
+      locale e uno appena pushato. La riga che si vantava di aver misurato ha usato un terzo della
+      fotografia che il file prescrive.
+      ✅ **Riconciliato**: entrambe le contese sono **cadute per merge** (#942 e #943 sono in `main`,
+      portati dentro questo branch con due merge successivi e verificati sul **risultato** — track
+      `playtest` presente, `test-manuali-pie.md` fuori da `content_editor` — non sulla lista vuota dei
+      conflitti). `collides_with` resta `[]` perché oggi è vero e rimisurato sui **tre** comandi.
+      ⚠️ **Vale al minuto in cui è scritto, non al giorno.** Tutte e tre le riconciliazioni recenti
+      hanno contesa questo file con una sessione comparsa *dopo* la loro apertura, e due l'hanno
+      scoperto solo alla code review. Chi apre una sessione documentale mentre questa è in volo
+      rilegga i tre comandi prima di committare — il costo di scoprirlo al merge è un conflitto su un
+      file di **1877 righe** di prosa (1635 in `main`), che non si fonde in nessun punto utile.
+      ➕ **Cosa cambia, perché chi atterra secondo lo sappia in anticipo** — 🔴 e la prima stesura di
+      questo elenco ometteva proprio le due voci che contano per un consumatore, cioè il contratto:
+      · **`schema_version` 2 → 3** e il campo nuovo **`blocked_by`**, documentato nello schema in testa;
+      · `base_sha` e i due campi del contatore;
+      · **quattro** voci `preexisting` che escono (`wip/icon-visual-language`, `feat/451`, `feat/864`,
+        `docs/riconciliazione-batch-2026-08-15`) e una che entra — questa;
+      · due prenotazioni `LOCAL · 0` che diventano `LIVE` con PR aperta (#904, #908);
+      · il `collides_with` di `feat/cp75-selfreposition`, da tre path a `[]`;
+      · il commento di `simulation` sopra `branch:`, riscritto;
+      · la nota di `client_tools`, che è la ragione del giro.
       🔴 **Chi riconcilia si misura come tutti gli altri**, ed è la regola che le tre stesure
       precedenti hanno dovuto imparare una per volta.
 
@@ -795,10 +1013,17 @@ tracks:
       `UI/RTHUD.{h,cpp}` e `Tests/RTHudSlotLinesTests.cpp`. È la regola di questo file applicata a chi
       lo stava scrivendo: fra la misura e la frase che la riassume passa del tempo, e in quel tempo un
       branch nasce.
-      ✅ **Superata il 2026-08-15: `D:/rt-spatial` è il worktree di questa track, dichiarato nel campo
-      `worktree` qui sotto**, e la riga sopra non descrive più il presente. Diceva che il worktree era
-      occupato da `feat/77-hud-slot-terna` e che chi prendeva il mandato B doveva aprirne un altro o
-      aspettare `#77`. `#77` non è chiusa, ma il suo branch è **pushato e fermo** (`a23a2798`,
+      🔴 **«Superata il 2026-08-15» è tornata FALSA il 2026-08-16, e la correzione è più istruttiva
+      dell'errore.** La riga qui sotto dichiarava superata l'affermazione *«`D:/rt-spatial` è occupato
+      da `feat/77-hud-slot-terna`»*, perché quel giorno il worktree era passato ad altro. Oggi
+      `git worktree list` risponde di nuovo `D:/rt-spatial  a23a2798 [feat/77-hud-slot-terna]`: nello
+      stesso giro è passato a `docs/451-voci-fgh` e **poi indietro**. Una correzione che dichiara
+      superata una misura, invece di rimisurarla, resta appesa al momento in cui è stata scritta — e
+      qui il campo `worktree:` di questa track continua a nominare una cartella che sta eseguendo il
+      branch di un'altra. Trovato dalla code review, confermato dal comando.
+      ⚠️ **Il testo che segue è quindi da leggere come registro, non come stato**: diceva che il
+      worktree era occupato da `feat/77-hud-slot-terna` e che chi prendeva il mandato B doveva aprirne
+      un altro o aspettare `#77` — ed è di nuovo vero. `#77` non è chiusa, ma il suo branch è **pushato e fermo** (`a23a2798`,
       `git ls-remote` lo conferma lato server): il worktree è stato spostato su un altro branch senza
       perdere nulla, ed è la prova che *occupato da un branch pushato* e *occupato* non sono la stessa
       cosa. Chi riprende `#77` fa `git switch` e ritrova il commit.
@@ -838,7 +1063,17 @@ tracks:
   simulation:
     status: ACTIVE
     issue: 926
-    branch: null           # ⚠️ sentinella: la issue è aperta, il branch non è ancora stato aperto
+    # 🔴 **Il commento diceva «il branch non è ancora stato aperto», e il 2026-08-16 è falso in
+    # entrambi i sensi: è stato aperto E mergiato.** `chore/926-staging-scenari` è atterrato con la PR
+    # **#932** (`2026-08-15T22:37:22Z`, `4ab36b48` — che è la base di questa riconciliazione), il branch
+    # non esiste più lato server e il worktree `D:/rt-simulation` è rimasto *detached* sul commit di
+    # merge. La `issue` **#926 resta OPEN**: una PR mergiata non chiude una issue, ed è lo stesso stato
+    # in cui si trova `client_tools` da due giorni.
+    # ⚠️ Il campo resta `null` perché è vero — nessun branch vivo — ma la sentinella qui significa la
+    # terza cosa diversa in tre track: «aperto e atterrato, residuo da misurare». Chi possiede questa
+    # track dica se il residuo di #926 esiste; questa riconciliazione **non lo decide** e non tocca il
+    # `writable`, che resta dichiarato com'è.
+    branch: null
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -1035,9 +1270,59 @@ tracks:
   client_tools:
     status: ACTIVE
     issue: 78
-    branch: null           # ⚠️ era `feat/78-intenti-certezza`, mergiato e cancellato — vedi la nota
+    # ⚠️ `null` per una ragione NUOVA rispetto a ieri, e le due non vanno confuse: allora diceva «il
+    # branch dichiarato è stato mergiato e cancellato» (una misura sul passato), oggi dice **«la
+    # sessione non è ancora partita, e non parte finché #904 non atterra»** (una decisione sul futuro).
+    # Stesso valore, due significati: chi legge solo il campo non può distinguerli, ed è il motivo per
+    # cui la condizione di sblocco è scritta qui sotto in forma di comando invece che di intenzione.
+    branch: null
+    blocked_by: 904        # ⚠️ non è ownership: è la PR che deve atterrare prima che questa track scriva
     note: >-
       CP 11.2 — il livello di certezza degli intenti alleati.
+      ✅ **RIAPERTA il 2026-08-16, su richiesta esplicita, ed è la ragione di questa riconciliazione.**
+      Il residuo è stato rimisurato sul DoD di `#78` invece che riletto dalla riga di ieri, e regge
+      identico: delle quattro voci, due sono chiuse nel codice — *«calcolata dal simulatore, non
+      dall'UI»* (`ERTIntentCertainty`, `FRTIntentView::Certainty`, `ClassifyPlan` in `origin/main`) e
+      *«nessun intento avversario mostrato né replicato»* (coperta da `RTIntentPrivacyTests.cpp`) — e
+      restano **le due di presentazione**: *«tre livelli mostrati»* e *«visibile anche per le reazioni
+      preparate»*, più la verifica `PIE-V01-INTENT`.
+      ✅ **Verificato che il residuo sia ancora intatto, invece di assumerlo**:
+      `git log --since=2026-08-14 -- Source/RefactorTactics/UI/` restituisce **zero commit** in `main`.
+      L'unico commit del giro su questo dominio è `b82ed3f5`, che tocca `Turn/` e `Tests/` e non `UI/`.
+      Nessuno ha lavorato la presentazione nel frattempo: le due voci sono aperte come le lasciò #859.
+      ➕ **La grammatica visiva è già decisa e non va reinventata**: il commento del `2026-08-07` su
+      `#78` la fissa — **confermato** → linea piena, ghost leggibile, nessun `?`; **previsto** → linea
+      tratteggiata più icona di squadra, ghost attenuato; **incerto** → ghost dissolto con `?`. Con due
+      vincoli che valgono quanto la resa: la classificazione **arriva dal resolver** (la UI non
+      ricalcola il perché), e finché `E13` non esiste **l'incertezza da visibilità non si mostra** — un
+      `?` che finge un sistema che non c'è è peggio del `?` che manca.
+      🔴 **La track si riapre con una CONTESA, non con un write-set libero, e il file l'aveva prevista.**
+      `feat/77-hud-slot-terna` (PR #904) ha committato `UI/RTHUD.{h,cpp}`, che è dentro il `writable`
+      dichiarato qui sotto per prefisso. La sovrapposizione è **di file**, misurata con `--name-only`.
+      🔴 **E la prima stesura di questa riga diceva anche «la funzione che #904 riscrive»: è FALSO**, e
+      l'ha trovato la code review. #904 aggiunge **70 righe e ne toglie zero**, in tre hunk che cadono a
+      riga 1, 95 e 575: il blocco degli intenti (`265-352`, con `FilterForTeam` a 314) **non è toccato**.
+      La misura era un `--name-only` — che risponde a *«gli stessi file?»* — usata per sostenere una
+      conclusione su *«la stessa funzione?»*. Gli hunk sono disgiunti e git li fonderebbe senza
+      conflitto: il blocco è una **scelta di chi possiede la track**, non un vincolo del codice.
+      ⚠️ Decisione confermata comunque — **passa prima #904** — sulla ragione che regge da sola: chi è
+      già in PR non rifà il proprio innesto per chi non ha ancora scritto una riga. Ma va riletta se
+      #904 resta ferma, perché il costo dell'attesa non è più bilanciato da un rischio di conflitto
+      che la misura dice inesistente. La ragione completa sta nella voce di quel branch in `preexisting`.
+      ⚠️ **Condizione di sblocco, in un comando invece che in una promessa**:
+      `gh pr view 904 --json state` → `MERGED`. A quel punto la track apre il branch, `branch:` smette
+      di essere `null`, `blocked_by` sparisce, e il primo passo è **rebasare su un `RTHUD.cpp` che ha
+      cambiato forma** — non riscriverlo dalla base di oggi.
+      ✅ **Il `writable` NON si restringe, e la ragione di ieri per restringerlo è caduta.** La nota
+      diceva *«se il residuo è solo presentazione, il write-set si restringe a `UI/` e i due file
+      tornano a `simulation` senza `excludes`»*: `simulation` non dichiara più `Turn/` — è ripartita su
+      `#926` con quattro path che non includono nulla di `Turn/` — quindi i due
+      `RTIntentPrivacyLibrary.{h,cpp}` non «tornano» a nessuno e restano qui, dove la voce *«visibile
+      anche per le reazioni preparate»* potrebbe ancora chiedere un ritocco al DTO. Misurato che
+      nessun branch vivo li tocca: `feat/cp75-selfreposition` sta in `Turn/` ma sui suoi tre file
+      (`RTActionEffectLibrary.cpp`, `RTActionEvent.h`, `RTTurnManager.cpp`), intersezione **vuota**.
+      ✅ **E `UI/RTIconLibrary.cpp` è tornato libero**: la collisione con `wip/icon-visual-language`,
+      che questa track si portava dietro da tre riconciliazioni, è caduta col merge di #909.
       🔴 **`#78` aveva DUE branch e DUE worktree, con lo stesso identico write-set** — la violazione
       che D-139 esiste per impedire, arrivata dal lato che il meccanismo non copre: l'invariante è
       scritta fra *track*, e lì la stessa track aveva due sessioni.
@@ -1069,10 +1354,16 @@ tracks:
       `feature-registry.yaml` è `integration_only` — ma è il genere di scarto che rende un DoD
       verde su GitHub e muto nelle viste, e chi riapre la track lo chiude insieme al resto.
       ⚠️ **`PIE-V01-INTENT` non è scrivibile da questa track in questo batch.** La voce vive in
-      `docs/technical/test-manuali-pie.md`, che qui possiede `content_editor` (#451): registrare
-      l'esito della verifica è un file **non assegnato** a `client_tools`, quindi STOP e
-      riallocazione — non «solo questa riga». È il primo caso in cui il confine morde su una
-      *registrazione* invece che su un'implementazione, e va deciso prima, non a verifica fatta.
+      `docs/technical/test-manuali-pie.md`: registrare l'esito della verifica è un file **non
+      assegnato** a `client_tools`, quindi STOP e riallocazione — non «solo questa riga». È il primo
+      caso in cui il confine morde su una *registrazione* invece che su un'implementazione, e va
+      deciso prima, non a verifica fatta.
+      ⏱️ **Ma il proprietario di quel file è CAMBIATO il 2026-08-16, e la riga lo diceva sbagliato**:
+      non è più `content_editor` (#451) — è la track **`playtest`**, nata con #942 proprio per tenere
+      il registro delle verifiche umane. Il vincolo per `client_tools` non cambia di un millimetro (il
+      file resta non suo); cambia **a chi si chiede la riallocazione**, che è l'unica cosa per cui
+      questa riga esiste. Chi manda la richiesta al proprietario sbagliato non ottiene un rifiuto:
+      ottiene un silenzio.
       La track era IDLE per **dipendenza**, e delle due ragioni scritte allora ne resta una sola:
       ✅ **caduta**: *«`#77` tocca `UI/` ma anche i test che le altre due track già scrivono»*.
       `#77` è chiusa sul codice da #746 — quattro test headless verdi — e non è più un candidato:
@@ -1090,12 +1381,17 @@ tracks:
       ✅ **Quella misura è invecchiata bene: il campo adesso c'è.** `#859` l'ha scritto —
       `Certainty` e `ReactionCertainty` in `FRTIntentView`, `ClassifyPlan` come produttore — quindi
       la ragione per cui i due file stanno in questo `writable` è **soddisfatta**, non più pendente.
-      ⚠️ Restano qui, e l'`excludes` di `simulation` con loro, per la ragione più stretta: la voce
-      *«visibile anche per le reazioni preparate»* è l'unica del DoD che potrebbe ancora chiedere un
-      ritocco al DTO, e cedere i due file adesso costringerebbe a una riallocazione a metà lavoro —
-      che è esattamente ciò che §«la regola» vieta. Costo di tenerli: zero, misurato — CP 14.5 non
-      li nomina. **Chi riapre la track decide**: se il residuo è solo presentazione, il write-set si
-      restringe a `UI/` e i due file tornano a `simulation` senza `excludes`.
+      ⚠️ Restano qui per la ragione più stretta: la voce *«visibile anche per le reazioni preparate»*
+      è l'unica del DoD che potrebbe ancora chiedere un ritocco al DTO, e cedere i due file adesso
+      costringerebbe a una riallocazione a metà lavoro — che è esattamente ciò che §«la regola» vieta.
+      🔴 **Questa riga diceva «e l'`excludes` di `simulation` con loro»: quel campo NON ESISTE PIÙ**, e
+      l'ha trovato la code review leggendo il file col parser invece che con gli occhi. `simulation`
+      è ripartita su `#926` con quattro path espliciti e **nessun `excludes`**: la prosa descriveva
+      una sottrazione che nessun `WritableSet(T) = writable − excludes` calcola più. Era la coda della
+      stessa nota che dodici righe sopra registra la caduta di quel vincolo — la contraddizione stava
+      dentro il paragrafo che la spiegava.
+      **Chi riapre la track decide**, e ha deciso il 2026-08-16: i due file **restano**, perché non
+      «tornano» a nessuno — `Turn/` è oggi libero e non assegnato.
     writable:
       - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
       - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
@@ -1131,10 +1427,34 @@ tracks:
     # 🔴 Diceva `D:/wt-451`, e quel percorso non esiste più: misurato il 2026-08-15 con
     # `git worktree list`, la seduta vive in `D:/rt-content`. Un worktree rinominato non lascia
     # traccia nel file che lo nomina — si rilegge dal comando, non dalla riga.
+    # 🔴 **E il 2026-08-16 `session_branch` nominava un branch CANCELLATO**: `feat/451-u1-voci-hex-mode`
+    # è atterrato con #930 e non esiste più lato server (`git ls-remote`), mentre lo schema definisce
+    # il campo come *«il ramo su cui quella seduta sta effettivamente committando»*. Trovato dalla code
+    # review, che ha notato l'incoerenza col trattamento riservato a `simulation` **nello stesso
+    # commit**: là il `branch:` falso è stato portato alla sentinella `null`, qui il falso è rimasto.
+    # La politica del file è una sola — *«fra un valore vero-e-incompleto e uno falso si sceglie il
+    # primo»* — e vale per entrambi i campi. Chi misurava il write-set di questa track con
+    # `git diff … origin/feat/451-u1-voci-hex-mode` otteneva un **errore**, non un numero.
+    # ⚠️ Il worktree `D:/rt-content` è oggi *detached* su `6bdf4619`: nessun branch, nessun commit.
+    session_branch: null
     worktree: "D:/rt-content"
-    session_branch: feat/451-u1-voci-hex-mode
     note: >-
       U1 / `#451` — le sette voci `PIE-HEX-MODE-E/F/G/H/L/N/O` del mode.
+      ⏱️ **Rimisurata il 2026-08-16, e due cose sono cambiate senza che nessun campo se ne accorgesse.**
+      · `session_branch: feat/451-u1-voci-hex-mode` è **atterrato** con la PR **#930**
+        (`2026-08-15T22:30:06Z`, `311da2d7`), write-set misurato **0** su `4ab36b48`. Il worktree
+        `D:/rt-content` è ancora lì, fermo su quel branch, cioè su un commit che `main` contiene già.
+        La `issue` **#451 resta OPEN** — terza track del batch nella stessa condizione.
+      · 🔴 **La giustificazione della lease non emessa è CADUTA.** Questa nota dice che
+        `Content/RT/Maps/Dev/L_HexArena/` non riceve lease perché `wip/icon-visual-language` tiene un
+        blob divergente di `DA_HexMap_Arena.uasset` (`7f7cb735` / 29895 byte contro `e31b644b` / 48245).
+        Quel branch è **mergiato** (#909, `8880b3cd`) e non esiste più: non c'è più un secondo holder,
+        quindi non c'è più contesa binaria. ⚠️ **La conclusione non cambia** — la lease resta non
+        emessa, perché la seconda ragione che questa stessa nota dichiara regge da sola: la seduta non
+        ha bisogno di modificare il package. Cambia il **perché**, ed è la distinzione che la voce
+        uscente di `wip/icon-visual-language` descriveva con le proprie parole: *«tenere in piedi il
+        vincolo giusto sulla giustificazione sbagliata»*. Chi possiede questa track riscriva il
+        paragrafo qui sotto; questa riconciliazione lo segnala e non lo riscrive al posto suo.
       🔴 **La issue nega un lavoro che è già stato fatto per metà.** Il suo corpo dice
       *«`DA_HexMap_Arena` e `L_HexArena` non esistono — né in git né su disco»*: era vero quando è
       stata scritta, è falso adesso. Misurato con `git ls-files`, non dedotto — entrambi i package
