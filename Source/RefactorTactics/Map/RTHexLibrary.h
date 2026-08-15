@@ -73,6 +73,26 @@ public:
 	static FRTCellId WorldToCellId(const FVector& World, const FVector& Origin, float HexSize, float LayerHeight);
 
 	/**
+	 * Cella puntata da un raggio **su un piano dichiarato**, con o senza un colpo gia' validato dal chiamante.
+	 *
+	 * E' la parte calcolabile di `RTHexEditor::ResolveClickedCell`, estratta qui perche' li' non era
+	 * verificabile: `Source/RefactorTacticsEditor/` non contiene nessun test, e un modulo Editor non si
+	 * esercita headless. Cio' che resta al chiamante e' la parte che ha bisogno del mondo — sparare il
+	 * raycast e decidere se il colpo VALE — e cio' che arriva qui e' solo geometria.
+	 *
+	 * `bHasValidHit` e' la risposta del chiamante a due domande che questa funzione non puo' porsi:
+	 * il colpo e' sul componente selezionabile? ed e' sul piano attivo? Se una delle due e' no, il punto
+	 * si prende dall'intersezione col **piano del layer**, che e' la geometria giusta per «dove sto
+	 * puntando su QUESTO piano» — proiettare un colpo di un altro piano lo sposterebbe in orizzontale di
+	 * circa `LayerHeight`, cioe' di alcune celle con la camera obliqua del viewport.
+	 *
+	 * Pura: stessi argomenti, stessa cella. Nessun `UWorld`, nessun actor, nessuna collisione.
+	 */
+	static FRTCellId ResolveRayToCellOnLayer(const FVector& RayOrigin, const FVector& RayDirection,
+		const FVector& Origin, float HexSize, float LayerHeight, int32 ActiveLayer,
+		bool bHasValidHit, const FVector& HitPoint);
+
+	/**
 	 * Centro-mondo del **BORDO** fra la cella e il suo vicino nella direzione data: il punto medio fra i due
 	 * centri di cella.
 	 *

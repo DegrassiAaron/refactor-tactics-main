@@ -26,9 +26,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 |---|--:|
 | `IDEA` | 7 |
 | `DESIGNED` | 18 |
-| `SPECIFIED` | 11 |
-| `IMPLEMENTING` | 24 |
-| `TESTABLE` | 7 |
+| `SPECIFIED` | 10 |
+| `IMPLEMENTING` | 23 |
+| `TESTABLE` | 9 |
 | `INTEGRATED` | 22 |
 | `RELEASE_READY` | 16 |
 | `DONE` | 4 |
@@ -176,11 +176,11 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | v0.1 | INTEGRATED | 7/9 | E5 | Una attivazione per turno, **nessuna attesa nel resolver** |
-| `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | v0.1 | IMPLEMENTING | 3/10 | E14 | Il modello unico di tutte le finestre; mai annidate |
-| `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | v0.1 | IMPLEMENTING | 2/10 | E14 | Profilabile, non un'abilità d'eroe |
+| `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | v0.1 | TESTABLE | 5/10 | E14 | Finestra **3,0 s**, `Timeout → HOLD`; Fast/Headless risponde subito via policy |
+| `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | v0.1 | TESTABLE | 5/10 | E14 | Profilabile, non un'abilità d'eroe |
+| `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | v0.1 | IMPLEMENTING | 4/10 | E14 | Il modello unico di tutte le finestre; mai annidate |
 | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | v0.1 | IMPLEMENTING | 1/9 | E14 | `Brace` non è solo riduzione danno: arma un profilo di risposta |
 | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | v0.1 | SPECIFIED | 1/10 | E14 | Due opportunity contese: chi vince, e una sola volta |
-| `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | v0.1 | SPECIFIED | 1/10 | E14 | Finestra **3,0 s**, `Timeout → HOLD`; Fast/Headless risponde subito via policy |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/10 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
 ### Tools · 15
@@ -214,7 +214,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | v0.1 | IMPLEMENTING | 1/7 | E20 | Un **catalogo semantico**, non texture referenziate nei widget |
 | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | v0.1 | IMPLEMENTING | 1/8 | E11 | — |
 | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | v0.1 | IMPLEMENTING | 1/7 | E11 | — |
-| `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | v0.1 | IMPLEMENTING | 1/6 | E11 | Tarata sulla scala esagonale |
+| `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | v0.1 | IMPLEMENTING | 2/6 | E11 | Tarata sulla scala esagonale |
 | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse | v0.1 | IMPLEMENTING | 3/7 | E11 | L'arancione del fuoco amico deve **notarsi** |
 | `RT-FEAT-UI-ACTION-GHOSTS` — Action Ghosts e Ghost Timeline | v0.1 | SPECIFIED | 1/8 | E11 | Il planning visuale: cosa succederà, e con quanta certezza |
 | `RT-FEAT-UI-STRUCTURE-READABILITY` — Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio | v0.2 | DESIGNED | 0/7 | E23 | — |

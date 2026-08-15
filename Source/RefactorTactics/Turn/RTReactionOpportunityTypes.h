@@ -5,6 +5,7 @@
 #include "Combat/RTOffensiveActionLibrary.h" // FRTSuppressiveZone, FRTSuppressionMover: la geometria e' UNA
 #include "Perception/RTPerceptionLibrary.h"  // ERTAwareness: il trigger richiede `Detected`, non «visibile»
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: header leggero, lo usa anche ARTUnit
+#include "Turn/RTTurnLog.h" // ERTReactionDecisionOutcome: l'esito di una finestra vive con gli altri esiti di log
 #include "Turn/RTTurnRules.h"
 #include "RTReactionOpportunityTypes.generated.h"
 
@@ -235,6 +236,33 @@ struct FRTOverwatchTrigger
 
 
 /**
+ * L'esito di una finestra: la risposta applicata, e l'esito che spiega da dove viene (CP 14.5).
+ *
+ * `Response` e' una stringa e non un enum perche' e' un elemento di `AllowedResponses`, che il profilo
+ * costruisce: `FIRE:<UnitId>` porta con se' il bersaglio, e un enum costringerebbe a un secondo campo per
+ * dirlo — cioe' a due dati che possono contraddirsi.
+ *
+ * `Outcome` non e' ridondante rispetto a `Response`: la risposta dice **cosa** si applica — ed e' l'unica
+ * cosa da cui dipende il determinismo — mentre l'esito dice **come ci si e' arrivati**. `HOLD` scelto e `HOLD`
+ * per scadenza applicano lo stesso effetto e raccontano due partite diverse.
+ */
+USTRUCT()
+struct FRTReactionDecision
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Response;
+
+	UPROPERTY()
+	ERTReactionDecisionOutcome Outcome = ERTReactionDecisionOutcome::HoldTimeout;
+
+	FRTReactionDecision() = default;
+	FRTReactionDecision(const FString& InResponse, ERTReactionDecisionOutcome InOutcome)
+		: Response(InResponse), Outcome(InOutcome) {}
+};
+
+/**
  * Derivazione dell'identita' di una opportunity. Funzioni pure: nessuno stato, nessun accesso al mondo.
  */
 UCLASS()
@@ -259,8 +287,57 @@ public:
 	/** La risposta che NON spende niente. `Timeout -> HOLD` (ADR-0004 §3) sceglie questa. */
 	static const TCHAR* HoldResponse() { return TEXT("HOLD"); }
 
+	/**
+	 * Quante volte UNA reaction armata puo' aprire una finestra nello stesso turno (ADR-0004 §8: **3**).
+	 *
+	 * ⚠️ Serve, e non e' un limite teorico: senza, un bersaglio che percorre cinque celle dentro la zona apre
+	 * **cinque** finestre con la stessa Overwatch, perche' `Charges = 1` limita i `FIRE` e non le domande. E'
+	 * il numero che la misura di overhead di CP 14.5 ha registrato prima che questo cap esistesse.
+	 *
+	 * Limita i **prompt**, cioe' le finestre che chiedono davvero qualcosa: un'opportunity a cardinalita' <= 1
+	 * si committa da sola senza interrompere nessuno, e contarla spenderebbe il budget del giocatore per una
+	 * domanda che non gli e' stata posta.
+	 *
+	 * Da non confondere col cap AGGREGATO per turno, che ADR-0004 §8 lascia volutamente assente (D-20) e che
+	 * [D-050] ha poi risolto altrove col Decision Time Bank — in tempo anziche' in prompt. I due non sono in
+	 * contraddizione: questo limita una reaction, quello limita un giocatore.
+	 */
+	static constexpr int32 MaxPromptsPerReaction() { return 3; }
+
 	/** La risposta che spende la reaction su un bersaglio: `FIRE:<UnitId>`. */
 	static FString FireResponse(int32 TargetUnitId);
+
+	/**
+	 * Il bersaglio di una risposta `FIRE:<UnitId>`, o `INDEX_NONE` se la stringa non e' un `FIRE`.
+	 *
+	 * L'inversa di `FireResponse`, e sta accanto a lei di proposito: sono un formato, e un formato con il
+	 * parser scritto altrove diverge al primo cambiamento. `HOLD` da' `INDEX_NONE`, che non e' un errore —
+	 * e' il fatto che non ci sia un bersaglio.
+	 */
+	static int32 FireResponseTarget(const FString& Response);
+
+	/**
+	 * La risposta e' fra quelle legali per questa opportunity? Confronto esatto, elenco chiuso.
+	 *
+	 * E' la guardia contro la **risposta stale** che il DoD di E14 richiede: una decisione che arriva per una
+	 * finestra gia' chiusa, o che nomina un bersaglio che nel frattempo non e' piu' un'opzione, non deve
+	 * potersi applicare. Sta qui e non nell'orchestratore perche' «quali risposte sono legali» e' gia'
+	 * responsabilita' di questo tipo — chiederlo altrove sarebbe una seconda regola.
+	 */
+	static bool IsResponseAllowed(const FRTReactionOpportunity& Opportunity, const FString& Response);
+
+	/**
+	 * La decisione allo scadere della finestra: **sempre** `HOLD` (ADR-0004 §3). Funzione PURA.
+	 *
+	 * Mai `FIRE`, e la ragione e' asimmetrica: `FIRE` consuma una risorsa irreversibile, e un input mancato
+	 * non deve spenderla. Il valore non dipende dall'opportunity — il parametro c'e' perche' il chiamante non
+	 * debba conoscere la stringa, non perche' serva a calcolarlo.
+	 *
+	 * ⚠️ Nessun timer qui dentro, e nessuno nel resolver: **quando** la finestra scada e' un fatto
+	 * dell'orologio, che vive nell'orchestratore. Questa funzione dice solo *cosa* vale allo scadere, ed e'
+	 * per questo che il risultato logico non dipende dal tempo reale.
+	 */
+	static FRTReactionDecision DecisionOnTimeout(const FRTReactionOpportunity& Opportunity);
 
 	/**
 	 * Le opportunity che gli Overwatch armati aprono lungo i micro-step della fase Move (CP 14.4).
@@ -285,9 +362,27 @@ public:
 	 * verificabile significherebbe sparare a una regola che nessuno ha controllato. E' la stessa scelta che
 	 * `TeamAwareness` fa per un bersaglio non dichiarato.
 	 */
+	/**
+	 * `FirstMicroStepIndex` dice a quale micro-step del TURNO corrisponde il passo 0 dei `Movers` (CP 14.5).
+	 *
+	 * Serve a chi chiama questa funzione **dentro** il ciclo di risoluzione invece che su percorsi interi.
+	 * `ARTTurnManager::ResolveMovement` non puo' passarle i percorsi completi: calcolerebbe in anticipo i
+	 * trigger di micro-step che non sono ancora avvenuti, e un `FIRE` alla finestra corrente **cambia** il
+	 * futuro di chi viene fermato — quei trigger sarebbero il futuro di un mondo che la decisione ha appena
+	 * annullato. Passa quindi il solo passo appena compiuto, e con esso l'indice vero.
+	 *
+	 * Senza il parametro ogni chiamata produrrebbe `MicroStepIndex = 0`, e poiche' l'indice e' uno dei sei
+	 * campi di `FRTReactionOpportunityKey`, due passi diversi dello stesso turno collasserebbero sullo stesso
+	 * `OpportunityId`: il replay attribuirebbe a uno la decisione dell'altro. E' esattamente il difetto che
+	 * `Seq` esiste per impedire, spostato di un campo.
+	 *
+	 * Il default `0` tiene invariati i chiamanti che passano percorsi interi — i test di CP 14.4 — per cui il
+	 * passo 0 dei mover E' il micro-step 0.
+	 */
 	static TArray<FRTOverwatchTrigger> BuildOverwatchTriggers(const URTHexMapAsset* Map, int32 TurnNumber,
 		const TArray<FRTOverwatchWatcher>& Watchers, const TArray<FRTSuppressionMover>& Movers,
-		const TMap<int32, FRTTargetVitals>& TargetVitals = TMap<int32, FRTTargetVitals>());
+		const TMap<int32, FRTTargetVitals>& TargetVitals = TMap<int32, FRTTargetVitals>(),
+		int32 FirstMicroStepIndex = 0);
 
 	/**
 	 * La condizione e' soddisfatta per questo bersaglio? Funzione pura, valutata al trigger.

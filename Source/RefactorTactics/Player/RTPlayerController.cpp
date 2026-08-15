@@ -168,6 +168,14 @@ void ARTPlayerController::BuildInputMappings()
 	RotateAction = NewObject<UInputAction>(this, TEXT("IA_Rotate"));
 	RotateAction->ValueType = EInputActionValueType::Axis1D;
 
+	// #863: orbita CONTINUA, distinta dallo scatto di Q/E. Due gesti sullo stesso stato — il tasto
+	// riparte da dove il trascinamento ha lasciato.
+	OrbitAction = NewObject<UInputAction>(this, TEXT("IA_Orbit"));
+	OrbitAction->ValueType = EInputActionValueType::Axis2D;
+
+	OrbitModifierAction = NewObject<UInputAction>(this, TEXT("IA_OrbitModifier"));
+	OrbitModifierAction->ValueType = EInputActionValueType::Boolean;
+
 	SelectAction = NewObject<UInputAction>(this, TEXT("IA_Select"));
 	SelectAction->ValueType = EInputActionValueType::Boolean;
 
@@ -228,6 +236,12 @@ void ARTPlayerController::BuildInputMappings()
 		M.Modifiers.Add(NewObject<UInputModifierNegate>(this));
 	}
 
+	// Orbita continua (#863): il tasto centrale **tenuto** arma il gesto, il movimento del mouse lo guida.
+	// X = yaw, Y = pitch, come dichiara la §3.2 dell'handoff camera. `RMB` resta gameplay contestuale e
+	// non entra qui: e' un guardrail esplicito di quel documento.
+	MappingContext->MapKey(OrbitModifierAction, EKeys::MiddleMouseButton);
+	MappingContext->MapKey(OrbitAction, EKeys::Mouse2D);
+
 	// Select (Boolean): tasto sinistro del mouse.
 	MappingContext->MapKey(SelectAction, EKeys::LeftMouseButton);
 
@@ -279,6 +293,18 @@ void ARTPlayerController::SetupInputComponent()
 		// `Started` e non `Triggered`: la rotazione e' a SCATTI di `YawStep`, quindi deve avvenire una volta
 		// per pressione. Con `Triggered` un tasto tenuto giu' avrebbe girato la vista di 45 gradi per frame.
 		EIC->BindAction(RotateAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRotate);
+
+		// #863 — l'orbita continua ha bisogno di `Triggered` (ogni frame in cui il mouse si muove), non di
+		// `Started`: `Started` scatta una volta sola all'inizio del gesto, che e' giusto per un tasto e
+		// sbagliato per un trascinamento.
+		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Started, this, &ARTPlayerController::OnOrbitPressed);
+		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnOrbitReleased);
+		// ⚠️ **Anche `Canceled`, e non e' pedanteria**: se il trigger viene annullato — rimozione del
+		// mapping context, cambio pawn, un `FlushPressedKeys` parziale — `Completed` non arriva. Senza
+		// questa riga `bOrbiting` resterebbe armato e da quel momento **ogni** movimento del mouse
+		// ruoterebbe la camera senza che nessun tasto sia premuto. Trovato in code review.
+		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnOrbitReleased);
+		EIC->BindAction(OrbitAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnOrbit);
 		EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
 		EIC->BindAction(LockInAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLockIn);
 		EIC->BindAction(RestartAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRestart);
@@ -337,11 +363,35 @@ void ARTPlayerController::OnFocusSelected(const FInputActionValue& Value)
 		UE_LOG(LogRT, Log, TEXT("[RT] Focus: nessuna unita' selezionata (Home ricentra sulla griglia)."));
 		return;
 	}
-	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	FocusCameraOnUnit(Unit);
+	UE_LOG(LogRT, Log, TEXT("[RT] Focus su %s"), *Unit->GetName());
+}
+
+void ARTPlayerController::FocusCameraOnUnit(const ARTUnit* Unit)
+{
+	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
+	if (!Cam || !Unit)
 	{
-		Cam->FocusOn(Unit->GetActorLocation());
-		UE_LOG(LogRT, Log, TEXT("[RT] Focus su %s"), *Unit->GetName());
+		return;
 	}
+
+	// La CELLA, non l'attore: `ARTUnit` si posiziona con `VisualZOffset` (= `UnitHalfHeight`), quindi
+	// `GetActorLocation()` sta mezzo corpo **sopra** il piano. Inquadrare li' porterebbe il pivot di `F`
+	// a una quota che nessun'altra inquadratura usa — `Home` e l'avvio partita stanno sul piano — e le due
+	// divergerebbero di una costante.
+	// ⚠️ La prima stesura di #887 passava `GetActorLocation()` e giustificava il fix dicendo che il
+	// controller «passa l'unita' sul terreno»: falso, e trovato in code review.
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		FVector Origin; float HexSize; float LayerHeight;
+		HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+		Cam->FocusOn(URTHexLibrary::AxialToWorld(Unit->Cell, Origin, HexSize, LayerHeight));
+		return;
+	}
+
+	// Senza mappa non c'e' un piano a cui ancorarsi: si ripiega sull'attore, che e' comunque meglio di
+	// non inquadrare.
+	Cam->FocusOn(Unit->GetActorLocation());
 }
 
 void ARTPlayerController::OnPan(const FInputActionValue& Value)
@@ -354,10 +404,38 @@ void ARTPlayerController::OnPan(const FInputActionValue& Value)
 
 void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 {
-	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
+	if (!Cam)
 	{
-		Cam->AddZoom(Value.Get<float>());
+		return;
 	}
+
+	// L'ancora e' la **CELLA** sotto il cursore, convertita col centro del piano — non il punto d'impatto
+	// del raycast.
+	//
+	// 🔴 La prima stesura passava `Hit.ImpactPoint`, ed era lo stesso difetto di `#887` ripetuto in questo
+	// file: se il cursore sta su un'unita', l'impatto e' sul cilindro, **180 unita' sopra il piano**
+	// (`UnitHalfHeight` + `VisualZOffset`). A pitch -40° quella quota si traduce in ~215 unita' di scarto
+	// orizzontale — **oltre una cella**, cioe' piu' del doppio della tolleranza di mezza cella che il DoD
+	// e il nome del test dichiarano. Trovato in code review.
+	//
+	// ➕ E la cella e' gia' calcolata: `PlayerTick` traccia sotto il cursore a ogni frame e la memorizza
+	// con `SetHoveredCell`. Rifare il raycast qui sarebbe lavoro doppio per un dato peggiore.
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		if (HexMap->IsHoveredCellValid())
+		{
+			FVector Origin; float HexSize; float LayerHeight;
+			HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+			Cam->ZoomTowards(Value.Get<float>(),
+				URTHexLibrary::AxialToWorld(HexMap->GetHoveredCell(), Origin, HexSize, LayerHeight));
+			return;
+		}
+	}
+
+	// Il cursore non e' su una cella valida (fuori mappa, o nessun viewport): si zooma sul centro, com'e'
+	// sempre stato. Meglio di non zoomare.
+	Cam->AddZoom(Value.Get<float>());
 }
 
 void ARTPlayerController::OnRotate(const FInputActionValue& Value)
@@ -365,6 +443,46 @@ void ARTPlayerController::OnRotate(const FInputActionValue& Value)
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
 		Cam->AddYaw(Value.Get<float>());
+	}
+}
+
+void ARTPlayerController::OnOrbitPressed(const FInputActionValue& Value)
+{
+	bOrbiting = true;
+}
+
+void ARTPlayerController::OnOrbitReleased(const FInputActionValue& Value)
+{
+	// ⚠️ Nessuno snap al rilascio: la spec lo vieta esplicitamente. Chi si e' fermato *fra* due file di
+	// celle — il caso d'uso per cui `D-142` tiene lo step a 45° — vedrebbe la vista scattare via da sola.
+	bOrbiting = false;
+}
+
+void ARTPlayerController::OnOrbit(const FInputActionValue& Value)
+{
+	OrbitCameraForTest(Value.Get<FVector2D>());
+}
+
+void ARTPlayerController::OrbitCameraForTest(const FVector2D& Delta)
+{
+	// 🔴 **La guardia sta QUI, non nel chiamante.** L'estrazione l'aveva lasciata in `OnOrbit`, quindi il
+	// percorso testabile scavalcava proprio il gate che doveva verificare — e il test l'ha fatto cadere
+	// alla prima esecuzione. Una decisione estratta per essere verificabile deve portarsi dietro **tutta**
+	// la decisione, altrimenti il test misura una funzione che in partita non esiste.
+	//
+	// Il movimento del mouse arriva a ogni frame: senza questa riga la vista ruoterebbe di continuo, senza
+	// che nessuno abbia chiesto di orbitare.
+	if (!bOrbiting)
+	{
+		return;
+	}
+	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	{
+		// X orizzontale → yaw, Y verticale → pitch. **Una sola** scrittura di trasformata: chiamare i due
+		// `Add*` in fila aggiornerebbe il braccio due volte per frame di trascinamento.
+		// Il verso verticale e' una preferenza del pawn (`bInvertOrbitPitch`), non una costante decisa qui:
+		// vedi la nota su quel campo — il default non e' stato verificato con le mani.
+		Cam->AddOrbit(Delta.X, Delta.Y);
 	}
 }
 

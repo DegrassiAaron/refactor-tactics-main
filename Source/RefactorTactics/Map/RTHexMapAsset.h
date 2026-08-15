@@ -64,17 +64,22 @@ public:
 	 * v8 (#621): provenienza della copertura (`FRTHexCover::bGenerated`). Nessun dato esistente cambia
 	 *     significato: una mappa scritta prima non ha coperture cotte, quindi ogni sua copertura e' dipinta
 	 *     a mano — che e' il default `false`, ed e' cio' che quelle coperture gia' erano.
+	 * v9 (#832, CP 23.3): identita' stabile delle strutture (`FRTHexDoor::StableId`,
+	 *     `FRTHexEdge::StableId`). Nessun dato esistente cambia significato: una mappa scritta prima non
+	 *     nomina le proprie strutture, quindi ogni sua porta e ogni suo arco sono anonimi — che e' il
+	 *     default `NAME_None`, ed e' cio' che quelle strutture gia' erano. `DoorId` non cambia mestiere:
+	 *     resta l'indice di gruppo interno all'asset.
 	 *
 	 * ⚠️ **Questo numero non viaggia da solo**: la sua storia e' qui, ma il valore che un asset porta nei
 	 * propri byte e' `FRTHexMapCustomVersion` (#687, D-137). Alzarlo senza aggiungere il valore
 	 * corrispondente all'enum non compila — e' voluto, vedi lo `static_assert` in `RTHexMapAsset.cpp`.
 	 *
-	 * Tutti i passi v1->v8 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
+	 * Tutti i passi v1->v9 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
 	 * significato. Il primo passo TRASFORMATIVO e' ora eseguibile — prima di #687 non lo era, perche' la
 	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
 	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
-	static constexpr int32 CurrentFormatVersion = 8;
+	static constexpr int32 CurrentFormatVersion = 9;
 
 	/**
 	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.
@@ -175,6 +180,36 @@ public:
 
 	/** Rimuove la cella con l'Id dato; vero se esisteva. */
 	bool RemoveCell(const FRTCellId& Id);
+
+	/**
+	 * Svuota celle **e** transizioni, incrementando la revisione **una volta sola**; vero se c'era
+	 * qualcosa da togliere.
+	 *
+	 * Esiste perche' `ARTHexMapActor::ClearAsset` scriveva sui due array direttamente, ed era l'unica
+	 * modifica strutturale dell'asset a non muovere `Revision` — proprio la piu' grande possibile. Un
+	 * percorso calcolato prima restava valido dopo, e due voci di TurnLog ai due lati di uno svuotamento
+	 * portavano la stessa `GraphRevision`, che e' cio' che quel campo esiste per rendere impossibile.
+	 *
+	 * La revisione e' responsabilita' del DATO, non di chi lo modifica: per questo il reset vive qui e
+	 * l'actor lo chiama, come per ogni altra modifica.
+	 */
+	bool ClearAll();
+
+	/**
+	 * **Sostituisce** celle e transizioni con quelle date, incrementando la revisione **una volta sola**;
+	 * vero se dopo la chiamata l'asset contiene qualcosa.
+	 *
+	 * E' il caso che alla famiglia mancava: `AddOrUpdateCell` e' la singola, `UpdateCells` il gruppo,
+	 * `ClearAll` lo svuotamento — e «rimpiazza tutto» finiva scritto a mano dai chiamanti, con un
+	 * `AddOrUpdateCell` per cella. Generare l'arena della v0.1 muoveva cosi' la revisione **98 volte**
+	 * per un evento solo, e le transizioni — assegnate direttamente — per niente.
+	 *
+	 * Vale la regola che `UpdateCells` enuncia: *«un portone largo tre bordi si apre una volta, non tre»*.
+	 * Rimpiazzare la mappa e' un evento, e chi osserva `Revision` per invalidare una cache deve vederne uno.
+	 *
+	 * Sostituire con contenuto **vuoto** e' uno svuotamento: delega a `ClearAll`, guardia inclusa.
+	 */
+	bool ReplaceContent(const TArray<FRTHexCellData>& InCells, const TArray<FRTHexEdge>& InTransitions);
 
 	/** Puntatore alla cella con l'Id dato, o nullptr se assente. */
 	const FRTHexCellData* FindCell(const FRTCellId& Id) const;

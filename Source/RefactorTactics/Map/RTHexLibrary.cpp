@@ -141,6 +141,23 @@ FRTCellId URTHexLibrary::WorldToCellId(const FVector& World, const FVector& Orig
 	return WorldToAxial(World, Origin, HexSize, Layer);
 }
 
+FRTCellId URTHexLibrary::ResolveRayToCellOnLayer(const FVector& RayOrigin, const FVector& RayDirection,
+	const FVector& Origin, float HexSize, float LayerHeight, int32 ActiveLayer,
+	bool bHasValidHit, const FVector& HitPoint)
+{
+	if (bHasValidHit)
+	{
+		return WorldToAxial(HitPoint, Origin, HexSize, ActiveLayer);
+	}
+
+	// Nessun colpo utile: si punta il PIANO del layer attivo. La quota e' quella del layer, non quella del
+	// raggio, perche' la domanda e' «quale cella di questo piano sto indicando» e non «cosa ho colpito».
+	const double PlaneZ = Origin.Z + static_cast<double>(ActiveLayer) * static_cast<double>(LayerHeight);
+	const FPlane LayerPlane(FVector(0, 0, PlaneZ), FVector(0, 0, 1));
+	const FVector Point = FMath::RayPlaneIntersection(RayOrigin, RayDirection, LayerPlane);
+	return WorldToAxial(Point, Origin, HexSize, ActiveLayer);
+}
+
 FVector URTHexLibrary::CellsCentroidWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
 	float LayerHeight)
 {

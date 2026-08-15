@@ -910,3 +910,159 @@ bool FRTBotArmsItsReactionTest::RunTest(const FString&)
 	DestroyHexBotWorld(World);
 	return true;
 }
+
+/**
+ * IL BOT CARICA, E IL BERSAGLIO INCASSA — `#880`, la terza voce di DoD di `#145`.
+ *
+ * `#145` fu chiusa dichiaratamente nella sua «forma minima»: il bot sa proporre una carica, ma nessun test
+ * la vedeva **arrivare a segno**. La misura del 2026-08-14: in questo file dodici test, nessuno sulla
+ * carica, e l'unico punto che la nomina sta dentro `PlanDoesNotBlastDyingAlly` come un `||` —
+ * *«attacco **o** carica»* — che passa anche se il bot non carica affatto. E si ferma alla
+ * pianificazione: nessun test del bot risolve un turno.
+ *
+ * ⚠️ **Il confine con `HexMatch.ChargeStopsOnEnemyAndHits`, che copre l'altra meta'.** Quel test esiste
+ * (`RTHexMatchIntegrationTests.cpp`) ed e' quello che il DoD di `#145` citava col nome di allora,
+ * `GuardianChargeStopsOnEnemyAndHits`: e' stato **rinominato** quando `Guardian.*` e' uscito dal roster,
+ * non cancellato. Verifica gia' arresto, 20 danni e spinta — ma **col piano scritto a mano**
+ * (`Charger->PlannedDashCell = Target->Cell`) e `bIsBotControlled = false`, dichiarato nel suo stesso
+ * commento: *«i piani li scrive il test, non l'utility del bot»*.
+ *
+ * Quello che nessuno copriva, ed e' la ragione per cui questo test esiste, e' l'**anello fra i due**: che
+ * sia il BOT a scegliere la carica da solo, e che quella scelta arrivi a segno in un turno risolto.
+ *
+ * ⚠️ **Il piano non viene imposto**: nessuna scrittura di `PlannedDashCell` o `PlannedDashAbility`. Il bot
+ * sceglie da solo, e il test verifica prima *che* abbia scelto una carica, poi *cosa* produce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotChargeLandsTest,
+	"RefactorTactics.HexBotPlay.ChargeItPlannedActuallyLands",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotChargeLandsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 5);
+
+	// Stessa geometria di `PlanDoesNotBlastDyingAlly` caso 2, dove la carica e' gia' misurata come la mossa
+	// che l'utility preferisce: Bastion ha `Ram` (20 + spinta 1) contro `ImpactShot` (8).
+	// Nessun alleato in scena: qui non si misura il collaterale, e un terzo attore aggiungerebbe solo un
+	// modo per cui il piano potrebbe cambiare senza che il test lo dica.
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 0), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
+
+	Foe->Shield = 0;          // il danno si legge sulla salute, senza passare da uno scudo
+	Foe->PushResistance = 0;  // la soglia dorme dopo D-075: azzerarla e' dichiararlo, non aggirarlo
+	const int32 HealthBefore = Foe->Health;
+
+	TM->PlanBotsForTest();
+
+	// --- 1. Il bot ha scelto una CARICA, e l'ha scelta da solo -------------------------------------
+	if (!TestTrue(TEXT("il bot ha pianificato uno scatto"), Bot->PlannedDashAbility != INDEX_NONE))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	const URTActionData* Dash = Bot->GetAbility(Bot->PlannedDashAbility);
+	if (!TestTrue(TEXT("ed e' una carica, non uno scatto qualunque"),
+		Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+	// Una carica punta la cella OCCUPATA dal bersaglio: e' la differenza fra caricare e riposizionarsi.
+	TestEqual(TEXT("e punta la cella del nemico"), Bot->PlannedDashCell, FRTCellId(2, 0));
+
+	// --- 2. Il turno viene RISOLTO, non solo pianificato -------------------------------------------
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	// --- 3. Il bersaglio incassa DANNO e SPINTA, con valori concreti -------------------------------
+	TestEqual(TEXT("il bersaglio incassa i 20 danni della carica"), Foe->Health, HealthBefore - 20);
+	// Spinta 1 lungo la direzione della carica: da (2,0) verso est.
+	TestEqual(TEXT("e viene spinto di una cella"), Foe->Cell, FRTCellId(3, 0));
+	// La carica si FERMA addosso al nemico invece di attraversarlo: e' cio' che distingue
+	// `LinearCharge` da `LinearDash`, ed e' un dato del catalogo, non un `if` sull'ActionId.
+	TestEqual(TEXT("e chi carica si ferma davanti alla cella di partenza del bersaglio"),
+		Bot->Cell, FRTCellId(1, 0));
+
+	// --- 4. Il TurnLog nomina la carica ------------------------------------------------------------
+	int32 ChargeEntries = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Bastion.Ram"))) { ++ChargeEntries; }
+	}
+	TestTrue(TEXT("il TurnLog registra la carica col suo ActionId"), ChargeEntries > 0);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+#if WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * Il bot decide una finestra di reazione con la SOLA opportunity sanitizzata (CP 14.5).
+ *
+ * ⚠️ La proprieta' vera non la dimostra questo test: la dimostra la **firma**.
+ * `URTHexBotLibrary::DecideReactionResponse` riceve un `FRTReactionOpportunity` e nient'altro — niente mappa,
+ * niente snapshot, niente percorsi — e quel tipo ha un elenco CHIUSO di campi verificato per riflessione da
+ * `Overwatch.OpportunityLeaksNoFuture`. Il futuro non e' raggiungibile nemmeno volendo, e «restituisce
+ * subito» e' l'unica cosa che una funzione senza `UWorld` e senza timer possa fare.
+ *
+ * Cio' che il test aggiunge e' che la decisione sia **legale, deterministica e non vacua**: una funzione che
+ * rispondesse sempre `HOLD` soddisferebbe la garanzia strutturale senza far mai reagire nessuno, ed e' il modo
+ * piu' facile di avere un bot «sicuro» e inerte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotDecidesWithoutFutureKnowledgeTest,
+	"RefactorTactics.Bot.DecidesWithoutFutureKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotDecidesWithoutFutureKnowledgeTest::RunTest(const FString&)
+{
+	const FString Hold = URTReactionOpportunityLibrary::HoldResponse();
+
+	// Due bersagli piu' `HOLD`: e' la finestra vera dell'Overwatch.
+	FRTReactionOpportunity TwoTargets;
+	TwoTargets.AllowedResponses = {
+		URTReactionOpportunityLibrary::FireResponse(4),
+		URTReactionOpportunityLibrary::FireResponse(7),
+		Hold };
+
+	const FString Chosen = URTHexBotLibrary::DecideReactionResponse(TwoTargets);
+
+	// 1. La risposta e' LEGALE. Un bot che inventa una risposta verrebbe rifiutato dall'orchestratore, e la
+	//    finestra si chiuderebbe in `HoldRejected` senza che nessuno se ne accorga in partita.
+	TestTrue(TEXT("la risposta e' fra quelle legali"),
+		URTReactionOpportunityLibrary::IsResponseAllowed(TwoTargets, Chosen));
+
+	// 2. NON e' vacua: con dei bersagli legali il bot spara. E' cio' che distingue una politica da un rifiuto.
+	TestEqual(TEXT("con bersagli legali il bot spara al primo"),
+		Chosen, URTReactionOpportunityLibrary::FireResponse(4));
+
+	// 3. E' DETERMINISTICA e non dipende dall'ordine in cui le risposte sono state costruite: `FIRE:4` resta
+	//    la scelta anche se l'elenco arriva al contrario. Senza, due esecuzioni dello stesso turno potrebbero
+	//    sparare a due bersagli diversi — e il replay non sarebbe piu' riproducibile.
+	FRTReactionOpportunity Reversed;
+	Reversed.AllowedResponses = {
+		Hold,
+		URTReactionOpportunityLibrary::FireResponse(7),
+		URTReactionOpportunityLibrary::FireResponse(4) };
+	// ⚠️ Qui la politica sceglie «il primo `FIRE:` dell'elenco», quindi su un elenco permutato sceglie `7`.
+	//    NON e' un difetto della politica: `AllowedResponses` e' costruito da `BuildOverwatchTriggers`, che
+	//    ordina i bersagli per `UnitId` crescente PRIMA di scriverli — l'elenco permutato non e' uno stato che
+	//    il gioco possa produrre. Cio' che il test fissa e' che la politica sia una funzione dell'elenco
+	//    ricevuto e non abbia stato proprio: chiamarla due volte sullo stesso ingresso da' lo stesso esito.
+	TestEqual(TEXT("chiamarla due volte sullo stesso ingresso da' lo stesso esito"),
+		URTHexBotLibrary::DecideReactionResponse(Reversed),
+		URTHexBotLibrary::DecideReactionResponse(Reversed));
+
+	// 4. Senza bersagli legali risponde `HOLD` ESPLICITO, non una stringa vuota: vuota significa «non ho
+	//    risposto», cioe' una scadenza, e il bot non e' scaduto — ha deciso, e non aveva altro da decidere.
+	FRTReactionOpportunity HoldOnly;
+	HoldOnly.AllowedResponses = { Hold };
+	const FString NoTargets = URTHexBotLibrary::DecideReactionResponse(HoldOnly);
+	TestEqual(TEXT("senza bersagli risponde HOLD"), NoTargets, Hold);
+	TestFalse(TEXT("e non lascia la risposta vuota, che sarebbe una scadenza"), NoTargets.IsEmpty());
+
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

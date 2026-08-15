@@ -226,6 +226,64 @@ bool FRTHexMapFloodRegionTest::RunTest(const FString&)
  * Il fallimento reale e' stato osservato in editor (undo di una pennellata + click su una cella); qui se ne fissa
  * il contratto perche' non possa regredire.
  */
+/**
+ * `#902`: **svuotare la mappa muove la revisione**, come ogni altra modifica strutturale.
+ *
+ * `ARTHexMapActor::ClearAsset` scriveva sui due array direttamente (`Cells.Reset()`), ed era l'unico
+ * punto del progetto a modificare l'asset senza incrementare `Revision` — proprio con la modifica piu'
+ * grande possibile. `AddOrUpdateCell`, `UpdateCells`, `RemoveCell`, `AddTransition`,
+ * `RemoveTransition` e `UpdateTransitions` la incrementano tutti: misurato, sei siti su sei.
+ *
+ * Conta perche' `Revision` invalida le cache di percorso *e* perche'
+ * `ARTTurnManager::CurrentGraphRevision()` la legge per scrivere `GraphRevision` su ogni voce del
+ * TurnLog (`D-067`), campo che entra nell'hash. Con la revisione ferma, due voci ai due lati di uno
+ * svuotamento sarebbero indistinguibili — cioe' cio' che quel campo esiste per impedire.
+ *
+ * ⚠️ **Il gemello negativo conta quanto la prova**: svuotare una mappa GIA' vuota non deve muovere
+ * niente. Senza, un `++Revision` incondizionato passerebbe la prima meta' del test e romperebbe la
+ * regola che `UpdateCells` dichiara — *«nessuna modifica: la revisione non deve muoversi»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapClearBumpsRevisionTest,
+	"RefactorTactics.HexMap.ClearAllBumpsTheRevisionOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapClearBumpsRevisionTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 1))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->AddTransition(FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), /*Cost=*/ 1);
+	Map->SortCells();
+
+	// La premessa: c'e' davvero qualcosa da togliere, in ENTRAMBI gli array. Senza, «dopo e' vuoto»
+	// sarebbe vero anche di una funzione che non fa niente.
+	TestEqual(TEXT("premessa: sette celle"), Map->NumCells(), 7);
+	TestTrue(TEXT("premessa: almeno una transizione"), Map->Transitions.Num() > 0);
+	// La cache viene popolata interrogando l'asset: e' lo stato in cui un reset puo' lasciarla stantia.
+	TestTrue(TEXT("premessa: la cella si trova"), Map->FindCell(FRTCellId(1, 0)) != nullptr);
+
+	const int32 RevisionBefore = Map->Revision;
+
+	TestTrue(TEXT("lo svuotamento dichiara di aver tolto qualcosa"), Map->ClearAll());
+
+	TestEqual(TEXT("celle azzerate"), Map->NumCells(), 0);
+	TestEqual(TEXT("transizioni azzerate"), Map->Transitions.Num(), 0);
+	// `+1` esatto, non «maggiore di»: due incrementi per un solo svuotamento sarebbero un difetto
+	// simmetrico, e `UpdateCells` dichiara la regola — una volta per gruppo.
+	TestEqual(TEXT("la revisione sale di UNO"), Map->Revision, RevisionBefore + 1);
+
+	// La cache non sopravvive al reset: con gli indici vecchi `FindCell` leggerebbe fuori dall'array.
+	TestTrue(TEXT("nessuna cella fantasma dopo il reset"), Map->FindCell(FRTCellId(1, 0)) == nullptr);
+
+	// --- Il gemello negativo: una mappa gia' vuota non muove niente ---------------------------------
+	const int32 RevisionAfterClear = Map->Revision;
+	TestFalse(TEXT("un secondo svuotamento non toglie nulla"), Map->ClearAll());
+	TestEqual(TEXT("e la revisione resta ferma"), Map->Revision, RevisionAfterClear);
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapLookupInvalidationTest,
 	"RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -322,8 +380,8 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
 	// Il numero e' pinnato di proposito: un bump di formato deve far cadere un test, non passare inosservato.
-	// v7 (#619) aggiunge il sovrapprezzo di occupazione; nessun dato precedente cambia significato.
-	TestEqual(TEXT("la versione corrente e' la 8"), URTHexMapAsset::CurrentFormatVersion, 8);
+	// v9 (#832) aggiunge l'identita' stabile delle strutture; nessun dato precedente cambia significato.
+	TestEqual(TEXT("la versione corrente e' la 9"), URTHexMapAsset::CurrentFormatVersion, 9);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 
@@ -550,10 +608,13 @@ bool FRTHexBrushLineOfSightTest::RunTest(const FString&)
  * **Solo `Cells` ha collisione.** E' l'invariante da cui dipende la selezione, e ogni componente aggiunto
  * all'actor puo' romperla senza che nulla se ne accorga.
  *
- * `ResolveClickedCell` valida `Result.GetActor() == Actor` — l'ACTOR, non il componente — quindi geometria
- * collidibile su `Relief` o `Blockers` intercetterebbe il raycast del pennello. Si manifesterebbe come
- * «dipinge dove non ho cliccato», e nessuno lo attribuirebbe alla visualizzazione: e' il motivo per cui
- * questa regola va pinnata invece che ricordata.
+ * `ResolveClickedCell` valida il COMPONENTE colpito (`IsPickOnSelectableCell`), non l'actor: dal
+ * 2026-08-12 geometria collidibile su `Relief` o `Blockers` non produce piu' una cella sbagliata, viene
+ * scartata e la risoluzione ripiega sul piano del layer. Resta pero' una precisione persa in silenzio, e
+ * questo test tiene ferma la sola cosa che nessun altro guarda: **quali componenti collidono**.
+ *
+ * ⚠️ Questo test copre la collisione dei componenti, NON la risoluzione. La risoluzione e' pura e vive in
+ * `URTHexLibrary::ResolveRayToCellOnLayer`, coperta da `Hex.ResolveRayToCellOnLayer*` in `RTHexTests.cpp`.
  *
  * Verifica anche il verso opposto: `Cells` la collisione DEVE averla, o la selezione smetterebbe di
  * funzionare del tutto — e un test che controllasse solo «gli altri non collidono» resterebbe verde.
@@ -654,6 +715,65 @@ bool FRTHexFixtureLoaderTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `#905`: **generare una fixture e' UN evento, e muove la revisione una volta**.
+ *
+ * Il metodo scriveva il rimpiazzo a mano — `Cells.Reset()` piu' un `AddOrUpdateCell` per cella — quindi
+ * l'arena della v0.1 faceva salire `Revision` di **98**, e le transizioni (assegnate direttamente) non la
+ * muovevano affatto.
+ *
+ * E' la regola che `UpdateCells` enuncia: *«un portone largo tre bordi si apre una volta, non tre — cosi'
+ * che chi osserva la revisione non veda tre cambi dove ce n'e' stato uno»*. Chi legge `Revision` per
+ * invalidare una cache di percorso, o come `GraphRevision` nel TurnLog, vedeva 98 eventi per un comando.
+ *
+ * ⚠️ **Il test conta attraverso il PULSANTE, non sull'asset.** Verificare `ReplaceContent` da solo direbbe
+ * che il metodo nuovo e' corretto, non che il pulsante lo usa — ed e' il cablaggio la cosa che era rotta.
+ * Il numero di celle e' pinnato per la stessa ragione: senza, «una revisione» sarebbe vero anche di una
+ * fixture vuota.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFixtureOneRevisionTest,
+	"RefactorTactics.HexMap.FixtureGenerationIsOneRevision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexFixtureOneRevisionTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!World) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+	if (Actor)
+	{
+		Actor->MapAsset = NewObject<URTHexMapAsset>();
+		const int32 RevisionBefore = Actor->MapAsset->Revision;
+
+		Actor->FixtureId = TEXT("ArenaV01");
+		Actor->GenerateFixtureIntoAsset();
+
+		// La premessa: la fixture ha DAVVERO molte celle. Senza, «una revisione» non proverebbe niente —
+		// e' proprio la differenza fra 1 e N a essere in discussione.
+		const int32 Written = Actor->MapAsset->NumCells();
+		TestTrue(FString::Printf(TEXT("premessa: la fixture porta molte celle (%d)"), Written), Written > 10);
+		TestTrue(TEXT("premessa: porta anche transizioni"), Actor->MapAsset->Transitions.Num() > 0);
+
+		// Il criterio: UNA revisione per un evento, non una per cella.
+		TestEqual(TEXT("generare una fixture muove la revisione di UNO"),
+			Actor->MapAsset->Revision, RevisionBefore + 1);
+
+		// Il gemello: rigenerare la stessa fixture e' un secondo evento, e ne vale un'altra — non zero
+		// (non e' un no-op) e non N.
+		const int32 RevisionAfterFirst = Actor->MapAsset->Revision;
+		Actor->GenerateFixtureIntoAsset();
+		TestEqual(TEXT("rigenerarla vale un'altra revisione, non N"),
+			Actor->MapAsset->Revision, RevisionAfterFirst + 1);
+		TestEqual(TEXT("e il contenuto non si e' fuso con se stesso"), Actor->MapAsset->NumCells(), Written);
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return true;
+}
+
 
 /**
  * La migrazione di formato verificata su un asset **serializzato**, non su uno costruito in memoria.
@@ -731,6 +851,24 @@ bool FRTHexSerializedAssetMigrationTest::RunTest(const FString&)
 		if (Cell.TotalMoveCost() != Cell.MoveCost) { ++WithSurcharge; }
 	}
 	TestEqual(TEXT("nessuna cella ha guadagnato un sovrapprezzo migrando"), WithSurcharge, 0);
+
+	// 5. **Stessa domanda per il campo di v9** (#832, CP 23.3). L'arena e' stata scritta quando le
+	//    strutture non avevano un nome pubblico: nessuna porta e nessun arco deve averne guadagnato uno
+	//    ricaricandosi. Un nome inventato dalla migrazione sarebbe un bersaglio che nessun designer ha
+	//    dichiarato — e da #833 in poi qualcuno potrebbe citarlo.
+	int32 NamedStructures = 0;
+	for (const FRTHexCellData& Cell : Loaded->Cells)
+	{
+		for (const FRTHexDoor& Door : Cell.Doors)
+		{
+			if (!Door.StableId.IsNone()) { ++NamedStructures; }
+		}
+	}
+	for (const FRTHexEdge& Arc : Loaded->Transitions)
+	{
+		if (!Arc.StableId.IsNone()) { ++NamedStructures; }
+	}
+	TestEqual(TEXT("nessuna struttura ha guadagnato un nome migrando"), NamedStructures, 0);
 	return true;
 }
 

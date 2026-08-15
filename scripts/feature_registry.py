@@ -29,6 +29,7 @@ Opzioni comuni:
     --check             `generate`/`wiki`/`shortlist`/`deploy` non scrivono: falliscono se disallineati
 """
 import argparse
+import collections
 import json
 import os
 import re
@@ -44,6 +45,11 @@ PROJECT_GRAPH_JSON = os.path.join(REPO, "docs", "roadmap", "project-graph.json")
 ROADMAP_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-v0.1.md")
 ROADMAP_CHECKPOINT = os.path.join(REPO, "docs", "roadmap", "roadmap-checkpoint.md")
 ROADMAP_POST_V01 = os.path.join(REPO, "docs", "roadmap", "roadmap-post-v0.1.md")
+# La figura e' un generato committato, come gli otto radar di `docs/characters/radar/`: un SVG e'
+# testo, quindi resta diffabile e non e' un binario da fondere a mano. Serve committato perche' la
+# Wiki lo mostra via `raw.githubusercontent.com`, e la Wiki non puo' leggere un file che sta solo
+# nella working copy di qualcuno.
+ROADMAP_MAP_SVG = os.path.join(REPO, "docs", "roadmap", "charts", "roadmap-map.svg")
 EXECUTION_GRAPH = os.path.join(REPO, "docs", "roadmap", "execution-graph.yaml")
 EXECUTION_MAP_PAGE = os.path.join(REPO, "docs", "roadmap", "execution-map.md")
 TESTS_DIR = os.path.join(REPO, "Source", "RefactorTactics", "Tests")
@@ -1454,6 +1460,11 @@ def apply_wiki_deploy(data, wiki_root, check=True):
     generated = [
         ("Stato-delle-feature.md", lambda: render_status_page(data)),
         ("Stato-del-progetto.md", lambda: render_control_center_page(data, build_graph(load_registry()))),
+        # Terza pagina generata direttamente nel clone, per la ragione delle altre due (D-076):
+        # una copia sola, e nessuna finestra in cui il pubblicato e' vecchio senza che nulla lo
+        # dica. La figura che la pagina mostra e' invece committata nel repository — la Wiki non
+        # puo' servire un binario che non esiste su `main`.
+        ("Roadmap-Map.md", lambda: render_roadmap_map_page(roadmap_map_model(load_registry()))),
     ]
     for name, render in generated:
         target = os.path.join(wiki_root, name)
@@ -3678,6 +3689,604 @@ def issue_domain_groups(registry, doc=None):
     return derived
 
 
+def epic_domain_groups(registry, doc=None):
+    """Da quale `domain_group` passa un'epic, derivandolo dalle feature che la dichiarano.
+
+    Stessa composizione di `issue_domain_groups`, e per la stessa ragione: `feature.roadmap.epic`
+    dice a quale epic una feature appartiene, `domain_groups.feature_areas` in quale gruppo sta la
+    sua `area`. Nessuna tassonomia nuova — quella e' stata respinta il 2026-08-14 (§4 del triage
+    sui quattro processi) e la respinta vale anche qui, dove la tentazione e' piu' forte perche'
+    una figura *vuole* che ogni epic stia in una corsia sola.
+
+    Ritorna `{epic: {group_id: [feature_id, ...]}}`. Piu' di una chiave significa che l'epic e'
+    dichiarata da feature di gruppi diversi: **legittimo**, e la figura non deve nasconderlo
+    scegliendo per conto proprio. Un'epic che attraversa due domini e' un fatto della roadmap, non
+    un errore di dati, e va disegnata dove sta la maggioranza delle sue feature **dichiarando** che
+    ne ha altre altrove.
+    """
+    doc = doc if doc is not None else load_execution_graph()
+    group_of_area = {}
+    for group in (doc or {}).get("domain_groups") or []:
+        for area in group.get("feature_areas") or []:
+            group_of_area.setdefault(area, group.get("id"))
+    derived = {}
+    for feature in registry.get("features") or []:
+        epic = (feature.get("roadmap") or {}).get("epic")
+        if not epic:
+            continue
+        group = group_of_area.get(feature.get("area"))
+        if not group:
+            continue
+        derived.setdefault(epic, {}).setdefault(group, []).append(feature["feature_id"])
+    return derived
+
+
+V01_ISSUE_PLAN = os.path.join(REPO, "docs", "roadmap", "v0.1-issue-plan.md")
+
+
+def reconcile_epic_issues(lista, heading):
+    """Incrocia le due letture di `v0.1-issue-plan.md`. Dove divergono, **nessuna vince**.
+
+    Funzione pura, e lo e' per un motivo misurato: finche' la riconciliazione stava dentro
+    `epic_issue_map()` — che legge i file veri — il test sui conflitti non poteva distinguere «non
+    ci sono conflitti» da «non li cerco piu'». Disattivando il controllo la lista restava vuota e i
+    test restavano verdi. E' la seconda volta in questa figura che la verifica di mutazione trova
+    un test che non prova cio' che dichiara; qui la cura e' rendere testabile la regola invece di
+    testarla attraverso il filesystem.
+
+    Un'epic su cui le due letture non concordano **esce**: il numero non si sceglie qui, perche' la
+    contraddizione va corretta nell'owner. Chi chiama riceve il conflitto e decide se dirlo.
+    """
+    out, conflicts = {}, []
+    for epic in sorted(set(lista) | set(heading)):
+        primo, secondo = lista.get(epic), heading.get(epic)
+        if primo and secondo and primo != secondo:
+            conflicts.append((epic, primo, secondo))
+            continue
+        out[epic] = primo or secondo
+    return out, conflicts
+
+
+def epic_issue_map():
+    """Epic della v0.1 → issue GitHub, **offline**. Due letture che devono concordare.
+
+    La prima stesura della Roadmap Map dichiarava questo dato «non derivabile senza GitHub», e la
+    conclusione era sbagliata per il motivo piu' banale: era stata cercata in `roadmap-v0.1.md`, il
+    cui §2.1 porta nome, stato ed evidenza ma non il numero, e da li' estesa a tutto il repository.
+    L'owner e' un altro file — `v0.1-issue-plan.md` — e lo dichiara due volte:
+
+        - [ ] #26 — E12 · Determinismo, QA e release (P0, 6 CP)
+        ### #26 · [EPIC v0.1] E12 — Determinismo, QA e release
+
+    Le due letture si incrociano invece di sceglierne una: la lista copre venti epic, gli heading
+    sedici, e dove entrambe parlano **devono dire lo stesso numero**. Se divergono il valore non si
+    indovina — l'epic resta senza issue e il conflitto torna in `conflicts`, perche' la correzione
+    va fatta nell'owner e non qui.
+
+    `E21` non sta in quel file ed e' un caso dichiarato, non un buco del parser: la sua sezione in
+    `roadmap-v0.1.md` porta *«Tracciata su GitHub … epic #286 … Era l'unica epic della v0.1 senza
+    issue»*. Si legge da li', ed e' l'unica epic per cui serve la seconda fonte.
+    """
+    lista, heading = {}, {}
+    if os.path.isfile(V01_ISSUE_PLAN):
+        with open(V01_ISSUE_PLAN, encoding="utf-8") as fh:
+            text = fh.read()
+        lista = {epic: int(num)
+                 for num, epic in re.findall(r"^- \[[ x]\] #(\d+) — (E\d+) ·", text, re.M)}
+        heading = {epic: int(num)
+                   for num, epic in re.findall(r"^### #(\d+) · \[EPIC[^\]]*\] (E\d+) —", text, re.M)}
+
+    out, conflicts = reconcile_epic_issues(lista, heading)
+
+    if os.path.isfile(ROADMAP_V01):
+        with open(ROADMAP_V01, encoding="utf-8") as fh:
+            text = fh.read()
+        sections = re.split(r"^### (E\d+) — ", text, flags=re.M)
+        for epic, body in zip(sections[1::2], sections[2::2]):
+            if epic in out:
+                continue
+            match = re.search(r"\*\*Tracciata su GitHub\*\*[^\n]*?epic \[#(\d+)\]", body)
+            if match:
+                out[epic] = int(match.group(1))
+    return out, conflicts
+
+
+def epic_catalog():
+    """Epic → titolo, priorita', release, glifo, checkpoint chiusi/totali. Due owner, una vista.
+
+    Le epic della v0.1 vivono in `roadmap-v0.1.md`, quelle oltre in `roadmap-post-v0.1.md`, e
+    nessuno dei due sa dell'altro. Qui si compongono senza copiare: `post_v01_epics()` e
+    `epic_status()` restano gli unici lettori dei rispettivi file, e questa funzione li mette in
+    fila.
+
+    I checkpoint si contano dalla tabella della sezione dell'epic — `| **12.1** ✅ |` — e non dai
+    gate delle feature: sarebbe una seconda regola sullo stesso fatto, che e' il difetto che
+    `epic_status()` dichiara di non voler ripetere. Un'epic senza tabella ha `0/0`, ed e'
+    un'informazione: significa che i suoi checkpoint non sono ancora scritti.
+    """
+    catalog = {}
+    for entry in post_v01_epics():
+        catalog[entry["epic"]] = {
+            "epic": entry["epic"],
+            "title": entry.get("title") or "",
+            "priority": entry.get("priority") or "",
+            "release": entry.get("release"),
+            "issue": entry.get("issue"),
+            "cp_done": 0,
+            "cp_total": 0,
+        }
+
+    if os.path.isfile(ROADMAP_V01):
+        with open(ROADMAP_V01, encoding="utf-8") as fh:
+            text = fh.read()
+        # Le sezioni si tagliano sul prossimo `### E`, non su `\n#`: dentro una sezione ci sono
+        # heading piu' profondi, e tagliare sul primo li userebbe come confine sbagliato.
+        sections = re.split(r"^### (E\d+) — ", text, flags=re.M)
+        for epic, body in zip(sections[1::2], sections[2::2]):
+            head = body.split("\n", 1)[0]
+            priority = ""
+            match = re.search(r"·\s*(P\d)\s*$", head.strip())
+            if match:
+                priority = match.group(1)
+            title = re.sub(r"\s*·\s*P\d\s*$", "", head).strip()
+            checkpoints = re.findall(r"^\|\s*\*\*(\d+\.\d+)\*\*\s*([" + STATUS_GLYPHS + r"])?",
+                                     body, re.M)
+            entry = catalog.setdefault(epic, {"epic": epic, "issue": None})
+            entry.update({
+                "title": title or entry.get("title") or "",
+                "priority": priority or entry.get("priority") or "",
+                "release": entry.get("release") or "v0.1",
+                "cp_total": len(checkpoints),
+                "cp_done": sum(1 for _, glyph in checkpoints if glyph == "✅"),
+            })
+
+    glyphs = epic_status()
+    releases = epic_release_map()
+    issues, _ = epic_issue_map()
+    for epic, entry in catalog.items():
+        entry.setdefault("cp_done", 0)
+        entry.setdefault("cp_total", 0)
+        entry["glyph"] = glyphs.get(epic, "")
+        # `post_v01_epics()` porta gia' la issue per le epic oltre la v0.1: quella vince, perche'
+        # e' il suo owner. `epic_issue_map()` copre solo il buco della v0.1.
+        entry["issue"] = entry.get("issue") or issues.get(epic)
+        # `epic_release_map()` e' l'owner della release: se dice qualcosa, vince sul default
+        # `v0.1` messo qui sopra dalla presenza di una sezione.
+        entry["release"] = releases.get(epic) or entry.get("release")
+    return catalog
+
+
+def roadmap_map_model(registry, doc=None, catalog=None):
+    """Il modello della Roadmap Map: corsie × release, **e cio' che non ci sta dentro**.
+
+    La figura ha due assi e un vincolo: ogni epic deve finire in una cella. Le epic che non hanno
+    una corsia derivabile, o non hanno una release, **non si inventano una posizione**: escono in
+    `unplaced`, con il motivo. Una figura che le collocasse comunque sarebbe piu' bella e direbbe
+    una cosa falsa; una che le omettesse in silenzio sarebbe il difetto che #853 documenta — un
+    vuoto indistinguibile da un verde.
+
+    ⚠️ L'ordine delle release non e' alfabetico e non puo' esserlo: `v0.10` verrebbe prima di
+    `v0.2`. Si ordina per tupla numerica, e cio' che non si parsa finisce in fondo invece di
+    rompere l'ordinamento.
+    """
+    doc = doc if doc is not None else load_execution_graph()
+    lanes = sorted((doc or {}).get("domain_groups") or [], key=lambda g: g.get("order") or 0)
+    lane_title = {g.get("id"): g.get("title") or g.get("id") for g in lanes}
+    groups = epic_domain_groups(registry, doc)
+    # `catalog` iniettabile: i test di derivazione girano su una contraddizione che il repository
+    # **non deve** avere, e su fixture non potrebbero costruirla se il catalogo arrivasse sempre
+    # dai file veri.
+    catalog = epic_catalog() if catalog is None else catalog
+
+    def release_key(name):
+        match = re.match(r"v(\d+)\.(\d+)$", str(name or ""))
+        return (0, int(match.group(1)), int(match.group(2))) if match else (1, 0, 0)
+
+    placed, unplaced = [], []
+    for epic, entry in catalog.items():
+        by_group = groups.get(epic) or {}
+        release = entry.get("release")
+        if not by_group:
+            unplaced.append({**entry, "why": "nessuna feature del registry la dichiara"})
+            continue
+        if not release:
+            unplaced.append({**entry, "why": "nessun owner le assegna una release"})
+            continue
+        # Maggioranza di feature; a parita', l'ordine della corsia decide invece del caso — due
+        # esecuzioni devono produrre lo stesso SVG, o `--check` diventa rosso a giorni alterni.
+        order_of = {g.get("id"): g.get("order") or 0 for g in lanes}
+        lane = sorted(by_group, key=lambda g: (-len(by_group[g]), order_of.get(g, 0)))[0]
+        placed.append({
+            **entry,
+            "lane": lane,
+            "lane_title": lane_title.get(lane, lane),
+            "features": sorted(by_group[lane]),
+            "also_in": sorted(g for g in by_group if g != lane),
+        })
+
+    releases = sorted({e["release"] for e in placed}, key=release_key)
+    epics = sorted(placed, key=lambda e: (release_key(e["release"]),
+                                          order_of_lane(lanes, e["lane"]), e["epic"]))
+
+    # Gli archi sono il motivo per cui questa e' una figura e non una tabella: senza, «la v0.1 e'
+    # un imbuto» non si vede, si deve contare. Si derivano dalle `dependencies` fra feature —
+    # nessun elenco nuovo da tenere allineato.
+    epic_of, visible = {}, {e["epic"] for e in epics}
+    for feature in registry.get("features") or []:
+        epic = (feature.get("roadmap") or {}).get("epic")
+        if epic:
+            epic_of[feature["feature_id"]] = epic
+    edges = set()
+    for feature in registry.get("features") or []:
+        target = epic_of.get(feature["feature_id"])
+        if target not in visible:
+            continue
+        for dependency in feature.get("dependencies") or []:
+            source = epic_of.get(dependency)
+            # Un arco verso un'epic che la figura non disegna non si puo' mostrare, e fingerlo
+            # sarebbe peggio che ometterlo: resta fuori, e `unplaced` dice gia' chi manca.
+            if source in visible and source != target:
+                edges.add((source, target))
+
+    fanout = collections.Counter(src for src, _ in edges)
+    fanin = collections.Counter(dst for _, dst in edges)
+
+    lane_of = {e["epic"]: e["lane"] for e in epics}
+    release_of = {e["epic"]: e["release"] for e in epics}
+    crossing = sum(1 for a, b in edges
+                   if lane_of.get(a) != lane_of.get(b) or release_of.get(a) != release_of.get(b))
+
+    features_of_lane = collections.Counter()
+    for feature in registry.get("features") or []:
+        epic = (feature.get("roadmap") or {}).get("epic")
+        if epic in lane_of:
+            features_of_lane[lane_of[epic]] += 1
+
+    stats = {}
+    for release in releases:
+        in_release = [e for e in epics if e["release"] == release]
+        stats[release] = {
+            "epics": len(in_release),
+            "cp_done": sum(e.get("cp_done") or 0 for e in in_release),
+            "cp_total": sum(e.get("cp_total") or 0 for e in in_release),
+        }
+
+    return {
+        "lanes": [{"id": g.get("id"), "title": lane_title.get(g.get("id")), "order": g.get("order"),
+                   "features": features_of_lane.get(g.get("id"), 0)}
+                  for g in lanes],
+        "releases": releases,
+        "epics": epics,
+        "unplaced": sorted(unplaced, key=lambda e: e["epic"]),
+        "edges": sorted(edges),
+        "fanout": dict(fanout),
+        "fanin": dict(fanin),
+        "release_stats": stats,
+        "totals": {
+            "epics": len(epics),
+            "unplaced": len(unplaced),
+            "edges": len(edges),
+            "crossing": crossing,
+            "cp_done": sum(e.get("cp_done") or 0 for e in epics),
+            "cp_total": sum(e.get("cp_total") or 0 for e in epics),
+        },
+    }
+
+
+def order_of_lane(lanes, lane_id):
+    for group in lanes:
+        if group.get("id") == lane_id:
+            return group.get("order") or 0
+    return 0
+
+
+# Il tema e' **fisso e scuro**, non adattivo. Un SVG mostrato da GitHub dentro un `<img>` non
+# eredita il tema della pagina e non puo' leggerlo: `prefers-color-scheme` dentro il file
+# risponderebbe al tema del *sistema*, non a quello scelto su GitHub, e la figura risulterebbe
+# nera su nero per chi ha il sistema in chiaro e GitHub in scuro. Uno sfondo esplicito e' l'unica
+# scelta che rende uguale in tutti e quattro i casi.
+MAP_BG = "#0d1117"
+MAP_INK = "#e6edf3"
+MAP_DIM = "#8b949e"
+MAP_LINE = "#30363d"
+MAP_GLYPH_FILL = {"✅": "#1f6f3f", "🟡": "#8a6d1f", "⏳": "#21262d", "⌫": "#21262d", "": "#161b22"}
+MAP_PRIORITY_EDGE = {"P0": "#f85149", "P1": "#db6d28", "P2": "#58a6ff", "P3": "#6e7681"}
+
+
+def _svg_text(value):
+    return (str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def render_roadmap_map_svg(model):
+    """La figura: X = corsia tematica, Y = fascia di release. Un SVG, nessuna libreria.
+
+    Mermaid non puo' fare questa figura, ed e' gia' stato misurato: `render_execution_mermaid()`
+    racconta che con un `subgraph` per lane «`PIE` finiva a sinistra, `CODE` al centro e `ASSET` a
+    destra». La posizione dei blocchi non e' controllabile, e qui la posizione **e'**
+    l'informazione. Da cui un SVG scritto a mano, che e' testo e resta diffabile.
+
+    Le due codifiche visive dicono cose diverse e non vanno confuse:
+
+    - il **riempimento** e' lo stato dell'epic (`epic_status()`, owner `roadmap-v0.1.md` §2.1);
+    - il **bordo** e' la priorita'.
+
+    Un'epic le cui feature stanno anche in altre corsie porta un `+n`: la figura la disegna dove
+    sta la maggioranza, ma non finge che la maggioranza sia la totalita'.
+    """
+    lanes = model["lanes"]
+    releases = model["releases"]
+    pad, head, label_w = 22, 118, 92
+    # ⚠️ La larghezza totale e' un vincolo di **leggibilita'**, non di gusto: GitHub comprime
+    # l'immagine alla larghezza della colonna di testo, ~880px. A 1784px di figura la scala era
+    # 0.49 e un font da 11 finiva a 5px reali — illeggibile senza cliccare. A ~1260 la scala e'
+    # 0.70 e lo stesso testo resta leggibile in pagina. Le colonne si stringono, i font crescono.
+    col_w, box_w, box_h, gap = 146, 134, 58, 9
+
+    # L'altezza di ogni fascia la decide la corsia piu' affollata di quella release: una griglia a
+    # passo fisso o taglierebbe la v0.1 o lascerebbe sette fasce quasi vuote.
+    per_cell = {}
+    for epic in model["epics"]:
+        per_cell.setdefault((epic["release"], epic["lane"]), []).append(epic)
+    band_rows = {r: max([len(per_cell.get((r, l["id"]), [])) for l in lanes] or [0]) or 1
+                 for r in releases}
+
+    band_y, y = {}, head + pad
+    for release in releases:
+        band_y[release] = y
+        y += band_rows[release] * (box_h + gap) + 34
+    width = label_w + len(lanes) * col_w + pad
+    height = y + pad
+
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+           f'viewBox="0 0 {width} {height}" font-family="system-ui,-apple-system,sans-serif">',
+           f'<rect width="{width}" height="{height}" fill="{MAP_BG}"/>']
+
+    # --- Intestazione: i numeri che la figura riassume ------------------------------------------
+    # Stanno qui e non nella pagina perche' l'SVG viene aperto anche da solo, e un totale che vive
+    # solo nella pagina che lo ospita e' un totale che si perde al primo link diretto.
+    totals = model.get("totals") or {}
+    cifre = [
+        (str(totals.get("epics", 0)), "epic nella figura"),
+        (str(totals.get("edges", 0)), "dipendenze fra epic"),
+        (str(totals.get("crossing", 0)), "attraversano corsia o release"),
+        (f'{totals.get("cp_done", 0)}/{totals.get("cp_total", 0)}', "checkpoint chiusi"),
+        (str(totals.get("unplaced", 0)), "epic non collocabili"),
+    ]
+    for index, (value, caption) in enumerate(cifre):
+        cx = pad + index * 252
+        out.append(f'<text x="{cx}" y="{pad + 26}" fill="{MAP_INK}" font-size="26" '
+                   f'font-weight="700">{_svg_text(value)}</text>')
+        out.append(f'<text x="{cx}" y="{pad + 44}" fill="{MAP_DIM}" font-size="11">'
+                   f'{_svg_text(caption)}</text>')
+    out.append(f'<line x1="{pad}" y1="{head - 26}" x2="{width - pad}" y2="{head - 26}" '
+               f'stroke="{MAP_LINE}" stroke-width="1"/>')
+
+    for index, lane in enumerate(lanes):
+        x = label_w + index * col_w
+        out.append(f'<text x="{x + box_w // 2}" y="{head - 8}" fill="{MAP_INK}" font-size="12" '
+                   f'font-weight="600" text-anchor="middle">'
+                   f'{_svg_text(lane["title"])}</text>')
+        out.append(f'<text x="{x + box_w // 2}" y="{head + 6}" fill="{MAP_DIM}" font-size="10" '
+                   f'text-anchor="middle">{lane.get("features", 0)} feature</text>')
+        out.append(f'<line x1="{x - 6}" y1="{head + 12}" x2="{x - 6}" y2="{height - pad}" '
+                   f'stroke="{MAP_LINE}" stroke-width="1"/>')
+
+    for release in releases:
+        top = band_y[release]
+        stats = (model.get("release_stats") or {}).get(release) or {}
+        out.append(f'<line x1="{pad}" y1="{top - 16}" x2="{width - pad}" y2="{top - 16}" '
+                   f'stroke="{MAP_LINE}" stroke-width="1"/>')
+        out.append(f'<text x="{pad}" y="{top + 8}" fill="{MAP_INK}" font-size="16" '
+                   f'font-weight="700">{_svg_text(release)}</text>')
+        out.append(f'<text x="{pad}" y="{top + 26}" fill="{MAP_DIM}" font-size="10">'
+                   f'{stats.get("epics", 0)} epic</text>')
+        out.append(f'<text x="{pad}" y="{top + 40}" fill="{MAP_DIM}" font-size="10">'
+                   f'{stats.get("cp_done", 0)}/{stats.get("cp_total", 0)} CP</text>')
+
+    # --- Le posizioni, calcolate prima di disegnare ---------------------------------------------
+    # Servono agli archi: una linea si traccia fra due riquadri, e per saperlo entrambi devono
+    # gia' avere una coordinata. Da cui due passaggi invece di uno.
+    pos = {}
+    for index, lane in enumerate(lanes):
+        x = label_w + index * col_w
+        for release in releases:
+            cell = sorted(per_cell.get((release, lane["id"]), []), key=lambda e: e["epic"])
+            for row, epic in enumerate(cell):
+                pos[epic["epic"]] = (x, band_y[release] + row * (box_h + gap))
+
+    # --- Gli archi, sotto i riquadri ------------------------------------------------------------
+    # Disegnati **prima** dei box perche' in SVG l'ordine del documento e' l'ordine di sovrapposi-
+    # zione: dopo, coprirebbero il testo che spiegano. Peso e opacita' vengono dal fan-out della
+    # sorgente: 61 archi tutti uguali sono una ragnatela, e la ragnatela nasconde proprio la cosa
+    # che questa figura esiste per mostrare — quali poche epic ne bloccano molte.
+    grosso = 8
+    for source, target in model.get("edges") or []:
+        if source not in pos or target not in pos:
+            continue
+        sx, sy = pos[source]
+        tx, ty = pos[target]
+        pesante = (model.get("fanout") or {}).get(source, 0) >= grosso
+        larghezza = 1.6 if pesante else 0.7
+        opacita = 0.55 if pesante else 0.20
+
+        # Il lato da cui l'arco esce cambia il disegno piu' di qualunque colore. Uscire sempre dal
+        # fondo produce fasci verticali che attraversano tutta la figura e si sovrappongono ai
+        # riquadri sotto; uscire **dal lato rivolto al bersaglio** da' le curve larghe che si
+        # leggono una per una. Il caso «stessa colonna» resta verticale, perche' li' un fianco
+        # farebbe un cappio.
+        if abs(tx - sx) < box_w / 2:
+            x1, y1 = sx + box_w / 2, sy + box_h
+            x2, y2 = tx + box_w / 2, ty
+            curva = max(24, abs(y2 - y1) / 3)
+            d = (f"M {x1:.1f} {y1:.1f} C {x1:.1f} {y1 + curva:.1f}, "
+                 f"{x2:.1f} {y2 - curva:.1f}, {x2:.1f} {y2:.1f}")
+        else:
+            verso = 1 if tx > sx else -1
+            x1 = sx + (box_w if verso > 0 else 0)
+            x2 = tx + (0 if verso > 0 else box_w)
+            y1, y2 = sy + box_h / 2, ty + box_h / 2
+            curva = max(36, abs(x2 - x1) / 2)
+            d = (f"M {x1:.1f} {y1:.1f} C {x1 + verso * curva:.1f} {y1:.1f}, "
+                 f"{x2 - verso * curva:.1f} {y2:.1f}, {x2:.1f} {y2:.1f}")
+        out.append(f'<path d="{d}" fill="none" stroke="#3fb950" '
+                   f'stroke-width="{larghezza}" opacity="{opacita}"/>')
+
+    for index, lane in enumerate(lanes):
+        x = label_w + index * col_w
+        for release in releases:
+            cell = sorted(per_cell.get((release, lane["id"]), []), key=lambda e: e["epic"])
+            for row, epic in enumerate(cell):
+                top = band_y[release] + row * (box_h + gap)
+                fill = MAP_GLYPH_FILL.get(epic.get("glyph") or "", MAP_GLYPH_FILL[""])
+                edge = MAP_PRIORITY_EDGE.get(epic.get("priority") or "", MAP_LINE)
+                out.append(f'<rect x="{x}" y="{top}" width="{box_w}" height="{box_h}" rx="6" '
+                           f'fill="{fill}" stroke="{edge}" stroke-width="1.5"/>')
+                extra = f' +{len(epic["also_in"])}' if epic.get("also_in") else ""
+                out.append(f'<text x="{x + 8}" y="{top + 18}" fill="{MAP_INK}" font-size="14" '
+                           f'font-weight="700">{_svg_text(epic["epic"])}'
+                           f'<tspan fill="{MAP_DIM}" font-weight="400" font-size="11"> '
+                           f'{_svg_text((epic.get("priority") or "") + extra)}</tspan></text>')
+                # Il fan-out sta in alto a destra e **solo quando c'e'**: un `→0` su trenta
+                # riquadri sarebbe rumore, e la figura deve far risaltare le poche epic che
+                # bloccano molto, non ripetere zero ovunque.
+                uscenti = (model.get("fanout") or {}).get(epic["epic"], 0)
+                issue = epic.get("issue")
+                if uscenti or issue:
+                    peso = "700" if uscenti >= 8 else "400"
+                    pezzi = []
+                    if issue:
+                        pezzi.append(f'<tspan fill="{MAP_DIM}" font-weight="400">#{issue}</tspan>')
+                    if uscenti:
+                        pezzi.append(f'<tspan fill="#3fb950" font-weight="{peso}"> →{uscenti}'
+                                     f'</tspan>')
+                    out.append(f'<text x="{x + box_w - 8}" y="{top + 18}" font-size="10" '
+                               f'text-anchor="end">{"".join(pezzi)}</text>')
+                title = epic.get("title") or ""
+                if len(title) > 21:
+                    title = title[:20] + "…"
+                out.append(f'<text x="{x + 8}" y="{top + 34}" fill="{MAP_INK}" '
+                           f'font-size="11">{_svg_text(title)}</text>')
+                total = epic.get("cp_total") or 0
+                done = epic.get("cp_done") or 0
+                out.append(f'<text x="{x + 8}" y="{top + 50}" fill="{MAP_DIM}" font-size="10">'
+                           f'{done}/{total} CP</text>')
+                if total:
+                    bar_x, bar_w = x + 54, box_w - 62
+                    bar = int(bar_w * done / total)
+                    out.append(f'<rect x="{bar_x}" y="{top + 44}" width="{bar_w}" '
+                               f'height="4" rx="2" fill="{MAP_LINE}"/>')
+                    if bar:
+                        out.append(f'<rect x="{bar_x}" y="{top + 44}" width="{bar}" height="4" '
+                                   f'rx="2" fill="{MAP_INK}"/>')
+
+    # La legenda vive **dentro** l'SVG, non nella pagina che lo ospita: il file viene aperto anche
+    # da solo — da un link diretto, da un diff, da chi lo scarica — e una figura che spiega se'
+    # stessa solo in compagnia della propria pagina e' una figura che si puo' fraintendere da sola.
+    ly = height - 6
+    out.append(f'<text x="{pad}" y="{ly}" fill="{MAP_DIM}" font-size="10">'
+               f'riempimento = stato · bordo = priorità · +n = feature anche in altre corsie'
+               f'</text>')
+    out.append(f'<text x="{pad}" y="{ly - 14}" fill="#3fb950" font-size="10">'
+               f"le linee sono dipendenze fra epic, spesse quando partono da un'epic che ne "
+               f"blocca 8 o piu'. Il numero verde nel riquadro dice quante ne sblocca."
+               f'</text>')
+
+    out.append("</svg>")
+    return "\n".join(out) + "\n"
+
+
+ROADMAP_MAP_RAW = ("https://raw.githubusercontent.com/DegrassiAaron/refactor-tactics-main/"
+                   "main/docs/roadmap/charts/roadmap-map.svg")
+
+
+def render_roadmap_map_page(model):
+    """La pagina Wiki: l'SVG per la forma, il grafo per la navigazione, e cio' che resta fuori.
+
+    Due rese della stessa sorgente, per due domande diverse. L'SVG risponde a «cosa c'e' in ogni
+    area, per release» e lo fa con la posizione — che Mermaid non controlla. Il diagramma sotto
+    risponde a «da qui dove vado», e lo fa coi link, che un SVG mostrato in un `<img>` non ha.
+
+    ⚠️ Le epic **non collocate** stanno nella pagina, non nella figura. Sono il caso in cui la
+    vista sa di non sapere: nasconderle darebbe una griglia piu' pulita e falsa, disegnarle in una
+    cella inventata sarebbe peggio. La regola e' quella di #853 — un vuoto non deve poter essere
+    scambiato per un verde.
+    """
+    lines = [
+        "# Roadmap Map",
+        "",
+        "> Generata dal Feature Registry, non modificare a mano. Le corsie sono i `domain_groups` "
+        "di `execution-graph.yaml`, le fasce sono le release, e ogni epic sta dove stanno le "
+        "feature che la dichiarano.",
+        "",
+        f"![Roadmap Map — {len(model['epics'])} epic su {len(model['lanes'])} corsie e "
+        f"{len(model['releases'])} release]({ROADMAP_MAP_RAW})",
+        "",
+        "Il **riempimento** dice lo stato dell'epic, il **bordo** la priorita', la barra i "
+        "checkpoint chiusi. Un `+n` accanto al nome significa che l'epic ha feature anche in "
+        "altre corsie: e' disegnata dove sta la maggioranza, non dove sta per intero.",
+        "",
+    ]
+
+    if model["unplaced"]:
+        lines += [
+            "## Epic che la figura non colloca",
+            "",
+            f"**{len(model['unplaced'])} epic** non compaiono nella griglia. Non e' un vuoto "
+            "grafico: e' un dato mancante, ed e' scritto qui perche' una cella vuota e una cella "
+            "assente si somigliano troppo.",
+            "",
+            "| Epic | Titolo | Perche' non e' nella figura |",
+            "|---|---|---|",
+        ]
+        for entry in model["unplaced"]:
+            title = (entry.get("title") or "").replace("|", "\\|")
+            lines.append(f"| `{entry['epic']}` | {title} | {entry['why']} |")
+        lines.append("")
+
+    lines += [
+        "## Il grafo, per navigare",
+        "",
+        "<details><summary>Le epic e i loro link, come diagramma</summary>",
+        "",
+    ]
+    lines += render_roadmap_map_mermaid(model)
+    lines += [
+        "",
+        "</details>",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def render_roadmap_map_mermaid(model):
+    """Il grafo delle epic per release: quello che l'SVG non fa, cioe' i link cliccabili.
+
+    Niente `subgraph` per corsia — e' la stessa trappola gia' misurata in
+    `render_execution_mermaid()`: Mermaid dispone i blocchi dove vuole, e una corsia dichiarata e
+    disattesa e' peggio di una corsia non dichiarata. Qui i `subgraph` sono per **release**, che e'
+    un ordine lineare e non una griglia: quello Mermaid lo rispetta.
+    """
+    ident = lambda value: re.sub(r"[^A-Za-z0-9]", "_", str(value))
+    lines = ["```mermaid", "flowchart TB"]
+    for release in model["releases"]:
+        epics = [e for e in model["epics"] if e["release"] == release]
+        if not epics:
+            continue
+        lines.append(f'  subgraph {ident(release)}["{release}"]')
+        for epic in epics:
+            label = f'{epic["glyph"]} {epic["epic"]}' if epic.get("glyph") else epic["epic"]
+            title = (epic.get("title") or "")[:28].replace('"', "'")
+            lines.append(f'    {ident(epic["epic"])}["{label}<br/>{title}"]')
+        lines.append("  end")
+    for epic in model["epics"]:
+        if epic.get("issue"):
+            lines.append(f'  click {ident(epic["epic"])} '
+                         f'"https://github.com/DegrassiAaron/refactor-tactics-main/issues/'
+                         f'{epic["issue"]}"')
+    lines.append("```")
+    return lines
+
+
 def validate_execution_graph(ctx=None, registry=None):
     """`execution-graph.yaml`: riferimenti risolvibili, cicli hard, tassonomia esaustiva.
 
@@ -4085,6 +4694,7 @@ def main():
             (REGISTRY_JSON, json.dumps(data, ensure_ascii=False, indent=2) + "\n"),
             (PROJECT_GRAPH_JSON,
              json.dumps(build_graph(registry), ensure_ascii=False, indent=2) + "\n"),
+            (ROADMAP_MAP_SVG, render_roadmap_map_svg(roadmap_map_model(registry))),
         ]
         stale = []
         for path, content in targets:

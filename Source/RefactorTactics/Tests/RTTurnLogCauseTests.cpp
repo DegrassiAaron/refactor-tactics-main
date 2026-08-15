@@ -551,6 +551,22 @@ namespace
 		Victim->PushResistance = 0; // la soglia dorme dopo D-075: azzerarla e' dichiararlo, non aggirarlo
 		Victim->PlannedCell = Victim->Cell;
 	}
+
+	/**
+	 * Prepara una trazione. Gemello di `PlanPushOn`, e la differenza NON e' solo il nome dell'azione:
+	 * `Action.Pull` ha portata **2** e non 1, perche' con targeting adiacente e trazione di 1 il bersaglio
+	 * finirebbe sempre sulla cella di chi tira — sempre occupata, quindi la trazione si annullerebbe per
+	 * costruzione. Chi scrive un caso deve quindi mettere la vittima a distanza 2, non 1.
+	 */
+	void PlanPullOn(ARTUnit* Puller, ARTUnit* Victim)
+	{
+		if (!Puller || !Victim) { return; }
+		Puller->PlannedAbilityIndex = AddCoreAbility(Puller, TEXT("Action.Pull"));
+		Puller->PlannedAttackTarget = Victim;
+		Puller->PlannedCell = Puller->Cell;
+		Victim->PushResistance = 0; // stessa dichiarazione di `PlanPushOn`
+		Victim->PlannedCell = Victim->Cell;
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOpposingPushesLeaveATraceTest,
@@ -845,6 +861,67 @@ bool FRTPushedUnitFacesPusherInPlayTest::RunTest(const FString&)
 
 	// Chi spinge non si gira: la regola vale per chi SUBISCE lo spostamento.
 	TestEqual(TEXT("chi spinge resta dov'era"), Pusher->Cell, FRTCellId(0, 0));
+
+	DestroyCauseWorld(World);
+	return true;
+}
+
+/**
+ * IL GEMELLO SULLA TRAZIONE — `#881`, la seconda voce di DoD di `#548`, rimasta scoperta.
+ *
+ * ⚠️ **I due rami sono davvero due.** `ApplyForcedDisplacement` e' una primitiva sola, ma la sorgente del
+ * facing gliela passa il chiamante, e i chiamanti sono quattro con quattro sorgenti diverse:
+ *
+ * ```text
+ * spinta    -> KnockFrom[T]    (chi ha spinto)      <- coperto da PushedUnitFacesThePusherInPlay
+ * trazione  -> PullToward[T]   (chi ha tirato)      <- questo test
+ * fuga      -> FleeFrom[f]     (la minaccia, D-104)
+ * ambiente  -> Dest[f]         (l'arrivo: nessuna rotazione, e' voluto)
+ * ```
+ *
+ * Passare la sorgente sbagliata nel solo ramo della trazione — per esempio la cella d'arrivo, che e' lì
+ * accanto — lascia verde tutto il resto della suite: `Facing.ForcedMovementFacesSource` prova la funzione
+ * pura con una costante, e `TurnLog.PushAndPullKeepTheirOwnCause` guarda la **causa** nel log, non
+ * l'orientamento.
+ *
+ * ⚠️ **La geometria e' opposta a quella della spinta, e l'esito no.** Qui la vittima si AVVICINA a chi la
+ * muove invece di allontanarsi, e in entrambi i casi finisce a guardare `W`. E' il motivo per cui il caso
+ * merita un test suo: un'implementazione che derivasse il facing dalla DIREZIONE DI MARCIA invece che
+ * dalla sorgente darebbe `W` per la spinta ed `E` per la trazione, e solo questo test lo vedrebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPulledUnitFacesPullerInPlayTest,
+	"RefactorTactics.TurnLog.PulledUnitFacesThePullerInPlay",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPulledUnitFacesPullerInPlayTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCauseWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnCauseMap(World, 8);
+
+	// Chi tira e' a OVEST, a distanza 2 (la portata di `Action.Pull`). La vittima avanza verso di lui e
+	// deve girarsi verso ovest — cioe' NELLA direzione in cui si sta muovendo, l'opposto della spinta.
+	ARTUnit* Puller = SpawnCauseUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnCauseUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Puller || !Victim || !TM) { DestroyCauseWorld(World); return false; }
+
+	// Facing di partenza scelto perche' DEBBA cambiare, come nel gemello della spinta: se guardasse gia'
+	// verso chi la tira, il test passerebbe anche con il passo mutato.
+	Victim->Facing = ERTHexDirection::E;
+
+	PlanPullOn(Puller, Victim);
+	RunCauseTurn(TM);
+
+	// La premessa: senza spostamento non c'e' niente da orientare, e un test che asserisse solo il facing
+	// passerebbe anche su una scena in cui la trazione non e' mai avvenuta.
+	TestEqual(TEXT("la trazione ha avvicinato la vittima di una cella"), Victim->Cell, FRTCellId(1, 0));
+
+	TestTrue(TEXT("e la vittima si e' girata VERSO chi l'ha tirata"),
+		Victim->Facing == ERTHexDirection::W);
+	TestTrue(TEXT("cioe' non guarda piu' dove guardava prima"), Victim->Facing != ERTHexDirection::E);
+
+	// Chi tira non si muove e non si gira: la regola vale per chi SUBISCE lo spostamento.
+	TestEqual(TEXT("chi tira resta dov'era"), Puller->Cell, FRTCellId(0, 0));
 
 	DestroyCauseWorld(World);
 	return true;

@@ -375,10 +375,12 @@ protected:
 	/**
 	 * Rilievo che mostra il COSTO di attraversamento: un blocco alto quanto il sovrapprezzo della cella.
 	 *
-	 * **Collisione disabilitata, e non e' un dettaglio.** Il raycast di selezione valida `Result.GetActor()
-	 * == Actor` — l'ACTOR, non il componente — quindi qualunque geometria collidibile aggiunta qui
-	 * intercetterebbe i click del pennello, riaprendo il difetto chiuso al CP della vista Focus. Si
-	 * manifesterebbe come «dipinge dove non ho cliccato», e nessuno lo attribuirebbe alla visualizzazione.
+	 * **Collisione disabilitata, e non e' un dettaglio.** Il raycast di selezione valida il COMPONENTE
+	 * (`IsPickOnSelectableCell`, dal 2026-08-12 — prima confrontava l'actor, e un colpo qui produceva una
+	 * cella valida e SBAGLIATA: era il difetto di `#588`). Oggi un colpo su questa geometria non sbaglia
+	 * cella, viene **scartato**: la risoluzione ripiega sul piano del layer e si perde la precisione del
+	 * colpo sulla mesh delle celle. Non e' piu' «dipinge dove non ho cliccato», ma resta una degradazione
+	 * silenziosa, e per una geometria di sola lettura non c'e' niente da guadagnarci.
 	 *
 	 * E' la stessa ragione per cui i piani di contesto di `Focus` non diventano istanze.
 	 */
@@ -397,8 +399,8 @@ protected:
 	 * lastra della vista 0.75, rilievo del costo 0.60, colonna del blocco 0.40 — cosi' una cella che dice tre
 	 * cose le mostra tutte e tre invece di sovrapporle.
 	 *
-	 * `NoCollision` per la stessa ragione di `Relief`: il raycast di selezione valida l'ACTOR, non il
-	 * componente, e geometria collidibile qui ruberebbe i click al pennello.
+	 * `NoCollision` per la stessa ragione di `Relief`: il raycast valida il componente, quindi un colpo qui
+	 * verrebbe scartato e la risoluzione ripiegherebbe sul piano — nessun errore, ma precisione persa.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> Blockers;
@@ -412,7 +414,7 @@ protected:
 	 * componente e' giustificato: un pannello non e' un cilindro schiacciato, e nessuna scala trasforma l'uno
 	 * nell'altro. Dove la scala bastava — colonna contro lastra — `Blockers` resta un componente solo.
 	 *
-	 * `NoCollision` come gli altri: il raycast di selezione valida l'ACTOR.
+	 * `NoCollision` come gli altri: il raycast valida il componente, e un colpo qui verrebbe scartato.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> EdgeFeatures;

@@ -2297,14 +2297,22 @@ features:
     gates:
       spec: done
       data: done
-      runtime: partial
-      log_debug: todo
+      # ✅ `partial` -> `done` il 2026-08-15: la nota qui sotto elencava DUE anelli mancanti e li
+      # attribuiva entrambi a CP 14.5. Entrambi sono atterrati con PR #878 — `ResolveReactionBoundary`
+      # chiama `BuildOverwatchTriggers` in partita, e `Action.Overwatch` e' nel catalogo core.
+      runtime: done
+      # ⚠️ `todo` -> `partial` e non `done`: le DECISIONI raggiungono il TurnLog (v8), la CONDIZIONE
+      # dichiarata no. Il suo unico produttore (`rt.Reaction.Condition`) pretende lo slot **reazione**,
+      # mentre l'Overwatch costa l'azione **principale**: nel caso tipico il campo resta vuoto, e i due
+      # slot non sono ancora riconciliati. E' la meta' di **#583** che CP 14.5 sblocca senza chiudere.
+      log_debug: partial
       automation: partial
       scenario: todo
       ui_wiki: partial
       packaged: todo
       network_privacy: done
-      replay_representable: todo
+      # ⚠️ Rappresentabile sì, riletta no: il Verifier ri-simula col resolver. Seam: **#886**.
+      replay_representable: partial
     roadmap:
       epic: E14
       checkpoints: ["14.3"]
@@ -2327,8 +2335,8 @@ features:
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
     last_verified:
-      date: 2026-08-12
-      commit: 5cc2d6de
+      date: 2026-08-15
+      commit: 53ec531f
     notes: >
       ADR-0004 accettato; il modello unificato contiene E5 come caso `AllowedResponses ≤ 1`.
       CP 14.3 ha consegnato chiave, derivazione dell'id, soglia del boundary e privacy del DTO.
@@ -2360,6 +2368,19 @@ features:
       serializza ancora l'id, quindi «serializzazione stabile dentro l'hash del replay» e'
       consegnata nella forma e non ancora nei fatti.
       Non parte prima di E13: il trigger richiede livello «Rilevato», non solo LOS.
+      ✅ **2026-08-14/15 — CP 14.5 (`#165`, PR #878) ha chiuso i due anelli mancanti**, e il paragrafo
+      qui sopra va letto come storia: *(1)* `ARTTurnManager::ResolveReactionBoundary` chiama
+      `BuildOverwatchTriggers` fra un micro-step e il successivo, quindi le opportunity nascono **in
+      partita** e non piu' solo nell'harness; *(2)* `Action.Overwatch` e' entrata nel catalogo core come
+      quarta generica, **in coda** perche' le generiche sono accodate al kit e la posizione e' un indice
+      stabile. `OpportunityId` ora **si serializza** (TurnLog v8) ed entra nell'hash, quindi
+      «serializzazione stabile dentro l'hash del replay» e' consegnata **anche nei fatti**.
+      ⚠️ Cio' che NON e' cambiato, e che il gate `log_debug: partial` registra: la **condizione
+      dichiarata** resta inerte nel caso tipico. Non per i due anelli di prima, ma per un terzo che
+      nessuno aveva previsto — il suo unico produttore passa da `SetPlannedReactionCondition`, che
+      pretende uno slot **reazione** armato, mentre l'Overwatch costa l'azione **principale**. Il campo
+      si legge e `BuildOverwatchTriggers` lo consuma; semplicemente, oggi un piano di solo-Overwatch non
+      riesce a dichiararne una. **#583** resta aperta su questo, e non piu' sui chiamanti.
 
   - feature_id: RT-FEAT-REACTION-FAST
     title: Fast Reaction con finestra limitata
@@ -2367,18 +2388,18 @@ features:
     kind: gameplay
     release: v0.1
     priority: P2
-    status: SPECIFIED
+    status: TESTABLE
     gates:
       spec: done
-      data: todo
-      runtime: todo
-      log_debug: todo
-      automation: todo
+      data: done
+      runtime: done
+      log_debug: done
+      automation: done
       scenario: todo
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
-      replay_representable: todo
+      replay_representable: partial
     roadmap:
       epic: E14
       checkpoints: ["14.5", "14.6"]
@@ -2387,19 +2408,62 @@ features:
     owner_specs:
       - docs/decisions/adr-0004-finestre-di-reazione.md
     issues: [165, 166]
-    tests: []
+    tests:
+      - RefactorTactics.Overwatch.HoldKeepsArmed
+      - RefactorTactics.Overwatch.TimeoutIsHold
+      - RefactorTactics.Overwatch.DecisionIsReplayable
+      - RefactorTactics.Overwatch.FireTruncatesFutureMovement
+      - RefactorTactics.Overwatch.InterruptionAffectsLaterCollision
+      - RefactorTactics.Overwatch.HoldResumesSameMovementState
+      - RefactorTactics.Overwatch.PromptsAreCapped
+      - RefactorTactics.Overwatch.ActionIsInCoreCatalog
+      - RefactorTactics.Overwatch.SteppedCallMatchesWholePath
+      - RefactorTactics.Overwatch.SegmentedResolutionOverhead
+      - RefactorTactics.Bot.DecidesWithoutFutureKnowledge
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
     pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-15
+      commit: 53ec531f
     notes: >
       Finestra **3,0 s**, timeout **HOLD**. `network_privacy` è `todo` e non `na`: la finestra
       viaggia in rete quando arriva M10 e non deve rivelare intenti avversari (invariante #6,
       D-021 privacy temporale). In v0.1 offline non è verificabile, ma non è nemmeno «non
       applicabile».
+      **2026-08-14/15 — CP 14.5 (`#165`, PR #878) è atterrata.** `ResolveMovement` ha smesso di
+      risolvere in un colpo e guida `Begin`/`ResolveNext`/`Finish`, aprendo il Decision Boundary
+      **fra** due micro-step; `FIRE` tronca il residuo con `StopUnitInPlace`, quindi le collisioni
+      successive cambiano davvero. TurnLog **v8**. Undici test elencati qui sopra.
+      ⚠️ **La «finestra da 3,0 s» del titolo NON è consegnata**, ed è la ragione per cui questa
+      voce resta `IMPLEMENTING` con due checkpoint: `grep -rn "FastReactionDuration" Source/` dà
+      **una sola occorrenza, dentro un commento**. In CP 14.5 il valore non aveva lettore — nessun
+      decisore attende — quindi lo spec panel del 2026-08-14 l'ha spostato in **CP 14.6** (`#166`),
+      dove il lettore è il countdown della UI.
+      ⚠️ `replay_representable: partial` e non `done`, e la distinzione è quella che il gate
+      esiste per fare: la decisione **è rappresentabile** — `OpportunityId` e `SelectedTargetUnitId`
+      viaggiano nella v8 e entrano nell'hash — ma **nessuno la rilegge**. Il *Player* di ADR-0009
+      non ricalcola, quindi per lui la proprietà è vera per costruzione; il *Verifier* ri-simula col
+      resolver, e `grep OpportunityId Source/` non trova consumatori fuori da serializzazione e
+      test. Oggi regge **per assenza di decisore umano**: al primo `FIRE` umano di CP 14.6 diventa
+      falsa con un resolver corretto. Seam: **#886**.
+      ⚠️ `automation: done` significa che la **copertura esiste** e non che la suite sia stata
+      rieseguita dopo il merge: «842 verdi su 842» della PR è misurato sulla base **precedente**.
+      Sull'albero unito è stata verificata la **compilazione** (`Result: Succeeded`, zero warning,
+      e i nomi dei test presenti nel binario prodotto), non l'esecuzione.
+      Limiti dichiarati alla chiusura: il bot non pianifica `Action.Overwatch` e l'umano non ha un
+      decisore, quindi **in partita il percorso `FIRE` non è ancora raggiungibile** (è #166);
+      `MovementMode.Withdraw` (D-070) non esiste nel codice, quindi armare l'Overwatch non riserva
+      lo slot movimento — l'azione è più forte di come è disegnata, e il destinatario è **#653**.
+      ⚠️ `validate` avverte «feature di gameplay TESTABLE senza scenario che la dimostri», ed è un
+      avvertimento **corretto che oggi non si può chiudere**: uno scenario passa dal percorso reale
+      `Intent → Planning → Snapshot → Resolver → TurnLog`, e su quel percorso la finestra di
+      un'unità umana si chiude in `HoldNoDecider` — non esiste un modo, dentro uno scenario, di
+      rispondere `FIRE`. Il decisore iniettabile dell'harness è **#512** (CP 15.3 metà B), la UI è
+      **#166**: prima di uno dei due, uno scenario potrebbe asserire solo che la finestra si è
+      aperta e chiusa da sola, cioè meno di quanto gli undici test già verificano. Il warning resta
+      in piedi di proposito — è la lacuna vera, non un falso positivo da mettere a tacere.
 
   - feature_id: RT-FEAT-REACTION-OVERWATCH
     title: Overwatch universale profilabile
@@ -2407,23 +2471,30 @@ features:
     kind: gameplay
     release: v0.1
     priority: P2
-    status: IMPLEMENTING
+    status: TESTABLE
     gates:
       spec: done
-      data: partial
-      # `partial` e non `done`: il costruttore dei trigger esiste e i suoi test passano, ma NESSUNO
-      # lo chiama in partita — `ARTTurnManager` non produce ancora opportunity. E' la regola 2 dello
-      # schema, quella che questo progetto ha gia' pagato con `Marked` a catalogo e gli `Effects`
-      # vuoti delle reazioni d'eroe: un dato senza consumatore e' `partial`. Il consumatore e' CP 14.5.
-      runtime: partial
-      # Niente raggiunge il TurnLog: la decisione registrata (`OpportunityId`, `Response`) e' CP 14.5.
-      log_debug: todo
+      # ✅ `partial` -> `done` il 2026-08-15: **il consumatore che questa riga nominava e' arrivato.**
+      # Diceva «il costruttore dei trigger esiste e i suoi test passano, ma NESSUNO lo chiama in
+      # partita — il consumatore e' CP 14.5», ed e' esattamente cio' che PR #878 ha consegnato:
+      # `ARTTurnManager::ResolveReactionBoundary` costruisce i watcher dallo stato corrente e chiama
+      # `BuildOverwatchTriggers` fra un micro-step e il successivo. Il secondo anello — `Action.Overwatch`
+      # a catalogo, che NESSUNA delle due voci aveva previsto — e' arrivato con lo stesso PR.
+      data: done
+      runtime: done
+      # ✅ `todo` -> `done`: TurnLog **v8** porta `OpportunityId`, `ReactionInstanceId` e
+      # `SelectedTargetUnitId`, e `DescribeEntry` traduce tutti e sei gli esiti di
+      # `ERTReactionDecisionOutcome` con testi distinti — un «tiene il colpo» per tutti cancellerebbe
+      # proprio la distinzione fra HOLD scelto e HOLD scaduto, che e' l'informazione.
+      log_debug: done
       automation: done
       scenario: partial
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
-      replay_representable: todo
+      # ⚠️ `partial` e non `done`: la decisione **e' rappresentabile** nella traccia ed entra nell'hash,
+      # ma nessuno la **rilegge** — il Verifier di ADR-0009 ri-simula col resolver. Seam: **#886**.
+      replay_representable: partial
     roadmap:
       epic: E14
       checkpoints: ["14.4"]
@@ -2461,10 +2532,10 @@ features:
       - wiki:overwatch
       - wiki:reazioni-overwatch-e-previsioni
     wiki_note: >-
-      Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** di questa pagina non e' ancora deciso in una finestra live.
+      Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** apre la finestra e la registra nel TurnLog dal 2026-08-14, ma nessun giocatore puo' ancora rispondere: la UI e' CP 14.6.
     last_verified:
-      date: 2026-08-10
-      commit: c6b56b9
+      date: 2026-08-15
+      commit: 53ec531f
     notes: >
       **CP 14.4 chiuso il 2026-08-10.** La riga precedente diceva «Non implementata:
       `grep -rn "Overwatch" Source/` fuori dai test non restituisce nulla», ed è la prima cosa che
@@ -3458,7 +3529,34 @@ features:
       data: na
       runtime: done
       log_debug: na
-      automation: todo
+      # `todo` → `partial` → `done` in due passi lo stesso giorno.
+      #   `partial` (#867): i quattro test esistevano già e nessuno li aveva dichiarati.
+      #   `done`    (#865): aggiunti i quattro che mancavano — `FocusOn` conserva quota/zoom/orientamento
+      #                     ⚠️ La clausola sulla **quota** era il difetto di #887, e resta scritta qui
+      #                     perché è ciò che #865 dichiarò davvero: riscriverla cancellerebbe la prova
+      #                     su cui poggia la nota qui sotto.
+      #                     (campo **e** braccio), i due rami `false` di `FrameOwnTeam`,
+      #                     `MatchStartArmLength` distinto da `DefaultArmLength`, il **centraggio** sul
+      #                     centroide e la squadra letta dal **controller** invece che assunta 0.
+      # ⚠️ `done` copre l'API della camera **attuale**: non i bounds e non lo zoom al cursore, che non
+      # esistono (#864), né lo yaw continuo e il pitch (#863). Un gate verde non è una feature completa.
+      # 🔴 **Una stesura precedente scriveva «ogni funzione pubblica ha un test» ed era sovradichiarato**,
+      # trovato in code review: il centraggio sul centroide non era asserito da nessuno (cancellando la
+      # chiamata a `CellsCentroidWorld` la suite restava verde) e il ramo `PlayerTeamId` non era esercitato
+      # — in una partita con il giocatore in squadra 1 la camera avrebbe aperto sul nemico. Entrambi ora
+      # coperti e verificati per mutazione.
+      # ⏳ **Resta scoperto un consumatore, ed è dichiarato invece che sottinteso**: il ripiego di
+      # `BeginPlay` (`FrameOwnTeam` → ritenta al tick → `RecenterView`) non ha test. È lavoro di #874.
+      # 🟡 **#887 — in corso (PR #890 aperta), e la lezione vale più del fix**: `FocusOn` scartava la quota del bersaglio e
+      # teneva quella con cui il pawn nasce — il PlayerStart — quindi premendo `F` la camera orbitava
+      # sopra il vuoto. **Il test che #865 aveva prescritto difendeva quel difetto**: verificava che la
+      # quota fosse *conservata*, cioè misurava la conservazione invece della correttezza. Riscritto, non
+      # affiancato: la domanda giusta non è «resta invariata?» ma «invariata rispetto a cosa?».
+      # ✅ **Chiuso #873**: `RecenterView` non clampava la distanza, e i test non lo catturavano perché
+      # giravano tutti coi valori di default, dove il clamp non cambia nulla. Ora chiama
+      # `ApplyViewSettings` invece di duplicarla, e `RecenterKeepsArmWithinZoomLimits` costruisce
+      # l'intervallo fuori scala con `SetArmLengthRangeForTest`.
+      automation: done
       scenario: todo
       ui_wiki: partial
       packaged: partial
@@ -3470,18 +3568,52 @@ features:
     dependencies: []
     owner_specs:
       - docs/technical/progettazione-hud.md
-    issues: [77]
-    tests: []
+    # ⚠️ `77` è il checkpoint CP 11.1, e il suo DoD riguarda l'**HUD**: non contiene nulla di camera.
+    # Resta perché `checkpoints: ["11.1"]` lo implica, ma è il legame nominale che il commento sui
+    # `pie_refs` in testa a questo file descrive — stessa issue dichiarata da più feature. Le tre
+    # aperte il 2026-08-14 sono invece specifiche della camera.
+    issues: [77, 863, 864, 865]
+    tests:
+      # I test vivono in `Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`; il pattern li copre tutti
+      # e non invecchia quando se ne aggiunge uno.
+      # ⚠️ **Qui non sta né il numero né l'elenco dei nomi, ed è deliberato**: una stesura precedente
+      # scriveva «**Sette**» e li elencava uno per uno, argomentando nella stessa riga che i numeri a mano
+      # vanno fuori sincrono. Un `7` in un commento invecchia esattamente come un `7` in un campo —
+      # niente valida i commenti — e l'elenco è proprio l'enumerazione che il pattern esiste per evitare.
+      # Il conteggio si misura: `grep -c 'IMPLEMENT_SIMPLE_AUTOMATION_TEST' <quel file>`.
+      # Verificato per mutazione che il **campo** morda: sostituirlo con un nome inesistente fa fallire
+      # `validate` con «test ref senza corrispondenza nella suite».
+      - RefactorTactics.Camera.*
     scenarios: []
     wiki_refs:
       - wiki:come-si-gioca
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      # 🔴 **Avanzato con il commit che cambia il gate, e non è un dettaglio**: la stesura di #867 aveva
+      # lasciato `747f4e82` mentre portava `automation` a `partial`, ripetendo alla lettera il difetto che
+      # le `notes` qui sotto post-morteggiano. Un `last_verified` che punta a un albero anteriore ai test
+      # che giustificano il gate è una firma su un documento che non si è letto.
+      date: 2026-08-14
+      commit: a330ba79
     notes: >
-      `ARTCameraPawn` esiste e la build packaged la usa, ma **nessun test automatico** la copre e
-      la taratura su scala esagonale è una verifica PIE aperta (CP 8.3 di M8). Non promuovere per
-      «si vede che funziona».
+      `ARTCameraPawn` esiste e la build packaged la usa; la taratura su scala esagonale resta una
+      verifica PIE aperta (CP 8.3 di M8). Non promuovere per «si vede che funziona».
+      🔵 **Questa nota diceva «nessun test automatico la copre», ed era VERA quando è stata
+      scritta**: il `last_verified` era `2094b867`, del 2026-08-08 alle **17:57**, e
+      `RTCameraPawnTests.cpp` è nato con `07620c42` alle **18:55** — 58 minuti dopo. Non è un
+      difetto di misura: è una nota corretta che è invecchiata nell'ora successiva, e che nessuno
+      ha rivisto perché `last_verified` non è stato avanzato. ⚠️ **La prima stesura di questa
+      correzione diceva «era falsa dal 2026-08-08» e attribuiva la colpa al gate**: sbagliato nella
+      causa, e trovato in code review confrontando i timestamp invece delle date.
+      ➕ **Resta però vero, e separatamente, che nessun gate poteva accorgersene** una volta
+      invecchiata: `validate` verifica il verso *dichiarato → esistente*, cioè che i pattern
+      matchino test reali, e una lista vuota lo soddisfa sempre. Il verso opposto, *esistente →
+      dichiarato*, non è controllato da nulla — quindi una nota stantia qui non ha nessuna rete,
+      ed è la ragione per cui è sopravvissuta sei giorni.
+      ⚠️ Il campo `spec` resta `partial`, ma **non** più perché la motivazione di `YawStep = 45°`
+      vive solo in un commento C++: `D-142` l'ha portata nel Decision Log con questo stesso commit.
+      Resta `partial` perché il *comportamento* della camera — pan relativo, focus, bounds, stati —
+      non ha un documento owner: `progettazione-hud.md` la nomina al §30 solo per negare la
+      minimap. Vedi `docs/roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md` §3.3.
 
   - feature_id: RT-FEAT-UI-PLANNING
     title: HUD di planning, selezione e preview

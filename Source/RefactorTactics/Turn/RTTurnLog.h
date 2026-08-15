@@ -14,7 +14,46 @@
  * gia' su disco.
  */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision };
+
+/**
+ * Come si e' chiusa una finestra di reazione (CP 14.5): la risposta **e** il perche', in un valore solo.
+ * Viaggia in `FRTTurnLogEntry::Outcome` delle voci di categoria `ReactionDecision`.
+ *
+ * ⚠️ Categoria PROPRIA e non `Reaction`, benche' parlino della stessa meccanica. `Reaction` ha gia' il suo
+ * enum di esito — `ERTReactionOutcome` (`Activated`/`NotTriggered`/`Unavailable`) — e `Outcome` e' un `uint8`
+ * il cui significato lo decide la categoria: due enum diversi sotto la stessa categoria renderebbero il campo
+ * illeggibile senza sapere quale dei due chi ha scritto la voce intendeva. Aggiunta in CODA, come `Fallback` e
+ * `Reaction` prima: i file gia' scritti non cambiano significato.
+ *
+ * ⚠️ **Un enum solo e non due campi**, ed e' una correzione fatta in corsa: la prima stesura teneva la
+ * risposta in `Outcome` e il motivo in `Amount`, sul modello di `ERTDisplacementBlockReason`. Non regge, e la
+ * ragione e' che li' le celle percorse sono **zero per definizione** — `Amount` e' libero — mentre qui un
+ * `Fire` ha un danno da riportare. Due assi per un campo solo avrebbero costretto a scegliere quale dei due
+ * perdere: il motivo (e `HOLD` scelto sarebbe indistinguibile da `HOLD` scaduto, cioe' proprio la distinzione
+ * per cui il campo esiste) o il danno (e il colpo non lascerebbe traccia nel TurnLog canonico, che e' il
+ * difetto di `#625`). Incrociandoli qui, `Amount` resta la quantita' che dichiara di essere.
+ *
+ * Sono **sei** valori e non sette: un `FireImmediate` non puo' esistere, perche' `HOLD` e' sempre fra le
+ * risposte legali e quindi cardinalita' <= 1 significa «solo HOLD». L'impossibile e' assente per costruzione,
+ * non escluso da un commento.
+ */
+UENUM(BlueprintType)
+enum class ERTReactionDecisionOutcome : uint8
+{
+	/** Ha scelto di sparare entro la finestra. `SelectedTargetUnitId` dice su chi; `Amount` quanti danni. */
+	FireChosen,
+	/** Ha scelto di NON sparare. La reaction resta armata e la charge non si spende. */
+	HoldChosen,
+	/** La finestra e' scaduta: `Timeout -> HOLD` (ADR-0004 §3). Mai `FIRE`, mai la charge. */
+	HoldTimeout,
+	/** Nessun decisore collegato per quel responder: stesso default, e si dichiara che e' un'altra cosa. */
+	HoldNoDecider,
+	/** La risposta arrivata non era fra le `AllowedResponses`: rifiutata, e sostituita dal default. */
+	HoldRejected,
+	/** Cardinalita' <= 1: non c'era niente da scegliere e nessuna finestra si e' aperta. */
+	HoldImmediate
+};
 
 /**
  * Esito di una **Predictive Action** al suo boundary di risoluzione (E18 CP 18.1, [D-016]).
@@ -237,7 +276,26 @@ enum class ERTMoveOutcome : uint8
 	 *
 	 * `SrcCell` e `TgtCell` sono la stessa cella: e' la forma leggibile di «non si e' spostata».
 	 */
-	DisplacementResisted
+	DisplacementResisted,
+	/**
+	 * Fermata da un **Overwatch** che ha risposto `FIRE` alla propria finestra (CP 14.5): l'unita' e' entrata
+	 * nella cella controllata, li' e' stata colpita, e li' resta — il movimento residuo non viene percorso.
+	 * Aggiunto in CODA, come i quattro valori sopra: l'esito viaggia come `uint8` nel formato serializzato,
+	 * quindi le tracce gia' scritte non cambiano significato.
+	 *
+	 * **Perche' non riusa `StoppedByPrediction`.** Le due si somigliano — un colpo armato prima, un movimento
+	 * troncato — ma dicono al giocatore due cose diverse, e la differenza e' proprio cio' che E14 aggiunge al
+	 * gioco: la previsione e' stata **decisa un turno prima** su una cella scelta al buio, l'Overwatch e' stato
+	 * deciso **mentre passavi**, da qualcuno che ti ha visto arrivare e ha scelto te invece del tuo compagno.
+	 * Un solo valore per entrambe renderebbe il replay incapace di distinguere una scommessa da una lettura.
+	 *
+	 * ⚠️ Chi lo scrive **sovrascrive** `FRTMovementResolutionState::BlockReason` anche se era gia' fissato, ed
+	 * e' voluto: quella memoria tiene «il motivo del PRIMO congelamento» perche' i blocchi transitori si
+	 * ripetono — un'unita' che perde una cella contesa la ritenta al passo dopo. Un `FIRE` non e' transitorio,
+	 * e' terminale. E' la stessa scelta che `ApplyPredictionsToMoves` fa gia', assegnando l'esito senza
+	 * chiedere se ce n'era uno.
+	 */
+	StoppedByOverwatch
 };
 
 /**
@@ -456,6 +514,52 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 Priority = 0;
 
+	/**
+	 * Identita' della finestra a cui questa voce risponde (CP 14.5). Vuota su ogni voce che non sia una
+	 * decisione — cioe' quasi tutte.
+	 *
+	 * E' `URTReactionOpportunityLibrary::DeriveOpportunityId`, che e' una FUNZIONE dei sei campi della chiave:
+	 * turno, macro-fase, micro-step, proprietario, reaction e progressivo. E' questo che rende il replay
+	 * possibile — rieseguendo lo stesso turno il resolver ricalcola gli stessi id, ci ritrova le risposte
+	 * registrate, e non deve chiedere niente a nessuno.
+	 *
+	 * ⚠️ **Il `DecisionBoundary` non ha un campo proprio, ed e' deliberato**: il micro-step e' gia' uno dei sei
+	 * componenti dell'id. Un campo separato sarebbe una seconda copia dello stesso fatto, cioe' due dati che
+	 * possono contraddirsi — e quando si contraddicono non c'e' modo di sapere quale sia quello giusto. E' lo
+	 * stesso argomento con cui `BaseActionId` resta fuori dall'hash perche' e' funzione di `ActionId`.
+	 *
+	 * ⚠️ **ENTRA nell'hash**: due tracce possono differire solo per quale finestra una decisione stia
+	 * chiudendo, e sono due partite diverse.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FString OpportunityId;
+
+	/**
+	 * Quale ISTANZA di reaction ha risposto, quando la stessa unita' ne ha piu' d'una armata (CP 14.5).
+	 * `INDEX_NONE` = non applicabile.
+	 *
+	 * ⚠️ **NON entra nell'hash**, stesso criterio di `UnitId` e `BaseActionId`: e' un numero d'ordine
+	 * dell'armamento, quindi serve a rendere la traccia spiegabile — *quale* delle due Overwatch ha sparato —
+	 * non a discriminarla. Due partite che differissero solo per questo differirebbero gia' per l'`OpportunityId`,
+	 * che l'istanza la contiene attraverso `Seq`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 ReactionInstanceId = INDEX_NONE;
+
+	/**
+	 * CHI e' stato scelto da un `FIRE` (CP 14.5). `INDEX_NONE` su `HOLD`, ed e' la verita': non c'e' bersaglio.
+	 *
+	 * Un campo proprio e non la sola `TgtCell`, benche' la cella del bersaglio sia scritta li': dedurre
+	 * l'unita' dalla cella e' precisamente l'inferenza che [D-063] ha dichiarato non valida quando ha
+	 * introdotto `UnitId`. Vale qui per la stessa ragione, e in piu' per una sua: fra il micro-step in cui si
+	 * spara e la fine del turno quella cella puo' cambiare occupante.
+	 *
+	 * ⚠️ **ENTRA nell'hash**: sparare a `A` invece che a `B` e' la decisione stessa, ed e' la differenza fra
+	 * due partite.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 SelectedTargetUnitId = INDEX_NONE;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -534,7 +638,32 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * non guarda lascia due voci a pari merito, dove a decidere resta `TArray::Sort`, che non e' stabile —
 	 * due inserimenti diversi produrrebbero due file diversi con lo stesso contenuto, rompendo `D-SR-1`.
 	 */
-	WithPriority = 7
+	WithPriority = 7,
+	/**
+	 * + `OpportunityId` (stringa), `ReactionInstanceId` e `SelectedTargetUnitId` per voce (CP 14.5): la
+	 * **decisione** di una finestra di reazione. I campi precedenti non si spostano — la stringa va dopo
+	 * `Priority`, i due interi dopo di lei.
+	 *
+	 * E' la dimensione che ADR-0004 aveva previsto fra i costi del modello: *«il TurnLog cresce di una
+	 * dimensione (decisioni), e la sua serializzazione va versionata»*. Senza, la decisione di un giocatore
+	 * vivrebbe solo nella memoria della sessione che l'ha presa, e il replay dovrebbe reinterrogare qualcuno —
+	 * cioe' non sarebbe un replay.
+	 *
+	 * Le tracce dalla 2 alla 7 restano LEGGIBILI, con `OpportunityId` vuoto e i due interi a `INDEX_NONE`:
+	 * e' esattamente cio' che quei byte dicevano, perche' in quelle versioni nessuna finestra si apriva in
+	 * partita.
+	 *
+	 * ⚠️ **Gli hash golden CAMBIANO** per le tracce che contengono decisioni, e non cambiano per le altre:
+	 * `OpportunityId` e `SelectedTargetUnitId` entrano nell'hash, ma un id vuoto non mescola nulla e
+	 * `INDEX_NONE` viene mescolato solo quando l'id c'e'. Una traccia senza decisioni ha lo stesso hash di
+	 * prima. `ReactionInstanceId` resta fuori (vedi la sua dichiarazione).
+	 *
+	 * ⚠️ Il numero **8 e' stato verificato su tutti i branch remoti**, non solo su `main`: e' il controllo che
+	 * [D-070] ha reso obbligatorio dopo il caso della v6 rivendicata due volte, e il commento della v7 lo
+	 * ripete perche' e' il difetto peggiore possibile per un formato versionato — il loader sceglie
+	 * l'interpretazione dal numero e non ha modo di accorgersi dello scambio.
+	 */
+	WithReactionDecision = 8
 };
 
 /**
