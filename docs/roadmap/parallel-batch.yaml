@@ -569,6 +569,36 @@ preexisting:
       stimate: la stesura precedente scriveva «due PR fa» e sbagliava di tre. Chi riprende quella
       seduta rebasa prima di committare, o misura il proprio write-set su una base che non esiste più.
 
+  - branch: docs/menu-frontend-consolidamento
+    state: LOCAL           # worktree `D:/rt-menu` · mai pushato al momento della misura
+    measured: 14
+    collides_with:
+      - branch: feat/451-u1-voci-hex-mode
+        state: LOCAL
+        paths: [docs/roadmap/parallel-batch.yaml]
+    note: >-
+      Consolidamento dell'handoff *Frontend/Menu Features e Tracking* (D-144, epic #934). Write-set
+      misurato con `git diff --name-only origin/main...HEAD` più `git status --short`, non ricordato:
+      **14** file, di cui **6** `integration_only`, **5** viste generate e **3** nuovi.
+      ✅ **Nessun file nel `writable` di un'altra track**, verificato path per path — ed è la ragione
+      per cui questa voce sta in `preexisting` e non apre una track propria: un consolidamento
+      documentale *è* lavoro di integrazione per costruzione, e i sei `integration_only` che tocca
+      (`RT_PDR_00_Decision_Log.md`, `feature-registry.yaml`, `roadmap-v0.1.md`, `roadmap-post-v0.1.md`,
+      `archive/src/README.md`, `scenario-map.md`) sono esattamente i file che la sezione dedicata dice
+      di aggiornare **una volta in integrazione**.
+      🔴 **Il vincolo che ha morso, e vale la pena registrarlo perché è il primo caso in cui D-139 ha
+      cambiato l'esito invece di confermarlo**: i sei DoD di E46 chiedono voci `PIE-V01-FRONTEND-*`, e
+      `docs/technical/test-manuali-pie.md` è nel `writable` di `content_editor`. Le voci **non** sono
+      state create. Il debito è dichiarato in tre punti — `roadmap-v0.1.md` §E46, `spec-frontend-
+      navigazione.md` §8 e `scenario-map.md` §9 — invece di essere risolto con una «piccola fix» fuori
+      dal proprio insieme. Si aprono quando quel file torna `integration_only` al prossimo batch.
+      ⚠️ **La collisione su questo file è reale e la sta creando questa voce**, come tutte le altre
+      prima: `feat/451` lo tocca, misurato. Chi atterra secondo paga il conflitto, e questa riga esiste
+      perché sappia in anticipo quale — una voce `preexisting` in più, e nient'altro.
+      ⚠️ **Le cinque viste generate seguono la sorgente**, non sono assegnate: `feature-registry.json`,
+      `project-graph.json`, `roadmap-map.svg`, `featuremap.shortlist.md`, `roadmap.shortlist.md`. Vale
+      la regola dell'albero unito — l'unica copia autoritativa è quella rigenerata **dopo** il merge.
+
 
   # 🔵 **`feat/832-stable-structure-id` è uscita**: PR #876 mergiata (`8ea9c229`), branch cancellato
   # lato server, write-set misurato **0**. La voce diceva `LOCAL · 11` e le tre affermazioni erano
