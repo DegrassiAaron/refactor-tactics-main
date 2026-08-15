@@ -117,52 +117,67 @@ logging è compilato fuori e `-abslog` non produce nemmeno il file, mentre
 `Saved/RTTests/<Id>/<Run>/result.json` è file I/O e viene scritto lo stesso.
 
 ```bash
+# Development
 <Staged>/RefactorTactics/Binaries/Win64/RefactorTactics.exe \
-  -dpcvars=rt.Test.Scenario=Movement.Collision -nullrhi -unattended -nosound
+  -RTScenario=Movement.Collision -nullrhi -unattended -nosound
 
-# poi, per ciascuna delle due run:
-python -c "import json;print(json.load(open('result.json'))['stateHash'])"
+# Shipping — stesso flag, stesso scenario
+<Staged>/RefactorTactics/Binaries/Win64/RefactorTactics-Win64-Shipping.exe \
+  -RTScenario=Movement.Collision -nullrhi -unattended -nosound
 ```
+
+⚠️ **`-RTScenario=`, non `-dpcvars=rt.Test.Scenario=`.** La seconda funziona solo in Development: in
+`DeviceProfileManager.cpp` tutto il parsing di `-dpcvars=` sta dentro `#if !UE_BUILD_SHIPPING`, quindi in
+Shipping la variabile non viene mai impostata e il gioco allestisce la partita normale — **senza dirlo**,
+perche' anche il logging e' compilato fuori. `FParse::Value` non ha quella guardia.
+
+🔴 **E il report NON e' dove lo cerchi: in Shipping `Saved/` e' redirezionata nella cartella utente.**
+
+```text
+Development   <Staged>/RefactorTactics/Saved/RTTests/<Id>/<Run>/result.json
+Shipping      %LOCALAPPDATA%/RefactorTactics/Saved/RTTests/<Id>/<Run>/result.json
+```
+
+E' costato mezz'ora di diagnosi sbagliata: cercando accanto all'eseguibile si trova **un solo report** invece
+di due, e la conclusione ovvia — «Shipping non ha girato» — e' falsa. Il segnale di «non ha girato» resta
+l'assenza del report, ma va cercata **nella cartella giusta**.
 
 > ⚠️ **In Shipping «nessun file» significa «non ha girato», non «è andato bene».** Senza log, l'assenza di un
 > report è l'unico segnale che resta, e va letta come fallimento — mai come conferma.
 
-#### ✅ Causa 1 chiusa il 2026-08-16 · ⚠️ in Shipping resta la seconda (#926)
-
-**In Development la procedura gira per intero**: `AUTO-RUN Movement.Collision` → `PASS (3/3 assertion, 1
-turni)` → `stateHash 572184bb`. **In Shipping no**, e delle due cause misurate una è caduta.
-
-✅ **1. `Scenarios/` ora entra nel pacchetto.** Non ci entrava — sono `.json` **fuori** da `Content/`, il cook
-non li vede e lo staging non li copiava: l'indice diceva *«0 scenari sotto
-`../../../RefactorTactics/Scenarios`»* e l'auto-run falliva prima di partire. Chiuso in `DefaultGame.ini`:
-
-```ini
-+DirectoriesToAlwaysStageAsUFS=(Path="../Scenarios")
-```
-
-🔴 **Il `Path` è relativo a `Content/`, non alla radice del progetto — e sbagliarlo non fallisce.** UAT fa
-`Combine(ProjectContentRoot, RelativePath)` (`CopyBuildToStagingDirectory.Automation.cs`, *«these dirs are
-relative to the game content directory»*). Scritto `Scenarios` cerca `Content/Scenarios`, non lo trova,
-**stagea zero file e lascia la build `SUCCESSFUL`**. L'unico segnale è un warning nel log della cottura:
+#### ✅ Eseguita per intero il 2026-08-16, e i due hash coincidono
 
 ```text
-Unable to find directory "…\Content\Scenarios" for staging, retrieved from
-"/Script/UnrealEd.ProjectPackagingSettings" "DirectoriesToAlwaysStageAsUFS"
+Development   PASS   stateHash 572184bb   seed 0   1 turno
+Shipping      PASS   stateHash 572184bb   seed 0   1 turno
 ```
 
-⚠️ **E non si verifica con `find` sullo staged**: i file UFS finiscono **dentro il `.pak`**, quindi contare i
-`.json` sotto la cartella dà `0` anche quando ha funzionato. I due modi che funzionano sono la dimensione del
-pak — **10 654 115 → 10 790 839** byte, i 76 JSON — e, l'unico che conta davvero, **eseguire**.
+E' la prima volta che questa procedura produce un verdetto invece di una previsione. Le due cause che la
+bloccavano sono cadute, e valgono come lezione piu' del risultato:
 
-⚠️ **2. In Shipping `-dpcvars` è compilato fuori — resta aperta.** Non è un permesso e non è un flag della
-nostra cvar (`rt.Test.Scenario` è `ECVF_Default`, non `ECVF_Cheat`): in `DeviceProfileManager.cpp` **tutto**
-il parsing di `-dpcvars=`/`-dpcvar=`/`-forcedpcvars=` sta dentro `#if !UE_BUILD_SHIPPING`. La variabile non
-viene mai impostata, il `GameMode` legge vuoto e allestisce la partita normale.
-∴ delle tre porte d'ingresso allo scenario, in Shipping ne resta **una sola già disponibile** — la proprietà
-`ScenarioToRun` di `BP_GameMode`, che però è un `.uasset` (editor + Binary Asset Lease) e cambia il
-comportamento predefinito del gioco che si distribuisce. La via che non paga né un binario né un cambio di
-default è un argomento di riga di comando letto con `FParse::Value`, che `UE_BUILD_SHIPPING` non tocca.
+1. **`Scenarios/` non entrava nel pacchetto.** Sono `.json` **fuori** da `Content/`: il cook non li vede e lo
+   staging non li copiava — l'indice diceva *«0 scenari»*. Chiuso in `DefaultGame.ini` con
+   `+DirectoriesToAlwaysStageAsUFS=(Path="../Scenarios")`.
+   🔴 Il `Path` e' relativo a **`Content/`**, non alla radice: UAT fa `Combine(ProjectContentRoot, RelativePath)`.
+   Scritto senza `../` cerca `Content/Scenarios`, non lo trova, **stagea zero file e lascia la build
+   `SUCCESSFUL`** — l'unico segnale e' un warning nel log della cottura.
+   ⚠️ E non si verifica con `find` sullo staged: i file UFS finiscono **dentro il `.pak`**, quindi contare i
+   `.json` sotto la cartella da' `0` anche quando ha funzionato. Restano la dimensione del pak
+   (**10 654 115 → 10 790 839** byte, i 76 JSON) e, l'unico che conta, **eseguire**.
+2. **In Shipping non c'era modo di scegliere lo scenario dall'esterno.** `-dpcvars` e' compilato fuori (sopra).
+   Chiuso con una terza sorgente in `ARTGameMode::ResolveScenarioToRun()`, letta con `FParse::Value`:
 
+```text
+proprieta' del GameMode  <  -RTScenario=<Id>  <  rt.Test.Scenario
+(persistente)               (questo avvio)      (adesso, anche a meta' sessione)
+```
+
+   La console resta la piu' specifica perche' si puo' digitare **dopo** l'avvio: se vincesse il flag, in
+   editor non si potrebbe cambiare scenario senza riavviare. In Shipping l'ordine non e' osservabile — li'
+   la console non arriva — ed e' giusto che l'invariante sia dell'editor.
+
+✅ **Prova controllata, non aneddotica**: prima del flag la Shipping non scriveva **nessun** report in nessuna
+delle due cartelle; dopo, ne scrive uno con lo stesso hash della Development. La differenza e' il flag.
 ---
 
 ## 2. Test automatici
