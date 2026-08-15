@@ -528,6 +528,15 @@ tracks:
       # ⚠️ Nessuna collisione con `simulation`, che dichiara i propri test **per nome**
       # (`RTReactionTests.cpp`, `RTReactionOpportunityTests.cpp`) e non per cartella.
       - Source/RefactorTactics/Tests/RTHexMapActorInstanceColorTests.cpp
+      # ➕ **Terza riallocazione**: `#896`, il materiale che rende visibile il colore per cella.
+      # `.gitignore` esclude `Content/**/*.uasset` e riammette i singoli file con un `!` **per riga**: la
+      # riga di allowlist va aggiunta PRIMA che l'asset esista, o `git add` non fa nulla e non lo dice.
+      # È il difetto che `#449` ha corretto per l'arena, e l'ordine giusto costa una riga.
+      # Misurato: `.gitignore` ha **zero** occorrenze su tutti i branch remoti vivi e zero modifiche
+      # pendenti nei cinque working tree. Verificato nei due versi dopo la modifica —
+      # `M_HexCell.uasset` → exit 1 (versionabile), un `M_Altro.uasset` qualsiasi → exit 0 (ignorato):
+      # la regola è specifica per quel file, non ha aperto la cartella.
+      - .gitignore
     # Catena già misurata da questo file (vedi `generated_only`): la sorgente delle voci alimenta
     # due viste, e possederla obbliga a rigenerarle. `project-graph.json` ha altre nove sorgenti —
     # `spatial` ne possiede una — quindi qui vale la regola dell'albero unito: ciascun ramo
@@ -537,7 +546,50 @@ tracks:
         regenerates:
           - docs/roadmap/editormap.shortlist.md
           - docs/roadmap/project-graph.json
-    binary_leases: []
+    binary_leases:
+      # Prima lease emessa da questa track. `create` prenota una **destinazione**: nessun'altra track può
+      # creare questo path, e il path non esiste ancora — quindi non c'è nulla da contendere se non il
+      # nome. Un solo package: un materiale non è una mappa, e la regola «la lease si emette sulla
+      # cartella» vale per le mappe, che sono cartelle con un numero di package che non si deduce.
+      - key: "BINARY-GH896-HEXCELL-MATERIAL"
+        issue: 896
+        base_sha: "bc84fe69ddf23974a3a5640c52c5be1ef1320ce9"
+        operation: create
+        paths:
+          - Content/RT/Core/Grid/M_HexCell.uasset
+        verification:
+          - load_in_editor
+          - save_without_errors
+          # ⚠️ La verifica che conta non è che l'asset si apra: è che la mesh e l'anello dell'overlay della
+          # **stessa cella** abbiano lo stesso colore. Prendono entrambi da `URTHexLibrary::SurfaceColor`,
+          # quindi devono combaciare; se non combaciano, il materiale applica una conversione di troppo —
+          # i custom data sono già lineari (`FromSRGBColor` in `RTHexMapActor.cpp`).
+          - mesh_color_matches_overlay_ring
+
+      # 🔴 **Lease emessa DOPO il fatto, e va detto invece che nascosto.** Assegnare il materiale al
+      # componente `Cells` dell'actor richiede di salvare il livello, e l'istruzione che lo chiedeva è
+      # stata data mentre valeva la regola opposta — «non salvare `L_HexArena`, non ha lease». Il salvataggio
+      # è avvenuto, la modifica è stata **misurata prima di tenerla** (nome per nome, sull'header dei due
+      # package) e si è rivelata puramente additiva: 9 nomi in più, **zero in meno**, fra cui
+      # `/Game/RT/Core/Grid/M_HexCell` e `OverrideMaterials`. Non è #858, dove un risalvataggio toglieva.
+      # ⚠️ Sulla CARTELLA, non sul file: una mappa non è un file, e qui sono due package misurati con
+      # `git ls-files` — il `.umap` e il proprio `Data/DA_HexMap_Arena.uasset`. Il secondo non è toccato da
+      # questo lavoro, ma entra nella lease perché la mappa lo referenzia e un holder solo deve valere per
+      # entrambi.
+      - key: "BINARY-GH896-HEXARENA-ASSIGN-MATERIAL"
+        issue: 896
+        base_sha: "bc84fe69ddf23974a3a5640c52c5be1ef1320ce9"
+        operation: modify
+        paths:
+          - Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
+          - Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
+        verification:
+          - load_in_editor
+          - save_without_errors
+          # L'arena non deve essere cambiata dal salvataggio: `rt.Arena.Check` misura gli stessi tre criteri
+          # di prima, e il conteggio celle nell'output deve restare **98**. Se dicesse 65 si starebbe
+          # guardando `GeneratedTestArena`, non l'arena.
+          - arena_check_still_passes
     # ⚠️ Perché `#623` / U21 **non** è il candidato, benché sia `READY` nella coda generata: la sua
     # lease su `Content/RT/Maps/Dev/L_DevSandbox/` — due package qui, uno solo in `L_Prototype`,
     # misurati e non dedotti — è emettibile, ma U21 non blocca la v0.1 (`critical: false`, `P3`)
