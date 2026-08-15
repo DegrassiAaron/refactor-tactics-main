@@ -141,6 +141,15 @@ public:
 	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
 
 	/**
+	 * Inquadra un'unita' con la camera: quello che fa il tasto `F` una volta stabilito CHI inquadrare.
+	 *
+	 * Estratto da `OnFocusSelected` perche' la scelta della quota — la **cella**, non la posizione
+	 * dell'attore — e' la sostanza di `#887` e va verificata senza passare da un `FInputActionValue`.
+	 * `OnFocusSelected` resta il solo punto che decide *quale* unita': questo decide *dove*.
+	 */
+	void FocusCameraOnUnit(const class ARTUnit* Unit);
+
+	/**
 	 * Seleziona un actor come farebbe un click su di esso (per i test dell'interazione). Prende `AActor*` e non
 	 * `ARTUnit*` perche' qui `ARTUnit` e' solo dichiarato: la conversione al puntatore base non sarebbe visibile.
 	 */

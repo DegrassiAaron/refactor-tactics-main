@@ -380,6 +380,57 @@ bool FRTCameraFrameTeamIgnoresSpawnHeightTest::RunTest(const FString&)
 }
 
 /**
+ * Il tasto `F` inquadra il PIANO sotto l'unita', non il punto in cui il modello sta.
+ *
+ * E' il sintomo esatto riportato in seduta (`#887`): premendo `F` si vedeva il vuoto. Il percorso e'
+ * `OnFocusSelected` → `FocusCameraOnUnit` → `FocusOn`, e la scelta che conta sta nel mezzo: `ARTUnit` si
+ * posiziona con `VisualZOffset` (mezzo corpo sopra la cella), quindi passare `GetActorLocation()` porta il
+ * pivot a una quota che nessun'altra inquadratura usa.
+ *
+ * ⚠️ Senza questo test il fix di `#887` resterebbe scoperto proprio sul suo caso d'uso: la copertura di
+ * `FocusOn` verifica la funzione, non **cosa le viene passato**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraFocusUnitUsesCellPlaneTest,
+	"RefactorTactics.Camera.FocusOnUnitFramesTheCellPlaneNotTheModel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraFocusUnitUsesCellPlaneTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTHexMapActor* Map = SpawnCameraTestMap(World);
+	if (!TestNotNull(TEXT("mappa"), Map)) { DestroyCameraWorld(World); return false; }
+
+	// Piano a quota non nulla: senza, «la quota del piano» e «zero» coincidono e il test non discrimina.
+	const double PlaneZ = 300.0;
+	Map->SetActorLocation(FVector(0.f, 0.f, PlaneZ));
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC)) { DestroyCameraWorld(World); return false; }
+	PC->Possess(Cam);
+
+	ARTUnit* Unit = SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(6, 1));
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyCameraWorld(World); return false; }
+
+	// L'unita' sta **sopra** il proprio piano: e' la differenza che il test esiste per cogliere.
+	Unit->SetActorLocation(FVector(1000.f, 2000.f, PlaneZ + 90.f));
+
+	Cam->SetActorLocation(FVector(0.f, 0.f, 5555.f)); // quota di nascita, come il PlayerStart
+	PC->FocusCameraOnUnit(Unit);
+
+	const FVector Framed = Cam->GetActorLocation();
+	TestEqual(TEXT("il pivot sta sul PIANO della cella"), Framed.Z, PlaneZ);
+	TestNotEqual(TEXT("e non sul modello, che sta mezzo corpo sopra"), Framed.Z, PlaneZ + 90.0);
+	TestNotEqual(TEXT("ne' alla quota di nascita del pawn"), Framed.Z, 5555.0);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
  * `FrameOwnTeam` ha DUE rami che rispondono `false`, e in partita non se ne vede nessuno.
  *
  * Il contratto e' scritto nell'header — «Ritorna falso se non c'e' nulla da inquadrare … cosi' il chiamante
