@@ -5,8 +5,22 @@
 #include "ScopedTransaction.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Terrain/RTTerrainLibrary.h"
 
 #define LOCTEXT_NAMESPACE "URTHexFillTool"
+
+#if WITH_EDITOR
+void URTHexFillToolProperties::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URTHexFillToolProperties, Surface))
+	{
+		const FRTTerrainDef Def = URTTerrainLibrary::FindTerrainDef(Surface);
+		MoveCost = Def.MoveCost;
+		bBlocksMovement = false; // nessun terreno del catalogo v0.1 blocca il movimento normale
+	}
+}
+#endif
 
 UInteractiveTool* URTHexFillToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
 {
