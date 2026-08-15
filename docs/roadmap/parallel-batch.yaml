@@ -105,6 +105,23 @@
 #                                   dell'insieme per il calcolo delle intersezioni — una prenotazione che
 #                                   non collide non serve a niente — e **non** come prova che la track sia
 #                                   attiva.
+#                                   ➕ **E il file del mandato entra nel `writable` della track che lo
+#                                   porta**, deciso il 2026-08-15. Prima non era così, e i tre
+#                                   `qa-prompt-terminal-*.md` non stavano né in un `writable` né in
+#                                   `integration_only`: erano documenti che *governano* un write-set e non
+#                                   appartengono a nessuno, cioè la condizione che questo file esiste per
+#                                   rendere visibile, applicata ai documenti che lo citano. Chi esegue il
+#                                   mandato lo corregge quando lo misura sbagliato — ed è successo: lo spec
+#                                   panel del mandato B ha trovato sei affermazioni false su dodici.
+#   mandate_worktree facoltativo    worktree in cui gira il **turno del mandato**, quando è diverso da
+#                                   `worktree` — che descrive dove lavora la sessione corrente della track.
+#                                   Introdotto il 2026-08-15 per `content_editor`: la seduta U1 vive in
+#                                   `D:/rt-content` e il turno C aprirà in `D:/rt-client`.
+#                                   ⚠️ **Non sono due sessioni contemporanee.** Il `mandate_gate` della
+#                                   track resta la condizione: il turno del mandato si apre quando la
+#                                   sessione corrente ha chiuso. Il campo dice *dove* aprirà, non che sia
+#                                   già aperto — e serve perché il worktree della seduta può essere
+#                                   occupato dal proprio build anche dopo che il lavoro è atterrato.
 #   mandate_gate   con `mandate`    le condizioni, misurabili, che devono reggere perché quel mandato
 #                                   possa cominciare. Serve quando il mandato non è eseguibile in
 #                                   parallelo: è il caso del Terminal C, il cui dominio è quasi tutto
@@ -558,6 +575,21 @@ preexisting:
   #   D:/rt-spatial       `feat/77-hud-slot-terna`          LOCAL, 0 file — nessun vincolo
   #   working directory   `fix/882-duplicato-e-premesse-false` LIVE, 2 file — di un'altra sessione
   #
+  # ⏱️ **Rimisurato il 2026-08-15 con `git worktree list`. Quattro righe su sei erano scadute**, e
+  # l'elenco sopra resta com'è perché è il registro di quel giro — non lo stato di adesso:
+  #
+  #   D:/rt-content       `feat/451-u1-voci-hex-mode`        13 file — ⚠️ collide ancora su questo file
+  #   D:/rt-telecamera    `feat/913-gate-tabelle`            — era `feat/863-yaw-pitch`
+  #   D:/rt-client        `feat/877-fan-residuo-waypoint`    **0 file** — vuoto, ed è per questo che il
+  #                                                          turno C aprirà lì (`mandate_worktree`)
+  #   D:/rt-simulation    `feat/578-determinismo-procedure-mancanti` — mandato A, in corso
+  #   D:/rt-spatial       `docs/qa-prompt-terminal-b-v2-1`   — mandato B; era `feat/77-hud-slot-terna`,
+  #                                                          spostato dalla sessione che scrive qui
+  #   working directory   `main`
+  #
+  # ∴ un elenco di worktree scade **fra una riconciliazione e l'altra**, non fra un batch e il
+  # successivo: quattro branch su sei sono cambiati in un giorno. Si rilegge dal comando.
+  #
   # 🔴 **I conteggi erano stati CANCELLATI invece che rimisurati**, e il paragrafo qui sotto continuava a
   # dire «sette file» quando erano **11**. Togliere il numero da una riga non la rende meno falsa: la
   # rende non falsificabile, che è peggio — ed è l'opposto di ciò che questa tabella esiste per fare.
@@ -719,8 +751,16 @@ tracks:
       `UI/RTHUD.{h,cpp}` e `Tests/RTHudSlotLinesTests.cpp`. È la regola di questo file applicata a chi
       lo stava scrivendo: fra la misura e la frase che la riassume passa del tempo, e in quel tempo un
       branch nasce.
-      ⚠️ **Il worktree `D:/rt-spatial` è quindi occupato**, non libero: chi prende il mandato B apre
-      un altro worktree, oppure aspetta che `#77` chiuda.
+      ✅ **Superata il 2026-08-15: `D:/rt-spatial` è il worktree di questa track, dichiarato nel campo
+      `worktree` qui sotto**, e la riga sopra non descrive più il presente. Diceva che il worktree era
+      occupato da `feat/77-hud-slot-terna` e che chi prendeva il mandato B doveva aprirne un altro o
+      aspettare `#77`. `#77` non è chiusa, ma il suo branch è **pushato e fermo** (`a23a2798`,
+      `git ls-remote` lo conferma lato server): il worktree è stato spostato su un altro branch senza
+      perdere nulla, ed è la prova che *occupato da un branch pushato* e *occupato* non sono la stessa
+      cosa. Chi riprende `#77` fa `git switch` e ritrova il commit.
+      ⚠️ **Il write-set di `#77` resta però prenotato**, ed è la parte che non decade: `UI/RTHUD.{h,cpp}`
+      sono nel `writable` di `client_tools`, e `Tests/RTHudSlotLinesTests.cpp` non è nel `writable` di
+      nessuna track. Il branch fermo non libera quei path.
       ⚠️ **E `feat/77` scrive dentro il `writable` di `client_tools`**: `UI/` è suo, e due dei tre file
       stanno lì. La contesa non riguarda questa track — `ScenarioHarness/` non è toccato da nessuno dei
       branch vivi, misurati uno per uno — ma va registrata qui perché il batch la veda: il terzo file,
@@ -741,8 +781,10 @@ tracks:
       significherebbe darle la sorgente di `scenariomap.shortlist.md` insieme al suo unico altro
       produttore, cioè rifare la contesa che la separazione evita.
     mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
+    worktree: "D:/rt-spatial"
     writable:
       - Source/RefactorTactics/ScenarioHarness/
+      - docs/technical/qa-prompt-terminal-b-scenario-runner.md
     derives_from:
       - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
         regenerates:
@@ -752,7 +794,10 @@ tracks:
   simulation:
     status: ACTIVE
     issue: 578
-    branch: feat/578-determinismo-procedure-mancanti
+    branch: feat/578-packaged-statehash
+    # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
+    # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
+    # target `Game` Development e Shipping oltre all'Editor.
     worktree: "D:/rt-simulation"
     note: >-
       IDLE perché **il lavoro è atterrato**, non per dipendenza. `#165` (CP 14.5, finestra e primo
@@ -794,13 +839,107 @@ tracks:
       Misurato: il piano **non** è `integration_only`, **non** alimenta viste generate (le due occorrenze
       in `feature-registry.yaml` sono riferimenti di feature, non `derives_from`), e **nessuno** dei nove
       branch vivi lo tocca.
-    mandate: docs/technical/qa-prompt-terminal-a-determinismo.md
+      ✅ **`#578` è passata da 5 voci aperte a 1: PR #912 mergiata in `9fd7504f`**, quattro voci del DoD
+      chiuse e spuntate, `Packaged` sola aperta. La issue resta `OPEN` per quella — ma il suo residuo
+      **non è scrivibile da qui**: la procedura operativa vive in `docs/technical/test-e-diagnosi.md`,
+      che non è nel `writable` di nessuna track. Registrato come STOP nella PR, non scritto.
+      ➕ **La track passa quindi a `#915`, che è il delta del mandato** e non un secondo taglio dello
+      stesso: `#578` chiedeva *quali* procedure verificare, `#915` chiede l'infrastruttura con cui i test
+      costruiscono il mondo. Il `branch:` precedente è **mergiato e cancellato** lato server — verificato
+      con `git ls-remote`, non ricordato.
+      ➕ **`Source/RefactorTactics/Tests/RTWorldFixtures.h` entra nel `writable`, e il file non esiste
+      ancora.** È il caso più semplice di intersezione vuota — nessun branch può toccare un path che non
+      c'è — ma va scritto qui lo stesso, perché è il **motivo** che invecchia, non la misura:
+      · misurato che **43** file di test dichiarano `Make*World` in **una sola forma** normalizzata, e 43
+        dichiarano `Destroy*World` in **due** (41 + 2, la differenza è un early-return). Estratto il corpo
+        di ogni funzione che chiama `UWorld::CreateWorld`, tolti commenti e whitespace, raggruppato per
+        corpo: non tre campioni letti a occhio;
+      · la causa è **scritta nel codice** — *«Nomi distinti da ogni altro file di test: la unity build
+        condivide la translation unit»* (`RTSimulationDeterminismTests.cpp:36`). Due namespace anonimi con
+        la stessa funzione collidono quando la unity build li fonde. Un header `inline` in un namespace
+        nominato scioglie il vincolo; rinominare per file lo aggira quarantatré volte.
+      ⛔ **Perché non `RTOccupancyFixtures.h`, che pure è già assegnato.** È l'unico `.h` di `Tests/`, ma
+      è geometria di occupancy — `FRTOccupancyPolyline`, settori, i gemelli di controllo di **#620**/**#621**.
+      Ospitarci il mondo di test costerebbe zero in riallocazione e renderebbe falso il nome del file, che
+      è il tipo di risparmio che si paga alla prima persona che lo apre.
+      ⚠️ **Restano fuori i 40 file non migrati**, ed è voluto: il mandato §2 dice «migra pochi consumatori,
+      non tutti» e il §8 vieta i mega-refactor. Tre consumatori sono il merge target §10; il quarantesimo
+      lo paga chi tocca quel file per un'altra ragione.
+      ✅ **Intersezione rimisurata il 2026-08-15 su `9fd7504f`**, non ereditata: cinque dei nove branch
+      remoti vivi toccano `Tests/` — `feat/641` (3 file), `feat/77` (1), `fix/892` (1) — e **nessuno**
+      tocca uno dei cinque path di questa track. `git diff --name-only origin/main...origin/<b>` per ognuno
+      dei nove, `git worktree list` per le sei sessioni aperte.
+      ✅ **Chiusa il 2026-08-15, e le due righe sopra sono ora storia: `#915` è mergiata con PR #917
+      (`ec92d4d6`) e il branch non esiste più**, cancellato da entrambe le parti. Il merge target §10 del
+      mandato è soddisfatto e **misurato**: `RTWorldFixtures.h` ha **3** consumatori (era 1 su 105 per
+      l'unico header condiviso che c'era), i tre file migrati passano senza toccare regole né golden, e
+      ogni file del write-set era nel `writable` — verificato a posteriori confrontando
+      `git diff --name-only origin/main...HEAD` con questo file, non a memoria.
+      ✅ **Suite completa, non un filtro: 866 avviati · 866 `Success` · 0 falliti**, eseguita due volte, la
+      seconda sul binario esatto del commit consegnato. ⚠️ E il **conteggio delle dichiarazioni non si è
+      mosso** — `IMPLEMENT_*_AUTOMATION_TEST` dà **867** sia prima sia dopo: è la verifica che il verde non
+      arrivi da test scomparsi, che è il modo in cui un'infrastruttura di test si rompe in silenzio.
+      ⚠️ **Il write-set resta descritto qui e il blocco `writable` esce**, come per `verification`: erano
+      sei path — `RTOccupancyFixtures.h`, `RTWorldFixtures.h`, i tre test di simulazione/stress/showcase e
+      `docs/product/piano-canonico-mvp.md` — tutti atterrati in `main`. Chi li tocca dopo deve poter vedere
+      chi ci è passato in questo lotto; nessuno di essi è oggi assegnato.
+      ⛔ **Il mandato Terminal A esce con la track, e ciò che NON ha chiuso va detto invece che dedotto**:
+      (1) la voce `Packaged` di `#578`, che resta `OPEN` — il suo residuo è una **procedura** in
+      `docs/technical/test-e-diagnosi.md`, file di nessuna track, quindi è una riallocazione e non un
+      lavoro rimasto a metà; (2) i **40** file di test che dichiarano ancora la propria copia del mondo, e
+      che restano corretti come sono: il mandato §2 dice «migra pochi consumatori, non tutti».
+      ⚠️ **E con la track esce anche il file del mandato, che torna non assegnato.** Lo stesso giorno
+      `qa-prompt-terminal-{a,b,c}-*.md` sono entrati nel `writable` della track che li esegue — vedi lo
+      schema in testa a `mandate`, e `spatial`/`content_editor` qui sotto — perché un mandato lo corregge
+      chi lo esegue quando lo misura sbagliato. Per A quel giro è **finito**: il file resta come lo ha
+      lasciato `7f8b5703`, e la prossima sessione che lo apre non lo trova in nessun `writable`.
+      ∴ **non è una dimenticanza, è la domanda che la chiusura di una track con `mandate` pone e che
+      questo file non aveva ancora**: se il mandato riapre, torna alla track che riparte; se resta chiuso,
+      va dove sta la spec che governa — `integration_only`. Si decide alla riattivazione, non adesso, e si
+      decide **prima** di scrivere, non dopo.
+      ✅ **La riattivazione è arrivata poche ore dopo, e la domanda si chiude col secondo ramo.** La track
+      riparte su `#578` — una issue, non il mandato — e il mandato A **non riapre**: il suo merge target §10
+      è soddisfatto e misurato. Quindi `docs/technical/qa-prompt-terminal-a-determinismo.md` va in
+      `integration_only`, dove sta la spec che governa, ed è l'unica delle tre forme in cui non finisce nel
+      `writable` di una track che non lo esegue. ⚠️ **La track riparte senza `mandate`**, e la differenza è
+      esigibile: un `mandate` su una track che non lo sta eseguendo direbbe il falso al prossimo lettore.
+      ➕ **Riattivata lo stesso giorno su `#578`, ed è la riallocazione che il punto (1) chiedeva**, fatta
+      come atto d'integrazione e non da dentro la track. Il turno chiude l'ultima voce del DoD, `Packaged`:
+      confronto di `StateHash` fra una build **Development** e una **Shipping**, eseguite davvero.
+      ⚠️ **Il rischio non è il codice, ed è già misurato**: `ScenarioHarness/` non ha esclusioni di build
+      (zero `#if !UE_BUILD_SHIPPING`, zero `WITH_EDITOR`) e `RTTestReportWriter.cpp:51` scrive `stateHash`
+      come `%08x` in `Saved/RTTests/<Id>/<Run>/result.json`. Il rischio è **l'accessibilità della console
+      in Shipping**, e si verifica eseguendo: se `rt.Test.Scenario` non arriva, serve un'altra porta
+      d'ingresso. ➕ Nota utile: in Shipping `-abslog` resta vuoto — `Display` è compilato fuori — ma
+      `result.json` è **file I/O, non log**, quindi il confronto non dipende dal canale che manca.
+      ✅ **`docs/technical/test-e-diagnosi.md` entra nel `writable`, e i due controlli che servivano sono
+      stati fatti invece che dedotti**: (a) **non** è in `integration_only` né in `generated_only` — era
+      semplicemente **non assegnato**, che è la condizione che rende la scrittura uno STOP; (b) perturbato
+      di due righe, verificando con `git diff --numstat` che la perturbazione fosse applicata, `generate
+      --check` e `shortlist --check` restano **verdi**: non alimenta nessuna vista, quindi chi lo possiede
+      non eredita rigenerazioni. ⚠️ Intersezione con i nove branch remoti vivi: **vuota**, misurata uno per
+      uno con `git diff --name-only origin/main...origin/<b>`, per **entrambi** i path.
+      ➕ **`docs/product/piano-canonico-mvp.md` rientra insieme a lui**, per la stessa ragione della volta
+      scorsa e non per abitudine: il DoD di `#578` chiede che l'esito di ogni procedura stia **accanto
+      all'invariante #4**, e la voce 6 del piano oggi dice «resta aperto». Chiuderla è metà del lavoro di
+      questo turno; l'altra metà è la procedura, che vive nella guida.
+      🔴 **E il primo comando del turno ha trovato un difetto in `main`, prima ancora di impacchettare:
+      il target `Game` **Shipping** non compila.** `RTNoisePropagationTests.cpp` chiude
+      `#if WITH_DEV_AUTOMATION_TESTS` alla riga **369** su **514**, e `58bbb3bc` ha poi aggiunto **tre
+      test** (CP 13.4, `#159`) *dopo* quel `#endif`: usano `MakeNoiseMap` e `HeardAt`, che stanno dentro la
+      guardia. In Editor la guardia vale 1 e tutto compila; in Shipping vale 0, gli helper spariscono e
+      restano 145 righe che li chiamano — `error C3861`, cinque occorrenze.
+      ⚠️ **È lo stesso difetto del 2026-08-09** che `test-e-diagnosi.md` racconta come ragione d'essere del
+      livello packaged, ripetuto su un altro file: *«la suite gira sul target Editor, e il target Game non
+      lo compila niente di automatico»*. La causa strutturale non è stata rimossa, quindi si ripresenta.
+      ➕ **`Source/RefactorTactics/Tests/RTNoisePropagationTests.cpp` entra quindi nel `writable`**, e non
+      per adiacenza di dominio: **blocca** la voce del DoD che questa track ha in carico — senza il target
+      Shipping non esiste un pacchetto Shipping da confrontare. Il file **non è nel `writable` di nessuno**
+      e nessuno dei branch remoti vivi lo tocca, misurato. La issue è `#923`.
     writable:
-      - Source/RefactorTactics/Tests/RTOccupancyFixtures.h
-      - Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp
-      - Source/RefactorTactics/Tests/RTStress4v4Tests.cpp
-      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+      - docs/technical/test-e-diagnosi.md
       - docs/product/piano-canonico-mvp.md
+      - Source/RefactorTactics/Tests/RTNoisePropagationTests.cpp
     binary_leases: []
 
   client_tools:
@@ -993,17 +1132,35 @@ tracks:
     # ⚠️ Questa track è `ACTIVE` su `#451`, che è `OPEN`: il mandato C **non è cominciato** e non
     # comincia finché la seduta U1 non ha chiuso. Verificato il 2026-08-15 con `gh issue view 451`.
     mandate: docs/technical/qa-prompt-terminal-c-architettura-qa.md
+    # ➕ **Il turno C aprirà in `D:/rt-client`, non in `D:/rt-content`** — deciso il 2026-08-15.
+    # Non è una seconda sessione in parallelo: il `mandate_gate` qui sotto resta la condizione, e dice
+    # che C comincia quando U1 ha chiuso. Il campo dichiara *dove* aprirà.
+    # La ragione è misurata, non di comodo: `feat/451-u1-voci-hex-mode` ha un write-set di **13 file** e
+    # fra questi c'è **questo file** — `docs/roadmap/parallel-batch.yaml` — più `test-manuali-pie.md`.
+    # Il worktree della seduta è quindi il posto in cui la riconciliazione di C troverebbe le proprie
+    # modifiche già in corso, di mano propria. `D:/rt-client` è invece **vuoto**: il suo branch
+    # `feat/877-fan-residuo-waypoint` misura zero file rispetto a `origin/main`.
+    mandate_worktree: "D:/rt-client"
     mandate_gate: >-
       Il turno C si apre quando **tutte** e tre reggono, misurate e non ricordate:
       (1) `#451` chiusa e la seduta U1 consuntivata in `test-manuali-pie.md`;
       (2) nessun branch aperto tocca un file `integration_only` —
       `git diff --name-only origin/main...origin/<b>` per ogni `b` di `git ls-remote --heads origin`,
       **non** `gh pr list`, che non vede i branch pushati senza PR;
-      (3) le altre track con `mandate` — oggi `spatial`, per il Terminal B — sono `IDLE` o chiuse.
+      (3) le altre track con `mandate` sono `IDLE` o chiuse. 🔴 **Diceva «oggi `spatial`», e non era
+      più vero**: il mandato A era su `simulation`, che è stata `ACTIVE` su `#578` per parte della
+      giornata. ✅ Rimisurato dopo la chiusura di `#915`/`#578`: `simulation` è tornata `IDLE` **e ha
+      perso il `mandate`**, quindi l'unica altra track con mandato è `spatial`, `IDLE`. **La condizione
+      (3) regge.** ⚠️ Il turno C resta comunque non cominciato, ma per la **(1)**: `#451` è aperta e
+      questa track ci sta lavorando. Quale delle tre condizioni blocca non è un dettaglio — è la
+      differenza fra «aspetta un'altra sessione» e «aspetta te stesso».
+      ∴ questa riga è stata falsa due volte in un giorno, in tutte e due le direzioni. L'elenco si
+      rilegge dal file — `grep -n "mandate:"` — non da qui.
       Se una delle tre non regge, il turno non è cominciato: è la prima cosa che il mandato chiede
       di verificare.
     writable:
       - docs/technical/test-manuali-pie.md
+      - docs/technical/qa-prompt-terminal-c-architettura-qa.md
     # Catena già misurata da questo file (vedi `generated_only`): la sorgente delle voci alimenta
     # due viste, e possederla obbliga a rigenerarle. `project-graph.json` ha altre nove sorgenti —
     # `spatial` ne possiede una — quindi qui vale la regola dell'albero unito: ciascun ramo
@@ -1083,6 +1240,26 @@ integration_only:
   - docs/roadmap/plans/README.md
   - docs/technical/workflow-parallel-claude.md
   - docs/technical/scenario-map.md
+  # ➕ Entra qui il 2026-08-15, ed è la risposta alla domanda che la chiusura di `simulation` ha posto:
+  # un `mandate` sta nel `writable` della track che lo esegue (così lo corregge chi lo misura sbagliato),
+  # ma il Terminal A ha **finito** — merge target §10 soddisfatto e misurato — e la track è ripartita su
+  # una issue, senza mandato. Un file di mandato che non esegue nessuno non appartiene a una track: sta
+  # dove sta la spec che governa. Gli altri due restano nei rispettivi `writable` perché i loro turni sono
+  # ancora aperti; se questo riapre, torna alla track che riparte.
+  - docs/technical/qa-prompt-terminal-a-determinismo.md
+  # ➕ **La spec del harness entra qui il 2026-08-15, e non nel `writable` di `spatial`.**
+  # Il candidato ovvio era `spatial`: possiede `ScenarioHarness/`, porta il mandato B, ed è la sessione
+  # che ha appena corretto due sezioni della spec rimaste indietro sul codice (`60836b0b`). Sarebbe stato
+  # sbagliato — **la usano più processi in parallelo**, e assegnarla a una sola track avrebbe tolto agli
+  # altri il diritto di correggere un documento che leggono come owner.
+  # Misurato, non dedotto: la citano per nome il mandato A (4 volte) e il mandato B (5) — due track
+  # distinte, `simulation` e `spatial`, entrambe con `mandate` — più `showcase-v0.1.md`,
+  # `piano-canonico-mvp.md` (che è nel `writable` di `simulation`) e `scenario-map.md`, già qui dentro.
+  # ⚠️ E il modo in cui invecchia è quello che questa categoria protegge: è una spec `as-built`, nessun
+  # gate la rilegge, e fra il 2026-08-08 e il 2026-08-15 il suo §6 ha argomentato **tre** esiti mentre il
+  # codice ne aveva quattro — con il §4.2 dello stesso file che ne usava già un quarto. L'errore è poi
+  # passato a valle nel mandato che quella spec governa.
+  - docs/technical/test-automatico-unreal.md
   # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14: lo tiene `content_editor`
   # su `#451`. Vedi la nota della track per la misura che lo consente. Torna qui al prossimo batch.
   - docs/balance/          # sorgente dei radar (toolchain Node)
