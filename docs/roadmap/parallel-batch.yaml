@@ -792,9 +792,9 @@ tracks:
           - docs/roadmap/scenariomap.shortlist.md
 
   simulation:
-    status: ACTIVE
-    issue: 578
-    branch: feat/578-packaged-statehash
+    status: IDLE
+    issue: null
+    branch: null
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -936,11 +936,26 @@ tracks:
       per adiacenza di dominio: **blocca** la voce del DoD che questa track ha in carico — senza il target
       Shipping non esiste un pacchetto Shipping da confrontare. Il file **non è nel `writable` di nessuno**
       e nessuno dei branch remoti vivi lo tocca, misurato. La issue è `#923`.
-    writable:
-      - docs/technical/test-e-diagnosi.md
-      - docs/product/piano-canonico-mvp.md
-      - Source/RefactorTactics/Tests/RTNoisePropagationTests.cpp
-    binary_leases: []
+      ✅ **Chiusa il 2026-08-16 con PR #927 (`72f57d1b`), e `#578` resta `OPEN` per un motivo che non è più
+      ignoto.** La build Shipping è tornata verde — `Build.bat RefactorTactics Win64 Shipping` →
+      `Result: Succeeded` — e la procedura `Packaged` è stata **eseguita**, non descritta: un cook solo e due
+      binari (`-clientconfig=Development+Shipping`), Development `PASS (3/3 assertion)` con
+      `stateHash 572184bb`, Shipping nessun report.
+      🔴 **Due cause misurate, e nessuna era quella prevista per intera**: (1) `Scenarios/` non entra nel
+      pacchetto — sono `.json` fuori da `Content/`, l'indice dice «0 scenari», e `DefaultGame.ini` non ha mai
+      dichiarato `+DirectoriesToAlwaysStageAsUFS`; (2) in Shipping `-dpcvars` è **compilato fuori**
+      (`DeviceProfileManager.cpp` 719–775, dentro `#if !UE_BUILD_SHIPPING`), quindi `rt.Test.Scenario` non
+      arriva. La previsione precedente — «il rischio è l'accessibilità della console» — era la causa (2); la
+      (1) non l'aveva vista nessuno e si è manifestata per prima. Issue **#926**.
+      ⛔ **La track torna IDLE perché non può fare altro, non perché ha finito.** I path che chiuderebbero
+      `#926` — `Config/DefaultGame.ini` (`integration_only`), `RTGameMode.cpp`, `BP_GameMode.uasset` — non
+      sono suoi, e undici dei dodici file di `#923` nemmeno. Tenerla ACTIVE su una issue che non può
+      avanzare direbbe il falso: un `writable` senza lavoro possibile è una prenotazione, non un vincolo.
+      ⚠️ **Il write-set resta descritto qui e il blocco `writable` esce**, come per `verification`: tre path
+      — `docs/technical/test-e-diagnosi.md`, `docs/product/piano-canonico-mvp.md` e
+      `Source/RefactorTactics/Tests/RTNoisePropagationTests.cpp` — tutti atterrati in `main`, oggi non
+      assegnati. ➕ E `test-e-diagnosi.md` **non torna automaticamente `integration_only`**: chi riapre
+      `#926` lo rivuole, e la decisione è del prossimo batch.
 
   client_tools:
     status: ACTIVE
