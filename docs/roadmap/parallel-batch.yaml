@@ -588,10 +588,14 @@ preexisting:
       di aggiornare **una volta in integrazione**.
       🔴 **Il vincolo che ha morso, e vale la pena registrarlo perché è il primo caso in cui D-139 ha
       cambiato l'esito invece di confermarlo**: i sei DoD di E46 chiedono voci `PIE-V01-FRONTEND-*`, e
-      `docs/technical/test-manuali-pie.md` è nel `writable` di `content_editor`. Le voci **non** sono
-      state create. Il debito è dichiarato in tre punti — `roadmap-v0.1.md` §E46, `spec-frontend-
-      navigazione.md` §8 e `scenario-map.md` §9 — invece di essere risolto con una «piccola fix» fuori
-      dal proprio insieme. Si aprono quando quel file torna `integration_only` al prossimo batch.
+      `docs/technical/test-manuali-pie.md` non è di questa sessione. Le voci **non** sono state create.
+      Il debito è dichiarato in tre punti — `roadmap-v0.1.md` §E46, `spec-frontend-navigazione.md` §8 e
+      `scenario-map.md` §9 — invece di essere risolto con una «piccola fix» fuori dal proprio insieme.
+      ⏱️ **Il proprietario è cambiato mentre questa sessione lavorava**: era `content_editor` (#451) al
+      momento della misura, ed è `playtest` dal merge di #942 — track nata lo stesso giorno proprio per
+      dare al registro un proprietario stabile. La conclusione non cambia (il file non è mio in nessuno
+      dei due casi), ma **la procedura sì**: `playtest` dichiara che chi finisce una feature con una voce
+      `PIE-*` la **propone in handoff**, invece di aspettare che il file torni `integration_only`.
       ⚠️ **La collisione su questo file è reale e la sta creando questa voce**, come tutte le altre
       prima: `feat/451` lo tocca, misurato. Chi atterra secondo paga il conflitto, e questa riga esiste
       perché sappia in anticipo quale — una voce `preexisting` in più, e nient'altro.

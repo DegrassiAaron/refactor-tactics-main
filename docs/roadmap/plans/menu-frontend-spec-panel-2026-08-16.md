@@ -16,10 +16,15 @@
 
 Il documento **non duplica niente** — ed è la prima volta che un handoff di questa serie non lo fa: il
 frontend è genuinamente assente dal repository, misurato in cinque punti indipendenti. Ma sbaglia lo
-**scope**: mette in v0.1 `P0` tre sezioni che il repository ha già classificato *fuori release con
-motivazione dichiarata*, e le sue §5–§8 poggiano su un catalogo che nella build pacchettizzata **non
-esiste** — falsificate da [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926),
-aperta e misurata.
+**scope**: mette in v0.1 `P0` quattro sezioni che il repository ha già classificato *fuori release con
+motivazione dichiarata*, e che il documento stesso qualifica DEV/TEST.
+
+> 🔴 **Questa riga ne conteneva un secondo argomento, ed è caduto mentre il referto veniva scritto.**
+> Diceva che le §5–§8 poggiano su un catalogo che nel pacchetto non esiste, falsificate da
+> [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926). La PR
+> [`#935`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935) ha chiuso quella causa il
+> 2026-08-16: gli scenari **entrano** nel pacchetto. Dettaglio e conseguenze in §4.6 — la conclusione non
+> cambia, ma oggi la regge **un** argomento invece di due.
 
 Ciò che sopravvive è però il pezzo che vale di più, e il documento lo trova senza sapere di averlo trovato:
 **il gate G13 della v0.1 è 🟡 da sei giorni per la ragione esatta che un frontend risolverebbe.**
@@ -34,7 +39,7 @@ Ciò che sopravvive è però il pezzo che vale di più, e il documento lo trova 
 | `CURRENT` | **7** | riporta correttamente una regola del repository, quasi sempre senza sapere che è già regola |
 | `CONFLICT` | **5** | contraddice una decisione dichiarata, un naming deciso o un gate |
 | `DUPLICATE` | **3** | chiede di costruire qualcosa che ha già codice, owner e test |
-| `BLOCKED` | **1** | corretto in sé, ma un fatto misurato lo rende ineseguibile oggi |
+| ~~`BLOCKED`~~ | **0** | ce n'era **1**, ed è caduta mentre il referto veniva scritto (§4.6) |
 
 ---
 
@@ -129,17 +134,30 @@ packaged · network_privacy · replay_representable`) più il DoD trasversale di
 I due campi che il registry **non** ha sono `accessibility impact` e `performance impact` per la UI.
 Quelli sono la parte nuova, e sono l'unica che vale la pena portare.
 
-### 4.6 `BLOCKED` — §5–§8 in packaged non reggono, e non per colpa loro
+### 4.6 ~~`BLOCKED`~~ → **caduta**: §5–§8 non sono più bloccate dal packaging
 
-Il documento chiede due cose che oggi si escludono: §2 *«Main Menu avviabile in packaged build»* e §5
-*«legge il catalogo/registry reale»*.
-[`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926) — aperta, misurata su un
-pacchetto vero — dimostra che **`Scenarios/` non è staged nel pacchetto**, e che in Shipping `-dpcvars`
-è compilato fuori. Uno Scenario Browser packaged non avrebbe catalogo da leggere.
+> 🔴 **Questa sezione è stata scritta e falsificata nello spazio di poche ore, ed è conservata invece che
+> riscritta.** È la lezione più utile del referto: un argomento misurato su un fatto che qualcun altro sta
+> chiudendo *in quel momento* non è meno falso di uno dedotto male.
 
-Non è un difetto del documento: è una dipendenza che il documento non poteva conoscere. Ma sposta
-Scenario Browser/Runner/Bot Sim **dietro** #926, qualunque release li ospiti — ed è un secondo argomento,
-indipendente da §4.2, per tenerli fuori dal percorso critico della v0.1.
+**Come era scritta.** Il documento chiede due cose che sembravano escludersi: §2 *«Main Menu avviabile in
+packaged build»* e §5 *«legge il catalogo/registry reale»*.
+[`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926) misurava su un pacchetto vero
+che **`Scenarios/` non è staged** — dunque uno Scenario Browser packaged non avrebbe catalogo da leggere.
+
+**Cosa è successo.** La PR [`#935`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935) ha
+chiuso la **causa 1** il 2026-08-16, mentre questo referto era in scrittura:
+`+DirectoriesToAlwaysStageAsUFS=(Path="…")` porta i 76 JSON dentro il pak — `10 654 115 → 10 790 839`
+byte, misurati, perché contarli sullo staged dà `0` anche quando ha funzionato (finiscono *dentro* il pak).
+Il catalogo nel pacchetto **c'è**.
+
+**Cosa resta di #926**: la sola causa 2 — in Shipping `-dpcvars` è compilato fuori
+(`DeviceProfileManager.cpp`, tutto dentro `#if !UE_BUILD_SHIPPING`). ⚠️ **Non blocca una UI**: un widget
+non passa da una cvar della riga di comando, chiama l'API. Il blocco valeva per l'*auto-run da riga di
+comando*, non per uno Scenario Browser.
+
+∴ **il secondo argomento del §7 cade, e resta il solo §4.2** — che è sufficiente da solo, ed è la ragione
+per cui la conclusione non cambia. Ma chi rilegge deve sapere che oggi la sostiene **un** argomento, non due.
 
 ---
 
@@ -206,8 +224,8 @@ E46 · Frontend shell e ciclo di partita
 
 | Sezione | Dove va | Perché |
 |---|---|---|
-| Scenario Browser / Detail / Runner UI | dopo `#926` | §4.2 (tooling dichiarato fuori release) **e** §4.6 (nessun catalogo in packaged) |
-| Bot Visual Simulation UI | dopo `#926` | idem; è `entry di sviluppo` per ammissione del documento |
+| Scenario Browser / Detail / Runner UI | v0.2+, **non più dietro `#926`** | §4.2: tooling dichiarato `out_of_release_scope`. ⚠️ Il secondo motivo (nessun catalogo in packaged) **è caduto** — vedi §4.6 |
+| Bot Visual Simulation UI | v0.2+ | idem; è `entry di sviluppo` per ammissione del documento |
 | Replay UI | resta su `#472` | esiste già come issue |
 | Settings completo, Training Lite | v0.2 | nessun gate della v0.1 dipende da loro |
 | Briefing | v0.2 | il §3 lo ammette preconfigurato: in v0.1 non c'è niente da scegliere |

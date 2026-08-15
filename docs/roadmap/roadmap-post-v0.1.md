@@ -1065,10 +1065,16 @@ cosa costruire dopo il menu.
 ### Le sezioni DEV/TEST non hanno una release: hanno una dipendenza
 
 **Scenario Browser, Scenario Detail, Scenario Runner UI e Bot Visual Simulation** non sono assegnate a
-nessuna release, ed è deliberato. Seguono
-[`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926) — che misura su un pacchetto
-vero come `Scenarios/` non sia staged — e la classificazione che il repository dà già al tooling:
-*«serve a chi sviluppa, non è contenuto della release»*.
+nessuna release, ed è deliberato: vale la classificazione che il repository dà già al tooling — *«serve a
+chi sviluppa, non è contenuto della release»*.
+
+> 🔴 **La prima stesura di questo paragrafo, scritta poche ore prima, le faceva seguire
+> [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926)** — *«`Scenarios/` non è
+> staged nel pacchetto, quindi una UI che legge il catalogo reale non avrebbe catalogo»*. Quella causa è
+> stata **chiusa il 2026-08-16** da [`#935`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935):
+> i 76 JSON entrano nel pak. Di #926 resta la causa 2 — in Shipping `-dpcvars` è compilato fuori — che
+> **non** blocca una UI, perché un widget chiama l'API invece di passare da una cvar.
+> ∴ **non c'è più una dipendenza tecnica**: c'è una scelta di scope, e sta in piedi da sola.
 
 Assegnare loro una release significherebbe farle competere con la consegna, che è esattamente ciò che
 `RT-FEAT-TOOL-CONTROL-CENTER` evita stando in `future`.

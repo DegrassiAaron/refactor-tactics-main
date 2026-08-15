@@ -180,10 +180,18 @@ gate `automation` delle feature `RT-FEAT-UI-FRONTEND-*` nasce quindi `todo`, e l
 PIE** — stesso regime di E21, per la stessa ragione.
 
 Le sei voci previste — `PIE-V01-FRONTEND-NAV`, `-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE` — **non
-esistono ancora**: [`test-manuali-pie.md`](test-manuali-pie.md) è nel `writable` della track
-`content_editor` ([#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)) secondo
+esistono ancora**, e non per dimenticanza: [`test-manuali-pie.md`](test-manuali-pie.md) non è di questa
+sessione. Dal 2026-08-16 appartiene alla track **`playtest`** — *«l'autore davanti a Unreal»* — secondo
 [`parallel-batch.yaml`](../roadmap/parallel-batch.yaml), e D-139 dice che un file non assegnato è uno
-**stop**. Si aprono quando quel file torna `integration_only`, o con una riallocazione dichiarata.
+**stop**, non una «piccola fix».
+
+⚠️ **La procedura non è aspettare**, ed è la track stessa a dirlo: *«Le altre track producono, questa
+giudica. Chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone** in
+handoff.»* Le sei voci si propongono quando il primo checkpoint di E46 arriva a qualcosa da guardare —
+prima non c'è nulla da verificare, perché E46 è `SPECIFIED` e non c'è codice.
+
+*(La prima stesura di questo paragrafo attribuiva il file a `content_editor` su `#451`: era vero fino al
+2026-08-16, quando la track `playtest` è nata proprio per dargli un proprietario stabile.)*
 
 Fino ad allora i DoD di E46 nominano verifiche che il registro non contiene. È un debito, ed è scritto
 qui perché non si scopra al momento di chiudere un checkpoint.
@@ -198,7 +206,9 @@ qui perché non si scopra al momento di chiudere un checkpoint.
   normativo. Resta fuori dalla v0.1 e resta una domanda aperta.
 - **Il contenuto di Settings.** In v0.1 il pannello è *coming soon*; le voci (Video, Audio, Controls,
   Gameplay, Accessibility) e la loro persistenza sono v0.2.
-- **La UI DEV/TEST.** Scenario Browser, Detail, Runner e Bot Simulation seguono
-  [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926): finché `Scenarios/` non è
-  staged nel pacchetto, una UI che legge il catalogo reale non avrebbe catalogo.
+- **La UI DEV/TEST.** Scenario Browser, Detail, Runner e Bot Simulation restano fuori dalla v0.1 perché
+  sono tooling `out_of_release_scope`. ⚠️ Non più per un blocco tecnico: la prima stesura le faceva
+  dipendere da [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926) (*«`Scenarios/`
+  non è staged»*), causa **chiusa il 2026-08-16** da
+  [`#935`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935). Il catalogo nel pacchetto c'è.
 - **La UI di replay**, che è già [`#472`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/472).

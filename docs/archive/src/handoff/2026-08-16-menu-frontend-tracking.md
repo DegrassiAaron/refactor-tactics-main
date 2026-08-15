@@ -17,10 +17,13 @@
 > 2026-08-08: *«serve a chi sviluppa, non è contenuto della release»*. Chi aprisse quelle voci con questo
 > documento in mano metterebbe tooling sul percorso critico di una consegna.
 >
-> 🔴 **E le §5–§8 sono ineseguibili oggi, per un fatto misurato che il documento non poteva conoscere**:
-> [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926) dimostra su un pacchetto vero
-> che **`Scenarios/` non è staged**. Una UI che *«legge il catalogo reale»* in packaged non avrebbe
-> catalogo. È un secondo argomento, indipendente dal primo.
+> ⏱️ **Il referto portava un secondo argomento contro le §5–§8, ed è caduto lo stesso giorno.** Diceva che
+> [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926) rende quelle sezioni
+> ineseguibili perché `Scenarios/` non è staged nel pacchetto. La PR
+> [`#935`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935) ha chiuso quella causa il
+> 2026-08-16: i 76 JSON entrano nel pak. Resta la causa 2 — in Shipping `-dpcvars` è compilato fuori — che
+> **non blocca una UI**, perché un widget chiama l'API invece di passare da una cvar della riga di comando.
+> ∴ le §5–§8 restano fuori dalla v0.1 **per il solo motivo sopra**, che basta da solo. Vedi §4.6 del referto.
 >
 > ⚠️ **Il §15 collide su un naming già deciso.** Propone `WBP_FrontendRoot` e `WBP_GameHUDRoot`: il
 > prefisso del repository è **`WBP_RT_`** (CP 11.7, *«su un `.uasset` il rename costa più che scriverlo
