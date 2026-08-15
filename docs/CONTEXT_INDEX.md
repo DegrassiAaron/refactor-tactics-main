@@ -161,7 +161,7 @@ Il repository ne ha **due**, e nessuna gira in CI: i gate si eseguono **a mano**
 
 | | dove | cosa |
 |---|---|---|
-| **Python** | `scripts/` | `check-docs-links.py` · `check-docs-symbols.py` · `feature_registry.py` · `rt_shared_id.py` |
+| **Python** | `scripts/` | `check-docs-links.py` · `check-docs-symbols.py` · `check-docs-tables.py` · `feature_registry.py` · `rt_shared_id.py` |
 | **Node 22** | `tools/radar/` | rubrica dei rating e generatore SVG dei radar di personaggio |
 
 `tools/radar/` legge i cataloghi di bilanciamento, calcola i rating dei radar e produce gli SVG in
