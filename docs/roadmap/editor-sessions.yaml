@@ -299,7 +299,8 @@ sessions:
     artifacts: []
     unblocked_by: [M6.1, M6.2]
     shares_setup_with: [U3, U4, U5, U6]
-    verifies: [PIE-HEXPLAY-1, PIE-HEXPLAY-4, PIE-HEXPLAY-5, PIE-CAM-START]
+    verifies: [PIE-HEXPLAY-1, PIE-HEXPLAY-4, PIE-HEXPLAY-5, PIE-CAM-START,
+      PIE-CAM-ORBIT, PIE-CAM-ZOOM-ANCHOR, PIE-CAM-BOUNDS, PIE-CAM-FOCUS]
     issues: []
     done_when: le voci hanno esito reale nel registro
     unblocks: [U3, M6.1, M6.2]

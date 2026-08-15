@@ -285,6 +285,9 @@ protected:
 	 * contraddiceva da solo — diceva «trascinare in basso abbassa lo sguardo» e poi ne derivava l'opposto.
 	 * Invece di scegliere a tavolino: il verso e' un campo, il default e' dichiarato **non verificato**, e
 	 * la voce PIE lo mette alla prova. Chi lo trova rovesciato lo cambia dal Details senza ricompilare.
+	 *
+	 * La voce esiste: **`PIE-CAM-ORBIT`** in `docs/technical/test-manuali-pie.md`. Finche' resta ⏳, questo
+	 * default e' una scommessa, non una decisione.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	bool bInvertOrbitPitch = true;
