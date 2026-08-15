@@ -1,0 +1,185 @@
+﻿Scope,SemanticID,Label,Category,AccentToken,Notes
+CORE,UI.Icon.Action.BasicAttack,Basic Attack,Action,Attack,Generic attack; visually in Character Kit
+CORE,UI.Icon.Action.Move,Move,Movement,Movement,Path with nodes
+CORE,UI.Icon.Action.Sprint,Sprint,Movement,Movement,Long stride / speed trail
+CORE,UI.Icon.Action.Dash,Dash,Movement,Movement,Special evasive/reposition movement
+CORE,UI.Icon.Action.Brace,Brace,Defense/Reaction,Defense/Reaction,Distinct from Shield and Cover
+CORE,UI.Icon.Action.Overwatch,Overwatch,Reaction/Control,Reaction,Facing controlled sector
+CORE,UI.Icon.Action.Interact,Interact,Utility,Utility,Context action
+CORE,UI.Icon.Action.Wait,Wait,Utility,Neutral,Distinct from Hold
+CORE,UI.Icon.Coordination.Ready,Ready,Coordination,Gold,Not a skill
+CORE,UI.Icon.Coordination.Unready,Unready,Coordination,Neutral,Open/unlocked ready state
+LEGACY_CHECK,UI.Icon.Action.Guard,Guard,Defense,Defense,Only if current consumer exists
+LEGACY_CHECK,UI.Icon.Action.Activate,Activate,Utility,Utility,Only if distinct from Interact
+CONDITIONAL_V01,UI.Icon.Action.Sneak,Sneak,Movement,Movement,Movement profile if exposed
+CORE,UI.Icon.Target.Self,Self,Target,Primary UI,
+CORE,UI.Icon.Target.Ally,Ally,Target,Ally,Shape+color
+CORE,UI.Icon.Target.Enemy,Enemy,Target,Enemy,Shape+color
+CORE,UI.Icon.Target.Cell,Cell,Target,Primary UI,Clean hex
+CORE,UI.Icon.Target.Object,Object,Target,Primary UI,
+CORE,UI.Icon.Target.Direction,Direction,Target,Primary UI,
+CORE,UI.Icon.Geometry.Line,Line,Geometry,Primary UI,Origin+segment+arrow
+CORE,UI.Icon.Geometry.Circle,Circle,Geometry,Primary UI,
+CORE,UI.Icon.Geometry.Cone,Cone,Geometry,Primary UI,
+CORE,UI.Icon.Geometry.Chain,Chain,Geometry,Primary UI,"Nodes/jumps, not lone bolt"
+CORE_IF_SHOWN,UI.Icon.Geometry.Arc,Arc,Geometry,Primary UI,
+CORE_IF_SHOWN,UI.Icon.Geometry.Edge,Edge,Geometry,Primary UI,
+CORE,UI.Icon.Effect.Damage,Damage,Effect,Primary UI,Abstract impact
+CORE,UI.Icon.Effect.Heal,Heal,Effect,Primary UI,
+CORE,UI.Icon.Effect.Push,Push,Effect,Primary UI,Forced movement
+CORE_IF_SHOWN,UI.Icon.Effect.Pull,Pull,Effect,Primary UI,
+CORE,UI.Icon.Effect.Shield,Shield,Effect,Defense,Distinct from Brace/Cover
+CORE,UI.Icon.Effect.Reposition,Reposition,Effect,Primary UI,
+CORE,UI.Icon.Effect.Interrupt,Interrupt,Effect,Primary UI,
+CORE,UI.Icon.Effect.CreateCover,Create Cover,Effect,Primary UI,
+CORE,UI.Icon.Effect.ModifyCover,Modify Cover,Effect,Primary UI,
+CORE,Flux.ArcPulse,Arc Pulse,Hero Ability,Electric,Basic attack
+CORE,Flux.LinearDischarge,Linear Discharge,Hero Ability,Electric,Line+electric
+CORE_IF_SHOWN,Flux.ConductiveNode,Conductive Node,Hero Ability,Electric,Setup/partial consumer possible
+CORE,Flux.Overload,Overload,Hero Ability,Electric,Circle+electric
+CORE,Flux.ReactiveCapacitor,Reactive Capacitor,Hero Ability,Reaction,Reaction+shield+electric
+CORE,Riva.PressureJet,Pressure Jet,Hero Ability,Water,Line+water+push
+CORE,Riva.CircularTide,Circular Tide,Hero Ability,Water,Circle+water+support
+CORE,Riva.FluidTrail,Fluid Trail,Hero Ability,Water,Dash+water
+CORE,Riva.MistVeil,Mist Veil,Hero Ability,Water,Area+smoke
+CONDITIONAL_V01,Riva.FlowReaction,Flow Reaction,Hero Ability,Reaction,Deferred reaction consumer
+CORE,Bastion.ImpactShot,Impact Shot,Hero Ability,Attack,Basic attack
+CORE_IF_SHOWN,Bastion.KineticPanel,Kinetic Panel,Hero Ability,Defense,Create cover
+CORE_IF_SHOWN,Bastion.Reconfigure,Reconfigure,Hero Ability,Utility,Modify cover
+CORE,Bastion.Ram,Ram,Hero Ability,Attack,Charge+push
+CORE,Bastion.Interposition,Interposition,Hero Ability,Reaction,Ally intercept
+CORE,Vektor.PulseShot,Pulse Shot,Hero Ability,Attack,Basic attack
+CONDITIONAL_V01,Vektor.InterceptShot,Intercept Shot,Hero Ability,Reaction,Deferred E14
+CORE,Vektor.PassingBlade,Passing Blade,Hero Ability,Attack,Dash+line+damage
+CORE,Vektor.Deflection,Deflection,Hero Ability,Reaction,Reaction deflect
+CORE_IF_SHOWN,Vektor.Feint,Feint,Hero Ability,Utility,Prediction+reposition
+CORE,UI.Icon.Surface.Floor,Floor,Surface,Neutral,
+CORE,UI.Icon.Surface.Rough,Rough,Surface,Neutral,
+CORE,UI.Icon.Surface.Water,Water Surface,Surface,Water,
+CORE,UI.Icon.Surface.Conductive,Conductive,Surface,Electric,
+CORE,UI.Icon.Surface.Fire,Fire Surface,Surface,Fire,
+CORE,UI.Icon.Surface.Smoke,Smoke,Surface,Utility,
+CORE,UI.Icon.Surface.Ice,Ice,Surface,Utility,
+CORE,UI.Icon.Surface.HighGround,High Ground,Surface,Primary UI,
+CORE,UI.Icon.Environment.Water,Water,Environment,Water,
+CORE,UI.Icon.Environment.Electric,Electric,Environment,Electric,Dark outline
+CORE,UI.Icon.Environment.Fire,Fire,Environment,Fire,
+CORE,UI.Icon.Environment.Ice,Ice,Environment,Utility,
+CORE,UI.Icon.Environment.Smoke,Smoke,Environment,Utility,
+CORE_IF_SHOWN,UI.Icon.Environment.Steam,Steam,Environment,Utility,Only if active
+CORE,UI.Icon.Environment.Cover,Cover,Environment,Defense,
+CORE,UI.Icon.Environment.Hazard,Hazard,Environment,Warning,
+CORE,UI.Icon.Environment.Height,Height,Environment,Primary UI,
+CORE,UI.Icon.Status.Wet,Wet,Status,Water,Unit status
+CORE,UI.Icon.Status.Electrified,Electrified,Status,Electric,Unit status
+CORE,UI.Icon.Status.Burning,Burning,Status,Fire,Unit status
+CORE,UI.Icon.Status.Shielded,Shielded,Status,Defense,
+CORE,UI.Icon.Status.Guarded,Guarded,Status,Defense,Verify current label
+CORE,UI.Icon.Status.Stunned,Stunned,Status,Warning,
+CORE,UI.Icon.Status.Interrupted,Interrupted,Status,Warning,
+CORE_IF_SHOWN,UI.Icon.Status.Slowed,Slowed,Status,Warning,
+CORE_IF_SHOWN,UI.Icon.Status.Suppressed,Suppressed,Status,Warning,
+CORE_IF_SHOWN,UI.Icon.Status.Marked,Marked,Status,Warning,
+CORE_IF_SHOWN,UI.Icon.Status.Rooted,Rooted,Status,Warning,
+CORE_IF_SHOWN,UI.Icon.Status.Anchored,Anchored,Status,Defense,
+CORE_IF_SHOWN,UI.Icon.Status.Obscured,Obscured,Status,Utility,
+CORE,UI.Icon.Status.LowHealth,Low Health,Status,Critical,
+CORE,UI.Icon.Status.KO,KO,Status,Neutral,
+CORE,UI.Icon.Reaction.Generic,Reaction,Reaction,Reaction,
+CORE,UI.Icon.Reaction.Available,Reaction Available,Reaction,Reaction,
+CORE,UI.Icon.Reaction.Armed,Reaction Armed,Reaction,Reaction,
+CORE,UI.Icon.Reaction.Opportunity,Reaction Opportunity,Reaction,Reaction,
+CORE,UI.Icon.Reaction.Commit,Commit/FIRE,Reaction,Reaction,
+CORE,UI.Icon.Reaction.Hold,HOLD,Reaction,Reaction,Distinct from Wait
+CORE,UI.Icon.Reaction.Consumed,Consumed,Reaction,Neutral,
+CORE,UI.Icon.Reaction.Expired,Expired,Reaction,Neutral,
+CORE,UI.Icon.Reaction.Invalidated,Invalidated,Reaction,Warning,
+CORE_IF_SHOWN,UI.Icon.Reaction.Timeout,Timeout,Reaction,Warning,Timer number dynamic
+CORE_IF_SHOWN,UI.Icon.Intel.Visible,Visible,Intel,Primary UI,
+CONDITIONAL_V01,UI.Icon.Intel.Detected,Detected,Intel,Primary UI,
+CONDITIONAL_V01,UI.Icon.Intel.Heard,Heard,Intel,Primary UI,No exact enemy position
+CONDITIONAL_V01,UI.Icon.Intel.Approximate,Approximate,Intel,Primary UI,
+CORE_IF_SHOWN,UI.Icon.Intel.Unknown,Unknown,Intel,Secondary UI,
+CORE_IF_SHOWN,UI.Icon.Intel.LastKnown,Last Known,Intel,Secondary UI,Historical
+CORE,UI.Icon.Intel.Targeted,Targeted,Intel,Enemy,
+CORE,UI.Icon.Intel.Focus,Focus,Intel,Ally,
+CORE,UI.Icon.Intel.Facing,Facing,Intel,Primary UI,
+CORE,UI.Icon.Coordination.Editing,Editing,Coordination,Ally,
+CORE_IF_SHOWN,UI.Icon.Coordination.Locked,Locked,Coordination,Primary UI,
+CORE,UI.Icon.Coordination.AllyIntent,Ally Intent,Coordination,Ally,
+CORE,UI.Icon.Coordination.Ping,Ping,Coordination,Ally,
+CORE,UI.Icon.Coordination.Conflict,Conflict,Coordination,Warning,
+CORE,UI.Style.Certainty.Confirmed,Confirmed,Certainty,Primary UI,Solid
+CORE,UI.Style.Certainty.Predicted,Predicted,Certainty,Primary UI,Dashed
+CORE,UI.Style.Certainty.Uncertain,Uncertain,Certainty,Primary UI,Dotted/fade + ?
+CORE,UI.Style.Validity.Invalid,Invalid,Validity,Warning,Slash/cross-hatch
+CORE,UI.Icon.Warning.FriendlyFire,Friendly Fire,Warning,Warning,
+CORE,UI.Icon.Warning.Collision,Collision,Warning,Warning,
+CORE,UI.Icon.Warning.InsufficientResource,Insufficient Resource,Warning,Warning,
+CORE,UI.Icon.Warning.InvalidTarget,Invalid Target,Warning,Warning,
+CORE,UI.Icon.Warning.InvalidPath,Invalid Path,Warning,Warning,
+CORE,UI.Icon.Warning.Cooldown,Cooldown,Warning,Warning,
+CORE,UI.Icon.Warning.IntentNotCommitted,Intent Not Committed,Warning,Warning,
+CORE,UI.Icon.Warning.PathInvalidated,Path Invalidated,Warning,Warning,
+CORE,UI.Icon.Warning.UncertainOutcome,Uncertain Outcome,Warning,Warning,
+CORE,UI.Icon.Warning.Hazard,Hazard,Warning,Warning,
+CORE,UI.Icon.Objective.Neutral,Objective Neutral,Objective,Primary UI,
+CORE,UI.Icon.Objective.Capture,Capture,Objective,Gold,
+CORE,UI.Icon.Objective.Contested,Contested,Objective,Warning,
+CORE,UI.Icon.Objective.Owned,Owned,Objective,Ally,
+CORE,UI.Icon.Objective.Completed,Completed,Objective,Gold,
+CORE,UI.Icon.Result.Success,Mission Success,Result,Gold,
+CORE,UI.Icon.Result.Failure,Mission Failure,Result,Warning,
+CORE,UI.Icon.Map.Cover,Cover,Map,Defense,
+CORE_IF_SHOWN,UI.Icon.Map.Door,Door,Map,Primary UI,
+CORE_IF_SHOWN,UI.Icon.Map.Switch,Switch,Map,Primary UI,
+CORE_IF_SHOWN,UI.Icon.Map.Trigger,Trigger,Map,Primary UI,
+CORE_IF_SHOWN,UI.Icon.Map.Bridge,Bridge,Map,Primary UI,
+CONDITIONAL_V01,UI.Icon.Map.Tunnel,Tunnel,Map,Primary UI,
+CONDITIONAL_V01,UI.Icon.Map.Elevator,Elevator,Map,Primary UI,
+CORE_IF_SHOWN,UI.Icon.Map.LayerUp,Layer Up,Map,Primary UI,
+CORE_IF_SHOWN,UI.Icon.Map.LayerDown,Layer Down,Map,Primary UI,
+CORE,UI.Icon.Map.Relay,Relay,Map,Gold,
+CORE,UI.Icon.Phase.Planning,Planning,Phase,UI Cyan,
+CORE,UI.Icon.Phase.Prep,Prep,Phase,UI Cyan,
+CORE,UI.Icon.Phase.Dash,Dash Phase,Phase,Movement,
+CORE,UI.Icon.Phase.Blast,Blast,Phase,Attack,
+CORE,UI.Icon.Phase.Move,Move Phase,Phase,Movement,
+CORE,UI.Icon.Phase.Cleanup,Cleanup,Phase,Secondary UI,
+CORE,UI.Icon.Boundary.Phase,Phase Boundary,Boundary,Primary UI,
+CORE,UI.Icon.Boundary.Decision,Decision Boundary,Boundary,Gold,
+CORE,UI.Icon.Decision.FastReaction,Fast Reaction,Decision,Reaction,
+CORE_IF_SHOWN,UI.Icon.Decision.FastAction,Fast Action,Decision,UI Cyan,
+CORE_IF_SHOWN,UI.Icon.Weapon.Precision,Precision,Weapon,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Weapon.Impact,Impact,Weapon,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Weapon.Overcharge,Overcharge,Weapon,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Weapon.Split,Split,Weapon,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Weapon.Suppressive,Suppressive,Weapon,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Weapon.Environmental,Environmental,Weapon,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Gadget.Medkit,Medkit,Gadget,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Gadget.BreachCharge,Breach Charge,Gadget,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Gadget.Sprinkler,Sprinkler,Gadget,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Gadget.Insulator,Insulator,Gadget,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Gadget.SmokeEmitter,Smoke Emitter,Gadget,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Gadget.PortableCover,Portable Cover,Gadget,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Gadget.Sensor,Sensor,Gadget,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Gadget.Anchor,Anchor,Gadget,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Module.EmergencyDash,Emergency Dash,Reaction Module,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Module.ReactiveShield,Reactive Shield,Reaction Module,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Module.CounterShot,Counter Shot,Reaction Module,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Module.AllyIntercept,Ally Intercept,Reaction Module,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Module.HazardEscape,Hazard Escape,Reaction Module,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Module.Cleanse,Cleanse,Reaction Module,Primary UI,Loadout/inspect/wiki consumer
+CORE_IF_SHOWN,UI.Icon.Module.Anchor,Reaction Anchor,Reaction Module,Primary UI,Loadout/inspect/wiki consumer
+CORE,UI.Icon.Stat.Health,Health,HUD Micro,Primary UI,
+CORE_IF_SHOWN,UI.Icon.Stat.Shield,Shield Resource,HUD Micro,Defense,
+CORE,UI.Icon.Stat.Resource,Hero Resource,HUD Micro,Primary UI,
+CORE,UI.Icon.Stat.Cooldown,Cooldown,HUD Micro,Secondary UI,
+CORE,UI.Icon.Stat.Charge,Charge,HUD Micro,Primary UI,
+CORE,UI.Icon.Stat.Range,Range,HUD Micro,Primary UI,
+CORE,UI.Icon.Stat.Duration,Duration,HUD Micro,Primary UI,
+CORE,UI.Icon.Stat.Cost,Cost,HUD Micro,Primary UI,
+CORE_IF_SHOWN,UI.Icon.Stat.Noise,Noise,HUD Micro,Primary UI,
+CORE_IF_SHOWN,UI.Icon.Stat.Vision,Vision,HUD Micro,Primary UI,
+CORE,UI.Icon.UI.Undo,Undo,HUD Micro,Primary UI,
+CORE,UI.Icon.UI.Why,WHY?,HUD Micro,Primary UI,

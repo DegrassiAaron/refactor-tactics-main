@@ -303,15 +303,32 @@ Non deve mai sembrare:
 
 ## 6.7 Bottom center — Action Dock
 
+> ⚠️ **2026-08-12 — [D-025](../decisions/RT_PDR_00_Decision_Log.md): le generiche sono sette, non quattro.**
+> Questa sezione ne elencava `Move · Wait · Guard · Overwatch` e ometteva `BasicAttack`, `Brace` e
+> `Interact`. L'elenco canonico è `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`.
+
 Separare visivamente:
 
 ### Universal Actions
 
-- Move
-- Wait
-- Guard
-- Overwatch
-- future universal actions
+Le **sette** generiche di D-025, leggibili in quattro corsie:
+
+| Corsia | Azioni |
+|---|---|
+| Movement | `Move`, e i profili rapidi `Sprint` / `Dash` |
+| Attack | `BasicAttack` |
+| Defense | `Guard`, `Brace` |
+| Context | `Interact`, `Wait`, `Overwatch` |
+
+Le corsie sono un aiuto alla lettura, non quattro economie d'azione.
+
+Due avvertenze che il layout non deve tradire:
+
+- **`Sprint` non è «Move più veloce».** Consuma **entrambi** gli slot e **nega la reazione** per il turno
+  (`Action.Sprint`, catalogo v0.1 §2). Se sta accanto a `Move` e `Dash` senza distinzione, il giocatore lo
+  sceglie credendo di spendere solo il movimento.
+- **`Overwatch` non è ancora nel catalogo generico**: arriva con **E14**. Lo slot va previsto, ma finché
+  l'azione non atterra non deve risultare pianificabile.
 
 ### Hero Kit
 
@@ -325,6 +342,9 @@ Questa è una **classificazione UI**, non una doppia economia d'azione.
 Il layout non deve far pensare:
 
 > scegli una Universal Action + una Hero Ability.
+
+`Ready` **non è un'azione** e non prende uno slot nella dock: è uno stato di coordinamento, e appartiene alla
+famiglia di pulsanti di §6.8 insieme a `CONFIRM PLAN`.
 
 ## 6.8 Bottom right
 

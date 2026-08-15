@@ -1,0 +1,144 @@
+meta:
+  project: RefactorTactics
+  area: Tactical Visual Language / HUD Icon Language
+  generated_for:
+  - Claude CLI
+  - Claude Design Web
+  rule: Claude CLI must verify live GitHub/roadmap before creating or renumbering anything.
+known_existing:
+- type: epic
+  ref: '#217'
+  title: '[EPIC] E20 · HUD Icon Language'
+  release: v0.1
+  action: verify/update, never duplicate
+- type: issue
+  ref: '#218'
+  title: CP 20.1 · URTIconCatalogData
+  release: v0.1
+  action: verify/update
+- type: issue
+  ref: '#219'
+  title: CP 20.2 · Categorie della v0.1
+  release: v0.1
+  action: verify/update
+- type: issue
+  ref: '#220'
+  title: CP 20.3 · I widget consumano il catalogo
+  release: v0.1
+  action: verify/update
+epic_candidates:
+- key: E25
+  title: '[EPIC] E25 · Icon Language completo'
+  release: post-v0.1
+  create_if_missing: true
+  checkpoints:
+  - CP 25.1 · Tassonomia completa e governance
+  - CP 25.2 · Catalogo completo, validator e authoring
+  - CP 25.3 · HUD / world-space / reaction / perception integration
+  - CP 25.4 · Accessibility, Wiki e documentazione
+roadmap_steps:
+- key: ICON-0
+  name: Audit e consolidamento
+  release: v0.1 / E20
+  scope: Audit repository UI/icon state, map existing semantic IDs/tags/widgets, reconcile latest grammar with canonical docs;
+    no duplicate systems.
+  candidate_issue_titles:
+  - 'UI: audit and consolidate tactical visual language'
+  - 'Docs/UI: consolidate RT Visual Language Specification v0.1'
+  claude_design_file: ClaudeDesign/ICON-0_Audit_e_consolidamento.md
+- key: ICON-1
+  name: Fondazione dati
+  release: v0.1 / E20
+  scope: 'Stable semantic IDs, catalog/resolver/fallback/logging, validators and deterministic lookup; preserve #218/#219/#220
+    ownership.'
+  candidate_issue_titles:
+  - 'UI/Data: implement semantic visual token catalog and resolver'
+  - 'Validation: add visual token catalog validation and fallback checks'
+  claude_design_file: ClaudeDesign/ICON-1_Fondazione_dati.md
+- key: ICON-2
+  name: Core v0.1 Asset Set
+  release: v0.1 / E20
+  scope: Start with 16 monochrome proof-of-concept glyphs, then semantic palette/CVD only after silhouette approval.
+  candidate_issue_titles:
+  - 'Art/UI: create 16 monochrome tactical glyph masters'
+  - 'Art/UI: validate 16/20/24/32 px optical glyph variants'
+  - 'Art/UI: expand approved glyph language to the v0.1 core asset set'
+  claude_design_file: ClaudeDesign/ICON-2_Core_v0.1_Asset_Set.md
+- key: ICON-3
+  name: Roster e Character HUD
+  release: v0.1 consumer / E20; full post-v0.1 / E25
+  scope: Identity, faction secondary badge, deterministic status stack, +N overflow, tooltip/inspect, 1080p/4v4-safe layout.
+  candidate_issue_titles:
+  - 'UI: integrate deterministic icon stack into roster and character HUD'
+  - 'UI: integrate faction badge, Ready and critical status presentation'
+  claude_design_file: ClaudeDesign/ICON-3_Roster_e_Character_HUD.md
+- key: ICON-4
+  name: Planning / Action Ghosts
+  release: v0.1 consumer + post-v0.1 / E25
+  scope: Own plan, sanitized ally plan, path/AoE/facing/ghost, certainty and team dependencies; no enemy private plan data.
+  candidate_issue_titles:
+  - 'UI: integrate visual grammar into planning and Action Ghosts'
+  - 'UI: implement Confirmed / Predicted / Uncertain world-space styles'
+  - 'UI: add ally-plan conflict and friendly-fire visual warnings'
+  claude_design_file: ClaudeDesign/ICON-4_Planning_Action_Ghosts.md
+- key: ICON-5
+  name: Reaction / Overwatch
+  release: post-v0.1 / E25
+  scope: Available/Armed/Opportunity/Hold/Consumed/Expired/Invalidated; fast decision readability and privacy.
+  candidate_issue_titles:
+  - 'UI/Reaction: define and integrate Reaction / Overwatch visual lifecycle'
+  - 'Network QA: verify reaction UI exposes no future enemy opportunities'
+  claude_design_file: ClaudeDesign/ICON-5_Reaction_Overwatch.md
+- key: ICON-6
+  name: Perception / Noise / Fog of War
+  release: post-v0.1 / E25
+  scope: Exact visual contact vs acoustic areas/direction vs memory; uncertain info uses uncertain geometry.
+  candidate_issue_titles:
+  - 'UI/Perception: implement Visible / Heard / Last Known / Unknown visual semantics'
+  - 'UI/Perception: implement acoustic precision and uncertainty-area presentation'
+  - 'Network QA: verify knowledge UI never reveals unauthorized exact positions'
+  claude_design_file: ClaudeDesign/ICON-6_Perception_Noise_Fog_of_War.md
+- key: ICON-7
+  name: Environment / Map Interaction
+  release: post-v0.1 / E25
+  scope: Water/Fire/Electric/Cold/Ice/Steam/Smoke, cell/unit/edge frames, map-state transitions and dependency previews.
+  candidate_issue_titles:
+  - 'UI/Map: integrate environment visual grammar'
+  - 'UI/Map: integrate door, cover, bridge, lift and interaction state presentation'
+  claude_design_file: ClaudeDesign/ICON-7_Environment_Map_Interaction.md
+- key: ICON-8
+  name: Combat Log / Explainability
+  release: post-v0.1 / E25
+  scope: Damage/mitigation/absorption/block/resistance/status/displacement and causal reason chain; icons supplement text/reason
+    codes.
+  candidate_issue_titles:
+  - 'UI/CombatLog: render outcome ReasonChain with canonical visual tokens'
+  - 'UI: implement compact WHY? outcome explanation'
+  claude_design_file: ClaudeDesign/ICON-8_Combat_Log_Explainability.md
+- key: ICON-9
+  name: Wiki / Tutorial / Scenario Browser
+  release: post-v0.1 / E25
+  scope: Same SemanticId and meaning across game UI and docs, accessibility labels, canonical examples, no independent wiki-only
+    icon language.
+  candidate_issue_titles:
+  - 'Docs/Wiki: publish canonical visual-token legend'
+  - 'Docs/UI: reuse visual language in tutorial and scenario browser'
+  claude_design_file: ClaudeDesign/ICON-9_Wiki_Tutorial_Scenario_Browser.md
+- key: ICON-10
+  name: Accessibility e Polish
+  release: post-v0.1 / E25
+  scope: Default accessible, CVD, High Contrast, grayscale, reduced-motion equivalents, pattern/outline/luminance validation.
+  candidate_issue_titles:
+  - 'Accessibility/UI: implement semantic CVD and High Contrast themes'
+  - 'Accessibility/UI: validate grayscale, reduced motion, scaling and contrast'
+  - 'Art/UI: complete visual-language accessibility review'
+  claude_design_file: ClaudeDesign/ICON-10_Accessibility_e_Polish.md
+- key: ICON-11
+  name: Performance / 4v4 Stress
+  release: post-v0.1 / E25
+  scope: 8 units + statuses + reactions + objectives + hazards + ally intents + warnings + FoW; measure clutter, widget count,
+    invalidation, overdraw and readability.
+  candidate_issue_titles:
+  - 'QA/Performance: 4v4 tactical UI clutter and rendering stress test'
+  - 'Tooling/UI: add Visual Language Lab, icon gallery and presentation debug overlay'
+  claude_design_file: ClaudeDesign/ICON-11_Performance_4v4_Stress.md
