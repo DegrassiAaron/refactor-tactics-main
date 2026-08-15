@@ -257,7 +257,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | IMPLEMENTING | 1/8 |
 |  | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | IMPLEMENTING | 1/7 |
-|  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 1/6 |
+|  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 2/6 |
 |  | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse — completata da `RT-FEAT-UI-CERTAINTY` | IMPLEMENTING | 3/7 |
 | **E12** | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | INTEGRATED | 6/8 |
 |  | `RT-FEAT-CORE-TURNLOG` — TurnLog, reason code, hash e replay | RELEASE_READY | 7/8 |
@@ -273,10 +273,10 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/9 |
 |  | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | SPECIFIED | 1/10 |
 |  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/10 |
-|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/10 |
+|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | TESTABLE | 5/10 |
 |  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/10 |
-|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 3/10 |
-|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | IMPLEMENTING | 2/10 |
+|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 4/10 |
+|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | TESTABLE | 5/10 |
 |  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/9 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
@@ -286,6 +286,10 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
+| **E46** | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | SPECIFIED | 1/5 |
+|  | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | SPECIFIED | 1/6 |
+|  | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | SPECIFIED | 1/5 |
+|  | `RT-FEAT-UI-FRONTEND-SHELL` — Frontend root, navigation controller e stati comuni | SPECIFIED | 1/6 |
 
 > ⚠️ **Feature con una release e senza epic** — lavoro dentro lo scope di una release che nessuna
 > epic copre e che nessuno ha dichiarato fuori scope.
@@ -359,7 +363,9 @@ silenzio.
 | **E20** | HUD Icon Language | P2 | 3 | Le icone sono un **catalogo semantico**, non texture referenziate nei widget: E11 costruisce l'HUD adesso, e riscrivere ogni widget dopo costa più del file di dati in più ([D-031](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E21** | Presentazione e leggibilità | P1 | 3 | Il gioco smette di essere cilindri colorati. Era l'unico lavoro **dentro** lo scope di release che nessuna epic copriva: viveva solo nella milestone M8, e il Feature Registry lo ha reso visibile il 2026-08-08 |
 
-**Totale: 21 epic, 100 checkpoint**
+| **E46** | Frontend shell e ciclo di partita | P1 | 6 | `G13` chiede *«partita giocabile senza editor dalla build packaged»* ed è 🟡 perché il pacchetto avvia sull'arena di test via config: fra una build **eseguibile** e una **giocabile** manca `Main Menu → Play → partita → Result → Quit`. Non è scope nuovo, è il completamento di un gate `P0` già dichiarato ([D-144](../decisions/RT_PDR_00_Decision_Log.md)). Le sezioni DEV/TEST del menu — Scenario Browser/Detail/Runner UI, Bot Simulation — restano **fuori**, per due ragioni indipendenti: sono tooling già classificato `out_of_release_scope`, e [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926) misura che `Scenarios/` non è staged nel pacchetto |
+
+**Totale: 22 epic, 106 checkpoint**
 
 > 🔁 **Rimisurato il 2026-08-12, e tre celle di questa colonna erano ferme.** Il totale precedente — «95» —
 > era la somma **corretta** della colonna `CP`, ma la colonna aveva smesso di seguire la §5: tre epic
@@ -1557,6 +1563,54 @@ con i tre checkpoint [#287](https://github.com/DegrassiAaron/refactor-tactics-ma
 incrociando le issue aperte con la §3 di questo file, ed esisteva perché l'epic è nata da una tabella
 generata invece che da una sessione di pianificazione. Il numero `E21` è stato conteso — vedi
 [D-039](../decisions/RT_PDR_00_Decision_Log.md).
+
+---
+
+### E46 — Frontend shell e ciclo di partita · P1
+
+**Perché esiste** *(2026-08-16, [D-144](../decisions/RT_PDR_00_Decision_Log.md))*. Il gate **G13** chiede
+*«partita giocabile senza editor dalla build packaged»* ed è 🟡 dal 2026-08-10 con la riserva già scritta
+nella DoD: il pacchetto avvia su `MapSource=GeneratedTestArena`, *«e una build che avvia sull'arena di
+prova soddisfa la lettera ma non la cosa»*. Fra una build **eseguibile** e una **giocabile** manca un
+solo pezzo, ed è questo.
+
+Non finisce in **E11** per la stessa ragione per cui E21 non ci finisce: E11 è l'HUD **in-match** — che
+ha già i suoi otto checkpoint e i suoi nomi UMG decisi a CP 11.7 — mentre qui si parla di ciò che esiste
+**prima e dopo** la partita. Il principio è del documento sorgente ed è giusto: `Frontend != In-Match
+HUD`. I due strati non condividono root: `WBP_RT_FrontendRoot` non è `WBP_RT_TacticalHUD`.
+
+**L'assenza è misurata**, non supposta (2026-08-16, `4ab36b48`): zero asset `WBP_*` in `Content/`, sei
+file in `Source/**/UI*` tutti in-match, nessuna epic frontend fra E1–E45, zero occorrenze di *menu* o
+*frontend* in `roadmap-post-v0.1.md`.
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **46.1** | Frontend root e **navigation controller** | Un solo owner del flow espone `PushScreen`, `PopScreen`, `ShowModal`, `CloseModal`, `ReturnMain`; nessun widget chiama `CreateWidget`/`AddToViewport`/`RemoveFromParent` di propria iniziativa — verificabile con `grep -rn "AddToViewport\|RemoveFromParent" Source/` che non deve produrre occorrenze fuori dal controller. Back stack esplicito: da ogni schermata `Back` risale a quella che l'ha spinta, e la radice non ha `Back`. ⚠️ **Non possiede il `Modal` del `PlayerController`**: quello è di CP 11.8, che ha già sette contesti e la precedenza `Modal/Reaction UI > HUD > world` coperta da test — sono due strati, e il frontend non ne eredita l'autorità | ⏳ `PIE-V01-FRONTEND-NAV` (da creare) |
+| **46.2** | **Loading** e **error modal** | Loading mostra un messaggio di fase reale (`Loading map…`, `Initializing scenario…`) e **nessuna percentuale**, perché non esiste un progress model da cui derivarla. L'error modal porta *causa leggibile* + `Back`; `Details`/`Copy debug info` esistono **solo** in Development. Nessun percorso di errore lascia la UI in uno stato senza uscita | ⏳ `PIE-V01-FRONTEND-ERROR` (da creare) |
+| **46.3** | **Main Menu** | `PLAY · SETTINGS · QUIT` a schermo, navigabili da mouse **e** tastiera, con focus visibile che non dipende dal solo colore. `SETTINGS` in v0.1 può aprire un pannello vuoto dichiarato *coming soon*: la voce esiste perché il back stack la attraversi, il suo contenuto è v0.2. Version/build label leggibile. Avvio del gioco packaged sul Main Menu, non su una mappa | ⏳ `PIE-V01-FRONTEND-MAIN` (da creare) |
+| **46.4** | **Play → partita esistente** | `PLAY` avvia il vertical slice 2v2 **senza** aggiungere un secondo percorso di avvio: usa `ARTGameMode` e il formato che [`#375`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/375) spedisce da C++ (`Format.Skirmish2v2`), non una configurazione parallela. Match Setup v0.1 è **preconfigurato** — non c'è nulla da scegliere finché esiste un solo formato e una sola mappa. La transizione passa da 46.2 | ⏳ `PIE-V01-FRONTEND-PLAY` (da creare) |
+| **46.5** | **Result** → Main Menu / Play Again | A fine partita compare esito, vincitore e numero di round, **letti dal risultato canonico**: la UI non ricalcola nulla e non decide chi ha vinto — la condizione di fine è di E10 e il TurnLog ne è il registro. `Play Again` ripercorre 46.4; `Main Menu` torna alla radice svuotando il back stack | ⏳ `PIE-V01-FRONTEND-RESULT` (da creare) |
+| **46.6** | **Pause** | `ESC` in partita apre `RESUME · SETTINGS · RETURN TO MAIN MENU`. `Return to Main Menu` smonta la partita e torna alla radice senza lasciare stato vivo — verificabile riavviando una partita subito dopo e ottenendo lo stesso esito a parità di seed. ⚠️ **La pausa è offline-only per costruzione**: in multiplayer non esisterà una pausa globale ([v0.5, E40](roadmap-post-v0.1.md)), quindi il pulsante non entra in un contratto condiviso col futuro codice di rete | ⏳ `PIE-V01-FRONTEND-PAUSE` (da creare) |
+
+> ⚠️ **Nessuno dei sei checkpoint ha oggi un test automatico possibile, ed è dichiarato invece che
+> sottinteso.** Il repository non ha infrastruttura di test UI — non esiste una suite che istanzi un
+> widget e ne verifichi la navigazione — quindi il gate `automation` delle feature `RT-FEAT-UI-FRONTEND-*`
+> nasce `todo` e la verifica è **manuale in PIE**. È lo stesso regime di E21, e per la stessa ragione:
+> *«quello che manca è il lavoro in editor, che nessun test automatico può chiudere»*.
+>
+> 🔴 **Le sei voci `PIE-V01-FRONTEND-*` non sono state create da questo consolidamento, e non per
+> dimenticanza**: [`test-manuali-pie.md`](../technical/test-manuali-pie.md) è nel `writable` della track
+> `content_editor` ([`#451`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)) secondo
+> [`parallel-batch.yaml`](parallel-batch.yaml), e D-139 dice che un file non assegnato è uno **stop**, non
+> una «piccola fix». Le voci si aprono quando quel file torna `integration_only` al prossimo batch, oppure
+> con una riallocazione dichiarata. Fino ad allora i sei DoD nominano verifiche che il registro **non
+> contiene**: è un debito, ed è scritto qui perché non si scopra al momento di chiudere un checkpoint.
+
+**Rischi**. *(a)* È la **22ª epic** di una release in chiusura: il rischio di ampiezza della v0.1 (§8) era
+già alto prima di questa riga. *(b)* Il confine con CP 11.8 va tenuto — un navigation controller che
+cominci a decidere la precedenza dell'input duplicherebbe un contratto già testato con dieci test
+`PlayerInput.*`. *(c)* `CommonUI` resta **fuori e non deciso**: quattro sorgenti archiviati lo rimandano
+*«dopo proof of concept»* e nessuno di essi è normativo.
 
 ---
 
