@@ -792,11 +792,12 @@ tracks:
           - docs/roadmap/scenariomap.shortlist.md
 
   simulation:
-    status: IDLE
-    issue: null
-    branch: null
-    # ⚠️ Il worktree resta in piedi, staccato su `main`: tiene `Binaries/` e `Intermediate/` costruiti, e
-    # cancellarlo costa una ricompilazione intera. Chi lo riusa fa `git switch -c <branch>` da lì.
+    status: ACTIVE
+    issue: 578
+    branch: feat/578-packaged-statehash
+    # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
+    # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
+    # target `Game` Development e Shipping oltre all'Editor.
     worktree: "D:/rt-simulation"
     note: >-
       IDLE perché **il lavoro è atterrato**, non per dipendenza. `#165` (CP 14.5, finestra e primo
@@ -896,6 +897,50 @@ tracks:
       questo file non aveva ancora**: se il mandato riapre, torna alla track che riparte; se resta chiuso,
       va dove sta la spec che governa — `integration_only`. Si decide alla riattivazione, non adesso, e si
       decide **prima** di scrivere, non dopo.
+      ✅ **La riattivazione è arrivata poche ore dopo, e la domanda si chiude col secondo ramo.** La track
+      riparte su `#578` — una issue, non il mandato — e il mandato A **non riapre**: il suo merge target §10
+      è soddisfatto e misurato. Quindi `docs/technical/qa-prompt-terminal-a-determinismo.md` va in
+      `integration_only`, dove sta la spec che governa, ed è l'unica delle tre forme in cui non finisce nel
+      `writable` di una track che non lo esegue. ⚠️ **La track riparte senza `mandate`**, e la differenza è
+      esigibile: un `mandate` su una track che non lo sta eseguendo direbbe il falso al prossimo lettore.
+      ➕ **Riattivata lo stesso giorno su `#578`, ed è la riallocazione che il punto (1) chiedeva**, fatta
+      come atto d'integrazione e non da dentro la track. Il turno chiude l'ultima voce del DoD, `Packaged`:
+      confronto di `StateHash` fra una build **Development** e una **Shipping**, eseguite davvero.
+      ⚠️ **Il rischio non è il codice, ed è già misurato**: `ScenarioHarness/` non ha esclusioni di build
+      (zero `#if !UE_BUILD_SHIPPING`, zero `WITH_EDITOR`) e `RTTestReportWriter.cpp:51` scrive `stateHash`
+      come `%08x` in `Saved/RTTests/<Id>/<Run>/result.json`. Il rischio è **l'accessibilità della console
+      in Shipping**, e si verifica eseguendo: se `rt.Test.Scenario` non arriva, serve un'altra porta
+      d'ingresso. ➕ Nota utile: in Shipping `-abslog` resta vuoto — `Display` è compilato fuori — ma
+      `result.json` è **file I/O, non log**, quindi il confronto non dipende dal canale che manca.
+      ✅ **`docs/technical/test-e-diagnosi.md` entra nel `writable`, e i due controlli che servivano sono
+      stati fatti invece che dedotti**: (a) **non** è in `integration_only` né in `generated_only` — era
+      semplicemente **non assegnato**, che è la condizione che rende la scrittura uno STOP; (b) perturbato
+      di due righe, verificando con `git diff --numstat` che la perturbazione fosse applicata, `generate
+      --check` e `shortlist --check` restano **verdi**: non alimenta nessuna vista, quindi chi lo possiede
+      non eredita rigenerazioni. ⚠️ Intersezione con i nove branch remoti vivi: **vuota**, misurata uno per
+      uno con `git diff --name-only origin/main...origin/<b>`, per **entrambi** i path.
+      ➕ **`docs/product/piano-canonico-mvp.md` rientra insieme a lui**, per la stessa ragione della volta
+      scorsa e non per abitudine: il DoD di `#578` chiede che l'esito di ogni procedura stia **accanto
+      all'invariante #4**, e la voce 6 del piano oggi dice «resta aperto». Chiuderla è metà del lavoro di
+      questo turno; l'altra metà è la procedura, che vive nella guida.
+      🔴 **E il primo comando del turno ha trovato un difetto in `main`, prima ancora di impacchettare:
+      il target `Game` **Shipping** non compila.** `RTNoisePropagationTests.cpp` chiude
+      `#if WITH_DEV_AUTOMATION_TESTS` alla riga **369** su **514**, e `58bbb3bc` ha poi aggiunto **tre
+      test** (CP 13.4, `#159`) *dopo* quel `#endif`: usano `MakeNoiseMap` e `HeardAt`, che stanno dentro la
+      guardia. In Editor la guardia vale 1 e tutto compila; in Shipping vale 0, gli helper spariscono e
+      restano 145 righe che li chiamano — `error C3861`, cinque occorrenze.
+      ⚠️ **È lo stesso difetto del 2026-08-09** che `test-e-diagnosi.md` racconta come ragione d'essere del
+      livello packaged, ripetuto su un altro file: *«la suite gira sul target Editor, e il target Game non
+      lo compila niente di automatico»*. La causa strutturale non è stata rimossa, quindi si ripresenta.
+      ➕ **`Source/RefactorTactics/Tests/RTNoisePropagationTests.cpp` entra quindi nel `writable`**, e non
+      per adiacenza di dominio: **blocca** la voce del DoD che questa track ha in carico — senza il target
+      Shipping non esiste un pacchetto Shipping da confrontare. Il file **non è nel `writable` di nessuno**
+      e nessuno dei branch remoti vivi lo tocca, misurato. La issue è `#923`.
+    writable:
+      - docs/technical/test-e-diagnosi.md
+      - docs/product/piano-canonico-mvp.md
+      - Source/RefactorTactics/Tests/RTNoisePropagationTests.cpp
+    binary_leases: []
 
   client_tools:
     status: ACTIVE
@@ -1195,6 +1240,13 @@ integration_only:
   - docs/roadmap/plans/README.md
   - docs/technical/workflow-parallel-claude.md
   - docs/technical/scenario-map.md
+  # ➕ Entra qui il 2026-08-15, ed è la risposta alla domanda che la chiusura di `simulation` ha posto:
+  # un `mandate` sta nel `writable` della track che lo esegue (così lo corregge chi lo misura sbagliato),
+  # ma il Terminal A ha **finito** — merge target §10 soddisfatto e misurato — e la track è ripartita su
+  # una issue, senza mandato. Un file di mandato che non esegue nessuno non appartiene a una track: sta
+  # dove sta la spec che governa. Gli altri due restano nei rispettivi `writable` perché i loro turni sono
+  # ancora aperti; se questo riapre, torna alla track che riparte.
+  - docs/technical/qa-prompt-terminal-a-determinismo.md
   # ➕ **La spec del harness entra qui il 2026-08-15, e non nel `writable` di `spatial`.**
   # Il candidato ovvio era `spatial`: possiede `ScenarioHarness/`, porta il mandato B, ed è la sessione
   # che ha appena corretto due sezioni della spec rimaste indietro sul codice (`60836b0b`). Sarebbe stato
