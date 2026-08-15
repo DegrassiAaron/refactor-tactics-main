@@ -442,15 +442,15 @@
         },
         {
           "id": "PIE-HEX-MODE-F",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-MODE-G",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-MODE-H",
-          "state": "⏳"
+          "state": ""
         },
         {
           "id": "PIE-HEX-MODE-L",
@@ -1581,15 +1581,15 @@
     },
     {
       "id": "PIE-HEX-MODE-F",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-MODE-G",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-MODE-H",
-      "state": "⏳"
+      "state": ""
     },
     {
       "id": "PIE-HEX-MODE-I",
