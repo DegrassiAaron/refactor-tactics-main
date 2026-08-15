@@ -93,14 +93,17 @@ namespace
 			return;
 		}
 
-		// Dove puo' arrivare: budget, blocchi, occupanti e archi sono gia' applicati da ReachableCells.
+		// Dove puo' ANCORA arrivare: budget, blocchi, occupanti e archi sono gia' applicati, e i waypoint gia'
+		// pianificati hanno gia' speso la loro parte (#877). Il ventaglio risponde a «quanto mi resta», non a
+		// «quanto avevo»: senza i waypoint mostrerebbe un raggio che il piano in corso ha gia' consumato.
 		FRTHexSnapshot Snapshot;
 		int32 UnitId = INDEX_NONE;
 		TArray<ARTUnit*> Units;
 		TArray<FRTCellId> Reachable;
 		if (PlanningSnapshotFor(World, Unit, Snapshot, UnitId, &Units))
 		{
-			for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, UnitId))
+			for (const FRTHexReachableCell& R :
+				URTHexSimLibrary::ReachableCellsAfterPlan(Snapshot, UnitId, Unit->PlannedWaypoints))
 			{
 				Reachable.Add(R.Cell);
 			}
@@ -854,6 +857,10 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	SelectedUnit->PlannedPath = Composite.Path;
 	SelectedUnit->PlannedCell = Composite.Path.Last();
 	HexMap->SetPreviewPath(Composite.Path);
+	// Il percorso si e' allungato, quindi il ventaglio si accorcia: le due meta' della stessa anteprima si
+	// aggiornano insieme (#877). Aggiornarne una sola lasciava il verde a promettere celle che il waypoint
+	// successivo avrebbe rifiutato.
+	RefreshPlanningPreview(GetWorld(), SelectedUnit);
 	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d/%d)"),
 		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost,
 		SelectedUnit->GetEffectiveMoveRange());
@@ -1010,6 +1017,11 @@ void ARTPlayerController::RebuildPlannedPath()
 	{
 		HexMap->SetPreviewPath(Unit->PlannedPath);
 	}
+	// Simmetrico all'aggiunta: l'undo restituisce MP, quindi il ventaglio si riallarga. Vale anche per il ramo
+	// «piano non piu' valido» qui sopra, dove `PlannedWaypoints` puo' essere ancora pieno ma il percorso e'
+	// stato azzerato: `ReachableCellsAfterPlan` rifa' la domanda a `BuildCompositeHexPath` e ottiene la stessa
+	// risposta, cioe' il raggio pieno. Le due strade non possono divergere perche' sono la stessa funzione.
+	RefreshPlanningPreview(GetWorld(), Unit);
 }
 
 // ======================================================================================================
