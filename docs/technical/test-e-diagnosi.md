@@ -90,6 +90,63 @@ Rimedio: `-ubtargs="-WaitMutex"`, che aspetta invece di fallire.
 > Corollario pratico: **non serve nessun junction su `Content`**. Se una procedura ne chiede uno, è
 > ferma a prima che i 7 asset fossero versionati.
 
+### Confrontare lo `StateHash` fra Development e Shipping
+
+È la procedura **Packaged** che l'invariante #4 del piano canonico elenca fra le sei di PDR-05 §10: stesso
+scenario, due configurazioni di build, lo stesso hash dello stato finale. Serve a escludere che una
+differenza di ottimizzazione, di `checkf` compilati fuori o di layout cambi un esito competitivo.
+
+**Una passata sola per entrambe le configurazioni**, che è ciò che rende il confronto onesto: un cook solo,
+lo stesso `.pak`, due binari. Due passate ricuocerebbero, e la differenza non sarebbe più la sola
+configurazione.
+
+```bash
+RunUAT.bat BuildCookRun -project=<uproject> -noP4 -platform=Win64 \
+  -clientconfig=Development+Shipping -cook -build -stage -pak -archive \
+  -archivedirectory=<dir> -utf8output -ubtargs="-WaitMutex"
+```
+
+```text
+Binaries/Win64/RefactorTactics.exe                 336 MB   Development
+Binaries/Win64/RefactorTactics-Win64-Shipping.exe  167 MB   Shipping
+Content/Paks/RefactorTactics-Windows.pak            11 MB   lo stesso per entrambi
+```
+
+Il confronto si legge da **`result.json`, non dal log** — ed è una scelta, non un dettaglio: in Shipping il
+logging è compilato fuori e `-abslog` non produce nemmeno il file, mentre
+`Saved/RTTests/<Id>/<Run>/result.json` è file I/O e viene scritto lo stesso.
+
+```bash
+<Staged>/RefactorTactics/Binaries/Win64/RefactorTactics.exe \
+  -dpcvars=rt.Test.Scenario=Movement.Collision -nullrhi -unattended -nosound
+
+# poi, per ciascuna delle due run:
+python -c "import json;print(json.load(open('result.json'))['stateHash'])"
+```
+
+> ⚠️ **In Shipping «nessun file» significa «non ha girato», non «è andato bene».** Senza log, l'assenza di un
+> report è l'unico segnale che resta, e va letta come fallimento — mai come conferma.
+
+#### 🔴 Oggi la procedura si ferma a metà, e le due cause sono misurate (#926)
+
+**In Development gira per intero**: `AUTO-RUN Movement.Collision` → `PASS (3/3 assertion, 1 turni)` →
+`stateHash 572184bb`. **In Shipping no**, e non per la ragione che sembra:
+
+1. **`Scenarios/` non entra nel pacchetto.** Al primo tentativo l'indice dice *«0 scenari sotto
+   `../../../RefactorTactics/Scenarios`»*: sono `.json` **fuori** da `Content/`, il cook non li vede e lo
+   staging non li copia. `DefaultGame.ini` dichiara `+DirectoriesToAlwaysCook=(Path="/Game/RT")` e nient'altro
+   — non è una regressione, non è mai stato configurato. Manca `+DirectoriesToAlwaysStageAsUFS=(Path="Scenarios")`.
+2. **In Shipping `-dpcvars` è compilato fuori.** Non è un permesso e non è un flag della nostra cvar
+   (`rt.Test.Scenario` è `ECVF_Default`, non `ECVF_Cheat`): in
+   `DeviceProfileManager.cpp` **tutto** il parsing di `-dpcvars=`/`-dpcvar=`/`-forcedpcvars=` sta dentro
+   `#if !UE_BUILD_SHIPPING`. La variabile non viene mai impostata, il `GameMode` legge vuoto e allestisce la
+   partita normale.
+
+∴ delle tre porte d'ingresso allo scenario, in Shipping ne resta **una sola già disponibile** — la proprietà
+`ScenarioToRun` di `BP_GameMode`, che però è un `.uasset` (editor + Binary Asset Lease) e cambia il
+comportamento predefinito del gioco che si distribuisce. La via che non paga né un binario né un cambio di
+default è un argomento di riga di comando letto con `FParse::Value`, che `UE_BUILD_SHIPPING` non tocca.
+
 ---
 
 ## 2. Test automatici
