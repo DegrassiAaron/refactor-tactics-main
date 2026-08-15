@@ -181,6 +181,20 @@ public:
 	/** Rimuove la cella con l'Id dato; vero se esisteva. */
 	bool RemoveCell(const FRTCellId& Id);
 
+	/**
+	 * Svuota celle **e** transizioni, incrementando la revisione **una volta sola**; vero se c'era
+	 * qualcosa da togliere.
+	 *
+	 * Esiste perche' `ARTHexMapActor::ClearAsset` scriveva sui due array direttamente, ed era l'unica
+	 * modifica strutturale dell'asset a non muovere `Revision` — proprio la piu' grande possibile. Un
+	 * percorso calcolato prima restava valido dopo, e due voci di TurnLog ai due lati di uno svuotamento
+	 * portavano la stessa `GraphRevision`, che e' cio' che quel campo esiste per rendere impossibile.
+	 *
+	 * La revisione e' responsabilita' del DATO, non di chi lo modifica: per questo il reset vive qui e
+	 * l'actor lo chiama, come per ogni altra modifica.
+	 */
+	bool ClearAll();
+
 	/** Puntatore alla cella con l'Id dato, o nullptr se assente. */
 	const FRTHexCellData* FindCell(const FRTCellId& Id) const;
 

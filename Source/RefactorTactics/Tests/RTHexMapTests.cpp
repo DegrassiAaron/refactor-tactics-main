@@ -226,6 +226,64 @@ bool FRTHexMapFloodRegionTest::RunTest(const FString&)
  * Il fallimento reale e' stato osservato in editor (undo di una pennellata + click su una cella); qui se ne fissa
  * il contratto perche' non possa regredire.
  */
+/**
+ * `#902`: **svuotare la mappa muove la revisione**, come ogni altra modifica strutturale.
+ *
+ * `ARTHexMapActor::ClearAsset` scriveva sui due array direttamente (`Cells.Reset()`), ed era l'unico
+ * punto del progetto a modificare l'asset senza incrementare `Revision` — proprio con la modifica piu'
+ * grande possibile. `AddOrUpdateCell`, `UpdateCells`, `RemoveCell`, `AddTransition`,
+ * `RemoveTransition` e `UpdateTransitions` la incrementano tutti: misurato, sei siti su sei.
+ *
+ * Conta perche' `Revision` invalida le cache di percorso *e* perche'
+ * `ARTTurnManager::CurrentGraphRevision()` la legge per scrivere `GraphRevision` su ogni voce del
+ * TurnLog (`D-067`), campo che entra nell'hash. Con la revisione ferma, due voci ai due lati di uno
+ * svuotamento sarebbero indistinguibili — cioe' cio' che quel campo esiste per impedire.
+ *
+ * ⚠️ **Il gemello negativo conta quanto la prova**: svuotare una mappa GIA' vuota non deve muovere
+ * niente. Senza, un `++Revision` incondizionato passerebbe la prima meta' del test e romperebbe la
+ * regola che `UpdateCells` dichiara — *«nessuna modifica: la revisione non deve muoversi»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapClearBumpsRevisionTest,
+	"RefactorTactics.HexMap.ClearAllBumpsTheRevisionOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapClearBumpsRevisionTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 1))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->AddTransition(FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), /*Cost=*/ 1);
+	Map->SortCells();
+
+	// La premessa: c'e' davvero qualcosa da togliere, in ENTRAMBI gli array. Senza, «dopo e' vuoto»
+	// sarebbe vero anche di una funzione che non fa niente.
+	TestEqual(TEXT("premessa: sette celle"), Map->NumCells(), 7);
+	TestTrue(TEXT("premessa: almeno una transizione"), Map->Transitions.Num() > 0);
+	// La cache viene popolata interrogando l'asset: e' lo stato in cui un reset puo' lasciarla stantia.
+	TestTrue(TEXT("premessa: la cella si trova"), Map->FindCell(FRTCellId(1, 0)) != nullptr);
+
+	const int32 RevisionBefore = Map->Revision;
+
+	TestTrue(TEXT("lo svuotamento dichiara di aver tolto qualcosa"), Map->ClearAll());
+
+	TestEqual(TEXT("celle azzerate"), Map->NumCells(), 0);
+	TestEqual(TEXT("transizioni azzerate"), Map->Transitions.Num(), 0);
+	// `+1` esatto, non «maggiore di»: due incrementi per un solo svuotamento sarebbero un difetto
+	// simmetrico, e `UpdateCells` dichiara la regola — una volta per gruppo.
+	TestEqual(TEXT("la revisione sale di UNO"), Map->Revision, RevisionBefore + 1);
+
+	// La cache non sopravvive al reset: con gli indici vecchi `FindCell` leggerebbe fuori dall'array.
+	TestTrue(TEXT("nessuna cella fantasma dopo il reset"), Map->FindCell(FRTCellId(1, 0)) == nullptr);
+
+	// --- Il gemello negativo: una mappa gia' vuota non muove niente ---------------------------------
+	const int32 RevisionAfterClear = Map->Revision;
+	TestFalse(TEXT("un secondo svuotamento non toglie nulla"), Map->ClearAll());
+	TestEqual(TEXT("e la revisione resta ferma"), Map->Revision, RevisionAfterClear);
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapLookupInvalidationTest,
 	"RefactorTactics.HexMap.LookupInvalidatedAfterExternalEdit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
