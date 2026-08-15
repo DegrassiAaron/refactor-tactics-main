@@ -799,13 +799,19 @@ preexisting:
   # (#930), e un vincolo senza due lati non è un vincolo.
 
   - branch: docs/riconciliazione-batch-2026-08-16
-    state: LOCAL           # worktree `D:/rt-batch` · creato su `4ab36b48` · non ancora pushato
+    state: LIVE            # worktree `D:/rt-batch` · commit `f709baab` · PR #933 aperta
     measured: 1
     collides_with: []      # misurato su tutti gli otto branch remoti vivi, non dedotto
     note: >-
       Questa riconciliazione, la **quinta**, aperta per riattivare `client_tools` e non per manutenere
       il file. Un solo file — `docs/roadmap/parallel-batch.yaml` — che è `integration_only` e quindi nel
       `writable` di nessuno.
+      ⏱️ **`LOCAL` → `LIVE` nello stesso giro, e non è una correzione: è la riga che diventa falsa al
+      push.** La stesura di un'ora fa diceva *«creato su 4ab36b48 · non ancora pushato»*, vero al minuto
+      in cui è stato scritto e falso al comando successivo. Il file lo aveva già registrato una volta,
+      sulla voce di `feat/864-zoom-bounds`: *«`state: LOCAL · non ancora pushato` era gia' falso al
+      push»*. Stavolta la riga è stata aggiornata **prima** che qualcun altro la leggesse, che è l'unica
+      differenza fra un difetto ripetuto e uno chiuso.
       ✅ **`collides_with: []` è MISURATO, ed è la prima volta in questo batch che quel campo è vuoto
       per davvero.** Le quattro voci precedenti l'hanno scritto e sbagliato — sempre allo stesso modo:
       enumerando i path di `Source/` che interessavano a chi scriveva e deducendo il resto. Qui il
