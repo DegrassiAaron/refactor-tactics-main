@@ -587,6 +587,26 @@ preexisting:
       `measured: 0` è una prenotazione visibile, non un vincolo: lo diventa al primo commit, e a quel
       punto la voce esiste già invece di dover essere ricordata.
 
+  - branch: feat/864-zoom-bounds
+    state: LOCAL           # worktree `D:/rt-telecamera` · 1 commit · non ancora pushato
+    measured: 4
+    collides_with: []      # misurato sui sei worktree con `git diff --name-only`, non asserito
+    note: >-
+      `#864`, l'ultima delle camera: lo zoom andava al centro dell'inquadratura invece che dove il
+      giocatore guarda, e il pan non aveva limiti — ci si poteva allontanare fino a perdere la mappa.
+      ✅ **I due numeri erano gia' decisi prima di scrivere codice**, ed e' il passo che lo spec-panel
+      aveva messo davanti all'implementazione: tolleranza dell'ancoraggio **0.5 celle**, margine dei bounds
+      **3 celle**. Istruiti sulla scala reale — una cella e' `√3 × 100 ≈ 173` unita' fra centri — e
+      registrati sulla issue con le alternative scartate e il perche'.
+      ⚠️ **Espressi in celle e non in unita' mondo**: a zoom 4000 una cella occupa pochi pixel, a 100
+      riempie lo schermo. Un numero fisso sarebbe arbitrario a un estremo e insensato all'altro.
+      ✅ **Set disgiunto, misurato sui SEI worktree** e non sui soli branch remoti elencati qui: e'
+      l'errore che le tre voci precedenti hanno commesso a turno — `feat/451` e' locale e non compariva
+      fra i remoti. `Camera/`, `Player/RTPlayerController.cpp` e `Tests/RTCameraPawnTests.cpp` non sono nel
+      `writable` di nessuna track ACTIVE.
+      ➕ **`Map/` non e' stata toccata**, pur essendo libera: il calcolo dei bounds vive nel pawn, cosi' il
+      write-set resta dentro il perimetro che la issue dichiara.
+
   - branch: feat/77-hud-slot-terna
     state: LOCAL           # worktree `D:/rt-spatial` · 0 commit · mai pushato
     measured: 0
