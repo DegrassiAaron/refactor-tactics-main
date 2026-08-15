@@ -443,36 +443,43 @@ preexisting:
   # ⚠️ Con lei cade la collisione che dichiarava con `feat/165` su questo file, e quella di `165`
   # verso di lei: un vincolo senza due lati non è un vincolo.
 
-  - branch: feat/887-focus-quota
-    state: LIVE            # worktree `D:/rt-telecamera` · PR #890 aperta · su `e9003c96`
-    measured: 7
-    collides_with: []   # entrambe cadute: #878 e #885 mergiate mentre il lavoro era in corso
+  # 🔵 **`feat/887-focus-quota` è uscita**: PR #890 mergiata in `3c2f537e`, branch cancellato.
+  # `MERGED` esce dalla sezione — la quinta voce a farlo con la stessa regola.
+
+  - branch: feat/863-yaw-pitch
+    state: LIVE            # worktree `D:/rt-telecamera` · PR #894 aperta · su `3c2f537e`
+    measured: 6
+    collides_with:
+      - branch: feat/451-u1-voci-hex-mode
+        state: LOCAL
+        paths: [docs/roadmap/parallel-batch.yaml]
     note: >-
-      `#887`, aperta da un'altra sessione dal playtest di M6.8: `FocusOn` scarta la `Z` del bersaglio e
-      tiene quella con cui il pawn è nato — il PlayerStart del livello, che non ha relazione con il piano
-      della mappa. Diagnosi **verificata** prima di prenderla, sui tre anelli che la issue dichiara:
-      `RTGameMode` imposta davvero `DefaultPawnClass = ARTCameraPawn`, `CellsCentroidWorld` somma
-      `AxialToWorld` e quindi **calcola** una quota valida, e `FocusOn` la butta via.
-      🔴 **Tocca un test che ho scritto io in `#865`, e la issue ha ragione sul perché**:
-      `FocusKeepsHeightZoomAndOrientation` verifica che la quota sia *conservata*, quindi **difende il
-      difetto** invece di trovarlo. La domanda giusta non è «la quota resta invariata?» ma «invariata
-      rispetto a cosa?». Va riscritto, non affiancato.
-      ✅ **Set disgiunto dalle track ACTIVE**: `Camera/`, `Player/RTPlayerController.cpp` e
-      `Tests/RTCameraPawnTests.cpp` non sono nel `writable` di nessuna — `simulation` tiene `Turn/` e
-      `Bot/`, `client_tools` `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor`
-      `docs/technical/test-manuali-pie.md`.
-      🔴 **`measured` diceva 4 e sono 7**, misurati con `git diff --name-only origin/main...HEAD`: ai due
-      sorgenti della camera e al test si aggiungono `Player/RTPlayerController.cpp` — dove la code review
-      ha spostato metà del fix — e i due del Feature Registry, `yaml` e `json`. Il numero era **ricordato**
-      dalla stesura iniziale e non rimisurato dopo che lo scope si era allargato.
-      🔵 **Le due collisioni che questa voce dichiarava sono CADUTE**, ed è il campo `collides_with` a
-      dirlo per primo: `feat/165` è atterrata con #878 e `fix/residui-istruttoria-dod` con #885, entrambe
-      mentre il lavoro era in corso. ⚠️ La prosa qui sotto ha continuato a citarle come vive per un commit
-      intero dopo che il campo era già `[]`: la stessa informazione in due forme, aggiornata in una sola —
-      la recidiva che la voce di `feat/165` aveva registrato prima di uscire.
-      ➕ La issue avverte di verificare `feat/865-camera-focus-tests`, «vivo in `D:/rt-telecamera`»:
-      **non lo è più** — mergiato con #872 e cancellato prima che questa issue fosse scritta. È lo stesso
-      invecchiamento che questo file registra a ogni giro, visto stavolta dal lato di chi legge.
+      `#863`: yaw continuo e pitch a runtime. Prima la vista aveva **otto orientamenti e una sola
+      inclinazione** — guardare *fra* due file di celle era impossibile proprio con lo strumento che
+      `D-142` motiva.
+      ⚠️ **Il valore `45°` dello step NON si tocca**: è deciso da `D-142` e la issue lo mette fuori scope.
+      Il continuo si aggiunge accanto allo scatto e scrive lo **stesso** stato, così `Q` dopo un
+      trascinamento è un passo avanti e non un salto verso una griglia di angoli parallela.
+      ✅ **Set disgiunto dalle track ACTIVE**: `Camera/`, `Player/RTPlayerController.*` e
+      `Tests/RTCameraPawnTests.cpp` non sono nel `writable` di nessuna.
+      ➕ Tre cose che la issue dava per scontate e non lo erano, tutte già corrette nello scope:
+      `ClampMin`/`ClampMax` del `meta` vincola il **widget del Details**, non il codice — il clamp è in
+      `AddPitch`; `DefaultPitch` non esisteva, e senza di esso il valore a cui `Home` torna si sarebbe
+      perso al primo trascinamento; i campi erano `protected`, quindi serviva `SetPitchForTest` secondo la
+      convenzione dei sei precedenti.
+      🔴 **`measured: 0` e `LOCAL` erano falsi nel commit che li scriveva**, ed e' la terza voce di fila
+      a cadere sullo stesso punto: il numero era una previsione scritta a scope vuoto e mai rimisurata dopo
+      il push. `git diff --name-only origin/main...HEAD` ne conta **6**, e `git ls-remote` vede il branch.
+      La regola che il file enuncia — «il write-set di un branch aperto si **misura**, non si ricorda» — e'
+      stata scritta e poi non applicata a se' stessi per la terza volta.
+      ⚠️ **E la collisione qui sopra e' reale**: `feat/451-u1-voci-hex-mode` tocca `parallel-batch.yaml`
+      (8 file misurati). E' `integration_only`, quindi si riconcilia in integrazione — ma «zero collisioni»
+      era di nuovo falso, misurato sui **worktree** invece che sui soli branch remoti, che e' il comando
+      che la stesura precedente non aveva eseguito.
+      ⏳ **`PitchSensitivity`, `YawSensitivity` e `bInvertOrbitPitch` restano taratura aperta**: la issue
+      dichiara le prime due («la taratura delle sensibilità resta tuning aperto, senza numeri»), e il verso
+      verticale si e' aggiunto in code review — il commento che lo asseriva si contraddiceva, e il verso
+      giusto si verifica con le mani, non col grep. I default sono un punto di partenza da playtest.
 
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
@@ -509,12 +516,12 @@ preexisting:
 
   # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**:
   #
-  #   D:/wt-451           `feat/451-u1-voci-hex-mode`       LOCAL, 0 file
-  #   D:/rt-telecamera    `feat/887-focus-quota`            LIVE, 4 file · PR #890 — fra i remoti
-  #   D:/rt-client        `docs/38-spec-panel-playtest-hex` LIVE  — fra i branch remoti
-  #   D:/rt-simulation    `feat/165-finestra-overwatch`     **mergiata #878**, write-set 0 — nessuna voce
-  #   D:/rt-spatial       detached su `8ea9c229`            0 file, nessun vincolo, nessuna voce
-  #   working directory   `fix/residui-istruttoria-dod`     **mergiata #885** — il buco si e' chiuso da se'
+  #   D:/wt-451           `feat/451-u1-voci-hex-mode`       LOCAL, 8 file — ⚠️ collide su questo file
+  #   D:/rt-telecamera    `feat/863-yaw-pitch`              LIVE, 6 file · PR #894 — fra i remoti
+  #   D:/rt-client        `fix/892-displayname-abilita`     LOCAL, 0 file — nessun vincolo
+  #   D:/rt-simulation    `chore/integrazione-cp145-registry` LOCAL, 0 file — nessun vincolo
+  #   D:/rt-spatial       `feat/77-hud-slot-terna`          LOCAL, 0 file — nessun vincolo
+  #   working directory   `fix/882-duplicato-e-premesse-false` LIVE, 2 file — di un'altra sessione
   #
   # 🔴 **I conteggi erano stati CANCELLATI invece che rimisurati**, e il paragrafo qui sotto continuava a
   # dire «sette file» quando erano **11**. Togliere il numero da una riga non la rende meno falsa: la
@@ -543,7 +550,7 @@ preexisting:
   # qui sopra nomina il **branch** e non la cartella: rimosso alla chiusura di #867 con il suo branch
   # cancellato, ricreato per `#865`, e ora su `feat/873-recenter-clamp`. Il nome della cartella non
   # dice quale lavoro ci sia dentro — solo `git worktree list` lo dice, e oggi risponde
-  # `feat/887-focus-quota`.
+  # `feat/863-yaw-pitch`.
   # 🔴 **Questa riga ha nominato il branch sbagliato per tre giri di fila** — `#873`, poi `#874`, poi
   # ancora `#874` — in un paragrafo che esiste per dire che il nome della cartella non basta a
   # saperlo. Va riletto dal comando **nello stesso commit** che lo scrive, non al giro dopo.

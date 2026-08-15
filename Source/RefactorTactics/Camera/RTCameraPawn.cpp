@@ -25,6 +25,9 @@ ARTCameraPawn::ARTCameraPawn()
 	// Oggi e' innocuo perche' i default di classe sono in scala, ma il giorno in cui il costruttore
 	// ricevesse un valore da config o da un archetipo Blueprint tornerebbe a passare nudo.
 	SpringArm->TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, MaxArmLength);
+	// L'inclinazione corrente parte da quella di default: sono due campi da #863, e se nascessero
+	// scollegati la camera aprirebbe a un'inclinazione che nessuno ha tarato.
+	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
 	SpringArm->SetRelativeRotation(FRotator(CameraPitch, 0.f, 0.f)); // inclinazione tunabile (era fissa a -55)
 	SpringArm->bDoCollisionTest = false;
 	SpringArm->bInheritPitch = false;
@@ -71,6 +74,14 @@ void ARTCameraPawn::ApplyViewSettings()
 	// La distanza iniziale deve stare nello stesso intervallo che lo zoom rispetta: un default fuori range
 	// darebbe una partenza che il primo scroll "corregge" di scatto.
 	SpringArm->TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, MaxArmLength);
+
+	// 🔴 **Il pitch corrente si riallinea alla taratura QUI, non nel costruttore.** La prima stesura di
+	// #863 lo faceva nel costruttore, che gira sul CDO: un `DefaultPitch` messo nel Details di un'istanza
+	// in livello — o in un archetipo Blueprint — non sarebbe mai arrivato al runtime, e la partita si
+	// sarebbe aperta all'inclinazione serializzata invece che a quella tarata. `ApplyViewSettings` e'
+	// chiamata da `BeginPlay` e da `PostEditChangeProperty`, cioe' esattamente nei due momenti in cui la
+	// taratura deve prendere effetto. Trovato in code review.
+	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
 	SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
 }
 
@@ -179,6 +190,63 @@ void ARTCameraPawn::AddYaw(float AxisValue)
 	}
 }
 
+void ARTCameraPawn::ApplyArmRotation()
+{
+	if (SpringArm)
+	{
+		SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
+	}
+}
+
+void ARTCameraPawn::AddYawContinuous(float AxisValue)
+{
+	if (FMath::IsNearlyZero(AxisValue))
+	{
+		return;
+	}
+	// Stessa normalizzazione dello scatto: il valore resta leggibile in editor invece di crescere senza
+	// fine. E stesso stato — `CameraYaw` — quindi trascinare e poi premere `Q` non sono due sistemi che si
+	// contendono la vista: il tasto riparte da dove il trascinamento ha lasciato.
+	CameraYaw = FRotator::ClampAxis(CameraYaw + AxisValue * FMath::Max(YawSensitivity, 0.f));
+	ApplyArmRotation();
+}
+
+void ARTCameraPawn::AddPitch(float AxisValue)
+{
+	if (FMath::IsNearlyZero(AxisValue))
+	{
+		return;
+	}
+	// Clampata QUI. Il `meta = (ClampMin/ClampMax)` sul campo vincola il widget del Details e non le
+	// assegnazioni da codice: #863 lo dava per un vincolo a runtime, e non lo e'. Senza questa riga
+	// trascinare a lungo porterebbe la vista oltre lo zenit, dove `FRotator` si rovescia.
+	//
+	// ⚠️ E la sensibilita' e' portata a zero se qualcuno la mettesse negativa: e' `BlueprintReadWrite`, e
+	// il suo `meta = (ClampMin)` vincola il Details **e non un `Set` da Blueprint** — la stessa lezione,
+	// applicata al campo che la enuncia invece che solo a quello che la subiva.
+	CameraPitch = FMath::Clamp(CameraPitch + AxisValue * FMath::Max(PitchSensitivity, 0.f),
+		MinPitch, MaxPitch);
+	ApplyArmRotation();
+}
+
+void ARTCameraPawn::AddOrbit(float DeltaYaw, float DeltaPitch)
+{
+	// I due campi si scrivono qui e la trasformata **una volta sola**: chiamare i due `Add*` in fila
+	// aggiornerebbe il braccio due volte per frame di trascinamento, e la seconda scrittura scarterebbe
+	// il risultato della prima.
+	if (!FMath::IsNearlyZero(DeltaYaw))
+	{
+		CameraYaw = FRotator::ClampAxis(CameraYaw + DeltaYaw * FMath::Max(YawSensitivity, 0.f));
+	}
+	if (!FMath::IsNearlyZero(DeltaPitch))
+	{
+		const float Signed = bInvertOrbitPitch ? -DeltaPitch : DeltaPitch;
+		CameraPitch = FMath::Clamp(CameraPitch + Signed * FMath::Max(PitchSensitivity, 0.f),
+			MinPitch, MaxPitch);
+	}
+	ApplyArmRotation();
+}
+
 void ARTCameraPawn::AddZoom(float AxisValue)
 {
 	if (!SpringArm)
@@ -207,6 +275,11 @@ void ARTCameraPawn::RecenterView()
 	// Anche la ROTAZIONE torna a zero. `Home` e' il tasto del «riportami a un'inquadratura che conosco»: se
 	// riportasse la posizione ma lasciasse la vista girata, chi si e' perso ruotando resterebbe perso.
 	CameraYaw = 0.f;
+
+	// E l'INCLINAZIONE torna alla taratura, per la stessa ragione: da #863 il pitch e' regolabile a
+	// runtime, quindi «un'inquadratura che conosco» include anche quanto la vista e' inclinata. Prima
+	// bastava non toccarlo — era `CameraPitch` a fare da default *e* da stato, e nessun input lo muoveva.
+	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
 
 	// Distanza e orientamento di default li applica `ApplyViewSettings`, che e' esattamente cio' che
 	// serve qui: `Home` e' «riportami all'inquadratura di partenza». Il difetto che #873 chiude era che
