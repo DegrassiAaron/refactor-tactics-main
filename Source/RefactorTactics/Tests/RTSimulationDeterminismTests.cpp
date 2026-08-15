@@ -21,6 +21,7 @@
 // scritta apposta per passare.
 
 #include "Misc/AutomationTest.h"
+#include "RTWorldFixtures.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
@@ -33,39 +34,11 @@
 
 namespace
 {
-	// Nomi distinti da ogni altro file di test: la unity build condivide la translation unit.
-	UWorld* MakeDeterminismWorld()
-	{
-		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
-		if (World && GEngine)
-		{
-			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
-			Ctx.SetCurrentWorld(World);
-		}
-		return World;
-	}
-
-	void DestroyDeterminismWorld(UWorld* World)
-	{
-		if (World && GEngine)
-		{
-			GEngine->DestroyWorldContext(World);
-			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
-		}
-	}
-
-	/** Esegue lo scenario in un mondo NUOVO e lo distrugge: nessuno stato sopravvive fra una prova e l'altra. */
-	FRTTestResult RunIsolated(const FRTTestScenario& Scenario)
-	{
-		UWorld* World = MakeDeterminismWorld();
-		if (!World)
-		{
-			return FRTTestResult();
-		}
-		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
-		DestroyDeterminismWorld(World);
-		return Result;
-	}
+	// Il mondo di prova e l'esecuzione isolata vivono in `RTWorldFixtures.h`: erano dichiarati qui con un
+	// nome tutto loro perche' la unity build fonde le translation unit e due namespace anonimi con la stessa
+	// funzione collidono. Un namespace NOMINATO non ha quel problema, ed e' la stessa entita' per tutti.
+	// Le chiamate restano QUALIFICATE e non passano da un `using`: in unity build questo namespace anonimo e'
+	// lo stesso di ogni altro file di test, e un `using` qui sarebbe visibile a tutti loro.
 
 	bool LoadDeterminismScenario(FAutomationTestBase& Test, const TCHAR* Id, FRTTestScenario& Out)
 	{
@@ -95,7 +68,7 @@ bool FRTReplayVerifierResimulationTest::RunTest(const FString&)
 	FRTTestScenario Scenario;
 	if (!LoadDeterminismScenario(*this, TEXT("Movement.Collision"), Scenario)) { return false; }
 
-	const FRTTestResult First = RunIsolated(Scenario);
+	const FRTTestResult First = RTWorldFixtures::RunScenarioIsolated(Scenario);
 	if (First.Outcome == ERTTestOutcome::Error)
 	{
 		AddError(FString::Printf(TEXT("la prima esecuzione e' fallita: %s"), *First.ErrorMessage));
@@ -108,7 +81,7 @@ bool FRTReplayVerifierResimulationTest::RunTest(const FString&)
 	int32 Divergences = 0;
 	for (int32 I = 1; I < Repetitions; ++I)
 	{
-		const FRTTestResult Again = RunIsolated(Scenario);
+		const FRTTestResult Again = RTWorldFixtures::RunScenarioIsolated(Scenario);
 		if (Again.StateHash != First.StateHash || Again.OutcomeString() != First.OutcomeString())
 		{
 			++Divergences;
@@ -145,7 +118,7 @@ bool FRTSimulationChecksumPermutationTest::RunTest(const FString&)
 		return false;
 	}
 
-	const FRTTestResult Straight = RunIsolated(Scenario);
+	const FRTTestResult Straight = RTWorldFixtures::RunScenarioIsolated(Scenario);
 	if (Straight.Outcome == ERTTestOutcome::Error)
 	{
 		AddError(FString::Printf(TEXT("esecuzione diretta fallita: %s"), *Straight.ErrorMessage));
@@ -161,7 +134,7 @@ bool FRTSimulationChecksumPermutationTest::RunTest(const FString&)
 		Algo::Reverse(Turn.Intents);
 	}
 
-	const FRTTestResult Permuted = RunIsolated(Reversed);
+	const FRTTestResult Permuted = RTWorldFixtures::RunScenarioIsolated(Reversed);
 	if (Permuted.Outcome == ERTTestOutcome::Error)
 	{
 		AddError(FString::Printf(TEXT("esecuzione permutata fallita: %s"), *Permuted.ErrorMessage));
@@ -197,8 +170,8 @@ bool FRTSimulationHashDistinguishesStatesTest::RunTest(const FString&)
 		Turn.Intents.Reset();
 	}
 
-	const FRTTestResult WithMove = RunIsolated(Moving);
-	const FRTTestResult WithoutMove = RunIsolated(Still);
+	const FRTTestResult WithMove = RTWorldFixtures::RunScenarioIsolated(Moving);
+	const FRTTestResult WithoutMove = RTWorldFixtures::RunScenarioIsolated(Still);
 
 	TestNotEqual(TEXT("posizioni finali diverse -> hash diversi"), WithMove.StateHash, WithoutMove.StateHash);
 	return true;
@@ -223,7 +196,7 @@ bool FRTTurnLogProducerStampsContextTest::RunTest(const FString&)
 	FRTTestScenario Scenario;
 	if (!LoadDeterminismScenario(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
 
-	const FRTTestResult Result = RunIsolated(Scenario);
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
 	if (Result.Outcome == ERTTestOutcome::Error)
 	{
 		AddError(FString::Printf(TEXT("esecuzione fallita: %s"), *Result.ErrorMessage));
@@ -306,8 +279,8 @@ bool FRTSimulationSeedDeclaredUnconsumedTest::RunTest(const FString&)
 	FRTTestScenario Reseeded = Base;
 	Reseeded.Seed = Base.Seed + 7919;
 
-	const FRTTestResult A = RunIsolated(Base);
-	const FRTTestResult B = RunIsolated(Reseeded);
+	const FRTTestResult A = RTWorldFixtures::RunScenarioIsolated(Base);
+	const FRTTestResult B = RTWorldFixtures::RunScenarioIsolated(Reseeded);
 
 	if (A.Outcome == ERTTestOutcome::Error || B.Outcome == ERTTestOutcome::Error)
 	{

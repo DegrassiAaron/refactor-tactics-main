@@ -10,6 +10,7 @@
 // col 2v2: due dimensioni non distinguono «funziona per ogni N» da «funziona per i due N che ho provato».
 
 #include "Misc/AutomationTest.h"
+#include "RTWorldFixtures.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Engine/Engine.h"
@@ -33,25 +34,10 @@ namespace
 {
 	// Nomi distinti per file: la unity build condivide la translation unit.
 
-	UWorld* MakeStressWorld()
-	{
-		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
-		if (World && GEngine)
-		{
-			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
-			Ctx.SetCurrentWorld(World);
-		}
-		return World;
-	}
-
-	void DestroyStressWorld(UWorld* World)
-	{
-		if (World && GEngine)
-		{
-			GEngine->DestroyWorldContext(World);
-			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
-		}
-	}
+	// Il mondo di prova vive in `RTWorldFixtures.h`: era dichiarato qui con un nome tutto suo perche' la
+	// unity build fonde le translation unit e due namespace anonimi con la stessa funzione collidono. Un
+	// namespace NOMINATO non ha quel problema. Le chiamate restano qualificate: in unity build questo
+	// namespace anonimo e' lo stesso di ogni altro file di test.
 
 	/**
 	 * L'arena dello stress: piu' ampia della showcase (r=5) e con TRE direttrici.
@@ -193,7 +179,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStressCoreRoster4v4CompletesTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTStressCoreRoster4v4CompletesTest::RunTest(const FString&)
 {
-	UWorld* World = MakeStressWorld();
+	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	URTHexMapAsset* Map = MakeStressArena(World);
 
@@ -208,7 +194,7 @@ bool FRTStressCoreRoster4v4CompletesTest::RunTest(const FString&)
 	}
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM) { DestroyStressWorld(World); return false; }
+	if (!TM) { RTWorldFixtures::DestroyWorld(World); return false; }
 
 	// Otto unita' distinte, ognuna sulla propria cella: se l'allestimento gia' ne perdesse una, il resto del
 	// test misurerebbe un 4v3 chiamandolo 4v4.
@@ -251,7 +237,7 @@ bool FRTStressCoreRoster4v4CompletesTest::RunTest(const FString&)
 		TurnsPlayed));
 	UE_LOG(LogTemp, Display, TEXT("[E17] 4v4 su arena r=8, tre direttrici: decisa in %d turni"), TurnsPlayed);
 
-	DestroyStressWorld(World);
+	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 
@@ -274,7 +260,7 @@ bool FRTStressNoTeamSizeAssumptionTest::RunTest(const FString&)
 {
 	for (int32 PerTeam = 1; PerTeam <= 4; ++PerTeam)
 	{
-		UWorld* World = MakeStressWorld();
+		UWorld* World = RTWorldFixtures::MakeWorld();
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 		MakeStressArena(World);
 
@@ -289,7 +275,7 @@ bool FRTStressNoTeamSizeAssumptionTest::RunTest(const FString&)
 		}
 
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM) { DestroyStressWorld(World); return false; }
+		if (!TM) { RTWorldFixtures::DestroyWorld(World); return false; }
 
 		const int32 Expected = PerTeam * 2;
 		TestEqual(FString::Printf(TEXT("%dv%d: allestite %d unita'"), PerTeam, PerTeam, Expected),
@@ -323,7 +309,7 @@ bool FRTStressNoTeamSizeAssumptionTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("%dv%d: le identita' vive sono %d"), PerTeam, PerTeam, Expected),
 			AliveIds.Num(), Expected);
 
-		DestroyStressWorld(World);
+		RTWorldFixtures::DestroyWorld(World);
 	}
 
 	return true;
@@ -352,7 +338,7 @@ bool FRTStressReplayDivergenceZeroAt4v4Test::RunTest(const FString&)
 	auto PlayOnce = [this]() -> FRun
 	{
 		FRun Run;
-		UWorld* World = MakeStressWorld();
+		UWorld* World = RTWorldFixtures::MakeWorld();
 		if (!World) { return Run; }
 		URTHexMapAsset* Map = MakeStressArena(World);
 
@@ -367,7 +353,7 @@ bool FRTStressReplayDivergenceZeroAt4v4Test::RunTest(const FString&)
 		}
 
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM) { DestroyStressWorld(World); return Run; }
+		if (!TM) { RTWorldFixtures::DestroyWorld(World); return Run; }
 
 		while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Run.Turns < 60)
 		{
@@ -387,7 +373,7 @@ bool FRTStressReplayDivergenceZeroAt4v4Test::RunTest(const FString&)
 		Run.FinalStateHash = URTMatchStateHashLibrary::HashMatchState(
 			Map, URTMatchStateHashLibrary::BuildUnitDigests(Survivors), Scores);
 
-		DestroyStressWorld(World);
+		RTWorldFixtures::DestroyWorld(World);
 		return Run;
 	};
 
@@ -430,7 +416,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStressResolverAt4v4Test,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTStressResolverAt4v4Test::RunTest(const FString&)
 {
-	UWorld* World = MakeStressWorld();
+	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	MakeStressArena(World);
 
@@ -445,7 +431,7 @@ bool FRTStressResolverAt4v4Test::RunTest(const FString&)
 	}
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM) { DestroyStressWorld(World); return false; }
+	if (!TM) { RTWorldFixtures::DestroyWorld(World); return false; }
 	// Playback DISATTIVATO: qui si misura la risoluzione autoritativa, non la sua riproduzione nel tempo,
 	// che e' presentazione (invariante #1).
 	TM->bEnablePlayback = false;
@@ -471,7 +457,7 @@ bool FRTStressResolverAt4v4Test::RunTest(const FString&)
 
 	if (!TestTrue(TEXT("sono stati misurati dei turni"), ResolveMs.Num() > 0))
 	{
-		DestroyStressWorld(World);
+		RTWorldFixtures::DestroyWorld(World);
 		return false;
 	}
 
@@ -502,7 +488,7 @@ bool FRTStressResolverAt4v4Test::RunTest(const FString&)
 	TestTrue(FString::Printf(TEXT("il resolver 4v4 resta nell'ordine di grandezza atteso (%.3f ms)"), MedianMs),
 		MedianMs < 1000.0);
 
-	DestroyStressWorld(World);
+	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 
