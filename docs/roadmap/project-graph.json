@@ -1624,6 +1624,14 @@
       "state": "⏳"
     },
     {
+      "id": "PIE-HEX-MODE-Q",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-HEX-MODE-R",
+      "state": "⏳"
+    },
+    {
       "id": "PIE-HEX-TRANS",
       "state": "⏳"
     },
@@ -1658,6 +1666,10 @@
     {
       "id": "PIE-HEXPLAY-10",
       "state": "🟡"
+    },
+    {
+      "id": "PIE-HEXPLAY-11",
+      "state": "⏳"
     },
     {
       "id": "PIE-HEXPLAY-2",

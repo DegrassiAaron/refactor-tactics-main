@@ -1675,12 +1675,18 @@ tracks:
       ∴ non è il caso di `test-automatico-unreal.md`, che è conteso fra *lettori* e infatti sta fra i
       riconciliati (vedi `integration_only`): qui il contendere non c'è, perché chi scrive è sempre lo
       stesso. Un registro con un compilatore unico e trentacinque domini è **posseduto**, non riconciliato.
-      📊 **Il backlog di questa track, misurato il 2026-08-16**: `146` voci totali, di cui **99 aperte**,
-      41 `✅` e **1 `❌`**. Si rimisura — `grep -c "^| \*\*PIE-"` sul file, e lo stesso filtrato per
-      `⏳`/`✅`/`❌` — perché è il genere di numero che invecchia da solo. ⚠️ **Questa riga è stata
-      riscritta due volte in due commit**: diceva `145`/`101`, vero finché lo stesso commit non ha
-      aggiunto `PIE-HEX-MODE-P`; poi `146`/`102`, finché le tre voci `F`/`G`/`H` della seduta U1 non sono
-      state consuntivate. Non è distrazione, è la proprietà del numero.
+      📊 **Il backlog di questa track è dell'ordine del centinaio di voci aperte**, ed è questo l'unico
+      dato che regge nel tempo: il numero esatto si misura, non si cita.
+
+          grep -c "^| \*\*PIE-" docs/technical/test-manuali-pie.md              # totali
+          grep "^| \*\*PIE-" docs/technical/test-manuali-pie.md | grep -c "⏳"  # aperte
+
+      ⚠️ **Questa riga ha portato un numero puntuale ed è stata riscritta quattro volte in un giorno**:
+      `145`/`101`, poi `146`/`102` quando lo stesso commit ha aggiunto `PIE-HEX-MODE-P`, poi `146`/`99`
+      con le tre voci `F`/`G`/`H` della seduta U1, poi `149`/`98` con le voci di `#921`/`#931`/`#911` e
+      quattro voci camera consuntivate da un'altra sessione. Nessuna delle quattro era distrazione: è la
+      proprietà di un contatore su un file che più sessioni fanno avanzare. ∴ il numero esatto è uscito
+      da qui — resta il comando, che non invecchia.
       ⚠️ **Le altre track producono, questa giudica.** Chi finisce una feature che ha una voce `PIE-*`
       non scrive il proprio esito qui: lo **propone** in handoff. Vale già per `content_editor`, che
       tiene `#451` a 2 voci su 7 e proporrà le cinque residue.
