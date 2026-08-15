@@ -702,8 +702,9 @@ void ARTHexMapActor::ClearAsset()
 	const FScopedTransaction Transaction(LOCTEXT("HexClear", "Hex: Clear"));
 #endif
 	MapAsset->Modify();
-	MapAsset->Cells.Reset();
-	MapAsset->Transitions.Reset();
+	// Il reset passa dall'asset, come ogni altra modifica: e' lui a possedere `Revision`. Scrivere sui due
+	// array da qui la lasciava ferma, ed era l'unica modifica strutturale a farlo (#902).
+	MapAsset->ClearAll();
 	MapAsset->MarkPackageDirty();
 	RebuildInstances();
 	UE_LOG(LogRT, Log, TEXT("[HexMap] Asset svuotato."));

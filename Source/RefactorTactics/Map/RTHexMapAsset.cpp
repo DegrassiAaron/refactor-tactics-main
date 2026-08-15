@@ -116,6 +116,20 @@ FRTHexCellData URTHexMapAsset::ApplyBrush(const FRTHexCellData* Existing, const 
 	return Cell;
 }
 
+bool URTHexMapAsset::ClearAll()
+{
+	if (Cells.Num() == 0 && Transitions.Num() == 0)
+	{
+		return false; // nessuna modifica: la revisione non deve muoversi
+	}
+
+	Cells.Reset();
+	Transitions.Reset();
+	bLookupDirty = true; // gli indici non sopravvivono a un reset
+	++Revision;          // UNA volta per l'intero svuotamento, come `UpdateCells`
+	return true;
+}
+
 bool URTHexMapAsset::RemoveCell(const FRTCellId& Id)
 {
 	EnsureLookup();
