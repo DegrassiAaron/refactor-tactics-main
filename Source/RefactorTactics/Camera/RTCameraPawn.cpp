@@ -233,7 +233,11 @@ FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
 
 	// Il margine e' in CELLE (`#864`): un numero in unita' mondo sarebbe legato a `HexSize`, che e' un
 	// dato della mappa. `√3 * HexSize` e' la distanza fra centri di celle adiacenti.
-	const double Margin = static_cast<double>(BoundsMarginCells) * UE_SQRT_3 * static_cast<double>(HexSize);
+	// `FMath::Max` come per le sensibilita': il `meta = (ClampMin)` vincola il Details e **non** un `Set`
+	// da Blueprint, e un margine negativo rovescerebbe l'intervallo — con `FMath::Clamp` su un intervallo
+	// rovesciato la camera si inchioderebbe a un punto fisso e lo scorrimento smetterebbe di funzionare.
+	const double Margin = static_cast<double>(FMath::Max(BoundsMarginCells, 0.f))
+		* UE_SQRT_3 * static_cast<double>(HexSize);
 
 	return FVector(
 		FMath::Clamp(Desired.X, Min.X - Margin, Max.X + Margin),
@@ -249,6 +253,13 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 	}
 
 	const float Before = SpringArm->TargetArmLength;
+	// Un braccio a zero renderebbe `Ratio` infinito e la posizione non finita. `MinArmLength` non ha un
+	// `ClampMin` nel `meta`, ed e' `BlueprintReadWrite`: nessuno impedisce lo zero.
+	if (Before <= KINDA_SMALL_NUMBER)
+	{
+		AddZoom(AxisValue); // niente da ancorare: si comporta come lo zoom semplice
+		return;
+	}
 	const float After = FMath::Clamp(Before + AxisValue * ZoomStep, MinArmLength, MaxArmLength);
 
 	// Gia' a fondo corsa: la distanza non cambia, quindi non c'e' niente da compensare. Senza questa
@@ -265,7 +276,13 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 	const FVector Pivot = GetActorLocation();
 	const float Ratio = After / Before;
 	const FVector Moved = WorldAnchor + (Pivot - WorldAnchor) * Ratio;
-	SetActorLocation(FVector(Moved.X, Moved.Y, Pivot.Z));
+
+	// 🔴 **Anche lo zoom passa dai limiti.** La prima stesura scriveva il pivot diretto, e allontanandosi
+	// il fattore `Ratio > 1` lo spingeva via **cumulativamente**: da braccio 100 a 4000 sono quaranta
+	// volte l'offset iniziale, cioe' centinaia di celle fuori mappa. Riapriva esattamente il buco che
+	// questa issue chiude — «ci si puo' allontanare fino a perdere la mappa» — dal comando che avrebbe
+	// dovuto risolverlo. Trovato in code review.
+	SetActorLocation(ClampToSoftBounds(FVector(Moved.X, Moved.Y, Pivot.Z)));
 }
 
 void ARTCameraPawn::AddYawContinuous(float AxisValue)

@@ -410,18 +410,31 @@ void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 		return;
 	}
 
-	// L'ancora e' il punto di mondo sotto il cursore: zoomando, quel punto resta dov'e' sullo schermo.
-	// ⚠️ `GetHitResultUnderCursor` richiede un viewport, quindi vive **qui** e non nel pawn: la decisione
-	// verificabile — di quanto spostare il pivot — sta in `ZoomTowards`, che e' matematica pura.
-	FHitResult Hit;
-	if (GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) && Hit.bBlockingHit)
+	// L'ancora e' la **CELLA** sotto il cursore, convertita col centro del piano — non il punto d'impatto
+	// del raycast.
+	//
+	// 🔴 La prima stesura passava `Hit.ImpactPoint`, ed era lo stesso difetto di `#887` ripetuto in questo
+	// file: se il cursore sta su un'unita', l'impatto e' sul cilindro, **180 unita' sopra il piano**
+	// (`UnitHalfHeight` + `VisualZOffset`). A pitch -40° quella quota si traduce in ~215 unita' di scarto
+	// orizzontale — **oltre una cella**, cioe' piu' del doppio della tolleranza di mezza cella che il DoD
+	// e il nome del test dichiarano. Trovato in code review.
+	//
+	// ➕ E la cella e' gia' calcolata: `PlayerTick` traccia sotto il cursore a ogni frame e la memorizza
+	// con `SetHoveredCell`. Rifare il raycast qui sarebbe lavoro doppio per un dato peggiore.
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
-		Cam->ZoomTowards(Value.Get<float>(), Hit.ImpactPoint);
-		return;
+		if (HexMap->IsHoveredCellValid())
+		{
+			FVector Origin; float HexSize; float LayerHeight;
+			HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+			Cam->ZoomTowards(Value.Get<float>(),
+				URTHexLibrary::AxialToWorld(HexMap->GetHoveredCell(), Origin, HexSize, LayerHeight));
+			return;
+		}
 	}
 
-	// Il cursore non e' su niente (fuori mappa, o nessun viewport): si zooma sul centro, com'e' sempre
-	// stato. Meglio di non zoomare.
+	// Il cursore non e' su una cella valida (fuori mappa, o nessun viewport): si zooma sul centro, com'e'
+	// sempre stato. Meglio di non zoomare.
 	Cam->AddZoom(Value.Get<float>());
 }
 

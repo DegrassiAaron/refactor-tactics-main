@@ -9,7 +9,9 @@ class UCameraComponent;
 
 /**
  * Pawn camera tattica top-down/tre-quarti: braccio inclinato con zoom e pan sul piano.
- * Non usa fisica: si sposta con AddActorWorldOffset.
+ *
+ * Non usa fisica: si sposta scrivendo la posizione, che da `#864` passa sempre per `ClampToSoftBounds`.
+ * (Prima usava `AddActorWorldOffset`, e questa riga lo diceva ancora dopo che il codice era cambiato.)
  */
 UCLASS()
 class REFACTORTACTICS_API ARTCameraPawn : public APawn
@@ -42,9 +44,15 @@ public:
 	 *
 	 *     NuovoPivot = Ancora + (Pivot - Ancora) * (NuovoBraccio / VecchioBraccio)
 	 *
-	 * ⚠️ **E' esatta in proiezione ortografica e un'ottima approssimazione in prospettiva** quando l'ancora
-	 * sta sul piano di lavoro — che e' il caso d'uso: l'ancora viene dalla cella sotto il cursore. La
-	 * tolleranza dichiarata da `#864` e' **mezza cella**, e questa formula sta molto sotto.
+	 * ⚠️ **E' esatta in proiezione ortografica**; in prospettiva e' un'approssimazione, tanto migliore
+	 * quanto piu' l'ancora sta sul piano di lavoro — che e' il caso d'uso, perche' l'ancora viene dalla
+	 * **cella** sotto il cursore e non dal punto d'impatto del raycast.
+	 *
+	 * ⏳ **L'errore di prospettiva NON e' misurato**: il test verifica che il pivot si sposti come la
+	 * formula prescrive, non di quanto il punto scivoli a schermo in proiezione prospettica — servirebbe
+	 * proiettare, e in headless non c'e' un viewport. La tolleranza di mezza cella vincola la formula, e
+	 * il giudizio «lo zoom va dove guardo» resta una verifica PIE. Una stesura precedente affermava qui
+	 * che «questa formula sta molto sotto» la tolleranza: era una dichiarazione senza evidenza.
 	 *
 	 * Se il braccio e' gia' al limite (`Min`/`Max`) il pivot **non si muove**: senza quella guardia,
 	 * continuare a girare la rotellina a fondo corsa trascinerebbe la vista verso il cursore all'infinito.
@@ -155,6 +163,14 @@ public:
 		YawSensitivity = InYaw;
 		PitchSensitivity = InPitch;
 	}
+
+	/**
+	 * Fissa il margine dei soft bounds (per i test).
+	 *
+	 * Serve a dimostrare che il limite **viene dal campo** e non da un caso: un test che verifica solo
+	 * «il centro resta entro N» passa anche con margine zero, se N e' abbastanza largo.
+	 */
+	void SetBoundsMarginForTest(float InCells) { BoundsMarginCells = InCells; }
 
 	void SetArmLengthRangeForTest(float InDefault, float InMin, float InMax)
 	{

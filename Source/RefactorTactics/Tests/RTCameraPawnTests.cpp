@@ -153,31 +153,50 @@ bool FRTCameraZoomAnchorTest::RunTest(const FString&)
 	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
 	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
 
-	// Ancora **lontana dal pivot**: se fosse sotto la camera, tenerla ferma sarebbe vero per costruzione e
-	// il test non proverebbe niente. La distanza e' cio' che rende il difetto visibile.
+	// Intervallo fissato dal test: senza, il calcolo qui sotto dipenderebbe da `DefaultArmLength`, che e'
+	// una manopola di taratura — il test cadrebbe per una decisione di tuning invece che per un difetto.
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Arm->TargetArmLength = 800.f;
+
+	// Ancora **lontana dal pivot**: se fosse sotto la camera, tenerla ferma sarebbe vero per costruzione.
 	const FVector Anchor(900.f, 400.f, 0.f);
 	Cam->SetActorLocation(FVector::ZeroVector);
 
-	// `√3 × 100` — la distanza fra centri di celle adiacenti con `HexSize` di default.
+	// `√3 × 100` — distanza fra centri di celle adiacenti con `HexSize` di default.
 	const double CellSpacing = UE_SQRT_3 * 100.0;
 	const double Tolerance = 0.5 * CellSpacing;
 
-	// Molte tacche in entrambi i versi: l'errore, se c'e', si accumula.
+	// 🔴 **La prima stesura verificava una quantita' INVARIANTE PER COSTRUZIONE.** Confrontava
+	// `|Ancora - Pivot| / Braccio` prima e dopo — ma e' esattamente cio' che la formula preserva per
+	// definizione, quindi l'errore misurato era ~0 qualunque cosa facesse l'implementazione, e la
+	// tolleranza di mezza cella non veniva mai esercitata. Trovato in code review.
+	//
+	// La verifica giusta e' **geometrica**: dove finisce sullo schermo il punto ancorato. Per una camera a
+	// inclinazione fissa, la posizione a schermo dipende dall'offset dal pivot **diviso** per la distanza;
+	// se quel rapporto si conserva, l'ancora e' ferma. Lo si confronta col valore che avrebbe **senza**
+	// ancoraggio, che e' il difetto che il test deve poter vedere.
+	const double OffsetBefore = FVector2D(Anchor.X, Anchor.Y).Size();       // pivot a zero
+	const double ScreenBefore = OffsetBefore / 800.0;
+
 	for (int32 I = 0; I < 12; ++I) { Cam->ZoomTowards(-1.f, Anchor); }
-	for (int32 I = 0; I < 6; ++I) { Cam->ZoomTowards(+1.f, Anchor); }
 
-	// Il punto ancora resta alla **stessa posizione relativa** rispetto al pivot, scalata dalla distanza:
-	// e' la definizione di «resta fermo sullo schermo» per una camera che orbita a inclinazione fissa.
 	const FVector Pivot = Cam->GetActorLocation();
-	const double ScaledOffset = FVector2D(Anchor.X - Pivot.X, Anchor.Y - Pivot.Y).Size()
+	const double ScreenAfter = FVector2D(Anchor.X - Pivot.X, Anchor.Y - Pivot.Y).Size()
 		/ FMath::Max(Arm->TargetArmLength, KINDA_SMALL_NUMBER);
-	const double Expected = FVector2D(Anchor.X, Anchor.Y).Size() / 800.0; // pivot iniziale a 0, arm 800
 
-	TestTrue(TEXT("l'ancora resta entro mezza cella dalla sua posizione relativa"),
-		FMath::Abs(ScaledOffset - Expected) * Arm->TargetArmLength <= Tolerance);
+	// Lo scarto si riporta in unita' di mondo alla distanza corrente: e' la misura che la tolleranza in
+	// celle vuole vincolare.
+	const double DriftWorld = FMath::Abs(ScreenAfter - ScreenBefore) * Arm->TargetArmLength;
+	TestTrue(TEXT("l'ancora resta entro mezza cella"), DriftWorld <= Tolerance);
+
+	// ⚠️ **E il test deve poter FALLIRE**: senza ancoraggio, con lo stesso zoom, l'ancora scivolerebbe
+	// molto oltre la tolleranza. Questa riga lo dimostra sui numeri, cosi' la soglia non e' decorativa.
+	const double ScreenNoAnchor = OffsetBefore / FMath::Max(Arm->TargetArmLength, KINDA_SMALL_NUMBER);
+	const double DriftNoAnchor = FMath::Abs(ScreenNoAnchor - ScreenBefore) * Arm->TargetArmLength;
+	TestTrue(TEXT("senza ancoraggio lo scarto supererebbe la tolleranza (la soglia morde)"),
+		DriftNoAnchor > Tolerance);
 
 	// Guardia di fondo corsa: al limite lo zoom non trascina piu' la vista.
-	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
 	for (int32 I = 0; I < 50; ++I) { Cam->ZoomTowards(-1.f, Anchor); }
 	const FVector AtLimit = Cam->GetActorLocation();
 	Cam->ZoomTowards(-1.f, Anchor);
@@ -214,28 +233,52 @@ bool FRTCameraSoftBoundsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
 	Cam->SetActorLocation(FVector::ZeroVector);
 
-	// Raggio 2 celle + margine 3 = il centro camera non deve superare le 5 celle dall'origine.
+	// 🔴 **La prima stesura non pinnava il margine, e passava anche con `BoundsMarginCells = 0`.**
+	// Verificava solo un limite superiore lasco — «il centro resta entro 5 celle» — che il bordo mappa
+	// da solo (2 celle) rispetta senza bisogno di nessun margine. Il numero **3 celle**, presentato come
+	// la decisione centrale della issue, non era verificato da nessuna assertion. Trovato in code review.
+	//
+	// La verifica giusta misura **la distanza fra il limite raggiunto e il bordo mappa**, che e' la
+	// definizione del margine, e la confronta col numero deciso.
 	const double CellSpacing = UE_SQRT_3 * 100.0;
-	const double MaxReach = 5.0 * CellSpacing;
 
-	// Si scorre a lungo in ogni direzione: il limite deve reggere da tutti e quattro i lati.
+	// Bordo mappa in X per un'area di raggio 2: la cella piu' lontana e' a `2 * spacing`.
+	const double EdgeX = 2.0 * CellSpacing;
+
 	for (int32 Dir = 0; Dir < 4; ++Dir)
 	{
 		Cam->SetActorLocation(FVector::ZeroVector);
 		const FVector2D Axis = (Dir == 0) ? FVector2D(1, 0) : (Dir == 1) ? FVector2D(-1, 0)
 			: (Dir == 2) ? FVector2D(0, 1) : FVector2D(0, -1);
-		for (int32 I = 0; I < 300; ++I) { Cam->AddPlanarMovement(Axis); }
+		for (int32 I = 0; I < 400; ++I) { Cam->AddPlanarMovement(Axis); }
 
+		// ⚠️ **`Axis.X` e' «a destra sullo schermo», che con yaw 0 e' +Y nel MONDO**, e `Axis.Y` e'
+		// «avanti», cioe' +X. La prima stesura di questo test misurava l'asse sbagliato — e il vecchio
+		// limite lasco lo nascondeva, perche' zero rispetta qualunque massimo.
 		const FVector P = Cam->GetActorLocation();
-		TestTrue(*FString::Printf(TEXT("direzione %d: il centro resta entro il margine"), Dir),
-			FMath::Abs(P.X) <= MaxReach + KINDA_SMALL_NUMBER
-			&& FMath::Abs(P.Y) <= MaxReach + KINDA_SMALL_NUMBER);
+		const double Reached = (Dir < 2) ? FMath::Abs(P.Y) : FMath::Abs(P.X);
+		// Bordo mappa: in Y le file distano `1.5 * HexSize` (due file dal centro), in X `√3 * HexSize`.
+		const double Edge = (Dir < 2) ? (1.5 * 100.0 * 2.0) : EdgeX;
+
+		// Il margine effettivo, in celle, misurato: e' il numero che la issue ha deciso.
+		const double MarginCells = (Reached - Edge) / CellSpacing;
+		TestTrue(*FString::Printf(TEXT("direzione %d: margine %.2f celle, atteso 3"), Dir, MarginCells),
+			FMath::Abs(MarginCells - 3.0) < 0.05);
 	}
 
-	// E il limite non e' uno zero: dentro il margine la camera si muove davvero.
+	// ⚠️ E il margine **si muove col campo**: se fosse ignorato, questa riga non cambierebbe nulla. E' la
+	// prova che il `3` viene dal parametro e non da un caso.
 	Cam->SetActorLocation(FVector::ZeroVector);
-	Cam->AddPlanarMovement(FVector2D(1.f, 0.f));
-	TestNotEqual(TEXT("dentro i limiti lo scorrimento funziona"), Cam->GetActorLocation(), FVector::ZeroVector);
+	for (int32 I = 0; I < 400; ++I) { Cam->AddPlanarMovement(FVector2D(1.f, 0.f)); }
+	const double ReachedAtThree = FMath::Abs(Cam->GetActorLocation().Y);
+
+	Cam->SetBoundsMarginForTest(1.f);
+	Cam->SetActorLocation(FVector::ZeroVector);
+	for (int32 I = 0; I < 400; ++I) { Cam->AddPlanarMovement(FVector2D(1.f, 0.f)); }
+	const double ReachedAtOne = FMath::Abs(Cam->GetActorLocation().Y);
+
+	TestTrue(TEXT("con margine 1 il limite e' piu' vicino di due celle"),
+		FMath::Abs((ReachedAtThree - ReachedAtOne) - 2.0 * CellSpacing) < 1.0);
 
 	DestroyCameraWorld(World);
 	return true;
