@@ -238,7 +238,7 @@ lettore decide quale file aprire — ed è lo stesso file in cui vive C1.
 | m2 | §3.3 diceva «portala al Decision Log» senza path — e senza dire che è `integration_only` | ✅ path aggiunto, con la conseguenza |
 | m3 | §8 elencava nove voci allo stesso livello, tre delle quali condizionali | ✅ marcate *(se applicabile)* |
 | m4 | Nessun criterio di chiusura del mandato | ✅ aggiunto in coda al §5 |
-| m5 | **Nuovo**: i tre mandati QA non sono in un `writable` né in `integration_only` — sono file **non assegnati**, e il §1 di questo stesso documento dice *file non assegnato = STOP* | ✅ registrato in tabella §1 e in `Start` §5; vedi §5 qui sotto |
+| m5 | **Nuovo**: i tre mandati QA non sono in un `writable` né in `integration_only` — sono file **non assegnati**, e il §1 di questo stesso documento dice *file non assegnato = STOP* | ✅ registrato in tabella §1 e in `Start` §5, poi **risolto nel batch** lo stesso giorno: vedi §5 |
 
 ## 3. Cosa la v2 faceva bene, e va conservato
 
@@ -298,13 +298,35 @@ Nessun gate rilegge una spec `as-built`, e questa è invecchiata addosso a sé s
 ∴ l'intestazione del file ora **data le sezioni separatamente** invece di dichiarare un unico
 «allineata al codice il …», che è la forma in cui l'invecchiamento diventa invisibile.
 
-🔴 **E una nota sull'assegnazione di questo referto stesso.** I tre mandati QA — `qa-prompt-terminal-{a,b,c}`
-— sono nominati in `parallel-batch.yaml` dal campo `mandate:`, ma i loro **file** non compaiono in nessun
-`writable` né fra le 27 voci di `integration_only`. Sono file non assegnati, e il §1 del documento appena
-corretto dice *file non assegnato = STOP*. La correzione applicata oggi è avvenuta su decisione esplicita
-dell'autore del repository, registrata qui perché sia visibile e non dedotta. **Che i mandati siano
-assegnabili — e a chi — è una domanda aperta per il batch**: un documento che governa un write-set e non
-appartiene a nessuno è la stessa condizione che `integration_only` esiste per rendere visibile.
+🔴 **E una nota sull'assegnazione di questo referto stesso.** Al momento della revisione i tre mandati QA
+— `qa-prompt-terminal-{a,b,c}` — erano nominati in `parallel-batch.yaml` dal campo `mandate:`, ma i loro
+**file** non comparivano in nessun `writable` né fra le allora 27 voci di `integration_only`. Erano file
+non assegnati, e il §1 del documento appena corretto dice *file non assegnato = STOP*. Le correzioni di
+quel giorno sono avvenute su decisione esplicita dell'autore del repository, registrata qui perché sia
+visibile e non dedotta.
+
+✅ **Chiusa lo stesso giorno, e non come l'avevo proposta.** Ogni mandato è entrato nel `writable` della
+track che lo esegue — B in `spatial`, A in `simulation`, C in `content_editor` — con i worktree
+dichiarati: `D:/rt-spatial`, `D:/rt-simulation`, e per C il campo nuovo `mandate_worktree: D:/rt-client`,
+perché il worktree della seduta U1 è occupato da un write-set che tocca `parallel-batch.yaml` stesso.
+
+⏱️ **E A è già uscito, poche ore dopo.** `#915`/`#578` hanno chiuso, `simulation` è tornata `IDLE` e ha
+perso il `mandate`: `qa-prompt-terminal-a-determinismo.md` è di nuovo **non assegnato**. Non è un errore
+della decisione — è il suo limite, scoperto al primo caso: *legare un mandato al `writable` di una track
+lo lascia scoperto quando la track chiude*. Il batch adesso registra la domanda invece di lasciarla
+implicita — se il mandato riapre torna alla track che riparte, se resta chiuso va dove sta la spec che
+governa, cioè `integration_only` — e chiede che si decida **alla riattivazione, prima di scrivere**.
+Il criterio è *chi esegue un mandato lo corregge quando lo misura sbagliato*, ed era già successo due
+volte in un giorno: `7f8b5703` sul mandato A, `077d0b47` su questo.
+
+⚠️ **La spec del harness invece no, ed è la parte che avevo sbagliato a proporre.** Avevo suggerito di
+darla a `spatial`, che possiede `ScenarioHarness/` e l'aveva appena corretta. Risposta misurata: la
+usano **più processi in parallelo** — la citano per nome il mandato A (4 volte) e il mandato B (5), due
+track distinte, più `piano-canonico-mvp.md`, che è nel `writable` di una terza. Assegnarla a una sola
+track avrebbe tolto alle altre il diritto di correggere un documento che leggono come owner. È entrata in
+`integration_only`, che ora ha 28 voci. ∴ **la distinzione non è fra assegnato e non assegnato, ma fra
+posseduto da uno e riconciliato da tutti** — e un documento che invecchia mentre più sessioni lo leggono
+come autorità appartiene alla seconda categoria.
 
 ## 6. Giudizio
 

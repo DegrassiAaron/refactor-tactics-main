@@ -53,7 +53,8 @@ Baseline: **UE 5.8.x**, core C++ deterministico, vertical slice v0.1 2v2 offline
 | `Scenarios/` — 76 file JSON: **74** in `Combat/` (9), `Movement/` (6), `Spec/` (38), `Visual/` (21), più `RT_Showcase_Relay_v01.json` alla radice e `_redirects.json`, che **non è uno scenario** | **`integration_only`** | ⛔ **non puoi aggiungere né modificare scenari** |
 | `scripts/feature_registry.py` e i suoi tre test | **`integration_only`** | ⛔ non tuo |
 | `docs/technical/scenario-map.md` | **`integration_only`** | ⛔ non tuo |
-| **questo file** e gli altri due mandati QA | **non assegnati**: né in un `writable` né in `integration_only` | ⛔ correggerlo è un atto d'integrazione, non un passo del mandato |
+| **questo file** | ✅ nel `writable` di `spatial`, dal 2026-08-15 | **correggilo quando lo misuri sbagliato** — è un passo del mandato, non un atto d'integrazione |
+| `docs/technical/test-automatico-unreal.md` — la spec owner | **`integration_only`**: la usano più processi in parallelo | ⛔ la correzione si propone nell'handoff, anche quando hai ragione |
 
 E c'è un vincolo in più, che non è di permesso ma di **conseguenza**:
 
@@ -218,7 +219,8 @@ deterministici.** Un agent che decide l'esito è un fake resolver con un altro n
 0. **Abbi una issue**, e porta `spatial` ad `ACTIVE` con essa (§1). Senza, non stai lavorando: stai
    scrivendo su un write-set che il batch considera di nessuno.
 1. **Verifica le misure del §2** con i comandi del §7. Se una riga non regge più, correggila e dillo —
-   ⚠️ ma il file di questo mandato non è tuo (§1): la correzione va **nell'handoff**, non qui dentro.
+   ✅ e questo file **è tuo** (§1): correggilo qui, con la misura accanto. Un mandato che si sa sbagliato
+   e aspetta l'integrazione resta sbagliato per tutti quelli che lo leggono nel frattempo.
 2. **Leggi il §10 di [`test-automatico-unreal.md`](test-automatico-unreal.md)** — lo schema target. Quella
    è la lista, non questa.
 
@@ -267,7 +269,8 @@ non il criterio di una sessione.
 - Non usare ordine implicito di `TMap`/`TSet`.
 - **Non collassare i quattro esiti** (§2). In particolare `BLOCKED` non si conta né fra i passati né fra i
   falliti: un esito che tace è il modo in cui una suite smette di misurare senza diventare rossa.
-- **Non scrivere un file che non è nel tuo `writable`** (§1) — incluso **questo documento**.
+- **Non scrivere un file che non è nel tuo `writable`** (§1) — in particolare `Scenarios/` e la spec owner
+  `test-automatico-unreal.md`, che sono `integration_only`. Questo documento invece è tuo: correggilo.
 - Mantieni il progetto compilabile.
 
 ---
@@ -308,16 +311,17 @@ la spec non falsifica un enum.
 
 ## 8. Output richiesto
 
-- **Verifica del §2** — quali righe hai riconfermato, quali corrette. La correzione va qui, **non nel
-  file** (§1): questo documento non è nel tuo `writable`.
+- **Verifica del §2** — quali righe hai riconfermato, quali corrette **nel file** (§1: è tuo), e con quale
+  misura. Le correzioni alla spec owner invece si **propongono** qui: quella è `integration_only`.
 - **File modificati** — elenco esatto, **con accanto la track che li aveva assegnati**.
 - **Campi del §10 portati avanti** — quali, e **con quale scenario si verificano**.
 - **Comandi eseguiti** — con l'output essenziale. Solo i campi che il comando produce davvero.
 - **Divergenze dall'owner** — se hai misurato un conteggio o un enum che `test-automatico-unreal.md`
   dichiara diverso, riportalo qui. Le due aperte al 2026-08-15 — §3 «cinque scenari», §6 «e perché sono
   tre» — sono state **chiuse**; aspettati che se ne riformino, perché una spec `as-built` invecchia da
-  sola e nessun gate la rilegge. ⚠️ Il file **non** è `integration_only`, ma non è nemmeno nel tuo
-  `writable`: la correzione si propone.
+  sola e nessun gate la rilegge. ⚠️ Il file è **`integration_only`** dal 2026-08-15, perché lo usano più
+  processi in parallelo: la correzione **si propone nell'handoff**, non si applica — nemmeno quando
+  l'hai misurata tu e hai ragione.
 - **STOP incontrati** — ogni file che ti serviva e non era assegnato, con la patch documentata.
 - *(se applicabile)* **Scenari proposti** — JSON completo nell'handoff, **non** in `Scenarios/`.
 - *(se applicabile)* **Viste da rigenerare** — se hai toccato `RTScenarioSession.cpp`, dillo
@@ -333,11 +337,12 @@ la spec non falsifica un enum.
 1. Esegui i comandi del §7 e verifica il §2. **Cinque righe della v2 non reggevano**: aspettati di
    trovarne altre, e misura più fine di come è scritta l'affermazione.
 2. Apri [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml) alla track **`spatial`** — è
-   quella che porta il `mandate` di questo documento, e il suo `writable` è
-   `Source/RefactorTactics/ScenarioHarness/`. **È `IDLE`: senza una issue con cui portarla ad `ACTIVE`
-   non parti** (§1). Se il `writable` che leggi non è più quello, vince il file, non questa riga.
+   quella che porta il `mandate` di questo documento, gira in `D:/rt-spatial`, e il suo `writable` è
+   `Source/RefactorTactics/ScenarioHarness/` più questo file. **È `IDLE`: senza una issue con cui portarla
+   ad `ACTIVE` non parti** (§1). Se il `writable` che leggi non è più quello, vince il file, non questa riga.
 3. Apri [`test-automatico-unreal.md`](test-automatico-unreal.md) **§10** e scegli **un** campo dello
    schema target. ⛔ **Non il §9**: le sue quattro voci sono tutte bloccate, e §5.2 misura da cosa.
 4. Se il tuo primo istinto è «aggiungo uno scenario» o «metto su una pipeline», rileggi §1 e §3.
-5. Se il tuo primo istinto è «correggo questo prompt», rileggi §1: non è nel tuo `writable`. La correzione
-   va nell'handoff.
+5. Se trovi che questo prompt sbaglia una misura, **correggilo** — è nel tuo `writable`, e sei tu che stai
+   guardando il codice. Ma correggi il file, non solo il tuo ricordo: cinque affermazioni della v2 erano
+   false, e sono rimaste in circolo finché nessuno le ha riscritte.
