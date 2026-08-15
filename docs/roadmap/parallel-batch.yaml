@@ -588,9 +588,12 @@ preexisting:
       punto la voce esiste già invece di dover essere ricordata.
 
   - branch: feat/864-zoom-bounds
-    state: LOCAL           # worktree `D:/rt-telecamera` · 1 commit · non ancora pushato
-    measured: 4
-    collides_with: []      # misurato sui sei worktree con `git diff --name-only`, non asserito
+    state: LIVE            # worktree `D:/rt-telecamera` · 3 commit · PR #899 aperta
+    measured: 5
+    collides_with:
+      - branch: feat/451-u1-voci-hex-mode
+        state: LOCAL
+        paths: [docs/roadmap/parallel-batch.yaml]
     note: >-
       `#864`, l'ultima delle camera: lo zoom andava al centro dell'inquadratura invece che dove il
       giocatore guarda, e il pan non aveva limiti — ci si poteva allontanare fino a perdere la mappa.
@@ -600,10 +603,16 @@ preexisting:
       registrati sulla issue con le alternative scartate e il perche'.
       ⚠️ **Espressi in celle e non in unita' mondo**: a zoom 4000 una cella occupa pochi pixel, a 100
       riempie lo schermo. Un numero fisso sarebbe arbitrario a un estremo e insensato all'altro.
-      ✅ **Set disgiunto, misurato sui SEI worktree** e non sui soli branch remoti elencati qui: e'
-      l'errore che le tre voci precedenti hanno commesso a turno — `feat/451` e' locale e non compariva
-      fra i remoti. `Camera/`, `Player/RTPlayerController.cpp` e `Tests/RTCameraPawnTests.cpp` non sono nel
-      `writable` di nessuna track ACTIVE.
+      ✅ **Il codice e' disgiunto**: `Camera/`, `Player/RTPlayerController.cpp` e
+      `Tests/RTCameraPawnTests.cpp` non sono nel `writable` di nessuna track ACTIVE, misurato sui sei
+      worktree e non sui soli branch remoti.
+      🔴 **Ma `collides_with: []` era falso, ed e' la QUARTA voce di fila a caderci.** Il quinto file del
+      write-set e' `parallel-batch.yaml` — questo — e `feat/451-u1-voci-hex-mode` lo tocca a sua volta. La
+      nota enumerava i tre path di `Source/` e ometteva proprio quello conteso, esattamente come le tre
+      voci precedenti: si misura il lato che interessa e si deduce l'altro. E `measured: 4` mancava lo
+      stesso file, mentre `state: LOCAL · non ancora pushato` era gia' falso al push.
+      ⚠️ E' `integration_only`: si riconcilia in integrazione, e chi merge per secondo lo riscrive
+      sull'albero unito.
       ➕ **`Map/` non e' stata toccata**, pur essendo libera: il calcolo dei bounds vive nel pawn, cosi' il
       write-set resta dentro il perimetro che la issue dichiara.
 
