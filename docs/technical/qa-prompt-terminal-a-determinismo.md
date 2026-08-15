@@ -123,7 +123,7 @@ infrastruttura*.
 |---|---|---|---|
 | 1 | Golden | ✅ 1 test | ✅ **5** — la issue sottostima |
 | 2 | Permutation | ✅ ×4 | ✅ **≥13** — la issue sottostima |
-| 3 | Repeat ×1000 | ❌ | ❌ regge |
+| 3 | Repeat ×1000 | ❌ | ⚠️ **la ×100 esiste** — vedi §6.3 |
 | 4 | Seed | 🟡 parziale | 🟡 regge |
 | 5 | Frame-rate | ❌ | ❌ regge |
 | 6 | Packaged | ❌ | ❌ regge |
@@ -282,10 +282,30 @@ non ha alcun soggetto**: non c'è random affatto.
 🔴 La v1 chiedeva `Repeat x100` e preparava `x1000` per una suite nightly. **Non esiste nightly e non
 esiste CI**: `.github/workflows/` è assente **per scelta** in questo repository.
 
-E senza RNG, con ordine stabile, la centesima ripetizione **nello stesso processo** esegue lo stesso
-codice sugli stessi dati della seconda: non aggiunge potere di falsificazione, aggiunge minuti. Il
-non-determinismo che una ripetizione cattura davvero — ordine di container dipendente da indirizzi, hash
-seed per-processo — si manifesta **fra processi**.
+✅ **Ma il `Repeat x100` esiste già, e questo paragrafo diceva che non serviva.** Misurato il 2026-08-15
+leggendo il codice invece dell'elenco dei nomi: `RTSimulationDeterminismTests.cpp` dichiara
+`constexpr int32 Repetitions = 100` dentro **`Replay.Verifier.ResimulationIsDeterministic`**, con
+confronto di `StateHash` e `Outcome` e diagnostica sulle prime tre divergenze. Non si trova cercando
+`Repeat` fra i nomi dei test: è la stessa lezione del `LogHash` al §5 — **il nome non è l'oggetto**.
+
+🔴 **E la prima stesura di questo paragrafo era sbagliata nel merito, non solo nel conteggio.** Diceva:
+*«senza RNG, con ordine stabile, la centesima ripetizione nello stesso processo esegue lo stesso codice
+sugli stessi dati della seconda: non aggiunge potere di falsificazione»*. È **falso**, e a falsificarlo è
+il commento del test che già c'era:
+
+> *«il non-determinismo che conta è quello raro: un `TMap` iterato in ordine diverso, un puntatore usato
+> come chiave, un indice che dipende dall'ordine di spawn. Con due ripetizioni un difetto del genere passa
+> quasi sempre; con cento si vede.»*
+
+Il meccanismo è che `RunIsolated` costruisce un **`UWorld` nuovo a ogni ripetizione**: gli oggetti sono
+ri-allocati, gli indirizzi cambiano, e un `TMap` con chiavi-puntatore itera in ordine diverso **dentro lo
+stesso processo**. La ripetizione in-process ha quindi esattamente il potere di falsificazione che il
+paragrafo le negava. *«Fra processi»* resta vero per l'hash seed per-processo — che è un'altra cosa, più
+stretta.
+
+∴ La domanda superstite non è *«serve ripetere?»* ma **«serve il decuplo?»**: da 100 a 1000 il costo si
+moltiplica per dieci e il bersaglio non cambia. Quella è la voce che va dichiarata *fuori scope con la
+ragione*, non l'esistenza della procedura.
 
 Se aggiungi una ripetizione, dichiara quale delle tre varia:
 
