@@ -246,14 +246,20 @@ bool FRTCameraRecenterResetsYawTest::RunTest(const FString&)
 }
 
 /**
- * `FocusOn` CENTRA e basta: quota, zoom e orientamento restano quelli che il giocatore si era regolato.
+ * `FocusOn` porta il pivot **sul bersaglio, quota compresa** — e lascia stare zoom e orientamento.
  *
- * L'header lo promette — «mantenendo la quota e lo zoom correnti» — e finora nessun test lo difendeva.
- * Sono tre proprieta' indipendenti che vivono in una riga sola (`SetActorLocation` con la Z presa da se'):
- * la prima modifica che passasse la Z del bersaglio le romperebbe tutte e tre senza far cadere niente.
+ * 🔴 **Questo test verificava il contrario, e difendeva un difetto** (`#887`). Diceva «la quota resta la
+ * sua, non quella del bersaglio» e piantava un `TestEqual` sulla `Z` di partenza: misurava la
+ * *conservazione*, non la *correttezza*. La domanda giusta non e' «la quota resta invariata?» ma
+ * «invariata **rispetto a cosa**?» — e la risposta era: rispetto al PlayerStart del livello, con cui il
+ * pawn nasce e che non ha nessuna relazione con il piano della mappa. In partita, premere `F` mostrava il
+ * vuoto.
+ *
+ * Le due meta' del contratto vanno tenute separate, ed e' il motivo per cui il test ora le nomina
+ * entrambe: la **posizione** segue il bersaglio, lo **zoom** resta del giocatore.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraFocusKeepsFramingTest,
-	"RefactorTactics.Camera.FocusKeepsHeightZoomAndOrientation",
+	"RefactorTactics.Camera.FocusMovesToTargetAndKeepsZoom",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTCameraFocusKeepsFramingTest::RunTest(const FString&)
 {
@@ -285,15 +291,17 @@ bool FRTCameraFocusKeepsFramingTest::RunTest(const FString&)
 		return false;
 	}
 
-	// La Z del bersaglio e' deliberatamente assurda: se `FocusOn` la usasse, la camera finirebbe li'.
-	Cam->FocusOn(FVector(500.f, -300.f, 99999.f));
+	// La quota del bersaglio e' **lontana** da quella del pawn, ed e' il punto del test: se `FocusOn` la
+	// scartasse — com'era prima di #887 — la camera resterebbe a `1234` e orbiterebbe sopra il vuoto.
+	Cam->FocusOn(FVector(500.f, -300.f, 250.f));
 
 	// Letterali `double` senza suffisso: da LWC le componenti di `FVector` sono `FVector::FReal` (double),
 	// e un `500.f` rende `TestEqual` ambiguo fra l'overload float e quello double (`error C2666`).
 	const FVector After = Cam->GetActorLocation();
 	TestEqual(TEXT("centra sulla X del bersaglio"), After.X, 500.0);
 	TestEqual(TEXT("centra sulla Y del bersaglio"), After.Y, -300.0);
-	TestEqual(TEXT("la quota resta la sua, non quella del bersaglio"), After.Z, 1234.0);
+	TestEqual(TEXT("e prende anche la QUOTA del bersaglio, non quella con cui il pawn e' nato"),
+		After.Z, 250.0);
 
 	TestEqual(TEXT("lo zoom non si tocca"), Arm->TargetArmLength, ZoomBefore);
 	TestEqual(TEXT("la rotazione non si tocca"), Cam->GetCameraYaw(), YawBefore);
@@ -304,6 +312,119 @@ bool FRTCameraFocusKeepsFramingTest::RunTest(const FString&)
 	// — che legge il campo — si sfaserebbe da quello che il giocatore vede.
 	TestEqual(TEXT("e il braccio guarda ancora dove dice il campo"),
 		static_cast<float>(Arm->GetRelativeRotation().Yaw), YawBefore);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * L'inquadratura d'avvio non eredita la quota con cui il pawn e' nato.
+ *
+ * E' il caso reale di `#887`: `ARTGameMode` spawna la camera al **PlayerStart** del livello, e `BeginPlay`
+ * chiama `FrameOwnTeam` — che calcola il centroide della squadra con la sua quota giusta. Finche' `FocusOn`
+ * scartava quella `Z`, la partita si apriva con il pivot sospeso alla quota del PlayerStart, e nessuna
+ * delle funzioni di input la correggeva: `AddPlanarMovement` ha `Z = 0` per scelta, `AddZoom` tocca il
+ * braccio, `AddYaw` la rotazione. Solo `Home` rimetteva le cose a posto — ed e' il motivo per cui il
+ * difetto si vedeva su `F` e non su `Home`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraFrameTeamIgnoresSpawnHeightTest,
+	"RefactorTactics.Camera.FrameOwnTeamDoesNotInheritSpawnHeight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraFrameTeamIgnoresSpawnHeightTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	ARTHexMapActor* Map = SpawnCameraTestMap(World);
+	if (!TestNotNull(TEXT("mappa"), Map)) { DestroyCameraWorld(World); return false; }
+
+	// ⚠️ Il piano sta a una quota **non nulla**, ed e' cio' che rende il test discriminante: `Origin` di
+	// `GetHexContext` e' la posizione dell'actor mappa. Con il piano a zero, «la quota giusta», «zero» e
+	// «l'origine del mondo» sarebbero lo stesso numero, e un regresso a `Z = 0.f` passerebbe.
+	const double PlaneZ = 300.0;
+	Map->SetActorLocation(FVector(0.f, 0.f, PlaneZ));
+
+	// ⚠️ E l'unita' NON sta sul centro mappa: `RecenterView` va su `GetCenterCell()`, quindi con l'unita'
+	// li' sopra le due inquadrature coinciderebbero e il confronto non proverebbe niente.
+	if (!TestNotNull(TEXT("unita'"), SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(6, 1))))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	// Il PlayerStart, simulato: una quota che non ha niente a che vedere con il piano della mappa.
+	const double SpawnHeight = 5555.0;
+	Cam->SetActorLocation(FVector(0.f, 0.f, SpawnHeight));
+
+	if (!TestTrue(TEXT("inquadra la squadra"), Cam->FrameOwnTeam()))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	const FVector Framed = Cam->GetActorLocation();
+	TestNotEqual(TEXT("la quota NON e' quella con cui il pawn e' nato"), Framed.Z, SpawnHeight);
+	TestEqual(TEXT("ed e' quella del PIANO, che qui non e' zero"), Framed.Z, PlaneZ);
+
+	// La prova che non ha semplicemente ricentrato: `Home` porta altrove, perche' l'unita' non sta sul
+	// centro mappa.
+	Cam->RecenterView();
+	TestNotEqual(TEXT("e non e' il ricentramento: la squadra non sta sul centro mappa"),
+		Cam->GetActorLocation(), Framed);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * Il tasto `F` inquadra il PIANO sotto l'unita', non il punto in cui il modello sta.
+ *
+ * E' il sintomo esatto riportato in seduta (`#887`): premendo `F` si vedeva il vuoto. Il percorso e'
+ * `OnFocusSelected` → `FocusCameraOnUnit` → `FocusOn`, e la scelta che conta sta nel mezzo: `ARTUnit` si
+ * posiziona con `VisualZOffset` (mezzo corpo sopra la cella), quindi passare `GetActorLocation()` porta il
+ * pivot a una quota che nessun'altra inquadratura usa.
+ *
+ * ⚠️ Senza questo test il fix di `#887` resterebbe scoperto proprio sul suo caso d'uso: la copertura di
+ * `FocusOn` verifica la funzione, non **cosa le viene passato**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraFocusUnitUsesCellPlaneTest,
+	"RefactorTactics.Camera.FocusOnUnitFramesTheCellPlaneNotTheModel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraFocusUnitUsesCellPlaneTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTHexMapActor* Map = SpawnCameraTestMap(World);
+	if (!TestNotNull(TEXT("mappa"), Map)) { DestroyCameraWorld(World); return false; }
+
+	// Piano a quota non nulla: senza, «la quota del piano» e «zero» coincidono e il test non discrimina.
+	const double PlaneZ = 300.0;
+	Map->SetActorLocation(FVector(0.f, 0.f, PlaneZ));
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC)) { DestroyCameraWorld(World); return false; }
+	PC->Possess(Cam);
+
+	ARTUnit* Unit = SpawnCameraTestUnit(World, /*TeamId=*/ 0, FRTCellId(6, 1));
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyCameraWorld(World); return false; }
+
+	// L'unita' sta **sopra** il proprio piano: e' la differenza che il test esiste per cogliere.
+	Unit->SetActorLocation(FVector(1000.f, 2000.f, PlaneZ + 90.f));
+
+	Cam->SetActorLocation(FVector(0.f, 0.f, 5555.f)); // quota di nascita, come il PlayerStart
+	PC->FocusCameraOnUnit(Unit);
+
+	const FVector Framed = Cam->GetActorLocation();
+	TestEqual(TEXT("il pivot sta sul PIANO della cella"), Framed.Z, PlaneZ);
+	TestNotEqual(TEXT("e non sul modello, che sta mezzo corpo sopra"), Framed.Z, PlaneZ + 90.0);
+	TestNotEqual(TEXT("ne' alla quota di nascita del pawn"), Framed.Z, 5555.0);
 
 	DestroyCameraWorld(World);
 	return true;
@@ -523,8 +644,9 @@ bool FRTCameraBeginPlayFallsBackTest::RunTest(const FString&)
 
 	// E il punto e' proprio quello di `Home`: se il ripiego chiamasse altro, le due posizioni divergono.
 	// ⚠️ La Z di partenza e' **diversa** da quella del ripiego, di proposito: riusare `Fallback.Z`
-	// renderebbe il confronto cieco proprio sull'asse che distingue `RecenterView` — che scrive il
-	// vettore intero — da `FocusOn`, che conserva la quota corrente.
+	// renderebbe il confronto cieco sull'asse verticale, cioe' su un terzo delle componenti che deve
+	// verificare. (La prima stesura motivava la stessa riga con «`FocusOn` conserva la quota corrente»:
+	// dopo `#887` non e' piu' vero — entrambe scrivono il vettore intero — ma la precauzione resta buona.)
 	Cam->SetActorLocation(FVector(-9999.f, -9999.f, 4321.f));
 	Cam->RecenterView();
 	TestEqual(TEXT("ed e' esattamente dove porta Home"), Cam->GetActorLocation(), Fallback);

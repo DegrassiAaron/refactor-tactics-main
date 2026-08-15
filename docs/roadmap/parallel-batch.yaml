@@ -427,29 +427,10 @@ preexisting:
       una volta in senso opposto.
 
 
-  - branch: feat/165-finestra-overwatch
-    state: LIVE            # worktree `D:/rt-simulation` · pushato · 44a6af96
-    measured: 15
-    collides_with:
-      - branch: feat/874-beginplay-fallback
-        state: LIVE
-        paths: [docs/roadmap/parallel-batch.yaml]
-    note: >-
-      ➕ **È il branch che la track `simulation` dichiarava sparito, ricreato mentre questo file
-      veniva scritto.** La track lo nomina in `simulation.branch`.
-      🔴 **`measured: 0` → `14` → `15`, e `LOCAL` → `LIVE`: tre correzioni, tutte misurate.** La
-      prenotazione è diventata un vincolo mentre il file la descriveva come ferma. Poi il numero è
-      scivolato ancora — `git diff --name-only origin/main...` ne conta **15** — nella stessa sessione in
-      cui era appena stato rimisurato. E `git ls-remote --heads origin` vede il branch (`44a6af96`),
-      quindi per l'enum è `LIVE` e appartiene alla sezione dei remoti, non a «esistono in un worktree e
-      in nessun altro posto».
-      ⚠️ **La collisione qui sopra è reale**: `docs/roadmap/parallel-batch.yaml` è anche nel write-set di
-      `#874`. È `integration_only` — nessuna delle due la tiene per diritto — quindi si riconcilia in
-      integrazione, e chi merge per secondo la riscrive sull'albero unito.
-      🔴 **Questa riga ha citato `#873` per un commit intero dopo che quel branch era stato mergiato e
-      cancellato.** Il campo `collides_with` era stato ripuntato su `#874`, la prosa no: la stessa
-      informazione in due forme, aggiornata in una sola. Trovato in code review — ed è la ragione per cui
-      un numero di issue dentro una nota vale meno del campo strutturato che gli sta sopra.
+  # 🔵 **`feat/165-finestra-overwatch` è uscita**: PR #878 mergiata, write-set misurato **0**.
+  # `MERGED` esce dalla sezione. ⚠️ Con lei cade la collisione che `#887` dichiarava verso di lei —
+  # e resta l'altra, con `fix/residui-istruttoria-dod`, che invece è **anch'essa** atterrata (#885):
+  # entrambe le contese su questo file si sono chiuse da sole mentre `#887` lavorava.
 
   # 🔵 **`feat/873-recenter-clamp` è uscita**: PR #884 mergiata alle `18:38Z` in `376013a7`, branch
   # cancellato. `MERGED` esce dalla sezione — la terza voce a farlo oggi con la stessa regola.
@@ -457,37 +438,41 @@ preexisting:
   # entrambe erano aperte, e va tolta dalla voce di `165` invece di restarci come vincolo fantasma.
 
 
-  - branch: feat/874-beginplay-fallback
-    state: LIVE            # worktree `D:/rt-telecamera` · PR #889 aperta · su `376013a7`
-    measured: 2
-    collides_with:
-      - branch: feat/165-finestra-overwatch
-        state: LIVE
-        paths: [docs/roadmap/parallel-batch.yaml]
-      - branch: fix/residui-istruttoria-dod
-        state: LOCAL
-        paths: [docs/roadmap/parallel-batch.yaml]
+  # 🔵 **`feat/874-beginplay-fallback` è uscita**: PR #889 mergiata alle `19:03Z` in `e9003c96`,
+  # branch cancellato. `MERGED` esce dalla sezione — la quarta voce a farlo oggi.
+  # ⚠️ Con lei cade la collisione che dichiarava con `feat/165` su questo file, e quella di `165`
+  # verso di lei: un vincolo senza due lati non è un vincolo.
+
+  - branch: feat/887-focus-quota
+    state: LIVE            # worktree `D:/rt-telecamera` · PR #890 aperta · su `e9003c96`
+    measured: 7
+    collides_with: []   # entrambe cadute: #878 e #885 mergiate mentre il lavoro era in corso
     note: >-
-      `#874`: il ripiego di `BeginPlay` — `FrameOwnTeam` → ritenta al tick → `RecenterView` — decide la
-      prima inquadratura della partita e non aveva test.
-      ✅ **Solo copertura**: `Camera/RTCameraPawn.cpp` resta **identico a `main`**, verificato con
-      `git diff --stat origin/main --`. Il write-set è il file di test più questo.
-      ✅ **Set disgiunto dalle track ACTIVE, rimisurato e non ereditato**:
-      `Tests/RTCameraPawnTests.cpp` non è nel `writable` di nessuna — `simulation` tiene
-      `RTReactionTests.cpp` e `RTReactionOpportunityTests.cpp`, `client_tools` `RTIntentPrivacyTests.cpp` e
-      `UI/`, `content_editor` `docs/technical/test-manuali-pie.md`. La voce di `#873` portava questa
-      verifica e la sostituzione l'aveva persa — **per la seconda volta**, dopo quella di `#865`: una
-      verifica che vive solo dentro una voce sparisce quando la voce viene rimpiazzata.
-      🔴 **«La collisione è dichiarata dall'inizio» diceva UNA collisione, e sono DUE.**
-      `fix/residui-istruttoria-dod` — il branch del checkout principale — tocca anch'esso
-      `parallel-batch.yaml`: misurato con `git diff --name-only origin/main...`, **11 file**, non i sette
-      che il paragrafo del conto dichiarava. La voce di `#873` aveva sbagliato dimenticando *il proprio*
-      quarto file; questa ha sbagliato dimenticando *un altro branch*, e nello stesso file che esiste per
-      renderlo visibile.
-      ✅ **`measured: 2` era una previsione, ed è stata confermata dalla misura** al push:
-      `git diff --name-only origin/main...HEAD` restituisce esattamente i due file previsti. È la prima
-      volta in questo batch che un numero dichiarato regge alla verifica — e `LOCAL → LIVE` è stato
-      applicato **nello stesso momento del push**, invece di essere scoperto da una review come per `#873`.
+      `#887`, aperta da un'altra sessione dal playtest di M6.8: `FocusOn` scarta la `Z` del bersaglio e
+      tiene quella con cui il pawn è nato — il PlayerStart del livello, che non ha relazione con il piano
+      della mappa. Diagnosi **verificata** prima di prenderla, sui tre anelli che la issue dichiara:
+      `RTGameMode` imposta davvero `DefaultPawnClass = ARTCameraPawn`, `CellsCentroidWorld` somma
+      `AxialToWorld` e quindi **calcola** una quota valida, e `FocusOn` la butta via.
+      🔴 **Tocca un test che ho scritto io in `#865`, e la issue ha ragione sul perché**:
+      `FocusKeepsHeightZoomAndOrientation` verifica che la quota sia *conservata*, quindi **difende il
+      difetto** invece di trovarlo. La domanda giusta non è «la quota resta invariata?» ma «invariata
+      rispetto a cosa?». Va riscritto, non affiancato.
+      ✅ **Set disgiunto dalle track ACTIVE**: `Camera/`, `Player/RTPlayerController.cpp` e
+      `Tests/RTCameraPawnTests.cpp` non sono nel `writable` di nessuna — `simulation` tiene `Turn/` e
+      `Bot/`, `client_tools` `Turn/RTIntentPrivacyLibrary.*` e `UI/`, `content_editor`
+      `docs/technical/test-manuali-pie.md`.
+      🔴 **`measured` diceva 4 e sono 7**, misurati con `git diff --name-only origin/main...HEAD`: ai due
+      sorgenti della camera e al test si aggiungono `Player/RTPlayerController.cpp` — dove la code review
+      ha spostato metà del fix — e i due del Feature Registry, `yaml` e `json`. Il numero era **ricordato**
+      dalla stesura iniziale e non rimisurato dopo che lo scope si era allargato.
+      🔵 **Le due collisioni che questa voce dichiarava sono CADUTE**, ed è il campo `collides_with` a
+      dirlo per primo: `feat/165` è atterrata con #878 e `fix/residui-istruttoria-dod` con #885, entrambe
+      mentre il lavoro era in corso. ⚠️ La prosa qui sotto ha continuato a citarle come vive per un commit
+      intero dopo che il campo era già `[]`: la stessa informazione in due forme, aggiornata in una sola —
+      la recidiva che la voce di `feat/165` aveva registrato prima di uscire.
+      ➕ La issue avverte di verificare `feat/865-camera-focus-tests`, «vivo in `D:/rt-telecamera`»:
+      **non lo è più** — mergiato con #872 e cancellato prima che questa issue fosse scritta. È lo stesso
+      invecchiamento che questo file registra a ogni giro, visto stavolta dal lato di chi legge.
 
   # --- Sessioni locali: esistono in un worktree e in nessun altro posto -------------------------
   #
@@ -525,11 +510,11 @@ preexisting:
   # ⚠️ **Il conto dei worktree, che deve chiudere.** `git worktree list` ne mostra **sei**:
   #
   #   D:/wt-451           `feat/451-u1-voci-hex-mode`       LOCAL, 0 file
-  #   D:/rt-telecamera    `feat/874-beginplay-fallback`     LIVE, 2 file · PR #889 — fra i remoti
+  #   D:/rt-telecamera    `feat/887-focus-quota`            LIVE, 4 file · PR #890 — fra i remoti
   #   D:/rt-client        `docs/38-spec-panel-playtest-hex` LIVE  — fra i branch remoti
-  #   D:/rt-simulation    `feat/165-finestra-overwatch`     LIVE, 15 file — fra i branch remoti
+  #   D:/rt-simulation    `feat/165-finestra-overwatch`     **mergiata #878**, write-set 0 — nessuna voce
   #   D:/rt-spatial       detached su `8ea9c229`            0 file, nessun vincolo, nessuna voce
-  #   working directory   `fix/residui-istruttoria-dod`     **11 file, non pushato, NON REGISTRATO**
+  #   working directory   `fix/residui-istruttoria-dod`     **mergiata #885** — il buco si e' chiuso da se'
   #
   # 🔴 **I conteggi erano stati CANCELLATI invece che rimisurati**, e il paragrafo qui sotto continuava a
   # dire «sette file» quando erano **11**. Togliere il numero da una riga non la rende meno falsa: la
@@ -558,7 +543,10 @@ preexisting:
   # qui sopra nomina il **branch** e non la cartella: rimosso alla chiusura di #867 con il suo branch
   # cancellato, ricreato per `#865`, e ora su `feat/873-recenter-clamp`. Il nome della cartella non
   # dice quale lavoro ci sia dentro — solo `git worktree list` lo dice, e oggi risponde
-  # `feat/874-beginplay-fallback`.
+  # `feat/887-focus-quota`.
+  # 🔴 **Questa riga ha nominato il branch sbagliato per tre giri di fila** — `#873`, poi `#874`, poi
+  # ancora `#874` — in un paragrafo che esiste per dire che il nome della cartella non basta a
+  # saperlo. Va riletto dal comando **nello stesso commit** che lo scrive, non al giro dopo.
   # 🔴 **Questa riga citava «il quinto … (`feat/865-camera-focus-tests`)» dopo che il commit precedente
   # aveva tolto quella voce**: un riferimento pendente a una voce cancellata, per giunta con l'ordinale
   # sbagliato rispetto al conteggio otto righe sopra. Il file avverte di questo esatto rischio quattro

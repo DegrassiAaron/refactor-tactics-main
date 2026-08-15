@@ -52,9 +52,15 @@ public:
 	void RecenterView();
 
 	/**
-	 * Centra la camera su un punto del mondo (tipicamente un'unita'), mantenendo la quota e lo zoom correnti:
-	 * lo zoom orbita attorno alla posizione di questo pawn, quindi senza spostarlo ci si avvicina al centro
-	 * della mappa invece che al personaggio.
+	 * Porta il pivot su un punto del mondo — **quota compresa** — e lascia stare lo zoom, che resta quello
+	 * che il giocatore si e' regolato.
+	 *
+	 * ⚠️ La quota passata deve essere quella del **piano**, non quella visiva di un attore: `ARTUnit` sta
+	 * mezzo corpo sopra la cella (`VisualZOffset`), quindi chi inquadra un'unita' converte la sua cella
+	 * invece di leggerne la posizione.
+	 *
+	 * 🔴 Questo commento diceva «mantenendo la quota e lo zoom correnti», e descriveva il difetto di
+	 * `#887`: conservare la quota significava tenere quella del PlayerStart, con cui il pawn nasce.
 	 */
 	void FocusOn(const FVector& WorldLocation);
 
