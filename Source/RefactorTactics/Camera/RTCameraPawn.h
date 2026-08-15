@@ -280,14 +280,16 @@ protected:
 	/**
 	 * Verso del trascinamento verticale nell'orbita.
 	 *
-	 * ⚠️ **E' una preferenza, e il default NON e' stato verificato con le mani.** Il segno corretto dipende
-	 * da come l'engine consegna `Mouse2D.Y`, e la prima stesura di #863 lo asseriva in un commento che si
-	 * contraddiceva da solo — diceva «trascinare in basso abbassa lo sguardo» e poi ne derivava l'opposto.
-	 * Invece di scegliere a tavolino: il verso e' un campo, il default e' dichiarato **non verificato**, e
-	 * la voce PIE lo mette alla prova. Chi lo trova rovesciato lo cambia dal Details senza ricompilare.
+	 * ✅ **Verificato in PIE il 2026-08-16: il default e' corretto cosi' com'e'.**
 	 *
-	 * La voce esiste: **`PIE-CAM-ORBIT`** in `docs/technical/test-manuali-pie.md`. Finche' resta ⏳, questo
-	 * default e' una scommessa, non una decisione.
+	 * Fino a quella prova era una scommessa, e il commento lo diceva. Il segno giusto dipende da come
+	 * l'engine consegna `Mouse2D.Y`, e la prima stesura di #863 lo asseriva in un commento che si
+	 * contraddiceva da solo — diceva «trascinare in basso abbassa lo sguardo» e poi ne derivava l'opposto.
+	 * Invece di scegliere a tavolino il verso e' diventato un campo, il default e' stato dichiarato **non
+	 * verificato**, e **`PIE-CAM-ORBIT`** (`docs/technical/test-manuali-pie.md`) l'ha messo alla prova.
+	 *
+	 * Resta un campo: e' comunque una preferenza, e chi la vuole rovesciata la cambia dal Details senza
+	 * ricompilare.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
 	bool bInvertOrbitPitch = true;

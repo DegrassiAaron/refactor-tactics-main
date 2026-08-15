@@ -63,7 +63,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
 - **U1** · Mappa-arena hex — 2/7 voci verdi · sblocca U13, U19
-- **U2** · Partita hex, primo giro — 3/8 voci verdi · sblocca U3, M6.1, M6.2
+- **U2** · Partita hex, primo giro — 7/8 voci verdi · sblocca U3, M6.1, M6.2
 - **U3** · Input e pianificazione — 1/4 voci verdi · sblocca U4, M6.3
 - **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
 - **U5** · Bot e HUD — 0/7 voci verdi · sblocca U6, U19, M6.6, M6.7
@@ -98,7 +98,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 |---|---|:--:|---|---|:--:|:--:|:--:|
 | **U18** | Verifiche senza prerequisiti | `PIE` | verdetto su quindici voci che non attendono nulla | — | no | 1/15 | 🟡 |
 | **U1** | Mappa-arena hex | `ASSET` | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 2/7 | 🟡 |
-| **U2** | Partita hex, primo giro | `PIE` | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 3/8 | 🟡 |
+| **U2** | Partita hex, primo giro | `PIE` | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 7/8 | 🟡 |
 | **U3** | Input e pianificazione | `PIE` | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
 | **U4** | Combat e linea di tiro | `PIE` | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
 | **U5** | Bot e HUD | `PIE` | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
@@ -248,7 +248,7 @@ Nessuna guida copre ancora questa procedura, quindi i passi stanno qui.
 
 **Sbloccata da**: M6.1, M6.2 · **Preparazione condivisa con**: U3, U4, U5, U6 · **Percorso critico**: sì
 **Produce**: verdetto su allestimento e movimento
-**Verifichi**: `PIE-HEXPLAY-1` ✅ · `PIE-HEXPLAY-4` ⏳ · `PIE-HEXPLAY-5` ✅ · `PIE-CAM-START` ✅ · `PIE-CAM-ORBIT` ⏳ · `PIE-CAM-ZOOM-ANCHOR` ⏳ · `PIE-CAM-BOUNDS` ⏳ · `PIE-CAM-FOCUS` ⏳
+**Verifichi**: `PIE-HEXPLAY-1` ✅ · `PIE-HEXPLAY-4` ⏳ · `PIE-HEXPLAY-5` ✅ · `PIE-CAM-START` ✅ · `PIE-CAM-ORBIT` ✅ · `PIE-CAM-ZOOM-ANCHOR` ✅ · `PIE-CAM-BOUNDS` ✅ · `PIE-CAM-FOCUS` ✅
 **Finita quando**: le voci hanno esito reale nel registro
 **Sblocca**: U3, M6.1, M6.2
 
