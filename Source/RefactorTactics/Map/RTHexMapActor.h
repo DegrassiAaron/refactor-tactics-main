@@ -55,6 +55,20 @@ public:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
 	TSoftObjectPtr<UStaticMesh> CellMesh;
 
+	/**
+	 * Materiale delle celle: legge i tre `PerInstanceCustomData` che `RebuildInstances` scrive e li usa come
+	 * colore, cosi' ogni cella si legge per superficie. Se assente, l'ISM tiene il materiale della mesh e le
+	 * celle restano grigie — degrado silenzioso, non un errore.
+	 *
+	 * ⚠️ Sta QUI e non nel livello, benche' il materiale si possa assegnare anche al componente in editor:
+	 * `MapSource = GeneratedTestArena` costruisce la mappa a runtime e non ha nessun livello dove assegnare
+	 * niente. Un'assegnazione fatta solo su `L_HexArena` lascerebbe grigie proprio le sessioni U2..U6, che
+	 * sull'arena d'autore non girano.
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
+	TSoftObjectPtr<UMaterialInterface> CellMaterial =
+		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/Core/Grid/M_HexCell.M_HexCell")));
+
 	/** Dimensione esagono (cm) usata se MapAsset e' assente. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
 	float HexSize = 100.f;

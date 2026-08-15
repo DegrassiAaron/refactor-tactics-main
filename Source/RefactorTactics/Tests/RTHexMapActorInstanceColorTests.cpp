@@ -3,6 +3,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Materials/Material.h"
 
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -123,6 +124,56 @@ bool FRTHexMapActorInstanceColorTest::RunTest(const FString&)
 	const float FirstR = ISM->PerInstanceSMCustomData[0];
 	const float SecondR = ISM->PerInstanceSMCustomData[3];
 	TestNotEqual(TEXT("Floor e Rough non finiscono con lo stesso rosso"), FirstR, SecondR);
+
+	DestroyInstanceColorWorld(World);
+	return true;
+}
+
+/**
+ * Il materiale delle celle si applica dal CODICE, non dal livello.
+ *
+ * Perche' e' questo il comportamento da fissare: `MapSource = GeneratedTestArena` costruisce la mappa a
+ * runtime, quindi non esiste nessun livello dove assegnare il materiale. Un'assegnazione fatta solo
+ * sull'actor di `L_HexArena` funzionerebbe li' e lascerebbe grigie le sessioni che usano l'arena generata —
+ * cioe' la maggior parte dei playtest.
+ *
+ * Il test non usa `M_HexCell`: userebbe l'asset reale per provare il cablaggio, e fallirebbe per un motivo
+ * sbagliato ovunque quell'asset non ci sia. Basta un materiale qualunque.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorCellMaterialTest,
+	"RefactorTactics.HexMap.CellMaterialAppliedFromCode",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorCellMaterialTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInstanceColorWorld();
+	if (!TestNotNull(TEXT("mondo di test creato"), World))
+	{
+		return false;
+	}
+
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	Map->AddOrUpdateCell(MakeCell(0, 0, ERTHexSurface::Floor));
+
+	ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("actor mappa creato"), Actor))
+	{
+		DestroyInstanceColorWorld(World);
+		return false;
+	}
+
+	UMaterial* Probe = UMaterial::GetDefaultMaterial(MD_Surface);
+	Actor->MapAsset = Map;
+	Actor->CellMaterial = Probe;
+	Actor->RebuildInstances();
+
+	UInstancedStaticMeshComponent* ISM = Cast<UInstancedStaticMeshComponent>(Actor->GetRootComponent());
+	if (!TestNotNull(TEXT("il root e' l'ISM delle celle"), ISM))
+	{
+		DestroyInstanceColorWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("RebuildInstances applica CellMaterial allo slot 0"), ISM->GetMaterial(0), (UMaterialInterface*)Probe);
 
 	DestroyInstanceColorWorld(World);
 	return true;

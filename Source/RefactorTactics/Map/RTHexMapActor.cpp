@@ -466,6 +466,14 @@ void ARTHexMapActor::RebuildInstances()
 		Cells->SetStaticMesh(Mesh);
 	}
 
+	// Dopo `SetStaticMesh`, che riporta gli slot ai materiali della mesh: invertire l'ordine perderebbe
+	// l'override senza dirlo. Solo `Cells` — gli altri tre ISM non portano custom data, e tingerli col
+	// colore della superficie direbbe una cosa falsa (il rilievo non e' terreno, e' il costo).
+	if (UMaterialInterface* Mat = CellMaterial.LoadSynchronous())
+	{
+		Cells->SetMaterial(0, Mat);
+	}
+
 	Cells->ClearInstances();
 	InstanceCells.Reset();
 
