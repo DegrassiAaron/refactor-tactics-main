@@ -128,6 +128,14 @@ def orphan_rows(text):
 def fix(text):
     """Rimuove le righe vuote che stanno fra due righe di tabella. Solo cancellazioni."""
     lines = text.split("\n")
+
+    def next_nonblank(k):
+        """(indice, riga) della prima riga non vuota da k in avanti."""
+        for j in range(k, len(lines)):
+            if lines[j].strip():
+                return j, lines[j]
+        return None, ""
+
     drop, fence = set(), None
     for i, line in enumerate(lines):
         stripped = unquote(line).lstrip()
@@ -141,11 +149,18 @@ def fix(text):
         if line.strip() != "":
             continue
         prev = next((lines[j] for j in range(i - 1, -1, -1) if lines[j].strip()), "")
-        nxt = next((lines[j] for j in range(i + 1, len(lines)) if lines[j].strip()), "")
-        # solo fra due righe di tabella: una riga vuota che confina con del testo separa
-        # due tabelle distinte, o una tabella dalla prosa, ed e' legittima
-        if is_table_line(prev) and is_table_line(nxt) and not DELIM_RE.match(unquote(nxt).strip()):
-            drop.add(i)
+        k, nxt = next_nonblank(i + 1)
+        if not (is_table_line(prev) and is_table_line(nxt)):
+            continue          # confina con della prosa: separatore legittimo
+        if DELIM_RE.match(unquote(nxt).strip()):
+            continue          # la riga vuota separa l'header dal suo delimitatore: non e' mia
+        # `nxt` e' l'HEADER di una tabella nuova se la riga dopo di lui e' un delimitatore.
+        # Senza questo controllo il fix **fondeva due tabelle distinte** — legittime, ciascuna
+        # col suo header — in una sola, silenziosamente. Trovato in code review, non in uso.
+        _, dopo = next_nonblank(k + 1)
+        if DELIM_RE.match(unquote(dopo).strip()):
+            continue
+        drop.add(i)
     return "\n".join(l for i, l in enumerate(lines) if i not in drop), len(drop)
 
 
