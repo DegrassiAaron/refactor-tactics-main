@@ -86,6 +86,31 @@
 #                                   track: l'invariante è definita per track, e una lease fuori da
 #                                   una track non appartiene a nessun insieme e non entra nel
 #                                   confronto.
+#   mandate        facoltativo      path del documento che definisce *cosa* la track deve fare, quando
+#                                   il lavoro non nasce da una issue ma da un mandato scritto.
+#                                   Introdotto il 2026-08-15 con i tre mandati QA
+#                                   (`docs/technical/qa-prompt-terminal-{a,b,c}-*.md`): assegnarli
+#                                   scrivendoli dentro `note` li avrebbe resi invisibili al confronto,
+#                                   perché `note` è prosa e non un campo interrogabile.
+#                                   ⚠️ **Un `mandate` non rende `ACTIVE` la track.** `status` passa ad
+#                                   ACTIVE quando una sessione parte con una issue; fino ad allora la
+#                                   track è IDLE **con mandato assegnato**, che è uno stato diverso da
+#                                   IDLE e basta. Uno `status: ACTIVE` con `issue: null` sarebbe la
+#                                   contraddizione decidibile che questo file già si è visto contestare.
+#                                   ➕ **Conseguenza sullo schema, dichiarata invece che lasciata al
+#                                   lettore**: `writable` sopra dice «se ACTIVE», e una track IDLE con
+#                                   `mandate` **può** averlo. Lì significa *prenotato*, non *in uso*: il
+#                                   path non è di nessun altro e non va assegnato altrove, ma nessuno ci
+#                                   sta scrivendo. Il validator di #840 deve trattarlo come parte
+#                                   dell'insieme per il calcolo delle intersezioni — una prenotazione che
+#                                   non collide non serve a niente — e **non** come prova che la track sia
+#                                   attiva.
+#   mandate_gate   con `mandate`    le condizioni, misurabili, che devono reggere perché quel mandato
+#                                   possa cominciare. Serve quando il mandato non è eseguibile in
+#                                   parallelo: è il caso del Terminal C, il cui dominio è quasi tutto
+#                                   `integration_only` e che quindi gira *dopo* le altre, non insieme.
+#                                   ⚠️ Ogni condizione va scritta col **comando** che la verifica: un
+#                                   gate che si legge a memoria è una nota, non un gate.
 #
 # ## La regola che questo file esiste per rendere verificabile
 #
@@ -685,9 +710,44 @@ tracks:
       copertura affermata era più larga della misura fatta, ed è il difetto che la code review ha
       trovato in due punti. Il numero è uscito dalla frase — un elenco si ricalcola, una cifra
       scritta a mano no.
-      ⚠️ **E il candidato al write-set libero adesso esiste**: `feat/832-stable-structure-id`, aperto
-      in `D:/rt-spatial` con zero commit. Chi lo fa partire riattiva questa track, invece di scrivere
-      su un set che non è assegnato a nessuno.
+      🔴 **Il candidato che questa riga dichiarava non esiste più.** Diceva «`feat/832-stable-structure-id`,
+      aperto in `D:/rt-spatial` con zero commit»: misurato il 2026-08-15 con `git ls-remote --heads origin`,
+      quel branch **non è lato server**. `D:/rt-spatial` è invece su `feat/77-hud-slot-terna`.
+      🔴 **E la prima stesura di questa riga, scritta venti minuti prima, diceva che quel branch era
+      «solo locale, zero commit, mai pushato»: era vero quando l'ho misurato ed era falso quando l'ho
+      scritto.** Rimisurato dopo `git fetch --prune`: è **LIVE**, un commit (`a23a2798`), write-set **3** —
+      `UI/RTHUD.{h,cpp}` e `Tests/RTHudSlotLinesTests.cpp`. È la regola di questo file applicata a chi
+      lo stava scrivendo: fra la misura e la frase che la riassume passa del tempo, e in quel tempo un
+      branch nasce.
+      ⚠️ **Il worktree `D:/rt-spatial` è quindi occupato**, non libero: chi prende il mandato B apre
+      un altro worktree, oppure aspetta che `#77` chiuda.
+      ⚠️ **E `feat/77` scrive dentro il `writable` di `client_tools`**: `UI/` è suo, e due dei tre file
+      stanno lì. La contesa non riguarda questa track — `ScenarioHarness/` non è toccato da nessuno dei
+      branch vivi, misurati uno per uno — ma va registrata qui perché il batch la veda: il terzo file,
+      `Tests/RTHudSlotLinesTests.cpp`, **non è nel `writable` di nessuna track**, ed è lo stesso caso
+      già annotato per `Tests/RTCameraPawnTests.cpp`.
+      ➕ **A questa track è assegnato il mandato QA Terminal B** (`mandate`, sotto), deciso il 2026-08-15.
+      Il write-set che il mandato chiede è `ScenarioHarness/`, che **non era nel `writable` di nessuna
+      track**: le sole occorrenze del path in questo file erano una nota storica e due `derives_from`.
+      ⚠️ **Il mandato non rende `ACTIVE` la track**: `status` resta `IDLE` finché una sessione non parte
+      con una issue. Uno `status: ACTIVE` con `issue: null` sarebbe la stessa contraddizione decidibile
+      che questa voce si è già vista contestare sopra.
+      ⚠️ **E chi parte eredita `--check` da due direzioni, non da una.** `RTScenarioSession.cpp` alimenta
+      `project-graph.json` e `scenariomap.shortlist.md`; il DoD — l'altra sorgente che questa track
+      possiede quando è attiva — alimenta `milestonemap.shortlist.md` e di nuovo `project-graph.json`.
+      Toccare entrambi significa tre viste, non due, con `project-graph.json` contato una volta sola.
+      ⛔ **`Scenarios/` resta `integration_only` e non entra qui.** Il mandato B lo dice: gli scenari
+      nuovi si propongono in JSON dentro l'handoff, non si scrivono. Assegnare la cartella a questa track
+      significherebbe darle la sorgente di `scenariomap.shortlist.md` insieme al suo unico altro
+      produttore, cioè rifare la contesa che la separazione evita.
+    mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
+    writable:
+      - Source/RefactorTactics/ScenarioHarness/
+    derives_from:
+      - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+        regenerates:
+          - docs/roadmap/project-graph.json
+          - docs/roadmap/scenariomap.shortlist.md
 
   simulation:
     status: IDLE
@@ -812,7 +872,10 @@ tracks:
     # write-set atterra comunque su un ramo, e quel ramo va nominato per essere confrontabile.
     # Dichiarato qui, non al posto di `session:`, e misurato: 0 commit su `origin/main` al momento
     # della riconciliazione.
-    worktree: "D:/wt-451"
+    # 🔴 Diceva `D:/wt-451`, e quel percorso non esiste più: misurato il 2026-08-15 con
+    # `git worktree list`, la seduta vive in `D:/rt-content`. Un worktree rinominato non lascia
+    # traccia nel file che lo nomina — si rilegge dal comando, non dalla riga.
+    worktree: "D:/rt-content"
     session_branch: feat/451-u1-voci-hex-mode
     note: >-
       U1 / `#451` — le sette voci `PIE-HEX-MODE-E/F/G/H/L/N/O` del mode.
@@ -887,6 +950,31 @@ tracks:
       non è scrivibile da quella track — vedi la sua nota. È il caso che il prossimo batch deve
       considerare *prima* di rimettere il file in `integration_only` per abitudine: due track che
       producono verdetti PIE si contendono l'unico posto dove un verdetto si scrive.
+    # ➕ **A questa track è assegnato il mandato QA Terminal C**, deciso il 2026-08-15.
+    # ⚠️ **E l'assegnazione ha una forma sola in cui non si contraddice: in coda, non in parallelo.**
+    # Il dominio di C è quasi interamente `integration_only` — 23 voci, dal Decision Log a
+    # `feature-registry.yaml` alle tre roadmap a `Scenarios/` — quindi non è un write-set che si
+    # assegna: è il lavoro che `integration_only` prevede *per definizione*, «si aggiorna una volta,
+    # in integrazione». Darlo a una track che scrive in parallelo alle altre significherebbe
+    # fabbricare la contesa che quell'insieme esiste per impedire, ed è misurata: il README di
+    # `docs/roadmap/plans/` registra il proprio conteggio andato fuori sincrono **tre volte in un
+    # giorno** perché quattro rami toccavano la stessa cartella senza vedersi.
+    # ∴ `mandate_gate` non è una formalità: è la condizione che rende l'assegnazione eseguibile.
+    # Il `writable` qui sotto **non cambia** — resta `test-manuali-pie.md`, che è il prodotto di U1.
+    # I file `integration_only` che C riconcilia non entrano in `writable` e non devono entrarci:
+    # li tocca in quanto turno d'integrazione, con le altre track ferme.
+    # ⚠️ Questa track è `ACTIVE` su `#451`, che è `OPEN`: il mandato C **non è cominciato** e non
+    # comincia finché la seduta U1 non ha chiuso. Verificato il 2026-08-15 con `gh issue view 451`.
+    mandate: docs/technical/qa-prompt-terminal-c-architettura-qa.md
+    mandate_gate: >-
+      Il turno C si apre quando **tutte** e tre reggono, misurate e non ricordate:
+      (1) `#451` chiusa e la seduta U1 consuntivata in `test-manuali-pie.md`;
+      (2) nessun branch aperto tocca un file `integration_only` —
+      `git diff --name-only origin/main...origin/<b>` per ogni `b` di `git ls-remote --heads origin`,
+      **non** `gh pr list`, che non vede i branch pushati senza PR;
+      (3) le altre track con `mandate` — oggi `spatial`, per il Terminal B — sono `IDLE` o chiuse.
+      Se una delle tre non regge, il turno non è cominciato: è la prima cosa che il mandato chiede
+      di verificare.
     writable:
       - docs/technical/test-manuali-pie.md
     # Catena già misurata da questo file (vedi `generated_only`): la sorgente delle voci alimenta
