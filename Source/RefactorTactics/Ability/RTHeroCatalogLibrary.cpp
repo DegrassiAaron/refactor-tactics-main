@@ -9,6 +9,67 @@
 namespace
 {
 	/**
+	 * Nome mostrabile di un'azione d'eroe, dal suo `ActionId` (issue **#892**).
+	 *
+	 * Perche' una tabella e non un parametro dei costruttori: le tre vie che creano un'azione
+	 * (`MakeHeroAction`, `MakeHeroBasicAttack`, `MakeHeroReactionFromCoreAction`) convergono tutte sulla
+	 * prima, quindi un solo punto basta a coprirle. Un parametro obbligatorio impedirebbe il difetto *alla
+	 * radice* — e' la scelta piu' forte — ma tocca venti chiamate e tre firme: si valuta a parte, con il test
+	 * gia' in piedi a fare da rete.
+	 *
+	 * ⚠️ Un `ActionId` **non presente** qui restituisce testo vuoto, e
+	 * `RefactorTactics.Heroes.EveryActionHasADisplayName` diventa rosso. E' voluto: e' il modo in cui
+	 * un'azione aggiunta domani senza nome si fa notare subito invece di comparire in partita come
+	 * `[RT] Piano: X usa  su Y`.
+	 *
+	 * ⚠️ Le chiavi restano i nomi **legacy** (`Flux.`, `Riva.`, `Bastion.`, `Vektor.`) perche' sono
+	 * `ActionId` **serializzati** e si redirigono, non si rinominano (**D-130**). I valori invece sono
+	 * player-facing e seguono il roster canonico di **D-120**: nessuno dei venti nomina un eroe.
+	 *
+	 * I quattro con variante ereditano il lessico che le varianti gia' usano — *Scarica concentrata* e
+	 * *ramificata* stanno sotto *Scarica lineare*, *Marea curativa* e *d'urto* sotto *Marea circolare* —
+	 * cosi' il nome base e le sue varianti si leggono come una famiglia.
+	 */
+	FText HeroActionDisplayName(const FName& Id)
+	{
+		static const TMap<FName, FString> Names = {
+			// Gadget (`Hero.Flux`)
+			{ TEXT("Flux.ArcPulse"),           TEXT("Impulso ad arco") },
+			{ TEXT("Flux.LinearDischarge"),    TEXT("Scarica lineare") },
+			{ TEXT("Flux.ConductiveNode"),     TEXT("Nodo conduttivo") },
+			{ TEXT("Flux.Overload"),           TEXT("Sovraccarico") },
+			{ TEXT("Flux.ReactiveCapacitor"),  TEXT("Condensatore reattivo") },
+
+			// Phase (`Hero.Riva`)
+			{ TEXT("Riva.PressureJet"),        TEXT("Getto in pressione") },
+			{ TEXT("Riva.CircularTide"),       TEXT("Marea circolare") },
+			{ TEXT("Riva.FluidTrail"),         TEXT("Scia fluida") },
+			{ TEXT("Riva.MistVeil"),           TEXT("Velo di nebbia") },
+			{ TEXT("Riva.FlowReaction"),       TEXT("Reazione di flusso") },
+
+			// Riktor (`Hero.Bastion`)
+			{ TEXT("Bastion.ImpactShot"),      TEXT("Colpo d'impatto") },
+			{ TEXT("Bastion.KineticPanel"),    TEXT("Pannello cinetico") },
+			{ TEXT("Bastion.Reconfigure"),     TEXT("Riconfigurazione") },
+			{ TEXT("Bastion.Ram"),             TEXT("Carica d'ariete") },
+			{ TEXT("Bastion.Interposition"),   TEXT("Interposizione") },
+
+			// Wraith (`Hero.Vektor`)
+			{ TEXT("Vektor.PulseShot"),        TEXT("Colpo a impulsi") },
+			{ TEXT("Vektor.InterceptShot"),    TEXT("Intercetto") },
+			{ TEXT("Vektor.PassingBlade"),     TEXT("Lama di passaggio") },
+			{ TEXT("Vektor.Deflection"),       TEXT("Deviazione") },
+			{ TEXT("Vektor.Feint"),            TEXT("Finta") },
+		};
+
+		if (const FString* Found = Names.Find(Id))
+		{
+			return FText::FromString(*Found);
+		}
+		return FText::GetEmpty();
+	}
+
+	/**
 	 * Un'azione d'eroe completa: popola SIA `Def` (modello E4, letto dai validator e dai test) SIA i campi
 	 * legacy specchiati (`RangeCells`/`Power`/`Shape`/`AreaRadius`/`CooldownTurns`) che `ARTTurnManager` legge
 	 * ancora oggi in partita (vedi il ponte a `RTTurnManager.cpp` riga ~793: si attiva SOLO se `Def.ActionId`
@@ -41,6 +102,8 @@ namespace
 		{
 			if (Spec.Effect == ERTActionEffect::Damage) { Action->Power = Spec.Amount; break; }
 		}
+
+		Action->DisplayName = HeroActionDisplayName(Id);
 
 		return Action;
 	}
