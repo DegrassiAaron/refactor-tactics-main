@@ -920,9 +920,15 @@ bool FRTBotArmsItsReactionTest::RunTest(const FString&)
  * *«attacco **o** carica»* — che passa anche se il bot non carica affatto. E si ferma alla
  * pianificazione: nessun test del bot risolve un turno.
  *
- * Il test che il DoD di `#145` citava come insufficiente, `HexMatch.GuardianChargeStopsOnEnemyAndHits`,
- * non esiste piu' sotto nessun nome: `Guardian.*` e' un archetipo legacy che nessuno schiera, ed e' uscito
- * con lui. Non e' stato sostituito — il buco e' rimasto.
+ * ⚠️ **Il confine con `HexMatch.ChargeStopsOnEnemyAndHits`, che copre l'altra meta'.** Quel test esiste
+ * (`RTHexMatchIntegrationTests.cpp`) ed e' quello che il DoD di `#145` citava col nome di allora,
+ * `GuardianChargeStopsOnEnemyAndHits`: e' stato **rinominato** quando `Guardian.*` e' uscito dal roster,
+ * non cancellato. Verifica gia' arresto, 20 danni e spinta — ma **col piano scritto a mano**
+ * (`Charger->PlannedDashCell = Target->Cell`) e `bIsBotControlled = false`, dichiarato nel suo stesso
+ * commento: *«i piani li scrive il test, non l'utility del bot»*.
+ *
+ * Quello che nessuno copriva, ed e' la ragione per cui questo test esiste, e' l'**anello fra i due**: che
+ * sia il BOT a scegliere la carica da solo, e che quella scelta arrivi a segno in un turno risolto.
  *
  * ⚠️ **Il piano non viene imposto**: nessuna scrittura di `PlannedDashCell` o `PlannedDashAbility`. Il bot
  * sceglie da solo, e il test verifica prima *che* abbia scelto una carica, poi *cosa* produce.
