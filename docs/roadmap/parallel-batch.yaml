@@ -67,8 +67,19 @@
 #   worktree       facoltativo      il path del worktree, quando la sessione ne ha uno. Serve a
 #                                   `git worktree list` — il terzo comando della fotografia — per
 #                                   avere un riscontro invece di una corrispondenza a memoria.
-#   blocked_by     facoltativo      numero di PR che deve atterrare **prima** che questa track apra la
-#                                   sessione. Solo per una track ACTIVE con `branch: null`.
+#   blocked_by     facoltativo      numero di PR che deve atterrare prima che questa track possa
+#                                   scrivere nei path che quella PR sta toccando.
+#                                   🔴 **Nato il 2026-08-16 come «prima che la track apra la sessione»,
+#                                   e riscritto il giorno stesso: era troppo grosso.** La misura degli
+#                                   hunk di #904 ha mostrato che il blocco riguardava `UI/RTHUD.*` e
+#                                   non l'intero write-set — `Turn/RTIntentPrivacyLibrary.*` e il suo
+#                                   test non li tocca nessuno. Una track con tre file liberi e uno
+#                                   conteso non è una track ferma: è una track che lavora sui tre.
+#                                   Un `blocked_by` che ferma la sessione intera trasforma una contesa
+#                                   su un path in un'attesa su tutto, ed è il modo in cui un vincolo
+#                                   onesto diventa più caro del problema che risolve.
+#                                   ⚠️ **Quali path**, quindi, va scritto nella `note` — il campo porta
+#                                   solo il numero. Coesiste con `branch:` valorizzato.
 #                                   ⚠️ **Argomentato contro l'elenco chiuso dei campi di stato, come
 #                                   quel paragrafo prescrive — e non è uno di quelli.** `status` e
 #                                   `reconciled_count` sono ciclo di vita del *lotto*; `blocked_by` è
@@ -1245,15 +1256,34 @@ tracks:
   client_tools:
     status: ACTIVE
     issue: 78
-    # ⚠️ `null` per una ragione NUOVA rispetto a ieri, e le due non vanno confuse: allora diceva «il
-    # branch dichiarato è stato mergiato e cancellato» (una misura sul passato), oggi dice **«la
-    # sessione non è ancora partita, e non parte finché #904 non atterra»** (una decisione sul futuro).
-    # Stesso valore, due significati: chi legge solo il campo non può distinguerli, ed è il motivo per
-    # cui la condizione di sblocco è scritta qui sotto in forma di comando invece che di intenzione.
-    branch: null
+    # ⚠️ Il campo ha detto `null` per due ragioni diverse in due giorni — «mergiato e cancellato» prima,
+    # «la sessione non è ancora partita» poi. 🔵 **Dal 2026-08-16 non lo dice più: la sessione È
+    # partita**, e il campo torna a nominare un branch vivo.
+    branch: feat/78-contratto-certezza
+    worktree: "D:/rt-78"
     blocked_by: 904        # ⚠️ non è ownership: è la PR che deve atterrare prima che questa track scriva
     note: >-
       CP 11.2 — il livello di certezza degli intenti alleati.
+      🔵 **SESSIONE APERTA il 2026-08-16 su `feat/78-contratto-certezza` (`D:/rt-78`), e `blocked_by`
+      NON la ferma: ne ferma un quarto.** Lo spec panel dello stesso giorno ha misurato che il lavoro di
+      questo checkpoint sta in quattro passi, e che solo l'ultimo tocca il file conteso:
+      · **1 — riscrivere il DoD**: ✅ fatto, la issue è stata riscritta e le ragioni stanno nel commento
+        del 2026-08-16. Non tocca file del repository;
+      · **2 — misurare la distribuzione** dei tre livelli su uno scenario di 8 turni, prima di
+        disegnare: `ClassifyPlan` dà `Uncertain` per `bMoving || bDashing`, e se quel livello copre la
+        quasi totalità degli intenti la scala a tre valori non discrimina. È il metodo di `#864` —
+        i numeri si decidono davanti all'evidenza, non dopo;
+      · **3 — correggere il contratto del DTO**: default `Uncertain` invece di `Confirmed` (il campo non
+        popolato oggi promette la garanzia più forte) e la sentinella di `ReactionCertainty`, dove
+        `Confirmed` significa **«nessuna reazione»** e non «reazione certa». Vive in
+        `Turn/RTIntentPrivacyLibrary.{h,cpp}` + `Tests/RTIntentPrivacyTests.cpp`, **tutti e tre nel
+        `writable` qui sotto e contesi da nessuno** — misurato: `feat/cp75-selfreposition` sta in
+        `Turn/` ma sui suoi tre file, intersezione vuota;
+      · **4 — la resa in `ARTHUD`**: questo sì, e aspetta #904.
+      ⚠️ **Il write-set NON si restringe a tre file per la durata del blocco**, ed è una scelta: `UI/`
+      resta dichiarato qui perché la track lo possiede, e toglierlo lo renderebbe «libero e non
+      assegnato» — cioè prendibile da chiunque, mentre la sessione è aperta proprio per scriverci al
+      passo 4. Il vincolo è temporale, non di ownership, e sta nel `blocked_by`.
       ✅ **RIAPERTA il 2026-08-16, su richiesta esplicita, ed è la ragione di questa riconciliazione.**
       Il residuo è stato rimisurato sul DoD di `#78` invece che riletto dalla riga di ieri, e regge
       identico: delle quattro voci, due sono chiuse nel codice — *«calcolata dal simulatore, non
