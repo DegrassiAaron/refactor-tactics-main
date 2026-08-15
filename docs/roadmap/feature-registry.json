@@ -1882,7 +1882,8 @@
         "RefactorTactics.HexSim.DashIsLinear"
       ],
       "scenarios": [
-        "Visual.Combat.PushResistance"
+        "Visual.Combat.PushResistance",
+        "Spec.Movement.DashDiscardsPlannedMove"
       ],
       "scenarios_planned": [],
       "wiki_refs": [
