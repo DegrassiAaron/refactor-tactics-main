@@ -71,6 +71,26 @@ public:
 	static TArray<FRTHexReachableCell> ReachableCells(const FRTHexSnapshot& Snapshot, int32 UnitId);
 
 	/**
+	 * Celle raggiungibili DOPO aver percorso i waypoint indicati: partenza sulla punta del percorso, budget
+	 * ridotto di quanto il percorso ha gia' impegnato. E' il ventaglio che il giocatore deve vedere mentre
+	 * pianifica — «quanto mi resta», non «quanto avevo» (#877).
+	 *
+	 * Waypoint vuoti -> identica a `ReachableCells`. Piano RIFIUTATO da `BuildCompositeHexPath` (waypoint fuori
+	 * budget o irraggiungibile) -> identica a `ReachableCells`: non esiste una punta da cui ripartire, e il
+	 * piano in vigore e' «resto fermo».
+	 *
+	 * ⚠️ Deriva uno snapshot in cui l'unita' sta sulla punta: quella fotografia MENTE su dove si trova, ed e'
+	 * per questo che non esce da qui. Passarla a un consumatore che non sa di essere in un'ipotesi — il
+	 * TurnManager, l'area d'attacco — gli farebbe calcolare l'esito su una posizione che non e' ancora vera.
+	 *
+	 * Invariante (test `ReachableAfterPlanMatchesWaypointAcceptance`): una cella e' qui se e solo se
+	 * `BuildCompositeHexPath` la accetta come waypoint successivo. La zona mostrata e quella subita sono la
+	 * stessa, perche' entrambe escono da questa libreria.
+	 */
+	static TArray<FRTHexReachableCell> ReachableCellsAfterPlan(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const TArray<FRTCellId>& Waypoints);
+
+	/**
 	 * Percorso dell'unita' verso Goal entro il suo MoveBudget, evitando le celle occupate da altre unita'
 	 * (goal occupato -> NoPath). UnitId sconosciuto -> StartInvalid.
 	 */

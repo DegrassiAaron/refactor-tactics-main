@@ -306,6 +306,197 @@ bool FRTHexSimReachableTransitionTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// Fan RESIDUO (#877): dove si puo' ancora arrivare DOPO aver percorso i waypoint gia' pianificati.
+//
+// Il ventaglio verde diceva «dove posso arrivare questo turno, da dove sono» — informazione statica, che i
+// waypoint non consumavano. Il giocatore legge «quanto mi resta». Questi test pinnano la seconda lettura.
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimReachableAfterPlanShrinksTest,
+	"RefactorTactics.HexSim.ReachableAfterPlanShrinksFromPlannedTip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimReachableAfterPlanShrinksTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(3);
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	// Nessun waypoint: identico a `ReachableCells`, e il numero e' pinnato (3n^2+3n+1 con n=2). «Identico a
+	// oggi» non falsifica nulla se «oggi» cambia; 19 si'.
+	const TArray<FRTHexReachableCell> Full =
+		URTHexSimLibrary::ReachableCellsAfterPlan(Snap, 1, TArray<FRTCellId>());
+	TestEqual(TEXT("senza waypoint: raggio pieno, 19 celle entro budget 2"), Full.Num(), 19);
+	TestEqual(TEXT("senza waypoint coincide con ReachableCells"),
+		Full.Num(), URTHexSimLibrary::ReachableCells(Snap, 1).Num());
+
+	// Un waypoint a distanza 1: ne resta uno solo di MP, e il fan riparte DALLA PUNTA.
+	TArray<FRTCellId> Waypoints;
+	Waypoints.Add(FRTCellId(1, 0));
+	const TArray<FRTHexReachableCell> After = URTHexSimLibrary::ReachableCellsAfterPlan(Snap, 1, Waypoints);
+
+	TestEqual(TEXT("un MP residuo: le 7 celle attorno alla punta"), After.Num(), 7);
+	TestTrue(TEXT("la punta del percorso e' nel fan"), HasCell(After, FRTCellId(1, 0)));
+	const FRTHexReachableCell* Tip =
+		After.FindByPredicate([](const FRTHexReachableCell& C) { return C.Cell == FRTCellId(1, 0); });
+	TestTrue(TEXT("la punta costa 0: e' la nuova partenza"), Tip != nullptr && Tip->Cost == 0);
+	TestTrue(TEXT("si puo' tornare sulla cella di partenza"), HasCell(After, FRTCellId(0, 0)));
+
+	// (-2,0) era dentro il raggio pieno (distanza 2) ed e' a 3 dalla punta: esce. E' il restringimento.
+	TestTrue(TEXT("precondizione: (-2,0) era nel fan pieno"), HasCell(Full, FRTCellId(-2, 0)));
+	TestFalse(TEXT("(-2,0) esce dal fan residuo"), HasCell(After, FRTCellId(-2, 0)));
+
+	// Contenimento: il fan residuo non inventa celle che il budget pieno non copriva.
+	bool bContained = true;
+	for (const FRTHexReachableCell& C : After)
+	{
+		bContained &= HasCell(Full, C.Cell);
+	}
+	TestTrue(TEXT("il fan residuo e' contenuto in quello iniziale"), bContained);
+	TestTrue(TEXT("ed e' strettamente piu' piccolo"), After.Num() < Full.Num());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimReachableAfterPlanUndoTest,
+	"RefactorTactics.HexSim.ReachableAfterPlanUndoRestoresExactly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimReachableAfterPlanUndoTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(3);
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 3));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	TArray<FRTCellId> One;
+	One.Add(FRTCellId(1, 0));
+	const TArray<FRTHexReachableCell> AfterOne = URTHexSimLibrary::ReachableCellsAfterPlan(Snap, 1, One);
+
+	TArray<FRTCellId> Two = One;
+	Two.Add(FRTCellId(2, 0));
+	const TArray<FRTHexReachableCell> AfterTwo = URTHexSimLibrary::ReachableCellsAfterPlan(Snap, 1, Two);
+	TestTrue(TEXT("il secondo waypoint stringe ancora"), AfterTwo.Num() < AfterOne.Num());
+
+	// L'undo toglie l'ultimo waypoint e ricalcola: deve tornare lo STESSO insieme, cella per cella. La
+	// funzione e' pura, quindi qui l'invariante e' garantita per costruzione — il test la pinna perche' cada
+	// il giorno in cui qualcuno ci mette una cache che non si invalida.
+	const TArray<FRTHexReachableCell> Undone = URTHexSimLibrary::ReachableCellsAfterPlan(Snap, 1, One);
+	TestEqual(TEXT("l'undo riporta lo stesso numero di celle"), Undone.Num(), AfterOne.Num());
+	bool bSame = true;
+	for (int32 i = 0; i < Undone.Num() && i < AfterOne.Num(); ++i)
+	{
+		bSame &= (Undone[i].Cell == AfterOne[i].Cell) && (Undone[i].Cost == AfterOne[i].Cost);
+	}
+	TestTrue(TEXT("l'undo riporta esattamente le stesse celle, agli stessi costi"), bSame);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimReachableAfterPlanExhaustedTest,
+	"RefactorTactics.HexSim.ReachableAfterPlanExhaustedKeepsArrival",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimReachableAfterPlanExhaustedTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(3);
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	// Waypoint a distanza 2 con budget 2: residuo zero.
+	TArray<FRTCellId> Waypoints;
+	Waypoints.Add(FRTCellId(2, 0));
+	const TArray<FRTHexReachableCell> After = URTHexSimLibrary::ReachableCellsAfterPlan(Snap, 1, Waypoints);
+
+	// Non vuoto e non sparito: la cella d'arrivo resta, a costo 0. Un fan vuoto direbbe «non puoi stare da
+	// nessuna parte», che e' falso — ci sei gia'.
+	TestEqual(TEXT("budget esaurito: una sola cella"), After.Num(), 1);
+	TestTrue(TEXT("ed e' la cella d'arrivo"), HasCell(After, FRTCellId(2, 0)));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimReachableAfterPlanInvalidTest,
+	"RefactorTactics.HexSim.ReachableAfterPlanInvalidPlanFallsBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimReachableAfterPlanInvalidTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(3);
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	// Waypoint a distanza 3 con budget 2: `BuildCompositeHexPath` rifiuta l'INTERO percorso. Non esiste una
+	// punta da cui ripartire, quindi il fan torna quello pieno — come il piano, che e' «resto fermo».
+	TArray<FRTCellId> Unreachable;
+	Unreachable.Add(FRTCellId(3, 0));
+	const TArray<FRTHexReachableCell> After = URTHexSimLibrary::ReachableCellsAfterPlan(Snap, 1, Unreachable);
+	TestEqual(TEXT("piano invalido: fan pieno dalla cella reale"), After.Num(), 19);
+	TestTrue(TEXT("include la cella reale"), HasCell(After, FRTCellId(0, 0)));
+
+	// Unita' sconosciuta: nessun fan, come `ReachableCells`.
+	const TArray<FRTHexReachableCell> Ghost =
+		URTHexSimLibrary::ReachableCellsAfterPlan(Snap, 99, TArray<FRTCellId>());
+	TestEqual(TEXT("unita' fuori snapshot: fan vuoto"), Ghost.Num(), 0);
+	return true;
+}
+
+/**
+ * L'INVARIANTE che impedisce alla zona mostrata di divergere da quella subita: una cella e' nel verde se e
+ * solo se, cliccandola, la pianificazione la accetta come waypoint.
+ *
+ * ⚠️ L'oracolo e' `BuildCompositeHexPath`, non `ClassifyWaypointCell`: quest'ultima **non guarda il budget**
+ * (restituisce `Ok` per ogni cella libera della mappa, anche a cinquanta esagoni), quindi un confronto con lei
+ * sarebbe vero per costruzione in un verso e falso per sempre nell'altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimReachableAfterPlanMatchesAcceptanceTest,
+	"RefactorTactics.HexSim.ReachableAfterPlanMatchesWaypointAcceptance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimReachableAfterPlanMatchesAcceptanceTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(3);
+
+	FRTHexCellData Wall(FRTCellId(0, 1));
+	Wall.bBlocksMovement = true;
+	M->AddOrUpdateCell(Wall);
+
+	FRTHexCellData Mud(FRTCellId(1, -1));
+	Mud.MoveCost = 2;
+	M->AddOrUpdateCell(Mud);
+	M->SortCells();
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 3));
+	Units.Add(FRTHexSimUnit(2, FRTCellId(-1, 0), 0)); // un'altra unita': la sua cella non e' un waypoint valido
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	TArray<FRTCellId> Waypoints;
+	Waypoints.Add(FRTCellId(1, 0));
+
+	const TArray<FRTHexReachableCell> Fan = URTHexSimLibrary::ReachableCellsAfterPlan(Snap, 1, Waypoints);
+	TestTrue(TEXT("il fan non e' vuoto (altrimenti il test non proverebbe nulla)"), Fan.Num() > 1);
+
+	int32 Divergenze = 0;
+	for (const FRTHexCellData& Cell : M->Cells)
+	{
+		TArray<FRTCellId> Probe = Waypoints;
+		Probe.Add(Cell.Id);
+		const bool bAccettata =
+			URTHexSimLibrary::BuildCompositeHexPath(Snap, 1, Probe).Status == ERTHexPathStatus::Success;
+		const bool bNelFan = HasCell(Fan, Cell.Id);
+		if (bAccettata != bNelFan)
+		{
+			++Divergenze;
+			AddError(FString::Printf(TEXT("(%d,%d,L%d): nel fan=%s, accettata=%s"),
+				Cell.Id.X, Cell.Id.Y, Cell.Id.Layer,
+				bNelFan ? TEXT("si") : TEXT("no"), bAccettata ? TEXT("si") : TEXT("no")));
+		}
+	}
+	TestEqual(TEXT("nessuna cella della mappa diverge fra fan e accettazione"), Divergenze, 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimPathBudgetTest,
 	"RefactorTactics.HexSim.PathStopsAtBudget",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
