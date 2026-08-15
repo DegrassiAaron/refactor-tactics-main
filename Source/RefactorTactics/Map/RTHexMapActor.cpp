@@ -93,6 +93,13 @@ ARTHexMapActor::ARTHexMapActor()
 	Cells->SetCollisionEnabled(ECollisionEnabled::QueryOnly); // per il raycast di selezione (H2)
 	Cells->SetCollisionResponseToAllChannels(ECR_Block);
 
+	// Tre float per istanza: il colore della superficie, che `RebuildInstances` scrive per ogni cella.
+	// ⚠️ Da soli non si vedono. Servono a un materiale che legga `PerInstanceCustomData` come Base Color;
+	// col materiale di default della mesh engine le celle restano grigie e questi float sono inerti.
+	// Sta qui e non in `RebuildInstances` perche' `AddInstance` alloca i float alla creazione dell'istanza:
+	// impostarlo dopo lascerebbe le istanze gia' aggiunte senza spazio dove scrivere.
+	Cells->NumCustomDataFloats = 3;
+
 	// Fallback graybox: cilindro engine (appiattito a disco in RebuildInstances).
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (CylinderMesh.Succeeded())
@@ -504,6 +511,9 @@ void ARTHexMapActor::RebuildInstances()
 	// Puntatori alle celle d'asset per leggerne coperture e porte: sparsi, quindi la stragrande maggioranza
 	// delle celle non produce nulla. Nel ramo demo restano nulli — un graybox non ha bordi d'autore.
 	TArray<const FRTHexCellData*> EdgeSources;
+	// Superficie per cella: alimenta il colore per istanza. Sta in un array parallelo come gli altri e non si
+	// legge da `EdgeSources`, che nel ramo demo e' tutto nullo.
+	TArray<ERTHexSurface> Surfaces;
 	if (MapAsset && MapAsset->NumCells() > 0)
 	{
 		CellIds.Reserve(MapAsset->NumCells());
@@ -523,6 +533,7 @@ void ARTHexMapActor::RebuildInstances()
 			BlocksMove.Add(C.bBlocksMovement);
 			BlocksSight.Add(C.bBlocksLineOfSight);
 			EdgeSources.Add(&C);
+			Surfaces.Add(C.Surface);
 		}
 	}
 	else if (DemoRadius > 0)
@@ -534,6 +545,7 @@ void ARTHexMapActor::RebuildInstances()
 		BlocksMove.Init(false, CellIds.Num());
 		BlocksSight.Init(false, CellIds.Num());
 		EdgeSources.Init(nullptr, CellIds.Num());
+		Surfaces.Init(ERTHexSurface::Floor, CellIds.Num()); // coerente con MoveCosts a 1: il graybox e' pavimento
 	}
 
 	// Cilindro engine: raggio 50 uu, mezza-altezza 50 uu. Scala X,Y per coprire ~l'esagono, Z sottile (disco).
@@ -546,8 +558,22 @@ void ARTHexMapActor::RebuildInstances()
 		FVector World = URTHexLibrary::AxialToWorld(CellIds[I], GetActorLocation(), UseHexSize, UseLayerH);
 		World.Z += static_cast<double>(Heights[I]);
 		const FTransform Xf(FRotator::ZeroRotator, World, FVector(PlanarScale, PlanarScale, FlatScale));
-		Cells->AddInstance(Xf, /*bWorldSpace=*/ true);
+		const int32 InstanceIndex = Cells->AddInstance(Xf, /*bWorldSpace=*/ true);
 		InstanceCells.Add(CellIds[I]);
+
+		// Colore della superficie, per ISTANZA. La tavolozza e' `URTHexLibrary::SurfaceColor` — la stessa che
+		// disegna l'anello dell'overlay e il marker dell'editor: una cella non puo' avere due colori a seconda
+		// di chi la guarda.
+		// ⚠️ `SurfaceColor` restituisce un `FColor` sRGB a 8 bit, il materiale legge Base Color **lineare**.
+		// `FromSRGBColor` fa la conversione; dividere per 255 darebbe tinte slavate, e lo sbaglio si vedrebbe
+		// solo mettendo la mesh accanto al proprio anello.
+		const FLinearColor CellColor = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(Surfaces[I]));
+		Cells->SetCustomDataValue(InstanceIndex, 0, CellColor.R);
+		Cells->SetCustomDataValue(InstanceIndex, 1, CellColor.G);
+		// Il render state si marca una volta sola, sull'ultima istanza: farlo a ogni canale ricostruirebbe il
+		// buffer 3N volte, e `RebuildInstances` gira a ogni OnClickDrag del pennello.
+		Cells->SetCustomDataValue(InstanceIndex, 2, CellColor.B,
+			/*bMarkRenderStateDirty=*/ I == CellIds.Num() - 1);
 
 		// Rilievo del costo: un blocco alto quanto il SOVRAPPREZZO della cella. Il pavimento non ne produce
 		// nessuno — una mappa senza terreni costosi resta piatta, ed e' giusto: non c'e' niente da segnalare.
