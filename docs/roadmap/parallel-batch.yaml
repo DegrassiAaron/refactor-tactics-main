@@ -34,7 +34,11 @@
 # La code review l'ha trovato. Un elenco chiuso è più onesto di un singolare che invecchia — e la
 # prossima aggiunta va argomentata contro **questo** elenco, non contro l'abitudine.
 #
-# ## Schema di una track  (`schema_version: 2`)
+# ## Schema di una track  (`schema_version: 3`)
+#
+# 🔴 Questa intestazione ha detto `2` per un commit intero **dopo** che il dato diceva `3`, e l'ha
+# trovata la code review: due numeri di versione in contraddizione dentro lo stesso file sono peggio
+# di uno solo stantio, perché chi implementa #840 «contro lo schema scritto» legge proprio qui.
 #
 #   status         obbligatorio     ACTIVE | IDLE
 #   issue          obbligatorio     numero GitHub, oppure null se IDLE
@@ -319,7 +323,7 @@ batch:
   # sotto sono calcolati con `git diff --name-only <base_sha>...<branch>` su questo valore, non su
   # quello dell'id.
   id: "BATCH-84cbb70c-gh41-gh583"
-  base_sha: "4ab36b48b687bdae029be72d7af6b7add167606e"
+  base_sha: "5f00ade91ba1a4d1a4de9ac3fbcc41a1e3a44e58"
   created_at: "2026-08-14"
   # Base di creazione, tenuta perché è ciò che l'`id` nomina: `84cbb70c6f5082682e59a71d442b71e78fac4322`.
   # Verificato che sia ancora antenato della base corrente (`git merge-base --is-ancestor`): sì —
@@ -779,11 +783,20 @@ preexisting:
       ragioni, in ordine di peso:
       · **#904 è avanti**: un commit già scritto, una PR già aperta da 16 ore. Il residuo di `#78` non
         ha ancora una riga;
-      · **è lo stesso codice, non lo stesso file per caso**: `#78` deve mostrare i tre livelli di
-        certezza dentro `RTHUD.cpp:265-352`, il blocco che chiama `FilterForTeam` e disegna le viste —
-        cioè la funzione che #904 sta riscrivendo. Non è una contesa di *granularità* come quella su
-        `Turn/` fra #78 e #165, che si sciolse con `excludes`: qui `excludes` renderebbe la track
-        **inerte**, perché escluderebbe l'unico file dove il lavoro vive;
+      · 🔴 **QUESTA RAGIONE ERA FALSA, e l'ha trovata la code review.** Diceva: *«è lo stesso codice,
+        non lo stesso file per caso: `#78` deve mostrare i tre livelli dentro `RTHUD.cpp:265-352`, la
+        funzione che #904 sta riscrivendo»*. **#904 non riscrive niente**: `git diff --stat` dà
+        **70 inserzioni e 0 delezioni**, e `git diff -U0 | grep '^@@'` dà tre hunk — `@@ -1,0 +2 @@`
+        (un include), `@@ -95,0 +97,44 @@` (l'helper `ComposeOneSlotLine`, nuovo, prima di `DrawHUD`)
+        e `@@ -575,0 +621,25 @@`. **Nessuno cade dentro 265–352**, e la chiamata a `FilterForTeam`
+        (riga 314) è intatta. L'affermazione era stata dedotta da `--name-only`, che misura la
+        sovrapposizione dei **file** e non può dire quale funzione cambia: il comando giusto per la
+        domanda sbagliata, che è il difetto che questo file insegue da cinque riconciliazioni;
+      · ∴ **la conseguenza pratica si rovescia**: gli hunk di #904 e il residuo di #78 sono
+        **disgiunti**, quindi git li fonde senza conflitto e l'alternativa non bloccante era
+        praticabile. Il blocco resta perché lo ha **deciso chi possiede la track**, non perché il
+        codice lo imponga — e la differenza va scritta, perché una decisione presa su una premessa
+        falsa si rilegge quando la premessa cade;
       · **il costo del secondo è più basso del costo del primo**: #904 ha 3 file e 1 commit, `#78` ha
         due voci di DoD di presentazione più larghe. Chi rifà l'innesto su una base cambiata paga meno
         se è il lavoro piccolo ad aspettare... e infatti **non è quello che si è deciso**: aspetta il
@@ -1159,10 +1172,17 @@ tracks:
       `?` che finge un sistema che non c'è è peggio del `?` che manca.
       🔴 **La track si riapre con una CONTESA, non con un write-set libero, e il file l'aveva prevista.**
       `feat/77-hud-slot-terna` (PR #904) ha committato `UI/RTHUD.{h,cpp}`, che è dentro il `writable`
-      dichiarato qui sotto per prefisso. Non è adiacenza di dominio: il residuo di `#78` vive in
-      `RTHUD.cpp:265-352`, il blocco che chiama `FilterForTeam` e disegna le viste — **la funzione che
-      #904 riscrive**. Decisione presa: **passa prima #904**, questa track non apre la sessione fino
-      ad allora, e la ragione completa sta nella voce di quel branch in `preexisting`.
+      dichiarato qui sotto per prefisso. La sovrapposizione è **di file**, misurata con `--name-only`.
+      🔴 **E la prima stesura di questa riga diceva anche «la funzione che #904 riscrive»: è FALSO**, e
+      l'ha trovato la code review. #904 aggiunge **70 righe e ne toglie zero**, in tre hunk che cadono a
+      riga 1, 95 e 575: il blocco degli intenti (`265-352`, con `FilterForTeam` a 314) **non è toccato**.
+      La misura era un `--name-only` — che risponde a *«gli stessi file?»* — usata per sostenere una
+      conclusione su *«la stessa funzione?»*. Gli hunk sono disgiunti e git li fonderebbe senza
+      conflitto: il blocco è una **scelta di chi possiede la track**, non un vincolo del codice.
+      ⚠️ Decisione confermata comunque — **passa prima #904** — sulla ragione che regge da sola: chi è
+      già in PR non rifà il proprio innesto per chi non ha ancora scritto una riga. Ma va riletta se
+      #904 resta ferma, perché il costo dell'attesa non è più bilanciato da un rischio di conflitto
+      che la misura dice inesistente. La ragione completa sta nella voce di quel branch in `preexisting`.
       ⚠️ **Condizione di sblocco, in un comando invece che in una promessa**:
       `gh pr view 904 --json state` → `MERGED`. A quel punto la track apre il branch, `branch:` smette
       di essere `null`, `blocked_by` sparisce, e il primo passo è **rebasare su un `RTHUD.cpp` che ha
