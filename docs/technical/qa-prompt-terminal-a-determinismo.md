@@ -112,6 +112,42 @@ D-139 esiste per impedire.
 >
 > La fixture condivisa esiste come **precedente**, non come **infrastruttura**.
 
+### La issue che misura lo stesso dominio: `#578`
+
+⚠️ **Leggila prima di iniziare**: *«Determinismo: tre test su sei mancano (Repeat ×1000, Frame-rate,
+Packaged)»*, `OPEN`, `P1`. Misura lo stesso dominio con un **taglio diverso** — le sei procedure di
+**PDR-05 §10** — e i due si completano: la issue dice *cosa* verificare, questo mandato dice *con quale
+infrastruttura*.
+
+| # | Procedura PDR-05 §10 | `#578` (2026-08-12) | Rimisurato 2026-08-15 |
+|---|---|---|---|
+| 1 | Golden | ✅ 1 test | ✅ **5** — la issue sottostima |
+| 2 | Permutation | ✅ ×4 | ✅ **≥13** — la issue sottostima |
+| 3 | Repeat ×1000 | ❌ | ❌ regge |
+| 4 | Seed | 🟡 parziale | 🟡 regge |
+| 5 | Frame-rate | ❌ | ❌ regge |
+| 6 | Packaged | ❌ | ❌ regge |
+
+L'oracolo è pubblicato nella issue: eseguilo invece di fidarti di questa tabella.
+
+✅ **Due voci del suo DoD si chiudono con una ragione, non con un test** — e il DoD lo prevede
+esplicitamente:
+
+- *«Repeat ×1000 esiste ed è verde, **oppure è dichiarato fuori scope con la ragione** (costo in CI)»* →
+  §6.3: non c'è CI né nightly, e senza RNG la ripetizione **in-process** non falsifica nulla.
+- *«Frame-rate esiste ed è verde, **oppure è dichiarato non applicabile con la ragione** — il resolver è
+  headless e non consuma `DeltaTime`»* → la issue lo ipotizza, il repository lo conferma.
+- Il gap **Seed** è il **test di guardia** del §6.2: PDR-05 §5 prescrive
+  `Hash(TurnSeed, ActionId, RollKind)`, e oggi nessun RNG consuma il seed.
+
+⚠️ **Ma la ragione va scritta dove il DoD la chiede**: *«accanto all'invariante #4»* del
+[piano canonico](../product/piano-canonico-mvp.md) §5, **non solo nella issue** — «una procedura scartata
+in silenzio si ripropone fra sei mesi». Per questo `docs/product/piano-canonico-mvp.md` è nel `writable`
+della track.
+
+⛔ **Resta `Packaged`**, che è l'unica delle tre a chiedere davvero un test: confronto di hash fra build
+Development e Shipping. Non si chiude con una ragione.
+
 Il risultato competitivo non deve dipendere da frame rate, animazioni, tick client, timing UI, ordine
 implicito di `TMap`/`TSet`, random globale. `PASS`/`FAIL` deve derivare da assertion e dati deterministici.
 
