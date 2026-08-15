@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "RTWorldFixtures.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
@@ -70,25 +71,10 @@ namespace
 	// Gli helper portano il prefisso `Showcase`: nella unity build questo file finisce in un'unita' di
 	// traduzione condivisa e un nome generico collide con quello di un altro file di test (gotcha noto).
 
-	UWorld* MakeShowcaseWorld()
-	{
-		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
-		if (World && GEngine)
-		{
-			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
-			Ctx.SetCurrentWorld(World);
-		}
-		return World;
-	}
-
-	void DestroyShowcaseWorld(UWorld* World)
-	{
-		if (World && GEngine)
-		{
-			GEngine->DestroyWorldContext(World);
-			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
-		}
-	}
+	// Il mondo di prova vive in `RTWorldFixtures.h`: era dichiarato qui con un nome tutto suo perche' la
+	// unity build fonde le translation unit e due namespace anonimi con la stessa funzione collidono. Un
+	// namespace NOMINATO non ha quel problema. Le chiamate restano qualificate: in unity build questo
+	// namespace anonimo e' lo stesso di ogni altro file di test.
 
 	const URTHeroData* FindShowcaseHero(FName HeroId)
 	{
@@ -148,22 +134,22 @@ namespace
 	{
 		FRTShowcaseRun Run;
 
-		UWorld* World = MakeShowcaseWorld();
+		UWorld* World = RTWorldFixtures::MakeWorld();
 		if (!World) { return Run; }
 
 		URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeShowcaseRelayLiteArena(World);
 		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
-		if (!Arena || !MapActor) { DestroyShowcaseWorld(World); return Run; }
+		if (!Arena || !MapActor) { RTWorldFixtures::DestroyWorld(World); return Run; }
 		MapActor->MapAsset = Arena;
 		Run.ArenaHash = Arena->ComputeHash();
 
 		for (const FRTShowcaseSpawn& Spawn : URTMatchSetupLibrary::GetShowcaseRelayLiteSpawns())
 		{
-			if (SpawnShowcaseHero(World, Spawn) == nullptr) { DestroyShowcaseWorld(World); return Run; }
+			if (SpawnShowcaseHero(World, Spawn) == nullptr) { RTWorldFixtures::DestroyWorld(World); return Run; }
 		}
 
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM) { DestroyShowcaseWorld(World); return Run; }
+		if (!TM) { RTWorldFixtures::DestroyWorld(World); return Run; }
 
 		for (int32 Turn = 1; Turn <= NumTurns && TM->GetPhase() != ERTMatchPhase::MatchEnded; ++Turn)
 		{
@@ -191,7 +177,7 @@ namespace
 		Run.FinalState.Sort(); // l'ordine degli Actor non e' materia di questo test: lo e' il contenuto
 
 		Run.bValid = true;
-		DestroyShowcaseWorld(World);
+		RTWorldFixtures::DestroyWorld(World);
 		return Run;
 	}
 }
@@ -600,7 +586,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioUnknownFixtureTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioUnknownFixtureTest::RunTest(const FString&)
 {
-	UWorld* World = MakeShowcaseWorld();
+	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
 	FRTTestScenario Scenario;
@@ -613,7 +599,7 @@ bool FRTScenarioUnknownFixtureTest::RunTest(const FString&)
 	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 0; return E; }());
 
 	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
-	DestroyShowcaseWorld(World);
+	RTWorldFixtures::DestroyWorld(World);
 
 	// ERROR, non FAIL: il gioco non ha sbagliato niente, lo scenario si'. Confonderli fa cercare nel
 	// resolver un difetto che sta nel JSON.
@@ -629,7 +615,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBlockedTurnTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioBlockedTurnTest::RunTest(const FString&)
 {
-	UWorld* World = MakeShowcaseWorld();
+	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
 	FRTTestScenario Scenario;
@@ -662,7 +648,7 @@ bool FRTScenarioBlockedTurnTest::RunTest(const FString&)
 	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 1; return E; }());
 
 	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
-	DestroyShowcaseWorld(World);
+	RTWorldFixtures::DestroyWorld(World);
 
 	// Il valore di questo esito e' tutto qui: uno showcase parzialmente eseguibile deve dire QUANTO
 	// arriva e COSA lo ferma, non fallire in blocco come se il gioco fosse rotto.
@@ -698,14 +684,14 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 	TestEqual(TEXT("la geometria non e' copiata nel JSON"), Scenario.Cells.Num(), 0);
 	TestEqual(TEXT("otto turni dichiarati"), Scenario.Turns.Num(), 8);
 
-	UWorld* World = MakeShowcaseWorld();
+	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
 	// `RunById` e non `Run`: e' il percorso che scrive davvero `result.json`. Un test che salta il report
 	// verificherebbe il resolver e lascerebbe scoperto proprio cio' che serve a diagnosticare da fuori.
 	FString ReportDir;
 	const FRTTestResult Result = URTScenarioRunner::RunById(World, TEXT("RT_Showcase_Relay_v01"), ReportDir);
-	DestroyShowcaseWorld(World);
+	RTWorldFixtures::DestroyWorld(World);
 
 	// ⚠️ **Il nome del test e' storico, il numero no.** Nasceva quando lo showcase arrivava a UN turno: il
 	// T2 chiedeva la Predictive Action e li' si fermava. Con E18 CP 18.2 (2026-08-10) quella capability
@@ -778,10 +764,10 @@ bool FRTShowcaseT1DeterministicTest::RunTest(const FString&)
 	// non c'entra col determinismo del gioco.
 	auto RunOnce = [this, &Scenario]() -> FRTTestResult
 	{
-		UWorld* World = MakeShowcaseWorld();
+		UWorld* World = RTWorldFixtures::MakeWorld();
 		if (!World) { return FRTTestResult(); }
 		const FRTTestResult R = URTScenarioRunner::Run(World, Scenario);
-		DestroyShowcaseWorld(World);
+		RTWorldFixtures::DestroyWorld(World);
 		return R;
 	};
 
@@ -925,11 +911,11 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 	Scenario.Expect.Add(Dove(TEXT("Vektor"),  FRTCellId( 3, 1, 0)));
 	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 3; return E; }());
 
-	UWorld* World = MakeShowcaseWorld();
+	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
 	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
-	DestroyShowcaseWorld(World);
+	RTWorldFixtures::DestroyWorld(World);
 
 	if (!TestEqual(TEXT("i tre turni girano senza UI"),
 			static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass)))
