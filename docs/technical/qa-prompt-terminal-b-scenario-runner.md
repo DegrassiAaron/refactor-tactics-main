@@ -31,10 +31,11 @@ Sei il **Processo B** del workstream Test/QA di RefactorTactics.
 4. leggi la spec del harness: [`test-automatico-unreal.md`](test-automatico-unreal.md). **È l'owner delle
    decisioni** — perché gli esiti sono distinti, perché il `seed` non fa niente, perché gli scenari sono
    JSON e non `.uasset`: su queste, se divergiamo, vince la spec.
-   ⚠️ **Non è l'owner dei conteggi né degli enum.** Quelli si rimisurano sul codice (§7), e al 2026-08-15
-   la spec è indietro su entrambi: dice «cinque» scenari (§3, datato 2026-08-08) dove il repository ne ha
-   76, e «tre» esiti (§6) dove `ERTTestOutcome` ne ha quattro. Una divergenza su un conteggio **si riporta
-   all'owner, non si recepisce** — vedi §8;
+   ⚠️ **Non è l'owner dei conteggi né degli enum.** Quelli si rimisurano sul codice (§7). La spec è stata
+   indietro su entrambi fino al 2026-08-15 — diceva «cinque» scenari (§3) e argomentava «tre» esiti (§6)
+   dove il codice ne ha 76 e quattro — e da lì l'errore è passato in questo mandato. Le due righe sono
+   state corrette, ma il meccanismo che le aveva fatte invecchiare è ancora quello: una divergenza su un
+   conteggio **si riporta all'owner, non si recepisce** — vedi §8;
 5. leggi Decision Log / ADR applicabili
    ([`../decisions/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md)).
 
@@ -153,8 +154,8 @@ cambiassero numero.
 non è rosso e non è verde: passa senza dirlo. Se conti gli esiti, contalo a parte — mai fra i passati, mai
 fra i falliti.
 
-⚠️ La spec owner ([`test-automatico-unreal.md`](test-automatico-unreal.md) §6) ne elenca **tre** e ne
-argomenta tre: è ferma a prima di `Blocked`. Vedi §0.4 e §8.
+La spec owner ([`test-automatico-unreal.md`](test-automatico-unreal.md) §6) elencava **tre** esiti fino al
+2026-08-15 ed è stata allineata: se leggi «e perché sono tre», stai leggendo una copia vecchia.
 
 ∴ **Il mandato non è fondare un runner, è portare avanti lo schema target** che la spec descrive al §10.
 Leggilo: è la tua lista di lavoro, e ha un owner documentale che non sei tu. Il §9 è un'altra cosa — vedi
@@ -313,9 +314,10 @@ la spec non falsifica un enum.
 - **Campi del §10 portati avanti** — quali, e **con quale scenario si verificano**.
 - **Comandi eseguiti** — con l'output essenziale. Solo i campi che il comando produce davvero.
 - **Divergenze dall'owner** — se hai misurato un conteggio o un enum che `test-automatico-unreal.md`
-  dichiara diverso, riportalo qui: al 2026-08-15 sono aperte due — il §3 dice «cinque» scenari e il §6
-  argomenta **tre** esiti dove il codice ne ha quattro. La spec è `integration_only` per l'owner
-  documentale: la correzione si propone, non si applica.
+  dichiara diverso, riportalo qui. Le due aperte al 2026-08-15 — §3 «cinque scenari», §6 «e perché sono
+  tre» — sono state **chiuse**; aspettati che se ne riformino, perché una spec `as-built` invecchia da
+  sola e nessun gate la rilegge. ⚠️ Il file **non** è `integration_only`, ma non è nemmeno nel tuo
+  `writable`: la correzione si propone.
 - **STOP incontrati** — ogni file che ti serviva e non era assegnato, con la patch documentata.
 - *(se applicabile)* **Scenari proposti** — JSON completo nell'handoff, **non** in `Scenarios/`.
 - *(se applicabile)* **Viste da rigenerare** — se hai toccato `RTScenarioSession.cpp`, dillo

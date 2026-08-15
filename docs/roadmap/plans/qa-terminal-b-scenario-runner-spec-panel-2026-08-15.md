@@ -279,21 +279,24 @@ capovolto rimisurando. La regola non ha eccezioni per chi la scrive.
 
 ## 5. Ciò che questo referto **non** ha applicato
 
-🔴 **Due correzioni all'owner, che non sono di questo panel da fare.**
-[`../../technical/test-automatico-unreal.md`](../../technical/test-automatico-unreal.md) è indietro su due
-righe misurate:
+✅ **Le due correzioni all'owner sono state applicate**, su decisione esplicita dell'autore del repository
+dopo la chiusura del referto. [`../../technical/test-automatico-unreal.md`](../../technical/test-automatico-unreal.md)
+era indietro su due righe misurate:
 
-| Sezione | Dice | Misura |
-|---|---|---|
-| §3 «Dove vivono gli scenari» | «Al 2026-08-08 ne esistono **cinque**, tutti `Movement.*`» | 76 file JSON, in quattro categorie |
-| §6 «`PASS` · `FAIL` · `ERROR` — e perché sono tre» | tre esiti, e ne **argomenta** tre | `ERTTestOutcome` ne ha quattro |
+| Sezione | Diceva | Misura | Esito |
+|---|---|---|---|
+| §3 «Dove vivono gli scenari» | «Al 2026-08-08 ne esistono **cinque**, tutti `Movement.*`» | 76 file JSON, 74 in quattro categorie | ✅ ripartizione per cartella, con lo scarto dichiarato |
+| §6 «`PASS` · `FAIL` · `ERROR` — e perché sono tre» | tre esiti, e ne **argomenta** tre | `ERTTestOutcome` ne ha quattro | ✅ riscritto su quattro, con la ragione d'essere di `Blocked` |
+| §8 «Console e auto-run» | quattro nomi | cinque: mancava `rt.Map.Source` | ✅ aggiunto, con l'avvertenza `-dpcvars=` |
+| §9 «Requisiti aperti» | quattro voci, senza dire che nessuna è iniziabile | stallo misurato (vedi C3) | ✅ annotato, con il rimando al §10 |
 
-Il §6 è il caso serio: non è un conteggio scaduto, è una sezione che *spiega perché sono tre* mentre il
-codice ne ha quattro, e il quarto porta nel proprio commento la motivazione che la spec non riporta.
-Finché la spec resta così, la regola di precedenza del §0.4 continua a produrre il conflitto che questo
-referto ha appena chiuso nel prompt — al prossimo lettore, dall'altra parte.
+Il §6 era il caso serio: non un conteggio scaduto, ma una sezione che *spiegava perché sono tre* mentre il
+codice ne ha quattro — e il quarto porta nel proprio commento la motivazione che la spec non riportava.
+⚠️ **E la contraddizione era interna al file**: il §4.2 usava già `BLOCKED` come esito, alla riga 105.
+Nessun gate rilegge una spec `as-built`, e questa è invecchiata addosso a sé stessa per una settimana.
 
-⚠️ **Non applicate qui perché il file ha un owner documentale distinto.** Vanno portate come proposta.
+∴ l'intestazione del file ora **data le sezioni separatamente** invece di dichiarare un unico
+«allineata al codice il …», che è la forma in cui l'invecchiamento diventa invisibile.
 
 🔴 **E una nota sull'assegnazione di questo referto stesso.** I tre mandati QA — `qa-prompt-terminal-{a,b,c}`
 — sono nominati in `parallel-batch.yaml` dal campo `mandate:`, ma i loro **file** non compaiono in nessun
