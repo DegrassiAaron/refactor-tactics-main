@@ -523,6 +523,22 @@
         {
           "id": "PIE-CAM-START",
           "state": "✅"
+        },
+        {
+          "id": "PIE-CAM-ORBIT",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-CAM-ZOOM-ANCHOR",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-CAM-BOUNDS",
+          "state": "⏳"
+        },
+        {
+          "id": "PIE-CAM-FOCUS",
+          "state": "⏳"
         }
       ],
       "issues": [],
@@ -1464,8 +1480,24 @@
       "state": "✅"
     },
     {
+      "id": "PIE-CAM-BOUNDS",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-CAM-FOCUS",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-CAM-ORBIT",
+      "state": "⏳"
+    },
+    {
       "id": "PIE-CAM-START",
       "state": "✅"
+    },
+    {
+      "id": "PIE-CAM-ZOOM-ANCHOR",
+      "state": "⏳"
     },
     {
       "id": "PIE-CP1.4",

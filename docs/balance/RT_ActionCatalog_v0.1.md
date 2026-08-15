@@ -38,6 +38,9 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 |---|---|---|
 | Movimento | 1 | `Move` nei profili `Sneak`/`Move`/`Sprint` (§2.1) · `Dash`, `Leap`, `Reposition` (§2.2) |
 | Azione principale | 1 | `BasicAttack`, `Charge`, `Guard`, `Heal`, **`Overwatch`** — mai due insieme |
+| Reazione | 1 | `Counter`, `Intercept`, `Deflect` |
+| Comunicazione | — | Ping, label |
+| Conferma | illimitata (rate limit) | Ready |
 
 > **Un movimento e un'azione principale** — e si sceglie **quando** ci si muove
 > ([D-028](../decisions/RT_PDR_00_Decision_Log.md)):
@@ -55,8 +58,6 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 > pianificato — non un controllo che il bot potrebbe aggirare (invariante #1). Vale anche per le mobilità
 > d'eroe: `Riva.FluidTrail` è passata a **Movimento**, e l'invariante `Heroes.MobilityWithoutDamageIsNotMain`
 > impedisce che la prossima nasca sulla principale, dove `MakeHeroAction` la metterebbe per default.
-| Reazione | 1 | `Counter`, `Intercept`, `Deflect` |
-| Comunicazione | — | Ping, label |
 
 > **Slot ≡ Action Points** (consolidato il 2026-08-07). Il workbook `RefactorTactics_Balance_Matrices_v0.1.xlsx`
 > — che è **`RESEARCH`**, non una fonte ([D-023](../decisions/RT_PDR_00_Decision_Log.md)): qui vale solo come
@@ -69,7 +70,6 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 > propri: `Flux` Carica Conduttiva · `Riva` Riserva Idrica · `Bastion` Integrità Strutturale · `Vektor`
 > Slancio. Cap **4** per tutte (valore più basso fra i candidati), ricarica **1** sul trigger d'affinità.
 > Cambia il nome e cosa la ricarica, **non** la regola.
-| Conferma | illimitata (rate limit) | Ready |
 
 Un piano completo dichiara: percorso di movimento · azione principale · reazione (se disponibile) · **facing
 finale** · fallback.
@@ -278,13 +278,13 @@ all'impatto (controllo), che nel progetto resta dentro il **Blast** per priorit�
 | `Action.LineAttack` | Attacco lineare | Blast | 40 | 55 | 22 | linea | 1 | `Fallback.AttackCell` | sì |
 | `Action.CircularAoE` | Area circolare | Blast | 40 | 65 | 18 | cella, raggio 1 | 2 | `Fallback.AttackCell` | sì |
 | `Action.SuppressiveLine` | Linea di soppressione | **Prep** | 10/20 | 30 | 16 | linea / reazione | 2 | — | no |
+| `Action.MarkTarget` | Marchia bersaglio | Blast | 40 | 40 | 0 | bersaglio | 1 | `Fallback.Cancel` | sì |
 
 > **`SuppressiveLine` non si fonde con `Overwatch`.** Si somigliano — entrambe si armano in `Prep` e reagiscono
 > a un passaggio — ma non sono la stessa cosa: `Overwatch` è l'**azione universale** e l'infrastruttura di
 > controllo reattivo, `SuppressiveLine` è un **contenuto specifico** con effetti propri (linea, 16 danni,
 > cooldown 2). Se un giorno il codice dimostrasse che è solo un duplicato nominale dell'Overwatch, la
 > conclusione sarebbe una **issue di refactor**, non una cancellazione durante un riordino documentale.
-| `Action.MarkTarget` | Marchia bersaglio | Blast | 40 | 40 | 0 | bersaglio | 1 | `Fallback.Cancel` | sì |
 
 **Precision Attack** — range dell'arma **+1** · ignora la copertura bassa · **non** utilizzabile dopo Sprint.
 

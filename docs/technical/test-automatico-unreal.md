@@ -1,6 +1,12 @@
 # Spec — RT Scenario Test Harness
 
-> `CURRENT` · **Stato**: as-built, allineata al codice il **2026-08-08** · **Owner**: questo file
+> `CURRENT` · **Stato**: as-built · **Owner**: questo file
+> **Allineata al codice**: §6 (esiti) e §3 (conteggio scenari) il **2026-08-15**; il resto il **2026-08-08**
+> ⚠️ **Ciò che questo file dichiara di sé invecchia per conto proprio.** Le due sezioni ridatate sopra
+> erano rimaste indietro senza che niente lo segnalasse — il §6 argomentava **tre** esiti dove il codice
+> ne aveva quattro, e il §3 diceva «cinque scenari» dove il repository ne aveva 76 — e da qui l'errore è
+> passato a valle, nel mandato QA che questo file governa. **Conteggi ed enum si rimisurano sulla
+> sorgente**; questa spec è l'owner delle *decisioni*, non dei numeri.
 > **Guida operativa** (come si lancia, come si legge un esito): [`test-e-diagnosi.md`](test-e-diagnosi.md).
 >
 > *Fino al 2026-08-08 questo file era il **prompt di implementazione** originale — «TASK — progettare e
@@ -42,7 +48,27 @@ obbligatorio, uno scenario non ha prerequisiti di livello. Si imposta una variab
 Sono JSON perché devono essere **leggibili e diffabili in una pull request**. Come `.uasset` sarebbero binari,
 e nessuna review potrebbe dire cosa è cambiato in uno scenario.
 
-Al 2026-08-08 ne esistono **cinque**, tutti `Movement.*`:
+Al **2026-08-15** il repository contiene **76 file JSON** sotto `Scenarios/`, così ripartiti:
+
+| Cartella | File | Nota |
+|---|---|---|
+| `Spec/` | 38 | il grosso: scenari di specifica, molti `BLOCKED` per capability non ancora costruite |
+| `Visual/` | 21 | — |
+| `Combat/` | 9 | — |
+| `Movement/` | 6 | i cinque originali più uno |
+| radice | 2 | `RT_Showcase_Relay_v01.json` (scenario) e `_redirects.json`, che **scenario non è** |
+
+⚠️ **`76` è il conto dei file, non degli scenari**, e le quattro categorie ne contengono **74**. Un totale
+nudo — `find Scenarios -name "*.json" | wc -l` — nasconde entrambi gli scarti e vale meno della
+ripartizione. Rimisura per cartella:
+
+```sh
+git ls-tree -r --name-only origin/main -- Scenarios/ | grep '\.json$' \
+  | sed 's|Scenarios/||; s|/.*||' | sort | uniq -c
+```
+
+I cinque `Movement.*` nati per primi restano il nucleo che fissa il comportamento base, e vale la pena
+sapere cosa ciascuno prova:
 
 | Scenario | Cosa fissa |
 |---|---|
@@ -51,6 +77,10 @@ Al 2026-08-08 ne esistono **cinque**, tutti `Movement.*`:
 | `Movement.Blocked` | percorso inesistente ⇒ piano **rifiutato in pianificazione**, l'unità resta dov'è. È il comportamento del gioco, non un errore |
 | `Movement.Collision` | due unità che si contendono la stessa cella |
 | `Movement.SwapRejectedByPlanning` | lo scambio A↔B **non è pianificabile** |
+
+> ⚠️ Il nome `Movement.Blocked` descrive un percorso bloccato **nel gioco**, e non ha niente a che vedere
+> con l'esito `BLOCKED` del §6, che descrive una capability mancante **nel progetto**. Quello scenario
+> chiude `PASS`.
 
 ## 4. Schema dello scenario
 
@@ -174,16 +204,37 @@ proprietà del runner, non di uno scenario.
 Ogni risultato porta **`Expected` e `Actual`**, non un booleano. Un report che dice «fallita» senza dire cosa
 si aspettava costringe a rieseguire il test per capire — e a quel punto tanto varrebbe non averlo.
 
-## 6. `PASS` · `FAIL` · `ERROR` — e perché sono tre
+## 6. `PASS` · `FAIL` · `ERROR` · `BLOCKED` — e perché sono quattro
+
+`ERTTestOutcome`, in [`RTTestScenario.h`](../../Source/RefactorTactics/ScenarioHarness/RTTestScenario.h):
 
 | Esito | Significato | Di chi è il difetto |
 |---|---|---|
 | `Pass` | simulazione completata, tutte le assertion soddisfatte | — |
 | `Fail` | simulazione completata, almeno un'assertion non soddisfatta | **del gioco** |
 | `Error` | impossibile eseguire: scenario invalido, eroe sconosciuto, mappa mancante | **del test** o dell'ambiente |
+| `Blocked` | scenario valido, ha girato fin dove poteva, poi ha incontrato una capability **non ancora costruita** | **di nessuno**: è il progetto che non c'è ancora |
 
 **`Error` non è un `Fail`.** Confonderli fa perdere ore su una regressione che non esiste: uno scenario rotto
 si traveste da difetto di gioco, e si va a cercare nel resolver un bug che è nel JSON.
+
+**E `Blocked` non è nessuno dei due.** Esiste per una ragione che vale la pena scrivere, perché senza di
+essa sembra un `Fail` addomesticato: serve a **versionare uno showcase prima che tutti i suoi sistemi
+esistano**. Senza questo esito la scelta sarebbe fra tenere la partita dimostrativa in Markdown per
+settimane, o vederla rossa ogni giorno finché non è completa — e *una suite che ha un rosso «normale»
+smette di essere letta*. Il valore è stato aggiunto **in coda** all'enum, così i precedenti non cambiano
+numero.
+
+🔴 **`Blocked` è l'esito che tace, ed è quello da trattare con più sospetto.** Non è rosso e non è verde:
+uno scenario che non ha mai eseguito la parte interessante passa senza dirlo. ∴ **non si conta né fra i
+passati né fra i falliti** — in un report sta in una colonna sua. Un conteggio che lo assorbe da una parte
+o dall'altra descrive una copertura che non c'è.
+
+> ⚠️ Fino al 2026-08-15 questa sezione si intitolava «*e perché sono tre*» e ne elencava tre, mentre il
+> §4.2 di questo stesso file usava già `BLOCKED` come esito e il codice aveva quattro valori. La
+> divergenza è stata misurata dallo spec panel di Terminal B
+> ([`../roadmap/plans/qa-terminal-b-scenario-runner-spec-panel-2026-08-15.md`](../roadmap/plans/qa-terminal-b-scenario-runner-spec-panel-2026-08-15.md)),
+> che ne aveva ereditato il conteggio nel proprio mandato — è il motivo per cui un enum si legge nell'enum.
 
 ## 7. Output
 
@@ -214,9 +265,16 @@ numero finto.
 | `rt.Test.Run <ScenarioId>` | esegue nel mondo corrente e scrive il report |
 | `rt.Test.DumpResult [Id]` | stampa l'ultimo `result.json` |
 | `rt.Test.Scenario <Id>` | **CVar**: scenario da eseguire automaticamente all'avvio della partita |
+| `rt.Map.Source <Enum>` | **CVar**: scavalca `MapSource` del GameMode (es. `LevelAsset`). Un valore sconosciuto non ripiega in silenzio |
 
 `rt.Test.Scenario` va impostata **prima** di premere Play: `ARTGameMode` vede la variabile e la partita normale
 **non** viene allestita — al suo posto parte lo scenario.
+
+> ⚠️ **Da riga di comando servono `-dpcvars=`, non `-ExecCmds=`.** `-ExecCmds` gira *dopo*
+> l'inizializzazione, quando il GameMode ha già allestito la partita: la variabile viene impostata, non
+> serve a niente, e non c'è un errore che lo dica. Misurato sul pacchettizzato il 2026-08-10.
+>
+>     RefactorTactics.exe -dpcvars=rt.Map.Source=LevelAsset
 
 ## 9. Requisiti aperti
 
@@ -226,6 +284,16 @@ numero finto.
 | Intent diversi dal movimento (abilità, reazioni) | non implementati: il prompt chiedeva esplicitamente di non procedere finché `Movement.Basic` non fosse stabile |
 | **Politica per le Fast Reaction** | aperta. Quando E14 introdurrà le finestre, uno scenario dovrà poter dichiarare la risposta attesa (`FIRE`/`HOLD`/timeout) **come dato**, altrimenti diventa non deterministico |
 | **Nessun bypass** | invariante permanente: se un giorno un percorso di test saltasse il resolver, i test smetterebbero di misurare il gioco |
+
+🔴 **Nessuna di queste quattro voci è iniziabile da una sessione che possiede solo `ScenarioHarness/`**, e
+va detto qui perché è questa la tabella che un mandato legge come lista di lavoro. Misurato il 2026-08-15:
+la prima è in **stallo** — chiede uno scenario, e `Scenarios/` è `integration_only` in
+[`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml); la seconda è una **precondizione**, non
+un task; la terza dipende da **E14**, che non è atterrato; la quarta è un'**invariante**, che si rispetta e
+non si chiude.
+
+∴ **il lavoro eseguibile è al §10**, non qui: sono estensioni di `RTScenarioLoader` e `RTTestScenario.h`.
+Chi arriva a questa tabella cercando da dove partire, parta da lì.
 
 ---
 

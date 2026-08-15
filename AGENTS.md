@@ -194,7 +194,7 @@ validazione · serializzazione/replay · privacy intenti.
   suo «non è caduto» non significa niente.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
 - **Il repository ha due toolchain, e nessuna gira in CI**: Python in `scripts/` (`check-docs-links.py`,
-  `check-docs-symbols.py`, `feature_registry.py`) e **Node 22** in `tools/radar/` — rubrica dei rating e
+  `check-docs-symbols.py`, `check-docs-tables.py`, `feature_registry.py`) e **Node 22** in `tools/radar/` — rubrica dei rating e
   generatore SVG dei radar di personaggio. I gate si eseguono **a mano**, ed è una scelta:
   `.github/` **non esiste**, e la sua assenza è deliberata. *(Precisato il 2026-08-12: questa riga diceva
   «è vuota», che è diverso e induce a cercare una cartella che non c'è. Non introdurre CI, package manager o

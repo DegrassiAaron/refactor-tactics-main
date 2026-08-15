@@ -201,12 +201,12 @@ reference non necessarie.
 | `/Game/Developers/<Nome>` | esperimenti personali temporanei; **mai referenziata dal runtime** |
 | `/Game/RT/Dev` | strumenti e materiali di debug condivisi (`M_Debug_CellValid`, `BP_Debug_IntentVisualizer`) |
 | `/Game/RT/Tests` | Functional Test, mappe di test, fixture, replay deterministici — **asset**, non dati testuali |
+| `/Game/ThirdParty` | asset esterni **privi** di un namespace proprio |
 
 > **Gli scenari dello Scenario Test Harness non stanno in `Content/`.** Vivono in **`Scenarios/`, alla radice
 > del repository**: sono JSON versionati, si leggono in una diff e si modificano senza aprire l'editor. Metterli
 > sotto `/Game/RT/Tests` li avrebbe trasformati in `.uasset` binari, cioè in qualcosa che nessuna code review
 > può leggere. Vedi [`test-automatico-unreal.md`](test-automatico-unreal.md).
-| `/Game/ThirdParty` | asset esterni **privi** di un namespace proprio |
 
 Non modificare direttamente un asset esterno se puoi crearne una variante proprietaria sotto `/Game/RT`.
 

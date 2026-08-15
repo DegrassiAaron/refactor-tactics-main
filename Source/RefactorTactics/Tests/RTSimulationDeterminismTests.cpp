@@ -21,6 +21,7 @@
 // scritta apposta per passare.
 
 #include "Misc/AutomationTest.h"
+#include "RTWorldFixtures.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
@@ -33,39 +34,11 @@
 
 namespace
 {
-	// Nomi distinti da ogni altro file di test: la unity build condivide la translation unit.
-	UWorld* MakeDeterminismWorld()
-	{
-		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
-		if (World && GEngine)
-		{
-			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
-			Ctx.SetCurrentWorld(World);
-		}
-		return World;
-	}
-
-	void DestroyDeterminismWorld(UWorld* World)
-	{
-		if (World && GEngine)
-		{
-			GEngine->DestroyWorldContext(World);
-			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
-		}
-	}
-
-	/** Esegue lo scenario in un mondo NUOVO e lo distrugge: nessuno stato sopravvive fra una prova e l'altra. */
-	FRTTestResult RunIsolated(const FRTTestScenario& Scenario)
-	{
-		UWorld* World = MakeDeterminismWorld();
-		if (!World)
-		{
-			return FRTTestResult();
-		}
-		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
-		DestroyDeterminismWorld(World);
-		return Result;
-	}
+	// Il mondo di prova e l'esecuzione isolata vivono in `RTWorldFixtures.h`: erano dichiarati qui con un
+	// nome tutto loro perche' la unity build fonde le translation unit e due namespace anonimi con la stessa
+	// funzione collidono. Un namespace NOMINATO non ha quel problema, ed e' la stessa entita' per tutti.
+	// Le chiamate restano QUALIFICATE e non passano da un `using`: in unity build questo namespace anonimo e'
+	// lo stesso di ogni altro file di test, e un `using` qui sarebbe visibile a tutti loro.
 
 	bool LoadDeterminismScenario(FAutomationTestBase& Test, const TCHAR* Id, FRTTestScenario& Out)
 	{
@@ -95,7 +68,7 @@ bool FRTReplayVerifierResimulationTest::RunTest(const FString&)
 	FRTTestScenario Scenario;
 	if (!LoadDeterminismScenario(*this, TEXT("Movement.Collision"), Scenario)) { return false; }
 
-	const FRTTestResult First = RunIsolated(Scenario);
+	const FRTTestResult First = RTWorldFixtures::RunScenarioIsolated(Scenario);
 	if (First.Outcome == ERTTestOutcome::Error)
 	{
 		AddError(FString::Printf(TEXT("la prima esecuzione e' fallita: %s"), *First.ErrorMessage));
@@ -108,7 +81,7 @@ bool FRTReplayVerifierResimulationTest::RunTest(const FString&)
 	int32 Divergences = 0;
 	for (int32 I = 1; I < Repetitions; ++I)
 	{
-		const FRTTestResult Again = RunIsolated(Scenario);
+		const FRTTestResult Again = RTWorldFixtures::RunScenarioIsolated(Scenario);
 		if (Again.StateHash != First.StateHash || Again.OutcomeString() != First.OutcomeString())
 		{
 			++Divergences;
@@ -145,7 +118,7 @@ bool FRTSimulationChecksumPermutationTest::RunTest(const FString&)
 		return false;
 	}
 
-	const FRTTestResult Straight = RunIsolated(Scenario);
+	const FRTTestResult Straight = RTWorldFixtures::RunScenarioIsolated(Scenario);
 	if (Straight.Outcome == ERTTestOutcome::Error)
 	{
 		AddError(FString::Printf(TEXT("esecuzione diretta fallita: %s"), *Straight.ErrorMessage));
@@ -161,7 +134,7 @@ bool FRTSimulationChecksumPermutationTest::RunTest(const FString&)
 		Algo::Reverse(Turn.Intents);
 	}
 
-	const FRTTestResult Permuted = RunIsolated(Reversed);
+	const FRTTestResult Permuted = RTWorldFixtures::RunScenarioIsolated(Reversed);
 	if (Permuted.Outcome == ERTTestOutcome::Error)
 	{
 		AddError(FString::Printf(TEXT("esecuzione permutata fallita: %s"), *Permuted.ErrorMessage));
@@ -197,8 +170,8 @@ bool FRTSimulationHashDistinguishesStatesTest::RunTest(const FString&)
 		Turn.Intents.Reset();
 	}
 
-	const FRTTestResult WithMove = RunIsolated(Moving);
-	const FRTTestResult WithoutMove = RunIsolated(Still);
+	const FRTTestResult WithMove = RTWorldFixtures::RunScenarioIsolated(Moving);
+	const FRTTestResult WithoutMove = RTWorldFixtures::RunScenarioIsolated(Still);
 
 	TestNotEqual(TEXT("posizioni finali diverse -> hash diversi"), WithMove.StateHash, WithoutMove.StateHash);
 	return true;
@@ -223,7 +196,7 @@ bool FRTTurnLogProducerStampsContextTest::RunTest(const FString&)
 	FRTTestScenario Scenario;
 	if (!LoadDeterminismScenario(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
 
-	const FRTTestResult Result = RunIsolated(Scenario);
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
 	if (Result.Outcome == ERTTestOutcome::Error)
 	{
 		AddError(FString::Printf(TEXT("esecuzione fallita: %s"), *Result.ErrorMessage));
@@ -265,6 +238,74 @@ bool FRTTurnLogProducerStampsContextTest::RunTest(const FString&)
 	TestEqual(TEXT("nessuna voce di movimento o combattimento resta senza attore"), ActorlessCombat, 0);
 	TestTrue(TEXT("almeno una voce dichiara la propria unita' (altrimenti il test non prova niente)"),
 		WithActor > 0);
+
+	return true;
+}
+
+/**
+ * Il SEED e' dichiarato e NON consumato — e questo test esiste per accorgersi del giorno in cui smettera'
+ * di esserlo.
+ *
+ * PERCHE' NON E' «stesso seed -> stesso output» (#578, voce 4 di PDR-05 §10). Quella formulazione, su un
+ * progetto senza RNG, confronta una funzione deterministica con se' stessa: passa sempre, anche a resolver
+ * rotto. Sarebbe un test verde che non verifica niente — e un test simile non protegge, occupa solo una
+ * riga della matrice.
+ *
+ * L'invariante che invece morde e' la NEGAZIONE: due seed DIVERSI devono dare lo stesso risultato, perche'
+ * oggi nessuno legge quel campo. Misurato il 2026-08-15: zero occorrenze di `FMath::Rand`, `RandRange`,
+ * `FRandomStream` e simili in tutto `Source/RefactorTactics/`, test compresi. Lo dichiarano anche
+ * `RTTestScenario.h` («Seed dichiarato ma non consumato») e `RTTestResult.h`.
+ *
+ * COSA FARE QUANDO DIVENTA ROSSO. Non aggiustare il test: e' il segnale che un RNG e' entrato nella
+ * simulazione. A quel punto il contratto di PDR-05 §5 diventa esigibile — ogni estrazione deriva il proprio
+ * seed come `Hash(TurnSeed, ActionId, RollKind)`, cosi' che aggiungere un VFX casuale non sposti hit e crit
+ * — e questo test va SOSTITUITO da due: «stesso seed -> stesso output» (che allora non sara' piu' vacuo) e
+ * «seed diverso -> muove solo gli stream correlati». La sostituzione e' una decisione, e va scritta accanto
+ * all'invariante #4 del piano canonico.
+ *
+ * Verifica anche che il seed sia RIPORTATO nel result: e' la premessa perche' il giorno in cui conta lo si
+ * possa correlare a un esito. Un campo che non arriva al report non e' dichiarabile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSimulationSeedDeclaredUnconsumedTest,
+	"RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSimulationSeedDeclaredUnconsumedTest::RunTest(const FString&)
+{
+	FRTTestScenario Base;
+	if (!LoadDeterminismScenario(*this, TEXT("Movement.Collision"), Base)) { return false; }
+
+	// Un primo, e non un multiplo: se un RNG usasse il seed come passo o come modulo, un valore «tondo»
+	// potrebbe ricadere sullo stesso stream per caso e lasciare passare il difetto.
+	FRTTestScenario Reseeded = Base;
+	Reseeded.Seed = Base.Seed + 7919;
+
+	const FRTTestResult A = RTWorldFixtures::RunScenarioIsolated(Base);
+	const FRTTestResult B = RTWorldFixtures::RunScenarioIsolated(Reseeded);
+
+	if (A.Outcome == ERTTestOutcome::Error || B.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("esecuzione fallita: '%s' / '%s'"), *A.ErrorMessage, *B.ErrorMessage));
+		return false;
+	}
+
+	// Un hash a zero significherebbe «nessuno stato»: confrontare zeri fra loro non proverebbe nulla.
+	TestNotEqual(TEXT("lo stato finale produce un hash reale"), A.StateHash, 0u);
+
+	// Il seed arriva al report, altrimenti non e' correlabile a un esito il giorno in cui conta.
+	TestEqual(TEXT("il seed dello scenario e' riportato nel result"), A.Seed, Base.Seed);
+	TestEqual(TEXT("anche il seed diverso e' riportato nel result"), B.Seed, Reseeded.Seed);
+	TestNotEqual(TEXT("i due scenari dichiarano davvero seed diversi"), B.Seed, A.Seed);
+
+	if (A.StateHash != B.StateHash || A.OutcomeString() != B.OutcomeString() || A.TurnsPlayed != B.TurnsPlayed)
+	{
+		AddError(FString::Printf(
+			TEXT("cambiare il seed (%d -> %d) ha cambiato il risultato: hash %08x/%08x, esito '%s'/'%s', turni %d/%d. ")
+			TEXT("Un RNG e' entrato nella simulazione: NON aggiustare questo test — vedi il commento sopra, ")
+			TEXT("serve il contratto Hash(TurnSeed, ActionId, RollKind) di PDR-05 §5 e due test al posto di questo."),
+			A.Seed, B.Seed, A.StateHash, B.StateHash, *A.OutcomeString(), *B.OutcomeString(),
+			A.TurnsPlayed, B.TurnsPlayed));
+		return false;
+	}
 
 	return true;
 }

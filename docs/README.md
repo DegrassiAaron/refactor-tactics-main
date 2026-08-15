@@ -268,6 +268,29 @@ comparire come storia («è stato rimosso») o come proposta («il DoD introduce
 non è affidabile, e un gate che sbaglia viene disattivato al terzo falso positivo. Sono esentati i documenti
 storici, i brief propositivi e le cartelle `archive/`, `src/`, `roadmap/plans/`.
 
+### Gate delle tabelle
+
+```bash
+python scripts/check-docs-tables.py          # controlla
+python scripts/check-docs-tables.py --fix    # rimuove le righe vuote che spezzano
+```
+
+Fallisce se un documento normativo contiene **righe di tabella che GitHub non renderà in una tabella**. In
+GFM una riga vuota **termina** la tabella, e le righe `| … |` successive non hanno più un'intestazione sopra:
+diventano un paragrafo coi pipe in vista.
+
+Nasce da [#870](https://github.com/DegrassiAaron/refactor-tactics-main/issues/870): il Decision Log rendeva
+**11 righe su 144**, e centotrentatré decisioni erano testo grezzo. Il documento appariva intero nel sorgente
+e mutilato sulla pagina — nessun altro gate lo vedeva.
+
+Controlla anche i **byte di controllo**, che fermano il rendering a metà pagina: un solo `NUL` faceva rendere
+**zero** delle cinque tabelle di `asset-map.md`.
+
+Il criterio non è dedotto ma **validato contro il parser vero di GitHub** (`POST /markdown`) su tutti i 155
+documenti che contengono un pipe: stesso verdetto ovunque. Tre euristiche più semplici erano cadute prima —
+contare i pipe segnalava `labels=v0.1|epic|P0`, ignorare i blockquote segnalava ogni ADR con un banner in
+testa, e trattare un blocco contiguo di righe `|` come tabella segnalava i comandi di shell andati a capo.
+
 ```bash
 python scripts/check-docs-links.py          # e python scripts/check-docs-links.py --known
 ```

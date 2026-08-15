@@ -220,6 +220,57 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 	return Out;
 }
 
+TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCellsAfterPlan(const FRTHexSnapshot& Snapshot,
+	int32 UnitId, const TArray<FRTCellId>& Waypoints)
+{
+	// Nessun piano: il ventaglio pieno dalla posizione reale. E' il caso di gran lunga piu' frequente —
+	// unita' appena selezionata — e non deve pagare nulla.
+	if (Waypoints.Num() == 0)
+	{
+		return ReachableCells(Snapshot, UnitId);
+	}
+
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Unit)
+	{
+		return ReachableCells(Snapshot, UnitId); // unita' sconosciuta: risponde lei, con un insieme vuoto
+	}
+
+	// Il piano si CHIEDE alla funzione che lo decide davvero. Ricalcolarlo qui sarebbe il secondo pathfinder
+	// che l'anteprima non puo' permettersi: il giocatore vedrebbe una zona e ne subirebbe un'altra.
+	const FRTHexPathResult Plan = BuildCompositeHexPath(Snapshot, UnitId, Waypoints);
+	if (Plan.Status != ERTHexPathStatus::Success || Plan.Path.Num() == 0)
+	{
+		// Piano rifiutato in blocco: non esiste una punta da cui ripartire, e quello in vigore e' «resto
+		// fermo». Il fan torna pieno insieme al piano, non resta appeso all'ultimo valido.
+		return ReachableCells(Snapshot, UnitId);
+	}
+
+	// Fotografia DERIVATA: la sola unita' selezionata sta sulla punta, col budget che le resta. `TotalCost`
+	// porta gia' dentro il `MoveCostModifier` dello Slow (`BuildCompositeHexPath` lo passa all'A*), quindi la
+	// sottrazione non lo conta due volte.
+	TArray<FRTHexSimUnit> Planned = Snapshot.Units;
+	for (FRTHexSimUnit& Sim : Planned)
+	{
+		if (Sim.UnitId == UnitId)
+		{
+			Sim.Cell = Plan.Path.Last();
+			Sim.MoveBudget = FMath::Max(0, Sim.MoveBudget - Plan.TotalCost);
+			break;
+		}
+	}
+
+	// Ricostruita con `MakeSnapshot` e non a mano: l'occupazione va ricalcolata coerentemente con la nuova
+	// posizione, ed e' lei la funzione che sa come. `TeamKnowledge` non viene ricostruita, quindi si travasa —
+	// perderla in silenzio renderebbe questa fotografia diversa dall'originale in un modo che nessuno vede.
+	FRTHexSnapshot Derived = MakeSnapshot(Snapshot.Map, Planned);
+	Derived.TeamKnowledge = Snapshot.TeamKnowledge;
+
+	// ⚠️ `Derived` muore qui dentro, ed e' deliberato: dice che l'unita' e' su una cella dove non e' ancora
+	// arrivata. Per il fan e' l'ipotesi giusta; per chiunque altro sarebbe una bugia.
+	return ReachableCells(Derived, UnitId);
+}
+
 FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Goal)
 {
 	FRTHexPathResult Result;
