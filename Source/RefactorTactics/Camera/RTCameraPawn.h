@@ -9,7 +9,9 @@ class UCameraComponent;
 
 /**
  * Pawn camera tattica top-down/tre-quarti: braccio inclinato con zoom e pan sul piano.
- * Non usa fisica: si sposta con AddActorWorldOffset.
+ *
+ * Non usa fisica: si sposta scrivendo la posizione, che da `#864` passa sempre per `ClampToSoftBounds`.
+ * (Prima usava `AddActorWorldOffset`, e questa riga lo diceva ancora dopo che il codice era cambiato.)
  */
 UCLASS()
 class REFACTORTACTICS_API ARTCameraPawn : public APawn
@@ -32,6 +34,30 @@ public:
 
 	/** Zoom variando la lunghezza del braccio (valore positivo = allontana). */
 	void AddZoom(float AxisValue);
+
+	/**
+	 * Zoom **ancorato a un punto del mondo**: quel punto resta dov'e' sullo schermo mentre la distanza
+	 * cambia. E' cio' che serve per avvicinarsi a una cella ai bordi del viewport senza alternare zoom e
+	 * pan.
+	 *
+	 * Il pivot si sposta verso l'ancora in proporzione a quanto la distanza si e' ridotta:
+	 *
+	 *     NuovoPivot = Ancora + (Pivot - Ancora) * (NuovoBraccio / VecchioBraccio)
+	 *
+	 * ⚠️ **E' esatta in proiezione ortografica**; in prospettiva e' un'approssimazione, tanto migliore
+	 * quanto piu' l'ancora sta sul piano di lavoro — che e' il caso d'uso, perche' l'ancora viene dalla
+	 * **cella** sotto il cursore e non dal punto d'impatto del raycast.
+	 *
+	 * ⏳ **L'errore di prospettiva NON e' misurato**: il test verifica che il pivot si sposti come la
+	 * formula prescrive, non di quanto il punto scivoli a schermo in proiezione prospettica — servirebbe
+	 * proiettare, e in headless non c'e' un viewport. La tolleranza di mezza cella vincola la formula, e
+	 * il giudizio «lo zoom va dove guardo» resta una verifica PIE. Una stesura precedente affermava qui
+	 * che «questa formula sta molto sotto» la tolleranza: era una dichiarazione senza evidenza.
+	 *
+	 * Se il braccio e' gia' al limite (`Min`/`Max`) il pivot **non si muove**: senza quella guardia,
+	 * continuare a girare la rotellina a fondo corsa trascinerebbe la vista verso il cursore all'infinito.
+	 */
+	void ZoomTowards(float AxisValue, const FVector& WorldAnchor);
 
 	/**
 	 * Ruota la vista attorno al punto inquadrato (valore positivo = orario visto dall'alto).
@@ -138,6 +164,14 @@ public:
 		PitchSensitivity = InPitch;
 	}
 
+	/**
+	 * Fissa il margine dei soft bounds (per i test).
+	 *
+	 * Serve a dimostrare che il limite **viene dal campo** e non da un caso: un test che verifica solo
+	 * «il centro resta entro N» passa anche con margine zero, se N e' abbastanza largo.
+	 */
+	void SetBoundsMarginForTest(float InCells) { BoundsMarginCells = InCells; }
+
 	void SetArmLengthRangeForTest(float InDefault, float InMin, float InMax)
 	{
 		// Un intervallo rovesciato non e' uno scenario da coprire, e' un test scritto male: senza questa
@@ -215,6 +249,21 @@ protected:
 	float PitchSensitivity = 0.5f;
 
 	/**
+	 * Quanto il centro camera puo' andare **oltre il bordo della mappa**, in celle.
+	 *
+	 * Deciso da `#864` (2026-08-15) e istruito sulla scala reale: con `3` celle, su una mappa di raggio 4
+	 * il centro arriva a 7 celle dall'origine — cioe' il bordo si puo' portare **al centro dello schermo**
+	 * e si vede cosa c'e' appena fuori, senza perdere la mappa.
+	 *
+	 * ⚠️ Misura **fissa**, non proporzionale al raggio: il margine serve al *bordo*, e il bordo e' locale.
+	 * Un 50% del raggio darebbe dieci celle di vuoto navigabile su una mappa Operations, dove il bordo
+	 * riempie gia' lo schermo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.0"))
+	float BoundsMarginCells = 3.f;
+
+	/**
 	 * Estremi dell'inclinazione. **Costanti, non tarabili**: non sono una preferenza ma il punto in cui la
 	 * vista degenera — a `0` la camera guarda l'orizzonte e il piano di gioco sparisce in una linea, a
 	 * `-90` `FRotator` perde un grado di liberta' (gimbal) e lo yaw smette di avere effetto visibile.
@@ -269,6 +318,15 @@ protected:
 	 * mano si disallineano alla prima aggiunta (un roll, un clamp, un `bUsePawnControlRotation`).
 	 */
 	void ApplyArmRotation();
+
+	/**
+	 * Riporta una posizione dentro i limiti di scorrimento: estensione reale delle celle della mappa piu'
+	 * `BoundsMarginCells`. Senza mappa non c'e' un bordo, e la posizione passa intatta.
+	 *
+	 * ⚠️ **Non e' collisione**: `bDoCollisionTest` resta `false` e `#864` lo dichiara fuori scope.
+	 * Reintrodurre il popping da SpringArm per ottenere dei limiti sarebbe un passo indietro.
+	 */
+	FVector ClampToSoftBounds(const FVector& Desired) const;
 
 #if WITH_EDITOR
 	/** Rende immediate le modifiche di distanza/inclinazione fatte nel Details, anche durante il PIE. */

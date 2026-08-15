@@ -404,10 +404,38 @@ void ARTPlayerController::OnPan(const FInputActionValue& Value)
 
 void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 {
-	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
+	if (!Cam)
 	{
-		Cam->AddZoom(Value.Get<float>());
+		return;
 	}
+
+	// L'ancora e' la **CELLA** sotto il cursore, convertita col centro del piano — non il punto d'impatto
+	// del raycast.
+	//
+	// 🔴 La prima stesura passava `Hit.ImpactPoint`, ed era lo stesso difetto di `#887` ripetuto in questo
+	// file: se il cursore sta su un'unita', l'impatto e' sul cilindro, **180 unita' sopra il piano**
+	// (`UnitHalfHeight` + `VisualZOffset`). A pitch -40° quella quota si traduce in ~215 unita' di scarto
+	// orizzontale — **oltre una cella**, cioe' piu' del doppio della tolleranza di mezza cella che il DoD
+	// e il nome del test dichiarano. Trovato in code review.
+	//
+	// ➕ E la cella e' gia' calcolata: `PlayerTick` traccia sotto il cursore a ogni frame e la memorizza
+	// con `SetHoveredCell`. Rifare il raycast qui sarebbe lavoro doppio per un dato peggiore.
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		if (HexMap->IsHoveredCellValid())
+		{
+			FVector Origin; float HexSize; float LayerHeight;
+			HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+			Cam->ZoomTowards(Value.Get<float>(),
+				URTHexLibrary::AxialToWorld(HexMap->GetHoveredCell(), Origin, HexSize, LayerHeight));
+			return;
+		}
+	}
+
+	// Il cursore non e' su una cella valida (fuori mappa, o nessun viewport): si zooma sul centro, com'e'
+	// sempre stato. Meglio di non zoomare.
+	Cam->AddZoom(Value.Get<float>());
 }
 
 void ARTPlayerController::OnRotate(const FInputActionValue& Value)
