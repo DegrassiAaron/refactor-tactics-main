@@ -362,6 +362,26 @@ riferito che non esiste. Non la correggo — non è di questa seduta — ma la s
 **Nessuna issue aperta**: non c'è niente da riparare. Se si volesse *cambiare* il design — camera che segue
 la selezione — sarebbe una decisione, non un fix, e andrebbe posta come tale.
 
+### `OSS-4` — le abilità non hanno nome: il log dice «usa &nbsp; su» → **#892**
+
+**Osservato il 2026-08-15**, mentre si cercava la linea di tiro:
+
+```
+[RT] RTUnit_0: abilita' attiva ->
+[RT] Piano: RTUnit_0 usa  su RTUnit_3
+```
+
+**Causa misurata**: `MakeHeroAction` — l'unico costruttore delle azioni d'eroe — popola `ActionId`, fase,
+priorità, portata, cooldown, effetti, slot, shape, area, power, e **mai `DisplayName`**. Nel catalogo:
+**16 azioni create, 0 con nome**. Le otto stringhe leggibili che esistono sono le **varianti
+d'equipaggiamento** (due per eroe), impostate a mano fuori dal costruttore — ed è ciò che rende il difetto
+invisibile a chi legge il file: i nomi ci sono, ma non sulle azioni che si usano in partita.
+
+⚠️ **Non è cosmetico in questa seduta**: `-6b` chiede di distinguere **linea** da **area**, `-6c` vuole
+`PressureJet` o `Ram` e non un'altra, `-3b` verifica il messaggio «non pronta» — che con il nome vuoto
+diventa `[RT]  non pronta (…)`. E con l'HUD assente (#613) il log è **l'unico** canale di feedback.
+Effetto concreto: due rifiuti con portate diverse (`max 4` e `max 5`) senza poter dire quali abilità fossero.
+
 ### `OSS-3` — `F` porta la vista fuori dalla mappa → **#887**
 
 **Osservato il 2026-08-14**, dopo `OSS-2`: premuto `F` come previsto, *«salta via, fuori dalla mappa»*. E il
