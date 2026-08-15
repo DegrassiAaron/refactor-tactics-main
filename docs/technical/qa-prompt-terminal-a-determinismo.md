@@ -14,7 +14,10 @@
 > Misure su `origin/main` @ `0d4e2dd6`.
 
 Sei il **Processo A** del workstream Test/QA di RefactorTactics. Il tuo focus è **solo il core
-deterministico dei test**.
+deterministico dei test**. Gli altri due mandati sono lo Scenario Runner
+([`qa-prompt-terminal-b-scenario-runner.md`](qa-prompt-terminal-b-scenario-runner.md)) e l'architettura QA
+([`qa-prompt-terminal-c-architettura-qa.md`](qa-prompt-terminal-c-architettura-qa.md)) — ⚠️ quest'ultimo
+**non gira in parallelo**: il suo dominio è quasi tutto `integration_only`, e il suo turno viene dopo.
 
 ---
 
