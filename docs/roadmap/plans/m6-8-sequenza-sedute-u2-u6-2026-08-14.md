@@ -173,6 +173,27 @@ esattamente il difetto che questa voce esiste per sorvegliare.
 | `-6b` | ⏳ | la **linea** colpisce anche chi sta sulla traiettoria prima del bersaglio; l'**area** colpisce bersaglio + 6 vicini. Si giudica la **leggibilità**: si capisce dove finirà il colpo *prima* di lanciarlo? |
 | `-6c` | ⏳ | la spinta va lungo una delle **6 direzioni esagonali**, non su un asse cardinale; non si sposta se dietro c'è ostacolo, unità o bordo |
 
+**La geometria dell'arena, letta da `MakeTestArena`** — non «cerca un muro», ma le celle esatte:
+
+| Cosa | Celle |
+|---|---|
+| **Muro che blocca la VISTA** (attraversabile!) | `q=0`, `r` da **-2 a +2** → `(0,-2,0)` … `(0,2,0)` |
+| Ostacoli al **movimento** | `(-1,2,0)` · `(1,-2,0)` · `(2,1,0)` |
+| Fango, costo 3 | `q=-2`, `r` da -1 a +1 |
+| Piattaforma su `L1` | `(2,-1,1)` · `(2,0,1)` · `(3,-1,1)` · `(3,0,1)` |
+| Transizione (una sola) | `(1,0,0) → (2,0,1)`, costo **2** |
+| Celle di partenza | estremi: `q=-4` (team 0, tuo) e `q=+4` (team 1, bot) |
+
+**I tre gesti di `-6`**, nell'ordine:
+
+1. **«Coperto»** — porta la tua unità a ridosso del muro, es. `(-1,0,0)`, con un nemico a `q=+1` e `r` simile.
+   Arma con **1/2/3**, clicca il nemico. Atteso: `[RT] <Nome> coperto (nessuna linea di tiro)`.
+   ⚠️ Se esce `fuori portata (max N)` sei troppo lontano: è il motivo *giusto* per un'altra domanda.
+2. **«Di lato»** — il muro copre solo `r ∈ [-2,+2]`. Spostati a `r = 3` (o `-3`) e ritenta: la linea non
+   incrocia il muro, il colpo parte.
+3. **«Altro layer»** — sali sulla piattaforma e spara a terra oltre il muro. Il muro è tutto su `L0`: per la
+   regola di elevazione **il tiro passa**. ⚠️ Serve la salita, che costa **due turni** da `q=-4`.
+
 **Chi usare**: linea e area con **Gadget** (`LinearDischarge`, `Overload`) e **Phase** (`PressureJet`,
 `CircularTide`). Per la spinta, **Phase** (`PressureJet`) o **Riktor** (`Ram`) — entrambe `Push 1`.
 
