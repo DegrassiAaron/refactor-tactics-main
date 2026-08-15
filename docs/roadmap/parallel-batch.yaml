@@ -750,9 +750,11 @@ tracks:
           - docs/roadmap/scenariomap.shortlist.md
 
   simulation:
-    status: ACTIVE
-    issue: 915
-    branch: feat/915-fixture-mondo-condivisa
+    status: IDLE
+    issue: null
+    branch: null
+    # ⚠️ Il worktree resta in piedi, staccato su `main`: tiene `Binaries/` e `Intermediate/` costruiti, e
+    # cancellarlo costa una ricompilazione intera. Chi lo riusa fa `git switch -c <branch>` da lì.
     worktree: "D:/rt-simulation"
     note: >-
       IDLE perché **il lavoro è atterrato**, non per dipendenza. `#165` (CP 14.5, finestra e primo
@@ -824,15 +826,25 @@ tracks:
       remoti vivi toccano `Tests/` — `feat/641` (3 file), `feat/77` (1), `fix/892` (1) — e **nessuno**
       tocca uno dei cinque path di questa track. `git diff --name-only origin/main...origin/<b>` per ognuno
       dei nove, `git worktree list` per le sei sessioni aperte.
-    mandate: docs/technical/qa-prompt-terminal-a-determinismo.md
-    writable:
-      - Source/RefactorTactics/Tests/RTOccupancyFixtures.h
-      - Source/RefactorTactics/Tests/RTWorldFixtures.h
-      - Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp
-      - Source/RefactorTactics/Tests/RTStress4v4Tests.cpp
-      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
-      - docs/product/piano-canonico-mvp.md
-    binary_leases: []
+      ✅ **Chiusa il 2026-08-15, e le due righe sopra sono ora storia: `#915` è mergiata con PR #917
+      (`ec92d4d6`) e il branch non esiste più**, cancellato da entrambe le parti. Il merge target §10 del
+      mandato è soddisfatto e **misurato**: `RTWorldFixtures.h` ha **3** consumatori (era 1 su 105 per
+      l'unico header condiviso che c'era), i tre file migrati passano senza toccare regole né golden, e
+      ogni file del write-set era nel `writable` — verificato a posteriori confrontando
+      `git diff --name-only origin/main...HEAD` con questo file, non a memoria.
+      ✅ **Suite completa, non un filtro: 866 avviati · 866 `Success` · 0 falliti**, eseguita due volte, la
+      seconda sul binario esatto del commit consegnato. ⚠️ E il **conteggio delle dichiarazioni non si è
+      mosso** — `IMPLEMENT_*_AUTOMATION_TEST` dà **867** sia prima sia dopo: è la verifica che il verde non
+      arrivi da test scomparsi, che è il modo in cui un'infrastruttura di test si rompe in silenzio.
+      ⚠️ **Il write-set resta descritto qui e il blocco `writable` esce**, come per `verification`: erano
+      sei path — `RTOccupancyFixtures.h`, `RTWorldFixtures.h`, i tre test di simulazione/stress/showcase e
+      `docs/product/piano-canonico-mvp.md` — tutti atterrati in `main`. Chi li tocca dopo deve poter vedere
+      chi ci è passato in questo lotto; nessuno di essi è oggi assegnato.
+      ⛔ **Il mandato Terminal A esce con la track, e ciò che NON ha chiuso va detto invece che dedotto**:
+      (1) la voce `Packaged` di `#578`, che resta `OPEN` — il suo residuo è una **procedura** in
+      `docs/technical/test-e-diagnosi.md`, file di nessuna track, quindi è una riallocazione e non un
+      lavoro rimasto a metà; (2) i **40** file di test che dichiarano ancora la propria copia del mondo, e
+      che restano corretti come sono: il mandato §2 dice «migra pochi consumatori, non tutti».
 
   client_tools:
     status: ACTIVE
