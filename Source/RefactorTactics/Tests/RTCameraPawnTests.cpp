@@ -155,6 +155,11 @@ bool FRTCameraContinuousYawTest::RunTest(const FString&)
 	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
 	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
 
+	// ⚠️ Sensibilita' FISSATA dal test: senza, `AddYawContinuous(20)` pinnerebbe implicitamente il default
+	// `0.5`, che questa issue dichiara taratura aperta da playtest. Il test cadrebbe per una decisione di
+	// tuning invece che per un difetto.
+	Cam->SetSensitivitiesForTest(/*Yaw=*/ 1.f, /*Pitch=*/ 1.f);
+
 	// Un trascinamento che NON e' un multiplo dello step: e' esattamente cio' che prima non si poteva fare.
 	Cam->AddYawContinuous(20.f);
 	const float Free = Cam->GetCameraYaw();
@@ -186,6 +191,58 @@ bool FRTCameraContinuousYawTest::RunTest(const FString&)
 }
 
 /**
+ * L'orbita mappa X sullo yaw e Y sul pitch, e il gesto va ARMATO.
+ *
+ * ⚠️ Senza questo test, scambiare `Delta.X` con `Delta.Y` nel controller non farebbe cadere niente: i
+ * test sul pawn verificano `AddYawContinuous` e `AddPitch`, non **chi li chiama con cosa**. E' lo stesso
+ * buco che la review di `#887` ha trovato sul percorso del tasto `F`.
+ *
+ * ➕ Il **verso** verticale non e' pinnato qui di proposito: e' `bInvertOrbitPitch`, una preferenza il cui
+ * default non e' stato verificato con le mani. Il test verifica che la Y muova il pitch, non in che senso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraOrbitAxesTest,
+	"RefactorTactics.Camera.OrbitMapsXToYawAndYToPitchWhenArmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraOrbitAxesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	Cam->SetSensitivitiesForTest(/*Yaw=*/ 1.f, /*Pitch=*/ 1.f);
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC)) { DestroyCameraWorld(World); return false; }
+	PC->Possess(Cam);
+
+	const float Yaw0 = Cam->GetCameraYaw();
+	const float Pitch0 = Cam->GetCameraPitch();
+
+	// DISARMATO: il mouse si muove ma nessuno sta orbitando. Senza questa guardia la vista ruoterebbe
+	// di continuo, e nessun tasto lo avrebbe chiesto.
+	PC->SetOrbitingForTest(false);
+	PC->OrbitCameraForTest(FVector2D(30.f, 20.f));
+	TestEqual(TEXT("disarmato: lo yaw non si muove"), Cam->GetCameraYaw(), Yaw0);
+	TestEqual(TEXT("disarmato: il pitch non si muove"), Cam->GetCameraPitch(), Pitch0);
+
+	// ARMATO, solo X: muove lo yaw e **non** il pitch.
+	PC->SetOrbitingForTest(true);
+	PC->OrbitCameraForTest(FVector2D(30.f, 0.f));
+	TestNotEqual(TEXT("X muove lo yaw"), Cam->GetCameraYaw(), Yaw0);
+	TestEqual(TEXT("e X non tocca il pitch"), Cam->GetCameraPitch(), Pitch0);
+
+	// Solo Y: muove il pitch e **non** lo yaw. E' la coppia che rende lo scambio degli assi rilevabile.
+	const float YawAfterX = Cam->GetCameraYaw();
+	PC->OrbitCameraForTest(FVector2D(0.f, 20.f));
+	TestNotEqual(TEXT("Y muove il pitch"), Cam->GetCameraPitch(), Pitch0);
+	TestEqual(TEXT("e Y non tocca lo yaw"), Cam->GetCameraYaw(), YawAfterX);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
  * L'inclinazione si regola in partita, e non sfonda gli estremi.
  *
  * Il clamp e' in `AddPitch`, **non** nel `meta` del campo: `ClampMin`/`ClampMax` vincolano il widget del
@@ -206,6 +263,8 @@ bool FRTCameraPitchTest::RunTest(const FString&)
 
 	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
 	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetSensitivitiesForTest(/*Yaw=*/ 1.f, /*Pitch=*/ 1.f);
 
 	const float Start = Cam->GetCameraPitch();
 	Cam->AddPitch(+10.f);

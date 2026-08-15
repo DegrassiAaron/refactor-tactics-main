@@ -59,6 +59,15 @@ public:
 	 */
 	void AddPitch(float AxisValue);
 
+	/**
+	 * Orbita: yaw e pitch nello stesso gesto, con **una sola** scrittura di trasformata.
+	 *
+	 * Chiamare `AddYawContinuous` e `AddPitch` in fila funziona ma aggiorna il braccio due volte per
+	 * frame di trascinamento — e la seconda scrittura scarta il risultato della prima. Sul percorso caldo
+	 * dell'input, con `bEnableCameraLag` attivo, e' lavoro doppio per niente.
+	 */
+	void AddOrbit(float DeltaYaw, float DeltaPitch);
+
 	/** Direzione di sguardo corrente sul piano, in gradi. Serve al pan relativo e ai test. */
 	float GetCameraYaw() const { return CameraYaw; }
 
@@ -114,6 +123,19 @@ public:
 	{
 		DefaultPitch = InDefault;
 		CameraPitch = InCurrent;
+	}
+
+	/**
+	 * Fissa le sensibilita' (per i test).
+	 *
+	 * ⚠️ Senza, un test che chiama `AddYawContinuous(20)` pinna implicitamente `YawSensitivity = 0.5`,
+	 * cioe' un valore che questa stessa issue dichiara **taratura aperta da playtest**: il giorno in cui
+	 * il playtest lo cambiasse, il test cadrebbe per una decisione di tuning invece che per un difetto.
+	 */
+	void SetSensitivitiesForTest(float InYaw, float InPitch)
+	{
+		YawSensitivity = InYaw;
+		PitchSensitivity = InPitch;
 	}
 
 	void SetArmLengthRangeForTest(float InDefault, float InMin, float InMax)
@@ -207,6 +229,18 @@ protected:
 	float YawSensitivity = 0.5f;
 
 	/**
+	 * Verso del trascinamento verticale nell'orbita.
+	 *
+	 * ⚠️ **E' una preferenza, e il default NON e' stato verificato con le mani.** Il segno corretto dipende
+	 * da come l'engine consegna `Mouse2D.Y`, e la prima stesura di #863 lo asseriva in un commento che si
+	 * contraddiceva da solo — diceva «trascinare in basso abbassa lo sguardo» e poi ne derivava l'opposto.
+	 * Invece di scegliere a tavolino: il verso e' un campo, il default e' dichiarato **non verificato**, e
+	 * la voce PIE lo mette alla prova. Chi lo trova rovesciato lo cambia dal Details senza ricompilare.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera")
+	bool bInvertOrbitPitch = true;
+
+	/**
 	 * Direzione di sguardo sul piano, in gradi. 0 = l'orientamento di partenza, quello di ogni inquadratura
 	 * prima che esistesse la rotazione.
 	 *
@@ -228,6 +262,13 @@ protected:
 
 	/** Applica distanza (clampata tra Min e Max) e inclinazione correnti al braccio. */
 	void ApplyViewSettings();
+
+	/**
+	 * Scrive sul braccio la rotazione corrente. Unico punto: la stessa espressione era copiata in quattro
+	 * posti, ed e' il difetto che `#873` ha gia' pagato una volta — quattro copie da tenere allineate a
+	 * mano si disallineano alla prima aggiunta (un roll, un clamp, un `bUsePawnControlRotation`).
+	 */
+	void ApplyArmRotation();
 
 #if WITH_EDITOR
 	/** Rende immediate le modifiche di distanza/inclinazione fatte nel Details, anche durante il PIE. */

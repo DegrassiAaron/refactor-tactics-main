@@ -299,6 +299,11 @@ void ARTPlayerController::SetupInputComponent()
 		// sbagliato per un trascinamento.
 		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Started, this, &ARTPlayerController::OnOrbitPressed);
 		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnOrbitReleased);
+		// ⚠️ **Anche `Canceled`, e non e' pedanteria**: se il trigger viene annullato — rimozione del
+		// mapping context, cambio pawn, un `FlushPressedKeys` parziale — `Completed` non arriva. Senza
+		// questa riga `bOrbiting` resterebbe armato e da quel momento **ogni** movimento del mouse
+		// ruoterebbe la camera senza che nessun tasto sia premuto. Trovato in code review.
+		EIC->BindAction(OrbitModifierAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnOrbitReleased);
 		EIC->BindAction(OrbitAction, ETriggerEvent::Triggered, this, &ARTPlayerController::OnOrbit);
 		EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
 		EIC->BindAction(LockInAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLockIn);
@@ -427,19 +432,29 @@ void ARTPlayerController::OnOrbitReleased(const FInputActionValue& Value)
 
 void ARTPlayerController::OnOrbit(const FInputActionValue& Value)
 {
-	// Il movimento del mouse arriva a ogni frame: senza questa guardia la vista ruoterebbe di continuo,
-	// senza che nessuno abbia chiesto di orbitare.
+	OrbitCameraForTest(Value.Get<FVector2D>());
+}
+
+void ARTPlayerController::OrbitCameraForTest(const FVector2D& Delta)
+{
+	// 🔴 **La guardia sta QUI, non nel chiamante.** L'estrazione l'aveva lasciata in `OnOrbit`, quindi il
+	// percorso testabile scavalcava proprio il gate che doveva verificare — e il test l'ha fatto cadere
+	// alla prima esecuzione. Una decisione estratta per essere verificabile deve portarsi dietro **tutta**
+	// la decisione, altrimenti il test misura una funzione che in partita non esiste.
+	//
+	// Il movimento del mouse arriva a ogni frame: senza questa riga la vista ruoterebbe di continuo, senza
+	// che nessuno abbia chiesto di orbitare.
 	if (!bOrbiting)
 	{
 		return;
 	}
 	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
 	{
-		const FVector2D Delta = Value.Get<FVector2D>();
-		Cam->AddYawContinuous(Delta.X);
-		// Y invertita: trascinare **verso il basso** abbassa lo sguardo. `CameraPitch` e' negativo verso
-		// il basso, e un delta positivo del mouse va verso l'alto sullo schermo.
-		Cam->AddPitch(-Delta.Y);
+		// X orizzontale → yaw, Y verticale → pitch. **Una sola** scrittura di trasformata: chiamare i due
+		// `Add*` in fila aggiornerebbe il braccio due volte per frame di trascinamento.
+		// Il verso verticale e' una preferenza del pawn (`bInvertOrbitPitch`), non una costante decisa qui:
+		// vedi la nota su quel campo — il default non e' stato verificato con le mani.
+		Cam->AddOrbit(Delta.X, Delta.Y);
 	}
 }
 

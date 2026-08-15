@@ -48,11 +48,15 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> RotateAction;
 
-	/** #863 — orbita continua: il modificatore arma il gesto, l'asse 2D lo guida (X = yaw, Y = pitch). */
-	UPROPERTY()
+	/**
+	 * #863 — orbita continua: il modificatore arma il gesto, l'asse 2D lo guida (X = yaw, Y = pitch).
+	 * `Transient` come tutti i fratelli: sono `UInputAction` creati con `NewObject` in
+	 * `BuildInputMappings`, e senza entrerebbero nella serializzazione dell'actor.
+	 */
+	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> OrbitAction;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> OrbitModifierAction;
 
 	UPROPERTY(Transient)
@@ -101,6 +105,24 @@ protected:
 	void OnOrbitReleased(const FInputActionValue& Value);
 
 	bool bOrbiting = false;
+
+public:
+	/**
+	 * L'orbita a partire da un delta di mouse, senza `FInputActionValue` (per i test).
+	 *
+	 * Stessa disciplina di `FocusCameraOnUnit` e `HandleClickOnUnitForTest`: la **decisione** — quale asse
+	 * guida cosa — si verifica headless; l'handler resta il solo punto che decide *quando*. Senza questo,
+	 * scambiare `Delta.X` con `Delta.Y` non farebbe cadere niente.
+	 */
+	void OrbitCameraForTest(const FVector2D& Delta);
+
+	/** Arma o disarma il gesto, come farebbe il tasto centrale (per i test). */
+	void SetOrbitingForTest(bool bInOrbiting) { bOrbiting = bInOrbiting; }
+
+	/** Se il gesto e' armato. Serve a verificare che il rilascio lo chiuda davvero. */
+	bool IsOrbitingForTest() const { return bOrbiting; }
+
+private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
 	void OnRestart(const FInputActionValue& Value);
