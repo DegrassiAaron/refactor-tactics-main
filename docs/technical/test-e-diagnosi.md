@@ -109,7 +109,7 @@ RunUAT.bat BuildCookRun -project=<uproject> -noP4 -platform=Win64 \
 ```text
 Binaries/Win64/RefactorTactics.exe                 336 MB   Development
 Binaries/Win64/RefactorTactics-Win64-Shipping.exe  167 MB   Shipping
-Content/Paks/RefactorTactics-Windows.pak            11 MB   lo stesso per entrambi
+Content/Paks/RefactorTactics-Windows.pak            10 MB   lo stesso per entrambi, scenari inclusi
 ```
 
 Il confronto si legge da **`result.json`, non dal log** — ed è una scelta, non un dettaglio: in Shipping il
@@ -127,21 +127,37 @@ python -c "import json;print(json.load(open('result.json'))['stateHash'])"
 > ⚠️ **In Shipping «nessun file» significa «non ha girato», non «è andato bene».** Senza log, l'assenza di un
 > report è l'unico segnale che resta, e va letta come fallimento — mai come conferma.
 
-#### 🔴 Oggi la procedura si ferma a metà, e le due cause sono misurate (#926)
+#### ✅ Causa 1 chiusa il 2026-08-16 · ⚠️ in Shipping resta la seconda (#926)
 
-**In Development gira per intero**: `AUTO-RUN Movement.Collision` → `PASS (3/3 assertion, 1 turni)` →
-`stateHash 572184bb`. **In Shipping no**, e non per la ragione che sembra:
+**In Development la procedura gira per intero**: `AUTO-RUN Movement.Collision` → `PASS (3/3 assertion, 1
+turni)` → `stateHash 572184bb`. **In Shipping no**, e delle due cause misurate una è caduta.
 
-1. **`Scenarios/` non entra nel pacchetto.** Al primo tentativo l'indice dice *«0 scenari sotto
-   `../../../RefactorTactics/Scenarios`»*: sono `.json` **fuori** da `Content/`, il cook non li vede e lo
-   staging non li copia. `DefaultGame.ini` dichiara `+DirectoriesToAlwaysCook=(Path="/Game/RT")` e nient'altro
-   — non è una regressione, non è mai stato configurato. Manca `+DirectoriesToAlwaysStageAsUFS=(Path="Scenarios")`.
-2. **In Shipping `-dpcvars` è compilato fuori.** Non è un permesso e non è un flag della nostra cvar
-   (`rt.Test.Scenario` è `ECVF_Default`, non `ECVF_Cheat`): in
-   `DeviceProfileManager.cpp` **tutto** il parsing di `-dpcvars=`/`-dpcvar=`/`-forcedpcvars=` sta dentro
-   `#if !UE_BUILD_SHIPPING`. La variabile non viene mai impostata, il `GameMode` legge vuoto e allestisce la
-   partita normale.
+✅ **1. `Scenarios/` ora entra nel pacchetto.** Non ci entrava — sono `.json` **fuori** da `Content/`, il cook
+non li vede e lo staging non li copiava: l'indice diceva *«0 scenari sotto
+`../../../RefactorTactics/Scenarios`»* e l'auto-run falliva prima di partire. Chiuso in `DefaultGame.ini`:
 
+```ini
++DirectoriesToAlwaysStageAsUFS=(Path="../Scenarios")
+```
+
+🔴 **Il `Path` è relativo a `Content/`, non alla radice del progetto — e sbagliarlo non fallisce.** UAT fa
+`Combine(ProjectContentRoot, RelativePath)` (`CopyBuildToStagingDirectory.Automation.cs`, *«these dirs are
+relative to the game content directory»*). Scritto `Scenarios` cerca `Content/Scenarios`, non lo trova,
+**stagea zero file e lascia la build `SUCCESSFUL`**. L'unico segnale è un warning nel log della cottura:
+
+```text
+Unable to find directory "…\Content\Scenarios" for staging, retrieved from
+"/Script/UnrealEd.ProjectPackagingSettings" "DirectoriesToAlwaysStageAsUFS"
+```
+
+⚠️ **E non si verifica con `find` sullo staged**: i file UFS finiscono **dentro il `.pak`**, quindi contare i
+`.json` sotto la cartella dà `0` anche quando ha funzionato. I due modi che funzionano sono la dimensione del
+pak — **10 654 115 → 10 790 839** byte, i 76 JSON — e, l'unico che conta davvero, **eseguire**.
+
+⚠️ **2. In Shipping `-dpcvars` è compilato fuori — resta aperta.** Non è un permesso e non è un flag della
+nostra cvar (`rt.Test.Scenario` è `ECVF_Default`, non `ECVF_Cheat`): in `DeviceProfileManager.cpp` **tutto**
+il parsing di `-dpcvars=`/`-dpcvar=`/`-forcedpcvars=` sta dentro `#if !UE_BUILD_SHIPPING`. La variabile non
+viene mai impostata, il `GameMode` legge vuoto e allestisce la partita normale.
 ∴ delle tre porte d'ingresso allo scenario, in Shipping ne resta **una sola già disponibile** — la proprietà
 `ScenarioToRun` di `BP_GameMode`, che però è un `.uasset` (editor + Binary Asset Lease) e cambia il
 comportamento predefinito del gioco che si distribuisce. La via che non paga né un binario né un cambio di
