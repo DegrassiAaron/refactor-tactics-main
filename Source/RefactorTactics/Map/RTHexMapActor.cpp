@@ -678,13 +678,11 @@ void ARTHexMapActor::GenerateFixtureIntoAsset()
 	MapAsset->Modify();
 	// Sostituisce, non fonde: mescolare una fixture con quello che c'era darebbe una mappa che non e' ne'
 	// l'una ne' l'altra, e i criteri smetterebbero di dire qualcosa su cio' che si ha davanti.
-	MapAsset->Cells.Reset();
-	MapAsset->Transitions.Reset();
-	for (const FRTHexCellData& Cell : Source->Cells)
-	{
-		MapAsset->AddOrUpdateCell(Cell);
-	}
-	MapAsset->Transitions = Source->Transitions;
+	//
+	// In UNA revisione (#905): scrivere il ciclo a mano ne produceva una per cella — 98 per l'arena della
+	// v0.1 — e nessuna per le transizioni, che venivano assegnate direttamente. Generare una fixture e'
+	// un evento solo, ed e' la regola che `UpdateCells` gia' enuncia.
+	MapAsset->ReplaceContent(Source->Cells, Source->Transitions);
 	MapAsset->SortCells();
 	MapAsset->MarkPackageDirty();
 	RebuildInstances();
