@@ -1199,7 +1199,9 @@ tracks:
     mandate_worktree: "D:/rt-client"
     mandate_gate: >-
       Il turno C si apre quando **tutte** e tre reggono, misurate e non ricordate:
-      (1) `#451` chiusa e la seduta U1 consuntivata in `test-manuali-pie.md`;
+      (1) `#451` chiusa e la seduta U1 consuntivata in `test-manuali-pie.md` — ⚠️ dal 2026-08-16
+      quel file è di `playtest`: consuntivare qui significa **proporre** le cinque voci residue, e la
+      condizione regge quando `playtest` le ha scritte, non quando questa track le ha proposte;
       (2) nessun branch aperto tocca un file `integration_only` —
       `git diff --name-only origin/main...origin/<b>` per ogni `b` di `git ls-remote --heads origin`,
       **non** `gh pr list`, che non vede i branch pushati senza PR;
@@ -1215,7 +1217,14 @@ tracks:
       Se una delle tre non regge, il turno non è cominciato: è la prima cosa che il mandato chiede
       di verificare.
     writable:
-      - docs/technical/test-manuali-pie.md
+      # ➖ **`docs/technical/test-manuali-pie.md` esce, il 2026-08-16, e passa alla track `playtest`.**
+      # Non perché questa track abbia sbagliato a tenerlo: lo teneva per la seduta U1, cioè per una
+      # ragione vera e temporanea, e il file era già annotato «torna `integration_only` al prossimo
+      # batch». La destinazione è cambiata — non torna fra i riconciliati, va a chi lo compila.
+      # ⚠️ **Il passaggio cade a metà di U1, ed è una scelta, non una svista**: `#451` è a 2 voci su 7.
+      # Le cinque che restano — `E`, `F`, `G`, `H`, `L` — questa track le **propone** in handoff a
+      # `playtest`, che le scrive. Costa un passaggio in più alla seduta in corso; in cambio il registro
+      # non cambia proprietario ogni volta che una seduta finisce.
       # ➕ **Riallocazione del 2026-08-14, a batch aperto**: `#871`. Una voce `PIE-*` di questa track ha
       # trovato un difetto nel tool che stava verificando — nel Fill, cambiare `Surface` non aggiorna
       # `MoveCost`, perché `URTHexFillToolProperties` non ha il `PostEditChangeProperty` che il Paint ha.
@@ -1271,15 +1280,11 @@ tracks:
       # `writable` della track che li esegue, perché chi esegue un mandato lo corregge quando lo misura
       # sbagliato. Vedi la documentazione di `mandate` nello schema in testa al file.
       - docs/technical/qa-prompt-terminal-c-architettura-qa.md
-    # Catena già misurata da questo file (vedi `generated_only`): la sorgente delle voci alimenta
-    # due viste, e possederla obbliga a rigenerarle. `project-graph.json` ha altre nove sorgenti —
-    # `spatial` ne possiede una — quindi qui vale la regola dell'albero unito: ciascun ramo
-    # rigenera per tenere verde il proprio `--check`, nessuna delle due copie è autoritativa.
-    derives_from:
-      - source: docs/technical/test-manuali-pie.md
-        regenerates:
-          - docs/roadmap/editormap.shortlist.md
-          - docs/roadmap/project-graph.json
+    # ➖ **Il `derives_from` segue il file**: la catena `test-manuali-pie.md` → `editormap.shortlist.md`
+    # + `project-graph.json` passa a `playtest` insieme alla sorgente. È la regola già scritta in
+    # `generated_only` applicata a una riassegnazione: la vista segue la sorgente, e la sorgente ha
+    # cambiato proprietario. Questa track non rigenera più quelle due viste.
+    derives_from: []
     binary_leases:
       # Prima lease emessa da questa track. `create` prenota una **destinazione**: nessun'altra track può
       # creare questo path, e il path non esiste ancora — quindi non c'è nulla da contendere se non il
@@ -1339,6 +1344,53 @@ tracks:
     # `Content/RT/Characters/Gadget/Animation/` è **tuttora untracked** nella working directory
     # principale — finché non è committata o scartata, la destinazione non è prenotabile e una
     # lease `create` starebbe su una base che in git non esiste.
+
+  playtest:
+    status: IDLE
+    issue: null
+    branch: null
+    note: >-
+      ➕ **Track nuova, aperta il 2026-08-16: l'autore davanti a Unreal.** Possiede
+      `docs/technical/test-manuali-pie.md`, cioè il verdetto di tutto ciò che solo un umano può
+      giudicare.
+      **Perché una track e non `integration_only`, che era la destinazione già annotata.** Il registro
+      ha due proprietà che tirano in direzioni opposte, e vanno guardate insieme. I suoi **domini** sono
+      molti — misurate il 2026-08-16, **35 famiglie** di prefissi: `V01` (27 voci), `VIS` (21),
+      `HEX-MODE` (15), `HEXPLAY` (14), `STATE` (10), poi camera, bot, geometria, facing, formato,
+      bilanciamento — e appartengono a track diverse. Da lì l'istinto di riconciliarlo. Ma il suo
+      **esecutore è uno solo**: le verifiche PIE le fa una persona, in sedute, davanti all'editor.
+      ∴ non è il caso di `test-automatico-unreal.md`, che è conteso fra *lettori* e infatti sta fra i
+      riconciliati (vedi `integration_only`): qui il contendere non c'è, perché chi scrive è sempre lo
+      stesso. Un registro con un compilatore unico e trentacinque domini è **posseduto**, non riconciliato.
+      📊 **Il backlog di questa track, misurato e non stimato**: `146` voci totali, di cui **102 aperte**
+      e 39 chiuse. Si rimisura — `grep -c "^| \*\*PIE-"` sul file, e lo stesso filtrato per `⏳`/`✅` —
+      perché è il genere di numero che invecchia da solo. ⚠️ Diceva `145`/`101`, e non per distrazione:
+      era vero quando l'ho scritto, e falso quando **lo stesso commit** ha aggiunto `PIE-HEX-MODE-P`.
+      Un conteggio scritto a mano scade anche dentro un commit solo.
+      ⚠️ **Le altre track producono, questa giudica.** Chi finisce una feature che ha una voce `PIE-*`
+      non scrive il proprio esito qui: lo **propone** in handoff. Vale già per `content_editor`, che
+      tiene `#451` a 2 voci su 7 e proporrà le cinque residue.
+      ⛔ **Non è `verification`**, che possiede gli undici file di test C++: quella misura ciò che una
+      macchina può decidere, questa ciò che nessuna macchina decide. Non si sovrappongono, e i due
+      `writable` sono disgiunti per costruzione.
+      ⚠️ **Nessun `worktree` dichiarato**, e non è una dimenticanza: la track è `IDLE` e il worktree
+      di una seduta PIE ha un requisito che gli altri non hanno — l'editor **buildato**, non solo il
+      sorgente. Va scelto quando la track parte, fra quelli che hanno `Binaries/` e `Intermediate/`
+      già costruiti, perché aprirne uno nuovo costa una compilazione intera.
+    mandate: docs/technical/qa-prompt-terminal-d-verifiche-pie.md
+    writable:
+      - docs/technical/test-manuali-pie.md
+      - docs/technical/qa-prompt-terminal-d-verifiche-pie.md
+    # La catena arriva qui **con la sorgente**, da `content_editor`: la vista segue il file, e il file
+    # ha cambiato proprietario. `project-graph.json` ha altre sorgenti — `spatial` ne possiede una —
+    # quindi vale la regola dell'albero unito: ciascun ramo rigenera per tenere verde il proprio
+    # `--check`, e nessuna delle copie è autoritativa.
+    derives_from:
+      - source: docs/technical/test-manuali-pie.md
+        regenerates:
+          - docs/roadmap/editormap.shortlist.md
+          - docs/roadmap/project-graph.json
+    binary_leases: []
 
   verification:
     status: IDLE
