@@ -167,8 +167,15 @@ void ARTCameraPawn::AddPlanarMovement(const FVector2D& Axis)
 	// scorrere avvicinerebbe anche il terreno.
 	const FVector Forward = FRotator(0.f, CameraYaw, 0.f).RotateVector(FVector::ForwardVector);
 	const FVector Right   = FRotator(0.f, CameraYaw, 0.f).RotateVector(FVector::RightVector);
-	const FVector Delta   = (Forward * Axis.Y + Right * Axis.X) * PanSpeed;
-	AddActorWorldOffset(Delta);
+	// Lo scorrimento scala con la DISTANZA: a vista larga la stessa quantita' di input copre piu' terreno.
+	// Senza, allontanandosi la mappa scorre a passi che sullo schermo diventano impercettibili — e' il
+	// motivo per cui `PanSpeed` da solo non basta. Normalizzato su `DefaultArmLength`, cosi' alla distanza
+	// di default il comportamento e' quello storico.
+	const float DistanceScale = (SpringArm && DefaultArmLength > 0.f)
+		? SpringArm->TargetArmLength / DefaultArmLength
+		: 1.f;
+	const FVector Delta = (Forward * Axis.Y + Right * Axis.X) * PanSpeed * DistanceScale;
+	SetActorLocation(ClampToSoftBounds(GetActorLocation() + Delta));
 }
 
 void ARTCameraPawn::AddYaw(float AxisValue)
@@ -196,6 +203,69 @@ void ARTCameraPawn::ApplyArmRotation()
 	{
 		SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
 	}
+}
+
+FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
+{
+	const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld());
+	if (!HexMap)
+	{
+		return Desired; // senza mappa non c'e' un bordo: niente da limitare
+	}
+
+	FVector Origin; float HexSize; float LayerHeight;
+	const URTHexMapAsset* Map = HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+	if (!Map || Map->Cells.Num() == 0)
+	{
+		return Desired;
+	}
+
+	// Estensione reale delle celle, non un raggio assunto: una mappa dipinta a mano non e' un esagono
+	// pieno, e dedurne i limiti dal numero di celle darebbe un bordo che non esiste.
+	FVector Min(TNumericLimits<double>::Max());
+	FVector Max(TNumericLimits<double>::Lowest());
+	for (const FRTHexCellData& Cell : Map->Cells)
+	{
+		const FVector W = URTHexLibrary::AxialToWorld(Cell.Id, Origin, HexSize, LayerHeight);
+		Min.X = FMath::Min(Min.X, W.X); Max.X = FMath::Max(Max.X, W.X);
+		Min.Y = FMath::Min(Min.Y, W.Y); Max.Y = FMath::Max(Max.Y, W.Y);
+	}
+
+	// Il margine e' in CELLE (`#864`): un numero in unita' mondo sarebbe legato a `HexSize`, che e' un
+	// dato della mappa. `√3 * HexSize` e' la distanza fra centri di celle adiacenti.
+	const double Margin = static_cast<double>(BoundsMarginCells) * UE_SQRT_3 * static_cast<double>(HexSize);
+
+	return FVector(
+		FMath::Clamp(Desired.X, Min.X - Margin, Max.X + Margin),
+		FMath::Clamp(Desired.Y, Min.Y - Margin, Max.Y + Margin),
+		Desired.Z);
+}
+
+void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
+{
+	if (!SpringArm || FMath::IsNearlyZero(AxisValue))
+	{
+		return;
+	}
+
+	const float Before = SpringArm->TargetArmLength;
+	const float After = FMath::Clamp(Before + AxisValue * ZoomStep, MinArmLength, MaxArmLength);
+
+	// Gia' a fondo corsa: la distanza non cambia, quindi non c'e' niente da compensare. Senza questa
+	// guardia continuare a girare la rotellina al limite trascinerebbe la vista verso il cursore
+	// all'infinito — uno scorrimento che nessuno ha chiesto, dal comando sbagliato.
+	if (FMath::IsNearlyEqual(Before, After))
+	{
+		return;
+	}
+	SpringArm->TargetArmLength = After;
+
+	// Il pivot si avvicina all'ancora in proporzione a quanto il braccio si e' accorciato: cosi' l'ancora
+	// resta ferma sullo schermo. Solo X/Y — la quota del piano non cambia zoomando (`#887`).
+	const FVector Pivot = GetActorLocation();
+	const float Ratio = After / Before;
+	const FVector Moved = WorldAnchor + (Pivot - WorldAnchor) * Ratio;
+	SetActorLocation(FVector(Moved.X, Moved.Y, Pivot.Z));
 }
 
 void ARTCameraPawn::AddYawContinuous(float AxisValue)

@@ -132,6 +132,116 @@ bool FRTCameraYawStepsTest::RunTest(const FString&)
 }
 
 /**
+ * Lo zoom verso il cursore tiene fermo il punto puntato — entro **mezza cella**.
+ *
+ * La soglia non e' arbitraria: e' il numero deciso da `#864` sulla scala reale del mondo. Una cella misura
+ * `√3 × HexSize ≈ 173` unita' fra centri, quindi sotto mezza cella **il cursore non cambia cella
+ * esagonale** — l'unica cosa che il giocatore percepisce su una griglia. Non promette che il punto resti
+ * fermo al pixel, e il DoD va letto cosi'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraZoomAnchorTest,
+	"RefactorTactics.Camera.ZoomTowardsKeepsTheAnchorWithinHalfACell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraZoomAnchorTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	// Ancora **lontana dal pivot**: se fosse sotto la camera, tenerla ferma sarebbe vero per costruzione e
+	// il test non proverebbe niente. La distanza e' cio' che rende il difetto visibile.
+	const FVector Anchor(900.f, 400.f, 0.f);
+	Cam->SetActorLocation(FVector::ZeroVector);
+
+	// `√3 × 100` — la distanza fra centri di celle adiacenti con `HexSize` di default.
+	const double CellSpacing = UE_SQRT_3 * 100.0;
+	const double Tolerance = 0.5 * CellSpacing;
+
+	// Molte tacche in entrambi i versi: l'errore, se c'e', si accumula.
+	for (int32 I = 0; I < 12; ++I) { Cam->ZoomTowards(-1.f, Anchor); }
+	for (int32 I = 0; I < 6; ++I) { Cam->ZoomTowards(+1.f, Anchor); }
+
+	// Il punto ancora resta alla **stessa posizione relativa** rispetto al pivot, scalata dalla distanza:
+	// e' la definizione di «resta fermo sullo schermo» per una camera che orbita a inclinazione fissa.
+	const FVector Pivot = Cam->GetActorLocation();
+	const double ScaledOffset = FVector2D(Anchor.X - Pivot.X, Anchor.Y - Pivot.Y).Size()
+		/ FMath::Max(Arm->TargetArmLength, KINDA_SMALL_NUMBER);
+	const double Expected = FVector2D(Anchor.X, Anchor.Y).Size() / 800.0; // pivot iniziale a 0, arm 800
+
+	TestTrue(TEXT("l'ancora resta entro mezza cella dalla sua posizione relativa"),
+		FMath::Abs(ScaledOffset - Expected) * Arm->TargetArmLength <= Tolerance);
+
+	// Guardia di fondo corsa: al limite lo zoom non trascina piu' la vista.
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	for (int32 I = 0; I < 50; ++I) { Cam->ZoomTowards(-1.f, Anchor); }
+	const FVector AtLimit = Cam->GetActorLocation();
+	Cam->ZoomTowards(-1.f, Anchor);
+	TestEqual(TEXT("a fondo corsa il pivot non si muove piu'"), Cam->GetActorLocation(), AtLimit);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
+ * I soft bounds fermano il centro camera a **3 celle** oltre il bordo mappa, da ciascun lato.
+ *
+ * Il numero e' deciso da `#864`: su una mappa di raggio 4 il centro arriva a 7 celle dall'origine, quindi
+ * il bordo si puo' portare al centro dello schermo senza perdere la mappa. E' misura **fissa in celle**,
+ * non proporzionale al raggio — il margine serve al bordo, e il bordo e' locale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraSoftBoundsTest,
+	"RefactorTactics.Camera.PanStopsThreeCellsPastTheMapEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraSoftBoundsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	// Mappa centrata sull'origine: qui serve, perche' il test misura una **distanza dal bordo** e un
+	// centro spostato la renderebbe solo piu' difficile da leggere senza aggiungere nulla.
+	if (!TestNotNull(TEXT("mappa"), SpawnCameraTestMap(World, FRTCellId(0, 0, 0))))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	Cam->SetActorLocation(FVector::ZeroVector);
+
+	// Raggio 2 celle + margine 3 = il centro camera non deve superare le 5 celle dall'origine.
+	const double CellSpacing = UE_SQRT_3 * 100.0;
+	const double MaxReach = 5.0 * CellSpacing;
+
+	// Si scorre a lungo in ogni direzione: il limite deve reggere da tutti e quattro i lati.
+	for (int32 Dir = 0; Dir < 4; ++Dir)
+	{
+		Cam->SetActorLocation(FVector::ZeroVector);
+		const FVector2D Axis = (Dir == 0) ? FVector2D(1, 0) : (Dir == 1) ? FVector2D(-1, 0)
+			: (Dir == 2) ? FVector2D(0, 1) : FVector2D(0, -1);
+		for (int32 I = 0; I < 300; ++I) { Cam->AddPlanarMovement(Axis); }
+
+		const FVector P = Cam->GetActorLocation();
+		TestTrue(*FString::Printf(TEXT("direzione %d: il centro resta entro il margine"), Dir),
+			FMath::Abs(P.X) <= MaxReach + KINDA_SMALL_NUMBER
+			&& FMath::Abs(P.Y) <= MaxReach + KINDA_SMALL_NUMBER);
+	}
+
+	// E il limite non e' uno zero: dentro il margine la camera si muove davvero.
+	Cam->SetActorLocation(FVector::ZeroVector);
+	Cam->AddPlanarMovement(FVector2D(1.f, 0.f));
+	TestNotEqual(TEXT("dentro i limiti lo scorrimento funziona"), Cam->GetActorLocation(), FVector::ZeroVector);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+/**
  * La rotazione CONTINUA si ferma dove il giocatore la lascia, e convive con lo scatto.
  *
  * Prima di `#863` la vista aveva otto orientamenti: guardare *fra* due file di celle — il caso d'uso per

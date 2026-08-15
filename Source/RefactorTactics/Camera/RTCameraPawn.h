@@ -34,6 +34,24 @@ public:
 	void AddZoom(float AxisValue);
 
 	/**
+	 * Zoom **ancorato a un punto del mondo**: quel punto resta dov'e' sullo schermo mentre la distanza
+	 * cambia. E' cio' che serve per avvicinarsi a una cella ai bordi del viewport senza alternare zoom e
+	 * pan.
+	 *
+	 * Il pivot si sposta verso l'ancora in proporzione a quanto la distanza si e' ridotta:
+	 *
+	 *     NuovoPivot = Ancora + (Pivot - Ancora) * (NuovoBraccio / VecchioBraccio)
+	 *
+	 * ⚠️ **E' esatta in proiezione ortografica e un'ottima approssimazione in prospettiva** quando l'ancora
+	 * sta sul piano di lavoro — che e' il caso d'uso: l'ancora viene dalla cella sotto il cursore. La
+	 * tolleranza dichiarata da `#864` e' **mezza cella**, e questa formula sta molto sotto.
+	 *
+	 * Se il braccio e' gia' al limite (`Min`/`Max`) il pivot **non si muove**: senza quella guardia,
+	 * continuare a girare la rotellina a fondo corsa trascinerebbe la vista verso il cursore all'infinito.
+	 */
+	void ZoomTowards(float AxisValue, const FVector& WorldAnchor);
+
+	/**
 	 * Ruota la vista attorno al punto inquadrato (valore positivo = orario visto dall'alto).
 	 *
 	 * Su una griglia esagonale girare non e' un vezzo: le unita' sono cilindri e le anteprime si disegnano a
@@ -215,6 +233,21 @@ protected:
 	float PitchSensitivity = 0.5f;
 
 	/**
+	 * Quanto il centro camera puo' andare **oltre il bordo della mappa**, in celle.
+	 *
+	 * Deciso da `#864` (2026-08-15) e istruito sulla scala reale: con `3` celle, su una mappa di raggio 4
+	 * il centro arriva a 7 celle dall'origine — cioe' il bordo si puo' portare **al centro dello schermo**
+	 * e si vede cosa c'e' appena fuori, senza perdere la mappa.
+	 *
+	 * ⚠️ Misura **fissa**, non proporzionale al raggio: il margine serve al *bordo*, e il bordo e' locale.
+	 * Un 50% del raggio darebbe dieci celle di vuoto navigabile su una mappa Operations, dove il bordo
+	 * riempie gia' lo schermo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.0"))
+	float BoundsMarginCells = 3.f;
+
+	/**
 	 * Estremi dell'inclinazione. **Costanti, non tarabili**: non sono una preferenza ma il punto in cui la
 	 * vista degenera — a `0` la camera guarda l'orizzonte e il piano di gioco sparisce in una linea, a
 	 * `-90` `FRotator` perde un grado di liberta' (gimbal) e lo yaw smette di avere effetto visibile.
@@ -269,6 +302,15 @@ protected:
 	 * mano si disallineano alla prima aggiunta (un roll, un clamp, un `bUsePawnControlRotation`).
 	 */
 	void ApplyArmRotation();
+
+	/**
+	 * Riporta una posizione dentro i limiti di scorrimento: estensione reale delle celle della mappa piu'
+	 * `BoundsMarginCells`. Senza mappa non c'e' un bordo, e la posizione passa intatta.
+	 *
+	 * ⚠️ **Non e' collisione**: `bDoCollisionTest` resta `false` e `#864` lo dichiara fuori scope.
+	 * Reintrodurre il popping da SpringArm per ottenere dei limiti sarebbe un passo indietro.
+	 */
+	FVector ClampToSoftBounds(const FVector& Desired) const;
 
 #if WITH_EDITOR
 	/** Rende immediate le modifiche di distanza/inclinazione fatte nel Details, anche durante il PIE. */

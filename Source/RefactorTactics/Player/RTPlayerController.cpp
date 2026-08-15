@@ -404,10 +404,25 @@ void ARTPlayerController::OnPan(const FInputActionValue& Value)
 
 void ARTPlayerController::OnZoom(const FInputActionValue& Value)
 {
-	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
+	if (!Cam)
 	{
-		Cam->AddZoom(Value.Get<float>());
+		return;
 	}
+
+	// L'ancora e' il punto di mondo sotto il cursore: zoomando, quel punto resta dov'e' sullo schermo.
+	// ⚠️ `GetHitResultUnderCursor` richiede un viewport, quindi vive **qui** e non nel pawn: la decisione
+	// verificabile — di quanto spostare il pivot — sta in `ZoomTowards`, che e' matematica pura.
+	FHitResult Hit;
+	if (GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) && Hit.bBlockingHit)
+	{
+		Cam->ZoomTowards(Value.Get<float>(), Hit.ImpactPoint);
+		return;
+	}
+
+	// Il cursore non e' su niente (fuori mappa, o nessun viewport): si zooma sul centro, com'e' sempre
+	// stato. Meglio di non zoomare.
+	Cam->AddZoom(Value.Get<float>());
 }
 
 void ARTPlayerController::OnRotate(const FInputActionValue& Value)
