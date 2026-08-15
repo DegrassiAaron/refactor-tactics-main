@@ -269,4 +269,72 @@ bool FRTTurnLogProducerStampsContextTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il SEED e' dichiarato e NON consumato — e questo test esiste per accorgersi del giorno in cui smettera'
+ * di esserlo.
+ *
+ * PERCHE' NON E' «stesso seed -> stesso output» (#578, voce 4 di PDR-05 §10). Quella formulazione, su un
+ * progetto senza RNG, confronta una funzione deterministica con se' stessa: passa sempre, anche a resolver
+ * rotto. Sarebbe un test verde che non verifica niente — e un test simile non protegge, occupa solo una
+ * riga della matrice.
+ *
+ * L'invariante che invece morde e' la NEGAZIONE: due seed DIVERSI devono dare lo stesso risultato, perche'
+ * oggi nessuno legge quel campo. Misurato il 2026-08-15: zero occorrenze di `FMath::Rand`, `RandRange`,
+ * `FRandomStream` e simili in tutto `Source/RefactorTactics/`, test compresi. Lo dichiarano anche
+ * `RTTestScenario.h` («Seed dichiarato ma non consumato») e `RTTestResult.h`.
+ *
+ * COSA FARE QUANDO DIVENTA ROSSO. Non aggiustare il test: e' il segnale che un RNG e' entrato nella
+ * simulazione. A quel punto il contratto di PDR-05 §5 diventa esigibile — ogni estrazione deriva il proprio
+ * seed come `Hash(TurnSeed, ActionId, RollKind)`, cosi' che aggiungere un VFX casuale non sposti hit e crit
+ * — e questo test va SOSTITUITO da due: «stesso seed -> stesso output» (che allora non sara' piu' vacuo) e
+ * «seed diverso -> muove solo gli stream correlati». La sostituzione e' una decisione, e va scritta accanto
+ * all'invariante #4 del piano canonico.
+ *
+ * Verifica anche che il seed sia RIPORTATO nel result: e' la premessa perche' il giorno in cui conta lo si
+ * possa correlare a un esito. Un campo che non arriva al report non e' dichiarabile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSimulationSeedDeclaredUnconsumedTest,
+	"RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSimulationSeedDeclaredUnconsumedTest::RunTest(const FString&)
+{
+	FRTTestScenario Base;
+	if (!LoadDeterminismScenario(*this, TEXT("Movement.Collision"), Base)) { return false; }
+
+	// Un primo, e non un multiplo: se un RNG usasse il seed come passo o come modulo, un valore «tondo»
+	// potrebbe ricadere sullo stesso stream per caso e lasciare passare il difetto.
+	FRTTestScenario Reseeded = Base;
+	Reseeded.Seed = Base.Seed + 7919;
+
+	const FRTTestResult A = RunIsolated(Base);
+	const FRTTestResult B = RunIsolated(Reseeded);
+
+	if (A.Outcome == ERTTestOutcome::Error || B.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("esecuzione fallita: '%s' / '%s'"), *A.ErrorMessage, *B.ErrorMessage));
+		return false;
+	}
+
+	// Un hash a zero significherebbe «nessuno stato»: confrontare zeri fra loro non proverebbe nulla.
+	TestNotEqual(TEXT("lo stato finale produce un hash reale"), A.StateHash, 0u);
+
+	// Il seed arriva al report, altrimenti non e' correlabile a un esito il giorno in cui conta.
+	TestEqual(TEXT("il seed dello scenario e' riportato nel result"), A.Seed, Base.Seed);
+	TestEqual(TEXT("anche il seed diverso e' riportato nel result"), B.Seed, Reseeded.Seed);
+	TestNotEqual(TEXT("i due scenari dichiarano davvero seed diversi"), B.Seed, A.Seed);
+
+	if (A.StateHash != B.StateHash || A.OutcomeString() != B.OutcomeString() || A.TurnsPlayed != B.TurnsPlayed)
+	{
+		AddError(FString::Printf(
+			TEXT("cambiare il seed (%d -> %d) ha cambiato il risultato: hash %08x/%08x, esito '%s'/'%s', turni %d/%d. ")
+			TEXT("Un RNG e' entrato nella simulazione: NON aggiustare questo test — vedi il commento sopra, ")
+			TEXT("serve il contratto Hash(TurnSeed, ActionId, RollKind) di PDR-05 §5 e due test al posto di questo."),
+			A.Seed, B.Seed, A.StateHash, B.StateHash, *A.OutcomeString(), *B.OutcomeString(),
+			A.TurnsPlayed, B.TurnsPlayed));
+		return false;
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
