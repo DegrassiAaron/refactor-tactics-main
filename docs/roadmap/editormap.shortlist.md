@@ -62,7 +62,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
-- **U1** · Mappa-arena hex — 2/7 voci verdi · sblocca U13, U19
+- **U1** · Mappa-arena hex — 4/7 voci verdi · sblocca U13, U19
 - **U2** · Partita hex, primo giro — 7/8 voci verdi · sblocca U3, M6.1, M6.2
 - **U3** · Input e pianificazione — 1/4 voci verdi · sblocca U4, M6.3
 - **U4** · Combat e linea di tiro — 0/3 voci verdi · sblocca U5, M6.4, M6.5
@@ -97,7 +97,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | | Seduta | Lane | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|:--:|---|---|:--:|:--:|:--:|
 | **U18** | Verifiche senza prerequisiti | `PIE` | verdetto su quindici voci che non attendono nulla | — | no | 1/15 | 🟡 |
-| **U1** | Mappa-arena hex | `ASSET` | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 2/7 | 🟡 |
+| **U1** | Mappa-arena hex | `ASSET` | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 4/7 | 🟡 |
 | **U2** | Partita hex, primo giro | `PIE` | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 7/8 | 🟡 |
 | **U3** | Input e pianificazione | `PIE` | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
 | **U4** | Combat e linea di tiro | `PIE` | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
@@ -191,7 +191,7 @@ L'ordine non e' arbitrario:
 **Sbloccata da**: M6.0 · **Preparazione condivisa con**: U13 · **Percorso critico**: sì
 **Produce**: `DA_HexMap_Arena` e `L_HexArena`, committati
 **Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ✅ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ✅
-**Verifichi**: `PIE-HEX-MODE-E` ⏳ · `PIE-HEX-MODE-F` ⏳ · `PIE-HEX-MODE-G` ⏳ · `PIE-HEX-MODE-H` ⏳ · `PIE-HEX-MODE-L` ⏳ · `PIE-HEX-MODE-N` ✅ · `PIE-HEX-MODE-O` ✅
+**Verifichi**: `PIE-HEX-MODE-E` ⏳ · `PIE-HEX-MODE-F` ✅ · `PIE-HEX-MODE-G` ✅ · `PIE-HEX-MODE-H` ❓ · `PIE-HEX-MODE-L` ⏳ · `PIE-HEX-MODE-N` ✅ · `PIE-HEX-MODE-O` ✅
 **Finita quando**: i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena soddisfa i tre criteri dei passi 3, 4 e 7
 **Sblocca**: U13, U19
 

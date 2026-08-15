@@ -58,15 +58,23 @@ la voce lo ha registrato *senza* ripararlo, che è la forma giusta.
 Al 2026-08-16, su `origin/main`:
 
 ```text
-docs/technical/test-manuali-pie.md
+docs/technical/test-manuali-pie.md          misurato il 2026-08-16
   146 voci `PIE-*` totali
-  102 aperte  ⏳
-   39 chiuse  ✅
+   99 aperte  ⏳
+   41 chiuse  ✅
+    1 chiusa  ❌   ← PIE-HEX-MODE-H, il primo del registro
    35 famiglie di prefisso
 ```
 
-⚠️ *Le prime due righe dicevano `145` e `101` mentre le scrivevo, ed erano vere: poi lo stesso commit ha
-aggiunto `PIE-HEX-MODE-P`. Un conteggio scritto a mano scade anche in un commit solo.*
+⚠️ *Questo blocco è stato riscritto **due volte in due commit**. Diceva `145`/`101`, ed era vero finché lo
+stesso commit non ha aggiunto `PIE-HEX-MODE-P`; poi `146`/`102`, finché tre voci della seduta U1 non sono
+state consuntivate. Non è distrazione: è la proprietà del numero. Rimisuralo (§6) invece di citarlo.*
+
+⚠️ **Il primo `❌` del registro è arrivato il 2026-08-15**, e vale la pena guardarlo prima di scriverne
+un altro: `PIE-HEX-MODE-H` non dice «non funziona», dice *quali due comportamenti* sono stati osservati,
+*quale codice* li regge, e **cosa non è stato guardato** — il passaggio al layer superiore. Un ❌ fatto
+così apre una issue che qualcuno può chiudere ([#931](https://github.com/DegrassiAaron/refactor-tactics-main/issues/931));
+un ❌ che dicesse solo «rotto» no.
 
 Le più grandi: `V01` (27) · `VIS` (21) · `HEX-MODE` (15) · `HEXPLAY` (14) · `STATE` (10), poi camera,
 bot, geometria, facing, formato, bilanciamento.
