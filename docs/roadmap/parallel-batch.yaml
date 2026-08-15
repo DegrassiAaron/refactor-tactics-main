@@ -105,6 +105,16 @@
 #                                   dell'insieme per il calcolo delle intersezioni — una prenotazione che
 #                                   non collide non serve a niente — e **non** come prova che la track sia
 #                                   attiva.
+#                                   ➕ **E vale anche senza `mandate`, dichiarato il 2026-08-16 invece che
+#                                   lasciato al lettore.** Una track IDLE la cui `note` nomina una issue aperta
+#                                   può avere `writable`, con lo stesso significato: *prenotato*. Serve quando
+#                                   l'assegnazione si decide in integrazione ma la sessione parte dopo — se il
+#                                   path restasse non assegnato fino all'apertura del branch, chiunque potrebbe
+#                                   prenderlo nel frattempo, che è la finestra che D-139 esiste per chiudere.
+#                                   ⚠️ `issue:` resta `null` quando `status: IDLE`: il numero sta nella `note`,
+#                                   come per `spatial`. Un `issue:` valorizzato su una track ferma somiglia
+#                                   troppo a una track attiva, ed è la confusione che questo file paga a caro
+#                                   prezzo ogni volta.
 #                                   ➕ **E il file del mandato entra nel `writable` della track che lo
 #                                   porta**, deciso il 2026-08-15. Prima non era così, e i tre
 #                                   `qa-prompt-terminal-*.md` non stavano né in un `writable` né in
@@ -792,9 +802,9 @@ tracks:
           - docs/roadmap/scenariomap.shortlist.md
 
   simulation:
-    status: IDLE
-    issue: null
-    branch: null
+    status: ACTIVE
+    issue: 926
+    branch: null           # ⚠️ sentinella: la issue è aperta, il branch non è ancora stato aperto
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -956,6 +966,37 @@ tracks:
       `Source/RefactorTactics/Tests/RTNoisePropagationTests.cpp` — tutti atterrati in `main`, oggi non
       assegnati. ➕ E `test-e-diagnosi.md` **non torna automaticamente `integration_only`**: chi riapre
       `#926` lo rivuole, e la decisione è del prossimo batch.
+      ➕ **Riattivata il 2026-08-16 su `#926`, e «il prossimo batch» è arrivato in mezza giornata.** Il
+      turno chiude la seconda metà di `Packaged`: una porta d'ingresso allo scenario che funzioni **anche
+      in Shipping**, dove `-dpcvars` è compilato fuori.
+      ✅ **La prima metà è già chiusa da questo stesso atto d'integrazione, e misurata**:
+      `+DirectoriesToAlwaysStageAsUFS=(Path="../Scenarios")` in `Config/DefaultGame.ini` — che è
+      `integration_only`, quindi non entra nel `writable` di nessuno. Da un pacchetto **pulito**, senza
+      copie a mano: `AUTO-RUN Movement.Collision` → `PASS (3/3 assertion)` → `stateHash 572184bb`, lo
+      stesso ottenuto prima copiando la cartella a mano. Il `.pak` passa da **10 654 115** a
+      **10 790 839** byte, che è la prova indipendente che i 76 JSON sono entrati.
+      🔴 **E il `Path` va scritto relativo a `Content/`, non alla radice**: `Scenarios` cerca
+      `Content/Scenarios`, non lo trova, **stagea zero file e lascia la build `SUCCESSFUL`** — l'unico
+      segnale è un warning nel log della cottura. Letto in
+      `CopyBuildToStagingDirectory.Automation.cs` (*«these dirs are relative to the game content
+      directory»*), non indovinato: la prima stesura di questa riga diceva `Scenarios` ed è stata
+      falsificata da un pacchetto, non da una rilettura.
+      ⚠️ **`RTGameModeScenarioEntryTests.cpp` non esiste ancora**, ed è dichiarato qui apposta: un file
+      nuovo non collide con nessuno, ma se non è nel `writable` il primo commit che lo crea è una
+      violazione — la stessa asimmetria già registrata per `RTWorldFixtures.h`.
+      ⛔ **`BP_GameMode.uasset` NON entra, ed è una scelta**: la proprietà `ScenarioToRun` funzionerebbe
+      in Shipping perché è dato cotto, ma paga un binario (lease + editor) e cambia il comportamento
+      predefinito del gioco che si distribuisce. `FParse::Value` non è guardato da `UE_BUILD_SHIPPING`.
+      ⚠️ **Primo compito della track, prima del codice**: `test-e-diagnosi.md` e la voce 6 del piano
+      canonico dicono ancora *«`Scenarios/` non entra nel pacchetto»*, che questo atto d'integrazione ha
+      appena reso falso. Non è stato corretto qui perché quei due file **non erano assegnati** mentre lo
+      si scriveva: si assegnano con questa PR e si correggono col primo commit della track.
+    writable:
+      - Source/RefactorTactics/RTGameMode.cpp
+      - Source/RefactorTactics/Tests/RTGameModeScenarioEntryTests.cpp
+      - docs/technical/test-e-diagnosi.md
+      - docs/product/piano-canonico-mvp.md
+    binary_leases: []
 
   client_tools:
     status: ACTIVE
@@ -1226,6 +1267,37 @@ tracks:
       `Map/RTHexLibrary.*` o i cinque file di `Tests/` deve poter vedere chi ci è passato in questo
       lotto. `Map/` torna comunque **libero**: era il write-set che `spatial` aveva lasciato, e ci
       ritorna.
+      ➕ **Prenotata il 2026-08-16 per `#923`, e resta IDLE**: nessuna sessione è aperta, quindi il
+      `writable` qui sotto significa *prenotato*, non *in uso* — vedi lo schema in testa a `writable`, che
+      il 2026-08-16 dichiara questo caso anche senza `mandate`. `status` passa ad ACTIVE quando una
+      sessione parte, ed è una riga sola.
+      ⚠️ **Undici file elencati UNO PER UNO, e il prefisso `Source/RefactorTactics/Tests/` sarebbe
+      sbagliato**: tre branch vivi ci scrivono dentro — `feat/641-sprint-post-blast` (3 file),
+      `feat/77-hud-slot-terna` (1), `fix/892-displayname-abilita` (1) — e nessuno dei cinque è fra questi
+      undici. Misurato con `git diff --name-only origin/main...origin/<b>` su tutti i branch remoti, non
+      dedotto dal dominio: assegnare la cartella fabbricherebbe tre conflitti che non esistono.
+      🔴 **Cosa sono**: `#923` misura che **89 test su 872 stanno fuori dalla guardia**
+      `WITH_DEV_AUTOMATION_TESTS` — tre file la chiudono a metà (7 test), nove non ce l'hanno affatto (82).
+      Uno solo rompeva la build Shipping ed è già corretto (PR #927, era l'unico la cui coda chiama un
+      helper interno alla guardia); gli altri **compilano**, ed è il problema: finiscono dentro il binario
+      che si distribuisce.
+      ⚠️ **Il write-set non collide con `simulation`**, che in questo giro tiene `RTGameMode.cpp`, un test
+      nuovo e due documenti: intersezione **vuota**, verificata sui path e non sull'intenzione. Il vincolo
+      che resta non è sui file — è la macchina: una run di automation per volta e un mutex di UBT, quindi
+      due track che ricompilano si aspettano.
+    writable:
+      - Source/RefactorTactics/Tests/RTUnitTests.cpp
+      - Source/RefactorTactics/Tests/RTHexTests.cpp
+      - Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp
+      - Source/RefactorTactics/Tests/RTHexCombatIntegrationTests.cpp
+      - Source/RefactorTactics/Tests/RTHexMatchIntegrationTests.cpp
+      - Source/RefactorTactics/Tests/RTStatusTests.cpp
+      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+      - Source/RefactorTactics/Tests/RTMatchSetupWorldTests.cpp
+      - Source/RefactorTactics/Tests/RTMatchSetupTests.cpp
+      - Source/RefactorTactics/Tests/RTHexPerfTests.cpp
+      - Source/RefactorTactics/Tests/RTUnitPlacementTests.cpp
+    binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
