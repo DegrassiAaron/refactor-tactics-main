@@ -1020,8 +1020,8 @@ tracks:
           - docs/roadmap/scenariomap.shortlist.md
 
   simulation:
-    status: ACTIVE
-    issue: 926
+    status: IDLE
+    issue: null
     # 🔴 **Il commento diceva «il branch non è ancora stato aperto», e il 2026-08-16 è falso in
     # entrambi i sensi: è stato aperto E mergiato.** `chore/926-staging-scenari` è atterrato con la PR
     # **#932** (`2026-08-15T22:37:22Z`, `4ab36b48` — che è la base di questa riconciliazione), il branch
@@ -1032,6 +1032,10 @@ tracks:
     # terza cosa diversa in tre track: «aperto e atterrato, residuo da misurare». Chi possiede questa
     # track dica se il residuo di #926 esiste; questa riconciliazione **non lo decide** e non tocca il
     # `writable`, che resta dichiarato com'è.
+    # ✅ **Risposta di chi possiede la track, 2026-08-16: il residuo NON esiste piu'.** `#926` e' `CLOSED`
+    # con la PR **#945** (`6eb4a77e`), e con lei `#578` — l'ultima delle sue cinque voci di DoD era
+    # proprio `Packaged`. La track passa a IDLE e `issue` a `null`: la domanda era ben posta, e questa e'
+    # la riga che la chiude invece di lasciarla aperta un altro giro.
     branch: null
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
@@ -1219,12 +1223,24 @@ tracks:
       canonico dicono ancora *«`Scenarios/` non entra nel pacchetto»*, che questo atto d'integrazione ha
       appena reso falso. Non è stato corretto qui perché quei due file **non erano assegnati** mentre lo
       si scriveva: si assegnano con questa PR e si correggono col primo commit della track.
-    writable:
-      - Source/RefactorTactics/RTGameMode.cpp
-      - Source/RefactorTactics/Tests/RTGameModeScenarioEntryTests.cpp
-      - docs/technical/test-e-diagnosi.md
-      - docs/product/piano-canonico-mvp.md
-    binary_leases: []
+      ✅ **Chiusa il 2026-08-16, e stavolta con un verdetto invece di una promessa.** `#926` e `#578`
+      entrambe `CLOSED`: la procedura `Packaged` e' stata **eseguita**, non descritta — un cook solo e due
+      binari, `PASS / stateHash 572184bb` da Development e da Shipping, identici. Era l'ultima delle sei
+      procedure di PDR-05 §10 e l'ultima voce di DoD aperta della issue.
+      ➕ **Cosa e' servito, e nessuna delle due era «manca il codice»**: `-RTScenario=<Id>` letto con
+      `FParse::Value` in `ARTGameMode` — terza sorgente fra la proprieta' e la console, l'unica che arriva
+      in Shipping dove `-dpcvars` e' compilato fuori — e la riga di staging degli scenari, che e' un atto
+      d'integrazione e non appartiene a questa track.
+      ⚠️ **Il write-set resta descritto qui e il blocco `writable` esce**, come per `verification`: quattro
+      path — `RTGameMode.cpp`, `Tests/RTGameModeScenarioEntryTests.cpp`, `test-e-diagnosi.md` e
+      `piano-canonico-mvp.md` — tutti atterrati in `main`, oggi non assegnati.
+      ⛔ **Cosa la track lascia aperto, detto invece che dedotto**: `#923`, gli **undici** file di test che
+      dichiarano ancora i propri test fuori dalla guardia `WITH_DEV_AUTOMATION_TESTS`. Sono **prenotati su
+      `verification`**, non su questa, e nessuno dei due write-set li tocca.
+      🔴 **E la causa strutturale di `#923` resta in piedi**: la suite gira sul target Editor, e il target
+      `Game` non lo compila niente di automatico. E' il difetto del 2026-08-09 ripetuto il 2026-08-15; senza
+      i due `Build.bat` nel percorso di consegna, la terza volta e' questione di tempo — e non c'e' una CI
+      dove metterli, perche' `.github/workflows/` e' assente per scelta.
 
   client_tools:
     status: ACTIVE
