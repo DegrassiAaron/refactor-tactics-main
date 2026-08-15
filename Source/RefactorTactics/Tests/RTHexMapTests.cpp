@@ -715,6 +715,65 @@ bool FRTHexFixtureLoaderTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `#905`: **generare una fixture e' UN evento, e muove la revisione una volta**.
+ *
+ * Il metodo scriveva il rimpiazzo a mano — `Cells.Reset()` piu' un `AddOrUpdateCell` per cella — quindi
+ * l'arena della v0.1 faceva salire `Revision` di **98**, e le transizioni (assegnate direttamente) non la
+ * muovevano affatto.
+ *
+ * E' la regola che `UpdateCells` enuncia: *«un portone largo tre bordi si apre una volta, non tre — cosi'
+ * che chi osserva la revisione non veda tre cambi dove ce n'e' stato uno»*. Chi legge `Revision` per
+ * invalidare una cache di percorso, o come `GraphRevision` nel TurnLog, vedeva 98 eventi per un comando.
+ *
+ * ⚠️ **Il test conta attraverso il PULSANTE, non sull'asset.** Verificare `ReplaceContent` da solo direbbe
+ * che il metodo nuovo e' corretto, non che il pulsante lo usa — ed e' il cablaggio la cosa che era rotta.
+ * Il numero di celle e' pinnato per la stessa ragione: senza, «una revisione» sarebbe vero anche di una
+ * fixture vuota.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFixtureOneRevisionTest,
+	"RefactorTactics.HexMap.FixtureGenerationIsOneRevision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexFixtureOneRevisionTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!World) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+	if (Actor)
+	{
+		Actor->MapAsset = NewObject<URTHexMapAsset>();
+		const int32 RevisionBefore = Actor->MapAsset->Revision;
+
+		Actor->FixtureId = TEXT("ArenaV01");
+		Actor->GenerateFixtureIntoAsset();
+
+		// La premessa: la fixture ha DAVVERO molte celle. Senza, «una revisione» non proverebbe niente —
+		// e' proprio la differenza fra 1 e N a essere in discussione.
+		const int32 Written = Actor->MapAsset->NumCells();
+		TestTrue(FString::Printf(TEXT("premessa: la fixture porta molte celle (%d)"), Written), Written > 10);
+		TestTrue(TEXT("premessa: porta anche transizioni"), Actor->MapAsset->Transitions.Num() > 0);
+
+		// Il criterio: UNA revisione per un evento, non una per cella.
+		TestEqual(TEXT("generare una fixture muove la revisione di UNO"),
+			Actor->MapAsset->Revision, RevisionBefore + 1);
+
+		// Il gemello: rigenerare la stessa fixture e' un secondo evento, e ne vale un'altra — non zero
+		// (non e' un no-op) e non N.
+		const int32 RevisionAfterFirst = Actor->MapAsset->Revision;
+		Actor->GenerateFixtureIntoAsset();
+		TestEqual(TEXT("rigenerarla vale un'altra revisione, non N"),
+			Actor->MapAsset->Revision, RevisionAfterFirst + 1);
+		TestEqual(TEXT("e il contenuto non si e' fuso con se stesso"), Actor->MapAsset->NumCells(), Written);
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return true;
+}
+
 
 /**
  * La migrazione di formato verificata su un asset **serializzato**, non su uno costruito in memoria.
