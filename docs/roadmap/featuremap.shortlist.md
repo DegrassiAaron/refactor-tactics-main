@@ -20,14 +20,14 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**116 feature** · v0.1 **80** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
+**117 feature** · v0.1 **81** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 7 |
-| `DESIGNED` | 19 |
+| `DESIGNED` | 18 |
 | `SPECIFIED` | 13 |
-| `IMPLEMENTING` | 25 |
+| `IMPLEMENTING` | 27 |
 | `TESTABLE` | 9 |
 | `INTEGRATED` | 22 |
 | `RELEASE_READY` | 16 |
@@ -152,9 +152,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MATCH-END-CONDITIONS` — Fine partita a tre vie | v0.1 | RELEASE_READY | 7/9 | E10 | Eliminazione · obiettivo · `RoundLimit`, con pareggio **dichiarato** |
 | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | v0.1 | TESTABLE | 5/8 | E19 | `URTMatchFormatData` esiste: mancano classe di mappa e unità per squadra |
 | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | v0.1 | TESTABLE | 5/8 | E12 | Percentili misurati sul giocatore, non stimati |
+| `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore | v0.1 | IMPLEMENTING | 3/8 | E47 | — |
 | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | v0.1 | IMPLEMENTING | 2/9 | E10 | La partita **finisce** per obiettivo, ma non c'è **nulla da attivare** |
 | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | v0.1 | IMPLEMENTING | 1/7 | E17 | Misura dove si rompe il sistema con 8 unità. **Non** decide il formato |
-| `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore | v0.1 | DESIGNED | 0/8 | E47 | — |
 
 ### Perception · 4
 
@@ -204,7 +204,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | E26 | Epic E26 |
 | `RT-FEAT-BOT-COMPETENCE` — Schema di competenza del bot — cosa il bot sa davvero usare | v0.8 | IDEA | 0/6 | E43 | — |
 
-### UI · 16
+### UI · 17
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -216,6 +216,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-FRONTEND-SHELL` — Frontend root, navigation controller e stati comuni | v0.1 | IMPLEMENTING | 1/6 | E46 | — |
 | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | v0.1 | IMPLEMENTING | 1/7 | E20 | Un **catalogo semantico**, non texture referenziate nei widget |
 | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | v0.1 | IMPLEMENTING | 1/8 | E11 | — |
+| `RT-FEAT-UI-REPLAY-VIEWER` — Replay viewer — la lista delle partite e una riproduzione che dice dove si e' | v0.1 | IMPLEMENTING | 1/5 | E46 | — |
 | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | v0.1 | IMPLEMENTING | 1/7 | E11 | — |
 | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | v0.1 | IMPLEMENTING | 2/6 | E11 | Tarata sulla scala esagonale |
 | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse | v0.1 | IMPLEMENTING | 3/7 | E11 | L'arancione del fuoco amico deve **notarsi** |

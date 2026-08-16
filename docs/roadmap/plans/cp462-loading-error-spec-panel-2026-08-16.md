@@ -88,8 +88,15 @@ importanti dell'avvio sono entrambi **warning con ripiego**:
 | Nessuna mappa d'autore | `MapSource=GeneratedTestArena: uso la mappa di PROVA generata` | una partita **normale**, su un'arena che non è un livello di gioco |
 | Nessun `MatchFormat` | `MakeFallbackRules()` — *«uso il RIPIEGO … le misure di playtest vanno attribuite al formato giusto»* | una partita **normale**, con regole che nessuno ha dichiarato |
 
-Sono esattamente le **due riserve di `G13`** — la stessa coppia per cui quel gate è 🟡. Un modale d'errore
-non le intercetta, perché non sono errori.
+🔴 **Questa riga diceva «sono esattamente le due riserve di `G13`», e l'implementazione l'ha falsificata**
+(2026-08-16, test rosso). La riserva di `G13` è: *«la partita gira su `MapSource=GeneratedTestArena` … **e**
+la via a punti non è mai stata esercitata, perché la soglia obiettivo è 0»*. La seconda è un **valore** del
+formato in vigore, **non** il formato di ripiego — che è per giunta un ramo *raro*, perché
+`Format.Skirmish2v2` è spedito da C++ (`9f44570d`) e copre il caso normale.
+
+∴ dei due ripieghi qui sopra, **solo il primo è una riserva di `G13`**. Il secondo resta un difetto reale e
+vale la pena mostrarlo, ma non è quello che tiene il gate 🟡. Un modale d'errore non intercetta né l'uno né
+l'altro, perché non sono errori — e quella parte regge.
 
 > 🔑 **Il precedente decisivo è già scritto, e risolve lo stesso problema.**
 > `ARTGameMode::GetScenarioBannerText()` esiste perché *«il sintomo non punta alla causa … la spiegazione
@@ -180,9 +187,13 @@ Due forme per due casi che il DoD confondeva in uno:
 Il banner riusa la forma di `GetScenarioBannerText`, che esiste già per questo problema — e ne eredita la
 motivazione: *«il sintomo non punta alla causa»*.
 
-✅ Effetto misurabile: le **due riserve di `G13`** diventano visibili in PIE senza aprire l'Output Log. Non
-le chiude — restano mancanze di dati — ma smettono di essere invisibili, che è il motivo per cui il
-2026-08-10 nessuno se n'era accorto guardando lo schermo.
+✅ Effetto misurabile: **la prima riserva di `G13`** — l'arena di test — diventa visibile in PIE senza
+aprire l'Output Log, insieme a ogni altra condizione degradata. Non la chiude — resta una mancanza di dati
+— ma smette di essere invisibile, che è il motivo per cui il 2026-08-10 nessuno se n'era accorto guardando
+lo schermo.
+
+*(Questa riga diceva «le due riserve». Corretta il 2026-08-16 dall'implementazione: la seconda riserva è
+la soglia obiettivo a 0, non il formato di ripiego — vedi §4.)*
 
 ### 8.3 `BACK` da un errore a partita già avviata → **`ReturnMain`**
 
