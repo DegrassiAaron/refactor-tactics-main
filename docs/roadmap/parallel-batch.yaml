@@ -3473,6 +3473,22 @@ tracks:
       # ⬅️ `Turn/RTTurnManager.cpp` **riallocato da `playback`** — vedi la sua voce per la misura e per la
       # contraddizione che ha reso necessaria la richiesta. L'header **non** entra: `#625` non aggiunge
       # membri.
+      # 🔴 **CONTESA DICHIARATA, e la prima stesura di questa voce non la nominava.** La misura era stata
+      # fatta — `feat/cp75-selfreposition` tocca questo file, ed e' scritto anche nella sezione dei branch
+      # — ma la nota argomentava solo il lato di **chi rilascia** (`#955` chiusa, `playback` IDLE, il passo
+      # 4 in `UI/`), e non la domanda opposta: *sta gia' scrivendo qualcun altro?* Trovato in code review.
+      # Misurato ora, non ricordato:
+      #   `git diff --name-only origin/main...origin/feat/cp75-selfreposition` ->
+      #     `Turn/RTActionEffectLibrary.cpp` · `Turn/RTActionEvent.h` · **`Turn/RTTurnManager.cpp`**
+      # ⚠️ **Non e' una violazione dell'invariante**: `#cp75` non e' una track di questo batch, quindi cio'
+      # che cade non e' `WritableSet(T1) ∩ WritableSet(T2) = ∅` ma il presupposto pratico che il file fosse
+      # sgombro. E' lo stesso caso di `#904` contro `client_tools`, e cambia il rimedio: non riallocazione,
+      # ma una decisione su chi passa per primo.
+      # ✅ **Decisione: passa `#625`.** Il branch e' un **WIP fermo dal 2026-08-11** — `wip(cp75):
+      # SelfReposition — enum ed evento fatti, l'applicazione NO` — senza PR aperta, cinque giorni fermo
+      # in un repository che merge una decina di volte al giorno. `#625` e' misurato, verde su 968 test e
+      # in review. Chi riprende `cp75` merge `main` e trova venti righe in piu' in `ConcludeTurn`, in una
+      # funzione che quel WIP non tocca (`SelfReposition` vive nel Move).
       - Source/RefactorTactics/Turn/RTTurnManager.cpp
       # ➕ File **non assegnato a nessuna track**, dichiarato prima di scriverci: ha gia' il setup che fa
       # bruciare un'unita' sul percorso reale (`MakeEnvWorld`/`PlanEnvAction`/`RunEnvTurn`), ed e' li' che

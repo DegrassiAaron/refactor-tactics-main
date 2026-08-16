@@ -151,6 +151,27 @@ namespace
 		return N;
 	}
 
+	/**
+	 * Le voci canoniche del danno da `Status.Burning` di UNA unita', per esito (`#625`).
+	 *
+	 * Gemella di `CountEnvOutcome`, e nata dalla stessa ragione: i test di `#625` scrivevano ciascuno il
+	 * proprio giro su `GetTurnLog()`, terzo e quarto loop aperto dello stesso file. Trovato in code review.
+	 */
+	int32 CountBurningEntries(const ARTTurnManager* TM, int32 UnitId, ERTCombatOutcome Outcome)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.ActionId == FName(TEXT("Status.Burning"))
+				&& E.UnitId == UnitId
+				&& E.Outcome == static_cast<uint8>(Outcome))
+			{
+				++N;
+			}
+		}
+		return N;
+	}
+
 	void RunEnvTurn(ARTTurnManager* TM)
 	{
 		TM->LockInAndResolve();
@@ -1524,6 +1545,14 @@ bool FRTHazardBurningLogTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
 
+	// 🔴 **I punti vita si fissano qui e non si ereditano dal catalogo eroi**, e la prima stesura li
+	// lasciava al default di `ConfigureFromHeroData` (90). L'asserzione `Hit` sopravviveva solo perche'
+	// 90 − 10 (fuoco all'ingresso) − 8 (Cleanup) resta positivo: un ribilanciamento che portasse quell'eroe
+	// sotto i 18 HP avrebbe fatto flippare questo test su `Lethal`, per una modifica in un altro file.
+	// Il ramo che si verifica lo sceglie il test. Trovato in code review.
+	Target->Shield = 0;
+	Target->Health = 60;
+
 	const int32 HpPrima = Target->Health;
 	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
 	RunEnvTurn(TM);
@@ -1611,20 +1640,67 @@ bool FRTHazardBurningLethalLogTest::RunTest(const FString&)
 		return false;
 	}
 
-	int32 Letali = 0;
-	int32 NonLetali = 0;
-	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
-	{
-		if (E.ActionId == FName(TEXT("Status.Burning")) && E.UnitId == Target->StableUnitId)
-		{
-			(E.Outcome == (uint8)ERTCombatOutcome::Lethal ? Letali : NonLetali) += 1;
-		}
-	}
-	TestEqual(TEXT("una voce letale, con il suo soggetto"), Letali, 1);
+	TestEqual(TEXT("una voce letale, con il suo soggetto"),
+		CountBurningEntries(TM, Target->StableUnitId, ERTCombatOutcome::Lethal), 1);
 	// ⚠️ E **una sola** voce in tutto: la morte la porta l'`Outcome`, non una seconda riga. Contare anche
 	// le non letali distingue «ha scritto `Lethal`» da «ha scritto due voci, una delle quali `Lethal`» —
 	// che e' la scelta di modello dichiarata nel codice, e senza questa riga non sarebbe pinnata.
-	TestEqual(TEXT("e nessuna seconda voce per lo stesso fatto"), NonLetali, 0);
+	TestEqual(TEXT("e nessuna voce Hit per lo stesso fatto"),
+		CountBurningEntries(TM, Target->StableUnitId, ERTCombatOutcome::Hit), 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `Actions.Hazard.BurningAbsorbedByShieldIsNotAHit` — il terzo ramo, che nessuno copriva.
+ *
+ * 🔴 **Questo test nasce da un difetto che i primi due non potevano vedere**: entrambi lasciavano lo
+ * scudo a `0`, quindi l'esito non poteva mai essere `ShieldAbsorbed` — e proprio quel ramo era **scritto
+ * male**. Confrontava la salute dopo il colpo con `MaxHealth` invece che con quella prima, cosi'
+ * un'unita' gia' ferita il cui scudo assorbiva tutto finiva nella traccia come `Hit` per 8 danni che non
+ * aveva preso. La traccia — la cosa che `#625` esiste per rendere autorevole — avrebbe mentito.
+ * Trovato in code review.
+ *
+ * ⚠️ Serve uno scudo che regga **entrambi** i colpi del turno: 10 all'ingresso piu' 8 nel Cleanup.
+ * Con meno, il primo lo consuma e il secondo arriva agli HP — e si tornerebbe a misurare `Hit`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardBurningShieldedLogTest,
+	"RefactorTactics.Actions.Hazard.BurningAbsorbedByShieldIsNotAHit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardBurningShieldedLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	// Ferita **e** protetta: e' la combinazione che il confronto con `MaxHealth` sbagliava.
+	Target->Health = 40;
+	Target->Shield = 30; // 10 all'ingresso + 8 nel Cleanup, e ne avanza
+
+	const int32 HpPrima = Target->Health;
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: brucia"), Target->HasStatus(TAG_Status_Burning)))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+	if (!TestEqual(TEXT("premessa: lo scudo ha retto, gli HP non sono scesi"), Target->Health, HpPrima))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("l'esito e' ShieldAbsorbed"),
+		CountBurningEntries(TM, Target->StableUnitId, ERTCombatOutcome::ShieldAbsorbed), 1);
+	TestEqual(TEXT("e NON Hit: nessun HP e' stato perso"),
+		CountBurningEntries(TM, Target->StableUnitId, ERTCombatOutcome::Hit), 0);
 
 	DestroyEnvWorld(World);
 	return true;
