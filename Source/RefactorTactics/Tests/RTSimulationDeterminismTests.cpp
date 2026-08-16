@@ -60,9 +60,13 @@ namespace
  * un puntatore usato come chiave, un indice che dipende dall'ordine di spawn. Con due ripetizioni un difetto
  * del genere passa quasi sempre; con cento si vede.
  */
+// ⚠️ `ClientContext` oltre a `EditorContext`, e non per simmetria con i vicini: e' uno dei **dieci test
+// vincolanti** del catalogo (`roadmap-v0.1.md` §6), e CP 12.3 (`#83`) chiede che la suite giri anche in un
+// pacchetto. Con il solo `EditorContext` il controller lo filtra fuori dal target `Game` — misurato:
+// `Automation List` in un pacchetto Development registrava **zero** test su 875, tutti dichiarati solo Editor.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierResimulationTest,
 	"RefactorTactics.Replay.Verifier.ResimulationIsDeterministic",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 bool FRTReplayVerifierResimulationTest::RunTest(const FString&)
 {
 	FRTTestScenario Scenario;
