@@ -2294,6 +2294,13 @@ tracks:
     writable:
       - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
       - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
+      - Source/RefactorTactics/UI/RTHudViewModel.h
+      - Source/RefactorTactics/UI/RTHudViewModel.cpp
+      - Source/RefactorTactics/UI/RTIconLibrary.h
+      - Source/RefactorTactics/UI/RTIconLibrary.cpp
+      - Source/RefactorTactics/UI/RTIconCatalogData.h
+      - Source/RefactorTactics/UI/RTScreenHudWidgets.h
+      - Source/RefactorTactics/UI/RTScreenHudWidgets.cpp
       # ➖ **`Source/RefactorTactics/UI/` RIALLOCATO a `playback` il 2026-08-16, su `#1015`.** La riga qui
       # sopra, scritta lo stesso giorno, dichiarava il costo di tenerlo: *«tenerla `ACTIVE` prenoterebbe
       # `UI/` per una sessione che non c'è, e il costo è concreto: **#1015** … è ferma esattamente su quel
@@ -2301,6 +2308,13 @@ tracks:
       # Questo commit toglie la prenotazione.
       # ⚠️ **Sposta, non aggiunge**: il path esce da qui nello stesso commit in cui entra in `playback`.
       # Un path in due `writable` è assegnato due volte, che è la contesa che questo file misura.
+      # ⬅️ **Il grosso di `UI/` E' RIENTRATO lo stesso giorno**, quando `#1015` ha deciso la superficie e
+      # ha stretto il proprio write-set a `UI/RTHUD.{h,cpp}`: `RTHudViewModel.{h,cpp}`,
+      # `RTIconLibrary.{h,cpp}`, `RTIconCatalogData.h` e `RTScreenHudWidgets.{h,cpp}` tornano qui. La
+      # cartella e' uscita per meno di un giorno, ed e' il comportamento giusto per una prenotazione presa
+      # larga solo perche' una decisione mancava.
+      # ⚠️ **`UI/RTHUD.{h,cpp}` NO: quelli restano a `playback` finche' `#1015` e' aperta**, ed e' proprio
+      # dove vive il passo 4 di `#78`. Chi riapre `#78` li **richiede**.
       # ⚠️ **Il passo 4 di `#78` — la resa del livello di certezza in `ARTHUD` — vive in questa cartella**,
       # e questa riallocazione gliela toglie **mentre è IDLE**, non mentre ci scrive. Chi riapre `#78` la
       # **richiede** a `playback`: l'ownership non si eredita, ed è la stessa formula con cui `RTGameMode`
@@ -3784,15 +3798,47 @@ tracks:
       Registrato qui perché qualcuno lo corregga, non toccato.
     writable:
       # ⬅️ **Riallocato da `client_tools` il 2026-08-16**, che lo teneva prenotato da `IDLE` su `#78`.
-      # Preso per **prefisso** e non per nome perche' la superficie del controllo non e' decisa: vedi la
-      # nota. Si stringe ai file effettivi quando il bivio e' chiuso — e allora questa riga va riscritta,
-      # non lasciata larga per comodita'.
-      - Source/RefactorTactics/UI/
+      # ✂️ **STRETTO lo stesso giorno, alla decisione del bivio: A — Canvas + Enhanced Input.** Il
+      # prefisso `Source/RefactorTactics/UI/` era preso perche' la superficie non era decisa, con la
+      # promessa scritta qui che «si stringe ai file effettivi quando il bivio e' chiuso». E' chiuso, e
+      # questa e' la riga riscritta: due file per nome invece della cartella.
+      # ⬅️ **Il resto di `UI/` TORNA a `client_tools`** — `RTHudViewModel.*`, `RTIconLibrary.*`,
+      # `RTIconCatalogData.h`, `RTScreenHudWidgets.*`. Stringere senza restituire lascerebbe quattro file
+      # in nessun insieme, che e' la condizione «non assegnato» di `D-139`: peggio di una prenotazione
+      # larga, perche' invisibile.
+      - Source/RefactorTactics/UI/RTHUD.h
+      - Source/RefactorTactics/UI/RTHUD.cpp
+      # ➕ **Dichiarato ORA e non prima**: la nota diceva *«serve solo sul ramo A … si dichiara quando il
+      # bivio e' deciso»*. Il ramo e' A, quindi serve — la scorciatoia da tastiera nasce qui. Misurato
+      # libero: `RefactorTactics/Player` non compare in nessun altro `writable` di questo file.
+      - Source/RefactorTactics/Player/RTPlayerController.h
+      - Source/RefactorTactics/Player/RTPlayerController.cpp
       # ➕ File **nuovo**, dichiarato prima di crearlo: «conteso da nessuno» non e' un'assegnazione.
       # Per nome e non come prefisso `Tests/`, che e' condivisa fra tutte le track.
-      # ⚠️ Il nome e' provvisorio quanto il bivio: se il controllo nasce come widget invece che in Canvas,
-      # il test cambia file e questa riga con lui.
       - Source/RefactorTactics/Tests/RTHudPlaybackSpeedTests.cpp
+      # ↩️ **RIPRESO, dopo essere stato rilasciato dallo stesso branch poche ore prima, e la correzione va
+      # detta invece che nascosta in un elenco.** Il commit precedente ha liberato i sei path di `#955`
+      # scrivendo che *«il DoD di #1015 vieta di toccare il modello»*. Vero per la scrittura; **troppo
+      # forte per la lettura**, e l'implementazione l'ha misurato subito: il fattore di tetto vive in
+      # `RTTurnManager.h:1027` come membro **privato**, e senza un accessore l'HUD non puo' dire quale
+      # velocita' si sta vedendo.
+      # ⚠️ Le alternative erano due, ed entrambe peggiori: **ricalcolare il tetto nell'HUD** — che il DoD
+      # vieta con queste parole, *«non ricalcola, non stima»* — oppure mostrare la sola velocita' scelta,
+      # che e' l'etichetta che mente e il motivo per cui il criterio 2 esiste. Un `const` getter non
+      # ricalcola e non tocca: **espone** cio' che c'e' gia', ed e' cio' che permette all'HUD di non
+      # ricalcolare.
+      # ⛔ **Solo l'header, e solo per un getter.** `RTTurnManager.cpp` resta fuori: se il lavoro arrivasse
+      # a chiederlo, sarebbe il segnale che la UI e' entrata nel modello — lo stesso segnale che il DoD
+      # attribuisce al gate di determinismo.
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      # ➕ **L'owner documentale, assegnato con la decisione e non prima.** Il commit precedente lo aveva
+      # trovato in nessun insieme e lo aveva registrato senza prenderlo, scrivendo *«va assegnato con la
+      # decisione A/B: chi lo scrivera' si sa solo allora»*. Si sa: A e' una deviazione dalla §13.2, che
+      # colloca i playback controls nel layer §4.1, e una deviazione non dichiarata nel documento che
+      # contraddice e' una lacuna, non una scelta. La §29 va aggiornata da questa track.
+      # ⚠️ **Preso per un turno.** Alla chiusura di `#1015` torna dov'era, cioe' in nessun insieme — che
+      # e' un difetto preesistente e non mio: va messo in `integration_only` da chi riconcilia il batch.
+      - docs/technical/progettazione-hud.md
       # ➖ **I sei path di `#955` sono USCITI il 2026-08-16, alla riapertura su `#1015`.** Erano rimasti
       # con la motivazione *«questa track li riscrivera' al passo 4»*, e il passo 4 e' arrivato dicendo il
       # contrario: il DoD di `#1015` vieta di toccare il modello. Elencati qui per la provenienza —
