@@ -430,4 +430,54 @@ bool FRTHeroIdsMatchRosterTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Ogni azione del catalogo eroi ha un nome mostrabile (issue #892).
+ *
+ * `DisplayName` e' dichiarato «nome mostrato (UI/log)» su `URTActionData`, e in partita e' l'unico canale:
+ * l'HUD non e' a schermo (#613), quindi il log e' cio' che il giocatore legge. Vuoto, produce
+ * `[RT] Piano: RTUnit_0 usa  su RTUnit_3` — due spazi al posto dell'abilita' — e
+ * `[RT] X: abilita' attiva -> `, osservati nel playtest di M6.8 il 2026-08-15.
+ *
+ * ⚠️ L'elenco si **genera** da `GetHeroRoster()`, non si trascrive: un'azione aggiunta domani senza nome
+ * deve far fallire QUESTO test, non passare inosservata perche' la lista attesa era scritta a mano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroActionDisplayNameTest,
+	"RefactorTactics.Heroes.EveryActionHasADisplayName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroActionDisplayNameTest::RunTest(const FString&)
+{
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0))
+	{
+		return false;
+	}
+
+	// Contato e verificato: senza questo, un roster che smettesse di esporre azioni renderebbe il test
+	// verde per assenza di soggetti — la forma di falso verde che #892 esiste per evitare.
+	int32 Checked = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero)
+		{
+			continue;
+		}
+		for (int32 i = 0; i < Hero->Actions.Num(); ++i)
+		{
+			const URTActionData* Action = Hero->Actions[i];
+			if (!Action)
+			{
+				continue;
+			}
+			++Checked;
+			TestFalse(
+				*FString::Printf(TEXT("%s azione #%d (%s) ha un DisplayName"),
+					*Hero->HeroId.ToString(), i, *Action->Def.ActionId.ToString()),
+				Action->DisplayName.IsEmpty());
+		}
+	}
+
+	TestTrue(TEXT("almeno un'azione controllata"), Checked > 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

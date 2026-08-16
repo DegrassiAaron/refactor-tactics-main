@@ -1410,10 +1410,18 @@ features:
       # dalla DoD di #402: D-075 ha deciso dall'altra parte (`PushResistance` 1 -> 0), quindi quel nome
       # avrebbe significato il contrario di cio' che il file verifica.
       - Spec.Combat.BastionIsPushedLikeAnyone
-      # Il quarto NON si scrive, e non e' un rinvio: `Spec.Brace.PushBeyondGuardThreshold` chiedeva una
-      # spinta di 2 per far cedere `Guard` e mostrare la clausola di `Brace`. D-074 (uscita (B) di #400)
-      # ha deciso di NON introdurla e di riscrivere invece la clausola: senza quel numero lo scenario non
-      # ha soggetto. Rinasce solo se una v0.2 introduce la spinta forte.
+      # Il quarto NON si scrive, e la ragione e' CAMBIATA il 2026-08-16: `Spec.Brace.PushBeyondGuardThreshold`
+      # chiedeva una spinta di 2 per far cedere `Guard` e mostrare la clausola di `Brace`. D-074 (uscita (B)
+      # di #400) aveva deciso di NON introdurla, quindi lo scenario restava senza soggetto.
+      #
+      # 🔵 Il soggetto e' arrivato, e non dal catalogo azioni: `Weapon.Impact` porta lo spostamento di
+      # `Riva.PressureJet` a 2 (D-085) ed e' il default di Phase (D-089). La riga diceva «rinasce solo se una
+      # v0.2 introduce la spinta forte»: la spinta forte e' in v0.1.
+      #
+      # Resta non scritto per una ragione diversa: la proprieta' e' gia' coperta da un TEST —
+      # `RefactorTactics.Equipment.PushTwoSeparatesGuardFromBrace`, che contro una spinta di 2 misura
+      # `Guard` che cede e `Brace` che regge. Uno scenario aggiungerebbe la stessa asserzione passando dal
+      # turno completo: e' lavoro utile, non un buco di copertura. Se si scrivera', il suo posto e' qui.
     wiki_refs:
       - wiki:azioni-e-movimento
     wiki_note: >-
@@ -2517,6 +2525,16 @@ features:
       # proprio la distinzione fra HOLD scelto e HOLD scaduto, che e' l'informazione.
       log_debug: done
       automation: done
+      # ⚠️ **Resta `partial` il 2026-08-16, ma NON piu' per la ragione che il `notes` dichiarava.** Quella
+      # era «`Spec.Overwatch.HoldThenFire` esce `BLOCKED`», ed e' caduta: con `#512` fase B (PR #1033)
+      # quello scenario esce `PASS` — due finestre, `HOLD` poi `FIRE`, movimento troncato. Le due ragioni
+      # che tengono il gate a meta' sono altre, e sono misurate:
+      #   · il **T4 di `RT_Showcase_Relay_v01` e' una fetta** della propria spec owner: `showcase-v0.1.md`
+      #     §«Turno 4» chiede Wraith che arma, `HOLD` di Gadget e `FIRE` di Phase su **due** opportunity
+      #     con quattro asserzioni nominate; il turno consegnato ne fa **una**. Tracciato su GitHub:
+      #     issue **#1038**, e dichiarato nello scenario in `_nota_scostamento_dalla_spec`;
+      #   · i **venti scenari del §40** del sorgente non sono ancora dichiarati `planned`.
+      # Portare questo gate a `done` significa chiudere entrambe, non una.
       scenario: partial
       ui_wiki: partial
       packaged: todo
@@ -2563,8 +2581,8 @@ features:
     wiki_note: >-
       Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** apre la finestra e la registra nel TurnLog dal 2026-08-14, ma nessun giocatore puo' ancora rispondere: la UI e' CP 14.6.
     last_verified:
-      date: 2026-08-15
-      commit: 53ec531f
+      date: 2026-08-16
+      commit: 0ecde11b
     notes: >
       **CP 14.4 chiuso il 2026-08-10.** La riga precedente diceva «Non implementata:
       `grep -rn "Overwatch" Source/` fuori dai test non restituisce nulla», ed è la prima cosa che
@@ -2588,6 +2606,20 @@ features:
       il cablaggio di `Vektor.InterceptShot`. Fino ad allora `log_debug` resta `todo` — nel TurnLog
       non arriva niente — e `Spec.Overwatch.HoldThenFire` continua a uscire `BLOCKED`, che è la
       verità: descrivere non è dimostrare.
+
+      🔴 **Le due righe qui sopra sono STORIA dal 2026-08-16, e la seconda è stata falsa per mezza
+      giornata prima che qualcuno la riprendesse.** `Spec.Overwatch.HoldThenFire` **non** esce più
+      `BLOCKED`: esce `PASS` — due turni, due decisioni applicate, zero residuo — perché `#512` fase B
+      (PR **#1033**) ha reso `DecisionBoundary` disponibile e ha riempito il T2 che il file aspettava
+      dal giorno in cui è stato scritto. «Descrivere non è dimostrare» resta vero come principio, e la
+      dimostrazione ora c'è: HOLD sul primo che entra nella linea, `FIRE` sul secondo, movimento
+      troncato nella cella raggiunta, verificato da
+      `RefactorTactics.Scenario.OverwatchHoldThenFireConsumesBothDecisions`.
+      ⚠️ E il difetto che quel giro ha scoperto vale per chi scriverà i venti scenari del §40: **il cono
+      dell'Overwatch nasce dal facing al `Prep`**, mentre una rotazione dichiarata si applica dentro
+      `ResolveMovement` **dopo** il ciclo dei micro-step. Un'unità che si muove ruota strada facendo e
+      il caso non si vede; una che resta ferma conserva il facing di piazzamento. Un cono si prepara il
+      turno prima, o si dichiara al piazzamento.
 
       Conseguenza misurata su un altro checkpoint: `Perf.ResolverAt4v4` (CP 17.2) deve riportare
       «opportunity di reazione per turno» e **non può**, perché uno zero per assenza di produttore
@@ -2633,6 +2665,9 @@ features:
       a se'; e il nome non e' `Reposition`, che e' gia' un'azione viva in fase Dash. Nessuno scenario nuovo
       e' ancora dichiarato: il §40 del sorgente ne elenca venti, e diventano `planned` quando E14 ha una
       forma eseguibile per HOLD/FIRE — la stessa ragione per cui `Spec.Overwatch.HoldThenFire` esce `BLOCKED`.
+      ✅ **La condizione si è avverata il 2026-08-16**: la forma eseguibile per HOLD/FIRE esiste
+      (`turns[].decisions`, `"version": 2`), `Spec.Overwatch.HoldThenFire` esce `PASS`, e i venti scenari
+      del §40 non hanno più questa scusa per restare non dichiarati. Chi li porta a `planned` lo fa da qui.
 
   - feature_id: RT-FEAT-REACTION-PROFILE
     title: Reaction Profile armato da Brace

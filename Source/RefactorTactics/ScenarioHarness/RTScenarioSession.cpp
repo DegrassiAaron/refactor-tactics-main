@@ -132,6 +132,25 @@ namespace
 			// che non dichiara rotazioni: nessuno dei due e' un prerequisito di questa chiave, perche' il
 			// giocatore un modo di chiederla ce l'ha.
 			TEXT("DeclaredRotation"),
+			// `#512` fase B: SOSPENDERE la risoluzione a un decision boundary e far rispondere qualcuno. E'
+			// l'ultima delle quattro a uscire dai non disponibili, e per lo stesso criterio delle altre tre —
+			// il campo ha un produttore che NON e' l'harness: `ARTTurnManager::AskReactionDecision`, chiamato
+			// da `ARTTurnManager::ResolveReactionBoundary` dentro la risoluzione di ogni partita e non solo
+			// negli scenari. ⚠️ Il simbolo e non il numero di riga: la prima stesura di questo commento diceva
+			// `RTTurnManager.cpp:5093`, che e' il chiamante di `BuildOverwatchTriggers` — vero di un'altra
+			// funzione, nello stesso file, a settanta righe di distanza.
+			//
+			// ⚠️ **La fase A l'ha tenuta fuori di proposito, e la ragione va letta prima di spostare la
+			// prossima.** Scoprirla senza i DATI che la rendono rispondibile non produce un verde: produce
+			// turni con finestre a cui nessuno risponde, cioe' `HOLD` per timeout dove lo scenario si aspetta
+			// un `FIRE`. La capability e le `decisions` dei tre scenari che la chiedono atterrano nello
+			// stesso commit — separarle sarebbe stato un rosso a giorni alterni.
+			//
+			// ⚠️ Il perimetro e' la finestra a UNA risposta legale per partecipante. Restano fuori il profilo
+			// di reazione a due risposte (`ReactionProfile`) e l'opportunity contested (`ReactionClash`), che
+			// sono E14.7 e stanno nell'elenco qui sotto: dichiarare disponibile la finestra non dichiara
+			// disponibile la scelta.
+			TEXT("DecisionBoundary"),
 		};
 		return Available;
 	}
@@ -168,8 +187,24 @@ namespace
 	const TSet<FString>& KnownUnavailableCapabilities()
 	{
 		static const TSet<FString> KnownUnavailable = {
-			TEXT("DecisionBoundary"),
+			// ➖ `DecisionBoundary` e' USCITA da qui con `#512` fase B ed e' fra le disponibili, sopra.
 			TEXT("ReactionClash"),
+			// ➕ **`ReactionProfile` entra con `#512` fase B, e non e' un nome nuovo inventato per comodita':
+			// e' il blocco VERO di `Spec/Brace/ProfileChangesResponse`, che fino a oggi ne dichiarava uno
+			// falso.** Quello scenario chiedeva `DecisionBoundary` scrivendo, nella propria nota, che «con la
+			// sola finestra di CP 14.5 questo file puo' diventare verde». Misurato: **non puo'**. Gli serve
+			// che `Hero.Riva` porti `Profile.Sidestep`, cioe' un profilo di reazione con DUE risposte legali,
+			// e `grep -rn "Profile.Sidestep\|ReactionProfile" Source/` da' **zero** — il concetto non esiste
+			// in nessuna forma, non e' un rename e non e' un campo vuoto da riempire.
+			//
+			// ⚠️ Senza questa riga la fase B avrebbe prodotto il difetto che vuole impedire: scoprendo
+			// `DecisionBoundary`, il T2 di quello scenario sarebbe passato da `Blocked` a **verde** — con
+			// `intents: []`, nessuna reazione armata e nessuna finestra aperta. Un turno che si sblocca senza
+			// eseguire cio' che descrive e' peggio di un rosso, perche' nessuno va a guardarlo.
+			//
+			// L'owner e' **E14.7 (`#314`)**, che porta `Reaction Profile` e `Reaction Clash` insieme. Chi la
+			// chiude sposta ENTRAMBI i nomi, non solo questo.
+			TEXT("ReactionProfile"),
 			TEXT("InterceptRevalidation"),
 			TEXT("Objective"),
 			TEXT("Perception"),

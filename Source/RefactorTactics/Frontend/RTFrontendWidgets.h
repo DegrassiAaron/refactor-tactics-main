@@ -2,6 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+// `ESlateVisibility`: e' il tipo che il binding di `Visibility` accetta, e senza di lui la funzione che
+// lo restituisce non sarebbe collegabile.
+#include "Components/SlateWrapperTypes.h"
 #include "Frontend/RTStartupReport.h"
 #include "RTFrontendWidgets.generated.h"
 
@@ -141,6 +144,34 @@ public:
 	/** `true` se c'e' qualcosa da mostrare: e' la condizione con cui il Blueprint si accende. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
 	bool HasAnything() const { return Lines.Num() > 0; }
+
+	/**
+	 * Tutte le righe in un solo `FText`, separate da `\n`.
+	 *
+	 * ⚠️ **Esiste per una ragione pratica misurata sul lavoro vero**: senza, il Blueprint deve ciclare
+	 * l'array e costruire un `TextBlock` per riga — cinque nodi, `Construct Object from Class` compreso.
+	 * Con questo accessor il widget e' **un `Text Block` con un binding**, e il ciclo vive dove e'
+	 * testabile. E' la stessa regola che il progetto applica altrove: i widget non compongono, leggono.
+	 *
+	 * Il `TextBlock` che lo consuma deve avere **`Auto Wrap Text`** attivo e `Justification` a sinistra;
+	 * il numero di righe resta osservabile — e resta la cosa da verificare, perche' mostrarne una sola
+	 * nasconderebbe l'altra.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	FText GetLinesAsText() const;
+
+	/**
+	 * La visibilita' del banner, gia' nel tipo che il binding di `Visibility` accetta.
+	 *
+	 * ⚠️ **Esiste perche' `HasAnything()` non e' collegabile a quel binding**: restituisce `bool` e lo
+	 * slot vuole un `ESlateVisibility`, quindi il menu lo filtra via e chi cerca non lo trova. La via
+	 * alternativa — un `Select` in Blueprint — metterebbe in tre nodi una scelta che qui e' una riga, e
+	 * la ripeterebbe identica in ogni widget che ne ha bisogno.
+	 *
+	 * `Collapsed` e non `Hidden`: un banner assente non deve occupare spazio nel layout sotto.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	ESlateVisibility GetBannerVisibility() const;
 
 	/**
 	 * Riempie il banner dal rapporto d'avvio.
