@@ -47,6 +47,15 @@ float URTPlaybackLibrary::SpeedMultiplierForCap(float EstimatedSeconds, float Ma
 	return EstimatedSeconds / MaxSeconds;
 }
 
+float URTPlaybackLibrary::EffectivePlaybackSpeed(float ViewerSpeed, float CapSpeed)
+{
+	// Non positivo = "non scelto" / "nessun limite": entrambi valgono 1, cosi' la composizione resta
+	// definita anche su un campo azzerato (variabile Blueprint, Memzero) invece di fermare il playback.
+	const float Viewer = (ViewerSpeed > 0.f) ? ViewerSpeed : 1.f;
+	const float Cap = (CapSpeed > 0.f) ? CapSpeed : 1.f;
+	return FMath::Max(Viewer, Cap);
+}
+
 float URTPlaybackLibrary::DirectionYaw(const FVector& From, const FVector& To)
 {
 	const FVector Dir = To - From;
