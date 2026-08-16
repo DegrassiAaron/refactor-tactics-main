@@ -535,6 +535,53 @@ bool FRTChecksumSeesStatusBoundariesTest::RunTest(const FString&)
 }
 
 /**
+ * I DUE hash vedono l'identita' di un ARCO, non solo quella di una porta (#986, difetto 1).
+ *
+ * `ChecksumSeesStructureIdentity` copre `HashMatchState`; `HexMap.DoorHashDeterminism` copre
+ * `URTHexMapAsset::ComputeHash` per le **porte**. Restava scoperto l'incrocio: `ComputeHash` sugli
+ * **archi**, che e' esattamente il tipo di buco che #986 e' venuta a chiudere — #832 aveva aggiunto
+ * l'identita' a un hash e spuntato il DoD con un test che guardava l'altro.
+ *
+ * Il test sta qui e non in `RTHexArcTests.cpp` perche' la proprieta' che verifica e' la **coerenza fra i
+ * due hash**, cioe' il tema di questo file, e perche' quel file non appartiene al write-set di questa
+ * track (D-139). Chi lo legge cercando i ponti trovera' il rimando dal caso 5 di sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapHashSeesArcIdentityTest,
+	"RefactorTactics.Simulation.MapHashSeesArcIdentity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapHashSeesArcIdentityTest::RunTest(const FString&)
+{
+	auto MappaConArco = [](FName StableId)
+	{
+		URTHexMapAsset* M = MakeStateHashMap();
+		FRTHexEdge Ponte;
+		Ponte.From = FRTCellId(0, 0, 0);
+		Ponte.To = FRTCellId(0, 0, 1);
+		Ponte.StableId = StableId;
+		M->Transitions.Add(Ponte);
+		return M;
+	};
+
+	const uint32 Anonimo = MappaConArco(NAME_None)->ComputeHash();
+
+	// Riferimento: senza, i confronti sotto non distinguerebbero un difetto da un rumore.
+	TestEqual(TEXT("stesso arco -> stesso hash di mappa"), MappaConArco(NAME_None)->ComputeHash(), Anonimo);
+
+	TestNotEqual(TEXT("nominare un arco cambia l'hash della mappa"),
+		MappaConArco(FName(TEXT("Arc.PonteBasso")))->ComputeHash(), Anonimo);
+
+	TestNotEqual(TEXT("due archi con nomi diversi danno hash di mappa diversi"),
+		MappaConArco(FName(TEXT("Arc.PonteAlto")))->ComputeHash(),
+		MappaConArco(FName(TEXT("Arc.PonteBasso")))->ComputeHash());
+
+	TestEqual(TEXT("l'ortografia dell'identita' di un arco non cambia l'hash"),
+		MappaConArco(FName(TEXT("arc.pontebasso")))->ComputeHash(),
+		MappaConArco(FName(TEXT("Arc.PonteBasso")))->ComputeHash());
+
+	return true;
+}
+
+/**
  * La CONDUTTIVITA' di un arco entra nel checksum (#986, difetto 4).
  *
  * Il giro degli archi mescolava `Cost`, `Kind`, `State`, `Integrity` e `StableId` — non
