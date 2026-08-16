@@ -367,18 +367,25 @@ bool FRTHeroMobilitySlotTest::RunTest(const FString&)
 	}
 
 	// Un ciclo che non itera non fallisce mai: senza una riga qui sotto, questo test resterebbe verde anche se
-	// il roster perdesse OGNI mobilita'. Prima la riga chiedeva `> 0`; dal 2026-08-09 chiede ESATTAMENTE zero,
-	// e va spiegato.
+	// il roster perdesse OGNI mobilita'.
 	//
-	// D-046 (#282) ha cablato `Riva.FluidTrail` su `Action.CreateWater`: era l'unica mobilita' SENZA danno del
-	// roster, perche' `Vektor.PassingBlade` e' FastMovement ma fa 20 danni, cioe' una carica. La regola D-028
-	// e' quindi rimasta senza soggetto: vera, e oggi senza nessuno a cui applicarsi.
+	// 🔵 **La riga e' tornata a `> 0` il 2026-08-16, ed e' il test stesso ad averlo prescritto.** Dal
+	// 2026-08-09 chiedeva ESATTAMENTE zero, perche' D-046 (#282) aveva cablato `Riva.FluidTrail` su
+	// `Action.CreateWater` togliendo al roster l'unica mobilita' SENZA danno — `Vektor.PassingBlade` e'
+	// FastMovement ma fa 20 danni, cioe' una carica — e la regola D-028 era rimasta vera e senza soggetto.
+	// Accanto c'era scritto: *«quando il roster v0.2 introdurra' una mobilita' pura, questa riga CADRA' […]
+	// a quel punto si torna a `> 0` e il ciclo ricomincia a verificare la regola davvero»*.
 	//
-	// Asserire lo stato attuale invece di rilassare la guardia: quando il roster v0.2 (Steel, Aurora, Murdock,
-	// Kwang) introdurra' una mobilita' pura, questa riga CADRA'. E' un promemoria che si fa sentire, non un
-	// vincolo — a quel punto si torna a `> 0` e il ciclo ricomincia a verificare la regola davvero.
-	TestEqual(TEXT("oggi nessuna mobilita' senza danno nel roster (D-046; la v0.2 la riportera')"),
-		MobilityChecked, 0);
+	// E' caduta, ma non per la v0.2: per **#1006**. `Riva.FluidTrail` e' tornata uno scatto perche' #995 ha
+	// deciso che Phase e' **abilitata** a Water e non padrona — grado `Access`, una sola capability
+	// elementale — e quella era la terza. Il soggetto di D-028 esiste di nuovo, quindi la guardia torna a
+	// verificare la regola invece di consuntivare un'assenza.
+	//
+	// ⚠️ Non e' un rilassamento: `> 0` significa che il ciclo sopra ha ESEGUITO le sue assert almeno una
+	// volta. Se domani il roster tornasse senza mobilita' pura, questa riga cadrebbe di nuovo e andrebbe
+	// riletta — non rilassata a `>= 0`, che e' il modo in cui una guardia smette di guardare.
+	TestTrue(TEXT("il roster ha almeno una mobilita' senza danno, quindi D-028 ha un soggetto (#1006)"),
+		MobilityChecked > 0);
 	return true;
 }
 

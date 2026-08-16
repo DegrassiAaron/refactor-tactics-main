@@ -2993,9 +2993,32 @@ tracks:
       ✅ **Intersezione misurata sui tre comandi**: 17 rami vivi, `git diff --name-only
       origin/main...<ramo>` per ciascuno. L'unica sovrapposizione è quella dichiarata sopra;
       `Tests/RTHeroRivaTests.cpp` non lo tocca nessuno.
+      🔴 **Il write-set è cresciuto di DUE path a metà lavoro, ed entrambi sono stati scoperti dalla suite
+      invece che previsti.** La regola è riallocazione, non «solo questa piccola fix»: sono stati misurati
+      liberi prima di toccarli, e la ragione per cui entrano è che **cambiano insieme al catalogo o restano
+      a descrivere un kit che non esiste**.
+      · `Tests/RTHeroCatalogTests.cpp` — `Heroes.MobilityWithoutDamageIsNotMain` asseriva *«oggi nessuna
+        mobilità senza danno nel roster (D-046; la v0.2 la riporterà)»*, cioè **zero**: con `FluidTrail`
+        tornata scatto è **1**. ⚠️ Il test prescriveva già il proprio aggiornamento — *«questa riga CADRÀ
+        […] a quel punto si torna a `> 0`»* — quindi qui non c'è una scelta, c'è un'istruzione da eseguire.
+      · `Scenarios/Spec/Environment/WaterQuenchesFire.json` — ⚠️ **è `integration_only`, e viene toccato lo
+        stesso**: senza, la suite resta rossa. Questa track *è* l'integrazione per il dominio dell'acqua,
+        essendo l'unica che lo cambia — misurato che nessun altro ramo vivo tocca `Scenarios/`.
+
+      🔴 **E una previsione scritta all'apertura era FALSA, corretta qui invece che lasciata.** La nota
+      diceva: *«lo scenario NON cade, l'unica assertion è `UnitHpEquals 90`, cioè il caso in cui il fuoco
+      non è stato spento»*. Misurato: **cade**, atteso 90 e ottenuto **72**. Il 90 non era «fuoco acceso»
+      — senza l'acqua il bersaglio non è più `Wet` e prende anche il `Burning`. Dedotto invece che
+      eseguito, ed era sbagliato in un verso che faceva sembrare il lavoro più piccolo di com'è.
+      ✅ Riassegnato a `Gadget.Sprinkler` via `loadout`, ed è la decisione d'autore resa eseguibile:
+      l'acqua passa all'equipaggiamento. Lo scenario torna **PASS 5/5**. È il **primo** del corpus a usare
+      `loadout`, e il primo tentativo è stato rifiutato dal loader — `ValidateLoadout` pretende esattamente
+      un pezzo per slot, non solo quello che serve.
     writable:
       - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
       - Source/RefactorTactics/Tests/RTHeroRivaTests.cpp
+      - Source/RefactorTactics/Tests/RTHeroCatalogTests.cpp
+      - Scenarios/Spec/Environment/WaterQuenchesFire.json
     binary_leases: []
 
   docs_kit:
