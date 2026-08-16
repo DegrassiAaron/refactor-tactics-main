@@ -127,14 +127,26 @@ codice come *«seed dichiarato ma **non consumato**»*, e `FRTTestResult::Seed` 
 
 ⚠️ **Non è una lacuna da colmare: è una proprietà da spendere o conservare.** Oggi il determinismo è
 **strutturale** — non c'è casualità da controllare, quindi `SameSeedSameResult` è vero per costruzione.
-Introdurre un seed sostituisce una garanzia gratuita con una da mantenere, e il primo test che serve non è
-`SameSeedSameResult` ma *«nessun percorso di gioco consuma un RNG non seminato»*. È una scelta di
-prodotto, e non si deduce da nessun documento.
+Introdurre un seed sostituisce una garanzia gratuita con una da mantenere.
+
+🔴 **E il guardiano di quella proprietà esiste già, il che rende la decisione più cara di quanto sembri.**
+`RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed` (2026-08-15) verifica l'invariante nel verso che
+morde — *due seed **diversi** devono dare lo stesso risultato, perché oggi nessuno legge quel campo* — e il
+suo commento spiega perché la formulazione ovvia sarebbe vacua: *«su un progetto senza RNG, "stesso seed →
+stesso output" confronta una funzione deterministica con sé stessa: passa sempre, anche a resolver
+rotto»*. Il test dichiara anche cosa fare quando diventa rosso: **non aggiustarlo** — è il segnale che un
+RNG è entrato — ma **sostituirlo** con due test nuovi, e *«la sostituzione è una decisione, e va scritta
+accanto all'invariante #4 del piano canonico»*.
+
+Conseguenza pratica, che è il vero costo della domanda: introdurre il seed **non aggiunge** un test,
+**ne rimuove uno verde** e ne apre due. E la formula di derivazione è già scritta — PDR-05 §5,
+`Hash(TurnSeed, ActionId, RollKind)`, *«così che aggiungere un VFX casuale non sposti hit e crit»*.
+Quello che manca non è il come: è il **se**.
 
 | ID | Domanda | Perché non si deduce |
 |---|---|---|
-| `RNG-1` | Il gioco deve avere **varietà fra partite a parità di stato iniziale**? Cioè: due esecuzioni con lo stesso setup devono poter divergere per scelta di design, oppure l'identità di risultato è essa stessa una proprietà desiderata? | È la domanda che decide se il seed serve. **Per la varietà**: quattro eroi deterministici su un layout fisso producono sempre la stessa partita, e una demo che si ripete identica dice poco su un bot che dovrà reggere avversari diversi. **Contro**: la varietà si può ottenere dal **layout e dalla disposizione iniziale** senza toccare il resolver — che è esattamente ciò che il sorgente stesso chiede di dimostrare al suo `a4` (*«due match con layout differenti»*). Nessuna delle due si ricava dai documenti: il canone dichiara il determinismo come invariante, non come *assenza di varietà*. Innesco: la prima issue che chieda `DifferentSeedVariation`, l'unico dei test di `rc1` che oggi **non può passare** — e fallirebbe per assenza di premessa, non per un difetto |
-| `RNG-2` | Se la risposta a `RNG-1` è sì: `BotPolicyVersion` è un **campo nuovo** o si deriva da `RT-FEAT-DATA-HASH` (*Hash di regole e contenuti*, `RELEASE_READY`)? | Il sorgente li elenca come due cose (`RulesVersion`, `BotPolicyVersion`) accanto a `MatchSeed`. Nel repository `RulesVersion` **non esiste come simbolo** — è coperto dall'hash di regole e contenuti, che è una feature già chiusa — e [D-083](decisions/RT_PDR_00_Decision_Log.md) rinvia `ContentManifestHash`/`RulesVersion` alla v0.2. Aggiungere un terzo campo di versione senza decidere se i primi due si fondono è il modo in cui nasce il quarto. ⚠️ Dipendente da `RNG-1`: senza RNG la versione della policy del bot non ha niente da qualificare |
+| `RNG-1` | Il gioco deve avere **varietà fra partite a parità di stato iniziale**? Cioè: due esecuzioni con lo stesso setup devono poter divergere per scelta di design, oppure l'identità di risultato è essa stessa una proprietà desiderata? | È la domanda che decide se il seed serve. **Per la varietà**: quattro eroi deterministici su un layout fisso producono sempre la stessa partita, e una demo che si ripete identica dice poco su un bot che dovrà reggere avversari diversi. **Contro**: la varietà si può ottenere dal **layout e dalla disposizione iniziale** senza toccare il resolver — che è esattamente ciò che il sorgente stesso chiede di dimostrare al suo `a4` (*«due match con layout differenti»*). Nessuna delle due si ricava dai documenti: il canone dichiara il determinismo come invariante, non come *assenza di varietà*. Innesco: la prima issue che chieda `DifferentSeedVariation` — che **non fallirebbe per assenza di premessa: contraddirebbe un test verde**, `Simulation.SeedIsDeclaredAndUnconsumed`. Aprirlo significa dismettere quel test, e la procedura è già scritta nel suo commento |
+| `RNG-2` | Se la risposta a `RNG-1` è sì: `BotPolicyVersion` è un **campo nuovo** o si deriva da `RT-FEAT-DATA-HASH` (*Hash di regole e contenuti*, `RELEASE_READY`)? | Il sorgente li elenca come due cose (`RulesVersion`, `BotPolicyVersion`) accanto a `MatchSeed`. Nel repository `RulesVersion` **non esiste come simbolo** — è coperto dall'hash di regole e contenuti, che è una feature già chiusa — e [D-083](decisions/RT_PDR_00_Decision_Log.md) rinvia `ContentManifestHash`/`RulesVersion` alla v0.2. Aggiungere un terzo campo di versione senza decidere se i primi due si fondono è il modo in cui nasce il quarto. ⚠️ Dipendente da `RNG-1`: senza RNG la versione della policy del bot non ha niente da qualificare. ➕ **La derivazione del seed non è invece aperta**: PDR-05 §5 la fissa in `Hash(TurnSeed, ActionId, RollKind)`, e `SeedIsDeclaredAndUnconsumed` la cita come contratto che diventa esigibile il giorno in cui il primo RNG entra. Qui si decide **se**, non **come** |
 
 **Nessuna delle due blocca l'epic E47**: `E47.5` esclude `DifferentSeedVariation` dal proprio corpus e lo
 dichiara, invece di scrivere un test che fallirebbe per una premessa mai presa.

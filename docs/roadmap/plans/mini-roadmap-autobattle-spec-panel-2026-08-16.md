@@ -343,14 +343,35 @@ RNG lo consuma»*.
 > gratuita con una garanzia da mantenere — e il primo test che serve non è `SameSeedSameResult`, è
 > *nessun percorso di gioco consuma un RNG non seminato*.»
 
+🔴 **Quel test esiste già, e il panel se n'è accorto dopo aver scritto la riga qui sopra.** La prima
+stesura di questa sezione concludeva che `DifferentSeedVariation` *«fallirebbe per assenza di premessa»* —
+plausibile, e sbagliato. Verificando l'assenza di RNG con `grep FRandomStream Source/`, le uniche due
+occorrenze del repository sono **nel commento di un test dedicato**.
+
+`RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed` (2026-08-15) verifica l'invariante nell'unico
+verso che morde — *due seed **diversi** danno lo stesso risultato* — e argomenta perché la formulazione
+ovvia sarebbe vacua: *«su un progetto senza RNG, "stesso seed → stesso output" confronta una funzione
+deterministica con sé stessa: passa sempre, anche a resolver rotto»*. Dichiara anche cosa fare quando
+diventa rosso: **non aggiustarlo** — è il segnale che un RNG è entrato — ma sostituirlo con due test nuovi,
+e *«la sostituzione è una decisione»*.
+
+La conclusione non cade, si **rafforza**: `DifferentSeedVariation` non fallirebbe per assenza di premessa,
+**contraddirebbe un test verde**. Introdurre il seed non aggiunge un test — ne **rimuove uno** e ne apre
+due. E il *come* è già deciso: PDR-05 §5, `Hash(TurnSeed, ActionId, RollKind)`, *«così che aggiungere un
+VFX casuale non sposti hit e crit»*.
+
+> È la lezione che questo referto rimprovera alla sorgente, applicata a sé stesso: **si cerca chi produce
+> la proprietà, non chi la dichiara.** Il commento del test era l'unico posto dove quella misura viveva, e
+> l'ho trovato cercando il meccanismo che credevo assente.
+
 La sorgente lo dice bene in §6 — *«NON usare casualità globale incontrollata»* — ma la conseguenza pratica
 è che il seed è **una feature a sé**, non un dettaglio di `a3`. Con quattro eroi deterministici la varietà
 fra partite viene già dalla disposizione iniziale e dal layout, che è ciò che §11 chiede di dimostrare.
 
-**Decisione**: il seed **non entra** nella mini-roadmap. Resta registrato come domanda aperta, perché la
-scelta «varietà pseudo-casuale sì/no» è di design e non di implementazione, e va presa da chi possiede il
-gioco. `DifferentSeedVariation` (§15) è l'unico dei dieci test di rc1 che **oggi non può passare**, e
-fallirebbe per assenza di premessa, non per un difetto.
+**Decisione**: il seed **non entra** nella mini-roadmap. Resta registrato come domanda aperta
+(`RNG-1`/`RNG-2`, issue [#960](https://github.com/DegrassiAaron/refactor-tactics-main/issues/960)), perché
+ciò che è aperto è il **se**, non il come. `DifferentSeedVariation` (§15) è quindi l'unico dei dieci test
+di `rc1` **escluso** dal corpus di `E47.5`, dichiarato invece che scritto.
 
 ---
 
