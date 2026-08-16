@@ -285,8 +285,14 @@ nodes:
     release: v0.1
     domain_group: tooling_data_qa
 
+  # Due gruppi derivabili dal 2026-08-16 — `core_simulation` da RT-FEAT-CORE-DETERMINISM,
+  # `objectives_match` da RT-FEAT-MATCH-AUTOBATTLE, perche' il corpus di CP 47.5 e' dichiarato da
+  # entrambe. Si sceglie il primo: la domanda del checkpoint e' «la simulazione da' lo stesso risultato
+  # nei casi limite», non «quali regole di fine partita valgono» — e il difetto che il corpus ha trovato
+  # (#990) sta in `MakeCurrentSnapshot`, cioe' nel core, non nelle condizioni di vittoria.
   - id: issue:958
     release: v0.1
+    domain_group: core_simulation
     checkpoint: E47.5
 
   # Due gruppi derivabili — `objectives_match` da RT-FEAT-MATCH-AUTOBATTLE, `tooling_data_qa` da

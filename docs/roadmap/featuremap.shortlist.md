@@ -25,9 +25,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 7 |
-| `DESIGNED` | 19 |
-| `SPECIFIED` | 14 |
-| `IMPLEMENTING` | 24 |
+| `DESIGNED` | 18 |
+| `SPECIFIED` | 13 |
+| `IMPLEMENTING` | 26 |
 | `TESTABLE` | 9 |
 | `INTEGRATED` | 22 |
 | `RELEASE_READY` | 16 |
@@ -152,9 +152,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MATCH-END-CONDITIONS` — Fine partita a tre vie | v0.1 | RELEASE_READY | 7/9 | E10 | Eliminazione · obiettivo · `RoundLimit`, con pareggio **dichiarato** |
 | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | v0.1 | TESTABLE | 5/8 | E19 | `URTMatchFormatData` esiste: mancano classe di mappa e unità per squadra |
 | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | v0.1 | TESTABLE | 5/8 | E12 | Percentili misurati sul giocatore, non stimati |
+| `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore | v0.1 | IMPLEMENTING | 3/8 | E47 | — |
 | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | v0.1 | IMPLEMENTING | 2/9 | E10 | La partita **finisce** per obiettivo, ma non c'è **nulla da attivare** |
 | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | v0.1 | IMPLEMENTING | 1/7 | E17 | Misura dove si rompe il sistema con 8 unità. **Non** decide il formato |
-| `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore | v0.1 | DESIGNED | 0/8 | E47 | — |
 
 ### Perception · 4
 
@@ -213,6 +213,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | v0.1 | INTEGRATED | 6/8 | fuori scope | Tooling di test, **fuori** dal contenuto di release per decisione |
 | `RT-FEAT-UI-BOARD-GRAMMAR` — Grammatica visiva della board — colore e forma, mai solo il colore | v0.1 | IMPLEMENTING | 0/7 | E47 | — |
 | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | v0.1 | IMPLEMENTING | 3/8 | E11 | Confermato / previsto / incerto — tre livelli, non una sfumatura |
+| `RT-FEAT-UI-FRONTEND-SHELL` — Frontend root, navigation controller e stati comuni | v0.1 | IMPLEMENTING | 1/6 | E46 | — |
 | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | v0.1 | IMPLEMENTING | 1/7 | E20 | Un **catalogo semantico**, non texture referenziate nei widget |
 | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | v0.1 | IMPLEMENTING | 1/8 | E11 | — |
 | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | v0.1 | IMPLEMENTING | 1/7 | E11 | — |
@@ -222,7 +223,6 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | v0.1 | SPECIFIED | 1/5 | E46 | — |
 | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | v0.1 | SPECIFIED | 1/6 | E46 | — |
 | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | v0.1 | SPECIFIED | 1/5 | E46 | — |
-| `RT-FEAT-UI-FRONTEND-SHELL` — Frontend root, navigation controller e stati comuni | v0.1 | SPECIFIED | 1/6 | E46 | — |
 | `RT-FEAT-UI-STRUCTURE-READABILITY` — Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio | v0.2 | DESIGNED | 0/7 | E23 | — |
 
 <!-- RT_SHORTLIST_FEATURES:END -->

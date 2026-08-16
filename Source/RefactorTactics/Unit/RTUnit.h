@@ -662,15 +662,67 @@ public:
 	static FString DisplayLabel(const FText& InDisplayName, FName InHeroId, const FString& Fallback);
 
 	/**
-	 * Offset Z LOCALE per portare un anello a terra (TeamRing/SelectionRing, figlio della mesh) al piano della
-	 * cella: compensa VisualZOffset e la scala Z del genitore. Guardia: ParentScaleZ 0 -> 1 (niente divisione). Pura.
+	 * Quota del CENTRO di un anello a terra sopra il piano della cella (unita' di mondo).
+	 *
+	 * 🔴 **Non e' un margine estetico: e' un vincolo geometrico, e sbagliarlo rende l'anello INVISIBILE.**
+	 * Il disco della cella e' un cilindro engine appiattito da `RTCellFlatScale = 0.05`, quindi la sua
+	 * faccia superiore sta a `RTCellTopZ = 50 * 0.05 = 2.5` sopra il centro cella
+	 * (`Map/RTHexMapActor.cpp`). L'anello e' lo stesso cilindro con scala Z `0.02`, cioe' semi-altezza
+	 * `50 * 0.02 = 1.0`: perche' la sua faccia superiore emerga dal disco serve
+	 *
+	 *     Clearance + 1.0  >  2.5      ->      Clearance > 1.5
+	 *
+	 * `1.8` lascia **0.3** di margine, che e' il comportamento che il gioco ha sempre avuto — prima nasceva
+	 * per caso, come `1` moltiplicato per `BaseMeshScale.Z`, e questa costante lo rende una scelta.
+	 *
+	 * 🔴 **Una stesura di #593 aveva messo `1.0`**, deducendolo dal `+1` della vecchia formula senza
+	 * misurare il disco: l'anello sarebbe finito con la faccia a `2.0`, mezza unita' DENTRO il disco
+	 * opaco, e identita' di squadra e anello di selezione sarebbero spariti a schermo. E' precisamente
+	 * l'errore contro cui `RTHexMapActor.cpp` mette in guardia accanto a quelle costanti — *«le linee di
+	 * debug disegnate SOTTO `RTCellTopZ` finiscono dentro il disco e diventano invisibili. E' successo
+	 * davvero»* — trovato in code review, non a schermo.
+	 *
+	 * ⚠️ **Il legame con `RTCellTopZ` non e' verificato da un compilatore**: quella costante vive in un
+	 * namespace anonimo di `RTHexMapActor.cpp`, che appartiene a un'altra track. `Unit.RingClearsCellDisc`
+	 * pinna il numero da questo lato; condividere la costante e' [#983].
 	 */
-	static float RingLocalZ(float VisualZOffset, float ParentScaleZ);
+	static constexpr float RingGroundClearance = 1.8f;
+
+	/** Semi-altezza di un anello a terra: cilindro engine (50) per la sua scala Z (0.02). */
+	static constexpr float RingHalfHeight = 1.f;
+
+	/**
+	 * Offset Z LOCALE per portare un anello a terra (`TeamRing`/`SelectionRing`) al piano della cella.
+	 *
+	 * ⚠️ **Aveva un secondo parametro `ParentScaleZ` fino a #593**, e la sua sparizione e' il punto: gli
+	 * anelli erano figli di `Mesh`, quindi la loro posizione relativa veniva moltiplicata per la scala Z
+	 * del cilindro e andava divisa per riportarla al piano. Sotto un root **unitario** quel fattore non
+	 * esiste, e un argomento che vale sempre `1` e' un dato che nessuno legge.
+	 *
+	 * ⚠️ Con lui e' sparita anche la guardia `ParentScaleZ == 0`: senza divisione non c'e' niente da
+	 * proteggere. Pura, e pinnata da `RefactorTactics.Unit.RingLocalZ`.
+	 */
+	static float RingLocalZ(float VisualZOffset);
 
 protected:
 	virtual void BeginPlay() override;
 
 	void ApplyTeamColor();
+
+	/**
+	 * Root NEUTRO (#593): non porta scala, e non deve portarne.
+	 *
+	 * ⚠️ **E' l'unico componente la cui scala viene ereditata da chi si attacca in Blueprint.** Finche' il
+	 * root era `Mesh` — cilindro segnaposto, scala `(1.2, 1.2, 1.8)` — una Skeletal Mesh sotto veniva
+	 * stirata di `1.8/1.2 = 1.5x`, e i `BP_Unit_*` lo compensavano a mano con «World/Absolute Scale»: un
+	 * workaround da rifare su ogni BP nuovo, che nessun errore segnala se manca, e che comunque non
+	 * fermava l'ingrandimento del 15% alla selezione.
+	 *
+	 * ⛔ **Non assegnargli una scala.** Se serve deformare il segnaposto, si deforma `Mesh`, che e' li'
+	 * per quello. `RefactorTactics.Unit.RootIsNeutral` lo pinna.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<USceneComponent> SceneRoot;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	TObjectPtr<UStaticMeshComponent> Mesh;

@@ -99,6 +99,12 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 				Mix(static_cast<uint32>(Door.Edge));
 				Mix(static_cast<uint32>(Door.State));
 				Mix(static_cast<uint32>(Door.DoorId));
+				// v9 (#832, CP 23.3): l'IDENTITA' STABILE, che e' un'altra cosa da `DoorId`. Quello distingue i
+				// gruppi dentro l'asset ed e' un indice locale; questo e' il nome che sopravvive al `cook` e che
+				// uno scenario o un replay possono citare. Senza, due partite in cui la stessa porta e' stata
+				// rinominata darebbero lo stesso hash. Via `MixName`, quindi per TESTO: l'indice della name
+				// table dipende dall'ordine di creazione nel processo (invariante #4).
+				MixName(Door.StableId);
 			}
 		}
 
@@ -117,6 +123,11 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 			Mix(static_cast<uint32>(Arc.Kind));
 			Mix(static_cast<uint32>(Arc.State));
 			Mix(static_cast<uint32>(Arc.Integrity));
+			// v9 (#832): gli archi, non le sole porte. Lo scope della issue lo dice — «copertura degli archi
+			// (i ponti di CP 9.4) e non delle sole porte: sono lo stesso problema di identita'».
+			// ⚠️ La issue chiama quel tipo `FRTHexArc`, che NON esiste in `Source/`: qui si itera
+			// `FRTHexEdge`. Citare una issue alla lettera ne importa anche i nomi sbagliati.
+			MixName(Arc.StableId);
 		}
 	}
 

@@ -317,4 +317,116 @@ bool FRTDigestUsesStableUnitIdTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * L'IDENTITA' DI STRUTTURA entra nel checksum (CP 23.3, #832) — l'ultima casella di quel DoD.
+ *
+ * `DoorId` c'era gia': distingue i gruppi DENTRO una mappa, ed e' un `int32` locale all'asset. `StableId`
+ * (v9 del formato) e' un'altra cosa: e' il nome che sopravvive al `cook` e che uno scenario o un replay
+ * possono citare. Se non entrasse nel checksum, due partite in cui la stessa porta e' stata rinominata —
+ * cioe' due partite che uno scenario descrive in modo diverso — darebbero lo stesso hash, e il corpus
+ * golden nascerebbe con quel punto cieco dentro. E' lo stesso argomento con cui l'ambiente ci e' entrato
+ * sopra, applicato all'anello che #832 aggiunge.
+ *
+ * ⚠️ Il nome entra come TESTO, via `MixName`, mai come indice della name table: l'indice dipende
+ * dall'ordine di creazione dei nomi nel processo, e due esecuzioni della stessa partita darebbero due hash
+ * diversi (invariante #4). Quella proprieta' **non e' verificabile da qui** — vedi il punto 4 sotto, che
+ * dice perche' e dove lo e' invece: fra esecuzioni separate.
+ */
+namespace
+{
+	/** La mappa minima, piu' UNA porta sul bordo `E` di `(0,0)`, con l'identita' che il caso vuole. */
+	URTHexMapAsset* MapWithDoorNamed(FName StableId)
+	{
+		URTHexMapAsset* M = MakeStateHashMap();
+		FRTHexCellData Cell = *M->FindCell(FRTCellId(0, 0));
+
+		FRTHexDoor Door;
+		Door.Edge = ERTHexDirection::E;
+		Door.State = ERTHexDoorState::Closed;
+		Door.DoorId = 7;              // costante in tutti i casi: la variabile e' SOLO `StableId`
+		Door.StableId = StableId;
+		Cell.Doors.Add(Door);
+
+		M->AddOrUpdateCell(Cell);
+		M->SortCells();
+		return M;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumSeesStructureIdentityTest,
+	"RefactorTactics.Simulation.ChecksumSeesStructureIdentity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumSeesStructureIdentityTest::RunTest(const FString&)
+{
+	const TArray<FRTUnitStateDigest> Units = BaseUnits();
+	const TArray<int32> NoScore = { 0, 0 };
+
+	auto HashOf = [&Units, &NoScore](const URTHexMapAsset* M)
+	{
+		return URTMatchStateHashLibrary::HashMatchState(M, Units, NoScore);
+	};
+
+	const uint32 Anonima = HashOf(MapWithDoorNamed(NAME_None));
+
+	// Riferimento. Senza questo, i `TestNotEqual` sotto non distinguerebbero un difetto da un rumore.
+	TestEqual(TEXT("stessa mappa -> stesso hash"), HashOf(MapWithDoorNamed(NAME_None)), Anonima);
+
+	// 1. NOMINARE una struttura anonima cambia il checksum. E' la casella del DoD, nella sua forma minima.
+	const uint32 Nominata = HashOf(MapWithDoorNamed(FName(TEXT("Door.Atrio"))));
+	TestNotEqual(TEXT("dare un'identita' a una porta anonima cambia il checksum"), Nominata, Anonima);
+
+	// 2. Due identita' DIVERSE danno hash diversi: non basta che il campo «ci sia», deve contare il nome.
+	//    Senza questo caso passerebbe anche un'implementazione che mescola solo `StableId.IsNone()`.
+	const uint32 Altra = HashOf(MapWithDoorNamed(FName(TEXT("Door.Cortile"))));
+	TestNotEqual(TEXT("due identita' diverse danno checksum diversi"), Altra, Nominata);
+
+	// 3. La stessa identita' da' lo stesso hash: e' un checksum, non un contatore di chiamate.
+	TestEqual(TEXT("la stessa identita' da' lo stesso checksum"),
+		HashOf(MapWithDoorNamed(FName(TEXT("Door.Atrio")))), Nominata);
+
+	// 4. ⚠️ QUI NON C'E' UN CASO, ED E' UNA SCELTA — non una dimenticanza.
+	//
+	//    La proprieta' che conta per l'invariante #4 e' che il nome entri come TESTO e non come indice
+	//    della name table. Non e' verificabile DENTRO un processo: `FName(TEXT("X"))` restituisce lo
+	//    stesso indice per tutta la vita del processo, comunque lo si costruisca, quindi anche un
+	//    `Mix(GetTypeHash(Name))` — l'implementazione sbagliata — passerebbe qualunque confronto scritto
+	//    qui. Una prima stesura di questo test costruiva gli stessi `FName` in ordine inverso credendo di
+	//    falsificarlo: era un caso vacuo, verde per costruzione.
+	//
+	//    🔴 **E la prima stesura di questa nota rimandava a due coperture che NON esistono.** Diceva
+	//    che la proprieta' e' verificata da `RTGoldenCorpusTests` e dal gate `G12`. Misurato dopo, su
+	//    segnalazione di una code review: i golden `.rttl` sono tracce di TurnLog e **non contengono
+	//    alcuno state hash** (`grep StateHash` sui due file: zero), e `G12` e' `RunUAT BuildCookRun ->
+	//    BUILD SUCCESSFUL`, un gate di **packaging** che non confronta hash. Cioe' avevo sostituito un
+	//    caso vacuo con un puntatore a una copertura inesistente: lo stesso difetto, spostato dal
+	//    codice al commento.
+	//
+	//    Lo stato vero, oggi: **nessuno verifica che il nome entri come testo e non come indice.** Un
+	//    `Mix(GetTypeHash(Name))` passerebbe l'intera suite. E c'e' un secondo buco nella stessa
+	//    funzione — `MixName` usa `ToString()`, che in build packaged non preserva il case
+	//    (`WITH_CASE_PRESERVING_NAME` = `WITH_EDITORONLY_DATA`), quindi dipende dall'ordine di
+	//    caricamento. Entrambi sono aperti su **#986**, con la misura accanto. Finche' quella issue e'
+	//    aperta, questa riga dice cosa manca invece di far credere che sia coperto.
+
+	// 5. Gli ARCHI, non le sole porte: lo scope di #832 dice «archi e non solo porte, sono lo stesso
+	//    problema di identita'». Un ponte nominato e uno anonimo non sono lo stesso stato di mappa.
+	{
+		URTHexMapAsset* ArcoAnonimo = MakeStateHashMap();
+		FRTHexEdge Arco;
+		Arco.From = FRTCellId(0, 0);
+		Arco.To = FRTCellId(1, 0);
+		ArcoAnonimo->Transitions.Add(Arco);
+
+		URTHexMapAsset* ArcoNominato = MakeStateHashMap();
+		FRTHexEdge Nominato = Arco;
+		Nominato.StableId = FName(TEXT("Arc.PonteBasso"));
+		ArcoNominato->Transitions.Add(Nominato);
+
+		TestNotEqual(TEXT("dare un'identita' a un arco cambia il checksum"),
+			HashOf(ArcoNominato), HashOf(ArcoAnonimo));
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
