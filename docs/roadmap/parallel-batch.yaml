@@ -978,10 +978,40 @@ preexisting:
 tracks:
 
   spatial:
-    status: IDLE
-    issue: null
-    branch: null
+    status: ACTIVE
+    issue: 832
+    branch: feat/832-structure-identity-hash
     note: >-
+      ➕ **ACTIVE dal 2026-08-16 su `#832` (CP 23.3, `RT-FEAT-MAP-STRUCTURE-IDENTITY`).** Cinque
+      caselle su sei sono chiuse dalla PR #876; resta *«l'identità entra nell'hash di stato, e
+      `RefactorTactics.HexMap.DoorHashDeterminism` resta verde»*.
+      ✅ **Il blocco che teneva ferma quella casella è caduto, ed è stato rimisurato invece che
+      riletto.** La issue dichiara — al presente — *«`Turn/RTMatchStateHash.cpp` appartiene alla track
+      `simulation`, che lo sta riscrivendo»*. Oggi `simulation` è `IDLE` con `issue: null` e la sua
+      nota dichiara il write-set *«libero e non assegnato»*. Il vincolo è scaduto da un giorno e la
+      issue lo racconta ancora come vivo: la nota va corretta lì, non solo qui.
+      ✅ **Intersezione misurata, non dedotta, su `18556d48`.** Non basta `git ls-remote` — i branch di
+      un altro worktree possono essere **locali**, e due lo erano: `feat/954-autobattle-non-presidiata`
+      e `feat/936-frontend-navigation` non comparivano lato server. Misurato quindi con
+      `git branch --list` (**12** branch) e `git diff --name-only origin/main...<b>` per ciascuno:
+      **nessuno tocca i sei path di questo `writable`**. I quattro che toccano *questo* file
+      (`feat/78-contratto-certezza`, `feat/954-autobattle-non-presidiata` e i due `backup/869-*`)
+      lavorano su sezioni diverse — schema, `client_tools`, track `autobattle` — mai su `spatial`.
+      ⚠️ **`#954` non è candidabile da qui: è già presa.** `feat/954-autobattle-non-presidiata` apre
+      la track `autobattle` in `D:/rt-chatgpt`. Registrato perché era il quarto candidato di uno spec
+      panel di stamattina, scelto quando il branch non era ancora visibile lato server.
+      ⚠️ **`ScenarioHarness/` resta nel `writable` senza essere scritto da questa sessione**, e non è
+      una prenotazione di comodo: il `mandate` è ancora assegnato alla track, e un mandato senza il
+      proprio write-set non è esigibile. Questa sessione lavora sugli altri sei path; chi consuma il
+      mandato lo dichiari a sua volta.
+      ⚠️ **Nessuna vista da rigenerare, e la verifica non è ovvia.** `HexMap.DoorHashDeterminism` **è**
+      citato nel registry (`RT-FEAT-DATA-HASH`, campo `tests:`), ma `derives_from` scatta `only_if`
+      *«rinomini o cancelli un test citato»*: qui il test deve restare verde e semmai se ne aggiunge
+      uno. Aggiungere non è rinominare. Se durante il lavoro un test citato cambia nome, la
+      rigenerazione torna dovuta.
+      --- **da qui in giù è registro dei giri precedenti, non stato**: le righe dicono `IDLE` perché
+      lo erano quando furono scritte, e restano perché contengono misure ancora valide (il write-set
+      libero, le due viste del DoD, il perimetro del mandato). Lo stato è sopra. ---
       IDLE perché **il candidato è atterrato**, non per dipendenza. `#41` (CP 3.3, misure di budget
       su hex) è chiusa: PR #846 mergiata alle `06:38Z`, la issue chiusa alle `07:12Z` da #850 —
       `Client FPS` non è stato rinviato ma **collocato** su CP 12.4 (`#84`), che chiede le stesse
@@ -1061,6 +1091,14 @@ tracks:
     mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
     worktree: "D:/rt-spatial"
     writable:
+      # #832 — la sesta casella: l'identità entra nell'hash di stato
+      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.h
+      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.cpp
+      - Source/RefactorTactics/Turn/RTMatchStateHash.h
+      - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
+      - Source/RefactorTactics/Tests/RTStructureIdentityTests.cpp
+      - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
+      # il mandato QA Terminal B, assegnato ma non consumato da questa sessione
       - Source/RefactorTactics/ScenarioHarness/
       - docs/technical/qa-prompt-terminal-b-scenario-runner.md
     derives_from:
