@@ -3636,14 +3636,37 @@ tracks:
     binary_leases: []
 
   equipment_defaults:
-    status: ACTIVE
-    issue: 63
-    branch: work/63-equipaggiamento-in-partita
+    status: IDLE
+    issue: null
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
-      **`#63` fetta A** — CP 7.4. I default 1+1+1 esistono e sono verificati contro il catalogo;
-      l'harness impara ad applicare le varianti d'arma. **Nessun default si applica da sé**: il
-      comportamento del corpus non cambia.
+      ✅ **CHIUSA il 2026-08-16**: PR **#1056** mergiata in `main` come `0dd25439`, issue `#63` chiusa dalla
+      keyword col DoD consuntivato nel commento. **Il write-set qui sotto è rilasciato**, ed è vuoto invece
+      che dichiarato tale — la chiusura di `roster_rename`, lo stesso giorno, aveva scritto «rilasciato»
+      lasciando le righe, e il giro dopo quella track è ricomparsa fra i proprietari di
+      `RTCatalogLibrary.cpp`. `AGENTS.md` torna a `integration_only`.
+      ⚠️ `issue: null` perché lo `status` è `IDLE`: i numeri vivono nella nota.
+
+      **Cosa è atterrato**: `DefaultGadgetFor` + `DefaultReactionModuleFor` + `DefaultLoadoutFor`, il gate
+      `check-equipment-defaults.py` che li confronta con §4 del catalogo, e l'harness che applica le
+      varianti d'arma. Suite sull'albero mergiato: **984 verdi**.
+
+      **`Spec.Brace.PushBeyondGuardThreshold` PASSA**, e il tag `expected-fail` è stato tolto nell'ordine
+      giusto: prima tolto — il corpus lo esegue e dà FAIL sulle due posizioni — poi scritta la riga che lo
+      fa passare. Uno scenario che nasce rosso per dichiarare una mancanza vale finché qualcuno torna a
+      colmarla.
+
+      🔵 **§4 del catalogo prescrive due default che v0.1 non può produrre**, trovato dal test nuovo:
+      `Gadget.Insulator` (Gadget) è un **passivo** che aspetta E36, `Gadget.Sensor` (Wraith) aspetta E13.
+      Decisione d'autore: nessun ripiego, `DefaultLoadoutFor` resta **vuoto** per quei due. E la condizione
+      **si misura** — interroga il catalogo — quindi quando E36 atterra il default comincia a funzionare
+      senza che una riga cambi.
+
+      ⏭️ **La fetta B è `#1054`**: l'accensione in partita, il bot equipaggiato e i **33 scenari su 78** che
+      cambiano comportamento. Separata su quella misura, non per prudenza.
+
+      ➕ **Aperta il 2026-08-16** su `#63`.
 
       **Perché due fette, e la misura che l'ha deciso.** Assegnare i default tocca **33 scenari su 78**
       — quelli che usano l'attacco base di un eroe. Con `Weapon.Impact` la spinta di Phase e Riktor passa
@@ -3690,19 +3713,12 @@ tracks:
       nomi avrebbe riparato il sintomo e lasciato la causa: un elenco scritto a mano dentro un documento non
       ha modo di accorgersi di un file nuovo, e chi aggiunge un gate non passa di lì. Sostituito con la
       **forma** — «ogni `scripts/check-*.py`» — più i due che non seguono quel prefisso.
-    writable:
-      - Source/RefactorTactics/Ability/RTCatalogLibrary.h
-      - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
-      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-      - Source/RefactorTactics/Tests/RTEquipmentTests.cpp
-      # Preso perché il tag `expected-fail` si toglie nello stesso commit che lo fa passare.
-      - Scenarios/Spec/Brace/PushBeyondGuardThreshold.json
-      # Nuovo: il gate che confronta le tre tabelle C++ con §4 del catalogo markdown. È `#576` in
-      # miniatura, limitato ai default — non lo sostituisce.
-      - scripts/check-equipment-defaults.py
-      # `integration_only`, preso in integrazione: un gate che non compare qui non lo esegue nessuno,
-      # perché non c'è CI. Contesa con `content_editor` misurata e non esercitata — vedi la nota.
-      - AGENTS.md
+    # Rilasciato alla chiusura, e SCRITTO invece che dichiarato — la lezione di `roster_rename`, che lo
+    # stesso giorno aveva messo `IDLE` lasciando le righe ed è ricomparsa fra i proprietari al giro dopo.
+    # Il `writable` era: i due `RTCatalogLibrary.{h,cpp}` · `RTScenarioSession.cpp` ·
+    # `RTEquipmentTests.cpp` · `PushBeyondGuardThreshold.json` · `scripts/check-equipment-defaults.py` ·
+    # `AGENTS.md`. Quest'ultimo e lo scenario tornano a `integration_only`; gli altri non assegnati.
+    writable: []
     binary_leases: []
 
   reconcile_skill:
