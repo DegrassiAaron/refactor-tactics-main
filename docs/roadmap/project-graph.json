@@ -36,7 +36,9 @@
     }
   },
   "diagnostics": {
-    "errors": [],
+    "errors": [
+      "ScenarioId non rivendicato da nessuna feature: Spec.Brace.PushBeyondGuardThreshold — aggiungilo agli `scenarios` della feature che dimostra, oppure spiega in `notes` perche' non appartiene a nessuna"
+    ],
     "warnings": [
       "[RT-FEAT-CORE-DECISION-TIME-BANK] 10 scenario/i dichiarati planned: Spec.TimeBank.GraceDoesNotDrain, Spec.TimeBank.DrainsAfterGrace, Spec.TimeBank.NeverBelowZero, Spec.TimeBank.TimeoutCostsFullWindow, Spec.TimeBank.TimeoutSpendsNoCharge, Spec.TimeBank.ClashCostsFullWindow, Spec.TimeBank.BotDrainsLikePlayer, Spec.TimeBank.ExhaustionKeepsResponsesLegal, Spec.TimeBank.ReplayReadsRecordedBank, Spec.TimeBank.PacketOrderInvariant",
       "[RT-FEAT-MAP-HEXGRAPH] tutte le voci PIE che la dimostrano sono verdi (PIE-HEXPLAY-1) ma il gate packaged e' ancora partial: puo' avanzare",
@@ -2202,7 +2204,6 @@
       "id": "RT_Showcase_Relay_v01",
       "requires": [
         "DecisionBoundary",
-        "DeclaredRotation",
         "InterceptRevalidation",
         "Objective",
         "PredictiveAction"
@@ -2241,9 +2242,14 @@
     {
       "id": "Spec.Brace.ProfileChangesResponse",
       "requires": [
-        "DecisionBoundary"
+        "ReactionProfile"
       ],
       "path": "Scenarios/Spec/Brace/ProfileChangesResponse.json"
+    },
+    {
+      "id": "Spec.Brace.PushBeyondGuardThreshold",
+      "requires": [],
+      "path": "Scenarios/Spec/Brace/PushBeyondGuardThreshold.json"
     },
     {
       "id": "Spec.Clash.ReadBeatsStand",
@@ -2420,8 +2426,7 @@
     {
       "id": "Spec.Overwatch.HoldThenFire",
       "requires": [
-        "DecisionBoundary",
-        "DeclaredRotation"
+        "DecisionBoundary"
       ],
       "path": "Scenarios/Spec/Overwatch/HoldThenFire.json"
     },
@@ -2570,6 +2575,7 @@
     "BotPlanning",
     "Cover",
     "CreateCover",
+    "DecisionBoundary",
     "DeclaredRotation",
     "Environment",
     "EnvironmentalActionOwner",
@@ -2910,8 +2916,8 @@
             "rationale": null
           }
         ],
-        "readiness": "BLOCKED",
-        "readiness_reason": "aspetta capability:DecisionBoundary"
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:165"
       },
       {
         "id": "issue:66",
@@ -3883,15 +3889,14 @@
         ],
         "scenario_consumers": [
           "RT_Showcase_Relay_v01",
-          "Spec.Brace.ProfileChangesResponse",
           "Spec.Clash.ReadBeatsStand",
           "Spec.Clash.ShiftBeatsRead",
           "Spec.Clash.StandBeatsShift",
           "Spec.Clash.TieAppliesOnce",
           "Spec.Overwatch.HoldThenFire"
         ],
-        "available": false,
-        "available_source": "provider"
+        "available": true,
+        "available_source": "runtime"
       }
     ],
     "stats": {
@@ -3900,10 +3905,10 @@
       "hard_edges": 15,
       "soft_edges": 10,
       "by_readiness": {
-        "BLOCKED": 4,
+        "BLOCKED": 3,
         "DONE": 3,
         "READY": 15,
-        "UNKNOWN": 5
+        "UNKNOWN": 6
       },
       "by_execution_lane": {
         "asset": 2,

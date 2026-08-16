@@ -334,8 +334,12 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 
 			// Le chiavi di turno ammesse. Misurato sul corpus il 2026-08-16 (77 file): sono quattro —
 			// `intents` 113, `requires` 36, `_turno` 64, `_nota` 3 — e le due con `_` sono la convenzione
-			// dei commenti. `decisions` si aggiunge qui perche' la introduce questa fase, e nel corpus non
-			// compare ancora. Senza questo controllo un refuso — `desicions` per `decisions` — viene
+			// dei commenti. `decisions` si e' aggiunta qui con la fase A di `#512`, quando nel corpus non
+			// compariva ancora; dalla **fase B** compare, in due file versionati
+			// (`RT_Showcase_Relay_v01` T4 e `Spec/Overwatch/HoldThenFire` T2), che e' il motivo per cui
+			// questa riga non dice piu' «non compare ancora»: chi rimisura il corpus contro un commento
+			// scaduto trova una contraddizione e non sa quale delle due credere.
+			// Senza questo controllo un refuso — `desicions` per `decisions` — viene
 			// ignorato e il turno cade su `HoldNoDecider`, che e' indistinguibile da «nessuno ha
 			// risposto»: verde per il motivo sbagliato.
 			{

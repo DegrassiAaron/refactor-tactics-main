@@ -1,7 +1,7 @@
 {
   "scenarioId": "RT_Showcase_Relay_v01",
   "tags": ["showcase", "relay", "objectives", "flux", "riva", "bastion", "vektor"],
-  "version": 1,
+  "version": 2,
   "seed": 12345,
 
   "_nota": "Showcase canonica «Relay Basin». La geometria NON e' qui: e' riferita per nome e vive in MakeShowcaseRelayBasinArena, protetta da ShowcaseRelay.BasinLayoutMatchesSpec. Quarantacinque celle copiate qui sarebbero una seconda verita' che nessuno confronta con la prima. Spec: docs/product/showcase-v0.1.md",
@@ -36,9 +36,18 @@
       "intents": []
     },
     {
-      "_turno": "T4 — Overwatch. Il facing da' il cono, ma HOLD e FIRE SONO la finestra: senza Decision Boundary il turno non esiste.",
-      "requires": ["DecisionBoundary", "DeclaredRotation"],
-      "intents": []
+      "_turno": "T4 — Overwatch. Il facing da' la LINEA (non un cono: `MakeSuppressiveZone` usa `LineCells`), e la finestra E' HOLD/FIRE. Bastion controlla (2,0) (1,0) (0,0) — tre celle, la portata di `Bastion.ImpactShot`, in linea dal facing che il suo movimento del T1 gli ha lasciato. Flux risale il corridoio di Smoke e mette piede sul Relay: li' la risoluzione si SOSPENDE e la risposta e' un dato dello scenario, non una politica.",
+
+      "_nota_scostamento_dalla_spec": "⚠️ QUESTO TURNO E' UNA FETTA della spec owner, e va detto invece di lasciarlo dedurre. `docs/product/showcase-v0.1.md` §«Turno 4 — Overwatch» chiede: **Wraith** arma, **Gadget** entra per primo -> `HOLD`, **Phase** entra dopo -> SECONDA opportunity -> `FIRE`, con quattro asserzioni («HOLD non consuma la carica / la seconda opportunity esiste / FIRE consuma la carica / nessuna informazione futura nel DTO»). Qui c'e' un solo watcher, un solo mover e un solo `FIRE`: la sospensione della risoluzione e' dimostrata, la COPPIA HOLD->FIRE su due opportunity no. Non e' una semplificazione di comodo — sulla geometria del bacino Phase raggiunge la linea di Wraith PRIMA di Gadget, quindi l'ordine della spec richiede o un percorso che passi dall'Ice del ripiano sud o un turno di anticipo, e nessuno dei due e' stato misurato. ✅ Le quattro asserzioni sono pero' gia' dimostrate altrove, sulla stessa semantica: `Spec.Overwatch.HoldThenFire` apre DUE finestre distinte, risponde HOLD e poi FIRE, e verifica carica e troncatura. Tracciato su GitHub: issue #1038. Chi completa quel lavoro chiude lo scostamento e cancella questa nota; finche' non lo fa, il numero `scriptedDecisionsApplied` di questo scenario vale 1 e non 2, ed e' il modo piu' rapido per accorgersene.",
+
+      "requires": ["DecisionBoundary"],
+      "intents": [
+        { "unit": "Bastion", "ability": "Action.Overwatch" },
+        { "unit": "Flux", "move": [[-2, 0, 0], [-1, 0, 0], [0, 0, 0]] }
+      ],
+      "decisions": [
+        { "unit": "Bastion", "respond": "FIRE", "target": "Flux" }
+      ]
     },
     {
       "_turno": "T5 — fumo e struttura. Bastion apre il gate: la topologia cambia e la revisione della mappa sale. Il gate e' una porta, e le porte esistono da CP 9.3.",
@@ -61,8 +70,9 @@
   ],
 
   "expect": [
-    { "type": "TurnsCompleted", "value": 1 },
-    { "type": "UnitAtCell", "unit": "Flux",    "cell": [-3, 0, 0] },
+    { "type": "TurnsCompleted", "value": 5 },
+    { "type": "UnitHpEquals", "unit": "Flux", "value": 82 },
+    { "type": "UnitAtCell", "unit": "Flux",    "cell": [ 0, 0, 0] },
     { "type": "UnitAtCell", "unit": "Riva",    "cell": [-3, 1, 0] },
     { "type": "UnitAtCell", "unit": "Bastion", "cell": [ 3, 0, 0] },
     { "type": "UnitAtCell", "unit": "Vektor",  "cell": [ 3, 1, 0] }
