@@ -653,4 +653,52 @@ bool FRTScenarioLoaderDecisionsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La validazione e' la meta' che conta. Uno scenario scritto male deve produrre un ERROR leggibile, non un
+ * `HOLD` silenzioso: `HoldNoDecider` e' indistinguibile da «nessuno ha risposto», ed e' il modo in cui un
+ * refuso resta verde per sempre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDecisionsRejectTest,
+	"RefactorTactics.Scenario.LoaderRejectsMalformedDecisions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDecisionsRejectTest::RunTest(const FString&)
+{
+	auto Rifiuta = [this](const TCHAR* Cosa, const TCHAR* Decision, const TCHAR* Atteso)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Decisions.Reject", "version": 1, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 2, 0, 0] }
+		  ],
+		  "turns": [ { "intents": [], "decisions": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Decision);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), Cosa), bLoaded);
+		// Il messaggio deve NOMINARE il difetto: un rifiuto muto manda a cercare nel posto sbagliato.
+		TestTrue(FString::Printf(TEXT("%s: il motivo nomina '%s' (era: '%s')"), Cosa, Atteso, *Error),
+			Error.Contains(Atteso));
+	};
+
+	Rifiuta(TEXT("chiave sconosciuta"),
+		TEXT(R"({ "unit": "A1", "respond": "HOLD", "reason": "perche' si" })"), TEXT("reason"));
+	Rifiuta(TEXT("respond sconosciuto"),
+		TEXT(R"({ "unit": "A1", "respond": "MAYBE" })"), TEXT("MAYBE"));
+	Rifiuta(TEXT("FIRE senza bersaglio"),
+		TEXT(R"({ "unit": "A1", "respond": "FIRE" })"), TEXT("target"));
+	Rifiuta(TEXT("HOLD con bersaglio"),
+		TEXT(R"({ "unit": "A1", "respond": "HOLD", "target": "B1" })"), TEXT("B1"));
+	Rifiuta(TEXT("unita' non schierata"),
+		TEXT(R"({ "unit": "Z9", "respond": "HOLD" })"), TEXT("Z9"));
+	Rifiuta(TEXT("bersaglio non schierato"),
+		TEXT(R"({ "unit": "A1", "respond": "FIRE", "target": "Z9" })"), TEXT("Z9"));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

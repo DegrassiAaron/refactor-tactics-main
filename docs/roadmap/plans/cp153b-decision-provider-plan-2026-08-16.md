@@ -108,7 +108,7 @@ L'esito sta nel log, **non** nello stdout: `grep -E "Test Completed|Success|Fail
 - Produce: `struct FRTScenarioDecision { FString Unit; FString Respond; FString Target; }` e
   `TArray<FRTScenarioDecision> FRTScenarioTurn::Decisions`. I task 5-8 leggono **questi** nomi.
 
-- [ ] **Passo 1 — scrivi il test che fallisce**
+- [x] **Passo 1 — scrivi il test che fallisce**
 
 In `RTScenarioLoaderTests.cpp`, dentro il namespace anonimo:
 
@@ -167,13 +167,13 @@ bool FRTScenarioLoaderDecisionsTest::RunTest(const FString&)
 }
 ```
 
-- [ ] **Passo 2 — eseguilo e verifica che fallisca**
+- [x] **Passo 2 — eseguilo e verifica che fallisca**
 
 Comando con `<NomeDelTest>` = `RefactorTactics.Scenario.LoaderAcceptsDecisions`.
 Atteso: **errore di compilazione** — `Decisions` non è un membro di `FRTScenarioTurn`. È il fallimento
 giusto: il tipo non esiste ancora.
 
-- [ ] **Passo 3 — il tipo**
+- [x] **Passo 3 — il tipo**
 
 In `RTTestScenario.h`, **prima** di `FRTScenarioTurn`:
 
@@ -220,7 +220,7 @@ e dentro `FRTScenarioTurn`, sotto `Requires`:
 	TArray<FRTScenarioDecision> Decisions;
 ```
 
-- [ ] **Passo 4 — il parsing**
+- [x] **Passo 4 — il parsing**
 
 In `RTScenarioLoader.cpp`, nel ciclo dei turni, **dopo** il blocco che legge `requires`:
 
@@ -246,11 +246,11 @@ In `RTScenarioLoader.cpp`, nel ciclo dei turni, **dopo** il blocco che legge `re
 			}
 ```
 
-- [ ] **Passo 5 — eseguilo e verifica che passi**
+- [x] **Passo 5 — eseguilo e verifica che passi**
 
 Atteso: `Success`. Se il turno non porta due decisioni, stampa `Error` e confronta col JSON.
 
-- [ ] **Passo 6 — commit**
+- [x] **Passo 6 — commit**
 
 ```bash
 git add Source/RefactorTactics/ScenarioHarness/RTTestScenario.h \
@@ -271,7 +271,7 @@ git commit -m "feat(512): le decisioni di finestra sono un dato dello scenario, 
 - Consuma: `FRTScenarioDecision` dal task 1.
 - Produce: quattro messaggi d'errore che i task successivi non devono duplicare.
 
-- [ ] **Passo 1 — scrivi i test che falliscono**
+- [x] **Passo 1 — scrivi i test che falliscono**
 
 Un solo test con quattro casi negativi, perché condividono la meccanica:
 
@@ -319,13 +319,13 @@ bool FRTScenarioLoaderDecisionsRejectTest::RunTest(const FString&)
 }
 ```
 
-- [ ] **Passo 2 — eseguilo e verifica che fallisca**
+- [x] **Passo 2 — eseguilo e verifica che fallisca**
 
 `RefactorTactics.Scenario.LoaderRejectsMalformedDecisions`.
 Atteso: **cinque `TestFalse` rossi** — oggi il loader accetta tutto, perché `TryGetStringField` ignora ciò
 che non conosce.
 
-- [ ] **Passo 3 — la validazione**
+- [x] **Passo 3 — la validazione**
 
 Nel blocco del task 1, subito dopo i tre `TryGetStringField`:
 
@@ -392,12 +392,12 @@ Nel blocco del task 1, subito dopo i tre `TryGetStringField`:
 delle unità nel loader. Se non è così, sposta i due controlli sui nomi in una passata finale invece di
 riordinare il parsing.
 
-- [ ] **Passo 4 — eseguilo e verifica che passi**
+- [x] **Passo 4 — eseguilo e verifica che passi**
 
 Atteso: `Success`. Rilancia anche `RefactorTactics.Scenario.LoaderAcceptsDecisions`: il caso felice non
 deve essere diventato rosso.
 
-- [ ] **Passo 5 — commit**
+- [x] **Passo 5 — commit**
 
 ```bash
 git add Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp \

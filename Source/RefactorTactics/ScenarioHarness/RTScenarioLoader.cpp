@@ -368,6 +368,75 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 					DecisionObj->TryGetStringField(TEXT("unit"), Decision.Unit);
 					DecisionObj->TryGetStringField(TEXT("respond"), Decision.Respond);
 					DecisionObj->TryGetStringField(TEXT("target"), Decision.Target);
+
+					// L'elenco delle chiavi attese si GENERA dal set e si ORDINA: le due copie sono divergite
+					// alla prima aggiunta (`edge`, poco piu' sotto), e un `TSet` non ha ordine — un messaggio che
+					// cambia testo fra due esecuzioni identiche fa dubitare del file invece che di se' stesso.
+					static const TSet<FString> KnownDecisionKeys = {
+						TEXT("unit"), TEXT("respond"), TEXT("target")
+					};
+					TArray<FString> UnknownDecisionKeys;
+					for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : DecisionObj->Values)
+					{
+						if (Field.Key.StartsWith(TEXT("_")))
+						{
+							continue; // `_nota` e simili: commenti, come altrove nel formato
+						}
+						if (!KnownDecisionKeys.Contains(Field.Key))
+						{
+							UnknownDecisionKeys.Add(Field.Key);
+						}
+					}
+					if (UnknownDecisionKeys.Num() > 0)
+					{
+						UnknownDecisionKeys.Sort();
+						TArray<FString> ExpectedKeys = KnownDecisionKeys.Array();
+						ExpectedKeys.Sort();
+						OutError = FString::Printf(
+							TEXT("decisions: chiave sconosciuta '%s' (previste: %s)"),
+							*UnknownDecisionKeys[0], *FString::Join(ExpectedKeys, TEXT(", ")));
+						return false;
+					}
+
+					const bool bFire = Decision.Respond.Equals(TEXT("FIRE"), ESearchCase::CaseSensitive);
+					const bool bHold = Decision.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive);
+					if (!bFire && !bHold)
+					{
+						OutError = FString::Printf(
+							TEXT("decisions: risposta '%s' sconosciuta (previste: FIRE, HOLD)"),
+							*Decision.Respond);
+						return false;
+					}
+					// `target` obbligatorio con FIRE e VIETATO con HOLD. Il secondo divieto e' la meta' che
+					// conta: un bersaglio ignorato fa dichiarare allo scenario una cosa che non verifica.
+					if (bFire && Decision.Target.IsEmpty())
+					{
+						OutError = FString::Printf(
+							TEXT("decisions: 'FIRE' di '%s' richiede 'target'"), *Decision.Unit);
+						return false;
+					}
+					if (bHold && !Decision.Target.IsEmpty())
+					{
+						OutError = FString::Printf(
+							TEXT("decisions: 'HOLD' non ammette 'target' (dichiarato '%s')"), *Decision.Target);
+						return false;
+					}
+					// I nomi si risolvono QUI: un'unita' che non esiste e' uno scenario scritto male, non una
+					// capability mancante — e `Blocked` direbbe la seconda cosa. `units` e' letto sopra
+					// (riga ~247), quindi `FindUnit` ha gia' il roster.
+					if (!OutScenario.FindUnit(Decision.Unit))
+					{
+						OutError = FString::Printf(
+							TEXT("decisions: unita' '%s' non schierata"), *Decision.Unit);
+						return false;
+					}
+					if (bFire && !OutScenario.FindUnit(Decision.Target))
+					{
+						OutError = FString::Printf(
+							TEXT("decisions: bersaglio '%s' non schierato"), *Decision.Target);
+						return false;
+					}
+
 					Turn.Decisions.Add(Decision);
 				}
 			}
