@@ -2957,6 +2957,47 @@ tracks:
       - Source/RefactorTactics/Tests/RTHexDoorTests.cpp
     binary_leases: []
 
+  hero_kit:
+    status: ACTIVE
+    issue: 1006
+    branch: feat/1006-phase-water-access
+    worktree: "D:/rt-unit"
+    note: >-
+      ➕ **Track aperta il 2026-08-16 su `#1006`**, che deriva dalla decisione d'autore presa in `#995`
+      dopo lo spec panel: **Phase è abilitata a Water, non padrona — resta `Access`**. Opzione **C**:
+      `CircularTide` perde il `Wet`, `FluidTrail` perde l'acqua e torna `Dash 3` (il pre-`D-046`),
+      l'acqua passa all'equipaggiamento (`Gadget.Sprinkler` porta già `Action.CreateWater`).
+
+      ⚠️ **CONTESA DICHIARATA su `RTHeroCatalogLibrary.cpp`, misurata invece che scoperta al merge.**
+      La PR **#908** (`fix/892-displayname-abilita`, aperta, ultimo commit 2026-08-15) tocca lo stesso
+      file. **Non è un `blocked_by`, e la ragione è la misura**: `git diff origin/main...origin/fix/892`
+      mostra che quel ramo aggiunge un helper `HeroActionDisplayName`, una tabella di nomi e una riga
+      dentro `MakeHeroAction` — mentre questa track modifica le **definizioni** di `Riva.CircularTide`
+      e `Riva.FluidTrail`. Zone diverse dello stesso file: chi mergia per secondo paga un merge banale,
+      e va fatto verificando il **risultato** invece della lista dei conflitti.
+      ➕ Nessuna interazione semantica: #908 chiama `FluidTrail` «Scia fluida», che regge anche quando
+      l'abilità torna a essere uno scatto.
+
+      ⛔ **Cosa questa track NON tocca, ed è `integration_only`:**
+      · `Scenarios/Spec/Environment/WaterQuenchesFire.json` — la sua `_nota_owner` cita `D-046` e
+        diventerà falsa. 🔵 Ma **lo scenario NON cade**, misurato: `requires: EnvironmentalActionOwner`
+        resta soddisfatto da `Flux.ConductiveNode` (la capability dice che *un* eroe possiede un'azione
+        ambientale, non che sia Phase), e l'unica assertion sull'esito è `UnitHpEquals V1 = 90`, cioè
+        **il caso in cui il fuoco non è stato spento**. Lo scenario passa oggi e passerà dopo: non
+        verifica ciò che il suo `_nota` dichiara, e la `_nota_da_completare` in testa lo ammette.
+      · `docs/balance/RT_HeroCatalog_v0.1.md` — descrive il kit e va riallineato in integrazione. Il
+        gate che impedirebbe la divergenza fra catalogo markdown e C++ **non esiste**: è `#576`, aperta.
+      · `docs/decisions/RT_PDR_00_Decision_Log.md` — il successore di `D-046` si **prepara**, non si
+        scrive da qui. L'ID si prende con `python scripts/rt_shared_id.py reserve D`.
+
+      ✅ **Intersezione misurata sui tre comandi**: 17 rami vivi, `git diff --name-only
+      origin/main...<ramo>` per ciascuno. L'unica sovrapposizione è quella dichiarata sopra;
+      `Tests/RTHeroRivaTests.cpp` non lo tocca nessuno.
+    writable:
+      - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
+      - Source/RefactorTactics/Tests/RTHeroRivaTests.cpp
+    binary_leases: []
+
   docs_kit:
     status: IDLE
     issue: null
