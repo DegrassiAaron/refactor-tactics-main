@@ -50,7 +50,7 @@ Valgono per **ogni** task, senza ripeterli:
   `scenariomap.shortlist.md`. Prima di ogni commit che lo tocca:
   `python scripts/feature_registry.py generate --check` e `... shortlist --check`.
 - 🔴 **Uno scenario JSON con `expect` vuoto viene RIFIUTATO dal loader** — *«nessuna assertion dichiarata:
-  lo scenario passerebbe sempre»* (`RTScenarioLoader.cpp:1051`). Scoperto eseguendo il task 1, non leggendo:
+  lo scenario passerebbe sempre»* (`URTScenarioLoader::Validate`). Scoperto eseguendo il task 1, non leggendo:
   la prima stesura del suo JSON aveva `"expect": []` e il test è fallito con quel messaggio. Ogni JSON di
   prova porta almeno un'assertion — `{ "type": "TurnsCompleted", "value": 1 }` basta.
   ⚠️ La guardia è **solo nel loader**: gli scenari costruiti in memoria (task 5-9) non la attraversano,
@@ -130,7 +130,7 @@ In `RTScenarioLoaderTests.cpp`, dentro il namespace anonimo:
 	      { "unit": "A1", "respond": "HOLD" }
 	    ]
 	  } ],
-	  "expect": []
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 	}
 	)JSON");
 ```
@@ -293,7 +293,7 @@ bool FRTScenarioLoaderDecisionsRejectTest::RunTest(const FString&)
 		  "scenarioId": "Spec.Decisions.Reject", "version": 1, "mapRadius": 3,
 		  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
 		  "turns": [ { "intents": [], "decisions": [ %s ] } ],
-		  "expect": []
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 		}
 		)JSON"), *Decision);
 
@@ -416,7 +416,7 @@ refuso `desicions` verrebbe ignorato, il turno cadrebbe su `HoldNoDecider` e res
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` (ciclo dei turni)
 - Test: `Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp`
 
-- [ ] **Passo 1 — misura che il corpus regga, prima di scrivere**
+- [x] **Passo 1 — misura che il corpus regga, prima di scrivere**
 
 ```bash
 python -c "
@@ -435,7 +435,7 @@ Atteso: `{'_turno': 64, 'intents': 113, 'requires': 36, '_nota': 3}` — quattro
 già la convenzione dei commenti. Se ne compare una quinta, **fermati**: l'elenco va allargato con lei prima
 di introdurre il controllo, o rendi rosso il corpus.
 
-- [ ] **Passo 2 — scrivi il test che fallisce**
+- [x] **Passo 2 — scrivi il test che fallisce**
 
 ```cpp
 /** Un refuso a livello di turno non deve essere ignorato: `desicions` non e' un commento. */
@@ -449,7 +449,7 @@ bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
 	  "scenarioId": "Spec.Decisions.TurnKey", "version": 1, "mapRadius": 3,
 	  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
 	  "turns": [ { "intents": [], "desicions": [] } ],
-	  "expect": []
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 	}
 	)JSON");
 
@@ -464,7 +464,7 @@ bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
 	  "scenarioId": "Spec.Decisions.TurnComment", "version": 1, "mapRadius": 3,
 	  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
 	  "turns": [ { "_turno": "commento", "_nota": "altro", "intents": [] } ],
-	  "expect": []
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 	}
 	)JSON");
 	FRTTestScenario ConCommentoScenario;
@@ -478,12 +478,12 @@ bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
 }
 ```
 
-- [ ] **Passo 3 — eseguilo e verifica che fallisca**
+- [x] **Passo 3 — eseguilo e verifica che fallisca**
 
 `RefactorTactics.Scenario.LoaderRejectsUnknownTurnKey`. Atteso: il primo `TestFalse` è rosso — il refuso oggi
 viene accettato.
 
-- [ ] **Passo 4 — il controllo**
+- [x] **Passo 4 — il controllo**
 
 Nel ciclo dei turni, **prima** di leggere `requires`:
 
@@ -514,14 +514,14 @@ Nel ciclo dei turni, **prima** di leggere `requires`:
 			}
 ```
 
-- [ ] **Passo 5 — eseguilo, e poi esegui il corpus intero**
+- [x] **Passo 5 — eseguilo, e poi esegui il corpus intero**
 
 Prima `RefactorTactics.Scenario.LoaderRejectsUnknownTurnKey` → `Success`.
 Poi **`RefactorTactics.Scenario`** per intero: `LoaderAcceptsValidScenario`,
 `ShippedScenariosParse` e `EveryShippedScenarioRuns` non devono muoversi. Se un file del corpus cade, la
 misura del passo 1 è stata saltata.
 
-- [ ] **Passo 6 — commit**
+- [x] **Passo 6 — commit**
 
 ```bash
 git add Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp \
@@ -557,7 +557,7 @@ bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
 		  "scenarioId": "Spec.Decisions.Version", "version": %d, "mapRadius": 3,
 		  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
 		  "turns": [ { "intents": [] } ],
-		  "expect": []
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 		}
 		)JSON"), Versione);
 

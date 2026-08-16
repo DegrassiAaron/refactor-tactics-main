@@ -701,4 +701,49 @@ bool FRTScenarioLoaderDecisionsRejectTest::RunTest(const FString&)
 	return true;
 }
 
+/** Un refuso a livello di turno non deve essere ignorato: `desicions` non e' un commento. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderTurnKeysTest,
+	"RefactorTactics.Scenario.LoaderRejectsUnknownTurnKey",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
+{
+	// ⚠️ `expect` NON puo' essere vuoto: il loader lo rifiuta a monte («nessuna assertion dichiarata»), e
+	// un JSON di prova senza assertion farebbe passare il primo `TestFalse` per la ragione sbagliata e
+	// cadere il secondo caso per sempre. Il piano lo dichiara nei vincoli globali e lo violava qui.
+	const TCHAR* Json = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Decisions.TurnKey", "version": 1, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "intents": [], "desicions": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	TestFalse(TEXT("refuso di turno rifiutato"), URTScenarioLoader::LoadFromString(Json, Scenario, Error));
+	// Il messaggio deve nominare LA CHIAVE: un rifiuto generico manda a cercare nel posto sbagliato, ed e'
+	// anche cio' che distingue questo controllo da quello — gia' esistente — sul contenuto di `intents`.
+	TestTrue(FString::Printf(TEXT("il messaggio nomina 'desicions' (era: '%s')"), *Error),
+		Error.Contains(TEXT("desicions")));
+
+	// E il commento resta un commento: `_turno` e `_nota` non devono cadere insieme al refuso.
+	const TCHAR* ConCommento = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Decisions.TurnComment", "version": 1, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "_turno": "commento", "_nota": "altro", "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
+	FRTTestScenario ConCommentoScenario;
+	FString CommentoError;
+	if (!TestTrue(TEXT("i commenti di turno restano ammessi"),
+		URTScenarioLoader::LoadFromString(ConCommento, ConCommentoScenario, CommentoError)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *CommentoError));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

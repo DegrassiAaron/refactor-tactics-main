@@ -332,6 +332,33 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 
 			FRTScenarioTurn Turn;
 
+			// Le chiavi di turno ammesse. Misurato sul corpus il 2026-08-16 (77 file): sono quattro —
+			// `intents` 113, `requires` 36, `_turno` 64, `_nota` 3 — e le due con `_` sono la convenzione
+			// dei commenti. `decisions` si aggiunge qui perche' la introduce questa fase, e nel corpus non
+			// compare ancora. Senza questo controllo un refuso — `desicions` per `decisions` — viene
+			// ignorato e il turno cade su `HoldNoDecider`, che e' indistinguibile da «nessuno ha
+			// risposto»: verde per il motivo sbagliato.
+			{
+				static const TSet<FString> KnownTurnKeys = {
+					TEXT("intents"), TEXT("requires"), TEXT("decisions")
+				};
+				TArray<FString> UnknownTurnKeys;
+				for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : TurnObj->Values)
+				{
+					if (Field.Key.StartsWith(TEXT("_"))) { continue; }
+					if (!KnownTurnKeys.Contains(Field.Key)) { UnknownTurnKeys.Add(Field.Key); }
+				}
+				if (UnknownTurnKeys.Num() > 0)
+				{
+					UnknownTurnKeys.Sort();
+					TArray<FString> Expected = KnownTurnKeys.Array();
+					Expected.Sort();
+					OutError = FString::Printf(TEXT("turns: chiave sconosciuta '%s' (previste: %s)"),
+						*UnknownTurnKeys[0], *FString::Join(Expected, TEXT(", ")));
+					return false;
+				}
+			}
+
 			// `requires`: cosa deve esistere nel gioco perche' questo turno sia giocabile. Il runner si ferma
 			// qui con `Blocked` invece di fallire, e lo scenario puo' essere versionato prima dei suoi sistemi.
 			const TArray<TSharedPtr<FJsonValue>>* RequiresJson = nullptr;
