@@ -129,6 +129,25 @@ TArray<FString> URTStructureIdentityLibrary::ValidateInteractionGraph(const URTH
 			SeenSources.Add(Binding.SourceId);
 		}
 
+		// Un binding DICHIARATO senza bersagli non e' «una sorgente che non comanda nulla»: quella e' una
+		// sorgente **senza binding**, che risolve in un array vuoto e non e' un errore. Questo e' un binding
+		// scritto a meta', e senza il controllo passerebbe identico a un `TargetIds` svuotato per sbaglio.
+		if (Binding.TargetIds.Num() == 0 && !Binding.SourceId.IsNone())
+		{
+			Errors.Add(FString::Printf(
+				TEXT("Error: la sorgente '%s' dichiara un binding senza bersagli"),
+				*Binding.SourceId.ToString()));
+		}
+
+		// Una struttura che comanda SE STESSA supera `ValidateReferences` — il nome esiste — ed e' un anello:
+		// il runtime percorrerebbe il comando su una porta che sta gia' cambiando stato. Si rifiuta qui,
+		// dove costa un confronto, invece di scoprirlo quando qualcuno lo scrive in una mappa.
+		if (!Binding.SourceId.IsNone() && Binding.TargetIds.Contains(Binding.SourceId))
+		{
+			Errors.Add(FString::Printf(
+				TEXT("Error: la sorgente '%s' comanda se stessa"), *Binding.SourceId.ToString()));
+		}
+
 		// La sorgente dev'essere una struttura vera quanto i bersagli, e i bersagli passano dalla regola
 		// che #832 ha gia' scritto: `ValidateReferences` sa che un nome risolve una porta OPPURE un arco.
 		// La sorgente vuota e' gia' stata segnalata sopra: rimandarla a `ValidateReferences` darebbe due

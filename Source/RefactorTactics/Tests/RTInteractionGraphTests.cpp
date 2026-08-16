@@ -202,4 +202,122 @@ bool FRTInteractionGraphSharedTargetIsNotAnAssetError::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphEmptyTargetListFailsValidation,
+	"RefactorTactics.InteractionGraph.EmptyTargetListFailsValidation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphEmptyTargetListFailsValidation::RunTest(const FString&)
+{
+	// Un binding DICHIARATO senza bersagli non e' «una sorgente che non comanda nulla»: quella e' una
+	// sorgente **senza binding**, e risolve in un array vuoto senza errori. Questo e' un binding scritto a
+	// meta', e passa in silenzio esattamente come passerebbe un `TargetIds` che qualcuno ha svuotato.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), {}));
+
+	const TArray<FString> Errors = URTStructureIdentityLibrary::ValidateInteractionGraph(Map);
+
+	TestTrue(TEXT("il binding senza bersagli e' segnalato"), Errors.Num() > 0);
+	TestTrue(TEXT("il reason code nomina la sorgente"), AnyContains(Errors, TEXT("S1")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphSelfBindingFailsValidation,
+	"RefactorTactics.InteractionGraph.SelfBindingFailsValidation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphSelfBindingFailsValidation::RunTest(const FString&)
+{
+	// Una struttura che comanda SE STESSA risolve, perche' il nome esiste: `ValidateReferences` la accetta.
+	// E' pero' un anello che il runtime dovrebbe percorrere su una porta che sta gia' cambiando stato, ed e'
+	// un difetto d'asset con reason code — non un caso da scoprire quando qualcuno lo scrive.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoor(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1"), TEXT("S1") }));
+
+	const TArray<FString> Errors = URTStructureIdentityLibrary::ValidateInteractionGraph(Map);
+
+	TestTrue(TEXT("il binding riflessivo e' segnalato"), Errors.Num() > 0);
+	TestTrue(TEXT("il reason code nomina la sorgente"), AnyContains(Errors, TEXT("S1")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphOrderHoldsAtScale,
+	"RefactorTactics.InteractionGraph.OrderHoldsAtScale",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphOrderHoldsAtScale::RunTest(const FString&)
+{
+	// `N` NON ha un tetto, ed e' dichiarato: un limite sarebbe un numero di bilanciamento inventato senza un
+	// caso che lo chieda. Cio' che va difeso e' la proprieta' che un tetto avrebbe protetto per caso —
+	// l'ordine regge a scala — e questo test la pinna a `N = 40`, cioe' ben oltre qualunque mappa reale.
+	const int32 N = 40;
+	URTHexMapAsset* Map = MakeGraphMap(6);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 0, TEXT("S1"));
+
+	// Le porte si inseriscono in ordine INVERSO rispetto a quello dichiarato: se la risoluzione seguisse
+	// l'asset invece del binding, la sequenza uscirebbe capovolta.
+	TArray<FName> Declared;
+	TArray<FRTCellId> Expected;
+	for (int32 I = 0; I < N; ++I)
+	{
+		Declared.Add(FName(*FString::Printf(TEXT("D%d"), I)));
+		Expected.Add(FRTCellId(1, I - 5, 0));
+	}
+	for (int32 I = N - 1; I >= 0; --I)
+	{
+		PutGraphDoor(Map, Expected[I], ERTHexDirection::E, I + 1, Declared[I]);
+	}
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), Declared));
+
+	const TArray<FRTStructureEdgeRef> Targets =
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S1"));
+
+	TestEqual(TEXT("quaranta bersagli risolti"), Targets.Num(), N);
+	if (Targets.Num() == N)
+	{
+		bool bOrdered = true;
+		for (int32 I = 0; I < N; ++I)
+		{
+			bOrdered = bOrdered && (Targets[I].Cell == Expected[I]);
+		}
+		TestTrue(TEXT("l'ordine dichiarato regge per tutti e quaranta"), bOrdered);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphResolutionIgnoresDoorState,
+	"RefactorTactics.InteractionGraph.ResolutionIgnoresDoorState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphResolutionIgnoresDoorState::RunTest(const FString&)
+{
+	// La risoluzione dice CHI e' comandato, non se il comando andra' a buon fine. Una `Locked` risolve come
+	// le altre: `SetDoorState` non la apre, ma quella e' **applicabilita'**, e decidere se l'operazione su N
+	// bersagli sia tutto-o-niente e' una scelta che appartiene al resolver e non e' ancora presa.
+	//
+	// ⚠️ Il test esiste per impedire la scorciatoia opposta: filtrare qui le `Locked` renderebbe un'operazione
+	// dichiarata atomica silenziosamente **parziale**, e nessuno se ne accorgerebbe dal grafo.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+
+	FRTHexCellData Locked(FRTCellId(1, 0, 0));
+	FRTHexDoor LockedDoor(ERTHexDirection::E, ERTHexDoorState::Locked, 2);
+	LockedDoor.StableId = TEXT("D1");
+	Locked.Doors.Add(LockedDoor);
+	Map->AddOrUpdateCell(Locked);
+	Map->SortCells();
+
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+	const TArray<FRTStructureEdgeRef> Targets =
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S1"));
+
+	TestEqual(TEXT("una porta Locked risolve come le altre"), Targets.Num(), 1);
+	TestEqual(TEXT("e non e' un errore d'asset"),
+		URTStructureIdentityLibrary::ValidateInteractionGraph(Map).Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
