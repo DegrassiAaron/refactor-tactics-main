@@ -1233,14 +1233,38 @@ tracks:
       disponibili»* e tiene l'elenco come storia di ciò che ha toccato. Presi qui e **tolti di là**, perché
       un elenco che resta scritto e un'intersezione che si calcola sui campi non possono dire due cose
       diverse: la storia vive nella sua nota, che li nomina già uno per uno.
-      🔴 **RICHIESTA DI RIALLOCAZIONE — `Scenarios/` e `ScenarioHarness/RTScenarioSession.cpp`.** Il gate
-      `scenario` di questa feature non è raggiungibile da nessun write-set che questa track possa dichiarare
-      da sola: `Scenarios/` è `integration_only` e `RTScenarioSession.cpp` è di `simulation` (`#512`,
-      `ACTIVE`) — che ne ha bisogno per le due liste di capability del proprio DoD. **Questa track non li
-      prende e non li tocca.** La richiesta è registrata *prima* di cominciare, non scoperta a metà: se
-      viene respinta, `#833` si chiude su copertura unit più confronto del `TurnLog` e il gate `scenario`
-      resta `todo` **dichiarato**, non spuntato con una scatola vuota. La decisione spetta a chi possiede
-      `simulation` e al giro d'integrazione, non a chi scrive questa riga.
+      ⛔ **RICHIESTA DI RIALLOCAZIONE RITIRATA prima di essere inoltrata, e la ragione non è l'ownership.**
+      L'ipotesi era chiedere `Scenarios/` (`integration_only`) e `ScenarioHarness/RTScenarioSession.cpp` (di
+      `simulation`, `#512`) per chiudere il gate `scenario` di `#833`. Misurando, il gate **non sarebbe
+      onesto nemmeno se concessi**. `RTScenarioSession.cpp` dichiara la propria regola: una capability si
+      dichiara disponibile solo quando *«l'harness NON è il primo produttore»* — è la ragione per cui
+      `DeclaredRotation` è tenuta fuori, e per cui `PredictiveAction` è rimasta **un debito dichiarato** fino
+      all'atterraggio di `#737`. Per il grafo remoto quel produttore **non esiste**: `Action.Interact` è
+      **inerte per test** (`RTCoreActionTests.cpp:217-228`, `TestActionIsInert`), e in `Player/` non c'è
+      nessun percorso che dichiari una sorgente come bersaglio — `grep` di
+      `Action.Interact|InteractTarget|HandleInteract` fuori da `Tests/` e `ScenarioHarness/` stampa la sola
+      riga di catalogo. Uno scenario scritto ora sarebbe **verde e bugiardo**: proverebbe che l'harness sa
+      guidarlo, non che il gioco lo sappia fare.
+      ✅ **Il gate `scenario` resta quindi `todo` DICHIARATO** — lo stato onesto — e `#833` si chiude su
+      copertura unit più confronto del `TurnLog`, entrambi dentro questo write-set. Nessuna contesa aperta con
+      `simulation`, che nel frattempo sta riscrivendo proprio `AvailableCapabilities()` (`DecisionBoundary`
+      disponibile, `Reaction` divisa): due track sulla stessa funzione sarebbero la contesa che questo file
+      esiste per evitare, e `ScenarioHarness/` «va intera, non divisa».
+      ⚠️ **Il trigger che renderebbe il gate legittimo NON è `#834`**, ed è la sorpresa della misura: `#834`
+      (CP 23.5) è **leggibilità** — etichette tattiche, focus sorgente/bersaglio, stato distinguibile senza
+      colore — e **nessuna** delle sue sei voci di DoD produce un intento. Il produttore mancante è il
+      *targeting di una sorgente remota da parte del giocatore*, che non appartiene né a `#833` (dato e
+      runtime) né a `#834` (presentazione): era **orfano**, ed è ora tracciato su **`#1014`** invece di
+      restare in questa nota, che il prossimo lotto riscrive. Stesso schema di `PredictiveAction` → `#737`,
+      che il file racconta come il caso riuscito; il precedente vicino è `Spec.Facing.SixRelativeSides`, non
+      creato per `#726` con la stessa identica motivazione.
+      🔴 **E misurando per aprire `#1014` è emerso che l'anello mancante è più a monte di quanto la
+      riallocazione lasciasse pensare**: `ERTActionEffect::SetDoorState` esiste ed è applicato
+      (`RTActionEffectLibrary.cpp:31`), ma `grep -rn "SetDoorState" Source/RefactorTactics/Ability/` dà
+      **zero** — nessuna azione di catalogo né abilità del roster lo dichiara. La catena locale su cui `#833`
+      costruisce quella remota non ha soggetto, ed è la stessa forma di `#425` e `#645`: una capacità del
+      motore irraggiungibile dal roster. `#833` resta comunque il posto giusto per il **dato**, che non
+      dipende da chi lo innesca.
       🔴 **Corretta un'affermazione falsa che questa nota ha portato in `main`**: il blocco di `#726` diceva
       *«`#986` resta aperta e senza sessione»*. **`#986` è `CLOSED` dalle `09:12:54Z`** del 2026-08-16 —
       chiusa dalla PR `#1001`, cioè **39 minuti prima** che la PR `#1004` la ricopiasse. Era stata
