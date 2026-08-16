@@ -2780,11 +2780,33 @@ tracks:
     binary_leases: []
 
   state_hash:
-    status: ACTIVE
-    issue: 986
-    branch: fix/986-stableid-hash
+    status: IDLE
+    issue: null
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
+      ✅ **CHIUSA il 2026-08-16**: PR **#1001** mergiata in `main` come `27aa0a0d`, issue `#986` chiusa
+      dalla keyword. Il write-set qui sotto è **rilasciato** — `Turn/RTMatchStateHash.{h,cpp}`,
+      `Map/RTHexMapAsset.{h,cpp}` e i due file di test tornano disponibili. L'elenco resta scritto invece
+      di essere svuotato: dice quali file questa track ha toccato, ed è ciò che la prossima intersezione
+      deve poter leggere.
+      ⚠️ `issue: null` perché lo `status` è `IDLE`: il numero vive nella nota.
+
+      **Cosa è atterrato**: `StableId` entra in `ComputeHash` per porte e archi; `MixName` normalizza a
+      minuscole ed è self-delimiting; `bConductsElectricity` entra nel giro degli archi di
+      `HashMatchState`. Quattro test nuovi, verifica di mutazione **sei su sei** (rotta una cosa per
+      volta, cade esattamente il test atteso), suite completa **945 verdi**.
+
+      🔴 **Un difetto di processo, trovato su me stesso e corretto nell'ordine giusto**:
+      `HashStableId(E.StableId)` era stato scritto **prima** del test che lo copre. La riga è stata
+      rimossa, `Simulation.MapHashSeesArcIdentity` scritto e visto rosso, poi la riga rimessa. Un test
+      scritto dopo il codice non ha mai dimostrato di poter fallire.
+
+      ⚠️ **Resta un limite dichiarato, non un residuo da fare**: `HashStableId` in `RTHexMapAsset.cpp`
+      duplica il criterio di `MixName` invece di condividerlo, perché `Map/` non può dipendere da `Turn/`.
+      Se i due criteri divergono, divergono i due hash sullo stesso campo — cioè il difetto che `#986` ha
+      chiuso. Il commento lo dice accanto a entrambi.
+
       ➕ **Track aperta il 2026-08-16 su `#986`**, nello stesso worktree che ha appena chiuso `#593`:
       `unit_presentation` e' IDLE e il suo write-set e' rilasciato, quindi i due elenchi non si toccano
       — nessun path e' condiviso fra le due track.
