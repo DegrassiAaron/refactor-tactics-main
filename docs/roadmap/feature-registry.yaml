@@ -1410,10 +1410,18 @@ features:
       # dalla DoD di #402: D-075 ha deciso dall'altra parte (`PushResistance` 1 -> 0), quindi quel nome
       # avrebbe significato il contrario di cio' che il file verifica.
       - Spec.Combat.BastionIsPushedLikeAnyone
-      # Il quarto NON si scrive, e non e' un rinvio: `Spec.Brace.PushBeyondGuardThreshold` chiedeva una
-      # spinta di 2 per far cedere `Guard` e mostrare la clausola di `Brace`. D-074 (uscita (B) di #400)
-      # ha deciso di NON introdurla e di riscrivere invece la clausola: senza quel numero lo scenario non
-      # ha soggetto. Rinasce solo se una v0.2 introduce la spinta forte.
+      # Il quarto NON si scrive, e la ragione e' CAMBIATA il 2026-08-16: `Spec.Brace.PushBeyondGuardThreshold`
+      # chiedeva una spinta di 2 per far cedere `Guard` e mostrare la clausola di `Brace`. D-074 (uscita (B)
+      # di #400) aveva deciso di NON introdurla, quindi lo scenario restava senza soggetto.
+      #
+      # 🔵 Il soggetto e' arrivato, e non dal catalogo azioni: `Weapon.Impact` porta lo spostamento di
+      # `Riva.PressureJet` a 2 (D-085) ed e' il default di Phase (D-089). La riga diceva «rinasce solo se una
+      # v0.2 introduce la spinta forte»: la spinta forte e' in v0.1.
+      #
+      # Resta non scritto per una ragione diversa: la proprieta' e' gia' coperta da un TEST —
+      # `RefactorTactics.Equipment.PushTwoSeparatesGuardFromBrace`, che contro una spinta di 2 misura
+      # `Guard` che cede e `Brace` che regge. Uno scenario aggiungerebbe la stessa asserzione passando dal
+      # turno completo: e' lavoro utile, non un buco di copertura. Se si scrivera', il suo posto e' qui.
     wiki_refs:
       - wiki:azioni-e-movimento
     wiki_note: >-
