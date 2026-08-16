@@ -4649,7 +4649,12 @@ features:
       - docs/decisions/adr-0001-skeletal-unit.md
       # Owner del mapping identità RT -> slot asset Paragon (D-037).
       - docs/characters/paragon.md
-    issues: [286, 287, 288, 289]
+    # ➕ `593` entra il 2026-08-16. `execution-graph.yaml` la dichiarava in **tre** punti e nessuna
+    # feature la rivendicava: `validate` lo diceva da giorni («il suo domain_group
+    # 'characters_content' non e' verificabile»), ed era vero — la issue che rifa' la gerarchia dei
+    # componenti di `ARTUnit` non poteva che appartenere a questa feature. Preesistente in `main`,
+    # chiusa qui perche' e' il turno che la implementa.
+    issues: [286, 287, 288, 289, 593]
     tests:
       - RefactorTactics.Unit.TeamColorFor
       - RefactorTactics.Unit.RingLocalZ
@@ -4657,12 +4662,22 @@ features:
       # #593: pinnano la CAUSA della deformazione, che si vede solo in editor ma si misura qui.
       - RefactorTactics.Unit.RootIsNeutral
       - RefactorTactics.Unit.SelectionDoesNotScaleRoot
+      # 🔴 Il terzo mancava, ed era il piu' importante: e' l'unico che falsifica l'anello sepolto nel
+      # disco della cella. Scritto in code review dopo che quel difetto era passato con la suite verde,
+      # e dichiarato qui solo al giro dopo.
+      # ⚠️ Cosa NON era in pericolo, per non prendersi un merito falso: `suite --run-log` deriva il
+      # proprio perimetro da `Source/RefactorTactics/Tests/`, non da questa lista, quindi il test veniva
+      # eseguito e contato comunque. Cio' che mancava e' la TRACCIABILITA': `validate` verifica che ogni
+      # pattern qui combaci con un test esistente, mai il verso opposto — quindi il gate `automation` di
+      # questa feature poggiava su un elenco che sottodichiarava se stesso, e chi leggeva il registry per
+      # sapere cosa protegge la presentazione non trovava l'unico test che protegge la sua visibilita'.
+      - RefactorTactics.Unit.RingClearsCellDisc
     scenarios: []
     wiki_refs:
       - docs/characters/index.md
     last_verified:
       date: 2026-08-16
-      commit: 5aa5fe50
+      commit: ee2dcbb3
     notes: >
       Il C++ (spawn con fallback, facing di presentazione, anello di team) è in `main`, il lavoro
       in editor no. Fino al 2026-08-08 era la milestone **M8** senza epic corrispondente nella vista
