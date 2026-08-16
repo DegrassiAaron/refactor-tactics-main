@@ -2448,6 +2448,13 @@ tracks:
       # Editor. La premessa era vera come fatto e falsa come causa — i test non sono mai stati scritti,
       # non erano impossibili. Tre difetti dello stesso modulo in una seduta sono l'argomento per scriverli.
       - Source/RefactorTacticsEditor/Private/Tests/
+      # ➕ **`#931` sintomo 1**, la cui causa è passata da ipotesi a fatto leggendo il codice engine:
+      # `UTransformProxy::SetTransform` aggiorna `SharedTransform` e fa broadcast, ma **non muove il
+      # gizmo** — e `OnTransformChanged` non compare in tutto `CombinedTransformGizmo.cpp`, quindi il gizmo
+      # non si iscrive al proprio proxy. Il `GizmoActor` è posizionato una volta sola in `SetActiveTarget`
+      # (`CombinedTransformGizmo.cpp:1346`) e poi guidato dai sub-gizmo: scrivere sul proxy non lo sposta.
+      # La correzione è di due righe e l'include c'è già. Zero contese misurate sui branch remoti.
+      - Source/RefactorTacticsEditor/Private/Tools/RTHexArchTool.cpp
       - Source/RefactorTacticsEditor/RefactorTacticsEditor.Build.cs
     # ➖ **Il `derives_from` segue il file**: la catena `test-manuali-pie.md` → `editormap.shortlist.md`
     # + `project-graph.json` passa a `playtest` insieme alla sorgente. È la regola già scritta in
