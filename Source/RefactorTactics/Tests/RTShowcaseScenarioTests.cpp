@@ -748,12 +748,19 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 			// compatibile con un T4 che si sblocca e non apre nessuna finestra — cioe' esattamente il verde
 			// che la fase B esiste per non produrre. `scriptedDecisionsUnused` e' la meta' negativa: una
 			// decisione dichiarata e mai consumata significa finestra scoperta, e l'harness la conta.
-			// ⚠️ **La virgola finale fa parte dell'asserzione, e non e' pedanteria**: senza, `": 1"` e' un
-			// prefisso e il `Contains` accetterebbe anche `": 12"` — cioe' il conteggio sbagliato, dentro un
-			// verde. Oggi lo showcase dichiara una decisione sola e il difetto non morde; morderebbe alla
-			// prima che si aggiunge, che e' quando nessuno starebbe piu' guardando questa riga.
-			TestTrue(TEXT("il T4 ha applicato la decisione scriptata"),
-				Json.Contains(TEXT("\"scriptedDecisionsApplied\": 1,")));
+			// ⚠️ **La virgola finale fa parte dell'asserzione, e non e' pedanteria**: senza, `": 2"` e' un
+			// prefisso e il `Contains` accetterebbe anche `": 21"` — il conteggio sbagliato dentro un verde.
+			// E il caso non e' ipotetico: con `": 1"` questa riga sarebbe rimasta verde nel passaggio da UNA
+			// decisione a DUE, perche' un prefisso non distingue «1» da «1 seguito da altro».
+			//
+			// ⏱️ **Da 1 a 2 con `#1038`**: lo showcase ha riavuto la propria coreografia. Wraith sale sulla
+			// cresta al T1, predice da lassu' al T2, scende attraverso il fuoco al T3 e arma al T4 da una
+			// riga — `r = -1` — la cui linea verso ovest non ha porte. Gadget entra per primo (`HOLD`),
+			// Phase dopo (`FIRE`): DUE opportunity distinte, che e' cio' che `showcase-v0.1.md` §«Turno 4»
+			// chiede. Il turno precedente ne apriva una sola perche' il T1 parcheggiava Wraith sulla lane
+			// d'acqua, dietro la porta chiusa — e nessuna linea di Overwatch usciva da li'.
+			TestTrue(TEXT("il T4 ha applicato ENTRAMBE le decisioni scriptate"),
+				Json.Contains(TEXT("\"scriptedDecisionsApplied\": 2,")));
 			TestTrue(TEXT("e non ne ha lasciata nessuna inutilizzata"),
 				Json.Contains(TEXT("\"scriptedDecisionsUnused\": 0,")));
 		}
