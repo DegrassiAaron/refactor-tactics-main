@@ -34,12 +34,29 @@ Valgono per **ogni** task, senza ripeterli:
   difetto ha rotto la build Shipping due volte.
 - **Unity build**: helper e costanti in namespace anonimo devono avere nomi **distinti da ogni altro file di
   test**. La translation unit è condivisa e due omonimi collidono al merge della unity.
-- **Nomi eroe**: il codice porta ancora i nomi legacy (`Hero.Flux`, `Hero.Riva`, `Hero.Bastion`,
-  `Hero.Vektor`) — `D-130` non è stata eseguita. Nei test si usano **quelli**, o il catalogo non risolve.
+- **Nomi eroe — misurato, non ereditato.** `RTHeroCatalogLibrary.cpp` dichiara **solo**
+  `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor` (tre occorrenze ciascuno), e
+  `Gadget`/`Phase`/`Riktor`/`Wraith` hanno **zero** occorrenze in tutto `Source/`: la fetta 3 di `D-130`
+  (`#753`) non è stata eseguita. Nei test si usano **quelli**, o il catalogo non risolve — e questo piano ne
+  contiene **19** occorrenze, tutte dentro esempi di codice.
+  ⛔ **Non «bonificarle»**: `check-docs-naming.py` classifica questo file fra i *registri datati* e le
+  tollera proprio perché descrivono il codice com'è. La regola del gate è annotarle accanto
+  all'affermazione, ed è ciò che questa riga fa. Il giorno in cui `#753` atterra, cambiano **insieme** al
+  catalogo — non prima, o i test smettono di risolvere l'eroe.
+  ⚠️ Da non confondere con gli **id di scenario** (`Guardia`, `Corsa`): quelli sono etichette locali al file
+  e non hanno niente a che vedere col catalogo.
 - **Niente `Delay`, Tick o `DeltaTime`** per decidere sequencing. Il decisore risponde subito.
 - **Due `--check` ereditati**: `RTScenarioSession.cpp` alimenta `project-graph.json` e
   `scenariomap.shortlist.md`. Prima di ogni commit che lo tocca:
   `python scripts/feature_registry.py generate --check` e `... shortlist --check`.
+- 🔴 **Uno scenario JSON con `expect` vuoto viene RIFIUTATO dal loader** — *«nessuna assertion dichiarata:
+  lo scenario passerebbe sempre»* (`RTScenarioLoader.cpp:1051`). Scoperto eseguendo il task 1, non leggendo:
+  la prima stesura del suo JSON aveva `"expect": []` e il test è fallito con quel messaggio. Ogni JSON di
+  prova porta almeno un'assertion — `{ "type": "TurnsCompleted", "value": 1 }` basta.
+  ⚠️ La guardia è **solo nel loader**: gli scenari costruiti in memoria (task 5-9) non la attraversano,
+  perché `URTScenarioRunner::Run` riceve la struct già fatta. Non è un permesso a ometterla dove l'asserzione
+  riguarda lo stato di gioco — è il motivo per cui in quei task le verifiche stanno sui contatori del
+  referto e non su `expect`.
 
 **Come si lancia un test** (una run per volta, `-abslog` distinto: l'engine è condiviso fra i worktree):
 
