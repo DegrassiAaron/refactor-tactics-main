@@ -2314,6 +2314,14 @@ tracks:
     writable:
       - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
       - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
+      # ⬅️ **RIENTRATI il 2026-08-16, col merge di #1028.** Erano usciti verso `playback` per CP 47.7 e
+      # tornano appena quel lavoro è in `main`: il passo 4 di `#78` — la resa del livello di certezza in
+      # `ARTHUD` — vive esattamente qui, e tenerli altrove terrebbe ferma questa issue su un lavoro finito.
+      # ⚠️ Rientrano **per nome**, non come prefisso: il resto di `UI/` era già tornato quando `playback`
+      # ha stretto il proprio write-set, e riscrivere `Source/RefactorTactics/UI/` rifarebbe la
+      # prenotazione larga che quel giro ha tolto.
+      - Source/RefactorTactics/UI/RTHUD.h
+      - Source/RefactorTactics/UI/RTHUD.cpp
       - Source/RefactorTactics/UI/RTHudViewModel.h
       - Source/RefactorTactics/UI/RTHudViewModel.cpp
       - Source/RefactorTactics/UI/RTIconLibrary.h
@@ -2834,7 +2842,16 @@ tracks:
       stessa forma che `simulation` ha avuto su `#578` con il mandato A in attesa.
     mandate: docs/technical/qa-prompt-terminal-d-verifiche-pie.md
     writable:
-      - docs/technical/test-manuali-pie.md
+      # ➖ **`docs/technical/test-manuali-pie.md` PRESTATO a `playback` il 2026-08-16, su `#1015`.**
+      # Torna qui alla chiusura di quella track: e' un prestito con scadenza, non una cessione.
+      # ⚠️ **E' il secondo prestito dello stesso file allo stesso destinatario, per la stessa voce.**
+      # Il primo — registrato nella nota di `playback` — serviva a *scrivere* `PIE-V01-PLAYSPEED`;
+      # questo serve a renderla *eseguibile*, togliendo dalla precondizione la frase «il controllo in HUD
+      # e' il passo 4 e dipende da #78», che la PR #1028 ha reso falsa. Chi scrive il controllo e' chi sa
+      # cosa la voce deve chiedere di guardare, ed e' la ragione per cui il prestito e' la forma giusta
+      # invece di un handoff che aspetta una sessione di `playtest` che non c'e'.
+      # ✅ Misurato libero al momento del prestito: `playtest` e' `IDLE` con `issue`, `branch` e
+      # `worktree` tutti a `null` — nessuna sessione aperta, non solo nessuna dichiarata.
       - docs/technical/qa-prompt-terminal-d-verifiche-pie.md
     # La catena arriva qui **con la sorgente**, da `content_editor`: la vista segue il file, e il file
     # ha cambiato proprietario. `project-graph.json` ha altre sorgenti — `spatial` ne possiede una —
@@ -3772,9 +3789,33 @@ tracks:
   playback:
     status: ACTIVE
     issue: 1015
-    branch: feat/1015-hud-velocita
+    branch: docs/1015-handoff-pie
     worktree: "D:/rt-1015"
     note: >-
+      ✅ **Il CODICE di `#1015` è atterrato: PR #1028 mergiata (`02e85e23`, `2026-08-16T14:39:53Z`),
+      branch cancellato lato server.** `RefactorTactics.HUD` 16/16 e il gate di #955 invariato,
+      verificati **sull'albero fuso** e non sul mio — `main` era avanzato di 27 commit fra il push e il
+      merge, e l'unica intersezione era questo file.
+      🔵 **La track resta `ACTIVE` perché la issue NON è chiusa**, e le due cose non coincidono: restano
+      le voci 6 e 7 del DoD — la verifica manuale `PIE-V01-PLAYSPEED` resa eseguibile, e poi eseguita da
+      una persona. `branch` passa a `docs/1015-handoff-pie` perché quello vecchio non esiste più: un
+      campo che nomina un branch cancellato è il difetto che questo file rimprovera a `client_tools`
+      quando dichiarava `D:/rt-78` dopo che la directory era sparita.
+      ✂️ **Il write-set si svuota di tutto ciò che è stato scritto, e resta solo ciò che si scriverà.**
+      `UI/RTHUD.{h,cpp}` **tornano a `client_tools`**, dove il passo 4 di `#78` li aspetta —
+      trattenerli ora bloccherebbe quella issue su un lavoro finito. `Player/RTPlayerController.{h,cpp}`,
+      `Turn/RTTurnManager.h` e `Tests/RTHudPlaybackSpeedTests.cpp` tornano liberi.
+      ➕ **`docs/technical/test-manuali-pie.md` è PRESO IN PRESTITO da `playtest`**, che è `IDLE` su tutti
+      e quattro i campi. Torna alla chiusura. È il secondo prestito dello stesso file per la stessa voce,
+      e la ragione è nella nota di `playtest`.
+      ➕ **`docs/technical/progettazione-hud.md` va in `integration_only`**, e non resta qui. Il commit
+      di apertura l'aveva trovato in **nessun** insieme — la condizione «non assegnato» di `D-139` — su
+      un file che è owner documentale di un checkpoint, e aveva scritto *«va messo in `integration_only`
+      da chi riconcilia il batch»*. Rimandarlo una seconda volta lo lascerebbe scoperto esattamente come
+      prima: la §29 è scritta, il file non serve più a questa track, e un difetto trovato si chiude
+      quando si può invece che quando tocca a qualcun altro.
+      ---
+      *Registro della riapertura, per la provenienza:*
       🔵 **RIAPERTA il 2026-08-16 su `#1015` (CP 47.7), ed è il «passo 4» che la chiusura qui sotto
       dichiarava senza issue.** Quella riga diceva: *«Non ha una issue propria: se la si vuole, va
       aperta»* — è stata aperta, ed è `#1015`. I quattro campi tornano veri insieme, come lo schema
@@ -3879,16 +3920,19 @@ tracks:
       # `RTIconCatalogData.h`, `RTScreenHudWidgets.*`. Stringere senza restituire lascerebbe quattro file
       # in nessun insieme, che e' la condizione «non assegnato» di `D-139`: peggio di una prenotazione
       # larga, perche' invisibile.
-      - Source/RefactorTactics/UI/RTHUD.h
-      - Source/RefactorTactics/UI/RTHUD.cpp
-      # ➕ **Dichiarato ORA e non prima**: la nota diceva *«serve solo sul ramo A … si dichiara quando il
-      # bivio e' deciso»*. Il ramo e' A, quindi serve — la scorciatoia da tastiera nasce qui. Misurato
-      # libero: `RefactorTactics/Player` non compare in nessun altro `writable` di questo file.
-      - Source/RefactorTactics/Player/RTPlayerController.h
-      - Source/RefactorTactics/Player/RTPlayerController.cpp
-      # ➕ File **nuovo**, dichiarato prima di crearlo: «conteso da nessuno» non e' un'assegnazione.
-      # Per nome e non come prefisso `Tests/`, che e' condivisa fra tutte le track.
-      - Source/RefactorTactics/Tests/RTHudPlaybackSpeedTests.cpp
+      # ⬅️ **`UI/RTHUD.{h,cpp}` RESTITUITI a `client_tools` col merge di #1028 (2026-08-16).** Il lavoro
+      # che li teneva e' in `main`; trattenerli terrebbe fermo il passo 4 di `#78`, che vive negli stessi
+      # due file. Un `writable` dice chi **scrivera'** — e questa track non li scrivera' piu'.
+      # ➖ **Usciti insieme a loro**: `Player/RTPlayerController.{h,cpp}` e
+      # `Tests/RTHudPlaybackSpeedTests.cpp` (liberi, come erano prima), e `Turn/RTTurnManager.h` — preso
+      # per un `const` getter e restituito appena l'ha avuto.
+      # ➡️ **`docs/technical/progettazione-hud.md` NON e' fra questi: e' passato in `integration_only`.**
+      # La riga qui sotto diceva *«alla chiusura torna dov'era, cioe' in nessun insieme … va messo in
+      # `integration_only` da chi riconcilia»*, ed e' una promessa che si mantiene ora invece di
+      # rimandarla a una riconciliazione futura — altrimenti il file torna scoperto com'era.
+      # ⬅️ **Preso in prestito da `playtest`, che e' `IDLE` su tutti e quattro i campi**: e' cio' che
+      # resta da scrivere per le voci 6 e 7 del DoD. Torna alla chiusura della track.
+      - docs/technical/test-manuali-pie.md
       # ↩️ **RIPRESO, dopo essere stato rilasciato dallo stesso branch poche ore prima, e la correzione va
       # detta invece che nascosta in un elenco.** Il commit precedente ha liberato i sei path di `#955`
       # scrivendo che *«il DoD di #1015 vieta di toccare il modello»*. Vero per la scrittura; **troppo
@@ -3903,15 +3947,17 @@ tracks:
       # ⛔ **Solo l'header, e solo per un getter.** `RTTurnManager.cpp` resta fuori: se il lavoro arrivasse
       # a chiederlo, sarebbe il segnale che la UI e' entrata nel modello — lo stesso segnale che il DoD
       # attribuisce al gate di determinismo.
-      - Source/RefactorTactics/Turn/RTTurnManager.h
+      # ➖ **RILASCIATO col merge di #1028**: il getter c'e', ed e' tutto cio' che serviva. Un header
+      # tenuto «per sicurezza» dopo che il lavoro e' atterrato e' la prenotazione che questa stessa track
+      # ha gia' sbagliato una volta, coi sei path di `#955`.
       # ➕ **L'owner documentale, assegnato con la decisione e non prima.** Il commit precedente lo aveva
       # trovato in nessun insieme e lo aveva registrato senza prenderlo, scrivendo *«va assegnato con la
       # decisione A/B: chi lo scrivera' si sa solo allora»*. Si sa: A e' una deviazione dalla §13.2, che
       # colloca i playback controls nel layer §4.1, e una deviazione non dichiarata nel documento che
       # contraddice e' una lacuna, non una scelta. La §29 va aggiornata da questa track.
-      # ⚠️ **Preso per un turno.** Alla chiusura di `#1015` torna dov'era, cioe' in nessun insieme — che
-      # e' un difetto preesistente e non mio: va messo in `integration_only` da chi riconcilia il batch.
-      - docs/technical/progettazione-hud.md
+      # ⚠️ **Preso per un turno**, e restituito col merge di #1028: la §29 e' scritta. ➡️ Non torna «in
+      # nessun insieme» come diceva questa riga: va in **`integration_only`**, che e' la promessa che
+      # faceva due righe piu' avanti — mantenuta subito invece che rimandata.
       # ➖ **I sei path di `#955` sono USCITI il 2026-08-16, alla riapertura su `#1015`.** Erano rimasti
       # con la motivazione *«questa track li riscrivera' al passo 4»*, e il passo 4 e' arrivato dicendo il
       # contrario: il DoD di `#1015` vieta di toccare il modello. Elencati qui per la provenienza —
@@ -3928,7 +3974,15 @@ tracks:
       # lo toccassero (`diff --name-only origin/main...<b>` sui dieci remoti). Era di `replay_ui` quando
       # questa track e' nata, poche ore prima: nel frattempo `replay_ui` e' passata a `#999` e lo ha
       # rilasciato. Un write-set si misura quando lo si prende, non quando lo si e' letto la prima volta.
-    derives_from: []
+    # ➕ **Arriva col prestito, il 2026-08-16: la vista segue la sorgente, e con la sorgente arriva
+    # l'obbligo.** `derives_from` era `[]` perche' il write-set precedente non alimentava viste; ora
+    # `test-manuali-pie.md` e' qui, e le sue due viste vanno rigenerate da chi lo scrive. Copiato dalla
+    # dichiarazione di `playtest`, non dedotto — e li' resta, perche' il file torna.
+    derives_from:
+      - source: docs/technical/test-manuali-pie.md
+        regenerates:
+          - docs/roadmap/editormap.shortlist.md
+          - docs/roadmap/project-graph.json
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
@@ -3996,6 +4050,15 @@ integration_only:
   - docs/roadmap/plans/README.md
   - docs/technical/workflow-parallel-claude.md
   - docs/technical/scenario-map.md
+  # ➕ **Entra il 2026-08-16, e fino a oggi non era in NESSUN insieme** — né assegnato a una track, né
+  # riconciliato, né generato. Misurato aprendo `#1015`: `grep` su questo file lo trovava in **zero**
+  # righe, mentre è l'owner documentale dello Screen HUD (§4.1, §13.2, §29) e due voci di DoD chiedevano
+  # di aggiornarlo. È la condizione «non assegnato» di `D-139` su un documento che governa una feature.
+  # ⚠️ `integration_only` e non un `writable`, e la ragione è la stessa di `progettazione-*` in generale:
+  # lo tocca **chiunque** implementi un pezzo di HUD — `client_tools` per gli intenti, `frontend_shell`
+  # per le schermate, `playback` per la §29 — e prenotarlo per una sola track bloccherebbe le altre su un
+  # file che nessuna possiede davvero.
+  - docs/technical/progettazione-hud.md
   # ➕ Entra qui il 2026-08-15, ed è la risposta alla domanda che la chiusura di `simulation` ha posto:
   # un `mandate` sta nel `writable` della track che lo esegue (così lo corregge chi lo misura sbagliato),
   # ma il Terminal A ha **finito** — merge target §10 soddisfatto e misurato — e la track è ripartita su
