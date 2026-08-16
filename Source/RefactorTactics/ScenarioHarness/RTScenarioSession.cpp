@@ -193,7 +193,7 @@ namespace
 			// e' il blocco VERO di `Spec/Brace/ProfileChangesResponse`, che fino a oggi ne dichiarava uno
 			// falso.** Quello scenario chiedeva `DecisionBoundary` scrivendo, nella propria nota, che «con la
 			// sola finestra di CP 14.5 questo file puo' diventare verde». Misurato: **non puo'**. Gli serve
-			// che `Hero.Riva` porti `Profile.Sidestep`, cioe' un profilo di reazione con DUE risposte legali,
+			// che `Hero.Phase` porti `Profile.Sidestep`, cioe' un profilo di reazione con DUE risposte legali,
 			// e `grep -rn "Profile.Sidestep\|ReactionProfile" Source/` da' **zero** — il concetto non esiste
 			// in nessuna forma, non e' un rename e non e' un campo vuoto da riempire.
 			//
