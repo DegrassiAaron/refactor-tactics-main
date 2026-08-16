@@ -3969,6 +3969,19 @@ tracks:
       # in review. Chi riprende `cp75` merge `main` e trova venti righe in piu' in `ConcludeTurn`, in una
       # funzione che quel WIP non tocca (`SelfReposition` vive nel Move).
       - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # ➕ **L'header entra con `#1067`**, e la richiesta di `#625` diceva l'opposto — *«esce solo il
+      # `.cpp`: se servisse l'header, la richiesta andrebbe rifatta invece di allargare questa»*. E'
+      # servito, ed e' rifatta qui invece di allargare quella.
+      # ⚠️ **Serve per un parametro, non per un membro nuovo**: `ApplyTerrainOnEnterEffects` e
+      # `ApplyForcedDisplacement` ricevono la fase da dichiarare nella voce. Verificato che non basti
+      # leggere `Phase`: il ciclo delle fasi esce **quando vale `Planning`** e la Cleanup gira dopo,
+      # quindi il membro direbbe `Planning` — una fase che il replay non osserva mai — per tutte le voci
+      # di quella fase. E' il motivo per cui ogni altra voce del Cleanup la scrive letteralmente.
+      # ✅ **Misurato libero**, non dedotto: `playback` l'ha rilasciato alla riapertura su `#1015`
+      # (i sei path di `#955`), e sui **nove** branch remoti vivi nessuno lo tocca —
+      # `git diff --name-only origin/main...origin/<b>` su ciascuno. L'unica intersezione dell'intero
+      # sweep resta `feat/cp75-selfreposition` sul `.cpp`, gia' dichiarata sopra e gia' decisa.
+      - Source/RefactorTactics/Turn/RTTurnManager.h
       # ➕ File **non assegnato a nessuna track**, dichiarato prima di scriverci: ha gia' il setup che fa
       # bruciare un'unita' sul percorso reale (`MakeEnvWorld`/`PlanEnvAction`/`RunEnvTurn`), ed e' li' che
       # il DoD chiede di leggere `GetTurnLog()` invece di costruire la voce a mano.

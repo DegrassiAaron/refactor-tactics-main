@@ -1706,4 +1706,164 @@ bool FRTHazardBurningShieldedLogTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Actions.Hazard.TerrainDamageLeavesACanonicalEntry` — il danno **all'ingresso** entra nel TurnLog
+ * (`#1067`).
+ *
+ * 🔴 Gemello di `#625`, e il pezzo **piu' grosso dei due**: `Fire` fa **10** danni a chi ci entra contro
+ * gli **8** del Cleanup. Fino al 2026-08-16 esisteva solo in `AddLogEvent` — un `UE_LOG` piu' un buffer
+ * circolare troncato — quindi il replay vedeva gli HP scendere senza un evento che lo spiegasse.
+ * Misurabile sul test di `#625`: il bersaglio scendeva `90 → 80 → 72`, diciotto danni, e otto tracciati.
+ *
+ * ⚠️ Si **cammina** dentro il fuoco sul percorso vero — `PlannedPath` e `RunEnvTurn` — invece di chiamare
+ * la funzione: e' un requisito del DoD, e la ragione e' che la fase dichiarata dalla voce dipende da
+ * QUALE dei quattro siti la chiama. Una chiamata diretta non lo proverebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardTerrainEntryLogTest,
+	"RefactorTactics.Actions.Hazard.TerrainDamageLeavesACanonicalEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardTerrainEntryLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+	if (!TestNotNull(TEXT("mappa"), MapActor)) { DestroyEnvWorld(World); return false; }
+
+	// Una cella di fuoco sul percorso. La si accende nel DATO, non con un'azione: qui il soggetto e' il
+	// terreno che c'e' gia', non chi lo crea.
+	FRTHexCellData Fuoco(FRTCellId(1, 0));
+	Fuoco.Surface = ERTHexSurface::Fire;
+	MapActor->MapAsset->AddOrUpdateCell(Fuoco);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Mover = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Mover || !TM) { DestroyEnvWorld(World); return false; }
+
+	// Punti vita fissati qui e non ereditati dal catalogo eroi: e' il ramo `Hit` che si vuole verificare,
+	// e un ribilanciamento non deve poterlo far diventare `Lethal` da un altro file.
+	Mover->Shield = 0;
+	Mover->Health = 60;
+	Mover->PlannedAbilityIndex = INDEX_NONE; // nessuna azione: l'unica fonte di danno e' il terreno
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	RunEnvTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: attraversando il fuoco ha perso HP"), Mover->Health < 60))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	int32 Trovate = 0;
+	FRTTurnLogEntry Voce;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Terrain.Fire")))
+		{
+			++Trovate;
+			Voce = E;
+		}
+	}
+
+	if (TestEqual(TEXT("una voce di Terrain.Fire nel TurnLog"), Trovate, 1))
+	{
+		// ⚠️ **`Move` e non `Cleanup`**: e' il danno dell'INGRESSO, e si distingue da quello del `Burning`
+		// per fase **e** per `ActionId`. Se la fase fosse letta dal membro `Phase` sarebbe sbagliata — il
+		// ciclo delle fasi esce su `Planning` e la Cleanup gira dopo.
+		TestEqual(TEXT("nella fase del movimento"), Voce.Phase, ERTMatchPhase::Move);
+		TestEqual(TEXT("categoria Combat"), Voce.Category, ERTLogCategory::Combat);
+		TestEqual(TEXT("il danno dichiarato dal catalogo terreni"), Voce.Amount, 10);
+		TestEqual(TEXT("il soggetto e' chi ci e' entrato"), Voce.UnitId, Mover->StableUnitId);
+		TestNotEqual(TEXT("e non lo zero del «nessuno»"), Voce.UnitId, 0);
+		// La cella che ha colpito: qui **e' davvero la causa**, al contrario del `Burning` che segue
+		// l'unita' anche fuori dal fuoco.
+		TestEqual(TEXT("la cella e' quella in fiamme"), Voce.SrcCell, FRTCellId(1, 0));
+		TestEqual(TEXT("non letale: Hit"), Voce.Outcome, (uint8)ERTCombatOutcome::Hit);
+	}
+
+	// ⚠️ E le DUE voci del fuoco convivono, distinte: l'ingresso e il Cleanup. E' il motivo per cui la
+	// causa sta in `ActionId` e non nella categoria — senza, il replay avrebbe due danni indistinguibili.
+	int32 Burning = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Status.Burning"))) { ++Burning; }
+	}
+	TestEqual(TEXT("e accanto c'e' quella del Burning, distinta"), Burning, 1);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `Actions.Hazard.TerrainDeathIsNotSilent` — chi muore **entrando** lascia una traccia.
+ *
+ * 🔴 Era il caso peggiore del difetto: un'unita' con pochi HP spinta o mossa su una cella di fuoco moriva
+ * dentro `ApplyTerrainOnEnterEffects` **senza lasciare niente** — nessun `Lethal`, nessun soggetto, e per
+ * `DescribeFirstDivergence` nessun punto da nominare. Un'unita' spariva dal campo e il replay non poteva
+ * dire perche'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardTerrainDeathLogTest,
+	"RefactorTactics.Actions.Hazard.TerrainDeathIsNotSilent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardTerrainDeathLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+	if (!TestNotNull(TEXT("mappa"), MapActor)) { DestroyEnvWorld(World); return false; }
+
+	FRTHexCellData Fuoco(FRTCellId(1, 0));
+	Fuoco.Surface = ERTHexSurface::Fire;
+	MapActor->MapAsset->AddOrUpdateCell(Fuoco);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Mover = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Mover || !TM) { DestroyEnvWorld(World); return false; }
+
+	// ⚠️ Sotto i **10** danni dell'ingresso, cosi' che a ucciderla sia QUEL danno e non il `Burning` del
+	// Cleanup: e' la stessa attenzione che `#625` ha dovuto imparare al contrario, dove `Health = 1`
+	// faceva morire l'unita' all'ingresso invece che nel Cleanup.
+	Mover->Shield = 0;
+	Mover->Health = 6;
+	Mover->PlannedAbilityIndex = INDEX_NONE;
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	RunEnvTurn(TM);
+
+	if (!TestFalse(TEXT("premessa: e' morta"), Mover->IsAlive()))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	int32 Letali = 0;
+	int32 NonLetali = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Terrain.Fire")) && E.UnitId == Mover->StableUnitId)
+		{
+			(E.Outcome == (uint8)ERTCombatOutcome::Lethal ? Letali : NonLetali) += 1;
+		}
+	}
+	TestEqual(TEXT("una voce letale, col suo soggetto"), Letali, 1);
+	TestEqual(TEXT("e nessuna seconda voce per lo stesso fatto"), NonLetali, 0);
+
+	// ⚠️ E **nessuna** voce di `Burning`: e' morta prima di arrivarci. Senza questa riga il test resterebbe
+	// verde anche se il `Lethal` arrivasse dal Cleanup invece che dall'ingresso — cioe' misurando l'altro
+	// difetto, gia' chiuso.
+	int32 Burning = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Status.Burning"))) { ++Burning; }
+	}
+	TestEqual(TEXT("morta all'ingresso, non nel Cleanup"), Burning, 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
