@@ -2533,7 +2533,17 @@ tracks:
       # pendenti nei cinque working tree. Verificato nei due versi dopo la modifica —
       # `M_HexCell.uasset` → exit 1 (versionabile), un `M_Altro.uasset` qualsiasi → exit 0 (ignorato):
       # la regola è specifica per quel file, non ha aperto la cartella.
-      - .gitignore
+      #
+      # ➖ **`.gitignore` ESCE il 2026-08-16 e passa a `integration_only`**, e non perché serva a
+      # `frontend_shell`: perché serve a **chiunque**. Ogni track che versiona un asset deve aggiungere la
+      # propria riga di allowlist, e tenerlo in un `writable` significa che tutte le altre devono chiedere
+      # il permesso — o, più realisticamente, farlo lo stesso. È la definizione di `integration_only`:
+      # *«i file che più branch potrebbero voler toccare non si assegnano»*.
+      # Misurato prima di spostarlo: `#451` è **CLOSED** e nessun branch remoto la nomina
+      # (`git ls-remote --heads origin | grep -c 451` → 0), quindi questa track non lo sta usando. La
+      # riallocazione non toglie niente a una sessione viva.
+      # ⚠️ Il primo caso che lo dimostra è arrivato subito: CP 46.2 doveva riammettere tre `WBP_RT_*` e
+      # la scrittura sarebbe stata uno **stop** — per una riga in un file che nessuno stava toccando.
       # ➕ **Il file del mandato QA Terminal C**, entrato con la PR #919: i tre mandati sono passati nel
       # `writable` della track che li esegue, perché chi esegue un mandato lo corregge quando lo misura
       # sbagliato. Vedi la documentazione di `mandate` nello schema in testa al file.
@@ -3790,6 +3800,15 @@ tracks:
 # **deve** esserlo. Vale per `feature_registry.py` / `test_feature_registry_releases.py`.
 
 integration_only:
+  # ➕ **Entra il 2026-08-16, da `content_editor`.** Ogni track che versiona un asset deve aggiungere la
+  # propria riga di allowlist qui dentro — `Content/**/*.uasset` è escluso e i singoli file si riammettono
+  # con un `!` per riga. Tenerlo in un `writable` significa che tutte le altre track devono chiedere il
+  # permesso per una riga, e il primo caso reale è arrivato subito: CP 46.2 doveva riammettere tre
+  # `WBP_RT_*` e la scrittura sarebbe stata uno **stop**.
+  # ⚠️ La regola dell'allowlist resta quella che `#449` ha pagato: **la riga va aggiunta PRIMA che l'asset
+  # esista**, altrimenti `git add` non fa nulla e non lo dice. L'oracolo è `git check-ignore -q <file>`
+  # → exit **1** significa versionabile; con `-v` esce 0 in entrambi i casi e non distingue.
+  - .gitignore
   - AGENTS.md
   - CLAUDE.md
   - docs/decisions/RT_PDR_00_Decision_Log.md
