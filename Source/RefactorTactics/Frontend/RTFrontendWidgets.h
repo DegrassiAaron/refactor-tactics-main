@@ -66,6 +66,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
 	void SetPhase(ERTLoadPhase InPhase);
 
+	/**
+	 * La visibilita' della schermata, nel tipo che il binding di `Visibility` accetta.
+	 *
+	 * ⚠️ Esiste per la stessa ragione di `GetBannerVisibility()`: `IsLoading()` restituisce `bool` e lo
+	 * slot vuole un `ESlateVisibility`, quindi il menu dei binding lo **filtra via** e chi cerca non lo
+	 * trova. Le tre classi di questo file hanno lo stesso problema, e averne risolta una sola avrebbe
+	 * lasciato le altre due a far perdere tempo nello stesso identico punto.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	ESlateVisibility GetLoadingVisibility() const;
+
 private:
 	UPROPERTY(Transient)
 	ERTLoadPhase Phase = ERTLoadPhase::Idle;
@@ -112,6 +123,25 @@ public:
 	/** `true` quando il modale ha qualcosa da dire. Il Blueprint lo usa per mostrarsi. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
 	bool IsArmed() const { return Outcome != ERTStartupOutcome::Ok; }
+
+	/**
+	 * La visibilita' del modale, gia' nel tipo del binding.
+	 *
+	 * ⚠️ Qui e' **`Visible` e non `SelfHitTestInvisible`**: un modale deve *fermare* i click su cio' che
+	 * sta sotto, ed e' l'unica delle tre schermate per cui il valore non e' una formalita'.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	ESlateVisibility GetModalVisibility() const;
+
+	/**
+	 * La visibilita' del pulsante `DETAILS`, gia' nel tipo del binding.
+	 *
+	 * ⚠️ In Shipping e' **sempre `Collapsed`**, perche' `GetDetail()` restituisce una stringa vuota: il
+	 * dettaglio non e' nascosto, non e' proprio compilato. Un Blueprint che disegnasse il pulsante lo
+	 * stesso mostrerebbe un bottone che apre il vuoto.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	ESlateVisibility GetDetailsVisibility() const;
 
 private:
 	UPROPERTY(Transient)
