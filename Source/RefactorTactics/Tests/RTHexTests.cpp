@@ -527,7 +527,6 @@ bool FRTHexEdgeMidpointTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
 
 /**
  * Leggibilita' tattica (pilastro di prodotto): l'overlay serve a far capire le regole della mappa, quindi due
@@ -573,3 +572,8 @@ bool FRTHexSurfaceColorTest::RunTest(const FString&)
 	}
 	return true;
 }
+
+// Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
+// invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
+// `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+#endif // WITH_DEV_AUTOMATION_TESTS
