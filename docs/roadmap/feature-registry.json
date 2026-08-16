@@ -3069,9 +3069,9 @@
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "na",
-        "replay_representable": "todo"
+        "replay_representable": "done"
       },
-      "gates_done": 6,
+      "gates_done": 7,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E8",
@@ -3261,9 +3261,9 @@
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "na",
-        "replay_representable": "todo"
+        "replay_representable": "done"
       },
-      "gates_done": 6,
+      "gates_done": 7,
       "gates_applicable": 9,
       "roadmap": {
         "epic": "E8",

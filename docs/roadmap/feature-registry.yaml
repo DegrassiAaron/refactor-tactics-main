@@ -2993,7 +2993,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
-      replay_representable: todo
+      replay_representable: done
     roadmap:
       epic: E8
       checkpoints: ["8.2"]
@@ -3124,7 +3124,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
-      replay_representable: todo
+      replay_representable: done
     roadmap:
       epic: E8
       checkpoints: ["8.1", "8.4"]

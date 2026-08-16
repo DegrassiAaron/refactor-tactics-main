@@ -1591,31 +1591,40 @@ bool FRTHazardBurningLethalLogTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
 
-	// Portata a un soffio: il danno del Cleanup la uccide. Lo scudo va a zero, o assorbirebbe il colpo e
-	// il caso letale non si presenterebbe.
+	// 🔴 **I numeri sono scelti perche' l'unita' muoia del danno GIUSTO**, e la prima stesura li aveva
+	// sbagliati: con `Health = 1` moriva ai **10** danni immediati della superficie `Fire`, senza mai
+	// arrivare al Cleanup — quindi zero voci di `Burning`, e la premessa `!IsAlive()` non se ne accorgeva
+	// perche' una morte vale l'altra per quell'asserzione.
+	//   `Fire`  -> 10 danni subito + `Burning 2`   (`RTTerrainLibrary.cpp`)
+	//   Cleanup ->  8 danni                        (`URTCombatLibrary::BurningCleanupDamage`)
+	// `Health = 12` cade nell'unica finestra che serve: sopravvive al primo (12 - 10 = 2) e muore del
+	// secondo (2 - 8 < 0). Lo scudo va a zero, o assorbirebbe il colpo e il caso letale non si darebbe.
 	Target->Shield = 0;
-	Target->Health = 1;
+	Target->Health = 12;
 
 	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
 	RunEnvTurn(TM);
 
-	if (!TestFalse(TEXT("premessa: l'unita' e' morta bruciata"), Target->IsAlive()))
+	if (!TestFalse(TEXT("premessa: l'unita' e' morta"), Target->IsAlive()))
 	{
 		DestroyEnvWorld(World);
 		return false;
 	}
 
 	int32 Letali = 0;
+	int32 NonLetali = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 	{
-		if (E.ActionId == FName(TEXT("Status.Burning"))
-			&& E.Outcome == (uint8)ERTCombatOutcome::Lethal
-			&& E.UnitId == Target->StableUnitId)
+		if (E.ActionId == FName(TEXT("Status.Burning")) && E.UnitId == Target->StableUnitId)
 		{
-			++Letali;
+			(E.Outcome == (uint8)ERTCombatOutcome::Lethal ? Letali : NonLetali) += 1;
 		}
 	}
 	TestEqual(TEXT("una voce letale, con il suo soggetto"), Letali, 1);
+	// ⚠️ E **una sola** voce in tutto: la morte la porta l'`Outcome`, non una seconda riga. Contare anche
+	// le non letali distingue «ha scritto `Lethal`» da «ha scritto due voci, una delle quali `Lethal`» —
+	// che e' la scelta di modello dichiarata nel codice, e senza questa riga non sarebbe pinnata.
+	TestEqual(TEXT("e nessuna seconda voce per lo stesso fatto"), NonLetali, 0);
 
 	DestroyEnvWorld(World);
 	return true;
