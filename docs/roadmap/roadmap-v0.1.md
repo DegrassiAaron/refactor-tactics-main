@@ -837,15 +837,15 @@ in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
 > `Flux.ReactiveCapacitor` sono cablate sulla semantica core con `MakeHeroReactionFromCoreAction` e verificate
 > **in partita** (unità configurate con `ConfigureFromHeroData`). `Vektor.InterceptShot` e `Riva.FlowReaction`
 > restano a **E14**, e il rinvio è dichiarato nei dati — slot `None`, nessun trigger — non in un commento.
-> ➖ **Dei due, uno è uscito: `InterceptShot` non è più una reazione dal 2026-08-10** (E18 CP 18.2, D-016).
-> È una **Predictive Action** con slot `Main`, `PredictiveTargeting = LockCell` e
-> `PredictionBoundary = MovementEntry`. Il rinvio a E14 è caduto per la ragione **opposta** a quella che
-> l'aveva prodotto: non le serve una finestra interattiva, le serve un boundary deterministico. Resta
-> `FlowReaction` — e resta rinviata per la ragione originale, perché produce **movimento** dentro un
-> boundary di risoluzione.
 > I test che fissavano l'assenza sono stati **sostituiti**: `Heroes.Bastion.PanelCreatesCover` ora verifica che
 > Interposition sia una reazione, `Heroes.Flux.MatchesCatalog` i suoi due effetti.
 > Dettaglio: [`spec-reazioni-componibili-cp55.md`](../gameplay/spec-reazioni-componibili-cp55.md) §8.
+>
+> ➖ **Aggiornamento 2026-08-10 — dei due rinviati, uno è uscito.** `InterceptShot` non è più una reazione
+> (E18 CP 18.2, D-016): è una **Predictive Action** con slot `Main`, `PredictiveTargeting = LockCell` e
+> `PredictionBoundary = MovementEntry`. Il rinvio a E14 è caduto per la ragione **opposta** a quella che
+> l'aveva prodotto — non le serve una finestra interattiva, le serve un boundary deterministico. Resta
+> `FlowReaction`, rinviata per la ragione originale: produce **movimento** dentro un boundary di risoluzione.
 >
 > **CP 6.7 riapre l'epic** e ha una premessa scomoda: oggi esistono **test verdi che documentano il debito**
 > — per esempio `RTHeroBastionTests.cpp:133` verifica che `Interposition` **non abbia** effetti. Diventeranno

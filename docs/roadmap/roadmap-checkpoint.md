@@ -193,8 +193,8 @@ questa vista sa davvero.
 > reso componibile e cablato tre reazioni su cinque. Delle due allora rinviate ne resta **una**:
 > `FlowReaction`. `InterceptShot` è uscita dall'insieme il 2026-08-10 — non è rinviata, è **consegnata**
 > come **Predictive Action** (E18 CP 18.2, [D-016](../decisions/RT_PDR_00_Decision_Log.md)), che la sgancia
-> da E14 ed è pinnata da `Heroes.Wraith.InterceptShotIsPredictive`. Contate oggi, le reazioni d'eroe sono
-> **tre su quattro**: il denominatore è calato con lei.
+> da E14 ed è pinnata da `Heroes.Wraith.InterceptShotIsPredictive`. Contate **al 2026-08-16**, le reazioni
+> d'eroe sono **tre su quattro**: il denominatore è calato con lei.
 
 Conseguenza pratica: **chi lavora su M6 sta lavorando su E2**. Le issue `#31`–`#38` sono i checkpoint 6.1–6.8;
 si chiudono una volta, aggiornando entrambe le viste.
