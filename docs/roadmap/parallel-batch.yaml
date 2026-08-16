@@ -711,6 +711,28 @@ preexisting:
       `WIP: migrazione Sprint post-Blast (D-116) — da verificare`. Nessuna intersezione con i
       `writable` di questo batch, misurata.
 
+  # ➕ **Questo stesso ramo si dichiara, e la volta scorsa non l'aveva fatto.** La code review su #1036 l'ha
+  # rilevato: chi edita `parallel-batch.yaml` e' un branch vivo come gli altri, e la contesa su un file
+  # `integration_only` concorrente resta **invisibile a chiunque calcoli l'invariante dall'elenco** finche'
+  # vive solo in prosa. Precedente: `chore/512-batch-simulation`, che si dichiarava.
+  - branch: docs/arbitrato-833-combat
+    state: LIVE            # 2026-08-16 · arbitrato di `Turn/RTTurnManager.{h,cpp}`
+    measured: 1
+    collides_with:
+      - track: integrazione
+        paths: [docs/roadmap/parallel-batch.yaml]
+    note: >-
+      Registra l'esito dell'arbitrato — `spatial` **cede** su `Turn/RTTurnManager.{h,cpp}` e rivendica i soli
+      `Combat/RTHexCombatLibrary.{h,cpp}` — e non tocca nient'altro.
+      ⚠️ **La contesa dichiarata e' reale**: `feat/625-hazard-turnlog` e `feat/1015-hud-velocita` editano
+      **anch'essi** questo file, misurato con `git diff --name-only origin/main...<branch>`. Chi mergia per
+      secondo riconcilia a mano, ripartendo dal file di `main` e riapplicando la sola propria sezione — mai
+      dall'esito dell'auto-merge, che misura la sovrapposizione e non la perdita.
+      ⚠️ **Non e' una riconciliazione del lotto**: `base_sha` resta indietro e `reconciled_count` non e'
+      incrementato, perche' il batch non e' stato rimisurato — una sola track lo e'. Chi verifica un
+      write-set con `git diff --name-only <base_sha>...<branch>` misurerebbe churn altrui: la misura di
+      questo giro e' su `origin/main` **piu' i 12 branch remoti vivi**, che e' cio' che #1036 aveva saltato.
+
   - branch: docs/five-lane-roadmap
     state: DORMANT         # ultimo commit 2026-08-12 12:33 · 5ade6c8c
     measured: 8
@@ -1615,6 +1637,30 @@ tracks:
       - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
       - Source/RefactorTactics/Tests/RTTurnLogCauseTests.cpp
       - Source/RefactorTactics/Tests/RTInteractionGraphTests.cpp
+      # ➕ **Esito dell'arbitrato del 2026-08-16 su `Turn/RTTurnManager.{h,cpp}` — `spatial` CEDE.**
+      # `#833` li chiedeva per la catena locale (il `.cpp:3428` traduce lo spec dell'azione in
+      # `Intent.bChangesDoor`). Misurato contro **tutti i 12 branch remoti vivi**, non contro `origin/main`:
+      #   `Turn/RTTurnManager.cpp` -> `feat/625-hazard-turnlog` (PR #1025, **+84 righe scritte**) e
+      #                               `feat/cp75-selfreposition`
+      #   `Turn/RTTurnManager.h`   -> `feat/1015-hud-velocita` (PR #1028, **+15 righe scritte**, un getter
+      #                               per il tetto di velocita', motivato in quella track)
+      # Tre richiedenti, due con codice in volo; `#833` non ne ha scritta **una riga** — ha un bisogno
+      # futuro. Chi ha il codice in mano passa per primo. Quando quelle PR atterrano il path torna libero e
+      # `#833` lo richiede con la stessa procedura, **rimisurata sui branch vivi**.
+      # 🔴 **La PR #1036 aveva provato a prenderli e va letta come precedente**: chiusa senza merge perche'
+      # la misura era stata fatta su `origin/main` e sulla **prosa** di `playback` — due fonti entrambe
+      # cieche al lavoro in volo. `main` non contiene i branch aperti, e una nota che dichiara «i path
+      # tornano liberi» puo' essere superata da un branch che li ha ripresi la mattina dopo.
+      #
+      # ➕ **`Combat/RTHexCombatLibrary.{h,cpp}` sono invece rivendicati, e non e' lo stesso caso.**
+      # Misurati sugli stessi 12 branch: **nessuno** li tocca. Oggi non sono in alcun `writable`, ne' in
+      # `integration_only`, ne' in `generated_only` — cioe' chiunque li apra e' in **STOP** per `D-139`.
+      # Dichiararli qui **toglie** uno STOP invece di crearne uno, ed e' il verso opposto a quello sbagliato.
+      # Servono a `#833` perche' `FirstDoorEdge(Map, Attacker.Cell, AimCell, …)` cerca la porta **sulla
+      # traiettoria** (`:328`): per un bersaglio comandato da remoto quella porta non ci sta, e il grafo non
+      # puo' riusare quella via.
+      - Source/RefactorTactics/Combat/RTHexCombatLibrary.h
+      - Source/RefactorTactics/Combat/RTHexCombatLibrary.cpp
     # ⛔ NON in questo write-set, e la ragione e' registrata nella nota: `Scenarios/` (`integration_only`) e
     # `ScenarioHarness/RTScenarioSession.cpp` (di `simulation`, #512). Il gate `scenario` dipende da una
     # riallocazione **richiesta e non ancora concessa**: finche' non lo e', non si tocca niente li' dentro.
