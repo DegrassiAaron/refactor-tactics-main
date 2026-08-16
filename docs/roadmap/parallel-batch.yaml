@@ -2046,6 +2046,17 @@ tracks:
       - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
       - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
       - Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp
+      # ➕ **Settimo path, entrato a META' LAVORO e trovato dalla SUITE, non previsto.** La regola resta
+      # riallocazione e non «solo questa piccola fix»: misurato libero prima di toccarlo — nessun `writable`
+      # di alcuna track lo nomina, zero collisioni sui nove rami remoti vivi
+      # (`git diff --name-only origin/main...<b>`) e zero nei nove worktree aperti (`status --porcelain`
+      # dopo `update-index --refresh`, che vede anche il non committato).
+      # 🔴 **Perche' non era previsto, ed e' un difetto di misura mio.** Il write-set e' stato calcolato
+      # cercando i due test che pinnano lo STATO dello showcase; questo pinna il CONFINE fra `Reaction` e
+      # `DecisionBoundary` (voce 6 del DoD di fase A) e la sua discriminante era proprio la disponibilita':
+      # `TestFalse("ma NON e' disponibile in fase A")`. Un test che nomina la fase nella propria stringa
+      # dichiara la propria scadenza, e cercarlo per nome di scenario non poteva trovarlo.
+      - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
     # ⚠️ **Due viste, e le eredita chi tocca l'una O l'altra sorgente**: `generated_only` dichiara sia
     # `Scenarios/` sia `RTScenarioSession.cpp` come `derives_from` di entrambe. Questa track le tocca tutte
     # e due, quindi i due `--check` sono suoi e vanno rigenerati **sull'albero unito**, non sul branch.

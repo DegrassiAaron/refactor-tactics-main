@@ -2241,7 +2241,7 @@
     {
       "id": "Spec.Brace.ProfileChangesResponse",
       "requires": [
-        "DecisionBoundary"
+        "ReactionProfile"
       ],
       "path": "Scenarios/Spec/Brace/ProfileChangesResponse.json"
     },
@@ -2570,6 +2570,7 @@
     "BotPlanning",
     "Cover",
     "CreateCover",
+    "DecisionBoundary",
     "DeclaredRotation",
     "Environment",
     "EnvironmentalActionOwner",
@@ -2910,8 +2911,8 @@
             "rationale": null
           }
         ],
-        "readiness": "BLOCKED",
-        "readiness_reason": "aspetta capability:DecisionBoundary"
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:165"
       },
       {
         "id": "issue:66",
@@ -3883,15 +3884,14 @@
         ],
         "scenario_consumers": [
           "RT_Showcase_Relay_v01",
-          "Spec.Brace.ProfileChangesResponse",
           "Spec.Clash.ReadBeatsStand",
           "Spec.Clash.ShiftBeatsRead",
           "Spec.Clash.StandBeatsShift",
           "Spec.Clash.TieAppliesOnce",
           "Spec.Overwatch.HoldThenFire"
         ],
-        "available": false,
-        "available_source": "provider"
+        "available": true,
+        "available_source": "runtime"
       }
     ],
     "stats": {
@@ -3900,10 +3900,10 @@
       "hard_edges": 15,
       "soft_edges": 10,
       "by_readiness": {
-        "BLOCKED": 4,
+        "BLOCKED": 3,
         "DONE": 3,
         "READY": 15,
-        "UNKNOWN": 5
+        "UNKNOWN": 6
       },
       "by_execution_lane": {
         "asset": 2,

@@ -1,7 +1,7 @@
 {
   "scenarioId": "RT_Showcase_Relay_v01",
   "tags": ["showcase", "relay", "objectives", "flux", "riva", "bastion", "vektor"],
-  "version": 1,
+  "version": 2,
   "seed": 12345,
 
   "_nota": "Showcase canonica «Relay Basin». La geometria NON e' qui: e' riferita per nome e vive in MakeShowcaseRelayBasinArena, protetta da ShowcaseRelay.BasinLayoutMatchesSpec. Quarantacinque celle copiate qui sarebbero una seconda verita' che nessuno confronta con la prima. Spec: docs/product/showcase-v0.1.md",
@@ -36,9 +36,15 @@
       "intents": []
     },
     {
-      "_turno": "T4 — Overwatch. Il facing da' il cono, ma HOLD e FIRE SONO la finestra: senza Decision Boundary il turno non esiste.",
+      "_turno": "T4 — Overwatch. Il facing da' la LINEA (non un cono: `MakeSuppressiveZone` usa `LineCells`), ma HOLD e FIRE SONO la finestra. Bastion arma guardando a W e controlla (2,0) (1,0) (0,0) — tre celle, la portata di `Bastion.ImpactShot`. Flux risale il corridoio di Smoke e mette piede sul Relay: li' la risoluzione si SOSPENDE e la risposta e' un dato dello scenario, non una politica.",
       "requires": ["DecisionBoundary", "DeclaredRotation"],
-      "intents": []
+      "intents": [
+        { "unit": "Bastion", "ability": "Action.Overwatch", "facing": "W" },
+        { "unit": "Flux", "move": [[-2, 0, 0], [-1, 0, 0], [0, 0, 0]] }
+      ],
+      "decisions": [
+        { "unit": "Bastion", "respond": "FIRE", "target": "Flux" }
+      ]
     },
     {
       "_turno": "T5 — fumo e struttura. Bastion apre il gate: la topologia cambia e la revisione della mappa sale. Il gate e' una porta, e le porte esistono da CP 9.3.",
@@ -61,8 +67,9 @@
   ],
 
   "expect": [
-    { "type": "TurnsCompleted", "value": 1 },
-    { "type": "UnitAtCell", "unit": "Flux",    "cell": [-3, 0, 0] },
+    { "type": "TurnsCompleted", "value": 5 },
+    { "type": "UnitHpEquals", "unit": "Flux", "value": 82 },
+    { "type": "UnitAtCell", "unit": "Flux",    "cell": [ 0, 0, 0] },
     { "type": "UnitAtCell", "unit": "Riva",    "cell": [-3, 1, 0] },
     { "type": "UnitAtCell", "unit": "Bastion", "cell": [ 3, 0, 0] },
     { "type": "UnitAtCell", "unit": "Vektor",  "cell": [ 3, 1, 0] }

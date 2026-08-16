@@ -369,9 +369,18 @@ bool FRTScenarioUnknownCapabilityIsErrorTest::RunTest(const FString&)
 	TestTrue(TEXT("e il messaggio nomina il refuso, perche' chi legge deve poterlo correggere"),
 		Refuso.ErrorMessage.Contains(TEXT("DecisionBoundry")));
 
-	// (2) Un nome NOTO ma non ancora disponibile resta un'attesa legittima: `Blocked`. E' il regime dei nove
+	// (2) Un nome NOTO ma non ancora disponibile resta un'attesa legittima: `Blocked`. E' il regime degli
 	// scenari in repo, e non deve cambiare.
-	const FRTTestResult Attesa = Esegui({TEXT("DecisionBoundary")});
+	//
+	// 🔴 **Il soggetto e' cambiato il 2026-08-16 (`#512` fase B), e senza sostituirlo questo caso sarebbe
+	// diventato verde per il motivo sbagliato.** Fino a oggi era `DecisionBoundary`: scoprendola, il turno
+	// gira, l'esito e' `Pass` e `TestTrue(... == Blocked)` cade. Non e' un aggiustamento — e' il difetto
+	// strutturale di usare come **esempio** un nome che si spera diventi disponibile: l'esempio scade
+	// insieme all'attesa che rappresenta.
+	// ⚠️ Il sostituto NON e' inventato: `ReactionProfile` e' in `KnownUnavailableCapabilities()` e ha uno
+	// scenario che lo chiede (`Spec.Brace.ProfileChangesResponse`), il cui blocco vero e' E14.7 (`#314`). Un
+	// nome inventato varrebbe `Error` — cioe' il ramo che il caso (1) verifica, l'opposto di questo.
+	const FRTTestResult Attesa = Esegui({TEXT("ReactionProfile")});
 	TestTrue(FString::Printf(TEXT("capability nota non disponibile => Blocked, non %s"), *Attesa.OutcomeString()),
 		Attesa.Outcome == ERTTestOutcome::Blocked);
 
@@ -384,7 +393,11 @@ bool FRTScenarioUnknownCapabilityIsErrorTest::RunTest(const FString&)
 	//
 	// Senza questo caso, invertire le due passate in `BeginTurn()` non farebbe cadere NIENTE: i casi (1) e (2)
 	// hanno un solo nome per turno e non distinguono l'ordine.
-	const FRTTestResult Misto = Esegui({TEXT("DecisionBoundary"), TEXT("DecisionBoundry")});
+	// ⬅️ Anche qui il primo nome e' passato da `DecisionBoundary` a `ReactionProfile` con `#512` fase B, e per
+	// la stessa ragione del caso (2): serve un'attesa VERA davanti al refuso, altrimenti il caso non pinna
+	// piu' l'ordine delle due passate — con una capability disponibile davanti, il turno non si bloccherebbe
+	// affatto e il refuso verrebbe visto comunque.
+	const FRTTestResult Misto = Esegui({TEXT("ReactionProfile"), TEXT("DecisionBoundry")});
 	TestTrue(FString::Printf(TEXT("refuso accanto a un'attesa => Error, non %s"), *Misto.OutcomeString()),
 		Misto.Outcome == ERTTestOutcome::Error);
 	TestTrue(TEXT("e il messaggio nomina il refuso, non l'attesa che gli stava davanti"),
@@ -531,6 +544,63 @@ bool FRTScenarioBlockedBeatsFinalAssertionsTest::RunTest(const FString&)
 
 	// E le assertion finali non sono state valutate: misurerebbero una partita che non e' stata giocata.
 	TestEqual(TEXT("nessuna assertion finale valutata su un turno mai giocato"), Result.Assertions.Num(), 0);
+	return true;
+}
+
+// =====================================================================================================
+// `#512` fase B — `Spec.Overwatch.HoldThenFire` non e' piu' una specifica in attesa: si esegue.
+//
+// Perche' un test DEDICATO quando `EveryShippedScenarioRuns` gia' esegue tutto il corpus: quello dice
+// «PASS/BLOCKED/FAIL» e, sul rosso, la PRIMA assertion caduta. Non dice quante finestre si sono aperte, ne'
+// quante decisioni sono state applicate — e sono esattamente i due numeri che distinguono «lo scenario
+// passa» da «lo scenario passa PER IL MOTIVO GIUSTO». Con due decisioni dichiarate, un turno che aprisse una
+// sola finestra e ne consumasse una lascerebbe le assertion di cella e HP soddisfatte da un'altra strada.
+//
+// Usa `RunById` e non `Run`: e' il percorso che scrive `result.json`, cioe' cio' che si legge quando questo
+// test diventa rosso senza che nessuno sappia perche'.
+// =====================================================================================================
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioHoldThenFireTest,
+	"RefactorTactics.Scenario.OverwatchHoldThenFireConsumesBothDecisions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioHoldThenFireTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCorpusWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	FString ReportDir;
+	const FRTTestResult Result = URTScenarioRunner::RunById(World, TEXT("Spec.Overwatch.HoldThenFire"), ReportDir);
+	DestroyCorpusWorld(World);
+
+	// Il primo assert caduto col valore reale, come fa il corpus: senza, un rosso qui manda a rieseguire a
+	// mano uno scenario che il runner ha gia' eseguito.
+	if (Result.Outcome != ERTTestOutcome::Pass)
+	{
+		for (const FRTAssertionResult& A : Result.Assertions)
+		{
+			if (!A.bPassed)
+			{
+				AddError(FString::Printf(TEXT("%s — atteso %s, ottenuto %s (turno %d)"),
+					*A.Description, *A.Expected, *A.Actual, A.Turn));
+			}
+		}
+		for (const FString& N : Result.Notes)
+		{
+			AddError(FString::Printf(TEXT("nota: %s"), *N));
+		}
+		if (!Result.ErrorMessage.IsEmpty())
+		{
+			AddError(FString::Printf(TEXT("errore: %s"), *Result.ErrorMessage));
+		}
+	}
+
+	TestEqual(FString::Printf(TEXT("esito PASS e non %s"), *Result.OutcomeString()),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+	TestEqual(TEXT("due turni giocati"), Result.TurnsPlayed, 2);
+
+	// I due numeri che rendono il verde non ambiguo: ENTRAMBE le decisioni consumate, NESSUN residuo. Un
+	// residuo > 0 significa una finestra scoperta, e senza questa riga passerebbe dentro un esito verde.
+	TestEqual(TEXT("entrambe le decisioni applicate"), Result.ScriptedDecisionsApplied, 2);
+	TestEqual(TEXT("nessuna decisione rimasta inutilizzata"), Result.ScriptedDecisionsUnused, 0);
 	return true;
 }
 
