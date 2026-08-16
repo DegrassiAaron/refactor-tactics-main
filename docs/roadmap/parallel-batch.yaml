@@ -2224,8 +2224,8 @@ tracks:
 
   frontend_shell:
     status: ACTIVE
-    issue: 936
-    branch: feat/936-frontend-navigation
+    issue: 937
+    branch: feat/937-loading-error
     worktree: D:/rt-menu
     note: >-
       CP 46.1 di **E46** — il navigation controller del frontend (`#934`). ➕ **Track aperta il 2026-08-16
@@ -2249,6 +2249,20 @@ tracks:
       - Source/RefactorTactics/Frontend/
       - Source/RefactorTactics/Tests/RTFrontendNavigationTests.cpp
       - docs/technical/spec-frontend-navigazione.md
+      # ➕ **Entrano il 2026-08-16 con CP 46.2** (`#937`), e la richiesta è stata istruita invece che
+      # data per scontata: lo spec panel aveva scritto *«va assegnato prima»* credendoli non assegnati,
+      # e la misura ha detto che erano di `autobattle`. Quella track ha **finito** (`#954` `CLOSED`, PR
+      # #963 mergiata, branch inesistente sul remoto), quindi il path era libero — non è stato tolto a
+      # una sessione viva. La decisione è dell'autore, presa in sessione col costo dichiarato.
+      # ⚠️ **Perché servono a CP 46.2, che è un checkpoint di frontend**: le tre fasi di loading e gli
+      # otto esiti d'avvio si **producono** qui — `BeginPlay`, `ApplyMapSource`, `ApplyMatchFormat` — e un
+      # widget che li componesse da sé sarebbe la seconda autorità su *perché* qualcosa non è partito.
+      # È il difetto che l'istruttoria dell'enum esisteva per evitare.
+      # ⛔ **Non autorizza a toccare il resto di `RTGameMode`**: il perimetro è l'emissione degli eventi.
+      # `bAutobattle`, i `Resolve*` e lo spawn restano com'erano — chi rilegge il diff deve trovarci solo
+      # righe che *dichiarano* uno stato, mai che lo decidono.
+      - Source/RefactorTactics/RTGameMode.h
+      - Source/RefactorTactics/RTGameMode.cpp
     derives_from:
       - source: docs/roadmap/feature-registry.yaml
         regenerates:
@@ -2452,8 +2466,14 @@ tracks:
       `git switch -c <branch>` da lì **dopo** un `fetch` — questa track ne ha fatti tre in un turno, e la
       distanza da `origin/main` è passata da 0 a 44 a 13 a 8 mentre il lavoro era aperto.
     writable:
-      - Source/RefactorTactics/RTGameMode.h
-      - Source/RefactorTactics/RTGameMode.cpp
+      # ➖ **`RTGameMode.{h,cpp}` escono il 2026-08-16 e passano a `frontend_shell`** (`#937`, CP 46.2).
+      # Non è una contesa risolta a favore di qualcuno: questa track ha **finito** — `#954` è `CLOSED`,
+      # PR #963 mergiata in `1fe85ed2`, branch cancellato — e il suo write-set torna libero, esattamente
+      # come la nota qui sopra racconta essere successo a `simulation` prima («il write-set torna libero e
+      # non assegnato»). Misurato prima di spostare: `git ls-remote --heads origin | grep 954` → **0**,
+      # e `D:/rt-chatgpt` è passato a detached HEAD. **Nessun merge a carico di nessuno.**
+      # ⚠️ Se questa track riapre su un altro checkpoint di E47, `RTGameMode` va **richiesto**, non
+      # ripreso: da oggi appartiene a un'altra track, e l'ownership non si eredita dal passato.
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
     binary_leases: []
 
