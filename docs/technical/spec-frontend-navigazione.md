@@ -13,12 +13,18 @@
 
 ## 1. Perché esiste, in una riga
 
-Il gate **G13** della v0.1 chiede *«partita giocabile senza editor dalla build packaged»*. Oggi il
-pacchetto avvia su `MapSource=GeneratedTestArena` via configurazione: è un eseguibile che carica una
-mappa, non un gioco che si può iniziare. Questo documento descrive il minimo che separa le due cose.
+Oggi il pacchetto avvia su `MapSource=GeneratedTestArena` via configurazione: è un eseguibile che carica
+una mappa, non un gioco che si può iniziare, riavviare o lasciare. Questo documento descrive il minimo che
+separa le due cose.
+
+⚠️ **Non è il completamento di `G13`**, e la prima stesura di questa riga lo affermava. Le due riserve di
+quel gate sono **dati** — la mappa d'autore (`PIE-V01-ARENA`, seduta **U1**) e la via a punti mai
+esercitata — e nessuna delle due si chiude con un menu: `G13` resta 🟡 anche a E46 completa. Questo è
+**scope nuovo**, deciso come tale in [D-144](../decisions/RT_PDR_00_Decision_Log.md).
 
 Tutto ciò che eccede quel minimo — Scenario Browser, Bot Simulation, Training, Briefing, Settings
-completo — **non è in v0.1**, per le due ragioni indipendenti che D-144 registra.
+completo — **non è in v0.1**, per la ragione che D-144 registra. *(D-144 ne portava **due**; la seconda —
+il catalogo assente dal pacchetto — è caduta il 2026-08-16 con la chiusura di `#926`.)*
 
 ---
 
@@ -84,9 +90,21 @@ Un solo owner del flow. I widget **non** si creano e non si distruggono a vicend
 
 Il navigation controller **non possiede** il contesto `Modal` del `PlayerController`.
 
-[`spec-pointer-interaction.md`](spec-pointer-interaction.md) (CP 11.8) dichiara già sette contesti —
-`IdleSelection · Planning · Pathing · Targeting · ResolutionPlayback · ReactionWindow · Modal` — con la
-precedenza `Modal/Reaction UI > HUD > world tactical hit` **coperta da dieci test `PlayerInput.*`**.
+[`spec-pointer-interaction.md`](spec-pointer-interaction.md) (CP 11.8) **dichiara** sette contesti —
+`IdleSelection · Planning · Pathing · Targeting · ResolutionPlayback · ReactionWindow · Modal` — e la
+precedenza `Modal/Reaction UI > HUD > world tactical hit`.
+
+⚠️ **Dichiarata, non ancora implementata**, e va detto perché una stesura precedente di questa riga
+affermava che fosse *«coperta da dieci test `PlayerInput.*`»*. È falso, misurato:
+`grep -rn "HUDConsumesPointerBeforeWorld\|ReactionWindowOwnsInputPriority" Source/` → **zero**. I dieci
+test `PlayerInput.*` che esistono in `RTPointerInteractionTests.cpp` coprono altro (bersaglio, facing,
+Back, ghost); la precedenza è il **delta (c)** che CP 11.8 esiste per colmare — la nota di quel checkpoint
+in [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) lo scrive a lettere: *«non c'è precedenza
+HUD → mondo, perché il Canvas HUD non registra hitbox … oggi **ogni** click passa al mondo»*.
+
+Il confine qui sotto **non ne soffre**: regge sulla spec, che esiste, non sui test, che non ci sono. Ma il
+frontend non deve dare per implementato ciò che deve ancora arrivare — con i widget UMG il problema si
+inverte, ed è la ragione dell'ordine fra CP 11.7 e CP 11.8.
 
 La divisione:
 
@@ -146,9 +164,10 @@ Il controller (gamepad) **non** è in v0.1.
 
 - **Non ricalcola il risultato.** Esito, vincitore e round sono letti dal risultato canonico; la
   condizione di fine partita è di E10 e il TurnLog ne è il registro.
-- **Non costruisce una seconda configurazione di partita.** L'avvio usa `ARTGameMode` e il formato che
-  [`#375`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/375) spedisce da C++
-  (`Format.Skirmish2v2`).
+- **Non costruisce una seconda configurazione di partita.** L'avvio usa `ARTGameMode` e
+  `Format.Skirmish2v2`, **spedito da C++** dal commit `9f44570d` — *«spedito col gioco, non un asset da
+  creare»*. *(Una stesura precedente attribuiva il lavoro a `#375`, che è una PR sul determinismo del
+  checksum.)*
 - **Non mostra pianificazione avversaria**, in nessuna schermata. La regola non nasce qui: è l'invariante
   di privacy che vale in tutto il progetto.
 - **Non introduce un secondo catalogo di scenari.** In v0.1 non ne mostra affatto.

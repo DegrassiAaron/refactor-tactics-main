@@ -655,24 +655,30 @@ preexisting:
   # `feat/77-hud-slot-terna`, che era `LOCAL · 0` ieri ed è la collisione di oggi.
 
   - branch: docs/menu-frontend-consolidamento
-    state: LOCAL           # worktree `D:/rt-menu` · mai pushato al momento della misura
-    measured: 14
-    collides_with:
-      - branch: docs/voci-pie-mancanti
-        state: LIVE
-        paths:
-          - docs/roadmap/parallel-batch.yaml
-          - docs/roadmap/project-graph.json
+    state: LIVE            # worktree `D:/rt-menu` · pushato · PR #948 aperta
+    measured: 15
     note: >-
       Consolidamento dell'handoff *Frontend/Menu Features e Tracking* (D-144, epic #934). Write-set
-      misurato con `git diff --name-only origin/main...HEAD` più `git status --short`, non ricordato:
-      **14** file, di cui **6** `integration_only`, **5** viste generate e **3** nuovi.
+      misurato con `git diff --name-only origin/main...HEAD`: **15** file, di cui **7**
+      `integration_only`, **5** viste generate e **3** nuovi.
+      🔴 **Le prime tre affermazioni di questa voce erano false insieme, e le ha trovate la code
+      review** — `measured: 14`, `state: LOCAL`, e una collisione con `docs/voci-pie-mancanti`. Il 14
+      ometteva **questo file**, che è `integration_only` come gli altri sei: la scomposizione si scrive
+      guardando il write-set, non ricordando cosa si è toccato di proposito. Il `LOCAL` era vero al
+      momento in cui la voce fu scritta e falso dal push, che è avvenuto nella stessa sessione — e la
+      riga che definisce `LOCAL` sta in questo stesso file (*«`git ls-remote` non lo vede»*). La
+      collisione era **già atterrata** con la PR #946. È esattamente la classe di errore che questa
+      sezione documenta per altri branch tre volte (*«la voce diceva `LOCAL · 11` e le tre affermazioni
+      erano false insieme»*), commessa dentro la voce che la cita.
+      ✅ **Nessuna collisione, rimisurata dopo il merge**: i quattro branch remoti vivi non toccano né
+      `parallel-batch.yaml` né `project-graph.json` (`git diff --name-only origin/main...origin/<b>`
+      per ciascuno). `docs/voci-pie-mancanti` — la controparte dichiarata prima — è mergiata con #946.
       ✅ **Nessun file nel `writable` di un'altra track**, verificato path per path — ed è la ragione
       per cui questa voce sta in `preexisting` e non apre una track propria: un consolidamento
-      documentale *è* lavoro di integrazione per costruzione, e i sei `integration_only` che tocca
+      documentale *è* lavoro di integrazione per costruzione, e i **sette** `integration_only` che tocca
       (`RT_PDR_00_Decision_Log.md`, `feature-registry.yaml`, `roadmap-v0.1.md`, `roadmap-post-v0.1.md`,
-      `archive/src/README.md`, `scenario-map.md`) sono esattamente i file che la sezione dedicata dice
-      di aggiornare **una volta in integrazione**.
+      `archive/src/README.md`, `scenario-map.md` e **questo file**) sono esattamente quelli che la
+      sezione dedicata dice di aggiornare **una volta in integrazione**.
       🔴 **Il vincolo che ha morso, e vale la pena registrarlo perché è il primo caso in cui D-139 ha
       cambiato l'esito invece di confermarlo**: i sei DoD di E46 chiedono voci `PIE-V01-FRONTEND-*`, e
       `docs/technical/test-manuali-pie.md` non è di questa sessione. Le voci **non** sono state create.
@@ -683,13 +689,12 @@ preexisting:
       dare al registro un proprietario stabile. La conclusione non cambia (il file non è mio in nessuno
       dei due casi), ma **la procedura sì**: `playtest` dichiara che chi finisce una feature con una voce
       `PIE-*` la **propone in handoff**, invece di aspettare che il file torni `integration_only`.
-      ⚠️ **La collisione su questo file è reale e la sta creando questa voce**, come tutte le altre
-      prima. ⏱️ **Ha cambiato controparte due volte in un giorno, ed è misurata**: era `feat/451`
-      quando la voce è stata scritta — atterrato con #930 — ed è oggi `docs/voci-pie-mancanti`, che
-      tocca `parallel-batch.yaml` **e** `project-graph.json`
-      (`git diff --name-only origin/main...origin/docs/voci-pie-mancanti`). Chi atterra secondo paga
-      il conflitto, e questa riga esiste perché sappia in anticipo quale — una voce `preexisting` in
-      più, e nient'altro.
+      ⏱️ **La contesa su questo file è nata e morta due volte mentre la voce la descriveva**: era
+      `feat/451` alla prima stesura (atterrato con #930), poi `docs/voci-pie-mancanti` alla seconda
+      (atterrato con #946). Oggi **non c'è**, rimisurata. Vale la pena tenerla scritta perché è la
+      terza volta che questo file mostra la stessa proprietà: **una voce di batch non invecchia in
+      giorni, invecchia in minuti** — e l'unico modo di scriverla giusta è misurarla nello stesso
+      comando che la committa.
       ⚠️ **Le cinque viste generate seguono la sorgente**, non sono assegnate: `feature-registry.json`,
       `project-graph.json`, `roadmap-map.svg`, `featuremap.shortlist.md`, `roadmap.shortlist.md`. Vale
       la regola dell'albero unito — l'unica copia autoritativa è quella rigenerata **dopo** il merge.

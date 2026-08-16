@@ -1072,9 +1072,13 @@ chi sviluppa, non è contenuto della release»*.
 > [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926)** — *«`Scenarios/` non è
 > staged nel pacchetto, quindi una UI che legge il catalogo reale non avrebbe catalogo»*. Quella causa è
 > stata **chiusa il 2026-08-16** da [`#935`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935):
-> i 76 JSON entrano nel pak. Di #926 resta la causa 2 — in Shipping `-dpcvars` è compilato fuori — che
-> **non** blocca una UI, perché un widget chiama l'API invece di passare da una cvar.
-> ∴ **non c'è più una dipendenza tecnica**: c'è una scelta di scope, e sta in piedi da sola.
+> i 77 JSON entrano nel pak. **E #926 è stata chiusa per intero** il `2026-08-15T23:46Z`: la causa 2 —
+> `-dpcvars` compilato fuori in Shipping — è caduta con #945, che ha dato allo scenario una porta d'ingresso
+> che funziona anche lì (`Development PASS` e `Shipping PASS`, stesso `stateHash 572184bb`).
+> ∴ **non c'è più nessuna dipendenza tecnica**: c'è una scelta di scope, e sta in piedi da sola.
+> *(Questa nota è stata riscritta due volte in un giorno — «resta la causa 2», poi «non resta niente» —
+> perché la issue si è chiusa a scaglioni mentre il consolidamento la citava. Il numero dei JSON era
+> **76** in entrambe: rimisurato, `git ls-files Scenarios/ | grep -c '\.json$'` → **77**.)*
 
 Assegnare loro una release significherebbe farle competere con la consegna, che è esattamente ciò che
 `RT-FEAT-TOOL-CONTROL-CENTER` evita stando in `future`.

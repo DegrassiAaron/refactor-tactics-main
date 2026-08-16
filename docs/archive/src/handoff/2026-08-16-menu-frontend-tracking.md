@@ -2,14 +2,19 @@
 > [`menu-frontend-spec-panel-2026-08-16.md`](../../../roadmap/plans/menu-frontend-spec-panel-2026-08-16.md).
 >
 > ✅ **È il primo handoff della serie che non duplica niente**, e la premessa è stata verificata in cinque
-> punti indipendenti su `4ab36b48`: zero asset `WBP_*` in `Content/`, sei file UI tutti in-match, nessuna
+> punti indipendenti su `4ab36b48`: zero asset `WBP_*` in `Content/`, **nove** file UI tutti in-match, nessuna
 > feature di frontend fra le 90 del registry, nessuna epic fra E1–E45, zero occorrenze di *menu* o
 > *frontend* in `roadmap-post-v0.1.md`. Il frontend era genuinamente assente.
 >
-> ✅ **Il suo contributo maggiore è uno che non rivendica**: il §2 chiede *«Main Menu avviabile in packaged
-> build»* senza sapere che il gate **G13** della v0.1 — *«partita giocabile senza editor dalla build
-> packaged»* — è 🟡 dal 2026-08-10 esattamente per quello. È l'argomento che ha fatto entrare **E46** in
-> v0.1 ([D-144](../../../decisions/RT_PDR_00_Decision_Log.md)), e nient'altro del documento lo ha fatto.
+> ✅ **Il suo contributo maggiore è il §2**: *«Main Menu avviabile in packaged build»*. È ciò che ha fatto
+> entrare **E46** in v0.1 ([D-144](../../../decisions/RT_PDR_00_Decision_Log.md)), e nient'altro del
+> documento lo ha fatto.
+> 🔴 **Ma l'argomento con cui il referto lo sosteneva era falso, e va detto qui perché è il banner che si
+> legge per primo.** Diceva che il gate **G13** è 🟡 *«esattamente per quello»*: falso. Le due riserve di
+> `G13` sono **dati** — la mappa d'autore (`PIE-V01-ARENA`, seduta U1) e la via a punti mai esercitata — e
+> nessuna delle due si chiude con un menu. **E46 è scope nuovo**, dichiarato come tale. Ciò che regge è
+> un'affermazione di prodotto: una build che avvia direttamente in partita, senza modo di iniziarla o
+> uscirne, non è un vertical slice consegnabile. Vedi §6.1 del referto.
 >
 > 🔴 **Lo scope del §26 non regge, e la ragione è già scritta nel repository.** Mette in v0.1 `P0`
 > Scenario Browser, Scenario Detail, Scenario Runner UI e Bot Visual Simulation — che il documento stesso
@@ -21,8 +26,8 @@
 > [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926) rende quelle sezioni
 > ineseguibili perché `Scenarios/` non è staged nel pacchetto. La PR
 > [`#935`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935) ha chiuso quella causa il
-> 2026-08-16: i 76 JSON entrano nel pak. Resta la causa 2 — in Shipping `-dpcvars` è compilato fuori — che
-> **non blocca una UI**, perché un widget chiama l'API invece di passare da una cvar della riga di comando.
+> 2026-08-16: i **77** JSON entrano nel pak. E **#926 è chiusa per intero** dal `2026-08-15T23:46Z` — anche
+> la causa 2 (`-dpcvars` fuori in Shipping) è caduta con #945.
 > ∴ le §5–§8 restano fuori dalla v0.1 **per il solo motivo sopra**, che basta da solo. Vedi §4.6 del referto.
 >
 > ⚠️ **Il §15 collide su un naming già deciso.** Propone `WBP_FrontendRoot` e `WBP_GameHUDRoot`: il

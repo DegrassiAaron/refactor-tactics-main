@@ -49,14 +49,22 @@ Il documento vale la revisione perché la sua premessa regge. Verificato su `4ab
 
 | Misura | Comando | Esito |
 |---|---|---|
-| Widget di frontend nel codice | `Glob Source/**/*{Widget,HUD,Menu,Frontend,UI}*` | **6 file**, tutti in-match (`RTHUD`, `RTScreenHudWidgets` + 2 test) |
+| Widget di frontend nel codice | `git ls-files Source/RefactorTactics/UI/` | **9 file**, tutti in-match (`RTHUD`, `RTHudViewModel`, `RTScreenHudWidgets`, `RTIconLibrary`, `RTIconCatalogData`) |
 | Asset UMG | `Glob Content/**/*{WBP,Widget,Menu,UI,HUD}*` | **zero** |
-| Feature di frontend nel registry | 90 feature, 11 con `area: UI` | tutte in-match tranne una, e quella non è un widget (§4.1) |
+| Feature di frontend nel registry | **110** feature, **11** con `area: UI` | tutte in-match tranne una, e quella non è un widget (§4.1) |
 | Epic | E1–E45 | **nessuna** frontend; le adiacenti sono E11 (HUD in-match), E21 (presentazione) |
 | Release oltre la v0.1 | `roadmap-post-v0.1.md` | zero occorrenze di *menu*, *frontend*, *settings*, *training*, *browser* |
 
 ∴ non esiste un secondo sistema da non duplicare. Il vincolo §32 *«non inventare naming se esiste già»*
 è soddisfatto per costruzione — con **una** eccezione, che è il §4.3 qui sotto.
+
+> 🔴 **Due righe di questa tabella portavano numeri che nessun comando produce**, corretti in code review.
+> «6 file» veniva da un `Glob` **case-sensitive**: `HUD` ≠ `Hud`, quindi mancavano `RTHudViewModel.*`,
+> `RTIconLibrary.*` e `RTIconCatalogData.h` — sono **9**, con `git ls-files Source/RefactorTactics/UI/`.
+> «90 feature» non discende da nulla: sono **110** (`grep -c "  - feature_id: RT-FEAT"`). L'`11` di
+> `area: UI` era giusto. **La conclusione — tutte in-match — regge in entrambi i casi**, ed è il punto:
+> una tabella di misure che sostiene una tesi vera con due numeri sbagliati è comunque una tabella
+> sbagliata, perché è *quella* che il lettore riusa.
 
 ---
 
@@ -151,10 +159,16 @@ chiuso la **causa 1** il 2026-08-16, mentre questo referto era in scrittura:
 byte, misurati, perché contarli sullo staged dà `0` anche quando ha funzionato (finiscono *dentro* il pak).
 Il catalogo nel pacchetto **c'è**.
 
-**Cosa resta di #926**: la sola causa 2 — in Shipping `-dpcvars` è compilato fuori
-(`DeviceProfileManager.cpp`, tutto dentro `#if !UE_BUILD_SHIPPING`). ⚠️ **Non blocca una UI**: un widget
-non passa da una cvar della riga di comando, chiama l'API. Il blocco valeva per l'*auto-run da riga di
-comando*, non per uno Scenario Browser.
+**Cosa resta di #926: niente.** ⏱️ Questa riga diceva *«la sola causa 2 — in Shipping `-dpcvars` è
+compilato fuori»*, ed è invecchiata mentre la si scriveva: **#945** l'ha chiusa dando allo scenario una
+porta d'ingresso che funziona anche in Shipping (`Development PASS` / `Shipping PASS`, stesso
+`stateHash 572184bb`), e la issue è **CLOSED/completed** dal `2026-08-15T23:46:24Z` — quattro minuti
+**prima** che la PR di questo consolidamento venisse aperta.
+
+> 🔴 **Tre stesure, tre stati diversi della stessa issue, e la terza l'ha trovata la code review.** È lo
+> stesso difetto che il §4.6 documenta, al secondo giro: un argomento misurato su un fatto che qualcun
+> altro sta chiudendo *in quel momento*. La lezione operativa non è misurare meglio — è che una premessa
+> presa da una issue **aperta** va riletta con `gh issue view` prima del merge, non prima della scrittura.
 
 ∴ **il secondo argomento del §7 cade, e resta il solo §4.2** — che è sufficiente da solo, ed è la ragione
 per cui la conclusione non cambia. Ma chi rilegge deve sapere che oggi la sostiene **un** argomento, non due.
@@ -173,21 +187,34 @@ per cui la conclusione non cambia. Ma chi rilegge deve sapere che oggi la sostie
 
 ## 6. Ciò che il documento aggiunge davvero
 
-### 6.1 Il pezzo che vale l'intero handoff: G13
+### 6.1 Il pezzo che vale l'intero handoff — e l'argomento con cui era stato sostenuto, che è falso
 
-Il gate **G13** della v0.1 chiede *«Partita giocabile senza editor dalla build packaged»*. È 🟡 dal
-2026-08-10, e la riserva scritta nella DoD è questa:
+> 🔴 **Questa sezione è l'errore più grave del referto, ed è conservata invece che riscritta.** Sosteneva:
+> *«Il gate **G13** è 🟡 perché la partita packaged gira sull'arena di test; ciò che manca fra una build
+> eseguibile e una giocabile è esattamente il minimo del documento. Questo non è un ampliamento di scope:
+> è il completamento di un gate `P0` già dichiarato.»* La code review l'ha falsificata leggendo la
+> riserva **intera** invece della frase citata.
 
-> *«la partita gira su `MapSource=GeneratedTestArena` — l'arena di test, non un livello di gioco […] Il
-> gate chiede "partita giocabile", e una build che avvia sull'arena di prova soddisfa la lettera ma non
-> la cosa.»*
+**La riserva di `G13` nomina due mancanze, e le qualifica insieme** (`v0.1-definition-of-done.md`):
 
-Una build che avvia direttamente una mappa via config non è una build giocabile: è una build
-*eseguibile*. Ciò che manca fra le due è esattamente il minimo del documento — **Main Menu → Play →
-partita → Result → Quit**, più loading ed error state.
+> *«Restano **due** mancanze, ed **entrambe sono dati, non codice**: la partita gira su
+> `MapSource=GeneratedTestArena` — l'arena di test, non un livello di gioco — **e la via a punti non è mai
+> stata esercitata, perché la soglia obiettivo è 0**.»*
 
-Questo non è un ampliamento di scope: è il completamento di un gate `P0` già dichiarato. È l'argomento
-che regge, e va tenuto separato dalle nove sezioni che non lo reggono.
+Il rimedio della prima **esiste già e appartiene a qualcun altro**: `PIE-V01-ARENA`, seduta **U1**, che
+`test-manuali-pie.md` dichiara *«l'**ultimo** ostacolo a CP 12.5»*. Nessuna delle due si chiude con un menu.
+
+∴ **costruire E46 non rende verde `G13`.** Citarne mezza riserva per concludere il contrario è il difetto
+che questo repository registra da tredici voci del Decision Log: una premessa vera a metà che sostiene una
+conclusione comoda. Ed è più insidioso di un numero sbagliato — un numero lo rimisuri, una citazione
+troncata *sembra* una prova.
+
+**L'argomento che regge, ed è un'altra cosa**: una build che avvia **direttamente in partita** e non offre
+alcun modo di iniziarla, riavviarla o uscirne non è un *vertical slice consegnabile* — è un eseguibile che
+carica una mappa. È una decisione di **prodotto**, non l'esecuzione di un gate, e va pesata come tale:
+aggiunge la 22ª epic a una release in chiusura e **nessun gate della v0.1 la richiede**.
+
+L'autore ha scelto di tenerla in v0.1 sapendo questo ([D-144](../../decisions/RT_PDR_00_Decision_Log.md)).
 
 ### 6.2 Navigation Controller (§16) — buono, con un vincolo
 
@@ -196,8 +223,15 @@ L'idea è corretta e il repository non ha nulla di equivalente: un solo owner de
 
 ⚠️ Va coordinato con **CP 11.8** (Pointer Interaction Contract), che ha già `Modal` fra i sette contesti
 del `PlayerController` e una precedenza dichiarata `Modal/Reaction UI > HUD > world tactical hit`. Il
-navigation controller del frontend **non** può possedere quel `Modal`: sono due strati, e il contratto
-del puntatore è già scritto e testato con dieci test `PlayerInput.*`.
+navigation controller del frontend **non** può possedere quel `Modal`: sono due strati.
+
+🔴 **Questa riga diceva «già scritto e testato con dieci test `PlayerInput.*`», ed era falsa** — trovata in
+code review. Il contratto è **scritto**; la precedenza **non è testata e non è implementata**:
+`grep -rn "HUDConsumesPointerBeforeWorld\|ReactionWindowOwnsInputPriority" Source/` → **zero**, e la nota di
+CP 11.8 in `roadmap-v0.1.md` lo dichiara fra i propri delta aperti (*«oggi ogni click passa al mondo»*). I
+dieci test che esistono sono quelli di `RTPointerInteractionTests.cpp` e coprono altro. Probabile
+trasposizione da *«nove delle sue **dieci regole**»*, che è una frase diversa nello stesso documento.
+L'argomento del confine non ne soffre — regge sulla spec, non sui test — ma il numero era inventato.
 
 ### 6.3 Le sette regole già canoniche che il documento enuncia correttamente
 
@@ -238,10 +272,11 @@ sembra ovvia.
 
 ## 8. Cosa questa revisione **non** decide
 
-- **Se aprire E46 adesso.** La v0.1 ha 21 epic e 100 checkpoint aperti, e i gate G1–G15 sono quasi tutti
-  ⏳. Aggiungere un'epic `P1` a una release in chiusura è una scelta dell'autore, non una conseguenza
-  dell'audit. L'alternativa onesta: registrare E46 come **post-v0.1** e accettare che G13 resti 🟡 con la
-  riserva già scritta.
+- ~~**Se aprire E46 adesso.**~~ **Deciso il 2026-08-16: sì, in v0.1.** La v0.1 aveva 21 epic e 100
+  checkpoint (ora **22** e **106**) e i gate G1–G15 sono quasi tutti ⏳: aggiungere un'epic `P1` a una
+  release in chiusura è una scelta dell'autore, non una conseguenza dell'audit — ed è stata presa come
+  tale, **dopo** che la code review aveva falsificato l'argomento del gate (§6.1). L'alternativa era
+  registrarla post-v0.1; `G13` resta 🟡 in entrambi i casi, perché le sue riserve non dipendono da E46.
 - **CommonUI.** Il vincolo §32 dice *«non rendere CommonUI obbligatorio se non già deciso»*. Non è deciso:
   quattro sorgenti archiviati dicono *«CommonUI solo dopo proof of concept»*, e nessuno di essi è
   normativo. Resta fuori, e resta una domanda aperta.
