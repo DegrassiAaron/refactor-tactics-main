@@ -18,13 +18,13 @@
   "_nota_geometria": "Due gruppi separati da tre righe vuote: le linee del gruppo di sotto non arrivano al gruppo di sopra, e nessun alleato sta in mezzo a una linea.",
 
   "units": [
-    { "id": "DG", "hero": "Hero.Vektor", "team": 0, "cell": [0,  0, 0] },
-    { "id": "G1", "hero": "Hero.Riva",   "team": 1, "cell": [2,  0, 0] },
-    { "id": "G2", "hero": "Hero.Riva",   "team": 1, "cell": [2, -1, 0] },
+    { "id": "DG", "hero": "Hero.Wraith", "team": 0, "cell": [0,  0, 0] },
+    { "id": "G1", "hero": "Hero.Phase",   "team": 1, "cell": [2,  0, 0] },
+    { "id": "G2", "hero": "Hero.Phase",   "team": 1, "cell": [2, -1, 0] },
 
-    { "id": "DB", "hero": "Hero.Vektor", "team": 0, "cell": [0, -4, 0] },
-    { "id": "B1", "hero": "Hero.Riva",   "team": 1, "cell": [2, -4, 0] },
-    { "id": "B2", "hero": "Hero.Riva",   "team": 1, "cell": [2, -5, 0] }
+    { "id": "DB", "hero": "Hero.Wraith", "team": 0, "cell": [0, -4, 0] },
+    { "id": "B1", "hero": "Hero.Phase",   "team": 1, "cell": [2, -4, 0] },
+    { "id": "B2", "hero": "Hero.Phase",   "team": 1, "cell": [2, -5, 0] }
   ],
 
   "turns": [

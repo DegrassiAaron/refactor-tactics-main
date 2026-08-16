@@ -573,7 +573,7 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 						{
 							// Un'azione che risolve su CHI LA USA non ha un bersaglio da dichiarare: il
 							// `TurnManager` si bersaglia da solo in fase Prep (`Instance.TargetUnitId = i`), e
-							// pretenderlo qui costringerebbe a scrivere «Bastion si mette in guardia bersagliando
+							// pretenderlo qui costringerebbe a scrivere «Riktor si mette in guardia bersagliando
 							// se stesso». La domanda si pone al CATALOGO invece di elencare gli ActionId self,
 							// cosi' un'azione di Prep aggiunta domani non deve ricordarsi di questa riga.
 							//

@@ -183,7 +183,7 @@ enum class ERTEnvironmentOutcome : uint8
 	CoverCreated,
 	/** Una copertura temporanea e' scaduta: da qui in poi quel bordo non ripara piu' nessuno. */
 	CoverExpired,
-	/** Una copertura e' stata SPOSTATA su un altro bordo (`Bastion.Reconfigure`): non ne nasce una seconda. */
+	/** Una copertura e' stata SPOSTATA su un altro bordo (`Riktor.Reconfigure`): non ne nasce una seconda. */
 	CoverMoved,
 	/**
 	 * La copertura non e' nata: bersaglio fuori portata, bordo non dichiarato o gia' riparato. E' il `Cancel`
@@ -418,7 +418,7 @@ struct FRTTurnLogEntry
 	 * IDENTITA' dell'azione che ha prodotto la voce, quando ne ha una (CP 5.5). `NAME_None` = non dichiarata.
 	 *
 	 * Serve perche' le reazioni degli eroi riusano la semantica delle azioni core: senza questo campo
-	 * `Bastion.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
+	 * `Riktor.Interposition` e `Action.Intercept` produrrebbero voci IDENTICHE, e un replay non potrebbe piu'
 	 * dire quale abilita' e' scattata. E' l'ActionId del catalogo, cioe' la chiave stabile: non cambia mai.
 	 *
 	 * Dal 2026-08-10 (CP 11.3, `#79`) lo popolano **anche le voci di combattimento** — colpi pianificati,
@@ -434,10 +434,10 @@ struct FRTTurnLogEntry
 	FName ActionId;
 
 	/**
-	 * L'azione GENERICA di cui `ActionId` e' un profilo (es. `Action.BasicAttack` per `Bastion.ImpactShot`).
+	 * L'azione GENERICA di cui `ActionId` e' un profilo (es. `Action.BasicAttack` per `Riktor.ImpactShot`).
 	 * `NAME_None` quando l'azione non e' profilo di niente, o quando chi ha scritto la voce non lo sapeva.
 	 *
-	 * Sta QUI e non solo nel catalogo perche' `Bastion.ImpactShot` e' un'azione d'EROE: chi legge una traccia
+	 * Sta QUI e non solo nel catalogo perche' `Riktor.ImpactShot` e' un'azione d'EROE: chi legge una traccia
 	 * non la risolve consultando il catalogo core, gli servirebbero i data asset del roster. Senza questo
 	 * campo la traccia non e' spiegabile da sola, e [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
 	 * chiede esattamente questo.

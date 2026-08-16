@@ -5,16 +5,16 @@
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "IL CONCETTO CENTRALE del gioco in un turno: non stai ordinando una sequenza, stai dichiarando un piano che verra' RIVALIDATO. Flux dichiara `LinearDischarge` su Bastion, che sta a cinque celle esatte — la portata massima. Ma la carica di Bastion risolve nel **Dash**, prima del Blast, e lo porta a sette celle di distanza: fuori portata. Il colpo non lo insegue: cade sulla cella dove Bastion non e' piu', secondo il fallback `AttackCell` dichiarato dall'azione.",
+  "_nota": "IL CONCETTO CENTRALE del gioco in un turno: non stai ordinando una sequenza, stai dichiarando un piano che verra' RIVALIDATO. Gadget dichiara `LinearDischarge` su Riktor, che sta a cinque celle esatte — la portata massima. Ma la carica di Riktor risolve nel **Dash**, prima del Blast, e lo porta a sette celle di distanza: fuori portata. Il colpo non lo insegue: cade sulla cella dove Riktor non e' piu', secondo il fallback `AttackCell` dichiarato dall'azione.",
 
-  "_nota_cosa_fa_scattare_il_fallback": "La PORTATA, non l'allineamento. La prima versione di questo scenario faceva uscire Bastion dalla riga di tiro restando a quattro celle, e il colpo lo ha raggiunto lo stesso: 120 -> 96. La forma `Line` descrive **chi altro** viene preso sulla traiettoria, non un vincolo di allineamento del bersaglio. Il fallback scatta quando il bersaglio diventa irraggiungibile — e per una scarica a portata 5, «irraggiungibile» vuol dire oltre la quinta cella.",
+  "_nota_cosa_fa_scattare_il_fallback": "La PORTATA, non l'allineamento. La prima versione di questo scenario faceva uscire Riktor dalla riga di tiro restando a quattro celle, e il colpo lo ha raggiunto lo stesso: 120 -> 96. La forma `Line` descrive **chi altro** viene preso sulla traiettoria, non un vincolo di allineamento del bersaglio. Il fallback scatta quando il bersaglio diventa irraggiungibile — e per una scarica a portata 5, «irraggiungibile» vuol dire oltre la quinta cella.",
 
-  "_nota_geometria": "Bastion carica Riva verso EST, cioe' allontanandosi da Flux invece di attraversargli davanti: da (1,0) si ferma addosso a lei in (3,0), a sette celle da (-4,0).",
+  "_nota_geometria": "Riktor carica Phase verso EST, cioe' allontanandosi da Gadget invece di attraversargli davanti: da (1,0) si ferma addosso a lei in (3,0), a sette celle da (-4,0).",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [-4, 0, 0] },
-    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [ 4, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 1, 0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-4, 0, 0] },
+    { "id": "R1", "hero": "Hero.Phase",    "team": 0, "cell": [ 4, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 1, 0, 0] }
   ],
 
   "turns": [

@@ -16,7 +16,7 @@
   "units": [
     {
       "id": "F1",
-      "hero": "Hero.Flux",
+      "hero": "Hero.Gadget",
       "team": 0,
       "cell": [
         -3,
@@ -26,7 +26,7 @@
     },
     {
       "id": "R1",
-      "hero": "Hero.Riva",
+      "hero": "Hero.Phase",
       "team": 1,
       "cell": [
         0,
@@ -36,7 +36,7 @@
     },
     {
       "id": "B1",
-      "hero": "Hero.Bastion",
+      "hero": "Hero.Riktor",
       "team": 1,
       "cell": [
         0,
@@ -46,7 +46,7 @@
     },
     {
       "id": "V1",
-      "hero": "Hero.Vektor",
+      "hero": "Hero.Wraith",
       "team": 1,
       "cell": [
         3,
@@ -57,11 +57,11 @@
   ],
   "turns": [
     {
-      "_turno": "T1 — allestimento: Riva e Bastion sono gia' sull'acqua ((0,0) e (0,1) di RelayLite), Vektor e' all'asciutto lontano. Gira sul gioco di oggi.",
+      "_turno": "T1 — allestimento: Phase e Riktor sono gia' sull'acqua ((0,0) e (0,1) di RelayLite), Wraith e' all'asciutto lontano. Gira sul gioco di oggi.",
       "intents": []
     },
     {
-      "_turno": "T2 - la scarica. Flux elettrifica la rete con ConductiveNode (= Action.Electrify, D-046): 20 al bersaglio, 12 ai propagati sull'acqua, Vektor illeso perche' non la tocca.",
+      "_turno": "T2 - la scarica. Gadget elettrifica la rete con ConductiveNode (= Action.Electrify, D-046): 20 al bersaglio, 12 ai propagati sull'acqua, Wraith illeso perche' non la tocca.",
       "requires": [
         "EnvironmentalActionOwner"
       ],

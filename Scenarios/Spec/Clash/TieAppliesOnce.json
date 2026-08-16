@@ -12,8 +12,8 @@
   "_nota_da_completare": "Intent del turno 2 vuoti: sintassi non decisa. Chi implementa E14.7 aggiunge l'assertion sugli HP di entrambi — il punto e' che l'esito valga UNA volta, quindi il valore atteso e' quello di un solo TieOutcome, non di due — e verifica che `TurnsCompleted` non cresca oltre il previsto.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [ 0, 0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [-3, 0, 0] }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [-3, 0, 0] }
   ],
 
   "turns": [

@@ -342,7 +342,7 @@ void ARTTurnManager::PlanBots()
 				}
 			}
 			// Cosa la squadra sa di questo nemico. `EnemyReach` NON passa di qui: gittate e forme sono
-			// catalogo, cioe' dato pubblico — sapere che Riva ha portata 5 non e' sapere dov'e' Riva.
+			// catalogo, cioe' dato pubblico — sapere che Phase ha portata 5 non e' sapere dov'e' Phase.
 			FRTCellId KnownCell = Other->Cell;
 			int32 KnownHealth = Other->Health + Other->Shield;
 			switch (URTTeamKnowledgeLibrary::ClassifyTarget(BotKnowledge, Other->StableUnitId,
@@ -1522,13 +1522,13 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		{
 			// Dal DATO, non dal nome (D-046, #282). Il confronto per ActionId funzionava finche' le uniche
 			// azioni ambientali erano quelle del catalogo core; non appena un eroe ne possiede una — e
-			// `Riva.FluidTrail` non puo' chiamarsi `Action.CreateWater` — un `if` sul nome smette di poter
+			// `Phase.FluidTrail` non puo' chiamarsi `Action.CreateWater` — un `if` sul nome smette di poter
 			// esprimere «e' quell'azione». Stessa strada di `PropagationLimit`, che infatti gia' funzionava
 			// per l'eroe che aveva ereditato `Action.Electrify`.
 			const bool bCreatesSurface = Ability->Def.bCreatesSurface;
 			const ERTHexSurface Created = Ability->Def.SurfaceCreated;
 			// La CAUSA registrata nel TurnLog resta l'ActionId dell'abilita' usata: con un eroe owner e'
-			// `Riva.FluidTrail`, non `Action.CreateWater`. Chi legge il replay deve vedere CHI ha allagato,
+			// `Phase.FluidTrail`, non `Action.CreateWater`. Chi legge il replay deve vedere CHI ha allagato,
 			// non la primitiva che c'e' sotto — l'identita' dell'eroe e' meta' del valore del log.
 			const FName EnvActionId = Ability->Def.ActionId;
 
@@ -1541,7 +1541,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				//
 				// Il raggio e' dell'AZIONE, non della superficie. Era `(Created == ShallowWater) ? 1 : 0`, cioe'
 				// il ramo che il commento qui sopra dichiara di voler evitare: con tre produttori — acqua 1,
-				// fuoco 0, fumo 1 (`Riva.MistVeil`, #353) — quel ramo dovrebbe indovinare quale superficie
+				// fuoco 0, fumo 1 (`Phase.MistVeil`, #353) — quel ramo dovrebbe indovinare quale superficie
 				// vuole quale area, e sbaglierebbe alla prima azione che allaga una cella sola.
 				const int32 Radius = FMath::Max(0, Ability->Def.SurfaceRadius);
 				// Ordine STABILE delle celle: `HexArea` restituisce gia' un'area ordinata, quindi le voci di
@@ -1982,7 +1982,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	};
 	TArray<FRTPendingCoverOp> Pending;
 
-	// Gli SPOSTAMENTI (`Bastion.Reconfigure`). Portano con se' chi li ha chiesti, perche' il cooldown si decide
+	// Gli SPOSTAMENTI (`Riktor.Reconfigure`). Portano con se' chi li ha chiesti, perche' il cooldown si decide
 	// solo in applicazione: una rotazione gratuita non lo spende, e quale copertura si sposta — quindi se una
 	// rotazione gratuita c'e' — si sa solo guardando il campo.
 	struct FRTPendingMoveOp
@@ -2808,7 +2808,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 		Entry.Category = ERTLogCategory::Reaction;
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
-		Entry.ActionId = Reaction->Def.ActionId; // identita': `Vektor.Deflection` non e' `Action.Deflect` (CP 5.5)
+		Entry.ActionId = Reaction->Def.ActionId; // identita': `Wraith.Deflection` non e' `Action.Deflect` (CP 5.5)
 		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		// CHI sa se il trigger e' scattato e' il chiamante: cambia con il punto, e il pass non ha modo di
@@ -3560,7 +3560,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.Category = ERTLogCategory::Reaction;
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
-		Entry.ActionId = Reaction->Def.ActionId; // `Bastion.Interposition` non e' `Action.Intercept` (CP 5.5)
+		Entry.ActionId = Reaction->Def.ActionId; // `Riktor.Interposition` non e' `Action.Intercept` (CP 5.5)
 		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		// Il contatore di [D-092] vale anche qui: l'interposizione E' un'attivazione, e lasciarla fuori
@@ -3613,7 +3613,7 @@ void ARTTurnManager::ResolveCombat()
 	// davvero, ed e' l'unico posto dove farlo: qui il redirect e' deciso e nessuna reazione e' ancora stata
 	// valutata sui colpi riscritti, quindi la rivalidazione non puo' aprire una seconda opportunity.
 	//
-	// E' la stessa disciplina dei bonus di coppia piu' sotto (`Flux.LinearDischarge` contro `Status.Wet`):
+	// E' la stessa disciplina dei bonus di coppia piu' sotto (`Gadget.LinearDischarge` contro `Status.Wet`):
 	// cio' che dipende da CHI subisce si decide dopo l'Intercept, non prima.
 	for (int32 r = 0; r < RedirectHit.Num(); ++r)
 	{
@@ -3702,7 +3702,7 @@ void ARTTurnManager::ResolveCombat()
 		// riga l'entry sopravvive al proprio riparo, e siccome identifica la barriera con la sola coppia
 		// (cella, bordo), alla scadenza del suo timer porterebbe via **quello che trova su quel bordo**: se
 		// nel frattempo qualcuno ha riparato lo stesso varco, gli distrugge il pannello in anticipo e scrive
-		// nel TurnLog una scadenza mai avvenuta. Due Bastion sullo stesso choke point bastano — i cooldown
+		// nel TurnLog una scadenza mai avvenuta. Due Riktor sullo stesso choke point bastano — i cooldown
 		// sono per unita', quindi il secondo non aspetta il primo.
 		if (Change.bDestroyed)
 		{
@@ -3877,7 +3877,7 @@ void ARTTurnManager::ResolveCombat()
 	IncomingMarkPriority.Init(MAX_int32, Units.Num());
 	TArray<bool> bMarkedBeforeBlast;    // marchio ereditato da un turno precedente: vale per qualunque colpo
 	bMarkedBeforeBlast.Init(false, Units.Num());
-	// Stessa disciplina per `Wet`, e per la stessa ragione: `Riva.PressureJet` bagna DENTRO il Blast, quindi
+	// Stessa disciplina per `Wet`, e per la stessa ragione: `Phase.PressureJet` bagna DENTRO il Blast, quindi
 	// un bonus che leggesse solo `HasStatus` non lo vedrebbe mai — e con durata 1 il bagnato scade nel Cleanup
 	// dello stesso turno, quindi non lo vedrebbe nemmeno il turno dopo. La combo acqua+elettricita' era
 	// documentata, aveva un test verde sull'aritmetica, e non era eseguibile in partita (#242).
@@ -3968,14 +3968,14 @@ void ARTTurnManager::ResolveCombat()
 	// `ToAttacks` l'informazione non esiste piu'. Dopo l'Intercept, perche' il bersaglio puo' essere cambiato:
 	// il bonus lo decide chi il colpo lo incassa davvero.
 	//
-	// `Flux.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
+	// `Gadget.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
 	// perche' non e' un danno fisso, e vale su OGNI colpo dell'azione finche' il bersaglio e' bagnato — non
 	// solo sul primo, quindi non passa dai delta qui sotto.
 	//
 	// Due sorgenti di bagnato, e contano entrambe:
 	//   - GIA' bagnato quando il Blast comincia (acqua bassa attraversata nel Dash, o turno precedente):
 	//     `HasStatus` risponde di si', e vale per qualunque colpo;
-	//   - bagnato IN QUESTO Blast (`Riva.PressureJet`, priorita' 50): vale solo per i colpi a priorita' piu'
+	//   - bagnato IN QUESTO Blast (`Phase.PressureJet`, priorita' 50): vale solo per i colpi a priorita' piu'
 	//     ALTA, cioe' risolti dopo. `LinearDischarge` ha priorita' 55, quindi la coordinazione funziona.
 	// La seconda meta' mancava, ed e' il motivo per cui la combo firma della v0.1 non era eseguibile (#242).
 	// L'ordine e' quello canonico di ADR-0003 §3, lo stesso del marchio: non ne nasce un secondo.
@@ -4094,7 +4094,7 @@ void ARTTurnManager::ResolveCombat()
 	TMap<ARTUnit*, int32> KnockCount;
 	// Quali attaccanti spingono ciascun bersaglio (D-085). Serve perche' `KnockCount` deve contare gli
 	// ATTACCANTI e non gli eventi: dal CP 7.1 una sola azione puo' dichiarare due spinte (`Weapon.Impact` su
-	// `Riva.PressureJet`), e contarle come due attaccanti attivava «forze contraddittorie» su un duello.
+	// `Phase.PressureJet`), e contarle come due attaccanti attivava «forze contraddittorie» su un duello.
 	TMap<ARTUnit*, TSet<int32>> KnockAttackers;
 	// Trazione (`Action.Pull`, CP 4.7): stessa disciplina della spinta, array paralleli propri — una
 	// direzione INVERTITA (verso chi tira, non lontano da lui) non e' la stessa spinta con un segno cambiato
@@ -4227,7 +4227,7 @@ void ARTTurnManager::ResolveCombat()
 					//
 					// Fino a CP 7.1 le due cose coincidevano: nessuna azione del catalogo dichiarava piu' di un
 					// `Push`, quindi un evento era un attaccante. `Weapon.Impact` rompe l'equivalenza — accoda un
-					// secondo `Push 1` all'attacco base di Riva, che ne ha gia' uno — e con il conteggio per
+					// secondo `Push 1` all'attacco base di Phase, che ne ha gia' uno — e con il conteggio per
 					// evento il bersaglio finiva nel ramo «forze contraddittorie» qui sotto: **fermo**, con
 					// `OpposingForces` nel TurnLog e un solo attaccante in campo. Una causa scritta, precisa e
 					// falsa, che e' il difetto peggiore per una traccia che deve essere attribuibile.
@@ -4450,8 +4450,8 @@ void ARTTurnManager::ResolveCombat()
 			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
 			//
 			// ⚠️ **Dal 2026-08-11 una spinta piu' forte ESISTE** (D-085): `Weapon.Impact` su
-			// `Riva.PressureJet`, che spinge gia' di 1, produce una spinta di **2** — ed e' il loadout di
-			// DEFAULT di Riva (D-089). Fino a CP 7.1 questo ramo assorbiva ogni spinta del gioco e il commento
+			// `Phase.PressureJet`, che spinge gia' di 1, produce una spinta di **2** — ed e' il loadout di
+			// DEFAULT di Phase (D-089). Fino a CP 7.1 questo ramo assorbiva ogni spinta del gioco e il commento
 			// diceva cosi'; ora cede, e il ramo `Braced` sotto **aggiunge copertura davvero**.
 			// Pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
@@ -4476,7 +4476,7 @@ void ARTTurnManager::ResolveCombat()
 			// vedeva mai un caso proprio. **Dal 2026-08-11 la premessa di D-074 e' caduta**: `Weapon.Impact`
 			// su un attacco che spinge gia' produce una spinta di **2** (D-085), quindi `Guard` cede e questo
 			// ramo regge. La distanza torna a essere un asse che separa le due difese, e non per una v0.2:
-			// oggi, con il loadout di default di Riva.
+			// oggi, con il loadout di default di Phase.
 			//
 			// Resta vero che le due differiscono anche nel danno (-15 sul primo colpo contro -10 su ogni
 			// colpo), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
@@ -4722,7 +4722,7 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	// indipendenti non si nota niente; appena due bot interagiscono, chi decide per primo cambia l'esito.
 	//
 	// MISURATO, non temuto (CP 47.5): la stessa partita 2v2 bot-contro-bot, con le stesse unita' sulle stesse
-	// celle e inserite in ordine diverso, divergeva al **turno 2** — in un ordine `Bastion.Interposition` si
+	// celle e inserite in ordine diverso, divergeva al **turno 2** — in un ordine `Riktor.Interposition` si
 	// attivava, nell'altro non trovava trigger. Il turno 1 era identico byte per byte, che e' il modo in cui
 	// questa classe di difetto passa inosservata: si manifesta quando gli agenti cominciano a interagire.
 	//

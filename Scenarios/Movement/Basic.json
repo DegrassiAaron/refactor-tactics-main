@@ -6,8 +6,8 @@
   "mapRadius": 3,
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [2, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
   ],
 
   "turns": [

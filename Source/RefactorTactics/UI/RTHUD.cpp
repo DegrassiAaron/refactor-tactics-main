@@ -252,7 +252,7 @@ void ARTHUD::DrawHUD()
 		// impossibile dire chi sta facendo cosa — e un giudizio sul bot o sul ritmo della partita, che e' cio'
 		// che il playtest deve dare, non varrebbe nulla. Posizione FISSA (non sotto lo status): un'etichetta che
 		// salta quando arriva un ROOT si legge peggio di una ferma.
-		// Il nome CANONICO del catalogo (D-120), non l'ID stabile: `Hero.Flux` si legge `Gadget`. Il ripiego
+		// Il nome CANONICO del catalogo (D-120), non l'ID stabile: `Hero.Gadget` si legge `Gadget`. Il ripiego
 		// sull'ID resta dentro `DisplayLabel` per le unita' che nessun eroe ha configurato.
 		// CHI viene colpito, marcato sull'UNITA' e non solo sulla cella — il prefisso e il colore sono stati
 		// decisi sopra, insieme al nome, perche' la larghezza serviva al vincolo.

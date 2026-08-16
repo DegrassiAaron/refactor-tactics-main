@@ -8,8 +8,8 @@
   "_nota": "CP 16.2, il lato che NON cambia: `Brace` protegge la persona, non un lato. Stessa scena di `Spec.Facing.BackAttackIgnoresGuard` — B1 guarda a est, A1 colpisce da ovest — ma con `Action.Brace` invece di `Action.Guard`: la riduzione di 10 vale comunque, 120 - (22 - 10) = 108. Se la difesa direzionale si estendesse oltre copertura e guardia, questo scenario diventerebbe rosso ed e' esattamente il suo compito.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [0, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 0, 0] }
   ],
 
   "turns": [

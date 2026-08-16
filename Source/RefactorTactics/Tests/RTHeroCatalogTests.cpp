@@ -180,7 +180,7 @@ bool FRTHeroBasicAttackIsIndexZeroTest::RunTest(const FString&)
 			Basic->Def.Slot, ERTActionSlot::Main);
 
 		// Almeno un effetto di danno: un attacco base che non fa male non e' un attacco. NON asserisce
-		// QUANTO — 8 (Bastion) e 22 (Flux) sono entrambi legittimi, ed e' il punto di ADR-0007.
+		// QUANTO — 8 (Riktor) e 22 (Gadget) sono entrambi legittimi, ed e' il punto di ADR-0007.
 		bool bDealsDamage = false;
 		for (const FRTActionEffectSpec& Spec : Basic->Def.Effects)
 		{
@@ -204,7 +204,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttackDeclaresBaseTest,
 bool FRTHeroBasicAttackDeclaresBaseTest::RunTest(const FString&)
 {
 	// D-033 chiede che un'azione generica con profilo sia spiegabile nel TurnLog come *azione base + profilo*.
-	// Perche' lo sia, il DATO deve dichiarare la relazione: `Bastion.ImpactShot` e' un'azione d'eroe, e chi
+	// Perche' lo sia, il DATO deve dichiarare la relazione: `Riktor.ImpactShot` e' un'azione d'eroe, e chi
 	// legge una traccia non la risolve col catalogo core.
 	//
 	// Senza questo test, dimenticare `BaseActionId` su un eroe nuovo non romperebbe NIENTE — l'azione
@@ -370,13 +370,13 @@ bool FRTHeroMobilitySlotTest::RunTest(const FString&)
 	// il roster perdesse OGNI mobilita'.
 	//
 	// 🔵 **La riga e' tornata a `> 0` il 2026-08-16, ed e' il test stesso ad averlo prescritto.** Dal
-	// 2026-08-09 chiedeva ESATTAMENTE zero, perche' D-046 (#282) aveva cablato `Riva.FluidTrail` su
-	// `Action.CreateWater` togliendo al roster l'unica mobilita' SENZA danno — `Vektor.PassingBlade` e'
+	// 2026-08-09 chiedeva ESATTAMENTE zero, perche' D-046 (#282) aveva cablato `Phase.FluidTrail` su
+	// `Action.CreateWater` togliendo al roster l'unica mobilita' SENZA danno — `Wraith.PassingBlade` e'
 	// FastMovement ma fa 20 danni, cioe' una carica — e la regola D-028 era rimasta vera e senza soggetto.
 	// Accanto c'era scritto: *«quando il roster v0.2 introdurra' una mobilita' pura, questa riga CADRA' […]
 	// a quel punto si torna a `> 0` e il ciclo ricomincia a verificare la regola davvero»*.
 	//
-	// E' caduta, ma non per la v0.2: per **#1006**. `Riva.FluidTrail` e' tornata uno scatto perche' #995 ha
+	// E' caduta, ma non per la v0.2: per **#1006**. `Phase.FluidTrail` e' tornata uno scatto perche' #995 ha
 	// deciso che Phase e' **abilitata** a Water e non padrona — grado `Access`, una sola capability
 	// elementale — e quella era la terza. Il soggetto di D-028 esiste di nuovo, quindi la guardia torna a
 	// verificare la regola invece di consuntivare un'assenza.

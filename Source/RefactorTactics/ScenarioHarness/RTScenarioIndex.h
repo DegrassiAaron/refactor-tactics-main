@@ -108,6 +108,6 @@ public:
 	/** Segue la catena di redirect fino a un ID che non ne ha altri, o fino a `MaxRedirectHops`. Pura. */
 	static FString ApplyRedirects(const TMap<FString, FString>& Redirects, const FString& ScenarioId);
 
-	/** Forma canonica di un tag: senza spazi ai bordi, minuscolo. `Flux` e `flux ` sono lo stesso filtro. */
+	/** Forma canonica di un tag: senza spazi ai bordi, minuscolo. `Gadget` e `flux ` sono lo stesso filtro. */
 	static FString NormalizeTag(const FString& Tag);
 };

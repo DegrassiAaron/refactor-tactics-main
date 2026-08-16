@@ -150,8 +150,8 @@ bool FRTIconV01CategoriesTest::RunTest(const FString&)
 			*URTIconLibrary::CategoryName(Category)), Populated.Contains(Category));
 	}
 
-	// I quattro eroi del roster, con il prefisso TRADOTTO: `Hero.Flux` -> `UI.Icon.Identity.Flux`. Senza la
-	// traduzione la chiave sarebbe `UI.Icon.Hero.Flux`, che il validator rifiuta perche' il segmento non
+	// I quattro eroi del roster, con il prefisso TRADOTTO: `Hero.Gadget` -> `UI.Icon.Identity.Gadget`. Senza la
+	// traduzione la chiave sarebbe `UI.Icon.Hero.Gadget`, che il validator rifiuta perche' il segmento non
 	// combacia con la categoria dichiarata.
 	//
 	// ⚠️ **La fonte qui e' `GetHeroRoster()`, non `GetHeroIds()`, e la differenza e' tutto il valore del
@@ -183,7 +183,7 @@ bool FRTIconV01CategoriesTest::RunTest(const FString&)
 	TestEqual(TEXT("le chiavi Identity sono quattro eroi piu' due relazioni"),
 		IdentityKeys, URTHeroCatalogLibrary::GetHeroRoster().Num() + 2);
 	TestFalse(TEXT("nessuna chiave conserva il prefisso Hero."),
-		Required.Contains(FName(TEXT("UI.Icon.Hero.Flux"))));
+		Required.Contains(FName(TEXT("UI.Icon.Hero.Gadget"))));
 
 	// Relazione di squadra: il consumatore esiste gia' (`ARTHUD` legge `View.bIsAlly`).
 	TestTrue(TEXT("Identity.Ally"), Required.Contains(FName(TEXT("UI.Icon.Identity.Ally"))));

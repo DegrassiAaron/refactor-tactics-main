@@ -31,27 +31,27 @@ namespace
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRivaMatchesCatalogTest,
-	"RefactorTactics.Heroes.Riva.MatchesCatalog",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseMatchesCatalogTest,
+	"RefactorTactics.Heroes.Phase.MatchesCatalog",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTRivaMatchesCatalogTest::RunTest(const FString&)
+bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 {
 	// Numeri della tabella §2 del catalogo eroi v0.1.
-	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
-	if (!TestNotNull(TEXT("Riva costruita"), Riva)) { return false; }
+	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	if (!TestNotNull(TEXT("Phase costruita"), Phase)) { return false; }
 
-	TestEqual(TEXT("HeroId"), Riva->HeroId, FName(TEXT("Hero.Riva")));
-	TestEqual(TEXT("salute"), Riva->MaxHealth, 95);
-	TestEqual(TEXT("movimento"), Riva->MovePoints, 5);
-	TestEqual(TEXT("vista"), Riva->VisionRange, 5);
-	TestEqual(TEXT("resistenza push"), Riva->PushResistance, 0);
-	TestEqual(TEXT("affinita'"), Riva->Affinity, FName(TEXT("Affinity.Water")));
-	// Simmetrica a Flux: la stessa combo si legge da entrambi i lati con lo stesso nome.
-	TestEqual(TEXT("debolezza simmetrica a Flux"), Riva->Weakness, FName(TEXT("Affinity.Electricity")));
+	TestEqual(TEXT("HeroId"), Phase->HeroId, FName(TEXT("Hero.Phase")));
+	TestEqual(TEXT("salute"), Phase->MaxHealth, 95);
+	TestEqual(TEXT("movimento"), Phase->MovePoints, 5);
+	TestEqual(TEXT("vista"), Phase->VisionRange, 5);
+	TestEqual(TEXT("resistenza push"), Phase->PushResistance, 0);
+	TestEqual(TEXT("affinita'"), Phase->Affinity, FName(TEXT("Affinity.Water")));
+	// Simmetrica a Gadget: la stessa combo si legge da entrambi i lati con lo stesso nome.
+	TestEqual(TEXT("debolezza simmetrica a Gadget"), Phase->Weakness, FName(TEXT("Affinity.Electricity")));
 
-	if (!TestEqual(TEXT("cinque azioni"), Riva->Actions.Num(), 5)) { return false; }
+	if (!TestEqual(TEXT("cinque azioni"), Phase->Actions.Num(), 5)) { return false; }
 
-	const URTActionData* PressureJet = Riva->Actions[0];
+	const URTActionData* PressureJet = Phase->Actions[0];
 	TestEqual(TEXT("PressureJet: 16 danni"), RivaEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Damage), 16);
 	TestTrue(TEXT("PressureJet: applica Wet"), RivaDeclaresEffect(PressureJet, ERTActionEffect::Status));
 	TestEqual(TEXT("PressureJet: Push 1"), RivaEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Push), 1);
@@ -69,9 +69,9 @@ bool FRTRivaMatchesCatalogTest::RunTest(const FString&)
 	// un Generic Equipment e' `External Access` e non fa proficiency.
 	//
 	// ⚠️ Il costo e' dichiarato in #1006 e non va dimenticato leggendo solo questa riga: il roster perde
-	// l'unico produttore INNATO di superficie acqua, quindi `Flux.ConductiveNode` — che propaga sul grafo
+	// l'unico produttore INNATO di superficie acqua, quindi `Gadget.ConductiveNode` — che propaga sul grafo
 	// conduttivo — dipende dalla mappa o dallo Sprinkler. La vetrina Conflux di D-046 ne risente.
-	const URTActionData* FluidTrail = Riva->Actions[2];
+	const URTActionData* FluidTrail = Phase->Actions[2];
 	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
 	TestEqual(TEXT("FluidTrail: portata dal core, non un numero nuovo"), FluidTrail->Def.RangeCells, DashDef.RangeCells);
 	TestEqual(TEXT("FluidTrail: cooldown 2, il proprio e non quello del core"), FluidTrail->Def.CooldownTurns, 2);
@@ -93,7 +93,7 @@ bool FRTRivaMatchesCatalogTest::RunTest(const FString&)
 	// vincolante del kit: se un giorno tornasse `Preparation`, o il flag sparisse, deve cadere qualcosa —
 	// perche' il modo in cui questa abilita' falliva era il piu' silenzioso possibile (risolveva, e non
 	// succedeva niente).
-	const URTActionData* MistVeil = Riva->Actions[3];
+	const URTActionData* MistVeil = Phase->Actions[3];
 	const FRTActionDef IgniteDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Ignite"));
 	TestEqual(TEXT("MistVeil: cooldown 3"), MistVeil->Def.CooldownTurns, 3);
 	TestTrue(TEXT("MistVeil: crea una superficie"), MistVeil->Def.bCreatesSurface);
@@ -107,17 +107,17 @@ bool FRTRivaMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("MistVeil: priorita' dal core — ordina DENTRO la fase in cui e' andata a vivere"),
 		MistVeil->Def.Priority, IgniteDef.Priority);
 
-	// Riva e' un roster valido di per se'.
-	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Riva });
+	// Phase e' un roster valido di per se'.
+	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Phase });
 	for (const FString& Err : Errors) { AddError(Err); }
-	TestEqual(TEXT("Riva e' strutturalmente valida"), Errors.Num(), 0);
+	TestEqual(TEXT("Phase e' strutturalmente valida"), Errors.Num(), 0);
 	return true;
 }
 
 /**
  * `CircularTide` cura e basta: il `Wet` esce dalla sua dichiarazione (#1006).
  *
- * ⚠️ **Questo test SOSTITUISCE `Heroes.Riva.TideHealsAlliesWetsEnemies`, non lo affianca.** Quel nome
+ * ⚠️ **Questo test SOSTITUISCE `Heroes.Phase.TideHealsAlliesWetsEnemies`, non lo affianca.** Quel nome
  * pinnava la doppia natura — cura agli alleati, `Wet` ai nemici — che era il contenuto di CP 6.3. Il nome
  * e' cambiato insieme al contratto perche' un test che si chiama `...WetsEnemies` e non verifica piu'
  * nessun `Wet` e' peggio di un test cancellato: resta verde e racconta un kit che non esiste.
@@ -129,12 +129,12 @@ bool FRTRivaMatchesCatalogTest::RunTest(const FString&)
  * (`LinearDischarge` fa **+8 su bersaglio `Wet`**). Dopo questa modifica la combo passa solo per la linea
  * di `PressureJet`, che colpisce meno bersagli. E' il prezzo accettato con l'opzione C di #1006.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRivaTideHealsWithoutWettingTest,
-	"RefactorTactics.Heroes.Riva.TideHealsWithoutWetting",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseTideHealsWithoutWettingTest,
+	"RefactorTactics.Heroes.Phase.TideHealsWithoutWetting",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTRivaTideHealsWithoutWettingTest::RunTest(const FString&)
+bool FRTPhaseTideHealsWithoutWettingTest::RunTest(const FString&)
 {
-	const URTActionData* CircularTide = URTHeroCatalogLibrary::MakeRiva()->Actions[1];
+	const URTActionData* CircularTide = URTHeroCatalogLibrary::MakePhase()->Actions[1];
 
 	// Le assertion ancora vive del test precedente: la cura e i numeri di forma non cambiano.
 	TestTrue(TEXT("dichiara una cura"), RivaDeclaresEffect(CircularTide, ERTActionEffect::Heal));
@@ -164,13 +164,13 @@ bool FRTRivaTideHealsWithoutWettingTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRivaVariantTradeoffTest,
-	"RefactorTactics.Heroes.Riva.VariantTradeoff",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseVariantTradeoffTest,
+	"RefactorTactics.Heroes.Phase.VariantTradeoff",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTRivaVariantTradeoffTest::RunTest(const FString&)
+bool FRTPhaseVariantTradeoffTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD: nessuna variante di CircularTide e' migliore in ogni parametro.
-	const URTActionData* CircularTide = URTHeroCatalogLibrary::MakeRiva()->Actions[1];
+	const URTActionData* CircularTide = URTHeroCatalogLibrary::MakePhase()->Actions[1];
 	if (!TestEqual(TEXT("due varianti"), CircularTide->Variants.Num(), 2)) { return false; }
 
 	const FRTAbilityVariant& Healing = CircularTide->Variants[0];

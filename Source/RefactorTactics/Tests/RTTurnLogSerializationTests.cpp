@@ -290,7 +290,7 @@ bool FRTTurnLogActionIdRoundTripTest::RunTest(const FString&)
 	TestEqual(TEXT("due voci distinte"), Restored.Num(), 2);
 	TestEqual(TEXT("hash preservato"), URTTurnLogLibrary::HashTurnLog(Restored), URTTurnLogLibrary::HashTurnLog(Log));
 
-	// L'ordine canonico e' deterministico: `Action.Intercept` precede `Bastion.Interposition`.
+	// L'ordine canonico e' deterministico: `Action.Intercept` precede `Riktor.Interposition`.
 	if (Restored.Num() == 2)
 	{
 		TestTrue(TEXT("identita' preservata e ordinata lessicograficamente"),
@@ -568,7 +568,7 @@ bool FRTTurnLogLegacyWithoutBaseActionIdTest::RunTest(const FString&)
 	// byte non contenevano, cioe' esattamente il difetto che il versionamento esiste per evitare.
 	TestTrue(TEXT("BaseActionId resta VUOTO: non si inventa cio' che i byte non dicevano"),
 		Out[0].BaseActionId.IsNone());
-	// E la descrizione degrada senza rompersi: dice l'ActionId da solo, non «None · Bastion.ImpactShot».
+	// E la descrizione degrada senza rompersi: dice l'ActionId da solo, non «None · Riktor.ImpactShot».
 	TestEqual(TEXT("la descrizione ricade sul solo ActionId"),
 		URTTurnLogLibrary::DescribeActionIdentity(Out[0]), FString(TEXT("Bastion.ImpactShot")));
 	return true;

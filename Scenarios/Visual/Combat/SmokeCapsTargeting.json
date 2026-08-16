@@ -5,13 +5,13 @@
   "seed": 0,
   "fixture": "RelayLite",
 
-  "_nota": "Il fumo non acceca: ACCORCIA. `MaxTargetingRangeThrough` vale 2 per Smoke, quindi una linea di tiro che attraversa la cella (1,2) non arriva oltre due celle, per quanta portata abbia l'arma. Flux tira da (1,4) su Bastion a (1,0): distanza 4, dentro i 4 di `ArcPulse`, e il colpo non parte lo stesso. Bastion resta a 120.",
+  "_nota": "Il fumo non acceca: ACCORCIA. `MaxTargetingRangeThrough` vale 2 per Smoke, quindi una linea di tiro che attraversa la cella (1,2) non arriva oltre due celle, per quanta portata abbia l'arma. Gadget tira da (1,4) su Riktor a (1,0): distanza 4, dentro i 4 di `ArcPulse`, e il colpo non parte lo stesso. Riktor resta a 120.",
 
   "_nota_leggibilita": "E' diverso da `Combat.BlockedByWall`, dove la vista e' negata del tutto, ed e' la differenza che la presentazione deve rendere: qui il bersaglio si VEDE e non si puo' colpire. Se a schermo il fumo si comporta come un muro, il giocatore imparera' la regola sbagliata e piazzera' male il prossimo `MistVeil`.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [1, 4, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [1, 0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [1, 4, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
   ],
 
   "turns": [

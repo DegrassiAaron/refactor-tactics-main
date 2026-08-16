@@ -113,19 +113,19 @@ namespace
 		return 0;
 	}
 
-	constexpr int32 HeroReactInterpositionIndex = 4; // Bastion
-	constexpr int32 HeroReactDeflectionIndex = 3;    // Vektor
-	constexpr int32 HeroReactCapacitorIndex = 4;     // Flux
+	constexpr int32 HeroReactInterpositionIndex = 4; // Riktor
+	constexpr int32 HeroReactDeflectionIndex = 3;    // Wraith
+	constexpr int32 HeroReactCapacitorIndex = 4;     // Gadget
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionInterpositionSlotTest,
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorInterpositionSlotTest,
 	"RefactorTactics.Heroes.BastionInterpositionUsesReactionSlot",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionInterpositionSlotTest::RunTest(const FString&)
+bool FRTRiktorInterpositionSlotTest::RunTest(const FString&)
 {
 	// Lo slot `Reaction` non e' un'etichetta: significa che l'eroe puo' agire E tenere pronta la reazione
-	// nello stesso turno. Si verifica sul dato e poi in partita, con Bastion che attacca *mentre* si interpone.
-	URTHeroData* BastionData = URTHeroCatalogLibrary::MakeBastion();
+	// nello stesso turno. Si verifica sul dato e poi in partita, con Riktor che attacca *mentre* si interpone.
+	URTHeroData* BastionData = URTHeroCatalogLibrary::MakeRiktor();
 	const URTActionData* Interposition = BastionData->Actions[HeroReactInterpositionIndex];
 	const FRTActionDef CoreIntercept = URTCatalogLibrary::FindCoreAction(TEXT("Action.Intercept"));
 
@@ -144,13 +144,13 @@ bool FRTBastionInterpositionSlotTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
 
-	URTHeroData* RivaData = URTHeroCatalogLibrary::MakeRiva();
-	URTHeroData* VektorData = URTHeroCatalogLibrary::MakeVektor();
-	ARTUnit* Bastion = SpawnHeroReactUnit(World, BastionData, /*Team*/ 0, FRTCellId(0, 0));
+	URTHeroData* RivaData = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* VektorData = URTHeroCatalogLibrary::MakeWraith();
+	ARTUnit* Riktor = SpawnHeroReactUnit(World, BastionData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, RivaData, /*Team*/ 0, FRTCellId(1, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, VektorData, /*Team*/ 1, FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Bastion"), Bastion) || !TestNotNull(TEXT("alleata"), Ally)
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("alleata"), Ally)
 		|| !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyHeroReactWorld(World);
@@ -158,9 +158,9 @@ bool FRTBastionInterpositionSlotTest::RunTest(const FString&)
 	}
 
 	// Azione principale E reazione nello stesso turno: e' esattamente cio' che lo slot dedicato consente.
-	Bastion->PlannedAbilityIndex = 0; // ImpactShot, portata 3
-	Bastion->PlannedAttackTarget = Enemy;
-	Bastion->PlannedReactionAbility = HeroReactInterpositionIndex;
+	Riktor->PlannedAbilityIndex = 0; // ImpactShot, portata 3
+	Riktor->PlannedAttackTarget = Enemy;
+	Riktor->PlannedReactionAbility = HeroReactInterpositionIndex;
 
 	Enemy->PlannedAbilityIndex = 0; // PulseShot sull'alleata: fa scattare l'interposizione
 	Enemy->PlannedAttackTarget = Ally;
@@ -177,109 +177,109 @@ bool FRTBastionInterpositionSlotTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionInterpositionRedirectsTest,
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorInterpositionRedirectsTest,
 	"RefactorTactics.Heroes.BastionInterpositionRedirectsDirectHit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionInterpositionRedirectsTest::RunTest(const FString&)
+bool FRTRiktorInterpositionRedirectsTest::RunTest(const FString&)
 {
-	// Il colpo diretto all'alleata lo incassa Bastion: e' la semantica di `Action.Intercept`, riusata senza
-	// riscriverla. Bastion e' l'eroe con piu' salute del roster — interporsi e' cio' che sa fare.
+	// Il colpo diretto all'alleata lo incassa Riktor: e' la semantica di `Action.Intercept`, riusata senza
+	// riscriverla. Riktor e' l'eroe con piu' salute del roster — interporsi e' cio' che sa fare.
 	UWorld* World = MakeHeroReactWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
 
-	URTHeroData* BastionData = URTHeroCatalogLibrary::MakeBastion();
-	URTHeroData* RivaData = URTHeroCatalogLibrary::MakeRiva();
-	URTHeroData* VektorData = URTHeroCatalogLibrary::MakeVektor();
-	ARTUnit* Bastion = SpawnHeroReactUnit(World, BastionData, /*Team*/ 0, FRTCellId(0, 0));
+	URTHeroData* BastionData = URTHeroCatalogLibrary::MakeRiktor();
+	URTHeroData* RivaData = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* VektorData = URTHeroCatalogLibrary::MakeWraith();
+	ARTUnit* Riktor = SpawnHeroReactUnit(World, BastionData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, RivaData, /*Team*/ 0, FRTCellId(1, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, VektorData, /*Team*/ 1, FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Bastion"), Bastion) || !TestNotNull(TEXT("alleata"), Ally)
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("alleata"), Ally)
 		|| !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyHeroReactWorld(World);
 		return false;
 	}
 
-	Bastion->PlannedReactionAbility = HeroReactInterpositionIndex;
-	Bastion->PlannedAbilityIndex = INDEX_NONE;
+	Riktor->PlannedReactionAbility = HeroReactInterpositionIndex;
+	Riktor->PlannedAbilityIndex = INDEX_NONE;
 	Enemy->PlannedAbilityIndex = 0; // PulseShot, colpo singolo
 	Enemy->PlannedAttackTarget = Ally;
 
-	const int32 BastionBefore = Bastion->Health;
+	const int32 BastionBefore = Riktor->Health;
 	const int32 AllyBefore = Ally->Health;
 	const int32 Shot = HeroReactDeclaredDamage(VektorData->Actions[0]);
 	RunHeroReactTurn(TM);
 
 	TestEqual(TEXT("la reazione risulta attivata nel TurnLog"),
 		CountHeroReactActivations(TM, TEXT("Bastion.Interposition")), 1);
-	TestEqual(TEXT("il colpo lo incassa Bastion"), BastionBefore - Bastion->Health, Shot);
+	TestEqual(TEXT("il colpo lo incassa Riktor"), BastionBefore - Riktor->Health, Shot);
 	TestEqual(TEXT("e l'alleata non subisce nulla"), Ally->Health, AllyBefore);
 
 	DestroyHeroReactWorld(World);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVektorDeflectionReducesTest,
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithDeflectionReducesTest,
 	"RefactorTactics.Heroes.VektorDeflectionReducesDirectHit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTVektorDeflectionReducesTest::RunTest(const FString&)
+bool FRTWraithDeflectionReducesTest::RunTest(const FString&)
 {
-	// -20 sul colpo diretto che l'ha innescata, dalla semantica di `Action.Deflect`. Vektor non ha difese
+	// -20 sul colpo diretto che l'ha innescata, dalla semantica di `Action.Deflect`. Wraith non ha difese
 	// passive: la deviazione e' cio' che compra con la fragilita'.
 	UWorld* World = MakeHeroReactWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
 
-	URTHeroData* VektorData = URTHeroCatalogLibrary::MakeVektor();
-	URTHeroData* FluxData = URTHeroCatalogLibrary::MakeFlux();
-	ARTUnit* Vektor = SpawnHeroReactUnit(World, VektorData, /*Team*/ 0, FRTCellId(0, 0));
+	URTHeroData* VektorData = URTHeroCatalogLibrary::MakeWraith();
+	URTHeroData* FluxData = URTHeroCatalogLibrary::MakeGadget();
+	ARTUnit* Wraith = SpawnHeroReactUnit(World, VektorData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, FluxData, /*Team*/ 1, FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Vektor"), Vektor) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Wraith"), Wraith) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyHeroReactWorld(World);
 		return false;
 	}
 
-	Vektor->PlannedReactionAbility = HeroReactDeflectionIndex;
-	Vektor->PlannedAbilityIndex = INDEX_NONE;
+	Wraith->PlannedReactionAbility = HeroReactDeflectionIndex;
+	Wraith->PlannedAbilityIndex = INDEX_NONE;
 	Enemy->PlannedAbilityIndex = 0; // ArcPulse, colpo singolo
-	Enemy->PlannedAttackTarget = Vektor;
+	Enemy->PlannedAttackTarget = Wraith;
 
-	const int32 Before = Vektor->Health;
+	const int32 Before = Wraith->Health;
 	const int32 Shot = HeroReactDeclaredDamage(FluxData->Actions[0]);
 	RunHeroReactTurn(TM);
 
 	TestEqual(TEXT("la reazione risulta attivata nel TurnLog"),
 		CountHeroReactActivations(TM, TEXT("Vektor.Deflection")), 1);
 	TestEqual(TEXT("il colpo arriva ridotto di 20"),
-		Before - Vektor->Health, Shot - URTCombatLibrary::DeflectDamageReduction);
+		Before - Wraith->Health, Shot - URTCombatLibrary::DeflectDamageReduction);
 	TestEqual(TEXT("non riflette: chi ha colpito non incassa nulla"), Enemy->Health, Enemy->MaxHealth);
 
 	DestroyHeroReactWorld(World);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFluxCapacitorShieldsAndCountersTest,
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetCapacitorShieldsAndCountersTest,
 	"RefactorTactics.Heroes.FluxReactiveCapacitorShieldsAndCounters",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTFluxCapacitorShieldsAndCountersTest::RunTest(const FString&)
+bool FRTGadgetCapacitorShieldsAndCountersTest::RunTest(const FString&)
 {
-	// DUE effetti nella stessa reazione (CP 5.5): scudo a Flux **e** danno a chi l'ha colpito. Prima del
+	// DUE effetti nella stessa reazione (CP 5.5): scudo a Gadget **e** danno a chi l'ha colpito. Prima del
 	// motore componibile ne sarebbe arrivato uno solo — ed e' il motivo per cui questo checkpoint dipende
 	// da quello.
 	UWorld* World = MakeHeroReactWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
 
-	URTHeroData* FluxData = URTHeroCatalogLibrary::MakeFlux();
-	URTHeroData* VektorData = URTHeroCatalogLibrary::MakeVektor();
-	ARTUnit* Flux = SpawnHeroReactUnit(World, FluxData, /*Team*/ 0, FRTCellId(0, 0));
+	URTHeroData* FluxData = URTHeroCatalogLibrary::MakeGadget();
+	URTHeroData* VektorData = URTHeroCatalogLibrary::MakeWraith();
+	ARTUnit* Gadget = SpawnHeroReactUnit(World, FluxData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, VektorData, /*Team*/ 1, FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Flux"), Flux) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyHeroReactWorld(World);
 		return false;
@@ -295,12 +295,12 @@ bool FRTFluxCapacitorShieldsAndCountersTest::RunTest(const FString&)
 	TestEqual(TEXT("il catalogo dichiara lo scudo da 15"), ShieldAmount, 15);
 	TestEqual(TEXT("e i 10 danni all'attaccante"), CounterAmount, 10);
 
-	Flux->PlannedReactionAbility = HeroReactCapacitorIndex;
-	Flux->PlannedAbilityIndex = INDEX_NONE;
+	Gadget->PlannedReactionAbility = HeroReactCapacitorIndex;
+	Gadget->PlannedAbilityIndex = INDEX_NONE;
 	Enemy->PlannedAbilityIndex = 0; // PulseShot, colpo singolo
-	Enemy->PlannedAttackTarget = Flux;
+	Enemy->PlannedAttackTarget = Gadget;
 
-	const int32 FluxBefore = Flux->Health;
+	const int32 FluxBefore = Gadget->Health;
 	const int32 EnemyBefore = Enemy->Health;
 	const int32 Shot = HeroReactDeclaredDamage(VektorData->Actions[0]);
 	RunHeroReactTurn(TM);
@@ -308,7 +308,7 @@ bool FRTFluxCapacitorShieldsAndCountersTest::RunTest(const FString&)
 	TestEqual(TEXT("la reazione risulta attivata nel TurnLog"),
 		CountHeroReactActivations(TM, TEXT("Flux.ReactiveCapacitor")), 1);
 	TestEqual(TEXT("lo scudo assorbe la sua parte del colpo"),
-		FluxBefore - Flux->Health, Shot - ShieldAmount);
+		FluxBefore - Gadget->Health, Shot - ShieldAmount);
 	TestEqual(TEXT("e l'attaccante incassa il contraccolpo"), EnemyBefore - Enemy->Health, CounterAmount);
 
 	DestroyHeroReactWorld(World);
@@ -320,26 +320,26 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroReactionsAreDeclaredTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 {
-	// Cinque reazioni a catalogo: TRE cablate qui, UNA rinviata a E14 (`Riva.FlowReaction`: movimento
+	// Cinque reazioni a catalogo: TRE cablate qui, UNA rinviata a E14 (`Phase.FlowReaction`: movimento
 	// reattivo, ADR-0004). Il rinvio e' dichiarato *come dato* — slot `None`, nessun trigger — non lasciato
 	// all'interpretazione di chi legge: una reazione a meta' con lo slot giusto verrebbe raccolta dal pass e
 	// non farebbe nulla, in silenzio.
 	//
-	// ⚠️ **La quinta e' USCITA da questo elenco il 2026-08-10** (E18 CP 18.2, D-016): `Vektor.InterceptShot`
+	// ⚠️ **La quinta e' USCITA da questo elenco il 2026-08-10** (E18 CP 18.2, D-016): `Wraith.InterceptShot`
 	// non e' piu' «rinviata», e' diventata una **Predictive Action**. La sua verifica sta sotto, e afferma il
 	// contrario di quella che c'era prima: non «nessuno la raccoglie», ma «la raccoglie il boundary del Move».
 	// Il test non e' stato cancellato perche' la domanda che poneva resta viva — *chi valuta questa azione?* —
 	// ed e' cambiata la risposta, non la domanda.
-	URTHeroData* Flux = URTHeroCatalogLibrary::MakeFlux();
-	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
-	URTHeroData* Bastion = URTHeroCatalogLibrary::MakeBastion();
-	URTHeroData* Vektor = URTHeroCatalogLibrary::MakeVektor();
+	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
+	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
 
 	struct FWired { const URTActionData* Action; const TCHAR* Id; };
 	const FWired Wired[] = {
-		{ Flux->Actions[HeroReactCapacitorIndex],        TEXT("Flux.ReactiveCapacitor") },
-		{ Bastion->Actions[HeroReactInterpositionIndex], TEXT("Bastion.Interposition") },
-		{ Vektor->Actions[HeroReactDeflectionIndex],     TEXT("Vektor.Deflection") },
+		{ Gadget->Actions[HeroReactCapacitorIndex],        TEXT("Flux.ReactiveCapacitor") },
+		{ Riktor->Actions[HeroReactInterpositionIndex], TEXT("Bastion.Interposition") },
+		{ Wraith->Actions[HeroReactDeflectionIndex],     TEXT("Vektor.Deflection") },
 	};
 	for (const FWired& W : Wired)
 	{
@@ -357,7 +357,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 
 	struct FDeferred { const URTActionData* Action; const TCHAR* Id; };
 	const FDeferred Deferred[] = {
-		{ Riva->Actions[4], TEXT("Riva.FlowReaction") },
+		{ Phase->Actions[4], TEXT("Riva.FlowReaction") },
 	};
 	for (const FDeferred& D : Deferred)
 	{
@@ -371,7 +371,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 	// La MIGRATA. Il rinvio si chiude dichiarando chi la valuta, non togliendo la riga: se `InterceptShot`
 	// tornasse senza trigger E senza campi predittivi, sarebbe di nuovo un'azione che nessuno raccoglie — e
 	// nessun test se ne accorgerebbe. Questa e' la verifica che il buco non si riapra in silenzio.
-	const URTActionData* Intercept = Vektor->Actions[1];
+	const URTActionData* Intercept = Wraith->Actions[1];
 	TestEqual(TEXT("Vektor.InterceptShot: identita'"), Intercept->Def.ActionId, FName(TEXT("Vektor.InterceptShot")));
 	TestTrue(TEXT("non e' una reazione: non occupa lo slot Reazione"),
 		Intercept->Def.Slot != ERTActionSlot::Reaction);
@@ -382,7 +382,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 		&& Intercept->Def.PredictionBoundary == ERTPredictionBoundary::MovementEntry);
 
 	// Il roster resta strutturalmente valido: il cablaggio non ha cambiato il numero di azioni ne' le varianti.
-	const TArray<const URTHeroData*> Roster = { Flux, Riva, Bastion, Vektor };
+	const TArray<const URTHeroData*> Roster = { Gadget, Phase, Riktor, Wraith };
 	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes(Roster);
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("roster valido dopo il cablaggio"), Errors.Num(), 0);

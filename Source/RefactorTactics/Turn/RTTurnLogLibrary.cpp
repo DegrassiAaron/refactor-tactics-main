@@ -52,7 +52,7 @@ void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
 FString URTTurnLogLibrary::DescribeActionIdentity(const FRTTurnLogEntry& Entry)
 {
 	// «azione base + profilo» quando la voce sa dirlo (D-033), altrimenti il solo ActionId. La forma con la
-	// barretta si legge in un colpo — `Action.BasicAttack · Bastion.ImpactShot` — e non richiede di sapere a
+	// barretta si legge in un colpo — `Action.BasicAttack · Riktor.ImpactShot` — e non richiede di sapere a
 	// memoria che ImpactShot e' un attacco base.
 	//
 	// Il caso `BaseActionId == ActionId` non produce «X · X»: un'azione generica usata direttamente e' il
@@ -172,7 +172,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		case ERTReactionOutcome::NotTriggered: What = TEXT("reazione pronta, nessun trigger"); break;
 		default:                               What = TEXT("reazione non disponibile"); break;
 		}
-		// QUALE reazione, quando l'identita' c'e': fra `Bastion.Interposition` e `Action.Intercept` cambia
+		// QUALE reazione, quando l'identita' c'e': fra `Riktor.Interposition` e `Action.Intercept` cambia
 		// l'abilita' spesa e il cooldown, non solo l'esito (CP 5.5).
 		if (!Entry.ActionId.IsNone())
 		{
@@ -345,7 +345,7 @@ namespace
 		Mix(static_cast<uint32>(E.Amount));
 		// L'identita' dell'azione entra nell'hash byte per byte: due reazioni con la stessa geometria e lo
 		// stesso esito, ma abilita' diverse, devono produrre hash diversi — altrimenti il replay di CP 12.6
-		// non distinguerebbe `Bastion.Interposition` da `Action.Intercept`. Un nome vuoto non mescola nulla,
+		// non distinguerebbe `Riktor.Interposition` da `Action.Intercept`. Un nome vuoto non mescola nulla,
 		// quindi le tracce senza ActionId hanno lo stesso hash di prima di CP 5.5.
 		for (const TCHAR Ch : E.ActionId.ToString())
 		{
@@ -445,7 +445,7 @@ namespace
 	 * azioni dal prefisso comune indistinguibili.
 	 *
 	 * Oltre 65535 byte la stringa viene troncata: e' il limite del campo di lunghezza. Nessun ActionId del
-	 * catalogo si avvicina a quella soglia (sono nomi come `Bastion.Interposition`), quindi il caso non e'
+	 * catalogo si avvicina a quella soglia (sono nomi come `Riktor.Interposition`), quindi il caso non e'
 	 * raggiungibile da dati validi — se lo diventasse, il posto dove rifiutarlo e' il validator del catalogo,
 	 * non il serializzatore.
 	 */

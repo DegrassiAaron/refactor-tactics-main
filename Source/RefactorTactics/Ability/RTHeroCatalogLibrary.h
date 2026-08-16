@@ -36,8 +36,8 @@ public:
 	static TArray<FString> ValidateHeroes(const TArray<const URTHeroData*>& Heroes);
 
 	/**
-	 * Costruisce **Flux**, tecnico della conduzione (catalogo eroi v0.1 §1): 90 HP, 5 MP, vista 6, resistenza
-	 * push 0, affinita' elettricita', debolezza acqua (combo dichiarata con Riva, CP 6.3). Nuova istanza a
+	 * Costruisce **Gadget**, tecnico della conduzione (catalogo eroi v0.1 §1): 90 HP, 5 MP, vista 6, resistenza
+	 * push 0, affinita' elettricita', debolezza acqua (combo dichiarata con Phase, CP 6.3). Nuova istanza a
 	 * ogni chiamata — stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`: il catalogo eroi non e' un
 	 * singleton, e un chiamante che ne vuole due (es. specchio nello stesso 2v2) non condivide lo stato.
 	 *
@@ -54,28 +54,28 @@ public:
 	 * esiste comunque come DATO, con la sua identita', portata e cooldown dal catalogo — solo l'effetto
 	 * aggiuntivo resta un numero non ancora consumato.
 	 */
-	static URTHeroData* MakeFlux();
+	static URTHeroData* MakeGadget();
 
 	/**
-	 * Costruisce **Riva**, manipolatrice dell'acqua (catalogo eroi v0.1 §2): 95 HP, 5 MP, vista 5, resistenza
-	 * push 0, affinita' acqua, debolezza elettricita' — simmetrica a Flux (stesso `Affinity.Electricity`),
+	 * Costruisce **Phase**, manipolatrice dell'acqua (catalogo eroi v0.1 §2): 95 HP, 5 MP, vista 5, resistenza
+	 * push 0, affinita' acqua, debolezza elettricita' — simmetrica a Gadget (stesso `Affinity.Electricity`),
 	 * cosi' la rivalita' fra i due e' un solo identificatore condiviso, non due nomi.
 	 *
 	 * Limiti dichiarati: `CircularTide` dichiara Heal E Status.Wet nella stessa lista Effects, ma **nessun
 	 * resolver applica oggi effetti diversi ad alleati e nemici dentro la stessa area** (`bFriendlyFire`
 	 * decide solo SE un alleato viene colpito, non CON QUALE effetto) — la differenziazione arriva quando
-	 * Riva sara' davvero cablata (CP 6.6+). `FluidTrail` (acqua lungo il percorso) e `MistVeil` (fumo) non
+	 * Phase sara' davvero cablata (CP 6.6+). `FluidTrail` (acqua lungo il percorso) e `MistVeil` (fumo) non
 	 * hanno un modello di terreno dinamico (E8/E9): identita', fase, portata e cooldown sono dati veri,
 	 * l'effetto no. `FlowReaction` e' **rinviata a E14** (ADR-0004): produce movimento dentro un boundary di
 	 * risoluzione, che il motore delle reazioni di E5 non fa — il rinvio e' dichiarato come dato (slot `None`,
 	 * nessun trigger), non lasciato a un commento.
 	 */
-	static URTHeroData* MakeRiva();
+	static URTHeroData* MakePhase();
 
 	/**
-	 * Costruisce **Bastion**, architetto del campo (catalogo eroi v0.1 §3): 120 HP, 4 MP, vista 5,
+	 * Costruisce **Riktor**, architetto del campo (catalogo eroi v0.1 §3): 120 HP, 4 MP, vista 5,
 	 * **resistenza push 1** (l'unico del roster), affinita' strutture, debolezza movimento — simmetrica a
-	 * Vektor (CP 6.5), come Flux/Riva lo sono fra loro.
+	 * Wraith (CP 6.5), come Gadget/Phase lo sono fra loro.
 	 *
 	 * ⚠️ **Resta l'eroe piu' incompleto del roster, e la sua issue (#57) chiede esplicitamente di dichiararlo.**
 	 * `KineticPanel` e `Reconfigure` manipolano STRUTTURE, che non esistono nel modello dati (`FRTHexCellData`
@@ -83,12 +83,12 @@ public:
 	 * (`Structure.KineticPanel`: integrita' 30, protezione 10) vivono nei `Parameters` della variante finche'
 	 * qualcuno non li consuma. `Interposition` e' **cablata** (CP 6.7) sulla semantica di `Action.Intercept`.
 	 */
-	static URTHeroData* MakeBastion();
+	static URTHeroData* MakeRiktor();
 
 	/**
-	 * Costruisce **Vektor**, duellante predittivo (catalogo eroi v0.1 §4): 100 HP, **6 MP** (il piu' mobile),
-	 * vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Bastion, che chiude
-	 * il roster in due coppie (Flux↔Riva, Bastion↔Vektor).
+	 * Costruisce **Wraith**, duellante predittivo (catalogo eroi v0.1 §4): 100 HP, **6 MP** (il piu' mobile),
+	 * vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Riktor, che chiude
+	 * il roster in due coppie (Gadget↔Phase, Riktor↔Wraith).
 	 *
 	 * `Deflection` e' cablata (CP 6.7, semantica di `Action.Deflect`). `InterceptShot` **non e' piu' una
 	 * reazione**: dal 2026-08-10 (E18 CP 18.2, D-016) e' una **Predictive Action** — cella dichiarata in
@@ -98,16 +98,16 @@ public:
 	 * Limiti dichiarati: `Feint` marca una CELLA e concede un `Reposition`, e nessuna delle due meta' e' un
 	 * `ERTActionEffect` (gli stati si applicano alle unita', il movimento passa da `ERTMovementStyle`).
 	 */
-	static URTHeroData* MakeVektor();
+	static URTHeroData* MakeWraith();
 
 	/**
-	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Flux, Riva, Bastion, Vektor.
+	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Gadget, Phase, Riktor, Wraith.
 	 * Nuove istanze a ogni chiamata (stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`).
 	 */
 	static TArray<URTHeroData*> GetHeroRoster();
 
 	/**
-	 * Solo gli `HeroId` del roster (`Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`), senza costruire
+	 * Solo gli `HeroId` del roster (`Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`), senza costruire
 	 * gli eroi.
 	 *
 	 * Esiste perche' `GetHeroRoster()` istanzia quattro `URTHeroData` **con tutte le loro abilita'** a ogni
@@ -125,7 +125,7 @@ public:
 	 * priorita', slot, trigger, fallback e interrompibilita' — cioe' *come* la reazione si comporta nel turno;
 	 * dall'eroe l'identita' (`HeroActionId`), il cooldown e gli effetti — cioe' *cosa* fa e quanto.
 	 *
-	 * Esiste perche' l'alternativa e' peggiore: senza, `Bastion.Interposition` dovrebbe riscrivere la
+	 * Esiste perche' l'alternativa e' peggiore: senza, `Riktor.Interposition` dovrebbe riscrivere la
 	 * semantica di `Action.Intercept` (o il resolver riconoscerla per ActionId), e ogni eroe con una reazione
 	 * aggiungerebbe un ramo al motore. Con questo helper la semantica si dichiara UNA volta nel catalogo core.
 	 *

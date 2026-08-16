@@ -5,16 +5,16 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di D-047. Due eroi dichiarano la STESSA azione — `Action.Brace` — e reagiscono in modo diverso, perche' la risposta viene dal loro Reaction Profile e non dall'azione. Bastion resta sulla cella (`Hold Ground`, la risposta universale); Riva, il cui profilo dichiara una risposta di scarto, non ci resta. Nessun `if CharacterId` nel resolver puo' produrre questo risultato: e' il dato a decidere.",
+  "_nota": "SPECIFICA ESEGUIBILE di D-047. Due eroi dichiarano la STESSA azione — `Action.Brace` — e reagiscono in modo diverso, perche' la risposta viene dal loro Reaction Profile e non dall'azione. Riktor resta sulla cella (`Hold Ground`, la risposta universale); Phase, il cui profilo dichiara una risposta di scarto, non ci resta. Nessun `if CharacterId` nel resolver puo' produrre questo risultato: e' il dato a decidere.",
 
   "_nota_perche_esiste": "E' la prova che D-047 non e' un rename. Se `Brace` restasse un buff fisso, i due eroi finirebbero nella stessa cella con gli stessi HP e questo file sarebbe verde per il motivo sbagliato — quindi l'assertion che conta e' la DIFFERENZA fra i due, non il valore di uno solo.",
 
-  "_nota_da_completare": "Il turno 2 richiede un profilo di reazione a due risposte. I profili sono DECISI dal 2026-08-13 (D-127, chiude `BAS-1` — non `CLASH-2`, che sono i payoff del Clash e una cosa diversa): Phase (`Hero.Riva`) ha `Profile.Sidestep`, e Riktor (`Hero.Bastion`) NON ha un profilo, perche' `Status.Braced` resiste gia' allo spostamento a qualunque distanza. Questo RAFFORZA lo scenario invece di indebolirlo: la differenza fra i due non nasce da due profili diversi ma da profilo-contro-comportamento-base, che e' il caso piu' stretto. Chi implementa E14.7 assegna `Profile.Sidestep` a R1 e aggiunge l'assertion sulla sua cella finale, che deve differire da quella di partenza mentre quella di B1 no.",
+  "_nota_da_completare": "Il turno 2 richiede un profilo di reazione a due risposte. I profili sono DECISI dal 2026-08-13 (D-127, chiude `BAS-1` — non `CLASH-2`, che sono i payoff del Clash e una cosa diversa): Phase (`Hero.Phase`) ha `Profile.Sidestep`, e Riktor (`Hero.Riktor`) NON ha un profilo, perche' `Status.Braced` resiste gia' allo spostamento a qualunque distanza. Questo RAFFORZA lo scenario invece di indebolirlo: la differenza fra i due non nasce da due profili diversi ma da profilo-contro-comportamento-base, che e' il caso piu' stretto. Chi implementa E14.7 assegna `Profile.Sidestep` a R1 e aggiunge l'assertion sulla sua cella finale, che deve differire da quella di partenza mentre quella di B1 no.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [ 0, 0, 0] },
-    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [ 0, 1, 0] },
-    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [-3, 0, 0] }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "R1", "hero": "Hero.Phase",    "team": 0, "cell": [ 0, 1, 0] },
+    { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [-3, 0, 0] }
   ],
 
   "turns": [

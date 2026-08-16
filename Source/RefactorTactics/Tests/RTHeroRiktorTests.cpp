@@ -26,30 +26,30 @@ namespace
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionMatchesCatalogTest,
-	"RefactorTactics.Heroes.Bastion.MatchesCatalog",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorMatchesCatalogTest,
+	"RefactorTactics.Heroes.Riktor.MatchesCatalog",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionMatchesCatalogTest::RunTest(const FString&)
+bool FRTRiktorMatchesCatalogTest::RunTest(const FString&)
 {
 	// Numeri della tabella §3 del catalogo eroi v0.1.
-	URTHeroData* Bastion = URTHeroCatalogLibrary::MakeBastion();
-	if (!TestNotNull(TEXT("Bastion costruito"), Bastion)) { return false; }
+	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	if (!TestNotNull(TEXT("Riktor costruito"), Riktor)) { return false; }
 
-	TestEqual(TEXT("HeroId"), Bastion->HeroId, FName(TEXT("Hero.Bastion")));
-	TestEqual(TEXT("salute"), Bastion->MaxHealth, 120);
-	TestEqual(TEXT("movimento"), Bastion->MovePoints, 4);
-	TestEqual(TEXT("vista"), Bastion->VisionRange, 5);
-	TestEqual(TEXT("affinita'"), Bastion->Affinity, FName(TEXT("Affinity.Structures")));
-	TestEqual(TEXT("debolezza simmetrica a Vektor"), Bastion->Weakness, FName(TEXT("Affinity.Movement")));
+	TestEqual(TEXT("HeroId"), Riktor->HeroId, FName(TEXT("Hero.Riktor")));
+	TestEqual(TEXT("salute"), Riktor->MaxHealth, 120);
+	TestEqual(TEXT("movimento"), Riktor->MovePoints, 4);
+	TestEqual(TEXT("vista"), Riktor->VisionRange, 5);
+	TestEqual(TEXT("affinita'"), Riktor->Affinity, FName(TEXT("Affinity.Structures")));
+	TestEqual(TEXT("debolezza simmetrica a Wraith"), Riktor->Weakness, FName(TEXT("Affinity.Movement")));
 
-	if (!TestEqual(TEXT("cinque azioni"), Bastion->Actions.Num(), 5)) { return false; }
+	if (!TestEqual(TEXT("cinque azioni"), Riktor->Actions.Num(), 5)) { return false; }
 
-	const URTActionData* ImpactShot = Bastion->Actions[0];
+	const URTActionData* ImpactShot = Riktor->Actions[0];
 	TestEqual(TEXT("ImpactShot: 8 danni"), BastionEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage), 8);
 	TestEqual(TEXT("ImpactShot: range 3"), ImpactShot->Def.RangeCells, 3);
 	TestEqual(TEXT("ImpactShot: nessuna ricarica (e' l'attacco base)"), ImpactShot->Def.CooldownTurns, 0);
 
-	// ADR-0007: l'attacco base di Bastion appartiene alla famiglia Utility/Emergency, e la utility e' `Slow`.
+	// ADR-0007: l'attacco base di Riktor appartiene alla famiglia Utility/Emergency, e la utility e' `Slow`.
 	// Senza questo assert il danno basso sarebbe indistinguibile da un nerf senza contropartita — cioe' dalla
 	// falsa scelta che la decisione esiste per evitare.
 	bool bFoundSlow = false;
@@ -63,13 +63,13 @@ bool FRTBastionMatchesCatalogTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("ImpactShot: applica Status.Slow"), bFoundSlow);
 
-	// L'attacco base di Bastion NON viene dalla tabella a fasce: a range 3 la fascia darebbe 25, il catalogo
+	// L'attacco base di Riktor NON viene dalla tabella a fasce: a range 3 la fascia darebbe 25, il catalogo
 	// eroi dice 8. Il test lo rende esplicito, cosi' la divergenza resta una scelta e non una svista.
 	TestNotEqual(TEXT("non e' il danno generico della fascia corto raggio"),
 		BastionEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage),
 		URTCatalogLibrary::BasicAttackDamageForRange(3));
 
-	const URTActionData* Ram = Bastion->Actions[3];
+	const URTActionData* Ram = Riktor->Actions[3];
 	TestEqual(TEXT("Ram: 20 danni"), BastionEffectAmount(Ram->Def.Effects, ERTActionEffect::Damage), 20);
 	TestEqual(TEXT("Ram: Push 1"), BastionEffectAmount(Ram->Def.Effects, ERTActionEffect::Push), 1);
 	TestEqual(TEXT("Ram: cooldown 2"), Ram->Def.CooldownTurns, 2);
@@ -83,59 +83,59 @@ bool FRTBastionMatchesCatalogTest::RunTest(const FString&)
 		Ram->Def.MovementStyle == ChargeDef.MovementStyle);
 	TestEqual(TEXT("Ram: stessa portata della carica"), Ram->Def.RangeCells, ChargeDef.RangeCells);
 
-	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Bastion });
+	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Riktor });
 	for (const FString& Err : Errors) { AddError(Err); }
-	TestEqual(TEXT("Bastion e' strutturalmente valido"), Errors.Num(), 0);
+	TestEqual(TEXT("Riktor e' strutturalmente valido"), Errors.Num(), 0);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionPushResistanceTest,
-	"RefactorTactics.Heroes.Bastion.PushResistance",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorPushResistanceTest,
+	"RefactorTactics.Heroes.Riktor.PushResistance",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionPushResistanceTest::RunTest(const FString&)
+bool FRTRiktorPushResistanceTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD. **Il senso del test si e' rovesciato il 2026-08-10** (D-075, #402): fino a
-	// qui pinnava `PushResistance = 1` come cio' che Bastion compra col movimento piu' basso. Ma siccome
-	// ogni spinta del gioco vale 1 e la resistenza e' una soglia (D-038), quel valore rendeva Bastion immune
+	// qui pinnava `PushResistance = 1` come cio' che Riktor compra col movimento piu' basso. Ma siccome
+	// ogni spinta del gioco vale 1 e la resistenza e' una soglia (D-038), quel valore rendeva Riktor immune
 	// a OGNI spostamento, sempre, gratis — non era la statistica dichiarata, era un'immunita' che nessuno
 	// aveva deciso. Ora il test pinna il roster **tutto a zero**, ed e' l'unico posto che diventa rosso se
 	// qualcuno rimette una resistenza nativa senza passare da una decisione.
-	URTHeroData* Bastion = URTHeroCatalogLibrary::MakeBastion();
-	URTHeroData* Flux = URTHeroCatalogLibrary::MakeFlux();
-	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
-	URTHeroData* Vektor = URTHeroCatalogLibrary::MakeVektor();
-	TestEqual(TEXT("Bastion non ha piu' resistenza nativa"), Bastion->PushResistance, 0);
-	TestEqual(TEXT("Flux non resiste"), Flux->PushResistance, 0);
-	TestEqual(TEXT("Riva non resiste"), Riva->PushResistance, 0);
-	TestEqual(TEXT("Vektor non resiste"), Vektor->PushResistance, 0);
+	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
+	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+	TestEqual(TEXT("Riktor non ha piu' resistenza nativa"), Riktor->PushResistance, 0);
+	TestEqual(TEXT("Gadget non resiste"), Gadget->PushResistance, 0);
+	TestEqual(TEXT("Phase non resiste"), Phase->PushResistance, 0);
+	TestEqual(TEXT("Wraith non resiste"), Wraith->PushResistance, 0);
 
 	// Il prezzo, in dati: piu' salute di tutti, ma il movimento piu' basso finora.
-	TestTrue(TEXT("piu' salute di Flux e Riva"),
-		Bastion->MaxHealth > Flux->MaxHealth && Bastion->MaxHealth > Riva->MaxHealth);
+	TestTrue(TEXT("piu' salute di Gadget e Phase"),
+		Riktor->MaxHealth > Gadget->MaxHealth && Riktor->MaxHealth > Phase->MaxHealth);
 	TestTrue(TEXT("ma meno movimento"),
-		Bastion->MovePoints < Flux->MovePoints && Bastion->MovePoints < Riva->MovePoints);
+		Riktor->MovePoints < Gadget->MovePoints && Riktor->MovePoints < Phase->MovePoints);
 
 	// Il commento che stava qui diceva `PushResistance` "un DATO senza consumatore", e che il resolver
 	// applicava solo `GuardResistedPushDistance`. **Era invecchiato**: il ramo `ERTActionEffect::Push` di
 	// `RTTurnManager.cpp` la consuma da quando D-038 e' stata cablata. Rimosso il 2026-08-10 con #402.
 	//
 	// Il limite vero e' un altro, e vale la pena scriverlo: il campo ha oggi **zero utenti nel roster**.
-	// La meccanica e' dormiente per scelta (vedi `MakeBastion`), non morta — e questo test misura il dato,
+	// La meccanica e' dormiente per scelta (vedi `MakeRiktor`), non morta — e questo test misura il dato,
 	// mentre l'effetto in partita e' pinnato da `Spec.Combat.BastionIgnoresAllPushes`, che verifica che
-	// Bastion venga spostato come chiunque altro.
+	// Riktor venga spostato come chiunque altro.
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionPanelCreatesCoverTest,
-	"RefactorTactics.Heroes.Bastion.PanelCreatesCover",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorPanelCreatesCoverTest,
+	"RefactorTactics.Heroes.Riktor.PanelCreatesCover",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionPanelCreatesCoverTest::RunTest(const FString&)
+bool FRTRiktorPanelCreatesCoverTest::RunTest(const FString&)
 {
 	// **Aggiornato a CP 9.5 (2026-08-09)**: fino a qui questo test verificava un'abilita' a meta' — identita',
 	// fase, portata — e diceva a chiare lettere «il giorno in cui E9 lo aggiungera', questo test diventera'
 	// rosso, ed e' esattamente cio' che deve succedere». E' successo: il pannello ora erige una copertura.
-	URTHeroData* Bastion = URTHeroCatalogLibrary::MakeBastion();
-	const URTActionData* Panel = Bastion->Actions[1];
+	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	const URTActionData* Panel = Riktor->Actions[1];
 
 	TestEqual(TEXT("KineticPanel: ActionId"), Panel->Def.ActionId, FName(TEXT("Bastion.KineticPanel")));
 	TestEqual(TEXT("KineticPanel: cooldown 2"), Panel->Def.CooldownTurns, 2);
@@ -152,7 +152,7 @@ bool FRTBastionPanelCreatesCoverTest::RunTest(const FString&)
 	TestTrue(TEXT("KineticPanel: si prepara prima del Blast"),
 		URTCatalogLibrary::MapResolutionPhase(Panel->Def.ResolutionPhase) == ERTMatchPhase::Prep);
 	TestTrue(TEXT("Reconfigure: anche"), URTCatalogLibrary::MapResolutionPhase(
-		Bastion->Actions[2]->Def.ResolutionPhase) == ERTMatchPhase::Prep);
+		Riktor->Actions[2]->Def.ResolutionPhase) == ERTMatchPhase::Prep);
 
 	// L'abilita' non e' piu' inerte, e la prova NON e' che abbia acquistato effetti: `Effects` resta vuoto, ed
 	// e' corretto — il suo esito e' una modifica della MAPPA, che `FRTActionEffectSpec` non sa esprimere.
@@ -167,18 +167,18 @@ bool FRTBastionPanelCreatesCoverTest::RunTest(const FString&)
 	// comportamento sta in `Heroes.BastionInterposition*` (`RTHeroReactionTests.cpp`), dove puo' essere
 	// osservata in partita invece che contata a catalogo.
 	TestTrue(TEXT("Interposition: cablata come reazione, non piu' inerte"),
-		Bastion->Actions[4]->Def.Slot == ERTActionSlot::Reaction);
+		Riktor->Actions[4]->Def.Slot == ERTActionSlot::Reaction);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionVariantTradeoffTest,
-	"RefactorTactics.Heroes.Bastion.VariantTradeoff",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorVariantTradeoffTest,
+	"RefactorTactics.Heroes.Riktor.VariantTradeoff",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionVariantTradeoffTest::RunTest(const FString&)
+bool FRTRiktorVariantTradeoffTest::RunTest(const FString&)
 {
-	// Il compromesso di Bastion e' fatto di numeri che NON sono effetti (integrita', durata): vivono in
+	// Il compromesso di Riktor e' fatto di numeri che NON sono effetti (integrita', durata): vivono in
 	// `FRTAbilityVariant::Parameters`, dichiarati finche' E9 non li consumera'.
-	const URTActionData* Panel = URTHeroCatalogLibrary::MakeBastion()->Actions[1];
+	const URTActionData* Panel = URTHeroCatalogLibrary::MakeRiktor()->Actions[1];
 	if (!TestEqual(TEXT("due varianti"), Panel->Variants.Num(), 2)) { return false; }
 
 	const FRTAbilityVariant& Reinforced = Panel->Variants[0];

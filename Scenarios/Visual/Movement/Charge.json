@@ -5,17 +5,17 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "BANCO VFX per la mobilita' lineare. Bastion carica Flux da due celle di distanza con `Bastion.Ram`: `LinearCharge` si ferma ADDOSSO al primo nemico sulla traiettoria, infligge 20 danni e spinge di 1. Il confronto che questo scenario serve a fare e' con `Movement.LongWalk`: se la carica si vede uguale a una camminata, la differenza fra mobilita' rapida e movimento normale — che in questo gioco e' una differenza di FASE, Dash prima di Blast — non arriva a chi guarda.",
+  "_nota": "BANCO VFX per la mobilita' lineare. Riktor carica Gadget da due celle di distanza con `Bastion.Ram`: `LinearCharge` si ferma ADDOSSO al primo nemico sulla traiettoria, infligge 20 danni e spinge di 1. Il confronto che questo scenario serve a fare e' con `Movement.LongWalk`: se la carica si vede uguale a una camminata, la differenza fra mobilita' rapida e movimento normale — che in questo gioco e' una differenza di FASE, Dash prima di Blast — non arriva a chi guarda.",
 
   "_nota_portata": "Portata 3 da `Action.Charge` nel catalogo azioni, ereditata da Ram. La distanza qui e' 2: dentro la portata, con un margine che sopravvive a un ritocco di bilanciamento.",
 
-  "_nota_dash": "Lo scatto si dichiara con `dash` + `dashTo`, NON con `ability`: dopo D-028 occupano slot diversi — lo scatto prende il movimento, l'abilita' la principale — e «schivo e sparo» dev'essere esprimibile. Dichiarato con `ability`, `Bastion.Ram` finisce nello slot del Blast e non parte: il primo run di questo scenario ha trovato Flux illeso a 90.",
+  "_nota_dash": "Lo scatto si dichiara con `dash` + `dashTo`, NON con `ability`: dopo D-028 occupano slot diversi — lo scatto prende il movimento, l'abilita' la principale — e «schivo e sparo» dev'essere esprimibile. Dichiarato con `ability`, `Bastion.Ram` finisce nello slot del Blast e non parte: il primo run di questo scenario ha trovato Gadget illeso a 90.",
 
   "_nota_celle": "Le celle finali dipendono dall'ordine fra arresto e spinta e non sono assertion: le fissa il primo run.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [1, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [3, 0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [3, 0, 0] }
   ],
 
   "turns": [

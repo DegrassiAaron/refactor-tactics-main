@@ -5,15 +5,15 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "Un turno, tre fasi, tre unita' che si muovono in momenti diversi: Bastion carica nel **Dash**, Vektor spara nel **Blast**, Riva cammina nel **Move**. La sequenza `Prep -> Dash -> Blast -> Move` e' la spina dorsale del gioco e questo e' il solo scenario del corpus che la mette tutta in un'inquadratura. Se a schermo le tre cose accadono insieme, la regola per cui il movimento normale arriva DOPO i colpi — che e' il motivo per cui si puo' sfuggire a un attacco solo con la mobilita' rapida — resta invisibile.",
+  "_nota": "Un turno, tre fasi, tre unita' che si muovono in momenti diversi: Riktor carica nel **Dash**, Wraith spara nel **Blast**, Phase cammina nel **Move**. La sequenza `Prep -> Dash -> Blast -> Move` e' la spina dorsale del gioco e questo e' il solo scenario del corpus che la mette tutta in un'inquadratura. Se a schermo le tre cose accadono insieme, la regola per cui il movimento normale arriva DOPO i colpi — che e' il motivo per cui si puo' sfuggire a un attacco solo con la mobilita' rapida — resta invisibile.",
 
-  "_nota_aritmetica": "Flux 90 - 20 (Bastion.Ram, Dash) - 21 (Vektor.PulseShot, Blast) = 49. Riva arriva a (-1,1) camminando due celle, e parte DOPO che i colpi sono gia' risolti.",
+  "_nota_aritmetica": "Gadget 90 - 20 (Bastion.Ram, Dash) - 21 (Vektor.PulseShot, Blast) = 49. Phase arriva a (-1,1) camminando due celle, e parte DOPO che i colpi sono gia' risolti.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [-1,  0, 0] },
-    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [-3,  1, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 1,  0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 1, -1, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1,  0, 0] },
+    { "id": "R1", "hero": "Hero.Phase",    "team": 0, "cell": [-3,  1, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 1,  0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [ 1, -1, 0] }
   ],
 
   "turns": [

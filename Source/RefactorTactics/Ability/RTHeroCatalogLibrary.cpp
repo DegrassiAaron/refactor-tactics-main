@@ -4,7 +4,7 @@
 #include "Ability/RTHeroData.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
-#include "Map/RTHexCellData.h" // ERTHexSurface: `Riva.MistVeil` nomina la superficie che crea
+#include "Map/RTHexCellData.h" // ERTHexSurface: `Phase.MistVeil` nomina la superficie che crea
 
 namespace
 {
@@ -22,7 +22,7 @@ namespace
 	 * un'azione aggiunta domani senza nome si fa notare subito invece di comparire in partita come
 	 * `[RT] Piano: X usa  su Y`.
 	 *
-	 * ⚠️ Le chiavi restano i nomi **legacy** (`Flux.`, `Riva.`, `Bastion.`, `Vektor.`) perche' sono
+	 * ⚠️ Le chiavi restano i nomi **legacy** (`Gadget.`, `Phase.`, `Riktor.`, `Wraith.`) perche' sono
 	 * `ActionId` **serializzati** e si redirigono, non si rinominano (**D-130**). I valori invece sono
 	 * player-facing e seguono il roster canonico di **D-120**: nessuno dei venti nomina un eroe.
 	 *
@@ -33,28 +33,28 @@ namespace
 	FText HeroActionDisplayName(const FName& Id)
 	{
 		static const TMap<FName, FString> Names = {
-			// Gadget (`Hero.Flux`)
+			// Gadget (`Hero.Gadget`)
 			{ TEXT("Flux.ArcPulse"),           TEXT("Impulso ad arco") },
 			{ TEXT("Flux.LinearDischarge"),    TEXT("Scarica lineare") },
 			{ TEXT("Flux.ConductiveNode"),     TEXT("Nodo conduttivo") },
 			{ TEXT("Flux.Overload"),           TEXT("Sovraccarico") },
 			{ TEXT("Flux.ReactiveCapacitor"),  TEXT("Condensatore reattivo") },
 
-			// Phase (`Hero.Riva`)
+			// Phase (`Hero.Phase`)
 			{ TEXT("Riva.PressureJet"),        TEXT("Getto in pressione") },
 			{ TEXT("Riva.CircularTide"),       TEXT("Marea circolare") },
 			{ TEXT("Riva.FluidTrail"),         TEXT("Scia fluida") },
 			{ TEXT("Riva.MistVeil"),           TEXT("Velo di nebbia") },
 			{ TEXT("Riva.FlowReaction"),       TEXT("Reazione di flusso") },
 
-			// Riktor (`Hero.Bastion`)
+			// Riktor (`Hero.Riktor`)
 			{ TEXT("Bastion.ImpactShot"),      TEXT("Colpo d'impatto") },
 			{ TEXT("Bastion.KineticPanel"),    TEXT("Pannello cinetico") },
 			{ TEXT("Bastion.Reconfigure"),     TEXT("Riconfigurazione") },
 			{ TEXT("Bastion.Ram"),             TEXT("Carica d'ariete") },
 			{ TEXT("Bastion.Interposition"),   TEXT("Interposizione") },
 
-			// Wraith (`Hero.Vektor`)
+			// Wraith (`Hero.Wraith`)
 			{ TEXT("Vektor.PulseShot"),        TEXT("Colpo a impulsi") },
 			{ TEXT("Vektor.InterceptShot"),    TEXT("Intercetto") },
 			{ TEXT("Vektor.PassingBlade"),     TEXT("Lama di passaggio") },
@@ -223,55 +223,55 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 	return Errors;
 }
 
-URTHeroData* URTHeroCatalogLibrary::MakeFlux()
+URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 {
-	URTHeroData* Flux = NewObject<URTHeroData>();
-	Flux->HeroId = TEXT("Hero.Flux");
-	// ⚠️ La variabile dice `Flux` e il nome dice `Gadget`, e NON e' un refuso: D-120 separa i due piani.
-	// `Hero.Flux` e' lo Stable ID — chiave di codice, scenari e replay, che non si rinomina finche' #716 non
+	URTHeroData* Gadget = NewObject<URTHeroData>();
+	Gadget->HeroId = TEXT("Hero.Gadget");
+	// ⚠️ La variabile dice `Gadget` e il nome dice `Gadget`, e NON e' un refuso: D-120 separa i due piani.
+	// `Hero.Gadget` e' lo Stable ID — chiave di codice, scenari e replay, che non si rinomina finche' #716 non
 	// scioglie la collisione di namespace. `Gadget` e' il nome canonico/player-facing del personaggio.
 	// Da qui il nome raggiunge l'unita' (`ConfigureFromHeroData`) e poi la HUD; il gate del confine e'
 	// `RefactorTactics.Unit.HeroDataCrossesTheBoundary`.
-	Flux->DisplayName = FText::FromString(TEXT("Gadget"));
-	Flux->MaxHealth = 90;
-	Flux->MovePoints = 5;
-	// 6 -> 7 (#131, [D-073]). E' la seconda meta' del lavoro cominciato con Vektor 100->90: quel calo aveva
-	// tolto la dominanza su Riva e lasciato quella su **Flux**, dove a parita' di salute e vista Vektor
+	Gadget->DisplayName = FText::FromString(TEXT("Gadget"));
+	Gadget->MaxHealth = 90;
+	Gadget->MovePoints = 5;
+	// 6 -> 7 (#131, [D-073]). E' la seconda meta' del lavoro cominciato con Wraith 100->90: quel calo aveva
+	// tolto la dominanza su Phase e lasciato quella su **Gadget**, dove a parita' di salute e vista Wraith
 	// restava avanti di un punto movimento.
 	//
-	// La leva e' la VISTA e non il movimento, per due ragioni misurate. Dare 6 MP a Flux (o toglierne uno a
-	// Vektor) renderebbe i due profili IDENTICI sulle quattro statistiche base, e `RosterIsBalanced` verifica
+	// La leva e' la VISTA e non il movimento, per due ragioni misurate. Dare 6 MP a Gadget (o toglierne uno a
+	// Wraith) renderebbe i due profili IDENTICI sulle quattro statistiche base, e `RosterIsBalanced` verifica
 	// che nessuna coppia li condivida: si sarebbe rotto un test per ripararne un altro. E una resistenza alla
-	// spinta NEGATIVA per Vektor sarebbe stata un numero senza effetto — `PushResistance` e' una SOGLIA, e le
+	// spinta NEGATIVA per Wraith sarebbe stata un numero senza effetto — `PushResistance` e' una SOGLIA, e le
 	// spinte del catalogo valgono almeno 1, quindi -1 e 0 si comportano allo stesso modo.
 	//
-	// Con 7, Flux diventa l'unico che vede oltre l'esagono di raggio 6: identita' vera, non compensazione.
-	Flux->VisionRange = 7;
-	Flux->HearingThreshold = 5;  // D-041: vede piu' lontano di tutti (7), quindi sente meno. L'udito COMPENSA la vista.
-	Flux->PushResistance = 0;
-	Flux->Affinity = TEXT("Affinity.Electricity");
-	// Debolezza acqua: stesso identificatore che Riva (CP 6.3) usera' come sua affinita', cosi' la combo
-	// "Flux su bersaglio Wet" e "l'affinita' di Riva e' l'acqua" restano lo stesso concetto, non due nomi.
-	Flux->Weakness = TEXT("Affinity.Water");
+	// Con 7, Gadget diventa l'unico che vede oltre l'esagono di raggio 6: identita' vera, non compensazione.
+	Gadget->VisionRange = 7;
+	Gadget->HearingThreshold = 5;  // D-041: vede piu' lontano di tutti (7), quindi sente meno. L'udito COMPENSA la vista.
+	Gadget->PushResistance = 0;
+	Gadget->Affinity = TEXT("Affinity.Electricity");
+	// Debolezza acqua: stesso identificatore che Phase (CP 6.3) usera' come sua affinita', cosi' la combo
+	// "Gadget su bersaglio Wet" e "l'affinita' di Phase e' l'acqua" restano lo stesso concetto, non due nomi.
+	Gadget->Weakness = TEXT("Affinity.Water");
 
 	// Indice 0 — ArcPulse, attacco base. 22 danni / range 4 e' ESATTAMENTE la fascia "medio raggio" del
 	// catalogo azioni v0.1 §1: non e' una coincidenza da verificare a mano, e' la stessa tabella.
 	const FRTActionDef ArcPulseDef = URTCatalogLibrary::MakeBasicAttack(4);
-	Flux->Actions.Add(MakeHeroBasicAttack(TEXT("Flux.ArcPulse"), ArcPulseDef.ResolutionPhase, ArcPulseDef.Priority,
+	Gadget->Actions.Add(MakeHeroBasicAttack(TEXT("Flux.ArcPulse"), ArcPulseDef.ResolutionPhase, ArcPulseDef.Priority,
 		ArcPulseDef.RangeCells, ArcPulseDef.CooldownTurns, ArcPulseDef.Fallback, ArcPulseDef.Effects));
 
 	// Indice 1 — LinearDischarge. 24 danni in linea, range 5 (stessa portata di `Action.LineAttack`: nessuna
 	// azione lineare del catalogo ne dichiara una diversa). Il bonus "+8 su bersaglio Wet" NON e' nella lista
 	// Effects: e' condizionale al bersaglio, non un danno fisso, e passa da `EffectiveAttackPower` +
-	// `URTCombatLibrary::FluxWetDischargeBonus` (vedi `Heroes.Flux.WetBonus`) — un chiamante che applica
+	// `URTCombatLibrary::FluxWetDischargeBonus` (vedi `Heroes.Gadget.WetBonus`) — un chiamante che applica
 	// SOLO Effects vede 24, corretto finche' non controlla anche lo status del bersaglio.
-	Flux->Actions.Add(MakeHeroAction(TEXT("Flux.LinearDischarge"), ERTResolutionPhase::Attack, /*Priority*/ 55,
+	Gadget->Actions.Add(MakeHeroAction(TEXT("Flux.LinearDischarge"), ERTResolutionPhase::Attack, /*Priority*/ 55,
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }, ERTAbilityShape::Line));
 
 	// Indice 2 — ConductiveNode. Cablata su `Action.Electrify` da D-046 (issue #282): numeri dal CORE, non
 	// nuovi — portata 4, propagazione 3, fase Environment. Il cooldown resta quello dell'eroe (2), come per
-	// `Bastion.Ram`.
+	// `Riktor.Ram`.
 	//
 	// Fino al 2026-08-10 qui c'era scritto che «nessun modello di conduttivita' di cella esiste» e che
 	// `Effects` vuoto era la dichiarazione onesta. Era vero quando fu scritto e ha smesso di esserlo con E8
@@ -293,12 +293,12 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	// La propagazione e' IL comportamento, non un dettaglio: senza questa riga l'azione elettrificherebbe una
 	// cella sola e CP 8.3 resterebbe non innescabile pur avendo un owner.
 	ConductiveNode->Def.PropagationLimit = ElectrifyDef.PropagationLimit;
-	Flux->Actions.Add(ConductiveNode);
+	Gadget->Actions.Add(ConductiveNode);
 
 	// Indice 3 — Overload. AoE 18 danni, raggio 1 (riuso il raggio di `Action.CircularAoE`, non un numero
 	// nuovo), portata 3. "Interrupt sui dispositivi" non e' rappresentabile: non esistono dispositivi/gadget
 	// (E7). Solo il danno e' un effetto dichiarato.
-	Flux->Actions.Add(MakeHeroAction(TEXT("Flux.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
+	Gadget->Actions.Add(MakeHeroAction(TEXT("Flux.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range*/ 3, /*Cooldown*/ 3, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }, ERTAbilityShape::Area, /*AreaRadius*/ 1));
 	// La variante (vincolo v0.1: una sola abilita' fondamentale per eroe) sta su LinearDischarge, non qui:
@@ -306,10 +306,10 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 
 	// Indice 4 — ReactiveCapacitor (CP 6.7). REAZIONE cablata sulla semantica di `Action.Counter`: stesso
 	// trigger («sono stato colpito da un attacco diretto») e stesso modo di raggiungere chi ha colpito. Gli
-	// EFFETTI sono di Flux e sono DUE — scudo 15 a se' **e** 10 danni all'attaccante: e' la reazione per cui
+	// EFFETTI sono di Gadget e sono DUE — scudo 15 a se' **e** 10 danni all'attaccante: e' la reazione per cui
 	// CP 5.5 ha reso il motore componibile, e prima di allora ne sarebbe arrivata solo meta'.
 	// Cooldown 3, dal catalogo eroi: piu' lungo dei 2 di `Action.Counter`, perche' fa anche da scudo.
-	Flux->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Flux.ReactiveCapacitor"), TEXT("Action.Counter"),
+	Gadget->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Flux.ReactiveCapacitor"), TEXT("Action.Counter"),
 		/*Cooldown*/ 3,
 		{ FRTActionEffectSpec(ERTActionEffect::Shield, 15),
 		  FRTActionEffectSpec(ERTActionEffect::Damage, 10) }));
@@ -334,32 +334,32 @@ URTHeroData* URTHeroCatalogLibrary::MakeFlux()
 	Branched.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 18));
 	Branched.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 18));
 
-	Flux->Actions[1]->Variants.Add(Concentrated);
-	Flux->Actions[1]->Variants.Add(Branched);
+	Gadget->Actions[1]->Variants.Add(Concentrated);
+	Gadget->Actions[1]->Variants.Add(Branched);
 
-	return Flux;
+	return Gadget;
 }
 
-URTHeroData* URTHeroCatalogLibrary::MakeRiva()
+URTHeroData* URTHeroCatalogLibrary::MakePhase()
 {
-	URTHeroData* Riva = NewObject<URTHeroData>();
-	Riva->HeroId = TEXT("Hero.Riva");
-	Riva->DisplayName = FText::FromString(TEXT("Phase")); // D-120: nome canonico; `Hero.Riva` resta lo Stable ID
-	Riva->MaxHealth = 95;
-	Riva->MovePoints = 5;
-	Riva->VisionRange = 5;
-	Riva->HearingThreshold = 3;  // D-041: orecchio fine (soglia bassa) a compensare una vista corta.
-	Riva->PushResistance = 0;
-	Riva->Affinity = TEXT("Affinity.Water");
-	// Simmetrica a Flux (Affinity.Water e' gia' la sua debolezza): la rivalita' fra i due eroi legati dalla
+	URTHeroData* Phase = NewObject<URTHeroData>();
+	Phase->HeroId = TEXT("Hero.Phase");
+	Phase->DisplayName = FText::FromString(TEXT("Phase")); // D-120: nome canonico; `Hero.Phase` resta lo Stable ID
+	Phase->MaxHealth = 95;
+	Phase->MovePoints = 5;
+	Phase->VisionRange = 5;
+	Phase->HearingThreshold = 3;  // D-041: orecchio fine (soglia bassa) a compensare una vista corta.
+	Phase->PushResistance = 0;
+	Phase->Affinity = TEXT("Affinity.Water");
+	// Simmetrica a Gadget (Affinity.Water e' gia' la sua debolezza): la rivalita' fra i due eroi legati dalla
 	// combo Wet e' un solo identificatore condiviso in entrambe le direzioni, non due nomi da sincronizzare.
-	Riva->Weakness = TEXT("Affinity.Electricity");
+	Phase->Weakness = TEXT("Affinity.Electricity");
 
 	// Indice 0 — PressureJet, attacco base. 16 danni non corrisponde a NESSUNA fascia di
-	// `BasicAttackDamageForRange` (28/25/22/20): a differenza di `Flux.ArcPulse`, l'attacco base di Riva e'
+	// `BasicAttackDamageForRange` (28/25/22/20): a differenza di `Gadget.ArcPulse`, l'attacco base di Phase e'
 	// TEMATICO (linea, Wet, spinta), non generico per portata. Non si forza `MakeBasicAttack` su un numero
-	// che non gli appartiene. Range 5: stessa portata di `Flux.LinearDischarge` (stessa forma, stesso riuso).
-	Riva->Actions.Add(MakeHeroBasicAttack(TEXT("Riva.PressureJet"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	// che non gli appartiene. Range 5: stessa portata di `Gadget.LinearDischarge` (stessa forma, stesso riuso).
+	Phase->Actions.Add(MakeHeroBasicAttack(TEXT("Riva.PressureJet"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 5, /*Cooldown*/ 0, ERTActionFallback::AttackCell,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Damage, 16),
@@ -371,7 +371,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	//
 	// 🔵 Il `Wet` ai nemici e' USCITO dalla dichiarazione. Viene da #995: Phase e' **abilitata** a Water,
 	// non padrona — grado `Access`, cioe' UNA sola capability elementale — e il catalogo ne dichiarava
-	// tre. Resta `PressureJet`. Copertura: `RefactorTactics.Heroes.Riva.TideHealsWithoutWetting`, che
+	// tre. Resta `PressureJet`. Copertura: `RefactorTactics.Heroes.Phase.TideHealsWithoutWetting`, che
 	// sostituisce `...TideHealsAlliesWetsEnemies` — il nome e' cambiato col contratto, perche' un test
 	// che dice `WetsEnemies` e non verifica piu' nessun `Wet` resta verde e racconta un kit che non c'e'.
 	//
@@ -380,8 +380,8 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// `PressureJet`, che copre meno bersagli.
 	//
 	// Il limite dichiarato di prima resta e non c'entra col cambio: `bFriendlyFire` decide SE colpire un
-	// alleato, non CON QUALE effetto. Portata 4 e raggio 1: stessi numeri di `Flux.Overload`.
-	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.CircularTide"), ERTResolutionPhase::Attack, /*Priority*/ 60,
+	// alleato, non CON QUALE effetto. Portata 4 e raggio 1: stessi numeri di `Gadget.Overload`.
+	Phase->Actions.Add(MakeHeroAction(TEXT("Riva.CircularTide"), ERTResolutionPhase::Attack, /*Priority*/ 60,
 		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Heal, 18),
@@ -408,11 +408,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// montare lo Sprinkler non riporta Phase sopra `Access`.
 	//
 	// ⚠️ **Costo accettato, scritto qui perche' e' dove qualcuno lo cerchera'**: il roster perde l'unico
-	// produttore INNATO di superficie acqua, quindi `Flux.ConductiveNode` — che propaga sul grafo
+	// produttore INNATO di superficie acqua, quindi `Gadget.ConductiveNode` — che propaga sul grafo
 	// conduttivo — dipende ora dalla mappa o dallo Sprinkler.
 	//
 	// ✅ E D-028 riacquista un soggetto: `RTHeroCatalogTests.cpp` registra che dopo D-046 la regola era
-	// «vera, e oggi senza nessuno a cui applicarsi», perche' `Vektor.PassingBlade` e' FastMovement ma fa
+	// «vera, e oggi senza nessuno a cui applicarsi», perche' `Wraith.PassingBlade` e' FastMovement ma fa
 	// 20 danni, cioe' una carica. Questa e' di nuovo mobilita' pura senza danno.
 	//
 	// Numeri dal CORE: portata 3, fase FastMovement, stile lineare. Il cooldown resta 2 — e' dell'eroe, non
@@ -427,11 +427,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// fase, portata, ricarica, fallback ed effetti — non i campi di comportamento. Senza questa riga
 	// l'azione risolve e non muove nessuno, cioe' fallisce nel modo piu' silenzioso possibile.
 	FluidTrail->Def.MovementStyle = DashDef.MovementStyle;
-	Riva->Actions.Add(FluidTrail);
+	Phase->Actions.Add(FluidTrail);
 
 	// Indice 3 — MistVeil. Issue #353: dichiarava «crea fumo raggio 1» e non lo faceva. `Smoke` era l'unica
 	// delle otto superfici che nessuna azione sapeva creare, e il meccanismo esisteva gia' — mancava il
-	// collegamento, esattamente come per `MovementStyle` su `Bastion.Ram`.
+	// collegamento, esattamente come per `MovementStyle` su `Riktor.Ram`.
 	//
 	// **Passa a `Environment`**, e non e' un dettaglio di implementazione: `ResolveEnvironment` — l'unico posto
 	// che crea superfici — processa solo le azioni la cui fase mappa su `Cleanup`, e in `Preparation` MistVeil
@@ -452,7 +452,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	MistVeil->Def.bCreatesSurface = true;
 	MistVeil->Def.SurfaceCreated = ERTHexSurface::Smoke;
 	MistVeil->Def.SurfaceRadius = 1; // «crea fumo raggio 1», catalogo eroi
-	Riva->Actions.Add(MistVeil);
+	Phase->Actions.Add(MistVeil);
 
 	// Indice 4 — FlowReaction. `Reposition 1` dopo un attacco subito: e' una reazione che produce MOVIMENTO
 	// dentro un boundary di risoluzione, quindi il suo aggancio e' **E14** (ADR-0004, finestre di reazione),
@@ -460,13 +460,13 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// Il rinvio e' dichiarato come DATO: slot `None` e nessun trigger. Darle lo slot `Reaction` la farebbe
 	// raccogliere dal pass delle reazioni, che la registrerebbe come attivata senza che accada nulla — un
 	// esito falso nel TurnLog e' peggio di un'abilita' dichiaratamente incompleta.
-	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.FlowReaction"), ERTResolutionPhase::Preparation, /*Priority*/ 36,
+	Phase->Actions.Add(MakeHeroAction(TEXT("Riva.FlowReaction"), ERTResolutionPhase::Preparation, /*Priority*/ 36,
 		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Single, /*AreaRadius*/ 0,
 		ERTActionSlot::None, /*bInterruptible*/ false));
 
 	// Variante di CircularTide (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
 	// Curativa: cura 24 (invece di 18), MA non applica Wet ai nemici — rinuncia al setup della combo con
-	// Flux per curare di piu'.
+	// Gadget per curare di piu'.
 	FRTAbilityVariant Healing;
 	Healing.VariantId = TEXT("Riva.CircularTide.Healing");
 	Healing.DisplayName = FText::FromString(TEXT("Marea curativa"));
@@ -481,25 +481,25 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	Impact.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 10));
 	Impact.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 1));
 
-	Riva->Actions[1]->Variants.Add(Healing);
-	Riva->Actions[1]->Variants.Add(Impact);
+	Phase->Actions[1]->Variants.Add(Healing);
+	Phase->Actions[1]->Variants.Add(Impact);
 
-	return Riva;
+	return Phase;
 }
 
-URTHeroData* URTHeroCatalogLibrary::MakeBastion()
+URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 {
-	URTHeroData* Bastion = NewObject<URTHeroData>();
-	Bastion->HeroId = TEXT("Hero.Bastion");
-	Bastion->DisplayName = FText::FromString(TEXT("Riktor")); // D-120: nome canonico; `Hero.Bastion` resta lo Stable ID
-	Bastion->MaxHealth = 120;
-	Bastion->MovePoints = 4;
-	Bastion->VisionRange = 5;
-	Bastion->HearingThreshold = 3;  // D-041: come Riva — il piu' lento del roster sente arrivare.
+	URTHeroData* Riktor = NewObject<URTHeroData>();
+	Riktor->HeroId = TEXT("Hero.Riktor");
+	Riktor->DisplayName = FText::FromString(TEXT("Riktor")); // D-120: nome canonico; `Hero.Riktor` resta lo Stable ID
+	Riktor->MaxHealth = 120;
+	Riktor->MovePoints = 4;
+	Riktor->VisionRange = 5;
+	Riktor->HearingThreshold = 3;  // D-041: come Phase — il piu' lento del roster sente arrivare.
 	// Era `1`, l'unico del roster, fino al 2026-08-10. Portato a `0` da D-075 (#402): siccome ogni spinta
 	// del gioco vale 1 e `PushResistance` e' una SOGLIA (D-038), il valore `1` non comprava "stabilita'" ma
 	// **immunita' totale a ogni spostamento, sempre, senza spendere un'azione** — e quella nessuno l'aveva
-	// decisa: era una conseguenza del catalogo, non una scelta. Per Bastion svuotava meta' di `Guard` e
+	// decisa: era una conseguenza del catalogo, non una scelta. Per Riktor svuotava meta' di `Guard` e
 	// `Brace` (l'asse dello spostamento era gia' coperto dalla statistica) proprio sull'eroe su cui la
 	// scelta difensiva dovrebbe pesare di piu'.
 	// Cio' che il commento vecchio motivava — "compra HP e stabilita' con movimento e vista" — resta vero
@@ -508,28 +508,28 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 	// meccanica DORMIENTE — modello e resolver (`RTTurnManager.cpp`, ramo `ERTActionEffect::Push`) la
 	// implementano, nessun contenuto la esercita. E' dichiarato, non dimenticato: si risveglia da sola il
 	// giorno in cui una v0.2 introduce una spinta >= 2 (rinviata con l'uscita (B) di #400, D-074).
-	Bastion->PushResistance = 0;
-	Bastion->Affinity = TEXT("Affinity.Structures");
-	// Simmetrica a Vektor (CP 6.5), come Flux/Riva fra loro: il roster chiude in due coppie. Il piu' lento
+	Riktor->PushResistance = 0;
+	Riktor->Affinity = TEXT("Affinity.Structures");
+	// Simmetrica a Wraith (CP 6.5), come Gadget/Phase fra loro: il roster chiude in due coppie. Il piu' lento
 	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.
-	Bastion->Weakness = TEXT("Affinity.Movement");
+	Riktor->Weakness = TEXT("Affinity.Movement");
 
-	// Indice 0 — ImpactShot, attacco base. **8 danni / range 3** (ADR-0007). Come `Riva.PressureJet`, non e'
+	// Indice 0 — ImpactShot, attacco base. **8 danni / range 3** (ADR-0007). Come `Phase.PressureJet`, non e'
 	// una fascia di `BasicAttackDamageForRange`: l'attacco base e' dell'eroe, non della tabella generica.
 	//
 	// Fino al 2026-08-09 erano 24, ed era un numero motivato — la fascia corto raggio da' 25, e il catalogo
 	// ne toglieva uno «in cambio della stazza». Il problema non era il numero in se': era che rendeva
-	// `ImpactShot` l'attacco base PIU' FORTE del roster mentre il ruolo dichiarato di Bastion e'
-	// Utility/Emergency. 8 e' ancorato a `Riva.PressureJet` (16), che sta un gradino sopra: ne e' la meta'
+	// `ImpactShot` l'attacco base PIU' FORTE del roster mentre il ruolo dichiarato di Riktor e'
+	// Utility/Emergency. 8 e' ancorato a `Phase.PressureJet` (16), che sta un gradino sopra: ne e' la meta'
 	// esatta. Basso, ma non finto: deve restare corretto premerlo per finire un bersaglio a pochi HP.
 	//
 	// Lo `Slow` e' la utility della famiglia, e delle cinque candidate era l'unica sia esprimibile sia
 	// coerente: `ERTStructureOp` non sa danneggiare una copertura, e uno `Status` si applica al BERSAGLIO,
 	// quindi «genera Guard su di se'» non e' rappresentabile. Durata 1 basta perche' il modificatore e'
 	// letto FRESCO a ogni snapshot (CP 4.7): applicato nel Blast si riflette gia' sulla fase Move dello
-	// STESSO turno, poi scade nel Cleanup. E' la risposta di Bastion a chi si muove di mestiere — cioe' alla
+	// STESSO turno, poi scade nel Cleanup. E' la risposta di Riktor a chi si muove di mestiere — cioe' alla
 	// sua stessa debolezza dichiarata, `Affinity.Movement`.
-	Bastion->Actions.Add(MakeHeroBasicAttack(TEXT("Bastion.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	Riktor->Actions.Add(MakeHeroBasicAttack(TEXT("Bastion.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 3, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Damage, 8),
@@ -552,7 +552,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 		URTActionData* Panel = MakeHeroAction(TEXT("Bastion.KineticPanel"), CoverDef.ResolutionPhase,
 			CoverDef.Priority, CoverDef.RangeCells, /*Cooldown*/ 2, CoverDef.Fallback, CoverDef.Effects);
 		Panel->Def.StructureOp = CoverDef.StructureOp; // erige: e' il dato che il resolver legge
-		Bastion->Actions.Add(Panel);
+		Riktor->Actions.Add(Panel);
 	}
 
 	// Indice 2 — Reconfigure (CP 9.5). Sposta o ruota una copertura ESISTENTE. A differenza del pannello NON
@@ -568,7 +568,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 		URTActionData* Reconfigure = MakeHeroAction(TEXT("Bastion.Reconfigure"), ERTResolutionPhase::Preparation,
 			/*Priority*/ 76, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
 		Reconfigure->Def.StructureOp = ERTStructureOp::MoveCover;
-		Bastion->Actions.Add(Reconfigure);
+		Riktor->Actions.Add(Reconfigure);
 	}
 
 	// Indice 3 — Ram. E' una CARICA: 20 danni + Push 1, gli stessi numeri di `Action.Charge` del catalogo
@@ -578,16 +578,16 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 	URTActionData* Ram = MakeHeroAction(TEXT("Bastion.Ram"), ChargeDef.ResolutionPhase, ChargeDef.Priority,
 		ChargeDef.RangeCells, /*Cooldown*/ 2, ChargeDef.Fallback, ChargeDef.Effects);
 	Ram->Def.MovementStyle = ChargeDef.MovementStyle; // LinearCharge: si ferma ADDOSSO al primo nemico
-	Bastion->Actions.Add(Ram);
+	Riktor->Actions.Add(Ram);
 
-	// Indice 4 — Interposition (CP 6.7). REAZIONE cablata sulla semantica di `Action.Intercept`: Bastion
+	// Indice 4 — Interposition (CP 6.7). REAZIONE cablata sulla semantica di `Action.Intercept`: Riktor
 	// DIVENTA il bersaglio di un colpo diretto a un alleato entro 2 celle. Nessun effetto proprio, ed e'
 	// corretto: interporsi non aggiunge danno ne' stati, cambia CHI subisce un colpo altrui — cosa che
 	// `FRTActionEffectSpec` non sa esprimere e che il pass delle reazioni fa gia' per l'azione core.
 	// La portata (2) e la priorita' (la piu' bassa fra le reazioni, cosi' la redirezione precede le altre)
 	// vengono dal core; il cooldown 3 dal catalogo eroi. L'eroe piu' resistente del roster e' quello che si
 	// mette in mezzo: e' la sua identita', non un numero in piu'.
-	Bastion->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Bastion.Interposition"), TEXT("Action.Intercept"),
+	Riktor->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Bastion.Interposition"), TEXT("Action.Intercept"),
 		/*Cooldown*/ 3));
 
 	// Variante di KineticPanel (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
@@ -613,37 +613,37 @@ URTHeroData* URTHeroCatalogLibrary::MakeBastion()
 	Adaptive.Parameters.Add(TEXT("DurationTurns"), 0);
 	Adaptive.Parameters.Add(TEXT("FreeRotations"), 1);
 
-	Bastion->Actions[1]->Variants.Add(Reinforced);
-	Bastion->Actions[1]->Variants.Add(Adaptive);
+	Riktor->Actions[1]->Variants.Add(Reinforced);
+	Riktor->Actions[1]->Variants.Add(Adaptive);
 
-	return Bastion;
+	return Riktor;
 }
 
-URTHeroData* URTHeroCatalogLibrary::MakeVektor()
+URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 {
-	URTHeroData* Vektor = NewObject<URTHeroData>();
-	Vektor->HeroId = TEXT("Hero.Vektor");
-	Vektor->DisplayName = FText::FromString(TEXT("Wraith")); // D-120: nome canonico; `Hero.Vektor` resta lo Stable ID
-	// 100 -> 90 (#131). A 100 HP Vektor DOMINAVA Flux (90/5/6/0) e Riva (95/5/5/0) sulle quattro statistiche
+	URTHeroData* Wraith = NewObject<URTHeroData>();
+	Wraith->HeroId = TEXT("Hero.Wraith");
+	Wraith->DisplayName = FText::FromString(TEXT("Wraith")); // D-120: nome canonico; `Hero.Wraith` resta lo Stable ID
+	// 100 -> 90 (#131). A 100 HP Wraith DOMINAVA Gadget (90/5/6/0) e Phase (95/5/5/0) sulle quattro statistiche
 	// base: migliore o pari ovunque, strettamente migliore in salute e movimento. Il catalogo §5 scriveva
-	// «Vektor compra mobilita' con l'assenza di difese», che sui numeri era falso — non pagava nulla.
+	// «Wraith compra mobilita' con l'assenza di difese», che sui numeri era falso — non pagava nulla.
 	//
-	// ⚠️ 90 toglie la dominanza su **Riva** (-5 HP), NON quella su Flux: a parita' di HP e vista resta +1 MP.
-	// Non e' una svista, e' il perimetro della decisione presa: il costo di Vektor diventa visibile, ma il
-	// confronto Flux/Vektor resta da chiudere e vive in `#131`, che non si chiude qui.
-	Vektor->MaxHealth = 90;
-	Vektor->MovePoints = 6; // il piu' mobile del roster: e' cio' che compra con l'assenza di difese
-	Vektor->VisionRange = 6;
-	Vektor->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
-	Vektor->PushResistance = 0;
-	Vektor->Affinity = TEXT("Affinity.Movement");
-	// Simmetrica a Bastion: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
-	// Il roster chiude in due coppie — Flux↔Riva sull'acqua, Bastion↔Vektor sullo spazio.
-	Vektor->Weakness = TEXT("Affinity.Structures");
+	// ⚠️ 90 toglie la dominanza su **Phase** (-5 HP), NON quella su Gadget: a parita' di HP e vista resta +1 MP.
+	// Non e' una svista, e' il perimetro della decisione presa: il costo di Wraith diventa visibile, ma il
+	// confronto Gadget/Wraith resta da chiudere e vive in `#131`, che non si chiude qui.
+	Wraith->MaxHealth = 90;
+	Wraith->MovePoints = 6; // il piu' mobile del roster: e' cio' che compra con l'assenza di difese
+	Wraith->VisionRange = 6;
+	Wraith->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
+	Wraith->PushResistance = 0;
+	Wraith->Affinity = TEXT("Affinity.Movement");
+	// Simmetrica a Riktor: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
+	// Il roster chiude in due coppie — Gadget↔Phase sull'acqua, Riktor↔Wraith sullo spazio.
+	Wraith->Weakness = TEXT("Affinity.Structures");
 
-	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Riva e Bastion, non e' la fascia
+	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Phase e Riktor, non e' la fascia
 	// generica (a range 4 darebbe 22). Un punto in meno del medio raggio, pagato in mobilita'.
-	Vektor->Actions.Add(MakeHeroBasicAttack(TEXT("Vektor.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	Wraith->Actions.Add(MakeHeroBasicAttack(TEXT("Vektor.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 21) }));
 
@@ -667,27 +667,27 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 	// la cella non si rivaluta, `MovementEntry` quando si guarda chi ci e' passato.
 	InterceptShot->Def.PredictiveTargeting = ERTPredictiveTargeting::LockCell;
 	InterceptShot->Def.PredictionBoundary = ERTPredictionBoundary::MovementEntry;
-	Vektor->Actions.Add(InterceptShot);
+	Wraith->Actions.Add(InterceptShot);
 
 	// Indice 2 — PassingBlade. `Dash 3` che colpisce per 20 le unita' ATTRAVERSATE: l'unica abilita'
-	// non-base di Vektor interamente rappresentabile. Stile `LinearDash` e non `LinearCharge`: la carica si
+	// non-base di Wraith interamente rappresentabile. Stile `LinearDash` e non `LinearCharge`: la carica si
 	// FERMA sul primo nemico, questa gli passa attraverso — e' la differenza che `ERTMovementStyle` esiste
 	// per rendere un dato invece che un `if` sull'ActionId (CP 4.5).
-	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.PassingBlade"), ERTResolutionPhase::FastMovement,
+	Wraith->Actions.Add(MakeHeroAction(TEXT("Vektor.PassingBlade"), ERTResolutionPhase::FastMovement,
 		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) }));
 	// `LinearPass` e non `LinearDash`: fino al 2026-08-08 questo commento diceva «passa attraverso» e il
 	// codice si fermava sul primo nemico come uno scatto qualsiasi, quindi i 20 danni dichiarati sopra non
 	// avevano un momento in cui applicarsi. Lo stile e' un DATO proprio per questo (CP 4.5): la differenza
 	// fra fermarsi, fermarsi addosso, scavalcare e attraversare non e' un `if` sull'ActionId.
-	Vektor->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
+	Wraith->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
 
 	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: -20 sul colpo
 	// diretto che l'ha innescata. La riduzione arriva dagli effetti del core (`ERTActionEffect::DamageReduction`,
 	// CP 5.5) e resta distinta dallo scudo: uno scudo ASSORBE e si consuma, questa toglie punti al colpo.
 	// Stessa famiglia di `Action.Guard` (-15 al primo colpo) ma con un trigger invece di una stance.
 	// Cooldown 2, uguale al core: il catalogo eroi non ne dichiara uno diverso.
-	Vektor->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Vektor.Deflection"), TEXT("Action.Deflect"),
+	Wraith->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Vektor.Deflection"), TEXT("Action.Deflect"),
 		/*Cooldown*/ 2));
 
 	// Indice 4 — Feint. Marca una CELLA e concede un `Reposition`: nessuna delle due meta' e' dichiarabile.
@@ -699,14 +699,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 	// `Parameters` perche' quelli sono della VARIANTE (dove il catalogo differenzia due configurazioni), e
 	// qui non c'e' niente da differenziare: e' un numero dell'azione base, e finche' non esiste un effetto
 	// che lo porti resta dichiarato nel catalogo eroi, non simulato in un campo che nessuno leggerebbe.
-	Vektor->Actions.Add(MakeHeroAction(TEXT("Vektor.Feint"), ERTResolutionPhase::Control, /*Priority*/ 40,
+	Wraith->Actions.Add(MakeHeroAction(TEXT("Vektor.Feint"), ERTResolutionPhase::Control, /*Priority*/ 40,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
 
 	// Variante di InterceptShot (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
 	// Preciso: 20 danni ma controlla UNA cella. Esteso: 14 danni ma una LINEA di 3 celle. Il danno e' un
 	// effetto; il numero di celle controllate non lo e' (non esiste il concetto di "zona di controllo" fuori
 	// da `FRTSuppressiveZone`, che nessuno collega ancora a un eroe): sta nei `Parameters`, come l'integrita'
-	// del pannello di Bastion.
+	// del pannello di Riktor.
 	FRTAbilityVariant Precise;
 	Precise.VariantId = TEXT("Vektor.InterceptShot.Precise");
 	Precise.DisplayName = FText::FromString(TEXT("Intercetto preciso"));
@@ -721,22 +721,22 @@ URTHeroData* URTHeroCatalogLibrary::MakeVektor()
 	Extended.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 14));
 	Extended.Parameters.Add(TEXT("ControlledCells"), 3);
 
-	Vektor->Actions[1]->Variants.Add(Precise);
-	Vektor->Actions[1]->Variants.Add(Extended);
+	Wraith->Actions[1]->Variants.Add(Precise);
+	Wraith->Actions[1]->Variants.Add(Extended);
 
-	return Vektor;
+	return Wraith;
 }
 
 TArray<URTHeroData*> URTHeroCatalogLibrary::GetHeroRoster()
 {
-	return { MakeFlux(), MakeRiva(), MakeBastion(), MakeVektor() };
+	return { MakeGadget(), MakePhase(), MakeRiktor(), MakeWraith() };
 }
 
 TArray<FName> URTHeroCatalogLibrary::GetHeroIds()
 {
 	// Stesso ordine di `GetHeroRoster()`: `Heroes.HeroIdsMatchRoster` confronta le due liste posizione per
 	// posizione, quindi riordinare qui senza riordinare la' e' un rosso, non una svista che passa.
-	return { TEXT("Hero.Flux"), TEXT("Hero.Riva"), TEXT("Hero.Bastion"), TEXT("Hero.Vektor") };
+	return { TEXT("Hero.Gadget"), TEXT("Hero.Phase"), TEXT("Hero.Riktor"), TEXT("Hero.Wraith") };
 }
 
 URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName& HeroActionId,

@@ -5,27 +5,27 @@
   "seed": 0,
   "fixture": "RelayBasin",
 
-  "_nota": "SPECIFICA ESEGUIBILE di E10. La tesi da dimostrare e' che la partita non e' un deathmatch: Riva tiene il Relay a (0,0) mentre Flux viene abbattuto, e il punto viene assegnato lo stesso. L'ordine conta ed e' la regola vera: il controllo si verifica nel **Cleanup, dopo ambiente e KO** (issue #75). Se il punto fosse assegnato prima dei KO, una squadra potrebbe segnare con un'unita' che in quel turno muore — e nessuno se ne accorgerebbe finche' non succede in una partita vera.",
+  "_nota": "SPECIFICA ESEGUIBILE di E10. La tesi da dimostrare e' che la partita non e' un deathmatch: Phase tiene il Relay a (0,0) mentre Gadget viene abbattuto, e il punto viene assegnato lo stesso. L'ordine conta ed e' la regola vera: il controllo si verifica nel **Cleanup, dopo ambiente e KO** (issue #75). Se il punto fosse assegnato prima dei KO, una squadra potrebbe segnare con un'unita' che in quel turno muore — e nessuno se ne accorgerebbe finche' non succede in una partita vera.",
 
   "_nota_perche_esiste": "Esce BLOCKED su `Objective`: non esiste nulla da contendere. Quando E10 atterra, questo file chiede subito la domanda giusta — non «il punto viene assegnato» ma «viene assegnato nell'ordine giusto».",
 
   "_nota_da_completare": "Chi implementa E10 aggiunge l'assertion sul punteggio, che oggi non ha un tipo: `ERTAssertionKind` conosce solo posizione, turni, HP e vivo/morto. Serve un `TeamScoreEquals`, ed e' bene che la sua mancanza si veda qui invece di essere scoperta a implementazione finita.",
 
   "units": [
-    { "id": "R1", "hero": "Hero.Riva",    "team": 0, "cell": [-1,  1, 0] },
-    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [-2,  0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 3,  0, 0] }
+    { "id": "R1", "hero": "Hero.Phase",    "team": 0, "cell": [-1,  1, 0] },
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2,  0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 3,  0, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — Riva sale sul Relay. Gira sul gioco di oggi: (0,0) e' pavimento, e la lane d'acqua la porta li' in due passi.",
+      "_turno": "T1 — Phase sale sul Relay. Gira sul gioco di oggi: (0,0) e' pavimento, e la lane d'acqua la porta li' in due passi.",
       "intents": [
         { "unit": "R1", "move": [[0, 1, 0], [0, 0, 0]] }
       ]
     },
     {
-      "_turno": "T2 — il punto. Flux cade, Riva resta sull'obiettivo, il Cleanup assegna. Serve che un obiettivo esista.",
+      "_turno": "T2 — il punto. Gadget cade, Phase resta sull'obiettivo, il Cleanup assegna. Serve che un obiettivo esista.",
       "requires": ["Objective"],
       "intents": []
     }

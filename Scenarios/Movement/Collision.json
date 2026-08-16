@@ -8,8 +8,8 @@
   "_nota": "Due unita' di squadre opposte puntano alla STESSA cella, equidistanti (una da (-1,0), l'altra da (1,0), entrambe verso (0,0)). La regola del vertical slice e' che la destinazione contesa ferma ENTRAMBE: nessuna delle due entra e non si sovrappongono mai. E' il caso che l'ordine dell'array non deve poter decidere - se lo decidesse, una delle due arriverebbe e questo scenario lo mostrerebbe.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-1, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [1, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
   ],
 
   "turns": [

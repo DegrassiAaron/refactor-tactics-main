@@ -28,15 +28,15 @@
   "_nota_orientamento": "Come nel gemello: ogni attaccante sta a EST del proprio difensore, cioe' nell'arco frontale di chi guarda a est e non si gira. Con gli attaccanti a ovest si misurerebbe la difesa direzionale invece del confine Guard/Brace.",
 
   "units": [
-    { "id": "DG", "hero": "Hero.Vektor", "team": 0, "cell": [0,  1, 0] },
-    { "id": "DB", "hero": "Hero.Vektor", "team": 0, "cell": [0,  0, 0] },
-    { "id": "DN", "hero": "Hero.Vektor", "team": 0, "cell": [0, -1, 0] },
+    { "id": "DG", "hero": "Hero.Wraith", "team": 0, "cell": [0,  1, 0] },
+    { "id": "DB", "hero": "Hero.Wraith", "team": 0, "cell": [0,  0, 0] },
+    { "id": "DN", "hero": "Hero.Wraith", "team": 0, "cell": [0, -1, 0] },
 
-    { "facing": "W", "id": "AG", "hero": "Hero.Riva", "team": 1, "cell": [3,  1, 0],
+    { "facing": "W", "id": "AG", "hero": "Hero.Phase", "team": 1, "cell": [3,  1, 0],
       "loadout": ["Weapon.Impact", "Gadget.Medkit", "Reaction.Anchor"] },
-    { "facing": "W", "id": "AB", "hero": "Hero.Riva", "team": 1, "cell": [3,  0, 0],
+    { "facing": "W", "id": "AB", "hero": "Hero.Phase", "team": 1, "cell": [3,  0, 0],
       "loadout": ["Weapon.Impact", "Gadget.Medkit", "Reaction.Anchor"] },
-    { "facing": "W", "id": "AN", "hero": "Hero.Riva", "team": 1, "cell": [3, -1, 0],
+    { "facing": "W", "id": "AN", "hero": "Hero.Phase", "team": 1, "cell": [3, -1, 0],
       "loadout": ["Weapon.Impact", "Gadget.Medkit", "Reaction.Anchor"] }
   ],
 

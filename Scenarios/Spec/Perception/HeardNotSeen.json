@@ -5,26 +5,26 @@
   "seed": 0,
   "fixture": "TestArena",
 
-  "_nota": "SPECIFICA ESEGUIBILE di E13. Vektor corre dietro il muro che blocca la vista su q=0: non lo si vede, e lo si **sente**. Il rumore e' una seconda fonte di informazione, non un debuff — e cio' che la squadra avversaria ottiene e' un'area, non una cella: «qualcuno si muove a nord-est», non «Vektor e' in (1,-2,0)».",
+  "_nota": "SPECIFICA ESEGUIBILE di E13. Wraith corre dietro il muro che blocca la vista su q=0: non lo si vede, e lo si **sente**. Il rumore e' una seconda fonte di informazione, non un debuff — e cio' che la squadra avversaria ottiene e' un'area, non una cella: «qualcuno si muove a nord-est», non «Wraith e' in (1,-2,0)».",
 
   "_nota_perche_esiste": "La tentazione, implementando, e' derivare la conoscenza dallo stato nascosto dell'avversario e poi nasconderla nella UI. Questo scenario esiste per rendere quella scorciatoia visibile come difetto: il trigger deve venire dall'**evento percepito**, non dall'intento nemico. Esce BLOCKED su `Perception`.",
 
   "_nota_da_completare": "Ne mancava DUE, ne manca UNA. — (1) RISOLTO il 2026-08-12 con D-113: la scala di precisione e' decisa, due ampiezze (raggio 4 e 2) scelte dal margine sopra la soglia d'udito e mai dal tipo di evento, perche' riconoscere il tipo e' il Livello 5 della stessa scala. — (2) RESTA: un modo di asserire sulla CONOSCENZA di una squadra; `ERTAssertionKind` oggi vede solo posizione, HP e vivo/morto. Finche' quell'assertion e' impossibile lo scenario resta BLOCKED e dichiarato: uno scenario verde non proverebbe niente, e adesso meno che mai — con la scala decisa la tentazione di pinnare un'area senza poterla interrogare e' piu' forte, non meno.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-3,  0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 3,  0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-3,  0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 3,  0, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — Vektor si sposta dietro il muro (q=0 blocca la vista, non il passo). Sul gioco di oggi accade il movimento; cio' che manca e' che Flux ne sappia qualcosa.",
+      "_turno": "T1 — Wraith si sposta dietro il muro (q=0 blocca la vista, non il passo). Sul gioco di oggi accade il movimento; cio' che manca e' che Gadget ne sappia qualcosa.",
       "intents": [
         { "unit": "V1", "move": [[2, 0, 0], [1, 0, 0]] }
       ]
     },
     {
-      "_turno": "T2 — Vektor corre. Il team 0 non lo vede e deve ricevere una posizione APPROSSIMATA, mai la cella.",
+      "_turno": "T2 — Wraith corre. Il team 0 non lo vede e deve ricevere una posizione APPROSSIMATA, mai la cella.",
       "requires": ["Perception"],
       "intents": []
     }

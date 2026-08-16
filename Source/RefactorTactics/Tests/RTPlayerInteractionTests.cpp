@@ -77,7 +77,7 @@ bool FRTPlayerWaypointInteractionTest::RunTest(const FString&)
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
 	// Ranger: 5 punti movimento. Parte in una zona libera del quadrante destro.
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit))
 	{
@@ -160,7 +160,7 @@ bool FRTPlayerUndoInteractionTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyInteractionWorld(World); return false; }
 	PC->SelectActorForTest(Unit);
@@ -212,8 +212,8 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
 	// Guardian e bersaglio allineati sull'asse q, a distanza 3: dentro la portata della Carica (4).
-	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(0, 0, 0));
-	ARTUnit* Enemy   = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(3, 0, 0));
+	ARTUnit* Charger = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0, 0));
+	ARTUnit* Enemy   = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(3, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Charger || !Enemy) { DestroyInteractionWorld(World); return false; }
 
@@ -237,7 +237,7 @@ bool FRTPlayerChargeOnEnemyTest::RunTest(const FString&)
 		Charger->PlannedAbilityIndex, (int32)INDEX_NONE);
 
 	// Uno scatto che NON e' una carica si ferma davanti alle unita': puntarne una resta senza senso.
-	ARTUnit* Dasher = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-3, 0, 0));
+	ARTUnit* Dasher = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 0, 0));
 	PC->SelectActorForTest(Dasher);
 	Dasher->SelectAbility(3); // Scatto del Ranger: LinearDash
 	PC->HandleClickOnUnitForTest(Enemy);
@@ -270,12 +270,12 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyInteractionWorld(World); return false; }
 
 	// La mobilita' rapida si CERCA: l'indice 3 era lo Scatto del Ranger legacy, e dopo la migrazione al
-	// roster e' `Vektor.Deflection`, una reazione. `FindDashAbilityIndex` legge la fase dal catalogo, che e'
+	// roster e' `Wraith.Deflection`, una reazione. `FindDashAbilityIndex` legge la fase dal catalogo, che e'
 	// come il gioco stesso riconosce uno scatto (#142).
 	const int32 DashIdx = Unit->FindDashAbilityIndex();
 	const URTActionData* Dash = Unit->GetAbility(DashIdx);

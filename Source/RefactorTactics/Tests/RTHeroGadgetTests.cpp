@@ -22,43 +22,43 @@ namespace
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFluxMatchesCatalogTest,
-	"RefactorTactics.Heroes.Flux.MatchesCatalog",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetMatchesCatalogTest,
+	"RefactorTactics.Heroes.Gadget.MatchesCatalog",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTFluxMatchesCatalogTest::RunTest(const FString&)
+bool FRTGadgetMatchesCatalogTest::RunTest(const FString&)
 {
 	// Numeri della tabella §1 del catalogo eroi v0.1: documento e codice non possono divergere in silenzio.
-	URTHeroData* Flux = URTHeroCatalogLibrary::MakeFlux();
-	if (!TestNotNull(TEXT("Flux costruito"), Flux)) { return false; }
+	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
+	if (!TestNotNull(TEXT("Gadget costruito"), Gadget)) { return false; }
 
-	TestEqual(TEXT("HeroId"), Flux->HeroId, FName(TEXT("Hero.Flux")));
-	TestEqual(TEXT("salute"), Flux->MaxHealth, 90);
-	TestEqual(TEXT("movimento"), Flux->MovePoints, 5);
-	TestEqual(TEXT("vista"), Flux->VisionRange, 7); // 6 -> 7 (#131, D-073): toglie l'ultima dominanza
-	TestEqual(TEXT("resistenza push"), Flux->PushResistance, 0);
-	TestEqual(TEXT("affinita'"), Flux->Affinity, FName(TEXT("Affinity.Electricity")));
-	TestFalse(TEXT("la debolezza e' dichiarata (non NAME_None)"), Flux->Weakness.IsNone());
+	TestEqual(TEXT("HeroId"), Gadget->HeroId, FName(TEXT("Hero.Gadget")));
+	TestEqual(TEXT("salute"), Gadget->MaxHealth, 90);
+	TestEqual(TEXT("movimento"), Gadget->MovePoints, 5);
+	TestEqual(TEXT("vista"), Gadget->VisionRange, 7); // 6 -> 7 (#131, D-073): toglie l'ultima dominanza
+	TestEqual(TEXT("resistenza push"), Gadget->PushResistance, 0);
+	TestEqual(TEXT("affinita'"), Gadget->Affinity, FName(TEXT("Affinity.Electricity")));
+	TestFalse(TEXT("la debolezza e' dichiarata (non NAME_None)"), Gadget->Weakness.IsNone());
 
-	if (!TestEqual(TEXT("cinque azioni"), Flux->Actions.Num(), 5)) { return false; }
+	if (!TestEqual(TEXT("cinque azioni"), Gadget->Actions.Num(), 5)) { return false; }
 
-	const URTActionData* ArcPulse = Flux->Actions[0];
+	const URTActionData* ArcPulse = Gadget->Actions[0];
 	TestEqual(TEXT("ArcPulse: ActionId"), ArcPulse->Def.ActionId, FName(TEXT("Flux.ArcPulse")));
 	TestEqual(TEXT("ArcPulse: range 4"), ArcPulse->Def.RangeCells, 4);
 	TestEqual(TEXT("ArcPulse: 22 danni (fascia medio raggio)"), FluxDeclaredDamage(ArcPulse), 22);
 	TestEqual(TEXT("ArcPulse: nessuna ricarica (e' l'attacco base)"), ArcPulse->Def.CooldownTurns, 0);
 
-	const URTActionData* LinearDischarge = Flux->Actions[1];
+	const URTActionData* LinearDischarge = Gadget->Actions[1];
 	TestEqual(TEXT("LinearDischarge: 24 danni"), FluxDeclaredDamage(LinearDischarge), 24);
 	TestEqual(TEXT("LinearDischarge: cooldown 2"), LinearDischarge->Def.CooldownTurns, 2);
 	TestTrue(TEXT("LinearDischarge: forma a linea"), LinearDischarge->Shape == ERTAbilityShape::Line);
 
-	const URTActionData* Overload = Flux->Actions[3];
+	const URTActionData* Overload = Gadget->Actions[3];
 	TestEqual(TEXT("Overload: 18 danni"), FluxDeclaredDamage(Overload), 18);
 	TestEqual(TEXT("Overload: cooldown 3"), Overload->Def.CooldownTurns, 3);
 
 	// CP 6.7: la reazione e' cablata e dichiara DUE effetti (prima ne aveva uno, con il contrattacco
 	// «non rappresentabile» in un commento). Il secondo e' cio' che CP 5.5 ha reso applicabile.
-	const URTActionData* ReactiveCapacitor = Flux->Actions[4];
+	const URTActionData* ReactiveCapacitor = Gadget->Actions[4];
 	if (TestEqual(TEXT("ReactiveCapacitor: due effetti"), ReactiveCapacitor->Def.Effects.Num(), 2))
 	{
 		TestTrue(TEXT("ReactiveCapacitor: scudo 15 a chi reagisce"),
@@ -72,17 +72,17 @@ bool FRTFluxMatchesCatalogTest::RunTest(const FString&)
 	TestTrue(TEXT("ReactiveCapacitor: occupa lo slot Reazione"),
 		ReactiveCapacitor->Def.Slot == ERTActionSlot::Reaction);
 
-	// Flux e' un roster valido di per se': passa lo stesso validator che il roster completo dovra' passare.
-	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Flux });
+	// Gadget e' un roster valido di per se': passa lo stesso validator che il roster completo dovra' passare.
+	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Gadget });
 	for (const FString& Err : Errors) { AddError(Err); }
-	TestEqual(TEXT("Flux e' strutturalmente valido"), Errors.Num(), 0);
+	TestEqual(TEXT("Gadget e' strutturalmente valido"), Errors.Num(), 0);
 
 	// ConductiveNode NON e' piu' un limite dichiarato: da D-046 (#282) e' cablata su `Action.Electrify`, e
-	// Flux e' il produttore di propagazione elettrica del roster. Il limite di prima era vero quando fu
+	// Gadget e' il produttore di propagazione elettrica del roster. Il limite di prima era vero quando fu
 	// scritto — poi E8 ha chiuso, il modello di cella conduttiva e' esistito, e la dichiarazione onesta e'
 	// diventata un dato che nessuno leggeva.
 	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
-	const URTActionData* ConductiveNode = Flux->Actions[2];
+	const URTActionData* ConductiveNode = Gadget->Actions[2];
 	TestEqual(TEXT("ConductiveNode: portata dal core"), ConductiveNode->Def.RangeCells, ElectrifyDef.RangeCells);
 	TestTrue(TEXT("ConductiveNode: risolve nell'ambiente"),
 		ConductiveNode->Def.ResolutionPhase == ERTResolutionPhase::Environment);
@@ -93,19 +93,19 @@ bool FRTFluxMatchesCatalogTest::RunTest(const FString&)
 	TestTrue(TEXT("ConductiveNode: propaga davvero (limite > 1)"), ConductiveNode->Def.PropagationLimit > 1);
 
 	// Limite dichiarato che RESTA: "interrupt sui dispositivi" di Overload non e' rappresentabile (E7).
-	TestEqual(TEXT("Overload: solo il danno e' dichiarato"), Flux->Actions[3]->Def.Effects.Num(), 1);
+	TestEqual(TEXT("Overload: solo il danno e' dichiarato"), Gadget->Actions[3]->Def.Effects.Num(), 1);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFluxWetBonusTest,
-	"RefactorTactics.Heroes.Flux.WetBonus",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetWetBonusTest,
+	"RefactorTactics.Heroes.Gadget.WetBonus",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTFluxWetBonusTest::RunTest(const FString&)
+bool FRTGadgetWetBonusTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD. Il bonus NON e' nella lista Effects (e' condizionale al bersaglio, non un
 	// danno fisso): passa da `EffectiveAttackPower`, la stessa funzione del bonus di cella, riusata per un
 	// bonus di STATO invece che di terreno.
-	const int32 BaseDamage = FluxDeclaredDamage(URTHeroCatalogLibrary::MakeFlux()->Actions[1]);
+	const int32 BaseDamage = FluxDeclaredDamage(URTHeroCatalogLibrary::MakeGadget()->Actions[1]);
 	if (!TestEqual(TEXT("il danno base dichiarato e' 24"), BaseDamage, 24)) { return false; }
 
 	const int32 AgainstDry = URTCombatLibrary::EffectiveAttackPower(BaseDamage, /*OccupantDamageBonus*/ 0);
@@ -122,19 +122,19 @@ bool FRTFluxWetBonusTest::RunTest(const FString&)
 
 	// Limite dichiarato: qui si verifica la FORMULA, non il resolver. Nessuna unita' legge ancora
 	// `Status.Wet` durante il Blast (`CollectHexAttacks` non conosce lo stato del bersaglio) — il bonus
-	// diventa osservabile in partita quando CP 6.6 collega Flux al turno E quando Riva (CP 6.3) applica
+	// diventa osservabile in partita quando CP 6.6 collega Gadget al turno E quando Phase (CP 6.3) applica
 	// `Status.Wet` per davvero.
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFluxVariantTradeoffTest,
-	"RefactorTactics.Heroes.Flux.VariantTradeoff",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetVariantTradeoffTest,
+	"RefactorTactics.Heroes.Gadget.VariantTradeoff",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTFluxVariantTradeoffTest::RunTest(const FString&)
+bool FRTGadgetVariantTradeoffTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD: "nessuna variante migliore in ogni parametro" — lo stesso principio degli
 	// equipaggiamenti (URTEquipmentData::Drawback obbligatorio), applicato alla variante di un'abilita'.
-	const URTActionData* LinearDischarge = URTHeroCatalogLibrary::MakeFlux()->Actions[1];
+	const URTActionData* LinearDischarge = URTHeroCatalogLibrary::MakeGadget()->Actions[1];
 	if (!TestEqual(TEXT("LinearDischarge ha esattamente due varianti"), LinearDischarge->Variants.Num(), 2))
 	{
 		return false;

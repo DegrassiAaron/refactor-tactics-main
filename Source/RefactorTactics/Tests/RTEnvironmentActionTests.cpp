@@ -75,7 +75,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
@@ -116,7 +116,7 @@ namespace
 
 	/**
 	 * Come `PlanCoverAction`, ma con un'abilita' d'EROE gia' costruita dal catalogo (e la sua variante attiva).
-	 * Serve perche' il pannello di Bastion non e' un'azione core: e' un'azione core con un nome d'eroe, e la
+	 * Serve perche' il pannello di Riktor non e' un'azione core: e' un'azione core con un nome d'eroe, e la
 	 * differenza va verificata su cio' che il giocatore usa davvero.
 	 */
 	void PlanHeroCoverAction(ARTUnit* Caster, URTActionData* HeroAction, const FRTCellId& TargetCell,
@@ -272,7 +272,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionMistVeilTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActionMistVeilTest::RunTest(const FString&)
 {
-	// Issue #353. `Riva.MistVeil` dichiarava «crea fumo raggio 1» e non lo faceva: `Smoke` era l'unica delle
+	// Issue #353. `Phase.MistVeil` dichiarava «crea fumo raggio 1» e non lo faceva: `Smoke` era l'unica delle
 	// otto superfici che nessuna azione sapeva creare. Il test non si ferma alla superficie — verifica anche
 	// il CAP di targeting, perche' e' quello l'effetto tattico, e una superficie dipinta che non cambia nulla
 	// sarebbe lo stesso difetto di prima con un colore in piu'.
@@ -292,9 +292,9 @@ bool FRTActionMistVeilTest::RunTest(const FString&)
 
 	// L'abilita' vera del catalogo, non una ricostruita nel test: la issue nasceva proprio da uno scarto fra
 	// cio' che il catalogo dichiarava e cio' che l'azione faceva.
-	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
-	if (!TestNotNull(TEXT("Riva costruita"), Riva)) { DestroyEnvWorld(World); return false; }
-	URTActionData* MistVeil = Riva->Actions.IsValidIndex(3) ? Riva->Actions[3] : nullptr;
+	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	if (!TestNotNull(TEXT("Phase costruita"), Phase)) { DestroyEnvWorld(World); return false; }
+	URTActionData* MistVeil = Phase->Actions.IsValidIndex(3) ? Phase->Actions[3] : nullptr;
 	if (!TestNotNull(TEXT("MistVeil nel kit"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;
@@ -958,7 +958,7 @@ bool FRTCreateCoverRejectsTest::RunTest(const FString&)
 }
 
 /**
- * CP 9.5 — `Bastion.KineticPanel` erige davvero, e la VARIANTE attiva decide integrita' e durata.
+ * CP 9.5 — `Riktor.KineticPanel` erige davvero, e la VARIANTE attiva decide integrita' e durata.
  *
  * Fino a qui i `Parameters` delle varianti erano una dichiarazione che nessun sistema leggeva, in tutto il
  * progetto: il catalogo scriveva «45 per un turno solo» e «25 che non scade» e il gioco applicava sempre 30/2.
@@ -968,10 +968,10 @@ bool FRTCreateCoverRejectsTest::RunTest(const FString&)
  * turno stesso), l'adattivo che `DurationTurns = 0` significa «non scade da sola» e non «scade subito» — la
  * lettura sbagliata piu' probabile, e quella che il campo non perdonerebbe.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionPanelVariantAppliedTest,
-	"RefactorTactics.Heroes.Bastion.KineticPanelVariantApplied",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorPanelVariantAppliedTest,
+	"RefactorTactics.Heroes.Riktor.KineticPanelVariantApplied",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
+bool FRTRiktorPanelVariantAppliedTest::RunTest(const FString&)
 {
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -996,8 +996,8 @@ bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
 
 	// L'abilita' e' quella del catalogo eroi, non l'azione core: e' cio' che il giocatore ha in mano. Due
 	// istanze distinte, cosi' nessuno stato dell'una puo' spiegare il comportamento dell'altra.
-	URTActionData* PanelA = URTHeroCatalogLibrary::MakeBastion()->Actions[1];
-	URTActionData* PanelB = URTHeroCatalogLibrary::MakeBastion()->Actions[1];
+	URTActionData* PanelA = URTHeroCatalogLibrary::MakeRiktor()->Actions[1];
+	URTActionData* PanelB = URTHeroCatalogLibrary::MakeRiktor()->Actions[1];
 
 	PlanHeroCoverAction(WithReinforced, PanelA, Reinforced, ERTHexDirection::W,
 		TEXT("Bastion.KineticPanel.Reinforced"));
@@ -1030,7 +1030,7 @@ bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
 }
 
 /**
- * CP 9.5 — `Bastion.Reconfigure` SPOSTA una copertura: non ne crea una seconda.
+ * CP 9.5 — `Riktor.Reconfigure` SPOSTA una copertura: non ne crea una seconda.
  *
  * E' il nome che la DoD vincola (`ReconfigureDoesNotDuplicate`), e il difetto che sorveglia e' preciso: una
  * implementazione che «aggiunge sul bordo nuovo» senza togliere dal vecchio raddoppierebbe la protezione con
@@ -1039,10 +1039,10 @@ bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
  *
  * Verifica anche che l'integrita' VIAGGI con la copertura: spostare un pannello ammaccato non lo ripara.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionReconfigureTest,
-	"RefactorTactics.Heroes.Bastion.ReconfigureDoesNotDuplicate",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorReconfigureTest,
+	"RefactorTactics.Heroes.Riktor.ReconfigureDoesNotDuplicate",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionReconfigureTest::RunTest(const FString&)
+bool FRTRiktorReconfigureTest::RunTest(const FString&)
 {
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -1051,10 +1051,10 @@ bool FRTBastionReconfigureTest::RunTest(const FString&)
 	const FRTCellId Home(0, 0);
 	const FRTCellId Panel(1, 0);
 
-	ARTUnit* Bastion = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Riktor = SpawnEnvUnit(World, 0, Home);
 	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Bastion"), Bastion) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyEnvWorld(World);
 		return false;
@@ -1063,11 +1063,11 @@ bool FRTBastionReconfigureTest::RunTest(const FString&)
 	// Una copertura gia' in campo, ammaccata: 18 punti struttura invece di 30.
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Panel, ERTHexDirection::W, ERTHexCoverType::Low, 18);
 
-	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
+	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeRiktor()->Actions[2];
 	TestTrue(TEXT("Reconfigure dichiara di spostare"),
 		Reconfigure->Def.StructureOp == ERTStructureOp::MoveCover);
 
-	PlanHeroCoverAction(Bastion, Reconfigure, Panel, ERTHexDirection::E);
+	PlanHeroCoverAction(Riktor, Reconfigure, Panel, ERTHexDirection::E);
 	RunEnvTurn(TM);
 
 	const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Panel);
@@ -1099,10 +1099,10 @@ bool FRTBastionReconfigureTest::RunTest(const FString&)
  * pericoloso, perche' la via naturale — togli, poi aggiungi — cancella la copertura quando l'aggiunta
  * fallisce. Qui si verifica che torni dov'era.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionReconfigureRefusesTest,
-	"RefactorTactics.Heroes.Bastion.ReconfigureRefusesInsteadOfGuessing",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorReconfigureRefusesTest,
+	"RefactorTactics.Heroes.Riktor.ReconfigureRefusesInsteadOfGuessing",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
+bool FRTRiktorReconfigureRefusesTest::RunTest(const FString&)
 {
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -1112,10 +1112,10 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 	const FRTCellId Two(1, 0);   // cella con DUE coperture
 	const FRTCellId One(0, 1);   // cella con una sola, ma destinazione occupata
 
-	ARTUnit* Bastion = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Riktor = SpawnEnvUnit(World, 0, Home);
 	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Bastion"), Bastion) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyEnvWorld(World);
 		return false;
@@ -1124,8 +1124,8 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Two, ERTHexDirection::W, ERTHexCoverType::Low, 30);
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Two, ERTHexDirection::E, ERTHexCoverType::Low, 30);
 
-	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
-	PlanHeroCoverAction(Bastion, Reconfigure, Two, ERTHexDirection::NE);
+	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeRiktor()->Actions[2];
+	PlanHeroCoverAction(Riktor, Reconfigure, Two, ERTHexDirection::NE);
 	RunEnvTurn(TM);
 
 	TestEqual(TEXT("ambiguo: rifiutato"), CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
@@ -1142,12 +1142,12 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, NorthEast,
 		ERTHexDirection::SW, ERTHexCoverType::Low, 30); // la faccia opposta del bordo NE di `One`
 
-	// `Bastion.Reconfigure` ha COOLDOWN 2: come sopra, il secondo rifiuto va chiesto quando l'azione e'
+	// `Riktor.Reconfigure` ha COOLDOWN 2: come sopra, il secondo rifiuto va chiesto quando l'azione e'
 	// tornata disponibile, non al turno dopo (#135).
 	RunEnvTurn(TM);
 
-	URTActionData* Second = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
-	PlanHeroCoverAction(Bastion, Second, One, ERTHexDirection::NE);
+	URTActionData* Second = URTHeroCatalogLibrary::MakeRiktor()->Actions[2];
+	PlanHeroCoverAction(Riktor, Second, One, ERTHexDirection::NE);
 	RunEnvTurn(TM);
 
 	TestEqual(TEXT("destinazione occupata: rifiutato"),
@@ -1160,7 +1160,7 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 }
 
 /**
- * CP 9.5 — `Gadget.PortableCover` erige la stessa copertura, in mano a chi non e' Bastion.
+ * CP 9.5 — `Gadget.PortableCover` erige la stessa copertura, in mano a chi non e' Riktor.
  *
  * E' la prova che `Action.CreateCover` e' semantica CONDIVISA e non l'abilita' di un eroe travestita: se il
  * resolver riconoscesse il pannello per ActionId invece che per `StructureOp`, questo test sarebbe rosso — ed
@@ -1192,7 +1192,7 @@ bool FRTPortableCoverGadgetTest::RunTest(const FString&)
 	const FRTCellId Home(0, 0);
 	const FRTCellId Target(1, 0);
 
-	// Un'unita' QUALUNQUE: non ha il kit di Bastion, ha solo il gadget.
+	// Un'unita' QUALUNQUE: non ha il kit di Riktor, ha solo il gadget.
 	ARTUnit* Carrier = SpawnEnvUnit(World, 0, Home);
 	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -1243,7 +1243,7 @@ bool FRTPortableCoverGadgetTest::RunTest(const FString&)
  * frattempo qualcuno ha riparato lo stesso varco, gli distrugge il pannello con un turno di anticipo e scrive
  * nel TurnLog una scadenza che non e' avvenuta.
  *
- * Non e' un caso limite: due Bastion, o un Bastion e un alleato con `Gadget.PortableCover`, che rinforzano lo
+ * Non e' un caso limite: due Riktor, o un Riktor e un alleato con `Gadget.PortableCover`, che rinforzano lo
  * stesso passaggio sono gioco normale — i cooldown sono per unita', quindi il secondo non aspetta il primo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverGhostTrackingTest,
@@ -1383,9 +1383,9 @@ bool FRTBornSurfaceIsNotOnlyFireTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
 
-	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
-	URTActionData* MistVeil = (Riva && Riva->Actions.IsValidIndex(3)) ? Riva->Actions[3] : nullptr;
-	if (!TestNotNull(TEXT("MistVeil nel kit di Riva"), MistVeil)) { DestroyEnvWorld(World); return false; }
+	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	URTActionData* MistVeil = (Phase && Phase->Actions.IsValidIndex(3)) ? Phase->Actions[3] : nullptr;
+	if (!TestNotNull(TEXT("MistVeil nel kit di Phase"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;
 	Caster->PlannedAbilityIndex = 3;

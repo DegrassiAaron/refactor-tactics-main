@@ -151,7 +151,7 @@ public:
 	 *
 	 * Prima di CP 5.5 il resolver leggeva dalla reazione **il primo `Damage` e nient'altro**, piu' un
 	 * `if (ActionId == "Action.Deflect")` per la riduzione: una reazione con due effetti — `Shield 15` a se'
-	 * **e** 10 danni all'attaccante, che e' `Flux.ReactiveCapacitor` — ne avrebbe applicato meta'. Qui la
+	 * **e** 10 danni all'attaccante, che e' `Gadget.ReactiveCapacitor` — ne avrebbe applicato meta'. Qui la
 	 * lista si traduce per intero, nell'ordine dichiarato.
 	 *
 	 * CHI subisce ciascun effetto e' una regola per TIPO, non per azione — cosi' una reazione d'eroe non deve

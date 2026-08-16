@@ -16,8 +16,8 @@
   "_nota_controllo": "Il caso di controllo e' `Spec.Facing.FrontHitOnCoverIsSilent`: stessa scena con B1 rivolto al tiratore. Senza quella meta', una voce emessa SEMPRE — anche quando la copertura regge — passerebbe questo scenario.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [-1, 0, 0], "facing": "W" },
-    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [2, 0, 0],  "facing": "W" }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [-1, 0, 0], "facing": "W" },
+    { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [2, 0, 0],  "facing": "W" }
   ],
 
   "turns": [

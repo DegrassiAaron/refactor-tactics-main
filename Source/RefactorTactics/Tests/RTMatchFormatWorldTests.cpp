@@ -82,7 +82,7 @@ namespace
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBastion());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeRiktor());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->DispatchBeginPlay();
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);

@@ -66,15 +66,15 @@ namespace
 			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
 			TEXT("CreateCover"),       // E9 CP 9.5: coperture erette in partita, temporanee, spostabili
 			// D-046 (#282): un EROE possiede davvero un'azione ambientale. Non basta che il resolver la sappia
-			// risolvere — per mesi la sapeva, e nessuna unita' poteva innescarla. Oggi `Flux.ConductiveNode` e'
-			// `Action.Electrify` e `Riva.FluidTrail` e' `Action.CreateWater`.
+			// risolvere — per mesi la sapeva, e nessuna unita' poteva innescarla. Oggi `Gadget.ConductiveNode` e'
+			// `Action.Electrify` e `Phase.FluidTrail` e' `Action.CreateWater`.
 			//
 			// NON copre `Action.Ignite` ne' `Action.ModifyArc`: nessun eroe del roster le possiede, e D-046 ha
 			// deciso che restino senza owner in v0.1 (nessuna affinita' col fuoco; i ponti non appartengono a
 			// nessun kit). Uno scenario che chieda di accenderle deve restare BLOCKED, ed e' il motivo per cui
 			// questa capability non si chiama «Environment»: quella c'e' gia' e dice un'altra cosa.
 			TEXT("EnvironmentalActionOwner"),
-			// E18 CP 18.2 (D-016): `Vektor.InterceptShot` e' una Predictive Action — cella dichiarata in
+			// E18 CP 18.2 (D-016): `Wraith.InterceptShot` e' una Predictive Action — cella dichiarata in
 			// Planning, verificata al boundary del Move, nessun input durante la Resolution.
 			//
 			// ✅ **La motivazione di questa riga e' tornata VERA il 2026-08-13 sera, e vale la pena dire come.**
@@ -847,8 +847,8 @@ void FRTScenarioSession::BeginTurn()
 				// gioco. Prima finiva in un log e l'attacco semplicemente non partiva: l'assertion sui danni
 				// cadeva e il report diceva FAIL, cioe' mandava a cercare una regressione che non esisteva.
 				//
-				// Il validator non puo' prenderlo al caricamento: `Riva.CircularTide` ESISTE nel catalogo, non
-				// e' nel kit di Flux — e il kit lo si conosce solo quando le unita' sono state costruite.
+				// Il validator non puo' prenderlo al caricamento: `Phase.CircularTide` ESISTE nel catalogo, non
+				// e' nel kit di Gadget — e il kit lo si conosce solo quando le unita' sono state costruite.
 				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (turno %d)"),
 					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
 				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
@@ -858,7 +858,7 @@ void FRTScenarioSession::BeginTurn()
 				// Azione che risolve su CHI LA USA (`Action.Guard`, `Action.Brace`, e ogni azione di Prep del
 				// vertical slice): il `TurnManager` si bersaglia da solo — `Instance.TargetUnitId = i`, e il
 				// `PlannedAttackTarget` non lo guarda nemmeno. Pretendere un bersaglio qui sarebbe una regola
-				// dell'HARNESS che il gioco non ha, e costringerebbe a scrivere «Bastion si mette in guardia
+				// dell'HARNESS che il gioco non ha, e costringerebbe a scrivere «Riktor si mette in guardia
 				// bersagliando se stesso» per ottenere quel che il gioco chiama semplicemente mettersi in guardia.
 				Unit->PlannedAbilityIndex = AbilityIndex;
 			}

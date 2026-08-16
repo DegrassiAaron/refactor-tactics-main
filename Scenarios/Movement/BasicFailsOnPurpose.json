@@ -8,8 +8,8 @@
   "_nota": "FAIL INTENZIONALE. Identico a Movement.Basic, ma si aspetta l'unita' su una cella dove non arrivera' mai. Serve a dimostrare che il report DIAGNOSTICA il fallimento (expected vs actual, turno, unita') invece di limitarsi a scrivere FAIL. Un harness che non sa fallire in modo leggibile non aiuta a correggere niente. Richiesto dal documento di specifica: «deve inoltre esistere almeno un caso FAIL intenzionale per verificare che il report diagnostico funzioni».",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [2, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
   ],
 
   "turns": [

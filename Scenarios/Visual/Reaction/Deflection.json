@@ -5,15 +5,15 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "La reazione che non sposta niente e non ferisce nessuno: toglie soltanto 20 al colpo in arrivo (`URTCombatLibrary::DeflectDamageReduction`). Flux tira 22 con `ArcPulse`, Vektor ha armato `Vektor.Deflection`, e ne passano **2**. Vektor scende a 88.",
+  "_nota": "La reazione che non sposta niente e non ferisce nessuno: toglie soltanto 20 al colpo in arrivo (`URTCombatLibrary::DeflectDamageReduction`). Gadget tira 22 con `ArcPulse`, Wraith ha armato `Vektor.Deflection`, e ne passano **2**. Wraith scende a 88.",
 
   "_nota_presentazione": "Il complemento di `Visual.Reaction.Interposition`, e il suo opposto per difficolta': li' il colpo cambia bersaglio, qui arriva dove doveva e **quasi non fa niente**. Se la parata non si vede, il giocatore legge un attacco debole invece di una difesa riuscita — e la prossima volta non armera' la reazione. Due danni su ventidue devono sembrare il risultato di una scelta.",
 
   "_nota_confronto": "Da guardare accanto a `Combat.CounterStrikesBack`, che copre l'altra semantica difensiva: li' lo scudo assorbe **e** restituisce danno, qui la riduzione agisce sul colpo che l'ha innescata e basta. Tre reazioni, tre grammatiche diverse: redirezione, assorbimento con risposta, riduzione secca.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [0, 0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [2, 0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [0, 0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [2, 0, 0] }
   ],
 
   "turns": [

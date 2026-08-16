@@ -14,8 +14,8 @@
   "_nota_assenza": "Il conteggio a zero e' l'altra meta' della capability: `DeclarationRejected` non deve esserci perche' nessuno ha dichiarato una rotazione. E' la forma che serve alla segretezza (`Spec.Clash.HiddenUntilReveal`), dove cio' che conta e' che una voce NON compaia prima del reveal.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [0, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 0, 0] }
   ],
 
   "turns": [

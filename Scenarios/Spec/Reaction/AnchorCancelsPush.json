@@ -5,7 +5,7 @@
   "seed": 0,
   "mapRadius": 6,
 
-  "_nota": "`Reaction.Anchor` annulla la spinta che sta per subire. Riva spinge Bastion con `Riva.PressureJet`; Bastion ha armato l'ancora e resta dov'e'. La prova e' la CELLA a fine turno, non una voce di log: dove sta l'unita' e' l'unica cosa che il giocatore vede.",
+  "_nota": "`Reaction.Anchor` annulla la spinta che sta per subire. Phase spinge Riktor con `Riva.PressureJet`; Riktor ha armato l'ancora e resta dov'e'. La prova e' la CELLA a fine turno, non una voce di log: dove sta l'unita' e' l'unica cosa che il giocatore vede.",
 
   "_nota_perche_esiste": "CP 7.5 (#505) ha consegnato sette moduli di reazione verificati da test in partita, ma nessuno era esprimibile in uno scenario: i loadout consigliati ne usano quattro (#63) e `Anchor` non e' fra quelli. Questo file esiste perche' #602 ha dato agli scenari una chiave `loadout` e #601 un produttore vero di `PlannedReactionAbility` — prima di entrambe sarebbe stato rifiutato al caricamento, non `BLOCKED`.",
 
@@ -16,14 +16,14 @@
   "_nota_una_sola_spinta": "UN attaccante, non due: con due spinte sullo stesso bersaglio il resolver applica «forze contraddittorie» (#420) e il bersaglio resta fermo **da solo** — il verde direbbe che l'ancora ha retto mentre non e' nemmeno intervenuta.",
 
   "units": [
-    { "id": "P1", "hero": "Hero.Riva",    "team": 0, "cell": [0, 0, 0], "facing": "E" },
-    { "id": "A1", "hero": "Hero.Bastion", "team": 1, "cell": [1, 0, 0], "facing": "W",
+    { "id": "P1", "hero": "Hero.Phase",    "team": 0, "cell": [0, 0, 0], "facing": "E" },
+    { "id": "A1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0], "facing": "W",
       "loadout": ["Weapon.Precision", "Gadget.Medkit", "Reaction.Anchor"] }
   ],
 
   "turns": [
     {
-      "_turno": "Riva spinge, Bastion ha l'ancora armata e non si muove.",
+      "_turno": "Phase spinge, Riktor ha l'ancora armata e non si muove.",
       "requires": ["ReactionPlanning"],
       "intents": [
         { "unit": "P1", "ability": "Riva.PressureJet", "target": "A1" },

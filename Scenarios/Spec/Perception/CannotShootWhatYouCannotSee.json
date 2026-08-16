@@ -16,9 +16,9 @@
   "_nota_facing_assente": "⚠️ Questo scenario NON asserisce sul facing di A1, ed e' deliberato. Misurato: A1 finisce a OVEST, cioe' si gira verso un nemico che la squadra NON conosce. Il codice segue [D-020] — «un'azione con bersaglio orienta l'unita' PRIMA di risolvere» — e infatti la rotazione (`RTTurnManager.cpp:2577`, `TargetingReoriented`) precede il gate della conoscenza (`:2632`). Ma D-020 e' anteriore a CP 13.2 e non poteva prevedere un gate che RIFIUTA l'azione: il facing e' osservabile dall'avversario, quindi voltarsi verso cio' che non si conosce fa trapelare che lo si conosce. La domanda e' aperta (`PER-4`) e questo scenario non la decide in nessuna delle due direzioni: un'assertion su `E` accuserebbe il gioco di un difetto non deciso, una su `W` renderebbe canone per inerzia un possibile leak.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [0, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [-4, 0, 0] },
-    { "id": "B2", "hero": "Hero.Vektor",  "team": 1, "cell": [1, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [0, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-4, 0, 0] },
+    { "id": "B2", "hero": "Hero.Wraith",  "team": 1, "cell": [1, 0, 0] }
   ],
 
   "turns": [

@@ -127,12 +127,12 @@ URTEquipmentData* URTCatalogLibrary::MakePortableCoverGadget()
 	Cover->DisplayName = FText::FromString(TEXT("Copertura portatile"));
 	Cover->Slot = ERTEquipmentSlot::Gadget;
 	Cover->Advantage = FText::FromString(
-		TEXT("erige una copertura bassa su un bordo, anche per chi non e' Bastion"));
+		TEXT("erige una copertura bassa su un bordo, anche per chi non e' Riktor"));
 
 	// Lo svantaggio e' **obbligatorio** (regola di prodotto: senza, l'equipaggiamento e' una scelta verticale),
 	// e il catalogo equipaggiamento non ne dichiara uno specifico per questo gadget. Invece di inventare un
 	// numero si dichiara quello che i cataloghi gia' dicono: **cooldown 3** per ogni gadget, contro il 2 del
-	// pannello d'eroe, e l'unico slot gadget occupato. Chi non e' Bastion puo' erigere pannelli, ma piu' di
+	// pannello d'eroe, e l'unico slot gadget occupato. Chi non e' Riktor puo' erigere pannelli, ma piu' di
 	// rado e rinunciando a medkit, isolante o sensore.
 	Cover->Drawback = FText::FromString(
 		TEXT("ricarica 3 turni invece dei 2 del pannello d'eroe, e occupa l'unico slot gadget"));
@@ -199,7 +199,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	Split->ExtraTargets = 1;
 	Variants.Add(Split);
 
-	// Soppressione — applica `Slow`, −5 danni. Stesso mestiere dell'attacco base di Bastion (ADR-0007), che
+	// Soppressione — applica `Slow`, −5 danni. Stesso mestiere dell'attacco base di Riktor (ADR-0007), che
 	// e' la prova che lo `Slow` su un attacco base e' gia' rappresentabile e gia' osservato in partita.
 	URTEquipmentData* Suppressive = WeaponVariant(TEXT("Weapon.Suppressive"), TEXT("Soppressione"),
 		TEXT("l'attacco base applica Status.Slow per 1 turno"), TEXT("-5 danni"));
@@ -270,7 +270,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeGadgets()
 	// ⛔ I QUATTRO ASSENTI, con la ragione ciascuno — sono quattro ragioni diverse, non «mancano».
 	//
 	// - `Gadget.SmokeEmitter` (fumo raggio 1): **nessuna azione core crea `ERTHexSurface::Smoke`**. L'unica
-	//   che lo fa e' `Riva.MistVeil`, che e' d'eroe e risolve in `Preparation` — e la fase e' proprio il
+	//   che lo fa e' `Phase.MistVeil`, che e' d'eroe e risolve in `Preparation` — e la fase e' proprio il
 	//   difetto che `#353` ha documentato. Serve prima un'azione core del fumo, come `CreateWater` lo e'
 	//   dell'acqua.
 	// - `Gadget.Insulator` (immunita' a una propagazione elettrica): e' un PASSIVO, e non concede un'azione.
@@ -280,7 +280,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeGadgets()
 	//   catalogo stesso dichiara raggio e durata «non specificati dalla fonte», quindi mancano anche i numeri.
 	// - `Gadget.Anchor` (impedisce **una** spinta): il campo `PushResistance` esiste ma e' una SOGLIA
 	//   permanente, non un contatore. Darlo a chi porta l'ancora lo renderebbe immune a OGNI spinta del gioco
-	//   — tutte valgono 1 — cioe' esattamente l'immunita' non decisa che `D-075` ha appena tolto a Bastion.
+	//   — tutte valgono 1 — cioe' esattamente l'immunita' non decisa che `D-075` ha appena tolto a Riktor.
 	//   «Una» spinta richiede un consumo per turno che non esiste.
 
 	return Gadgets;
@@ -369,7 +369,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 	// `Reaction.HazardEscape` — l'ULTIMO dei sette, e il piu' lungo da arrivare. Non gli mancava un dato ne'
 	// un momento: gli mancava l'EVENTO. Finche' una superficie che nasceva sotto un'unita' ferma non le faceva
 	// niente (`#570`), nel Cleanup non c'era nessun danno imminente da cui fuggire e il modulo sarebbe stato
-	// inerte — la trappola di `Riva.MistVeil` (`#353`).
+	// inerte — la trappola di `Phase.MistVeil` (`#353`).
 	//
 	// Si fugge verso la cella che si ha DAVANTI, e il facing lo dichiara il giocatore: la fuga e' prevedibile
 	// guardando il campo invece che arbitraria. Se davanti non si puo', si ripiega sull'ordine canonico delle
@@ -399,9 +399,9 @@ TArray<FString> URTCatalogLibrary::WarnOnVariantForAttack(const FRTActionDef& Ba
 		*Variant->EquipmentId.ToString(), *BasicAttack.ActionId.ToString());
 
 	// 1. STATUS DUPLICATO. E' la regola generale dietro un caso concreto: `Weapon.Suppressive` applica
-	// `Slow`, e `Bastion.ImpactShot` lo applica gia' — quindi la variante fa pagare 5 danni su 8 per un
+	// `Slow`, e `Riktor.ImpactShot` lo applica gia' — quindi la variante fa pagare 5 danni su 8 per un
 	// effetto che l'eroe possiede. Non e' subottimale, e' priva di senso, e D-086 la vieta. La regola non
-	// nomina Bastion: vale per ogni eroe futuro il cui attacco base porti gia' uno status.
+	// nomina Riktor: vale per ogni eroe futuro il cui attacco base porti gia' uno status.
 	for (const FRTActionEffectSpec& Aggiunto : Variant->AddedEffects)
 	{
 		if (Aggiunto.Effect != ERTActionEffect::Status || !Aggiunto.StatusTag.IsValid()) { continue; }
@@ -507,15 +507,15 @@ FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
 	// ⚠️ Nessuno usa `Weapon.Overcharge`, ed e' deliberato: il suo costo e' `WV-1`, ancora aperto (#510). Un
 	// default il cui prezzo si decide dopo cambierebbe insieme a quella risposta.
 	static const TMap<FName, FName> Defaults = {
-		// Flux vede a 7 e sparava a 4: `Precision` e' l'unica che riduce quel divario (18 a portata 5).
-		{ FName(TEXT("Hero.Flux")),    FName(TEXT("Weapon.Precision")) },
-		// Riva e' il setter del roster, e `Impact` porta la sua spinta da 1 a 2 (D-085).
-		{ FName(TEXT("Hero.Riva")),    FName(TEXT("Weapon.Impact")) },
-		// Vektor e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
-		{ FName(TEXT("Hero.Vektor")),  FName(TEXT("Weapon.Suppressive")) },
-		// Bastion tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
+		// Gadget vede a 7 e sparava a 4: `Precision` e' l'unica che riduce quel divario (18 a portata 5).
+		{ FName(TEXT("Hero.Gadget")),    FName(TEXT("Weapon.Precision")) },
+		// Phase e' il setter del roster, e `Impact` porta la sua spinta da 1 a 2 (D-085).
+		{ FName(TEXT("Hero.Phase")),    FName(TEXT("Weapon.Impact")) },
+		// Wraith e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
+		{ FName(TEXT("Hero.Wraith")),  FName(TEXT("Weapon.Suppressive")) },
+		// Riktor tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
 		// base diventa displacement, coerente con Utility/Emergency (ADR-0007).
-		{ FName(TEXT("Hero.Bastion")), FName(TEXT("Weapon.Impact")) },
+		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Weapon.Impact")) },
 	};
 	const FName* Found = Defaults.Find(HeroId);
 	return Found ? *Found : FName();
@@ -855,7 +855,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// **Friendly fire**: non serve piu' dichiararlo qui. Dal 2026-08-08 `bFriendlyFire` e' vero di DEFAULT
 	// (vedi `FRTActionDef`), perche' la riga esplicita qui sotto non raggiungeva il roster: gli eroi si
 	// costruiscono con `MakeHeroAction`, che non aveva il parametro, e «la copia da qui e basta» non e'
-	// avvenuto — `Flux.Overload` aveva preso danno e raggio ma non il fuoco amico.
+	// avvenuto — `Gadget.Overload` aveva preso danno e raggio ma non il fuoco amico.
 	Catalog.Add(ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
@@ -1110,7 +1110,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	//
 	// **Durata 2 turni** per entrambe, dal catalogo terreni §2 (fuoco) e dal catalogo azioni §6 (acqua).
 	// La superficie creata e' un DATO dell'azione, non un ramo nel resolver: cosi' un'abilita' d'eroe che
-	// copia questa definizione (D-046: `Riva.FluidTrail`) eredita il comportamento senza che nessuno debba
+	// copia questa definizione (D-046: `Phase.FluidTrail`) eredita il comportamento senza che nessuno debba
 	// aggiungere il suo nome a un `if`.
 	{
 		FRTActionDef Ignite = ShippedAction(TEXT("Action.Ignite"), ERTResolutionPhase::Environment, /*Priority*/ 60,
