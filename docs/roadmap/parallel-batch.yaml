@@ -2171,54 +2171,6 @@ tracks:
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
     binary_leases: []
 
-  autobattle:
-    status: ACTIVE
-    issue: 954
-    branch: feat/954-autobattle-non-presidiata
-    worktree: "D:/rt-chatgpt"
-    note: >-
-      ➕ **Track nuova, aperta il 2026-08-16 su `#954` (CP 47.1, epic `#952`).** Mette entrambe le
-      squadre sotto il bot per configurazione: il delta è in `ARTGameMode`, non in un motore.
-      ✅ **I tre path erano NON ASSEGNATI, che è la condizione che rende la scrittura uno STOP.**
-      `RTGameMode.cpp` e `Tests/RTGameModeScenarioEntryTests.cpp` sono usciti dal `writable` di
-      `simulation` alla sua chiusura di stamattina — la sua nota lo dichiara: *«tutti atterrati in
-      `main`, oggi non assegnati»*. Non è ownership ereditata: è un path libero che questa track si
-      assegna prima di toccarlo, ed è la stessa forma con cui `simulation` se l'era assegnato a sua
-      volta.
-      ⚠️ **`RTGameMode.h` entra insieme al `.cpp`**, e non per adiacenza: le due proprietà di
-      configurazione e i due `Resolve*` sono dichiarati lì. Un header e la sua unità di traduzione si
-      modificano nello stesso commit — è la stessa regola che l'intestazione di `integration_only`
-      scrive per un modulo e il suo test.
-      ⚠️ **`Tests/RTMatchAutobattleTests.cpp` non esiste ancora**, ed è dichiarato apposta: un file
-      nuovo non collide con nessuno, ma se non è nel `writable` il primo commit che lo crea è una
-      violazione. È la stessa asimmetria già registrata per `RTWorldFixtures.h` e per
-      `RTGameModeScenarioEntryTests.cpp`.
-      ✅ **Intersezione misurata il 2026-08-16 su `base_sha` `18556d48`, non dedotta.** Fotografia a
-      tre comandi — `git ls-remote --heads origin` (**10** branch), `git worktree list` (**7** sessioni,
-      inclusa questa) e `git diff --name-only origin/main...<b>` per ciascuno: **nessun branch vivo
-      tocca `RTGameMode.h`, `RTGameMode.cpp` né un file di `Tests/` con questo nome.** I tre che
-      scrivono in `Tests/` toccano altro — `feat/641-sprint-post-blast` (`RTCatalogTests`,
-      `RTCoreActionTests`, `RTMovementActionTests`), `fix/892-displayname-abilita`
-      (`RTHeroCatalogTests`), `feat/77-hud-slot-terna` (`RTHudSlotLinesTests`) — ed è la ragione per
-      cui il `writable` elenca **un file**, non il prefisso `Tests/`.
-      ⛔ **Cosa questa track NON tocca, e perché.** Il DoD di `#954` chiede che l'attivazione «non sia
-      silenziosa». La banda a schermo la disegna `UI/RTHUD.cpp`, che è nel `writable` di
-      `client_tools` (**ACTIVE** su `#78`): la riga della banda esce quindi da `GetScenarioBannerText`,
-      che è già il canale letto dall'HUD e vive nel `.cpp` di questa track. **Zero modifiche a `UI/`**,
-      verificato sul write-set del branch e non sull'intenzione.
-      ⚠️ **Il vincolo che resta non è sui file, è la macchina**: una run di automation per volta e un
-      mutex di UBT, quindi due track che ricompilano si aspettano — vale con `client_tools` come già
-      valeva fra `simulation` e `verification`.
-      ❓ **Questa track entra in un batch che il suo stesso `meta` dice di chiudere** (quattro
-      riconciliazioni in due giorni, `reconciled_count: 4`, tre track su cinque IDLE al giro
-      precedente). Non è una riconciliazione e non ne fa una: dichiara il proprio write-set perché
-      l'invariante resti calcolabile, e lascia la domanda a chi possiede il lotto.
-    writable:
-      - Source/RefactorTactics/RTGameMode.h
-      - Source/RefactorTactics/RTGameMode.cpp
-      - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
-    binary_leases: []
-
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test
