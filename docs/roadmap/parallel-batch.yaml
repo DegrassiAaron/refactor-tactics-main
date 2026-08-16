@@ -638,14 +638,11 @@ preexisting:
   # 🔵 **`feat/451-u1-voci-hex-mode` è uscita**: PR **#930** (`integrazione/451`) mergiata il
   # `2026-08-15T22:30:06Z` in `311da2d7`, write-set misurato **0** su `4ab36b48`, `merge-base
   # --is-ancestor 863df552 4ab36b48` verde. `MERGED` esce dalla sezione.
-  # ⚠️ **Il worktree `D:/rt-content` è ancora lì, e ancora sul branch atterrato** — `git worktree list`
-  # lo mostra a `863df552`, cioè su un commit che `main` contiene già. Non è un vincolo (write-set
-  # vuoto) ed è la ragione per cui l'enum guarda il **contenuto** e non l'esistenza della cartella: chi
-  # riapre quella seduta fa `git switch` da lì, o misura il proprio lavoro contro una base sbagliata.
-  # ⚠️ **Con lei cade la contesa su questo file** verso `docs/riconciliazione-batch-2026-08-15` — che
-  # però era già uscita per conto suo (PR #897, `05:21:16Z`, `40d77af9`): entrambi i lati atterrati,
-  # e un vincolo senza due lati non è un vincolo. La contesa su `parallel-batch.yaml` **rinasce oggi**
-  # con altre parti, ed è dichiarata nella voce di questa riconciliazione più sotto.
+  # ⚠️ La riga che stava qui diceva *«il worktree `D:/rt-content` è ancora sul branch atterrato»* ed è
+  # **già invecchiata**: rimisurato il 2026-08-16 con `git worktree list`, quel worktree è passato a
+  # **detached su `6bdf4619`**, cioè sulla punta di `main`. Non c'è più nulla da riaprire con un
+  # `git switch`. È la stessa proprietà che il file registra da tre giorni — una coppia branch↔worktree
+  # invecchia **indipendentemente** dal write-set — applicata alla nota che la descriveva.
   # ➕ Ciò che quella voce aveva misurato e che vale la pena non perdere: **sette degli otto file erano
   # fuori dal `writable` della sua track** — `content_editor` dichiarava `test-manuali-pie.md` e basta,
   # mentre la seduta ha toccato `Map/`, `Tools/RTHexFillTool.*`, due viste generate e questo file. Non
@@ -656,6 +653,59 @@ preexisting:
   # vincolo da otto file e il worktree ha cambiato nome, entrambi fra due riconciliazioni. È la ragione
   # per cui una prenotazione a zero file si elenca — e la stessa cosa è appena successa a
   # `feat/77-hud-slot-terna`, che era `LOCAL · 0` ieri ed è la collisione di oggi.
+
+  - branch: docs/menu-frontend-consolidamento
+    state: LIVE            # worktree `D:/rt-menu` · pushato · PR #948 aperta
+    measured: 16
+    note: >-
+      Consolidamento dell'handoff *Frontend/Menu Features e Tracking* (D-144, epic #934). Write-set
+      misurato con `git diff --name-only origin/main...HEAD`: **16** file, di cui **8**
+      `integration_only`, **5** viste generate e **3** nuovi.
+      ⏱️ **Era 15 fino alla code review**, che ha trovato il totale epic/CP fermo in quattro copie su
+      cinque: allinearne due ha fatto entrare `roadmap-checkpoint.md`, anch'esso `integration_only`.
+      Un write-set cresce mentre lo si corregge — ed è il motivo per cui si rilegge dal comando nello
+      stesso momento in cui lo si scrive.
+      🔴 **Le prime tre affermazioni di questa voce erano false insieme, e le ha trovate la code
+      review** — `measured: 14`, `state: LOCAL`, e una collisione con `docs/voci-pie-mancanti`. Il 14
+      ometteva **questo file**, che è `integration_only` come gli altri sei: la scomposizione si scrive
+      guardando il write-set, non ricordando cosa si è toccato di proposito. Il `LOCAL` era vero al
+      momento in cui la voce fu scritta e falso dal push, che è avvenuto nella stessa sessione — e la
+      riga che definisce `LOCAL` sta in questo stesso file (*«`git ls-remote` non lo vede»*). La
+      collisione era **già atterrata** con la PR #946. È esattamente la classe di errore che questa
+      sezione documenta per altri branch tre volte (*«la voce diceva `LOCAL · 11` e le tre affermazioni
+      erano false insieme»*), commessa dentro la voce che la cita.
+      ✅ **Nessuna collisione, rimisurata dopo il merge**: i quattro branch remoti vivi non toccano né
+      `parallel-batch.yaml` né `project-graph.json` (`git diff --name-only origin/main...origin/<b>`
+      per ciascuno). `docs/voci-pie-mancanti` — la controparte dichiarata prima — è mergiata con #946.
+      ✅ **Nessun file nel `writable` di un'altra track**, verificato path per path — ed è la ragione
+      per cui questa voce sta in `preexisting` e non apre una track propria: un consolidamento
+      documentale *è* lavoro di integrazione per costruzione, e i **sette** `integration_only` che tocca
+      (`RT_PDR_00_Decision_Log.md`, `feature-registry.yaml`, `roadmap-v0.1.md`, `roadmap-post-v0.1.md`,
+      `archive/src/README.md`, `scenario-map.md` e **questo file**) sono esattamente quelli che la
+      sezione dedicata dice di aggiornare **una volta in integrazione**.
+      🔴 **Il vincolo che ha morso, e vale la pena registrarlo perché è il primo caso in cui D-139 ha
+      cambiato l'esito invece di confermarlo**: i sei DoD di E46 chiedono voci `PIE-V01-FRONTEND-*`, e
+      `docs/technical/test-manuali-pie.md` non è di questa sessione. Le voci **non** sono state create.
+      Il debito è dichiarato in tre punti — `roadmap-v0.1.md` §E46, `spec-frontend-navigazione.md` §8 e
+      `scenario-map.md` §9 — invece di essere risolto con una «piccola fix» fuori dal proprio insieme.
+      ⏱️ **Il proprietario è cambiato mentre questa sessione lavorava**: era `content_editor` (#451) al
+      momento della misura, ed è `playtest` dal merge di #942 — track nata lo stesso giorno proprio per
+      dare al registro un proprietario stabile. La conclusione non cambia (il file non è mio in nessuno
+      dei due casi), ma **la procedura sì**: `playtest` dichiara che chi finisce una feature con una voce
+      `PIE-*` la **propone in handoff**, invece di aspettare che il file torni `integration_only`.
+      ⏱️ **La contesa su questo file è nata e morta due volte mentre la voce la descriveva**: era
+      `feat/451` alla prima stesura (atterrato con #930), poi `docs/voci-pie-mancanti` alla seconda
+      (atterrato con #946). Oggi **non c'è**, rimisurata. Vale la pena tenerla scritta perché è la
+      terza volta che questo file mostra la stessa proprietà: **una voce di batch non invecchia in
+      giorni, invecchia in minuti** — e l'unico modo di scriverla giusta è misurarla nello stesso
+      comando che la committa.
+      ⚠️ **Le cinque viste generate seguono la sorgente**, non sono assegnate: `feature-registry.json`,
+      `project-graph.json`, `roadmap-map.svg`, `featuremap.shortlist.md`, `roadmap.shortlist.md`. Vale
+      la regola dell'albero unito — l'unica copia autoritativa è quella rigenerata **dopo** il merge.
+      ➕ **`project-graph.json` è conteso con `docs/voci-pie-mancanti`**, ed è proprio il caso che la
+      regola descrive: entrambe lo rigenerano per il proprio `--check`, e nessuna delle due copie è
+      autoritativa prima dell'unione.
+
   # 🔵 **`feat/832-stable-structure-id` è uscita**: PR #876 mergiata (`8ea9c229`), branch cancellato
   # lato server, write-set misurato **0**. La voce diceva `LOCAL · 11` e le tre affermazioni erano
   # false insieme — non pushato (lo era), non mergiato (lo è), undici file (zero).
