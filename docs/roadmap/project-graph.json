@@ -3451,13 +3451,14 @@
         "release": "v0.1",
         "execution_lane": "code",
         "domain_group": "core_simulation",
-        "domain_group_source": "derived",
+        "domain_group_source": "declared",
         "checkpoint": "E47.5",
         "state": "⏳",
         "state_source": "checkpoint:E47.5",
         "state_note": null,
         "feature_ids": [
-          "RT-FEAT-CORE-DETERMINISM"
+          "RT-FEAT-CORE-DETERMINISM",
+          "RT-FEAT-MATCH-AUTOBATTLE"
         ],
         "provides": [],
         "incoming": [

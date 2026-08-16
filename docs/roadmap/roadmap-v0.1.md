@@ -306,7 +306,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | SPECIFIED | 1/6 |
 |  | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | SPECIFIED | 1/5 |
 |  | `RT-FEAT-UI-FRONTEND-SHELL` — Frontend root, navigation controller e stati comuni | IMPLEMENTING | 1/6 |
-| **E47** | `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore — completata da `RT-FEAT-CORE-PLAYBACK`, `RT-FEAT-UI-BOARD-GRAMMAR` | DESIGNED | 0/8 |
+| **E47** | `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore — completata da `RT-FEAT-CORE-PLAYBACK`, `RT-FEAT-UI-BOARD-GRAMMAR` | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-UI-BOARD-GRAMMAR` — Grammatica visiva della board — colore e forma, mai solo il colore | IMPLEMENTING | 0/7 |
 
 > ⚠️ **Feature con una release e senza epic** — lavoro dentro lo scope di una release che nessuna
