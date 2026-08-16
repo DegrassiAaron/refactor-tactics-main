@@ -2454,7 +2454,27 @@ tracks:
       emettibile**: c'era un secondo holder di fatto, ora non c'è. Resta non emessa per una ragione
       diversa e più semplice — la seduta non ha bisogno di modificare il package, perché i due
       artefatti sono già committati. La seduta resta comunque vincolata a **non salvare** il
-      package finché la lease non è emessa. Le sette voci verificano
+      package finché la lease non è emessa.
+      🔴 **Da qui in giù questo paragrafo è stato smentito dai DATI di questo stesso file, il 2026-08-16,
+      e la correzione è qui accanto invece che al posto suo.** «La lease su `L_HexArena/` NON è emessa» è
+      falso da quando esiste `BINARY-GH896-HEXARENA-ASSIGN-MATERIAL` (più sotto, in `binary_leases`):
+      `operation: modify` su **questi due package**, con `save_without_errors` fra le proprie
+      `verification`. Il suo commento lo dichiara apertamente — *«Lease emessa DOPO il fatto … Il
+      salvataggio è avvenuto»*. La prosa qui sopra è più vecchia dei dati e non è stata riletta quando
+      la lease è stata aggiunta: un file che si contraddice fra testo e dati fa vincere il testo a chi
+      legge in fretta, ed è successo — `#868` ha ereditato questa riga e l'ha portata dentro la guida
+      di U1 come motivazione di un divieto.
+      ✅ **La conclusione operativa NON cambia, e va tenuta**: durante U1 quel package non si salva.
+      Cambia il **perché**, che è ciò che regge alla verifica di chi lo controlla:
+      · la lease è di **`#896`**, non di `#451` — un altro lavoro;
+      · ed è **stale**. Misurato: dal suo `base_sha` `bc84fe69`, `main` ha toccato
+        `Content/RT/Maps/Dev/L_HexArena/` **due volte** — `8024a742` (il materiale, cioè il lavoro della
+        lease stessa, atterrato) e `1475582d` (l'arena scesa a 64 celle). La regola di questo file dice
+        *«se `main` tocca lo stesso asset, la lease è stale e va riemessa»*.
+      ∴ nessuna lease viva copre oggi quel path, ed è un'affermazione più forte e verificabile di
+      «non è emessa». Chi possiede la track riscriva il paragrafo qui sopra fondendolo con questo;
+      questa correzione lo segnala e non lo riscrive al posto suo.
+      Le sette voci verificano
       il *mode* — Arch, Fill, ciclo del gizmo, snap cross-layer, catalogo terreni — non il terreno, e
       la issue lo dichiara nel proprio *Out of scope*. Se il controllo dei criteri U1-B mostrasse
       che l'arena va corretta, la track **si ferma e chiede la riallocazione**: emettere la lease è

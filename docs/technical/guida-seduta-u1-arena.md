@@ -189,8 +189,22 @@ danno.
 
 ## 10. Le sette voci
 
-Si verificano in una sola apertura dell'editor. Gli esiti si scrivono in
+Si verificano in una sola apertura dell'editor. Gli esiti vanno in
 [`test-manuali-pie.md`](test-manuali-pie.md).
+
+🔴 **Ma quel file non è più di questa track, e il passo di registrazione non è scrivibile da chi esegue la
+seduta.** Il registro ha cambiato proprietario **due volte in due giorni** — da `content_editor` a
+`playtest`, e da lì a `playback` — quindi questa guida **non lo nomina**: si rilegge da
+[`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml) al momento di scrivere.
+
+```sh
+python -c "import yaml;d=yaml.safe_load(open('docs/roadmap/parallel-batch.yaml',encoding='utf-8'));\
+print([k for k,v in d['tracks'].items() if 'docs/technical/test-manuali-pie.md' in (v.get('writable') or [])])"
+```
+
+∴ gli esiti si **propongono in handoff** al proprietario corrente, che li scrive. Per **D-139** provare a
+scriverli qui sarebbe la «piccola fix» su un file non assegnato — e la si scoprirebbe *dopo* la run,
+davanti all'editor, che è il momento peggiore.
 
 ⚠️ **L'arena non è «appena costruita», e §1–§9 non vanno rifatti.** `L_HexArena` e `DA_HexMap_Arena`
 esistono in `main` dal **2026-08-11** (`2e2caff6`): chi segue questa guida dall'inizio rifarebbe un
@@ -221,26 +235,53 @@ generato con `GenerateIntoAsset` e non hanno bisogno di quest'arena.
 L'ordine sotto è per **tool**, non per importanza: cambiare tool è ciò che costa, e le cinque voci dell'Arch
 si verificano quasi tutte con gli stessi gesti.
 
-**⚠️ Prima di cominciare: NON salvare, e non salvare nemmeno alla fine.**
+**⚠️ Prima di cominciare: NON salvare `L_HexArena`, e non salvarlo nemmeno alla fine.**
 
-`Content/RT/Maps/Dev/L_HexArena/` è un binario, e la sua **Binary Asset Lease** non è emessa
-(**D-139**, `docs/roadmap/parallel-batch.yaml`, track `content_editor`). Salvare quel package è la cosa
-da non fare — non «una precauzione in più», ma il gesto che questa seduta ha il vincolo di evitare.
+`Content/RT/Maps/Dev/L_HexArena/` è un binario e vuole una **Binary Asset Lease** (**D-139**). Ne esiste
+una in `docs/roadmap/parallel-batch.yaml` — `BINARY-GH896-HEXARENA-ASSIGN-MATERIAL`, `operation: modify`,
+proprio su questi due package — ma **non copre questa seduta**, per due ragioni indipendenti:
 
-🔴 **Questa riga diceva l'opposto — «prima di cominciare, salva» — e il consiglio era già ridondante
-quando è stato scritto**, non solo oggi. Le date lo mostrano:
+1. è di **`#896`** (l'assegnazione del materiale), non di `#451`;
+2. è **stale**. La regola del batch è *«una lease vale sul `base_sha`: se `main` tocca lo stesso asset,
+   la lease è stale e va riemessa»*, e dal suo `base_sha` `bc84fe69` `main` ha toccato la cartella **due
+   volte** — `8024a742` (il materiale, cioè il lavoro della lease stessa, atterrato) e `1475582d`
+   (l'arena scesa a 64 celle).
+
+∴ oggi nessuna lease viva autorizza a scrivere quel package.
+
+> 🔴 **Non scrivere «la lease non è emessa»**: è falso e si smentisce aprendo il file citato. Una
+> giustificazione sbagliata su un vincolo giusto è peggio di nessuna giustificazione — chi la verifica
+> trova il contrario e scarta anche la regola.
+
+**Il rischio concreto, e come si evita.** Dopo le voci Fill e Arch l'asset in memoria è **dirty**: alla
+chiusura Unreal apre *Save Content?* con **tutto preselezionato**, e premere il pulsante di default
+scrive sopra `DA_HexMap_Arena.uasset` committato. Alla chiusura vanno quindi **deselezionati** i package
+di `L_HexArena/`, oppure si sceglie *Don't Save*. È la perdita binaria che `#858` ha già pagato una volta.
+
+⚠️ **E un `Ctrl+Z` di troppo cancella l'arena in un colpo**: la generazione sta dentro **una sola
+transazione**, quindi l'Undo che la scavalca la annulla tutta, non una cella per volta.
+
+🔴 **Questa riga diceva «prima di cominciare, salva», e il consiglio era già ridondante quando è stato
+scritto** — non solo oggi. Le date lo mostrano:
 
 ```
 2e2caff6  2026-08-11 07:57  feat(U1): L_HexArena e DA_HexMap_Arena, l'arena della v0.1
 8aa1a4e0  2026-08-11 11:13  docs(U1): le sette voci in una sola passata, ordinate per tool
 ```
 
-§10b è stato scritto **tre ore dopo** che l'arena era già in git. Il punto di ripristino contro l'Undo
-di troppo esisteva già, ed era migliore di un salvataggio: **`git checkout`**.
+§10b è stato scritto **tre ore dopo** che l'arena era già in git: il punto di ripristino esisteva già.
+∴ se un Undo va troppo indietro, **chiudi l'editor senza salvare** — l'asset su disco è intatto.
 
-∴ se un `Ctrl+Z` va troppo indietro, **chiudi l'editor senza salvare**: l'asset su disco è intatto, e
-non serve altro. Le sette voci non hanno bisogno di scrivere il package — verificano il **mode**, non il
-terreno — e la sequenza `-E` (crea transizione) → `-L` (rimuovi arco) si richiude da sola.
+⚠️ **`git checkout` da solo non basta a editor aperto.** Ripristina il file, non l'oggetto caricato in
+memoria: il prossimo salvataggio riscriverebbe la versione svuotata, e `rt.Arena.Check` continuerebbe a
+misurare quella in RAM (legge `HexMap->MapAsset`, non il disco). L'ordine che funziona è **prima chiudi
+senza salvare, poi eventualmente `git checkout`, poi riapri**.
+
+Le sette voci non hanno bisogno di **scrivere il package**: quello che verificano è il **mode** — i tool,
+il gizmo, l'overlay — e il terreno serve solo come materiale su cui premere. ⚠️ Ciò **non** significa che
+la mappa resti intatta: `-N` dipinge una regione e `-E`/`-L` aggiungono e tolgono archi, quindi a fine
+seduta l'asset in memoria è modificato. È il motivo per cui la chiusura va fatta come sopra, e per cui
+§*Dopo* rilancia il verificatore.
 
 ### Tool Paint — `PIE-HEX-MODE-O`
 
@@ -289,27 +330,52 @@ Serve la piattaforma sul layer 1 già fatta, e almeno una transizione esistente.
 `rt.Arena.Check` un'ultima volta: **tre `[ok]`**. Le voci sopra modificano la mappa (il Fill dipinge, gli
 archi si aggiungono e tolgono), e questo conferma che l'arena sia tornata al layout verificato.
 
-**⚠️ Dove lanciarlo, perché il posto sbagliato misura un'altra mappa.** In PIE il GameMode esegue
-`ApplyMapSource` nel proprio `BeginPlay`, e se la sorgente non è il livello il verificatore misura
-l'arena **generata** invece della tua. Due vie corrette, nessuna delle quali tocca un binario:
+**⚠️ Lancialo dalla console dell'editor, col livello aperto e senza premere Play.** È l'unica via che non
+ha trappole: `ApplyMapSource` gira dentro `SetupHexMatch`, chiamata dal `BeginPlay` del GameMode, quindi
+senza Play non interviene e il comando misura la mappa che hai davanti.
 
-- dalla **console dell'editor**, col livello aperto e **senza premere Play**: `ApplyMapSource` non gira;
-- in **PIE dopo `rt.Map.Source LevelAsset`**: la cvar scavalca la proprietà e lo dichiara nel log.
+🔴 **Non farlo in PIE contando su `rt.Map.Source LevelAsset` digitata nella console di PIE**: quando quella
+console è raggiungibile la partita è **già allestita** e la mappa è già stata scelta. È la trappola che
+`RTTestConsole.cpp` documenta per la stessa cvar — *«la variabile viene impostata e non serve a niente,
+senza un errore che lo dica»*. Se proprio serve PIE, la cvar va impostata **prima** di premere Play, dalla
+console dell'editor.
 
-Il tell che conta non è un numero da confrontare a memoria — è il **warning**, che nomina la causa invece
-del sintomo:
+⚠️ **E non aspettarti un log di conferma**: `ResolveMapSource` scrive la riga «SCAVALCA la proprieta'» solo
+`if (Resolved != MapSource)`, e il default del GameMode è già `LevelAsset` — impostare `LevelAsset` su un
+GameMode già a `LevelAsset` non stampa nulla. L'assenza di quella riga non significa che la cvar non abbia
+preso.
+
+**Il tell che dice «stai misurando un'altra mappa»** è un warning, non un numero da confrontare a memoria.
+Ce ne sono **due** con questo prefisso, e vale l'uno o l'altro:
 
 ```
-MapSource=GeneratedTestArena: ... La mappa del livello e' ignorata
+[RT] MapSource=GeneratedTestArena: ...  La mappa del livello e' ignorata.
+[RT] MapSource=GeneratedDemoArena: ...  La mappa del livello e' ignorata.
 ```
 
-Se compare, stai misurando la mappa sbagliata: nessun `[ok]` e nessun `[ko]` di quella run vale.
+⚠️ **Esiste un terzo caso che non ha quel prefisso** e va cercato a parte: con `MapSource=LevelAsset` ma
+l'asset assente o senza celle, il log dice *«Mappa esagonale del livello assente o senza celle: uso
+un'arena di ripiego»*. Cercare solo `MapSource=` lo mancherebbe, e la run sembrerebbe valida.
 
-Se un criterio è diventato rosso **e stavi misurando la mappa giusta**, non è un difetto del mode: è la
-mappa cambiata sotto le voci. Il rimedio è **chiudere l'editor senza salvare e rilanciare `rt.Arena.Check`**
-— l'asset su disco non è mai stato toccato, quindi torna al layout verificato da sé. ⚠️ **Non** «rigenera
-con `Generate Arena V01 Into Asset`»: rigenerare riscrive il package, che senza lease è precisamente il
-gesto vietato, e butterebbe via un'arena committata per un cambiamento mai finito su disco.
+Se compare uno dei tre, quella run non vale — né i suoi `[ok]` né i suoi `[no]`.
+
+Se un criterio è rosso **e stavi misurando la mappa giusta**, la causa più probabile è la mappa cambiata
+sotto le voci. Il rimedio: **chiudi l'editor senza salvare, riapri `L_HexArena` e rilancia
+`rt.Arena.Check`**. L'asset su disco non è mai stato scritto, quindi torna da sé al layout verificato.
+
+⚠️ **Il «riapri» non è un dettaglio**: `rt.Arena.Check` ha bisogno di un mondo attivo — a editor chiuso
+risponde `Nessun mondo attivo.` — ed è proprio la riapertura a far ricaricare l'asset da disco.
+
+⚠️ **Non «rigenera con `Generate Arena V01 Into Asset`».** Non perché quel comando scriva su disco — non lo
+fa, si ferma a `MarkPackageDirty()` come il Fill e l'Arch — ma perché **sostituisce in memoria l'arena
+committata** con una generata: butteresti via il layout a 64 celle che i tre criteri verificano, per un
+cambiamento che al massimo era da annullare. E se poi il prompt di chiusura venisse confermato per
+distrazione, quella perdita finirebbe su disco.
+
+⚠️ **Se invece il criterio è rosso anche sull'arena appena riaperta**, allora non è la seduta ad averlo
+rotto: è il layout committato a non soddisfarlo più, e non lo risolve nessun rimedio di questa pagina. Va
+registrato come difetto — con il numero di celle e quale dei tre criteri cade — e la chiusura di §11 non
+è raggiungibile finché resta aperto.
 
 ## 11. Chiudere
 
