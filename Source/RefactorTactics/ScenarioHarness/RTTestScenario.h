@@ -411,6 +411,37 @@ struct FRTScenarioVariant
 	TArray<FRTScenarioVariantUnit> Units;
 };
 
+/**
+ * Una decisione di finestra scriptata: la risposta che un'unita' dara' al prossimo decision boundary che si
+ * apre per lei (CP 15.3 meta' B, `#512`).
+ *
+ * ⚠️ Parla il vocabolario dello SCENARIO e non quello del gioco, e non e' una comodita': l'identita' di una
+ * opportunity e' `T4|P3|M7|U12|action.overwatch|S0` — contiene `MicroStepIndex` e l'`OwnerId` di runtime — e
+ * il token di risposta e' `FIRE:<StableUnitId>`, anche quello un id di runtime. Nessuno dei due e'
+ * scrivibile in un JSON. La traduzione avviene dove esiste la mappa, cioe' `UnitsById` in
+ * `FRTScenarioSession`.
+ */
+USTRUCT()
+struct FRTScenarioDecision
+{
+	GENERATED_BODY()
+
+	/** Chi risponde: l'id di SCENARIO dell'unita' proprietaria della finestra, non un id eroe. */
+	UPROPERTY()
+	FString Unit;
+
+	/** `FIRE` oppure `HOLD`. Non e' il token del gioco: quello si costruisce in traduzione. */
+	UPROPERTY()
+	FString Respond;
+
+	/**
+	 * L'id di scenario del bersaglio. Obbligatorio con `FIRE` e **vietato** con `HOLD`: un campo che c'e' e
+	 * non conta e' il modo in cui uno scenario dice una cosa e ne verifica un'altra.
+	 */
+	UPROPERTY()
+	FString Target;
+};
+
 /** Un turno dello scenario. */
 USTRUCT()
 struct FRTScenarioTurn
@@ -430,6 +461,16 @@ struct FRTScenarioTurn
 	 */
 	UPROPERTY()
 	TArray<FString> Requires;
+
+	/**
+	 * Le risposte scriptate ai decision boundary di questo turno, **in ordine di dichiarazione**.
+	 *
+	 * Vuoto = nessuna: le finestre ricadono su `DecisionOnTimeout`, che e' il comportamento di sempre. Con
+	 * l'elenco non vuoto, invece, il turno si impegna — una finestra senza risposta e una decisione senza
+	 * finestra sono entrambe un errore, non un avanzo.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioDecision> Decisions;
 };
 
 /** Una condizione da verificare a fine scenario. */

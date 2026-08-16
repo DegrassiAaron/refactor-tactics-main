@@ -349,6 +349,29 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 				}
 			}
 
+			// `decisions`: le risposte scriptate ai decision boundary di questo turno (CP 15.3 meta' B, #512).
+			// Si legge PRIMA degli intent per una ragione di leggibilita' del messaggio d'errore: un turno con
+			// un refuso nelle decisioni fallisce nominando le decisioni, non il primo intent che incontra.
+			const TArray<TSharedPtr<FJsonValue>>* DecisionsJson = nullptr;
+			if (TurnObj->TryGetArrayField(TEXT("decisions"), DecisionsJson))
+			{
+				for (const TSharedPtr<FJsonValue>& DecisionValue : *DecisionsJson)
+				{
+					const TSharedPtr<FJsonObject> DecisionObj = DecisionValue->AsObject();
+					if (!DecisionObj.IsValid())
+					{
+						OutError = TEXT("decisions: voce non valida");
+						return false;
+					}
+
+					FRTScenarioDecision Decision;
+					DecisionObj->TryGetStringField(TEXT("unit"), Decision.Unit);
+					DecisionObj->TryGetStringField(TEXT("respond"), Decision.Respond);
+					DecisionObj->TryGetStringField(TEXT("target"), Decision.Target);
+					Turn.Decisions.Add(Decision);
+				}
+			}
+
 			const TArray<TSharedPtr<FJsonValue>>* IntentsJson = nullptr;
 			if (TurnObj->TryGetArrayField(TEXT("intents"), IntentsJson))
 			{

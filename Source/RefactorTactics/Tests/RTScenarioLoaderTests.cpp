@@ -30,6 +30,32 @@ namespace
 	  "expect": [ { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] } ]
 	}
 	)JSON");
+
+	// Le decisioni di finestra come DATO (CP 15.3 meta' B, #512). Nome distinto, come sopra.
+	//
+	// ⚠️ Gli id eroe sono i LEGACY, e non e' una svista: `RTHeroCatalogLibrary.cpp` dichiara oggi solo
+	// `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`, e i nomi di [D-130] — Gadget, Phase, Riktor,
+	// Wraith — hanno ZERO occorrenze in tutto `Source/`, perche' la fetta 3 (`#753`) non e' stata eseguita.
+	// Un `Hero.Riktor` qui non risolverebbe. Si rinominano insieme al catalogo, non prima.
+	const TCHAR* ScenarioLoaderDecisionsJson = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Decisions.Parse",
+	  "version": 1,
+	  "mapRadius": 3,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 2, 0, 0] }
+	  ],
+	  "turns": [ {
+	    "intents": [],
+	    "decisions": [
+	      { "unit": "A1", "respond": "FIRE", "target": "B1" },
+	      { "unit": "A1", "respond": "HOLD" }
+	    ]
+	  } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
 }
 
 /** Il caso felice: uno scenario ben formato produce i dati attesi, layer opzionale incluso. */
@@ -591,6 +617,39 @@ bool FRTScenarioLoaderDeclaredFacingTest::RunTest(const FString&)
 			Error.Contains(TEXT("NNE")));
 	}
 
+	return true;
+}
+
+/**
+ * Le decisioni di finestra si caricano come DATO, in ordine e col vocabolario dello scenario (CP 15.3
+ * meta' B, `#512`).
+ *
+ * L'ORDINE e' significativo: la coda si consuma in ordine di dichiarazione, e un abbinamento posizionale
+ * cambierebbe bersaglio quando cambia il movimento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDecisionsTest,
+	"RefactorTactics.Scenario.LoaderAcceptsDecisions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDecisionsTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("scenario con decisions accettato"),
+		URTScenarioLoader::LoadFromString(ScenarioLoaderDecisionsJson, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *Error));
+		return false;
+	}
+
+	if (!TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)) { return false; }
+	const FRTScenarioTurn& T = Scenario.Turns[0];
+	if (!TestEqual(TEXT("due decisioni"), T.Decisions.Num(), 2)) { return false; }
+
+	TestEqual(TEXT("prima: unita'"),     T.Decisions[0].Unit,    FString(TEXT("A1")));
+	TestEqual(TEXT("prima: risposta"),   T.Decisions[0].Respond, FString(TEXT("FIRE")));
+	TestEqual(TEXT("prima: bersaglio"),  T.Decisions[0].Target,  FString(TEXT("B1")));
+	TestEqual(TEXT("seconda: risposta"), T.Decisions[1].Respond, FString(TEXT("HOLD")));
+	TestTrue(TEXT("HOLD non porta bersaglio"), T.Decisions[1].Target.IsEmpty());
 	return true;
 }
 
