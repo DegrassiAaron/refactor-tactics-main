@@ -1792,6 +1792,14 @@ tracks:
       - docs/technical/qa-prompt-terminal-a-determinismo.md
       - docs/technical/qa-prompt-terminal-b-scenario-runner.md
       - .github/
+      # ➕ Il testo integrale della regola nella root, per gli agenti esterni che leggono da lì e non
+      # risolvono rimandi. ⚠️ È una **seconda copia** della stessa regola, ed è il contrario di ciò che
+      # questo consolidamento ha appena fatto (una stesura, due puntatori). La duplicazione è deliberata e
+      # dichiarata nel banner del file: l'owner interno vince, e chi corregge una corregge l'altra nello
+      # stesso commit. Nome allineato al precedente già in root
+      # (`RefactorTactics_FeatureRegistry_Roadmap_Wiki_Claude_2026-08-08.md`): underscore, non spazi —
+      # solo 8 file su 1301 hanno spazi nel nome, e un path con spazi va quotato in ogni comando.
+      - RefactorTactics_Issue_Tracking_Completeness_Rule.md
     # ➖ **Il `derives_from` segue il file**: la catena `test-manuali-pie.md` → `editormap.shortlist.md`
     # + `project-graph.json` passa a `playtest` insieme alla sorgente. È la regola già scritta in
     # `generated_only` applicata a una riassegnazione: la vista segue la sorgente, e la sorgente ha
