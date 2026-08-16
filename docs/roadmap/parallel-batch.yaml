@@ -1225,6 +1225,25 @@ tracks:
       track ha appena consegnato: `#833` dichiara *«gli identificatori di sorgente e bersaglio sono quelli
       di CP 23.3 (#832) — questa issue non ne inventa di propri»*. La **UI è fuori scope dichiarato** (va a
       CP 23.5, `#834`), quindi `Source/RefactorTactics/UI/` — che è di `client_tools` — **non serve**.
+      ⚠️ **L'asse su cui questa scelta è più debole, detto invece che taciuto**: `#833` è `post-v0.1`
+      (`release: v0.2`), mentre `#291` — scartata per write-set — è etichettata `v0.1`. Il filtro «unica
+      **P1** del dominio con write-set compatibile» è vero sull'asse priorità e **salta l'asse release**. La
+      scelta regge lo stesso, ma per una ragione diversa da quella scritta prima: il residuo di `#291` è
+      HUD più `UInputAction` in `Content/`, cioè `client_tools` **e** una Binary Asset Lease — non è
+      raggiungibile da questa track a nessuna priorità. Chi rilegge deve poter vedere che v0.1 è stata
+      scavalcata, e perché.
+      ⚠️ **Questo commit è una modifica di TRACK, non una riconciliazione del batch**, e la differenza è
+      operativa: `base_sha` (`87857c6c`) è **29 PR indietro** rispetto a `origin/main` — misurato con
+      `git log --oneline 87857c6c..origin/main --grep="Merge pull request" | wc -l` — quindi il comando che
+      l'intestazione prescrive per verificare un write-set (`git diff --name-only <base_sha>...<branch>`)
+      qui restituirebbe 29 PR di churn altrui. Il write-set sotto è misurato su **`5bfae1ce`**, la base
+      reale di questo ramo. `reconciled_count` **non** è stato incrementato, per la stessa ragione: il batch
+      non è stato rimisurato, una sola track sì.
+      ⚠️ **Due track portano oggi i difetti che questo giro ha corretto per `spatial`, e non sono mie da
+      sistemare**: `replay_ui` è `ACTIVE` su `#999`, che è **CLOSED** (PR `#1005`, cioè proprio il merge su
+      cui questo ramo è basato), e `client_tools` dichiara `branch: feat/78-contratto-certezza` e
+      `worktree: "D:/rt-78"`, entrambi assenti da `git ls-remote` e da `git worktree list`. Registrati
+      perché la prossima riconciliazione li trovi misurati invece di riscoprirli.
       ✅ **Il prestito di `#726` è rientrato**: `docs/OPEN_DECISIONS.md` torna in `integration_only`, che era
       la scadenza dichiarata. `FAC-15` resta aperta e continua a bloccare `#726`; non serve tenere il file
       prenotato per aspettarla.
@@ -1274,6 +1293,11 @@ tracks:
       lato server dopo il merge di `#1004`, e il campo lo nominava ancora. Lo schema documenta `null` come
       sentinella per quel caso; qui non serve, perché il campo porta il ramo nuovo.
       ---
+      ⛔ **Anche da qui in giù è STORIA — giro di `#726`, chiuso.** Vale la stessa avvertenza del banner più
+      in basso, e serve per la stessa ragione: il `---` qui sopra è inerte dentro uno scalare `>-`. In
+      particolare **non valgono più** tre affermazioni che il blocco fa al presente: il write-set «uno solo»
+      (era `docs/OPEN_DECISIONS.md`, oggi restituito), l'uscita del file da `integration_only` (rientrata), e
+      l'elenco delle «cinque track `ACTIVE`» — `docs_kit` è tornata `IDLE` e `replay_ui` è passata a `#999`.
       ➕ **Riattivata il 2026-08-16 su `#726`** (facing: la relazione a sei direzioni relative, `D-126`), e il
       write-set è **uno solo**: `docs/OPEN_DECISIONS.md`. Non è la fetta di codice della issue — quella è
       bloccata — è la decisione che la blocca.
@@ -1329,8 +1353,11 @@ tracks:
       ---
       ⛔ **Da qui in giù è STORIA: i campi che i blocchi seguenti dichiarano NON valgono più.** Sono stati
       scritti quando questa track era `IDLE` con `issue: null`, e lo dicono al presente. I campi correnti
-      sono quelli in testa alla sezione — `status: ACTIVE`, `issue: 726`. La riga esiste perché `note:` è
-      uno scalare `>-`: il `---` qui sopra si ripiega in uno spazio e non separa niente a schermo.
+      sono **solo** quelli in testa alla sezione, e questa riga **non li ricopia**. La riga esiste perché
+      `note:` è uno scalare `>-`: il `---` qui sopra si ripiega in uno spazio e non separa niente a schermo.
+      🔴 **La prima stesura li ricopiava — «`status: ACTIVE`, `issue: 726`» — ed è durata un solo giro**: al
+      passaggio a `#833` la frase scritta per impedire la contraddizione **era** la contraddizione. Un valore
+      autorevole si nomina in un posto solo; un banner che lo duplica invecchia insieme a lui.
       ---
       ⚠️ **IDLE con `#986` ancora APERTA, e la distinzione conta.** La PR **#988** (`a5c1e33b`) ha
       chiuso solo le due affermazioni false che erano entrate in `main`; i **cinque difetti di
@@ -1479,7 +1506,13 @@ tracks:
       questa track non ha `ScenarioHarness/`. Le resta il solo file del mandato — e con la cartella escono
       i due `derives_from`, perché **una vista segue la sorgente**: `project-graph.json` e
       `scenariomap.shortlist.md` seguono `RTScenarioSession.cpp`, quindi seguono `simulation`.
-    mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
+    # ➖ `mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md` **rimosso il 2026-08-16.** Il giro
+    # precedente lo teneva «prenotato senza write-set», ma lo schema dice l'opposto — «**E il file del mandato
+    # entra nel `writable` della track che lo porta**», deciso il 2026-08-15 — quindi calcolando
+    # `WritableSet(T) = writable ∪ {mandate} − excludes` la contesa con `content_editor` (che ha quel path nel
+    # proprio `writable`) **tornava**, ACTIVE x ACTIVE. Trovato dalla code review. Fra inventare un'eccezione
+    # allo schema e lasciare il mandato a chi puo' esercitarlo, si sceglie il secondo: questa track non sta
+    # facendo il Terminal B, e chi lo riapre lo rivendica insieme al file invece di ereditare una contesa.
     worktree: "D:/rt-spatial"
     writable:
       # ➖ `docs/technical/qa-prompt-terminal-b-scenario-runner.md` **rilasciato il 2026-08-16**, e non e'
@@ -1506,9 +1539,27 @@ tracks:
       - Source/RefactorTactics/Map/RTHexMapAsset.h
       - Source/RefactorTactics/Map/RTHexMapAsset.cpp
       - Source/RefactorTactics/Tests/RTHexDoorTests.cpp
-      # Risoluzione dell'intento `Interact`: il client dichiara la sorgente, il runtime risolve i bersagli.
-      - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      - Source/RefactorTactics/Tests/RTStructureIdentityTests.cpp
+      # 🔴 `Turn/RTTurnManager.{h,cpp}` erano qui col commento «risoluzione dell'intento Interact», e la code
+      # review ha misurato che `Interact` vi compare **zero** volte. Erano DEDOTTI dal dominio — l'accusa che
+      # questo file muove a chi non misura — e sono usciti. Al loro posto i path che il DoD di #833 tocca
+      # davvero, verificati liberi uno per uno:
+      #   - `Action.Interact` e' INERTE (`RTCoreActionTests.cpp:217-228`) e vive a catalogo, quindi renderla
+      #     capace di dichiarare `SetDoorState` passa da `Ability/RTCatalogLibrary.*` e dal test che la pinna;
+      #   - l'effetto e' applicato da `Turn/RTActionEffectLibrary.cpp`;
+      #   - il gate `log_debug` chiede voci canoniche, che vivono in `Turn/RTTurnLog.h` (`DoorClosed`/
+      #     `DoorOpened`) piu' `RTTurnLogLibrary.*` e `RTTurnLogCauseTests.cpp`. Mancavano, e senza di essi la
+      #     sessione si sarebbe fermata alla prima voce da aggiungere: una lacuna dello stesso tipo di quella
+      #     che la nota dichiarava di aver evitato per `Scenarios/`.
+      - Source/RefactorTactics/Ability/RTCatalogLibrary.h
+      - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+      - Source/RefactorTactics/Tests/RTCoreActionTests.cpp
+      - Source/RefactorTactics/Turn/RTActionEffectLibrary.h
+      - Source/RefactorTactics/Turn/RTActionEffectLibrary.cpp
+      - Source/RefactorTactics/Turn/RTTurnLog.h
+      - Source/RefactorTactics/Turn/RTTurnLogLibrary.h
+      - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
+      - Source/RefactorTactics/Tests/RTTurnLogCauseTests.cpp
       - Source/RefactorTactics/Tests/RTInteractionGraphTests.cpp
     # ⛔ NON in questo write-set, e la ragione e' registrata nella nota: `Scenarios/` (`integration_only`) e
     # `ScenarioHarness/RTScenarioSession.cpp` (di `simulation`, #512). Il gate `scenario` dipende da una
