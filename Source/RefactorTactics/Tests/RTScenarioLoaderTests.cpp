@@ -854,11 +854,39 @@ bool FRTScenarioReactionSplitTest::RunTest(const FString&)
 	TestTrue(TEXT("e disponibile"), FRTScenarioSession::IsAvailableCapability(TEXT("Reaction")));
 
 	// `DecisionBoundary` copre `>= 2`: nome NOTO — quindi un turno che lo chiede vale `Blocked`, non
-	// `Error` — ma non disponibile in fase A. Le due asserzioni insieme sono la divisione.
+	// `Error`.
+	//
+	// 🔴 **La seconda asserzione diceva `TestFalse(... "ma NON e' disponibile in fase A")` ed e' caduta il
+	// 2026-08-16 con la fase B, che l'ha resa disponibile.** Il test dichiarava la propria scadenza nella
+	// stringa e l'ha rispettata. ⚠️ Ma il difetto non e' il valore, e' la DISCRIMINANTE: la divisione fra
+	// `Reaction` e `DecisionBoundary` non e' mai stata «una c'e' e l'altra no» — quello era un accidente
+	// della fase A. E' che sono due NOMI distinti per due regimi distinti (`AllowedResponses <= 1` contro
+	// `>= 2`), e resta vera ora che sono entrambe disponibili. Ripararla mettendo `TestTrue` avrebbe tenuto
+	// una discriminante che scade di nuovo alla prossima capability.
 	TestTrue(TEXT("DecisionBoundary e' un nome noto"),
 		FRTScenarioSession::IsKnownCapability(TEXT("DecisionBoundary")));
-	TestFalse(TEXT("ma NON e' disponibile in fase A"),
+	TestTrue(TEXT("ed e' disponibile dalla fase B di #512"),
 		FRTScenarioSession::IsAvailableCapability(TEXT("DecisionBoundary")));
+
+	// ⚠️ **La divisione e' che i due nomi sono DIVERSI, e questa riga e' cio' che lo rende falsificabile.**
+	// Con entrambe disponibili, le quattro asserzioni qui sopra passerebbero anche se `IsKnownCapability` /
+	// `IsAvailableCapability` ignorassero l'argomento e rispondessero sempre `true`: e' il test vacuo che
+	// questo repository chiama «un test che smette di verificare senza dirlo». Serve un nome NOTO e NON
+	// disponibile, e dev'essere `NeverAvailable` — il nome **riservato**, che per costruzione non atterra
+	// mai. 🔴 La prima stesura usava `ReactionProfile`: noto e non disponibile oggi, ma atterra con E14.7
+	// (`#314`), e da quel giorno questa coppia sarebbe tornata vacua senza che nulla diventasse rosso.
+	TestTrue(TEXT("NeverAvailable e' un nome noto"),
+		FRTScenarioSession::IsKnownCapability(TEXT("NeverAvailable")));
+	TestFalse(TEXT("e NON e' disponibile: i due insiemi restano distinti"),
+		FRTScenarioSession::IsAvailableCapability(TEXT("NeverAvailable")));
+
+	// ⛔ **Limite DICHIARATO, e vale la pena scriverlo invece di simularne la copertura.** Cio' che questo
+	// test verifica e' il VOCABOLARIO — quali nomi esistono e quali sono disponibili — non la cardinalita'
+	// che li distingue: `Reaction` copre `AllowedResponses <= 1` e `DecisionBoundary` copre `>= 2`, e quella
+	// non e' un campo interrogabile da qui. Chi collassasse i due nomi ai call site lascerebbe questo test
+	// verde. Il regime lo verificano gli SCENARI — `Spec.Overwatch.HoldThenFire` apre due finestre a una
+	// risposta ciascuna — e aggiungere qui un `TestNotEqual` fra due stringhe letterali darebbe l'apparenza
+	// della copertura senza poter fallire mai, che e' il difetto che questo file combatte da tre commit.
 
 	// E un nome inventato resta un errore di scrittura, non un'attesa: e' l'altra meta' del vocabolario.
 	TestFalse(TEXT("un nome inventato non e' noto"),

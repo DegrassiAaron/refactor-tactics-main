@@ -708,11 +708,22 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 	// lontano arriva oggi, e cosa lo ferma. E' la risposta che si muove, ed e' giusto che si muova — ogni
 	// capability che atterra ne accende un altro pezzo. Il numero e' pinnato apposta: se scendesse, sarebbe
 	// una regressione da vedere subito.
+	//
+	// ⏱️ **2026-08-16, `#512` fase B: da tre a CINQUE.** Il T4 chiedeva `DecisionBoundary`, che ora e' fra le
+	// disponibili; il T5 non chiede nulla. Il numero si e' mosso per la terza volta e per la terza ragione
+	// giusta — non e' il test ad essere stato aggiustato, e' il gioco ad essere arrivato piu' lontano.
 	TestEqual(TEXT("si ferma sul primo turno non supportato"),
 		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
-	TestEqual(TEXT("arriva a tre turni: T1 e T3 non chiedono nulla, T2 lo apre E18"), Result.TurnsPlayed, 3);
-	// Ora lo ferma il T4, che chiede la finestra di reazione: `DecisionBoundary` e' E14, non iniziata.
-	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("DecisionBoundary")));
+	TestEqual(TEXT("arriva a cinque turni: il T4 lo apre #512 fase B, il T5 non chiede nulla"),
+		Result.TurnsPlayed, 5);
+	// Ora lo ferma il T6, che chiede la rivalidazione della geometria sul bersaglio effettivo (D-017).
+	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("InterceptRevalidation")));
+	// ⚠️ **E la meta' negativa, senza la quale il verde qui sopra e' ambiguo**: il blocco NON deve piu'
+	// nominare `DecisionBoundary`. Senza questa riga, un T4 che tornasse `Blocked` per un difetto di
+	// traduzione della decisione — invece che per la capability — passerebbe il `Contains` sopra soltanto
+	// perche' il messaggio nomina un'altra capability, e il test direbbe «cinque turni» sbagliando turno.
+	TestFalse(TEXT("il T4 non e' piu' cio' che lo ferma"),
+		Result.BlockedReason.Contains(TEXT("DecisionBoundary")));
 
 	// Le assertion del turno 1 sono state valutate e sono passate: un BLOCKED non le nasconde.
 	TestTrue(TEXT("il turno 1 ha assertion valutate"), Result.Assertions.Num() > 0);
@@ -730,9 +741,21 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 		{
 			TestTrue(TEXT("il report dichiara l'esito BLOCKED"), Json.Contains(TEXT("BLOCKED")));
 			// Il motivo sta accanto all'esito: «BLOCKED» da solo direbbe che non tutto e' pronto, che si
-			// sapeva gia'. Il valore e' nel nome della capability.
-			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("DecisionBoundary")));
+			// sapeva gia'. Il valore e' nel nome della capability — che dal 2026-08-16 e' quella del T6.
+			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("InterceptRevalidation")));
 			TestTrue(TEXT("il report distingue blockedReason da error"), Json.Contains(TEXT("blockedReason")));
+			// ➕ **Il T4 ha SPARATO, e il report lo dice in due numeri.** Senza questi, «cinque turni» sarebbe
+			// compatibile con un T4 che si sblocca e non apre nessuna finestra — cioe' esattamente il verde
+			// che la fase B esiste per non produrre. `scriptedDecisionsUnused` e' la meta' negativa: una
+			// decisione dichiarata e mai consumata significa finestra scoperta, e l'harness la conta.
+			// ⚠️ **La virgola finale fa parte dell'asserzione, e non e' pedanteria**: senza, `": 1"` e' un
+			// prefisso e il `Contains` accetterebbe anche `": 12"` — cioe' il conteggio sbagliato, dentro un
+			// verde. Oggi lo showcase dichiara una decisione sola e il difetto non morde; morderebbe alla
+			// prima che si aggiunge, che e' quando nessuno starebbe piu' guardando questa riga.
+			TestTrue(TEXT("il T4 ha applicato la decisione scriptata"),
+				Json.Contains(TEXT("\"scriptedDecisionsApplied\": 1,")));
+			TestTrue(TEXT("e non ne ha lasciata nessuna inutilizzata"),
+				Json.Contains(TEXT("\"scriptedDecisionsUnused\": 0,")));
 		}
 	}
 

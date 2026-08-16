@@ -891,6 +891,26 @@ void ARTTurnManager::LockInAndResolve()
 	{
 		TArray<AActor*> Actors;
 		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+		// 🔴 **Ordine STABILE, e da `#625` non e' piu' facoltativo.** `SortTurnLog` gira **prima** di questo
+		// blocco (una volta sola, poco sopra): tutto cio' che viene appeso al TurnLog da qui in giu' resta
+		// nell'ordine in cui e' stato inserito, e `GetAllActorsOfClass` non ne ha uno — lo dice il commento
+		// di quel sort. Finche' questo loop non scriveva voci canoniche la cosa era invisibile; da quando
+		// scrive quella del danno da `Burning`, **due unita' che bruciano nello stesso Cleanup possono
+		// uscire in ordine diverso fra due esecuzioni della stessa partita**.
+		// Non e' un dettaglio di stile: `RecordTurn` scrive `HashTurnLogOrdered` nel manifest — un hash che
+		// per costruzione **non** e' invariante per permutazione — e `RTShowcaseScenarioTests` confronta due
+		// run riga per riga. Uno scambio farebbe divergere l'archivio da se' stesso.
+		// E' la stessa disciplina che `ResolveEnvironment` e `TickDynamicCovers` applicano gia', con lo
+		// stesso comparatore. Trovato in code review.
+		Actors.Sort([](const AActor& A, const AActor& B)
+		{
+			const ARTUnit* UA = Cast<ARTUnit>(&A);
+			const ARTUnit* UB = Cast<ARTUnit>(&B);
+			if (!UA || !UB) { return UA != nullptr; } // i non-unita' in coda, deterministicamente
+			return URTHexLibrary::StableLess(UA->Cell, UB->Cell);
+		});
+
 		for (AActor* Actor : Actors)
 		{
 			ARTUnit* Unit = Cast<ARTUnit>(Actor);
@@ -904,9 +924,67 @@ void ARTTurnManager::LockInAndResolve()
 			// prima lo scudo TEMPORANEO — che infatti scade solo piu' sotto, non prima.
 			if (Unit->HasStatus(TAG_Status_Burning))
 			{
+				const int32 HpPrima = Unit->Health; // serve DOPO, per classificare l'esito
 				const FRTDamageResult Burn = URTCombatLibrary::ApplyDamage(
 					URTCombatLibrary::BurningCleanupDamage, Unit->Shield, Unit->Health);
 				Unit->ApplyCombatState(Burn.Health, Burn.Shield);
+
+				// ➕ **La voce canonica del danno da hazard** (`#625`). Fino al 2026-08-16 questo danno
+				// esisteva **solo** in `AddLogEvent`, cioe' in un `UE_LOG` piu' un buffer circolare troncato:
+				// chi riproduceva la partita vedeva gli HP scendere — o un'unita' sparire — senza un evento
+				// che lo spiegasse, e `DescribeFirstDivergence` non poteva nominare quel punto. E' il difetto
+				// che il gate `replay_representable` ha trovato, e che il commento di `ERTReactionDecision`
+				// cita per nome in `RTTurnLog.h`.
+				//
+				// ⚠️ **Categoria `Combat` e non `Environment`, ed e' una scelta di modello.** La cella agisce,
+				// ma la domanda a cui questa voce risponde e' *«quanti punti vita ha cambiato, e a chi»* — la
+				// stessa per cui `Healed` sta fra gli esiti di combattimento invece di avere una categoria
+				// propria. `ERTEnvironmentOutcome` parla di **superfici e coperture**: aggiungergli valori sul
+				// danno alle unita' creerebbe due enum che rispondono alla stessa domanda sotto due categorie,
+				// che e' precisamente il difetto argomentato in `RTTurnLog.h` §`ERTReactionDecision`.
+				// La **causa** la porta `ActionId`, dove un danno da attacco porta l'identita' dell'azione: e'
+				// li' che si distingue un colpo dalle fiamme, non nella categoria.
+				//
+				// ⚠️ `AppendLogEntry(Entry, Unit)` — l'unita' che **subisce**, non chi colpisce, ed e'
+				// l'opposto della voce dell'attacco due funzioni piu' sotto. Non e' un'incoerenza: `UnitId` e'
+				// «chi ha agito», e in un danno da hazard **non c'e' un attaccante**. Lasciarlo a `0` direbbe
+				// «nessuna unita' dichiarata» su un evento che ha un soggetto solo e ovvio.
+				FRTTurnLogEntry Burning;
+				Burning.Phase = ERTMatchPhase::Cleanup;
+				Burning.Category = ERTLogCategory::Combat;
+				Burning.ActionId = TAG_Status_Burning.GetTag().GetTagName();
+				// ⚠️ **Le due celle sono DOVE SI TROVA chi brucia, non la causa del danno**, e la prima
+				// stesura di questa riga diceva il contrario («la cella agisce su chi ci sta sopra»).
+				// E' falso per la maggioranza dei tick: `Fire` concede `Burning` con durata **2**, non con
+				// il sentinella «finche' sulla cella», quindi un'unita' che esce dal fuoco continua a
+				// bruciare — e prende gli 8 danni stando su un pavimento qualunque. La causa la porta
+				// `ActionId`; queste due dicono solo dov'era. Trovato in code review.
+				Burning.SrcCell = Unit->Cell;
+				Burning.TgtCell = Unit->Cell;
+				// ⚠️ `Amount` e' il danno NOMINALE del catalogo, non gli HP effettivamente persi: e' la
+				// convenzione delle altre voci di danno (`Entry.Amount = Hit.Damage`), e cambiarla qui sola
+				// renderebbe due voci di `Combat` non confrontabili. Quanto sia arrivato agli HP lo dice
+				// `Outcome`: `ShieldAbsorbed` = zero.
+				Burning.Amount = URTCombatLibrary::BurningCleanupDamage;
+				// 🔴 **La libreria, non un ternario scritto a mano.** La prima stesura copiava quello della
+				// voce d'attacco — che a sua volta scavalca la libreria — e nel copiarlo ha ereditato il suo
+				// difetto: confrontava con `MaxHealth` invece che con la salute PRIMA del colpo, quindi
+				// un'unita' gia' ferita il cui scudo assorbiva tutto veniva scritta come `Hit` per 8 danni
+				// che non aveva preso. `ClassifyCombatOutcome` e' il posto dichiarato di quella priorita',
+				// ed e' pinnata da `RTCombatLibraryTests`. Trovato in code review.
+				Burning.Outcome = static_cast<uint8>(
+					URTCombatLibrary::ClassifyCombatOutcome(HpPrima, Burn.Health, /*AttackerDmgBonus*/ 0));
+				// ⚠️ Il soggetto e' chi SUBISCE, ed e' prescritto dal DoD di `#625` — «l'unita' che la subisce
+				// in `UnitId` (non `0`: c'e' un soggetto)». Va saputo che **inverte** la convenzione di
+				// `AppendLogEntry` («chi ha AGITO»), che la voce d'attacco rispetta passando l'attaccante:
+				// un consumatore che sommasse il danno INFLITTO per `UnitId` filtrando su `Category ==
+				// Combat` accrediterebbe a chi brucia gli 8 danni fatti a se' stesso. Oggi nessuno lo fa,
+				// e la scelta e' della issue; se un giorno servisse distinguerli, il posto e' un esito
+				// dedicato — non un commento. Sollevato in code review, e lasciato com'e' di proposito.
+				AppendLogEntry(Burning, Unit);
+
+				// ⚠️ `AddLogEvent` **resta**, e non e' ridondanza: e' la vista leggibile a schermo, il TurnLog
+				// e' la traccia. Il DoD di `#625` lo chiede esplicitamente — «non si sostituisce, si affianca».
 				AddLogEvent(FString::Printf(TEXT("%s: %d danni da Status.Burning (q=%d,r=%d,L%d)"),
 					*Unit->GetName(), URTCombatLibrary::BurningCleanupDamage,
 					Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer));
@@ -915,6 +993,12 @@ void ARTTurnManager::LockInAndResolve()
 				{
 					// L'eliminazione da hazard non ha un beat di playback (la timeline e' gia' chiusa):
 					// la nasconde il catch-all di ConcludeTurn, che esiste proprio per questo caso.
+					//
+					// ⚠️ **La morte la porta l'`Outcome` della voce sopra, non una seconda voce.** Il DoD
+					// chiede che l'eliminazione sia «distinta dal danno che non uccide», e `Lethal` la
+					// distingue gia': una voce in piu' direbbe due volte lo stesso fatto, e il replay dovrebbe
+					// decidere quale delle due e' il colpo — che e' lo stesso motivo per cui l'attacco letale,
+					// due funzioni piu' sotto, non ne scrive una seconda.
 					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()));
 					continue; // morto adesso: non guadagna energia, non conta fra i vivi
 				}

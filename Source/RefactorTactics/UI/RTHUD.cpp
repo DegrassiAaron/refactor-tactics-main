@@ -6,6 +6,7 @@
 #include "Ability/RTActionData.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnRules.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
@@ -136,6 +137,60 @@ TArray<FRTSlotLine> ARTHUD::ComposeSlotLines(const FRTUnitSlotsView& Slots)
 		ComposeOneSlotLine(TEXT("Principale"), TEXT("occupata"),  Slots.Main),
 		ComposeOneSlotLine(TEXT("Reazione"),   TEXT("armata"),    Slots.Reaction),
 	};
+}
+
+float ARTHUD::NextViewerPlaybackSpeed(float Current)
+{
+	// La scala di CP 47.2 (#955). Ordinata crescente: la regola qui sotto ne dipende.
+	static const float Scale[] = { 1.f, 2.f, 4.f };
+	const float Tol = 1e-3f;
+
+	// Un valore non positivo vale «non scelto», esattamente come lo tratta `EffectivePlaybackSpeed`:
+	// leggerlo come x1 tiene una sola convenzione fra il modello e il controllo.
+	const float From = (Current > 0.f) ? Current : 1.f;
+
+	// La piu' piccola legale STRETTAMENTE maggiore. Il giro (`x4 -> x1`) e il rientro da fuori scala
+	// (`x3 -> x4`) sono lo stesso caso, non due rami: sopra il massimo non esiste nessuna legale, e si
+	// torna in testa.
+	for (const float Speed : Scale)
+	{
+		if (From < Speed - Tol)
+		{
+			return Speed;
+		}
+	}
+	return Scale[0];
+}
+
+FString ARTHUD::ComposePlaybackSpeedLabel(float ViewerSpeed, float CapSpeed)
+{
+	// Stessa convenzione del modello: non positivo = «non scelto» = x1. Un'etichetta «x0» direbbe che la
+	// riproduzione e' ferma, che e' un'altra cosa e non e' vera.
+	const float Chosen = (ViewerSpeed > 0.f) ? ViewerSpeed : 1.f;
+
+	// ⚠️ INTERROGA la composizione, non la rifa'. E' la stessa funzione che `TickPlayback` usa per
+	// scorrere: se un giorno `Max` diventasse altro, l'etichetta segue senza che nessuno se ne ricordi.
+	const float Effective = URTPlaybackLibrary::EffectivePlaybackSpeed(Chosen, CapSpeed);
+
+	// Interi quando lo sono — la scala offre `x1 · x2 · x4` — ma il TETTO e' un fattore continuo,
+	// derivato da `MaxPlaybackSeconds`, e un `x3` arrotondato da `2.6` sarebbe un numero inventato.
+	auto FormatSpeed = [](float Value) -> FString
+	{
+		return FMath::IsNearlyEqual(Value, FMath::RoundToFloat(Value), 0.05f)
+			? FString::Printf(TEXT("x%d"), FMath::RoundToInt(Value))
+			: FString::Printf(TEXT("x%.1f"), Value);
+	};
+
+	// Coincidono: un numero solo. Due numeri uguali su ogni round normale sarebbero rumore, e il rumore
+	// costante e' il modo in cui un'informazione smette di essere letta.
+	if (FMath::IsNearlyEqual(Effective, Chosen, 1e-3f))
+	{
+		return FormatSpeed(Chosen);
+	}
+
+	// Divergono: si dicono ENTRAMBI, e si dice chi ha vinto. Senza la parola «tetto» due numeri
+	// costringono a indovinare quale sia la scelta e quale l'effetto.
+	return FString::Printf(TEXT("%s -> %s (tetto)"), *FormatSpeed(Chosen), *FormatSpeed(Effective));
 }
 
 void ARTHUD::DrawHUD()
@@ -528,6 +583,21 @@ void ARTHUD::DrawHUD()
 				Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Remaining));
 			}
 		}
+
+		// Il controllo di velocita' (CP 47.7, #1015). Sta nella riga di stato e non in un pannello suo
+		// perche' quella riga e' l'unico elemento sempre visibile durante la risoluzione — che e' quando
+		// serve — e perche' `progettazione-hud.md` §31 mette turn/phase/timer fra i persistenti.
+		//
+		// ⚠️ **Mostrato anche fuori dalla risoluzione, di proposito.** Chi guarda una partita non
+		// presidiata sceglie il ritmo PRIMA che il round parta: una manopola che compare solo mentre
+		// scorre costringe a inseguirla. Il tetto fuori dal playback non morde, quindi li' l'etichetta e'
+		// un numero solo.
+		//
+		// ⚠️ Il tasto e' nominato accanto al valore, come `(Spazio: salta)` due righe sopra: un HUD in
+		// Canvas non ha nulla su cui passare il mouse, quindi una scorciatoia non scritta e' una
+		// scorciatoia che non esiste.
+		Status += FString::Printf(TEXT("  -  Velocita': %s (V)"),
+			*ComposePlaybackSpeedLabel(TurnManager->ViewerPlaybackSpeed, TurnManager->GetPlaybackCapSpeed()));
 		float TW = 0.f, TH = 0.f;
 		GetTextSize(Status, TW, TH, nullptr, 1.2f);
 		DrawText(Status, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, 16.f, nullptr, 1.2f);

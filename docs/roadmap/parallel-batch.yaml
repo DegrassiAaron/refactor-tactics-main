@@ -1622,8 +1622,37 @@ tracks:
     binary_leases: []
 
   simulation:
-    status: ACTIVE
-    issue: 512
+    status: IDLE
+    issue: null
+    # ✅ **CHIUSA il 2026-08-16: la fase B di `#512` è atterrata con la PR #1033 (`0ecde11b`), e stavolta
+    # `issue: null` significa anche «non c'è più niente da fare».** `#512` è **CLOSED** — era l'ultima voce
+    # di DoD aperta, consuntivata nel commento di chiusura e non spuntando il body.
+    # ✅ **I nove path del `writable` tornano liberi e non assegnati**: i tre `Scenarios/*.json` **rientrano
+    # in `integration_only`** (la voce lì dentro perde le loro tre righe di prestito), e gli altri sei —
+    # `ScenarioHarness/RTScenarioSession.cpp`, `ScenarioHarness/RTScenarioLoader.cpp`, i tre file di test e
+    # `docs/control-center/graph.test.mjs` — restano semplicemente non assegnati. Con essi esce il
+    # `derives_from`: una vista segue la sorgente, e la sorgente non è più di nessuno.
+    # ⛔ **Cosa la track lascia aperto, detto invece che dedotto:**
+    # · **due drift `integration_only`** che nessuna track può riparare da dentro — `execution-graph.yaml`
+    #   («un provider e **sette** consumatori … che `RTScenarioSession.cpp` **non elenca fra le
+    #   disponibili**»: falso in entrambe le metà, sono sei ed è elencata) e `feature-registry.yaml`
+    #   (`RT-FEAT-REACTION-OVERWATCH` afferma due volte che `Spec.Overwatch.HoldThenFire` esce `BLOCKED`,
+    #   e tiene `scenario: partial` con `last_verified` al 2026-08-15). Il secondo è anche **conteso** da
+    #   `docs/five-lane-roadmap` e `feat/625-hazard-turnlog`, misurato;
+    # · **`feature_registry.py validate` esce `1`, e NON per colpa di questo giro**: l'orfano
+    #   `Spec.Brace.PushBeyondGuardThreshold` arriva con `#1032` ed è rosso **anche su `origin/main`**,
+    #   misurato in un worktree pulito. La rigenerazione del grafo lo fa comparire in `diagnostics.errors`,
+    #   cioè la vista smette di tacerlo. Chiuderlo è di chi possiede quello scenario;
+    # · **il T4 dello showcase è una fetta della propria spec owner** (`showcase-v0.1.md` chiede Wraith che
+    #   arma, `HOLD` di Gadget e `FIRE` di Phase su **due** opportunity). Dichiarato dentro lo scenario in
+    #   `_nota_scostamento_dalla_spec`, con la ragione misurata;
+    # · `Spec.Brace.ProfileChangesResponse` resta `BLOCKED` su **`ReactionProfile`** → **E14.7 (`#314`)**,
+    #   che porta `Reaction Profile` e `Reaction Clash` insieme: chi lo chiude sposta **entrambi** i nomi.
+    # 🔵 **E due lezioni che non muoiono con la track**: il cono dell'Overwatch nasce dal facing al `Prep`,
+    # quindi una rotazione dichiarata non può formare il proprio cono nello stesso turno (un cono si prepara
+    # il turno prima, o si dichiara al piazzamento); e un esempio «noto ma non disponibile» non si prende in
+    # prestito da una feature futura — per quello esiste il nome riservato `NeverAvailable`.
+    # ---
     # ➕ **Riattivata il 2026-08-16 sulla fase B di `#512`**, ed è la track che riprende il proprio
     # lavoro: la fase A è sua (PR #1016). I commenti qui sotto restano come registro dei giri
     # precedenti — `#578`, `#926`, `#923` e la fase A — e non descrivono più lo stato: il motivo della
@@ -1681,6 +1710,13 @@ tracks:
     # significato che questo file ha già dovuto distinguere quattro volte: **«il write-set è assegnato e
     # la sessione non ha ancora scritto»**. Il branch di lavoro della fase B nasce col primo commit dentro
     # `D:/rt-simulation`, e chi lo apre riscrive questa riga invece di lasciarla mentire.
+    # ✅ **Riscritta col primo commit, che è questo.** Il branch nasce da `origin/main` @ `5454b305` —
+    # cioè dalla PR #1027 che ha concesso il write-set — dentro `D:/rt-simulation`, e questa riga smette
+    # di dire `null` prima che una riga di fase B sia scritta, non dopo. È la correzione che la sessione
+    # precedente ha dovuto fare a metà lavoro, fatta qui all'inizio.
+    # ➖ **Mergiato e cancellato il 2026-08-16** (PR #1033), misurato con `git ls-remote --heads origin`, che
+    # non lo trova più. Il campo torna `null` con la prima delle quattro accezioni che questo file distingue:
+    # «nessun branch vivo, il lavoro è in `main`».
     branch: null
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
@@ -2030,30 +2066,14 @@ tracks:
       §4 documenta già `decisions` e `"version": 2` (righe 90–118) e il §«Politica per le Fast Reaction»
       dichiara la fase B. Il debito è stato pagato da un'altra PR, verificato aprendo il file — non
       ereditato dal commento che lo dichiarava aperto.
-    writable:
-      # ⬅️ **Riallocati da `integration_only` (`Scenarios/`) per questo solo giro**, con la ragione
-      # misurata sopra: sono i tre file che portano i turni che `DecisionBoundary` sblocca. Tornano a
-      # `integration_only` alla chiusura della track — la voce lì dentro lo dichiara.
-      - Scenarios/Spec/Overwatch/HoldThenFire.json
-      - Scenarios/Spec/Brace/ProfileChangesResponse.json
-      - Scenarios/RT_Showcase_Relay_v01.json
-      # Non assegnato a nessuna track e non toccato da nessun ramo vivo: è il file che dichiara i due
-      # insiemi di capability, cioè il punto in cui `DecisionBoundary` cambia lato.
-      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
-      - Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp
-    # ⚠️ **Due viste, e le eredita chi tocca l'una O l'altra sorgente**: `generated_only` dichiara sia
-    # `Scenarios/` sia `RTScenarioSession.cpp` come `derives_from` di entrambe. Questa track le tocca tutte
-    # e due, quindi i due `--check` sono suoi e vanno rigenerati **sull'albero unito**, non sul branch.
-    derives_from:
-      - source: Scenarios/
-        regenerates:
-          - docs/roadmap/scenariomap.shortlist.md
-          - docs/roadmap/project-graph.json
-      - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-        regenerates:
-          - docs/roadmap/scenariomap.shortlist.md
-          - docs/roadmap/project-graph.json
+    # ➖ **Il write-set resta descritto nella `note` e i due blocchi ESCONO**, come per le chiusure
+    # precedenti di questa track: nove path, tutti atterrati in `main` con la PR #1033 e oggi non
+    # assegnati. I tre `Scenarios/*.json` rientrano in `integration_only`, dove la loro riga di prestito
+    # è stata cancellata; gli altri sei restano semplicemente non assegnati.
+    # ⚠️ Con essi esce il `derives_from`: una vista **segue la sorgente**, e la sorgente non è più di
+    # nessuno. Chi tocca `Scenarios/` o `RTScenarioSession.cpp` eredita di nuovo i due `--check`.
+    writable: []
+    derives_from: []
 
   client_tools:
     status: IDLE
@@ -2294,7 +2314,41 @@ tracks:
     writable:
       - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
       - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
-      - Source/RefactorTactics/UI/
+      # ⬅️ **RIENTRATI il 2026-08-16, col merge di #1028.** Erano usciti verso `playback` per CP 47.7 e
+      # tornano appena quel lavoro è in `main`: il passo 4 di `#78` — la resa del livello di certezza in
+      # `ARTHUD` — vive esattamente qui, e tenerli altrove terrebbe ferma questa issue su un lavoro finito.
+      # ⚠️ Rientrano **per nome**, non come prefisso: il resto di `UI/` era già tornato quando `playback`
+      # ha stretto il proprio write-set, e riscrivere `Source/RefactorTactics/UI/` rifarebbe la
+      # prenotazione larga che quel giro ha tolto.
+      - Source/RefactorTactics/UI/RTHUD.h
+      - Source/RefactorTactics/UI/RTHUD.cpp
+      - Source/RefactorTactics/UI/RTHudViewModel.h
+      - Source/RefactorTactics/UI/RTHudViewModel.cpp
+      - Source/RefactorTactics/UI/RTIconLibrary.h
+      - Source/RefactorTactics/UI/RTIconLibrary.cpp
+      - Source/RefactorTactics/UI/RTIconCatalogData.h
+      - Source/RefactorTactics/UI/RTScreenHudWidgets.h
+      - Source/RefactorTactics/UI/RTScreenHudWidgets.cpp
+      # ➖ **`Source/RefactorTactics/UI/` RIALLOCATO a `playback` il 2026-08-16, su `#1015`.** La riga qui
+      # sopra, scritta lo stesso giorno, dichiarava il costo di tenerlo: *«tenerla `ACTIVE` prenoterebbe
+      # `UI/` per una sessione che non c'è, e il costo è concreto: **#1015** … è ferma esattamente su quel
+      # path»*. La track è scesa a `IDLE` e il path è rimasto: `IDLE` toglie la sessione, non la prenotazione.
+      # Questo commit toglie la prenotazione.
+      # ⚠️ **Sposta, non aggiunge**: il path esce da qui nello stesso commit in cui entra in `playback`.
+      # Un path in due `writable` è assegnato due volte, che è la contesa che questo file misura.
+      # ⬅️ **Il grosso di `UI/` E' RIENTRATO lo stesso giorno**, quando `#1015` ha deciso la superficie e
+      # ha stretto il proprio write-set a `UI/RTHUD.{h,cpp}`: `RTHudViewModel.{h,cpp}`,
+      # `RTIconLibrary.{h,cpp}`, `RTIconCatalogData.h` e `RTScreenHudWidgets.{h,cpp}` tornano qui. La
+      # cartella e' uscita per meno di un giorno, ed e' il comportamento giusto per una prenotazione presa
+      # larga solo perche' una decisione mancava.
+      # ⚠️ **`UI/RTHUD.{h,cpp}` NO: quelli restano a `playback` finche' `#1015` e' aperta**, ed e' proprio
+      # dove vive il passo 4 di `#78`. Chi riapre `#78` li **richiede**.
+      # ⚠️ **Il passo 4 di `#78` — la resa del livello di certezza in `ARTHUD` — vive in questa cartella**,
+      # e questa riallocazione gliela toglie **mentre è IDLE**, non mentre ci scrive. Chi riapre `#78` la
+      # **richiede** a `playback`: l'ownership non si eredita, ed è la stessa formula con cui `RTGameMode`
+      # è passato da `unit_presentation` a `frontend_shell`. Le due sessioni si intersecheranno su
+      # `UI/RTHUD.{h,cpp}` — la issue #1015 lo dichiara già — e allora si negozia per file, come `feat/78`
+      # e `feat/77` hanno già fatto senza collidere.
       - Source/RefactorTactics/Tests/RTIntentPrivacyTests.cpp
     # Misurato con lo stesso metodo del resto del file — sposta la sorgente, rigenera, guarda cosa
     # cambia: `UI/` e `RTIntentPrivacyLibrary.*` non alimentano nessuna vista. Vale però la stessa
@@ -2533,7 +2587,17 @@ tracks:
       # pendenti nei cinque working tree. Verificato nei due versi dopo la modifica —
       # `M_HexCell.uasset` → exit 1 (versionabile), un `M_Altro.uasset` qualsiasi → exit 0 (ignorato):
       # la regola è specifica per quel file, non ha aperto la cartella.
-      - .gitignore
+      #
+      # ➖ **`.gitignore` ESCE il 2026-08-16 e passa a `integration_only`**, e non perché serva a
+      # `frontend_shell`: perché serve a **chiunque**. Ogni track che versiona un asset deve aggiungere la
+      # propria riga di allowlist, e tenerlo in un `writable` significa che tutte le altre devono chiedere
+      # il permesso — o, più realisticamente, farlo lo stesso. È la definizione di `integration_only`:
+      # *«i file che più branch potrebbero voler toccare non si assegnano»*.
+      # Misurato prima di spostarlo: `#451` è **CLOSED** e nessun branch remoto la nomina
+      # (`git ls-remote --heads origin | grep -c 451` → 0), quindi questa track non lo sta usando. La
+      # riallocazione non toglie niente a una sessione viva.
+      # ⚠️ Il primo caso che lo dimostra è arrivato subito: CP 46.2 doveva riammettere tre `WBP_RT_*` e
+      # la scrittura sarebbe stata uno **stop** — per una riga in un file che nessuno stava toccando.
       # ➕ **Il file del mandato QA Terminal C**, entrato con la PR #919: i tre mandati sono passati nel
       # `writable` della track che li esegue, perché chi esegue un mandato lo corregge quando lo misura
       # sbagliato. Vedi la documentazione di `mandate` nello schema in testa al file.
@@ -2778,7 +2842,16 @@ tracks:
       stessa forma che `simulation` ha avuto su `#578` con il mandato A in attesa.
     mandate: docs/technical/qa-prompt-terminal-d-verifiche-pie.md
     writable:
-      - docs/technical/test-manuali-pie.md
+      # ➖ **`docs/technical/test-manuali-pie.md` PRESTATO a `playback` il 2026-08-16, su `#1015`.**
+      # Torna qui alla chiusura di quella track: e' un prestito con scadenza, non una cessione.
+      # ⚠️ **E' il secondo prestito dello stesso file allo stesso destinatario, per la stessa voce.**
+      # Il primo — registrato nella nota di `playback` — serviva a *scrivere* `PIE-V01-PLAYSPEED`;
+      # questo serve a renderla *eseguibile*, togliendo dalla precondizione la frase «il controllo in HUD
+      # e' il passo 4 e dipende da #78», che la PR #1028 ha reso falsa. Chi scrive il controllo e' chi sa
+      # cosa la voce deve chiedere di guardare, ed e' la ragione per cui il prestito e' la forma giusta
+      # invece di un handoff che aspetta una sessione di `playtest` che non c'e'.
+      # ✅ Misurato libero al momento del prestito: `playtest` e' `IDLE` con `issue`, `branch` e
+      # `worktree` tutti a `null` — nessuna sessione aperta, non solo nessuna dichiarata.
       - docs/technical/qa-prompt-terminal-d-verifiche-pie.md
     # La catena arriva qui **con la sorgente**, da `content_editor`: la vista segue il file, e il file
     # ha cambiato proprietario. `project-graph.json` ha altre sorgenti — `spatial` ne possiede una —
@@ -3693,8 +3766,8 @@ tracks:
 
   replay_ui:
     status: ACTIVE
-    issue: 999              # più #472, che resta l'ombrello di R6: due issue, un solo write-set
-    branch: feat/999-ponte-bp-replay
+    issue: 625              # più #472, ombrello di R6, in attesa dei suoi `.uasset`
+    branch: feat/625-hazard-turnlog
     worktree: "D:/rt-client"
     note: >-
       **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
@@ -3764,6 +3837,34 @@ tracks:
       # `frontend_shell` — un path non assegnato e' uno stop, non un invito.
       - Source/RefactorTactics/Tests/RTReplayTestFixtures.h
       - docs/roadmap/plans/replay-r6-spec-panel-2026-08-16.md
+      # ➕ **Terzo giro della track: `#625`**, il danno da hazard che non lascia traccia canonica. Non e'
+      # R6 e non e' UI — e' la stessa famiglia, `replay_representable`: una morte che il replay non puo'
+      # riprodurre e che `DescribeFirstDivergence` non puo' nominare. Il worktree e la sessione sono gli
+      # stessi, quindi il write-set resta uno.
+      # ⬅️ `Turn/RTTurnManager.cpp` **riallocato da `playback`** — vedi la sua voce per la misura e per la
+      # contraddizione che ha reso necessaria la richiesta. L'header **non** entra: `#625` non aggiunge
+      # membri.
+      # 🔴 **CONTESA DICHIARATA, e la prima stesura di questa voce non la nominava.** La misura era stata
+      # fatta — `feat/cp75-selfreposition` tocca questo file, ed e' scritto anche nella sezione dei branch
+      # — ma la nota argomentava solo il lato di **chi rilascia** (`#955` chiusa, `playback` IDLE, il passo
+      # 4 in `UI/`), e non la domanda opposta: *sta gia' scrivendo qualcun altro?* Trovato in code review.
+      # Misurato ora, non ricordato:
+      #   `git diff --name-only origin/main...origin/feat/cp75-selfreposition` ->
+      #     `Turn/RTActionEffectLibrary.cpp` · `Turn/RTActionEvent.h` · **`Turn/RTTurnManager.cpp`**
+      # ⚠️ **Non e' una violazione dell'invariante**: `#cp75` non e' una track di questo batch, quindi cio'
+      # che cade non e' `WritableSet(T1) ∩ WritableSet(T2) = ∅` ma il presupposto pratico che il file fosse
+      # sgombro. E' lo stesso caso di `#904` contro `client_tools`, e cambia il rimedio: non riallocazione,
+      # ma una decisione su chi passa per primo.
+      # ✅ **Decisione: passa `#625`.** Il branch e' un **WIP fermo dal 2026-08-11** — `wip(cp75):
+      # SelfReposition — enum ed evento fatti, l'applicazione NO` — senza PR aperta, cinque giorni fermo
+      # in un repository che merge una decina di volte al giorno. `#625` e' misurato, verde su 968 test e
+      # in review. Chi riprende `cp75` merge `main` e trova venti righe in piu' in `ConcludeTurn`, in una
+      # funzione che quel WIP non tocca (`SelfReposition` vive nel Move).
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # ➕ File **non assegnato a nessuna track**, dichiarato prima di scriverci: ha gia' il setup che fa
+      # bruciare un'unita' sul percorso reale (`MakeEnvWorld`/`PlanEnvAction`/`RunEnvTurn`), ed e' li' che
+      # il DoD chiede di leggere `GetTurnLog()` invece di costruire la voce a mano.
+      - Source/RefactorTactics/Tests/RTEnvironmentActionTests.cpp
     derives_from:
       - source: docs/roadmap/feature-registry.yaml
         regenerates:
@@ -3782,11 +3883,82 @@ tracks:
     binary_leases: []
 
   playback:
-    status: IDLE
-    issue: null
-    branch: null
-    worktree: "D:/rt-955"
+    status: ACTIVE
+    issue: 1015
+    branch: docs/1015-handoff-pie
+    worktree: "D:/rt-1015"
     note: >-
+      ✅ **Il CODICE di `#1015` è atterrato: PR #1028 mergiata (`02e85e23`, `2026-08-16T14:39:53Z`),
+      branch cancellato lato server.** `RefactorTactics.HUD` 16/16 e il gate di #955 invariato,
+      verificati **sull'albero fuso** e non sul mio — `main` era avanzato di 27 commit fra il push e il
+      merge, e l'unica intersezione era questo file.
+      🔵 **La track resta `ACTIVE` perché la issue NON è chiusa**, e le due cose non coincidono: restano
+      le voci 6 e 7 del DoD — la verifica manuale `PIE-V01-PLAYSPEED` resa eseguibile, e poi eseguita da
+      una persona. `branch` passa a `docs/1015-handoff-pie` perché quello vecchio non esiste più: un
+      campo che nomina un branch cancellato è il difetto che questo file rimprovera a `client_tools`
+      quando dichiarava `D:/rt-78` dopo che la directory era sparita.
+      ✂️ **Il write-set si svuota di tutto ciò che è stato scritto, e resta solo ciò che si scriverà.**
+      `UI/RTHUD.{h,cpp}` **tornano a `client_tools`**, dove il passo 4 di `#78` li aspetta —
+      trattenerli ora bloccherebbe quella issue su un lavoro finito. `Player/RTPlayerController.{h,cpp}`,
+      `Turn/RTTurnManager.h` e `Tests/RTHudPlaybackSpeedTests.cpp` tornano liberi.
+      ➕ **`docs/technical/test-manuali-pie.md` è PRESO IN PRESTITO da `playtest`**, che è `IDLE` su tutti
+      e quattro i campi. Torna alla chiusura. È il secondo prestito dello stesso file per la stessa voce,
+      e la ragione è nella nota di `playtest`.
+      ➕ **`docs/technical/progettazione-hud.md` va in `integration_only`**, e non resta qui. Il commit
+      di apertura l'aveva trovato in **nessun** insieme — la condizione «non assegnato» di `D-139` — su
+      un file che è owner documentale di un checkpoint, e aveva scritto *«va messo in `integration_only`
+      da chi riconcilia il batch»*. Rimandarlo una seconda volta lo lascerebbe scoperto esattamente come
+      prima: la §29 è scritta, il file non serve più a questa track, e un difetto trovato si chiude
+      quando si può invece che quando tocca a qualcun altro.
+      ---
+      *Registro della riapertura, per la provenienza:*
+      🔵 **RIAPERTA il 2026-08-16 su `#1015` (CP 47.7), ed è il «passo 4» che la chiusura qui sotto
+      dichiarava senza issue.** Quella riga diceva: *«Non ha una issue propria: se la si vuole, va
+      aperta»* — è stata aperta, ed è `#1015`. I quattro campi tornano veri insieme, come lo schema
+      chiede: `ACTIVE` perché una sessione ci scrive, `branch` e `worktree` perché esistono
+      (`git worktree list` li vede; il branch è visibile a chiunque solo dopo il push, ed è il motivo
+      per cui questo commit va spinto e non tenuto).
+      ✅ **Il vincolo di parallelismo che `#1015` dichiarava è CADUTO, e la issue chiedeva di
+      rimisurarlo invece di rileggerlo.** Misurato: `#904` è **`MERGED`** (`2026-08-16T12:05:41Z`,
+      `95d2d39f`), `blocked_by`/`blocked_paths` sono già stati cancellati da `client_tools` al merge, e
+      quella track è `IDLE` con `branch: null` e `worktree: null` — **non `ACTIVE`**, come la issue
+      credeva. Restava una sola cosa fra `#1015` e il lavoro, e non era un blocco: era
+      un'**assegnazione**. `Source/RefactorTactics/UI/` stava nel `writable` di una track ferma su
+      un'altra issue.
+      ➕ **`Source/RefactorTactics/UI/` entra qui, riallocato da `client_tools`** nello stesso commit in
+      cui ne esce. La ragione per cui entra il **prefisso** e non due file per nome è che la superficie
+      non è ancora decisa: lo spec panel del 2026-08-16 ha misurato che «un controllo in HUD» sono due
+      lavori diversi — Canvas + Enhanced Input (`RTHUD.{h,cpp}`) oppure un widget `§4.1`
+      (`RTScreenHudWidgets.{h,cpp}`) — e restringere adesso sarebbe indovinare quale. È la stessa
+      ragione, e le stesse parole, con cui `client_tools` rifiutò di restringere questo path il giorno
+      prima. Si stringe quando il bivio è deciso, non prima.
+      ⛔ **`Source/RefactorTactics/Player/RTPlayerController.{h,cpp}` NON è preso**, e serve solo su un
+      ramo del bivio (la scorciatoia da tastiera). È **non assegnato a nessuna track** — misurato:
+      `RefactorTactics/Player` non compare in nessun `writable` di questo file — quindi si dichiara al
+      momento della decisione. «Libero» non è «preso», ed è la formula che `frontend_shell` ha usato per
+      i quattro file nuovi di `Frontend/`.
+      🔴 **I sei path di `#955` ESCONO, e li teneva un argomento che il DoD di `#1015` falsifica.** Il
+      commento sotto il `writable` diceva: *«Gli altri sei restano dichiarati perché questa track li
+      riscriverà al passo 4»*. Il passo 4 è questo, e il suo DoD dice il contrario — *«il controllo
+      scrive `ViewerPlaybackSpeed` e nient'altro: non ricalcola, non stima, non tocca il tetto»*. Una
+      previsione sul futuro è rimasta scritta finché il futuro non è arrivato a smentirla: `Turn/` e i
+      due `Tests/` tornano **liberi**, e `Tests/RTMatchAutobattleTests.cpp` torna in particolare
+      disponibile ad `autobattle`, a cui era stato preso.
+      ⛔ **Cosa questa track NON tocca, detto invece che dedotto**:
+      `docs/technical/test-manuali-pie.md` (`playtest`) — il DoD di `#1015` chiede di aggiornare la
+      precondizione di `PIE-V01-PLAYSPEED`, e **quel file non è di chi lavora la issue**: va passata in
+      **handoff**, esattamente come `replay_ui` fa con `PIE-V01-REPLAY-VIEWER` · `docs/roadmap/roadmap-v0.1.md`
+      (`integration_only`, righe 118 e 1715 di `E47.7`).
+      🔴 **E un file trovato non assegnato, misurato non dedotto: `docs/technical/progettazione-hud.md`.**
+      È l'owner documentale di questo checkpoint — la sua **§29 «Playback Controls»** descrive esattamente
+      la manopola, e la §13.2 la colloca nel `Resolution HUD` — eppure `grep` su questo file lo trova in
+      **una sola riga, che è questa**: non sta in nessun `writable`, non in `integration_only`, non in
+      `generated_only`. È la condizione che `D-139` chiama «non assegnato», su un file che due voci di DoD
+      chiedono di aggiornare. **Non lo prendo qui**: prenderlo di passaggio, dentro il commit che
+      rialloca un altro path, è il modo in cui un file cambia proprietario senza che nessuno decida. Va
+      assegnato con la decisione A/B, che è chi lo scriverà a saperlo.
+      ---
+      *Registro della chiusura di `#955`, per la provenienza:*
       ✅ **CHIUSA il 2026-08-16, aperta e chiusa nello stesso giorno.** `#955` è mergiata (PR #1007,
       merge `c9841b06`) e la issue si è chiusa da sé sulla keyword. I sette path tornano **liberi**;
       `docs/technical/test-manuali-pie.md` torna a `playtest`, da cui era stato preso, e non resta
@@ -3835,12 +4007,68 @@ tracks:
       **Non è di questa track**: il file è `integration_only` e sta nel `writable` di `replay_ui`.
       Registrato qui perché qualcuno lo corregga, non toccato.
     writable:
-      - Source/RefactorTactics/Turn/RTPlaybackLibrary.h
-      - Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp
-      - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
-      - Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
-      - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
+      # ⬅️ **Riallocato da `client_tools` il 2026-08-16**, che lo teneva prenotato da `IDLE` su `#78`.
+      # ✂️ **STRETTO lo stesso giorno, alla decisione del bivio: A — Canvas + Enhanced Input.** Il
+      # prefisso `Source/RefactorTactics/UI/` era preso perche' la superficie non era decisa, con la
+      # promessa scritta qui che «si stringe ai file effettivi quando il bivio e' chiuso». E' chiuso, e
+      # questa e' la riga riscritta: due file per nome invece della cartella.
+      # ⬅️ **Il resto di `UI/` TORNA a `client_tools`** — `RTHudViewModel.*`, `RTIconLibrary.*`,
+      # `RTIconCatalogData.h`, `RTScreenHudWidgets.*`. Stringere senza restituire lascerebbe quattro file
+      # in nessun insieme, che e' la condizione «non assegnato» di `D-139`: peggio di una prenotazione
+      # larga, perche' invisibile.
+      # ⬅️ **`UI/RTHUD.{h,cpp}` RESTITUITI a `client_tools` col merge di #1028 (2026-08-16).** Il lavoro
+      # che li teneva e' in `main`; trattenerli terrebbe fermo il passo 4 di `#78`, che vive negli stessi
+      # due file. Un `writable` dice chi **scrivera'** — e questa track non li scrivera' piu'.
+      # ➖ **Usciti insieme a loro**: `Player/RTPlayerController.{h,cpp}` e
+      # `Tests/RTHudPlaybackSpeedTests.cpp` (liberi, come erano prima), e `Turn/RTTurnManager.h` — preso
+      # per un `const` getter e restituito appena l'ha avuto.
+      # ➡️ **`docs/technical/progettazione-hud.md` NON e' fra questi: e' passato in `integration_only`.**
+      # La riga qui sotto diceva *«alla chiusura torna dov'era, cioe' in nessun insieme … va messo in
+      # `integration_only` da chi riconcilia»*, ed e' una promessa che si mantiene ora invece di
+      # rimandarla a una riconciliazione futura — altrimenti il file torna scoperto com'era.
+      # ⬅️ **Preso in prestito da `playtest`, che e' `IDLE` su tutti e quattro i campi**: e' cio' che
+      # resta da scrivere per le voci 6 e 7 del DoD. Torna alla chiusura della track.
+      - docs/technical/test-manuali-pie.md
+      # ↩️ **RIPRESO, dopo essere stato rilasciato dallo stesso branch poche ore prima, e la correzione va
+      # detta invece che nascosta in un elenco.** Il commit precedente ha liberato i sei path di `#955`
+      # scrivendo che *«il DoD di #1015 vieta di toccare il modello»*. Vero per la scrittura; **troppo
+      # forte per la lettura**, e l'implementazione l'ha misurato subito: il fattore di tetto vive in
+      # `RTTurnManager.h:1027` come membro **privato**, e senza un accessore l'HUD non puo' dire quale
+      # velocita' si sta vedendo.
+      # ⚠️ Le alternative erano due, ed entrambe peggiori: **ricalcolare il tetto nell'HUD** — che il DoD
+      # vieta con queste parole, *«non ricalcola, non stima»* — oppure mostrare la sola velocita' scelta,
+      # che e' l'etichetta che mente e il motivo per cui il criterio 2 esiste. Un `const` getter non
+      # ricalcola e non tocca: **espone** cio' che c'e' gia', ed e' cio' che permette all'HUD di non
+      # ricalcolare.
+      # ⛔ **Solo l'header, e solo per un getter.** `RTTurnManager.cpp` resta fuori: se il lavoro arrivasse
+      # a chiederlo, sarebbe il segnale che la UI e' entrata nel modello — lo stesso segnale che il DoD
+      # attribuisce al gate di determinismo.
+      # ➖ **RILASCIATO col merge di #1028**: il getter c'e', ed e' tutto cio' che serviva. Un header
+      # tenuto «per sicurezza» dopo che il lavoro e' atterrato e' la prenotazione che questa stessa track
+      # ha gia' sbagliato una volta, coi sei path di `#955`.
+      # ➕ **L'owner documentale, assegnato con la decisione e non prima.** Il commit precedente lo aveva
+      # trovato in nessun insieme e lo aveva registrato senza prenderlo, scrivendo *«va assegnato con la
+      # decisione A/B: chi lo scrivera' si sa solo allora»*. Si sa: A e' una deviazione dalla §13.2, che
+      # colloca i playback controls nel layer §4.1, e una deviazione non dichiarata nel documento che
+      # contraddice e' una lacuna, non una scelta. La §29 va aggiornata da questa track.
+      # ⚠️ **Preso per un turno**, e restituito col merge di #1028: la §29 e' scritta. ➡️ Non torna «in
+      # nessun insieme» come diceva questa riga: va in **`integration_only`**, che e' la promessa che
+      # faceva due righe piu' avanti — mantenuta subito invece che rimandata.
+      # ➖ **I sei path di `#955` sono USCITI il 2026-08-16, alla riapertura su `#1015`.** Erano rimasti
+      # con la motivazione *«questa track li riscrivera' al passo 4»*, e il passo 4 e' arrivato dicendo il
+      # contrario: il DoD di `#1015` vieta di toccare il modello. Elencati qui per la provenienza —
+      # `Turn/RTPlaybackLibrary.{h,cpp}`, `Turn/RTTurnManager.{h,cpp}`, `Tests/RTPlaybackLibraryTests.cpp`,
+      # `Tests/RTMatchAutobattleTests.cpp` — e **liberi**. L'ultimo torna in particolare disponibile ad
+      # `autobattle`, a cui era stato preso e a cui la nota prometteva di negoziarlo.
+      # 💡 Un `writable` dice chi **scrivera'**. Una previsione su chi scrivera' invecchia come tutte le
+      # previsioni, e va rimisurata quando il turno che prevedeva comincia davvero.
+      # ➡️ **Uno dei sei ha gia' un proprietario nuovo: `Turn/RTTurnManager.cpp` e' di `replay_ui`
+      # (`#625`).** Le due track ci sono arrivate per strade diverse e nello stesso giorno — questa
+      # rilasciando, quella chiedendo — e il conflitto di merge fra le due stesure e' stato risolto
+      # tenendo **questa**, che e' la piu' recente e dice la stessa cosa meglio: i sei erano rimasti su
+      # una previsione, e la previsione e' scaduta. La richiesta di `#625` argomentava la contraddizione
+      # fra la `note` in testa (*«tornano liberi»*) e il commento che li tratteneva; qui la
+      # contraddizione non c'e' piu', perche' non li trattiene nessuno.
       # ➖ **`docs/technical/test-manuali-pie.md` e' USCITO da qui alla chiusura**, ed e' l'unico dei sette
       # che non resta: era **preso in prestito** da `playtest` per scrivere `PIE-V01-PLAYSPEED`, e il
       # lavoro su quel file e' finito. Gli altri sei restano dichiarati perche' questa track li
@@ -3849,7 +4077,15 @@ tracks:
       # lo toccassero (`diff --name-only origin/main...<b>` sui dieci remoti). Era di `replay_ui` quando
       # questa track e' nata, poche ore prima: nel frattempo `replay_ui` e' passata a `#999` e lo ha
       # rilasciato. Un write-set si misura quando lo si prende, non quando lo si e' letto la prima volta.
-    derives_from: []
+    # ➕ **Arriva col prestito, il 2026-08-16: la vista segue la sorgente, e con la sorgente arriva
+    # l'obbligo.** `derives_from` era `[]` perche' il write-set precedente non alimentava viste; ora
+    # `test-manuali-pie.md` e' qui, e le sue due viste vanno rigenerate da chi lo scrive. Copiato dalla
+    # dichiarazione di `playtest`, non dedotto — e li' resta, perche' il file torna.
+    derives_from:
+      - source: docs/technical/test-manuali-pie.md
+        regenerates:
+          - docs/roadmap/editormap.shortlist.md
+          - docs/roadmap/project-graph.json
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
@@ -3858,6 +4094,15 @@ tracks:
 # **deve** esserlo. Vale per `feature_registry.py` / `test_feature_registry_releases.py`.
 
 integration_only:
+  # ➕ **Entra il 2026-08-16, da `content_editor`.** Ogni track che versiona un asset deve aggiungere la
+  # propria riga di allowlist qui dentro — `Content/**/*.uasset` è escluso e i singoli file si riammettono
+  # con un `!` per riga. Tenerlo in un `writable` significa che tutte le altre track devono chiedere il
+  # permesso per una riga, e il primo caso reale è arrivato subito: CP 46.2 doveva riammettere tre
+  # `WBP_RT_*` e la scrittura sarebbe stata uno **stop**.
+  # ⚠️ La regola dell'allowlist resta quella che `#449` ha pagato: **la riga va aggiunta PRIMA che l'asset
+  # esista**, altrimenti `git add` non fa nulla e non lo dice. L'oracolo è `git check-ignore -q <file>`
+  # → exit **1** significa versionabile; con `-v` esce 0 in entrambi i casi e non distingue.
+  - .gitignore
   - AGENTS.md
   - CLAUDE.md
   - docs/decisions/RT_PDR_00_Decision_Log.md
@@ -3908,6 +4153,15 @@ integration_only:
   - docs/roadmap/plans/README.md
   - docs/technical/workflow-parallel-claude.md
   - docs/technical/scenario-map.md
+  # ➕ **Entra il 2026-08-16, e fino a oggi non era in NESSUN insieme** — né assegnato a una track, né
+  # riconciliato, né generato. Misurato aprendo `#1015`: `grep` su questo file lo trovava in **zero**
+  # righe, mentre è l'owner documentale dello Screen HUD (§4.1, §13.2, §29) e due voci di DoD chiedevano
+  # di aggiornarlo. È la condizione «non assegnato» di `D-139` su un documento che governa una feature.
+  # ⚠️ `integration_only` e non un `writable`, e la ragione è la stessa di `progettazione-*` in generale:
+  # lo tocca **chiunque** implementi un pezzo di HUD — `client_tools` per gli intenti, `frontend_shell`
+  # per le schermate, `playback` per la §29 — e prenotarlo per una sola track bloccherebbe le altre su un
+  # file che nessuna possiede davvero.
+  - docs/technical/progettazione-hud.md
   # ➕ Entra qui il 2026-08-15, ed è la risposta alla domanda che la chiusura di `simulation` ha posto:
   # un `mandate` sta nel `writable` della track che lo esegue (così lo corregge chi lo misura sbagliato),
   # ma il Terminal A ha **finito** — merge target §10 soddisfatto e misurato — e la track è ripartita su
@@ -3933,16 +4187,16 @@ integration_only:
   - docs/balance/          # sorgente dei radar (toolchain Node)
   # ⚠️ Diceva «oggi la tiene wt-cap»: quel branch è atterrato il 2026-08-14 (PR #848) e non tiene
   # più niente. `Scenarios/` torna quindi `integration_only` piena — non assegnata a nessuno.
-  # ➖ **E non è più piena dal 2026-08-16: QUATTRO file sono in prestito, e restano elencati qui perché
-  # la cartella non basta a dirlo.** La regola resta «`Scenarios/` è `integration_only`»: si prestano i
-  # **file**, uno per uno, con la ragione nella `note` della track che li tiene — mai la cartella.
+  # ➖ **E non è più piena dal 2026-08-16: un file è in prestito, e resta elencato qui perché la cartella
+  # non basta a dirlo.** La regola resta «`Scenarios/` è `integration_only`»: si prestano i **file**, uno
+  # per uno, con la ragione nella `note` della track che li tiene — mai la cartella.
   #   · `Spec/Environment/WaterQuenchesFire.json`  → `hero_kit`  (l'acqua passa all'equipaggiamento)
-  #   · `Spec/Overwatch/HoldThenFire.json`         → `simulation` (#512 fase B, le `decisions` scriptate)
-  #   · `Spec/Brace/ProfileChangesResponse.json`   → `simulation` (#512 fase B)
-  #   · `RT_Showcase_Relay_v01.json`               → `simulation` (#512 fase B, il T4 oggi è vuoto)
+  # ✅ **I tre di `simulation` sono RIENTRATI il 2026-08-16 con la chiusura di `#512`** — `HoldThenFire`,
+  # `ProfileChangesResponse` e `RT_Showcase_Relay_v01`: la track è `IDLE` e la PR #1033 è in `main`. Le loro
+  # righe sono cancellate invece di essere lasciate a invecchiare, che è il punto della regola qui sotto.
   # ⚠️ **Tornano qui alla chiusura delle rispettive track**, e chi le chiude cancella la propria riga:
   # un prestito che nessuno restituisce è indistinguibile da una riassegnazione, e questa lista è l'unico
-  # posto da cui si vede che i quattro file non sono di chi li ha in mano.
+  # posto da cui si vede che un file prestato non è di chi lo ha in mano.
   - Scenarios/             # sorgente di scenariomap + project-graph
   - scripts/feature_registry.py
   - scripts/test_feature_registry_releases.py

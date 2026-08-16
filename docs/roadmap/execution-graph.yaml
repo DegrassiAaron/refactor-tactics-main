@@ -378,11 +378,25 @@ relations:
     to: issue:958
     type: requires
 
-  # Capability — un provider e sette consumatori
+  # Capability — un provider e sei consumatori
   #
-  # `DecisionBoundary` non e' un nome nuovo: e' la capability che sette scenari del corpus
-  # dichiarano in `requires` e che `RTScenarioSession.cpp` non elenca fra le disponibili. Sono
-  # quindi BLOCKED per una regola che gia' esiste; cio' che mancava era **chi la fornira'**.
+  # `DecisionBoundary` non e' un nome nuovo: e' la capability che gli scenari del corpus dichiarano
+  # in `requires`. 🔴 **Questo commento diceva «SETTE scenari … e `RTScenarioSession.cpp` non la
+  # elenca fra le disponibili. Sono quindi BLOCKED»: dal 2026-08-16 e' falso in ENTRAMBE le meta',
+  # e la vista generata lo diceva mentre la sua sorgente no** — che e' il verso peggiore, perche'
+  # l'autorevole e' questo file. Rimisurato sul corpus, non ricopiato:
+  #
+  #   · **sei** consumatori, non sette: `Spec.Brace.ProfileChangesResponse` e' passato a
+  #     `ReactionProfile` (`#512` fase B), perche' il suo blocco vero e' il profilo a due risposte —
+  #     senza, quel turno si sbloccava e passava con `intents: []`;
+  #   · la capability **e' fra le disponibili** (`#512` fase B, PR #1033): il provider e' chiuso e
+  #     `AskReactionDecision` ha un chiamante di produzione;
+  #   · dei sei, **due girano** (`RT_Showcase_Relay_v01` T4, `Spec.Overwatch.HoldThenFire` T2) e
+  #     **quattro restano BLOCKED** — i `Spec/Clash/*`, che chiedono anche `ReactionClash`. Scoprire
+  #     la finestra non scopre la scelta contesa.
+  #
+  # L'arco `provides` resta: chi ha fornito la capability e' `#165`, e la provenienza non cambia
+  # perche' la capability e' atterrata.
   - from: issue:165
     to: capability:DecisionBoundary
     type: provides
