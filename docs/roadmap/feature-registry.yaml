@@ -1044,6 +1044,9 @@ features:
       120° e' **strettamente contenuto** nell'insieme dei tre lati frontali — **45** celle di divergenza su
       raggio `1..10`, **tutte** nel verso «tre-lati dentro / cono fuori», **zero** nel verso opposto, la
       prima a distanza **2** — quindi sostituirlo sarebbe un **buff difensivo**, non una rinomina.
+      ⚠️ **La cifra diceva `50` fino al 2026-08-16**: era la misura della regola a **linea**, poi
+      scartata. Corretta da `D-147` insieme alle altre sei sedi. `docs/archive/` porta ancora `50`
+      per costruzione — e' storico, e non va «riallineato».
       🔴 **Il gate `scenario` resta `done` ma la copertura non e' completa**, e va detto: la relazione a sei
       lati **non esiste in `Source/`** (grep di `RelativeDirection`/`ERTRelativeDir`/`RelativeFacing` →
       zero), quindi `Spec.Facing.SixRelativeSides` **non e' stato creato**: senza l'assertion che la legge

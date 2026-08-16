@@ -173,7 +173,7 @@ difesa, percezione e reazioni (ADR-0005 §4) — ⚠️ **emendato il 2026-08-13
 cambiano, ma **non è più la primitiva semantica** del facing; quella sono le sei direzioni relative, e
 l'insieme di lati che un'abilità dichiara appartiene al consumatore. Il cono è **strettamente contenuto**
 nell'insieme dei tre lati frontali (**45** celle di divergenza a raggio `1..10`, tutte nello stesso verso —
-diceva `50`, cifra della regola a linea poi scartata, corretta da `D-147`),
+diceva `50`, cifra della regola a linea poi scartata, corretta da [D-147](RT_PDR_00_Decision_Log.md)),
 quindi sostituirlo cambierebbe il bilanciamento: vedi [ADR-0005 §4-bis](adr-0005-orientamento.md) e
 [#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726) · la difesa direzionale (§4a), la consapevolezza ravvicinata a 2
 celle (§4b) e il cono dell'Overwatch derivato dal facing (§4c) sono **invariati** · la rotazione **non consuma
