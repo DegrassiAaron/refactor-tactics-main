@@ -2321,6 +2321,21 @@ tracks:
     writable:
       - Source/RefactorTactics/Frontend/
       - Source/RefactorTactics/Tests/RTFrontendNavigationTests.cpp
+      # ⚠️ **Il file RESTA qui, e nel giro di un giorno la domanda si e' aperta e richiusa due volte.**
+      # Vale la pena scrivere la sequenza, perche' e' il caso d'uso per cui questo file esiste:
+      #   1. `replay_ui` (#472) prende il path per scrivere la §2.2 — `#936` era chiusa, il branch
+      #      mergiato e cancellato, e **nessun branch vivo lo toccava**, misurato sui dieci remoti;
+      #   2. 🔴 lo prende **aggiungendolo** invece che spostandolo: per qualche ora il path e' in DUE
+      #      `writable` entrambi `ACTIVE` — `WritableSet(T1) ∩ WritableSet(T2) = ∅` violata dentro il
+      #      file che la dichiara. Trovato in code review;
+      #   3. la correzione lo toglie da qui — e nel frattempo **CP 46.2 e' partito e ha scritto la
+      #      spec** (§4.1, §4.2, §4.3 nuova, PR mergiata in `main`). La correzione era giusta per lo
+      #      stato di ieri e sbagliata per quello di oggi.
+      # ✅ **Esito: resta a `frontend_shell`**, che e' la track che continuera' a scriverlo — `#937`
+      # ha appena finito, `#938`…`#941` sono aperte. `replay_ui` non lo dichiara: il suo lavoro sul
+      # file e' **finito** con la §2.2, e un `writable` dichiara chi scrivera', non chi ha scritto.
+      # 💡 La lezione, per la prossima riallocazione: un write-set si misura sui branch **vivi al
+      # momento del merge**, non a quello della decisione. Fra i due c'e' stata una PR.
       - docs/technical/spec-frontend-navigazione.md
     derives_from:
       - source: docs/roadmap/feature-registry.yaml
@@ -2704,6 +2719,76 @@ tracks:
       - Source/RefactorTactics/Unit/RTUnit.cpp
       - Source/RefactorTactics/Tests/RTUnitTests.cpp
       - docs/technical/spec-team-identity.md
+    binary_leases: []
+
+  replay_ui:
+    status: ACTIVE
+    issue: 472
+    branch: feat/472-replay-r6-interfaccia
+    worktree: "D:/rt-client"
+    note: >-
+      **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
+      2026-08-16 dopo lo spec panel in
+      [`plans/replay-r6-spec-panel-2026-08-16.md`](plans/replay-r6-spec-panel-2026-08-16.md).
+
+      ✅ **Il write-set e' MISURATO sui dieci branch vivi**, non dedotto dal titolo:
+      `git diff --name-only origin/main...origin/<b>` per ciascuno dei branch di
+      `git ls-remote --heads origin` (**11**, `main` escluso). `Source/RefactorTactics/Replay/` non
+      compare in **nessuno**. Le sole intersezioni dell'intero giro sono su due file
+      `integration_only` — `feature-registry.yaml` (`docs/five-lane-roadmap`,
+      `feat/593-root-neutro-unit`) e questo file (`feat/832-structure-identity-hash`) — cioe' il
+      regime che quella sezione descrive, non una contesa fra track.
+
+      ⚠️ **Cio' che questa misura NON copre, e va detto invece di lasciarlo credere completo**: i tre
+      worktree su branch **non pushati** (`feat/958-corpus-determinismo-autobattle`, `feat/u1-residui`,
+      `chore/512-writeset-emendamento`). Un branch che nessuno puo' leggere non ha un write-set
+      dichiarato — e' il difetto che questo file ha gia' registrato altrove — e da una sessione isolata
+      in `D:/rt-client` non e' misurabile. Resta la misura che si puo' fare, non una che si finge.
+
+      ➖ **`docs/technical/spec-frontend-navigazione.md` NON e' nel `writable` di questa track**, pur
+      essendo stato scritto da questo branch: la §2.2 che dichiara le due schermate del replay.
+      Sembra una contraddizione e non lo e' — **un `writable` dichiara chi scrivera', non chi ha
+      scritto**, e il lavoro di questa track su quel file e' finito con quella sezione.
+      La storia, che vale piu' della conclusione perche' e' il caso d'uso di questo file:
+      · la track lo prende il 2026-08-16 con le condizioni verificate — `#936` **CLOSED**, branch
+        mergiato (PR **#972**) e cancellato, **nessun branch vivo** che lo tocchi fra i dieci remoti;
+      · 🔴 lo prende **aggiungendolo** invece che spostandolo, e per qualche ora sta in due `writable`
+        entrambi `ACTIVE`. Trovato in code review;
+      · la correzione lo toglie a `frontend_shell` — e **nel frattempo CP 46.2 e' partito e ha scritto
+        la spec** (§4.1, §4.2, §4.3, mergiate in `main`). Giusta per lo stato di ieri, sbagliata per
+        quello di oggi: fra la decisione e il merge c'e' stata una PR.
+      ✅ Esito: il file resta a `frontend_shell`, che continuera' a scriverlo (`#938`…`#941` aperte),
+      e questa track non lo dichiara. La §2.2 e' arrivata in `main` per merge, non per proprieta'.
+      💡 **Un write-set si misura sui branch vivi al momento del MERGE, non a quello della decisione.**
+
+      ⛔ **Cosa questa track NON tocca**: `Source/RefactorTactics/UI/` (`client_tools`, ACTIVE su
+      `#78` — ed e' il motivo per cui il view model del replay nasce in `Replay/` e non li', esattamente
+      come `Frontend/` per `#936`) · `Source/RefactorTactics/Frontend/` (`frontend_shell`: questa track
+      **registra** due nomi di schermata, che sono dati, e non modifica il navigatore) ·
+      `docs/technical/test-manuali-pie.md` (`playtest`, che riceve la voce `PIE-V01-REPLAY-VIEWER` in
+      handoff invece di vedersela scrivere da fuori).
+
+      ⚠️ `Tests/RTReplayViewModelTests.cpp` e' dichiarato **per nome** e non per prefisso: `Tests/` e'
+      condivisa fra tutte le track, e prenderla per prefisso bloccherebbe chiunque scriva un test.
+    writable:
+      - Source/RefactorTactics/Replay/
+      - Source/RefactorTactics/Tests/RTReplayViewModelTests.cpp
+      - docs/roadmap/plans/replay-r6-spec-panel-2026-08-16.md
+    derives_from:
+      - source: docs/roadmap/feature-registry.yaml
+        regenerates:
+          - docs/roadmap/feature-registry.json
+          - docs/roadmap/featuremap.shortlist.md
+          - docs/roadmap/project-graph.json
+          - docs/roadmap/charts/roadmap-map.svg
+          # ➕ **`roadmap.shortlist.md` e' la quinta vista, e manca da OGNI `derives_from` di questo
+          # file.** Non e' un'omissione di questa track: `shortlist --write` la riscrive insieme a
+          # `featuremap.shortlist.md`, e nessuna delle altre la dichiara. Misurato su `git status` dopo
+          # la rigenerazione — non dedotto: la riga di **E46** passa da `4 | 4/22` a `5 | 5/27` per
+          # effetto di questa sola feature. Una vista non dichiarata e' una vista che qualcuno rigenera
+          # senza saperlo, cioe' un conflitto che si scopre al merge.
+          - docs/roadmap/roadmap.shortlist.md
+        shared_with: [integrazione]
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------

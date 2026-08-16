@@ -4465,6 +4465,72 @@ features:
       — `Surrender`/`Leave Match` — ha un'altra semantica. Scoprirlo in v0.5 costerebbe un refactor del
       flow; dichiararlo adesso costa questa riga.
 
+  - feature_id: RT-FEAT-UI-REPLAY-VIEWER
+    title: Replay viewer — la lista delle partite e una riproduzione che dice dove si e'
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P2
+    status: IMPLEMENTING
+    gates:
+      spec: done
+      data: na
+      runtime: partial
+      log_debug: na
+      automation: partial
+      scenario: na
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E46
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-UI-FRONTEND-SHELL
+      - RT-FEAT-REPLAY-ARCHIVE
+    owner_specs:
+      - docs/technical/spec-frontend-navigazione.md
+      - docs/decisions/adr-0009-replay-logico-canonico.md
+    issues: [472]
+    tests:
+      - RefactorTactics.Replay.ViewModel.*
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      R6 del piano replay: `WBP_RT_MatchHistory` e `WBP_RT_ReplayViewer`, dichiarate in
+      `spec-frontend-navigazione.md` §2.2. Il core lo porta gia' `RT-FEAT-REPLAY-ARCHIVE`
+      (`INTEGRATED`): questa feature **non riscrive ne' il seek ne' il Player**, e la revisione che la
+      apre — `plans/replay-r6-spec-panel-2026-08-16.md` — verifica quella tabella riga per riga.
+
+      ⚠️ **Il pezzo che la issue dichiarava assente e non lo e': la posizione.** Dopo `AdvancePhase` il
+      cursore punta gia' alla fase SUCCESSIVA e puo' aver cambiato traccia, quindi «turno e fase
+      correnti» non si leggono da li' — una UI che ci provasse mostrerebbe il turno sbagliato a ogni fine
+      turno. Vive in un view model (`Replay/RTReplayViewModel.h`), come `FRTMatchHeaderView` per l'HUD e
+      `FRTScreenStack` per la navigazione: e' cio' che rende `automation` raggiungibile senza widget.
+
+      🔴 **Incoerenza di release dichiarata, e il validator NON la intercetta.** Questa feature e' `v0.1`
+      per allineamento a E46 (decisione del 2026-08-16, panel §5b) mentre `RT-FEAT-REPLAY-ARCHIVE`, da cui
+      dipende, e' `v0.2`. Il controllo sulle `dependencies` verifica che il `FeatureId` esista, non che la
+      release sia coerente — misurato su `scripts/feature_registry.py:547`. Non e' bloccante: il core e'
+      gia' `INTEGRATED`, quindi la v0.1 non aspetta nulla. La chiusura pulita e' promuovere anche
+      l'archivio, che e' scope di release e merita una `D-nnn`.
+
+      **Stato al 2026-08-16**: il view model esiste (`Replay/RTReplayViewModel.{h,cpp}`) con **11** test
+      `RefactorTactics.Replay.ViewModel.*`, verdi, e l'area `RefactorTactics.Replay` chiude **41/41**.
+      ⚠️ I numeri sono **rimisurati dopo la code review**, che ne ha aggiunti tre: erano 8 e 38 nella
+      prima stesura di questa riga, e sono rimasti giusti per un'ora.
+      `runtime` e `automation` sono `partial` e non `done`: manca tutto cio' che sta sopra il view
+      model — le due schermate, il loro `.uasset`, l'aggancio al navigatore. Un `done` qui direbbe che
+      `#472` e' finita, e non lo e'.
+
+      ⚠️ **Doppio conteggio dichiarato**: `RefactorTactics.Replay.ViewModel.*` e' assorbito dal pattern
+      generico `RefactorTactics.Replay.*` di `RT-FEAT-REPLAY-ARCHIVE`, quindi gli 8 test contano per due
+      feature. **Si accetta invece di restringere il pattern dell'altra**: restringerlo cambierebbe la
+      misura di una feature `INTEGRATED` che non e' in lavorazione qui, e il rischio di sbagliarla —
+      lasciando scoperti Player, Seek, Producer o Verifier — supera il costo di due righe che si
+      sovrappongono. Va ridiscusso quando `RT-FEAT-REPLAY-ARCHIVE` verra' toccata per altro.
+
   - feature_id: RT-FEAT-UI-BOARD-GRAMMAR
     title: Grammatica visiva della board — colore e forma, mai solo il colore
     area: UI
