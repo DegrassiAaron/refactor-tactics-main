@@ -2699,6 +2699,16 @@ tracks:
       - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.cpp
       - Source/RefactorTacticsEditor/Public/RTHexEditorMode.h
       - Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp
+      # ➕ **La guida della seduta U1 entra il 2026-08-16, per `#868`.** È la procedura che `#451` segue,
+      # cioè la issue su cui questa track è `ACTIVE`: il documento e la seduta che lo esegue avevano
+      # proprietari diversi — uno la track, l'altro nessuno.
+      # ⚠️ **La lacuna non è stata scoperta adesso**: `#868` esiste *perché* la sessione che ha trovato i tre
+      # delta si è fermata invece di correggerli, e ha scritto nel proprio corpo *«File non assegnato = STOP …
+      # se si decide di assegnarla, la riallocazione va scritta nel batch prima della correzione»*. Questa
+      # riga è quella decisione, presa nel commit che la precede e non nello stesso che corregge la guida.
+      # Misurato prima di prenderla: **zero** occorrenze in questo file, e **nessuno** dei branch remoti vivi
+      # la tocca (`git diff --name-only origin/main...origin/<b>`, uno per uno, dopo `git fetch --prune`).
+      - docs/technical/guida-seduta-u1-arena.md
     # ➖ **Il `derives_from` segue il file**: la catena `test-manuali-pie.md` → `editormap.shortlist.md`
     # + `project-graph.json` passa a `playtest` insieme alla sorgente. È la regola già scritta in
     # `generated_only` applicata a una riassegnazione: la vista segue la sorgente, e la sorgente ha
