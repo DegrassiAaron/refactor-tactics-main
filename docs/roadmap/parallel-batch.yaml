@@ -3698,8 +3698,8 @@ tracks:
 
   replay_ui:
     status: ACTIVE
-    issue: 999              # più #472, che resta l'ombrello di R6: due issue, un solo write-set
-    branch: feat/999-ponte-bp-replay
+    issue: 625              # più #472, ombrello di R6, in attesa dei suoi `.uasset`
+    branch: feat/625-hazard-turnlog
     worktree: "D:/rt-client"
     note: >-
       **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
@@ -3769,6 +3769,34 @@ tracks:
       # `frontend_shell` — un path non assegnato e' uno stop, non un invito.
       - Source/RefactorTactics/Tests/RTReplayTestFixtures.h
       - docs/roadmap/plans/replay-r6-spec-panel-2026-08-16.md
+      # ➕ **Terzo giro della track: `#625`**, il danno da hazard che non lascia traccia canonica. Non e'
+      # R6 e non e' UI — e' la stessa famiglia, `replay_representable`: una morte che il replay non puo'
+      # riprodurre e che `DescribeFirstDivergence` non puo' nominare. Il worktree e la sessione sono gli
+      # stessi, quindi il write-set resta uno.
+      # ⬅️ `Turn/RTTurnManager.cpp` **riallocato da `playback`** — vedi la sua voce per la misura e per la
+      # contraddizione che ha reso necessaria la richiesta. L'header **non** entra: `#625` non aggiunge
+      # membri.
+      # 🔴 **CONTESA DICHIARATA, e la prima stesura di questa voce non la nominava.** La misura era stata
+      # fatta — `feat/cp75-selfreposition` tocca questo file, ed e' scritto anche nella sezione dei branch
+      # — ma la nota argomentava solo il lato di **chi rilascia** (`#955` chiusa, `playback` IDLE, il passo
+      # 4 in `UI/`), e non la domanda opposta: *sta gia' scrivendo qualcun altro?* Trovato in code review.
+      # Misurato ora, non ricordato:
+      #   `git diff --name-only origin/main...origin/feat/cp75-selfreposition` ->
+      #     `Turn/RTActionEffectLibrary.cpp` · `Turn/RTActionEvent.h` · **`Turn/RTTurnManager.cpp`**
+      # ⚠️ **Non e' una violazione dell'invariante**: `#cp75` non e' una track di questo batch, quindi cio'
+      # che cade non e' `WritableSet(T1) ∩ WritableSet(T2) = ∅` ma il presupposto pratico che il file fosse
+      # sgombro. E' lo stesso caso di `#904` contro `client_tools`, e cambia il rimedio: non riallocazione,
+      # ma una decisione su chi passa per primo.
+      # ✅ **Decisione: passa `#625`.** Il branch e' un **WIP fermo dal 2026-08-11** — `wip(cp75):
+      # SelfReposition — enum ed evento fatti, l'applicazione NO` — senza PR aperta, cinque giorni fermo
+      # in un repository che merge una decina di volte al giorno. `#625` e' misurato, verde su 968 test e
+      # in review. Chi riprende `cp75` merge `main` e trova venti righe in piu' in `ConcludeTurn`, in una
+      # funzione che quel WIP non tocca (`SelfReposition` vive nel Move).
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # ➕ File **non assegnato a nessuna track**, dichiarato prima di scriverci: ha gia' il setup che fa
+      # bruciare un'unita' sul percorso reale (`MakeEnvWorld`/`PlanEnvAction`/`RunEnvTurn`), ed e' li' che
+      # il DoD chiede di leggere `GetTurnLog()` invece di costruire la voce a mano.
+      - Source/RefactorTactics/Tests/RTEnvironmentActionTests.cpp
     derives_from:
       - source: docs/roadmap/feature-registry.yaml
         regenerates:
@@ -3966,6 +3994,13 @@ tracks:
       # `autobattle`, a cui era stato preso e a cui la nota prometteva di negoziarlo.
       # 💡 Un `writable` dice chi **scrivera'**. Una previsione su chi scrivera' invecchia come tutte le
       # previsioni, e va rimisurata quando il turno che prevedeva comincia davvero.
+      # ➡️ **Uno dei sei ha gia' un proprietario nuovo: `Turn/RTTurnManager.cpp` e' di `replay_ui`
+      # (`#625`).** Le due track ci sono arrivate per strade diverse e nello stesso giorno — questa
+      # rilasciando, quella chiedendo — e il conflitto di merge fra le due stesure e' stato risolto
+      # tenendo **questa**, che e' la piu' recente e dice la stessa cosa meglio: i sei erano rimasti su
+      # una previsione, e la previsione e' scaduta. La richiesta di `#625` argomentava la contraddizione
+      # fra la `note` in testa (*«tornano liberi»*) e il commento che li tratteneva; qui la
+      # contraddizione non c'e' piu', perche' non li trattiene nessuno.
       # ➖ **`docs/technical/test-manuali-pie.md` e' USCITO da qui alla chiusura**, ed e' l'unico dei sette
       # che non resta: era **preso in prestito** da `playtest` per scrivere `PIE-V01-PLAYSPEED`, e il
       # lavoro su quel file e' finito. Gli altri sei restano dichiarati perche' questa track li

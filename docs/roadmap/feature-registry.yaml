@@ -3031,7 +3031,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
-      replay_representable: todo
+      replay_representable: done
     roadmap:
       epic: E8
       checkpoints: ["8.2"]
@@ -3162,7 +3162,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
-      replay_representable: todo
+      replay_representable: partial
     roadmap:
       epic: E8
       checkpoints: ["8.1", "8.4"]
@@ -3188,6 +3188,19 @@ features:
     notes: >
       La superficie corrente vive in una copia di lavoro della mappa: la mappa asset non muta a
       runtime. `Burning` danneggia nel Cleanup, prima dei KO.
+
+      🔴 **`replay_representable` e' `partial` e non `done`, ed e' una correzione in corsa.** `#625` ha
+      portato nel TurnLog il danno del **Cleanup** (8 HP, via `Status.Burning`), e il commit che lo
+      consegnava aveva messo questo gate a `done`. Sbagliato: il fuoco fa danno da **due** punti, e
+      quello tracciato e' il minore. I **10** danni immediati di `OnEnterEffects` — `RTTerrainLibrary`
+      li dichiara sulla superficie `Fire` — passano ancora solo da `AddLogEvent`
+      (`ARTTurnManager::ApplyTerrainOnEnterEffects`), quindi restano fuori dalla traccia canonica.
+      ⚠️ E ci si muore: un'unita' spinta su una cella di fuoco con 10 HP o meno **muore li'**, senza
+      nessuna voce — la stessa morte silenziosa che `#625` esisteva per togliere, in un secondo sito.
+      Misurabile sul test di `#625` stesso: il bersaglio scende 90 → 80 → 72, diciotto danni in tutto,
+      e solo otto arrivano al TurnLog. Trovato in code review, che ha rifiutato il `done`.
+      **Chiude il gate** una issue che porti `ApplyTerrainOnEnterEffects` a passare da `AppendLogEntry`,
+      con lo stesso trattamento del caso letale. Non e' scope di `#625`.
 
   - feature_id: RT-FEAT-ENV-STEAM
     title: Fumo e copertura visiva
