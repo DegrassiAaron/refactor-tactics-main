@@ -1,0 +1,91 @@
+#include "Frontend/RTStartupReport.h"
+
+#define LOCTEXT_NAMESPACE "RTStartup"
+
+bool URTStartupReportLibrary::IsFatal(ERTStartupOutcome Outcome)
+{
+	// ⚠️ `switch` esplicito e senza `default`: quando qualcuno aggiungera' un nono esito, il compilatore
+	// chiedera' **di che tipo e'** invece di classificarlo in silenzio come non fatale. Un `default` qui
+	// renderebbe ogni caso nuovo un ripiego, che e' il lato sbagliato in cui sbagliare.
+	switch (Outcome)
+	{
+	case ERTStartupOutcome::FormatAssetInvalid:
+	case ERTStartupOutcome::ShippedFormatInvalid:
+	case ERTStartupOutcome::FormatMapMismatch:
+		return true;
+
+	case ERTStartupOutcome::Ok:
+	case ERTStartupOutcome::UsingTestArena:
+	case ERTStartupOutcome::UsingDemoArena:
+	case ERTStartupOutcome::LevelMapMissing:
+	case ERTStartupOutcome::UsingFallbackFormat:
+	case ERTStartupOutcome::NoTurnManager:
+		return false;
+	}
+
+	return false;
+}
+
+bool URTStartupReportLibrary::IsDegraded(ERTStartupOutcome Outcome)
+{
+	// Degradato = non `Ok` e non fatale. Definirlo per differenza invece che con un secondo elenco evita
+	// che i due elenchi divergano: un esito nuovo appartiene a uno dei due per costruzione.
+	return Outcome != ERTStartupOutcome::Ok && !IsFatal(Outcome);
+}
+
+ERTStartupOutcome URTStartupReportLibrary::FindFatal(const FRTStartupReport& Report)
+{
+	for (const FRTStartupNote& Note : Report.Notes)
+	{
+		if (IsFatal(Note.Outcome))
+		{
+			return Note.Outcome;
+		}
+	}
+	return ERTStartupOutcome::Ok;
+}
+
+bool URTStartupReportLibrary::HasDegradation(const FRTStartupReport& Report)
+{
+	for (const FRTStartupNote& Note : Report.Notes)
+	{
+		if (IsDegraded(Note.Outcome))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+FText URTStartupReportLibrary::DescribeOutcome(ERTStartupOutcome Outcome)
+{
+	// Il testo nasce QUI e non nel widget: e' la stessa ragione per cui esiste l'enum. Un widget che
+	// componesse la riga sarebbe libero di dire una cosa diversa dal log a parita' di causa.
+	switch (Outcome)
+	{
+	case ERTStartupOutcome::Ok:
+		return FText::GetEmpty();
+
+	case ERTStartupOutcome::FormatAssetInvalid:
+		return LOCTEXT("FormatAssetInvalid", "Il formato di partita assegnato non e' valido.");
+	case ERTStartupOutcome::ShippedFormatInvalid:
+		return LOCTEXT("ShippedFormatInvalid", "Il formato spedito col gioco non e' valido.");
+	case ERTStartupOutcome::FormatMapMismatch:
+		return LOCTEXT("FormatMapMismatch", "Formato e mappa non combaciano.");
+
+	case ERTStartupOutcome::UsingTestArena:
+		return LOCTEXT("UsingTestArena", "Arena di PROVA generata: non e' una mappa di gioco.");
+	case ERTStartupOutcome::UsingDemoArena:
+		return LOCTEXT("UsingDemoArena", "Arena di ripiego generata.");
+	case ERTStartupOutcome::LevelMapMissing:
+		return LOCTEXT("LevelMapMissing", "Il livello non porta una mappa esagonale: arena di ripiego.");
+	case ERTStartupOutcome::UsingFallbackFormat:
+		return LOCTEXT("UsingFallbackFormat", "Formato di RIPIEGO: nessun formato dichiarato in vigore.");
+	case ERTStartupOutcome::NoTurnManager:
+		return LOCTEXT("NoTurnManager", "Nessun TurnManager: il formato non e' stato applicato.");
+	}
+
+	return FText::GetEmpty();
+}
+
+#undef LOCTEXT_NAMESPACE
