@@ -189,8 +189,14 @@ danno.
 
 ## 10. Le sette voci
 
-Si verificano nella stessa apertura, sull'arena appena costruita. Gli esiti si scrivono in
+Si verificano in una sola apertura dell'editor. Gli esiti si scrivono in
 [`test-manuali-pie.md`](test-manuali-pie.md).
+
+⚠️ **L'arena non è «appena costruita», e §1–§9 non vanno rifatti.** `L_HexArena` e `DA_HexMap_Arena`
+esistono in `main` dal **2026-08-11** (`2e2caff6`): chi segue questa guida dall'inizio rifarebbe un
+lavoro già committato — e lo riscriverebbe senza lease. Le sezioni da §1 a §9 restano come **storia di
+come l'arena è nata**, utili per rifarla da zero su un'altra mappa; per la seduta si apre il livello che
+c'è e si parte da qui.
 
 | Voce | Cosa guardi | Tool |
 |---|---|---|
@@ -215,8 +221,26 @@ generato con `GenerateIntoAsset` e non hanno bisogno di quest'arena.
 L'ordine sotto è per **tool**, non per importanza: cambiare tool è ciò che costa, e le cinque voci dell'Arch
 si verificano quasi tutte con gli stessi gesti.
 
-**⚠️ Prima di cominciare, salva.** Diverse voci chiedono `Ctrl+Z`, e un Undo di troppo annulla il lavoro
-precedente — la generazione dell'arena sta dentro una sola transazione, quindi sparisce in un colpo.
+**⚠️ Prima di cominciare: NON salvare, e non salvare nemmeno alla fine.**
+
+`Content/RT/Maps/Dev/L_HexArena/` è un binario, e la sua **Binary Asset Lease** non è emessa
+(**D-139**, `docs/roadmap/parallel-batch.yaml`, track `content_editor`). Salvare quel package è la cosa
+da non fare — non «una precauzione in più», ma il gesto che questa seduta ha il vincolo di evitare.
+
+🔴 **Questa riga diceva l'opposto — «prima di cominciare, salva» — e il consiglio era già ridondante
+quando è stato scritto**, non solo oggi. Le date lo mostrano:
+
+```
+2e2caff6  2026-08-11 07:57  feat(U1): L_HexArena e DA_HexMap_Arena, l'arena della v0.1
+8aa1a4e0  2026-08-11 11:13  docs(U1): le sette voci in una sola passata, ordinate per tool
+```
+
+§10b è stato scritto **tre ore dopo** che l'arena era già in git. Il punto di ripristino contro l'Undo
+di troppo esisteva già, ed era migliore di un salvataggio: **`git checkout`**.
+
+∴ se un `Ctrl+Z` va troppo indietro, **chiudi l'editor senza salvare**: l'asset su disco è intatto, e
+non serve altro. Le sette voci non hanno bisogno di scrivere il package — verificano il **mode**, non il
+terreno — e la sequenza `-E` (crea transizione) → `-L` (rimuovi arco) si richiude da sola.
 
 ### Tool Paint — `PIE-HEX-MODE-O`
 
@@ -265,8 +289,27 @@ Serve la piattaforma sul layer 1 già fatta, e almeno una transizione esistente.
 `rt.Arena.Check` un'ultima volta: **tre `[ok]`**. Le voci sopra modificano la mappa (il Fill dipinge, gli
 archi si aggiungono e tolgono), e questo conferma che l'arena sia tornata al layout verificato.
 
-Se un criterio è diventato rosso, non è un difetto del mode: è la mappa cambiata sotto. Rigenera con
-`Generate Arena V01 Into Asset` e rifai piattaforma e transizione.
+**⚠️ Dove lanciarlo, perché il posto sbagliato misura un'altra mappa.** In PIE il GameMode esegue
+`ApplyMapSource` nel proprio `BeginPlay`, e se la sorgente non è il livello il verificatore misura
+l'arena **generata** invece della tua. Due vie corrette, nessuna delle quali tocca un binario:
+
+- dalla **console dell'editor**, col livello aperto e **senza premere Play**: `ApplyMapSource` non gira;
+- in **PIE dopo `rt.Map.Source LevelAsset`**: la cvar scavalca la proprietà e lo dichiara nel log.
+
+Il tell che conta non è un numero da confrontare a memoria — è il **warning**, che nomina la causa invece
+del sintomo:
+
+```
+MapSource=GeneratedTestArena: ... La mappa del livello e' ignorata
+```
+
+Se compare, stai misurando la mappa sbagliata: nessun `[ok]` e nessun `[ko]` di quella run vale.
+
+Se un criterio è diventato rosso **e stavi misurando la mappa giusta**, non è un difetto del mode: è la
+mappa cambiata sotto le voci. Il rimedio è **chiudere l'editor senza salvare e rilanciare `rt.Arena.Check`**
+— l'asset su disco non è mai stato toccato, quindi torna al layout verificato da sé. ⚠️ **Non** «rigenera
+con `Generate Arena V01 Into Asset`»: rigenerare riscrive il package, che senza lease è precisamente il
+gesto vietato, e butterebbe via un'arena committata per un cambiamento mai finito su disco.
 
 ## 11. Chiudere
 
