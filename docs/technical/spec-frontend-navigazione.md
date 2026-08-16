@@ -121,10 +121,27 @@ nel contesto `Modal` esistente: il frontend lo *segnala*, non lo reimplementa.
 
 ### 4.1 Loading
 
-Messaggi di fase reali: `Loading map…`, `Initializing scenario…`, `Preparing bots…`.
+Il widget mostra la fase corrente **leggendo un evento**, non componendo una stringa:
+
+```cpp
+enum class ERTLoadPhase : uint8 { Map, Scenario, Bots };
+```
+
+emessa da `ARTGameMode::BeginPlay` nei tre punti dove oggi esistono già tre `UE_LOG`.
 
 ⚠️ **Nessuna percentuale.** Non esiste un progress model da cui derivarla, e una barra che avanza a caso
 è un dato inventato — la stessa regola per cui la UI non ricalcola il risultato.
+
+🔴 **E fino al 2026-08-16 le tre fasi erano lo stesso difetto in forma discreta.** Questa sezione le
+elencava come *«messaggi di fase reali»* quando `grep -rn "Loading map\|Initializing scenario\|Preparing
+bots\|LoadingPhase" Source/` dava **zero**: nessun enum, nessun evento, niente che un widget potesse
+leggere. Tre stringhe scelte a mano sono tre percentuali con un nome — e il divieto due righe sopra le
+avrebbe vietate, se qualcuno avesse guardato. Trovato dallo spec panel di
+[`../roadmap/plans/cp462-loading-error-spec-panel-2026-08-16.md`](../roadmap/plans/cp462-loading-error-spec-panel-2026-08-16.md);
+l'autore ha scelto di **costruire il produttore** invece di togliere le fasi.
+
+⚠️ **Conseguenza sul write-set**: CP 46.2 tocca `RTGameMode`, cioè codice d'avvio e non solo UI. Quel file
+non è nel `writable` di nessuna track: va **assegnato prima** di aprire il lavoro (D-139).
 
 ### 4.2 Error modal
 
@@ -139,8 +156,34 @@ Reason:
 
 - La **causa** è leggibile da un utente, non un codice muto. Un rifiuto senza motivo è un difetto: è la
   stessa regola per cui un `Blocked` silenzioso è un difetto in CP 11.8.
-- `DETAILS` e `COPY DEBUG INFO` esistono **solo** in build Development. In Shipping resta il messaggio.
-- `BACK` riporta alla schermata precedente **con lo stack intatto**.
+- `DETAILS` e `COPY DEBUG INFO` esistono **solo** in build Development (`#if !UE_BUILD_SHIPPING`, già in
+  uso in 12 file). In Shipping resta il messaggio.
+- **`BACK` dipende da cosa è stato costruito**, e i due esiti esistono già in `ERTNavResult`:
+  - errore **prima** dell'avvio (durante il loading) → `PopScreen`: nulla è stato costruito;
+  - errore **a partita già avviata** → `ReturnMain`, che **smonta**. `PopScreen` lascerebbe una partita
+    viva sotto il menu, cioè lo stato che CP 46.6 vieta.
+
+### 4.3 Banner di ripiego — il caso che il modale non copre
+
+⚠️ **Il gioco quasi non fallisce: ripiega.** Misurato il 2026-08-16 su `RTGameMode.cpp`: **21 warning
+contro 8 errori**, e i due casi principali dell'avvio sono entrambi ripieghi silenziosi —
+`MapSource=GeneratedTestArena` (*«uso la mappa di PROVA»*) e `MakeFallbackRules()` (*«uso il RIPIEGO … le
+misure di playtest vanno attribuite al formato giusto»*). Sono **le due riserve che tengono `G13` 🟡**, e
+un modale d'errore non le intercetta perché non sono errori.
+
+Due forme per due casi:
+
+| Forma | Caso | Esempio |
+|---|---|---|
+| **Modale** | non si parte | scenario inesistente, mappa corrotta |
+| **Banner** persistente | si parte, in condizioni degradate | arena di PROVA · formato di RIPIEGO |
+
+Il banner riusa la forma di `ARTGameMode::GetScenarioBannerText()`, che esiste dal 2026-08-08 per lo
+stesso problema e ne porta la motivazione: *«il sintomo non punta alla causa … la spiegazione c'è, ma è in
+una riga di Output Log che non si ha motivo di andare a cercare»*.
+
+Non chiude le riserve di `G13` — restano mancanze di **dati** — ma smette di renderle invisibili, che è il
+motivo per cui il 2026-08-10 non se n'era accorto nessuno guardando lo schermo.
 
 ---
 
