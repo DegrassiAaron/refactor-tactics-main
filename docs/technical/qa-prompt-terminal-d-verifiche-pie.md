@@ -58,17 +58,21 @@ la voce lo ha registrato *senza* ripararlo, che è la forma giusta.
 Al 2026-08-16, su `origin/main`:
 
 ```text
-docs/technical/test-manuali-pie.md          misurato il 2026-08-16
-  146 voci `PIE-*` totali
-   99 aperte  ⏳
-   41 chiuse  ✅
-    1 chiusa  ❌   ← PIE-HEX-MODE-H, il primo del registro
-   35 famiglie di prefisso
+docs/technical/test-manuali-pie.md
+  ~150 voci `PIE-*`, di cui un centinaio ancora aperte
+    35 famiglie di prefisso
 ```
 
-⚠️ *Questo blocco è stato riscritto **due volte in due commit**. Diceva `145`/`101`, ed era vero finché lo
-stesso commit non ha aggiunto `PIE-HEX-MODE-P`; poi `146`/`102`, finché tre voci della seduta U1 non sono
-state consuntivate. Non è distrazione: è la proprietà del numero. Rimisuralo (§6) invece di citarlo.*
+🔴 **L'ordine di grandezza è il dato: il numero esatto si misura (§6), non si cita.** Questo blocco ha
+portato un conteggio puntuale ed è stato riscritto **quattro volte in un giorno** — `145`/`101`, poi
+`146`/`102` quando lo stesso commit ha aggiunto `PIE-HEX-MODE-P`, poi `146`/`99` con le tre voci della
+seduta U1, poi di nuovo con `#921`/`#931`/`#911` e quattro voci camera consuntivate **da un'altra
+sessione mentre scrivevo**. Nessuna delle quattro era distrazione: è ciò che succede a un contatore su un
+file che più sessioni fanno avanzare.
+
+∴ e la conseguenza operativa per te è più importante del numero: **un centinaio di verifiche aperte non
+si chiude in una seduta**, e il registro avanza anche quando non sei tu a farlo avanzare. Rileggi lo
+stato prima di pianificare, non dopo.
 
 ⚠️ **Il primo `❌` del registro è arrivato il 2026-08-15**, e vale la pena guardarlo prima di scriverne
 un altro: `PIE-HEX-MODE-H` non dice «non funziona», dice *quali due comportamenti* sono stati osservati,
@@ -79,9 +83,7 @@ un ❌ che dicesse solo «rotto» no.
 Le più grandi: `V01` (27) · `VIS` (21) · `HEX-MODE` (15) · `HEXPLAY` (14) · `STATE` (10), poi camera,
 bot, geometria, facing, formato, bilanciamento.
 
-🔴 **Questi numeri invecchiano da soli: rimisurali (§6), non copiarli.** Sono qui perché tu sappia
-l'ordine di grandezza del backlog — 101 verifiche aperte non si chiudono in una seduta — non perché tu
-li citi.
+Le famiglie invece cambiano di rado, e sono il criterio giusto per raggruppare una seduta (§4.3).
 
 ---
 

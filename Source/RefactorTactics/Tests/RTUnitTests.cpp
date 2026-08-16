@@ -86,7 +86,6 @@ bool FRTRingLocalZTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
 
 // ---------------------------------------------------------------------------------------------------------
 // Scudo temporaneo: le abilita' di supporto danno protezione per UN turno, non permanente (issue #96)
@@ -190,3 +189,8 @@ bool FRTCatalogFastMovementIsFoundAsDashTest::RunTest(const FString&)
 	}
 	return true;
 }
+
+// Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
+// invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
+// `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+#endif // WITH_DEV_AUTOMATION_TESTS

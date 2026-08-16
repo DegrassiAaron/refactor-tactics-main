@@ -15,9 +15,59 @@
 #include "ScenarioHarness/RTScenarioSession.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTTestReportWriter.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 /** Definita in Test/RTTestConsole.cpp: scenario da eseguire all'avvio invece della partita normale. */
 extern TAutoConsoleVariable<FString> CVarRTTestScenario;
+
+/**
+ * LE TRE SORGENTI dello scenario da eseguire, e quale vince.
+ *
+ * In ordine di specificita' crescente:
+ *
+ *     proprieta' del GameMode  <  -RTScenario=<Id>  <  rt.Test.Scenario
+ *     (configurazione            (intento di        (intento di adesso, e si puo'
+ *      persistente)               questo avvio)      digitare a meta' sessione)
+ *
+ * La regola e' quella di sempre — il piu' specifico vince — applicata al TEMPO: la console si puo' digitare
+ * dopo l'avvio, quindi deve poter scavalcare cio' che l'avvio aveva chiesto. Se fosse il contrario, un flag
+ * di riga di comando renderebbe impossibile cambiare scenario senza riavviare.
+ *
+ * ⚠️ **Perche' esiste la sorgente di mezzo, che sembra un doppione della console.** In una build **Shipping**
+ * `-dpcvars=rt.Test.Scenario=...` NON arriva: in `DeviceProfileManager.cpp` tutto il parsing di `-dpcvars=`
+ * sta dentro `#if !UE_BUILD_SHIPPING`, quindi la variabile non viene mai impostata e il GameMode legge vuoto.
+ * `FParse::Value` sulla riga di comando non ha quella guardia. Senza questa sorgente, l'unico modo di scegliere
+ * uno scenario in Shipping sarebbe la proprieta' di `BP_GameMode` — cioe' un `.uasset` da modificare
+ * nell'editor, che per giunta cambierebbe il comportamento predefinito del gioco che si distribuisce.
+ * Misurato eseguendo, non dedotto: `#926`.
+ */
+namespace RTScenarioEntry
+{
+	/** Il valore di `-RTScenario=<Id>`, vuoto se il flag non c'e'. */
+	static FString FromCommandLine()
+	{
+		FString Value;
+		FParse::Value(FCommandLine::Get(), TEXT("RTScenario="), Value);
+		return Value;
+	}
+
+	enum class EWinner : uint8 { Property, CommandLine, ConsoleVariable };
+
+	/**
+	 * Chi vince, in un posto solo.
+	 *
+	 * Il log dell'AUTO-RUN e la banda a schermo dicono entrambi la fonte, con etichette diverse. Prima
+	 * calcolavano la risposta ciascuno per conto proprio, con due ternari identici: aggiungere una terza
+	 * sorgente li avrebbe fatti divergere, e si sarebbe visto solo leggendo la banda accanto al log.
+	 */
+	static EWinner Winner()
+	{
+		if (!CVarRTTestScenario.GetValueOnGameThread().IsEmpty()) { return EWinner::ConsoleVariable; }
+		if (!FromCommandLine().IsEmpty())                        { return EWinner::CommandLine; }
+		return EWinner::Property;
+	}
+}
 /** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
 
@@ -114,9 +164,13 @@ void ARTGameMode::BeginPlay()
 
 		// La FONTE va dichiarata sempre, non solo quando c'e' conflitto: chi legge il log deve poter dire
 		// «sta girando quello che ho scelto io» senza dedurlo dal comportamento a schermo.
-		const TCHAR* Source = CVarRTTestScenario.GetValueOnGameThread().IsEmpty()
-			? TEXT("proprieta' del GameMode")
-			: TEXT("console rt.Test.Scenario");
+		const TCHAR* Source = TEXT("proprieta' del GameMode");
+		switch (RTScenarioEntry::Winner())
+		{
+		case RTScenarioEntry::EWinner::ConsoleVariable: Source = TEXT("console rt.Test.Scenario"); break;
+		case RTScenarioEntry::EWinner::CommandLine:     Source = TEXT("riga di comando -RTScenario="); break;
+		case RTScenarioEntry::EWinner::Property:        break;
+		}
 		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s (da: %s): %d turni, pausa %.1fs — avanza un passo per frame"),
 			*TestScenario, Source, Scenario.Turns.Num(), ScenarioTurnPauseSeconds);
 
@@ -507,7 +561,25 @@ FString ARTGameMode::ResolveScenarioToRun() const
 	const FString FromConsole = CVarRTTestScenario.GetValueOnGameThread();
 	if (FromConsole.IsEmpty())
 	{
-		return ScenarioToRun;
+		// Sorgente di mezzo: l'unica che arriva anche in Shipping, dove `-dpcvars` e' compilato fuori. Vedi il
+		// commento di `RTScenarioEntry` in testa al file per il perche' non sia un doppione della console.
+		const FString FromCmdLine = RTScenarioEntry::FromCommandLine();
+		if (FromCmdLine.IsEmpty())
+		{
+			return ScenarioToRun;
+		}
+
+		// Stessa regola del caso sotto, e per la stessa ragione: una precedenza silenziosa manda a cercare il
+		// difetto nella property sbagliata. Il messaggio nomina il flag, non la console, perche' e' quello che
+		// chi legge deve togliere dalla riga di comando per tornare alla proprieta'.
+		if (!ScenarioToRun.IsEmpty() && ScenarioToRun != FromCmdLine)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT-Test] La riga di comando -RTScenario='%s' SCAVALCA la proprieta' "
+					 "ScenarioToRun='%s' del GameMode. Per tornare a usare la proprieta': togli il flag."),
+				*FromCmdLine, *ScenarioToRun);
+		}
+		return FromCmdLine;
 	}
 
 	// ...ma NON in silenzio. Una console variable dura quanto il processo dell'editor: digitata una volta,
@@ -599,9 +671,15 @@ FString ARTGameMode::GetScenarioBannerText() const
 	// La FONTE va detta anche a schermo, per la stessa ragione per cui il log la dice: una console variable
 	// impostata una volta scavalca la tendina a ogni Play successivo, e senza saperlo si cerca il difetto
 	// nella property sbagliata.
-	const TCHAR* Source = CVarRTTestScenario.GetValueOnGameThread().IsEmpty()
-		? TEXT("BP_GameMode")
-		: TEXT("rt.Test.Scenario");
+	// ⚠️ Le etichette sono quelle che i test di `RTScenarioAutoRunTests.cpp` cercano dentro la banda: la
+	// stringa e' il contratto, non un dettaglio di presentazione.
+	const TCHAR* Source = TEXT("BP_GameMode");
+	switch (RTScenarioEntry::Winner())
+	{
+	case RTScenarioEntry::EWinner::ConsoleVariable: Source = TEXT("rt.Test.Scenario"); break;
+	case RTScenarioEntry::EWinner::CommandLine:     Source = TEXT("-RTScenario="); break;
+	case RTScenarioEntry::EWinner::Property:        break;
+	}
 
 	FString Esito = TEXT("in corso");
 	if (ScenarioSession.IsValid() && ScenarioSession->IsFinished())
