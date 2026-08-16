@@ -1980,8 +1980,19 @@ void ARTTurnManager::BeginReplayRecording()
 
 FString ARTTurnManager::ResolveReplaysRoot() const
 {
+	// 🔴 **Il default lo CHIEDE, non lo ricostruisce** (`#1050`). Fino al 2026-08-16 questa funzione
+	// ripeteva qui `FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"))`, e la stessa espressione
+	// viveva in altri due punti: chi avesse spostato gli archivi ne avrebbe cambiato uno, e il lettore
+	// avrebbe elencato una cartella vuota su una macchina piena di registrazioni — indistinguibile da
+	// «non hai ancora giocato». Ne' il compilatore ne' un test se ne accorgono: sono funzioni corrette che
+	// rispondono alla stessa domanda.
+	//
+	// ⚠️ Il posto e' il **produttore**: chi scrive possiede la disposizione su disco — cartella per partita,
+	// manifest, una traccia per turno — e la radice ne e' il primo livello. Chi legge la chiede.
+	// La terza copia era in `URTReplayViewerSubsystem`, tolta con `#999`/#1005; questa e' rimasta indietro
+	// perche' allora `RTTurnManager.cpp` non era nel `writable` di nessuna track (`D-139`).
 	return ReplaysRootOverride.IsEmpty()
-		? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"))
+		? URTReplayRecorderLibrary::DefaultReplaysRoot()
 		: ReplaysRootOverride;
 }
 
