@@ -4673,12 +4673,25 @@ features:
       Vektor `Wraith` — quindi assegnare mesh e animazioni non richiede più una scelta. Nessun gate
       si muove: la decisione è documentale, in editor non e' stato assegnato niente.
 
-      ✅ **#593 (2026-08-16): il root di `ARTUnit` è neutro, e la deformazione delle skeletal sparisce
-      alla causa.** Il cilindro segnaposto era il root con scala `(1.2, 1.2, 1.8)`, quindi ogni mesh
-      aggiunta in Blueprint veniva stirata di `1.5x` — e i quattro `BP_Unit_*` lo compensavano a mano
-      con «World/Absolute Scale», un workaround da rifare su ogni BP nuovo. Con `SceneRoot` neutro
-      l'ingrandimento del 15% alla selezione smette anche lui di raggiungere i figli, **senza che la
-      riga che lo produce cambi**: era la gerarchia, non il codice della selezione.
+      ✅ **#593 (2026-08-16): il root di `ARTUnit` è neutro.** Il cilindro segnaposto era il root con
+      scala `(1.2, 1.2, 1.8)`, quindi ogni mesh aggiunta in Blueprint veniva stirata di `1.5x`. Con
+      `SceneRoot` neutro l'ingrandimento del 15% alla selezione smette anche lui di raggiungere i figli,
+      **senza che la riga che lo produce cambi**: era la gerarchia, non il codice della selezione.
+
+      🔴 **Ma NON raddrizza i quattro `BP_Unit_*` esistenti**, e la prima stesura di questa nota diceva
+      il contrario. I loro nodi SCS dichiarano il genitore **per nome**
+      (`ParentComponentOrVariableName` + `bIsParentComponentNative`, presenti nella name table di tutti
+      e quattro): finché un componente nativo chiamato `Mesh` esiste — e esiste — la skeletal resta
+      figlia di lui, che porta ancora `BaseMeshScale`. Riparentarla è un'apertura di editor, seduta
+      **U7**, con Binary Asset Lease. Il C++ toglie la causa per ciò che nasce d'ora in poi.
+
+      🔴 **E il «workaround World/Absolute Scale» che questa nota dava per applicato NON è negli asset**:
+      `bAbsoluteScale` è un `UPROPERTY` bitfield e, se fosse impostato su un template di componente,
+      comparirebbe nella name table del package. Nei quattro `BP_Unit_*` non c'è. Quindi o non è mai
+      stato applicato — e i personaggi sono deformati adesso — oppure la compensazione è una
+      `RelativeScale3D` tarata a mano, che **non** è ridondante e toglierla li romperebbe. La domanda si
+      chiude aprendo i BP in editor, non da qui: è la prima cosa da guardare in **U7**. Trovato in code
+      review della PR #977.
 
       ⚠️ **Nessun gate si muove, ed è dichiarato invece che sottinteso.** `runtime` resta `partial`
       perché il lavoro che manca è **in editor** (mesh, animazioni, materiali assegnati), e questo
@@ -4687,9 +4700,17 @@ features:
       l'aspetto, che nessun test headless può giudicare. `packaged` resta `todo`: la build mostra
       ancora i cilindri.
 
-      ⏳ **Il workaround sui quattro `BP_Unit_*` è ora ridondante e va tolto in editor** (seduta **U7**,
-      con Binary Asset Lease sui `.uasset`). Finché resta, non fa danno — ma è un compenso a una
-      deformazione che non esiste più, e il prossimo che legge quei BP non ha modo di saperlo.
+      ⏳ **Lavoro di U7, in questo ordine**: (1) aprire i quattro `BP_Unit_*` e **misurare** com'è
+      compensata oggi la deformazione — la risposta decide il resto; (2) riparentare la skeletal sotto
+      `SceneRoot`; (3) solo allora togliere l'eventuale compensazione, che a quel punto è davvero
+      ridondante. ⛔ Non fare (3) prima di (1): se la compensazione è una `RelativeScale3D` tarata a
+      mano, toglierla senza riparentare deforma i personaggi invece di raddrizzarli.
+
+      ⚠️ **Gli owner_spec di questa feature descrivono ancora la gerarchia vecchia** —
+      `spec-team-identity.md` (`Mesh` come root, `SetupAttachment(Mesh)`, la formula con
+      `BaseMeshScale.Z`) e la ricetta della seduta U7 in `editor-sessions.yaml`. Aggiornati con #593;
+      erano rimasti indietro nella prima stesura, e un owner_spec che descrive codice che non esiste più
+      fa reimplementare la compensazione appena tolta.
 
   - feature_id: RT-FEAT-CHAR-TRANSFORMATION
     title: Stati di personaggio, stance e trasformazioni

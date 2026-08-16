@@ -2432,10 +2432,27 @@ tracks:
       ⚠️ **Il vincolo che resta non e' sui file, e' la macchina**: una run di automation per volta e un
       mutex di UBT — questa track compila i target Editor e Game, quindi si aspetta con `simulation`
       (#512) e `content_editor` (#451) se ricompilano insieme.
+      ➕ **`docs/technical/spec-team-identity.md` entra il 2026-08-16, in code review e non all'apertura**,
+      ed e' esattamente il caso che questo file chiama STOP: non era in nessun insieme — ne' in un
+      `writable`, ne' in `integration_only`, ne' in `generated_only`. E' un `owner_spec` di
+      `RT-FEAT-CHAR-PRESENTATION`, e le sue sezioni 2-4 descrivono la gerarchia che questa track sta
+      togliendo: `Mesh` root, `SetupAttachment(Mesh)`, la `RelativeLocation.Z` divisa per
+      `BaseMeshScale.Z`. Lasciarlo indietro non e' neutro — e' una spec `AS-BUILT` che descrive codice
+      che non esiste piu', cioe' l'istruzione a rimettere la compensazione appena tolta.
+      ✅ **Intersezione rimisurata il 2026-08-16 sui tre comandi**, perche' quella di apertura non
+      copriva questo path: `gh pr list` (**3** PR: #977, #908, #904), `git ls-remote --heads origin`
+      (**12** ref, `main` incluso), `git worktree list` (**9** worktree). L'unione da **18 rami vivi** —
+      e i tre comandi non si sovrappongono: `feat/958-corpus-determinismo-autobattle`,
+      `feat/937-loading-error` e `feat/472-replay-r6-interfaccia` esistono solo come worktree locali,
+      invisibili sia a `gh` sia a `ls-remote`. `git diff --name-only origin/main...<ramo>` per tutti e
+      diciotto: **zero** tocca `docs/technical/spec-team-identity.md` o `docs/characters/`.
+      ⚠️ **Limite dichiarato**: la misura vede i COMMIT, non il lavoro non committato negli altri
+      worktree. Contro quello un batch non protegge, e non e' questo file a poterlo promettere.
     writable:
       - Source/RefactorTactics/Unit/RTUnit.h
       - Source/RefactorTactics/Unit/RTUnit.cpp
       - Source/RefactorTactics/Tests/RTUnitTests.cpp
+      - docs/technical/spec-team-identity.md
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
@@ -2609,6 +2626,35 @@ generated_only:
     # quinta sorgente non era in nessun `writable` **né** in `integration_only`, cioè non assegnata.
     # Ora è in `integration_only` con le altre quattro, e l'affermazione torna vera — ma per averlo
     # scritto, non per fortuna.
+
+  # ➕ **Quarta vista di `feature_registry.py`, e questo elenco non la conosceva** (trovata in code
+  # review della PR #977, il 2026-08-16). `feature_registry.py wiki` scrive il blocco
+  # `<!-- RT_FEATURE_STATUS:BEGIN … -->` dentro ogni pagina del repository referenziata da un
+  # `wiki_refs`: chi tocca `status`, i gate o `last_verified` e non lo rigenera lascia `wiki --check`
+  # rosso, e fino a oggi quei nove file non erano in NESSUN insieme — la condizione che rende la
+  # scrittura uno STOP, mentre in pratica ci scrive chiunque aggiorni il registry.
+  #
+  # ⚠️ **L'elenco e' una FUNZIONE, non una lista da trascrivere**: e' l'insieme dei `wiki_refs` che
+  # non iniziano per `wiki:`. Oggi da nove file, tutti sotto `docs/characters/`; una feature nuova con
+  # un `wiki_refs` verso un altro path lo allarga senza che nessuno tocchi questa voce. Si rilegge con:
+  #
+  #     python -c "import sys;sys.path.insert(0,'scripts');import feature_registry as fr;
+  #     print(sorted({r for e in fr.load_registry()['features'] for r in (e.get('wiki_refs') or [])
+  #                   if not r.startswith('wiki:')}))"
+  #
+  # ✅ **Arco misurato col metodo di §`generated_only`**, non dedotto: perturbato un `last_verified`
+  # (verificando con `git diff --numstat` che la perturbazione fosse applicata), `wiki --check`
+  # risponde `disallineato: docs/characters/index.md`. Controprova: `generate --check` e
+  # `shortlist --check` non nominano nessuno di questi nove file.
+  #
+  # 🔴 **E qui `generated_only` copre il BLOCCO, non il file.** E' l'unica voce parzialmente generata
+  # di questo elenco: attorno ai marcatori c'e' prosa scritta a mano, che NON segue il registry e resta
+  # **non assegnata** — scriverla e' ancora uno STOP, e due track che la modificassero insieme
+  # confliggerebbero senza che nulla qui lo veda. Chi deve scriverla si assegna il path come qualunque
+  # altro file.
+  - path: docs/characters/*.md            # solo il blocco RT_FEATURE_STATUS; la prosa resta non assegnata
+    derives_from: [docs/roadmap/feature-registry.yaml]
+    tool: "feature_registry.py wiki"
 
   # Seconda toolchain: Node, gate proprio (D-108). `feature_registry.py` non la vede.
   - path: docs/characters/radar/

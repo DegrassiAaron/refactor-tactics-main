@@ -18,11 +18,24 @@ ARTUnit::ARTUnit()
 
 	// ROOT NEUTRO (#593). Il root non porta scala, e questa e' l'unica proprieta' che conta: **qualunque
 	// componente aggiunto in Blueprint eredita la scala del root**. Finche' il root era il cilindro
-	// segnaposto — `(1.2, 1.2, 1.8)` — una Skeletal Mesh attaccata sotto veniva stirata di `1.8/1.2 = 1.5x`,
-	// e i quattro `BP_Unit_*` lo compensavano a mano con «World/Absolute Scale»: un workaround da rifare su
-	// ogni BP nuovo, che nessun errore segnala se manca.
+	// segnaposto — `(1.2, 1.2, 1.8)` — una Skeletal Mesh attaccata sotto veniva stirata di `1.8/1.2 = 1.5x`.
 	//
-	// E' lo schema che il progetto usa gia' in `ARTCameraPawn` e `ARTHexMapActor`.
+	// ⚠️ **Questo NON basta a raddrizzare i quattro `BP_Unit_*` gia' esistenti**, ed e' il limite da
+	// dichiarare invece di lasciare credere il contrario. I loro nodi SCS dichiarano il proprio genitore
+	// **per nome** (`ParentComponentOrVariableName` + `bIsParentComponentNative`, presenti nella name table
+	// di tutti e quattro): finche' un componente nativo chiamato `Mesh` esiste — e esiste — la skeletal
+	// resta figlia di lui, che porta ancora `BaseMeshScale`. Riparentarla sotto `SceneRoot` e' un'apertura
+	// di editor: seduta **U7**, con Binary Asset Lease sui `.uasset`. Da qui si toglie la CAUSA per tutto
+	// cio' che nasce d'ora in poi; i quattro esistenti li raddrizza una persona.
+	//
+	// 🔴 **Il precedente nel progetto e' UNO, non due**: `ARTCameraPawn.cpp:18` crea un `USceneComponent`
+	// chiamato «Root» e lo imposta come radice. `ARTHexMapActor.cpp:91` **no** — usa un
+	// `UInstancedStaticMeshComponent` (`Cells`) come root, cioe' lo stesso schema che questa modifica sta
+	// togliendo da qui. Una stesura precedente citava entrambi, e la code review l'ha falsificata: chi
+	// verificasse il precedente per decidere come radicare un actor nuovo troverebbe la risposta opposta.
+	//
+	// (Su `ARTHexMapActor` la scelta e' difendibile e non si tocca qui: il suo root non porta scala
+	// deformante, e nessuno gli attacca componenti da Blueprint.)
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
 
@@ -43,8 +56,17 @@ ARTUnit::ARTUnit()
 	// ragione per cui `RingLocalZ` aveva un parametro `ParentScaleZ` da compensare. Sotto un root unitario
 	// non c'e' piu' niente da compensare, e l'anello smette di dipendere dall'aspetto del segnaposto.
 	//
-	// `SetUsingAbsoluteScale` resta: protegge dall'ingrandimento del 15% alla selezione, che ora comunque
-	// non lo raggiunge piu' — due difese per la stessa cosa, e quella che regge da sola e' la gerarchia.
+	// `SetUsingAbsoluteScale` resta, ma **non e' piu' la stessa difesa** e vale dirlo invece di lasciarlo
+	// credere ridondante. Contro l'ingrandimento del 15% alla selezione non serve piu': quello tocca
+	// `Mesh` (`OnSelected`, riga 266), che ora e' un FRATELLO dell'anello, non il suo genitore — la
+	// gerarchia lo ferma da sola. Cio' che continua a coprire e' un caso diverso: la scala dell'ATTORE,
+	// che e' la scala del root, e che chiunque puo' cambiare per istanza in livello o in Blueprint.
+	//
+	// ⚠️ E la copre a meta', per come e' fatto `bAbsoluteScale`: `CalcNewComponentToWorld` copia la
+	// scala relativa ma lascia la traslazione moltiplicata dal genitore. Su un attore scalato l'anello
+	// mantiene la propria DIMENSIONE e sposta la propria QUOTA. Non e' un difetto introdotto qui — vale
+	// identico prima di #593 — e raddrizzarlo vorrebbe dire scegliere fra due comportamenti, cioe' una
+	// decisione, non una riga.
 	TeamRing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TeamRing"));
 	TeamRing->SetupAttachment(SceneRoot);
 	TeamRing->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -178,11 +200,14 @@ void ARTUnit::ApplyTeamColor()
 		}
 	}
 
-	// Anello di team a terra: compensa il solo VisualZOffset — sotto un root unitario non c'e' scala da dividere.
-	// Colorato se M_TeamRing c'e', altrimenti nascosto (fallback: resta il colore sul cilindro).
+	// Quota dei due anelli a terra: compensa il solo VisualZOffset — sotto un root unitario non c'e' scala
+	// da dividere. Calcolata UNA volta: i due anelli stanno per contratto alla stessa quota, e due chiamate
+	// separate si desincronizzano al primo che cambia (code review di #593).
+	const float RingZ = RingLocalZ(VisualZOffset);
+
+	// Anello di team: colorato se M_TeamRing c'e', altrimenti nascosto (fallback: resta il colore sul cilindro).
 	if (TeamRing)
 	{
-		const float RingZ = RingLocalZ(VisualZOffset);
 		TeamRing->SetRelativeLocation(FVector(0.f, 0.f, RingZ));
 		if (UMaterialInterface* RingBase = TeamRingMaterial.LoadSynchronous())
 		{
@@ -201,7 +226,7 @@ void ARTUnit::ApplyTeamColor()
 	// OnSelected non lo mostra. Senza materiale di selezione non compare (fallback come il TeamRing).
 	if (SelectionRing)
 	{
-		SelectionRing->SetRelativeLocation(FVector(0.f, 0.f, RingLocalZ(VisualZOffset)));
+		SelectionRing->SetRelativeLocation(FVector(0.f, 0.f, RingZ)); // stessa quota, stesso valore
 		if (UMaterialInterface* SelBase = SelectionRingMaterial.LoadSynchronous())
 		{
 			SelectionRingDynMaterial = UMaterialInstanceDynamic::Create(SelBase, this);

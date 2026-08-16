@@ -3,8 +3,15 @@
 > ## 🧱 `AS-BUILT` — implementata, non un piano
 >
 > Questa spec parlava al futuro come se l'anello fosse ancora da costruire. **È realizzata**: l'anello di team
-> è in codice (`ARTUnit`, con `RingLocalZ` che compensa `VisualZOffset` e la scala del genitore) e la
-> verifica interattiva è registrata nel registro PIE.
+> è in codice (`ARTUnit`, con `RingLocalZ` che compensa `VisualZOffset`) e la verifica interattiva è
+> registrata nel registro PIE.
+>
+> 🔴 **Riallineata il 2026-08-16 con `#593` (PR #977), ed era diventata attivamente dannosa.** Le §2–§4
+> descrivevano `Mesh` come root, `TeamRing->SetupAttachment(Mesh)` e una `RelativeLocation.Z` divisa per
+> `BaseMeshScale.Z`. Il root oggi è un `USceneComponent` neutro e nessuna di quelle tre cose è più vera:
+> una spec `AS-BUILT` che descrive codice inesistente non è documentazione ferma, è l'istruzione a
+> **rimettere** la compensazione appena tolta. Le righe superate restano ~~barrate~~ con la misura nuova
+> accanto, perché il *perché* del cambio vale quanto lo stato finale.
 >
 > **Non aggancia una resa visiva definitiva del roster**: quale personaggio corrisponda a Gadget, Phase, Riktor
 > o Wraith è una decisione **aperta** ([`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)). L'anello funziona
@@ -32,18 +39,25 @@ cilindro resta (comportamento attuale invariato). **Fuori scope**: outline/decal
 
 | Fatto | Evidenza |
 |---|---|
-| Identità team = MID `"Color"` (Team0=blu / Team1=rosso) sul cilindro `Mesh` (root), in `ApplyTeamColor()` (BeginPlay) | `RTUnit.cpp:54-75,34` |
-| `Mesh` = root `UStaticMeshComponent` con `BaseMeshScale=(1.2,1.2,1.8)` (scala **non uniforme**) | `RTUnit.h:246,258` |
-| `Team0Color`/`Team1Color` (`FLinearColor`), `VisualZOffset` (90 cilindro / 0 personaggio) | `RTUnit.h:252-255,216-217` |
-| Selezione = `Mesh->SetRelativeScale3D(BaseMeshScale*1.15)` (la scala del root cambia) | `RTUnit.cpp:106-111` |
+| Identità team = MID `"Color"` (Team0=blu / Team1=rosso) sul cilindro `Mesh`, in `ApplyTeamColor()` (BeginPlay) | `RTUnit.cpp` |
+| **Root = `SceneRoot`**, `USceneComponent` a scala **unitaria**; `Mesh` è un suo figlio | `RTUnit.cpp` (costruttore) |
+| `Mesh` = `UStaticMeshComponent` con `BaseMeshScale=(1.2,1.2,1.8)` (scala **non uniforme**) — ~~root~~ | `RTUnit.h` |
+| `Team0Color`/`Team1Color` (`FLinearColor`), `VisualZOffset` (90 cilindro / 0 personaggio) | `RTUnit.h` |
+| Selezione = `Mesh->SetRelativeScale3D(BaseMeshScale*1.15)` — tocca il cilindro, ~~non più il root~~ | `RTUnit.cpp` (`OnSelected`) |
 | Con `BP_Unit` skeletal il cilindro è **nascosto** → il MID Color non si vede | `spec-asset-pipeline.md §4.1` |
+
+⚠️ **I numeri di riga sono stati tolti, non aggiornati.** Erano cinque riferimenti `file:riga` e
+**tutti e cinque** puntavano altrove dopo `#593` — nessun gate se n'era accorto, perché il file esiste
+e la riga esiste sempre. Un puntatore che si sposta a ogni commit è un puntatore che mente in silenzio:
+il nome del simbolo (`OnSelected`, `ApplyTeamColor`) lo trova `grep`, e non scade.
 
 ---
 
 ## 3. Componenti (C++ in `RTUnit`)
 
-- Nuovo `TObjectPtr<UStaticMeshComponent> TeamRing` (costruttore), `SetupAttachment(Mesh)`, **NoCollision**,
-  mesh engine `/Engine/BasicShapes/Cylinder` scalata a disco piatto.
+- Nuovo `TObjectPtr<UStaticMeshComponent> TeamRing` (costruttore), `SetupAttachment(SceneRoot)`
+  (~~`SetupAttachment(Mesh)`~~, cambiato da `#593`), **NoCollision**, mesh engine
+  `/Engine/BasicShapes/Cylinder` scalata a disco piatto.
 - Nuovo `TObjectPtr<UMaterialInstanceDynamic> RingDynMaterial` (transient).
 - Nuovo `TSoftObjectPtr<UMaterialInterface> TeamRingMaterial` (→ `M_TeamRing`, `EditAnywhere`).
 - `static FLinearColor TeamColorFor(int32 TeamId, const FLinearColor& Team0, const FLinearColor& Team1)` — **pura, testabile**.
@@ -53,12 +67,29 @@ cilindro resta (comportamento attuale invariato). **Fuori scope**: outline/decal
 - `ApplyTeamColor()` esteso: colore = `TeamColorFor(TeamId, Team0Color, Team1Color)` (usato sia per il cilindro sia
   per il ring). Se `TeamRingMaterial` carica → `RingDynMaterial = MID(M_TeamRing)`, `SetVectorParameterValue("Color", ...)`,
   `TeamRing->SetVisibility(true)`. Altrimenti `TeamRing->SetVisibility(false)` (fallback).
-- **Scala indipendente** (il rischio chiave): il ring è figlio del cilindro scalato `(1.2,1.2,1.8)` e la selezione
-  cambia quella scala → `TeamRing->SetUsingAbsoluteScale(true)` così il ring **non eredita** la deformazione né la
-  selezione; `SetRelativeScale3D` fissa il raggio (~cella).
-- **Posizione a terra**: il root è a `+VisualZOffset` sopra la cella; la `RelativeLocation.Z` del ring compensa la
-  scala Z del genitore: `Z = (-VisualZOffset / BaseMeshScale.Z) + ε`. Con 90/1.8 → -50 → world = cella (terra); con
-  `VisualZOffset=0` → 0 → terra. Impostata in `ApplyTeamColor` (VisualZOffset noto a BeginPlay).
+- **Scala indipendente**: ~~il ring è figlio del cilindro scalato `(1.2,1.2,1.8)` e la selezione cambia quella
+  scala~~ — dal `#593` il ring è **fratello** del cilindro sotto `SceneRoot`, quindi né la deformazione né
+  l'ingrandimento del 15% lo raggiungono, per costruzione. `TeamRing->SetUsingAbsoluteScale(true)` **resta**, ma
+  copre ormai un caso diverso: la scala dell'**attore** (che è la scala del root), modificabile per istanza in
+  livello o in Blueprint. ⚠️ E la copre a metà — `bAbsoluteScale` congela la dimensione e lascia la traslazione
+  moltiplicata dal genitore, quindi su un attore scalato l'anello tiene la taglia e sposta la quota. Valeva
+  identico prima di `#593`. `SetRelativeScale3D` fissa il raggio (~cella).
+- **Posizione a terra**: l'attore è a `+VisualZOffset` sopra la cella e la `RelativeLocation.Z` del ring lo
+  riporta al piano. La formula è `Z = -VisualZOffset + RingGroundClearance`
+  (~~`Z = (-VisualZOffset / BaseMeshScale.Z) + ε`~~): la divisione è sparita con il genitore che la rendeva
+  necessaria, e con lei la guardia div-by-zero, che senza denominatore non proteggeva più niente.
+  Con `VisualZOffset=90` → `-88.2`; con `0` → `1.8`. **Stessa quota-mondo nei due casi** — invariante che la
+  vecchia formula otteneva solo perché entrambi i rami venivano moltiplicati per la stessa scala.
+  Impostata in `ApplyTeamColor` (`VisualZOffset` noto a BeginPlay).
+
+  🔴 **`RingGroundClearance = 1.8` non è un ε, ed è il numero che `#593` ha sbagliato una volta.** Il disco
+  della cella è un cilindro engine appiattito da `RTCellFlatScale = 0.05`, quindi la sua faccia superiore sta a
+  `50 × 0.05 = 2.5`. L'anello è alto `50 × 0.02 = 1.0` di semi-altezza: perché **emerga** serve
+  `Clearance + 1.0 > 2.5`, cioè `> 1.5`. Una stesura aveva messo `1.0` — bordo a `2.0`, mezza unità **dentro**
+  un disco opaco: anello di squadra e anello di selezione invisibili, con la suite **verde**, perché nessun
+  test guardava da quel lato. Oggi lo falsifica `RefactorTactics.Unit.RingClearsCellDisc`.
+  ⚠️ `RTCellTopZ` è `constexpr` in un namespace anonimo di `Map/RTHexMapActor.cpp`: il `2.5` qui e nel test è
+  una **seconda copia**, e condividere la costante è **#983**.
 
 ## 5. Fallback & invarianti
 
