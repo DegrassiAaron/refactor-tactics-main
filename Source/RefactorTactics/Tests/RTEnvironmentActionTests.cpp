@@ -1499,4 +1499,126 @@ bool FRTHazardEscapeFleesBeforeDamageTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Actions.Hazard.BurningLeavesACanonicalEntry` — il danno da fuoco entra nel TurnLog (`#625`).
+ *
+ * 🔴 Fino al 2026-08-16 il danno da `Status.Burning` esisteva **solo** in `AddLogEvent`: un `UE_LOG` piu'
+ * un buffer circolare troncato, che non e' la traccia. Chi riproduceva la partita vedeva gli HP scendere
+ * senza un evento che lo spiegasse, e `DescribeFirstDivergence` non poteva nominare quel punto — il
+ * difetto che il gate `replay_representable` ha trovato.
+ *
+ * ⚠️ **Si fa bruciare un'unita' sul percorso vero e si legge `GetTurnLog()`**: e' un requisito del DoD, e
+ * la ragione e' che una voce costruita a mano proverebbe che la struct si compila, non che qualcuno la
+ * scrive. Qui il fuoco lo accende `Action.Ignite` e il danno arriva nel Cleanup, come in partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardBurningLogTest,
+	"RefactorTactics.Actions.Hazard.BurningLeavesACanonicalEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardBurningLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	const int32 HpPrima = Target->Health;
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	// Premessa: se non brucia, il resto non prova niente.
+	const bool bBruciato = Target->Health < HpPrima && Target->HasStatus(TAG_Status_Burning);
+	if (!TestTrue(TEXT("premessa: l'unita' brucia davvero"), bBruciato))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// La voce canonica: categoria, causa, soggetto, quantita'.
+	int32 Trovate = 0;
+	FRTTurnLogEntry Voce;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Status.Burning")))
+		{
+			++Trovate;
+			Voce = E;
+		}
+	}
+
+	if (TestEqual(TEXT("una voce di Burning nel TurnLog"), Trovate, 1))
+	{
+		TestEqual(TEXT("nel Cleanup"), Voce.Phase, ERTMatchPhase::Cleanup);
+		// ⚠️ `Combat` e non `Environment`: la domanda e' «quanti punti vita, e a chi» — la stessa per cui
+		// `Healed` sta fra gli esiti di combattimento. La CAUSA la porta `ActionId`, ed e' li' che questo
+		// danno si distingue da un colpo.
+		TestEqual(TEXT("categoria Combat"), Voce.Category, ERTLogCategory::Combat);
+		TestEqual(TEXT("il danno dichiarato dal catalogo"), Voce.Amount,
+			URTCombatLibrary::BurningCleanupDamage);
+		// 🔴 Il soggetto e' chi SUBISCE: in un danno da hazard non c'e' un attaccante, e `0` direbbe
+		// «nessuna unita' dichiarata» su un evento che ne ha una sola.
+		TestEqual(TEXT("il soggetto e' chi brucia"), Voce.UnitId, Target->StableUnitId);
+		TestNotEqual(TEXT("e non e' lo zero del «nessuno»"), Voce.UnitId, 0);
+		TestEqual(TEXT("non letale: Hit"), Voce.Outcome, (uint8)ERTCombatOutcome::Hit);
+	}
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `Actions.Hazard.BurningDeathIsNotSilent` — chi muore bruciato lascia una traccia.
+ *
+ * 🔴 E' il caso peggiore del difetto: il `continue` che salta l'unita' morta la faceva **sparire in
+ * silenzio**, e un replay vedeva un'unita' in meno senza un evento che lo dicesse.
+ *
+ * ⚠️ La morte la porta l'**`Outcome`** della stessa voce, non una seconda voce: `Lethal` distingue gia'
+ * l'eliminazione dal danno che non uccide, e due voci direbbero due volte lo stesso fatto — lo stesso
+ * motivo per cui l'attacco letale non ne scrive una seconda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardBurningLethalLogTest,
+	"RefactorTactics.Actions.Hazard.BurningDeathIsNotSilent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardBurningLethalLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	// Portata a un soffio: il danno del Cleanup la uccide. Lo scudo va a zero, o assorbirebbe il colpo e
+	// il caso letale non si presenterebbe.
+	Target->Shield = 0;
+	Target->Health = 1;
+
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	if (!TestFalse(TEXT("premessa: l'unita' e' morta bruciata"), Target->IsAlive()))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	int32 Letali = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Status.Burning"))
+			&& E.Outcome == (uint8)ERTCombatOutcome::Lethal
+			&& E.UnitId == Target->StableUnitId)
+		{
+			++Letali;
+		}
+	}
+	TestEqual(TEXT("una voce letale, con il suo soggetto"), Letali, 1);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

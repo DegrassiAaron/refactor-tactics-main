@@ -3163,8 +3163,8 @@ tracks:
 
   replay_ui:
     status: ACTIVE
-    issue: 999              # più #472, che resta l'ombrello di R6: due issue, un solo write-set
-    branch: feat/999-ponte-bp-replay
+    issue: 625              # più #472, ombrello di R6, in attesa dei suoi `.uasset`
+    branch: feat/625-hazard-turnlog
     worktree: "D:/rt-client"
     note: >-
       **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
@@ -3234,6 +3234,18 @@ tracks:
       # `frontend_shell` — un path non assegnato e' uno stop, non un invito.
       - Source/RefactorTactics/Tests/RTReplayTestFixtures.h
       - docs/roadmap/plans/replay-r6-spec-panel-2026-08-16.md
+      # ➕ **Terzo giro della track: `#625`**, il danno da hazard che non lascia traccia canonica. Non e'
+      # R6 e non e' UI — e' la stessa famiglia, `replay_representable`: una morte che il replay non puo'
+      # riprodurre e che `DescribeFirstDivergence` non puo' nominare. Il worktree e la sessione sono gli
+      # stessi, quindi il write-set resta uno.
+      # ⬅️ `Turn/RTTurnManager.cpp` **riallocato da `playback`** — vedi la sua voce per la misura e per la
+      # contraddizione che ha reso necessaria la richiesta. L'header **non** entra: `#625` non aggiunge
+      # membri.
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # ➕ File **non assegnato a nessuna track**, dichiarato prima di scriverci: ha gia' il setup che fa
+      # bruciare un'unita' sul percorso reale (`MakeEnvWorld`/`PlanEnvAction`/`RunEnvTurn`), ed e' li' che
+      # il DoD chiede di leggere `GetTurnLog()` invece di costruire la voce a mano.
+      - Source/RefactorTactics/Tests/RTEnvironmentActionTests.cpp
     derives_from:
       - source: docs/roadmap/feature-registry.yaml
         regenerates:
@@ -3308,7 +3320,18 @@ tracks:
       - Source/RefactorTactics/Turn/RTPlaybackLibrary.h
       - Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp
       - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # ➖ **`Turn/RTTurnManager.cpp` esce il 2026-08-16 e passa a `replay_ui` (`#625`).**
+      # 🔴 La richiesta nasce da una **contraddizione dentro questo stesso blocco**: la `note` in testa
+      # dice *«I sette path tornano **liberi**»*, il commento qui sotto dice *«Gli altri sei **restano
+      # dichiarati** perche' questa track li riscrivera' al passo 4»*. Le due righe sono state scritte
+      # nello stesso commit e non possono valere insieme.
+      # ✅ Sciolta a favore del rilascio, per il solo `.cpp` e con la misura: `#955` e' **CLOSED**
+      # (`2026-08-16T10:42:41Z`), il branch non esiste sul remoto, la track e' IDLE — e il **passo 4** che
+      # il commento invoca vive in `Source/RefactorTactics/UI/`, non qui: e' la resa in HUD della manopola,
+      # e per riscriverla `RTTurnManager.cpp` non serve.
+      # ⚠️ **Esce solo il `.cpp`**: `RTTurnManager.h` resta qui, perche' `#625` non aggiunge membri — la
+      # voce canonica si scrive dentro `ConcludeTurn` con i tipi che esistono gia'. Se servisse l'header,
+      # la richiesta andrebbe rifatta invece di allargare questa.
       - Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
       # ➖ **`docs/technical/test-manuali-pie.md` e' USCITO da qui alla chiusura**, ed e' l'unico dei sette

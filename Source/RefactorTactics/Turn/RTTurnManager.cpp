@@ -907,6 +907,42 @@ void ARTTurnManager::LockInAndResolve()
 				const FRTDamageResult Burn = URTCombatLibrary::ApplyDamage(
 					URTCombatLibrary::BurningCleanupDamage, Unit->Shield, Unit->Health);
 				Unit->ApplyCombatState(Burn.Health, Burn.Shield);
+
+				// ➕ **La voce canonica del danno da hazard** (`#625`). Fino al 2026-08-16 questo danno
+				// esisteva **solo** in `AddLogEvent`, cioe' in un `UE_LOG` piu' un buffer circolare troncato:
+				// chi riproduceva la partita vedeva gli HP scendere — o un'unita' sparire — senza un evento
+				// che lo spiegasse, e `DescribeFirstDivergence` non poteva nominare quel punto. E' il difetto
+				// che il gate `replay_representable` ha trovato, e che il commento di `ERTReactionDecision`
+				// cita per nome in `RTTurnLog.h`.
+				//
+				// ⚠️ **Categoria `Combat` e non `Environment`, ed e' una scelta di modello.** La cella agisce,
+				// ma la domanda a cui questa voce risponde e' *«quanti punti vita ha cambiato, e a chi»* — la
+				// stessa per cui `Healed` sta fra gli esiti di combattimento invece di avere una categoria
+				// propria. `ERTEnvironmentOutcome` parla di **superfici e coperture**: aggiungergli valori sul
+				// danno alle unita' creerebbe due enum che rispondono alla stessa domanda sotto due categorie,
+				// che e' precisamente il difetto argomentato in `RTTurnLog.h` §`ERTReactionDecision`.
+				// La **causa** la porta `ActionId`, dove un danno da attacco porta l'identita' dell'azione: e'
+				// li' che si distingue un colpo dalle fiamme, non nella categoria.
+				//
+				// ⚠️ `AppendLogEntry(Entry, Unit)` — l'unita' che **subisce**, non chi colpisce, ed e'
+				// l'opposto della voce dell'attacco due funzioni piu' sotto. Non e' un'incoerenza: `UnitId` e'
+				// «chi ha agito», e in un danno da hazard **non c'e' un attaccante**. Lasciarlo a `0` direbbe
+				// «nessuna unita' dichiarata» su un evento che ha un soggetto solo e ovvio.
+				FRTTurnLogEntry Burning;
+				Burning.Phase = ERTMatchPhase::Cleanup;
+				Burning.Category = ERTLogCategory::Combat;
+				Burning.ActionId = TAG_Status_Burning.GetTag().GetTagName();
+				Burning.SrcCell = Unit->Cell;
+				Burning.TgtCell = Unit->Cell; // la cella agisce su chi ci sta sopra: sorgente e bersaglio coincidono
+				Burning.Amount = URTCombatLibrary::BurningCleanupDamage;
+				Burning.Outcome = static_cast<uint8>(
+					!Unit->IsAlive() ? ERTCombatOutcome::Lethal
+					: (Burn.Health == Unit->MaxHealth) ? ERTCombatOutcome::ShieldAbsorbed
+					: ERTCombatOutcome::Hit);
+				AppendLogEntry(Burning, Unit);
+
+				// ⚠️ `AddLogEvent` **resta**, e non e' ridondanza: e' la vista leggibile a schermo, il TurnLog
+				// e' la traccia. Il DoD di `#625` lo chiede esplicitamente — «non si sostituisce, si affianca».
 				AddLogEvent(FString::Printf(TEXT("%s: %d danni da Status.Burning (q=%d,r=%d,L%d)"),
 					*Unit->GetName(), URTCombatLibrary::BurningCleanupDamage,
 					Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer));
@@ -915,6 +951,12 @@ void ARTTurnManager::LockInAndResolve()
 				{
 					// L'eliminazione da hazard non ha un beat di playback (la timeline e' gia' chiusa):
 					// la nasconde il catch-all di ConcludeTurn, che esiste proprio per questo caso.
+					//
+					// ⚠️ **La morte la porta l'`Outcome` della voce sopra, non una seconda voce.** Il DoD
+					// chiede che l'eliminazione sia «distinta dal danno che non uccide», e `Lethal` la
+					// distingue gia': una voce in piu' direbbe due volte lo stesso fatto, e il replay dovrebbe
+					// decidere quale delle due e' il colpo — che e' lo stesso motivo per cui l'attacco letale,
+					// due funzioni piu' sotto, non ne scrive una seconda.
 					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()));
 					continue; // morto adesso: non guadagna energia, non conta fra i vivi
 				}
