@@ -71,3 +71,74 @@ TArray<FString> URTStructureIdentityLibrary::ValidateReferences(const URTHexMapA
 	}
 	return Errors;
 }
+
+TArray<FRTStructureEdgeRef> URTStructureIdentityLibrary::ResolveInteractionTargets(
+	const URTHexMapAsset* Map, FName SourceId)
+{
+	TArray<FRTStructureEdgeRef> Targets;
+	if (Map == nullptr || SourceId.IsNone())
+	{
+		return Targets;
+	}
+
+	// Scansione LINEARE dell'array, non una `TMap` costruita al volo: l'ordine dei bersagli e' quello
+	// dichiarato nell'asset, e costruire un indice per poi riordinarlo introdurrebbe proprio la dipendenza
+	// da un ordine di iterazione che l'invariante n. 3 vieta. Con un binding duplicato vince il PRIMO — ma
+	// quel caso e' un errore d'asset (`ValidateInteractionGraph`), non una regola su cui appoggiarsi.
+	for (const FRTInteractionBinding& Binding : Map->InteractionBindings)
+	{
+		if (Binding.SourceId != SourceId)
+		{
+			continue;
+		}
+		for (const FName& TargetId : Binding.TargetIds)
+		{
+			Targets.Append(FindDoorEdges(Map, TargetId));
+		}
+		break;
+	}
+	return Targets;
+}
+
+TArray<FString> URTStructureIdentityLibrary::ValidateInteractionGraph(const URTHexMapAsset* Map)
+{
+	TArray<FString> Errors;
+	if (Map == nullptr)
+	{
+		return Errors;
+	}
+
+	TSet<FName> SeenSources;
+	for (const FRTInteractionBinding& Binding : Map->InteractionBindings)
+	{
+		// Una sorgente senza nome non e' «nessuna sorgente»: e' un campo lasciato indietro, la stessa
+		// distinzione che `ValidateReferences` fa sui bersagli.
+		if (Binding.SourceId.IsNone())
+		{
+			Errors.Add(TEXT("Error: binding di interazione senza sorgente"));
+		}
+		// `Add` restituisce se l'elemento c'era gia': il duplicato NON «vince l'ultimo», fallisce. Senza,
+		// due liste comanderebbero la stessa struttura e nessuno saprebbe quale.
+		else if (SeenSources.Contains(Binding.SourceId))
+		{
+			Errors.Add(FString::Printf(
+				TEXT("Error: binding duplicato per la sorgente '%s'"), *Binding.SourceId.ToString()));
+		}
+		else
+		{
+			SeenSources.Add(Binding.SourceId);
+		}
+
+		// La sorgente dev'essere una struttura vera quanto i bersagli, e i bersagli passano dalla regola
+		// che #832 ha gia' scritto: `ValidateReferences` sa che un nome risolve una porta OPPURE un arco.
+		// La sorgente vuota e' gia' stata segnalata sopra: rimandarla a `ValidateReferences` darebbe due
+		// errori per un difetto solo, e un conteggio di errori che non corrisponde ai difetti e' il genere
+		// di cosa su cui poi qualcuno scrive un'asserzione.
+		if (!Binding.SourceId.IsNone())
+		{
+			Errors.Append(ValidateReferences(Map, { Binding.SourceId }));
+		}
+		Errors.Append(ValidateReferences(Map, Binding.TargetIds));
+	}
+	return Errors;
+}

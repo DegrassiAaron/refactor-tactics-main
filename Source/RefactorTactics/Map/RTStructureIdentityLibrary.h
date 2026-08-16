@@ -100,4 +100,25 @@ public:
 	 * UN posto quando quel consumatore arrivera', invece di nascere dentro di lui.
 	 */
 	static TArray<FString> ValidateReferences(const URTHexMapAsset* Map, const TArray<FName>& References);
+
+	/**
+	 * Bersagli comandati da `SourceId`, **in ordine di applicazione** (CP 23.4, #833).
+	 *
+	 * L'ordine e' quello dichiarato in `FRTInteractionBinding::TargetIds`, e dentro ogni bersaglio quello che
+	 * `FindDoorEdges` gia' garantisce. Nessuna `TMap` entra nel giro: l'invariante n. 3 non si difende con un
+	 * `Sort` finale ma non costruendo mai un ordine da rimettere a posto.
+	 *
+	 * Sorgente sconosciuta o senza binding: array **vuoto**, che e' la risposta e non un errore — un
+	 * `Interact` su una struttura che non comanda nulla e' legale e non fa niente.
+	 */
+	static TArray<FRTStructureEdgeRef> ResolveInteractionTargets(const URTHexMapAsset* Map, FName SourceId);
+
+	/**
+	 * Errori del grafo di interazione: bersaglio inesistente e binding duplicato per la stessa sorgente.
+	 *
+	 * ⚠️ **Due sorgenti che nominano lo stesso bersaglio NON sono un errore qui**: e' `INT-5`, aperta, e il
+	 * dato deve poterla rappresentare. A rifiutarla e' la risoluzione con un reason code, non la validazione
+	 * d'asset — altrimenti una decisione aperta riceve risposta da un validator.
+	 */
+	static TArray<FString> ValidateInteractionGraph(const URTHexMapAsset* Map);
 };
