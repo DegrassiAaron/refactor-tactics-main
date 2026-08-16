@@ -2351,6 +2351,50 @@ tracks:
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
     binary_leases: []
 
+  unit_presentation:
+    status: ACTIVE
+    issue: 593
+    branch: feat/593-root-neutro-unit
+    worktree: "D:/rt-unit"
+    note: >-
+      ➕ **Track aperta su `#593`**: il cilindro segnaposto e' il **root** di `ARTUnit` e porta una scala
+      non uniforme `(1.2, 1.2, 1.8)`, quindi ogni componente aggiunto in Blueprint la eredita — una
+      Skeletal Mesh viene stirata di `1.8/1.2 = 1.5x`. Root neutro (`USceneComponent`), com'e' gia' in
+      `ARTCameraPawn` e `ARTHexMapActor`.
+
+      ✅ **Il write-set e' MISURATO, non dedotto dal titolo della issue.**
+      `grep -rn "BaseMeshScale\|RingLocalZ\|VisualZOffset" Source/` -> i consumatori della SCALA vivono
+      tutti dentro `Unit/RTUnit.{h,cpp}`; fuori, `VisualZOffset` e' letto come **valore** da
+      `RTPlayerController.cpp` e `RTCameraPawn.cpp` — e quel valore non cambia, perche' e' l'offset
+      dell'attore e non dipende dalla gerarchia dei componenti. Quei due file restano fuori.
+
+      ⚠️ **`Tests/RTUnitTests.cpp` entra**, e non per abitudine: `RefactorTactics.Unit.RingLocalZ` pinna
+      tre valori calcolati **sulla scala del genitore**, che con un root neutro vale 1. Il test cambia
+      insieme al codice o resta verde misurando una formula che nessuno usa piu'. E' la stessa regola che
+      `integration_only` scrive per un modulo e il suo test.
+
+      ⛔ **`Tests/RTUnitPlacementTests.cpp` NON entra**: legge solo `VisualZOffset` dal CDO, che non
+      cambia. Verificato leggendo il file, non assumendolo dal nome.
+
+      ✅ **Intersezione misurata sui tre comandi il 2026-08-16**, non dedotta: `gh pr list` (**3** PR
+      aperte: #904, #908, #972), `git ls-remote --heads origin` (**10** branch), `git worktree list`
+      (**7** worktree). Nessun branch vivo tocca `Unit/RTUnit.{h,cpp}` ne' `Tests/RTUnitTests.cpp`. La
+      track `verification` e' IDLE e i suoi nove file di test non includono questo.
+
+      ⛔ **Cosa questa track NON tocca**: i Blueprint `BP_Unit_*` (sono `.uasset`, e servirebbe una
+      Binary Asset Lease — il workaround «World/Absolute Scale» sui quattro BP resta finche' una persona
+      non lo toglie in editor, e toglierlo e' lavoro della seduta **U7**, non di qui) · `UI/`
+      (`client_tools`, ACTIVE su #78) · `Map/RTHexMapActor.{h,cpp}` (`content_editor`, ACTIVE su #451).
+
+      ⚠️ **Il vincolo che resta non e' sui file, e' la macchina**: una run di automation per volta e un
+      mutex di UBT — questa track compila i target Editor e Game, quindi si aspetta con `simulation`
+      (#512) e `content_editor` (#451) se ricompilano insieme.
+    writable:
+      - Source/RefactorTactics/Unit/RTUnit.h
+      - Source/RefactorTactics/Unit/RTUnit.cpp
+      - Source/RefactorTactics/Tests/RTUnitTests.cpp
+    binary_leases: []
+
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test
