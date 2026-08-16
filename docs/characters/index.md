@@ -6,7 +6,7 @@
 > Feature: `RT-FEAT-CHAR-PRESENTATION` · Release: `v0.1` · Roadmap: `E21.1, E21.2, E21.3 · M8`  
 > Stato: **IMPLEMENTING** · Gate: `1/7`  
 > Scenario: `—`  
-> Verificato il `2026-08-08` su `2094b86`
+> Verificato il `2026-08-16` su `ee2dcbb3`
 
 <!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-PRESENTATION -->
 

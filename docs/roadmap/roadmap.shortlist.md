@@ -39,7 +39,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
 | **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
 | **E46** | 🟡 | 5 | 5/27 | — |
-| **E47** | — | 2 | 0/15 | — |
+| **E47** | — | 2 | 3/15 | — |
 
 **23 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
 
