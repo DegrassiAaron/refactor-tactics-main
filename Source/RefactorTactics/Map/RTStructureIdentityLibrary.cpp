@@ -73,7 +73,7 @@ TArray<FString> URTStructureIdentityLibrary::ValidateReferences(const URTHexMapA
 }
 
 TArray<FRTStructureEdgeRef> URTStructureIdentityLibrary::ResolveInteractionTargets(
-	const URTHexMapAsset* Map, FName SourceId)
+	const URTHexMapAsset* Map, FName SourceId, TArray<FString>* OutErrors)
 {
 	TArray<FRTStructureEdgeRef> Targets;
 	if (Map == nullptr || SourceId.IsNone())
@@ -91,6 +91,36 @@ TArray<FRTStructureEdgeRef> URTStructureIdentityLibrary::ResolveInteractionTarge
 		{
 			continue;
 		}
+		// `INT-5` e' APERTA: il dato PUO' rappresentare due sorgenti sullo stesso bersaglio — rifiutarlo in
+		// `ValidateInteractionGraph` farebbe rispondere un validator a una decisione aperta. Ma risolverlo
+		// come se niente fosse la deciderebbe **qui**, in silenzio: due sorgenti comanderebbero la stessa
+		// struttura senza che nessuno abbia detto cosa succede quando agiscono entrambe. Quindi si rifiuta,
+		// con reason code, ed e' la risoluzione a farlo — esattamente dove l'header di #832 lo dichiara.
+		//
+		// Il rifiuto e' dell'INTERA risoluzione e non del singolo bersaglio conteso: l'operazione su N
+		// bersagli e' dichiarata atomica, e applicarne una parte sarebbe una seconda decisione non presa.
+		for (const FName& TargetId : Binding.TargetIds)
+		{
+			for (const FRTInteractionBinding& Other : Map->InteractionBindings)
+			{
+				if (Other.SourceId == SourceId || Other.SourceId.IsNone())
+				{
+					continue;
+				}
+				if (Other.TargetIds.Contains(TargetId))
+				{
+					if (OutErrors != nullptr)
+					{
+						OutErrors->Add(FString::Printf(
+							TEXT("Error: il bersaglio '%s' e' comandato anche da '%s' (INT-5 aperta): ")
+							TEXT("risoluzione rifiutata"),
+							*TargetId.ToString(), *Other.SourceId.ToString()));
+					}
+					return TArray<FRTStructureEdgeRef>();
+				}
+			}
+		}
+
 		for (const FName& TargetId : Binding.TargetIds)
 		{
 			Targets.Append(FindDoorEdges(Map, TargetId));

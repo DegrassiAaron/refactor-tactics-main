@@ -184,8 +184,12 @@ bool FRTInteractionGraphSharedTargetIsNotAnAssetError::RunTest(const FString&)
 	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
 	PutGraphDoor(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("S2"));
 	PutGraphDoor(Map, FRTCellId(0, 1, 0), ERTHexDirection::E, 3, TEXT("D1"));
+	// Una sorgente NON contesa nello stesso asset: serve all'asserzione positiva piu' sotto.
+	PutGraphDoor(Map, FRTCellId(1, -1, 0), ERTHexDirection::E, 4, TEXT("S3"));
+	PutGraphDoor(Map, FRTCellId(-1, 1, 0), ERTHexDirection::E, 5, TEXT("D2"));
 	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
 	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S2"), { TEXT("D1") }));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S3"), { TEXT("D2") }));
 
 	const TArray<FString> Errors = URTStructureIdentityLibrary::ValidateInteractionGraph(Map);
 
@@ -193,12 +197,47 @@ bool FRTInteractionGraphSharedTargetIsNotAnAssetError::RunTest(const FString&)
 
 	// ⚠️ **L'asserzione negativa qui sopra da sola NON verifica niente**: passa anche contro una funzione che
 	// restituisce sempre vuoto, ed e' esattamente cio' che faceva finche' `ValidateInteractionGraph` era uno
-	// stub. Le due righe seguenti sono positive e cadono su uno stub, cosi' il test dimostra di poter
-	// fallire — e insieme provano che «rappresentabile» significa *risolvibile*, non solo *non rifiutato*.
-	TestEqual(TEXT("S1 risolve il bersaglio condiviso"),
-		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S1")).Num(), 1);
-	TestEqual(TEXT("anche S2 lo risolve"),
-		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S2")).Num(), 1);
+	// stub. La riga seguente e' positiva e cade su uno stub, cosi' il test dimostra di poter fallire — e
+	// insieme prova che l'asset **carica ed e' utilizzabile**, non solo che non e' stato rifiutato.
+	//
+	// ⚠️ Qui NON si asserisce piu' che `S1` e `S2` risolvano il bersaglio conteso: lo asserivo, ed era la
+	// risposta a `INT-5` data di nascosto dall'implementazione. «Rappresentabile» non significa
+	// «risolvibile»; la meta' mancante sta in `SharedTargetIsRefusedByResolution`.
+	TestEqual(TEXT("una sorgente non contesa nello stesso asset risolve"),
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S3")).Num(), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphSharedTargetIsRefusedByResolution,
+	"RefactorTactics.InteractionGraph.SharedTargetIsRefusedByResolution",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphSharedTargetIsRefusedByResolution::RunTest(const FString&)
+{
+	// L'altra meta' di `INT-5`: rappresentabile SI', risolvibile NO. Se la risoluzione applicasse comunque,
+	// due sorgenti comanderebbero la stessa struttura e la semantica di composizione — che `INT-5` lascia
+	// aperta — sarebbe decisa qui, in silenzio e da nessuno.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoor(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("S2"));
+	PutGraphDoor(Map, FRTCellId(0, 1, 0), ERTHexDirection::E, 3, TEXT("D1"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S2"), { TEXT("D1") }));
+
+	TArray<FString> Errors;
+	const TArray<FRTStructureEdgeRef> Targets =
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S1"), &Errors);
+
+	TestEqual(TEXT("la risoluzione del bersaglio conteso e' rifiutata"), Targets.Num(), 0);
+	TestTrue(TEXT("il rifiuto porta un reason code"), Errors.Num() > 0);
+	TestTrue(TEXT("il reason code nomina il bersaglio conteso"), AnyContains(Errors, TEXT("D1")));
+	TestTrue(TEXT("e nomina l'altra sorgente"), AnyContains(Errors, TEXT("S2")));
+
+	// Il rifiuto e' simmetrico: non e' «vince chi e' dichiarato per primo», che sarebbe di nuovo una
+	// semantica di composizione scelta dall'implementazione.
+	TArray<FString> ReverseErrors;
+	TestEqual(TEXT("anche la sorgente dichiarata per seconda e' rifiutata"),
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S2"), &ReverseErrors).Num(), 0);
 	return true;
 }
 

@@ -110,8 +110,15 @@ public:
 	 *
 	 * Sorgente sconosciuta o senza binding: array **vuoto**, che e' la risposta e non un errore — un
 	 * `Interact` su una struttura che non comanda nulla e' legale e non fa niente.
+	 *
+	 * ⚠️ **Bersaglio conteso = risoluzione rifiutata**, con reason code in `OutErrors` se fornito. Se uno
+	 * qualunque dei bersagli e' nominato anche da un'altra sorgente, l'esito e' vuoto: `INT-5` non ha deciso
+	 * la semantica di composizione, e risolvere comunque la deciderebbe qui. Si rifiuta l'INTERA risoluzione
+	 * e non il singolo bersaglio perche' l'operazione su N bersagli e' dichiarata **atomica**: applicarne una
+	 * parte sarebbe una seconda decisione che nessuno ha preso.
 	 */
-	static TArray<FRTStructureEdgeRef> ResolveInteractionTargets(const URTHexMapAsset* Map, FName SourceId);
+	static TArray<FRTStructureEdgeRef> ResolveInteractionTargets(const URTHexMapAsset* Map, FName SourceId,
+		TArray<FString>* OutErrors = nullptr);
 
 	/**
 	 * Errori del grafo di interazione: bersaglio inesistente e binding duplicato per la stessa sorgente.
