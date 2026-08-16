@@ -455,7 +455,7 @@
       "verifies": [
         {
           "id": "PIE-HEX-MODE-E",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-MODE-F",
@@ -471,7 +471,7 @@
         },
         {
           "id": "PIE-HEX-MODE-L",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-MODE-N",
@@ -1626,7 +1626,7 @@
     },
     {
       "id": "PIE-HEX-MODE-E",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-MODE-F",
@@ -1654,7 +1654,7 @@
     },
     {
       "id": "PIE-HEX-MODE-L",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-MODE-M",
