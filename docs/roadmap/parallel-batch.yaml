@@ -2570,6 +2570,60 @@ tracks:
       - docs/technical/spec-team-identity.md
     binary_leases: []
 
+  state_hash:
+    status: ACTIVE
+    issue: 986
+    branch: fix/986-stableid-hash
+    worktree: "D:/rt-unit"
+    note: >-
+      ➕ **Track aperta il 2026-08-16 su `#986`**, nello stesso worktree che ha appena chiuso `#593`:
+      `unit_presentation` e' IDLE e il suo write-set e' rilasciato, quindi i due elenchi non si toccano
+      — nessun path e' condiviso fra le due track.
+
+      `#986` e' il successore di `#832`, aperto da una code review arrivata **dopo** il merge della PR
+      #978. Cinque difetti su `HashMatchState` / `ComputeHash`, e le cinque affermazioni della issue
+      sono state **rilette sul codice** prima di aprire questa track invece di essere ereditate: tutte
+      e cinque reggono. `MixName` mescola `Name.ToString()` senza prefisso di lunghezza
+      (`RTMatchStateHash.cpp:16-19`), il giro degli archi salta `bConductsElectricity` (`:118-131`),
+      e `ComputeHash` non vede `StableId` ne' per le porte (`RTHexMapAsset.cpp:317-320`) ne' per gli
+      archi.
+
+      ⚠️ **`Map/RTHexMapAsset.{h,cpp}` entra, e non per simmetria.** La prima casella del DoD chiede di
+      **decidere** se `StableId` entri anche in `ComputeHash`. Il criterio non e' da inventare: e' gia'
+      scritto due volte accanto ai campi che ne restano fuori — `RTHexMapAsset.h:112` (`MapClass`) e
+      `RTHexCellData.h:71` (`bGenerated`) dicono entrambi che quell'hash risponde alla domanda «la
+      stessa geometria produce la stessa partita?». `URTStructureIdentityLibrary::FindDoorEdges`
+      risolve i bersagli **per nome**, quindi rinominare una porta cambia quale bordo si apre per
+      chiunque la citi: e' dato autorevole nel senso del criterio, come lo e' gia' `DoorId` due righe
+      sopra. La decisione va scritta accanto ai due hash, che e' il resto della stessa casella.
+
+      ⚠️ **`Tests/RTHexDoorTests.cpp` entra**: `HexMap.DoorHashDeterminism` e' il test nominato dal DoD
+      di `#832`, e la misura di `#986` e' che chiama `ComputeHash()` in tutte e cinque le sue assert —
+      cioe' e' rimasto verde perche' non vede nulla di cio' che #978 ha cambiato. Se `StableId` entra
+      in `ComputeHash`, quel test copre il rename o resta un gate che non guarda.
+
+      ✅ **Intersezione MISURATA il 2026-08-16 sui tre comandi**, non dedotta: `git ls-remote --heads`
+      (12 ref), `git worktree list` (9 worktree), `gh pr list --state open` (3 PR). L'unione da **19
+      rami vivi** — e i tre comandi non si sovrappongono: `feat/958-corpus-determinismo-autobattle`,
+      `feat/937-loading-error` e `feat/472-replay-r6-interfaccia` esistono solo come worktree locali.
+      `git diff --name-only origin/main...<ramo>` per tutti e diciannove: **zero** tocca uno dei sei
+      path qui sotto.
+      ⚠️ **Limite dichiarato**, lo stesso di `unit_presentation`: la misura vede i **commit**, non il
+      lavoro non committato negli altri worktree.
+
+      ⚠️ **Il vincolo che resta non e' sui file, e' la macchina**: al momento dell'apertura girano
+      **quattro** `UnrealEditor-Cmd` di altre sessioni (`rt-autobattle`, `rt-content`, `rt-simulation`,
+      `rt-client`), letti dalla loro command line e non dedotti dal nome del processo. Una run di
+      automation per volta resta la regola, e questa track compila il target Editor.
+    writable:
+      - Source/RefactorTactics/Turn/RTMatchStateHash.h
+      - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
+      - Source/RefactorTactics/Map/RTHexMapAsset.h
+      - Source/RefactorTactics/Map/RTHexMapAsset.cpp
+      - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
+      - Source/RefactorTactics/Tests/RTHexDoorTests.cpp
+    binary_leases: []
+
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test
