@@ -604,4 +604,102 @@ bool FRTHexMapActorReliefUnderSlabTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `RebuildInstances` e' idempotente PER LE ISTANZE — e questo test dice esattamente quella meta'.
+ *
+ * `#996` (AC 5). L'actor giustifica la ricostruzione incondizionata di `PostEditChangeProperty` con un
+ * commento: *«l'actor ha poche proprieta' e la ricostruzione e' idempotente»*. L'affermazione e' vera per le
+ * istanze e non dice nulla sugli OSSERVATORI — e la issue nasce da un gizmo che sparisce. Qui si pinna la
+ * meta' vera, cosi' che se un giorno `RebuildInstances` diventasse condizionale (l'ottimizzazione che #996
+ * mette in «da valutare, non da assumere») si sappia subito se ha rotto le celle.
+ *
+ * ⚠️ **La sola invarianza sarebbe VACUA**: «chiamarla tre volte non cambia niente» e' soddisfatto anche da
+ * una `RebuildInstances` che non fa NULLA. Per questo la terza parte misura l'EFFETTO — una cella aggiunta
+ * all'asset compare solo dopo la chiamata. La mutazione «corpo di `RebuildInstances` svuotato» fa cadere
+ * proprio quella, e senza di essa il test resterebbe verde su un actor rotto.
+ * ⚠️ `AddOrUpdateCell` **non** fa broadcast di `OnMapChanged` (incrementa solo `Revision`): verificato, ed e'
+ * cio' che rende la chiamata esplicita qui sotto l'unica causa possibile dell'effetto misurato.
+ *
+ * 🔴 **La prima stesura misurava solo `NumInstanceCells()`, e il nome del test MENTIVA.** Quel contatore e'
+ * `InstanceCells.Num()` — l'array di mapping istanza->cella — e viene `Reset()` a `RTHexMapActor.cpp:485`
+ * **indipendentemente** da `Cells->ClearInstances()`, che sta alla riga PRIMA. Togliendo `ClearInstances`
+ * l'ISM accumula 7, 14, 21 istanze mentre l'array ne dichiara sempre 7: la griglia si sdoppia a schermo e il
+ * test restava verde. Misurato, non temuto — la verifica di mutazione ha dato **9 test su 9 verdi** con la
+ * riga commentata. Per questo si legge anche `GetInstanceCount()` del componente `Cells`, che e' la cosa che
+ * la mutazione rompe e che il nome del test promette.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorRebuildIsIdempotentTest,
+	"RefactorTactics.HexMapActor.RebuildInstancesIsIdempotentForInstances",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	TestNotNull(TEXT("World creato"), World);
+	if (!World) { return false; }
+
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius*/ 1); // 7 celle
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor spawnato"), Actor))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// Non basta il conteggio: due ricostruzioni potrebbero dare 7 istanze mappate a celle diverse, e il
+	// raycast di selezione leggerebbe la cella sbagliata senza che nessun numero cambi.
+	const int32 CelleIniziali = Actor->NumInstanceCells();
+	TestEqual(TEXT("le 7 celle dell'asset sono rappresentate"), CelleIniziali, 7);
+
+	// Le DUE misure, e servono entrambe: l'array di mapping (sopra) e le istanze davvero nell'ISM (qui). La
+	// prima regge il raycast di selezione, la seconda e' cio' che si vede. Si scollano se la ricostruzione
+	// smette di ripulire il componente, ed e' proprio il caso che questo test esiste per prendere.
+	TestEqual(TEXT("l'ISM ha una istanza per cella"), InstancesOf(Actor, TEXT("Cells")).Num(), 7);
+
+	TArray<FRTCellId> PrimaDelle;
+	PrimaDelle.Reserve(CelleIniziali);
+	for (int32 I = 0; I < CelleIniziali; ++I)
+	{
+		PrimaDelle.Add(Actor->CellForInstance(I));
+	}
+
+	for (int32 Giro = 0; Giro < 3; ++Giro)
+	{
+		Actor->RebuildInstances();
+	}
+
+	TestEqual(TEXT("tre ricostruzioni non cambiano il numero di celle mappate"),
+		Actor->NumInstanceCells(), CelleIniziali);
+
+	// LA riga che la mutazione «via `Cells->ClearInstances()`» fa cadere: senza pulizia l'ISM accumula e qui
+	// si leggerebbe 28 invece di 7, mentre ogni altra misura di questo file resterebbe verde.
+	TestEqual(TEXT("tre ricostruzioni non accumulano istanze nell'ISM"),
+		InstancesOf(Actor, TEXT("Cells")).Num(), CelleIniziali);
+
+	bool bMappaturaStabile = (Actor->NumInstanceCells() == CelleIniziali);
+	for (int32 I = 0; bMappaturaStabile && I < CelleIniziali; ++I)
+	{
+		bMappaturaStabile = (Actor->CellForInstance(I) == PrimaDelle[I]);
+	}
+	TestTrue(TEXT("tre ricostruzioni lasciano la mappa istanza->cella identica, indice per indice"),
+		bMappaturaStabile);
+
+	// L'EFFETTO. Senza questa parte l'invarianza qui sopra e' soddisfatta da una funzione inerte.
+	const FRTCellId Nuova(2, -1, 0);
+	TestFalse(TEXT("la cella scelta per l'effetto non era gia' nell'asset"), Asset->ContainsCell(Nuova));
+	Asset->AddOrUpdateCell(FRTHexCellData(Nuova));
+	Asset->SortCells();
+
+	TestEqual(TEXT("finche' non si ricostruisce, l'actor non vede la cella nuova"),
+		Actor->NumInstanceCells(), CelleIniziali);
+
+	Actor->RebuildInstances();
+	TestEqual(TEXT("dopo la ricostruzione la cella nuova e' mappata"),
+		Actor->NumInstanceCells(), CelleIniziali + 1);
+	TestEqual(TEXT("dopo la ricostruzione la cella nuova ha la sua istanza nell'ISM"),
+		InstancesOf(Actor, TEXT("Cells")).Num(), CelleIniziali + 1);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
