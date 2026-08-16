@@ -538,9 +538,12 @@ sessions:
          > **(a) MISURA prima.** Apri i quattro BP e guarda **come e' compensata oggi** la deformazione:
          > icona *World/Absolute* sulla riga Scale, oppure una `RelativeScale3D` tarata a mano, oppure
          > **niente** — nel qual caso i personaggi sono stirati adesso.
-         > ⚠️ La misura statica dice solo meta': `bAbsoluteScale` **non compare** nella name table di
-         > nessuno dei quattro `.uasset`, quindi l'icona non e' stata commutata. Cosa ci sia al suo
-         > posto lo dice solo l'editor.
+         > ⚠️ La misura statica restringe il campo ma non chiude: cercando ogni stringa in ASCII **e**
+         > UTF-16LE nei quattro `.uasset`, `bAbsoluteScale` e' **assente in tutti e quattro** (l'icona
+         > non e' mai stata commutata) mentre `RelativeScale3D` e' **presente in tutti e quattro**. Il
+         > candidato piu' probabile e' quindi una scala relativa tarata a mano — ma il nome della
+         > proprieta' e' comune e non dice su quale componente stia ne' con che valore. Lo dice
+         > l'editor: e' questo il passo (a).
          > **(b) RIPARENTA** la skeletal sotto `SceneRoot`.
          > **(c) Solo allora TOGLI** l'eventuale compensazione, che a quel punto e' davvero ridondante.
 

@@ -46,10 +46,15 @@ cilindro resta (comportamento attuale invariato). **Fuori scope**: outline/decal
 | Selezione = `Mesh->SetRelativeScale3D(BaseMeshScale*1.15)` — tocca il cilindro, ~~non più il root~~ | `RTUnit.cpp` (`OnSelected`) |
 | Con `BP_Unit` skeletal il cilindro è **nascosto** → il MID Color non si vede | `spec-asset-pipeline.md §4.1` |
 
-⚠️ **I numeri di riga sono stati tolti, non aggiornati.** Erano cinque riferimenti `file:riga` e
-**tutti e cinque** puntavano altrove dopo `#593` — nessun gate se n'era accorto, perché il file esiste
-e la riga esiste sempre. Un puntatore che si sposta a ogni commit è un puntatore che mente in silenzio:
-il nome del simbolo (`OnSelected`, `ApplyTeamColor`) lo trova `grep`, e non scade.
+⚠️ **I numeri di riga sono stati tolti, non aggiornati**, ed erano marci da prima. Erano **quattro**
+riferimenti `file:riga`, e alla base di `#593` — cioè *prima* di toccare qualsiasi cosa — **tre su
+quattro** puntavano già altrove: `RTUnit.cpp:54` era una parentesi chiusa, `:106-111` due parentesi
+aperte, `RTUnit.h:252-255` era `PlannedPath`, cioè movimento e non colori di squadra. Solo
+`RTUnit.cpp:34` cadeva davvero su `TeamRing->SetupAttachment(Mesh)`.
+
+Nessun gate se n'era accorto, e non poteva: il file esiste e la riga esiste **sempre**. Un puntatore
+`file:riga` non fallisce mai rumorosamente — smette di dire il vero e continua a sembrare preciso. Il
+nome del simbolo (`OnSelected`, `ApplyTeamColor`) lo trova `grep`, e non scade.
 
 ---
 

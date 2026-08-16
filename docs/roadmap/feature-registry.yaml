@@ -4700,13 +4700,16 @@ features:
       figlia di lui, che porta ancora `BaseMeshScale`. Riparentarla è un'apertura di editor, seduta
       **U7**, con Binary Asset Lease. Il C++ toglie la causa per ciò che nasce d'ora in poi.
 
-      🔴 **E il «workaround World/Absolute Scale» che questa nota dava per applicato NON è negli asset**:
-      `bAbsoluteScale` è un `UPROPERTY` bitfield e, se fosse impostato su un template di componente,
-      comparirebbe nella name table del package. Nei quattro `BP_Unit_*` non c'è. Quindi o non è mai
-      stato applicato — e i personaggi sono deformati adesso — oppure la compensazione è una
-      `RelativeScale3D` tarata a mano, che **non** è ridondante e toglierla li romperebbe. La domanda si
-      chiude aprendo i BP in editor, non da qui: è la prima cosa da guardare in **U7**. Trovato in code
-      review della PR #977.
+      🔴 **E il «workaround World/Absolute Scale» che questa nota dava per applicato NON è negli asset.**
+      Misurato sui quattro `.uasset`, cercando ogni stringa in ASCII **e** UTF-16LE:
+      `bAbsoluteScale` **assente in tutti e quattro** · `RelativeScale3D` **presente in tutti e quattro**
+      · `ParentComponentOrVariableName` e `bIsParentComponentNative` **presenti in tutti e quattro**.
+      Quindi l'icona *World/Absolute* non è mai stata commutata, e la compensazione — se c'è — è una
+      **`RelativeScale3D` tarata a mano**. Che non è ridondante: toglierla senza riparentare **deforma**
+      i personaggi invece di raddrizzarli.
+      ⚠️ È evidenza, non prova: `RelativeScale3D` è un nome di proprietà comune e la sua presenza nella
+      name table non dice su quale componente sia scritto né con che valore. Lo dice solo l'editor, ed è
+      la prima cosa da guardare in **U7**. Trovato in code review della PR #977.
 
       ⚠️ **Nessun gate si muove, ed è dichiarato invece che sottinteso.** `runtime` resta `partial`
       perché il lavoro che manca è **in editor** (mesh, animazioni, materiali assegnati), e questo
