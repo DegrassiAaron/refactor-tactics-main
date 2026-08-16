@@ -25,9 +25,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 7 |
-| `DESIGNED` | 19 |
+| `DESIGNED` | 18 |
 | `SPECIFIED` | 13 |
-| `IMPLEMENTING` | 25 |
+| `IMPLEMENTING` | 26 |
 | `TESTABLE` | 9 |
 | `INTEGRATED` | 22 |
 | `RELEASE_READY` | 16 |
@@ -152,9 +152,9 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MATCH-END-CONDITIONS` — Fine partita a tre vie | v0.1 | RELEASE_READY | 7/9 | E10 | Eliminazione · obiettivo · `RoundLimit`, con pareggio **dichiarato** |
 | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | v0.1 | TESTABLE | 5/8 | E19 | `URTMatchFormatData` esiste: mancano classe di mappa e unità per squadra |
 | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | v0.1 | TESTABLE | 5/8 | E12 | Percentili misurati sul giocatore, non stimati |
+| `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore | v0.1 | IMPLEMENTING | 3/8 | E47 | — |
 | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | v0.1 | IMPLEMENTING | 2/9 | E10 | La partita **finisce** per obiettivo, ma non c'è **nulla da attivare** |
 | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | v0.1 | IMPLEMENTING | 1/7 | E17 | Misura dove si rompe il sistema con 8 unità. **Non** decide il formato |
-| `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore | v0.1 | DESIGNED | 0/8 | E47 | — |
 
 ### Perception · 4
 

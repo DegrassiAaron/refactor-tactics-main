@@ -137,11 +137,19 @@
         81,
         178,
         578,
-        958
+        958,
+        990
       ],
       "tests": [
         "RefactorTactics.Simulation.*",
-        "RefactorTactics.HexSim.ReplayDivergenceZero"
+        "RefactorTactics.HexSim.ReplayDivergenceZero",
+        "RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation",
+        "RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback",
+        "RefactorTactics.Match.Autobattle.NoPathProducesLegalFallback",
+        "RefactorTactics.Match.Autobattle.AllWaitEndsTheTurnNormally",
+        "RefactorTactics.Match.Autobattle.SimultaneousKOFollowsDeclaredPolicy",
+        "RefactorTactics.Match.Autobattle.EndsOnRoundLimitWhenNobodyDies",
+        "RefactorTactics.Match.Autobattle.SameSeedGivesSameResult"
       ],
       "scenarios": [
         "RT_Showcase_Relay_v01"
@@ -153,10 +161,10 @@
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-16",
+        "commit": "79633a3"
       },
-      "notes": "KPI «replay divergence 0» verificato anche su hex. `ui_wiki` parziale: il determinismo è citato nelle regole fondamentali ma non ha una pagina che lo spieghi al giocatore."
+      "notes": "KPI «replay divergence 0» verificato anche su hex. `ui_wiki` parziale: il determinismo è citato nelle regole fondamentali ma non ha una pagina che lo spieghi al giocatore. ⚠️ **2026-08-16 — il determinismo NON era strutturale come si credeva, ed è stato misurato.** Il corpus di CP 47.5 ha trovato `#990`: `MakeCurrentSnapshot` costruiva l'identità delle unità come indice in un array non ordinato, e `PlanBots` iterava quegli indici — quindi **l'ordine di spawn decideva la partita**, dal turno in cui due bot cominciano a interagire. Il turno 1 restava identico byte per byte, che è la ragione per cui nessuno dei test preesistenti lo vedeva. ⛔ **E lo `StateHash` non avrebbe potuto vederlo**: è permutazione-invariante per costruzione. È il caso che giustifica la scelta del DoD di #958 — confrontare il **TurnLog canonico turno per turno** invece dell'hash finale — e la prima volta che quella scelta paga. ⚠️ **`DifferentSeedVariation` resta escluso** e la ragione non è «manca la premessa»: scriverlo farebbe cadere `Simulation.SeedIsDeclaredAndUnconsumed`, che verifica l'opposto. Il gancio è `RNG-1` in `OPEN_DECISIONS.md` (`#960`)."
     },
     {
       "feature_id": "RT-FEAT-CORE-TURNLOG",
@@ -5500,27 +5508,28 @@
       "kind": "tooling",
       "release": "v0.1",
       "priority": "P1",
-      "status": "DESIGNED",
-      "status_derived": "DESIGNED",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
       "gates": {
         "spec": "partial",
-        "data": "todo",
-        "runtime": "todo",
-        "log_debug": "todo",
-        "automation": "todo",
+        "data": "done",
+        "runtime": "done",
+        "log_debug": "done",
+        "automation": "partial",
         "scenario": "todo",
         "ui_wiki": "todo",
         "packaged": "todo",
         "network_privacy": "na",
         "replay_representable": "na"
       },
-      "gates_done": 0,
+      "gates_done": 3,
       "gates_applicable": 8,
       "roadmap": {
         "epic": "E47",
         "milestone": null,
         "checkpoints": [
           "47.1",
+          "47.5",
           "47.6"
         ],
         "out_of_release_scope": ""
@@ -5541,9 +5550,28 @@
       "issues": [
         952,
         954,
-        959
+        958,
+        959,
+        990
       ],
-      "tests": [],
+      "tests": [
+        "RefactorTactics.Match.Autobattle.DefaultLeavesPlayerTeamHuman",
+        "RefactorTactics.Match.Autobattle.PropertyPutsBothTeamsUnderBot",
+        "RefactorTactics.Match.Autobattle.SourcePrecedence",
+        "RefactorTactics.Match.Autobattle.CommandLineValueIsUnderstood",
+        "RefactorTactics.Match.Autobattle.PlanningSecondsReachTheTurnManager",
+        "RefactorTactics.Match.Autobattle.PlanningSecondsNeverStallAnUnattendedMatch",
+        "RefactorTactics.Match.Autobattle.BannerDeclaresUnattendedMatch",
+        "RefactorTactics.Match.Autobattle.AppliesToUnitsAlreadyInTheLevel",
+        "RefactorTactics.Match.Autobattle.PlaysToCompletionWithoutInput",
+        "RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation",
+        "RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback",
+        "RefactorTactics.Match.Autobattle.NoPathProducesLegalFallback",
+        "RefactorTactics.Match.Autobattle.AllWaitEndsTheTurnNormally",
+        "RefactorTactics.Match.Autobattle.SimultaneousKOFollowsDeclaredPolicy",
+        "RefactorTactics.Match.Autobattle.EndsOnRoundLimitWhenNobodyDies",
+        "RefactorTactics.Match.Autobattle.SameSeedGivesSameResult"
+      ],
       "scenarios": [],
       "scenarios_planned": [
         "AutoBattle.OpenField",
