@@ -195,6 +195,18 @@
 #   WritableSet(T1) ∩ WritableSet(T2) = ∅
 #   BinaryLeaseSet(T1) ∩ BinaryLeaseSet(T2) = ∅
 #
+# 🔴 **L'invariante e' VIOLATA adesso, e non da chi scrive questa riga.** Misurata il 2026-08-16 su
+# `origin/main` (`git show origin/main:docs/roadmap/parallel-batch.yaml`, quindi preesistente a qualunque
+# branch aperto): `spatial` e `content_editor` dichiarano **entrambe**
+# `docs/technical/qa-prompt-terminal-b-scenario-runner.md`. E' l'unica intersezione fra le track, e non e'
+# di `frontend_shell` — che la segnala e non la risolve: spostare il confine di due track altrui e'
+# esattamente la «piccola fix» che il paragrafo qui sopra vieta. **La sciolgono i due proprietari.**
+#
+# ⚠️ Il modo per accorgersene e' un ciclo di venti righe sui `writable` — non un gate, perche' il
+# validator di `#840` non esiste ancora. Finche' non c'e', questa invariante e' vera **solo se qualcuno
+# la misura**, ed e' la ragione per cui e' successo: nessuno l'ha misurata al momento della seconda
+# dichiarazione.
+#
 # ## `integration_only`
 #
 # I file che più branch potrebbero voler toccare non si assegnano: si aggiornano **una volta in
@@ -2296,11 +2308,23 @@ tracks:
     binary_leases: []
 
   frontend_shell:
-    status: ACTIVE
-    issue: 937
-    branch: feat/937-loading-error
+    status: IDLE
+    issue: null
+    branch: null
     worktree: D:/rt-menu
     note: >-
+      ✅ **IDLE dal 2026-08-16: `#936` e `#937` hanno consegnato la parte C++ di E46.** CP 46.1 (navigation
+      controller, PR #972) e CP 46.2 (produttore delle fasi, ottavo vocabolario `ERTStartupOutcome`, tre
+      classi base dei widget, PR #994). Suite **941 · 0 falliti** sull'albero mergiato.
+      ⚠️ **I `writable` restano dichiarati e questa track resta la loro**, benché IDLE: `#938`…`#941` sono
+      aperte e le scrivera' lei. E' il caso «prenotato, non in uso» che lo schema ammette — e vale in
+      particolare per `RTGameMode.{h,cpp}`, riallocati qui da `autobattle` con una decisione istruita: se
+      tornassero liberi, la prossima sessione dovrebbe rifare la stessa richiesta.
+      ⏳ **Cosa NON e' consegnato, e non e' scrivibile da una sessione**: i `WBP_RT_*` che consumano le
+      basi sono `.uasset` — lavoro d'editor, D-139 binari human-first — e le sei voci `PIE-V01-FRONTEND-*`
+      appartengono a `playtest`, a cui si **propongono in handoff**. Senza i primi nulla appare a schermo,
+      ed e' la ragione per cui `RT-FEAT-UI-FRONTEND-SHELL` tiene `runtime` e `automation` a `partial`.
+      ─────
       CP 46.1 di **E46** — il navigation controller del frontend (`#934`). ➕ **Track aperta il 2026-08-16
       su richiesta esplicita di questo file**, che alla sezione `preexisting` scriveva *«`D:/rt-menu` è la
       sessione più pericolosa del lotto … chi la possiede la dichiari»*. Il branch precedente di quel
