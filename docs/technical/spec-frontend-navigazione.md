@@ -159,13 +159,19 @@ nel contesto `Modal` esistente: il frontend lo *segnala*, non lo reimplementa.
 
 ### 4.1 Loading
 
-Il widget mostra la fase corrente **leggendo un evento**, non componendo una stringa:
+Il widget mostra la fase corrente **leggendo un dato**, non componendo una stringa:
 
 ```cpp
-enum class ERTLoadPhase : uint8 { Map, Scenario, Bots };
+enum class ERTLoadPhase : uint8 { Idle, Map, Scenario, Bots, Ready };
 ```
 
-emessa da `ARTGameMode::BeginPlay` nei tre punti dove oggi esistono già tre `UE_LOG`.
+`ARTGameMode::SetupHexMatch` la fa avanzare nei punti reali dell'allestimento, e
+`URTLoadingScreenWidgetBase::GetPhaseText()` produce la riga. Il testo nasce in C++ e non nel Blueprint,
+per la stessa ragione per cui esiste l'enum: due schermate che raccontassero la stessa fase con parole
+diverse sarebbero due verità sullo stesso stato.
+
+⚠️ `Idle` e `Ready` **non hanno testo**, ed è voluto: una schermata di caricamento che dice «pronto»
+resta a schermo dicendo il contrario di ciò che sta facendo. `IsLoading()` è falso in entrambe.
 
 ⚠️ **Nessuna percentuale.** Non esiste un progress model da cui derivarla, e una barra che avanza a caso
 è un dato inventato — la stessa regola per cui la UI non ricalcola il risultato.
@@ -220,8 +226,37 @@ Il banner riusa la forma di `ARTGameMode::GetScenarioBannerText()`, che esiste d
 stesso problema e ne porta la motivazione: *«il sintomo non punta alla causa … la spiegazione c'è, ma è in
 una riga di Output Log che non si ha motivo di andare a cercare»*.
 
-Non chiude le riserve di `G13` — restano mancanze di **dati** — ma smette di renderle invisibili, che è il
-motivo per cui il 2026-08-10 non se n'era accorto nessuno guardando lo schermo.
+### 4.4 Il vocabolario: `ERTStartupOutcome`
+
+Nove valori, **misurati** sui punti di uscita reali di `RTGameMode.cpp` e non immaginati:
+
+| | Esiti | Forma |
+|---|---|---|
+| **Fatali** (3) | `FormatAssetInvalid` · `ShippedFormatInvalid` · `FormatMapMismatch` | **modale** |
+| **Degradati** (5) | `UsingTestArena` · `UsingDemoArena` · `LevelMapMissing` · `UsingFallbackFormat` · `NoTurnManager` | **banner** |
+| | `Ok` | niente |
+
+`URTStartupReportLibrary::IsFatal()` è **l'unico posto** in cui la divisione è scritta: un widget che la
+ridecidesse sarebbe la seconda autorità che questo vocabolario esiste per evitare. Usa uno `switch` senza
+`default`, così un decimo esito farà fallire la compilazione invece di diventare un ripiego in silenzio.
+
+**Il motivo è l'enum; la stringa è il suo dettaglio.** `ResolveRules` e `ValidateAgainstMap` producono già
+quelle stringhe: qui vengono **trasportate**, non ricomposte — lo stesso rapporto che il TurnLog ha fra un
+reason code e i suoi parametri.
+
+⚠️ **Le note sono una lista.** Un avvio accumula più condizioni insieme, e mostrarne una sola nasconderebbe
+l'altra: è il modo esatto in cui queste cose sono rimaste invisibili finora — due righe di log separate,
+nessuna delle quali qualcuno aveva motivo di cercare.
+
+🔴 **Una correzione da registrare**: una stesura precedente di questa sezione chiamava `UsingFallbackFormat`
+la *«seconda riserva di `G13`»*. **Falso**, e l'ha trovato un test rosso. Le due riserve sono l'arena di
+test e *«la via a punti non è mai stata esercitata, perché la soglia obiettivo è 0»* — cioè un **valore**
+del formato in vigore, non il ripiego del formato. `UsingFallbackFormat` è per giunta un ramo **raro**:
+`Format.Skirmish2v2` è spedito da C++ (`9f44570d`), quindi in una build normale non si raggiunge.
+
+∴ di ciò che `G13` dichiara, il banner rende visibile **la prima riserva**, non entrambe. Non le chiude:
+restano mancanze di dati. Ma smette di renderla invisibile, che è il motivo per cui il 2026-08-10 non se
+n'era accorto nessuno guardando lo schermo.
 
 ---
 
