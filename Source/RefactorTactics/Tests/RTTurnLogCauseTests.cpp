@@ -77,7 +77,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
@@ -848,7 +848,7 @@ bool FRTPushedUnitFacesPusherInPlayTest::RunTest(const FString&)
 
 	// ⚠️ Il facing di partenza è scelto perché DEBBA cambiare: la vittima guarda a est, cioè dalla parte
 	// opposta a chi la spinge. Senza questa riga il test passerebbe anche con il passo mutato — è lo stesso
-	// motivo per cui `Combat.BastionImpactShotSlows` ha un gemello di controllo.
+	// motivo per cui `Combat.RiktorImpactShotSlows` ha un gemello di controllo.
 	Victim->Facing = ERTHexDirection::E;
 
 	PlanPushOn(Pusher, Victim);

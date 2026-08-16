@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.RearHitOnCoverIsTraced",
-  "tags": ["facing", "cover", "combat", "turnlog", "spec", "bastion", "vektor"],
+  "tags": ["facing", "cover", "combat", "turnlog", "spec", "riktor", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -9,15 +9,15 @@
 
   "_nota_perche": "Prima di #649 questa scena era MUTA. `EffectiveCoverReduction` e' una funzione pura: applicava la riduzione al danno e buttava via il motivo, quindi dal log un colpo pieno su un bersaglio riparato era indistinguibile da uno su un bersaglio scoperto. Il bonus che il bot conta in pianificazione (CP 13.5) non era verificabile da nessuno.",
 
-  "_nota_due_turni": "Il pannello si erige al T1 e il colpo arriva al T2, invece di stare nello stesso turno come in `Spec.Cover.TemporaryCoverExpires`: cosi' il facing di B1 al momento del colpo e' quello dichiarato allo schieramento, senza dipendere da come `Bastion.KineticPanel` orienta chi la usa.",
+  "_nota_due_turni": "Il pannello si erige al T1 e il colpo arriva al T2, invece di stare nello stesso turno come in `Spec.Cover.TemporaryCoverExpires`: cosi' il facing di B1 al momento del colpo e' quello dichiarato allo schieramento, senza dipendere da come `Hero.Riktor.KineticPanel` orienta chi la usa.",
 
   "_nota_guard": "⚠️ B1 NON si mette in guardia, ed e' deliberato: chi e' in Guard **e** dietro copertura, colpito alle spalle, perde entrambe le protezioni e produce **due** voci con lo stesso esito — corretto, ma qui serve isolare quella della copertura. Il caso della Guard e' gia' `Spec.Facing.BackAttackIgnoresGuard`.",
 
   "_nota_controllo": "Il caso di controllo e' `Spec.Facing.FrontHitOnCoverIsSilent`: stessa scena con B1 rivolto al tiratore. Senza quella meta', una voce emessa SEMPRE — anche quando la copertura regge — passerebbe questo scenario.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [-1, 0, 0], "facing": "W" },
-    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [2, 0, 0],  "facing": "W" }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [-1, 0, 0], "facing": "W" },
+    { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [2, 0, 0],  "facing": "W" }
   ],
 
   "turns": [
@@ -25,13 +25,13 @@
       "_turno": "T1 — B1 erige il pannello sul bordo EST, quello da cui arrivera' il colpo.",
       "requires": ["CreateCover"],
       "intents": [
-        { "unit": "B1", "ability": "Bastion.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" }
+        { "unit": "B1", "ability": "Hero.Riktor.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" }
       ]
     },
     {
       "_turno": "T2 — V1 spara da est. B1 guarda a ovest: il riparo c'e' e non serve a niente.",
       "intents": [
-        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]
     }
   ],

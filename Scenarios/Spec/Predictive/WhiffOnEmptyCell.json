@@ -1,34 +1,34 @@
 {
   "scenarioId": "Spec.Predictive.WhiffOnEmptyCell",
-  "tags": ["spec", "reactions", "vektor", "riva"],
+  "tags": ["spec", "reactions", "wraith", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE della thin slice Predictive (`Vektor.InterceptShot`). Vektor dichiara il colpo su una cella che PREVEDE Riva attraversera'; Riva prende un'altra strada, e il colpo va a vuoto. Il valore del turno **e' il buco nell'acqua**: e' la dimostrazione che si sta scommettendo su una previsione e non ordinando un esito.",
+  "_nota": "SPECIFICA ESEGUIBILE della thin slice Predictive (`Hero.Wraith.InterceptShot`). Wraith dichiara il colpo su una cella che PREVEDE Phase attraversera'; Phase prende un'altra strada, e il colpo va a vuoto. Il valore del turno **e' il buco nell'acqua**: e' la dimostrazione che si sta scommettendo su una previsione e non ordinando un esito.",
 
   "_nota_perche_esiste": "E' il caso che nessuno scriverebbe dopo. A implementazione finita si testa che il colpo ARRIVI quando la previsione e' giusta; che debba mancare quando e' sbagliata sembra ovvio finche' non lo si scrive, e non lo e' affatto — un'implementazione che rivaluta il bersaglio al momento dello sparo passerebbe il primo test e fallirebbe questo.",
 
-  "_nota_completato": "Completato il 2026-08-10 con E18 CP 18.2 (#227), che ha reso disponibile la capability `PredictiveAction`. La previsione si dichiara con `targetCell` su un'azione principale — il canale che il gioco ha gia' per le aree — quindi l'harness non e' il primo produttore del campo. In T1 Vektor si avvicina: senza quel passo la cella prevista sarebbe fuori dalla portata 1 dichiarata a catalogo, e lo scenario verificherebbe una regola violando il catalogo che la contiene.",
+  "_nota_completato": "Completato il 2026-08-10 con E18 CP 18.2 (#227), che ha reso disponibile la capability `PredictiveAction`. La previsione si dichiara con `targetCell` su un'azione principale — il canale che il gioco ha gia' per le aree — quindi l'harness non e' il primo produttore del campo. In T1 Wraith si avvicina: senza quel passo la cella prevista sarebbe fuori dalla portata 1 dichiarata a catalogo, e lo scenario verificherebbe una regola violando il catalogo che la contiene.",
 
   "units": [
-    { "id": "R1", "hero": "Hero.Riva",   "team": 0, "cell": [-3, 0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 2, 0, 0] }
+    { "id": "R1", "hero": "Hero.Phase",   "team": 0, "cell": [-3, 0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, 0, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — Riva si avvicina lungo la riga r=0, rendendo plausibile la previsione che continui di li'. Vektor scende a (0,0), da cui la cella (-1,0) e' adiacente: la portata 1 di `InterceptShot` e' un dato del catalogo, non un dettaglio da aggirare.",
+      "_turno": "T1 — Phase si avvicina lungo la riga r=0, rendendo plausibile la previsione che continui di li'. Wraith scende a (0,0), da cui la cella (-1,0) e' adiacente: la portata 1 di `InterceptShot` e' un dato del catalogo, non un dettaglio da aggirare.",
       "intents": [
         { "unit": "R1", "move": [[-2, 0, 0]] },
         { "unit": "V1", "move": [[ 0, 0, 0]] }
       ]
     },
     {
-      "_turno": "T2 — Vektor spara sulla cella prevista (-1,0); Riva devia su (-2,1) e il colpo trova il vuoto. La cella e' BLOCCATA in pianificazione: nessuna rivalutazione al momento di risolvere, o Riva verrebbe colpita comunque e la scommessa non esisterebbe.",
+      "_turno": "T2 — Wraith spara sulla cella prevista (-1,0); Phase devia su (-2,1) e il colpo trova il vuoto. La cella e' BLOCCATA in pianificazione: nessuna rivalutazione al momento di risolvere, o Phase verrebbe colpita comunque e la scommessa non esisterebbe.",
       "requires": ["PredictiveAction"],
       "intents": [
-        { "unit": "V1", "ability": "Vektor.InterceptShot", "targetCell": [-1, 0, 0] },
+        { "unit": "V1", "ability": "Hero.Wraith.InterceptShot", "targetCell": [-1, 0, 0] },
         { "unit": "R1", "move": [[-2, 1, 0]] }
       ]
     }

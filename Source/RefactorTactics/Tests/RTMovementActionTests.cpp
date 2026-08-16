@@ -321,23 +321,23 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 			CoreCharge.Effects[1].Effect == ERTActionEffect::Push && CoreCharge.Effects[1].Amount == 1);
 	}
 
-	// L'eroe che quella carica la porta in partita: `Bastion.Ram` riusa `Action.Charge` per intero, ed e'
+	// L'eroe che quella carica la porta in partita: `Riktor.Ram` riusa `Action.Charge` per intero, ed e'
 	// il motivo per cui lo stile e' un dato e non un `if` sull'ActionId.
-	const URTHeroData* Bastion = nullptr;
+	const URTHeroData* Riktor = nullptr;
 	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
 	{
-		if (Hero && Hero->HeroId == TEXT("Hero.Bastion")) { Bastion = Hero; break; }
+		if (Hero && Hero->HeroId == TEXT("Hero.Riktor")) { Riktor = Hero; break; }
 	}
-	if (TestNotNull(TEXT("Bastion e' nel roster"), Bastion))
+	if (TestNotNull(TEXT("Riktor e' nel roster"), Riktor))
 	{
 		const URTActionData* Ram = nullptr;
-		for (const URTActionData* A : Bastion->Actions)
+		for (const URTActionData* A : Riktor->Actions)
 		{
-			if (A && A->Def.ActionId == TEXT("Bastion.Ram")) { Ram = A; break; }
+			if (A && A->Def.ActionId == TEXT("Hero.Riktor.Ram")) { Ram = A; break; }
 		}
-		if (TestNotNull(TEXT("Bastion.Ram e' nel kit"), Ram))
+		if (TestNotNull(TEXT("Hero.Riktor.Ram e' nel kit"), Ram))
 		{
-			TestTrue(TEXT("Bastion.Ram e' una carica"), Ram->Def.MovementStyle == ERTMovementStyle::LinearCharge);
+			TestTrue(TEXT("Hero.Riktor.Ram e' una carica"), Ram->Def.MovementStyle == ERTMovementStyle::LinearCharge);
 		}
 	}
 	return true;
@@ -347,7 +347,7 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 // MOB-1 — la lama che PASSA ATTRAVERSO.
 //
 // `LinearDash` si ferma su cio' che incontra, `LinearCharge` si ferma addosso, `LinearLeap` scavalca senza
-// toccare. Manca la quarta: attraversare colpendo. `Vektor.PassingBlade` la descriveva gia' («colpisce per
+// toccare. Manca la quarta: attraversare colpendo. `Wraith.PassingBlade` la descriveva gia' («colpisce per
 // 20 le unita' ATTRAVERSATE») ma usava `LinearDash`, quindi non attraversava nessuno e quei 20 danni non
 // avevano un momento in cui applicarsi.
 //

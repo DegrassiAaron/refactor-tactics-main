@@ -1,43 +1,43 @@
 {
   "scenarioId": "Visual.Combat.PushResistance",
-  "tags": ["animation", "combat", "guard", "riva", "bastion", "vektor"],
+  "tags": ["animation", "combat", "guard", "phase", "riktor", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "La stessa spinta su due bersagli diversi, nello stesso turno. `Riva.PressureJet` spinge di 1: Bastion ha dichiarato `Action.Guard` e NON arretra; Vektor non ha dichiarato niente e viene spostato. La sola cosa che distingue i due casi e' la difesa dichiarata.",
+  "_nota": "La stessa spinta su due bersagli diversi, nello stesso turno. `Hero.Phase.PressureJet` spinge di 1: Riktor ha dichiarato `Action.Guard` e NON arretra; Wraith non ha dichiarato niente e viene spostato. La sola cosa che distingue i due casi e' la difesa dichiarata.",
 
-  "_nota_storia": "Ha cambiato SOGGETTO due volte. Ha portato il tag `expected-fail` dal 2026-08-08 al 2026-08-09, con l'assertion giusta e il gioco che sbagliava: `PushResistance` era un dato senza consumatore — dichiarato nel catalogo, copiato su `ARTUnit`, verificato dai test come VALORE, e mai letto quando si applicava una spinta (#241). Poi la regola e' arrivata e il tag e' caduto. Il 2026-08-10 e' caduto anche il soggetto: D-075 (#402) porta a zero la resistenza nativa di Bastion, che era l'unica del roster, perche' con ogni spinta del gioco a 1 quella soglia era immunita' totale e gratuita. Da qui la resistenza che questo file mostra e' quella di `Action.Guard` — l'unica osservabile in v0.1.",
+  "_nota_storia": "Ha cambiato SOGGETTO due volte. Ha portato il tag `expected-fail` dal 2026-08-08 al 2026-08-09, con l'assertion giusta e il gioco che sbagliava: `PushResistance` era un dato senza consumatore — dichiarato nel catalogo, copiato su `ARTUnit`, verificato dai test come VALORE, e mai letto quando si applicava una spinta (#241). Poi la regola e' arrivata e il tag e' caduto. Il 2026-08-10 e' caduto anche il soggetto: D-075 (#402) porta a zero la resistenza nativa di Riktor, che era l'unica del roster, perche' con ogni spinta del gioco a 1 quella soglia era immunita' totale e gratuita. Da qui la resistenza che questo file mostra e' quella di `Action.Guard` — l'unica osservabile in v0.1.",
 
   "_nota_perche_non_e_stato_ritirato": "La regola che il file dimostrava — una resistenza e' una SOGLIA, chi la possiede regge fino al proprio valore — non e' cambiata: e' cambiato chi la possiede. `GuardResistedPushDistance` ha la stessa forma di `PushResistance` ed e' da li' che l'aveva presa. La soglia in quanto tale resta pinnata dal test unitario `RefactorTactics.Actions.PushResistanceIsAThreshold`, che il valore se lo costruisce da solo.",
 
-  "_nota_leggibilita": "E' il caso in cui la presentazione puo' MENTIRE piu' facilmente, ed e' la ragione per cui questo file sta fra i `Visual`: se l'impatto su Bastion riproduce comunque un contraccolpo, il giocatore leggera' una spinta assorbita come una spinta riuscita, e non capira' perche' la cella davanti e' ancora occupata. Ora c'e' anche il secondo mezzo passo da mostrare: la guardia va letta come una scelta di turno, non come una proprieta' dell'eroe.",
+  "_nota_leggibilita": "E' il caso in cui la presentazione puo' MENTIRE piu' facilmente, ed e' la ragione per cui questo file sta fra i `Visual`: se l'impatto su Riktor riproduce comunque un contraccolpo, il giocatore leggera' una spinta assorbita come una spinta riuscita, e non capira' perche' la cella davanti e' ancora occupata. Ora c'e' anche il secondo mezzo passo da mostrare: la guardia va letta come una scelta di turno, non come una proprieta' dell'eroe.",
 
-  "_nota_orientamento": "L'attaccante sta a EST di Bastion, cioe' nell'arco frontale di chi guarda a est di partenza (CP 16.2). Da ovest la guardia non varrebbe e questo file misurerebbe la difesa direzionale.",
+  "_nota_orientamento": "L'attaccante sta a EST di Riktor, cioe' nell'arco frontale di chi guarda a est di partenza (CP 16.2). Da ovest la guardia non varrebbe e questo file misurerebbe la difesa direzionale.",
 
-  "_nota_geometria": "Un attaccante per bersaglio, due righe separate, colpo lungo la riga: l'arretramento di Vektor e' la cella successiva della stessa riga, quindi e' scrivibile a mano. Non due colpi sullo stesso bersaglio, che il resolver escluderebbe dalla spinta (`*Pushes != 1`).",
+  "_nota_geometria": "Un attaccante per bersaglio, due righe separate, colpo lungo la riga: l'arretramento di Wraith e' la cella successiva della stessa riga, quindi e' scrivibile a mano. Non due colpi sullo stesso bersaglio, che il resolver escluderebbe dalla spinta (`*Pushes != 1`).",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [0,  0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor",  "team": 0, "cell": [0, -2, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [0,  0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith",  "team": 0, "cell": [0, -2, 0] },
 
-    { "facing": "W", "id": "R1", "hero": "Hero.Riva",    "team": 1, "cell": [3,  0, 0] },
-    { "facing": "W", "id": "R2", "hero": "Hero.Riva",    "team": 1, "cell": [3, -2, 0] }
+    { "facing": "W", "id": "R1", "hero": "Hero.Phase",    "team": 1, "cell": [3,  0, 0] },
+    { "facing": "W", "id": "R2", "hero": "Hero.Phase",    "team": 1, "cell": [3, -2, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "Bastion si mette in guardia e incassa; Vektor prende lo stesso colpo senza difendersi.",
+      "_turno": "Riktor si mette in guardia e incassa; Wraith prende lo stesso colpo senza difendersi.",
       "intents": [
         { "unit": "B1", "ability": "Action.Guard" },
 
-        { "unit": "R1", "ability": "Riva.PressureJet", "target": "B1" },
-        { "unit": "R2", "ability": "Riva.PressureJet", "target": "V1" }
+        { "unit": "R1", "ability": "Hero.Phase.PressureJet", "target": "B1" },
+        { "unit": "R2", "ability": "Hero.Phase.PressureJet", "target": "V1" }
       ]
     }
   ],
 
-  "_nota_numeri": "Bastion: 16-15=1 danno (la guardia vale sul primo colpo diretto), 120-1=119, fermo su (0,0,0). Vektor: 16 pieni, 90-16=74, arretrato di una cella.",
+  "_nota_numeri": "Riktor: 16-15=1 danno (la guardia vale sul primo colpo diretto), 120-1=119, fermo su (0,0,0). Wraith: 16 pieni, 90-16=74, arretrato di una cella.",
 
   "expect": [
     { "type": "UnitAtCell",    "unit": "B1", "cell": [ 0,  0, 0] },

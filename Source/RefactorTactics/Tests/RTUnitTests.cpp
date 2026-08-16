@@ -27,7 +27,7 @@ bool FRTUnitArchetypeCooldownTest::RunTest(const FString&)
 {
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBastion());
+	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeRiktor());
 
 	// L'abilita' la sceglie il KIT, non un indice scritto a mano: se i numeri dell'archetipo cambiano, il
 	// test resta valido invece di verificare la cosa sbagliata in silenzio.
@@ -340,19 +340,19 @@ bool FRTCatalogFastMovementIsFoundAsDashTest::RunTest(const FString&)
 {
 	// Le azioni degli eroi arrivano dal catalogo e dichiarano la FASE, non un flag: fino a #142 nessuna di
 	// loro veniva riconosciuta come scatto, quindi il bot non ne pianificava mai uno per i quattro eroi.
-	URTHeroData* Bastion = URTHeroCatalogLibrary::MakeBastion();
-	if (!TestNotNull(TEXT("Bastion dal catalogo"), Bastion)) { return false; }
+	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	if (!TestNotNull(TEXT("Riktor dal catalogo"), Riktor)) { return false; }
 
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
-	Unit->ConfigureFromHeroData(Bastion);
+	Unit->ConfigureFromHeroData(Riktor);
 
 	const int32 DashIdx = Unit->FindDashAbilityIndex();
 	if (!TestTrue(TEXT("l'unita' riconosce la sua mobilita' rapida"), DashIdx != INDEX_NONE)) { return false; }
 
 	const URTActionData* Dash = Unit->GetAbility(DashIdx);
 	if (!TestNotNull(TEXT("l'abilita' trovata esiste"), (void*)Dash)) { return false; }
-	TestTrue(TEXT("ed e' proprio la carica di Bastion"), Dash->Def.ActionId == FName(TEXT("Bastion.Ram")));
+	TestTrue(TEXT("ed e' proprio la carica di Riktor"), Dash->Def.ActionId == FName(TEXT("Hero.Riktor.Ram")));
 
 	// La verifica ha senso solo se il riconoscimento NON passa da un campo dell'asset: e' la fase del
 	// catalogo a dirlo. Se un giorno tornasse un flag, questa asserzione cadrebbe insieme al motivo del test.

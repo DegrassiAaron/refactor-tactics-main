@@ -220,7 +220,7 @@ bool FRTInteractIsInertTest::RunTest(const FString&)
 	// Questo test fissa l'inerzia invece di ricordarsela. E' scritto per CADERE: il giorno in cui
 	// E10.1 le da' un effetto, diventa rosso e obbliga a sostituirlo con il test del comportamento
 	// vero. Senza, un effetto aggiunto a meta' passerebbe inosservato — che e' esattamente come
-	// `Marked`, il bonus Wet di Flux e le reazioni d'eroe con `Effects` vuoto sono rimasti inerti
+	// `Marked`, il bonus Wet di Gadget e le reazioni d'eroe con `Effects` vuoto sono rimasti inerti
 	// per settimane.
 	//
 	// Il catalogo continua a dichiarare fase, priorita' e slot perche' quelle SONO decise (D-025):

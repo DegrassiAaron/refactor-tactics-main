@@ -79,14 +79,14 @@ public:
 	 * `Gadget.PortableCover` del catalogo equipaggiamento (CP 9.5). E' l'**unico** gadget costruito in v0.1, e
 	 * non e' l'inizio del catalogo completo: quello, con slot, loadout e validazione dell'insieme, e' l'epic E7
 	 * (`#61`, `#63`). Sta qui perche' il DoD di questo checkpoint lo nomina, e perche' e' il secondo
-	 * consumatore di `Action.CreateCover` — cioe' la prova che la semantica e' condivisa e non e' di Bastion.
+	 * consumatore di `Action.CreateCover` — cioe' la prova che la semantica e' condivisa e non e' di Riktor.
 	 */
 	static URTEquipmentData* MakePortableCoverGadget();
 
 	/**
 	 * Le **sei varianti d'arma** del catalogo equipaggiamento §1 (CP 7.1, `#60`).
 	 *
-	 * Costruite in C++ come il roster (`MakeBastion`) e non come asset di `Content/`: sono dati di catalogo che
+	 * Costruite in C++ come il roster (`MakeRiktor`) e non come asset di `Content/`: sono dati di catalogo che
 	 * il gioco spedisce sempre, e un asset li renderebbe modificabili senza passare da una review del diff —
 	 * oltre a richiedere l'editor per una regola che non ne ha bisogno.
 	 *
@@ -102,7 +102,7 @@ public:
 	 * Sono **sei** dei sette. L'unico assente e' `HazardEscape`, e non gli manca un dato: gli manca un
 	 * PREREQUISITO. Una superficie che nasce sotto un'unita' ferma oggi non le fa niente — tranne l'acqua,
 	 * che ha un ramo suo — quindi nel Cleanup non c'e' nessun danno imminente da cui fuggire e il modulo
-	 * sarebbe inerte: la trappola di `Riva.MistVeil` (`#353`). Lo chiude `#570`, e questo modulo lo segue.
+	 * sarebbe inerte: la trappola di `Phase.MistVeil` (`#353`). Lo chiude `#570`, e questo modulo lo segue.
 	 *
 	 * I sei raccontano le tre ragioni per cui un modulo puo' restare fermo, e la differenza porta a lavori
 	 * diversi: a `EmergencyDash` mancava l'**effetto** (`SelfReposition`, D-093, perche' `Push`/`Pull`
@@ -184,7 +184,7 @@ public:
 	 *
 	 * Oggi ne produce due, ed entrambe nascono da D-089:
 	 * - la variante **duplica uno status** che l'attacco base gia' applica (`Suppressive` su
-	 *   `Bastion.ImpactShot`, che rallenta di suo): si paga il costo pieno per un effetto che si ha;
+	 *   `Riktor.ImpactShot`, che rallenta di suo): si paga il costo pieno per un effetto che si ha;
 	 * - la variante porta il danno diretto **a zero o sotto**: un pulsante finto, che ADR-0007 esiste per
 	 *   evitare.
 	 *

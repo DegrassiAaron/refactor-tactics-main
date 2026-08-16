@@ -1,19 +1,19 @@
 {
   "scenarioId": "Spec.Clash.ShiftBeatsRead",
-  "tags": ["spec", "reactions", "clash", "vektor", "riva"],
+  "tags": ["spec", "reactions", "clash", "wraith", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-048/D-049). Terzo lato della matrice, quello che chiude il ciclo: chi CAMBIA geometria batte chi LEGGE. Vektor anticipa la mossa avversaria (READ) e prepara il contrattacco sulla linea prevista; Riva cambia vettore (SHIFT) e la lettura cade a vuoto — chi anticipa ha gia' impegnato la risposta e non puo' correggerla.",
+  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-048/D-049). Terzo lato della matrice, quello che chiude il ciclo: chi CAMBIA geometria batte chi LEGGE. Wraith anticipa la mossa avversaria (READ) e prepara il contrattacco sulla linea prevista; Phase cambia vettore (SHIFT) e la lettura cade a vuoto — chi anticipa ha gia' impegnato la risposta e non puo' correggerla.",
 
   "_nota_perche_esiste": "Chiude il ciclo `READ > STAND > SHIFT > READ`. Senza questo file la matrice avrebbe due lati verificati su tre, ed e' proprio il terzo a renderla ciclica invece che gerarchica: un ordinamento con un vincitore assoluto sarebbe un sistema diverso.",
 
-  "_nota_da_completare": "Intent del turno 2 vuoti: sintassi della maneuver non decisa. Chi implementa E14.7 aggiunge l'assertion sugli HP di Riva (l'impatto NON deve essersi applicato) e sull'esposizione di Vektor, se e quando esistera' un'assertion che la sappia leggere — oggi `ERTAssertionKind` non ne ha una.",
+  "_nota_da_completare": "Intent del turno 2 vuoti: sintassi della maneuver non decisa. Chi implementa E14.7 aggiunge l'assertion sugli HP di Phase (l'impatto NON deve essersi applicato) e sull'esposizione di Wraith, se e quando esistera' un'assertion che la sappia leggere — oggi `ERTAssertionKind` non ne ha una.",
 
   "units": [
-    { "id": "V1", "hero": "Hero.Vektor", "team": 0, "cell": [ 0, 0, 0] },
-    { "id": "R1", "hero": "Hero.Riva",   "team": 1, "cell": [-3, 0, 0] }
+    { "id": "V1", "hero": "Hero.Wraith", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "R1", "hero": "Hero.Phase",   "team": 1, "cell": [-3, 0, 0] }
   ],
 
   "turns": [
@@ -24,7 +24,7 @@
       ]
     },
     {
-      "_turno": "T2 — il confronto. Vektor anticipa (READ), Riva cambia vettore (SHIFT). SHIFT batte READ.",
+      "_turno": "T2 — il confronto. Wraith anticipa (READ), Phase cambia vettore (SHIFT). SHIFT batte READ.",
       "requires": ["DecisionBoundary", "ReactionClash"],
       "intents": []
     }

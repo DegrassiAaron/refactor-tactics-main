@@ -11,7 +11,7 @@
 
   "_nota_da_completare": "Chi implementa il teletrasporto: dichiara la capability `Teleport` in `IsCapabilityAvailable`, riempie l'intent del turno 2 con l'azione reale, e aggiunge le due assertion che contano — gli HP di chi arriva (**invariati**: non ha attraversato il fuoco) e la sua cella finale. La corsia di fuoco fra origine e destinazione e' gia' preparata negli override.",
 
-  "_nota_aritmetica_attesa": "Flux parte da (-2,0) con 90 HP. Fra lui e la destinazione (2,0) ci sono due celle in fiamme, (0,0) e (1,0). Un MOVE attraverso quella corsia costerebbe il danno da fuoco di entrambe; un TELEPORT no. L'assertion finale deve dire **90**: e' l'intero contenuto informativo di questo scenario.",
+  "_nota_aritmetica_attesa": "Gadget parte da (-2,0) con 90 HP. Fra lui e la destinazione (2,0) ci sono due celle in fiamme, (0,0) e (1,0). Un MOVE attraverso quella corsia costerebbe il danno da fuoco di entrambe; un TELEPORT no. L'assertion finale deve dire **90**: e' l'intero contenuto informativo di questo scenario.",
 
   "cells": [
     { "cell": [0, 0, 0], "surface": "Fire" },
@@ -19,17 +19,17 @@
   ],
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-2, 0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 4, 0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-2, 0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 4, 0, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — nessuno si muove: fissa lo stato di partenza e prova che Flux e' a 90 HP prima di qualunque cosa.",
+      "_turno": "T1 — nessuno si muove: fissa lo stato di partenza e prova che Gadget e' a 90 HP prima di qualunque cosa.",
       "intents": []
     },
     {
-      "_turno": "T2 — Flux si teletrasporta oltre la corsia di fuoco, da (-2,0) a (2,0). Non attraversa (0,0) ne' (1,0).",
+      "_turno": "T2 — Gadget si teletrasporta oltre la corsia di fuoco, da (-2,0) a (2,0). Non attraversa (0,0) ne' (1,0).",
       "requires": ["Teleport"],
       "intents": []
     }

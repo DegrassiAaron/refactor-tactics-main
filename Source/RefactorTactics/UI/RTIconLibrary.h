@@ -48,9 +48,9 @@ public:
 	 *   legge. Tre costanti che il catalogo deve coprire valgono piu' di un tipo senza consumatori.
 	 * - **Identity** — i quattro eroi di `URTHeroCatalogLibrary::GetHeroIds()`, piu' la relazione di squadra
 	 *   (`Ally`, `Enemy`, il cui consumatore e' gia' `ARTHUD`). ⚠️ Il prefisso viene **tradotto**: gli
-	 *   `HeroId` sono `Hero.Flux`, e `MakeIconId` ne farebbe `UI.Icon.Hero.Flux` — che `ValidateIconCatalog`
+	 *   `HeroId` sono `Hero.Gadget`, e `MakeIconId` ne farebbe `UI.Icon.Hero.Gadget` — che `ValidateIconCatalog`
 	 *   rifiuta, perche' il segmento (`Hero`) non combacia con la categoria (`Identity`). Si tiene il nome e
-	 *   si sostituisce il prefisso: `Hero.Flux` -> `Identity.Flux`. E' l'unico punto in cui la regola «la
+	 *   si sostituisce il prefisso: `Hero.Gadget` -> `Identity.Gadget`. E' l'unico punto in cui la regola «la
 	 *   chiave si deriva dall'identificatore che esiste» ha bisogno di una traduzione.
 	 *
 	 * Da qui viene il valore di `EveryKeyResolves`: l'insieme richiesto **non** e' il contenuto del catalogo,

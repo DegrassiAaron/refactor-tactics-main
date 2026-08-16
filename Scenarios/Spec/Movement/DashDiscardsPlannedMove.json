@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Movement.DashDiscardsPlannedMove",
-  "tags": ["spec", "movement", "dash", "planning", "bastion"],
+  "tags": ["spec", "movement", "dash", "planning", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -14,8 +14,8 @@
   "_nota_avversario": "F1 sta a (-3,0,0), fermo e lontano: serve solo a dare un secondo team alla partita. Non e' sulla traiettoria dello scatto (che va nel verso opposto) e non interferisce con i waypoint.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [ 0, 0, 0] },
-    { "id": "F1", "hero": "Hero.Flux",    "team": 1, "cell": [-3, 0, 0] }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 1, "cell": [-3, 0, 0] }
   ],
 
   "_nota_controllo": "Che un movimento a waypoint funzioni di per se' e' gia' coperto altrove — `Spec/Facing/TurningPathUsesLastCompletedStep`, `Spec/Perception/HeardNotSeen`, `Visual/Core/PhaseOrder` dichiarano tutti un `move` a due waypoint e verificano l'arrivo. Qui non si duplica: un turno di controllo in questo file non sarebbe nemmeno verificabile, perche' le `expect` valgono a FINE SCENARIO (`FRTScenarioTurn` porta solo `Intents` e `Requires`, nessuna assertion per turno) e l'esito del primo turno andrebbe perso.",
@@ -24,7 +24,7 @@
     {
       "_turno": "T1 — B1 dichiara ENTRAMBI: uno scatto verso (2,0,0) e un movimento a waypoint verso (0,2,0). Il harness li scrive in due blocchi indipendenti (RTScenarioSession.cpp:715-716 per lo scatto, :865 per i waypoint), esattamente come il controller li lascia coesistere in pianificazione. Le due destinazioni sono incompatibili: l'esito dice quale ha vinto.",
       "intents": [
-        { "unit": "B1", "dash": "Bastion.Ram", "dashTo": [2, 0, 0], "move": [[0, 1, 0], [0, 2, 0]] }
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [2, 0, 0], "move": [[0, 1, 0], [0, 2, 0]] }
       ]
     }
   ],

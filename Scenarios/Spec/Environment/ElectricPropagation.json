@@ -3,20 +3,20 @@
   "tags": [
     "spec",
     "environment",
-    "flux",
-    "riva",
-    "bastion"
+    "gadget",
+    "phase",
+    "riktor"
   ],
   "version": 1,
   "seed": 0,
   "fixture": "RelayLite",
   "_nota": "SPECIFICA ESEGUIBILE del payoff ambientale piu' vistoso della v0.1: la scarica che si propaga sull'acqua. Due bersagli in piedi sulla spina d'acqua di RelayLite; la scarica ne colpisce uno e arriva anche all'altro, con 20 alla sorgente e 12 ai propagati, limite 3 celle, ogni unita' colpita al massimo una volta, ordine `distanza -> CellId -> UnitId` (CP 8.3).",
-  "_nota_la_strada_giusta": "`Flux.ConductiveNode` esiste nel catalogo eroi con `Effects` VUOTI e un commento che dichiara il perche': quando fu scritta non esisteva un modello di cella conduttiva. Ora esiste. La via canonica del progetto e' quella gia' usata per le reazioni — `Bastion.Ram` riusa `Action.Charge`, `Bastion.Interposition` riusa `Action.Intercept` — cioe' cablare l'abilita' d'eroe alla semantica core conservando l'identita' dell'eroe.",
+  "_nota_la_strada_giusta": "`Hero.Gadget.ConductiveNode` esiste nel catalogo eroi con `Effects` VUOTI e un commento che dichiara il perche': quando fu scritta non esisteva un modello di cella conduttiva. Ora esiste. La via canonica del progetto e' quella gia' usata per le reazioni — `Hero.Riktor.Ram` riusa `Action.Charge`, `Hero.Riktor.Interposition` riusa `Action.Intercept` — cioe' cablare l'abilita' d'eroe alla semantica core conservando l'identita' dell'eroe.",
   "_nota_da_completare": "Chi cabla l'abilita' riempie il turno 2 e aggiunge le assertion: HP del bersaglio diretto, HP del propagato, e la prova che una terza unita' fuori dalla rete d'acqua resti illesa — e' quest'ultima a dimostrare che la propagazione segue l'acqua e non il raggio.",
   "units": [
     {
       "id": "F1",
-      "hero": "Hero.Flux",
+      "hero": "Hero.Gadget",
       "team": 0,
       "cell": [
         -3,
@@ -26,7 +26,7 @@
     },
     {
       "id": "R1",
-      "hero": "Hero.Riva",
+      "hero": "Hero.Phase",
       "team": 1,
       "cell": [
         0,
@@ -36,7 +36,7 @@
     },
     {
       "id": "B1",
-      "hero": "Hero.Bastion",
+      "hero": "Hero.Riktor",
       "team": 1,
       "cell": [
         0,
@@ -46,7 +46,7 @@
     },
     {
       "id": "V1",
-      "hero": "Hero.Vektor",
+      "hero": "Hero.Wraith",
       "team": 1,
       "cell": [
         3,
@@ -57,18 +57,18 @@
   ],
   "turns": [
     {
-      "_turno": "T1 — allestimento: Riva e Bastion sono gia' sull'acqua ((0,0) e (0,1) di RelayLite), Vektor e' all'asciutto lontano. Gira sul gioco di oggi.",
+      "_turno": "T1 — allestimento: Phase e Riktor sono gia' sull'acqua ((0,0) e (0,1) di RelayLite), Wraith e' all'asciutto lontano. Gira sul gioco di oggi.",
       "intents": []
     },
     {
-      "_turno": "T2 - la scarica. Flux elettrifica la rete con ConductiveNode (= Action.Electrify, D-046): 20 al bersaglio, 12 ai propagati sull'acqua, Vektor illeso perche' non la tocca.",
+      "_turno": "T2 - la scarica. Gadget elettrifica la rete con ConductiveNode (= Action.Electrify, D-046): 20 al bersaglio, 12 ai propagati sull'acqua, Wraith illeso perche' non la tocca.",
       "requires": [
         "EnvironmentalActionOwner"
       ],
       "intents": [
         {
           "unit": "F1",
-          "ability": "Flux.ConductiveNode",
+          "ability": "Hero.Gadget.ConductiveNode",
           "target": "R1"
         }
       ]
@@ -113,5 +113,5 @@
       "value": 2
     }
   ],
-  "_nota_owner": "D-046 (#282): l'owner adesso esiste. `Flux.ConductiveNode` E' `Action.Electrify` - stessa portata (4), stessa propagazione (3), fase Environment. Prima questo turno era BLOCKED perche' il sistema sapeva risolvere l'azione e nessuna unita' la possedeva."
+  "_nota_owner": "D-046 (#282): l'owner adesso esiste. `Hero.Gadget.ConductiveNode` E' `Action.Electrify` - stessa portata (4), stessa propagazione (3), fase Environment. Prima questo turno era BLOCKED perche' il sistema sapeva risolvere l'azione e nessuna unita' la possedeva."
 }

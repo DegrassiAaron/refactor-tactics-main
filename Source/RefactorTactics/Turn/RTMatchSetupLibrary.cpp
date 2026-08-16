@@ -235,10 +235,10 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	// dalla forma della tabella invece che da un controllo da ricordare.
 	struct FBasinPatch { FRTCellId Cell; ERTHexSurface Surface; };
 	static const FBasinPatch Patches[] = {
-		// Corridoio ovest: Flux ci passa al turno 1, `MistVeil` ne aggiunge al turno 5.
+		// Corridoio ovest: Gadget ci passa al turno 1, `MistVeil` ne aggiunge al turno 5.
 		{ FRTCellId(-3,  0, 0), ERTHexSurface::Smoke },
 		{ FRTCellId(-2,  0, 0), ERTHexSurface::Smoke },
-		// Lane d'acqua di Riva: conduttiva, ed e' cio' che rende possibile il payoff elettrico del turno 7.
+		// Lane d'acqua di Phase: conduttiva, ed e' cio' che rende possibile il payoff elettrico del turno 7.
 		{ FRTCellId(-3,  1, 0), ERTHexSurface::ShallowWater },
 		{ FRTCellId(-2,  1, 0), ERTHexSurface::ShallowWater },
 		{ FRTCellId(-1,  1, 0), ERTHexSurface::ShallowWater },
@@ -249,8 +249,8 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		// Sbarra la via diretta est->Relay ai movimenti lineari: invalida il `Ram` del turno 7.
 		{ FRTCellId( 1,  0, 0), ERTHexSurface::Rough },
 		{ FRTCellId( 2,  0, 0), ERTHexSurface::Rough },
-		// Fascia di fuoco sull'approccio NORD al Relay: Vektor la attraversa al turno 3 scendendo dalla
-		// cresta, e prende `Burning`. NON sta accanto agli spawn: messa a (3,0)/(3,1) murava Bastion nel suo
+		// Fascia di fuoco sull'approccio NORD al Relay: Wraith la attraversa al turno 3 scendendo dalla
+		// cresta, e prende `Burning`. NON sta accanto agli spawn: messa a (3,0)/(3,1) murava Riktor nel suo
 		// angolo — ogni sua uscita passava dal fuoco, e il turno 1 sarebbe stato una punizione, non una scelta.
 		{ FRTCellId( 2, -1, 0), ERTHexSurface::Fire },
 		{ FRTCellId( 1, -1, 0), ERTHexSurface::Fire },
@@ -283,7 +283,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		}
 	}
 
-	// Il gate della lane sud: una PORTA chiusa (CP 9.3), non un meccanismo nuovo. Bastion la apre al turno 5,
+	// Il gate della lane sud: una PORTA chiusa (CP 9.3), non un meccanismo nuovo. Riktor la apre al turno 5,
 	// la revisione della mappa sale e un percorso che prima non esisteva diventa percorribile.
 	if (const FRTHexCellData* GateCell = Arena->FindCell(FRTCellId(0, 1, 0)))
 	{
@@ -387,10 +387,10 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns()
 	// Estremi opposti del bacino, sulle due righe centrali. Celle di pavimento: nessuna squadra comincia
 	// dentro un terreno che la penalizza al primo passo.
 	return {
-		FRTShowcaseSpawn(TEXT("Hero.Flux"),    /*TeamId=*/ 0, FRTCellId(-4, 0, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Riva"),    /*TeamId=*/ 0, FRTCellId(-4, 1, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Bastion"), /*TeamId=*/ 1, FRTCellId( 4, 0, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Vektor"),  /*TeamId=*/ 1, FRTCellId( 4, 1, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Gadget"),    /*TeamId=*/ 0, FRTCellId(-4, 0, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Phase"),    /*TeamId=*/ 0, FRTCellId(-4, 1, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Riktor"), /*TeamId=*/ 1, FRTCellId( 4, 0, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Wraith"),  /*TeamId=*/ 1, FRTCellId( 4, 1, 0)),
 	};
 }
 
@@ -399,10 +399,10 @@ TArray<FRTShowcaseSpawn> URTMatchSetupLibrary::GetShowcaseRelayLiteSpawns()
 	// Estremi opposti dell'arena, in coppie speculari come le superfici. Celle di pavimento: nessuna squadra
 	// comincia dentro un terreno che la penalizza al primo passo.
 	return {
-		FRTShowcaseSpawn(TEXT("Hero.Flux"),    /*TeamId=*/ 0, FRTCellId(-5,  2, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Riva"),    /*TeamId=*/ 0, FRTCellId(-5,  3, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Bastion"), /*TeamId=*/ 1, FRTCellId( 5, -2, 0)),
-		FRTShowcaseSpawn(TEXT("Hero.Vektor"),  /*TeamId=*/ 1, FRTCellId( 5, -3, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Gadget"),    /*TeamId=*/ 0, FRTCellId(-5,  2, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Phase"),    /*TeamId=*/ 0, FRTCellId(-5,  3, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Riktor"), /*TeamId=*/ 1, FRTCellId( 5, -2, 0)),
+		FRTShowcaseSpawn(TEXT("Hero.Wraith"),  /*TeamId=*/ 1, FRTCellId( 5, -3, 0)),
 	};
 }
 

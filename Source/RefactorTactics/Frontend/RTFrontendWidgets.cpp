@@ -54,6 +54,32 @@ void URTErrorModalWidgetBase::ShowFor(const FRTStartupNote& Note)
 	Detail = Note.Detail;
 }
 
+void URTErrorModalWidgetBase::ShowFromReport(const FRTStartupReport& Report)
+{
+	// Quale nota sia quella fatale lo decide `FindFatal`, che a sua volta chiede a `IsFatal`: il
+	// chiamante non deve saperlo, e non deve poterlo ridecidere.
+	const ERTStartupOutcome Fatal = URTStartupReportLibrary::FindFatal(Report);
+	if (Fatal == ERTStartupOutcome::Ok)
+	{
+		return;
+	}
+
+	for (const FRTStartupNote& Note : Report.Notes)
+	{
+		if (Note.Outcome == Fatal)
+		{
+			ShowFor(Note);
+			return;
+		}
+	}
+}
+
+void URTErrorModalWidgetBase::ShowForOutcome(ERTStartupOutcome InOutcome, const FString& InDetail)
+{
+	// Passa da `ShowFor` invece di scrivere i campi: il filtro sui non-fatali resta in un posto solo.
+	ShowFor(FRTStartupNote(InOutcome, InDetail));
+}
+
 FText URTErrorModalWidgetBase::GetReasonText() const
 {
 	return URTStartupReportLibrary::DescribeOutcome(Outcome);

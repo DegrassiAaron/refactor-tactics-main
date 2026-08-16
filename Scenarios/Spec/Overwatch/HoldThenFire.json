@@ -1,24 +1,24 @@
 {
   "scenarioId": "Spec.Overwatch.HoldThenFire",
-  "tags": ["spec", "reactions", "vektor", "flux", "riva"],
+  "tags": ["spec", "reactions", "wraith", "gadget", "phase"],
   "version": 2,
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "SPECIFICA ESEGUIBILE di E14, non un test di oggi. Descrive la feature firma delle finestre di reazione: Vektor controlla un varco; Flux ci entra per primo e Vektor risponde HOLD; poi entra Riva e Vektor risponde FIRE. HOLD scarta l'opportunita' senza consumare la carica, FIRE la consuma e TRONCA il movimento nella cella raggiunta.",
+  "_nota": "SPECIFICA ESEGUIBILE di E14, non un test di oggi. Descrive la feature firma delle finestre di reazione: Wraith controlla un varco; Gadget ci entra per primo e Wraith risponde HOLD; poi entra Phase e Wraith risponde FIRE. HOLD scarta l'opportunita' senza consumare la carica, FIRE la consuma e TRONCA il movimento nella cella raggiunta.",
 
   "_nota_perche_esiste": "Esce BLOCKED finche' `DecisionBoundary` non esiste, e va bene: il valore e' che la feature ha una forma eseguibile PRIMA di essere costruita. Quando la capability atterra, questo file si accende da solo e dice se la semantica e' quella concordata — invece di essere scritto dopo, quando l'implementazione e' gia' la sola descrizione di se stessa.",
 
-  "_nota_completata": "✅ 2026-08-16 (#512 fase B). Il `_nota_da_completare` diceva: «gli intent del turno 2 sono volutamente vuoti: la sintassi con cui si dichiarera' una risposta HOLD/FIRE non esiste ancora, e inventarla qui creerebbe un formato che nessuno ha deciso. Chi implementa E14 riempie il turno e aggiunge le assertion sugli HP di Riva e sulla cella in cui si e' fermata». Il formato ora esiste ed e' deciso — `turns[].decisions`, `\"version\": 2` (#512 fase A, PR #1016) — quindi il turno e' riempito e le due assertion ci sono. La nota resta come registro: uno scenario-specifica scritto PRIMA dell'implementazione ha detto, senza cambiare una virgola della propria semantica, cosa andava costruito.",
+  "_nota_completata": "✅ 2026-08-16 (#512 fase B). Il `_nota_da_completare` diceva: «gli intent del turno 2 sono volutamente vuoti: la sintassi con cui si dichiarera' una risposta HOLD/FIRE non esiste ancora, e inventarla qui creerebbe un formato che nessuno ha deciso. Chi implementa E14 riempie il turno e aggiunge le assertion sugli HP di Phase e sulla cella in cui si e' fermata». Il formato ora esiste ed e' deciso — `turns[].decisions`, `\"version\": 2` (#512 fase A, PR #1016) — quindi il turno e' riempito e le due assertion ci sono. La nota resta come registro: uno scenario-specifica scritto PRIMA dell'implementazione ha detto, senza cambiare una virgola della propria semantica, cosa andava costruito.",
 
-  "_nota_geometria": "La zona dell'Overwatch e' una LINEA, non un cono: `MakeSuppressiveZone(Map, ..., OwnerCell, Neighbor(OwnerCell, Facing), Range)` con `LineCells`. V1 e' a (2,-1) e guarda W, quindi controlla (1,-1) (0,-1) (-1,-1) (-2,-1) — quattro celle, la portata di `Vektor.PulseShot`. I due percorsi sono scelti perche' entrano nella linea a MICRO-STEP DIVERSI: `BuildOverwatchTriggers` raggruppa per passo, e due bersagli nello stesso passo sarebbero UNA sola opportunity (`Overwatch.SimultaneousTargetsSingleOpportunity`) — cioe' una decisione sola, non due, e questo scenario non direbbe piu' quello che dice.",
+  "_nota_geometria": "La zona dell'Overwatch e' una LINEA, non un cono: `MakeSuppressiveZone(Map, ..., OwnerCell, Neighbor(OwnerCell, Facing), Range)` con `LineCells`. V1 e' a (2,-1) e guarda W, quindi controlla (1,-1) (0,-1) (-1,-1) (-2,-1) — quattro celle, la portata di `Hero.Wraith.PulseShot`. I due percorsi sono scelti perche' entrano nella linea a MICRO-STEP DIVERSI: `BuildOverwatchTriggers` raggruppa per passo, e due bersagli nello stesso passo sarebbero UNA sola opportunity (`Overwatch.SimultaneousTargetsSingleOpportunity`) — cioe' una decisione sola, non due, e questo scenario non direbbe piu' quello che dice.",
 
-  "_nota_facing_di_piazzamento": "🔴 Il `facing` di V1 sta fra le UNITA' e non fra gli intent, e la prima stesura sbagliava: metteva `\"facing\": \"W\"` sull'intent del T2 e lo scenario apriva ZERO finestre pur avendo entrambi i mover dentro le celle calcolate. Misurato: `Armed.Facing = Unit->Facing` viene letto in PREP (`ARTTurnManager`, ramo `Action.Overwatch`), mentre una rotazione DICHIARATA si applica dentro `ResolveMovement` DOPO il ciclo dei micro-step — quindi in T2 arriva troppo tardi per il proprio cono. Un'unita' che si MUOVE ruota strada facendo e il caso non si vede (e' cio' che nasconde il difetto in `RT_Showcase_Relay_v01`, dove Bastion arriva gia' girato dal T1); V1 non si muove mai, quindi conserva il facing di piazzamento e il caso si vede tutto. Conseguenza da tenere a mente scrivendo scenari: un cono si prepara il turno PRIMA, o si dichiara al piazzamento.",
+  "_nota_facing_di_piazzamento": "🔴 Il `facing` di V1 sta fra le UNITA' e non fra gli intent, e la prima stesura sbagliava: metteva `\"facing\": \"W\"` sull'intent del T2 e lo scenario apriva ZERO finestre pur avendo entrambi i mover dentro le celle calcolate. Misurato: `Armed.Facing = Unit->Facing` viene letto in PREP (`ARTTurnManager`, ramo `Action.Overwatch`), mentre una rotazione DICHIARATA si applica dentro `ResolveMovement` DOPO il ciclo dei micro-step — quindi in T2 arriva troppo tardi per il proprio cono. Un'unita' che si MUOVE ruota strada facendo e il caso non si vede (e' cio' che nasconde il difetto in `RT_Showcase_Relay_v01`, dove Riktor arriva gia' girato dal T1); V1 non si muove mai, quindi conserva il facing di piazzamento e il caso si vede tutto. Conseguenza da tenere a mente scrivendo scenari: un cono si prepara il turno PRIMA, o si dichiara al piazzamento.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-3,  0, 0] },
-    { "id": "R1", "hero": "Hero.Riva",   "team": 0, "cell": [-3,  1, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
+    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-3,  0, 0] },
+    { "id": "R1", "hero": "Hero.Phase",   "team": 0, "cell": [-3,  1, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
   ],
 
   "turns": [
@@ -30,7 +30,7 @@
       ]
     },
     {
-      "_turno": "T2 — la finestra. Vektor arma l'Overwatch sul varco che gia' controlla (guarda a W dal piazzamento, non lo ruota qui: vedi `_nota_facing_di_piazzamento`); Flux entra per primo e Vektor risponde HOLD (l'opportunita' si scarta, la carica resta); poi entra Riva e Vektor risponde FIRE, che consuma la carica e TRONCA il movimento nella cella raggiunta. Riva chiede tre passi e ne fa due: il terzo, (1,-1), non lo vede mai — ed e' quello a rendere osservabile la troncatura invece di lasciarla implicita. La `requires` dice `DecisionBoundary` e basta: il facing di piazzamento non ha mai avuto bisogno di una capability, e dichiarare `DeclaredRotation` qui direbbe che il turno usa qualcosa che non usa.",
+      "_turno": "T2 — la finestra. Wraith arma l'Overwatch sul varco che gia' controlla (guarda a W dal piazzamento, non lo ruota qui: vedi `_nota_facing_di_piazzamento`); Gadget entra per primo e Wraith risponde HOLD (l'opportunita' si scarta, la carica resta); poi entra Phase e Wraith risponde FIRE, che consuma la carica e TRONCA il movimento nella cella raggiunta. Phase chiede tre passi e ne fa due: il terzo, (1,-1), non lo vede mai — ed e' quello a rendere osservabile la troncatura invece di lasciarla implicita. La `requires` dice `DecisionBoundary` e basta: il facing di piazzamento non ha mai avuto bisogno di una capability, e dichiarare `DeclaredRotation` qui direbbe che il turno usa qualcosa che non usa.",
       "requires": ["DecisionBoundary"],
       "intents": [
         { "unit": "V1", "ability": "Action.Overwatch" },

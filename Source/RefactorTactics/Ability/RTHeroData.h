@@ -7,7 +7,7 @@
 class URTActionData;
 
 /**
- * Definizione data-driven di un EROE del catalogo v0.1 (Flux, Riva, Bastion, Vektor).
+ * Definizione data-driven di un EROE del catalogo v0.1 (Gadget, Phase, Riktor, Wraith).
  *
  * Contiene solo cio' che il catalogo dichiara come **fisso** dell'eroe: identita', statistiche base e le
  * azioni fondamentali (attacco base compreso). Cio' che e' configurabile FRA eroi diversi (variante d'arma,
@@ -28,7 +28,7 @@ class REFACTORTACTICS_API URTHeroData : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	/** ID stabile dell'eroe (es. `Hero.Flux`). Chiave del data asset: non cambia mai. */
+	/** ID stabile dell'eroe (es. `Hero.Gadget`). Chiave del data asset: non cambia mai. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName HeroId;
 
@@ -52,7 +52,7 @@ public:
 	 * **almeno** a questo valore perche' l'eroe lo senta. Scala `0-10`, la stessa dell'intensita'
 	 * (`Wait 0 · Sprint 5 · Dash 6 · esplosione 10`), e soglia **bassa = orecchio fine**.
 	 *
-	 * Quarta statistica, e **compensa** la vista invece di seguirla: Flux 5 · Riva 3 · Bastion 3 · Vektor 5.
+	 * Quarta statistica, e **compensa** la vista invece di seguirla: Gadget 5 · Phase 3 · Riktor 3 · Wraith 5.
 	 * Chi vede lontano sente meno. La terza via — udito allineato alla vista — e' stata scartata perche'
 	 * raddoppiare lo stesso vantaggio su due canali renderebbe gli eroi da ricognizione *migliori*, non
 	 * diversi.
@@ -63,7 +63,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 HearingThreshold = 5;
 
-	/** Celle di spinta assorbite prima di essere spostato (Bastion: 1). */
+	/** Celle di spinta assorbite prima di essere spostato (Riktor: 1). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 PushResistance = 0;
 

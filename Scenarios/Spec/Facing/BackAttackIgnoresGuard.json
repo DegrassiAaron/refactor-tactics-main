@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.BackAttackIgnoresGuard",
-  "tags": ["facing", "combat", "guard", "spec", "flux", "bastion"],
+  "tags": ["facing", "combat", "guard", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -10,15 +10,15 @@
   "_nota_coppia": "Il caso di controllo e' `Spec.Facing.FrontAttackKeepsGuard`, identico tranne il lato da cui arriva il colpo. Separati e non due turni dello stesso scenario perche' `Guard` vale sul PRIMO danno diretto: nel secondo turno sarebbe gia' consumato e la differenza non direbbe nulla sulla direzione.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [0, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
         { "unit": "B1", "ability": "Action.Guard" },
-        { "unit": "A1", "ability": "Flux.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
       ]
     }
   ],

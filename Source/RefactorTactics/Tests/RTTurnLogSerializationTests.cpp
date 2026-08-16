@@ -276,7 +276,7 @@ bool FRTTurnLogActionIdRoundTripTest::RunTest(const FString&)
 	TArray<FRTTurnLogEntry> Log;
 	FRTTurnLogEntry Hero = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::Reaction, /*Attivata*/ 0,
 		FRTCellId(1, 1), FRTCellId(1, 1), 0);
-	Hero.ActionId = TEXT("Bastion.Interposition");
+	Hero.ActionId = TEXT("Hero.Riktor.Interposition");
 	Log.Add(Hero);
 
 	// Stessa voce in tutto, tranne l'identita': senza il campo sarebbero indistinguibili.
@@ -290,12 +290,12 @@ bool FRTTurnLogActionIdRoundTripTest::RunTest(const FString&)
 	TestEqual(TEXT("due voci distinte"), Restored.Num(), 2);
 	TestEqual(TEXT("hash preservato"), URTTurnLogLibrary::HashTurnLog(Restored), URTTurnLogLibrary::HashTurnLog(Log));
 
-	// L'ordine canonico e' deterministico: `Action.Intercept` precede `Bastion.Interposition`.
+	// L'ordine canonico e' deterministico: `Action.Intercept` precede `Riktor.Interposition`.
 	if (Restored.Num() == 2)
 	{
 		TestTrue(TEXT("identita' preservata e ordinata lessicograficamente"),
 			Restored[0].ActionId == FName(TEXT("Action.Intercept"))
-			&& Restored[1].ActionId == FName(TEXT("Bastion.Interposition")));
+			&& Restored[1].ActionId == FName(TEXT("Hero.Riktor.Interposition")));
 	}
 
 	// Due tracce che differiscono SOLO per l'identita' dell'azione hanno hash diversi: altrimenti il replay
@@ -552,7 +552,7 @@ bool FRTTurnLogLegacyWithoutBaseActionIdTest::RunTest(const FString&)
 	U32(0); U32(0); U32(0);
 	U32(1); U32(0); U32(0);
 	U32(8);
-	Str("Bastion.ImpactShot"); // ActionId c'e'; BaseActionId NON e' scritto: il formato 4 non lo prevede
+	Str("Hero.Riktor.ImpactShot"); // ActionId c'e'; BaseActionId NON e' scritto: il formato 4 non lo prevede
 
 	uint32 H = 2166136261u;
 	for (const uint8 B : Bytes) { H ^= B; H *= 16777619u; }
@@ -562,15 +562,15 @@ bool FRTTurnLogLegacyWithoutBaseActionIdTest::RunTest(const FString&)
 	TestTrue(TEXT("una traccia in versione 4 resta leggibile"),
 		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr));
 	if (!TestEqual(TEXT("una voce letta"), Out.Num(), 1)) { return false; }
-	TestEqual(TEXT("l'ActionId e' preservato"), Out[0].ActionId, FName(TEXT("Bastion.ImpactShot")));
+	TestEqual(TEXT("l'ActionId e' preservato"), Out[0].ActionId, FName(TEXT("Hero.Riktor.ImpactShot")));
 	// Il punto del test: NON inventare. Una traccia vecchia non sapeva che ImpactShot fosse un attacco base,
 	// e il loader non deve dedurlo — dedurlo significherebbe scrivere nella traccia un'informazione che quei
 	// byte non contenevano, cioe' esattamente il difetto che il versionamento esiste per evitare.
 	TestTrue(TEXT("BaseActionId resta VUOTO: non si inventa cio' che i byte non dicevano"),
 		Out[0].BaseActionId.IsNone());
-	// E la descrizione degrada senza rompersi: dice l'ActionId da solo, non «None · Bastion.ImpactShot».
+	// E la descrizione degrada senza rompersi: dice l'ActionId da solo, non «None · Riktor.ImpactShot».
 	TestEqual(TEXT("la descrizione ricade sul solo ActionId"),
-		URTTurnLogLibrary::DescribeActionIdentity(Out[0]), FString(TEXT("Bastion.ImpactShot")));
+		URTTurnLogLibrary::DescribeActionIdentity(Out[0]), FString(TEXT("Hero.Riktor.ImpactShot")));
 	return true;
 }
 
@@ -590,7 +590,7 @@ bool FRTTurnLogBaseActionIdRoundTripTest::RunTest(const FString&)
 	E.Category = ERTLogCategory::Combat;
 	E.Outcome = static_cast<uint8>(ERTCombatOutcome::Hit);
 	E.Amount = 8;
-	E.ActionId = TEXT("Bastion.ImpactShot");
+	E.ActionId = TEXT("Hero.Riktor.ImpactShot");
 
 	FRTTurnLogEntry WithBase = E;
 	WithBase.BaseActionId = TEXT("Action.BasicAttack");
@@ -609,7 +609,7 @@ bool FRTTurnLogBaseActionIdRoundTripTest::RunTest(const FString&)
 	// 3. La descrizione mostra la coppia (D-033), e non ripete se i due coincidono.
 	TestEqual(TEXT("azione base + profilo"),
 		URTTurnLogLibrary::DescribeActionIdentity(Out[0]),
-		FString(TEXT("Action.BasicAttack · Bastion.ImpactShot")));
+		FString(TEXT("Action.BasicAttack · Hero.Riktor.ImpactShot")));
 	FRTTurnLogEntry Generic = E;
 	Generic.ActionId = TEXT("Action.BasicAttack");
 	Generic.BaseActionId = TEXT("Action.BasicAttack");
@@ -876,7 +876,7 @@ bool FRTTurnLogLegacyWithoutUnitIdTest::RunTest(const FString&)
 	U32(2); U32(2); U32(0);  // SrcCell: una cella c'e', ma non dice CHI
 	U32(3); U32(3); U32(0);
 	U32(12);
-	Str("Bastion.ImpactShot");
+	Str("Hero.Riktor.ImpactShot");
 	Str("Action.BasicAttack");
 
 	uint32 H = 2166136261u;
@@ -887,7 +887,7 @@ bool FRTTurnLogLegacyWithoutUnitIdTest::RunTest(const FString&)
 	TestTrue(TEXT("una traccia in versione 5 resta leggibile"),
 		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr));
 	if (!TestEqual(TEXT("una voce letta"), Out.Num(), 1)) { return false; }
-	TestEqual(TEXT("l'ActionId e' preservato"), Out[0].ActionId, FName(TEXT("Bastion.ImpactShot")));
+	TestEqual(TEXT("l'ActionId e' preservato"), Out[0].ActionId, FName(TEXT("Hero.Riktor.ImpactShot")));
 	TestEqual(TEXT("nessuna unita' dedotta dalla cella"), Out[0].UnitId, 0);
 	TestEqual(TEXT("nessun turno inventato"), Out[0].TurnNumber, 0);
 	return true;
@@ -1038,7 +1038,7 @@ bool FRTTurnLogPriorityRoundTripTest::RunTest(const FString&)
 	E.SrcCell = FRTCellId(0, 0);
 	E.TgtCell = FRTCellId(2, 0);
 	E.Amount = 21;
-	E.ActionId = FName(TEXT("Vektor.PulseShot"));
+	E.ActionId = FName(TEXT("Hero.Wraith.PulseShot"));
 	E.BaseActionId = FName(TEXT("Action.BasicAttack"));
 	E.Priority = 50;
 
@@ -1102,7 +1102,7 @@ bool FRTTurnLogLegacyWithoutPriorityTest::RunTest(const FString&)
 	U32(0); U32(0); U32(0);
 	U32(2); U32(0); U32(0);
 	U32(21);
-	Str("Vektor.PulseShot");
+	Str("Hero.Wraith.PulseShot");
 	Str("Action.BasicAttack");
 	U32(3); U32(1); U32(0); // UnitId, TurnNumber, GraphRevision — la v6 li ha; Priority no
 

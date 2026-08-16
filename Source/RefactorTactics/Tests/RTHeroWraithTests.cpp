@@ -10,7 +10,7 @@
 
 namespace
 {
-	int32 VektorEffectAmount(const TArray<FRTActionEffectSpec>& Effects, ERTActionEffect Kind)
+	int32 WraithEffectAmount(const TArray<FRTActionEffectSpec>& Effects, ERTActionEffect Kind)
 	{
 		for (const FRTActionEffectSpec& Spec : Effects)
 		{
@@ -19,46 +19,46 @@ namespace
 		return 0;
 	}
 
-	int32 VektorVariantParam(const FRTAbilityVariant& Variant, const TCHAR* Key)
+	int32 WraithVariantParam(const FRTAbilityVariant& Variant, const TCHAR* Key)
 	{
 		const int32* Found = Variant.Parameters.Find(FName(Key));
 		return Found ? *Found : INDEX_NONE;
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVektorMatchesCatalogTest,
-	"RefactorTactics.Heroes.Vektor.MatchesCatalog",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithMatchesCatalogTest,
+	"RefactorTactics.Heroes.Wraith.MatchesCatalog",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTVektorMatchesCatalogTest::RunTest(const FString&)
+bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
 {
 	// Numeri della tabella §4 del catalogo eroi v0.1.
-	URTHeroData* Vektor = URTHeroCatalogLibrary::MakeVektor();
-	if (!TestNotNull(TEXT("Vektor costruito"), Vektor)) { return false; }
+	URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+	if (!TestNotNull(TEXT("Wraith costruito"), Wraith)) { return false; }
 
-	TestEqual(TEXT("HeroId"), Vektor->HeroId, FName(TEXT("Hero.Vektor")));
-	TestEqual(TEXT("salute"), Vektor->MaxHealth, 90); // 100 -> 90 (#131): il costo statistico di Vektor
-	TestEqual(TEXT("movimento"), Vektor->MovePoints, 6);
-	TestEqual(TEXT("vista"), Vektor->VisionRange, 6);
-	TestEqual(TEXT("resistenza push"), Vektor->PushResistance, 0);
-	TestEqual(TEXT("affinita'"), Vektor->Affinity, FName(TEXT("Affinity.Movement")));
-	TestEqual(TEXT("debolezza simmetrica a Bastion"), Vektor->Weakness, FName(TEXT("Affinity.Structures")));
+	TestEqual(TEXT("HeroId"), Wraith->HeroId, FName(TEXT("Hero.Wraith")));
+	TestEqual(TEXT("salute"), Wraith->MaxHealth, 90); // 100 -> 90 (#131): il costo statistico di Wraith
+	TestEqual(TEXT("movimento"), Wraith->MovePoints, 6);
+	TestEqual(TEXT("vista"), Wraith->VisionRange, 6);
+	TestEqual(TEXT("resistenza push"), Wraith->PushResistance, 0);
+	TestEqual(TEXT("affinita'"), Wraith->Affinity, FName(TEXT("Affinity.Movement")));
+	TestEqual(TEXT("debolezza simmetrica a Riktor"), Wraith->Weakness, FName(TEXT("Affinity.Structures")));
 
-	if (!TestEqual(TEXT("cinque azioni"), Vektor->Actions.Num(), 5)) { return false; }
+	if (!TestEqual(TEXT("cinque azioni"), Wraith->Actions.Num(), 5)) { return false; }
 
-	const URTActionData* PulseShot = Vektor->Actions[0];
-	TestEqual(TEXT("PulseShot: 21 danni"), VektorEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage), 21);
+	const URTActionData* PulseShot = Wraith->Actions[0];
+	TestEqual(TEXT("PulseShot: 21 danni"), WraithEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage), 21);
 	TestEqual(TEXT("PulseShot: range 4"), PulseShot->Def.RangeCells, 4);
 	TestNotEqual(TEXT("non e' il danno generico della fascia medio raggio"),
-		VektorEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage),
+		WraithEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage),
 		URTCatalogLibrary::BasicAttackDamageForRange(4));
 
-	const URTActionData* PassingBlade = Vektor->Actions[2];
-	TestEqual(TEXT("PassingBlade: 20 danni"), VektorEffectAmount(PassingBlade->Def.Effects, ERTActionEffect::Damage), 20);
+	const URTActionData* PassingBlade = Wraith->Actions[2];
+	TestEqual(TEXT("PassingBlade: 20 danni"), WraithEffectAmount(PassingBlade->Def.Effects, ERTActionEffect::Damage), 20);
 	TestEqual(TEXT("PassingBlade: Dash 3"), PassingBlade->Def.RangeCells, 3);
 	TestTrue(TEXT("PassingBlade: risolve nel Dash"),
 		URTCatalogLibrary::MapResolutionPhase(PassingBlade->Def.ResolutionPhase) == ERTMatchPhase::Dash);
 
-	// PassingBlade ATTRAVERSA i nemici, la carica di Bastion si FERMA sul primo: la differenza e' un dato
+	// PassingBlade ATTRAVERSA i nemici, la carica di Riktor si FERMA sul primo: la differenza e' un dato
 	// (`ERTMovementStyle`), non un `if` sull'ActionId. E' il motivo per cui quel campo esiste (CP 4.5).
 	//
 	// Fino al 2026-08-08 questa riga diceva «passa attraverso» e verificava `LinearDash`, che si ferma su cio'
@@ -71,21 +71,21 @@ bool FRTVektorMatchesCatalogTest::RunTest(const FString&)
 		PassingBlade->Def.MovementStyle != ChargeDef.MovementStyle);
 
 	// Feint risolve nel Blast per priorita' (fase Control, codice 30 del catalogo): precede il danno.
-	const URTActionData* Feint = Vektor->Actions[4];
+	const URTActionData* Feint = Wraith->Actions[4];
 	TestTrue(TEXT("Feint: risolve nel Blast"),
 		URTCatalogLibrary::MapResolutionPhase(Feint->Def.ResolutionPhase) == ERTMatchPhase::Blast);
 	TestEqual(TEXT("Feint: cooldown 2"), Feint->Def.CooldownTurns, 2);
 
-	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Vektor });
+	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Wraith });
 	for (const FString& Err : Errors) { AddError(Err); }
-	TestEqual(TEXT("Vektor e' strutturalmente valido"), Errors.Num(), 0);
+	TestEqual(TEXT("Wraith e' strutturalmente valido"), Errors.Num(), 0);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVektorInterceptShotStopsMovementTest,
-	"RefactorTactics.Heroes.Vektor.InterceptShotStopsMovement",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithInterceptShotStopsMovementTest,
+	"RefactorTactics.Heroes.Wraith.InterceptShotStopsMovement",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTVektorInterceptShotStopsMovementTest::RunTest(const FString&)
+bool FRTWraithInterceptShotStopsMovementTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD di CP 6.4. Fino al 2026-08-10 questo test verificava un LIMITE — «lo stop del
 	// movimento non e' rappresentabile, l'azione e' rinviata a E14» — ed era la verita' del suo momento. E18
@@ -93,10 +93,10 @@ bool FRTVektorInterceptShotStopsMovementTest::RunTest(const FString&)
 	// (`ERTMoveOutcome::StoppedByPrediction`), quindi il nome del test e' finalmente descrittivo invece che
 	// aspirazionale. Le assertion sono state SOSTITUITE, non cancellate: la domanda «questa azione ferma
 	// davvero chi entra?» resta quella, ed e' cambiata la risposta.
-	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeVektor()->Actions[1];
+	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeWraith()->Actions[1];
 
 	TestEqual(TEXT("InterceptShot: 16 danni"),
-		VektorEffectAmount(Intercept->Def.Effects, ERTActionEffect::Damage), 16);
+		WraithEffectAmount(Intercept->Def.Effects, ERTActionEffect::Damage), 16);
 	TestEqual(TEXT("InterceptShot: cooldown 2"), Intercept->Def.CooldownTurns, 2);
 
 	// Si dichiara nel Prep e si verifica al Move: la fase resta quella, e non e' interrompibile — un colpo
@@ -121,18 +121,18 @@ bool FRTVektorInterceptShotStopsMovementTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVektorInterceptShotIsPredictiveTest,
-	"RefactorTactics.Heroes.Vektor.InterceptShotIsPredictive",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithInterceptShotIsPredictiveTest,
+	"RefactorTactics.Heroes.Wraith.InterceptShotIsPredictive",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTVektorInterceptShotIsPredictiveTest::RunTest(const FString&)
+bool FRTWraithInterceptShotIsPredictiveTest::RunTest(const FString&)
 {
 	// La MIGRAZIONE di classificazione di D-016, verificata sul dato. Il rinvio a E14 era dichiarato nei dati
 	// (slot `None`, nessun trigger) proprio perche' un commento non si puo' verificare: per lo stesso motivo
 	// la sua fine dev'essere un dato, e non la sparizione di quelle righe.
-	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeVektor()->Actions[1];
+	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeWraith()->Actions[1];
 
 	TestEqual(TEXT("identita' invariata: e' una migrazione, non un'azione nuova"),
-		Intercept->Def.ActionId, FName(TEXT("Vektor.InterceptShot")));
+		Intercept->Def.ActionId, FName(TEXT("Hero.Wraith.InterceptShot")));
 
 	TestTrue(TEXT("la cella si blocca in Planning"),
 		Intercept->Def.PredictiveTargeting == ERTPredictiveTargeting::LockCell);
@@ -155,23 +155,23 @@ bool FRTVektorInterceptShotIsPredictiveTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVektorVariantTradeoffTest,
-	"RefactorTactics.Heroes.Vektor.VariantTradeoff",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWraithVariantTradeoffTest,
+	"RefactorTactics.Heroes.Wraith.VariantTradeoff",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTVektorVariantTradeoffTest::RunTest(const FString&)
+bool FRTWraithVariantTradeoffTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD: nessuna variante migliore in ogni parametro. Qui il compromesso e' meta'
 	// effetto (il danno) e meta' parametro non ancora modellato (le celle controllate).
-	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeVektor()->Actions[1];
+	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeWraith()->Actions[1];
 	if (!TestEqual(TEXT("due varianti"), Intercept->Variants.Num(), 2)) { return false; }
 
 	const FRTAbilityVariant& Precise = Intercept->Variants[0];
 	const FRTAbilityVariant& Extended = Intercept->Variants[1];
 
-	const int32 PreciseDamage = VektorEffectAmount(Precise.Effects, ERTActionEffect::Damage);
-	const int32 ExtendedDamage = VektorEffectAmount(Extended.Effects, ERTActionEffect::Damage);
-	const int32 PreciseCells = VektorVariantParam(Precise, TEXT("ControlledCells"));
-	const int32 ExtendedCells = VektorVariantParam(Extended, TEXT("ControlledCells"));
+	const int32 PreciseDamage = WraithEffectAmount(Precise.Effects, ERTActionEffect::Damage);
+	const int32 ExtendedDamage = WraithEffectAmount(Extended.Effects, ERTActionEffect::Damage);
+	const int32 PreciseCells = WraithVariantParam(Precise, TEXT("ControlledCells"));
+	const int32 ExtendedCells = WraithVariantParam(Extended, TEXT("ControlledCells"));
 
 	TestEqual(TEXT("preciso: 20 danni"), PreciseDamage, 20);
 	TestEqual(TEXT("preciso: una cella"), PreciseCells, 1);
@@ -222,15 +222,15 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 		}
 	}
 
-	// BILANCIAMENTO (#131). Vektor era 100/6/6/0 e dominava sia Flux (90/5/6/0) sia Riva (95/5/5/0): migliore
+	// BILANCIAMENTO (#131). Wraith era 100/6/6/0 e dominava sia Gadget (90/5/6/0) sia Phase (95/5/5/0): migliore
 	// o pari ovunque, strettamente migliore in salute e movimento. Il catalogo §5 gli attribuiva a parole un
 	// costo — «compra mobilita' con l'assenza di difese» — che sui numeri non esisteva.
 	//
-	// Con 90 HP la dominanza su **Riva** e' finita, e questa parte diventa una REGOLA: il ciclo sotto non
+	// Con 90 HP la dominanza su **Phase** e' finita, e questa parte diventa una REGOLA: il ciclo sotto non
 	// registra piu' un fatto, lo vieta. Un ritorno a 95+ HP fa cadere il test invece di passare inosservato.
-	const URTHeroData* VektorInRoster = Roster[3];
-	const URTHeroData* FluxInRoster = Roster[0];
-	const URTHeroData* RivaInRoster = Roster[1];
+	const URTHeroData* WraithInRoster = Roster[3];
+	const URTHeroData* GadgetInRoster = Roster[0];
+	const URTHeroData* PhaseInRoster = Roster[1];
 
 	auto DominatesOnBaseStats = [](const URTHeroData* A, const URTHeroData* B)
 	{
@@ -254,12 +254,12 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 	// senza che nessuno debba ricordarsi di aggiungere una riga.
 	//
 	// Le due leve che l'hanno chiusa, e perche' proprio quelle:
-	//   Vektor 100 -> 90 HP  ([D-069]) — toglie la dominanza su Riva
-	//   Flux    6 -> 7 vista ([D-073]) — toglie quella su Flux, che il calo di Vektor NON aveva risolto
+	//   Wraith 100 -> 90 HP  ([D-069]) — toglie la dominanza su Phase
+	//   Gadget    6 -> 7 vista ([D-073]) — toglie quella su Gadget, che il calo di Wraith NON aveva risolto
 	//
-	// Le alternative scartate, misurate e non intuite: dare 6 MP a Flux o toglierne uno a Vektor rende i due
+	// Le alternative scartate, misurate e non intuite: dare 6 MP a Gadget o toglierne uno a Wraith rende i due
 	// profili IDENTICI, e il ciclo di distinguibilita' qui sopra sarebbe caduto — un test rotto per ripararne
-	// un altro. Una `PushResistance` negativa per Vektor non ha effetto osservabile, perche' e' una SOGLIA e
+	// un altro. Una `PushResistance` negativa per Wraith non ha effetto osservabile, perche' e' una SOGLIA e
 	// le spinte valgono almeno 1.
 	for (int32 i = 0; i < Roster.Num(); ++i)
 	{
@@ -274,10 +274,10 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 
 	// La compensazione nelle abilita' resta com'era, e non era in discussione: `#131` riguardava la scheda
 	// statistiche, dove il costo di ogni eroe ora e' visibile.
-	TestTrue(TEXT("Flux conserva il bonus combo piu' alto del roster"),
-		URTCombatLibrary::FluxWetDischargeBonus > 0);
-	TestTrue(TEXT("e Flux e' l'unico a vedere oltre il raggio 6"),
-		FluxInRoster->VisionRange > VektorInRoster->VisionRange);
+	TestTrue(TEXT("Gadget conserva il bonus combo piu' alto del roster"),
+		URTCombatLibrary::GadgetWetDischargeBonus > 0);
+	TestTrue(TEXT("e Gadget e' l'unico a vedere oltre il raggio 6"),
+		GadgetInRoster->VisionRange > WraithInRoster->VisionRange);
 
 	// Le affinita' sono tutte diverse: quattro identita' ambientali, non due coppie di gemelli.
 	TSet<FName> Affinities;

@@ -143,8 +143,8 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 	SpawnPlanMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Attacker = SpawnPlanHero(World, TEXT("Hero.Bastion"), /*Team=*/ 0, FRTCellId(-1, 0, 0));
-	ARTUnit* Target   = SpawnPlanHero(World, TEXT("Hero.Vektor"),  /*Team=*/ 1, FRTCellId( 1, 0, 0));
+	ARTUnit* Attacker = SpawnPlanHero(World, TEXT("Hero.Riktor"), /*Team=*/ 0, FRTCellId(-1, 0, 0));
+	ARTUnit* Target   = SpawnPlanHero(World, TEXT("Hero.Wraith"),  /*Team=*/ 1, FRTCellId( 1, 0, 0));
 	if (!Attacker || !Target)
 	{
 		AddError(TEXT("impossibile allestire le due unita' dal catalogo eroi"));
@@ -229,8 +229,8 @@ bool FRTDiscardedPlanDoesNotSurviveTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 	SpawnPlanMap(World, /*Radius=*/ 10);
 
-	ARTUnit* Attacker = SpawnPlanHero(World, TEXT("Hero.Bastion"), /*Team=*/ 0, FRTCellId(-9, 0, 0));
-	ARTUnit* Target   = SpawnPlanHero(World, TEXT("Hero.Vektor"),  /*Team=*/ 1, FRTCellId( 9, 0, 0));
+	ARTUnit* Attacker = SpawnPlanHero(World, TEXT("Hero.Riktor"), /*Team=*/ 0, FRTCellId(-9, 0, 0));
+	ARTUnit* Target   = SpawnPlanHero(World, TEXT("Hero.Wraith"),  /*Team=*/ 1, FRTCellId( 9, 0, 0));
 	if (!Attacker || !Target)
 	{
 		AddError(TEXT("impossibile allestire le due unita' dal catalogo eroi"));
