@@ -1178,10 +1178,20 @@ preexisting:
 tracks:
 
   spatial:
-    status: ACTIVE
-    issue: 986
-    branch: fix/986-affermazioni-false
+    status: IDLE
+    issue: null
+    branch: null
     note: >-
+      ⚠️ **IDLE con `#986` ancora APERTA, e la distinzione conta.** La PR **#988** (`a5c1e33b`) ha
+      chiuso solo le due affermazioni false che erano entrate in `main`; i **cinque difetti di
+      sostanza** che la review ha trovato — `ComputeHash` che ignora `StableId`, `MixName` instabile
+      in packaged e non self-delimiting, `bConductsElectricity` fuori dal giro degli archi, il caso
+      «archi» del test più debole di quello «porte» — restano aperti sulla issue, misurati uno per
+      uno. `issue: null` qui significa *«nessuna sessione ci sta lavorando»*, **non** *«non c'è più
+      niente da fare»*: chi riprende `#986` riattiva la track.
+      ✅ Il write-set torna libero: `Turn/RTMatchStateHash.cpp` e `Tests/RTMatchStateHashTests.cpp`
+      sono atterrati in `main` e oggi non sono di nessuno.
+      ---
       ➕ **Riattivata il 2026-08-16 su `#986`, e la ragione è scomoda**: una code review multi-angolo
       sulla PR **#978** è arrivata **dopo** il merge, e ha trovato che due affermazioni false erano
       entrate in `main` con essa. Questo giro corregge **solo quelle** — i cinque difetti di sostanza
@@ -1322,10 +1332,6 @@ tracks:
     mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
     worktree: "D:/rt-spatial"
     writable:
-      # #986 — solo le due affermazioni false. I difetti di sostanza restano aperti sulla issue, e
-      # toccarli qui allargherebbe il write-set oltre ciò che questo giro ha dichiarato.
-      - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
-      - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
       - docs/technical/qa-prompt-terminal-b-scenario-runner.md
     derives_from: []
 
