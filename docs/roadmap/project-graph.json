@@ -81,7 +81,6 @@
       "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Riva.Flow, State.Flux.Charged, State.Bastion.Bulwark, State.Howitzer.Siege, State.MultiState.Stress",
       "[execution-graph issue:314] nessuna feature del registry dichiara questa issue: il suo domain_group 'actions_reactions' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
       "[execution-graph issue:512] nessuna feature del registry dichiara questa issue: il suo domain_group 'core_simulation' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
-      "[execution-graph issue:593] nessuna feature del registry dichiara questa issue: il suo domain_group 'characters_content' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
       "[execution-graph] 10 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
     ],
     "unresolved_prerequisites": [],
@@ -3238,7 +3237,9 @@
         "state": null,
         "state_source": null,
         "state_note": "issue senza checkpoint: lo stato vive su GitHub",
-        "feature_ids": [],
+        "feature_ids": [
+          "RT-FEAT-CHAR-PRESENTATION"
+        ],
         "provides": [],
         "incoming": [],
         "outgoing": [
