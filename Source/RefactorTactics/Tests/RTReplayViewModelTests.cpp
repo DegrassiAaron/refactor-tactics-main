@@ -287,20 +287,140 @@ bool FRTReplayViewModelObservablePhasesTest::RunTest(const FString&)
 	VM.Open(Root, Id);
 	VM.StepPhaseForward();
 
-	// Le due non osservabili rispondono `PhaseNotFound` anche a un seek esplicito — e' l'esito corretto,
-	// non un difetto da tappare: il turno c'e', quella fase non ha prodotto voci.
-	TestEqual(TEXT("seek a Planning"), VM.SeekToPhaseInCurrentTurn(ERTMatchPhase::Planning),
-		ERTReplaySeekResult::PhaseNotFound);
-	TestEqual(TEXT("seek a MatchEnded"), VM.SeekToPhaseInCurrentTurn(ERTMatchPhase::MatchEnded),
-		ERTReplaySeekResult::PhaseNotFound);
-	// Una fase osservabile ma assente da QUESTA traccia risponde allo stesso modo, e va bene cosi'.
+	// Una fase osservabile ma assente da QUESTA traccia: `PhaseNotFound`, ed e' l'esito corretto — il
+	// turno c'e', quella fase non ha prodotto voci.
 	TestEqual(TEXT("seek a Dash, assente dalla traccia"), VM.SeekToPhaseInCurrentTurn(ERTMatchPhase::Dash),
 		ERTReplaySeekResult::PhaseNotFound);
-	TestEqual(TEXT("nessuno dei tre ha mosso la posizione"), VM.Position().Phase, ERTMatchPhase::Blast);
+	TestEqual(TEXT("non ha mosso la posizione"), VM.Position().Phase, ERTMatchPhase::Blast);
 
 	TestEqual(TEXT("seek a Move riesce"), VM.SeekToPhaseInCurrentTurn(ERTMatchPhase::Move),
 		ERTReplaySeekResult::Found);
 	TestEqual(TEXT("e sposta"), VM.Position().Phase, ERTMatchPhase::Move);
+
+	PulisciVM(Root);
+	return true;
+}
+
+/**
+ * `Replay.ViewModel.NonObservablePhaseIsRefusedNotFollowed` — la **guardia**, non la fixture.
+ *
+ * 🔴 Questo test esiste perche' la code review ha mostrato che le tre asserzioni su `Planning` e
+ * `MatchEnded` nel test precedente non provavano niente: la traccia di prova non conteneva quelle voci,
+ * quindi `PhaseNotFound` arrivava dal seek e sarebbe arrivato lo stesso **senza** alcuna guardia — come
+ * dimostrava l'asserzione gemella su `Dash`, una fase osservabile che dava esito identico.
+ *
+ * Qui la traccia contiene **davvero** una voce `Planning`. Senza la guardia il seek la troverebbe, il
+ * view model ci atterrerebbe, e da li' `PhasesInTrace` non ritroverebbe piu' la fase corrente: quattro
+ * `Can*` a `false`, quattro `Step*` no-op, `Play` che non parte — il viewer bloccato senza uscita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelNonObservableGuardTest,
+	"RefactorTactics.Replay.ViewModel.NonObservablePhaseIsRefusedNotFollowed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTReplayViewModelNonObservableGuardTest::RunTest(const FString&)
+{
+	const FString Root = VMRoot(TEXT("GuardiaFasi"));
+	PulisciVM(Root);
+
+	// ⚠️ Una traccia con voci `Planning` e `MatchEnded`. Il resolver oggi non ne emette — ma nessun punto
+	// del codice lo impone, e il Player non lo verifica in apertura: e' una proprieta' documentata, non
+	// garantita. Un archivio cosi' e' leggibile, quindi il view model deve reggerlo.
+	TArray<TArray<FRTTurnLogEntry>> Tracce;
+	Tracce.Add(TracciaVM(1, { ERTMatchPhase::Planning, ERTMatchPhase::Blast, ERTMatchPhase::MatchEnded }));
+	const FGuid Id = ScriviArchivioVM(Root, Tracce, true);
+
+	FRTReplayViewModel VM;
+	TestEqual(TEXT("l'archivio si apre"), VM.Open(Root, Id), ERTReplayOpenResult::Opened);
+	TestTrue(TEXT("e si comincia"), VM.StepPhaseForward());
+
+	// La navigazione salta le due non osservabili: la prima fase raggiungibile e' Blast, non Planning.
+	TestEqual(TEXT("la prima fase mostrata e' Blast"), VM.Position().Phase, ERTMatchPhase::Blast);
+	TestEqual(TEXT("una sola fase osservabile nel turno"), VM.PhasesInCurrentTurn().Num(), 1);
+
+	// Il seek esplicito le RIFIUTA, e la posizione non si muove.
+	TestEqual(TEXT("seek a Planning rifiutato"), VM.SeekToPhaseInCurrentTurn(ERTMatchPhase::Planning),
+		ERTReplaySeekResult::PhaseNotFound);
+	TestEqual(TEXT("seek a MatchEnded rifiutato"), VM.SeekToPhaseInCurrentTurn(ERTMatchPhase::MatchEnded),
+		ERTReplaySeekResult::PhaseNotFound);
+	TestEqual(TEXT("la posizione e' rimasta su Blast"), VM.Position().Phase, ERTMatchPhase::Blast);
+
+	// E soprattutto: il view model e' ancora VIVO. E' questa l'asserzione che la guardia protegge — senza,
+	// qui sarebbe tutto morto.
+	TestTrue(TEXT("si puo' ancora andare avanti"), VM.CanStepPhaseForward());
+	TestTrue(TEXT("e indietro"), VM.CanStepPhaseBackward());
+	TestTrue(TEXT("e il passo avanti funziona"), VM.StepPhaseForward());
+	TestEqual(TEXT("che porta a Ended, non a MatchEnded"), VM.Position().State,
+		ERTReplayPositionState::Ended);
+
+	PulisciVM(Root);
+	return true;
+}
+
+/**
+ * `Replay.ViewModel.CurrentPhaseEntriesMatchThePlayer` — cosa c'e' da disegnare.
+ *
+ * 🔴 L'accessor mancava: il view model diceva *dove* si e' senza dare nulla da mostrare, e `#472` chiede
+ * di **guardare** una partita, non solo di sapere a che punto e'. Trovato in code review.
+ *
+ * Il test non si limita a contare le voci: le confronta con quelle che il Player emette per la stessa
+ * fase. Se il view model ricavasse il contenuto per un'altra strada — filtrando la traccia a mano invece
+ * di partire dal seek — i due insiemi divergerebbero al primo caso limite, e sarebbe quello a decidere
+ * cosa il giocatore vede.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelEntriesTest,
+	"RefactorTactics.Replay.ViewModel.CurrentPhaseEntriesMatchThePlayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTReplayViewModelEntriesTest::RunTest(const FString&)
+{
+	const FString Root = VMRoot(TEXT("Contenuto"));
+	PulisciVM(Root);
+
+	// Due voci nella stessa fase: e' cio' che rende osservabile il raggruppamento.
+	TArray<TArray<FRTTurnLogEntry>> Tracce;
+	Tracce.Add(TracciaVM(1, { ERTMatchPhase::Blast, ERTMatchPhase::Blast, ERTMatchPhase::Move }));
+	const FGuid Id = ScriviArchivioVM(Root, Tracce, true);
+
+	FRTReplayViewModel VM;
+	TestEqual(TEXT("apre"), VM.Open(Root, Id), ERTReplayOpenResult::Opened);
+
+	TestEqual(TEXT("prima di cominciare non c'e' niente da disegnare"), VM.CurrentPhaseEntries().Num(), 0);
+
+	TestTrue(TEXT("prima fase"), VM.StepPhaseForward());
+	const TArray<FRTTurnLogEntry> Mostrate = VM.CurrentPhaseEntries();
+	TestEqual(TEXT("due voci nella fase Blast"), Mostrate.Num(), 2);
+
+	// Le stesse che il Player emette per quella fase.
+	{
+		FRTReplaySession Parallela;
+		URTReplayPlayerLibrary::OpenArchive(Root, Id, Parallela);
+		ERTMatchPhase Emessa = ERTMatchPhase::Planning;
+		TArray<FRTTurnLogEntry> DalPlayer;
+		URTReplayPlayerLibrary::AdvancePhase(Parallela, Emessa, DalPlayer);
+
+		TestEqual(TEXT("stessa fase del Player"), Emessa, VM.Position().Phase);
+		if (TestEqual(TEXT("stesso numero di voci"), Mostrate.Num(), DalPlayer.Num()))
+		{
+			for (int32 i = 0; i < Mostrate.Num(); ++i)
+			{
+				TestEqual(TEXT("stessa voce"), Mostrate[i].Amount, DalPlayer[i].Amount);
+				TestEqual(TEXT("stessa fase"), Mostrate[i].Phase, DalPlayer[i].Phase);
+			}
+		}
+	}
+
+	// La barra dei salti di fase legge le fasi presenti, non l'enum.
+	const TArray<ERTMatchPhase> Fasi = VM.PhasesInCurrentTurn();
+	TestEqual(TEXT("il turno ha due fasi, non cinque"), Fasi.Num(), 2);
+	TestEqual(TEXT("Blast"), Fasi[0], ERTMatchPhase::Blast);
+	TestEqual(TEXT("poi Move"), Fasi[1], ERTMatchPhase::Move);
+
+	// A fine sequenza non c'e' piu' niente da disegnare, e non e' un errore: non c'e' una fase corrente.
+	int32 Passi = 0;
+	while (VM.StepPhaseForward() && Passi < 16) { ++Passi; }
+	TestEqual(TEXT("finita"), VM.Position().State, ERTReplayPositionState::Ended);
+	TestEqual(TEXT("niente da disegnare"), VM.CurrentPhaseEntries().Num(), 0);
+	TestEqual(TEXT("e nessuna fase nel turno corrente"), VM.PhasesInCurrentTurn().Num(), 0);
 
 	PulisciVM(Root);
 	return true;
@@ -469,7 +589,85 @@ bool FRTReplayViewModelOpenFailureTest::RunTest(const FString&)
 		TestFalse(TEXT("non e' aperto"), VM.IsOpen());
 		TestNotEqual(TEXT("ed e' un esito DIVERSO da manifest assente"), VM.LastOpenResult(),
 			ERTReplayOpenResult::ManifestUnreadable);
+
+		// ⚠️ Il «non lascia niente di navigabile» va verificato **per ogni** rifiuto, non solo per il
+		// primo: e' meta' del nome di questo test, e la prima stesura lo asseriva su un caso su due.
+		TestFalse(TEXT("niente avanti"), VM.CanStepPhaseForward());
+		TestFalse(TEXT("e non si muove"), VM.StepPhaseForward());
+		VM.Play();
+		TestFalse(TEXT("e il play non parte"), VM.IsPlaying());
 	}
+
+	// Un manifest che dichiara una topologia che questo Player non riproduce.
+	//
+	// 🔴 Mancava, e la code review l'ha misurato: il test si chiamava «i quattro esiti sono distinti»
+	// mentre ne esercitava **due**. `TopologyMismatch` e' l'esito che `OpenArchive` puo' produrre da due
+	// punti diversi, ed e' quello che manderebbe chi diagnostica nel posto piu' lontano dagli altri.
+	{
+		FRTReplayManifest M;
+		M.MatchId = FGuid::NewGuid();
+		M.FormatId = FName(TEXT("Format.Skirmish2v2"));
+		M.bHexTopology = false; // un archivio che viene da un altro mondo: il substrato quadrato non esiste piu'
+		URTReplayRecorderLibrary::RecordTurn(Root, M, 1,
+			TracciaVM(1, { ERTMatchPhase::Blast, ERTMatchPhase::Move }));
+		URTReplayRecorderLibrary::CloseMatch(Root, M, ERTMatchOutcome::Team0Wins, 42, 3.f);
+
+		FRTReplayViewModel VM;
+		TestEqual(TEXT("topologia incompatibile"), VM.Open(Root, M.MatchId),
+			ERTReplayOpenResult::TopologyMismatch);
+		TestFalse(TEXT("non e' aperto"), VM.IsOpen());
+		TestNotEqual(TEXT("diverso da manifest illeggibile"), VM.LastOpenResult(),
+			ERTReplayOpenResult::ManifestUnreadable);
+		TestNotEqual(TEXT("e diverso da traccia illeggibile"), VM.LastOpenResult(),
+			ERTReplayOpenResult::TraceUnreadable);
+		TestFalse(TEXT("e non e' navigabile"), VM.CanStepPhaseForward());
+
+		// `IsComplete()` non deve spacciare «nessun archivio» per «archivio parziale»: il manifest di
+		// questa partita e' CHIUSO, quindi un `bComplete` letto senza guardare `bOpen` sarebbe pure
+		// arrivato dal posto sbagliato.
+		TestFalse(TEXT("e non si dichiara completo"), VM.IsComplete());
+	}
+
+	PulisciVM(Root);
+	return true;
+}
+
+/**
+ * `Replay.ViewModel.UnopenedModelDoesNotAnswerDomainQuestions` — il silenzio prima dell'apertura.
+ *
+ * 🔴 Trovato in code review: `IsComplete()` leggeva `Session.bComplete` senza guardare `bOpen`, quindi un
+ * view model **mai aperto** rispondeva `false` — che una schermata rende come «archivio parziale», cioe'
+ * una partita guardabile ma troncata, al posto di «non c'e' nessuna partita». E `LastOpenResult()` parte
+ * da `ManifestUnreadable`, quindi dichiarava illeggibile un manifest che nessuno aveva mai cercato.
+ *
+ * E' la famiglia di difetti che questo codebase evita altrove per scelta esplicita — il `-1.f` di
+ * `PlanningSecondsRemaining`, il `0` di `TurnNumber` — e che qui era rientrata da tre porte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelUnopenedTest,
+	"RefactorTactics.Replay.ViewModel.UnopenedModelDoesNotAnswerDomainQuestions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTReplayViewModelUnopenedTest::RunTest(const FString&)
+{
+	FRTReplayViewModel VM;
+
+	TestFalse(TEXT("non e' aperto"), VM.IsOpen());
+	TestFalse(TEXT("e nessuno ha mai provato ad aprirlo"), VM.HasAttemptedOpen());
+	TestFalse(TEXT("non si dichiara completo"), VM.IsComplete());
+	TestEqual(TEXT("non ha voci da mostrare"), VM.CurrentPhaseEntries().Num(), 0);
+	TestEqual(TEXT("ne' fasi nel turno corrente"), VM.PhasesInCurrentTurn().Num(), 0);
+	TestEqual(TEXT("la posizione e' prima dell'inizio"), VM.Position().State,
+		ERTReplayPositionState::BeforeStart);
+	TestFalse(TEXT("che non ha fase"), VM.Position().HasPhase());
+
+	// Dopo un tentativo fallito la domanda «com'e' andata» diventa lecita, e la risposta e' quella vera.
+	const FString Root = VMRoot(TEXT("MaiAperto"));
+	PulisciVM(Root);
+	TestEqual(TEXT("apertura fallita"), VM.Open(Root, FGuid::NewGuid()),
+		ERTReplayOpenResult::ManifestUnreadable);
+	TestTrue(TEXT("ora il tentativo c'e' stato"), VM.HasAttemptedOpen());
+	TestFalse(TEXT("ma l'archivio no"), VM.IsOpen());
+	TestFalse(TEXT("e non si dichiara completo"), VM.IsComplete());
 
 	PulisciVM(Root);
 	return true;
@@ -543,15 +741,19 @@ bool FRTReplayViewModelPlaybackTest::RunTest(const FString&)
 	VM.Play();
 	TestTrue(TEXT("in riproduzione"), VM.IsPlaying());
 
+	// 🔴 **Il primo passo e' immediato**, e la prima stesura di questo test asseriva il contrario —
+	// «ancora fermo» dopo `Play`. Era il comportamento vero, ed era un difetto: `BeforeStart` non ha una
+	// fase, quindi premere Play lasciava una schermata vuota per un `SecondsPerPhase` intero. Trovato in
+	// code review.
+	TestEqual(TEXT("Play mostra subito la prima fase"), VM.Position().Phase, ERTMatchPhase::Blast);
+	TestEqual(TEXT("turno 1"), VM.Position().TurnNumber, 1);
+	TestEqual(TEXT("e ha qualcosa da disegnare"), VM.CurrentPhaseEntries().Num(), 1);
+
 	// Sotto la soglia non succede niente: la fase resta a schermo il tempo che le spetta.
 	TestFalse(TEXT("mezzo battito non avanza"), VM.Tick(0.5f));
-	TestEqual(TEXT("ancora fermo"), VM.Position().State, ERTReplayPositionState::BeforeStart);
+	TestEqual(TEXT("ancora sulla prima fase"), VM.Position().Phase, ERTMatchPhase::Blast);
 
-	TestTrue(TEXT("il battito completo avanza"), VM.Tick(0.6f));
-	TestEqual(TEXT("prima fase"), VM.Position().Phase, ERTMatchPhase::Blast);
-	TestEqual(TEXT("turno 1"), VM.Position().TurnNumber, 1);
-
-	// Un delta enorme: **una** fase, non quattro.
+	// Un delta enorme: **una** fase, non tre.
 	TestTrue(TEXT("delta grande"), VM.Tick(100.f));
 	TestEqual(TEXT("una sola fase avanti"), VM.Position().Phase, ERTMatchPhase::Move);
 	TestEqual(TEXT("stesso turno"), VM.Position().TurnNumber, 1);
@@ -565,6 +767,19 @@ bool FRTReplayViewModelPlaybackTest::RunTest(const FString&)
 	// `Play` su una sequenza finita non riparte: non c'e' dove andare.
 	VM.Play();
 	TestFalse(TEXT("play su Ended non parte"), VM.IsPlaying());
+
+	// 🔴 **L'auto-pausa vale anche arrivando alla fine COI PULSANTI**, non solo col tick, e la prima
+	// stesura la teneva solo in `Tick`: si poteva restare «in riproduzione» su un replay concluso per un
+	// `SecondsPerPhase` intero, con il pulsante di pausa acceso su qualcosa che non riproduceva.
+	// Trovato in code review.
+	VM.Rewind();
+	VM.Play();
+	TestTrue(TEXT("riparte"), VM.IsPlaying());
+	int32 Clic = 0;
+	while (VM.StepPhaseForward() && Clic < 16) { ++Clic; }
+	TestEqual(TEXT("si arriva alla fine a colpi di pulsante"), VM.Position().State,
+		ERTReplayPositionState::Ended);
+	TestFalse(TEXT("e la riproduzione si e' fermata lo stesso"), VM.IsPlaying());
 
 	// Ma `Rewind` la rende di nuovo riproducibile, senza rileggere il disco.
 	VM.Rewind();

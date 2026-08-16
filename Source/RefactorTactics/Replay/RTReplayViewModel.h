@@ -58,9 +58,17 @@ struct FRTReplayPosition
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
 	int32 TurnNumber = 0;
 
-	/** Valida con `AtPhase` e con `Unaddressable`. Con `BeforeStart` e `Ended` non c'e' fase corrente. */
+	/**
+	 * Valida con `AtPhase` e con `Unaddressable`. Con `BeforeStart` e `Ended` non c'e' fase corrente.
+	 *
+	 * 🔴 **Il default e' `Planning` perche' e' l'unico valore che NON puo' essere una fase mostrata**, ed
+	 * e' la stessa scelta che `TurnNumber = 0` fa per il turno. La prima stesura usava `Prep`, che e' una
+	 * fase osservabile vera: negli stati senza fase il campo portava un valore plausibile, e un binding
+	 * che lo leggesse senza guardare `State` avrebbe stampato «Prep» prima dell'inizio e di nuovo dopo la
+	 * fine. Trovato in code review — ed e' lo stesso default di `FRTMatchHeaderView::Phase`.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
-	ERTMatchPhase Phase = ERTMatchPhase::Prep;
+	ERTMatchPhase Phase = ERTMatchPhase::Planning;
 
 	/** `true` quando `Phase` porta un valore leggibile: `AtPhase` o `Unaddressable`. */
 	bool HasPhase() const
@@ -87,6 +95,19 @@ struct FRTReplayPosition
  * E' lo stesso pattern che il repository ha gia' scelto due volte, per la stessa ragione:
  * `FRTMatchHeaderView` (l'HUD non ricalcola) e `FRTScreenStack` (*«la navigazione non e' UI: e' una
  * macchina a stati che governa la UI»*).
+ *
+ * ⚠️ **Il parallelo con quei due e' pero' incompleto oggi, e va detto invece di lasciarlo intendere.**
+ * Entrambi hanno una superficie Blueprint — `FRTMatchHeaderView` passa dalle `UFUNCTION` di
+ * `URTHudViewModel`, `FRTScreenStack` da quelle di `URTFrontendNavigator` — mentre questo tipo non ne ha
+ * ancora nessuna: e' `USTRUCT()` e non `BlueprintType`, quindi **un widget UMG non puo' raggiungerlo**.
+ * `FRTReplayPosition` e `ERTReplayPositionState` *sono* `BlueprintType`, quindi il dato da mostrare e'
+ * gia' visibile a Blueprint mentre nulla, in Blueprint, puo' produrlo. Trovato in code review.
+ *
+ * Non e' una svista di questo file: e' il pezzo successivo di `#472` — un `UGameInstanceSubsystem` che
+ * possieda il view model e lo esponga, come `URTFrontendNavigator` fa per lo stack. Finche' non esiste,
+ * il lavoro da editor puo' produrre **layout**, non un viewer collegato. Le librerie replay hanno lo
+ * stesso stato: `grep -c UFUNCTION` su `RTMatchHistoryLibrary.h`, `RTReplayPlayerLibrary.h` e
+ * `RTReplaySeekLibrary.h` da' **zero** su tutte e tre.
  *
  * ## Cosa NON fa
  *
@@ -131,19 +152,59 @@ struct REFACTORTACTICS_API FRTReplayViewModel
 	/** `true` solo dopo un `Open` riuscito. */
 	bool IsOpen() const { return bOpen; }
 
-	/** L'esito dell'ultimo `Open`. La UI ne distingue quattro: e' un criterio di `#472`. */
+	/**
+	 * `true` dopo che un `Open` e' stato **tentato**, comunque sia andato.
+	 *
+	 * 🔴 Esiste perche' `LastOpenResult()` da solo mente su un view model appena costruito: il suo valore
+	 * iniziale e' `ManifestUnreadable`, quindi «non ho mai provato ad aprire niente» e «il manifest e'
+	 * illeggibile» erano indistinguibili. Trovato in code review. L'enum non si estende — e' di
+	 * `URTReplayPlayerLibrary` e i suoi quattro esiti descrivono **aperture**, non l'assenza di una.
+	 */
+	bool HasAttemptedOpen() const { return bOpenAttempted; }
+
+	/** L'esito dell'ultimo `Open`. La UI ne distingue quattro: e' un criterio di `#472`. Da leggere con
+	 *  `HasAttemptedOpen()`, che dice se la domanda si applica. */
 	ERTReplayOpenResult LastOpenResult() const { return OpenResult; }
 
 	/**
-	 * `false` = archivio **parziale**: si guarda fino a dove arriva.
+	 * `true` = archivio aperto **e** completo. `false` copre due casi che la UI deve distinguere con
+	 * `IsOpen()`: archivio **parziale**, oppure nessun archivio.
 	 *
-	 * Non e' un archivio rotto, ed e' la distinzione che la lista di `#416` gia' fa: un manifest non
-	 * chiuso e' una partita che il gioco non ha visto finire, non un file corrotto.
+	 * 🔴 La prima stesura leggeva `Session.bComplete` senza guardare `bOpen`, quindi un view model mai
+	 * aperto — o il cui `Open` era fallito — rispondeva `false`, che una schermata avrebbe rese come
+	 * «archivio parziale»: una partita guardabile ma troncata al posto di un manifest mancante. Trovato
+	 * in code review, ed e' lo stesso difetto del `0.f` che direbbe «scaduto adesso».
+	 *
+	 * Un archivio parziale **non e' un archivio rotto**: e' la distinzione che la lista di `#416` gia' fa
+	 * — un manifest non chiuso e' una partita che il gioco non ha visto finire.
 	 */
-	bool IsComplete() const { return Session.bComplete; }
+	bool IsComplete() const { return bOpen && Session.bComplete; }
+
+	/** L'header della partita aperta: esito, durata, conteggio turni. Vuoto se non c'e' un archivio. */
+	const FRTReplayManifest& GetManifest() const { return Session.Manifest; }
 
 	/** Dove siamo. Vale in tutti e quattro gli stati — e' il punto della struttura. */
 	FRTReplayPosition Position() const { return Current; }
+
+	/**
+	 * Le voci della fase che si sta guardando: **cio' che il viewer disegna**.
+	 *
+	 * 🔴 Mancava, e senza di essa il view model diceva *dove* si e' senza dare niente da mostrare —
+	 * `#472` chiede di guardare una partita, non solo di sapere a che punto e'. Trovato in code review.
+	 *
+	 * Vuoto negli stati senza fase (`BeforeStart`, `Ended`), che e' la risposta giusta: non c'e' una fase
+	 * corrente di cui elencare le voci.
+	 */
+	TArray<FRTTurnLogEntry> CurrentPhaseEntries() const;
+
+	/**
+	 * Le fasi che il turno corrente contiene davvero, in ordine cronologico. Vuoto fuori dalla sequenza.
+	 *
+	 * Serve alla barra dei salti di fase, e la sua assenza costringeva il widget a enumerare
+	 * `ERTMatchPhase` sondando `SeekToPhaseInCurrentTurn` — cioe' proprio l'errore che
+	 * `ObservablePhases()` esiste per rendere non necessario.
+	 */
+	TArray<ERTMatchPhase> PhasesInCurrentTurn() const;
 
 	/** Torna prima dell'inizio senza rileggere il disco. Ferma anche la riproduzione. */
 	void Rewind();
@@ -231,18 +292,33 @@ private:
 	int32 CurrentTraceIndex = INDEX_NONE;
 
 	bool bOpen = false;
+	bool bOpenAttempted = false;
 	bool bPlaying = false;
 	float PhaseElapsed = 0.f;
 	ERTReplayOpenResult OpenResult = ERTReplayOpenResult::ManifestUnreadable;
 
 	/**
-	 * Le fasi che la traccia contiene DAVVERO, in ordine cronologico.
+	 * Le fasi presenti in ciascuna traccia, **calcolate una volta sola** in `Open`.
 	 *
-	 * Costruita interrogando `URTReplaySeekLibrary::SeekToPhase` sulle cinque osservabili: e' il riuso del
-	 * seek che `#472` richiede, non un secondo meccanismo che «guarda le voci». Una traccia che non ne
-	 * contiene nessuna — un turno senza voci — restituisce un array vuoto, e chi naviga la salta.
+	 * Le tracce sono immutabili dopo l'apertura, quindi ricalcolarle a ogni domanda era lavoro buttato: la
+	 * prima stesura lo faceva a ogni `Can*`/`Step*` — cinque scansioni della traccia e un'allocazione per
+	 * chiamata — e una UI che polla i quattro predicati per abilitare i pulsanti lo avrebbe pagato **per
+	 * frame**. Trovato in code review.
 	 */
-	TArray<ERTMatchPhase> PhasesInTrace(int32 TraceIndex) const;
+	TArray<TArray<ERTMatchPhase>> PhasesPerTrace;
+
+	/**
+	 * Le fasi che la traccia contiene DAVVERO, in ordine cronologico. Legge la cache.
+	 *
+	 * La cache e' costruita in `Open` interrogando `URTReplaySeekLibrary::SeekToPhase` sulle cinque
+	 * osservabili: e' il riuso del seek che `#472` richiede, non un secondo meccanismo che «guarda le
+	 * voci». Una traccia che non ne contiene nessuna — un turno senza voci — da' un array vuoto, e chi
+	 * naviga la salta.
+	 */
+	const TArray<ERTMatchPhase>& PhasesInTrace(int32 TraceIndex) const;
+
+	/** Popola `PhasesPerTrace`. Chiamata solo da `Open`, quando le tracce smettono di cambiare. */
+	void BuildPhaseCache();
 
 	/** Indice della prossima traccia NON vuota in direzione `Direction` (+1 / -1), o `INDEX_NONE`. */
 	int32 AdjacentNonEmptyTrace(int32 From, int32 Direction) const;

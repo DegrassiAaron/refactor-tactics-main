@@ -2185,7 +2185,18 @@ tracks:
     writable:
       - Source/RefactorTactics/Frontend/
       - Source/RefactorTactics/Tests/RTFrontendNavigationTests.cpp
-      - docs/technical/spec-frontend-navigazione.md
+      # ➖ **`docs/technical/spec-frontend-navigazione.md` esce il 2026-08-16 e passa a `replay_ui`
+      # (#472), per la §2.2 che dichiara le due schermate del replay.**
+      # 🔴 La prima stesura di quella riallocazione **aggiungeva** il path all'altra track senza
+      # toglierlo da qui: il file era nel `writable` di DUE track entrambe `ACTIVE`, cioe'
+      # `WritableSet(T1) ∩ WritableSet(T2) = ∅` violata dentro il file che la dichiara. Trovato in code
+      # review. Una riallocazione **sposta**, e scriverla come aggiunta la trasforma in una deroga che
+      # nessuno ha concesso — tanto piu' che nessuno script legge questo file, quindi la doppia
+      # proprieta' non sarebbe mai diventata rossa: l'avrebbe scoperta la prossima sessione di E46
+      # credendo di possedere il file.
+      # ⚠️ **Torna qui al primo checkpoint di E46 che riapre** — `#937`, `#938`, `#939`, `#940`, `#941`
+      # sono tutte aperte. Se una parte prima che `replay_ui` chiuda, **precede**: stessa decisione
+      # presa per `#904` contro `client_tools`, e per la stessa ragione — chi e' avanti passa per primo.
     derives_from:
       - source: docs/roadmap/feature-registry.yaml
         regenerates:

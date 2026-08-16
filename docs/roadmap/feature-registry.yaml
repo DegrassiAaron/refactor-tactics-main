@@ -4494,8 +4494,10 @@ features:
       gia' `INTEGRATED`, quindi la v0.1 non aspetta nulla. La chiusura pulita e' promuovere anche
       l'archivio, che e' scope di release e merita una `D-nnn`.
 
-      **Stato al 2026-08-16**: il view model esiste (`Replay/RTReplayViewModel.{h,cpp}`) con **8** test
-      `RefactorTactics.Replay.ViewModel.*`, verdi, e l'area `RefactorTactics.Replay` chiude **38/38**.
+      **Stato al 2026-08-16**: il view model esiste (`Replay/RTReplayViewModel.{h,cpp}`) con **11** test
+      `RefactorTactics.Replay.ViewModel.*`, verdi, e l'area `RefactorTactics.Replay` chiude **41/41**.
+      ⚠️ I numeri sono **rimisurati dopo la code review**, che ne ha aggiunti tre: erano 8 e 38 nella
+      prima stesura di questa riga, e sono rimasti giusti per un'ora.
       `runtime` e `automation` sono `partial` e non `done`: manca tutto cio' che sta sopra il view
       model — le due schermate, il loro `.uasset`, l'aggancio al navigatore. Un `done` qui direbbe che
       `#472` e' finita, e non lo e'.
