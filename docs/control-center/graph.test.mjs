@@ -380,8 +380,12 @@ test('CONTRATTO — la fetta reale mostra il fork, il junction e la capability',
   const cap = graph.execution.capabilities.find((c) => c.id === 'DecisionBoundary');
   assert.ok(cap, 'DecisionBoundary assente dal grafo');
   assert.deepEqual(cap.providers, ['issue:165']);
-  assert.equal(cap.available, false, 'il runtime non la elenca e il provider non e chiuso');
-  assert.ok(cap.scenario_consumers.length >= 7,
+  // 2026-08-16 (#512 fase B): il runtime ORA la elenca. Le due righe qui sotto dicevano `false` e `>= 7`,
+  // ed erano vere fino a quel commit — questo test legge il grafo REALE, quindi ogni capability che atterra
+  // lo attraversa. Il contratto che difende non e' il valore, e' che i due campi vengano dal codice e dal
+  // corpus invece che da una lista scritta a mano: per questo restano pinnati invece di essere allentati.
+  assert.equal(cap.available, true, 'il runtime la elenca fra le disponibili dalla fase B di #512');
+  assert.ok(cap.scenario_consumers.length >= 6,
     'gli scenari che la chiedono sono quelli del corpus, non una lista scritta a mano');
 });
 

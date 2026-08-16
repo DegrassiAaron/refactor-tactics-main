@@ -1681,7 +1681,11 @@ tracks:
     # significato che questo file ha già dovuto distinguere quattro volte: **«il write-set è assegnato e
     # la sessione non ha ancora scritto»**. Il branch di lavoro della fase B nasce col primo commit dentro
     # `D:/rt-simulation`, e chi lo apre riscrive questa riga invece di lasciarla mentire.
-    branch: null
+    # ✅ **Riscritta col primo commit, che è questo.** Il branch nasce da `origin/main` @ `5454b305` —
+    # cioè dalla PR #1027 che ha concesso il write-set — dentro `D:/rt-simulation`, e questa riga smette
+    # di dire `null` prima che una riga di fase B sia scritta, non dopo. È la correzione che la sessione
+    # precedente ha dovuto fare a metà lavoro, fatta qui all'inizio.
+    branch: feat/512-fase-b-decisionboundary
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -2042,6 +2046,40 @@ tracks:
       - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
       - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
       - Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp
+      # ➕ **Settimo path, entrato a META' LAVORO e trovato dalla SUITE, non previsto.** La regola resta
+      # riallocazione e non «solo questa piccola fix»: misurato libero prima di toccarlo — nessun `writable`
+      # di alcuna track lo nomina, zero collisioni sui nove rami remoti vivi
+      # (`git diff --name-only origin/main...<b>`) e zero nei nove worktree aperti (`status --porcelain`
+      # dopo `update-index --refresh`, che vede anche il non committato).
+      # 🔴 **Perche' non era previsto, ed e' un difetto di misura mio.** Il write-set e' stato calcolato
+      # cercando i due test che pinnano lo STATO dello showcase; questo pinna il CONFINE fra `Reaction` e
+      # `DecisionBoundary` (voce 6 del DoD di fase A) e la sua discriminante era proprio la disponibilita':
+      # `TestFalse("ma NON e' disponibile in fase A")`. Un test che nomina la fase nella propria stringa
+      # dichiara la propria scadenza, e cercarlo per nome di scenario non poteva trovarlo.
+      - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+      # ➕ **Ottavo e nono path, entrati dopo la CODE REVIEW e non dalla suite — la terza fonte di scoperta
+      # in un solo giro.** Misurati liberi entrambi (nessun `writable`, zero rami remoti, zero worktree):
+      # · `docs/control-center/graph.test.mjs` — 🔴 **avevo ROTTO una suite che non sapevo esistesse.**
+      #   Legge `project-graph.json` VERO e pinnava `cap.available == false` e `consumers >= 7` per
+      #   `DecisionBoundary`: rigenerando la vista, `node --test` passa da **2** rossi (baseline misurata su
+      #   `origin/main` in un worktree pulito) a **3**. La toolchain Node non e' nella mia lista di gate e
+      #   `CONTEXT_INDEX.md` avverte che il repository ne ha DUE. Riportata a 28/2.
+      # · `ScenarioHarness/RTScenarioLoader.cpp` — il commento della whitelist di chiavi diceva che
+      #   `decisions` «nel corpus non compare ancora», e da questa fase compare in due file.
+      - docs/control-center/graph.test.mjs
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
+    # ⛔ **Due drift NON riparabili da questa track, registrati invece che lasciati scoprire.** Entrambi sono
+    # `integration_only`, quindi si aggiornano una volta in integrazione e non da dentro un lavoro:
+    # · `docs/roadmap/execution-graph.yaml` — il commento «un provider e **sette** consumatori … che
+    #   `RTScenarioSession.cpp` **non elenca fra le disponibili**» e' falso in entrambe le meta' da questa
+    #   PR: i consumatori sono sei e la capability e' disponibile. La vista generata (`project-graph.json`)
+    #   e' aggiornata, la sua sorgente scritta a mano no — che e' il verso peggiore, perche' l'autorevole
+    #   e' la sorgente.
+    # · `docs/roadmap/feature-registry.yaml` — `RT-FEAT-REACTION-OVERWATCH` afferma due volte che
+    #   «`Spec.Overwatch.HoldThenFire` continua a uscire `BLOCKED`», e da questa PR esce `PASS`; il suo gate
+    #   `scenario` resta `partial` e `last_verified` al 2026-08-15. ⚠️ Ed e' anche **conteso**: lo toccano
+    #   `docs/five-lane-roadmap` e `feat/625-hazard-turnlog`, misurato — prenderlo sarebbe stata una contesa
+    #   con due sessioni per correggere due frasi.
     # ⚠️ **Due viste, e le eredita chi tocca l'una O l'altra sorgente**: `generated_only` dichiara sia
     # `Scenarios/` sia `RTScenarioSession.cpp` come `derives_from` di entrambe. Questa track le tocca tutte
     # e due, quindi i due `--check` sono suoi e vanno rigenerati **sull'albero unito**, non sul branch.

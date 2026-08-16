@@ -9,7 +9,9 @@
 
   "_nota_perche_esiste": "E' la prova che D-047 non e' un rename. Se `Brace` restasse un buff fisso, i due eroi finirebbero nella stessa cella con gli stessi HP e questo file sarebbe verde per il motivo sbagliato — quindi l'assertion che conta e' la DIFFERENZA fra i due, non il valore di uno solo.",
 
-  "_nota_da_completare": "Il turno 2 richiede un profilo di reazione a due risposte. I profili sono DECISI dal 2026-08-13 (D-127, chiude `BAS-1` — non `CLASH-2`, che sono i payoff del Clash e una cosa diversa): Phase (`Hero.Riva`) ha `Profile.Sidestep`, e Riktor (`Hero.Bastion`) NON ha un profilo, perche' `Status.Braced` resiste gia' allo spostamento a qualunque distanza. Questo RAFFORZA lo scenario invece di indebolirlo: la differenza fra i due non nasce da due profili diversi ma da profilo-contro-comportamento-base, che e' il caso piu' stretto. Chi implementa E14.7 assegna `Profile.Sidestep` a R1 e aggiunge l'assertion sulla sua cella finale, che deve differire da quella di partenza mentre quella di B1 no.",
+  "_nota_da_completare": "Il turno 2 richiede un profilo di reazione a due risposte. I profili sono DECISI dal 2026-08-13 (D-127, chiude `BAS-1` — non `CLASH-2`, che sono i payoff del Clash e una cosa diversa): Phase (`Hero.Riva`) ha `Profile.Sidestep`, e Riktor (`Hero.Bastion`) NON ha un profilo, perche' `Status.Braced` resiste gia' allo spostamento a qualunque distanza. Questo RAFFORZA lo scenario invece di indebolirlo: la differenza fra i due non nasce da due profili diversi ma da profilo-contro-comportamento-base, che e' il caso piu' stretto. Chi implementa E14.7 assegna `Profile.Sidestep` a R1, riempie gli intent del T2 con un attaccante che spinge, e aggiunge l'assertion sulla cella finale di R1, che deve differire da quella di partenza mentre quella di B1 no.",
+
+  "_nota_requires_corretta": "🔴 2026-08-16 (#512 fase B): la `requires` del T2 diceva `DecisionBoundary` e la nota qui sotto sosteneva che «con la sola finestra di CP 14.5 questo file puo' diventare verde». MISURATO: e' falso. `Profile.Sidestep` non esiste in nessuna forma — `grep -rn \"Profile.Sidestep\\|ReactionProfile\" Source/` da' ZERO — e senza profilo il T2 non ha una seconda risposta da scegliere, quindi nessuna finestra si apre e non c'e' niente da decidere. Scoprendo `DecisionBoundary` questo turno sarebbe passato da BLOCKED a verde con `intents: []`: un turno che si sblocca senza eseguire cio' che descrive. La `requires` dice ora il blocco vero, `ReactionProfile`, il cui owner e' E14.7 (#314). Lo scenario resta BLOCKED — sullo stesso checkpoint di sempre, ma per la ragione giusta.",
 
   "units": [
     { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [ 0, 0, 0] },
@@ -26,8 +28,8 @@
       ]
     },
     {
-      "_turno": "T2 — la differenza. Con un profilo che dichiara una seconda risposta legale, la stessa preparazione produce reazioni diverse: Riktor (B1) tiene la cella col comportamento base, Phase (R1) scarta con `Profile.Sidestep`. E' un boundary SINGLE-RESPONDER: un solo partecipante ha una scelta vera, quindi NON e' contested e non serve `ReactionClash` (D-048 chiede DUE partecipanti con >= 2 risposte ciascuno). La `requires` chiedeva entrambe fino al 2026-08-13 e teneva lo scenario BLOCKED un checkpoint piu' del necessario: con la sola finestra di CP 14.5 questo file puo' diventare verde.",
-      "requires": ["DecisionBoundary"],
+      "_turno": "T2 — la differenza. Con un profilo che dichiara una seconda risposta legale, la stessa preparazione produce reazioni diverse: Riktor (B1) tiene la cella col comportamento base, Phase (R1) scarta con `Profile.Sidestep`. E' un boundary SINGLE-RESPONDER: un solo partecipante ha una scelta vera, quindi NON e' contested e non serve `ReactionClash` (D-048 chiede DUE partecipanti con >= 2 risposte ciascuno). Serve pero' il PROFILO, che e' la seconda risposta: senza, la cardinalita' resta 1 come al T1 e non c'e' nessun boundary — la finestra di CP 14.5 e' necessaria e non sufficiente.",
+      "requires": ["ReactionProfile"],
       "intents": []
     }
   ],
