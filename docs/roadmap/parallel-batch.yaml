@@ -356,7 +356,18 @@ batch:
   # (`git log --oneline --merges 6bdf4619..origin/main | wc -l`), fra cui #948 (E46, frontend) e
   # #961 (E47, autobattle). Entrambe le basi precedenti restano antenate — verificato con
   # `git merge-base --is-ancestor` — quindi l'`id` non cambia: stesso lotto, base nuova.
-  base_sha: "5530bd0395ff9529fa78da412c1beffb5f0f7a9b"
+  #
+  # 🔴 **E si è mossa una seconda volta DENTRO questo giro, che è la quinta volta che succede.**
+  # `5530bd03` → `057ec9a2`: la PR **#965** ha riattivato la track `verification` su `#83` mentre
+  # questa sessione scriveva. Il modo in cui l'ho scoperto vale più del fatto: un controllo che
+  # confrontava il write-set «prima e dopo» ha riportato **nove path spariti da `verification`** —
+  # e la prima lettura è stata *«ho cancellato il lavoro di qualcun altro»*. Falso: il confronto
+  # usava `origin/main` **aggiornato** invece della base su cui il ramo è nato. Rifatto contro
+  # `5530bd03`, le righe rimosse sono **sei**, tutte volute.
+  # ⚠️ **La lezione non è sul ref, è sul metodo**: un diff «prima/dopo» si fa contro la **propria
+  # base**, non contro un ref che si muove — o misura la somma del proprio lavoro e di quello altrui
+  # e la attribuisce a chi guarda. `git diff <base>...HEAD`, mai `git diff origin/main`.
+  base_sha: "057ec9a238fe5b1ad0a6e74c68dc030b05b8f790"
   created_at: "2026-08-14"
   # Base di creazione, tenuta perché è ciò che l'`id` nomina: `84cbb70c6f5082682e59a71d442b71e78fac4322`.
   # Verificato che sia ancora antenato della base corrente (`git merge-base --is-ancestor`): sì —
@@ -2056,6 +2067,12 @@ tracks:
       altro — `feat/77-hud-slot-terna` (`RTHudSlotLinesTests`), `fix/892-displayname-abilita`
       (`RTHeroCatalogTests`), `feat/78-contratto-certezza` (`RTIntentPrivacyTests`) — ed è la ragione per
       cui il `writable` elenca **un file**, non il prefisso `Tests/`.
+      ✅ **Rimisurato dopo che `origin/main` si è mosso a metà giro** (#965, `057ec9a2`): la track
+      `verification` è tornata **ACTIVE su `#83`** con **nove** file di `Tests/`, e nessuno dei nove è
+      `RTMatchAutobattleTests.cpp` — che è nuovo. L'invariante regge sulle sette track, verificata sui
+      path e non sui prefissi. È anche la dimostrazione pratica della regola: se questa track avesse
+      dichiarato `Tests/` invece del singolo file, avrebbe contesa l'intero write-set di `verification`
+      senza toccarne una riga.
 
       ⛔ **Cosa questa track NON tocca, e perché.** Il DoD di `#954` chiede che l'attivazione «non sia
       silenziosa». La banda a schermo la disegna `UI/RTHUD.cpp`, che è nel `writable` di `client_tools`
