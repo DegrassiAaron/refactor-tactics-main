@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Bot.PlansOnPartialKnowledge",
-  "tags": ["bot", "perception", "knowledge", "spec", "vektor", "bastion", "riva"],
+  "tags": ["bot", "perception", "knowledge", "spec", "wraith", "riktor", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 6,
@@ -18,9 +18,9 @@
   "_nota_coppia": "Il canary complementare e' `Spec.Bot.HiddenEnemyFairness`: quello dimostra che l'esito non DIPENDE dall'ignoto, questo che l'ignoto non viene proprio scelto. Servono entrambi — il primo passerebbe anche con un bot che ignora tutti, il secondo anche con un bot che varia il piano per ragioni diverse dall'informazione nascosta.",
 
   "units": [
-    { "id": "BOT",  "hero": "Hero.Vektor",  "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 1 },
-    { "id": "SEEN", "hero": "Hero.Bastion", "team": 0, "cell": [1, 0, 0] },
-    { "id": "BAIT", "hero": "Hero.Riva",    "team": 0, "cell": [3, 0, 0], "health": 1, "shield": 0 }
+    { "id": "BOT",  "hero": "Hero.Wraith",  "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 1 },
+    { "id": "SEEN", "hero": "Hero.Riktor", "team": 0, "cell": [1, 0, 0] },
+    { "id": "BAIT", "hero": "Hero.Phase",    "team": 0, "cell": [3, 0, 0], "health": 1, "shield": 0 }
   ],
 
   "turns": [

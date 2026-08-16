@@ -111,10 +111,10 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 	TSet<FName> InPlay;
 	for (const ARTUnit* Unit : Units) { InPlay.Add(Unit->HeroId); }
 	TestEqual(TEXT("quattro eroi distinti"), InPlay.Num(), 4);
-	TestTrue(TEXT("c'e' Flux"), InPlay.Contains(FName(TEXT("Hero.Flux"))));
-	TestTrue(TEXT("c'e' Riva"), InPlay.Contains(FName(TEXT("Hero.Riva"))));
-	TestTrue(TEXT("c'e' Bastion"), InPlay.Contains(FName(TEXT("Hero.Bastion"))));
-	TestTrue(TEXT("c'e' Vektor"), InPlay.Contains(FName(TEXT("Hero.Vektor"))));
+	TestTrue(TEXT("c'e' Gadget"), InPlay.Contains(FName(TEXT("Hero.Gadget"))));
+	TestTrue(TEXT("c'e' Phase"), InPlay.Contains(FName(TEXT("Hero.Phase"))));
+	TestTrue(TEXT("c'e' Riktor"), InPlay.Contains(FName(TEXT("Hero.Riktor"))));
+	TestTrue(TEXT("c'e' Wraith"), InPlay.Contains(FName(TEXT("Hero.Wraith"))));
 
 	// Ogni unita' porta le statistiche del SUO eroe, sopravvissute a BeginPlay.
 	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
@@ -137,30 +137,30 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 			Unit->GetAbility(0)->Def.ActionId, Hero->Actions[0]->Def.ActionId);
 	}
 
-	// Formazione di default: Flux+Riva (giocatore) contro Bastion+Vektor (bot).
-	ARTUnit* Flux = FindByHeroId(Units, TEXT("Hero.Flux"));
-	ARTUnit* Riva = FindByHeroId(Units, TEXT("Hero.Riva"));
-	ARTUnit* Bastion = FindByHeroId(Units, TEXT("Hero.Bastion"));
-	ARTUnit* Vektor = FindByHeroId(Units, TEXT("Hero.Vektor"));
-	if (Flux && Riva && Bastion && Vektor)
+	// Formazione di default: Gadget+Phase (giocatore) contro Riktor+Wraith (bot).
+	ARTUnit* Gadget = FindByHeroId(Units, TEXT("Hero.Gadget"));
+	ARTUnit* Phase = FindByHeroId(Units, TEXT("Hero.Phase"));
+	ARTUnit* Riktor = FindByHeroId(Units, TEXT("Hero.Riktor"));
+	ARTUnit* Wraith = FindByHeroId(Units, TEXT("Hero.Wraith"));
+	if (Gadget && Phase && Riktor && Wraith)
 	{
-		TestEqual(TEXT("Flux e' del giocatore"), Flux->TeamId, 0);
-		TestEqual(TEXT("Riva anche: la combo Wet e' giocabile"), Riva->TeamId, 0);
-		TestEqual(TEXT("Bastion e' del bot"), Bastion->TeamId, 1);
-		TestEqual(TEXT("Vektor anche"), Vektor->TeamId, 1);
-		TestFalse(TEXT("il giocatore comanda i suoi"), Flux->bIsBotControlled);
-		TestTrue(TEXT("il bot comanda i propri"), Bastion->bIsBotControlled);
+		TestEqual(TEXT("Gadget e' del giocatore"), Gadget->TeamId, 0);
+		TestEqual(TEXT("Phase anche: la combo Wet e' giocabile"), Phase->TeamId, 0);
+		TestEqual(TEXT("Riktor e' del bot"), Riktor->TeamId, 1);
+		TestEqual(TEXT("Wraith anche"), Wraith->TeamId, 1);
+		TestFalse(TEXT("il giocatore comanda i suoi"), Gadget->bIsBotControlled);
+		TestTrue(TEXT("il bot comanda i propri"), Riktor->bIsBotControlled);
 
 		// **Il punto della DoD sul bot**: MP diversi arrivano davvero in campo. Il budget dello snapshot viene
-		// da `MoveRange`, quindi il bot non puo' proporre a Bastion una mossa da 6 celle.
-		TestEqual(TEXT("Bastion: 4 MP"), Bastion->MoveRange, 4);
-		TestEqual(TEXT("Vektor: 6 MP"), Vektor->MoveRange, 6);
-		TestEqual(TEXT("Flux colpisce a 4"), Flux->AttackRange, 4);
-		TestEqual(TEXT("Bastion colpisce a 3"), Bastion->AttackRange, 3);
+		// da `MoveRange`, quindi il bot non puo' proporre a Riktor una mossa da 6 celle.
+		TestEqual(TEXT("Riktor: 4 MP"), Riktor->MoveRange, 4);
+		TestEqual(TEXT("Wraith: 6 MP"), Wraith->MoveRange, 6);
+		TestEqual(TEXT("Gadget colpisce a 4"), Gadget->AttackRange, 4);
+		TestEqual(TEXT("Riktor colpisce a 3"), Riktor->AttackRange, 3);
 
 		// Ogni unita' ha le PROPRIE istanze d'azione: due eroi che condividessero un `URTActionData`
 		// ricaricherebbero insieme.
-		TestTrue(TEXT("azioni non condivise"), Flux->GetAbility(0) != Riva->GetAbility(0));
+		TestTrue(TEXT("azioni non condivise"), Gadget->GetAbility(0) != Phase->GetAbility(0));
 
 		// Le unita' stanno su celle distinte della mappa.
 		TSet<FRTCellId> Cells;
@@ -192,8 +192,8 @@ bool FRTHeroSpawnFailClosedTest::RunTest(const FString&)
 
 	// Due modi diversi di sbagliare una formazione: un eroe che non esiste, e uno schierato DUE volte.
 	// Nessuno dei due deve mettere in campo un'unita' senza dati o una copia che condivide le azioni.
-	GameMode->Team0Heroes = { TEXT("Hero.Nonexistent"), TEXT("Hero.Flux") };
-	GameMode->Team1Heroes = { TEXT("Hero.Flux"), TEXT("Hero.Vektor") };
+	GameMode->Team0Heroes = { TEXT("Hero.Nonexistent"), TEXT("Hero.Gadget") };
+	GameMode->Team1Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Wraith") };
 
 	GameMode->SetupHexMatch(HexMap);
 
@@ -202,8 +202,8 @@ bool FRTHeroSpawnFailClosedTest::RunTest(const FString&)
 
 	TSet<FName> InPlay;
 	for (const ARTUnit* Unit : Units) { InPlay.Add(Unit->HeroId); }
-	TestTrue(TEXT("Flux, una volta sola"), InPlay.Contains(FName(TEXT("Hero.Flux"))));
-	TestTrue(TEXT("e Vektor"), InPlay.Contains(FName(TEXT("Hero.Vektor"))));
+	TestTrue(TEXT("Gadget, una volta sola"), InPlay.Contains(FName(TEXT("Hero.Gadget"))));
+	TestTrue(TEXT("e Wraith"), InPlay.Contains(FName(TEXT("Hero.Wraith"))));
 	TestEqual(TEXT("nessun duplicato in campo"), InPlay.Num(), Units.Num());
 
 	// Nessuna unita' e' rimasta senza identita': se il fail-closed non funzionasse, qui ci sarebbe un'unita'

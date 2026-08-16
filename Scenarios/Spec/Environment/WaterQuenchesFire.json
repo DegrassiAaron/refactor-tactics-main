@@ -3,8 +3,8 @@
   "tags": [
     "spec",
     "environment",
-    "riva",
-    "vektor"
+    "phase",
+    "wraith"
   ],
   "version": 1,
   "seed": 0,
@@ -14,7 +14,7 @@
   "units": [
     {
       "id": "R1",
-      "hero": "Hero.Riva",
+      "hero": "Hero.Phase",
       "team": 0,
       "_nota_loadout": "#1006: dichiarare il loadout lo SOSTITUISCE per intero, e `ValidateLoadout` ne pretende esattamente uno per slot - il primo tentativo con il solo Sprinkler e' stato rifiutato dal loader con 'manca la variante d'arma'. `Weapon.Impact` e' il default d'eroe di Phase (D-089), scelto per non introdurre una variante arbitraria; `Reaction.Anchor` e' inerte qui, perche' in questo scenario nessuno spinge nessuno. L'unico pezzo che conta e' `Gadget.Sprinkler`.",
       "loadout": [
@@ -30,7 +30,7 @@
     },
     {
       "id": "V1",
-      "hero": "Hero.Vektor",
+      "hero": "Hero.Wraith",
       "team": 1,
       "cell": [
         1,
@@ -45,8 +45,8 @@
       "intents": []
     },
     {
-      "_turno": "T2 - Riva bagna Vektor a (1,-3) CON LO SPRINKLER. L'acqua nasce attorno al BERSAGLIO con raggio 1, e (0,-2) - la cella in fiamme - e' adiacente: il fuoco si spegne. LIMITE DICHIARATO del modello di oggi: le azioni ambientali richiedono un'unita' come bersaglio, non una cella; allagare una cella vuota non e' esprimibile.",
-      "_nota_sorgente": "#1006: l'acqua NON viene piu' da `Riva.FluidTrail`. Phase e' `Access` a Water (una sola capability, `PressureJet`) e quella abilita' e' tornata uno scatto, quindi l'unico produttore di superficie acqua e' l'EQUIPAGGIAMENTO. L'`ability` e' `Gadget.Sprinkler` e non `Action.CreateWater` perche' `MakeEquipmentAction` riscrive l'ActionId con l'EquipmentId - nel TurnLog si legge il gadget, non l'azione generica. Questo scenario e' il PRIMO del corpus a usare `loadout`.",
+      "_turno": "T2 - Phase bagna Wraith a (1,-3) CON LO SPRINKLER. L'acqua nasce attorno al BERSAGLIO con raggio 1, e (0,-2) - la cella in fiamme - e' adiacente: il fuoco si spegne. LIMITE DICHIARATO del modello di oggi: le azioni ambientali richiedono un'unita' come bersaglio, non una cella; allagare una cella vuota non e' esprimibile.",
+      "_nota_sorgente": "#1006: l'acqua NON viene piu' da `Hero.Phase.FluidTrail`. Phase e' `Access` a Water (una sola capability, `PressureJet`) e quella abilita' e' tornata uno scatto, quindi l'unico produttore di superficie acqua e' l'EQUIPAGGIAMENTO. L'`ability` e' `Gadget.Sprinkler` e non `Action.CreateWater` perche' `MakeEquipmentAction` riscrive l'ActionId con l'EquipmentId - nel TurnLog si legge il gadget, non l'azione generica. Questo scenario e' il PRIMO del corpus a usare `loadout`.",
       "requires": [
         "EnvironmentalActionOwner"
       ],
@@ -59,7 +59,7 @@
       ]
     },
     {
-      "_turno": "T3 - la PROVA. Vektor entra in (0,-2). Il fuoco fa 10 danni + Burning 2 all'ingresso (catalogo terreni): se non fosse stato spento arriverebbe a 90. Restare a 100 e' l'unico modo che le assertion disponibili hanno di osservare una cella che ha smesso di bruciare - non esiste un'assertion sulla superficie.",
+      "_turno": "T3 - la PROVA. Wraith entra in (0,-2). Il fuoco fa 10 danni + Burning 2 all'ingresso (catalogo terreni): se non fosse stato spento arriverebbe a 90. Restare a 100 e' l'unico modo che le assertion disponibili hanno di osservare una cella che ha smesso di bruciare - non esiste un'assertion sulla superficie.",
       "intents": [
         {
           "unit": "V1",
@@ -108,5 +108,5 @@
       "value": 3
     }
   ],
-  "_nota_owner": "#1006 supera D-046 su questo punto: l'owner dell'acqua NON e' piu' un eroe, e' l'equipaggiamento. D-046 aveva cablato `Riva.FluidTrail` su `Action.CreateWater` perche' senza un produttore la combo acqua+elettricita' era giocabile solo su mappe che l'acqua ce l'avevano gia'; la decisione di #995 - Phase e' ABILITATA a Water, non padrona, grado `Access` - toglie quella capability al kit e la lascia a `Gadget.Sprinkler`, che porta gia' `Action.CreateWater`. `Riva.FluidTrail` e' tornata uno scatto (`Action.Dash`, slot Movimento, D-028). Costo dichiarato: `Flux.ConductiveNode` dipende ora dalla mappa o dallo Sprinkler per avere il proprio substrato conduttivo."
+  "_nota_owner": "#1006 supera D-046 su questo punto: l'owner dell'acqua NON e' piu' un eroe, e' l'equipaggiamento. D-046 aveva cablato `Hero.Phase.FluidTrail` su `Action.CreateWater` perche' senza un produttore la combo acqua+elettricita' era giocabile solo su mappe che l'acqua ce l'avevano gia'; la decisione di #995 - Phase e' ABILITATA a Water, non padrona, grado `Access` - toglie quella capability al kit e la lascia a `Gadget.Sprinkler`, che porta gia' `Action.CreateWater`. `Hero.Phase.FluidTrail` e' tornata uno scatto (`Action.Dash`, slot Movimento, D-028). Costo dichiarato: `Hero.Gadget.ConductiveNode` dipende ora dalla mappa o dallo Sprinkler per avere il proprio substrato conduttivo."
 }

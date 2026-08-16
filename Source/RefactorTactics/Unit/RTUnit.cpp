@@ -151,7 +151,7 @@ FString ARTUnit::ShortHeroName(FName InHeroId, const FString& Fallback)
 		return Fallback;
 	}
 	const FString Full = InHeroId.ToString();
-	// Gli HeroId sono namespaced (`Hero.Flux`): a schermo serve l'ultimo segmento. Se un giorno l'ID smettesse
+	// Gli HeroId sono namespaced (`Hero.Gadget`): a schermo serve l'ultimo segmento. Se un giorno l'ID smettesse
 	// di avere il punto, questa resta corretta invece di mostrare una stringa vuota.
 	int32 Dot = INDEX_NONE;
 	if (Full.FindLastChar(TEXT('.'), Dot) && Dot >= 0 && Dot + 1 < Full.Len())
@@ -297,7 +297,7 @@ void ARTUnit::OnDeselected()
 void ARTUnit::ApplyStatus(FGameplayTag Tag, int32 Turns)
 {
 	// Catalogo terreni §2: `Burning` e' "rimosso da `Wet`". La regola sta QUI e non nel chiamante, cosi'
-	// vale per ogni sorgente di bagnato — acqua bassa, `Riva.PressureJet`, `CircularTide` — invece che nel
+	// vale per ogni sorgente di bagnato — acqua bassa, `Phase.PressureJet`, `CircularTide` — invece che nel
 	// punto che si e' ricordato di scriverla. L'ordine e' voluto: si spegne anche se il Wet arriva insieme.
 	if (Tag == TAG_Status_Wet)
 	{
@@ -365,7 +365,7 @@ bool ARTUnit::RemoveStatus(FGameplayTag Tag)
 	{
 		MarkedByTeam = INDEX_NONE; // il marchio se ne va con la sua provenienza
 	}
-	// `Action.Cleanse` purifica lo stato, non una delle sue sorgenti: chi e' bagnato dall'acqua E da Riva
+	// `Action.Cleanse` purifica lo stato, non una delle sue sorgenti: chi e' bagnato dall'acqua E da Phase
 	// esce pulito da entrambe. Restare bagnati stando nell'acqua e' comunque il comportamento del turno
 	// dopo, perche' la cella lo riapplica all'ingresso successivo.
 	StatusTurns.Remove(Tag);

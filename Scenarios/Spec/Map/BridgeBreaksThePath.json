@@ -4,20 +4,20 @@
     "spec",
     "map",
     "pathfinding",
-    "flux",
-    "bastion"
+    "gadget",
+    "riktor"
   ],
   "version": 1,
   "seed": 0,
   "fixture": "TestArena",
   "_nota": "SPECIFICA ESEGUIBILE di CP 9.4. Un arco fra due layer e' **additivo**: romperlo non allunga il percorso, lo **annulla**. Fra i layer non c'e' adiacenza di riserva, quindi basta togliere l'unica transizione perche' il path FALLISCA invece di teletrasportare. `TestArena` e' la fixture giusta perche' ha esattamente quell'unica transizione: (1,0,0) -> (2,0,1).",
-  "_nota_perche_e_bloccato": "BLOCCATO PER DECISIONE, non per lacuna (D-046, #282). `Action.ModifyArc` resta senza owner nel roster v0.1: rompere e creare ponti non appartiene a nessun kit, e darlo a Bastion per affinita' Structures gli aggiungerebbe un potere che il suo kit non dichiara. CP 9.4 e' verde e resta verificato da questo scenario come SPECIFICA; diventera' eseguibile quando esistera' un owner - un eroe della v0.2, o una capability di scenario che agisca senza un'unita'.",
+  "_nota_perche_e_bloccato": "BLOCCATO PER DECISIONE, non per lacuna (D-046, #282). `Action.ModifyArc` resta senza owner nel roster v0.1: rompere e creare ponti non appartiene a nessun kit, e darlo a Riktor per affinita' Structures gli aggiungerebbe un potere che il suo kit non dichiara. CP 9.4 e' verde e resta verificato da questo scenario come SPECIFICA; diventera' eseguibile quando esistera' un owner - un eroe della v0.2, o una capability di scenario che agisca senza un'unita'.",
   "_nota_cosa_dimostra_davvero": "Non «il ponte si rompe», ma che la **revisione della mappa** sale e i percorsi gia' pianificati se ne accorgono: un path calcolato prima della rottura non deve restare valido. E' l'obiettivo dichiarato di E9 — niente path fantasma — e si osserva solo con un movimento pianificato **nello stesso turno** in cui l'arco cade.",
-  "_nota_da_completare": "Chi cabla l'azione riempie il turno 2 e aggiunge l'assertion: Flux resta sul layer 0 invece di salire, e il TurnLog dice `BlockedByTopology`. Se arrivasse comunque sulla piattaforma, il path era fantasma.",
+  "_nota_da_completare": "Chi cabla l'azione riempie il turno 2 e aggiunge l'assertion: Gadget resta sul layer 0 invece di salire, e il TurnLog dice `BlockedByTopology`. Se arrivasse comunque sulla piattaforma, il path era fantasma.",
   "units": [
     {
       "id": "F1",
-      "hero": "Hero.Flux",
+      "hero": "Hero.Gadget",
       "team": 0,
       "cell": [
         1,
@@ -27,7 +27,7 @@
     },
     {
       "id": "B1",
-      "hero": "Hero.Bastion",
+      "hero": "Hero.Riktor",
       "team": 1,
       "cell": [
         -4,
@@ -38,11 +38,11 @@
   ],
   "turns": [
     {
-      "_turno": "T1 — Flux e' all'imbocco dell'unica transizione verso la piattaforma. Gira sul gioco di oggi.",
+      "_turno": "T1 — Gadget e' all'imbocco dell'unica transizione verso la piattaforma. Gira sul gioco di oggi.",
       "intents": []
     },
     {
-      "_turno": "T2 — l'arco cade mentre Flux ci sta salendo: il percorso non si allunga, sparisce.",
+      "_turno": "T2 — l'arco cade mentre Gadget ci sta salendo: il percorso non si allunga, sparisce.",
       "requires": [
         "EnvironmentalActionOwner"
       ],

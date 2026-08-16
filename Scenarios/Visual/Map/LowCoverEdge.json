@@ -1,32 +1,32 @@
 {
   "scenarioId": "Visual.Map.LowCoverEdge",
-  "tags": ["animation", "map", "combat", "flux", "bastion", "vektor"],
+  "tags": ["animation", "map", "combat", "gadget", "riktor", "wraith"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayBasin",
 
-  "_nota": "La copertura appartiene a un BORDO, non a una cella: e' la decisione di CP 9.1, ed e' invisibile finche' non la si colpisce da due lati diversi. Flux sta sul Relay a (0,0), che ha copertura bassa sul lato NORD. Nello stesso turno Vektor tira da nord — attraverso il bordo riparato — e Bastion da sud, dove non c'e' niente. Stesso bersaglio, stessa distanza, due danni diversi.",
+  "_nota": "La copertura appartiene a un BORDO, non a una cella: e' la decisione di CP 9.1, ed e' invisibile finche' non la si colpisce da due lati diversi. Gadget sta sul Relay a (0,0), che ha copertura bassa sul lato NORD. Nello stesso turno Wraith tira da nord — attraverso il bordo riparato — e Riktor da sud, dove non c'e' niente. Stesso bersaglio, stessa distanza, due danni diversi.",
 
-  "_nota_chi_tira_da_nord": "Fino ad ADR-0007 era Bastion a tirare da nord, e la riga di sopra diceva «ImpactShot 24 diventa 14». Con ImpactShot portato a 8 quel colpo NON misura piu' niente: la riduzione da copertura bassa e' 10, il danno viene troncato a zero (`FMath::Max(0, Power - Reduction)`) e una riduzione da 10, da 15 o da 40 darebbero lo stesso identico risultato. Uno scenario che non distingue la grandezza che dichiara di misurare e' peggio di uno assente, perche' resta verde. Da qui i due tiratori si scambiano di posto: dal lato riparato deve arrivare un colpo PIU' GRANDE della riduzione, e nel roster attuale l'unico attacco base che lo e' con margine leggibile e' PulseShot.",
+  "_nota_chi_tira_da_nord": "Fino ad ADR-0007 era Riktor a tirare da nord, e la riga di sopra diceva «ImpactShot 24 diventa 14». Con ImpactShot portato a 8 quel colpo NON misura piu' niente: la riduzione da copertura bassa e' 10, il danno viene troncato a zero (`FMath::Max(0, Power - Reduction)`) e una riduzione da 10, da 15 o da 40 darebbero lo stesso identico risultato. Uno scenario che non distingue la grandezza che dichiara di misurare e' peggio di uno assente, perche' resta verde. Da qui i due tiratori si scambiano di posto: dal lato riparato deve arrivare un colpo PIU' GRANDE della riduzione, e nel roster attuale l'unico attacco base che lo e' con margine leggibile e' PulseShot.",
 
-  "_nota_aritmetica": "La copertura bassa toglie 10 al danno diretto dal lato riparato: PulseShot 21 diventa 11, ImpactShot resta 8. Flux 90 - 11 - 8 = 71. Se il primo run dice 61, la protezione non e' stata applicata; se dice 79, e' stata applicata anche al colpo da sud — e sarebbe il difetto peggiore dei due, perche' una copertura che protegge da ogni lato non e' una copertura, e' HP in piu'. I tre numeri restano distinti, che e' l'unica ragione per cui questo scenario vale qualcosa.",
+  "_nota_aritmetica": "La copertura bassa toglie 10 al danno diretto dal lato riparato: PulseShot 21 diventa 11, ImpactShot resta 8. Gadget 90 - 11 - 8 = 71. Se il primo run dice 61, la protezione non e' stata applicata; se dice 79, e' stata applicata anche al colpo da sud — e sarebbe il difetto peggiore dei due, perche' una copertura che protegge da ogni lato non e' una copertura, e' HP in piu'. I tre numeri restano distinti, che e' l'unica ragione per cui questo scenario vale qualcosa.",
 
   "_nota_lettura": "Il giocatore deve poter capire da DOVE e' conveniente avvicinarsi guardando la mappa, prima di sparare. Se il bordo riparato non si distingue dagli altri cinque, questa regola esiste solo nel TurnLog.",
 
   "_nota_orientamento": "Da CP 16.2 la copertura protegge solo dai colpi che arrivano nell'arco frontale. F1 replica al fuoco di V1, e un'azione con bersaglio orienta chi la usa PRIMA che risolva (D-020): guardando a nord, F1 e' riparata dal bordo che sta guardando. Senza quella replica resterebbe orientata a est — il facing di partenza — e la copertura nord non varrebbe, misurando la difesa direzionale invece della direzionalita' del BORDO che questo scenario possiede. La replica ora va a V1 e non piu' a B1 perche' e' V1 ad essere a nord: e' il facing a decidere, non l'identita' del bersaglio.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [0,  0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [0, -2, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [0,  2, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [0,  0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [0, -2, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0,  2, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "F1", "ability": "Flux.ArcPulse",       "target": "V1" },
-        { "unit": "V1", "ability": "Vektor.PulseShot",   "target": "F1" },
-        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "F1" }
+        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse",       "target": "V1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" },
+        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" }
       ]
     }
   ],

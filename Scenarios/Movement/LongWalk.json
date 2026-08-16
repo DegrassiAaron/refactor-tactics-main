@@ -1,6 +1,6 @@
 {
   "scenarioId": "Movement.LongWalk",
-  "tags": ["movement", "animation", "flux", "bastion"],
+  "tags": ["movement", "animation", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,
@@ -8,8 +8,8 @@
   "_nota": "Scenario fatto per essere GUARDATO, non solo verificato. Due unita' attraversano l'arena su righe diverse, tre celle per turno, per due turni. Serve a rispondere a PIE-TEST-VISUAL: su una cella sola non si distingue un'animazione da un teletrasporto, su tre e per due turni si'. Le assertion restano vere anche headless, quindi non e' uno scenario di serie B: e' un test normale che si puo' anche osservare.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-4,  0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 4, -2, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-4,  0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 4, -2, 0] }
   ],
 
   "turns": [

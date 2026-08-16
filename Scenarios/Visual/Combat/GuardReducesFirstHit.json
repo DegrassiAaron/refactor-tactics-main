@@ -1,32 +1,32 @@
 {
   "scenarioId": "Visual.Combat.GuardReducesFirstHit",
-  "tags": ["animation", "combat", "core", "bastion", "flux", "vektor"],
+  "tags": ["animation", "combat", "core", "riktor", "gadget", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "`Action.Guard` toglie 15 al PRIMO danno diretto del turno, e basta. Bastion si mette in guardia e incassa due colpi: il primo arriva ridotto, il secondo pieno. 120 - (22-15) - 21 = 92.",
+  "_nota": "`Action.Guard` toglie 15 al PRIMO danno diretto del turno, e basta. Riktor si mette in guardia e incassa due colpi: il primo arriva ridotto, il secondo pieno. 120 - (22-15) - 21 = 92.",
 
   "_nota_perche_esiste": "Fino al 2026-08-09 nessuna unita' poteva mettersi in guardia: il kit era `Abilities = Hero->Actions`, cinque azioni, e le generiche di D-025 non appartenevano a nessuno. I quattro rami che consumano `Status.Guarded` e `Status.Braced` nel TurnManager esistevano, erano commentati e motivati, e in partita non li raggiungeva nessuno — li toccavano solo test che si costruivano l'abilita' da soli (#275).",
 
-  "_nota_ordine": "Quale dei due colpi sia «il primo» lo decide l'ordine canonico (priorita', poi ActionId): a parita' di priorita' 50 vince `Flux.ArcPulse` su `Vektor.PulseShot`. Il TOTALE pero' non dipende dall'ordine — la riduzione vale una volta sola comunque — ed e' per questo che l'assertion sta sul totale e non su chi l'ha presa.",
+  "_nota_ordine": "Quale dei due colpi sia «il primo» lo decide l'ordine canonico (priorita', poi ActionId): a parita' di priorita' 50 vince `Hero.Gadget.ArcPulse` su `Hero.Wraith.PulseShot`. Il TOTALE pero' non dipende dall'ordine — la riduzione vale una volta sola comunque — ed e' per questo che l'assertion sta sul totale e non su chi l'ha presa.",
 
   "_nota_self": "L'intent non dichiara un bersaglio, ed e' corretto: un'azione di Prep risolve su chi la usa (`Instance.TargetUnitId = i` nel TurnManager), quindi non c'e' niente da bersagliare.",
 
   "_nota_orientamento": "Da CP 16.2 la guardia copre il DAVANTI: entrambi gli attaccanti stanno a est, cioe' nell'arco frontale di B1, che guarda a est di partenza e non fa niente per girarsi. Prima F1 stava a (-2,0,0) e il primo colpo arrivava alle spalle — la guardia non sarebbe valsa, e questo scenario avrebbe misurato la difesa direzionale invece della regola «una volta sola» che dice di verificare. Il colpo alle spalle ha i suoi scenari: `Spec.Facing.BackAttackIgnoresGuard` e la sua coppia.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [0,  0, 0] },
-    { "id": "F1", "hero": "Hero.Flux",    "team": 1, "cell": [2, -1, 0] },
-    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [2,  0, 0] }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [0,  0, 0] },
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 1, "cell": [2, -1, 0] },
+    { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [2,  0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
         { "unit": "B1", "ability": "Action.Guard" },
-        { "unit": "F1", "ability": "Flux.ArcPulse",    "target": "B1" },
-        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse",    "target": "B1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]
     }
   ],

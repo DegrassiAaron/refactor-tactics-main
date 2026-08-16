@@ -367,7 +367,7 @@ bool FRTScenarioCellOverridesApplyTest::RunTest(const FString&)
 		S.ScenarioId = bWall ? TEXT("Probe.Walled") : TEXT("Probe.Open");
 		S.MapRadius = 3;
 		FRTScenarioUnit U;
-		U.Id = TEXT("A1"); U.HeroId = TEXT("Hero.Flux"); U.TeamId = 0; U.Cell = FRTCellId(-2, 0, 0);
+		U.Id = TEXT("A1"); U.HeroId = TEXT("Hero.Gadget"); U.TeamId = 0; U.Cell = FRTCellId(-2, 0, 0);
 		S.Units.Add(U);
 		if (bWall)
 		{
@@ -484,7 +484,7 @@ bool FRTScenarioLongWalkTest::RunTest(const FString&)
 /**
  * `Combat.BasicAttack`: il primo scenario che verifica un DANNO invece di una posizione.
  *
- * Flux colpisce Bastion con `Flux.ArcPulse` (22 danni, portata 4) a distanza 2: Bastion scende da 120 a 98.
+ * Gadget colpisce Riktor con `Gadget.ArcPulse` (22 danni, portata 4) a distanza 2: Riktor scende da 120 a 98.
  * I numeri vengono dal catalogo eroi v0.1 — se qualcuno li cambia senza aggiornare il catalogo, questo
  * diventa rosso, ed e' il punto.
  */
@@ -521,11 +521,11 @@ bool FRTScenarioCombatBasicAttackTest::RunTest(const FString&)
 }
 
 /**
- * `Combat.FriendlyFire`: l'area di Flux prende anche Riva, perche' Riva e' adiacente al bersaglio.
+ * `Combat.FriendlyFire`: l'area di Gadget prende anche Phase, perche' Phase e' adiacente al bersaglio.
  *
  * E' il test che il difetto del 2026-08-08 avrebbe fatto cadere, e che non esisteva. Il flag
  * `bFriendlyFire` viveva solo sull'archetipo `Action.CircularAoE` — ormai test-only — e nessuno l'aveva
- * copiato su `Flux.Overload`: in partita nessuna area poteva colpire un compagno, mentre l'anteprima
+ * copiato su `Gadget.Overload`: in partita nessuna area poteva colpire un compagno, mentre l'anteprima
  * segnalava l'alleato in arancione. Il resolver era corretto rispetto al dato; mancava il dato.
  *
  * Serve INSIEME al test sul catalogo (`Heroes.AreaFriendlyFireIsDeclaredOnTheRoster`), non al suo posto:
@@ -842,7 +842,7 @@ bool FRTScenarioShapesHitMoreThanOneTest::RunTest(const FString&)
 /**
  * `Combat.CounterStrikesBack`: una reazione ARMATA scatta e colpisce chi ha colpito.
  *
- * Il numero che conta e' quello di Bastion: 110 invece di 120, senza che nessun intent glielo abbia fatto
+ * Il numero che conta e' quello di Riktor: 110 invece di 120, senza che nessun intent glielo abbia fatto
  * fare. E' l'unico effetto del turno che nessuno ha chiesto esplicitamente, quindi l'unico che puo' venire
  * solo dalla reazione.
  */
@@ -867,7 +867,7 @@ bool FRTScenarioNoCounterUnarmedTest::RunTest(const FString&)
  * E' l'ARMARLA a fare la differenza, non qualcos'altro.
  *
  * Stessa forma di `WallIsWhatStopsTheShot`. I due test sopra sono verdi anche in un gioco dove la reazione
- * non esiste e Bastion non viene mai toccato — no: il primo fallirebbe. Ma sarebbero verdi entrambi in un
+ * non esiste e Riktor non viene mai toccato — no: il primo fallirebbe. Ma sarebbero verdi entrambi in un
  * gioco dove la reazione scatta SEMPRE, se per caso i numeri attesi fossero stati scritti su quel
  * comportamento. Qui si confrontano i due stati finali e si pretende che differiscano: l'unica riga diversa
  * fra i due scenari e' il campo `reaction`, quindi la differenza non puo' venire da altro.
@@ -898,7 +898,7 @@ bool FRTScenarioArmingIsWhatFiresTest::RunTest(const FString&)
 /**
  * Armare qualcosa che NON e' una reazione viene rifiutato, con un motivo.
  *
- * E' il modo di fallire peggiore che ci sia in questo campo: `Flux.ArcPulse` in `reaction` non scatterebbe
+ * E' il modo di fallire peggiore che ci sia in questo campo: `Gadget.ArcPulse` in `reaction` non scatterebbe
  * mai e non produrrebbe nessun errore: lo scenario girerebbe, l'assertion sui danni fallirebbe, e chi legge
  * cercherebbe una regressione del combattimento invece di una riga sbagliata nel JSON.
  */
@@ -910,9 +910,9 @@ bool FRTScenarioBadReactionRejectedTest::RunTest(const FString&)
 	FRTTestScenario Scenario;
 	if (!LoadShippedScenario(*this, TEXT("Combat.CounterStrikesBack"), Scenario)) { return false; }
 
-	// Un'abilita' che Flux POSSIEDE davvero, ma che non e' una reazione: il controllo che conta e' sullo
+	// Un'abilita' che Gadget POSSIEDE davvero, ma che non e' una reazione: il controllo che conta e' sullo
 	// SLOT. Usando un ID inesistente si verificherebbe solo che il nome non si trova, che e' un'altra cosa.
-	Scenario.Turns[0].Intents[0].Reaction = FName(TEXT("Flux.ArcPulse"));
+	Scenario.Turns[0].Intents[0].Reaction = FName(TEXT("Hero.Gadget.ArcPulse"));
 
 	FString Error;
 	TestFalse(TEXT("lo scenario viene rifiutato"), URTScenarioLoader::Validate(Scenario, Error));
@@ -946,14 +946,14 @@ bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
 	FRTTestScenario S;
 	S.ScenarioId = TEXT("Probe.AbilityNotInKit");
 	S.MapRadius = 4;
-	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Flux");    A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
-	FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Bastion"); B.TeamId = 1; B.Cell = FRTCellId(2, 0, 0);
+	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Gadget");    A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Riktor"); B.TeamId = 1; B.Cell = FRTCellId(2, 0, 0);
 	S.Units.Add(A); S.Units.Add(B);
 
-	// `Riva.CircularTide` esiste nel catalogo, ma NON e' nel kit di Flux. E' il caso interessante: un id
+	// `Phase.CircularTide` esiste nel catalogo, ma NON e' nel kit di Gadget. E' il caso interessante: un id
 	// inventato lo prende gia' il validator al caricamento, questo no — passa la validazione e muore a runtime.
 	FRTScenarioTurn T;
-	FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Ability = TEXT("Riva.CircularTide"); I.Target = TEXT("B1");
+	FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Ability = TEXT("Hero.Phase.CircularTide"); I.Target = TEXT("B1");
 	T.Intents.Add(I); S.Turns.Add(T);
 
 	// Un'assertion che sarebbe caduta: e' cio' che prima produceva il FAIL fuorviante.
@@ -965,7 +965,7 @@ bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
 
 	TestEqual(TEXT("esito ERROR, non FAIL"), Result.OutcomeString(), FString(TEXT("ERROR")));
 	// Il messaggio deve bastare a correggere lo scenario senza aprire il log del motore.
-	TestTrue(TEXT("il messaggio nomina l'abilita'"), Result.ErrorMessage.Contains(TEXT("Riva.CircularTide")));
+	TestTrue(TEXT("il messaggio nomina l'abilita'"), Result.ErrorMessage.Contains(TEXT("Hero.Phase.CircularTide")));
 	TestTrue(TEXT("e nomina l'unita' che la chiedeva"), Result.ErrorMessage.Contains(TEXT("A1")));
 	return true;
 }
@@ -994,21 +994,21 @@ bool FRTScenarioDeadTargetTest::RunTest(const FString&)
 	// di turni non e' scelto per essere esatto ma per avere MARGINE. Se un giorno il bilanciamento cambiasse
 	// tanto da non bastare, a cadere sarebbe la precondizione qui sotto — con un messaggio che lo dice,
 	// invece di un fallimento misterioso sulla nota.
-	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Flux");   A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
-	FRTScenarioUnit B; B.Id = TEXT("A2"); B.HeroId = TEXT("Hero.Vektor"); B.TeamId = 0; B.Cell = FRTCellId(-2, 1, 0);
-	FRTScenarioUnit C; C.Id = TEXT("B1"); C.HeroId = TEXT("Hero.Riva");   C.TeamId = 1; C.Cell = FRTCellId(1, 0, 0);
+	FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Gadget");   A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("A2"); B.HeroId = TEXT("Hero.Wraith"); B.TeamId = 0; B.Cell = FRTCellId(-2, 1, 0);
+	FRTScenarioUnit C; C.Id = TEXT("B1"); C.HeroId = TEXT("Hero.Phase");   C.TeamId = 1; C.Cell = FRTCellId(1, 0, 0);
 	// Un SECONDO difensore, lontano e mai bersagliato. Senza, la morte di B1 elimina la squadra 1, la partita
 	// finisce e il turno in cui si spara al morto non viene mai giocato: il test misurerebbe il silenzio di un
 	// turno che non e' avvenuto invece del silenzio del report. E' costato una run per accorgersene.
-	FRTScenarioUnit D; D.Id = TEXT("B2"); D.HeroId = TEXT("Hero.Bastion"); D.TeamId = 1; D.Cell = FRTCellId(4, 0, 0);
+	FRTScenarioUnit D; D.Id = TEXT("B2"); D.HeroId = TEXT("Hero.Riktor"); D.TeamId = 1; D.Cell = FRTCellId(4, 0, 0);
 	S.Units.Add(A); S.Units.Add(B); S.Units.Add(C); S.Units.Add(D);
 
 	// Otto turni di fuoco concentrato, poi un nono in cui si spara a un morto.
 	for (int32 Turn = 0; Turn < 9; ++Turn)
 	{
 		FRTScenarioTurn T;
-		FRTScenarioIntent I1; I1.UnitId = TEXT("A1"); I1.Ability = TEXT("Flux.ArcPulse"); I1.Target = TEXT("B1");
-		FRTScenarioIntent I2; I2.UnitId = TEXT("A2"); I2.Ability = TEXT("Vektor.PulseShot");   I2.Target = TEXT("B1");
+		FRTScenarioIntent I1; I1.UnitId = TEXT("A1"); I1.Ability = TEXT("Hero.Gadget.ArcPulse"); I1.Target = TEXT("B1");
+		FRTScenarioIntent I2; I2.UnitId = TEXT("A2"); I2.Ability = TEXT("Hero.Wraith.PulseShot");   I2.Target = TEXT("B1");
 		T.Intents.Add(I1); T.Intents.Add(I2);
 		S.Turns.Add(T);
 	}
@@ -1083,9 +1083,9 @@ bool FRTScenarioDashIntentTest::RunTest(const FString&)
 		FRTTestScenario S;
 		S.ScenarioId = bWithDash ? TEXT("Probe.DashDeclared") : TEXT("Probe.DashOmitted");
 		S.MapRadius = 4;
-		FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Vektor"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+		FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Wraith"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
 		// Un avversario lontano e fermo: senza, la squadra 1 e' vuota e la partita finisce prima di giocare.
-		FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva");   B.TeamId = 1; B.Cell = FRTCellId(0, 3, 0);
+		FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Phase");   B.TeamId = 1; B.Cell = FRTCellId(0, 3, 0);
 		S.Units.Add(A); S.Units.Add(B);
 
 		FRTScenarioTurn T;
@@ -1096,7 +1096,7 @@ bool FRTScenarioDashIntentTest::RunTest(const FString&)
 			// Tre celle in linea, traiettoria libera: `PassingBlade` e' `LinearDash`, e uno scatto lineare si
 			// FERMA su cio' che incontra (solo `LinearLeap` scavalca). Metterci in mezzo un'unita' verificherebbe
 			// la semantica dello stile, non lo slot dell'intent.
-			I.Dash = TEXT("Vektor.PassingBlade");
+			I.Dash = TEXT("Hero.Wraith.PassingBlade");
 			I.DashCell = FRTCellId(1, 0, 0);
 		}
 		T.Intents.Add(I);
@@ -1151,16 +1151,16 @@ bool FRTScenarioPassingBladeTest::RunTest(const FString&)
 	FRTTestScenario S;
 	S.ScenarioId = TEXT("Probe.PassingBlade");
 	S.MapRadius = 4;
-	FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Vektor"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
-	// Riva e' IN MEZZO: la lama le passa attraverso e prosegue.
-	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva");   B.TeamId = 1; B.Cell = FRTCellId(0, 0, 0);
+	FRTScenarioUnit A; A.Id = TEXT("V"); A.HeroId = TEXT("Hero.Wraith"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	// Phase e' IN MEZZO: la lama le passa attraverso e prosegue.
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Phase");   B.TeamId = 1; B.Cell = FRTCellId(0, 0, 0);
 	S.Units.Add(A); S.Units.Add(B);
 
 	FRTScenarioTurn T;
 	FRTScenarioIntent I;
 	I.UnitId = TEXT("V");
-	I.Dash = TEXT("Vektor.PassingBlade");
-	I.DashCell = FRTCellId(1, 0, 0);   // oltre Riva
+	I.Dash = TEXT("Hero.Wraith.PassingBlade");
+	I.DashCell = FRTCellId(1, 0, 0);   // oltre Phase
 	T.Intents.Add(I);
 	S.Turns.Add(T);
 
@@ -1206,20 +1206,20 @@ bool FRTScenarioCellTargetTest::RunTest(const FString&)
 	FRTTestScenario S;
 	S.ScenarioId = TEXT("Probe.CellTarget");
 	S.MapRadius = 4;
-	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Flux"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
-	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
+	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Gadget"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Phase"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
 	S.Units.Add(A); S.Units.Add(B);
 
 	FRTScenarioTurn T;
 	FRTScenarioIntent I;
 	I.UnitId = TEXT("F");
-	I.Ability = TEXT("Flux.Overload");        // AoE raggio 1, 18 danni, portata 3
-	I.TargetCell = FRTCellId(0, 0, 0);        // VUOTA, e adiacente a Riva
+	I.Ability = TEXT("Hero.Gadget.Overload");        // AoE raggio 1, 18 danni, portata 3
+	I.TargetCell = FRTCellId(0, 0, 0);        // VUOTA, e adiacente a Phase
 	I.bTargetsCell = true;
 	T.Intents.Add(I);
 	S.Turns.Add(T);
 
-	// 95 meno i 18 dell'area: Riva e' presa dal RAGGIO, non perche' la si sia bersagliata.
+	// 95 meno i 18 dell'area: Phase e' presa dal RAGGIO, non perche' la si sia bersagliata.
 	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitHpEquals; E.UnitId = TEXT("R"); E.Value = 77;
 	S.Expect.Add(E);
 
@@ -1244,14 +1244,14 @@ bool FRTScenarioAmbiguousTargetTest::RunTest(const FString&)
 	FRTTestScenario S;
 	S.ScenarioId = TEXT("Probe.AmbiguousTarget");
 	S.MapRadius = 4;
-	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Flux"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
-	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Riva"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
+	FRTScenarioUnit A; A.Id = TEXT("F"); A.HeroId = TEXT("Hero.Gadget"); A.TeamId = 0; A.Cell = FRTCellId(-2, 0, 0);
+	FRTScenarioUnit B; B.Id = TEXT("R"); B.HeroId = TEXT("Hero.Phase"); B.TeamId = 1; B.Cell = FRTCellId(1, 0, 0);
 	S.Units.Add(A); S.Units.Add(B);
 
 	FRTScenarioTurn T;
 	FRTScenarioIntent I;
 	I.UnitId = TEXT("F");
-	I.Ability = TEXT("Flux.Overload");
+	I.Ability = TEXT("Hero.Gadget.Overload");
 	I.Target = TEXT("R");                 // entrambi
 	I.TargetCell = FRTCellId(0, 0, 0);
 	I.bTargetsCell = true;

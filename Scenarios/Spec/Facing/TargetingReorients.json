@@ -1,21 +1,21 @@
 {
   "scenarioId": "Spec.Facing.TargetingReorients",
-  "tags": ["facing", "combat", "core", "spec", "flux", "bastion"],
+  "tags": ["facing", "combat", "core", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "CP 16.1 / D-020: un'azione con bersaglio orienta chi la usa PRIMA che risolva. A1 parte guardando a est (default) e colpisce un bersaglio a NORD-OVEST: se l'orientamento non fosse una regola, resterebbe a E. Il bersaglio e' a distanza 2, dentro la portata 4 di Flux.ArcPulse.",
+  "_nota": "CP 16.1 / D-020: un'azione con bersaglio orienta chi la usa PRIMA che risolva. A1 parte guardando a est (default) e colpisce un bersaglio a NORD-OVEST: se l'orientamento non fosse una regola, resterebbe a E. Il bersaglio e' a distanza 2, dentro la portata 4 di Hero.Gadget.ArcPulse.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [0, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [0, -2, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [0, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, -2, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "A1", "ability": "Flux.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
       ]
     }
   ],

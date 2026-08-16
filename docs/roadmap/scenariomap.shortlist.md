@@ -85,11 +85,11 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.TimeBank.ReplayReadsRecordedBank` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.TimeoutCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.TimeoutSpendsNoCharge` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
-| `State.Bastion.Bulwark` | `RT-FEAT-CHARACTER-STATE` |
-| `State.Flux.Charged` | `RT-FEAT-CHARACTER-STATE` |
+| `State.Hero.Gadget.Charged` | `RT-FEAT-CHARACTER-STATE` |
+| `State.Hero.Phase.Flow` | `RT-FEAT-CHARACTER-STATE` |
+| `State.Hero.Riktor.Bulwark` | `RT-FEAT-CHARACTER-STATE` |
 | `State.Howitzer.Siege` | `RT-FEAT-CHARACTER-STATE` |
 | `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` |
-| `State.Riva.Flow` | `RT-FEAT-CHARACTER-STATE` |
 | `Stress.4v4.CoreRoster` | `RT-FEAT-STRESS-4V4` |
 | `Team.Conflux.FluxRiva.ConductiveFlood` | `RT-FEAT-FACTION-SCENARIOS` |
 | `Team.Constrine.BastionVektor.OnlyExit` | `RT-FEAT-FACTION-SCENARIOS` |

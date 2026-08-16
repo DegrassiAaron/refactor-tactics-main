@@ -790,7 +790,7 @@ features:
     notes: >
       ✅ `GEO-2` CHIUSA il 2026-08-10 da D-082 (#430): lo slot si chiama `Bulkhead`, verificato libero con
       `git grep` in Source/, docs/balance/ e nei cataloghi. Scartati `StructuralSlot` (`Slot` e' gia'
-      l'economia del turno, `ERTActionSlot`), `Panel` (collide con `Bastion.KineticPanel`, che e'
+      l'economia del turno, `ERTActionSlot`), `Panel` (collide con `Hero.Riktor.KineticPanel`, che e'
       copertura) e `Section` (termine Unreal per le sezioni di mesh). La collisione col
       `Gadget.BreachCharge` di E7 — 35 danni a struttura, l'oggetto che lo APRE — e' risolta: il verbo
       breach resta libero come azione. Resta da specificare il MODELLO: slot strutturali con integrita' e
@@ -1133,9 +1133,9 @@ features:
       - RefactorTactics.Cover.AddCover
       - RefactorTactics.Structures.KineticPanel
       - RefactorTactics.Actions.CreateCover
-      - RefactorTactics.Heroes.Bastion.ReconfigureDoesNotDuplicate
-      - RefactorTactics.Heroes.Bastion.ReconfigureRefusesInsteadOfGuessing
-      - RefactorTactics.Heroes.Bastion.KineticPanelVariantApplied
+      - RefactorTactics.Heroes.Riktor.ReconfigureDoesNotDuplicate
+      - RefactorTactics.Heroes.Riktor.ReconfigureRefusesInsteadOfGuessing
+      - RefactorTactics.Heroes.Riktor.KineticPanelVariantApplied
       - RefactorTactics.Equipment.PortableCover
     scenarios:
       - Spec.Cover.TemporaryCoverExpires
@@ -1151,8 +1151,8 @@ features:
     notes: >
       Chiuso CP 9.5 il 2026-08-09: `Action.CreateCover` entra nel catalogo in fase **Prep** (D-040, il
       catalogo azioni si allinea al catalogo eroi), l'operazione su struttura è un **dato**
-      (`ERTStructureOp`) e non tre `if` sull'ActionId — è ciò che permette a `Bastion.KineticPanel`,
-      `Bastion.Reconfigure` e `Gadget.PortableCover` di condividere la semantica. Primo consumatore
+      (`ERTStructureOp`) e non tre `if` sull'ActionId — è ciò che permette a `Hero.Riktor.KineticPanel`,
+      `Hero.Riktor.Reconfigure` e `Gadget.PortableCover` di condividere la semantica. Primo consumatore
       runtime delle **varianti di abilità** in tutto il progetto (`ARTUnit::ActiveVariantId`): i
       `Parameters` erano dichiarati e non letti da nessuno. `Spec.Cover.TemporaryCoverExpires` passa da
       `BLOCKED` a `PASS` su 4 turni — era una specifica eseguibile scritta prima dell'implementazione.
@@ -1403,25 +1403,33 @@ features:
       # `Guard` e `Brace` erano verificati SEPARATAMENTE, ed era il difetto che teneva aperta `BAL-1`:
       # nessuno scenario li guardava insieme sullo stesso colpo, quindi il loro confine poteva spostarsi
       # senza che nulla diventasse rosso. Scritti il 2026-08-10 (#401), verdi al primo run.
-      # Fixture: `Riva.PressureJet`, l'unica azione del gioco con danno E spinta nello stesso colpo.
+      # Fixture: `Hero.Phase.PressureJet`, l'unica azione del gioco con danno E spinta nello stesso colpo.
       - Spec.Brace.GuardAndBraceOnMixedHit
       - Spec.Brace.BraceWinsOnSecondHit
       # Rinominato da `Spec.Combat.BastionIgnoresAllPushes`, che e' il nome previsto dal piano `BAL-1` e
       # dalla DoD di #402: D-075 ha deciso dall'altra parte (`PushResistance` 1 -> 0), quindi quel nome
       # avrebbe significato il contrario di cio' che il file verifica.
-      - Spec.Combat.BastionIsPushedLikeAnyone
-      # Il quarto NON si scrive, e la ragione e' CAMBIATA il 2026-08-16: `Spec.Brace.PushBeyondGuardThreshold`
-      # chiedeva una spinta di 2 per far cedere `Guard` e mostrare la clausola di `Brace`. D-074 (uscita (B)
-      # di #400) aveva deciso di NON introdurla, quindi lo scenario restava senza soggetto.
+      - Spec.Combat.RiktorIsPushedLikeAnyone
+      # Il quarto, `Spec.Brace.PushBeyondGuardThreshold`, ha attraversato TRE stati in sei giorni, e la
+      # riga qui sotto e' arrivata per ultima.
       #
-      # 🔵 Il soggetto e' arrivato, e non dal catalogo azioni: `Weapon.Impact` porta lo spostamento di
-      # `Riva.PressureJet` a 2 (D-085) ed e' il default di Phase (D-089). La riga diceva «rinasce solo se una
-      # v0.2 introduce la spinta forte»: la spinta forte e' in v0.1.
+      # 1. Non scrivibile: chiedeva una spinta di 2 per far cedere `Guard` e mostrare la clausola di
+      #    `Brace`, e D-074 (uscita (B) di #400) aveva deciso di NON introdurla. Senza soggetto.
+      # 2. Scrivibile ma non scritto: il soggetto e' arrivato dall'EQUIPAGGIAMENTO invece che dal catalogo
+      #    azioni — `Weapon.Impact` porta lo spostamento di `Hero.Phase.PressureJet` a 2 (D-085) ed e' il
+      #    default di Phase (D-089). Restava non scritto perche' la proprieta' era gia' coperta dal test
+      #    `RefactorTactics.Equipment.PushTwoSeparatesGuardFromBrace`.
+      # 3. Scritto il 2026-08-16, e per una ragione che il punto 2 non prevedeva: quel test misura la
+      #    regola in ISOLAMENTO, e la domanda era perche' a video Guard e Brace non si distinguono. Lo
+      #    scenario risponde **fallendo**: e' `expected-fail` perche' nessuno equipaggia in partita, quindi
+      #    la spinta resta 1 e i due si comportano uguale. Dimostra la mancanza, non la regola.
       #
-      # Resta non scritto per una ragione diversa: la proprieta' e' gia' coperta da un TEST —
-      # `RefactorTactics.Equipment.PushTwoSeparatesGuardFromBrace`, che contro una spinta di 2 misura
-      # `Guard` che cede e `Brace` che regge. Uno scenario aggiungerebbe la stessa asserzione passando dal
-      # turno completo: e' lavoro utile, non un buco di copertura. Se si scrivera', il suo posto e' qui.
+      # 🔴 **E per un giorno questa lista non lo ha saputo**: lo scenario e' atterrato su `main`
+      # (`05973358`) lasciando qui scritto «il quarto NON si scrive», e `feature_registry.py validate`
+      # rosso con *«ScenarioId non rivendicato da nessuna feature»*. Il commento diceva gia' «se si
+      # scrivera', il suo posto e' qui» — la previsione era giusta e nessuno e' tornato a eseguirla.
+      # Riparato dalla fetta 4 di D-130, che aveva questo file nel proprio `writable` per altro motivo.
+      - Spec.Brace.PushBeyondGuardThreshold
     wiki_refs:
       - wiki:azioni-e-movimento
     wiki_note: >-
@@ -1576,9 +1584,9 @@ features:
     tests: []
     scenarios:
       # SPECIFICA ESEGUIBILE scritta prima dell'implementazione (2026-08-10, PR #306): due celle Fire
-      # fra origine e destinazione, Flux a 90 HP, e l'assertion che dopo il trasferimento sia ANCORA 90.
+      # fra origine e destinazione, Gadget a 90 HP, e l'assertion che dopo il trasferimento sia ANCORA 90.
       # Resta `BLOCKED` di proposito — `requires: ["Teleport"]`, capability che l'harness non dichiara —
-      # quindi oggi NON PROVA NULLA: i 90 HP passano perche' Flux non si muove mai, e il file lo scrive
+      # quindi oggi NON PROVA NULLA: i 90 HP passano perche' Gadget non si muove mai, e il file lo scrive
       # da se'. Si accende in CP 39.12 (#703), non prima: l'harness non deve diventare il primo
       # produttore di una feature che il gioco non sa ancora fare.
       - Spec.Movement.TeleportSkipsIntermediateCells
@@ -1665,7 +1673,7 @@ features:
     issues: [315]
     tests:
       - RefactorTactics.Heroes.BasicAttackByRangeBand
-      - RefactorTactics.Heroes.Bastion.MatchesCatalog
+      - RefactorTactics.Heroes.Riktor.MatchesCatalog
       - RefactorTactics.Heroes.BasicAttackIsIndexZeroForEveryHero
       - RefactorTactics.Heroes.BasicAttackDeclaresItsBaseAction
       - RefactorTactics.TurnLog.BaseActionIdSurvivesRoundTripAndStaysOutOfHash
@@ -1673,7 +1681,7 @@ features:
       - RefactorTactics.TurnLog.BasicAttackLogsBaseAndProfile
     scenarios:
       - Combat.BasicAttack
-      - Combat.BastionImpactShotSlows
+      - Combat.RiktorImpactShotSlows
       - Combat.MoveIsFullWithoutSlow
     wiki_refs:
       - wiki:azioni-e-movimento
@@ -1683,21 +1691,21 @@ features:
     notes: >
       Categoria universale, payload dell'eroe: chiude per `BasicAttack` i «profili concreti dei 4
       eroi» che **D-033** aveva lasciato aperti ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md)).
-      Riva era già conforme (`PressureJet` 16 + `Wet` + `Push`); Vektor resta invariato, perché
-      «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Flux resta damage-only, e il
+      Phase era già conforme (`PressureJet` 16 + `Wet` + `Push`); Wraith resta invariato, perché
+      «Primary Weapon» è un profilo d'uso e non una promessa di potenza; Gadget resta damage-only, e il
       suo motore elettrico ha già un owner che non è l'attacco base (`ConductiveNode`, D-046).
       **`spec` è `done` dal 2026-08-11**, e prima era `partial` per una ragione che nel frattempo è
       caduta: ADR-0007 aveva un «punto aperto ereditato da D-033» — il TurnLog non sapeva esprimere la
       coppia *azione base + profilo* — che l'ADR stesso dichiara **✅ risolto il 2026-08-09** (#354). Il
-      rinvio di Flux non lo tiene parziale: non è una lacuna della specifica ma una **regola dichiarata**
+      rinvio di Gadget non lo tiene parziale: non è una lacuna della specifica ma una **regola dichiarata**
       («`ArcPulse` resta damage-only in v0.1», con la ragione verificata nel codice — nessuno stato
       `Charged` esiste e il motore elettrico ha già un owner in `ConductiveNode`/D-039).
-      **`data` è `done`**: `Bastion.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno.
+      **`data` è `done`**: `Hero.Riktor.ImpactShot` è passato a 8 danni + `Status.Slow` 1 turno.
       **`automation` è `done`** da `BasicAttackIsIndexZeroForEveryHero`, che fa valere la convenzione
       `Actions[0]` sul roster invece di lasciarla in un commento — è il prezzo di NON aver aggiunto un
       campo di ruolo. **`log_debug` è `done`** dal 2026-08-09 (issue #354): `FRTActionDef::BaseActionId`
       dichiara di quale generica un'azione è profilo, la voce di TurnLog lo porta (formato **v5**) e
-      `DescribeActionIdentity` rende la coppia — `Action.BasicAttack · Bastion.ImpactShot`. Il campo
+      `DescribeActionIdentity` rende la coppia — `Action.BasicAttack · Hero.Riktor.ImpactShot`. Il campo
       sta **fuori dall'hash**, perché è una funzione di `ActionId`: includerlo non distinguerebbe nulla
       di più e avrebbe invalidato ogni hash golden. Le tracce v2/v3/v4 restano leggibili, col campo
       vuoto. Era il consumer che ADR-0007 punto 6 aspettava: la sua regola non è violata, è soddisfatta.
@@ -2116,7 +2124,7 @@ features:
     issues: [225, 226, 227]
     tests:
       - RefactorTactics.Predictive.*
-      - RefactorTactics.Heroes.Vektor.InterceptShotIsPredictive
+      - RefactorTactics.Heroes.Wraith.InterceptShotIsPredictive
     scenarios:
       - Spec.Predictive.WhiffOnEmptyCell
     wiki_refs:
@@ -2127,7 +2135,7 @@ features:
       commit: 800b83a
     notes: >
       **Chiusa il 2026-08-10** con CP 18.1 (`#226`, PR `#386`) e CP 18.2 (`#227`, PR `#387`).
-      `Vektor.InterceptShot` è la thin slice: decisa in Planning, risolta a un boundary
+      `Hero.Wraith.InterceptShot` è la thin slice: decisa in Planning, risolta a un boundary
       deterministico, senza input live (D-016). Il rinvio a E14 è caduto per la ragione opposta a
       quella che l'aveva prodotto — non le serve una finestra — e la migrazione è un **dato**
       (`PredictiveTargeting`/`PredictionBoundary` su `FRTActionDef`, slot da `None` a `Main`), come
@@ -2603,7 +2611,7 @@ features:
       ⚠️ **`runtime` resta `partial` e la ragione è la regola 2, non la prudenza**: `ARTTurnManager`
       non chiama ancora `BuildOverwatchTriggers`, quindi in partita non nasce nessuna opportunity.
       Il consumatore è **CP 14.5** (`#165`), che porta finestra, commit, troncamento del movimento e
-      il cablaggio di `Vektor.InterceptShot`. Fino ad allora `log_debug` resta `todo` — nel TurnLog
+      il cablaggio di `Hero.Wraith.InterceptShot`. Fino ad allora `log_debug` resta `todo` — nel TurnLog
       non arriva niente — e `Spec.Overwatch.HoldThenFire` continua a uscire `BLOCKED`, che è la
       verità: descrivere non è dimostrare.
 
@@ -2645,8 +2653,8 @@ features:
       **Il `data` resta `partial` per una ragione precisa (2026-08-10)**: CP 14.4 impone che il profilo
       sia un dato per eroe — area, arco, trigger e risposte legali — e il test che lo pinna
       (`Overwatch.ProfileIsDataNotBranch`) ha bisogno di **due** profili diversi da confrontare.
-      **Nessun catalogo ne contiene uno.** Le quattro geometrie proposte — Flux settore medio,
-      Riva medio-corto, Bastion corto-largo frontale, Vektor stretto-lungo — sono `BAS-2` in
+      **Nessun catalogo ne contiene uno.** Le quattro geometrie proposte — Gadget settore medio,
+      Phase medio-corto, Riktor corto-largo frontale, Wraith stretto-lungo — sono `BAS-2` in
       [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md): il meccanismo è deciso, il contenuto no.
 
       **Il lifecycle ha un modello, dal 2026-08-10**: `Watch → EndWatchStage → Reposition`. L'owner resta
@@ -2765,8 +2773,8 @@ features:
       terza scrittura della stessa regola dopo `Reaction.Anchor` e `Gadget.Anchor`. Il roster conserva cosi'
       **un eroe senza finestra sul `Brace`**, che e' la baseline della misura di pacing di CP 14.6.
 
-      Le due collisioni di nome sono sciolte cedendo il nome a **chi arriva dopo**: `Vektor.Deflection`
-      (`RTHeroCatalogLibrary.cpp:604`, −20 sul colpo diretto) e `Riva.FlowReaction` (`:377`, `Reposition 1`
+      Le due collisioni di nome sono sciolte cedendo il nome a **chi arriva dopo**: `Hero.Wraith.Deflection`
+      (`RTHeroCatalogLibrary.cpp:604`, −20 sul colpo diretto) e `Hero.Phase.FlowReaction` (`:377`, `Reposition 1`
       dopo un colpo subito) **non si toccano** — sono token serializzati, e D-120 vieta i rename automatici.
       Per Phase restano **due entita'**: il caso che le separa, «Phase colpita ma non spostata», sopravvive.
 
@@ -3137,7 +3145,7 @@ features:
       - wiki:acqua-e-elettricita
       - docs/characters/v0.1/flux.md
     wiki_note: >-
-      Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.
+      Dal 2026-08-09 la scarica ha un **owner nel roster**: `Hero.Gadget.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.
     last_verified:
       date: 2026-08-09
       commit: f1f85b1
@@ -3244,7 +3252,7 @@ features:
       Nel repository è **fumo** (`Smoke` → `Obscured`), non vapore: la seed list dice «steam», il
       codice e il catalogo dicono `Smoke`. Nome allineato al codice, che è la fonte verificabile.
       Dal 2026-08-09 (issue 353) il fumo si **crea in partita** e non solo si dipinge su una mappa:
-      `Riva.MistVeil` è il suo produttore, con lo stesso meccanismo di `Ignite` e `CreateWater`.
+      `Hero.Phase.MistVeil` è il suo produttore, con lo stesso meccanismo di `Ignite` e `CreateWater`.
       Resta noto e dichiarato in `docs/characters/v0.1/riva.md`: chi è **già** nella cella quando il
       fumo si alza non riceve `Status.Obscured`, che è un `OnEnterEffect` — il cap di targeting vale
       comunque, perché è letto dalla superficie della cella.
@@ -4718,8 +4726,8 @@ features:
       commit: 2094b86
     notes: >
       26 test. Statistiche e kit dai dati; **tre reazioni d'eroe su cinque** cablate al CP 6.7
-      (`Interposition`, `Deflection`, `ReactiveCapacitor`). `Vektor.InterceptShot` è rinviata a
-      E18 e `Riva.FlowReaction` a E14, e i dati lo dichiarano
+      (`Interposition`, `Deflection`, `ReactiveCapacitor`). `Hero.Wraith.InterceptShot` è rinviata a
+      E18 e `Hero.Phase.FlowReaction` a E14, e i dati lo dichiarano
       (`Heroes.ReactionsDeclaredOrDeferred`).
 
   - feature_id: RT-FEAT-CHAR-V02-ROSTER
@@ -4836,8 +4844,8 @@ features:
       di release: **E21** chiude quel buco, e dal 2026-08-09 e' tracciata su GitHub (#286 + #287/#288/#289) —
       era l'unica epic della v0.1 senza issue. Il gate `packaged` resta `todo` perché la build packaged
       mostra ancora i cilindri. **D-037** (2026-08-08) toglie l'ultimo ostacolo di decisione: ogni
-      eroe ha uno slot asset Paragon dichiarato — Flux `Gadget`, Riva `Phase`, Bastion `Riktor`,
-      Vektor `Wraith` — quindi assegnare mesh e animazioni non richiede più una scelta. Nessun gate
+      eroe ha uno slot asset Paragon dichiarato — Gadget `Gadget`, Phase `Phase`, Riktor `Riktor`,
+      Wraith `Wraith` — quindi assegnare mesh e animazioni non richiede più una scelta. Nessun gate
       si muove: la decisione è documentale, in editor non e' stato assegnato niente.
 
       ✅ **#593 (2026-08-16): il root di `ARTUnit` è neutro.** Il cilindro segnaposto era il root con
@@ -6850,9 +6858,9 @@ features:
     tests: []
     scenarios:
       planned:
-        - State.Riva.Flow
-        - State.Flux.Charged
-        - State.Bastion.Bulwark
+        - State.Hero.Phase.Flow
+        - State.Hero.Gadget.Charged
+        - State.Hero.Riktor.Bulwark
         - State.Howitzer.Siege
         - State.MultiState.Stress
     wiki_refs: []
@@ -6862,7 +6870,7 @@ features:
       Stance e' un profilo commutabile in Planning (D-033), e i profili esistono gia' come concetto.
       **Nessuna trasformazione nella v0.1** e nessun eroe ha uno stato assegnato: le candidature
       Light/Medium/Signature per ~40 personaggi stanno in `matrici-stati-personaggio.md`, nessuna
-      oltre PROPOSED. L'unica REJECTED e' `Vektor Siege`, respinta nel merito: Slancio recupera
+      oltre PROPOSED. L'unica REJECTED e' `Wraith Siege`, respinta nel merito: Slancio recupera
       muovendosi, e una forma che toglie il Dash spegne la meccanica firma.
 
   - feature_id: RT-FEAT-CHAR-RADAR-MODEL
@@ -6918,7 +6926,7 @@ features:
       La strada prescritta — derivare il rumore dal **kit** — non arriva: il rumore non e' nel catalogo
       azioni, e le azioni che lo portano sono le sette generiche che **tutti** possiedono, quindi il
       contributo e' costante. Nemmeno la soglia d'udito lo arricchisce, benche' sia una seconda statistica
-      per eroe: **Riva e Bastion condividono `Vista 5` e `Udito 3`**, quindi nessuna funzione dei due li
+      per eroe: **Phase e Riktor condividono `Vista 5` e `Udito 3`**, quindi nessuna funzione dei due li
       separa, e D-041 progetta l'udito come **compensazione** della vista — ogni aggregazione comprime, e
       con la media l'asse esce costante, cosa che `profile.test.ts` vieta. Resta il **nascondersi**
       ([#690](https://github.com/DegrassiAaron/refactor-tactics-main/issues/690)), che oggi non ha input
@@ -7027,6 +7035,6 @@ features:
       AGGIORNATO 2026-08-12: `ui_wiki` a `done`, i rating dei sei assi sono pubblicati in tabella accanto ai radar.
       AGGIORNATO 2026-08-12: `ui_wiki` a `done`. Il generatore produce anche il Balance e il confronto A vs B; il `--check` copre entrambe le viste. Nessuna CI: i gate di questo repository girano a mano.
       AGGIORNATO 2026-08-12: il `viewBox` senza `width`/`height` dava proporzione ma non misura, quindi dentro un `<img>` la taglia la decideva il contenitore: misurato sulla Wiki pubblicata, **896x896** su una scheda eroe e **47x47** dentro la tabella di `Profilo-tattico`, dove le etichette da 12px scendono a ~1,4px. Due celle della stessa tabella divergevano (143 contro 117) perche' il layout si dimensiona sul contenuto, cioe' sulla **lunghezza dell'alt**: la descrizione decideva la taglia del grafico. La radice porta ora `width="400" height="400"`. Gate invariati.
-      AGGIORNATO 2026-08-12: chiuso l'ultimo anello della catena `cataloghi -> SVG -> alt`. Gli `alt` delle immagini sulla Wiki sono prosa scritta a mano nel clone (D-076) e nessun deploy li tocca: un rebalance aggiornava il grafico e lasciava indietro la descrizione, quindi chi vede il radar leggeva il valore nuovo e chi usa uno screen reader sentiva quello vecchio. `tools/radar/wiki-alt.ts --wiki-root <clone> --check|--write` ricava l'atteso **dall'SVG** e fallisce sulla divergenza; verificato end-to-end mutando `Range visivo` di Flux nel catalogo: `generate --check` rosso, rigenerato, `wiki-alt --check` rosso sulle tre pagine che citano `flux-profile`. Otto dei sedici riferimenti non avevano **nessun** valore nell'alt («Profile Radar di Flux»): ora li hanno tutti. Gate invariati.
+      AGGIORNATO 2026-08-12: chiuso l'ultimo anello della catena `cataloghi -> SVG -> alt`. Gli `alt` delle immagini sulla Wiki sono prosa scritta a mano nel clone (D-076) e nessun deploy li tocca: un rebalance aggiornava il grafico e lasciava indietro la descrizione, quindi chi vede il radar leggeva il valore nuovo e chi usa uno screen reader sentiva quello vecchio. `tools/radar/wiki-alt.ts --wiki-root <clone> --check|--write` ricava l'atteso **dall'SVG** e fallisce sulla divergenza; verificato end-to-end mutando `Range visivo` di Gadget nel catalogo: `generate --check` rosso, rigenerato, `wiki-alt --check` rosso sulle tre pagine che citano `flux-profile`. Otto dei sedici riferimenti non avevano **nessun** valore nell'alt («Profile Radar di Gadget»): ora li hanno tutti. Gate invariati.
       AGGIORNATO 2026-08-12: due difetti di accessibilita' chiusi, gate invariati. (1) Le etichette erano `#333` e i valori `#111` su fondo trasparente: su tema scuro il contrasto era 1.50:1 e **1.00:1** — il valore aveva la stessa luminanza dello sfondo, cioe' era invisibile. Un blocco `@media (prefers-color-scheme: dark)` porta i due a 12.26:1 e 17.39:1, AAA su entrambi i temi; verificato che la query si applichi anche quando l'SVG e' caricato come `<img>` confrontando il rendering nei due schemi. Limite dichiarato in owner §10: segue la preferenza dell'OS, non l'interruttore di tema del sito. (2) Tutti e quattro i Balance Radar si dichiaravano `Profile Radar` nel `<title>`, che e' il nome accessibile a cui punta `aria-labelledby`: la vista e' ora un parametro **obbligatorio** (`RadarView`), perche' il default era la causa. Tre test nuovi, ognuno verificato per mutazione.
 

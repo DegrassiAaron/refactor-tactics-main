@@ -16,7 +16,7 @@ struct FRTShowcaseSpawn
 {
 	GENERATED_BODY()
 
-	/** `HeroId` del catalogo eroi (`Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`), non un archetipo legacy. */
+	/** `HeroId` del catalogo eroi (`Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`), non un archetipo legacy. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Showcase")
 	FName HeroId;
 
@@ -89,7 +89,7 @@ public:
 	 */
 	static URTHexMapAsset* MakeShowcaseRelayLiteArena(UObject* Outer);
 
-	/** Posizioni di partenza canoniche della showcase: Flux + Riva (team 0) contro Bastion + Vektor (team 1). */
+	/** Posizioni di partenza canoniche della showcase: Gadget + Phase (team 0) contro Riktor + Wraith (team 1). */
 	static TArray<FRTShowcaseSpawn> GetShowcaseRelayLiteSpawns();
 
 	/**
@@ -115,7 +115,7 @@ public:
 	 */
 	static URTHexMapAsset* MakeShowcaseRelayBasinArena(UObject* Outer);
 
-	/** Spawn canonici del Relay Basin: Flux `(-4,0)` + Riva `(-4,1)` contro Bastion `(4,0)` + Vektor `(4,1)`. */
+	/** Spawn canonici del Relay Basin: Gadget `(-4,0)` + Phase `(-4,1)` contro Riktor `(4,0)` + Wraith `(4,1)`. */
 	static TArray<FRTShowcaseSpawn> GetShowcaseRelayBasinSpawns();
 
 	/**

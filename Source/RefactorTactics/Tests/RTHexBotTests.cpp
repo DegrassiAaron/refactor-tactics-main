@@ -48,7 +48,7 @@ namespace
 	}
 
 	/**
-	 * Contesto con attacco AD AREA di raggio 1 e fuoco amico attivo — il caso di `Flux.Overload` (#213).
+	 * Contesto con attacco AD AREA di raggio 1 e fuoco amico attivo — il caso di `Gadget.Overload` (#213).
 	 * Gittata nemica 0: nessuna minaccia sulla cella, cosi' il punteggio isola il collaterale.
 	 */
 	FRTHexBotContext MakeAreaCtx(const FRTCellId& Origin, const FRTCellId& Enemy, int32 Damage)

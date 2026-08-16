@@ -121,8 +121,8 @@ bool FRTPlaybackMovingFlagPhaseTest::RunTest(const FString&)
 	SpawnPlaybackMap(World);
 
 	// Due unita' vicine: il Guardian scatta, il Ranger avversario resta fermo e fa da bersaglio.
-	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 2));
-	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(4, 2));
+	ARTUnit* Dasher = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 2));
+	ARTUnit* Target = SpawnPlaybackUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, 2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	TestNotNull(TEXT("TurnManager spawnato"), TM);
 	if (!TM || !Dasher || !Target) { DestroyPlaybackWorld(World); return false; }
@@ -184,8 +184,8 @@ bool FRTPlaybackStillUnitNeverRunsTest::RunTest(const FString&)
 
 	SpawnPlaybackMap(World);
 
-	ARTUnit* Mover = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(2, 2));
-	ARTUnit* Still = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(6, 6));
+	ARTUnit* Mover = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 2));
+	ARTUnit* Still = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(6, 6));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Still) { DestroyPlaybackWorld(World); return false; }
 

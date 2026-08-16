@@ -1,25 +1,25 @@
 {
   "scenarioId": "Visual.Movement.RoughRefusesCharge",
-  "tags": ["animation", "movement", "environment", "bastion", "flux"],
+  "tags": ["animation", "movement", "environment", "riktor", "gadget"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayLite",
 
-  "_nota": "Il terreno accidentato vieta la mobilita' RAPIDA e non il passo: `bBlocksDashCharge` e' vero per Rough, ma il movimento normale ci passa pagando 2. Bastion prova a caricare Flux attraverso (-2,-1), che e' Rough, e il piano viene rifiutato in PIANIFICAZIONE. Nessuno si muove, nessuno prende danno.",
+  "_nota": "Il terreno accidentato vieta la mobilita' RAPIDA e non il passo: `bBlocksDashCharge` e' vero per Rough, ma il movimento normale ci passa pagando 2. Riktor prova a caricare Gadget attraverso (-2,-1), che e' Rough, e il piano viene rifiutato in PIANIFICAZIONE. Nessuno si muove, nessuno prende danno.",
 
   "_nota_presentazione": "E' il complemento di `Visual.Movement.Charge` e la ragione per cui esiste: quando la carica NON parte, a schermo non deve accadere niente — nessun accenno di slancio, nessun impatto mancato. Un rifiuto che sembra un'animazione interrotta e' peggio di un rifiuto muto, perche' suggerisce un bug dove c'e' una regola.",
 
   "_nota_verde_per_il_motivo_sbagliato": "Alla prima esecuzione questo scenario PASSAVA, e non dimostrava niente: la carica era dichiarata con `ability` invece che con `dash`, quindi non partiva affatto — e «nessuno si e' mosso» era vero per la ragione sbagliata. E' il difetto peggiore che un test possa avere, perche' il verde tace. Ora la carica e' dichiarata correttamente e a fermarla dev'essere il Rough.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [-1, -1, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [-3, -1, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1, -1, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-3, -1, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "B1", "dash": "Bastion.Ram", "dashTo": [-1, -1, 0] }
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [-1, -1, 0] }
       ]
     }
   ],

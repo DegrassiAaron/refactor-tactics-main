@@ -47,7 +47,7 @@ cabla**. Qui non si tocca il catalogo eroi.
 |---|---|---|
 | Dichiarare **più effetti** on-trigger | `RTTurnManager.cpp:1377` leggeva il **primo** `Damage` e usciva (`break`) | ❌ metà reazione persa |
 | Riduzione del danno come **dato** | `if (Reaction->Def.ActionId == "Action.Deflect")` (`RTTurnManager.cpp:1392`) | ❌ ramo per ActionId |
-| **Identità** nel TurnLog | `FRTTurnLogEntry` non ha un campo per l'azione | ❌ `Bastion.Interposition` ≡ `Action.Intercept` |
+| **Identità** nel TurnLog | `FRTTurnLogEntry` non ha un campo per l'azione | ❌ `Riktor.Interposition` ≡ `Action.Intercept` |
 | **Helper** di costruzione | `MakeHeroAction` è in un namespace anonimo, non sa cos'è una reazione | ❌ assente |
 
 Un solo difetto strutturale sotto i quattro: il resolver sapeva **cosa fanno** le reazioni invece di **leggerlo**
@@ -88,7 +88,7 @@ una reazione con trigger. Il suo -15 resta dov'era.
 
 ### D3 — Lo scudo di una reazione protegge dal colpo che l'ha innescata
 
-`Flux.ReactiveCapacitor` (CP 6.7) dichiarerà `Shield 15` **+** 10 danni all'attaccante. Lo scudo si applica
+`Gadget.ReactiveCapacitor` (CP 6.7) dichiarerà `Shield 15` **+** 10 danni all'attaccante. Lo scudo si applica
 **prima** che i colpi siano risolti, aggiornando anche lo snapshot `States` da cui il resolver legge.
 
 *Perché*: uno scudo temporaneo **scade nel Cleanup dello stesso turno**. Applicato dopo la risoluzione non
@@ -126,7 +126,7 @@ l'azione core.
 
 - **Il cablaggio delle quattro reazioni d'eroe**: è CP 6.7 (`#155`). Qui il catalogo eroi non è toccato, e i
   test che oggi fissano `Effects.Num() == 0` restano verdi finché quel checkpoint non li sostituisce.
-- **`Vektor.InterceptShot` e `Riva.FlowReaction`**: trigger d'ingresso su movimento e movimento reattivo →
+- **`Wraith.InterceptShot` e `Phase.FlowReaction`**: trigger d'ingresso su movimento e movimento reattivo →
   **E14** (ADR-0004), non E5.
 - **`Heal`/`Push`/`Pull`/`Status` da reazione**: `BuildReactionEvents` li traduce (la regola è totale), ma il
   pass del `TurnManager` non li consuma: nessuna reazione del catalogo v0.1 li dichiara, e applicarli
@@ -196,9 +196,9 @@ secondo, questa spec descriverebbe un motore ancora non collaudato — esattamen
 
 | Reazione | Semantica core | Dall'eroe | Verifica in partita |
 |---|---|---|---|
-| `Bastion.Interposition` | `Action.Intercept` (trigger `AllyHitByDirectAttack`, portata 2, priorità 10) | cooldown 3 | `Heroes.BastionInterpositionRedirectsDirectHit` |
-| `Vektor.Deflection` | `Action.Deflect` (−20 via `DamageReduction`) | cooldown 2 | `Heroes.VektorDeflectionReducesDirectHit` |
-| `Flux.ReactiveCapacitor` | `Action.Counter` (trigger `HitByDirectAttack`) | cooldown 3, effetti `{Shield 15, Damage 10}` | `Heroes.FluxReactiveCapacitorShieldsAndCounters` |
+| `Riktor.Interposition` | `Action.Intercept` (trigger `AllyHitByDirectAttack`, portata 2, priorità 10) | cooldown 3 | `Heroes.RiktorInterpositionRedirectsDirectHit` |
+| `Wraith.Deflection` | `Action.Deflect` (−20 via `DamageReduction`) | cooldown 2 | `Heroes.WraithDeflectionReducesDirectHit` |
+| `Gadget.ReactiveCapacitor` | `Action.Counter` (trigger `HitByDirectAttack`) | cooldown 3, effetti `{Shield 15, Damage 10}` | `Heroes.GadgetReactiveCapacitorShieldsAndCounters` |
 
 `Interposition` non dichiara effetti propri, ed è **corretto**: interporsi cambia CHI subisce un colpo altrui,
 non cosa succede — è la stessa ragione per cui `Action.Intercept` non ne ha. Il test di Riktor che prima
@@ -207,7 +207,7 @@ significato no, ed è per questo che è stato **sostituito** e non lasciato com'
 
 ### 8.2 Il rinvio a E14 è un dato, non un commento *(decisione)*
 
-`Vektor.InterceptShot` (trigger d'ingresso su movimento) e `Riva.FlowReaction` (movimento reattivo dentro un
+`Wraith.InterceptShot` (trigger d'ingresso su movimento) e `Phase.FlowReaction` (movimento reattivo dentro un
 boundary) restano a **E14** (ADR-0004). Lo dichiarano con **slot `None` e nessun trigger**, verificato da
 `Heroes.ReactionsDeclaredOrDeferred`.
 
@@ -219,9 +219,9 @@ log è peggio di un'abilità dichiaratamente incompleta: consumerebbe anche l'un
 
 | Mutazione | Test caduti | Atteso |
 |---|---|---|
-| `Interposition` torna scablata (slot `None`) | `BastionInterpositionUsesReactionSlot`, `BastionInterpositionRedirectsDirectHit`, `ReactionsDeclaredOrDeferred`, `Bastion.PanelCreatesCover` | ✅ i tre nuovi + quello sostituito |
-| `ReactiveCapacitor` senza il `Damage 10` | `FluxReactiveCapacitorShieldsAndCounters`, `Flux.MatchesCatalog` | ✅ comportamento + catalogo |
-| `Deflection` costruita su `Action.Counter` | `VektorDeflectionReducesDirectHit` | ✅ solo quello (Counter è comunque una reazione valida) |
+| `Interposition` torna scablata (slot `None`) | `RiktorInterpositionUsesReactionSlot`, `RiktorInterpositionRedirectsDirectHit`, `ReactionsDeclaredOrDeferred`, `Riktor.PanelCreatesCover` | ✅ i tre nuovi + quello sostituito |
+| `ReactiveCapacitor` senza il `Damage 10` | `GadgetReactiveCapacitorShieldsAndCounters`, `Gadget.MatchesCatalog` | ✅ comportamento + catalogo |
+| `Deflection` costruita su `Action.Counter` | `WraithDeflectionReducesDirectHit` | ✅ solo quello (Counter è comunque una reazione valida) |
 
 > ⚠️ **La prima esecuzione di queste mutazioni era invalida, e vale la pena scriverlo.** Un processo
 > `UnrealEditor-Cmd` rimasto appeso da una run precedente teneva bloccata `UnrealEditor-RefactorTactics.dll`:

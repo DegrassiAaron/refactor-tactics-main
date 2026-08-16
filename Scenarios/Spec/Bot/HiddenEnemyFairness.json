@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Bot.HiddenEnemyFairness",
-  "tags": ["bot", "perception", "knowledge", "canary", "spec", "vektor", "bastion", "riva"],
+  "tags": ["bot", "perception", "knowledge", "canary", "spec", "wraith", "riktor", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 6,
@@ -18,9 +18,9 @@
   "_nota_coppia": "Complementare a `Spec.Bot.PlansOnPartialKnowledge`: quello dimostra che l'ignoto non viene scelto, questo che l'esito non ne dipende.",
 
   "units": [
-    { "id": "BOT",    "hero": "Hero.Vektor",  "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 3 },
-    { "id": "SEEN",   "hero": "Hero.Bastion", "team": 0, "cell": [2, 0, 0] },
-    { "id": "HIDDEN", "hero": "Hero.Riva",    "team": 0, "cell": [-6, 3, 0] }
+    { "id": "BOT",    "hero": "Hero.Wraith",  "team": 1, "cell": [0, 0, 0], "bot": true, "visionRange": 3 },
+    { "id": "SEEN",   "hero": "Hero.Riktor", "team": 0, "cell": [2, 0, 0] },
+    { "id": "HIDDEN", "hero": "Hero.Phase",    "team": 0, "cell": [-6, 3, 0] }
   ],
 
   "variants": [
