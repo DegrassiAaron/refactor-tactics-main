@@ -107,6 +107,31 @@ struct FRTTestResult
 	 */
 	TArray<FString> Notes;
 
+	/** Quante decisioni scriptate sono state effettivamente APPLICATE a una finestra. */
+	int32 ScriptedDecisionsApplied = 0;
+
+	/**
+	 * Quante sono state dichiarate e non hanno mai trovato una finestra. ⚠️ Diverso da zero e' un
+	 * FALLIMENTO (task 6), non un avanzo: descrive qualcosa che non e' successo.
+	 */
+	int32 ScriptedDecisionsUnused = 0;
+
+	/**
+	 * L'ultimo token restituito dal decisore scriptato, per come il gioco lo ha ricevuto — `HOLD` o
+	 * `FIRE:<StableUnitId>`. Serve a verificare la **traduzione**, che e' l'unica parte che lo scenario non
+	 * poteva esprimere: senza, si potrebbe solo osservare che «qualcosa e' successo».
+	 */
+	FString LastScriptedResponse;
+
+	/**
+	 * Chi ha risposto alle finestre: `scenario`, `test-override`, `none`.
+	 *
+	 * ⚠️ Sta QUI e non nel TurnLog, ed e' una scelta: al replay serve **quale** decisione — quella e' stato
+	 * di gioco e c'e' gia' — non **chi** l'ha fornita, che e' diagnostica. Un campo nuovo in
+	 * `FRTTurnLogEntry` muoverebbe i golden per un dato che il replay non legge.
+	 */
+	FString DecisionSource = TEXT("none");
+
 	TArray<FRTAssertionResult> Assertions;
 
 	int32 PassedCount() const

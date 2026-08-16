@@ -14,6 +14,7 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTReactionOpportunityTypes.h" // HoldResponse/FireResponse: la traduzione nel token del gioco
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
@@ -42,14 +43,23 @@ namespace
 		static const TSet<FString> Available = {
 			TEXT("FixtureReference"),  // lo scenario riferisce la geometria per nome
 			// E5: reazioni componibili che scattano o non scattano — il regime `AllowedResponses <= 1` di
-			// ADR-0004 §2. Il perimetro e' stato **rimisurato** con `#582` dopo CP 14.4, e la risposta non e'
-			// quella che la issue supponeva: `BuildOverwatchTriggers` produce opportunity a due risposte, ma
-			// `grep -rn "BuildOverwatchTriggers" Source/ --include=*.cpp | grep -v /Tests/` non trova nessun
-			// chiamante — la regola e' pura e nessuno la invoca in partita. Quindi in un turno vero le
-			// opportunity restano quelle di E5, e questa riga descrive ancora il codice che gira.
+			// ADR-0004 §2, e **solo quello**.
 			//
-			// Il giorno in cui `ResolveCombat` chiamera' quella funzione, questa riga smette di essere vera e va
-			// divisa: la DECISIONE su un'opportunity a due risposte non appartiene a `Reaction` (vedi sotto).
+			// ✅ **Divisa con `#512` il 2026-08-16, alla condizione che questa riga si era scritta da sola.**
+			// Diceva: *«il giorno in cui `ResolveCombat` chiamera' `BuildOverwatchTriggers`, questa riga smette
+			// di essere vera e va divisa»*. Quel giorno e' arrivato con CP 14.5. Il grep che il commento
+			// nominava — `grep -rn "BuildOverwatchTriggers" Source/ --include=*.cpp | grep -v /Tests/` — da'
+			// oggi **cinque** righe, e `RTTurnManager.cpp:5093` e' una chiamata di PRODUZIONE, non un commento.
+			// L'affermazione «nessun chiamante» era l'unica parte scaduta.
+			//
+			// La divisione e' fra i due nomi che esistono gia', non con un terzo: la DECISIONE su
+			// un'opportunity a due risposte e' `DecisionBoundary`. Misurato che i tre scenari che chiedono
+			// `Reaction` — `Combat/CounterStrikesBack`, `Visual/Reaction/Deflection`,
+			// `Visual/Reaction/Interposition` — sono tutti nel regime `<= 1`: un nome nuovo li costringerebbe a
+			// cambiare senza che cambi cio' che chiedono.
+			//
+			// Pinnata da `Scenario.ReactionAndDecisionBoundaryAreDistinct`, che chiede **entrambe** le domande
+			// — noto e disponibile — perche' un nome noto e indisponibile e' precisamente l'altro caso.
 			TEXT("Reaction"),
 			TEXT("Environment"),       // E8: superfici, stati, propagazione
 			TEXT("Cover"),             // E9 CP 9.1/9.2: coperture bassa e alta, distruzione
@@ -190,10 +200,28 @@ namespace
 		// spiegazione, che e' meta' del valore.
 		//
 		//   `DecisionBoundary` e `ReactionClash` — la FINESTRA: sospendere la risoluzione e chiedere una
-		//   risposta. CP 14.4 ha consegnato la regola che riconosce un'opportunity contesa
-		//   (`RequiresDecisionBoundary`, `AllowedResponses >= 2`) ma **nessun chiamante di produzione**, e la
-		//   finestra da 3 s e' CP 14.5. Sono due nomi e non uno perche' separano due cose che possono atterrare
-		//   in tempi diversi: fermarsi a un boundary, e risolvere il confronto fra due risposte contese.
+		//   risposta. Sono due nomi e non uno perche' separano due cose che possono atterrare in tempi
+		//   diversi: fermarsi a un boundary, e risolvere il confronto fra due risposte contese.
+		//
+		//   🔴 **La ragione per cui `DecisionBoundary` resta indisponibile NON e' piu' quella scritta qui, e
+		//   il testo vecchio va letto come registro** (2026-08-16, `#512`). Diceva: «CP 14.4 ha consegnato la
+		//   regola ... ma **nessun chiamante di produzione**, e la finestra da 3 s e' CP 14.5». Entrambe le
+		//   meta' sono scadute: CP 14.5 e' chiusa, `RTTurnManager.cpp:5093` chiama `BuildOverwatchTriggers` in
+		//   partita, e con `#512` un decisore iniettato risponde davvero a una finestra vera
+		//   (`ShowcaseRelay.DecisionProviderIsInjectable`).
+		//
+		//   La ragione VERA e' un'altra, ed e' sui DATI: gli scenari che la chiedono **non hanno le
+		//   `decisions`** che li renderebbero rispondibili — `Spec/Overwatch/HoldThenFire` e
+		//   `Spec/Brace/ProfileChangesResponse` ne hanno zero, misurate. Scoprirla li farebbe girare senza
+		//   nessuno che risponda alle loro finestre.
+		//
+		//   ⚠️ **Misurato scoprendola per davvero, invece di prevederlo**: il piano diceva che sarebbero
+		//   passati «da `BLOCKED` a `FAIL`, che `EveryShippedScenarioRuns` non accetta». Non e' cosi' —
+		//   quel test resta VERDE. A cadere sono altri due, e dicono qualcosa di piu' preciso:
+		//   `Scenario.ShowcaseRelayV01RunsTurnOne` (`RT_Showcase_Relay_v01` arriva a **cinque** turni invece
+		//   di tre: il T2 non si ferma piu') e `Scenario.UnknownCapabilityIsErrorNotBlocked`, che usa
+		//   `DecisionBoundary` proprio come **esempio** di «nota ma non disponibile» e ne perderebbe il
+		//   soggetto. Si scopre **insieme** ai dati, ed e' fase B.
 		//
 		//   `Facing` — ✅ **riconciliata il 2026-08-13**: era il doppione di `DeclaredRotation` con un altro
 		//   nome, e i due dovevano essere unificati «quando l'input arrivera'» (#291). L'input e' arrivato, e
@@ -357,9 +385,36 @@ namespace
 	}
 }
 
+FRTScenarioSession::~FRTScenarioSession()
+{
+	UnbindOwnDecider();
+}
+
+void FRTScenarioSession::UnbindOwnDecider()
+{
+	// Solo il PROPRIO bind: se lo slot era gia' occupato da un test, sbindarlo distruggerebbe un decisore
+	// che questa sessione non ha messo. `DecisionSource` e' l'unico testimone di chi ha legato.
+	if (DecisionSource != TEXT("scenario"))
+	{
+		return;
+	}
+	if (ARTTurnManager* TM = TurnManager.Get())
+	{
+		TM->ReactionDecider.Unbind();
+	}
+	// Idempotente: dopo lo sgancio questa sessione non e' piu' la sorgente, e un secondo giro non tocca il
+	// bind di nessun altro.
+	DecisionSource = TEXT("none");
+}
+
 bool FRTScenarioSession::IsKnownCapability(const FString& Capability)
 {
 	return IsCapabilityKnown(Capability);
+}
+
+bool FRTScenarioSession::IsAvailableCapability(const FString& Capability)
+{
+	return IsCapabilityAvailable(Capability);
 }
 
 bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenario)
@@ -498,6 +553,42 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	// scadesse per conto suo risolverebbe un turno che la sessione non ha preparato — ed e' esattamente il
 	// difetto dei turni fantasma, visto in PIE prima che questa riga esistesse.
 	TM->SetPlanningSeconds(0.f);
+
+	// Il seam esiste dal CP 14.5 e nessuno lo bindava: qui lo scenario diventa il decisore delle finestre.
+	//
+	// ⚠️ Solo se lo slot e' libero, ed e' cosi' che un test ha la precedenza: chi binda prima vince. Non
+	// serve una catena ne' un flag — il delegate e' uno slot solo, e la forma E' la regola.
+	//
+	// 🔴 **E solo se lo scenario ha davvero qualcosa da rispondere.** Bindare sempre sarebbe una regressione
+	// silenziosa su due fronti, entrambi invisibili alla suite: `AskReactionDecision` raggiunge il ramo del
+	// bot (`URTHexBotLibrary::DecideReactionResponse`) **soltanto** se il delegate NON e' legato — «il
+	// decisore iniettato ha la precedenza su tutto, bot compreso», dice il suo commento — quindi un'unita'
+	// del bot con un Overwatch armato smetterebbe di reagire in ogni scenario; e per un proprietario umano
+	// la voce del TurnLog passerebbe da `HoldNoDecider` a `HoldTimeout`, che e' una differenza di BYTE per
+	// il corpus golden (#178/#170). Uno scenario che non scripta nulla deve lasciare il seam com'era.
+	//
+	// Il bind puo' stare qui, prima che `UnitsById` esista, perche' la traduzione legge la mappa al momento
+	// della CHIAMATA — durante il Move — non al momento del bind.
+	// ⚠️ L'ordine delle tre domande conta, e la prima NON e' «lo scenario ha decisioni?». Uno slot gia'
+	// occupato significa che **qualcuno risponde**, e va registrato come `test-override` anche se lo scenario
+	// non scripta nulla: dire `none` sarebbe falso — il referto lo userebbe per spiegare un esito che quel
+	// decisore ha prodotto. La condizione sulle decisioni governa solo se questa sessione binda il PROPRIO.
+	const bool bScenarioHasDecisions = InScenario.Turns.ContainsByPredicate(
+		[](const FRTScenarioTurn& T) { return T.Decisions.Num() > 0; });
+
+	if (TM->ReactionDecider.IsBound())
+	{
+		DecisionSource = TEXT("test-override");
+	}
+	else if (bScenarioHasDecisions)
+	{
+		TM->ReactionDecider.BindRaw(this, &FRTScenarioSession::DecideScriptedResponse);
+		DecisionSource = TEXT("scenario");
+	}
+	else
+	{
+		DecisionSource = TEXT("none");
+	}
 
 	if (Scenario.Turns.Num() == 0)
 	{
@@ -644,6 +735,17 @@ void FRTScenarioSession::BeginTurn()
 			return;
 		}
 	}
+
+	// La coda delle risposte di QUESTO turno. Si ripopola a ogni turno e non si accumula: una decisione del
+	// turno 1 rimasta in coda risponderebbe a una finestra del turno 2, e lo scenario direbbe una cosa che
+	// non ha scritto. Sta dopo i due controlli sulle capability perche' un turno che non si gioca non ha
+	// finestre da servire.
+	PendingDecisions = Scenario.Turns[TurnIndex].Decisions;
+	PendingConsumed.Init(false, PendingDecisions.Num());
+	AppliedDecisionDescs.Reset();
+	// Lo snapshot si ricattura al primo boundary di QUESTO turno: fra un turno e l'altro le unita' muoiono e
+	// il resolver rifa' il proprio array, quindi tenerlo sarebbe peggio che ricostruirlo.
+	RuntimeUnitsForTurn.Reset();
 
 	// Tutte ferme per default: un'unita' senza intent nel turno NON eredita il piano del turno prima.
 	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
@@ -952,6 +1054,60 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 			Trace.Bytes = URTTurnLogLibrary::SerializeTurnLog(TM->GetTurnLog(), ERTLogTopology::Hex);
 			Result.TurnTraces.Add(Trace);
 
+			// `HoldRejected` significa «il manager ha rifiutato la risposta»: sul gioco ha lo stesso effetto
+			// di un `HOLD`, e nel referto deve avere il significato opposto. Si legge dal TurnLog invece di
+			// duplicare `IsResponseAllowed` qui — la legalita' resta decisa in UN posto solo.
+			//
+			// ⚠️ Il filtro su `Category` NON e' opzionale: `FRTTurnLogEntry::Outcome` e' un `uint8` il cui
+			// significato lo decide la categoria (`ERTMoveOutcome` se `Move`, e cosi' via), e il file lo
+			// dichiara. Senza il filtro, una voce di movimento con lo stesso valore numerico sarebbe letta
+			// come un rifiuto. Il piano ometteva il filtro e lo sospettava soltanto.
+			//
+			// Il messaggio nomina le decisioni con gli id di SCENARIO: il token e' `FIRE:<indice>`, e
+			// riportarlo manderebbe a rileggere il turno per capire quale risposta sia stata rifiutata.
+			//
+			// ⚠️ E solo se a rispondere e' stata QUESTA sessione: con `test-override` o con un'unita' del bot
+			// il rifiuto non riguarda nessuna decisione dello scenario, e il referto accuserebbe «una risposta
+			// scriptata» che nessuno ha scritto — seguita da un elenco di decisioni applicate vuoto, cioe'
+			// niente da andare a cercare.
+			const bool bHaRispostoQuestaSessione =
+				DecisionSource == TEXT("scenario") && AppliedDecisionDescs.Num() > 0;
+			for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+			{
+				if (!bHaRispostoQuestaSessione) { break; }
+				if (Entry.Category != ERTLogCategory::ReactionDecision) { continue; }
+				if (static_cast<ERTReactionDecisionOutcome>(Entry.Outcome)
+					!= ERTReactionDecisionOutcome::HoldRejected)
+				{
+					continue;
+				}
+				const FString Motivo = FString::Printf(
+					TEXT("turno %d: una risposta scriptata e' stata rifiutata dal resolver — il bersaglio non ")
+					TEXT("era fra quelli offerti dalla finestra. Decisioni applicate in questo turno: %s"),
+					TurnIndex + 1, *FString::Join(AppliedDecisionDescs, TEXT("; ")));
+				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+				Notes.Add(Motivo);
+				break;
+			}
+
+			// Il residuo si valuta a fine turno, non a fine scenario: una decisione dichiarata al T2 e mai
+			// consumata e' un difetto del T2, e attribuirla al T8 manderebbe a cercare nel posto sbagliato.
+			//
+			// ⚠️ Passa da `ErroredBy` e NON da `Result.Outcome`: `Finish()` ricalcola l'esito con una catena
+			// `if/else` a partire da `ErroredBy`, quindi un `Result.Outcome = Error` scritto qui verrebbe
+			// riportato a `Pass`. Il primo errore vince — gli altri restano nelle note.
+			for (int32 Index = 0; Index < PendingDecisions.Num(); ++Index)
+			{
+				if (PendingConsumed[Index]) { continue; }
+				++Result.ScriptedDecisionsUnused;
+				const FString Motivo = FString::Printf(
+					TEXT("turno %d: decisione dichiarata per '%s' (%s) e mai consumata — nessuna finestra si e' ")
+					TEXT("aperta per quell'unita'"),
+					TurnIndex + 1, *PendingDecisions[Index].Unit, *PendingDecisions[Index].Respond);
+				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+				Notes.Add(Motivo);
+			}
+
 			++TurnIndex;
 			Result.TurnsPlayed = TurnIndex;
 			if (TurnIndex >= Scenario.Turns.Num())
@@ -984,6 +1140,106 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 	}
 }
 
+FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity& Opportunity, int32 OwnerUnitId)
+{
+	// ⚠️ **`OwnerUnitId` NON e' lo `StableUnitId`, ed e' la correzione che il piano chiedeva al contrario.**
+	// Misurato: `Key.OwnerId = Watcher.Zone.OwnerUnitId`, e la zona nasce da
+	// `MakeSuppressiveZone(Map, OwnerIdx, ...)` dove `OwnerIdx = Units.IndexOfByKey(WatchOwner)`. Anche i
+	// bersagli viaggiano cosi' — `M.UnitId = TargetIdx`. Tutto il giro delle reazioni parla di INDICI
+	// nell'array di risoluzione, e `RTTurnManager.cpp` lo dichiara: «l'identita' e' l'INDICE dell'unita' in
+	// OutUnits ... il chiamante ritrova la propria unita' con OutUnits.IndexOfByKey».
+	//
+	// Usando `StableUnitId` il proprietario non si sarebbe risolto MAI, e — peggio — il token
+	// `FIRE:<StableUnitId>` non sarebbe stato in `AllowedResponses`: rifiutato come risposta inventata, cioe'
+	// un `HoldRejected` che nel referto somiglia a un HOLD voluto. Il difetto che il task 9 vuole impedire.
+	ARTTurnManager* TM = TurnManager.Get();
+	if (!TM) { return FString(); }
+
+	// 🔴 **Una volta per turno, non a ogni finestra.** `MakeCurrentSnapshot` filtra `IsAlive()`, mentre il
+	// resolver costruisce il proprio array UNA volta per l'intera risoluzione: un `FIRE` che uccide un mover
+	// lo toglierebbe dallo snapshot successivo e sposterebbe di uno tutti gli indici a valle, facendo
+	// mappare la finestra dopo sull'unita' sbagliata — o emettere un `FIRE:<indice errato>` che
+	// `IsResponseAllowed` rifiuta come inventato. Catturarlo alla prima finestra tiene lo stesso spazio di
+	// id per tutta la risoluzione, ed evita anche un `GetAllActorsOfClass` per micro-step.
+	if (RuntimeUnitsForTurn.Num() == 0)
+	{
+		TM->MakeCurrentSnapshot(RuntimeUnitsForTurn);
+	}
+	const TArray<ARTUnit*>& RuntimeUnits = RuntimeUnitsForTurn;
+	if (!RuntimeUnits.IsValidIndex(OwnerUnitId)) { return FString(); }
+	const ARTUnit* OwnerUnit = RuntimeUnits[OwnerUnitId];
+
+	// Risale allo scenario id del proprietario: `UnitsById` va nel verso opposto, e una scansione su quattro
+	// unita' costa meno di una seconda mappa da tenere allineata.
+	FString OwnerScenarioId;
+	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+	{
+		if (Pair.Value.Get() == OwnerUnit) { OwnerScenarioId = Pair.Key; break; }
+	}
+	if (OwnerScenarioId.IsEmpty()) { return FString(); }
+
+	for (int32 Index = 0; Index < PendingDecisions.Num(); ++Index)
+	{
+		if (PendingConsumed[Index]) { continue; }
+		const FRTScenarioDecision& D = PendingDecisions[Index];
+		if (D.Unit != OwnerScenarioId) { continue; }
+
+		// 🔴 **La decisione si consuma solo se si riesce davvero a tradurla.** Segnarla consumata qui sopra —
+		// come faceva la prima stesura — significava che una traduzione fallita usciva con un `HOLD` per
+		// timeout mentre il referto diceva `applied=1`, `unused=0`, nessuna nota, esito `PASS`: esattamente
+		// il «un test smette di verificare senza dirlo» che questa feature esiste per impedire.
+		const auto Consuma = [&](const FString& Token) -> FString
+		{
+			PendingConsumed[Index] = true;
+			++Result.ScriptedDecisionsApplied;
+			AppliedDecisionDescs.Add(D.Target.IsEmpty()
+				? FString::Printf(TEXT("'%s' %s"), *D.Unit, *D.Respond)
+				: FString::Printf(TEXT("'%s' %s -> '%s'"), *D.Unit, *D.Respond, *D.Target));
+			Result.LastScriptedResponse = Token;
+			return Token;
+		};
+
+		if (D.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive))
+		{
+			return Consuma(URTReactionOpportunityLibrary::HoldResponse());
+		}
+		// `FIRE`: il token porta l'id di RUNTIME, che e' esattamente cio' che lo scenario non poteva scrivere.
+		// Stesso spazio di id del proprietario — l'indice nell'array di risoluzione, non lo `StableUnitId`.
+		const TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(D.Target);
+		ARTUnit* TargetUnit = Found ? Found->Get() : nullptr;
+		const int32 TargetRuntimeId = TargetUnit ? RuntimeUnits.IndexOfByKey(TargetUnit) : INDEX_NONE;
+		if (TargetRuntimeId == INDEX_NONE)
+		{
+			// Difesa, non politica: il loader e `Validate` lo hanno gia' rifiutato. Ma se ci si arriva —
+			// bersaglio caduto, o fuori dallo snapshot — il turno deve DIRLO invece di scivolare in un
+			// timeout muto. La decisione resta non consumata, quindi il residuo la conta.
+			const FString Motivo = FString::Printf(
+				TEXT("turno %d: il bersaglio '%s' della decisione di '%s' non e' risolvibile a runtime"),
+				TurnIndex + 1, *D.Target, *D.Unit);
+			if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+			Notes.Add(Motivo);
+			return FString();
+		}
+		return Consuma(URTReactionOpportunityLibrary::FireResponse(TargetRuntimeId));
+	}
+
+	if (PendingDecisions.Num() > 0)
+	{
+		// Il turno dichiara decisioni e questa finestra non ne ha trovata nessuna: non e' il caso «turno non
+		// scriptato», e' una finestra SCOPERTA. Se restasse un timeout silenzioso, due decisioni scritte e
+		// una applicata sarebbero verdi — che e' il modo in cui un test smette di verificare senza dirlo.
+		const FString Motivo = FString::Printf(
+			TEXT("turno %d: finestra aperta per '%s' senza una decisione che la nomini"),
+			TurnIndex + 1, *OwnerScenarioId);
+		if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+		Notes.Add(Motivo);
+	}
+
+	// Nessuna decisione combacia: «non ho risposto». E' il comportamento di sempre — `DecisionOnTimeout` —
+	// e tiene intatti i turni che non scriptano nulla.
+	return FString();
+}
+
 void FRTScenarioSession::TearDown()
 {
 	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
@@ -999,9 +1255,18 @@ void FRTScenarioSession::TearDown()
 	// suo callback in coda troverebbe un roster mezzo vuoto.
 	if (ARTTurnManager* TM = TurnManager.Get())
 	{
+		// Sbinda PRIMA di distruggere: un delegate che sopravvive a uno scenario risponderebbe al successivo
+		// con la coda del precedente, e il secondo sarebbe verde o rosso per il turno di un altro. Conta
+		// davvero perche' `SetUp` RIUSA un turn manager gia' presente invece di spawnarne sempre uno nuovo.
+		//
+		// ⚠️ `TearDown()` non e' l'unica strada, ed e' il motivo per cui esiste anche il distruttore: il
+		// percorso normale (`RunSingle` con `bTearDownAfter=false`) non passa mai di qui.
+		UnbindOwnDecider();
 		TM->Destroy();
 	}
 	TurnManager.Reset();
+	PendingDecisions.Reset();
+	PendingConsumed.Reset();
 }
 
 void FRTScenarioSession::Finish()
@@ -1255,6 +1520,10 @@ void FRTScenarioSession::Finish()
 	}
 
 	Result.Notes = Notes;
+	// La provenienza si SCRIVE invece di dedurla. Deciso al bind in `SetUp`, copiato qui accanto alle note
+	// perche' `Finish()` e' l'unico punto che ogni strada attraversa. Il membro resta perche' `TearDown` lo
+	// rilegge per sbindare solo il PROPRIO decisore.
+	Result.DecisionSource = DecisionSource;
 
 	// Precedenza: ERROR > FAIL > BLOCKED > PASS.
 	//

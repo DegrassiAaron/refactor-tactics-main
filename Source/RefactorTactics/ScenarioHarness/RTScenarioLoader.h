@@ -21,7 +21,11 @@ class REFACTORTACTICS_API URTScenarioLoader : public UBlueprintFunctionLibrary
 
 public:
 	/** Versione massima del formato che questo loader sa leggere. Un file piu' nuovo viene rifiutato con un messaggio esplicito. */
-	static constexpr int32 SupportedVersion = 1;
+	// 1 → 2 con `#512`: la versione che ammette `decisions` a livello di turno. I 76 scenari esistenti
+	// restano a 1 e non si toccano — il gate confronta con `>`, quindi una versione piu' bassa e' sempre
+	// leggibile. Il verso che conta e' l'altro: una build vecchia deve RIFIUTARE uno scenario che non sa
+	// leggere invece di ignorarne i campi, e da `#926` gli scenari viaggiano dentro il pacchetto.
+	static constexpr int32 SupportedVersion = 2;
 
 	/**
 	 * Interpreta il testo JSON di uno scenario.
