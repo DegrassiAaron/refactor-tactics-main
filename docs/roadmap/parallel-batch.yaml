@@ -1681,7 +1681,11 @@ tracks:
     # significato che questo file ha già dovuto distinguere quattro volte: **«il write-set è assegnato e
     # la sessione non ha ancora scritto»**. Il branch di lavoro della fase B nasce col primo commit dentro
     # `D:/rt-simulation`, e chi lo apre riscrive questa riga invece di lasciarla mentire.
-    branch: null
+    # ✅ **Riscritta col primo commit, che è questo.** Il branch nasce da `origin/main` @ `5454b305` —
+    # cioè dalla PR #1027 che ha concesso il write-set — dentro `D:/rt-simulation`, e questa riga smette
+    # di dire `null` prima che una riga di fase B sia scritta, non dopo. È la correzione che la sessione
+    # precedente ha dovuto fare a metà lavoro, fatta qui all'inizio.
+    branch: feat/512-fase-b-decisionboundary
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
