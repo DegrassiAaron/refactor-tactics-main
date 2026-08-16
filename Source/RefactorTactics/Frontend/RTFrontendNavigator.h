@@ -7,27 +7,12 @@
 
 class UUserWidget;
 
-/**
- * La mappa **nome logico -> classe di widget**. E' un dato, non codice: le schermate si dichiarano qui e
- * si aggiungono senza toccare il navigatore.
- *
- * ⚠️ `TSoftClassPtr` e non `TSubclassOf`: la classe e' un `.uasset` (`WBP_RT_*`) e caricarla tutta
- * all'avvio del gioco significherebbe tenere in memoria ogni schermata del frontend anche durante la
- * partita. Si risolve al momento del push.
- */
-USTRUCT(BlueprintType)
-struct FRTScreenBinding
-{
-	GENERATED_BODY()
-
-	/** Il nome con cui il resto del codice chiede questa schermata. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Frontend")
-	FName ScreenId;
-
-	/** Il widget da istanziare. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Frontend", meta = (AllowAbstract = "false"))
-	TSoftClassPtr<UUserWidget> WidgetClass;
-};
+// ⚠️ **`FRTScreenBinding` e' stata rimossa in code review**: era una `USTRUCT` con `ScreenId` +
+// `WidgetClass` e **zero consumatori** — il navigatore usa `TMap<FName, TSoftClassPtr<UUserWidget>>`.
+// Portava anche `EditAnywhere` e un `meta = (AllowAbstract)` che non configuravano niente. Un tipo esposto
+// all'editor che nessuno legge e' peggio di un tipo assente: sembra il modo previsto di dichiarare le
+// schermate, e non lo e'. Quando servira' un array configurabile da `.ini` o da data asset, si riscrive
+// insieme al suo lettore.
 
 /**
  * **L'unico owner del flow del frontend** (CP 46.1, #936).
@@ -65,9 +50,14 @@ public:
 	/**
 	 * Dichiara la radice e apre la prima schermata. **Va chiamata prima di ogni altra cosa**: senza radice
 	 * lo stack non ha uno stato legale, e `ReturnMain` non avrebbe dove tornare.
+	 *
+	 * ⚠️ **Restituisce l'esito, e la prima stesura era `void`.** Con un `RootScreenId` vuoto il navigatore
+	 * restava muto: ogni `PushScreen` successivo rispondeva `Ok` — lo stack si muove — ma nessun widget
+	 * compariva mai, perche' `SyncPresentation` esce subito. Un fallimento indistinguibile dal successo e'
+	 * esattamente cio' che `ERTNavResult` esiste per impedire. Trovato in code review.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Frontend")
-	void InitializeFrontend(FName RootScreenId);
+	ERTNavResult InitializeFrontend(FName RootScreenId);
 
 	UFUNCTION(BlueprintCallable, Category = "Frontend")
 	ERTNavResult PushScreen(FName ScreenId);
@@ -115,7 +105,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Frontend")
 	void RegisterScreen(FName ScreenId, TSoftClassPtr<UUserWidget> WidgetClass);
 
-	/** Il widget vivo di una schermata, `nullptr` se non c'e' binding o se non e' sullo schermo. */
+	/**
+	 * Il widget **istanziato** per quella schermata, `nullptr` se non ne e' mai stato creato uno.
+	 *
+	 * ⚠️ **Non dice se e' a schermo.** La prima stesura di questo commento affermava il contrario
+	 * (*«nullptr … se non e' sullo schermo»*) mentre l'implementazione legge solo la mappa — trovato in
+	 * code review, e corretto qui invece che nel codice per la ragione sotto.
+	 *
+	 * I widget **restano istanziati** dopo un `Pop`: `DismissWidget` chiama `RemoveFromParent` e lascia la
+	 * voce. E' **cache voluta**, non una perdita: ricrearli a ogni navigazione costerebbe un caricamento
+	 * per ogni Back. ⚠️ Ha pero' una conseguenza osservabile che va saputa: una schermata ri-mostrata
+	 * conserva scroll, selezione e campi di testo, perche' e' **la stessa istanza**. Se una schermata deve
+	 * ripartire pulita, e' lei a doversi azzerare in `NativeConstruct` — il navigatore non lo fa e non deve
+	 * indovinarlo.
+	 *
+	 * Chi vuole sapere se un widget e' visibile chiede `IsInViewport()` al widget.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Frontend")
 	UUserWidget* FindLiveWidget(FName ScreenId) const;
 

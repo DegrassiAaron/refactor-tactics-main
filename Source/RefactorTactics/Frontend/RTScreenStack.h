@@ -24,7 +24,18 @@ enum class ERTNavResult : uint8
 	/** `CloseModal` senza modali aperti. Distinto da `Ok` perche' altrimenti un doppio click mangerebbe una schermata. */
 	NoModalOpen,
 	/** Il nome della schermata e' vuoto: non identifica niente. */
-	InvalidScreen
+	InvalidScreen,
+	/**
+	 * Un `FName` non puo' essere insieme schermata nello stack e modale sopra di esso.
+	 *
+	 * ⚠️ **Aggiunto in code review il 2026-08-16, e l'elenco e' dichiarato chiuso: eccolo esteso
+	 * esplicitamente invece che allargato in silenzio.** Non e' una raffinatezza: la presentazione tiene
+	 * **un widget per nome**, quindi lo stesso `FName` in entrambi i ruoli produce un widget solo, che
+	 * viene disabilitato in quanto «schermata sotto un modale» mentre **e'** il modale. Il pulsante di
+	 * chiusura diventa inerte e l'unica uscita e' un `ReturnMain` chiamato da fuori: e' il dead-end che
+	 * il DoD di CP 46.1 vieta.
+	 */
+	ScreenIsAlreadyOnStack
 };
 
 /**
@@ -57,17 +68,42 @@ struct REFACTORTACTICS_API FRTScreenStack
 {
 	GENERATED_BODY()
 
+	/**
+	 * 🔴 **Il default costruisce uno stack VUOTO, e va detto perche' i commenti qui sotto dicevano il
+	 * contrario.** «Sempre >= 1», «non vuoto per costruzione»: falsi per questo costruttore, e non in
+	 * teoria — `URTFrontendNavigator::Stack` e' default-costruito, quindi **prima** di
+	 * `InitializeFrontend` le sue `BlueprintPure` rispondono `Depth() == 0` e `CurrentScreen() == None`.
+	 * Trovato in code review.
+	 *
+	 * Non si puo' cancellare: `USTRUCT` con `GENERATED_BODY()` **richiede** un costruttore di default —
+	 * la reflection lo usa per serializzazione e per i valori di default delle `UPROPERTY`. Quindi lo
+	 * stato vuoto e' **rappresentabile per forza**, e l'unica scelta onesta e' renderlo **innocuo e
+	 * dichiarato** invece di negarlo in prosa:
+	 *
+	 * - `IsValid()` lo distingue, ed e' la domanda che un chiamante puo' porre;
+	 * - `ReturnMain()` su uno stack vuoto **non restituisce piu' `Ok`** — dichiarava successo restando
+	 *   senza schermata, che era il difetto peggiore dei tre;
+	 * - il navigatore non lo espone: `bInitialized` resta `false` finche' non c'e' una radice.
+	 */
 	FRTScreenStack() = default;
 
 	/**
-	 * Uno stack nasce **con la sua radice**, e non vuoto: non esiste uno stato legale senza schermata
-	 * corrente, quindi non e' rappresentabile. Un default vuoto costringerebbe ogni chiamante a gestire
-	 * un caso che il dominio non ha.
+	 * Uno stack costruito **con la sua radice**. E' l'unico modo per ottenerne uno utilizzabile: il
+	 * default esiste solo perche' la reflection lo pretende (vedi sopra).
 	 */
 	explicit FRTScreenStack(FName InRootScreen)
 	{
-		Screens.Add(InRootScreen);
+		if (!InRootScreen.IsNone())
+		{
+			Screens.Add(InRootScreen);
+		}
 	}
+
+	/**
+	 * `false` su uno stack default-costruito o costruito con un nome vuoto: nessuna schermata, nessuna
+	 * radice, nessuna operazione sensata.
+	 */
+	bool IsValid() const { return Screens.Num() > 0; }
 
 	/** Impila una schermata sopra quella corrente. Rifiutata se un modale e' aperto. */
 	ERTNavResult PushScreen(FName ScreenId);
@@ -87,7 +123,7 @@ struct REFACTORTACTICS_API FRTScreenStack
 	 */
 	ERTNavResult ReturnMain();
 
-	/** La schermata in cima allo stack. Mai `NAME_None` su uno stack costruito con una radice. */
+	/** La schermata in cima. `NAME_None` **solo** su uno stack non valido (`IsValid() == false`). */
 	FName CurrentScreen() const { return Screens.Num() > 0 ? Screens.Last() : NAME_None; }
 
 	/** La radice: dove `ReturnMain` riporta. */
@@ -96,7 +132,7 @@ struct REFACTORTACTICS_API FRTScreenStack
 	/** Il modale in cima, `NAME_None` se non ce ne sono. */
 	FName TopModal() const { return Modals.Num() > 0 ? Modals.Last() : NAME_None; }
 
-	/** Quante schermate sono impilate, radice inclusa. Sempre >= 1. */
+	/** Quante schermate sono impilate, radice inclusa. `>= 1` su ogni stack valido, `0` se non lo e'. */
 	int32 Depth() const { return Screens.Num(); }
 
 	/** Quanti modali sono aperti. */
@@ -116,7 +152,7 @@ struct REFACTORTACTICS_API FRTScreenStack
 	const TArray<FName>& GetModals() const { return Modals; }
 
 private:
-	/** Dalla radice `[0]` alla cima `Last()`. Non vuoto per costruzione. */
+	/** Dalla radice `[0]` alla cima `Last()`. Vuoto **solo** su uno stack default-costruito — vedi `IsValid()`. */
 	UPROPERTY()
 	TArray<FName> Screens;
 

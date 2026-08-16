@@ -13,6 +13,9 @@
 #include "Frontend/RTScreenStack.h"
 #include "Frontend/RTFrontendNavigator.h"
 #include "Engine/GameInstance.h"
+#include "Blueprint/UserWidget.h"
+// Solo per avere una `UUserWidget` **concreta** da istanziare: `UUserWidget` e' `Abstract`.
+#include "UI/RTScreenHudWidgets.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -249,43 +252,96 @@ bool FRTFrontendModalsStackTest::RunTest(const FString&)
 }
 
 /**
- * **Nessun dead-end, verificato per esplorazione invece che per ispezione.**
+ * **Nessun dead-end, verificato per esplorazione — e il test misura la propria copertura.**
  *
  * Il DoD chiede che «da ogni schermata raggiungibile esista un percorso di ritorno alla radice». Gli altri
- * test lo mostrano su cammini scelti a mano — cioe' provano i casi a cui ho pensato. Questo genera una
- * sequenza deterministica di operazioni miste, e dopo **ciascuna** verifica due invarianti: lo stack non e'
- * mai vuoto, e `ReturnMain` riporta sempre alla radice. Il seme e' fisso: un test che cambia input a ogni
- * esecuzione non e' riproducibile, ed e' la stessa ragione per cui gli scenari hanno un `Seed`.
+ * test lo mostrano su cammini scelti a mano, cioe' provano i casi a cui ho pensato; questo esplora.
+ *
+ * 🔴 **La prima stesura esplorava un solo stato, e la code review l'ha MISURATO.** Sceglieva l'operazione
+ * a caso fra quattro *senza guardare lo stato*, e siccome `ShowModal` non fallisce mai mentre un modale
+ * aperto blocca sia `PushScreen` sia `PopScreen`, il cammino veniva **assorbito nel regime modale**.
+ * Simulando lo stesso LCG: profondita' 1 in **197 passi su 200** (massimo 2), **188 su 200** con un modale
+ * aperto (fino a 14 impilati), **92 operazioni su 200 rifiutate**. Il ramo di `ReturnMain` che svuota le
+ * schermate — cioe' quello che il test dichiara di provare — era esercitato **3 volte su 200**. Cambiare
+ * seme non salvava: su sette semi la profondita' massima restava fra 2 e 8. Il difetto era
+ * **strutturale**, non del seme.
+ *
+ * Due correzioni, e servono entrambe:
+ * **(a)** si sceglie fra le operazioni **legali nello stato corrente**, e i modali sono limitati a 2, cosi'
+ *     il cammino non degenera;
+ * **(b)** il test **asserisce la propria copertura** in fondo. E' la parte che conta: un test generativo
+ *     che non misura la propria distribuzione dichiara di aver esplorato cio' che non ha mai visitato, e
+ *     resta verde mentre lo fa. Con la prima stesura, le asserzioni di (b) sarebbero fallite.
+ *
+ * Il seme resta fisso: un test che cambia input a ogni esecuzione non e' riproducibile — stessa ragione
+ * per cui gli scenari hanno un `Seed`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendNoDeadEndTest,
 	"RefactorTactics.Frontend.NoReachableStateIsADeadEnd",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFrontendNoDeadEndTest::RunTest(const FString&)
 {
-	const FName Screens[] = { Play, Settings, FName(TEXT("Scenarios")) };
-	const FName Modals[] = { ConfirmQuit, ErrorModal };
+	const FName ScreenPool[] = { Play, Settings, FName(TEXT("Scenarios")) };
+	const FName ModalPool[] = { ConfirmQuit, ErrorModal };
+	constexpr int32 MaxModals = 2;
+	constexpr int32 Steps = 400;
 
 	FRTScreenStack Stack(Main);
 	uint32 Rng = 0x5bd1e995u; // seme fisso: la sequenza deve essere la stessa a ogni esecuzione
 
-	for (int32 Step = 0; Step < 200; ++Step)
+	int32 MaxDepthSeen = 1;
+	int32 MaxModalsSeen = 0;
+	int32 PushesDone = 0, PopsDone = 0, ModalsOpened = 0, ModalsClosed = 0;
+	int32 ProbesFromDeepState = 0;
+
+	for (int32 Step = 0; Step < Steps; ++Step)
 	{
 		Rng = Rng * 1664525u + 1013904223u;
-		const uint32 Op = (Rng >> 16) % 4u;
 
+		// Le operazioni LEGALI adesso. E' questo che impedisce al cammino di degenerare: scegliendo fra
+		// tutte e quattro, il regime modale assorbiva il 94% dei passi.
+		TArray<int32, TInlineAllocator<4>> Legal;
+		if (Stack.IsModalOpen())
+		{
+			Legal.Add(3);                                        // CloseModal
+			if (Stack.ModalDepth() < MaxModals) { Legal.Add(2); }
+		}
+		else
+		{
+			Legal.Add(0);                                        // PushScreen
+			Legal.Add(2);                                        // ShowModal
+			if (Stack.CanGoBack()) { Legal.Add(1); }             // PopScreen
+		}
+
+		const int32 Op = Legal[(Rng >> 16) % (uint32)Legal.Num()];
 		switch (Op)
 		{
-		case 0: Stack.PushScreen(Screens[(Rng >> 8) % 3u]); break;
-		case 1: Stack.PopScreen();                          break;
-		case 2: Stack.ShowModal(Modals[(Rng >> 8) % 2u]);   break;
-		default: Stack.CloseModal();                        break;
+		case 0:
+			if (Stack.PushScreen(ScreenPool[(Rng >> 8) % 3u]) == ERTNavResult::Ok) { ++PushesDone; }
+			break;
+		case 1:
+			if (Stack.PopScreen() == ERTNavResult::Ok) { ++PopsDone; }
+			break;
+		case 2:
+			// `ShowModal` rifiuta duplicati e id gia' in stack: si prova la coppia finche' uno passa.
+			for (const FName& Candidate : ModalPool)
+			{
+				if (Stack.ShowModal(Candidate) == ERTNavResult::Ok) { ++ModalsOpened; break; }
+			}
+			break;
+		default:
+			if (Stack.CloseModal() == ERTNavResult::Ok) { ++ModalsClosed; }
+			break;
 		}
+
+		MaxDepthSeen = FMath::Max(MaxDepthSeen, Stack.Depth());
+		MaxModalsSeen = FMath::Max(MaxModalsSeen, Stack.ModalDepth());
 
 		if (!TestTrue(TEXT("lo stack non e' mai vuoto"), Stack.Depth() >= 1))
 		{
 			return false;
 		}
-		if (!TestFalse(TEXT("la schermata corrente e' sempre valida"), Stack.CurrentScreen().IsNone()))
+		if (!TestTrue(TEXT("la schermata corrente non e' mai NAME_None"), !Stack.CurrentScreen().IsNone()))
 		{
 			return false;
 		}
@@ -301,7 +357,21 @@ bool FRTFrontendNoDeadEndTest::RunTest(const FString&)
 		{
 			return false;
 		}
+		if (Stack.Depth() >= 3)
+		{
+			++ProbesFromDeepState;
+		}
 	}
+
+	// (b) **La copertura fa parte del risultato.** Senza queste righe il test resterebbe verde anche
+	//     esplorando un solo stato — che e' esattamente cio' che faceva prima della code review.
+	TestTrue(TEXT("la sequenza raggiunge almeno profondita' 4"), MaxDepthSeen >= 4);
+	TestTrue(TEXT("e impila due modali"), MaxModalsSeen >= 2);
+	TestTrue(TEXT("con almeno 40 push riusciti"), PushesDone >= 40);
+	TestTrue(TEXT("almeno 40 pop riusciti"), PopsDone >= 40);
+	TestTrue(TEXT("almeno 40 modali aperti"), ModalsOpened >= 40);
+	TestTrue(TEXT("almeno 40 modali chiusi"), ModalsClosed >= 40);
+	TestTrue(TEXT("e ReturnMain provato da almeno 50 stati profondi"), ProbesFromDeepState >= 50);
 
 	return true;
 }
@@ -425,6 +495,188 @@ bool FRTFrontendRejectsEmptyNameTest::RunTest(const FString&)
 	TestEqual(TEXT("lo stack non si e' mosso"), Stack.Depth(), 1);
 	TestFalse(TEXT("nessun modale"), Stack.IsModalOpen());
 
+	return true;
+}
+
+/**
+ * 🔴 **Un `FName` non puo' essere insieme schermata e modale, e senza questa guardia era un dead-end
+ * raggiungibile da Blueprint.** Trovato in code review.
+ *
+ * La presentazione tiene **un widget per nome** (`LiveWidgets` e' chiusa per `FName`), quindi lo stesso id
+ * nei due ruoli produce un widget solo. `SyncPresentation` lo disabilita in quanto «schermata sotto un
+ * modale» mentre *e'* il modale: pulsante di chiusura compreso. Da li' non si esce — `PushScreen` e
+ * `PopScreen` rispondono `BlockedByModal` — se non con un `ReturnMain` chiamato da fuori quel widget.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendModalCannotBeAScreenTest,
+	"RefactorTactics.Frontend.ModalCannotShareItsNameWithAScreen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendModalCannotBeAScreenTest::RunTest(const FString&)
+{
+	FRTScreenStack Stack(Main);
+	Stack.PushScreen(Settings);
+
+	TestEqual(TEXT("la schermata corrente non puo' diventare modale"),
+		Stack.ShowModal(Settings), ERTNavResult::ScreenIsAlreadyOnStack);
+	TestEqual(TEXT("nemmeno la radice, che e' piu' in basso"),
+		Stack.ShowModal(Main), ERTNavResult::ScreenIsAlreadyOnStack);
+
+	TestFalse(TEXT("nessun modale e' stato aperto"), Stack.IsModalOpen());
+	TestTrue(TEXT("e la schermata resta interattiva"), Stack.IsScreenInteractive());
+
+	// Un id che NON e' nello stack resta legittimo.
+	TestEqual(TEXT("un modale vero passa"), Stack.ShowModal(ConfirmQuit), ERTNavResult::Ok);
+
+	return true;
+}
+
+/**
+ * Lo stesso modale due volte e' rifiutato: due voci nello stack e **un solo widget** darebbero una
+ * finestra che chiede due chiusure. Lo stack sarebbe coerente, lo schermo no.
+ *
+ * ⚠️ Non vale per le schermate: `Settings` aperto dal Main e dalla Pause sono due ritorni diversi, e
+ * `SameScreenPushedTwiceKeepsTwoReturns` lo pretende. La differenza e' che le schermate si vedono **una
+ * per volta**, i modali tutti insieme.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendModalIsNotOpenedTwiceTest,
+	"RefactorTactics.Frontend.SameModalIsNotStackedTwice",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendModalIsNotOpenedTwiceTest::RunTest(const FString&)
+{
+	FRTScreenStack Stack(Main);
+
+	TestEqual(TEXT("prima apertura"), Stack.ShowModal(ErrorModal), ERTNavResult::Ok);
+	TestEqual(TEXT("la seconda e' rifiutata"),
+		Stack.ShowModal(ErrorModal), ERTNavResult::ScreenIsAlreadyOnStack);
+	TestEqual(TEXT("un solo modale impilato"), Stack.ModalDepth(), 1);
+
+	// Una chiusura sola deve bastare.
+	Stack.CloseModal();
+	TestFalse(TEXT("e lo schermo e' libero"), Stack.IsModalOpen());
+
+	return true;
+}
+
+/**
+ * 🔴 **Uno stack default-costruito e' VUOTO, e `ReturnMain` vi rispondeva `Ok`.** Trovato in code review.
+ *
+ * `USTRUCT` con `GENERATED_BODY()` obbliga a un costruttore di default, quindi lo stato vuoto e'
+ * rappresentabile per forza — e `URTFrontendNavigator::Stack` lo attraversa davvero, prima di
+ * `InitializeFrontend`. Non potendolo vietare, va reso **innocuo e interrogabile**: `IsValid()` lo
+ * distingue, e l'uscita di sicurezza non dichiara piu' successo restando senza schermata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendDefaultStackIsInvalidTest,
+	"RefactorTactics.Frontend.DefaultConstructedStackIsInvalidAndSaysSo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendDefaultStackIsInvalidTest::RunTest(const FString&)
+{
+	FRTScreenStack Empty;
+
+	TestFalse(TEXT("non e' valido"), Empty.IsValid());
+	TestEqual(TEXT("profondita' zero"), Empty.Depth(), 0);
+	TestTrue(TEXT("nessuna schermata corrente"), Empty.CurrentScreen().IsNone());
+	TestFalse(TEXT("niente Back"), Empty.CanGoBack());
+
+	TestEqual(TEXT("ReturnMain NON dichiara successo"), Empty.ReturnMain(), ERTNavResult::InvalidScreen);
+	TestEqual(TEXT("il Pop e' rifiutato"), Empty.PopScreen(), ERTNavResult::BlockedAtRoot);
+
+	// Anche una radice vuota produce uno stack non valido, invece di uno stack con una schermata `None`.
+	FRTScreenStack NoneRoot{ NAME_None };
+	TestFalse(TEXT("radice vuota => stack non valido"), NoneRoot.IsValid());
+
+	return true;
+}
+
+/**
+ * `InitializeFrontend` con un nome vuoto **dice di no**, invece di restare muto.
+ *
+ * 🔴 Prima era `void`: il navigatore restava non inizializzato e ogni push successivo rispondeva `Ok`
+ * mentre nessun widget compariva mai — un fallimento indistinguibile dal successo, che e' cio' che
+ * `ERTNavResult` esiste per impedire. Trovato in code review.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendInitRejectsEmptyRootTest,
+	"RefactorTactics.Frontend.InitializeWithEmptyRootIsRejected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendInitRejectsEmptyRootTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	TestEqual(TEXT("radice vuota rifiutata"),
+		Nav->InitializeFrontend(NAME_None), ERTNavResult::InvalidScreen);
+
+	TestEqual(TEXT("e con una radice vera passa"),
+		Nav->InitializeFrontend(Main), ERTNavResult::Ok);
+	TestEqual(TEXT("radice attiva"), Nav->GetCurrentScreen(), Main);
+
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * **La presentazione con un binding vero.**
+ *
+ * 🔴 La code review ha misurato che nessun test registrava una schermata, quindi `PresentWidget` usciva
+ * alla prima riga in **tutti** i test: creazione, `AddToViewport`, `DismissWidget`, l'ordine smonta-poi-
+ * monta e `SetIsEnabled` avevano copertura **zero**. `TestNull(FindLiveWidget(...))` passava per assenza
+ * di binding — sarebbe passato identico con `PresentWidget` svuotata a `return;`.
+ *
+ * Il binding c'e' e non serve un `.uasset`: basta **una `UUserWidget` concreta qualsiasi**.
+ *
+ * ⚠️ **Non `UUserWidget` stesso**, ed e' costato un giro di build: e' `Abstract`, e `CreateWidget` la
+ * rifiuta con *«Abstract, Deprecated or Replaced classes are not allowed to be used to construct a user
+ * widget»*. Si usa `URTScreenHudWidgetBase`, che e' concreta (CP 11.7) e qui vale **solo come classe di
+ * comodo**: il frontend non dipende dall'HUD in-match, e il navigatore non sa cosa sta istanziando —
+ * e' proprio la proprieta' che questo test verifica. Una classe di prova propria richiederebbe un header
+ * `UCLASS()` dentro il modulo di gioco, che costerebbe piu' di quanto valga (stessa scelta, e stessa
+ * motivazione, di `RTScreenHudWidgetTests.cpp`).
+ *
+ * ⚠️ Cosa questo test NON prova, ed e' dichiarato: senza un viewport reale `AddToViewport` non mette nulla
+ * a schermo, quindi `IsInViewport()` resta falso e il ramo di `SetIsEnabled` non viene esercitato. Quella
+ * meta' resta di `PIE-V01-FRONTEND-NAV`. Cio' che si prova qui e' il **ciclo di vita** dei widget, che e'
+ * dove stavano i due difetti trovati in review.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendPresentsAndReusesWidgetsTest,
+	"RefactorTactics.Frontend.NavigatorCreatesAndReusesWidgets",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendPresentsAndReusesWidgetsTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	Nav->RegisterScreen(Main, TSoftClassPtr<UUserWidget>(URTScreenHudWidgetBase::StaticClass()));
+	Nav->RegisterScreen(Play, TSoftClassPtr<UUserWidget>(URTScreenHudWidgetBase::StaticClass()));
+	Nav->InitializeFrontend(Main);
+
+	UUserWidget* RootWidget = Nav->FindLiveWidget(Main);
+	if (!TestNotNull(TEXT("la radice ha prodotto un widget"), RootWidget))
+	{
+		// Senza un mondo utilizzabile `CreateWidget` puo' non costruire: in quel caso il resto del test
+		// non ha soggetto, e dirlo e' meglio che asserire su un `nullptr`.
+		AddInfo(TEXT("CreateWidget non ha costruito in questo ambiente: presentazione non verificabile qui"));
+		ReleaseNavigator(GI);
+		return true;
+	}
+
+	Nav->PushScreen(Play);
+	UUserWidget* PlayWidget = Nav->FindLiveWidget(Play);
+	TestNotNull(TEXT("anche la seconda schermata"), PlayWidget);
+	TestNotEqual(TEXT("e sono due istanze diverse"), (void*)RootWidget, (void*)PlayWidget);
+
+	// Il Back non distrugge: i widget sono cache, ed e' la ragione per cui `FindLiveWidget` risponde
+	// ancora dopo un pop. Il commento della funzione lo dichiara — qui e' verificato.
+	Nav->PopScreen();
+	TestEqual(TEXT("tornando indietro la radice e' la stessa istanza"),
+		(void*)Nav->FindLiveWidget(Main), (void*)RootWidget);
+	TestNotNull(TEXT("e il widget uscito resta istanziato (cache voluta)"), Nav->FindLiveWidget(Play));
+
+	// Ri-navigare non ricrea.
+	Nav->PushScreen(Play);
+	TestEqual(TEXT("la seconda visita riusa l'istanza"),
+		(void*)Nav->FindLiveWidget(Play), (void*)PlayWidget);
+
+	ReleaseNavigator(GI);
 	return true;
 }
 

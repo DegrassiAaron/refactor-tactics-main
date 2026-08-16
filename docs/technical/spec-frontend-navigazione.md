@@ -195,7 +195,7 @@ qualcosa è sopravvissuto allo smontaggio.
 
 🔴 **Questa sezione diceva «nessuno dei checkpoint di E46 ha un test automatico possibile: il repository
 non ha infrastruttura di test UI», ed era falsa. L'ha falsificata l'implementazione di CP 46.1** (#936,
-2026-08-16), che ha prodotto **12 test** `RefactorTactics.Frontend.*`.
+2026-08-16), che ha prodotto **17 test** `RefactorTactics.Frontend.*`.
 
 Sbagliata in due modi, e il secondo conta più del primo:
 

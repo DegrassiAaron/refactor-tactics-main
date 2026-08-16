@@ -4258,8 +4258,12 @@ features:
   # Nate il 2026-08-16 con D-144. Prefisso `RT-FEAT-UI-FRONTEND-*` e non
   # `RT-FEAT-UI-SCENARIO-*`: quel nome e' gia' occupato da una cosa diversa — l'indice C++
   # di #209, che non e' un widget. Vedi `plans/menu-frontend-spec-panel-2026-08-16.md` §4.1.
-  # `automation: todo` per tutte e quattro, e non e' pigrizia: il repository non ha
-  # infrastruttura di test UI, quindi la verifica e' PIE. Stesso regime di E21.
+  # 🔴 Questa intestazione diceva: «`automation: todo` per tutte e quattro, e non e' pigrizia: il
+  # repository non ha infrastruttura di test UI, quindi la verifica e' PIE». **Falso**, e lo dichiarava
+  # 44 righe sopra la nota che lo smentisce — il file si contraddiceva al proprio interno, trovato in
+  # code review. CP 46.1 ha prodotto **17 test** `RefactorTactics.Frontend.*` senza un solo `.uasset`:
+  # la navigazione non e' UI, e separata dalla presentazione si prova headless.
+  # `automation` resta `todo` sulle tre feature **senza codice**, ed e' `partial` su `-SHELL`.
   # ─────────────────────────────────────────────────────────────────────────────
 
   - feature_id: RT-FEAT-UI-FRONTEND-SHELL
@@ -4306,7 +4310,8 @@ features:
       `todo` «perche' il repository non ha infrastruttura di test UI». Era falso.** `RTScreenHudWidgets`
       prova gia' widget UMG headless (CP 11.7, cioe' *prima* di quella dichiarazione), e soprattutto **la
       navigazione non e' UI**: e' una macchina a stati che la governa, e separata dalla presentazione si
-      prova senza mondo ne' asset — **12 test** `RefactorTactics.Frontend.*`. Resta manuale il *layout*
+      prova senza mondo ne' asset — **17 test** `RefactorTactics.Frontend.*` (12 alla prima stesura, 5
+      aggiunti in code review per i difetti che aveva trovato). Resta manuale il *layout*
       dentro il `.uasset`, che e' di `PIE-V01-FRONTEND-NAV`: `partial` e non `done` per quello, e perche'
       CP 46.2 (loading, error modal) non e' ancora scritto.
       `runtime: partial` per la stessa ragione: dei due checkpoint della feature ne e' fatto uno.

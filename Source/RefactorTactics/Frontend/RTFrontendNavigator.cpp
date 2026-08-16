@@ -14,11 +14,19 @@ namespace
 	constexpr int32 ModalZBase = 1000;
 }
 
-void URTFrontendNavigator::InitializeFrontend(FName RootScreenId)
+ERTNavResult URTFrontendNavigator::InitializeFrontend(FName RootScreenId)
 {
+	if (RootScreenId.IsNone())
+	{
+		// Non si inizializza niente: uno stack con radice vuota accetterebbe transizioni che non
+		// producono mai un widget, cioe' fallirebbe in silenzio a ogni chiamata successiva.
+		return ERTNavResult::InvalidScreen;
+	}
+
 	Stack = FRTScreenStack(RootScreenId);
-	bInitialized = !RootScreenId.IsNone();
+	bInitialized = true;
 	SyncPresentation();
+	return ERTNavResult::Ok;
 }
 
 void URTFrontendNavigator::RegisterScreen(FName ScreenId, TSoftClassPtr<UUserWidget> WidgetClass)
@@ -98,8 +106,14 @@ void URTFrontendNavigator::PresentWidget(FName ScreenId, int32 ZOrder)
 		return;
 	}
 
-	TObjectPtr<UUserWidget>& Slot = LiveWidgets.FindOrAdd(ScreenId);
-	if (!Slot)
+	// 🔴 **Un puntatore locale, non un riferimento dentro la `TMap`.** `FindOrAdd` restituisce un
+	// riferimento al valore, e sia `CreateWidget` (che esegue `NativeOnInitialized`) sia `AddToViewport`
+	// (che esegue `NativeConstruct` e l'evento Blueprint `Construct`) possono richiamare il navigatore —
+	// tutte le sue funzioni sono `BlueprintCallable`. Una rientranza in `PresentWidget` fa `FindOrAdd` su
+	// `LiveWidgets`, il rehash sposta i valori, e il riferimento tenuto qui punta a memoria liberata.
+	// Trovato in code review; il costo della correzione e' zero e il difetto sarebbe stato intermittente.
+	UUserWidget* Widget = FindLiveWidget(ScreenId);
+	if (!Widget)
 	{
 		UClass* WidgetClass = Binding->LoadSynchronous();
 		if (!WidgetClass)
@@ -109,12 +123,20 @@ void URTFrontendNavigator::PresentWidget(FName ScreenId, int32 ZOrder)
 
 		// ⚠️ **L'unico `CreateWidget` del codebase, insieme a quelli di `DismissWidget`.** Se ne compare uno
 		// dentro un widget, il DoD di CP 46.1 e' violato e il `grep` lo dice.
-		Slot = CreateWidget<UUserWidget>(GI, WidgetClass);
+		Widget = CreateWidget<UUserWidget>(GI, WidgetClass);
+		if (!Widget)
+		{
+			return;
+		}
+
+		// La mappa si scrive **dopo** la costruzione, e da qui in poi non si tengono riferimenti al suo
+		// interno: qualunque rientranza trova una mappa coerente.
+		LiveWidgets.Add(ScreenId, Widget);
 	}
 
-	if (Slot && !Slot->IsInViewport())
+	if (!Widget->IsInViewport())
 	{
-		Slot->AddToViewport(ZOrder);
+		Widget->AddToViewport(ZOrder);
 	}
 }
 
@@ -166,12 +188,26 @@ void URTFrontendNavigator::SyncPresentation()
 		PresentWidget(Modal, ModalZ++);
 	}
 
-	// La schermata sotto non riceve input mentre un modale la copre (DoD). E' `bIsEnabled` e non
-	// `Visibility`: nasconderla la farebbe sparire da sotto il modale, mentre deve restare **visibile e
-	// inerte** — un modale che oscura il contesto che sta interrompendo e' peggio di nessun modale.
-	if (UUserWidget* Current = FindLiveWidget(Stack.CurrentScreen()))
+	// Solo cio' che sta in CIMA riceve input: il modale piu' recente se ce n'e' uno, altrimenti la
+	// schermata corrente. Tutto il resto resta **visibile e inerte**.
+	//
+	// E' `bIsEnabled` e non `Visibility`: nasconderlo lo farebbe sparire da sotto il modale, mentre deve
+	// restare leggibile — un modale che oscura il contesto che sta interrompendo e' peggio di nessun modale.
+	//
+	// 🔴 **Questa parte disabilitava la sola `CurrentScreen()`**, quindi con due modali impilati quello
+	// sotto restava **cliccabile** attraverso quello sopra. Trovato in code review: il DoD dice «il modale
+	// disabilita cio' che sta sotto», e un modale sotto un altro modale *sta sotto*.
+	const FName InteractiveId = Stack.IsModalOpen() ? Stack.TopModal() : Stack.CurrentScreen();
+
+	for (const TPair<FName, TObjectPtr<UUserWidget>>& Pair : LiveWidgets)
 	{
-		Current->SetIsEnabled(Stack.IsScreenInteractive());
+		if (UUserWidget* Widget = Pair.Value)
+		{
+			if (Widget->IsInViewport())
+			{
+				Widget->SetIsEnabled(Pair.Key == InteractiveId);
+			}
+		}
 	}
 }
 

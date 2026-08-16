@@ -805,6 +805,12 @@ preexisting:
   # `docs/roadmap/roadmap-v0.1.md` — **due `integration_only`** — più quattro viste generate
   # (`project-graph.json`, `feature-registry.json`, `featuremap.shortlist.md`, `roadmap.shortlist.md`,
   # `roadmap-map.svg`). Non tocca *questo* file, misurato. Chi la possiede la dichiari.
+  # ✅ **Dichiarata il 2026-08-16 da chi la possiede, ed e' la voce `frontend_shell` piu' sotto.** Quel
+  # branch e' atterrato (#948) e la sessione e' ripartita su `#936`, che e' **codice** e non un
+  # consolidamento documentale: la giustificazione «lavoro di integrazione per costruzione», con cui la
+  # PR precedente restava in `preexisting` senza track, non si applica piu'. Una track vera, con un
+  # `writable` che nomina i path — compresi i **file nuovi**, che questo file chiede di dichiarare
+  # esplicitamente e non di dare per liberi.
   # ⚠️ **`D:/rt-telecamera` è tornato**, dopo essere sparito fra ieri e oggi: `docs/esito-pie-camera`,
   # quattro file, e uno è `docs/technical/test-manuali-pie.md` — che dal 2026-08-16 è il `writable`
   # della track `playtest` (#942). Prenotato, non in uso: `playtest` è `IDLE`, quindi non c'è due
@@ -1933,6 +1939,43 @@ tracks:
         regenerates:
           - docs/roadmap/editormap.shortlist.md
           - docs/roadmap/project-graph.json
+    binary_leases: []
+
+  frontend_shell:
+    status: ACTIVE
+    issue: 936
+    branch: feat/936-frontend-navigation
+    worktree: D:/rt-menu
+    note: >-
+      CP 46.1 di **E46** — il navigation controller del frontend (`#934`). ➕ **Track aperta il 2026-08-16
+      su richiesta esplicita di questo file**, che alla sezione `preexisting` scriveva *«`D:/rt-menu` è la
+      sessione più pericolosa del lotto … chi la possiede la dichiari»*. Il branch precedente di quel
+      worktree (`docs/menu-frontend-consolidamento`, PR #948) stava in `preexisting` senza track perché era
+      **consolidamento documentale**, cioè integrazione per costruzione. Questo è **codice**, e quella
+      giustificazione non si applica.
+      ⚠️ **I quattro file di `Frontend/` sono NUOVI, e sono dichiarati lo stesso.** «File nuovo, quindi
+      conteso da nessuno» non è un'esenzione: questo file lo prescrive già altrove, con la stessa formula
+      usata da `content_editor` per un test nuovo. Un path non dichiarato è un path che la prossima track
+      può prendere senza saperlo.
+      🔴 **`Source/RefactorTactics/UI/` NON è di questa track**: è di `client_tools` (`#78`), e il frontend
+      è nato in `Frontend/` anche per questo. Non è però una scappatoia — è la traduzione fisica del
+      principio già deciso, `Frontend != In-Match HUD`, e la separazione vale a prescindere da chi possiede
+      cosa. La verifica è nel codice: `RTFrontendNavigator` non include nulla di `UI/` (il solo include è
+      in un **test**, per avere una `UUserWidget` concreta, ed è annotato).
+      ⚠️ `Tests/RTFrontendNavigationTests.cpp` è dichiarato **per nome** e non per prefisso: `Tests/` è
+      condivisa fra tutte le track, e prenderla per prefisso bloccherebbe chiunque scriva un test.
+    writable:
+      - Source/RefactorTactics/Frontend/
+      - Source/RefactorTactics/Tests/RTFrontendNavigationTests.cpp
+      - docs/technical/spec-frontend-navigazione.md
+    derives_from:
+      - source: docs/roadmap/feature-registry.yaml
+        regenerates:
+          - docs/roadmap/feature-registry.json
+          - docs/roadmap/featuremap.shortlist.md
+          - docs/roadmap/project-graph.json
+          - docs/roadmap/charts/roadmap-map.svg
+        shared_with: [integrazione]
     binary_leases: []
 
   verification:
