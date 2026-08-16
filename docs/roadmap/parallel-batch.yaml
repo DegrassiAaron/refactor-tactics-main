@@ -2366,6 +2366,11 @@ tracks:
       # 💡 La lezione, per la prossima riallocazione: un write-set si misura sui branch **vivi al
       # momento del merge**, non a quello della decisione. Fra i due c'e' stata una PR.
       - docs/technical/spec-frontend-navigazione.md
+      # ➕ **File nuovo, dichiarato prima di crearlo** (2026-08-16): la guida per costruire i `WBP_RT_*`
+      # in editor. E' il gemello di `guida-screen-hud-umg.md` — che CP 11.7 ha scritto per lo stesso
+      # motivo — e sta accanto alla spec perche' la spec dice *cosa*, la guida *come*. Le due si leggono
+      # insieme e le scrive la stessa track.
+      - docs/technical/guida-frontend-umg.md
       # ➕ **Entrano il 2026-08-16 con CP 46.2** (`#937`), e la richiesta è stata istruita invece che
       # data per scontata: lo spec panel aveva scritto *«va assegnato prima»* credendoli non assegnati,
       # e la misura ha detto che erano di `autobattle`. Quella track ha **finito** (`#954` `CLOSED`, PR
