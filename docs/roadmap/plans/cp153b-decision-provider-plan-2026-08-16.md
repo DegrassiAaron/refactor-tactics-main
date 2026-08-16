@@ -537,7 +537,7 @@ git commit -m "feat(512): un refuso a livello di turno smette di essere ignorato
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h:24`
 - Test: `Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp`
 
-- [ ] **Passo 1 — scrivi il test che fallisce**
+- [x] **Passo 1 — scrivi il test che fallisce**
 
 ```cpp
 /**
@@ -574,11 +574,11 @@ bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
 }
 ```
 
-- [ ] **Passo 2 — eseguilo e verifica che fallisca**
+- [x] **Passo 2 — eseguilo e verifica che fallisca**
 
 Atteso: il caso `2` è rosso — `SupportedVersion` è ancora 1.
 
-- [ ] **Passo 3 — alza la costante**
+- [x] **Passo 3 — alza la costante**
 
 In `RTScenarioLoader.h`:
 
@@ -588,11 +588,11 @@ In `RTScenarioLoader.h`:
 	static constexpr int32 SupportedVersion = 2;
 ```
 
-- [ ] **Passo 4 — eseguilo e verifica che passi**
+- [x] **Passo 4 — eseguilo e verifica che passi**
 
 Atteso: `Success`. Rilancia `RefactorTactics.Scenario` per intero.
 
-- [ ] **Passo 5 — commit**
+- [x] **Passo 5 — commit**
 
 ```bash
 git add Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h \

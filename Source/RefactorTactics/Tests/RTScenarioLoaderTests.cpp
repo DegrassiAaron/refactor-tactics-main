@@ -746,4 +746,37 @@ bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il formato cresce di una versione, e il gate serve nel verso che conta: una build VECCHIA deve
+ * **rifiutare** uno scenario che non sa leggere, non ignorarne i campi. Da `#926` gli scenari viaggiano
+ * dentro il pacchetto, quindi la coppia build/dato puo' disallinearsi davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderVersionTwoTest,
+	"RefactorTactics.Scenario.LoaderSupportsVersionTwo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
+{
+	auto Prova = [this](int32 Versione, bool bAtteso)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Decisions.Version", "version": %d, "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Versione);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestEqual(FString::Printf(TEXT("versione %d"), Versione), bLoaded, bAtteso);
+	};
+
+	Prova(1, true);   // i 76 scenari esistenti restano a 1 e non si toccano
+	Prova(2, true);   // la versione che dichiara `decisions`
+	Prova(3, false);  // il gate resta un gate
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
