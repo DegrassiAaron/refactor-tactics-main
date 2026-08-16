@@ -43,14 +43,23 @@ namespace
 		static const TSet<FString> Available = {
 			TEXT("FixtureReference"),  // lo scenario riferisce la geometria per nome
 			// E5: reazioni componibili che scattano o non scattano — il regime `AllowedResponses <= 1` di
-			// ADR-0004 §2. Il perimetro e' stato **rimisurato** con `#582` dopo CP 14.4, e la risposta non e'
-			// quella che la issue supponeva: `BuildOverwatchTriggers` produce opportunity a due risposte, ma
-			// `grep -rn "BuildOverwatchTriggers" Source/ --include=*.cpp | grep -v /Tests/` non trova nessun
-			// chiamante — la regola e' pura e nessuno la invoca in partita. Quindi in un turno vero le
-			// opportunity restano quelle di E5, e questa riga descrive ancora il codice che gira.
+			// ADR-0004 §2, e **solo quello**.
 			//
-			// Il giorno in cui `ResolveCombat` chiamera' quella funzione, questa riga smette di essere vera e va
-			// divisa: la DECISIONE su un'opportunity a due risposte non appartiene a `Reaction` (vedi sotto).
+			// ✅ **Divisa con `#512` il 2026-08-16, alla condizione che questa riga si era scritta da sola.**
+			// Diceva: *«il giorno in cui `ResolveCombat` chiamera' `BuildOverwatchTriggers`, questa riga smette
+			// di essere vera e va divisa»*. Quel giorno e' arrivato con CP 14.5. Il grep che il commento
+			// nominava — `grep -rn "BuildOverwatchTriggers" Source/ --include=*.cpp | grep -v /Tests/` — da'
+			// oggi **cinque** righe, e `RTTurnManager.cpp:5093` e' una chiamata di PRODUZIONE, non un commento.
+			// L'affermazione «nessun chiamante» era l'unica parte scaduta.
+			//
+			// La divisione e' fra i due nomi che esistono gia', non con un terzo: la DECISIONE su
+			// un'opportunity a due risposte e' `DecisionBoundary`. Misurato che i tre scenari che chiedono
+			// `Reaction` — `Combat/CounterStrikesBack`, `Visual/Reaction/Deflection`,
+			// `Visual/Reaction/Interposition` — sono tutti nel regime `<= 1`: un nome nuovo li costringerebbe a
+			// cambiare senza che cambi cio' che chiedono.
+			//
+			// Pinnata da `Scenario.ReactionAndDecisionBoundaryAreDistinct`, che chiede **entrambe** le domande
+			// — noto e disponibile — perche' un nome noto e indisponibile e' precisamente l'altro caso.
 			TEXT("Reaction"),
 			TEXT("Environment"),       // E8: superfici, stati, propagazione
 			TEXT("Cover"),             // E9 CP 9.1/9.2: coperture bassa e alta, distruzione
@@ -191,10 +200,28 @@ namespace
 		// spiegazione, che e' meta' del valore.
 		//
 		//   `DecisionBoundary` e `ReactionClash` — la FINESTRA: sospendere la risoluzione e chiedere una
-		//   risposta. CP 14.4 ha consegnato la regola che riconosce un'opportunity contesa
-		//   (`RequiresDecisionBoundary`, `AllowedResponses >= 2`) ma **nessun chiamante di produzione**, e la
-		//   finestra da 3 s e' CP 14.5. Sono due nomi e non uno perche' separano due cose che possono atterrare
-		//   in tempi diversi: fermarsi a un boundary, e risolvere il confronto fra due risposte contese.
+		//   risposta. Sono due nomi e non uno perche' separano due cose che possono atterrare in tempi
+		//   diversi: fermarsi a un boundary, e risolvere il confronto fra due risposte contese.
+		//
+		//   🔴 **La ragione per cui `DecisionBoundary` resta indisponibile NON e' piu' quella scritta qui, e
+		//   il testo vecchio va letto come registro** (2026-08-16, `#512`). Diceva: «CP 14.4 ha consegnato la
+		//   regola ... ma **nessun chiamante di produzione**, e la finestra da 3 s e' CP 14.5». Entrambe le
+		//   meta' sono scadute: CP 14.5 e' chiusa, `RTTurnManager.cpp:5093` chiama `BuildOverwatchTriggers` in
+		//   partita, e con `#512` un decisore iniettato risponde davvero a una finestra vera
+		//   (`ShowcaseRelay.DecisionProviderIsInjectable`).
+		//
+		//   La ragione VERA e' un'altra, ed e' sui DATI: gli scenari che la chiedono **non hanno le
+		//   `decisions`** che li renderebbero rispondibili — `Spec/Overwatch/HoldThenFire` e
+		//   `Spec/Brace/ProfileChangesResponse` ne hanno zero, misurate. Scoprirla li farebbe girare senza
+		//   nessuno che risponda alle loro finestre.
+		//
+		//   ⚠️ **Misurato scoprendola per davvero, invece di prevederlo**: il piano diceva che sarebbero
+		//   passati «da `BLOCKED` a `FAIL`, che `EveryShippedScenarioRuns` non accetta». Non e' cosi' —
+		//   quel test resta VERDE. A cadere sono altri due, e dicono qualcosa di piu' preciso:
+		//   `Scenario.ShowcaseRelayV01RunsTurnOne` (`RT_Showcase_Relay_v01` arriva a **cinque** turni invece
+		//   di tre: il T2 non si ferma piu') e `Scenario.UnknownCapabilityIsErrorNotBlocked`, che usa
+		//   `DecisionBoundary` proprio come **esempio** di «nota ma non disponibile» e ne perderebbe il
+		//   soggetto. Si scopre **insieme** ai dati, ed e' fase B.
 		//
 		//   `Facing` — ✅ **riconciliata il 2026-08-13**: era il doppione di `DeclaredRotation` con un altro
 		//   nome, e i due dovevano essere unificati «quando l'input arrivera'» (#291). L'input e' arrivato, e
@@ -361,6 +388,11 @@ namespace
 bool FRTScenarioSession::IsKnownCapability(const FString& Capability)
 {
 	return IsCapabilityKnown(Capability);
+}
+
+bool FRTScenarioSession::IsAvailableCapability(const FString& Capability)
+{
+	return IsCapabilityAvailable(Capability);
 }
 
 bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenario)

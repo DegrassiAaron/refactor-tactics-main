@@ -69,6 +69,16 @@ public:
 	 */
 	static bool IsKnownCapability(const FString& Capability);
 
+	/**
+	 * Il gioco sa fare questa cosa **oggi**?
+	 *
+	 * ⚠️ Non e' `IsKnownCapability`, ed e' la distinzione che l'intero vocabolario esiste per fare: un nome
+	 * **noto** puo' essere indisponibile — vale `Blocked`, ed e' un'attesa legittima — mentre un nome
+	 * **ignoto** e' un refuso e vale `Error`. Chiedere «e' noto?» dove serve «e' disponibile?» rimette
+	 * insieme i due insiemi che `KnownUnavailableCapabilities()` serve a separare.
+	 */
+	static bool IsAvailableCapability(const FString& Capability);
+
 	const FRTTestResult& GetResult() const { return Result; }
 
 	/** Turno corrente (1-based) mentre gira, per la diagnostica a schermo. 0 = non ancora partito. */

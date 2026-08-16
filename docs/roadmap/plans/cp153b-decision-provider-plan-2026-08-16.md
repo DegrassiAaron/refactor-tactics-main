@@ -1432,6 +1432,30 @@ git commit -m "feat(512): una risposta rifiutata smette di essere indistinguibil
 
 ## Task 10: la divisione di `Reaction`
 
+> ✅ **Eseguito il 2026-08-16. Il passo 1 azzecca, gli altri due hanno ciascuno un difetto.**
+>
+> - ✅ **Il grep dà esattamente cinque righe**, e `RTTurnManager.cpp:5093` è una chiamata di **produzione**
+>   (le altre quattro sono tre commenti e la definizione). La premessa della divisione regge: è
+>   l'affermazione «nessun chiamante» a essere scaduta, non la voce di DoD.
+> - ⚠️ **Il test faceva una sola domanda dove ne servono due.** `IsKnownCapability` è vera **anche** per le
+>   indisponibili — è il suo scopo — quindi chiederla per `Reaction` e per `DecisionBoundary` avrebbe pinnato
+>   soltanto che i due nomi esistono, non che stanno da parti opposte. La divisione **è** la coppia
+>   `noto` × `disponibile`. Esposta `FRTScenarioSession::IsAvailableCapability` accanto a `IsKnownCapability`,
+>   che era **già** nell'header (il piano supponeva fosse interna: lo è `IsCapabilityKnown`, la funzione del
+>   namespace anonimo che quel wrapper inoltra).
+> - 🔴 **La motivazione da scrivere per `DecisionBoundary` era sbagliata, e si è visto scoprendola davvero.**
+>   Il piano diceva che gli scenari sarebbero passati «da `BLOCKED` a `FAIL`, che `EveryShippedScenarioRuns`
+>   non accetta». Misurato spostando la capability fra le disponibili: **quel test resta verde**. A cadere
+>   sono altri due, e dicono qualcosa di più preciso — `Scenario.ShowcaseRelayV01RunsTurnOne`
+>   (`RT_Showcase_Relay_v01` arriva a **cinque** turni invece di tre: il T2 non si ferma più) e
+>   `Scenario.UnknownCapabilityIsErrorNotBlocked`, che usa `DecisionBoundary` proprio come **esempio** di
+>   «nota ma non disponibile» e ne perderebbe il soggetto. Il commento atterrato riporta la misura, non la
+>   previsione.
+>
+> Le tre affermazioni fattuali del passo 3 sono state verificate una per una: i tre scenari che chiedono
+> `Reaction` sono quelli nominati, e `Spec/Overwatch/HoldThenFire` e `Spec/Brace/ProfileChangesResponse`
+> hanno **zero** `decisions`.
+
 È la sesta voce del DoD, ed è l'unica che non tocca comportamento: il commento di `AvailableCapabilities()`
 si è scritto da solo la propria condizione di scadenza — *«il giorno in cui `ResolveCombat` chiamerà quella
 funzione, questa riga smette di essere vera e va divisa»* — e quel giorno è arrivato.
@@ -1440,7 +1464,7 @@ funzione, questa riga smette di essere vera e va divisa»* — e quel giorno è 
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp:40-53`
 - Test: `Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp`
 
-- [ ] **Passo 1 — rimisura il grep che il commento nomina, invece di fidarti della prosa**
+- [x] **Passo 1 — rimisura il grep che il commento nomina, invece di fidarti della prosa**
 
 ```bash
 grep -rn "BuildOverwatchTriggers" Source/ --include=*.cpp | grep -v /Tests/
@@ -1450,7 +1474,7 @@ Atteso: **cinque** righe, fra cui `RTTurnManager.cpp:5093`, che è di **produzio
 «nessun chiamante»: è quell'affermazione a essere scaduta. Se il grep desse zero righe, **fermati**: la
 premessa della divisione non regge e la voce di DoD va rimessa in discussione, non spuntata.
 
-- [ ] **Passo 2 — scrivi il test che pinna i due significati**
+- [x] **Passo 2 — scrivi il test che pinna i due significati**
 
 ```cpp
 /**
@@ -1482,7 +1506,7 @@ bool FRTScenarioReactionSplitTest::RunTest(const FString&)
 è esposta** (`grep -n "IsCapabilityKnown" RTScenarioSession.h`). Se è interna al `.cpp`, esponila
 nell'header — è nel write-set — invece di duplicare gli elenchi nel test.
 
-- [ ] **Passo 3 — riscrivi il commento scaduto**
+- [x] **Passo 3 — riscrivi il commento scaduto**
 
 In `AvailableCapabilities()`, al posto delle righe che dichiarano «nessun chiamante»:
 
@@ -1515,13 +1539,13 @@ e, nella motivazione di `DecisionBoundary` in `KnownUnavailableCapabilities()`, 
 			TEXT("DecisionBoundary"),
 ```
 
-- [ ] **Passo 4 — eseguilo, e poi il corpus**
+- [x] **Passo 4 — eseguilo, e poi il corpus**
 
 `RefactorTactics.Scenario.ReactionAndDecisionBoundaryAreDistinct` → `Success`.
 Poi `RefactorTactics.Scenario` per intero: **nessuno scenario deve cambiare esito**. Questo task non muove
 comportamento — se un file passa da `BLOCKED` a qualcos'altro, hai scoperto la capability per sbaglio.
 
-- [ ] **Passo 5 — i due `--check`**, poi commit
+- [x] **Passo 5 — i due `--check`**, poi commit
 
 ```bash
 python scripts/feature_registry.py generate --check

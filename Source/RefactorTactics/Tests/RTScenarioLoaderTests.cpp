@@ -7,6 +7,7 @@
 #include "Misc/AutomationTest.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioSession.h" // le due domande del vocabolario: noto e disponibile
 #include "Turn/RTTurnLog.h" // gli esiti che le assertion sul log nominano per nome
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -776,6 +777,39 @@ bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
 	Prova(1, true);   // i 76 scenari esistenti restano a 1 e non si toccano
 	Prova(2, true);   // la versione che dichiara `decisions`
 	Prova(3, false);  // il gate resta un gate
+	return true;
+}
+
+/**
+ * `Reaction` e `DecisionBoundary` sono due nomi con due regimi, e il confine e' la CARDINALITA' — non due
+ * nomi per la stessa cosa. Il test esiste perche' la divisione, senza, vive solo in un commento: e un
+ * commento che dichiara la propria scadenza l'ha gia' mancata una volta.
+ *
+ * ⚠️ Servono ENTRAMBE le domande, e il piano ne faceva una sola. `IsKnownCapability` e' vera anche per le
+ * indisponibili — e' il suo scopo — quindi chiederla per `Reaction` e per `DecisionBoundary` avrebbe
+ * pinnato soltanto che i due nomi esistono, non che stanno da parti opposte. La divisione E' la coppia
+ * `noto` × `disponibile`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioReactionSplitTest,
+	"RefactorTactics.Scenario.ReactionAndDecisionBoundaryAreDistinct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioReactionSplitTest::RunTest(const FString&)
+{
+	// `Reaction` copre il regime E5 `AllowedResponses <= 1` ed e' DISPONIBILE: i tre scenari che la chiedono
+	// girano oggi.
+	TestTrue(TEXT("Reaction e' nota"), FRTScenarioSession::IsKnownCapability(TEXT("Reaction")));
+	TestTrue(TEXT("e disponibile"), FRTScenarioSession::IsAvailableCapability(TEXT("Reaction")));
+
+	// `DecisionBoundary` copre `>= 2`: nome NOTO — quindi un turno che lo chiede vale `Blocked`, non
+	// `Error` — ma non disponibile in fase A. Le due asserzioni insieme sono la divisione.
+	TestTrue(TEXT("DecisionBoundary e' un nome noto"),
+		FRTScenarioSession::IsKnownCapability(TEXT("DecisionBoundary")));
+	TestFalse(TEXT("ma NON e' disponibile in fase A"),
+		FRTScenarioSession::IsAvailableCapability(TEXT("DecisionBoundary")));
+
+	// E un nome inventato resta un errore di scrittura, non un'attesa: e' l'altra meta' del vocabolario.
+	TestFalse(TEXT("un nome inventato non e' noto"),
+		FRTScenarioSession::IsKnownCapability(TEXT("ReactionDecision")));
 	return true;
 }
 
