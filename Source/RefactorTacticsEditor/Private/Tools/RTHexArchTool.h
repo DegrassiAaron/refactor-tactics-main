@@ -17,6 +17,31 @@ enum class ERTHexArchOp : uint8
 	Remove
 };
 
+/**
+ * Perche' un arco pendente e' stato chiuso — `#996`.
+ *
+ * Le cinque voci sono le cinque chiamanti di `DestroyPendingGizmo`, e servono a una domanda sola: quando un
+ * gizmo sparisce, e' stato chiuso da noi o e' sparito da solo? Senza il motivo, il log direbbe *che* e'
+ * successo e non *perche'*, che e' esattamente l'ambiguita' che la issue esiste per sciogliere.
+ *
+ * ⚠️ **Non c'e' un valore di default, ed e' deliberato**: il parametro senza default costringe una sesta
+ * chiamante — se un giorno nascera' — a dichiarare la propria ragione invece di scivolare dentro un
+ * `Unknown` che nessuno noterebbe leggendo il log.
+ */
+enum class ERTArchPendingClose : uint8
+{
+	/** `OnClicked`: si riparte da una nuova cella `From`. */
+	ReClick,
+	/** Il tool termina: cambio tool, oppure uscita dal mode. */
+	Shutdown,
+	/** `CommitArch`: la transizione e' stata scritta, il pendente ha finito il suo compito. */
+	Committed,
+	/** `ClearPending`: il bottone `ClearArch` del pannello. */
+	ClearedByUser,
+	/** `RemoveNearestArch`: si esce da un Add pendente perche' l'operazione e' passata a Remove. */
+	SwitchedToRemove
+};
+
 /** Factory del tool archi. */
 UCLASS()
 class URTHexArchToolBuilder : public UInteractiveToolBuilder
@@ -88,7 +113,9 @@ public:
 
 protected:
 	void OnGizmoMoved(UTransformProxy* InProxy, FTransform InTransform);
-	void DestroyPendingGizmo();
+
+	/** Chiude l'arco pendente e ne scrive il motivo nel log (`#996`). Il motivo e' obbligatorio: vedi l'enum. */
+	void DestroyPendingGizmo(ERTArchPendingClose Reason);
 
 	/** Rimuove la transizione la cui linea From->To e' piu' vicina al ray del click, entro soglia. */
 	void RemoveNearestArch(ARTHexMapActor* Actor, const FInputDeviceRay& ClickPos);

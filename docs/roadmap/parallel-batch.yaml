@@ -2646,6 +2646,15 @@ tracks:
       # (`CombinedTransformGizmo.cpp:1346`) e poi guidato dai sub-gizmo: scrivere sul proxy non lo sposta.
       # La correzione è di due righe e l'include c'è già. Zero contese misurate sui branch remoti.
       - Source/RefactorTacticsEditor/Private/Tools/RTHexArchTool.cpp
+      # ➕ **L'header dell'Arch entra il 2026-08-16, e la lacuna e' stata trovata dalla regola, non dal caso.**
+      # `#931` prese il solo `.cpp` perche' la sua correzione stava tutta li'. `#996` invece dichiara il motivo
+      # di chiusura come **parametro** di `DestroyPendingGizmo`, e un tipo che compare in una firma dichiarata
+      # nell'header vive nell'header: non c'e' una stesura di quella fetta che tocchi solo il `.cpp`.
+      # ⚠️ Trovata eseguendo il controllo di ownership PRIMA del commit e non dopo — il file era gia' modificato
+      # in working tree. Un header e il suo `.cpp` si toccano insieme quasi sempre, e «quasi sempre» e' il
+      # motivo per cui questa coppia va dichiarata invece che presunta.
+      # Misurato: **nessuno** dei branch remoti vivi tocca questo file.
+      - Source/RefactorTacticsEditor/Private/Tools/RTHexArchTool.h
       - Source/RefactorTacticsEditor/RefactorTacticsEditor.Build.cs
       # ➕ **Riallocazione del 2026-08-16: le due issue del mode Hex Map, `#996` e `#921`.** Entrambe nate
       # dalla seduta U1 e finora **non cominciabili**: nessuno dei nove path qui sotto stava in un
@@ -3968,7 +3977,7 @@ tracks:
   playback:
     status: ACTIVE
     issue: 1015
-    branch: docs/1015-handoff-pie
+    branch: docs/1015-pie-tetto
     worktree: "D:/rt-1015"
     note: >-
       ✅ **Il CODICE di `#1015` è atterrato: PR #1028 mergiata (`02e85e23`, `2026-08-16T14:39:53Z`),
