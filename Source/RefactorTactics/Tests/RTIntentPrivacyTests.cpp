@@ -181,28 +181,64 @@ bool FRTIntentCertaintyClassificationTest::RunTest(const FString&)
 		TestEqual(TEXT("in scatto: incerto"), V[0].Certainty, ERTIntentCertainty::Uncertain);
 	}
 
-	// La REAZIONE ha il suo livello, e DIVERGE dal piano: e' il caso che rende `ReactionCertainty` un dato
-	// invece di una costante. Il piano di un'unita' ferma e' confermato; la reazione che tiene pronta
-	// aspetta un trigger che decide l'avversario, quindi no.
+	// La REAZIONE non ha piu' un livello proprio, e la coppia di casi qui sotto pinna cio' che resta vero:
+	// il piano di un'unita' ferma e' `Confirmed` **anche quando tiene pronto un contrattacco**, e l'unica
+	// cosa che distingue «reazione armata» da «nessuna reazione» e' `ReactionName`.
+	//
+	// 🔴 Qui c'erano due assert su `ReactionCertainty`, e insieme misuravano una costante: il campo valeva
+	// `Uncertain` con la reazione e — dopo il primo fix — `Uncertain` anche senza, cioe' i due blocchi
+	// raggiungevano lo stesso valore per strade diverse e l'armamento della reazione era causalmente
+	// irrilevante. Il campo e' uscito dal DTO; questi due casi restano perche' la loro domanda vera —
+	// «armare una reazione cambia la certezza del PIANO?» — ha ancora una risposta, ed e' no.
 	{
 		FRTPlannedIntent Armed = MakeIdleIntent(0);
 		Armed.ReactionName = FText::FromString(TEXT("Contrattacco"));
 		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { Armed });
 		if (!TestEqual(TEXT("una vista"), V.Num(), 1)) { return false; }
 		TestEqual(TEXT("il piano resta confermato"), V[0].Certainty, ERTIntentCertainty::Confirmed);
-		TestEqual(TEXT("ma la reazione armata e' incerta"), V[0].ReactionCertainty,
-			ERTIntentCertainty::Uncertain);
+		TestFalse(TEXT("e l'alleato riceve la reazione"), V[0].ReactionName.IsEmpty());
 	}
-
-	// Senza reazione il campo non afferma niente: resta al default, e il widget non ha una riga da disegnare
-	// perche' `ReactionName` e' vuota.
 	{
 		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { MakeIdleIntent(0) });
 		if (!TestEqual(TEXT("una vista"), V.Num(), 1)) { return false; }
-		TestTrue(TEXT("nessuna reazione da qualificare"), V[0].ReactionName.IsEmpty());
-		TestEqual(TEXT("il livello della reazione resta al default"), V[0].ReactionCertainty,
+		TestEqual(TEXT("stesso livello di piano senza reazione"), V[0].Certainty,
 			ERTIntentCertainty::Confirmed);
+		TestTrue(TEXT("e nessuna reazione da mostrare"), V[0].ReactionName.IsEmpty());
 	}
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// CP 11.2: il DTO non popolato deve promettere il MENO possibile, non il piu'
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIntentViewSafeDefaultsTest,
+	"RefactorTactics.UI.IntentViewDefaultsToUnknown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIntentViewSafeDefaultsTest::RunTest(const FString&)
+{
+	// Il default di `Certainty` era `Confirmed`: un campo mai popolato affermava la garanzia PIU' FORTE del
+	// dominio. Ogni percorso vivo lo assegna (`FilterForTeam` chiama `ClassifyPlan`), quindi il difetto non
+	// e' osservabile in partita — lo diventa in rete (M10) o al primo widget Blueprint.
+	//
+	// 🔴 **Un initializer non bastava, e questo test lo dimostra su DUE strade.** La prima correzione mise
+	// `= Uncertain` sul membro: difendeva la costruzione C++, che non era mai a rischio, e lasciava intatto
+	// il caso vero — `Confirmed` era ancora l'enumeratore **zero**, quindi qualunque memoria azzerata lo
+	// rileggeva. Serviva un valore che *significhi* «mai calcolato» **e** valga zero.
+	const FRTIntentView Fresh;
+	TestEqual(TEXT("il DTO costruito non afferma nessun livello"),
+		Fresh.Certainty, ERTIntentCertainty::Unknown);
+
+	// ⚠️ La seconda strada e' quella che l'initializer NON copre: memoria azzerata, come la produce una
+	// variabile Blueprint, un `Memzero` o un `SetNumZeroed`. Qui il membro non viene inizializzato dal
+	// costruttore C++, quindi il test misura il valore dell'ENUM e non quello della struct.
+	ERTIntentCertainty Zeroed;
+	FMemory::Memzero(&Zeroed, sizeof(Zeroed));
+	TestEqual(TEXT("e la memoria azzerata nemmeno"), Zeroed, ERTIntentCertainty::Unknown);
+
+	// La garanzia in una riga: lo zero del tipo non e' un livello disegnabile.
+	TestNotEqual(TEXT("lo zero del tipo non e' «confermato»"),
+		Zeroed, ERTIntentCertainty::Confirmed);
 	return true;
 }
 
@@ -250,19 +286,21 @@ bool FRTNoEnemyIntentExposedTest::RunTest(const FString&)
 	// Il cuore: la classificazione non si muove di un livello.
 	TestEqual(TEXT("la certezza del piano e' cieca ai piani nemici"),
 		Contested[0].Certainty, Alone[0].Certainty);
-	TestEqual(TEXT("e quella della reazione pure"),
-		Contested[0].ReactionCertainty, Alone[0].ReactionCertainty);
 
-	// E il nemico RIVELATO non porta comunque il proprio livello di reazione: `Reveal` mostra cosa un'unita'
-	// sta per fare, non cosa e' pronta a parare — quindi non c'e' una reazione da qualificare.
+	// 🔴 Qui c'era un secondo confronto, su `ReactionCertainty`, e la code review ha mostrato che stava per
+	// smettere di mordere: col default portato a `Uncertain` i due lati partivano entrambi dal livello
+	// MASSIMO, e un canale laterale puo' solo alzare — non restava niente da alzare. E' lo stesso difetto
+	// che l'ancora tre righe sopra previene per il piano, e per la reazione non c'era. Il campo e' poi
+	// uscito dal DTO; se un giorno torna, torna anche il confronto **con la sua ancora**.
+
+	// E il nemico RIVELATO non porta comunque la propria reazione: `Reveal` mostra cosa un'unita' sta per
+	// FARE, non cosa e' pronta a PARARE.
 	{
 		FRTPlannedIntent RevealedEnemy = Enemy;
 		RevealedEnemy.bRevealed = true;
 		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { RevealedEnemy });
 		if (!TestEqual(TEXT("il nemico rivelato produce una vista"), V.Num(), 1)) { return false; }
 		TestTrue(TEXT("senza la sua reazione"), V[0].ReactionName.IsEmpty());
-		TestEqual(TEXT("e senza un livello che la qualifichi"), V[0].ReactionCertainty,
-			ERTIntentCertainty::Confirmed);
 	}
 	return true;
 }
