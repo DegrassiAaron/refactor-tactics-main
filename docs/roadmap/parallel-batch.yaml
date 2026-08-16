@@ -3757,12 +3757,29 @@ tracks:
     binary_leases: []
 
   loadout_runtime:
-    status: ACTIVE
-    issue: 1054
-    branch: work/1054-assegnazione-loadout
+    status: IDLE
+    issue: null
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
-      **`#1054`, fetta B di `#63`** — l'assegnazione si accende. I default 1+1+1 esistono dalla fetta A e
+      ✅ **CHIUSA il 2026-08-16**: PR **#1072** mergiata in `main` come `e45afa14`, issue `#1054` chiusa col
+      DoD consuntivato nel commento. Con essa **`#63` è completa** — fetta A `0dd25439`, fetta B qui.
+      Il write-set è **svuotato**, non dichiarato tale. Suite sull'albero mergiato: **987 verdi**.
+
+      **La misura che questa track lascia**: i «33 scenari su 78» erano un limite superiore letto sul
+      sorgente. Eseguendo ne cadono **cinque**, e quattro non avevano numeri sbagliati — avevano perso la
+      **variabile che tenevano ferma**. Da lì è nata la terza forma di `loadout`: `assente` = il default
+      della partita, `[]` = l'unità entra spoglia e lo scenario lo **dichiara**. Le due danno entrambe zero
+      pezzi e significano l'opposto, quindi la condizione è su un **flag** e non sul conteggio — verificato
+      con una mutazione che fa cadere esattamente i quattro scenari isolati.
+
+      🔴 **Trovato di rimbalzo e non riparabile da qui**: `check-docs-links.py` è **rosso su `main`** dal
+      commit `273c76a6`, che ha cancellato `docs/src/README.md` lasciando **20 puntatori** in 17 file —
+      nessuno dei quali toccato da questa track. Aperta **#1071** con la misura e con la distinzione che
+      la riparazione richiede: per i documenti vivi il nuovo target è una **decisione**, mentre in
+      `docs/archive/` un link rotto può essere legittimo.
+
+      ➕ **Aperta il 2026-08-16.** `#1054`, fetta B di `#63`: i default 1+1+1 esistono dalla fetta A e
       non li applica nessuno: `DefaultWeaponVariantFor` ha chiamanti solo nei test, e né `RTGameMode` né
       `RTUnit` nominano equipaggiamento. La spinta di 2 di `Weapon.Impact` esiste nei dati, in un test e in
       uno scenario, **e in nessuna partita**.
@@ -3791,18 +3808,15 @@ tracks:
       `RTGameMode.cpp` e ha 73 voci non committate, **nessuna** sul file; `spatial` (ACTIVE) possiede
       `RTCatalogLibrary.h` e il suo branch non lo tocca; `unit_presentation` è IDLE su questo stesso
       worktree. Nessun branch remoto tocca i bersagli.
-    writable:
-      - Source/RefactorTactics/Unit/RTUnit.h
-      - Source/RefactorTactics/Unit/RTUnit.cpp
-      - Source/RefactorTactics/RTGameMode.cpp
-      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-      - Source/RefactorTactics/Tests/RTHeroSpawnTests.cpp
-      - Source/RefactorTactics/Tests/RTEquipmentTests.cpp
-      # `integration_only`, preso in integrazione: i 33 scenari sono il lavoro di questa fetta.
-      - Scenarios/
-    excludes:
-      # Lavoro vivo di un'altra sessione, misurato — vedi la nota.
-      - Scenarios/RT_Showcase_Relay_v01.json
+    # Rilasciato alla chiusura, e SCRITTO. Il `writable` era: `Unit/RTUnit.{h,cpp}` · `RTGameMode.cpp` ·
+    # `ScenarioHarness/RTScenarioSession.cpp` (più `RTScenarioLoader.cpp` e `RTTestScenario.h`, presi per la
+    # terza forma di `loadout`) · i due file di test · `Scenarios/` con l'esclusione dello showcase.
+    # `Scenarios/` torna a `integration_only`; gli altri non assegnati.
+    #
+    # ✅ **L'esclusione ha retto fino in fondo**: `Scenarios/RT_Showcase_Relay_v01.json` non è stato toccato,
+    # e nel frattempo il lavoro di `D:/rt-simulation` su quel file è atterrato in `main` da sé. Dopo il merge
+    # lo scenario esce `BLOCKED` — stato dichiarato, non un fallimento — e la suite resta verde.
+    writable: []
     binary_leases: []
 
   reconcile_skill:
