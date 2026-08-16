@@ -55,7 +55,15 @@ namespace
 		FString Saved;
 		FRTScopedAutobattleCommandLine() : Saved(FCommandLine::Get()) {}
 		~FRTScopedAutobattleCommandLine() { FCommandLine::Set(*Saved); }
-		void Append(const TCHAR* Args) { FCommandLine::Set(*(Saved + FString(TEXT(" ")) + Args)); }
+
+		/**
+		 * ⚠️ **`Set`, non `Append`: riparte sempre dalla riga salvata e ne tiene UNO alla volta.**
+		 * Si chiamava `Append` e non appendeva — chi avesse reso vero il nome (accumulando invece di
+		 * ripartire da `Saved`) avrebbe cambiato cosa misurano tre assertion **senza far diventare rosso
+		 * niente**: con `-RTAutobattle -RTAutobattle=0` sulla stessa riga vince comunque `FParse::Value`, e
+		 * il test continuerebbe a passare per un motivo diverso da quello scritto. Trovato in code review.
+		 */
+		void SetArgs(const TCHAR* Args) { FCommandLine::Set(*(Saved + FString(TEXT(" ")) + Args)); }
 		void Clear() { FCommandLine::Set(*Saved); }
 	};
 
@@ -247,13 +255,13 @@ bool FRTAutobattlePrecedenceTest::RunTest(const FString&)
 	// Solo il flag, nella forma nuda: e' quella che si scrive istintivamente, ed e' il caso del pacchetto
 	// dove la proprieta' e' quella spedita. Se non funzionasse fallirebbe in SILENZIO — il difetto misurato
 	// di #926, dove `-dpcvars` non arriva in Shipping e nessuno lo dice.
-	CmdGuard.Append(TEXT("-RTAutobattle"));
+	CmdGuard.SetArgs(TEXT("-RTAutobattle"));
 	TestTrue(TEXT("il flag nudo da solo attiva"), GameMode->ResolveAutobattle());
 
 	// E nella forma con valore, che e' quella simmetrica a `-RTScenario=`.
-	CmdGuard.Append(TEXT("-RTAutobattle=0"));
+	CmdGuard.SetArgs(TEXT("-RTAutobattle=0"));
 	TestFalse(TEXT("il flag con valore 0 spegne"), GameMode->ResolveAutobattle());
-	CmdGuard.Append(TEXT("-RTAutobattle=1"));
+	CmdGuard.SetArgs(TEXT("-RTAutobattle=1"));
 	TestTrue(TEXT("il flag con valore 1 accende"), GameMode->ResolveAutobattle());
 
 	// Flag contro proprieta': vince il flag, che e' l'intento di QUESTO avvio.
@@ -336,7 +344,7 @@ bool FRTAutobattlePlanningSecondsTest::RunTest(const FString&)
 	TestEqual(TEXT("la proprieta' decide i secondi di Planning"), TurnManager->GetPlanningSeconds(), 7.f);
 
 	// ...la riga di comando scavalca la proprieta'...
-	CmdGuard.Append(TEXT("-RTPlanningSeconds=3"));
+	CmdGuard.SetArgs(TEXT("-RTPlanningSeconds=3"));
 	GameMode->SetupHexMatch(HexMap);
 	TestEqual(TEXT("la riga di comando scavalca la proprieta'"), TurnManager->GetPlanningSeconds(), 3.f);
 
@@ -358,11 +366,163 @@ bool FRTAutobattlePlanningSecondsTest::RunTest(const FString&)
  *
  * ⚠️ La banda nomina la SORGENTE, come gia' fa per lo scenario: una console variable impostata una volta
  * resta attiva per ogni Play successivo, e senza saperlo si cerca il difetto nella property sbagliata.
+ *
+ * 🔴 **E la banda descrive la partita CHE SI STA GIOCANDO, non l'ultima cosa digitata.** `DrawHUD` la
+ * ridisegna a ogni fotogramma mentre `bIsBotControlled` e' scritto una volta sola allo spawn: leggendo il
+ * resolver, una console variable cambiata a meta' sessione avrebbe fatto comparire «AUTOBATTLE» su una
+ * partita con la squadra 0 ancora umana — e sparire la banda da una partita in cui i bot continuano a
+ * giocare. Trovato in code review; l'ultimo blocco di questo test copre entrambi i versi.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleBannerTest,
 	"RefactorTactics.Match.Autobattle.BannerDeclaresUnattendedMatch",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAutobattleBannerTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	FRTScopedAutobattleCVars CVarGuard;
+	FRTScopedAutobattleCommandLine CmdGuard;
+	CVarGuard.SetMode(-1);
+	CVarGuard.ClearScenario();
+	CmdGuard.Clear();
+
+	ARTHexMapActor* HexMap = SpawnAutobattleMap(World);
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	GameMode->ScenarioToRun.Reset();
+
+	// Partita normale: nessuna banda. Una banda sempre accesa e' rumore, e il rumore si impara a ignorare.
+	GameMode->bAutobattle = false;
+	GameMode->SetupHexMatch(HexMap);
+	TestTrue(TEXT("partita normale -> nessuna banda"), GameMode->GetScenarioBannerText().IsEmpty());
+
+	// Dalla proprieta': la banda c'e' e attribuisce al BP_GameMode.
+	GameMode->bAutobattle = true;
+	GameMode->SetupHexMatch(HexMap);
+	const FString FromProperty = GameMode->GetScenarioBannerText();
+	TestTrue(TEXT("autobattle -> la banda c'e'"), !FromProperty.IsEmpty());
+	TestTrue(TEXT("e dice che non e' una partita normale"), FromProperty.Contains(TEXT("AUTOBATTLE")));
+	TestTrue(TEXT("e attribuisce alla proprieta'"), FromProperty.Contains(TEXT("BP_GameMode")));
+
+	// Dalla console: stessa banda, sorgente diversa. E' l'unico punto in cui l'utente vede da dove viene la
+	// modalita', e una banda che nomina la fonte sbagliata e' peggio di una banda assente.
+	CVarGuard.SetMode(1);
+	GameMode->SetupHexMatch(HexMap);
+	const FString FromConsole = GameMode->GetScenarioBannerText();
+	TestTrue(TEXT("la banda nomina la console"), FromConsole.Contains(TEXT("rt.Match.Autobattle")));
+	TestFalse(TEXT("e non attribuisce al BP_GameMode"), FromConsole.Contains(TEXT("BP_GameMode")));
+
+	// LA BANDA NON MENTE A META' PARTITA. Spenta la console DOPO l'allestimento, le unita' in campo restano
+	// del bot: la banda deve continuare a dichiararlo, perche' descrive la partita e non la richiesta.
+	CVarGuard.SetMode(0);
+	TestFalse(TEXT("il resolver ora direbbe di no"), GameMode->ResolveAutobattle());
+	TestTrue(TEXT("ma la sessione E' non presidiata"), GameMode->IsAutobattleInEffect());
+	TestTrue(TEXT("e la banda resta quella della partita in corso"),
+		GameMode->GetScenarioBannerText().Contains(TEXT("AUTOBATTLE")));
+	TestEqual(TEXT("le unita' non sono cambiate sotto i piedi"), CountAutobattleHumanUnits(World), 0);
+
+	// E il verso opposto: acceso a meta' di una partita normale, la banda non deve annunciare una demo che
+	// non e' in corso — le unita' della squadra 0 sono ancora di chi gioca.
+	ARTGameMode* Normale = World->SpawnActor<ARTGameMode>();
+	if (TestNotNull(TEXT("secondo GameMode"), Normale))
+	{
+		CVarGuard.SetMode(-1);
+		Normale->bAutobattle = false;
+		Normale->SetupHexMatch(HexMap);   // il livello ha gia' le unita': nessun nuovo allestimento
+		CVarGuard.SetMode(1);
+		TestTrue(TEXT("il resolver ora direbbe di si'"), Normale->ResolveAutobattle());
+		TestFalse(TEXT("ma questa sessione non e' partita come demo"), Normale->IsAutobattleInEffect());
+		TestTrue(TEXT("e la banda tace"), Normale->GetScenarioBannerText().IsEmpty());
+	}
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * ZERO SECONDI DI PLANNING NON SONO «TURNI INCATENATI»: sono la partita ferma per sempre.
+ *
+ * 🔴 `SetPlanningSeconds` e `StartPlanningTimer` armano il timer solo `if (PlanningSeconds > 0.f)`. Con zero
+ * non lo arma nessuno, `OnPlanningTimeout` non scatta, `LockInAndResolve` non viene chiamato — e in una
+ * partita non presidiata non esiste una mano che possa chiudere il turno. La partita resta al turno 1
+ * mentre la banda dichiara che si sta giocando da sola. Il commento di questa stessa PR annunciava zero
+ * come valore legittimo: lo e' in `RTScenarioSession`, dove il turno lo pompa l'harness.
+ *
+ * ⚠️ In partita NORMALE zero resta zero, e non e' una svista: li' il lock-in lo preme chi gioca, e alzare il
+ * valore cambierebbe il gioco di tutti per un problema che ha solo la demo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleNoStallTest,
+	"RefactorTactics.Match.Autobattle.PlanningSecondsNeverStallAnUnattendedMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleNoStallTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	FRTScopedAutobattleCVars CVarGuard;
+	FRTScopedAutobattleCommandLine CmdGuard;
+	CVarGuard.SetMode(-1);
+	CVarGuard.SetPlanning(-1.f);
+	CmdGuard.Clear();
+
+	ARTHexMapActor* HexMap = SpawnAutobattleMap(World);
+	ARTTurnManager* TurnManager = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("TurnManager"), TurnManager)
+		|| !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Zero da ognuna delle tre sorgenti, con l'autobattle acceso: nessuna delle tre puo' fermare il turno.
+	GameMode->bAutobattle = true;
+
+	GameMode->MatchPlanningSeconds = 0.f;
+	GameMode->SetupHexMatch(HexMap);
+	TestTrue(TEXT("proprieta' a 0 -> il timer resta armabile"), TurnManager->GetPlanningSeconds() > 0.f);
+
+	GameMode->MatchPlanningSeconds = -1.f;
+	CmdGuard.SetArgs(TEXT("-RTPlanningSeconds=0"));
+	GameMode->SetupHexMatch(HexMap);
+	TestTrue(TEXT("riga di comando a 0 -> idem"), TurnManager->GetPlanningSeconds() > 0.f);
+
+	CmdGuard.Clear();
+	CVarGuard.SetPlanning(0.f);
+	GameMode->SetupHexMatch(HexMap);
+	TestTrue(TEXT("console a 0 -> idem"), TurnManager->GetPlanningSeconds() > 0.f);
+
+	// ...e resta comunque il valore piu' basso che l'orologio sa far scattare, non il ripiego di 2 s:
+	// l'intento «il piu' veloce possibile» va onorato, non sostituito.
+	TestTrue(TEXT("l'intento resta onorato: molto meno del ripiego"), TurnManager->GetPlanningSeconds() < 1.f);
+
+	// In partita NORMALE zero e' legittimo e non viene toccato: c'e' chi preme il lock-in.
+	GameMode->bAutobattle = false;
+	CVarGuard.SetMode(0);
+	GameMode->SetupHexMatch(HexMap);
+	TestEqual(TEXT("partita normale -> 0 resta 0"), TurnManager->GetPlanningSeconds(), 0.f);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * `-RTAutobattle=true` ACCENDE. Sembra ovvio, e con l'overload sbagliato faceva l'opposto.
+ *
+ * 🔴 `FParse::Value(..., int32&)` passa da `FCString::Atoi`, e `Atoi("true")` vale **0**: la forma che si
+ * scrive per prima avrebbe SPENTO la modalita', scavalcando in silenzio una proprieta' accesa. E su questa
+ * sorgente non c'e' rete di sicurezza — esiste apposta per il pacchetto **Shipping**, dove la console non
+ * arriva e non c'e' modo di accorgersi che il flag e' stato letto al contrario.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleFlagValueTest,
+	"RefactorTactics.Match.Autobattle.CommandLineValueIsUnderstood",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleFlagValueTest::RunTest(const FString&)
 {
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
@@ -373,27 +533,78 @@ bool FRTAutobattleBannerTest::RunTest(const FString&)
 	FRTScopedAutobattleCVars CVarGuard;
 	FRTScopedAutobattleCommandLine CmdGuard;
 	CVarGuard.SetMode(-1);
-	CVarGuard.ClearScenario();
-	CmdGuard.Clear();
-	GameMode->ScenarioToRun.Reset();
-
-	// Partita normale: nessuna banda. Una banda sempre accesa e' rumore, e il rumore si impara a ignorare.
 	GameMode->bAutobattle = false;
-	TestTrue(TEXT("partita normale -> nessuna banda"), GameMode->GetScenarioBannerText().IsEmpty());
 
-	// Dalla proprieta': la banda c'e' e attribuisce al BP_GameMode.
+	for (const TCHAR* Acceso : { TEXT("-RTAutobattle=1"), TEXT("-RTAutobattle=true"),
+								 TEXT("-RTAutobattle=True"), TEXT("-RTAutobattle=on") })
+	{
+		CmdGuard.SetArgs(Acceso);
+		TestTrue(FString::Printf(TEXT("%s accende"), Acceso), GameMode->ResolveAutobattle());
+	}
+
 	GameMode->bAutobattle = true;
-	const FString FromProperty = GameMode->GetScenarioBannerText();
-	TestTrue(TEXT("autobattle -> la banda c'e'"), !FromProperty.IsEmpty());
-	TestTrue(TEXT("e dice che non e' una partita normale"), FromProperty.Contains(TEXT("AUTOBATTLE")));
-	TestTrue(TEXT("e attribuisce alla proprieta'"), FromProperty.Contains(TEXT("BP_GameMode")));
+	for (const TCHAR* Spento : { TEXT("-RTAutobattle=0"), TEXT("-RTAutobattle=false"),
+								 TEXT("-RTAutobattle=off") })
+	{
+		CmdGuard.SetArgs(Spento);
+		TestFalse(FString::Printf(TEXT("%s spegne"), Spento), GameMode->ResolveAutobattle());
+	}
 
-	// Dalla console: stessa banda, sorgente diversa. E' l'unico punto in cui l'utente vede da dove viene la
-	// modalita', e una banda che nomina la fonte sbagliata e' peggio di una banda assente.
-	CVarGuard.SetMode(1);
-	const FString FromConsole = GameMode->GetScenarioBannerText();
-	TestTrue(TEXT("la banda nomina la console"), FromConsole.Contains(TEXT("rt.Match.Autobattle")));
-	TestFalse(TEXT("e non attribuisce al BP_GameMode"), FromConsole.Contains(TEXT("BP_GameMode")));
+	// Un valore che non si capisce NON decide: ripiega sulla proprieta' e lo dichiara nel log. Silenzio e
+	// «off» sono le due risposte peggiori, perche' somigliano a una scelta.
+	GameMode->bAutobattle = true;
+	CmdGuard.SetArgs(TEXT("-RTAutobattle=banana"));
+	TestTrue(TEXT("un valore incomprensibile lascia decidere la proprieta'"), GameMode->ResolveAutobattle());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * LA MODALITA' RAGGIUNGE ANCHE LE UNITA' GIA' POSATE NEL LIVELLO.
+ *
+ * 🔴 `SpawnHero` e' l'unico sito che scrive `bIsBotControlled`, e su un livello che porta le proprie unita'
+ * `SetupHexMatch` ritorna **prima** di arrivarci: il log dichiarava «entrambe le squadre al bot» mentre la
+ * squadra 0 restava con il valore cotto nel `.umap`, nessuno pianificava per lei e la partita macinava turni
+ * vuoti fino al `RoundLimit`. Trovato in code review — il blocco del Planning era gia' stato spostato sopra
+ * quel ritorno *per questo stesso scenario*, l'assegnazione no.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleExistingUnitsTest,
+	"RefactorTactics.Match.Autobattle.AppliesToUnitsAlreadyInTheLevel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleExistingUnitsTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	FRTScopedAutobattleCVars CVarGuard;
+	FRTScopedAutobattleCommandLine CmdGuard;
+	CVarGuard.SetMode(-1);
+	CmdGuard.Clear();
+
+	ARTHexMapActor* HexMap = SpawnAutobattleMap(World);
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Il livello porta gia' le sue unita': e' il caso per cui esiste il ritorno anticipato di `SetupHexMatch`.
+	GameMode->bAutobattle = false;
+	GameMode->SetupHexMatch(HexMap);
+	if (!TestEqual(TEXT("due unita' sono del giocatore"), CountAutobattleHumanUnits(World), 2))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Adesso la demo, sullo STESSO livello: l'allestimento non interviene, la modalita' si'.
+	GameMode->bAutobattle = true;
+	GameMode->SetupHexMatch(HexMap);
+
+	TestEqual(TEXT("nessuna unita' aspetta piu' una mano umana"), CountAutobattleHumanUnits(World), 0);
+	TestEqual(TEXT("e non ne sono state allestite altre"), CollectAutobattleUnits(World).Num(), 4);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

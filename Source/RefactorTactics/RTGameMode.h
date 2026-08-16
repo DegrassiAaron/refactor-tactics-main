@@ -161,6 +161,23 @@ public:
 	bool ResolveAutobattle() const;
 
 	/**
+	 * La modalita' in vigore per QUESTA sessione, **decisa una volta** in `SetupHexMatch`.
+	 *
+	 * ⚠️ Non e' un doppione di `ResolveAutobattle()`, ed e' la differenza fra cio' che si puo' *chiedere* e
+	 * cio' che la partita *e'*. `bIsBotControlled` viene scritto sulle unita' allo spawn e non cambia piu':
+	 * una console variable digitata a meta' sessione cambierebbe la risposta del resolver ma non lo stato
+	 * delle unita' gia' in campo, e la banda finirebbe per dichiarare una partita diversa da quella che si
+	 * sta giocando — in **entrambi** i versi. Chi descrive la sessione (banda, log) legge di qui; chi
+	 * risponde a «cosa mi stanno chiedendo» legge il resolver.
+	 *
+	 * ➕ Effetto secondario che vale la pena avere: la banda e' disegnata da `DrawHUD` a ogni fotogramma, e
+	 * `ResolveAutobattle()` scandisce la riga di comando due volte. Deciderlo una volta toglie quel lavoro
+	 * dal path per-frame.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Match")
+	bool IsAutobattleInEffect() const { return bAutobattleInEffect; }
+
+	/**
 	 * I secondi di Planning in vigore, oppure **un valore negativo** se nessuno ha chiesto niente e il
 	 * `TurnManager` deve tenersi il proprio.
 	 *
@@ -290,6 +307,12 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
+	/** Vedi `IsAutobattleInEffect()`: deciso in `SetupHexMatch`, prima che le unita' entrino in campo. */
+	bool bAutobattleInEffect = false;
+
+	/** Come sopra: la sorgente che ha deciso, latchata insieme alla decisione perche' la banda la nomina. */
+	FString AutobattleSourceLabel;
+
 	/** Applica `MapSource` all'actor mappa: sostituisce l'asset quando la scelta lo richiede, e lo dichiara nel log. */
 	void ApplyMapSource(ARTHexMapActor* HexMap);
 

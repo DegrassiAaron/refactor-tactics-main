@@ -69,6 +69,11 @@ namespace RTScenarioEntry
 	}
 }
 
+// `LogRT` serve gia' qui — `RTAutobattleEntry::FromCommandLine` avvisa su un valore che non riconosce — e la
+// categoria e' dichiarata in questo header, che il file include piu' sotto insieme agli altri di dominio.
+// Non e' una duplicazione: l'include ha la sua guardia, e la riga dice a chi legge da dove viene `LogRT`.
+#include "RefactorTactics.h"
+
 /**
  * LA MODALITA' NON PRESIDIATA e i suoi secondi di Planning (CP 47.1, #954).
  *
@@ -116,11 +121,35 @@ namespace RTAutobattleEntry
 	 */
 	static TOptional<bool> FromCommandLine()
 	{
-		int32 Value = 0;
-		if (FParse::Value(FCommandLine::Get(), TEXT("RTAutobattle="), Value))
+		// ⚠️ **Letto come STRINGA, non con l'overload `int32`.** Quello passa da `FCString::Atoi`, e `Atoi`
+		// di `true` vale **0**: `-RTAutobattle=true` — la forma che si scrive per prima — avrebbe SPENTO la
+		// modalita' invece di accenderla, in silenzio e proprio sulla sorgente che esiste per il pacchetto
+		// Shipping, dove non c'e' una console per accorgersene. Trovato in code review.
+		FString Raw;
+		if (FParse::Value(FCommandLine::Get(), TEXT("RTAutobattle="), Raw))
 		{
-			return Value != 0;
+			const FString Value = Raw.TrimStartAndEnd();
+			if (Value == TEXT("1") || Value.Equals(TEXT("true"), ESearchCase::IgnoreCase)
+				|| Value.Equals(TEXT("on"), ESearchCase::IgnoreCase))
+			{
+				return true;
+			}
+			if (Value == TEXT("0") || Value.Equals(TEXT("false"), ESearchCase::IgnoreCase)
+				|| Value.Equals(TEXT("off"), ESearchCase::IgnoreCase))
+			{
+				return false;
+			}
+
+			// Un valore che non si capisce non ripiega in silenzio: e' la stessa cura gia' presa da
+			// `ResolveMapSource` per `rt.Map.Source`, e per la stessa ragione — una modalita' decisa da un
+			// refuso e' un playtest attribuito a una configurazione che non era in vigore.
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] -RTAutobattle='%s' non e' un valore riconosciuto (1/0, true/false, on/off, "
+					 "oppure il flag nudo). Ignorato: decide la proprieta' del GameMode."),
+				*Raw);
+			return TOptional<bool>();
 		}
+
 		if (FParse::Param(FCommandLine::Get(), TEXT("RTAutobattle")))
 		{
 			return true;
@@ -151,6 +180,25 @@ namespace RTAutobattleEntry
 	 * piu' larga perche' qui il Planning copre anche la decisione dei bot.
 	 */
 	static constexpr float FallbackPlanningSeconds = 2.f;
+
+	/**
+	 * Il minimo che tiene VIVO il turno in una partita non presidiata.
+	 *
+	 * 🔴 **`0` non significa «turni incatenati»: significa fermo per sempre.** `SetPlanningSeconds` e
+	 * `StartPlanningTimer` armano il timer solo `if (PlanningSeconds > 0.f)` — con zero non lo arma nessuno,
+	 * `OnPlanningTimeout` non scatta mai, `LockInAndResolve` non viene chiamato, e in una partita non
+	 * presidiata **non c'e' nessuno che possa premere il lock-in**. La partita resta al turno 1 mentre la
+	 * banda dichiara che si sta giocando da sola.
+	 *
+	 * ⚠️ Zero e' legittimo altrove, ed e' da li' che veniva la convinzione sbagliata: `RTScenarioSession`
+	 * chiama `SetPlanningSeconds(0.f)` per le run headless — ma li' il turno lo pompa l'harness. La
+	 * differenza non e' il valore, e' chi fa avanzare il turno.
+	 *
+	 * ∴ l'intento «il piu' veloce possibile» resta onorato e non viene riportato al ripiego di 2 s: viene
+	 * alzato al minimo che l'orologio del motore sa ancora far scattare, e la correzione e' dichiarata nel
+	 * log invece che applicata in silenzio. Trovato in code review, non da un playtest.
+	 */
+	static constexpr float MinUnattendedPlanningSeconds = 0.1f;
 }
 /** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
@@ -512,12 +560,36 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 		return;
 	}
 
+	// LA MODALITA' SI DECIDE QUI, una volta, PRIMA che le unita' entrino in campo — vedi
+	// `IsAutobattleInEffect()`. Da questo punto in poi la sessione ha una risposta sola, e la banda non puo'
+	// piu' descrivere una partita diversa da quella che si sta giocando.
+	bAutobattleInEffect = ResolveAutobattle();
+	AutobattleSourceLabel = TEXT("BP_GameMode");
+	switch (RTAutobattleEntry::Winner())
+	{
+	case RTAutobattleEntry::EWinner::ConsoleVariable: AutobattleSourceLabel = TEXT("rt.Match.Autobattle"); break;
+	case RTAutobattleEntry::EWinner::CommandLine:     AutobattleSourceLabel = TEXT("-RTAutobattle"); break;
+	case RTAutobattleEntry::EWinner::Property:        break;
+	}
+
 	// RITMO DEL TURNO, prima del ritorno anticipato qui sotto: e' configurazione del turno, non
 	// dell'allestimento, e vale anche su un livello che porta gia' le proprie unita' — dove l'allestimento
 	// non interviene ma il Planning e' comunque quello con cui si giochera'.
 	if (TurnManager)
 	{
-		const float PlanningSeconds = ResolveMatchPlanningSeconds();
+		float PlanningSeconds = ResolveMatchPlanningSeconds();
+
+		// Zero fermerebbe la partita per sempre invece di incatenare i turni: nessuno arma il timer, e qui
+		// non c'e' una mano umana che possa premere il lock-in. Vedi `MinUnattendedPlanningSeconds`.
+		if (bAutobattleInEffect && PlanningSeconds == 0.f)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] AUTOBATTLE: Planning 0s bloccherebbe la partita al turno 1 — nessun timer viene "
+					 "armato e non c'e' nessuno che possa chiudere il turno. Alzato a %.2fs."),
+				RTAutobattleEntry::MinUnattendedPlanningSeconds);
+			PlanningSeconds = RTAutobattleEntry::MinUnattendedPlanningSeconds;
+		}
+
 		if (PlanningSeconds >= 0.f)
 		{
 			TurnManager->SetPlanningSeconds(PlanningSeconds);
@@ -529,24 +601,43 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	// dichiara (`GetScenarioBannerText`), e questa riga la mette anche nel log con la FONTE — perche' una
 	// console variable impostata una volta resta attiva a ogni Play successivo, e senza saperlo si cerca il
 	// difetto nella proprieta' sbagliata.
-	if (ResolveAutobattle())
+	if (bAutobattleInEffect)
 	{
-		const TCHAR* Source = TEXT("proprieta' del GameMode");
-		switch (RTAutobattleEntry::Winner())
-		{
-		case RTAutobattleEntry::EWinner::ConsoleVariable: Source = TEXT("console rt.Match.Autobattle"); break;
-		case RTAutobattleEntry::EWinner::CommandLine:     Source = TEXT("riga di comando -RTAutobattle"); break;
-		case RTAutobattleEntry::EWinner::Property:        break;
-		}
 		UE_LOG(LogRT, Warning,
 			TEXT("[RT] AUTOBATTLE (da: %s): entrambe le squadre al bot, nessun input richiesto. "
-				 "Planning %.1fs — questa NON e' una partita normale."),
-			Source, TurnManager ? TurnManager->GetPlanningSeconds() : -1.f);
+				 "Planning %.2fs — questa NON e' una partita normale."),
+			*AutobattleSourceLabel, TurnManager ? TurnManager->GetPlanningSeconds() : -1.f);
 	}
 
 	// Il livello puo' avere unita' gia' posate a mano: in quel caso l'allestimento automatico non interviene.
 	if (UGameplayStatics::GetActorOfClass(this, ARTUnit::StaticClass()))
 	{
+		// ...ma la MODALITA' si applica lo stesso, e questo ramo e' l'unico posto in cui puo' farlo.
+		//
+		// 🔴 `SpawnHero` e' l'unico sito che scrive `bIsBotControlled`, e sta sotto questo ritorno: su un
+		// livello con unita' proprie il log dichiarava «entrambe le squadre al bot» mentre la squadra 0
+		// teneva il valore cotto nel `.umap` e non pianificava nessuno — la partita macinava turni vuoti fino
+		// al `RoundLimit` con la banda che asseriva il contrario. Trovato in code review: il blocco del
+		// Planning era gia' stato spostato sopra questo ritorno *per questo scenario*, l'assegnazione no.
+		if (bAutobattleInEffect)
+		{
+			TArray<AActor*> Existing;
+			UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Existing);
+			int32 Switched = 0;
+			for (AActor* Actor : Existing)
+			{
+				ARTUnit* Unit = Cast<ARTUnit>(Actor);
+				if (Unit && !Unit->bIsBotControlled)
+				{
+					Unit->bIsBotControlled = true;
+					++Switched;
+				}
+			}
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] AUTOBATTLE su unita' gia' presenti nel livello: %d di %d passate al bot. "
+					 "L'allestimento automatico non interviene, la modalita' si'."),
+				Switched, Existing.Num());
+		}
 		return;
 	}
 
@@ -663,7 +754,11 @@ ARTUnit* ARTGameMode::SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRT
 		// Team 1 al bot: e' il default di sempre, pinnato da `RTHeroSpawnTests`. La modalita' non presidiata
 		// (#954) lo ESTENDE — mette al bot anche la squadra 0 — e non lo sostituisce: con l'autobattle spento
 		// questa riga vale esattamente quanto valeva prima.
-		Unit->bIsBotControlled = (TeamId == 1) || ResolveAutobattle();
+		//
+		// Legge la decisione LATCHATA e non il resolver: le quattro unita' di una partita devono ricevere la
+		// stessa risposta, e una console variable digitata fra uno spawn e l'altro produrrebbe una squadra
+		// mista. Vale anche per il costo — questa riga gira una volta per unita'.
+		Unit->bIsBotControlled = (TeamId == 1) || bAutobattleInEffect;
 		Unit->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 		Unit->PlaceOnCell(InCell, Origin, HexSize, LayerHeight);
@@ -723,13 +818,35 @@ bool ARTGameMode::ResolveAutobattle() const
 	const int32 FromConsole = CVarRTAutobattle.GetValueOnGameThread();
 	if (FromConsole >= 0)
 	{
-		return FromConsole != 0;
+		// ...ma NON in silenzio, e **in tutti e due i versi**. Una console variable dura quanto il processo
+		// dell'editor: digitata una volta, resta attiva a ogni Play successivo. Il verso che spegne e' quello
+		// che costa di piu' — un `BP_GameMode` configurato per la demo che parte come partita normale non
+		// lascia alcuna traccia a schermo, perche' la banda tace proprio quando la modalita' e' spenta, e si
+		// finisce a cercare il difetto nella proprieta' sbagliata. E' la stessa cura gia' presa da
+		// `ResolveScenarioToRun` e `ResolveMapSource`; qui mancava.
+		const bool bFromConsole = FromConsole != 0;
+		if (bAutobattle != bFromConsole)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] La console variable rt.Match.Autobattle=%d SCAVALCA la proprieta' bAutobattle=%s "
+					 "del GameMode. Per tornare a usare la proprieta': `rt.Match.Autobattle -1`."),
+				FromConsole, bAutobattle ? TEXT("true") : TEXT("false"));
+		}
+		return bFromConsole;
 	}
 
 	// Sorgente di mezzo: l'unica che arriva anche in Shipping (vedi `RTAutobattleEntry`).
 	const TOptional<bool> FromCmdLine = RTAutobattleEntry::FromCommandLine();
 	if (FromCmdLine.IsSet())
 	{
+		if (bAutobattle != FromCmdLine.GetValue())
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] La riga di comando -RTAutobattle SCAVALCA la proprieta' bAutobattle=%s del "
+					 "GameMode: la partita e' %s. Per tornare a usare la proprieta': togli il flag."),
+				bAutobattle ? TEXT("true") : TEXT("false"),
+				FromCmdLine.GetValue() ? TEXT("non presidiata") : TEXT("normale"));
+		}
 		return FromCmdLine.GetValue();
 	}
 
@@ -840,22 +957,18 @@ FString ARTGameMode::GetScenarioBannerText() const
 		// Una sola banda per volta, e vince lo scenario: con `ScenarioToRun` valorizzato la partita normale
 		// non viene allestita **affatto**, quindi non c'e' nessun autobattle da annunciare — dire entrambe le
 		// cose descriverebbe una sessione che non esiste.
-		if (!ResolveAutobattle())
+		// ⚠️ Legge lo stato LATCHATO, non il resolver, ed e' il punto in cui la differenza si vede: questa
+		// funzione gira da `DrawHUD` a ogni fotogramma, e una console variable digitata a meta' partita
+		// cambierebbe la risposta del resolver mentre le unita' gia' in campo restano come sono. La banda
+		// descrive **la partita che si sta giocando**, non l'ultima cosa che qualcuno ha digitato.
+		if (!bAutobattleInEffect)
 		{
 			return FString();
 		}
 
-		const TCHAR* AutobattleSource = TEXT("BP_GameMode");
-		switch (RTAutobattleEntry::Winner())
-		{
-		case RTAutobattleEntry::EWinner::ConsoleVariable: AutobattleSource = TEXT("rt.Match.Autobattle"); break;
-		case RTAutobattleEntry::EWinner::CommandLine:     AutobattleSource = TEXT("-RTAutobattle"); break;
-		case RTAutobattleEntry::EWinner::Property:        break;
-		}
-
 		return FString::Printf(
 			TEXT("AUTOBATTLE [%s]  -  entrambe le squadre al bot  -  nessun input richiesto"),
-			AutobattleSource);
+			*AutobattleSourceLabel);
 	}
 
 	// La FONTE va detta anche a schermo, per la stessa ragione per cui il log la dice: una console variable
