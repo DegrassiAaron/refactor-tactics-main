@@ -102,9 +102,13 @@ namespace
  * cella del bersaglio dal bordo W. Una copertura su quel bordo e' interposta; la stessa scena senza copertura
  * e' il controllo che il -10 venga dalla copertura e non da altro.
  */
+// ⚠️ `ClientContext` oltre a `EditorContext`, e non per simmetria con i vicini: e' uno dei **dieci test
+// vincolanti** del catalogo (`roadmap-v0.1.md` §6), e CP 12.3 (`#83`) chiede che la suite giri anche in un
+// pacchetto. Con il solo `EditorContext` il controller lo filtra fuori dal target `Game` — misurato:
+// `Automation List` in un pacchetto Development registrava **zero** test su 875, tutti dichiarati solo Editor.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverDirectionalDamageReductionTest,
 	"RefactorTactics.Cover.DirectionalDamageReduction",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 bool FRTCoverDirectionalDamageReductionTest::RunTest(const FString&)
 {
 	TArray<FRTHexCombatUnit> Units;

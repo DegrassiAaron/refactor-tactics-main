@@ -20,6 +20,23 @@
 UENUM(BlueprintType)
 enum class ERTIntentCertainty : uint8
 {
+	/**
+	 * **Mai calcolato.** Non e' un livello: e' l'assenza di livello, e vale zero per una ragione precisa.
+	 *
+	 * 🔴 Fino al 2026-08-16 il valore zero era `Confirmed`, cioe' la garanzia PIU' FORTE del dominio, e un
+	 * initializer C++ (`= Uncertain`) non bastava a difenderlo: protegge la costruzione normale — che non era
+	 * mai a rischio — e non tocca nessuno dei percorsi che azzerano la memoria. Una variabile Blueprint di
+	 * questo tipo, un `FMemory::Memzero`, un `SetNumZeroed`, una struct che UHT marca `WithZeroConstructor`:
+	 * tutti leggevano «collegamento certo» per un campo che nessuno aveva calcolato. Lo aveva scritto perfino
+	 * il commento del fix precedente, come caso coperto — e non lo era.
+	 *
+	 * ⚠️ **Non ha una resa**, ed e' il motivo per cui il catalogo icone ne pretende **tre** e non quattro
+	 * (`UI.Icon.Certainty.{Confirmed,Predicted,Uncertain}`): le chiavi sono i livelli *disegnabili*, non i
+	 * valori dell'enum. Un `Unknown` che arriva alla presentazione e' un difetto a monte, e va trattato come
+	 * tale — non decorato con un'icona che lo faccia sembrare uno stato previsto.
+	 */
+	Unknown = 0,
+
 	/** Niente puo' cambiarlo: nessun movimento, nessun bersaglio. Una `Guard` sul posto. */
 	Confirmed,
 
@@ -190,18 +207,32 @@ struct FRTIntentView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	ERTHexDirection DeclaredFacing = ERTHexDirection::E;
 
-	/** Quanto e' certo il PIANO (movimento e azione). Calcolato dal simulatore, mai dal widget. */
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
-	ERTIntentCertainty Certainty = ERTIntentCertainty::Confirmed;
-
 	/**
-	 * Quanto e' certa la REAZIONE armata. Campo separato perche' i due livelli DIVERGONO: un'unita' ferma
-	 * che tiene pronto un contrattacco ha un piano `Confirmed` e una reazione `Uncertain`, ed e' il caso che
-	 * rende questo campo un dato invece di una costante. Ha significato solo dove `ReactionName` e'
-	 * valorizzata — cioe' mai per un avversario, rivelato o meno.
+	 * Quanto e' certo il PIANO (movimento e azione). Calcolato dal simulatore, mai dal widget.
+	 *
+	 * ⚠️ **Il default e' `Unknown`, che coincide con lo zero del tipo, e le due cose insieme sono il fix.**
+	 * Un campo mai popolato non deve affermare un livello — nessuno, nemmeno il piu' debole: deve dire che
+	 * non e' stato calcolato. `FilterForTeam` assegna sempre via `ClassifyPlan`, quindi in partita non e'
+	 * osservabile; lo diventa quando questa struttura viaggera' in rete (M10), o al primo widget Blueprint
+	 * che dichiari una variabile di questo tipo.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
-	ERTIntentCertainty ReactionCertainty = ERTIntentCertainty::Confirmed;
+	ERTIntentCertainty Certainty = ERTIntentCertainty::Unknown;
+
+	// 🔴 **`ReactionCertainty` NON esiste piu', ed e' stato tolto il 2026-08-16 da questa struttura.**
+	//
+	// Nasceva con #859 per dire che il livello della reazione DIVERGE da quello del piano — vero: un'unita'
+	// ferma che tiene pronto un contrattacco ha un piano `Confirmed` e una reazione incerta. Ma divergeva
+	// **sempre allo stesso modo**, perche' una reazione armata attende per definizione un trigger che decide
+	// l'avversario: il campo non ha mai potuto assumere un secondo valore. E il suo unico produttore lo
+	// assegnava dentro un `if (!ReactionName.IsEmpty())`, lasciando l'altro ramo al default — cosi' che uno
+	// stesso valore significasse «non c'e' nessuna reazione» e «la reazione e' certa».
+	//
+	// ⚠️ Tolto invece che corretto perche' la correzione lo lasciava **senza nessuno che lo scrivesse**: una
+	// costante replicata, un byte per vista che il destinatario conosce senza riceverlo. Cio' che serve alla
+	// resa e' *se* una reazione e' armata, e quello lo dice `ReactionName`.
+	// ➕ **Torna il giorno in cui una reazione potra' essere `Predicted`** — trigger gia' soddisfatto nello
+	// snapshot — e quel giorno sara' un dato calcolato, con un produttore vero.
 
 	FRTIntentView() = default;
 };
