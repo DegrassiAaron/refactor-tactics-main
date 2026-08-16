@@ -3206,11 +3206,29 @@ tracks:
     binary_leases: []
 
   playback:
-    status: ACTIVE
-    issue: 955
-    branch: feat/955-velocita-playback
+    status: IDLE
+    issue: null
+    branch: null
     worktree: "D:/rt-955"
     note: >-
+      ✅ **CHIUSA il 2026-08-16, aperta e chiusa nello stesso giorno.** `#955` è mergiata (PR #1007,
+      merge `c9841b06`) e la issue si è chiusa da sé sulla keyword. I sette path tornano **liberi**;
+      `docs/technical/test-manuali-pie.md` torna a `playtest`, da cui era stato preso, e non resta
+      dichiarato qui — un `writable` dice chi **scriverà**, non chi ha scritto.
+      ⚠️ **`worktree:` resta valorizzato con `D:/rt-955` finché la directory esiste**, e non è una svista:
+      il campo descrive il filesystem, non la track. Va messo a `null` da chi rimuove il worktree —
+      altrimenti si ripete il caso di `client_tools`, che per un giro ha dichiarato `D:/rt-78` dopo che
+      la directory era sparita.
+      🔵 **Il residuo dichiarato è il passo 4**: la resa in HUD (bottone/scorciatoia `x1·x2·x4`), che sta
+      in `Source/RefactorTactics/UI/` e resta a `client_tools` (`#78`, dietro la PR #904). Non ha una
+      issue propria: se la si vuole, va aperta. La manopola oggi si raggiunge da dettagli dell'attore e
+      da Blueprint, ed è ciò che la precondizione di `PIE-V01-PLAYSPEED` dichiara.
+      🔴 **`docs/roadmap/roadmap-v0.1.md:118` porta ancora la premessa falsa** — *«non c'è alcun
+      controllo `x1/x2/x4`, quindi `PlaybackIndependence` non ha oggi un soggetto da verificare»* — ed è
+      falsa due volte: il test esiste dal `#958`, e il controllo esiste da `#955`. Il file è
+      `integration_only`: **non toccato da questa track**, e la riga resta da correggere.
+      ---
+      *Registro dell'apertura, per la provenienza:*
       CP 47.2 di **E47** — la velocità di playback scelta da chi guarda (`x1 · x2 · x4`), e il gate che
       dice che non cambia il risultato. ➕ **Track aperta il 2026-08-16**, dopo lo spec panel che ha
       riscritto il DoD di `#955`.
@@ -3247,12 +3265,14 @@ tracks:
       - Source/RefactorTactics/Turn/RTTurnManager.cpp
       - Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
-      # ➕ Preso il 2026-08-16 per `PIE-V01-PLAYSPEED`. Sta nel `writable` di `playtest`, che è **IDLE**,
-      # e nessun branch vivo lo tocca — misurato sui dieci remoti con `diff --name-only origin/main...<b>`,
-      # non dedotto dallo stato della track. ⚠️ Era di `replay_ui` quando la track e' nata poche ore fa:
-      # nel frattempo `replay_ui` e' passata a `#999` e lo ha rilasciato. Un write-set si misura al
-      # momento in cui lo si prende, non a quello in cui lo si e' letto la prima volta.
-      - docs/technical/test-manuali-pie.md
+      # ➖ **`docs/technical/test-manuali-pie.md` e' USCITO da qui alla chiusura**, ed e' l'unico dei sette
+      # che non resta: era **preso in prestito** da `playtest` per scrivere `PIE-V01-PLAYSPEED`, e il
+      # lavoro su quel file e' finito. Gli altri sei restano dichiarati perche' questa track li
+      # riscrivera' al passo 4; questo no. Un `writable` dice chi **scrivera'**, non chi ha scritto.
+      # ⚠️ Al momento del prestito era libero e **misurato tale**: `playtest` IDLE, e zero branch vivi che
+      # lo toccassero (`diff --name-only origin/main...<b>` sui dieci remoti). Era di `replay_ui` quando
+      # questa track e' nata, poche ore prima: nel frattempo `replay_ui` e' passata a `#999` e lo ha
+      # rilasciato. Un write-set si misura quando lo si prende, non quando lo si e' letto la prima volta.
     derives_from: []
     binary_leases: []
 
