@@ -2438,6 +2438,75 @@ tracks:
       - Source/RefactorTactics/Tests/RTUnitTests.cpp
     binary_leases: []
 
+  replay_ui:
+    status: ACTIVE
+    issue: 472
+    branch: feat/472-replay-r6-interfaccia
+    worktree: "D:/rt-client"
+    note: >-
+      **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
+      2026-08-16 dopo lo spec panel in
+      [`plans/replay-r6-spec-panel-2026-08-16.md`](plans/replay-r6-spec-panel-2026-08-16.md).
+
+      ✅ **Il write-set e' MISURATO sui dieci branch vivi**, non dedotto dal titolo:
+      `git diff --name-only origin/main...origin/<b>` per ciascuno dei branch di
+      `git ls-remote --heads origin` (**11**, `main` escluso). `Source/RefactorTactics/Replay/` non
+      compare in **nessuno**. Le sole intersezioni dell'intero giro sono su due file
+      `integration_only` — `feature-registry.yaml` (`docs/five-lane-roadmap`,
+      `feat/593-root-neutro-unit`) e questo file (`feat/832-structure-identity-hash`) — cioe' il
+      regime che quella sezione descrive, non una contesa fra track.
+
+      ⚠️ **Cio' che questa misura NON copre, e va detto invece di lasciarlo credere completo**: i tre
+      worktree su branch **non pushati** (`feat/958-corpus-determinismo-autobattle`, `feat/u1-residui`,
+      `chore/512-writeset-emendamento`). Un branch che nessuno puo' leggere non ha un write-set
+      dichiarato — e' il difetto che questo file ha gia' registrato altrove — e da una sessione isolata
+      in `D:/rt-client` non e' misurabile. Resta la misura che si puo' fare, non una che si finge.
+
+      🔴 **`docs/technical/spec-frontend-navigazione.md` e' nel `writable` di `frontend_shell`, e questa
+      track lo scrive lo stesso: e' una RIALLOCAZIONE dichiarata, non una svista.** Le condizioni,
+      tutte verificate:
+      · `#936` e' **CLOSED** (`2026-08-16T06:26:44Z`) e il suo branch e' mergiato (PR **#972**,
+        `385ae694`) e cancellato lato server — `git ls-remote --heads origin` non lo elenca piu';
+      · nessun branch vivo tocca il file, misurato con lo stesso comando di sopra;
+      · la modifica e' **una sola sezione**, la gerarchia §2.1, ed e' li' perche' il proprietario di
+        quella spec ha deciso che le schermate replay le appartengono — non perche' faccia comodo a
+        questa track.
+      ⚠️ **Il file torna a `frontend_shell` al prossimo checkpoint di E46**: `#937`, `#938`, `#939`,
+      `#940` e `#941` sono aperte, quindi quella track riapre e la spec e' sua. Se una di quelle parte
+      prima che questa chiuda, **precede questa** — stessa decisione presa per `#904` contro
+      `client_tools`, e per la stessa ragione: chi e' avanti passa per primo.
+
+      ⛔ **Cosa questa track NON tocca**: `Source/RefactorTactics/UI/` (`client_tools`, ACTIVE su
+      `#78` — ed e' il motivo per cui il view model del replay nasce in `Replay/` e non li', esattamente
+      come `Frontend/` per `#936`) · `Source/RefactorTactics/Frontend/` (`frontend_shell`: questa track
+      **registra** due nomi di schermata, che sono dati, e non modifica il navigatore) ·
+      `docs/technical/test-manuali-pie.md` (`playtest`, che riceve la voce `PIE-V01-REPLAY-VIEWER` in
+      handoff invece di vedersela scrivere da fuori).
+
+      ⚠️ `Tests/RTReplayViewModelTests.cpp` e' dichiarato **per nome** e non per prefisso: `Tests/` e'
+      condivisa fra tutte le track, e prenderla per prefisso bloccherebbe chiunque scriva un test.
+    writable:
+      - Source/RefactorTactics/Replay/
+      - Source/RefactorTactics/Tests/RTReplayViewModelTests.cpp
+      - docs/roadmap/plans/replay-r6-spec-panel-2026-08-16.md
+      - docs/technical/spec-frontend-navigazione.md   # riallocato da `frontend_shell` — vedi la nota
+    derives_from:
+      - source: docs/roadmap/feature-registry.yaml
+        regenerates:
+          - docs/roadmap/feature-registry.json
+          - docs/roadmap/featuremap.shortlist.md
+          - docs/roadmap/project-graph.json
+          - docs/roadmap/charts/roadmap-map.svg
+          # ➕ **`roadmap.shortlist.md` e' la quinta vista, e manca da OGNI `derives_from` di questo
+          # file.** Non e' un'omissione di questa track: `shortlist --write` la riscrive insieme a
+          # `featuremap.shortlist.md`, e nessuna delle altre la dichiara. Misurato su `git status` dopo
+          # la rigenerazione — non dedotto: la riga di **E46** passa da `4 | 4/22` a `5 | 5/27` per
+          # effetto di questa sola feature. Una vista non dichiarata e' una vista che qualcuno rigenera
+          # senza saperlo, cioe' un conflitto che si scopre al merge.
+          - docs/roadmap/roadmap.shortlist.md
+        shared_with: [integrazione]
+    binary_leases: []
+
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test
