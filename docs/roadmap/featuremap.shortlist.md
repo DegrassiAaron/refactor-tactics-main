@@ -93,7 +93,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | v0.1 | INTEGRATED | 6/9 | E8 | Sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale |
-| `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | v0.1 | INTEGRATED | 6/9 | E8 | `Burning` danneggia nel Cleanup **prima** dei KO |
+| `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | v0.1 | INTEGRATED | 7/9 | E8 | `Burning` danneggia nel Cleanup **prima** dei KO |
 | `RT-FEAT-ENV-ICE` — Ghiaccio e scivolamento | v0.1 | INTEGRATED | 6/9 | E8 | Vigente e testato benché il catalogo lo dicesse «rimandabile» |
 | `RT-FEAT-ENV-STATUS` — Stati temporanei legati alla cella | v0.1 | INTEGRATED | 7/9 | E8 | La durata è legata **alla cella**, non all'unità |
 | `RT-FEAT-ENV-STEAM` — Fumo e copertura visiva | v0.1 | INTEGRATED | 6/9 | E8 | Il bersaglio si **vede** e non si può colpire |
