@@ -656,11 +656,15 @@ preexisting:
 
   - branch: docs/menu-frontend-consolidamento
     state: LIVE            # worktree `D:/rt-menu` · pushato · PR #948 aperta
-    measured: 15
+    measured: 16
     note: >-
       Consolidamento dell'handoff *Frontend/Menu Features e Tracking* (D-144, epic #934). Write-set
-      misurato con `git diff --name-only origin/main...HEAD`: **15** file, di cui **7**
+      misurato con `git diff --name-only origin/main...HEAD`: **16** file, di cui **8**
       `integration_only`, **5** viste generate e **3** nuovi.
+      ⏱️ **Era 15 fino alla code review**, che ha trovato il totale epic/CP fermo in quattro copie su
+      cinque: allinearne due ha fatto entrare `roadmap-checkpoint.md`, anch'esso `integration_only`.
+      Un write-set cresce mentre lo si corregge — ed è il motivo per cui si rilegge dal comando nello
+      stesso momento in cui lo si scrive.
       🔴 **Le prime tre affermazioni di questa voce erano false insieme, e le ha trovate la code
       review** — `measured: 14`, `state: LOCAL`, e una collisione con `docs/voci-pie-mancanti`. Il 14
       ometteva **questo file**, che è `integration_only` come gli altri sei: la scomposizione si scrive
