@@ -13,11 +13,15 @@
 #include "Misc/AutomationTest.h"
 #include "RTWorldFixtures.h"
 #include "RTGameMode.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
+#include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
 #include "Kismet/GameplayStatics.h"
@@ -710,6 +714,853 @@ bool FRTAutobattlePlaysToCompletionTest::RunTest(const FString&)
 		Result.Reason, ERTMatchEndReason::Elimination);
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+// =================================================================================================
+// IL CORPUS DI DETERMINISMO DELL'AUTOBATTLE (CP 47.5, #958)
+// =================================================================================================
+//
+// Sette casi limite, e uno **escluso con la ragione scritta**. I test qui sotto stanno accanto a quelli di
+// CP 47.1 e non in un file proprio per una ragione misurata: gli helper della partita non presidiata —
+// `SpawnAutobattleMap`, `CollectAutobattleUnits`, le due guardie di stato globale — vivono nel namespace
+// anonimo di QUESTO file, e in unity build due namespace anonimi con la stessa funzione collidono. Un file
+// gemello avrebbe dovuto ribattezzarli tutti, che e' il duplicato che `RTWorldFixtures.h` esiste per chiudere.
+//
+// ## Cosa questo corpus NON e'
+//
+// Non sostituisce **G4**. Il gate di release («determinismo: 100 ripetizioni, checksum identico») e'
+// `RefactorTactics.Replay.Verifier.ResimulationIsDeterministic` e resta dov'e': quello ri-simula uno scenario
+// attraverso il resolver, questo esercita i **casi limite di una partita non presidiata**. Due perimetri
+// diversi, e nessuno dei due copre l'altro.
+//
+// ## Perche' si confronta il TurnLog e non lo `StateHash`
+//
+// `FRTTestResult::StateHash` e' **permutazione-invariante per costruzione** — le unita' si ordinano prima di
+// mescolare — quindi non saprebbe esprimere cio' che `PermutationTest` cerca: passerebbe anche se il roster
+// avesse perso l'ordinamento. E il confronto e' **turno per turno**, non sul solo esito finale: due partite
+// con lo stesso hash finale possono esserci arrivate per stati diversi, e «diverge dal turno N» e' l'unica
+// diagnosi con cui si apre un debugger. E' la lezione gia' pagata da `Stress.ReplayDivergenceZeroAt4v4`.
+//
+// ## `DifferentSeedVariation` e' FUORI, e non per assenza di premessa
+//
+// Il runtime non ha alcun RNG e `FRTTestScenario::Seed` e' «dichiarato ma non consumato». Scrivere quel test
+// non aggiungerebbe una riga a una suite che tace: farebbe **cadere un test verde**,
+// `RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed`, che verifica esattamente l'opposto — due seed
+// diversi danno lo stesso risultato. Quel test prescrive gia' la procedura per il giorno in cui un RNG
+// entrera' nella simulazione, e va seguita invece che improvvisata. Il gancio e' `RNG-1` in
+// `docs/OPEN_DECISIONS.md` (#960): finche' quella domanda e' aperta, il corpus resta a **sette** casi.
+
+namespace
+{
+	/**
+	 * La traccia CANONICA di una partita: il TurnLog serializzato di ogni turno, piu' come e' finita.
+	 *
+	 * Un array per turno e non un buffer unico: i confini fra i turni sono esattamente l'informazione con cui
+	 * una divergenza sa dire «turno 3», e concatenare li perderebbe. Stessa forma di `FRTTurnTrace` nello
+	 * Scenario Harness, e per la stessa ragione (CP 12.6, #178).
+	 */
+	struct FRTAutobattleTrace
+	{
+		/** Byte di `SerializeTurnLog`, checksum in coda incluso, uno per turno giocato. */
+		TArray<TArray<uint8>> Turns;
+
+		int32 TurnsPlayed = 0;
+		ERTMatchOutcome Outcome = ERTMatchOutcome::InProgress;
+		ERTMatchEndReason Reason = ERTMatchEndReason::None;
+
+		/** La partita non si e' decisa entro il tetto di sicurezza. E' un difetto, non un esito. */
+		bool bHitSafetyCap = false;
+
+		/** Una risoluzione non e' finita entro i tick concessi: la traccia di quel turno e' monca. */
+		bool bResolveStalled = false;
+	};
+
+	/**
+	 * Un'unita' d'eroe sotto il bot, sulla cella data.
+	 *
+	 * `DispatchBeginPlay` non e' una formalita': senza, `AbilityCooldowns` resta vuoto e OGNI abilita' risulta
+	 * sempre pronta — una partita di prova che non lo chiama misura un gioco che non esiste.
+	 */
+	ARTUnit* SpawnAutobattleUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell,
+		bool bBot = true)
+	{
+		if (!World) { return nullptr; }
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->ConfigureFromHeroData(Hero);
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->bIsBotControlled = bBot;
+		U->DispatchBeginPlay();
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		return U;
+	}
+
+	/** Quante unita' vive ha ciascuna squadra, adesso. */
+	void CountAutobattleAlive(UWorld* World, int32& OutTeam0, int32& OutTeam1)
+	{
+		OutTeam0 = 0;
+		OutTeam1 = 0;
+		for (const ARTUnit* Unit : CollectAutobattleUnits(World))
+		{
+			if (!Unit->IsAlive()) { continue; }
+			(Unit->TeamId == 0 ? OutTeam0 : OutTeam1)++;
+		}
+	}
+
+	/**
+	 * Un turno intero, e la sua traccia catturata NEL MOMENTO in cui e' completa.
+	 *
+	 * Il TurnLog vive per un turno: il prossimo `LockInAndResolve` lo azzera. Leggerlo a partita finita darebbe
+	 * l'ultimo turno soltanto, e un confronto «turno per turno» sarebbe verde per il motivo sbagliato.
+	 */
+	void PlayAutobattleTurn(ARTTurnManager* TM, FRTAutobattleTrace& Out)
+	{
+		TM->PlanBotsForTest();
+		TM->LockInAndResolve();
+
+		int32 Ticks = 0;
+		for (; Ticks < 400 && TM->IsResolving(); ++Ticks)
+		{
+			TM->Tick(0.05f);
+		}
+		// Una risoluzione appesa somiglia a una risoluzione lenta, e la differenza si scopre solo aspettando.
+		// Registrarla e' cio' che permette al test di dire «monca» invece di confrontare due tracce parziali.
+		if (TM->IsResolving()) { Out.bResolveStalled = true; }
+
+		Out.Turns.Add(URTTurnLogLibrary::SerializeTurnLog(TM->GetTurnLog(), ERTLogTopology::Hex));
+		++Out.TurnsPlayed;
+	}
+
+	/**
+	 * La partita, dal primo turno alla fine.
+	 *
+	 * `MaxTurns` e' un **tetto di sicurezza, non una regola di gioco**: serve a fallire invece di girare
+	 * all'infinito, ed e' lo stesso 40 di `HexMatch.PlaysToCompletion` — che sulla stessa arena misura la
+	 * decisione al turno 10. Raggiungerlo si registra in `bHitSafetyCap` e vale come difetto.
+	 */
+	FRTAutobattleTrace PlayAutobattleMatch(ARTTurnManager* TM, int32 MaxTurns = 40)
+	{
+		FRTAutobattleTrace Trace;
+		while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Trace.TurnsPlayed < MaxTurns)
+		{
+			PlayAutobattleTurn(TM, Trace);
+		}
+		Trace.bHitSafetyCap = (TM->GetPhase() != ERTMatchPhase::MatchEnded);
+
+		const FRTMatchResult Result = TM->GetMatchResult();
+		Trace.Outcome = Result.Outcome;
+		Trace.Reason = Result.Reason;
+		return Trace;
+	}
+
+	/**
+	 * La PRIMA divergenza fra due tracce, o stringa vuota se sono identiche.
+	 *
+	 * Non ritorna un booleano di proposito: «diverse» costringe a rieseguire per capire, e a quel punto tanto
+	 * varrebbe non aver confrontato. Il numero di turno viene prima di tutto il resto perche' e' il dato con
+	 * cui si apre un debugger.
+	 */
+	FString DescribeAutobattleDivergence(const TCHAR* LabelA, const FRTAutobattleTrace& A,
+		const TCHAR* LabelB, const FRTAutobattleTrace& B)
+	{
+		const int32 Common = FMath::Min(A.Turns.Num(), B.Turns.Num());
+		for (int32 T = 0; T < Common; ++T)
+		{
+			if (A.Turns[T] == B.Turns[T]) { continue; }
+
+			// I byte dicono CHE diverge, non COSA: si rilegge la traccia e si nomina la prima voce diversa.
+			// Un offset in un buffer binario costringe a un hex dump per capire, e a quel punto la diagnosi
+			// l'ha fatta chi legge invece del test.
+			TArray<FRTTurnLogEntry> EntriesA, EntriesB;
+			const bool bReadA = URTTurnLogLibrary::DeserializeTurnLog(A.Turns[T], EntriesA);
+			const bool bReadB = URTTurnLogLibrary::DeserializeTurnLog(B.Turns[T], EntriesB);
+			if (!bReadA || !bReadB)
+			{
+				return FString::Printf(
+					TEXT("diverge dal turno %d: %s ha %d byte, %s ne ha %d (e la traccia non si rilegge: %s/%s)"),
+					T + 1, LabelA, A.Turns[T].Num(), LabelB, B.Turns[T].Num(),
+					bReadA ? TEXT("ok") : TEXT("illeggibile"), bReadB ? TEXT("ok") : TEXT("illeggibile"));
+			}
+
+			const int32 CommonEntries = FMath::Min(EntriesA.Num(), EntriesB.Num());
+			for (int32 E = 0; E < CommonEntries; ++E)
+			{
+				const FString TextA = URTTurnLogLibrary::DescribeEntry(EntriesA[E]);
+				const FString TextB = URTTurnLogLibrary::DescribeEntry(EntriesB[E]);
+				if (TextA != TextB)
+				{
+					return FString::Printf(
+						TEXT("diverge dal turno %d, voce %d di %d/%d:\n    %s: %s\n    %s: %s"),
+						T + 1, E + 1, EntriesA.Num(), EntriesB.Num(), LabelA, *TextA, LabelB, *TextB);
+				}
+			}
+			if (EntriesA.Num() != EntriesB.Num())
+			{
+				// Una traccia e' prefisso dell'altra: la prima voce IN PIU' e' quella che spiega la differenza.
+				const bool bAShorter = EntriesA.Num() < EntriesB.Num();
+				const TArray<FRTTurnLogEntry>& Longer = bAShorter ? EntriesB : EntriesA;
+				return FString::Printf(
+					TEXT("diverge dal turno %d: %s ha %d voci, %s ne ha %d — la prima in piu' e': %s"),
+					T + 1, LabelA, EntriesA.Num(), LabelB, EntriesB.Num(),
+					*URTTurnLogLibrary::DescribeEntry(Longer[CommonEntries]));
+			}
+			// Stesse voci leggibili, byte diversi: e' un campo che `DescribeEntry` non stampa.
+			return FString::Printf(
+				TEXT("diverge dal turno %d: %d voci identiche alla lettura ma %d byte contro %d — ")
+				TEXT("un campo serializzato che la descrizione non mostra"),
+				T + 1, EntriesA.Num(), A.Turns[T].Num(), B.Turns[T].Num());
+		}
+
+		if (A.TurnsPlayed != B.TurnsPlayed)
+		{
+			return FString::Printf(TEXT("stessi %d turni in comune, ma %s ne gioca %d e %s ne gioca %d"),
+				Common, LabelA, A.TurnsPlayed, LabelB, B.TurnsPlayed);
+		}
+		if (A.Outcome != B.Outcome || A.Reason != B.Reason)
+		{
+			return FString::Printf(TEXT("stesse tracce, esiti diversi: %s finisce '%s' %s, %s finisce '%s' %s"),
+				LabelA, *URTTurnRules::DescribeOutcome(A.Outcome), *URTTurnRules::DescribeEndReason(A.Reason),
+				LabelB, *URTTurnRules::DescribeOutcome(B.Outcome), *URTTurnRules::DescribeEndReason(B.Reason));
+		}
+		return FString();
+	}
+
+	/** Le quattro posizioni di partenza del 2v2, agli estremi opposti: la stessa di `PlaysToCompletion`. */
+	struct FRTAutobattleSlot
+	{
+		int32 TeamId;
+		bool bIsVektor;      // il roster del 2v2 headless: un tiratore e un corpo a corpo per squadra
+		FRTCellId Cell;
+	};
+
+	const TArray<FRTAutobattleSlot>& AutobattleStandardSlots()
+	{
+		static const TArray<FRTAutobattleSlot> Slots = {
+			{ 0, true,  FRTCellId(-4, 2) },
+			{ 0, false, FRTCellId(-4, 3) },
+			{ 1, true,  FRTCellId(4, -2) },
+			{ 1, false, FRTCellId(4, -3) },
+		};
+		return Slots;
+	}
+
+	/**
+	 * Schiera il 2v2 seguendo l'ORDINE DI INSERIMENTO dato, e ritorna le unita' nell'ordine di spawn.
+	 *
+	 * `Order` e' una permutazione degli indici di `AutobattleStandardSlots()`: la configurazione di gioco —
+	 * chi sta dove, con quale eroe — non cambia mai, cambia solo la sequenza in cui gli Actor entrano nel
+	 * mondo. E' esattamente la variabile che l'invariante #3 dice non debba contare.
+	 */
+	TArray<ARTUnit*> DeployAutobattleRoster(UWorld* World, const TArray<int32>& Order)
+	{
+		TArray<ARTUnit*> Spawned;
+		for (int32 Index : Order)
+		{
+			const FRTAutobattleSlot& Slot = AutobattleStandardSlots()[Index];
+			const URTHeroData* Hero = Slot.bIsVektor
+				? URTHeroCatalogLibrary::MakeVektor()
+				: URTHeroCatalogLibrary::MakeBastion();
+			Spawned.Add(SpawnAutobattleUnit(World, Slot.TeamId, Hero, Slot.Cell));
+		}
+		return Spawned;
+	}
+}
+
+/**
+ * CASO 1/7 — `PermutationTest`: l'ORDINE DI INSERIMENTO delle unita' non cambia la partita.
+ *
+ * `Simulation.ChecksumStableAcrossPermutations` verifica gia' la permutazione, ma su uno scenario a turni
+ * scritti e confrontando lo `StateHash`. Qui la partita e' **intera** e il confronto e' sul **TurnLog
+ * canonico turno per turno**: l'hash e' permutazione-invariante per costruzione e passerebbe anche se
+ * l'identita' delle unita' seguisse l'ordine di spawn.
+ *
+ * ⚠️ **CHE COSA PUO' ROMPERSI DAVVERO, e dove.** `ARTTurnManager::EnsureMatchRoster` legge le unita' con
+ * `GetAllActorsOfClass` — il cui ordine e' quello in cui il livello tiene gli Actor, non un dato di gioco —
+ * e poi le **ordina** con `MatchRosterLess` (`TeamId`, poi la cella, poi il nome) prima di assegnare
+ * `StableUnitId = i + 1`. Quello `StableUnitId` finisce in ogni voce di TurnLog (`AppendLogEntry`). Tolto il
+ * `Sort`, questo test diventa rosso e nessun altro se ne accorge: e' la mutazione che lo giustifica.
+ *
+ * ⛔ **Non passa da `SetupHexMatch`, ed e' dichiarato invece che dedotto.** L'allestimento spawna i quattro
+ * eroi in un ordine fisso e non offre modo di permutarlo — e permutarlo *dall'esterno* e' il soggetto di
+ * questo test. La configurazione dell'autobattle e' gia' coperta da `PlaysToCompletionWithoutInput`; qui il
+ * percorso resta quello reale — `PlanBots -> LockInAndResolve -> snapshot -> resolver -> TurnLog` — con
+ * l'unica differenza che le unita' le schiera il test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattlePermutationTest,
+	"RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattlePermutationTest::RunTest(const FString&)
+{
+	// Diretto e inverso: la stessa partita, inserita nei due versi.
+	const TArray<TArray<int32>> Orders = {
+		{ 0, 1, 2, 3 },
+		{ 3, 2, 1, 0 },
+		{ 2, 0, 3, 1 },   // e uno mescolato, perche' l'inverso da solo non distingue un ordinamento parziale
+	};
+
+	TArray<FRTAutobattleTrace> Traces;
+	for (const TArray<int32>& Order : Orders)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		SpawnAutobattleMap(World);
+
+		const TArray<ARTUnit*> Units = DeployAutobattleRoster(World, Order);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || Units.Contains(nullptr))
+		{
+			AddError(TEXT("allestimento fallito: turn manager o unita' mancanti"));
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+
+		Traces.Add(PlayAutobattleMatch(TM));
+		RTWorldFixtures::DestroyWorld(World);
+	}
+
+	// Premesse: senza, un confronto fra tre partite mai giocate sarebbe verde.
+	if (!TestTrue(TEXT("premessa: la partita di riferimento e' andata oltre il primo turno"),
+		Traces[0].TurnsPlayed > 1))
+	{
+		return false;
+	}
+	TestFalse(TEXT("premessa: nessuna risoluzione e' rimasta appesa"), Traces[0].bResolveStalled);
+	TestFalse(TEXT("premessa: la partita si e' decisa entro il tetto di sicurezza"), Traces[0].bHitSafetyCap);
+
+	for (int32 I = 1; I < Traces.Num(); ++I)
+	{
+		const FString Divergence = DescribeAutobattleDivergence(
+			TEXT("ordine diretto"), Traces[0], *FString::Printf(TEXT("permutazione %d"), I), Traces[I]);
+		TestEqual(FString::Printf(TEXT("la permutazione %d gioca la stessa partita"), I),
+			Divergence, FString());
+	}
+	return true;
+}
+
+/**
+ * CASO 2/7 — `PlaybackIndependence`: il TEMPO DELLA PRESENTAZIONE non tocca il risultato logico.
+ *
+ * ⚠️ **LA PREMESSA DELLA ISSUE E' STATA CORRETTA, e va detto invece che lasciato dedurre.** #958 dichiarava
+ * questo caso in attesa di **E47.2** perche' *«oggi non c'e' velocita' da variare»*. Misurato sul codice: c'e'.
+ * `ARTTurnManager::PlaybackSpeed` esiste, deriva da `MaxPlaybackSeconds` (default 12 s) via
+ * `URTPlaybackLibrary::SpeedMultiplierForCap`, e `bEnablePlayback` accende o spegne il playback per intero.
+ * Cio' che manca e' la velocita' **scelta da chi guarda** — x1/x2/x4 — che e' un'altra cosa e resta E47.2.
+ *
+ * E l'invariante disponibile oggi e' **piu' forte** di quella rinviata. `ResolveTurn` decide fra due strade:
+ * con eventi e playback acceso chiama `BeginPlayback()`, altrimenti va dritto a `ConcludeTurn()`. Questo test
+ * confronta quelle **due strade**, non due velocita' della stessa: se il risultato logico regge a «con
+ * presentazione» contro «senza presentazione affatto», regge a fortiori a un moltiplicatore.
+ *
+ * Il terzo caso varia `MaxPlaybackSeconds`, che e' la velocita' che oggi esiste davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattlePlaybackIndependenceTest,
+	"RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattlePlaybackIndependenceTest::RunTest(const FString&)
+{
+	struct FRTPlaybackVariant
+	{
+		const TCHAR* Label;
+		bool bEnablePlayback;
+		float MaxPlaybackSeconds;
+	};
+	const FRTPlaybackVariant Variants[] = {
+		{ TEXT("playback spento"),      false, 12.f },
+		{ TEXT("playback acceso 12 s"), true,  12.f },
+		{ TEXT("playback acceso 2 s"),  true,   2.f },   // stessa strada, moltiplicatore diverso
+	};
+
+	TArray<FRTAutobattleTrace> Traces;
+	for (const FRTPlaybackVariant& Variant : Variants)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		SpawnAutobattleMap(World);
+
+		const TArray<ARTUnit*> Units = DeployAutobattleRoster(World, { 0, 1, 2, 3 });
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || Units.Contains(nullptr))
+		{
+			AddError(TEXT("allestimento fallito: turn manager o unita' mancanti"));
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+		TM->bEnablePlayback = Variant.bEnablePlayback;
+		TM->MaxPlaybackSeconds = Variant.MaxPlaybackSeconds;
+
+		Traces.Add(PlayAutobattleMatch(TM));
+		RTWorldFixtures::DestroyWorld(World);
+	}
+
+	if (!TestTrue(TEXT("premessa: la partita di riferimento e' andata oltre il primo turno"),
+		Traces[0].TurnsPlayed > 1))
+	{
+		return false;
+	}
+	// Senza questa riga il test sarebbe verde anche se le tre varianti avessero tutte saltato il playback:
+	// confronterebbe tre volte la stessa strada e non proverebbe niente.
+	for (int32 I = 0; I < Traces.Num(); ++I)
+	{
+		TestFalse(FString::Printf(TEXT("%s: nessuna risoluzione appesa"), Variants[I].Label),
+			Traces[I].bResolveStalled);
+	}
+
+	for (int32 I = 1; I < Traces.Num(); ++I)
+	{
+		const FString Divergence = DescribeAutobattleDivergence(
+			Variants[0].Label, Traces[0], Variants[I].Label, Traces[I]);
+		TestEqual(FString::Printf(TEXT("«%s» gioca la stessa partita di «%s»"),
+			Variants[I].Label, Variants[0].Label), Divergence, FString());
+	}
+
+	AddInfo(FString::Printf(
+		TEXT("la velocita' SCELTA da chi guarda (x1/x2/x4) resta E47.2 (#955): qui si varia la strada del ")
+		TEXT("playback e il suo tetto, che sono le due manopole che esistono oggi. Turni giocati: %d"),
+		Traces[0].TurnsPlayed));
+	return true;
+}
+
+/**
+ * CASO 3/7 — `NoPath`: un bot senza percorso produce un ripiego LEGALE, e il turno non si blocca.
+ *
+ * Il caso limite e' quello che una partita non presidiata non puo' segnalare: se un'unita' murata mandasse
+ * il turno in stallo, non ci sarebbe nessuno a premere niente. Quindi si verificano tre cose insieme —
+ * il turno **finisce**, l'unita' resta su una cella **legale**, e la partita continua ad avanzare.
+ *
+ * ⚠️ Il muro e' costruito togliendo la percorribilita' a tutte e sei le vicine, sullo stesso layer: il bot
+ * ha bersagli in vista ma nessuna mossa verso di loro. E' il caso in cui `ReachableCells` torna vuoto e le
+ * candidate di movimento non esistono — non un caso in cui il pathfinding e' semplicemente lungo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleNoPathTest,
+	"RefactorTactics.Match.Autobattle.NoPathProducesLegalFallback",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleNoPathTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnAutobattleMap(World);
+	URTHexMapAsset* Map = MapActor ? MapActor->MapAsset : nullptr;
+	if (!TestNotNull(TEXT("mappa di prova"), Map)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	// L'unita' murata sta al centro; le sei vicine diventano invalicabili.
+	const FRTCellId Walled(0, 0, 0);
+	for (const FRTCellId& Neighbor : URTHexLibrary::Neighbors(Walled))
+	{
+		if (const FRTHexCellData* Existing = Map->FindCell(Neighbor))
+		{
+			FRTHexCellData Blocked = *Existing;
+			Blocked.bBlocksMovement = true;
+			Map->AddOrUpdateCell(Blocked);
+		}
+	}
+	Map->SortCells();
+
+	ARTUnit* Trapped = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), Walled);
+	ARTUnit* Free    = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(4, -2));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Trapped || !Free)
+	{
+		AddError(TEXT("allestimento fallito"));
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Premessa: il muro c'e' davvero. Senza, il test misurerebbe un'unita' che sceglie di stare ferma.
+	int32 BlockedNeighbors = 0;
+	for (const FRTCellId& Neighbor : URTHexLibrary::Neighbors(Walled))
+	{
+		const FRTHexCellData* Data = Map->FindCell(Neighbor);
+		if (Data && Data->bBlocksMovement) { ++BlockedNeighbors; }
+	}
+	if (!TestEqual(TEXT("premessa: tutte e sei le vicine bloccano il movimento"), BlockedNeighbors, 6))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Cinque turni: il ripiego deve reggere ripetuto, non solo la prima volta.
+	FRTAutobattleTrace Trace;
+	for (int32 Turn = 0; Turn < 5 && TM->GetPhase() != ERTMatchPhase::MatchEnded; ++Turn)
+	{
+		const int32 TurnBefore = TM->GetTurnNumber();
+		PlayAutobattleTurn(TM, Trace);
+
+		TestFalse(FString::Printf(TEXT("turno %d: la risoluzione non resta appesa"), Turn + 1),
+			Trace.bResolveStalled);
+		TestTrue(FString::Printf(TEXT("turno %d: il numero di turno avanza (%d -> %d)"),
+				Turn + 1, TurnBefore, TM->GetTurnNumber()),
+			TM->GetTurnNumber() > TurnBefore || TM->GetPhase() == ERTMatchPhase::MatchEnded);
+
+		// Il ripiego e' LEGALE: si resta dov'e' possibile stare, non dentro un muro e non fuori mappa.
+		if (Trapped->IsAlive())
+		{
+			const FRTHexCellData* Here = Map->FindCell(Trapped->Cell);
+			TestNotNull(FString::Printf(TEXT("turno %d: l'unita' murata sta su una cella della mappa"), Turn + 1),
+				Here);
+			if (Here)
+			{
+				TestFalse(FString::Printf(TEXT("turno %d: e non dentro un ostacolo"), Turn + 1),
+					Here->bBlocksMovement);
+			}
+			TestEqual(FString::Printf(TEXT("turno %d: senza percorso non si e' teletrasportata"), Turn + 1),
+				Trapped->Cell.ToString(), Walled.ToString());
+		}
+	}
+
+	TestTrue(TEXT("la partita ha prodotto tracce"), Trace.TurnsPlayed > 0);
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * CASO 4/7 — `AllWait`: se nessuno agisce, il turno finisce lo stesso.
+ *
+ * ⚠️ **IL GIVEN, che la issue non scriveva.** «Tutte le unita' attendono» non si ottiene chiedendolo al bot:
+ * il bot **sceglie**, e costruire uno stato in cui sceglie `Wait` significherebbe verificare le sue
+ * preferenze invece del turno. Quindi le unita' qui sono **fuori dal bot e senza piano** — che e' la
+ * definizione letterale di «tutte attendono» — e il soggetto del test e' `ARTTurnManager`.
+ *
+ * Conta per l'autobattle proprio perche' li' nessuno puo' intervenire: un turno vuoto che non si chiudesse
+ * fermerebbe una partita non presidiata per sempre, e non ci sarebbe nessuno a notarlo. E' lo stesso difetto
+ * che `PlanningSecondsNeverStallAnUnattendedMatch` copre dal lato del timer, dal lato della risoluzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleAllWaitTest,
+	"RefactorTactics.Match.Autobattle.AllWaitEndsTheTurnNormally",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleAllWaitTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	SpawnAutobattleMap(World);
+
+	// Fuori dal bot e lontane: nessun piano viene scritto da nessuno.
+	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 2), false);
+	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -2), false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B)
+	{
+		AddError(TEXT("allestimento fallito"));
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const FRTCellId AStart = A->Cell;
+	const FRTCellId BStart = B->Cell;
+
+	// Quattro turni di attesa di fila: uno solo non distingue «si chiude» da «si chiude la prima volta».
+	for (int32 Turn = 1; Turn <= 4; ++Turn)
+	{
+		const int32 TurnBefore = TM->GetTurnNumber();
+
+		TM->LockInAndResolve();   // niente `PlanBots`: nessuno decide, ed e' il punto
+		int32 Ticks = 0;
+		for (; Ticks < 400 && TM->IsResolving(); ++Ticks) { TM->Tick(0.05f); }
+
+		TestFalse(FString::Printf(TEXT("turno %d: la risoluzione si chiude"), Turn), TM->IsResolving());
+		TestEqual(FString::Printf(TEXT("turno %d: il numero di turno avanza di uno"), Turn),
+			TM->GetTurnNumber(), TurnBefore + 1);
+		TestTrue(FString::Printf(TEXT("turno %d: la partita non e' finita per errore"), Turn),
+			TM->GetPhase() != ERTMatchPhase::MatchEnded);
+	}
+
+	// Nessuno si e' mosso e nessuno e' morto: attendere non e' un'azione.
+	TestEqual(TEXT("chi attende resta dov'e' (squadra 0)"), A->Cell.ToString(), AStart.ToString());
+	TestEqual(TEXT("chi attende resta dov'e' (squadra 1)"), B->Cell.ToString(), BStart.ToString());
+	TestTrue(TEXT("nessuno e' caduto durante l'attesa"), A->IsAlive() && B->IsAlive());
+
+	// E l'esito resta aperto: un turno vuoto non e' una condizione di fine partita.
+	const FRTMatchResult Result = TM->GetMatchResult();
+	TestEqual(TEXT("la partita resta in corso"), Result.Outcome, ERTMatchOutcome::InProgress);
+	TestEqual(TEXT("e nessuna via di chiusura si e' attivata"), Result.Reason, ERTMatchEndReason::None);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * CASO 5/7 — `SimultaneousKO`: due cadute nello stesso Cleanup seguono una politica DICHIARATA.
+ *
+ * ⚠️ **La politica esiste gia', ed e' esplicita** — la issue la dava «da verificare».
+ * `URTTurnRules::EvaluateMatchEnd` ha una precedenza fissa (eliminazione, poi obiettivo, poi `RoundLimit`) e
+ * `EvaluateOutcome(0, 0)` restituisce `Draw`. Il commento di `RTTurnRules.h` scrive anche il perche':
+ * *«senza una precedenza fissa, una squadra azzerata nello stesso Cleanup in cui l'altra tocca la soglia
+ * darebbe un esito dipendente dall'ordine dei controlli»*.
+ *
+ * Quindi il soggetto qui **non e' che la politica esista**: e' che una partita vera ci **arrivi**. Cioe' che
+ * due unita' che si uccidono a vicenda nello stesso Blast producano quell'esito e non un vincitore deciso
+ * dall'ordine in cui il resolver le ha visitate — che e' precisamente l'«ordine emergente» che il DoD vieta.
+ *
+ * Le ripetizioni servono a distinguere una politica da una coincidenza: un ordine emergente stabile e' pur
+ * sempre un ordine emergente, ma un esito che cambia fra due esecuzioni identiche lo dimostra da solo. La
+ * permutazione dell'ordine di spawn e' il secondo verso della stessa domanda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleSimultaneousKOTest,
+	"RefactorTactics.Match.Autobattle.SimultaneousKOFollowsDeclaredPolicy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleSimultaneousKOTest::RunTest(const FString&)
+{
+	// `bTeam0First` permuta l'ordine di inserimento: se l'esito dipendesse da chi entra prima, si vedrebbe qui.
+	auto RunLethalExchange = [this](bool bTeam0First, ERTMatchOutcome& OutOutcome,
+		ERTMatchEndReason& OutReason, int32& OutTeam0Alive, int32& OutTeam1Alive) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!World) { return false; }
+		SpawnAutobattleMap(World);
+
+		// Adiacenti, quindi entrambe a portata dell'attacco base. Fuori dal bot: i piani li scrive il test,
+		// perche' il soggetto e' la POLITICA di fine partita, non le preferenze dell'utility.
+		const FRTCellId CellA(0, 0, 0);
+		const FRTCellId CellB(1, 0, 0);
+		ARTUnit* First = nullptr;
+		ARTUnit* Second = nullptr;
+		if (bTeam0First)
+		{
+			First  = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), CellA, false);
+			Second = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), CellB, false);
+		}
+		else
+		{
+			Second = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), CellB, false);
+			First  = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), CellA, false);
+		}
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !First || !Second) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+		// Un colpo solo basta per entrambe: e' cosi' che il KO diventa simultaneo invece che sequenziale.
+		for (ARTUnit* U : { First, Second })
+		{
+			U->Health = 1;
+			U->Shield = 0;
+		}
+
+		First->PlannedAbilityIndex = 0;              // l'attacco base e' sempre all'indice 0 del kit
+		First->PlannedAttackTarget = Second;
+		Second->PlannedAbilityIndex = 0;
+		Second->PlannedAttackTarget = First;
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+		CountAutobattleAlive(World, OutTeam0Alive, OutTeam1Alive);
+		const FRTMatchResult Result = TM->GetMatchResult();
+		OutOutcome = Result.Outcome;
+		OutReason = Result.Reason;
+
+		RTWorldFixtures::DestroyWorld(World);
+		return true;
+	};
+
+	ERTMatchOutcome FirstOutcome = ERTMatchOutcome::InProgress;
+	ERTMatchEndReason FirstReason = ERTMatchEndReason::None;
+	int32 Team0Alive = -1, Team1Alive = -1;
+	if (!TestTrue(TEXT("lo scambio letale si esegue"),
+		RunLethalExchange(true, FirstOutcome, FirstReason, Team0Alive, Team1Alive)))
+	{
+		return false;
+	}
+
+	// PREMESSA: il KO e' davvero simultaneo. Se una delle due fosse sopravvissuta, tutto il resto del test
+	// parlerebbe di un caso diverso da quello che dichiara — e sarebbe verde per il motivo sbagliato.
+	if (!TestEqual(TEXT("premessa: la squadra 0 e' azzerata"), Team0Alive, 0)
+		|| !TestEqual(TEXT("premessa: e anche la squadra 1, nello stesso turno"), Team1Alive, 0))
+	{
+		AddError(TEXT("il KO non e' stato simultaneo: il caso limite non e' stato esercitato. Non aggiustare ")
+			TEXT("le attese di questo test — significa che la fase Blast ha applicato i danni in sequenza, ")
+			TEXT("cioe' proprio l'ordine emergente che il DoD di #958 vieta."));
+		return false;
+	}
+
+	// LA POLITICA, pinnata: entrambe azzerate significa pareggio, per eliminazione. Non un vincitore.
+	TestEqual(TEXT("due squadre azzerate danno un pareggio DICHIARATO"), FirstOutcome, ERTMatchOutcome::Draw);
+	TestEqual(TEXT("e la via e' l'eliminazione"), FirstReason, ERTMatchEndReason::Elimination);
+	// La controprova sulla regola pura: il test sopra passa attraverso la partita, questa dice che l'esito
+	// osservato e' quello che la regola prescrive, non una coincidenza dell'orchestratore.
+	TestEqual(TEXT("ed e' cio' che la regola pura prescrive"),
+		URTTurnRules::EvaluateOutcome(0, 0), ERTMatchOutcome::Draw);
+
+	// DETERMINISMO: ripetuto, e con l'ordine di inserimento invertito.
+	for (int32 Repetition = 1; Repetition <= 5; ++Repetition)
+	{
+		const bool bTeam0First = (Repetition % 2) == 1;
+		ERTMatchOutcome Outcome = ERTMatchOutcome::InProgress;
+		ERTMatchEndReason Reason = ERTMatchEndReason::None;
+		int32 T0 = -1, T1 = -1;
+		if (!RunLethalExchange(bTeam0First, Outcome, Reason, T0, T1))
+		{
+			AddError(FString::Printf(TEXT("ripetizione %d non eseguibile"), Repetition));
+			return false;
+		}
+		TestEqual(FString::Printf(TEXT("ripetizione %d (%s per prima): stesso esito"),
+				Repetition, bTeam0First ? TEXT("squadra 0") : TEXT("squadra 1")),
+			Outcome, FirstOutcome);
+		TestEqual(FString::Printf(TEXT("ripetizione %d: stessa via"), Repetition), Reason, FirstReason);
+		TestEqual(FString::Printf(TEXT("ripetizione %d: stessi vivi (0)"), Repetition), T0 + T1, 0);
+	}
+	return true;
+}
+
+/**
+ * CASO 6/7 — `TurnLimit`: la partita non presidiata finisce per `RoundLimit`, e lo DICHIARA.
+ *
+ * La via esiste dal CP 10.3 (`RT-FEAT-MATCH-END-CONDITIONS`) ed e' coperta in `RTMatchEndTests` sulla regola
+ * pura. Quello che mancava e' **in autobattle**: che una partita che nessuno guarda, in cui nessuno muore,
+ * si chiuda comunque invece di girare fino al tetto di sicurezza del test.
+ *
+ * ⚠️ Distinguere le due chiusure e' l'intero punto. Un `MaxTurns` raggiunto e' un difetto — la partita e'
+ * bloccata e il test lo maschera; un `RoundLimit` raggiunto e' la **regola** che ha deciso. Le due si
+ * somigliano dall'esterno (in entrambe la partita smette) e si distinguono solo guardando `Reason`.
+ *
+ * Le unita' sono fuori dal bot e ferme: un bot le porterebbe allo scontro e la partita finirebbe per
+ * eliminazione prima del limite, cioe' per l'altra via. Qui il soggetto e' la scadenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleRoundLimitTest,
+	"RefactorTactics.Match.Autobattle.EndsOnRoundLimitWhenNobodyDies",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleRoundLimitTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	SpawnAutobattleMap(World);
+
+	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 2), false);
+	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -2), false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B)
+	{
+		AddError(TEXT("allestimento fallito"));
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Un limite corto, per non far dipendere il test dalla durata di una partita vera. `ScoreToWin = 0`
+	// tiene spenta la via obiettivo: con due vie attive non si saprebbe quale ha chiuso.
+	FRTMatchRules Rules;
+	Rules.FormatId = FName(TEXT("Format.AutobattleRoundLimitProbe"));
+	Rules.RoundLimit = 3;
+	Rules.ScoreToWin = 0;
+	Rules.UnitsPerTeam = 1;
+	TM->SetMatchRules(Rules);
+
+	// Premessa: il limite e' davvero in vigore. `RoundLimit <= 0` disattiva la via, e il test misurerebbe
+	// una partita che semplicemente non finisce.
+	if (!TestEqual(TEXT("premessa: il limite di round e' in vigore"), TM->GetMatchRules().RoundLimit, 3))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Il tetto e' piu' alto del limite: se la partita finisse per esaurimento del tetto invece che per la
+	// regola, il test lo direbbe con `bHitSafetyCap` invece di confonderlo con un successo.
+	FRTAutobattleTrace Trace;
+	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Trace.TurnsPlayed < 10)
+	{
+		TM->LockInAndResolve();   // nessuno pianifica: nessuno muore, e la sola via aperta e' la scadenza
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+		Trace.Turns.Add(URTTurnLogLibrary::SerializeTurnLog(TM->GetTurnLog(), ERTLogTopology::Hex));
+		++Trace.TurnsPlayed;
+	}
+	Trace.bHitSafetyCap = (TM->GetPhase() != ERTMatchPhase::MatchEnded);
+
+	TestFalse(TEXT("la partita NON e' finita per esaurimento del tetto di sicurezza"), Trace.bHitSafetyCap);
+	TestEqual(TEXT("si e' chiusa al terzo round, cioe' al limite"), Trace.TurnsPlayed, 3);
+
+	const FRTMatchResult Result = TM->GetMatchResult();
+	TestEqual(TEXT("e la via dichiarata e' la scadenza dei round"), Result.Reason, ERTMatchEndReason::RoundLimit);
+	// A punteggi pari il pareggio e' DICHIARATO, mai un vincitore scelto per posizione (spec §12).
+	TestEqual(TEXT("a punteggi pari l'esito e' un pareggio, non un vincitore per posizione"),
+		Result.Outcome, ERTMatchOutcome::Draw);
+	TestTrue(TEXT("nessuno e' caduto: la partita non si e' chiusa per eliminazione"),
+		A->IsAlive() && B->IsAlive());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * CASO 7/7 — `SameSeedSameResult`: due esecuzioni identiche danno la stessa partita.
+ *
+ * ⚠️ **OGGI E' VERO PER COSTRUZIONE, e il test lo PINNA invece di introdurlo.** Il runtime non ha alcun RNG:
+ * zero `FRandomStream`, zero `FMath::Rand`, e `FRTTestScenario::Seed` e' documentato come «dichiarato ma non
+ * consumato». Finche' e' cosi', questo test confronta una funzione deterministica con se' stessa — e va
+ * scritto sapendolo. **Il suo valore e' il giorno in cui smette di farlo**: quel giorno diventa l'unico
+ * posto in cui si vede che un RNG e' entrato nella partita non presidiata.
+ *
+ * Non e' un doppione di `Replay.Verifier.ResimulationIsDeterministic` (G4): quello ri-simula uno **scenario**
+ * attraverso il resolver e confronta il checksum su 100 ripetizioni. Qui il soggetto e' una **partita
+ * autobattle intera**, guidata dal bot, e il confronto e' sul TurnLog turno per turno — che e' l'unica forma
+ * in cui una divergenza sa dire dove.
+ *
+ * Le ripetizioni sono 10 e non 100: quel numero e' il gate G4 e vive dov'e'. Qui ogni ripetizione e' una
+ * partita completa di dieci turni, e centinaia di partite pagherebbero il tempo di tutta la suite per una
+ * proprieta' che il gate copre gia' nella sua forma vincolante.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleSameSeedTest,
+	"RefactorTactics.Match.Autobattle.SameSeedGivesSameResult",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleSameSeedTest::RunTest(const FString&)
+{
+	auto RunOnce = [this](FRTAutobattleTrace& Out) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!World) { return false; }
+		SpawnAutobattleMap(World);
+
+		const TArray<ARTUnit*> Units = DeployAutobattleRoster(World, { 0, 1, 2, 3 });
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || Units.Contains(nullptr)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+		Out = PlayAutobattleMatch(TM);
+		RTWorldFixtures::DestroyWorld(World);
+		return true;
+	};
+
+	FRTAutobattleTrace Reference;
+	if (!TestTrue(TEXT("la partita di riferimento si esegue"), RunOnce(Reference))) { return false; }
+
+	// Premesse: senza, dieci confronti fra partite mai giocate sarebbero dieci verdi che non provano nulla.
+	if (!TestTrue(TEXT("premessa: la partita e' andata oltre il primo turno"), Reference.TurnsPlayed > 1))
+	{
+		return false;
+	}
+	TestFalse(TEXT("premessa: si e' decisa entro il tetto di sicurezza"), Reference.bHitSafetyCap);
+	TestTrue(TEXT("premessa: ogni turno ha lasciato una traccia"),
+		Reference.Turns.Num() == Reference.TurnsPlayed);
+	// Una traccia vuota confrontata con un'altra traccia vuota e' identica, e non dice niente.
+	int32 EmptyTurns = 0;
+	for (const TArray<uint8>& Bytes : Reference.Turns) { EmptyTurns += (Bytes.Num() == 0) ? 1 : 0; }
+	TestEqual(TEXT("premessa: nessun turno ha prodotto una traccia vuota"), EmptyTurns, 0);
+
+	constexpr int32 Repetitions = 10;
+	int32 Divergences = 0;
+	for (int32 I = 1; I < Repetitions; ++I)
+	{
+		FRTAutobattleTrace Again;
+		if (!RunOnce(Again))
+		{
+			AddError(FString::Printf(TEXT("ripetizione %d non eseguibile"), I));
+			return false;
+		}
+		const FString Divergence = DescribeAutobattleDivergence(
+			TEXT("riferimento"), Reference, *FString::Printf(TEXT("ripetizione %d"), I), Again);
+		if (!Divergence.IsEmpty())
+		{
+			++Divergences;
+			if (Divergences <= 3)   // le prime tre bastano a diagnosticare; oltre e' rumore
+			{
+				AddError(FString::Printf(TEXT("ripetizione %d: %s"), I, *Divergence));
+			}
+		}
+	}
+
+	TestEqual(FString::Printf(TEXT("nessuna divergenza su %d partite identiche"), Repetitions),
+		Divergences, 0);
+	AddInfo(FString::Printf(
+		TEXT("%d turni per partita. Oggi questo test e' vero per costruzione (nessun RNG nel runtime): ")
+		TEXT("diventa significativo il giorno in cui `RNG-1` (#960) viene deciso a favore della varieta'."),
+		Reference.TurnsPlayed));
 	return true;
 }
 
