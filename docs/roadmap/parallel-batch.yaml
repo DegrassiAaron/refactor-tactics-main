@@ -1178,14 +1178,22 @@ preexisting:
 tracks:
 
   spatial:
-    status: ACTIVE
-    issue: 832
-    branch: feat/832-structure-identity-hash
+    status: IDLE
+    issue: null
+    branch: null
     note: >-
-      ➕ **ACTIVE dal 2026-08-16 su `#832` (CP 23.3, `RT-FEAT-MAP-STRUCTURE-IDENTITY`).** Cinque caselle
-      su sei erano chiuse dalla PR #876; la sesta — l'identità entra nell'hash di stato — è chiusa dalla
-      PR **#978**: suite **876/876**, e la verifica di mutazione fa cadere *esattamente*
-      `Simulation.ChecksumSeesStructureIdentity` e nient'altro.
+      ✅ **IDLE dal 2026-08-16 perché il lavoro è atterrato, non per dipendenza.** `#832` (CP 23.3,
+      `RT-FEAT-MAP-STRUCTURE-IDENTITY`) è **CLOSED**: PR **#978** mergiata alle `06:47:59Z`
+      (`b2a024bc`), sesta casella su sei spuntata. Suite sull'albero mergiato: **903 test, 0 falliti**;
+      la verifica di mutazione fa cadere *esattamente* `Simulation.ChecksumSeesStructureIdentity` e
+      nient'altro, il che è anche la prova che `HexMap.DoorHashDeterminism` non copriva quell'anello.
+      ✅ **Il write-set torna libero e non assegnato**: i sei path di `#832` — `Map/RTStructureIdentityLibrary.*`,
+      `Turn/RTMatchStateHash.*` e i due test — sono tutti atterrati in `main` e oggi non sono di nessuno.
+      Chi li rivendica riattiva questa track, invece di scriverci di passaggio.
+      ⚠️ **Il `mandate` B resta assegnato e NON esigibile**: `ScenarioHarness/` è passato a `simulation`
+      (#512) e non è tornato. Alla track resta il solo file del mandato. Chi riapre il mandato
+      **rinegozia la cartella**, non la riprende — e finché `simulation` la tiene, non c'è niente da
+      riprendere.
       ✅ **Il blocco che teneva ferma quella casella era scaduto, e l'ho rimisurato invece di rileggerlo.**
       La issue dichiarava — al presente — *«`Turn/RTMatchStateHash.cpp` appartiene alla track `simulation`,
       che lo sta riscrivendo»*. Quando ho misurato, `simulation` era `IDLE` col write-set *«libero e non
@@ -1300,15 +1308,6 @@ tracks:
     mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
     worktree: "D:/rt-spatial"
     writable:
-      # #832 — la sesta casella. Due sono scritti (`RTMatchStateHash.cpp` e il suo test), quattro sono
-      # letti e restano dichiarati perché il DoD della issue li nomina: il perimetro si dichiara prima,
-      # non si deduce dal diff a cose fatte.
-      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.h
-      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.cpp
-      - Source/RefactorTactics/Turn/RTMatchStateHash.h
-      - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
-      - Source/RefactorTactics/Tests/RTStructureIdentityTests.cpp
-      - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
       - docs/technical/qa-prompt-terminal-b-scenario-runner.md
     derives_from: []
 
