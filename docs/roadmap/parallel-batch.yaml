@@ -1337,7 +1337,12 @@ tracks:
     # PR è l'atto d'integrazione che prenota i path; il branch di lavoro nasce col primo commit dentro
     # `D:/rt-simulation`. È la stessa forma che `content_editor` porta da due giorni, ed è la ragione per
     # cui `branch` si **misura** (`git ls-remote`) invece di scriverlo in anticipo.
-    branch: null
+    # ✅ **Il primo commit è arrivato, e il campo smette di dire il falso lo stesso giorno.** Il branch
+    # esiste **lato server** — `git ls-remote --heads origin` dà `3b4a8884` — e porta il referto del giro
+    # di design. La correzione non ha aspettato la chiusura della track: un `branch: null` su una sessione
+    # che ha già scritto e pushato è precisamente il difetto che `content_editor` porta da due giorni e
+    # che questo file le contesta due blocchi più sotto.
+    branch: feat/512-decisionprovider-finestra
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -1624,11 +1629,18 @@ tracks:
       decisione scriptata risponderebbe `HOLD` e cadrebbe. `EveryShippedScenarioRuns` accetta `BLOCKED` e
       non accetta `FAIL`: la capability si scopre **insieme** ai dati che la rendono rispondibile, e i dati
       stanno in `Scenarios/`, che resta `integration_only`.
+      ➕ **Un quinto path, e la ragione per cui non è la cartella**: il **piano** di implementazione,
+      `docs/roadmap/plans/cp153b-decision-provider-plan-2026-08-16.md`. Il referto dice *cosa* si costruisce
+      e perché; il piano dice in quale ordine e con quali test, ed è ciò che un esecutore legge. Stesso
+      criterio del referto — **file e non cartella**: `docs/roadmap/plans/` è scritta adesso da quattro
+      branch remoti e da un worktree con un referto *untracked*. Misurato che il nome non esiste e che
+      nessuno lo tocca.
     writable:
       - Source/RefactorTactics/ScenarioHarness/
       - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
       - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
       - docs/roadmap/plans/cp153b-decision-provider-design-2026-08-16.md
+      - docs/roadmap/plans/cp153b-decision-provider-plan-2026-08-16.md
     derives_from:
       - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
         regenerates:
