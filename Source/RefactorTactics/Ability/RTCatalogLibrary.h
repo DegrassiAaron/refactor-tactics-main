@@ -179,6 +179,33 @@ public:
 	static FName DefaultWeaponVariantFor(const FName& HeroId);
 
 	/**
+	 * Il gadget di **default** per un eroe (`#63`, CP 7.4), o `None` se l'eroe non ne ha uno dichiarato.
+	 *
+	 * ⚠️ Fino al 2026-08-16 esisteva **solo** `DefaultWeaponVariantFor`: una colonna su quattro della
+	 * tabella §4 del catalogo equipaggiamento, e da sola non compone un 1+1+1. Le altre due categorie
+	 * vivevano nel solo markdown, che nessun codice leggeva.
+	 */
+	static FName DefaultGadgetFor(const FName& HeroId);
+
+	/** Il modulo di reazione di **default** per un eroe (`#63`), o `None`. Stessa disciplina del gadget. */
+	static FName DefaultReactionModuleFor(const FName& HeroId);
+
+	/**
+	 * Il loadout completo di default: variante d'arma + gadget + modulo, **in quest'ordine**, oppure un
+	 * array **vuoto** se l'eroe non ha default dichiarati.
+	 *
+	 * Vuoto e non parziale: un loadout a due pezzi verrebbe rifiutato da `ValidateLoadout` — che pretende
+	 * esattamente uno per slot — e il chiamante si troverebbe a gestire un errore che nasce qui. Se un eroe
+	 * non ha default, non ne ha **nessuno**, e chi lo equipaggia lo scopre da un array vuoto invece che da
+	 * una validazione fallita tre livelli piu' in la'.
+	 *
+	 * ⚠️ **La fonte autorevole e' §4 di `docs/balance/RT_EquipmentCatalog_v0.1.md`**, non queste tabelle:
+	 * il C++ ne e' una copia, e a impedirle di divergere in silenzio e' `scripts/check-equipment-defaults.py`.
+	 * Il gate generale markdown↔C++ resta `#576`, aperta.
+	 */
+	static TArray<FName> DefaultLoadoutFor(const FName& HeroId);
+
+	/**
 	 * Avvisi (non errori) su una combinazione eroe/variante: cose legali che con ogni probabilita' non si
 	 * vogliono, e che nessun validator strutturale puo' vedere perche' dipendono dalla **coppia**.
 	 *
