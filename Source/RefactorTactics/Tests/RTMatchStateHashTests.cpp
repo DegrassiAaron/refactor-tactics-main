@@ -393,10 +393,20 @@ bool FRTChecksumSeesStructureIdentityTest::RunTest(const FString&)
 	//    qui. Una prima stesura di questo test costruiva gli stessi `FName` in ordine inverso credendo di
 	//    falsificarlo: era un caso vacuo, verde per costruzione.
 	//
-	//    Dove la proprieta' e' davvero verificata: fra ESECUZIONI SEPARATE. `RTGoldenCorpusTests`
-	//    confronta una run con un file scritto da un'altra run, e `G12` confronta gli hash fra il
-	//    pacchetto Development e quello Shipping — due processi, due name table costruite in ordine
-	//    diverso. E' li' che un hash basato sull'indice cade, ed e' li' che questa riga rimanda.
+	//    🔴 **E la prima stesura di questa nota rimandava a due coperture che NON esistono.** Diceva
+	//    che la proprieta' e' verificata da `RTGoldenCorpusTests` e dal gate `G12`. Misurato dopo, su
+	//    segnalazione di una code review: i golden `.rttl` sono tracce di TurnLog e **non contengono
+	//    alcuno state hash** (`grep StateHash` sui due file: zero), e `G12` e' `RunUAT BuildCookRun ->
+	//    BUILD SUCCESSFUL`, un gate di **packaging** che non confronta hash. Cioe' avevo sostituito un
+	//    caso vacuo con un puntatore a una copertura inesistente: lo stesso difetto, spostato dal
+	//    codice al commento.
+	//
+	//    Lo stato vero, oggi: **nessuno verifica che il nome entri come testo e non come indice.** Un
+	//    `Mix(GetTypeHash(Name))` passerebbe l'intera suite. E c'e' un secondo buco nella stessa
+	//    funzione — `MixName` usa `ToString()`, che in build packaged non preserva il case
+	//    (`WITH_CASE_PRESERVING_NAME` = `WITH_EDITORONLY_DATA`), quindi dipende dall'ordine di
+	//    caricamento. Entrambi sono aperti su **#986**, con la misura accanto. Finche' quella issue e'
+	//    aperta, questa riga dice cosa manca invece di far credere che sia coperto.
 
 	// 5. Gli ARCHI, non le sole porte: lo scope di #832 dice «archi e non solo porte, sono lo stesso
 	//    problema di identita'». Un ponte nominato e uno anonimo non sono lo stesso stato di mappa.

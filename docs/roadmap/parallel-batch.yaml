@@ -1178,14 +1178,46 @@ preexisting:
 tracks:
 
   spatial:
-    status: ACTIVE
-    issue: 832
-    branch: feat/832-structure-identity-hash
+    status: IDLE
+    issue: null
+    branch: null
     note: >-
-      ➕ **ACTIVE dal 2026-08-16 su `#832` (CP 23.3, `RT-FEAT-MAP-STRUCTURE-IDENTITY`).** Cinque caselle
-      su sei erano chiuse dalla PR #876; la sesta — l'identità entra nell'hash di stato — è chiusa dalla
-      PR **#978**: suite **876/876**, e la verifica di mutazione fa cadere *esattamente*
-      `Simulation.ChecksumSeesStructureIdentity` e nient'altro.
+      ⚠️ **IDLE con `#986` ancora APERTA, e la distinzione conta.** La PR **#988** (`a5c1e33b`) ha
+      chiuso solo le due affermazioni false che erano entrate in `main`; i **cinque difetti di
+      sostanza** che la review ha trovato — `ComputeHash` che ignora `StableId`, `MixName` instabile
+      in packaged e non self-delimiting, `bConductsElectricity` fuori dal giro degli archi, il caso
+      «archi» del test più debole di quello «porte» — restano aperti sulla issue, misurati uno per
+      uno. `issue: null` qui significa *«nessuna sessione ci sta lavorando»*, **non** *«non c'è più
+      niente da fare»*: chi riprende `#986` riattiva la track.
+      ✅ Il write-set torna libero: `Turn/RTMatchStateHash.cpp` e `Tests/RTMatchStateHashTests.cpp`
+      sono atterrati in `main` e oggi non sono di nessuno.
+      ---
+      ➕ **Riattivata il 2026-08-16 su `#986`, e la ragione è scomoda**: una code review multi-angolo
+      sulla PR **#978** è arrivata **dopo** il merge, e ha trovato che due affermazioni false erano
+      entrate in `main` con essa. Questo giro corregge **solo quelle** — i cinque difetti di sostanza
+      restano aperti su `#986`, dove sono misurati uno per uno.
+      ⚠️ **Le due affermazioni non sono refusi, sono verifiche mancate**: un commento che rimandava a
+      `RTGoldenCorpusTests` e a `G12` per una proprietà che nessuno dei due copre — misurato: i golden
+      `.rttl` non contengono alcuno state hash, e `G12` è `BUILD SUCCESSFUL`, non un confronto di hash —
+      e il tipo `FRTHexArc`, che non esiste in tutto `Source/` (è `FRTHexEdge`). Una terza, il conteggio
+      `876` dove l'albero ne fa `903`, era già caduta col ritorno a IDLE di poche ore fa: la riga che la
+      conteneva è stata riscritta prima che la review la segnalasse.
+      🔴 **La lezione di processo vale più delle due correzioni**: la review era stata lanciata **prima**
+      del merge e il merge non l'ha attesa. Nessuno dei findings avrebbe bloccato la PR — ma quelle
+      affermazioni sarebbero rimaste in `main` a dire il falso a chi le rilegge.
+      ---
+      ✅ **IDLE dal 2026-08-16 perché il lavoro è atterrato, non per dipendenza.** `#832` (CP 23.3,
+      `RT-FEAT-MAP-STRUCTURE-IDENTITY`) è **CLOSED**: PR **#978** mergiata alle `06:47:59Z`
+      (`b2a024bc`), sesta casella su sei spuntata. Suite sull'albero mergiato: **903 test, 0 falliti**;
+      la verifica di mutazione fa cadere *esattamente* `Simulation.ChecksumSeesStructureIdentity` e
+      nient'altro, il che è anche la prova che `HexMap.DoorHashDeterminism` non copriva quell'anello.
+      ✅ **Il write-set torna libero e non assegnato**: i sei path di `#832` — `Map/RTStructureIdentityLibrary.*`,
+      `Turn/RTMatchStateHash.*` e i due test — sono tutti atterrati in `main` e oggi non sono di nessuno.
+      Chi li rivendica riattiva questa track, invece di scriverci di passaggio.
+      ⚠️ **Il `mandate` B resta assegnato e NON esigibile**: `ScenarioHarness/` è passato a `simulation`
+      (#512) e non è tornato. Alla track resta il solo file del mandato. Chi riapre il mandato
+      **rinegozia la cartella**, non la riprende — e finché `simulation` la tiene, non c'è niente da
+      riprendere.
       ✅ **Il blocco che teneva ferma quella casella era scaduto, e l'ho rimisurato invece di rileggerlo.**
       La issue dichiarava — al presente — *«`Turn/RTMatchStateHash.cpp` appartiene alla track `simulation`,
       che lo sta riscrivendo»*. Quando ho misurato, `simulation` era `IDLE` col write-set *«libero e non
@@ -1300,15 +1332,6 @@ tracks:
     mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
     worktree: "D:/rt-spatial"
     writable:
-      # #832 — la sesta casella. Due sono scritti (`RTMatchStateHash.cpp` e il suo test), quattro sono
-      # letti e restano dichiarati perché il DoD della issue li nomina: il perimetro si dichiara prima,
-      # non si deduce dal diff a cose fatte.
-      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.h
-      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.cpp
-      - Source/RefactorTactics/Turn/RTMatchStateHash.h
-      - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
-      - Source/RefactorTactics/Tests/RTStructureIdentityTests.cpp
-      - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
       - docs/technical/qa-prompt-terminal-b-scenario-runner.md
     derives_from: []
 
@@ -1337,7 +1360,12 @@ tracks:
     # PR è l'atto d'integrazione che prenota i path; il branch di lavoro nasce col primo commit dentro
     # `D:/rt-simulation`. È la stessa forma che `content_editor` porta da due giorni, ed è la ragione per
     # cui `branch` si **misura** (`git ls-remote`) invece di scriverlo in anticipo.
-    branch: null
+    # ✅ **Il primo commit è arrivato, e il campo smette di dire il falso lo stesso giorno.** Il branch
+    # esiste **lato server** — `git ls-remote --heads origin` dà `3b4a8884` — e porta il referto del giro
+    # di design. La correzione non ha aspettato la chiusura della track: un `branch: null` su una sessione
+    # che ha già scritto e pushato è precisamente il difetto che `content_editor` porta da due giorni e
+    # che questo file le contesta due blocchi più sotto.
+    branch: feat/512-decisionprovider-finestra
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -1624,11 +1652,18 @@ tracks:
       decisione scriptata risponderebbe `HOLD` e cadrebbe. `EveryShippedScenarioRuns` accetta `BLOCKED` e
       non accetta `FAIL`: la capability si scopre **insieme** ai dati che la rendono rispondibile, e i dati
       stanno in `Scenarios/`, che resta `integration_only`.
+      ➕ **Un quinto path, e la ragione per cui non è la cartella**: il **piano** di implementazione,
+      `docs/roadmap/plans/cp153b-decision-provider-plan-2026-08-16.md`. Il referto dice *cosa* si costruisce
+      e perché; il piano dice in quale ordine e con quali test, ed è ciò che un esecutore legge. Stesso
+      criterio del referto — **file e non cartella**: `docs/roadmap/plans/` è scritta adesso da quattro
+      branch remoti e da un worktree con un referto *untracked*. Misurato che il nome non esiste e che
+      nessuno lo tocca.
     writable:
       - Source/RefactorTactics/ScenarioHarness/
       - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
       - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
       - docs/roadmap/plans/cp153b-decision-provider-design-2026-08-16.md
+      - docs/roadmap/plans/cp153b-decision-provider-plan-2026-08-16.md
     derives_from:
       - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
         regenerates:
@@ -2530,11 +2565,28 @@ tracks:
     binary_leases: []
 
   unit_presentation:
-    status: ACTIVE
+    status: IDLE
     issue: 593
     branch: feat/593-root-neutro-unit
     worktree: "D:/rt-unit"
     note: >-
+      ✅ **CHIUSA il 2026-08-16**: PR **#977** mergiata in `main` come `a4d4a274`, issue `#593` chiusa.
+      Il write-set qui sotto e' **rilasciato** — `Unit/RTUnit.{h,cpp}`, `Tests/RTUnitTests.cpp` e
+      `docs/technical/spec-team-identity.md` tornano disponibili. L'elenco resta scritto invece di
+      essere svuotato: dice quali file questa track ha toccato, ed e' cio' che la prossima intersezione
+      deve poter leggere.
+      🔴 **Il turno ha trovato in code review un difetto che la suite verde non vedeva**:
+      `RingGroundClearance` a `1.0` metteva il bordo degli anelli a `2.0`, mezza unita' **dentro** il
+      disco opaco della cella (faccia a `2.5`). Anelli invisibili a schermo, indistinguibili da anelli
+      mai disegnati. `Map/` e' fuori da questo write-set, e la costante che avrebbe risposto —
+      `RTCellTopZ` — e' `constexpr` in un namespace anonimo: condividerla e' **#983**. Aperta anche
+      **#984** (il conteggio della suite e' fermo a 875 mentre sono 903, e rigenerarlo cancella prosa
+      scritta a mano dentro il blocco generato).
+      ⚠️ **Resta lavoro NON in questa track**: i quattro `BP_Unit_*` non sono raddrizzati — i loro nodi
+      SCS dichiarano il genitore per nome, quindi la skeletal resta figlia di `Mesh`. E' la seduta
+      **U7**, con Binary Asset Lease, e la ricetta in `editor-sessions.yaml` ha ora l'ordine obbligato
+      (misura → riparenta → togli).
+
       ➕ **Track aperta su `#593`**: il cilindro segnaposto e' il **root** di `ARTUnit` e porta una scala
       non uniforme `(1.2, 1.2, 1.8)`, quindi ogni componente aggiunto in Blueprint la eredita — una
       Skeletal Mesh viene stirata di `1.8/1.2 = 1.5x`. Root neutro (`USceneComponent`), com'e' gia' in
@@ -2567,10 +2619,27 @@ tracks:
       ⚠️ **Il vincolo che resta non e' sui file, e' la macchina**: una run di automation per volta e un
       mutex di UBT — questa track compila i target Editor e Game, quindi si aspetta con `simulation`
       (#512) e `content_editor` (#451) se ricompilano insieme.
+      ➕ **`docs/technical/spec-team-identity.md` entra il 2026-08-16, in code review e non all'apertura**,
+      ed e' esattamente il caso che questo file chiama STOP: non era in nessun insieme — ne' in un
+      `writable`, ne' in `integration_only`, ne' in `generated_only`. E' un `owner_spec` di
+      `RT-FEAT-CHAR-PRESENTATION`, e le sue sezioni 2-4 descrivono la gerarchia che questa track sta
+      togliendo: `Mesh` root, `SetupAttachment(Mesh)`, la `RelativeLocation.Z` divisa per
+      `BaseMeshScale.Z`. Lasciarlo indietro non e' neutro — e' una spec `AS-BUILT` che descrive codice
+      che non esiste piu', cioe' l'istruzione a rimettere la compensazione appena tolta.
+      ✅ **Intersezione rimisurata il 2026-08-16 sui tre comandi**, perche' quella di apertura non
+      copriva questo path: `gh pr list` (**3** PR: #977, #908, #904), `git ls-remote --heads origin`
+      (**12** ref, `main` incluso), `git worktree list` (**9** worktree). L'unione da **18 rami vivi** —
+      e i tre comandi non si sovrappongono: `feat/958-corpus-determinismo-autobattle`,
+      `feat/937-loading-error` e `feat/472-replay-r6-interfaccia` esistono solo come worktree locali,
+      invisibili sia a `gh` sia a `ls-remote`. `git diff --name-only origin/main...<ramo>` per tutti e
+      diciotto: **zero** tocca `docs/technical/spec-team-identity.md` o `docs/characters/`.
+      ⚠️ **Limite dichiarato**: la misura vede i COMMIT, non il lavoro non committato negli altri
+      worktree. Contro quello un batch non protegge, e non e' questo file a poterlo promettere.
     writable:
       - Source/RefactorTactics/Unit/RTUnit.h
       - Source/RefactorTactics/Unit/RTUnit.cpp
       - Source/RefactorTactics/Tests/RTUnitTests.cpp
+      - docs/technical/spec-team-identity.md
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
@@ -2744,6 +2813,35 @@ generated_only:
     # quinta sorgente non era in nessun `writable` **né** in `integration_only`, cioè non assegnata.
     # Ora è in `integration_only` con le altre quattro, e l'affermazione torna vera — ma per averlo
     # scritto, non per fortuna.
+
+  # ➕ **Quarta vista di `feature_registry.py`, e questo elenco non la conosceva** (trovata in code
+  # review della PR #977, il 2026-08-16). `feature_registry.py wiki` scrive il blocco
+  # `<!-- RT_FEATURE_STATUS:BEGIN … -->` dentro ogni pagina del repository referenziata da un
+  # `wiki_refs`: chi tocca `status`, i gate o `last_verified` e non lo rigenera lascia `wiki --check`
+  # rosso, e fino a oggi quei nove file non erano in NESSUN insieme — la condizione che rende la
+  # scrittura uno STOP, mentre in pratica ci scrive chiunque aggiorni il registry.
+  #
+  # ⚠️ **L'elenco e' una FUNZIONE, non una lista da trascrivere**: e' l'insieme dei `wiki_refs` che
+  # non iniziano per `wiki:`. Oggi da nove file, tutti sotto `docs/characters/`; una feature nuova con
+  # un `wiki_refs` verso un altro path lo allarga senza che nessuno tocchi questa voce. Si rilegge con:
+  #
+  #     python -c "import sys;sys.path.insert(0,'scripts');import feature_registry as fr;
+  #     print(sorted({r for e in fr.load_registry()['features'] for r in (e.get('wiki_refs') or [])
+  #                   if not r.startswith('wiki:')}))"
+  #
+  # ✅ **Arco misurato col metodo di §`generated_only`**, non dedotto: perturbato un `last_verified`
+  # (verificando con `git diff --numstat` che la perturbazione fosse applicata), `wiki --check`
+  # risponde `disallineato: docs/characters/index.md`. Controprova: `generate --check` e
+  # `shortlist --check` non nominano nessuno di questi nove file.
+  #
+  # 🔴 **E qui `generated_only` copre il BLOCCO, non il file.** E' l'unica voce parzialmente generata
+  # di questo elenco: attorno ai marcatori c'e' prosa scritta a mano, che NON segue il registry e resta
+  # **non assegnata** — scriverla e' ancora uno STOP, e due track che la modificassero insieme
+  # confliggerebbero senza che nulla qui lo veda. Chi deve scriverla si assegna il path come qualunque
+  # altro file.
+  - path: docs/characters/*.md            # solo il blocco RT_FEATURE_STATUS; la prosa resta non assegnata
+    derives_from: [docs/roadmap/feature-registry.yaml]
+    tool: "feature_registry.py wiki"
 
   # Seconda toolchain: Node, gate proprio (D-108). `feature_registry.py` non la vede.
   - path: docs/characters/radar/
