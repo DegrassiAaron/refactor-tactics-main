@@ -80,9 +80,13 @@ namespace
 	int32 PropLimit() { return URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify")).PropagationLimit; }
 }
 
+// ⚠️ `ClientContext` oltre a `EditorContext`, e non per simmetria con i vicini: e' uno dei **dieci test
+// vincolanti** del catalogo (`roadmap-v0.1.md` §6), e CP 12.3 (`#83`) chiede che la suite giri anche in un
+// pacchetto. Con il solo `EditorContext` il controller lo filtra fuori dal target `Game` — misurato:
+// `Automation List` in un pacchetto Development registrava **zero** test su 875, tutti dichiarati solo Editor.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWaterElectricPropagationTest,
 	"RefactorTactics.Environment.WaterElectricPropagation",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 bool FRTWaterElectricPropagationTest::RunTest(const FString&)
 {
 	// **Nome vincolante** del catalogo §15. La combo firma, verificata in PARTITA: Flux elettrifica un nemico
