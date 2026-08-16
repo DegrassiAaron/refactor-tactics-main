@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 114,
+  "count": 116,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -136,7 +136,8 @@
       "issues": [
         81,
         178,
-        578
+        578,
+        958
       ],
       "tests": [
         "RefactorTactics.Simulation.*",
@@ -450,7 +451,8 @@
         "docs/gameplay/spec-anima-risoluzione.md"
       ],
       "issues": [
-        77
+        77,
+        955
       ],
       "tests": [
         "RefactorTactics.Playback.*"
@@ -4700,6 +4702,65 @@
       "notes": "`RESUME · SETTINGS · RETURN TO MAIN MENU`. Il DoD del ritorno al menu e' **verificabile invece che dichiarato**: si riavvia una partita con lo stesso seed e l'esito deve coincidere con quello di una partita avviata da fresco — se diverge, qualcosa e' sopravvissuto allo smontaggio. ⚠️ **La pausa e' offline-only per costruzione, e la differenza va preservata nell'architettura**: in v0.5 (E40, turno simultaneo in rete) non esistera' una pausa globale, e cio' che la sostituira' — `Surrender`/`Leave Match` — ha un'altra semantica. Scoprirlo in v0.5 costerebbe un refactor del flow; dichiararlo adesso costa questa riga."
     },
     {
+      "feature_id": "RT-FEAT-UI-BOARD-GRAMMAR",
+      "title": "Grammatica visiva della board — colore e forma, mai solo il colore",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "IMPLEMENTING",
+      "status_derived": "IMPLEMENTING",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "partial",
+        "log_debug": "na",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": "E47",
+        "milestone": null,
+        "checkpoints": [
+          "47.3"
+        ],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-MAP-HEXGRAPH",
+        "RT-FEAT-ENV-TERRAIN",
+        "RT-FEAT-MAP-COVER"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/decisions/RT_PDR_00_Decision_Log.md",
+        "docs/roadmap/plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md"
+      ],
+      "issues": [
+        952,
+        956
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "wiki:mappa-terreni-e-ambiente"
+      ],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {
+        "date": "2026-08-16",
+        "commit": "80d967ee"
+      },
+      "notes": "**La legenda e' DERIVATA, non un modello dati** (`D-146`). La tassonomia a cinque voci del prompt di provenienza — `Normal · Rough · Cover · Hazard · Objective` — non corrisponde al repository: `ERTHexSurface` ha **nove** valori, la copertura e' direzionale **per bordo** dal **E9.1** («la direzionalita' e' del bordo, non dell'unita'») e gli obiettivi sono entita' di mappa dell'epic E10. Adottarla come dato creerebbe il secondo owner di due sistemi gia' decisi — che e' cio' che la sorgente stessa vieta. Le cinque voci restano un vocabolario di lettura che il renderer calcola da superficie + coperture dei bordi + entita' obiettivo: **zero enum nuovi, nessuna migrazione di formato**, l'hash della mappa non cambia.\nLa regola vincolante e' la **ridondanza**: ogni categoria distinguibile da almeno due canali indipendenti. Non e' estetica — e' la stessa famiglia di un log che nomina la causa: se l'unico canale fallisce (daltonismo, scala di grigi, video ricompresso) la lettura non degrada, sparisce. Ed e' precondizione della registrazione video che `G10` e `G13` chiedono.\n⚠️ **Nessun gate difende questa regola oggi**: niente fallisce se una categoria nuova arrivasse col solo colore. Dichiarato in `D-146` invece che sottinteso — il primo consumatore che ne aggiunga una dovra' portarsi il controllo dietro.\n⚠️ **Vincolo di parallelismo, misurato e non dedotto dal nome della track**: i file di E47.3 sono `Map/RTHexMapActor.{h,cpp}`, che stanno nel `writable` di **`content_editor`** — ACTIVE su `#451` al 2026-08-16 — non di `client_tools`. 🔴 Una stesura precedente di questa nota scriveva `client_tools` (`UI/`), e la code review l'ha falsificata: attribuire un file alla track sbagliata fa credere che il blocco sia altrove, mentre `D-139` dice che si aspetta **quell'owner**. (`parallel-batch.yaml`, `D-139`)"
+    },
+    {
       "feature_id": "RT-FEAT-CHAR-V01-ROSTER",
       "title": "Roster v0.1 — Gadget, Phase, Riktor, Wraith",
       "area": "Characters",
@@ -5424,6 +5485,73 @@
       "notes": "**Misura, non produzione** (D-011): dove si rompe il sistema con otto unità. Non decide il formato competitivo finale — 3v3 resta la baseline di studio, 4v4 lo stress test.\n**CP 17.1 e 17.2 chiusi il 2026-08-10.** Il roster core a quattro per squadra gioca una partita intera su un'arena r=8 con tre direttrici, e due esecuzioni identiche danno gli stessi hash — confrontati **turno per turno**, perché un hash finale uguale non esclude che due partite siano passate per stati diversi, e «diverge dal turno N» è l'unica diagnosi utile.\nIl difetto che l'epic cercava — un `if (Num == 2)` nel resolver — **non è stato trovato**. `NoTeamSizeAssumptionInResolver` interroga 1v1, 2v2, 3v3 e 4v4: con due sole dimensioni, «funziona per ogni N» e «funziona per i due N che ho provato» si leggono uguali.\nMisure registrate (playback off, 12 turni, arena r=8): resolver **2,319 ms/turno** a 4v4 contro **1,655** del 2v2 su r=6 — entrambi due ordini di grandezza sotto il target PDR di 100 ms — e TurnLog **11,7 voci/turno** (~840 byte). ⚠️ Due delle cinque metriche richieste dal DoD, «opportunity di reazione per turno» e «prompt manuali per turno», sono **NON MISURABILI** e il test lo scrive invece di riportare uno zero: il produttore in partita è CP 14.5, e uno zero per assenza di produttore si legge come uno zero per assenza di reazioni.\n⚠️ Limite dichiarato dell'arena: la direttrice «centro/obiettivo» è oggi solo **geometrica** — un corridoio, non un punto di controllo. Un obiettivo contendibile è CP 10.2 (`#75`), che non è atterrato. Resta CP 17.3, che è una voce PIE (`PIE-V01-STRESS4V4`) e un giudizio a schermo."
     },
     {
+      "feature_id": "RT-FEAT-MATCH-AUTOBATTLE",
+      "title": "Partita non presidiata — bot contro bot, dall'avvio al vincitore",
+      "area": "Objectives",
+      "kind": "tooling",
+      "release": "v0.1",
+      "priority": "P1",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "todo",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 8,
+      "roadmap": {
+        "epic": "E47",
+        "milestone": null,
+        "checkpoints": [
+          "47.1",
+          "47.6"
+        ],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-BOT-BASE",
+        "RT-FEAT-CORE-TURN",
+        "RT-FEAT-MATCH-END-CONDITIONS"
+      ],
+      "completed_by": [
+        "RT-FEAT-CORE-PLAYBACK",
+        "RT-FEAT-UI-BOARD-GRAMMAR"
+      ],
+      "owner_specs": [
+        "docs/decisions/RT_PDR_00_Decision_Log.md",
+        "docs/roadmap/plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md"
+      ],
+      "issues": [
+        952,
+        954,
+        959
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [
+        "AutoBattle.OpenField",
+        "AutoBattle.Obstacles",
+        "AutoBattle.Hazard",
+        "AutoBattle.Objective"
+      ],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {
+        "date": "2026-08-16",
+        "commit": "80d967ee"
+      },
+      "notes": "**Il motore c'e' gia'; manca la configurazione.** `ARTTurnManager::StartPlanningTimer()` chiama `PlanBots()`, `OnPlanningTimeout()` chiama `LockInAndResolve()` e a fine risoluzione il timer riparte: il turno avanza da solo. L'unico punto che impedisce l'autobattle in partita e' `RTGameMode.cpp:547` — `Unit->bIsBotControlled = (TeamId == 1)` — **pinnato** da `RTHeroSpawnTests` («il giocatore comanda i suoi» / «il bot comanda i propri»). Si estende con una configurazione, lasciando il default dov'e'.\nPerche' e' `P1` pur essendo `tooling`: quattro gate della release dipendono oggi da una persona che *giochi* una partita intera — le nove voci `PIE-HEXPLAY` (M6 ed epic E2), `G10` e `G13`. La modalita' non le chiude — restano verifiche umane — ma ne cambia il costo da «gioca» a «guarda», e rende registrabile in video cio' che oggi si puo' solo raccontare (`D-145`).\n⚠️ **Il seed resta fuori, e ha gia' un guardiano**: `FRTTestScenario::Seed` e' documentato come «dichiarato ma non consumato», e `RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed` (2026-08-15) pinna l'invariante nel verso che morde — due seed **diversi** danno lo stesso risultato. Introdurre il seed non aggiunge un test: **ne rimuove uno verde** e ne apre due, con la procedura scritta nel commento di quel test. Domanda aperta `RNG-1`/`RNG-2` in `docs/OPEN_DECISIONS.md`, issue `#960`."
+    },
+    {
       "feature_id": "RT-FEAT-BOT-BASE",
       "title": "Bot a utility scoring deterministico",
       "area": "Tools",
@@ -5782,7 +5910,8 @@
       ],
       "issues": [
         169,
-        542
+        542,
+        957
       ],
       "tests": [
         "RefactorTactics.Scenario.*"
@@ -6798,7 +6927,8 @@
         "docs/technical/convenzioni-contenuti-ue.md"
       ],
       "issues": [
-        85
+        85,
+        959
       ],
       "tests": [],
       "scenarios": [],

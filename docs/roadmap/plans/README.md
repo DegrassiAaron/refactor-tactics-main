@@ -21,20 +21,60 @@ Ogni file qui porta un **banner di stato** nella prima riga dopo il titolo. È l
 ⚠️ **I banner parlano due vocabolari.** Non è un difetto da sanare riscrivendo 24 documenti — è un fatto da
 dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
-| Banner | Vocabolario | Significa | Quanti *(2026-08-14)* |
+| Banner | Vocabolario | Significa | Quanti *(2026-08-16)* |
 |---|---|---|--:|
-| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 28 |
-| `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 1 |
+| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 35 |
+| `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 8 |
 | `📦 DELIVERED PLAN` | secondo | *Piano già eseguito, non normativo* — equivale a `HISTORICAL` | 14 |
 | `🧱 AS-BUILT` | secondo | *Specifica di ciò che fu consegnato* — equivale a `HISTORICAL` | 7 |
 | `DONE` · `PLAN`/consumato · `BRIEF` | secondo | Casi singoli, già consumati — equivalgono a `HISTORICAL` | 3 |
 
-**53 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `28 + 1 + 14 + 7 + 3 = 53`, e la somma delle categorie e' il controllo che il totale da solo non offre. I due totali si rimisurano eseguendo:
+**67 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `35 + 8 + 14 + 7 + 3 = 67`, e la somma delle categorie e' il controllo che il totale da solo non offre. I due totali si rimisurano eseguendo:
 
 ```sh
-ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 53
+ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 67
 ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
+
+# La ripartizione per banner — il numero che fino al 2026-08-16 nessun comando produceva.
+# Il banner sta nella PRIMA riga di citazione del file, e i vocabolari sono due.
+python - <<'PY'
+import os
+
+CARTELLA = 'docs/roadmap/plans'
+BANNER = ['CURRENT', 'SNAPSHOT', 'DELIVERED PLAN', 'AS-BUILT', 'HISTORICAL', 'DONE', 'BRIEF', 'PLAN']
+
+conteggio = {}
+for nome in sorted(os.listdir(CARTELLA)):
+    if not nome.endswith('.md') or nome == 'README.md':
+        continue
+    with open(os.path.join(CARTELLA, nome), encoding='utf-8') as fh:
+        prima_citazione = next((r for r in fh if r.startswith('>')), '')
+    chiave = next((b for b in BANNER if b in prima_citazione), '?')
+    conteggio[chiave] = conteggio.get(chiave, 0) + 1
+
+for chiave, quanti in sorted(conteggio.items(), key=lambda kv: -kv[1]):
+    print(f'{quanti:3}  {chiave}')
+print(f'{sum(conteggio.values()):3}  TOTALE')
+PY
 ```
+
+⚠️ **Un `?` nel conteggio non è rumore: è un file il cui banner non è stato riconosciuto**, e va guardato
+invece che ignorato. Il ciclo legge il file **riga per riga** e si ferma alla prima citazione, quindi non
+ha un limite di caratteri da sbagliare — una prima stesura di questo blocco leggeva i primi 1200 e avrebbe
+classificato `?` qualunque documento con un'intestazione lunga, cioè avrebbe sotto-riportato proprio la
+deriva che questa sezione lo aggiunge a misurare.
+
+> 🔵 **Rimisurate il 2026-08-16, e tre celle su sette erano ferme** — `53 → 67` documenti,
+> `CURRENT 28 → 35`, `SNAPSHOT 1 → 8`. Il difetto è quello che questa sezione già descrive, applicato a sé
+> stessa: la cella *dice* di rimisurarsi dopo ogni merge, e i due comandi che offriva davano il **totale**,
+> mai la **ripartizione** — quindi cinque numeri su sette non avevano modo di essere verificati. Ora il
+> terzo comando c'è, e la prossima deriva è visibile invece che ricordata.
+>
+> ⏱️ **E lo scarto era stato dichiarato prima di prodursi, poi verificato.** Il ramo
+> `docs/mini01-consolidamento-autobattle` aveva scritto `66` con `CURRENT 34` e accanto: «`docs/menu-frontend-consolidamento`
+> aggiunge `menu-frontend-spec-panel-2026-08-16.md` a questa stessa cartella, e nessuno dei due rami vede
+> l'altro: quando atterrano entrambi sarà **67** con `CURRENT 35`». #948 è atterrata, e il comando eseguito
+> **sull'albero unito** ha risposto esattamente `67` e `35`. Nessuna cella è stata incrementata a mano.
 
 > 🔴 **Questa riga diceva 49, ed è stata falsa per venti minuti.** Il totale è stato scritto su un worktree
 > e il merge ha portato `wiki-audit-player-first-2026-08-13.md` da una sessione parallela. È la regola che

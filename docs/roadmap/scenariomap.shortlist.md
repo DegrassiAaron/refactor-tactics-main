@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**76 scenari versionati** — misurati su `Scenarios/`: **64** eseguibili · **12** `BLOCKED` per una capability assente · **59** dichiarati `planned` nel registry e non ancora scritti.
+**76 scenari versionati** — misurati su `Scenarios/`: **64** eseguibili · **12** `BLOCKED` per una capability assente · **63** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `DeclaredRotation` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
 
@@ -38,6 +38,10 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 | Pianificato, non scritto | Feature che lo chiede |
 |---|---|
+| `AutoBattle.Hazard` | `RT-FEAT-MATCH-AUTOBATTLE` |
+| `AutoBattle.Objective` | `RT-FEAT-MATCH-AUTOBATTLE` |
+| `AutoBattle.Obstacles` | `RT-FEAT-MATCH-AUTOBATTLE` |
+| `AutoBattle.OpenField` | `RT-FEAT-MATCH-AUTOBATTLE` |
 | `Spec.ActionEconomy.MoveImpairsPrecision` | `RT-FEAT-ACTION-MOVEMENT-COMPAT` |
 | `Spec.ActionEconomy.OverwatchReservesMovementSlot` | `RT-FEAT-ACTION-PLAN-VALIDATION` |
 | `Spec.ActionEconomy.PathLengthChangesEffect` | `RT-FEAT-ACTION-MOVEMENT-COMPAT` |

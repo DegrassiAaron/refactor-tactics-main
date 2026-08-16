@@ -20,14 +20,14 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**114 feature** · v0.1 **78** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
+**116 feature** · v0.1 **80** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 7 |
-| `DESIGNED` | 18 |
+| `DESIGNED` | 19 |
 | `SPECIFIED` | 14 |
-| `IMPLEMENTING` | 23 |
+| `IMPLEMENTING` | 24 |
 | `TESTABLE` | 9 |
 | `INTEGRATED` | 22 |
 | `RELEASE_READY` | 16 |
@@ -145,7 +145,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-NET-AUTHORITY` — Multiplayer con autorità server | v0.5 | SPECIFIED | 1/8 | E40 · M10 | Nessuna epic né issue: vive in M10 |
 | `RT-FEAT-NET-DEDICATED` — Dedicated server | v0.7 | IDEA | 0/8 | E42 | — |
 
-### Objectives · 5
+### Objectives · 6
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -154,6 +154,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | v0.1 | TESTABLE | 5/8 | E12 | Percentili misurati sul giocatore, non stimati |
 | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | v0.1 | IMPLEMENTING | 2/9 | E10 | La partita **finisce** per obiettivo, ma non c'è **nulla da attivare** |
 | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | v0.1 | IMPLEMENTING | 1/7 | E17 | Misura dove si rompe il sistema con 8 unità. **Non** decide il formato |
+| `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore | v0.1 | DESIGNED | 0/8 | E47 | — |
 
 ### Perception · 4
 
@@ -203,13 +204,14 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | E26 | Epic E26 |
 | `RT-FEAT-BOT-COMPETENCE` — Schema di competenza del bot — cosa il bot sa davvero usare | v0.8 | IDEA | 0/6 | E43 | — |
 
-### UI · 15
+### UI · 16
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-UI-COMBAT-LOG` — Combat log e spiegabilità | v0.1 | RELEASE_READY | 6/7 | E11 | Ciò che il giocatore legge e ciò che il replay registra sono **la stessa cosa** |
 | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | v0.1 | RELEASE_READY | 6/7 | E11 | Il client valida sullo stato dell'autorità |
 | `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | v0.1 | INTEGRATED | 6/8 | fuori scope | Tooling di test, **fuori** dal contenuto di release per decisione |
+| `RT-FEAT-UI-BOARD-GRAMMAR` — Grammatica visiva della board — colore e forma, mai solo il colore | v0.1 | IMPLEMENTING | 0/7 | E47 | — |
 | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | v0.1 | IMPLEMENTING | 3/8 | E11 | Confermato / previsto / incerto — tre livelli, non una sfumatura |
 | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | v0.1 | IMPLEMENTING | 1/7 | E20 | Un **catalogo semantico**, non texture referenziate nei widget |
 | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | v0.1 | IMPLEMENTING | 1/8 | E11 | — |

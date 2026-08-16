@@ -69,6 +69,7 @@
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
       "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
       "[RT-FEAT-STRESS-4V4] 1 scenario/i dichiarati planned: Stress.4v4.CoreRoster",
+      "[RT-FEAT-MATCH-AUTOBATTLE] 4 scenario/i dichiarati planned: AutoBattle.OpenField, AutoBattle.Obstacles, AutoBattle.Hazard, AutoBattle.Objective",
       "[RT-FEAT-BOT-FAIRNESS] 1 scenario/i dichiarati planned: Spec.Bot.DecoyNoiseIndistinguishable",
       "[RT-FEAT-BOT-TACTICAL] 5 scenario/i dichiarati planned: Spec.Bot.TeamPlanRejectsHardConflict, Spec.Bot.CandidateDiversityKeepsControl, Spec.Bot.TemporalSynergyRequiresPhaseOrder, Spec.Bot.OverkillMovesSecondUnit, Spec.Bot.PlanHysteresisIgnoresSmallDelta",
       "[RT-FEAT-BOT-BELIEF] 3 scenario/i dichiarati planned: Spec.Bot.BeliefDoesNotBecomeKnowledge, Spec.Bot.GraphRevisionInvalidatesBelief, Spec.Bot.InformationGainIgnoresHiddenContent",
@@ -322,7 +323,13 @@
     "E46.3": "⏳",
     "E46.4": "⏳",
     "E46.5": "⏳",
-    "E46.6": "⏳"
+    "E46.6": "⏳",
+    "E47.1": "⏳",
+    "E47.2": "⏳",
+    "E47.3": "⏳",
+    "E47.4": "⏳",
+    "E47.5": "⏳",
+    "E47.6": "⏳"
   },
   "editor_sessions": [
     {
@@ -775,6 +782,38 @@
       ],
       "issues": [],
       "done_when": "le nove voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme"
+    },
+    {
+      "id": "U23",
+      "title": "Autobattle registrata — la partita che si guarda, in PIE e su packaged",
+      "block": 2,
+      "critical": true,
+      "execution_lane": "pie",
+      "state": "—",
+      "queue_group": null,
+      "produces": "il video/log della partita non presidiata — l'evidenza che G10 chiede e la riserva che G13 dichiara",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "E47.1",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "checkpoint"
+        },
+        {
+          "ref": "E47.3",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "checkpoint"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [],
+      "issues": [
+        959
+      ],
+      "done_when": "esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development"
     },
     {
       "id": "U7",
@@ -2818,6 +2857,13 @@
             "type": "requires",
             "hard": true,
             "rationale": null
+          },
+          {
+            "from": "issue:512",
+            "to": "issue:957",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
           }
         ],
         "readiness": "BLOCKED",
@@ -3221,6 +3267,233 @@
         "readiness_reason": "nessun prerequisito hard"
       },
       {
+        "id": "issue:954",
+        "kind": "issue",
+        "ref": "954",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "objectives_match",
+        "domain_group_source": "derived",
+        "checkpoint": "E47.1",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.1",
+        "state_note": null,
+        "feature_ids": [
+          "RT-FEAT-MATCH-AUTOBATTLE"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:954",
+            "to": "issue:959",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:954",
+            "to": "issue:955",
+            "type": "follows",
+            "hard": false,
+            "rationale": "Nessuna dipendenza tecnica: e' un vincolo di ownership del write-set (`Source/RefactorTactics/UI/` appartiene alla track `client_tools`, #78). L'ordine e' un risparmio, non un prerequisito."
+          },
+          {
+            "from": "issue:954",
+            "to": "issue:956",
+            "type": "follows",
+            "hard": false,
+            "rationale": "Vincolo di ownership su un'ALTRA track: `Map/RTHexMapActor.{h,cpp}` appartiene a `content_editor` (#451), non a `client_tools`. E la board si giudica su una partita che gira da sola, il che rende l'ordine un risparmio e non un prerequisito."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:955",
+        "kind": "issue",
+        "ref": "955",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "core_simulation",
+        "domain_group_source": "derived",
+        "checkpoint": "E47.2",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.2",
+        "state_note": null,
+        "feature_ids": [
+          "RT-FEAT-CORE-PLAYBACK"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:954",
+            "to": "issue:955",
+            "type": "follows",
+            "hard": false,
+            "rationale": "Nessuna dipendenza tecnica: e' un vincolo di ownership del write-set (`Source/RefactorTactics/UI/` appartiene alla track `client_tools`, #78). L'ordine e' un risparmio, non un prerequisito."
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:955",
+            "to": "issue:958",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:956",
+        "kind": "issue",
+        "ref": "956",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "ui_presentation",
+        "domain_group_source": "derived",
+        "checkpoint": "E47.3",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.3",
+        "state_note": null,
+        "feature_ids": [
+          "RT-FEAT-UI-BOARD-GRAMMAR"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:954",
+            "to": "issue:956",
+            "type": "follows",
+            "hard": false,
+            "rationale": "Vincolo di ownership su un'ALTRA track: `Map/RTHexMapActor.{h,cpp}` appartiene a `content_editor` (#451), non a `client_tools`. E la board si giudica su una partita che gira da sola, il che rende l'ordine un risparmio e non un prerequisito."
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:956",
+            "to": "issue:959",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:957",
+        "kind": "issue",
+        "ref": "957",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "domain_group_source": "derived",
+        "checkpoint": "E47.4",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.4",
+        "state_note": null,
+        "feature_ids": [
+          "RT-FEAT-TEST-SCENARIO-HARNESS"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:512",
+            "to": "issue:957",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [
+          {
+            "from": "issue:957",
+            "to": "issue:958",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "readiness": "BLOCKED",
+        "readiness_reason": "aspetta issue:512"
+      },
+      {
+        "id": "issue:958",
+        "kind": "issue",
+        "ref": "958",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "core_simulation",
+        "domain_group_source": "derived",
+        "checkpoint": "E47.5",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.5",
+        "state_note": null,
+        "feature_ids": [
+          "RT-FEAT-CORE-DETERMINISM"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:955",
+            "to": "issue:958",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:957",
+            "to": "issue:958",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [],
+        "readiness": "BLOCKED",
+        "readiness_reason": "aspetta issue:955, issue:957"
+      },
+      {
+        "id": "issue:959",
+        "kind": "issue",
+        "ref": "959",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "domain_group_source": "declared",
+        "checkpoint": "E47.6",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.6",
+        "state_note": null,
+        "feature_ids": [
+          "RT-FEAT-MATCH-AUTOBATTLE",
+          "RT-FEAT-PROD-PACKAGED"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:954",
+            "to": "issue:959",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          },
+          {
+            "from": "issue:956",
+            "to": "issue:959",
+            "type": "requires",
+            "hard": true,
+            "rationale": null
+          }
+        ],
+        "outgoing": [],
+        "readiness": "BLOCKED",
+        "readiness_reason": "aspetta issue:954, issue:956"
+      },
+      {
         "id": "session:U7",
         "kind": "session",
         "ref": "U7",
@@ -3390,6 +3663,41 @@
         "rationale": null
       },
       {
+        "from": "issue:512",
+        "to": "issue:957",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:954",
+        "to": "issue:959",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:956",
+        "to": "issue:959",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:955",
+        "to": "issue:958",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
+        "from": "issue:957",
+        "to": "issue:958",
+        "type": "requires",
+        "hard": true,
+        "rationale": null
+      },
+      {
         "from": "issue:165",
         "to": "capability:DecisionBoundary",
         "type": "provides",
@@ -3423,6 +3731,20 @@
         "type": "follows",
         "hard": false,
         "rationale": "Chiudere la traccia del danno da hazard prima del pinning del golden evita una rebaseline. E' un risparmio, non un prerequisito."
+      },
+      {
+        "from": "issue:954",
+        "to": "issue:955",
+        "type": "follows",
+        "hard": false,
+        "rationale": "Nessuna dipendenza tecnica: e' un vincolo di ownership del write-set (`Source/RefactorTactics/UI/` appartiene alla track `client_tools`, #78). L'ordine e' un risparmio, non un prerequisito."
+      },
+      {
+        "from": "issue:954",
+        "to": "issue:956",
+        "type": "follows",
+        "hard": false,
+        "rationale": "Vincolo di ownership su un'ALTRA track: `Map/RTHexMapActor.{h,cpp}` appartiene a `content_editor` (#451), non a `client_tools`. E la board si giudica su una partita che gira da sola, il che rende l'ordine un risparmio e non un prerequisito."
       },
       {
         "from": "issue:593",
@@ -3497,31 +3819,32 @@
       }
     ],
     "stats": {
-      "nodes": 20,
-      "edges": 22,
-      "hard_edges": 11,
-      "soft_edges": 7,
+      "nodes": 26,
+      "edges": 29,
+      "hard_edges": 16,
+      "soft_edges": 9,
       "by_readiness": {
-        "BLOCKED": 2,
+        "BLOCKED": 5,
         "DONE": 2,
-        "READY": 11,
+        "READY": 14,
         "UNKNOWN": 5
       },
       "by_execution_lane": {
         "asset": 2,
-        "code": 16,
+        "code": 22,
         "pie": 2
       },
       "by_domain_group": {
         "actions_reactions": 4,
         "characters_content": 7,
-        "core_simulation": 2,
+        "core_simulation": 4,
         "map_environment": 3,
-        "objectives_match": 1,
-        "tooling_data_qa": 3
+        "objectives_match": 2,
+        "tooling_data_qa": 5,
+        "ui_presentation": 1
       },
       "by_release": {
-        "v0.1": 20
+        "v0.1": 26
       },
       "state_unknown": 14
     }

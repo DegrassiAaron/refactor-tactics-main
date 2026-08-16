@@ -128,8 +128,8 @@ Manca la prova sul campo: la sessione di playtest **M6.8**, che si esegue in edi
 > Standard 3v3, bot tattico ed esperto, Operations. Nessuna di quelle epic si apre prima dei 15 gate della v0.1.
 
 Le milestone qui sotto restano la vista di **esecuzione**. Sopra di esse esiste ora una vista di **release**:
-[`roadmap-v0.1.md`](roadmap-v0.1.md) — **22 epic, 106 checkpoint** *(rimisurato il 2026-08-16 con l'aggiunta
-di E46; prima era «21 epic, 100 checkpoint», rimisurato a sua volta il 2026-08-12: era «95», che
+[`roadmap-v0.1.md`](roadmap-v0.1.md) — **23 epic, 112 checkpoint** *(rimisurato il 2026-08-16 sull'albero unito
+con **E46** ed **E47**, che sono atterrate lo stesso giorno da due rami che non si vedevano; prima era «21 epic, 100 checkpoint», rimisurato a sua volta il 2026-08-12: era «95», che
 era la somma corretta di una colonna ferma su tre epic; era 12/59; **E13** conoscenza parziale,
 **E14** overwatch, **E15** showcase ed **E16** orientamento aggiunte il 2026-08-07, insieme ai checkpoint del
 planning visuale in **E11** → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md); **E19**
@@ -157,6 +157,7 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 | **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](../decisions/adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
 | **E17** Validazione di stress 4v4 | oltre **M9** | **nuova** (2026-08-07): [D-011](../decisions/RT_PDR_00_Decision_Log.md). **Misura, non produzione**: dove si rompe il sistema con otto unità. Dopo E15; **non** decide il formato principale |
 | **E18** Predictive Action (thin slice) | parte di **M8** | **nuova** (2026-08-08): [D-016](../decisions/RT_PDR_00_Decision_Log.md). Una **sola** azione predittiva rende percepibile il pilastro della predizione. **Non dipende da E13/E14**: sgancia `Vektor.InterceptShot` da E14 |
+| **E47** Mini v0.1 Autobattle | parte di **M6** | **nuova** (2026-08-16): [D-145](../decisions/RT_PDR_00_Decision_Log.md). Non aggiunge meccaniche — cambia **chi guida la squadra 0**. Il playtest M6.8 smette di richiedere che una persona *giochi* una partita intera e chiede solo di **guardarla e registrarla**. ⚠️ **Abbassa il costo, non chiude il gate**: le nove voci `PIE-HEXPLAY` restano da eseguire una per una. 🔴 Questa cella diceva «sblocca **M6**», e la colonna contiene **relazioni**, non effetti — «sblocca» si legge come «chiudere E47 libera M6», ed è falso |
 | — | **M10** Rete e privacy | **fuori** dalla v0.1 |
 
 ### Effetto delle epic sulle milestone
@@ -174,7 +175,7 @@ questa vista sa davvero.
 
 | Milestone | Lavoro di epic residuo |
 |---|---|
-| **M6** Parità hex | **Nessuno**: E2 è chiusa. Ciò che la tiene aperta non è un'epic ma il **playtest** M6.8 — `PIE-HEXPLAY-1..9`, tutte ⏳ |
+| **M6** Parità hex | **Nessuno**: E2 è chiusa. Ciò che la tiene aperta non è un'epic ma il **playtest** M6.8 — `PIE-HEXPLAY-1..9`, tutte ⏳. ➕ **Dal 2026-08-16 ha un'epic che ne abbassa il costo, non che lo chiude**: [E47](roadmap-v0.1.md#e47--mini-v01-autobattle-la-partita-che-si-guarda--p1) rende la partita **non presidiata**, così le nove voci si osservano invece di giocarle. Restano verifiche umane: E47 cambia il costo, non la natura del gate ([D-145](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **M7** Dismissione del quadrato | **Nessuno**: E3 è chiusa. Restano i due KPI di M7.3 che richiedono rendering ed editor (FPS client, preview) |
 | **M8** Presentazione e identità | Solo **presentazione**: personaggi animati, anelli, Ghost Timeline (E11), showcase (E15). Le regole degli eroi non hanno più abilità inerti. **Dal 2026-08-08 ha un'epic corrispondente**: [E21](roadmap-v0.1.md#e21--presentazione-e-leggibilità--p1), aperta perché il Feature Registry ha reso visibile che questo lavoro non stava in nessuna delle 20 |
 | **M9** Ambienti tattici ed editor | E8 ed **E9 sono chiuse** (E9.5, coperture temporanee, il 2026-08-09): restano gli obiettivi di **E10** e il residuo editor H5 |
@@ -429,7 +430,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 |---|---|
 | [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
 | [`feature-registry.yaml`](feature-registry.yaml) · [`feature-registry.md`](feature-registry.md) | **Prodotto**: stato per *feature* (non per milestone né per epic), derivato da gate verificabili. Unica sorgente dello stato che Wiki e workbook leggono |
-| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 22 epic, 106 checkpoint, mappatura con queste milestone + **§2.1 stato misurato**. ⚠️ Il totale si legge **di lì**: questa riga è una copia, e il 2026-08-12 era indietro di cinque. 🔴 **Ed è rimasta indietro una seconda volta** — E46, 2026-08-16: la copia è stata aggiornata solo perché una code review ha eseguito `grep -rn "21 epic" docs/`. Delle **cinque** copie vive di quel totale, l'aggiunta di un'epic ne aggiorna **una** (l'owner), e nessun gate confronta le altre quattro |
+| [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 23 epic, 112 checkpoint, mappatura con queste milestone + **§2.1 stato misurato**. ⚠️ Il totale si legge **di lì**: questa riga è una copia, e il 2026-08-12 era indietro di cinque. 🔴 **Ed è rimasta indietro una seconda volta** — E46, 2026-08-16: la copia è stata aggiornata solo perché una code review ha eseguito `grep -rn "21 epic" docs/`. Delle **cinque** copie vive di quel totale, l'aggiunta di un'epic ne aggiorna **una** (l'owner), e nessun gate confronta le altre quattro. 🔴 **E una terza volta, lo stesso giorno, per la stessa ragione**: **E47** è atterrata poche ore dopo E46 e le quattro copie erano di nuovo ferme. Tre su quattro sono state riallineate a mano; `docs/README.md` **no**, perché non è nel `writable` di nessuna track e [D-139](../decisions/RT_PDR_00_Decision_Log.md) dice che un file non assegnato è uno **stop**. Il difetto strutturale ha ora un numero: [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/962) |
 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) | **Release v0.2 → v0.4**: epic `E22`–`E35`. Non apre lavoro finché i gate della v0.1 non sono verdi |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G15`, KPI, checklist di contenuto |
 | [`balance/`](../balance) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |

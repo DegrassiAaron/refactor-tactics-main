@@ -371,11 +371,40 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **56**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **63**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
+
+> 🔴 **Questa cella diceva `56` ed era ferma di sette, misurato il 2026-08-16.** Non è una svista di
+> battitura: il numero non aveva un comando in §7 — la sezione ne elenca otto, e nessuno contava i
+> `planned`. La shortlist **generata** diceva già `59` nello stesso repository, quindi due viste
+> divergevano e solo una si aggiornava da sola. Ora il comando c'è (§7, ultimo blocco) e il valore si
+> rimisura invece di ricordarlo.
+
+> ➕ **+4 il 2026-08-16 dal consolidamento *Mini v0.1 Autobattle*** (`D-145`, epic
+> [#952](https://github.com/DegrassiAaron/refactor-tactics-main/issues/952)): i quattro `AutoBattle.*`
+> di `RT-FEAT-MATCH-AUTOBATTLE`.
+>
+> | Scenario | Cosa dimostrerà |
+> |---|---|
+> | `AutoBattle.OpenField` | La partita non presidiata si chiude su terreno neutro: nessun input, un vincitore |
+> | `AutoBattle.Obstacles` | Il layout cambia le decisioni — è il gate che dice che la mappa è gameplay e non sfondo |
+> | `AutoBattle.Hazard` | Una superficie pericolosa modifica l'esito in modo deterministico |
+> | `AutoBattle.Objective` | La partita può finire per obiettivo, non solo per eliminazione |
+>
+> **Restano `planned` per l'oracolo, non per il tempo**, come i sei di CP 11.8: il formato di scenario
+> enumera i turni uno per uno (`FRTScenarioTurn`) e una partita autobattle **non sa in anticipo quanti
+> turni durerà**. Scriverli oggi produrrebbe un `ERROR` — difetto del test — non un `BLOCKED`, che è la
+> forma legittima di una specifica anticipata. Li sblocca **E47.4**
+> ([#957](https://github.com/DegrassiAaron/refactor-tactics-main/issues/957)), che a sua volta non si apre
+> prima del seam `DecisionProvider` di [D-101](../decisions/RT_PDR_00_Decision_Log.md)
+> ([#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)).
+>
+> ⚠️ **Quattro scenari, una sola arena.** `FRTScenarioCell` permette già a uno scenario di modificare le
+> celle che gli interessano sull'arena generata — ostacoli, costo, blocco della vista — quindi non servono
+> quattro mappe versionate. È la clausola che la sorgente stessa chiedeva.
 
 > ➕ **+6 il 2026-08-12 dal reconciliation di roadmap** — tutti e sei di
 > `RT-FEAT-UI-POINTER-INTERACTION` (CP 11.8): cinque `Visual.UI.*` e uno `Spec.Privacy.*`.
@@ -710,6 +739,28 @@ awk -F'|' '/RELEASE-V01/ && /^\| \*\*PIE-/ {s=$(NF-1);
   END {printf "verde=%d parziale=%d aperta=%d\n", c["✅"], c["🟡"], c["⏳"]}' \
   docs/technical/test-manuali-pie.md
 ```
+
+```bash
+# I `planned` della §6.2 — il numero che fino al 2026-08-16 non aveva un comando, ed era fermo di sette
+python - <<'PY'
+import yaml
+d = yaml.safe_load(open('docs/roadmap/feature-registry.yaml', encoding='utf-8'))
+n = []
+for f in d['features']:
+    raw = f.get('scenarios') or []
+    if isinstance(raw, dict):
+        n += list(raw.get('planned') or [])
+    else:
+        for it in raw:
+            if isinstance(it, dict) and 'planned' in it:
+                n += it['planned'] or []
+print(len(n), 'planned ·', len(set(n)), 'unici')   # 63 · 63
+PY
+```
+
+> ⚠️ **Un numero senza comando va fuori sincrono, e questa sezione ne è la prova al contrario**: gli otto
+> comandi qui sopra tengono in riga i loro numeri, mentre l'unico che ne era privo — i `planned` della §6.2 —
+> è l'unico che aveva divergito. Il rimedio non è ricordarsi di aggiornarlo: è il blocco qui sopra.
 
 > ⚠️ Il conteggio del subset **non** si fa con `grep -c 'RELEASE-V01'` nudo: il marcatore compare anche nella
 > prosa che lo spiega, e quella forma dà **24**. È lo stesso difetto del comando di conteggio del registro
