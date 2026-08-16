@@ -261,6 +261,23 @@ struct FRTScenarioUnit
 	 */
 	UPROPERTY()
 	TArray<FName> Loadout;
+
+	/**
+	 * La chiave `loadout` era **presente** nel file (`#1054`), anche se vuota.
+	 *
+	 * ⚠️ **Non è deducibile da `Loadout.Num()`**, ed è tutto il punto: `loadout` assente e `"loadout": []`
+	 * danno entrambi zero pezzi e significano l'opposto —
+	 *   · **assente** → l'unità riceve il default del suo eroe, cioè quello che la partita monta;
+	 *   · **`[]`** → l'unità entra **spoglia**, e lo scenario lo sta dichiarando.
+	 *
+	 * La seconda forma è nata quando `#1054` ha acceso i default nell'harness e cinque scenari hanno
+	 * cambiato risultato. Quattro non avevano numeri sbagliati: avevano perso la **variabile che tenevano
+	 * ferma**. `Spec.Brace.GuardAndBraceOnMixedHit` misura il confine Guard/Brace *con spinta 1*, e il
+	 * default di Phase la porta a 2 — senza un modo di dire «questa entra spoglia», quello scenario non può
+	 * più esistere. Uno scenario è un esperimento: deve poter tenere ferma una variabile che il gioco muove.
+	 */
+	UPROPERTY()
+	bool bLoadoutDeclared = false;
 };
 
 /**

@@ -386,6 +386,32 @@ public:
 	 */
 	void ConfigureFromHeroData(const URTHeroData* Hero);
 
+	/**
+	 * Applica un loadout a questa unità: le tre categorie, ognuna col **suo** verbo (`#1054`, CP 7.4).
+	 *
+	 * - **variante d'arma** → MODIFICA l'attacco base (indice 0). Non viene accodata: sarebbe un'azione in
+	 *   più invece di un'arma diversa, ed è l'errore che l'harness faceva prima di `#63`.
+	 * - **gadget** e **modulo di reazione** → CONCEDONO un'azione, che si accoda.
+	 *
+	 * Sta su `ARTUnit` e non su `URTCatalogLibrary` perché l'unità è il soggetto — e perché così la
+	 * **partita e l'harness chiamano la stessa funzione**. Scriverla due volte le farebbe divergere, e
+	 * uno scenario che verifica un equipaggiamento diverso da quello che il gioco monta non prova niente
+	 * sul gioco: è tutto il valore che il corpus ha.
+	 *
+	 * ⚠️ **Non fa validazione**: che l'insieme sia 1+1+1 lo dichiara `ValidateLoadout`, e chi passa di qui
+	 * lo ha già fatto — il loader per uno scenario, `DefaultLoadoutFor` per la partita (che restituisce
+	 * *tutto o niente*, mai un insieme parziale). Un pezzo che non esiste viene saltato, non è un errore:
+	 * fermarsi a metà lascerebbe l'unità equipaggiata in parte, che è peggio di non esserlo.
+	 *
+	 * ⚠️ **Idempotente per costruzione contro il difetto peggiore.** L'attacco base viene **duplicato**
+	 * prima di essere modificato, perché `ConfigureFromHeroData` fa `Abilities = Hero->Actions`, cioè copia
+	 * i *puntatori*: senza la duplicazione, due unità che condividessero lo stesso `URTHeroData` si
+	 * applicherebbero la variante a vicenda — e `RangeCells` **accumula**, quindi la seconda perderebbe due
+	 * celle invece di una. Oggi non succede (`GetHeroRoster()` ricostruisce a ogni chiamata), ma nulla lo
+	 * pinna, e una cache del roster — ottimizzazione plausibile — lo introdurrebbe **in silenzio**.
+	 */
+	void EquipLoadout(const TArray<FName>& PieceIds);
+
 	int32 NumAbilities() const { return Abilities.Num(); }
 	URTActionData* GetAbility(int32 Index) const;
 
