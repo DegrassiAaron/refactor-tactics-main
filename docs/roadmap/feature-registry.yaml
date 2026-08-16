@@ -4492,9 +4492,10 @@ features:
     owner_specs:
       - docs/technical/spec-frontend-navigazione.md
       - docs/decisions/adr-0009-replay-logico-canonico.md
-    issues: [472]
+    issues: [472, 999]
     tests:
       - RefactorTactics.Replay.ViewModel.*
+      - RefactorTactics.Replay.ViewerSubsystem.*
     scenarios: []
     wiki_refs: []
     notes: >
@@ -4516,13 +4517,15 @@ features:
       gia' `INTEGRATED`, quindi la v0.1 non aspetta nulla. La chiusura pulita e' promuovere anche
       l'archivio, che e' scope di release e merita una `D-nnn`.
 
-      **Stato al 2026-08-16**: il view model esiste (`Replay/RTReplayViewModel.{h,cpp}`) con **11** test
-      `RefactorTactics.Replay.ViewModel.*`, verdi, e l'area `RefactorTactics.Replay` chiude **41/41**.
-      ⚠️ I numeri sono **rimisurati dopo la code review**, che ne ha aggiunti tre: erano 8 e 38 nella
-      prima stesura di questa riga, e sono rimasti giusti per un'ora.
-      `runtime` e `automation` sono `partial` e non `done`: manca tutto cio' che sta sopra il view
-      model — le due schermate, il loro `.uasset`, l'aggancio al navigatore. Un `done` qui direbbe che
-      `#472` e' finita, e non lo e'.
+      **Stato al 2026-08-16**, dopo il secondo giro: il view model (`#472`, **11** test) e il **ponte
+      Blueprint** (`#999`, `Replay/RTReplayViewerSubsystem.{h,cpp}`, **3** test) esistono, e l'area
+      `RefactorTactics.Replay` chiude **44/44**.
+      ⚠️ I numeri si rimisurano a ogni giro e non si incrementano a mente: erano `8` e `38` nella prima
+      stesura di questa riga, `11` e `41` dopo la code review — che ne ha aggiunti tre — e sono rimasti
+      giusti un'ora per volta.
+      `runtime` e `automation` restano `partial`: da qui in su mancano le **due schermate** e il loro
+      `.uasset`, che vorranno una Binary Asset Lease, piu' il bootstrap del frontend — che pero' e' di
+      E46 (`#938`), non di questa feature. Un `done` direbbe che `#472` e' finita, e non lo e'.
 
       ⚠️ **Doppio conteggio dichiarato**: `RefactorTactics.Replay.ViewModel.*` e' assorbito dal pattern
       generico `RefactorTactics.Replay.*` di `RT-FEAT-REPLAY-ARCHIVE`, quindi gli 8 test contano per due
