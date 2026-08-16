@@ -151,7 +151,7 @@ bool FRTPredictiveInterceptHitTest::RunTest(const FString&)
 		TestEqual(TEXT("come TriggerMatched"), Entry->Outcome,
 			static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched));
 		TestTrue(TEXT("con la cella su cui si e' scommesso"), Entry->TgtCell == Locked);
-		TestEqual(TEXT("e l'identita' dell'azione"), Entry->ActionId, FName(TEXT("Vektor.InterceptShot")));
+		TestEqual(TEXT("e l'identita' dell'azione"), Entry->ActionId, FName(TEXT("Hero.Wraith.InterceptShot")));
 	}
 
 	DestroyPredWorld(World);

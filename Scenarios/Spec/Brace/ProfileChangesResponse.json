@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Brace.ProfileChangesResponse",
-  "tags": ["spec", "reactions", "brace", "profile", "bastion", "riva"],
+  "tags": ["spec", "reactions", "brace", "profile", "riktor", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,

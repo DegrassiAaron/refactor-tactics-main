@@ -1,6 +1,6 @@
 {
   "scenarioId": "Movement.Basic",
-  "tags": ["movement", "core", "animation", "flux", "bastion"],
+  "tags": ["movement", "core", "animation", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 3,

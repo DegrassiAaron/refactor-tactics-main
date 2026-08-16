@@ -327,12 +327,12 @@ bool FRTStatusWetRemovesBurningTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusWetAmplifiesFluxDischargeTest,
-	"RefactorTactics.Status.Wet.AmplifiesFluxDischarge",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusWetAmplifiesGadgetDischargeTest,
+	"RefactorTactics.Status.Wet.AmplifiesGadgetDischarge",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTStatusWetAmplifiesFluxDischargeTest::RunTest(const FString&)
+bool FRTStatusWetAmplifiesGadgetDischargeTest::RunTest(const FString&)
 {
-	// `URTCombatLibrary::FluxWetDischargeBonus` esiste dal CP 6.2 ma finora compariva SOLO nei test: nessuno
+	// `URTCombatLibrary::GadgetWetDischargeBonus` esiste dal CP 6.2 ma finora compariva SOLO nei test: nessuno
 	// in partita leggeva lo stato del bersaglio (limite dichiarato in `Heroes.Gadget.WetBonus`). Qui il turno
 	// e' vero: due bersagli identici, uno bagnato e uno no, colpiti dalla stessa azione.
 	UWorld* World = MakeStatusWorld();
@@ -347,9 +347,9 @@ bool FRTStatusWetAmplifiesFluxDischargeTest::RunTest(const FString&)
 
 	// L'azione arriva dal catalogo EROI, non da numeri riscritti qui: se il catalogo cambia i 24 danni o la
 	// forma lineare, questo test lo segue invece di sorvegliare una copia.
-	const URTHeroData* FluxData = URTHeroCatalogLibrary::MakeGadget();
-	const URTActionData* Source = FluxData ? FluxData->Actions[1] : nullptr; // indice 1 = Gadget.LinearDischarge
-	if (!TestNotNull(TEXT("Flux.LinearDischarge nel catalogo eroi"), Source))
+	const URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeGadget();
+	const URTActionData* Source = GadgetData ? GadgetData->Actions[1] : nullptr; // indice 1 = Gadget.LinearDischarge
+	if (!TestNotNull(TEXT("Hero.Gadget.LinearDischarge nel catalogo eroi"), Source))
 	{
 		DestroyStatusWorld(World);
 		return false;
@@ -383,7 +383,7 @@ bool FRTStatusWetAmplifiesFluxDischargeTest::RunTest(const FString&)
 		return false;
 	}
 	TestEqual(TEXT("24 dichiarati + 8 perche' il bersaglio e' bagnato"),
-		WetDamage, 24 + URTCombatLibrary::FluxWetDischargeBonus);
+		WetDamage, 24 + URTCombatLibrary::GadgetWetDischargeBonus);
 
 	// Controprova nello stesso mondo: stesso attaccante, stessa azione, bersaglio ASCIUTTO -> nessun bonus.
 	Gadget->PlannedAbilityIndex = DischargeIdx;

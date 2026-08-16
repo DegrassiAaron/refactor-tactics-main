@@ -296,7 +296,7 @@ bool FRTNoHeroBranchInResolverTest::RunTest(const FString&)
 
 	// Stessa semantica, tre identita' diverse: l'esito non cambia.
 	const int32 CoreDamage = RunDeflectScenario(TEXT("Action.Deflect"));
-	const int32 HeroDamage = RunDeflectScenario(TEXT("Vektor.Deflection"));
+	const int32 HeroDamage = RunDeflectScenario(TEXT("Hero.Wraith.Deflection"));
 	const int32 OtherDamage = RunDeflectScenario(TEXT("Zzz.PermutedIdentity"));
 
 	TestEqual(TEXT("la riduzione arriva dai dati, non dall'ActionId"),

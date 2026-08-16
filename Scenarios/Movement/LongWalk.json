@@ -1,6 +1,6 @@
 {
   "scenarioId": "Movement.LongWalk",
-  "tags": ["movement", "animation", "flux", "bastion"],
+  "tags": ["movement", "animation", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,

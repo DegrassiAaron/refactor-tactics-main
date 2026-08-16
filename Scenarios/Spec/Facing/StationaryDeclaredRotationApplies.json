@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.StationaryDeclaredRotationApplies",
-  "tags": ["facing", "planning", "turnlog", "spec", "flux", "bastion"],
+  "tags": ["facing", "planning", "turnlog", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,

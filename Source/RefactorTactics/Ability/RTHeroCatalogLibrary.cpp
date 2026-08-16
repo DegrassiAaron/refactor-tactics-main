@@ -22,9 +22,23 @@ namespace
 	 * un'azione aggiunta domani senza nome si fa notare subito invece di comparire in partita come
 	 * `[RT] Piano: X usa  su Y`.
 	 *
-	 * ⚠️ Le chiavi restano i nomi **legacy** (`Gadget.`, `Phase.`, `Riktor.`, `Wraith.`) perche' sono
-	 * `ActionId` **serializzati** e si redirigono, non si rinominano (**D-130**). I valori invece sono
-	 * player-facing e seguono il roster canonico di **D-120**: nessuno dei venti nomina un eroe.
+	 * Le chiavi sono `Hero.<Nome>.<Abilita>` (**#754**); i valori sono player-facing e seguono il roster
+	 * canonico di **D-120**, quindi nessuno dei venti nomina un eroe. Le due meta' della riga rispondono a
+	 * due domande diverse: *come si chiama l'azione nel codice* e *come si legge a schermo*.
+	 *
+	 * ⚠️ **Questo capoverso ha detto il falso in tre modi diversi, e vale la pena dire quali.** Diceva:
+	 * *«le chiavi restano i nomi legacy perche' sono `ActionId` serializzati e si redirigono, non si
+	 * rinominano (D-130)»*.
+	 *   1. La **regola** era gia' morta: **D-134** ha rimosso il redirect degli ID ritirati — lo dichiara
+	 *      `RTCatalogLibrary.h`, «un ID che il catalogo non conosce non risolve». Senza redirect,
+	 *      «si redirigono» non descriveva niente.
+	 *   2. Il **rename di #753** l'ha reso autocontraddittorio: ha sostituito i nomi dentro l'elenco che
+	 *      li dichiarava legacy, cosi' la frase diceva «i nomi legacy sono `Gadget.`, `Phase.` …», che sono
+	 *      i nomi NUOVI. Una sostituzione di testo puo' invertire il senso di una frase senza toccarne la
+	 *      forma, e nessun gate lo vede perche' il file compila.
+	 *   3. E la **premessa** e' caduta comunque: #754 ha rinominato le chiavi.
+	 * Un commento che spiega una scelta va riletto quando la scelta cambia, o resta a difendere il
+	 * contrario di cio' che il codice fa.
 	 *
 	 * I quattro con variante ereditano il lessico che le varianti gia' usano — *Scarica concentrata* e
 	 * *ramificata* stanno sotto *Scarica lineare*, *Marea curativa* e *d'urto* sotto *Marea circolare* —
@@ -34,32 +48,32 @@ namespace
 	{
 		static const TMap<FName, FString> Names = {
 			// Gadget (`Hero.Gadget`)
-			{ TEXT("Flux.ArcPulse"),           TEXT("Impulso ad arco") },
-			{ TEXT("Flux.LinearDischarge"),    TEXT("Scarica lineare") },
-			{ TEXT("Flux.ConductiveNode"),     TEXT("Nodo conduttivo") },
-			{ TEXT("Flux.Overload"),           TEXT("Sovraccarico") },
-			{ TEXT("Flux.ReactiveCapacitor"),  TEXT("Condensatore reattivo") },
+			{ TEXT("Hero.Gadget.ArcPulse"),           TEXT("Impulso ad arco") },
+			{ TEXT("Hero.Gadget.LinearDischarge"),    TEXT("Scarica lineare") },
+			{ TEXT("Hero.Gadget.ConductiveNode"),     TEXT("Nodo conduttivo") },
+			{ TEXT("Hero.Gadget.Overload"),           TEXT("Sovraccarico") },
+			{ TEXT("Hero.Gadget.ReactiveCapacitor"),  TEXT("Condensatore reattivo") },
 
 			// Phase (`Hero.Phase`)
-			{ TEXT("Riva.PressureJet"),        TEXT("Getto in pressione") },
-			{ TEXT("Riva.CircularTide"),       TEXT("Marea circolare") },
-			{ TEXT("Riva.FluidTrail"),         TEXT("Scia fluida") },
-			{ TEXT("Riva.MistVeil"),           TEXT("Velo di nebbia") },
-			{ TEXT("Riva.FlowReaction"),       TEXT("Reazione di flusso") },
+			{ TEXT("Hero.Phase.PressureJet"),        TEXT("Getto in pressione") },
+			{ TEXT("Hero.Phase.CircularTide"),       TEXT("Marea circolare") },
+			{ TEXT("Hero.Phase.FluidTrail"),         TEXT("Scia fluida") },
+			{ TEXT("Hero.Phase.MistVeil"),           TEXT("Velo di nebbia") },
+			{ TEXT("Hero.Phase.FlowReaction"),       TEXT("Reazione di flusso") },
 
 			// Riktor (`Hero.Riktor`)
-			{ TEXT("Bastion.ImpactShot"),      TEXT("Colpo d'impatto") },
-			{ TEXT("Bastion.KineticPanel"),    TEXT("Pannello cinetico") },
-			{ TEXT("Bastion.Reconfigure"),     TEXT("Riconfigurazione") },
-			{ TEXT("Bastion.Ram"),             TEXT("Carica d'ariete") },
-			{ TEXT("Bastion.Interposition"),   TEXT("Interposizione") },
+			{ TEXT("Hero.Riktor.ImpactShot"),      TEXT("Colpo d'impatto") },
+			{ TEXT("Hero.Riktor.KineticPanel"),    TEXT("Pannello cinetico") },
+			{ TEXT("Hero.Riktor.Reconfigure"),     TEXT("Riconfigurazione") },
+			{ TEXT("Hero.Riktor.Ram"),             TEXT("Carica d'ariete") },
+			{ TEXT("Hero.Riktor.Interposition"),   TEXT("Interposizione") },
 
 			// Wraith (`Hero.Wraith`)
-			{ TEXT("Vektor.PulseShot"),        TEXT("Colpo a impulsi") },
-			{ TEXT("Vektor.InterceptShot"),    TEXT("Intercetto") },
-			{ TEXT("Vektor.PassingBlade"),     TEXT("Lama di passaggio") },
-			{ TEXT("Vektor.Deflection"),       TEXT("Deviazione") },
-			{ TEXT("Vektor.Feint"),            TEXT("Finta") },
+			{ TEXT("Hero.Wraith.PulseShot"),        TEXT("Colpo a impulsi") },
+			{ TEXT("Hero.Wraith.InterceptShot"),    TEXT("Intercetto") },
+			{ TEXT("Hero.Wraith.PassingBlade"),     TEXT("Lama di passaggio") },
+			{ TEXT("Hero.Wraith.Deflection"),       TEXT("Deviazione") },
+			{ TEXT("Hero.Wraith.Feint"),            TEXT("Finta") },
 		};
 
 		if (const FString* Found = Names.Find(Id))
@@ -257,15 +271,15 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// Indice 0 — ArcPulse, attacco base. 22 danni / range 4 e' ESATTAMENTE la fascia "medio raggio" del
 	// catalogo azioni v0.1 §1: non e' una coincidenza da verificare a mano, e' la stessa tabella.
 	const FRTActionDef ArcPulseDef = URTCatalogLibrary::MakeBasicAttack(4);
-	Gadget->Actions.Add(MakeHeroBasicAttack(TEXT("Flux.ArcPulse"), ArcPulseDef.ResolutionPhase, ArcPulseDef.Priority,
+	Gadget->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Gadget.ArcPulse"), ArcPulseDef.ResolutionPhase, ArcPulseDef.Priority,
 		ArcPulseDef.RangeCells, ArcPulseDef.CooldownTurns, ArcPulseDef.Fallback, ArcPulseDef.Effects));
 
 	// Indice 1 — LinearDischarge. 24 danni in linea, range 5 (stessa portata di `Action.LineAttack`: nessuna
 	// azione lineare del catalogo ne dichiara una diversa). Il bonus "+8 su bersaglio Wet" NON e' nella lista
 	// Effects: e' condizionale al bersaglio, non un danno fisso, e passa da `EffectiveAttackPower` +
-	// `URTCombatLibrary::FluxWetDischargeBonus` (vedi `Heroes.Gadget.WetBonus`) — un chiamante che applica
+	// `URTCombatLibrary::GadgetWetDischargeBonus` (vedi `Heroes.Gadget.WetBonus`) — un chiamante che applica
 	// SOLO Effects vede 24, corretto finche' non controlla anche lo status del bersaglio.
-	Gadget->Actions.Add(MakeHeroAction(TEXT("Flux.LinearDischarge"), ERTResolutionPhase::Attack, /*Priority*/ 55,
+	Gadget->Actions.Add(MakeHeroAction(TEXT("Hero.Gadget.LinearDischarge"), ERTResolutionPhase::Attack, /*Priority*/ 55,
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }, ERTAbilityShape::Line));
 
@@ -287,7 +301,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// Il corollario che vale per chi passera' di qui: nessun campo di durata per-azione entra nel catalogo per
 	// rappresentare l'altra lettura, e `Range 0` non e' piu' un segnaposto da sostituire.
 	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
-	URTActionData* ConductiveNode = MakeHeroAction(TEXT("Flux.ConductiveNode"), ElectrifyDef.ResolutionPhase,
+	URTActionData* ConductiveNode = MakeHeroAction(TEXT("Hero.Gadget.ConductiveNode"), ElectrifyDef.ResolutionPhase,
 		ElectrifyDef.Priority, ElectrifyDef.RangeCells, /*Cooldown*/ 2, ElectrifyDef.Fallback,
 		ElectrifyDef.Effects);
 	// La propagazione e' IL comportamento, non un dettaglio: senza questa riga l'azione elettrificherebbe una
@@ -298,7 +312,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// Indice 3 — Overload. AoE 18 danni, raggio 1 (riuso il raggio di `Action.CircularAoE`, non un numero
 	// nuovo), portata 3. "Interrupt sui dispositivi" non e' rappresentabile: non esistono dispositivi/gadget
 	// (E7). Solo il danno e' un effetto dichiarato.
-	Gadget->Actions.Add(MakeHeroAction(TEXT("Flux.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
+	Gadget->Actions.Add(MakeHeroAction(TEXT("Hero.Gadget.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range*/ 3, /*Cooldown*/ 3, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }, ERTAbilityShape::Area, /*AreaRadius*/ 1));
 	// La variante (vincolo v0.1: una sola abilita' fondamentale per eroe) sta su LinearDischarge, non qui:
@@ -309,7 +323,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// EFFETTI sono di Gadget e sono DUE — scudo 15 a se' **e** 10 danni all'attaccante: e' la reazione per cui
 	// CP 5.5 ha reso il motore componibile, e prima di allora ne sarebbe arrivata solo meta'.
 	// Cooldown 3, dal catalogo eroi: piu' lungo dei 2 di `Action.Counter`, perche' fa anche da scudo.
-	Gadget->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Flux.ReactiveCapacitor"), TEXT("Action.Counter"),
+	Gadget->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Hero.Gadget.ReactiveCapacitor"), TEXT("Action.Counter"),
 		/*Cooldown*/ 3,
 		{ FRTActionEffectSpec(ERTActionEffect::Shield, 15),
 		  FRTActionEffectSpec(ERTActionEffect::Damage, 10) }));
@@ -318,7 +332,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// Concentrata: +6 danni (30 totali), un solo bersaglio — "non si propaga" e' vero per costruzione, dato
 	// che LinearDischarge base non propaga (nessun sistema di propagazione elettrica esiste, E8).
 	FRTAbilityVariant Concentrated;
-	Concentrated.VariantId = TEXT("Flux.LinearDischarge.Concentrated");
+	Concentrated.VariantId = TEXT("Hero.Gadget.LinearDischarge.Concentrated");
 	Concentrated.DisplayName = FText::FromString(TEXT("Scarica concentrata"));
 	Concentrated.Tradeoff = FText::FromString(TEXT("+6 danni (30 totali), ma non si propaga a un secondo bersaglio"));
 	Concentrated.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 30));
@@ -328,7 +342,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// (`ProduceEvents` legge oggi un solo `TargetUnitId` per istanza) — il numero c'e', il "come" arriva
 	// quando la geometria multi-bersaglio delle azioni lineari lo richiedera' davvero.
 	FRTAbilityVariant Branched;
-	Branched.VariantId = TEXT("Flux.LinearDischarge.Branched");
+	Branched.VariantId = TEXT("Hero.Gadget.LinearDischarge.Branched");
 	Branched.DisplayName = FText::FromString(TEXT("Scarica ramificata"));
 	Branched.Tradeoff = FText::FromString(TEXT("un bersaglio aggiuntivo, ma -6 danni per bersaglio (18 ciascuno)"));
 	Branched.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 18));
@@ -359,7 +373,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// `BasicAttackDamageForRange` (28/25/22/20): a differenza di `Gadget.ArcPulse`, l'attacco base di Phase e'
 	// TEMATICO (linea, Wet, spinta), non generico per portata. Non si forza `MakeBasicAttack` su un numero
 	// che non gli appartiene. Range 5: stessa portata di `Gadget.LinearDischarge` (stessa forma, stesso riuso).
-	Phase->Actions.Add(MakeHeroBasicAttack(TEXT("Riva.PressureJet"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	Phase->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Phase.PressureJet"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 5, /*Cooldown*/ 0, ERTActionFallback::AttackCell,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Damage, 16),
@@ -381,7 +395,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	//
 	// Il limite dichiarato di prima resta e non c'entra col cambio: `bFriendlyFire` decide SE colpire un
 	// alleato, non CON QUALE effetto. Portata 4 e raggio 1: stessi numeri di `Gadget.Overload`.
-	Phase->Actions.Add(MakeHeroAction(TEXT("Riva.CircularTide"), ERTResolutionPhase::Attack, /*Priority*/ 60,
+	Phase->Actions.Add(MakeHeroAction(TEXT("Hero.Phase.CircularTide"), ERTResolutionPhase::Attack, /*Priority*/ 60,
 		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Heal, 18),
@@ -420,7 +434,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// ⚠️ Lo SLOT va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa
 	// danno sarebbe quello sbagliato (D-028). Chi scatta si e' mosso, ma puo' ancora agire.
 	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
-	URTActionData* FluidTrail = MakeHeroAction(TEXT("Riva.FluidTrail"), DashDef.ResolutionPhase,
+	URTActionData* FluidTrail = MakeHeroAction(TEXT("Hero.Phase.FluidTrail"), DashDef.ResolutionPhase,
 		DashDef.Priority, DashDef.RangeCells, /*Cooldown*/ 2, DashDef.Fallback,
 		DashDef.Effects, ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::Movement);
 	// Lo STILE va copiato a mano, come prima ci andava la superficie: `MakeHeroAction` prende identita',
@@ -444,7 +458,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// confronta solo fra azioni della stessa — quindi il 35 scelto per il Prep non aveva piu' significato
 	// dove l'azione e' andata a vivere. Il cooldown 3 resta: e' del catalogo eroi.
 	const FRTActionDef IgniteDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Ignite"));
-	URTActionData* MistVeil = MakeHeroAction(TEXT("Riva.MistVeil"), IgniteDef.ResolutionPhase,
+	URTActionData* MistVeil = MakeHeroAction(TEXT("Hero.Phase.MistVeil"), IgniteDef.ResolutionPhase,
 		IgniteDef.Priority, IgniteDef.RangeCells, /*Cooldown*/ 3, ERTActionFallback::Cancel, {},
 		ERTAbilityShape::Area, /*AreaRadius*/ 1);
 	// La superficie va copiata a mano, come per `FluidTrail`: `MakeHeroAction` prende identita', fase, portata,
@@ -460,7 +474,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// Il rinvio e' dichiarato come DATO: slot `None` e nessun trigger. Darle lo slot `Reaction` la farebbe
 	// raccogliere dal pass delle reazioni, che la registrerebbe come attivata senza che accada nulla — un
 	// esito falso nel TurnLog e' peggio di un'abilita' dichiaratamente incompleta.
-	Phase->Actions.Add(MakeHeroAction(TEXT("Riva.FlowReaction"), ERTResolutionPhase::Preparation, /*Priority*/ 36,
+	Phase->Actions.Add(MakeHeroAction(TEXT("Hero.Phase.FlowReaction"), ERTResolutionPhase::Preparation, /*Priority*/ 36,
 		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Single, /*AreaRadius*/ 0,
 		ERTActionSlot::None, /*bInterruptible*/ false));
 
@@ -468,14 +482,14 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// Curativa: cura 24 (invece di 18), MA non applica Wet ai nemici — rinuncia al setup della combo con
 	// Gadget per curare di piu'.
 	FRTAbilityVariant Healing;
-	Healing.VariantId = TEXT("Riva.CircularTide.Healing");
+	Healing.VariantId = TEXT("Hero.Phase.CircularTide.Healing");
 	Healing.DisplayName = FText::FromString(TEXT("Marea curativa"));
 	Healing.Tradeoff = FText::FromString(TEXT("cura 24 invece di 18, ma non applica Wet ai nemici"));
 	Healing.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 24));
 
 	// Urto: cura 10 (meno della base) MA applica Push 1 ai nemici — meno supporto, piu' controllo.
 	FRTAbilityVariant Impact;
-	Impact.VariantId = TEXT("Riva.CircularTide.Impact");
+	Impact.VariantId = TEXT("Hero.Phase.CircularTide.Impact");
 	Impact.DisplayName = FText::FromString(TEXT("Marea d'urto"));
 	Impact.Tradeoff = FText::FromString(TEXT("cura solo 10, ma applica Push 1 ai nemici"));
 	Impact.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 10));
@@ -529,7 +543,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// letto FRESCO a ogni snapshot (CP 4.7): applicato nel Blast si riflette gia' sulla fase Move dello
 	// STESSO turno, poi scade nel Cleanup. E' la risposta di Riktor a chi si muove di mestiere — cioe' alla
 	// sua stessa debolezza dichiarata, `Affinity.Movement`.
-	Riktor->Actions.Add(MakeHeroBasicAttack(TEXT("Bastion.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	Riktor->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Riktor.ImpactShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 3, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Damage, 8),
@@ -549,7 +563,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// ed e' `PlannedCoverEdge`.
 	{
 		const FRTActionDef CoverDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateCover"));
-		URTActionData* Panel = MakeHeroAction(TEXT("Bastion.KineticPanel"), CoverDef.ResolutionPhase,
+		URTActionData* Panel = MakeHeroAction(TEXT("Hero.Riktor.KineticPanel"), CoverDef.ResolutionPhase,
 			CoverDef.Priority, CoverDef.RangeCells, /*Cooldown*/ 2, CoverDef.Fallback, CoverDef.Effects);
 		Panel->Def.StructureOp = CoverDef.StructureOp; // erige: e' il dato che il resolver legge
 		Riktor->Actions.Add(Panel);
@@ -565,7 +579,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// il catalogo non dichiara una portata diversa fra le due. Fase Preparation per lo stesso motivo del
 	// pannello: il campo si sistema PRIMA che i colpi partano.
 	{
-		URTActionData* Reconfigure = MakeHeroAction(TEXT("Bastion.Reconfigure"), ERTResolutionPhase::Preparation,
+		URTActionData* Reconfigure = MakeHeroAction(TEXT("Hero.Riktor.Reconfigure"), ERTResolutionPhase::Preparation,
 			/*Priority*/ 76, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {});
 		Reconfigure->Def.StructureOp = ERTStructureOp::MoveCover;
 		Riktor->Actions.Add(Reconfigure);
@@ -575,7 +589,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// azioni v0.1 §2 — non una coincidenza, e' la stessa azione con un nome d'eroe. Riuso identico di fase,
 	// stile di movimento e portata: l'impatto risolve nel Blast (codice 20/30), come per ogni carica.
 	const FRTActionDef ChargeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
-	URTActionData* Ram = MakeHeroAction(TEXT("Bastion.Ram"), ChargeDef.ResolutionPhase, ChargeDef.Priority,
+	URTActionData* Ram = MakeHeroAction(TEXT("Hero.Riktor.Ram"), ChargeDef.ResolutionPhase, ChargeDef.Priority,
 		ChargeDef.RangeCells, /*Cooldown*/ 2, ChargeDef.Fallback, ChargeDef.Effects);
 	Ram->Def.MovementStyle = ChargeDef.MovementStyle; // LinearCharge: si ferma ADDOSSO al primo nemico
 	Riktor->Actions.Add(Ram);
@@ -587,7 +601,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// La portata (2) e la priorita' (la piu' bassa fra le reazioni, cosi' la redirezione precede le altre)
 	// vengono dal core; il cooldown 3 dal catalogo eroi. L'eroe piu' resistente del roster e' quello che si
 	// mette in mezzo: e' la sua identita', non un numero in piu'.
-	Riktor->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Bastion.Interposition"), TEXT("Action.Intercept"),
+	Riktor->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Hero.Riktor.Interposition"), TEXT("Action.Intercept"),
 		/*Cooldown*/ 3));
 
 	// Variante di KineticPanel (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
@@ -596,7 +610,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// attiva dell'unita' (`ARTUnit::ActiveVariantId`) invece che dai valori base. Erano stati scritti qui
 	// dichiarando che sarebbero serviti a E9: e' successo.
 	FRTAbilityVariant Reinforced;
-	Reinforced.VariantId = TEXT("Bastion.KineticPanel.Reinforced");
+	Reinforced.VariantId = TEXT("Hero.Riktor.KineticPanel.Reinforced");
 	Reinforced.DisplayName = FText::FromString(TEXT("Pannello rinforzato"));
 	Reinforced.Tradeoff = FText::FromString(TEXT("integrita' 45 invece di 30, ma dura un solo turno"));
 	Reinforced.Parameters.Add(TEXT("Integrity"), 45);
@@ -604,7 +618,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	Reinforced.Parameters.Add(TEXT("FreeRotations"), 0);
 
 	FRTAbilityVariant Adaptive;
-	Adaptive.VariantId = TEXT("Bastion.KineticPanel.Adaptive");
+	Adaptive.VariantId = TEXT("Hero.Riktor.KineticPanel.Adaptive");
 	Adaptive.DisplayName = FText::FromString(TEXT("Pannello adattivo"));
 	Adaptive.Tradeoff = FText::FromString(TEXT("integrita' 25 invece di 30, ma una rotazione gratuita"));
 	Adaptive.Parameters.Add(TEXT("Integrity"), 25);
@@ -643,7 +657,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 
 	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Phase e Riktor, non e' la fascia
 	// generica (a range 4 darebbe 22). Un punto in meno del medio raggio, pagato in mobilita'.
-	Wraith->Actions.Add(MakeHeroBasicAttack(TEXT("Vektor.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	Wraith->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Wraith.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 21) }));
 
@@ -659,7 +673,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// Lo slot torna `Main`: e' un'azione dichiarata in pianificazione come le altre, non una reazione tenuta
 	// pronta. Portata 1 e' la cella ADIACENTE controllata; il cooldown 2 non cambia — chi scommette paga il
 	// cooldown anche quando sbaglia, ed e' la meta' del costo che rende il whiff una scelta.
-	URTActionData* InterceptShot = MakeHeroAction(TEXT("Vektor.InterceptShot"), ERTResolutionPhase::Preparation,
+	URTActionData* InterceptShot = MakeHeroAction(TEXT("Hero.Wraith.InterceptShot"), ERTResolutionPhase::Preparation,
 		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
 		ERTActionSlot::Main, /*bInterruptible*/ false);
@@ -673,7 +687,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// non-base di Wraith interamente rappresentabile. Stile `LinearDash` e non `LinearCharge`: la carica si
 	// FERMA sul primo nemico, questa gli passa attraverso — e' la differenza che `ERTMovementStyle` esiste
 	// per rendere un dato invece che un `if` sull'ActionId (CP 4.5).
-	Wraith->Actions.Add(MakeHeroAction(TEXT("Vektor.PassingBlade"), ERTResolutionPhase::FastMovement,
+	Wraith->Actions.Add(MakeHeroAction(TEXT("Hero.Wraith.PassingBlade"), ERTResolutionPhase::FastMovement,
 		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) }));
 	// `LinearPass` e non `LinearDash`: fino al 2026-08-08 questo commento diceva «passa attraverso» e il
@@ -687,7 +701,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// CP 5.5) e resta distinta dallo scudo: uno scudo ASSORBE e si consuma, questa toglie punti al colpo.
 	// Stessa famiglia di `Action.Guard` (-15 al primo colpo) ma con un trigger invece di una stance.
 	// Cooldown 2, uguale al core: il catalogo eroi non ne dichiara uno diverso.
-	Wraith->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Vektor.Deflection"), TEXT("Action.Deflect"),
+	Wraith->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Hero.Wraith.Deflection"), TEXT("Action.Deflect"),
 		/*Cooldown*/ 2));
 
 	// Indice 4 — Feint. Marca una CELLA e concede un `Reposition`: nessuna delle due meta' e' dichiarabile.
@@ -699,7 +713,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// `Parameters` perche' quelli sono della VARIANTE (dove il catalogo differenzia due configurazioni), e
 	// qui non c'e' niente da differenziare: e' un numero dell'azione base, e finche' non esiste un effetto
 	// che lo porti resta dichiarato nel catalogo eroi, non simulato in un campo che nessuno leggerebbe.
-	Wraith->Actions.Add(MakeHeroAction(TEXT("Vektor.Feint"), ERTResolutionPhase::Control, /*Priority*/ 40,
+	Wraith->Actions.Add(MakeHeroAction(TEXT("Hero.Wraith.Feint"), ERTResolutionPhase::Control, /*Priority*/ 40,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
 
 	// Variante di InterceptShot (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
@@ -708,14 +722,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// da `FRTSuppressiveZone`, che nessuno collega ancora a un eroe): sta nei `Parameters`, come l'integrita'
 	// del pannello di Riktor.
 	FRTAbilityVariant Precise;
-	Precise.VariantId = TEXT("Vektor.InterceptShot.Precise");
+	Precise.VariantId = TEXT("Hero.Wraith.InterceptShot.Precise");
 	Precise.DisplayName = FText::FromString(TEXT("Intercetto preciso"));
 	Precise.Tradeoff = FText::FromString(TEXT("20 danni invece di 16, ma controlla una sola cella"));
 	Precise.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 20));
 	Precise.Parameters.Add(TEXT("ControlledCells"), 1);
 
 	FRTAbilityVariant Extended;
-	Extended.VariantId = TEXT("Vektor.InterceptShot.Extended");
+	Extended.VariantId = TEXT("Hero.Wraith.InterceptShot.Extended");
 	Extended.DisplayName = FText::FromString(TEXT("Intercetto esteso"));
 	Extended.Tradeoff = FText::FromString(TEXT("controlla una linea di 3 celle, ma solo 14 danni"));
 	Extended.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 14));

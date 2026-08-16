@@ -1,11 +1,11 @@
 {
   "scenarioId": "Visual.Combat.WaterElectricCoordinated",
-  "tags": ["animation", "combat", "core", "flux", "riva", "vektor"],
+  "tags": ["animation", "combat", "core", "gadget", "phase", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "La combo firma nella forma COORDINATA: Phase bagna, Gadget incenerisce, nello stesso turno. Dentro la fase Blast la priorita' piu' bassa risolve per prima — `Riva.PressureJet` ha 50, `Flux.LinearDischarge` ha 55 — quindi quando la scarica parte il bersaglio e' gia' bagnato e prende il bonus. Wraith 90 - 16 - 32 = 42.",
+  "_nota": "La combo firma nella forma COORDINATA: Phase bagna, Gadget incenerisce, nello stesso turno. Dentro la fase Blast la priorita' piu' bassa risolve per prima — `Hero.Phase.PressureJet` ha 50, `Hero.Gadget.LinearDischarge` ha 55 — quindi quando la scarica parte il bersaglio e' gia' bagnato e prende il bonus. Wraith 90 - 16 - 32 = 42.",
 
   "_nota_perche_esiste": "Fino al 2026-08-08 questo turno dava **60**, non 52: il bonus leggeva `HasStatus(Wet)` mentre i colpi venivano preparati, cioe' prima che il getto di Phase atterrasse. La combo era documentata nella showcase, aveva un test verde sull'aritmetica (`Heroes.Gadget.WetBonus`, che non passa dal TurnManager) ed era **ineseguibile in partita**. Corretto in #242 estendendo a `Wet` la disciplina che `Status.Marked` aveva gia': cio' che nasce dentro il Blast vale per i colpi a priorita' piu' alta.",
 
@@ -22,8 +22,8 @@
   "turns": [
     {
       "intents": [
-        { "unit": "R1", "ability": "Riva.PressureJet",     "target": "V1" },
-        { "unit": "F1", "ability": "Flux.LinearDischarge", "target": "V1" }
+        { "unit": "R1", "ability": "Hero.Phase.PressureJet",     "target": "V1" },
+        { "unit": "F1", "ability": "Hero.Gadget.LinearDischarge", "target": "V1" }
       ]
     }
   ],

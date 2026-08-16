@@ -352,7 +352,7 @@ bool FRTCatalogFastMovementIsFoundAsDashTest::RunTest(const FString&)
 
 	const URTActionData* Dash = Unit->GetAbility(DashIdx);
 	if (!TestNotNull(TEXT("l'abilita' trovata esiste"), (void*)Dash)) { return false; }
-	TestTrue(TEXT("ed e' proprio la carica di Riktor"), Dash->Def.ActionId == FName(TEXT("Bastion.Ram")));
+	TestTrue(TEXT("ed e' proprio la carica di Riktor"), Dash->Def.ActionId == FName(TEXT("Hero.Riktor.Ram")));
 
 	// La verifica ha senso solo se il riconoscimento NON passa da un campo dell'asset: e' la fase del
 	// catalogo a dirlo. Se un giorno tornasse un flag, questa asserzione cadrebbe insieme al motivo del test.

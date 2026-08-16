@@ -1,11 +1,11 @@
 {
   "scenarioId": "Spec.Cover.TemporaryCoverExpires",
-  "tags": ["spec", "map", "bastion", "vektor"],
+  "tags": ["spec", "map", "riktor", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di CP 9.5, l'ultimo checkpoint aperto di E9: la copertura **temporanea** creata da `Bastion.KineticPanel`. Riktor erige il pannello sul bordo esposto, incassa colpi ridotti finche' dura, e quando la durata scade torna a incassarli pieni. Sono tre momenti, e il terzo e' quello che conta: una copertura che non scade non e' temporanea, e nessuno se ne accorge se si verifica solo il secondo.",
+  "_nota": "SPECIFICA ESEGUIBILE di CP 9.5, l'ultimo checkpoint aperto di E9: la copertura **temporanea** creata da `Hero.Riktor.KineticPanel`. Riktor erige il pannello sul bordo esposto, incassa colpi ridotti finche' dura, e quando la durata scade torna a incassarli pieni. Sono tre momenti, e il terzo e' quello che conta: una copertura che non scade non e' temporanea, e nessuno se ne accorge se si verifica solo il secondo.",
 
   "_nota_completata": "Riempito il 2026-08-09 chiudendo CP 9.5. La capability `CreateCover` ora esiste in `IsCapabilityAvailable`, e il file gira invece di uscire BLOCKED. Il campo `edge` e' nuovo: una copertura sta su un BORDO e una cella ne ha sei, quindi la cella da sola non basta a dire quale — si scrive il nome della direzione e non il suo indice, perche' un errore di conteggio metterebbe il pannello sul lato sbagliato lasciando lo scenario verde.",
 
@@ -22,29 +22,29 @@
     {
       "_turno": "T1 — colpo di riferimento SENZA copertura: 120 meno 21 fa 99 su Riktor, ed e' la misura contro cui si leggeranno gli altri tre turni.",
       "intents": [
-        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]
     },
     {
       "_turno": "T2 — Riktor erige il pannello sul proprio bordo E e incassa un colpo ridotto. Il pannello si erige in Prep, quindi ripara gia' il Blast di questo turno.",
       "requires": ["CreateCover"],
       "intents": [
-        { "unit": "B1", "ability": "Bastion.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" },
-        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+        { "unit": "B1", "ability": "Hero.Riktor.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]
     },
     {
       "_turno": "T3 — secondo e ultimo turno del pannello: il colpo e' ancora ridotto, e nel Cleanup la copertura scade.",
       "requires": ["CreateCover"],
       "intents": [
-        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]
     },
     {
       "_turno": "T4 — la copertura non c'e' piu': lo stesso colpo torna a valere pieno. E' il turno che distingue una copertura temporanea da una permanente.",
       "requires": ["CreateCover"],
       "intents": [
-        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]
     }
   ],

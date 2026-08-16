@@ -9,7 +9,7 @@
 
 namespace
 {
-	int32 BastionEffectAmount(const TArray<FRTActionEffectSpec>& Effects, ERTActionEffect Kind)
+	int32 RiktorEffectAmount(const TArray<FRTActionEffectSpec>& Effects, ERTActionEffect Kind)
 	{
 		for (const FRTActionEffectSpec& Spec : Effects)
 		{
@@ -19,7 +19,7 @@ namespace
 	}
 
 	/** Parametro di catalogo di una variante, o INDEX_NONE se non dichiarato. */
-	int32 BastionVariantParam(const FRTAbilityVariant& Variant, const TCHAR* Key)
+	int32 RiktorVariantParam(const FRTAbilityVariant& Variant, const TCHAR* Key)
 	{
 		const int32* Found = Variant.Parameters.Find(FName(Key));
 		return Found ? *Found : INDEX_NONE;
@@ -45,7 +45,7 @@ bool FRTRiktorMatchesCatalogTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("cinque azioni"), Riktor->Actions.Num(), 5)) { return false; }
 
 	const URTActionData* ImpactShot = Riktor->Actions[0];
-	TestEqual(TEXT("ImpactShot: 8 danni"), BastionEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage), 8);
+	TestEqual(TEXT("ImpactShot: 8 danni"), RiktorEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage), 8);
 	TestEqual(TEXT("ImpactShot: range 3"), ImpactShot->Def.RangeCells, 3);
 	TestEqual(TEXT("ImpactShot: nessuna ricarica (e' l'attacco base)"), ImpactShot->Def.CooldownTurns, 0);
 
@@ -66,12 +66,12 @@ bool FRTRiktorMatchesCatalogTest::RunTest(const FString&)
 	// L'attacco base di Riktor NON viene dalla tabella a fasce: a range 3 la fascia darebbe 25, il catalogo
 	// eroi dice 8. Il test lo rende esplicito, cosi' la divergenza resta una scelta e non una svista.
 	TestNotEqual(TEXT("non e' il danno generico della fascia corto raggio"),
-		BastionEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage),
+		RiktorEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage),
 		URTCatalogLibrary::BasicAttackDamageForRange(3));
 
 	const URTActionData* Ram = Riktor->Actions[3];
-	TestEqual(TEXT("Ram: 20 danni"), BastionEffectAmount(Ram->Def.Effects, ERTActionEffect::Damage), 20);
-	TestEqual(TEXT("Ram: Push 1"), BastionEffectAmount(Ram->Def.Effects, ERTActionEffect::Push), 1);
+	TestEqual(TEXT("Ram: 20 danni"), RiktorEffectAmount(Ram->Def.Effects, ERTActionEffect::Damage), 20);
+	TestEqual(TEXT("Ram: Push 1"), RiktorEffectAmount(Ram->Def.Effects, ERTActionEffect::Push), 1);
 	TestEqual(TEXT("Ram: cooldown 2"), Ram->Def.CooldownTurns, 2);
 
 	// Ram e' `Action.Charge` con un nome d'eroe: stessa fase, stesso stile di movimento, stessi effetti.
@@ -121,7 +121,7 @@ bool FRTRiktorPushResistanceTest::RunTest(const FString&)
 	//
 	// Il limite vero e' un altro, e vale la pena scriverlo: il campo ha oggi **zero utenti nel roster**.
 	// La meccanica e' dormiente per scelta (vedi `MakeRiktor`), non morta — e questo test misura il dato,
-	// mentre l'effetto in partita e' pinnato da `Spec.Combat.BastionIgnoresAllPushes`, che verifica che
+	// mentre l'effetto in partita e' pinnato da `Spec.Combat.RiktorIsPushedLikeAnyone`, che verifica che
 	// Riktor venga spostato come chiunque altro.
 	return true;
 }
@@ -137,7 +137,7 @@ bool FRTRiktorPanelCreatesCoverTest::RunTest(const FString&)
 	URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
 	const URTActionData* Panel = Riktor->Actions[1];
 
-	TestEqual(TEXT("KineticPanel: ActionId"), Panel->Def.ActionId, FName(TEXT("Bastion.KineticPanel")));
+	TestEqual(TEXT("KineticPanel: ActionId"), Panel->Def.ActionId, FName(TEXT("Hero.Riktor.KineticPanel")));
 	TestEqual(TEXT("KineticPanel: cooldown 2"), Panel->Def.CooldownTurns, 2);
 
 	// I numeri vengono dal CORE, non da una seconda copia scritta a mano nel catalogo eroi: e' lo stesso riuso
@@ -164,7 +164,7 @@ bool FRTRiktorPanelCreatesCoverTest::RunTest(const FString&)
 	// `Interposition` non e' piu' in questa lista (CP 6.7): era «nessun effetto perche' E5 non c'e'», ed e'
 	// diventata «nessun effetto **proprio**, perche' interporsi non e' un effetto» — cambia CHI subisce un
 	// colpo altrui, e quello lo fa la semantica di `Action.Intercept` che ora riusa. La verifica del suo
-	// comportamento sta in `Heroes.BastionInterposition*` (`RTHeroReactionTests.cpp`), dove puo' essere
+	// comportamento sta in `Heroes.RiktorInterposition*` (`RTHeroReactionTests.cpp`), dove puo' essere
 	// osservata in partita invece che contata a catalogo.
 	TestTrue(TEXT("Interposition: cablata come reazione, non piu' inerte"),
 		Riktor->Actions[4]->Def.Slot == ERTActionSlot::Reaction);
@@ -184,8 +184,8 @@ bool FRTRiktorVariantTradeoffTest::RunTest(const FString&)
 	const FRTAbilityVariant& Reinforced = Panel->Variants[0];
 	const FRTAbilityVariant& Adaptive = Panel->Variants[1];
 
-	const int32 ReinforcedIntegrity = BastionVariantParam(Reinforced, TEXT("Integrity"));
-	const int32 AdaptiveIntegrity = BastionVariantParam(Adaptive, TEXT("Integrity"));
+	const int32 ReinforcedIntegrity = RiktorVariantParam(Reinforced, TEXT("Integrity"));
+	const int32 AdaptiveIntegrity = RiktorVariantParam(Adaptive, TEXT("Integrity"));
 	TestEqual(TEXT("rinforzato: integrita' 45"), ReinforcedIntegrity, 45);
 	TestEqual(TEXT("adattivo: integrita' 25"), AdaptiveIntegrity, 25);
 
@@ -193,13 +193,13 @@ bool FRTRiktorVariantTradeoffTest::RunTest(const FString&)
 	// (un turno solo), l'adattivo compra una rotazione gratuita con l'integrita'.
 	TestTrue(TEXT("rinforzato: piu' integrita'"), ReinforcedIntegrity > AdaptiveIntegrity);
 	TestEqual(TEXT("rinforzato: dura un solo turno"),
-		BastionVariantParam(Reinforced, TEXT("DurationTurns")), 1);
+		RiktorVariantParam(Reinforced, TEXT("DurationTurns")), 1);
 	TestEqual(TEXT("rinforzato: nessuna rotazione gratuita"),
-		BastionVariantParam(Reinforced, TEXT("FreeRotations")), 0);
+		RiktorVariantParam(Reinforced, TEXT("FreeRotations")), 0);
 	TestEqual(TEXT("adattivo: una rotazione gratuita"),
-		BastionVariantParam(Adaptive, TEXT("FreeRotations")), 1);
+		RiktorVariantParam(Adaptive, TEXT("FreeRotations")), 1);
 	TestEqual(TEXT("adattivo: non scade da solo"),
-		BastionVariantParam(Adaptive, TEXT("DurationTurns")), 0);
+		RiktorVariantParam(Adaptive, TEXT("DurationTurns")), 0);
 
 	// Entrambe si scostano dal pannello base del catalogo terreni (`Structure.KineticPanel`: integrita' 30),
 	// una in su e una in giu': nessuna e' un puro potenziamento.

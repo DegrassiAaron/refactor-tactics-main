@@ -156,8 +156,8 @@ bool FRTIconV01CategoriesTest::RunTest(const FString&)
 	//
 	// ⚠️ **La fonte qui e' `GetHeroRoster()`, non `GetHeroIds()`, e la differenza e' tutto il valore del
 	// test.** `RequiredIconIds()` deriva le chiavi da `GetHeroIds()`: confrontarle con la stessa lista
-	// renderebbe questo controllo vero per costruzione — un `Hero.Vektorr` scritto per sbaglio produrrebbe
-	// `UI.Icon.Identity.Vektorr` e il test lo troverebbe, contento. Misurato: con quella mutazione attiva il
+	// renderebbe questo controllo vero per costruzione — un `Hero.Wraithr` scritto per sbaglio produrrebbe
+	// `UI.Icon.Identity.Wraithr` e il test lo troverebbe, contento. Misurato: con quella mutazione attiva il
 	// test passava. Il roster e' la fonte che il gioco spedisce davvero, ed e' l'unica contro cui il
 	// confronto significa qualcosa.
 	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())

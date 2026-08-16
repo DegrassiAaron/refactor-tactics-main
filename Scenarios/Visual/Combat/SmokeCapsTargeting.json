@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Combat.SmokeCapsTargeting",
-  "tags": ["animation", "combat", "environment", "los", "flux", "bastion"],
+  "tags": ["animation", "combat", "environment", "los", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayLite",
@@ -17,7 +17,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "F1", "ability": "Flux.ArcPulse", "target": "B1" }
+        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
       ]
     }
   ],

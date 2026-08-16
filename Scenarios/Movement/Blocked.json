@@ -1,6 +1,6 @@
 {
   "scenarioId": "Movement.Blocked",
-  "tags": ["movement", "pathfinding", "flux", "bastion"],
+  "tags": ["movement", "pathfinding", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 3,

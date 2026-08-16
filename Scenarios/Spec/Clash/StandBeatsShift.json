@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Clash.StandBeatsShift",
-  "tags": ["spec", "reactions", "clash", "bastion", "riva"],
+  "tags": ["spec", "reactions", "clash", "riktor", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,

@@ -10,7 +10,7 @@
 
 namespace
 {
-	int32 VektorEffectAmount(const TArray<FRTActionEffectSpec>& Effects, ERTActionEffect Kind)
+	int32 WraithEffectAmount(const TArray<FRTActionEffectSpec>& Effects, ERTActionEffect Kind)
 	{
 		for (const FRTActionEffectSpec& Spec : Effects)
 		{
@@ -19,7 +19,7 @@ namespace
 		return 0;
 	}
 
-	int32 VektorVariantParam(const FRTAbilityVariant& Variant, const TCHAR* Key)
+	int32 WraithVariantParam(const FRTAbilityVariant& Variant, const TCHAR* Key)
 	{
 		const int32* Found = Variant.Parameters.Find(FName(Key));
 		return Found ? *Found : INDEX_NONE;
@@ -46,14 +46,14 @@ bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("cinque azioni"), Wraith->Actions.Num(), 5)) { return false; }
 
 	const URTActionData* PulseShot = Wraith->Actions[0];
-	TestEqual(TEXT("PulseShot: 21 danni"), VektorEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage), 21);
+	TestEqual(TEXT("PulseShot: 21 danni"), WraithEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage), 21);
 	TestEqual(TEXT("PulseShot: range 4"), PulseShot->Def.RangeCells, 4);
 	TestNotEqual(TEXT("non e' il danno generico della fascia medio raggio"),
-		VektorEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage),
+		WraithEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage),
 		URTCatalogLibrary::BasicAttackDamageForRange(4));
 
 	const URTActionData* PassingBlade = Wraith->Actions[2];
-	TestEqual(TEXT("PassingBlade: 20 danni"), VektorEffectAmount(PassingBlade->Def.Effects, ERTActionEffect::Damage), 20);
+	TestEqual(TEXT("PassingBlade: 20 danni"), WraithEffectAmount(PassingBlade->Def.Effects, ERTActionEffect::Damage), 20);
 	TestEqual(TEXT("PassingBlade: Dash 3"), PassingBlade->Def.RangeCells, 3);
 	TestTrue(TEXT("PassingBlade: risolve nel Dash"),
 		URTCatalogLibrary::MapResolutionPhase(PassingBlade->Def.ResolutionPhase) == ERTMatchPhase::Dash);
@@ -96,7 +96,7 @@ bool FRTWraithInterceptShotStopsMovementTest::RunTest(const FString&)
 	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeWraith()->Actions[1];
 
 	TestEqual(TEXT("InterceptShot: 16 danni"),
-		VektorEffectAmount(Intercept->Def.Effects, ERTActionEffect::Damage), 16);
+		WraithEffectAmount(Intercept->Def.Effects, ERTActionEffect::Damage), 16);
 	TestEqual(TEXT("InterceptShot: cooldown 2"), Intercept->Def.CooldownTurns, 2);
 
 	// Si dichiara nel Prep e si verifica al Move: la fase resta quella, e non e' interrompibile — un colpo
@@ -132,7 +132,7 @@ bool FRTWraithInterceptShotIsPredictiveTest::RunTest(const FString&)
 	const URTActionData* Intercept = URTHeroCatalogLibrary::MakeWraith()->Actions[1];
 
 	TestEqual(TEXT("identita' invariata: e' una migrazione, non un'azione nuova"),
-		Intercept->Def.ActionId, FName(TEXT("Vektor.InterceptShot")));
+		Intercept->Def.ActionId, FName(TEXT("Hero.Wraith.InterceptShot")));
 
 	TestTrue(TEXT("la cella si blocca in Planning"),
 		Intercept->Def.PredictiveTargeting == ERTPredictiveTargeting::LockCell);
@@ -168,10 +168,10 @@ bool FRTWraithVariantTradeoffTest::RunTest(const FString&)
 	const FRTAbilityVariant& Precise = Intercept->Variants[0];
 	const FRTAbilityVariant& Extended = Intercept->Variants[1];
 
-	const int32 PreciseDamage = VektorEffectAmount(Precise.Effects, ERTActionEffect::Damage);
-	const int32 ExtendedDamage = VektorEffectAmount(Extended.Effects, ERTActionEffect::Damage);
-	const int32 PreciseCells = VektorVariantParam(Precise, TEXT("ControlledCells"));
-	const int32 ExtendedCells = VektorVariantParam(Extended, TEXT("ControlledCells"));
+	const int32 PreciseDamage = WraithEffectAmount(Precise.Effects, ERTActionEffect::Damage);
+	const int32 ExtendedDamage = WraithEffectAmount(Extended.Effects, ERTActionEffect::Damage);
+	const int32 PreciseCells = WraithVariantParam(Precise, TEXT("ControlledCells"));
+	const int32 ExtendedCells = WraithVariantParam(Extended, TEXT("ControlledCells"));
 
 	TestEqual(TEXT("preciso: 20 danni"), PreciseDamage, 20);
 	TestEqual(TEXT("preciso: una cella"), PreciseCells, 1);
@@ -228,9 +228,9 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 	//
 	// Con 90 HP la dominanza su **Phase** e' finita, e questa parte diventa una REGOLA: il ciclo sotto non
 	// registra piu' un fatto, lo vieta. Un ritorno a 95+ HP fa cadere il test invece di passare inosservato.
-	const URTHeroData* VektorInRoster = Roster[3];
-	const URTHeroData* FluxInRoster = Roster[0];
-	const URTHeroData* RivaInRoster = Roster[1];
+	const URTHeroData* WraithInRoster = Roster[3];
+	const URTHeroData* GadgetInRoster = Roster[0];
+	const URTHeroData* PhaseInRoster = Roster[1];
 
 	auto DominatesOnBaseStats = [](const URTHeroData* A, const URTHeroData* B)
 	{
@@ -275,9 +275,9 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 	// La compensazione nelle abilita' resta com'era, e non era in discussione: `#131` riguardava la scheda
 	// statistiche, dove il costo di ogni eroe ora e' visibile.
 	TestTrue(TEXT("Gadget conserva il bonus combo piu' alto del roster"),
-		URTCombatLibrary::FluxWetDischargeBonus > 0);
+		URTCombatLibrary::GadgetWetDischargeBonus > 0);
 	TestTrue(TEXT("e Gadget e' l'unico a vedere oltre il raggio 6"),
-		FluxInRoster->VisionRange > VektorInRoster->VisionRange);
+		GadgetInRoster->VisionRange > WraithInRoster->VisionRange);
 
 	// Le affinita' sono tutte diverse: quattro identita' ambientali, non due coppie di gemelli.
 	TSet<FName> Affinities;

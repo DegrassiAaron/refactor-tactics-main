@@ -3472,6 +3472,74 @@ tracks:
       - Scenarios/Spec/Environment/WaterQuenchesFire.json
     binary_leases: []
 
+  roster_rename:
+    status: ACTIVE
+    issue: 754
+    branch: feat/753-754-rename-roster
+    worktree: "D:/rt-unit"
+    note: >-
+      Fette **3 e 4** di **D-130**: `#753` (gli `Hero.<Nome>`, già committato) e `#754` (i venti token
+      abilità → `Hero.<Nome>.<Abilità>`, in corso). Una PR, due commit, una suite.
+
+      ⚠️ **Questa track è nata a metà lavoro, e va detto invece di far sembrare che ci fosse.** `#753`
+      è stato scritto e committato **senza** un `writable` dichiarato — 161 file, misurati dopo. La
+      dichiarazione qui sotto copre entrambe le fette, ed è l'unica ragione per cui il difetto è
+      riparabile: il branch non è ancora pushato.
+
+      🟡 **Un rename di roster collide con TUTTI per costruzione**, e questo è il caso che lo schema
+      «un path, un proprietario» non esprime: nessuna track può possedere un write-set trasversale.
+      Il confronto per prefisso dà **14 intersezioni** con track `ACTIVE` — `spatial` (7),
+      `simulation` (6), `frontend_shell` (1). Sarebbe uno STOP se ci si fermasse lì.
+
+      ✅ **Ma una collisione DICHIARATA non è una collisione ESERCITATA, e la differenza si misura.**
+      Per ognuna delle tre: `git diff --name-only origin/main...origin/<branch>` per il lavoro
+      pushato, `status --porcelain` nel worktree della track per quello non committato — che il primo
+      comando non vede. Esito, il 2026-08-16:
+
+      - `spatial` — il branch remoto `feat/833-interaction-graph` tocca **4** file, e **nessuno** dei 7
+        contesi. Worktree pulito.
+      - `simulation` — nessun branch dichiarato, worktree pulito.
+      - `frontend_shell` — 4 voci non committate, **nessuna** sul file conteso (`RTGameMode.h`).
+
+      **Collisioni esercitate: 0.** Si procede su quella misura, non sul prefisso.
+
+      🔴 **Drift trovato mentre si misurava, non mio da sistemare**: `spatial` dichiara
+      `branch: feat/833-interaction-graph`, ma `git rev-parse` in `D:/rt-spatial` risponde
+      `docs/riallocazione-833-turnmanager`. Il worktree esegue un ramo diverso da quello che la track
+      dichiara. Registrato perché la prossima riconciliazione lo trovi misurato.
+
+      ⚠️ **`Scenarios/` e `feature-registry.yaml` sono `integration_only`**, e stanno nel `writable`
+      qui sotto **per mandato esplicito del DoD di `#754`**, che prescrive i 5 ID di test rinominati
+      *«nello stesso commit del `feature-registry.yaml` che li cita»*. Non è un'appropriazione: è la
+      condizione che rende il rename non-distruttivo.
+
+      ⚠️ **Il DoD di `#754` nomina un test che non esiste e non può esistere**:
+      `Catalog.ValidatorRejectsRetiredHeroAbilityId`, che dovrebbe *«diventare verde»*. L'omologo
+      (`Catalog.ValidatorRejectsRetiredStableId`) è stato **rimosso** da **D-134** insieme al redirect,
+      *«perché verificava un divieto che non esiste più»* — lo dice il registry stesso. La spunta si
+      **riformula**, non si spunta: la guardia equivalente è un test nuovo sul catalogo eroi.
+    writable:
+      # Il write-set MISURATO delle due fette, non quello immaginato: 161 file per `#753`,
+      # 99 previsti per `#754`, unione 165. Dichiarato per prefisso dove il rename è totale.
+      - Source/RefactorTactics/
+      - Scenarios/
+      - docs/roadmap/feature-registry.yaml
+      - docs/roadmap/feature-registry.json
+      - docs/roadmap/project-graph.json
+      # ➕ Aggiunto a lavoro iniziato, e la ragione e' una COPPIA INSEPARABILE. Il documento cita per nome
+      # quattro ID di test che portano il nome ritirato *concatenato* — `VektorDeflectionReducesDirectHit`
+      # e simili, che nessun pattern con `\b` o col punto poteva trovare. Rinominare gli ID senza toccare
+      # il documento farebbe sparire quattro gate dalla sua vista senza che niente diventi rosso: e'
+      # esattamente il difetto che il DoD di #754 descrive per il registry. Misurato prima di prenderlo:
+      # nessuna track lo rivendica, e nessuno dei 14 branch remoti lo tocca.
+      - docs/gameplay/spec-reazioni-componibili-cp55.md
+    excludes:
+      # Ciò che il prefisso `Source/RefactorTactics/` includerebbe e che questa track NON tocca:
+      # i tre file su cui `frontend_shell` ha lavoro non committato vivo, meno `RTGameMode.h`
+      # che porta un nome ritirato in prosa ed è misurato come non conteso.
+      - Source/RefactorTactics/UI/RTMenuHUD.cpp
+    binary_leases: []
+
   reconcile_skill:
     status: ACTIVE
     issue: null

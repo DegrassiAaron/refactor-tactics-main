@@ -89,7 +89,7 @@ public:
 	TArray<FName> Team1Heroes = { TEXT("Hero.Riktor"), TEXT("Hero.Wraith") };
 
 	/**
-	 * Classe visiva per `HeroId` (es. `BP_Unit_Flux` con skeletal mesh). Un eroe assente da questa mappa
+	 * Classe visiva per `HeroId` (es. `BP_Unit_Gadget` con skeletal mesh). Un eroe assente da questa mappa
 	 * ricade su `ARTUnit` — il cilindro segnaposto — che resta il comportamento di ripiego di sempre: un
 	 * personaggio senza asset si vede lo stesso e la partita si gioca.
 	 */
@@ -207,7 +207,7 @@ public:
 	FString ScenarioFilterA;
 
 	/**
-	 * Secondo filtro, in **intersezione** con il primo: `reactions` + `flux` mostra gli scenari che portano
+	 * Secondo filtro, in **intersezione** con il primo: `reactions` + `gadget` mostra gli scenari che portano
 	 * entrambi i tag.
 	 *
 	 * Due e non tre: due assi coprono il caso che serve — una tipologia incrociata con un personaggio o una

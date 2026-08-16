@@ -132,7 +132,7 @@ public:
 	 * `EffectiveAttackPower` (bonus di cella), non un meccanismo nuovo. E' specifico di UN'abilita', non una
 	 * regola di combattimento universale: per questo il nome non e' generico come gli altri.
 	 */
-	static constexpr int32 FluxWetDischargeBonus = 8;
+	static constexpr int32 GadgetWetDischargeBonus = 8;
 
 	/** Applica il danno: lo scudo assorbe per primo, poi gli HP. Nessun valore scende sotto 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")

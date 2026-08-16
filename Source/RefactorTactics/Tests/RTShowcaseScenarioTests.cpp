@@ -881,7 +881,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 
 		FRTScenarioIntent Pannello;
 		Pannello.UnitId = TEXT("Riktor");
-		Pannello.Ability = FName(TEXT("Bastion.KineticPanel"));
+		Pannello.Ability = FName(TEXT("Hero.Riktor.KineticPanel"));
 		Pannello.TargetCell = FRTCellId(3, 0, 0);
 		Pannello.bTargetsCell = true;
 		Pannello.CoverEdge = ERTHexDirection::W; // verso chi arriva, che è l'unico verso che ha senso
@@ -950,7 +950,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 				URTTurnLogLibrary::DeserializeTurnLog(Result.TurnTraces[1].Bytes, Voci)))
 		{
 			const bool bPannelloNelLog = Voci.ContainsByPredicate([](const FRTTurnLogEntry& E)
-				{ return E.ActionId == FName(TEXT("Bastion.KineticPanel")); });
+				{ return E.ActionId == FName(TEXT("Hero.Riktor.KineticPanel")); });
 			TestTrue(TEXT("l'azione principale dichiarata compare nel TurnLog"), bPannelloNelLog);
 		}
 	}

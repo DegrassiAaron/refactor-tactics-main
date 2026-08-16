@@ -990,7 +990,7 @@ bool FRTHexBotChargeLandsTest::RunTest(const FString&)
 	int32 ChargeEntries = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 	{
-		if (E.ActionId == FName(TEXT("Bastion.Ram"))) { ++ChargeEntries; }
+		if (E.ActionId == FName(TEXT("Hero.Riktor.Ram"))) { ++ChargeEntries; }
 	}
 	TestTrue(TEXT("il TurnLog registra la carica col suo ActionId"), ChargeEntries > 0);
 

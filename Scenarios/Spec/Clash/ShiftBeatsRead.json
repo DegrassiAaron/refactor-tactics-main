@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Clash.ShiftBeatsRead",
-  "tags": ["spec", "reactions", "clash", "vektor", "riva"],
+  "tags": ["spec", "reactions", "clash", "wraith", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,

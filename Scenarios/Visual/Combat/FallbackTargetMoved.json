@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Combat.FallbackTargetMoved",
-  "tags": ["animation", "combat", "planning", "flux", "bastion", "riva"],
+  "tags": ["animation", "combat", "planning", "gadget", "riktor", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,
@@ -20,8 +20,8 @@
   "turns": [
     {
       "intents": [
-        { "unit": "F1", "ability": "Flux.LinearDischarge", "target": "B1" },
-        { "unit": "B1", "dash": "Bastion.Ram", "dashTo": [4, 0, 0] }
+        { "unit": "F1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" },
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [4, 0, 0] }
       ]
     }
   ],

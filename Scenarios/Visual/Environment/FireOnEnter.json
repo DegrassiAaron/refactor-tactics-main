@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Environment.FireOnEnter",
-  "tags": ["animation", "environment", "vektor"],
+  "tags": ["animation", "environment", "wraith"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayLite",

@@ -912,7 +912,7 @@ bool FRTScenarioBadReactionRejectedTest::RunTest(const FString&)
 
 	// Un'abilita' che Gadget POSSIEDE davvero, ma che non e' una reazione: il controllo che conta e' sullo
 	// SLOT. Usando un ID inesistente si verificherebbe solo che il nome non si trova, che e' un'altra cosa.
-	Scenario.Turns[0].Intents[0].Reaction = FName(TEXT("Flux.ArcPulse"));
+	Scenario.Turns[0].Intents[0].Reaction = FName(TEXT("Hero.Gadget.ArcPulse"));
 
 	FString Error;
 	TestFalse(TEXT("lo scenario viene rifiutato"), URTScenarioLoader::Validate(Scenario, Error));
@@ -953,7 +953,7 @@ bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
 	// `Phase.CircularTide` esiste nel catalogo, ma NON e' nel kit di Gadget. E' il caso interessante: un id
 	// inventato lo prende gia' il validator al caricamento, questo no — passa la validazione e muore a runtime.
 	FRTScenarioTurn T;
-	FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Ability = TEXT("Riva.CircularTide"); I.Target = TEXT("B1");
+	FRTScenarioIntent I; I.UnitId = TEXT("A1"); I.Ability = TEXT("Hero.Phase.CircularTide"); I.Target = TEXT("B1");
 	T.Intents.Add(I); S.Turns.Add(T);
 
 	// Un'assertion che sarebbe caduta: e' cio' che prima produceva il FAIL fuorviante.
@@ -965,7 +965,7 @@ bool FRTScenarioAbilityNotInKitTest::RunTest(const FString&)
 
 	TestEqual(TEXT("esito ERROR, non FAIL"), Result.OutcomeString(), FString(TEXT("ERROR")));
 	// Il messaggio deve bastare a correggere lo scenario senza aprire il log del motore.
-	TestTrue(TEXT("il messaggio nomina l'abilita'"), Result.ErrorMessage.Contains(TEXT("Riva.CircularTide")));
+	TestTrue(TEXT("il messaggio nomina l'abilita'"), Result.ErrorMessage.Contains(TEXT("Hero.Phase.CircularTide")));
 	TestTrue(TEXT("e nomina l'unita' che la chiedeva"), Result.ErrorMessage.Contains(TEXT("A1")));
 	return true;
 }
@@ -1007,8 +1007,8 @@ bool FRTScenarioDeadTargetTest::RunTest(const FString&)
 	for (int32 Turn = 0; Turn < 9; ++Turn)
 	{
 		FRTScenarioTurn T;
-		FRTScenarioIntent I1; I1.UnitId = TEXT("A1"); I1.Ability = TEXT("Flux.ArcPulse"); I1.Target = TEXT("B1");
-		FRTScenarioIntent I2; I2.UnitId = TEXT("A2"); I2.Ability = TEXT("Vektor.PulseShot");   I2.Target = TEXT("B1");
+		FRTScenarioIntent I1; I1.UnitId = TEXT("A1"); I1.Ability = TEXT("Hero.Gadget.ArcPulse"); I1.Target = TEXT("B1");
+		FRTScenarioIntent I2; I2.UnitId = TEXT("A2"); I2.Ability = TEXT("Hero.Wraith.PulseShot");   I2.Target = TEXT("B1");
 		T.Intents.Add(I1); T.Intents.Add(I2);
 		S.Turns.Add(T);
 	}
@@ -1096,7 +1096,7 @@ bool FRTScenarioDashIntentTest::RunTest(const FString&)
 			// Tre celle in linea, traiettoria libera: `PassingBlade` e' `LinearDash`, e uno scatto lineare si
 			// FERMA su cio' che incontra (solo `LinearLeap` scavalca). Metterci in mezzo un'unita' verificherebbe
 			// la semantica dello stile, non lo slot dell'intent.
-			I.Dash = TEXT("Vektor.PassingBlade");
+			I.Dash = TEXT("Hero.Wraith.PassingBlade");
 			I.DashCell = FRTCellId(1, 0, 0);
 		}
 		T.Intents.Add(I);
@@ -1159,7 +1159,7 @@ bool FRTScenarioPassingBladeTest::RunTest(const FString&)
 	FRTScenarioTurn T;
 	FRTScenarioIntent I;
 	I.UnitId = TEXT("V");
-	I.Dash = TEXT("Vektor.PassingBlade");
+	I.Dash = TEXT("Hero.Wraith.PassingBlade");
 	I.DashCell = FRTCellId(1, 0, 0);   // oltre Phase
 	T.Intents.Add(I);
 	S.Turns.Add(T);
@@ -1213,7 +1213,7 @@ bool FRTScenarioCellTargetTest::RunTest(const FString&)
 	FRTScenarioTurn T;
 	FRTScenarioIntent I;
 	I.UnitId = TEXT("F");
-	I.Ability = TEXT("Flux.Overload");        // AoE raggio 1, 18 danni, portata 3
+	I.Ability = TEXT("Hero.Gadget.Overload");        // AoE raggio 1, 18 danni, portata 3
 	I.TargetCell = FRTCellId(0, 0, 0);        // VUOTA, e adiacente a Phase
 	I.bTargetsCell = true;
 	T.Intents.Add(I);
@@ -1251,7 +1251,7 @@ bool FRTScenarioAmbiguousTargetTest::RunTest(const FString&)
 	FRTScenarioTurn T;
 	FRTScenarioIntent I;
 	I.UnitId = TEXT("F");
-	I.Ability = TEXT("Flux.Overload");
+	I.Ability = TEXT("Hero.Gadget.Overload");
 	I.Target = TEXT("R");                 // entrambi
 	I.TargetCell = FRTCellId(0, 0, 0);
 	I.bTargetsCell = true;

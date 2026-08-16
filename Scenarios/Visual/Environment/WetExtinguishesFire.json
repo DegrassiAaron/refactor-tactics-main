@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Environment.WetExtinguishesFire",
-  "tags": ["animation", "environment", "riva", "vektor"],
+  "tags": ["animation", "environment", "phase", "wraith"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayLite",
@@ -26,7 +26,7 @@
     {
       "_turno": "T2 — Phase lo bagna. Il Burning avrebbe ancora un turno da correre, e invece si spegne.",
       "intents": [
-        { "unit": "R1", "ability": "Riva.PressureJet", "target": "V1" }
+        { "unit": "R1", "ability": "Hero.Phase.PressureJet", "target": "V1" }
       ]
     }
   ],

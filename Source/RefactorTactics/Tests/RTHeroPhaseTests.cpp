@@ -11,7 +11,7 @@
 namespace
 {
 	/** Vero se l'azione dichiara un effetto del tipo dato (qualunque quantita'). Nome distinto per file. */
-	bool RivaDeclaresEffect(const URTActionData* Ability, ERTActionEffect Kind)
+	bool PhaseDeclaresEffect(const URTActionData* Ability, ERTActionEffect Kind)
 	{
 		if (!Ability) { return false; }
 		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
@@ -21,7 +21,7 @@ namespace
 		return false;
 	}
 
-	int32 RivaEffectAmount(const TArray<FRTActionEffectSpec>& Effects, ERTActionEffect Kind)
+	int32 PhaseEffectAmount(const TArray<FRTActionEffectSpec>& Effects, ERTActionEffect Kind)
 	{
 		for (const FRTActionEffectSpec& Spec : Effects)
 		{
@@ -52,9 +52,9 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("cinque azioni"), Phase->Actions.Num(), 5)) { return false; }
 
 	const URTActionData* PressureJet = Phase->Actions[0];
-	TestEqual(TEXT("PressureJet: 16 danni"), RivaEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Damage), 16);
-	TestTrue(TEXT("PressureJet: applica Wet"), RivaDeclaresEffect(PressureJet, ERTActionEffect::Status));
-	TestEqual(TEXT("PressureJet: Push 1"), RivaEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Push), 1);
+	TestEqual(TEXT("PressureJet: 16 danni"), PhaseEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Damage), 16);
+	TestTrue(TEXT("PressureJet: applica Wet"), PhaseDeclaresEffect(PressureJet, ERTActionEffect::Status));
+	TestEqual(TEXT("PressureJet: Push 1"), PhaseEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Push), 1);
 	TestEqual(TEXT("PressureJet: nessuna ricarica (e' l'attacco base)"), PressureJet->Def.CooldownTurns, 0);
 	TestTrue(TEXT("PressureJet: forma a linea"), PressureJet->Shape == ERTAbilityShape::Line);
 
@@ -137,8 +137,8 @@ bool FRTPhaseTideHealsWithoutWettingTest::RunTest(const FString&)
 	const URTActionData* CircularTide = URTHeroCatalogLibrary::MakePhase()->Actions[1];
 
 	// Le assertion ancora vive del test precedente: la cura e i numeri di forma non cambiano.
-	TestTrue(TEXT("dichiara una cura"), RivaDeclaresEffect(CircularTide, ERTActionEffect::Heal));
-	TestEqual(TEXT("cura 18"), RivaEffectAmount(CircularTide->Def.Effects, ERTActionEffect::Heal), 18);
+	TestTrue(TEXT("dichiara una cura"), PhaseDeclaresEffect(CircularTide, ERTActionEffect::Heal));
+	TestEqual(TEXT("cura 18"), PhaseEffectAmount(CircularTide->Def.Effects, ERTActionEffect::Heal), 18);
 	TestEqual(TEXT("portata 4"), CircularTide->Def.RangeCells, 4);
 	TestEqual(TEXT("cooldown 2"), CircularTide->Def.CooldownTurns, 2);
 	TestTrue(TEXT("area"), CircularTide->Shape == ERTAbilityShape::Area);
@@ -148,7 +148,7 @@ bool FRTPhaseTideHealsWithoutWettingTest::RunTest(const FString&)
 	// particolare nessun `Wet`. Le due condizioni sono scritte separate di proposito — la prima cade se
 	// qualcuno rimette un tag qualsiasi, la seconda dice quale tag stiamo sorvegliando.
 	TestFalse(TEXT("non dichiara piu' alcuno Status"),
-		RivaDeclaresEffect(CircularTide, ERTActionEffect::Status));
+		PhaseDeclaresEffect(CircularTide, ERTActionEffect::Status));
 	for (const FRTActionEffectSpec& Spec : CircularTide->Def.Effects)
 	{
 		TestTrue(TEXT("nessun effetto e' Status.Wet"),
@@ -176,7 +176,7 @@ bool FRTPhaseVariantTradeoffTest::RunTest(const FString&)
 	const FRTAbilityVariant& Healing = CircularTide->Variants[0];
 	const FRTAbilityVariant& Impact = CircularTide->Variants[1];
 
-	TestEqual(TEXT("curativa: cura 24"), RivaEffectAmount(Healing.Effects, ERTActionEffect::Heal), 24);
+	TestEqual(TEXT("curativa: cura 24"), PhaseEffectAmount(Healing.Effects, ERTActionEffect::Heal), 24);
 	TestFalse(TEXT("curativa: nessun Wet ai nemici"), [&Healing] {
 		for (const FRTActionEffectSpec& Spec : Healing.Effects)
 		{
@@ -185,14 +185,14 @@ bool FRTPhaseVariantTradeoffTest::RunTest(const FString&)
 		return false;
 	}());
 
-	TestEqual(TEXT("urto: cura 10"), RivaEffectAmount(Impact.Effects, ERTActionEffect::Heal), 10);
-	TestEqual(TEXT("urto: Push 1"), RivaEffectAmount(Impact.Effects, ERTActionEffect::Push), 1);
+	TestEqual(TEXT("urto: cura 10"), PhaseEffectAmount(Impact.Effects, ERTActionEffect::Heal), 10);
+	TestEqual(TEXT("urto: Push 1"), PhaseEffectAmount(Impact.Effects, ERTActionEffect::Push), 1);
 
 	// La prova della DoD: la curativa vince sulla cura (24 > 10), l'urto vince sull'utilita' di controllo
 	// (Push 1, che la curativa non ha). Nessuna delle due domina l'altra in ogni parametro.
-	const int32 HealingAmount = RivaEffectAmount(Healing.Effects, ERTActionEffect::Heal);
-	const int32 ImpactAmount = RivaEffectAmount(Impact.Effects, ERTActionEffect::Heal);
-	const int32 ImpactPush = RivaEffectAmount(Impact.Effects, ERTActionEffect::Push);
+	const int32 HealingAmount = PhaseEffectAmount(Healing.Effects, ERTActionEffect::Heal);
+	const int32 ImpactAmount = PhaseEffectAmount(Impact.Effects, ERTActionEffect::Heal);
+	const int32 ImpactPush = PhaseEffectAmount(Impact.Effects, ERTActionEffect::Push);
 
 	TestTrue(TEXT("curativa cura di piu'"), HealingAmount > ImpactAmount);
 	TestTrue(TEXT("urto ha un vantaggio che la curativa non ha (Push)"), ImpactPush > 0);

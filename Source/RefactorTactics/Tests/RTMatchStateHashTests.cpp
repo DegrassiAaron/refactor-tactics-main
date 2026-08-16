@@ -193,7 +193,7 @@ namespace
 		{
 			FRTScenarioIntent Erect;
 			Erect.UnitId = TEXT("B1");
-			Erect.Ability = FName(TEXT("Bastion.KineticPanel"));
+			Erect.Ability = FName(TEXT("Hero.Riktor.KineticPanel"));
 			Erect.TargetCell = FRTCellId(0, 0);
 			Erect.bTargetsCell = true;
 			Erect.CoverEdge = ERTHexDirection::E;

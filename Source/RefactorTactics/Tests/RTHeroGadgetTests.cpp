@@ -11,7 +11,7 @@
 namespace
 {
 	/** Danno dichiarato da un'azione (0 se non ne dichiara). Nome distinto per file (unity build). */
-	int32 FluxDeclaredDamage(const URTActionData* Ability)
+	int32 GadgetDeclaredDamage(const URTActionData* Ability)
 	{
 		if (!Ability) { return 0; }
 		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
@@ -42,18 +42,18 @@ bool FRTGadgetMatchesCatalogTest::RunTest(const FString&)
 	if (!TestEqual(TEXT("cinque azioni"), Gadget->Actions.Num(), 5)) { return false; }
 
 	const URTActionData* ArcPulse = Gadget->Actions[0];
-	TestEqual(TEXT("ArcPulse: ActionId"), ArcPulse->Def.ActionId, FName(TEXT("Flux.ArcPulse")));
+	TestEqual(TEXT("ArcPulse: ActionId"), ArcPulse->Def.ActionId, FName(TEXT("Hero.Gadget.ArcPulse")));
 	TestEqual(TEXT("ArcPulse: range 4"), ArcPulse->Def.RangeCells, 4);
-	TestEqual(TEXT("ArcPulse: 22 danni (fascia medio raggio)"), FluxDeclaredDamage(ArcPulse), 22);
+	TestEqual(TEXT("ArcPulse: 22 danni (fascia medio raggio)"), GadgetDeclaredDamage(ArcPulse), 22);
 	TestEqual(TEXT("ArcPulse: nessuna ricarica (e' l'attacco base)"), ArcPulse->Def.CooldownTurns, 0);
 
 	const URTActionData* LinearDischarge = Gadget->Actions[1];
-	TestEqual(TEXT("LinearDischarge: 24 danni"), FluxDeclaredDamage(LinearDischarge), 24);
+	TestEqual(TEXT("LinearDischarge: 24 danni"), GadgetDeclaredDamage(LinearDischarge), 24);
 	TestEqual(TEXT("LinearDischarge: cooldown 2"), LinearDischarge->Def.CooldownTurns, 2);
 	TestTrue(TEXT("LinearDischarge: forma a linea"), LinearDischarge->Shape == ERTAbilityShape::Line);
 
 	const URTActionData* Overload = Gadget->Actions[3];
-	TestEqual(TEXT("Overload: 18 danni"), FluxDeclaredDamage(Overload), 18);
+	TestEqual(TEXT("Overload: 18 danni"), GadgetDeclaredDamage(Overload), 18);
 	TestEqual(TEXT("Overload: cooldown 3"), Overload->Def.CooldownTurns, 3);
 
 	// CP 6.7: la reazione e' cablata e dichiara DUE effetti (prima ne aveva uno, con il contrattacco
@@ -105,20 +105,20 @@ bool FRTGadgetWetBonusTest::RunTest(const FString&)
 	// Nome vincolante della DoD. Il bonus NON e' nella lista Effects (e' condizionale al bersaglio, non un
 	// danno fisso): passa da `EffectiveAttackPower`, la stessa funzione del bonus di cella, riusata per un
 	// bonus di STATO invece che di terreno.
-	const int32 BaseDamage = FluxDeclaredDamage(URTHeroCatalogLibrary::MakeGadget()->Actions[1]);
+	const int32 BaseDamage = GadgetDeclaredDamage(URTHeroCatalogLibrary::MakeGadget()->Actions[1]);
 	if (!TestEqual(TEXT("il danno base dichiarato e' 24"), BaseDamage, 24)) { return false; }
 
 	const int32 AgainstDry = URTCombatLibrary::EffectiveAttackPower(BaseDamage, /*OccupantDamageBonus*/ 0);
-	const int32 AgainstWet = URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::FluxWetDischargeBonus);
+	const int32 AgainstWet = URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::GadgetWetDischargeBonus);
 
 	TestEqual(TEXT("bersaglio asciutto: 24"), AgainstDry, 24);
 	TestEqual(TEXT("bersaglio Wet: 24 + 8 = 32"), AgainstWet, 32);
-	TestEqual(TEXT("il bonus e' esattamente 8"), URTCombatLibrary::FluxWetDischargeBonus, 8);
+	TestEqual(TEXT("il bonus e' esattamente 8"), URTCombatLibrary::GadgetWetDischargeBonus, 8);
 
 	// Il bonus si somma a un altro bonus di cella (es. altura), non lo sostituisce: e' un caso normale di
 	// `EffectiveAttackPower`, non uno speciale per Wet.
 	TestEqual(TEXT("Wet + altura: si sommano"),
-		URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::FluxWetDischargeBonus + 3), 35);
+		URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::GadgetWetDischargeBonus + 3), 35);
 
 	// Limite dichiarato: qui si verifica la FORMULA, non il resolver. Nessuna unita' legge ancora
 	// `Status.Wet` durante il Blast (`CollectHexAttacks` non conosce lo stato del bersaglio) — il bonus

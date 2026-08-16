@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Combat.BraceReducesEveryHit",
-  "tags": ["animation", "combat", "core", "bastion", "flux", "vektor"],
+  "tags": ["animation", "combat", "core", "riktor", "gadget", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -21,8 +21,8 @@
     {
       "intents": [
         { "unit": "B1", "ability": "Action.Brace" },
-        { "unit": "F1", "ability": "Flux.ArcPulse",    "target": "B1" },
-        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse",    "target": "B1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]
     }
   ],

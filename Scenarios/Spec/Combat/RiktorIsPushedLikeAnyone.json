@@ -1,11 +1,11 @@
 {
-  "scenarioId": "Spec.Combat.BastionIsPushedLikeAnyone",
-  "tags": ["spec", "combat", "push", "bal-2", "bastion", "vektor", "riva"],
+  "scenarioId": "Spec.Combat.RiktorIsPushedLikeAnyone",
+  "tags": ["spec", "combat", "push", "bal-2", "riktor", "wraith", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "Riktor e Wraith prendono lo stesso colpo — `Riva.PressureJet`, 16 danni e `Push 1` — e arretrano ENTRAMBI di una cella. E' la specifica eseguibile di D-075 (#402): dal 2026-08-10 nessun eroe del roster ha resistenza nativa alla spinta.",
+  "_nota": "Riktor e Wraith prendono lo stesso colpo — `Hero.Phase.PressureJet`, 16 danni e `Push 1` — e arretrano ENTRAMBI di una cella. E' la specifica eseguibile di D-075 (#402): dal 2026-08-10 nessun eroe del roster ha resistenza nativa alla spinta.",
 
   "_nota_perche_esiste": "Fino a qui Riktor aveva `PushResistance = 1`, l'unico del roster. Siccome ogni spinta del gioco vale 1 e la resistenza e' una SOGLIA (D-038), quel valore non comprava «stabilita'»: lo rendeva immune a OGNI spostamento del gioco, sempre, senza spendere un'azione. Nessun documento dichiarava quell'immunita' — era una conseguenza del catalogo, non una scelta — e svuotava meta' di `Guard` e `Brace` proprio sull'eroe su cui la scelta difensiva dovrebbe pesare di piu'. Questo file pinna l'esito nell'altro verso, cosi' che rimettere una resistenza nativa senza passare da una decisione diventi rosso.",
 
@@ -27,8 +27,8 @@
     {
       "_turno": "Un colpo a testa, nello stesso passaggio di Blast.",
       "intents": [
-        { "unit": "A1", "ability": "Riva.PressureJet", "target": "B1" },
-        { "unit": "A2", "ability": "Riva.PressureJet", "target": "V1" }
+        { "unit": "A1", "ability": "Hero.Phase.PressureJet", "target": "B1" },
+        { "unit": "A2", "ability": "Hero.Phase.PressureJet", "target": "V1" }
       ]
     }
   ],

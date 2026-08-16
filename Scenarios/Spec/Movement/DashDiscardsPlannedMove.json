@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Movement.DashDiscardsPlannedMove",
-  "tags": ["spec", "movement", "dash", "planning", "bastion"],
+  "tags": ["spec", "movement", "dash", "planning", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -24,7 +24,7 @@
     {
       "_turno": "T1 — B1 dichiara ENTRAMBI: uno scatto verso (2,0,0) e un movimento a waypoint verso (0,2,0). Il harness li scrive in due blocchi indipendenti (RTScenarioSession.cpp:715-716 per lo scatto, :865 per i waypoint), esattamente come il controller li lascia coesistere in pianificazione. Le due destinazioni sono incompatibili: l'esito dice quale ha vinto.",
       "intents": [
-        { "unit": "B1", "dash": "Bastion.Ram", "dashTo": [2, 0, 0], "move": [[0, 1, 0], [0, 2, 0]] }
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [2, 0, 0], "move": [[0, 1, 0], [0, 2, 0]] }
       ]
     }
   ],

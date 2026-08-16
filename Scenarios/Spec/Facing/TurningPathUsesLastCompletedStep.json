@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.TurningPathUsesLastCompletedStep",
-  "tags": ["facing", "movement", "core", "spec", "flux", "bastion"],
+  "tags": ["facing", "movement", "core", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,

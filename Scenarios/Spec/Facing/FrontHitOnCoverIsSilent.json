@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.FrontHitOnCoverIsSilent",
-  "tags": ["facing", "cover", "combat", "turnlog", "spec", "bastion", "vektor"],
+  "tags": ["facing", "cover", "combat", "turnlog", "spec", "riktor", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -21,13 +21,13 @@
       "_turno": "T1 — stesso pannello sul bordo EST dello scenario gemello.",
       "requires": ["CreateCover"],
       "intents": [
-        { "unit": "B1", "ability": "Bastion.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" }
+        { "unit": "B1", "ability": "Hero.Riktor.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" }
       ]
     },
     {
       "_turno": "T2 — V1 spara da est, e stavolta B1 lo sta guardando: il riparo fa il suo mestiere.",
       "intents": [
-        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]
     }
   ],

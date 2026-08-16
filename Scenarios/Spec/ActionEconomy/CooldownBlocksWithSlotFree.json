@@ -1,13 +1,13 @@
 {
   "scenarioId": "Spec.ActionEconomy.CooldownBlocksWithSlotFree",
-  "tags": ["action-economy", "cooldown", "core", "spec", "flux", "bastion"],
+  "tags": ["action-economy", "cooldown", "core", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
   "_nota": "D-114: l'economia del turno resta a SLOT, e il peso di un'azione si paga in DRAWBACK — non in costo. Questo scenario rende osservabile il primo dei quattro drawback, il cooldown, e soprattutto il fatto che sia un asse SEPARATO dallo slot: al turno 2 l'azione principale di A1 e' libera (nessun'altra azione la occupa) e l'abilita' e' comunque illegale. Era il buco dichiarato di RT-FEAT-ACTION-COOLDOWNS — «nessuno scenario li dimostra: un cooldown che non scala oggi non produce una diagnosi visibile».",
 
-  "_oracolo": "Flux.LinearDischarge: 24 danni, cooldown 2 (RTHeroCatalogLibrary.cpp). Riktor parte da 120 HP. Turno 1 la usa -> 96. Turno 2 e' in ricarica: il danno NON si ripete, quindi 96. Turno 3 e' di nuovo disponibile -> 72. Le due meta' contano insieme: senza il turno 3 un'abilita' rotta che non spara MAI darebbe lo stesso 96 e lo scenario sarebbe verde per il motivo sbagliato.",
+  "_oracolo": "Hero.Gadget.LinearDischarge: 24 danni, cooldown 2 (RTHeroCatalogLibrary.cpp). Riktor parte da 120 HP. Turno 1 la usa -> 96. Turno 2 e' in ricarica: il danno NON si ripete, quindi 96. Turno 3 e' di nuovo disponibile -> 72. Le due meta' contano insieme: senza il turno 3 un'abilita' rotta che non spara MAI darebbe lo stesso 96 e lo scenario sarebbe verde per il motivo sbagliato.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },
@@ -18,19 +18,19 @@
     {
       "_nota": "Turno 1 — l'abilita' e' disponibile e colpisce: 120 - 24 = 96.",
       "intents": [
-        { "unit": "A1", "ability": "Flux.LinearDischarge", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" }
       ]
     },
     {
       "_nota": "Turno 2 — SLOT PRINCIPALE LIBERO, abilita' in ricarica. E' il cuore dello scenario: se il cooldown fosse una variante dello slot, qui l'azione partirebbe. Riktor resta a 96.",
       "intents": [
-        { "unit": "A1", "ability": "Flux.LinearDischarge", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" }
       ]
     },
     {
       "_nota": "Turno 3 — il cooldown e' sceso: l'abilita' spara di nuovo. 96 - 24 = 72. Senza questo turno, un'abilita' che non funziona affatto darebbe lo stesso risultato del turno 2.",
       "intents": [
-        { "unit": "A1", "ability": "Flux.LinearDischarge", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" }
       ]
     }
   ],

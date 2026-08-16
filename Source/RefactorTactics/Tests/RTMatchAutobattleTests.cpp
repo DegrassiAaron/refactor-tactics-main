@@ -953,7 +953,7 @@ namespace
 	struct FRTAutobattleSlot
 	{
 		int32 TeamId;
-		bool bIsVektor;      // il roster del 2v2 headless: un tiratore e un corpo a corpo per squadra
+		bool bIsWraith;      // il roster del 2v2 headless: un tiratore e un corpo a corpo per squadra
 		FRTCellId Cell;
 	};
 
@@ -981,7 +981,7 @@ namespace
 		for (int32 Index : Order)
 		{
 			const FRTAutobattleSlot& Slot = AutobattleStandardSlots()[Index];
-			const URTHeroData* Hero = Slot.bIsVektor
+			const URTHeroData* Hero = Slot.bIsWraith
 				? URTHeroCatalogLibrary::MakeWraith()
 				: URTHeroCatalogLibrary::MakeRiktor();
 			Spawned.Add(SpawnAutobattleUnit(World, Slot.TeamId, Hero, Slot.Cell));

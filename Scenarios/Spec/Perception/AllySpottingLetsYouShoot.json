@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Perception.AllySpottingLetsYouShoot",
-  "tags": ["perception", "vision", "combat", "spec", "flux", "riva", "bastion"],
+  "tags": ["perception", "vision", "combat", "spec", "gadget", "phase", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 6,
@@ -21,7 +21,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "A1", "ability": "Flux.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
       ]
     }
   ],

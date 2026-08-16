@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Combat.GuardReducesFirstHit",
-  "tags": ["animation", "combat", "core", "bastion", "flux", "vektor"],
+  "tags": ["animation", "combat", "core", "riktor", "gadget", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -9,7 +9,7 @@
 
   "_nota_perche_esiste": "Fino al 2026-08-09 nessuna unita' poteva mettersi in guardia: il kit era `Abilities = Hero->Actions`, cinque azioni, e le generiche di D-025 non appartenevano a nessuno. I quattro rami che consumano `Status.Guarded` e `Status.Braced` nel TurnManager esistevano, erano commentati e motivati, e in partita non li raggiungeva nessuno — li toccavano solo test che si costruivano l'abilita' da soli (#275).",
 
-  "_nota_ordine": "Quale dei due colpi sia «il primo» lo decide l'ordine canonico (priorita', poi ActionId): a parita' di priorita' 50 vince `Flux.ArcPulse` su `Vektor.PulseShot`. Il TOTALE pero' non dipende dall'ordine — la riduzione vale una volta sola comunque — ed e' per questo che l'assertion sta sul totale e non su chi l'ha presa.",
+  "_nota_ordine": "Quale dei due colpi sia «il primo» lo decide l'ordine canonico (priorita', poi ActionId): a parita' di priorita' 50 vince `Hero.Gadget.ArcPulse` su `Hero.Wraith.PulseShot`. Il TOTALE pero' non dipende dall'ordine — la riduzione vale una volta sola comunque — ed e' per questo che l'assertion sta sul totale e non su chi l'ha presa.",
 
   "_nota_self": "L'intent non dichiara un bersaglio, ed e' corretto: un'azione di Prep risolve su chi la usa (`Instance.TargetUnitId = i` nel TurnManager), quindi non c'e' niente da bersagliare.",
 
@@ -25,8 +25,8 @@
     {
       "intents": [
         { "unit": "B1", "ability": "Action.Guard" },
-        { "unit": "F1", "ability": "Flux.ArcPulse",    "target": "B1" },
-        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse",    "target": "B1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]
     }
   ],

@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Map.HighGroundNoBonus",
-  "tags": ["animation", "map", "combat", "vektor", "flux"],
+  "tags": ["animation", "map", "combat", "wraith", "gadget"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayBasin",
@@ -20,8 +20,8 @@
   "turns": [
     {
       "intents": [
-        { "unit": "VH", "ability": "Vektor.PulseShot", "target": "F1" },
-        { "unit": "VF", "ability": "Vektor.PulseShot", "target": "F1" }
+        { "unit": "VH", "ability": "Hero.Wraith.PulseShot", "target": "F1" },
+        { "unit": "VF", "ability": "Hero.Wraith.PulseShot", "target": "F1" }
       ]
     }
   ],

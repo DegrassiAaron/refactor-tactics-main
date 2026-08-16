@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Perception.HeardNotSeen",
-  "tags": ["spec", "perception", "los", "vektor", "flux"],
+  "tags": ["spec", "perception", "los", "wraith", "gadget"],
   "version": 1,
   "seed": 0,
   "fixture": "TestArena",

@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Map.HighCoverBlocks",
-  "tags": ["animation", "map", "los", "pathfinding", "flux", "bastion"],
+  "tags": ["animation", "map", "los", "pathfinding", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "fixture": "CoverYard",
@@ -21,7 +21,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "F1", "ability": "Flux.ArcPulse", "target": "B1", "move": [[1, 0, 0]] }
+        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse", "target": "B1", "move": [[1, 0, 0]] }
       ]
     }
   ],

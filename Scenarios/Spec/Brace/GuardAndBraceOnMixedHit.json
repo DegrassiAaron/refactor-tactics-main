@@ -1,11 +1,11 @@
 {
   "scenarioId": "Spec.Brace.GuardAndBraceOnMixedHit",
-  "tags": ["spec", "combat", "brace", "guard", "bal-1", "riva", "vektor"],
+  "tags": ["spec", "combat", "brace", "guard", "bal-1", "phase", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,
 
-  "_nota": "SPECIFICA ESEGUIBILE del confine fra `Action.Guard` e `Action.Brace`, su un colpo che porta danno E spinta insieme. Tre difensori identici (Wraith, 90 HP, `PushResistance 0`) prendono lo stesso identico colpo — `Riva.PressureJet`: 16 danni, `Push 1`, forma a linea — con tre difese diverse: guardia, irrigidimento, niente. E' l'unica azione del gioco che porta i due effetti nello stesso colpo, ed e' per questo che la fixture e' lei.",
+  "_nota": "SPECIFICA ESEGUIBILE del confine fra `Action.Guard` e `Action.Brace`, su un colpo che porta danno E spinta insieme. Tre difensori identici (Wraith, 90 HP, `PushResistance 0`) prendono lo stesso identico colpo — `Hero.Phase.PressureJet`: 16 danni, `Push 1`, forma a linea — con tre difese diverse: guardia, irrigidimento, niente. E' l'unica azione del gioco che porta i due effetti nello stesso colpo, ed e' per questo che la fixture e' lei.",
 
   "_nota_perche_esiste": "#401. `Guard` e `Brace` avevano ciascuno i propri scenari (`Visual.Combat.GuardReducesFirstHit`, `Visual.Combat.BraceReducesEveryHit`) e NESSUNO li guardava insieme sullo stesso colpo: il confine fra le due difese poteva essere spostato da un commit senza che niente diventasse rosso. Qui i tre esiti stanno nello stesso file, quindi la DIFFERENZA e' l'oggetto dell'assertion, non un valore isolato.",
 
@@ -34,9 +34,9 @@
         { "unit": "DG", "ability": "Action.Guard" },
         { "unit": "DB", "ability": "Action.Brace" },
 
-        { "unit": "AG", "ability": "Riva.PressureJet", "target": "DG" },
-        { "unit": "AB", "ability": "Riva.PressureJet", "target": "DB" },
-        { "unit": "AN", "ability": "Riva.PressureJet", "target": "DN" }
+        { "unit": "AG", "ability": "Hero.Phase.PressureJet", "target": "DG" },
+        { "unit": "AB", "ability": "Hero.Phase.PressureJet", "target": "DB" },
+        { "unit": "AN", "ability": "Hero.Phase.PressureJet", "target": "DN" }
       ]
     }
   ],

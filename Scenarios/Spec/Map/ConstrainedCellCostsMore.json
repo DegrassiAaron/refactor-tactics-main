@@ -5,7 +5,7 @@
     "map",
     "movement",
     "pathfinding",
-    "flux"
+    "gadget"
   ],
   "version": 1,
   "seed": 0,

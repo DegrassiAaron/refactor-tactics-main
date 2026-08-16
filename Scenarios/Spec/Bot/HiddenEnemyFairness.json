@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Bot.HiddenEnemyFairness",
-  "tags": ["bot", "perception", "knowledge", "canary", "spec", "vektor", "bastion", "riva"],
+  "tags": ["bot", "perception", "knowledge", "canary", "spec", "wraith", "riktor", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 6,

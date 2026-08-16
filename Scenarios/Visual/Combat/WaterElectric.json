@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Combat.WaterElectric",
-  "tags": ["animation", "combat", "environment", "flux", "vektor"],
+  "tags": ["animation", "combat", "environment", "gadget", "wraith"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayLite",
@@ -19,8 +19,8 @@
   "turns": [
     {
       "intents": [
-        { "unit": "V1", "dash": "Vektor.PassingBlade", "dashTo": [0, 0, 0] },
-        { "unit": "F1", "ability": "Flux.LinearDischarge", "target": "V1" }
+        { "unit": "V1", "dash": "Hero.Wraith.PassingBlade", "dashTo": [0, 0, 0] },
+        { "unit": "F1", "ability": "Hero.Gadget.LinearDischarge", "target": "V1" }
       ]
     }
   ],

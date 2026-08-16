@@ -1000,9 +1000,9 @@ bool FRTRiktorPanelVariantAppliedTest::RunTest(const FString&)
 	URTActionData* PanelB = URTHeroCatalogLibrary::MakeRiktor()->Actions[1];
 
 	PlanHeroCoverAction(WithReinforced, PanelA, Reinforced, ERTHexDirection::W,
-		TEXT("Bastion.KineticPanel.Reinforced"));
+		TEXT("Hero.Riktor.KineticPanel.Reinforced"));
 	PlanHeroCoverAction(WithAdaptive, PanelB, Adaptive, ERTHexDirection::SW,
-		TEXT("Bastion.KineticPanel.Adaptive"));
+		TEXT("Hero.Riktor.KineticPanel.Adaptive"));
 	RunEnvTurn(TM);
 
 	// I due parametri si verificano dove ciascuno e' osservabile, e non e' un ripiego: e' il compromesso

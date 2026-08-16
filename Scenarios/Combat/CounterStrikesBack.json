@@ -1,11 +1,11 @@
 {
   "scenarioId": "Combat.CounterStrikesBack",
-  "tags": ["combat", "reactions", "core", "animation", "flux", "bastion"],
+  "tags": ["combat", "reactions", "core", "animation", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "Gadget arma Flux.ReactiveCapacitor e incassa Bastion.ImpactShot (8 da ADR-0007, erano 24). La reazione scatta sul trigger HitByDirectAttack e fa DUE cose: 10 danni a chi ha colpito e scudo 15 a se'. Riktor scende a 110 senza che nessun intent glielo abbia fatto fare — e' l'unico effetto del turno che nessuno ha chiesto, quindi l'unico che puo' venire solo dalla reazione. Lo scudo assorbe il colpo CHE L'HA INNESCATA, non i successivi: con 8 danni contro uno scudo da 15 l'assorbimento e' ora TOTALE, e Gadget resta a 90 pieni. La proprieta' resta misurabile perche' la coppia non e' cambiata: se lo scudo valesse solo per i colpi futuri, Gadget finirebbe a 82 — che e' esattamente il numero dell'altro scenario. 90 contro 82 e' la stessa domanda di prima con numeri piu' piccoli. Nota di lettura: 90 e' anche il massimo di Gadget, quindi da SOLO questo scenario non distingue «lo scudo ha assorbito» da «il colpo non e' mai partito»; a dirlo e' B1 a 110, che puo' venire solo da un colpo andato a segno. Scritto qui perche' e' il punto su cui mi ero sbagliato all'inizio: avevo previsto 66 dando per scontato che lo scudo arrivasse dopo, e il test ha corretto me, non il gioco.",
+  "_nota": "Gadget arma Hero.Gadget.ReactiveCapacitor e incassa Hero.Riktor.ImpactShot (8 da ADR-0007, erano 24). La reazione scatta sul trigger HitByDirectAttack e fa DUE cose: 10 danni a chi ha colpito e scudo 15 a se'. Riktor scende a 110 senza che nessun intent glielo abbia fatto fare — e' l'unico effetto del turno che nessuno ha chiesto, quindi l'unico che puo' venire solo dalla reazione. Lo scudo assorbe il colpo CHE L'HA INNESCATA, non i successivi: con 8 danni contro uno scudo da 15 l'assorbimento e' ora TOTALE, e Gadget resta a 90 pieni. La proprieta' resta misurabile perche' la coppia non e' cambiata: se lo scudo valesse solo per i colpi futuri, Gadget finirebbe a 82 — che e' esattamente il numero dell'altro scenario. 90 contro 82 e' la stessa domanda di prima con numeri piu' piccoli. Nota di lettura: 90 e' anche il massimo di Gadget, quindi da SOLO questo scenario non distingue «lo scudo ha assorbito» da «il colpo non e' mai partito»; a dirlo e' B1 a 110, che puo' venire solo da un colpo andato a segno. Scritto qui perche' e' il punto su cui mi ero sbagliato all'inizio: avevo previsto 66 dando per scontato che lo scudo arrivasse dopo, e il test ha corretto me, non il gioco.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [0, 0, 0] },
@@ -16,8 +16,8 @@
     {
       "requires": ["Reaction"],
       "intents": [
-        { "unit": "A1", "reaction": "Flux.ReactiveCapacitor" },
-        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "A1" }
+        { "unit": "A1", "reaction": "Hero.Gadget.ReactiveCapacitor" },
+        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "A1" }
       ]
     }
   ],

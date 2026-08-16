@@ -1,6 +1,6 @@
 {
   "scenarioId": "Combat.NoCounterWhenUnarmed",
-  "tags": ["combat", "reactions", "core", "flux", "bastion"],
+  "tags": ["combat", "reactions", "core", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -15,7 +15,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "A1" }
+        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "A1" }
       ]
     }
   ],

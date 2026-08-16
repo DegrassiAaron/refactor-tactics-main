@@ -46,7 +46,7 @@ namespace
 	}
 
 	/** L'attacco base di Wraith: `PulseShot`, 21 danni a portata 4 (catalogo eroi). */
-	FRTActionDef VektorBasicAttack()
+	FRTActionDef WraithBasicAttack()
 	{
 		return URTHeroCatalogLibrary::MakeWraith()->Actions[0]->Def;
 	}
@@ -67,7 +67,7 @@ bool FRTWeaponVariantTradeoffTest::RunTest(const FString&)
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("il catalogo delle varianti e' strutturalmente valido"), Errors.Num(), 0);
 
-	const FRTActionDef Base = VektorBasicAttack();
+	const FRTActionDef Base = WraithBasicAttack();
 
 	for (const URTEquipmentData* V : Variants)
 	{
@@ -112,7 +112,7 @@ bool FRTPrecisionRangeAndDamageTest::RunTest(const FString&)
 	}
 	if (!TestNotNull(TEXT("Weapon.Precision e' nel catalogo"), Precision)) { return false; }
 
-	const FRTActionDef Base = VektorBasicAttack();
+	const FRTActionDef Base = WraithBasicAttack();
 	const FRTActionDef Modified = URTCatalogLibrary::ApplyWeaponVariant(Base, Precision);
 
 	// I delta si SOMMANO alla portata dell'arma, non la sostituiscono: la variante non sa quale attacco base
@@ -206,7 +206,7 @@ bool FRTSplitHasNoConsumerTest::RunTest(const FString&)
 
 	TestEqual(TEXT("il dato dichiara il bersaglio in piu'"), Split->ExtraTargets, 1);
 
-	const FRTActionDef Base = VektorBasicAttack();
+	const FRTActionDef Base = WraithBasicAttack();
 	const FRTActionDef Modified = URTCatalogLibrary::ApplyWeaponVariant(Base, Split);
 	TestEqual(TEXT("ma sull'azione prodotta si vede solo lo svantaggio"),
 		DirectDamage(Modified), DirectDamage(Base) - 6);
@@ -706,22 +706,22 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 	};
 
 	const FRTActionDef Riktor = URTHeroCatalogLibrary::MakeRiktor()->Actions[0]->Def;
-	const FRTActionDef Wraith = VektorBasicAttack();
+	const FRTActionDef Wraith = WraithBasicAttack();
 
 	// Il caso concreto che ha fatto nascere la regola: `ImpactShot` rallenta già, quindi `Suppressive` fa
 	// pagare 5 danni su 8 per un effetto che l'eroe possiede — legale e privo di senso (D-086).
 	const URTEquipmentData* Suppressive = Trova(TEXT("Weapon.Suppressive"));
 	if (!TestNotNull(TEXT("Weapon.Suppressive"), Suppressive)) { return false; }
-	const TArray<FString> SuBastion = URTCatalogLibrary::WarnOnVariantForAttack(Riktor, Suppressive);
-	TestTrue(TEXT("Riktor + Soppressione: avvisato"), SuBastion.Num() > 0);
+	const TArray<FString> SuRiktor = URTCatalogLibrary::WarnOnVariantForAttack(Riktor, Suppressive);
+	TestTrue(TEXT("Riktor + Soppressione: avvisato"), SuRiktor.Num() > 0);
 	bool bNominaLoStatus = false;
-	for (const FString& W : SuBastion) { bNominaLoStatus |= W.Contains(TEXT("Slow")); }
+	for (const FString& W : SuRiktor) { bNominaLoStatus |= W.Contains(TEXT("Slow")); }
 	TestTrue(TEXT("e l'avviso dice QUALE status e' duplicato"), bNominaLoStatus);
 
 	// Il gemello di controllo: lo stesso identico dato su un attacco che NON rallenta non avvisa. Senza
 	// questo, un avviso che scattasse sempre passerebbe il test sopra e non direbbe niente.
-	const TArray<FString> SuVektor = URTCatalogLibrary::WarnOnVariantForAttack(Wraith, Suppressive);
-	TestEqual(TEXT("Wraith + Soppressione: nessun avviso, il suo attacco non rallenta"), SuVektor.Num(), 0);
+	const TArray<FString> SuWraith = URTCatalogLibrary::WarnOnVariantForAttack(Wraith, Suppressive);
+	TestEqual(TEXT("Wraith + Soppressione: nessun avviso, il suo attacco non rallenta"), SuWraith.Num(), 0);
 
 	// I default scelti da D-089 devono essere puliti: se un default producesse un avviso, la decisione
 	// sarebbe da rivedere — ed è esattamente il momento in cui vogliamo saperlo.
@@ -963,22 +963,22 @@ bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
 	// `Overcharge` è il caso che perderebbe di più: la ricarica è il suo intero prezzo (D-090). Se lo
 	// specchio non la ricevesse, la variante sarebbe un bonus gratis in partita.
 	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
-	URTActionData* FluxBasic = Gadget->Actions[0];
-	const int32 CooldownPrima = FluxBasic->CooldownTurns;
-	URTCatalogLibrary::EquipWeaponVariant(FluxBasic, Overcharge);
+	URTActionData* GadgetBasic = Gadget->Actions[0];
+	const int32 CooldownPrima = GadgetBasic->CooldownTurns;
+	URTCatalogLibrary::EquipWeaponVariant(GadgetBasic, Overcharge);
 	TestEqual(TEXT("Overcharge: la ricarica arriva allo specchio, non solo a Def"),
-		FluxBasic->CooldownTurns, CooldownPrima + 1);
-	TestEqual(TEXT("e coincide con Def"), FluxBasic->CooldownTurns, FluxBasic->Def.CooldownTurns);
+		GadgetBasic->CooldownTurns, CooldownPrima + 1);
+	TestEqual(TEXT("e coincide con Def"), GadgetBasic->CooldownTurns, GadgetBasic->Def.CooldownTurns);
 
 	// Riequipaggiare due volte non accumula: `Power` si RICALCOLA dagli effetti, non si somma.
-	URTCatalogLibrary::EquipWeaponVariant(FluxBasic, Overcharge);
+	URTCatalogLibrary::EquipWeaponVariant(GadgetBasic, Overcharge);
 	int32 DannoDichiarato = 0;
-	for (const FRTActionEffectSpec& S : FluxBasic->Def.Effects)
+	for (const FRTActionEffectSpec& S : GadgetBasic->Def.Effects)
 	{
 		if (S.Effect == ERTActionEffect::Damage) { DannoDichiarato = S.Amount; break; }
 	}
 	TestEqual(TEXT("Power resta uguale al danno dichiarato, senza accumulare"),
-		FluxBasic->Power, DannoDichiarato);
+		GadgetBasic->Power, DannoDichiarato);
 	return true;
 }
 

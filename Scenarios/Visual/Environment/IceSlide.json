@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Environment.IceSlide",
-  "tags": ["animation", "environment", "movement", "flux"],
+  "tags": ["animation", "environment", "movement", "gadget"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayLite",

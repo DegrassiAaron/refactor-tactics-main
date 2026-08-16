@@ -1,6 +1,6 @@
 {
-  "scenarioId": "Combat.BastionImpactShotSlows",
-  "tags": ["combat", "movement", "core", "bastion", "flux"],
+  "scenarioId": "Combat.RiktorImpactShotSlows",
+  "tags": ["combat", "movement", "core", "riktor", "gadget"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -23,7 +23,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "F1" },
+        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
         { "unit": "F1", "move": [[2, 0, 0]] }
       ]
     }

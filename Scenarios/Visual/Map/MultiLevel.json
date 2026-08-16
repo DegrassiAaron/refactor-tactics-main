@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Map.MultiLevel",
-  "tags": ["animation", "map", "movement", "pathfinding", "flux"],
+  "tags": ["animation", "map", "movement", "pathfinding", "gadget"],
   "version": 1,
   "seed": 0,
   "fixture": "TestArena",

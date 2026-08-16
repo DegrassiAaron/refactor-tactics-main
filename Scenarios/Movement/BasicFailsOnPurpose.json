@@ -1,6 +1,6 @@
 {
   "scenarioId": "Movement.BasicFailsOnPurpose",
-  "tags": ["movement", "expected-fail", "flux", "bastion"],
+  "tags": ["movement", "expected-fail", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 3,

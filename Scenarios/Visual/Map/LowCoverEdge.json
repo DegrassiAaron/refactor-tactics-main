@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Map.LowCoverEdge",
-  "tags": ["animation", "map", "combat", "flux", "bastion", "vektor"],
+  "tags": ["animation", "map", "combat", "gadget", "riktor", "wraith"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayBasin",
@@ -24,9 +24,9 @@
   "turns": [
     {
       "intents": [
-        { "unit": "F1", "ability": "Flux.ArcPulse",       "target": "V1" },
-        { "unit": "V1", "ability": "Vektor.PulseShot",   "target": "F1" },
-        { "unit": "B1", "ability": "Bastion.ImpactShot", "target": "F1" }
+        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse",       "target": "V1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" },
+        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" }
       ]
     }
   ],

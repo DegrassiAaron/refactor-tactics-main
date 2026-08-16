@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Bot.PlansOnPartialKnowledge",
-  "tags": ["bot", "perception", "knowledge", "spec", "vektor", "bastion", "riva"],
+  "tags": ["bot", "perception", "knowledge", "spec", "wraith", "riktor", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 6,

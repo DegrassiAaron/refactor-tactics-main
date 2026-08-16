@@ -1,15 +1,15 @@
 {
   "scenarioId": "Visual.Movement.Charge",
-  "tags": ["animation", "movement", "combat", "bastion", "flux"],
+  "tags": ["animation", "movement", "combat", "riktor", "gadget"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "BANCO VFX per la mobilita' lineare. Riktor carica Gadget da due celle di distanza con `Bastion.Ram`: `LinearCharge` si ferma ADDOSSO al primo nemico sulla traiettoria, infligge 20 danni e spinge di 1. Il confronto che questo scenario serve a fare e' con `Movement.LongWalk`: se la carica si vede uguale a una camminata, la differenza fra mobilita' rapida e movimento normale — che in questo gioco e' una differenza di FASE, Dash prima di Blast — non arriva a chi guarda.",
+  "_nota": "BANCO VFX per la mobilita' lineare. Riktor carica Gadget da due celle di distanza con `Hero.Riktor.Ram`: `LinearCharge` si ferma ADDOSSO al primo nemico sulla traiettoria, infligge 20 danni e spinge di 1. Il confronto che questo scenario serve a fare e' con `Movement.LongWalk`: se la carica si vede uguale a una camminata, la differenza fra mobilita' rapida e movimento normale — che in questo gioco e' una differenza di FASE, Dash prima di Blast — non arriva a chi guarda.",
 
   "_nota_portata": "Portata 3 da `Action.Charge` nel catalogo azioni, ereditata da Ram. La distanza qui e' 2: dentro la portata, con un margine che sopravvive a un ritocco di bilanciamento.",
 
-  "_nota_dash": "Lo scatto si dichiara con `dash` + `dashTo`, NON con `ability`: dopo D-028 occupano slot diversi — lo scatto prende il movimento, l'abilita' la principale — e «schivo e sparo» dev'essere esprimibile. Dichiarato con `ability`, `Bastion.Ram` finisce nello slot del Blast e non parte: il primo run di questo scenario ha trovato Gadget illeso a 90.",
+  "_nota_dash": "Lo scatto si dichiara con `dash` + `dashTo`, NON con `ability`: dopo D-028 occupano slot diversi — lo scatto prende il movimento, l'abilita' la principale — e «schivo e sparo» dev'essere esprimibile. Dichiarato con `ability`, `Hero.Riktor.Ram` finisce nello slot del Blast e non parte: il primo run di questo scenario ha trovato Gadget illeso a 90.",
 
   "_nota_celle": "Le celle finali dipendono dall'ordine fra arresto e spinta e non sono assertion: le fissa il primo run.",
 
@@ -21,7 +21,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "B1", "dash": "Bastion.Ram", "dashTo": [1, 0, 0] }
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [1, 0, 0] }
       ]
     }
   ],

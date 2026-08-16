@@ -1,6 +1,6 @@
 {
   "scenarioId": "Combat.SplashHitsAlliesNotSelf",
-  "tags": ["combat", "shapes", "friendly-fire", "animation", "flux", "riva", "bastion", "vektor"],
+  "tags": ["combat", "shapes", "friendly-fire", "animation", "gadget", "phase", "riktor", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -17,7 +17,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "A1", "ability": "Flux.Overload", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Gadget.Overload", "target": "B1" }
       ]
     }
   ],

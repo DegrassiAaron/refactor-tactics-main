@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Objective.PointSurvivesKO",
-  "tags": ["spec", "objectives", "riva", "flux", "bastion"],
+  "tags": ["spec", "objectives", "phase", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayBasin",

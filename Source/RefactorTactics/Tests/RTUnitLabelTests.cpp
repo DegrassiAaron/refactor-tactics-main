@@ -66,6 +66,11 @@ bool FRTCanonicalHeroIdTest::RunTest(const FString&)
 {
 	// I quattro nomi che D-130 ritira. Scritti qui e non altrove: se un giorno la lista cambiasse, deve
 	// cambiare in un punto che il test rilegge, non in un commento.
+	// 🔴 **NON RINOMINARE QUESTA RIGA** — vale la stessa avvertenza di
+	// `Heroes.AbilityIdsAreNamespacedUnderTheirHero`, e per lo stesso incidente, capitato DUE volte:
+	// la prima quando il passaggio finale di #754 ha cercato i nomi ritirati senza confini di parola,
+	// la seconda quando lo stesso script e' stato rilanciato *per misurare i residui* — uno script che
+	// sostituisce non e' una misura, e rieseguirlo ha disfatto la riparazione appena scritta.
 	const TArray<FString> Legacy = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor") };
 
 	const TArray<FName> Ids = URTHeroCatalogLibrary::GetHeroIds();

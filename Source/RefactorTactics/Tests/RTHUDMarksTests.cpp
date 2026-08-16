@@ -95,7 +95,7 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Flux.Overload"));
+	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
 	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
 	Gadget->PlannedAbilityIndex = Overload;
 	Gadget->PlannedAttackTarget = Riktor;
@@ -134,20 +134,20 @@ bool FRTHUDEnemyPlansAreNotReadTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
 	// Stavolta e' l'avversario a pianificare, su un bersaglio del giocatore.
-	ARTUnit* NemicoFlux = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    1, FRTCellId(-1, 0, 0));
-	ARTUnit* MioRiva    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
-	ARTUnit* MioBastion = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 0, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("unita'"), NemicoFlux) || !MioRiva || !MioBastion)
+	ARTUnit* NemicoGadget = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    1, FRTCellId(-1, 0, 0));
+	ARTUnit* MioPhase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
+	ARTUnit* MioRiktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 0, FRTCellId( 2, 0, 0));
+	if (!TestNotNull(TEXT("unita'"), NemicoGadget) || !MioPhase || !MioRiktor)
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
-	NemicoFlux->PlannedAbilityIndex = MarksAbilityIndex(NemicoFlux, TEXT("Flux.Overload"));
-	NemicoFlux->PlannedAttackTarget = MioBastion;
+	NemicoGadget->PlannedAbilityIndex = MarksAbilityIndex(NemicoGadget, TEXT("Hero.Gadget.Overload"));
+	NemicoGadget->PlannedAttackTarget = MioRiktor;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ NemicoFlux, MioRiva, MioBastion }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ NemicoGadget, MioPhase, MioRiktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
 	DestroyMarksWorld(World);
 
 	TestEqual(TEXT("nessuna cella dal piano avversario"), Hit.Num(), 0);
@@ -174,7 +174,7 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 1, FRTCellId( 2, 0, 0));
 	if (!Gadget || !Phase || !Riktor) { DestroyMarksWorld(World); return false; }
 
-	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Flux.Overload"));
+	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
 	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
 	Gadget->PlannedAbilityIndex = Overload;
 	Gadget->PlannedAttackTarget = Riktor;

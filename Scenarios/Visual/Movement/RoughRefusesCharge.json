@@ -1,6 +1,6 @@
 {
   "scenarioId": "Visual.Movement.RoughRefusesCharge",
-  "tags": ["animation", "movement", "environment", "bastion", "flux"],
+  "tags": ["animation", "movement", "environment", "riktor", "gadget"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayLite",
@@ -19,7 +19,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "B1", "dash": "Bastion.Ram", "dashTo": [-1, -1, 0] }
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [-1, -1, 0] }
       ]
     }
   ],

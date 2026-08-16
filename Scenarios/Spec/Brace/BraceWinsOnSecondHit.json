@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Brace.BraceWinsOnSecondHit",
-  "tags": ["spec", "combat", "brace", "guard", "bal-1", "riva", "vektor"],
+  "tags": ["spec", "combat", "brace", "guard", "bal-1", "phase", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 6,
@@ -34,10 +34,10 @@
         { "unit": "DG", "ability": "Action.Guard" },
         { "unit": "DB", "ability": "Action.Brace" },
 
-        { "unit": "G1", "ability": "Riva.PressureJet", "target": "DG" },
-        { "unit": "G2", "ability": "Riva.PressureJet", "target": "DG" },
-        { "unit": "B1", "ability": "Riva.PressureJet", "target": "DB" },
-        { "unit": "B2", "ability": "Riva.PressureJet", "target": "DB" }
+        { "unit": "G1", "ability": "Hero.Phase.PressureJet", "target": "DG" },
+        { "unit": "G2", "ability": "Hero.Phase.PressureJet", "target": "DG" },
+        { "unit": "B1", "ability": "Hero.Phase.PressureJet", "target": "DB" },
+        { "unit": "B2", "ability": "Hero.Phase.PressureJet", "target": "DB" }
       ]
     }
   ],

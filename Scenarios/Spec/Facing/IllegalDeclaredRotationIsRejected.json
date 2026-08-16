@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.IllegalDeclaredRotationIsRejected",
-  "tags": ["facing", "movement", "planning", "turnlog", "spec", "flux", "bastion"],
+  "tags": ["facing", "movement", "planning", "turnlog", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,

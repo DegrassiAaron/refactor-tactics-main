@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.DashReorients",
-  "tags": ["facing", "movement", "dash", "spec", "bastion", "flux"],
+  "tags": ["facing", "movement", "dash", "spec", "riktor", "gadget"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,
@@ -15,7 +15,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "B1", "dash": "Bastion.Ram", "dashTo": [1, 2, 0] }
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [1, 2, 0] }
       ]
     }
   ],

@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Overwatch.HoldThenFire",
-  "tags": ["spec", "reactions", "vektor", "flux", "riva"],
+  "tags": ["spec", "reactions", "wraith", "gadget", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,

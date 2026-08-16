@@ -3986,7 +3986,7 @@ void ARTTurnManager::ResolveCombat()
 	for (FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
-			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Flux.LinearDischarge")))
+			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Hero.Gadget.LinearDischarge")))
 		{
 			continue;
 		}
@@ -3999,7 +3999,7 @@ void ARTTurnManager::ResolveCombat()
 			IntentDefs[Hit.IntentIndex].Priority > IncomingWetPriority[Hit.TargetId];
 		if (bWetBeforeBlast || bWetFromThisBlast)
 		{
-			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::FluxWetDischargeBonus);
+			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::GadgetWetDischargeBonus);
 		}
 	}
 

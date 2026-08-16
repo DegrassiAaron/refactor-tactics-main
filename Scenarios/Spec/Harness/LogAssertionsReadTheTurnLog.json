@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Harness.LogAssertionsReadTheTurnLog",
-  "tags": ["harness", "turnlog", "spec", "flux", "bastion"],
+  "tags": ["harness", "turnlog", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -21,7 +21,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "A1", "ability": "Flux.ArcPulse", "target": "B1" },
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" },
         { "unit": "B1", "move": [[1, 0, 0]] }
       ]
     }

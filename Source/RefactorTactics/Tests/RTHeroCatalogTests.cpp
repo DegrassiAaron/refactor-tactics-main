@@ -480,4 +480,75 @@ bool FRTHeroActionDisplayNameTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Ogni `ActionId` d'eroe e' `Hero.<Nome>.<Abilita>`, e nessuno porta un nome ritirato (#754, D-130).
+ *
+ * ⚠️ **Prende il posto di una spunta del DoD che non e' eseguibile.** `#754` chiede che
+ * `Catalog.ValidatorRejectsRetiredHeroAbilityId` *«diventi verde»*, ma quel test non esiste e non puo':
+ * il suo omologo `Catalog.ValidatorRejectsRetiredStableId` e' stato **rimosso** da **D-134** insieme al
+ * redirect, «perche' verificava un divieto che non esiste piu'». Dove non c'e' redirect non c'e' nulla da
+ * rifiutare: un ID ritirato semplicemente non risolve. La guardia che serviva davvero e' questa.
+ *
+ * Due asserzioni, e la seconda e' quella che il grep non sa fare. Il DoD motiva il **terzo segmento**
+ * dicendo che un prefisso piatto metterebbe `Gadget.ArcPulse` accanto a `Gadget.Medkit` (un oggetto) e a
+ * `ERTEquipmentSlot::Gadget` (serializzato). Ma «comincia per `Hero.`» non basterebbe: legare l'azione
+ * al `HeroId` del **suo** eroe fa cadere anche un'azione di Gadget che finisse sotto `Hero.Phase.` —
+ * un errore che un rename massivo produce esattamente come quello che deve correggere.
+ *
+ * Il prefisso si legge dal roster, non si scrive qui: un quinto eroe non richiede di toccare il test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroAbilityIdNamespaceTest,
+	"RefactorTactics.Heroes.AbilityIdsAreNamespacedUnderTheirHero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
+{
+	// 🔴 **NON RINOMINARE QUESTA RIGA.** Sono i quattro nomi che D-130 ritira, e devono comparire qui
+	// **scritti per esteso**: e' l'unico posto del progetto in cui nominarli e' il punto, non un residuo.
+	//
+	// Il rename di #754 li ha portati via DUE volte, e le due ragioni sono diverse.
+	//   1. Un passaggio finale cercava i nomi ritirati *senza confini di parola*, per stanare le forme
+	//      concatenate — `<ritirato>EffectAmount`, `<ritirato>Data` — che nessun pattern con `\b` o col
+	//      punto poteva vedere. Ha riscritto anche questa lista, e il test e' diventato l'opposto di se
+	//      stesso: asseriva che nessun ID contenesse i nomi **nuovi**, quindi sarebbe caduto su tutti e
+	//      venti. Una guardia rovesciata non e' una guardia rotta: e' una guardia che accusa il codice sano.
+	//   2. Poi lo stesso script e' stato rilanciato **per misurare quanti residui restassero**, e ha
+	//      disfatto la riparazione appena scritta. Uno script che sostituisce non e' una misura, per quanto
+	//      il suo ultimo `print` somigli a una.
+	const TArray<FString> Ritirati = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor") };
+
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	int32 Checked = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+		const FString Prefisso = Hero->HeroId.ToString() + TEXT(".");
+
+		for (const URTActionData* Action : Hero->Actions)
+		{
+			if (!Action) { continue; }
+			++Checked;
+			const FString Id = Action->Def.ActionId.ToString();
+
+			// 1. Nessun nome ritirato, in nessuna posizione dell'ID.
+			for (const FString& Vecchio : Ritirati)
+			{
+				TestFalse(*FString::Printf(TEXT("%s non contiene il nome ritirato '%s'"), *Id, *Vecchio),
+					Id.Contains(Vecchio));
+			}
+
+			// 2. E l'azione sta sotto il SUO eroe, non sotto un eroe qualsiasi.
+			TestTrue(*FString::Printf(TEXT("%s sta sotto il proprio eroe (%s)"), *Id, *Prefisso),
+				Id.StartsWith(Prefisso));
+		}
+	}
+
+	// Senza questo, un roster che smettesse di esporre azioni renderebbe il test verde per assenza di
+	// soggetti — la stessa forma di falso verde contro cui `EveryActionHasADisplayName` si difende.
+	TestTrue(TEXT("almeno un'azione controllata"), Checked > 0);
+	TestEqual(TEXT("il roster v0.1 dichiara venti abilita'"), Checked, 20);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

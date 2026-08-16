@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.FrontAttackKeepsGuard",
-  "tags": ["facing", "combat", "guard", "spec", "flux", "bastion"],
+  "tags": ["facing", "combat", "guard", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -16,7 +16,7 @@
     {
       "intents": [
         { "unit": "B1", "ability": "Action.Guard" },
-        { "unit": "A1", "ability": "Flux.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
       ]
     }
   ],

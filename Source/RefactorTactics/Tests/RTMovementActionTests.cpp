@@ -333,11 +333,11 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 		const URTActionData* Ram = nullptr;
 		for (const URTActionData* A : Riktor->Actions)
 		{
-			if (A && A->Def.ActionId == TEXT("Bastion.Ram")) { Ram = A; break; }
+			if (A && A->Def.ActionId == TEXT("Hero.Riktor.Ram")) { Ram = A; break; }
 		}
-		if (TestNotNull(TEXT("Bastion.Ram e' nel kit"), Ram))
+		if (TestNotNull(TEXT("Hero.Riktor.Ram e' nel kit"), Ram))
 		{
-			TestTrue(TEXT("Bastion.Ram e' una carica"), Ram->Def.MovementStyle == ERTMovementStyle::LinearCharge);
+			TestTrue(TEXT("Hero.Riktor.Ram e' una carica"), Ram->Def.MovementStyle == ERTMovementStyle::LinearCharge);
 		}
 	}
 	return true;

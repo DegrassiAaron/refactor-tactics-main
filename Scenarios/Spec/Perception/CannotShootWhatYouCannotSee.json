@@ -1,11 +1,11 @@
 {
   "scenarioId": "Spec.Perception.CannotShootWhatYouCannotSee",
-  "tags": ["perception", "vision", "combat", "spec", "flux", "bastion"],
+  "tags": ["perception", "vision", "combat", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 6,
 
-  "_nota": "CP 13.2: non si spara a cio' che la squadra non conosce. A1 guarda a EST — il facing di schieramento — e B1 gli sta a OVEST a 4 celle, fuori dall'arco frontale e fuori dalla consapevolezza ravvicinata (2 celle). L'attacco e' fermato dalla CONOSCENZA, non dalla portata: B1 e' dentro i 4 di Flux.ArcPulse e non c'e' niente in mezzo.",
+  "_nota": "CP 13.2: non si spara a cio' che la squadra non conosce. A1 guarda a EST — il facing di schieramento — e B1 gli sta a OVEST a 4 celle, fuori dall'arco frontale e fuori dalla consapevolezza ravvicinata (2 celle). L'attacco e' fermato dalla CONOSCENZA, non dalla portata: B1 e' dentro i 4 di Hero.Gadget.ArcPulse e non c'e' niente in mezzo.",
 
   "_nota_verifica": "B1 resta a 120 HP pieni. Se il gate della conoscenza smettesse di essere consultato, questo scenario diventerebbe rosso con 98 (120 - 22) — ed e' l'unico posto in cui si vedrebbe, perche' i test unitari chiamano `URTTeamKnowledgeLibrary::ClassifyTarget` direttamente e resterebbero verdi anche se il resolver smettesse di chiamarlo.",
 
@@ -24,7 +24,7 @@
   "turns": [
     {
       "intents": [
-        { "unit": "A1", "ability": "Flux.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
       ]
     }
   ],

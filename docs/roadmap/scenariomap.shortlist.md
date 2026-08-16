@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**76 scenari versionati** — misurati su `Scenarios/`: **64** eseguibili · **12** `BLOCKED` per una capability assente · **63** dichiarati `planned` nel registry e non ancora scritti.
+**77 scenari versionati** — misurati su `Scenarios/`: **65** eseguibili · **12** `BLOCKED` per una capability assente · **63** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `DeclaredRotation` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
 
@@ -86,11 +86,11 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.TimeBank.ReplayReadsRecordedBank` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.TimeoutCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.TimeoutSpendsNoCharge` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
-| `State.Bastion.Bulwark` | `RT-FEAT-CHARACTER-STATE` |
-| `State.Flux.Charged` | `RT-FEAT-CHARACTER-STATE` |
+| `State.Hero.Gadget.Charged` | `RT-FEAT-CHARACTER-STATE` |
+| `State.Hero.Phase.Flow` | `RT-FEAT-CHARACTER-STATE` |
+| `State.Hero.Riktor.Bulwark` | `RT-FEAT-CHARACTER-STATE` |
 | `State.Howitzer.Siege` | `RT-FEAT-CHARACTER-STATE` |
 | `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` |
-| `State.Riva.Flow` | `RT-FEAT-CHARACTER-STATE` |
 | `Stress.4v4.CoreRoster` | `RT-FEAT-STRESS-4V4` |
 | `Team.Conflux.FluxRiva.ConductiveFlood` | `RT-FEAT-FACTION-SCENARIOS` |
 | `Team.Constrine.BastionVektor.OnlyExit` | `RT-FEAT-FACTION-SCENARIOS` |

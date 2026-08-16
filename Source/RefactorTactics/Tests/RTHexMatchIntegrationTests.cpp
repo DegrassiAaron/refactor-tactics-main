@@ -546,7 +546,7 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	for (int32 i = 0; i < Charger->NumAbilities(); ++i)
 	{
 		const URTActionData* A = Charger->GetAbility(i);
-		if (A && A->Def.ActionId == FName(TEXT("Bastion.Ram"))) { ChargeIdx = i; break; }
+		if (A && A->Def.ActionId == FName(TEXT("Hero.Riktor.Ram"))) { ChargeIdx = i; break; }
 	}
 	const URTActionData* Charge = Charger->GetAbility(ChargeIdx);
 	if (!TestNotNull(TEXT("premessa: Riktor ha la carica nel kit"), (void*)Charge))
