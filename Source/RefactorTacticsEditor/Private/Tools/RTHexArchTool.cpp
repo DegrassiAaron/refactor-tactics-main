@@ -125,9 +125,27 @@ void URTHexArchTool::OnGizmoMoved(UTransformProxy* InProxy, FTransform InTransfo
 	bToValid = (Cell != From) && Map && Map->ContainsCell(Cell) && Map->ContainsCell(From);
 	ToWorld = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH);
 
-	// Ri-snap del proxy al centro della cella; SetTransform ri-emette OnTransformChanged -> guardia.
+	// Ri-snap al centro della cella. Si scrive sul GIZMO, non sul proxy, e non e' una preferenza:
+	//
+	//   `UTransformProxy::SetTransform` aggiorna `SharedTransform` e fa broadcast di `OnTransformChanged`,
+	//   ma non muove niente a schermo — e `OnTransformChanged` non compare in tutto
+	//   `CombinedTransformGizmo.cpp`: il gizmo **non si iscrive al proprio proxy**. Il `GizmoActor` viene
+	//   posizionato una volta sola in `SetActiveTarget` e poi guidato dai sub-gizmo, quindi scrivere sul
+	//   proxy lasciava il gizmo dov'era: il ri-snap si vedeva al gesto DOPO, quando un sub-gizmo
+	//   ricominciava a interagire e rileggeva lo stato (#931).
+	//
+	// ⚠️ `ReinitializeGizmoTransform` e NON `SetNewGizmoTransform`: la seconda «genera gli stessi eventi
+	// Change/Modify, e quindi funziona con Undo/Redo», e un ri-snap automatico nell'undo stack sarebbe un
+	// passo che l'utente non ha compiuto — con `PIE-HEX-MODE-E` che verifica proprio Undo/Redo.
+	//
+	// La guardia resta: `Reinitialize` non rientra in `OnGizmoMoved`, ma il proxy va comunque allineato
+	// perche' e' lui il bersaglio letto altrove, e quella scrittura si' che ri-emette l'evento.
 	bSnapping = true;
 	InProxy->SetTransform(FTransform(ToWorld));
+	if (Gizmo)
+	{
+		Gizmo->ReinitializeGizmoTransform(FTransform(ToWorld));
+	}
 	bSnapping = false;
 
 	if (Properties) { Properties->To = To; Properties->bToValid = bToValid; }

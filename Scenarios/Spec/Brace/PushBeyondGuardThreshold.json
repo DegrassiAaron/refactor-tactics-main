@@ -1,0 +1,68 @@
+{
+  "scenarioId": "Spec.Brace.PushBeyondGuardThreshold",
+  "tags": ["spec", "combat", "brace", "guard", "bal-1", "equipment", "riva", "vektor", "expected-fail"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "SPECIFICA ESEGUIBILE della meta' che `Spec.Brace.GuardAndBraceOnMixedHit` non puo' mostrare: cosa succede quando la spinta supera la soglia di `Guard`. Stessa scena — tre difensori identici, tre colpi identici, tre difese diverse — con UNA sola variabile cambiata: gli attaccanti montano la variante d'arma `Weapon.Impact`, che porta la spinta di `Riva.PressureJet` da 1 a 2.",
+
+  "_nota_perche_esiste": "#403 / `BAL-1`. La seduta U20 deve dire se `Guard` e `Brace` sono distinguibili a occhio, e finora la risposta era no. Questo file dice PERCHE': con una spinta di 1 le due difese producono lo stesso esito e non c'e' niente da vedere; con una spinta di 2 producono esiti diversi e osservabili. La domanda 'e' leggibile?' ha senso solo dopo che qualcosa e' diverso.",
+
+  "_nota_expected_fail": "QUESTO SCENARIO E' DICHIARATO `expected-fail`, e non e' un ripiego: e' la sua funzione. Descrive cio' che il gioco DOVREBBE fare quando la spinta supera la soglia di `Guard`, e oggi non lo fa -- non per un difetto del combat, ma perche' la variante d'arma non arriva mai sull'attacco base. Il tag lo rende una prova eseguibile invece di una nota in un documento: il giorno in cui l'harness applichera' le varianti, questo file passera' e `RefactorTactics.Scenario.ExpectedFailScenariosReallyFail` diventera' rosso, costringendo chi ha fatto il lavoro a togliere il tag. La bugia non puo' restare silenziosa in nessuno dei due versi.",
+
+  "_nota_perche_fallisce_MISURATO": "Eseguito il 2026-08-16: FAIL, 5 assertion su 7. Cadono le due posizioni -- `UnitAtCell(DG)` atteso (q=-2,r=1) e ottenuto (q=0,r=1) -- mentre i tre HP passano, perche' `Weapon.Impact` non tocca il danno. Il TurnLog dice il resto: «RTUnit_0: in guardia, resiste alla spinta» e «Spinta: RTUnit_2 -> (q=-1,r=-1,L0)», cioe' UNA cella. Identico allo scenario gemello che il loadout non ce l'ha. La variante d'arma dichiarata qui sotto NON e' stata applicata.",
+
+  "_nota_la_causa_misurata": "L'harness applica gadget e moduli di reazione -- `RTScenarioSession.cpp` chiama `MakeEquipmentAction` per ogni pezzo del loadout -- ma NON le varianti d'arma: quelle passano da `URTCatalogLibrary::EquipWeaponVariant`, che modifica l'attacco base, e `grep -rn EquipWeaponVariant Source/ | grep -v /Tests/` trova zero chiamanti fuori dai test. Il loadout viene VALIDATO (`ValidateLoadout` pretende 1+1+1, e il primo tentativo senza variante e' stato rifiutato) e poi la variante viene ignorata.",
+
+  "_nota_e_in_partita_e_peggio": "Nemmeno il gioco equipaggia. `DefaultWeaponVariantFor` dichiara `Weapon.Impact` come default di Phase (D-089) e ha chiamanti solo nei test; ne' `RTGameMode.cpp` ne' `RTUnit.cpp` nominano equipaggiamento o loadout. Quindi la spinta di 2 esiste nei DATI e in nessuna partita. E' la ragione per cui la seduta U20 non riesce a distinguere `Guard` da `Brace` a video: non e' presentazione e non sono i numeri -- e' che il pezzo che crea la differenza non arriva mai addosso a nessuno.",
+
+  "_nota_numeri": "Danno invariato rispetto allo scenario gemello: `Weapon.Impact` non ha `DamageDelta`, aggiunge `Push 1` e toglie 1 di portata. Guardia 16-15=1 -> 89; irrigidimento 16-10=6 -> 84; niente 16 -> 74. La SPINTA e' cio' che cambia: 2 celle invece di 1.",
+
+  "_nota_la_differenza_che_la_presentazione_deve_mostrare": "`Guard` regge fino a `GuardResistedPushDistance = 1`: contro 2 CEDE e arretra di due celle. Il ramo `Braced` del resolver non controlla la distanza (D-132), quindi `Brace` REGGE e resta fermo. Chi non ha difeso arretra come la guardia. A schermo: due unita' che scivolano indietro e una che non si muove, a parita' di colpo -- ed e' l'unico frame in cui le due difese si comportano in modo diverso.",
+
+  "_nota_portata": "`Weapon.Impact` toglie 1 cella di portata: `Riva.PressureJet` passa da 5 a 4. Gli attaccanti restano a distanza 3, quindi il colpo parte lo stesso. Se un giorno la portata scendesse ancora, questo file diventerebbe rosso per la ragione sbagliata -- il colpo non parte -- e il commento serve a riconoscerlo.",
+
+  "_nota_loadout": "Il loadout sta sugli ATTACCANTI e non sui difensori: la variabile e' la forza della spinta, non la difesa. `ValidateLoadout` pretende esattamente un pezzo per slot, quindi la variante viaggia con due pezzi inerti in questa scena -- `Gadget.Medkit` non viene mai usato e `Reaction.Anchor` annulla uno spostamento che l'attaccante non subisce. Se un giorno diventassero rilevanti, questa nota e' il posto dove accorgersene.",
+
+  "_nota_orientamento": "Come nel gemello: ogni attaccante sta a EST del proprio difensore, cioe' nell'arco frontale di chi guarda a est e non si gira. Con gli attaccanti a ovest si misurerebbe la difesa direzionale invece del confine Guard/Brace.",
+
+  "units": [
+    { "id": "DG", "hero": "Hero.Vektor", "team": 0, "cell": [0,  1, 0] },
+    { "id": "DB", "hero": "Hero.Vektor", "team": 0, "cell": [0,  0, 0] },
+    { "id": "DN", "hero": "Hero.Vektor", "team": 0, "cell": [0, -1, 0] },
+
+    { "facing": "W", "id": "AG", "hero": "Hero.Riva", "team": 1, "cell": [3,  1, 0],
+      "loadout": ["Weapon.Impact", "Gadget.Medkit", "Reaction.Anchor"] },
+    { "facing": "W", "id": "AB", "hero": "Hero.Riva", "team": 1, "cell": [3,  0, 0],
+      "loadout": ["Weapon.Impact", "Gadget.Medkit", "Reaction.Anchor"] },
+    { "facing": "W", "id": "AN", "hero": "Hero.Riva", "team": 1, "cell": [3, -1, 0],
+      "loadout": ["Weapon.Impact", "Gadget.Medkit", "Reaction.Anchor"] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Un solo turno, come nel gemello: le tre difese e i tre colpi si risolvono nello stesso Blast. `Action.Guard` e `Action.Brace` sono azioni principali di Prep e risolvono su chi le usa, quindi non dichiarano bersaglio.",
+      "intents": [
+        { "unit": "DG", "ability": "Action.Guard" },
+        { "unit": "DB", "ability": "Action.Brace" },
+
+        { "unit": "AG", "ability": "Riva.PressureJet", "target": "DG" },
+        { "unit": "AB", "ability": "Riva.PressureJet", "target": "DB" },
+        { "unit": "AN", "ability": "Riva.PressureJet", "target": "DN" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "DG", "value": 89 },
+    { "type": "UnitHpEquals", "unit": "DB", "value": 84 },
+    { "type": "UnitHpEquals", "unit": "DN", "value": 74 },
+
+    { "type": "UnitAtCell", "unit": "DG", "cell": [-2,  1, 0] },
+    { "type": "UnitAtCell", "unit": "DB", "cell": [ 0,  0, 0] },
+    { "type": "UnitAtCell", "unit": "DN", "cell": [-2, -1, 0] },
+
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

@@ -332,6 +332,33 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 
 			FRTScenarioTurn Turn;
 
+			// Le chiavi di turno ammesse. Misurato sul corpus il 2026-08-16 (77 file): sono quattro —
+			// `intents` 113, `requires` 36, `_turno` 64, `_nota` 3 — e le due con `_` sono la convenzione
+			// dei commenti. `decisions` si aggiunge qui perche' la introduce questa fase, e nel corpus non
+			// compare ancora. Senza questo controllo un refuso — `desicions` per `decisions` — viene
+			// ignorato e il turno cade su `HoldNoDecider`, che e' indistinguibile da «nessuno ha
+			// risposto»: verde per il motivo sbagliato.
+			{
+				static const TSet<FString> KnownTurnKeys = {
+					TEXT("intents"), TEXT("requires"), TEXT("decisions")
+				};
+				TArray<FString> UnknownTurnKeys;
+				for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : TurnObj->Values)
+				{
+					if (Field.Key.StartsWith(TEXT("_"))) { continue; }
+					if (!KnownTurnKeys.Contains(Field.Key)) { UnknownTurnKeys.Add(Field.Key); }
+				}
+				if (UnknownTurnKeys.Num() > 0)
+				{
+					UnknownTurnKeys.Sort();
+					TArray<FString> Expected = KnownTurnKeys.Array();
+					Expected.Sort();
+					OutError = FString::Printf(TEXT("turns: chiave sconosciuta '%s' (previste: %s)"),
+						*UnknownTurnKeys[0], *FString::Join(Expected, TEXT(", ")));
+					return false;
+				}
+			}
+
 			// `requires`: cosa deve esistere nel gioco perche' questo turno sia giocabile. Il runner si ferma
 			// qui con `Blocked` invece di fallire, e lo scenario puo' essere versionato prima dei suoi sistemi.
 			const TArray<TSharedPtr<FJsonValue>>* RequiresJson = nullptr;
@@ -346,6 +373,120 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 						return false;
 					}
 					Turn.Requires.Add(Capability);
+				}
+			}
+
+			// `decisions`: le risposte scriptate ai decision boundary di questo turno (CP 15.3 meta' B, #512).
+			// Si legge PRIMA degli intent per una ragione di leggibilita' del messaggio d'errore: un turno con
+			// un refuso nelle decisioni fallisce nominando le decisioni, non il primo intent che incontra.
+			const TArray<TSharedPtr<FJsonValue>>* DecisionsJson = nullptr;
+			const bool bHasDecisionsKey = TurnObj->HasField(TEXT("decisions"));
+			const bool bDecisionsIsArray = TurnObj->TryGetArrayField(TEXT("decisions"), DecisionsJson);
+			// 🔴 **La chiave c'e' ma non e' un array: e' un errore, non un'assenza.** `"decisions": {}` o
+			// `"decisions": null` supererebbero il controllo sulle chiavi di turno — la chiave E' nota — e poi
+			// `TryGetArrayField` fallirebbe in silenzio, saltando il blocco intero: il turno girerebbe con la
+			// coda vuota, ogni finestra cadrebbe su un timeout e lo scenario sarebbe verde. E' lo stesso buco
+			// che il controllo sulle chiavi chiude un livello piu' su.
+			if (bHasDecisionsKey && !bDecisionsIsArray)
+			{
+				OutError = TEXT("turns: 'decisions' deve essere un array");
+				return false;
+			}
+			// 🔴 **E il formato deve DICHIARARE la versione che le ammette.** Senza questo, la `version` 2
+			// non gaterebbe nulla: un file `version: 1` con `decisions` verrebbe accettato qui e — su una
+			// build vecchia, che non conosce ne' la chiave ne' la versione — ignorato in silenzio, giocando
+			// il turno non scriptato. E' esattamente il fallimento che il bump esiste per impedire.
+			if (bDecisionsIsArray && DecisionsJson->Num() > 0 && OutScenario.Version < 2)
+			{
+				OutError = FString::Printf(
+					TEXT("turns: 'decisions' richiede \"version\": 2 (dichiarata: %d)"), OutScenario.Version);
+				return false;
+			}
+			if (bDecisionsIsArray)
+			{
+				for (const TSharedPtr<FJsonValue>& DecisionValue : *DecisionsJson)
+				{
+					const TSharedPtr<FJsonObject> DecisionObj = DecisionValue->AsObject();
+					if (!DecisionObj.IsValid())
+					{
+						OutError = TEXT("decisions: voce non valida");
+						return false;
+					}
+
+					FRTScenarioDecision Decision;
+					DecisionObj->TryGetStringField(TEXT("unit"), Decision.Unit);
+					DecisionObj->TryGetStringField(TEXT("respond"), Decision.Respond);
+					DecisionObj->TryGetStringField(TEXT("target"), Decision.Target);
+
+					// L'elenco delle chiavi attese si GENERA dal set e si ORDINA: le due copie sono divergite
+					// alla prima aggiunta (`edge`, poco piu' sotto), e un `TSet` non ha ordine — un messaggio che
+					// cambia testo fra due esecuzioni identiche fa dubitare del file invece che di se' stesso.
+					static const TSet<FString> KnownDecisionKeys = {
+						TEXT("unit"), TEXT("respond"), TEXT("target")
+					};
+					TArray<FString> UnknownDecisionKeys;
+					for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : DecisionObj->Values)
+					{
+						if (Field.Key.StartsWith(TEXT("_")))
+						{
+							continue; // `_nota` e simili: commenti, come altrove nel formato
+						}
+						if (!KnownDecisionKeys.Contains(Field.Key))
+						{
+							UnknownDecisionKeys.Add(Field.Key);
+						}
+					}
+					if (UnknownDecisionKeys.Num() > 0)
+					{
+						UnknownDecisionKeys.Sort();
+						TArray<FString> ExpectedKeys = KnownDecisionKeys.Array();
+						ExpectedKeys.Sort();
+						OutError = FString::Printf(
+							TEXT("decisions: chiave sconosciuta '%s' (previste: %s)"),
+							*UnknownDecisionKeys[0], *FString::Join(ExpectedKeys, TEXT(", ")));
+						return false;
+					}
+
+					const bool bFire = Decision.Respond.Equals(TEXT("FIRE"), ESearchCase::CaseSensitive);
+					const bool bHold = Decision.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive);
+					if (!bFire && !bHold)
+					{
+						OutError = FString::Printf(
+							TEXT("decisions: risposta '%s' sconosciuta (previste: FIRE, HOLD)"),
+							*Decision.Respond);
+						return false;
+					}
+					// `target` obbligatorio con FIRE e VIETATO con HOLD. Il secondo divieto e' la meta' che
+					// conta: un bersaglio ignorato fa dichiarare allo scenario una cosa che non verifica.
+					if (bFire && Decision.Target.IsEmpty())
+					{
+						OutError = FString::Printf(
+							TEXT("decisions: 'FIRE' di '%s' richiede 'target'"), *Decision.Unit);
+						return false;
+					}
+					if (bHold && !Decision.Target.IsEmpty())
+					{
+						OutError = FString::Printf(
+							TEXT("decisions: 'HOLD' non ammette 'target' (dichiarato '%s')"), *Decision.Target);
+						return false;
+					}
+					// I nomi si risolvono QUI: un'unita' che non esiste e' uno scenario scritto male, non una
+					// capability mancante — e `Blocked` direbbe la seconda cosa. `units` e' letto sopra
+					// (riga ~247), quindi `FindUnit` ha gia' il roster.
+					if (!OutScenario.FindUnit(Decision.Unit))
+					{
+						OutError = FString::Printf(
+							TEXT("decisions: unita' '%s' non schierata"), *Decision.Unit);
+						return false;
+					}
+					if (bFire && !OutScenario.FindUnit(Decision.Target))
+					{
+						OutError = FString::Printf(
+							TEXT("decisions: bersaglio '%s' non schierato"), *Decision.Target);
+						return false;
+					}
+
+					Turn.Decisions.Add(Decision);
 				}
 			}
 
@@ -888,6 +1029,46 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 
 	for (const FRTScenarioTurn& Turn : Scenario.Turns)
 	{
+		// 🔴 **Le `decisions` si validano QUI e non solo nel parser**, ed e' la meta' che mancava: `Validate`
+		// e' il gate che ogni strada attraversa — `FRTScenarioSession::Start` lo chiama — mentre i controlli
+		// scritti dentro `LoadFromString` li vede solo chi arriva da JSON. Ogni scenario costruito in
+		// memoria (tutti i test di questa fase, e ogni chiamante di `RunScenarioIsolated`) saltava
+		// «unita' schierata», «FIRE richiede target» e «HOLD non ammette target»: un `D.Unit` scritto male
+		// non produceva un errore, restava non consumato e riemergeva piu' tardi come un residuo che parla
+		// d'altro.
+		for (const FRTScenarioDecision& Decision : Turn.Decisions)
+		{
+			const bool bFire = Decision.Respond.Equals(TEXT("FIRE"), ESearchCase::CaseSensitive);
+			const bool bHold = Decision.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive);
+			if (!bFire && !bHold)
+			{
+				OutError = FString::Printf(
+					TEXT("decisions: risposta '%s' sconosciuta (previste: FIRE, HOLD)"), *Decision.Respond);
+				return false;
+			}
+			if (bFire && Decision.Target.IsEmpty())
+			{
+				OutError = FString::Printf(TEXT("decisions: 'FIRE' di '%s' richiede 'target'"), *Decision.Unit);
+				return false;
+			}
+			if (bHold && !Decision.Target.IsEmpty())
+			{
+				OutError = FString::Printf(
+					TEXT("decisions: 'HOLD' non ammette 'target' (dichiarato '%s')"), *Decision.Target);
+				return false;
+			}
+			if (!SeenIds.Contains(Decision.Unit))
+			{
+				OutError = FString::Printf(TEXT("decisions: unita' '%s' non schierata"), *Decision.Unit);
+				return false;
+			}
+			if (bFire && !SeenIds.Contains(Decision.Target))
+			{
+				OutError = FString::Printf(TEXT("decisions: bersaglio '%s' non schierato"), *Decision.Target);
+				return false;
+			}
+		}
+
 		for (const FRTScenarioIntent& Intent : Turn.Intents)
 		{
 			if (!SeenIds.Contains(Intent.UnitId))

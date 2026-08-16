@@ -395,6 +395,21 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 		}
 		Aggregate.TurnsPlayed = FMath::Max(Aggregate.TurnsPlayed, VariantResult.TurnsPlayed);
 
+		// Le tre grandezze delle decisioni di finestra (#512) si SOMMANO fra le varianti, e la provenienza si
+		// propaga: senza queste righe l'aggregato uscirebbe con `"decisionSource": "none"` e i contatori a
+		// zero anche per uno scenario che ne applica due per variante — cioe' il `result.json` direbbe il
+		// falso proprio nel file per cui i campi sono stati aggiunti.
+		Aggregate.ScriptedDecisionsApplied += VariantResult.ScriptedDecisionsApplied;
+		Aggregate.ScriptedDecisionsUnused += VariantResult.ScriptedDecisionsUnused;
+		if (VariantResult.DecisionSource != TEXT("none"))
+		{
+			Aggregate.DecisionSource = VariantResult.DecisionSource;
+		}
+		if (!VariantResult.LastScriptedResponse.IsEmpty())
+		{
+			Aggregate.LastScriptedResponse = VariantResult.LastScriptedResponse;
+		}
+
 		// Un `Error` e un `Blocked` fermano tutto: le varianti restanti direbbero la stessa cosa, e un
 		// confronto fra tracce incomplete non significa niente.
 		if (VariantResult.Outcome == ERTTestOutcome::Error)

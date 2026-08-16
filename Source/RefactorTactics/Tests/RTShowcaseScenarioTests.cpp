@@ -5,6 +5,7 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnRules.h"
+#include "Turn/RTReactionOpportunityTypes.h" // HoldResponse: il decisore che il test binda per primo
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -21,6 +22,7 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "ScenarioHarness/RTTestResult.h"
+#include "ScenarioHarness/RTTestReportWriter.h" // l'ultimo anello: il campo deve arrivare in `result.json`
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Kismet/GameplayStatics.h"
@@ -953,6 +955,638 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 		}
 	}
 
+	return true;
+}
+
+/**
+ * Il test che `#512` nomina: un decisore INIETTATO risponde a una finestra vera, e la risposta viene dallo
+ * scenario invece che da una persona.
+ *
+ * ⚠️ Lo scenario e' costruito qui e non caricato da file: `Scenarios/` e' `integration_only`, e in fase A
+ * nessun JSON del corpus si tocca.
+ *
+ * ⚠️ **Nessun `Requires`, ed e' una correzione al piano.** Il piano dichiarava `Requires("DecisionBoundary")`
+ * spiegando che «il turno e' `Blocked` per costruzione» ma che il decisore sarebbe stato comunque
+ * interrogato: le due cose non stanno insieme. `FRTScenarioSession::BeginTurn` chiama `Finish()` e ritorna
+ * appena una capability non e' disponibile — PRIMA di applicare gli intent — quindi con quel `requires`
+ * nessun Overwatch si arma, nessuna finestra si apre e il decisore non viene chiamato mai.
+ * `DecisionBoundary` e' un'etichetta del vocabolario degli scenari, non un interruttore del motore: le
+ * finestre le apre gia' il CP 14.5. Scoprirla resta fase B, come dicono i vincoli globali.
+ *
+ * Geometria misurata, non indovinata: `Vektor` ha vista 6 e `Vektor.PulseShot` portata 4, quindi come
+ * guardiano copre il varco. Il cono E' il facing (ADR-0005 §4c): da `(2,0,0)` guardando a `W` parte da
+ * `(1,0,0)` e arriva a `(-2,0,0)`. `Flux` lo attraversa. Un solo bersaglio basta per aprire la finestra
+ * perche' `HOLD` e' sempre in coda ad `AllowedResponses`, quindi la cardinalita' e' 2 e
+ * `RequiresDecisionBoundary` e' vera.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionProviderTest,
+	"RefactorTactics.ShowcaseRelay.DecisionProviderIsInjectable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionProviderTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.DecisionProviderIsInjectable");
+	Scenario.MapRadius = 5;
+
+	auto Unita = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& Cell,
+		ERTHexDirection Facing)
+	{
+		FRTScenarioUnit U;
+		U.Id = Id; U.HeroId = FName(Hero); U.TeamId = Team; U.Cell = Cell; U.Facing = Facing;
+		return U;
+	};
+	// Il guardiano guarda a Ovest; il bersaglio attraversa il cono da Ovest verso il centro.
+	Scenario.Units.Add(Unita(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(Unita(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+
+	{
+		FRTScenarioTurn T;
+
+		// `Action.Overwatch` risolve in Prep, quindi si arma su chi la usa e NON dichiara un bersaglio:
+		// `bResolvesOnSelf` in `RTScenarioSession.cpp` lo tratta gia' cosi'.
+		FRTScenarioIntent Arma;
+		Arma.UnitId = TEXT("Guardia");
+		Arma.Ability = FName(TEXT("Action.Overwatch"));
+		T.Intents.Add(Arma);
+
+		FRTScenarioIntent Attraversa;
+		Attraversa.UnitId = TEXT("Corsa");
+		Attraversa.Move.Add(FRTCellId(-2, 0, 0));
+		Attraversa.Move.Add(FRTCellId(-1, 0, 0));
+		T.Intents.Add(Attraversa);
+
+		FRTScenarioDecision D;
+		D.Unit = TEXT("Guardia"); D.Respond = TEXT("FIRE"); D.Target = TEXT("Corsa");
+		T.Decisions.Add(D);
+
+		Scenario.Turns.Add(T);
+	}
+
+	// ⚠️ Serve un'assertion anche COSTRUENDO lo scenario in memoria, e i vincoli globali del piano dicevano
+	// il contrario — «la guardia e' solo nel loader, gli scenari costruiti in memoria non la attraversano».
+	// Misurato: `RunScenarioIsolated` valida la struct, e senza questa riga il referto torna con
+	// «nessuna assertion dichiarata» e ZERO turni giocati. Non e' una formalita': senza turni non c'e'
+	// finestra, e il test fallirebbe indicando il provider invece della propria costruzione.
+	{
+		FRTTestExpectation E;
+		E.Kind = ERTAssertionKind::TurnsCompleted;
+		E.Value = 1;
+		Scenario.Expect.Add(E);
+	}
+
+	// `RunScenarioIsolated` crea il mondo, esegue e lo distrugge: e' l'API che `RTWorldFixtures.h` espone
+	// proprio per questo, e usarla evita la coppia crea/distruggi da tenere allineata a mano.
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+
+	if (!TestEqual(TEXT("il decisore ha risposto una volta"), Result.ScriptedDecisionsApplied, 1))
+	{
+		// Se resta 0 la finestra non si e' aperta, e la causa e' la geometria o l'armamento — non il
+		// provider. Si stampa lo stato invece di rilassare l'asserzione.
+		//
+		// ⚠️ Il piano diceva `URTTurnLogLibrary::ToText(Result.TurnLog)`: `FRTTestResult` non ha un campo
+		// `TurnLog`, ha `TurnTraces`, e quelle portano i soli byte serializzati.
+		AddInfo(FString::Printf(
+			TEXT("turni giocati=%d tracce=%d blocked='%s' error='%s' ultimo token='%s' inutilizzate=%d"),
+			Result.TurnsPlayed, Result.TurnTraces.Num(), *Result.BlockedReason, *Result.ErrorMessage,
+			*Result.LastScriptedResponse, Result.ScriptedDecisionsUnused));
+		for (const FString& Nota : Result.Notes) { AddInfo(Nota); }
+		for (const FRTTurnTrace& Traccia : Result.TurnTraces)
+		{
+			TArray<FRTTurnLogEntry> Voci;
+			if (URTTurnLogLibrary::DeserializeTurnLog(Traccia.Bytes, Voci))
+			{
+				for (const FRTTurnLogEntry& V : Voci) { AddInfo(URTTurnLogLibrary::DescribeEntry(V)); }
+			}
+		}
+	}
+	TestEqual(TEXT("nessuna decisione e' rimasta inutilizzata"), Result.ScriptedDecisionsUnused, 0);
+	// La TRADUZIONE e' l'unica parte che il JSON non poteva esprimere: si verifica sul token, non
+	// sull'esito. Lo `StableUnitId` di `Corsa` e' assegnato allo spawn, e lo scenario non poteva scriverlo.
+	TestTrue(FString::Printf(TEXT("il token applicato e' un FIRE, non un HOLD (era: '%s')"),
+		*Result.LastScriptedResponse),
+		Result.LastScriptedResponse.StartsWith(TEXT("FIRE:")));
+	return true;
+}
+
+/**
+ * Il residuo e' un FALLIMENTO, non un avanzo. Senza questo controllo uno scenario puo' scriptare due
+ * decisioni, vederne applicare una, e restare verde: e' il modo in cui un test smette di verificare senza
+ * dirlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionResidueTest,
+	"RefactorTactics.ShowcaseRelay.UnusedScriptedDecisionFailsTheTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionResidueTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.UnusedScriptedDecision");
+	Scenario.MapRadius = 4;
+
+	FRTScenarioUnit Sola;
+	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Bastion")); Sola.TeamId = 0;
+	Sola.Cell = FRTCellId(0, 0, 0);
+	Scenario.Units.Add(Sola);
+
+	// Nessun intent, quindi nessuna finestra: la decisione non puo' trovare nulla da cui essere consumata.
+	FRTScenarioTurn T;
+	FRTScenarioDecision D;
+	D.Unit = TEXT("Sola"); D.Respond = TEXT("HOLD");
+	T.Decisions.Add(D);
+	Scenario.Turns.Add(T);
+
+	// Anche in memoria serve un'assertion: `RunScenarioIsolated` valida la struct. Vedi il task 5.
+	FRTTestExpectation E;
+	E.Kind = ERTAssertionKind::TurnsCompleted;
+	E.Value = 1;
+	Scenario.Expect.Add(E);
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+
+	TestEqual(TEXT("la decisione resta inutilizzata"), Result.ScriptedDecisionsUnused, 1);
+	// `Error` e non `Fail`: e' lo stesso verso che la session usa gia' quando lo SCENARIO e' scritto male,
+	// distinto da un'aspettativa di gioco caduta.
+	TestEqual(TEXT("e lo scenario e' in errore"), static_cast<int32>(Result.Outcome),
+		static_cast<int32>(ERTTestOutcome::Error));
+	TestTrue(FString::Printf(TEXT("il messaggio nomina l'unita' (era: '%s')"), *Result.ErrorMessage),
+		Result.ErrorMessage.Contains(TEXT("Sola")));
+	return true;
+}
+
+/**
+ * Due decisioni per la stessa unita' si consumano in ordine di dichiarazione, e una finestra in piu' delle
+ * decisioni dichiarate non e' un timeout: e' una finestra scoperta.
+ *
+ * ⚠️ Il numero di decisioni non e' dedotto dai micro-step, e' **contato**: con lo stesso allestimento del
+ * task 5 il TurnLog mostra DUE finestre quando la prima risposta non spara. Un `FIRE` invece TRONCA il
+ * movimento, ed e' il motivo per cui `DecisionProviderIsInjectable` — che dichiara un solo `FIRE` — ne apre
+ * una sola e non lascia residuo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionQueueTest,
+	"RefactorTactics.ShowcaseRelay.ScriptedDecisionsAreConsumedInOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionQueueTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.ScriptedDecisionsInOrder");
+	Scenario.MapRadius = 5;
+	auto U = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+	{
+		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+		return X;
+	};
+	// Stessa geometria del task 5, che e' quella misurata: nessun `Requires`, o il turno sarebbe `Blocked`
+	// prima ancora di applicare gli intent.
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
+	T.Intents.Add(Arma);
+	FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+	Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+	T.Intents.Add(Corre);
+
+	// Se la coda fosse posizionale invece che per unita', l'ordine cambierebbe col movimento.
+	FRTScenarioDecision Prima; Prima.Unit = TEXT("Guardia"); Prima.Respond = TEXT("HOLD");
+	FRTScenarioDecision Seconda; Seconda.Unit = TEXT("Guardia"); Seconda.Respond = TEXT("FIRE");
+	Seconda.Target = TEXT("Corsa");
+	T.Decisions.Add(Prima);
+	T.Decisions.Add(Seconda);
+	Scenario.Turns.Add(T);
+
+	FRTTestExpectation E;
+	E.Kind = ERTAssertionKind::TurnsCompleted;
+	E.Value = 1;
+	Scenario.Expect.Add(E);
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+
+	if (!TestEqual(TEXT("entrambe consumate"), Result.ScriptedDecisionsApplied, 2))
+	{
+		AddInfo(FString::Printf(TEXT("inutilizzate=%d ultimo token='%s' error='%s'"),
+			Result.ScriptedDecisionsUnused, *Result.LastScriptedResponse, *Result.ErrorMessage));
+		for (const FRTTurnTrace& Traccia : Result.TurnTraces)
+		{
+			TArray<FRTTurnLogEntry> Voci;
+			if (URTTurnLogLibrary::DeserializeTurnLog(Traccia.Bytes, Voci))
+			{
+				for (const FRTTurnLogEntry& V : Voci) { AddInfo(URTTurnLogLibrary::DescribeEntry(V)); }
+			}
+		}
+	}
+	TestEqual(TEXT("nessun residuo"), Result.ScriptedDecisionsUnused, 0);
+	// La SECONDA e' il `FIRE`: se l'ordine fosse invertito l'ultimo token sarebbe `HOLD`.
+	TestTrue(FString::Printf(TEXT("l'ultima applicata e' il FIRE (era: '%s')"), *Result.LastScriptedResponse),
+		Result.LastScriptedResponse.StartsWith(TEXT("FIRE:")));
+	return true;
+}
+
+/**
+ * L'altra meta' del residuo, e senza di lei il controllo sulla finestra SCOPERTA non sarebbe coperto da
+ * nulla: il piano lo prescrive al passo 4 del task 6, ma i suoi due test non lo toccano — il primo non apre
+ * finestre, il secondo le consuma tutte. Un controllo che nessun test fa cadere e' codice che puo' sparire
+ * senza che la suite se ne accorga.
+ *
+ * Il caso: DUE finestre e UNA sola decisione. La prima risponde `HOLD`, che non spende la carica e lascia
+ * proseguire il movimento; la seconda si apre e non ha nessuna decisione che la nomini. Non e' un timeout,
+ * e' uno scenario che dice meno di quanto il turno chieda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseUncoveredWindowTest,
+	"RefactorTactics.ShowcaseRelay.UncoveredReactionWindowFailsTheTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseUncoveredWindowTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.UncoveredReactionWindow");
+	Scenario.MapRadius = 5;
+	auto U = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+	{
+		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+		return X;
+	};
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
+	T.Intents.Add(Arma);
+	FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+	Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+	T.Intents.Add(Corre);
+
+	// UNA sola decisione per due finestre: la seconda resta scoperta.
+	FRTScenarioDecision Unica; Unica.Unit = TEXT("Guardia"); Unica.Respond = TEXT("HOLD");
+	T.Decisions.Add(Unica);
+	Scenario.Turns.Add(T);
+
+	FRTTestExpectation E;
+	E.Kind = ERTAssertionKind::TurnsCompleted;
+	E.Value = 1;
+	Scenario.Expect.Add(E);
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+
+	// La decisione dichiarata E' stata consumata: il difetto non e' un residuo, e i due controlli non vanno
+	// confusi — dicono cose diverse e mandano a cercare in posti diversi.
+	TestEqual(TEXT("l'unica decisione e' stata consumata"), Result.ScriptedDecisionsApplied, 1);
+	TestEqual(TEXT("e non e' rimasto un residuo"), Result.ScriptedDecisionsUnused, 0);
+	TestEqual(TEXT("ma lo scenario e' in errore"), static_cast<int32>(Result.Outcome),
+		static_cast<int32>(ERTTestOutcome::Error));
+	TestTrue(FString::Printf(TEXT("il motivo dice 'finestra' e nomina l'unita' (era: '%s')"),
+		*Result.ErrorMessage),
+		Result.ErrorMessage.Contains(TEXT("finestra")) && Result.ErrorMessage.Contains(TEXT("Guardia")));
+	return true;
+}
+
+/**
+ * Due sorgenti per la stessa decisione, e la precedenza e' del test. Il prezzo e' che uno scenario con
+ * `decisions` verrebbe ignorato in silenzio: percio' la provenienza si SCRIVE. Al replay serve **quale**
+ * decisione, non chi l'ha fornita — ma a chi diagnostica una divergenza serve la seconda.
+ *
+ * ⚠️ Qui NON si usa `RunScenarioIsolated`: il mondo serve **prima** dello scenario, perche' il manager deve
+ * esistere e il decisore deve essere bindato prima che la session parta. E' il caso che dimostra la
+ * precedenza, e con l'API isolata non sarebbe esprimibile.
+ *
+ * ⚠️ La geometria e' quella del task 5 e non uno scenario inerte: il piano contava le interrogazioni in una
+ * variabile che poi non asseriva mai. Senza una finestra vera il test direbbe soltanto «la session non ha
+ * bindato», che e' meta' della precedenza — l'altra meta' e' che a rispondere sia stato il decisore del
+ * test, e quella si vede solo contando.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionSourceTest,
+	"RefactorTactics.ShowcaseRelay.TestDeciderWinsAndIsRecorded",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionSourceTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!World) { AddError(TEXT("mondo non creabile")); return false; }
+
+	// Il manager esiste prima della session: e' cosi' che un test binda PRIMA e vince. `SetUp` riusa il
+	// manager gia' presente invece di spawnarne un altro, quindi trova lo slot occupato.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	// `FRTScenarioSession::Start` tratta lo stesso spawn come fallibile («impossibile creare il turn
+	// manager»): senza guardia qui il fallimento sarebbe un dereference nullo che abbatte la RUN, invece di
+	// un test rosso con un motivo.
+	if (!TM)
+	{
+		AddError(TEXT("turn manager non creabile"));
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	int32 Interrogato = 0;
+	TM->ReactionDecider.BindLambda([&Interrogato](const FRTReactionOpportunity&, int32) -> FString
+	{
+		++Interrogato;
+		return URTReactionOpportunityLibrary::HoldResponse();
+	});
+
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.TestDeciderWins");
+	Scenario.MapRadius = 5;
+	auto U = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+	{
+		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+		return X;
+	};
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
+		T.Intents.Add(Arma);
+		FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+		Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+		T.Intents.Add(Corre);
+		// Nessuna `decisions`: lo scenario non ne dichiara, quindi non c'e' residuo e nessuna finestra
+		// risulta scoperta — i due controlli del task 6 non entrano in gioco qui.
+		Scenario.Turns.Add(T);
+	}
+
+	FRTTestExpectation E;
+	E.Kind = ERTAssertionKind::TurnsCompleted;
+	E.Value = 1;
+	Scenario.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	RTWorldFixtures::DestroyWorld(World);
+
+	TestEqual(TEXT("il referto nomina la sorgente"), Result.DecisionSource, FString(TEXT("test-override")));
+	TestEqual(TEXT("la session non ha applicato nulla di suo"), Result.ScriptedDecisionsApplied, 0);
+	TestTrue(FString::Printf(TEXT("e a rispondere e' stato il decisore del test (interrogato %d volte)"),
+		Interrogato), Interrogato >= 1);
+
+	// L'ULTIMO anello: il campo deve arrivare fino a `result.json`, che e' il file che qualcuno legge
+	// davvero. Dichiarato nella struct e trasportato nel referto non basta — sono tre anelli, e il piano
+	// scriveva il writer senza che nessun test lo leggesse.
+	FString Dir, WriteError;
+	if (TestTrue(TEXT("report scritto su disco"),
+		URTTestReportWriter::Write(Result, TEXT("decisionsource"), Dir, WriteError)))
+	{
+		FString Json;
+		if (TestTrue(TEXT("result.json rileggibile"),
+			FFileHelper::LoadFileToString(Json, *FPaths::Combine(Dir, TEXT("result.json")))))
+		{
+			TestTrue(TEXT("il json dichiara la sorgente"), Json.Contains(TEXT("decisionSource")));
+			TestTrue(TEXT("e il suo valore e' quello del referto"), Json.Contains(TEXT("test-override")));
+			TestTrue(TEXT("il json porta i due contatori"),
+				Json.Contains(TEXT("scriptedDecisionsApplied")) &&
+				Json.Contains(TEXT("scriptedDecisionsUnused")));
+		}
+	}
+	return true;
+}
+
+/**
+ * Mutazione: lo stesso scenario, con `FIRE` e con `HOLD`, deve dare un esito DIVERSO. Se non lo desse, il
+ * turno sarebbe verde comunque e la decisione non conterebbe — che e' precisamente cio' che il golden
+ * replay di `#170` ha bisogno di escludere.
+ *
+ * Il DoD chiedeva «sostituendo il provider con uno che restituisce un esito, cada almeno uno scenario». La
+ * firma del delegate e' `FString`, quindi un esito non e' nemmeno esprimibile: quel test non avrebbe una
+ * premessa costruibile e sarebbe verde senza poter fallire. La verifica e' quindi COMPORTAMENTALE.
+ *
+ * ⚠️ **I due rami dichiarano un numero DIVERSO di decisioni, e l'asimmetria e' il punto.** Il piano ne
+ * dichiarava una per ramo, ma e' stato scritto prima del task 6: un `FIRE` tronca il movimento e apre UNA
+ * finestra, un `HOLD` non spende la carica e ne apre DUE. Col ramo `HOLD` a una sola decisione la seconda
+ * finestra resterebbe scoperta e lo scenario andrebbe in `Error` — non per la mutazione, ma per il
+ * controllo introdotto due task fa. Il conteggio delle finestre e' cosi' esso stesso un'evidenza, e piu'
+ * leggibile dell'hash quando cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionMutationTest,
+	"RefactorTactics.ShowcaseRelay.DecisionsChangeTheOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionMutationTest::RunTest(const FString&)
+{
+	// Due esecuzioni che differiscono per UNA cosa sola: cosa risponde `Guardia`. Geometria del task 5,
+	// quella misurata — e nessun `Requires`, o il turno sarebbe `Blocked` prima degli intent.
+	auto Costruisci = [](bool bScriptaFire)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = TEXT("Internal.DecisionsChangeTheOutcome");
+		S.MapRadius = 5;
+		auto U = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+		{
+			FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+			return X;
+		};
+		S.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+		S.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+
+		FRTScenarioTurn T;
+		FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
+		T.Intents.Add(Arma);
+		FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+		Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+		T.Intents.Add(Corre);
+
+		if (bScriptaFire)
+		{
+			// Il `FIRE` tronca: una finestra sola, quindi una decisione sola.
+			FRTScenarioDecision D;
+			D.Unit = TEXT("Guardia"); D.Respond = TEXT("FIRE"); D.Target = TEXT("Corsa");
+			T.Decisions.Add(D);
+		}
+		else
+		{
+			// Il `HOLD` lascia proseguire: due finestre, e servono due decisioni o la seconda e' scoperta.
+			for (int32 i = 0; i < 2; ++i)
+			{
+				FRTScenarioDecision D;
+				D.Unit = TEXT("Guardia"); D.Respond = TEXT("HOLD");
+				T.Decisions.Add(D);
+			}
+		}
+		S.Turns.Add(T);
+
+		FRTTestExpectation E;
+		E.Kind = ERTAssertionKind::TurnsCompleted;
+		E.Value = 1;
+		S.Expect.Add(E);
+		return S;
+	};
+
+	// Due mondi distinti e isolati: se condividessero il mondo, la seconda esecuzione partirebbe dallo stato
+	// lasciato dalla prima e la differenza fra i due hash non direbbe piu' nulla sulla decisione.
+	const FRTTestResult ConFire = RTWorldFixtures::RunScenarioIsolated(Costruisci(true));
+	const FRTTestResult ConHold = RTWorldFixtures::RunScenarioIsolated(Costruisci(false));
+
+	// Nessuno dei due deve essere in errore: un `Error` renderebbe la differenza fra gli hash priva di
+	// significato, perche' i due turni non sarebbero stati giocati entrambi.
+	TestEqual(FString::Printf(TEXT("il ramo FIRE ha giocato (error='%s')"), *ConFire.ErrorMessage),
+		static_cast<int32>(ConFire.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+	TestEqual(FString::Printf(TEXT("il ramo HOLD ha giocato (error='%s')"), *ConHold.ErrorMessage),
+		static_cast<int32>(ConHold.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+
+	// Il conteggio E' gia' un'evidenza: una finestra col `FIRE`, due col `HOLD`.
+	TestEqual(TEXT("col FIRE si apre una sola finestra"), ConFire.ScriptedDecisionsApplied, 1);
+	TestEqual(TEXT("col HOLD se ne aprono due"), ConHold.ScriptedDecisionsApplied, 2);
+	TestEqual(TEXT("nessun residuo nel ramo FIRE"), ConFire.ScriptedDecisionsUnused, 0);
+	TestEqual(TEXT("nessun residuo nel ramo HOLD"), ConHold.ScriptedDecisionsUnused, 0);
+
+	// La mutazione vera: `FIRE` tronca il movimento residuo e fa danno, `HOLD` no. Se i due hash
+	// coincidessero, la decisione non avrebbe cambiato niente e tutto il resto sarebbe verde a vuoto.
+	TestNotEqual(TEXT("FIRE e HOLD producono stati diversi"),
+		static_cast<int32>(ConFire.StateHash), static_cast<int32>(ConHold.StateHash));
+	return true;
+}
+
+/**
+ * Una risposta scriptata RIFIUTATA dal manager non deve passare per un `HOLD` qualunque: `HoldRejected` e
+ * `HoldChosen` hanno lo stesso effetto sul gioco e significati opposti per chi legge il referto.
+ *
+ * `Alleato` e' della STESSA squadra del guardiano e non si muove, quindi `FIRE:<lui>` non e' fra le
+ * `AllowedResponses` della finestra e il manager lo rifiuta. La legalita' resta decisa da
+ * `IsResponseAllowed` in un posto solo: qui si legge l'esito, non si duplica la politica.
+ *
+ * ⚠️ **Due decisioni e non una, per la stessa ragione del task 8**: un rifiuto diventa `HoldRejected`, che
+ * non spende la carica, quindi il movimento prosegue e si apre una SECONDA finestra. Con una sola decisione
+ * quella resterebbe scoperta e lo scenario cadrebbe per il controllo del task 6 — con un messaggio che non
+ * nomina il bersaglio rifiutato. Sarebbe verde per la ragione sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionRejectedTest,
+	"RefactorTactics.ShowcaseRelay.RejectedScriptedResponseFailsTheScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionRejectedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.RejectedScriptedResponse");
+	Scenario.MapRadius = 5;
+	auto U = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+	{
+		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+		return X;
+	};
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"),  1, FRTCellId( 2,  0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Alleato"), TEXT("Hero.Bastion"), 1, FRTCellId( 3, -1, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),    0, FRTCellId(-3,  0, 0), ERTHexDirection::E));
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
+	T.Intents.Add(Arma);
+	FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+	Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+	T.Intents.Add(Corre);
+
+	FRTScenarioDecision Rifiutata;
+	Rifiutata.Unit = TEXT("Guardia"); Rifiutata.Respond = TEXT("FIRE");
+	Rifiutata.Target = TEXT("Alleato"); // schierato, quindi il loader lo accetta — ma non e' offerto
+	T.Decisions.Add(Rifiutata);
+	FRTScenarioDecision Copre;
+	Copre.Unit = TEXT("Guardia"); Copre.Respond = TEXT("HOLD");
+	T.Decisions.Add(Copre);
+	Scenario.Turns.Add(T);
+
+	FRTTestExpectation E;
+	E.Kind = ERTAssertionKind::TurnsCompleted;
+	E.Value = 1;
+	Scenario.Expect.Add(E);
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+
+	TestEqual(TEXT("lo scenario e' in errore"), static_cast<int32>(Result.Outcome),
+		static_cast<int32>(ERTTestOutcome::Error));
+	// Il messaggio deve nominare il BERSAGLIO SCRIPTATO, non il token: `FIRE:<indice>` non contiene
+	// «Alleato», e un referto che dice solo «una risposta e' stata rifiutata» manda a rileggere lo scenario
+	// intero per capire quale.
+	TestTrue(FString::Printf(TEXT("il messaggio nomina la decisione rifiutata (era: '%s')"),
+		*Result.ErrorMessage), Result.ErrorMessage.Contains(TEXT("Alleato")));
+	// E il rifiuto non deve essere confuso col residuo: entrambe le decisioni sono state consumate.
+	TestEqual(TEXT("entrambe le decisioni consumate"), Result.ScriptedDecisionsApplied, 2);
+	TestEqual(TEXT("nessun residuo"), Result.ScriptedDecisionsUnused, 0);
+	return true;
+}
+
+/**
+ * Uno scenario che non scripta nulla deve LASCIARE IL SEAM COM'ERA, e il delegate non deve sopravvivergli.
+ *
+ * Trovato in code review, ed erano due difetti nello stesso punto:
+ *
+ * 1. bindare sempre zittiva il bot. `AskReactionDecision` raggiunge `URTHexBotLibrary::DecideReactionResponse`
+ *    **solo** se il delegate non e' legato — «il decisore iniettato ha la precedenza su tutto, bot compreso»
+ *    — quindi un'unita' del bot con un Overwatch armato avrebbe smesso di reagire in ogni scenario. E per un
+ *    proprietario umano la voce del TurnLog sarebbe passata da `HoldNoDecider` a `HoldTimeout`: una
+ *    differenza di BYTE per il corpus golden;
+ * 2. `BindRaw(this, ...)` lascia un puntatore grezzo in un delegate posseduto dall'ATTORE, che sopravvive
+ *    alla sessione. `URTScenarioRunner::Run` usa `RunSingle(..., bTearDownAfter=false)`: la sessione e' una
+ *    locale che muore al `return`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDeciderLifetimeTest,
+	"RefactorTactics.ShowcaseRelay.UnscriptedScenarioLeavesTheSeamAlone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDeciderLifetimeTest::RunTest(const FString&)
+{
+	auto Costruisci = [](const TCHAR* Id, bool bConDecisioni)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = Id;
+		S.MapRadius = 5;
+		auto U = [](const TCHAR* UId, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+		{
+			FRTScenarioUnit X; X.Id = UId; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+			return X;
+		};
+		S.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+		S.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+		FRTScenarioTurn T;
+		FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia");
+		Arma.Ability = FName(TEXT("Action.Overwatch"));
+		T.Intents.Add(Arma);
+		FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+		Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+		T.Intents.Add(Corre);
+		if (bConDecisioni)
+		{
+			for (int32 i = 0; i < 2; ++i)
+			{
+				FRTScenarioDecision D; D.Unit = TEXT("Guardia"); D.Respond = TEXT("HOLD");
+				T.Decisions.Add(D);
+			}
+		}
+		S.Turns.Add(T);
+		FRTTestExpectation E;
+		E.Kind = ERTAssertionKind::TurnsCompleted;
+		E.Value = 1;
+		S.Expect.Add(E);
+		return S;
+	};
+
+	// ⚠️ **Un mondo per esecuzione, e non e' pignoleria.** Senza `TearDown` — che `RunSingle` non chiama sul
+	// percorso normale — le unita' del primo scenario restano nel mondo: un secondo `Run` ne troverebbe il
+	// doppio e gli indici di risoluzione non tornerebbero. E' una proprieta' dell'harness che precede questa
+	// feature; qui si evita usando due mondi, come fa `RunScenarioIsolated`.
+	auto Esegui = [this](const FRTTestScenario& Scenario, bool& bOutSeamLegatoDopo)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!World) { AddError(TEXT("mondo non creabile")); return FRTTestResult(); }
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM)
+		{
+			AddError(TEXT("turn manager non creabile"));
+			RTWorldFixtures::DestroyWorld(World);
+			return FRTTestResult();
+		}
+		const FRTTestResult R = URTScenarioRunner::Run(World, Scenario);
+		// Letto PRIMA di distruggere il mondo: e' l'istante in cui un delegate sopravvissuto si vedrebbe.
+		bOutSeamLegatoDopo = TM->ReactionDecider.IsBound();
+		RTWorldFixtures::DestroyWorld(World);
+		return R;
+	};
+
+	// Senza `decisions`: il seam non va toccato, o il bot smette di reagire e il TurnLog cambia byte.
+	bool bLegatoDopoMuto = true;
+	const FRTTestResult Muto = Esegui(Costruisci(TEXT("Internal.Unscripted"), false), bLegatoDopoMuto);
+	TestEqual(TEXT("uno scenario senza decisioni non dichiara una sorgente"),
+		Muto.DecisionSource, FString(TEXT("none")));
+	TestFalse(TEXT("e non lascia il seam legato"), bLegatoDopoMuto);
+
+	// Con `decisions`: la sessione binda, risponde, e a esecuzione finita NON resta legata — la sessione e'
+	// una locale dentro `RunSingle`, e senza il distruttore il delegate punterebbe a memoria morta.
+	bool bLegatoDopoScriptato = true;
+	const FRTTestResult Scriptato = Esegui(Costruisci(TEXT("Internal.Scripted"), true), bLegatoDopoScriptato);
+	TestEqual(TEXT("uno scenario con decisioni dichiara di aver risposto"),
+		Scriptato.DecisionSource, FString(TEXT("scenario")));
+	TestEqual(TEXT("e le ha applicate"), Scriptato.ScriptedDecisionsApplied, 2);
+	TestFalse(TEXT("ma il delegate non sopravvive alla sessione"), bLegatoDopoScriptato);
 	return true;
 }
 

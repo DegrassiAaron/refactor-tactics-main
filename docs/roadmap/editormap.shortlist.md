@@ -52,13 +52,13 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**23 sedute** — ✅ **0** · 🟡 **12** · ⏳ **7** · **4** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**24 sedute** — ✅ **0** · 🟡 **12** · ⏳ **8** · **4** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
 ### My Editor Queue
 
-**BLOCKING** 10 · **READY** 3 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 4 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -78,6 +78,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U18** · Verifiche senza prerequisiti — 1/15 voci verdi
 - **U20** · Confine fra Guard e Brace — 0/1 voci verdi
 - **U21** · Luci del graybox e inquadratura della mappa — 0/2 voci verdi · sblocca U22
+- **U24** · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root · sblocca E46.3, E46.5, E46.6
 
 **WAITING** — *Aspetta codice*
 
@@ -119,8 +120,9 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U20** | Confine fra Guard e Brace | `PIE` | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
 | **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
 | **U22** | Il gesto dell'autore — ghost, snap e Undo del tool Geometry | `PIE` | verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo | U21 | no | 0/4 | ⏳ |
+| **U24** | I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root | `PIE` | i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/` | — | no | — | ⏳ |
 
-**Lane**: `PIE` **20** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
+**Lane**: `PIE` **21** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
 
 ### Blocco 1 — Eseguibile oggi
 
@@ -192,7 +194,7 @@ L'ordine non e' arbitrario:
 **Sbloccata da**: M6.0 · **Preparazione condivisa con**: U13 · **Percorso critico**: sì
 **Produce**: `DA_HexMap_Arena` e `L_HexArena`, committati
 **Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ✅ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ✅
-**Verifichi**: `PIE-HEX-MODE-E` ✅ · `PIE-HEX-MODE-F` ✅ · `PIE-HEX-MODE-G` ✅ · `PIE-HEX-MODE-H` ❓ · `PIE-HEX-MODE-L` ✅ · `PIE-HEX-MODE-N` ✅ · `PIE-HEX-MODE-O` ✅
+**Verifichi**: `PIE-HEX-MODE-E` ✅ · `PIE-HEX-MODE-F` ✅ · `PIE-HEX-MODE-G` ✅ · `PIE-HEX-MODE-H` 🟡 · `PIE-HEX-MODE-L` ✅ · `PIE-HEX-MODE-N` ✅ · `PIE-HEX-MODE-O` ✅
 **Finita quando**: i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena soddisfa i tre criteri dei passi 3, 4 e 7
 **Sblocca**: U13, U19
 
@@ -738,7 +740,17 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 > Nasce da #712, il gesto dell'autore. La seduta esiste perche' QUATTRO voci del suo DoD non sono osservabili headless: ghost, snap, Undo e residui vivono nell'occhio di chi disegna, non in una asserzione. La parte verificabile e' gia' nel runtime — `SnapToGrammar` con i suoi due test, `ValidateSegment` con i cinque di #620, `BakeCell` con i sette di #621 — e il tool d'editor NON contiene una sola regola: misurato, tre chiamate al runtime e zero logica duplicata. ⚠️ `unblocked_by: [U21]` non e' una dipendenza tecnica ma pratica: `L_DevSandbox` va illuminato prima, o il ghost si valuta su una scena in cui non si vede niente — e il verdetto direbbe piu' sulle luci che sul tool. ⚠️ `PIE-GEO-RESIDUI` chiede anche un `git status` pulito sul `.umap`: la geometria non si salva nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`. ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch remoti. Chi arriva secondo rinumera, non contende.
 
-> **63 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-FMTVER-*` 1 · `PIE-HEX-*` 12 · `PIE-HEXPLAY-*` 1 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-NAME-*` 1 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 3 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
+#### U24 · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root ⏳
+
+**Sbloccata da**: — · **Percorso critico**: no
+**Produce**: i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`
+**Artefatti**: `Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset` ⏳
+**Finita quando**: i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori
+**Sblocca**: E46.3, E46.5, E46.6
+
+> ➕ **Seduta aperta il 2026-08-16, a lavoro gia' cominciato**: i widget si stavano costruendo e il tracking non li nominava — ne' qui, ne' come `binary_leases`. `grep -n "WBP_RT_" editor-sessions.yaml` dava **zero**, e nessuna lease copriva `Content/RT/UI/`. Un `.uasset` senza lease e' il caso che `D-139` esiste per impedire: due binari non si fondono. **Cosa costruire e in che ordine** sta in [`../technical/guida-frontend-umg.md`](../technical/guida-frontend-umg.md), che e' l'owner del *come*; la spec del *cosa* e' `spec-frontend-navigazione.md`. Qui c'e' solo l'esistenza della seduta e il suo write-set. ⚠️ **`verifies: []` non e' una dimenticanza, ed e' il punto piu' scomodo di questa seduta**: `PIE-V01-FRONTEND-NAV` e `-ERROR` **non esistono** — misurato, `grep -c "PIE-V01-FRONTEND" docs/technical/test-manuali-pie.md` da' **0** — e quel registro appartiene alla track `playtest`. Le voci si **propongono** in handoff, non si scrivono da fuori: finche' non ci sono, questa seduta produce asset e non chiude nessuna voce del registro. ⚠️ **Il primo e il secondo widget si verificano subito, il terzo no.** Il dato del banner lo produce gia' `ARTGameMode` e quello del modale si forza con un formato invalido; il `LoadingScreen` ha il suo dato ma un allestimento **istantaneo**, quindi a schermo non si vede — la guida lo dice al suo §6, e va saputo prima di concludere che il widget sia rotto. ⚠️ **Nessuno chiama ancora `InitializeFrontend`**: il navigatore esiste, testato, e non lo avvia nessuno — l'aggancio e' di **CP 46.3** (`#938`). Fino ad allora questi Blueprint si provano solo a mano, chiamando le funzioni da un livello di prova. ⛔ **Fuori da questa seduta**: `WBP_RT_MainMenu`, `WBP_RT_ResultScreen` e `WBP_RT_PauseMenu` sono di `#938`, `#940` e `#941` · `WBP_RT_TacticalHUD` e' l'HUD in-match e ha gia' il suo root (CP 11.7) · le due schermate del replay (`WBP_RT_MatchHistory`, `WBP_RT_ReplayViewer`) sono di `#472`, e aspettano una lease propria. ⚠️ ID assegnato prima del merge: `U24`, con `U23` come massimo misurato su `main` **e su tutti i tredici branch remoti** — non solo sul proprio. Chi arriva secondo rinumera, non contende.
+
+> **64 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-FMTVER-*` 1 · `PIE-HEX-*` 12 · `PIE-HEXPLAY-*` 1 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-NAME-*` 1 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 4 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 
 <!-- RT_SHORTLIST_EDITOR:END -->
 

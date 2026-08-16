@@ -326,7 +326,8 @@
     "E46.5": "⏳",
     "E46.6": "⏳",
     "E47.1": "⏳",
-    "E47.2": "⏳",
+    "E47.2": "✅",
+    "E47.7": "⏳",
     "E47.3": "⏳",
     "E47.4": "⏳",
     "E47.5": "⏳",
@@ -468,7 +469,7 @@
         },
         {
           "id": "PIE-HEX-MODE-H",
-          "state": ""
+          "state": "🟡"
         },
         {
           "id": "PIE-HEX-MODE-L",
@@ -1442,6 +1443,50 @@
         712
       ],
       "done_when": "le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta"
+    },
+    {
+      "id": "U24",
+      "title": "I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "⏳",
+      "queue_group": "READY",
+      "produces": "i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`",
+      "artifacts": [
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset",
+          "tracked": false
+        }
+      ],
+      "unblocked_by": [],
+      "unblocks": [
+        "E46.3",
+        "E46.5",
+        "E46.6"
+      ],
+      "shares_setup_with": [],
+      "verifies": [],
+      "issues": [
+        937
+      ],
+      "done_when": "i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori"
     }
   ],
   "editor_queue": {
@@ -1460,7 +1505,8 @@
     "READY": [
       "U18",
       "U20",
-      "U21"
+      "U21",
+      "U24"
     ],
     "WAITING": [
       "U11",
@@ -1639,7 +1685,7 @@
     },
     {
       "id": "PIE-HEX-MODE-H",
-      "state": ""
+      "state": "🟡"
     },
     {
       "id": "PIE-HEX-MODE-I",
@@ -1955,6 +2001,10 @@
     },
     {
       "id": "PIE-V01-OVERWATCH",
+      "state": "⏳"
+    },
+    {
+      "id": "PIE-V01-PLAYSPEED",
       "state": "⏳"
     },
     {
@@ -3314,7 +3364,7 @@
         "domain_group": "core_simulation",
         "domain_group_source": "derived",
         "checkpoint": "E47.2",
-        "state": "⏳",
+        "state": "✅",
         "state_source": "checkpoint:E47.2",
         "state_note": null,
         "feature_ids": [
@@ -3339,8 +3389,8 @@
             "rationale": null
           }
         ],
-        "readiness": "READY",
-        "readiness_reason": "nessun prerequisito hard"
+        "readiness": "DONE",
+        "readiness_reason": "checkpoint:E47.2"
       },
       {
         "id": "issue:956",
@@ -3480,7 +3530,7 @@
         ],
         "outgoing": [],
         "readiness": "BLOCKED",
-        "readiness_reason": "aspetta issue:955, issue:957"
+        "readiness_reason": "aspetta issue:957"
       },
       {
         "id": "issue:959",
@@ -3851,8 +3901,8 @@
       "soft_edges": 10,
       "by_readiness": {
         "BLOCKED": 4,
-        "DONE": 2,
-        "READY": 16,
+        "DONE": 3,
+        "READY": 15,
         "UNKNOWN": 5
       },
       "by_execution_lane": {

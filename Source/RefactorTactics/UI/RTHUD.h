@@ -6,6 +6,21 @@
 #include "RTHUD.generated.h"
 
 /**
+ * Una riga della terna di slot, gia' composta e pronta da disegnare.
+ *
+ * Tiene separato il TESTO dal fatto che lo slot sia occupato perche' il Canvas usa i due dati in modi
+ * diversi — l'uno lo scrive, l'altro lo colora — e ricavare il secondo dal primo significherebbe cercare una
+ * sottostringa, cioe' rendere il colore dipendente dalla lingua dell'etichetta.
+ */
+struct FRTSlotLine
+{
+	/** Composto per intero: «Movimento: Scatto», «Reazione: libero». */
+	FString Text;
+
+	bool bOccupied = false;
+};
+
+/**
  * HUD disegnato in C++ (nessun asset UMG): barra HP/scudo sopra ogni unita' viva
  * e, a partita conclusa, il messaggio di esito al centro dello schermo.
  */
@@ -63,6 +78,24 @@ public:
 	 */
 	static FVector2D ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
 		float AboveAnchor, float BelowAnchor, const FVector2D& Viewport, float Margin);
+
+	/**
+	 * Le tre righe della terna movimento / principale / reazione, nell'ordine in cui vanno disegnate.
+	 *
+	 * ⚠️ **Restituisce sempre tre righe, anche quando il piano e' vuoto**, ed e' il punto: la riga d'intento
+	 * che il Canvas gia' disegna salta le unita' senza ordini (`if (bOwn && !bHasPlan) continue`), quindi uno
+	 * slot LIBERO non si vedeva mai. Il DoD di CP 11.1 chiede «con indicazione di cosa e' gia' stato scelto»,
+	 * che senza il complemento — cosa NON e' ancora stato scelto — non si puo' leggere.
+	 *
+	 * ⚠️ **Non arbitra, come la vista da cui legge.** Se `Action.Sprint` occupa movimento E principale, le
+	 * due righe portano lo stesso nome invece di sceglierne una: chi decide la legalita' e'
+	 * `URTCatalogLibrary::ValidateActionSlots`, e una terna «pulita» nasconderebbe il piano che il validatore
+	 * rifiutera'.
+	 *
+	 * Statica e pura per la stessa ragione di `ComputePlannedHitMarks`: non tocca la selezione, quindi non
+	 * puo' dipenderne.
+	 */
+	static TArray<FRTSlotLine> ComposeSlotLines(const struct FRTUnitSlotsView& Slots);
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")

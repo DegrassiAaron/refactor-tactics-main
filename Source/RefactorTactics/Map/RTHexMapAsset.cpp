@@ -273,6 +273,28 @@ void URTHexMapAsset::SortCells()
 	bLookupDirty = true;
 }
 
+namespace
+{
+	/**
+	 * L'identita' stabile di una struttura, nella forma che entra in `ComputeHash` (#986).
+	 *
+	 * Mescola il **testo normalizzato**, non `GetTypeHash(FName)`: quello e' l'indice della name table, che
+	 * dipende dall'ordine in cui i nomi sono stati creati nel processo. E `ToLower()` perche'
+	 * `FName::operator==` e' case-insensitive e `URTStructureIdentityLibrary` risolve i bersagli con quello:
+	 * `Door.Atrio` e `door.atrio` sono la stessa porta per ogni consumatore, quindi due mappe che si giocano
+	 * identiche non possono avere hash diversi.
+	 *
+	 * ⚠️ E' lo **stesso criterio** di `URTMatchStateHashLibrary::MixName`, scritto due volte invece che
+	 * condiviso: `Map/` non puo' dipendere da `Turn/` — la freccia va nell'altro verso, ed e' `RTMatchStateHash.cpp`
+	 * a includere `Map/RTHexMapAsset.h`. Se i due criteri divergono, divergono i due hash sullo stesso campo,
+	 * che e' precisamente il difetto che #986 e' venuta a chiudere: chi tocca l'uno guardi l'altro.
+	 */
+	uint32 HashStableId(FName StableId)
+	{
+		return GetTypeHash(StableId.ToString().ToLower());
+	}
+}
+
 uint32 URTHexMapAsset::ComputeHash() const
 {
 	// Ordine stabile -> hash indipendente dall'ordine di inserimento (copia locale per non mutare l'asset).
@@ -318,6 +340,13 @@ uint32 URTHexMapAsset::ComputeHash() const
 			Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Door.Edge)));
 			Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Door.State)));
 			Hash = HashCombine(Hash, GetTypeHash(Door.DoorId));
+			// L'IDENTITA' STABILE entra con lo stesso argomento di `DoorId` due righe sopra (#986, dopo #832).
+			// Il criterio di questo hash e' scritto accanto ai campi che ne restano FUORI — `MapClass` in
+			// `RTHexMapAsset.h`, `bGenerated` in `RTHexCellData.h`: ci entra cio' che puo' cambiare un esito.
+			// `URTStructureIdentityLibrary::FindDoorEdges` risolve i bersagli **per nome**, quindi rinominare
+			// una porta cambia quale bordo si apre per chiunque la citi. Senza questa riga `IsSnapshotStale`
+			// lascia «fresco» uno snapshot in cache dopo un rename che cambia proprio quella risoluzione.
+			Hash = HashCombine(Hash, HashStableId(Door.StableId));
 		}
 	}
 
@@ -342,6 +371,11 @@ uint32 URTHexMapAsset::ComputeHash() const
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(E.State)));
 		Hash = HashCombine(Hash, GetTypeHash(E.Integrity));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(E.bConductsElectricity ? 1 : 0)));
+		// Gli ARCHI, non le sole porte: e' lo stesso problema di identita' (#832), e lasciarlo fuori di qua
+		// avrebbe rifatto per gli archi l'asimmetria che #986 e' venuta a chiudere per le porte. Un ponte
+		// citato per nome da uno scenario cambia bersaglio se lo si rinomina.
+		// Copertura: `RefactorTactics.Simulation.MapHashSeesArcIdentity`.
+		Hash = HashCombine(Hash, HashStableId(E.StableId));
 	}
 	return Hash;
 }

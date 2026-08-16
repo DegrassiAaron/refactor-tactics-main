@@ -1041,9 +1041,12 @@ features:
       ⚠️ **2026-08-13 — `FAC-11` chiusa da `D-126`, e nessun gate cambia.** La primitiva **semantica** del
       facing diventa la relazione a sei direzioni relative; `HexCone` resta la **geometria d'area** dei tre
       consumatori di ADR-0005 §4, che non si spostano. Il motivo e' misurato, non prudenziale: il cono a
-      120° e' **strettamente contenuto** nell'insieme dei tre lati frontali — **50** celle di divergenza su
+      120° e' **strettamente contenuto** nell'insieme dei tre lati frontali — **45** celle di divergenza su
       raggio `1..10`, **tutte** nel verso «tre-lati dentro / cono fuori», **zero** nel verso opposto, la
       prima a distanza **2** — quindi sostituirlo sarebbe un **buff difensivo**, non una rinomina.
+      ⚠️ **La cifra diceva `50` fino al 2026-08-16**: era la misura della regola a **linea**, poi
+      scartata. Corretta da `D-147` insieme alle altre sei sedi. `docs/archive/` porta ancora `50`
+      per costruzione — e' storico, e non va «riallineato».
       🔴 **Il gate `scenario` resta `done` ma la copertura non e' completa**, e va detto: la relazione a sei
       lati **non esiste in `Source/`** (grep di `RelativeDirection`/`ERTRelativeDir`/`RelativeFacing` →
       zero), quindi `Spec.Facing.SixRelativeSides` **non e' stato creato**: senza l'assertion che la legge
@@ -1407,10 +1410,18 @@ features:
       # dalla DoD di #402: D-075 ha deciso dall'altra parte (`PushResistance` 1 -> 0), quindi quel nome
       # avrebbe significato il contrario di cio' che il file verifica.
       - Spec.Combat.BastionIsPushedLikeAnyone
-      # Il quarto NON si scrive, e non e' un rinvio: `Spec.Brace.PushBeyondGuardThreshold` chiedeva una
-      # spinta di 2 per far cedere `Guard` e mostrare la clausola di `Brace`. D-074 (uscita (B) di #400)
-      # ha deciso di NON introdurla e di riscrivere invece la clausola: senza quel numero lo scenario non
-      # ha soggetto. Rinasce solo se una v0.2 introduce la spinta forte.
+      # Il quarto NON si scrive, e la ragione e' CAMBIATA il 2026-08-16: `Spec.Brace.PushBeyondGuardThreshold`
+      # chiedeva una spinta di 2 per far cedere `Guard` e mostrare la clausola di `Brace`. D-074 (uscita (B)
+      # di #400) aveva deciso di NON introdurla, quindi lo scenario restava senza soggetto.
+      #
+      # 🔵 Il soggetto e' arrivato, e non dal catalogo azioni: `Weapon.Impact` porta lo spostamento di
+      # `Riva.PressureJet` a 2 (D-085) ed e' il default di Phase (D-089). La riga diceva «rinasce solo se una
+      # v0.2 introduce la spinta forte»: la spinta forte e' in v0.1.
+      #
+      # Resta non scritto per una ragione diversa: la proprieta' e' gia' coperta da un TEST —
+      # `RefactorTactics.Equipment.PushTwoSeparatesGuardFromBrace`, che contro una spinta di 2 misura
+      # `Guard` che cede e `Brace` che regge. Uno scenario aggiungerebbe la stessa asserzione passando dal
+      # turno completo: e' lavoro utile, non un buco di copertura. Se si scrivera', il suo posto e' qui.
     wiki_refs:
       - wiki:azioni-e-movimento
     wiki_note: >-
@@ -4501,9 +4512,10 @@ features:
     owner_specs:
       - docs/technical/spec-frontend-navigazione.md
       - docs/decisions/adr-0009-replay-logico-canonico.md
-    issues: [472]
+    issues: [472, 999]
     tests:
       - RefactorTactics.Replay.ViewModel.*
+      - RefactorTactics.Replay.ViewerSubsystem.*
     scenarios: []
     wiki_refs: []
     notes: >
@@ -4525,13 +4537,16 @@ features:
       gia' `INTEGRATED`, quindi la v0.1 non aspetta nulla. La chiusura pulita e' promuovere anche
       l'archivio, che e' scope di release e merita una `D-nnn`.
 
-      **Stato al 2026-08-16**: il view model esiste (`Replay/RTReplayViewModel.{h,cpp}`) con **11** test
-      `RefactorTactics.Replay.ViewModel.*`, verdi, e l'area `RefactorTactics.Replay` chiude **41/41**.
-      ⚠️ I numeri sono **rimisurati dopo la code review**, che ne ha aggiunti tre: erano 8 e 38 nella
-      prima stesura di questa riga, e sono rimasti giusti per un'ora.
-      `runtime` e `automation` sono `partial` e non `done`: manca tutto cio' che sta sopra il view
-      model — le due schermate, il loro `.uasset`, l'aggancio al navigatore. Un `done` qui direbbe che
-      `#472` e' finita, e non lo e'.
+      **Stato al 2026-08-16**, dopo il secondo giro: il view model (`#472`, **11** test) e il **ponte
+      Blueprint** (`#999`, `Replay/RTReplayViewerSubsystem.{h,cpp}`, **6** test) esistono, e l'area
+      `RefactorTactics.Replay` chiude **47/47**.
+      ⚠️ I numeri si rimisurano a ogni giro e non si incrementano a mente: erano `8` e `38` nella prima
+      stesura di questa riga, `11` e `41` dopo la prima code review, `11+3` e `44` all'apertura della PR
+      del ponte, e `11+6` e `47` dopo la seconda — che ha trovato meta' dei forwarder senza copertura. Sono
+      giusti un'ora per volta.
+      `runtime` e `automation` restano `partial`: da qui in su mancano le **due schermate** e il loro
+      `.uasset`, che vorranno una Binary Asset Lease, piu' il bootstrap del frontend — che pero' e' di
+      E46 (`#938`), non di questa feature. Un `done` direbbe che `#472` e' finita, e non lo e'.
 
       ⚠️ **Doppio conteggio dichiarato**: `RefactorTactics.Replay.ViewModel.*` e' assorbito dal pattern
       generico `RefactorTactics.Replay.*` di `RT-FEAT-REPLAY-ARCHIVE`, quindi gli 8 test contano per due

@@ -39,6 +39,27 @@ class REFACTORTACTICS_API URTReplayRecorderLibrary : public UBlueprintFunctionLi
 	GENERATED_BODY()
 
 public:
+	/**
+	 * La radice degli archivi quando nessuno la sovrascrive: `Saved/Replays`.
+	 *
+	 * ⚠️ **Vive qui perche' qui vive il layout.** Chi scrive possiede la disposizione su disco — cartella
+	 * per partita, manifest, una traccia per turno — e la radice ne e' il primo livello. Chi legge la
+	 * **chiede**, non la ricostruisce.
+	 *
+	 * 🔴 Nasce il 2026-08-16 da una duplicazione trovata in code review: `ARTTurnManager::ResolveReplaysRoot`
+	 * e `URTReplayViewerSubsystem::GetReplaysRoot` contenevano lo **stesso** ternario con lo **stesso**
+	 * letterale, e il secondo lo motivava dicendo di voler evitare che i due capi della catena divergessero.
+	 * Due owner indipendenti della stessa costante sono la divergenza, non la sua prevenzione: chi
+	 * spostasse gli archivi ne cambierebbe uno, e il lettore elencherebbe una cartella vuota su una
+	 * macchina piena di registrazioni — indistinguibile da «non hai ancora giocato».
+	 *
+	 * ⚠️ **`ARTTurnManager` non e' ancora stato ricondotto qui**: `Turn/RTTurnManager.cpp` non e' nel
+	 * `writable` di nessuna track del batch, e un file non assegnato e' uno **stop**, non un file libero
+	 * (`D-139`). Finche' quella riga non passa di qui, la duplicazione resta — dichiarata, con un solo
+	 * posto da cambiare quando qualcuno prendera' quel file.
+	 */
+	static FString DefaultReplaysRoot();
+
 	/** Il manifest come JSON. Versionato dal primo campo: vedi `ERTReplayManifestVersion`. */
 	static FString ManifestToJson(const FRTReplayManifest& Manifest);
 
