@@ -2420,8 +2420,7 @@
     {
       "id": "Spec.Overwatch.HoldThenFire",
       "requires": [
-        "DecisionBoundary",
-        "DeclaredRotation"
+        "DecisionBoundary"
       ],
       "path": "Scenarios/Spec/Overwatch/HoldThenFire.json"
     },

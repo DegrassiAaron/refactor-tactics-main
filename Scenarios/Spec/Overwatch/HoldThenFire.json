@@ -13,10 +13,12 @@
 
   "_nota_geometria": "La zona dell'Overwatch e' una LINEA, non un cono: `MakeSuppressiveZone(Map, ..., OwnerCell, Neighbor(OwnerCell, Facing), Range)` con `LineCells`. V1 e' a (2,-1) e guarda W, quindi controlla (1,-1) (0,-1) (-1,-1) (-2,-1) — quattro celle, la portata di `Vektor.PulseShot`. I due percorsi sono scelti perche' entrano nella linea a MICRO-STEP DIVERSI: `BuildOverwatchTriggers` raggruppa per passo, e due bersagli nello stesso passo sarebbero UNA sola opportunity (`Overwatch.SimultaneousTargetsSingleOpportunity`) — cioe' una decisione sola, non due, e questo scenario non direbbe piu' quello che dice.",
 
+  "_nota_facing_di_piazzamento": "🔴 Il `facing` di V1 sta fra le UNITA' e non fra gli intent, e la prima stesura sbagliava: metteva `\"facing\": \"W\"` sull'intent del T2 e lo scenario apriva ZERO finestre pur avendo entrambi i mover dentro le celle calcolate. Misurato: `Armed.Facing = Unit->Facing` viene letto in PREP (`ARTTurnManager`, ramo `Action.Overwatch`), mentre una rotazione DICHIARATA si applica dentro `ResolveMovement` DOPO il ciclo dei micro-step — quindi in T2 arriva troppo tardi per il proprio cono. Un'unita' che si MUOVE ruota strada facendo e il caso non si vede (e' cio' che nasconde il difetto in `RT_Showcase_Relay_v01`, dove Bastion arriva gia' girato dal T1); V1 non si muove mai, quindi conserva il facing di piazzamento e il caso si vede tutto. Conseguenza da tenere a mente scrivendo scenari: un cono si prepara il turno PRIMA, o si dichiara al piazzamento.",
+
   "units": [
     { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-3,  0, 0] },
     { "id": "R1", "hero": "Hero.Riva",   "team": 0, "cell": [-3,  1, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 2, -1, 0] }
+    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
   ],
 
   "turns": [
@@ -28,10 +30,10 @@
       ]
     },
     {
-      "_turno": "T2 — la finestra. Vektor arma l'Overwatch sul varco guardando a W; Flux entra per primo e Vektor risponde HOLD (l'opportunita' si scarta, la carica resta); poi entra Riva e Vektor risponde FIRE, che consuma la carica e TRONCA il movimento nella cella raggiunta. Riva chiede tre passi e ne fa due: il terzo, (1,-1), non lo vede mai — ed e' quello a rendere osservabile la troncatura invece di lasciarla implicita.",
-      "requires": ["DecisionBoundary", "DeclaredRotation"],
+      "_turno": "T2 — la finestra. Vektor arma l'Overwatch sul varco che gia' controlla (guarda a W dal piazzamento, non lo ruota qui: vedi `_nota_facing_di_piazzamento`); Flux entra per primo e Vektor risponde HOLD (l'opportunita' si scarta, la carica resta); poi entra Riva e Vektor risponde FIRE, che consuma la carica e TRONCA il movimento nella cella raggiunta. Riva chiede tre passi e ne fa due: il terzo, (1,-1), non lo vede mai — ed e' quello a rendere osservabile la troncatura invece di lasciarla implicita. La `requires` dice `DecisionBoundary` e basta: il facing di piazzamento non ha mai avuto bisogno di una capability, e dichiarare `DeclaredRotation` qui direbbe che il turno usa qualcosa che non usa.",
+      "requires": ["DecisionBoundary"],
       "intents": [
-        { "unit": "V1", "ability": "Action.Overwatch", "facing": "W" },
+        { "unit": "V1", "ability": "Action.Overwatch" },
         { "unit": "F1", "move": [[-2, -1, 0]] },
         { "unit": "R1", "move": [[-1, 0, 0], [0, -1, 0], [1, -1, 0]] }
       ],
