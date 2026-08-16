@@ -132,6 +132,15 @@ private:
 	TArray<bool> PendingConsumed;
 
 	/**
+	 * Le decisioni applicate in questo turno, in forma leggibile e con gli id di SCENARIO.
+	 *
+	 * Serve al messaggio del rifiuto: il token che il gioco riceve e' `FIRE:<indice di risoluzione>`, e un
+	 * referto che lo riportasse non nominerebbe il bersaglio che qualcuno ha scritto nello scenario —
+	 * manderebbe a rileggere il turno intero per capire quale risposta sia stata rifiutata.
+	 */
+	TArray<FString> AppliedDecisionDescs;
+
+	/**
 	 * Chi risponde alle finestre in questa esecuzione: `scenario`, `test-override`, `none`. Deciso una volta
 	 * al bind, e copiato nel referto (task 7).
 	 */

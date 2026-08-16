@@ -1421,6 +1421,72 @@ bool FRTShowcaseDecisionMutationTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Una risposta scriptata RIFIUTATA dal manager non deve passare per un `HOLD` qualunque: `HoldRejected` e
+ * `HoldChosen` hanno lo stesso effetto sul gioco e significati opposti per chi legge il referto.
+ *
+ * `Alleato` e' della STESSA squadra del guardiano e non si muove, quindi `FIRE:<lui>` non e' fra le
+ * `AllowedResponses` della finestra e il manager lo rifiuta. La legalita' resta decisa da
+ * `IsResponseAllowed` in un posto solo: qui si legge l'esito, non si duplica la politica.
+ *
+ * ⚠️ **Due decisioni e non una, per la stessa ragione del task 8**: un rifiuto diventa `HoldRejected`, che
+ * non spende la carica, quindi il movimento prosegue e si apre una SECONDA finestra. Con una sola decisione
+ * quella resterebbe scoperta e lo scenario cadrebbe per il controllo del task 6 — con un messaggio che non
+ * nomina il bersaglio rifiutato. Sarebbe verde per la ragione sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionRejectedTest,
+	"RefactorTactics.ShowcaseRelay.RejectedScriptedResponseFailsTheScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionRejectedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.RejectedScriptedResponse");
+	Scenario.MapRadius = 5;
+	auto U = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+	{
+		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+		return X;
+	};
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"),  1, FRTCellId( 2,  0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Alleato"), TEXT("Hero.Bastion"), 1, FRTCellId( 3, -1, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),    0, FRTCellId(-3,  0, 0), ERTHexDirection::E));
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
+	T.Intents.Add(Arma);
+	FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+	Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+	T.Intents.Add(Corre);
+
+	FRTScenarioDecision Rifiutata;
+	Rifiutata.Unit = TEXT("Guardia"); Rifiutata.Respond = TEXT("FIRE");
+	Rifiutata.Target = TEXT("Alleato"); // schierato, quindi il loader lo accetta — ma non e' offerto
+	T.Decisions.Add(Rifiutata);
+	FRTScenarioDecision Copre;
+	Copre.Unit = TEXT("Guardia"); Copre.Respond = TEXT("HOLD");
+	T.Decisions.Add(Copre);
+	Scenario.Turns.Add(T);
+
+	FRTTestExpectation E;
+	E.Kind = ERTAssertionKind::TurnsCompleted;
+	E.Value = 1;
+	Scenario.Expect.Add(E);
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+
+	TestEqual(TEXT("lo scenario e' in errore"), static_cast<int32>(Result.Outcome),
+		static_cast<int32>(ERTTestOutcome::Error));
+	// Il messaggio deve nominare il BERSAGLIO SCRIPTATO, non il token: `FIRE:<indice>` non contiene
+	// «Alleato», e un referto che dice solo «una risposta e' stata rifiutata» manda a rileggere lo scenario
+	// intero per capire quale.
+	TestTrue(FString::Printf(TEXT("il messaggio nomina la decisione rifiutata (era: '%s')"),
+		*Result.ErrorMessage), Result.ErrorMessage.Contains(TEXT("Alleato")));
+	// E il rifiuto non deve essere confuso col residuo: entrambe le decisioni sono state consumate.
+	TestEqual(TEXT("entrambe le decisioni consumate"), Result.ScriptedDecisionsApplied, 2);
+	TestEqual(TEXT("nessun residuo"), Result.ScriptedDecisionsUnused, 0);
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.

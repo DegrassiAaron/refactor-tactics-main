@@ -1293,6 +1293,32 @@ git commit -m "test(512): la mutazione che prova che la decisione conta, invece 
 
 ## Task 9: una risposta rifiutata non passa per un `HOLD`
 
+> 🔴 **Eseguito il 2026-08-16. Il ciclo del passo 3, così com'è scritto, ROMPE IL CORPUS — misurato, non
+> temuto.**
+>
+> 1. 🔴 **Il filtro su `Category` non è opzionale.** Il piano lo ometteva e lo sospettava soltanto («se non è
+>    così, filtra prima per categoria»). `FRTTurnLogEntry::Outcome` è un `uint8` il cui significato lo decide
+>    la categoria, e `RTTurnLog.h` lo dichiara per esteso. **Verificato per mutazione**: togliendo
+>    `Entry.Category != ERTLogCategory::ReactionDecision` cadono **tre** test — `EveryShippedScenarioRuns`,
+>    `RunnerCounterStrikesBack`, `RunnerNoCounterWhenUnarmed` — su scenari che non dichiarano **nessuna**
+>    decisione. La firma è inequivocabile: «una risposta scriptata è stata rifiutata … Decisioni applicate in
+>    questo turno: » con la lista **vuota**.
+> 2. **`Result.TurnLog` non esiste** — già misurato al task 5, e il passo 3 lo riusava. Si legge
+>    `TM->GetTurnLog()`, che a fine turno è il log di quel turno.
+> 3. **`Result.Outcome = Error` viene sovrascritto da `Finish()`** — già misurato al task 6. Si passa da
+>    `ErroredBy`.
+> 4. ⚠️ **Il messaggio nominava il token, il test cercava lo scenario id: non combaciano mai.**
+>    `LastScriptedResponse` è `FIRE:<indice di risoluzione>` e non contiene «Alleato». Aggiunto
+>    `AppliedDecisionDescs`, che tiene le decisioni applicate nel turno con gli id **di scenario**.
+> 5. **Due decisioni e non una**, per la stessa ragione del task 8: un rifiuto diventa `HoldRejected`, che
+>    non spende la carica, quindi si apre una seconda finestra. Con una sola decisione lo scenario cadrebbe
+>    per **finestra scoperta** (task 6) con un messaggio che non nomina il bersaglio — verde per la ragione
+>    sbagliata.
+>
+> ✅ **E la cosa più utile che il task poteva produrre, come il passo 4 prevedeva, è arrivata**:
+> `DecisionProviderIsInjectable` e `ScriptedDecisionsAreConsumedInOrder` sono rimasti **verdi**. Le loro
+> risposte erano legali, quindi i task 5, 6 e 8 non passavano per il motivo sbagliato.
+
 La legalità la verifica `AskReactionDecision` con `IsResponseAllowed`, e **deve restare lì**: due politiche
 in due posti possono divergere, e il codice lo dichiara per esteso. Ma se il manager rifiuta la risposta
 scriptata produce `HoldRejected`, che nel TurnLog è indistinguibile da una scelta legittima di non sparare.
@@ -1302,7 +1328,7 @@ La session deve leggerlo e farlo cadere.
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp`
 - Test: `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`
 
-- [ ] **Passo 1 — scrivi il test che fallisce**
+- [x] **Passo 1 — scrivi il test che fallisce**
 
 ```cpp
 /**
@@ -1349,7 +1375,7 @@ bool FRTShowcaseDecisionRejectedTest::RunTest(const FString&)
 }
 ```
 
-- [ ] **Passo 2 — eseguilo e verifica che fallisca**
+- [x] **Passo 2 — eseguilo e verifica che fallisca**
 
 `RefactorTactics.ShowcaseRelay.RejectedScriptedResponseFailsTheScenario`.
 Atteso: `Outcome` è `Blocked` (la capability è ancora chiusa in fase A) o `Pass`, non `Error` — il rifiuto
@@ -1359,7 +1385,7 @@ passa in silenzio.
 la validazione dei nomi del task 2 lo accetta. Se invece la finestra non si apre affatto, vale l'avvertenza
 del task 5 sulla geometria.
 
-- [ ] **Passo 3 — leggi l'esito dal TurnLog**
+- [x] **Passo 3 — leggi l'esito dal TurnLog**
 
 A fine turno, prima del controllo sul residuo:
 
@@ -1389,13 +1415,13 @@ una voce di decisione dalle altre. Il ciclo qui sopra assume che `Outcome` sia s
 voci: se non è così, filtra prima per categoria. ⛔ `RTTurnLog.h` **non è nel write-set** — si legge, non si
 tocca.
 
-- [ ] **Passo 4 — eseguilo e verifica che passi**
+- [x] **Passo 4 — eseguilo e verifica che passi**
 
 Atteso: `Success`. Rilancia `DecisionProviderIsInjectable` e `ScriptedDecisionsAreConsumedInOrder`: nessuno
 dei due deve diventare rosso — se lo diventa, le loro risposte non erano legali e i test passavano per il
 motivo sbagliato. **È l'informazione più utile che questo task possa produrre.**
 
-- [ ] **Passo 5 — commit**
+- [x] **Passo 5 — commit**
 
 ```bash
 git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp

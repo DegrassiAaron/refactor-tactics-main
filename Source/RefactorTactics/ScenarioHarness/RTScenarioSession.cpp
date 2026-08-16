@@ -669,6 +669,7 @@ void FRTScenarioSession::BeginTurn()
 	// finestre da servire.
 	PendingDecisions = Scenario.Turns[TurnIndex].Decisions;
 	PendingConsumed.Init(false, PendingDecisions.Num());
+	AppliedDecisionDescs.Reset();
 
 	// Tutte ferme per default: un'unita' senza intent nel turno NON eredita il piano del turno prima.
 	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
@@ -977,6 +978,34 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 			Trace.Bytes = URTTurnLogLibrary::SerializeTurnLog(TM->GetTurnLog(), ERTLogTopology::Hex);
 			Result.TurnTraces.Add(Trace);
 
+			// `HoldRejected` significa «il manager ha rifiutato la risposta»: sul gioco ha lo stesso effetto
+			// di un `HOLD`, e nel referto deve avere il significato opposto. Si legge dal TurnLog invece di
+			// duplicare `IsResponseAllowed` qui — la legalita' resta decisa in UN posto solo.
+			//
+			// ⚠️ Il filtro su `Category` NON e' opzionale: `FRTTurnLogEntry::Outcome` e' un `uint8` il cui
+			// significato lo decide la categoria (`ERTMoveOutcome` se `Move`, e cosi' via), e il file lo
+			// dichiara. Senza il filtro, una voce di movimento con lo stesso valore numerico sarebbe letta
+			// come un rifiuto. Il piano ometteva il filtro e lo sospettava soltanto.
+			//
+			// Il messaggio nomina le decisioni con gli id di SCENARIO: il token e' `FIRE:<indice>`, e
+			// riportarlo manderebbe a rileggere il turno per capire quale risposta sia stata rifiutata.
+			for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+			{
+				if (Entry.Category != ERTLogCategory::ReactionDecision) { continue; }
+				if (static_cast<ERTReactionDecisionOutcome>(Entry.Outcome)
+					!= ERTReactionDecisionOutcome::HoldRejected)
+				{
+					continue;
+				}
+				const FString Motivo = FString::Printf(
+					TEXT("turno %d: una risposta scriptata e' stata rifiutata dal resolver — il bersaglio non ")
+					TEXT("era fra quelli offerti dalla finestra. Decisioni applicate in questo turno: %s"),
+					TurnIndex + 1, *FString::Join(AppliedDecisionDescs, TEXT("; ")));
+				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+				Notes.Add(Motivo);
+				break;
+			}
+
 			// Il residuo si valuta a fine turno, non a fine scenario: una decisione dichiarata al T2 e mai
 			// consumata e' un difetto del T2, e attribuirla al T8 manderebbe a cercare nel posto sbagliato.
 			//
@@ -1063,6 +1092,9 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 
 		PendingConsumed[Index] = true;
 		++Result.ScriptedDecisionsApplied;
+		AppliedDecisionDescs.Add(D.Target.IsEmpty()
+			? FString::Printf(TEXT("'%s' %s"), *D.Unit, *D.Respond)
+			: FString::Printf(TEXT("'%s' %s -> '%s'"), *D.Unit, *D.Respond, *D.Target));
 
 		if (D.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive))
 		{
