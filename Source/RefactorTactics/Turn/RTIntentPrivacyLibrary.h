@@ -190,18 +190,39 @@ struct FRTIntentView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
 	ERTHexDirection DeclaredFacing = ERTHexDirection::E;
 
-	/** Quanto e' certo il PIANO (movimento e azione). Calcolato dal simulatore, mai dal widget. */
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
-	ERTIntentCertainty Certainty = ERTIntentCertainty::Confirmed;
-
 	/**
-	 * Quanto e' certa la REAZIONE armata. Campo separato perche' i due livelli DIVERGONO: un'unita' ferma
-	 * che tiene pronto un contrattacco ha un piano `Confirmed` e una reazione `Uncertain`, ed e' il caso che
-	 * rende questo campo un dato invece di una costante. Ha significato solo dove `ReactionName` e'
-	 * valorizzata — cioe' mai per un avversario, rivelato o meno.
+	 * Quanto e' certo il PIANO (movimento e azione). Calcolato dal simulatore, mai dal widget.
+	 *
+	 * ⚠️ **Il default e' il livello piu' DEBOLE, e non e' un dettaglio di stile.** Era `Confirmed`, cioe' un
+	 * campo mai popolato prometteva al giocatore la garanzia piu' forte del dominio: il modo di fallire
+	 * affermava piu' di quanto qualunque percorso avesse calcolato. Oggi `FilterForTeam` assegna sempre
+	 * (`ClassifyPlan`), quindi in partita non e' osservabile — lo diventa quando questa struttura viaggera'
+	 * in rete (M10) e una deserializzazione parziale, un campo nuovo o un default di engine lasceranno il
+	 * valore dov'era. Un dato che manca deve degradare in «non fidarti».
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
-	ERTIntentCertainty ReactionCertainty = ERTIntentCertainty::Confirmed;
+	ERTIntentCertainty Certainty = ERTIntentCertainty::Uncertain;
+
+	/**
+	 * Quanto e' certa la REAZIONE armata. Campo separato perche' i due livelli DIVERGONO: un'unita' ferma che
+	 * tiene pronto un contrattacco ha un piano `Confirmed` e una reazione `Uncertain`.
+	 *
+	 * 🔴 **NON usare questo campo per sapere se una reazione esiste: usare `ReactionName`.** Fino al
+	 * 2026-08-16 il default era `Confirmed`, e quel valore significava due cose incompatibili — «non c'e'
+	 * nessuna reazione» (il campo non veniva assegnato) e «la reazione e' certa». Un consumatore che leggesse
+	 * il livello senza controllare prima `ReactionName` disegnava «reazione confermata» dove reazione non ce
+	 * n'era: informazione falsa a schermo, che per un HUD e' il difetto peggiore. Lo pinna
+	 * `RefactorTactics.UI.IntentCertaintyClassification`.
+	 *
+	 * ⚠️ **Oggi il livello e' `Uncertain` in entrambi i casi**, quindi non esiste piu' un valore che finga di
+	 * distinguerli — e questo e' voluto: una reazione armata attende per definizione un trigger che decide
+	 * l'avversario, quindi `Uncertain` e' l'unico livello che possa assumere. Il campo resta perche' il
+	 * giorno in cui una reazione potra' essere `Predicted` (trigger gia' soddisfatto nello snapshot) il dato
+	 * ha gia' il suo posto — ma finche' quel giorno non arriva **non aggiunge informazione alla resa**, e la
+	 * grammatica «incerto» si abilita sulla presenza di `ReactionName`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Privacy")
+	ERTIntentCertainty ReactionCertainty = ERTIntentCertainty::Uncertain;
 
 	FRTIntentView() = default;
 };

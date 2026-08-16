@@ -194,15 +194,53 @@ bool FRTIntentCertaintyClassificationTest::RunTest(const FString&)
 			ERTIntentCertainty::Uncertain);
 	}
 
-	// Senza reazione il campo non afferma niente: resta al default, e il widget non ha una riga da disegnare
-	// perche' `ReactionName` e' vuota.
+	// Senza reazione il campo NON diventa `Confirmed`, ed e' il punto di CP 11.2 (spec panel 2026-08-16).
+	//
+	// 🔴 Prima qui il default era `Confirmed`, e quel valore significava DUE cose incompatibili: «non c'e'
+	// nessuna reazione» e «la reazione e' certa». Un consumatore che leggesse `ReactionCertainty` senza
+	// controllare prima `ReactionName` disegnava «reazione confermata» dove reazione non ce n'era — cioe'
+	// informazione falsa a schermo, che e' il difetto peggiore di un HUD. Adesso il livello e' lo STESSO nei
+	// due casi, quindi non c'e' piu' un valore che finge di dire qualcosa: l'unica cosa che distingue
+	// «armata» da «nessuna» e' `ReactionName`, ed e' su quella che la resa si abilita.
 	{
 		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { MakeIdleIntent(0) });
 		if (!TestEqual(TEXT("una vista"), V.Num(), 1)) { return false; }
 		TestTrue(TEXT("nessuna reazione da qualificare"), V[0].ReactionName.IsEmpty());
-		TestEqual(TEXT("il livello della reazione resta al default"), V[0].ReactionCertainty,
-			ERTIntentCertainty::Confirmed);
+		TestEqual(TEXT("il livello non afferma «confermata»"), V[0].ReactionCertainty,
+			ERTIntentCertainty::Uncertain);
 	}
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// CP 11.2: il DTO non popolato deve promettere il MENO possibile, non il piu'
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIntentViewSafeDefaultsTest,
+	"RefactorTactics.UI.IntentViewDefaultsToUncertain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIntentViewSafeDefaultsTest::RunTest(const FString&)
+{
+	// Il default di `Certainty` era `Confirmed`: un campo mai popolato affermava al giocatore la garanzia
+	// PIU' FORTE del dominio. Oggi ogni percorso vivo lo assegna esplicitamente (`FilterForTeam` chiama
+	// `ClassifyPlan`), quindi il difetto non e' osservabile in partita — lo diventa il giorno in cui questa
+	// struttura viaggia in rete (M10) e una deserializzazione parziale, un campo aggiunto o un default di
+	// engine lasciano il valore al suo posto. Un dato mancante deve degradare in «non fidarti».
+	//
+	// ⚠️ Il test costruisce il DTO a mano APPOSTA: passare da `FilterForTeam` misurerebbe l'assegnazione,
+	// non il default, e il default e' esattamente cio' che nessun altro test copre.
+	const FRTIntentView Fresh;
+
+	TestEqual(TEXT("il piano non popolato e' incerto, non confermato"),
+		Fresh.Certainty, ERTIntentCertainty::Uncertain);
+	TestEqual(TEXT("la reazione non popolata e' incerta, non confermata"),
+		Fresh.ReactionCertainty, ERTIntentCertainty::Uncertain);
+
+	// Il livello piu' debole del dominio e' `Uncertain`: se qualcuno aggiungesse un quarto valore ancora piu'
+	// debole, questo test non se ne accorgerebbe — ma la riga sotto si', perche' pinna la relazione e non il
+	// nome. `Confirmed` resta il valore che NON puo' essere un default.
+	TestNotEqual(TEXT("nessuno dei due campi nasce confermato"),
+		Fresh.Certainty, ERTIntentCertainty::Confirmed);
 	return true;
 }
 
@@ -261,8 +299,13 @@ bool FRTNoEnemyIntentExposedTest::RunTest(const FString&)
 		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { RevealedEnemy });
 		if (!TestEqual(TEXT("il nemico rivelato produce una vista"), V.Num(), 1)) { return false; }
 		TestTrue(TEXT("senza la sua reazione"), V[0].ReactionName.IsEmpty());
+		// ⚠️ Il campo resta al DEFAULT del DTO, e l'assert lo dice cosi' invece di scrivere il livello a mano:
+		// cio' che questo test protegge e' «nessuna reazione da qualificare», non un livello particolare.
+		// 🔴 Scritto come letterale `Confirmed`, si e' rotto il 2026-08-16 quando il default e' passato a
+		// `Uncertain` — un cambiamento che non c'entra niente con la privacy. Un test che pinna una
+		// convenzione altrui deve nominarla, non copiarne il valore.
 		TestEqual(TEXT("e senza un livello che la qualifichi"), V[0].ReactionCertainty,
-			ERTIntentCertainty::Confirmed);
+			FRTIntentView().ReactionCertainty);
 	}
 	return true;
 }
