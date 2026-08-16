@@ -1216,9 +1216,40 @@ tracks:
 
   spatial:
     status: ACTIVE
-    issue: 726
-    branch: docs/726-fac15-simmetria-facing
+    issue: 833
+    branch: feat/833-interaction-graph
     note: >-
+      ➕ **Passata a `#833` il 2026-08-16** — E23 CP 23.4, `RT-FEAT-MAP-INTERACTION-GRAPH`, **P1**: il grafo
+      `Source → Target` come **dato**, con cardinalità `1→1` e `1→N`, ordine deterministico e validazione
+      d'asset. È l'unica **P1** del dominio spaziale con write-set compatibile, e continua ciò che questa
+      track ha appena consegnato: `#833` dichiara *«gli identificatori di sorgente e bersaglio sono quelli
+      di CP 23.3 (#832) — questa issue non ne inventa di propri»*. La **UI è fuori scope dichiarato** (va a
+      CP 23.5, `#834`), quindi `Source/RefactorTactics/UI/` — che è di `client_tools` — **non serve**.
+      ✅ **Il prestito di `#726` è rientrato**: `docs/OPEN_DECISIONS.md` torna in `integration_only`, che era
+      la scadenza dichiarata. `FAC-15` resta aperta e continua a bloccare `#726`; non serve tenere il file
+      prenotato per aspettarla.
+      ⚠️ **Due path rivendicati da `state_hash`, che li dichiara RILASCIATI**: `Map/RTHexMapAsset.{h,cpp}` e
+      `Tests/RTHexDoorTests.cpp`. La sua nota dice *«il write-set qui sotto è rilasciato … tornano
+      disponibili»* e tiene l'elenco come storia di ciò che ha toccato. Presi qui e **tolti di là**, perché
+      un elenco che resta scritto e un'intersezione che si calcola sui campi non possono dire due cose
+      diverse: la storia vive nella sua nota, che li nomina già uno per uno.
+      🔴 **RICHIESTA DI RIALLOCAZIONE — `Scenarios/` e `ScenarioHarness/RTScenarioSession.cpp`.** Il gate
+      `scenario` di questa feature non è raggiungibile da nessun write-set che questa track possa dichiarare
+      da sola: `Scenarios/` è `integration_only` e `RTScenarioSession.cpp` è di `simulation` (`#512`,
+      `ACTIVE`) — che ne ha bisogno per le due liste di capability del proprio DoD. **Questa track non li
+      prende e non li tocca.** La richiesta è registrata *prima* di cominciare, non scoperta a metà: se
+      viene respinta, `#833` si chiude su copertura unit più confronto del `TurnLog` e il gate `scenario`
+      resta `todo` **dichiarato**, non spuntato con una scatola vuota. La decisione spetta a chi possiede
+      `simulation` e al giro d'integrazione, non a chi scrive questa riga.
+      🔴 **Corretta un'affermazione falsa che questa nota ha portato in `main`**: il blocco di `#726` diceva
+      *«`#986` resta aperta e senza sessione»*. **`#986` è `CLOSED` dalle `09:12:54Z`** del 2026-08-16 —
+      chiusa dalla PR `#1001`, cioè **39 minuti prima** che la PR `#1004` la ricopiasse. Era stata
+      **trascritta** dalla stesura precedente invece che rimisurata, ed è il difetto che questo file
+      rimprovera altrove: una fonte interna non è meno da verificare di una esterna.
+      ⚠️ **E `branch:` puntava a un ramo cancellato**: `docs/726-fac15-simmetria-facing` è stato rimosso
+      lato server dopo il merge di `#1004`, e il campo lo nominava ancora. Lo schema documenta `null` come
+      sentinella per quel caso; qui non serve, perché il campo porta il ramo nuovo.
+      ---
       ➕ **Riattivata il 2026-08-16 su `#726`** (facing: la relazione a sei direzioni relative, `D-126`), e il
       write-set è **uno solo**: `docs/OPEN_DECISIONS.md`. Non è la fetta di codice della issue — quella è
       bloccata — è la decisione che la blocca.
@@ -1435,17 +1466,29 @@ tracks:
       # proprietari**»: questa e' la meta' che spetta a `spatial`. Il `mandate:` resta prenotato **senza
       # write-set**, lo stesso trattamento che la nota da' gia' a `ScenarioHarness/`, e chi riapre il
       # mandato rinegozia con `content_editor` invece di ereditare una contesa.
-      # ➕ Il 2026-08-16 con `#726`. Veniva da `integration_only`, ed e' un prestito con scadenza: torna
-      # li' quando questa track chiude. Intersezione con le cinque track `ACTIVE` **misurata vuota**, e
-      # il file non e' sorgente di nessuna vista — nessun `derives_from` da aggiungere sotto.
-      - docs/OPEN_DECISIONS.md
-    # Il campo rende l'obbligo di restituzione **interrogabile** invece che affidato ai commenti qui sopra,
-    # che la riscrittura del batch porterebbe via con se'. Alla chiusura di questa track il path torna in
-    # `integration_only` — vedi lo schema.
-    writable_on_loan:
-      - path: docs/OPEN_DECISIONS.md
-        from: integration_only
-        return_to: integration_only
+      # ➖ `docs/OPEN_DECISIONS.md` **restituito il 2026-08-16**: il prestito serviva a registrare `FAC-15`,
+      # ed e' fatto. Torna in `integration_only`, che era la scadenza dichiarata, e `writable_on_loan` sparisce
+      # con lui — il campo esiste per rendere l'obbligo interrogabile, non per sopravvivergli.
+      #
+      # ➕ Write-set di `#833`, misurato contro le track `ACTIVE` una per una e non dedotto dal dominio.
+      # `Turn/` NON e' preso per prefisso: servono due file, e la cartella intera colliderebbe con
+      # `client_tools` (`RTIntentPrivacyLibrary.*`) e con l'elenco storico di `state_hash`.
+      - Source/RefactorTactics/Map/RTHexDoorLibrary.h
+      - Source/RefactorTactics/Map/RTHexDoorLibrary.cpp
+      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.h
+      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.cpp
+      - Source/RefactorTactics/Map/RTHexCellData.h
+      # ⬅️ I due qui sotto vengono da `state_hash`, che li dichiara rilasciati nella propria nota.
+      - Source/RefactorTactics/Map/RTHexMapAsset.h
+      - Source/RefactorTactics/Map/RTHexMapAsset.cpp
+      - Source/RefactorTactics/Tests/RTHexDoorTests.cpp
+      # Risoluzione dell'intento `Interact`: il client dichiara la sorgente, il runtime risolve i bersagli.
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      - Source/RefactorTactics/Tests/RTInteractionGraphTests.cpp
+    # ⛔ NON in questo write-set, e la ragione e' registrata nella nota: `Scenarios/` (`integration_only`) e
+    # `ScenarioHarness/RTScenarioSession.cpp` (di `simulation`, #512). Il gate `scenario` dipende da una
+    # riallocazione **richiesta e non ancora concessa**: finche' non lo e', non si tocca niente li' dentro.
     derives_from: []
     binary_leases: []
 
@@ -2951,10 +2994,13 @@ tracks:
     writable:
       - Source/RefactorTactics/Turn/RTMatchStateHash.h
       - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
-      - Source/RefactorTactics/Map/RTHexMapAsset.h
-      - Source/RefactorTactics/Map/RTHexMapAsset.cpp
       - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
-      - Source/RefactorTactics/Tests/RTHexDoorTests.cpp
+      # ➖ `Map/RTHexMapAsset.{h,cpp}` e `Tests/RTHexDoorTests.cpp` **passati a `spatial` (#833)** il
+      # 2026-08-16. Non e' una revoca: questa track li aveva gia' dichiarati *«rilasciati … tornano
+      # disponibili»* nella nota qui sopra, e la nota continua a nominarli uno per uno — la storia di cosa
+      # questa track ha toccato resta leggibile li'. Escono dal campo perche' un elenco tenuto come storia
+      # e un'intersezione calcolata sui campi non possono dire due cose diverse: finche' restavano scritti,
+      # qualunque controllo avrebbe visto una contesa che le due track non hanno.
     binary_leases: []
 
   docs_kit:
@@ -3130,11 +3176,11 @@ integration_only:
   - AGENTS.md
   - CLAUDE.md
   - docs/decisions/RT_PDR_00_Decision_Log.md
-  # ➖ `docs/OPEN_DECISIONS.md` **esce di qui il 2026-08-16**: e' nel `writable` di `spatial` (#726) finche'
-  # quella track e' `ACTIVE`, e un path non puo' stare nei due insiemi insieme — sarebbe assegnato e non
-  # assegnato nello stesso file. Ci torna alla chiusura della track. La ragione del prestito e' che
-  # `FAC-15` **blocca** #726, e una decisione che ferma lavoro non aspetta la fine del batch; il costo —
-  # chi deve aprire una decisione ora passa da questa track — e' dichiarato nella nota di `spatial`.
+  # ➕ **RIENTRATO il 2026-08-16.** `docs/OPEN_DECISIONS.md` era uscito di qui con `spatial` su #726, per
+  # scrivere `FAC-15`: prestito con scadenza dichiarata, ed e' scaduto quando quel lavoro e' atterrato
+  # (PR #1004). La track e' passata a #833 e non ne ha piu' bisogno. Il campo `writable_on_loan` che teneva
+  # l'obbligo interrogabile e' sparito con lui — e' servito esattamente per un giro, che e' il punto.
+  - docs/OPEN_DECISIONS.md
   - docs/DOC_CONFLICT_MATRIX.md
   - docs/CONTEXT_INDEX.md
   - docs/roadmap/roadmap-checkpoint.md
