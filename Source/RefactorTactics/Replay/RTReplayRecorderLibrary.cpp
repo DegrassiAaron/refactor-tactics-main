@@ -8,6 +8,11 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 
+FString URTReplayRecorderLibrary::DefaultReplaysRoot()
+{
+	return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"));
+}
+
 namespace
 {
 	const TCHAR* RT_MANIFEST_FILE = TEXT("match.rtmanifest");

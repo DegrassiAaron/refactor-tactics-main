@@ -4,6 +4,9 @@
 #include "GameFramework/GameModeBase.h"
 #include "Templates/SubclassOf.h"
 #include "Core/RTTypes.h"
+// CP 46.2: il rapporto d'avvio. E' un tipo di **dato** — enum e struct puri, nessuna dipendenza dal
+// frontend: il GameMode dichiara cosa e' successo, chi mostra la cosa sta dall'altra parte.
+#include "Frontend/RTStartupReport.h"
 #include "RTGameMode.generated.h"
 
 class ARTUnit;
@@ -300,6 +303,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Test")
 	FString GetScenarioBannerText() const;
 
+	/**
+	 * Cosa e' successo all'allestimento: le condizioni rilevate e la fase raggiunta (CP 46.2, `#937`).
+	 *
+	 * ⚠️ **E' un rapporto, non una decisione.** Questo GameMode continua a decidere esattamente come prima
+	 * — ripiega dove ripiegava, rifiuta dove rifiutava — e in piu' **dichiara** cosa ha fatto. Le righe
+	 * aggiunte per CP 46.2 non cambiano un solo esito: se ne cambiassero uno, il perimetro concordato per
+	 * la riallocazione di questo file sarebbe stato superato.
+	 *
+	 * Esiste perche' quelle condizioni finivano **solo** nel log: `MapSource=GeneratedTestArena` e il
+	 * formato di ripiego sono le due riserve che tengono `G13` 🟡, e nessuna delle due si vede a schermo.
+	 * E' lo stesso problema che `GetScenarioBannerText` risolve per le run di scenario — *«il sintomo non
+	 * punta alla causa»* — generalizzato all'avvio.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Match")
+	const FRTStartupReport& GetStartupReport() const { return StartupReport; }
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -307,6 +326,9 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
+	/** Le condizioni rilevate durante l'allestimento (CP 46.2). Vedi `GetStartupReport()`. */
+	FRTStartupReport StartupReport;
+
 	/** Vedi `IsAutobattleInEffect()`: deciso in `SetupHexMatch`, prima che le unita' entrino in campo. */
 	bool bAutobattleInEffect = false;
 

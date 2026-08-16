@@ -4315,11 +4315,12 @@ features:
     issues: [936, 937]
     tests:
       - RefactorTactics.Frontend.*
+      - RefactorTactics.Startup.*
     scenarios: []
     wiki_refs: []
     last_verified:
       date: 2026-08-16
-      commit: 6708308
+      commit: 0bfc59a
     notes: >
       Un solo owner del flow (`PushScreen`/`PopScreen`/`ShowModal`/`CloseModal`/`ReturnMain`) piu'
       loading ed error modal. Il criterio del gate `runtime` e' verificabile con un grep:
@@ -4334,9 +4335,17 @@ features:
       navigazione non e' UI**: e' una macchina a stati che la governa, e separata dalla presentazione si
       prova senza mondo ne' asset — **17 test** `RefactorTactics.Frontend.*` (12 alla prima stesura, 5
       aggiunti in code review per i difetti che aveva trovato). Resta manuale il *layout*
-      dentro il `.uasset`, che e' di `PIE-V01-FRONTEND-NAV`: `partial` e non `done` per quello, e perche'
-      CP 46.2 (loading, error modal) non e' ancora scritto.
-      `runtime: partial` per la stessa ragione: dei due checkpoint della feature ne e' fatto uno.
+      dentro il `.uasset`, che e' di `PIE-V01-FRONTEND-NAV`: `partial` e non `done` per quello.
+      ✅ **CP 46.2 consegnato il 2026-08-16 (`#937`) per la parte C++**, e ha portato con se' l'**ottavo
+      vocabolario di reason** del repository: `ERTStartupOutcome` — nove valori misurati sui punti di
+      uscita reali di `RTGameMode.cpp` — piu' `ERTLoadPhase`, `FRTStartupReport` e le tre classi base
+      (`URTLoadingScreenWidgetBase`, `URTErrorModalWidgetBase`, `URTFallbackBannerWidgetBase`).
+      **15 test** `RefactorTactics.Startup.*`.
+      ⚠️ **`RTGameMode.{h,cpp}` sono entrati nel `writable` di questa track con una riallocazione
+      dichiarata**: erano di `autobattle`, che ha chiuso `#954`. Il perimetro e' l'**emissione** — nessun
+      esito di gioco cambia, il GameMode ripiega e rifiuta dove gia' lo faceva e in piu' lo **dichiara**.
+      `runtime` e `automation` restano `partial`: i `WBP_RT_*` che consumano queste basi sono `.uasset`,
+      cioe' lavoro d'editor, e senza di loro nulla appare a schermo.
       ⚠️ **Non possiede il contesto `Modal` del `PlayerController`**: quello e' di CP 11.8
       (`RT-FEAT-UI-POINTER-INTERACTION`), che ha gia' sette contesti e la precedenza
       `Modal/Reaction UI > HUD > world` **dichiarata** — e non ancora implementata: e' il delta (c) di
@@ -4492,9 +4501,10 @@ features:
     owner_specs:
       - docs/technical/spec-frontend-navigazione.md
       - docs/decisions/adr-0009-replay-logico-canonico.md
-    issues: [472]
+    issues: [472, 999]
     tests:
       - RefactorTactics.Replay.ViewModel.*
+      - RefactorTactics.Replay.ViewerSubsystem.*
     scenarios: []
     wiki_refs: []
     notes: >
@@ -4516,13 +4526,16 @@ features:
       gia' `INTEGRATED`, quindi la v0.1 non aspetta nulla. La chiusura pulita e' promuovere anche
       l'archivio, che e' scope di release e merita una `D-nnn`.
 
-      **Stato al 2026-08-16**: il view model esiste (`Replay/RTReplayViewModel.{h,cpp}`) con **11** test
-      `RefactorTactics.Replay.ViewModel.*`, verdi, e l'area `RefactorTactics.Replay` chiude **41/41**.
-      ⚠️ I numeri sono **rimisurati dopo la code review**, che ne ha aggiunti tre: erano 8 e 38 nella
-      prima stesura di questa riga, e sono rimasti giusti per un'ora.
-      `runtime` e `automation` sono `partial` e non `done`: manca tutto cio' che sta sopra il view
-      model — le due schermate, il loro `.uasset`, l'aggancio al navigatore. Un `done` qui direbbe che
-      `#472` e' finita, e non lo e'.
+      **Stato al 2026-08-16**, dopo il secondo giro: il view model (`#472`, **11** test) e il **ponte
+      Blueprint** (`#999`, `Replay/RTReplayViewerSubsystem.{h,cpp}`, **6** test) esistono, e l'area
+      `RefactorTactics.Replay` chiude **47/47**.
+      ⚠️ I numeri si rimisurano a ogni giro e non si incrementano a mente: erano `8` e `38` nella prima
+      stesura di questa riga, `11` e `41` dopo la prima code review, `11+3` e `44` all'apertura della PR
+      del ponte, e `11+6` e `47` dopo la seconda — che ha trovato meta' dei forwarder senza copertura. Sono
+      giusti un'ora per volta.
+      `runtime` e `automation` restano `partial`: da qui in su mancano le **due schermate** e il loro
+      `.uasset`, che vorranno una Binary Asset Lease, piu' il bootstrap del frontend — che pero' e' di
+      E46 (`#938`), non di questa feature. Un `done` direbbe che `#472` e' finita, e non lo e'.
 
       ⚠️ **Doppio conteggio dichiarato**: `RefactorTactics.Replay.ViewModel.*` e' assorbito dal pattern
       generico `RefactorTactics.Replay.*` di `RT-FEAT-REPLAY-ARCHIVE`, quindi gli 8 test contano per due
