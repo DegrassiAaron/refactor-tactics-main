@@ -1903,8 +1903,57 @@ tracks:
           - docs/roadmap/scenariomap.shortlist.md
 
   client_tools:
-    status: ACTIVE
+    status: IDLE
     issue: 78
+    # ═══ CONSOLIDAMENTO del 2026-08-16, misurato su `origin/main` @ `9f2be669` dopo `git fetch --prune`.
+    # Il registro dei quattro significati precedenti di `branch:` resta sotto, come provenienza; questo
+    # blocco è ciò che vale. Ogni riga è una misura, col comando che la produce.
+    #
+    # | campo         | diceva                      | misurato                                              |
+    # |---------------|-----------------------------|-------------------------------------------------------|
+    # | `branch`      | `feat/78-contratto-certezza`| **non esiste**: `git ls-remote --heads origin` non lo   |
+    # |               |                             | vede — mergiato con **PR #964**, `2026-08-16T05:49:25Z`|
+    # | `worktree`    | `D:/rt-78`                  | **non esiste**: assente dal filesystem E da             |
+    # |               |                             | `git worktree list` (undici worktree, nessuno è quello)|
+    # | `blocked_by`  | `904`                       | **regge**: #904 è `OPEN`, head `feat/77-hud-slot-terna`|
+    # | `blocked_paths`| `UI/RTHUD.{h,cpp}`         | **regge, e ora è misurato**: `feat/77-hud-slot-terna` è|
+    # |               |                             | l'**unico** branch vivo che tocca `UI/`, ed esattamente|
+    # |               |                             | quei due file (`--name-only` su tutti i remoti)        |
+    #
+    # 🔴 **`status` scende ad `IDLE`, ed è la sola voce che non sia una misura ma una DECISIONE.** La
+    # ragione: `ACTIVE` significa «qualcuno ci sta scrivendo», e non ci sta scrivendo nessuno — il branch
+    # è mergiato, il worktree non esiste, nessuno degli undici worktree ha `feat/78` aperto. Tenerla
+    # `ACTIVE` prenoterebbe `UI/` per una sessione che non c'è, e il costo è concreto: **#1015** (CP 47.7,
+    # il controllo di velocità in HUD) è ferma esattamente su quel path.
+    # ⚠️ **`issue: 78` RESTA valorizzata su una track IDLE**, ed è legittimo — `unit_presentation` fa lo
+    # stesso con `#593`. Dice: la issue è viva e il residuo è reale, ma non c'è una seduta aperta.
+    # ↩️ **Come si ribalta**: chi riapre la sessione di `#78` rimette `ACTIVE` e dichiara branch e
+    # worktree. Non serve il permesso di nessuno — serve che i tre campi tornino veri insieme.
+    #
+    # ✅ **Il residuo di `#78` è stato RIMISURATO invece che ereditato, e regge.** Dei quattro passi della
+    # nota, i primi tre sono in `main` (`bba6a2b3`, l'unico commit su `UI/` dal 2026-08-14, che chiude il
+    # contratto del DTO). Il **passo 4 — la resa in `ARTHUD`** è aperto, e si misura sul codice:
+    # `ERTIntentCertainty` esiste con il suo produttore (`ClassifyPlan`) e i suoi test
+    # (`RTIntentPrivacyTests.cpp`), `UI/RTIconLibrary` lo **nomina in un commento** e
+    # `RTIconCatalogData.h` ha la categoria `Certainty` — ma **nessuno lo rende a schermo**. Il tipo c'è,
+    # la vista no.
+    # 🔴 **E un documento a valle è rimasto indietro**: `test-manuali-pie.md:411` (`PIE-V01-INTENT`) dice
+    # che i tre livelli *«appartengono a E11 CP 11.2 e **non esistono ancora**»*. Falso dal `#859`/`#964`:
+    # esistono, manca la resa. Il file è di `playtest` e **non è stato toccato da qui** — registrato
+    # perché chi lo possiede lo corregga.
+    #
+    # ⚠️ **Il `writable` è lasciato INTATTO di proposito, e non per inerzia.** La regola applicata poche
+    # ore fa alla track `playback` — *«un `writable` dice chi **scriverà**, non chi ha scritto»* — qui
+    # imporrebbe di togliere `Turn/RTIntentPrivacyLibrary.{h,cpp}`, il cui lavoro è chiuso e mergiato. Non
+    # lo faccio perché il passo 4 **non è ancora progettato**: quali file tocchi la resa lo decide chi la
+    # scrive, e restringere adesso sarebbe indovinare. Correggere un fatto misurato e prevedere un
+    # write-set futuro sono due cose diverse, e solo la prima è consolidamento.
+    #
+    # ➕ **Trovato di passaggio, e non risolto qui**: `git worktree list` mostra `D:/rt-editor-test` su
+    # `docs/1013-seduta-u18`, che **nessuna track dichiara**. Non è un difetto di questa track; è il tipo
+    # di cosa che questo file esiste per rendere visibile.
+    #
+    # ─── registro dei significati precedenti di `branch:`, per la provenienza ───
     # ⚠️ `null` per una ragione NUOVA rispetto a ieri, e le due non vanno confuse: allora diceva «il
     # branch dichiarato è stato mergiato e cancellato» (una misura sul passato), oggi dice **«la
     # sessione non è ancora partita, e non parte finché #904 non atterra»** (una decisione sul futuro).
@@ -1926,10 +1975,17 @@ tracks:
     # hanno riscritto lo stesso commento nello stesso giro, e questa porta una **misura** che l'altra non
     # aveva — l'intersezione vuota fra `feat/78` e `feat/77`. Fra due prose che dicono la stessa cosa
     # vince quella che porta un numero.
-    branch: feat/78-contratto-certezza
-    worktree: "D:/rt-78"
+    branch: null           # mergiato con PR #964 (2026-08-16T05:49:25Z), assente da `git ls-remote`
+    worktree: null         # `D:/rt-78` non esiste: né sul filesystem né in `git worktree list`
     blocked_by: 904        # ⚠️ non è ownership: è la PR che deve atterrare prima che questa track scriva
+    # 📌 **#904 è OPEN ma FERMA dal 2026-08-15T06:23Z, e nessuno dei worktree ha `feat/77` aperto**: non è
+    # una sessione in corso, è una PR in attesa di merge. La distinzione conta per chi legge `blocked_by`
+    # come «aspetta che finiscano»: non c'è nessuno che stia finendo. Chi vuole sbloccare `UI/` non deve
+    # attendere — deve far atterrare #904, o negoziare i due file con chi l'ha aperta.
     blocked_paths:
+      # ✅ Verificati il 2026-08-16 e non solo ereditati: `feat/77-hud-slot-terna` è l'**unico** branch vivo
+      # che tocca `UI/`, e tocca **esattamente** questi due file — misurato con
+      # `git diff --name-only origin/main...origin/<b>` su tutti i remoti, non dedotto dal titolo della PR.
       - Source/RefactorTactics/UI/RTHUD.h
       - Source/RefactorTactics/UI/RTHUD.cpp
     note: >-
