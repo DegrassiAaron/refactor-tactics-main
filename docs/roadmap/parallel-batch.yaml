@@ -1735,6 +1735,27 @@ tracks:
       `docs/menu-frontend-consolidamento` e `feat/78-contratto-certezza` — che è `integration_only` e quindi
       contesa per costruzione, non ownership. **Nessuno** tocca il DoD né uno degli undici file
       (`git diff --name-only origin/main...origin/<b>` per ognuno).
+      ✅ **Chiusa il 2026-08-16 con PR #951 (`64d46076`): sintomo e causa insieme.** Il sweep passa da **89
+      test fuori dalla guardia a 0** su 107 file, e le dichiarazioni restano **876 prima e 876 dopo** — che e'
+      la verifica che nessun test sia sparito nello spostamento, cioe' il modo in cui questa correzione poteva
+      rompersi in silenzio. Tre target compilati (`Editor`, `Game` Development, `Game` Shipping) e suite
+      **875/875**.
+      🔴 **E la metrica che la track stessa aveva proposto e' stata falsificata dalla misura.** L'oracolo
+      annunciato era il calo del binario Shipping: misurato, **-1024 byte** su 166 MB. In Shipping
+      `WITH_AUTOMATION_WORKER` e' spento, quindi la macro **definisce** la classe ma non ne crea l'istanza e il
+      linker la scarta — la perdita nel binario era 1 KB, non 86 test. L'oracolo giusto sono il sweep e il
+      build, ed e' registrato sulla issue invece di sparire con la track.
+      ⚠️ **Il write-set resta descritto qui e il blocco `writable` esce**: dodici path — gli undici test e
+      `docs/roadmap/v0.1-definition-of-done.md` — tutti atterrati in `main`, oggi non assegnati. ⛔ **Il DoD
+      torna quindi senza proprietario**, ed e' la stessa condizione che la nota di `spatial` descrive: chi
+      deve scriverlo se lo fa assegnare, e con esso eredita le due viste che alimenta.
+      ➕ **Cosa la track NON ha fatto, detto invece che dedotto**: `G1` ora nomina i tre comandi, ma **nessuno
+      li esegue al posto di chi consegna**. Non c'e' CI (`.github/workflows/` assente per scelta), quindi la
+      difesa contro la terza occorrenza e' una riga di DoD che una persona deve leggere. E' meglio di prima —
+      prima non c'era nemmeno la riga — e non e' un gate automatico: chiamarlo tale sarebbe la stessa bugia
+      che `G12` ha raccontato per quattro giorni.
+      ⚠️ Il mandato **Terminal D** resta assegnato e **non cominciato**: `IDLE` qui significa che nessuna
+      sessione lavora, non che il mandato sia stato consumato.
       ⚠️ **La track porta anche il mandato QA Terminal D, e resta non cominciato.** `status: ACTIVE` qui
       significa «una sessione lavora su `#923`», non «il mandato è partito»: sono due cose diverse, ed è la
       stessa forma che `simulation` ha avuto su `#578` con il mandato A in attesa.
@@ -1754,9 +1775,9 @@ tracks:
     binary_leases: []
 
   verification:
-    status: ACTIVE
-    issue: 923
-    branch: null           # ⚠️ sentinella: la issue è aperta, il branch non è ancora stato aperto
+    status: IDLE
+    issue: null
+    branch: null
     note: >-
       ✅ **Chiusa il 2026-08-15: tutte e cinque le issue sono chiuse e il branch non esiste più.**
       #879, #880, #881, #883 `COMPLETED` con la PR **#885** (`408f5ff8`); #882 `NOT_PLANNED`, e la
@@ -1803,30 +1824,6 @@ tracks:
       nuovo e due documenti: intersezione **vuota**, verificata sui path e non sull'intenzione. Il vincolo
       che resta non è sui file — è la macchina: una run di automation per volta e un mutex di UBT, quindi
       due track che ricompilano si aspettano.
-    writable:
-      - Source/RefactorTactics/Tests/RTUnitTests.cpp
-      - Source/RefactorTactics/Tests/RTHexTests.cpp
-      - Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp
-      - Source/RefactorTactics/Tests/RTHexCombatIntegrationTests.cpp
-      - Source/RefactorTactics/Tests/RTHexMatchIntegrationTests.cpp
-      - Source/RefactorTactics/Tests/RTStatusTests.cpp
-      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
-      - Source/RefactorTactics/Tests/RTMatchSetupWorldTests.cpp
-      - Source/RefactorTactics/Tests/RTMatchSetupTests.cpp
-      - Source/RefactorTactics/Tests/RTHexPerfTests.cpp
-      - Source/RefactorTactics/Tests/RTUnitPlacementTests.cpp
-      - docs/roadmap/v0.1-definition-of-done.md
-    # ⚠️ **Chi possiede il DoD eredita DUE rigenerazioni**, e sono misurate col metodo di `generated_only` —
-    # si perturba la sorgente e si guarda quale vista si muove — non dedotte dal nome della costante.
-    # 🔴 **E la prima sonda ha dato la risposta giusta alla domanda sbagliata**: un commento HTML in coda al
-    # file lascia entrambi i `--check` **verdi**, perché il parser legge la **sezione §3** (`G1`-`G15`), non
-    # il file intero. Perturbando una riga di gate diventano rossi tutti e due. È lo stesso errore che questo
-    # file registra per `roadmap-map.svg`, ripetuto e riconosciuto invece che ereditato.
-    derives_from:
-      - source: docs/roadmap/v0.1-definition-of-done.md
-        regenerates:
-          - docs/roadmap/milestonemap.shortlist.md
-          - docs/roadmap/project-graph.json
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
