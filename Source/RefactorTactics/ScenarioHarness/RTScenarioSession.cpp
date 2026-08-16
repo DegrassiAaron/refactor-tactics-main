@@ -977,6 +977,24 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 			Trace.Bytes = URTTurnLogLibrary::SerializeTurnLog(TM->GetTurnLog(), ERTLogTopology::Hex);
 			Result.TurnTraces.Add(Trace);
 
+			// Il residuo si valuta a fine turno, non a fine scenario: una decisione dichiarata al T2 e mai
+			// consumata e' un difetto del T2, e attribuirla al T8 manderebbe a cercare nel posto sbagliato.
+			//
+			// ⚠️ Passa da `ErroredBy` e NON da `Result.Outcome`: `Finish()` ricalcola l'esito con una catena
+			// `if/else` a partire da `ErroredBy`, quindi un `Result.Outcome = Error` scritto qui verrebbe
+			// riportato a `Pass`. Il primo errore vince — gli altri restano nelle note.
+			for (int32 Index = 0; Index < PendingDecisions.Num(); ++Index)
+			{
+				if (PendingConsumed[Index]) { continue; }
+				++Result.ScriptedDecisionsUnused;
+				const FString Motivo = FString::Printf(
+					TEXT("turno %d: decisione dichiarata per '%s' (%s) e mai consumata — nessuna finestra si e' ")
+					TEXT("aperta per quell'unita'"),
+					TurnIndex + 1, *PendingDecisions[Index].Unit, *PendingDecisions[Index].Respond);
+				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+				Notes.Add(Motivo);
+			}
+
 			++TurnIndex;
 			Result.TurnsPlayed = TurnIndex;
 			if (TurnIndex >= Scenario.Turns.Num())
@@ -1060,6 +1078,18 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 		if (TargetRuntimeId == INDEX_NONE) { return FString(); }
 		Result.LastScriptedResponse = URTReactionOpportunityLibrary::FireResponse(TargetRuntimeId);
 		return Result.LastScriptedResponse;
+	}
+
+	if (PendingDecisions.Num() > 0)
+	{
+		// Il turno dichiara decisioni e questa finestra non ne ha trovata nessuna: non e' il caso «turno non
+		// scriptato», e' una finestra SCOPERTA. Se restasse un timeout silenzioso, due decisioni scritte e
+		// una applicata sarebbero verdi — che e' il modo in cui un test smette di verificare senza dirlo.
+		const FString Motivo = FString::Printf(
+			TEXT("turno %d: finestra aperta per '%s' senza una decisione che la nomini"),
+			TurnIndex + 1, *OwnerScenarioId);
+		if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+		Notes.Add(Motivo);
 	}
 
 	// Nessuna decisione combacia: «non ho risposto». E' il comportamento di sempre — `DecisionOnTimeout` —

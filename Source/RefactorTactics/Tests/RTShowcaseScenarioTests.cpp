@@ -1066,6 +1066,176 @@ bool FRTShowcaseDecisionProviderTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il residuo e' un FALLIMENTO, non un avanzo. Senza questo controllo uno scenario puo' scriptare due
+ * decisioni, vederne applicare una, e restare verde: e' il modo in cui un test smette di verificare senza
+ * dirlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionResidueTest,
+	"RefactorTactics.ShowcaseRelay.UnusedScriptedDecisionFailsTheTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionResidueTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.UnusedScriptedDecision");
+	Scenario.MapRadius = 4;
+
+	FRTScenarioUnit Sola;
+	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Bastion")); Sola.TeamId = 0;
+	Sola.Cell = FRTCellId(0, 0, 0);
+	Scenario.Units.Add(Sola);
+
+	// Nessun intent, quindi nessuna finestra: la decisione non puo' trovare nulla da cui essere consumata.
+	FRTScenarioTurn T;
+	FRTScenarioDecision D;
+	D.Unit = TEXT("Sola"); D.Respond = TEXT("HOLD");
+	T.Decisions.Add(D);
+	Scenario.Turns.Add(T);
+
+	// Anche in memoria serve un'assertion: `RunScenarioIsolated` valida la struct. Vedi il task 5.
+	FRTTestExpectation E;
+	E.Kind = ERTAssertionKind::TurnsCompleted;
+	E.Value = 1;
+	Scenario.Expect.Add(E);
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+
+	TestEqual(TEXT("la decisione resta inutilizzata"), Result.ScriptedDecisionsUnused, 1);
+	// `Error` e non `Fail`: e' lo stesso verso che la session usa gia' quando lo SCENARIO e' scritto male,
+	// distinto da un'aspettativa di gioco caduta.
+	TestEqual(TEXT("e lo scenario e' in errore"), static_cast<int32>(Result.Outcome),
+		static_cast<int32>(ERTTestOutcome::Error));
+	TestTrue(FString::Printf(TEXT("il messaggio nomina l'unita' (era: '%s')"), *Result.ErrorMessage),
+		Result.ErrorMessage.Contains(TEXT("Sola")));
+	return true;
+}
+
+/**
+ * Due decisioni per la stessa unita' si consumano in ordine di dichiarazione, e una finestra in piu' delle
+ * decisioni dichiarate non e' un timeout: e' una finestra scoperta.
+ *
+ * ⚠️ Il numero di decisioni non e' dedotto dai micro-step, e' **contato**: con lo stesso allestimento del
+ * task 5 il TurnLog mostra DUE finestre quando la prima risposta non spara. Un `FIRE` invece TRONCA il
+ * movimento, ed e' il motivo per cui `DecisionProviderIsInjectable` — che dichiara un solo `FIRE` — ne apre
+ * una sola e non lascia residuo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionQueueTest,
+	"RefactorTactics.ShowcaseRelay.ScriptedDecisionsAreConsumedInOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionQueueTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.ScriptedDecisionsInOrder");
+	Scenario.MapRadius = 5;
+	auto U = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+	{
+		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+		return X;
+	};
+	// Stessa geometria del task 5, che e' quella misurata: nessun `Requires`, o il turno sarebbe `Blocked`
+	// prima ancora di applicare gli intent.
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
+	T.Intents.Add(Arma);
+	FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+	Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+	T.Intents.Add(Corre);
+
+	// Se la coda fosse posizionale invece che per unita', l'ordine cambierebbe col movimento.
+	FRTScenarioDecision Prima; Prima.Unit = TEXT("Guardia"); Prima.Respond = TEXT("HOLD");
+	FRTScenarioDecision Seconda; Seconda.Unit = TEXT("Guardia"); Seconda.Respond = TEXT("FIRE");
+	Seconda.Target = TEXT("Corsa");
+	T.Decisions.Add(Prima);
+	T.Decisions.Add(Seconda);
+	Scenario.Turns.Add(T);
+
+	FRTTestExpectation E;
+	E.Kind = ERTAssertionKind::TurnsCompleted;
+	E.Value = 1;
+	Scenario.Expect.Add(E);
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+
+	if (!TestEqual(TEXT("entrambe consumate"), Result.ScriptedDecisionsApplied, 2))
+	{
+		AddInfo(FString::Printf(TEXT("inutilizzate=%d ultimo token='%s' error='%s'"),
+			Result.ScriptedDecisionsUnused, *Result.LastScriptedResponse, *Result.ErrorMessage));
+		for (const FRTTurnTrace& Traccia : Result.TurnTraces)
+		{
+			TArray<FRTTurnLogEntry> Voci;
+			if (URTTurnLogLibrary::DeserializeTurnLog(Traccia.Bytes, Voci))
+			{
+				for (const FRTTurnLogEntry& V : Voci) { AddInfo(URTTurnLogLibrary::DescribeEntry(V)); }
+			}
+		}
+	}
+	TestEqual(TEXT("nessun residuo"), Result.ScriptedDecisionsUnused, 0);
+	// La SECONDA e' il `FIRE`: se l'ordine fosse invertito l'ultimo token sarebbe `HOLD`.
+	TestTrue(FString::Printf(TEXT("l'ultima applicata e' il FIRE (era: '%s')"), *Result.LastScriptedResponse),
+		Result.LastScriptedResponse.StartsWith(TEXT("FIRE:")));
+	return true;
+}
+
+/**
+ * L'altra meta' del residuo, e senza di lei il controllo sulla finestra SCOPERTA non sarebbe coperto da
+ * nulla: il piano lo prescrive al passo 4 del task 6, ma i suoi due test non lo toccano — il primo non apre
+ * finestre, il secondo le consuma tutte. Un controllo che nessun test fa cadere e' codice che puo' sparire
+ * senza che la suite se ne accorga.
+ *
+ * Il caso: DUE finestre e UNA sola decisione. La prima risponde `HOLD`, che non spende la carica e lascia
+ * proseguire il movimento; la seconda si apre e non ha nessuna decisione che la nomini. Non e' un timeout,
+ * e' uno scenario che dice meno di quanto il turno chieda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseUncoveredWindowTest,
+	"RefactorTactics.ShowcaseRelay.UncoveredReactionWindowFailsTheTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseUncoveredWindowTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.UncoveredReactionWindow");
+	Scenario.MapRadius = 5;
+	auto U = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+	{
+		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+		return X;
+	};
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+
+	FRTScenarioTurn T;
+	FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
+	T.Intents.Add(Arma);
+	FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+	Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+	T.Intents.Add(Corre);
+
+	// UNA sola decisione per due finestre: la seconda resta scoperta.
+	FRTScenarioDecision Unica; Unica.Unit = TEXT("Guardia"); Unica.Respond = TEXT("HOLD");
+	T.Decisions.Add(Unica);
+	Scenario.Turns.Add(T);
+
+	FRTTestExpectation E;
+	E.Kind = ERTAssertionKind::TurnsCompleted;
+	E.Value = 1;
+	Scenario.Expect.Add(E);
+
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+
+	// La decisione dichiarata E' stata consumata: il difetto non e' un residuo, e i due controlli non vanno
+	// confusi — dicono cose diverse e mandano a cercare in posti diversi.
+	TestEqual(TEXT("l'unica decisione e' stata consumata"), Result.ScriptedDecisionsApplied, 1);
+	TestEqual(TEXT("e non e' rimasto un residuo"), Result.ScriptedDecisionsUnused, 0);
+	TestEqual(TEXT("ma lo scenario e' in errore"), static_cast<int32>(Result.Outcome),
+		static_cast<int32>(ERTTestOutcome::Error));
+	TestTrue(FString::Printf(TEXT("il motivo dice 'finestra' e nomina l'unita' (era: '%s')"),
+		*Result.ErrorMessage),
+		Result.ErrorMessage.Contains(TEXT("finestra")) && Result.ErrorMessage.Contains(TEXT("Guardia")));
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.

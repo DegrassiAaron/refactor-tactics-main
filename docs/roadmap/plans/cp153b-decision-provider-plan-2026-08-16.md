@@ -879,11 +879,36 @@ git commit -m "feat(512): il seam esisteva da CP 14.5 e nessuno lo bindava — o
 
 ## Task 6: la coda per unità e il residuo
 
+> 🔴 **Eseguito il 2026-08-16. Quattro scostamenti, e il primo è un difetto di meccanismo che il codice qui
+> sotto non poteva far funzionare.**
+>
+> 1. 🔴 **`Result.Outcome = ERTTestOutcome::Error` scritto durante il turno viene SOVRASCRITTO.** `Finish()`
+>    ricalcola l'esito con una catena `if/else` — `ErroredBy` → `FailedCount()` → `BlockedBy` → `Pass` — e
+>    con `ErroredBy` vuoto l'esito torna `Pass`. I passi 3 e 4 sono atterrati passando da **`ErroredBy`**,
+>    che è la forma che `BeginTurn` usa già per il refuso di capability. Il primo errore vince; gli altri
+>    restano in `Notes`. ⚠️ Il puntatore `RTScenarioSession.cpp:973-974` citato più sotto indicava tutt'altro
+>    (il TurnLog serializzato): un `file:riga` non fallisce mai, e il file era cresciuto di 200 righe coi
+>    task 5 e 6.
+> 2. **Il secondo test passava GIÀ prima dell'implementazione.** La coda per unità l'ha prodotta il task 5,
+>    e `ScriptedDecisionsAreConsumedInOrder` è quindi un test di **caratterizzazione**, non un rosso→verde:
+>    pinna l'ordine di consumo e il numero di finestre, e vale, ma non va raccontato come TDD.
+> 3. **Il passo 4 — la finestra scoperta — non era coperto da NESSUN test.** Il primo test non apre finestre,
+>    il secondo le consuma tutte: togliendo quel controllo la suite restava verde. Aggiunto
+>    `ShowcaseRelay.UncoveredReactionWindowFailsTheTurn` — due finestre e **una** sola decisione `HOLD`,
+>    che non spende la carica e lascia proseguire il movimento.
+> 4. **Ereditati dal task 5**, come lì annotato: niente `Requires("DecisionBoundary")` nel secondo test (il
+>    turno sarebbe `Blocked` prima degli intent) e `Expect` obbligatorio anche in memoria. La geometria è
+>    quella misurata al task 5, non quella scritta qui.
+>
+> Verifica di mutazione, una per volta: disabilitato il controllo della finestra scoperta cade **solo**
+> `UncoveredReactionWindowFailsTheTurn`; disabilitato quello del residuo cade **solo**
+> `UnusedScriptedDecisionFailsTheTurn`. I due controlli sono indipendenti e ciascuno ha il proprio test.
+
 **Files:**
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp`
 - Test: `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`
 
-- [ ] **Passo 1 — scrivi il test che fallisce**
+- [x] **Passo 1 — scrivi il test che fallisce**
 
 ```cpp
 /**
@@ -916,7 +941,7 @@ bool FRTShowcaseDecisionResidueTest::RunTest(const FString&)
 
 	TestEqual(TEXT("la decisione resta inutilizzata"), Result.ScriptedDecisionsUnused, 1);
 	// `Error` e non `Fail`: e' lo stesso verso che la session usa gia' quando lo SCENARIO e' scritto male
-	// (`RTScenarioSession.cpp:973`), distinto da un'aspettativa di gioco caduta.
+	// (`FRTScenarioSession::Finish` legge `ErroredBy`), distinto da un'aspettativa di gioco caduta.
 	TestEqual(TEXT("e lo scenario e' in errore"), Result.Outcome, ERTTestOutcome::Error);
 	TestTrue(TEXT("il messaggio nomina l'unita'"), Result.ErrorMessage.Contains(TEXT("Sola")));
 	return true;
@@ -976,12 +1001,12 @@ bool FRTShowcaseDecisionQueueTest::RunTest(const FString&)
 la terza è scoperta e lo scenario va in `Error` — ed è il comportamento del passo 4, non un difetto.
 Conta le finestre nel TurnLog **prima** di fissare il numero di decisioni, invece di dedurlo dai micro-step.
 
-- [ ] **Passo 2 — eseguilo e verifica che fallisca**
+- [x] **Passo 2 — eseguilo e verifica che fallisca**
 
 `RefactorTactics.ShowcaseRelay.UnusedScriptedDecisionFailsTheTurn`.
 Atteso: entrambe le asserzioni rosse — oggi il residuo non è né contato né valutato.
 
-- [ ] **Passo 3 — conta il residuo e falla cadere**
+- [x] **Passo 3 — conta il residuo e falla cadere**
 
 A fine di ogni turno, dove il risultato del turno viene consolidato:
 
@@ -1004,9 +1029,9 @@ A fine di ogni turno, dove il risultato del turno viene consolidato:
 ⚠️ **Non** usare `Result.Assertions.Add`: `FRTAssertionResult` porta un `ERTAssertionKind` che ha solo valori
 di dominio (`UnitAtCell`, `TurnsCompleted`, `UnitHpEquals`, `UnitAlive`), e inventarne uno per un difetto
 dell'harness renderebbe falso il `Kind` di ogni assertion letta dal referto. La forma qui sopra è quella che
-la session usa già per «lo scenario è scritto male» — `RTScenarioSession.cpp:973-974`.
+la session usa già per «lo scenario è scritto male»: si scrive `ErroredBy`, e `Finish()` ne deriva l'esito.
 
-- [ ] **Passo 4 — il secondo controllo: finestra senza risposta**
+- [x] **Passo 4 — il secondo controllo: finestra senza risposta**
 
 Nella funzione del task 5, quando il ciclo non trova nulla **e il turno dichiarava decisioni**:
 
@@ -1025,12 +1050,12 @@ Nella funzione del task 5, quando il ciclo non trova nulla **e il turno dichiara
 	return FString();
 ```
 
-- [ ] **Passo 5 — eseguilo e verifica che passi**
+- [x] **Passo 5 — eseguilo e verifica che passi**
 
 Atteso: `Success`. Rilancia anche `DecisionProviderIsInjectable`: **non deve** essere diventato rosso —
 se lo è, il suo turno apriva più finestre di quante decisioni dichiarasse, e il piano l'ha appena scoperto.
 
-- [ ] **Passo 6 — commit**
+- [x] **Passo 6 — commit**
 
 ```bash
 git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
