@@ -5,6 +5,7 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnRules.h"
+#include "Turn/RTReactionOpportunityTypes.h" // HoldResponse: il decisore che il test binda per primo
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -21,6 +22,7 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "ScenarioHarness/RTTestResult.h"
+#include "ScenarioHarness/RTTestReportWriter.h" // l'ultimo anello: il campo deve arrivare in `result.json`
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Kismet/GameplayStatics.h"
@@ -1233,6 +1235,95 @@ bool FRTShowcaseUncoveredWindowTest::RunTest(const FString&)
 	TestTrue(FString::Printf(TEXT("il motivo dice 'finestra' e nomina l'unita' (era: '%s')"),
 		*Result.ErrorMessage),
 		Result.ErrorMessage.Contains(TEXT("finestra")) && Result.ErrorMessage.Contains(TEXT("Guardia")));
+	return true;
+}
+
+/**
+ * Due sorgenti per la stessa decisione, e la precedenza e' del test. Il prezzo e' che uno scenario con
+ * `decisions` verrebbe ignorato in silenzio: percio' la provenienza si SCRIVE. Al replay serve **quale**
+ * decisione, non chi l'ha fornita — ma a chi diagnostica una divergenza serve la seconda.
+ *
+ * ⚠️ Qui NON si usa `RunScenarioIsolated`: il mondo serve **prima** dello scenario, perche' il manager deve
+ * esistere e il decisore deve essere bindato prima che la session parta. E' il caso che dimostra la
+ * precedenza, e con l'API isolata non sarebbe esprimibile.
+ *
+ * ⚠️ La geometria e' quella del task 5 e non uno scenario inerte: il piano contava le interrogazioni in una
+ * variabile che poi non asseriva mai. Senza una finestra vera il test direbbe soltanto «la session non ha
+ * bindato», che e' meta' della precedenza — l'altra meta' e' che a rispondere sia stato il decisore del
+ * test, e quella si vede solo contando.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionSourceTest,
+	"RefactorTactics.ShowcaseRelay.TestDeciderWinsAndIsRecorded",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionSourceTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!World) { AddError(TEXT("mondo non creabile")); return false; }
+
+	// Il manager esiste prima della session: e' cosi' che un test binda PRIMA e vince. `SetUp` riusa il
+	// manager gia' presente invece di spawnarne un altro, quindi trova lo slot occupato.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	int32 Interrogato = 0;
+	TM->ReactionDecider.BindLambda([&Interrogato](const FRTReactionOpportunity&, int32) -> FString
+	{
+		++Interrogato;
+		return URTReactionOpportunityLibrary::HoldResponse();
+	});
+
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.TestDeciderWins");
+	Scenario.MapRadius = 5;
+	auto U = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+	{
+		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+		return X;
+	};
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
+		T.Intents.Add(Arma);
+		FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+		Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+		T.Intents.Add(Corre);
+		// Nessuna `decisions`: lo scenario non ne dichiara, quindi non c'e' residuo e nessuna finestra
+		// risulta scoperta — i due controlli del task 6 non entrano in gioco qui.
+		Scenario.Turns.Add(T);
+	}
+
+	FRTTestExpectation E;
+	E.Kind = ERTAssertionKind::TurnsCompleted;
+	E.Value = 1;
+	Scenario.Expect.Add(E);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	RTWorldFixtures::DestroyWorld(World);
+
+	TestEqual(TEXT("il referto nomina la sorgente"), Result.DecisionSource, FString(TEXT("test-override")));
+	TestEqual(TEXT("la session non ha applicato nulla di suo"), Result.ScriptedDecisionsApplied, 0);
+	TestTrue(FString::Printf(TEXT("e a rispondere e' stato il decisore del test (interrogato %d volte)"),
+		Interrogato), Interrogato >= 1);
+
+	// L'ULTIMO anello: il campo deve arrivare fino a `result.json`, che e' il file che qualcuno legge
+	// davvero. Dichiarato nella struct e trasportato nel referto non basta — sono tre anelli, e il piano
+	// scriveva il writer senza che nessun test lo leggesse.
+	FString Dir, WriteError;
+	if (TestTrue(TEXT("report scritto su disco"),
+		URTTestReportWriter::Write(Result, TEXT("decisionsource"), Dir, WriteError)))
+	{
+		FString Json;
+		if (TestTrue(TEXT("result.json rileggibile"),
+			FFileHelper::LoadFileToString(Json, *FPaths::Combine(Dir, TEXT("result.json")))))
+		{
+			TestTrue(TEXT("il json dichiara la sorgente"), Json.Contains(TEXT("decisionSource")));
+			TestTrue(TEXT("e il suo valore e' quello del referto"), Json.Contains(TEXT("test-override")));
+			TestTrue(TEXT("il json porta i due contatori"),
+				Json.Contains(TEXT("scriptedDecisionsApplied")) &&
+				Json.Contains(TEXT("scriptedDecisionsUnused")));
+		}
+	}
 	return true;
 }
 

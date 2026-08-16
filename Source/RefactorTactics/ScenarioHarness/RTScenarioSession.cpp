@@ -1380,6 +1380,10 @@ void FRTScenarioSession::Finish()
 	}
 
 	Result.Notes = Notes;
+	// La provenienza si SCRIVE invece di dedurla. Deciso al bind in `SetUp`, copiato qui accanto alle note
+	// perche' `Finish()` e' l'unico punto che ogni strada attraversa. Il membro resta perche' `TearDown` lo
+	// rilegge per sbindare solo il PROPRIO decisore.
+	Result.DecisionSource = DecisionSource;
 
 	// Precedenza: ERROR > FAIL > BLOCKED > PASS.
 	//

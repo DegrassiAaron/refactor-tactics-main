@@ -1066,12 +1066,34 @@ git commit -m "feat(512): una decisione mai consumata fa cadere il turno invece 
 
 ## Task 7: precedenza al test e provenienza nel referto
 
+> ✅ **Eseguito il 2026-08-16. Tre scostamenti, e per la prima volta anche una cosa che il piano azzeccava.**
+>
+> - ✅ Il puntatore `RTScenarioRunnerTests.cpp:229` **era corretto**: quella riga rilegge `result.json` solo
+>   per esistenza e non confronta il documento, quindi tre campi in più non la muovono. Verificato, non
+>   assunto — e `RTScenarioRunnerTests.cpp:189` controlla che `schemaVersion` **esista**, non il suo valore.
+> - 🔴 **`SchemaVersion` NON è stata alzata, e il piano diceva di alzarla.** La regola sta scritta accanto
+>   alla costante: *«va incrementata a ogni cambio non retrocompatibile»*. Tre campi aggiunti sono additivi
+>   — un lettore vecchio li ignora. Alzarla la renderebbe un contatore di modifiche invece del segnale di
+>   rottura che dichiara di essere. Se un consumatore avesse davvero bisogno di distinguere i report, la
+>   discriminante è la **presenza** del campo, non la versione.
+> - ⚠️ **Il test del piano dichiarava `Interrogato` e non lo asseriva mai**, e con uno scenario senza intent
+>   quella variabile non poteva che restare 0: verificava solo «la session non ha bindato», che è metà della
+>   precedenza. L'altra metà — che a rispondere sia stato il decisore del test — si vede solo contando, e
+>   richiede una finestra vera. Il test atterrato usa la geometria del task 5. La verifica di mutazione lo
+>   conferma: bindando sempre, l'asserzione che cade dicendo di più è **«interrogato 0 volte»**.
+> - ⚠️ **I tre campi del writer non erano letti da nessun test.** Stesso buco del passo 4 del task 6:
+>   dichiarato, trasportato, mai letto. Il test atterrato chiude l'anello scrivendo il report e rileggendo
+>   `result.json`.
+>
+> Mutazione: bindando sempre — cioè togliendo la precedenza — cade **solo**
+> `ShowcaseRelay.TestDeciderWinsAndIsRecorded`, su tre asserzioni.
+
 **Files:**
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.h/.cpp` (`DecisionSource`)
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTTestResult.h` · `RTTestReportWriter.cpp`
 - Test: `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`
 
-- [ ] **Passo 1 — scrivi il test che fallisce**
+- [x] **Passo 1 — scrivi il test che fallisce**
 
 ```cpp
 /**
@@ -1116,11 +1138,11 @@ bool FRTShowcaseDecisionSourceTest::RunTest(const FString&)
 }
 ```
 
-- [ ] **Passo 2 — eseguilo e verifica che fallisca**
+- [x] **Passo 2 — eseguilo e verifica che fallisca**
 
 Atteso: **errore di compilazione** — `DecisionSource` non esiste su `FRTTestResult`.
 
-- [ ] **Passo 3 — il campo nel RISULTATO (quello nella session esiste dal task 5)**
+- [x] **Passo 3 — il campo nel RISULTATO (quello nella session esiste dal task 5)**
 
 In `RTTestResult.h`:
 
@@ -1146,14 +1168,14 @@ restituirlo. In `RTTestReportWriter.cpp`, accanto agli altri campi di root:
 
 e alza di uno la `SchemaVersion` del referto, con il motivo accanto.
 
-- [ ] **Passo 4 — eseguilo e verifica che passi**
+- [x] **Passo 4 — eseguilo e verifica che passi**
 
 Atteso: `Success`. Rilancia `RefactorTactics.Scenario` e `RefactorTactics.ShowcaseRelay` per intero:
 `result.json` cresce di tre campi e non è confrontato per intero da nessuno
 (`RTScenarioRunnerTests.cpp:229` lo rilegge solo per esistenza) — se qualcosa cade, quella misura era
 sbagliata e va detto invece che aggirato.
 
-- [ ] **Passo 5 — commit**
+- [x] **Passo 5 — commit**
 
 ```bash
 git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp

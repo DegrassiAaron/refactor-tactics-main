@@ -123,6 +123,15 @@ struct FRTTestResult
 	 */
 	FString LastScriptedResponse;
 
+	/**
+	 * Chi ha risposto alle finestre: `scenario`, `test-override`, `none`.
+	 *
+	 * ⚠️ Sta QUI e non nel TurnLog, ed e' una scelta: al replay serve **quale** decisione — quella e' stato
+	 * di gioco e c'e' gia' — non **chi** l'ha fornita, che e' diagnostica. Un campo nuovo in
+	 * `FRTTurnLogEntry` muoverebbe i golden per un dato che il replay non legge.
+	 */
+	FString DecisionSource = TEXT("none");
+
 	TArray<FRTAssertionResult> Assertions;
 
 	int32 PassedCount() const
