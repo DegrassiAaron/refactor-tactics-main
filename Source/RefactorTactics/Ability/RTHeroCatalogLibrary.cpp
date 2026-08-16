@@ -304,16 +304,24 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 			FRTActionEffectSpec(ERTActionEffect::Push, 1),
 		}, ERTAbilityShape::Line));
 
-	// Indice 1 — CircularTide. Cura 18 agli alleati, Wet ai nemici: DUE effetti dichiarati nella stessa
-	// lista, ma NESSUN resolver oggi applica un effetto diverso ad alleati e nemici della stessa area
-	// (`bFriendlyFire` decide solo SE colpire un alleato, non CON QUALE effetto — vedi limiti dichiarati
-	// sulla dichiarazione della funzione). Portata 4 e raggio 1: stessi numeri di `Flux.Overload` (portata
-	// decisa con l'utente, raggio riusato da `Action.CircularAoE`).
+	// Indice 1 — CircularTide. Cura 18 ad area, e **solo quello** (#1006).
+	//
+	// 🔵 Il `Wet` ai nemici e' USCITO dalla dichiarazione. Viene da #995: Phase e' **abilitata** a Water,
+	// non padrona — grado `Access`, cioe' UNA sola capability elementale — e il catalogo ne dichiarava
+	// tre. Resta `PressureJet`. Copertura: `RefactorTactics.Heroes.Riva.TideHealsWithoutWetting`, che
+	// sostituisce `...TideHealsAlliesWetsEnemies` — il nome e' cambiato col contratto, perche' un test
+	// che dice `WetsEnemies` e non verifica piu' nessun `Wet` resta verde e racconta un kit che non c'e'.
+	//
+	// ⚠️ Costo accettato con l'opzione C di #1006: questo `Wet` ad area era il preparatore della combo con
+	// Gadget (`LinearDischarge` fa +8 su bersaglio `Wet`). La combo passa ora solo per la linea di
+	// `PressureJet`, che copre meno bersagli.
+	//
+	// Il limite dichiarato di prima resta e non c'entra col cambio: `bFriendlyFire` decide SE colpire un
+	// alleato, non CON QUALE effetto. Portata 4 e raggio 1: stessi numeri di `Flux.Overload`.
 	Riva->Actions.Add(MakeHeroAction(TEXT("Riva.CircularTide"), ERTResolutionPhase::Attack, /*Priority*/ 60,
 		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Heal, 18),
-			FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Wet, /*Turni*/ 1),
 		}, ERTAbilityShape::Area, /*AreaRadius*/ 1));
 
 	// Indice 2 — FluidTrail. `Dash 3` che crea acqua lungo il percorso: la mobilita' e' rappresentabile
@@ -322,25 +330,40 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiva()
 	// l'acqua lasciata dietro non ha un modello da consumare.
 	// Lo slot va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa danno
 	// sarebbe quello sbagliato (D-028). Chi lascia la scia si e' mosso, ma puo' ancora agire.
-	// D-046: cablata su `Action.CreateWater`, e **smette di essere uno scatto**. E' un cambio di kit, non una
-	// precisazione: Riva perde la mobilita' rapida e guadagna l'unico produttore d'acqua del roster. Deciso
-	// cosi' perche' l'acqua e' il punto dell'abilita' — il nome lo dice — e perche' senza un produttore la
-	// combo acqua+elettricita' di Conflux, vetrina dichiarata della v0.1, era giocabile solo su mappe che
-	// l'acqua ce l'avevano gia'. La mobilita' rapida del roster resta a `Vektor.PassingBlade`.
+	// 🔵 **TORNA a essere uno scatto (#1006), e D-046 e' superata su questo punto.**
 	//
-	// Numeri dal CORE: portata 4, fase Environment. Niente `MovementStyle`: non si muove piu', e lasciarlo
-	// sarebbe il tipo di residuo che poi qualcuno legge come intenzione.
-	const FRTActionDef CreateWaterDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateWater"));
-	URTActionData* FluidTrail = MakeHeroAction(TEXT("Riva.FluidTrail"), CreateWaterDef.ResolutionPhase,
-		CreateWaterDef.Priority, CreateWaterDef.RangeCells, /*Cooldown*/ 2, CreateWaterDef.Fallback,
-		CreateWaterDef.Effects);
-	// La SUPERFICIE va copiata a mano: `MakeHeroAction` prende identita', fase, portata, ricarica, fallback ed
-	// effetti — non i campi di comportamento. Stessa trappola di `PropagationLimit` su `Flux.ConductiveNode` e
-	// di `MovementStyle` su `Bastion.Ram`: senza questa riga l'azione risolve, non fa niente, e nel log compare
-	// come «0 danni» — cioe' fallisce nel modo piu' silenzioso possibile.
-	FluidTrail->Def.bCreatesSurface = CreateWaterDef.bCreatesSurface;
-	FluidTrail->Def.SurfaceCreated = CreateWaterDef.SurfaceCreated;
-	FluidTrail->Def.SurfaceRadius = CreateWaterDef.SurfaceRadius;
+	// D-046 l'aveva cablata su `Action.CreateWater` per dare all'acqua un owner nel roster, e il suo
+	// argomento era la vetrina: *«senza un produttore la combo acqua+elettricita' di Conflux, vetrina
+	// dichiarata della v0.1, era giocabile solo su mappe che l'acqua ce l'avevano gia'»*. Quell'argomento
+	// non e' stato ignorato — e' stato **pagato**: l'owner dell'acqua e' ora l'EQUIPAGGIAMENTO, perche'
+	// `Gadget.Sprinkler` porta gia' `Action.CreateWater` («acqua raggio 1, che e' esattamente cio' che
+	// `Action.CreateWater` gia' fa», `RTCatalogLibrary.cpp`). Chi vuole la combo la equipaggia.
+	//
+	// La ragione del cambio viene da #995: Phase e' **abilitata** a Water, non padrona — grado `Access`,
+	// una sola capability elementale. Questa era la terza, e l'unica che *generava* la superficie.
+	// Per la grammatica di #995 un Generic Equipment e' `External Access` e non fa proficiency, quindi
+	// montare lo Sprinkler non riporta Phase sopra `Access`.
+	//
+	// ⚠️ **Costo accettato, scritto qui perche' e' dove qualcuno lo cerchera'**: il roster perde l'unico
+	// produttore INNATO di superficie acqua, quindi `Flux.ConductiveNode` — che propaga sul grafo
+	// conduttivo — dipende ora dalla mappa o dallo Sprinkler.
+	//
+	// ✅ E D-028 riacquista un soggetto: `RTHeroCatalogTests.cpp` registra che dopo D-046 la regola era
+	// «vera, e oggi senza nessuno a cui applicarsi», perche' `Vektor.PassingBlade` e' FastMovement ma fa
+	// 20 danni, cioe' una carica. Questa e' di nuovo mobilita' pura senza danno.
+	//
+	// Numeri dal CORE: portata 3, fase FastMovement, stile lineare. Il cooldown resta 2 — e' dell'eroe, non
+	// del core (`Action.Dash` ha 1).
+	// ⚠️ Lo SLOT va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa
+	// danno sarebbe quello sbagliato (D-028). Chi scatta si e' mosso, ma puo' ancora agire.
+	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	URTActionData* FluidTrail = MakeHeroAction(TEXT("Riva.FluidTrail"), DashDef.ResolutionPhase,
+		DashDef.Priority, DashDef.RangeCells, /*Cooldown*/ 2, DashDef.Fallback,
+		DashDef.Effects, ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::Movement);
+	// Lo STILE va copiato a mano, come prima ci andava la superficie: `MakeHeroAction` prende identita',
+	// fase, portata, ricarica, fallback ed effetti — non i campi di comportamento. Senza questa riga
+	// l'azione risolve e non muove nessuno, cioe' fallisce nel modo piu' silenzioso possibile.
+	FluidTrail->Def.MovementStyle = DashDef.MovementStyle;
 	Riva->Actions.Add(FluidTrail);
 
 	// Indice 3 — MistVeil. Issue #353: dichiarava «crea fumo raggio 1» e non lo faceva. `Smoke` era l'unica
