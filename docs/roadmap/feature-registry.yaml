@@ -4731,10 +4731,16 @@ features:
       date: 2026-08-08
       commit: 2094b86
     notes: >
-      26 test. Statistiche e kit dai dati; **tre reazioni d'eroe su cinque** cablate al CP 6.7
-      (`Interposition`, `Deflection`, `ReactiveCapacitor`). `Hero.Wraith.InterceptShot` è rinviata a
-      E18 e `Hero.Phase.FlowReaction` a E14, e i dati lo dichiarano
+      26 test. Statistiche e kit dai dati; **tre reazioni d'eroe su quattro** cablate al CP 6.7
+      (`Interposition`, `Deflection`, `ReactiveCapacitor`). Resta `Hero.Phase.FlowReaction`, rinviata a
+      E14 perché produce movimento dentro un boundary di risoluzione, e i dati lo dichiarano
       (`Heroes.ReactionsDeclaredOrDeferred`).
+      Il denominatore era **cinque** e contava `Hero.Wraith.InterceptShot`: non è più una reazione dal
+      2026-08-10 (E18 CP 18.2, D-016), è una Predictive Action con slot `Main`,
+      `PredictiveTargeting = LockCell` e `PredictionBoundary = MovementEntry`. Non è «rinviata a E18» —
+      E18 l'ha consegnata, ed è pinnata da `Heroes.Wraith.InterceptShotIsPredictive`
+      (`RTHeroWraithTests.cpp:124`). Rimisurato il 2026-08-16 sul catalogo; `last_verified` resta al
+      2026-08-08 perché questa misura ha coperto le reazioni, non l'intera feature.
 
   - feature_id: RT-FEAT-CHAR-V02-ROSTER
     title: Roster v0.2 — Steel, Aurora, Murdock, Kwang

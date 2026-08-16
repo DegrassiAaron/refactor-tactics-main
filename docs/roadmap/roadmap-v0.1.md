@@ -99,7 +99,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | Catalogo azioni e data asset | `Ability/RTActionDef.h`, `RTActionData.h`, `RTCatalogLibrary.*` | ✅ E1 · `ActionId`, `Priority`, `Fallback`, `Slot`, `MovementStyle`, validator |
 | Motore azioni a priorità, fallback, collisioni | `Turn/RTActionQueue*.h`, `RTActionEffectLibrary.*`, `RTActionFallbackLibrary.*` | ✅ E4 (52 test) |
 | Reazioni difensive e Intercept | `Turn/RTReactionLibrary.{h,cpp}` | ✅ E5 (24 test) · Counter/Deflect/Brace/Shield/Cleanse/Intercept |
-| Roster 4 eroi da dati | `Ability/RTHeroData.h`, `RTHeroCatalogLibrary.*` | ✅ E6 (25 test) · statistiche, kit e **tre reazioni su cinque cablate** (CP 6.7); `InterceptShot`/`FlowReaction` rinviate a E14 |
+| Roster 4 eroi da dati | `Ability/RTHeroData.h`, `RTHeroCatalogLibrary.*` | ✅ E6 (25 test) · statistiche, kit e **tre reazioni su quattro cablate** (CP 6.7); solo `FlowReaction` resta rinviata a E14 — `InterceptShot` è uscita dall'insieme (Predictive, D-016) |
 | Budget movimento | `Turn/RTHexSimLibrary.*` | ✅ **5 MP**, costi interi (CP 4.2) |
 | Privacy degli intenti | `Turn/RTIntentPrivacyLibrary.*` | ✅ `FRTPlannedIntent → FilterForTeam → FRTIntentView` |
 | Zone controllate / soppressione | `Combat/RTOffensiveActionLibrary.*` | ✅ `FRTSuppressiveZone` · precedente tecnico per Overwatch (E14) |
@@ -171,7 +171,7 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E3** Dismissione del quadrato | ✅ **chiusa** | `FRTGridCoord`, `URTGridLibrary`, `ARTGridActor` non esistono più in `Source/` (CP 7.2) |
 | **E4** Motore azioni a priorità | ✅ **chiusa** | 58 test `Actions.*` + `Fallback.*` — ordine per priorità, permutazione-invarianza, collisioni senza bias di Player ID |
 | **E5** Reazioni | ✅ **chiusa** | 27 test `Reactions.*` — attivazione singola, nessuna attesa nel resolver, `Intercept`, reazioni componibili |
-| **E6** Roster 4 eroi | ✅ **chiusa** | 25 test `Heroes.*` — i quattro eroi corrispondono al catalogo; **tre reazioni su cinque** cablate, `InterceptShot`/`FlowReaction` rinviate |
+| **E6** Roster 4 eroi | ✅ **chiusa** | 25 test `Heroes.*` — i quattro eroi corrispondono al catalogo; **tre reazioni su quattro** cablate (`ReactiveCapacitor`, `Interposition`, `Deflection`), solo `FlowReaction` rinviata a E14 — `InterceptShot` non è più una reazione (Predictive, D-016, dal 2026-08-10) |
 | **E7** Equipaggiamento e loadout | 🟡 **CP 7.1 chiuso** | 5 test `Equipment.*` — le **sei varianti d'arma** esistono, e il loro trade-off è un **numero** e non solo prosa: `URTEquipmentData` porta `DamageDelta`/`RangeDeltaCells`/`CooldownDeltaTurns`/`AddedEffects`, `ApplyWeaponVariant` li somma all'attacco base dell'eroe (mai valori assoluti: la variante non sa quale arma modifica) e il validator rifiuta una variante che non paghi in almeno uno dei tre. `Equipment.SplitHasNoConsumerYet` pinna il limite dichiarato: il motore v0.1 **non ha cardinalità dei bersagli**, quindi `Weapon.Split` in partita è solo il suo svantaggio · ⏳ **CP 7.2/7.3 sono checkpoint di MOTORE, non di catalogo**: dei 7 moduli di reazione solo 4 hanno un trigger che esiste (`HitByDirectAttack`, `AllyHitByDirectAttack`), mentre `HazardEscape`, `Cleanse` e `Anchor` ne chiedono tre che il motore non ha — e il test `Anchor.CancelsPush` del DoD non è scrivibile finché non esistono · ⏳ CP 7.4 |
 | **E8** Terreni, stati e ambiente | ✅ **chiusa** | 39 test `Terrain.*` · `Status.*` · `Environment.*` — superfici, stati temporanei, propagazione elettrica, fuoco/acqua, terreno dinamico |
 | **E9** Coperture e strutture | ✅ **chiusa** | 15 test `Cover.*` — bassa (riduzione per bordo, decade dal lato sbagliato), alta (nega vista **e** passo nei due versi), distruzione con revisione e riapertura della LOS · 10 test `Structures.Door.*` + 3 `HexMap.Door*` — la porta è un **bordo** (formato mappa **v4**), letta dallo stesso `BlocksTraversal` di muri e coperture, e un movimento già pianificato si **ferma** davanti a una porta chiusa a metà turno · 7 test `Structures.Bridge.*` + 3 `HexMap.Arc*` — il ponte è un **arco**, non un bordo (CP 9.4) · **CP 9.5 (2026-08-09)**: le coperture si **erigono e si spostano in partita** e scadono nel Cleanup — `Structures.KineticPanel.*`, `Actions.CreateCover.*`, `Heroes.Bastion.{KineticPanelVariantApplied, Reconfigure*}`, `Equipment.PortableCover.*`, e `Spec.Cover.TemporaryCoverExpires` da `BLOCKED` a `PASS` |
@@ -840,6 +840,12 @@ in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
 > I test che fissavano l'assenza sono stati **sostituiti**: `Heroes.Bastion.PanelCreatesCover` ora verifica che
 > Interposition sia una reazione, `Heroes.Flux.MatchesCatalog` i suoi due effetti.
 > Dettaglio: [`spec-reazioni-componibili-cp55.md`](../gameplay/spec-reazioni-componibili-cp55.md) §8.
+>
+> ➖ **Aggiornamento 2026-08-10 — dei due rinviati, uno è uscito.** `InterceptShot` non è più una reazione
+> (E18 CP 18.2, D-016): è una **Predictive Action** con slot `Main`, `PredictiveTargeting = LockCell` e
+> `PredictionBoundary = MovementEntry`. Il rinvio a E14 è caduto per la ragione **opposta** a quella che
+> l'aveva prodotto — non le serve una finestra interattiva, le serve un boundary deterministico. Resta
+> `FlowReaction`, rinviata per la ragione originale: produce **movimento** dentro un boundary di risoluzione.
 >
 > **CP 6.7 riapre l'epic** e ha una premessa scomoda: oggi esistono **test verdi che documentano il debito**
 > — per esempio `RTHeroBastionTests.cpp:133` verifica che `Interposition` **non abbia** effetti. Diventeranno

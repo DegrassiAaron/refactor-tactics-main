@@ -285,7 +285,7 @@ planning deve restituire un **reason**, e poi Gadget committa un'azione valida. 
 geometria si **rivalida su Riktor** — LOS, traiettoria, copertura — senza aprire una reaction annidata
 ([D-017](../decisions/RT_PDR_00_Decision_Log.md)). **Phase** `PressureJet` su Riktor. **Wraith** attacca Gadget.
 
-*Expected*: `OriginalTargetEquals(Hero.Vektor)`, `EffectiveTargetEquals(Hero.Bastion)`, e la copertura applicata è
+*Expected*: `OriginalTargetEquals(Hero.Wraith)`, `EffectiveTargetEquals(Hero.Riktor)`, e la copertura applicata è
 **quella di Riktor**. Serve un test **discriminante** — A e B a copertura diversa — altrimenti passerebbe
 anche col comportamento sbagliato.
 
@@ -409,8 +409,8 @@ e non al lato. I costi di movimento li detta il **catalogo terreni**: la fixture
 | `Fire` | `(0,-2)` · `(0,2)` | 10 danni + `Burning` on-enter |
 | `Smoke` | `(-1,-2)` · `(1,2)` | cap del targeting a 2 celle |
 
-**Spawn canonico** (celle di pavimento, anch'esse speculari): `Hero.Flux` `(-5,2)` e `Hero.Riva` `(-5,3)` per
-il team 0; `Hero.Bastion` `(5,-2)` e `Hero.Vektor` `(5,-3)` per il team 1. Le unità si configurano da
+**Spawn canonico** (celle di pavimento, anch'esse speculari): `Hero.Gadget` `(-5,2)` e `Hero.Phase` `(-5,3)` per
+il team 0; `Hero.Riktor` `(5,-2)` e `Hero.Wraith` `(5,-3)` per il team 1. Le unità si configurano da
 `URTHeroCatalogLibrary`, **non** con `ConfigureAsArchetype` (legacy di test).
 
 **Verificato da**: `RefactorTactics.ShowcaseRelay.FixtureLayoutIsStable` (conteggio celle, superfici, costi

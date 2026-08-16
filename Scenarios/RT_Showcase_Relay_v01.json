@@ -33,6 +33,12 @@
         -4,
         1,
         0
+      ],
+      "_nota_loadout": "#1006: l'acqua NON viene piu' da un'abilita' di Phase — `FluidTrail` e' tornata uno scatto e l'unico produttore di superficie acqua e' l'EQUIPAGGIAMENTO. Dichiarare il loadout lo SOSTITUISCE per intero e `ValidateLoadout` ne pretende esattamente uno per slot: `Weapon.Impact` e' il default d'eroe di Phase (D-089), `Reaction.Anchor` e' inerte qui. L'unico pezzo che conta e' `Gadget.Sprinkler`, portata 1 — ed e' la ragione per cui Phase si avvicina gia' al T5.",
+      "loadout": [
+        "Weapon.Impact",
+        "Gadget.Sprinkler",
+        "Reaction.Anchor"
       ]
     },
     {
@@ -206,8 +212,25 @@
       "_nota_ordine_dei_due_ingressi": "I due percorsi hanno LUNGHEZZA diversa apposta: Gadget entra al micro-step 0 e Phase all'1. `BuildOverwatchTriggers` raggruppa per passo, quindi due bersagli nello stesso micro-step darebbero UNA sola opportunity (`Overwatch.SimultaneousTargetsSingleOpportunity`) — cioe' una decisione invece di due, e la spec non sarebbe piu' dimostrata. ⚠️ Le celle d'ingresso sono diverse per la stessa ragione per cui i passi lo sono: con la stessa cella, il secondo la troverebbe occupata dal primo."
     },
     {
-      "_turno": "T5 — fumo e struttura. Riktor apre il gate: la topologia cambia e la revisione della mappa sale. Il gate e' una porta, e le porte esistono da CP 9.3.",
-      "intents": []
+      "_turno": "T5 — fumo e struttura, piu' l'avvicinamento che il T7 richiede. Riktor apre il gate: la topologia cambia e la revisione della mappa sale (⛔ non ancora implementabile, #833). Phase intanto risale la riga r=-1 fino a (0,-1), adiacente alla fascia `Fire`: e' da li' che al T7 lo Sprinkler puo' arrivarci.",
+      "intents": [
+        {
+          "unit": "Phase",
+          "move": [
+            [
+              -1,
+              -1,
+              0
+            ],
+            [
+              0,
+              -1,
+              0
+            ]
+          ]
+        }
+      ],
+      "_nota_avvicinamento_di_phase": "⚠️ **Deviazione DICHIARATA dalla spec di questo turno, e la ragione e' del turno DOPO.** `showcase-v0.1.md` §T5 descrive solo l'apertura del gate, che oggi non e' implementabile (#833: nessuna azione del catalogo dichiara `SetDoorState`). Il T7 pero' chiede che Phase porti acqua su una zona `Fire`, e dal 2026-08-16 (#1006) l'unico produttore d'acqua e' l'EQUIPAGGIAMENTO — `Gadget.Sprinkler`, portata **1**. Un'abilita' si risolve dalla posizione INIZIALE del turno, perche' il Move viene dopo il Blast: Phase deve essere gia' adiacente al fuoco all'inizio del T7, e la coreografia non ha un'altra casella dove avvicinarsi. L'approccio sta quindi qui. ⛔ Quando #833 sblocca il gate, chi riempie questo turno tiene ENTRAMBE le cose: l'apertura e' l'azione di Riktor, l'approccio e' il movimento di Phase, e non si escludono."
     },
     {
       "_turno": "T6 — interposizione. Riktor incassa il colpo diretto a Wraith. Interposition e' gia' cablata ed e' automatica: manca la RIVALIDAZIONE della geometria sul bersaglio effettivo (D-017).",
@@ -217,8 +240,49 @@
       "intents": []
     },
     {
-      "_turno": "T7 — combo ambientale. Acqua sul fuoco, propagazione elettrica ordinata, scivolata su Ice, Ram rifiutato da Rough in pianificazione. E8 e' chiusa: gira sul gioco di oggi.",
-      "intents": []
+      "_turno": "T7 — combo ambientale. Phase bagna Wraith, che sta sulla fascia `Fire` a (1,-1): l'acqua spegne il fuoco. Gadget scarica `LinearDischarge` sullo stesso bersaglio, e legge lo STATO — non l'identita' di chi ha portato l'acqua. Wraith fa un Move normale che TERMINA su `Ice` a (1,2) e scivola in modo deterministico. Riktor dichiara un `Ram` attraverso il `Rough` di (2,0): il planning lo RIFIUTA, perche' `Rough` ha `bBlocksDashCharge`.",
+      "intents": [
+        {
+          "unit": "Phase",
+          "ability": "Gadget.Sprinkler",
+          "target": "Wraith"
+        },
+        {
+          "unit": "Gadget",
+          "ability": "Hero.Gadget.LinearDischarge",
+          "target": "Wraith"
+        },
+        {
+          "unit": "Wraith",
+          "move": [
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              2,
+              0
+            ]
+          ]
+        },
+        {
+          "unit": "Riktor",
+          "dash": "Hero.Riktor.Ram",
+          "dashTo": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "_nota_cosa_dimostra": "D-029: non e' una combo di squadra. Phase pubblica uno stato, il sistema ambientale lo propaga e `LinearDischarge` legge lo stato — la stessa sequenza vale con qualunque altra sorgente d'acqua autorizzata. ⛔ **Questo turno NON e' ancora raggiunto**: lo scenario si ferma al T6 su `InterceptRevalidation` (#1060), quindi il contenuto e' scritto e non eseguito. Le sue assertion NON stanno in `expect`, che e' di scenario e verrebbe valutato al punto in cui il runner si ferma: metterle la' renderebbe rosso un turno mai giocato. Si aggiungono quando il T6 si sblocca — fuoco spento, propagazione che non colpisce due volte, scivolata deterministica, e il `Ram` che non parte."
     },
     {
       "_turno": "T8 — l'obiettivo batte il KO. Phase prende la rotta alternativa e segna sul Relay mentre Gadget va KO. Servono entrambe: la predizione che manca e l'obiettivo che non esiste.",
@@ -233,6 +297,12 @@
     {
       "type": "TurnsCompleted",
       "value": 5
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Predictive",
+      "outcome": "PredictionWhiffed",
+      "value": 1
     },
     {
       "type": "UnitHpEquals",
@@ -257,7 +327,7 @@
       "type": "UnitAtCell",
       "unit": "Phase",
       "cell": [
-        -2,
+        0,
         -1,
         0
       ]
@@ -281,5 +351,5 @@
       ]
     }
   ],
-  "_nota_cosa_non_e_asserribile": "⛔ Il T2 e il T3 non lasciano un'assertion propria, e la ragione e' del MECCANISMO, non dei turni. `LogEventCount`/`LogEventOrder` risolvono l'esito con `OutcomeEnumForCategory`, che copre SEI categorie — Move, Combat, Fallback, Reaction, Environment, Facing — e restituisce `nullptr` proprio per `Predictive` e `ReactionDecision`, le due piu' nuove: un `PredictionWhiffed` fa fallire il CARICAMENTO dello scenario. E il danno da hazard del T3 non ha un esito in `ERTEnvironmentOutcome` (e' #625: `Burning` uccide fuori dal TurnLog canonico). Cio' che li prova indirettamente e' la posizione finale di Wraith a (1,-1): ci si arriva solo salendo sulla cresta al T1 e scendendo per il fuoco al T3. Dichiarato invece di aggirato con un'assertion di stato che molte strade soddisfano."
+  "_nota_cosa_non_e_asserribile": "⏱️ **Aggiornata il 2026-08-16: il T2 ORA asserisce il proprio whiff.** Questa nota diceva che `LogEventCount` non copriva `Predictive` — `OutcomeEnumForCategory` restituiva `nullptr` e un `PredictionWhiffed` faceva fallire il CARICAMENTO dello scenario. Le due righe che mancavano al loader sono state aggiunte (`Predictive` e `ReactionDecision`, entrambi `UENUM` quindi risolvibili), e il T2 ha la sua assertion: se la previsione non fallisse — o se il turno non girasse affatto — il conteggio non sarebbe 1. ⛔ **Resta senza assertion propria il T3**, e la ragione e' diversa: il danno da hazard non ha un esito in `ERTEnvironmentOutcome`, cioe' #625 — `Burning` uccide fuori dal TurnLog canonico. Cio' che prova il T3 indirettamente e' la posizione finale di Wraith a (1,-1): ci si arriva solo salendo sulla cresta al T1 e scendendo per il fuoco al T3."
 }
