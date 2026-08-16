@@ -1,3 +1,21 @@
+> `ARCHIVIATO` · **2026-08-16** · Consumato in due giri. **Non è autorità**: le sue premesse descrittive
+> erano già invecchiate al momento del consumo, e la revisione che lo misura è
+> [`../../roadmap/plans/spec-panel-reconcile-2026-08-16.md`](../../roadmap/plans/spec-panel-reconcile-2026-08-16.md).
+>
+> **Consumato**: §0 (misura) · §8 (con la **direzione corretta**: il codice aveva migrato, i documenti no) ·
+> §11 limitatamente a ciò che il §8 tocca · §12 (audit delle claim falsificabili, primo giro) · §13 (tracking
+> e gate) · §16 per il residuo.
+>
+> **NON consumato, e ciascuno per una ragione dichiarata**:
+> · **§2 su #995** — track `proficiency` `ACTIVE`: STOP per D-139, non una lacuna.
+> · **§2 su #1006** — issue `CLOSED`, opzione C decisa e implementata (PR #1008): applicarlo sarebbe un regresso.
+> · **§5, §6, §9, §10** — lavoro di gameplay e decisioni d'autore, non riconciliazione documentale. Il §10 lo
+>   dice da sé: *«aggiorna queste issue solo se il contratto riconciliato cambia una loro premessa»*, e non la cambia.
+> · **La scheda §12 completa per 23 issue** — perimetro escluso per costo, in entrambi i giri.
+>
+> ⚠️ **Cinque delle sue premesse erano cadute prima di essere lette** — #1006, #63, #583, #152, #403 — tre
+> nella stessa giornata. È il motivo per cui un kit si **filtra** e non si applica.
+
 # CLAUDE — Reconcile v0.1 Skill / Ability Issues
 **Project:** RefactorTactics  
 **Date:** 2026-08-16  
