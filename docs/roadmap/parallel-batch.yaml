@@ -2227,9 +2227,9 @@ tracks:
     binary_leases: []
 
   autobattle:
-    status: ACTIVE
-    issue: 954
-    branch: feat/954-autobattle-non-presidiata
+    status: IDLE
+    issue: null
+    branch: null
     worktree: "D:/rt-chatgpt"
     note: >-
       ➕ **Track aperta su `#954` (E47.1, epic `#952`).** Mette entrambe le squadre sotto il bot per
@@ -2294,6 +2294,39 @@ tracks:
       `E47.3` (`Map/RTHexMapActor.{h,cpp}`, di `content_editor`), `E47.4` (`ScenarioHarness/`, di
       `spatial`), `E47.5` (`Tests/`), `E47.6` (`test-manuali-pie.md`, di `playtest`) restano fuori: si
       dichiarano quando si aprono, uno per volta, non in anticipo su un'intenzione.
+
+      ✅ **Chiusa il 2026-08-16: `#954` è `CLOSED`, PR **#963** mergiata in `1fe85ed2`** e il branch
+      `feat/954-autobattle-non-presidiata` non esiste più — cancellato lato server, verificato con
+      `git ls-remote` e con `git merge-base --is-ancestor`, non ricordato. Il write-set consegnato è
+      **esattamente** i tre path dichiarati: misurato con `git diff --name-only origin/main...HEAD`
+      prima del merge, non a memoria.
+      ✅ **Suite 885 · 0 falliti**, e il conto delle dichiarazioni torna: **876 su `origin/main` → 885**,
+      cioè **+9 esatti**. È la verifica che il verde non arrivi da test scomparsi — e la prima misura
+      (`875 → 884`) è **scaduta** invece che sbagliata: `origin/main` si è mosso di otto commit fra i due
+      conteggi, e la baseline va riletta sull'albero su cui si consegna.
+      ⚠️ **Il write-set di questa track ha rischiato di consegnare un file YAML rotto, e non per un
+      conflitto.** Il branch portava il proprio blocco `autobattle:` scritto prima che la PR **#966** lo
+      dichiarasse qui in integrazione: al rebase git non ha segnalato **niente** — i due blocchi stavano in
+      punti diversi del file — e il risultato aveva **due chiavi `autobattle:`**, righe 2029 e 2103. Un
+      merge pulito non è un merge valido: le chiavi si contano *dopo*. La stesura tenuta è quella di
+      questo file, e il branch è tornato identico a `main` sul path conteso.
+      ➕ **Cosa la code review ha aggiunto, detto invece che riassunto**: otto finding su quattordici
+      accolti, e due erano difetti di correttezza che i sei test della prima stesura non vedevano —
+      `PlanningSeconds = 0` fermava la partita al turno 1 in una modalità dove nessuno può premere il
+      lock-in, e la banda leggeva il resolver a ogni fotogramma mentre `bIsBotControlled` è latchato allo
+      spawn, quindi mentiva in entrambi i versi a chi cambiava la console variable a metà sessione. Le
+      correzioni sono coperte da **verifica di mutazione**: rotte le quattro, cadono esattamente i quattro
+      test attesi e nessun altro.
+      ⛔ **Cosa la track lascia aperto, dichiarato e non dedotto**: (1) `RT-FEAT-MATCH-AUTOBATTLE` **non
+      esiste** nel Feature Registry — `feature-registry.yaml` è prenotato da `verification`, quindi la
+      riga la scrive chi lo possiede; (2) `#971`, l'input che in autobattle non è impedito — i due file
+      che la chiudono (`Combat/RTCombatLibrary.cpp`, `Player/RTPlayerController.cpp`) non erano di questa
+      track, e allargare il write-set per una riga è ciò che `D-139` esiste per impedire; (3) le verifiche
+      PIE, che sono **E47.6** e vivono in `test-manuali-pie.md`, di `playtest`.
+      ⚠️ **Il worktree `D:/rt-chatgpt` resta in piedi**, come `D:/rt-simulation`: tiene `Binaries/` e
+      `Intermediate/` costruiti, e cancellarlo costa una ricompilazione intera. Chi lo riusa fa
+      `git switch -c <branch>` da lì **dopo** un `fetch` — questa track ne ha fatti tre in un turno, e la
+      distanza da `origin/main` è passata da 0 a 44 a 13 a 8 mentre il lavoro era aperto.
     writable:
       - Source/RefactorTactics/RTGameMode.h
       - Source/RefactorTactics/RTGameMode.cpp
