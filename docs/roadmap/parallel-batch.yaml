@@ -1800,6 +1800,14 @@ tracks:
       # (`RefactorTactics_FeatureRegistry_Roadmap_Wiki_Claude_2026-08-08.md`): underscore, non spazi —
       # solo 8 file su 1301 hanno spazi nel nome, e un path con spazi va quotato in ogni comando.
       - RefactorTactics_Issue_Tracking_Completeness_Rule.md
+      # ➕ **I primi test del modulo editor.** Tre issue di questa seduta (#871, #921, #931) dichiarano
+      # «`Source/RefactorTacticsEditor/` non ha test, quindi la verifica è manuale» e lo trattano come un
+      # dato. Misurato: **non c'è nessun impedimento**. Il `Build.cs` ha già `Core` (dove vive
+      # `Misc/AutomationTest.h`) e il modulo runtime; `WITH_DEV_AUTOMATION_TESTS` è definito sui target
+      # Editor. La premessa era vera come fatto e falsa come causa — i test non sono mai stati scritti,
+      # non erano impossibili. Tre difetti dello stesso modulo in una seduta sono l'argomento per scriverli.
+      - Source/RefactorTacticsEditor/Private/Tests/
+      - Source/RefactorTacticsEditor/RefactorTacticsEditor.Build.cs
     # ➖ **Il `derives_from` segue il file**: la catena `test-manuali-pie.md` → `editormap.shortlist.md`
     # + `project-graph.json` passa a `playtest` insieme alla sorgente. È la regola già scritta in
     # `generated_only` applicata a una riassegnazione: la vista segue la sorgente, e la sorgente ha
