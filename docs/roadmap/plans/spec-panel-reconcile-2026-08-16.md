@@ -180,3 +180,93 @@ Il consumo richiesto va oltre il mandato. Queste quattro voci non hanno una sezi
   **solo** se il contratto skill/reaction riconciliato cambia una loro premessa»* — e questo giro non lo cambia.
 - **La scheda §12 completa per 23 issue** — perimetro già escluso dal referto precedente, per costo; nulla
   di nuovo lo rende più economico oggi.
+
+---
+
+## Write-set: cosa è stato scritto, e con quale autorità
+
+Dichiarato per intero, perché **quattro dei file toccati sono `integration_only`** e la categoria merita una
+riga di giustificazione invece di un'omissione.
+
+| File | Categoria | Cosa è stato fatto |
+|---|---|---|
+| `docs/roadmap/plans/spec-panel-reconcile-2026-08-16.md` | file **nuovo** | creato — contesa impossibile per costruzione |
+| `docs/decisions/RT_PDR_00_Decision_Log.md` | `integration_only` | scritto |
+| `docs/roadmap/roadmap-v0.1.md` | `integration_only` | scritto |
+| `docs/roadmap/roadmap-checkpoint.md` | `integration_only` | scritto |
+| `docs/roadmap/feature-registry.yaml` | `integration_only` | scritto |
+| `docs/roadmap/roadmap.shortlist.md` | `generated_only` | corretta **a mano** la colonna *In una riga* |
+| `docs/roadmap/featuremap.shortlist.md` | `generated_only` | idem |
+
+**Perché gli `integration_only` sono stati scritti e non solo preparati**: questo giro *è* la riconciliazione
+documentale, cioè l'integrazione stessa — e la contesa è stata **misurata**, non assunta.
+`git log --oneline --all --not origin/main -- <path>` su ciascuno restituisce solo un commit dangling e uno
+su un branch `backup/`: nessun ref vivo li tocca. La misura è stata rifatta contro tutti i ref, non contro
+`origin/main` soltanto, perché tre worktree si sono spostati mentre questo lavoro era in corso.
+
+⚠️ **Le due shortlist sono un caso a sé, e vale la pena scriverlo.** Sono `generated_only`, ma il difetto
+viveva nella colonna *In una riga*, che l'intestazione del file dichiara **«l'unica scritta da una persona,
+e il generatore la conserva»**. `feature_registry.py shortlist` rispondeva *«shortlist già allineate»* anche
+dopo che la sorgente era cambiata — correttamente, perché quella colonna non deriva da nulla. È il motivo per
+cui il testo è invecchiato sotto un `--check` verde per sei giorni: **un generato che contiene prosa a mano
+ha una zona che nessun gate sorveglia.**
+
+### Delta per `parallel-batch.yaml` — preparato, non scritto
+
+Il file è `integration_only` e la track che lo riguarda è **stantia**: dichiara un branch che non esiste più.
+
+```yaml
+  reconcile_skill:
+    status: ACTIVE                            # → IDLE alla chiusura di questo giro
+    issue: null                               # invariato: nessuna singola issue possiede il mandato
+    branch: docs/reconcile-skill-mandato      # era: docs/reconcile-audit-skill — MERGIATO E CANCELLATO,
+                                              #      assente da locale e da origin
+    worktree: "D:/rt-skill"                   # era: "D:/rt-unit" — che nel frattempo ha ospitato
+                                              #      work/63-equipaggiamento-in-partita e poi tmp/parcheggio
+    writable:
+      - docs/roadmap/plans/reconcile-skill-audit-2026-08-16.md
+      - docs/roadmap/plans/spec-panel-reconcile-2026-08-16.md   # ➕ il referto di questo giro
+```
+
+⚠️ **`issue: null` resta `null` e non diventa `1063`.** #1063 non è la issue *della* track: è il **residuo**
+che la track non ha potuto chiudere. Scriverla lì farebbe sembrare posseduto un lavoro che è esplicitamente
+di qualcun altro.
+
+---
+
+## Esito — issue toccate
+
+| Issue | Prima | Dopo |
+|---|---|---|
+| **#61** | *«Dipende da: #60»*, e una casella condizionata a *«#64/#69 se questi non sono chiusi»* | dichiara #60 `CLOSED` e il checkpoint eseguibile; la casella è marcata **vacua** — #64 e #69 sono chiuse — **senza spuntarla**, perché un DoD si consuntiva in chiusura e la decisione è dell'owner |
+| **#78** | *«Dipende da: #53, #77»*, senza stati | *«#53 (chiusa), #77 (aperta) — il checkpoint non è ancora eseguibile»*. Una dipendenza **parzialmente** soddisfatta letta senza stato si confonde con una soddisfatta |
+| **#152** | *«`14.7` è l'unico CP che può cadere da solo»*, mai verificata | falsificata **con l'owner**, non con un'opinione: `OPEN_DECISIONS` + D-133 dicono che 14.8 dipende dalla misura di **14.6** e che dopo 14.7 la taratura *si ripete*. Entrambe cadono da sole |
+| **#839** | *«Lavoro aperto: #840»* | aggiunge **#1063**, primo caso in cui lo STOP di D-139 blocca una correzione **già misurata** — la controprova che mancava a #840 |
+| **#1063** | — | **creata**: i tre documenti + la Wiki che nessuna track può correggere |
+
+### Il modello replicato viene dal repository, non da me
+
+#77 scriveva già la forma giusta — *«#45, #59 (entrambe chiuse — il checkpoint è eseguibile)»*: nomina la
+dipendenza, ne dichiara lo stato, **e ne trae la conseguenza operativa**. È la terza parte quella che conta:
+senza, il lettore ha un fatto e deve dedurre da solo se può iniziare.
+
+## Le due verifiche che il §13 chiedeva e che sono risultate pulite
+
+Dichiarate perché *«verificato e a posto»* e *«non guardato»* si assomigliano troppo in un referto:
+
+- **Scenario map** — `docs/technical/scenario-map.md:360` ha **già** recepito la migrazione:
+  `Spec.Predictive.WhiffOnEmptyCell` è marcato *«✅ acceso il 2026-08-10 da E18 (#225): PASS, 4/4 assertion»*.
+  Nessuna correzione necessaria.
+- **PIE** — `PIE-V01-ROSTER` (⏳, non eseguita) verifica che quattro unità distinte entrino in campo con le
+  loro statistiche. Non nomina le reazioni e non cambia con questa riconciliazione: **nessuna voce nuova**.
+  Il difetto era documentale, e una verifica manuale non lo avrebbe intercettato.
+
+## Baseline dei gate — misurata prima, non dopo
+
+Prima del primo edit, su `origin/main` (`5f0a9cfe`), con il referto ancora `untracked` così da non essere
+visto: `check-docs-naming --check`, `check-docs-links --check`, `check-docs-symbols --check` **exit 0**;
+`feature_registry.py validate` **0 errori / 45 warning**.
+
+Dopo le modifiche, con tutto in stage: gli stessi quattro, **stessi valori** — 45 warning, non 46.
+È l'unico modo per cui *«i gate sono verdi»* significa qualcosa: senza il primo numero, il secondo non
+distingue un lavoro pulito da un rosso preesistente che qualcuno erediterà.
