@@ -52,7 +52,7 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**24 sedute** — ✅ **0** · 🟡 **12** · ⏳ **8** · **4** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**24 sedute** — ✅ **0** · 🟡 **13** · ⏳ **7** · **4** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
@@ -120,7 +120,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U20** | Confine fra Guard e Brace | `PIE` | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
 | **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
 | **U22** | Il gesto dell'autore — ghost, snap e Undo del tool Geometry | `PIE` | verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo | U21 | no | 0/4 | ⏳ |
-| **U24** | I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root | `PIE` | i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/` | — | no | — | ⏳ |
+| **U24** | I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root | `PIE` | i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/` | — | no | — | 🟡 |
 
 **Lane**: `PIE` **21** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
 
@@ -740,11 +740,11 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 > Nasce da #712, il gesto dell'autore. La seduta esiste perche' QUATTRO voci del suo DoD non sono osservabili headless: ghost, snap, Undo e residui vivono nell'occhio di chi disegna, non in una asserzione. La parte verificabile e' gia' nel runtime — `SnapToGrammar` con i suoi due test, `ValidateSegment` con i cinque di #620, `BakeCell` con i sette di #621 — e il tool d'editor NON contiene una sola regola: misurato, tre chiamate al runtime e zero logica duplicata. ⚠️ `unblocked_by: [U21]` non e' una dipendenza tecnica ma pratica: `L_DevSandbox` va illuminato prima, o il ghost si valuta su una scena in cui non si vede niente — e il verdetto direbbe piu' sulle luci che sul tool. ⚠️ `PIE-GEO-RESIDUI` chiede anche un `git status` pulito sul `.umap`: la geometria non si salva nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`. ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch remoti. Chi arriva secondo rinumera, non contende.
 
-#### U24 · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root ⏳
+#### U24 · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root 🟡
 
 **Sbloccata da**: — · **Percorso critico**: no
 **Produce**: i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`
-**Artefatti**: `Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset` ⏳
+**Artefatti**: `Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset` ⏳
 **Finita quando**: i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori
 **Sblocca**: E46.3, E46.5, E46.6
 
