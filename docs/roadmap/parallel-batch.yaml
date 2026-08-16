@@ -2351,11 +2351,74 @@ tracks:
     binary_leases: []
 
   autobattle:
-    status: IDLE
-    issue: null
-    branch: null
-    worktree: "D:/rt-chatgpt"
+    status: ACTIVE
+    issue: 958
+    branch: feat/958-corpus-determinismo-autobattle
+    worktree: "D:/rt-autobattle"
     note: >-
+      ➕ **RIAPERTA il 2026-08-16 su `#958` (E47.5, epic `#952`): il corpus di determinismo
+      dell'autobattle.** Sette casi limite verificati attraverso il percorso di gioco reale, e uno —
+      `DifferentSeedVariation` — escluso con la ragione scritta nel codice invece che dedotta.
+
+      ⚠️ **I due path di `RTGameMode` ESCONO, e `Turn/RTTurnManager.cpp` ENTRA.** Non è uno scambio: il
+      turno precedente teneva `RTGameMode` perché E47.1 modificava la configurazione, e questo turno non la
+      tocca — un `writable` che sopravvive al lavoro che lo giustificava è una prenotazione senza motivo.
+
+      🔴 **L'allargamento a `RTTurnManager.cpp` è la decisione di questa track, ed è argomentata contro il
+      precedente che dice di non farlo.** La nota di `#954`, venti righe più sotto, ha rifiutato di chiudere
+      `#971` perché *«allargare il write-set per una riga è ciò che `D-139` esiste per impedire»*. Qui la
+      riga è **una dipendenza del DoD**, non un'occasione trovata a lato: `PermutationTest` è il caso 1 dei
+      sette di `#958` e nasce **rosso** contro il codice di `main`. Consegnare il corpus senza la riga
+      significa consegnare sei casi e dichiarare il settimo non misurabile — quando è misurato, e il difetto
+      che trova è reale.
+      · **Il difetto**: `MakeCurrentSnapshot` costruisce l'identità delle unità come **indice** in un array
+        popolato da `GetAllActorsOfClass` e **non ordinato**; `PlanBots` itera quegli indici. L'ordine di
+        spawn decide quale bot pianifica per primo, e appena due bot interagiscono decide la partita.
+      · **La misura**: la stessa 2v2, stesse unità sulle stesse celle, inserite in ordine diverso, divergeva
+        al **turno 2** — `Bastion.Interposition` attivata in un ordine, senza trigger nell'altro. Turno 1
+        identico byte per byte, che è il modo in cui questa classe di difetto resta invisibile.
+      · **Il gemello corretto è nello stesso file**: `ResolveCombat` applica lo stesso `Sort` con lo stesso
+        comparatore e la regola scritta accanto. Uno dei due la rispettava.
+      · **Il path era libero**: nessuna track lo dichiara — verificato scandendo tutti i `writable`, non
+        ricordato. `spatial` tiene `Turn/RTMatchStateHash.{h,cpp}`, `client_tools` tiene
+        `Turn/RTIntentPrivacyLibrary.{h,cpp}`, e nessun altro nomina `Turn/`.
+      ⚠️ **Solo il `.cpp`, e l'header no**: la firma di `MakeCurrentSnapshot` non cambia. La regola
+      «header e unità di traduzione nello stesso commit» vale quando cambia la dichiarazione, e qui non
+      cambia — dichiarare `RTTurnManager.h` sarebbe prenotare un file che nessuno tocca.
+
+      ⛔ **Perché i sette casi stanno in `RTMatchAutobattleTests.cpp` e non in un file nuovo.** Gli helper
+      della partita non presidiata — `SpawnAutobattleMap`, `CollectAutobattleUnits`, le due guardie di
+      stato globale su `FCommandLine` e sulle console variable — vivono nel **namespace anonimo** di quel
+      file, e in unity build due namespace anonimi con la stessa funzione collidono. Un file gemello
+      avrebbe dovuto ribattezzarli tutti: è il duplicato che `RTWorldFixtures.h` esiste per chiudere, e
+      il costo è documentato nel suo commento (43 file, 43 nomi per la stessa funzione).
+
+      ✅ **Fotografia a tre comandi del 2026-08-16, su `base_sha` `b2a024bc`.** `git ls-remote --heads
+      origin` (**12** branch), `git worktree list` (**9** worktree), e `git diff --name-only
+      origin/main...<b>` per ciascuno: **nessun ramo vivo tocca `Tests/RTMatchAutobattleTests.cpp`**. I
+      write-set misurati sono `feat/512` 1 file, `feat/593` 6, `feat/77` 3, `fix/892` 2, `feat/u1-residui`
+      8, e `feat/832`/`feat/472` **zero** — entrambi già contenuti in `main`.
+      ⚠️ **L'unica intersezione è questo file**, con `feat/u1-residui`, ed è `integration_only`: attesa e
+      pagata al merge, non una violazione. È il quinto giro consecutivo in cui il file che previene le
+      collisioni è l'unico oggetto conteso, e va nel conto della domanda aperta in `meta`.
+      🔴 **E `origin/main` si è mosso DENTRO la fotografia, per la sesta volta.** Il branch è nato su
+      `819bf143`; fra il primo e il secondo comando sono atterrate **cinque** PR — #976, #972, #979, #980,
+      #978 — portando la base a `b2a024bc`. Il ramo è stato riallineato **prima** di misurare, non dopo:
+      un write-set calcolato contro una base morta è giusto e inutile.
+
+      ⛔ **Cosa questa track NON tocca, e perché.** `ScenarioHarness/` resta fuori: **E47.4** (`#957`) è
+      il free-run e passa dal seam di `D-101` (`#542`), che non ha ancora codice su nessun ramo vivo —
+      misurato, `git diff origin/main...feat/512-decisionprovider-finestra` dà un file solo e non è quello.
+      Aprire qui un secondo modo di far girare una partita dentro l'harness sarebbe il terzo punto
+      d'ingresso ad hoc che `D-101` dichiara di voler evitare. I test di questo corpus usano
+      `PlanBotsForTest()` — che `RTScenarioRunner.h` chiama *«l'unico appiglio»* e che l'harness stesso
+      invoca — quindi non aggiungono un appiglio: usano quello che c'è.
+
+      ⚠️ **Il vincolo che resta non è sui file, è la macchina**: una run di automation per volta. Al
+      momento della misura `D:/rt-spatial` ne aveva una in corso (`RefactorTactics+Quit`, PID 55036), e
+      questa track ha atteso invece di affiancarla.
+
+      ⏱️ **Il turno precedente, tenuto perché dice cosa ha consegnato la track e cosa ha lasciato aperto:**
       ➕ **Track aperta su `#954` (E47.1, epic `#952`).** Mette entrambe le squadre sotto il bot per
       configurazione: il delta è in `ARTGameMode`, non in un motore — il turno avanzava già da solo
       (`StartPlanningTimer → PlanBots`, `OnPlanningTimeout → LockInAndResolve`, timer che riparte).
@@ -2452,9 +2515,18 @@ tracks:
       `git switch -c <branch>` da lì **dopo** un `fetch` — questa track ne ha fatti tre in un turno, e la
       distanza da `origin/main` è passata da 0 a 44 a 13 a 8 mentre il lavoro era aperto.
     writable:
-      - Source/RefactorTactics/RTGameMode.h
-      - Source/RefactorTactics/RTGameMode.cpp
+      # ⚠️ `RTGameMode.{h,cpp}` sono USCITI con la riapertura su #958: li teneva E47.1, che li modificava.
+      # Questo turno non li tocca, e un path prenotato senza lavoro che lo giustifichi è un lotto più
+      # stretto del vero. Tornano **liberi e non assegnati**, come lo erano prima di #954.
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
+      # ➕ Entra il 2026-08-16 per il difetto che `PermutationTest` ha trovato — l'ordine di spawn che
+      # decide la partita, aperto come **#990**. L'allargamento è argomentato nella `note`, contro il
+      # precedente di #971 che dice di non farlo: qui la riga è una **dipendenza del DoD**, non
+      # un'occasione colta a lato — il caso 1 dei sette di #958 nasce rosso senza di essa.
+      # ⚠️ **Collisione differita, dichiarata**: `feat/cp75-selfreposition` è DORMANT dal 2026-08-11 e
+      # tiene tre file di `Turn/`, fra cui questo. Il merge lo paga chi riprende quel branch — è la stessa
+      # decisione che questo file ha già registrato per `simulation`, e vale ancora perché il ramo è fermo.
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
     binary_leases: []
 
   unit_presentation:
