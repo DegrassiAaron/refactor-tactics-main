@@ -416,6 +416,10 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 		UE_LOG(LogRT, Warning, TEXT("[RT] MapSource=GeneratedTestArena: uso la mappa di PROVA generata "
 			"(%d celle, con ostacoli, muri, terreno costoso e piattaforma). La mappa del livello e' ignorata."),
 			HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
+		// CP 46.2: la stessa condizione, in una forma che un widget puo' leggere. E' la **prima riserva
+		// di `G13`**, e finora esisteva solo in questa riga di log.
+		StartupReport.Add(ERTStartupOutcome::UsingTestArena,
+			FString::Printf(TEXT("%d celle"), HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0));
 		return;
 
 	case ERTMapSource::GeneratedDemoArena:
@@ -424,6 +428,8 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 		UE_LOG(LogRT, Warning, TEXT("[RT] MapSource=GeneratedDemoArena: uso l'arena di ripiego "
 			"(esagono r=%d, %d celle). La mappa del livello e' ignorata."),
 			DemoArenaRadius, HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
+		StartupReport.Add(ERTStartupOutcome::UsingDemoArena,
+			FString::Printf(TEXT("esagono r=%d"), DemoArenaRadius));
 		return;
 
 	case ERTMapSource::LevelAsset:
@@ -459,6 +465,8 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 				 "(esagono r=%d, %d celle). Posa un ARTHexMapActor con un MapAsset popolato per giocare su una "
 				 "mappa d'autore."),
 			DemoArenaRadius, HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
+		StartupReport.Add(ERTStartupOutcome::LevelMapMissing,
+			FString::Printf(TEXT("arena di ripiego r=%d"), DemoArenaRadius));
 	}
 }
 
@@ -477,6 +485,8 @@ bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapA
 				TEXT("[RT] Formato di partita '%s' NON valido: %s. Partita non allestita: correggi l'asset "
 					 "oppure lascia MatchFormat vuoto per giocare con il formato di ripiego."),
 				*GetNameSafe(MatchFormat), *Reason);
+			// CP 46.2: fatale. `Reason` e' gia' prodotto dal validator — si **trasporta**, non si ricompone.
+			StartupReport.Add(ERTStartupOutcome::FormatAssetInvalid, Reason);
 			return false;
 		}
 	}
@@ -492,6 +502,7 @@ bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapA
 			UE_LOG(LogRT, Error,
 				TEXT("[RT] Il formato spedito '%s' non e' valido: %s. Partita non allestita."),
 				*ShippedFormatId.ToString(), *Reason);
+			StartupReport.Add(ERTStartupOutcome::ShippedFormatInvalid, Reason);
 			return false;
 		}
 		UE_LOG(LogRT, Log,
@@ -507,6 +518,14 @@ bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapA
 				 "(RoundLimit %d, soglia obiettivo %d). Assegna un URTMatchFormatData al GameMode per giocare "
 				 "un formato dichiarato: le misure di playtest vanno attribuite al formato giusto."),
 			*ShippedFormatId.ToString(), *Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin);
+		// CP 46.2. ⚠️ **Ramo raro, e vale la pena dire perche'**: ci si arriva solo se non esiste nemmeno un
+		// formato **spedito** — e `Format.Skirmish2v2` e' spedito da C++ dal commit `9f44570d`. In una build
+		// normale questa riga non scatta, ed e' giusto cosi'.
+		// 🔴 Una stesura precedente la chiamava «seconda riserva di `G13`»: **falso**. Le due riserve sono
+		// l'arena di test e il fatto che *«la via a punti non e' mai stata esercitata, perche' la soglia
+		// obiettivo e' 0»* — che e' un valore del formato, non il formato di ripiego. Connessione plausibile
+		// e sbagliata, trovata da un test rosso.
+		StartupReport.Add(ERTStartupOutcome::UsingFallbackFormat, Rules.FormatId.ToString());
 	}
 
 	// CP 19.1: l'accoppiata formato/mappa si verifica QUI, prima di schierare. Un 3v3 Standard su una mappa
@@ -520,6 +539,7 @@ bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapA
 			TEXT("[RT] Formato e mappa non combaciano: %s. Partita non allestita: assegna una mappa della "
 				 "classe richiesta, oppure un formato disegnato per questa mappa."),
 			*FString::Join(Mismatch, TEXT("; ")));
+		StartupReport.Add(ERTStartupOutcome::FormatMapMismatch, FString::Join(Mismatch, TEXT("; ")));
 		return false;
 	}
 
@@ -531,6 +551,9 @@ bool ARTGameMode::ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapA
 		UE_LOG(LogRT, Warning,
 			TEXT("[RT] Nessun ARTTurnManager nel livello: il formato '%s' non e' stato applicato."),
 			*Rules.FormatId.ToString());
+		// Degradato e non fatale: `return true` — la partita prosegue, ma senza limite di round e nessuno
+		// lo saprebbe. E' esattamente il caso che il banner esiste per rendere visibile.
+		StartupReport.Add(ERTStartupOutcome::NoTurnManager, Rules.FormatId.ToString());
 		return true;
 	}
 
@@ -548,17 +571,28 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 		return;
 	}
 
+	// CP 46.2: l'allestimento riparte da zero a ogni chiamata. Senza il reset, un secondo `SetupHexMatch`
+	// nella stessa sessione — `Play Again` — accumulerebbe le note della partita precedente e il banner
+	// mostrerebbe condizioni che non valgono piu'.
+	StartupReport.Reset();
+
+	StartupReport.Phase = ERTLoadPhase::Map;
 	ApplyMapSource(HexMap);
 
 	// Le regole di formato prima delle unita': se il formato e' invalido non si allestisce nulla, e la mappa
 	// resta a schermo con il motivo nel log (stesso trattamento delle celle di partenza insufficienti).
+	StartupReport.Phase = ERTLoadPhase::Scenario;
 	FRTMatchRules Rules;
 	ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
 	if (!ApplyMatchFormat(TurnManager, HexMap->MapAsset, Rules))
 	{
+		// ⚠️ La fase resta a `Scenario`, non torna a `Idle`: **dove** ci si e' fermati e' l'informazione
+		// che serve a chi guarda. Il fatale e' gia' nelle note.
 		return;
 	}
+
+	StartupReport.Phase = ERTLoadPhase::Bots;
 
 	// LA MODALITA' SI DECIDE QUI, una volta, PRIMA che le unita' entrino in campo — vedi
 	// `IsAutobattleInEffect()`. Da questo punto in poi la sessione ha una risposta sola, e la banda non puo'
@@ -730,6 +764,9 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	UE_LOG(LogRT, Log, TEXT("[RT] Board 2v2 esagonale avviata su %d celle con %d eroi"),
 		Map ? Map->NumCells() : 0, Spawned.Num());
 
+	// CP 46.2: allestimento concluso. `Ready` **non** significa «senza problemi» — le note degradate
+	// restano, ed e' proprio la combinazione «pronto, ma con due ripieghi» il caso di `G13`.
+	StartupReport.Phase = ERTLoadPhase::Ready;
 }
 
 ARTUnit* ARTGameMode::SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRTCellId& InCell,

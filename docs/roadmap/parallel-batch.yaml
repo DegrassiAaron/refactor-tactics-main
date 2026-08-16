@@ -2297,8 +2297,8 @@ tracks:
 
   frontend_shell:
     status: ACTIVE
-    issue: 936
-    branch: feat/936-frontend-navigation
+    issue: 937
+    branch: feat/937-loading-error
     worktree: D:/rt-menu
     note: >-
       CP 46.1 di **E46** — il navigation controller del frontend (`#934`). ➕ **Track aperta il 2026-08-16
@@ -2321,6 +2321,11 @@ tracks:
     writable:
       - Source/RefactorTactics/Frontend/
       - Source/RefactorTactics/Tests/RTFrontendNavigationTests.cpp
+      # ➕ File **nuovo** di CP 46.2, dichiarato prima di crearlo: «non collide con nessuno» non e'
+      # un'esenzione, ed e' la stessa asimmetria che `autobattle` ha registrato per
+      # `RTMatchAutobattleTests.cpp`. Elencato **per nome** e non come prefisso `Tests/`, che e' conteso
+      # da quattro track.
+      - Source/RefactorTactics/Tests/RTStartupReportTests.cpp
       # ⚠️ **Il file RESTA qui, e nel giro di un giorno la domanda si e' aperta e richiusa due volte.**
       # Vale la pena scrivere la sequenza, perche' e' il caso d'uso per cui questo file esiste:
       #   1. `replay_ui` (#472) prende il path per scrivere la §2.2 — `#936` era chiusa, il branch
@@ -2337,6 +2342,20 @@ tracks:
       # 💡 La lezione, per la prossima riallocazione: un write-set si misura sui branch **vivi al
       # momento del merge**, non a quello della decisione. Fra i due c'e' stata una PR.
       - docs/technical/spec-frontend-navigazione.md
+      # ➕ **Entrano il 2026-08-16 con CP 46.2** (`#937`), e la richiesta è stata istruita invece che
+      # data per scontata: lo spec panel aveva scritto *«va assegnato prima»* credendoli non assegnati,
+      # e la misura ha detto che erano di `autobattle`. Quella track ha **finito** (`#954` `CLOSED`, PR
+      # #963 mergiata, branch inesistente sul remoto), quindi il path era libero — non è stato tolto a
+      # una sessione viva. La decisione è dell'autore, presa in sessione col costo dichiarato.
+      # ⚠️ **Perché servono a CP 46.2, che è un checkpoint di frontend**: le tre fasi di loading e gli
+      # otto esiti d'avvio si **producono** qui — `BeginPlay`, `ApplyMapSource`, `ApplyMatchFormat` — e un
+      # widget che li componesse da sé sarebbe la seconda autorità su *perché* qualcosa non è partito.
+      # È il difetto che l'istruttoria dell'enum esisteva per evitare.
+      # ⛔ **Non autorizza a toccare il resto di `RTGameMode`**: il perimetro è l'emissione degli eventi.
+      # `bAutobattle`, i `Resolve*` e lo spawn restano com'erano — chi rilegge il diff deve trovarci solo
+      # righe che *dichiarano* uno stato, mai che lo decidono.
+      - Source/RefactorTactics/RTGameMode.h
+      - Source/RefactorTactics/RTGameMode.cpp
     derives_from:
       - source: docs/roadmap/feature-registry.yaml
         regenerates:
@@ -2628,9 +2647,19 @@ tracks:
       `git switch -c <branch>` da lì **dopo** un `fetch` — questa track ne ha fatti tre in un turno, e la
       distanza da `origin/main` è passata da 0 a 44 a 13 a 8 mentre il lavoro era aperto.
     writable:
-      # ⚠️ `RTGameMode.{h,cpp}` sono USCITI con la riapertura su #958: li teneva E47.1, che li modificava.
-      # Questo turno non li tocca, e un path prenotato senza lavoro che lo giustifichi è un lotto più
-      # stretto del vero. Tornano **liberi e non assegnati**, come lo erano prima di #954.
+      # ➖ **`RTGameMode.{h,cpp}` escono il 2026-08-16, e ci sono arrivate DUE sessioni per due strade.**
+      #
+      # Questa track, riaprendo su #958: *«un path prenotato senza lavoro che lo giustifichi è un lotto più
+      # stretto del vero»* — quel turno non li tocca, quindi tornano liberi.
+      # `frontend_shell`, che ne aveva bisogno per CP 46.2 (`#937`): l'emissione delle fasi e degli esiti
+      # d'avvio vive lì, e la scrittura sarebbe stata uno **stop** senza riallocazione.
+      #
+      # ✅ Le due misure concordano e si rafforzano: `#954` è `CLOSED`, PR #963 mergiata in `1fe85ed2`,
+      # `git ls-remote --heads origin | grep 954` → **0**. Non è una contesa risolta a favore di qualcuno:
+      # è un path che questa track ha smesso di usare e che un'altra ha **chiesto**.
+      # ∴ non «liberi e non assegnati» ma **assegnati a `frontend_shell`**, che è dove il lavoro è.
+      # ⚠️ Se questa track ne riavesse bisogno, `RTGameMode` va **richiesto**: l'ownership non si eredita
+      # dal passato, ed è la stessa regola che ha portato qui.
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
       # 🔵 `Turn/RTTurnManager.cpp` è USCITO con la chiusura del 2026-08-16: era entrato per il difetto
       # #990, ha consegnato, e un path prenotato senza lavoro non resta. Torna libero e non assegnato.
