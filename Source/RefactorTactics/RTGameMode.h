@@ -118,6 +118,59 @@ public:
 	FName ShippedFormatId = FName(TEXT("Format.Skirmish2v2"));
 
 	/**
+	 * MODALITA' NON PRESIDIATA: **entrambe** le squadre passano al bot, e la partita si gioca da sola fino al
+	 * vincitore senza che nessuno tocchi nulla (CP 47.1, issue #954).
+	 *
+	 * Il turno avanzava gia' da solo — `StartPlanningTimer` chiama `PlanBots`, `OnPlanningTimeout` chiama
+	 * `LockInAndResolve`, e a fine risoluzione il timer riparte. L'unico punto che impediva l'autobattle in
+	 * partita era `SpawnHero`, che mette sotto il bot la sola squadra 1: **il delta e' una configurazione,
+	 * non un motore**, ed e' la ragione per cui questo e' un booleano e non un sistema.
+	 *
+	 * ⚠️ Il DEFAULT non cambia, ed e' pinnato da `RTHeroSpawnTests` (*«il giocatore comanda i suoi»*): senza
+	 * configurazione la squadra 0 resta di chi gioca. Questa proprieta' **estende** quel contratto, non lo
+	 * sostituisce.
+	 *
+	 * ⛔ Non e' una pipeline parallela per i bot (invariante #10): passano da `PlanBots` -> `ChooseBestPlan`
+	 * come in ogni partita. Cambia **chi** e' segnato come bot, non **come** decide.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Match")
+	bool bAutobattle = false;
+
+	/**
+	 * Secondi della fase di Planning, **negativo = non intervenire** e vale il valore del `TurnManager`.
+	 *
+	 * Esiste perche' il default e' **30 s per turno**: giusto per una partita umana, illeggibile per una demo
+	 * che si guarda. Senza questa configurazione l'autobattle sarebbe acceso e inutilizzabile, cioe' il
+	 * difetto starebbe *dentro* la feature che lo introduce.
+	 *
+	 * Non e' legata all'autobattle: vale anche in partita normale, per chi vuole un ritmo diverso. Cio' che
+	 * l'autobattle aggiunge e' solo un **ripiego** quando nessuna delle tre sorgenti dice nulla — vedi
+	 * `ResolveMatchPlanningSeconds`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Match", meta = (ClampMin = "-1.0"))
+	float MatchPlanningSeconds = -1.f;
+
+	/**
+	 * La modalita' in vigore: `rt.Match.Autobattle` se impostata, altrimenti `-RTAutobattle`, altrimenti la
+	 * proprieta'. Il piu' specifico vince, che e' la stessa regola di `ResolveScenarioToRun`.
+	 *
+	 * ⚠️ Le due sorgenti esterne sanno anche **spegnere** (`0`), non solo accendere: una precedenza che sa
+	 * solo accendere costringerebbe a modificare un `.uasset` per giocare una partita normale.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Match")
+	bool ResolveAutobattle() const;
+
+	/**
+	 * I secondi di Planning in vigore, oppure **un valore negativo** se nessuno ha chiesto niente e il
+	 * `TurnManager` deve tenersi il proprio.
+	 *
+	 * Stessa precedenza dell'altra configurazione, con un quarto gradino in fondo: console > riga di comando
+	 * > proprieta' > **ripiego dell'autobattle**. Il ripiego vale solo a modalita' accesa, per la ragione
+	 * scritta in `MatchPlanningSeconds`.
+	 */
+	float ResolveMatchPlanningSeconds() const;
+
+	/**
 	 * Primo filtro della tendina degli scenari: un tag fra quelli realmente presenti nei file. Vuoto = non
 	 * restringe nulla.
 	 *

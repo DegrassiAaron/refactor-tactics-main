@@ -68,6 +68,90 @@ namespace RTScenarioEntry
 		return EWinner::Property;
 	}
 }
+
+/**
+ * LA MODALITA' NON PRESIDIATA e i suoi secondi di Planning (CP 47.1, #954).
+ *
+ * Non `static`: i test dichiarano `extern` su queste due, come gia' fanno per `CVarRTTestScenario`. Una
+ * console variable che i test non possono pilotare si verifica solo a mano.
+ *
+ * ⚠️ **`-1` significa «non impostata», e non e' un dettaglio di implementazione.** Con `0` come sentinella
+ * la console non potrebbe **spegnere** l'autobattle acceso dalla proprieta': «zero» sarebbe insieme
+ * «nessuna richiesta» e «richiesta di partita normale», cioe' due domande diverse con la stessa risposta.
+ * Lo stesso vale per i secondi: `0` e' un valore legittimo (turni incatenati, nessuna attesa) e non puo'
+ * voler dire anche «non ho chiesto nulla».
+ */
+TAutoConsoleVariable<int32> CVarRTAutobattle(
+	TEXT("rt.Match.Autobattle"),
+	-1,
+	TEXT("Partita non presidiata: entrambe le squadre al bot. -1 = non impostata (vale il resto), 0 = partita normale, 1 = autobattle."),
+	ECVF_Default);
+
+TAutoConsoleVariable<float> CVarRTPlanningSeconds(
+	TEXT("rt.Match.PlanningSeconds"),
+	-1.f,
+	TEXT("Secondi della fase di Planning. Negativo = non impostata: vale la riga di comando, poi la proprieta', poi il TurnManager."),
+	ECVF_Default);
+
+/**
+ * LE TRE SORGENTI della modalita' non presidiata, con la stessa forma e lo stesso ordine di
+ * `RTScenarioEntry`:
+ *
+ *     proprieta' del GameMode  <  -RTAutobattle[=0|1]  <  rt.Match.Autobattle
+ *
+ * La sorgente di mezzo non e' un doppione della console, ed e' lo stesso motivo misurato in `#926`: in una
+ * build **Shipping** `-dpcvars=` e' compilato fuori (`DeviceProfileManager.cpp`, dentro
+ * `#if !UE_BUILD_SHIPPING`), quindi la console non arriva mai e resterebbe solo la proprieta' — cioe' un
+ * `.uasset` da modificare, che per giunta cambierebbe il comportamento predefinito del gioco spedito.
+ * `FParse` non ha quella guardia.
+ */
+namespace RTAutobattleEntry
+{
+	/**
+	 * Cosa chiede la riga di comando, se chiede qualcosa.
+	 *
+	 * Due forme, e la prima e' quella che si scrive istintivamente: `-RTAutobattle` nudo vale «accendi».
+	 * `FParse::Param` la riconosce **solo** nuda — con `-RTAutobattle=1` il carattere dopo il nome e' `=`,
+	 * quindi torna falso e decide `FParse::Value`. Sono due letture disgiunte, non due tentativi in fila.
+	 */
+	static TOptional<bool> FromCommandLine()
+	{
+		int32 Value = 0;
+		if (FParse::Value(FCommandLine::Get(), TEXT("RTAutobattle="), Value))
+		{
+			return Value != 0;
+		}
+		if (FParse::Param(FCommandLine::Get(), TEXT("RTAutobattle")))
+		{
+			return true;
+		}
+		return TOptional<bool>();
+	}
+
+	enum class EWinner : uint8 { Property, CommandLine, ConsoleVariable };
+
+	/**
+	 * Chi vince, in un posto solo — la banda a schermo e il log dell'attivazione lo chiedono entrambi con
+	 * etichette diverse. Calcolarlo due volte e' il modo in cui due risposte divergono e se ne accorge solo
+	 * chi legge la banda accanto al log: e' gia' la ragione per cui `RTScenarioEntry::Winner` esiste.
+	 */
+	static EWinner Winner()
+	{
+		if (CVarRTAutobattle.GetValueOnGameThread() >= 0) { return EWinner::ConsoleVariable; }
+		if (FromCommandLine().IsSet())                    { return EWinner::CommandLine; }
+		return EWinner::Property;
+	}
+
+	/**
+	 * Secondi di Planning quando la modalita' e' accesa e **nessuno** ha chiesto un valore.
+	 *
+	 * Non e' un numero di gusto: `PlanningSeconds` vale 30 di default, e mezzo minuto di attesa fra un turno
+	 * e l'altro rende la demo inguardabile. Due secondi lasciano il tempo di vedere dove sono le unita'
+	 * prima che si muovano — la stessa scelta gia' fatta per `ScenarioTurnPauseSeconds` (1,5 s), qui un filo
+	 * piu' larga perche' qui il Planning copre anche la decisione dei bot.
+	 */
+	static constexpr float FallbackPlanningSeconds = 2.f;
+}
 /** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
 
@@ -428,6 +512,38 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 		return;
 	}
 
+	// RITMO DEL TURNO, prima del ritorno anticipato qui sotto: e' configurazione del turno, non
+	// dell'allestimento, e vale anche su un livello che porta gia' le proprie unita' — dove l'allestimento
+	// non interviene ma il Planning e' comunque quello con cui si giochera'.
+	if (TurnManager)
+	{
+		const float PlanningSeconds = ResolveMatchPlanningSeconds();
+		if (PlanningSeconds >= 0.f)
+		{
+			TurnManager->SetPlanningSeconds(PlanningSeconds);
+		}
+	}
+
+	// L'ATTIVAZIONE NON E' SILENZIOSA. Chi guarda vede le proprie unita' muoversi da sole, e la spiegazione
+	// non deve stare solo in una riga di log che non si ha motivo di andare a cercare: la banda a schermo la
+	// dichiara (`GetScenarioBannerText`), e questa riga la mette anche nel log con la FONTE — perche' una
+	// console variable impostata una volta resta attiva a ogni Play successivo, e senza saperlo si cerca il
+	// difetto nella proprieta' sbagliata.
+	if (ResolveAutobattle())
+	{
+		const TCHAR* Source = TEXT("proprieta' del GameMode");
+		switch (RTAutobattleEntry::Winner())
+		{
+		case RTAutobattleEntry::EWinner::ConsoleVariable: Source = TEXT("console rt.Match.Autobattle"); break;
+		case RTAutobattleEntry::EWinner::CommandLine:     Source = TEXT("riga di comando -RTAutobattle"); break;
+		case RTAutobattleEntry::EWinner::Property:        break;
+		}
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] AUTOBATTLE (da: %s): entrambe le squadre al bot, nessun input richiesto. "
+				 "Planning %.1fs — questa NON e' una partita normale."),
+			Source, TurnManager ? TurnManager->GetPlanningSeconds() : -1.f);
+	}
+
 	// Il livello puo' avere unita' gia' posate a mano: in quel caso l'allestimento automatico non interviene.
 	if (UGameplayStatics::GetActorOfClass(this, ARTUnit::StaticClass()))
 	{
@@ -544,7 +660,10 @@ ARTUnit* ARTGameMode::SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRT
 	if (Unit)
 	{
 		Unit->TeamId = TeamId;
-		Unit->bIsBotControlled = (TeamId == 1); // team 1 giocato dal bot
+		// Team 1 al bot: e' il default di sempre, pinnato da `RTHeroSpawnTests`. La modalita' non presidiata
+		// (#954) lo ESTENDE — mette al bot anche la squadra 0 — e non lo sostituisce: con l'autobattle spento
+		// questa riga vale esattamente quanto valeva prima.
+		Unit->bIsBotControlled = (TeamId == 1) || ResolveAutobattle();
 		Unit->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 		Unit->PlaceOnCell(InCell, Origin, HexSize, LayerHeight);
@@ -594,6 +713,53 @@ FString ARTGameMode::ResolveScenarioToRun() const
 			*FromConsole, *ScenarioToRun);
 	}
 	return FromConsole;
+}
+
+bool ARTGameMode::ResolveAutobattle() const
+{
+	// La console PREVALE, e sa spegnere oltre che accendere: `>= 0` significa «ha detto qualcosa», e cosa
+	// abbia detto lo dice il valore. Con `0` come sentinella di «non impostata» non ci sarebbe modo di
+	// chiedere una partita normale dalla console mentre la proprieta' e' accesa.
+	const int32 FromConsole = CVarRTAutobattle.GetValueOnGameThread();
+	if (FromConsole >= 0)
+	{
+		return FromConsole != 0;
+	}
+
+	// Sorgente di mezzo: l'unica che arriva anche in Shipping (vedi `RTAutobattleEntry`).
+	const TOptional<bool> FromCmdLine = RTAutobattleEntry::FromCommandLine();
+	if (FromCmdLine.IsSet())
+	{
+		return FromCmdLine.GetValue();
+	}
+
+	return bAutobattle;
+}
+
+float ARTGameMode::ResolveMatchPlanningSeconds() const
+{
+	// Stessa scala di specificita' dell'altra configurazione. Il negativo qui significa «non impostata» in
+	// ognuna delle tre sorgenti, perche' `0` e' un valore legittimo: turni incatenati, nessuna attesa.
+	const float FromConsole = CVarRTPlanningSeconds.GetValueOnGameThread();
+	if (FromConsole >= 0.f)
+	{
+		return FromConsole;
+	}
+
+	float FromCmdLine = 0.f;
+	if (FParse::Value(FCommandLine::Get(), TEXT("RTPlanningSeconds="), FromCmdLine) && FromCmdLine >= 0.f)
+	{
+		return FromCmdLine;
+	}
+
+	if (MatchPlanningSeconds >= 0.f)
+	{
+		return MatchPlanningSeconds;
+	}
+
+	// Quarto gradino, e vale SOLO a modalita' accesa: senza, l'autobattle erediterebbe i 30 s del
+	// `TurnManager` e sarebbe acceso e inguardabile. In partita normale il timer resta di chi lo possiede.
+	return ResolveAutobattle() ? RTAutobattleEntry::FallbackPlanningSeconds : -1.f;
 }
 
 TArray<FString> ARTGameMode::GetScenarioOptions() const
@@ -665,7 +831,31 @@ FString ARTGameMode::GetScenarioBannerText() const
 	const FString ScenarioId = ResolveScenarioToRun();
 	if (ScenarioId.IsEmpty())
 	{
-		return FString();
+		// ⚠️ **Questa funzione e' la banda dello STATO ANOMALO della sessione, non solo dello scenario**, e il
+		// nome porta ancora il primo dei due casi che serve. E' deliberato: `UI/RTHUD.cpp` legge di qui, ed e'
+		// nel `writable` di un'altra track (`client_tools`, #78) — rinominare il metodo significherebbe
+		// toccare un file che questa sessione non possiede, per un guadagno che e' solo di nome. Chi apre
+		// E47.2/E47.3, che quel file lo possiedono, ha qui la ragione per rinominarlo.
+		//
+		// Una sola banda per volta, e vince lo scenario: con `ScenarioToRun` valorizzato la partita normale
+		// non viene allestita **affatto**, quindi non c'e' nessun autobattle da annunciare — dire entrambe le
+		// cose descriverebbe una sessione che non esiste.
+		if (!ResolveAutobattle())
+		{
+			return FString();
+		}
+
+		const TCHAR* AutobattleSource = TEXT("BP_GameMode");
+		switch (RTAutobattleEntry::Winner())
+		{
+		case RTAutobattleEntry::EWinner::ConsoleVariable: AutobattleSource = TEXT("rt.Match.Autobattle"); break;
+		case RTAutobattleEntry::EWinner::CommandLine:     AutobattleSource = TEXT("-RTAutobattle"); break;
+		case RTAutobattleEntry::EWinner::Property:        break;
+		}
+
+		return FString::Printf(
+			TEXT("AUTOBATTLE [%s]  -  entrambe le squadre al bot  -  nessun input richiesto"),
+			AutobattleSource);
 	}
 
 	// La FONTE va detta anche a schermo, per la stessa ragione per cui il log la dice: una console variable
