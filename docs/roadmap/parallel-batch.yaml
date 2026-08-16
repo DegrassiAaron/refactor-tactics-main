@@ -2833,6 +2833,12 @@ tracks:
       - Source/RefactorTactics/Turn/RTTurnManager.cpp
       - Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
+      # ➕ Preso il 2026-08-16 per `PIE-V01-PLAYSPEED`. Sta nel `writable` di `playtest`, che è **IDLE**,
+      # e nessun branch vivo lo tocca — misurato sui dieci remoti con `diff --name-only origin/main...<b>`,
+      # non dedotto dallo stato della track. ⚠️ Era di `replay_ui` quando la track e' nata poche ore fa:
+      # nel frattempo `replay_ui` e' passata a `#999` e lo ha rilasciato. Un write-set si misura al
+      # momento in cui lo si prende, non a quello in cui lo si e' letto la prima volta.
+      - docs/technical/test-manuali-pie.md
     derives_from: []
     binary_leases: []
 

@@ -50,9 +50,17 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
-## Stato in numeri — 2026-08-14
+## Stato in numeri — 2026-08-16
 
-**146 voci**: ✅ **39 verdi** · 🟡 **23 parziali** (regola coperta da test, resta il visivo) · ❌ **1 fallita** · ⏳ **83 aperte**.
+**150 voci**: ✅ **41 verdi** · 🟡 **23 parziali** (regola coperta da test, resta il visivo) · ❌ **1 fallita** · ⏳ **85 aperte**.
+
+*(Rimisurate col comando qui sotto il **2026-08-16**, aggiungendo `PIE-V01-PLAYSPEED` con
+[#955](https://github.com/DegrassiAaron/refactor-tactics-main/issues/955). ⚠️ **Di questa sessione è una
+sola voce: le altre tre erano già arrivate senza che la riga si muovesse.** La baseline misurata prima di
+toccare il file diceva **149 (41/23/1/84)** contro le `146 (39/23/1/83)` dichiarate qui — tre voci e due
+passaggi a ✅ atterrati da altri rami. È la terza volta che questo paragrafo viene trovato indietro, e le
+due precedenti sono documentate qui sotto: **misurare la baseline prima di sommare** è ciò che distingue
+un numero corretto da un numero corretto-per-la-propria-modifica. `senza-marcatore` misurato: **0**.)*
 
 *(⚠️ **`PIE-FMTVER` è nata il 2026-08-14 come `PIE-FMT1` ed è stata rinominata lo stesso giorno**: a un
 trattino di distanza esisteva già `PIE-FMT-01`, che verifica una cosa **diversa** — che formato di partita e
@@ -539,6 +547,7 @@ percorso — passi 1-9 e 13 — è eseguibile.
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
 | **PIE-V01-MATCHLEN** | Durata della partita e numero di round | partita 2v2 completa giocata da un umano contro i bot, cronometro alla mano (o `rt.Debug.Pacing` per i tempi di turno) | La partita chiude entro la banda **10–14 round** del formato 2v2 e **il ritmo non annoia**: nessuna sequenza di round in cui non succede nulla di significativo. Si annota: round giocati, durata a cronometro, round del **primo contatto** col nemico, e se la fine è arrivata per eliminazione o per limite. **Un numero fuori banda si registra, non si nasconde** | ⏳ |
+| **PIE-V01-PLAYSPEED** | La risoluzione resta leggibile a `x2` e `x4` | CP 47.2 atterrata (#955, PR #1007); partita 2v2 avviata; `ViewerPlaybackSpeed` si imposta da dettagli dell'attore o da Blueprint — **il controllo in HUD è il passo 4 e dipende da #78** | A `x2` e `x4` la risoluzione **si segue ancora**: si capisce chi si muove, chi colpisce e chi cade, senza rivedere il turno. Si annota **a quale velocità si smette di capire** — è il numero che serve, e un x4 illeggibile è un dato, non un fallimento. Cambiando velocità **a metà risoluzione** l'animazione accelera dal momento del cambio e **non salta né si riavvolge**. ⚠️ La barra di avanzamento resta tarata sulla velocità **di partenza** dopo un cambio a caldo: limite noto e dichiarato in `BeginPlayback`, si verifica che sia solo il numero a divergere e non il ritmo. Che il risultato logico non cambi **non è oggetto di questa voce**: è coperto headless da `Match.Autobattle.DeterminismIsIndependentOfPlayback`, sette varianti | ⏳ |
 | **PIE-V01-MATCHEND** `RELEASE-V01` | Fine partita a tre vie, a schermo | partita 2v2 avviata; per la via «obiettivo» serve CP 10.2, per il formato d'autore un `URTMatchFormatData` creato in editor sotto `/Game/RT/Match/` e assegnato al `RTGameMode` | A partita conclusa l'HUD mostra **esito e via** («Vince il team 0 (blu) — per eliminazione» / «— allo scadere dei round» / «— per obiettivo»), il contatore in alto dice **`Turno n/RoundLimit`**, e **`R` riavvia in tutte e tre le vie**. Senza asset assegnato l'Output Log deve dire a chiare lettere che è in uso il **formato di ripiego** `Format.Fallback`: se il ripiego non si nota, i numeri di `PIE-V01-MATCHLEN` finiscono attribuiti a un formato che non era in vigore | ⏳ **eseguibile da CP 10.3** (2026-08-07). Logica coperta headless da `Match.TurnLimitEndsAPlayedMatch`, `Match.ObjectiveEndsAPlayedMatch`, `MatchFormat.FallbackIsObservable`; il PIE verifica **ciò che il test non vede**: il testo a schermo e il riavvio |
 | **PIE-V01-READY** | Ready anticipato e countdown annullabile | partita avviata | Chiudendo la pianificazione prima dello scadere del timer parte un **countdown di 3 s** prima del commit; premendo **Unready** durante il countdown si torna alla pianificazione **senza aver perso il piano**; il countdown **non** sostituisce il timer massimo. Si annota a che secondo si è dichiarato Ready nei round tipici | ⏳ **il countdown non esiste ancora**: oggi Spazio fa lock-in immediato e irreversibile. La voce documenta il comportamento atteso, non uno da verificare adesso |
 | **PIE-V01-OVERWATCH** | Finestra Fast Reaction da 3 s | E14 (CP 14.5/14.6) atterrata; un'unità con Overwatch armato | La finestra `FIRE`/`HOLD` compare **solo** al proprietario (l'alleato la vede in sola lettura, l'avversario **nulla**), dura **3 s** con countdown visibile, e allo scadere applica **HOLD** senza consumare la charge. **Tre secondi bastano** a decidere senza rileggere tutta la situazione? Se serve rileggere, il problema è la finestra, non la durata. La slow-motion è solo presentazione: ripetendo lo stesso turno l'esito non cambia | ⏳ **E14** (CP 14.6) |
