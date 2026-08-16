@@ -447,6 +447,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float MaxPlaybackSeconds = 12.f;
 
+	/**
+	 * Velocita' SCELTA da chi guarda: 1 / 2 / 4 (CP 47.2, #955). E' una preferenza di ritmo, non un tetto:
+	 * si compone con l'accelerazione automatica via `URTPlaybackLibrary::EffectivePlaybackSpeed`, che
+	 * prende il massimo dei due. Scriverla a risoluzione in corso vale dal tick successivo — `TickPlayback`
+	 * la rilegge a ogni tick e non la congela in `BeginPlayback`.
+	 *
+	 * ⚠️ Presentazione, mai decisione (invariante #1): non entra nel TurnLog, non ne tocca l'hash, non
+	 * cambia l'ordine di risoluzione. Il gate che lo verifica e' in
+	 * `RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback`.
+	 * ⚠️ Da non confondere con `rt.Match.PlanningSeconds`: quello e' quanto dura la DECISIONE, questo
+	 * quanto dura il MOSTRARLA. Confonderli renderebbe la misura di pacing non confrontabile.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float ViewerPlaybackSpeed = 1.f;
+
 	// --- Tuning del bot (utility scoring, editabile in editor senza ricompilare) -----------------
 	// Pesi interi iniettati nel FRTBotContext di PlanBots (invariante #4: niente float). I default
 	// coincidono con quelli della struct: a parita' di valori il comportamento e' invariato.

@@ -65,6 +65,7 @@
       "[RT-FEAT-UI-FRONTEND-MAIN-MENU] nessuna pagina Wiki collegata",
       "[RT-FEAT-UI-FRONTEND-MATCH-FLOW] nessuna pagina Wiki collegata",
       "[RT-FEAT-UI-FRONTEND-PAUSE] nessuna pagina Wiki collegata",
+      "[RT-FEAT-UI-REPLAY-VIEWER] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-TRANSFORMATION] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
       "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
@@ -81,7 +82,6 @@
       "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Riva.Flow, State.Flux.Charged, State.Bastion.Bulwark, State.Howitzer.Siege, State.MultiState.Stress",
       "[execution-graph issue:314] nessuna feature del registry dichiara questa issue: il suo domain_group 'actions_reactions' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
       "[execution-graph issue:512] nessuna feature del registry dichiara questa issue: il suo domain_group 'core_simulation' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
-      "[execution-graph issue:593] nessuna feature del registry dichiara questa issue: il suo domain_group 'characters_content' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
       "[execution-graph] 10 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
     ],
     "unresolved_prerequisites": [],
@@ -1442,6 +1442,50 @@
         712
       ],
       "done_when": "le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta"
+    },
+    {
+      "id": "U24",
+      "title": "I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "⏳",
+      "queue_group": "READY",
+      "produces": "i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`",
+      "artifacts": [
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset",
+          "tracked": false
+        },
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset",
+          "tracked": false
+        }
+      ],
+      "unblocked_by": [],
+      "unblocks": [
+        "E46.3",
+        "E46.5",
+        "E46.6"
+      ],
+      "shares_setup_with": [],
+      "verifies": [],
+      "issues": [
+        937
+      ],
+      "done_when": "i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori"
     }
   ],
   "editor_queue": {
@@ -1460,7 +1504,8 @@
     "READY": [
       "U18",
       "U20",
-      "U21"
+      "U21",
+      "U24"
     ],
     "WAITING": [
       "U11",
@@ -3238,7 +3283,9 @@
         "state": null,
         "state_source": null,
         "state_note": "issue senza checkpoint: lo stato vive su GitHub",
-        "feature_ids": [],
+        "feature_ids": [
+          "RT-FEAT-CHAR-PRESENTATION"
+        ],
         "provides": [],
         "incoming": [],
         "outgoing": [
@@ -3450,13 +3497,14 @@
         "release": "v0.1",
         "execution_lane": "code",
         "domain_group": "core_simulation",
-        "domain_group_source": "derived",
+        "domain_group_source": "declared",
         "checkpoint": "E47.5",
         "state": "⏳",
         "state_source": "checkpoint:E47.5",
         "state_note": null,
         "feature_ids": [
-          "RT-FEAT-CORE-DETERMINISM"
+          "RT-FEAT-CORE-DETERMINISM",
+          "RT-FEAT-MATCH-AUTOBATTLE"
         ],
         "provides": [],
         "incoming": [

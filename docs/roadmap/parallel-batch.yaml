@@ -133,6 +133,22 @@
 #                                   track: l'invariante è definita per track, e una lease fuori da
 #                                   una track non appartiene a nessun insieme e non entra nel
 #                                   confronto.
+#   writable_on_loan facoltativo    path che questa track tiene nel proprio `writable` avendoli **presi da
+#                                   `integration_only`**, con l'obbligo di rimettercili alla chiusura. Un
+#                                   path non puo' stare nei due insiemi insieme: sarebbe assegnato e non
+#                                   assegnato nello stesso file.
+#                                   Introdotto il 2026-08-16 con `spatial` su `#726`, per
+#                                   `docs/OPEN_DECISIONS.md`: `FAC-15` **blocca** lavoro, e una decisione che
+#                                   ferma qualcuno non aspetta la chiusura del batch.
+#                                   🔴 **Nasce da un difetto della prima stesura, trovato dalla code review**:
+#                                   l'obbligo di restituzione stava in due commenti `#` e nella prosa di
+#                                   `note`. Ma l'intestazione di questo file dichiara che il batch **viene
+#                                   riscritto al successivo** e non e' un registro storico: alla riscrittura
+#                                   i commenti se ne vanno, il path resta fuori da `integration_only` per
+#                                   sempre, e nessun `--check` puo' accorgersene — il validator di `#840`
+#                                   non esiste ancora. E' lo stesso argomento con cui `blocked_paths` e' nato
+#                                   accanto a `blocked_by`: un vincolo che vive solo in prosa non e'
+#                                   interrogabile, quindi non e' un vincolo.
 #   mandate        facoltativo      path del documento che definisce *cosa* la track deve fare, quando
 #                                   il lavoro non nasce da una issue ma da un mandato scritto.
 #                                   Introdotto il 2026-08-15 con i tre mandati QA
@@ -194,6 +210,27 @@
 #
 #   WritableSet(T1) ∩ WritableSet(T2) = ∅
 #   BinaryLeaseSet(T1) ∩ BinaryLeaseSet(T2) = ∅
+#
+# 🔴 **L'invariante e' VIOLATA adesso, e non da chi scrive questa riga.** Misurata il 2026-08-16 su
+# `origin/main` (`git show origin/main:docs/roadmap/parallel-batch.yaml`, quindi preesistente a qualunque
+# branch aperto): `spatial` e `content_editor` dichiarano **entrambe**
+# `docs/technical/qa-prompt-terminal-b-scenario-runner.md`. E' l'unica intersezione fra le track, e non e'
+# di `frontend_shell` — che la segnala e non la risolve: spostare il confine di due track altrui e'
+# esattamente la «piccola fix» che il paragrafo qui sopra vieta. **La sciolgono i due proprietari.**
+#
+# ⚠️ Il modo per accorgersene e' un ciclo di venti righe sui `writable` — non un gate, perche' il
+# validator di `#840` non esiste ancora. Finche' non c'e', questa invariante e' vera **solo se qualcuno
+# la misura**, ed e' la ragione per cui e' successo: nessuno l'ha misurata al momento della seconda
+# dichiarazione.
+#
+# ✅ **Meta' sciolta il 2026-08-16**: `spatial`, riattivata su `#726`, ha **rilasciato**
+# `docs/technical/qa-prompt-terminal-b-scenario-runner.md` dal proprio `writable` — vedi il commento nella
+# sua sezione. Il path resta a `content_editor` (#451) e a nessun altro, quindi l'intersezione fra i
+# `writable` e' oggi **vuota**, rimisurata col ciclo qui sopra dopo la riattivazione e non ereditata.
+# ⚠️ La riattivazione e' anche il caso che dimostra perche' la violazione dormiente andava sciolta e non
+# tollerata: finche' `spatial` era `IDLE` non faceva danno, e il primo comando che l'ha portata ad `ACTIVE`
+# l'avrebbe resa ACTIVE x ACTIVE senza che nessun gate lo dicesse. Una contesa fra una track viva e una
+# ferma e' una contesa **rinviata**, non assente — e il rinvio scade quando qualcuno riapre la track.
 #
 # ## `integration_only`
 #
@@ -1179,13 +1216,103 @@ tracks:
 
   spatial:
     status: ACTIVE
-    issue: 832
-    branch: feat/832-structure-identity-hash
+    issue: 726
+    branch: docs/726-fac15-simmetria-facing
     note: >-
-      ➕ **ACTIVE dal 2026-08-16 su `#832` (CP 23.3, `RT-FEAT-MAP-STRUCTURE-IDENTITY`).** Cinque caselle
-      su sei erano chiuse dalla PR #876; la sesta — l'identità entra nell'hash di stato — è chiusa dalla
-      PR **#978**: suite **876/876**, e la verifica di mutazione fa cadere *esattamente*
-      `Simulation.ChecksumSeesStructureIdentity` e nient'altro.
+      ➕ **Riattivata il 2026-08-16 su `#726`** (facing: la relazione a sei direzioni relative, `D-126`), e il
+      write-set è **uno solo**: `docs/OPEN_DECISIONS.md`. Non è la fetta di codice della issue — quella è
+      bloccata — è la decisione che la blocca.
+      🔴 **Uno spec panel su `#726` ha trovato che il suo DoD contiene un test che la regola specificata
+      fallisce.** Misurato replicando `HexCone`/`HexLine` con le costanti reali (`RT_HEX_DX/DY`,
+      `RT_HEX_LINE_SCALE = 1024`), non rileggendo la issue: il DoD chiede che `(-1, 2)` e `(1, -2)` restino
+      `FrontLeft`/`FrontRight`, e sotto la regola a **settore** adottata `(1, -2)` è `FrontRight` ✅ ma
+      `(-1, 2)` è **`RearLeft`** — e non è nemmeno una divergenza dal cono. Quei due valori, e il «**50**»
+      di celle divergenti, sono le misure della regola a **linea**, che lo spec panel del 2026-08-13 ha
+      **scartato lasciando in piedi i numeri**. Sotto la regola adottata sono **45**, e a distanza `2` la
+      divergenza è **una sola**.
+      ⚠️ **Sotto il numero c'è una decisione mancante, non un refuso**: equipartizione e simmetria
+      destra/sinistra sono **incompatibili** su un anello esagonale di raggio pari. La regola di `#726`
+      sceglie in silenzio l'equipartizione — `36` celle per lato a raggio `1..8` e `r` per anello, entrambe
+      verificate — e con essa **168 celle su 216** non ricevono la direzione speculare della propria immagine
+      speculare, mentre `IsInFrontalArc` ne ha **zero**. Nessun sottoinsieme proprio dei sei lati produce una
+      regione speculare: **0 su 62**. Da qui `FAC-15`, che è ciò che questo giro scrive.
+      ⚠️ **`issue: 726` dice quale decisione questa track sblocca, non che ne stia scrivendo il codice.**
+      La fetta runtime di #726 **non è iniziata e non è iniziabile** finché `FAC-15` è aperta: alla chiusura
+      della track la issue resta `OPEN` con zero residuo, ed è l'esito corretto, non un lavoro abbandonato.
+      Chi legge il campo senza la nota vedrebbe una sessione al lavoro su #726 — la confusione che
+      l'intestazione di questo file dichiara di pagare cara ogni volta.
+      ✅ **Invariante verificata, non dedotta**: `docs/OPEN_DECISIONS.md` non compare nel `writable` di
+      nessuna delle cinque track `ACTIVE` (`simulation` #512, `client_tools` #78, `content_editor` #451,
+      `docs_kit` #995, `replay_ui` #472) e non è sorgente di nessuna vista in `generated_only`. Nessun ref
+      vivo lo toccava quando il prestito è stato preso: `git log --all --not origin/main -- docs/OPEN_DECISIONS.md`
+      **eseguito sulla base, prima di questo commit**, restituiva due commit, entrambi **irraggiungibili** da
+      qualunque branch (`git branch -a --contains` vuoto per entrambi).
+      ⚠️ **Rilanciato da questo branch ne restituisce tre**, e il terzo — raggiungibile — è il commit che
+      porta questa riga. Il comando va eseguito **dalla base**, non da qui, altrimenti misura sé stesso: è
+      il caso in cui l'artefatto che invita a riverificare contraddice il proprio risultato stampato.
+      ⚠️ **Esce da `integration_only` per la durata di questa track, e il costo va detto**: finché è `ACTIVE`,
+      un'altra sessione che debba aprire una decisione **si ferma e la chiede qui** invece di scriverla in
+      integrazione. È esattamente il motivo per cui il file ci stava; la contropartita è che una decisione
+      che **blocca** lavoro non aspetta la chiusura del batch.
+      ⚠️ **Il resto della correzione NON è in questo write-set, ed è deliberato.** Il «50» sopravvive in
+      `D-126` (`RT_PDR_00_Decision_Log.md`), `adr-0005-orientamento.md`,
+      `adr-0008-rotazione-e-policy-di-facing.md`, `feature-registry.yaml` (più la vista `.json`) e
+      `roadmap/plans/facing-visualdocs-triage-2026-08-13.md`. Correggerlo qui e non lì produrrebbe un file
+      internamente coerente e in disaccordo con cinque: quindi `FAC-15` porta la misura giusta e **nomina** le
+      sedi, e lo sweep resta un lavoro solo, in integrazione. `docs/archive/` non si tocca — è storico.
+      ✅ **La sovrapposizione `feat/77-hud-slot-terna` × `client_tools` su `UI/RTHUD.*` è già modellata, e
+      la prima stesura di questa nota la registrava come scoperta nuova — cioè la triagiava una terza volta.**
+      Sta in `preexisting` con l'intersezione **misurata**, e `client_tools` porta `blocked_by: 904` con i
+      `blocked_paths` corrispondenti: il meccanismo nato il 2026-08-16 proprio per questo caso **ha già
+      funzionato**. Riscriverla qui avrebbe detto a chi possiede il batch di ri-triagiare il triagiato, e
+      fatto sembrare fallito un meccanismo che ha retto.
+      ⚠️ **`#986` resta aperta e senza sessione.** I cinque difetti di sostanza che la review ha misurato non
+      sono ripresi da questo giro: riattivare la track su `#726` non li chiude e non li rivendica.
+      ⚠️ Il `mandate` B resta **prenotato e senza write-set**: la riattivazione gli ha tolto il path — vedi il
+      commento in `writable` — non la prenotazione, e non lo rende esigibile. `ScenarioHarness/` è tuttora di
+      `simulation`.
+      ---
+      ⛔ **Da qui in giù è STORIA: i campi che i blocchi seguenti dichiarano NON valgono più.** Sono stati
+      scritti quando questa track era `IDLE` con `issue: null`, e lo dicono al presente. I campi correnti
+      sono quelli in testa alla sezione — `status: ACTIVE`, `issue: 726`. La riga esiste perché `note:` è
+      uno scalare `>-`: il `---` qui sopra si ripiega in uno spazio e non separa niente a schermo.
+      ---
+      ⚠️ **IDLE con `#986` ancora APERTA, e la distinzione conta.** La PR **#988** (`a5c1e33b`) ha
+      chiuso solo le due affermazioni false che erano entrate in `main`; i **cinque difetti di
+      sostanza** che la review ha trovato — `ComputeHash` che ignora `StableId`, `MixName` instabile
+      in packaged e non self-delimiting, `bConductsElectricity` fuori dal giro degli archi, il caso
+      «archi» del test più debole di quello «porte» — restano aperti sulla issue, misurati uno per
+      uno. `issue: null` qui significa *«nessuna sessione ci sta lavorando»*, **non** *«non c'è più
+      niente da fare»*: chi riprende `#986` riattiva la track.
+      ✅ Il write-set torna libero: `Turn/RTMatchStateHash.cpp` e `Tests/RTMatchStateHashTests.cpp`
+      sono atterrati in `main` e oggi non sono di nessuno.
+      ---
+      ➕ **Riattivata il 2026-08-16 su `#986`, e la ragione è scomoda**: una code review multi-angolo
+      sulla PR **#978** è arrivata **dopo** il merge, e ha trovato che due affermazioni false erano
+      entrate in `main` con essa. Questo giro corregge **solo quelle** — i cinque difetti di sostanza
+      restano aperti su `#986`, dove sono misurati uno per uno.
+      ⚠️ **Le due affermazioni non sono refusi, sono verifiche mancate**: un commento che rimandava a
+      `RTGoldenCorpusTests` e a `G12` per una proprietà che nessuno dei due copre — misurato: i golden
+      `.rttl` non contengono alcuno state hash, e `G12` è `BUILD SUCCESSFUL`, non un confronto di hash —
+      e il tipo `FRTHexArc`, che non esiste in tutto `Source/` (è `FRTHexEdge`). Una terza, il conteggio
+      `876` dove l'albero ne fa `903`, era già caduta col ritorno a IDLE di poche ore fa: la riga che la
+      conteneva è stata riscritta prima che la review la segnalasse.
+      🔴 **La lezione di processo vale più delle due correzioni**: la review era stata lanciata **prima**
+      del merge e il merge non l'ha attesa. Nessuno dei findings avrebbe bloccato la PR — ma quelle
+      affermazioni sarebbero rimaste in `main` a dire il falso a chi le rilegge.
+      ---
+      ✅ **IDLE dal 2026-08-16 perché il lavoro è atterrato, non per dipendenza.** `#832` (CP 23.3,
+      `RT-FEAT-MAP-STRUCTURE-IDENTITY`) è **CLOSED**: PR **#978** mergiata alle `06:47:59Z`
+      (`b2a024bc`), sesta casella su sei spuntata. Suite sull'albero mergiato: **903 test, 0 falliti**;
+      la verifica di mutazione fa cadere *esattamente* `Simulation.ChecksumSeesStructureIdentity` e
+      nient'altro, il che è anche la prova che `HexMap.DoorHashDeterminism` non copriva quell'anello.
+      ✅ **Il write-set torna libero e non assegnato**: i sei path di `#832` — `Map/RTStructureIdentityLibrary.*`,
+      `Turn/RTMatchStateHash.*` e i due test — sono tutti atterrati in `main` e oggi non sono di nessuno.
+      Chi li rivendica riattiva questa track, invece di scriverci di passaggio.
+      ⚠️ **Il `mandate` B resta assegnato e NON esigibile**: `ScenarioHarness/` è passato a `simulation`
+      (#512) e non è tornato. Alla track resta il solo file del mandato. Chi riapre il mandato
+      **rinegozia la cartella**, non la riprende — e finché `simulation` la tiene, non c'è niente da
+      riprendere.
       ✅ **Il blocco che teneva ferma quella casella era scaduto, e l'ho rimisurato invece di rileggerlo.**
       La issue dichiarava — al presente — *«`Turn/RTMatchStateHash.cpp` appartiene alla track `simulation`,
       che lo sta riscrivendo»*. Quando ho misurato, `simulation` era `IDLE` col write-set *«libero e non
@@ -1300,17 +1427,27 @@ tracks:
     mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
     worktree: "D:/rt-spatial"
     writable:
-      # #832 — la sesta casella. Due sono scritti (`RTMatchStateHash.cpp` e il suo test), quattro sono
-      # letti e restano dichiarati perché il DoD della issue li nomina: il perimetro si dichiara prima,
-      # non si deduce dal diff a cose fatte.
-      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.h
-      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.cpp
-      - Source/RefactorTactics/Turn/RTMatchStateHash.h
-      - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
-      - Source/RefactorTactics/Tests/RTStructureIdentityTests.cpp
-      - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
-      - docs/technical/qa-prompt-terminal-b-scenario-runner.md
+      # ➖ `docs/technical/qa-prompt-terminal-b-scenario-runner.md` **rilasciato il 2026-08-16**, e non e'
+      # una rinuncia al mandato: e' la meta' di questa track della violazione che l'intestazione dichiara
+      # (`spatial` e `content_editor` lo rivendicavano **entrambe** gia' su `origin/main`). Finche' questa
+      # era `IDLE` la contesa dormiva; portandola ad `ACTIVE` sarebbe diventata ACTIVE x ACTIVE, cioe' la
+      # violazione vera — e l'avrebbe creata questo commit. L'intestazione dice «**La sciolgono i due
+      # proprietari**»: questa e' la meta' che spetta a `spatial`. Il `mandate:` resta prenotato **senza
+      # write-set**, lo stesso trattamento che la nota da' gia' a `ScenarioHarness/`, e chi riapre il
+      # mandato rinegozia con `content_editor` invece di ereditare una contesa.
+      # ➕ Il 2026-08-16 con `#726`. Veniva da `integration_only`, ed e' un prestito con scadenza: torna
+      # li' quando questa track chiude. Intersezione con le cinque track `ACTIVE` **misurata vuota**, e
+      # il file non e' sorgente di nessuna vista — nessun `derives_from` da aggiungere sotto.
+      - docs/OPEN_DECISIONS.md
+    # Il campo rende l'obbligo di restituzione **interrogabile** invece che affidato ai commenti qui sopra,
+    # che la riscrittura del batch porterebbe via con se'. Alla chiusura di questa track il path torna in
+    # `integration_only` — vedi lo schema.
+    writable_on_loan:
+      - path: docs/OPEN_DECISIONS.md
+        from: integration_only
+        return_to: integration_only
     derives_from: []
+    binary_leases: []
 
   simulation:
     status: ACTIVE
@@ -2069,6 +2206,44 @@ tracks:
       # `writable` della track che li esegue, perché chi esegue un mandato lo corregge quando lo misura
       # sbagliato. Vedi la documentazione di `mandate` nello schema in testa al file.
       - docs/technical/qa-prompt-terminal-c-architettura-qa.md
+      # ➕ **Consolidamento del 2026-08-16: la Issue Tracking Completeness Rule.** Deroga dichiarata —
+      # `CLAUDE.md` e `AGENTS.md` sono `integration_only` e vengono presi da questa track per un giro,
+      # perché la regola nuova va scritta **una volta sola** e in tre file che devono restare coerenti fra
+      # loro: la regola compatta in `CLAUDE.md`, il rimando in `AGENTS.md`, l'owner in `docs/technical/`.
+      # Spezzarli in due track produrrebbe due stesure della stessa regola.
+      # Misurato prima di prenderli: **zero** branch remoti diversi da `main` toccano uno di questi quattro
+      # file (contati uno per uno con `git diff --name-only origin/main...<branch>`).
+      #
+      # 🔴 **`.github/` esce dall'assenza deliberata, e quattro documenti lo dichiaravano assente.** La
+      # decisione proteggeva la CI — `AGENTS.md` dice «CI, package manager o build step» — e un issue
+      # template **non esegue niente**. Ma uno dei quattro non è prosa:
+      #     docs/technical/qa-prompt-terminal-b-scenario-runner.md:294
+      #     git ls-tree -r --name-only origin/main -- .github/   # deve essere vuoto
+      # È un ORACOLO, e diventerebbe rosso al primo file creato. Va ristretto a `.github/workflows/`, che
+      # è ciò che la decisione proteggeva davvero. Correggere il template senza correggere l'oracolo
+      # lascerebbe un gate che mente — la forma di difetto che questo file esiste per rendere visibile.
+      - CLAUDE.md
+      - AGENTS.md
+      - docs/technical/issue-tracking-completeness.md
+      - docs/technical/qa-prompt-terminal-a-determinismo.md
+      - docs/technical/qa-prompt-terminal-b-scenario-runner.md
+      - .github/
+      # ➕ Il testo integrale della regola nella root, per gli agenti esterni che leggono da lì e non
+      # risolvono rimandi. ⚠️ È una **seconda copia** della stessa regola, ed è il contrario di ciò che
+      # questo consolidamento ha appena fatto (una stesura, due puntatori). La duplicazione è deliberata e
+      # dichiarata nel banner del file: l'owner interno vince, e chi corregge una corregge l'altra nello
+      # stesso commit. Nome allineato al precedente già in root
+      # (`RefactorTactics_FeatureRegistry_Roadmap_Wiki_Claude_2026-08-08.md`): underscore, non spazi —
+      # solo 8 file su 1301 hanno spazi nel nome, e un path con spazi va quotato in ogni comando.
+      - RefactorTactics_Issue_Tracking_Completeness_Rule.md
+      # ➕ **I primi test del modulo editor.** Tre issue di questa seduta (#871, #921, #931) dichiarano
+      # «`Source/RefactorTacticsEditor/` non ha test, quindi la verifica è manuale» e lo trattano come un
+      # dato. Misurato: **non c'è nessun impedimento**. Il `Build.cs` ha già `Core` (dove vive
+      # `Misc/AutomationTest.h`) e il modulo runtime; `WITH_DEV_AUTOMATION_TESTS` è definito sui target
+      # Editor. La premessa era vera come fatto e falsa come causa — i test non sono mai stati scritti,
+      # non erano impossibili. Tre difetti dello stesso modulo in una seduta sono l'argomento per scriverli.
+      - Source/RefactorTacticsEditor/Private/Tests/
+      - Source/RefactorTacticsEditor/RefactorTacticsEditor.Build.cs
     # ➖ **Il `derives_from` segue il file**: la catena `test-manuali-pie.md` → `editormap.shortlist.md`
     # + `project-graph.json` passa a `playtest` insieme alla sorgente. È la regola già scritta in
     # `generated_only` applicata a una riassegnazione: la vista segue la sorgente, e la sorgente ha
@@ -2236,10 +2411,35 @@ tracks:
 
   frontend_shell:
     status: ACTIVE
-    issue: 936
-    branch: feat/936-frontend-navigation
+    issue: 937
+    branch: null            # seduta d'editor: l'unita' di lavoro e' un'apertura di Unreal, non un commit
+    session: U24
     worktree: D:/rt-menu
     note: >-
+      ➕ **Riattivata il 2026-08-16 come SEDUTA, non come sessione di codice.** La parte C++ di E46 e'
+      consegnata; quello che comincia adesso e' la costruzione dei `WBP_RT_*` in editor — seduta **U24**
+      in [`editor-sessions.yaml`](editor-sessions.yaml).
+      🔴 **Il lavoro era gia' cominciato quando questa voce e' stata scritta, e il tracking non lo
+      nominava**: `grep -n "WBP_RT_" editor-sessions.yaml` dava **zero** e nessuna `binary_leases` copriva
+      `Content/RT/UI/`. Un `.uasset` senza lease e' esattamente il caso che `D-139` esiste per impedire —
+      due binari non si fondono, e la lease va emessa **prima** di salvare, non dopo. Registrato a
+      posteriori e dichiarato tale, invece di far sembrare che ci fosse.
+      ⚠️ `branch: null` con `session: U24` e' il pattern di `content_editor` su U1: l'unita' di lavoro e'
+      un'apertura di editor. Se la seduta apre un ramo per committare gli `.uasset`, va nominato in
+      `session_branch`, o il suo write-set non e' confrontabile con quello di nessuno.
+
+      ✅ **Il C++ resta consegnato: `#936` e `#937` hanno chiuso la loro parte.** CP 46.1 (navigation
+      controller, PR #972) e CP 46.2 (produttore delle fasi, ottavo vocabolario `ERTStartupOutcome`, tre
+      classi base dei widget, PR #994). Suite **941 · 0 falliti** sull'albero mergiato.
+      ⚠️ **I `writable` restano dichiarati e questa track resta la loro**, benché IDLE: `#938`…`#941` sono
+      aperte e le scrivera' lei. E' il caso «prenotato, non in uso» che lo schema ammette — e vale in
+      particolare per `RTGameMode.{h,cpp}`, riallocati qui da `autobattle` con una decisione istruita: se
+      tornassero liberi, la prossima sessione dovrebbe rifare la stessa richiesta.
+      ⏳ **Cosa NON e' consegnato, e non e' scrivibile da una sessione**: i `WBP_RT_*` che consumano le
+      basi sono `.uasset` — lavoro d'editor, D-139 binari human-first — e le sei voci `PIE-V01-FRONTEND-*`
+      appartengono a `playtest`, a cui si **propongono in handoff**. Senza i primi nulla appare a schermo,
+      ed e' la ragione per cui `RT-FEAT-UI-FRONTEND-SHELL` tiene `runtime` e `automation` a `partial`.
+      ─────
       CP 46.1 di **E46** — il navigation controller del frontend (`#934`). ➕ **Track aperta il 2026-08-16
       su richiesta esplicita di questo file**, che alla sezione `preexisting` scriveva *«`D:/rt-menu` è la
       sessione più pericolosa del lotto … chi la possiede la dichiari»*. Il branch precedente di quel
@@ -2260,7 +2460,46 @@ tracks:
     writable:
       - Source/RefactorTactics/Frontend/
       - Source/RefactorTactics/Tests/RTFrontendNavigationTests.cpp
+      # ➕ File **nuovo** di CP 46.2, dichiarato prima di crearlo: «non collide con nessuno» non e'
+      # un'esenzione, ed e' la stessa asimmetria che `autobattle` ha registrato per
+      # `RTMatchAutobattleTests.cpp`. Elencato **per nome** e non come prefisso `Tests/`, che e' conteso
+      # da quattro track.
+      - Source/RefactorTactics/Tests/RTStartupReportTests.cpp
+      # ⚠️ **Il file RESTA qui, e nel giro di un giorno la domanda si e' aperta e richiusa due volte.**
+      # Vale la pena scrivere la sequenza, perche' e' il caso d'uso per cui questo file esiste:
+      #   1. `replay_ui` (#472) prende il path per scrivere la §2.2 — `#936` era chiusa, il branch
+      #      mergiato e cancellato, e **nessun branch vivo lo toccava**, misurato sui dieci remoti;
+      #   2. 🔴 lo prende **aggiungendolo** invece che spostandolo: per qualche ora il path e' in DUE
+      #      `writable` entrambi `ACTIVE` — `WritableSet(T1) ∩ WritableSet(T2) = ∅` violata dentro il
+      #      file che la dichiara. Trovato in code review;
+      #   3. la correzione lo toglie da qui — e nel frattempo **CP 46.2 e' partito e ha scritto la
+      #      spec** (§4.1, §4.2, §4.3 nuova, PR mergiata in `main`). La correzione era giusta per lo
+      #      stato di ieri e sbagliata per quello di oggi.
+      # ✅ **Esito: resta a `frontend_shell`**, che e' la track che continuera' a scriverlo — `#937`
+      # ha appena finito, `#938`…`#941` sono aperte. `replay_ui` non lo dichiara: il suo lavoro sul
+      # file e' **finito** con la §2.2, e un `writable` dichiara chi scrivera', non chi ha scritto.
+      # 💡 La lezione, per la prossima riallocazione: un write-set si misura sui branch **vivi al
+      # momento del merge**, non a quello della decisione. Fra i due c'e' stata una PR.
       - docs/technical/spec-frontend-navigazione.md
+      # ➕ **File nuovo, dichiarato prima di crearlo** (2026-08-16): la guida per costruire i `WBP_RT_*`
+      # in editor. E' il gemello di `guida-screen-hud-umg.md` — che CP 11.7 ha scritto per lo stesso
+      # motivo — e sta accanto alla spec perche' la spec dice *cosa*, la guida *come*. Le due si leggono
+      # insieme e le scrive la stessa track.
+      - docs/technical/guida-frontend-umg.md
+      # ➕ **Entrano il 2026-08-16 con CP 46.2** (`#937`), e la richiesta è stata istruita invece che
+      # data per scontata: lo spec panel aveva scritto *«va assegnato prima»* credendoli non assegnati,
+      # e la misura ha detto che erano di `autobattle`. Quella track ha **finito** (`#954` `CLOSED`, PR
+      # #963 mergiata, branch inesistente sul remoto), quindi il path era libero — non è stato tolto a
+      # una sessione viva. La decisione è dell'autore, presa in sessione col costo dichiarato.
+      # ⚠️ **Perché servono a CP 46.2, che è un checkpoint di frontend**: le tre fasi di loading e gli
+      # otto esiti d'avvio si **producono** qui — `BeginPlay`, `ApplyMapSource`, `ApplyMatchFormat` — e un
+      # widget che li componesse da sé sarebbe la seconda autorità su *perché* qualcosa non è partito.
+      # È il difetto che l'istruttoria dell'enum esisteva per evitare.
+      # ⛔ **Non autorizza a toccare il resto di `RTGameMode`**: il perimetro è l'emissione degli eventi.
+      # `bAutobattle`, i `Resolve*` e lo spawn restano com'erano — chi rilegge il diff deve trovarci solo
+      # righe che *dichiarano* uno stato, mai che lo decidono.
+      - Source/RefactorTactics/RTGameMode.h
+      - Source/RefactorTactics/RTGameMode.cpp
     derives_from:
       - source: docs/roadmap/feature-registry.yaml
         regenerates:
@@ -2269,7 +2508,40 @@ tracks:
           - docs/roadmap/project-graph.json
           - docs/roadmap/charts/roadmap-map.svg
         shared_with: [integrazione]
-    binary_leases: []
+    binary_leases:
+      # 🔴 **Emessa il 2026-08-16 a lavoro gia' cominciato, e va detto invece che datata all'indietro.**
+      # I widget si stavano costruendo mentre `Content/RT/UI/` non era in nessuna lease e in nessun
+      # `writable`: la regola dice che la lease si emette **prima** di salvare, e qui non e' andata cosi'.
+      # Registrarla ora vale comunque — da adesso il path e' preso e nessun'altra track puo' crearlo —
+      # ma la sequenza corretta resta quella, e questa voce non finge di averla seguita.
+      # ⚠️ **`create` prenota una DESTINAZIONE**: i cinque package non esistono, quindi non c'e' nulla da
+      # contendere se non il nome. La cartella `Content/RT/UI/Framework/` nasce col primo widget —
+      # `convenzioni-contenuti-ue.md` §3 vieta di crearla vuota in anticipo.
+      # ⚠️ Sui **file** e non sulla cartella: la regola «la lease si emette sulla cartella» vale per le
+      # mappe, che sono cartelle con un numero di package che non si deduce. Cinque widget sono cinque
+      # package, e si contano.
+      - key: "BINARY-GH937-FRONTEND-WIDGETS"
+        issue: 937
+        base_sha: "5bfae1ce147db5107947d2033a03c1439f4e9874"
+        operation: create
+        paths:
+          - Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset
+          - Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
+          - Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset
+          - Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset
+          - Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset
+        verification:
+          - load_in_editor
+          - save_without_errors
+          # La verifica che conta non e' che il widget si apra: e' che erediti dalla classe base **giusta**
+          # — `URTFallbackBannerWidgetBase`, `URTErrorModalWidgetBase`, `URTLoadingScreenWidgetBase` — e che
+          # legga il dato invece di comporlo. Un widget che scrivesse da se' «Loading map…» sarebbe la
+          # seconda autorita' sulle fasi d'avvio, che e' il difetto per cui `ERTLoadPhase` esiste.
+          - inherits_declared_base_class
+          # ⛔ E che **nessuno dei cinque** crei o rimuova widget: `grep -rn "AddToViewport|RemoveFromParent"`
+          # non deve produrre occorrenze fuori dal navigatore. E' l'invariante 1 di CP 46.1, e un `.uasset`
+          # e' l'unico posto dove puo' rientrare senza che un test se ne accorga.
+          - no_widget_creates_widgets
 
   verification:
     status: IDLE
@@ -2366,8 +2638,96 @@ tracks:
     status: IDLE
     issue: null
     branch: null
-    worktree: "D:/rt-chatgpt"
+    worktree: "D:/rt-autobattle"
     note: >-
+      ✅ **CHIUSA il 2026-08-16: `#958` e `#990` sono `CLOSED`, PR **#991** mergiata in `f4e34ef2`** e il
+      branch `feat/958-corpus-determinismo-autobattle` non esiste più — cancellato lato server e
+      verificato con `git ls-remote`, non ricordato. ⚠️ `gh pr merge` ha **riportato un errore** su un
+      merge riuscito (`fatal: 'main' is already used by worktree`): quello è il checkout locale che
+      fallisce, non il merge. L'esito si legge lato server — `gh pr view --json state` — e questa riga
+      lo fa, invece di credere all'uscita del comando.
+      ✅ **Il write-set consegnato è esattamente quello dichiarato**: i tre path di codice/batch più i
+      cinque documentali (registry, le sue viste, `execution-graph.yaml`, `roadmap-v0.1.md`), tutti
+      `integration_only` o generati dalla sorgente che questa track possedeva.
+      ✅ **Suite 913 · 0 falliti**, e il conto delle dichiarazioni torna: **906 su `origin/main` → 913**,
+      cioè **+7 esatti**, misurato contro la base del branch e non contro un `origin/main` che nel giro si
+      è mosso tre volte. `dichiarati == eseguiti` — 913 = 913 — che è il controllo che §6 dice essere
+      quello che conta, perché un test non raccolto non fallisce: sparisce.
+      🔵 **`RTTurnManager.cpp` torna LIBERO e non assegnato.** L'allargamento è servito, ha consegnato, e
+      finisce con il turno: tenerlo sarebbe la prenotazione senza lavoro che questa stessa track ha
+      appena tolto a `RTGameMode`. ⚠️ La collisione differita verso `feat/cp75-selfreposition` **non è
+      sparita, è cambiata di verso**: quel branch ora dovrà rebasare su un `MakeCurrentSnapshot` con una
+      riga in più, in una funzione che il suo WIP non tocca.
+      ⚠️ **Il worktree `D:/rt-autobattle` resta in piedi**, come `D:/rt-chatgpt`: tiene `Binaries/` e
+      `Intermediate/` costruiti, e cancellarlo costa una ricompilazione intera.
+      ⛔ **Cosa la track lascia aperto, dichiarato e non dedotto**: (1) i quattro scenari `AutoBattle.*`
+      restano `planned` — sono **E47.4** (`#957`), che dipende dal seam di `D-101` (`#542`); (2) `#971`,
+      l'input non impedito in autobattle, resta aperto e i suoi due file non erano di questa track
+      neppure stavolta; (3) le verifiche PIE sono **E47.6**, di `playtest`.
+      ⏱️ **Il turno di `#958`, tenuto perché dice cosa ha consegnato e su quali misure:**
+      ➕ **RIAPERTA il 2026-08-16 su `#958` (E47.5, epic `#952`): il corpus di determinismo
+      dell'autobattle.** Sette casi limite verificati attraverso il percorso di gioco reale, e uno —
+      `DifferentSeedVariation` — escluso con la ragione scritta nel codice invece che dedotta.
+
+      ⚠️ **I due path di `RTGameMode` ESCONO, e `Turn/RTTurnManager.cpp` ENTRA.** Non è uno scambio: il
+      turno precedente teneva `RTGameMode` perché E47.1 modificava la configurazione, e questo turno non la
+      tocca — un `writable` che sopravvive al lavoro che lo giustificava è una prenotazione senza motivo.
+
+      🔴 **L'allargamento a `RTTurnManager.cpp` è la decisione di questa track, ed è argomentata contro il
+      precedente che dice di non farlo.** La nota di `#954`, venti righe più sotto, ha rifiutato di chiudere
+      `#971` perché *«allargare il write-set per una riga è ciò che `D-139` esiste per impedire»*. Qui la
+      riga è **una dipendenza del DoD**, non un'occasione trovata a lato: `PermutationTest` è il caso 1 dei
+      sette di `#958` e nasce **rosso** contro il codice di `main`. Consegnare il corpus senza la riga
+      significa consegnare sei casi e dichiarare il settimo non misurabile — quando è misurato, e il difetto
+      che trova è reale.
+      · **Il difetto**: `MakeCurrentSnapshot` costruisce l'identità delle unità come **indice** in un array
+        popolato da `GetAllActorsOfClass` e **non ordinato**; `PlanBots` itera quegli indici. L'ordine di
+        spawn decide quale bot pianifica per primo, e appena due bot interagiscono decide la partita.
+      · **La misura**: la stessa 2v2, stesse unità sulle stesse celle, inserite in ordine diverso, divergeva
+        al **turno 2** — `Bastion.Interposition` attivata in un ordine, senza trigger nell'altro. Turno 1
+        identico byte per byte, che è il modo in cui questa classe di difetto resta invisibile.
+      · **Il gemello corretto è nello stesso file**: `ResolveCombat` applica lo stesso `Sort` con lo stesso
+        comparatore e la regola scritta accanto. Uno dei due la rispettava.
+      · **Il path era libero**: nessuna track lo dichiara — verificato scandendo tutti i `writable`, non
+        ricordato. `spatial` tiene `Turn/RTMatchStateHash.{h,cpp}`, `client_tools` tiene
+        `Turn/RTIntentPrivacyLibrary.{h,cpp}`, e nessun altro nomina `Turn/`.
+      ⚠️ **Solo il `.cpp`, e l'header no**: la firma di `MakeCurrentSnapshot` non cambia. La regola
+      «header e unità di traduzione nello stesso commit» vale quando cambia la dichiarazione, e qui non
+      cambia — dichiarare `RTTurnManager.h` sarebbe prenotare un file che nessuno tocca.
+
+      ⛔ **Perché i sette casi stanno in `RTMatchAutobattleTests.cpp` e non in un file nuovo.** Gli helper
+      della partita non presidiata — `SpawnAutobattleMap`, `CollectAutobattleUnits`, le due guardie di
+      stato globale su `FCommandLine` e sulle console variable — vivono nel **namespace anonimo** di quel
+      file, e in unity build due namespace anonimi con la stessa funzione collidono. Un file gemello
+      avrebbe dovuto ribattezzarli tutti: è il duplicato che `RTWorldFixtures.h` esiste per chiudere, e
+      il costo è documentato nel suo commento (43 file, 43 nomi per la stessa funzione).
+
+      ✅ **Fotografia a tre comandi del 2026-08-16, su `base_sha` `b2a024bc`.** `git ls-remote --heads
+      origin` (**12** branch), `git worktree list` (**9** worktree), e `git diff --name-only
+      origin/main...<b>` per ciascuno: **nessun ramo vivo tocca `Tests/RTMatchAutobattleTests.cpp`**. I
+      write-set misurati sono `feat/512` 1 file, `feat/593` 6, `feat/77` 3, `fix/892` 2, `feat/u1-residui`
+      8, e `feat/832`/`feat/472` **zero** — entrambi già contenuti in `main`.
+      ⚠️ **L'unica intersezione è questo file**, con `feat/u1-residui`, ed è `integration_only`: attesa e
+      pagata al merge, non una violazione. È il quinto giro consecutivo in cui il file che previene le
+      collisioni è l'unico oggetto conteso, e va nel conto della domanda aperta in `meta`.
+      🔴 **E `origin/main` si è mosso DENTRO la fotografia, per la sesta volta.** Il branch è nato su
+      `819bf143`; fra il primo e il secondo comando sono atterrate **cinque** PR — #976, #972, #979, #980,
+      #978 — portando la base a `b2a024bc`. Il ramo è stato riallineato **prima** di misurare, non dopo:
+      un write-set calcolato contro una base morta è giusto e inutile.
+
+      ⛔ **Cosa questa track NON tocca, e perché.** `ScenarioHarness/` resta fuori: **E47.4** (`#957`) è
+      il free-run e passa dal seam di `D-101` (`#542`), che non ha ancora codice su nessun ramo vivo —
+      misurato, `git diff origin/main...feat/512-decisionprovider-finestra` dà un file solo e non è quello.
+      Aprire qui un secondo modo di far girare una partita dentro l'harness sarebbe il terzo punto
+      d'ingresso ad hoc che `D-101` dichiara di voler evitare. I test di questo corpus usano
+      `PlanBotsForTest()` — che `RTScenarioRunner.h` chiama *«l'unico appiglio»* e che l'harness stesso
+      invoca — quindi non aggiungono un appiglio: usano quello che c'è.
+
+      ⚠️ **Il vincolo che resta non è sui file, è la macchina**: una run di automation per volta. Al
+      momento della misura `D:/rt-spatial` ne aveva una in corso (`RefactorTactics+Quit`, PID 55036), e
+      questa track ha atteso invece di affiancarla.
+
+      ⏱️ **Il turno precedente, tenuto perché dice cosa ha consegnato la track e cosa ha lasciato aperto:**
       ➕ **Track aperta su `#954` (E47.1, epic `#952`).** Mette entrambe le squadre sotto il bot per
       configurazione: il delta è in `ARTGameMode`, non in un motore — il turno avanzava già da solo
       (`StartPlanningTimer → PlanBots`, `OnPlanningTimeout → LockInAndResolve`, timer che riparte).
@@ -2464,17 +2824,54 @@ tracks:
       `git switch -c <branch>` da lì **dopo** un `fetch` — questa track ne ha fatti tre in un turno, e la
       distanza da `origin/main` è passata da 0 a 44 a 13 a 8 mentre il lavoro era aperto.
     writable:
-      - Source/RefactorTactics/RTGameMode.h
-      - Source/RefactorTactics/RTGameMode.cpp
+      # ➖ **`RTGameMode.{h,cpp}` escono il 2026-08-16, e ci sono arrivate DUE sessioni per due strade.**
+      #
+      # Questa track, riaprendo su #958: *«un path prenotato senza lavoro che lo giustifichi è un lotto più
+      # stretto del vero»* — quel turno non li tocca, quindi tornano liberi.
+      # `frontend_shell`, che ne aveva bisogno per CP 46.2 (`#937`): l'emissione delle fasi e degli esiti
+      # d'avvio vive lì, e la scrittura sarebbe stata uno **stop** senza riallocazione.
+      #
+      # ✅ Le due misure concordano e si rafforzano: `#954` è `CLOSED`, PR #963 mergiata in `1fe85ed2`,
+      # `git ls-remote --heads origin | grep 954` → **0**. Non è una contesa risolta a favore di qualcuno:
+      # è un path che questa track ha smesso di usare e che un'altra ha **chiesto**.
+      # ∴ non «liberi e non assegnati» ma **assegnati a `frontend_shell`**, che è dove il lavoro è.
+      # ⚠️ Se questa track ne riavesse bisogno, `RTGameMode` va **richiesto**: l'ownership non si eredita
+      # dal passato, ed è la stessa regola che ha portato qui.
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
+      # 🔵 `Turn/RTTurnManager.cpp` è USCITO con la chiusura del 2026-08-16: era entrato per il difetto
+      # #990, ha consegnato, e un path prenotato senza lavoro non resta. Torna libero e non assegnato.
+      # La collisione differita verso `feat/cp75-selfreposition` (DORMANT dal 2026-08-11, tre file di
+      # `Turn/`) resta descritta nella `note`: chi riprende quel branch paga il merge, come già deciso.
+      #
+      # ⚠️ **Questo blocco sopravvive alla chiusura, ed è voluto**: la track è IDLE con la `note` che
+      # nomina l'epic ancora aperta (E47), quindi `writable` qui significa *prenotato* — il file dei
+      # test dell'autobattle non va assegnato altrove prima che E47.2/47.3/47.6 si aprano. È il caso
+      # che lo schema dichiara in fondo alla voce `mandate`.
     binary_leases: []
 
   unit_presentation:
-    status: ACTIVE
+    status: IDLE
     issue: 593
     branch: feat/593-root-neutro-unit
     worktree: "D:/rt-unit"
     note: >-
+      ✅ **CHIUSA il 2026-08-16**: PR **#977** mergiata in `main` come `a4d4a274`, issue `#593` chiusa.
+      Il write-set qui sotto e' **rilasciato** — `Unit/RTUnit.{h,cpp}`, `Tests/RTUnitTests.cpp` e
+      `docs/technical/spec-team-identity.md` tornano disponibili. L'elenco resta scritto invece di
+      essere svuotato: dice quali file questa track ha toccato, ed e' cio' che la prossima intersezione
+      deve poter leggere.
+      🔴 **Il turno ha trovato in code review un difetto che la suite verde non vedeva**:
+      `RingGroundClearance` a `1.0` metteva il bordo degli anelli a `2.0`, mezza unita' **dentro** il
+      disco opaco della cella (faccia a `2.5`). Anelli invisibili a schermo, indistinguibili da anelli
+      mai disegnati. `Map/` e' fuori da questo write-set, e la costante che avrebbe risposto —
+      `RTCellTopZ` — e' `constexpr` in un namespace anonimo: condividerla e' **#983**. Aperta anche
+      **#984** (il conteggio della suite e' fermo a 875 mentre sono 903, e rigenerarlo cancella prosa
+      scritta a mano dentro il blocco generato).
+      ⚠️ **Resta lavoro NON in questa track**: i quattro `BP_Unit_*` non sono raddrizzati — i loro nodi
+      SCS dichiarano il genitore per nome, quindi la skeletal resta figlia di `Mesh`. E' la seduta
+      **U7**, con Binary Asset Lease, e la ricetta in `editor-sessions.yaml` ha ora l'ordine obbligato
+      (misura → riparenta → togli).
+
       ➕ **Track aperta su `#593`**: il cilindro segnaposto e' il **root** di `ARTUnit` e porta una scala
       non uniforme `(1.2, 1.2, 1.8)`, quindi ogni componente aggiunto in Blueprint la eredita — una
       Skeletal Mesh viene stirata di `1.8/1.2 = 1.5x`. Root neutro (`USceneComponent`), com'e' gia' in
@@ -2507,10 +2904,422 @@ tracks:
       ⚠️ **Il vincolo che resta non e' sui file, e' la macchina**: una run di automation per volta e un
       mutex di UBT — questa track compila i target Editor e Game, quindi si aspetta con `simulation`
       (#512) e `content_editor` (#451) se ricompilano insieme.
+      ➕ **`docs/technical/spec-team-identity.md` entra il 2026-08-16, in code review e non all'apertura**,
+      ed e' esattamente il caso che questo file chiama STOP: non era in nessun insieme — ne' in un
+      `writable`, ne' in `integration_only`, ne' in `generated_only`. E' un `owner_spec` di
+      `RT-FEAT-CHAR-PRESENTATION`, e le sue sezioni 2-4 descrivono la gerarchia che questa track sta
+      togliendo: `Mesh` root, `SetupAttachment(Mesh)`, la `RelativeLocation.Z` divisa per
+      `BaseMeshScale.Z`. Lasciarlo indietro non e' neutro — e' una spec `AS-BUILT` che descrive codice
+      che non esiste piu', cioe' l'istruzione a rimettere la compensazione appena tolta.
+      ✅ **Intersezione rimisurata il 2026-08-16 sui tre comandi**, perche' quella di apertura non
+      copriva questo path: `gh pr list` (**3** PR: #977, #908, #904), `git ls-remote --heads origin`
+      (**12** ref, `main` incluso), `git worktree list` (**9** worktree). L'unione da **18 rami vivi** —
+      e i tre comandi non si sovrappongono: `feat/958-corpus-determinismo-autobattle`,
+      `feat/937-loading-error` e `feat/472-replay-r6-interfaccia` esistono solo come worktree locali,
+      invisibili sia a `gh` sia a `ls-remote`. `git diff --name-only origin/main...<ramo>` per tutti e
+      diciotto: **zero** tocca `docs/technical/spec-team-identity.md` o `docs/characters/`.
+      ⚠️ **Limite dichiarato**: la misura vede i COMMIT, non il lavoro non committato negli altri
+      worktree. Contro quello un batch non protegge, e non e' questo file a poterlo promettere.
     writable:
       - Source/RefactorTactics/Unit/RTUnit.h
       - Source/RefactorTactics/Unit/RTUnit.cpp
       - Source/RefactorTactics/Tests/RTUnitTests.cpp
+      - docs/technical/spec-team-identity.md
+    binary_leases: []
+
+  state_hash:
+    status: IDLE
+    issue: null
+    branch: null
+    worktree: "D:/rt-unit"
+    note: >-
+      ✅ **CHIUSA il 2026-08-16**: PR **#1001** mergiata in `main` come `27aa0a0d`, issue `#986` chiusa
+      dalla keyword. Il write-set qui sotto è **rilasciato** — `Turn/RTMatchStateHash.{h,cpp}`,
+      `Map/RTHexMapAsset.{h,cpp}` e i due file di test tornano disponibili. L'elenco resta scritto invece
+      di essere svuotato: dice quali file questa track ha toccato, ed è ciò che la prossima intersezione
+      deve poter leggere.
+      ⚠️ `issue: null` perché lo `status` è `IDLE`: il numero vive nella nota.
+
+      **Cosa è atterrato**: `StableId` entra in `ComputeHash` per porte e archi; `MixName` normalizza a
+      minuscole ed è self-delimiting; `bConductsElectricity` entra nel giro degli archi di
+      `HashMatchState`. Quattro test nuovi, verifica di mutazione **sei su sei** (rotta una cosa per
+      volta, cade esattamente il test atteso), suite completa **945 verdi**.
+
+      🔴 **Un difetto di processo, trovato su me stesso e corretto nell'ordine giusto**:
+      `HashStableId(E.StableId)` era stato scritto **prima** del test che lo copre. La riga è stata
+      rimossa, `Simulation.MapHashSeesArcIdentity` scritto e visto rosso, poi la riga rimessa. Un test
+      scritto dopo il codice non ha mai dimostrato di poter fallire.
+
+      ⚠️ **Resta un limite dichiarato, non un residuo da fare**: `HashStableId` in `RTHexMapAsset.cpp`
+      duplica il criterio di `MixName` invece di condividerlo, perché `Map/` non può dipendere da `Turn/`.
+      Se i due criteri divergono, divergono i due hash sullo stesso campo — cioè il difetto che `#986` ha
+      chiuso. Il commento lo dice accanto a entrambi.
+
+      ➕ **Track aperta il 2026-08-16 su `#986`**, nello stesso worktree che ha appena chiuso `#593`:
+      `unit_presentation` e' IDLE e il suo write-set e' rilasciato, quindi i due elenchi non si toccano
+      — nessun path e' condiviso fra le due track.
+
+      `#986` e' il successore di `#832`, aperto da una code review arrivata **dopo** il merge della PR
+      #978. Cinque difetti su `HashMatchState` / `ComputeHash`, e le cinque affermazioni della issue
+      sono state **rilette sul codice** prima di aprire questa track invece di essere ereditate: tutte
+      e cinque reggono. `MixName` mescola `Name.ToString()` senza prefisso di lunghezza
+      (`RTMatchStateHash.cpp:16-19`), il giro degli archi salta `bConductsElectricity` (`:118-131`),
+      e `ComputeHash` non vede `StableId` ne' per le porte (`RTHexMapAsset.cpp:317-320`) ne' per gli
+      archi.
+
+      ⚠️ **`Map/RTHexMapAsset.{h,cpp}` entra, e non per simmetria.** La prima casella del DoD chiede di
+      **decidere** se `StableId` entri anche in `ComputeHash`. Il criterio non e' da inventare: e' gia'
+      scritto due volte accanto ai campi che ne restano fuori — `RTHexMapAsset.h:112` (`MapClass`) e
+      `RTHexCellData.h:71` (`bGenerated`) dicono entrambi che quell'hash risponde alla domanda «la
+      stessa geometria produce la stessa partita?». `URTStructureIdentityLibrary::FindDoorEdges`
+      risolve i bersagli **per nome**, quindi rinominare una porta cambia quale bordo si apre per
+      chiunque la citi: e' dato autorevole nel senso del criterio, come lo e' gia' `DoorId` due righe
+      sopra. La decisione va scritta accanto ai due hash, che e' il resto della stessa casella.
+
+      ⚠️ **`Tests/RTHexDoorTests.cpp` entra**: `HexMap.DoorHashDeterminism` e' il test nominato dal DoD
+      di `#832`, e la misura di `#986` e' che chiama `ComputeHash()` in tutte e cinque le sue assert —
+      cioe' e' rimasto verde perche' non vede nulla di cio' che #978 ha cambiato. Se `StableId` entra
+      in `ComputeHash`, quel test copre il rename o resta un gate che non guarda.
+
+      ✅ **Intersezione MISURATA il 2026-08-16 sui tre comandi**, non dedotta: `git ls-remote --heads`
+      (12 ref), `git worktree list` (9 worktree), `gh pr list --state open` (3 PR). L'unione da **19
+      rami vivi** — e i tre comandi non si sovrappongono: `feat/958-corpus-determinismo-autobattle`,
+      `feat/937-loading-error` e `feat/472-replay-r6-interfaccia` esistono solo come worktree locali.
+      `git diff --name-only origin/main...<ramo>` per tutti e diciannove: **zero** tocca uno dei sei
+      path qui sotto.
+      ⚠️ **Limite dichiarato**, lo stesso di `unit_presentation`: la misura vede i **commit**, non il
+      lavoro non committato negli altri worktree.
+
+      ⚠️ **Il vincolo che resta non e' sui file, e' la macchina**: al momento dell'apertura girano
+      **quattro** `UnrealEditor-Cmd` di altre sessioni (`rt-autobattle`, `rt-content`, `rt-simulation`,
+      `rt-client`), letti dalla loro command line e non dedotti dal nome del processo. Una run di
+      automation per volta resta la regola, e questa track compila il target Editor.
+    writable:
+      - Source/RefactorTactics/Turn/RTMatchStateHash.h
+      - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
+      - Source/RefactorTactics/Map/RTHexMapAsset.h
+      - Source/RefactorTactics/Map/RTHexMapAsset.cpp
+      - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
+      - Source/RefactorTactics/Tests/RTHexDoorTests.cpp
+    binary_leases: []
+
+  hero_kit:
+    status: IDLE
+    issue: null
+    branch: null
+    worktree: "D:/rt-unit"
+    note: >-
+      ✅ **CHIUSA il 2026-08-16**: PR **#1008** mergiata in `main` come `8e873bed`, issue `#1006` chiusa
+      dalla keyword. Il write-set qui sotto è **rilasciato**. Suite sull'albero mergiato: **951 verdi**.
+      ⚠️ `issue: null` perché lo `status` è `IDLE`: il numero vive nella nota.
+
+      **Cosa è atterrato**: `CircularTide` perde il `Wet`, `FluidTrail` torna `Action.Dash` con slot
+      Movimento (D-028), Phase resta con una sola capability Water (`PressureJet`) = `Access`. Lo
+      scenario di CP 8.5 usa `Gadget.Sprinkler` via `loadout` ed è **PASS 5/5** — primo del corpus a
+      usare quel campo.
+
+      🔴 **Il merge finale è stato bloccato per un'ora da un fattore che non era nel write-set**: la
+      build del target Editor falliva con *«Unable to build while Live Coding is active»*, perché
+      l'editor di un'altra sessione era aperto su `D:/rt-menu`. **Live Coding è globale per
+      l'installazione UE**: un editor aperto su un worktree blocca la build di ogni altro. Non è un
+      conflitto di file e nessun campo di questo documento lo esprime — la PR è stata aperta senza
+      mergiare, col limite dichiarato, invece di dare per buona una suite non rieseguita.
+
+      ⚠️ **Residui dichiarati, per l'integrazione**: il successore di `D-046` (Decision Log,
+      `integration_only`, ID da `rt_shared_id.py reserve D`) e `docs/balance/RT_HeroCatalog_v0.1.md`,
+      che descrive ancora il kit vecchio. Il gate contro la divergenza markdown/C++ non esiste: è `#576`.
+
+      ➕ **Track aperta il 2026-08-16 su `#1006`**, che deriva dalla decisione d'autore presa in `#995`
+      dopo lo spec panel: **Phase è abilitata a Water, non padrona — resta `Access`**. Opzione **C**:
+      `CircularTide` perde il `Wet`, `FluidTrail` perde l'acqua e torna `Dash 3` (il pre-`D-046`),
+      l'acqua passa all'equipaggiamento (`Gadget.Sprinkler` porta già `Action.CreateWater`).
+
+      ⚠️ **CONTESA DICHIARATA su `RTHeroCatalogLibrary.cpp`, misurata invece che scoperta al merge.**
+      La PR **#908** (`fix/892-displayname-abilita`, aperta, ultimo commit 2026-08-15) tocca lo stesso
+      file. **Non è un `blocked_by`, e la ragione è la misura**: `git diff origin/main...origin/fix/892`
+      mostra che quel ramo aggiunge un helper `HeroActionDisplayName`, una tabella di nomi e una riga
+      dentro `MakeHeroAction` — mentre questa track modifica le **definizioni** di `Riva.CircularTide`
+      e `Riva.FluidTrail`. Zone diverse dello stesso file: chi mergia per secondo paga un merge banale,
+      e va fatto verificando il **risultato** invece della lista dei conflitti.
+      ➕ Nessuna interazione semantica: #908 chiama `FluidTrail` «Scia fluida», che regge anche quando
+      l'abilità torna a essere uno scatto.
+
+      ⛔ **Cosa questa track NON tocca, ed è `integration_only`:**
+      · `Scenarios/Spec/Environment/WaterQuenchesFire.json` — la sua `_nota_owner` cita `D-046` e
+        diventerà falsa. 🔵 Ma **lo scenario NON cade**, misurato: `requires: EnvironmentalActionOwner`
+        resta soddisfatto da `Flux.ConductiveNode` (la capability dice che *un* eroe possiede un'azione
+        ambientale, non che sia Phase), e l'unica assertion sull'esito è `UnitHpEquals V1 = 90`, cioè
+        **il caso in cui il fuoco non è stato spento**. Lo scenario passa oggi e passerà dopo: non
+        verifica ciò che il suo `_nota` dichiara, e la `_nota_da_completare` in testa lo ammette.
+      · `docs/balance/RT_HeroCatalog_v0.1.md` — descrive il kit e va riallineato in integrazione. Il
+        gate che impedirebbe la divergenza fra catalogo markdown e C++ **non esiste**: è `#576`, aperta.
+      · `docs/decisions/RT_PDR_00_Decision_Log.md` — il successore di `D-046` si **prepara**, non si
+        scrive da qui. L'ID si prende con `python scripts/rt_shared_id.py reserve D`.
+
+      ✅ **Intersezione misurata sui tre comandi**: 17 rami vivi, `git diff --name-only
+      origin/main...<ramo>` per ciascuno. L'unica sovrapposizione è quella dichiarata sopra;
+      `Tests/RTHeroRivaTests.cpp` non lo tocca nessuno.
+      🔴 **Il write-set è cresciuto di DUE path a metà lavoro, ed entrambi sono stati scoperti dalla suite
+      invece che previsti.** La regola è riallocazione, non «solo questa piccola fix»: sono stati misurati
+      liberi prima di toccarli, e la ragione per cui entrano è che **cambiano insieme al catalogo o restano
+      a descrivere un kit che non esiste**.
+      · `Tests/RTHeroCatalogTests.cpp` — `Heroes.MobilityWithoutDamageIsNotMain` asseriva *«oggi nessuna
+        mobilità senza danno nel roster (D-046; la v0.2 la riporterà)»*, cioè **zero**: con `FluidTrail`
+        tornata scatto è **1**. ⚠️ Il test prescriveva già il proprio aggiornamento — *«questa riga CADRÀ
+        […] a quel punto si torna a `> 0`»* — quindi qui non c'è una scelta, c'è un'istruzione da eseguire.
+      · `Scenarios/Spec/Environment/WaterQuenchesFire.json` — ⚠️ **è `integration_only`, e viene toccato lo
+        stesso**: senza, la suite resta rossa. Questa track *è* l'integrazione per il dominio dell'acqua,
+        essendo l'unica che lo cambia — misurato che nessun altro ramo vivo tocca `Scenarios/`.
+
+      🔴 **E una previsione scritta all'apertura era FALSA, corretta qui invece che lasciata.** La nota
+      diceva: *«lo scenario NON cade, l'unica assertion è `UnitHpEquals 90`, cioè il caso in cui il fuoco
+      non è stato spento»*. Misurato: **cade**, atteso 90 e ottenuto **72**. Il 90 non era «fuoco acceso»
+      — senza l'acqua il bersaglio non è più `Wet` e prende anche il `Burning`. Dedotto invece che
+      eseguito, ed era sbagliato in un verso che faceva sembrare il lavoro più piccolo di com'è.
+      ✅ Riassegnato a `Gadget.Sprinkler` via `loadout`, ed è la decisione d'autore resa eseguibile:
+      l'acqua passa all'equipaggiamento. Lo scenario torna **PASS 5/5**. È il **primo** del corpus a usare
+      `loadout`, e il primo tentativo è stato rifiutato dal loader — `ValidateLoadout` pretende esattamente
+      un pezzo per slot, non solo quello che serve.
+    writable:
+      - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
+      - Source/RefactorTactics/Tests/RTHeroRivaTests.cpp
+      - Source/RefactorTactics/Tests/RTHeroCatalogTests.cpp
+      - Scenarios/Spec/Environment/WaterQuenchesFire.json
+    binary_leases: []
+
+  docs_kit:
+    status: IDLE
+    issue: null
+    branch: null
+    worktree: "D:/rt-unit"
+    note: >-
+      ✅ **CHIUSA il 2026-08-16**: PR **#998** mergiata in `main` come `86eeda1a`, branch cancellato lato
+      server (`git ls-remote` non lo vede più). Il write-set qui sotto è **rilasciato**. La issue **#995**
+      resta **aperta**, ed è voluto: quella track archiviava i kit, non eseguiva il consolidamento che
+      #995 descrive — `docs/characters/**` non è mai stato toccato e attende una track propria.
+      ⚠️ `issue: null` perché lo `status` è `IDLE`: il numero vive nella nota, come per `spatial`.
+      🔴 **La chiusura è avvenuta in un merge, non in un commit dedicato**, e va detto: risolvendo il
+      conflitto fra questa track e `state_hash` — due track nate nella **stessa sessione**, su due rami,
+      previsto e dichiarato all'apertura — chi risolveva teneva già il file aperto. Entrambe conservate,
+      nessun lato scelto.
+
+      ➕ **Track aperta il 2026-08-16 per archiviare due kit d'autore consumati**, non per applicarli.
+      I due file erano **untracked nella root del checkout principale** (`D:/Repositories/refactor-tactics-main`),
+      cioe' in nessun insieme di questo file: ne' in un `writable`, ne' in `integration_only`, ne' in
+      `generated_only`. E' la condizione che questo documento esiste per rendere visibile, applicata a
+      un sorgente invece che a un owner.
+
+      ⚠️ **Track distinta da `state_hash` benche' nello stesso worktree, e con un branch diverso**: il
+      lavoro documentale non appartiene alla PR di `#986`. I due `writable` non condividono un path.
+      🔴 **Conseguenza dichiarata invece che scoperta al merge**: entrambi i rami toccano *questo file*
+      — `fix/986-stableid-hash` per dichiarare `state_hash`, questo per dichiarare `docs_kit`. E' l'ottava
+      volta che `parallel-batch.yaml` e' l'oggetto conteso, e stavolta fra due rami della **stessa**
+      sessione. Il conflitto e' previsto e banale (due track nuove in due punti diversi della stessa
+      sezione), ma va risolto tenendo **entrambe**: chi mergia per secondo non sceglie un lato.
+
+      **Il consumo, non l'applicazione.** Il contenuto di design e' atterrato in **#995** dopo essere
+      stato filtrato contro `main`: la grammatica `Master/Specialist/Access/None` regge, mentre tre
+      affermazioni dei kit no — il vincolo *«gli ID gameplay rimangono `Hero.Flux`…»* e' la clausola di
+      `D-120` superata da `D-130`/`D-134`; le due prescrizioni di rimuovere `Electric Access` da Riktor e
+      `Cold Access` da Wraith hanno **zero occorrenze** misurate su `docs/`; e i kit non sanno che
+      `URTHeroData::Affinity`/`Weakness` esistono **a runtime** per tutti e quattro gli eroi.
+
+      ⛔ **Cosa questa track NON tocca, ed e' il punto**: `docs/characters/**` — le quattro pagine eroe e
+      l'owner `elemental-proficiency.md` che #995 chiede di creare. Non e' nel `writable` di nessuno, ma
+      non e' nemmeno nel mio: assegnarlo e' lavoro della track che eseguira' #995. I kit prescrivono
+      *«non fermarti a proporre, applica»*, e la stessa riga aggiunge *«se un path e' bloccato da D-139
+      non aggirare il vincolo»*: il delta e' #995.
+
+      ⚠️ **`docs/archive/src/README.md` resta `integration_only` e NON e' stato toccato, ma il suo totale
+      e' ora stantio**: dichiara **72** documenti (`17 + 47 + 2 + 6`) e la misura di oggi ne da' **78**
+      (`17 design + 48 handoff + 2 audit + 11 radice`, `README.md` escluso). Sei di scarto, di cui **due**
+      sono questa archiviazione e quattro erano gia' entrati da altri rami dal 2026-08-14. Si rimisura
+      **sull'albero mergiato**, come quel README stesso prescrive, e non si incrementa a mano.
+
+      ✅ **Intersezione misurata sui tre comandi**: 19 rami vivi, `git diff --name-only origin/main...<ramo>`
+      per ciascuno — **zero** tocca i due path qui sotto, e **nessuno** tocca `docs/archive/src/`.
+
+      🔴 **L'invariante NON regge su questo file, e la violazione e' preesistente — misurata, non ereditata.**
+      `spatial` (IDLE) e `content_editor` (ACTIVE) rivendicano entrambe
+      `docs/technical/qa-prompt-terminal-b-scenario-runner.md`: la prima come `mandate`, la seconda dentro il
+      proprio `writable`. Verificato eseguendo il calcolo delle intersezioni **sul file di `origin/main`
+      senza le mie modifiche** — 10 track, **1** violazione — e poi su questo ramo: 11 track, **sempre 1**.
+      Questa track non ne aggiunge e non ne toglie. Non la risolvo: appartiene a due track che non sono mie,
+      e sceglierne una sarebbe la «piccola fix» su un file non assegnato che D-139 vieta. Va decisa da chi
+      possiede quel mandato.
+
+      ⏱️ **E `origin/main` e' avanzato durante il lavoro, per l'ennesima volta**: da `ae86ecea` — la base su
+      cui e' nato `fix/986-stableid-hash` un'ora fa — a `6bd58473`, con la PR **#987**
+      (`feat/472-replay-r6-interfaccia`) che ha portato la track **`replay_ui`**, assente quando questa
+      sessione ha misurato la prima volta. I ref remoti sono condivisi fra i worktree: il numero di track
+      e' cambiato senza che questa sessione eseguisse un solo `fetch`.
+      ✅ Gate eseguiti su questo ramo: `check-docs-links.py` verde (3786 link, 388 file). `check-docs-naming.py`
+      **non** copre questi file — la sua prima riga dichiara *«esclusi archive/src»* — quindi il banner puo'
+      citare i nomi legacy dei kit senza falsificarli.
+    writable:
+      - docs/archive/src/RefactorTactics_v0.1_Characters_Elemental_Consolidation.md
+      - docs/archive/src/CLAUDE_Apply_Elemental_Proficiency_Consolidation_2026-08-16.md
+    binary_leases: []
+
+  replay_ui:
+    status: ACTIVE
+    issue: 999              # più #472, che resta l'ombrello di R6: due issue, un solo write-set
+    branch: feat/999-ponte-bp-replay
+    worktree: "D:/rt-client"
+    note: >-
+      **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
+      2026-08-16 dopo lo spec panel in
+      [`plans/replay-r6-spec-panel-2026-08-16.md`](plans/replay-r6-spec-panel-2026-08-16.md).
+
+      ➕ **Secondo giro sulla stessa track: `#999`, il ponte Blueprint.** Il view model e' atterrato in
+      `main` con la PR **#987**, e quel branch e' stato cancellato — questa riga dichiarava un branch
+      inesistente per il tempo fra il merge e l'apertura del giro successivo, che e' il caso per cui la
+      sentinella `branch: null` esiste. Qui non serve: il giro riapre subito.
+      ⚠️ **`#472` resta aperta e resta l'ombrello**: R6 e' fatta di tre pezzi — il view model (fatto), il
+      ponte (`#999`), le due schermate (`.uasset`, che vorranno una Binary Asset Lease). Il write-set e'
+      **uno solo** perche' i tre pezzi vivono negli stessi path; le issue sono due perche' il ponte ha un
+      DoD che si puo' spuntare da solo, e infilarlo in `#472` avrebbe reso quel DoD piu' lungo senza
+      renderlo piu' misurabile.
+
+      ✅ **Il write-set e' MISURATO sui dieci branch vivi**, non dedotto dal titolo:
+      `git diff --name-only origin/main...origin/<b>` per ciascuno dei branch di
+      `git ls-remote --heads origin` (**11**, `main` escluso). `Source/RefactorTactics/Replay/` non
+      compare in **nessuno**. Le sole intersezioni dell'intero giro sono su due file
+      `integration_only` — `feature-registry.yaml` (`docs/five-lane-roadmap`,
+      `feat/593-root-neutro-unit`) e questo file (`feat/832-structure-identity-hash`) — cioe' il
+      regime che quella sezione descrive, non una contesa fra track.
+
+      ⚠️ **Cio' che questa misura NON copre, e va detto invece di lasciarlo credere completo**: i tre
+      worktree su branch **non pushati** (`feat/958-corpus-determinismo-autobattle`, `feat/u1-residui`,
+      `chore/512-writeset-emendamento`). Un branch che nessuno puo' leggere non ha un write-set
+      dichiarato — e' il difetto che questo file ha gia' registrato altrove — e da una sessione isolata
+      in `D:/rt-client` non e' misurabile. Resta la misura che si puo' fare, non una che si finge.
+
+      ➖ **`docs/technical/spec-frontend-navigazione.md` NON e' nel `writable` di questa track**, pur
+      essendo stato scritto da questo branch: la §2.2 che dichiara le due schermate del replay.
+      Sembra una contraddizione e non lo e' — **un `writable` dichiara chi scrivera', non chi ha
+      scritto**, e il lavoro di questa track su quel file e' finito con quella sezione.
+      La storia, che vale piu' della conclusione perche' e' il caso d'uso di questo file:
+      · la track lo prende il 2026-08-16 con le condizioni verificate — `#936` **CLOSED**, branch
+        mergiato (PR **#972**) e cancellato, **nessun branch vivo** che lo tocchi fra i dieci remoti;
+      · 🔴 lo prende **aggiungendolo** invece che spostandolo, e per qualche ora sta in due `writable`
+        entrambi `ACTIVE`. Trovato in code review;
+      · la correzione lo toglie a `frontend_shell` — e **nel frattempo CP 46.2 e' partito e ha scritto
+        la spec** (§4.1, §4.2, §4.3, mergiate in `main`). Giusta per lo stato di ieri, sbagliata per
+        quello di oggi: fra la decisione e il merge c'e' stata una PR.
+      ✅ Esito: il file resta a `frontend_shell`, che continuera' a scriverlo (`#938`…`#941` aperte),
+      e questa track non lo dichiara. La §2.2 e' arrivata in `main` per merge, non per proprieta'.
+      💡 **Un write-set si misura sui branch vivi al momento del MERGE, non a quello della decisione.**
+
+      ⛔ **Cosa questa track NON tocca**: `Source/RefactorTactics/UI/` (`client_tools`, ACTIVE su
+      `#78` — ed e' il motivo per cui il view model del replay nasce in `Replay/` e non li', esattamente
+      come `Frontend/` per `#936`) · `Source/RefactorTactics/Frontend/` (`frontend_shell`: questa track
+      **registra** due nomi di schermata, che sono dati, e non modifica il navigatore) ·
+      `docs/technical/test-manuali-pie.md` (`playtest`, che riceve la voce `PIE-V01-REPLAY-VIEWER` in
+      handoff invece di vedersela scrivere da fuori).
+
+      ⚠️ `Tests/RTReplayViewModelTests.cpp` e' dichiarato **per nome** e non per prefisso: `Tests/` e'
+      condivisa fra tutte le track, e prenderla per prefisso bloccherebbe chiunque scriva un test.
+    writable:
+      - Source/RefactorTactics/Replay/
+      - Source/RefactorTactics/Tests/RTReplayViewModelTests.cpp
+      # ➕ Il test del ponte (`#999`). Dichiarato **per nome** come il precedente: `Tests/` e' condivisa
+      # fra tutte le track, e prenderla per prefisso bloccherebbe chiunque scriva un test. ⚠️ Un file
+      # nuovo non e' esente — «conteso da nessuno» non e' un'assegnazione, ed e' la stessa formula che
+      # `frontend_shell` ha usato per i quattro file nuovi di `Frontend/`.
+      - Source/RefactorTactics/Tests/RTReplayViewerSubsystemTests.cpp
+      # ➕ La fixture condivisa dai due test del replay, nata il 2026-08-16 in code review per togliere
+      # ~70 righe copiate. ⚠️ **Copre due file su tre**: `Tests/RTFrontendNavigationTests.cpp` ha la
+      # stessa costruzione di `UGameInstance`, e non e' unificata perche' quel file e' di
+      # `frontend_shell` — un path non assegnato e' uno stop, non un invito.
+      - Source/RefactorTactics/Tests/RTReplayTestFixtures.h
+      - docs/roadmap/plans/replay-r6-spec-panel-2026-08-16.md
+    derives_from:
+      - source: docs/roadmap/feature-registry.yaml
+        regenerates:
+          - docs/roadmap/feature-registry.json
+          - docs/roadmap/featuremap.shortlist.md
+          - docs/roadmap/project-graph.json
+          - docs/roadmap/charts/roadmap-map.svg
+          # ➕ **`roadmap.shortlist.md` e' la quinta vista, e manca da OGNI `derives_from` di questo
+          # file.** Non e' un'omissione di questa track: `shortlist --write` la riscrive insieme a
+          # `featuremap.shortlist.md`, e nessuna delle altre la dichiara. Misurato su `git status` dopo
+          # la rigenerazione — non dedotto: la riga di **E46** passa da `4 | 4/22` a `5 | 5/27` per
+          # effetto di questa sola feature. Una vista non dichiarata e' una vista che qualcuno rigenera
+          # senza saperlo, cioe' un conflitto che si scopre al merge.
+          - docs/roadmap/roadmap.shortlist.md
+        shared_with: [integrazione]
+    binary_leases: []
+
+  playback:
+    status: IDLE
+    issue: null
+    branch: null
+    worktree: "D:/rt-955"
+    note: >-
+      ✅ **CHIUSA il 2026-08-16, aperta e chiusa nello stesso giorno.** `#955` è mergiata (PR #1007,
+      merge `c9841b06`) e la issue si è chiusa da sé sulla keyword. I sette path tornano **liberi**;
+      `docs/technical/test-manuali-pie.md` torna a `playtest`, da cui era stato preso, e non resta
+      dichiarato qui — un `writable` dice chi **scriverà**, non chi ha scritto.
+      ⚠️ **`worktree:` resta valorizzato con `D:/rt-955` finché la directory esiste**, e non è una svista:
+      il campo descrive il filesystem, non la track. Va messo a `null` da chi rimuove il worktree —
+      altrimenti si ripete il caso di `client_tools`, che per un giro ha dichiarato `D:/rt-78` dopo che
+      la directory era sparita.
+      🔵 **Il residuo dichiarato è il passo 4**: la resa in HUD (bottone/scorciatoia `x1·x2·x4`), che sta
+      in `Source/RefactorTactics/UI/` e resta a `client_tools` (`#78`, dietro la PR #904). Non ha una
+      issue propria: se la si vuole, va aperta. La manopola oggi si raggiunge da dettagli dell'attore e
+      da Blueprint, ed è ciò che la precondizione di `PIE-V01-PLAYSPEED` dichiara.
+      🔴 **`docs/roadmap/roadmap-v0.1.md:118` porta ancora la premessa falsa** — *«non c'è alcun
+      controllo `x1/x2/x4`, quindi `PlaybackIndependence` non ha oggi un soggetto da verificare»* — ed è
+      falsa due volte: il test esiste dal `#958`, e il controllo esiste da `#955`. Il file è
+      `integration_only`: **non toccato da questa track**, e la riga resta da correggere.
+      ---
+      *Registro dell'apertura, per la provenienza:*
+      CP 47.2 di **E47** — la velocità di playback scelta da chi guarda (`x1 · x2 · x4`), e il gate che
+      dice che non cambia il risultato. ➕ **Track aperta il 2026-08-16**, dopo lo spec panel che ha
+      riscritto il DoD di `#955`.
+      🔵 **`Source/RefactorTactics/UI/` NON è di questa track, ed è il punto della decomposizione.** È di
+      `client_tools` (`#78`), con `blocked_paths` su `UI/RTHUD.{h,cpp}` dietro la PR #904. La issue
+      diceva *«questo checkpoint non si apre finché quella track non rilascia»*; misurato, è falso per
+      tre passi su quattro. Il gate — `StateHash` e TurnLog identici a tutte le velocità — si verifica
+      allestendo `ARTTurnManager` in un mondo di prova, come già fanno le tre varianti di
+      `FRTAutobattlePlaybackIndependenceTest`; e le cinque manopole del playback sono **già**
+      `UPROPERTY(EditAnywhere, BlueprintReadWrite)` (`RTTurnManager.h:432-448`), quindi la sesta si
+      aggiunge accanto alle altre senza toccare `UI/`. La **resa in HUD** è il passo 4 e resta a
+      `client_tools`.
+      ⚠️ **`Tests/RTMatchAutobattleTests.cpp` è preso a `autobattle`**, che è `IDLE` — non duplicato in
+      un file nuovo. Il DoD precedente chiedeva un `RefactorTactics.Playback.SpeedDoesNotChangeOutcome`
+      altrove, contro la ragione che questo stesso file scrive alla track `autobattle`: gli helper
+      (`PlayAutobattleMatch`, `DescribeAutobattleDivergence`, `DeployAutobattleRoster`) vivono lì, e il
+      confronto per TurnLog canonico che il DoD chiedeva di scrivere è già dentro il secondo. Se
+      `autobattle` si riattiva prima che questa track chiuda, il path va negoziato: **non è un file
+      nuovo**, ed è l'unico del write-set che appartenga già a qualcuno.
+      ⚠️ I due `Tests/` sono dichiarati **per nome** e non per prefisso: `Tests/` è condivisa fra tutte
+      le track, e prenderla per prefisso bloccherebbe chiunque scriva un test.
+      ⚠️ `RTTurnManager.h` è dichiarato, a differenza del giro di `autobattle` — che scrisse *«sarebbe
+      prenotare un file che nessuno tocca»* e per il proprio lavoro aveva ragione. Qui si tocca: la
+      manopola è una `UPROPERTY` nuova, e sta nell'header.
+      🔴 **`docs/roadmap/roadmap-v0.1.md:118` porta la stessa premessa falsa che la issue aveva** —
+      *«non c'è alcun controllo `x1/x2/x4`, quindi `PlaybackIndependence` non ha oggi un soggetto da
+      verificare»* — ed è falsa da quando #958 ha scritto il test (`RTMatchAutobattleTests.cpp:1058`).
+      **Non è di questa track**: il file è `integration_only` e sta nel `writable` di `replay_ui`.
+      Registrato qui perché qualcuno lo corregga, non toccato.
+    writable:
+      - Source/RefactorTactics/Turn/RTPlaybackLibrary.h
+      - Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      - Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
+      - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
+      # ➖ **`docs/technical/test-manuali-pie.md` e' USCITO da qui alla chiusura**, ed e' l'unico dei sette
+      # che non resta: era **preso in prestito** da `playtest` per scrivere `PIE-V01-PLAYSPEED`, e il
+      # lavoro su quel file e' finito. Gli altri sei restano dichiarati perche' questa track li
+      # riscrivera' al passo 4; questo no. Un `writable` dice chi **scrivera'**, non chi ha scritto.
+      # ⚠️ Al momento del prestito era libero e **misurato tale**: `playtest` IDLE, e zero branch vivi che
+      # lo toccassero (`diff --name-only origin/main...<b>` sui dieci remoti). Era di `replay_ui` quando
+      # questa track e' nata, poche ore prima: nel frattempo `replay_ui` e' passata a `#999` e lo ha
+      # rilasciato. Un write-set si misura quando lo si prende, non quando lo si e' letto la prima volta.
+    derives_from: []
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
@@ -2522,7 +3331,11 @@ integration_only:
   - AGENTS.md
   - CLAUDE.md
   - docs/decisions/RT_PDR_00_Decision_Log.md
-  - docs/OPEN_DECISIONS.md
+  # ➖ `docs/OPEN_DECISIONS.md` **esce di qui il 2026-08-16**: e' nel `writable` di `spatial` (#726) finche'
+  # quella track e' `ACTIVE`, e un path non puo' stare nei due insiemi insieme — sarebbe assegnato e non
+  # assegnato nello stesso file. Ci torna alla chiusura della track. La ragione del prestito e' che
+  # `FAC-15` **blocca** #726, e una decisione che ferma lavoro non aspetta la fine del batch; il costo —
+  # chi deve aprire una decisione ora passa da questa track — e' dichiarato nella nota di `spatial`.
   - docs/DOC_CONFLICT_MATRIX.md
   - docs/CONTEXT_INDEX.md
   - docs/roadmap/roadmap-checkpoint.md
@@ -2684,6 +3497,35 @@ generated_only:
     # quinta sorgente non era in nessun `writable` **né** in `integration_only`, cioè non assegnata.
     # Ora è in `integration_only` con le altre quattro, e l'affermazione torna vera — ma per averlo
     # scritto, non per fortuna.
+
+  # ➕ **Quarta vista di `feature_registry.py`, e questo elenco non la conosceva** (trovata in code
+  # review della PR #977, il 2026-08-16). `feature_registry.py wiki` scrive il blocco
+  # `<!-- RT_FEATURE_STATUS:BEGIN … -->` dentro ogni pagina del repository referenziata da un
+  # `wiki_refs`: chi tocca `status`, i gate o `last_verified` e non lo rigenera lascia `wiki --check`
+  # rosso, e fino a oggi quei nove file non erano in NESSUN insieme — la condizione che rende la
+  # scrittura uno STOP, mentre in pratica ci scrive chiunque aggiorni il registry.
+  #
+  # ⚠️ **L'elenco e' una FUNZIONE, non una lista da trascrivere**: e' l'insieme dei `wiki_refs` che
+  # non iniziano per `wiki:`. Oggi da nove file, tutti sotto `docs/characters/`; una feature nuova con
+  # un `wiki_refs` verso un altro path lo allarga senza che nessuno tocchi questa voce. Si rilegge con:
+  #
+  #     python -c "import sys;sys.path.insert(0,'scripts');import feature_registry as fr;
+  #     print(sorted({r for e in fr.load_registry()['features'] for r in (e.get('wiki_refs') or [])
+  #                   if not r.startswith('wiki:')}))"
+  #
+  # ✅ **Arco misurato col metodo di §`generated_only`**, non dedotto: perturbato un `last_verified`
+  # (verificando con `git diff --numstat` che la perturbazione fosse applicata), `wiki --check`
+  # risponde `disallineato: docs/characters/index.md`. Controprova: `generate --check` e
+  # `shortlist --check` non nominano nessuno di questi nove file.
+  #
+  # 🔴 **E qui `generated_only` copre il BLOCCO, non il file.** E' l'unica voce parzialmente generata
+  # di questo elenco: attorno ai marcatori c'e' prosa scritta a mano, che NON segue il registry e resta
+  # **non assegnata** — scriverla e' ancora uno STOP, e due track che la modificassero insieme
+  # confliggerebbero senza che nulla qui lo veda. Chi deve scriverla si assegna il path come qualunque
+  # altro file.
+  - path: docs/characters/*.md            # solo il blocco RT_FEATURE_STATUS; la prosa resta non assegnata
+    derives_from: [docs/roadmap/feature-registry.yaml]
+    tool: "feature_registry.py wiki"
 
   # Seconda toolchain: Node, gate proprio (D-108). `feature_registry.py` non la vede.
   - path: docs/characters/radar/

@@ -413,6 +413,51 @@ bool FRTDoorHashTest::RunTest(const FString&)
 	URTHexMapAsset* Grouped = MakeDoorMap(2);
 	PutDoor(Grouped, FRTCellId(0, 0), ERTHexDirection::E, ERTHexDoorState::Closed, /*DoorId*/ 4);
 	TestTrue(TEXT("il gruppo entra nell'hash"), Grouped->ComputeHash() != WithDoor->ComputeHash());
+
+	// L'IDENTITA' STABILE, ed e' la casella che #832 credeva di aver chiuso (#986).
+	//
+	// 🔴 Il DoD di #832 diceva «l'identita' entra nell'hash di stato, e questo test resta verde». E' rimasto
+	// verde, ma non perche' la modifica fosse innocua: le sue cinque assert chiamano `ComputeHash()`, mentre
+	// #978 aveva toccato `URTMatchStateHashLibrary::HashMatchState` — l'ALTRO hash. Il gate non vedeva nulla
+	// di cio' che doveva sorvegliare.
+	//
+	// `StableId` entra qui per lo stesso criterio scritto accanto ai campi che ne restano FUORI
+	// (`RTHexMapAsset.h` su `MapClass`, `RTHexCellData.h` su `bGenerated`): l'hash risponde a «la stessa
+	// geometria produce la stessa partita?», e `URTStructureIdentityLibrary::FindDoorEdges` risolve i
+	// bersagli **per nome**. Rinominare una porta cambia quale bordo si apre per chiunque la citi — come
+	// `DoorId`, che e' gia' mescolato due righe piu' su con lo stesso argomento.
+	//
+	// ⚠️ La conseguenza pratica sta in `IsSnapshotStale`, che confronta `ComputeHash()` e `Revision`: senza
+	// questa riga uno snapshot in cache resta «fresco» dopo un rename che cambia come si risolve quel
+	// bersaglio.
+	auto MappaConPortaNominata = [](FName StableId)
+	{
+		URTHexMapAsset* M = MakeDoorMap(2);
+		const FRTCellId Cella(0, 0);
+		FRTHexCellData Data = *M->FindCell(Cella);
+		FRTHexDoor Porta(ERTHexDirection::E, ERTHexDoorState::Closed, /*DoorId*/ INDEX_NONE);
+		Porta.StableId = StableId;
+		Data.Doors.Add(Porta);
+		M->AddOrUpdateCell(Data);
+		M->SortCells();
+		return M;
+	};
+
+	const uint32 Anonima = MappaConPortaNominata(NAME_None)->ComputeHash();
+	TestTrue(TEXT("nominare una porta cambia l'hash della mappa"),
+		MappaConPortaNominata(FName(TEXT("Door.Atrio")))->ComputeHash() != Anonima);
+
+	// Due nomi diversi: senza questo caso passerebbe anche un `Mix(StableId.IsNone() ? 0 : 1)`.
+	TestTrue(TEXT("due identita' diverse danno hash di mappa diversi"),
+		MappaConPortaNominata(FName(TEXT("Door.Cortile")))->ComputeHash()
+			!= MappaConPortaNominata(FName(TEXT("Door.Atrio")))->ComputeHash());
+
+	// E la stessa insensibilita' al case dell'altro hash: per `FName::operator==` — e quindi per
+	// `FindDoorEdges` — le due scritture sono la stessa porta, e due mappe che si giocano identiche non
+	// possono avere hash diversi.
+	TestEqual(TEXT("l'ortografia dell'identita' non cambia l'hash della mappa"),
+		MappaConPortaNominata(FName(TEXT("door.atrio")))->ComputeHash(),
+		MappaConPortaNominata(FName(TEXT("Door.Atrio")))->ComputeHash());
 	return true;
 }
 

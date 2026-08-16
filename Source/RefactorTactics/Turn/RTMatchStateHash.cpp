@@ -13,7 +13,26 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 	{
 		// Il TESTO, mai l'indice della name table: quello dipende dall'ordine in cui i nomi sono stati creati
 		// nel processo, quindi due esecuzioni della stessa partita darebbero due hash diversi (invariante #4).
-		for (const TCHAR Ch : Name.ToString())
+		//
+		// ⚠️ **NORMALIZZATO a minuscole, e non e' una rifinitura** (#986). `FName::ToString()` preserva il case
+		// solo dove `WITH_CASE_PRESERVING_NAME` vale 1, cioe' `WITH_EDITORONLY_DATA`: in una build **packaged**
+		// restituisce l'ortografia della PRIMA registrazione del nome nel processo, che dipende dall'ordine di
+		// caricamento dei package. Senza `ToLower()` la stessa identica partita puo' dare due hash diversi in
+		// due esecuzioni — precisamente cio' che il paragrafo qui sopra promette di escludere.
+		// E c'e' la meta' che conta di piu': `FName::operator==` **e' case-insensitive**, e
+		// `URTStructureIdentityLibrary` risolve i bersagli con quello. `Door.Atrio` e `door.atrio` sono la
+		// **stessa porta** per ogni consumatore; un checksum che le distingue segnala una divergenza dove il
+		// gioco non ne ha nessuna. L'alternativa scartata e' `GetComparisonIndex()`: stabile per confronto
+		// dentro un processo, ma e' un indice di name table e **non sopravvive fra processi**, cioe' ricade
+		// nel difetto che questo commento apre. Un checksum destinato all'archivio replay non puo' dipenderne.
+		const FString Testo = Name.ToString().ToLower();
+
+		// La LUNGHEZZA prima dei caratteri: senza, i confini fra due nomi consecutivi spariscono e
+		// `{"AB"}` mescola la stessa sequenza di `{"A","B"}` — due stati diversi, un solo checksum. I tag di
+		// stato del catalogo condividono i prefissi (`Status.Burn` / `Status.Burning`), quindi non e' un caso
+		// di laboratorio.
+		Mix(static_cast<uint32>(Testo.Len()));
+		for (const TCHAR Ch : Testo)
 		{
 			Mix(static_cast<uint32>(Ch));
 		}
@@ -123,8 +142,16 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 			Mix(static_cast<uint32>(Arc.Kind));
 			Mix(static_cast<uint32>(Arc.State));
 			Mix(static_cast<uint32>(Arc.Integrity));
+			// La CONDUTTIVITA' (#986). `URTHexMapAsset::ComputeHash` la mescolava gia' — «dato autorevole
+			// quanto il costo» — e questo giro la saltava: due hash che divergevano su un campo senza che
+			// nessuno l'avesse deciso. Non e' teorico: `ARTTurnManager` crea ponti in partita con
+			// `bConductsElectricity = true` e `URTHexArcLibrary` legge quel flag per far risalire la scarica
+			// lungo l'arco, quindi due finali che differiscono solo per questo hanno esiti futuri diversi.
+			Mix(Arc.bConductsElectricity ? 1u : 0u);
 			// v9 (#832): gli archi, non le sole porte. Lo scope della issue lo dice — «copertura degli archi
-			// (`FRTHexArc`, ponti di CP 9.4) e non delle sole porte: sono lo stesso problema di identita'».
+			// (i ponti di CP 9.4) e non delle sole porte: sono lo stesso problema di identita'».
+			// ⚠️ La issue chiama quel tipo `FRTHexArc`, che NON esiste in `Source/`: qui si itera
+			// `FRTHexEdge`. Citare una issue alla lettera ne importa anche i nomi sbagliati.
 			MixName(Arc.StableId);
 		}
 	}

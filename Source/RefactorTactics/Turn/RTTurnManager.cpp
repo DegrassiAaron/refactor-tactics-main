@@ -4714,6 +4714,26 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 		}
 	}
 
+	// ORDINE STABILE PER CELLA, e non e' una rifinitura: senza, l'ORDINE DI SPAWN decide la partita (#990).
+	//
+	// `GetAllActorsOfClass` restituisce gli Actor nell'ordine in cui il livello li tiene, che non e' un dato
+	// di gioco. Da questo array nasce l'identita' delle unita' nello snapshot — l'indice, si veda il commento
+	// qui sotto — e `PlanBots` itera proprio questi indici per far decidere i bot. Finche' le decisioni sono
+	// indipendenti non si nota niente; appena due bot interagiscono, chi decide per primo cambia l'esito.
+	//
+	// MISURATO, non temuto (CP 47.5): la stessa partita 2v2 bot-contro-bot, con le stesse unita' sulle stesse
+	// celle e inserite in ordine diverso, divergeva al **turno 2** — in un ordine `Bastion.Interposition` si
+	// attivava, nell'altro non trovava trigger. Il turno 1 era identico byte per byte, che e' il modo in cui
+	// questa classe di difetto passa inosservata: si manifesta quando gli agenti cominciano a interagire.
+	//
+	// E' lo stesso `Sort` con lo stesso comparatore che `ResolveCombat` applica al proprio array, dove la
+	// regola era gia' scritta — *«GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli
+	// indici»*. Erano due gemelli, e uno solo dei due la rispettava.
+	//
+	// CADE `RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation` se questa riga sparisce:
+	// verificato per mutazione, non dedotto.
+	OutUnits.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+
 	// L'identita' e' l'INDICE dell'unita' in OutUnits, un intero stabile — mai un pointer (stessa
 	// disciplina del TurnLog). Il chiamante ritrova la propria unita' con OutUnits.IndexOfByKey.
 	TArray<FRTHexSimUnit> SimUnits;
@@ -5486,14 +5506,19 @@ void ARTTurnManager::BeginPlayback()
 		RawTotal += DurationForPlaybackPhase(Ph);
 	}
 	PlaybackSpeed = URTPlaybackLibrary::SpeedMultiplierForCap(RawTotal, MaxPlaybackSeconds);
-	PlaybackTotalSeconds = (PlaybackSpeed > 0.f) ? (RawTotal / PlaybackSpeed) : RawTotal;
+	// La stima mostrata tiene conto anche della velocita' scelta da chi guarda. ⚠️ E' una stima ALL'AVVIO:
+	// se la velocita' cambia a risoluzione in corso, la barra resta tarata su quella di partenza. La
+	// riproduzione invece segue subito (TickPlayback ricompone a ogni tick) — l'unica cosa che diverge e'
+	// il numero mostrato, non il ritmo, e non c'e' nulla di logico che vi dipenda.
+	const float StartSpeed = URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed, PlaybackSpeed);
+	PlaybackTotalSeconds = (StartSpeed > 0.f) ? (RawTotal / StartSpeed) : RawTotal;
 	PlaybackElapsedTotal = 0.f;
 
 	PlaybackPhaseIdx = 0;
 	bIsResolving = true;
 	SetActorTickEnabled(true);
 	AddLogEvent(FString::Printf(TEXT("Risoluzione: %d fasi, ~%.1fs (x%.2f)"),
-		PlaybackPhases.Num(), PlaybackTotalSeconds, PlaybackSpeed));
+		PlaybackPhases.Num(), PlaybackTotalSeconds, StartSpeed));
 	EnterPlaybackPhase();
 }
 
@@ -5523,7 +5548,10 @@ void ARTTurnManager::EnterPlaybackPhase()
 
 void ARTTurnManager::TickPlayback(float DeltaSeconds)
 {
-	const float Dt = DeltaSeconds * PlaybackSpeed; // accelerazione per il tetto di durata
+	// Composizione RILETTA a ogni tick, non congelata in BeginPlayback: e' cio' che rende la velocita'
+	// scelta applicabile DURANTE la risoluzione, e non solo dal turno successivo (CP 47.2, #955).
+	// PlaybackSpeed resta il solo termine di cap; ViewerPlaybackSpeed e' la preferenza di chi guarda.
+	const float Dt = DeltaSeconds * URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed, PlaybackSpeed);
 	PlaybackPhaseElapsed += Dt;
 	PlaybackElapsedTotal += Dt;
 

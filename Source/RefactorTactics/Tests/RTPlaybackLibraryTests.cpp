@@ -101,4 +101,48 @@ bool FRTPlaybackSpeedCapTest::RunTest(const FString&)
 	return true;
 }
 
+// --- EffectivePlaybackSpeed -----------------------------------------------------------------
+//
+// La tabella E' la decisione di CP 47.2 (#955): ogni riga che segue la prima nomina la composizione
+// alternativa che falsifica. Cambiare Max in un prodotto, o in una sostituzione, deve far cadere una
+// riga precisa e non le altre — e' il modo in cui questo test dice PERCHE' la formula e' quella.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEffectiveSpeedTest,
+	"RefactorTactics.Playback.EffectiveSpeed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackEffectiveSpeedTest::RunTest(const FString&)
+{
+	// Nessuno dei due morde: la presentazione scorre a tempo reale.
+	TestTrue(TEXT("x1 con cap inattivo -> 1x"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(1.0f, 1.0f), 1.0f, RTTol));
+
+	// ⚠️ Falsifica "il tetto ridefinito" (x2 -> Max/2): su un round gia' sotto il tetto quella
+	// composizione non farebbe nulla, e la manopola sarebbe inerte nel caso comune.
+	TestTrue(TEXT("x4 con cap inattivo -> 4x (la manopola morde sui round brevi)"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(4.0f, 1.0f), 4.0f, RTTol));
+
+	// ⚠️ Falsifica "la sostituzione" (solo Viewer): a x1 il tetto continua a valere, altrimenti un round
+	// patologico durerebbe quanto vuole e MaxPlaybackSeconds sarebbe un campo morto.
+	TestTrue(TEXT("x1 con cap che morde -> vince il cap (3x)"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(1.0f, 3.0f), 3.0f, RTTol));
+
+	// ⚠️ Falsifica "il prodotto" (Viewer*Cap): darebbe 12x, illeggibile.
+	TestTrue(TEXT("x4 su un round gia' accelerato 3x -> 4x, NON 12x"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(4.0f, 3.0f), 4.0f, RTTol));
+
+	// Chiedere MENO di quanto il tetto impone non rallenta: il tetto e' un vincolo, non una preferenza.
+	TestTrue(TEXT("x2 sotto un cap da 3x -> vince il cap (3x)"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(2.0f, 3.0f), 3.0f, RTTol));
+
+	// Guardie: un campo azzerato non deve fermare il playback (vale 1, non 0).
+	TestTrue(TEXT("velocita' scelta nulla -> trattata come x1"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(0.0f, 2.0f), 2.0f, RTTol));
+	TestTrue(TEXT("velocita' scelta negativa -> trattata come x1"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(-3.0f, 1.0f), 1.0f, RTTol));
+	TestTrue(TEXT("cap nullo -> trattato come 1x, la scelta passa"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(2.0f, 0.0f), 2.0f, RTTol));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

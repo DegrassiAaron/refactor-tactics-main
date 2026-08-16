@@ -52,13 +52,13 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**23 sedute** — ✅ **0** · 🟡 **12** · ⏳ **7** · **4** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**24 sedute** — ✅ **0** · 🟡 **12** · ⏳ **8** · **4** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
 ### My Editor Queue
 
-**BLOCKING** 10 · **READY** 3 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 4 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -78,6 +78,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U18** · Verifiche senza prerequisiti — 1/15 voci verdi
 - **U20** · Confine fra Guard e Brace — 0/1 voci verdi
 - **U21** · Luci del graybox e inquadratura della mappa — 0/2 voci verdi · sblocca U22
+- **U24** · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root · sblocca E46.3, E46.5, E46.6
 
 **WAITING** — *Aspetta codice*
 
@@ -119,8 +120,9 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U20** | Confine fra Guard e Brace | `PIE` | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
 | **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
 | **U22** | Il gesto dell'autore — ghost, snap e Undo del tool Geometry | `PIE` | verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo | U21 | no | 0/4 | ⏳ |
+| **U24** | I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root | `PIE` | i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/` | — | no | — | ⏳ |
 
-**Lane**: `PIE` **20** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
+**Lane**: `PIE` **21** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
 
 ### Blocco 1 — Eseguibile oggi
 
@@ -422,21 +424,47 @@ gia' una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`).
    **`ARTUnit`**. I pack di terze parti restano **fuori** da `/Game/RT`: qui ci va il Blueprint,
    non il pack.
 3. ⚠️ **Il cilindro non si sostituisce, si nasconde.** `ARTUnit::Mesh` e' uno
-   `UStaticMeshComponent` ed e' il root: nel Blueprint si **aggiunge** uno
-   `USkeletalMeshComponent` e si toglie la spunta `Visible` al cilindro, che il C++ usa ancora
-   per selezione e fallback.
+   `UStaticMeshComponent`: nel Blueprint si **aggiunge** uno `USkeletalMeshComponent` e si toglie
+   la spunta `Visible` al cilindro, che il C++ usa ancora per selezione e fallback.
+
+   🔴 **Attaccalo a `SceneRoot`, non a `Mesh`.** Dal **2026-08-16** (`#593`) il root di `ARTUnit`
+   e' un `USceneComponent` neutro chiamato `SceneRoot`, e `Mesh` e' un suo figlio che porta
+   `BaseMeshScale = (1.2, 1.2, 1.8)`. Chi attacca la skeletal al cilindro ne eredita la scala e
+   ricostruisce a mano la deformazione che quella modifica ha tolto. Nel pannello Components la
+   skeletal va **trascinata sotto `SceneRoot`**; se il nodo padre dice `Mesh`, non e' ancora a
+   posto.
 4. **`VisualZOffset = 0`.** Il default e' `UnitHalfHeight` (90), giusto per il cilindro che ha il
    pivot al CENTRO; i personaggi UE ce l'hanno ai PIEDI. Lasciarlo fa fluttuare l'unita' a 90 cm.
 5. `TeamRingMaterial` e `SelectionRingMaterial` → `M_TeamRing` / `M_SelectionRing` in
    `/Game/RT/Characters/Shared/Materials/`. Il colore lo mette il codice sul MID; assenti,
    l'anello resta nascosto senza rompere nulla.
-6. **Scala del componente skeletal: World/Absolute, `1,1,1`.** ⚠️ Il cilindro e' il ROOT e porta
-   `BaseMeshScale = (1.2, 1.2, 1.8)`: un componente attaccato a lui eredita quel fattore e il
-   personaggio esce **stirato in altezza di 1,5x** (1.8 / 1.2). Peggio, la selezione rimoltiplica
-   il root per `1.15` (`RTUnit.cpp:221`), quindi la mesh **si ingrandisce quando la selezioni**.
-   Nel Details del componente, alla riga *Scale*, si commuta l'icona su **World/Absolute**.
-   Difetto strutturale registrato in **issue #593**: finche' resta, il passo va rifatto a ogni
-   nuovo `BP_Unit`.
+6. **Scala del componente skeletal: `1,1,1`, relativa.** Con il passo 3 fatto — skeletal sotto
+   `SceneRoot` — non c'e' piu' niente da compensare: il root e' unitario e la selezione scala
+   `Mesh`, che le sta accanto (`RTUnit.cpp:266`). ⛔ **Non commutare l'icona su World/Absolute**:
+   era il workaround dell'era in cui il cilindro era il root, e su una gerarchia sana congela la
+   dimensione contro la scala dell'attore lasciandone scorrere la posizione.
+
+   🔴 **Sui quattro `BP_Unit_*` GIA' ESISTENTI il passo 3 non si e' applicato da solo**, e questa
+   e' la prima cosa da fare in questa seduta. I loro nodi SCS dichiarano il genitore **per nome**:
+   finche' esiste un componente nativo chiamato `Mesh` — ed esiste — la skeletal resta figlia di
+   lui. L'ordine e' obbligato, e invertirlo deforma i personaggi invece di raddrizzarli:
+
+   > **(a) MISURA prima.** Apri i quattro BP e guarda **come e' compensata oggi** la deformazione:
+   > icona *World/Absolute* sulla riga Scale, oppure una `RelativeScale3D` tarata a mano, oppure
+   > **niente** — nel qual caso i personaggi sono stirati adesso.
+   > ⚠️ La misura statica restringe il campo ma non chiude: cercando ogni stringa in ASCII **e**
+   > UTF-16LE nei quattro `.uasset`, `bAbsoluteScale` e' **assente in tutti e quattro** (l'icona
+   > non e' mai stata commutata) mentre `RelativeScale3D` e' **presente in tutti e quattro**. Il
+   > candidato piu' probabile e' quindi una scala relativa tarata a mano — ma il nome della
+   > proprieta' e' comune e non dice su quale componente stia ne' con che valore. Lo dice
+   > l'editor: e' questo il passo (a).
+   > **(b) RIPARENTA** la skeletal sotto `SceneRoot`.
+   > **(c) Solo allora TOGLI** l'eventuale compensazione, che a quel punto e' davvero ridondante.
+
+   ⚠️ **Questa seduta non ha una voce PIE che la falsifichi**, e non se ne aggiunge una da qui:
+   `docs/technical/test-manuali-pie.md` e' nel `writable` della track `playtest` (D-139). La
+   registra chi possiede quel file, e l'invariante da scrivere e' una sola: *a schermo, un
+   personaggio selezionato non cambia dimensione e non e' piu' alto della sua silhouette a riposo*.
 7. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
    (`Hero.Flux` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
    `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna
@@ -711,6 +739,16 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 **Finita quando**: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
 
 > Nasce da #712, il gesto dell'autore. La seduta esiste perche' QUATTRO voci del suo DoD non sono osservabili headless: ghost, snap, Undo e residui vivono nell'occhio di chi disegna, non in una asserzione. La parte verificabile e' gia' nel runtime — `SnapToGrammar` con i suoi due test, `ValidateSegment` con i cinque di #620, `BakeCell` con i sette di #621 — e il tool d'editor NON contiene una sola regola: misurato, tre chiamate al runtime e zero logica duplicata. ⚠️ `unblocked_by: [U21]` non e' una dipendenza tecnica ma pratica: `L_DevSandbox` va illuminato prima, o il ghost si valuta su una scena in cui non si vede niente — e il verdetto direbbe piu' sulle luci che sul tool. ⚠️ `PIE-GEO-RESIDUI` chiede anche un `git status` pulito sul `.umap`: la geometria non si salva nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`. ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch remoti. Chi arriva secondo rinumera, non contende.
+
+#### U24 · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root ⏳
+
+**Sbloccata da**: — · **Percorso critico**: no
+**Produce**: i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`
+**Artefatti**: `Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset` ⏳
+**Finita quando**: i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori
+**Sblocca**: E46.3, E46.5, E46.6
+
+> ➕ **Seduta aperta il 2026-08-16, a lavoro gia' cominciato**: i widget si stavano costruendo e il tracking non li nominava — ne' qui, ne' come `binary_leases`. `grep -n "WBP_RT_" editor-sessions.yaml` dava **zero**, e nessuna lease copriva `Content/RT/UI/`. Un `.uasset` senza lease e' il caso che `D-139` esiste per impedire: due binari non si fondono. **Cosa costruire e in che ordine** sta in [`../technical/guida-frontend-umg.md`](../technical/guida-frontend-umg.md), che e' l'owner del *come*; la spec del *cosa* e' `spec-frontend-navigazione.md`. Qui c'e' solo l'esistenza della seduta e il suo write-set. ⚠️ **`verifies: []` non e' una dimenticanza, ed e' il punto piu' scomodo di questa seduta**: `PIE-V01-FRONTEND-NAV` e `-ERROR` **non esistono** — misurato, `grep -c "PIE-V01-FRONTEND" docs/technical/test-manuali-pie.md` da' **0** — e quel registro appartiene alla track `playtest`. Le voci si **propongono** in handoff, non si scrivono da fuori: finche' non ci sono, questa seduta produce asset e non chiude nessuna voce del registro. ⚠️ **Il primo e il secondo widget si verificano subito, il terzo no.** Il dato del banner lo produce gia' `ARTGameMode` e quello del modale si forza con un formato invalido; il `LoadingScreen` ha il suo dato ma un allestimento **istantaneo**, quindi a schermo non si vede — la guida lo dice al suo §6, e va saputo prima di concludere che il widget sia rotto. ⚠️ **Nessuno chiama ancora `InitializeFrontend`**: il navigatore esiste, testato, e non lo avvia nessuno — l'aggancio e' di **CP 46.3** (`#938`). Fino ad allora questi Blueprint si provano solo a mano, chiamando le funzioni da un livello di prova. ⛔ **Fuori da questa seduta**: `WBP_RT_MainMenu`, `WBP_RT_ResultScreen` e `WBP_RT_PauseMenu` sono di `#938`, `#940` e `#941` · `WBP_RT_TacticalHUD` e' l'HUD in-match e ha gia' il suo root (CP 11.7) · le due schermate del replay (`WBP_RT_MatchHistory`, `WBP_RT_ReplayViewer`) sono di `#472`, e aspettano una lease propria. ⚠️ ID assegnato prima del merge: `U24`, con `U23` come massimo misurato su `main` **e su tutti i tredici branch remoti** — non solo sul proprio. Chi arriva secondo rinumera, non contende.
 
 > **63 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-FMTVER-*` 1 · `PIE-HEX-*` 12 · `PIE-HEXPLAY-*` 1 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-NAME-*` 1 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 3 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 

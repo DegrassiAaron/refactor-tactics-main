@@ -2,9 +2,9 @@
 <rect width="1282" height="1439" fill="#0d1117"/>
 <text x="22" y="48" fill="#e6edf3" font-size="26" font-weight="700">37</text>
 <text x="22" y="66" fill="#8b949e" font-size="11">epic nella figura</text>
-<text x="274" y="48" fill="#e6edf3" font-size="26" font-weight="700">81</text>
+<text x="274" y="48" fill="#e6edf3" font-size="26" font-weight="700">82</text>
 <text x="274" y="66" fill="#8b949e" font-size="11">dipendenze fra epic</text>
-<text x="526" y="48" fill="#e6edf3" font-size="26" font-weight="700">66</text>
+<text x="526" y="48" fill="#e6edf3" font-size="26" font-weight="700">67</text>
 <text x="526" y="66" fill="#8b949e" font-size="11">attraversano corsia o release</text>
 <text x="778" y="48" fill="#e6edf3" font-size="26" font-weight="700">67/100</text>
 <text x="778" y="66" fill="#8b949e" font-size="11">checkpoint chiusi</text>
@@ -30,7 +30,7 @@
 <text x="889" y="124" fill="#8b949e" font-size="10" text-anchor="middle">6 feature</text>
 <line x1="816" y1="130" x2="816" y2="1417" stroke="#30363d" stroke-width="1"/>
 <text x="1035" y="110" fill="#e6edf3" font-size="12" font-weight="600" text-anchor="middle">UI &amp; Presentation</text>
-<text x="1035" y="124" fill="#8b949e" font-size="10" text-anchor="middle">15 feature</text>
+<text x="1035" y="124" fill="#8b949e" font-size="10" text-anchor="middle">16 feature</text>
 <line x1="962" y1="130" x2="962" y2="1417" stroke="#30363d" stroke-width="1"/>
 <text x="1181" y="110" fill="#e6edf3" font-size="12" font-weight="600" text-anchor="middle">Tooling, Data, QA &amp; Release</text>
 <text x="1181" y="124" fill="#8b949e" font-size="10" text-anchor="middle">10 feature</text>
@@ -89,6 +89,7 @@
 <path d="M 226.0 169.0 C 305.0 169.0, 305.0 303.0, 384.0 303.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 226.0 169.0 C 378.0 169.0, 378.0 1042.0, 530.0 1042.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 226.0 169.0 C 305.0 169.0, 305.0 1143.0, 384.0 1143.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 226.0 169.0 C 597.0 169.0, 597.0 303.0, 968.0 303.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 530.0 169.0 C 494.0 169.0, 554.0 169.0, 518.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 664.0 169.0 C 889.0 169.0, 889.0 538.0, 1114.0 538.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 664.0 169.0 C 889.0 169.0, 889.0 773.0, 1114.0 773.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
@@ -150,7 +151,7 @@
 <path d="M 372.0 370.0 C 597.0 370.0, 597.0 370.0, 822.0 370.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <rect x="92" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#f85149" stroke-width="1.5"/>
 <text x="100" y="158" fill="#e6edf3" font-size="14" font-weight="700">E12<tspan fill="#8b949e" font-weight="400" font-size="11"> P0 +2</tspan></text>
-<text x="218" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#26</tspan><tspan fill="#3fb950" font-weight="700"> →8</tspan></text>
+<text x="218" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#26</tspan><tspan fill="#3fb950" font-weight="700"> →9</tspan></text>
 <text x="100" y="174" fill="#e6edf3" font-size="11">Determinismo, QA e r…</text>
 <text x="100" y="190" fill="#8b949e" font-size="10">2/6 CP</text>
 <rect x="146" y="184" width="72" height="4" rx="2" fill="#30363d"/>

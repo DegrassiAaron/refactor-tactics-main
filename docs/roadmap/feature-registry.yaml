@@ -151,20 +151,42 @@ features:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
       - docs/gameplay/spec-anima-risoluzione.md
-    issues: [81, 178, 578, 958]
+    issues: [81, 178, 578, 958, 990]
     tests:
       - RefactorTactics.Simulation.*
       - RefactorTactics.HexSim.ReplayDivergenceZero
+      # ➕ CP 47.5 (#958): i casi limite dell'AUTOBATTLE, che sono un perimetro diverso da G4 e non lo
+      # sostituiscono — `Replay.Verifier.ResimulationIsDeterministic` ri-simula uno scenario, questi
+      # esercitano una partita non presidiata guidata dal bot. Elencati per nome e non con un `*`:
+      # il DoD di #958 li nomina uno per uno, e un wildcard non direbbe quali dei sette esistono.
+      - RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation
+      - RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback
+      - RefactorTactics.Match.Autobattle.NoPathProducesLegalFallback
+      - RefactorTactics.Match.Autobattle.AllWaitEndsTheTurnNormally
+      - RefactorTactics.Match.Autobattle.SimultaneousKOFollowsDeclaredPolicy
+      - RefactorTactics.Match.Autobattle.EndsOnRoundLimitWhenNobodyDies
+      - RefactorTactics.Match.Autobattle.SameSeedGivesSameResult
     scenarios:
       - RT_Showcase_Relay_v01
     wiki_refs:
       - wiki:regole-fondamentali
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-16
+      commit: 79633a3
     notes: >
       KPI «replay divergence 0» verificato anche su hex. `ui_wiki` parziale: il determinismo è citato
       nelle regole fondamentali ma non ha una pagina che lo spieghi al giocatore.
+      ⚠️ **2026-08-16 — il determinismo NON era strutturale come si credeva, ed è stato misurato.** Il
+      corpus di CP 47.5 ha trovato `#990`: `MakeCurrentSnapshot` costruiva l'identità delle unità come
+      indice in un array non ordinato, e `PlanBots` iterava quegli indici — quindi **l'ordine di spawn
+      decideva la partita**, dal turno in cui due bot cominciano a interagire. Il turno 1 restava
+      identico byte per byte, che è la ragione per cui nessuno dei test preesistenti lo vedeva.
+      ⛔ **E lo `StateHash` non avrebbe potuto vederlo**: è permutazione-invariante per costruzione. È il
+      caso che giustifica la scelta del DoD di #958 — confrontare il **TurnLog canonico turno per turno**
+      invece dell'hash finale — e la prima volta che quella scelta paga.
+      ⚠️ **`DifferentSeedVariation` resta escluso** e la ragione non è «manca la premessa»: scriverlo
+      farebbe cadere `Simulation.SeedIsDeclaredAndUnconsumed`, che verifica l'opposto. Il gancio è
+      `RNG-1` in `OPEN_DECISIONS.md` (`#960`).
 
   - feature_id: RT-FEAT-CORE-TURNLOG
     title: TurnLog, reason code, hash e replay
@@ -4293,11 +4315,12 @@ features:
     issues: [936, 937]
     tests:
       - RefactorTactics.Frontend.*
+      - RefactorTactics.Startup.*
     scenarios: []
     wiki_refs: []
     last_verified:
       date: 2026-08-16
-      commit: 6708308
+      commit: 0bfc59a
     notes: >
       Un solo owner del flow (`PushScreen`/`PopScreen`/`ShowModal`/`CloseModal`/`ReturnMain`) piu'
       loading ed error modal. Il criterio del gate `runtime` e' verificabile con un grep:
@@ -4312,9 +4335,17 @@ features:
       navigazione non e' UI**: e' una macchina a stati che la governa, e separata dalla presentazione si
       prova senza mondo ne' asset — **17 test** `RefactorTactics.Frontend.*` (12 alla prima stesura, 5
       aggiunti in code review per i difetti che aveva trovato). Resta manuale il *layout*
-      dentro il `.uasset`, che e' di `PIE-V01-FRONTEND-NAV`: `partial` e non `done` per quello, e perche'
-      CP 46.2 (loading, error modal) non e' ancora scritto.
-      `runtime: partial` per la stessa ragione: dei due checkpoint della feature ne e' fatto uno.
+      dentro il `.uasset`, che e' di `PIE-V01-FRONTEND-NAV`: `partial` e non `done` per quello.
+      ✅ **CP 46.2 consegnato il 2026-08-16 (`#937`) per la parte C++**, e ha portato con se' l'**ottavo
+      vocabolario di reason** del repository: `ERTStartupOutcome` — nove valori misurati sui punti di
+      uscita reali di `RTGameMode.cpp` — piu' `ERTLoadPhase`, `FRTStartupReport` e le tre classi base
+      (`URTLoadingScreenWidgetBase`, `URTErrorModalWidgetBase`, `URTFallbackBannerWidgetBase`).
+      **15 test** `RefactorTactics.Startup.*`.
+      ⚠️ **`RTGameMode.{h,cpp}` sono entrati nel `writable` di questa track con una riallocazione
+      dichiarata**: erano di `autobattle`, che ha chiuso `#954`. Il perimetro e' l'**emissione** — nessun
+      esito di gioco cambia, il GameMode ripiega e rifiuta dove gia' lo faceva e in piu' lo **dichiara**.
+      `runtime` e `automation` restano `partial`: i `WBP_RT_*` che consumano queste basi sono `.uasset`,
+      cioe' lavoro d'editor, e senza di loro nulla appare a schermo.
       ⚠️ **Non possiede il contesto `Modal` del `PlayerController`**: quello e' di CP 11.8
       (`RT-FEAT-UI-POINTER-INTERACTION`), che ha gia' sette contesti e la precedenza
       `Modal/Reaction UI > HUD > world` **dichiarata** — e non ancora implementata: e' il delta (c) di
@@ -4442,6 +4473,76 @@ features:
       in v0.5 (E40, turno simultaneo in rete) non esistera' una pausa globale, e cio' che la sostituira'
       — `Surrender`/`Leave Match` — ha un'altra semantica. Scoprirlo in v0.5 costerebbe un refactor del
       flow; dichiararlo adesso costa questa riga.
+
+  - feature_id: RT-FEAT-UI-REPLAY-VIEWER
+    title: Replay viewer — la lista delle partite e una riproduzione che dice dove si e'
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P2
+    status: IMPLEMENTING
+    gates:
+      spec: done
+      data: na
+      runtime: partial
+      log_debug: na
+      automation: partial
+      scenario: na
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E46
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-UI-FRONTEND-SHELL
+      - RT-FEAT-REPLAY-ARCHIVE
+    owner_specs:
+      - docs/technical/spec-frontend-navigazione.md
+      - docs/decisions/adr-0009-replay-logico-canonico.md
+    issues: [472, 999]
+    tests:
+      - RefactorTactics.Replay.ViewModel.*
+      - RefactorTactics.Replay.ViewerSubsystem.*
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      R6 del piano replay: `WBP_RT_MatchHistory` e `WBP_RT_ReplayViewer`, dichiarate in
+      `spec-frontend-navigazione.md` §2.2. Il core lo porta gia' `RT-FEAT-REPLAY-ARCHIVE`
+      (`INTEGRATED`): questa feature **non riscrive ne' il seek ne' il Player**, e la revisione che la
+      apre — `plans/replay-r6-spec-panel-2026-08-16.md` — verifica quella tabella riga per riga.
+
+      ⚠️ **Il pezzo che la issue dichiarava assente e non lo e': la posizione.** Dopo `AdvancePhase` il
+      cursore punta gia' alla fase SUCCESSIVA e puo' aver cambiato traccia, quindi «turno e fase
+      correnti» non si leggono da li' — una UI che ci provasse mostrerebbe il turno sbagliato a ogni fine
+      turno. Vive in un view model (`Replay/RTReplayViewModel.h`), come `FRTMatchHeaderView` per l'HUD e
+      `FRTScreenStack` per la navigazione: e' cio' che rende `automation` raggiungibile senza widget.
+
+      🔴 **Incoerenza di release dichiarata, e il validator NON la intercetta.** Questa feature e' `v0.1`
+      per allineamento a E46 (decisione del 2026-08-16, panel §5b) mentre `RT-FEAT-REPLAY-ARCHIVE`, da cui
+      dipende, e' `v0.2`. Il controllo sulle `dependencies` verifica che il `FeatureId` esista, non che la
+      release sia coerente — misurato su `scripts/feature_registry.py:547`. Non e' bloccante: il core e'
+      gia' `INTEGRATED`, quindi la v0.1 non aspetta nulla. La chiusura pulita e' promuovere anche
+      l'archivio, che e' scope di release e merita una `D-nnn`.
+
+      **Stato al 2026-08-16**, dopo il secondo giro: il view model (`#472`, **11** test) e il **ponte
+      Blueprint** (`#999`, `Replay/RTReplayViewerSubsystem.{h,cpp}`, **6** test) esistono, e l'area
+      `RefactorTactics.Replay` chiude **47/47**.
+      ⚠️ I numeri si rimisurano a ogni giro e non si incrementano a mente: erano `8` e `38` nella prima
+      stesura di questa riga, `11` e `41` dopo la prima code review, `11+3` e `44` all'apertura della PR
+      del ponte, e `11+6` e `47` dopo la seconda — che ha trovato meta' dei forwarder senza copertura. Sono
+      giusti un'ora per volta.
+      `runtime` e `automation` restano `partial`: da qui in su mancano le **due schermate** e il loro
+      `.uasset`, che vorranno una Binary Asset Lease, piu' il bootstrap del frontend — che pero' e' di
+      E46 (`#938`), non di questa feature. Un `done` direbbe che `#472` e' finita, e non lo e'.
+
+      ⚠️ **Doppio conteggio dichiarato**: `RefactorTactics.Replay.ViewModel.*` e' assorbito dal pattern
+      generico `RefactorTactics.Replay.*` di `RT-FEAT-REPLAY-ARCHIVE`, quindi gli 8 test contano per due
+      feature. **Si accetta invece di restringere il pattern dell'altra**: restringerlo cambierebbe la
+      misura di una feature `INTEGRATED` che non e' in lavorazione qui, e il rischio di sbagliarla —
+      lasciando scoperti Player, Seek, Producer o Verifier — supera il costo di due righe che si
+      sovrappongono. Va ridiscusso quando `RT-FEAT-REPLAY-ARCHIVE` verra' toccata per altro.
 
   - feature_id: RT-FEAT-UI-BOARD-GRAMMAR
     title: Grammatica visiva della board — colore e forma, mai solo il colore
@@ -4649,17 +4750,35 @@ features:
       - docs/decisions/adr-0001-skeletal-unit.md
       # Owner del mapping identità RT -> slot asset Paragon (D-037).
       - docs/characters/paragon.md
-    issues: [286, 287, 288, 289]
+    # ➕ `593` entra il 2026-08-16. `execution-graph.yaml` la dichiarava in **tre** punti e nessuna
+    # feature la rivendicava: `validate` lo diceva da giorni («il suo domain_group
+    # 'characters_content' non e' verificabile»), ed era vero — la issue che rifa' la gerarchia dei
+    # componenti di `ARTUnit` non poteva che appartenere a questa feature. Preesistente in `main`,
+    # chiusa qui perche' e' il turno che la implementa.
+    issues: [286, 287, 288, 289, 593]
     tests:
       - RefactorTactics.Unit.TeamColorFor
       - RefactorTactics.Unit.RingLocalZ
       - RefactorTactics.Unit.ShortHeroNameFromStableId
+      # #593: pinnano la CAUSA della deformazione, che si vede solo in editor ma si misura qui.
+      - RefactorTactics.Unit.RootIsNeutral
+      - RefactorTactics.Unit.SelectionDoesNotScaleRoot
+      # 🔴 Il terzo mancava, ed era il piu' importante: e' l'unico che falsifica l'anello sepolto nel
+      # disco della cella. Scritto in code review dopo che quel difetto era passato con la suite verde,
+      # e dichiarato qui solo al giro dopo.
+      # ⚠️ Cosa NON era in pericolo, per non prendersi un merito falso: `suite --run-log` deriva il
+      # proprio perimetro da `Source/RefactorTactics/Tests/`, non da questa lista, quindi il test veniva
+      # eseguito e contato comunque. Cio' che mancava e' la TRACCIABILITA': `validate` verifica che ogni
+      # pattern qui combaci con un test esistente, mai il verso opposto — quindi il gate `automation` di
+      # questa feature poggiava su un elenco che sottodichiarava se stesso, e chi leggeva il registry per
+      # sapere cosa protegge la presentazione non trovava l'unico test che protegge la sua visibilita'.
+      - RefactorTactics.Unit.RingClearsCellDisc
     scenarios: []
     wiki_refs:
       - docs/characters/index.md
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-16
+      commit: ee2dcbb3
     notes: >
       Il C++ (spawn con fallback, facing di presentazione, anello di team) è in `main`, il lavoro
       in editor no. Fino al 2026-08-08 era la milestone **M8** senza epic corrispondente nella vista
@@ -4669,6 +4788,48 @@ features:
       eroe ha uno slot asset Paragon dichiarato — Flux `Gadget`, Riva `Phase`, Bastion `Riktor`,
       Vektor `Wraith` — quindi assegnare mesh e animazioni non richiede più una scelta. Nessun gate
       si muove: la decisione è documentale, in editor non e' stato assegnato niente.
+
+      ✅ **#593 (2026-08-16): il root di `ARTUnit` è neutro.** Il cilindro segnaposto era il root con
+      scala `(1.2, 1.2, 1.8)`, quindi ogni mesh aggiunta in Blueprint veniva stirata di `1.5x`. Con
+      `SceneRoot` neutro l'ingrandimento del 15% alla selezione smette anche lui di raggiungere i figli,
+      **senza che la riga che lo produce cambi**: era la gerarchia, non il codice della selezione.
+
+      🔴 **Ma NON raddrizza i quattro `BP_Unit_*` esistenti**, e la prima stesura di questa nota diceva
+      il contrario. I loro nodi SCS dichiarano il genitore **per nome**
+      (`ParentComponentOrVariableName` + `bIsParentComponentNative`, presenti nella name table di tutti
+      e quattro): finché un componente nativo chiamato `Mesh` esiste — e esiste — la skeletal resta
+      figlia di lui, che porta ancora `BaseMeshScale`. Riparentarla è un'apertura di editor, seduta
+      **U7**, con Binary Asset Lease. Il C++ toglie la causa per ciò che nasce d'ora in poi.
+
+      🔴 **E il «workaround World/Absolute Scale» che questa nota dava per applicato NON è negli asset.**
+      Misurato sui quattro `.uasset`, cercando ogni stringa in ASCII **e** UTF-16LE:
+      `bAbsoluteScale` **assente in tutti e quattro** · `RelativeScale3D` **presente in tutti e quattro**
+      · `ParentComponentOrVariableName` e `bIsParentComponentNative` **presenti in tutti e quattro**.
+      Quindi l'icona *World/Absolute* non è mai stata commutata, e la compensazione — se c'è — è una
+      **`RelativeScale3D` tarata a mano**. Che non è ridondante: toglierla senza riparentare **deforma**
+      i personaggi invece di raddrizzarli.
+      ⚠️ È evidenza, non prova: `RelativeScale3D` è un nome di proprietà comune e la sua presenza nella
+      name table non dice su quale componente sia scritto né con che valore. Lo dice solo l'editor, ed è
+      la prima cosa da guardare in **U7**. Trovato in code review della PR #977.
+
+      ⚠️ **Nessun gate si muove, ed è dichiarato invece che sottinteso.** `runtime` resta `partial`
+      perché il lavoro che manca è **in editor** (mesh, animazioni, materiali assegnati), e questo
+      commit non ne assegna nessuno: toglie un ostacolo, non consegna la presentazione. `automation`
+      resta `partial` per la stessa ragione — i due test nuovi coprono la causa strutturale, non
+      l'aspetto, che nessun test headless può giudicare. `packaged` resta `todo`: la build mostra
+      ancora i cilindri.
+
+      ⏳ **Lavoro di U7, in questo ordine**: (1) aprire i quattro `BP_Unit_*` e **misurare** com'è
+      compensata oggi la deformazione — la risposta decide il resto; (2) riparentare la skeletal sotto
+      `SceneRoot`; (3) solo allora togliere l'eventuale compensazione, che a quel punto è davvero
+      ridondante. ⛔ Non fare (3) prima di (1): se la compensazione è una `RelativeScale3D` tarata a
+      mano, toglierla senza riparentare deforma i personaggi invece di raddrizzarli.
+
+      ⚠️ **Gli owner_spec di questa feature descrivono ancora la gerarchia vecchia** —
+      `spec-team-identity.md` (`Mesh` come root, `SetupAttachment(Mesh)`, la formula con
+      `BaseMeshScale.Z`) e la ricetta della seduta U7 in `editor-sessions.yaml`. Aggiornati con #593;
+      erano rimasti indietro nella prima stesura, e un owner_spec che descrive codice che non esiste più
+      fa reimplementare la compensazione appena tolta.
 
   - feature_id: RT-FEAT-CHAR-TRANSFORMATION
     title: Stati di personaggio, stance e trasformazioni
@@ -5097,19 +5258,33 @@ features:
     kind: tooling
     release: v0.1
     priority: P1
-    status: DESIGNED
+    # ➕ DESIGNED → IMPLEMENTING il 2026-08-16: non e' una promozione scelta, e' quella che il validator
+    # DERIVA dai gate corretti sopra — «status DESIGNED diverge dai gate (derivato: IMPLEMENTING)».
+    # ⚠️ Si ferma a IMPLEMENTING e non sale a TESTABLE perche' `automation` e' `partial`: E47.2, E47.3
+    # ed E47.6 non hanno copertura, e un `done` qui direbbe che l'epic e' coperta quando ne mancano tre.
+    status: IMPLEMENTING
     gates:
       # `D-145` dichiara la regola e chi la possiede; nessun documento owner descrive **come** si
       # configura la modalita' — quindi `partial`, non `done`. Non promuovere per «si sa cosa fare».
       spec: partial
-      # Nessuna configurazione esiste: `SpawnHero` decide da un letterale.
-      data: todo
-      runtime: todo
-      log_debug: todo
+      # ✅ 2026-08-16 (#954, PR #963): la configurazione ESISTE. `bAutobattle` + `-RTAutobattle[=0|1]` +
+      # `rt.Match.Autobattle`, risolte da `ARTGameMode::ResolveAutobattle()` con precedenza dichiarata.
+      # 🔴 Queste tre righe dicevano `todo` e «Nessuna configurazione esiste: `SpawnHero` decide da un
+      # letterale» fino a oggi, cioe' erano **false da quando E47.1 e' atterrata**: la track che l'aveva
+      # consegnata dichiaro' di non poterle correggere perche' questo file era prenotato da un'altra
+      # (`parallel-batch.yaml`, nota di `autobattle`). Il debito era scritto, ed e' questo che lo chiude.
+      data: done
+      runtime: done
+      log_debug: done
       # ⚠️ `HexMatch.PlaysToCompletion` NON conta qui, ed e' la tentazione da evitare: prova che il
       # **resolver** regge un 2v2 bot-contro-bot, cioe' una DIPENDENZA di questa feature, non la
-      # feature. Il gate misura se la modalita' in partita e' coperta, e non esiste.
-      automation: todo
+      # feature. Il gate misura se la modalita' in partita e' coperta.
+      # ✅ Ora lo e': **16** test `RefactorTactics.Match.Autobattle.*` — 9 di E47.1 (configurazione,
+      # precedenza, banda, nessuno stallo, partita fino al vincitore senza input) e 7 di E47.5 (i casi
+      # limite di determinismo). ⚠️ `partial` e non `done`: E47.2, E47.3 ed E47.6 non hanno copertura.
+      automation: partial
+      # ⏳ I quattro `AutoBattle.*` restano `planned`: si versionano con **E47.4** (`#957`), che dipende
+      # dal seam di `D-101` (`#542`). Scritti oggi uscirebbero ERROR per una capability che non esiste.
       scenario: todo
       ui_wiki: todo
       packaged: todo
@@ -5117,7 +5292,7 @@ features:
       replay_representable: na
     roadmap:
       epic: E47
-      checkpoints: ["47.1", "47.6"]
+      checkpoints: ["47.1", "47.5", "47.6"]
     dependencies:
       - RT-FEAT-BOT-BASE
       - RT-FEAT-CORE-TURN
@@ -5128,8 +5303,27 @@ features:
     owner_specs:
       - docs/decisions/RT_PDR_00_Decision_Log.md
       - docs/roadmap/plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md
-    issues: [952, 954, 959]
-    tests: []
+    issues: [952, 954, 958, 959, 990]
+    tests:
+      # I nove di E47.1 (#954): la configurazione e la partita che arriva al vincitore senza input.
+      - RefactorTactics.Match.Autobattle.DefaultLeavesPlayerTeamHuman
+      - RefactorTactics.Match.Autobattle.PropertyPutsBothTeamsUnderBot
+      - RefactorTactics.Match.Autobattle.SourcePrecedence
+      - RefactorTactics.Match.Autobattle.CommandLineValueIsUnderstood
+      - RefactorTactics.Match.Autobattle.PlanningSecondsReachTheTurnManager
+      - RefactorTactics.Match.Autobattle.PlanningSecondsNeverStallAnUnattendedMatch
+      - RefactorTactics.Match.Autobattle.BannerDeclaresUnattendedMatch
+      - RefactorTactics.Match.Autobattle.AppliesToUnitsAlreadyInTheLevel
+      - RefactorTactics.Match.Autobattle.PlaysToCompletionWithoutInput
+      # I sette di E47.5 (#958): il corpus di determinismo. Contati anche in `RT-FEAT-CORE-DETERMINISM`,
+      # e non e' un doppione — sono la stessa cosa vista da due feature, come `completed_by` piu' sotto.
+      - RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation
+      - RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback
+      - RefactorTactics.Match.Autobattle.NoPathProducesLegalFallback
+      - RefactorTactics.Match.Autobattle.AllWaitEndsTheTurnNormally
+      - RefactorTactics.Match.Autobattle.SimultaneousKOFollowsDeclaredPolicy
+      - RefactorTactics.Match.Autobattle.EndsOnRoundLimitWhenNobodyDies
+      - RefactorTactics.Match.Autobattle.SameSeedGivesSameResult
     scenarios:
       planned:
         - AutoBattle.OpenField

@@ -6,8 +6,13 @@
 > **Nasce da** [D-144](../decisions/RT_PDR_00_Decision_Log.md) · epic **E46** in
 > [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) · revisione della sorgente in
 > [`plans/menu-frontend-spec-panel-2026-08-16.md`](../roadmap/plans/menu-frontend-spec-panel-2026-08-16.md).
-> **Stato**: `SPECIFIED` — regole decise, **nessun codice**. Su `4ab36b48` non esiste alcun widget di
-> frontend e `Content/` non contiene alcun `WBP_*`.
+> **Stato**: `IMPLEMENTING` *(aggiornato il 2026-08-16)*. Il C++ di **CP 46.1** (navigation controller) e
+> **CP 46.2** (fasi di caricamento, esiti d'avvio, classi base dei widget) è in `main` — **32 test**.
+> ⏳ Restano i `WBP_RT_*`, che sono `.uasset` e quindi lavoro d'editor: la ricetta per costruirli sta in
+> [`guida-frontend-umg.md`](guida-frontend-umg.md).
+> *(Questa riga diceva «`SPECIFIED` — regole decise, **nessun codice**», vero fino al 2026-08-16: la
+> lascio citata perché uno stato che invecchia in silenzio è il difetto che questo repository misura più
+> spesso.)*
 
 ---
 
@@ -53,12 +58,50 @@ WBP_RT_FrontendRoot
 ├── WBP_RT_ResultScreen
 ├── WBP_RT_PauseMenu
 ├── WBP_RT_LoadingScreen
+├── WBP_RT_MatchHistory        ← la lista delle partite registrate (#416)
+├── WBP_RT_ReplayViewer        ← il viewer, spinto DA MatchHistory (#472)
 └── WBP_RT_ModalLayer          ← sempre in cima, sempre uno solo
 ```
 
 `WBP_RT_SettingsPanel` esiste in v0.1 come **pannello dichiarato *coming soon***: la voce di menu deve
 esistere perché il back stack la attraversi e perché il menu non cambi forma in v0.2. Un pulsante che non
 fa nulla *senza dirlo* è un dead-end.
+
+### 2.2 Le due schermate del replay
+
+➕ **Entrano il 2026-08-16**, con la revisione di R6 in
+[`../roadmap/plans/replay-r6-spec-panel-2026-08-16.md`](../roadmap/plans/replay-r6-spec-panel-2026-08-16.md)
+§5(a). Prima di allora [`#472`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/472)
+avrebbe introdotto due schermate in uno strato che non le prevedeva — cioè un secondo flow accanto a
+quello che §3 dichiara unico.
+
+Non sono un caso particolare: sono **due schermate ordinarie**, e la ragione per cui vale la pena
+scriverlo è che la loro relazione è l'unica del frontend in cui una schermata ne spinge un'altra
+portandosi dietro un dato.
+
+| | `MatchHistory` | `ReplayViewer` |
+|---|---|---|
+| Raggiunta da | `PushScreen` dal Main Menu | `PushScreen` **da `MatchHistory`**, mai dal Main |
+| Porta | l'indice (`URTMatchHistoryLibrary::LoadIndex`) | un `MatchId`, che è il solo dato in ingresso |
+| `Back` | torna al Main | torna alla **lista**, non al Main |
+
+⚠️ **`ReplayViewer` non è raggiungibile senza un `MatchId`**, e questo è il motivo per cui non è una voce
+di menu: una schermata che si apra senza il suo dato non avrebbe niente da mostrare, e sarebbe il
+dead-end che §3.2 vieta. Il percorso di ritorno esiste in entrambi i sensi — `Back` risale alla lista,
+`ReturnMain` svuota — quindi l'invariante 2 regge senza eccezioni.
+
+⚠️ **Il viewer non possiede la riproduzione**: posizione, ritmo e abilitazione dei comandi stanno nel
+view model di `#472` (`Replay/RTReplayViewModel.h`), che si prova senza widget. È la stessa separazione
+di `FRTScreenStack` rispetto ai widget di navigazione — *la logica che governa la UI non è UI* — e vale
+qui per la stessa ragione: senza, i criteri di R6 sarebbero verificabili solo a schermo.
+
+⛔ **Nessuna delle due chiama il resolver**, ed è un requisito ereditato, non una raccomandazione:
+[ADR-0009](../decisions/adr-0009-replay-logico-canonico.md) §3 fissa il confine `Player`/`Verifier` e
+`#472` lo estende al percorso della UI. Si verifica sugli `#include`, come per il Player.
+
+⚠️ **Release**: entrambe sono **v0.1**, allineate a E46 con la decisione registrata nel panel §5(b). Il
+core che consumano (`RT-FEAT-REPLAY-ARCHIVE`) è però ancora `v0.2` nel registry: l'incoerenza è
+dichiarata lì e non si risolve in questo documento.
 
 ---
 
@@ -121,13 +164,19 @@ nel contesto `Modal` esistente: il frontend lo *segnala*, non lo reimplementa.
 
 ### 4.1 Loading
 
-Il widget mostra la fase corrente **leggendo un evento**, non componendo una stringa:
+Il widget mostra la fase corrente **leggendo un dato**, non componendo una stringa:
 
 ```cpp
-enum class ERTLoadPhase : uint8 { Map, Scenario, Bots };
+enum class ERTLoadPhase : uint8 { Idle, Map, Scenario, Bots, Ready };
 ```
 
-emessa da `ARTGameMode::BeginPlay` nei tre punti dove oggi esistono già tre `UE_LOG`.
+`ARTGameMode::SetupHexMatch` la fa avanzare nei punti reali dell'allestimento, e
+`URTLoadingScreenWidgetBase::GetPhaseText()` produce la riga. Il testo nasce in C++ e non nel Blueprint,
+per la stessa ragione per cui esiste l'enum: due schermate che raccontassero la stessa fase con parole
+diverse sarebbero due verità sullo stesso stato.
+
+⚠️ `Idle` e `Ready` **non hanno testo**, ed è voluto: una schermata di caricamento che dice «pronto»
+resta a schermo dicendo il contrario di ciò che sta facendo. `IsLoading()` è falso in entrambe.
 
 ⚠️ **Nessuna percentuale.** Non esiste un progress model da cui derivarla, e una barra che avanza a caso
 è un dato inventato — la stessa regola per cui la UI non ricalcola il risultato.
@@ -182,8 +231,37 @@ Il banner riusa la forma di `ARTGameMode::GetScenarioBannerText()`, che esiste d
 stesso problema e ne porta la motivazione: *«il sintomo non punta alla causa … la spiegazione c'è, ma è in
 una riga di Output Log che non si ha motivo di andare a cercare»*.
 
-Non chiude le riserve di `G13` — restano mancanze di **dati** — ma smette di renderle invisibili, che è il
-motivo per cui il 2026-08-10 non se n'era accorto nessuno guardando lo schermo.
+### 4.4 Il vocabolario: `ERTStartupOutcome`
+
+Nove valori, **misurati** sui punti di uscita reali di `RTGameMode.cpp` e non immaginati:
+
+| | Esiti | Forma |
+|---|---|---|
+| **Fatali** (3) | `FormatAssetInvalid` · `ShippedFormatInvalid` · `FormatMapMismatch` | **modale** |
+| **Degradati** (5) | `UsingTestArena` · `UsingDemoArena` · `LevelMapMissing` · `UsingFallbackFormat` · `NoTurnManager` | **banner** |
+| | `Ok` | niente |
+
+`URTStartupReportLibrary::IsFatal()` è **l'unico posto** in cui la divisione è scritta: un widget che la
+ridecidesse sarebbe la seconda autorità che questo vocabolario esiste per evitare. Usa uno `switch` senza
+`default`, così un decimo esito farà fallire la compilazione invece di diventare un ripiego in silenzio.
+
+**Il motivo è l'enum; la stringa è il suo dettaglio.** `ResolveRules` e `ValidateAgainstMap` producono già
+quelle stringhe: qui vengono **trasportate**, non ricomposte — lo stesso rapporto che il TurnLog ha fra un
+reason code e i suoi parametri.
+
+⚠️ **Le note sono una lista.** Un avvio accumula più condizioni insieme, e mostrarne una sola nasconderebbe
+l'altra: è il modo esatto in cui queste cose sono rimaste invisibili finora — due righe di log separate,
+nessuna delle quali qualcuno aveva motivo di cercare.
+
+🔴 **Una correzione da registrare**: una stesura precedente di questa sezione chiamava `UsingFallbackFormat`
+la *«seconda riserva di `G13`»*. **Falso**, e l'ha trovato un test rosso. Le due riserve sono l'arena di
+test e *«la via a punti non è mai stata esercitata, perché la soglia obiettivo è 0»* — cioè un **valore**
+del formato in vigore, non il ripiego del formato. `UsingFallbackFormat` è per giunta un ramo **raro**:
+`Format.Skirmish2v2` è spedito da C++ (`9f44570d`), quindi in una build normale non si raggiunge.
+
+∴ di ciò che `G13` dichiara, il banner rende visibile **la prima riserva**, non entrambe. Non le chiude:
+restano mancanze di dati. Ma smette di renderla invisibile, che è il motivo per cui il 2026-08-10 non se
+n'era accorto nessuno guardando lo schermo.
 
 ---
 

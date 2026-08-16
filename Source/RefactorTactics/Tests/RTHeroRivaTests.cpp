@@ -58,18 +58,36 @@ bool FRTRivaMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("PressureJet: nessuna ricarica (e' l'attacco base)"), PressureJet->Def.CooldownTurns, 0);
 	TestTrue(TEXT("PressureJet: forma a linea"), PressureJet->Shape == ERTAbilityShape::Line);
 
-	// FluidTrail NON e' piu' uno scatto (D-046, issue #282): e' il produttore d'acqua del roster, cablato su
-	// `Action.CreateWater`. Il cambio e' di kit, non di numeri — Riva perde la mobilita' rapida — e va scritto
-	// qui perche' questo test E' la documentazione vincolante del kit: se un giorno tornasse un Dash, deve
-	// cadere qualcosa.
+	// FluidTrail TORNA a essere uno scatto (#1006), e il commento precedente prevedeva questo giro: diceva
+	// «se un giorno tornasse un Dash, deve cadere qualcosa». E' caduto, ed e' stato sostituito qui.
+	//
+	// Il perche' non e' di mobilita': viene da #995. Phase e' **abilitata** a Water, non padrona — grado
+	// `Access`, cioe' UNA sola capability elementale — e il catalogo ne dichiarava tre: `PressureJet`
+	// (Apply Wet), `CircularTide` (Apply Wet) e questa (Generate della superficie). Resta `PressureJet`.
+	// D-046 aveva cablato questa su `Action.CreateWater` per dare un owner all'acqua; l'owner ora e'
+	// l'EQUIPAGGIAMENTO — `Gadget.Sprinkler` porta gia' `Action.CreateWater` — e per la grammatica di #995
+	// un Generic Equipment e' `External Access` e non fa proficiency.
+	//
+	// ⚠️ Il costo e' dichiarato in #1006 e non va dimenticato leggendo solo questa riga: il roster perde
+	// l'unico produttore INNATO di superficie acqua, quindi `Flux.ConductiveNode` — che propaga sul grafo
+	// conduttivo — dipende dalla mappa o dallo Sprinkler. La vetrina Conflux di D-046 ne risente.
 	const URTActionData* FluidTrail = Riva->Actions[2];
-	const FRTActionDef WaterDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateWater"));
-	TestEqual(TEXT("FluidTrail: portata dal core, non un numero nuovo"), FluidTrail->Def.RangeCells, WaterDef.RangeCells);
-	TestEqual(TEXT("FluidTrail: cooldown 2"), FluidTrail->Def.CooldownTurns, 2);
-	TestTrue(TEXT("FluidTrail: risolve nell'ambiente"),
-		FluidTrail->Def.ResolutionPhase == ERTResolutionPhase::Environment);
-	// Nessun residuo dello scatto: uno stile di movimento rimasto verrebbe letto come intenzione.
-	TestTrue(TEXT("FluidTrail: non si muove piu'"), FluidTrail->Def.MovementStyle == ERTMovementStyle::None);
+	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	TestEqual(TEXT("FluidTrail: portata dal core, non un numero nuovo"), FluidTrail->Def.RangeCells, DashDef.RangeCells);
+	TestEqual(TEXT("FluidTrail: cooldown 2, il proprio e non quello del core"), FluidTrail->Def.CooldownTurns, 2);
+	TestTrue(TEXT("FluidTrail: e' movimento rapido, non ambiente"),
+		FluidTrail->Def.ResolutionPhase == ERTResolutionPhase::FastMovement);
+	TestTrue(TEXT("FluidTrail: si muove di nuovo, in linea"),
+		FluidTrail->Def.MovementStyle == ERTMovementStyle::LinearDash);
+	// Lo SLOT e' la meta' della decisione, non un dettaglio: uno scatto occupa il Movimento (D-028), cosi'
+	// chi lo usa conserva l'azione principale — *schivo e sparo*. Con lo slot `Main` di default sarebbe una
+	// mobilita' che costa un attacco, cioe' un'altra abilita'.
+	TestTrue(TEXT("FluidTrail: occupa il Movimento (D-028), non l'azione principale"),
+		FluidTrail->Def.Slot == ERTActionSlot::Movement);
+	// Nessun residuo dell'acqua: un flag di superficie rimasto verrebbe letto come intenzione, ed e' il modo
+	// piu' silenzioso in cui questa abilita' e' gia' fallita una volta (issue #353 su MistVeil).
+	TestFalse(TEXT("FluidTrail: non crea piu' superficie"), FluidTrail->Def.bCreatesSurface);
+	TestEqual(TEXT("FluidTrail: nessun effetto dichiarato"), FluidTrail->Def.Effects.Num(), 0);
 
 	// MistVeil crea DAVVERO il fumo (issue #353). Come per FluidTrail, questo test e' la documentazione
 	// vincolante del kit: se un giorno tornasse `Preparation`, o il flag sparisse, deve cadere qualcosa —
@@ -96,40 +114,53 @@ bool FRTRivaMatchesCatalogTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRivaTideHealsAlliesWetsEnemiesTest,
-	"RefactorTactics.Heroes.Riva.TideHealsAlliesWetsEnemies",
+/**
+ * `CircularTide` cura e basta: il `Wet` esce dalla sua dichiarazione (#1006).
+ *
+ * ⚠️ **Questo test SOSTITUISCE `Heroes.Riva.TideHealsAlliesWetsEnemies`, non lo affianca.** Quel nome
+ * pinnava la doppia natura — cura agli alleati, `Wet` ai nemici — che era il contenuto di CP 6.3. Il nome
+ * e' cambiato insieme al contratto perche' un test che si chiama `...WetsEnemies` e non verifica piu'
+ * nessun `Wet` e' peggio di un test cancellato: resta verde e racconta un kit che non esiste.
+ *
+ * Il perche' viene da #995 via #1006: Phase e' **abilitata** a Water, non padrona — grado `Access`, una
+ * sola capability elementale — e il catalogo ne dichiarava tre. Resta `PressureJet`.
+ *
+ * ⚠️ **Costo di gameplay dichiarato**: quel `Wet` ad area era il preparatore della combo con Gadget
+ * (`LinearDischarge` fa **+8 su bersaglio `Wet`**). Dopo questa modifica la combo passa solo per la linea
+ * di `PressureJet`, che colpisce meno bersagli. E' il prezzo accettato con l'opzione C di #1006.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRivaTideHealsWithoutWettingTest,
+	"RefactorTactics.Heroes.Riva.TideHealsWithoutWetting",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTRivaTideHealsAlliesWetsEnemiesTest::RunTest(const FString&)
+bool FRTRivaTideHealsWithoutWettingTest::RunTest(const FString&)
 {
-	// Nome vincolante della DoD: CircularTide dichiara ENTRAMBI gli effetti (cura per gli alleati, Wet per i
-	// nemici) come dati. Verifica la dichiarazione, non l'applicazione: nessun resolver oggi differenzia
-	// l'effetto fra alleati e nemici della stessa area (limite dichiarato sotto).
 	const URTActionData* CircularTide = URTHeroCatalogLibrary::MakeRiva()->Actions[1];
 
+	// Le assertion ancora vive del test precedente: la cura e i numeri di forma non cambiano.
 	TestTrue(TEXT("dichiara una cura"), RivaDeclaresEffect(CircularTide, ERTActionEffect::Heal));
 	TestEqual(TEXT("cura 18"), RivaEffectAmount(CircularTide->Def.Effects, ERTActionEffect::Heal), 18);
-
-	TestTrue(TEXT("dichiara Wet"), RivaDeclaresEffect(CircularTide, ERTActionEffect::Status));
-	bool bFoundWet = false;
-	for (const FRTActionEffectSpec& Spec : CircularTide->Def.Effects)
-	{
-		if (Spec.Effect == ERTActionEffect::Status && Spec.StatusTag == TAG_Status_Wet)
-		{
-			bFoundWet = true;
-			TestEqual(TEXT("Wet dura 1 turno"), Spec.StatusDuration, 1);
-		}
-	}
-	TestTrue(TEXT("ed e' proprio Status.Wet"), bFoundWet);
-
 	TestEqual(TEXT("portata 4"), CircularTide->Def.RangeCells, 4);
 	TestEqual(TEXT("cooldown 2"), CircularTide->Def.CooldownTurns, 2);
 	TestTrue(TEXT("area"), CircularTide->Shape == ERTAbilityShape::Area);
 	TestEqual(TEXT("raggio 1"), CircularTide->AreaRadius, 1);
 
-	// Limite dichiarato: `bFriendlyFire` (CP 4.6) decide SE un alleato viene colpito da un'area, non CON
-	// QUALE effetto — quindi "cura gli alleati, applica Wet ai nemici" non e' ancora eseguibile da
-	// `CollectHexAttacks`/`ProduceEvents` cosi' come sono oggi. La differenziazione arriva quando Riva sara'
-	// davvero cablata in un turno (CP 6.6+), non prima: qui si verifica solo che i due numeri esistano.
+	// L'assertion NUOVA, ed e' quella per cui questo test esiste: nessuno `Status` dichiarato, e in
+	// particolare nessun `Wet`. Le due condizioni sono scritte separate di proposito — la prima cade se
+	// qualcuno rimette un tag qualsiasi, la seconda dice quale tag stiamo sorvegliando.
+	TestFalse(TEXT("non dichiara piu' alcuno Status"),
+		RivaDeclaresEffect(CircularTide, ERTActionEffect::Status));
+	for (const FRTActionEffectSpec& Spec : CircularTide->Def.Effects)
+	{
+		TestTrue(TEXT("nessun effetto e' Status.Wet"),
+			!(Spec.Effect == ERTActionEffect::Status && Spec.StatusTag == TAG_Status_Wet));
+	}
+
+	// La cura resta l'unico effetto: senza questa riga passerebbe anche un `Effects` svuotato del tutto,
+	// che sarebbe un'abilita' inerte invece di una cura ad area.
+	TestEqual(TEXT("la cura e' l'unico effetto rimasto"), CircularTide->Def.Effects.Num(), 1);
+
+	// Limite dichiarato, ereditato e ancora valido: `bFriendlyFire` (CP 4.6) decide SE un alleato viene
+	// colpito da un'area, non CON QUALE effetto. Qui si verifica la dichiarazione, non l'applicazione.
 	return true;
 }
 
