@@ -1925,9 +1925,9 @@ tracks:
     binary_leases: []
 
   verification:
-    status: IDLE
-    issue: null
-    branch: null
+    status: ACTIVE
+    issue: 83
+    branch: null           # ⚠️ sentinella: la issue è aperta, il branch non è ancora stato aperto
     note: >-
       ✅ **Chiusa il 2026-08-15: tutte e cinque le issue sono chiuse e il branch non esiste più.**
       #879, #880, #881, #883 `COMPLETED` con la PR **#885** (`408f5ff8`); #882 `NOT_PLANNED`, e la
@@ -1974,6 +1974,39 @@ tracks:
       nuovo e due documenti: intersezione **vuota**, verificata sui path e non sull'intenzione. Il vincolo
       che resta non è sui file — è la macchina: una run di automation per volta e un mutex di UBT, quindi
       due track che ricompilano si aspettano.
+      ➕ **Riattivata il 2026-08-16 su `#83`** (CP 12.3, `P0`), con un write-set piccolo perché il lavoro è per
+      tre quarti **misura**: tre delle quattro voci del DoD sono già verificate sull'albero — i dieci test
+      vincolanti del catalogo esistono col nome esatto **e** sono verdi (10 su 10, controllati sia come
+      dichiarazione sia come `Result={Success}` nell'ultima esecuzione), e non c'è un solo test disabilitato.
+      🔴 **La voce che resta è «la suite gira in Editor e in build packaged», e non girava.** Nel pacchetto
+      Development `Automation List` registra **zero** test, anche con `-Messaging`.
+      ⚠️ **E la prima diagnosi era sbagliata.** Avevo scritto che `WITH_AUTOMATION_WORKER` fosse spento fuori
+      dall'Editor: `Build.h:127` dice `#define WITH_AUTOMATION_WORKER !UE_BUILD_SHIPPING`, quindi in
+      Development è **acceso**. La causa vera sta nei test — **875 su 875** dichiarati
+      `EAutomationTestFlags::EditorContext`, cioè «giro solo nell'Editor» — e il controller li filtra
+      correttamente. Il codice è compilato (i nomi dei test sono dentro l'eseguibile, cercati) e nessuno si
+      registra perché nessuno si dichiara eseguibile lì.
+      ➕ **Da cui il write-set: nove file, dieci dichiarazioni.** `ClientContext` va ai **dieci test che il
+      catalogo dichiara vincolanti**, non a tutti e 875: riflaggare 107 file sarebbe il mega-refactor che le
+      regole vietano, e alcuni test potrebbero dipendere dall'Editor in modi che si scoprono solo eseguendoli.
+      Dieci è il numero che il DoD stesso nomina, ed è verificabile in un pacchetto.
+      ⚠️ **Contesa registrata, non scoperta al merge**: `feat/641-sprint-post-blast` tocca
+      `RTMovementActionTests.cpp`, dove vive `Actions.Dash.BlockedArc`. È `DORMANT` dal 2026-08-12: il
+      conflitto non è simultaneo, è **differito al giorno in cui quel branch riprende**, e lo paga lui. Qui la
+      modifica è **una riga** su una dichiarazione; escludere il file lascerebbe fuori uno dei dieci.
+      ⛔ **`docs/roadmap/roadmap-checkpoint.md` NON entra nel `writable`**: è `integration_only`, e il
+      conteggio che il DoD chiede si scrive **una volta in integrazione**, con la riconciliazione di questa
+      track. Oggi il documento dice ancora 632/633/634; la misura è **876 dichiarati · 875 eseguiti**.
+    writable:
+      - Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp
+      - Source/RefactorTactics/Tests/RTMovementActionTests.cpp
+      - Source/RefactorTactics/Tests/RTControlActionTests.cpp
+      - Source/RefactorTactics/Tests/RTElectricPropagationTests.cpp
+      - Source/RefactorTactics/Tests/RTFireWaterTests.cpp
+      - Source/RefactorTactics/Tests/RTHexCoverTests.cpp
+      - Source/RefactorTactics/Tests/RTInterceptTests.cpp
+      - Source/RefactorTactics/Tests/RTReactionTests.cpp
+      - Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp
     binary_leases: []
 
   autobattle:
