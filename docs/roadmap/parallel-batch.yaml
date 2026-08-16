@@ -447,11 +447,16 @@ batch:
   # e **6 PR**, misurati venti minuti prima, e nel frattempo `chore/954-batch-idle` è atterrata. Non è
   # una svista: è la dimostrazione che «rileggere `base_sha` subito prima di scrivere» non basta quando
   # fra la scrittura e il commit passa un altro comando. Il numero si rifà **dopo** l'ultimo merge.
-  # ⏱️ Avanzata il 2026-08-16 da `87857c6c` a `4eee4dcf`: **39 PR** atterrate nel mezzo, contate col
-  # `--grep="Merge pull request"`; il `--merges` nudo ne dice **61**, e le due misure coincidono solo
-  # combinandole (`--merges --grep=…` → 39), che è la ragione per cui questa riga porta il comando e non
-  # il numero da solo. La base precedente resta antenato e lo resta anche quella di creazione
-  # (`84cbb70c`), verificato con `git merge-base --is-ancestor`: l'`id` non cambia.
+  # ⏱️ Avanzata il 2026-08-16 da `87857c6c` a `ec3f6e37`: **41 PR** atterrate nel mezzo, contate col
+  # `--merges --grep="Merge pull request"`; il `--merges` nudo ne dice **64**, perché include i merge di
+  # `origin/main` dentro un branch — ed è la ragione per cui questa riga porta il comando e non il numero
+  # da solo. La base precedente resta antenato e lo resta anche quella di creazione (`84cbb70c`),
+  # verificato con `git merge-base --is-ancestor`: l'`id` non cambia.
+  # 🔴 **Questa riga ha dovuto essere rifatta dentro lo stesso giro, come la volta scorsa**: diceva
+  # `4eee4dcf` e **39 PR**, e fra il commit e il push è atterrata `#1026` (`feat/u1-arch-residui-2`) —
+  # che tocca **questo file**, quindi non era un `base_sha` da aggiornare: era un merge da fare. Il
+  # numero si rifà **dopo** l'ultimo merge, e il write-set qui sotto è stato rimisurato sull'albero
+  # unito: i sei path compaiono **una volta sola** ciascuno e l'owner è `simulation`.
   # ⚠️ **E si è mossa mentre misuravo, per la sesta volta**: la prima lettura di questo giro diceva
   # `ef294a10`, e fra il primo comando e questa riga sono atterrate `#904` e `#1024`. La seconda tocca
   # **questo file** — `client_tools` rilascia `UI/RTHUD.{h,cpp}` — quindi non era un `base_sha` da
@@ -462,7 +467,7 @@ batch:
   # `ef294a10`. `git cat-file -e <ref>:<path>` su tre ref dice che c'era in tutti e tre. Dedotta dal
   # `git merge --ff-only` che l'aveva appena portata nel checkout locale — che è la distanza fra «il
   # file è nuovo per me» e «il file è nuovo».
-  base_sha: "4eee4dcf9c3eb4783f6d263ca5d392303c6832e9"
+  base_sha: "ec3f6e379dbe325733ac87839bf8a5af7d5bc776"
   created_at: "2026-08-14"
   # Base di creazione, tenuta perché è ciò che l'`id` nomina: `84cbb70c6f5082682e59a71d442b71e78fac4322`.
   # Verificato che sia ancora antenato della base corrente (`git merge-base --is-ancestor`): sì —
@@ -556,14 +561,17 @@ batch:
   # manutenzione dei campi: senza quella riallocazione la voce 5 del DoD non ha dove atterrare, ed è
   # esattamente la condizione che la track ha dichiarato chiudendo la fase A — *«i dati stanno in
   # `Scenarios/`, che resta `integration_only`»*.
-  # ➕ **Cosa cambia**: `base_sha` (39 PR di scarto), `reconciled_count`, i cinque campi di `simulation`
-  # e la voce `Scenarios/` di `integration_only`. Nessun'altra track è toccata.
-  # ⚠️ **Due sessioni scrivono questo file adesso**, misurate con `git diff --name-only origin/main...<b>`
-  # su ogni ramo remoto più `git status` in ogni worktree: `feat/625-hazard-turnlog` (`replay_ui`/`playback`,
-  # righe ~3400–3570) e `feat/u1-arch-residui-2` (`content_editor`, riga ~2130). Le tre zone sono
-  # **disgiunte** e nessuna delle due tocca l'intestazione — ma un auto-merge riuscito non è un merge
-  # valido: chi mergia per secondo verifica il **risultato** contro la propria base, non la lista dei
-  # conflitti.
+  # ➕ **Cosa cambia**: `base_sha` (41 PR di scarto), `reconciled_count`, i cinque campi di `simulation`
+  # e la voce `Scenarios/` di `integration_only`. Nessun'altra track è toccata — verificato diffando il
+  # **risultato** del merge contro `origin/main`: **un solo file**, e le righe rimosse sono **sette**,
+  # tutte campi di questa riconciliazione. Nessuna riga di `content_editor` è andata persa nell'auto-merge.
+  # 🔴 **La contesa era DUE quando l'ho scritta ed è UNA quando l'ho riletta.** Questa riga diceva
+  # *«`feat/625-hazard-turnlog` e `feat/u1-arch-residui-2`»*: la seconda è atterrata (PR #1026) fra il
+  # commit e il push, cioè dentro la finestra in cui la si stava dichiarando. Resta
+  # `feat/625-hazard-turnlog` (`replay_ui`/`playback`, righe ~3400–3570), zona **disgiunta** da questa e
+  # dall'intestazione. È la terza volta che questo file lo registra: una contesa è vera all'istante in cui
+  # è misurata, mai dopo — e un auto-merge riuscito non è un merge valido finché non si è diffato il
+  # risultato contro la propria base.
   reconciled_count: 8
 
 # --- Branch già vivi al momento del calcolo ---------------------------------------------------
