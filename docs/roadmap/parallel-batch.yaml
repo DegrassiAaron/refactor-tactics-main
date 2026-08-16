@@ -1019,14 +1019,23 @@ preexisting:
   # voci nuove di oggi dichiarano la contesa su questo file *prima* di elencare il codice.
 
   - branch: feat/77-hud-slot-terna
-    state: LIVE            # worktree `D:/rt-spatial` · 1 commit `a23a2798` · PR #904 aperta · 16 ore fa
-    measured: 3
-    collides_with:
-      - track: client_tools
-        paths:
-          - Source/RefactorTactics/UI/RTHUD.cpp
-          - Source/RefactorTactics/UI/RTHUD.h
+    state: MERGED          # PR #904 mergiata il 2026-08-16 `12:05:41Z`, merge `95d2d39f`
+    measured: 0            # dopo il merge: zero file in `UI/` diversi da `main`
+    collides_with: []
     note: >-
+      ✅ **CHIUSA il 2026-08-16: la contesa si è sciolta come previsto — passando #904 per prima.**
+      `state` era `LIVE` con `measured: 3` e una collisione su `UI/RTHUD.{h,cpp}`; oggi il branch è
+      mergiato e **nessun branch vivo tocca `UI/`**, misurato con `--name-only` su tutti i remoti.
+      `blocked_by`/`blocked_paths` sono stati rimossi da `client_tools`, come lo schema prescrive al merge.
+      📌 **Il meccanismo ha retto, ma non si è sciolto da solo.** #904 è rimasta ferma dal
+      `2026-08-15T06:23Z` con **nessun worktree su `feat/77`**: la decisione «passa prima #904» era giusta
+      e non aveva più nessuno che la eseguisse. È stata fatta atterrare da fuori, dopo aver verificato
+      l'albero fuso (build `Succeeded`, **969/969**, i tre test nuovi eseguiti per nome) — il branch era
+      **310 commit indietro**, e `MERGEABLE`/`CLEAN` non dice nulla sulla compilazione.
+      💡 La lezione per il campo `state`: `LIVE` ha significato «esiste un branch con commit», non
+      «qualcuno ci sta lavorando», e le due cose divergono in fretta. Chi legge `LIVE` per decidere se
+      aspettare, guardi anche `git worktree list`.
+      ─── registro della contesa, per la provenienza ───
       🔴 **La collisione che questa voce PREVEDEVA a zero commit è avvenuta, ed è il motivo per cui il
       batch si riapre con un vincolo invece che con un write-set libero.** La stesura di ieri diceva,
       testualmente: *«il nome dice HUD, e `Source/RefactorTactics/UI/` è il `writable` di `client_tools`
@@ -1341,10 +1350,15 @@ tracks:
       sedi, e lo sweep resta un lavoro solo, in integrazione. `docs/archive/` non si tocca — è storico.
       ✅ **La sovrapposizione `feat/77-hud-slot-terna` × `client_tools` su `UI/RTHUD.*` è già modellata, e
       la prima stesura di questa nota la registrava come scoperta nuova — cioè la triagiava una terza volta.**
-      Sta in `preexisting` con l'intersezione **misurata**, e `client_tools` porta `blocked_by: 904` con i
+      Sta in `preexisting` con l'intersezione **misurata**, e `client_tools` portava `blocked_by: 904` con i
       `blocked_paths` corrispondenti: il meccanismo nato il 2026-08-16 proprio per questo caso **ha già
       funzionato**. Riscriverla qui avrebbe detto a chi possiede il batch di ri-triagiare il triagiato, e
       fatto sembrare fallito un meccanismo che ha retto.
+      ✅ **Aggiornamento del 2026-08-16 pomeriggio: il vincolo non esiste più.** #904 è `MERGED`
+      (`95d2d39f`), `blocked_by`/`blocked_paths` sono stati rimossi da `client_tools` come lo schema
+      prescrive al merge, e la voce `preexisting` è passata a `state: MERGED · measured: 0`. Il verbo qui
+      sopra è stato messo al passato invece di lasciare una riga che descrive al presente due campi che
+      non ci sono più.
       ⚠️ **`#986` resta aperta e senza sessione.** I cinque difetti di sostanza che la review ha misurato non
       sono ripresi da questo giro: riattivare la track su `#726` non li chiude e non li rivendica.
       ⚠️ Il `mandate` B resta **prenotato e senza write-set**: la riattivazione gli ha tolto il path — vedi il
@@ -1989,17 +2003,22 @@ tracks:
     # vince quella che porta un numero.
     branch: null           # mergiato con PR #964 (2026-08-16T05:49:25Z), assente da `git ls-remote`
     worktree: null         # `D:/rt-78` non esiste: né sul filesystem né in `git worktree list`
-    blocked_by: 904        # ⚠️ non è ownership: è la PR che deve atterrare prima che questa track scriva
-    # 📌 **#904 è OPEN ma FERMA dal 2026-08-15T06:23Z, e nessuno dei worktree ha `feat/77` aperto**: non è
-    # una sessione in corso, è una PR in attesa di merge. La distinzione conta per chi legge `blocked_by`
-    # come «aspetta che finiscano»: non c'è nessuno che stia finendo. Chi vuole sbloccare `UI/` non deve
-    # attendere — deve far atterrare #904, o negoziare i due file con chi l'ha aperta.
-    blocked_paths:
-      # ✅ Verificati il 2026-08-16 e non solo ereditati: `feat/77-hud-slot-terna` è l'**unico** branch vivo
-      # che tocca `UI/`, e tocca **esattamente** questi due file — misurato con
-      # `git diff --name-only origin/main...origin/<b>` su tutti i remoti, non dedotto dal titolo della PR.
-      - Source/RefactorTactics/UI/RTHUD.h
-      - Source/RefactorTactics/UI/RTHUD.cpp
+    # ═══ `blocked_by: 904` e `blocked_paths` RIMOSSI il 2026-08-16: **#904 è `MERGED`** (`95d2d39f`,
+    # `12:05:41Z`). Lo schema di questi campi lo prescrive alla lettera — *«si cancella al **merge**, non
+    # alla lettura: una `blocked_by` su una PR già `MERGED` è una contraddizione decidibile»* — e sono
+    # durati meno di un giorno, il che è il comportamento giusto per un campo che descrive un'attesa.
+    # ✅ **`UI/` è libero, e non per deduzione**: dopo il merge, **nessun** branch vivo tocca
+    # `Source/RefactorTactics/UI/` — `git diff --name-only origin/main...origin/<b>` su tutti i remoti,
+    # zero righe. Prima ce n'era esattamente uno, `feat/77-hud-slot-terna`, con esattamente i due file
+    # che `blocked_paths` nominava: la dichiarazione era giusta, e ora non ha più oggetto.
+    # 📌 **Il blocco non si è sciolto aspettando.** #904 era `OPEN` e ferma dal `2026-08-15T06:23Z`, con
+    # nessun worktree su `feat/77`: non una sessione in corso, una PR in attesa. Il consolidamento (#1018)
+    # ha misurato che non c'era nessuno da attendere, ed è stata mergiata dopo aver verificato l'albero
+    # fuso — build `Succeeded`, **969/969**, i tre test nuovi eseguiti per nome. Il branch era **310
+    # commit indietro**: `MERGEABLE`/`CLEAN` diceva che git sapeva fondere, non che il risultato compilasse.
+    # ➡️ Conseguenza per chi legge: **#1015** (CP 47.7, il controllo di velocità in HUD) non ha più un
+    # vincolo di parallelismo. Resta il residuo di `#78` sullo stesso file — due sessioni che scrivono
+    # `RTHUD.{h,cpp}` insieme si dichiarano, come sempre.
     note: >-
       CP 11.2 — il livello di certezza degli intenti alleati.
       🔵 **SESSIONE APERTA il 2026-08-16 su `feat/78-contratto-certezza` (`D:/rt-78`), e `blocked_by`
