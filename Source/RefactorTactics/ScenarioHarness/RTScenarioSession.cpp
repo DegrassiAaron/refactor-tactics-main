@@ -7,6 +7,7 @@
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: un'azione di Prep non ha un bersaglio da dichiarare
+#include "Ability/RTEquipmentData.h" // ERTEquipmentSlot: il loadout distingue chi CONCEDE un'azione da chi MODIFICA l'attacco base
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -568,10 +569,33 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		//
 		// Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader, che rifiuta lo
 		// scenario con un motivo invece di lasciarlo girare a meta'. Qui si equipaggia e basta.
+		//
+		// ⚠️ **Due categorie, due verbi** (`#63`). Un gadget e un modulo di reazione CONCEDONO un'azione, e
+		// si accodano; una variante d'arma MODIFICA l'attacco base, e non concede niente. Fino al 2026-08-16
+		// questo ciclo chiamava `MakeEquipmentAction` per ogni pezzo indistintamente: sulle varianti quella
+		// funzione restituisce `nullptr`, quindi il loadout veniva **validato** da `ValidateLoadout` — che
+		// pretende esattamente 1+1+1 — e la variante poi **ignorata in silenzio**. Nessun errore, nessun
+		// test rosso: uno scenario poteva dichiarare `Weapon.Impact` e girare come se non l'avesse.
+		// Lo pinna `Spec.Brace.PushBeyondGuardThreshold`, che per questo e' rimasto `expected-fail` finche'
+		// la riga sotto non e' esistita.
 		for (const FName& PieceId : Spec.Loadout)
 		{
 			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
 			if (!Piece) { continue; }
+
+			if (Piece->Slot == ERTEquipmentSlot::WeaponVariant)
+			{
+				// L'attacco base e' `Abilities[0]`: convenzione POSIZIONALE di ADR-0007 §6, non un campo del
+				// dato, e a farla valere e' `Heroes.BasicAttackIsIndexZeroForEveryHero`. Se un giorno cadesse
+				// quel test, questa riga equipaggerebbe l'azione sbagliata — ed e' il motivo per cui la
+				// convenzione ha un test invece di un commento.
+				if (Unit->Abilities.Num() > 0)
+				{
+					URTCatalogLibrary::EquipWeaponVariant(Unit->Abilities[0], Piece);
+				}
+				continue;
+			}
+
 			if (URTActionData* Granted = URTCatalogLibrary::MakeEquipmentAction(Piece, Unit))
 			{
 				Unit->Abilities.Add(Granted);

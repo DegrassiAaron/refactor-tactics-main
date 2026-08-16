@@ -693,6 +693,114 @@ bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Ogni eroe del roster ha un default **per tutte e tre le categorie**, e l'insieme è legale (#63, CP 7.4).
+ *
+ * ⚠️ **Questo test esiste perché `Equipment.LoadoutExactlyOneEach` non lo copre, e la differenza è il punto
+ * di `#63`.** Quel test costruisce un loadout a mano e ne controlla la forma: verifica la **regola**, e
+ * resterebbe verde anche se nessuna unità venisse mai equipaggiata — che è precisamente ciò che succedeva.
+ * Qui invece il loadout non si scrive: si **chiede al codice**, e poi si verifica che ciò che ha risposto
+ * sia legale. Un default mancante fa rosso qui e in nessun altro posto.
+ *
+ * Il roster si legge da `GetHeroIds()` e non si trascrive: un quinto eroe senza default deve far rosso
+ * senza che nessuno aggiorni il test. È la stessa disciplina di `Heroes.EveryActionHasADisplayName`.
+ *
+ * ⚠️ I **valori** non sono qui: la loro fonte è §4 del catalogo equipaggiamento, e a tenerli d'accordo col
+ * C++ è `scripts/check-equipment-defaults.py`. Duplicarli anche qui creerebbe la terza copia, cioè il
+ * difetto che il DoD di `#63` nomina per primo — *«una copia diverge, e questo repository l'ha già pagato
+ * quattro volte»*. Questo test verifica la **forma** e la **legalità**; il gate verifica i valori.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultLoadoutTest,
+	"RefactorTactics.Equipment.DefaultLoadoutIsOnePerSlotForEveryHero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDefaultLoadoutTest::RunTest(const FString&)
+{
+	const TArray<FName> Roster = URTHeroCatalogLibrary::GetHeroIds();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	int32 ConLoadout = 0;
+	for (const FName& HeroId : Roster)
+	{
+		const FString Who = HeroId.ToString();
+		const TArray<FName> Loadout = URTCatalogLibrary::DefaultLoadoutFor(HeroId);
+
+		// I tre pezzi che §4 PRESCRIVE, che non è detto siano spediti.
+		const TArray<FName> Prescritti = {
+			URTCatalogLibrary::DefaultWeaponVariantFor(HeroId),
+			URTCatalogLibrary::DefaultGadgetFor(HeroId),
+			URTCatalogLibrary::DefaultReactionModuleFor(HeroId),
+		};
+		bool bTuttiSpediti = true;
+		for (const FName& Id : Prescritti)
+		{
+			if (Id.IsNone() || URTCatalogLibrary::FindEquipment(Id) == nullptr) { bTuttiSpediti = false; }
+		}
+
+		// ⚠️ **L'invariante, e non l'elenco.** Due eroi su quattro non hanno un loadout, perché §4 prescrive
+		// loro un gadget che v0.1 non costruisce — `Gadget.Insulator` è un passivo (E36), `Gadget.Sensor`
+		// dipende da E13. Scrivere qui «Gadget e Wraith non hanno default» sarebbe vero oggi e **falso il
+		// giorno in cui E36 atterra**, e nessuno tornerebbe a correggerlo. Il test pinna invece la regola che
+		// lega le due cose: hai il loadout **se e solo se** tutti e tre i pezzi prescritti sono spediti.
+		TestEqual(*FString::Printf(TEXT("%s: ha il loadout se e solo se i tre pezzi sono spediti"), *Who),
+			Loadout.Num() == 3, bTuttiSpediti);
+
+		if (Loadout.Num() != 3)
+		{
+			// Un default assente non è mai parziale: o tre pezzi o nessuno, perché due sarebbero rifiutati
+			// da `ValidateLoadout` tre livelli più in là.
+			TestEqual(*FString::Printf(TEXT("%s: senza i pezzi il default e' VUOTO, non parziale"), *Who),
+				Loadout.Num(), 0);
+			continue;
+		}
+		++ConLoadout;
+
+		// Ogni pezzo esiste davvero, e i tre slot sono coperti una volta ciascuno. Contare a tre non basta:
+		// tre gadget sarebbero tre pezzi validi e un loadout illegale — `ValidateLoadout` lo dichiara.
+		TArray<const URTEquipmentData*> Pezzi;
+		for (const FName& PieceId : Loadout)
+		{
+			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
+			if (!TestNotNull(*FString::Printf(TEXT("%s: '%s' e' nel catalogo"), *Who, *PieceId.ToString()),
+				Piece))
+			{
+				continue;
+			}
+			Pezzi.Add(Piece);
+		}
+
+		// L'anello che lega il default alla REGOLA: non «tre pezzi qualsiasi» ma un insieme che il
+		// validator accetta. Senza questo, un default potrebbe essere legale a occhio e rifiutato in partita.
+		const TArray<FString> Errori = URTCatalogLibrary::ValidateLoadout(Pezzi);
+		for (const FString& E : Errori) { AddError(FString::Printf(TEXT("%s: %s"), *Who, *E)); }
+		TestEqual(*FString::Printf(TEXT("%s: il default passa ValidateLoadout"), *Who), Errori.Num(), 0);
+
+		// E le tre funzioni per categoria rispondono coerentemente con l'insieme: sono la via che un
+		// chiamante userà per una sola categoria, e divergere da `DefaultLoadoutFor` le renderebbe una
+		// seconda verità.
+		for (const FName& Id : Prescritti)
+		{
+			TestTrue(*FString::Printf(TEXT("%s: '%s' e' nel loadout composto"), *Who, *Id.ToString()),
+				Loadout.Contains(Id));
+		}
+	}
+
+	// Il conteggio è una MISURA, non un'asserzione di uguaglianza: dice quanti eroi sono equipaggiabili
+	// oggi, e sale da sé quando i pezzi mancanti arrivano. Zero invece sarebbe un difetto — significherebbe
+	// che nessun default funziona, cioè che questa fetta non ha consegnato niente.
+	TestTrue(*FString::Printf(TEXT("almeno un eroe ha un loadout completo (oggi: %d su %d)"),
+		ConLoadout, Roster.Num()), ConLoadout > 0);
+
+	// Un eroe sconosciuto non ricade su un default: meglio nessun equipaggiamento che uno sbagliato in
+	// silenzio. È la stessa scelta già fatta da `DefaultWeaponVariantFor`, estesa all'insieme.
+	TestEqual(TEXT("un eroe senza riga ottiene un loadout vuoto"),
+		URTCatalogLibrary::DefaultLoadoutFor(TEXT("Hero.NonEsiste")).Num(), 0);
+	TestTrue(TEXT("...e nessuna delle tre categorie inventa un valore"),
+		URTCatalogLibrary::DefaultGadgetFor(TEXT("Hero.NonEsiste")).IsNone()
+		&& URTCatalogLibrary::DefaultReactionModuleFor(TEXT("Hero.NonEsiste")).IsNone());
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVariantWarningsTest,
 	"RefactorTactics.Equipment.WarnsOnPointlessVariantPairing",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

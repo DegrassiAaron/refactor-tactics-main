@@ -3623,26 +3623,86 @@ tracks:
       (`Catalog.ValidatorRejectsRetiredStableId`) è stato **rimosso** da **D-134** insieme al redirect,
       *«perché verificava un divieto che non esiste più»* — lo dice il registry stesso. La spunta si
       **riformula**, non si spunta: la guardia equivalente è un test nuovo sul catalogo eroi.
+    # 🔴 **Il rilascio si SCRIVE, non si dichiara.** La chiusura del 2026-08-16 aveva messo `status: IDLE`
+    # e la frase «il write-set qui sotto è rilasciato», lasciando le righe al loro posto. Il giro dopo,
+    # `#63` ha misurato la proprietà di `RTCatalogLibrary.cpp` e ha trovato **questa track fra i
+    # proprietari**, IDLE e senza branch — cioè esattamente il drift che la nota di chiusura descriveva
+    # per `replay_ui` e `client_tools`. Righe rimosse. Il `writable` era:
+    #   `Source/RefactorTactics/` · `Scenarios/` · i tre file del registry ·
+    #   `docs/gameplay/spec-reazioni-componibili-cp55.md`
+    # `Scenarios/` e `feature-registry.yaml` **tornano a `integration_only`**, dov'erano prima del
+    # prestito; gli altri tornano non assegnati.
+    writable: []
+    binary_leases: []
+
+  equipment_defaults:
+    status: ACTIVE
+    issue: 63
+    branch: work/63-equipaggiamento-in-partita
+    worktree: "D:/rt-unit"
+    note: >-
+      **`#63` fetta A** — CP 7.4. I default 1+1+1 esistono e sono verificati contro il catalogo;
+      l'harness impara ad applicare le varianti d'arma. **Nessun default si applica da sé**: il
+      comportamento del corpus non cambia.
+
+      **Perché due fette, e la misura che l'ha deciso.** Assegnare i default tocca **33 scenari su 78**
+      — quelli che usano l'attacco base di un eroe. Con `Weapon.Impact` la spinta di Phase e Riktor passa
+      da 1 a 2, con `Precision`/`Suppressive` cambiano portata e danno. Il DoD lo prevede — *«un rosso lì
+      non è una regressione, è la misura che si aggiorna al gioco vero»* — ma ognuno di quei 33 è una
+      **decisione di bilanciamento**, non una correzione meccanica. Decisione d'autore: prima i default e
+      il gate che li tiene onesti, poi l'accensione con la rilettura.
+
+      ⚠️ **Un cambiamento di comportamento la fetta A lo produce comunque, ed è il suo punto.**
+      `Spec.Brace.PushBeyondGuardThreshold` porta già `Weapon.Impact` nel proprio `loadout`, e l'harness
+      oggi lo **ignora**: applica gadget e moduli via `MakeEquipmentAction` e non chiama mai
+      `EquipWeaponVariant`. Appena lo applica, quello scenario **passa** — ed è `expected-fail`, quindi
+      `ExpectedFailScenariosReallyFail` diventa rosso finché non gli si toglie il tag. Il DoD di `#63` lo
+      scrive alla lettera. Quello scenario nasce per dimostrare una mancanza; quando la mancanza è colmata
+      diventa la prova che funziona, e il tag va tolto **nello stesso commit**.
+
+      ⚠️ **Contesa ESERCITATA, dichiarata invece che scoperta al merge**: `origin/feat/641-sprint-post-blast`
+      (nessuna PR aperta) tocca `RTCatalogLibrary.cpp`. Non è un `blocked_by`, e la ragione è la misura:
+      quel ramo cambia `Action.Sprint` in `GetCoreActionCatalog` (riga ~717, fase e durata di `Exposed`
+      per D-116), questa track lavora sui default d'equipaggiamento (~501). Funzioni diverse, nessuna riga
+      in comune. Se quel ramo atterra prima, il merge è testuale.
+
+      `spatial` dichiara `RTCatalogLibrary.{h,cpp}` nel proprio `writable` ed è `ACTIVE`, ma il suo branch
+      remoto non li tocca e il worktree è pulito — collisione dichiarata, non esercitata.
+
+      🔵 **`AGENTS.md` preso, e il primo giudizio era sbagliato.** L'elenco dei gate Python va aggiornato
+      col gate nuovo, o nessuno saprà di eseguirlo — **non c'è CI, e l'assenza è deliberata**. La prima
+      lettura si era fermata a «`integration_only` **e** rivendicato da `content_editor` ACTIVE → STOP»,
+      che è la proprietà **dichiarata**: lo stesso criterio che questa track aveva appena rifiutato per
+      `RTCatalogLibrary.cpp`, dove la contesa era stata **misurata** invece che dedotta. Applicarlo in un
+      caso e non nell'altro non è prudenza, è incoerenza.
+
+      Misura: il worktree `D:/rt-content` è **pulito**, e il branch che esegue tocca **due** file —
+      `parallel-batch.yaml` e `docs/technical/guida-seduta-u1-arena.md` — **nessuno dei due è `AGENTS.md`**.
+      Contesa dichiarata, non esercitata. E `integration_only` significa «si aggiorna una volta in
+      integrazione», che è dove questa fetta si trova.
+
+      🔴 **Secondo drift, e la stessa specie del primo**: `content_editor` dichiara `branch: null`, ma
+      `D:/rt-content` esegue `docs/868-guida-u1-d139`. Registrato, non mio da sistemare.
+
+      ⚠️ **La correzione ad `AGENTS.md` non è quella che sembrava.** L'elenco nominava i gate uno per uno e
+      ne conosceva **tre su sei**: mancavano `check-docs-naming.py`, `check-equipment-defaults.py` e
+      `check-capability-owners.py`, quest'ultima atterrata con `#1043` **lo stesso giorno**. Aggiungere due
+      nomi avrebbe riparato il sintomo e lasciato la causa: un elenco scritto a mano dentro un documento non
+      ha modo di accorgersi di un file nuovo, e chi aggiunge un gate non passa di lì. Sostituito con la
+      **forma** — «ogni `scripts/check-*.py`» — più i due che non seguono quel prefisso.
     writable:
-      # Il write-set MISURATO delle due fette, non quello immaginato: 161 file per `#753`,
-      # 99 previsti per `#754`, unione 165. Dichiarato per prefisso dove il rename è totale.
-      - Source/RefactorTactics/
-      - Scenarios/
-      - docs/roadmap/feature-registry.yaml
-      - docs/roadmap/feature-registry.json
-      - docs/roadmap/project-graph.json
-      # ➕ Aggiunto a lavoro iniziato, e la ragione e' una COPPIA INSEPARABILE. Il documento cita per nome
-      # quattro ID di test che portano il nome ritirato *concatenato* — `VektorDeflectionReducesDirectHit`
-      # e simili, che nessun pattern con `\b` o col punto poteva trovare. Rinominare gli ID senza toccare
-      # il documento farebbe sparire quattro gate dalla sua vista senza che niente diventi rosso: e'
-      # esattamente il difetto che il DoD di #754 descrive per il registry. Misurato prima di prenderlo:
-      # nessuna track lo rivendica, e nessuno dei 14 branch remoti lo tocca.
-      - docs/gameplay/spec-reazioni-componibili-cp55.md
-    excludes:
-      # Ciò che il prefisso `Source/RefactorTactics/` includerebbe e che questa track NON tocca:
-      # i tre file su cui `frontend_shell` ha lavoro non committato vivo, meno `RTGameMode.h`
-      # che porta un nome ritirato in prosa ed è misurato come non conteso.
-      - Source/RefactorTactics/UI/RTMenuHUD.cpp
+      - Source/RefactorTactics/Ability/RTCatalogLibrary.h
+      - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+      - Source/RefactorTactics/Tests/RTEquipmentTests.cpp
+      # Preso perché il tag `expected-fail` si toglie nello stesso commit che lo fa passare.
+      - Scenarios/Spec/Brace/PushBeyondGuardThreshold.json
+      # Nuovo: il gate che confronta le tre tabelle C++ con §4 del catalogo markdown. È `#576` in
+      # miniatura, limitato ai default — non lo sostituisce.
+      - scripts/check-equipment-defaults.py
+      # `integration_only`, preso in integrazione: un gate che non compare qui non lo esegue nessuno,
+      # perché non c'è CI. Contesa con `content_editor` misurata e non esercitata — vedi la nota.
+      - AGENTS.md
     binary_leases: []
 
   reconcile_skill:
