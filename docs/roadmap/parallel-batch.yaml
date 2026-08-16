@@ -1178,10 +1178,36 @@ preexisting:
 tracks:
 
   spatial:
-    status: IDLE
-    issue: null
-    branch: null
+    status: ACTIVE
+    issue: 832
+    branch: feat/832-structure-identity-hash
     note: >-
+      ➕ **ACTIVE dal 2026-08-16 su `#832` (CP 23.3, `RT-FEAT-MAP-STRUCTURE-IDENTITY`).** Cinque caselle
+      su sei erano chiuse dalla PR #876; la sesta — l'identità entra nell'hash di stato — è chiusa dalla
+      PR **#978**: suite **876/876**, e la verifica di mutazione fa cadere *esattamente*
+      `Simulation.ChecksumSeesStructureIdentity` e nient'altro.
+      ✅ **Il blocco che teneva ferma quella casella era scaduto, e l'ho rimisurato invece di rileggerlo.**
+      La issue dichiarava — al presente — *«`Turn/RTMatchStateHash.cpp` appartiene alla track `simulation`,
+      che lo sta riscrivendo»*. Quando ho misurato, `simulation` era `IDLE` col write-set *«libero e non
+      assegnato»*; è poi ripartita su `#512` con un `writable` che **non** contiene `RTMatchStateHash.*`.
+      Nessuna contesa in nessuno dei due momenti — verificato due volte, non dedotto una.
+      ⚠️ **`git ls-remote` non basta a misurare i branch vivi**: due erano **locali** in altri worktree
+      (`feat/954-autobattle-non-presidiata`, `feat/936-frontend-navigation`) e non comparivano lato
+      server. La misura giusta è `git branch --list` — i worktree condividono il repository — più
+      `git diff --name-only origin/main...<b>` per ciascuno.
+      🔴 **Questa sezione è stata scritta da DUE sessioni nello stesso giro, e il file si è contraddetto
+      con sé stesso**: una ha portato i campi ad `ACTIVE`, l'altra ha scritto in prosa *«la track è `IDLE`
+      con `issue: null`»* mentre toglieva `ScenarioHarness/`. Al merge i campi dicevano una cosa e il testo
+      un'altra. Risolto rileggendo i campi, non ricordando l'intenzione.
+      🔴 **E l'auto-merge aveva cancellato in silenzio il lavoro dell'altra track.** Il primo tentativo di
+      risoluzione perdeva due path dal `writable` di `simulation` e ne **resuscitava quattro** che `main`
+      aveva deliberatamente rimosso col giro di design di `#512` — annullando quella decisione senza che
+      nessun conflitto lo segnalasse. Trovato diffando il **risultato** contro `main` per confronto
+      strutturale dei `writable`, non leggendo la lista dei conflitti: quella misura la sovrapposizione,
+      non la perdita. Rifatto ripartendo dal file di `main` e riapplicando solo questa sezione.
+      ⛔ **`ScenarioHarness/` non è di questa track**: è passato a `simulation` (#512) nello stesso giro, e
+      la decisione è accettata com'è — la directory va intera, non divisa fra due track. Con essa esce il
+      mandato B dall'esigibilità: resta assegnato, senza il proprio write-set.
       IDLE perché **il candidato è atterrato**, non per dipendenza. `#41` (CP 3.3, misure di budget
       su hex) è chiusa: PR #846 mergiata alle `06:38Z`, la issue chiusa alle `07:12Z` da #850 —
       `Client FPS` non è stato rinviato ma **collocato** su CP 12.4 (`#84`), che chiede le stesse
@@ -1274,6 +1300,15 @@ tracks:
     mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
     worktree: "D:/rt-spatial"
     writable:
+      # #832 — la sesta casella. Due sono scritti (`RTMatchStateHash.cpp` e il suo test), quattro sono
+      # letti e restano dichiarati perché il DoD della issue li nomina: il perimetro si dichiara prima,
+      # non si deduce dal diff a cose fatte.
+      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.h
+      - Source/RefactorTactics/Map/RTStructureIdentityLibrary.cpp
+      - Source/RefactorTactics/Turn/RTMatchStateHash.h
+      - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
+      - Source/RefactorTactics/Tests/RTStructureIdentityTests.cpp
+      - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
       - docs/technical/qa-prompt-terminal-b-scenario-runner.md
     derives_from: []
 
