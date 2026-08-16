@@ -21,20 +21,35 @@ Ogni file qui porta un **banner di stato** nella prima riga dopo il titolo. È l
 ⚠️ **I banner parlano due vocabolari.** Non è un difetto da sanare riscrivendo 24 documenti — è un fatto da
 dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
-| Banner | Vocabolario | Significa | Quanti *(2026-08-14)* |
+| Banner | Vocabolario | Significa | Quanti *(2026-08-16)* |
 |---|---|---|--:|
-| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 28 |
-| `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 1 |
+| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 34 |
+| `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 8 |
 | `📦 DELIVERED PLAN` | secondo | *Piano già eseguito, non normativo* — equivale a `HISTORICAL` | 14 |
 | `🧱 AS-BUILT` | secondo | *Specifica di ciò che fu consegnato* — equivale a `HISTORICAL` | 7 |
 | `DONE` · `PLAN`/consumato · `BRIEF` | secondo | Casi singoli, già consumati — equivalgono a `HISTORICAL` | 3 |
 
-**53 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `28 + 1 + 14 + 7 + 3 = 53`, e la somma delle categorie e' il controllo che il totale da solo non offre. I due totali si rimisurano eseguendo:
+**66 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `34 + 8 + 14 + 7 + 3 = 66`, e la somma delle categorie e' il controllo che il totale da solo non offre. I due totali si rimisurano eseguendo:
 
 ```sh
-ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 53
+ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 66
 ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
+
+# La ripartizione per banner — il numero che fino al 2026-08-16 nessun comando produceva.
+# Il banner sta nella PRIMA riga di citazione, e i vocabolari sono due.
+python -c "import os,sys; d='docs/roadmap/plans'; K=['CURRENT','SNAPSHOT','DELIVERED PLAN','AS-BUILT','HISTORICAL','DONE','BRIEF','PLAN']; c={}; [c.__setitem__(next((k for k in K if k in next((l for l in open(os.path.join(d,f),encoding='utf-8').read(1200).split(chr(10)) if l.startswith('>')),'')),'?'), c.get(next((k for k in K if k in next((l for l in open(os.path.join(d,f),encoding='utf-8').read(1200).split(chr(10)) if l.startswith('>')),'')),'?'),0)+1) for f in sorted(os.listdir(d)) if f.endswith('.md') and f!='README.md']; print(c, chr(183), 'totale', sum(c.values()))"
 ```
+
+> 🔵 **Rimisurate il 2026-08-16, e tre celle su sette erano ferme** — `53 → 66` documenti,
+> `CURRENT 28 → 34`, `SNAPSHOT 1 → 8`. Il difetto è quello che questa sezione già descrive, applicato a sé
+> stessa: la cella *dice* di rimisurarsi dopo ogni merge, e i due comandi che offriva davano il **totale**,
+> mai la **ripartizione** — quindi cinque numeri su sette non avevano modo di essere verificati. Ora il
+> terzo comando c'è, e la prossima deriva è visibile invece che ricordata.
+>
+> ⏱️ **E lo scarto successivo è dichiarato prima di prodursi**: `docs/menu-frontend-consolidamento`
+> aggiunge `menu-frontend-spec-panel-2026-08-16.md` a questa stessa cartella, e nessuno dei due rami vede
+> l'altro. Quando atterrano entrambi sarà **67** con `CURRENT 35` — da **rimisurare col comando**, non da
+> sommare.
 
 > 🔴 **Questa riga diceva 49, ed è stata falsa per venti minuti.** Il totale è stato scritto su un worktree
 > e il merge ha portato `wiki-audit-player-first-2026-08-13.md` da una sessione parallela. È la regola che

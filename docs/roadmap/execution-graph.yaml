@@ -225,6 +225,46 @@ nodes:
     release: v0.1
     domain_group: characters_content
 
+  # --- Catena D · Mini Autobattle -----------------------------------------------------------
+  #
+  # Perche' questa catena: e' l'unica in cui una dipendenza dura punta **all'indietro**, verso un
+  # seam che una decisione ha gia' descritto ma nessuno ha ancora costruito. `D-101` prevede che
+  # al terzo consumatore l'harness guadagni un punto d'ingresso ad hoc; #957 e' quel terzo
+  # consumatore, e senza #512 lo produrrebbe.
+  #
+  # ⚠️ #955 e #956 non hanno una dipendenza tecnica su #954 — hanno un vincolo di **ownership**:
+  # `Source/RefactorTactics/UI/` e' nel writable di `client_tools` (#78). Un blocco di write-set
+  # non e' topologia del lavoro e non si scrive qui (`parallel-batch.yaml` ne e' l'owner): il
+  # motivo per cui compaiono come `follows` e non come `requires`.
+
+  - id: issue:954
+    release: v0.1
+    checkpoint: E47.1
+
+  - id: issue:955
+    release: v0.1
+    checkpoint: E47.2
+
+  - id: issue:956
+    release: v0.1
+    checkpoint: E47.3
+
+  - id: issue:957
+    release: v0.1
+    checkpoint: E47.4
+
+  - id: issue:958
+    release: v0.1
+    checkpoint: E47.5
+
+  # Due gruppi derivabili — `objectives_match` da RT-FEAT-MATCH-AUTOBATTLE, `tooling_data_qa` da
+  # RT-FEAT-PROD-PACKAGED. Si sceglie il secondo: la domanda del checkpoint e' «la partita gira fuori
+  # dall'editor e c'e' l'evidenza», non «quali regole di fine partita valgono».
+  - id: issue:959
+    release: v0.1
+    domain_group: tooling_data_qa
+    checkpoint: E47.6
+
   # Le sedute sono gia' descritte da `editor-sessions.yaml`: qui si dichiara solo che
   # partecipano a questa fetta e in quale dominio si leggono. Lane e stato arrivano da la'.
   - id: session:U7
@@ -284,6 +324,27 @@ relations:
     to: issue:289
     type: requires
 
+  # Mini Autobattle — la dipendenza dura punta all'indietro, verso il seam di D-101
+  - from: issue:512
+    to: issue:957
+    type: requires
+
+  - from: issue:954
+    to: issue:959
+    type: requires
+
+  - from: issue:956
+    to: issue:959
+    type: requires
+
+  - from: issue:955
+    to: issue:958
+    type: requires
+
+  - from: issue:957
+    to: issue:958
+    type: requires
+
   # Capability — un provider e sette consumatori
   #
   # `DecisionBoundary` non e' un nome nuovo: e' la capability che sette scenari del corpus
@@ -314,6 +375,18 @@ relations:
     rationale: >-
       Chiudere la traccia del danno da hazard prima del pinning del golden evita una
       rebaseline. E' un risparmio, non un prerequisito.
+
+  - from: issue:954
+    to: issue:955
+    type: follows
+    rationale: >-
+      Nessuna dipendenza tecnica: e' un vincolo di ownership del write-set (`Source/RefactorTactics/UI/`
+      appartiene alla track `client_tools`, #78). L'ordine e' un risparmio, non un prerequisito.
+
+  - from: issue:954
+    to: issue:956
+    type: follows
+    rationale: Stesso vincolo di ownership di #955; e la board si giudica su una partita che gira da sola.
 
   # Related — navigazione, mai readiness
   - from: issue:593

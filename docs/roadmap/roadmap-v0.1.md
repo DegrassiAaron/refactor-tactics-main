@@ -110,6 +110,10 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Finestre di reazione interattive** | `Turn/RTReactionOpportunityTypes.*` | 🟡 l'opportunity ha **identità** (CP 14.3), l'Overwatch **la produce** a ogni micro-step (CP 14.4) e dal 2026-08-14 il resolver **apre davvero la finestra** dentro il calcolo: `FIRE` tronca il movimento residuo e la decisione entra nel TurnLog v8 (E14.5); ⏳ **nessuno può ancora rispondere** — il bot non arma l'Overwatch e l'umano non ha UI, quindi in partita la finestra si chiude in `HoldNoDecider` (E14.6) |
 | **Facing come stato di gioco** | `Turn/RTFacingLibrary.*`, `Unit/RTUnit.h`, `Combat/RTHexCombatLibrary.*` | ✅ E16 chiusa il 2026-08-09: derivato da Move e Dash, riorientato dal bersaglio, in snapshot/TurnLog/hash, e l'emisfero posteriore annulla copertura e `Guard` |
 | **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
+| **Partita non presidiata (bot vs bot in gioco)** | `RTGameMode.cpp:547`, `Turn/RTTurnManager.cpp` | ⏳ **E47.1**. Il turno avanza già da solo — `StartPlanningTimer` chiama `PlanBots`, `OnPlanningTimeout` chiama `LockInAndResolve` — e `HexMatch.PlaysToCompletion` prova il 2v2 bot-contro-bot **headless** fino all'eliminazione. In partita no: `SpawnHero` fa `bIsBotControlled = (TeamId == 1)`, pinnato da `RTHeroSpawnTests`. Manca **la configurazione**, non il motore |
+| **Velocità di playback** | `Turn/RTPlaybackLibrary.*` | ⏳ **E47.2**. Il playback esiste e non decide (invariante #1); non c'è alcun controllo `x1/x2/x4`, quindi `PlaybackIndependence` non ha oggi un soggetto da verificare |
+| **Grammatica visiva delle celle** | `Map/RTHexMapActor.{h,cpp}` | 🟡 **E47.3**. Il **colore** per superficie c'è in partita — `CellMaterial` legge i tre `PerInstanceCustomData` di `RebuildInstances` — il **secondo canale** (pattern/glifo/forma) non esiste, né in gioco né nell'overlay dell'editor ([D-146](../decisions/RT_PDR_00_Decision_Log.md)) |
+| **Seed / varietà pseudo-casuale** | — | ⏳ **fuori dalla v0.1 finché non è deciso**. Zero `FRandomStream` nel runtime: il determinismo è **strutturale**. `FRTTestScenario::Seed` esiste ed è documentato come *«dichiarato ma non consumato»*. Domanda aperta in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) |
 
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
@@ -358,8 +362,17 @@ silenzio.
 | **E19** | Classe di mappa e composizione | P2 | 2 | `URTMatchFormatData` **esiste già**, e i due buchi misurati sono **chiusi** (2026-08-09, `#215`/`#216`): la mappa dichiara la propria `MapClass` e il formato dichiara `UnitsPerTeam`, entrambi con consumatori runtime. Dal 2026-08-10 `Format.Skirmish2v2` è **spedito da C++** (`#375`), come le istanze di azioni ed eroi: il formato canonico non dipende più da un `.uasset` che il repository non contiene. **Lo stato autorevole è in [`feature-registry.yaml`](feature-registry.yaml) (`RT-FEAT-MATCH-FORMAT`)**, non in questa riga |
 | **E20** | HUD Icon Language | P2 | 3 | Le icone sono un **catalogo semantico**, non texture referenziate nei widget: E11 costruisce l'HUD adesso, e riscrivere ogni widget dopo costa più del file di dati in più ([D-031](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E21** | Presentazione e leggibilità | P1 | 3 | Il gioco smette di essere cilindri colorati. Era l'unico lavoro **dentro** lo scope di release che nessuna epic copriva: viveva solo nella milestone M8, e il Feature Registry lo ha reso visibile il 2026-08-08 |
+| **E47** | Mini v0.1 Autobattle — la partita che si guarda | P1 | 6 | Le nove voci `PIE-HEXPLAY` tengono aperti **M6**, l'epic **E2** e i gate **G10**/**G13**, e ognuna chiede a una persona di *giocare* una partita intera. Il turno avanza già da solo (`StartPlanningTimer → PlanBots`, `OnPlanningTimeout → LockInAndResolve`) e `HexMatch.PlaysToCompletion` prova il 2v2 bot-contro-bot headless: manca solo che **entrambe** le squadre siano del bot in partita, perché `SpawnHero` assegna il bot alla sola squadra 1. Non è scope nuovo — è il **riordino** che cambia il costo di quattro gate da «gioca» a «guarda» ([D-145](../decisions/RT_PDR_00_Decision_Log.md)) |
 
-**Totale: 21 epic, 100 checkpoint**
+**Totale: 22 epic, 106 checkpoint**
+
+> ⏱️ **Numeri misurati su `80d967ee`, con uno scarto dichiarato prima di prodursi.** Questa riga diceva
+> «21 epic, 100 checkpoint» e vale `22/106` con la sola **E47**. Ma
+> [`docs/menu-frontend-consolidamento`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/934)
+> aggiunge **E46** (6 CP) alla stessa tabella e nessuno dei due rami vede l'altro: quando atterrano
+> entrambi il valore sarà **23 epic, 112 checkpoint**, e va **rimisurato sull'albero unito** con lo script
+> qui sotto, mai sommato. È la lezione che questo file ha già pagato quattro volte — vedi il blocco
+> seguente, che l'aveva imparata in un solo verso.
 
 > 🔁 **Rimisurato il 2026-08-12, e tre celle di questa colonna erano ferme.** Il totale precedente — «95» —
 > era la somma **corretta** della colonna `CP`, ma la colonna aveva smesso di seguire la §5: tre epic
@@ -1557,6 +1570,70 @@ con i tre checkpoint [#287](https://github.com/DegrassiAaron/refactor-tactics-ma
 incrociando le issue aperte con la §3 di questo file, ed esisteva perché l'epic è nata da una tabella
 generata invece che da una sessione di pianificazione. Il numero `E21` è stato conteso — vedi
 [D-039](../decisions/RT_PDR_00_Decision_Log.md).
+
+---
+
+### E47 — Mini v0.1 Autobattle: la partita che si guarda · P1
+
+**Perché esiste** *(2026-08-16, [D-145](../decisions/RT_PDR_00_Decision_Log.md))*. Non porta meccaniche
+nuove. Porta il **modo di osservarle**, e lo fa perché quattro gate della release dipendono oggi dalla
+pazienza di chi tiene il mouse:
+
+- le nove voci `PIE-HEXPLAY-1..9` sono ⏳ e sono l'unica cosa che tiene aperta **M6**
+  ([`roadmap-checkpoint.md`](roadmap-checkpoint.md): *«ciò che la tiene aperta non è un'epic ma il playtest»*);
+- il gate di chiusura di **E2** è *«`PIE-HEXPLAY-1..9` tutte ✅ e una partita 2v2 completa fino alla vittoria»*;
+- **G10** chiede un *«playtest registrato (log o video)»* ed è ⏳;
+- **G13** è 🟡 con riserva scritta: la partita packaged è stata completata *«sull'arena di test»*.
+
+**Il motore c'è già, e la misura lo dice.** `ARTTurnManager::StartPlanningTimer()` chiama `PlanBots()`;
+alla scadenza di `PlanningSeconds` (default **30 s**) `OnPlanningTimeout()` chiama `LockInAndResolve()`, e
+a fine risoluzione il timer riparte. Il turno **avanza da solo**: non manca un motore di
+AutoReady/AutoCommit. `RefactorTactics.HexMatch.PlaysToCompletion` gioca un 2v2 con tutte e quattro le
+unità `bIsBotControlled = true` — *«nessuna mano umana, la partita si gioca da sola»* — e la partita si
+decide **al turno 10**.
+
+L'unico punto che lo impedisce in partita è una riga, `RTGameMode.cpp:547`:
+`Unit->bIsBotControlled = (TeamId == 1)`. È **pinnata** da `RTHeroSpawnTests` (*«il giocatore comanda i
+suoi»* / *«il bot comanda i propri»*), quindi non è un default da cambiare: è un contratto da estendere
+con una configurazione, lasciando il default dov'è.
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **E47.1** | Modalità non presidiata | Una configurazione — non un default nuovo — mette **entrambe** le squadre sotto il bot e accorcia `PlanningSeconds`. Premuto Play e non toccato più nulla, compare un vincitore; il TurnLog ha almeno una voce `Move` e una `Combat` per round giocato. I due test di `RTHeroSpawnTests` restano verdi | `RefactorTactics.Match.Autobattle.*` |
+| **E47.2** | Ritmo osservabile | Velocità di playback `x1 · x2 · x4` con **stesso risultato logico**: `StateHash` finale e TurnLog canonico identici alle tre velocità. La UI non ricalcola nulla (invariante #1) | `Playback.SpeedDoesNotChangeOutcome` |
+| **E47.3** | Grammatica visiva della board | Ogni categoria leggibile da **due** canali, `colore + forma` ([D-146](../decisions/RT_PDR_00_Decision_Log.md)). La legenda è **derivata** da superficie, coperture di bordo ed entità obiettivo: zero `enum` nuovi, nessuna migrazione di formato | `PIE-V01-BOARD` + giudizio a schermo |
+| **E47.4** | Scenario autobattle free-run | Uno scenario può dichiarare «gioca fino alla fine» invece di enumerare i turni, con `RepeatCount` e riesecuzione. **Estende** l'harness esistente passando dal seam di [D-101](../decisions/RT_PDR_00_Decision_Log.md) (`DecisionProvider`, [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)): nessun secondo harness | `RefactorTactics.Scenario.FreeRun.*` |
+| **E47.5** | Corpus di determinismo dell'autobattle | `PermutationTest` · `PlaybackIndependence` · `NoPath` (fallback legale, nessun deadlock) · `AllWait` (il turno termina) · `SimultaneousKO` (politica esplicita) · `TurnLimit`. **`DifferentSeedVariation` è fuori**: il runtime non ha RNG e il seed è differito (D-145 §5) | estende `RefactorTactics.Simulation.*` |
+| **E47.6** | La partita registrata | La partita non presidiata è eseguita e **registrata** in PIE e sulla build packaged: è l'evidenza che `G10` chiede e la riserva che `G13` dichiara | `PIE-HEXPLAY-*` + `PIE-V01-PACKAGED` |
+
+> ⚠️ **Il gate di E47.1 è «il vincitore compare senza input», non «è bello da vedere».** È l'unico modo di
+> impedire che «watchable» attiri HUD, VFX e animazioni, che sono **E11**, **E20** ed **E21** e hanno i
+> propri checkpoint. Una modalità non presidiata non chiude da sola le voci PIE: restano verifiche umane,
+> e ne cambia il **costo**, non la natura.
+
+> 🔴 **Cosa questa epic NON fa, con la ragione misurata.** Non riduce il set di azioni e non sostituisce il
+> bot: il prompt di provenienza chiedeva entrambe le cose, e sono state respinte perché chiedono **meno**
+> di ciò che è consegnato — `Action.Wait` è già a catalogo, E6 è chiusa, `RT-FEAT-BOT-BASE` è
+> `RELEASE_READY` con utility scoring dal 2026-08-06. Il vincolo che resta della sorgente, e che vale, è
+> *«i bot usano le stesse primitive/intenti che useranno giocatori e altre AI: nessuna pipeline speciale
+> parallela»* — cioè l'invariante #10.
+
+**Gate di chiusura dell'epic**: una partita 2v2 bot-contro-bot completa, **osservata senza alcun input**,
+registrata in PIE **e** su build packaged · il corpus di E47.5 verde · la board leggibile su due canali
+senza console di debug.
+
+**Dipendenze**: E2 (parità hex, chiusa), E10 (fine partita, `RT-FEAT-MATCH-END-CONDITIONS`
+`RELEASE_READY`), E15 per l'harness. E47.3 dipende da E21.3 per la taratura dei materiali, non viceversa.
+
+**Vincolo di parallelismo dichiarato**: `E47.2` ed `E47.3` scrivono in `Source/RefactorTactics/UI/` e
+`Camera/`, che sono nel `writable` della track `client_tools` — `ACTIVE` su
+[#78](https://github.com/DegrassiAaron/refactor-tactics-main/issues/78) al 2026-08-16. Non si aprono finché
+quella track non rilascia: è scritto qui perché sia un vincolo e non una sorpresa al merge
+([`parallel-batch.yaml`](parallel-batch.yaml), [D-139](../decisions/RT_PDR_00_Decision_Log.md)).
+
+**Referto di provenienza**:
+[`plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md`](plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md)
+— 38 sezioni classificate, di cui **3 respinte come regressioni** e 4 come conflitti di modello.
 
 ---
 

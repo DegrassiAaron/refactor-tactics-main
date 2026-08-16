@@ -151,7 +151,7 @@ features:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
       - docs/gameplay/spec-anima-risoluzione.md
-    issues: [81, 178, 578]
+    issues: [81, 178, 578, 958]
     tests:
       - RefactorTactics.Simulation.*
       - RefactorTactics.HexSim.ReplayDivergenceZero
@@ -388,7 +388,7 @@ features:
       - RT-FEAT-CORE-TURN
     owner_specs:
       - docs/gameplay/spec-anima-risoluzione.md
-    issues: [77]
+    issues: [77, 955]
     tests:
       - RefactorTactics.Playback.*
     scenarios:
@@ -4254,6 +4254,75 @@ features:
       ambiguo, catena di redirect. Fuori dalla vista di release **per decisione dichiarata**
       (2026-08-08), non per dimenticanza: vedi `out_of_release_scope`.
 
+  - feature_id: RT-FEAT-UI-BOARD-GRAMMAR
+    title: Grammatica visiva della board — colore e forma, mai solo il colore
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P2
+    status: IMPLEMENTING
+    gates:
+      # `D-146` fissa la regola (ridondanza dell'encoding, legenda derivata) ma nessun documento
+      # owner elenca la legenda voce per voce.
+      spec: partial
+      # Nessun catalogo di pattern/glifi: il colore per superficie e' cablato nel materiale.
+      data: todo
+      # ⚠️ META' feature, ed e' il caso che la regola 2 di `feature-registry.md` descrive al
+      # contrario: qui il consumatore c'e' ma copre un canale su due. `ARTHexMapActor::CellMaterial`
+      # legge i tre `PerInstanceCustomData` scritti da `RebuildInstances` e li usa come colore
+      # («cosi' ogni cella si legge per superficie», RTHexMapActor.h:59-69). Pattern, glifo o forma
+      # non esistono in nessuna forma, ne' in partita ne' nell'overlay dell'editor.
+      runtime: partial
+      # Presentazione: non produce voci in nessuna delle sette `ERTLogCategory`.
+      log_debug: na
+      automation: todo
+      scenario: todo
+      # La pagina Wiki dei terreni spiega cosa una cella significa; la meta' «leggibile in gioco» e'
+      # coperta a meta' (colore si', forma no).
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E47
+      checkpoints: ["47.3"]
+    dependencies:
+      - RT-FEAT-MAP-HEXGRAPH
+      - RT-FEAT-ENV-TERRAIN
+      - RT-FEAT-MAP-COVER
+    owner_specs:
+      - docs/decisions/RT_PDR_00_Decision_Log.md
+      - docs/roadmap/plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md
+    issues: [952, 956]
+    tests: []
+    scenarios: []
+    wiki_refs:
+      - wiki:mappa-terreni-e-ambiente
+    last_verified:
+      date: 2026-08-16
+      commit: 80d967ee
+    notes: >
+      **La legenda e' DERIVATA, non un modello dati** (`D-146`). La tassonomia a cinque voci del
+      prompt di provenienza — `Normal · Rough · Cover · Hazard · Objective` — non corrisponde al
+      repository: `ERTHexSurface` ha **nove** valori, la copertura e' direzionale **per bordo** dal
+      CP 9.1 («la direzionalita' e' del bordo, non dell'unita'») e gli obiettivi sono entita' di
+      mappa dell'epic E10. Adottarla come dato creerebbe il secondo owner di due sistemi gia' decisi
+      — che e' cio' che la sorgente stessa vieta. Le cinque voci restano un vocabolario di lettura
+      che il renderer calcola da superficie + coperture dei bordi + entita' obiettivo: **zero enum
+      nuovi, nessuna migrazione di formato**, l'hash della mappa non cambia.
+
+      La regola vincolante e' la **ridondanza**: ogni categoria distinguibile da almeno due canali
+      indipendenti. Non e' estetica — e' la stessa famiglia di un log che nomina la causa: se
+      l'unico canale fallisce (daltonismo, scala di grigi, video ricompresso) la lettura non degrada,
+      sparisce. Ed e' precondizione della registrazione video che `G10` e `G13` chiedono.
+
+      ⚠️ **Nessun gate difende questa regola oggi**: niente fallisce se una categoria nuova arrivasse
+      col solo colore. Dichiarato in `D-146` invece che sottinteso — il primo consumatore che ne
+      aggiunga una dovra' portarsi il controllo dietro.
+
+      ⚠️ **Vincolo di parallelismo**: `Source/RefactorTactics/UI/` e' nel `writable` della track
+      `client_tools`, ACTIVE su `#78` al 2026-08-16 (`parallel-batch.yaml`, `D-139`).
+
   # ─────────────────────────────────────────────────────────────────────────────
   # H. Characters / content
   # ─────────────────────────────────────────────────────────────────────────────
@@ -4830,6 +4899,72 @@ features:
       un corridoio, non un punto di controllo. Un obiettivo contendibile è CP 10.2 (`#75`), che non
       è atterrato. Resta CP 17.3, che è una voce PIE (`PIE-V01-STRESS4V4`) e un giudizio a schermo.
 
+  - feature_id: RT-FEAT-MATCH-AUTOBATTLE
+    title: Partita non presidiata — bot contro bot, dall'avvio al vincitore
+    area: Objectives
+    kind: tooling
+    release: v0.1
+    priority: P1
+    status: DESIGNED
+    gates:
+      # `D-145` dichiara la regola e chi la possiede; nessun documento owner descrive **come** si
+      # configura la modalita' — quindi `partial`, non `done`. Non promuovere per «si sa cosa fare».
+      spec: partial
+      # Nessuna configurazione esiste: `SpawnHero` decide da un letterale.
+      data: todo
+      runtime: todo
+      log_debug: todo
+      # ⚠️ `HexMatch.PlaysToCompletion` NON conta qui, ed e' la tentazione da evitare: prova che il
+      # **resolver** regge un 2v2 bot-contro-bot, cioe' una DIPENDENZA di questa feature, non la
+      # feature. Il gate misura se la modalita' in partita e' coperta, e non esiste.
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E47
+      checkpoints: ["47.1", "47.6"]
+    dependencies:
+      - RT-FEAT-BOT-BASE
+      - RT-FEAT-CORE-TURN
+      - RT-FEAT-MATCH-END-CONDITIONS
+    completed_by:
+      - RT-FEAT-CORE-PLAYBACK
+      - RT-FEAT-UI-BOARD-GRAMMAR
+    owner_specs:
+      - docs/decisions/RT_PDR_00_Decision_Log.md
+      - docs/roadmap/plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md
+    issues: [952, 954, 959]
+    tests: []
+    scenarios:
+      planned:
+        - AutoBattle.OpenField
+        - AutoBattle.Obstacles
+        - AutoBattle.Hazard
+        - AutoBattle.Objective
+    wiki_refs: []
+    last_verified:
+      date: 2026-08-16
+      commit: 80d967ee
+    notes: >
+      **Il motore c'e' gia'; manca la configurazione.** `ARTTurnManager::StartPlanningTimer()` chiama
+      `PlanBots()`, `OnPlanningTimeout()` chiama `LockInAndResolve()` e a fine risoluzione il timer
+      riparte: il turno avanza da solo. L'unico punto che impedisce l'autobattle in partita e'
+      `RTGameMode.cpp:547` — `Unit->bIsBotControlled = (TeamId == 1)` — **pinnato** da
+      `RTHeroSpawnTests` («il giocatore comanda i suoi» / «il bot comanda i propri»). Si estende con
+      una configurazione, lasciando il default dov'e'.
+
+      Perche' e' `P1` pur essendo `tooling`: quattro gate della release dipendono oggi da una persona
+      che *giochi* una partita intera — le nove voci `PIE-HEXPLAY` (M6 ed epic E2), `G10` e `G13`.
+      La modalita' non le chiude — restano verifiche umane — ma ne cambia il costo da «gioca» a
+      «guarda», e rende registrabile in video cio' che oggi si puo' solo raccontare (`D-145`).
+
+      ⚠️ **Il seed resta fuori**: zero `FRandomStream` nel runtime e `FRTTestScenario::Seed`
+      documentato come «dichiarato ma non consumato». Domanda aperta `RNG-1`/`RNG-2` in
+      `docs/OPEN_DECISIONS.md`, issue `#960`.
+
   # ─────────────────────────────────────────────────────────────────────────────
   # K. Bot / test / tooling
   # ─────────────────────────────────────────────────────────────────────────────
@@ -5220,7 +5355,7 @@ features:
     owner_specs:
       - docs/technical/test-e-diagnosi.md
       - docs/technical/scenari-validazione-visiva.md
-    issues: [169, 542]
+    issues: [169, 542, 957]
     tests:
       - RefactorTactics.Scenario.*
     scenarios:
@@ -6177,7 +6312,7 @@ features:
       - RT-FEAT-DATA-ASSET-PIPELINE
     owner_specs:
       - docs/technical/convenzioni-contenuti-ue.md
-    issues: [85]
+    issues: [85, 959]
     tests: []
     scenarios: []
     wiki_refs: []
