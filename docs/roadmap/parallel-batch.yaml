@@ -1936,9 +1936,9 @@ tracks:
     binary_leases: []
 
   verification:
-    status: ACTIVE
-    issue: 83
-    branch: null           # ⚠️ sentinella: la issue è aperta, il branch non è ancora stato aperto
+    status: IDLE
+    issue: null
+    branch: null
     note: >-
       ✅ **Chiusa il 2026-08-15: tutte e cinque le issue sono chiuse e il branch non esiste più.**
       #879, #880, #881, #883 `COMPLETED` con la PR **#885** (`408f5ff8`); #882 `NOT_PLANNED`, e la
@@ -2008,16 +2008,22 @@ tracks:
       ⛔ **`docs/roadmap/roadmap-checkpoint.md` NON entra nel `writable`**: è `integration_only`, e il
       conteggio che il DoD chiede si scrive **una volta in integrazione**, con la riconciliazione di questa
       track. Oggi il documento dice ancora 632/633/634; la misura è **876 dichiarati · 875 eseguiti**.
-    writable:
-      - Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp
-      - Source/RefactorTactics/Tests/RTMovementActionTests.cpp
-      - Source/RefactorTactics/Tests/RTControlActionTests.cpp
-      - Source/RefactorTactics/Tests/RTElectricPropagationTests.cpp
-      - Source/RefactorTactics/Tests/RTFireWaterTests.cpp
-      - Source/RefactorTactics/Tests/RTHexCoverTests.cpp
-      - Source/RefactorTactics/Tests/RTInterceptTests.cpp
-      - Source/RefactorTactics/Tests/RTReactionTests.cpp
-      - Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp
+      ✅ **Chiusa il 2026-08-16 con PR #967 (`02db66b2`): i dieci girano dentro un pacchetto.**
+      `10 tests performed`, 10 su 10 `Success`, per nome — e la suite Editor resta **875/875**, perché il flag
+      *aggiunge* un contesto e non ne toglie. `Game` Shipping resta `Succeeded`: i test non entrano, la
+      guardia di `#923` tiene.
+      ⚠️ **Il conteggio che il DoD chiedeva era già giusto, e il file che nominava era quello sbagliato.**
+      `#83` dice «aggiorna il conteggio in `roadmap-checkpoint.md`»; quel documento dichiara invece — per una
+      decisione presa dopo che due viste erano divergite — che *«il numero vive in un posto solo:
+      `roadmap-v0.1.md` §2, e qui non si duplica»*. Là c'era **875 test unici in 107 file**, che rimisurato è
+      **esatto**: si è aggiornata la coppia che il repository stesso prescrive — «N eseguiti su M dichiarati»
+      — e lo sha, non il numero.
+      ⚠️ **Il write-set resta descritto qui e il blocco `writable` esce**: nove file di test, dieci
+      dichiarazioni, tutti atterrati in `main` e oggi non assegnati.
+      ⛔ **Cosa NON è stato fatto, detto invece che dedotto**: gli altri **865** test restano `EditorContext`,
+      quindi «la suite gira in packaged» è vera per i dieci vincolanti e falsa per il resto. È la lettura che
+      la issue ha scelto, non una scorciatoia — ma chi legge quella riga del DoD deve saperlo, perché da sola
+      suggerisce 875.
     binary_leases: []
 
   autobattle:

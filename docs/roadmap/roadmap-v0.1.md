@@ -122,7 +122,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**875 test unici in 107 file** — misurati su `732d797c`.
+**875 test unici in 107 file** — **875 eseguiti su 875 dichiarati, 0 falliti**, misurati su `02db66b2`. ➕ **E dieci di questi girano anche dentro un pacchetto** (`#83`, CP 12.3): i dieci vincolanti del catalogo (§6) portano `ClientContext` oltre a `EditorContext`, e in una build Development pacchettizzata danno `10 tests performed`, 10 su 10 verdi. ⚠️ Gli altri 865 restano `EditorContext` **di proposito**: riflaggarli tutti sarebbe un mega-refactor su 107 file, e alcuni potrebbero dipendere dall'Editor in modi che si scoprono solo eseguendoli.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
