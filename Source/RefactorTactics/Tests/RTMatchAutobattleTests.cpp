@@ -1303,7 +1303,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleSimultaneousKOTest,
 bool FRTAutobattleSimultaneousKOTest::RunTest(const FString&)
 {
 	// `bTeam0First` permuta l'ordine di inserimento: se l'esito dipendesse da chi entra prima, si vedrebbe qui.
-	auto RunLethalExchange = [this](bool bTeam0First, ERTMatchOutcome& OutOutcome,
+	// Nessuna cattura: il lambda ESEGUE e riporta, le assertion restano fuori. Catturare `this` per non
+	// usarlo suggerirebbe a chi legge che qui dentro qualcosa venga verificato, e non e' cosi'.
+	auto RunLethalExchange = [](bool bTeam0First, ERTMatchOutcome& OutOutcome,
 		ERTMatchEndReason& OutReason, int32& OutTeam0Alive, int32& OutTeam1Alive) -> bool
 	{
 		UWorld* World = RTWorldFixtures::MakeWorld();
@@ -1397,7 +1399,10 @@ bool FRTAutobattleSimultaneousKOTest::RunTest(const FString&)
 				Repetition, bTeam0First ? TEXT("squadra 0") : TEXT("squadra 1")),
 			Outcome, FirstOutcome);
 		TestEqual(FString::Printf(TEXT("ripetizione %d: stessa via"), Repetition), Reason, FirstReason);
-		TestEqual(FString::Printf(TEXT("ripetizione %d: stessi vivi (0)"), Repetition), T0 + T1, 0);
+		// Non «stessi vivi»: ZERO vivi. Un esito uguale su due partite in cui qualcuno sopravvive sarebbe
+		// stabile senza essere il caso limite che questo test dichiara di esercitare.
+		TestEqual(FString::Printf(TEXT("ripetizione %d: entrambe le squadre azzerate"), Repetition),
+			T0 + T1, 0);
 	}
 	return true;
 }
@@ -1502,7 +1507,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleSameSeedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAutobattleSameSeedTest::RunTest(const FString&)
 {
-	auto RunOnce = [this](FRTAutobattleTrace& Out) -> bool
+	// Nessuna cattura, come in `SimultaneousKO`: esegue e riporta, le assertion restano fuori.
+	auto RunOnce = [](FRTAutobattleTrace& Out) -> bool
 	{
 		UWorld* World = RTWorldFixtures::MakeWorld();
 		if (!World) { return false; }
