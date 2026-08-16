@@ -36,7 +36,9 @@
     }
   },
   "diagnostics": {
-    "errors": [],
+    "errors": [
+      "ScenarioId non rivendicato da nessuna feature: Spec.Brace.PushBeyondGuardThreshold — aggiungilo agli `scenarios` della feature che dimostra, oppure spiega in `notes` perche' non appartiene a nessuna"
+    ],
     "warnings": [
       "[RT-FEAT-CORE-DECISION-TIME-BANK] 10 scenario/i dichiarati planned: Spec.TimeBank.GraceDoesNotDrain, Spec.TimeBank.DrainsAfterGrace, Spec.TimeBank.NeverBelowZero, Spec.TimeBank.TimeoutCostsFullWindow, Spec.TimeBank.TimeoutSpendsNoCharge, Spec.TimeBank.ClashCostsFullWindow, Spec.TimeBank.BotDrainsLikePlayer, Spec.TimeBank.ExhaustionKeepsResponsesLegal, Spec.TimeBank.ReplayReadsRecordedBank, Spec.TimeBank.PacketOrderInvariant",
       "[RT-FEAT-MAP-HEXGRAPH] tutte le voci PIE che la dimostrano sono verdi (PIE-HEXPLAY-1) ma il gate packaged e' ancora partial: puo' avanzare",
@@ -2244,6 +2246,11 @@
         "ReactionProfile"
       ],
       "path": "Scenarios/Spec/Brace/ProfileChangesResponse.json"
+    },
+    {
+      "id": "Spec.Brace.PushBeyondGuardThreshold",
+      "requires": [],
+      "path": "Scenarios/Spec/Brace/PushBeyondGuardThreshold.json"
     },
     {
       "id": "Spec.Clash.ReadBeatsStand",
