@@ -3908,7 +3908,7 @@ tracks:
   playback:
     status: ACTIVE
     issue: 1015
-    branch: docs/1015-handoff-pie
+    branch: docs/1015-pie-tetto
     worktree: "D:/rt-1015"
     note: >-
       ✅ **Il CODICE di `#1015` è atterrato: PR #1028 mergiata (`02e85e23`, `2026-08-16T14:39:53Z`),
