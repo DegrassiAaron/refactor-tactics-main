@@ -46,6 +46,19 @@ FString URTTestReportWriter::ToJson(const FRTTestResult& Result, const FString& 
 	Root->SetNumberField(TEXT("seed"), Result.Seed);
 	Root->SetNumberField(TEXT("turnsPlayed"), Result.TurnsPlayed);
 
+	// Le finestre di reazione (#512): CHI ha risposto, e quante decisioni scriptate sono state applicate o
+	// sono rimaste inutilizzate. La provenienza sta nel referto e non nel TurnLog perche' al replay serve
+	// **quale** decisione, non chi l'ha fornita — un campo nuovo in `FRTTurnLogEntry` muoverebbe i golden
+	// per un dato che il replay non legge.
+	//
+	// ⚠️ `SchemaVersion` NON viene alzata, e il piano diceva di alzarla: la regola scritta accanto alla
+	// costante e' «a ogni cambio **non retrocompatibile**», e tre campi aggiunti sono additivi — un lettore
+	// vecchio li ignora e continua a leggere tutto il resto. Alzarla qui renderebbe la costante un contatore
+	// di modifiche invece del segnale di rottura che dichiara di essere.
+	Root->SetStringField(TEXT("decisionSource"), Result.DecisionSource);
+	Root->SetNumberField(TEXT("scriptedDecisionsApplied"), Result.ScriptedDecisionsApplied);
+	Root->SetNumberField(TEXT("scriptedDecisionsUnused"), Result.ScriptedDecisionsUnused);
+
 	// Esadecimale, non decimale: un hash si confronta a occhio fra due report, e in esadecimale la differenza
 	// si vede alla prima cifra invece che contando le posizioni.
 	Root->SetStringField(TEXT("stateHash"), FString::Printf(TEXT("%08x"), Result.StateHash));

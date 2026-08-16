@@ -774,6 +774,17 @@ namespace
 
 		/** Una risoluzione non e' finita entro i tick concessi: la traccia di quel turno e' monca. */
 		bool bResolveStalled = false;
+
+		/**
+		 * Tick di risoluzione consumati in tutta la partita. NON e' un dato logico e
+		 * `DescribeAutobattleDivergence` non lo confronta di proposito: due velocita' diverse DEVONO
+		 * differire qui e coincidere su tutto il resto.
+		 *
+		 * ⚠️ Esiste perche' senza di lui il gate di CP 47.2 sarebbe soddisfacibile **non leggendo affatto**
+		 * `ViewerPlaybackSpeed`: un campo dichiarato, mai consumato, lascia il TurnLog identico a tutte le
+		 * velocita' e il test verde. E' l'anello «letto» della catena, e va misurato separatamente.
+		 */
+		int32 ResolveTicks = 0;
 	};
 
 	/**
@@ -815,7 +826,15 @@ namespace
 	 * Il TurnLog vive per un turno: il prossimo `LockInAndResolve` lo azzera. Leggerlo a partita finita darebbe
 	 * l'ultimo turno soltanto, e un confronto «turno per turno» sarebbe verde per il motivo sbagliato.
 	 */
-	void PlayAutobattleTurn(ARTTurnManager* TM, FRTAutobattleTrace& Out)
+	/**
+	 * Agganciato PRIMA di ogni tick di risoluzione, con l'indice del tick. Esiste per un solo caso —
+	 * cambiare la velocita' di playback A META' risoluzione (CP 47.2, #955) — e resta `nullptr` per tutti
+	 * gli altri chiamanti, che non cambiano.
+	 */
+	using FRTPlaybackTickHook = TFunction<void(ARTTurnManager*, int32)>;
+
+	void PlayAutobattleTurn(ARTTurnManager* TM, FRTAutobattleTrace& Out,
+		const FRTPlaybackTickHook& OnTick = nullptr)
 	{
 		TM->PlanBotsForTest();
 		TM->LockInAndResolve();
@@ -823,11 +842,13 @@ namespace
 		int32 Ticks = 0;
 		for (; Ticks < 400 && TM->IsResolving(); ++Ticks)
 		{
+			if (OnTick) { OnTick(TM, Ticks); }
 			TM->Tick(0.05f);
 		}
 		// Una risoluzione appesa somiglia a una risoluzione lenta, e la differenza si scopre solo aspettando.
 		// Registrarla e' cio' che permette al test di dire «monca» invece di confrontare due tracce parziali.
 		if (TM->IsResolving()) { Out.bResolveStalled = true; }
+		Out.ResolveTicks += Ticks;
 
 		Out.Turns.Add(URTTurnLogLibrary::SerializeTurnLog(TM->GetTurnLog(), ERTLogTopology::Hex));
 		++Out.TurnsPlayed;
@@ -840,12 +861,13 @@ namespace
 	 * all'infinito, ed e' lo stesso 40 di `HexMatch.PlaysToCompletion` — che sulla stessa arena misura la
 	 * decisione al turno 10. Raggiungerlo si registra in `bHitSafetyCap` e vale come difetto.
 	 */
-	FRTAutobattleTrace PlayAutobattleMatch(ARTTurnManager* TM, int32 MaxTurns = 40)
+	FRTAutobattleTrace PlayAutobattleMatch(ARTTurnManager* TM, int32 MaxTurns = 40,
+		const FRTPlaybackTickHook& OnTick = nullptr)
 	{
 		FRTAutobattleTrace Trace;
 		while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Trace.TurnsPlayed < MaxTurns)
 		{
-			PlayAutobattleTurn(TM, Trace);
+			PlayAutobattleTurn(TM, Trace, OnTick);
 		}
 		Trace.bHitSafetyCap = (TM->GetPhase() != ERTMatchPhase::MatchEnded);
 
@@ -1046,14 +1068,20 @@ bool FRTAutobattlePermutationTest::RunTest(const FString&)
  * questo caso in attesa di **E47.2** perche' *«oggi non c'e' velocita' da variare»*. Misurato sul codice: c'e'.
  * `ARTTurnManager::PlaybackSpeed` esiste, deriva da `MaxPlaybackSeconds` (default 12 s) via
  * `URTPlaybackLibrary::SpeedMultiplierForCap`, e `bEnablePlayback` accende o spegne il playback per intero.
- * Cio' che manca e' la velocita' **scelta da chi guarda** — x1/x2/x4 — che e' un'altra cosa e resta E47.2.
  *
- * E l'invariante disponibile oggi e' **piu' forte** di quella rinviata. `ResolveTurn` decide fra due strade:
+ * E l'invariante disponibile allora era **piu' forte** di quella rinviata. `ResolveTurn` decide fra due strade:
  * con eventi e playback acceso chiama `BeginPlayback()`, altrimenti va dritto a `ConcludeTurn()`. Questo test
  * confronta quelle **due strade**, non due velocita' della stessa: se il risultato logico regge a «con
  * presentazione» contro «senza presentazione affatto», regge a fortiori a un moltiplicatore.
  *
- * Il terzo caso varia `MaxPlaybackSeconds`, che e' la velocita' che oggi esiste davvero.
+ * ✅ **E47.2 (#955) e' arrivata, e le varianti passano da tre a sette.** `ViewerPlaybackSpeed` — la velocita'
+ * SCELTA da chi guarda — si compone con il fattore di cap via `URTPlaybackLibrary::EffectivePlaybackSpeed`.
+ * Le quattro nuove coprono cio' che le tre vecchie non potevano:
+ *  · x2 e x4 su un round che il tetto NON accelera: e' la manopola da sola;
+ *  · x4 su `MaxPlaybackSeconds = 2 s`: e' la composizione, dove il cap morde gia' per conto suo;
+ *  · velocita' cambiata **a meta' risoluzione**: e' l'unica che verifica l'aggettivo «applicabile DURANTE»
+ *    del DoD, e l'unica che romperebbe se `TickPlayback` congelasse la composizione in `BeginPlayback`
+ *    invece di rileggerla a ogni tick. Le altre sei resterebbero verdi.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattlePlaybackIndependenceTest,
 	"RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback",
@@ -1065,11 +1093,30 @@ bool FRTAutobattlePlaybackIndependenceTest::RunTest(const FString&)
 		const TCHAR* Label;
 		bool bEnablePlayback;
 		float MaxPlaybackSeconds;
+		float ViewerSpeed;
+		bool bChangeMidResolution;   // cambia ViewerPlaybackSpeed mentre la risoluzione e' in corso
 	};
 	const FRTPlaybackVariant Variants[] = {
-		{ TEXT("playback spento"),      false, 12.f },
-		{ TEXT("playback acceso 12 s"), true,  12.f },
-		{ TEXT("playback acceso 2 s"),  true,   2.f },   // stessa strada, moltiplicatore diverso
+		{ TEXT("playback spento"),               false, 12.f, 1.f, false },
+		{ TEXT("playback acceso 12 s"),          true,  12.f, 1.f, false },
+		{ TEXT("playback acceso 2 s"),           true,   2.f, 1.f, false },  // stessa strada, cap diverso
+		{ TEXT("x2 scelta da chi guarda"),       true,  12.f, 2.f, false },  // la manopola da sola: il cap non morde
+		{ TEXT("x4 scelta da chi guarda"),       true,  12.f, 4.f, false },
+		{ TEXT("x4 con cap a 2 s"),              true,   2.f, 4.f, false },  // composizione: entrambi mordono
+		{ TEXT("velocita' cambiata a meta'"),    true,  12.f, 1.f, true  },  // «applicabile DURANTE»
+	};
+
+	// Il cambio a caldo: x1 fino al terzo tick di ogni risoluzione, poi x4. Gli indici sono piccoli di
+	// proposito — una risoluzione dura decine di tick, e cambiare al terzo cade dentro la PRIMA fase invece
+	// che fra una fase e l'altra, dove il passaggio sarebbe indistinguibile da un cambio fra turni.
+	// `SpeedChanges` non e' diagnostica: senza, una risoluzione che finisse entro tre tick lascerebbe la
+	// settima variante identica alla seconda, e il test sarebbe verde per il motivo sbagliato — avrebbe
+	// confrontato due volte x1. E' la stessa guardia che qui sotto protegge `bResolveStalled`.
+	int32 SpeedChanges = 0;
+	const FRTPlaybackTickHook ChangeMidResolution = [&SpeedChanges](ARTTurnManager* TM, int32 TickIndex)
+	{
+		if (TickIndex == 3) { ++SpeedChanges; }
+		TM->ViewerPlaybackSpeed = (TickIndex < 3) ? 1.f : 4.f;
 	};
 
 	TArray<FRTAutobattleTrace> Traces;
@@ -1089,8 +1136,10 @@ bool FRTAutobattlePlaybackIndependenceTest::RunTest(const FString&)
 		}
 		TM->bEnablePlayback = Variant.bEnablePlayback;
 		TM->MaxPlaybackSeconds = Variant.MaxPlaybackSeconds;
+		TM->ViewerPlaybackSpeed = Variant.ViewerSpeed;
 
-		Traces.Add(PlayAutobattleMatch(TM));
+		Traces.Add(PlayAutobattleMatch(TM, /*MaxTurns=*/ 40,
+			Variant.bChangeMidResolution ? ChangeMidResolution : FRTPlaybackTickHook()));
 		RTWorldFixtures::DestroyWorld(World);
 	}
 
@@ -1099,13 +1148,39 @@ bool FRTAutobattlePlaybackIndependenceTest::RunTest(const FString&)
 	{
 		return false;
 	}
-	// Senza questa riga il test sarebbe verde anche se le tre varianti avessero tutte saltato il playback:
-	// confronterebbe tre volte la stessa strada e non proverebbe niente.
+	// Senza questa riga il test sarebbe verde anche se le sette varianti avessero tutte saltato il playback:
+	// confronterebbe sette volte la stessa strada e non proverebbe niente.
 	for (int32 I = 0; I < Traces.Num(); ++I)
 	{
 		TestFalse(FString::Printf(TEXT("%s: nessuna risoluzione appesa"), Variants[I].Label),
 			Traces[I].bResolveStalled);
 	}
+	// La settima variante deve aver CAMBIATO velocita' davvero, non solo essere stata configurata per farlo.
+	TestTrue(TEXT("premessa: il cambio a meta' risoluzione e' scattato almeno una volta"),
+		SpeedChanges > 0);
+
+	// --- La manopola DEVE fare qualcosa -----------------------------------------------------------
+	//
+	// Tutto il resto di questo test verifica che la velocita' NON cambi il risultato logico — ed e' una
+	// proprieta' che un campo mai letto soddisfa alla perfezione. Senza le quattro righe qui sotto, il gate
+	// di CP 47.2 sarebbe verde su un `ViewerPlaybackSpeed` dichiarato e ignorato.
+	// I tick di risoluzione sono la misura dell'effetto: piu' veloce = meno tick per la stessa partita.
+	enum : int32 { VarX1 = 1, VarX2 = 3, VarX4 = 4, VarHotSwap = 6 };
+
+	TestTrue(FString::Printf(TEXT("x2 accorcia la presentazione rispetto a x1 (%d tick contro %d)"),
+		Traces[VarX2].ResolveTicks, Traces[VarX1].ResolveTicks),
+		Traces[VarX2].ResolveTicks < Traces[VarX1].ResolveTicks);
+
+	TestTrue(FString::Printf(TEXT("x4 accorcia piu' di x2 (%d tick contro %d)"),
+		Traces[VarX4].ResolveTicks, Traces[VarX2].ResolveTicks),
+		Traces[VarX4].ResolveTicks < Traces[VarX2].ResolveTicks);
+
+	// ⚠️ E' l'asserzione che rende il test sensibile al CONGELAMENTO: se `TickPlayback` leggesse la
+	// composizione una volta sola in `BeginPlayback`, questa variante partirebbe a x1 e resterebbe a x1 —
+	// stessi tick di `VarX1`, e la riga cade. Le altre sei resterebbero tutte verdi.
+	TestTrue(FString::Printf(TEXT("il cambio a meta' risoluzione accorcia davvero (%d tick contro %d)"),
+		Traces[VarHotSwap].ResolveTicks, Traces[VarX1].ResolveTicks),
+		Traces[VarHotSwap].ResolveTicks < Traces[VarX1].ResolveTicks);
 
 	for (int32 I = 1; I < Traces.Num(); ++I)
 	{
@@ -1116,9 +1191,12 @@ bool FRTAutobattlePlaybackIndependenceTest::RunTest(const FString&)
 	}
 
 	AddInfo(FString::Printf(
-		TEXT("la velocita' SCELTA da chi guarda (x1/x2/x4) resta E47.2 (#955): qui si varia la strada del ")
-		TEXT("playback e il suo tetto, che sono le due manopole che esistono oggi. Turni giocati: %d"),
-		Traces[0].TurnsPlayed));
+		TEXT("sette varianti: due strade del playback, due tetti, la velocita' scelta da chi guarda (x1/x2/x4) ")
+		TEXT("e un cambio a meta' risoluzione. Turni giocati: %d · cambi a caldo scattati: %d · ")
+		TEXT("tick di risoluzione x1/x2/x4/a-caldo: %d/%d/%d/%d"),
+		Traces[0].TurnsPlayed, SpeedChanges,
+		Traces[VarX1].ResolveTicks, Traces[VarX2].ResolveTicks,
+		Traces[VarX4].ResolveTicks, Traces[VarHotSwap].ResolveTicks));
 	return true;
 }
 
