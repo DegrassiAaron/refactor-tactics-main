@@ -422,21 +422,47 @@ gia' una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`).
    **`ARTUnit`**. I pack di terze parti restano **fuori** da `/Game/RT`: qui ci va il Blueprint,
    non il pack.
 3. ⚠️ **Il cilindro non si sostituisce, si nasconde.** `ARTUnit::Mesh` e' uno
-   `UStaticMeshComponent` ed e' il root: nel Blueprint si **aggiunge** uno
-   `USkeletalMeshComponent` e si toglie la spunta `Visible` al cilindro, che il C++ usa ancora
-   per selezione e fallback.
+   `UStaticMeshComponent`: nel Blueprint si **aggiunge** uno `USkeletalMeshComponent` e si toglie
+   la spunta `Visible` al cilindro, che il C++ usa ancora per selezione e fallback.
+
+   🔴 **Attaccalo a `SceneRoot`, non a `Mesh`.** Dal **2026-08-16** (`#593`) il root di `ARTUnit`
+   e' un `USceneComponent` neutro chiamato `SceneRoot`, e `Mesh` e' un suo figlio che porta
+   `BaseMeshScale = (1.2, 1.2, 1.8)`. Chi attacca la skeletal al cilindro ne eredita la scala e
+   ricostruisce a mano la deformazione che quella modifica ha tolto. Nel pannello Components la
+   skeletal va **trascinata sotto `SceneRoot`**; se il nodo padre dice `Mesh`, non e' ancora a
+   posto.
 4. **`VisualZOffset = 0`.** Il default e' `UnitHalfHeight` (90), giusto per il cilindro che ha il
    pivot al CENTRO; i personaggi UE ce l'hanno ai PIEDI. Lasciarlo fa fluttuare l'unita' a 90 cm.
 5. `TeamRingMaterial` e `SelectionRingMaterial` → `M_TeamRing` / `M_SelectionRing` in
    `/Game/RT/Characters/Shared/Materials/`. Il colore lo mette il codice sul MID; assenti,
    l'anello resta nascosto senza rompere nulla.
-6. **Scala del componente skeletal: World/Absolute, `1,1,1`.** ⚠️ Il cilindro e' il ROOT e porta
-   `BaseMeshScale = (1.2, 1.2, 1.8)`: un componente attaccato a lui eredita quel fattore e il
-   personaggio esce **stirato in altezza di 1,5x** (1.8 / 1.2). Peggio, la selezione rimoltiplica
-   il root per `1.15` (`RTUnit.cpp:221`), quindi la mesh **si ingrandisce quando la selezioni**.
-   Nel Details del componente, alla riga *Scale*, si commuta l'icona su **World/Absolute**.
-   Difetto strutturale registrato in **issue #593**: finche' resta, il passo va rifatto a ogni
-   nuovo `BP_Unit`.
+6. **Scala del componente skeletal: `1,1,1`, relativa.** Con il passo 3 fatto — skeletal sotto
+   `SceneRoot` — non c'e' piu' niente da compensare: il root e' unitario e la selezione scala
+   `Mesh`, che le sta accanto (`RTUnit.cpp:266`). ⛔ **Non commutare l'icona su World/Absolute**:
+   era il workaround dell'era in cui il cilindro era il root, e su una gerarchia sana congela la
+   dimensione contro la scala dell'attore lasciandone scorrere la posizione.
+
+   🔴 **Sui quattro `BP_Unit_*` GIA' ESISTENTI il passo 3 non si e' applicato da solo**, e questa
+   e' la prima cosa da fare in questa seduta. I loro nodi SCS dichiarano il genitore **per nome**:
+   finche' esiste un componente nativo chiamato `Mesh` — ed esiste — la skeletal resta figlia di
+   lui. L'ordine e' obbligato, e invertirlo deforma i personaggi invece di raddrizzarli:
+
+   > **(a) MISURA prima.** Apri i quattro BP e guarda **come e' compensata oggi** la deformazione:
+   > icona *World/Absolute* sulla riga Scale, oppure una `RelativeScale3D` tarata a mano, oppure
+   > **niente** — nel qual caso i personaggi sono stirati adesso.
+   > ⚠️ La misura statica restringe il campo ma non chiude: cercando ogni stringa in ASCII **e**
+   > UTF-16LE nei quattro `.uasset`, `bAbsoluteScale` e' **assente in tutti e quattro** (l'icona
+   > non e' mai stata commutata) mentre `RelativeScale3D` e' **presente in tutti e quattro**. Il
+   > candidato piu' probabile e' quindi una scala relativa tarata a mano — ma il nome della
+   > proprieta' e' comune e non dice su quale componente stia ne' con che valore. Lo dice
+   > l'editor: e' questo il passo (a).
+   > **(b) RIPARENTA** la skeletal sotto `SceneRoot`.
+   > **(c) Solo allora TOGLI** l'eventuale compensazione, che a quel punto e' davvero ridondante.
+
+   ⚠️ **Questa seduta non ha una voce PIE che la falsifichi**, e non se ne aggiunge una da qui:
+   `docs/technical/test-manuali-pie.md` e' nel `writable` della track `playtest` (D-139). La
+   registra chi possiede quel file, e l'invariante da scrivere e' una sola: *a schermo, un
+   personaggio selezionato non cambia dimensione e non e' piu' alto della sua silhouette a riposo*.
 7. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
    (`Hero.Flux` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
    `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna

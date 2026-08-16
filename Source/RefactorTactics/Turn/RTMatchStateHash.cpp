@@ -124,7 +124,9 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 			Mix(static_cast<uint32>(Arc.State));
 			Mix(static_cast<uint32>(Arc.Integrity));
 			// v9 (#832): gli archi, non le sole porte. Lo scope della issue lo dice — «copertura degli archi
-			// (`FRTHexArc`, ponti di CP 9.4) e non delle sole porte: sono lo stesso problema di identita'».
+			// (i ponti di CP 9.4) e non delle sole porte: sono lo stesso problema di identita'».
+			// ⚠️ La issue chiama quel tipo `FRTHexArc`, che NON esiste in `Source/`: qui si itera
+			// `FRTHexEdge`. Citare una issue alla lettera ne importa anche i nomi sbagliati.
 			MixName(Arc.StableId);
 		}
 	}
