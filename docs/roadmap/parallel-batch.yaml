@@ -3546,18 +3546,41 @@ tracks:
     binary_leases: []
 
   roster_rename:
-    status: ACTIVE
-    issue: 754
-    branch: feat/753-754-rename-roster
+    status: IDLE
+    issue: null
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
-      Fette **3 e 4** di **D-130**: `#753` (gli `Hero.<Nome>`, già committato) e `#754` (i venti token
-      abilità → `Hero.<Nome>.<Abilità>`, in corso). Una PR, due commit, una suite.
+      ✅ **CHIUSA il 2026-08-16**: PR **#1045** mergiata in `main` come `6bfe3eeb`, issue `#753` e `#754`
+      chiuse col DoD consuntivato nel commento. **Il write-set qui sotto è rilasciato** — inclusi
+      `docs/gameplay/spec-reazioni-componibili-cp55.md`, che torna non assegnato, e `Scenarios/` +
+      `docs/roadmap/feature-registry.yaml`, che **rientrano in `integration_only`**: erano prestati per
+      mandato del DoD di `#754`, non appropriati.
+      ⚠️ `issue: null` perché lo `status` è `IDLE`: i numeri vivono nella nota.
 
-      ⚠️ **Questa track è nata a metà lavoro, e va detto invece di far sembrare che ci fosse.** `#753`
-      è stato scritto e committato **senza** un `writable` dichiarato — 161 file, misurati dopo. La
-      dichiarazione qui sotto copre entrambe le fette, ed è l'unica ragione per cui il difetto è
-      riparabile: il branch non è ancora pushato.
+      **Misura finale su `main` mergiato**: 11 occorrenze dei nomi ritirati in `Source/` + `Scenarios/`,
+      **tutte attese e motivate una per una** (le chiavi di `_redirects.json`, la `_nota_il_nome` di uno
+      scenario, le due liste di guardia dei test), **inattese: 0**. Suite: **980 verdi**.
+
+      ⚠️ **Due cose che questa track lascia scritte per chi rinomina dopo di lei.**
+      · Un rename ha **quattro** forme — identificatore, token, dato in minuscolo, nome **concatenato** —
+        e ogni pattern è cieco a quella che il precedente non ha trovato. La quarta è stata scoperta
+        leggendo il log di una suite **verde**, non da un grep.
+      · Il passaggio finale, quello senza confini di parola, **riscrive le liste di guardia** dei test che
+        devono nominare i nomi ritirati, e le **rovescia**: non falliscono come guardie rotte, accusano il
+        codice sano. È successo due volte, la seconda perché lo script è stato rilanciato *per misurare i
+        residui*. Le righe portano ora un `🔴 NON RINOMINARE QUESTA RIGA`.
+
+      ⏭️ **Restano aperte le fette 5, 6 e 7** (`#755`, `#756`, `#757`): `docs/` vivi, archivio, Wiki. Su
+      `#755` è già segnalato, con la misura, ciò che questa fetta ha trovato e deliberatamente non toccato.
+
+      ➕ **Aperta il 2026-08-16** per le fette **3 e 4** di **D-130**: `#753` (gli `Hero.<Nome>`) e
+      `#754` (i venti token abilità → `Hero.<Nome>.<Abilità>`). Una PR, due commit, una suite.
+
+      ⚠️ **Nata a metà lavoro, e va detto invece di far sembrare che ci fosse.** `#753` è stato scritto e
+      committato **senza** un `writable` dichiarato — 161 file, misurati dopo. La dichiarazione qui sotto
+      è arrivata a coprire entrambe le fette, ed è stata possibile solo perché il branch non era ancora
+      pushato.
 
       🟡 **Un rename di roster collide con TUTTI per costruzione**, e questo è il caso che lo schema
       «un path, un proprietario» non esprime: nessuna track può possedere un write-set trasversale.
