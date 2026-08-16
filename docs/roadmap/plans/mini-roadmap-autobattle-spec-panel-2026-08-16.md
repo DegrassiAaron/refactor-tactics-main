@@ -18,10 +18,25 @@
 ## 1. Il verdetto in una riga
 
 Il documento chiede di costruire una corsia accelerata verso una demo automatica e osservabile, e la
-descrive come se il repository fosse vuoto: **quattro delle sue sette release intermedie sono già in
-`main`**, il bot che propone come «MVP da costruire dopo» è `RELEASE_READY` da otto giorni, e la partita
-2v2 bot-contro-bot che vuole vedere **gira già headless e si decide al turno 10**
-(`RefactorTactics.HexMatch.PlaysToCompletion`).
+descrive come se il repository fosse vuoto: il bot che propone come «MVP da costruire dopo» è
+`RELEASE_READY` da otto giorni, e la partita 2v2 bot-contro-bot che vuole vedere **gira già headless**
+(`RefactorTactics.HexMatch.PlaysToCompletion`, che il proprio commento misura al **turno 10**).
+
+Le sue sette release intermedie, voce per voce contro il repository — perché un «quasi tutte» non si
+verifica:
+
+| Release | Stato misurato |
+|---|---|
+| **a1** Hex Board | ✅ **in `main`**: `FRTCellId`, coordinate, vicini, Cell ↔ World, renderer ISM, camera, quattro unità, debug celle |
+| **a2** Auto Move | ✅ **in `main`**: grafo hex, A\*, costi, Move Intent, snapshot immutabile, resolver, micro-step, occupancy, TurnLog, playback |
+| **a3** Auto Skirmish | 🟡 **completa nella simulazione, assente in partita**: enumerazione legale, attacco base, HP/KO, `Wait`, policy del bot, fine partita e `RoundLimit` esistono e sono testati; ciò che manca è **osservarla** senza una mano umana |
+| **a4** Tactical Board | 🟡 terreni ed effetti chiusi con **E8**, coperture con **E9**; gli **obiettivi** sono `RT-FEAT-OBJECTIVE-SYSTEM` `IMPLEMENTING` — la partita finisce per obiettivo, ma non c'è nulla da attivare in mappa |
+| **b1** Scenario Runner | 🟡 l'harness esiste e gira dal percorso reale, ma **enumera i turni**: nessun free-run |
+| **b2** Watchable Build | 🟡 HUD e combat log ci sono; **velocità di playback, schermata vincitore e restart** no (E11, E21, E46) |
+| **rc1** Determinismo | 🟡 `ReplayDivergenceZero` e l'invarianza per permutazione ci sono; il **corpus dei casi limite** dell'autobattle no |
+
+**Due complete, cinque parziali** — e la parziale che conta è `a3`, che il documento stesso dichiara a
+priorità assoluta.
 
 Ciò che resta, dopo il triage, è **piccolo, vero e prezioso**: nessuno può *guardare* quella partita.
 `ARTGameMode::SpawnHero` assegna il bot alla sola squadra 1 (`RTGameMode.cpp:547`), quindi in PIE serve
