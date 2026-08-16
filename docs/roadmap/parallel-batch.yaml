@@ -1770,6 +1770,28 @@ tracks:
       # `writable` della track che li esegue, perché chi esegue un mandato lo corregge quando lo misura
       # sbagliato. Vedi la documentazione di `mandate` nello schema in testa al file.
       - docs/technical/qa-prompt-terminal-c-architettura-qa.md
+      # ➕ **Consolidamento del 2026-08-16: la Issue Tracking Completeness Rule.** Deroga dichiarata —
+      # `CLAUDE.md` e `AGENTS.md` sono `integration_only` e vengono presi da questa track per un giro,
+      # perché la regola nuova va scritta **una volta sola** e in tre file che devono restare coerenti fra
+      # loro: la regola compatta in `CLAUDE.md`, il rimando in `AGENTS.md`, l'owner in `docs/technical/`.
+      # Spezzarli in due track produrrebbe due stesure della stessa regola.
+      # Misurato prima di prenderli: **zero** branch remoti diversi da `main` toccano uno di questi quattro
+      # file (contati uno per uno con `git diff --name-only origin/main...<branch>`).
+      #
+      # 🔴 **`.github/` esce dall'assenza deliberata, e quattro documenti lo dichiaravano assente.** La
+      # decisione proteggeva la CI — `AGENTS.md` dice «CI, package manager o build step» — e un issue
+      # template **non esegue niente**. Ma uno dei quattro non è prosa:
+      #     docs/technical/qa-prompt-terminal-b-scenario-runner.md:294
+      #     git ls-tree -r --name-only origin/main -- .github/   # deve essere vuoto
+      # È un ORACOLO, e diventerebbe rosso al primo file creato. Va ristretto a `.github/workflows/`, che
+      # è ciò che la decisione proteggeva davvero. Correggere il template senza correggere l'oracolo
+      # lascerebbe un gate che mente — la forma di difetto che questo file esiste per rendere visibile.
+      - CLAUDE.md
+      - AGENTS.md
+      - docs/technical/issue-tracking-completeness.md
+      - docs/technical/qa-prompt-terminal-a-determinismo.md
+      - docs/technical/qa-prompt-terminal-b-scenario-runner.md
+      - .github/
     # ➖ **Il `derives_from` segue il file**: la catena `test-manuali-pie.md` → `editormap.shortlist.md`
     # + `project-graph.json` passa a `playtest` insieme alla sorgente. È la regola già scritta in
     # `generated_only` applicata a una riassegnazione: la vista segue la sorgente, e la sorgente ha

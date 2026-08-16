@@ -44,7 +44,35 @@ utile per la provenienza, mai per la regola.
 
 Il dettaglio resta negli owner documentali; non duplicarlo qui.
 
-## 3. Classifica il task
+## 3. Tracking Impact Pass — obbligatorio su ogni issue
+
+Quando **crei, spezzi o modifichi nella sostanza** una GitHub Issue, non trattarla come un elemento isolato:
+rappresenta lavoro eseguibile, e il resto del progetto ne registra gli effetti.
+
+> **CREATE OR LINK, NEVER IGNORE.**
+
+Per ogni categoria applicabile: **cerca** un elemento esistente → **collega** → **aggiorna** se lo scope
+cambia → **crea** solo se manca davvero → dichiara **`N/A`** se non si applica. Le dodici categorie sono
+milestone/epic · Feature Map · Scenario Map · test · Editor Map · asset · content/data · Wiki/docs ·
+ADR/Decision · UI/UX · debug/observability · dipendenze.
+
+Il blocco `## Tracking` è precompilato da [`.github/ISSUE_TEMPLATE/task.md`](.github/ISSUE_TEMPLATE/task.md)
+e va riempito, non cancellato. **`N/A` è valido; un campo mancante no** — `N/A` è una decisione presa,
+l'assenza è una domanda che nessuno si è posto. E non inventare voci per riempire un campo: un duplicato
+costa più di un vuoto, perché sporca le viste generate e si trova due volte.
+
+Tre trappole che questo repository ha già pagato:
+
+- **`Test: N/A`** su simulazione, networking o regole competitive richiede una motivazione esplicita.
+  «Provata in PIE» non è una strategia di test.
+- **Se restano passi dentro Unreal Editor, la Editor Map non è `N/A`**: il codice generato non implica che
+  la feature sia usabile, e il lavoro manuale non si nasconde dentro un acceptance criterion ordinario.
+- **Prima di chiudere si riesegue il pass.** Una issue chiusa con tracking incoerenti è incompleta — e il
+  DoD si consuntiva nel commento di chiusura, non spuntando il body.
+
+Owner della regola: [`docs/technical/issue-tracking-completeness.md`](docs/technical/issue-tracking-completeness.md).
+
+## 4. Classifica il task
 
 **Documentale/analitico** (`/sc:brainstorm`, `research`, `design`, `workflow`, `analyze`, `estimate`, panel,
 `troubleshoot` senza `--fix`): produci l'output richiesto e **non passare automaticamente al codice**.
@@ -56,7 +84,7 @@ Per implementazioni non banali, preflight breve:
 
 **Obiettivo · Stato verificato · Assunzioni · File · Approccio · Rischi · Test**
 
-## 4. Guardrail Claude
+## 5. Guardrail Claude
 
 - Non inventare API Unreal: verifica la **5.8.1** e le firme realmente presenti.
 - Simulazione/authority in C++; presentazione/configurazione in Blueprint/Data dove appropriato.
@@ -80,7 +108,7 @@ Per implementazioni non banali, preflight breve:
   (**D-135**).
 - Prima del merge: `rt_shared_id.py check`, poi `git fetch --prune origin` e `audit-refs`.
 
-## 5. Decision Boundary
+## 6. Decision Boundary
 
 Una finestra live non è un'attesa del resolver:
 
@@ -89,7 +117,7 @@ Una finestra live non è un'attesa del resolver:
 Visual può rallentare la presentazione; Fast/Headless risponde subito tramite policy. Il risultato logico non
 dipende dal tempo reale. Non inviare al client trigger futuri, percorsi futuri o intenti privati avversari.
 
-## 6. Test e consegna
+## 7. Test e consegna
 
 Ordine preferito: **test mirati → regressione correlata → suite richiesta dal DoD → build → PIE/packaged se gate**.
 Per scenari integrati usa il **RT Scenario Test Harness** e il percorso reale
