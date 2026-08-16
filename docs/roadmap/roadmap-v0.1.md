@@ -305,7 +305,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E46** | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | SPECIFIED | 1/5 |
 |  | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | SPECIFIED | 1/6 |
 |  | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | SPECIFIED | 1/5 |
-|  | `RT-FEAT-UI-FRONTEND-SHELL` — Frontend root, navigation controller e stati comuni | SPECIFIED | 1/6 |
+|  | `RT-FEAT-UI-FRONTEND-SHELL` — Frontend root, navigation controller e stati comuni | IMPLEMENTING | 1/6 |
 | **E47** | `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore — completata da `RT-FEAT-CORE-PLAYBACK`, `RT-FEAT-UI-BOARD-GRAMMAR` | DESIGNED | 0/8 |
 |  | `RT-FEAT-UI-BOARD-GRAMMAR` — Grammatica visiva della board — colore e forma, mai solo il colore | IMPLEMENTING | 0/7 |
 
@@ -1631,11 +1631,18 @@ file in `Source/**/UI*` tutti in-match, nessuna epic frontend fra E1–E45, zero
 | **46.5** | **Result** → Main Menu / Play Again | A fine partita compare esito, vincitore e numero di round, **letti dal risultato canonico**: la UI non ricalcola nulla e non decide chi ha vinto — la condizione di fine è di E10 e il TurnLog ne è il registro. `Play Again` ripercorre 46.4; `Main Menu` torna alla radice svuotando il back stack | ⏳ `PIE-V01-FRONTEND-RESULT` (da creare) |
 | **46.6** | **Pause** | `ESC` in partita apre `RESUME · SETTINGS · RETURN TO MAIN MENU`. `Return to Main Menu` smonta la partita e torna alla radice senza lasciare stato vivo — verificabile riavviando una partita subito dopo e ottenendo lo stesso esito a parità di seed. ⚠️ **La pausa è offline-only per costruzione**: in multiplayer non esisterà una pausa globale ([v0.5, E40](roadmap-post-v0.1.md)), quindi il pulsante non entra in un contratto condiviso col futuro codice di rete | ⏳ `PIE-V01-FRONTEND-PAUSE` (da creare) |
 
-> ⚠️ **Nessuno dei sei checkpoint ha oggi un test automatico possibile, ed è dichiarato invece che
-> sottinteso.** Il repository non ha infrastruttura di test UI — non esiste una suite che istanzi un
-> widget e ne verifichi la navigazione — quindi il gate `automation` delle feature `RT-FEAT-UI-FRONTEND-*`
-> nasce `todo` e la verifica è **manuale in PIE**. È lo stesso regime di E21, e per la stessa ragione:
-> *«quello che manca è il lavoro in editor, che nessun test automatico può chiudere»*.
+> 🔴 **Questa riga diceva «nessuno dei sei checkpoint ha oggi un test automatico possibile», e
+> l'implementazione di CP 46.1 l'ha falsificata il 2026-08-16** (`#936`): **12 test**
+> `RefactorTactics.Frontend.*`, tutti verdi, nessun asset richiesto.
+> La previsione sbagliava due volte. *(a)* L'infrastruttura **esiste già**: `RTScreenHudWidgetTests.cpp`
+> prova widget UMG headless ed è di CP 11.7 — cioè scritta **prima** che io dichiarassi che non esistesse.
+> *(b)* Più importante: **la navigazione non è UI**, è una macchina a stati che la governa; separata dalla
+> presentazione (`FRTScreenStack` è un `USTRUCT` puro) si prova senza mondo e senza widget. L'errore
+> nasceva dall'equazione «frontend ⇒ widget ⇒ non testabile», e i tre termini non coincidono.
+> ⚠️ **Cosa resta manuale davvero**: il *layout* dentro il `.uasset` — leggibilità, focus visibile, il
+> modale che copre ciò che deve. È di `PIE-V01-FRONTEND-NAV`, **per costruzione e non per rinuncia**.
+> Il paragone con E21 regge solo per quella parte: là *«quello che manca è il lavoro in editor»* è vero
+> dell'intera epic, qui di una fetta.
 >
 > 🔴 **Le sei voci `PIE-V01-FRONTEND-*` non sono state create da questo consolidamento, e non per
 > dimenticanza**: [`test-manuali-pie.md`](../technical/test-manuali-pie.md) è nel `writable` della track

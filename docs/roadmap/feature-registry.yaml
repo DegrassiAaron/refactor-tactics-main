@@ -4268,13 +4268,13 @@ features:
     kind: ui
     release: v0.1
     priority: P1
-    status: SPECIFIED
+    status: IMPLEMENTING
     gates:
       spec: done
       data: na
-      runtime: todo
+      runtime: partial
       log_debug: todo
-      automation: todo
+      automation: partial
       scenario: na
       ui_wiki: todo
       packaged: todo
@@ -4287,13 +4287,29 @@ features:
     owner_specs:
       - docs/technical/spec-frontend-navigazione.md
     issues: [936, 937]
-    tests: []
+    tests:
+      - RefactorTactics.Frontend.*
     scenarios: []
     wiki_refs: []
+    last_verified:
+      date: 2026-08-16
+      commit: 6708308
     notes: >
       Un solo owner del flow (`PushScreen`/`PopScreen`/`ShowModal`/`CloseModal`/`ReturnMain`) piu'
       loading ed error modal. Il criterio del gate `runtime` e' verificabile con un grep:
       `AddToViewport`/`RemoveFromParent` non devono comparire fuori dal controller.
+      ✅ **CP 46.1 consegnato il 2026-08-16 (`#936`)**: `FRTScreenStack` (USTRUCT puro — push/pop, modali,
+      back stack, ReturnMain) e `URTFrontendNavigator` (`UGameInstanceSubsystem` che traduce lo stack in
+      widget). Il subsystem e' l'**unico** punto del codebase con `CreateWidget`/`AddToViewport`/
+      `RemoveFromParent`: baseline misurata a **zero** in tutto `Source/` prima del commit.
+      🔴 **`automation` passa da `todo` a `partial`, e la riga precedente diceva che sarebbe rimasto
+      `todo` «perche' il repository non ha infrastruttura di test UI». Era falso.** `RTScreenHudWidgets`
+      prova gia' widget UMG headless (CP 11.7, cioe' *prima* di quella dichiarazione), e soprattutto **la
+      navigazione non e' UI**: e' una macchina a stati che la governa, e separata dalla presentazione si
+      prova senza mondo ne' asset — **12 test** `RefactorTactics.Frontend.*`. Resta manuale il *layout*
+      dentro il `.uasset`, che e' di `PIE-V01-FRONTEND-NAV`: `partial` e non `done` per quello, e perche'
+      CP 46.2 (loading, error modal) non e' ancora scritto.
+      `runtime: partial` per la stessa ragione: dei due checkpoint della feature ne e' fatto uno.
       ⚠️ **Non possiede il contesto `Modal` del `PlayerController`**: quello e' di CP 11.8
       (`RT-FEAT-UI-POINTER-INTERACTION`), che ha gia' sette contesti e la precedenza
       `Modal/Reaction UI > HUD > world` **dichiarata** — e non ancora implementata: e' il delta (c) di

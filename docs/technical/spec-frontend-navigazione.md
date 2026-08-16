@@ -193,10 +193,25 @@ qualcosa è sopravvissuto allo smontaggio.
 
 ## 8. Verifica
 
-⚠️ **Nessuno dei checkpoint di E46 ha oggi un test automatico possibile.** Il repository non ha
-infrastruttura di test UI: non esiste una suite che istanzi un widget e ne verifichi la navigazione. Il
-gate `automation` delle feature `RT-FEAT-UI-FRONTEND-*` nasce quindi `todo`, e la verifica è **manuale in
-PIE** — stesso regime di E21, per la stessa ragione.
+🔴 **Questa sezione diceva «nessuno dei checkpoint di E46 ha un test automatico possibile: il repository
+non ha infrastruttura di test UI», ed era falsa. L'ha falsificata l'implementazione di CP 46.1** (#936,
+2026-08-16), che ha prodotto **12 test** `RefactorTactics.Frontend.*`.
+
+Sbagliata in due modi, e il secondo conta più del primo:
+
+1. **L'infrastruttura esiste già.** `RTScreenHudWidgetTests.cpp` prova widget UMG headless costruendo un
+   mondo — è di CP 11.7, cioè scritta *prima* che io dichiarassi che non esistesse.
+2. **La navigazione non è UI.** È una macchina a stati che *governa* la UI. Separata dalla presentazione
+   — `FRTScreenStack` è un `USTRUCT` puro — si prova senza mondo, senza widget e senza asset. La
+   previsione nasceva dall'aver dato per scontato che «frontend» ⇒ «widget» ⇒ «non testabile», e i tre
+   termini non sono la stessa cosa.
+
+**Cosa resta davvero manuale**: il *layout* dentro il `.uasset` — che una schermata sia leggibile, che il
+focus si veda, che il modale copra ciò che deve. È di `PIE-V01-FRONTEND-NAV`, e lo è **per costruzione,
+non per rinuncia**.
+
+Il gate `automation` di `RT-FEAT-UI-FRONTEND-SHELL` passa quindi da `todo` a `done` per la parte
+consegnata; gli altri restano `todo` finché il loro checkpoint non produce codice.
 
 Le sei voci previste — `PIE-V01-FRONTEND-NAV`, `-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE` — **non
 esistono ancora**, e non per dimenticanza: [`test-manuali-pie.md`](test-manuali-pie.md) non è di questa
