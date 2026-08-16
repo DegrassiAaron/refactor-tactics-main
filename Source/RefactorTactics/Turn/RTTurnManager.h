@@ -462,6 +462,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float ViewerPlaybackSpeed = 1.f;
 
+	/**
+	 * Il fattore di accelerazione AUTOMATICA in vigore: quanto il tetto sta gia' comprimendo il round.
+	 *
+	 * Esiste per un motivo solo, ed e' il criterio 2 di CP 47.7 (#1015): l'etichetta del controllo di
+	 * velocita' deve dire la verita' anche quando `Max(Viewer, Cap)` sceglie il tetto — a `x1` sotto un
+	 * tetto che morde `3x` una manopola che mostrasse la sola scelta direbbe `x1` mentre lo schermo scorre
+	 * a `3x`.
+	 *
+	 * ⚠️ **E' un accessore, non un secondo produttore.** L'HUD lo legge e lo passa a
+	 * `URTPlaybackLibrary::EffectivePlaybackSpeed` insieme alla scelta: la composizione resta una sola, qui.
+	 * L'alternativa — far ricalcolare il tetto all'HUD da `MaxPlaybackSeconds` — e' la seconda verita' che
+	 * il DoD vieta con le parole *«non ricalcola, non stima»*.
+	 */
+	float GetPlaybackCapSpeed() const { return PlaybackSpeed; }
+
 	// --- Tuning del bot (utility scoring, editabile in editor senza ricompilare) -----------------
 	// Pesi interi iniettati nel FRTBotContext di PlanBots (invariante #4: niente float). I default
 	// coincidono con quelli della struct: a parita' di valori il comportamento e' invariato.

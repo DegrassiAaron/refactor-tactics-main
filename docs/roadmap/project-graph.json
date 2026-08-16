@@ -1452,13 +1452,13 @@
       "block": 6,
       "critical": false,
       "execution_lane": "pie",
-      "state": "⏳",
+      "state": "🟡",
       "queue_group": "READY",
       "produces": "i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`",
       "artifacts": [
         {
           "path": "Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset",
