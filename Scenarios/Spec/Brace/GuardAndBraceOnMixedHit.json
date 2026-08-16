@@ -17,14 +17,16 @@
 
   "_nota_geometria": "Un attaccante DEDICATO per difensore, su tre righe separate. Non due attaccanti sullo stesso bersaglio: il resolver esclude dalla spinta i bersagli colpiti da 2+ attaccanti (`*Pushes != 1`, forze contraddittorie) e si misurerebbe QUELLA regola. Le tre linee non si incrociano e nessun alleato sta in mezzo, quindi la forma a linea colpisce solo il bersaglio dichiarato.",
 
+  "_nota_loadout_vuoto": "I tre attaccanti entrano SPOGLI (`\"loadout\": []`), ed e' la riga che tiene in vita questo file. Dal 2026-08-16 (#1054) il gioco monta i default, e quello di Phase e' `Weapon.Impact`: la spinta di `PressureJet` passa da 1 a 2. Con una spinta di 2 la guardia CEDE — misurato, DG finiva a (-2,1) invece di restare a (0,1) — e questo scenario smetterebbe di misurare cio' per cui esiste, diventando il gemello di `Spec.Brace.PushBeyondGuardThreshold`, che quel caso lo copre gia'. Qui la variabile tenuta ferma e' la SPINTA A 1: e' l'unico posto in cui si vede che sotto la soglia le due difese danno lo stesso esito sullo spostamento, che e' esattamente cio' che `_nota_la_cosa_che_questo_file_dice_e_che_sorprende` dichiara. I due file sono ora una COPPIA: sotto soglia qui, sopra soglia li'.",
+
   "units": [
     { "id": "DG", "hero": "Hero.Wraith", "team": 0, "cell": [0,  1, 0] },
     { "id": "DB", "hero": "Hero.Wraith", "team": 0, "cell": [0,  0, 0] },
     { "id": "DN", "hero": "Hero.Wraith", "team": 0, "cell": [0, -1, 0] },
 
-    { "facing": "W", "id": "AG", "hero": "Hero.Phase",   "team": 1, "cell": [3,  1, 0] },
-    { "facing": "W", "id": "AB", "hero": "Hero.Phase",   "team": 1, "cell": [3,  0, 0] },
-    { "facing": "W", "id": "AN", "hero": "Hero.Phase",   "team": 1, "cell": [3, -1, 0] }
+    { "facing": "W", "id": "AG", "hero": "Hero.Phase",   "team": 1, "cell": [3,  1, 0], "loadout": [] },
+    { "facing": "W", "id": "AB", "hero": "Hero.Phase",   "team": 1, "cell": [3,  0, 0], "loadout": [] },
+    { "facing": "W", "id": "AN", "hero": "Hero.Phase",   "team": 1, "cell": [3, -1, 0], "loadout": [] }
   ],
 
   "turns": [

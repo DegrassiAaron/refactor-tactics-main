@@ -17,12 +17,14 @@
 
   "_nota_geometria": "Un attaccante per bersaglio, due righe separate, colpo lungo la riga: l'arretramento di Wraith e' la cella successiva della stessa riga, quindi e' scrivibile a mano. Non due colpi sullo stesso bersaglio, che il resolver escluderebbe dalla spinta (`*Pushes != 1`).",
 
+  "_nota_loadout_vuoto": "I due attaccanti entrano SPOGLI (`\"loadout\": []`). Dal 2026-08-16 (#1054) il gioco monta i default e quello di Phase e' `Weapon.Impact`, che porta la spinta di `PressureJet` da 1 a 2: con 2 la guardia CEDE, e questo file misura l'opposto — misurato, B1 finiva a (-2,0) invece di restare fermo. Non e' un numero da aggiornare: si ROVESCIA la regola che il file dimostra, cioe' «chi ha dichiarato Guard non arretra». La spinta a 1 e' la variabile tenuta ferma. ⚠️ E ha un peso in piu' perche' questo file sta fra i `Visual`: e' la scena in cui un animatore deve vedere una unita' che assorbe e una che scivola. Con la spinta a 2 scivolerebbero entrambe, e non ci sarebbe piu' niente da distinguere a schermo — che e' proprio la domanda aperta di `#403`.",
+
   "units": [
     { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [0,  0, 0] },
     { "id": "V1", "hero": "Hero.Wraith",  "team": 0, "cell": [0, -2, 0] },
 
-    { "facing": "W", "id": "R1", "hero": "Hero.Phase",    "team": 1, "cell": [3,  0, 0] },
-    { "facing": "W", "id": "R2", "hero": "Hero.Phase",    "team": 1, "cell": [3, -2, 0] }
+    { "facing": "W", "id": "R1", "hero": "Hero.Phase",    "team": 1, "cell": [3,  0, 0], "loadout": [] },
+    { "facing": "W", "id": "R2", "hero": "Hero.Phase",    "team": 1, "cell": [3, -2, 0], "loadout": [] }
   ],
 
   "turns": [

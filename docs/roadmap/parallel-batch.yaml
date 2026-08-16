@@ -3756,6 +3756,55 @@ tracks:
     writable: []
     binary_leases: []
 
+  loadout_runtime:
+    status: ACTIVE
+    issue: 1054
+    branch: work/1054-assegnazione-loadout
+    worktree: "D:/rt-unit"
+    note: >-
+      **`#1054`, fetta B di `#63`** — l'assegnazione si accende. I default 1+1+1 esistono dalla fetta A e
+      non li applica nessuno: `DefaultWeaponVariantFor` ha chiamanti solo nei test, e né `RTGameMode` né
+      `RTUnit` nominano equipaggiamento. La spinta di 2 di `Weapon.Impact` esiste nei dati, in un test e in
+      uno scenario, **e in nessuna partita**.
+
+      ⚠️ **Questa fetta cambia il comportamento di 33 scenari su 78**, ed è la ragione per cui è separata:
+      sono quelli che usano l'attacco base di un eroe, dove la variante d'arma morde. Ognuno è una
+      **decisione di bilanciamento** — «la guardia regge» diventa «la guardia cede» — e va deciso se è il
+      gioco che è cambiato o lo scenario che era scritto per un mondo senza equipaggiamento. Il numero 33 è
+      un limite superiore misurato: quanti cadano davvero si sa solo eseguendo.
+
+      🔵 **Il bot non richiede un ramo suo.** `ARTGameMode::SpawnUnitForHero` è il punto unico d'ingresso
+      delle unità in partita ed è lì che si decide `bIsBotControlled`: equipaggiare in quel punto copre
+      entrambe le squadre **strutturalmente**. Un `if (bot)` sarebbe la forma in cui il difetto rientra.
+
+      🔵 **Una sola logica di equipaggiamento, non due.** Oggi l'harness la scrive per conto suo
+      (`RTScenarioSession`) e la partita non ce l'ha; scriverla una seconda volta lì renderebbe gli scenari
+      **non probanti sulla partita**, che è tutto il loro valore. Va su `ARTUnit`, che è il soggetto, e la
+      chiamano entrambi.
+
+      ⛔ **`Scenarios/RT_Showcase_Relay_v01.json` ESCLUSO: contesa esercitata, misurata.** `D:/rt-simulation`
+      lo ha modificato e non committato — **69 righe aggiunte** sul branch `feat/1038-t5-avvicinamento-e-t7`.
+      Misurato che **non è fra i 33** (zero usi dell'attacco base d'eroe), quindi l'esclusione non apre una
+      lacuna; se il corpus lo facesse cadere lo stesso, va **dichiarato** e non toccato.
+
+      Contese dichiarate ma **non** esercitate, verificate una per una: `frontend_shell` (ACTIVE) possiede
+      `RTGameMode.cpp` e ha 73 voci non committate, **nessuna** sul file; `spatial` (ACTIVE) possiede
+      `RTCatalogLibrary.h` e il suo branch non lo tocca; `unit_presentation` è IDLE su questo stesso
+      worktree. Nessun branch remoto tocca i bersagli.
+    writable:
+      - Source/RefactorTactics/Unit/RTUnit.h
+      - Source/RefactorTactics/Unit/RTUnit.cpp
+      - Source/RefactorTactics/RTGameMode.cpp
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+      - Source/RefactorTactics/Tests/RTHeroSpawnTests.cpp
+      - Source/RefactorTactics/Tests/RTEquipmentTests.cpp
+      # `integration_only`, preso in integrazione: i 33 scenari sono il lavoro di questa fetta.
+      - Scenarios/
+    excludes:
+      # Lavoro vivo di un'altra sessione, misurato — vedi la nota.
+      - Scenarios/RT_Showcase_Relay_v01.json
+    binary_leases: []
+
   reconcile_skill:
     status: ACTIVE
     issue: null
