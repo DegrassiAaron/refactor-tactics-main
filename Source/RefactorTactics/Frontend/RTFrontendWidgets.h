@@ -120,6 +120,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
 	void ShowFor(const FRTStartupNote& Note);
 
+	/**
+	 * Arma il modale **dal rapporto d'avvio**: prende il fatale se c'e', altrimenti non fa nulla.
+	 *
+	 * E' la forma che serve in gioco — chi mostra il modale ha in mano il rapporto del `GameMode`, non una
+	 * nota isolata — ed evita al chiamante di dover sapere *quale* delle note e' quella fatale. La regola
+	 * di quale lo sia vive in `IsFatal`, e resta li'.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	void ShowFromReport(const FRTStartupReport& Report);
+
+	/**
+	 * Arma il modale da un esito e un dettaglio.
+	 *
+	 * ⚠️ **Esiste perche' `FRTStartupNote` non e' costruibile da Blueprint**: i suoi campi sono
+	 * `BlueprintReadOnly` — di proposito, perche' una nota la produce chi rileva la condizione, non chi la
+	 * mostra — e questo rende il nodo `Make` inutilizzabile. Senza questa funzione il modale non sarebbe
+	 * armabile da un Blueprint, e quindi **non sarebbe provabile in PIE** finche' non esiste il codice che
+	 * lo arma davvero. Scoperto costruendo il widget, non previsto.
+	 *
+	 * Rifiuta gli esiti non fatali con la stessa regola di `ShowFor`.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	void ShowForOutcome(ERTStartupOutcome InOutcome, const FString& InDetail);
+
 	/** `true` quando il modale ha qualcosa da dire. Il Blueprint lo usa per mostrarsi. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
 	bool IsArmed() const { return Outcome != ERTStartupOutcome::Ok; }
