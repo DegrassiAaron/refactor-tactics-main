@@ -2248,6 +2248,11 @@ tracks:
     writable:
       - Source/RefactorTactics/Frontend/
       - Source/RefactorTactics/Tests/RTFrontendNavigationTests.cpp
+      # ➕ File **nuovo** di CP 46.2, dichiarato prima di crearlo: «non collide con nessuno» non e'
+      # un'esenzione, ed e' la stessa asimmetria che `autobattle` ha registrato per
+      # `RTMatchAutobattleTests.cpp`. Elencato **per nome** e non come prefisso `Tests/`, che e' conteso
+      # da quattro track.
+      - Source/RefactorTactics/Tests/RTStartupReportTests.cpp
       - docs/technical/spec-frontend-navigazione.md
       # ➕ **Entrano il 2026-08-16 con CP 46.2** (`#937`), e la richiesta è stata istruita invece che
       # data per scontata: lo spec panel aveva scritto *«va assegnato prima»* credendoli non assegnati,

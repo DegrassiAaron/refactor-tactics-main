@@ -1,0 +1,182 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
+#include "RTStartupReport.generated.h"
+
+/**
+ * La **fase** dell'allestimento, mentre il caricamento e' in corso.
+ *
+ * ⚠️ **Esiste perche' il DoD di CP 46.2 la chiedeva e nessuno la produceva.** Il DoD nominava tre
+ * messaggi — *«Loading map…», «Initializing scenario…», «Preparing bots…»* — e
+ * `grep -rn "Loading map\|Initializing scenario\|Preparing bots\|LoadingPhase" Source/` dava **zero**:
+ * tre stringhe scelte a mano nel widget sarebbero state tre **percentuali con un nome**, cioe' lo stesso
+ * dato inventato che il DoD vieta due righe sopra quando parla della barra di avanzamento.
+ *
+ * Qui la fase e' un **dato**: il widget la legge, non la compone.
+ */
+UENUM(BlueprintType)
+enum class ERTLoadPhase : uint8
+{
+	/** Nessun caricamento in corso. */
+	Idle,
+	/** Si sta costruendo la mappa esagonale (`ApplyMapSource`). */
+	Map,
+	/** Si stanno applicando formato e regole (`ApplyMatchFormat`). */
+	Scenario,
+	/** Si stanno schierando le unita' e i profili bot. */
+	Bots,
+	/** Allestimento concluso: la partita e' giocabile. */
+	Ready
+};
+
+/**
+ * L'esito dell'**avvio della partita**. Elenco **chiuso**, come `ERTNavResult` (CP 46.1) e come gli otto
+ * esiti del contratto del puntatore: se un avvio non produce uno di questi, il caso non e' descritto e si
+ * dichiara qui prima di scriverlo.
+ *
+ * ## Perche' un ottavo vocabolario, e perche' istruito prima di scrivere
+ *
+ * Il repository ne ha gia' **sette** — `ERTHexTargetReason`, `ERTActionInvalidReason`,
+ * `ERTHexWaypointReason`, `ERTDisplacementBlockReason`, `ERTMatchEndReason`, `ERTMoveOutcome`,
+ * `ERTNavResult` — e **nessuno copre l'avvio**. L'alternativa non era «nessun vocabolario»: era che il
+ * motivo nascesse come `FString` composta dentro il widget, e allora la UI sarebbe diventata la sorgente
+ * della spiegazione — una seconda autorita' su *perche'* qualcosa non e' partito, libera di divergere dal
+ * log. I valori qui sotto sono **misurati** su `RTGameMode.cpp`, uno per punto di uscita reale, non
+ * immaginati.
+ *
+ * ## La divisione che conta: fatale contro degradato
+ *
+ * Il DoD di CP 46.2 immaginava un mondo binario — o parte, o `SCENARIO COULD NOT START`. Il codice non si
+ * comporta cosi': misurati **21 `UE_LOG(Warning)` contro 8 `UE_LOG(Error)`**, e i due casi piu' frequenti
+ * dell'avvio sono **ripieghi silenziosi** che fanno partire una partita normale — l'arena di PROVA al
+ * posto della mappa d'autore, e il formato di RIPIEGO. Sono **le due riserve che tengono `G13` 🟡**.
+ *
+ * Da qui le due forme, e `IsFatal()` e' cio' che le separa:
+ *
+ * - **fatale** → la partita non e' allestita → **modale**, e il giocatore deve uscire;
+ * - **degradato** → la partita parte, ma non e' quella che si crede → **banner** persistente.
+ */
+UENUM(BlueprintType)
+enum class ERTStartupOutcome : uint8
+{
+	/** Allestita come dichiarato: mappa d'autore, formato dichiarato. Nessun banner. */
+	Ok,
+
+	// ── Fatali: `ApplyMatchFormat` restituisce `false` e la partita NON viene allestita ──────────────
+
+	/** Il `MatchFormat` assegnato non passa il proprio validator. Contenuto sbagliato: si rifiuta. */
+	FormatAssetInvalid,
+	/** Il formato **spedito** non e' valido: difetto di codice, non di dato. */
+	ShippedFormatInvalid,
+	/** Formato e mappa non combaciano (CP 19.1): un 3v3 su una mappa 2v2 non e' una partita piu' stretta. */
+	FormatMapMismatch,
+
+	// ── Degradati: la partita parte, ma non e' quella che si crede ──────────────────────────────────
+
+	/** `MapSource=GeneratedTestArena`: si gioca sulla mappa di PROVA. **Prima riserva di `G13`.** */
+	UsingTestArena,
+	/** `MapSource=GeneratedDemoArena`: arena di ripiego per scelta esplicita. */
+	UsingDemoArena,
+	/** La mappa del livello e' assente o **senza celle**: si ripiega sull'arena demo. */
+	LevelMapMissing,
+	/** Nessun formato assegnato ne' spedito: regole di ripiego. **Seconda riserva di `G13`.** */
+	UsingFallbackFormat,
+	/** Nessun `ARTTurnManager` nel livello: il formato non ha destinatario e non e' stato applicato. */
+	NoTurnManager
+};
+
+/**
+ * Una nota d'avvio: **la categoria** piu' il dettaglio gia' prodotto dal codice.
+ *
+ * ⚠️ Il `Detail` non e' il motivo — e' il suo *dettaglio*. Il motivo e' `Outcome`, ed e' quello che decide
+ * la forma (modale o banner) e che un test puo' asserire. `ResolveRules` e `ValidateAgainstMap` producono
+ * gia' quelle stringhe oggi: qui vengono **trasportate**, non ricomposte. E' lo stesso rapporto che il
+ * TurnLog ha fra un reason code e i suoi parametri.
+ */
+USTRUCT(BlueprintType)
+struct REFACTORTACTICS_API FRTStartupNote
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Frontend")
+	ERTStartupOutcome Outcome = ERTStartupOutcome::Ok;
+
+	/** Dettaglio leggibile, prodotto da chi ha rilevato la condizione. Puo' essere vuoto. */
+	UPROPERTY(BlueprintReadOnly, Category = "Frontend")
+	FString Detail;
+
+	FRTStartupNote() = default;
+	FRTStartupNote(ERTStartupOutcome InOutcome, FString InDetail = FString())
+		: Outcome(InOutcome), Detail(MoveTemp(InDetail))
+	{
+	}
+};
+
+/**
+ * Cosa e' successo all'avvio, in una forma che un widget puo' leggere **senza interpretare testo**.
+ *
+ * ⚠️ **Le note sono una LISTA, non una sola.** Un avvio accumula piu' ripieghi insieme, ed e' il caso
+ * reale delle due riserve di `G13`: arena di PROVA **e** formato di RIPIEGO nella stessa partita.
+ * Mostrarne uno solo nasconderebbe l'altro — e nasconderebbe proprio quello che il 2026-08-10 nessuno
+ * aveva visto guardando lo schermo.
+ */
+USTRUCT(BlueprintType)
+struct REFACTORTACTICS_API FRTStartupReport
+{
+	GENERATED_BODY()
+
+	/** Ogni condizione rilevata durante l'allestimento, nell'ordine in cui si e' presentata. */
+	UPROPERTY(BlueprintReadOnly, Category = "Frontend")
+	TArray<FRTStartupNote> Notes;
+
+	/** La fase raggiunta. `Ready` solo se l'allestimento e' arrivato in fondo. */
+	UPROPERTY(BlueprintReadOnly, Category = "Frontend")
+	ERTLoadPhase Phase = ERTLoadPhase::Idle;
+
+	void Add(ERTStartupOutcome Outcome, FString Detail = FString())
+	{
+		if (Outcome != ERTStartupOutcome::Ok)
+		{
+			Notes.Emplace(Outcome, MoveTemp(Detail));
+		}
+	}
+
+	void Reset()
+	{
+		Notes.Reset();
+		Phase = ERTLoadPhase::Idle;
+	}
+};
+
+/** Funzioni pure sugli esiti d'avvio. Nessuno stato: si possono provare senza mondo. */
+UCLASS()
+class REFACTORTACTICS_API URTStartupReportLibrary : public UBlueprintFunctionLibrary
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * `true` se l'esito **impedisce** la partita. E' la funzione che sceglie fra modale e banner, ed e' il
+	 * solo posto in cui quella divisione e' scritta: un widget che la ridecidesse sarebbe la seconda
+	 * autorita' che questo tipo esiste per evitare.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Frontend")
+	static bool IsFatal(ERTStartupOutcome Outcome);
+
+	/** `true` se la partita e' partita ma non e' quella dichiarata: e' il dominio del banner. */
+	UFUNCTION(BlueprintPure, Category = "Frontend")
+	static bool IsDegraded(ERTStartupOutcome Outcome);
+
+	/** L'esito fatale del report, `Ok` se non ce n'e' nessuno. Un avvio ne ha al massimo uno: si ferma li'. */
+	UFUNCTION(BlueprintPure, Category = "Frontend")
+	static ERTStartupOutcome FindFatal(const FRTStartupReport& Report);
+
+	/** `true` se il report porta almeno una condizione degradata da mostrare nel banner. */
+	UFUNCTION(BlueprintPure, Category = "Frontend")
+	static bool HasDegradation(const FRTStartupReport& Report);
+
+	/** Riga breve e leggibile per una nota: e' il **testo del banner**, e nasce qui, non nel widget. */
+	UFUNCTION(BlueprintPure, Category = "Frontend")
+	static FText DescribeOutcome(ERTStartupOutcome Outcome);
+};
