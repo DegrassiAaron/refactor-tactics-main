@@ -439,11 +439,19 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
   test, `Action.Guard` in **4** e **4**, `Action.Activate` in **1** e **1**. La nuova tassonomia è **semantica
   di gameplay**, non un rename immediato: cancellarli in una PR documentale romperebbe test e replay. La
   migrazione è tracciata come issue, con Stable ID/replay safety e validator come requisiti.
-- **D-016 e `Vektor.InterceptShot`**: oggi l'azione è a catalogo con `ERTActionSlot::None` e **nessun trigger**,
-  con il rinvio a **E14** dichiarato *nei dati* (`RTHeroCatalogLibrary.cpp`) perché il suo trigger è d'ingresso
-  su movimento. Trattarla come **Predictive Action** precommitted la **sgancia da E14**: non le serve una
-  finestra interattiva, le serve un boundary deterministico. È una semplificazione, non uno scope creep — ma
-  resta una **migrazione di classificazione** da tracciare, non da fare in una PR documentale.
+- **D-016 e `Vektor.InterceptShot`** (2026-08-08): al momento della nota l'azione era a catalogo con
+  `ERTActionSlot::None` e **nessun trigger**, con il rinvio a **E14** dichiarato *nei dati*
+  (`RTHeroCatalogLibrary.cpp`) perché il suo trigger è d'ingresso su movimento. Trattarla come **Predictive
+  Action** precommitted la **sgancia da E14**: non le serve una finestra interattiva, le serve un boundary
+  deterministico. È una semplificazione, non uno scope creep — ma restava una **migrazione di
+  classificazione** da tracciare, non da fare in una PR documentale.
+  > ✅ **Eseguita il 2026-08-10** (E18 CP 18.2). Misurato su `RTHeroCatalogLibrary.cpp`: l'azione è
+  > `Hero.Wraith.InterceptShot`, lo slot è tornato **`Main`**, e i due campi che la rendono predittiva stanno
+  > **nei dati** e non in un ramo del resolver — `PredictiveTargeting = LockCell`,
+  > `PredictionBoundary = MovementEntry`. L'header lo dichiara: *«non e' piu' una reazione»*.
+  > ⚠️ **La parola «oggi» di questa nota valeva il 2026-08-08 e non lo diceva**, ed è così che è
+  > sopravvissuta sei giorni alla propria scadenza. Chi la leggeva trovava una migrazione «da fare» che era
+  > già fatta. Il difetto non è nel contenuto: è in un avverbio temporale senza data accanto.
 - **D-001…D-008**: trascritti verbatim dallo snapshot `RT_PDR_00_Indice_Governance_v0.1.pdf` (pag. 3), rimosso
   il 2026-08-12 insieme agli altri dodici PDF del corpus — il testo integrale è ora in
   [`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md), sezione PDR-00. Questa
