@@ -188,7 +188,7 @@ namespace
 	{
 		static const TSet<FString> KnownUnavailable = {
 			// ➖ `DecisionBoundary` e' USCITA da qui con `#512` fase B ed e' fra le disponibili, sopra.
-			TEXT("ReactionClash"),
+			TEXT("ReactionClash"),            // owner: #314
 			// ➕ **`ReactionProfile` entra con `#512` fase B, e non e' un nome nuovo inventato per comodita':
 			// e' il blocco VERO di `Spec/Brace/ProfileChangesResponse`, che fino a oggi ne dichiarava uno
 			// falso.** Quello scenario chiedeva `DecisionBoundary` scrivendo, nella propria nota, che «con la
@@ -204,18 +204,27 @@ namespace
 			//
 			// L'owner e' **E14.7 (`#314`)**, che porta `Reaction Profile` e `Reaction Clash` insieme. Chi la
 			// chiude sposta ENTRAMBI i nomi, non solo questo.
-			TEXT("ReactionProfile"),
-			TEXT("InterceptRevalidation"),
-			TEXT("Objective"),
-			TEXT("Perception"),
+			TEXT("ReactionProfile"),          // owner: #314
+			// 🔵 **`owner:` e' chi la SPOSTERA' fra le disponibili, non chi ha scritto la feature**, e questa
+			// riga e' il caso che ha costretto a distinguerlo. La feature esiste ed e' chiusa — `#200`,
+			// rivalidazione della geometria sul bersaglio effettivo (D-017), CLOSED 4/4, con tre test che la
+			// pinnano (`Cover.InterceptRecalculatesOnEffectiveTarget`, `...RevalidatesFacingOnEffectiveTarget`,
+			// `...DoesNotOpenSecondOpportunity`). Cio' che manca e' lo spostamento, e lo deve fare `#170`
+			// insieme al contenuto del T6 dello showcase: scoprirla da sola farebbe passare un turno con
+			// `intents: []`, cioe' il verde bugiardo che `#512` fase B ha speso un giro a impedire.
+			// ⚠️ Con `owner: #200` questa riga era il difetto che `check-capability-owners.py --online` esiste
+			// per trovare: dichiarata non disponibile con l'owner CHIUSO. Il gate l'ha trovata al primo giro.
+			TEXT("InterceptRevalidation"),    // owner: #170
+			TEXT("Objective"),                // owner: #75
+			TEXT("Perception"),               // owner: #151
 			// Le tre che la prosa non nominava, chieste da `Spec/Movement/`: `SpatialTrigger` (tripwire che
 			// scatta attraversando un bordo), `SemanticTrigger` (trigger che distingue Dash da Move) e
 			// `Teleport` (spostamento che non attraversa le celle intermedie). Restano fuori per lo stesso
 			// criterio delle altre — nessun produttore in partita — e sono documentate in
 			// `docs/roadmap/scenariomap.shortlist.md`, che le elenca accanto agli scenari che le chiedono.
-			TEXT("SpatialTrigger"),
-			TEXT("SemanticTrigger"),
-			TEXT("Teleport"),
+			TEXT("SpatialTrigger"),           // owner: #704
+			TEXT("SemanticTrigger"),          // owner: #704
+			TEXT("Teleport"),                 // owner: #704
 			// 🔒 RISERVATA AI TEST, e non diventera' MAI disponibile. Non e' una feature: e' il veicolo con cui
 			// `BlockedFirstTurnStaysBlocked` prova che un turno bloccato batte le assertion finali.
 			//
@@ -228,7 +237,7 @@ namespace
 			//
 			// ⚠️ Non spostarla fra le disponibili per nessun motivo: `AvailableCapabilities()` e' l'insieme di
 			// cio' che il gioco sa fare, e questo nome non e' niente.
-			TEXT("NeverAvailable"),
+			TEXT("NeverAvailable"),           // owner: none
 		};
 		// Le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato completato con `#582`:
 		// prima ne nominava due — e una capability che nessuno documenta produce un `BLOCKED` senza
