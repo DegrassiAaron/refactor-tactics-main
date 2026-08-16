@@ -1568,8 +1568,29 @@ tracks:
     binary_leases: []
 
   simulation:
-    status: ACTIVE
-    issue: 512
+    status: IDLE
+    issue: null
+    # ✅ **Torna IDLE il 2026-08-16: la fase A di `#512` è atterrata con la PR #1016 (`fa1c6bdf`).**
+    # `issue: null` significa *«nessuna sessione ci sta lavorando»*, **non** *«non c'è più niente da
+    # fare»*: `#512` resta **OPEN** per la sola fase B — la voce 5 del DoD, scoprire `DecisionBoundary`.
+    # Chi la riprende riattiva la track.
+    # ✅ **Il write-set torna libero**: `ScenarioHarness/`, i due file di test e i due documenti di piano
+    # sono in `main` e oggi non sono di nessuno. Con essi escono i due `derives_from`, perché una vista
+    # segue la sorgente.
+    # ⚠️ **Perché la fase B non è stata fatta, misurato invece che previsto**: spostando
+    # `DecisionBoundary` fra le disponibili, `RT_Showcase_Relay_v01` arriva a **cinque** turni invece di
+    # tre e cadono `Scenario.ShowcaseRelayV01RunsTurnOne` e
+    # `Scenario.UnknownCapabilityIsErrorNotBlocked` — quest'ultimo usa proprio quella capability come
+    # esempio di «nota ma non disponibile». Gli scenari che la chiedono hanno **zero** `decisions`: si
+    # scopre insieme ai dati.
+    # ⚠️ **Due gate del registry erano rossi su `main` mentre questa track lavorava, e non erano suoi**:
+    # `generate --check` e `shortlist --check`, per una voce `PIE-V01-PLAYSPEED` di `test-manuali-pie.md`
+    # (track `playtest`). Misurato in un worktree isolato su `origin/main` puro, dichiarato nella PR, non
+    # corretto — una vista la rigenera chi possiede la sorgente. Al merge erano già verdi.
+    # ⛔ **Un file è rimasto STOP e va detto qui**: `docs/technical/test-automatico-unreal.md` documenta lo
+    # schema dello scenario, che ora è indietro di una versione (`2`) e di una chiave di turno
+    # (`decisions`). Non è nel `writable` di questa track e non è stato toccato.
+    # ---
     # ➕ **Riattivata il 2026-08-16 su `#512` (CP 15.3 metà B).** I commenti qui sotto restano come
     # registro dei due giri precedenti — `#578` e `#926`, entrambe chiuse — e non descrivono più lo
     # stato: il motivo della riattivazione sta in coda alla `note`, dove si può misurare.
@@ -1890,17 +1911,8 @@ tracks:
       criterio del referto — **file e non cartella**: `docs/roadmap/plans/` è scritta adesso da quattro
       branch remoti e da un worktree con un referto *untracked*. Misurato che il nome non esiste e che
       nessuno lo tocca.
-    writable:
-      - Source/RefactorTactics/ScenarioHarness/
-      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
-      - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
-      - docs/roadmap/plans/cp153b-decision-provider-design-2026-08-16.md
-      - docs/roadmap/plans/cp153b-decision-provider-plan-2026-08-16.md
-    derives_from:
-      - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-        regenerates:
-          - docs/roadmap/project-graph.json
-          - docs/roadmap/scenariomap.shortlist.md
+    writable: []
+    derives_from: []
 
   client_tools:
     status: IDLE
