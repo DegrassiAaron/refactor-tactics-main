@@ -7,6 +7,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Frontend/RTStartupReport.h"
+#include "Frontend/RTFrontendWidgets.h"
 #include "RTWorldFixtures.h"
 #include "RTGameMode.h"
 #include "Map/RTHexMapActor.h"
@@ -423,6 +424,162 @@ bool FRTStartupSecondSetupResetsTest::RunTest(const FString&)
 	// questo test difende.
 	TestTrue(TEXT("il secondo NON accumula sopra il primo"),
 		GameMode->GetStartupReport().Notes.Num() <= FirstCount);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Le CLASSI BASE dei widget. Provano la superficie: cosa un Blueprint puo' leggere, e cosa non trova
+// perche' non esiste. Il layout sta nel `.uasset` e resta a `PIE-V01-FRONTEND-ERROR`, per costruzione.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * La schermata d'attesa **si spegne da sola** su `Idle` e su `Ready`.
+ *
+ * `IsLoading()` e' la condizione con cui il Blueprint si mostra: se fosse vera anche a `Ready`, la
+ * schermata di caricamento resterebbe sopra la partita — il dead-end piu' banale e piu' facile da
+ * introdurre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLoadingWidgetHidesWhenIdleOrReadyTest,
+	"RefactorTactics.Frontend.LoadingScreenIsSilentWhenThereIsNoWait",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLoadingWidgetHidesWhenIdleOrReadyTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTLoadingScreenWidgetBase* Widget = NewObject<URTLoadingScreenWidgetBase>(World);
+	if (!TestNotNull(TEXT("widget"), Widget)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	TestFalse(TEXT("appena costruito non sta caricando"), Widget->IsLoading());
+	TestTrue(TEXT("e non ha niente da dire"), Widget->GetPhaseText().IsEmpty());
+
+	Widget->SetPhase(ERTLoadPhase::Map);
+	TestTrue(TEXT("durante la mappa sta caricando"), Widget->IsLoading());
+	TestFalse(TEXT("e ha una riga"), Widget->GetPhaseText().IsEmpty());
+
+	Widget->SetPhase(ERTLoadPhase::Ready);
+	TestFalse(TEXT("a partita pronta si spegne"), Widget->IsLoading());
+	TestTrue(TEXT("e torna muto"), Widget->GetPhaseText().IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Ogni fase d'attesa ha una riga, e le due fasi che **non** sono attese non ce l'hanno.
+ *
+ * E' la stessa proprieta' di `EveryOutcomeHasReadableText` applicata alle fasi: un widget che ricevesse
+ * una fase senza testo mostrerebbe una schermata vuota, che e' peggio di nessuna schermata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLoadingWidgetHasTextForEveryWaitTest,
+	"RefactorTactics.Frontend.EveryWaitingPhaseHasText",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLoadingWidgetHasTextForEveryWaitTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTLoadingScreenWidgetBase* Widget = NewObject<URTLoadingScreenWidgetBase>(World);
+	if (!TestNotNull(TEXT("widget"), Widget)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	const ERTLoadPhase Waiting[] = { ERTLoadPhase::Map, ERTLoadPhase::Scenario, ERTLoadPhase::Bots };
+	for (const ERTLoadPhase Phase : Waiting)
+	{
+		Widget->SetPhase(Phase);
+		if (!TestFalse(*FString::Printf(TEXT("la fase %d ha un testo"), (int32)Phase),
+			Widget->GetPhaseText().IsEmpty()))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+	}
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Il modale rifiuta di armarsi su un ripiego.**
+ *
+ * E' il difetto del DoD originale reso impossibile: un modale che dicesse «non si e' potuto partire»
+ * sopra una partita che sta girando. Il filtro vive nella classe base, non nel Blueprint — un Blueprint
+ * puo' dimenticarlo, una firma no.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTErrorModalRefusesDegradationTest,
+	"RefactorTactics.Frontend.ErrorModalOnlyArmsOnFatal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTErrorModalRefusesDegradationTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTErrorModalWidgetBase* Modal = NewObject<URTErrorModalWidgetBase>(World);
+	if (!TestNotNull(TEXT("widget"), Modal)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	TestFalse(TEXT("nasce disarmato"), Modal->IsArmed());
+
+	// Un ripiego non lo arma.
+	Modal->ShowFor(FRTStartupNote(ERTStartupOutcome::UsingTestArena, TEXT("120 celle")));
+	TestFalse(TEXT("un ripiego NON arma il modale"), Modal->IsArmed());
+	TestTrue(TEXT("e non lascia una causa"), Modal->GetReasonText().IsEmpty());
+
+	// Un fatale si'.
+	Modal->ShowFor(FRTStartupNote(ERTStartupOutcome::FormatMapMismatch, TEXT("Standard su mappa 2v2")));
+	TestTrue(TEXT("un fatale lo arma"), Modal->IsArmed());
+	TestEqual(TEXT("con l'esito giusto"), Modal->GetOutcome(), ERTStartupOutcome::FormatMapMismatch);
+	TestFalse(TEXT("e una causa leggibile"), Modal->GetReasonText().IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Il banner elenca tutte le degradazioni e nessun fatale.**
+ *
+ * Le due meta' della stessa regola: mostrarne una sola nasconderebbe l'altra, e mostrare un fatale
+ * significherebbe disegnare un banner sopra una partita che non esiste.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBannerListsEveryDegradationTest,
+	"RefactorTactics.Frontend.BannerListsEveryDegradationAndNoFatal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBannerListsEveryDegradationTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTFallbackBannerWidgetBase* Banner = NewObject<URTFallbackBannerWidgetBase>(World);
+	if (!TestNotNull(TEXT("widget"), Banner)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	FRTStartupReport Report;
+	Banner->SetFromReport(Report);
+	TestFalse(TEXT("un report pulito non accende il banner"), Banner->HasAnything());
+
+	Report.Add(ERTStartupOutcome::UsingTestArena, TEXT("120 celle"));
+	Report.Add(ERTStartupOutcome::NoTurnManager, TEXT("Format.Skirmish2v2"));
+	Report.Add(ERTStartupOutcome::FormatMapMismatch, TEXT("non deve comparire"));
+
+	Banner->SetFromReport(Report);
+
+	TestTrue(TEXT("il banner si accende"), Banner->HasAnything());
+	TestEqual(TEXT("DUE righe: i due ripieghi, non il fatale"), Banner->GetLines().Num(), 2);
+
+	// Il fatale non deve comparire fra le righe.
+	for (const FText& Line : Banner->GetLines())
+	{
+		if (!TestFalse(TEXT("nessuna riga viene dal fatale"),
+			Line.ToString().Contains(TEXT("non deve comparire"))))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+	}
+
+	// Un secondo riempimento sostituisce, non accumula: e' lo stesso difetto del `Reset()` del report,
+	// un gradino piu' in la'.
+	Banner->SetFromReport(Report);
+	TestEqual(TEXT("ancora due righe, non quattro"), Banner->GetLines().Num(), 2);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
