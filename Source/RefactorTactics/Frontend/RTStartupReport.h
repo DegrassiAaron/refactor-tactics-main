@@ -74,13 +74,25 @@ enum class ERTStartupOutcome : uint8
 
 	// ── Degradati: la partita parte, ma non e' quella che si crede ──────────────────────────────────
 
-	/** `MapSource=GeneratedTestArena`: si gioca sulla mappa di PROVA. **Prima riserva di `G13`.** */
+	/**
+	 * `MapSource=GeneratedTestArena`: si gioca sulla mappa di PROVA.
+	 *
+	 * ✅ E' **la prima riserva di `G13`** — *«la partita gira su `MapSource=GeneratedTestArena`, l'arena di
+	 * test, non un livello di gioco»* — e finora esisteva solo in una riga di log.
+	 */
 	UsingTestArena,
 	/** `MapSource=GeneratedDemoArena`: arena di ripiego per scelta esplicita. */
 	UsingDemoArena,
 	/** La mappa del livello e' assente o **senza celle**: si ripiega sull'arena demo. */
 	LevelMapMissing,
-	/** Nessun formato assegnato ne' spedito: regole di ripiego. **Seconda riserva di `G13`.** */
+	/**
+	 * Nessun formato assegnato **ne' spedito**: regole di ripiego.
+	 *
+	 * ⚠️ **Ramo raro**: `Format.Skirmish2v2` e' spedito da C++ (`9f44570d`), quindi in una build normale
+	 * non ci si arriva. 🔴 Una stesura precedente lo chiamava «seconda riserva di `G13`»: **falso**. La
+	 * seconda riserva e' *«la via a punti non e' mai stata esercitata, perche' la soglia obiettivo e' 0»*,
+	 * cioe' un **valore** del formato in vigore — non il ripiego del formato. Trovato da un test rosso.
+	 */
 	UsingFallbackFormat,
 	/** Nessun `ARTTurnManager` nel livello: il formato non ha destinatario e non e' stato applicato. */
 	NoTurnManager
@@ -116,10 +128,11 @@ struct REFACTORTACTICS_API FRTStartupNote
 /**
  * Cosa e' successo all'avvio, in una forma che un widget puo' leggere **senza interpretare testo**.
  *
- * ⚠️ **Le note sono una LISTA, non una sola.** Un avvio accumula piu' ripieghi insieme, ed e' il caso
- * reale delle due riserve di `G13`: arena di PROVA **e** formato di RIPIEGO nella stessa partita.
- * Mostrarne uno solo nasconderebbe l'altro — e nasconderebbe proprio quello che il 2026-08-10 nessuno
- * aveva visto guardando lo schermo.
+ * ⚠️ **Le note sono una LISTA, non una sola.** Un avvio accumula piu' condizioni insieme — mappa di
+ * ripiego **e** nessun `TurnManager`, per esempio, che e' il caso provato end-to-end da
+ * `BothFallbacksAreReportedTogether`. Mostrarne una sola nasconderebbe l'altra, ed e' il modo esatto in
+ * cui queste cose sono rimaste invisibili finora: due righe di log **separate**, nessuna delle quali
+ * qualcuno aveva motivo di andare a cercare.
  */
 USTRUCT(BlueprintType)
 struct REFACTORTACTICS_API FRTStartupReport

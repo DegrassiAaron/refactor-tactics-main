@@ -7,6 +7,10 @@
 
 #include "Misc/AutomationTest.h"
 #include "Frontend/RTStartupReport.h"
+#include "RTWorldFixtures.h"
+#include "RTGameMode.h"
+#include "Map/RTHexMapActor.h"
+#include "Engine/World.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -247,6 +251,180 @@ bool FRTLoadPhaseOrderTest::RunTest(const FString&)
 	TestEqual(TEXT("e Reset lo riporta a Idle"), Report.Phase, ERTLoadPhase::Idle);
 	TestEqual(TEXT("svuotando le note"), Report.Notes.Num(), 0);
 
+	return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Il PRODUTTORE. I test qui sopra provano il vocabolario; questi provano che qualcuno lo riempia —
+// che e' la meta' che il repository ha gia' pagato piu' volte: un dato dichiarato, trasportato e
+// mai prodotto.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * **Un GameMode appena costruito non dichiara niente.**
+ *
+ * Il rapporto nasce vuoto e in `Idle`: se nascesse `Ready`, o con una nota, il banner comparirebbe prima
+ * che l'allestimento sia successo — cioe' mentirebbe nel verso peggiore, quello che fa perdere tempo a
+ * cercare una causa che non c'e'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupGameModeStartsSilentTest,
+	"RefactorTactics.Startup.FreshGameModeReportsNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupGameModeStartsSilentTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("game mode"), GameMode)) { RTWorldFixtures::DestroyWorld(World); return false; }
+
+	const FRTStartupReport& Report = GameMode->GetStartupReport();
+	TestEqual(TEXT("nessuna nota"), Report.Notes.Num(), 0);
+	TestEqual(TEXT("fase Idle"), Report.Phase, ERTLoadPhase::Idle);
+	TestFalse(TEXT("niente banner"), URTStartupReportLibrary::HasDegradation(Report));
+	TestEqual(TEXT("niente modale"),
+		URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::Ok);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Due ripieghi nella stessa partita, entrambi dichiarati.**
+ *
+ * E' la proprieta' per cui le note sono una **lista**: un allestimento accumula condizioni, e mostrarne
+ * una sola nasconderebbe l'altra. Qui la coppia e' *mappa assente* + *nessun TurnManager*, entrambe
+ * raggiunte davvero da `SetupHexMatch` in un mondo di prova.
+ *
+ * 🔴 **La prima stesura di questo test usava una coppia diversa e la premessa era falsa**: credevo che
+ * senza `MatchFormat` si arrivasse al **formato di ripiego**, e il test lo asseriva. Non ci si arriva —
+ * `FindShippedFormat` trova `Format.Skirmish2v2`, **spedito da C++** dal commit `9f44570d`, quindi il
+ * ramo `UsingFallbackFormat` richiede *anche* che non esista un formato spedito. Il test rosso l'ha
+ * detto; la premessa era plausibile e sbagliata.
+ *
+ * ⚠️ Questo test non passa per l'HUD: prova che il **dato** esista. Che il banner lo disegni e' di
+ * `PIE-V01-FRONTEND-ERROR`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupReportsBothG13ReservesTest,
+	"RefactorTactics.Startup.BothFallbacksAreReportedTogether",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupReportsBothG13ReservesTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("game mode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Mappa senza asset -> ripiego sull'arena demo. E nel mondo di prova non c'e' nessun `ARTTurnManager`,
+	// quindi il formato risolve ma non ha destinatario: due condizioni distinte, entrambe reali.
+	HexMap->MapAsset = nullptr;
+
+	GameMode->SetupHexMatch(HexMap);
+
+	const FRTStartupReport& Report = GameMode->GetStartupReport();
+
+	TestTrue(TEXT("il banner ha qualcosa da dire"), URTStartupReportLibrary::HasDegradation(Report));
+	TestEqual(TEXT("ma la partita e' partita: nessun fatale"),
+		URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::Ok);
+
+	// Le DUE condizioni, non una. E' il punto del test.
+	bool bMapFallback = false;
+	bool bNoTurnManager = false;
+	for (const FRTStartupNote& Note : Report.Notes)
+	{
+		bMapFallback |= (Note.Outcome == ERTStartupOutcome::LevelMapMissing
+			|| Note.Outcome == ERTStartupOutcome::UsingTestArena
+			|| Note.Outcome == ERTStartupOutcome::UsingDemoArena);
+		bNoTurnManager |= (Note.Outcome == ERTStartupOutcome::NoTurnManager);
+	}
+
+	TestTrue(TEXT("il ripiego di MAPPA e' dichiarato"), bMapFallback);
+	TestTrue(TEXT("e anche l'assenza del TurnManager"), bNoTurnManager);
+	TestTrue(TEXT("due note distinte, non una"), Report.Notes.Num() >= 2);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Le fasi avanzano, e `Ready` non significa «senza problemi».**
+ *
+ * E' la distinzione che rende il rapporto utile: un allestimento puo' arrivare in fondo **e** portare due
+ * ripieghi. Se `Ready` implicasse «tutto a posto», il banner non avrebbe motivo di esistere proprio nel
+ * caso per cui e' stato costruito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupPhaseReachesReadyWithNotesTest,
+	"RefactorTactics.Startup.ReadyDoesNotMeanClean",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupPhaseReachesReadyWithNotesTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("game mode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	HexMap->MapAsset = nullptr;
+	GameMode->SetupHexMatch(HexMap);
+
+	const FRTStartupReport& Report = GameMode->GetStartupReport();
+
+	TestEqual(TEXT("l'allestimento e' arrivato in fondo"), Report.Phase, ERTLoadPhase::Ready);
+	TestTrue(TEXT("**e** porta condizioni degradate"), URTStartupReportLibrary::HasDegradation(Report));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Un secondo allestimento non eredita le note del primo.**
+ *
+ * `Play Again` ripercorre `SetupHexMatch` nella stessa sessione: senza il reset, il banner mostrerebbe
+ * condizioni della partita precedente — che e' un dato falso con l'aria di essere aggiornato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupSecondSetupResetsTest,
+	"RefactorTactics.Startup.SecondSetupDoesNotInheritNotes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupSecondSetupResetsTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("game mode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	HexMap->MapAsset = nullptr;
+	GameMode->SetupHexMatch(HexMap);
+	const int32 FirstCount = GameMode->GetStartupReport().Notes.Num();
+	TestTrue(TEXT("il primo allestimento ha prodotto note"), FirstCount > 0);
+
+	GameMode->SetupHexMatch(HexMap);
+
+	// ⚠️ **Si asserisce «non accumula», non «stesso numero»**, e la differenza l'ha trovata il test rosso:
+	// la prima chiamata **crea** l'arena di ripiego e la lascia su `HexMap->MapAsset`, quindi la seconda
+	// trova una mappa valida e non ripiega piu'. Il conteggio *deve* scendere — pretendere che resti
+	// uguale sarebbe asserire che il mondo non cambia fra due allestimenti, che e' falso e non e' cio' che
+	// questo test difende.
+	TestTrue(TEXT("il secondo NON accumula sopra il primo"),
+		GameMode->GetStartupReport().Notes.Num() <= FirstCount);
+
+	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 
