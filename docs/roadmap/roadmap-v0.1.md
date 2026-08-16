@@ -118,32 +118,32 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**701 test unici in 95 file** — misurati su `fc99e46`.
+**875 test unici in 107 file** — misurati su `732d797c`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
-| `Hex*` (mappa, path, vision, bot, blast, move, match) | 99 | Coordinate, A\*, LOS, bot, partita completa |
+| `Hex*` (mappa, path, vision, bot, blast, move, match) | 126 | Coordinate, A\*, LOS, bot, partita completa |
 | `Actions.*` | 71 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
-| `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
-| `Combat.*` · `HexCombat.*` | 39 | Danno dopo scudo, forme, LOS, niente fuoco amico |
-| `Reactions.*` | 30 | Attivazione singola, trigger puro, reazioni componibili, privacy |
-| `HexSim.*` | 28 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
-| `Match*` (allestimento, formato, fine partita) | 32 | Le tre vie di fine partita e il `RoundLimit` da formato |
-| `Heroes.*` | 32 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
-| `TurnLog.*` | 48 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Scenario.*` · `ScenarioIndex.*` | 56 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
-| `Structures.*` | 21 | Porte come bordo (E9.3), ponti come arco (E9.4) |
-| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 24 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 27 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Terrain.*` · `Status.*` · `Environment.*` | 41 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
+| `Combat.*` · `HexCombat.*` | 40 | Danno dopo scudo, forme, LOS, niente fuoco amico |
+| `Reactions.*` | 34 | Attivazione singola, trigger puro, reazioni componibili, privacy |
+| `HexSim.*` | 33 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
+| `Match*` (allestimento, formato, fine partita) | 33 | Le tre vie di fine partita e il `RoundLimit` da formato |
+| `Heroes.*` | 34 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
+| `TurnLog.*` | 49 | Hash permutazione-invariante, serializzazione versionata, checksum |
+| `Scenario.*` · `ScenarioIndex.*` | 66 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
+| `Structures.*` | 26 | Porte come bordo (E9.3), ponti come arco (E9.4) |
+| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 49 | Presentazione e input: non decidono, riproducono |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 29 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
 | `Cover.*` | 20 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
-| `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
+| `Catalog.*` | 8 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
-| `Perf.*` | 3 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **585** | |
+| `Perf.*` | 4 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
+| **totale** | **670** | |
 
-> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.ArenaV01MeetsAllThreeCriteria`, `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`, `RefactorTactics.Arena.VerdictIsIndependentOfCellOrder`, `RefactorTactics.Door.ChangeCarriesActor`
+> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.ArenaV01MeetsAllThreeCriteria`, `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.RemovingTheOnlyTransitionIsolatesThePlatform`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`
 <!-- RT_SUITE_COUNT:END -->
 
 > Questo numero è già stato sbagliato quattro volte, e la storia vale più della cifra: due viste sono arrivate
@@ -261,7 +261,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | IMPLEMENTING | 1/8 |
 |  | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | IMPLEMENTING | 1/7 |
-|  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 1/6 |
+|  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 2/6 |
 |  | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse — completata da `RT-FEAT-UI-CERTAINTY` | IMPLEMENTING | 3/7 |
 | **E12** | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | INTEGRATED | 6/8 |
 |  | `RT-FEAT-CORE-TURNLOG` — TurnLog, reason code, hash e replay | RELEASE_READY | 7/8 |
@@ -277,10 +277,10 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/9 |
 |  | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | SPECIFIED | 1/10 |
 |  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/10 |
-|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/10 |
+|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | TESTABLE | 5/10 |
 |  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/10 |
-|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 3/10 |
-|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | IMPLEMENTING | 2/10 |
+|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 4/10 |
+|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | TESTABLE | 5/10 |
 |  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/9 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
@@ -290,6 +290,8 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
+| **E47** | `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore — completata da `RT-FEAT-CORE-PLAYBACK`, `RT-FEAT-UI-BOARD-GRAMMAR` | DESIGNED | 0/8 |
+|  | `RT-FEAT-UI-BOARD-GRAMMAR` — Grammatica visiva della board — colore e forma, mai solo il colore | IMPLEMENTING | 0/7 |
 
 > ⚠️ **Feature con una release e senza epic** — lavoro dentro lo scope di una release che nessuna
 > epic copre e che nessuno ha dichiarato fuori scope.
@@ -1634,6 +1636,18 @@ quella track non rilascia: è scritto qui perché sia un vincolo e non una sorpr
 **Referto di provenienza**:
 [`plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md`](plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md)
 — 38 sezioni classificate, di cui **3 respinte come regressioni** e 4 come conflitti di modello.
+
+**Tracciata su GitHub** *(2026-08-16)*: epic [#952](https://github.com/DegrassiAaron/refactor-tactics-main/issues/952),
+con i sei checkpoint [#954](https://github.com/DegrassiAaron/refactor-tactics-main/issues/954),
+[#955](https://github.com/DegrassiAaron/refactor-tactics-main/issues/955),
+[#956](https://github.com/DegrassiAaron/refactor-tactics-main/issues/956),
+[#957](https://github.com/DegrassiAaron/refactor-tactics-main/issues/957),
+[#958](https://github.com/DegrassiAaron/refactor-tactics-main/issues/958) e
+[#959](https://github.com/DegrassiAaron/refactor-tactics-main/issues/959) collegati come **sub-issue**.
+Non entra in [`v0.1-issue-plan.md`](v0.1-issue-plan.md), che è uno snapshot `HISTORICAL` delle 72 issue
+`#14`–`#85`: come per **E21**, il numero si legge da questa riga —
+`test_feature_registry_roadmap_map.py` lo pretende, e la prima stesura di questa sezione lo aveva
+dimenticato. La domanda aperta sul seed è [#960](https://github.com/DegrassiAaron/refactor-tactics-main/issues/960).
 
 ---
 
