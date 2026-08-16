@@ -3874,8 +3874,8 @@ tracks:
 
   replay_ui:
     status: ACTIVE
-    issue: 625              # più #472, ombrello di R6, in attesa dei suoi `.uasset`
-    branch: feat/625-hazard-turnlog
+    issue: 472              # l'ombrello di R6, tornato in primo piano: #625 e #999 sono chiuse
+    branch: feat/472-flusso-due-schermate
     worktree: "D:/rt-client"
     note: >-
       **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
@@ -3988,7 +3988,37 @@ tracks:
           # senza saperlo, cioe' un conflitto che si scopre al merge.
           - docs/roadmap/roadmap.shortlist.md
         shared_with: [integrazione]
-    binary_leases: []
+    binary_leases:
+      # ➕ **Le due schermate del replay** (`#472`), prenotate **prima** che qualcuno le salvi — che e'
+      # l'ordine giusto, e non quello seguito per la lease dei widget del frontend, emessa a lavoro
+      # cominciato. Qui il ritardo non si ripete perche' il C++ e' pronto e il lavoro d'editor non e'
+      # ancora partito.
+      # ⚠️ **Lease PROPRIA e non un'estensione di `BINARY-GH937-FRONTEND-WIDGETS`**: quella e' di
+      # `frontend_shell` su `#937`, e le lease *«vivono solo dentro la track»* perche' l'invariante e'
+      # definita per track. Due issue, due proprietari, due lease — anche se in pratica le esegue la
+      # stessa persona nella stessa apertura di editor (seduta **U24**), che e' un fatto di calendario e
+      # non di ownership.
+      # ⚠️ La cartella `Content/RT/UI/Framework/` esiste gia' — l'ha creata il primo widget del frontend —
+      # quindi qui `create` prenota **solo i due nomi**.
+      - key: "BINARY-GH472-REPLAY-SCREENS"
+        issue: 472
+        base_sha: "10c01335ba41cdcf0efd8f3da348498a747473d3"
+        operation: create
+        paths:
+          - Content/RT/UI/Framework/WBP_RT_MatchHistory.uasset
+          - Content/RT/UI/Framework/WBP_RT_ReplayViewer.uasset
+        verification:
+          - load_in_editor
+          - save_without_errors
+          # ⚠️ La verifica che conta non e' che si aprano: e' che il **passaggio del dato** funzioni a
+          # schermo come lo prova `TheTwoScreensHandOffThroughTheSubsystem` senza widget — si sceglie una
+          # riga dalla lista e il viewer mostra QUELLA partita. Il `MatchId` non viaggia nel `PushScreen`,
+          # che porta un `FName` e basta: viaggia perche' la lista **apre** l'archivio sul subsystem prima
+          # di spingere la schermata. Un widget che invertisse i due passi aprirebbe il viewer sul vuoto.
+          - list_selection_opens_that_match
+          # ⛔ E l'invariante 1 di CP 46.1, che un `.uasset` e' l'unico posto dove puo' rientrare senza che
+          # un test se ne accorga.
+          - no_widget_creates_widgets
 
   playback:
     status: ACTIVE
