@@ -410,21 +410,220 @@ bool FRTChecksumSeesStructureIdentityTest::RunTest(const FString&)
 
 	// 5. Gli ARCHI, non le sole porte: lo scope di #832 dice «archi e non solo porte, sono lo stesso
 	//    problema di identita'». Un ponte nominato e uno anonimo non sono lo stesso stato di mappa.
+	//
+	//    ⚠️ L'arco ATTRAVERSA I LIVELLI, e non e' un dettaglio di comodo: `(0,0) -> (1,0)` sullo stesso
+	//    layer e' classificato **ridondante** dalla validazione dell'asset (`RTHexMapAsset.cpp:461`),
+	//    perche' le due celle sono gia' adiacenti. Una prima stesura di questo caso usava proprio quella
+	//    forma, cioe' pinnava una geometria che una mappa valida non contiene; i ponti di CP 9.4
+	//    attraversano i livelli, ed e' quella la forma da difendere.
 	{
-		URTHexMapAsset* ArcoAnonimo = MakeStateHashMap();
-		FRTHexEdge Arco;
-		Arco.From = FRTCellId(0, 0);
-		Arco.To = FRTCellId(1, 0);
-		ArcoAnonimo->Transitions.Add(Arco);
-
-		URTHexMapAsset* ArcoNominato = MakeStateHashMap();
-		FRTHexEdge Nominato = Arco;
-		Nominato.StableId = FName(TEXT("Arc.PonteBasso"));
-		ArcoNominato->Transitions.Add(Nominato);
+		auto ArcoVerso = [](FName StableId)
+		{
+			URTHexMapAsset* M = MakeStateHashMap();
+			FRTHexEdge Arco;
+			Arco.From = FRTCellId(0, 0, 0);
+			Arco.To = FRTCellId(0, 0, 1);
+			Arco.StableId = StableId;
+			M->Transitions.Add(Arco);
+			return M;
+		};
 
 		TestNotEqual(TEXT("dare un'identita' a un arco cambia il checksum"),
-			HashOf(ArcoNominato), HashOf(ArcoAnonimo));
+			HashOf(ArcoVerso(FName(TEXT("Arc.PonteBasso")))), HashOf(ArcoVerso(NAME_None)));
+
+		// 5-bis. DUE NOMI DIVERSI, che e' la cosa che il caso sopra da solo non prova.
+		//        `Mix(Arc.StableId.IsNone() ? 0 : 1)` — l'implementazione debole che il caso 2 esclude
+		//        esplicitamente per le porte — passerebbe il `TestNotEqual` qui sopra e cadrebbe qui.
+		//        Senza questa riga la verifica di mutazione su `MixName(Arc.StableId)` non ha un test
+		//        capace di falsificarla, che e' il difetto misurato da #986.
+		TestNotEqual(TEXT("due archi con nomi diversi danno checksum diversi"),
+			HashOf(ArcoVerso(FName(TEXT("Arc.PonteAlto")))),
+			HashOf(ArcoVerso(FName(TEXT("Arc.PonteBasso")))));
 	}
+
+	return true;
+}
+
+/**
+ * Il checksum tratta l'identita' di una struttura come la trattano i suoi CONSUMATORI: senza distinguere
+ * maiuscole e minuscole (#986, difetto 2).
+ *
+ * `FName::operator==` e' case-insensitive, e `URTStructureIdentityLibrary` risolve i bersagli proprio con
+ * quello (`RTStructureIdentityLibrary.cpp:21` e `:42`): per ogni consumatore `Door.Atrio` e `door.atrio`
+ * sono **la stessa porta**. Se il checksum le distingue, due mappe che si giocano identiche hanno hash
+ * diversi — un falso positivo contro il KPI `replay divergence = 0`.
+ *
+ * ⚠️ **E il difetto e' peggiore in packaged che nell'editor.** `MixName` mescolava `FName::ToString()`, e
+ * `WITH_CASE_PRESERVING_NAME` vale `WITH_EDITORONLY_DATA` (`NameTypes.h:33`): in una build cotta quel
+ * metodo restituisce il case della **prima ortografia registrata nel processo**, che dipende dall'ordine
+ * di caricamento dei package. Cioe' la stessa identica partita puo' dare due hash diversi in due
+ * esecuzioni — precisamente cio' che il commento accanto a `MixName` prometteva di escludere.
+ *
+ * Questo test lo falsifica **nell'editor**, dove il case invece e' preservato: e' l'unico ambiente in cui
+ * la differenza e' osservabile in modo deterministico, ed e' la ragione per cui il caso si scrive cosi'
+ * invece di provare a simulare l'ordine di caricamento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumIsCaseInsensitiveTest,
+	"RefactorTactics.Simulation.ChecksumTreatsStructureIdentityCaseInsensitively",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumIsCaseInsensitiveTest::RunTest(const FString&)
+{
+	const TArray<FRTUnitStateDigest> Units = BaseUnits();
+	const TArray<int32> NoScore = { 0, 0 };
+
+	// La PREMESSA del test, asserita invece che assunta: se i due nomi non fossero la stessa `FName` per
+	// il gioco, pretendere lo stesso hash sarebbe sbagliato, non giusto.
+	TestTrue(TEXT("premessa: per il gioco i due nomi sono la stessa struttura"),
+		FName(TEXT("Door.Atrio")) == FName(TEXT("door.atrio")));
+
+	auto HashOf = [&Units, &NoScore](const URTHexMapAsset* M)
+	{
+		return URTMatchStateHashLibrary::HashMatchState(M, Units, NoScore);
+	};
+
+	TestEqual(TEXT("l'ortografia dell'identita' non cambia il checksum"),
+		HashOf(MapWithDoorNamed(FName(TEXT("door.atrio")))),
+		HashOf(MapWithDoorNamed(FName(TEXT("Door.Atrio")))));
+
+	// E il caso NEGATIVO nello stesso test: normalizzare non deve appiattire nomi davvero diversi. Senza
+	// questa riga passerebbe anche un `MixName` che ignora del tutto il testo.
+	TestNotEqual(TEXT("due nomi diversi restano diversi dopo la normalizzazione"),
+		HashOf(MapWithDoorNamed(FName(TEXT("Door.Cortile")))),
+		HashOf(MapWithDoorNamed(FName(TEXT("Door.Atrio")))));
+
+	return true;
+}
+
+/**
+ * Gli stati di un'unita' entrano nel checksum con il proprio CONFINE, non come una sequenza di caratteri
+ * concatenati (#986, difetto 3).
+ *
+ * `MixName` mescolava i caratteri senza prefisso di lunghezza ne' separatore, quindi un'unita' con
+ * `{"AB"}` e una con `{"A","B"}` producevano la stessa sequenza — due stati di gioco diversi, un solo
+ * checksum. Non e' un caso di laboratorio: gli `Statuses` arrivano da `ARTUnit::GetActiveStatusNames()`,
+ * e i tag del catalogo condividono i prefissi (`Status.Burn`, `Status.Burning`).
+ *
+ * ⚠️ Il difetto era **preesistente** a #978 — `MixName` serviva gia' gli stati — ma la PR #978 l'ha esteso
+ * a `Door.StableId` e `Arc.StableId` asserendone la correttezza, che e' il modo in cui una lacuna
+ * sopravvive a una revisione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumSeesStatusBoundariesTest,
+	"RefactorTactics.Simulation.ChecksumSeesStatusBoundaries",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumSeesStatusBoundariesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeStateHashMap();
+	const TArray<int32> NoScore = { 0, 0 };
+
+	TArray<FRTUnitStateDigest> Unito = BaseUnits();
+	Unito[0].Statuses = { FName(TEXT("AB")) };
+
+	TArray<FRTUnitStateDigest> Diviso = BaseUnits();
+	Diviso[0].Statuses = { FName(TEXT("A")), FName(TEXT("B")) };
+
+	TestNotEqual(TEXT("uno stato \"AB\" non e' due stati \"A\" e \"B\""),
+		URTMatchStateHashLibrary::HashMatchState(Map, Diviso, NoScore),
+		URTMatchStateHashLibrary::HashMatchState(Map, Unito, NoScore));
+
+	// Lo stesso confine sull'identita' delle strutture, che usa la stessa funzione: due porte adiacenti
+	// nominate `Door.A` e `Door.B` non devono collidere con una sola porta `Door.AB`.
+	TestNotEqual(TEXT("il confine vale anche per l'identita' di una struttura"),
+		URTMatchStateHashLibrary::HashMatchState(MapWithDoorNamed(FName(TEXT("Door.A"))), Unito, NoScore),
+		URTMatchStateHashLibrary::HashMatchState(MapWithDoorNamed(FName(TEXT("Door.AB"))), Unito, NoScore));
+
+	return true;
+}
+
+/**
+ * I DUE hash vedono l'identita' di un ARCO, non solo quella di una porta (#986, difetto 1).
+ *
+ * `ChecksumSeesStructureIdentity` copre `HashMatchState`; `HexMap.DoorHashDeterminism` copre
+ * `URTHexMapAsset::ComputeHash` per le **porte**. Restava scoperto l'incrocio: `ComputeHash` sugli
+ * **archi**, che e' esattamente il tipo di buco che #986 e' venuta a chiudere — #832 aveva aggiunto
+ * l'identita' a un hash e spuntato il DoD con un test che guardava l'altro.
+ *
+ * Il test sta qui e non in `RTHexArcTests.cpp` perche' la proprieta' che verifica e' la **coerenza fra i
+ * due hash**, cioe' il tema di questo file, e perche' quel file non appartiene al write-set di questa
+ * track (D-139). Chi lo legge cercando i ponti trovera' il rimando dal caso 5 di sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapHashSeesArcIdentityTest,
+	"RefactorTactics.Simulation.MapHashSeesArcIdentity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapHashSeesArcIdentityTest::RunTest(const FString&)
+{
+	auto MappaConArco = [](FName StableId)
+	{
+		URTHexMapAsset* M = MakeStateHashMap();
+		FRTHexEdge Ponte;
+		Ponte.From = FRTCellId(0, 0, 0);
+		Ponte.To = FRTCellId(0, 0, 1);
+		Ponte.StableId = StableId;
+		M->Transitions.Add(Ponte);
+		return M;
+	};
+
+	const uint32 Anonimo = MappaConArco(NAME_None)->ComputeHash();
+
+	// Riferimento: senza, i confronti sotto non distinguerebbero un difetto da un rumore.
+	TestEqual(TEXT("stesso arco -> stesso hash di mappa"), MappaConArco(NAME_None)->ComputeHash(), Anonimo);
+
+	TestNotEqual(TEXT("nominare un arco cambia l'hash della mappa"),
+		MappaConArco(FName(TEXT("Arc.PonteBasso")))->ComputeHash(), Anonimo);
+
+	TestNotEqual(TEXT("due archi con nomi diversi danno hash di mappa diversi"),
+		MappaConArco(FName(TEXT("Arc.PonteAlto")))->ComputeHash(),
+		MappaConArco(FName(TEXT("Arc.PonteBasso")))->ComputeHash());
+
+	TestEqual(TEXT("l'ortografia dell'identita' di un arco non cambia l'hash"),
+		MappaConArco(FName(TEXT("arc.pontebasso")))->ComputeHash(),
+		MappaConArco(FName(TEXT("Arc.PonteBasso")))->ComputeHash());
+
+	return true;
+}
+
+/**
+ * La CONDUTTIVITA' di un arco entra nel checksum (#986, difetto 4).
+ *
+ * Il giro degli archi mescolava `Cost`, `Kind`, `State`, `Integrity` e `StableId` — non
+ * `bConductsElectricity`. `URTHexMapAsset::ComputeHash` invece lo mescola gia'
+ * (`RTHexMapAsset.cpp:314`), chiamandolo «dato autorevole quanto il costo»: i due hash divergevano su un
+ * campo senza che nessuno l'avesse deciso.
+ *
+ * ⚠️ **Non e' teorico.** `ARTTurnManager` crea ponti IN PARTITA con `bConductsElectricity = true`
+ * (`RTTurnManager.cpp:3802-3806`) e `URTHexArcLibrary` legge quel flag per far risalire la scarica lungo
+ * l'arco (`RTHexArcLibrary.cpp:75`). Due finali che differiscono solo per la conduttivita' di un ponte
+ * sono due stati di gioco diversi con esiti futuri diversi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumSeesArcConductivityTest,
+	"RefactorTactics.Simulation.ChecksumSeesArcConductivity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumSeesArcConductivityTest::RunTest(const FString&)
+{
+	const TArray<FRTUnitStateDigest> Units = BaseUnits();
+	const TArray<int32> NoScore = { 0, 0 };
+
+	// Un ponte fra due livelli: e' la forma che CP 9.4 produce, e l'unica che la validazione non
+	// classifica ridondante.
+	auto PonteConduttivo = [](bool bConduce)
+	{
+		URTHexMapAsset* M = MakeStateHashMap();
+		FRTHexEdge Ponte;
+		Ponte.From = FRTCellId(0, 0, 0);
+		Ponte.To = FRTCellId(0, 0, 1);
+		Ponte.StableId = FName(TEXT("Arc.PonteBasso"));
+		Ponte.bConductsElectricity = bConduce;
+		M->Transitions.Add(Ponte);
+		return M;
+	};
+
+	const uint32 Isolante = URTMatchStateHashLibrary::HashMatchState(PonteConduttivo(false), Units, NoScore);
+
+	// Riferimento: senza, il `TestNotEqual` sotto non distinguerebbe un difetto da un rumore.
+	TestEqual(TEXT("stesso ponte -> stesso checksum"),
+		URTMatchStateHashLibrary::HashMatchState(PonteConduttivo(false), Units, NoScore), Isolante);
+
+	TestNotEqual(TEXT("un ponte conduttivo non e' lo stesso stato di uno isolante"),
+		URTMatchStateHashLibrary::HashMatchState(PonteConduttivo(true), Units, NoScore), Isolante);
 
 	return true;
 }
