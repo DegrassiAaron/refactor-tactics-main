@@ -1622,6 +1622,24 @@ tracks:
       #     `spatial` **non tocca nessuno dei quattro** — ne' su `feat/833-interaction-graph`, ne' nel
       #     worktree `D:/rt-spatial` col non committato — quindi l'attesa e' il ritmo di `#833`, non un
       #     blocco permanente. Chi chiude `#833` rilascia i path e lo dice qui.
+      # ➕ **`Ability/RTActionDef.h` entra il 2026-08-16, ed e' la voce di DoD di `#833` che chiedeva
+      # se stessa.** La sua quarta casella dichiara: «⛔ `Ability/RTActionDef.h` **non e' nel `writable`
+      # della track `spatial`** (D-139): serve riallocazione, o la voce la lavora chi possiede quel path».
+      # 🔵 **Nessuno possedeva quel path**, ed e' il motivo per cui la voce era ferma: una track non
+      # si auto-assegna un file, e un path che non e' di nessuno resta uno STOP finche' un atto
+      # d'integrazione non lo assegna. Questo e' quell'atto.
+      # ✅ Misurato libero su tutte e tre le fonti, sulla base di questo commit: nessun `writable` lo
+      # nomina, non e' `integration_only`, zero rami remoti vivi e zero worktree lo toccano — nemmeno
+      # col non committato.
+      # ⚠️ **Serve perche' senza non basta dichiarare l'effetto.** `ERTStructureOp` ha solo `None`,
+      # `CreateCover` e `MoveCover`, e il puntatore arma il bersaglio-bordo da `Def.StructureOp != None`
+      # (`RTPointerInteraction.cpp:16`): senza un valore per l'interazione la leva non e' puntabile,
+      # qualunque effetto le si dichiari. Gli altri quattro path della fetta — `RTCatalogLibrary.{h,cpp}`,
+      # `RTActionEffectLibrary.cpp`, `RTCoreActionTests.cpp` — sono gia' qui, quindi questa riga COMPLETA
+      # il write-set invece di aprirne uno nuovo.
+      # 🔵 **E sblocca il T5 dello showcase**, che aspetta un `Action.Interact` capace di aprire il
+      # gate: tre voci del DoD su tredici, non l'intero grafo sorgente->bersaglio.
+      - Source/RefactorTactics/Ability/RTActionDef.h
       - Source/RefactorTactics/Ability/RTCatalogLibrary.h
       - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
       - Source/RefactorTactics/Tests/RTCoreActionTests.cpp
