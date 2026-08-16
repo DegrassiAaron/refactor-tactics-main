@@ -323,6 +323,21 @@ meta:
     lì, l'invariante cade»*. Ha committato lì — `UI/RTHUD.{h,cpp}`, PR #904 — e l'intersezione è
     misurata, non prevista. È la prima volta che questo file **prevede** una collisione prima che
     esista e la ritrova alla riapertura: la prenotazione a zero file ha fatto il suo lavoro.
+    ⏱️ **2026-08-16, sesto giro — la track `autobattle` di `#954` (E47.1), e un difetto che colpisce
+    questo file nel proprio scopo.** Il write-set di quella track **esisteva già**, scritto e misurato
+    bene, su un branch mai pushato in `D:/rt-chatgpt`: assente dal `parallel-batch.yaml` che chiunque
+    altro legge. Nessuno dei tre comandi lo trovava tranne il terzo. **Un write-set dichiarato dove
+    nessuno può leggerlo non è una dichiarazione** — protegge chi lo scrive, che è precisamente chi non
+    ne ha bisogno. Il blocco è stato riportato qui invece che riscritto, perché il merge fra le due
+    stesure sia banale.
+    🟢 **E per la prima volta l'invariante è misurata su TUTTI i rami vivi invece che su quelli che
+    interessavano a chi scriveva**: fra `feat/78`, `feat/77`, `fix/892` e `feat/954` l'unica
+    intersezione è **questo file**. Due branch dentro lo stesso `writable` di `client_tools` —
+    `feat/78` su `RTIntentPrivacyLibrary`, `feat/77` su `RTHUD` — **non si toccano su nessun path**:
+    l'invariante è fra write-set, non fra cartelle, e il timore scritto due giri fa non si è avverato.
+    ❓ **La domanda resta aperta, e questo giro le aggiunge un dato invece di risolverla**: sei
+    riconciliazioni in tre giorni, e la sesta è servita a rendere visibile ciò che una sessione aveva
+    già scritto. Non è un file da rimisurare più spesso; e non lo decide una riconciliazione.
 
 batch:
   # ⚠️ Lo sha è troncato a 8 caratteri, come in tutta la prosa del repository. `base_sha` resta
@@ -337,7 +352,22 @@ batch:
   # sotto sono calcolati con `git diff --name-only <base_sha>...<branch>` su questo valore, non su
   # quello dell'id.
   id: "BATCH-84cbb70c-gh41-gh583"
-  base_sha: "6bdf4619bb9486635bc7cf4ac9dc466705cae9aa"
+  # ⏱️ Avanzata il 2026-08-16 da `6bdf4619` a `5530bd03`: **18 PR** atterrate nel mezzo
+  # (`git log --oneline --merges 6bdf4619..origin/main | wc -l`), fra cui #948 (E46, frontend) e
+  # #961 (E47, autobattle). Entrambe le basi precedenti restano antenate — verificato con
+  # `git merge-base --is-ancestor` — quindi l'`id` non cambia: stesso lotto, base nuova.
+  #
+  # 🔴 **E si è mossa una seconda volta DENTRO questo giro, che è la quinta volta che succede.**
+  # `5530bd03` → `057ec9a2`: la PR **#965** ha riattivato la track `verification` su `#83` mentre
+  # questa sessione scriveva. Il modo in cui l'ho scoperto vale più del fatto: un controllo che
+  # confrontava il write-set «prima e dopo» ha riportato **nove path spariti da `verification`** —
+  # e la prima lettura è stata *«ho cancellato il lavoro di qualcun altro»*. Falso: il confronto
+  # usava `origin/main` **aggiornato** invece della base su cui il ramo è nato. Rifatto contro
+  # `5530bd03`, le righe rimosse sono **sei**, tutte volute.
+  # ⚠️ **La lezione non è sul ref, è sul metodo**: un diff «prima/dopo» si fa contro la **propria
+  # base**, non contro un ref che si muove — o misura la somma del proprio lavoro e di quello altrui
+  # e la attribuisce a chi guarda. `git diff <base>...HEAD`, mai `git diff origin/main`.
+  base_sha: "057ec9a238fe5b1ad0a6e74c68dc030b05b8f790"
   created_at: "2026-08-14"
   # Base di creazione, tenuta perché è ciò che l'`id` nomina: `84cbb70c6f5082682e59a71d442b71e78fac4322`.
   # Verificato che sia ancora antenato della base corrente (`git merge-base --is-ancestor`): sì —
@@ -394,7 +424,18 @@ batch:
   # ∴ **Questo è il dato che decide la domanda di `meta`**: quattro basi in una riconciliazione, e due
   # collisioni su questo file da branch nati dopo la sua apertura. Non è un file da rimisurare più
   # spesso — è un lotto da chiudere.
-  reconciled_count: 5
+  #
+  # 🔵 **Sesta riconciliazione, 2026-08-16 — aperta per una richiesta, non per manutenzione**: la track
+  # `autobattle` su `#954`. E la misura ha trovato il difetto più grave che questo file possa avere,
+  # perché lo colpisce nel proprio scopo: **il write-set di quella track esisteva già, scritto e
+  # misurato, su un branch mai pushato.** Nessuno dei tre comandi della fotografia lo trovava tranne il
+  # terzo, e il `parallel-batch.yaml` che tutti leggono non lo conteneva. Una dichiarazione invisibile
+  # non è una dichiarazione: serve a chi *non* è nella sessione che l'ha scritta.
+  # ⚠️ **L'invariante regge, e questa volta è misurata su tutti i rami**: fra i quattro branch di lavoro
+  # vivi — `feat/78`, `feat/77`, `fix/892`, `feat/954` — l'unica intersezione è **questo file**. Non è
+  # un caso limite da tollerare: è il quarto giro in cui il file che previene le collisioni è l'unico
+  # oggetto conteso, e va nel conto della domanda qui sopra.
+  reconciled_count: 6
 
 # --- Branch già vivi al momento del calcolo ---------------------------------------------------
 #
@@ -655,7 +696,11 @@ preexisting:
   # `feat/77-hud-slot-terna`, che era `LOCAL · 0` ieri ed è la collisione di oggi.
 
   - branch: docs/menu-frontend-consolidamento
-    state: LIVE            # worktree `D:/rt-menu` · pushato · PR #948 aperta
+    # ✅ **ATTERRATA il 2026-08-16**: PR #948 mergiata (`c2904c99`), branch e worktree `D:/rt-menu`
+    # rimossi — `git ls-remote` non lo trova più e `git worktree list` non lo elenca. La voce resta
+    # con la propria storia invece di sparire: è il write-set su cui `chore/954-batch-autobattle` ha
+    # calcolato la propria intersezione.
+    state: LANDED          # PR #948 mergiata · branch e worktree rimossi
     measured: 16
     note: >-
       Consolidamento dell'handoff *Frontend/Menu Features e Tracking* (D-144, epic #934). Write-set
@@ -922,7 +967,7 @@ preexisting:
   # (#930), e un vincolo senza due lati non è un vincolo.
 
   - branch: docs/riconciliazione-batch-2026-08-16
-    state: LIVE            # worktree `D:/rt-batch` · commit `f709baab` · PR #933 aperta
+    state: LANDED          # PR #933 mergiata · branch e worktree rimossi
     measured: 1
     collides_with: []      # misurato su tutti gli otto branch remoti vivi, non dedotto
     note: >-
@@ -971,9 +1016,57 @@ preexisting:
       · la nota di `client_tools`, che è la ragione del giro.
       🔴 **Chi riconcilia si misura come tutti gli altri**, ed è la regola che le tre stesure
       precedenti hanno dovuto imparare una per volta.
+      ✅ **ATTERRATA**: PR #933 mergiata, branch e worktree rimossi.
+
+  - branch: docs/mini01-consolidamento-autobattle
+    state: LANDED          # PR #961 mergiata (`5530bd03`) · branch e worktree rimossi
+    measured: 20
+    collides_with: []
+    note: >-
+      Consolidamento del prompt *Mini Roadmap v0.1 Autobattle* — `D-145`, `D-146`, epic **#952** con i
+      sei checkpoint **#954**–**#959**. È la PR che ha **creato la issue** su cui la track `autobattle`
+      lavora, ed è per questo che compare qui invece di essere solo storia.
+      ⚠️ **Ha contesa 10 file con `docs/menu-frontend-consolidamento`**, dichiarati *prima* del merge e
+      poi verificati: `roadmap-v0.1.md` (`22/106` + E46 → **23 epic, 112 checkpoint**, rimisurati con lo
+      script della §3 sull'albero unito, zero `DIVERGE`), `archive/src/README.md` (`75` → **76**), i
+      generati. Nove conflitti, risolti tenendo **entrambe** le parti in ordine numerico — D-144 prima
+      di D-145/D-146, E46 prima di E47 — e rigenerando i derivati dopo l'unione.
+      ✅ **Non ha toccato questo file**, ed era una scelta: il lotto era `ACTIVE` e un settimo write-set
+      scritto da una sessione documentale è il difetto che questa sezione registra cinque volte. Il
+      write-set dell'autobattle è arrivato dopo, con la sessione che lo esegue.
+
+  - branch: chore/954-batch-autobattle
+    state: LIVE            # worktree `D:/rt-batch` · questa sessione
+    measured: 1
+    collides_with: [feat/954-autobattle-non-presidiata]
+    note: >-
+      Questa riconciliazione, la **sesta**, aperta per dichiarare la track `autobattle` di `#954` e non
+      per manutenere il file. Un solo file — `docs/roadmap/parallel-batch.yaml` — che è
+      `integration_only` e quindi nel `writable` di nessuno.
+      🔴 **`collides_with` NON è vuoto, ed è il punto di tutta la voce.** `feat/954-autobattle-non-presidiata`
+      tocca questo file: ha scritto la propria track nel proprio worktree, su un branch **mai pushato**.
+      La collisione è quindi **certa e dichiarata in anticipo**, non scoperta al merge — e il contenuto
+      che porta è *lo stesso*, riportato da lì invece che riscritto proprio perché il merge sia banale.
+      Chi atterra secondo tenga una sola track `autobattle`.
+      ⚠️ **Misurato coi tre comandi, e il terzo è l'unico che ha visto qualcosa**: `gh pr list` (**2**
+      PR aperte, #904 e #908) e `git ls-remote --heads origin` (**10** branch) **non** vedono
+      `feat/954`; `git worktree list` sì, in `D:/rt-chatgpt` con un commit. È la dimostrazione più
+      netta che questo file abbia della propria regola sulla fotografia — e la ragione per cui la
+      lezione va scritta accanto al dato invece che nella prosa d'intestazione.
+      ➕ **Cosa cambia**: `base_sha` (18 PR di scarto) e `reconciled_count` · la track **`autobattle`**,
+      nuova · `client_tools` guadagna `branch` e `worktree` (la sessione è partita) · `content_editor`
+      registra che il worktree non esiste più · tre voci `preexisting` passano a `LANDED` e due entrano.
+      **Nessun `writable` esistente viene ristretto o allargato.**
 
 
-# --- Le quattro track -------------------------------------------------------------------------
+# --- Le track ---------------------------------------------------------------------------------
+#
+# 🔴 Questa riga ha detto «Le quattro track» mentre ne elencava **sei**, e ora sono **sette**. Un
+# numero in un titolo di sezione non ha nessun gate che lo confronti con ciò che segue — lo stesso
+# difetto che `roadmap-v0.1.md` paga sul totale delle epic (#962). Tolto invece che corretto: il
+# conteggio si legge dai dati, che sono venti righe più sotto.
+#
+#   python -c "import yaml;print(len(yaml.safe_load(open('docs/roadmap/parallel-batch.yaml',encoding='utf-8'))['tracks']))"
 
 tracks:
 
@@ -1300,7 +1393,20 @@ tracks:
     # sessione non è ancora partita, e non parte finché #904 non atterra»** (una decisione sul futuro).
     # Stesso valore, due significati: chi legge solo il campo non può distinguerli, ed è il motivo per
     # cui la condizione di sblocco è scritta qui sotto in forma di comando invece che di intenzione.
-    branch: null
+    #
+    # ✅ **2026-08-16, terzo significato e stavolta il campo si riempie: la sessione è partita.**
+    # `feat/78-contratto-certezza` è vivo in `D:/rt-78` con commit e branch remoto (`cf7e2bc0`), senza
+    # PR — quindi lo vedono `git ls-remote` e `git worktree list`, non `gh pr list`. Il suo write-set
+    # **misurato** è `Turn/RTIntentPrivacyLibrary.{h,cpp}` + `Tests/RTIntentPrivacyTests.cpp` + questo
+    # file: **rispetta il proprio `writable`**, verificato sui path e non sulla dichiarazione.
+    # 🟢 **E il timore scritto tre giri fa non si è avverato.** La riga di `feat/77-hud-slot-terna`
+    # diceva: *«se questa sessione committa in `UI/`, l'invariante cade»* — ha committato lì
+    # (`RTHUD.{h,cpp}`, PR #904). Ma `feat/78` e `feat/77` **non si intersecano su nessun file**: due
+    # branch dentro lo stesso `writable` di track non violano nulla finché scrivono file diversi.
+    # L'invariante è fra **write-set**, non fra nomi di cartella, e questa è la prima volta che il
+    # repository lo misura invece di temerlo.
+    branch: feat/78-contratto-certezza
+    worktree: "D:/rt-78"
     blocked_by: 904        # ⚠️ non è ownership: è la PR che deve atterrare prima che questa track scriva
     note: >-
       CP 11.2 — il livello di certezza degli intenti alleati.
@@ -1461,6 +1567,11 @@ tracks:
     # primo»* — e vale per entrambi i campi. Chi misurava il write-set di questa track con
     # `git diff … origin/feat/451-u1-voci-hex-mode` otteneva un **errore**, non un numero.
     # ⚠️ Il worktree `D:/rt-content` è oggi *detached* su `6bdf4619`: nessun branch, nessun commit.
+    # 🔴 **2026-08-16: il worktree non esiste più.** `git worktree list` ne elenca sette e `D:/rt-content`
+    # non è fra questi — rimosso senza che nessun campo lo dicesse. Il valore resta scritto qui perché è
+    # ciò che la track *dichiarava*, con la smentita accanto invece che al posto: cancellarlo
+    # renderebbe la track indistinguibile da una che non ha mai avuto un worktree. La track resta
+    # **ACTIVE su `#451`**, che è `OPEN`: il `writable` continua a valere e nessun altro può scriverci.
     session_branch: null
     worktree: "D:/rt-content"
     note: >-
@@ -1907,6 +2018,80 @@ tracks:
       - Source/RefactorTactics/Tests/RTInterceptTests.cpp
       - Source/RefactorTactics/Tests/RTReactionTests.cpp
       - Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp
+    binary_leases: []
+
+  autobattle:
+    status: ACTIVE
+    issue: 954
+    branch: feat/954-autobattle-non-presidiata
+    worktree: "D:/rt-chatgpt"
+    note: >-
+      ➕ **Track aperta su `#954` (E47.1, epic `#952`).** Mette entrambe le squadre sotto il bot per
+      configurazione: il delta è in `ARTGameMode`, non in un motore — il turno avanzava già da solo
+      (`StartPlanningTimer → PlanBots`, `OnPlanningTimeout → LockInAndResolve`, timer che riparte).
+
+      🔴 **Questo blocco esisteva già, scritto bene, e non lo vedeva nessuno.** La sessione che possiede
+      la track lo aveva redatto nel proprio worktree `D:/rt-chatgpt` — con la fotografia a tre comandi
+      fatta e l'intersezione misurata — su un branch **mai pushato**: invisibile a `gh pr list` *e* a
+      `git ls-remote`, quindi assente dal `parallel-batch.yaml` che chiunque altro legge. Un write-set
+      dichiarato dove nessuno può leggerlo non protegge nessuno: è il difetto che questo file esiste per
+      chiudere, applicato a sé stesso. Il testo è **il suo**, riportato qui invece che riscritto, perché
+      il merge fra le due stesure sia banale e non una scelta fra due prose diverse.
+
+      ⚠️ **Il write-set è MISURATO sul branch vivo, non dedotto dal DoD.** `git diff --name-only
+      origin/main...feat/954-autobattle-non-presidiata` → **tre** file di codice. In particolare
+      `Turn/RTTurnManager.{h,cpp}` **non è toccato**: il ritmo si configura chiamando
+      `SetPlanningSeconds` dall'esterno, che è già pubblica e pinnata da
+      `Turn.PlanningSecondsAppliesImmediately`. Il referto di E47 aveva *previsto* `RTTurnManager` nel
+      perimetro, e la misura lo smentisce — è la stessa lezione, nel verso che costa meno: una
+      previsione si scrive, poi si rimisura.
+
+      ✅ **I tre path erano NON ASSEGNATI, che è la condizione che rende la scrittura uno STOP.**
+      `RTGameMode.{h,cpp}` sono usciti dal `writable` di `simulation` alla sua chiusura — la sua nota lo
+      dichiara: *«il write-set torna libero e non assegnato»*. Non è ownership ereditata: è un path
+      libero che questa track si assegna, come `simulation` se l'era assegnato a sua volta.
+
+      ⚠️ **`RTGameMode.h` entra insieme al `.cpp`**, e non per adiacenza: le due proprietà di
+      configurazione (`bAutobattle`, `MatchPlanningSeconds`) e i due `Resolve*` sono dichiarati lì. Un
+      header e la sua unità di traduzione si modificano nello stesso commit — la stessa regola che
+      l'intestazione di `integration_only` scrive per un modulo e il suo test.
+
+      ⚠️ **`Tests/RTMatchAutobattleTests.cpp` non esiste ancora**, ed è dichiarato apposta: un file nuovo
+      non collide con nessuno, ma se non è nel `writable` il primo commit che lo crea è una violazione.
+      Stessa asimmetria già registrata per `RTWorldFixtures.h`.
+
+      ✅ **Intersezione rimisurata il 2026-08-16 su `base_sha` `5530bd03`.** Fotografia a tre comandi —
+      `git ls-remote --heads origin` (**10** branch), `git worktree list` (**7** worktree) e
+      `git diff --name-only origin/main...<b>` per ciascuno: **nessun branch vivo tocca `RTGameMode.h`,
+      `RTGameMode.cpp` né un file di `Tests/` con questo nome.** I tre che scrivono in `Tests/` toccano
+      altro — `feat/77-hud-slot-terna` (`RTHudSlotLinesTests`), `fix/892-displayname-abilita`
+      (`RTHeroCatalogTests`), `feat/78-contratto-certezza` (`RTIntentPrivacyTests`) — ed è la ragione per
+      cui il `writable` elenca **un file**, non il prefisso `Tests/`.
+      ✅ **Rimisurato dopo che `origin/main` si è mosso a metà giro** (#965, `057ec9a2`): la track
+      `verification` è tornata **ACTIVE su `#83`** con **nove** file di `Tests/`, e nessuno dei nove è
+      `RTMatchAutobattleTests.cpp` — che è nuovo. L'invariante regge sulle sette track, verificata sui
+      path e non sui prefissi. È anche la dimostrazione pratica della regola: se questa track avesse
+      dichiarato `Tests/` invece del singolo file, avrebbe contesa l'intero write-set di `verification`
+      senza toccarne una riga.
+
+      ⛔ **Cosa questa track NON tocca, e perché.** Il DoD di `#954` chiede che l'attivazione «non sia
+      silenziosa». La banda a schermo la disegna `UI/RTHUD.cpp`, che è nel `writable` di `client_tools`
+      (**ACTIVE** su `#78`): la riga esce quindi da `GetScenarioBannerText`, che è già il canale letto
+      dall'HUD e vive nel `.cpp` di questa track. **Zero modifiche a `UI/`**, verificato sul write-set
+      del branch e non sull'intenzione.
+
+      ⚠️ **Il vincolo che resta non è sui file, è la macchina**: una run di automation per volta e un
+      mutex di UBT, quindi due track che ricompilano si aspettano — vale con `client_tools` come già
+      valeva fra `simulation` e `verification`.
+
+      ⛔ **Non copre gli altri cinque checkpoint di E47.** `E47.2` (`Turn/RTPlaybackLibrary.*` + `UI/`),
+      `E47.3` (`Map/RTHexMapActor.{h,cpp}`, di `content_editor`), `E47.4` (`ScenarioHarness/`, di
+      `spatial`), `E47.5` (`Tests/`), `E47.6` (`test-manuali-pie.md`, di `playtest`) restano fuori: si
+      dichiarano quando si aprono, uno per volta, non in anticipo su un'intenzione.
+    writable:
+      - Source/RefactorTactics/RTGameMode.h
+      - Source/RefactorTactics/RTGameMode.cpp
+      - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
