@@ -3264,6 +3264,49 @@ tracks:
       - Scenarios/Spec/Environment/WaterQuenchesFire.json
     binary_leases: []
 
+  proficiency:
+    status: ACTIVE
+    issue: 995
+    branch: docs/995-proficiency-misura
+    worktree: "D:/rt-unit"
+    note: >-
+      ➕ **Track aperta il 2026-08-16 su `#995`, in forma UNICA per due fasi sequenziali.** Nasce da un
+      brainstorming che ha scelto di separare la **misura** dalla **scrittura dell'owner**, e la ragione
+      è un precedente misurato: la baseline di `#995` dava Phase = `Access`, e applicando il criterio
+      operativo ai dati risultava **Master**. Scrivere l'owner su una baseline non verificata significa
+      scrivere un documento da riscrivere.
+
+      **Fase 1 — la misura** (questa): sola lettura di `Source/`, produce il referto. **Fase 2 —
+      l'owner**: `docs/characters/elemental-proficiency.md`, e parte solo su una baseline verificata.
+
+      ⚠️ **Perché una track sola e non due**: entrambi i path sono **file NUOVI**, quindi la contesa è
+      impossibile per costruzione — nessuno può toccare un file che non esiste. Il `writable` porta
+      entrambi fin da ora, col significato di *prenotato* che questo documento già ammette. Il costo
+      dichiarato: la condizione di passaggio fra le due fasi vive in questa `note` e non in un campo,
+      quindi non è interrogabile da un lettore automatico.
+
+      ⛔ **Cosa questa track NON prende, ed è una scelta del brainstorming:** le quattro pagine
+      `docs/characters/v0.1/*.md`, `paragon.md` e `index.md`. Non per prudenza — **nove file di
+      `docs/characters/` portano blocchi `RT_FEATURE_STATUS` generati** da `feature_registry.py wiki`, e
+      chi li possiede eredita l'obbligo di rigenerare una vista la cui sorgente, `feature-registry.yaml`,
+      è `integration_only`, cioè di nessuno. È un nodo da sciogliere prima di prendersi quei file, non
+      mentre li si edita. Con questo perimetro: zero file esistenti toccati, zero blocchi generati nel
+      write-set.
+
+      ⚠️ **v0.2 è fuori per costruzione, non per scelta**: il catalogo C++ dichiara **quattro** factory —
+      `MakeFlux`, `MakeRiva`, `MakeBastion`, `MakeVektor`. Aurora, Kwang, Murdock e Steel hanno le pagine
+      e nessun dato, quindi il criterio operativo — che legge gli effetti — non è loro applicabile. Un
+      grado assegnato a un eroe v0.2 sarebbe **design**, non misura.
+
+      ✅ Intersezione: nessuna possibile: entrambi i path non esistono ancora nel repository.
+      ⚠️ `docs/roadmap/plans/` è esente dal gate di naming (`EXEMPT_PREFIXES`), quindi il referto può
+      citare `Riva.CircularTide` e `Flux.LinearDischarge` senza falsificare i nomi legacy: è un
+      documento datato che fotografa il codice **com'è**, e il codice porta ancora quei nomi.
+    writable:
+      - docs/roadmap/plans/proficiency-misura-2026-08-16.md
+      - docs/characters/elemental-proficiency.md
+    binary_leases: []
+
   docs_kit:
     status: IDLE
     issue: null
