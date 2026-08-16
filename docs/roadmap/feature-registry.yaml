@@ -4293,11 +4293,12 @@ features:
     issues: [936, 937]
     tests:
       - RefactorTactics.Frontend.*
+      - RefactorTactics.Startup.*
     scenarios: []
     wiki_refs: []
     last_verified:
       date: 2026-08-16
-      commit: 6708308
+      commit: 0bfc59a
     notes: >
       Un solo owner del flow (`PushScreen`/`PopScreen`/`ShowModal`/`CloseModal`/`ReturnMain`) piu'
       loading ed error modal. Il criterio del gate `runtime` e' verificabile con un grep:
@@ -4312,9 +4313,17 @@ features:
       navigazione non e' UI**: e' una macchina a stati che la governa, e separata dalla presentazione si
       prova senza mondo ne' asset — **17 test** `RefactorTactics.Frontend.*` (12 alla prima stesura, 5
       aggiunti in code review per i difetti che aveva trovato). Resta manuale il *layout*
-      dentro il `.uasset`, che e' di `PIE-V01-FRONTEND-NAV`: `partial` e non `done` per quello, e perche'
-      CP 46.2 (loading, error modal) non e' ancora scritto.
-      `runtime: partial` per la stessa ragione: dei due checkpoint della feature ne e' fatto uno.
+      dentro il `.uasset`, che e' di `PIE-V01-FRONTEND-NAV`: `partial` e non `done` per quello.
+      ✅ **CP 46.2 consegnato il 2026-08-16 (`#937`) per la parte C++**, e ha portato con se' l'**ottavo
+      vocabolario di reason** del repository: `ERTStartupOutcome` — nove valori misurati sui punti di
+      uscita reali di `RTGameMode.cpp` — piu' `ERTLoadPhase`, `FRTStartupReport` e le tre classi base
+      (`URTLoadingScreenWidgetBase`, `URTErrorModalWidgetBase`, `URTFallbackBannerWidgetBase`).
+      **15 test** `RefactorTactics.Startup.*`.
+      ⚠️ **`RTGameMode.{h,cpp}` sono entrati nel `writable` di questa track con una riallocazione
+      dichiarata**: erano di `autobattle`, che ha chiuso `#954`. Il perimetro e' l'**emissione** — nessun
+      esito di gioco cambia, il GameMode ripiega e rifiuta dove gia' lo faceva e in piu' lo **dichiara**.
+      `runtime` e `automation` restano `partial`: i `WBP_RT_*` che consumano queste basi sono `.uasset`,
+      cioe' lavoro d'editor, e senza di loro nulla appare a schermo.
       ⚠️ **Non possiede il contesto `Modal` del `PlayerController`**: quello e' di CP 11.8
       (`RT-FEAT-UI-POINTER-INTERACTION`), che ha gia' sette contesti e la precedenza
       `Modal/Reaction UI > HUD > world` **dichiarata** — e non ancora implementata: e' il delta (c) di
