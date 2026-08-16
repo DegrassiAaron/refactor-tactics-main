@@ -122,7 +122,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**875 test unici in 107 file** — misurati su `732d797c`.
+**875 test unici in 107 file** — **875 eseguiti su 875 dichiarati, 0 falliti**, misurati su `02db66b2`. ➕ **E dieci di questi girano anche dentro un pacchetto** (`#83`, CP 12.3): i dieci vincolanti del catalogo (§6) portano `ClientContext` oltre a `EditorContext`, e in una build Development pacchettizzata danno `10 tests performed`, 10 su 10 verdi. ⚠️ Gli altri 865 restano `EditorContext` **di proposito**: riflaggarli tutti sarebbe un mega-refactor su 107 file, e alcuni potrebbero dipendere dall'Editor in modi che si scoprono solo eseguendoli.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
@@ -1712,7 +1712,7 @@ con una configurazione, lasciando il default dov'è.
 | **E47.1** ⏳ | Modalità non presidiata | Una configurazione — non un default nuovo — mette **entrambe** le squadre sotto il bot e accorcia `PlanningSeconds`. Premuto Play e non toccato più nulla, compare un vincitore; il TurnLog ha almeno una voce `Move` e una `Combat` per round giocato. **`Heroes.SpawnFromData` resta verde** | `RefactorTactics.Match.Autobattle.*` — da creare |
 | **E47.2** ⏳ | Ritmo osservabile | Velocità di playback `x1 · x2 · x4` con **stesso risultato logico**: `StateHash` finale e TurnLog canonico identici alle tre velocità. La UI non ricalcola nulla (invariante #1) | `Playback.SpeedDoesNotChangeOutcome` — da creare |
 | **E47.3** ⏳ | Grammatica visiva della board | Ogni categoria leggibile da **due** canali, `colore + forma` ([D-146](../decisions/RT_PDR_00_Decision_Log.md)). La legenda è **derivata** da superficie, coperture di bordo ed entità obiettivo: zero `enum` nuovi, nessuna migrazione di formato | ⏳ `PIE-V01-BOARD` — **voce da creare**, vedi sotto |
-| **E47.4** ⏳ | Scenario autobattle free-run | Uno scenario può dichiarare «gioca fino alla fine» invece di enumerare i turni, con `RepeatCount` e riesecuzione. **Estende** l'harness esistente passando dal seam di [D-101](../decisions/RT_PDR_00_Decision_Log.md) (`DecisionProvider`, [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)): nessun secondo harness | `RefactorTactics.Scenario.FreeRun.*` — da creare |
+| **E47.4** ⏳ | Scenario autobattle free-run | Uno scenario può dichiarare «gioca fino alla fine» invece di enumerare i turni, con `RepeatCount` e riesecuzione. **Estende** l'harness esistente: `PlanBotsForTest()` esiste già e il free-run è un ciclo sopra di lui. ⚠️ **Non è bloccato** dal seam di [D-101](../decisions/RT_PDR_00_Decision_Log.md) ([#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)) — **lo segue**: aprirlo prima aggiunge il terzo appiglio ad hoc che D-101 esiste per evitare, ed è igiene architetturale, non un prerequisito tecnico | `RefactorTactics.Scenario.FreeRun.*` — da creare |
 | **E47.5** ⏳ | Corpus di determinismo dell'autobattle | `PermutationTest` · `PlaybackIndependence` · `NoPath` (fallback legale, nessun deadlock) · `AllWait` (il turno termina) · `SimultaneousKO` (politica esplicita) · `TurnLimit`. **`DifferentSeedVariation` è fuori**: contraddirebbe `Simulation.SeedIsDeclaredAndUnconsumed`, che è verde (D-145 §5) | estende `RefactorTactics.Simulation.*` |
 | **E47.6** ⏳ | La partita registrata | La partita non presidiata è eseguita e **registrata** in PIE e sulla build packaged: è l'evidenza che `G10` chiede e la riserva che `G13` dichiara | `PIE-HEXPLAY-*` (esistono) + ⏳ `PIE-V01-PACKAGED` — **voce da creare** |
 
@@ -1734,6 +1734,29 @@ con una configurazione, lasciando il default dov'è.
 > `TestTrue("il bot comanda i propri")` — sono **entrambe** dentro `Heroes.SpawnFromData` (righe 151-152);
 > il secondo test del file, `Heroes.SpawnFailsClosedWithoutData`, non tocca `bIsBotControlled`. Scritta
 > così, la DoD si poteva soddisfare tenendo verde il test sbagliato.
+>
+> 🔴 **E il prerequisito di E47.4 aveva DUE numeri, in due viste dello stesso commit** — corretto il
+> 2026-08-16 da uno spec panel su [#512](https://github.com/DegrassiAaron/refactor-tactics-main/issues/512).
+> La prosa (qui, nel registry, in `scenario-map.md` e nel referto) scriveva **#542**;
+> [`execution-graph.yaml`](execution-graph.yaml) scriveva **`issue:512 --requires--> issue:957`**. Nessun
+> gate lo vedeva: entrambe le issue esistono e sono aperte, quindi `check-docs-links` è verde e il
+> validator del grafo pure.
+>
+> **Sono tre cose distinte, e il codice lo dice meglio di quanto lo dicesse questa pagina.**
+> `RTTurnManager.h:603`: *«Non è il seam dei `DecisionProvider` di [D-101] (`#542`, v0.2), né il
+> `DecisionProvider` iniettabile di CP 15.3 metà B (`#512`). **Sono tre cose in tre release**»* — la terza
+> è `ReactionDecider`, il delegate già in `main` da CP 14.5.
+>
+> | | Cos'è | Serve a E47.4? |
+> |---|---|---|
+> | `ReactionDecider` | delegate iniettabile, **già in `main`** | no |
+> | **#512** — CP 15.3 metà B | decisioni **di finestra** come dato, per lo showcase | no |
+> | **#542** — D-101 | il **seam generale**: un solo punto da cui entra una decisione | **lo precede** |
+>
+> ⚠️ **E la relazione era della specie sbagliata.** Nel grafo `requires` significa *«deve essere finito
+> prima»*, e E47.4 non è tecnicamente bloccata da nulla: `PlanBotsForTest()` esiste, il free-run è un ciclo
+> sopra di lui. Aprirlo prima di #542 aggiunge il terzo appiglio ad hoc che D-101 esiste per evitare — che è
+> **igiene architetturale**, cioè un `follows` con `rationale`. Declassata.
 
 > ⚠️ **Il gate di E47.1 è «il vincitore compare senza input», non «è bello da vedere».** È l'unico modo di
 > impedire che «watchable» attiri HUD, VFX e animazioni, che sono **E11**, **E20** ed **E21** e hanno i
@@ -1763,7 +1786,7 @@ tre non hanno owner affatto:
 | **E47.1** | `RTGameMode.{h,cpp}` · `Turn/RTTurnManager.{h,cpp}` | ⚠️ **nessuno** | **STOP**: serve un'allocazione |
 | **E47.2** | `Turn/RTPlaybackLibrary.*` · `UI/` | `Turn/…` nessuno · `UI/` = `client_tools` **ACTIVE** ([#78](https://github.com/DegrassiAaron/refactor-tactics-main/issues/78)) | allocazione **e** attesa |
 | **E47.3** | `Map/RTHexMapActor.{h,cpp}` | `content_editor` **ACTIVE** ([#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)) | attende quella track |
-| **E47.4** | `ScenarioHarness/` | `spatial` — IDLE | libero; resta il blocco su [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542) |
+| **E47.4** | `ScenarioHarness/` | `spatial` — IDLE | libero, e **senza blocchi tecnici**: [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542) lo precede per igiene, non lo blocca |
 | **E47.5** | `Tests/` | `verification` — IDLE, write-set **vuoto** | **STOP** |
 | **E47.6** | `test-manuali-pie.md` | `playtest` — IDLE | riallocazione, non attesa |
 

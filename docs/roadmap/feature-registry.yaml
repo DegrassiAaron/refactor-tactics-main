@@ -5568,6 +5568,16 @@ features:
       decisa e' un `DecisionProvider` che restituisce **decisioni, mai esiti**. Nessun gate si
       muove: e' un perimetro, non un'implementazione — il lavoro e' tracciato in **#542**, senza
       il quale la decisione sarebbe prosa che nessun processo legge.
+      ⚠️ **Tre cose distinte portano lo stesso nome, e vanno tenute separate** (misurato il
+      2026-08-16, spec panel su `#512`): `ARTTurnManager::ReactionDecider` — delegate iniettabile,
+      **gia' in `main`** da CP 14.5 — e' la piu' semplice; `#512` (CP 15.3 meta' B) e' il
+      `DecisionProvider` iniettabile per le decisioni **di finestra**; `#542` e' il seam GENERALE di
+      D-101. `RTTurnManager.h:603` lo scrive per esteso: «sono tre cose in tre release».
+      🔴 `E47.4` dichiarava **#542** in prosa e **#512** nel grafo, per lo stesso prerequisito e
+      nello stesso commit. Nessun gate lo vedeva — entrambe esistono e sono aperte. Riconciliato su
+      **#542**, e la relazione declassata da `requires` a `follows`: il free-run non e' bloccato da
+      nessuna delle tre (`PlanBotsForTest()` esiste), e cio' che #542 previene e' il **terzo
+      appiglio ad hoc**, che e' igiene architetturale.
 
   - feature_id: RT-FEAT-TEST-GOLDEN
     title: Golden replay e showcase «Il Relè»
