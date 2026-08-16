@@ -213,9 +213,14 @@ namespace
 			// `...DoesNotOpenSecondOpportunity`). Cio' che manca e' lo spostamento, e lo deve fare `#170`
 			// insieme al contenuto del T6 dello showcase: scoprirla da sola farebbe passare un turno con
 			// `intents: []`, cioe' il verde bugiardo che `#512` fase B ha speso un giro a impedire.
+			// ⏱️ **L'owner passa da `#170` a `#1060` il 2026-08-16**, e non e' un dettaglio di tracciamento:
+			// il T6 e' stato scorporato perche' gli manca il VOCABOLARIO — `OriginalTargetEquals` e
+			// `EffectiveTargetEquals` non esistono fra i tipi di assertion, e `ERTReactionOutcome` non ha un
+			// esito che distingua il redirect. Chi sposta questa capability deve costruirli prima, altrimenti
+			// il turno si accende e nessuno puo' verificare che rediriga sul bersaglio giusto.
 			// ⚠️ Con `owner: #200` questa riga era il difetto che `check-capability-owners.py --online` esiste
 			// per trovare: dichiarata non disponibile con l'owner CHIUSO. Il gate l'ha trovata al primo giro.
-			TEXT("InterceptRevalidation"),    // owner: #170
+			TEXT("InterceptRevalidation"),    // owner: #1060
 			TEXT("Objective"),                // owner: #75
 			TEXT("Perception"),               // owner: #151
 			// Le tre che la prosa non nominava, chieste da `Spec/Movement/`: `SpatialTrigger` (tripwire che
