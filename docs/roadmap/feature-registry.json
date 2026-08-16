@@ -2444,7 +2444,8 @@
         "RefactorTactics.Equipment.DefaultVariantPerHero",
         "RefactorTactics.Equipment.WarnsOnPointlessVariantPairing",
         "RefactorTactics.Equipment.LoadoutExactlyOneEach",
-        "RefactorTactics.Equipment.NoInMatchProgression"
+        "RefactorTactics.Equipment.NoInMatchProgression",
+        "RefactorTactics.Equipment.DefaultLoadoutIsOnePerSlotForEveryHero"
       ],
       "scenarios": [
         "Spec.Reaction.AnchorCancelsPush"

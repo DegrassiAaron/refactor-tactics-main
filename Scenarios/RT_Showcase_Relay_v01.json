@@ -235,6 +235,12 @@
       "value": 5
     },
     {
+      "type": "LogEventCount",
+      "category": "Predictive",
+      "outcome": "PredictionWhiffed",
+      "value": 1
+    },
+    {
       "type": "UnitHpEquals",
       "unit": "Gadget",
       "value": 90
@@ -281,5 +287,5 @@
       ]
     }
   ],
-  "_nota_cosa_non_e_asserribile": "⛔ Il T2 e il T3 non lasciano un'assertion propria, e la ragione e' del MECCANISMO, non dei turni. `LogEventCount`/`LogEventOrder` risolvono l'esito con `OutcomeEnumForCategory`, che copre SEI categorie — Move, Combat, Fallback, Reaction, Environment, Facing — e restituisce `nullptr` proprio per `Predictive` e `ReactionDecision`, le due piu' nuove: un `PredictionWhiffed` fa fallire il CARICAMENTO dello scenario. E il danno da hazard del T3 non ha un esito in `ERTEnvironmentOutcome` (e' #625: `Burning` uccide fuori dal TurnLog canonico). Cio' che li prova indirettamente e' la posizione finale di Wraith a (1,-1): ci si arriva solo salendo sulla cresta al T1 e scendendo per il fuoco al T3. Dichiarato invece di aggirato con un'assertion di stato che molte strade soddisfano."
+  "_nota_cosa_non_e_asserribile": "⏱️ **Aggiornata il 2026-08-16: il T2 ORA asserisce il proprio whiff.** Questa nota diceva che `LogEventCount` non copriva `Predictive` — `OutcomeEnumForCategory` restituiva `nullptr` e un `PredictionWhiffed` faceva fallire il CARICAMENTO dello scenario. Le due righe che mancavano al loader sono state aggiunte (`Predictive` e `ReactionDecision`, entrambi `UENUM` quindi risolvibili), e il T2 ha la sua assertion: se la previsione non fallisse — o se il turno non girasse affatto — il conteggio non sarebbe 1. ⛔ **Resta senza assertion propria il T3**, e la ragione e' diversa: il danno da hazard non ha un esito in `ERTEnvironmentOutcome`, cioe' #625 — `Burning` uccide fuori dal TurnLog canonico. Cio' che prova il T3 indirettamente e' la posizione finale di Wraith a (1,-1): ci si arriva solo salendo sulla cresta al T1 e scendendo per il fuoco al T3."
 }
