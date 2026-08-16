@@ -7,6 +7,7 @@
 #include "Misc/AutomationTest.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioSession.h" // le due domande del vocabolario: noto e disponibile
 #include "Turn/RTTurnLog.h" // gli esiti che le assertion sul log nominano per nome
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -28,6 +29,32 @@ namespace
 	  ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
 	  "expect": [ { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] } ]
+	}
+	)JSON");
+
+	// Le decisioni di finestra come DATO (CP 15.3 meta' B, #512). Nome distinto, come sopra.
+	//
+	// ⚠️ Gli id eroe sono i LEGACY, e non e' una svista: `RTHeroCatalogLibrary.cpp` dichiara oggi solo
+	// `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`, e i nomi di [D-130] — Gadget, Phase, Riktor,
+	// Wraith — hanno ZERO occorrenze in tutto `Source/`, perche' la fetta 3 (`#753`) non e' stata eseguita.
+	// Un `Hero.Riktor` qui non risolverebbe. Si rinominano insieme al catalogo, non prima.
+	const TCHAR* ScenarioLoaderDecisionsJson = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Decisions.Parse",
+	  "version": 2,
+	  "mapRadius": 3,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 2, 0, 0] }
+	  ],
+	  "turns": [ {
+	    "intents": [],
+	    "decisions": [
+	      { "unit": "A1", "respond": "FIRE", "target": "B1" },
+	      { "unit": "A1", "respond": "HOLD" }
+	    ]
+	  } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 	}
 	)JSON");
 }
@@ -591,6 +618,251 @@ bool FRTScenarioLoaderDeclaredFacingTest::RunTest(const FString&)
 			Error.Contains(TEXT("NNE")));
 	}
 
+	return true;
+}
+
+/**
+ * Le decisioni di finestra si caricano come DATO, in ordine e col vocabolario dello scenario (CP 15.3
+ * meta' B, `#512`).
+ *
+ * L'ORDINE e' significativo: la coda si consuma in ordine di dichiarazione, e un abbinamento posizionale
+ * cambierebbe bersaglio quando cambia il movimento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDecisionsTest,
+	"RefactorTactics.Scenario.LoaderAcceptsDecisions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDecisionsTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("scenario con decisions accettato"),
+		URTScenarioLoader::LoadFromString(ScenarioLoaderDecisionsJson, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *Error));
+		return false;
+	}
+
+	if (!TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)) { return false; }
+	const FRTScenarioTurn& T = Scenario.Turns[0];
+	if (!TestEqual(TEXT("due decisioni"), T.Decisions.Num(), 2)) { return false; }
+
+	TestEqual(TEXT("prima: unita'"),     T.Decisions[0].Unit,    FString(TEXT("A1")));
+	TestEqual(TEXT("prima: risposta"),   T.Decisions[0].Respond, FString(TEXT("FIRE")));
+	TestEqual(TEXT("prima: bersaglio"),  T.Decisions[0].Target,  FString(TEXT("B1")));
+	TestEqual(TEXT("seconda: risposta"), T.Decisions[1].Respond, FString(TEXT("HOLD")));
+	TestTrue(TEXT("HOLD non porta bersaglio"), T.Decisions[1].Target.IsEmpty());
+	return true;
+}
+
+/**
+ * La validazione e' la meta' che conta. Uno scenario scritto male deve produrre un ERROR leggibile, non un
+ * `HOLD` silenzioso: `HoldNoDecider` e' indistinguibile da «nessuno ha risposto», ed e' il modo in cui un
+ * refuso resta verde per sempre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDecisionsRejectTest,
+	"RefactorTactics.Scenario.LoaderRejectsMalformedDecisions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDecisionsRejectTest::RunTest(const FString&)
+{
+	auto Rifiuta = [this](const TCHAR* Cosa, const TCHAR* Decision, const TCHAR* Atteso)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Decisions.Reject", "version": 2, "mapRadius": 3,
+		  "units": [
+		    { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "B1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 2, 0, 0] }
+		  ],
+		  "turns": [ { "intents": [], "decisions": [ %s ] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Decision);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), Cosa), bLoaded);
+		// Il messaggio deve NOMINARE il difetto: un rifiuto muto manda a cercare nel posto sbagliato.
+		TestTrue(FString::Printf(TEXT("%s: il motivo nomina '%s' (era: '%s')"), Cosa, Atteso, *Error),
+			Error.Contains(Atteso));
+	};
+
+	Rifiuta(TEXT("chiave sconosciuta"),
+		TEXT(R"({ "unit": "A1", "respond": "HOLD", "reason": "perche' si" })"), TEXT("reason"));
+	Rifiuta(TEXT("respond sconosciuto"),
+		TEXT(R"({ "unit": "A1", "respond": "MAYBE" })"), TEXT("MAYBE"));
+	Rifiuta(TEXT("FIRE senza bersaglio"),
+		TEXT(R"({ "unit": "A1", "respond": "FIRE" })"), TEXT("target"));
+	Rifiuta(TEXT("HOLD con bersaglio"),
+		TEXT(R"({ "unit": "A1", "respond": "HOLD", "target": "B1" })"), TEXT("B1"));
+	Rifiuta(TEXT("unita' non schierata"),
+		TEXT(R"({ "unit": "Z9", "respond": "HOLD" })"), TEXT("Z9"));
+	Rifiuta(TEXT("bersaglio non schierato"),
+		TEXT(R"({ "unit": "A1", "respond": "FIRE", "target": "Z9" })"), TEXT("Z9"));
+	return true;
+}
+
+/** Un refuso a livello di turno non deve essere ignorato: `desicions` non e' un commento. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderTurnKeysTest,
+	"RefactorTactics.Scenario.LoaderRejectsUnknownTurnKey",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
+{
+	// ⚠️ `expect` NON puo' essere vuoto: il loader lo rifiuta a monte («nessuna assertion dichiarata»), e
+	// un JSON di prova senza assertion farebbe passare il primo `TestFalse` per la ragione sbagliata e
+	// cadere il secondo caso per sempre. Il piano lo dichiara nei vincoli globali e lo violava qui.
+	const TCHAR* Json = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Decisions.TurnKey", "version": 1, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "intents": [], "desicions": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	TestFalse(TEXT("refuso di turno rifiutato"), URTScenarioLoader::LoadFromString(Json, Scenario, Error));
+	// Il messaggio deve nominare LA CHIAVE: un rifiuto generico manda a cercare nel posto sbagliato, ed e'
+	// anche cio' che distingue questo controllo da quello — gia' esistente — sul contenuto di `intents`.
+	TestTrue(FString::Printf(TEXT("il messaggio nomina 'desicions' (era: '%s')"), *Error),
+		Error.Contains(TEXT("desicions")));
+
+	// E il commento resta un commento: `_turno` e `_nota` non devono cadere insieme al refuso.
+	const TCHAR* ConCommento = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Decisions.TurnComment", "version": 1, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "_turno": "commento", "_nota": "altro", "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
+	FRTTestScenario ConCommentoScenario;
+	FString CommentoError;
+	if (!TestTrue(TEXT("i commenti di turno restano ammessi"),
+		URTScenarioLoader::LoadFromString(ConCommento, ConCommentoScenario, CommentoError)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *CommentoError));
+	}
+	return true;
+}
+
+/**
+ * Il formato cresce di una versione, e il gate serve nel verso che conta: una build VECCHIA deve
+ * **rifiutare** uno scenario che non sa leggere, non ignorarne i campi. Da `#926` gli scenari viaggiano
+ * dentro il pacchetto, quindi la coppia build/dato puo' disallinearsi davvero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderVersionTwoTest,
+	"RefactorTactics.Scenario.LoaderSupportsVersionTwo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
+{
+	auto Prova = [this](int32 Versione, bool bAtteso)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Decisions.Version", "version": %d, "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Versione);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bLoaded = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestEqual(FString::Printf(TEXT("versione %d"), Versione), bLoaded, bAtteso);
+	};
+
+	Prova(1, true);   // i 76 scenari esistenti restano a 1 e non si toccano
+	Prova(2, true);   // la versione che dichiara `decisions`
+	Prova(3, false);  // il gate resta un gate
+	return true;
+}
+
+/**
+ * Il bump a 2 deve GATARE la feature per cui e' stato fatto, o non gatea niente.
+ *
+ * Trovato in code review: il solo controllo era `Version > SupportedVersion`, quindi un file `version: 1`
+ * con `decisions` veniva accettato. Spedito cosi', una build vecchia — che non conosce ne' la chiave ne' la
+ * versione — lo caricherebbe ignorando le decisioni e giocherebbe il turno non scriptato: il silenzio che
+ * il bump esiste per impedire.
+ *
+ * E una chiave `decisions` che non e' un array non deve sparire: supera il controllo sulle chiavi di turno,
+ * perche' la chiave e' nota, e senza questo verrebbe saltata da `TryGetArrayField` senza un errore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDecisionsNeedVersionTwoTest,
+	"RefactorTactics.Scenario.LoaderRejectsDecisionsBelowVersionTwo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDecisionsNeedVersionTwoTest::RunTest(const FString&)
+{
+	auto Carica = [](int32 Versione, const TCHAR* DecisionsField, FString& OutError)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Decisions.VersionGate", "version": %d, "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+		  "turns": [ { "intents": [], %s } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Versione, DecisionsField);
+		FRTTestScenario Scenario;
+		return URTScenarioLoader::LoadFromString(*Json, Scenario, OutError);
+	};
+
+	const TCHAR* UnaDecisione = TEXT(R"("decisions": [ { "unit": "A1", "respond": "HOLD" } ])");
+
+	FString Error;
+	TestFalse(TEXT("version 1 con decisions e' rifiutato"), Carica(1, UnaDecisione, Error));
+	TestTrue(FString::Printf(TEXT("e il motivo nomina la versione (era: '%s')"), *Error),
+		Error.Contains(TEXT("version")));
+
+	Error.Reset();
+	TestTrue(FString::Printf(TEXT("version 2 con le stesse decisions e' accettato (errore: '%s')"), *Error),
+		Carica(2, UnaDecisione, Error));
+
+	// Una lista VUOTA non chiede nulla di nuovo: non deve costringere ad alzare la versione.
+	Error.Reset();
+	TestTrue(TEXT("version 1 con decisions vuote resta valida"),
+		Carica(1, TEXT(R"("decisions": [])"), Error));
+
+	Error.Reset();
+	TestFalse(TEXT("decisions non-array e' rifiutato"), Carica(2, TEXT(R"("decisions": {})"), Error));
+	TestTrue(FString::Printf(TEXT("e il motivo dice che serve un array (era: '%s')"), *Error),
+		Error.Contains(TEXT("array")));
+	return true;
+}
+
+/**
+ * `Reaction` e `DecisionBoundary` sono due nomi con due regimi, e il confine e' la CARDINALITA' — non due
+ * nomi per la stessa cosa. Il test esiste perche' la divisione, senza, vive solo in un commento: e un
+ * commento che dichiara la propria scadenza l'ha gia' mancata una volta.
+ *
+ * ⚠️ Servono ENTRAMBE le domande, e il piano ne faceva una sola. `IsKnownCapability` e' vera anche per le
+ * indisponibili — e' il suo scopo — quindi chiederla per `Reaction` e per `DecisionBoundary` avrebbe
+ * pinnato soltanto che i due nomi esistono, non che stanno da parti opposte. La divisione E' la coppia
+ * `noto` × `disponibile`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioReactionSplitTest,
+	"RefactorTactics.Scenario.ReactionAndDecisionBoundaryAreDistinct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioReactionSplitTest::RunTest(const FString&)
+{
+	// `Reaction` copre il regime E5 `AllowedResponses <= 1` ed e' DISPONIBILE: i tre scenari che la chiedono
+	// girano oggi.
+	TestTrue(TEXT("Reaction e' nota"), FRTScenarioSession::IsKnownCapability(TEXT("Reaction")));
+	TestTrue(TEXT("e disponibile"), FRTScenarioSession::IsAvailableCapability(TEXT("Reaction")));
+
+	// `DecisionBoundary` copre `>= 2`: nome NOTO — quindi un turno che lo chiede vale `Blocked`, non
+	// `Error` — ma non disponibile in fase A. Le due asserzioni insieme sono la divisione.
+	TestTrue(TEXT("DecisionBoundary e' un nome noto"),
+		FRTScenarioSession::IsKnownCapability(TEXT("DecisionBoundary")));
+	TestFalse(TEXT("ma NON e' disponibile in fase A"),
+		FRTScenarioSession::IsAvailableCapability(TEXT("DecisionBoundary")));
+
+	// E un nome inventato resta un errore di scrittura, non un'attesa: e' l'altra meta' del vocabolario.
+	TestFalse(TEXT("un nome inventato non e' noto"),
+		FRTScenarioSession::IsKnownCapability(TEXT("ReactionDecision")));
 	return true;
 }
 

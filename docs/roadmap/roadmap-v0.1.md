@@ -115,7 +115,7 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | **Facing come stato di gioco** | `Turn/RTFacingLibrary.*`, `Unit/RTUnit.h`, `Combat/RTHexCombatLibrary.*` | ✅ E16 chiusa il 2026-08-09: derivato da Move e Dash, riorientato dal bersaglio, in snapshot/TurnLog/hash, e l'emisfero posteriore annulla copertura e `Guard` |
 | **Scenario showcase e golden replay** | `Tests/` (`ShowcaseRelay.*`) | 🟡 **iniziata**: fixture stabile e scenario lite deterministico |
 | **Partita non presidiata (bot vs bot in gioco)** | `RTGameMode.cpp:547`, `Turn/RTTurnManager.cpp` | ⏳ **E47.1**. Il turno avanza già da solo — `StartPlanningTimer` chiama `PlanBots`, `OnPlanningTimeout` chiama `LockInAndResolve` — e `HexMatch.PlaysToCompletion` prova il 2v2 bot-contro-bot **headless** fino all'eliminazione. In partita no: `SpawnHero` fa `bIsBotControlled = (TeamId == 1)`, pinnato da `RTHeroSpawnTests`. Manca **la configurazione**, non il motore |
-| **Velocità di playback** | `Turn/RTPlaybackLibrary.*` | ⏳ **E47.2**. Il playback esiste e non decide (invariante #1); non c'è alcun controllo `x1/x2/x4`, quindi `PlaybackIndependence` non ha oggi un soggetto da verificare |
+| **Velocità di playback** | `Turn/RTPlaybackLibrary.*` | 🟡 **E47.2 chiusa** ([#955](https://github.com/DegrassiAaron/refactor-tactics-main/issues/955)): `ViewerPlaybackSpeed` si compone col tetto via `EffectivePlaybackSpeed = Max(Viewer, Cap)` e `TickPlayback` la rilegge **a ogni tick**, quindi cambia *durante* la risoluzione. Gate verde — `Match.Autobattle.DeterminismIsIndependentOfPlayback`, sette varianti, tick misurati 465/233/121/166 per x1/x2/x4/cambio-a-caldo. Resta **E47.7** ([#1015](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1015)), il controllo in HUD: oggi la manopola si raggiunge solo da editor e Blueprint. 🔴 **Questa riga diceva *«non c'è alcun controllo `x1/x2/x4`, quindi `PlaybackIndependence` non ha oggi un soggetto da verificare»*, ed era falsa due volte**: il test esiste dal [#958](https://github.com/DegrassiAaron/refactor-tactics-main/issues/958), il controllo dal #955 — e la prima metà era già falsa quando è stata scritta |
 | **Grammatica visiva delle celle** | `Map/RTHexMapActor.{h,cpp}` | 🟡 **E47.3**. Il **colore** per superficie c'è in partita — `CellMaterial` legge i tre `PerInstanceCustomData` di `RebuildInstances` — il **secondo canale** (pattern/glifo/forma) non esiste, né in gioco né nell'overlay dell'editor ([D-146](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **Seed / varietà pseudo-casuale** | — | ⏳ **fuori dalla v0.1 finché non è deciso**. Zero `FRandomStream` nel runtime: il determinismo è **strutturale**. `FRTTestScenario::Seed` esiste ed è documentato come *«dichiarato ma non consumato»*. Domanda aperta in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) |
 
@@ -1711,7 +1711,8 @@ con una configurazione, lasciando il default dov'è.
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **E47.1** ⏳ | Modalità non presidiata | Una configurazione — non un default nuovo — mette **entrambe** le squadre sotto il bot e accorcia `PlanningSeconds`. Premuto Play e non toccato più nulla, compare un vincitore; il TurnLog ha almeno una voce `Move` e una `Combat` per round giocato. **`Heroes.SpawnFromData` resta verde** | `RefactorTactics.Match.Autobattle.*` — da creare |
-| **E47.2** ⏳ | Ritmo osservabile | Velocità di playback `x1 · x2 · x4` con **stesso risultato logico**: `StateHash` finale e TurnLog canonico identici alle tre velocità. La UI non ricalcola nulla (invariante #1) | `Playback.SpeedDoesNotChangeOutcome` — da creare |
+| **E47.2** ✅ | Ritmo osservabile | Velocità `x1 · x2 · x4` con **stesso risultato logico**, composta col tetto: `Max(Viewer, Cap)`. Il confronto è sul **TurnLog canonico turno per turno**, non su `StateHash` — l'hash è permutazione-invariante e non esprime divergenze d'ordine. ⚠️ Il DoD chiedeva un test `Playback.SpeedDoesNotChangeOutcome` **nuovo**: sarebbe stato un secondo file con gli stessi helper, e le varianti sono entrate in quello che esisteva | ✅ `Match.Autobattle.DeterminismIsIndependentOfPlayback` (7 varianti) + `Playback.EffectiveSpeed` |
+| **E47.7** ⏳ | Il controllo in HUD | La manopola di E47.2 esiste e si raggiunge **solo da editor e Blueprint**: chi guarda una partita non presidiata non può accelerarla. Era il «passo 4 di 4» di E47.2, l'unico che tocca `UI/`, tenuto fuori perché il gate si chiude senza. Solo presentazione: il controllo scrive `ViewerPlaybackSpeed` e nient'altro | ⏳ `PIE-V01-PLAYSPEED` — **esiste già**, va resa eseguibile |
 | **E47.3** ⏳ | Grammatica visiva della board | Ogni categoria leggibile da **due** canali, `colore + forma` ([D-146](../decisions/RT_PDR_00_Decision_Log.md)). La legenda è **derivata** da superficie, coperture di bordo ed entità obiettivo: zero `enum` nuovi, nessuna migrazione di formato | ⏳ `PIE-V01-BOARD` — **voce da creare**, vedi sotto |
 | **E47.4** ⏳ | Scenario autobattle free-run | Uno scenario può dichiarare «gioca fino alla fine» invece di enumerare i turni, con `RepeatCount` e riesecuzione. **Estende** l'harness esistente: `PlanBotsForTest()` esiste già e il free-run è un ciclo sopra di lui. ⚠️ **Non è bloccato** dal seam di [D-101](../decisions/RT_PDR_00_Decision_Log.md) ([#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)) — **lo segue**: aprirlo prima aggiunge il terzo appiglio ad hoc che D-101 esiste per evitare, ed è igiene architetturale, non un prerequisito tecnico | `RefactorTactics.Scenario.FreeRun.*` — da creare |
 | **E47.5** ⏳ | Corpus di determinismo dell'autobattle | `PermutationTest` · `PlaybackIndependence` · `NoPath` (fallback legale, nessun deadlock) · `AllWait` (il turno termina) · `SimultaneousKO` (politica esplicita) · `TurnLimit`. **`DifferentSeedVariation` è fuori**: contraddirebbe `Simulation.SeedIsDeclaredAndUnconsumed`, che è verde (D-145 §5) | estende `RefactorTactics.Simulation.*` |
@@ -1778,14 +1779,23 @@ senza console di debug.
 **Dipendenze**: E2 (parità hex, chiusa), E10 (fine partita, `RT-FEAT-MATCH-END-CONDITIONS`
 `RELEASE_READY`), E15 per l'harness. E47.3 dipende da E21.3 per la taratura dei materiali, non viceversa.
 
-**Vincolo di parallelismo, misurato su [`parallel-batch.yaml`](parallel-batch.yaml) il 2026-08-16**
-([D-139](../decisions/RT_PDR_00_Decision_Log.md)) — **cinque checkpoint su sei non sono apribili subito**, e
-tre non hanno owner affatto:
+**Vincolo di parallelismo, rimisurato su [`parallel-batch.yaml`](parallel-batch.yaml) il 2026-08-16**
+([D-139](../decisions/RT_PDR_00_Decision_Log.md)) — i checkpoint sono **sette** da quando E47.2 ha
+scorporato il proprio passo 4 in **E47.7**, e **tre sono chiusi** (E47.1 · E47.2 · E47.5). Dei quattro
+aperti: **E47.4** è libero, **E47.6** è una riallocazione da una track IDLE, **E47.3** ed **E47.7**
+attendono una track `ACTIVE`.
+
+> 💡 **La riga precedente diceva «cinque su sei non apribili subito», e la lezione di E47.2 è che quel
+> conteggio si misura sul write-set, non sul checkpoint.** E47.2 risultava bloccata perché il suo elenco
+> nominava `UI/`; scomposta, tre passi su quattro non lo toccavano affatto e il gate si è chiuso senza.
+> Un checkpoint bloccato può essere un checkpoint **troppo grosso**, e conviene chiederselo prima di
+> aspettare.
 
 | CP | File | Owner dichiarato | Conseguenza |
 |---|---|---|---|
 | **E47.1** | `RTGameMode.{h,cpp}` · `Turn/RTTurnManager.{h,cpp}` | ⚠️ **nessuno** | **STOP**: serve un'allocazione |
-| **E47.2** | `Turn/RTPlaybackLibrary.*` · `UI/` | `Turn/…` nessuno · `UI/` = `client_tools` **ACTIVE** ([#78](https://github.com/DegrassiAaron/refactor-tactics-main/issues/78)) | allocazione **e** attesa |
+| **E47.2** | `Turn/RTPlaybackLibrary.*` · `Turn/RTTurnManager.*` · `Tests/` | track `playback` — **chiusa il 2026-08-16**, torna IDLE | ✅ fatto. `UI/` **non è servito**: la previsione «allocazione **e** attesa» era giusta sull'allocazione e sbagliata sull'attesa |
+| **E47.7** | `UI/` | `client_tools` **ACTIVE** ([#78](https://github.com/DegrassiAaron/refactor-tactics-main/issues/78)), `blocked_paths` su `UI/RTHUD.{h,cpp}` dietro [#904](https://github.com/DegrassiAaron/refactor-tactics-main/pull/904) | attesa — ⚠️ **da rimisurare all'apertura**: quella track dichiara un `branch:` già mergiato e un `worktree:` inesistente |
 | **E47.3** | `Map/RTHexMapActor.{h,cpp}` | `content_editor` **ACTIVE** ([#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)) | attende quella track |
 | **E47.4** | `ScenarioHarness/` | `spatial` — IDLE | libero, e **senza blocchi tecnici**: [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542) lo precede per igiene, non lo blocca |
 | **E47.5** | `Tests/` | `verification` — IDLE, write-set **vuoto** | **STOP** |
