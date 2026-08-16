@@ -594,4 +594,76 @@ bool FRTBannerListsEveryDegradationTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Ogni `bool` e la sua visibilita' dicono la stessa cosa.**
+ *
+ * I tre widget espongono una coppia ciascuno — `IsLoading`/`GetLoadingVisibility`,
+ * `IsArmed`/`GetModalVisibility`, `HasAnything`/`GetBannerVisibility` — e le due meta' esistono perche'
+ * il binding di `Visibility` non accetta un `bool`. Sono **due modi di leggere lo stesso stato**, ed e'
+ * esattamente la condizione in cui due copie divergono: qualcuno cambia la condizione da una parte e
+ * l'altra resta indietro, e a schermo compare un widget che dice di non avere niente da dire.
+ *
+ * Il test lega le due meta' invece di fidarsi che restino allineate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendVisibilityMatchesStateTest,
+	"RefactorTactics.Frontend.VisibilityNeverDisagreesWithState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendVisibilityMatchesStateTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// ── Loading: la visibilita' segue `IsLoading()` in tutte e cinque le fasi ──────────────────────
+	URTLoadingScreenWidgetBase* Loading = NewObject<URTLoadingScreenWidgetBase>(World);
+	const ERTLoadPhase Phases[] = { ERTLoadPhase::Idle, ERTLoadPhase::Map, ERTLoadPhase::Scenario,
+									ERTLoadPhase::Bots, ERTLoadPhase::Ready };
+	for (const ERTLoadPhase Phase : Phases)
+	{
+		Loading->SetPhase(Phase);
+		const ESlateVisibility Expected =
+			Loading->IsLoading() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+		if (!TestEqual(*FString::Printf(TEXT("fase %d: visibilita' coerente"), (int32)Phase),
+			Loading->GetLoadingVisibility(), Expected))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+	}
+
+	// ── Modale: disarmato -> Collapsed, armato -> Visible ─────────────────────────────────────────
+	URTErrorModalWidgetBase* Modal = NewObject<URTErrorModalWidgetBase>(World);
+	TestEqual(TEXT("disarmato: collassato"),
+		Modal->GetModalVisibility(), ESlateVisibility::Collapsed);
+
+	// Un ripiego NON lo arma, quindi non lo rende nemmeno visibile: le due meta' restano d'accordo
+	// anche sul caso che `ShowFor` rifiuta.
+	Modal->ShowFor(FRTStartupNote(ERTStartupOutcome::UsingTestArena));
+	TestEqual(TEXT("un ripiego non lo mostra"),
+		Modal->GetModalVisibility(), ESlateVisibility::Collapsed);
+
+	Modal->ShowFor(FRTStartupNote(ERTStartupOutcome::FormatAssetInvalid, TEXT("dettaglio")));
+	TestTrue(TEXT("armato"), Modal->IsArmed());
+	TestEqual(TEXT("e visibile"), Modal->GetModalVisibility(), ESlateVisibility::Visible);
+
+	// `DETAILS` segue il dettaglio, che in Shipping non esiste: qui il test gira in Development, dove
+	// la stringa c'e'.
+	TestEqual(TEXT("il pulsante DETAILS segue ShouldShowDetails"),
+		Modal->GetDetailsVisibility(),
+		Modal->ShouldShowDetails() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+
+	// ── Banner: la visibilita' segue `HasAnything()` ───────────────────────────────────────────────
+	URTFallbackBannerWidgetBase* Banner = NewObject<URTFallbackBannerWidgetBase>(World);
+	TestEqual(TEXT("banner vuoto: collassato"),
+		Banner->GetBannerVisibility(), ESlateVisibility::Collapsed);
+
+	FRTStartupReport Report;
+	Report.Add(ERTStartupOutcome::UsingTestArena, TEXT("120 celle"));
+	Banner->SetFromReport(Report);
+	TestTrue(TEXT("ora ha qualcosa"), Banner->HasAnything());
+	TestEqual(TEXT("ed e' visibile"), Banner->GetBannerVisibility(), ESlateVisibility::Visible);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
