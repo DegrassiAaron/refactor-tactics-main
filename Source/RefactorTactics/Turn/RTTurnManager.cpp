@@ -4714,6 +4714,26 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 		}
 	}
 
+	// ORDINE STABILE PER CELLA, e non e' una rifinitura: senza, l'ORDINE DI SPAWN decide la partita (#990).
+	//
+	// `GetAllActorsOfClass` restituisce gli Actor nell'ordine in cui il livello li tiene, che non e' un dato
+	// di gioco. Da questo array nasce l'identita' delle unita' nello snapshot — l'indice, si veda il commento
+	// qui sotto — e `PlanBots` itera proprio questi indici per far decidere i bot. Finche' le decisioni sono
+	// indipendenti non si nota niente; appena due bot interagiscono, chi decide per primo cambia l'esito.
+	//
+	// MISURATO, non temuto (CP 47.5): la stessa partita 2v2 bot-contro-bot, con le stesse unita' sulle stesse
+	// celle e inserite in ordine diverso, divergeva al **turno 2** — in un ordine `Bastion.Interposition` si
+	// attivava, nell'altro non trovava trigger. Il turno 1 era identico byte per byte, che e' il modo in cui
+	// questa classe di difetto passa inosservata: si manifesta quando gli agenti cominciano a interagire.
+	//
+	// E' lo stesso `Sort` con lo stesso comparatore che `ResolveCombat` applica al proprio array, dove la
+	// regola era gia' scritta — *«GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli
+	// indici»*. Erano due gemelli, e uno solo dei due la rispettava.
+	//
+	// CADE `RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation` se questa riga sparisce:
+	// verificato per mutazione, non dedotto.
+	OutUnits.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+
 	// L'identita' e' l'INDICE dell'unita' in OutUnits, un intero stabile — mai un pointer (stessa
 	// disciplina del TurnLog). Il chiamante ritrova la propria unita' con OutUnits.IndexOfByKey.
 	TArray<FRTHexSimUnit> SimUnits;
