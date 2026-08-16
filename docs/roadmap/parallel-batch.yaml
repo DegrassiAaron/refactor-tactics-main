@@ -1151,20 +1151,31 @@ tracks:
       nuovi si propongono in JSON dentro l'handoff, non si scrivono. Assegnare la cartella a questa track
       significherebbe darle la sorgente di `scenariomap.shortlist.md` insieme al suo unico altro
       produttore, cioè rifare la contesa che la separazione evita.
+      ⛔ **`ScenarioHarness/` esce da questa track il 2026-08-16 e passa a `simulation`**, che riparte su
+      `#512`. Il DoD di quella issue tocca `RTScenarioSession.cpp` — le due liste di capability — e la
+      lettura dello script di decisione, cioè il centro della cartella: **quattro** file su tredici, e i
+      due più grandi. La directory va **intera**, non divisa: spezzarla fra due track è il caso che questo
+      file esiste per evitare, e il confine andrebbe rimisurato a ogni commit.
+      ✅ **Misurato prima di decidere, non dopo**: la track è `IDLE` con `issue: null` e `branch: null`, e
+      il worktree `D:/rt-spatial` sta eseguendo **`feat/832-structure-identity-hash`** — `Turn/RTMatchStateHash.cpp`
+      e il suo test, modificati e non committati. Il mandato B **non è in esecuzione**: non è un'attesa che
+      si interrompe, è una prenotazione che nessuno stava usando.
+      ⚠️ **Chi riapre il mandato B rinegozia, non riprende**: finché `simulation` è `ACTIVE` su `#512`,
+      questa track non ha `ScenarioHarness/`. Le resta il solo file del mandato — e con la cartella escono
+      i due `derives_from`, perché **una vista segue la sorgente**: `project-graph.json` e
+      `scenariomap.shortlist.md` seguono `RTScenarioSession.cpp`, quindi seguono `simulation`.
     mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
     worktree: "D:/rt-spatial"
     writable:
-      - Source/RefactorTactics/ScenarioHarness/
       - docs/technical/qa-prompt-terminal-b-scenario-runner.md
-    derives_from:
-      - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-        regenerates:
-          - docs/roadmap/project-graph.json
-          - docs/roadmap/scenariomap.shortlist.md
+    derives_from: []
 
   simulation:
-    status: IDLE
-    issue: null
+    status: ACTIVE
+    issue: 512
+    # ➕ **Riattivata il 2026-08-16 su `#512` (CP 15.3 metà B).** I commenti qui sotto restano come
+    # registro dei due giri precedenti — `#578` e `#926`, entrambe chiuse — e non descrivono più lo
+    # stato: il motivo della riattivazione sta in coda alla `note`, dove si può misurare.
     # 🔴 **Il commento diceva «il branch non è ancora stato aperto», e il 2026-08-16 è falso in
     # entrambi i sensi: è stato aperto E mergiato.** `chore/926-staging-scenari` è atterrato con la PR
     # **#932** (`2026-08-15T22:37:22Z`, `4ab36b48` — che è la base di questa riconciliazione), il branch
@@ -1179,6 +1190,11 @@ tracks:
     # con la PR **#945** (`6eb4a77e`), e con lei `#578` — l'ultima delle sue cinque voci di DoD era
     # proprio `Packaged`. La track passa a IDLE e `issue` a `null`: la domanda era ben posta, e questa e'
     # la riga che la chiude invece di lasciarla aperta un altro giro.
+    # ⚠️ **`branch` resta `null` da `ACTIVE`, e significa una quarta cosa** — non «mergiato e cancellato»
+    # né «residuo da misurare»: **«il write-set è assegnato e la sessione non ha ancora scritto»**. Questa
+    # PR è l'atto d'integrazione che prenota i path; il branch di lavoro nasce col primo commit dentro
+    # `D:/rt-simulation`. È la stessa forma che `content_editor` porta da due giorni, ed è la ragione per
+    # cui `branch` si **misura** (`git ls-remote`) invece di scriverlo in anticipo.
     branch: null
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
@@ -1384,6 +1400,69 @@ tracks:
       `Game` non lo compila niente di automatico. E' il difetto del 2026-08-09 ripetuto il 2026-08-15; senza
       i due `Build.bat` nel percorso di consegna, la terza volta e' questione di tempo — e non c'e' una CI
       dove metterli, perche' `.github/workflows/` e' assente per scelta.
+      ✅ **Rimisurato il 2026-08-16: `#923` è `CLOSED`**, e le due righe qui sopra sono ora registro. Il
+      titolo finale dice **89 dichiarazioni in 12 file**, non undici file: il numero era una stima del
+      momento in cui la track chiudeva, non il consuntivo. Quel che resta aperto è **`#950`** — manca lo
+      *script* che fa cadere un test dichiarato fuori dalla guardia, cioè la causa strutturale, non i file.
+      ➕ **Riattivata il 2026-08-16 su `#512` (CP 15.3 metà B), e senza `mandate`**: il Terminal A è chiuso
+      e la sua spec sta in `integration_only`, dove la riattivazione precedente l'ha messa. Un `mandate` su
+      una track che non lo sta eseguendo direbbe il falso al prossimo lettore.
+      ✅ **Perché questa issue, misurato invece che dedotto.** La sua unica condizione di sblocco — *«un
+      chiamante di `BuildOverwatchTriggers` dentro il resolver»* — è soddisfatta da `#165`, che è il lavoro
+      con cui **questa stessa track** ha chiuso un giro fa: `RTTurnManager.cpp:5093` è un chiamante di
+      produzione. E il lavoro è ancora tutto lì: `DecisionBoundary` è in `KnownUnavailableCapabilities()`
+      (`RTScenarioSession.cpp:161`), quindi i **sette** turni che la chiedono restano `Blocked` — contati
+      col contatore Python che il commento di quel file pubblica, non a occhio.
+      🔴 **Il DoD è cambiato stamattina, e chi parte legge il corpo invece del ricordo.** Lo spec panel del
+      2026-08-16 (`05:37Z`) ha riscritto la issue: le voci passano da **quattro** a **sei**. Le due nuove
+      sono la *verifica di mutazione* — un provider che restituisce un **esito** invece di una decisione
+      deve far cadere almeno uno scenario — e la **divisione della capability `Reaction`**, che il commento
+      di `RTScenarioSession.cpp:44-51` aveva nominato in anticipo come propria condizione di scadenza:
+      *«il giorno in cui `ResolveCombat` chiamerà quella funzione, questa riga smette di essere vera»*.
+      ⚠️ **Un terzo del lavoro è già in `main` e non va rifatto**: `ARTTurnManager::ReactionDecider` è un
+      delegate `public` dal CP 14.5 — **quattro** occorrenze, tutte dentro `RTTurnManager.{h,cpp}` — e
+      `grep -rn "ReactionDecider.Bind" Source/` dà **zero**. Il provider **sostituisce** quel seam: un
+      secondo seam è un non-goal scritto nella issue.
+      ⛔ **`ScenarioHarness/` arriva da `spatial`** — la ragione sta nel blocco di quella track, dove il
+      path esce. Qui basta la conseguenza: chi tocca `RTScenarioSession.cpp` eredita **due** `--check`
+      (`project-graph.json` e `scenariomap.shortlist.md`), e nessun'altra track può toccare la cartella
+      finché questa è `ACTIVE`.
+      ⛔ **`Scenarios/` NON entra, e la misura dice che non serve.** La divisione di `Reaction` riguarda la
+      DECISIONE su un'opportunity a due risposte; i **tre** turni che oggi chiedono `Reaction`
+      (`Combat/CounterStrikesBack`, `Visual/Reaction/Deflection`, `Visual/Reaction/Interposition`) sono il
+      regime E5 `AllowedResponses <= 1` e non cambiano nome. Se il design scelto costringesse a riscrivere
+      un JSON, quello è un **atto d'integrazione** e si dichiara prima di farlo — come la riga di staging
+      degli scenari due giri fa.
+      ⚠️ **`Turn/` entra per quattro file, non per cartella, e la ragione è misurata.**
+      `feat/cp75-selfreposition` (fermo dal 2026-08-11, nessuna PR) tocca `RTTurnManager.cpp`; il worktree
+      `D:/rt-spatial` ha `Turn/RTMatchStateHash.cpp` modificato e **non committato** su
+      `feat/832-structure-identity-hash`. Prendere `Turn/` intera prenoterebbe file che stanno scrivendo
+      altri. ⚠️ E il secondo di quei due write-set è **invisibile** a `git diff origin/main...origin/<b>`,
+      perché non è pushato: si vede solo con `git worktree list` più `git status` in ognuno.
+      🔴 **E un `git status --porcelain` senza `update-index --refresh` inventa un write-set.** `D:/rt-fix`
+      dichiarava **sette** file modificati — fra cui `execution-graph.yaml` e `project-graph.json` — e dopo
+      il refresh ne dichiarava **zero**: era stat-cache stantia dell'index, non il lavoro di un'altra
+      sessione. Attribuire quei sette file a qualcuno sarebbe stato un falso misurato con un comando vero.
+      ⚠️ **Cosa `#512` NON sblocca più, e fino a stamattina il grafo diceva di sì**: l'arco
+      `issue:512 --requires--> issue:957` (E47.4) è **rimosso** dalla PR **#969**, mergiata alle `05:38Z`,
+      che lo riconcilia su `#542` e lo declassa a `follows` — *«sono tre cose in tre release»*, e quella di
+      E47.4 è la terza. **Resta** `issue:512 --requires--> issue:170`: il golden replay degli otto turni ha
+      davvero bisogno delle decisioni di finestra come dato, ed è l'attore primario che la issue dichiara.
+      ⚠️ **La base di questa riattivazione è `3efa2b7b`, non `ac107f8a`**: il ref si è mosso **due volte**
+      mentre misuravo — `#969` e `#970` sono atterrate in mezzo — e le misure qui sopra sono state
+      rifatte sull'albero nuovo invece di essere ereditate.
+    writable:
+      - Source/RefactorTactics/ScenarioHarness/
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
+      - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
+      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+    derives_from:
+      - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+        regenerates:
+          - docs/roadmap/project-graph.json
+          - docs/roadmap/scenariomap.shortlist.md
 
   client_tools:
     status: ACTIVE
