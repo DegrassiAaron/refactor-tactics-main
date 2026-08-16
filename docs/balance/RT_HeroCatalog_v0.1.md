@@ -257,7 +257,22 @@ mezzo; Gadget ha il danno combo più alto.
 >
 > ⚠️ **La colonna «Push res.» è ora interamente `0`, e `PushResistance` è una meccanica dormiente**: modello e
 > resolver la implementano (ramo `ERTActionEffect::Push`), **nessun contenuto la esercita**. È dichiarato, non
-> dimenticato — si risveglia da sé se una v0.2 introduce una spinta `≥ 2`. L'esito è pinnato dallo scenario
+> dimenticato.
+>
+> 🔴 **Ma il modo in cui si risveglia era scritto al contrario, ed è stato corretto il 2026-08-16.** Questa
+> riga diceva *«si risveglia da sé se una v0.2 introduce una spinta `≥ 2`»*. È falso in **entrambi** i sensi.
+> `PushResistance` è una **soglia**, non una sottrazione (D-038): il resolver annulla lo spostamento solo se
+> `Amount <= PushResistance` (`RTTurnManager.cpp:4214`). Con la colonna a `0`, **nessuna** spinta viene mai
+> annullata — e una spinta più **forte** rende la soglia più difficile da raggiungere, non più facile: contro
+> uno spostamento di 2 servirebbe `PushResistance ≥ 2`. Ciò che risveglia la meccanica è **un eroe con
+> `PushResistance > 0`**, cioè una decisione di contenuto sul roster, non una spinta nuova.
+>
+> ⚠️ E la spinta forte è comunque **già arrivata**, il che rende la vecchia formulazione doppiamente
+> ingannevole: `Weapon.Impact` porta `Riva.PressureJet` a **2** ([D-085](../decisions/RT_PDR_00_Decision_Log.md)),
+> default di Phase ([D-089](../decisions/RT_PDR_00_Decision_Log.md)) — e la colonna è rimasta dormiente
+> esattamente come prima, che è la prova di quanto sopra.
+>
+> L'esito è pinnato dallo scenario
 > `Spec.Combat.BastionIsPushedLikeAnyone`, che manda Riktor e Wraith a incassare lo stesso `Riva.PressureJet`
 > e li fa arretrare **entrambi**; la regola della soglia resta pinnata da
 > `RefactorTactics.Actions.PushResistanceIsAThreshold`, che il valore se lo costruisce da solo.
