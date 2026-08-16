@@ -2294,7 +2294,19 @@ tracks:
     writable:
       - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
       - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
-      - Source/RefactorTactics/UI/
+      # ➖ **`Source/RefactorTactics/UI/` RIALLOCATO a `playback` il 2026-08-16, su `#1015`.** La riga qui
+      # sopra, scritta lo stesso giorno, dichiarava il costo di tenerlo: *«tenerla `ACTIVE` prenoterebbe
+      # `UI/` per una sessione che non c'è, e il costo è concreto: **#1015** … è ferma esattamente su quel
+      # path»*. La track è scesa a `IDLE` e il path è rimasto: `IDLE` toglie la sessione, non la prenotazione.
+      # Questo commit toglie la prenotazione.
+      # ⚠️ **Sposta, non aggiunge**: il path esce da qui nello stesso commit in cui entra in `playback`.
+      # Un path in due `writable` è assegnato due volte, che è la contesa che questo file misura.
+      # ⚠️ **Il passo 4 di `#78` — la resa del livello di certezza in `ARTHUD` — vive in questa cartella**,
+      # e questa riallocazione gliela toglie **mentre è IDLE**, non mentre ci scrive. Chi riapre `#78` la
+      # **richiede** a `playback`: l'ownership non si eredita, ed è la stessa formula con cui `RTGameMode`
+      # è passato da `unit_presentation` a `frontend_shell`. Le due sessioni si intersecheranno su
+      # `UI/RTHUD.{h,cpp}` — la issue #1015 lo dichiara già — e allora si negozia per file, come `feat/78`
+      # e `feat/77` hanno già fatto senza collidere.
       - Source/RefactorTactics/Tests/RTIntentPrivacyTests.cpp
     # Misurato con lo stesso metodo del resto del file — sposta la sorgente, rigenera, guarda cosa
     # cambia: `UI/` e `RTIntentPrivacyLibrary.*` non alimentano nessuna vista. Vale però la stessa
@@ -3671,11 +3683,58 @@ tracks:
     binary_leases: []
 
   playback:
-    status: IDLE
-    issue: null
-    branch: null
-    worktree: "D:/rt-955"
+    status: ACTIVE
+    issue: 1015
+    branch: feat/1015-hud-velocita
+    worktree: "D:/rt-1015"
     note: >-
+      🔵 **RIAPERTA il 2026-08-16 su `#1015` (CP 47.7), ed è il «passo 4» che la chiusura qui sotto
+      dichiarava senza issue.** Quella riga diceva: *«Non ha una issue propria: se la si vuole, va
+      aperta»* — è stata aperta, ed è `#1015`. I quattro campi tornano veri insieme, come lo schema
+      chiede: `ACTIVE` perché una sessione ci scrive, `branch` e `worktree` perché esistono
+      (`git worktree list` li vede; il branch è visibile a chiunque solo dopo il push, ed è il motivo
+      per cui questo commit va spinto e non tenuto).
+      ✅ **Il vincolo di parallelismo che `#1015` dichiarava è CADUTO, e la issue chiedeva di
+      rimisurarlo invece di rileggerlo.** Misurato: `#904` è **`MERGED`** (`2026-08-16T12:05:41Z`,
+      `95d2d39f`), `blocked_by`/`blocked_paths` sono già stati cancellati da `client_tools` al merge, e
+      quella track è `IDLE` con `branch: null` e `worktree: null` — **non `ACTIVE`**, come la issue
+      credeva. Restava una sola cosa fra `#1015` e il lavoro, e non era un blocco: era
+      un'**assegnazione**. `Source/RefactorTactics/UI/` stava nel `writable` di una track ferma su
+      un'altra issue.
+      ➕ **`Source/RefactorTactics/UI/` entra qui, riallocato da `client_tools`** nello stesso commit in
+      cui ne esce. La ragione per cui entra il **prefisso** e non due file per nome è che la superficie
+      non è ancora decisa: lo spec panel del 2026-08-16 ha misurato che «un controllo in HUD» sono due
+      lavori diversi — Canvas + Enhanced Input (`RTHUD.{h,cpp}`) oppure un widget `§4.1`
+      (`RTScreenHudWidgets.{h,cpp}`) — e restringere adesso sarebbe indovinare quale. È la stessa
+      ragione, e le stesse parole, con cui `client_tools` rifiutò di restringere questo path il giorno
+      prima. Si stringe quando il bivio è deciso, non prima.
+      ⛔ **`Source/RefactorTactics/Player/RTPlayerController.{h,cpp}` NON è preso**, e serve solo su un
+      ramo del bivio (la scorciatoia da tastiera). È **non assegnato a nessuna track** — misurato:
+      `RefactorTactics/Player` non compare in nessun `writable` di questo file — quindi si dichiara al
+      momento della decisione. «Libero» non è «preso», ed è la formula che `frontend_shell` ha usato per
+      i quattro file nuovi di `Frontend/`.
+      🔴 **I sei path di `#955` ESCONO, e li teneva un argomento che il DoD di `#1015` falsifica.** Il
+      commento sotto il `writable` diceva: *«Gli altri sei restano dichiarati perché questa track li
+      riscriverà al passo 4»*. Il passo 4 è questo, e il suo DoD dice il contrario — *«il controllo
+      scrive `ViewerPlaybackSpeed` e nient'altro: non ricalcola, non stima, non tocca il tetto»*. Una
+      previsione sul futuro è rimasta scritta finché il futuro non è arrivato a smentirla: `Turn/` e i
+      due `Tests/` tornano **liberi**, e `Tests/RTMatchAutobattleTests.cpp` torna in particolare
+      disponibile ad `autobattle`, a cui era stato preso.
+      ⛔ **Cosa questa track NON tocca, detto invece che dedotto**:
+      `docs/technical/test-manuali-pie.md` (`playtest`) — il DoD di `#1015` chiede di aggiornare la
+      precondizione di `PIE-V01-PLAYSPEED`, e **quel file non è di chi lavora la issue**: va passata in
+      **handoff**, esattamente come `replay_ui` fa con `PIE-V01-REPLAY-VIEWER` · `docs/roadmap/roadmap-v0.1.md`
+      (`integration_only`, righe 118 e 1715 di `E47.7`).
+      🔴 **E un file trovato non assegnato, misurato non dedotto: `docs/technical/progettazione-hud.md`.**
+      È l'owner documentale di questo checkpoint — la sua **§29 «Playback Controls»** descrive esattamente
+      la manopola, e la §13.2 la colloca nel `Resolution HUD` — eppure `grep` su questo file lo trova in
+      **una sola riga, che è questa**: non sta in nessun `writable`, non in `integration_only`, non in
+      `generated_only`. È la condizione che `D-139` chiama «non assegnato», su un file che due voci di DoD
+      chiedono di aggiornare. **Non lo prendo qui**: prenderlo di passaggio, dentro il commit che
+      rialloca un altro path, è il modo in cui un file cambia proprietario senza che nessuno decida. Va
+      assegnato con la decisione A/B, che è chi lo scriverà a saperlo.
+      ---
+      *Registro della chiusura di `#955`, per la provenienza:*
       ✅ **CHIUSA il 2026-08-16, aperta e chiusa nello stesso giorno.** `#955` è mergiata (PR #1007,
       merge `c9841b06`) e la issue si è chiusa da sé sulla keyword. I sette path tornano **liberi**;
       `docs/technical/test-manuali-pie.md` torna a `playtest`, da cui era stato preso, e non resta
@@ -3724,12 +3783,24 @@ tracks:
       **Non è di questa track**: il file è `integration_only` e sta nel `writable` di `replay_ui`.
       Registrato qui perché qualcuno lo corregga, non toccato.
     writable:
-      - Source/RefactorTactics/Turn/RTPlaybackLibrary.h
-      - Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp
-      - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
-      - Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
-      - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
+      # ⬅️ **Riallocato da `client_tools` il 2026-08-16**, che lo teneva prenotato da `IDLE` su `#78`.
+      # Preso per **prefisso** e non per nome perche' la superficie del controllo non e' decisa: vedi la
+      # nota. Si stringe ai file effettivi quando il bivio e' chiuso — e allora questa riga va riscritta,
+      # non lasciata larga per comodita'.
+      - Source/RefactorTactics/UI/
+      # ➕ File **nuovo**, dichiarato prima di crearlo: «conteso da nessuno» non e' un'assegnazione.
+      # Per nome e non come prefisso `Tests/`, che e' condivisa fra tutte le track.
+      # ⚠️ Il nome e' provvisorio quanto il bivio: se il controllo nasce come widget invece che in Canvas,
+      # il test cambia file e questa riga con lui.
+      - Source/RefactorTactics/Tests/RTHudPlaybackSpeedTests.cpp
+      # ➖ **I sei path di `#955` sono USCITI il 2026-08-16, alla riapertura su `#1015`.** Erano rimasti
+      # con la motivazione *«questa track li riscrivera' al passo 4»*, e il passo 4 e' arrivato dicendo il
+      # contrario: il DoD di `#1015` vieta di toccare il modello. Elencati qui per la provenienza —
+      # `Turn/RTPlaybackLibrary.{h,cpp}`, `Turn/RTTurnManager.{h,cpp}`, `Tests/RTPlaybackLibraryTests.cpp`,
+      # `Tests/RTMatchAutobattleTests.cpp` — e **liberi**. L'ultimo torna in particolare disponibile ad
+      # `autobattle`, a cui era stato preso e a cui la nota prometteva di negoziarlo.
+      # 💡 Un `writable` dice chi **scrivera'**. Una previsione su chi scrivera' invecchia come tutte le
+      # previsioni, e va rimisurata quando il turno che prevedeva comincia davvero.
       # ➖ **`docs/technical/test-manuali-pie.md` e' USCITO da qui alla chiusura**, ed e' l'unico dei sette
       # che non resta: era **preso in prestito** da `playtest` per scrivere `PIE-V01-PLAYSPEED`, e il
       # lavoro su quel file e' finito. Gli altri sei restano dichiarati perche' questa track li
