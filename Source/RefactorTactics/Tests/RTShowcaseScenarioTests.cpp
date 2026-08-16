@@ -956,6 +956,116 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il test che `#512` nomina: un decisore INIETTATO risponde a una finestra vera, e la risposta viene dallo
+ * scenario invece che da una persona.
+ *
+ * ⚠️ Lo scenario e' costruito qui e non caricato da file: `Scenarios/` e' `integration_only`, e in fase A
+ * nessun JSON del corpus si tocca.
+ *
+ * ⚠️ **Nessun `Requires`, ed e' una correzione al piano.** Il piano dichiarava `Requires("DecisionBoundary")`
+ * spiegando che «il turno e' `Blocked` per costruzione» ma che il decisore sarebbe stato comunque
+ * interrogato: le due cose non stanno insieme. `FRTScenarioSession::BeginTurn` chiama `Finish()` e ritorna
+ * appena una capability non e' disponibile — PRIMA di applicare gli intent — quindi con quel `requires`
+ * nessun Overwatch si arma, nessuna finestra si apre e il decisore non viene chiamato mai.
+ * `DecisionBoundary` e' un'etichetta del vocabolario degli scenari, non un interruttore del motore: le
+ * finestre le apre gia' il CP 14.5. Scoprirla resta fase B, come dicono i vincoli globali.
+ *
+ * Geometria misurata, non indovinata: `Vektor` ha vista 6 e `Vektor.PulseShot` portata 4, quindi come
+ * guardiano copre il varco. Il cono E' il facing (ADR-0005 §4c): da `(2,0,0)` guardando a `W` parte da
+ * `(1,0,0)` e arriva a `(-2,0,0)`. `Flux` lo attraversa. Un solo bersaglio basta per aprire la finestra
+ * perche' `HOLD` e' sempre in coda ad `AllowedResponses`, quindi la cardinalita' e' 2 e
+ * `RequiresDecisionBoundary` e' vera.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionProviderTest,
+	"RefactorTactics.ShowcaseRelay.DecisionProviderIsInjectable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionProviderTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Internal.DecisionProviderIsInjectable");
+	Scenario.MapRadius = 5;
+
+	auto Unita = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& Cell,
+		ERTHexDirection Facing)
+	{
+		FRTScenarioUnit U;
+		U.Id = Id; U.HeroId = FName(Hero); U.TeamId = Team; U.Cell = Cell; U.Facing = Facing;
+		return U;
+	};
+	// Il guardiano guarda a Ovest; il bersaglio attraversa il cono da Ovest verso il centro.
+	Scenario.Units.Add(Unita(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(Unita(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+
+	{
+		FRTScenarioTurn T;
+
+		// `Action.Overwatch` risolve in Prep, quindi si arma su chi la usa e NON dichiara un bersaglio:
+		// `bResolvesOnSelf` in `RTScenarioSession.cpp` lo tratta gia' cosi'.
+		FRTScenarioIntent Arma;
+		Arma.UnitId = TEXT("Guardia");
+		Arma.Ability = FName(TEXT("Action.Overwatch"));
+		T.Intents.Add(Arma);
+
+		FRTScenarioIntent Attraversa;
+		Attraversa.UnitId = TEXT("Corsa");
+		Attraversa.Move.Add(FRTCellId(-2, 0, 0));
+		Attraversa.Move.Add(FRTCellId(-1, 0, 0));
+		T.Intents.Add(Attraversa);
+
+		FRTScenarioDecision D;
+		D.Unit = TEXT("Guardia"); D.Respond = TEXT("FIRE"); D.Target = TEXT("Corsa");
+		T.Decisions.Add(D);
+
+		Scenario.Turns.Add(T);
+	}
+
+	// ⚠️ Serve un'assertion anche COSTRUENDO lo scenario in memoria, e i vincoli globali del piano dicevano
+	// il contrario — «la guardia e' solo nel loader, gli scenari costruiti in memoria non la attraversano».
+	// Misurato: `RunScenarioIsolated` valida la struct, e senza questa riga il referto torna con
+	// «nessuna assertion dichiarata» e ZERO turni giocati. Non e' una formalita': senza turni non c'e'
+	// finestra, e il test fallirebbe indicando il provider invece della propria costruzione.
+	{
+		FRTTestExpectation E;
+		E.Kind = ERTAssertionKind::TurnsCompleted;
+		E.Value = 1;
+		Scenario.Expect.Add(E);
+	}
+
+	// `RunScenarioIsolated` crea il mondo, esegue e lo distrugge: e' l'API che `RTWorldFixtures.h` espone
+	// proprio per questo, e usarla evita la coppia crea/distruggi da tenere allineata a mano.
+	const FRTTestResult Result = RTWorldFixtures::RunScenarioIsolated(Scenario);
+
+	if (!TestEqual(TEXT("il decisore ha risposto una volta"), Result.ScriptedDecisionsApplied, 1))
+	{
+		// Se resta 0 la finestra non si e' aperta, e la causa e' la geometria o l'armamento — non il
+		// provider. Si stampa lo stato invece di rilassare l'asserzione.
+		//
+		// ⚠️ Il piano diceva `URTTurnLogLibrary::ToText(Result.TurnLog)`: `FRTTestResult` non ha un campo
+		// `TurnLog`, ha `TurnTraces`, e quelle portano i soli byte serializzati.
+		AddInfo(FString::Printf(
+			TEXT("turni giocati=%d tracce=%d blocked='%s' error='%s' ultimo token='%s' inutilizzate=%d"),
+			Result.TurnsPlayed, Result.TurnTraces.Num(), *Result.BlockedReason, *Result.ErrorMessage,
+			*Result.LastScriptedResponse, Result.ScriptedDecisionsUnused));
+		for (const FString& Nota : Result.Notes) { AddInfo(Nota); }
+		for (const FRTTurnTrace& Traccia : Result.TurnTraces)
+		{
+			TArray<FRTTurnLogEntry> Voci;
+			if (URTTurnLogLibrary::DeserializeTurnLog(Traccia.Bytes, Voci))
+			{
+				for (const FRTTurnLogEntry& V : Voci) { AddInfo(URTTurnLogLibrary::DescribeEntry(V)); }
+			}
+		}
+	}
+	TestEqual(TEXT("nessuna decisione e' rimasta inutilizzata"), Result.ScriptedDecisionsUnused, 0);
+	// La TRADUZIONE e' l'unica parte che il JSON non poteva esprimere: si verifica sul token, non
+	// sull'esito. Lo `StableUnitId` di `Corsa` e' assegnato allo spawn, e lo scenario non poteva scriverlo.
+	TestTrue(FString::Printf(TEXT("il token applicato e' un FIRE, non un HOLD (era: '%s')"),
+		*Result.LastScriptedResponse),
+		Result.LastScriptedResponse.StartsWith(TEXT("FIRE:")));
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.

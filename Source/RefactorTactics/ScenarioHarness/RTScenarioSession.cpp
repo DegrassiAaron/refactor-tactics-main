@@ -14,6 +14,7 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTReactionOpportunityTypes.h" // HoldResponse/FireResponse: la traduzione nel token del gioco
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
@@ -499,6 +500,23 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	// difetto dei turni fantasma, visto in PIE prima che questa riga esistesse.
 	TM->SetPlanningSeconds(0.f);
 
+	// Il seam esiste dal CP 14.5 e nessuno lo bindava: qui lo scenario diventa il decisore delle finestre.
+	//
+	// ⚠️ Solo se lo slot e' libero, ed e' cosi' che un test ha la precedenza: chi binda prima vince. Non
+	// serve una catena ne' un flag — il delegate e' uno slot solo, e la forma E' la regola.
+	//
+	// Il bind puo' stare qui, prima che `UnitsById` esista, perche' la traduzione legge la mappa al momento
+	// della CHIAMATA — durante il Move — non al momento del bind.
+	if (!TM->ReactionDecider.IsBound())
+	{
+		TM->ReactionDecider.BindRaw(this, &FRTScenarioSession::DecideScriptedResponse);
+		DecisionSource = TEXT("scenario");
+	}
+	else
+	{
+		DecisionSource = TEXT("test-override");
+	}
+
 	if (Scenario.Turns.Num() == 0)
 	{
 		// Uno scenario senza turni e' legittimo: verifica solo lo stato iniziale.
@@ -644,6 +662,13 @@ void FRTScenarioSession::BeginTurn()
 			return;
 		}
 	}
+
+	// La coda delle risposte di QUESTO turno. Si ripopola a ogni turno e non si accumula: una decisione del
+	// turno 1 rimasta in coda risponderebbe a una finestra del turno 2, e lo scenario direbbe una cosa che
+	// non ha scritto. Sta dopo i due controlli sulle capability perche' un turno che non si gioca non ha
+	// finestre da servire.
+	PendingDecisions = Scenario.Turns[TurnIndex].Decisions;
+	PendingConsumed.Init(false, PendingDecisions.Num());
 
 	// Tutte ferme per default: un'unita' senza intent nel turno NON eredita il piano del turno prima.
 	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
@@ -984,6 +1009,64 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 	}
 }
 
+FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity& Opportunity, int32 OwnerUnitId)
+{
+	// ⚠️ **`OwnerUnitId` NON e' lo `StableUnitId`, ed e' la correzione che il piano chiedeva al contrario.**
+	// Misurato: `Key.OwnerId = Watcher.Zone.OwnerUnitId`, e la zona nasce da
+	// `MakeSuppressiveZone(Map, OwnerIdx, ...)` dove `OwnerIdx = Units.IndexOfByKey(WatchOwner)`. Anche i
+	// bersagli viaggiano cosi' — `M.UnitId = TargetIdx`. Tutto il giro delle reazioni parla di INDICI
+	// nell'array di risoluzione, e `RTTurnManager.cpp` lo dichiara: «l'identita' e' l'INDICE dell'unita' in
+	// OutUnits ... il chiamante ritrova la propria unita' con OutUnits.IndexOfByKey».
+	//
+	// Usando `StableUnitId` il proprietario non si sarebbe risolto MAI, e — peggio — il token
+	// `FIRE:<StableUnitId>` non sarebbe stato in `AllowedResponses`: rifiutato come risposta inventata, cioe'
+	// un `HoldRejected` che nel referto somiglia a un HOLD voluto. Il difetto che il task 9 vuole impedire.
+	ARTTurnManager* TM = TurnManager.Get();
+	if (!TM) { return FString(); }
+	TArray<ARTUnit*> RuntimeUnits;
+	TM->MakeCurrentSnapshot(RuntimeUnits);
+	if (!RuntimeUnits.IsValidIndex(OwnerUnitId)) { return FString(); }
+	const ARTUnit* OwnerUnit = RuntimeUnits[OwnerUnitId];
+
+	// Risale allo scenario id del proprietario: `UnitsById` va nel verso opposto, e una scansione su quattro
+	// unita' costa meno di una seconda mappa da tenere allineata.
+	FString OwnerScenarioId;
+	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+	{
+		if (Pair.Value.Get() == OwnerUnit) { OwnerScenarioId = Pair.Key; break; }
+	}
+	if (OwnerScenarioId.IsEmpty()) { return FString(); }
+
+	for (int32 Index = 0; Index < PendingDecisions.Num(); ++Index)
+	{
+		if (PendingConsumed[Index]) { continue; }
+		const FRTScenarioDecision& D = PendingDecisions[Index];
+		if (D.Unit != OwnerScenarioId) { continue; }
+
+		PendingConsumed[Index] = true;
+		++Result.ScriptedDecisionsApplied;
+
+		if (D.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive))
+		{
+			Result.LastScriptedResponse = URTReactionOpportunityLibrary::HoldResponse();
+			return Result.LastScriptedResponse;
+		}
+		// `FIRE`: il token porta l'id di RUNTIME, che e' esattamente cio' che lo scenario non poteva scrivere.
+		// Stesso spazio di id del proprietario — l'indice nell'array di risoluzione, non lo `StableUnitId`.
+		const TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(D.Target);
+		ARTUnit* TargetUnit = Found ? Found->Get() : nullptr;
+		if (!TargetUnit) { return FString(); } // il loader lo ha gia' validato: qui e' difesa, non politica
+		const int32 TargetRuntimeId = RuntimeUnits.IndexOfByKey(TargetUnit);
+		if (TargetRuntimeId == INDEX_NONE) { return FString(); }
+		Result.LastScriptedResponse = URTReactionOpportunityLibrary::FireResponse(TargetRuntimeId);
+		return Result.LastScriptedResponse;
+	}
+
+	// Nessuna decisione combacia: «non ho risposto». E' il comportamento di sempre — `DecisionOnTimeout` —
+	// e tiene intatti i turni che non scriptano nulla.
+	return FString();
+}
+
 void FRTScenarioSession::TearDown()
 {
 	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
@@ -999,9 +1082,21 @@ void FRTScenarioSession::TearDown()
 	// suo callback in coda troverebbe un roster mezzo vuoto.
 	if (ARTTurnManager* TM = TurnManager.Get())
 	{
+		// Sbinda PRIMA di distruggere: un delegate che sopravvive a uno scenario risponderebbe al successivo
+		// con la coda del precedente, e il secondo sarebbe verde o rosso per il turno di un altro. Conta
+		// davvero perche' `SetUp` RIUSA un turn manager gia' presente invece di spawnarne sempre uno nuovo.
+		//
+		// Solo il PROPRIO bind: se lo slot era gia' occupato da un test, sbindarlo qui distruggerebbe un
+		// decisore che questa sessione non ha messo.
+		if (DecisionSource == TEXT("scenario"))
+		{
+			TM->ReactionDecider.Unbind();
+		}
 		TM->Destroy();
 	}
 	TurnManager.Reset();
+	PendingDecisions.Reset();
+	PendingConsumed.Reset();
 }
 
 void FRTScenarioSession::Finish()

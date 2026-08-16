@@ -8,6 +8,9 @@ class UWorld;
 class ARTUnit;
 class ARTTurnManager;
 class URTHexMapAsset;
+// Forward e non `#include`: il decisore la riceve per riferimento const, e tirare dentro
+// `RTReactionOpportunityTypes.h` qui la farebbe ricompilare a ogni consumatore della sessione.
+struct FRTReactionOpportunity;
 
 /**
  * Esecuzione di uno scenario come **macchina a stati**, avanzabile un passo alla volta.
@@ -123,6 +126,19 @@ private:
 
 	int32 TurnIndex = 0;
 	float PauseElapsed = 0.f;
+
+	/** Le decisioni del turno corrente, con l'indice della prima non ancora consumata per ciascuna unita'. */
+	TArray<FRTScenarioDecision> PendingDecisions;
+	TArray<bool> PendingConsumed;
+
+	/**
+	 * Chi risponde alle finestre in questa esecuzione: `scenario`, `test-override`, `none`. Deciso una volta
+	 * al bind, e copiato nel referto (task 7).
+	 */
+	FString DecisionSource = TEXT("none");
+
+	/** Il decisore scriptato: risponde con la coda del turno, stringa vuota se nulla combacia. */
+	FString DecideScriptedResponse(const FRTReactionOpportunity& Opportunity, int32 OwnerUnitId);
 
 	/**
 	 * Lo scenario schiera almeno un'unita' guidata dal bot, quindi ogni turno passa dal pianificatore del gioco

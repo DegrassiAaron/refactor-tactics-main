@@ -53,10 +53,15 @@ Valgono per **ogni** task, senza ripeterli:
   lo scenario passerebbe sempre»* (`URTScenarioLoader::Validate`). Scoperto eseguendo il task 1, non leggendo:
   la prima stesura del suo JSON aveva `"expect": []` e il test è fallito con quel messaggio. Ogni JSON di
   prova porta almeno un'assertion — `{ "type": "TurnsCompleted", "value": 1 }` basta.
-  ⚠️ La guardia è **solo nel loader**: gli scenari costruiti in memoria (task 5-9) non la attraversano,
-  perché `URTScenarioRunner::Run` riceve la struct già fatta. Non è un permesso a ometterla dove l'asserzione
-  riguarda lo stato di gioco — è il motivo per cui in quei task le verifiche stanno sui contatori del
-  referto e non su `expect`.
+  🔴 **La riga che segue diceva il falso, ed è stata misurata eseguendo il task 5.** Diceva: *«la guardia è
+  solo nel loader: gli scenari costruiti in memoria (task 5-9) non la attraversano, perché
+  `URTScenarioRunner::Run` riceve la struct già fatta»*. **`RunScenarioIsolated` valida la struct**: senza
+  assertion il referto torna con `error='scenario non valido: nessuna assertion dichiarata'` e **zero turni
+  giocati**. Non è una formalità — senza turni non si apre nessuna finestra, e il test fallisce indicando il
+  provider invece della propria costruzione. Anche gli scenari **costruiti in memoria** portano almeno
+  un'assertion: `E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 1;`.
+  ⚠️ Resta vero che nei task 5-9 le verifiche di sostanza stanno sui **contatori del referto** e non su
+  `expect`: quella assertion serve a far girare il turno, non a verificare la feature.
 
 **Come si lancia un test** (una run per volta, `-abslog` distinto: l'engine è condiviso fra i worktree):
 
@@ -606,6 +611,36 @@ git commit -m "feat(512): il formato scenario dichiara la versione che ammette l
 
 Qui nasce il test che il DoD nomina per nome.
 
+> 🔴 **Eseguito il 2026-08-16. Il codice qui sotto resta come è stato progettato, ma tre sue affermazioni
+> sono state MISURATE FALSE e l'implementazione atterrata è diversa. Chi rilegge parta da qui.**
+>
+> 1. **`T.Requires.Add("DecisionBoundary")` impedisce al test di passare.** Il commento diceva che «il turno
+>    è `Blocked` per costruzione» ma che il decisore sarebbe stato comunque interrogato: le due cose non
+>    stanno insieme. `BeginTurn` chiama `Finish()` e ritorna appena una capability non è disponibile —
+>    **prima** di applicare gli intent — quindi nessun Overwatch si arma e nessuno chiama il decisore. Lo
+>    scenario-specifica `Spec/Overwatch/HoldThenFire.json` lo dice per conto suo: *«esce BLOCKED finché
+>    `DecisionBoundary` non esiste»*. Il test atterrato **non ha `Requires`**: quella capability è
+>    un'etichetta del vocabolario degli scenari, non un interruttore del motore, e le finestre le apre già
+>    il CP 14.5.
+> 2. **`Result.TurnLog` non esiste.** `FRTTestResult` ha `TurnTraces`, e ogni traccia porta i soli byte
+>    serializzati: per leggerla serve `URTTurnLogLibrary::DeserializeTurnLog` + `DescribeEntry`. È il sesto
+>    identificatore inventato dopo i cinque che il self-review aveva già trovato.
+> 3. 🔴 **`OwnerUnitId` NON è lo `StableUnitId`, ed è l'errore che costava di più.** Misurato:
+>    `Key.OwnerId = Watcher.Zone.OwnerUnitId`, e la zona nasce da `MakeSuppressiveZone(Map, OwnerIdx, …)`
+>    con `OwnerIdx = Units.IndexOfByKey(WatchOwner)`; anche i bersagli viaggiano così (`M.UnitId =
+>    TargetIdx`). Tutto il giro delle reazioni parla di **indici nell'array di risoluzione**, e
+>    `RTTurnManager.cpp` lo dichiara: *«l'identità è l'INDICE dell'unità in OutUnits … il chiamante ritrova
+>    la propria unità con `OutUnits.IndexOfByKey`»*. Con `StableUnitId` il proprietario non si risolve mai
+>    **e** `FIRE:<StableUnitId>` non è in `AllowedResponses`: viene rifiutato come risposta inventata, cioè
+>    un `HoldRejected` che nel referto somiglia a un HOLD voluto — il difetto che il **task 9** esiste per
+>    impedire. La traduzione atterrata usa `TM->MakeCurrentSnapshot(RuntimeUnits)` (public) per entrambe le
+>    direzioni. ⚠️ **I task 6, 7 e 9 ereditano questa correzione**: il loro codice d'esempio parla ancora di
+>    `StableUnitId`.
+>
+> La sequenza rosso→verde è stata comunque osservata, e la diagnostica del passo 1 ha pagato: il TurnLog ha
+> mostrato l'Overwatch **armato** e **due finestre aperte** con esito «non risponde in tempo»
+> (`HoldTimeout`, non `HoldNoDecider`) — cioè il bind funzionava e a sbagliare era la traduzione.
+
 **Files:**
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.h` (stato della coda)
 - Modify: `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp` (bind ~riga 495, unbind in `TearDown`)
@@ -616,7 +651,7 @@ Qui nasce il test che il DoD nomina per nome.
 - Produce: `FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&, int32 OwnerUnitId)`
   — i task 6 e 7 estendono **questa** funzione.
 
-- [ ] **Passo 1 — scrivi il test che fallisce**
+- [x] **Passo 1 — scrivi il test che fallisce**
 
 In `RTShowcaseScenarioTests.cpp`:
 
@@ -690,12 +725,12 @@ rotto, è la geometria. Stampa il TurnLog con
 armato, il problema è l'intent, non la decisione. Correggi le celle finché una finestra si apre — **non**
 rilassare l'asserzione.
 
-- [ ] **Passo 2 — eseguilo e verifica che fallisca**
+- [x] **Passo 2 — eseguilo e verifica che fallisca**
 
 `RefactorTactics.ShowcaseRelay.DecisionProviderIsInjectable`.
 Atteso: **errore di compilazione** — `ScriptedDecisionsApplied` non esiste su `FRTTestResult`.
 
-- [ ] **Passo 3 — i due contatori nel referto**
+- [x] **Passo 3 — i due contatori nel referto**
 
 In `ScenarioHarness/RTTestResult.h`, dentro `FRTTestResult`:
 
@@ -717,7 +752,7 @@ In `ScenarioHarness/RTTestResult.h`, dentro `FRTTestResult`:
 	FString LastScriptedResponse;
 ```
 
-- [ ] **Passo 4 — lo stato della coda nella session**
+- [x] **Passo 4 — lo stato della coda nella session**
 
 In `RTScenarioSession.h`, fra i membri privati:
 
@@ -736,7 +771,7 @@ In `RTScenarioSession.h`, fra i membri privati:
 	FString DecideScriptedResponse(const FRTReactionOpportunity& Opportunity, int32 OwnerUnitId);
 ```
 
-- [ ] **Passo 5 — bind, traduzione, unbind**
+- [x] **Passo 5 — bind, traduzione, unbind**
 
 In `RTScenarioSession.cpp`, subito dopo `TurnManager = TM;` (~riga 495):
 
@@ -819,11 +854,11 @@ E in `TearDown`, **prima** di distruggere il manager:
 	}
 ```
 
-- [ ] **Passo 6 — eseguilo e verifica che passi**
+- [x] **Passo 6 — eseguilo e verifica che passi**
 
 Atteso: `Success`, con `ScriptedDecisionsApplied >= 1`. Se resta 0, vedi l'avvertenza del passo 1.
 
-- [ ] **Passo 7 — i due `--check` ereditati**
+- [x] **Passo 7 — i due `--check` ereditati**
 
 ```bash
 python scripts/feature_registry.py generate --check
@@ -833,7 +868,7 @@ python scripts/feature_registry.py shortlist --check
 Entrambi devono restare verdi: `RTScenarioSession.cpp` alimenta `project-graph.json` e
 `scenariomap.shortlist.md`. Se uno è rosso, **rigenera** e includi il generato nel commit.
 
-- [ ] **Passo 8 — commit**
+- [x] **Passo 8 — commit**
 
 ```bash
 git add Source/RefactorTactics/ScenarioHarness/ Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
