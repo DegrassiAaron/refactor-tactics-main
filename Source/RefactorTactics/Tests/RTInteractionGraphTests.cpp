@@ -333,11 +333,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphResolutionIgnoresDoorState,
 bool FRTInteractionGraphResolutionIgnoresDoorState::RunTest(const FString&)
 {
 	// La risoluzione dice CHI e' comandato, non se il comando andra' a buon fine. Una `Locked` risolve come
-	// le altre: `SetDoorState` non la apre, ma quella e' **applicabilita'**, e decidere se l'operazione su N
-	// bersagli sia tutto-o-niente e' una scelta che appartiene al resolver e non e' ancora presa.
+	// le altre: `SetDoorState` non la apre, ma quella e' **applicabilita'**.
 	//
-	// ⚠️ Il test esiste per impedire la scorciatoia opposta: filtrare qui le `Locked` renderebbe un'operazione
-	// dichiarata atomica silenziosamente **parziale**, e nessuno se ne accorgerebbe dal grafo.
+	// ✅ **[D-150] (2026-08-16) ha deciso l'esito, e conferma questa separazione**: l'operazione su N bersagli
+	// NON e' atomica — applica gli applicabili e RIPORTA gli altri con reason code. Segue cio' che il motore
+	// gia' fa un livello sotto (`RTHexDoorLibrary.cpp`: un bordo che non puo' transitare viene saltato, gli
+	// altri commutano). Quindi la risoluzione dice *chi* e' comandato e l'applicazione *cosa e' cambiato*, ed
+	// e' il test dell'APPLICAZIONE — che non esiste ancora — a dover pinnare l'esito per-bersaglio.
+	//
+	// ⚠️ Il test esiste per impedire la scorciatoia opposta: filtrare qui le `Locked`. La ragione ORIGINALE
+	// era che avrebbe reso silenziosamente parziale un'operazione dichiarata atomica — e con [D-150] quella
+	// ragione decade, perche' l'operazione parziale lo e' per decisione. Il divieto resta, per una ragione
+	// piu' forte: filtrandole, un bersaglio comandato-ma-non-applicabile diventerebbe indistinguibile da uno
+	// **non comandato affatto**, e l'esito per-bersaglio che D-150 pretende non potrebbe piu' riportarlo.
 	URTHexMapAsset* Map = MakeGraphMap(2);
 	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
 
