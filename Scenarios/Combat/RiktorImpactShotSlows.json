@@ -15,9 +15,11 @@
 
   "_nota_coppia": "Da solo non basta: una destinazione piu' vicina non distingue «rallentato» da «percorso piu' corto di quanto credevo». Il gemello e' `Combat.MoveIsFullWithoutSlow`, identico tranne per una riga — Riktor non spara.",
 
+  "_nota_loadout_vuoto": "B1 entra SPOGLIA (`\"loadout\": []`), e non e' una scorciatoia. Dal 2026-08-16 (#1054) il gioco monta i default d'equipaggiamento, e quello di Riktor e' `Weapon.Impact`, che toglie UNA CELLA di portata: `Hero.Riktor.ImpactShot` passa da 3 a 2, e da (-2,3) il colpo su F1 non parte piu'. Misurato: senza questa riga F1 arriva a (2,0) invece che a (0,0) — cioe' lo scenario diventa rosso perche' NESSUNO HA SPARATO, non perche' lo Slow non funziona. E' il rosso per la ragione sbagliata contro cui `Spec.Brace.PushBeyondGuardThreshold` metteva gia' in guardia nella sua `_nota_portata`. Questo file misura lo Slow sul movimento, quindi la portata dell'attaccante e' una variabile da tenere ferma. Il giorno in cui servisse misurare lo Slow *con* l'equipaggiamento, il posto e' uno scenario nuovo: avvicinare B1 qui cambierebbe anche la geometria che `_nota_aritmetica` fissa cella per cella.",
+
   "units": [
     { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-2, 3, 0], "facing": "NW" }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-2, 3, 0], "facing": "NW", "loadout": [] }
   ],
 
   "turns": [

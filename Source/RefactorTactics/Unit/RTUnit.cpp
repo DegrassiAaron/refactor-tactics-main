@@ -5,6 +5,7 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h" // ERTEquipmentSlot: `EquipLoadout` distingue chi MODIFICA da chi CONCEDE
 #include "Ability/RTHeroData.h"
 #include "Core/RTGameplayTags.h"
 #include "RefactorTactics.h"
@@ -507,6 +508,50 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 	}
 
 	Health = MaxHealth;
+}
+
+void ARTUnit::EquipLoadout(const TArray<FName>& PieceIds)
+{
+	for (const FName& PieceId : PieceIds)
+	{
+		const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
+		if (Piece == nullptr)
+		{
+			continue; // un pezzo che non esiste si salta: vedi la nota sull'header
+		}
+
+		if (Piece->Slot == ERTEquipmentSlot::WeaponVariant)
+		{
+			if (!Abilities.IsValidIndex(0) || Abilities[0] == nullptr)
+			{
+				continue; // nessun attacco base da modificare: niente da fare, non un errore
+			}
+
+			// DUPLICA prima di modificare. `Abilities` porta i puntatori del catalogo eroi, non copie:
+			// scrivere direttamente su `Abilities[0]` modificherebbe il dato condiviso, e la variante si
+			// applicherebbe a ogni unita' che lo condivide — accumulando, perche' `RangeCells` somma.
+			Abilities[0] = DuplicateObject<URTActionData>(Abilities[0], this);
+			URTCatalogLibrary::EquipWeaponVariant(Abilities[0], Piece);
+			continue;
+		}
+
+		if (URTActionData* Granted = URTCatalogLibrary::MakeEquipmentAction(Piece, this))
+		{
+			Abilities.Add(Granted);
+		}
+	}
+
+	// I due specchi che il resto del motore legge davvero. `ARTTurnManager` prende la portata da
+	// `AttackRange`, non dall'azione: senza questa riga un'unita' con la variante applicata continuerebbe a
+	// colpire alla portata VECCHIA in partita, mentre ogni test sull'azione la vedrebbe cambiata.
+	if (Abilities.IsValidIndex(0) && Abilities[0])
+	{
+		AttackRange = Abilities[0]->RangeCells;
+		AttackPower = Abilities[0]->Power;
+	}
+
+	// Il kit e' cresciuto: i gadget e i moduli hanno cooldown propri e servono i loro slot.
+	SyncAbilityCooldowns();
 }
 
 URTActionData* ARTUnit::GetAbility(int32 Index) const

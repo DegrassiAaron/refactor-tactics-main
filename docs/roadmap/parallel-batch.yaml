@@ -1605,6 +1605,41 @@ tracks:
       #     `DoorOpened`) piu' `RTTurnLogLibrary.*` e `RTTurnLogCauseTests.cpp`. Mancavano, e senza di essi la
       #     sessione si sarebbe fermata alla prima voce da aggiungere: una lacuna dello stesso tipo di quella
       #     che la nota dichiarava di aver evitato per `Scenarios/`.
+      #     🔴 **«Mancavano» e' FALSO, misurato il 2026-08-16.** `DoorClosed` e `DoorOpened` sono in
+      #     `ERTEnvironmentOutcome` dal **2026-08-08**, commit `39844904` («feat(porte): stato per bordo …
+      #     CP 9.3») — otto giorni prima di questa rivendicazione. La riga e' stata scritta senza aprire
+      #     l'enum, ed e' il tipo di premessa che questo file chiede di misurare invece di dedurre.
+      #     ✅ **Ma i quattro path RESTANO qui, e la ragione vera e' un'altra**: il DoD di `#833` §«Debug /
+      #     TurnLog» chiede voci canoniche **nuove** — «tentativo di interazione, risoluzione o fallimento
+      #     con reason code, cambio di stato della struttura, movimento bloccato» — e quelle si dichiarano
+      #     proprio in `RTTurnLog.h`. La rivendicazione e' giusta; era sbagliata la sua motivazione.
+      #     ⛔ **E c'e' un secondo pretendente, che va sequenziato invece di lasciato scoprire al merge.**
+      #     `#1060` (il T6 dello showcase) ha come PRIMO passo far portare a `FRTTurnLogEntry` il bersaglio
+      #     originale e quello effettivo dell'interposizione: senza, ne' un `EffectiveTargetEquals` ne' un
+      #     esito di log possono dire **verso chi** e' avvenuto il redirect. Due track che aggiungono campi
+      #     allo stesso header sono la contesa che questo meccanismo esiste per impedire.
+      #     ➡️ **Sequenza dichiarata**: `#833` prima, `#1060` dopo il rilascio. ⚠️ Misurato che oggi
+      #     `spatial` **non tocca nessuno dei quattro** — ne' su `feat/833-interaction-graph`, ne' nel
+      #     worktree `D:/rt-spatial` col non committato — quindi l'attesa e' il ritmo di `#833`, non un
+      #     blocco permanente. Chi chiude `#833` rilascia i path e lo dice qui.
+      # ➕ **`Ability/RTActionDef.h` entra il 2026-08-16, ed e' la voce di DoD di `#833` che chiedeva
+      # se stessa.** La sua quarta casella dichiara: «⛔ `Ability/RTActionDef.h` **non e' nel `writable`
+      # della track `spatial`** (D-139): serve riallocazione, o la voce la lavora chi possiede quel path».
+      # 🔵 **Nessuno possedeva quel path**, ed e' il motivo per cui la voce era ferma: una track non
+      # si auto-assegna un file, e un path che non e' di nessuno resta uno STOP finche' un atto
+      # d'integrazione non lo assegna. Questo e' quell'atto.
+      # ✅ Misurato libero su tutte e tre le fonti, sulla base di questo commit: nessun `writable` lo
+      # nomina, non e' `integration_only`, zero rami remoti vivi e zero worktree lo toccano — nemmeno
+      # col non committato.
+      # ⚠️ **Serve perche' senza non basta dichiarare l'effetto.** `ERTStructureOp` ha solo `None`,
+      # `CreateCover` e `MoveCover`, e il puntatore arma il bersaglio-bordo da `Def.StructureOp != None`
+      # (`RTPointerInteraction.cpp:16`): senza un valore per l'interazione la leva non e' puntabile,
+      # qualunque effetto le si dichiari. Gli altri quattro path della fetta — `RTCatalogLibrary.{h,cpp}`,
+      # `RTActionEffectLibrary.cpp`, `RTCoreActionTests.cpp` — sono gia' qui, quindi questa riga COMPLETA
+      # il write-set invece di aprirne uno nuovo.
+      # 🔵 **E sblocca il T5 dello showcase**, che aspetta un `Action.Interact` capace di aprire il
+      # gate: tre voci del DoD su tredici, non l'intero grafo sorgente->bersaglio.
+      - Source/RefactorTactics/Ability/RTActionDef.h
       - Source/RefactorTactics/Ability/RTCatalogLibrary.h
       - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
       - Source/RefactorTactics/Tests/RTCoreActionTests.cpp
@@ -3718,6 +3753,69 @@ tracks:
     # Il `writable` era: i due `RTCatalogLibrary.{h,cpp}` · `RTScenarioSession.cpp` ·
     # `RTEquipmentTests.cpp` · `PushBeyondGuardThreshold.json` · `scripts/check-equipment-defaults.py` ·
     # `AGENTS.md`. Quest'ultimo e lo scenario tornano a `integration_only`; gli altri non assegnati.
+    writable: []
+    binary_leases: []
+
+  loadout_runtime:
+    status: IDLE
+    issue: null
+    branch: null
+    worktree: "D:/rt-unit"
+    note: >-
+      ✅ **CHIUSA il 2026-08-16**: PR **#1072** mergiata in `main` come `e45afa14`, issue `#1054` chiusa col
+      DoD consuntivato nel commento. Con essa **`#63` è completa** — fetta A `0dd25439`, fetta B qui.
+      Il write-set è **svuotato**, non dichiarato tale. Suite sull'albero mergiato: **987 verdi**.
+
+      **La misura che questa track lascia**: i «33 scenari su 78» erano un limite superiore letto sul
+      sorgente. Eseguendo ne cadono **cinque**, e quattro non avevano numeri sbagliati — avevano perso la
+      **variabile che tenevano ferma**. Da lì è nata la terza forma di `loadout`: `assente` = il default
+      della partita, `[]` = l'unità entra spoglia e lo scenario lo **dichiara**. Le due danno entrambe zero
+      pezzi e significano l'opposto, quindi la condizione è su un **flag** e non sul conteggio — verificato
+      con una mutazione che fa cadere esattamente i quattro scenari isolati.
+
+      🔴 **Trovato di rimbalzo e non riparabile da qui**: `check-docs-links.py` è **rosso su `main`** dal
+      commit `273c76a6`, che ha cancellato `docs/src/README.md` lasciando **20 puntatori** in 17 file —
+      nessuno dei quali toccato da questa track. Aperta **#1071** con la misura e con la distinzione che
+      la riparazione richiede: per i documenti vivi il nuovo target è una **decisione**, mentre in
+      `docs/archive/` un link rotto può essere legittimo.
+
+      ➕ **Aperta il 2026-08-16.** `#1054`, fetta B di `#63`: i default 1+1+1 esistono dalla fetta A e
+      non li applica nessuno: `DefaultWeaponVariantFor` ha chiamanti solo nei test, e né `RTGameMode` né
+      `RTUnit` nominano equipaggiamento. La spinta di 2 di `Weapon.Impact` esiste nei dati, in un test e in
+      uno scenario, **e in nessuna partita**.
+
+      ⚠️ **Questa fetta cambia il comportamento di 33 scenari su 78**, ed è la ragione per cui è separata:
+      sono quelli che usano l'attacco base di un eroe, dove la variante d'arma morde. Ognuno è una
+      **decisione di bilanciamento** — «la guardia regge» diventa «la guardia cede» — e va deciso se è il
+      gioco che è cambiato o lo scenario che era scritto per un mondo senza equipaggiamento. Il numero 33 è
+      un limite superiore misurato: quanti cadano davvero si sa solo eseguendo.
+
+      🔵 **Il bot non richiede un ramo suo.** `ARTGameMode::SpawnUnitForHero` è il punto unico d'ingresso
+      delle unità in partita ed è lì che si decide `bIsBotControlled`: equipaggiare in quel punto copre
+      entrambe le squadre **strutturalmente**. Un `if (bot)` sarebbe la forma in cui il difetto rientra.
+
+      🔵 **Una sola logica di equipaggiamento, non due.** Oggi l'harness la scrive per conto suo
+      (`RTScenarioSession`) e la partita non ce l'ha; scriverla una seconda volta lì renderebbe gli scenari
+      **non probanti sulla partita**, che è tutto il loro valore. Va su `ARTUnit`, che è il soggetto, e la
+      chiamano entrambi.
+
+      ⛔ **`Scenarios/RT_Showcase_Relay_v01.json` ESCLUSO: contesa esercitata, misurata.** `D:/rt-simulation`
+      lo ha modificato e non committato — **69 righe aggiunte** sul branch `feat/1038-t5-avvicinamento-e-t7`.
+      Misurato che **non è fra i 33** (zero usi dell'attacco base d'eroe), quindi l'esclusione non apre una
+      lacuna; se il corpus lo facesse cadere lo stesso, va **dichiarato** e non toccato.
+
+      Contese dichiarate ma **non** esercitate, verificate una per una: `frontend_shell` (ACTIVE) possiede
+      `RTGameMode.cpp` e ha 73 voci non committate, **nessuna** sul file; `spatial` (ACTIVE) possiede
+      `RTCatalogLibrary.h` e il suo branch non lo tocca; `unit_presentation` è IDLE su questo stesso
+      worktree. Nessun branch remoto tocca i bersagli.
+    # Rilasciato alla chiusura, e SCRITTO. Il `writable` era: `Unit/RTUnit.{h,cpp}` · `RTGameMode.cpp` ·
+    # `ScenarioHarness/RTScenarioSession.cpp` (più `RTScenarioLoader.cpp` e `RTTestScenario.h`, presi per la
+    # terza forma di `loadout`) · i due file di test · `Scenarios/` con l'esclusione dello showcase.
+    # `Scenarios/` torna a `integration_only`; gli altri non assegnati.
+    #
+    # ✅ **L'esclusione ha retto fino in fondo**: `Scenarios/RT_Showcase_Relay_v01.json` non è stato toccato,
+    # e nel frattempo il lavoro di `D:/rt-simulation` su quel file è atterrato in `main` da sé. Dopo il merge
+    # lo scenario esce `BLOCKED` — stato dichiarato, non un fallimento — e la suite resta verde.
     writable: []
     binary_leases: []
 

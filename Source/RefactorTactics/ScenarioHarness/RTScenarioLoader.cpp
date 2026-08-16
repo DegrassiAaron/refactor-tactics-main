@@ -335,6 +335,12 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		const TArray<TSharedPtr<FJsonValue>>* LoadoutArr = nullptr;
 		if (Obj->TryGetArrayField(TEXT("loadout"), LoadoutArr))
 		{
+			// La PRESENZA della chiave, registrata a parte dal contenuto: `"loadout": []` significa «entra
+			// spoglia» e `loadout` assente significa «monta il default dell'eroe», ma entrambe danno zero
+			// pezzi. Senza questo flag le due forme sarebbero indistinguibili, e quattro scenari che tengono
+			// ferma la spinta a 1 tornerebbero a misurare la cosa sbagliata **restando verdi**.
+			Unit.bLoadoutDeclared = true;
+
 			for (const TSharedPtr<FJsonValue>& Piece : *LoadoutArr)
 			{
 				FString PieceId;

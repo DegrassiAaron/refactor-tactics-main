@@ -781,6 +781,79 @@ bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
 }
 
 /**
+ * `loadout` ha **tre** forme, e la differenza fra due di esse è invisibile a un conteggio (#1054).
+ *
+ * - **assente** → l'unità riceve il default del suo eroe, cioè ciò che la partita monta;
+ * - **`[]`** → l'unità entra **spoglia**, e lo scenario lo sta dichiarando;
+ * - **lista** → quei pezzi, e vincono sul default.
+ *
+ * ⚠️ **Perché serve la seconda.** Quando `#1054` ha acceso i default anche nell'harness, cinque scenari
+ * hanno cambiato risultato — e quattro non avevano numeri sbagliati: avevano perso la **variabile che
+ * tenevano ferma**. `Spec.Brace.GuardAndBraceOnMixedHit` misura il confine Guard/Brace *con spinta 1*, e
+ * il default di Phase porta la spinta a 2: senza un modo di dire «questa unità entra spoglia», quello
+ * scenario non può più esistere — diventa il gemello di `PushBeyondGuardThreshold`.
+ *
+ * ⚠️ E `[]` **non** si distingue da assente contando gli elementi: entrambe danno `Loadout.Num() == 0`.
+ * È per questo che esiste `bLoadoutDeclared` invece di una condizione sul conteggio, ed è il difetto che
+ * questo test impedisce di reintrodurre — sarebbe silenzioso, perché il corpus resterebbe verde mentre
+ * quattro scenari misurano di nuovo la cosa sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoadoutThreeFormsTest,
+	"RefactorTactics.Scenario.LoadoutHasThreeForms",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoadoutThreeFormsTest::RunTest(const FString&)
+{
+	auto Carica = [this](const TCHAR* CampoLoadout, const TCHAR* Etichetta) -> FRTScenarioUnit
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Loadout.Forme", "version": 1, "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0]%s } ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), CampoLoadout);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!URTScenarioLoader::LoadFromString(*Json, Scenario, Error))
+		{
+			AddError(FString::Printf(TEXT("%s: caricamento fallito — %s"), Etichetta, *Error));
+			return FRTScenarioUnit();
+		}
+		if (Scenario.Units.Num() != 1)
+		{
+			AddError(FString::Printf(TEXT("%s: attesa una unita'"), Etichetta));
+			return FRTScenarioUnit();
+		}
+		return Scenario.Units[0];
+	};
+
+	// 1. Assente: nessuna dichiarazione, quindi la sessione userà il default dell'eroe.
+	const FRTScenarioUnit Assente = Carica(TEXT(""), TEXT("assente"));
+	TestFalse(TEXT("assente: non dichiarato"), Assente.bLoadoutDeclared);
+	TestEqual(TEXT("assente: lista vuota"), Assente.Loadout.Num(), 0);
+
+	// 2. Vuoto: DICHIARATO, e dichiarato vuoto. È la forma che il conteggio non distingue dalla prima.
+	const FRTScenarioUnit Vuoto = Carica(TEXT(", \"loadout\": []"), TEXT("vuoto"));
+	TestTrue(TEXT("vuoto: DICHIARATO"), Vuoto.bLoadoutDeclared);
+	TestEqual(TEXT("vuoto: lista vuota"), Vuoto.Loadout.Num(), 0);
+
+	// 3. Pieno: dichiarato con i pezzi. Un loadout legale, o `Validate` lo rifiuterebbe prima.
+	const FRTScenarioUnit Pieno = Carica(
+		TEXT(", \"loadout\": [\"Weapon.Impact\", \"Gadget.Medkit\", \"Reaction.Anchor\"]"), TEXT("pieno"));
+	TestTrue(TEXT("pieno: dichiarato"), Pieno.bLoadoutDeclared);
+	TestEqual(TEXT("pieno: tre pezzi"), Pieno.Loadout.Num(), 3);
+
+	// L'asserzione che rende il test non vacuo: le prime due sono indistinguibili SUL CONTEGGIO e distinte
+	// sul flag. Senza questa riga il test passerebbe anche con `bLoadoutDeclared` sempre falso.
+	TestNotEqual(TEXT("assente e vuoto si distinguono, e non per il numero di pezzi"),
+		Assente.bLoadoutDeclared, Vuoto.bLoadoutDeclared);
+	TestEqual(TEXT("...mentre il conteggio le direbbe uguali"), Assente.Loadout.Num(), Vuoto.Loadout.Num());
+	return true;
+}
+
+/**
  * Il bump a 2 deve GATARE la feature per cui e' stato fatto, o non gatea niente.
  *
  * Trovato in code review: il solo controllo era `Version > SupportedVersion`, quindi un file `version: 1`

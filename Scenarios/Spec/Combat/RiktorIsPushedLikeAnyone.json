@@ -15,6 +15,8 @@
 
   "_nota_geometria": "Attaccante dedicato per bersaglio, due righe separate, colpo da EST lungo la riga: l'arretramento e' la cella successiva della stessa riga, che e' l'unico caso in cui la destinazione e' scrivibile a mano senza fissarla dal primo run. Nessuna difesa dichiarata: se uno dei due si mettesse in guardia questo file misurerebbe `GuardResistedPushDistance` invece della resistenza nativa.",
 
+  "_nota_due_celle_dal_2026_08_16": "⚠️ **Le due destinazioni sono passate da UNA cella a DUE, ed e' l'unico dei cinque scenari toccati da #1054 che AGGIORNA i numeri invece di isolarsi con `\"loadout\": []`.** La ragione: qui la regola misurata NON cambia. Il file dice «Riktor viene spostato come chiunque altro» (D-075), e con la spinta a 2 continua a dirlo — arretrano entrambi, della stessa distanza, ed e' la SIMMETRIA l'oggetto dell'assertion, non il numero. Negli altri quattro casi la variabile mossa dal default era proprio quella misurata (il confine di `Guard` a spinta 1, la portata che fa partire il colpo, una spinta parassita su uno scenario di copertura), e li' isolarsi era l'unico modo di preservare l'esperimento. Qui isolarsi avrebbe fatto il contrario: avrebbe pinnato un mondo senza equipaggiamento su una regola che vale a maggior ragione col gioco vero. Il 2 arriva da `Weapon.Impact`, default di Phase (D-089), che porta `Hero.Phase.PressureJet` da `Push 1` a `Push 2` (D-085).",
+
   "units": [
     { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [0,  0, 0] },
     { "id": "V1", "hero": "Hero.Wraith",  "team": 0, "cell": [0, -2, 0] },
@@ -36,8 +38,8 @@
   "_nota_hp": "Il danno e' identico e non e' il punto: 120-16=104 per Riktor, 90-16=74 per Wraith. Sta nelle assertion perche' un colpo che non arriva spiegherebbe una cella ferma nel modo sbagliato.",
 
   "expect": [
-    { "type": "UnitAtCell",   "unit": "B1", "cell": [-1,  0, 0] },
-    { "type": "UnitAtCell",   "unit": "V1", "cell": [-1, -2, 0] },
+    { "type": "UnitAtCell",   "unit": "B1", "cell": [-2,  0, 0] },
+    { "type": "UnitAtCell",   "unit": "V1", "cell": [-2, -2, 0] },
     { "type": "UnitHpEquals", "unit": "B1", "value": 104 },
     { "type": "UnitHpEquals", "unit": "V1", "value": 74 },
 
