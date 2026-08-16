@@ -2235,6 +2235,12 @@ features:
       - RefactorTactics.Equipment.WarnsOnPointlessVariantPairing
       - RefactorTactics.Equipment.LoadoutExactlyOneEach
       - RefactorTactics.Equipment.NoInMatchProgression
+      # ➕ `#63` fetta A. ⚠️ **Non duplica i due qui sopra, e la differenza è il punto della issue**:
+      # quelli costruiscono un loadout *a mano* e ne controllano la forma, quindi verificano la REGOLA e
+      # resterebbero verdi anche se nessuna unità venisse mai equipaggiata — che è precisamente ciò che
+      # succedeva. Questo non scrive il loadout: lo **chiede** a `DefaultLoadoutFor` e poi verifica che la
+      # risposta passi `ValidateLoadout`.
+      - RefactorTactics.Equipment.DefaultLoadoutIsOnePerSlotForEveryHero
     scenarios:
       # Da `planned` a reale il 2026-08-12: le due ragioni che lo tenevano fuori sono cadute nello stesso
       # giorno — la chiave `loadout` (#602) e il produttore di `PlannedReactionAbility` (#601).
