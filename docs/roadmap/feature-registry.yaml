@@ -4527,10 +4527,11 @@ features:
       l'archivio, che e' scope di release e merita una `D-nnn`.
 
       **Stato al 2026-08-16**, dopo il secondo giro: il view model (`#472`, **11** test) e il **ponte
-      Blueprint** (`#999`, `Replay/RTReplayViewerSubsystem.{h,cpp}`, **3** test) esistono, e l'area
-      `RefactorTactics.Replay` chiude **44/44**.
+      Blueprint** (`#999`, `Replay/RTReplayViewerSubsystem.{h,cpp}`, **6** test) esistono, e l'area
+      `RefactorTactics.Replay` chiude **47/47**.
       ⚠️ I numeri si rimisurano a ogni giro e non si incrementano a mente: erano `8` e `38` nella prima
-      stesura di questa riga, `11` e `41` dopo la code review — che ne ha aggiunti tre — e sono rimasti
+      stesura di questa riga, `11` e `41` dopo la prima code review, `11+3` e `44` all'apertura della PR
+      del ponte, e `11+6` e `47` dopo la seconda — che ha trovato meta' dei forwarder senza copertura. Sono
       giusti un'ora per volta.
       `runtime` e `automation` restano `partial`: da qui in su mancano le **due schermate** e il loro
       `.uasset`, che vorranno una Binary Asset Lease, piu' il bootstrap del frontend — che pero' e' di

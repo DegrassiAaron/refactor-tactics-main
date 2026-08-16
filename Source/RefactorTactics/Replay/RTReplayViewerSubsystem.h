@@ -62,12 +62,27 @@ public:
 	/**
 	 * Le partite registrate, dall'indice. `false` = nessun indice leggibile, e `OutMatches` resta com'e'.
 	 *
+	 * `bNewestFirst` ordina per `StartedUtc` decrescente — che e' quello che una schermata di cronologia
+	 * vuole, e che **Blueprint non puo' fare da solo**: non esiste un nodo che ordini un array di struct
+	 * per `FDateTime`, e l'indice e' permanentemente dal piu' vecchio perche' la riga si scrive quando la
+	 * partita comincia.
+	 *
 	 * ⚠️ **Non apre nessun archivio**, ed e' una proprieta' dell'indice (`#416`) che questo ponte non deve
 	 * rompere: una riga puo' quindi puntare a una cartella che non c'e' piu'. E' cio' che rende la lista
 	 * istantanea, ed e' cio' che la schermata deve saper dire.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
-	bool LoadMatchList(TArray<FRTMatchHistoryEntry>& OutMatches) const;
+	bool LoadMatchList(bool bNewestFirst, TArray<FRTMatchHistoryEntry>& OutMatches) const;
+
+	/**
+	 * Chiude l'archivio aperto e **rilascia le tracce**.
+	 *
+	 * ⚠️ Non e' simmetria di cortesia: `FRTReplaySession::Traces` porta il TurnLog di ogni turno
+	 * registrato, e un subsystem di GameInstance sopravvive a ogni caricamento di livello. Senza,
+	 * un replay aperto una volta resta in memoria finche' il processo vive.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
+	void Close();
 
 	// --- Apertura -----------------------------------------------------------------------------------
 
@@ -90,7 +105,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
 	bool IsArchiveComplete() const { return ViewModel.IsComplete(); }
 
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
+	/**
+	 * ⚠️ `BlueprintCallable` e **non** `BlueprintPure`, ed e' deliberato: un nodo pure viene rivalutato a
+	 * ogni punto d'uso, e questo **copia** il manifest intero — `OrderedHashPerTurn` compreso, un `int64`
+	 * per turno registrato. Legato a una property binding lo copierebbe per frame. Trovato in code review,
+	 * ed e' la stessa lezione della cache di `PhasesPerTrace`, che si sarebbe persa al confine Blueprint.
+	 * I widget lo prendono **una volta** all'apertura.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
 	FRTReplayManifest GetManifest() const { return ViewModel.GetManifest(); }
 
 	// --- Dove siamo ---------------------------------------------------------------------------------
@@ -122,6 +144,16 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
 	FText GetTurnLabel() const;
+
+	/**
+	 * La fase come si mostra: il nome, oppure **`—`** quando non c'e' una fase corrente.
+	 *
+	 * ⚠️ Esiste per la stessa ragione di `GetTurnLabel`, e la sua assenza era il gemello scoperto del
+	 * «Turno 0»: `Phase` vale `Planning` negli stati senza fase, e uno `Switch on ERTMatchPhase` in UMG
+	 * imboccherebbe quel ramo disegnando una fase che il replay dichiara impossibile.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
+	FText GetPhaseLabel() const;
 
 	// --- Comandi ------------------------------------------------------------------------------------
 	//
@@ -168,7 +200,14 @@ public:
 
 	// --- Cosa c'e' da disegnare ---------------------------------------------------------------------
 
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
+	/**
+	 * Le voci della fase a schermo.
+	 *
+	 * ⚠️ `BlueprintCallable` per la stessa ragione di `GetManifest`: ogni chiamata rifa' un seek sulla
+	 * traccia e **alloca** l'array delle voci. Come nodo pure una list view lo rieseguirebbe a ogni tick,
+	 * per ogni punto d'uso. Si chiama **quando la posizione cambia**, non mentre si disegna.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
 	TArray<FRTTurnLogEntry> GetCurrentPhaseEntries() const { return ViewModel.CurrentPhaseEntries(); }
 
 	/** Le fasi che il turno corrente contiene **davvero**: e' la barra dei salti, e non si costruisce dall'enum. */
@@ -202,9 +241,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
 	bool Tick(float DeltaSeconds) { return ViewModel.Tick(DeltaSeconds); }
 
-	/** Secondi che una fase resta a schermo in riproduzione automatica. Presentazione, non regola. */
+	/**
+	 * Secondi che una fase resta a schermo in riproduzione automatica. Presentazione, non regola.
+	 *
+	 * ⚠️ **Il valore viene clampato**: `0`, un negativo o un `NaN` farebbero avanzare il replay di una fase
+	 * per ogni `Tick`, perche' la guardia del view model e' `SecondsPerPhase > 0.f` — falsa anche per
+	 * `NaN`. Uno slider di velocita' che tocchi lo zero non deve poter far scorrere la partita intera.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
-	void SetSecondsPerPhase(float Seconds) { ViewModel.SecondsPerPhase = Seconds; }
+	void SetSecondsPerPhase(float Seconds);
 
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
 	float GetSecondsPerPhase() const { return ViewModel.SecondsPerPhase; }
@@ -217,16 +262,33 @@ public:
 	 * Esiste per i test e per una eventuale cartella d'importazione; **non e' posizione**, e' dove si
 	 * cerca.
 	 */
+	/**
+	 * ⚠️ **Cambiare la radice chiude l'archivio aperto.** Senza, il subsystem descriverebbe una partita di
+	 * una cartella mentre ne elenca un'altra, e una schermata che mostra «in riproduzione» accanto alla
+	 * lista direbbe due partite senza rapporto.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
-	void SetReplaysRoot(const FString& Root) { ReplaysRootOverride = Root; }
+	void SetReplaysRoot(const FString& Root);
 
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
 	FString GetReplaysRoot() const;
 
+	// ~UGameInstanceSubsystem — rilascia le tracce quando la GameInstance se ne va.
+	virtual void Deinitialize() override;
+
 private:
-	/** Tutta la logica sta qui, e questo tipo non ne aggiunge: e' il criterio della issue. */
+	/**
+	 * Tutta la logica sta qui, e questo tipo non ne aggiunge: e' il criterio della issue.
+	 *
+	 * ⚠️ `UPROPERTY()` come `URTFrontendNavigator::Stack`, e non e' cerimonia: oggi la sessione e' dati
+	 * puri, ma il giorno in cui qualcuno vi aggiungesse un `TObjectPtr<>` — un data asset dell'eroe per
+	 * disegnare le voci, per dire — quel riferimento sarebbe invisibile al GC e l'oggetto verrebbe raccolto
+	 * mentre il replay e' aperto. Annotarlo costa nulla e ripristina il pattern del repository.
+	 */
+	UPROPERTY()
 	FRTReplayViewModel ViewModel;
 
-	/** Vuoto = `Saved/Replays`. Vedi `GetReplaysRoot`. */
+	/** Vuoto = il default del recorder. Vedi `GetReplaysRoot`. */
+	UPROPERTY()
 	FString ReplaysRootOverride;
 };

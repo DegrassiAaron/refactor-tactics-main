@@ -2996,6 +2996,11 @@ tracks:
       # nuovo non e' esente — «conteso da nessuno» non e' un'assegnazione, ed e' la stessa formula che
       # `frontend_shell` ha usato per i quattro file nuovi di `Frontend/`.
       - Source/RefactorTactics/Tests/RTReplayViewerSubsystemTests.cpp
+      # ➕ La fixture condivisa dai due test del replay, nata il 2026-08-16 in code review per togliere
+      # ~70 righe copiate. ⚠️ **Copre due file su tre**: `Tests/RTFrontendNavigationTests.cpp` ha la
+      # stessa costruzione di `UGameInstance`, e non e' unificata perche' quel file e' di
+      # `frontend_shell` — un path non assegnato e' uno stop, non un invito.
+      - Source/RefactorTactics/Tests/RTReplayTestFixtures.h
       - docs/roadmap/plans/replay-r6-spec-panel-2026-08-16.md
     derives_from:
       - source: docs/roadmap/feature-registry.yaml
