@@ -1,4 +1,5 @@
 #include "UI/RTHUD.h"
+#include "UI/RTHudViewModel.h"
 #include "RTGameMode.h"
 #include "Unit/RTUnit.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
@@ -91,6 +92,50 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 			}
 		}
 	}
+}
+
+namespace
+{
+	/**
+	 * Compone una riga della terna.
+	 *
+	 * `BusyWithoutName` arriva da fuori invece di essere una costante qui dentro perche' il ripiego di uno
+	 * slot occupato SENZA nome non e' lo stesso per tutti e tre: sul movimento e' un percorso tracciato a
+	 * waypoint — il caso piu' comune del gioco — mentre su principale e reazione un'occupazione senza azione
+	 * non ha un nome proprio, e chiamarla «percorso» sarebbe una riga che mente su cosa sta succedendo.
+	 *
+	 * «libero» invece resta costante: uno slot vuoto e' vuoto allo stesso modo su tutti e tre.
+	 */
+	FRTSlotLine ComposeOneSlotLine(const TCHAR* SlotLabel, const TCHAR* BusyWithoutName,
+		const FRTPlannedSlotView& Slot)
+	{
+		FRTSlotLine Line;
+		Line.bOccupied = Slot.bOccupied;
+
+		if (!Slot.bOccupied)
+		{
+			Line.Text = FString::Printf(TEXT("%s: libero"), SlotLabel);
+		}
+		else if (!Slot.DisplayName.IsEmpty())
+		{
+			Line.Text = FString::Printf(TEXT("%s: %s"), SlotLabel, *Slot.DisplayName.ToString());
+		}
+		else
+		{
+			Line.Text = FString::Printf(TEXT("%s: %s"), SlotLabel, BusyWithoutName);
+		}
+
+		return Line;
+	}
+}
+
+TArray<FRTSlotLine> ARTHUD::ComposeSlotLines(const FRTUnitSlotsView& Slots)
+{
+	return {
+		ComposeOneSlotLine(TEXT("Movimento"),  TEXT("percorso"),  Slots.Movement),
+		ComposeOneSlotLine(TEXT("Principale"), TEXT("occupata"),  Slots.Main),
+		ComposeOneSlotLine(TEXT("Reazione"),   TEXT("armata"),    Slots.Reaction),
+	};
 }
 
 void ARTHUD::DrawHUD()
@@ -572,6 +617,31 @@ void ARTHUD::DrawHUD()
 					: (bUsable ? FLinearColor(0.8f, 0.8f, 0.8f, 1.f) : FLinearColor(0.45f, 0.45f, 0.45f, 1.f));
 				DrawText(Line, Color, X, Y, nullptr, 1.f);
 				Y += LineH;
+			}
+
+			// La terna movimento / principale / reazione (CP 11.1). La barra qui sopra dice quali abilita'
+			// HO; questa dice quali dei tre slot del turno ho gia' speso, e da cosa.
+			//
+			// Le tre righe si disegnano SEMPRE, anche a piano vuoto: la riga d'intento sopra le teste salta
+			// le unita' senza ordini, quindi uno slot libero non si vedeva da nessuna parte — ed e' meta'
+			// della domanda che il giocatore si pone in pianificazione.
+			//
+			// In basso a DESTRA perche' e' l'unica zona libera: il combat log tiene il basso a sinistra, le
+			// abilita' il centro. L'ingombro non e' un dettaglio estetico, e' meta' del giudizio di
+			// `PIE-V01-HUD`.
+			const TArray<FRTSlotLine> SlotLines = ComposeSlotLines(URTHudViewModel::BuildUnitSlots(Sel));
+			float SlotY = Canvas->SizeY - 24.f - LineH * (SlotLines.Num() - 1);
+			for (const FRTSlotLine& SlotLine : SlotLines)
+			{
+				float SW = 0.f, SH = 0.f;
+				GetTextSize(SlotLine.Text, SW, SH, nullptr, 1.f);
+
+				// Grigio per lo slot libero, bianco per quello speso: la stessa scala che la barra abilita'
+				// usa gia' per «c'e' ma non e' attivo», cosi' le due letture non chiedono due convenzioni.
+				DrawText(SlotLine.Text,
+					SlotLine.bOccupied ? FLinearColor::White : FLinearColor(0.55f, 0.55f, 0.55f, 1.f),
+					Canvas->SizeX - SW - 24.f, SlotY, nullptr, 1.f);
+				SlotY += LineH;
 			}
 		}
 	}

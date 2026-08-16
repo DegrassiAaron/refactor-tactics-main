@@ -194,7 +194,7 @@ L'ordine non e' arbitrario:
 **Sbloccata da**: M6.0 · **Preparazione condivisa con**: U13 · **Percorso critico**: sì
 **Produce**: `DA_HexMap_Arena` e `L_HexArena`, committati
 **Artefatti**: `Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap` ✅ · `Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset` ✅
-**Verifichi**: `PIE-HEX-MODE-E` ✅ · `PIE-HEX-MODE-F` ✅ · `PIE-HEX-MODE-G` ✅ · `PIE-HEX-MODE-H` ❓ · `PIE-HEX-MODE-L` ✅ · `PIE-HEX-MODE-N` ✅ · `PIE-HEX-MODE-O` ✅
+**Verifichi**: `PIE-HEX-MODE-E` ✅ · `PIE-HEX-MODE-F` ✅ · `PIE-HEX-MODE-G` ✅ · `PIE-HEX-MODE-H` 🟡 · `PIE-HEX-MODE-L` ✅ · `PIE-HEX-MODE-N` ✅ · `PIE-HEX-MODE-O` ✅
 **Finita quando**: i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena soddisfa i tre criteri dei passi 3, 4 e 7
 **Sblocca**: U13, U19
 
