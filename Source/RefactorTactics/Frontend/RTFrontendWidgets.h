@@ -2,6 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+// `ESlateVisibility`: e' il tipo che il binding di `Visibility` accetta, e senza di lui la funzione che
+// lo restituisce non sarebbe collegabile.
+#include "Components/SlateWrapperTypes.h"
 #include "Frontend/RTStartupReport.h"
 #include "RTFrontendWidgets.generated.h"
 
@@ -156,6 +159,19 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
 	FText GetLinesAsText() const;
+
+	/**
+	 * La visibilita' del banner, gia' nel tipo che il binding di `Visibility` accetta.
+	 *
+	 * ⚠️ **Esiste perche' `HasAnything()` non e' collegabile a quel binding**: restituisce `bool` e lo
+	 * slot vuole un `ESlateVisibility`, quindi il menu lo filtra via e chi cerca non lo trova. La via
+	 * alternativa — un `Select` in Blueprint — metterebbe in tre nodi una scelta che qui e' una riga, e
+	 * la ripeterebbe identica in ogni widget che ne ha bisogno.
+	 *
+	 * `Collapsed` e non `Hidden`: un banner assente non deve occupare spazio nel layout sotto.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	ESlateVisibility GetBannerVisibility() const;
 
 	/**
 	 * Riempie il banner dal rapporto d'avvio.

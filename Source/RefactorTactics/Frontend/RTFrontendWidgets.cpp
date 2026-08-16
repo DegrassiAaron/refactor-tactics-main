@@ -85,6 +85,12 @@ FText URTFallbackBannerWidgetBase::GetLinesAsText() const
 	return FText::Join(FText::FromString(TEXT("\n")), Lines);
 }
 
+ESlateVisibility URTFallbackBannerWidgetBase::GetBannerVisibility() const
+{
+	// `Collapsed` e non `Hidden`: un banner assente non deve occupare spazio nel layout sotto.
+	return HasAnything() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+}
+
 void URTFallbackBannerWidgetBase::SetFromReport(const FRTStartupReport& Report)
 {
 	Lines.Reset();
