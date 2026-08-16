@@ -6,8 +6,13 @@
 > **Nasce da** [D-144](../decisions/RT_PDR_00_Decision_Log.md) · epic **E46** in
 > [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) · revisione della sorgente in
 > [`plans/menu-frontend-spec-panel-2026-08-16.md`](../roadmap/plans/menu-frontend-spec-panel-2026-08-16.md).
-> **Stato**: `SPECIFIED` — regole decise, **nessun codice**. Su `4ab36b48` non esiste alcun widget di
-> frontend e `Content/` non contiene alcun `WBP_*`.
+> **Stato**: `IMPLEMENTING` *(aggiornato il 2026-08-16)*. Il C++ di **CP 46.1** (navigation controller) e
+> **CP 46.2** (fasi di caricamento, esiti d'avvio, classi base dei widget) è in `main` — **32 test**.
+> ⏳ Restano i `WBP_RT_*`, che sono `.uasset` e quindi lavoro d'editor: la ricetta per costruirli sta in
+> [`guida-frontend-umg.md`](guida-frontend-umg.md).
+> *(Questa riga diceva «`SPECIFIED` — regole decise, **nessun codice**», vero fino al 2026-08-16: la
+> lascio citata perché uno stato che invecchia in silenzio è il difetto che questo repository misura più
+> spesso.)*
 
 ---
 
