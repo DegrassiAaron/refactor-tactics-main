@@ -1713,6 +1713,52 @@ tracks:
       di una seduta PIE ha un requisito che gli altri non hanno — l'editor **buildato**, non solo il
       sorgente. Va scelto quando la track parte, fra quelli che hanno `Binaries/` e `Intermediate/`
       già costruiti, perché aprirne uno nuovo costa una compilazione intera.
+      ➕ **Attivata il 2026-08-16 su `#923`, e la prenotazione diventa un vincolo.** Gli undici file erano
+      già elencati qui; adesso c'è una sessione che ci scrive.
+      🔴 **`docs/roadmap/v0.1-definition-of-done.md` entra nel `writable`, e non è un allargamento di comodo:
+      è la causa, mentre gli undici file sono il sintomo.** `#923` è il difetto del 2026-08-09 ripetuto il
+      2026-08-15 su un altro file, e si ripete perché *la suite gira sul target Editor e il target `Game` non
+      lo compila niente di automatico*. Correggere solo i test lascia in piedi il meccanismo che li rompe.
+      ⚠️ **Il dato che lo dimostra, misurato oggi**: `G12` (*«Packaging Windows Development e Shipping →
+      BUILD SUCCESSFUL»*) porta ✅ datato **2026-08-10**, e il commit che ha rotto la Shipping — `58bbb3bc`,
+      i tre test di CP 13.4 fuori dalla guardia — è dell'**11/08 alle 23:45**. Il gate è stato **verde e falso
+      per quattro giorni**, ed era vero quando fu timbrato: è la firma di un gate che nessuno riesegue.
+      ∴ la track deve poter scrivere §3 — `G1` non nomina il target `Game` Shipping né il comando, e `G12` va
+      ridatato su una misura di oggi. Senza quel file, `#923` chiude il sintomo e lascia la terza occorrenza.
+      ⚠️ **Perché a `verification` e non a `spatial`, che questo file indica come proprietaria del DoD.** La
+      nota di `spatial` dice *«chi ha bisogno di scrivere il DoD riattiva questa track»*: valeva quando il DoD
+      serviva per le sue misure di budget. Qui il DoD serve per il **gate di build**, che è il dominio di
+      `#923`; riattivare `spatial` significherebbe avviare il mandato Terminal B, che non è ciò che sta
+      succedendo. La riga di `spatial` resta vera in generale ed è **superata per questo giro**, detto qui
+      invece che lasciato al lettore.
+      ✅ **Intersezione misurata, non dedotta**: due branch vivi toccano `parallel-batch.yaml` —
+      `docs/menu-frontend-consolidamento` e `feat/78-contratto-certezza` — che è `integration_only` e quindi
+      contesa per costruzione, non ownership. **Nessuno** tocca il DoD né uno degli undici file
+      (`git diff --name-only origin/main...origin/<b>` per ognuno).
+      ✅ **Chiusa il 2026-08-16 con PR #951 (`64d46076`): sintomo e causa insieme.** Il sweep passa da **89
+      test fuori dalla guardia a 0** su 107 file, e le dichiarazioni restano **876 prima e 876 dopo** — che e'
+      la verifica che nessun test sia sparito nello spostamento, cioe' il modo in cui questa correzione poteva
+      rompersi in silenzio. Tre target compilati (`Editor`, `Game` Development, `Game` Shipping) e suite
+      **875/875**.
+      🔴 **E la metrica che la track stessa aveva proposto e' stata falsificata dalla misura.** L'oracolo
+      annunciato era il calo del binario Shipping: misurato, **-1024 byte** su 166 MB. In Shipping
+      `WITH_AUTOMATION_WORKER` e' spento, quindi la macro **definisce** la classe ma non ne crea l'istanza e il
+      linker la scarta — la perdita nel binario era 1 KB, non 86 test. L'oracolo giusto sono il sweep e il
+      build, ed e' registrato sulla issue invece di sparire con la track.
+      ⚠️ **Il write-set resta descritto qui e il blocco `writable` esce**: dodici path — gli undici test e
+      `docs/roadmap/v0.1-definition-of-done.md` — tutti atterrati in `main`, oggi non assegnati. ⛔ **Il DoD
+      torna quindi senza proprietario**, ed e' la stessa condizione che la nota di `spatial` descrive: chi
+      deve scriverlo se lo fa assegnare, e con esso eredita le due viste che alimenta.
+      ➕ **Cosa la track NON ha fatto, detto invece che dedotto**: `G1` ora nomina i tre comandi, ma **nessuno
+      li esegue al posto di chi consegna**. Non c'e' CI (`.github/workflows/` assente per scelta), quindi la
+      difesa contro la terza occorrenza e' una riga di DoD che una persona deve leggere. E' meglio di prima —
+      prima non c'era nemmeno la riga — e non e' un gate automatico: chiamarlo tale sarebbe la stessa bugia
+      che `G12` ha raccontato per quattro giorni.
+      ⚠️ Il mandato **Terminal D** resta assegnato e **non cominciato**: `IDLE` qui significa che nessuna
+      sessione lavora, non che il mandato sia stato consumato.
+      ⚠️ **La track porta anche il mandato QA Terminal D, e resta non cominciato.** `status: ACTIVE` qui
+      significa «una sessione lavora su `#923`», non «il mandato è partito»: sono due cose diverse, ed è la
+      stessa forma che `simulation` ha avuto su `#578` con il mandato A in attesa.
     mandate: docs/technical/qa-prompt-terminal-d-verifiche-pie.md
     writable:
       - docs/technical/test-manuali-pie.md
@@ -1778,18 +1824,6 @@ tracks:
       nuovo e due documenti: intersezione **vuota**, verificata sui path e non sull'intenzione. Il vincolo
       che resta non è sui file — è la macchina: una run di automation per volta e un mutex di UBT, quindi
       due track che ricompilano si aspettano.
-    writable:
-      - Source/RefactorTactics/Tests/RTUnitTests.cpp
-      - Source/RefactorTactics/Tests/RTHexTests.cpp
-      - Source/RefactorTactics/Tests/RTHexMovementIntegrationTests.cpp
-      - Source/RefactorTactics/Tests/RTHexCombatIntegrationTests.cpp
-      - Source/RefactorTactics/Tests/RTHexMatchIntegrationTests.cpp
-      - Source/RefactorTactics/Tests/RTStatusTests.cpp
-      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
-      - Source/RefactorTactics/Tests/RTMatchSetupWorldTests.cpp
-      - Source/RefactorTactics/Tests/RTMatchSetupTests.cpp
-      - Source/RefactorTactics/Tests/RTHexPerfTests.cpp
-      - Source/RefactorTactics/Tests/RTUnitPlacementTests.cpp
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------

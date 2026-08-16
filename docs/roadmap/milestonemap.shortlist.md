@@ -96,7 +96,7 @@ La v0.1 non si chiude perché «sembra pronta»: si chiude quando questi sono **
 
 | Gate | Cosa chiede | Stato |
 |:--:|---|---|
-| **G1** | Build Game + Editor senza warning nuovi | ⏳ |
+| **G1** | Build **Editor** + **Game Development** + **Game Shipping** senza warning nuovi | ⏳ |
 | **G2** | Suite automation completa verde | ⏳ |
 | **G3** | I 10 test nominati dal catalogo esistono — **nove con quei nomi, uno rinominato di proposito** | ⏳ |
 | **G4** | Determinismo: 100 ripetizioni, checksum identico | ⏳ |
@@ -107,7 +107,7 @@ La v0.1 non si chiude perché «sembra pronta»: si chiude quando questi sono **
 | **G9** | Il **subset `RELEASE-V01`** delle verifiche manuali è eseguito | ⏳ **2 verdi · 7 parziali · 8 aperte** (2026-08-09) |
 | **G10** | Partita completa 2v2 su mappa multilivello, dall'avvio alla vittoria | ⏳ |
 | **G11** | KPI misurati e registrati (anche fuori target) | ⏳ |
-| **G12** | Packaging Windows Development **e** Shipping | ✅ **2026-08-10** (CP 12.5): Development 916 MB · Shipping 569 MB, entrambi `BUILD SUCCESSFUL` |
+| **G12** | Packaging Windows Development **e** Shipping | ✅ **2026-08-16** (#923): `BUILD SUCCESSFUL`, un cook e due binari · Development 336 MB · Shipping 167 MB · `.pak` 10,8 MB |
 | **G13** | Partita giocabile **senza editor** dalla build packaged | 🟡 **2026-08-10**: partita completa fino alla vittoria sul pacchetto Development (`round 6/12`, per eliminazione, zero crash) — ma sull'**arena di test**. Riserva sotto |
 | **G14** | Documentazione allineata | ⏳ |
 | **G15** | Tracciabilità delle feature verificabile | ⏳ |
