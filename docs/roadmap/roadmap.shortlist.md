@@ -38,12 +38,12 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
 | **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
-| **E46** | — | 4 | 4/22 | — |
+| **E46** | 🟡 | 4 | 4/22 | — |
 | **E47** | — | 2 | 0/15 | — |
 
 **23 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
 
-> ⚠️ **Senza stato dichiarato nell'owner**: **E46**, **E47**. §2.1 non le copre — non è una svista di questa vista, è una riga che manca là.
+> ⚠️ **Senza stato dichiarato nell'owner**: **E47**. §2.1 non le copre — non è una svista di questa vista, è una riga che manca là.
 
 <!-- RT_SHORTLIST_EPICS:END -->
 
