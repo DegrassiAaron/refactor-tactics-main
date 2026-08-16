@@ -401,7 +401,12 @@ batch:
   # ⚠️ **La lezione non è sul ref, è sul metodo**: un diff «prima/dopo» si fa contro la **propria
   # base**, non contro un ref che si muove — o misura la somma del proprio lavoro e di quello altrui
   # e la attribuisce a chi guarda. `git diff <base>...HEAD`, mai `git diff origin/main`.
-  base_sha: "057ec9a238fe5b1ad0a6e74c68dc030b05b8f790"
+  # ⏱️ Avanzata il 2026-08-16 da `057ec9a2` a `95736a6a`: **6 PR** atterrate nel mezzo — contate col
+  # `--grep="Merge pull request"`, che è il comando che risponde alla domanda; il `--merges` nudo ne dice
+  # **9** perché include i merge di `origin/main` dentro un branch. La base precedente resta antenato
+  # (`git merge-base --is-ancestor`), quindi l'`id` non cambia: stesso lotto, base nuova. Lo sha lungo è
+  # copiato da `git rev-parse origin/main` **dopo** il merge, non completato a mano.
+  base_sha: "95736a6a80cdd94eaa59ab3b3ede2c57d5149fc7"
   created_at: "2026-08-14"
   # Base di creazione, tenuta perché è ciò che l'`id` nomina: `84cbb70c6f5082682e59a71d442b71e78fac4322`.
   # Verificato che sia ancora antenato della base corrente (`git merge-base --is-ancestor`): sì —
@@ -469,7 +474,20 @@ batch:
   # vivi — `feat/78`, `feat/77`, `fix/892`, `feat/954` — l'unica intersezione è **questo file**. Non è
   # un caso limite da tollerare: è il quarto giro in cui il file che previene le collisioni è l'unico
   # oggetto conteso, e va nel conto della domanda qui sopra.
-  reconciled_count: 6
+  #
+  # 🔵 **Settima riconciliazione, 2026-08-16 — aperta per riattivare `simulation` su `#512`.** E il ref
+  # si è mosso **tre volte dentro la stessa sessione**, che è la sesta volta che questo file lo registra:
+  # `ac107f8a` (base su cui il branch è nato) → `ee4c01c8` (#969) → `3efa2b7b` (#970) → `95736a6a` (#973,
+  # #964). Le due prime sono arrivate *fra* la misura e la frase che la riassumeva, e una di esse — #969 —
+  # ha falsificato un argomento che stavo per scrivere: che `#512` sbloccasse E47.4.
+  # ⚠️ **L'ultima ha toccato questo file** (`fc07793c`, la sessione di `client_tools`), quindi non era un
+  # `base_sha` da aggiornare ma un merge da fare. Auto-merge riuscito, cioè il caso in cui si perde in
+  # silenzio: verificato il **risultato** invece della lista dei conflitti — `git diff origin/main HEAD`
+  # dà **un solo file** e **otto** righe rimosse, tutte di questa riconciliazione (il `writable` e il
+  # `derives_from` che escono da `spatial`, e i due campi di `simulation` che cambiano valore).
+  # ∴ La domanda di `meta` resta aperta e più pesante di ieri: **sette riconciliazioni in tre giorni**,
+  # e di nuovo `parallel-batch.yaml` come unico oggetto conteso fra due sessioni.
+  reconciled_count: 7
 
 # --- Branch già vivi al momento del calcolo ---------------------------------------------------
 #
@@ -1070,7 +1088,12 @@ preexisting:
       write-set dell'autobattle è arrivato dopo, con la sessione che lo esegue.
 
   - branch: chore/954-batch-autobattle
-    state: LIVE            # worktree `D:/rt-batch` · questa sessione
+    # 🔵 Era `LIVE` — «questa sessione», cioè la sesta riconciliazione. Rimisurato il 2026-08-16 durante
+    # la settima: il branch **non esiste più lato server** (`git rev-parse --verify origin/<b>` fallisce)
+    # ed è antenato di `origin/main`. Atterrato, non perso. Il commento «questa sessione» era vero quando
+    # è stato scritto e diventa falso appena la sessione finisce: è la ragione per cui una voce
+    # `preexisting` si rilegge quando `base_sha` si muove, invece di ereditarla.
+    state: LANDED
     measured: 1
     collides_with: [feat/954-autobattle-non-presidiata]
     note: >-
@@ -1091,6 +1114,33 @@ preexisting:
       nuova · `client_tools` guadagna `branch` e `worktree` (la sessione è partita) · `content_editor`
       registra che il worktree non esiste più · tre voci `preexisting` passano a `LANDED` e due entrano.
       **Nessun `writable` esistente viene ristretto o allargato.**
+
+  - branch: chore/512-batch-simulation
+    state: LIVE            # worktree `D:/rt-simulation`, aperto il 2026-08-16
+    measured: 1
+    collides_with: []
+    note: >-
+      La **settima** riconciliazione, aperta per riattivare `simulation` su `#512` e non per manutenere
+      il file. Un solo file — `docs/roadmap/parallel-batch.yaml` — che è `integration_only` e quindi nel
+      `writable` di nessuno.
+      ⚠️ **`collides_with` vuoto è una misura, non un'assenza di notizie**: nessuno degli otto branch
+      remoti vivi tocca questo file, e i sette worktree sono stati letti con `git status --porcelain`
+      **dopo** `git update-index --refresh` — senza il refresh `D:/rt-fix` ne dichiarava sette modificati
+      che non esistevano.
+      🔴 **La collisione c'è stata lo stesso, ed è arrivata da `main` invece che da un branch aperto**:
+      `fc07793c` — la sessione di `client_tools` — ha toccato questo file mentre il ramo era in volo. Il
+      merge è riuscito da solo, cioè il caso in cui si perde in silenzio: verificato il **risultato**,
+      `git diff origin/main HEAD` dà **un** file e **otto** righe rimosse, tutte di questa
+      riconciliazione. È il quinto giro in cui `parallel-batch.yaml` è l'unico oggetto conteso.
+      ➕ **Cosa cambia**: `base_sha` (6 PR di scarto) e `reconciled_count` · la track **`simulation`**
+      passa ad `ACTIVE` su `#512` e dichiara **sei** path · `spatial` **perde** `ScenarioHarness/` e i due
+      `derives_from` che ne seguivano la sorgente · una voce `preexisting` passa a `LANDED`.
+      **Nessun altro `writable` viene ristretto o allargato.**
+      ⛔ **Cosa questa riconciliazione NON tocca, detto invece che dedotto**: `client_tools` porta
+      `branch: feat/78-contratto-certezza`, che la PR **#964** ha mergiato e cancellato lato server nel
+      mezzo di questo giro — e `content_editor` è `ACTIVE` su `#451` con `branch: null` mentre il worktree
+      `D:/rt-content` sta su `feat/451-u1-arch`. Sono due campi falsi di **altre** track: registrarli è
+      dovuto, correggerli da qui sarebbe scrivere lo stato di una sessione che non è questa.
 
 
 # --- Le track ---------------------------------------------------------------------------------
