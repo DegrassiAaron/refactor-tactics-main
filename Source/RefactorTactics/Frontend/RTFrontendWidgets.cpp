@@ -73,6 +73,18 @@ bool URTErrorModalWidgetBase::ShouldShowDetails() const
 
 // ─── Banner di ripiego ───────────────────────────────────────────────────────────────────────────
 
+FText URTFallbackBannerWidgetBase::GetLinesAsText() const
+{
+	if (Lines.Num() == 0)
+	{
+		return FText::GetEmpty();
+	}
+
+	// `FText::Join` invece di concatenare stringhe: il separatore resta un `FText` e la localizzazione
+	// non si perde per strada. Il carattere e' un a capo vero, non un token da sostituire nel widget.
+	return FText::Join(FText::FromString(TEXT("\n")), Lines);
+}
+
 void URTFallbackBannerWidgetBase::SetFromReport(const FRTStartupReport& Report)
 {
 	Lines.Reset();

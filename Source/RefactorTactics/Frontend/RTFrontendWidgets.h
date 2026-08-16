@@ -143,6 +143,21 @@ public:
 	bool HasAnything() const { return Lines.Num() > 0; }
 
 	/**
+	 * Tutte le righe in un solo `FText`, separate da `\n`.
+	 *
+	 * ⚠️ **Esiste per una ragione pratica misurata sul lavoro vero**: senza, il Blueprint deve ciclare
+	 * l'array e costruire un `TextBlock` per riga — cinque nodi, `Construct Object from Class` compreso.
+	 * Con questo accessor il widget e' **un `Text Block` con un binding**, e il ciclo vive dove e'
+	 * testabile. E' la stessa regola che il progetto applica altrove: i widget non compongono, leggono.
+	 *
+	 * Il `TextBlock` che lo consuma deve avere **`Auto Wrap Text`** attivo e `Justification` a sinistra;
+	 * il numero di righe resta osservabile — e resta la cosa da verificare, perche' mostrarne una sola
+	 * nasconderebbe l'altra.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	FText GetLinesAsText() const;
+
+	/**
 	 * Riempie il banner dal rapporto d'avvio.
 	 *
 	 * ⚠️ **Filtra i fatali di proposito**: se la partita non e' partita, il banner non ha una partita
