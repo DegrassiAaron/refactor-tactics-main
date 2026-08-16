@@ -377,10 +377,15 @@ bool FRTScenarioUnknownCapabilityIsErrorTest::RunTest(const FString&)
 	// gira, l'esito e' `Pass` e `TestTrue(... == Blocked)` cade. Non e' un aggiustamento — e' il difetto
 	// strutturale di usare come **esempio** un nome che si spera diventi disponibile: l'esempio scade
 	// insieme all'attesa che rappresenta.
-	// ⚠️ Il sostituto NON e' inventato: `ReactionProfile` e' in `KnownUnavailableCapabilities()` e ha uno
-	// scenario che lo chiede (`Spec.Brace.ProfileChangesResponse`), il cui blocco vero e' E14.7 (`#314`). Un
-	// nome inventato varrebbe `Error` — cioe' il ramo che il caso (1) verifica, l'opposto di questo.
-	const FRTTestResult Attesa = Esegui({TEXT("ReactionProfile")});
+	// 🔴 **E il primo sostituto era `ReactionProfile`, che riarmava la stessa scadenza.** Quel nome atterra
+	// con E14.7 (`#314`), e da quel giorno questo caso tornerebbe `Pass` esattamente come oggi. La cura sta
+	// scritta novanta righe piu' sotto, nel test gemello, e vale parola per parola anche qui: *«La cura NON
+	// e' sostituirlo con una capability vera tipo `DecisionBoundary`: quella un giorno atterra, e da quel
+	// giorno questo test non parlerebbe piu' del meccanismo»*.
+	// ✅ Il sostituto e' quindi `NeverAvailable`: nome **riservato**, dichiarato fra i noti-non-disponibili
+	// con il vincolo scritto che non diventera' mai disponibile. E' l'unico che conserva la proprieta' che
+	// serve — noto E non disponibile, per sempre — invece di prenderla in prestito da una feature futura.
+	const FRTTestResult Attesa = Esegui({TEXT("NeverAvailable")});
 	TestTrue(FString::Printf(TEXT("capability nota non disponibile => Blocked, non %s"), *Attesa.OutcomeString()),
 		Attesa.Outcome == ERTTestOutcome::Blocked);
 
@@ -393,11 +398,11 @@ bool FRTScenarioUnknownCapabilityIsErrorTest::RunTest(const FString&)
 	//
 	// Senza questo caso, invertire le due passate in `BeginTurn()` non farebbe cadere NIENTE: i casi (1) e (2)
 	// hanno un solo nome per turno e non distinguono l'ordine.
-	// ⬅️ Anche qui il primo nome e' passato da `DecisionBoundary` a `ReactionProfile` con `#512` fase B, e per
+	// ⬅️ Anche qui il primo nome e' passato da `DecisionBoundary` a `NeverAvailable` con `#512` fase B, e per
 	// la stessa ragione del caso (2): serve un'attesa VERA davanti al refuso, altrimenti il caso non pinna
 	// piu' l'ordine delle due passate — con una capability disponibile davanti, il turno non si bloccherebbe
-	// affatto e il refuso verrebbe visto comunque.
-	const FRTTestResult Misto = Esegui({TEXT("ReactionProfile"), TEXT("DecisionBoundry")});
+	// affatto e il refuso verrebbe visto comunque. Il nome riservato e' l'unico che non riarma la scadenza.
+	const FRTTestResult Misto = Esegui({TEXT("NeverAvailable"), TEXT("DecisionBoundry")});
 	TestTrue(FString::Printf(TEXT("refuso accanto a un'attesa => Error, non %s"), *Misto.OutcomeString()),
 		Misto.Outcome == ERTTestOutcome::Error);
 	TestTrue(TEXT("e il messaggio nomina il refuso, non l'attesa che gli stava davanti"),
@@ -591,6 +596,16 @@ bool FRTScenarioHoldThenFireTest::RunTest(const FString&)
 		{
 			AddError(FString::Printf(TEXT("errore: %s"), *Result.ErrorMessage));
 		}
+		// ⚠️ **`BlockedReason` e' il campo che spiega il fallimento PIU' probabile di questo test, e le tre
+		// righe qui sopra non lo stampano.** Se qualcuno rimette una `requires` non disponibile sullo
+		// scenario — o una capability torna fuori da `AvailableCapabilities()` — l'esito e' `Blocked` al
+		// turno 1: `Assertions` e' popolato solo per i turni giocati, `Notes` ed `ErrorMessage` restano
+		// vuoti, e il blocco sopra non emetterebbe **niente**. Resterebbe «esito PASS e non BLOCKED», che e'
+		// precisamente il rimando a rieseguire a mano che questo test dichiara di voler evitare.
+		if (!Result.BlockedReason.IsEmpty())
+		{
+			AddError(FString::Printf(TEXT("bloccato: %s"), *Result.BlockedReason));
+		}
 	}
 
 	TestEqual(FString::Printf(TEXT("esito PASS e non %s"), *Result.OutcomeString()),
@@ -601,6 +616,13 @@ bool FRTScenarioHoldThenFireTest::RunTest(const FString&)
 	// residuo > 0 significa una finestra scoperta, e senza questa riga passerebbe dentro un esito verde.
 	TestEqual(TEXT("entrambe le decisioni applicate"), Result.ScriptedDecisionsApplied, 2);
 	TestEqual(TEXT("nessuna decisione rimasta inutilizzata"), Result.ScriptedDecisionsUnused, 0);
+
+	// ⚠️ **Il docblock dice «usa `RunById` perche' scrive `result.json`»: senza questa riga quella ragione
+	// non e' verificata da niente.** Se `URTTestReportWriter::Write` fallisce — cartella non creabile, disco
+	// pieno — `RunById` torna un `OutReportDirectory` vuoto e il test resta VERDE mentre l'artefatto
+	// diagnostico su cui si appoggia non esiste. E' la stessa guardia che `ShowcaseRelayV01RunsTurnOne` ha
+	// da sempre, e che qui mancava.
+	TestFalse(TEXT("il report ha una cartella"), ReportDir.IsEmpty());
 	return true;
 }
 

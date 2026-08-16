@@ -748,10 +748,14 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 			// compatibile con un T4 che si sblocca e non apre nessuna finestra — cioe' esattamente il verde
 			// che la fase B esiste per non produrre. `scriptedDecisionsUnused` e' la meta' negativa: una
 			// decisione dichiarata e mai consumata significa finestra scoperta, e l'harness la conta.
+			// ⚠️ **La virgola finale fa parte dell'asserzione, e non e' pedanteria**: senza, `": 1"` e' un
+			// prefisso e il `Contains` accetterebbe anche `": 12"` — cioe' il conteggio sbagliato, dentro un
+			// verde. Oggi lo showcase dichiara una decisione sola e il difetto non morde; morderebbe alla
+			// prima che si aggiunge, che e' quando nessuno starebbe piu' guardando questa riga.
 			TestTrue(TEXT("il T4 ha applicato la decisione scriptata"),
-				Json.Contains(TEXT("\"scriptedDecisionsApplied\": 1")));
+				Json.Contains(TEXT("\"scriptedDecisionsApplied\": 1,")));
 			TestTrue(TEXT("e non ne ha lasciata nessuna inutilizzata"),
-				Json.Contains(TEXT("\"scriptedDecisionsUnused\": 0")));
+				Json.Contains(TEXT("\"scriptedDecisionsUnused\": 0,")));
 		}
 	}
 

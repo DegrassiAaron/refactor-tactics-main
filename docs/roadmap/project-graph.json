@@ -2204,7 +2204,6 @@
       "id": "RT_Showcase_Relay_v01",
       "requires": [
         "DecisionBoundary",
-        "DeclaredRotation",
         "InterceptRevalidation",
         "Objective",
         "PredictiveAction"

@@ -872,11 +872,21 @@ bool FRTScenarioReactionSplitTest::RunTest(const FString&)
 	// Con entrambe disponibili, le quattro asserzioni qui sopra passerebbero anche se `IsKnownCapability` /
 	// `IsAvailableCapability` ignorassero l'argomento e rispondessero sempre `true`: e' il test vacuo che
 	// questo repository chiama «un test che smette di verificare senza dirlo». Serve un nome NOTO e NON
-	// disponibile — oggi `ReactionProfile`, il cui owner e' E14.7 (`#314`).
-	TestTrue(TEXT("ReactionProfile e' un nome noto"),
-		FRTScenarioSession::IsKnownCapability(TEXT("ReactionProfile")));
+	// disponibile, e dev'essere `NeverAvailable` — il nome **riservato**, che per costruzione non atterra
+	// mai. 🔴 La prima stesura usava `ReactionProfile`: noto e non disponibile oggi, ma atterra con E14.7
+	// (`#314`), e da quel giorno questa coppia sarebbe tornata vacua senza che nulla diventasse rosso.
+	TestTrue(TEXT("NeverAvailable e' un nome noto"),
+		FRTScenarioSession::IsKnownCapability(TEXT("NeverAvailable")));
 	TestFalse(TEXT("e NON e' disponibile: i due insiemi restano distinti"),
-		FRTScenarioSession::IsAvailableCapability(TEXT("ReactionProfile")));
+		FRTScenarioSession::IsAvailableCapability(TEXT("NeverAvailable")));
+
+	// ⛔ **Limite DICHIARATO, e vale la pena scriverlo invece di simularne la copertura.** Cio' che questo
+	// test verifica e' il VOCABOLARIO — quali nomi esistono e quali sono disponibili — non la cardinalita'
+	// che li distingue: `Reaction` copre `AllowedResponses <= 1` e `DecisionBoundary` copre `>= 2`, e quella
+	// non e' un campo interrogabile da qui. Chi collassasse i due nomi ai call site lascerebbe questo test
+	// verde. Il regime lo verificano gli SCENARI — `Spec.Overwatch.HoldThenFire` apre due finestre a una
+	// risposta ciascuna — e aggiungere qui un `TestNotEqual` fra due stringhe letterali darebbe l'apparenza
+	// della copertura senza poter fallire mai, che e' il difetto che questo file combatte da tre commit.
 
 	// E un nome inventato resta un errore di scrittura, non un'attesa: e' l'altra meta' del vocabolario.
 	TestFalse(TEXT("un nome inventato non e' noto"),

@@ -2057,6 +2057,29 @@ tracks:
       # `TestFalse("ma NON e' disponibile in fase A")`. Un test che nomina la fase nella propria stringa
       # dichiara la propria scadenza, e cercarlo per nome di scenario non poteva trovarlo.
       - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+      # ➕ **Ottavo e nono path, entrati dopo la CODE REVIEW e non dalla suite — la terza fonte di scoperta
+      # in un solo giro.** Misurati liberi entrambi (nessun `writable`, zero rami remoti, zero worktree):
+      # · `docs/control-center/graph.test.mjs` — 🔴 **avevo ROTTO una suite che non sapevo esistesse.**
+      #   Legge `project-graph.json` VERO e pinnava `cap.available == false` e `consumers >= 7` per
+      #   `DecisionBoundary`: rigenerando la vista, `node --test` passa da **2** rossi (baseline misurata su
+      #   `origin/main` in un worktree pulito) a **3**. La toolchain Node non e' nella mia lista di gate e
+      #   `CONTEXT_INDEX.md` avverte che il repository ne ha DUE. Riportata a 28/2.
+      # · `ScenarioHarness/RTScenarioLoader.cpp` — il commento della whitelist di chiavi diceva che
+      #   `decisions` «nel corpus non compare ancora», e da questa fase compare in due file.
+      - docs/control-center/graph.test.mjs
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
+    # ⛔ **Due drift NON riparabili da questa track, registrati invece che lasciati scoprire.** Entrambi sono
+    # `integration_only`, quindi si aggiornano una volta in integrazione e non da dentro un lavoro:
+    # · `docs/roadmap/execution-graph.yaml` — il commento «un provider e **sette** consumatori … che
+    #   `RTScenarioSession.cpp` **non elenca fra le disponibili**» e' falso in entrambe le meta' da questa
+    #   PR: i consumatori sono sei e la capability e' disponibile. La vista generata (`project-graph.json`)
+    #   e' aggiornata, la sua sorgente scritta a mano no — che e' il verso peggiore, perche' l'autorevole
+    #   e' la sorgente.
+    # · `docs/roadmap/feature-registry.yaml` — `RT-FEAT-REACTION-OVERWATCH` afferma due volte che
+    #   «`Spec.Overwatch.HoldThenFire` continua a uscire `BLOCKED`», e da questa PR esce `PASS`; il suo gate
+    #   `scenario` resta `partial` e `last_verified` al 2026-08-15. ⚠️ Ed e' anche **conteso**: lo toccano
+    #   `docs/five-lane-roadmap` e `feat/625-hazard-turnlog`, misurato — prenderlo sarebbe stata una contesa
+    #   con due sessioni per correggere due frasi.
     # ⚠️ **Due viste, e le eredita chi tocca l'una O l'altra sorgente**: `generated_only` dichiara sia
     # `Scenarios/` sia `RTScenarioSession.cpp` come `derives_from` di entrambe. Questa track le tocca tutte
     # e due, quindi i due `--check` sono suoi e vanno rigenerati **sull'albero unito**, non sul branch.
