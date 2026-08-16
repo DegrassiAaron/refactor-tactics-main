@@ -1333,6 +1333,17 @@ tracks:
       costruisce quella remota non ha soggetto, ed è la stessa forma di `#425` e `#645`: una capacità del
       motore irraggiungibile dal roster. `#833` resta comunque il posto giusto per il **dato**, che non
       dipende da chi lo innesca.
+      ✅ **Superato il 2026-08-16: `#1014` è CHIUSA perché `#833` l'ha ASSORBITA**, e le due riflessioni qui
+      sopra vanno lette come storia. Decisione d'autore, presa dopo una misura che rende l'assorbimento molto
+      più economico di quanto quelle righe stimassero: `Action.Interact` è inerte **solo** perché la sua lista
+      di effetti è `{}` — la voce di catalogo è per il resto completa — e il produttore lato giocatore
+      **esiste già**, `ARTPlayerController::HandleTargetCell` (`RTPlayerController.cpp:1171`), consegnato da
+      `#737`. Il grep con cui avevo concluso «nessun produttore» cercava `Action.Interact|InteractTarget|
+      HandleInteract`, cioè **nomi**: il produttore è generico e passa dal bersaglio-**cella**.
+      🔓 **E il gate `scenario` torna raggiungibile**, all'opposto di quanto la riga più sopra conclude: con
+      la catena locale dentro `#833`, il produttore esiste **al termine** del lavoro, quindi la capability
+      d'harness diventa onesta e la riallocazione di `Scenarios/` più `RTScenarioSession.cpp` si chiede
+      **allora** — non ora, e non mai.
       🔴 **Corretta un'affermazione falsa che questa nota ha portato in `main`**: il blocco di `#726` diceva
       *«`#986` resta aperta e senza sessione»*. **`#986` è `CLOSED` dalle `09:12:54Z`** del 2026-08-16 —
       chiusa dalla PR `#1001`, cioè **39 minuti prima** che la PR `#1004` la ricopiasse. Era stata
@@ -1615,6 +1626,24 @@ tracks:
       - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
       - Source/RefactorTactics/Tests/RTTurnLogCauseTests.cpp
       - Source/RefactorTactics/Tests/RTInteractionGraphTests.cpp
+      # ➕ **Riallocazione del 2026-08-16, chiesta e conclusa senza una contesa.** `#833` ha ASSORBITO la
+      # catena locale che era di `#1014` (chiusa), quindi le serve il percorso che porta un effetto
+      # `SetDoorState` dal catalogo alla porta. Misurato, non dedotto:
+      #   - `Turn/RTTurnManager.{h,cpp}` traduce lo spec dell'azione in `Intent.bChangesDoor` (`:3428`), ed
+      #     erano di `playback` — che li dichiara **rilasciati** («`#955` e' mergiata … i path tornano
+      #     liberi»). Tolti di la', per il principio che quella stessa nota enuncia: «un `writable` dice chi
+      #     **scrivera'**, non chi ha scritto».
+      #   - `Combat/RTHexCombatLibrary.{h,cpp}` erano **non assegnati a nessuno**, cioe' uno STOP per `D-139`.
+      #     Servono perche' `FirstDoorEdge(Map, Attacker.Cell, AimCell, …)` cerca la porta **sulla
+      #     traiettoria** (`:328`): per un bersaglio comandato da remoto quella porta non ci sta, e il grafo
+      #     non puo' riusare quella via.
+      # ⚠️ NON servono `Player/RTPlayerController.*` ne' `Tests/RTPlayerInteractionTests.cpp`: il produttore
+      # lato giocatore **esiste gia'** (`HandleTargetCell`, #737) e la casella di DoD lo VERIFICA, non lo
+      # scrive. Dichiararli sarebbe prenotare file che nessuno tocca.
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      - Source/RefactorTactics/Combat/RTHexCombatLibrary.h
+      - Source/RefactorTactics/Combat/RTHexCombatLibrary.cpp
     # ⛔ NON in questo write-set, e la ragione e' registrata nella nota: `Scenarios/` (`integration_only`) e
     # `ScenarioHarness/RTScenarioSession.cpp` (di `simulation`, #512). Il gate `scenario` dipende da una
     # riallocazione **richiesta e non ancora concessa**: finche' non lo e', non si tocca niente li' dentro.
@@ -3769,8 +3798,11 @@ tracks:
     writable:
       - Source/RefactorTactics/Turn/RTPlaybackLibrary.h
       - Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp
-      - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # ➖ **`Turn/RTTurnManager.{h,cpp}` passati a `spatial` (#833) il 2026-08-16, e non e' una revoca.**
+      # Questa nota li dichiara gia' **rilasciati** alla chiusura di `#955` — «i path tornano liberi» — e
+      # detta il principio con cui escono anche dal campo: «un `writable` dice chi **scrivera'**, non chi ha
+      # scritto», che e' la stessa ragione per cui `test-manuali-pie.md` non e' rimasto elencato.
+      # Chi riapre questa track li rinegozia, invece di trovarseli assegnati due volte.
       - Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
       # ➖ **`docs/technical/test-manuali-pie.md` e' USCITO da qui alla chiusura**, ed e' l'unico dei sette
