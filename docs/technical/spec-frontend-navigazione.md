@@ -53,12 +53,50 @@ WBP_RT_FrontendRoot
 ├── WBP_RT_ResultScreen
 ├── WBP_RT_PauseMenu
 ├── WBP_RT_LoadingScreen
+├── WBP_RT_MatchHistory        ← la lista delle partite registrate (#416)
+├── WBP_RT_ReplayViewer        ← il viewer, spinto DA MatchHistory (#472)
 └── WBP_RT_ModalLayer          ← sempre in cima, sempre uno solo
 ```
 
 `WBP_RT_SettingsPanel` esiste in v0.1 come **pannello dichiarato *coming soon***: la voce di menu deve
 esistere perché il back stack la attraversi e perché il menu non cambi forma in v0.2. Un pulsante che non
 fa nulla *senza dirlo* è un dead-end.
+
+### 2.2 Le due schermate del replay
+
+➕ **Entrano il 2026-08-16**, con la revisione di R6 in
+[`../roadmap/plans/replay-r6-spec-panel-2026-08-16.md`](../roadmap/plans/replay-r6-spec-panel-2026-08-16.md)
+§5(a). Prima di allora [`#472`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/472)
+avrebbe introdotto due schermate in uno strato che non le prevedeva — cioè un secondo flow accanto a
+quello che §3 dichiara unico.
+
+Non sono un caso particolare: sono **due schermate ordinarie**, e la ragione per cui vale la pena
+scriverlo è che la loro relazione è l'unica del frontend in cui una schermata ne spinge un'altra
+portandosi dietro un dato.
+
+| | `MatchHistory` | `ReplayViewer` |
+|---|---|---|
+| Raggiunta da | `PushScreen` dal Main Menu | `PushScreen` **da `MatchHistory`**, mai dal Main |
+| Porta | l'indice (`URTMatchHistoryLibrary::LoadIndex`) | un `MatchId`, che è il solo dato in ingresso |
+| `Back` | torna al Main | torna alla **lista**, non al Main |
+
+⚠️ **`ReplayViewer` non è raggiungibile senza un `MatchId`**, e questo è il motivo per cui non è una voce
+di menu: una schermata che si apra senza il suo dato non avrebbe niente da mostrare, e sarebbe il
+dead-end che §3.2 vieta. Il percorso di ritorno esiste in entrambi i sensi — `Back` risale alla lista,
+`ReturnMain` svuota — quindi l'invariante 2 regge senza eccezioni.
+
+⚠️ **Il viewer non possiede la riproduzione**: posizione, ritmo e abilitazione dei comandi stanno nel
+view model di `#472` (`Replay/RTReplayViewModel.h`), che si prova senza widget. È la stessa separazione
+di `FRTScreenStack` rispetto ai widget di navigazione — *la logica che governa la UI non è UI* — e vale
+qui per la stessa ragione: senza, i criteri di R6 sarebbero verificabili solo a schermo.
+
+⛔ **Nessuna delle due chiama il resolver**, ed è un requisito ereditato, non una raccomandazione:
+[ADR-0009](../decisions/adr-0009-replay-logico-canonico.md) §3 fissa il confine `Player`/`Verifier` e
+`#472` lo estende al percorso della UI. Si verifica sugli `#include`, come per il Player.
+
+⚠️ **Release**: entrambe sono **v0.1**, allineate a E46 con la decisione registrata nel panel §5(b). Il
+core che consumano (`RT-FEAT-REPLAY-ARCHIVE`) è però ancora `v0.2` nel registry: l'incoerenza è
+dichiarata lì e non si risolve in questo documento.
 
 ---
 

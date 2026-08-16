@@ -1,0 +1,10 @@
+# `.github/` esiste dal 2026-08-16, e **solo** per i template delle Issue.
+#
+# ⚠️ `.github/workflows/` resta assente **per scelta**: i gate di questo repository girano a mano, e
+# `tools/radar/` ha zero dipendenze apposta. Un template non esegue niente; una CI sì. La decisione che
+# tiene fuori la CI non è stata riaperta — vedi `AGENTS.md` §Test e Definition of Done.
+#
+# L'oracolo di quella decisione era `git ls-tree … -- .github/` e ora sarebbe rosso a vuoto: è stato
+# ristretto a `.github/workflows/`, che è ciò che proteggeva davvero.
+
+blank_issues_enabled: true
