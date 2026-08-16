@@ -2958,11 +2958,31 @@ tracks:
     binary_leases: []
 
   hero_kit:
-    status: ACTIVE
-    issue: 1006
-    branch: feat/1006-phase-water-access
+    status: IDLE
+    issue: null
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
+      ✅ **CHIUSA il 2026-08-16**: PR **#1008** mergiata in `main` come `8e873bed`, issue `#1006` chiusa
+      dalla keyword. Il write-set qui sotto è **rilasciato**. Suite sull'albero mergiato: **951 verdi**.
+      ⚠️ `issue: null` perché lo `status` è `IDLE`: il numero vive nella nota.
+
+      **Cosa è atterrato**: `CircularTide` perde il `Wet`, `FluidTrail` torna `Action.Dash` con slot
+      Movimento (D-028), Phase resta con una sola capability Water (`PressureJet`) = `Access`. Lo
+      scenario di CP 8.5 usa `Gadget.Sprinkler` via `loadout` ed è **PASS 5/5** — primo del corpus a
+      usare quel campo.
+
+      🔴 **Il merge finale è stato bloccato per un'ora da un fattore che non era nel write-set**: la
+      build del target Editor falliva con *«Unable to build while Live Coding is active»*, perché
+      l'editor di un'altra sessione era aperto su `D:/rt-menu`. **Live Coding è globale per
+      l'installazione UE**: un editor aperto su un worktree blocca la build di ogni altro. Non è un
+      conflitto di file e nessun campo di questo documento lo esprime — la PR è stata aperta senza
+      mergiare, col limite dichiarato, invece di dare per buona una suite non rieseguita.
+
+      ⚠️ **Residui dichiarati, per l'integrazione**: il successore di `D-046` (Decision Log,
+      `integration_only`, ID da `rt_shared_id.py reserve D`) e `docs/balance/RT_HeroCatalog_v0.1.md`,
+      che descrive ancora il kit vecchio. Il gate contro la divergenza markdown/C++ non esiste: è `#576`.
+
       ➕ **Track aperta il 2026-08-16 su `#1006`**, che deriva dalla decisione d'autore presa in `#995`
       dopo lo spec panel: **Phase è abilitata a Water, non padrona — resta `Access`**. Opzione **C**:
       `CircularTide` perde il `Wet`, `FluidTrail` perde l'acqua e torna `Dash 3` (il pre-`D-046`),
