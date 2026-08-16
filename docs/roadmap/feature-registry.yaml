@@ -1041,7 +1041,7 @@ features:
       ⚠️ **2026-08-13 — `FAC-11` chiusa da `D-126`, e nessun gate cambia.** La primitiva **semantica** del
       facing diventa la relazione a sei direzioni relative; `HexCone` resta la **geometria d'area** dei tre
       consumatori di ADR-0005 §4, che non si spostano. Il motivo e' misurato, non prudenziale: il cono a
-      120° e' **strettamente contenuto** nell'insieme dei tre lati frontali — **50** celle di divergenza su
+      120° e' **strettamente contenuto** nell'insieme dei tre lati frontali — **45** celle di divergenza su
       raggio `1..10`, **tutte** nel verso «tre-lati dentro / cono fuori», **zero** nel verso opposto, la
       prima a distanza **2** — quindi sostituirlo sarebbe un **buff difensivo**, non una rinomina.
       🔴 **Il gate `scenario` resta `done` ma la copertura non e' completa**, e va detto: la relazione a sei

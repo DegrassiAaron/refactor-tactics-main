@@ -31,10 +31,14 @@ le costanti reali (`RT_HEX_DX/DY`, `RT_HEX_LINE_SCALE = 1024`) su un difensore e
 
 | | |
 |---|---:|
-| celle su cui le due letture divergono | **50** |
-| divergenze «tre-lati **dentro** / cono **fuori**» | **50** |
+| celle su cui le due letture divergono | **45** |
+| divergenze «tre-lati **dentro** / cono **fuori**» | **45** |
 | divergenze nel verso opposto | **0** |
-| distanza della prima divergenza | **2** |
+| distanza della prima divergenza | **2**, ed è la sola `(1, -2)` |
+
+⚠️ **Le prime due righe dicevano `50` fino al 2026-08-16**, ed erano la misura della regola a **linea** che
+questo stesso referto ha scartato: le cifre erano sopravvissute alla regola. Corrette da `D-147`. La
+conclusione — contenimento stretto, quindi buff difensivo — non cambia.
 
 Il cono è **strettamente contenuto** nell'insieme dei tre lati. Sostituire la primitiva nei consumatori
 d'area non sarebbe stata una rinomina: sarebbe stato un **buff difensivo** — `Guard` che tiene e copertura
