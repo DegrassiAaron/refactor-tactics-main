@@ -1702,12 +1702,31 @@ con una configurazione, lasciando il default dov'è.
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **E47.1** | Modalità non presidiata | Una configurazione — non un default nuovo — mette **entrambe** le squadre sotto il bot e accorcia `PlanningSeconds`. Premuto Play e non toccato più nulla, compare un vincitore; il TurnLog ha almeno una voce `Move` e una `Combat` per round giocato. I due test di `RTHeroSpawnTests` restano verdi | `RefactorTactics.Match.Autobattle.*` |
-| **E47.2** | Ritmo osservabile | Velocità di playback `x1 · x2 · x4` con **stesso risultato logico**: `StateHash` finale e TurnLog canonico identici alle tre velocità. La UI non ricalcola nulla (invariante #1) | `Playback.SpeedDoesNotChangeOutcome` |
-| **E47.3** | Grammatica visiva della board | Ogni categoria leggibile da **due** canali, `colore + forma` ([D-146](../decisions/RT_PDR_00_Decision_Log.md)). La legenda è **derivata** da superficie, coperture di bordo ed entità obiettivo: zero `enum` nuovi, nessuna migrazione di formato | `PIE-V01-BOARD` + giudizio a schermo |
-| **E47.4** | Scenario autobattle free-run | Uno scenario può dichiarare «gioca fino alla fine» invece di enumerare i turni, con `RepeatCount` e riesecuzione. **Estende** l'harness esistente passando dal seam di [D-101](../decisions/RT_PDR_00_Decision_Log.md) (`DecisionProvider`, [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)): nessun secondo harness | `RefactorTactics.Scenario.FreeRun.*` |
-| **E47.5** | Corpus di determinismo dell'autobattle | `PermutationTest` · `PlaybackIndependence` · `NoPath` (fallback legale, nessun deadlock) · `AllWait` (il turno termina) · `SimultaneousKO` (politica esplicita) · `TurnLimit`. **`DifferentSeedVariation` è fuori**: il runtime non ha RNG e il seed è differito (D-145 §5) | estende `RefactorTactics.Simulation.*` |
-| **E47.6** | La partita registrata | La partita non presidiata è eseguita e **registrata** in PIE e sulla build packaged: è l'evidenza che `G10` chiede e la riserva che `G13` dichiara | `PIE-HEXPLAY-*` + `PIE-V01-PACKAGED` |
+| **E47.1** ⏳ | Modalità non presidiata | Una configurazione — non un default nuovo — mette **entrambe** le squadre sotto il bot e accorcia `PlanningSeconds`. Premuto Play e non toccato più nulla, compare un vincitore; il TurnLog ha almeno una voce `Move` e una `Combat` per round giocato. **`Heroes.SpawnFromData` resta verde** | `RefactorTactics.Match.Autobattle.*` — da creare |
+| **E47.2** ⏳ | Ritmo osservabile | Velocità di playback `x1 · x2 · x4` con **stesso risultato logico**: `StateHash` finale e TurnLog canonico identici alle tre velocità. La UI non ricalcola nulla (invariante #1) | `Playback.SpeedDoesNotChangeOutcome` — da creare |
+| **E47.3** ⏳ | Grammatica visiva della board | Ogni categoria leggibile da **due** canali, `colore + forma` ([D-146](../decisions/RT_PDR_00_Decision_Log.md)). La legenda è **derivata** da superficie, coperture di bordo ed entità obiettivo: zero `enum` nuovi, nessuna migrazione di formato | ⏳ `PIE-V01-BOARD` — **voce da creare**, vedi sotto |
+| **E47.4** ⏳ | Scenario autobattle free-run | Uno scenario può dichiarare «gioca fino alla fine» invece di enumerare i turni, con `RepeatCount` e riesecuzione. **Estende** l'harness esistente passando dal seam di [D-101](../decisions/RT_PDR_00_Decision_Log.md) (`DecisionProvider`, [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)): nessun secondo harness | `RefactorTactics.Scenario.FreeRun.*` — da creare |
+| **E47.5** ⏳ | Corpus di determinismo dell'autobattle | `PermutationTest` · `PlaybackIndependence` · `NoPath` (fallback legale, nessun deadlock) · `AllWait` (il turno termina) · `SimultaneousKO` (politica esplicita) · `TurnLimit`. **`DifferentSeedVariation` è fuori**: contraddirebbe `Simulation.SeedIsDeclaredAndUnconsumed`, che è verde (D-145 §5) | estende `RefactorTactics.Simulation.*` |
+| **E47.6** ⏳ | La partita registrata | La partita non presidiata è eseguita e **registrata** in PIE e sulla build packaged: è l'evidenza che `G10` chiede e la riserva che `G13` dichiara | `PIE-HEXPLAY-*` (esistono) + ⏳ `PIE-V01-PACKAGED` — **voce da creare** |
+
+> ⚠️ **`PIE-V01-BOARD` e `PIE-V01-PACKAGED` non esistono in
+> [`test-manuali-pie.md`](../technical/test-manuali-pie.md)**, ed è dichiarato qui perché un ID di voce PIE
+> **non è un link**: `check-docs-links.py` non lo vede, quindi una citazione a una voce inesistente passa
+> ogni gate. Il file è nel `writable` della track `playtest` (IDLE) e per [D-139](../decisions/RT_PDR_00_Decision_Log.md)
+> le due voci si aprono con una **riallocazione dichiarata** — che è la stessa condizione in cui **E46** ha
+> lasciato le proprie sei `PIE-V01-FRONTEND-*`. La seduta [U23](editor-sessions.yaml) lo registra.
+>
+> 🔴 **La colonna del glifo esisteva già ed era vuota su tutti e sei.** §4.3 dice che l'assenza *vale* ⏳, ma
+> il generatore del grafo la legge come `UNKNOWN` e la propaga a valle: con sei checkpoint non annotati
+> l'**intera catena D** dell'`execution-graph` nasceva senza readiness. Scriverlo esplicitamente costa una
+> cella e toglie sei nodi dall'ignoto — ed è compatibile con la regola, che vieta di *dedurre* un ✅, non di
+> dichiarare un ⏳ vero.
+>
+> 🔴 **La DoD di E47.1 diceva «i due test di `RTHeroSpawnTests` restano verdi», e i test sono due ma il
+> guardiano è uno.** Le due asserzioni — `TestFalse("il giocatore comanda i suoi")` e
+> `TestTrue("il bot comanda i propri")` — sono **entrambe** dentro `Heroes.SpawnFromData` (righe 151-152);
+> il secondo test del file, `Heroes.SpawnFailsClosedWithoutData`, non tocca `bIsBotControlled`. Scritta
+> così, la DoD si poteva soddisfare tenendo verde il test sbagliato.
 
 > ⚠️ **Il gate di E47.1 è «il vincitore compare senza input», non «è bello da vedere».** È l'unico modo di
 > impedire che «watchable» attiri HUD, VFX e animazioni, che sono **E11**, **E20** ed **E21** e hanno i
@@ -1728,11 +1747,25 @@ senza console di debug.
 **Dipendenze**: E2 (parità hex, chiusa), E10 (fine partita, `RT-FEAT-MATCH-END-CONDITIONS`
 `RELEASE_READY`), E15 per l'harness. E47.3 dipende da E21.3 per la taratura dei materiali, non viceversa.
 
-**Vincolo di parallelismo dichiarato**: `E47.2` ed `E47.3` scrivono in `Source/RefactorTactics/UI/` e
-`Camera/`, che sono nel `writable` della track `client_tools` — `ACTIVE` su
-[#78](https://github.com/DegrassiAaron/refactor-tactics-main/issues/78) al 2026-08-16. Non si aprono finché
-quella track non rilascia: è scritto qui perché sia un vincolo e non una sorpresa al merge
-([`parallel-batch.yaml`](parallel-batch.yaml), [D-139](../decisions/RT_PDR_00_Decision_Log.md)).
+**Vincolo di parallelismo, misurato su [`parallel-batch.yaml`](parallel-batch.yaml) il 2026-08-16**
+([D-139](../decisions/RT_PDR_00_Decision_Log.md)) — **cinque checkpoint su sei non sono apribili subito**, e
+tre non hanno owner affatto:
+
+| CP | File | Owner dichiarato | Conseguenza |
+|---|---|---|---|
+| **E47.1** | `RTGameMode.{h,cpp}` · `Turn/RTTurnManager.{h,cpp}` | ⚠️ **nessuno** | **STOP**: serve un'allocazione |
+| **E47.2** | `Turn/RTPlaybackLibrary.*` · `UI/` | `Turn/…` nessuno · `UI/` = `client_tools` **ACTIVE** ([#78](https://github.com/DegrassiAaron/refactor-tactics-main/issues/78)) | allocazione **e** attesa |
+| **E47.3** | `Map/RTHexMapActor.{h,cpp}` | `content_editor` **ACTIVE** ([#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)) | attende quella track |
+| **E47.4** | `ScenarioHarness/` | `spatial` — IDLE | libero; resta il blocco su [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542) |
+| **E47.5** | `Tests/` | `verification` — IDLE, write-set **vuoto** | **STOP** |
+| **E47.6** | `test-manuali-pie.md` | `playtest` — IDLE | riallocazione, non attesa |
+
+> 🔴 **Questa tabella sostituisce una riga che attribuiva `E47.2` ed `E47.3` a `client_tools` per affinità
+> di nome, e la code review l'ha falsificata**: `Camera/` non è nel `writable` di **nessuna** track, e i file
+> di `E47.3` sono di `content_editor`. Attribuire un file alla track sbagliata è peggio che non attribuirlo —
+> fa credere che il blocco sia altrove, mentre D-139 dice che un file non assegnato è uno **stop**.
+>
+> **Conseguenza pratica**: il prossimo batch va aperto **prima** del codice di E47, non dopo.
 
 **Referto di provenienza**:
 [`plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md`](plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md)

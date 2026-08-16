@@ -424,7 +424,7 @@ sessions:
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     unblocks: []
     steps: |
-      Attivare la modalita' non presidiata (CP 47.1), avviare su **mappa esagonale multilivello** — non
+      Attivare la modalita' non presidiata (**E47.1**), avviare su **mappa esagonale multilivello** — non
       sull'arena generata di test: e' precisamente la riserva che G13 dichiara — e **guardare**.
       Registrare video o sequenza di screenshot **piu'** il log della sessione, poi ripetere sul pacchetto
       Development.
@@ -453,11 +453,16 @@ sessions:
       domanda. `PIE-HEXPLAY-10` invece la dichiara nella propria precondizione («almeno un'unita' per
       squadra col bot»), ed e' proprio per questo che appartiene a U6 e non qui.
 
-      ⚠️ **Le voci nuove — `PIE-V01-BOARD`, `PIE-V01-PACKAGED` — non sono state aperte.**
-      `docs/technical/test-manuali-pie.md` e' nel `writable` della track `content_editor` (#451), e D-139
-      dice che un file non assegnato e' uno STOP. Si aprono quando quel file torna `integration_only`, o
-      con una riallocazione dichiarata. E' lo stesso vincolo che E46 ha dichiarato per le sue sei
-      `PIE-V01-FRONTEND-*`.
+      ⚠️ **Le voci nuove — `PIE-V01-BOARD`, `PIE-V01-PACKAGED` — non sono state aperte, e l'owner del
+      file NON e' quello che questa riga diceva.** `docs/technical/test-manuali-pie.md` sta nel `writable`
+      della track **`playtest`**, non di `content_editor`: misurato su `parallel-batch.yaml`, dove
+      `content_editor` (#451) possiede i tool dell'editor e `RTHexMapActor`, e `playtest` possiede
+      `test-manuali-pie.md` insieme al proprio mandato `qa-prompt-terminal-d-verifiche-pie.md`.
+      🔴 L'attribuzione sbagliata e' stata ereditata dal corpo di E46, che porta lo stesso errore, ed e'
+      stata trovata in code review. Cambia la conseguenza pratica: **`playtest` e' IDLE**, quindi il
+      blocco non e' un'attesa su una sessione viva ma una **riallocazione da dichiarare** — che e' una
+      cosa che si puo' fare oggi, non domani. Le due voci si aprono col prossimo batch, insieme alle sei
+      `PIE-V01-FRONTEND-*` che E46 ha lasciato nella stessa condizione.
 
       ⚠️ ID assegnato prima del merge: `U23`, con `U22` come ultimo su `main` e su tutti i branch remoti
       misurati il 2026-08-16 (`git show origin/<branch>:docs/roadmap/editor-sessions.yaml`). Chi arriva

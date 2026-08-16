@@ -149,7 +149,10 @@ Quello che manca non è il come: è il **se**.
 | `RNG-2` | Se la risposta a `RNG-1` è sì: `BotPolicyVersion` è un **campo nuovo** o si deriva da `RT-FEAT-DATA-HASH` (*Hash di regole e contenuti*, `RELEASE_READY`)? | Il sorgente li elenca come due cose (`RulesVersion`, `BotPolicyVersion`) accanto a `MatchSeed`. Nel repository `RulesVersion` **non esiste come simbolo** — è coperto dall'hash di regole e contenuti, che è una feature già chiusa — e [D-083](decisions/RT_PDR_00_Decision_Log.md) rinvia `ContentManifestHash`/`RulesVersion` alla v0.2. Aggiungere un terzo campo di versione senza decidere se i primi due si fondono è il modo in cui nasce il quarto. ⚠️ Dipendente da `RNG-1`: senza RNG la versione della policy del bot non ha niente da qualificare. ➕ **La derivazione del seed non è invece aperta**: PDR-05 §5 la fissa in `Hash(TurnSeed, ActionId, RollKind)`, e `SeedIsDeclaredAndUnconsumed` la cita come contratto che diventa esigibile il giorno in cui il primo RNG entra. Qui si decide **se**, non **come** |
 
 **Nessuna delle due blocca l'epic E47**: `E47.5` esclude `DifferentSeedVariation` dal proprio corpus e lo
-dichiara, invece di scrivere un test che fallirebbe per una premessa mai presa.
+dichiara, invece di scriverne uno che **contraddirebbe** `Simulation.SeedIsDeclaredAndUnconsumed`.
+🔴 Questa riga diceva *«un test che fallirebbe per una premessa mai presa»* — cioè la formulazione che il
+paragrafo quattro righe sopra ha appena corretto, sopravvissuta alla propria smentita dentro la stessa
+sezione. Trovata in code review.
 
 Tracciata su GitHub: [`#960`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/960)
 (`question`) — aperta **nello stesso commit** di questa voce, perché una decisione aperta che vive solo in

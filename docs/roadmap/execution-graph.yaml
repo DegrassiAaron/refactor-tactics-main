@@ -57,8 +57,12 @@ schema_version: 1
 meta:
   status: THIN_SLICE
   note: >-
-    Tre catene reali invece di tutto il backlog: se non si leggono nel Control Center, non si
-    legge nemmeno la v0.1 intera. Le issue citate sono state verificate su GitHub il 2026-08-13.
+    Quattro catene reali invece di tutto il backlog: se non si leggono nel Control Center, non si
+    legge nemmeno la v0.1 intera. Le catene A, B e C sono state verificate su GitHub il 2026-08-13;
+    la catena D — Mini Autobattle, issue #954-#959 — il 2026-08-16, giorno in cui quelle issue sono
+    nate. ⚠️ La riga diceva «Tre catene» con quattro gia' presenti, e la data di verifica valeva per
+    un insieme che non conteneva le sei issue nuove: due affermazioni che nessun gate confronta con
+    i dati sotto, trovate in code review. Chi aggiunge una catena aggiorna QUESTA riga.
 
 # --- Tassonomia ------------------------------------------------------------------------------
 
@@ -232,10 +236,12 @@ nodes:
   # al terzo consumatore l'harness guadagni un punto d'ingresso ad hoc; #957 e' quel terzo
   # consumatore, e senza #512 lo produrrebbe.
   #
-  # ⚠️ #955 e #956 non hanno una dipendenza tecnica su #954 — hanno un vincolo di **ownership**:
-  # `Source/RefactorTactics/UI/` e' nel writable di `client_tools` (#78). Un blocco di write-set
-  # non e' topologia del lavoro e non si scrive qui (`parallel-batch.yaml` ne e' l'owner): il
-  # motivo per cui compaiono come `follows` e non come `requires`.
+  # ⚠️ #955 e #956 non hanno una dipendenza tecnica su #954 — hanno un vincolo di **ownership**, e
+  # sono owner DIVERSI: #955 tocca `UI/` (track `client_tools`, #78) e #956 tocca
+  # `Map/RTHexMapActor.{h,cpp}` (track `content_editor`, #451). 🔴 Una stesura precedente di questo
+  # commento li attribuiva entrambi a `client_tools`, e la code review l'ha falsificata.
+  # Un blocco di write-set non e' topologia del lavoro e non si scrive qui (`parallel-batch.yaml`
+  # ne e' l'owner): il motivo per cui compaiono come `follows` e non come `requires`.
 
   - id: issue:954
     release: v0.1
@@ -386,7 +392,10 @@ relations:
   - from: issue:954
     to: issue:956
     type: follows
-    rationale: Stesso vincolo di ownership di #955; e la board si giudica su una partita che gira da sola.
+    rationale: >-
+      Vincolo di ownership su un'ALTRA track: `Map/RTHexMapActor.{h,cpp}` appartiene a
+      `content_editor` (#451), non a `client_tools`. E la board si giudica su una partita che gira
+      da sola, il che rende l'ordine un risparmio e non un prerequisito.
 
   # Related — navigazione, mai readiness
   - from: issue:593

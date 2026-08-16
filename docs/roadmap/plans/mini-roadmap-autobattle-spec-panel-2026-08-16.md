@@ -127,7 +127,7 @@ pattern/glyph. Misurata contro il modello dati reale:
 | `Hazard` | `Fire` · `Ice` · `Conductive`+`ShallowWater` + stati temporanei | ⚠️ molti-a-uno |
 | `Objective` | entità di mappa (epic **E10**), non una superficie | ⚠️ modello diverso |
 
-`ERTHexSurface` ha **nove** valori, non cinque, e la copertura è **direzionale per bordo** dal CP 9.1
+`ERTHexSurface` ha **nove** valori, non cinque, e la copertura è **direzionale per bordo** da **E9.1**
 (`docs/gameplay/spec-copertura-cp91.md`, formato mappa v3): *«la direzionalità è del BORDO, non
 dell'unità: girarsi non sposta un muretto»*. Introdurre `Cover` come categoria di cella creerebbe il
 secondo modello di copertura, che è precisamente ciò che §11 della sorgente vieta — *«riutilizzare
@@ -311,21 +311,39 @@ può solo raccontare. È il motivo per cui `a3` merita un'epic invece di una iss
 
 ---
 
-## 8. Mappatura sui tre processi di §18 → track esistenti
+## 8. Ownership dei sei checkpoint, misurata
 
-Nessuna track nuova. La colonna di destra è il **write-set che la track già dichiara** in
-`parallel-batch.yaml`, non una riassegnazione.
+> 🔴 **La prima stesura di questa sezione mappava i tre processi di §18 sulle track per *affinità di nome*,
+> e la code review l'ha falsificata su tre righe su quattro.** Diceva che la colonna di destra era *«il
+> write-set che la track già dichiara in `parallel-batch.yaml`»*: non lo era. `Source/RefactorTactics/Camera/`
+> **non compare nel `writable` di nessuna track**; la track `simulation` ha il write-set **vuoto** (`Turn/` e
+> `Bot/` le sono stati esplicitamente rilasciati); e `Map/RTHexMapActor.{h,cpp}` — i file di `E47.3` —
+> appartengono a `content_editor`, non a `client_tools`. Attribuire un file alla track sbagliata è peggio di
+> non attribuirlo: fa credere che il blocco sia altrove, e `D-139` dice che **un file non assegnato è uno
+> STOP**, non un via libera.
+>
+> La tabella qui sotto è ricostruita **leggendo `parallel-batch.yaml`**, non i nomi delle track.
 
-| Processo §18 | Track esistente | Perimetro per la mini-roadmap |
-|---|---|---|
-| **A — Spatial / Board** | `spatial` | `Source/RefactorTactics/ScenarioHarness/` — free-run e configurazione dello scenario |
-| **B — Simulation / Bot** | `simulation` | `Source/RefactorTactics/Turn/`, `Bot/` — modalità non presidiata, `PlanningSeconds`, seed |
-| **C — Client / Tooling** | `client_tools` | `Source/RefactorTactics/UI/`, `Camera/` — HUD watchable, velocità di playback, schermata vincitore |
-| *(quarto, umano)* | `playtest` | `docs/technical/test-manuali-pie.md` — registrazione della partita |
+| CP | File che tocca | Chi li possiede oggi | Conseguenza |
+|---|---|---|---|
+| **E47.1** | `RTGameMode.{h,cpp}` · `Turn/RTTurnManager.{h,cpp}` | ⚠️ **nessuna track** | **STOP**: serve una richiesta di allocazione prima di aprire |
+| **E47.2** | `Turn/RTPlaybackLibrary.*` · `UI/` (se tocca l'HUD) | `Turn/…` **nessuna** · `UI/` = `client_tools` **ACTIVE** (#78) | doppio blocco: allocazione **e** attesa |
+| **E47.3** | `Map/RTHexMapActor.{h,cpp}` | `content_editor` **ACTIVE** (#451) | attende il rilascio di quella track |
+| **E47.4** | `Source/RefactorTactics/ScenarioHarness/` | `spatial` — **IDLE** | l'unico con un owner dichiarato e fermo; resta il blocco su [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542) |
+| **E47.5** | `Source/RefactorTactics/Tests/` | `verification` — **IDLE, write-set vuoto** | non assegnato: **STOP** |
+| **E47.6** | `docs/technical/test-manuali-pie.md` | `playtest` — **IDLE** | owner dichiarato e fermo: serve una riallocazione, non un'attesa |
 
-⚠️ **`client_tools` è `ACTIVE` su `#78` in questo momento** e ha `Source/RefactorTactics/UI/` nel proprio
-`writable`: il lavoro di presentazione della mini-roadmap **non può aprirsi** finché quella track non
-rilascia, o va negoziato nel prossimo batch. È dichiarato qui perché sia un vincolo e non una sorpresa.
+⚠️ **Cinque checkpoint su sei toccano file che nessuna track ACTIVE può scrivere, e tre non hanno owner
+affatto.** Non è un difetto di questa epic: è la fotografia del batch al 2026-08-16, e la conseguenza
+pratica è che **il prossimo batch va aperto prima del codice**, non dopo. Il write-set dell'autobattle non
+è stato scritto in `parallel-batch.yaml` da questa PR di proposito — il file dichiara il lotto `ACTIVE`
+con due track vive e una domanda aperta sulla chiusura, e un settimo write-set aggiunto da una sessione
+documentale è esattamente il difetto che quel file registra cinque volte.
+
+**La corrispondenza con i tre processi di §18 resta valida come *ripartizione del lavoro***, ed è l'unica
+cosa che quella sezione chiedeva davvero: `spatial` per la board e l'harness, `simulation` per il turno e
+il bot, `client_tools` per presentazione e HUD, più la quarta track umana `playtest` che §18 non prevede e
+che è proprio quella che la mini-roadmap esiste per sbloccare.
 
 ---
 
@@ -384,9 +402,9 @@ di `rc1` **escluso** dal corpus di `E47.5`, dichiarato invece che scritto.
 | 3 | `a3` scivola nel lavoro di presentazione | «Watchable» attira HUD, VFX, animazioni | Il gate di `a3` è **il vincitore compare senza input**, non «è bello da vedere» |
 | 4 | Il seed entra di straforo | §6 lo elenca fra i requisiti base | §9: differito, con la ragione scritta |
 | 5 | Secondo modello di copertura | §4/§11 la trattano come categoria di cella | §4.1: tassonomia solo di presentazione, zero `enum` nuovi |
-| 6 | `client_tools` è ACTIVE sul write-set di presentazione | Misurato, non previsto | §8: dichiarato come blocco, non scoperto al merge |
+| 6 | **Cinque checkpoint su sei toccano file che nessuna track ACTIVE può scrivere, e tre non hanno owner** | Misurato su `parallel-batch.yaml`, non dedotto dai nomi delle track — la prima stesura ne attribuiva due a `client_tools` ed era falsa | §8: la tabella per checkpoint. Il prossimo batch va aperto **prima** del codice |
 | 7 | La modalità non presidiata diventa una seconda pipeline | Tentazione di un «bot runner» dedicato | Vincolo di §5 della sorgente = invariante #10: stesse primitive, nessuna pipeline parallela |
-| 8 | Il default di spawn cambia e rompe la partita normale | `RTHeroSpawnTests` lo pinna | Configurazione additiva; i due test restano verdi |
+| 8 | Il default di spawn cambia e rompe la partita normale | **Un solo test lo pinna** — `Heroes.SpawnFromData`, righe 151-152; il secondo test del file non tocca `bIsBotControlled` | Configurazione **additiva**, e il test resta verde. ⚠️ Chi estende `SpawnHero` non ha una seconda rete |
 | 9 | Scenari `AutoBattle.*` scritti prima della capability | Il free-run non esiste ancora | Dichiarati `planned:` nel registry, non versionati come JSON che uscirebbe `ERROR` |
 | 10 | Il referto invecchia dentro la sessione | Già successo quattro volte in questa cartella | Ogni numero qui porta il comando che lo rimisura |
 
@@ -396,31 +414,59 @@ di `rc1` **escluso** dal corpus di `E47.5`, dichiarato invece che scritto.
 
 **Questo, e solo questo**: il consolidamento del tracking. Nessuna riga di C++.
 
-La ragione è misurata al §8: due delle sei track sono `ACTIVE` e una delle due possiede il write-set della
-presentazione. Aprire codice adesso significa contendere un file che un'altra sessione sta scrivendo — che
-è il difetto che `parallel-batch.yaml` ha registrato cinque volte in due giorni.
+La ragione è misurata al §8, ed è più larga di «una track è occupata»: **cinque checkpoint su sei toccano
+file che nessuna track `ACTIVE` può scrivere, e tre non hanno owner affatto** — `E47.1` incluso. Per
+`D-139` un file non assegnato è uno **STOP**, quindi il prossimo passo non è aspettare che qualcuno
+rilasci: è **aprire il prossimo batch** con il write-set dell'autobattle dichiarato.
 
-Il secondo merge, quando `client_tools` rilascia, è **`E47.1`**: la configurazione «entrambe le squadre al
-bot» più `PlanningSeconds` da scenario. È l'incremento più piccolo che produce una partita osservabile.
+Il secondo merge è **`E47.1`** — la configurazione «entrambe le squadre al bot» più `PlanningSeconds` da
+scenario, su `RTGameMode.{h,cpp}` e `Turn/RTTurnManager.{h,cpp}`. È l'incremento più piccolo che produce
+una partita osservabile, e **richiede un'allocazione prima di cominciare**, non un'attesa.
 
 ---
 
 ## 12. Cosa cambia questa PR
 
-| Vista | Modifica |
-|---|---|
-| Questo referto | nuovo |
-| [`../roadmap-v0.1.md`](../roadmap-v0.1.md) | epic **E47** nell'elenco e nella §2.1 |
-| [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) | riga sull'effetto di E47 su **M6** (il playtest diventa osservazione) |
-| [`../feature-registry.yaml`](../feature-registry.yaml) | **due** feature nuove: `RT-FEAT-MATCH-AUTOBATTLE`, `RT-FEAT-UI-BOARD-GRAMMAR`; `RT-FEAT-TEST-SCENARIO-HARNESS` e `RT-FEAT-CORE-PLAYBACK` guadagnano `completed_by`/note |
-| [`../../technical/scenario-map.md`](../../technical/scenario-map.md) | i quattro `AutoBattle.*` come `planned` |
-| [`../editor-sessions.yaml`](../editor-sessions.yaml) | una seduta per la registrazione della partita non presidiata |
-| [`../../decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | due `D-nnn`: la tassonomia solo di presentazione; il seed differito |
-| [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) | la domanda aperta sulla varietà pseudo-casuale |
-| GitHub | epic **E47** + checkpoint, collegati alle milestone esistenti |
-| [`../../archive/src/`](../../archive/src/README.md) | il sorgente archiviato, con riga d'indice |
-| Wiki | nessuna pagina nuova: la mini-roadmap è **esecuzione**, non una meccanica che un giocatore legge |
+> 🔴 **Questa tabella è stata riscritta dopo la code review, che l'ha trovata falsa in tre punti**:
+> diceva che `RT-FEAT-TEST-SCENARIO-HARNESS` e `RT-FEAT-CORE-PLAYBACK` guadagnavano `completed_by`/note —
+> guadagnano **solo** una voce `issues:` — e ometteva due feature toccate e un intero file sorgente
+> (`execution-graph.yaml`, che riceve sei nodi e sette archi). Un manifesto che non descrive il diff
+> certifica una PR che non è quella che si sta mergiando, ed è **la peggiore riga di tutto il referto**
+> perché è quella su cui si fa affidamento per non rileggere il diff.
 
-⚠️ **I derivati** (`feature-registry.json`, `project-graph.json`, le cinque shortlist, `roadmap-map.svg`) si
-rigenerano con `python scripts/feature_registry.py generate && … shortlist`, **dopo** l'unione con
-`origin/main`, mai prima: è il rimedio che questa cartella ha imparato nove volte.
+**Sorgenti** — si editano a mano:
+
+| File | Modifica |
+|---|---|
+| `plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md` | questo referto, nuovo |
+| [`../roadmap-v0.1.md`](../roadmap-v0.1.md) | riga **E47** in §3 · sezione **E47** in §5 con sei checkpoint · quattro righe nuove in §2 (i buchi misurati) · totale rimisurato · riga «Tracciata su GitHub» aggiunta anche a **E46**, che ne era priva e faceva fallire un gate |
+| [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) | riga **E47** nella tabella epic→milestone · effetto su **M6** · tre copie del totale epic/CP riallineate |
+| [`../feature-registry.yaml`](../feature-registry.yaml) | **due feature nuove** (`RT-FEAT-MATCH-AUTOBATTLE`, `RT-FEAT-UI-BOARD-GRAMMAR`) · **quattro** feature esistenti guadagnano una `issues:` — `CORE-PLAYBACK` (955), `TEST-SCENARIO-HARNESS` (957), `CORE-DETERMINISM` (958), `PROD-PACKAGED` (959) |
+| [`../execution-graph.yaml`](../execution-graph.yaml) | **catena D**: sei nodi (`issue:954`–`issue:959`), cinque `requires`, due `follows` · `meta.note` corretta da «tre catene» a quattro |
+| [`../editor-sessions.yaml`](../editor-sessions.yaml) | seduta **U23**, la partita registrata |
+| [`../../technical/scenario-map.md`](../../technical/scenario-map.md) | i quattro `AutoBattle.*` `planned` · conteggio dei `planned` rimisurato e **dotato di un comando**, che non aveva |
+| [`../../decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | **D-145** (execution slice) · **D-146** (grammatica visiva derivata) |
+| [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) | `RNG-1`/`RNG-2`, la varietà pseudo-casuale |
+| [`../../archive/src/README.md`](../../archive/src/README.md) + il sorgente | archiviazione con banner `HISTORICAL` e riga d'indice; totale rimisurato |
+| [`README.md`](README.md) | conteggi della cartella rimisurati, e il comando per la **ripartizione**, che non esisteva |
+
+**Generati** — `python scripts/feature_registry.py generate && … shortlist && … suite`, eseguito
+**sull'albero unito** e mai prima: `feature-registry.json`, `project-graph.json`, `roadmap-map.svg`, le
+cinque `*.shortlist.md`, il blocco `RT_SUITE_COUNT`.
+
+**GitHub**: epic [#952](https://github.com/DegrassiAaron/refactor-tactics-main/issues/952) con sei
+sub-issue [#954](https://github.com/DegrassiAaron/refactor-tactics-main/issues/954)–[#959](https://github.com/DegrassiAaron/refactor-tactics-main/issues/959) ·
+domanda [#960](https://github.com/DegrassiAaron/refactor-tactics-main/issues/960) ·
+difetto strutturale [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/962) ·
+commenti su [#16](https://github.com/DegrassiAaron/refactor-tactics-main/issues/16),
+[#38](https://github.com/DegrassiAaron/refactor-tactics-main/issues/38) e
+[#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542).
+
+**Wiki**: nessuna pagina nuova — la mini-roadmap è **esecuzione**, non una meccanica che un giocatore
+legge. `RT-FEAT-UI-BOARD-GRAMMAR` referenzia `wiki:mappa-terreni-e-ambiente`, che riceve il blocco
+`RT_FEATURE_STATUS` col deploy.
+
+**Non toccato, e dichiarato**: [`../parallel-batch.yaml`](../parallel-batch.yaml) — il lotto è `ACTIVE` e
+un settimo write-set scritto da una sessione documentale è il difetto che quel file registra cinque volte ·
+`docs/README.md`, il cui totale epic/CP resta indietro perché non è nel `writable` di nessuna track
+(**#962**).

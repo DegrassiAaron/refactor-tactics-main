@@ -397,7 +397,7 @@ resta visibile invece di sparire.
 > **Restano `planned` per l'oracolo, non per il tempo**, come i sei di CP 11.8: il formato di scenario
 > enumera i turni uno per uno (`FRTScenarioTurn`) e una partita autobattle **non sa in anticipo quanti
 > turni durerà**. Scriverli oggi produrrebbe un `ERROR` — difetto del test — non un `BLOCKED`, che è la
-> forma legittima di una specifica anticipata. Li sblocca **CP 47.4**
+> forma legittima di una specifica anticipata. Li sblocca **E47.4**
 > ([#957](https://github.com/DegrassiAaron/refactor-tactics-main/issues/957)), che a sua volta non si apre
 > prima del seam `DecisionProvider` di [D-101](../decisions/RT_PDR_00_Decision_Log.md)
 > ([#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)).

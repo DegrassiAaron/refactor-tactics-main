@@ -4473,7 +4473,7 @@ features:
       **La legenda e' DERIVATA, non un modello dati** (`D-146`). La tassonomia a cinque voci del
       prompt di provenienza — `Normal · Rough · Cover · Hazard · Objective` — non corrisponde al
       repository: `ERTHexSurface` ha **nove** valori, la copertura e' direzionale **per bordo** dal
-      CP 9.1 («la direzionalita' e' del bordo, non dell'unita'») e gli obiettivi sono entita' di
+      **E9.1** («la direzionalita' e' del bordo, non dell'unita'») e gli obiettivi sono entita' di
       mappa dell'epic E10. Adottarla come dato creerebbe il secondo owner di due sistemi gia' decisi
       — che e' cio' che la sorgente stessa vieta. Le cinque voci restano un vocabolario di lettura
       che il renderer calcola da superficie + coperture dei bordi + entita' obiettivo: **zero enum
@@ -4488,8 +4488,12 @@ features:
       col solo colore. Dichiarato in `D-146` invece che sottinteso — il primo consumatore che ne
       aggiunga una dovra' portarsi il controllo dietro.
 
-      ⚠️ **Vincolo di parallelismo**: `Source/RefactorTactics/UI/` e' nel `writable` della track
-      `client_tools`, ACTIVE su `#78` al 2026-08-16 (`parallel-batch.yaml`, `D-139`).
+      ⚠️ **Vincolo di parallelismo, misurato e non dedotto dal nome della track**: i file di E47.3 sono
+      `Map/RTHexMapActor.{h,cpp}`, che stanno nel `writable` di **`content_editor`** — ACTIVE su `#451`
+      al 2026-08-16 — non di `client_tools`. 🔴 Una stesura precedente di questa nota scriveva
+      `client_tools` (`UI/`), e la code review l'ha falsificata: attribuire un file alla track sbagliata
+      fa credere che il blocco sia altrove, mentre `D-139` dice che si aspetta **quell'owner**.
+      (`parallel-batch.yaml`, `D-139`)
   # ─────────────────────────────────────────────────────────────────────────────
   # H. Characters / content
   # ─────────────────────────────────────────────────────────────────────────────

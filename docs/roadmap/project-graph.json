@@ -82,7 +82,7 @@
       "[execution-graph issue:314] nessuna feature del registry dichiara questa issue: il suo domain_group 'actions_reactions' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
       "[execution-graph issue:512] nessuna feature del registry dichiara questa issue: il suo domain_group 'core_simulation' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
       "[execution-graph issue:593] nessuna feature del registry dichiara questa issue: il suo domain_group 'characters_content' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
-      "[execution-graph] 16 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3, E47.1, E47.2, E47.3, E47.4, E47.5, E47.6): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
+      "[execution-graph] 10 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
     ],
     "unresolved_prerequisites": [],
     "milestone_conflicts": []
@@ -3275,9 +3275,9 @@
         "domain_group": "objectives_match",
         "domain_group_source": "derived",
         "checkpoint": "E47.1",
-        "state": null,
-        "state_source": null,
-        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.1",
+        "state_note": null,
         "feature_ids": [
           "RT-FEAT-MATCH-AUTOBATTLE"
         ],
@@ -3303,7 +3303,7 @@
             "to": "issue:956",
             "type": "follows",
             "hard": false,
-            "rationale": "Stesso vincolo di ownership di"
+            "rationale": "Vincolo di ownership su un'ALTRA track: `Map/RTHexMapActor.{h,cpp}` appartiene a `content_editor` (#451), non a `client_tools`. E la board si giudica su una partita che gira da sola, il che rende l'ordine un risparmio e non un prerequisito."
           }
         ],
         "readiness": "READY",
@@ -3318,9 +3318,9 @@
         "domain_group": "core_simulation",
         "domain_group_source": "derived",
         "checkpoint": "E47.2",
-        "state": null,
-        "state_source": null,
-        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.2",
+        "state_note": null,
         "feature_ids": [
           "RT-FEAT-CORE-PLAYBACK"
         ],
@@ -3355,9 +3355,9 @@
         "domain_group": "ui_presentation",
         "domain_group_source": "derived",
         "checkpoint": "E47.3",
-        "state": null,
-        "state_source": null,
-        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.3",
+        "state_note": null,
         "feature_ids": [
           "RT-FEAT-UI-BOARD-GRAMMAR"
         ],
@@ -3368,7 +3368,7 @@
             "to": "issue:956",
             "type": "follows",
             "hard": false,
-            "rationale": "Stesso vincolo di ownership di"
+            "rationale": "Vincolo di ownership su un'ALTRA track: `Map/RTHexMapActor.{h,cpp}` appartiene a `content_editor` (#451), non a `client_tools`. E la board si giudica su una partita che gira da sola, il che rende l'ordine un risparmio e non un prerequisito."
           }
         ],
         "outgoing": [
@@ -3392,9 +3392,9 @@
         "domain_group": "tooling_data_qa",
         "domain_group_source": "derived",
         "checkpoint": "E47.4",
-        "state": null,
-        "state_source": null,
-        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.4",
+        "state_note": null,
         "feature_ids": [
           "RT-FEAT-TEST-SCENARIO-HARNESS"
         ],
@@ -3429,9 +3429,9 @@
         "domain_group": "core_simulation",
         "domain_group_source": "derived",
         "checkpoint": "E47.5",
-        "state": null,
-        "state_source": null,
-        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.5",
+        "state_note": null,
         "feature_ids": [
           "RT-FEAT-CORE-DETERMINISM"
         ],
@@ -3453,8 +3453,8 @@
           }
         ],
         "outgoing": [],
-        "readiness": "UNKNOWN",
-        "readiness_reason": "stato non misurabile offline di issue:955, issue:957"
+        "readiness": "BLOCKED",
+        "readiness_reason": "aspetta issue:955, issue:957"
       },
       {
         "id": "issue:959",
@@ -3465,9 +3465,9 @@
         "domain_group": "tooling_data_qa",
         "domain_group_source": "declared",
         "checkpoint": "E47.6",
-        "state": null,
-        "state_source": null,
-        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "state": "⏳",
+        "state_source": "checkpoint:E47.6",
+        "state_note": null,
         "feature_ids": [
           "RT-FEAT-MATCH-AUTOBATTLE",
           "RT-FEAT-PROD-PACKAGED"
@@ -3490,8 +3490,8 @@
           }
         ],
         "outgoing": [],
-        "readiness": "UNKNOWN",
-        "readiness_reason": "stato non misurabile offline di issue:954, issue:956"
+        "readiness": "BLOCKED",
+        "readiness_reason": "aspetta issue:954, issue:956"
       },
       {
         "id": "session:U7",
@@ -3744,7 +3744,7 @@
         "to": "issue:956",
         "type": "follows",
         "hard": false,
-        "rationale": "Stesso vincolo di ownership di"
+        "rationale": "Vincolo di ownership su un'ALTRA track: `Map/RTHexMapActor.{h,cpp}` appartiene a `content_editor` (#451), non a `client_tools`. E la board si giudica su una partita che gira da sola, il che rende l'ordine un risparmio e non un prerequisito."
       },
       {
         "from": "issue:593",
@@ -3824,10 +3824,10 @@
       "hard_edges": 16,
       "soft_edges": 9,
       "by_readiness": {
-        "BLOCKED": 3,
+        "BLOCKED": 5,
         "DONE": 2,
         "READY": 14,
-        "UNKNOWN": 7
+        "UNKNOWN": 5
       },
       "by_execution_lane": {
         "asset": 2,
@@ -3846,7 +3846,7 @@
       "by_release": {
         "v0.1": 26
       },
-      "state_unknown": 20
+      "state_unknown": 14
     }
   }
 }
