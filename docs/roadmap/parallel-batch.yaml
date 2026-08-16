@@ -1605,6 +1605,23 @@ tracks:
       #     `DoorOpened`) piu' `RTTurnLogLibrary.*` e `RTTurnLogCauseTests.cpp`. Mancavano, e senza di essi la
       #     sessione si sarebbe fermata alla prima voce da aggiungere: una lacuna dello stesso tipo di quella
       #     che la nota dichiarava di aver evitato per `Scenarios/`.
+      #     🔴 **«Mancavano» e' FALSO, misurato il 2026-08-16.** `DoorClosed` e `DoorOpened` sono in
+      #     `ERTEnvironmentOutcome` dal **2026-08-08**, commit `39844904` («feat(porte): stato per bordo …
+      #     CP 9.3») — otto giorni prima di questa rivendicazione. La riga e' stata scritta senza aprire
+      #     l'enum, ed e' il tipo di premessa che questo file chiede di misurare invece di dedurre.
+      #     ✅ **Ma i quattro path RESTANO qui, e la ragione vera e' un'altra**: il DoD di `#833` §«Debug /
+      #     TurnLog» chiede voci canoniche **nuove** — «tentativo di interazione, risoluzione o fallimento
+      #     con reason code, cambio di stato della struttura, movimento bloccato» — e quelle si dichiarano
+      #     proprio in `RTTurnLog.h`. La rivendicazione e' giusta; era sbagliata la sua motivazione.
+      #     ⛔ **E c'e' un secondo pretendente, che va sequenziato invece di lasciato scoprire al merge.**
+      #     `#1060` (il T6 dello showcase) ha come PRIMO passo far portare a `FRTTurnLogEntry` il bersaglio
+      #     originale e quello effettivo dell'interposizione: senza, ne' un `EffectiveTargetEquals` ne' un
+      #     esito di log possono dire **verso chi** e' avvenuto il redirect. Due track che aggiungono campi
+      #     allo stesso header sono la contesa che questo meccanismo esiste per impedire.
+      #     ➡️ **Sequenza dichiarata**: `#833` prima, `#1060` dopo il rilascio. ⚠️ Misurato che oggi
+      #     `spatial` **non tocca nessuno dei quattro** — ne' su `feat/833-interaction-graph`, ne' nel
+      #     worktree `D:/rt-spatial` col non committato — quindi l'attesa e' il ritmo di `#833`, non un
+      #     blocco permanente. Chi chiude `#833` rilascia i path e lo dice qui.
       - Source/RefactorTactics/Ability/RTCatalogLibrary.h
       - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
       - Source/RefactorTactics/Tests/RTCoreActionTests.cpp
