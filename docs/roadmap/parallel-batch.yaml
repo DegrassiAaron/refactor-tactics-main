@@ -3276,6 +3276,40 @@ tracks:
       - Scenarios/Spec/Environment/WaterQuenchesFire.json
     binary_leases: []
 
+  reconcile_skill:
+    status: ACTIVE
+    issue: null
+    branch: docs/reconcile-audit-skill
+    worktree: "D:/rt-unit"
+    mandate: docs/src/CLAUDE_Reconcile_v0.1_Skill_Ability_Issues_2026-08-16.md
+    note: >-
+      ➕ **Track aperta il 2026-08-16 su un MANDATO, non su una issue** — come le tre track QA, e per la
+      stessa ragione: il lavoro nasce da un documento d'autore che descrive *cosa* fare. `issue: null`
+      perché nessuna singola issue lo possiede: il mandato ne riconcilia **23**.
+
+      ⚠️ **Il mandato NON è ancora in archivio**: sta in `docs/src/`, ed è pure **untracked** — è un drop
+      dell'autore che il repository non ha mai visto. `docs/src/` è input non consumato e non vale come
+      autorità implicita (CLAUDE.md §1). Va archiviato in `docs/archive/src/` **quando il consumo è
+      finito**, e questo giro ne consuma solo il §12.
+
+      ✅ **Il mandato regge alla verifica**, ed è la prima volta oggi: #583 dichiara davvero il blocco da
+      #165 in sei punti, #165 è davvero chiusa, #152 dice davvero «l'ultima epic», i gate accettano
+      davvero `--check`. Gli altri due kit di oggi asserivano cose false.
+      🔴 **Un difetto solo, ed è invecchiamento**: il §2 tratta `#1006` come da riconciliare, ma è
+      `CLOSED` — opzione C decisa e implementata lo stesso giorno (PR #1008). Applicarlo alla lettera
+      rifarebbe una misura già fatta.
+
+      **Cosa ha prodotto questo giro**: due controlli automatici sui body — dipendenze stale e claim di
+      unicità — su 23 issue aperte. Due stale blocker veri (**#583**, e **#403** che il mandato non
+      nomina), una claim di unicità falsa (**#152**), tre dipendenze soddisfatte non aggiornate, e
+      **sei falsi positivi su dodici segnalazioni** — un dato che serve a chi implementerà `#738`.
+
+      ⛔ **Questo giro NON tocca nessuna issue GitHub e nessun altro file**: produce il referto e basta.
+      Le correzioni ai body sono il passo successivo, e non hanno write-set perché non toccano il repo.
+    writable:
+      - docs/roadmap/plans/reconcile-skill-audit-2026-08-16.md
+    binary_leases: []
+
   proficiency:
     status: ACTIVE
     issue: 995
