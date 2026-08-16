@@ -71,18 +71,140 @@ bool FRTTeamColorForTest::RunTest(const FString&)
 	return true;
 }
 
-// RingLocalZ: offset Z locale che porta un anello (figlio della mesh) al piano della cella.
+/**
+ * `RingLocalZ`: offset Z locale che porta un anello a terra al piano della cella.
+ *
+ * ⚠️ **La firma ha perso `ParentScaleZ` con `#593`, e non e' una semplificazione estetica.** Gli anelli
+ * erano figli del `Mesh`, che era il root con scala `(1.2, 1.2, 1.8)`: la loro posizione relativa veniva
+ * moltiplicata per `1.8`, e la funzione doveva dividere per riportarla al piano. Con un root NEUTRO
+ * (`SceneRoot`, scala unitaria) quel fattore non esiste piu': tenere il parametro avrebbe significato
+ * conservare un argomento che vale sempre `1`, cioe' un dato che nessun consumatore legge — il difetto
+ * che questo progetto insegue da mesi.
+ *
+ * ⚠️ **E la guardia div-by-zero e' sparita con la divisione**, non per svista: senza denominatore non c'e'
+ * niente da proteggere. Il vecchio caso `(90, 0) -> 1` proteggeva da un genitore a scala zero, che oggi e'
+ * inesprimibile.
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRingLocalZTest,
 	"RefactorTactics.Unit.RingLocalZ",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTRingLocalZTest::RunTest(const FString&)
 {
-	// Cilindro segnaposto: pivot al centro (offset 90) + scala Z 1.8 -> compensa a -49 (a terra).
-	TestEqual(TEXT("cilindro (90, 1.8) -> -49"), ARTUnit::RingLocalZ(90.f, 1.8f), -49.f);
-	// Skeletal: pivot ai piedi (offset 0) -> +1 (a livello base della mesh).
-	TestEqual(TEXT("skeletal (0, 1.8) -> 1"), ARTUnit::RingLocalZ(0.f, 1.8f), 1.f);
-	// Guardia div-by-zero: scala Z 0 -> fallback 1 (nessuna divisione).
-	TestEqual(TEXT("scala 0 -> 1 (guardia)"), ARTUnit::RingLocalZ(90.f, 0.f), 1.f);
+	// Cilindro segnaposto: pivot al CENTRO (offset 90) -> l'anello scende di 90 e risale del clearance.
+	TestEqual(TEXT("cilindro (90) -> -89"), ARTUnit::RingLocalZ(90.f), -89.f);
+	// Skeletal: pivot ai PIEDI (offset 0) -> resta al clearance sopra il piano.
+	TestEqual(TEXT("skeletal (0) -> 1"), ARTUnit::RingLocalZ(0.f), 1.f);
+
+	// L'invariante che conta, e che i due valori sopra da soli non esprimono: qualunque sia il pivot,
+	// l'anello finisce alla STESSA quota-mondo. Prima non era cosi' per costruzione — lo era solo perche'
+	// entrambi i casi venivano moltiplicati per la stessa scala del genitore.
+	const float CilindroMondo = 90.f + ARTUnit::RingLocalZ(90.f); // attore a cellZ+90
+	const float SkeletalMondo = 0.f + ARTUnit::RingLocalZ(0.f);   // attore a cellZ+0
+	TestEqual(TEXT("cilindro e skeletal finiscono alla stessa quota"), CilindroMondo, SkeletalMondo);
+	TestTrue(TEXT("e la quota e' SOPRA il piano, non dentro"), CilindroMondo > 0.f);
+	return true;
+}
+
+/**
+ * #593 — **il root di `ARTUnit` e' neutro**, e non porta scala.
+ *
+ * Il difetto: il cilindro segnaposto era il root con scala `(1.2, 1.2, 1.8)`, quindi **ogni componente
+ * aggiunto in Blueprint la ereditava** — una Skeletal Mesh veniva stirata di `1.8/1.2 = 1.5x`, e i quattro
+ * `BP_Unit_*` della seduta U7 lo compensavano a mano con «World/Absolute Scale». Un workaround che va
+ * rifatto su ogni BP nuovo, e che nessun errore segnala se manca.
+ *
+ * Questo test pinna la CAUSA, non il sintomo: la deformazione si vede solo in editor, la scala del root si
+ * misura qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitRootIsNeutralTest,
+	"RefactorTactics.Unit.RootIsNeutral",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitRootIsNeutralTest::RunTest(const FString&)
+{
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+
+	USceneComponent* Root = Unit->GetRootComponent();
+	if (!TestNotNull(TEXT("il root esiste"), Root)) { return false; }
+
+	// ⚠️ Il test interroga la PROPRIETA' osservabile, non i membri: `Mesh` e `BaseMeshScale` sono
+	// `protected`, e allargarne la visibilita' per un test significherebbe cambiare l'incapsulamento per
+	// misurarlo. Cio' che conta e' comunque visibile dall'esterno — quello che un componente aggiunto in
+	// Blueprint eredita e' la scala del ROOT, non il nome di chi la porta.
+
+	// (1) Il root non porta scala: e' l'invariante che #593 esiste per stabilire.
+	TestEqual(TEXT("scala del root unitaria"), Root->GetRelativeScale3D(), FVector::OneVector);
+
+	// (2) E la scala non e' sparita: e' SCESA di un livello. Senza questa meta' il test passerebbe anche
+	// su un'unita' che ha perso il proprio segnaposto — verde, e con il cilindro invisibile.
+	//
+	// ⚠️ **Si enumera con `GetComponents`, non con `Root->GetAttachChildren()`**, e la differenza e'
+	// costata due test rossi: `SetupAttachment` in costruttore imposta l'`AttachParent` del FIGLIO, ma
+	// l'array `AttachChildren` del genitore viene popolato alla **registrazione** dei componenti, che su un
+	// `NewObject` fuori dal mondo non avviene mai. `GetComponents` legge invece cio' che
+	// `CreateDefaultSubobject` ha gia' creato.
+	int32 FigliScalati = 0;
+	TInlineComponentArray<USceneComponent*> Componenti;
+	Unit->GetComponents(Componenti);
+	for (const USceneComponent* Comp : Componenti)
+	{
+		if (Comp && Comp->GetAttachParent() == Root && !Comp->GetRelativeScale3D().Equals(FVector::OneVector))
+		{
+			++FigliScalati;
+		}
+	}
+	TestTrue(TEXT("almeno un figlio del root porta la scala del segnaposto"), FigliScalati > 0);
+	return true;
+}
+
+/**
+ * #593 — **selezionare un'unita' non scala il root.**
+ *
+ * `OnSelected` ingrandisce del 15% il cilindro segnaposto: era l'effetto voluto quando il cilindro ERA il
+ * root, ed e' diventato un artefatto quando sotto c'e' un personaggio — che si gonfiava del 15% al click e
+ * tornava indietro al deselect.
+ *
+ * ⚠️ Il test NON verifica che `Mesh` non scali: quello e' il comportamento voluto e resta. Verifica che la
+ * scala **non arrivi al root**, che e' il punto da cui i figli in Blueprint la ereditano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitSelectionDoesNotScaleRootTest,
+	"RefactorTactics.Unit.SelectionDoesNotScaleRoot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitSelectionDoesNotScaleRootTest::RunTest(const FString&)
+{
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+	USceneComponent* Root = Unit->GetRootComponent();
+	if (!TestNotNull(TEXT("il root esiste"), Root)) { return false; }
+
+	// Somma delle scale dei figli: cambia quando il segnaposto si ingrandisce, senza nominare `Mesh`
+	// (che e' `protected`) ne' `BaseMeshScale`.
+	// ⚠️ `GetComponents` e non `GetAttachChildren`, per la ragione scritta in `RootIsNeutral`: fuori dal
+	// mondo il secondo e' vuoto, e il test misurerebbe zero contro zero — verde, e cieco.
+	auto ScalaDeiFigli = [Unit, Root]()
+	{
+		FVector Somma = FVector::ZeroVector;
+		TInlineComponentArray<USceneComponent*> Componenti;
+		Unit->GetComponents(Componenti);
+		for (const USceneComponent* Comp : Componenti)
+		{
+			if (Comp && Comp->GetAttachParent() == Root) { Somma += Comp->GetRelativeScale3D(); }
+		}
+		return Somma;
+	};
+
+	const FVector AllInizio = ScalaDeiFigli();
+
+	Unit->OnSelected();
+	TestEqual(TEXT("selezionata: il root resta unitario"), Root->GetRelativeScale3D(), FVector::OneVector);
+	// Il segnaposto invece SI' ingrandisce: e' il riscontro visivo, e non deve sparire. Senza questa
+	// asserzione il test passerebbe anche su un `OnSelected` svuotato.
+	TestTrue(TEXT("qualcosa sotto il root si ingrandisce davvero"),
+		!ScalaDeiFigli().Equals(AllInizio));
+
+	Unit->OnDeselected();
+	TestEqual(TEXT("deselezionata: il root resta unitario"), Root->GetRelativeScale3D(), FVector::OneVector);
+	TestEqual(TEXT("e la scala dei figli torna com'era"), ScalaDeiFigli(), AllInizio);
 	return true;
 }
 

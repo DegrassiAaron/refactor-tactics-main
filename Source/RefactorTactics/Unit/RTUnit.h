@@ -661,16 +661,41 @@ public:
 	 */
 	static FString DisplayLabel(const FText& InDisplayName, FName InHeroId, const FString& Fallback);
 
+	/** Quanto un anello a terra resta SOPRA il piano della cella, per non compenetrarlo (unita' di mondo). */
+	static constexpr float RingGroundClearance = 1.f;
+
 	/**
-	 * Offset Z LOCALE per portare un anello a terra (TeamRing/SelectionRing, figlio della mesh) al piano della
-	 * cella: compensa VisualZOffset e la scala Z del genitore. Guardia: ParentScaleZ 0 -> 1 (niente divisione). Pura.
+	 * Offset Z LOCALE per portare un anello a terra (`TeamRing`/`SelectionRing`) al piano della cella.
+	 *
+	 * ⚠️ **Aveva un secondo parametro `ParentScaleZ` fino a #593**, e la sua sparizione e' il punto: gli
+	 * anelli erano figli di `Mesh`, quindi la loro posizione relativa veniva moltiplicata per la scala Z
+	 * del cilindro e andava divisa per riportarla al piano. Sotto un root **unitario** quel fattore non
+	 * esiste, e un argomento che vale sempre `1` e' un dato che nessuno legge.
+	 *
+	 * ⚠️ Con lui e' sparita anche la guardia `ParentScaleZ == 0`: senza divisione non c'e' niente da
+	 * proteggere. Pura, e pinnata da `RefactorTactics.Unit.RingLocalZ`.
 	 */
-	static float RingLocalZ(float VisualZOffset, float ParentScaleZ);
+	static float RingLocalZ(float VisualZOffset);
 
 protected:
 	virtual void BeginPlay() override;
 
 	void ApplyTeamColor();
+
+	/**
+	 * Root NEUTRO (#593): non porta scala, e non deve portarne.
+	 *
+	 * ⚠️ **E' l'unico componente la cui scala viene ereditata da chi si attacca in Blueprint.** Finche' il
+	 * root era `Mesh` — cilindro segnaposto, scala `(1.2, 1.2, 1.8)` — una Skeletal Mesh sotto veniva
+	 * stirata di `1.8/1.2 = 1.5x`, e i `BP_Unit_*` lo compensavano a mano con «World/Absolute Scale»: un
+	 * workaround da rifare su ogni BP nuovo, che nessun errore segnala se manca, e che comunque non
+	 * fermava l'ingrandimento del 15% alla selezione.
+	 *
+	 * ⛔ **Non assegnargli una scala.** Se serve deformare il segnaposto, si deforma `Mesh`, che e' li'
+	 * per quello. `RefactorTactics.Unit.RootIsNeutral` lo pinna.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<USceneComponent> SceneRoot;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	TObjectPtr<UStaticMeshComponent> Mesh;

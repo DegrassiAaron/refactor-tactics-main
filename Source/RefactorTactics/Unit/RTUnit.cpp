@@ -16,8 +16,18 @@ ARTUnit::ARTUnit()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
+	// ROOT NEUTRO (#593). Il root non porta scala, e questa e' l'unica proprieta' che conta: **qualunque
+	// componente aggiunto in Blueprint eredita la scala del root**. Finche' il root era il cilindro
+	// segnaposto — `(1.2, 1.2, 1.8)` — una Skeletal Mesh attaccata sotto veniva stirata di `1.8/1.2 = 1.5x`,
+	// e i quattro `BP_Unit_*` lo compensavano a mano con «World/Absolute Scale»: un workaround da rifare su
+	// ogni BP nuovo, che nessun errore segnala se manca.
+	//
+	// E' lo schema che il progetto usa gia' in `ARTCameraPawn` e `ARTHexMapActor`.
+	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	SetRootComponent(SceneRoot);
+
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
-	SetRootComponent(Mesh);
+	Mesh->SetupAttachment(SceneRoot);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Mesh->SetCollisionResponseToAllChannels(ECR_Block);
 	Mesh->SetRelativeScale3D(BaseMeshScale);
@@ -28,10 +38,15 @@ ARTUnit::ARTUnit()
 		Mesh->SetStaticMesh(CylinderMesh.Object);
 	}
 
-	// Anello di team a terra: figlio del root, scala ASSOLUTA (non eredita la deformazione ne' la selezione del
-	// cilindro), senza collisione. Nascosto finche' ApplyTeamColor non trova un materiale team.
+	// Anello di team a terra: figlio del ROOT NEUTRO, non piu' del cilindro. Il cambio non e' cosmetico —
+	// da figlio della mesh, la sua posizione relativa Z veniva moltiplicata per `BaseMeshScale.Z`, ed e' la
+	// ragione per cui `RingLocalZ` aveva un parametro `ParentScaleZ` da compensare. Sotto un root unitario
+	// non c'e' piu' niente da compensare, e l'anello smette di dipendere dall'aspetto del segnaposto.
+	//
+	// `SetUsingAbsoluteScale` resta: protegge dall'ingrandimento del 15% alla selezione, che ora comunque
+	// non lo raggiunge piu' — due difese per la stessa cosa, e quella che regge da sola e' la gerarchia.
 	TeamRing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TeamRing"));
-	TeamRing->SetupAttachment(Mesh);
+	TeamRing->SetupAttachment(SceneRoot);
 	TeamRing->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	TeamRing->SetUsingAbsoluteScale(true);
 	TeamRing->SetVisibility(false);
@@ -44,7 +59,7 @@ ARTUnit::ARTUnit()
 	// Anello di SELEZIONE: gemello del TeamRing, piu' grande (cornice esterna) per distinguersi. Nascosto
 	// finche' l'unita' non e' selezionata (e finche' ApplyTeamColor non trova un materiale di selezione).
 	SelectionRing = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SelectionRing"));
-	SelectionRing->SetupAttachment(Mesh);
+	SelectionRing->SetupAttachment(SceneRoot);
 	SelectionRing->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SelectionRing->SetUsingAbsoluteScale(true);
 	SelectionRing->SetVisibility(false);
@@ -135,11 +150,13 @@ FString ARTUnit::DisplayLabel(const FText& InDisplayName, FName InHeroId, const 
 	return ShortHeroName(InHeroId, Fallback);
 }
 
-float ARTUnit::RingLocalZ(float VisualZOffset, float ParentScaleZ)
+float ARTUnit::RingLocalZ(float VisualZOffset)
 {
-	// La posizione relativa Z del figlio e' scalata dalla scala Z del genitore: compensa VisualZOffset
-	// dividendo per quella scala, +1 per risalire dal centro-base al piano. Guardia: scala 0 -> niente divisione.
-	return (ParentScaleZ != 0.f) ? (-VisualZOffset / ParentScaleZ) + 1.f : 1.f;
+	// L'attore sta `VisualZOffset` sopra il piano della cella; l'anello scende della stessa quota e risale
+	// del clearance. Sotto un root UNITARIO (#593) la posizione relativa non e' piu' scalata da nessuno,
+	// quindi non c'e' niente da compensare — ed e' per questo che il parametro `ParentScaleZ` e' sparito
+	// invece di valere sempre 1: un argomento che nessun chiamante puo' variare e' un dato che nessuno legge.
+	return -VisualZOffset + RingGroundClearance;
 }
 
 void ARTUnit::ApplyTeamColor()
@@ -161,11 +178,11 @@ void ARTUnit::ApplyTeamColor()
 		}
 	}
 
-	// Anello di team a terra: compensa VisualZOffset e la scala Z del genitore per restare a livello cella.
+	// Anello di team a terra: compensa il solo VisualZOffset — sotto un root unitario non c'e' scala da dividere.
 	// Colorato se M_TeamRing c'e', altrimenti nascosto (fallback: resta il colore sul cilindro).
 	if (TeamRing)
 	{
-		const float RingZ = RingLocalZ(VisualZOffset, BaseMeshScale.Z);
+		const float RingZ = RingLocalZ(VisualZOffset);
 		TeamRing->SetRelativeLocation(FVector(0.f, 0.f, RingZ));
 		if (UMaterialInterface* RingBase = TeamRingMaterial.LoadSynchronous())
 		{
@@ -184,7 +201,7 @@ void ARTUnit::ApplyTeamColor()
 	// OnSelected non lo mostra. Senza materiale di selezione non compare (fallback come il TeamRing).
 	if (SelectionRing)
 	{
-		SelectionRing->SetRelativeLocation(FVector(0.f, 0.f, RingLocalZ(VisualZOffset, BaseMeshScale.Z)));
+		SelectionRing->SetRelativeLocation(FVector(0.f, 0.f, RingLocalZ(VisualZOffset)));
 		if (UMaterialInterface* SelBase = SelectionRingMaterial.LoadSynchronous())
 		{
 			SelectionRingDynMaterial = UMaterialInstanceDynamic::Create(SelBase, this);
