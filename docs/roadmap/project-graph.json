@@ -85,7 +85,7 @@
   "release_gates": [
     {
       "id": "G1",
-      "request": "Build Game + Editor senza warning nuovi",
+      "request": "Build **Editor** + **Game Development** + **Game Shipping** senza warning nuovi",
       "state": "⏳"
     },
     {
@@ -141,7 +141,7 @@
     {
       "id": "G12",
       "request": "Packaging Windows Development **e** Shipping",
-      "state": "✅ **2026-08-10** (CP 12.5): Development 916 MB · Shipping 569 MB, entrambi `BUILD SUCCESSFUL`"
+      "state": "✅ **2026-08-16** (#923): `BUILD SUCCESSFUL`, un cook e due binari · Development 336 MB · Shipping 167 MB · `.pak` 10,8 MB"
     },
     {
       "id": "G13",

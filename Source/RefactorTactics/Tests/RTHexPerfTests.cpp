@@ -16,6 +16,12 @@
 #include "Ability/RTActionData.h"
 #include "Combat/RTHexCombatLibrary.h"
 
+// La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
+// distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
+// Aggiunta con #923, dopo che lo stesso difetto ha rotto la build Shipping due volte (2026-08-09 e
+// 2026-08-15) senza che la suite, che gira sul target Editor, se ne accorgesse.
+#if WITH_DEV_AUTOMATION_TESTS
+
 /**
  * Misura dei budget di performance (KPI del PDR: path < 2 ms, resolver < 100 ms/turno).
  *
@@ -258,3 +264,8 @@ bool FRTHexPlanningPreviewPerfTest::RunTest(const FString&)
 		P90 < 500.0);
 	return true;
 }
+
+// Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
+// invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
+// `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+#endif // WITH_DEV_AUTOMATION_TESTS
