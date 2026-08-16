@@ -196,9 +196,14 @@ validazione · serializzazione/replay · privacy intenti.
 - **Il repository ha due toolchain, e nessuna gira in CI**: Python in `scripts/` (`check-docs-links.py`,
   `check-docs-symbols.py`, `check-docs-tables.py`, `feature_registry.py`) e **Node 22** in `tools/radar/` — rubrica dei rating e
   generatore SVG dei radar di personaggio. I gate si eseguono **a mano**, ed è una scelta:
-  `.github/` **non esiste**, e la sua assenza è deliberata. *(Precisato il 2026-08-12: questa riga diceva
-  «è vuota», che è diverso e induce a cercare una cartella che non c'è. Non introdurre CI, package manager o
-  build step senza chiedere: `tools/radar/` ha **zero dipendenze** apposta.)*
+  **`.github/workflows/` non esiste, e la sua assenza è deliberata.** Non introdurre CI, package manager o
+  build step senza chiedere: `tools/radar/` ha **zero dipendenze** apposta.
+  *(Corretto il 2026-08-16: la riga diceva «`.github/` non esiste», e dal 2026-08-16 è falsa —
+  `.github/ISSUE_TEMPLATE/` esiste e precompila il blocco `## Tracking`. La decisione proteggeva la **CI**,
+  non la cartella, e l'oracolo che la verificava — `git ls-tree … -- .github/` in
+  [`qa-prompt-terminal-b`](docs/technical/qa-prompt-terminal-b-scenario-runner.md) — è stato ristretto a
+  `workflows/` nello stesso commit. Un template non esegue niente; un workflow sì. Precedente del
+  2026-08-12: diceva «è vuota», che induceva a cercare una cartella inesistente.)*
 - ⚠️ **`tools/radar/` non è solo documentazione.** I rating si calcolano dai cataloghi di bilanciamento
   ([D-106](docs/decisions/RT_PDR_00_Decision_Log.md)), quindi cambiare `Salute`, un danno o un cooldown
   rende rossi gli SVG versionati finché non li rigeneri **nello stesso commit**
@@ -215,6 +220,24 @@ validazione · serializzazione/replay · privacy intenti.
 DoD applicabile: compila Game+Editor · test mirati + regressione pertinente · determinismo/authority/privacy
 preservati · TurnLog/reason code sufficienti · docs aggiornate · nessun warning/file generato/secret nuovo ·
 verifica packaged quando richiesta dal checkpoint.
+
+## Issue: il Tracking Impact Pass
+
+Una Issue non è un elemento isolato. Quando ne **crei, spezzi o modifichi nella sostanza** una, il resto del
+progetto ne registra gli effetti: milestone/epic, Feature Map, Scenario Map, test, Editor Map, asset,
+content/data, Wiki/docs, ADR/Decision, UI/UX, debug/observability, dipendenze.
+
+> **CREATE OR LINK, NEVER IGNORE.** Cerca prima un elemento esistente, collegalo, aggiornalo se lo scope
+> cambia, crealo solo se manca davvero, e dichiara `N/A` quando non si applica.
+
+Il blocco `## Tracking` è precompilato da [`.github/ISSUE_TEMPLATE/task.md`](.github/ISSUE_TEMPLATE/task.md):
+`N/A` è valido, un campo cancellato no. Non inventare voci per riempire un campo — un duplicato sporca le
+viste generate e si trova due volte.
+
+Il pass si **riesegue prima di chiudere**: una Issue chiusa con tracking incoerenti è incompleta.
+
+Regola completa, con le dodici categorie e cosa scrivere in ciascuna:
+[`docs/technical/issue-tracking-completeness.md`](docs/technical/issue-tracking-completeness.md).
 
 ## Git
 

@@ -291,7 +291,7 @@ grep -n 'TEXT("rt\.' Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp
 # QUATTRO valori. Leggi l'enum, non la spec: la spec §6 ne argomenta tre.
 sed -n '/enum class ERTTestOutcome/,/};/p' Source/RefactorTactics/ScenarioHarness/RTTestScenario.h
 
-git ls-tree -r --name-only origin/main -- .github/            # deve essere vuoto
+git ls-tree -r --name-only origin/main -- .github/workflows/  # deve essere vuoto
 grep -rln "TestAgent\|AIAgent\|AiAgent" Source/ docs/         # deve essere vuoto
 git diff --name-only origin/main...origin/<branch>            # write-set di un branch
 ```
