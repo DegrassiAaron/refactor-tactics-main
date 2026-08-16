@@ -25,7 +25,11 @@ Un vertical slice **2v2 offline contro bot** su griglia **esagonale multilivello
 - **coperture direzionali e strutture** (porte, ponti, pannelli) che cambiano la topologia;
 - **obiettivi dinamici** e fine partita a più vie (eliminazione · obiettivo · `RoundLimit`, parametro di formato — **10–14** round in 2v2, valore iniziale 12);
 - **HUD** con intenti alleati e certezza (confermato / previsto / incerto), **combat log** e comandi `rt.Debug.*`;
-- **determinismo verificato** (100 ripetizioni a seed fisso, checksum identico) e **build packaged** giocabile.
+- **determinismo verificato** (100 ripetizioni a seed fisso, checksum identico) e **build packaged** giocabile;
+- **shell di frontend** — `Main Menu → Play → partita → Result → Quit`, più pausa, loading ed error modal
+  (**E46**, aggiunta il 2026-08-16 con [D-144](../decisions/RT_PDR_00_Decision_Log.md)). ⚠️ Questa voce è
+  entrata **dopo** le altre, ed è la ragione per cui la §1 va riletta quando nasce un'epic: il precedente è
+  del 2026-08-08, quando questa lista fu corretta perché *«letta com'era, escludeva un'epic pianificata»*.
 
 **Fuori scope v0.1** (restano north-star): multiplayer in rete, 4v4, GAS, progressione, modding, editor di
 mappe dinamico a runtime.
@@ -180,6 +184,15 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E20** HUD Icon Language | 🟡 **parziale** | 5 test `IconCatalog.*` — ogni chiave risolve, l'ID duplicato e la chiave assente sono **errori di validazione**, la chiave sconosciuta cade sul fallback · ⏳ i widget non consumano ancora il catalogo |
 | **E21** Presentazione e leggibilità | 🟡 **parziale** | 4 test `Unit.*` (anello, colore di squadra, posa sul centro-cella, nome breve) + 4 `Camera.*` · ⏳ il grosso è **lavoro in editor** — mesh, animazioni, materiali — che non è testabile headless: vive nelle voci PIE della sessione C |
 
+| **E46** Frontend shell e ciclo di partita | ⬜ **non iniziata** | Zero test e zero codice, misurato il 2026-08-16: nessun asset `WBP_*` in `Content/`, e i **nove** file di `Source/RefactorTactics/UI/` sono tutti in-match. Le quattro feature `RT-FEAT-UI-FRONTEND-*` sono `SPECIFIED` — spec scritta, niente runtime — e il gate `automation` nasce `todo` perché il repository **non ha infrastruttura di test UI**: la verifica è PIE, stesso regime di E21. ⚠️ È l'unica epic della v0.1 a nascere senza una sola riga di evidenza, ed è corretto che si veda: la colonna «Evidenza» esiste per questo |
+
+> 🔴 **E46 è stata aggiunta a questa tabella solo dopo una code review**, il 2026-08-16 — la vista generata
+> `roadmap.shortlist.md` la mostrava già come *«senza stato dichiarato nell'owner»*, cioè il generatore
+> aveva ragione e il consolidamento che ha creato l'epic non l'aveva letta. È **la stessa forma** del buco
+> registrato qui sotto per E18–E21: chi aggiunge un'epic scrive §3 e §5 — dove serve al lavoro — e dimentica
+> §2.1, che è la sola vista dello **stato**. Due volte in otto giorni: non è distrazione, è che nessun gate
+> confronta l'insieme delle epic di §3 con quello di §2.1.
+
 > ⚠️ **Aggiunte il 2026-08-09.** Queste quattro righe **mancavano**: E18–E21 erano in §3 e in §5 ma non
 > in questa tabella, l'unica vista dello stato delle epic. Il buco non era visibile finché
 > `feature_registry.py shortlist` non ha dovuto leggere lo stato di ogni epic e ha dichiarato quali non
@@ -257,7 +270,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 |  | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | RELEASE_READY | 6/7 |
 |  | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | IMPLEMENTING | 1/8 |
 |  | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | IMPLEMENTING | 1/7 |
-|  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 1/6 |
+|  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 2/6 |
 |  | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse — completata da `RT-FEAT-UI-CERTAINTY` | IMPLEMENTING | 3/7 |
 | **E12** | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | INTEGRATED | 6/8 |
 |  | `RT-FEAT-CORE-TURNLOG` — TurnLog, reason code, hash e replay | RELEASE_READY | 7/8 |
@@ -273,10 +286,10 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/9 |
 |  | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | SPECIFIED | 1/10 |
 |  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/10 |
-|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | SPECIFIED | 1/10 |
+|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | TESTABLE | 5/10 |
 |  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/10 |
-|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 3/10 |
-|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | IMPLEMENTING | 2/10 |
+|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 4/10 |
+|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | TESTABLE | 5/10 |
 |  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/9 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
@@ -286,6 +299,10 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
+| **E46** | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | SPECIFIED | 1/5 |
+|  | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | SPECIFIED | 1/6 |
+|  | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | SPECIFIED | 1/5 |
+|  | `RT-FEAT-UI-FRONTEND-SHELL` — Frontend root, navigation controller e stati comuni | SPECIFIED | 1/6 |
 
 > ⚠️ **Feature con una release e senza epic** — lavoro dentro lo scope di una release che nessuna
 > epic copre e che nessuno ha dichiarato fuori scope.
@@ -359,7 +376,22 @@ silenzio.
 | **E20** | HUD Icon Language | P2 | 3 | Le icone sono un **catalogo semantico**, non texture referenziate nei widget: E11 costruisce l'HUD adesso, e riscrivere ogni widget dopo costa più del file di dati in più ([D-031](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E21** | Presentazione e leggibilità | P1 | 3 | Il gioco smette di essere cilindri colorati. Era l'unico lavoro **dentro** lo scope di release che nessuna epic copriva: viveva solo nella milestone M8, e il Feature Registry lo ha reso visibile il 2026-08-08 |
 
-**Totale: 21 epic, 100 checkpoint**
+| **E46** | Frontend shell e ciclo di partita | P1 | 6 | Una build che avvia **direttamente in partita** e non offre modo di iniziarla, riavviarla o uscirne non è un vertical slice consegnabile: è un eseguibile che carica una mappa. ⚠️ **È scope nuovo, dichiarato come tale** ([D-144](../decisions/RT_PDR_00_Decision_Log.md)) — la prima stesura di questa riga diceva che completava `G13`, ed era **falso**: le due riserve di `G13` sono *dati* (mappa d'autore via `PIE-V01-ARENA`, e la via a punti mai esercitata), e nessuna delle due è di E46. Nessun gate della v0.1 richiede questa epic. Le sezioni DEV/TEST del menu — Scenario Browser/Detail/Runner UI, Bot Simulation — restano **fuori** perché sono tooling già classificato `out_of_release_scope`. ⚠️ D-144 portava una **seconda** ragione — nessun catalogo scenari nel pacchetto — e non regge più: [`#935`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935) ha chiuso quella causa di `#926` lo stesso 2026-08-16, e gli scenari ora entrano nel pak |
+
+**Totale: 22 epic, 106 checkpoint**
+
+> 🔴 **Il totale ha cinque copie vive, e aggiungere un'epic ne aggiorna una sola.** Misurato il 2026-08-16
+> con `grep -rn "21 epic" docs/` — il comando che
+> [`../archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md`](../archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md)
+> registra come canonico: l'aggiunta di **E46** aveva lasciato indietro `roadmap.shortlist.md` (riga di prosa
+> **fuori** dai marker generati, quindi invisibile a `--check`), due righe di
+> [`roadmap-checkpoint.md`](roadmap-checkpoint.md) — una delle quali dichiara *«questa riga è una copia»* — e
+> `docs/README.md`. Le prime tre sono allineate qui; **`docs/README.md` no**, e non per dimenticanza: non è
+> nel `writable` di nessuna track di [`parallel-batch.yaml`](parallel-batch.yaml), e D-139 dice che un file
+> non assegnato è uno **stop**. Dichiara `21 epic, 100 checkpoint` e va corretto da chi lo possiede.
+> ⚠️ Il difetto non è aritmetico ed è lo stesso della nota qui sotto, un gradino più su: là divergevano §3 e
+> §5 *dentro* questo file, qui diverge questo file dalle sue quattro copie. **Nessun gate confronta un
+> totale in prosa con la sua fonte.**
 
 > 🔁 **Rimisurato il 2026-08-12, e tre celle di questa colonna erano ferme.** Il totale precedente — «95» —
 > era la somma **corretta** della colonna `CP`, ma la colonna aveva smesso di seguire la §5: tre epic
@@ -1557,6 +1589,64 @@ con i tre checkpoint [#287](https://github.com/DegrassiAaron/refactor-tactics-ma
 incrociando le issue aperte con la §3 di questo file, ed esisteva perché l'epic è nata da una tabella
 generata invece che da una sessione di pianificazione. Il numero `E21` è stato conteso — vedi
 [D-039](../decisions/RT_PDR_00_Decision_Log.md).
+
+---
+
+### E46 — Frontend shell e ciclo di partita · P1
+
+**Perché esiste** *(2026-08-16, [D-144](../decisions/RT_PDR_00_Decision_Log.md))*. Il gate **G13** chiede
+*«partita giocabile senza editor dalla build packaged»* ed è 🟡 dal 2026-08-10 con la riserva già scritta
+nella DoD: il pacchetto avvia su `MapSource=GeneratedTestArena`, *«e una build che avvia sull'arena di
+prova soddisfa la lettera ma non la cosa»*. Fra una build **eseguibile** e una **giocabile** manca un
+solo pezzo, ed è questo.
+
+Non finisce in **E11** per la stessa ragione per cui E21 non ci finisce: E11 è l'HUD **in-match** — che
+ha già i suoi otto checkpoint e i suoi nomi UMG decisi a CP 11.7 — mentre qui si parla di ciò che esiste
+**prima e dopo** la partita. Il principio è del documento sorgente ed è giusto: `Frontend != In-Match
+HUD`. I due strati non condividono root: `WBP_RT_FrontendRoot` non è `WBP_RT_TacticalHUD`.
+
+**L'assenza è misurata**, non supposta (2026-08-16, `4ab36b48`): zero asset `WBP_*` in `Content/`, sei
+file in `Source/**/UI*` tutti in-match, nessuna epic frontend fra E1–E45, zero occorrenze di *menu* o
+*frontend* in `roadmap-post-v0.1.md`.
+
+| CP | Obiettivo | DoD misurabile | Test / verifica |
+|---|---|---|---|
+| **46.1** | Frontend root e **navigation controller** | Un solo owner del flow espone `PushScreen`, `PopScreen`, `ShowModal`, `CloseModal`, `ReturnMain`; nessun widget chiama `CreateWidget`/`AddToViewport`/`RemoveFromParent` di propria iniziativa — verificabile con `grep -rn "AddToViewport\|RemoveFromParent" Source/` che non deve produrre occorrenze fuori dal controller. Back stack esplicito: da ogni schermata `Back` risale a quella che l'ha spinta, e la radice non ha `Back`. ⚠️ **Non possiede il `Modal` del `PlayerController`**: quello è di CP 11.8, che **dichiara** sette contesti e la precedenza `Modal/Reaction UI > HUD > world` — dichiarata e non ancora implementata (delta (c) di quel checkpoint) — sono due strati, e il frontend non ne eredita l'autorità | ⏳ `PIE-V01-FRONTEND-NAV` (da creare) |
+| **46.2** | **Loading** e **error modal** | Loading mostra un messaggio di fase reale (`Loading map…`, `Initializing scenario…`) e **nessuna percentuale**, perché non esiste un progress model da cui derivarla. L'error modal porta *causa leggibile* + `Back`; `Details`/`Copy debug info` esistono **solo** in Development. Nessun percorso di errore lascia la UI in uno stato senza uscita | ⏳ `PIE-V01-FRONTEND-ERROR` (da creare) |
+| **46.3** | **Main Menu** | `PLAY · SETTINGS · QUIT` a schermo, navigabili da mouse **e** tastiera, con focus visibile che non dipende dal solo colore. `SETTINGS` in v0.1 può aprire un pannello vuoto dichiarato *coming soon*: la voce esiste perché il back stack la attraversi, il suo contenuto è v0.2. Version/build label leggibile. Avvio del gioco packaged sul Main Menu, non su una mappa | ⏳ `PIE-V01-FRONTEND-MAIN` (da creare) |
+| **46.4** | **Play → partita esistente** | `PLAY` avvia il vertical slice 2v2 **senza** aggiungere un secondo percorso di avvio: usa `ARTGameMode` e il formato `Format.Skirmish2v2` **spedito da C++** dal commit `9f44570d` (*«spedito col gioco, non un asset da creare»*), non una configurazione parallela. ⚠️ Una stesura precedente attribuiva quel lavoro a `#375`: è una PR sul **determinismo del checksum**, e il riferimento risolveva perché GitHub redirige `issues/375` → `pull/375` — un link sano con l'etichetta falsa, che `check-docs-links.py` non può vedere. Match Setup v0.1 è **preconfigurato** — non c'è nulla da scegliere finché esiste un solo formato e una sola mappa. La transizione passa da 46.2 | ⏳ `PIE-V01-FRONTEND-PLAY` (da creare) |
+| **46.5** | **Result** → Main Menu / Play Again | A fine partita compare esito, vincitore e numero di round, **letti dal risultato canonico**: la UI non ricalcola nulla e non decide chi ha vinto — la condizione di fine è di E10 e il TurnLog ne è il registro. `Play Again` ripercorre 46.4; `Main Menu` torna alla radice svuotando il back stack | ⏳ `PIE-V01-FRONTEND-RESULT` (da creare) |
+| **46.6** | **Pause** | `ESC` in partita apre `RESUME · SETTINGS · RETURN TO MAIN MENU`. `Return to Main Menu` smonta la partita e torna alla radice senza lasciare stato vivo — verificabile riavviando una partita subito dopo e ottenendo lo stesso esito a parità di seed. ⚠️ **La pausa è offline-only per costruzione**: in multiplayer non esisterà una pausa globale ([v0.5, E40](roadmap-post-v0.1.md)), quindi il pulsante non entra in un contratto condiviso col futuro codice di rete | ⏳ `PIE-V01-FRONTEND-PAUSE` (da creare) |
+
+> ⚠️ **Nessuno dei sei checkpoint ha oggi un test automatico possibile, ed è dichiarato invece che
+> sottinteso.** Il repository non ha infrastruttura di test UI — non esiste una suite che istanzi un
+> widget e ne verifichi la navigazione — quindi il gate `automation` delle feature `RT-FEAT-UI-FRONTEND-*`
+> nasce `todo` e la verifica è **manuale in PIE**. È lo stesso regime di E21, e per la stessa ragione:
+> *«quello che manca è il lavoro in editor, che nessun test automatico può chiudere»*.
+>
+> 🔴 **Le sei voci `PIE-V01-FRONTEND-*` non sono state create da questo consolidamento, e non per
+> dimenticanza**: [`test-manuali-pie.md`](../technical/test-manuali-pie.md) è nel `writable` della track
+> **`playtest`** — *«l'autore davanti a Unreal»* — secondo [`parallel-batch.yaml`](parallel-batch.yaml), e
+> D-139 dice che un file non assegnato è uno **stop**, non una «piccola fix».
+> ⚠️ **La procedura non è aspettare**, ed è la track stessa a dirlo: *«le altre track producono, questa
+> giudica — chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone**
+> in handoff»*. Le sei voci si propongono quando il primo checkpoint produce qualcosa da guardare; oggi non
+> c'è nulla da verificare, perché E46 è `SPECIFIED`.
+> *(Questo paragrafo attribuiva il file a `content_editor` su `#451`: vero fino al 2026-08-16, quando la
+> track `playtest` è nata per dargli un proprietario stabile. Era rimasto indietro rispetto alle correzioni
+> applicate negli altri documenti — trovato in code review.)*
+> Fino ad allora i sei DoD nominano verifiche che il registro **non contiene**: è un debito, ed è scritto
+> qui perché non si scopra al momento di chiudere un checkpoint.
+
+**Rischi**. *(a)* È la **22ª epic** di una release in chiusura: il rischio di ampiezza della v0.1 (§8) era
+già alto prima di questa riga. *(b)* Il confine con CP 11.8 va tenuto — un navigation controller che
+cominci a decidere la precedenza dell'input duplicherebbe un contratto già **scritto** — e ancora da
+implementare: la precedenza è il delta **(c)** di CP 11.8, non una sua parte consegnata (la nota di CP 11.8
+qui sopra: *«oggi **ogni** click passa al mondo»*). ⚠️ Una stesura precedente di questa riga la diceva
+«coperta da dieci test `PlayerInput.*`»: falso, misurato —
+`grep -rn "HUDConsumesPointerBeforeWorld\|ReactionWindowOwnsInputPriority" Source/` → **zero**. I dieci
+test che esistono coprono bersaglio, facing, Back e ghost. *(c)* `CommonUI` resta **fuori e non deciso**: quattro sorgenti archiviati lo rimandano
+*«dopo proof of concept»* e nessuno di essi è normativo.
 
 ---
 

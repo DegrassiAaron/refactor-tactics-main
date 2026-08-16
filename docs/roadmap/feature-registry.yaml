@@ -4254,6 +4254,174 @@ features:
       ambiguo, catena di redirect. Fuori dalla vista di release **per decisione dichiarata**
       (2026-08-08), non per dimenticanza: vedi `out_of_release_scope`.
 
+  # ─── Frontend (E46) ──────────────────────────────────────────────────────────
+  # Nate il 2026-08-16 con D-144. Prefisso `RT-FEAT-UI-FRONTEND-*` e non
+  # `RT-FEAT-UI-SCENARIO-*`: quel nome e' gia' occupato da una cosa diversa — l'indice C++
+  # di #209, che non e' un widget. Vedi `plans/menu-frontend-spec-panel-2026-08-16.md` §4.1.
+  # `automation: todo` per tutte e quattro, e non e' pigrizia: il repository non ha
+  # infrastruttura di test UI, quindi la verifica e' PIE. Stesso regime di E21.
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - feature_id: RT-FEAT-UI-FRONTEND-SHELL
+    title: Frontend root, navigation controller e stati comuni
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P1
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: na
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: na
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E46
+      checkpoints: ["46.1", "46.2"]
+    dependencies: []
+    owner_specs:
+      - docs/technical/spec-frontend-navigazione.md
+    issues: [936, 937]
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      Un solo owner del flow (`PushScreen`/`PopScreen`/`ShowModal`/`CloseModal`/`ReturnMain`) piu'
+      loading ed error modal. Il criterio del gate `runtime` e' verificabile con un grep:
+      `AddToViewport`/`RemoveFromParent` non devono comparire fuori dal controller.
+      ⚠️ **Non possiede il contesto `Modal` del `PlayerController`**: quello e' di CP 11.8
+      (`RT-FEAT-UI-POINTER-INTERACTION`), che ha gia' sette contesti e la precedenza
+      `Modal/Reaction UI > HUD > world` **dichiarata** — e non ancora implementata: e' il delta (c) di
+      quel checkpoint, misurato (`grep -rn "HUDConsumesPointerBeforeWorld" Source/` → zero). Sono due strati, e
+      la sovrapposizione e' il rischio principale di questa feature.
+      `data: na` perche' non introduce data asset; `scenario: na` perche' nessuno scenario copre
+      la navigazione di menu; `replay_representable: na` perche' il frontend non e' in partita.
+
+  - feature_id: RT-FEAT-UI-FRONTEND-MAIN-MENU
+    title: Main Menu, e l'avvio del pacchetto
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P1
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: na
+      runtime: todo
+      log_debug: na
+      automation: todo
+      scenario: na
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E46
+      checkpoints: ["46.3"]
+    dependencies:
+      - RT-FEAT-UI-FRONTEND-SHELL
+    owner_specs:
+      - docs/technical/spec-frontend-navigazione.md
+    issues: [938]
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      `PLAY · SETTINGS · QUIT`, navigabili da mouse **e** tastiera, con focus che non dipende dal
+      solo colore. E' la feature che rende **verificabile il gate G13**: oggi il pacchetto avvia su
+      `MapSource=GeneratedTestArena` e la DoD annota che *«una build che avvia sull'arena di prova
+      soddisfa la lettera ma non la cosa»*. `SETTINGS` in v0.1 apre un pannello dichiarato *coming
+      soon* — la voce esiste perche' il back stack la attraversi, il contenuto e' v0.2.
+      `packaged: todo` e' qui il gate che conta piu' degli altri: la verifica di G13 e' **sul
+      pacchetto**, non in PIE.
+
+  - feature_id: RT-FEAT-UI-FRONTEND-MATCH-FLOW
+    title: Play, Result e il ritorno al menu
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P1
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: na
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: na
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E46
+      checkpoints: ["46.4", "46.5"]
+    dependencies:
+      - RT-FEAT-UI-FRONTEND-SHELL
+      - RT-FEAT-MATCH-FORMAT
+      - RT-FEAT-MATCH-END-CONDITIONS
+    owner_specs:
+      - docs/technical/spec-frontend-navigazione.md
+    issues: [939, 940]
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      `PLAY` avvia il vertical slice usando `ARTGameMode` e `Format.Skirmish2v2`, **spedito da C++** dal
+      commit `9f44570d`: non un secondo percorso di avvio costruito dalla UI. (⚠️ Una stesura precedente
+      citava `#375`, che e' una PR sul determinismo del checksum: riferimento corretto in code review.) Match Setup v0.1
+      e' **preconfigurato** — con un solo formato e una sola mappa un selettore fingerebbe una scelta.
+      ⚠️ **La UI non ricalcola il risultato**: esito e vincitore sono letti dal risultato canonico
+      (`RT-FEAT-MATCH-END-CONDITIONS`), che e' la dipendenza dichiarata sopra. Un secondo calcolo nel
+      widget sarebbe una seconda autorita' che puo' divergere.
+      Fuori da questa feature per decisione dichiarata: **Briefing** (v0.2), **replay** (gia' #472),
+      **TurnLog a schermo** (CP 11.3, in-match) e le **assertion di scenario** (UI DEV/TEST, fuori release
+      perche' tooling — ⚠️ **non piu' «dietro #926»**: quella issue e' chiusa dal 2026-08-15, entrambe le
+      cause. Era il decimo punto rimasto sulla premessa vecchia, trovato in code review).
+
+  - feature_id: RT-FEAT-UI-FRONTEND-PAUSE
+    title: Pause, e lo smontaggio della partita
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P1
+    status: SPECIFIED
+    gates:
+      spec: done
+      data: na
+      runtime: todo
+      log_debug: na
+      automation: todo
+      scenario: na
+      ui_wiki: todo
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E46
+      checkpoints: ["46.6"]
+    dependencies:
+      - RT-FEAT-UI-FRONTEND-SHELL
+    owner_specs:
+      - docs/technical/spec-frontend-navigazione.md
+    issues: [941]
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      `RESUME · SETTINGS · RETURN TO MAIN MENU`. Il DoD del ritorno al menu e' **verificabile invece
+      che dichiarato**: si riavvia una partita con lo stesso seed e l'esito deve coincidere con quello
+      di una partita avviata da fresco — se diverge, qualcosa e' sopravvissuto allo smontaggio.
+      ⚠️ **La pausa e' offline-only per costruzione, e la differenza va preservata nell'architettura**:
+      in v0.5 (E40, turno simultaneo in rete) non esistera' una pausa globale, e cio' che la sostituira'
+      — `Surrender`/`Leave Match` — ha un'altra semantica. Scoprirlo in v0.5 costerebbe un refactor del
+      flow; dichiararlo adesso costa questa riga.
+
   # ─────────────────────────────────────────────────────────────────────────────
   # H. Characters / content
   # ─────────────────────────────────────────────────────────────────────────────

@@ -38,8 +38,11 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
 | **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
+| **E46** | — | 4 | 4/22 | — |
 
-**21 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
+**22 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
+
+> ⚠️ **Senza stato dichiarato nell'owner**: **E46**. §2.1 non le copre — non è una svista di questa vista, è una riga che manca là.
 
 <!-- RT_SHORTLIST_EPICS:END -->
 
@@ -65,7 +68,9 @@ tabella sopra, che è generata.
 | 10 | Prova finale | E15 · CP 15.3–15.5 (golden replay degli 8 turni) · E17 stress 4v4 · E19 formato |
 | 11 | Release | E12 determinismo, QA, packaging |
 
-**Totale: 21 epic, 100 checkpoint.** Il collo di bottiglia dichiarato non è il codice di gioco: è la
+**Totale: 22 epic, 106 checkpoint** *(rimisurato il 2026-08-16 con E46; ⚠️ questa riga è **fuori** dai
+marker `RT_SHORTLIST_EPICS` — è prosa a mano dentro un file generato, quindi nessun `--check` la
+confronta con la sorgente)*. Il collo di bottiglia dichiarato non è il codice di gioco: è la
 **verifica interattiva** — il playtest E2.8/M6.8 non è mai stato eseguito.
 
 ---
