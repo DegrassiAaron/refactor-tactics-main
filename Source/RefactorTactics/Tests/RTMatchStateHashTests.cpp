@@ -402,11 +402,20 @@ bool FRTChecksumSeesStructureIdentityTest::RunTest(const FString&)
 	//    codice al commento.
 	//
 	//    Lo stato vero, oggi: **nessuno verifica che il nome entri come testo e non come indice.** Un
-	//    `Mix(GetTypeHash(Name))` passerebbe l'intera suite. E c'e' un secondo buco nella stessa
-	//    funzione — `MixName` usa `ToString()`, che in build packaged non preserva il case
-	//    (`WITH_CASE_PRESERVING_NAME` = `WITH_EDITORONLY_DATA`), quindi dipende dall'ordine di
-	//    caricamento. Entrambi sono aperti su **#986**, con la misura accanto. Finche' quella issue e'
-	//    aperta, questa riga dice cosa manca invece di far credere che sia coperto.
+	//    `Mix(GetTypeHash(Name))` passerebbe l'intera suite — anche dopo #986, e vale la pena dire
+	//    **perche'**: quella mutazione non e' intercettata da nessuno dei casi nuovi. Il comparison index
+	//    di `FName` e' gia' case-insensitive, quindi passerebbe il caso sull'ortografia; ed e' diverso per
+	//    nomi diversi, quindi passerebbe anche il confine `{"AB"}` vs `{"A","B"}`. Resta non falsificabile
+	//    dentro un processo, per la ragione scritta due paragrafi sopra.
+	//
+	//    🔵 **Il SECONDO buco invece e' chiuso, e questa riga e' stata riscritta perche' diceva il
+	//    contrario.** Fino al merge di #986 qui si leggeva *«entrambi sono aperti su #986 … finche' quella
+	//    issue e' aperta, questa riga dice cosa manca»*: la issue e' stata chiusa e la riga e' rimasta a
+	//    dichiarare scoperto cio' che nello stesso commit era stato coperto. E' lo stesso difetto che #986
+	//    era venuta a chiudere — un commento che sopravvive al lavoro che descrive — trovato su se' stesso
+	//    un'ora dopo. `MixName` ora normalizza con `ToLower()` e mescola la lunghezza:
+	//    `ChecksumTreatsStructureIdentityCaseInsensitively` e `ChecksumSeesStatusBoundaries` lo pinnano,
+	//    ed entrambi cadono se si tocca la funzione (verifica di mutazione in #986).
 
 	// 5. Gli ARCHI, non le sole porte: lo scope di #832 dice «archi e non solo porte, sono lo stesso
 	//    problema di identita'». Un ponte nominato e uno anonimo non sono lo stesso stato di mappa.
