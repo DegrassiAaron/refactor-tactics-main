@@ -1263,6 +1263,15 @@ bool FRTShowcaseDecisionSourceTest::RunTest(const FString&)
 	// Il manager esiste prima della session: e' cosi' che un test binda PRIMA e vince. `SetUp` riusa il
 	// manager gia' presente invece di spawnarne un altro, quindi trova lo slot occupato.
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	// `FRTScenarioSession::Start` tratta lo stesso spawn come fallibile («impossibile creare il turn
+	// manager»): senza guardia qui il fallimento sarebbe un dereference nullo che abbatte la RUN, invece di
+	// un test rosso con un motivo.
+	if (!TM)
+	{
+		AddError(TEXT("turn manager non creabile"));
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
 	int32 Interrogato = 0;
 	TM->ReactionDecider.BindLambda([&Interrogato](const FRTReactionOpportunity&, int32) -> FString
 	{
@@ -1484,6 +1493,100 @@ bool FRTShowcaseDecisionRejectedTest::RunTest(const FString&)
 	// E il rifiuto non deve essere confuso col residuo: entrambe le decisioni sono state consumate.
 	TestEqual(TEXT("entrambe le decisioni consumate"), Result.ScriptedDecisionsApplied, 2);
 	TestEqual(TEXT("nessun residuo"), Result.ScriptedDecisionsUnused, 0);
+	return true;
+}
+
+/**
+ * Uno scenario che non scripta nulla deve LASCIARE IL SEAM COM'ERA, e il delegate non deve sopravvivergli.
+ *
+ * Trovato in code review, ed erano due difetti nello stesso punto:
+ *
+ * 1. bindare sempre zittiva il bot. `AskReactionDecision` raggiunge `URTHexBotLibrary::DecideReactionResponse`
+ *    **solo** se il delegate non e' legato — «il decisore iniettato ha la precedenza su tutto, bot compreso»
+ *    — quindi un'unita' del bot con un Overwatch armato avrebbe smesso di reagire in ogni scenario. E per un
+ *    proprietario umano la voce del TurnLog sarebbe passata da `HoldNoDecider` a `HoldTimeout`: una
+ *    differenza di BYTE per il corpus golden;
+ * 2. `BindRaw(this, ...)` lascia un puntatore grezzo in un delegate posseduto dall'ATTORE, che sopravvive
+ *    alla sessione. `URTScenarioRunner::Run` usa `RunSingle(..., bTearDownAfter=false)`: la sessione e' una
+ *    locale che muore al `return`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDeciderLifetimeTest,
+	"RefactorTactics.ShowcaseRelay.UnscriptedScenarioLeavesTheSeamAlone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDeciderLifetimeTest::RunTest(const FString&)
+{
+	auto Costruisci = [](const TCHAR* Id, bool bConDecisioni)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = Id;
+		S.MapRadius = 5;
+		auto U = [](const TCHAR* UId, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+		{
+			FRTScenarioUnit X; X.Id = UId; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+			return X;
+		};
+		S.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+		S.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+		FRTScenarioTurn T;
+		FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia");
+		Arma.Ability = FName(TEXT("Action.Overwatch"));
+		T.Intents.Add(Arma);
+		FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+		Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+		T.Intents.Add(Corre);
+		if (bConDecisioni)
+		{
+			for (int32 i = 0; i < 2; ++i)
+			{
+				FRTScenarioDecision D; D.Unit = TEXT("Guardia"); D.Respond = TEXT("HOLD");
+				T.Decisions.Add(D);
+			}
+		}
+		S.Turns.Add(T);
+		FRTTestExpectation E;
+		E.Kind = ERTAssertionKind::TurnsCompleted;
+		E.Value = 1;
+		S.Expect.Add(E);
+		return S;
+	};
+
+	// ⚠️ **Un mondo per esecuzione, e non e' pignoleria.** Senza `TearDown` — che `RunSingle` non chiama sul
+	// percorso normale — le unita' del primo scenario restano nel mondo: un secondo `Run` ne troverebbe il
+	// doppio e gli indici di risoluzione non tornerebbero. E' una proprieta' dell'harness che precede questa
+	// feature; qui si evita usando due mondi, come fa `RunScenarioIsolated`.
+	auto Esegui = [this](const FRTTestScenario& Scenario, bool& bOutSeamLegatoDopo)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!World) { AddError(TEXT("mondo non creabile")); return FRTTestResult(); }
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM)
+		{
+			AddError(TEXT("turn manager non creabile"));
+			RTWorldFixtures::DestroyWorld(World);
+			return FRTTestResult();
+		}
+		const FRTTestResult R = URTScenarioRunner::Run(World, Scenario);
+		// Letto PRIMA di distruggere il mondo: e' l'istante in cui un delegate sopravvissuto si vedrebbe.
+		bOutSeamLegatoDopo = TM->ReactionDecider.IsBound();
+		RTWorldFixtures::DestroyWorld(World);
+		return R;
+	};
+
+	// Senza `decisions`: il seam non va toccato, o il bot smette di reagire e il TurnLog cambia byte.
+	bool bLegatoDopoMuto = true;
+	const FRTTestResult Muto = Esegui(Costruisci(TEXT("Internal.Unscripted"), false), bLegatoDopoMuto);
+	TestEqual(TEXT("uno scenario senza decisioni non dichiara una sorgente"),
+		Muto.DecisionSource, FString(TEXT("none")));
+	TestFalse(TEXT("e non lascia il seam legato"), bLegatoDopoMuto);
+
+	// Con `decisions`: la sessione binda, risponde, e a esecuzione finita NON resta legata — la sessione e'
+	// una locale dentro `RunSingle`, e senza il distruttore il delegate punterebbe a memoria morta.
+	bool bLegatoDopoScriptato = true;
+	const FRTTestResult Scriptato = Esegui(Costruisci(TEXT("Internal.Scripted"), true), bLegatoDopoScriptato);
+	TestEqual(TEXT("uno scenario con decisioni dichiara di aver risposto"),
+		Scriptato.DecisionSource, FString(TEXT("scenario")));
+	TestEqual(TEXT("e le ha applicate"), Scriptato.ScriptedDecisionsApplied, 2);
+	TestFalse(TEXT("ma il delegate non sopravvive alla sessione"), bLegatoDopoScriptato);
 	return true;
 }
 

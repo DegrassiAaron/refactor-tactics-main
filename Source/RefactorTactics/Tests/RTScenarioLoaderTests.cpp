@@ -41,7 +41,7 @@ namespace
 	const TCHAR* ScenarioLoaderDecisionsJson = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Decisions.Parse",
-	  "version": 1,
+	  "version": 2,
 	  "mapRadius": 3,
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] },
@@ -668,7 +668,7 @@ bool FRTScenarioLoaderDecisionsRejectTest::RunTest(const FString&)
 	{
 		const FString Json = FString::Printf(TEXT(R"JSON(
 		{
-		  "scenarioId": "Spec.Decisions.Reject", "version": 1, "mapRadius": 3,
+		  "scenarioId": "Spec.Decisions.Reject", "version": 2, "mapRadius": 3,
 		  "units": [
 		    { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] },
 		    { "id": "B1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 2, 0, 0] }
@@ -777,6 +777,59 @@ bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
 	Prova(1, true);   // i 76 scenari esistenti restano a 1 e non si toccano
 	Prova(2, true);   // la versione che dichiara `decisions`
 	Prova(3, false);  // il gate resta un gate
+	return true;
+}
+
+/**
+ * Il bump a 2 deve GATARE la feature per cui e' stato fatto, o non gatea niente.
+ *
+ * Trovato in code review: il solo controllo era `Version > SupportedVersion`, quindi un file `version: 1`
+ * con `decisions` veniva accettato. Spedito cosi', una build vecchia — che non conosce ne' la chiave ne' la
+ * versione — lo caricherebbe ignorando le decisioni e giocherebbe il turno non scriptato: il silenzio che
+ * il bump esiste per impedire.
+ *
+ * E una chiave `decisions` che non e' un array non deve sparire: supera il controllo sulle chiavi di turno,
+ * perche' la chiave e' nota, e senza questo verrebbe saltata da `TryGetArrayField` senza un errore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderDecisionsNeedVersionTwoTest,
+	"RefactorTactics.Scenario.LoaderRejectsDecisionsBelowVersionTwo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderDecisionsNeedVersionTwoTest::RunTest(const FString&)
+{
+	auto Carica = [](int32 Versione, const TCHAR* DecisionsField, FString& OutError)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.Decisions.VersionGate", "version": %d, "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+		  "turns": [ { "intents": [], %s } ],
+		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		}
+		)JSON"), Versione, DecisionsField);
+		FRTTestScenario Scenario;
+		return URTScenarioLoader::LoadFromString(*Json, Scenario, OutError);
+	};
+
+	const TCHAR* UnaDecisione = TEXT(R"("decisions": [ { "unit": "A1", "respond": "HOLD" } ])");
+
+	FString Error;
+	TestFalse(TEXT("version 1 con decisions e' rifiutato"), Carica(1, UnaDecisione, Error));
+	TestTrue(FString::Printf(TEXT("e il motivo nomina la versione (era: '%s')"), *Error),
+		Error.Contains(TEXT("version")));
+
+	Error.Reset();
+	TestTrue(FString::Printf(TEXT("version 2 con le stesse decisions e' accettato (errore: '%s')"), *Error),
+		Carica(2, UnaDecisione, Error));
+
+	// Una lista VUOTA non chiede nulla di nuovo: non deve costringere ad alzare la versione.
+	Error.Reset();
+	TestTrue(TEXT("version 1 con decisions vuote resta valida"),
+		Carica(1, TEXT(R"("decisions": [])"), Error));
+
+	Error.Reset();
+	TestFalse(TEXT("decisions non-array e' rifiutato"), Carica(2, TEXT(R"("decisions": {})"), Error));
+	TestTrue(FString::Printf(TEXT("e il motivo dice che serve un array (era: '%s')"), *Error),
+		Error.Contains(TEXT("array")));
 	return true;
 }
 

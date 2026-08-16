@@ -30,6 +30,20 @@ class REFACTORTACTICS_API FRTScenarioSession
 {
 public:
 	/**
+	 * 🔴 **Sbinda il decisore, e deve esistere perche' `TearDown()` non basta.**
+	 *
+	 * `URTScenarioRunner::Run` esegue gli scenari non-variante con `RunSingle(..., bTearDownAfter=false)` e
+	 * `ARTGameMode` non chiama `TearDown` affatto: la sessione e' una locale che muore al `return`, mentre
+	 * `BindRaw(this, ...)` ha lasciato un puntatore GREZZO dentro un delegate posseduto dall'ATTORE, che
+	 * sopravvive. Chi tenesse vivo il mondo — o ne eseguisse un secondo scenario — chiamerebbe attraverso
+	 * `this` gia' distrutto, oppure troverebbe `IsBound()` vero e prenderebbe il ramo `test-override`
+	 * ignorando in silenzio le `decisions` del secondo scenario.
+	 *
+	 * Il distruttore chiude il ciclo dove si chiude davvero: la vita dell'oggetto.
+	 */
+	~FRTScenarioSession();
+
+	/**
 	 * Pausa in secondi **prima** di risolvere ogni turno: il tempo per guardare dove sono le unita' prima che
 	 * si muovano. 0 = nessuna pausa (e' il valore delle esecuzioni headless, dove non c'e' nessuno a guardare).
 	 */
@@ -137,7 +151,13 @@ private:
 	int32 TurnIndex = 0;
 	float PauseElapsed = 0.f;
 
-	/** Le decisioni del turno corrente, con l'indice della prima non ancora consumata per ciascuna unita'. */
+	/**
+	 * Le decisioni del turno corrente e, in parallelo, quali sono gia' state consumate.
+	 *
+	 * Due array e non un cursore per unita': `DecideScriptedResponse` scandisce dall'inizio e prende la
+	 * prima non consumata che nomina il proprietario della finestra. L'ordine di dichiarazione E' l'ordine
+	 * di consumo, ed e' cio' che `ScriptedDecisionsAreConsumedInOrder` pinna.
+	 */
 	TArray<FRTScenarioDecision> PendingDecisions;
 	TArray<bool> PendingConsumed;
 
@@ -158,6 +178,20 @@ private:
 
 	/** Il decisore scriptato: risponde con la coda del turno, stringa vuota se nulla combacia. */
 	FString DecideScriptedResponse(const FRTReactionOpportunity& Opportunity, int32 OwnerUnitId);
+
+	/** Sbinda il PROPRIO decisore, se e solo se e' questa sessione ad averlo legato. Idempotente. */
+	void UnbindOwnDecider();
+
+	/**
+	 * Le unita' nell'ordine di risoluzione, catturate alla PRIMA finestra del turno e riusate per tutte le
+	 * successive.
+	 *
+	 * ⚠️ Ricostruirlo a ogni finestra sarebbe sbagliato, non solo costoso: `MakeCurrentSnapshot` filtra
+	 * `IsAlive()`, mentre il resolver costruisce il proprio array **una volta sola** per l'intera
+	 * risoluzione. Un `FIRE` che uccide un bersaglio lo toglierebbe dallo snapshot successivo e sposterebbe
+	 * di uno tutti gli indici a valle: la finestra dopo mapperebbe `OwnerUnitId` sull'unita' sbagliata.
+	 */
+	TArray<ARTUnit*> RuntimeUnitsForTurn;
 
 	/**
 	 * Lo scenario schiera almeno un'unita' guidata dal bot, quindi ogni turno passa dal pianificatore del gioco
