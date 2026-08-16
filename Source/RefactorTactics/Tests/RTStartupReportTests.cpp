@@ -581,6 +581,15 @@ bool FRTBannerListsEveryDegradationTest::RunTest(const FString&)
 	Banner->SetFromReport(Report);
 	TestEqual(TEXT("ancora due righe, non quattro"), Banner->GetLines().Num(), 2);
 
+	// ⚠️ **Il testo unico deve contenere DUE righe**, cioe' esattamente un `\n`. E' la stessa proprieta'
+	// del punto sopra vista da chi guarda lo schermo: un accessor che restituisse solo la prima riga
+	// passerebbe tutti i test sull'array e nasconderebbe meta' del problema a chi apre il gioco.
+	const FString Joined = Banner->GetLinesAsText().ToString();
+	int32 NewLines = 0;
+	for (const TCHAR C : Joined) { if (C == TEXT('\n')) { ++NewLines; } }
+	TestEqual(TEXT("due righe => un solo a capo"), NewLines, 1);
+	TestFalse(TEXT("e il testo non e' vuoto"), Joined.IsEmpty());
+
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }

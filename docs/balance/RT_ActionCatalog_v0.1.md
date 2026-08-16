@@ -368,13 +368,28 @@ movimento volontario** dell'eroe.
 > spinge di più di una cella. `Guard` resiste fino a 1 cella, quindi copre per intero lo spazio degli
 > spostamenti prodotti **dalle azioni**.
 >
-> 🔵 **Ma la spinta forte è arrivata, e non da qui: dall'EQUIPAGGIAMENTO** (corretto il 2026-08-16).
+> 🔵 **La spinta forte esiste nei DATI, e non da qui: dall'equipaggiamento** (corretto il 2026-08-16).
 > `Weapon.Impact` porta lo spostamento di `Riva.PressureJet` a **2** ([D-085](../decisions/RT_PDR_00_Decision_Log.md))
-> ed è il **default** di Phase ([D-089](../decisions/RT_PDR_00_Decision_Log.md)). L'elenco delle azioni qui
-> sopra resta esatto — `Weapon.Impact` non è un'azione — ma la conclusione che se ne traeva no: contro una
-> spinta di 2 **`Guard` cede e `Brace` regge**, misurato da `Equipment.PushTwoSeparatesGuardFromBrace`.
-> ⚠️ Il mestiere anti-spinta di `Brace` **è osservabile in v0.1**, e dipende da un pezzo equipaggiato invece
-> che da una regola del turno: è una proprietà del loadout, non della coppia di azioni.
+> ed è il **default dichiarato** di Phase ([D-089](../decisions/RT_PDR_00_Decision_Log.md)). L'elenco delle
+> azioni qui sopra resta esatto — `Weapon.Impact` non è un'azione — ma la conclusione che se ne traeva no:
+> contro una spinta di 2 **`Guard` cede e `Brace` regge**, misurato da
+> `Equipment.PushTwoSeparatesGuardFromBrace`.
+>
+> 🔴 **Ma quel pezzo non arriva addosso a nessuno, ed è la parte che conta** (misurato il 2026-08-16,
+> correggendo una prima stesura di questa stessa nota che diceva *«il mestiere anti-spinta di `Brace` è
+> osservabile in v0.1»*). La catena si ferma al primo anello:
+>
+> · **in partita** nessuno equipaggia — `DefaultWeaponVariantFor` ha chiamanti **solo nei test**, e né
+>   `RTGameMode.cpp` né `RTUnit.cpp` nominano equipaggiamento o loadout;
+> · **nell'harness** il loadout viene *validato* e la variante d'arma **ignorata**: `RTScenarioSession`
+>   applica gadget e moduli via `MakeEquipmentAction`, mentre le varianti passano da `EquipWeaponVariant`,
+>   che fuori dai test non ha un solo chiamante.
+>
+> Quindi la spinta di 2 è **dichiarata e mai prodotta**: in ogni partita e in ogni scenario lo spostamento
+> è `1`, e sulla spinta le due difese danno davvero lo stesso esito. Lo pinna
+> `Spec.Brace.PushBeyondGuardThreshold`, dichiarato `expected-fail`: descrive ciò che dovrebbe succedere e
+> **fallisce apposta** finché la variante non viene applicata. È anche la ragione per cui la seduta `U20`
+> non riesce a distinguere le due difese — non è presentazione e non sono i numeri.
 >
 > **Ciò che distingue le due sul colpo singolo resta il danno**: `Guard` −15 sul solo primo colpo,
 > `Brace` −10 su ogni colpo — cioè *primo colpo pesante* contro *colpi ripetuti*. Sul colpo singolo senza

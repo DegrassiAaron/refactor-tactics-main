@@ -1622,8 +1622,37 @@ tracks:
     binary_leases: []
 
   simulation:
-    status: ACTIVE
-    issue: 512
+    status: IDLE
+    issue: null
+    # ✅ **CHIUSA il 2026-08-16: la fase B di `#512` è atterrata con la PR #1033 (`0ecde11b`), e stavolta
+    # `issue: null` significa anche «non c'è più niente da fare».** `#512` è **CLOSED** — era l'ultima voce
+    # di DoD aperta, consuntivata nel commento di chiusura e non spuntando il body.
+    # ✅ **I nove path del `writable` tornano liberi e non assegnati**: i tre `Scenarios/*.json` **rientrano
+    # in `integration_only`** (la voce lì dentro perde le loro tre righe di prestito), e gli altri sei —
+    # `ScenarioHarness/RTScenarioSession.cpp`, `ScenarioHarness/RTScenarioLoader.cpp`, i tre file di test e
+    # `docs/control-center/graph.test.mjs` — restano semplicemente non assegnati. Con essi esce il
+    # `derives_from`: una vista segue la sorgente, e la sorgente non è più di nessuno.
+    # ⛔ **Cosa la track lascia aperto, detto invece che dedotto:**
+    # · **due drift `integration_only`** che nessuna track può riparare da dentro — `execution-graph.yaml`
+    #   («un provider e **sette** consumatori … che `RTScenarioSession.cpp` **non elenca fra le
+    #   disponibili**»: falso in entrambe le metà, sono sei ed è elencata) e `feature-registry.yaml`
+    #   (`RT-FEAT-REACTION-OVERWATCH` afferma due volte che `Spec.Overwatch.HoldThenFire` esce `BLOCKED`,
+    #   e tiene `scenario: partial` con `last_verified` al 2026-08-15). Il secondo è anche **conteso** da
+    #   `docs/five-lane-roadmap` e `feat/625-hazard-turnlog`, misurato;
+    # · **`feature_registry.py validate` esce `1`, e NON per colpa di questo giro**: l'orfano
+    #   `Spec.Brace.PushBeyondGuardThreshold` arriva con `#1032` ed è rosso **anche su `origin/main`**,
+    #   misurato in un worktree pulito. La rigenerazione del grafo lo fa comparire in `diagnostics.errors`,
+    #   cioè la vista smette di tacerlo. Chiuderlo è di chi possiede quello scenario;
+    # · **il T4 dello showcase è una fetta della propria spec owner** (`showcase-v0.1.md` chiede Wraith che
+    #   arma, `HOLD` di Gadget e `FIRE` di Phase su **due** opportunity). Dichiarato dentro lo scenario in
+    #   `_nota_scostamento_dalla_spec`, con la ragione misurata;
+    # · `Spec.Brace.ProfileChangesResponse` resta `BLOCKED` su **`ReactionProfile`** → **E14.7 (`#314`)**,
+    #   che porta `Reaction Profile` e `Reaction Clash` insieme: chi lo chiude sposta **entrambi** i nomi.
+    # 🔵 **E due lezioni che non muoiono con la track**: il cono dell'Overwatch nasce dal facing al `Prep`,
+    # quindi una rotazione dichiarata non può formare il proprio cono nello stesso turno (un cono si prepara
+    # il turno prima, o si dichiara al piazzamento); e un esempio «noto ma non disponibile» non si prende in
+    # prestito da una feature futura — per quello esiste il nome riservato `NeverAvailable`.
+    # ---
     # ➕ **Riattivata il 2026-08-16 sulla fase B di `#512`**, ed è la track che riprende il proprio
     # lavoro: la fase A è sua (PR #1016). I commenti qui sotto restano come registro dei giri
     # precedenti — `#578`, `#926`, `#923` e la fase A — e non descrivono più lo stato: il motivo della
@@ -1681,6 +1710,13 @@ tracks:
     # significato che questo file ha già dovuto distinguere quattro volte: **«il write-set è assegnato e
     # la sessione non ha ancora scritto»**. Il branch di lavoro della fase B nasce col primo commit dentro
     # `D:/rt-simulation`, e chi lo apre riscrive questa riga invece di lasciarla mentire.
+    # ✅ **Riscritta col primo commit, che è questo.** Il branch nasce da `origin/main` @ `5454b305` —
+    # cioè dalla PR #1027 che ha concesso il write-set — dentro `D:/rt-simulation`, e questa riga smette
+    # di dire `null` prima che una riga di fase B sia scritta, non dopo. È la correzione che la sessione
+    # precedente ha dovuto fare a metà lavoro, fatta qui all'inizio.
+    # ➖ **Mergiato e cancellato il 2026-08-16** (PR #1033), misurato con `git ls-remote --heads origin`, che
+    # non lo trova più. Il campo torna `null` con la prima delle quattro accezioni che questo file distingue:
+    # «nessun branch vivo, il lavoro è in `main`».
     branch: null
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
@@ -2030,30 +2066,14 @@ tracks:
       §4 documenta già `decisions` e `"version": 2` (righe 90–118) e il §«Politica per le Fast Reaction»
       dichiara la fase B. Il debito è stato pagato da un'altra PR, verificato aprendo il file — non
       ereditato dal commento che lo dichiarava aperto.
-    writable:
-      # ⬅️ **Riallocati da `integration_only` (`Scenarios/`) per questo solo giro**, con la ragione
-      # misurata sopra: sono i tre file che portano i turni che `DecisionBoundary` sblocca. Tornano a
-      # `integration_only` alla chiusura della track — la voce lì dentro lo dichiara.
-      - Scenarios/Spec/Overwatch/HoldThenFire.json
-      - Scenarios/Spec/Brace/ProfileChangesResponse.json
-      - Scenarios/RT_Showcase_Relay_v01.json
-      # Non assegnato a nessuna track e non toccato da nessun ramo vivo: è il file che dichiara i due
-      # insiemi di capability, cioè il punto in cui `DecisionBoundary` cambia lato.
-      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
-      - Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp
-    # ⚠️ **Due viste, e le eredita chi tocca l'una O l'altra sorgente**: `generated_only` dichiara sia
-    # `Scenarios/` sia `RTScenarioSession.cpp` come `derives_from` di entrambe. Questa track le tocca tutte
-    # e due, quindi i due `--check` sono suoi e vanno rigenerati **sull'albero unito**, non sul branch.
-    derives_from:
-      - source: Scenarios/
-        regenerates:
-          - docs/roadmap/scenariomap.shortlist.md
-          - docs/roadmap/project-graph.json
-      - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-        regenerates:
-          - docs/roadmap/scenariomap.shortlist.md
-          - docs/roadmap/project-graph.json
+    # ➖ **Il write-set resta descritto nella `note` e i due blocchi ESCONO**, come per le chiusure
+    # precedenti di questa track: nove path, tutti atterrati in `main` con la PR #1033 e oggi non
+    # assegnati. I tre `Scenarios/*.json` rientrano in `integration_only`, dove la loro riga di prestito
+    # è stata cancellata; gli altri sei restano semplicemente non assegnati.
+    # ⚠️ Con essi esce il `derives_from`: una vista **segue la sorgente**, e la sorgente non è più di
+    # nessuno. Chi tocca `Scenarios/` o `RTScenarioSession.cpp` eredita di nuovo i due `--check`.
+    writable: []
+    derives_from: []
 
   client_tools:
     status: IDLE
@@ -2583,6 +2603,49 @@ tracks:
       # La correzione è di due righe e l'include c'è già. Zero contese misurate sui branch remoti.
       - Source/RefactorTacticsEditor/Private/Tools/RTHexArchTool.cpp
       - Source/RefactorTacticsEditor/RefactorTacticsEditor.Build.cs
+      # ➕ **Riallocazione del 2026-08-16: le due issue del mode Hex Map, `#996` e `#921`.** Entrambe nate
+      # dalla seduta U1 e finora **non cominciabili**: nessuno dei nove path qui sotto stava in un
+      # `writable`, in `integration_only` o in `generated_only` — cioè erano nella condizione che D-139
+      # chiama STOP, e le due issue lo dichiaravano nel proprio blocco Ownership senza che nessuno lo
+      # sciogliesse.
+      # Misurato prima di prenderli, non dedotto: `grep` su questo file dà **zero** occorrenze per tutti e
+      # nove, e **nessuno dei dodici branch remoti vivi li tocca** — contati uno per uno con
+      # `git diff --name-only origin/main...origin/<b>` dopo `git fetch --prune`, non con `gh pr list`, che
+      # non vede i branch pushati senza PR.
+      # ⚠️ **`#996` prima, `#921` dopo, e non è l'ordine delle priorità** (P3 prima di P2): le due si
+      # dichiarano a vicenda «in serie, non in parallelo» perché toccano entrambe `RTHexArchTool.cpp`, e
+      # `#921` è la sola delle due che senza questa riallocazione non aveva nemmeno dove mettere il codice.
+      #
+      # ── `#996`: il test dell'AC 5, e perché NON va in `Private/Tests/`
+      # L'invariante è «`RebuildInstances` resta corretta per le istanze»: è runtime e non ha bisogno del
+      # gizmo manager, che è ciò che rende il resto della issue non testabile headless. Il suo posto è
+      # `RTHexMapActorTests.cpp`, dove stanno gli altri test dell'actor con i loro helper
+      # (`MakeMapActorWorld`, `SpawnMapActor`) e dove vive già `RefactorTactics.HexMapActor.RebuildsOnConstruction`,
+      # che asserisce esattamente `NumInstanceCells()` e la mappa istanza→cella.
+      # ⚠️ **L'alternativa scartata** era scriverlo in `Source/RefactorTacticsEditor/Private/Tests/`, che è
+      # già assegnato — il precedente di `RTHexMapActorInstanceColorTests.cpp`, tre riallocazioni più su.
+      # Quel precedente esiste perché il file naturale non era disponibile, non perché fosse la scelta
+      # giusta: la sua stessa nota dice «sarebbe il posto naturale». Ripeterlo lo trasformerebbe da
+      # eccezione in abitudine, e un'invariante del runtime verificata dentro il modulo editor si ritrova
+      # solo per caso.
+      - Source/RefactorTactics/Tests/RTHexMapActorTests.cpp
+      #
+      # ── `#921`: l'overlay come stato del mode invece che dei singoli tool
+      # ⚠️ La issue elencava **quattro nomi di classe**, e un `writable` si dichiara per **path**: sono otto,
+      # perché ogni tool è due file e l'header del mode sta in `Public/` mentre quelli dei tool stanno in
+      # `Private/Tools/`. Contarli come quattro è come la track avrebbe scoperto il quinto a metà lavoro.
+      # Non servono, e vanno detti per non riaprirli: `RTHexEditorModeToolkit.{h,cpp}`, perché
+      # `FModeToolkit::SetModeSettingsObject` fa già il lavoro (`BaseToolkit.cpp:388`) e il toolkit del
+      # progetto non lo override; e `RefactorTacticsEditor.Build.cs`, che è già qui sopra e comunque non
+      # cambia — `InteractiveToolsFramework` è già in `PrivateDependencyModuleNames`, verificato.
+      - Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.h
+      - Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.cpp
+      - Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h
+      - Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.cpp
+      - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.h
+      - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.cpp
+      - Source/RefactorTacticsEditor/Public/RTHexEditorMode.h
+      - Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp
     # ➖ **Il `derives_from` segue il file**: la catena `test-manuali-pie.md` → `editormap.shortlist.md`
     # + `project-graph.json` passa a `playtest` insieme alla sorgente. È la regola già scritta in
     # `generated_only` applicata a una riassegnazione: la vista segue la sorgente, e la sorgente ha
@@ -3861,16 +3924,16 @@ integration_only:
   - docs/balance/          # sorgente dei radar (toolchain Node)
   # ⚠️ Diceva «oggi la tiene wt-cap»: quel branch è atterrato il 2026-08-14 (PR #848) e non tiene
   # più niente. `Scenarios/` torna quindi `integration_only` piena — non assegnata a nessuno.
-  # ➖ **E non è più piena dal 2026-08-16: QUATTRO file sono in prestito, e restano elencati qui perché
-  # la cartella non basta a dirlo.** La regola resta «`Scenarios/` è `integration_only`»: si prestano i
-  # **file**, uno per uno, con la ragione nella `note` della track che li tiene — mai la cartella.
+  # ➖ **E non è più piena dal 2026-08-16: un file è in prestito, e resta elencato qui perché la cartella
+  # non basta a dirlo.** La regola resta «`Scenarios/` è `integration_only`»: si prestano i **file**, uno
+  # per uno, con la ragione nella `note` della track che li tiene — mai la cartella.
   #   · `Spec/Environment/WaterQuenchesFire.json`  → `hero_kit`  (l'acqua passa all'equipaggiamento)
-  #   · `Spec/Overwatch/HoldThenFire.json`         → `simulation` (#512 fase B, le `decisions` scriptate)
-  #   · `Spec/Brace/ProfileChangesResponse.json`   → `simulation` (#512 fase B)
-  #   · `RT_Showcase_Relay_v01.json`               → `simulation` (#512 fase B, il T4 oggi è vuoto)
+  # ✅ **I tre di `simulation` sono RIENTRATI il 2026-08-16 con la chiusura di `#512`** — `HoldThenFire`,
+  # `ProfileChangesResponse` e `RT_Showcase_Relay_v01`: la track è `IDLE` e la PR #1033 è in `main`. Le loro
+  # righe sono cancellate invece di essere lasciate a invecchiare, che è il punto della regola qui sotto.
   # ⚠️ **Tornano qui alla chiusura delle rispettive track**, e chi le chiude cancella la propria riga:
   # un prestito che nessuno restituisce è indistinguibile da una riassegnazione, e questa lista è l'unico
-  # posto da cui si vede che i quattro file non sono di chi li ha in mano.
+  # posto da cui si vede che un file prestato non è di chi lo ha in mano.
   - Scenarios/             # sorgente di scenariomap + project-graph
   - scripts/feature_registry.py
   - scripts/test_feature_registry_releases.py
