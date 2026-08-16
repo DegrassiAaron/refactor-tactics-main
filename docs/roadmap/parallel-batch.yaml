@@ -2386,11 +2386,36 @@ tracks:
     binary_leases: []
 
   autobattle:
-    status: ACTIVE
-    issue: 958
-    branch: feat/958-corpus-determinismo-autobattle
+    status: IDLE
+    issue: null
+    branch: null
     worktree: "D:/rt-autobattle"
     note: >-
+      ✅ **CHIUSA il 2026-08-16: `#958` e `#990` sono `CLOSED`, PR **#991** mergiata in `f4e34ef2`** e il
+      branch `feat/958-corpus-determinismo-autobattle` non esiste più — cancellato lato server e
+      verificato con `git ls-remote`, non ricordato. ⚠️ `gh pr merge` ha **riportato un errore** su un
+      merge riuscito (`fatal: 'main' is already used by worktree`): quello è il checkout locale che
+      fallisce, non il merge. L'esito si legge lato server — `gh pr view --json state` — e questa riga
+      lo fa, invece di credere all'uscita del comando.
+      ✅ **Il write-set consegnato è esattamente quello dichiarato**: i tre path di codice/batch più i
+      cinque documentali (registry, le sue viste, `execution-graph.yaml`, `roadmap-v0.1.md`), tutti
+      `integration_only` o generati dalla sorgente che questa track possedeva.
+      ✅ **Suite 913 · 0 falliti**, e il conto delle dichiarazioni torna: **906 su `origin/main` → 913**,
+      cioè **+7 esatti**, misurato contro la base del branch e non contro un `origin/main` che nel giro si
+      è mosso tre volte. `dichiarati == eseguiti` — 913 = 913 — che è il controllo che §6 dice essere
+      quello che conta, perché un test non raccolto non fallisce: sparisce.
+      🔵 **`RTTurnManager.cpp` torna LIBERO e non assegnato.** L'allargamento è servito, ha consegnato, e
+      finisce con il turno: tenerlo sarebbe la prenotazione senza lavoro che questa stessa track ha
+      appena tolto a `RTGameMode`. ⚠️ La collisione differita verso `feat/cp75-selfreposition` **non è
+      sparita, è cambiata di verso**: quel branch ora dovrà rebasare su un `MakeCurrentSnapshot` con una
+      riga in più, in una funzione che il suo WIP non tocca.
+      ⚠️ **Il worktree `D:/rt-autobattle` resta in piedi**, come `D:/rt-chatgpt`: tiene `Binaries/` e
+      `Intermediate/` costruiti, e cancellarlo costa una ricompilazione intera.
+      ⛔ **Cosa la track lascia aperto, dichiarato e non dedotto**: (1) i quattro scenari `AutoBattle.*`
+      restano `planned` — sono **E47.4** (`#957`), che dipende dal seam di `D-101` (`#542`); (2) `#971`,
+      l'input non impedito in autobattle, resta aperto e i suoi due file non erano di questa track
+      neppure stavolta; (3) le verifiche PIE sono **E47.6**, di `playtest`.
+      ⏱️ **Il turno di `#958`, tenuto perché dice cosa ha consegnato e su quali misure:**
       ➕ **RIAPERTA il 2026-08-16 su `#958` (E47.5, epic `#952`): il corpus di determinismo
       dell'autobattle.** Sette casi limite verificati attraverso il percorso di gioco reale, e uno —
       `DifferentSeedVariation` — escluso con la ragione scritta nel codice invece che dedotta.
@@ -2554,14 +2579,15 @@ tracks:
       # Questo turno non li tocca, e un path prenotato senza lavoro che lo giustifichi è un lotto più
       # stretto del vero. Tornano **liberi e non assegnati**, come lo erano prima di #954.
       - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
-      # ➕ Entra il 2026-08-16 per il difetto che `PermutationTest` ha trovato — l'ordine di spawn che
-      # decide la partita, aperto come **#990**. L'allargamento è argomentato nella `note`, contro il
-      # precedente di #971 che dice di non farlo: qui la riga è una **dipendenza del DoD**, non
-      # un'occasione colta a lato — il caso 1 dei sette di #958 nasce rosso senza di essa.
-      # ⚠️ **Collisione differita, dichiarata**: `feat/cp75-selfreposition` è DORMANT dal 2026-08-11 e
-      # tiene tre file di `Turn/`, fra cui questo. Il merge lo paga chi riprende quel branch — è la stessa
-      # decisione che questo file ha già registrato per `simulation`, e vale ancora perché il ramo è fermo.
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # 🔵 `Turn/RTTurnManager.cpp` è USCITO con la chiusura del 2026-08-16: era entrato per il difetto
+      # #990, ha consegnato, e un path prenotato senza lavoro non resta. Torna libero e non assegnato.
+      # La collisione differita verso `feat/cp75-selfreposition` (DORMANT dal 2026-08-11, tre file di
+      # `Turn/`) resta descritta nella `note`: chi riprende quel branch paga il merge, come già deciso.
+      #
+      # ⚠️ **Questo blocco sopravvive alla chiusura, ed è voluto**: la track è IDLE con la `note` che
+      # nomina l'epic ancora aperta (E47), quindi `writable` qui significa *prenotato* — il file dei
+      # test dell'autobattle non va assegnato altrove prima che E47.2/47.3/47.6 si aprano. È il caso
+      # che lo schema dichiara in fondo alla voce `mandate`.
     binary_leases: []
 
   unit_presentation:
