@@ -1327,6 +1327,100 @@ bool FRTShowcaseDecisionSourceTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Mutazione: lo stesso scenario, con `FIRE` e con `HOLD`, deve dare un esito DIVERSO. Se non lo desse, il
+ * turno sarebbe verde comunque e la decisione non conterebbe — che e' precisamente cio' che il golden
+ * replay di `#170` ha bisogno di escludere.
+ *
+ * Il DoD chiedeva «sostituendo il provider con uno che restituisce un esito, cada almeno uno scenario». La
+ * firma del delegate e' `FString`, quindi un esito non e' nemmeno esprimibile: quel test non avrebbe una
+ * premessa costruibile e sarebbe verde senza poter fallire. La verifica e' quindi COMPORTAMENTALE.
+ *
+ * ⚠️ **I due rami dichiarano un numero DIVERSO di decisioni, e l'asimmetria e' il punto.** Il piano ne
+ * dichiarava una per ramo, ma e' stato scritto prima del task 6: un `FIRE` tronca il movimento e apre UNA
+ * finestra, un `HOLD` non spende la carica e ne apre DUE. Col ramo `HOLD` a una sola decisione la seconda
+ * finestra resterebbe scoperta e lo scenario andrebbe in `Error` — non per la mutazione, ma per il
+ * controllo introdotto due task fa. Il conteggio delle finestre e' cosi' esso stesso un'evidenza, e piu'
+ * leggibile dell'hash quando cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShowcaseDecisionMutationTest,
+	"RefactorTactics.ShowcaseRelay.DecisionsChangeTheOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShowcaseDecisionMutationTest::RunTest(const FString&)
+{
+	// Due esecuzioni che differiscono per UNA cosa sola: cosa risponde `Guardia`. Geometria del task 5,
+	// quella misurata — e nessun `Requires`, o il turno sarebbe `Blocked` prima degli intent.
+	auto Costruisci = [](bool bScriptaFire)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = TEXT("Internal.DecisionsChangeTheOutcome");
+		S.MapRadius = 5;
+		auto U = [](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& C, ERTHexDirection F)
+		{
+			FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
+			return X;
+		};
+		S.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+		S.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+
+		FRTScenarioTurn T;
+		FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
+		T.Intents.Add(Arma);
+		FRTScenarioIntent Corre; Corre.UnitId = TEXT("Corsa");
+		Corre.Move.Add(FRTCellId(-2, 0, 0)); Corre.Move.Add(FRTCellId(-1, 0, 0));
+		T.Intents.Add(Corre);
+
+		if (bScriptaFire)
+		{
+			// Il `FIRE` tronca: una finestra sola, quindi una decisione sola.
+			FRTScenarioDecision D;
+			D.Unit = TEXT("Guardia"); D.Respond = TEXT("FIRE"); D.Target = TEXT("Corsa");
+			T.Decisions.Add(D);
+		}
+		else
+		{
+			// Il `HOLD` lascia proseguire: due finestre, e servono due decisioni o la seconda e' scoperta.
+			for (int32 i = 0; i < 2; ++i)
+			{
+				FRTScenarioDecision D;
+				D.Unit = TEXT("Guardia"); D.Respond = TEXT("HOLD");
+				T.Decisions.Add(D);
+			}
+		}
+		S.Turns.Add(T);
+
+		FRTTestExpectation E;
+		E.Kind = ERTAssertionKind::TurnsCompleted;
+		E.Value = 1;
+		S.Expect.Add(E);
+		return S;
+	};
+
+	// Due mondi distinti e isolati: se condividessero il mondo, la seconda esecuzione partirebbe dallo stato
+	// lasciato dalla prima e la differenza fra i due hash non direbbe piu' nulla sulla decisione.
+	const FRTTestResult ConFire = RTWorldFixtures::RunScenarioIsolated(Costruisci(true));
+	const FRTTestResult ConHold = RTWorldFixtures::RunScenarioIsolated(Costruisci(false));
+
+	// Nessuno dei due deve essere in errore: un `Error` renderebbe la differenza fra gli hash priva di
+	// significato, perche' i due turni non sarebbero stati giocati entrambi.
+	TestEqual(FString::Printf(TEXT("il ramo FIRE ha giocato (error='%s')"), *ConFire.ErrorMessage),
+		static_cast<int32>(ConFire.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+	TestEqual(FString::Printf(TEXT("il ramo HOLD ha giocato (error='%s')"), *ConHold.ErrorMessage),
+		static_cast<int32>(ConHold.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+
+	// Il conteggio E' gia' un'evidenza: una finestra col `FIRE`, due col `HOLD`.
+	TestEqual(TEXT("col FIRE si apre una sola finestra"), ConFire.ScriptedDecisionsApplied, 1);
+	TestEqual(TEXT("col HOLD se ne aprono due"), ConHold.ScriptedDecisionsApplied, 2);
+	TestEqual(TEXT("nessun residuo nel ramo FIRE"), ConFire.ScriptedDecisionsUnused, 0);
+	TestEqual(TEXT("nessun residuo nel ramo HOLD"), ConHold.ScriptedDecisionsUnused, 0);
+
+	// La mutazione vera: `FIRE` tronca il movimento residuo e fa danno, `HOLD` no. Se i due hash
+	// coincidessero, la decisione non avrebbe cambiato niente e tutto il resto sarebbe verde a vuoto.
+	TestNotEqual(TEXT("FIRE e HOLD producono stati diversi"),
+		static_cast<int32>(ConFire.StateHash), static_cast<int32>(ConHold.StateHash));
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.

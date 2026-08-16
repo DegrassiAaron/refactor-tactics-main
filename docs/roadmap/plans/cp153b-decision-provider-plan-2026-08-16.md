@@ -1186,6 +1186,27 @@ git commit -m "feat(512): con due sorgenti, quale ha parlato si scrive invece di
 
 ## Task 8: la verifica di mutazione
 
+> ✅ **Eseguito il 2026-08-16, verde al primo colpo. Uno scostamento, ed è un'interazione col task 6 che
+> questo task non poteva prevedere perché è stato scritto prima.**
+>
+> **I due rami dichiarano un numero DIVERSO di decisioni.** Il piano ne dichiarava una per ramo e si
+> aspettava `ScriptedDecisionsApplied == 1` per entrambi. Ma un `FIRE` tronca il movimento e apre **una**
+> finestra, un `HOLD` non spende la carica e ne apre **due**: col ramo `HOLD` a una sola decisione la
+> seconda resterebbe scoperta e lo scenario andrebbe in `Error` — non per la mutazione, ma per il controllo
+> del task 6. Forma atterrata: `FIRE` 1 decisione, `HOLD` 2, `Unused` 0 in entrambi, e un'asserzione
+> esplicita che **nessuno dei due sia in `Error`** — un ramo non giocato renderebbe la differenza fra gli
+> hash priva di significato.
+>
+> Il conteggio delle finestre diventa così **esso stesso un'evidenza**, e più leggibile dell'hash quando
+> cade: che `FIRE` ne apra una e `HOLD` due dice già che la decisione cambia il corso del turno.
+>
+> **Il test è stato provato nel verso opposto**, perché un test di mutazione verde non dimostra di poter
+> fallire. Forzando il decisore a rispondere sempre `HOLD` cade l'asserzione centrale — *«FIRE e HOLD
+> producono stati diversi: The two values are equal»* — e il ramo `FIRE` va in `Error` proprio con
+> «finestra aperta per 'Guardia' senza una decisione che la nomini»: il controllo del task 6 che **spiega**
+> la mutazione. Cadono anche `DecisionProviderIsInjectable` e `ScriptedDecisionsAreConsumedInOrder`, che
+> dal `FIRE` dipendono.
+
 Il DoD chiede che «sostituendo il provider con uno che restituisce un **esito**, cada almeno uno scenario».
 La firma vieta già un esito, quindi quel test non avrebbe una premessa costruibile — lo stesso caso del test
 rimosso in `DeriveOpportunityId`, tenuto verde pur non potendo fallire. La verifica diventa
@@ -1194,7 +1215,7 @@ rimosso in `DeriveOpportunityId`, tenuto verde pur non potendo fallire. La verif
 **Files:**
 - Test: `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp`
 
-- [ ] **Passo 1 — scrivi il test**
+- [x] **Passo 1 — scrivi il test**
 
 ```cpp
 /**
@@ -1253,7 +1274,7 @@ bool FRTShowcaseDecisionMutationTest::RunTest(const FString&)
 }
 ```
 
-- [ ] **Passo 2 — eseguilo**
+- [x] **Passo 2 — eseguilo**
 
 `RefactorTactics.ShowcaseRelay.DecisionsChangeTheOutcome`.
 
@@ -1261,7 +1282,7 @@ Se `TestNotEqual` è **rosso**, i due hash coincidono: la decisione non sta arri
 `FIRE` non tronca. Non rilassare l'asserzione — è l'unica che dimostra che il lavoro serve. Confronta i due
 TurnLog e cerca la voce della decisione.
 
-- [ ] **Passo 3 — commit**
+- [x] **Passo 3 — commit**
 
 ```bash
 git add Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
