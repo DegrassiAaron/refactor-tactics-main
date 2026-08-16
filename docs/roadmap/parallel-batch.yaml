@@ -1559,13 +1559,41 @@ tracks:
       si è mosso **quattro volte** mentre misuravo, e due di quelle volte ha toccato questo stesso file.
       Le misure qui sopra sono state rifatte sull'albero finale invece di essere ereditate — e una,
       l'arco verso E47.4, è stata **falsificata** da ciò che è atterrato in mezzo.
+      ➖ **Il giro di design ha falsificato quattro dei sei path, e il `writable` si stringe prima che una
+      riga di codice li tocchi.** Escono `Turn/RTTurnManager.{h,cpp}` e `Turn/RTReactionOpportunityTypes.{h,cpp}`:
+      · `ARTTurnManager::ReactionDecider` è **già `public`** — dichiarato *«perché iniettarlo È il suo
+        scopo»* — e `FireResponse()` / `IsResponseAllowed()` sono funzioni di libreria. La session binda e
+        traduce **senza toccare il manager**;
+      · il tipo di ritorno non cambia, perché la mutazione scelta è **comportamentale** (un provider che
+        risponde sempre `HOLD` deve far cadere un `expect`) e non una dimostrazione sul tipo. Un test sul
+        divieto non avrebbe una premessa costruibile — è lo stesso caso del test rimosso in
+        `DeriveOpportunityId`, tenuto verde perché non poteva fallire.
+      ∴ Erano una **prenotazione**, non un vincolo, e questo file ha già scritto che le due cose non
+      coincidono. Se l'implementazione contraddice il design e `Turn/` serve davvero, si riemenda **prima**
+      di scrivere — non si allarga a posteriori.
+      ➕ **Entrano due path, entrambi non assegnati e misurati uno per uno.**
+      · `Tests/RTScenarioLoaderTests.cpp` — è **lì** che vivono i test del loader, e le voci di DoD sullo
+        schema (chiave sconosciuta in `decisions`, chiave di turno sconosciuta, `target` obbligatorio con
+        `FIRE` e vietato con `HOLD`) non hanno un altro posto onesto. Nessun branch vivo lo tocca;
+      · `docs/roadmap/plans/cp153b-decision-provider-design-2026-08-16.md` — il referto di questo giro di
+        design. ⛔ **Il file, non la cartella**: misurato che `docs/roadmap/plans/` è scritta in questo
+        momento da **tre** branch remoti (`docs/38-spec-panel-playtest-hex`, `docs/five-lane-roadmap`,
+        `docs/lane-6-7`, più `docs/lane-7-vault`) e da un worktree con un referto *untracked*
+        (`D:/rt-menu`, `cp462-loading-error-spec-panel-2026-08-16.md`). Prendere la cartella sarebbe una
+        contesa con quattro sessioni per un file che non esiste ancora.
+      ⛔ **Cosa il design ha spostato fuori dalla portata di questa track, detto adesso e non alla
+      consegna**: la voce 5 del DoD — `DecisionBoundary` disponibile e showcase oltre il T4 — **non è
+      chiudibile da qui**. Scoprire la capability sblocca **3** dei 7 turni che la chiedono, e due di essi
+      (`Spec/Overwatch/HoldThenFire`, `Spec/Brace/ProfileChangesResponse`) non sono mai stati eseguiti:
+      `HoldThenFire` si aspetta `F1` a `[-2,0,0]`, cioè un movimento **troncato da un `FIRE`**, e senza
+      decisione scriptata risponderebbe `HOLD` e cadrebbe. `EveryShippedScenarioRuns` accetta `BLOCKED` e
+      non accetta `FAIL`: la capability si scopre **insieme** ai dati che la rendono rispondibile, e i dati
+      stanno in `Scenarios/`, che resta `integration_only`.
     writable:
       - Source/RefactorTactics/ScenarioHarness/
-      - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
-      - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
-      - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
       - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+      - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+      - docs/roadmap/plans/cp153b-decision-provider-design-2026-08-16.md
     derives_from:
       - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
         regenerates:
