@@ -1178,10 +1178,24 @@ preexisting:
 tracks:
 
   spatial:
-    status: IDLE
-    issue: null
-    branch: null
+    status: ACTIVE
+    issue: 986
+    branch: fix/986-affermazioni-false
     note: >-
+      ➕ **Riattivata il 2026-08-16 su `#986`, e la ragione è scomoda**: una code review multi-angolo
+      sulla PR **#978** è arrivata **dopo** il merge, e ha trovato che due affermazioni false erano
+      entrate in `main` con essa. Questo giro corregge **solo quelle** — i cinque difetti di sostanza
+      restano aperti su `#986`, dove sono misurati uno per uno.
+      ⚠️ **Le due affermazioni non sono refusi, sono verifiche mancate**: un commento che rimandava a
+      `RTGoldenCorpusTests` e a `G12` per una proprietà che nessuno dei due copre — misurato: i golden
+      `.rttl` non contengono alcuno state hash, e `G12` è `BUILD SUCCESSFUL`, non un confronto di hash —
+      e il tipo `FRTHexArc`, che non esiste in tutto `Source/` (è `FRTHexEdge`). Una terza, il conteggio
+      `876` dove l'albero ne fa `903`, era già caduta col ritorno a IDLE di poche ore fa: la riga che la
+      conteneva è stata riscritta prima che la review la segnalasse.
+      🔴 **La lezione di processo vale più delle due correzioni**: la review era stata lanciata **prima**
+      del merge e il merge non l'ha attesa. Nessuno dei findings avrebbe bloccato la PR — ma quelle
+      affermazioni sarebbero rimaste in `main` a dire il falso a chi le rilegge.
+      ---
       ✅ **IDLE dal 2026-08-16 perché il lavoro è atterrato, non per dipendenza.** `#832` (CP 23.3,
       `RT-FEAT-MAP-STRUCTURE-IDENTITY`) è **CLOSED**: PR **#978** mergiata alle `06:47:59Z`
       (`b2a024bc`), sesta casella su sei spuntata. Suite sull'albero mergiato: **903 test, 0 falliti**;
@@ -1308,6 +1322,10 @@ tracks:
     mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
     worktree: "D:/rt-spatial"
     writable:
+      # #986 — solo le due affermazioni false. I difetti di sostanza restano aperti sulla issue, e
+      # toccarli qui allargherebbe il write-set oltre ciò che questo giro ha dichiarato.
+      - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
+      - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
       - docs/technical/qa-prompt-terminal-b-scenario-runner.md
     derives_from: []
 
