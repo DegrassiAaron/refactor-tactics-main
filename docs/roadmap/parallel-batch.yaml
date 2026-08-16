@@ -2410,12 +2410,25 @@ tracks:
     binary_leases: []
 
   frontend_shell:
-    status: IDLE
-    issue: null
-    branch: null
+    status: ACTIVE
+    issue: 937
+    branch: null            # seduta d'editor: l'unita' di lavoro e' un'apertura di Unreal, non un commit
+    session: U24
     worktree: D:/rt-menu
     note: >-
-      ✅ **IDLE dal 2026-08-16: `#936` e `#937` hanno consegnato la parte C++ di E46.** CP 46.1 (navigation
+      ➕ **Riattivata il 2026-08-16 come SEDUTA, non come sessione di codice.** La parte C++ di E46 e'
+      consegnata; quello che comincia adesso e' la costruzione dei `WBP_RT_*` in editor — seduta **U24**
+      in [`editor-sessions.yaml`](editor-sessions.yaml).
+      🔴 **Il lavoro era gia' cominciato quando questa voce e' stata scritta, e il tracking non lo
+      nominava**: `grep -n "WBP_RT_" editor-sessions.yaml` dava **zero** e nessuna `binary_leases` copriva
+      `Content/RT/UI/`. Un `.uasset` senza lease e' esattamente il caso che `D-139` esiste per impedire —
+      due binari non si fondono, e la lease va emessa **prima** di salvare, non dopo. Registrato a
+      posteriori e dichiarato tale, invece di far sembrare che ci fosse.
+      ⚠️ `branch: null` con `session: U24` e' il pattern di `content_editor` su U1: l'unita' di lavoro e'
+      un'apertura di editor. Se la seduta apre un ramo per committare gli `.uasset`, va nominato in
+      `session_branch`, o il suo write-set non e' confrontabile con quello di nessuno.
+
+      ✅ **Il C++ resta consegnato: `#936` e `#937` hanno chiuso la loro parte.** CP 46.1 (navigation
       controller, PR #972) e CP 46.2 (produttore delle fasi, ottavo vocabolario `ERTStartupOutcome`, tre
       classi base dei widget, PR #994). Suite **941 · 0 falliti** sull'albero mergiato.
       ⚠️ **I `writable` restano dichiarati e questa track resta la loro**, benché IDLE: `#938`…`#941` sono
@@ -2495,7 +2508,40 @@ tracks:
           - docs/roadmap/project-graph.json
           - docs/roadmap/charts/roadmap-map.svg
         shared_with: [integrazione]
-    binary_leases: []
+    binary_leases:
+      # 🔴 **Emessa il 2026-08-16 a lavoro gia' cominciato, e va detto invece che datata all'indietro.**
+      # I widget si stavano costruendo mentre `Content/RT/UI/` non era in nessuna lease e in nessun
+      # `writable`: la regola dice che la lease si emette **prima** di salvare, e qui non e' andata cosi'.
+      # Registrarla ora vale comunque — da adesso il path e' preso e nessun'altra track puo' crearlo —
+      # ma la sequenza corretta resta quella, e questa voce non finge di averla seguita.
+      # ⚠️ **`create` prenota una DESTINAZIONE**: i cinque package non esistono, quindi non c'e' nulla da
+      # contendere se non il nome. La cartella `Content/RT/UI/Framework/` nasce col primo widget —
+      # `convenzioni-contenuti-ue.md` §3 vieta di crearla vuota in anticipo.
+      # ⚠️ Sui **file** e non sulla cartella: la regola «la lease si emette sulla cartella» vale per le
+      # mappe, che sono cartelle con un numero di package che non si deduce. Cinque widget sono cinque
+      # package, e si contano.
+      - key: "BINARY-GH937-FRONTEND-WIDGETS"
+        issue: 937
+        base_sha: "5bfae1ce147db5107947d2033a03c1439f4e9874"
+        operation: create
+        paths:
+          - Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset
+          - Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
+          - Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset
+          - Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset
+          - Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset
+        verification:
+          - load_in_editor
+          - save_without_errors
+          # La verifica che conta non e' che il widget si apra: e' che erediti dalla classe base **giusta**
+          # — `URTFallbackBannerWidgetBase`, `URTErrorModalWidgetBase`, `URTLoadingScreenWidgetBase` — e che
+          # legga il dato invece di comporlo. Un widget che scrivesse da se' «Loading map…» sarebbe la
+          # seconda autorita' sulle fasi d'avvio, che e' il difetto per cui `ERTLoadPhase` esiste.
+          - inherits_declared_base_class
+          # ⛔ E che **nessuno dei cinque** crei o rimuova widget: `grep -rn "AddToViewport|RemoveFromParent"`
+          # non deve produrre occorrenze fuori dal navigatore. E' l'invariante 1 di CP 46.1, e un `.uasset`
+          # e' l'unico posto dove puo' rientrare senza che un test se ne accorga.
+          - no_widget_creates_widgets
 
   verification:
     status: IDLE
