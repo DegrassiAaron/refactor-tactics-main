@@ -1254,8 +1254,12 @@ tracks:
       `worktree: "D:/rt-78"`, entrambi assenti da `git ls-remote` e da `git worktree list`. Registrati
       perché la prossima riconciliazione li trovi misurati invece di riscoprirli.
       ✅ **Il prestito di `#726` è rientrato**: `docs/OPEN_DECISIONS.md` torna in `integration_only`, che era
-      la scadenza dichiarata. `FAC-15` resta aperta e continua a bloccare `#726`; non serve tenere il file
-      prenotato per aspettarla.
+      la scadenza dichiarata; non serve tenere il file prenotato.
+      ✅ **`FAC-15` è CHIUSA dal 2026-08-16 — `D-147` — e `#726` NON è più bloccata.** Questa riga diceva il
+      contrario ed è durata un giorno: la simmetria destra/sinistra **non è un requisito**, quindi il dilemma
+      che `FAC-15` poneva non esisteva. Lo stesso giro d'integrazione ha allineato le **sette** sedi che
+      portavano il «50» della regola a linea. ⚠️ Ciò che questa track dichiara qui sotto **non cambia**: il
+      write-set resta quello di `#833`, e `#726` non è lavoro di questa track finché non lo si assegna.
       ⚠️ **Due path rivendicati da `state_hash`, che li dichiara RILASCIATI**: `Map/RTHexMapAsset.{h,cpp}` e
       `Tests/RTHexDoorTests.cpp`. La sua nota dice *«il write-set qui sotto è rilasciato … tornano
       disponibili»* e tiene l'elenco come storia di ciò che ha toccato. Presi qui e **tolti di là**, perché
@@ -3623,6 +3627,30 @@ integration_only:
   - AGENTS.md
   - CLAUDE.md
   - docs/decisions/RT_PDR_00_Decision_Log.md
+  # ➕ **Entrano il 2026-08-16, e la ragione e' un difetto trovato dalla code review su una PR d'integrazione
+  # che li aveva gia' scritti**: i due ADR e il referto qui sotto non erano in **nessun** insieme — ne'
+  # `writable`, ne' `integration_only`, ne' `generated_only` — cioe' erano nella condizione che `D-139` chiama
+  # STOP. Un giro d'integrazione non e' un'esenzione: la regola dice che un path non assegnato non si tocca,
+  # punto. Entrano qui perche' e' la categoria giusta — sono documenti che piu' branch possono voler
+  # emendare, come il Decision Log sopra — e perche' lasciarli fuori significa che il prossimo che li tocca
+  # ripete la violazione senza che nessun gate lo dica.
+  # ⚠️ **Il caso e' piu' largo di queste tre righe**: `docs/decisions/` contiene altri ADR nella stessa
+  # condizione. Qui entrano i tre effettivamente toccati, misurati; l'insieme completo e' lavoro della
+  # prossima riconciliazione, che deve deciderlo per cartella invece che per incidente.
+  #
+  # 🔴 **Due difetti PREESISTENTI, misurati mentre si verificava l'aggiunta e NON corretti qui perche' di
+  # altre track.** Registrati per non farli riscoprire:
+  #   1. `CLAUDE.md`, `AGENTS.md` e `docs/technical/qa-prompt-terminal-a-determinismo.md` stanno **insieme**
+  #      nel `writable` di `content_editor` (#451, ACTIVE) **e** in questo elenco — cioe' assegnati e non
+  #      assegnati nello stesso file, che e' esattamente la contraddizione per cui `docs/OPEN_DECISIONS.md`
+  #      e' stato tolto di qui quando `spatial` lo prese in prestito. Li scioglie chi possiede #451.
+  #   2. `Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp` e' nel `writable` di **due** track,
+  #      `autobattle` e `playback`. Entrambe `IDLE`, quindi la contesa e' **dormiente** e non viola
+  #      l'invariante oggi — ma e' la stessa forma che `spatial` x `content_editor` aveva prima di
+  #      esplodere alla prima riattivazione: la prima delle due che riparte la crea.
+  - docs/decisions/adr-0005-orientamento.md
+  - docs/decisions/adr-0008-rotazione-e-policy-di-facing.md
+  - docs/roadmap/plans/facing-visualdocs-triage-2026-08-13.md
   # ➕ **RIENTRATO il 2026-08-16.** `docs/OPEN_DECISIONS.md` era uscito di qui con `spatial` su #726, per
   # scrivere `FAC-15`: prestito con scadenza dichiarata, ed e' scaduto quando quel lavoro e' atterrato
   # (PR #1004). La track e' passata a #833 e non ne ha piu' bisogno. Il campo `writable_on_loan` che teneva
