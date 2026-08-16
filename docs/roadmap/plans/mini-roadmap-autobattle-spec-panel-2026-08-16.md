@@ -329,7 +329,7 @@ può solo raccontare. È il motivo per cui `a3` merita un'epic invece di una iss
 | **E47.1** | `RTGameMode.{h,cpp}` · `Turn/RTTurnManager.{h,cpp}` | ⚠️ **nessuna track** | **STOP**: serve una richiesta di allocazione prima di aprire |
 | **E47.2** | `Turn/RTPlaybackLibrary.*` · `UI/` (se tocca l'HUD) | `Turn/…` **nessuna** · `UI/` = `client_tools` **ACTIVE** (#78) | doppio blocco: allocazione **e** attesa |
 | **E47.3** | `Map/RTHexMapActor.{h,cpp}` | `content_editor` **ACTIVE** (#451) | attende il rilascio di quella track |
-| **E47.4** | `Source/RefactorTactics/ScenarioHarness/` | `spatial` — **IDLE** | l'unico con un owner dichiarato e fermo; resta il blocco su [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542) |
+| **E47.4** | `Source/RefactorTactics/ScenarioHarness/` | `spatial` — **IDLE** | l'unico con un owner dichiarato e fermo, e **senza blocchi tecnici**: [#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542) lo precede per igiene — vedi §13 |
 | **E47.5** | `Source/RefactorTactics/Tests/` | `verification` — **IDLE, write-set vuoto** | non assegnato: **STOP** |
 | **E47.6** | `docs/technical/test-manuali-pie.md` | `playtest` — **IDLE** | owner dichiarato e fermo: serve una riallocazione, non un'attesa |
 
@@ -470,3 +470,49 @@ legge. `RT-FEAT-UI-BOARD-GRAMMAR` referenzia `wiki:mappa-terreni-e-ambiente`, ch
 un settimo write-set scritto da una sessione documentale è il difetto che quel file registra cinque volte ·
 `docs/README.md`, il cui totale epic/CP resta indietro perché non è nel `writable` di nessuna track
 (**#962**).
+
+---
+
+## 13. Postilla — il prerequisito di E47.4 aveva due numeri *(2026-08-16, spec panel su #512)*
+
+🔴 **Il difetto peggiore di questo referto non era in ciò che diceva del prompt: era in una dipendenza che
+ha introdotto lui.**
+
+Il §7 e la tabella del §8 dichiaravano che `E47.4` è preceduta dal seam `DecisionProvider` di D-101. Il
+numero è stato scritto **#542** in sei punti di prosa — qui, in `roadmap-v0.1.md` (×2),
+`feature-registry.yaml`, `scenario-map.md` — e **#512** nel grafo, come
+`issue:512 --requires--> issue:957`.
+
+**Nessun gate lo vedeva.** Entrambe le issue esistono e sono aperte, quindi `check-docs-links` è verde e il
+validator dell'`execution-graph` pure: il controllo verifica che un nodo citato **esista**, non che sia
+*quello giusto*. È la stessa famiglia del riferimento a una voce `PIE-*` inesistente (§E47 di
+`roadmap-v0.1.md`), nel verso opposto — lì il nome non esisteva, qui ne esistono due.
+
+### Sono tre cose, e il codice lo dice meglio della roadmap
+
+`RTTurnManager.h:603`:
+
+> *«Non è il seam dei `DecisionProvider` di [D-101] (`#542`, v0.2), né il `DecisionProvider` iniettabile di
+> CP 15.3 metà B (`#512`). **Sono tre cose in tre release**, e la issue di questo checkpoint avverte per
+> nome di non confonderle.»*
+
+| | Cos'è | Stato | Serve a E47.4? |
+|---|---|---|---|
+| `ARTTurnManager::ReactionDecider` | delegate iniettabile, un solo punto di sostituzione | **già in `main`** (CP 14.5) — e **nessuno lo binda** | no |
+| **#512** — CP 15.3 metà B | il `DecisionProvider` delle decisioni **di finestra**, per lo showcase | aperta, v0.1 | no |
+| **#542** — D-101 | il seam **generale**: un solo punto da cui entra una decisione | aperta; registry `v0.1`, codice `v0.2` | **lo precede** |
+
+### E la relazione era della specie sbagliata
+
+Nel grafo `requires` significa *«deve essere finito prima»*. **E47.4 non è bloccata da nessuna delle tre**:
+`PlanBotsForTest()` esiste e il free-run è un ciclo sopra di lui. Ciò che #542 previene è il **terzo
+appiglio ad hoc** che D-101 descrive — aprirlo dopo costa una riscrittura, aprirlo prima costa un'attesa.
+È `follows` con `rationale`, che è il caso che l'`execution-graph` distingue in testa.
+
+⚠️ **Resta vero, e non si tocca**, che `#512` è un prerequisito **duro** di `#170` (golden replay): il
+golden ha bisogno delle decisioni di finestra come dato.
+
+> **La lezione, nella forma in cui vale per il prossimo**: un numero di issue è un identificatore
+> **opaco**, e due identificatori plausibili nello stesso commit non si distinguono rileggendo — si
+> distinguono cercando **chi altro li nomina**. Qui l'oracolo era in `Source/`, non in `docs/`: tre commenti
+> C++ separavano le tre cose per nome mentre la roadmap le confondeva.

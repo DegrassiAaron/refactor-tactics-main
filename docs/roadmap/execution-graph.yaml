@@ -231,10 +231,26 @@ nodes:
 
   # --- Catena D · Mini Autobattle -----------------------------------------------------------
   #
-  # Perche' questa catena: e' l'unica in cui una dipendenza dura punta **all'indietro**, verso un
-  # seam che una decisione ha gia' descritto ma nessuno ha ancora costruito. `D-101` prevede che
-  # al terzo consumatore l'harness guadagni un punto d'ingresso ad hoc; #957 e' quel terzo
-  # consumatore, e senza #512 lo produrrebbe.
+  # 🔴 **Questo commento diceva che la catena e' «l'unica in cui una dipendenza DURA punta
+  # all'indietro», e citava `#512`. Erano due errori in uno**, trovati dallo spec panel su `#512`
+  # del 2026-08-16.
+  #
+  #   (1) IL NUMERO. La prosa della roadmap, del registry e di `scenario-map.md` scriveva **#542**;
+  #       questo file scriveva **#512**. Stesso prerequisito, due numeri, stesso commit — e nessun
+  #       gate lo vede, perche' entrambe le issue esistono e sono aperte. Sono cose DIVERSE, e
+  #       `RTTurnManager.h:603` lo dichiara meglio di quanto lo dichiarasse la roadmap: «non e' il
+  #       seam dei `DecisionProvider` di D-101 (#542, v0.2), ne' il `DecisionProvider` iniettabile
+  #       di CP 15.3 meta' B (#512). **Sono tre cose in tre release**» — la terza e'
+  #       `ARTTurnManager::ReactionDecider`, gia' in `main` da CP 14.5.
+  #
+  #   (2) LA SPECIE. `requires` qui significa «deve essere finito prima», e **#957 non e' bloccata
+  #       da nessuna delle tre**: `PlanBotsForTest()` esiste, e il free-run e' un ciclo sopra di
+  #       lui. Cio' che `#542` previene e' il TERZO appiglio ad hoc che D-101 descrive — igiene
+  #       architetturale, non un prerequisito. Declassata a `follows` con `rationale`, che e'
+  #       esattamente il caso che questo file distingue in testa.
+  #
+  # Resta vero che `#512` e' un prerequisito DURO di `#170` (golden replay): il golden ha bisogno
+  # delle decisioni di finestra come dato, e quell'arco non si tocca.
   #
   # ⚠️ #955 e #956 non hanno una dipendenza tecnica su #954 — hanno un vincolo di **ownership**, e
   # sono owner DIVERSI: #955 tocca `UI/` (track `client_tools`, #78) e #956 tocca
@@ -258,6 +274,16 @@ nodes:
   - id: issue:957
     release: v0.1
     checkpoint: E47.4
+
+  # Il seam GENERALE di D-101, distinto da `issue:512` che e' quello delle sole finestre.
+  # ⚠️ `release: v0.1` perche' lo dichiara il registry, che e' l'owner del campo:
+  # `RT-FEAT-TEST-SCENARIO-HARNESS` e' `v0.1` e porta `542` fra le proprie `issues`. Il codice la
+  # colloca invece in **v0.2** (`RTTurnManager.h:603`, `RTTestScenario.h:196`): la divergenza e'
+  # dichiarata qui invece di essere risolta a intuito, perche' e' una decisione di scope e non un
+  # campo da riempire.
+  - id: issue:542
+    release: v0.1
+    domain_group: tooling_data_qa
 
   - id: issue:958
     release: v0.1
@@ -330,11 +356,6 @@ relations:
     to: issue:289
     type: requires
 
-  # Mini Autobattle — la dipendenza dura punta all'indietro, verso il seam di D-101
-  - from: issue:512
-    to: issue:957
-    type: requires
-
   - from: issue:954
     to: issue:959
     type: requires
@@ -381,6 +402,17 @@ relations:
     rationale: >-
       Chiudere la traccia del danno da hazard prima del pinning del golden evita una
       rebaseline. E' un risparmio, non un prerequisito.
+
+  # Mini Autobattle — il seam di D-101 PRECEDE il free-run, non lo blocca.
+  - from: issue:542
+    to: issue:957
+    type: follows
+    rationale: >-
+      Igiene architetturale, non un prerequisito tecnico: `PlanBotsForTest()` esiste gia' e il free-run
+      e' un ciclo sopra di lui, quindi `#957` e' apribile oggi. Cio' che `#542` previene e' il TERZO
+      appiglio ad hoc all'harness che D-101 descrive — aprirlo dopo costa una riscrittura, aprirlo
+      prima costa un'attesa. 🔴 Questo arco era `issue:512 --requires--> issue:957`: sbagliato nel
+      numero (la prosa diceva #542) e nella specie (`requires` = blocco). Spec panel del 2026-08-16.
 
   - from: issue:954
     to: issue:955

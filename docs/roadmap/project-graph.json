@@ -2857,13 +2857,6 @@
             "type": "requires",
             "hard": true,
             "rationale": null
-          },
-          {
-            "from": "issue:512",
-            "to": "issue:957",
-            "type": "requires",
-            "hard": true,
-            "rationale": null
           }
         ],
         "readiness": "BLOCKED",
@@ -3401,11 +3394,11 @@
         "provides": [],
         "incoming": [
           {
-            "from": "issue:512",
+            "from": "issue:542",
             "to": "issue:957",
-            "type": "requires",
-            "hard": true,
-            "rationale": null
+            "type": "follows",
+            "hard": false,
+            "rationale": "Igiene architetturale, non un prerequisito tecnico: `PlanBotsForTest()` esiste gia' e il free-run e' un ciclo sopra di lui, quindi `#957` e' apribile oggi. Cio' che `#542` previene e' il TERZO appiglio ad hoc all'harness che D-101 descrive — aprirlo dopo costa una riscrittura, aprirlo prima costa un'attesa. 🔴 Questo arco era `issue:512 --requires--> issue:957`: sbagliato nel numero (la prosa diceva #542) e nella specie (`requires` = blocco). Spec panel del 2026-08-16."
           }
         ],
         "outgoing": [
@@ -3417,8 +3410,37 @@
             "rationale": null
           }
         ],
-        "readiness": "BLOCKED",
-        "readiness_reason": "aspetta issue:512"
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:542",
+        "kind": "issue",
+        "ref": "542",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "tooling_data_qa",
+        "domain_group_source": "declared",
+        "checkpoint": null,
+        "state": null,
+        "state_source": null,
+        "state_note": "issue senza checkpoint: lo stato vive su GitHub",
+        "feature_ids": [
+          "RT-FEAT-TEST-SCENARIO-HARNESS"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:542",
+            "to": "issue:957",
+            "type": "follows",
+            "hard": false,
+            "rationale": "Igiene architetturale, non un prerequisito tecnico: `PlanBotsForTest()` esiste gia' e il free-run e' un ciclo sopra di lui, quindi `#957` e' apribile oggi. Cio' che `#542` previene e' il TERZO appiglio ad hoc all'harness che D-101 descrive — aprirlo dopo costa una riscrittura, aprirlo prima costa un'attesa. 🔴 Questo arco era `issue:512 --requires--> issue:957`: sbagliato nel numero (la prosa diceva #542) e nella specie (`requires` = blocco). Spec panel del 2026-08-16."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
       },
       {
         "id": "issue:958",
@@ -3663,13 +3685,6 @@
         "rationale": null
       },
       {
-        "from": "issue:512",
-        "to": "issue:957",
-        "type": "requires",
-        "hard": true,
-        "rationale": null
-      },
-      {
         "from": "issue:954",
         "to": "issue:959",
         "type": "requires",
@@ -3731,6 +3746,13 @@
         "type": "follows",
         "hard": false,
         "rationale": "Chiudere la traccia del danno da hazard prima del pinning del golden evita una rebaseline. E' un risparmio, non un prerequisito."
+      },
+      {
+        "from": "issue:542",
+        "to": "issue:957",
+        "type": "follows",
+        "hard": false,
+        "rationale": "Igiene architetturale, non un prerequisito tecnico: `PlanBotsForTest()` esiste gia' e il free-run e' un ciclo sopra di lui, quindi `#957` e' apribile oggi. Cio' che `#542` previene e' il TERZO appiglio ad hoc all'harness che D-101 descrive — aprirlo dopo costa una riscrittura, aprirlo prima costa un'attesa. 🔴 Questo arco era `issue:512 --requires--> issue:957`: sbagliato nel numero (la prosa diceva #542) e nella specie (`requires` = blocco). Spec panel del 2026-08-16."
       },
       {
         "from": "issue:954",
@@ -3819,19 +3841,19 @@
       }
     ],
     "stats": {
-      "nodes": 26,
+      "nodes": 27,
       "edges": 29,
-      "hard_edges": 16,
-      "soft_edges": 9,
+      "hard_edges": 15,
+      "soft_edges": 10,
       "by_readiness": {
-        "BLOCKED": 5,
+        "BLOCKED": 4,
         "DONE": 2,
-        "READY": 14,
+        "READY": 16,
         "UNKNOWN": 5
       },
       "by_execution_lane": {
         "asset": 2,
-        "code": 22,
+        "code": 23,
         "pie": 2
       },
       "by_domain_group": {
@@ -3840,13 +3862,13 @@
         "core_simulation": 4,
         "map_environment": 3,
         "objectives_match": 2,
-        "tooling_data_qa": 5,
+        "tooling_data_qa": 6,
         "ui_presentation": 1
       },
       "by_release": {
-        "v0.1": 26
+        "v0.1": 27
       },
-      "state_unknown": 14
+      "state_unknown": 15
     }
   }
 }
