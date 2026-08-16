@@ -2469,11 +2469,28 @@ tracks:
     binary_leases: []
 
   unit_presentation:
-    status: ACTIVE
+    status: IDLE
     issue: 593
     branch: feat/593-root-neutro-unit
     worktree: "D:/rt-unit"
     note: >-
+      ✅ **CHIUSA il 2026-08-16**: PR **#977** mergiata in `main` come `a4d4a274`, issue `#593` chiusa.
+      Il write-set qui sotto e' **rilasciato** — `Unit/RTUnit.{h,cpp}`, `Tests/RTUnitTests.cpp` e
+      `docs/technical/spec-team-identity.md` tornano disponibili. L'elenco resta scritto invece di
+      essere svuotato: dice quali file questa track ha toccato, ed e' cio' che la prossima intersezione
+      deve poter leggere.
+      🔴 **Il turno ha trovato in code review un difetto che la suite verde non vedeva**:
+      `RingGroundClearance` a `1.0` metteva il bordo degli anelli a `2.0`, mezza unita' **dentro** il
+      disco opaco della cella (faccia a `2.5`). Anelli invisibili a schermo, indistinguibili da anelli
+      mai disegnati. `Map/` e' fuori da questo write-set, e la costante che avrebbe risposto —
+      `RTCellTopZ` — e' `constexpr` in un namespace anonimo: condividerla e' **#983**. Aperta anche
+      **#984** (il conteggio della suite e' fermo a 875 mentre sono 903, e rigenerarlo cancella prosa
+      scritta a mano dentro il blocco generato).
+      ⚠️ **Resta lavoro NON in questa track**: i quattro `BP_Unit_*` non sono raddrizzati — i loro nodi
+      SCS dichiarano il genitore per nome, quindi la skeletal resta figlia di `Mesh`. E' la seduta
+      **U7**, con Binary Asset Lease, e la ricetta in `editor-sessions.yaml` ha ora l'ordine obbligato
+      (misura → riparenta → togli).
+
       ➕ **Track aperta su `#593`**: il cilindro segnaposto e' il **root** di `ARTUnit` e porta una scala
       non uniforme `(1.2, 1.2, 1.8)`, quindi ogni componente aggiunto in Blueprint la eredita — una
       Skeletal Mesh viene stirata di `1.8/1.2 = 1.5x`. Root neutro (`USceneComponent`), com'e' gia' in
