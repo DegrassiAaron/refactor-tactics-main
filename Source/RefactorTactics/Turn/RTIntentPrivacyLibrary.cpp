@@ -76,15 +76,8 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 			View.bDeclaresRotation = Intent.bDeclaresRotation;
 			View.DeclaredFacing = Intent.DeclaredFacing;
 
-			// 🔴 Qui c'era un `if (!Intent.ReactionName.IsEmpty()) View.ReactionCertainty = Uncertain;`, e la
-			// sua esistenza era il difetto: faceva sembrare CALCOLATO un livello che e' costante, e lasciava
-			// l'altro ramo — nessuna reazione — al default `Confirmed`. Cioe' lo stesso valore diceva «non
-			// c'e' nessuna reazione» e «la reazione e' certa», e la seconda lettura e' quella che un widget
-			// fa senza pensarci.
-			// Il default e' ora `Uncertain` (vedi `FRTIntentView::ReactionCertainty`), quindi il ramo sarebbe
-			// un no-op che assegna cio' che c'e' gia': toglierlo lascia UNA sola affermazione nel codice —
-			// una reazione armata e' incerta, sempre — invece di due che si contraddicono ai bordi.
-			// **Se una reazione potra' essere `Predicted`, il calcolo torna qui**, e allora sara' un calcolo.
+			// Il livello della reazione non si copia: `ReactionCertainty` e' uscito dal DTO il 2026-08-16 —
+			// la ragione sta sulla struttura, dove la cerca chi consuma.
 		}
 
 		Views.Add(View);
