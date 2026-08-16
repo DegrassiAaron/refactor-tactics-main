@@ -3185,6 +3185,57 @@ tracks:
         shared_with: [integrazione]
     binary_leases: []
 
+  playback:
+    status: ACTIVE
+    issue: 955
+    branch: feat/955-velocita-playback
+    worktree: "D:/rt-955"
+    note: >-
+      CP 47.2 di **E47** — la velocità di playback scelta da chi guarda (`x1 · x2 · x4`), e il gate che
+      dice che non cambia il risultato. ➕ **Track aperta il 2026-08-16**, dopo lo spec panel che ha
+      riscritto il DoD di `#955`.
+      🔵 **`Source/RefactorTactics/UI/` NON è di questa track, ed è il punto della decomposizione.** È di
+      `client_tools` (`#78`), con `blocked_paths` su `UI/RTHUD.{h,cpp}` dietro la PR #904. La issue
+      diceva *«questo checkpoint non si apre finché quella track non rilascia»*; misurato, è falso per
+      tre passi su quattro. Il gate — `StateHash` e TurnLog identici a tutte le velocità — si verifica
+      allestendo `ARTTurnManager` in un mondo di prova, come già fanno le tre varianti di
+      `FRTAutobattlePlaybackIndependenceTest`; e le cinque manopole del playback sono **già**
+      `UPROPERTY(EditAnywhere, BlueprintReadWrite)` (`RTTurnManager.h:432-448`), quindi la sesta si
+      aggiunge accanto alle altre senza toccare `UI/`. La **resa in HUD** è il passo 4 e resta a
+      `client_tools`.
+      ⚠️ **`Tests/RTMatchAutobattleTests.cpp` è preso a `autobattle`**, che è `IDLE` — non duplicato in
+      un file nuovo. Il DoD precedente chiedeva un `RefactorTactics.Playback.SpeedDoesNotChangeOutcome`
+      altrove, contro la ragione che questo stesso file scrive alla track `autobattle`: gli helper
+      (`PlayAutobattleMatch`, `DescribeAutobattleDivergence`, `DeployAutobattleRoster`) vivono lì, e il
+      confronto per TurnLog canonico che il DoD chiedeva di scrivere è già dentro il secondo. Se
+      `autobattle` si riattiva prima che questa track chiuda, il path va negoziato: **non è un file
+      nuovo**, ed è l'unico del write-set che appartenga già a qualcuno.
+      ⚠️ I due `Tests/` sono dichiarati **per nome** e non per prefisso: `Tests/` è condivisa fra tutte
+      le track, e prenderla per prefisso bloccherebbe chiunque scriva un test.
+      ⚠️ `RTTurnManager.h` è dichiarato, a differenza del giro di `autobattle` — che scrisse *«sarebbe
+      prenotare un file che nessuno tocca»* e per il proprio lavoro aveva ragione. Qui si tocca: la
+      manopola è una `UPROPERTY` nuova, e sta nell'header.
+      🔴 **`docs/roadmap/roadmap-v0.1.md:118` porta la stessa premessa falsa che la issue aveva** —
+      *«non c'è alcun controllo `x1/x2/x4`, quindi `PlaybackIndependence` non ha oggi un soggetto da
+      verificare»* — ed è falsa da quando #958 ha scritto il test (`RTMatchAutobattleTests.cpp:1058`).
+      **Non è di questa track**: il file è `integration_only` e sta nel `writable` di `replay_ui`.
+      Registrato qui perché qualcuno lo corregga, non toccato.
+    writable:
+      - Source/RefactorTactics/Turn/RTPlaybackLibrary.h
+      - Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      - Source/RefactorTactics/Tests/RTPlaybackLibraryTests.cpp
+      - Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
+      # ➕ Preso il 2026-08-16 per `PIE-V01-PLAYSPEED`. Sta nel `writable` di `playtest`, che è **IDLE**,
+      # e nessun branch vivo lo tocca — misurato sui dieci remoti con `diff --name-only origin/main...<b>`,
+      # non dedotto dallo stato della track. ⚠️ Era di `replay_ui` quando la track e' nata poche ore fa:
+      # nel frattempo `replay_ui` e' passata a `#999` e lo ha rilasciato. Un write-set si misura al
+      # momento in cui lo si prende, non a quello in cui lo si e' letto la prima volta.
+      - docs/technical/test-manuali-pie.md
+    derives_from: []
+    binary_leases: []
+
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test

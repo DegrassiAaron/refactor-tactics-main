@@ -53,4 +53,21 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static float SpeedMultiplierForCap(float EstimatedSeconds, float MaxSeconds);
+
+	/**
+	 * Velocita' effettiva del playback: compone la velocita' SCELTA da chi guarda (x1/x2/x4) con il
+	 * fattore di accelerazione che il tetto di durata impone da se'.
+	 * = Max(ViewerSpeed, CapSpeed) — «almeno la velocita' che chiedi, almeno quella che serve a stare
+	 * nel tetto». Valori non positivi sono trattati come 1 (nessuna scelta / nessun limite).
+	 *
+	 * Le altre tre composizioni sono state scartate su un caso concreto ciascuna (CP 47.2, #955):
+	 *  - PRODOTTO (Viewer*Cap): un round gia' accelerato 3x dal tetto, visto a x4, va a 12x — illeggibile
+	 *    proprio nei round che piu' avrebbero bisogno di essere letti;
+	 *  - SOSTITUZIONE (solo Viewer): il tetto smette di valere e MaxPlaybackSeconds diventa un campo morto;
+	 *  - TETTO RIDEFINITO (x2 -> Max/2): sotto il tetto il cap non si applica affatto, quindi su un round
+	 *    da 4 s premere x2 non farebbe NULLA. E' il difetto che la uccide, ed e' il caso comune.
+	 * Max e' monotona nei due argomenti e non produce mai il caso 12x.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float EffectivePlaybackSpeed(float ViewerSpeed, float CapSpeed);
 };
