@@ -2774,6 +2774,70 @@ tracks:
       - docs/technical/spec-team-identity.md
     binary_leases: []
 
+  docs_kit:
+    status: ACTIVE
+    issue: 995
+    branch: docs/995-archivia-kit-elemental
+    worktree: "D:/rt-unit"
+    note: >-
+      ➕ **Track aperta il 2026-08-16 per archiviare due kit d'autore consumati**, non per applicarli.
+      I due file erano **untracked nella root del checkout principale** (`D:/Repositories/refactor-tactics-main`),
+      cioe' in nessun insieme di questo file: ne' in un `writable`, ne' in `integration_only`, ne' in
+      `generated_only`. E' la condizione che questo documento esiste per rendere visibile, applicata a
+      un sorgente invece che a un owner.
+
+      ⚠️ **Track distinta da `state_hash` benche' nello stesso worktree, e con un branch diverso**: il
+      lavoro documentale non appartiene alla PR di `#986`. I due `writable` non condividono un path.
+      🔴 **Conseguenza dichiarata invece che scoperta al merge**: entrambi i rami toccano *questo file*
+      — `fix/986-stableid-hash` per dichiarare `state_hash`, questo per dichiarare `docs_kit`. E' l'ottava
+      volta che `parallel-batch.yaml` e' l'oggetto conteso, e stavolta fra due rami della **stessa**
+      sessione. Il conflitto e' previsto e banale (due track nuove in due punti diversi della stessa
+      sezione), ma va risolto tenendo **entrambe**: chi mergia per secondo non sceglie un lato.
+
+      **Il consumo, non l'applicazione.** Il contenuto di design e' atterrato in **#995** dopo essere
+      stato filtrato contro `main`: la grammatica `Master/Specialist/Access/None` regge, mentre tre
+      affermazioni dei kit no — il vincolo *«gli ID gameplay rimangono `Hero.Flux`…»* e' la clausola di
+      `D-120` superata da `D-130`/`D-134`; le due prescrizioni di rimuovere `Electric Access` da Riktor e
+      `Cold Access` da Wraith hanno **zero occorrenze** misurate su `docs/`; e i kit non sanno che
+      `URTHeroData::Affinity`/`Weakness` esistono **a runtime** per tutti e quattro gli eroi.
+
+      ⛔ **Cosa questa track NON tocca, ed e' il punto**: `docs/characters/**` — le quattro pagine eroe e
+      l'owner `elemental-proficiency.md` che #995 chiede di creare. Non e' nel `writable` di nessuno, ma
+      non e' nemmeno nel mio: assegnarlo e' lavoro della track che eseguira' #995. I kit prescrivono
+      *«non fermarti a proporre, applica»*, e la stessa riga aggiunge *«se un path e' bloccato da D-139
+      non aggirare il vincolo»*: il delta e' #995.
+
+      ⚠️ **`docs/archive/src/README.md` resta `integration_only` e NON e' stato toccato, ma il suo totale
+      e' ora stantio**: dichiara **72** documenti (`17 + 47 + 2 + 6`) e la misura di oggi ne da' **78**
+      (`17 design + 48 handoff + 2 audit + 11 radice`, `README.md` escluso). Sei di scarto, di cui **due**
+      sono questa archiviazione e quattro erano gia' entrati da altri rami dal 2026-08-14. Si rimisura
+      **sull'albero mergiato**, come quel README stesso prescrive, e non si incrementa a mano.
+
+      ✅ **Intersezione misurata sui tre comandi**: 19 rami vivi, `git diff --name-only origin/main...<ramo>`
+      per ciascuno — **zero** tocca i due path qui sotto, e **nessuno** tocca `docs/archive/src/`.
+
+      🔴 **L'invariante NON regge su questo file, e la violazione e' preesistente — misurata, non ereditata.**
+      `spatial` (IDLE) e `content_editor` (ACTIVE) rivendicano entrambe
+      `docs/technical/qa-prompt-terminal-b-scenario-runner.md`: la prima come `mandate`, la seconda dentro il
+      proprio `writable`. Verificato eseguendo il calcolo delle intersezioni **sul file di `origin/main`
+      senza le mie modifiche** — 10 track, **1** violazione — e poi su questo ramo: 11 track, **sempre 1**.
+      Questa track non ne aggiunge e non ne toglie. Non la risolvo: appartiene a due track che non sono mie,
+      e sceglierne una sarebbe la «piccola fix» su un file non assegnato che D-139 vieta. Va decisa da chi
+      possiede quel mandato.
+
+      ⏱️ **E `origin/main` e' avanzato durante il lavoro, per l'ennesima volta**: da `ae86ecea` — la base su
+      cui e' nato `fix/986-stableid-hash` un'ora fa — a `6bd58473`, con la PR **#987**
+      (`feat/472-replay-r6-interfaccia`) che ha portato la track **`replay_ui`**, assente quando questa
+      sessione ha misurato la prima volta. I ref remoti sono condivisi fra i worktree: il numero di track
+      e' cambiato senza che questa sessione eseguisse un solo `fetch`.
+      ✅ Gate eseguiti su questo ramo: `check-docs-links.py` verde (3786 link, 388 file). `check-docs-naming.py`
+      **non** copre questi file — la sua prima riga dichiara *«esclusi archive/src»* — quindi il banner puo'
+      citare i nomi legacy dei kit senza falsificarli.
+    writable:
+      - docs/archive/src/RefactorTactics_v0.1_Characters_Elemental_Consolidation.md
+      - docs/archive/src/CLAUDE_Apply_Elemental_Proficiency_Consolidation_2026-08-16.md
+    binary_leases: []
+
   replay_ui:
     status: ACTIVE
     issue: 472
