@@ -371,11 +371,40 @@ I **nove** rimasti (l'elenco misurato è in
 > copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
-### 6.2 Pianificati nel Feature Registry — non ancora scritti · **56**
+### 6.2 Pianificati nel Feature Registry — non ancora scritti · **63**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
 **warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
 resta visibile invece di sparire.
+
+> 🔴 **Questa cella diceva `56` ed era ferma di sette, misurato il 2026-08-16.** Non è una svista di
+> battitura: il numero non aveva un comando in §7 — la sezione ne elenca otto, e nessuno contava i
+> `planned`. La shortlist **generata** diceva già `59` nello stesso repository, quindi due viste
+> divergevano e solo una si aggiornava da sola. Ora il comando c'è (§7, ultimo blocco) e il valore si
+> rimisura invece di ricordarlo.
+
+> ➕ **+4 il 2026-08-16 dal consolidamento *Mini v0.1 Autobattle*** (`D-145`, epic
+> [#952](https://github.com/DegrassiAaron/refactor-tactics-main/issues/952)): i quattro `AutoBattle.*`
+> di `RT-FEAT-MATCH-AUTOBATTLE`.
+>
+> | Scenario | Cosa dimostrerà |
+> |---|---|
+> | `AutoBattle.OpenField` | La partita non presidiata si chiude su terreno neutro: nessun input, un vincitore |
+> | `AutoBattle.Obstacles` | Il layout cambia le decisioni — è il gate che dice che la mappa è gameplay e non sfondo |
+> | `AutoBattle.Hazard` | Una superficie pericolosa modifica l'esito in modo deterministico |
+> | `AutoBattle.Objective` | La partita può finire per obiettivo, non solo per eliminazione |
+>
+> **Restano `planned` per l'oracolo, non per il tempo**, come i sei di CP 11.8: il formato di scenario
+> enumera i turni uno per uno (`FRTScenarioTurn`) e una partita autobattle **non sa in anticipo quanti
+> turni durerà**. Scriverli oggi produrrebbe un `ERROR` — difetto del test — non un `BLOCKED`, che è la
+> forma legittima di una specifica anticipata. Li sblocca **E47.4**
+> ([#957](https://github.com/DegrassiAaron/refactor-tactics-main/issues/957)), che a sua volta non si apre
+> prima del seam `DecisionProvider` di [D-101](../decisions/RT_PDR_00_Decision_Log.md)
+> ([#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)).
+>
+> ⚠️ **Quattro scenari, una sola arena.** `FRTScenarioCell` permette già a uno scenario di modificare le
+> celle che gli interessano sull'arena generata — ostacoli, costo, blocco della vista — quindi non servono
+> quattro mappe versionate. È la clausola che la sorgente stessa chiedeva.
 
 > ➕ **+6 il 2026-08-12 dal reconciliation di roadmap** — tutti e sei di
 > `RT-FEAT-UI-POINTER-INTERACTION` (CP 11.8): cinque `Visual.UI.*` e uno `Spec.Privacy.*`.
@@ -711,6 +740,28 @@ awk -F'|' '/RELEASE-V01/ && /^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
+```bash
+# I `planned` della §6.2 — il numero che fino al 2026-08-16 non aveva un comando, ed era fermo di sette
+python - <<'PY'
+import yaml
+d = yaml.safe_load(open('docs/roadmap/feature-registry.yaml', encoding='utf-8'))
+n = []
+for f in d['features']:
+    raw = f.get('scenarios') or []
+    if isinstance(raw, dict):
+        n += list(raw.get('planned') or [])
+    else:
+        for it in raw:
+            if isinstance(it, dict) and 'planned' in it:
+                n += it['planned'] or []
+print(len(n), 'planned ·', len(set(n)), 'unici')   # 63 · 63
+PY
+```
+
+> ⚠️ **Un numero senza comando va fuori sincrono, e questa sezione ne è la prova al contrario**: gli otto
+> comandi qui sopra tengono in riga i loro numeri, mentre l'unico che ne era privo — i `planned` della §6.2 —
+> è l'unico che aveva divergito. Il rimedio non è ricordarsi di aggiornarlo: è il blocco qui sopra.
+
 > ⚠️ Il conteggio del subset **non** si fa con `grep -c 'RELEASE-V01'` nudo: il marcatore compare anche nella
 > prosa che lo spiega, e quella forma dà **24**. È lo stesso difetto del comando di conteggio del registro
 > PIE, che per settimane ha cercato `✅` *ovunque* nella cella invece che come primo carattere — un comando
@@ -803,6 +854,7 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | ~~**Nessuna assertion che legga il TurnLog**~~ — ✅ **chiuso il 2026-08-09** (`#318`): `LogEventCount` e `LogEventOrder` leggono il log accumulato dalla sessione, e l'evento si nomina per nome | I tre `Spec.Clash.*` sono **scrivibili** (li scrive CP 14.7). Gli otto `Spec.TimeBank.*` **no**: manca il contatore, e prima serve la decisione su come tre valori in millisecondi entrano in un `FRTTurnLogEntry` che ha un solo `Amount` — vedi §6.2 | `test-automatico-unreal.md` §5.1 |
 | ~~**Il contatore del log, e le due liste `Spec.TimeBank.*` che divergono**~~ — ✅ **chiuso il 2026-08-09** (`#361`): `spec-turnlog.md` §4.2 dichiara la categoria `Decision` e due voci (`BankConsumed`, `BankAfter`) con il valore in `Amount`; le liste sono riconciliate a **dieci** scenari `harness`. I conteggi della riga precedente erano sbagliati in entrambi i sensi: §13 elencava **20** nomi, non 13, e gli orfani erano **zero** | I dieci `Spec.TimeBank.*` sono **scrivibili** appena esiste l'assertion sul contatore, che ora ha un formato da leggere. Li scrive CP 14.8 | §6.2 · `spec-turnlog.md` §4.2 |
 | ~~**L'assertion sul contatore del log**~~ — ✅ **chiusa il 2026-08-09** (`#361`): `LogEventAmount` legge `Amount` della prima voce che corrisponde, in coda all'enum come `UnitFacing` e `LogEventCount` prima di lei | I dieci `Spec.TimeBank.*` non hanno più un ostacolo tecnico: restano **da scrivere**, ed è lavoro di CP 14.8 | `test-automatico-unreal.md` §5.1 |
+| **Il frontend non ha copertura di nessuna classe, e le sue sei voci di classe C non sono scrivibili da chi le ha specificate** *(2026-08-16)* — le quattro feature `RT-FEAT-UI-FRONTEND-*` di **E46** nascono con `scenario: na` e `automation: todo`: il repository non ha infrastruttura di test UI, quindi non esiste né uno scenario né un automation test che istanzi un widget e ne verifichi la navigazione | Oggi **nessuno**, perché E46 è `SPECIFIED` e non c'è codice. Il buco si apre al primo checkpoint implementato: i sei DoD nominano `PIE-V01-FRONTEND-NAV`, `-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE`, e **nessuna di quelle voci esiste nel registro**. ⚠️ Non sono state create per un vincolo di processo, non per dimenticanza: [`test-manuali-pie.md`](test-manuali-pie.md) appartiene dal 2026-08-16 alla track **`playtest`** e D-139 dice che un file non assegnato è uno **stop**. La procedura non è aspettare: quella track dichiara che *«chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone** in handoff»*. Le sei voci si propongono quando il primo checkpoint di E46 produce qualcosa da guardare. Finché non succede i conteggi della §2 e della §5 **non** includono E46, il che è corretto: contarle sarebbe dichiarare un registro che non le contiene | [`spec-frontend-navigazione.md`](spec-frontend-navigazione.md) §8 · [D-144](../decisions/RT_PDR_00_Decision_Log.md) |
 | **Nessuna assertion sul determinismo** — e non deve esserci: `HashTurnLog` **ordina** prima di mescolare, quindi è invariante per permutazione e non vede l'ordine; un hash letterale in un JSON si romperebbe alla prima voce nuova del log | `Spec.Clash.Determinism` va scritto sull'ordine (`LogEventOrder`), non su un checksum. Il determinismo vero si verifica **eseguendo due volte**: è una proprietà del runner | `test-automatico-unreal.md` §5.1 |
 
 ## 10. Rapporto con gli altri documenti

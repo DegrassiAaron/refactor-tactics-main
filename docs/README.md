@@ -150,32 +150,32 @@ python scripts/feature_registry.py suite      # rimisura e riscrive il blocco qu
 ```
 
 <!-- RT_SUITE_COUNT:BEGIN -->
-**701 test unici in 95 file** — misurati su `fc99e46`.
+**875 test unici in 107 file** — misurati su `732d797c`.
 
 Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
 
 | Area | Test | Cosa fissa |
 |---|---:|---|
-| `Hex*` (mappa, path, vision, bot, blast, move, match) | 99 | Coordinate, A\*, LOS, bot, partita completa |
+| `Hex*` (mappa, path, vision, bot, blast, move, match) | 126 | Coordinate, A\*, LOS, bot, partita completa |
 | `Actions.*` | 71 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
-| `Terrain.*` · `Status.*` · `Environment.*` | 39 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
-| `Combat.*` · `HexCombat.*` | 39 | Danno dopo scudo, forme, LOS, niente fuoco amico |
-| `Reactions.*` | 30 | Attivazione singola, trigger puro, reazioni componibili, privacy |
-| `HexSim.*` | 28 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
-| `Match*` (allestimento, formato, fine partita) | 32 | Le tre vie di fine partita e il `RoundLimit` da formato |
-| `Heroes.*` | 32 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
-| `TurnLog.*` | 48 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Scenario.*` · `ScenarioIndex.*` | 56 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
-| `Structures.*` | 21 | Porte come bordo (E9.3), ponti come arco (E9.4) |
-| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 24 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 27 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
+| `Terrain.*` · `Status.*` · `Environment.*` | 41 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
+| `Combat.*` · `HexCombat.*` | 40 | Danno dopo scudo, forme, LOS, niente fuoco amico |
+| `Reactions.*` | 34 | Attivazione singola, trigger puro, reazioni componibili, privacy |
+| `HexSim.*` | 33 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
+| `Match*` (allestimento, formato, fine partita) | 33 | Le tre vie di fine partita e il `RoundLimit` da formato |
+| `Heroes.*` | 34 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
+| `TurnLog.*` | 49 | Hash permutazione-invariante, serializzazione versionata, checksum |
+| `Scenario.*` · `ScenarioIndex.*` | 66 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
+| `Structures.*` | 26 | Porte come bordo (E9.3), ponti come arco (E9.4) |
+| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 49 | Presentazione e input: non decidono, riproducono |
+| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 29 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
 | `Cover.*` | 20 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
-| `Catalog.*` | 9 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
+| `Catalog.*` | 8 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
 | `Pacing.*` | 7 | Pacing del turno misurato |
-| `Perf.*` | 3 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **585** | |
+| `Perf.*` | 4 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
+| **totale** | **670** | |
 
-> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.ArenaV01MeetsAllThreeCriteria`, `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`, `RefactorTactics.Arena.VerdictIsIndependentOfCellOrder`, `RefactorTactics.Door.ChangeCarriesActor`
+> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.ArenaV01MeetsAllThreeCriteria`, `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.RemovingTheOnlyTransitionIsolatesThePlatform`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`
 <!-- RT_SUITE_COUNT:END -->
 
 ---

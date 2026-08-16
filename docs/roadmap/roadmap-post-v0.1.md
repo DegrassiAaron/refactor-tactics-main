@@ -1030,6 +1030,68 @@ questo gate ancora aperta.
 
 ---
 
+## Il frontend oltre la v0.1
+
+*(2026-08-16, [D-144](../decisions/RT_PDR_00_Decision_Log.md))* — **E46** porta in v0.1 il minimo che rende
+verificabile `G13`: `Main Menu → Play → partita → Result → Quit`, più pausa, loading ed error modal. Tutto
+il resto del frontend vive qui.
+
+Sta in **una sezione trasversale e non spalmato nelle nove release** per la stessa ragione per cui E46 non
+è finita in E11: il frontend è uno strato, non un tema di release. Distribuirne quattordici pezzi fra i
+temi esistenti li renderebbe invisibili nel punto in cui servono — cioè tutti insieme, quando si decide
+cosa costruire dopo il menu.
+
+> ⚠️ **La prima colonna qui sotto non è in grassetto, e non è una svista di formattazione.** La tabella
+> «Le release» in cima a questo file è **letta da un parser** (`release_table_rows()`), il cui regex è
+> `^\|\s*\*\*(v\d+\.\d+)\*\*\s*\|` seguito da tre celle — e cattura la **quarta**, cercandovi le epic.
+> Una seconda tabella di prosa con la stessa forma viene raccolta come se fosse quella owner: è il
+> difetto che [D-138](../decisions/RT_PDR_00_Decision_Log.md) ha già pagato una volta, con tre release
+> fantasma dichiarate due volte. Qui è ricomparso subito, in un modo nuovo: la riga `v0.7` dice *«segue
+> E42, non E40»*, e `E40` — nominata solo per **escluderla** — finiva attribuita a v0.7, producendo una
+> contraddizione con `RT-FEAT-NET-AUTHORITY`. Con `` `v0.5` `` invece di `**v0.5**` il regex non aggancia.
+> **Chi "sistemasse" il grassetto per uniformità riaprirebbe il bug.**
+
+| Release | Tema della release | Cosa ci arriva del frontend | Perché lì |
+|---|---|---|---|
+| `v0.2` | Struttura e finestre | **Settings** reale (Video · Audio · Controls · Gameplay · Accessibility) con persistenza · **Briefing** · **Training Lite** (Movement, Basic Combat) | In v0.1 `SETTINGS` è una voce *coming soon* e il Briefing non ha nulla da presentare: con un solo formato e una sola mappa non ci sono scelte. Diventano veri quando il roster raddoppia e le mappe sono più d'una |
+| `v0.3` | Informazione | **Knowledge/fog inspector** · UI del rumore | Segue E27 (percezione completa): un'interfaccia che mostra *ciò che non sai* non può precedere il sistema che lo modella |
+| `v0.4` | Operations | **Ispezione multilivello** della mappa · replay consapevole dei layer | Segue E30, dove le mappe grandi rendono il problema reale |
+| `v0.5` | Online Foundation | **Lobby privata** · reconnect UX · e la **sostituzione della pausa** | ⚠️ Il documento sorgente collocava questo blocco in v0.7. È **v0.5**: il repository ha già E40 (`Il turno simultaneo in rete`) lì, con `Standard 3v3 online, lobby privata` come gate. È anche la release in cui la pausa offline di CP 46.6 cede a `Surrender`/`Leave Match` |
+| `v0.7` | Competitive Alpha | **Spectator** · UI del dedicated | Segue E42: guardare una partita altrui richiede un server che non sia il client di nessuno |
+| `v0.8` | Beta / Balance | **Match history** · statistiche · analisi competitiva del replay | Segue E43 (misura a lotti): una cronologia serve quando c'è qualcosa da confrontare |
+| `v0.9` | Release Candidate | **Accessibility hardening** · localizzazione e layout · **controller** · hardening di error/loading · UX freeze | E44 è feature freeze: qui il frontend non cresce, regge |
+| `v1.0` | Launch | **Onboarding** · certificazione UX | E45 è un gate, non feature |
+
+### Le sezioni DEV/TEST non hanno una release: hanno una dipendenza
+
+**Scenario Browser, Scenario Detail, Scenario Runner UI e Bot Visual Simulation** non sono assegnate a
+nessuna release, ed è deliberato: vale la classificazione che il repository dà già al tooling — *«serve a
+chi sviluppa, non è contenuto della release»*.
+
+> 🔴 **La prima stesura di questo paragrafo, scritta poche ore prima, le faceva seguire
+> [`#926`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/926)** — *«`Scenarios/` non è
+> staged nel pacchetto, quindi una UI che legge il catalogo reale non avrebbe catalogo»*. Quella causa è
+> stata **chiusa il 2026-08-16** da [`#935`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935):
+> i 77 JSON entrano nel pak. **E #926 è stata chiusa per intero** il `2026-08-15T23:46Z`: la causa 2 —
+> `-dpcvars` compilato fuori in Shipping — è caduta con #945, che ha dato allo scenario una porta d'ingresso
+> che funziona anche lì (`Development PASS` e `Shipping PASS`, stesso `stateHash 572184bb`).
+> ∴ **non c'è più nessuna dipendenza tecnica**: c'è una scelta di scope, e sta in piedi da sola.
+> *(Questa nota è stata riscritta due volte in un giorno — «resta la causa 2», poi «non resta niente» —
+> perché la issue si è chiusa a scaglioni mentre il consolidamento la citava. Il numero dei JSON era
+> **76** in entrambe: rimisurato, `git ls-files Scenarios/ | grep -c '\.json$'` → **77**.)*
+
+Assegnare loro una release significherebbe farle competere con la consegna, che è esattamente ciò che
+`RT-FEAT-TOOL-CONTROL-CENTER` evita stando in `future`.
+
+⚠️ **`RT-FEAT-UI-SCENARIO-BROWSER` esiste già e non è un widget**: è l'indice C++ di
+[`#209`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/209). Il nome è occupato, la cosa
+no — ed è la ragione per cui le feature di E46 usano il prefisso `RT-FEAT-UI-FRONTEND-*`.
+
+**La UI di replay** non è qui perché ha già una issue:
+[`#472`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/472).
+
+---
+
 ## Cosa questo documento non decide
 
 - **Numeri di bilanciamento**: nessun valore di danno, costo o durata è fissato qui. Stanno in

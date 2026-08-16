@@ -52,7 +52,7 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**22 sedute** — ✅ **0** · 🟡 **12** · ⏳ **7** · **3** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**23 sedute** — ✅ **0** · 🟡 **12** · ⏳ **7** · **4** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
@@ -103,6 +103,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U4** | Combat e linea di tiro | `PIE` | verdetto su forme d'attacco, LOS esagonale e knockback | M6.4, M6.5 | sì | 0/3 | ⏳ |
 | **U5** | Bot e HUD | `PIE` | verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale | M6.6, M6.7 | sì | 0/7 | 🟡 |
 | **U6** | Multilivello e partita completa | `PIE` | chiusura di M6 / E2 — sessione D verde | M6.8 | sì | 0/4 | 🟡 |
+| **U23** | Autobattle registrata — la partita che si guarda, in PIE e su packaged | `PIE` | il video/log della partita non presidiata — l'evidenza che G10 chiede e la riserva che G13 dichiara | E47.1, E47.3 | sì | — | — |
 | **U7** | Personaggi Paragon | `ASSET` | i quattro Blueprint-unita' del roster v0.1, committati | — | sì | 1/2 | 🟡 |
 | **U8** | Animazioni | `ASSET` | gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death | — | sì | 0/2 | ⏳ |
 | **U9** | Leggibilita' e riferimento visivo | `PIE` | il video (o gli screenshot) di riferimento — DoD di milestone di M8 | — | sì | 2/4 | 🟡 |
@@ -119,7 +120,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
 | **U22** | Il gesto dell'autore — ghost, snap e Undo del tool Geometry | `PIE` | verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo | U21 | no | 0/4 | ⏳ |
 
-**Lane**: `PIE` **19** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
+**Lane**: `PIE` **20** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
 
 ### Blocco 1 — Eseguibile oggi
 
@@ -335,6 +336,56 @@ vista. Il playtest ha fatto il suo mestiere: ha falsificato `RoundLimit 5`, che 
 **10-14** del 2v2 fissati da D-010, e il formato spedito e' passato a **12** nello stesso
 giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il ritmo misurato su
 5 round («un lampo») non descrive piu' il gioco.
+
+#### U23 · Autobattle registrata — la partita che si guarda, in PIE e su packaged —
+
+**Sbloccata da**: E47.1, E47.3 · **Percorso critico**: sì
+**Produce**: il video/log della partita non presidiata — l'evidenza che G10 chiede e la riserva che G13 dichiara
+**Finita quando**: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
+
+Attivare la modalita' non presidiata (**E47.1**), avviare su **mappa esagonale multilivello** — non
+sull'arena generata di test: e' precisamente la riserva che G13 dichiara — e **guardare**.
+Registrare video o sequenza di screenshot **piu'** il log della sessione, poi ripetere sul pacchetto
+Development.
+
+⚠️ **Perche' due esecuzioni e non una.** Sono due domande diverse — «le regole girano» e «girano
+fuori dall'editor» — e il repository ha gia' pagato la differenza: al primo tentativo di packaging
+di M7.4 i materiali referenziati via `TSoftObjectPtr` non venivano cookati, e le unita' erano grigie.
+Un video in PIE non lo avrebbe mai mostrato.
+
+⚠️ **Perche' servono ENTRAMBI video e log.** Il log non mostra la leggibilita' della board (CP 47.3);
+il video non porta i reason code. La DoD chiede evidenza allegata, e nessuno dei due da solo la
+soddisfa per intero.
+
+⚠️ **`unblocks: []` non e' una dimenticanza.** Questa seduta **non sblocca U6**: le nove voci
+`PIE-HEXPLAY` restano da eseguire una per una, ciascuna con la propria domanda. E47 cambia il
+**costo** di eseguirle — da «gioca una partita intera» a «guardala» — non la loro natura, ed e'
+scritto qui perche' la coda non la mostri come una scorciatoia verso M6.8.
+
+⚠️ **`verifies: []` non e' una lacuna: e' l'unica lettura onesta oggi.** Le due voci che questa
+seduta *sembrerebbe* chiudere sono gia' rivendicate da **U6** — `PIE-HEXPLAY-10` e
+`PIE-V01-MATCHEND` — e una voce con due sedute che se la contendono non dice piu' chi la chiude.
+U23 le rende **piu' economiche**, non le esegue al posto di U6.
+Vale la pena registrare anche l'esclusione che si era tentata per prima: `PIE-V01-MATCHLEN` non
+entrerebbe comunque, perche' la sua precondizione dice «partita 2v2 completa **giocata da un umano**
+contro i bot, cronometro alla mano» — una partita che si gioca da sola non risponde a quella
+domanda. `PIE-HEXPLAY-10` invece la dichiara nella propria precondizione («almeno un'unita' per
+squadra col bot»), ed e' proprio per questo che appartiene a U6 e non qui.
+
+⚠️ **Le voci nuove — `PIE-V01-BOARD`, `PIE-V01-PACKAGED` — non sono state aperte, e l'owner del
+file NON e' quello che questa riga diceva.** `docs/technical/test-manuali-pie.md` sta nel `writable`
+della track **`playtest`**, non di `content_editor`: misurato su `parallel-batch.yaml`, dove
+`content_editor` (#451) possiede i tool dell'editor e `RTHexMapActor`, e `playtest` possiede
+`test-manuali-pie.md` insieme al proprio mandato `qa-prompt-terminal-d-verifiche-pie.md`.
+🔴 L'attribuzione sbagliata e' stata ereditata dal corpo di E46, che porta lo stesso errore, ed e'
+stata trovata in code review. Cambia la conseguenza pratica: **`playtest` e' IDLE**, quindi il
+blocco non e' un'attesa su una sessione viva ma una **riallocazione da dichiarare** — che e' una
+cosa che si puo' fare oggi, non domani. Le due voci si aprono col prossimo batch, insieme alle sei
+`PIE-V01-FRONTEND-*` che E46 ha lasciato nella stessa condizione.
+
+⚠️ ID assegnato prima del merge: `U23`, con `U22` come ultimo su `main` e su tutti i branch remoti
+misurati il 2026-08-16 (`git show origin/<branch>:docs/roadmap/editor-sessions.yaml`). Chi arriva
+secondo rinumera, non contende.
 
 ### Blocco 3 — Presentazione (M8)
 
