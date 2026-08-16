@@ -3033,13 +3033,23 @@ tracks:
 
   replay_ui:
     status: ACTIVE
-    issue: 472
-    branch: feat/472-replay-r6-interfaccia
+    issue: 999              # più #472, che resta l'ombrello di R6: due issue, un solo write-set
+    branch: feat/999-ponte-bp-replay
     worktree: "D:/rt-client"
     note: >-
       **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
       2026-08-16 dopo lo spec panel in
       [`plans/replay-r6-spec-panel-2026-08-16.md`](plans/replay-r6-spec-panel-2026-08-16.md).
+
+      ➕ **Secondo giro sulla stessa track: `#999`, il ponte Blueprint.** Il view model e' atterrato in
+      `main` con la PR **#987**, e quel branch e' stato cancellato — questa riga dichiarava un branch
+      inesistente per il tempo fra il merge e l'apertura del giro successivo, che e' il caso per cui la
+      sentinella `branch: null` esiste. Qui non serve: il giro riapre subito.
+      ⚠️ **`#472` resta aperta e resta l'ombrello**: R6 e' fatta di tre pezzi — il view model (fatto), il
+      ponte (`#999`), le due schermate (`.uasset`, che vorranno una Binary Asset Lease). Il write-set e'
+      **uno solo** perche' i tre pezzi vivono negli stessi path; le issue sono due perche' il ponte ha un
+      DoD che si puo' spuntare da solo, e infilarlo in `#472` avrebbe reso quel DoD piu' lungo senza
+      renderlo piu' misurabile.
 
       ✅ **Il write-set e' MISURATO sui dieci branch vivi**, non dedotto dal titolo:
       `git diff --name-only origin/main...origin/<b>` per ciascuno dei branch di
@@ -3083,6 +3093,16 @@ tracks:
     writable:
       - Source/RefactorTactics/Replay/
       - Source/RefactorTactics/Tests/RTReplayViewModelTests.cpp
+      # ➕ Il test del ponte (`#999`). Dichiarato **per nome** come il precedente: `Tests/` e' condivisa
+      # fra tutte le track, e prenderla per prefisso bloccherebbe chiunque scriva un test. ⚠️ Un file
+      # nuovo non e' esente — «conteso da nessuno» non e' un'assegnazione, ed e' la stessa formula che
+      # `frontend_shell` ha usato per i quattro file nuovi di `Frontend/`.
+      - Source/RefactorTactics/Tests/RTReplayViewerSubsystemTests.cpp
+      # ➕ La fixture condivisa dai due test del replay, nata il 2026-08-16 in code review per togliere
+      # ~70 righe copiate. ⚠️ **Copre due file su tre**: `Tests/RTFrontendNavigationTests.cpp` ha la
+      # stessa costruzione di `UGameInstance`, e non e' unificata perche' quel file e' di
+      # `frontend_shell` — un path non assegnato e' uno stop, non un invito.
+      - Source/RefactorTactics/Tests/RTReplayTestFixtures.h
       - docs/roadmap/plans/replay-r6-spec-panel-2026-08-16.md
     derives_from:
       - source: docs/roadmap/feature-registry.yaml

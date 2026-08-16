@@ -1,98 +1,24 @@
 #include "Misc/AutomationTest.h"
 #include "Replay/RTReplayViewModel.h"
-#include "Replay/RTReplayRecorderLibrary.h"
-#include "Replay/RTReplayManifest.h"
-#include "Turn/RTTurnLog.h"
-#include "Turn/RTTurnLogLibrary.h"
-#include "HAL/PlatformFileManager.h"
-#include "Misc/Paths.h"
+#include "Tests/RTReplayTestFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 /**
  * Il view model del replay (`#472`) — la parte automatizzabile dei criteri di R6.
  *
- * ⚠️ **Guarda gli `#include`**: il view model, il recorder, il TurnLog. Nessun `ARTTurnManager`, nessun
- * `URTHexSimLibrary`, nessun resolver, nessun `UWorld`, **nessun `UUserWidget`**. E' la forma negativa che
- * `#472` chiede al percorso della UI, la stessa che
- * [ADR-0009](../../../docs/decisions/adr-0009-replay-logico-canonico.md) §3 chiede al Player: se la
- * posizione o i comandi avessero bisogno del resolver o di un widget, questi test non potrebbero esistere
- * in questa forma. Un test si aggira con un `#include`; una dipendenza che non esiste no.
+ * ⚠️ **Guarda gli `#include`**: il view model e la fixture. Nessun `ARTTurnManager`, nessun
+ * `URTHexSimLibrary`, nessun resolver, nessun `UWorld`, **nessun `UUserWidget`**. E' la forma negativa
+ * che `#472` chiede al percorso della UI, la stessa che ADR-0009 §3 chiede al Player: se la posizione o
+ * i comandi avessero bisogno del resolver o di un widget, questi test non potrebbero esistere in questa
+ * forma. Un test si aggira con un `#include`; una dipendenza che non esiste no.
+ *
+ * 🔴 Gli helper vivevano qui e sono stati copiati — con un suffisso diverso e una funzione peggiorata —
+ * nel file del ponte. Ora stanno in `RTReplayTestFixtures.h`, uno solo per entrambi. Trovato in code
+ * review.
  */
-namespace
-{
-	FString VMRoot(const TCHAR* Nome)
-	{
-		return FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("ReplayViewModel"), Nome);
-	}
+using namespace RTReplayFixtures;
 
-	void PulisciVM(const FString& Root)
-	{
-		IPlatformFile& PF = FPlatformFileManager::Get().GetPlatformFile();
-		if (PF.DirectoryExists(*Root)) { PF.DeleteDirectoryRecursively(*Root); }
-	}
-
-	FRTTurnLogEntry VoceVM(int32 TurnoDichiarato, ERTMatchPhase Fase, int32 Amount)
-	{
-		FRTTurnLogEntry E;
-		E.TurnNumber = TurnoDichiarato;
-		E.Phase = Fase;
-		E.Category = ERTLogCategory::Move;
-		E.ActionId = FName(TEXT("Action.Move"));
-		E.Amount = Amount;
-		E.SrcCell = FRTCellId(Amount, 0);
-		E.TgtCell = FRTCellId(Amount + 1, 0);
-		return E;
-	}
-
-	/**
-	 * Una traccia che dichiara `TurnoDichiarato` e contiene una voce per ciascuna fase richiesta.
-	 *
-	 * ⚠️ Il turno **dichiarato dalle voci** e' un parametro separato dal numero di file, e non e' un
-	 * artificio: `RTReplaySeekLibrary` documenta che una sequenza puo' iniziare da un turno qualsiasi, e
-	 * `OpenArchive` carica i file per posizione. Sono due cose diverse, e i test che le confondono
-	 * verificherebbero un archivio che il codice non promette.
-	 */
-	TArray<FRTTurnLogEntry> TracciaVM(int32 TurnoDichiarato, const TArray<ERTMatchPhase>& Fasi)
-	{
-		TArray<FRTTurnLogEntry> Voci;
-		int32 N = 0;
-		for (const ERTMatchPhase F : Fasi)
-		{
-			Voci.Add(VoceVM(TurnoDichiarato, F, ++N));
-		}
-		URTTurnLogLibrary::SortTurnLog(Voci); // forma canonica: precondizione del seek e del Player
-		return Voci;
-	}
-
-	/** Scrive un archivio dalle tracce date, nell'ordine. `bChiudi = false` lo lascia parziale. */
-	FGuid ScriviArchivioVM(const FString& Root, const TArray<TArray<FRTTurnLogEntry>>& Tracce, bool bChiudi)
-	{
-		FRTReplayManifest M;
-		M.MatchId = FGuid::NewGuid();
-		M.FormatId = FName(TEXT("Format.Skirmish2v2"));
-		M.bHexTopology = true;
-
-		for (int32 i = 0; i < Tracce.Num(); ++i)
-		{
-			URTReplayRecorderLibrary::RecordTurn(Root, M, i + 1, Tracce[i]);
-		}
-		if (bChiudi)
-		{
-			URTReplayRecorderLibrary::CloseMatch(Root, M, ERTMatchOutcome::Team0Wins, 999, 12.5f);
-		}
-		return M.MatchId;
-	}
-
-	/** Due turni pieni, con due fasi ciascuno. E' l'archivio di base della maggior parte dei test. */
-	FGuid ArchivioDueTurni(const FString& Root, bool bChiudi = true)
-	{
-		TArray<TArray<FRTTurnLogEntry>> Tracce;
-		Tracce.Add(TracciaVM(1, { ERTMatchPhase::Blast, ERTMatchPhase::Move }));
-		Tracce.Add(TracciaVM(2, { ERTMatchPhase::Blast, ERTMatchPhase::Move }));
-		return ScriviArchivioVM(Root, Tracce, bChiudi);
-	}
-}
 
 /**
  * `Replay.ViewModel.PositionIsNotTheCursor` — **il test centrale di #472**, e il difetto che ha fatto
@@ -113,8 +39,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelPositionTest,
 
 bool FRTReplayViewModelPositionTest::RunTest(const FString&)
 {
-	const FString Root = VMRoot(TEXT("Posizione"));
-	PulisciVM(Root);
+	const FString Root = TransientRoot(TEXT("Posizione"));
+	Pulisci(Root);
 	const FGuid Id = ArchivioDueTurni(Root);
 
 	FRTReplayViewModel VM;
@@ -182,7 +108,7 @@ bool FRTReplayViewModelPositionTest::RunTest(const FString&)
 		}
 	}
 
-	PulisciVM(Root);
+	Pulisci(Root);
 	return true;
 }
 
@@ -201,8 +127,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelFourStatesTest,
 bool FRTReplayViewModelFourStatesTest::RunTest(const FString&)
 {
 	{
-		const FString Root = VMRoot(TEXT("QuattroStati"));
-		PulisciVM(Root);
+		const FString Root = TransientRoot(TEXT("QuattroStati"));
+		Pulisci(Root);
 		const FGuid Id = ArchivioDueTurni(Root);
 
 		FRTReplayViewModel VM;
@@ -226,16 +152,16 @@ bool FRTReplayViewModelFourStatesTest::RunTest(const FString&)
 		TestFalse(TEXT("finita: nessuna fase corrente"), VM.Position().HasPhase());
 		TestFalse(TEXT("finita: nessun turno corrente"), VM.Position().HasTurn());
 
-		PulisciVM(Root);
+		Pulisci(Root);
 	}
 
 	{
 		// 4. Unaddressable — le voci dichiarano `0`, come una traccia scritta prima del formato v6.
-		const FString Root = VMRoot(TEXT("NonIndirizzabile"));
-		PulisciVM(Root);
+		const FString Root = TransientRoot(TEXT("NonIndirizzabile"));
+		Pulisci(Root);
 		TArray<TArray<FRTTurnLogEntry>> Tracce;
-		Tracce.Add(TracciaVM(0, { ERTMatchPhase::Blast, ERTMatchPhase::Move }));
-		const FGuid Id = ScriviArchivioVM(Root, Tracce, true);
+		Tracce.Add(Traccia(0, { ERTMatchPhase::Blast, ERTMatchPhase::Move }));
+		const FGuid Id = ScriviArchivio(Root, Tracce, true);
 
 		FRTReplayViewModel VM;
 		TestEqual(TEXT("un archivio pre-v6 si apre lo stesso"), VM.Open(Root, Id),
@@ -252,7 +178,7 @@ bool FRTReplayViewModelFourStatesTest::RunTest(const FString&)
 		TestEqual(TEXT("seek a 0 rifiutato"), VM.SeekToTurn(0), ERTReplaySeekResult::TurnNotFound);
 		TestEqual(TEXT("la posizione non si e' mossa"), VM.Position().Phase, ERTMatchPhase::Blast);
 
-		PulisciVM(Root);
+		Pulisci(Root);
 	}
 
 	return true;
@@ -279,8 +205,8 @@ bool FRTReplayViewModelObservablePhasesTest::RunTest(const FString&)
 	TestEqual(TEXT("in ordine cronologico: la prima e' Prep"), Fasi[0], ERTMatchPhase::Prep);
 	TestEqual(TEXT("l'ultima e' Cleanup"), Fasi.Last(), ERTMatchPhase::Cleanup);
 
-	const FString Root = VMRoot(TEXT("FasiOsservabili"));
-	PulisciVM(Root);
+	const FString Root = TransientRoot(TEXT("FasiOsservabili"));
+	Pulisci(Root);
 	const FGuid Id = ArchivioDueTurni(Root);
 
 	FRTReplayViewModel VM;
@@ -297,7 +223,7 @@ bool FRTReplayViewModelObservablePhasesTest::RunTest(const FString&)
 		ERTReplaySeekResult::Found);
 	TestEqual(TEXT("e sposta"), VM.Position().Phase, ERTMatchPhase::Move);
 
-	PulisciVM(Root);
+	Pulisci(Root);
 	return true;
 }
 
@@ -319,15 +245,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelNonObservableGuardTest,
 
 bool FRTReplayViewModelNonObservableGuardTest::RunTest(const FString&)
 {
-	const FString Root = VMRoot(TEXT("GuardiaFasi"));
-	PulisciVM(Root);
+	const FString Root = TransientRoot(TEXT("GuardiaFasi"));
+	Pulisci(Root);
 
 	// ⚠️ Una traccia con voci `Planning` e `MatchEnded`. Il resolver oggi non ne emette — ma nessun punto
 	// del codice lo impone, e il Player non lo verifica in apertura: e' una proprieta' documentata, non
 	// garantita. Un archivio cosi' e' leggibile, quindi il view model deve reggerlo.
 	TArray<TArray<FRTTurnLogEntry>> Tracce;
-	Tracce.Add(TracciaVM(1, { ERTMatchPhase::Planning, ERTMatchPhase::Blast, ERTMatchPhase::MatchEnded }));
-	const FGuid Id = ScriviArchivioVM(Root, Tracce, true);
+	Tracce.Add(Traccia(1, { ERTMatchPhase::Planning, ERTMatchPhase::Blast, ERTMatchPhase::MatchEnded }));
+	const FGuid Id = ScriviArchivio(Root, Tracce, true);
 
 	FRTReplayViewModel VM;
 	TestEqual(TEXT("l'archivio si apre"), VM.Open(Root, Id), ERTReplayOpenResult::Opened);
@@ -352,7 +278,7 @@ bool FRTReplayViewModelNonObservableGuardTest::RunTest(const FString&)
 	TestEqual(TEXT("che porta a Ended, non a MatchEnded"), VM.Position().State,
 		ERTReplayPositionState::Ended);
 
-	PulisciVM(Root);
+	Pulisci(Root);
 	return true;
 }
 
@@ -373,13 +299,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelEntriesTest,
 
 bool FRTReplayViewModelEntriesTest::RunTest(const FString&)
 {
-	const FString Root = VMRoot(TEXT("Contenuto"));
-	PulisciVM(Root);
+	const FString Root = TransientRoot(TEXT("Contenuto"));
+	Pulisci(Root);
 
 	// Due voci nella stessa fase: e' cio' che rende osservabile il raggruppamento.
 	TArray<TArray<FRTTurnLogEntry>> Tracce;
-	Tracce.Add(TracciaVM(1, { ERTMatchPhase::Blast, ERTMatchPhase::Blast, ERTMatchPhase::Move }));
-	const FGuid Id = ScriviArchivioVM(Root, Tracce, true);
+	Tracce.Add(Traccia(1, { ERTMatchPhase::Blast, ERTMatchPhase::Blast, ERTMatchPhase::Move }));
+	const FGuid Id = ScriviArchivio(Root, Tracce, true);
 
 	FRTReplayViewModel VM;
 	TestEqual(TEXT("apre"), VM.Open(Root, Id), ERTReplayOpenResult::Opened);
@@ -422,7 +348,7 @@ bool FRTReplayViewModelEntriesTest::RunTest(const FString&)
 	TestEqual(TEXT("niente da disegnare"), VM.CurrentPhaseEntries().Num(), 0);
 	TestEqual(TEXT("e nessuna fase nel turno corrente"), VM.PhasesInCurrentTurn().Num(), 0);
 
-	PulisciVM(Root);
+	Pulisci(Root);
 	return true;
 }
 
@@ -439,8 +365,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelEdgesTest,
 
 bool FRTReplayViewModelEdgesTest::RunTest(const FString&)
 {
-	const FString Root = VMRoot(TEXT("Bordi"));
-	PulisciVM(Root);
+	const FString Root = TransientRoot(TEXT("Bordi"));
+	Pulisci(Root);
 	const FGuid Id = ArchivioDueTurni(Root);
 
 	FRTReplayViewModel VM;
@@ -486,7 +412,7 @@ bool FRTReplayViewModelEdgesTest::RunTest(const FString&)
 	TestEqual(TEXT("ultima fase del turno 1"), VM.Position().Phase, ERTMatchPhase::Move);
 	TestEqual(TEXT("turno 1"), VM.Position().TurnNumber, 1);
 
-	PulisciVM(Root);
+	Pulisci(Root);
 	return true;
 }
 
@@ -504,13 +430,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelTurnStepTest,
 
 bool FRTReplayViewModelTurnStepTest::RunTest(const FString&)
 {
-	const FString Root = VMRoot(TEXT("TurniNonContigui"));
-	PulisciVM(Root);
+	const FString Root = TransientRoot(TEXT("TurniNonContigui"));
+	Pulisci(Root);
 
 	TArray<TArray<FRTTurnLogEntry>> Tracce;
-	Tracce.Add(TracciaVM(3, { ERTMatchPhase::Blast, ERTMatchPhase::Move }));
-	Tracce.Add(TracciaVM(7, { ERTMatchPhase::Prep, ERTMatchPhase::Cleanup }));
-	const FGuid Id = ScriviArchivioVM(Root, Tracce, true);
+	Tracce.Add(Traccia(3, { ERTMatchPhase::Blast, ERTMatchPhase::Move }));
+	Tracce.Add(Traccia(7, { ERTMatchPhase::Prep, ERTMatchPhase::Cleanup }));
+	const FGuid Id = ScriviArchivio(Root, Tracce, true);
 
 	FRTReplayViewModel VM;
 	TestEqual(TEXT("apre"), VM.Open(Root, Id), ERTReplayOpenResult::Opened);
@@ -532,7 +458,7 @@ bool FRTReplayViewModelTurnStepTest::RunTest(const FString&)
 	TestEqual(TEXT("seek al 4, che non esiste"), VM.SeekToTurn(4), ERTReplaySeekResult::TurnNotFound);
 	TestEqual(TEXT("fail-closed: non si e' mosso"), VM.Position().TurnNumber, 7);
 
-	PulisciVM(Root);
+	Pulisci(Root);
 	return true;
 }
 
@@ -549,8 +475,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelOpenFailureTest,
 
 bool FRTReplayViewModelOpenFailureTest::RunTest(const FString&)
 {
-	const FString Root = VMRoot(TEXT("Aperture"));
-	PulisciVM(Root);
+	const FString Root = TransientRoot(TEXT("Aperture"));
+	Pulisci(Root);
 
 	// Nessun manifest sotto quel `MatchId`.
 	{
@@ -609,7 +535,7 @@ bool FRTReplayViewModelOpenFailureTest::RunTest(const FString&)
 		M.FormatId = FName(TEXT("Format.Skirmish2v2"));
 		M.bHexTopology = false; // un archivio che viene da un altro mondo: il substrato quadrato non esiste piu'
 		URTReplayRecorderLibrary::RecordTurn(Root, M, 1,
-			TracciaVM(1, { ERTMatchPhase::Blast, ERTMatchPhase::Move }));
+			Traccia(1, { ERTMatchPhase::Blast, ERTMatchPhase::Move }));
 		URTReplayRecorderLibrary::CloseMatch(Root, M, ERTMatchOutcome::Team0Wins, 42, 3.f);
 
 		FRTReplayViewModel VM;
@@ -628,7 +554,7 @@ bool FRTReplayViewModelOpenFailureTest::RunTest(const FString&)
 		TestFalse(TEXT("e non si dichiara completo"), VM.IsComplete());
 	}
 
-	PulisciVM(Root);
+	Pulisci(Root);
 	return true;
 }
 
@@ -661,15 +587,15 @@ bool FRTReplayViewModelUnopenedTest::RunTest(const FString&)
 	TestFalse(TEXT("che non ha fase"), VM.Position().HasPhase());
 
 	// Dopo un tentativo fallito la domanda «com'e' andata» diventa lecita, e la risposta e' quella vera.
-	const FString Root = VMRoot(TEXT("MaiAperto"));
-	PulisciVM(Root);
+	const FString Root = TransientRoot(TEXT("MaiAperto"));
+	Pulisci(Root);
 	TestEqual(TEXT("apertura fallita"), VM.Open(Root, FGuid::NewGuid()),
 		ERTReplayOpenResult::ManifestUnreadable);
 	TestTrue(TEXT("ora il tentativo c'e' stato"), VM.HasAttemptedOpen());
 	TestFalse(TEXT("ma l'archivio no"), VM.IsOpen());
 	TestFalse(TEXT("e non si dichiara completo"), VM.IsComplete());
 
-	PulisciVM(Root);
+	Pulisci(Root);
 	return true;
 }
 
@@ -685,8 +611,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelPartialTest,
 
 bool FRTReplayViewModelPartialTest::RunTest(const FString&)
 {
-	const FString Root = VMRoot(TEXT("Parziale"));
-	PulisciVM(Root);
+	const FString Root = TransientRoot(TEXT("Parziale"));
+	Pulisci(Root);
 	const FGuid Id = ArchivioDueTurni(Root, /*bChiudi=*/false);
 
 	FRTReplayViewModel VM;
@@ -707,7 +633,7 @@ bool FRTReplayViewModelPartialTest::RunTest(const FString&)
 	TestEqual(TEXT("in cinque passi, l'ultimo dei quali esce dalla sequenza"), Passi, 5);
 	TestEqual(TEXT("e finisce"), VM.Position().State, ERTReplayPositionState::Ended);
 
-	PulisciVM(Root);
+	Pulisci(Root);
 	return true;
 }
 
@@ -725,8 +651,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayViewModelPlaybackTest,
 
 bool FRTReplayViewModelPlaybackTest::RunTest(const FString&)
 {
-	const FString Root = VMRoot(TEXT("Riproduzione"));
-	PulisciVM(Root);
+	const FString Root = TransientRoot(TEXT("Riproduzione"));
+	Pulisci(Root);
 	const FGuid Id = ArchivioDueTurni(Root);
 
 	FRTReplayViewModel VM;
@@ -787,7 +713,7 @@ bool FRTReplayViewModelPlaybackTest::RunTest(const FString&)
 	VM.Play();
 	TestTrue(TEXT("e riparte"), VM.IsPlaying());
 
-	PulisciVM(Root);
+	Pulisci(Root);
 	return true;
 }
 
