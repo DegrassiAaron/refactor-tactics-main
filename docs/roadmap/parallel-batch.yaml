@@ -1182,6 +1182,40 @@ tracks:
     issue: null
     branch: null
     note: >-
+      ✅ **IDLE dal 2026-08-16 perché il lavoro è atterrato, non per dipendenza.** `#832` (CP 23.3,
+      `RT-FEAT-MAP-STRUCTURE-IDENTITY`) è **CLOSED**: PR **#978** mergiata alle `06:47:59Z`
+      (`b2a024bc`), sesta casella su sei spuntata. Suite sull'albero mergiato: **903 test, 0 falliti**;
+      la verifica di mutazione fa cadere *esattamente* `Simulation.ChecksumSeesStructureIdentity` e
+      nient'altro, il che è anche la prova che `HexMap.DoorHashDeterminism` non copriva quell'anello.
+      ✅ **Il write-set torna libero e non assegnato**: i sei path di `#832` — `Map/RTStructureIdentityLibrary.*`,
+      `Turn/RTMatchStateHash.*` e i due test — sono tutti atterrati in `main` e oggi non sono di nessuno.
+      Chi li rivendica riattiva questa track, invece di scriverci di passaggio.
+      ⚠️ **Il `mandate` B resta assegnato e NON esigibile**: `ScenarioHarness/` è passato a `simulation`
+      (#512) e non è tornato. Alla track resta il solo file del mandato. Chi riapre il mandato
+      **rinegozia la cartella**, non la riprende — e finché `simulation` la tiene, non c'è niente da
+      riprendere.
+      ✅ **Il blocco che teneva ferma quella casella era scaduto, e l'ho rimisurato invece di rileggerlo.**
+      La issue dichiarava — al presente — *«`Turn/RTMatchStateHash.cpp` appartiene alla track `simulation`,
+      che lo sta riscrivendo»*. Quando ho misurato, `simulation` era `IDLE` col write-set *«libero e non
+      assegnato»*; è poi ripartita su `#512` con un `writable` che **non** contiene `RTMatchStateHash.*`.
+      Nessuna contesa in nessuno dei due momenti — verificato due volte, non dedotto una.
+      ⚠️ **`git ls-remote` non basta a misurare i branch vivi**: due erano **locali** in altri worktree
+      (`feat/954-autobattle-non-presidiata`, `feat/936-frontend-navigation`) e non comparivano lato
+      server. La misura giusta è `git branch --list` — i worktree condividono il repository — più
+      `git diff --name-only origin/main...<b>` per ciascuno.
+      🔴 **Questa sezione è stata scritta da DUE sessioni nello stesso giro, e il file si è contraddetto
+      con sé stesso**: una ha portato i campi ad `ACTIVE`, l'altra ha scritto in prosa *«la track è `IDLE`
+      con `issue: null`»* mentre toglieva `ScenarioHarness/`. Al merge i campi dicevano una cosa e il testo
+      un'altra. Risolto rileggendo i campi, non ricordando l'intenzione.
+      🔴 **E l'auto-merge aveva cancellato in silenzio il lavoro dell'altra track.** Il primo tentativo di
+      risoluzione perdeva due path dal `writable` di `simulation` e ne **resuscitava quattro** che `main`
+      aveva deliberatamente rimosso col giro di design di `#512` — annullando quella decisione senza che
+      nessun conflitto lo segnalasse. Trovato diffando il **risultato** contro `main` per confronto
+      strutturale dei `writable`, non leggendo la lista dei conflitti: quella misura la sovrapposizione,
+      non la perdita. Rifatto ripartendo dal file di `main` e riapplicando solo questa sezione.
+      ⛔ **`ScenarioHarness/` non è di questa track**: è passato a `simulation` (#512) nello stesso giro, e
+      la decisione è accettata com'è — la directory va intera, non divisa fra due track. Con essa esce il
+      mandato B dall'esigibilità: resta assegnato, senza il proprio write-set.
       IDLE perché **il candidato è atterrato**, non per dipendenza. `#41` (CP 3.3, misure di budget
       su hex) è chiusa: PR #846 mergiata alle `06:38Z`, la issue chiusa alle `07:12Z` da #850 —
       `Client FPS` non è stato rinviato ma **collocato** su CP 12.4 (`#84`), che chiede le stesse
@@ -1302,7 +1336,12 @@ tracks:
     # PR è l'atto d'integrazione che prenota i path; il branch di lavoro nasce col primo commit dentro
     # `D:/rt-simulation`. È la stessa forma che `content_editor` porta da due giorni, ed è la ragione per
     # cui `branch` si **misura** (`git ls-remote`) invece di scriverlo in anticipo.
-    branch: null
+    # ✅ **Il primo commit è arrivato, e il campo smette di dire il falso lo stesso giorno.** Il branch
+    # esiste **lato server** — `git ls-remote --heads origin` dà `3b4a8884` — e porta il referto del giro
+    # di design. La correzione non ha aspettato la chiusura della track: un `branch: null` su una sessione
+    # che ha già scritto e pushato è precisamente il difetto che `content_editor` porta da due giorni e
+    # che questo file le contesta due blocchi più sotto.
+    branch: feat/512-decisionprovider-finestra
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -1559,13 +1598,48 @@ tracks:
       si è mosso **quattro volte** mentre misuravo, e due di quelle volte ha toccato questo stesso file.
       Le misure qui sopra sono state rifatte sull'albero finale invece di essere ereditate — e una,
       l'arco verso E47.4, è stata **falsificata** da ciò che è atterrato in mezzo.
+      ➖ **Il giro di design ha falsificato quattro dei sei path, e il `writable` si stringe prima che una
+      riga di codice li tocchi.** Escono `Turn/RTTurnManager.{h,cpp}` e `Turn/RTReactionOpportunityTypes.{h,cpp}`:
+      · `ARTTurnManager::ReactionDecider` è **già `public`** — dichiarato *«perché iniettarlo È il suo
+        scopo»* — e `FireResponse()` / `IsResponseAllowed()` sono funzioni di libreria. La session binda e
+        traduce **senza toccare il manager**;
+      · il tipo di ritorno non cambia, perché la mutazione scelta è **comportamentale** (un provider che
+        risponde sempre `HOLD` deve far cadere un `expect`) e non una dimostrazione sul tipo. Un test sul
+        divieto non avrebbe una premessa costruibile — è lo stesso caso del test rimosso in
+        `DeriveOpportunityId`, tenuto verde perché non poteva fallire.
+      ∴ Erano una **prenotazione**, non un vincolo, e questo file ha già scritto che le due cose non
+      coincidono. Se l'implementazione contraddice il design e `Turn/` serve davvero, si riemenda **prima**
+      di scrivere — non si allarga a posteriori.
+      ➕ **Entrano due path, entrambi non assegnati e misurati uno per uno.**
+      · `Tests/RTScenarioLoaderTests.cpp` — è **lì** che vivono i test del loader, e le voci di DoD sullo
+        schema (chiave sconosciuta in `decisions`, chiave di turno sconosciuta, `target` obbligatorio con
+        `FIRE` e vietato con `HOLD`) non hanno un altro posto onesto. Nessun branch vivo lo tocca;
+      · `docs/roadmap/plans/cp153b-decision-provider-design-2026-08-16.md` — il referto di questo giro di
+        design. ⛔ **Il file, non la cartella**: misurato che `docs/roadmap/plans/` è scritta in questo
+        momento da **tre** branch remoti (`docs/38-spec-panel-playtest-hex`, `docs/five-lane-roadmap`,
+        `docs/lane-6-7`, più `docs/lane-7-vault`) e da un worktree con un referto *untracked*
+        (`D:/rt-menu`, `cp462-loading-error-spec-panel-2026-08-16.md`). Prendere la cartella sarebbe una
+        contesa con quattro sessioni per un file che non esiste ancora.
+      ⛔ **Cosa il design ha spostato fuori dalla portata di questa track, detto adesso e non alla
+      consegna**: la voce 5 del DoD — `DecisionBoundary` disponibile e showcase oltre il T4 — **non è
+      chiudibile da qui**. Scoprire la capability sblocca **3** dei 7 turni che la chiedono, e due di essi
+      (`Spec/Overwatch/HoldThenFire`, `Spec/Brace/ProfileChangesResponse`) non sono mai stati eseguiti:
+      `HoldThenFire` si aspetta `F1` a `[-2,0,0]`, cioè un movimento **troncato da un `FIRE`**, e senza
+      decisione scriptata risponderebbe `HOLD` e cadrebbe. `EveryShippedScenarioRuns` accetta `BLOCKED` e
+      non accetta `FAIL`: la capability si scopre **insieme** ai dati che la rendono rispondibile, e i dati
+      stanno in `Scenarios/`, che resta `integration_only`.
+      ➕ **Un quinto path, e la ragione per cui non è la cartella**: il **piano** di implementazione,
+      `docs/roadmap/plans/cp153b-decision-provider-plan-2026-08-16.md`. Il referto dice *cosa* si costruisce
+      e perché; il piano dice in quale ordine e con quali test, ed è ciò che un esecutore legge. Stesso
+      criterio del referto — **file e non cartella**: `docs/roadmap/plans/` è scritta adesso da quattro
+      branch remoti e da un worktree con un referto *untracked*. Misurato che il nome non esiste e che
+      nessuno lo tocca.
     writable:
       - Source/RefactorTactics/ScenarioHarness/
-      - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
-      - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
-      - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
       - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
+      - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+      - docs/roadmap/plans/cp153b-decision-provider-design-2026-08-16.md
+      - docs/roadmap/plans/cp153b-decision-provider-plan-2026-08-16.md
     derives_from:
       - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
         regenerates:
