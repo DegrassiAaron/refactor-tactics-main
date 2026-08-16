@@ -133,6 +133,22 @@
 #                                   track: l'invariante è definita per track, e una lease fuori da
 #                                   una track non appartiene a nessun insieme e non entra nel
 #                                   confronto.
+#   writable_on_loan facoltativo    path che questa track tiene nel proprio `writable` avendoli **presi da
+#                                   `integration_only`**, con l'obbligo di rimettercili alla chiusura. Un
+#                                   path non puo' stare nei due insiemi insieme: sarebbe assegnato e non
+#                                   assegnato nello stesso file.
+#                                   Introdotto il 2026-08-16 con `spatial` su `#726`, per
+#                                   `docs/OPEN_DECISIONS.md`: `FAC-15` **blocca** lavoro, e una decisione che
+#                                   ferma qualcuno non aspetta la chiusura del batch.
+#                                   🔴 **Nasce da un difetto della prima stesura, trovato dalla code review**:
+#                                   l'obbligo di restituzione stava in due commenti `#` e nella prosa di
+#                                   `note`. Ma l'intestazione di questo file dichiara che il batch **viene
+#                                   riscritto al successivo** e non e' un registro storico: alla riscrittura
+#                                   i commenti se ne vanno, il path resta fuori da `integration_only` per
+#                                   sempre, e nessun `--check` puo' accorgersene — il validator di `#840`
+#                                   non esiste ancora. E' lo stesso argomento con cui `blocked_paths` e' nato
+#                                   accanto a `blocked_by`: un vincolo che vive solo in prosa non e'
+#                                   interrogabile, quindi non e' un vincolo.
 #   mandate        facoltativo      path del documento che definisce *cosa* la track deve fare, quando
 #                                   il lavoro non nasce da una issue ma da un mandato scritto.
 #                                   Introdotto il 2026-08-15 con i tre mandati QA
@@ -206,6 +222,15 @@
 # validator di `#840` non esiste ancora. Finche' non c'e', questa invariante e' vera **solo se qualcuno
 # la misura**, ed e' la ragione per cui e' successo: nessuno l'ha misurata al momento della seconda
 # dichiarazione.
+#
+# ✅ **Meta' sciolta il 2026-08-16**: `spatial`, riattivata su `#726`, ha **rilasciato**
+# `docs/technical/qa-prompt-terminal-b-scenario-runner.md` dal proprio `writable` — vedi il commento nella
+# sua sezione. Il path resta a `content_editor` (#451) e a nessun altro, quindi l'intersezione fra i
+# `writable` e' oggi **vuota**, rimisurata col ciclo qui sopra dopo la riattivazione e non ereditata.
+# ⚠️ La riattivazione e' anche il caso che dimostra perche' la violazione dormiente andava sciolta e non
+# tollerata: finche' `spatial` era `IDLE` non faceva danno, e il primo comando che l'ha portata ad `ACTIVE`
+# l'avrebbe resa ACTIVE x ACTIVE senza che nessun gate lo dicesse. Una contesa fra una track viva e una
+# ferma e' una contesa **rinviata**, non assente — e il rinvio scade quando qualcuno riapre la track.
 #
 # ## `integration_only`
 #
@@ -1190,10 +1215,68 @@ preexisting:
 tracks:
 
   spatial:
-    status: IDLE
-    issue: null
-    branch: null
+    status: ACTIVE
+    issue: 726
+    branch: docs/726-fac15-simmetria-facing
     note: >-
+      ➕ **Riattivata il 2026-08-16 su `#726`** (facing: la relazione a sei direzioni relative, `D-126`), e il
+      write-set è **uno solo**: `docs/OPEN_DECISIONS.md`. Non è la fetta di codice della issue — quella è
+      bloccata — è la decisione che la blocca.
+      🔴 **Uno spec panel su `#726` ha trovato che il suo DoD contiene un test che la regola specificata
+      fallisce.** Misurato replicando `HexCone`/`HexLine` con le costanti reali (`RT_HEX_DX/DY`,
+      `RT_HEX_LINE_SCALE = 1024`), non rileggendo la issue: il DoD chiede che `(-1, 2)` e `(1, -2)` restino
+      `FrontLeft`/`FrontRight`, e sotto la regola a **settore** adottata `(1, -2)` è `FrontRight` ✅ ma
+      `(-1, 2)` è **`RearLeft`** — e non è nemmeno una divergenza dal cono. Quei due valori, e il «**50**»
+      di celle divergenti, sono le misure della regola a **linea**, che lo spec panel del 2026-08-13 ha
+      **scartato lasciando in piedi i numeri**. Sotto la regola adottata sono **45**, e a distanza `2` la
+      divergenza è **una sola**.
+      ⚠️ **Sotto il numero c'è una decisione mancante, non un refuso**: equipartizione e simmetria
+      destra/sinistra sono **incompatibili** su un anello esagonale di raggio pari. La regola di `#726`
+      sceglie in silenzio l'equipartizione — `36` celle per lato a raggio `1..8` e `r` per anello, entrambe
+      verificate — e con essa **168 celle su 216** non ricevono la direzione speculare della propria immagine
+      speculare, mentre `IsInFrontalArc` ne ha **zero**. Nessun sottoinsieme proprio dei sei lati produce una
+      regione speculare: **0 su 62**. Da qui `FAC-15`, che è ciò che questo giro scrive.
+      ⚠️ **`issue: 726` dice quale decisione questa track sblocca, non che ne stia scrivendo il codice.**
+      La fetta runtime di #726 **non è iniziata e non è iniziabile** finché `FAC-15` è aperta: alla chiusura
+      della track la issue resta `OPEN` con zero residuo, ed è l'esito corretto, non un lavoro abbandonato.
+      Chi legge il campo senza la nota vedrebbe una sessione al lavoro su #726 — la confusione che
+      l'intestazione di questo file dichiara di pagare cara ogni volta.
+      ✅ **Invariante verificata, non dedotta**: `docs/OPEN_DECISIONS.md` non compare nel `writable` di
+      nessuna delle cinque track `ACTIVE` (`simulation` #512, `client_tools` #78, `content_editor` #451,
+      `docs_kit` #995, `replay_ui` #472) e non è sorgente di nessuna vista in `generated_only`. Nessun ref
+      vivo lo toccava quando il prestito è stato preso: `git log --all --not origin/main -- docs/OPEN_DECISIONS.md`
+      **eseguito sulla base, prima di questo commit**, restituiva due commit, entrambi **irraggiungibili** da
+      qualunque branch (`git branch -a --contains` vuoto per entrambi).
+      ⚠️ **Rilanciato da questo branch ne restituisce tre**, e il terzo — raggiungibile — è il commit che
+      porta questa riga. Il comando va eseguito **dalla base**, non da qui, altrimenti misura sé stesso: è
+      il caso in cui l'artefatto che invita a riverificare contraddice il proprio risultato stampato.
+      ⚠️ **Esce da `integration_only` per la durata di questa track, e il costo va detto**: finché è `ACTIVE`,
+      un'altra sessione che debba aprire una decisione **si ferma e la chiede qui** invece di scriverla in
+      integrazione. È esattamente il motivo per cui il file ci stava; la contropartita è che una decisione
+      che **blocca** lavoro non aspetta la chiusura del batch.
+      ⚠️ **Il resto della correzione NON è in questo write-set, ed è deliberato.** Il «50» sopravvive in
+      `D-126` (`RT_PDR_00_Decision_Log.md`), `adr-0005-orientamento.md`,
+      `adr-0008-rotazione-e-policy-di-facing.md`, `feature-registry.yaml` (più la vista `.json`) e
+      `roadmap/plans/facing-visualdocs-triage-2026-08-13.md`. Correggerlo qui e non lì produrrebbe un file
+      internamente coerente e in disaccordo con cinque: quindi `FAC-15` porta la misura giusta e **nomina** le
+      sedi, e lo sweep resta un lavoro solo, in integrazione. `docs/archive/` non si tocca — è storico.
+      ✅ **La sovrapposizione `feat/77-hud-slot-terna` × `client_tools` su `UI/RTHUD.*` è già modellata, e
+      la prima stesura di questa nota la registrava come scoperta nuova — cioè la triagiava una terza volta.**
+      Sta in `preexisting` con l'intersezione **misurata**, e `client_tools` porta `blocked_by: 904` con i
+      `blocked_paths` corrispondenti: il meccanismo nato il 2026-08-16 proprio per questo caso **ha già
+      funzionato**. Riscriverla qui avrebbe detto a chi possiede il batch di ri-triagiare il triagiato, e
+      fatto sembrare fallito un meccanismo che ha retto.
+      ⚠️ **`#986` resta aperta e senza sessione.** I cinque difetti di sostanza che la review ha misurato non
+      sono ripresi da questo giro: riattivare la track su `#726` non li chiude e non li rivendica.
+      ⚠️ Il `mandate` B resta **prenotato e senza write-set**: la riattivazione gli ha tolto il path — vedi il
+      commento in `writable` — non la prenotazione, e non lo rende esigibile. `ScenarioHarness/` è tuttora di
+      `simulation`.
+      ---
+      ⛔ **Da qui in giù è STORIA: i campi che i blocchi seguenti dichiarano NON valgono più.** Sono stati
+      scritti quando questa track era `IDLE` con `issue: null`, e lo dicono al presente. I campi correnti
+      sono quelli in testa alla sezione — `status: ACTIVE`, `issue: 726`. La riga esiste perché `note:` è
+      uno scalare `>-`: il `---` qui sopra si ripiega in uno spazio e non separa niente a schermo.
+      ---
       ⚠️ **IDLE con `#986` ancora APERTA, e la distinzione conta.** La PR **#988** (`a5c1e33b`) ha
       chiuso solo le due affermazioni false che erano entrate in `main`; i **cinque difetti di
       sostanza** che la review ha trovato — `ComputeHash` che ignora `StableId`, `MixName` instabile
@@ -1344,8 +1427,27 @@ tracks:
     mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md
     worktree: "D:/rt-spatial"
     writable:
-      - docs/technical/qa-prompt-terminal-b-scenario-runner.md
+      # ➖ `docs/technical/qa-prompt-terminal-b-scenario-runner.md` **rilasciato il 2026-08-16**, e non e'
+      # una rinuncia al mandato: e' la meta' di questa track della violazione che l'intestazione dichiara
+      # (`spatial` e `content_editor` lo rivendicavano **entrambe** gia' su `origin/main`). Finche' questa
+      # era `IDLE` la contesa dormiva; portandola ad `ACTIVE` sarebbe diventata ACTIVE x ACTIVE, cioe' la
+      # violazione vera — e l'avrebbe creata questo commit. L'intestazione dice «**La sciolgono i due
+      # proprietari**»: questa e' la meta' che spetta a `spatial`. Il `mandate:` resta prenotato **senza
+      # write-set**, lo stesso trattamento che la nota da' gia' a `ScenarioHarness/`, e chi riapre il
+      # mandato rinegozia con `content_editor` invece di ereditare una contesa.
+      # ➕ Il 2026-08-16 con `#726`. Veniva da `integration_only`, ed e' un prestito con scadenza: torna
+      # li' quando questa track chiude. Intersezione con le cinque track `ACTIVE` **misurata vuota**, e
+      # il file non e' sorgente di nessuna vista — nessun `derives_from` da aggiungere sotto.
+      - docs/OPEN_DECISIONS.md
+    # Il campo rende l'obbligo di restituzione **interrogabile** invece che affidato ai commenti qui sopra,
+    # che la riscrittura del batch porterebbe via con se'. Alla chiusura di questa track il path torna in
+    # `integration_only` — vedi lo schema.
+    writable_on_loan:
+      - path: docs/OPEN_DECISIONS.md
+        from: integration_only
+        return_to: integration_only
     derives_from: []
+    binary_leases: []
 
   simulation:
     status: ACTIVE
@@ -3008,7 +3110,11 @@ integration_only:
   - AGENTS.md
   - CLAUDE.md
   - docs/decisions/RT_PDR_00_Decision_Log.md
-  - docs/OPEN_DECISIONS.md
+  # ➖ `docs/OPEN_DECISIONS.md` **esce di qui il 2026-08-16**: e' nel `writable` di `spatial` (#726) finche'
+  # quella track e' `ACTIVE`, e un path non puo' stare nei due insiemi insieme — sarebbe assegnato e non
+  # assegnato nello stesso file. Ci torna alla chiusura della track. La ragione del prestito e' che
+  # `FAC-15` **blocca** #726, e una decisione che ferma lavoro non aspetta la fine del batch; il costo —
+  # chi deve aprire una decisione ora passa da questa track — e' dichiarato nella nota di `spatial`.
   - docs/DOC_CONFLICT_MATRIX.md
   - docs/CONTEXT_INDEX.md
   - docs/roadmap/roadmap-checkpoint.md
