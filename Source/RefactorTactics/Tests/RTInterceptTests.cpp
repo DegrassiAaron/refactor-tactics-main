@@ -252,9 +252,13 @@ bool FRTInterceptCatalogTest::RunTest(const FString&)
 	return true;
 }
 
+// ⚠️ `ClientContext` oltre a `EditorContext`, e non per simmetria con i vicini: e' uno dei **dieci test
+// vincolanti** del catalogo (`roadmap-v0.1.md` §6), e CP 12.3 (`#83`) chiede che la suite giri anche in un
+// pacchetto. Con il solo `EditorContext` il controller lo filtra fuori dal target `Game` — misurato:
+// `Automation List` in un pacchetto Development registrava **zero** test su 875, tutti dichiarati solo Editor.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterceptTest,
 	"RefactorTactics.Reactions.Intercept",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 bool FRTInterceptTest::RunTest(const FString&)
 {
 	// Nome vincolante del catalogo. L'intercettore DIVENTA il bersaglio: incassa lui, l'alleato no.
