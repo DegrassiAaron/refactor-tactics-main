@@ -398,9 +398,13 @@ resta visibile invece di sparire.
 > enumera i turni uno per uno (`FRTScenarioTurn`) e una partita autobattle **non sa in anticipo quanti
 > turni durerà**. Scriverli oggi produrrebbe un `ERROR` — difetto del test — non un `BLOCKED`, che è la
 > forma legittima di una specifica anticipata. Li sblocca **E47.4**
-> ([#957](https://github.com/DegrassiAaron/refactor-tactics-main/issues/957)), che a sua volta non si apre
-> prima del seam `DecisionProvider` di [D-101](../decisions/RT_PDR_00_Decision_Log.md)
+> ([#957](https://github.com/DegrassiAaron/refactor-tactics-main/issues/957)), che **segue** — senza esserne
+> bloccata — il seam `DecisionProvider` di [D-101](../decisions/RT_PDR_00_Decision_Log.md)
 > ([#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)).
+> 🔴 **La riga diceva «non si apre prima», ed erano due errori in uno** (corretti il 2026-08-16):
+> il free-run non è bloccato da nulla — `PlanBotsForTest()` esiste, serve un ciclo — e il numero era in
+> conflitto col grafo, che scriveva `#512`. Sono issue diverse: `#512` è il `DecisionProvider` delle
+> **finestre di reazione** (CP 15.3 metà B), `#542` è il seam **generale**.
 >
 > ⚠️ **Quattro scenari, una sola arena.** `FRTScenarioCell` permette già a uno scenario di modificare le
 > celle che gli interessano sull'arena generata — ostacoli, costo, blocco della vista — quindi non servono
