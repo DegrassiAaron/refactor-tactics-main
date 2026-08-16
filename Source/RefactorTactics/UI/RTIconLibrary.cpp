@@ -79,11 +79,20 @@ TArray<FName> URTIconLibrary::RequiredIconIds()
 
 	// CERTEZZA — i tre livelli di CP 11.2, che il resolver classifica e la UI mostra senza ricalcolarli.
 	//
-	// E' l'unica categoria le cui chiavi NON derivano da un tipo esistente, e resta cosi' di proposito: un
-	// `ERTCertainty` creato adesso sarebbe un enum che nessuno legge — la classificazione arriva dal resolver
-	// e non ha ancora un tipo proprio. Tre costanti che il catalogo deve coprire valgono piu' di un tipo
-	// senza consumatori; il giorno in cui CP 11.2 introduce l'enum, questo elenco diventa la sua immagine e
-	// il test lo pretende.
+	// ⏱️ **Il tipo ADESSO esiste** — `ERTIntentCertainty`, introdotto da #859 e consumato da `ClassifyPlan`.
+	// Questo commento diceva *«il giorno in cui CP 11.2 introduce l'enum, questo elenco diventa la sua
+	// immagine»*: quel giorno e' arrivato, la condizione e' scattata e nessuno se n'era accorto (trovato
+	// dalla code review di #964).
+	//
+	// 🔴 **E la conclusione si ROVESCIA: l'elenco resta scritto a mano, per una ragione che prima non
+	// esisteva.** L'enum ha **quattro** valori e questa categoria ne pretende **tre**: `Unknown = 0`
+	// significa «mai calcolato» e non ha una resa — un'icona lo farebbe sembrare uno stato previsto invece
+	// del difetto a monte che e'. Derivare da `StaticEnum<ERTIntentCertainty>()` produrrebbe quindi una
+	// quarta chiave richiesta, un asset da disegnare e un test verde su una cosa sbagliata.
+	// ⚠️ Le chiavi di questa categoria sono i livelli **disegnabili**, non i valori del tipo, e le due cose
+	// hanno smesso di coincidere il 2026-08-16. Se un giorno un quinto livello sara' disegnabile, si
+	// aggiunge **qui** e il test lo pretende — la sincronia si paga con una riga, non con una derivazione
+	// che importa anche cio' che non si disegna.
 	for (const TCHAR* Level : { TEXT("Confirmed"), TEXT("Predicted"), TEXT("Uncertain") })
 	{
 		Ids.AddUnique(MakeIconId(FName(*FString::Printf(

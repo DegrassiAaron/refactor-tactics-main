@@ -76,12 +76,8 @@ TArray<FRTIntentView> URTIntentPrivacyLibrary::FilterForTeam(int32 ObserverTeamI
 			View.bDeclaresRotation = Intent.bDeclaresRotation;
 			View.DeclaredFacing = Intent.DeclaredFacing;
 
-			// Il livello della reazione segue la reazione: dove non c'e' una reazione da qualificare il campo
-			// non afferma niente. Per un avversario non si valorizza mai, perche' `ReactionName` non arriva.
-			if (!Intent.ReactionName.IsEmpty())
-			{
-				View.ReactionCertainty = ERTIntentCertainty::Uncertain;
-			}
+			// Il livello della reazione non si copia: `ReactionCertainty` e' uscito dal DTO il 2026-08-16 —
+			// la ragione sta sulla struttura, dove la cerca chi consuma.
 		}
 
 		Views.Add(View);

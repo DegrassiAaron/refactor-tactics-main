@@ -67,8 +67,33 @@
 #   worktree       facoltativo      il path del worktree, quando la sessione ne ha uno. Serve a
 #                                   `git worktree list` — il terzo comando della fotografia — per
 #                                   avere un riscontro invece di una corrispondenza a memoria.
-#   blocked_by     facoltativo      numero di PR che deve atterrare **prima** che questa track apra la
-#                                   sessione. Solo per una track ACTIVE con `branch: null`.
+#   blocked_by     facoltativo      numero di PR che deve atterrare prima che questa track possa
+#                                   scrivere nei path che quella PR sta toccando.
+#                                   🔴 **Nato il 2026-08-16 come «prima che la track apra la sessione»,
+#                                   e riscritto il giorno stesso: era troppo grosso.** La misura degli
+#                                   hunk di #904 ha mostrato che il blocco riguardava `UI/RTHUD.*` e
+#                                   non l'intero write-set — `Turn/RTIntentPrivacyLibrary.*` e il suo
+#                                   test non li tocca nessuno. Una track con tre file liberi e uno
+#                                   conteso non è una track ferma: è una track che lavora sui tre.
+#                                   Un `blocked_by` che ferma la sessione intera trasforma una contesa
+#                                   su un path in un'attesa su tutto, ed è il modo in cui un vincolo
+#                                   onesto diventa più caro del problema che risolve.
+#                                   Coesiste con `branch:` valorizzato — la sessione lavora sui path
+#                                   liberi mentre aspetta.
+#   blocked_paths  con blocked_by   i path che la PR di `blocked_by` sta toccando, cioè quelli su cui
+#                                   questa track NON scrive finché quella non atterra. Sottoinsieme del
+#                                   proprio `writable`.
+#                                   🔴 **Nato subito dopo `blocked_by`, e per un difetto che era già
+#                                   stato commesso una volta in questo stesso file.** La prima stesura
+#                                   diceva *«quali path va scritto nella `note` — il campo porta solo il
+#                                   numero»*, e contraddiceva due cose scritte a venti righe di
+#                                   distanza: la ragione per cui esiste `mandate` (*«scriverli dentro
+#                                   `note` li avrebbe resi invisibili al confronto, perché `note` è
+#                                   prosa e non un campo interrogabile»*) e la giustificazione di
+#                                   `blocked_by` stesso (*«senza il campo, il vincolo vive solo in
+#                                   prosa»*). Un `blocked_by` senza i path dice a un lettore automatico
+#                                   **che** un blocco esiste e non **dove**: può constatarlo, non può
+#                                   applicarlo. Trovato dalla code review.
 #                                   ⚠️ **Argomentato contro l'elenco chiuso dei campi di stato, come
 #                                   quel paragrafo prescrive — e non è uno di quelli.** `status` e
 #                                   `reconciled_count` sono ciclo di vita del *lotto*; `blocked_by` è
@@ -237,7 +262,16 @@
 # che non c'è: dichiarato · trasportato · **non letto**. Il bump serve a chi implementerà #840 contro
 # lo schema scritto, che è l'unico consumatore che questo file avrà — e che, trovando un campo non
 # dichiarato, non potrebbe distinguerlo da un refuso.
-schema_version: 3
+#
+# 🔴 Bump da 3 a 4 il 2026-08-16, **e questo giro il numero è rimasto indietro di un commit** prima che la
+# code review lo trovasse: `blocked_by` è stato **ridefinito** (da «prima che la track apra la sessione» a
+# «prima che scriva nei path contesi»), gli è stata tolta la precondizione `branch: null` ed è nato
+# `blocked_paths`. Un validator scritto contro la v3 — cioè il contratto che il file continuava ad
+# annunciare — avrebbe rifiutato *questo stesso file*, che dichiara `blocked_by` accanto a un `branch`
+# valorizzato. La lezione che il bump precedente non conteneva: non si bumpa solo quando si **aggiunge**
+# un campo, ma quando cambia il **significato** di uno che c'era — ed è il caso peggiore, perché un
+# consumatore pinnato non trova un campo sconosciuto da segnalare, legge quello giusto e conclude male.
+schema_version: 4
 
 meta:
   status: ACTIVE
@@ -1405,11 +1439,44 @@ tracks:
     # branch dentro lo stesso `writable` di track non violano nulla finché scrivono file diversi.
     # L'invariante è fra **write-set**, non fra nomi di cartella, e questa è la prima volta che il
     # repository lo misura invece di temerlo.
+    # ⏱️ **Conflitto risolto a favore di questa versione il 2026-08-16**, non della mia: due sessioni
+    # hanno riscritto lo stesso commento nello stesso giro, e questa porta una **misura** che l'altra non
+    # aveva — l'intersezione vuota fra `feat/78` e `feat/77`. Fra due prose che dicono la stessa cosa
+    # vince quella che porta un numero.
     branch: feat/78-contratto-certezza
     worktree: "D:/rt-78"
     blocked_by: 904        # ⚠️ non è ownership: è la PR che deve atterrare prima che questa track scriva
+    blocked_paths:
+      - Source/RefactorTactics/UI/RTHUD.h
+      - Source/RefactorTactics/UI/RTHUD.cpp
     note: >-
       CP 11.2 — il livello di certezza degli intenti alleati.
+      🔵 **SESSIONE APERTA il 2026-08-16 su `feat/78-contratto-certezza` (`D:/rt-78`), e `blocked_by`
+      NON la ferma: ne ferma un quarto.** Lo spec panel dello stesso giorno ha misurato che il lavoro di
+      questo checkpoint sta in quattro passi, e che solo l'ultimo tocca il file conteso:
+      · **1 — riscrivere il DoD**: ✅ fatto, la issue è stata riscritta e le ragioni stanno nel commento
+        del 2026-08-16. Non tocca file del repository;
+      · **2 — misurare la distribuzione** dei tre livelli: ✅ fatto — `Predicted` **51,1 %**,
+        `Uncertain` 36,1 %, `Confirmed` 12,8 % su 133 intenti in 76 scenari. L'ipotesi che motivava il
+        passo (*«`Uncertain` copre quasi tutto, la scala non discrimina»*) è **falsa**, e il caso comune
+        della resa è il tratteggio. 🔴 Non «su uno scenario di 8 turni» come questa riga diceva:
+        `RT_Showcase_Relay_v01` è l'unico scenario che sia una partita e si ferma a **3 turni**
+        (`BLOCKED: manca la capability DecisionBoundary`). Il requisito era irrealizzabile ed è stato
+        corretto sulla issue; questa riga lo ripeteva ancora — trovato dalla code review;
+      · **3 — correggere il contratto del DTO**: ✅ fatto, e la code review ha mostrato che il primo
+        tentativo **non copriva la propria minaccia**: mettere `= Uncertain` sul membro difende la
+        costruzione C++, mentre `Confirmed` restava l'enumeratore **zero** e ogni memoria azzerata —
+        variabile Blueprint, `Memzero`, `SetNumZeroed` — continuava a leggere «collegamento certo».
+        Chiuso con `Unknown = 0` esplicito. `ReactionCertainty` è **uscito dal DTO**: senza il suo
+        produttore era una costante replicata che nessuno scriveva;
+      · **4 — la resa in `ARTHUD`**: l'unico passo che aspetta #904, ed è ciò che `blocked_paths` dice.
+      ⚠️ **Il write-set NON si restringe per la durata del blocco**, ed è una scelta: `UI/` resta
+      dichiarato qui perché la track lo possiede, e toglierlo lo renderebbe «libero e non assegnato» —
+      prendibile da chiunque, mentre la sessione è aperta proprio per scriverci al passo 4. Il vincolo è
+      temporale, non di ownership, e vive in `blocked_by` + `blocked_paths`.
+      🔴 **Questa nota ha argomentato lo stesso punto due volte, a trentotto righe di distanza e su
+      premesse diverse** — qui e più sotto, dove la ragione era «`simulation` non rivendica più `Turn/`».
+      Trovato dalla code review. Le due si sono unite qui; la seconda resta come misura, non come tesi.
       ✅ **RIAPERTA il 2026-08-16, su richiesta esplicita, ed è la ragione di questa riconciliazione.**
       Il residuo è stato rimisurato sul DoD di `#78` invece che riletto dalla riga di ieri, e regge
       identico: delle quattro voci, due sono chiuse nel codice — *«calcolata dal simulatore, non
@@ -1441,9 +1508,13 @@ tracks:
       #904 resta ferma, perché il costo dell'attesa non è più bilanciato da un rischio di conflitto
       che la misura dice inesistente. La ragione completa sta nella voce di quel branch in `preexisting`.
       ⚠️ **Condizione di sblocco, in un comando invece che in una promessa**:
-      `gh pr view 904 --json state` → `MERGED`. A quel punto la track apre il branch, `branch:` smette
-      di essere `null`, `blocked_by` sparisce, e il primo passo è **rebasare su un `RTHUD.cpp` che ha
+      `gh pr view 904 --json state` → `MERGED`. A quel punto spariscono `blocked_by` e `blocked_paths`,
+      il passo 4 diventa scrivibile, e la prima cosa da fare è **rebasare su un `RTHUD.cpp` che ha
       cambiato forma** — non riscriverlo dalla base di oggi.
+      🔴 Questa riga diceva anche *«la track apre il branch, `branch:` smette di essere `null`»*, e
+      descriveva come futuro uno stato già raggiunto **nello stesso commit**: il branch esiste e la
+      sessione lavora. Chi rileggeva trovava una condizione di completamento per metà già soddisfatta,
+      sull'unico campo che questo file esiste per rendere non ambiguo. Trovato dalla code review.
       ✅ **Il `writable` NON si restringe, e la ragione di ieri per restringerlo è caduta.** La nota
       diceva *«se il residuo è solo presentazione, il write-set si restringe a `UI/` e i due file
       tornano a `simulation` senza `excludes`»*: `simulation` non dichiara più `Turn/` — è ripartita su
