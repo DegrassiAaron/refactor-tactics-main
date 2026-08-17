@@ -76,10 +76,10 @@ comunque (serve alla skill bar e alla wiki), ma **non è nel set obbligatorio fi
 Venti ability, quattro eroi. Prendono chiavi regolari sotto `Action`:
 
 ```text
-UI.Icon.Action.Flux.ArcPulse
-UI.Icon.Action.Riva.PressureJet
-UI.Icon.Action.Bastion.Ram
-UI.Icon.Action.Vektor.PassingBlade
+UI.Icon.Action.Hero.Gadget.ArcPulse
+UI.Icon.Action.Hero.Phase.PressureJet
+UI.Icon.Action.Hero.Riktor.Ram
+UI.Icon.Action.Hero.Wraith.PassingBlade
 ```
 
 Non sono nel set obbligatorio di `RequiredIconIds()`, che legge il catalogo **generico**. La composizione di
@@ -118,7 +118,7 @@ probabilmente stati dell'HUD, non tag di gioco — e in quel caso appartengono a
 > registrata in [D-031](../../../../decisions/RT_PDR_00_Decision_Log.md).
 >
 > **`Identity` entra.** Ha una fonte generativa come le altre tre: `URTHeroCatalogLibrary::GetHeroRoster()`
-> costruisce il roster **in codice** — `MakeFlux()`, `MakeRiva()`, `MakeBastion()`, `MakeVektor()` — quindi
+> costruisce il roster **in codice** — `MakeGadget()`, `MakePhase()`, `MakeRiktor()`, `MakeWraith()` — quindi
 > gli `HeroId` sono enumerabili esattamente come gli `ActionId`. Quattro chiavi, e un consumatore reale: il
 > team roster di [`progettazione-hud.md`](../../../../technical/progettazione-hud.md) §6.2.
 >
@@ -156,7 +156,7 @@ UI.Icon.Certainty.Uncertain
 UI.Icon.Identity.Ally
 UI.Icon.Identity.Enemy
 UI.Icon.Identity.Self
-UI.Icon.Identity.Flux        (+ Riva, Bastion, Vektor)
+UI.Icon.Identity.Gadget        (+ Phase, Riktor, Wraith)
 ```
 
 **Questa è una decisione aperta, non una proposta da applicare**: o si estende `RequiredIconIds()` con le due

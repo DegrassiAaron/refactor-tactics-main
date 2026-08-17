@@ -1,5 +1,7 @@
 # CLAUDE — Applicazione della Elemental Proficiency ai personaggi v0.1
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > 🗄️ **ARCHIVIATO il 2026-08-16 — consumato.** Questo è un **sorgente**, non un owner: si legge per la
 > provenienza, mai per la regola. È il gemello *operativo* di
 > [`RefactorTactics_v0.1_Characters_Elemental_Consolidation.md`](RefactorTactics_v0.1_Characters_Elemental_Consolidation.md)
@@ -155,32 +157,32 @@ Nessuna miscela casuale di `Access`, `Affinity`, `Affine` in owner concorrenti.
 
 | Personaggio player-facing | Stable gameplay ID | Elemento | Grado |
 |---|---|---|---|
-| **Gadget** | `Hero.Flux` | Electric | **Specialist** |
-| **Phase** | `Hero.Riva` | Water | **Access** |
-| **Riktor** | `Hero.Bastion` | — | **None / non elementare** |
-| **Wraith** | `Hero.Vektor` | — | **None / non elementare** |
+| **Gadget** | `Hero.Gadget` | Electric | **Specialist** |
+| **Phase** | `Hero.Phase` | Water | **Access** |
+| **Riktor** | `Hero.Riktor` | — | **None / non elementare** |
+| **Wraith** | `Hero.Wraith` | — | **None / non elementare** |
 
 Vincoli:
 
 - i nomi visibili restano Gadget, Phase, Riktor, Wraith;
-- gli ID gameplay restano `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`;
+- gli ID gameplay restano `Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`;
 - il mapping Paragon è asset/presentation, NON decide l'elemento del personaggio.
 
 ---
 
 # 5. Gadget — Electric Specialist
 
-Owner tecnico attuale: `Hero.Flux`.
+Owner tecnico attuale: `Hero.Gadget`.
 
 Le capability che contano per la proficiency sono:
 
-### `Flux.LinearDischarge`
+### `Hero.Gadget.LinearDischarge`
 
 - ruolo elementale: **Apply / Exploit Electric**;
 - payoff su `Wet`;
 - conta per la proficiency.
 
-### `Flux.ConductiveNode`
+### `Hero.Gadget.ConductiveNode`
 
 - coincide con `Action.Electrify` secondo le decisioni esistenti;
 - ruolo elementale: **Propagate Electric** sul grafo conduttivo;
@@ -191,9 +193,9 @@ NON far salire Gadget a Master solo perché altre skill sono elettriche nel tema
 
 In particolare non contano automaticamente come terza capability sistemica:
 
-- `Flux.ArcPulse`;
-- `Flux.Overload`;
-- `Flux.ReactiveCapacitor`.
+- `Hero.Gadget.ArcPulse`;
+- `Hero.Gadget.Overload`;
+- `Hero.Gadget.ReactiveCapacitor`.
 
 Risultato da dichiarare:
 
@@ -203,7 +205,7 @@ Risultato da dichiarare:
 
 # 6. Phase — Water Access via Signature/Profile Gadget
 
-Owner tecnico attuale: `Hero.Riva`.
+Owner tecnico attuale: `Hero.Phase`.
 
 Questa è la parte con il gap più importante.
 
@@ -213,7 +215,7 @@ Il target approvato è:
 
 L'unica capability Water che deve contare nel profilo baseline target è:
 
-### `Riva.PressureJet`
+### `Hero.Phase.PressureJet`
 
 - sorgente: **Signature/Profile Gadget**;
 - funzione: **Apply Water/Wet**;
@@ -255,7 +257,7 @@ Questo gap deve essere tracciato da issue separata se richiede codice/kit.
 
 # 7. Riktor — non elementare
 
-Owner tecnico attuale: `Hero.Bastion`.
+Owner tecnico attuale: `Hero.Riktor`.
 
 Identità da preservare:
 
@@ -276,7 +278,7 @@ Risultato:
 
 # 8. Wraith — non elementare
 
-Owner tecnico attuale: `Hero.Vektor`.
+Owner tecnico attuale: `Hero.Wraith`.
 
 Identità da preservare:
 
@@ -329,7 +331,7 @@ Target atteso:
 - `docs/characters/v0.1/riktor.md`
 - `docs/characters/v0.1/wraith.md`
 
-## Gadget / Flux
+## Gadget / Gadget
 
 Aggiungi o consolida `## Proficiency elementale`:
 
@@ -338,7 +340,7 @@ Aggiungi o consolida `## Proficiency elementale`:
 - capability contate: `LinearDischarge`, `ConductiveNode`;
 - tag/danno/VFX non aumentano automaticamente il grado.
 
-## Phase / Riva
+## Phase / Phase
 
 Aggiungi o consolida `## Proficiency elementale`:
 
@@ -350,7 +352,7 @@ Aggiungi o consolida `## Proficiency elementale`:
 
 Rivedi descrizioni come `Water Terrain Manipulator`, `Water Shaping`, `Wet Setup`, risorse e skill solo quanto serve a evitare che vengano lette come target finale se oggi sono as-built divergente.
 
-## Riktor / Bastion
+## Riktor / Riktor
 
 Sezione breve:
 
@@ -359,7 +361,7 @@ Sezione breve:
 - focus: Field Architecture + Kinetic/Structures;
 - nessun Electric baseline.
 
-## Wraith / Vektor
+## Wraith / Wraith
 
 Sezione breve:
 
@@ -405,7 +407,7 @@ Prima cerca issue esistenti con termini:
 - `element affinity`
 - `Water Access`
 - `Phase`
-- `Riva`
+- `Phase`
 - `PressureJet`
 - `characters roster`
 - `elemental`
@@ -416,7 +418,7 @@ NON creare duplicati.
 
 Due issue storiche rilevanti risultano già chiuse:
 
-- **#56 — `CP 6.3 — Riva, manipolatrice dell'acqua`**: chiusa/completed; descrive il vecchio kit Water completo.
+- **#56 — `CP 6.3 — Phase, manipolatrice dell'acqua`**: chiusa/completed; descrive il vecchio kit Water completo.
 - **#336 — `[DOCS] Consolidamento cluster Characters & Roster`**: chiusa/completed; non è un owner aperto per questo nuovo target.
 
 Quindi:

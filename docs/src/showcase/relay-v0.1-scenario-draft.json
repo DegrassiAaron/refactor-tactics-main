@@ -277,8 +277,8 @@
   },
   "units": [
     {
-      "id": "Unit.Flux",
-      "heroId": "Hero.Flux",
+      "id": "Unit.Gadget",
+      "heroId": "Hero.Gadget",
       "team": "Blue",
       "cell": [
         -4,
@@ -288,8 +288,8 @@
       "facing": "E"
     },
     {
-      "id": "Unit.Riva",
-      "heroId": "Hero.Riva",
+      "id": "Unit.Phase",
+      "heroId": "Hero.Phase",
       "team": "Blue",
       "cell": [
         -4,
@@ -299,8 +299,8 @@
       "facing": "E"
     },
     {
-      "id": "Unit.Bastion",
-      "heroId": "Hero.Bastion",
+      "id": "Unit.Riktor",
+      "heroId": "Hero.Riktor",
       "team": "Red",
       "cell": [
         4,
@@ -310,8 +310,8 @@
       "facing": "W"
     },
     {
-      "id": "Unit.Vektor",
-      "heroId": "Hero.Vektor",
+      "id": "Unit.Wraith",
+      "heroId": "Hero.Wraith",
       "team": "Red",
       "cell": [
         4,
@@ -327,7 +327,7 @@
       "purpose": "Opening: hex movement, dash, smoke, water lane, high ground, cover",
       "intents": [
         {
-          "unit": "Unit.Flux",
+          "unit": "Unit.Gadget",
           "move": [
             [
               -4,
@@ -349,8 +349,8 @@
           "main": "Action.Wait"
         },
         {
-          "unit": "Unit.Riva",
-          "action": "Riva.FluidTrail",
+          "unit": "Unit.Phase",
+          "action": "Hero.Phase.FluidTrail",
           "dashPath": [
             [
               -4,
@@ -375,8 +375,8 @@
           ]
         },
         {
-          "unit": "Unit.Bastion",
-          "action": "Bastion.KineticPanel",
+          "unit": "Unit.Riktor",
+          "action": "Hero.Riktor.KineticPanel",
           "targetSector": "W",
           "move": [
             [
@@ -393,7 +393,7 @@
           "requiresFeature": "E9/runtime structures"
         },
         {
-          "unit": "Unit.Vektor",
+          "unit": "Unit.Wraith",
           "move": [
             [
               4,
@@ -430,8 +430,8 @@
       "purpose": "Wet + push setup, cover reconfigure, first predictive whiff",
       "intents": [
         {
-          "unit": "Unit.Flux",
-          "action": "Flux.ConductiveNode",
+          "unit": "Unit.Gadget",
+          "action": "Hero.Gadget.ConductiveNode",
           "targetCell": [
             0,
             2,
@@ -445,9 +445,9 @@
           "note": "verify action range"
         },
         {
-          "unit": "Unit.Riva",
-          "action": "Riva.PressureJet",
-          "target": "Unit.Vektor",
+          "unit": "Unit.Phase",
+          "action": "Hero.Phase.PressureJet",
+          "target": "Unit.Wraith",
           "expectedEffects": [
             "Damage",
             "Wet",
@@ -455,8 +455,8 @@
           ]
         },
         {
-          "unit": "Unit.Bastion",
-          "action": "Bastion.Reconfigure",
+          "unit": "Unit.Riktor",
+          "action": "Hero.Riktor.Reconfigure",
           "target": "KineticPanel",
           "moveEnd": [
             2,
@@ -466,8 +466,8 @@
           "requiresFeature": "E9/runtime structures"
         },
         {
-          "unit": "Unit.Vektor",
-          "action": "Vektor.InterceptShot",
+          "unit": "Unit.Wraith",
+          "action": "Hero.Wraith.InterceptShot",
           "predictedCell": [
             0,
             1,
@@ -483,14 +483,14 @@
       "purpose": "Dash before Blast, fire/burning, moving-target fallback",
       "intents": [
         {
-          "unit": "Unit.Flux",
-          "action": "Flux.LinearDischarge",
-          "target": "Unit.Vektor",
+          "unit": "Unit.Gadget",
+          "action": "Hero.Gadget.LinearDischarge",
+          "target": "Unit.Wraith",
           "movingTargetPolicy": "USE_CATALOG_CURRENT"
         },
         {
-          "unit": "Unit.Riva",
-          "action": "Riva.CircularTide",
+          "unit": "Unit.Phase",
+          "action": "Hero.Phase.CircularTide",
           "targetCell": [
             1,
             0,
@@ -498,12 +498,12 @@
           ]
         },
         {
-          "unit": "Unit.Bastion",
+          "unit": "Unit.Riktor",
           "action": "Action.Brace"
         },
         {
-          "unit": "Unit.Vektor",
-          "action": "Vektor.PassingBlade",
+          "unit": "Unit.Wraith",
+          "action": "Hero.Wraith.PassingBlade",
           "desiredThroughCells": [
             [
               1,
@@ -529,35 +529,35 @@
       "purpose": "Universal Overwatch: HOLD first target, FIRE second target",
       "intents": [
         {
-          "unit": "Unit.Flux",
+          "unit": "Unit.Gadget",
           "moveProfile": "Sprint",
           "move": "ENTER_VEKTOR_OVERWATCH_FIRST"
         },
         {
-          "unit": "Unit.Riva",
+          "unit": "Unit.Phase",
           "move": "ENTER_VEKTOR_OVERWATCH_LATER"
         },
         {
-          "unit": "Unit.Bastion",
+          "unit": "Unit.Riktor",
           "action": "Action.Wait"
         },
         {
-          "unit": "Unit.Vektor",
+          "unit": "Unit.Wraith",
           "action": "Action.Overwatch",
           "facing": "W_OR_SW"
         }
       ],
       "reactionPolicy": [
         {
-          "owner": "Unit.Vektor",
+          "owner": "Unit.Wraith",
           "opportunity": 1,
-          "target": "Unit.Flux",
+          "target": "Unit.Gadget",
           "response": "HOLD"
         },
         {
-          "owner": "Unit.Vektor",
+          "owner": "Unit.Wraith",
           "opportunity": 2,
-          "target": "Unit.Riva",
+          "target": "Unit.Phase",
           "response": "FIRE"
         }
       ],
@@ -568,21 +568,21 @@
       "purpose": "Smoke, target validation, Deflect, Interact and GraphRevision",
       "preCommitValidation": [
         {
-          "unit": "Unit.Flux",
-          "draftAction": "Flux.LinearDischarge",
-          "target": "Unit.Vektor",
+          "unit": "Unit.Gadget",
+          "draftAction": "Hero.Gadget.LinearDischarge",
+          "target": "Unit.Wraith",
           "expected": "VALIDATE_USING_SMOKE_RULES"
         }
       ],
       "intents": [
         {
-          "unit": "Unit.Flux",
-          "action": "Flux.ArcPulse",
-          "target": "Unit.Vektor"
+          "unit": "Unit.Gadget",
+          "action": "Hero.Gadget.ArcPulse",
+          "target": "Unit.Wraith"
         },
         {
-          "unit": "Unit.Riva",
-          "action": "Riva.MistVeil",
+          "unit": "Unit.Phase",
+          "action": "Hero.Phase.MistVeil",
           "targetCell": [
             1,
             1,
@@ -590,7 +590,7 @@
           ]
         },
         {
-          "unit": "Unit.Bastion",
+          "unit": "Unit.Riktor",
           "action": "Action.Interact",
           "target": "GateEdge",
           "controlCell": [
@@ -601,8 +601,8 @@
           "requiresFeature": "interactive structures"
         },
         {
-          "unit": "Unit.Vektor",
-          "reaction": "Vektor.Deflection"
+          "unit": "Unit.Wraith",
+          "reaction": "Hero.Wraith.Deflection"
         }
       ]
     },
@@ -611,28 +611,28 @@
       "purpose": "Interposition redirect + LOS/cover revalidation + Wet/Push",
       "intents": [
         {
-          "unit": "Unit.Flux",
-          "action": "Flux.ArcPulse",
-          "target": "Unit.Vektor"
+          "unit": "Unit.Gadget",
+          "action": "Hero.Gadget.ArcPulse",
+          "target": "Unit.Wraith"
         },
         {
-          "unit": "Unit.Riva",
-          "action": "Riva.PressureJet",
-          "target": "Unit.Bastion"
+          "unit": "Unit.Phase",
+          "action": "Hero.Phase.PressureJet",
+          "target": "Unit.Riktor"
         },
         {
-          "unit": "Unit.Bastion",
-          "reaction": "Bastion.Interposition"
+          "unit": "Unit.Riktor",
+          "reaction": "Hero.Riktor.Interposition"
         },
         {
-          "unit": "Unit.Vektor",
-          "action": "Vektor.PulseShot",
-          "target": "Unit.Flux"
+          "unit": "Unit.Wraith",
+          "action": "Hero.Wraith.PulseShot",
+          "target": "Unit.Gadget"
         }
       ],
       "expected": [
-        "OriginalTarget=Vektor",
-        "EffectiveTarget=Bastion",
+        "OriginalTarget=Wraith",
+        "EffectiveTarget=Riktor",
         "RevalidateLOSAndCover",
         "NoNestedInteractiveReaction"
       ]
@@ -642,29 +642,29 @@
       "purpose": "Environment payoff: water/fire, electricity, ice slide, rough validation",
       "preCommitValidation": [
         {
-          "unit": "Unit.Bastion",
-          "draftAction": "Bastion.Ram",
+          "unit": "Unit.Riktor",
+          "draftAction": "Hero.Riktor.Ram",
           "path": "THROUGH_ROUGH",
           "expected": "INVALID"
         }
       ],
       "intents": [
         {
-          "unit": "Unit.Flux",
+          "unit": "Unit.Gadget",
           "action": "USE_ELECTRIC_ATTACK_FOR_CHAIN",
           "target": "WET_OR_CONDUCTIVE_ENEMY"
         },
         {
-          "unit": "Unit.Riva",
-          "action": "Riva.FluidTrail",
+          "unit": "Unit.Phase",
+          "action": "Hero.Phase.FluidTrail",
           "desiredGoal": "TOUCH_FIRE_WITH_WATER_IF_SUPPORTED"
         },
         {
-          "unit": "Unit.Bastion",
+          "unit": "Unit.Riktor",
           "action": "USE_CORRECTED_LEGAL_ACTION"
         },
         {
-          "unit": "Unit.Vektor",
+          "unit": "Unit.Wraith",
           "move": "NORMAL_MOVE_THROUGH_ICE"
         }
       ],
@@ -677,15 +677,15 @@
     },
     {
       "turn": 8,
-      "purpose": "Prediction whiff, Flux KO, Riva captures Relay, objective decides match",
+      "purpose": "Prediction whiff, Gadget KO, Phase captures Relay, objective decides match",
       "intents": [
         {
-          "unit": "Unit.Flux",
+          "unit": "Unit.Gadget",
           "action": "USE_VALID_FINAL_ATTACK",
-          "target": "Unit.Vektor"
+          "target": "Unit.Wraith"
         },
         {
-          "unit": "Unit.Riva",
+          "unit": "Unit.Phase",
           "moveEnd": [
             0,
             0,
@@ -698,12 +698,12 @@
           ]
         },
         {
-          "unit": "Unit.Bastion",
+          "unit": "Unit.Riktor",
           "move": "ATTEMPT_RELAY_CONTEST_BUT_FAIL_FOR_REAL_RULE_REASON"
         },
         {
-          "unit": "Unit.Vektor",
-          "action": "Vektor.InterceptShot",
+          "unit": "Unit.Wraith",
+          "action": "Hero.Wraith.InterceptShot",
           "predictedCell": [
             1,
             0,
@@ -714,8 +714,8 @@
       ],
       "expected": [
         "PredictionWhiffed",
-        "Unit.Flux=KO",
-        "Unit.Riva@Relay",
+        "Unit.Gadget=KO",
+        "Unit.Phase@Relay",
         "ObjectiveUpdated=Blue",
         "MatchEnded"
       ]

@@ -1,4 +1,6 @@
 # RefactorTactics — Status, Buff/Debuff, Control, Brace & Overwatch
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Handoff operativo per Claude
 
 **Data:** 2026-08-10  
@@ -1301,17 +1303,17 @@ Evitare la semplificazione:
 Roster discusso:
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Non rinominare o sostituire automaticamente questi personaggi senza verificare il repository/source of truth.
 
 ---
 
-# 34. Flux — status/control identity
+# 34. Gadget — status/control identity
 
 Identità:
 - disruption elettrica;
@@ -1353,7 +1355,7 @@ ogni attacco elettrico -> Dazed/Shocked
 
 ---
 
-# 35. Riva — status/control identity
+# 35. Phase — status/control identity
 
 Identità:
 - water shaping;
@@ -1394,7 +1396,7 @@ MistVeil
 
 ---
 
-# 36. Bastion — status/control identity
+# 36. Riktor — status/control identity
 
 Identità:
 - preserva posizione;
@@ -1442,7 +1444,7 @@ Interposition:
 
 ---
 
-# 37. Vektor — status/control identity
+# 37. Wraith — status/control identity
 
 Identità:
 - predictive duelist;
@@ -1497,22 +1499,22 @@ Quindi:
 # 38. Matrice status/control vertical slice proposta
 
 ```text
-Flux
+Gadget
 - Dazed gated
 - Conductive
 - Electric payoff
 
-Riva
+Phase
 - Wet
 - Push / ForcedMovement
 - Water/Smoke
 
-Bastion
+Riktor
 - Exposed via collision
 - Cover/Structure
 - Anchor/Interposition
 
-Vektor
+Wraith
 - Marked
 - Exposed conditional
 - MovementInterrupt
@@ -1582,7 +1584,7 @@ ForcedMovement
 
 # 41. Quattro Brace Profiles
 
-## Flux — Grounding
+## Gadget — Grounding
 
 ```text
 GROUND / HOLD
@@ -1596,7 +1598,7 @@ Identità:
 
 ---
 
-## Riva — Flow
+## Phase — Flow
 
 ```text
 FLOW LEFT / FLOW RIGHT / HOLD
@@ -1608,7 +1610,7 @@ Push E di 2:
 
 ```text
 Step 1 -> E
-Step 2 -> Riva può deviare ultimo step verso NE o SE
+Step 2 -> Phase può deviare ultimo step verso NE o SE
 ```
 
 Quindi Flow:
@@ -1619,7 +1621,7 @@ Quindi Flow:
 
 ---
 
-## Bastion — Anchor
+## Riktor — Anchor
 
 ```text
 ANCHOR / HOLD
@@ -1639,7 +1641,7 @@ Identità:
 
 ---
 
-## Vektor — Deflection
+## Wraith — Deflection
 
 ```text
 DEFLECT LEFT / DEFLECT RIGHT / HOLD
@@ -1849,7 +1851,7 @@ Ordine deterministico e stabile.
 
 # 48. Quattro Overwatch Profiles
 
-## Flux — Conductive Overwatch
+## Gadget — Conductive Overwatch
 
 Geometria:
 - medium directional sector.
@@ -1866,7 +1868,7 @@ Payload:
 
 ---
 
-## Riva — Pressure Overwatch
+## Phase — Pressure Overwatch
 
 Geometria:
 - medium-short directional sector.
@@ -1889,7 +1891,7 @@ Se target ha mosso:
 A -> B
 ```
 
-e Riva triggera a B:
+e Phase triggera a B:
 
 ```text
 B -> X via Push
@@ -1906,7 +1908,7 @@ no repath toward original destination
 
 ---
 
-## Bastion — Frontline Overwatch
+## Riktor — Frontline Overwatch
 
 Geometria:
 - short;
@@ -1929,11 +1931,11 @@ La forza viene dalla geometria:
 - Reconfigure;
 - KineticPanel.
 
-Non rendere Bastion contemporaneamente “miglior Brace + miglior Overwatch”.
+Non rendere Riktor contemporaneamente “miglior Brace + miglior Overwatch”.
 
 ---
 
-## Vektor — Predictive Overwatch
+## Wraith — Predictive Overwatch
 
 Geometria:
 - narrow;
@@ -2048,9 +2050,9 @@ Poi creare un'epic/fase separata per `Reaction Clash`.
 Primo scenario candidato:
 
 ```text
-Riva Pressure Jet
+Phase Pressure Jet
 vs
-Bastion Brace
+Riktor Brace
 ```
 
 Pattern futuro:
@@ -2079,10 +2081,10 @@ Creare golden/automation tests.
 
 ## Brace
 
-11. Bastion Anchor riduce Push.
-12. Riva Flow modifica endpoint, no illegal destination.
-13. Vektor Deflection modifica vettore.
-14. Flux Grounding usa regola deterministica.
+11. Riktor Anchor riduce Push.
+12. Phase Flow modifica endpoint, no illegal destination.
+13. Wraith Deflection modifica vettore.
+14. Gadget Grounding usa regola deterministica.
 15. Forced Movement durante Move -> MovementInterrupted, no repath.
 
 ## Overwatch
@@ -2188,10 +2190,10 @@ Gameplay/Brace
 Gameplay/Overwatch
 Gameplay/Reaction-System
 Gameplay/Character-Control-Domains
-Characters/Flux
-Characters/Riva
-Characters/Bastion
-Characters/Vektor
+Characters/Gadget
+Characters/Phase
+Characters/Riktor
+Characters/Wraith
 Architecture/Status-Resolver
 Architecture/Reaction-Resolver
 Testing/Status-Reaction-Golden-Tests
@@ -2245,10 +2247,10 @@ Reaction privacy tests
 Reaction golden tests
 
 Character v0.1 status pass
-Flux status/control integration
-Riva status/control integration
-Bastion status/control integration
-Vektor status/control integration
+Gadget status/control integration
+Phase status/control integration
+Riktor status/control integration
+Wraith status/control integration
 
 Reaction Clash — FUTURE
 Advanced Control — FUTURE
@@ -2325,27 +2327,27 @@ STATUS-005 Wet Is Not Conductive
 STATUS-006 Resistance Degrades Root
 STATUS-007 Cleanse Category Filtering
 
-BRACE-001 Bastion Anchor vs Push
-BRACE-002 Riva Flow Endpoint
-BRACE-003 Vektor Deflection Vector
-BRACE-004 Flux Grounding
+BRACE-001 Riktor Anchor vs Push
+BRACE-002 Phase Flow Endpoint
+BRACE-003 Wraith Deflection Vector
+BRACE-004 Gadget Grounding
 
 OW-001 HOLD preserves reaction
 OW-002 timeout HOLD
 OW-003 once per target
 OW-004 simultaneous targets
 OW-005 Pressure push interrupts Move
-OW-006 Vektor Intercept interrupts Move
+OW-006 Wraith Intercept interrupts Move
 OW-007 FIRE does not unlock movement
 OW-008 Watch then Reposition
 OW-009 Root blocks Reposition
 OW-010 Dazed forces fallback
 OW-011 privacy no future opportunity leak
 
-CHAR-STATUS-001 Flux Conductive Overload setup
-CHAR-STATUS-002 Riva PressureJet Wet + Push
-CHAR-STATUS-003 Bastion Ram collision Exposed
-CHAR-STATUS-004 Vektor Feint Marked
+CHAR-STATUS-001 Gadget Conductive Overload setup
+CHAR-STATUS-002 Phase PressureJet Wet + Push
+CHAR-STATUS-003 Riktor Ram collision Exposed
+CHAR-STATUS-004 Wraith Feint Marked
 ```
 
 Scenario Map deve linkare:
@@ -2438,10 +2440,10 @@ Add status validator/lint
 Implement Brace prepared state
 Implement ForcedMovement trigger
 Implement Brace Decision Window
-Implement Flux Grounding profile
-Implement Riva Flow profile
-Implement Bastion Anchor profile
-Implement Vektor Deflection profile
+Implement Gadget Grounding profile
+Implement Phase Flow profile
+Implement Riktor Anchor profile
+Implement Wraith Deflection profile
 Implement Brace timeout HOLD prototype
 Implement Brace facing Preserve baseline
 Add Brace golden tests
@@ -2461,10 +2463,10 @@ Implement timeout HOLD
 Implement preplanned Reposition
 Prevent Sprint/Dash in Reposition
 Prevent movement unlock after FIRE
-Implement Flux Conductive OW
-Implement Riva Pressure OW
-Implement Bastion Frontline OW
-Implement Vektor Predictive OW
+Implement Gadget Conductive OW
+Implement Phase Pressure OW
+Implement Riktor Frontline OW
+Implement Wraith Predictive OW
 Implement MovementInterrupted event/path stop
 Implement Dazed fallback behavior
 Implement Suppressed OW soft-block
@@ -2477,15 +2479,15 @@ Add Watch/Reposition debug tooling
 ## Issue candidate — Character integration
 
 ```text
-Flux: ConductiveNode + status hooks
-Flux: gated Dazed on Overload
-Riva: Wet/Push status hooks
-Riva: Mist/visibility interaction
-Bastion: Ram collision -> Exposed
-Bastion: Anchor/Interposition integration
-Vektor: Feint -> Marked
-Vektor: PassingBlade conditional Exposed
-Vektor: Intercept movement interruption
+Gadget: ConductiveNode + status hooks
+Gadget: gated Dazed on Overload
+Phase: Wet/Push status hooks
+Phase: Mist/visibility interaction
+Riktor: Ram collision -> Exposed
+Riktor: Anchor/Interposition integration
+Wraith: Feint -> Marked
+Wraith: PassingBlade conditional Exposed
+Wraith: Intercept movement interruption
 ```
 
 ---

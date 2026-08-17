@@ -1,5 +1,7 @@
 # Audit di tracciabilità delle feature — 2026-08-08
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 📸 `HISTORICAL` — REFERTO DI UN AUDIT, NON UNA VISTA DI STATO
 >
 > Questo documento registra **cosa è stato trovato** costruendo il Feature Registry, su HEAD
@@ -98,7 +100,7 @@ stato`. Non è stato aggiunto né modificato nessun banner.
 - Nuova pagina `docs/wiki/feature-status.md` (deploy: `Stato-delle-feature.md`), collegata da
   `index.md`.
 - `_Template.md` non chiede più una riga di stato: spiega come collegare la pagina al registry.
-- Pagine con più FeatureId: quella di Flux ne ha 3, Riva 3, Bastion 3, Vektor 3.
+- Pagine con più FeatureId: quella di Gadget ne ha 3, Phase 3, Riktor 3, Wraith 3.
 
 **Il deploy verso il clone della Wiki non è stato eseguito.** Il comando esiste
 (`deploy --wiki-root <path> --write`) e in sola lettura riporta **36 pagine da aggiornare**, ma:
@@ -195,7 +197,7 @@ dichiarato in modo verificabile**. Casi principali:
 | `visibilita-rumore-e-informazione` | `RT-FEAT-PERCEPTION-*` | `SPECIFIED`: la vista non decide nulla |
 | `Fazioni.md` e le 4 pagine fazione | `RT-FEAT-FACTION-SYSTEM` | `DESIGNED`: esiste solo nel manifest della Wiki, niente nel codice |
 
-I quattro scenari di fazione (`Team.Conflux.FluxRiva.ConductiveFlood` e gli altri tre) sono
+I quattro scenari di fazione (`Team.Conflux.GadgetRiva.ConductiveFlood` e gli altri tre) sono
 dichiarati nel manifest con `scenarioStatus: GATED` e **non esistono** in `Scenarios/`: nel registry
 sono `planned`.
 

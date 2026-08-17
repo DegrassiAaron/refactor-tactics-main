@@ -1,4 +1,6 @@
 # REFACTORTACTICS — PROMPT ESECUTIVO PER CLAUDE CODE
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Consolidamento documentazione, roadmap, test e implementazione della showcase v0.1 “Relay Basin”
 
 Stai lavorando **direttamente nella repository RefactorTactics**.
@@ -165,12 +167,12 @@ Roster showcase:
 
 ```text
 TEAM BLUE
-- Flux
-- Riva
+- Gadget
+- Phase
 
 TEAM RED
-- Bastion
-- Vektor
+- Riktor
+- Wraith
 ```
 
 Mappa:
@@ -427,8 +429,8 @@ Timeout
 Per il Turno 4 della showcase serve:
 
 ```text
-Opportunity #1 -> Flux -> HOLD
-Opportunity #2 -> Riva -> FIRE
+Opportunity #1 -> Gadget -> HOLD
+Opportunity #2 -> Phase -> FIRE
 ```
 
 Questa policy deve rispondere alla **vera Reaction Opportunity** del runtime.
@@ -553,10 +555,10 @@ Relay = (0,0,0)
 Spawn:
 
 ```text
-Flux    = (-4,0,0)
-Riva    = (-4,1,0)
-Bastion = ( 4,0,0)
-Vektor  = ( 4,1,0)
+Gadget    = (-4,0,0)
+Phase    = (-4,1,0)
+Riktor = ( 4,0,0)
+Wraith  = ( 4,1,0)
 ```
 
 Terreni da rappresentare:
@@ -603,22 +605,22 @@ NON creare nuovi alias solo per far combaciare questo file.
 
 ## TURN 1 — MAPPA / POSIZIONAMENTO
 
-### Flux
+### Gadget
 - Move dallo spawn verso il centro.
 - attraversa Smoke;
 - chiude con Facing verso Est.
 
-### Riva
+### Phase
 - usa `FluidTrail`;
 - percorre la Water lane;
 - dimostra special movement / terrain setup.
 
-### Bastion
+### Riktor
 - usa `KineticPanel`;
 - crea cover direzionale verso il centro;
 - avanza.
 
-### Vektor
+### Wraith
 - raggiunge High Ground.
 
 Dimostra:
@@ -641,19 +643,19 @@ TurnLog
 
 ## TURN 2 — WET + PREDICTION
 
-### Flux
+### Gadget
 - `ConductiveNode` verso la lane acqua/bridge.
 
-### Riva
-- `PressureJet` su Vektor.
+### Phase
+- `PressureJet` su Wraith.
 - Damage + Wet + Push se legalmente valido.
 
-### Bastion
+### Riktor
 - `Reconfigure` su KineticPanel.
 
-### Vektor
+### Wraith
 - `InterceptShot` su una cella prevista.
-- Riva NON la attraversa.
+- Phase NON la attraversa.
 - risultato = `PredictionWhiffed`.
 
 Dimostra:
@@ -672,20 +674,20 @@ Reason code
 
 ## TURN 3 — MOVING TARGET / FIRE
 
-### Flux
-- `LinearDischarge` su Vektor.
+### Gadget
+- `LinearDischarge` su Wraith.
 
-### Vektor
+### Wraith
 - usa `PassingBlade` / movimento speciale;
 - attraversa Fire prima del Blast;
 - riceve Burning.
 
-Flux deve risolvere il moving target secondo la policy reale definita dal catalogo.
+Gadget deve risolvere il moving target secondo la policy reale definita dal catalogo.
 
-### Riva
+### Phase
 - `CircularTide`.
 
-### Bastion
+### Riktor
 - azione difensiva / Brace equivalente realmente esistente.
 
 Dimostra:
@@ -703,27 +705,27 @@ AoE
 
 ## TURN 4 — OVERWATCH
 
-### Vektor
+### Wraith
 - sceglie Overwatch universale;
 - Facing controlla l'area.
 
-### Flux
+### Gadget
 - entra per primo nel cono.
 
 Reaction:
 
 ```text
-Target Flux
+Target Gadget
 Response HOLD
 ```
 
-### Riva
+### Phase
 - entra successivamente nel cono.
 
 Reaction:
 
 ```text
-Target Riva
+Target Phase
 Response FIRE
 ```
 
@@ -752,20 +754,20 @@ Micro-step trigger
 
 ## TURN 5 — SMOKE / STRUCTURE
 
-### Riva
+### Phase
 - `MistVeil`.
 
-### Flux
+### Gadget
 - crea un draft volutamente borderline/invalidabile via Smoke;
 - planning validator deve fornire reason;
 - poi committa un'azione valida.
 
-### Bastion
+### Riktor
 - `Interact` sulla struttura/Gate;
 - modifica la topologia;
 - `GraphRevision++`.
 
-### Vektor
+### Wraith
 - `Deflection`.
 
 Dimostra:
@@ -784,15 +786,15 @@ Path cache invalidation
 
 ## TURN 6 — INTERPOSITION
 
-### Flux
-- attacca Vektor.
+### Gadget
+- attacca Wraith.
 
-### Bastion
+### Riktor
 - `Interposition`;
-- target originale = Vektor;
-- effective target = Bastion.
+- target originale = Wraith;
+- effective target = Riktor.
 
-Rivalidare rispetto a Bastion:
+Rivalidare rispetto a Riktor:
 
 ```text
 LOS
@@ -802,11 +804,11 @@ cover
 
 Nessuna reaction interattiva annidata.
 
-### Riva
-- `PressureJet` su Bastion.
+### Phase
+- `PressureJet` su Riktor.
 
-### Vektor
-- attacco su Flux.
+### Wraith
+- attacco su Gadget.
 
 Dimostra:
 
@@ -823,7 +825,7 @@ No nested reaction
 
 ## TURN 7 — COMBO AMBIENTALE
 
-### Riva
+### Phase
 - porta acqua su una zona Fire usando l'azione realmente disponibile.
 
 Expected:
@@ -832,7 +834,7 @@ Expected:
 Water + Fire -> Fire removed / trasformazione definita dal ruleset
 ```
 
-### Flux
+### Gadget
 - usa il miglior attacco elettrico disponibile per mostrare la propagazione.
 
 Expected:
@@ -844,7 +846,7 @@ Water / Wet / Conductive
 → no duplicate hit from same propagation event
 ```
 
-### Vektor
+### Wraith
 - Normal Move su Ice.
 
 Expected:
@@ -853,7 +855,7 @@ Expected:
 deterministic slide
 ```
 
-### Bastion
+### Riktor
 - draft `Ram` attraverso Rough.
 
 Expected:
@@ -882,28 +884,28 @@ EnvironmentChanged
 
 ## TURN 8 — OBJECTIVE > KO
 
-### Vektor
+### Wraith
 - `InterceptShot` su accesso previsto al Relay.
 
-### Riva
+### Phase
 - usa una rotta alternativa;
 - non attraversa la cella prevista;
 - `PredictionWhiffed`;
 - termina sul Relay.
 
-### Bastion
+### Riktor
 - tenta di contestare;
 - non riesce per una causa reale del ruleset/path/costi/stato.
 
-### Flux
+### Gadget
 - completa un'ultima azione offensiva;
 - viene poi messo KO legalmente.
 
 Cleanup:
 
 ```text
-Flux = KO
-Riva = alive on Relay
+Gadget = KO
+Phase = alive on Relay
 Relay scored/controlled by Blue
 Blue wins
 ```
@@ -1121,10 +1123,10 @@ non considerarli roster v0.1 corrente.
 La showcase corrente usa:
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Verifica però i cataloghi reali della repository prima di rinominare asset/codice.
@@ -1257,7 +1259,7 @@ if (ScenarioId == RT_Showcase_Relay_v01)
 NON fare:
 
 ```text
-if (UnitId == Flux)
+if (UnitId == Gadget)
 ```
 
 nel resolver per implementare una regola che dovrebbe essere data-driven.

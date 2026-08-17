@@ -1,5 +1,7 @@
 # RefactorTactics — Audit `docs/gameplay/` e piano di consolidamento per Claude Code
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 **Data audit:** 2026-08-08  
 **Repository verificata:** `DegrassiAaron/refactor-tactics-main`  
 **Scopo:** fornire a Claude Code un handoff operativo per ripulire e consolidare la documentazione gameplay senza reintrodurre decisioni superate, senza inventare nuove regole e senza confondere stato implementato, decisioni approvate, baseline da playtestare e north-star.
@@ -136,19 +138,19 @@ presentation may slow down, but never decides logic
 Roster operativo v0.1:
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Vertical slice/showcase:
 
 ```text
 2v2
-Flux + Riva
+Gadget + Phase
 vs
-Bastion + Vektor
+Riktor + Wraith
 ```
 
 Nomi storici come Aegis/Nyx/Drift/Vex, Mara/Ivo/Nyx/Sol o roster Paragon non devono tornare nelle specifiche operative salvo sezioni storiche.
@@ -318,7 +320,7 @@ La v0.1 deve includere **un solo thin slice di Predictive Action** per rendere v
 Target preferito:
 
 ```text
-Vektor.InterceptShot
+Hero.Wraith.InterceptShot
 ```
 
 Semantica:
@@ -344,7 +346,7 @@ Questa azione **non deve essere trasformata in Fast Reaction**.
 ### Azione Claude
 
 - aggiornare roadmap/issue affinché il thin slice predittivo sia esplicito;
-- verificare dove `Vektor.InterceptShot` è classificato oggi;
+- verificare dove `Hero.Wraith.InterceptShot` è classificato oggi;
 - se dati/codice lo trattano ancora come Reaction, segnalare la migrazione necessaria invece di conservare due semantiche parallele;
 - non inventare in questa PR nuovi costi/cooldown/slot se il catalogo corrente non li risolve chiaramente: la **semantica predittiva** è bloccata, i numeri restano balance data.
 
@@ -1120,7 +1122,7 @@ L'eventuale costo di Sprint in termini di slot aggiuntivi resta tuning da playte
 
 ## D-016 — Thin slice Predictive Action nella v0.1
 
-La v0.1 include **una** Predictive Action reale, preferibilmente `Vektor.InterceptShot`.
+La v0.1 include **una** Predictive Action reale, preferibilmente `Hero.Wraith.InterceptShot`.
 
 Principio:
 
@@ -1312,7 +1314,7 @@ Requisiti:
 
 Integrare D-016 nella roadmap.
 
-Claude deve verificare `Vektor.InterceptShot` nel catalogo/codice attuale e proporre la minima migrazione necessaria affinché sia una Predictive Action precommitted.
+Claude deve verificare `Hero.Wraith.InterceptShot` nel catalogo/codice attuale e proporre la minima migrazione necessaria affinché sia una Predictive Action precommitted.
 
 Acceptance minima:
 
