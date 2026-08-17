@@ -17,6 +17,14 @@
 > | `Vektor.InterceptShot` | ⏳ E14 | ⏳ **E18**, come **Predictive Action** — non serve più una finestra interattiva |
 > | Scenario Test Harness | inesistente | ✅ disponibile |
 >
+> ➕ **Rettifica del 2026-08-17 — due righe di questa tabella sono scadute il 2026-08-10.** Non sono state
+> riscritte, perché la colonna *Ora* è una fotografia datata al **2026-08-08** e falsificarla perderebbe il
+> confronto che la tabella esiste per mostrare:
+> · **`Vektor.InterceptShot`** non è più `⏳ E18`: E18 è **chiusa** ([#225](https://github.com/DegrassiAaron/refactor-tactics-main/issues/225), 2026-08-10) e l'abilità è
+>   consegnata — sette test `Predictive.*`, tre dei quali d'integrazione in un `UWorld` vero.
+> · **«tre su cinque»** è ora **tre su quattro**: `InterceptShot` è uscita dall'insieme delle reazioni, e il
+>   denominatore è calato con lei. Resta `Riva.FlowReaction`.
+>
 > ### La showcase è uno **scenario dell'harness**, non una seconda pipeline
 >
 > Ora che l'harness esiste, «Il Relè» va costruito come **scenario (o famiglia di scenari) di
@@ -113,11 +121,16 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
 - le reazioni sono **pianificate e automatiche**: non chiedono una scelta live e non sospendono la simulazione
   — è il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), non un
   meccanismo diverso;
-- **due** reazioni d'eroe non sono cablate: `Riva.FlowReaction` (⏳ E14) e `Vektor.InterceptShot` (⏳ E18, come
-  Predictive Action). Le altre tre sono in partita da CP 6.7.
+- **una** reazione d'eroe non è cablata: `Riva.FlowReaction` (⏳ E14), perché produce **movimento** dentro un
+  boundary di risoluzione. Le altre **tre su quattro** sono in partita da CP 6.7.
+  `Vektor.InterceptShot` **non compare in questo conto**: non è più una reazione — è una **Predictive
+  Action**, ed è consegnata (vedi sotto).
 
 *(Aggiornato il 2026-08-08: `Wet`/`Obscured` avevano «durate in arrivo con CP 8.2» — CP 8.2 è chiuso; e le
 reazioni d'eroe non cablate erano cinque.)*
+*(Aggiornato il **2026-08-17**: erano «**due** non cablate», e il conto includeva `InterceptShot` —
+riclassificata **Predictive Action** il 2026-08-10 con D-016, quindi uscita dall'insieme delle reazioni.
+Il denominatore è calato con lei: **quattro**, non cinque.)*
 
 ---
 
@@ -346,11 +359,11 @@ Nessuna riga di questa tabella si costruisce dentro E15.
 | Strutture: **ponti** | ⏳ | **CP 9.4** — non blocca gli 8 turni, vedi §2.3 |
 | `KineticPanel` / `Reconfigure` come struttura, non come mesh spostata | ⏳ | **CP 9.5** |
 | Obiettivo contestabile verificato nel Cleanup, dopo ambiente e KO | ⏳ | **CP 10.2** — issue `#75` |
-| Reazioni d'eroe cablate al motore (`Interposition`, `Deflection`, `ReactiveCapacitor`) | ✅ **tre su cinque** | **CP 5.5 + 6.7** chiusi |
+| Reazioni d'eroe cablate al motore (`Interposition`, `Deflection`, `ReactiveCapacitor`) | ✅ **tre su quattro** | **CP 5.5 + 6.7** chiusi — il denominatore era cinque finché `InterceptShot` era contata fra le reazioni |
 | `Riva.FlowReaction` (riposizionamento **dentro** un boundary) | ⏳ rinviata | **E14** |
 | Micro-step del movimento sospendibile | ⏳ | **CP 14.2** |
 | Finestra `FIRE`/`HOLD` da 3 s | ⏳ | **CP 14.5** |
-| `Vektor.InterceptShot` come **Predictive Action** (dichiarata in Planning, nessun input in Resolution) | ⏳ | **E18** — [D-016](../decisions/RT_PDR_00_Decision_Log.md); **sganciata da E14** |
+| `Vektor.InterceptShot` come **Predictive Action** (dichiarata in Planning, nessun input in Resolution) | ✅ **consegnata il 2026-08-10** | **E18** chiusa ([#225](https://github.com/DegrassiAaron/refactor-tactics-main/issues/225)) — [D-016](../decisions/RT_PDR_00_Decision_Log.md); **sganciata da E14**. Sette test `Predictive.*`, di cui tre d'integrazione in un `UWorld` vero: `InterceptCellHit`, `InterceptCellMiss`, `CrossingIsNotPresence` |
 | Orientamento come stato di gioco (facing dal movimento, retro scoperto) | ⏳ | **CP 16.1/16.2** — [ADR-0005](../decisions/adr-0005-orientamento.md) |
 | Conoscenza parziale reale (vista **a cono**, rumore, tre livelli) | ⏳ | **E13** (dipende da CP 16.1) |
 | Etichette *confermato / previsto / incerto* nell'HUD | ⏳ | **CP 11.2** |
