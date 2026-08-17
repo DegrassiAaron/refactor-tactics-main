@@ -539,9 +539,9 @@ resta visibile invece di sparire.
 | `Spec.Brace.AnchorResistsDisplacement` · `…FlowRedirectsToLegalHexOnly` · `…DeflectOffersOnlyLegalSides` | `RT-FEAT-REACTION-PROFILE` | v0.1 · E14 · CP 14.7 |
 | `Spec.Overwatch.ConductiveDischargeUsesStandardConduction` · `…PressurePushChangesResolvedPath` · `…FrontlineFollowsFacing` | `RT-FEAT-REACTION-OVERWATCH` | v0.1 · E14 · CP 14.4 |
 | `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` · `…ControlLoadScalesInitialBank` · `…ControlLoadNeverExtendsWindow` · `…TimeoutIgnoresPreferredResponse` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
-| `Spec.Map.WallCrossesCellStillStandable` · `…FootprintCollisionBlocksCell` · `…NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` | v0.2 · E23 · CP 23.6 |
-| `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.2 · E23 · CP 23.7 |
-| `Spec.Map.Interaction.SwitchOpensDoor` · `…SwitchControlsMultipleDoors` · `…OpenFailsDependentMoveBlocks` | `RT-FEAT-MAP-INTERACTION-GRAPH` | v0.2 · E23 · CP 23.4 (`#833`) |
+| `Spec.Map.WallCrossesCellStillStandable` · `…FootprintCollisionBlocksCell` · `…NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` | v0.1 · E23 · CP 23.6 |
+| `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.1 · E23 · CP 23.7 |
+| `Spec.Map.Interaction.SwitchOpensDoor` · `…SwitchControlsMultipleDoors` · `…OpenFailsDependentMoveBlocks` | `RT-FEAT-MAP-INTERACTION-GRAPH` | v0.1 · E23 · CP 23.4 (`#833`) |
 
 > ➕ **I `Spec.TimeBank.*` passano da dieci a TREDICI il 2026-08-17** ([D-156](../decisions/RT_PDR_00_Decision_Log.md),
 > [D-157](../decisions/RT_PDR_00_Decision_Log.md)): `ControlLoadScalesInitialBank`,
