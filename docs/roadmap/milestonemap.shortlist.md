@@ -27,7 +27,7 @@ un'epic** — cioè il lavoro che non è contenuto della release.
 | **M6** | 🟡 | — | Parità hex: la partita 2v2 gira **interamente** su esagoni. Resta il **playtest M6.8** in editor (`PIE-HEXPLAY-1..9`) |
 | **M7** | 🟡 | — | Dismissione del quadrato, con punto di ritorno (`pre-hex-only`) e release packaged. Restano 2 KPI su 4: FPS e preview richiedono rendering |
 | **M8** | 🟡 | `RT-FEAT-CHAR-PRESENTATION` | Presentazione e identità. Le regole degli eroi ci sono; manca il lavoro in editor — personaggi animati, anelli, Ghost Timeline, showcase |
-| **M9** | 🟡 | `RT-FEAT-TOOL-MAP-EDITOR`, `RT-FEAT-TOOL-MAP-GEOMETRY` | Ambienti tattici ed editor maturo. E8 ed E9 chiuse; restano gli obiettivi di **E10** e il residuo editor **H5** |
+| **M9** | 🟡 | `RT-FEAT-TOOL-MAP-EDITOR`, `RT-FEAT-TOOL-MAP-GEOMETRY`, `RT-FEAT-TOOL-SCENARIO-COMPOSER`, `RT-FEAT-TOOL-SKILL-WORKBENCH` | Ambienti tattici ed editor maturo. E8 ed E9 chiuse; restano gli obiettivi di **E10** e il residuo editor **H5** |
 | **M10** | ⏳ | `RT-FEAT-NET-AUTHORITY` | Rete e privacy: **fuori dalla v0.1**. E13/E14 la preparano; ADR-0004 le aggiunge N round-trip per turno |
 | **M11** | ⏳ | — | Production readiness: validator in CI, soak su packaged, replay audit, budget su mappa grande |
 

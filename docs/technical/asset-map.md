@@ -105,17 +105,24 @@ sviluppa e non è committato — il caso peggiore dei tre, perché il gioco funz
 chiunque cloni. Le altre tre non esistono. È esattamente il perimetro della seduta **U8**, ed è l'unica
 famiglia della v0.1 con lavoro aperto.
 
-### 2.1 Famiglie attese che non hanno ancora un path
+### 2.1 Famiglie attese che non hanno una riga d'allowlist
 
-Due cose che la v0.1 richiede e che **non stanno né nell'allowlist né in una seduta**. Non sono dimenticanze
-di questo file: sono buchi delle fonti, e vanno chiusi lì.
+**Quattro** cose che la v0.1 richiede e per cui **`git add` tace**, perché nessuna riga di `.gitignore` le
+riammette. È l'unico predicato vero di tutte e quattro: il *percorso* ce l'hanno in due (le icone lo hanno
+deciso, i sorgenti icona esistono già sul disco), la *seduta* in altre due (U21, U25). Non sono
+dimenticanze di questo file: sono buchi delle fonti, e vanno chiusi lì.
 
-| Famiglia | Chi la richiede | Perché manca un path |
+> ⚠️ *Questa frase ha sbagliato **tre volte** e ogni correzione ne ha riletta una parte sola: prima il
+> numero («Due» con tre righe), poi il predicato «né in una seduta» (falso per U21 e U25), poi «manca il
+> percorso» (falso per le prime due righe). Il titolo della sezione portava lo stesso errore e non era
+> stato toccato. Ora il predicato è quello che la tabella qui sotto verifica riga per riga.*
+
+| Famiglia | Chi la richiede | Perché `git add` tace |
 |---|---|---|
 | **Icone dell'HUD** | E20 · E11 | L'**insieme** richiesto è derivato e cresce da solo — `URTIconLibrary::RequiredIconIds()` lo compone dalle fasi volontarie e dal catalogo azioni *realmente in codice*, gate `RTIconCatalogTests` — ma **path e naming sono già decisi**: `/Game/RT/UI/Icons/`, `T_UI_Icon_<Categoria>_<Nome>` ([`brief-icone-v01.md`](brief-icone-v01.md) §33–34). Manca solo la riga d'allowlist, ed è un problema concreto: chi importa le texture al path già deciso fa `git add`, git tace, e le icone restano locali |
 | **Sorgenti icona già sul disco** | E20 | `Content/RT_UI_AssetPack_FromHUD/` contiene **30 PNG** (`icons/I_Guard.png`, `I_Overwatch.png`, …) più `buttons/`, `panels/`, `tiles/`, `warnings/` e un `manifest.json` con box e margini 9-slice. Di tutto il kit **il repository traccia due file**: `README.md` e `manifest.json`. I trenta PNG no. È la famiglia più vicina a essere pronta, e la sola che nessuna riga d'allowlist prevede |
 | **Livello illuminato del graybox** | seduta **U21** | U21 dichiara di produrre «il livello illuminato **committato**», ma ha `artifacts: []`: nessuno sa quale file sarà, quindi non può entrare nell'allowlist prima della seduta |
-| **Kit graybox degli oggetti di mappa** | `RT-FEAT-UI-GRAYBOX-KIT` · `D-152` | La famiglia è **decisa e senza percorso**, ed è il caso che questa colonna descrive meglio. Il contratto esiste ([`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md)) e dice *che forma* devono avere gli asset; le convenzioni §5 non hanno una riga per un kit graybox di **oggetti** — coprono la griglia (`/Game/RT/World/Grid/`, dove `Generation/` sono i *generatori*) e le mappe, non le primitive riusabili che ci stanno sopra. Il percorso è `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), e si chiude **prima** della seduta che produce il primo asset, non dopo: è la riga 1 di §6 |
+| **Kit graybox degli oggetti di mappa** | `RT-FEAT-UI-GRAYBOX-KIT` · `D-152` · seduta **U25** ([#1095](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1095)) | La famiglia è **decisa e senza percorso** — l'unica delle quattro a cui manchi davvero, oltre alla riga d'allowlist. ⚠️ **A differenza di U21 qui la seduta esiste già**, e la riga la nomina: la lacuna non è «chi lo produce» ma «dove va». Il contratto esiste ([`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md)) e dice *che forma* devono avere gli asset; le convenzioni §5 non hanno una riga per un kit graybox di **oggetti** — coprono la griglia (`/Game/RT/World/Grid/`, dove `Generation/` sono i *generatori*) e le mappe, non le primitive riusabili che ci stanno sopra. Il percorso è `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), e si chiude **prima** della seduta che produce il primo asset, non dopo: è la riga 1 di §6 |
 
 ---
 

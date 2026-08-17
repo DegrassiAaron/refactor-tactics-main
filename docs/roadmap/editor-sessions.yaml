@@ -940,11 +940,15 @@ sessions:
     # ➕ `U25` aggiunta il 2026-08-17: condivide l'allestimento e ne dipende per la stessa ragione di
     # `U22` — una scena di leggibilita' valutata prima delle luci direbbe piu' sulle luci che sull'oggetto
     # guardato. Il validator e' bidirezionale e non lascia dichiarare la relazione da un lato solo.
-    shares_setup_with: [U22, U25]
+    # ➕ `U26` aggiunta lo stesso giorno da `D-154`, per la stessa ragione e con lo stesso vincolo. Due
+    # sessioni parallele hanno appeso una seduta a questa senza vedersi: l'elenco e' l'unione, misurata
+    # sull'albero unito. **Quattro sedute** condividono ora `L_DevSandbox` illuminato, ed e' un argomento
+    # per aprirle nella stessa apertura invece che in quattro.
+    shares_setup_with: [U22, U25, U26]
     verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
     issues: [623]
     done_when: le due voci hanno un esito reale e il livello illuminato e' committato
-    unblocks: [U22, U25]
+    unblocks: [U22, U25, U26]
     notes: >-
       Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e
       non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e
@@ -960,6 +964,44 @@ sessions:
       Resta solo l'inquadratura della mappa, che e' `PIE-MAPED-FRAME`.
       ⚠️ ID assegnato al merge: preso `U21` con `U20` come ultimo su `main`. Chi arriva secondo
       rinumera, non contende.
+      ---
+      **COSA FAI** — i passi stanno qui perche' nessuna guida copre ancora l'illuminazione: la
+      checklist di `convenzioni-contenuti-ue.md` §12 riguarda dove va un asset, non come si accende
+      una scena. Stessa ragione per cui `U1` e `U16` portano i propri.
+      **0. Misura il prerequisito invece di assumerlo.** Entrambe le voci PIE chiedono celle su **≥2
+      layer**, e `PIE-MAPED-FRAME` chiede anche celle **lontane dall'origine**. Se `L_DevSandbox` non
+      le ha, dipingile prima: tool **Paint** con `BrushRadius` alto per il piano 0, `ActiveLayer=1`
+      per il secondo, tool **Arch** per una transizione. `rt.Arena.Check` dice se la mappa ha celle;
+      la vista `Focus` dice se i piani sono due. Cosi' facendo cambia anche
+      `Data/DA_HexMap_Sandbox.uasset`, ed e' il motivo per cui la lease copre **entrambi** i package.
+      **1. Le luci, e perche' sono piu' di una.** Il criterio di `PIE-MAPED-LIGHT` vieta esattamente
+      *«una meta' leggibile e una no»*, che e' la firma di una **sola** luce direzionale: la faccia
+      opposta al sole non riceve niente. Serve quindi anche una sorgente ambientale che riempia
+      l'ombra, e qualcosa che quella sorgente possa raccogliere. Il sorgente proponeva
+      `Directional Light` + `Sky Light` + `Sky Atmosphere`: la combinazione e' ragionevole, ma il
+      criterio e' l'**orbita**, non la lista degli attori — chi la ottiene con meno pezzi ha
+      comunque ragione.
+      **2. L'esposizione si fissa NEL LIVELLO, non nella viewport.** Il prerequisito dice *«nessuna
+      modifica all'esposizione della viewport»*, e non e' un dettaglio procedurale: se la scena si
+      legge solo dopo aver alzato l'esposizione a mano, allora non si legge — e le altre tre sedute
+      che ereditano questo allestimento vedrebbero altro. Un `Post Process Volume` **unbound** nel
+      livello e' lo scope giusto.
+      ⛔ **NON toccare `Config/DefaultEngine.ini`** per l'auto-exposure di progetto: `Config/` e'
+      `integration_only` in `parallel-batch.yaml`, e cambiare un default di progetto per un banco di
+      prove distruttive e' il caso che `#926` ha gia' respinto — «paga un binario e cambia il
+      comportamento predefinito del gioco che si distribuisce».
+      **3. Il verdetto e' un'orbita, non uno screenshot.** Gira attorno alla mappa e guarda le facce
+      che il sole non prende: superficie, marcatori blocca-movimento/blocca-vista e contorni dei
+      piani di contesto devono restare distinguibili **da ogni angolo**.
+      **4. `PIE-MAPED-FRAME` nella stessa apertura.** Con il mode Hex Map attivo, premi **`Home`**:
+      la vista deve portare dentro **tutte** le celle, comprese quelle sui layer diversi da
+      `ActiveLayer` e quelle lontane dall'origine. ⚠️ Il comando arriva con `#623` parte B: serve un
+      editor compilato **dopo** quel merge, o il tasto non fa niente e il verdetto sarebbe sul
+      binario sbagliato.
+      **5. Salva e committa.** L'oracolo e' `git status` sui due package, non «l'ho salvato»: questo
+      repository ha gia' avuto asset presenti su disco e non versionati.
+      ⚠️ **Lease binaria obbligatoria prima di salvare** — `BINARY-GH623-DEVSANDBOX-LIGHTING` in
+      `parallel-batch.yaml`. Due `.umap` non si fondono, e quattro sedute usano questo livello.
 
   - id: U22
     title: Il gesto dell'autore — ghost, snap e Undo del tool Geometry
@@ -968,7 +1010,7 @@ sessions:
     produces: verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21]
+    shares_setup_with: [U21, U26]
     verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI]
     issues: [712]
     done_when: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
@@ -1041,7 +1083,11 @@ sessions:
     produces: verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21]
+    # ➕ `U26` aggiunta il 2026-08-17 in code review: il commento di `U21` dichiarava «quattro sedute
+    # condividono `L_DevSandbox` illuminato» mentre la relazione era scritta su **quattro coppie su sei** —
+    # il validator controlla la sola SIMMETRIA, quindi taceva. `U25` e `U26` si guardano sulla stessa scena
+    # illuminata: chi ne apre una trova scritto che c'e' l'altra.
+    shares_setup_with: [U21, U26]
     verifies: []
     issues: [1095]
     done_when: la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro
@@ -1057,19 +1103,73 @@ sessions:
       ghiaccio, e li guarda a tre distanze di camera.
       ⚠️ **`verifies: []` non e' una dimenticanza**, ed e' lo stesso caso di `U24`: le voci PIE di questo
       dominio **non esistono** — misurato, `grep -c "PIE-GBX" ../technical/test-manuali-pie.md` da' **0** —
-      e quel registro e' nel write-set della track `playback` (`#1015`) al 2026-08-17. Le voci si
-      **propongono**, non si scrivono da fuori: per `D-139` si aspetta quell'owner. Finche' non ci sono,
+      e quel registro e' assegnato a un'altra track in `parallel-batch.yaml`. Le voci si
+      **propongono**, non si scrivono da fuori: per `D-139` si aspetta l'owner che lo tiene OGGI — il
+      proprietario e' cambiato tre volte il 2026-08-17, il permesso mai, ed e' per questo che qui non
+      c'e' un nome. Finche' non ci sono,
       questa seduta produce una scena e non chiude nessuna voce del registro.
       ⚠️ **`artifacts: []` per la ragione di `U21`**: l'oracolo degli artefatti e' `git ls-files`, che sa
       dire se un path **esiste** e non se e' stato modificato. E qui c'e' un motivo in piu': **il percorso
       non e' deciso** — `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — e
       [`../technical/asset-map.md`](../technical/asset-map.md) §6 vuole la riga d'allowlist **prima**
       dell'asset, o `git add` tace e il lavoro resta sul disco di chi l'ha fatto.
-      ⛔ **Fuori da questa seduta**: i diciannove elementi del catalogo. Otto sono `DEFER` per dipendenza
-      da feature `IDEA`, e degli undici restanti la maggior parte e' `UPDATE` di presentazione su asset che
-      esistono. Questa seduta porta **il volume e la scena**, cioe' gli strumenti con cui gli altri si
-      giudicano — non gli altri.
+      ⛔ **Fuori da questa seduta**: i diciannove elementi del catalogo. Sette sono `DEFER` — tre per
+      dipendenza da feature `IDEA`, due fuori scope v0.1 dichiarato, due proxy senza produttore — e dei
+      dodici restanti la maggior parte e' `UPDATE` di presentazione su asset che esistono. Questa
+      seduta porta **il volume e la scena**, cioe' gli strumenti con cui gli altri si giudicano — non
+      gli altri.
       ⚠️ **`unblocked_by: [U21]` non e' una dipendenza tecnica ma la stessa di `U22`**: una scena di
       leggibilita' valutata prima che `L_DevSandbox` sia illuminato direbbe piu' sulle luci che sul kit.
+      🔴 **La conseguenza dei due campi vuoti INSIEME, che i due paragrafi qui sopra giustificano
+      separatamente senza mai dirla.** Senza `verifies` e senza `artifacts` lo stato non e' derivabile:
+      `project-graph.json` porta questa seduta con `state: "—"` e `queue_group: null`, e
+      `editormap.shortlist.md` la conta solo fra le «senza stato derivabile» — **non compare ne' in READY
+      ne' in WAITING**. `U24` sfugge al caso solo perche' ha artefatti. ∴ **questa seduta non entra in NESSUNA
+      delle tre code** — `BLOCKING`, `READY`, `WAITING` — e per l'avanzamento vive attraverso `#1095`.
+      ⚠️ *Due correzioni sulla stessa frase, in due tornate di review. Diceva «invisibile a ogni vista»:
+      falso, `U25` compare nella tabella delle sedute e ha una sezione propria in
+      `editormap.shortlist.md` — cio' che manca e' la CODA, non la visibilita'. Poi diceva «nessuna delle
+      DUE code», e le code sono **tre**: `BLOCKING` e' quella da cui si pesca per prima, e scriverne due
+      lasciava credere che fosse stata guardata.* Non e'
+      riparabile qui: dichiarare artefatti prima che `GBX-4` scelga il percorso, o voci PIE che non
+      esistono, sarebbe peggio — sono i due difetti che `asset-map.md` §6 documenta. Si chiude quando uno
+      dei due campi diventa vero, ed e' il primo effetto utile della chiusura di `GBX-4`.
       ⚠️ ID assegnato prima del merge: `U25`, con `U24` come massimo misurato su `main` **e su tutti i
       diciassette branch locali e gli undici remoti**. Chi arriva secondo rinumera, non contende.
+
+  - id: U26
+    title: La griglia di lavoro e la sonda di movimento nell'editor
+    block: 6
+    critical: false
+    produces: verdetto su leggibilita' della griglia di lavoro e della sonda di movimento
+    artifacts: []
+    unblocked_by: [U21]
+    shares_setup_with: [U21, U22, U25]
+    verifies: []
+    issues: [622, 711]
+    done_when: le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale
+    unblocks: []
+    notes: >-
+      ➕ **Seduta aperta il 2026-08-17 dal consolidamento Tactical Designer** ([D-154], referto
+      `plans/tactical-designer-consolidamento-2026-08-17.md`). Nasce da un buco misurato: `#622` e
+      `#711` chiedono ENTRAMBE, nel proprio DoD, una voce `PIE-*` «collocata in una **seduta** di
+      `editor-sessions.yaml` — una voce che non sta in una seduta non viene eseguita mai», e nessuna
+      seduta le riceveva. `#623` aveva `U21` e `#712` aveva `U22`; queste due erano le sole due issue
+      d'editor aperte senza un posto dove atterrare.
+      ⚠️ **`verifies: []` non e' una dimenticanza, ed e' la stessa scelta di `U24`.** Le voci non
+      esistono ancora — misurato: `grep -cE "PIE-(MAPED-GRID|HEX-MOVEMENT-PROBE)"
+      docs/technical/test-manuali-pie.md` da' **0** — e **non vanno create adesso**: una voce che
+      chiede di verificare una griglia di lavoro che nessun codice disegna direbbe qualcosa di falso
+      sul repository, e il registro PIE e' una lista di cose *verificabili*, non di cose desiderate.
+      Le crea la PR che implementa, che e' anche l'unica che sa che aspetto avranno. `#711` ha gia'
+      scelto il proprio nome: `PIE-HEX-MOVEMENT-PROBE`.
+      ⚠️ **Le due issue condividono l'allestimento, non lo scopo.** La griglia di lavoro (`#622`) si
+      guarda **dove le celle non esistono**; la sonda (`#711`) si guarda dove esistono, su una mappa
+      con superfici costose e una transizione. Stessa apertura, stesso `L_DevSandbox` illuminato da
+      `U21`, due verdetti distinti: chi ne esegue una sola lo dichiara, invece di chiudere la seduta.
+      ⚠️ `unblocked_by: [U21]` per la stessa ragione pratica di `U22`: su una scena non illuminata il
+      verdetto direbbe piu' sulle luci che sulla griglia.
+      ⚠️ ID assegnato prima del merge: `U26`, con `U25` come massimo misurato su `main` **e su tutti i
+      branch remoti** — `U25` vive su `origin/docs/graybox-kit-consolidamento`, che al 2026-08-17 e'
+      la PR **#1099** aperta. Preso `U26` e non `U25` proprio per questo. Chi arriva secondo rinumera,
+      non contende.

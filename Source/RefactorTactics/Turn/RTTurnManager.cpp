@@ -2161,6 +2161,20 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 			continue; // non tocca le strutture di bordo: la vede il motore azioni, o nessuno
 		}
 
+		// 🔴 **Le PORTE non passano da qui** ([D-148]). Questo loop e' delle COPERTURE: piu' sotto tratta
+		// `MoveCover` in un ramo proprio e manda **tutto il resto** al ramo che erige una copertura dal
+		// catalogo terreni. Senza questa riga `Action.Interact` — che dichiara `StructureOp` per farsi
+		// puntare su un bordo — costruirebbe un muro invece di aprire una porta, **e la compilazione non lo
+		// direbbe**: nessuno `switch` su questo enum e' esaustivo.
+		//
+		// Il percorso vero e' un altro e resta intatto: `RTHexCombatLibrary` raccoglie l'operazione su
+		// `FirstDoorEdge` durante il Blast e la applica `URTHexDoorLibrary::SetDoorState`, che e' l'unico
+		// ingresso di mutazione. Qui non si consuma nemmeno l'ability: la consuma quel percorso.
+		if (Ability->Def.StructureOp == ERTStructureOp::SetDoorState)
+		{
+			continue;
+		}
+
 		// Il piano si consuma nel turno, attivata o no: e' la stessa disciplina di `ModifyArc` nel Blast.
 		const FRTActionDef Def = Ability->Def;
 		const bool bHasEdge = Unit->bHasPlannedCoverEdge;

@@ -20,12 +20,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**118 feature** · v0.1 **82** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
+**120 feature** · v0.1 **82** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **6**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 7 |
-| `DESIGNED` | 19 |
+| `DESIGNED` | 21 |
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 27 |
 | `TESTABLE` | 9 |
@@ -184,7 +184,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | v0.1 | SPECIFIED | 1/10 | E14 | Due opportunity contese: chi vince, e una sola volta |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/10 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
-### Tools · 15
+### Tools · 17
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -202,6 +202,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | v0.3 | DESIGNED | 0/8 | E27 | — |
 | `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | v0.3 | DESIGNED | 0/8 | E28 | — |
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | E26 | Epic E26 |
+| `RT-FEAT-TOOL-SCENARIO-COMPOSER` — Scenario Composer — authoring visuale sopra il formato scenario canonico | future | DESIGNED | 0/7 | M9 | — |
+| `RT-FEAT-TOOL-SKILL-WORKBENCH` — Skill Workbench — varianti di abilita' separate dal dato di produzione | future | DESIGNED | 0/7 | M9 | — |
 | `RT-FEAT-BOT-COMPETENCE` — Schema di competenza del bot — cosa il bot sa davvero usare | v0.8 | IDEA | 0/6 | E43 | — |
 
 ### UI · 18

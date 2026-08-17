@@ -173,9 +173,24 @@ funzionalità di debug.
 
 Le misure si esprimono in frazioni di **`C`**, la distanza centro-centro fra due celle adiacenti.
 
-`C` **non è una costante nuova**: discende da `HexSize`, che è un `UPROPERTY` dell'asset mappa e dell'attore
-(`RTHexMapAsset.h:121`, `RTHexMapActor.h:74`, default `100.f`). Una mappa può cambiarlo, e ogni misura
-scritta in centimetri diventerebbe falsa in quel momento senza che nulla fallisca.
+`C` **non è una costante nuova**, e **non è `HexSize`**:
+
+```text
+C = √3 · HexSize          ≈ 173 con HexSize al suo default di 100
+```
+
+`HexSize` è il **raggio** dell'esagono (circumraggio), non il passo della griglia: `URTHexLibrary::AxialToWorld`
+calcola `Wx = HexSize · √3 · (Q + R/2)`, quindi due celle adiacenti distano `√3 · HexSize`. `HexSize` è un
+`UPROPERTY` dell'asset mappa e dell'attore, e una mappa può cambiarlo — per questo le misure di questo
+documento sono in frazioni di `C` e non in centimetri.
+
+> 🔴 **Questa riga diceva «`C` discende da `HexSize`, default `100.f`» senza il fattore.** Chi avesse
+> letto «0.28 C» come 28 cm avrebbe modellato una copertura bassa alta il **58%** del dovuto — `0.28 C` con
+> `C ≈ 173` vale ≈ 48 cm, e `28 / 48 ≈ 0,58`, cioè il fattore `1/√3`. Lo stesso valeva per il Safe
+> Placement inset di `GBX-1`, espresso nella stessa unità.
+> ⚠️ *La prima stesura di questa nota diceva «alta un terzo del dovuto», confondendo il fattore d'errore
+> (`√3 ≈ 1,73`) con il suo reciproco: due numeri incompatibili nella stessa frase, uno dei quali era stato
+> scritto correttamente due righe sopra. Trovato in code review.*
 
 Le guide verticali del volume sono **riferimenti di modellazione**, e non sono categorie di targeting:
 
@@ -224,9 +239,30 @@ Il repository ha **quattro** stati di porta, non tre:
 
 ### 7.2 Integrità: il dato è un intero, gli stati sono una lettura
 
-`FRTHexCover::Integrity` è un `int32` (catalogo v0.1: **30** per la copertura bassa), e oggi il suo unico
-consumatore è `ValidateMap` — *«un riparo a 0 non è un riparo»*. **La distruzione arriva con CP 9.2**, che
-lo scalerà.
+`FRTHexCover::Integrity` è un `int32` **e ha già un produttore vivo**:
+`URTHexCoverLibrary::ApplyStructureDamage` → `DamageFace` scala l'integrità sulle **due facce** della
+barriera e produce `FRTCoverDamageResult{RemainingIntegrity, bDestroyed}`, che entra nel TurnLog.
+
+Il catalogo v0.1 ha **due** soglie di partenza, non una — `FRTHexCover::DefaultIntegrity` restituisce
+`50` per `High` e `30` per `Low` — e i valori residui che i test pinnano attraverso `CoverIntegrityOn`
+sono **`0 · 18 · 22 · 25 · 30`**. Non esiste una scala unica: dipende dal tipo di copertura e
+dall'ammontare del colpo.
+
+> 🔴 **Questa sezione ha sbagliato due volte, e la seconda peggio della prima.**
+> *(1)* Diceva «la distruzione arriva con CP 9.2, che lo scalerà»: **falso**, CP 9.2 è chiuso dal
+> 2026-08-07 e il produttore esiste. Era la trascrizione del commento sopra il campo in
+> `RTHexCellData.h`, scritto quando il produttore non c'era.
+> *(2)* La correzione ha poi citato come prova `RefactorTactics.EnvironmentAction` con
+> «`Integrity == 20`, su entrambi i versi» — che è un'assertion su **`FRTHexEdge`**, cioè un **ponte**
+> (`DefaultIntegrity = 40`), e i «due versi» sono le due direzioni di un **arco**, non le due facce di una
+> copertura. Le assertion vere sulla copertura, nello stesso file, danno `0/18/22/25/30` e **mai 20**.
+> ⚠️ **Sostituire una citazione sbagliata con un'altra citazione sbagliata è il difetto originale al
+> quadrato**, ed è successo dentro la PR che esisteva per ripararlo. Entrambe trovate in code review.
+> ➕ **E il generatore del difetto è tracciato invece di lasciato in piedi**: il commento in
+> `RTHexCellData.h` che prometteva CP 9.2 al futuro è
+> [#1107](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1107) — quel file è nel write-set
+> della track `spatial`, quindi la correzione le viene **passata**, non scritta da fuori. Correggere le
+> quattro trascrizioni e lasciare la fonte significa che il prossimo lettore le riscrive.
 
 Ne discende una separazione che va scritta prima di modellare:
 
@@ -237,22 +273,32 @@ Critico      stessa geometria + marcatore più forte
 Distrutto    geometria CAMBIATA — non è lo stesso oggetto ricolorato
 ```
 
-⚠️ **Le soglie che separano danneggiato da critico non esistono**, e non si inventano qui: sarebbero numeri
-di bilanciamento su un campo il cui produttore (CP 9.2) non è ancora atterrato. §9.
+⚠️ **Le soglie che separano danneggiato da critico non esistono**, e non si inventano qui: sono numeri di
+presentazione su una scala che appartiene al balance della copertura, non a chi modella. La ragione **non**
+è «manca il produttore» — il produttore c'è, e `bDestroyed` è già un esito enumerato invece che una soglia
+da scegliere. Ma la scala **non è una**: due soglie di partenza (`50`/`30`) e ammontari di colpo diversi
+rendono «critico» una frazione, non un numero. È `GBX-3`, §9.
 
-### 7.3 Cinque stati, non due
+### 7.3 «Acceso/spento» non basta, e il numero di stati non lo fissa questo documento
 
-Il kit propone `Online/Offline` come «accent acceso/spento». L'owner degli elementi interattivi ne dichiara
-**cinque** con un esempio esplicito di macchina a stati
-([`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) §5):
+Il kit propone `Online/Offline` come «accent acceso/spento». È troppo poco, e l'owner degli elementi
+interattivi lo mostra con un esempio di macchina a stati
+([`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) §5) in cui un
+generatore ne ha cinque — `Off · Online · Overloaded · Damaged · Destroyed`. `Overloaded` e `Damaged` sono
+due modi diversi di non funzionare, con transizioni d'uscita diverse (`Stabilize`/`Disconnect` contro
+`Repair`): una grammatica a due stati li fonderebbe, e il giocatore perderebbe l'informazione che decide
+l'azione successiva.
 
-```text
-Off · Online · Overloaded · Damaged · Destroyed
-```
-
-`Overloaded` e `Damaged` sono due modi diversi di non funzionare, con transizioni d'uscita diverse
-(`Stabilize`/`Disconnect` contro `Repair`). Una grammatica a due stati li fonderebbe, e il giocatore
-perderebbe proprio l'informazione che decide l'azione successiva.
+> ⚠️ **Quel blocco è etichettato «Esempio, non catalogo», e questo documento non lo promuove a norma.**
+> la stessa §5 dice che **ogni elemento dichiara i propri stati**: il primo con quattro o sei stati
+> non violerebbe niente. La regola che questo contratto impone è un'altra e vale per qualunque cardinalità:
+> **ogni stato dichiarato da un elemento dev'essere distinguibile su due canali**, e gli stati che si
+> somigliano funzionalmente — due modi di essere rotto, due modi di essere chiuso — hanno bisogno di un
+> canale **non cromatico** che li separi.
+>
+> 🔴 La prima stesura scriveva *«l'owner ne dichiara cinque»* e fissava una tassonomia che il suo
+> proprietario aveva deliberatamente lasciato aperta — il secondo owner che §1 esiste per prevenire,
+> creato dalla sezione che lo predica. Trovato in code review.
 
 ---
 
@@ -284,9 +330,20 @@ l'handoff chiede: `REUSE` · `UPDATE` · `CREATE` · `DEFER`.
 | 19 | Marker di spawn | `EditorOnly` | **PARTIAL** — lo spawn esiste in `RTMatchSetupLibrary`; il marker d'authoring no | `CREATE` |
 
 **Il conto**: `REUSE` 2 · `UPDATE` 8 · `CREATE` 2 · `DEFER` 7 — somma **19**, e nessun elemento resta senza
-classificazione. Dei sette `DEFER`, **quattro** dipendono da feature `IDEA` su release `future` (#9 e #10 da
-`RT-FEAT-MAP-STRUCTURAL`, #11 e #12 da `RT-FEAT-MAP-VERTICALITY`); gli altri tre sono la valvola — **fuori
-scope dichiarato** — e due proxy senza produttore.
+classificazione. I sette `DEFER` si dividono per **ragione**, e le ragioni sono tre:
+
+| Perché è differito | Quali | Quanti |
+|---|---|--:|
+| dipende da una feature `IDEA` su release `future` | #9, #10 (`RT-FEAT-MAP-STRUCTURAL`) · #11 (`RT-FEAT-MAP-VERTICALITY`) | **3** |
+| **fuori scope v0.1 dichiarato** da CP 10.1 §11 | #12 (piattaforma mobile) · #15 (valvola) | **2** |
+| proxy di un elemento che nessuno produce ancora | #16, #17 | **2** |
+
+> ⚠️ **`#12` stava nella riga sbagliata, ed è la seconda correzione dello stesso paragrafo.** La stesura
+> precedente lo attribuiva a `RT-FEAT-MAP-VERTICALITY` mentre la riga 12 della tabella, tre centimetri più
+> su, dice «mobile è **fuori scope v0.1 dichiarato** (CP 10.1 §11)» — dove l'esclusione elenca *«ascensori e
+> piattaforme mobili»* e non nomina la verticalità. L'aritmetica `4+3` chiudeva lo stesso, ed è il punto:
+> **un totale che torna non convalida l'attribuzione dei suoi addendi.** Il paragrafo che si complimentava
+> per aver contato le righe invece di rileggerle aveva riletto questa. Trovato in code review.
 
 > ⚠️ **Questa riga diceva `UPDATE 7 · DEFER 8`**, ed era la coppia invertita: un conteggio scritto leggendo
 > la tabella invece di contarla. La somma tornava lo stesso a **19**, che è il motivo per cui non saltava
@@ -348,10 +405,13 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 [`test-manuali-pie.md`](test-manuali-pie.md).
 
 > 🔴 **Le voci PIE di questo contratto non sono ancora scritte, e il motivo è un vincolo di parallelismo,
-> non una dimenticanza.** `test-manuali-pie.md` è nel write-set della track `playback` in
-> [`parallel-batch.yaml`](../roadmap/parallel-batch.yaml): per `D-139` scriverci da un'altra track sarebbe
-> la «piccola fix» su un file assegnato a qualcun altro. Il contenuto delle voci è pronto e vive nella
-> issue di validazione visiva del kit.
+> non una dimenticanza.** `test-manuali-pie.md` è **assegnato a un'altra track** in
+> [`parallel-batch.yaml`](../roadmap/parallel-batch.yaml): per `D-139` scriverci da qui sarebbe la
+> «piccola fix» su un file di qualcun altro. Il contenuto delle voci è pronto e vive nella issue di
+> validazione visiva del kit.
+>
+> **Il nome dell'owner non si scrive qui, e il paragrafo sotto dice perché**: è cambiato tre volte in un
+> giorno, e ogni nome inciso in questa riga sarebbe invecchiato in silenzio. Si legge nel batch.
 >
 > ⏱️ **La causa è cambiata tre volte in una sessione, e il vincolo non si è mai mosso.** All'apertura il
 > file era in prestito a `playback` per `#1015`; poi `#1015` è stata **chiusa** mentre questo documento
