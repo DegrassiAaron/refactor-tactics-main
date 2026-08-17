@@ -190,6 +190,48 @@ public:
 	static FVector CellsCentroidWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
 		float LayerHeight);
 
+	/**
+	 * Ingombro-mondo di un insieme di celle: il box che le contiene tutte, su tutti i layer.
+	 *
+	 * Serve a rispondere «fammi vedere TUTTO» (`#623`). Distinto da `CellsCentroidWorld`, che dice *dove
+	 * guardare* e non *quanto largo*: inquadrare il centroide a distanza fissa taglia le mappe grandi e
+	 * spreca schermo su quelle piccole.
+	 *
+	 * ⚠️ E' l'**ingombro**, non i centri. Ogni cella contribuisce con l'esagono intero — semi-estensione
+	 * `HexSize·√3/2` in X e `HexSize` in Y, che sono i vertici di un pointy-top di circumraggio `HexSize`
+	 * (vedi `HexCorners`). Prendere i soli centri taglierebbe mezza cella su ogni bordo della mappa.
+	 *
+	 * ⚠️ In Z il box copre i **centri** dei layer estremi, non il volume disegnato: blocchi e rilievo hanno
+	 * un'altezza che questa funzione non conosce, ed e' un dato di presentazione. Chi inquadra puo'
+	 * espandere il box se gli serve margine.
+	 *
+	 * Insieme vuoto -> box **non valido** (`IsValid == 0`), non un box degenere sull'origine: una mappa
+	 * senza celle non ha un'inquadratura, e restituirne una plausibile e' il difetto che `rt.Arena.Check`
+	 * esiste per denunciare. Il chiamante deve controllare `IsValid` prima di usarlo.
+	 */
+	static FBox CellsBoundsWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
+		float LayerHeight);
+
+	/**
+	 * Come sopra, ma tenendo conto della **quota d'autore** di ciascuna cella (`FRTHexCellData::Height`).
+	 *
+	 * Esiste perche' l'overload su `FRTCellId` e' corretto per cio' che riceve — un id non porta la quota —
+	 * e chi inquadra invece la conosce. `ARTHexMapActor::RebuildInstances` disegna ogni cella a
+	 * `World.Z + Height`: una mappa con celle alzate produrrebbe un box piatto sul piano del layer, e
+	 * l'inquadratura taglierebbe proprio le celle piu' alte.
+	 *
+	 * ⚠️ `Height` e' **rendering** e non logica — lo dichiara il suo commento, e la logica usa `Layer` piu'
+	 * archi. Sta qui lo stesso perche' la domanda «fammi vedere tutto» e' una domanda di rendering: il box
+	 * deve contenere cio' che si VEDE, non cio' che il resolver considera.
+	 *
+	 * 🔵 **Al 2026-08-17 nessun produttore scrive quel campo**: misurato, l'unica assegnazione in `Source/`
+	 * sta in `RTHexDoorTests.cpp`. Questo overload e' quindi una difesa contro un difetto **latente**, non
+	 * la correzione di uno osservato — ed e' scritto ora perche' costa due righe adesso e un'inquadratura
+	 * sbagliata il giorno in cui un pennello imparera' ad alzare una cella.
+	 */
+	static FBox CellsBoundsWorld(const TArray<FRTHexCellData>& Cells, const FVector& Origin, float HexSize,
+		float LayerHeight);
+
 	/** Ordinamento stabile deterministico: Layer, poi X, poi Y. */
 	static bool StableLess(const FRTCellId& A, const FRTCellId& B);
 
