@@ -351,6 +351,19 @@ bool FRTMatchFormatValidatorRejectsControlCountTest::RunTest(const FString&)
 	TestEqual(TEXT("quattro unita' in gruppi da due: nessun errore"),
 		URTMatchFormatLibrary::ValidateFormat(Valid).Num(), 0);
 
+	// 🔴 **Il default deve dividere QUALUNQUE squadra**, ed e' il pin di una regressione gia' avvenuta: con
+	// il default a `2` questo formato era invalido, e a cadere era `GameModeHonoursComposition` — un test che
+	// non stava verificando il controllo. `1` e' l'unico valore per cui `n % UnitsPerPlayer == 0` vale per
+	// ogni `n`, quindi nessun formato nasce invalido per un campo che il suo autore non ha toccato.
+	//
+	// Il conteggio DISPARI e' il caso che discrimina: con un default pari, un 3v3 passa solo se qualcuno
+	// dichiara il campo. Il 3v3 e' la baseline del prossimo formato reale.
+	URTMatchFormatData* Untouched = MakeValidFormat();
+	Untouched->UnitsPerTeam = 3;
+	TestEqual(TEXT("una squadra dispari con il campo NON toccato resta valida"),
+		URTMatchFormatLibrary::ValidateFormat(Untouched).Num(), 0);
+	TestEqual(TEXT("e il default e' quello che divide sempre"), Untouched->UnitsPerPlayer, 1);
+
 	return true;
 }
 

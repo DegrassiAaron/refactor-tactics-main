@@ -137,13 +137,33 @@ public:
 	 * Unita' comandate da una singola PERSONA (CP 19.3, **D-155**). `Format.Skirmish2v2` dichiara **2**:
 	 * la v0.1 e' offline contro bot e l'unico umano comanda la squadra intera.
 	 *
-	 * Il default e' `2` e non `1` perche' un default deve descrivere il formato che il gioco spedisce, non
-	 * quello che vorremmo: con `1` un asset d'autore che non tocca il campo dichiarerebbe una partita a due
-	 * persone per squadra, che nessuna modalita' esistente gioca. Vedi `FRTMatchRules::UnitsPerPlayer` per
-	 * perche' questo campo non e' `UnitsPerTeam`.
+	 * ## Perche' il default e' `1`
+	 *
+	 * > **`1 player = 1 character` e' il MODELLO del gioco.** *(decisione dell'autore, 2026-08-17)* Il default
+	 * > dichiara il modello; `Format.Skirmish2v2` dichiara **2** perche' e' l'**eccezione** — offline contro
+	 * > bot c'e' un solo umano, e comanda la squadra intera.
+	 *
+	 * 🔴 **Questo campo e' nato con default `2`, e un test lo ha falsificato prima del merge.** La
+	 * motivazione era *«un default deve descrivere il formato che il gioco spedisce»*: sbagliata due volte,
+	 * perche' il default non descrive il modello **e** non regge all'esecuzione. Le due ragioni tecniche, che
+	 * si vedono solo eseguendo:
+	 *
+	 * 1. **Il formato spedito non usa mai questo default**: `FindShippedFormat` scrive `2` a mano, e il
+	 *    ripiego pure. Il default vale solo per i formati che NON sono quello spedito, cioe' esattamente
+	 *    quelli che non descrive.
+	 * 2. **Con `2` ogni squadra di dimensione dispari nasce invalida.** `MatchFormat.GameModeHonoursComposition`
+	 *    allestisce un `Format.Test3v3` e non tocca questo campo: `3 % 2 != 0`, il validator rifiuta, e il
+	 *    test cade su un vincolo che non stava verificando. Il 3v3 e' la baseline del prossimo formato reale.
+	 *
+	 * `1` e' l'unico valore che **divide sempre** (`n % 1 == 0` per ogni `n`), quindi nessun formato nasce
+	 * invalido per un campo che il suo autore non ha toccato. Ed e' anche il piu' **restrittivo** in termini
+	 * di autorita': il default concede il minimo controllo possibile, una unita' a testa, che e' la direzione
+	 * in cui questo repository sbaglia volentieri.
+	 *
+	 * Vedi `FRTMatchRules::UnitsPerPlayer` per perche' questo campo non e' `UnitsPerTeam`.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
-	int32 UnitsPerPlayer = 2;
+	int32 UnitsPerPlayer = 1;
 
 	/** Classe di mappa richiesta (CP 19.1): il validator rifiuta l'accoppiata sbagliata. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
