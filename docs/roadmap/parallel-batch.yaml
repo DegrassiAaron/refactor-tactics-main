@@ -4358,15 +4358,34 @@ tracks:
     binary_leases: []
 
   graybox_kit:
-    status: ACTIVE
+    status: IDLE
     issue: null
-    branch: fix/graybox-review-1099
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
-      🔵 **PR #1099 mergiata** in `main` come `9d82c806`; la track **resta `ACTIVE`** perché la PR di
-      correzione che segue la code review non è ancora atterrata. Il write-set **non** si rilascia prima:
-      chiuderla mentre un ramo tocca ancora i suoi tre path era il difetto che la prima stesura di questa
-      nota ha commesso — `writable: []` accanto a un diff che modifica il sorgente archiviato.
+      ✅ **CHIUSA il 2026-08-17.** Due PR: **#1099** (`9d82c806`) porta il consolidamento, **#1104**
+      (`94575ef4`) le correzioni di **quattro** tornate di code review. Il write-set è **rilasciato** —
+      l'elenco resta scritto nel commento sotto invece di sparire, perché dice quali file questa track ha
+      toccato ed è ciò che la prossima intersezione deve poter leggere.
+
+      🔴 **La lezione di questa track non è nel lavoro consegnato, è nel processo — e va scritta.** La
+      prima PR è stata **mergiata prima che la review riportasse**, e la review ha poi trovato **due
+      premesse false** già atterrate su `main`: «la distruzione arriva con CP 9.2» (chiuso da dieci
+      giorni, il produttore era vivo) e «`C` discende da `HexSize`» (manca il fattore `√3`, cioè
+      **1,73×** su ogni misura del documento). Entrambe **trascritte da un commento invece che misurate**
+      — il difetto che la §2 di quel documento dichiara di non commettere.
+      ⚠️ **Una review lanciata e non attesa non è una review**, ed è costata: per la finestra fra i due
+      merge chiunque abbia letto l'owner ha letto due numeri falsi. Il rimedio è stato per forza una
+      seconda PR, che non cancella la finestra.
+      🔵 **E la correzione ha sbagliato a sua volta**, il che è il dato più utile: la PR che riparava la
+      citazione di CP 9.2 ne ha messa un'altra sbagliata — `Integrity == 20` è un'assertion su
+      `FRTHexEdge`, cioè un **ponte**, non su una copertura. Quattro tornate perché **le note di
+      correzione sono diventate la superficie d'errore principale**: ogni rettifica aggiunge prosa
+      auto-referenziale, e quella prosa va riletta come il resto.
+      ➕ **Il generatore del difetto è tracciato, non solo le sue copie**: il commento in
+      `RTHexCellData.h` è **#1107**, passato alla track `spatial` che possiede quel file — correggere le
+      trascrizioni e lasciare la fonte significa che il prossimo lettore le riscrive. E la lacuna del gate
+      che non vede i `.yaml` è **#1110**.
       🔴 **La chiusura registra un errore di processo che vale più del lavoro consegnato**: la PR è stata
       **mergiata prima che la code review riportasse**, e la review ha poi trovato **due premesse false** —
       «la distruzione arriva con CP 9.2» (chiuso dal 2026-08-07, il produttore è vivo) e «`C` discende da
@@ -4456,26 +4475,13 @@ tracks:
       legacy. Oggi `shortlist --check` è verde. *(La prima stesura si fermava a «non è mio da chiudere»:
       vera quando fu scritta, stantia due commit dopo — e un disclaim che sopravvive alla propria causa
       manda il prossimo a cercare un rosso che non c'è.)*
-    writable:
-      - docs/technical/spec-graybox-placement-contract.md
-      # 🆕 Nato da questo consolidamento: è l'owner che il repository non aveva —
-      # `spec-hex-geometry-authoring.md` possiede la geometria *tattica*, non l'ingombro degli asset che
-      # ci stanno sopra. ⏱️ **Dal 2026-08-17 è in `main`** (PR #1099, `9d82c806`): la misura d'apertura
-      # diceva «non esiste su nessun ramo» ed è scaduta col merge. Resta non conteso — nessun'altra
-      # track lo rivendica.
-      - docs/technical/asset-map.md
-      # ⚠️ Entra perché è l'**asset tracker** e il kit aggiunge una famiglia che non aveva nessuna riga:
-      # misurato, le 17 voci v0.1 sono personaggi, mappe, materiali e framework — zero graybox di mappa.
-      # Verificato non conteso: nessuna track lo rivendica, nessun ramo vivo lo tocca.
-      - docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md
-      # 🔴 Il terzo path è entrato in code review: il ramo lo **crea e poi lo modifica**, e non stava in
-      # nessun insieme — né `writable`, né `integration_only` (che elenca `docs/archive/src/README.md`,
-      # **non** la cartella), né `generated_only`. Era la condizione «file non assegnato» di `D-139`,
-      # commessa dalla track che si era fermata davanti a `convenzioni-contenuti-ue.md` per lo stesso
-      # motivo. `docs_kit` aveva già dichiarato i propri sorgenti d'archivio: la convenzione esisteva.
-      # ✅ **Intersezione rimisurata sui TRE path**, non sui due di apertura: `git log --all --oneline --
-      # <path>` per il terzo dà solo i commit di questo ramo, e nessun altro ref lo nomina. La prima
-      # misura copriva due path su tre, ed è la lacuna che la code review ha visto.
+    # ➖ **Rilasciato alla chiusura.** Era: `docs/technical/spec-graybox-placement-contract.md` ·
+    # `docs/technical/asset-map.md` ·
+    # `docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md`
+    # ⚠️ Il terzo era entrato **in code review**: il ramo lo creava e poi lo modificava senza che stesse
+    # in nessun insieme — la condizione «file non assegnato» di `D-139`, commessa dalla track che si era
+    # fermata davanti a `convenzioni-contenuti-ue.md` per lo stesso motivo.
+    writable: []
     binary_leases: []
 
   replay_ui:
