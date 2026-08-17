@@ -500,4 +500,96 @@ bool FRTMarkTargetConsumedOnceTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Offensive.Line.SmokeCapsTheRangeThrough` — il cap di portata del fumo (`#1085`).
+ *
+ * 🔴 Fino al 2026-08-17 `MaxTargetingRangeThrough` era **dichiarato, testato e mai letto**: il catalogo
+ * dava `2` al fumo, la spec lo confermava in due punti, e `RTTerrainTests` ne verificava il **valore** —
+ * mentre nessuna riga di produzione lo applicava. Il test era verde e la regola non esisteva.
+ *
+ * ⚠️ Questo test verifica la **regola**; quello in `RTTerrainTests` verifica il **dato**. Sono due anelli
+ * diversi della stessa catena e servono entrambi: senza il primo, il secondo resta verde su una feature
+ * inerte — che e' esattamente com'e' stata trovata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOffensiveSmokeCapTest,
+	"RefactorTactics.Offensive.Line.SmokeCapsTheRangeThrough",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOffensiveSmokeCapTest::RunTest(const FString&)
+{
+	// Il caso NEGATIVO per primo: senza fumo la portata e' piena. Senza questo, il caso positivo non
+	// distinguerebbe un cap che funziona da una portata sbagliata.
+	{
+		URTHexMapAsset* Map = MakeOffensiveMap();
+		const TArray<FRTCellId> Linea =
+			URTOffensiveActionLibrary::LineCells(Map, FRTCellId(0, 0), FRTCellId(1, 0), /*RangeCells*/ 6);
+		TestEqual(TEXT("senza fumo la linea arriva a fondo portata"), Linea.Num(), 6);
+	}
+
+	// Il fumo alla SECONDA cella: si attraversa, e da li' restano due celle.
+	{
+		URTHexMapAsset* Map = MakeOffensiveMap();
+		FRTHexCellData Fumo(FRTCellId(2, 0));
+		Fumo.Surface = ERTHexSurface::Smoke;
+		Map->AddOrUpdateCell(Fumo);
+		Map->SortCells();
+
+		const TArray<FRTCellId> Linea =
+			URTOffensiveActionLibrary::LineCells(Map, FRTCellId(0, 0), FRTCellId(1, 0), /*RangeCells*/ 6);
+
+		// 1 (prima del fumo) + 1 (il fumo) + 2 concesse = 4, invece delle 6 di portata.
+		TestEqual(TEXT("il fumo accorcia la linea"), Linea.Num(), 4);
+		if (Linea.Num() == 4)
+		{
+			TestEqual(TEXT("e l'ultima e' due celle oltre il fumo"), Linea.Last(), FRTCellId(4, 0));
+		}
+	}
+
+	// ⚠️ Il fumo **non blocca**: la cella di fumo entra nella linea, a differenza della copertura alta che
+	// la interrompe PRIMA. Sono due regole diverse, e questo le distingue.
+	{
+		URTHexMapAsset* Map = MakeOffensiveMap();
+		FRTHexCellData Fumo(FRTCellId(1, 0));
+		Fumo.Surface = ERTHexSurface::Smoke;
+		Map->AddOrUpdateCell(Fumo);
+		Map->SortCells();
+
+		const TArray<FRTCellId> ConFumo =
+			URTOffensiveActionLibrary::LineCells(Map, FRTCellId(0, 0), FRTCellId(1, 0), /*RangeCells*/ 6);
+		TestTrue(TEXT("la cella di fumo E' nella linea"), ConFumo.Contains(FRTCellId(1, 0)));
+		TestEqual(TEXT("e concede due celle oltre se stessa"), ConFumo.Num(), 3);
+
+		URTHexMapAsset* MapCover = MakeOffensiveMap();
+		MakeHighCover(MapCover, FRTCellId(1, 0));
+		const TArray<FRTCellId> ConCopertura =
+			URTOffensiveActionLibrary::LineCells(MapCover, FRTCellId(0, 0), FRTCellId(1, 0), /*RangeCells*/ 6);
+		TestFalse(TEXT("la copertura alta invece NON e' nella linea"),
+			ConCopertura.Contains(FRTCellId(1, 0)));
+		TestEqual(TEXT("e la interrompe li'"), ConCopertura.Num(), 0);
+	}
+
+	// Due banchi di fumo non allungano la portata: vince il piu' restrittivo fra i cap ancora attivi.
+	{
+		URTHexMapAsset* Map = MakeOffensiveMap();
+		for (int32 X : { 2, 3 })
+		{
+			FRTHexCellData Fumo(FRTCellId(X, 0));
+			Fumo.Surface = ERTHexSurface::Smoke;
+			Map->AddOrUpdateCell(Fumo);
+		}
+		Map->SortCells();
+
+		const TArray<FRTCellId> Linea =
+			URTOffensiveActionLibrary::LineCells(Map, FRTCellId(0, 0), FRTCellId(1, 0), /*RangeCells*/ 6);
+		// Il primo fumo (cella 2) concede fino alla 4. Il secondo (cella 3) ne concederebbe fino alla 5,
+		// ma non puo' estendere quello gia' attivo: la linea si ferma alla 4.
+		TestEqual(TEXT("due banchi non allungano la portata"), Linea.Num(), 4);
+		if (Linea.Num() == 4)
+		{
+			TestEqual(TEXT("l'ultima resta la quarta"), Linea.Last(), FRTCellId(4, 0));
+		}
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
