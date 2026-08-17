@@ -4642,7 +4642,7 @@ tracks:
   bot_stalemate:
     status: ACTIVE
     issue: 1088
-    branch: probe/1088-bersaglio-legale
+    branch: probe/1088-punteggi
     worktree: "D:/rt-1015"
     note: >-
       ➕ **Track aperta il 2026-08-17 su `#1088`, e per ora porta SOLO un probe.** La issue chiede, al
@@ -4888,6 +4888,45 @@ tracks:
     # dichiarazione di `playtest`, non dedotto — e li' resta, perche' il file torna.
     # ➖ **Svuotato il 2026-08-17 insieme alla restituzione della sorgente**, com'era previsto: la vista
     # segue la sorgente, e la sorgente non e' piu' qui. `playtest` dichiara gia' le stesse due viste.
+    derives_from: []
+    binary_leases: []
+
+  reaction_decision:
+    status: ACTIVE
+    issue: 1124
+    branch: docs/consolidamento-multihero-timebank
+    worktree: "D:/rt-reaction"
+    mandate: docs/archive/src/RefactorTactics_Claude_MultiHero_TimeBank_PreferredReaction_2026-08-17.md
+    note: >-
+      ➕ **Track aperta il 2026-08-17 per consolidare il kit MultiHero / Decision Time Bank / Preferred
+      Response**, filtrato dallo spec panel invece che applicato. Il mandato **non era in archivio**: stava
+      in `docs/src/` ed era pure **untracked** — un drop dell'autore che il repository non aveva mai visto,
+      quindi non vale come autorità implicita (CLAUDE.md §1). Viene archiviato in `docs/archive/src/` alla
+      chiusura, come `graybox_kit` ha fatto col proprio.
+      🔴 **I tre owner di `docs/gameplay/` qui sotto non erano in NESSUN insieme** — né in un `writable`, né
+      in `integration_only`, né in `generated_only`: la condizione che `D-139` chiama STOP, misurata con uno
+      script che confronta `git diff --name-only origin/main...HEAD` contro tutti gli insiemi di questo file.
+      È lo stesso caso dei due ADR entrati in `integration_only` il 2026-08-16, e la scelta qui è diversa a
+      ragion veduta: quelli li emendano più rami, questi tre sono l'oggetto di **un** consolidamento e
+      tornano non assegnati quando la track chiude.
+      ⛔ **Cosa questa track NON tocca, ed è la cosa che le manca**: `docs/technical/test-manuali-pie.md` è
+      nel `writable` di `playtest` — IDLE, quindi *prenotato* e non *in uso*, ma prenotato da qualcun altro.
+      Le due verifiche PIE del Quick Confirm (preselezione visibile · decadimento dichiarato) **non sono
+      state scritte**: il testo pronto sta in §11 di `spec-decision-time-bank.md` e nel DoD di `#319`, perché
+      chi possiede il file lo trascriva senza riprogettarlo. È un debito **nominato**, non una dimenticanza.
+      ⚠️ **La prima misura di questo write-set era sbagliata, e vale la pena registrare come**: leggeva
+      `parallel-batch.yaml` dal checkout principale, fermo su un `temp-detach` più vecchio di `origin/main`,
+      e attribuiva `test-manuali-pie.md` a `playback` su una issue chiusa. Rimisurata sull'albero della
+      track, l'owner è `playtest` e la prenotazione è legittima. Un write-set si misura sulla base su cui si
+      sta lavorando, non su quella che si aveva aperta.
+    writable:
+      - docs/gameplay/spec-decision-time-bank.md
+      - docs/gameplay/spec-durata-partita-e-scala-mappe.md
+      - docs/gameplay/spec-reaction-clash-e14.md
+      - docs/roadmap/plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md
+      # ➕ Il file del mandato entra nel `writable` della track che lo esegue (regola del 2026-08-15):
+      # chi lo esegue lo corregge quando lo misura sbagliato — e il referto ne elenca i casi, uno per uno.
+      - docs/archive/src/RefactorTactics_Claude_MultiHero_TimeBank_PreferredReaction_2026-08-17.md
     derives_from: []
     binary_leases: []
 
@@ -5205,10 +5244,19 @@ generated_only:
     derives_from: [docs/roadmap/feature-registry.yaml]
     tool: "feature_registry.py shortlist"
 
+  # 🔴 **`feature-registry.yaml` entra qui il 2026-08-17, e mancava.** Misurato: aggiungere tre
+  # `planned` alla voce `RT-FEAT-CORE-DECISION-TIME-BANK` — nessun file sotto `Scenarios/` toccato,
+  # nessuna riga di `RTScenarioSession.cpp` — ha fatto passare questa vista da «**63** dichiarati
+  # `planned` nel registry» a **66**, e ha aggiunto tre righe alla sua tabella. La riga di intestazione
+  # della vista lo dice da sempre («dichiarati `planned` **nel registry**»), quindi la sorgente era
+  # dichiarata dal contenuto e assente dall'elenco: chi tocca solo il registry lasciava
+  # `shortlist --check` rosso senza che una riga di questo file glielo dicesse. È la stessa forma del
+  # difetto che ha portato qui `v0.1-issue-plan.md` il 2026-08-14.
   - path: docs/roadmap/scenariomap.shortlist.md
     derives_from:
       - Scenarios/
       - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+      - docs/roadmap/feature-registry.yaml
     tool: "feature_registry.py shortlist"
 
   - path: docs/roadmap/milestonemap.shortlist.md
