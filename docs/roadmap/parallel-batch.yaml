@@ -1784,8 +1784,29 @@ tracks:
     binary_leases: []
 
   simulation:
-    status: IDLE
-    issue: null
+    status: ACTIVE
+    issue: 886
+    # ➕ **Riattivata il 2026-08-17 su `#886`** — il Verifier rilegge le decisioni di reazione dal TurnLog.
+    # ⛔ **Ed è ACTIVE con un path CHIESTO e non posseduto**: finché `Turn/RTTurnManager.{h,cpp}` non entra
+    # nel `writable` qui sotto vale **STOP**, e `#886` non è iniziata. La track non è però ferma: i due file
+    # di test sono liberi, e la fixture discriminante della voce 4 del DoD si può costruire lì.
+    # 🔵 **Perché questa track e non `playback`, misurato invece che dedotto dal nome.** `playback` suona
+    # più vicino («replay»), ma il suo write-set storico è **HUD e velocità** (`#1015`, PR #1028). `#886`
+    # poggia su due cose che sono di **questa** track: il `DecisionProvider` iniettabile di `#512` fase B —
+    # `ARTTurnManager::ReactionDecider`, che `RTScenarioSession` collega già — e il test da estendere,
+    # `Replay.Verifier.ResimulationIsDeterministic`, che vive in `Tests/RTSimulationDeterminismTests.cpp:68`.
+    # La scelta è sull'infrastruttura su cui il lavoro poggia, non sul dominio che il nome evoca.
+    # ✅ **Il blocco si è dimezzato mentre questa riga veniva scritta, e va detto perché non sembri fortuna**:
+    # la PR **#1100** (`chore/rilascio-turnlog-spatial`) ha rilasciato i path del TurnLog, quindi
+    # `Turn/RTTurnLogLibrary.{h,cpp}` e `Turn/RTTurnLog.h` sono **liberi**. Dei sei path che `#886` elenca
+    # come «file coinvolti», ne resta **uno solo** conteso.
+    # ⛔ **E `RTTurnLogLibrary` NON viene preso comunque**, benché sia libero: prenderlo sarebbe la
+    # prenotazione che questo file distingue dal vincolo. La issue lo elencava con un «probabilmente», e lo
+    # spec panel del 2026-08-17 ha sciolto il dubbio: se la sorgente delle risposte è una **mappa
+    # `OpportunityId → risposta` costruita una volta** dalla traccia, non serve nessuna lettura per
+    # categoria e il file non si tocca. ⚠️ Se durante l'implementazione quella premessa cadesse, si torna a
+    # chiedere invece di allargare in silenzio — è uno STOP, non una zona grigia.
+    # ---
     # ✅ **Torna IDLE il 2026-08-17: la prima voce di DoD di `#583` è atterrata con la PR #1087**
     # (`827e46ce`). `issue: null` significa *«nessuna sessione ci sta lavorando»*, **non** *«non c'è più
     # niente da fare»*: `#583` resta **OPEN** sulla seconda voce — il TurnLog che registra la condizione —
@@ -2379,25 +2400,60 @@ tracks:
     # ➖ **Il write-set ESCE con la chiusura**: i cinque path sono in `main` con la PR #1087 e oggi non sono
     # di nessuno. I due prestiti sono restituiti — vedi `integration_only`, dove le loro righe sono
     # cancellate invece di essere lasciate a coprire un giro finito.
-    writable: []
-      # ⬅️ 🔴 **Aggiunto dopo la code review, e la lacuna vale più della riga.** Uno scenario nuovo *deve*
-      # essere rivendicato da una feature — `project-graph.json` lo dichiara in `diagnostics.errors`
-      # («ScenarioId non rivendicato da nessuna feature») — quindi questo lavoro non poteva NON toccare il
-      # registry. La prima stesura lo ha scritto appoggiandosi a «`integration_only` si aggiorna in
-      # integrazione», che è vero, e ha comunque sbagliato: il prestito per il JSON degli scenari era stato
-      # dichiarato due righe sopra, e lo stesso criterio non è stato applicato al file accanto. Un criterio
-      # applicato a metà è peggio di uno assente, perché la metà scritta fa sembrare misurata anche l'altra.
-      # `feature-registry.yaml` è il file più conteso del repository: una scrittura non dichiarata è
-      # invisibile a ogni altra track che legge questo file per sapere cosa è preso.
-    # ⚠️ **Un path non può stare nei due insiemi insieme**, e la riga sopra sarebbe quella contraddizione se
-    # questo campo non la dichiarasse: il JSON esce da `Scenarios/` per un giro e ci rientra alla chiusura.
-    # Il precedente è dello stesso lotto — `hero_kit` con `Spec/Environment/WaterQuenchesFire.json` — e la
-    # regola non cambia: si prestano i **file**, mai la cartella, che resta `integration_only` per gli altri.
-    # ⚠️ **Un file che non esiste ancora si presta lo stesso**, e va detto perché la prima stesura stava per
-    # ometterlo: il prestito riguarda il *path*, non il contenuto. Crearlo dentro `Scenarios/` senza
-    # dichiararlo qui sarebbe scrivere in `integration_only` fuori dall'integrazione.
+    # ➕ **Il write-set di `#886`, misurato su `bd806e4f` e non dedotto dai «file coinvolti» della issue.**
+    # Due path liberi, presi; uno **chiesto** a `replay_ui` e non posseduto; tre elencati dalla issue e
+    # **non** presi, ognuno con la propria ragione:
+    #   · `Tests/RTSimulationDeterminismTests.cpp` — `Replay.Verifier.ResimulationIsDeterministic` (riga 68)
+    #                                               va esteso a uno scenario CON decisioni, e i tre test
+    #                                               nuovi del DoD nascono qui
+    #   · `Tests/RTOverwatchTriggerTests.cpp`      — la fixture a DUE finestre di cui una non si riapre, che
+    #                                               è ciò che rende non-vacua la voce sull'identità
+    #   ⛔ `Turn/RTTurnManager.{h,cpp}`            — CHIESTI a `replay_ui`, vedi `release_requested`
+    #   ➖ `Turn/RTTurnLogLibrary.{h,cpp}`         — liberi da #1100, e **non presi**: la mappa costruita una
+    #                                               volta non ha bisogno di una lettura per categoria
+    #   ➖ `Turn/RTTurnLog.h`                      — libero, e non serve: il formato v8 porta già
+    #                                               `OpportunityId`, non nascono campi
+    writable:
+      - Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp
+      - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
+    # ➖ **I commenti sui PRESTITI escono con essi.** Descrivevano il giro di `#583` — il JSON degli scenari
+    # e `feature-registry.yaml`, entrambi restituiti con la PR #1087 — e lasciarli qui li farebbe leggere
+    # come regole di questo giro, che di prestiti non ne ha. Le lezioni che portavano non si perdono: «si
+    # prestano i file, mai la cartella» e «un criterio applicato a metà è peggio di uno assente» sono nella
+    # sezione `integration_only`, dove valgono per tutti invece che per una track sola.
+    # ⚠️ `#886` non presta nulla: i due path che prende sono **liberi**, e il terzo lo **chiede**.
     writable_on_loan: []
-    release_requested: []
+    # ⛔ **CHIESTO a `replay_ui` (#472) e NON posseduto: qui non si scrive.** È l'unico path conteso che
+    # resta a `#886`, e la richiesta è **chirurgica** invece che sul file — il `reason` dice quale funzione
+    # e quale punto esatto, perché un accordo su una consultazione si concede più facilmente di un accordo
+    # su `RTTurnManager.cpp`, che è uno dei file più grandi del progetto.
+    # ✅ **Misurato prima di chiedere, e il costo per chi concede è basso**: `D:/rt-client` è **pulito**
+    # (`git status --porcelain` vuoto dopo `update-index --refresh`), nessun branch `#472` o `feat/1085`
+    # esiste lato server (`git ls-remote --heads origin`), e il campo `branch: feat/1085-cap-fumo` della
+    # track è **stantio** — quel ramo è mergiato e cancellato. `replay_ui` possiede i due path e oggi non li
+    # sta toccando.
+    release_requested:
+      - from: replay_ui
+        issue: 472
+        paths:
+          - Source/RefactorTactics/Turn/RTTurnManager.h
+          - Source/RefactorTactics/Turn/RTTurnManager.cpp
+        reason: >-
+          `#886` deve far vincere una risposta REGISTRATA sul decisore corrente, e il punto in cui accade e'
+          uno solo: `ARTTurnManager::AskReactionDecision`. La modifica e' una consultazione, non una
+          riscrittura — la sorgente e' una mappa `OpportunityId -> risposta` costruita una volta dalla
+          traccia, e il resto della funzione non cambia.
+          🔴 **E il PUNTO esatto conta, perche' la prima stesura del DoD lo aveva sbagliato.** Diceva
+          «consultata prima di ogni altro ramo, bot compreso»; misurato, il primo ramo NON e' il bot, e'
+          `!RequiresDecisionBoundary -> HoldImmediate`, cioe' il collasso di [D-109]. Consultare la traccia
+          li' riaprirebbe una decisione che il gioco dichiara inesistente, e per quelle finestre la traccia
+          contiene `HoldImmediate` — che non e' la scelta di nessuno. ∴ la consultazione va **dopo** il gate
+          di cardinalita' e **al posto** dei rami «bot» e «decisore legato»: il collasso resta una funzione
+          pura dello stato e si RICALCOLA, mai si rilegge.
+          ⚠️ **Chi concede sappia anche cosa NON viene toccato**: `ApplyReactionDecision` resta intatta (CP
+          14.5 ha separato le due proprio per questo), e non nascono campi nel TurnLog — il formato v8 porta
+          gia' `OpportunityId`. Il diff atteso su `RTTurnManager.cpp` e' localizzato in una funzione sola.
+          ⛔ Finche' i due path non sono nel `writable` qui sopra, vale STOP: `#886` non e' iniziata.
     # ⚠️ **Due `--check` restano a questa track con i path**, ed è la stessa eredità che le sue chiusure
     # precedenti hanno dichiarato: `Scenarios/` e `RTScenarioSession.cpp` alimentano entrambe le viste.
     # Il JSON che le alimenta cambia col write-set — è quello nuovo, non lo showcase.
