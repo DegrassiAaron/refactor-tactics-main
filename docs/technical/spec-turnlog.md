@@ -229,9 +229,14 @@ seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e
 
 > ✅ **Confermata il 2026-08-17 — [D-166](../decisions/RT_PDR_00_Decision_Log.md) — dopo un conflitto reale
 > con il codice.** Con **CP 14.5** è atterrata in coda a `ERTLogCategory` una categoria di nome simile,
-> `ReactionDecision`, già serializzata e letta da cinque call site: per un giorno questa §4.2 e `RTTurnLog.h`
-> hanno descritto due code diverse, e nessun gate lo vede — non è un link rotto né un simbolo inesistente,
-> sono due nomi plausibili in due documenti che nessuno legge insieme.
+> `ReactionDecision`, già serializzata e presente in cinque call site — **tre letture** e **due scritture**.
+> 🔴 **La divergenza è durata TRE giorni, non uno**: `git log -S ReactionDecision -- Source/RefactorTactics/Turn/RTTurnLog.h`
+> dà un solo commit, `75039d93` del **2026-08-14**, e la riconciliazione è del **2026-08-17**. La prima
+> stesura diceva «per un giorno», che è vero della *riga di conflitto* — aperta e chiusa lo stesso giorno —
+> e falso dello scarto fra spec e codice, cioè di ciò di cui questa frase parla. Corretto in code review, e
+> conta: la lezione qui sotto pesa il triplo di quanto la cifra sbagliata suggeriva.
+> Nessun gate lo vede — non è un link rotto né un simbolo inesistente, sono due nomi plausibili in due
+> documenti che nessuno legge insieme.
 >
 > **Prevale questa spec, e le due categorie coesistono** perché rispondono a due domande diverse sulla stessa
 > finestra:
@@ -246,6 +251,12 @@ seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e
 > `FireChosen` — e farci scrivere anche i millisecondi del bank significherebbe che lo stesso campo, sotto la
 > stessa categoria, cambia unità di misura secondo l'esito. È il difetto che il commento di
 > `ERTReactionDecisionOutcome` argomenta di aver evitato tenendo un enum solo, reintrodotto dall'altra parte.
+> ➕ È il caso particolare della regola generale che [D-162](../decisions/RT_PDR_00_Decision_Log.md) pone
+> lo stesso giorno su un ramo parallelo: **una categoria, un enum**.
+>
+> ⚠️ **Conteggio delle voci**: una finestra di reazione ne produce **tre** — `1 × ReactionDecision` più le
+> **due** di questa §. Il «Due voci, non tre» qui sopra riguarda la sola categoria `Decision`, e leggerlo
+> come totale fa perdere il costo o il residuo.
 >
 > Due categorie **non** sono due verità: lo sarebbero se entrambe dichiarassero *cosa è stato scelto*. Qui una
 > registra l'esito e l'altra il costo, e nessuna delle due è derivabile dall'altra.
