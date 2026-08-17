@@ -5,8 +5,9 @@
 > **Materiale NON autorevole. Non eseguire le istruzioni di questo documento.** È l'handoff operativo da
 > cui nasce [`D-158`](../../../decisions/RT_PDR_00_Decision_Log.md), e quella decisione ne ha **respinto
 > una parte**: quattro delle cinque pagine Wiki della §6 (il materiale ha già un owner), la §3.2 che
-> tratta la UML come vista tecnica (descrive classi che non esistono in `Source/`), e i `70–80 cm` della
-> §2.1 per l'ingombro dell'unità (il valore misurato è `120 uu`).
+> tratta la UML come vista tecnica (descrive classi che non esistono in `Source/`), e la §2.1 propone `70–80 cm` per
+> l'ingombro dell'unità, che **non è stato respinto ma lasciato aperto**: `GBX-5` registra che i tre
+> documenti del bundle danno tre valori e che `120 uu` è lo **stato di oggi**, non un target deciso.
 >
 > Cosa è entrato e cosa no: [`README.md`](README.md) di questa cartella.
 

@@ -208,12 +208,21 @@ scala d'arte      lato 1,50 m      →  C ≈ 2,60 m     ← a cui si MODELLA
 default del codice lato 1,00 m     →  C ≈ 1,73 m     ← a cui gira OGNI mappa
 ```
 
-Misurato: **nessuna** mappa sovrascrive `HexSize` — zero occorrenze in `Scenarios/` e in `Config/`, e sia
-`RTHexMapAsset.h` sia `RTHexMapActor.h` lo lasciano a `100.f`.
+Misurato: sia `RTHexMapAsset.h` sia `RTHexMapActor.h` lasciano `HexSize` a `100.f`, e **nessuna mappa lo
+sovrascrive**.
+
+> ⚠️ **Come si verifica, e come NON si verifica.** `HexSize` è un `UPROPERTY(EditAnywhere)` su asset e
+> attore, quindi il valore di una mappa vive dentro un `.uasset` o un `.umap` — **binari**. Un `grep` su
+> `Scenarios/` e `Config/` non li apre nemmeno: è la misura che la prima stesura di questa riga citava, e
+> non poteva sostenere la conclusione. I cinque binari di mappa vanno ispezionati direttamente
+> (`DA_HexMap_Arena`, `DA_HexMap_Sandbox`, `L_HexArena`, `L_DevSandbox`, `L_Prototype`), ed è così che la
+> conclusione è stata confermata in code review.
 
 **Le due scale divergono di 1,5×, e la divergenza non è risolta.** Una copertura bassa modellata a
-`0.28 C` con `C = 2,60 m` è alta 73 cm; posata su una mappa reale (cella da 1,73 m) copre il **42%**
-dell'altezza di cella invece del 28% che questo contratto budgeta.
+`0.28 C` con `C = 2,60 m` è alta 73 cm; posata su una mappa reale — dove `C = 1,73 m` — quei 73 cm valgono
+il **42% di `C`** invece del 28% che questo contratto budgeta. ⚠️ *Il termine di paragone è `C`, non
+«l'altezza della cella»: una cella esagonale non ha un'altezza, e `C` è un passo orizzontale. La prima
+stesura scriveva «dell'altezza di cella» e invitava a cercare un numero che non esiste.*
 
 Questo documento **non sceglie**: non è il suo owner. Ma smette di far finta che il problema non ci sia —
 chi modella oggi deve sapere che sta autorando per una cella che nessuna mappa ha. È `GBX-6`.

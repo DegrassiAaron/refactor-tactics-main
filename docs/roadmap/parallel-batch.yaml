@@ -4473,12 +4473,17 @@ tracks:
       nella root). Non si riconsuma: il README del bundle stesso lo chiama «dettaglio tecnico delle
       decisioni precedenti».
 
-      **Cosa il repository conferma**: `1 UU = 1 cm` e **hex side ≈ 1,5 m** sono **già canonici** —
-      `convenzioni-contenuti-ue.md` §11-bis li fissa come *scala d'arte* e `D-071` li cita per derivare
-      l'apotema. Raggio interno ~1,30 m e vertex-to-vertex 3,00 m ne discendono per geometria. Il bundle
-      **conferma** la scala, non la introduce.
-      ➕ **Cosa è genuinamente nuovo**: le lane di maturità artistica `C0–C6` (personaggi) e `E0–E5`
-      (ambiente/prop) — misurato, **zero** occorrenze in `docs/` fuori da `archive/` e `src/`.
+      **Cosa il repository conferma, e solo a metà**: **hex side ≈ 1,5 m** è canonico —
+      `convenzioni-contenuti-ue.md` §11-bis lo fissa come *scala d'arte* dal 2026-08-09 e `D-071` lo cita
+      per derivare l'apotema. ⚠️ **`1 UU = 1 cm` invece non è scritto da nessuna parte** (`grep -i 'UU'`
+      su quel file dà **zero**): è il default di Unreal, e il bundle lo dichiara per primo.
+      🔴 **E nessuna mappa usa la scala d'arte**: girano tutte al default di `1,00 m`, quindi le due
+      divergono di **1,5×** — `GBX-6`.
+      ➕ **Cosa è genuinamente nuovo**: le lane di maturità artistica, che nel repository prendono i
+      prefissi `AC0–AC6` e `AE0–AE5` — quelli del bundle (`C`/`E`) collidevano con la severity degli
+      status e con l'epic `E1`.
+      ⏱️ *Le tre righe qui sopra sono state riscritte in code review: la prima stesura dichiarava `1 UU`
+      canonico e usava i prefissi del bundle.*
 
       🔴 **La UML del bundle descrive un'architettura che non esiste, e questo decide come si pubblica.**
       Misurati **tutti** i simboli che dichiara: `FRTCellData` ed `ESurfaceType` esistono con **altro nome**

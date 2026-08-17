@@ -353,7 +353,7 @@ sostituito» e «il modello va texturizzato» sono due lavori diversi che finiva
 
 | Famiglia | Stadio | Come si verifica |
 |---|---|---|
-| Unità in partita | fra **AC0** e **AC1** | I quattro `BP_Unit_*` con Skeletal Mesh **sono committati** (seduta U7) e il cilindro è il **fallback** quando il riferimento soft non risolve — `RTUnit.cpp` lo dichiara. `git ls-files Content/ | grep BP_Unit` ne conta **4** |
+| Unità in partita | **AC0** | I quattro `BP_Unit_*` sono committati, ma le Skeletal Mesh che referenziano **no**: stanno sotto `Content/FabAsset/`, che `.gitignore` esclude — `git ls-files Content/FabAsset` dà **0**. Su un clone pulito il personaggio non risolve e resta il cilindro, creato **incondizionatamente** da `/Engine/BasicShapes/Cylinder` |
 | Oggetti di mappa | **AE0** | nessun asset graybox di mappa esiste in `Content/` — [`asset-map.md`](asset-map.md) §2.1 |
 
 ### Le due regole che rendono le lane utili invece che decorative
@@ -366,6 +366,12 @@ completamente estetica, **non** le regole competitive.
 **2. Uno stadio non è una promessa di data.** Come le release, le lane dicono un **ordine**, non un
 calendario. `RT-FEAT-CHAR-PRESENTATION` è la feature che porta le unità da `AC0` in avanti, e il suo gate
 `packaged` resta `todo` finché la build mostra ancora i cilindri.
+
+> ⚠️ **Attenzione a cosa conta come «l'asset c'è».** Una stesura di questa tabella aveva promosso le unità
+> a «fra `AC0` e `AC1`» perché i quattro `BP_Unit_*` sono committati — ma un Blueprint che referenzia una
+> mesh **non versionata** non porta niente a chi clona. Lo stadio si misura su ciò che il repository
+> consegna, non su ciò che funziona sulla macchina di chi lo ha costruito: è la stessa distinzione che
+> [`asset-map.md`](asset-map.md) §1 fa fra ✅ *committato* e 🟡 *su disco*.
 
 > ⚠️ **Cosa queste lane NON sono.** Non un tracker: lo stato vive nel
 > [`feature-registry.yaml`](../roadmap/feature-registry.yaml) e nelle sedute di

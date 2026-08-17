@@ -109,7 +109,7 @@
 >
 > ⚠️ **E lo scarto è tutto mio**, contro quanto la prima stesura di questa nota affermava. Diceva che tre
 > file erano «arrivati da altri rami», confrontandosi col valore **83 / 16 in radice** — che era vecchio di
-> due revisioni. Il valore vero da cui si parte è **86 / 19**, scritto poche righe più sopra in questo
+> due revisioni. Il valore vero da cui si parte è **86 / 19**, scritto più avanti in questo
 > stesso file: la radice **non si è mossa**, e il delta `+4` è per intero `graytoolkit/`. Inventare un
 > contributo altrui in un file che esiste per non farlo è il difetto peggiore che potesse ospitare.
 > Trovato in code review.
