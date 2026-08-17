@@ -3097,8 +3097,18 @@ tracks:
       - Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.cpp
       - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.h
       - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.cpp
-      - Source/RefactorTacticsEditor/Public/RTHexEditorMode.h
-      - Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp
+      # ✂️ **`RTHexEditorMode.{h,cpp}` RIALLOCATI a `map_framing` il 2026-08-17** (`#623` parte B). La nota
+      # in testa a questa track diceva *«rilasciarlo è una decisione separata e appartiene a chi riapre la
+      # seduta, non a chi ne misura lo stato»*: `U21` è quella seduta, e questa è quella decisione.
+      # Misurato prima di prenderli, non dedotto: `#451` è `CLOSED`, `D:/rt-content` è pulito e fermo su un
+      # commit vecchio, e **nessun branch remoto** tocca `RTHexEditorMode` — verificato iterando i ref con
+      # `git diff --name-only origin/main...<ref>`. Due path su **ventisette**, non l'insieme: il resto
+      # resta qui perché rilasciarlo non serve a nessuno oggi, e un write-set svuotato per simmetria è una
+      # decisione che nessuno ha preso.
+      # 🔴 **La nota in testa a questa track dice «un `writable` di 26 path», e sono 27** — contati
+      # caricando il YAML, non a occhio, prima e dopo la riallocazione (27 → 25, esattamente i due tolti).
+      # Numero lasciato dov'è: è dentro un paragrafo datato che argomenta un'altra cosa, e correggerlo
+      # lì lo staccherebbe dalla misura che lo motivava. Qui c'è quello vero.
       # ➕ **La guida della seduta U1 entra il 2026-08-17, per `#868`** (aperta): documenta la procedura del
       # mode Hex Map e dell'arena, che è il dominio di questa track — gli stessi tool e lo stesso actor che
       # stanno qui sopra. ⚠️ **Non** «perché è la procedura di `#451`»: quella issue è `CLOSED/COMPLETED` dal
@@ -4903,6 +4913,80 @@ tracks:
     # segue la sorgente, e la sorgente non e' piu' qui. `playtest` dichiara gia' le stesse due viste.
     derives_from: []
     binary_leases: []
+
+  map_framing:
+    status: ACTIVE
+    issue: 623
+    branch: feat/623-inquadratura-mappa
+    worktree: "D:/rt-u21"
+    session: U21
+    session_branch: feat/623-inquadratura-mappa
+    note: >-
+      ➕ **Track aperta il 2026-08-17 per `#623`, seduta `U21`.** La issue ha tre parti di natura diversa e
+      la sua stessa `note` lo dichiara — *«A e B non si chiudono a vicenda»*: **A** e' la seduta luci in
+      `L_DevSandbox`, **B** e' il comando d'inquadratura (codice), **C** e' la registrazione degli esiti.
+      Questa track possiede **B** e prenota il binario di **A**.
+      ✂️ **`RTHexEditorMode.{h,cpp}` arrivano da `content_editor`**, che li teneva prenotati con `#451`
+      `CLOSED` e il worktree fermo. La riallocazione e' argomentata accanto ai due path, la' dove
+      stavano: la nota di quella track diceva che il rilascio *«appartiene a chi riapre la seduta»*, e
+      `U21` e' quella seduta.
+      ➕ **`RTHexEditorModeCommands.{h,cpp}` non erano in nessun insieme** — `grep -c` in questo file dava
+      **zero** — cioe' la condizione «non assegnato» di `D-139`. Presi qui invece di lasciarli scoperti:
+      un file che nessuno dichiara e' un file che due sessioni possono scrivere senza vedersi.
+      ⚠️ **`Map/RTHexLibrary.{h,cpp}` e' la meta' che conta, ed e' runtime di proposito.** L'ingombro
+      della mappa e' una regola di geometria, non una decisione dello strumento che la disegna: sta in
+      `URTHexLibrary::CellsBoundsWorld` con i propri test, e l'editor la **chiama**. La ragione NON e'
+      che il modulo editor sia intestabile — dal 2026-08-16 ha i suoi test (`#993`, `D-154`) — ma che una
+      regola di gioco che vive nell'editor e' una seconda risposta alla stessa domanda.
+      🔵 **Il write-set e' otto file, misurato contro la propria BASE e non contro `origin/main`**:
+      `main` e' avanzato di 18 commit mentre questa track lavorava, e `git diff --name-only origin/main`
+      restituiva **29** path, i due terzi dei quali di altri. `git diff --name-only <base>` da' otto.
+    writable:
+      # La regola e la sua verifica, nel modulo runtime.
+      - Source/RefactorTactics/Map/RTHexLibrary.h
+      - Source/RefactorTactics/Map/RTHexLibrary.cpp
+      - Source/RefactorTactics/Tests/RTHexTests.cpp
+      # Il mode che registra `Home` e la lista dei comandi. I primi due riallocati, i secondi due presi
+      # perche' non assegnati.
+      - Source/RefactorTacticsEditor/Public/RTHexEditorMode.h
+      - Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp
+      - Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h
+      - Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp
+    # `editor-sessions.yaml` e' `integration_only` e resta li': i passi della seduta ci entrano come atto
+    # d'integrazione, non come prenotazione. La vista `editormap.shortlist.md` la segue.
+    derives_from:
+      - docs/roadmap/editormap.shortlist.md
+    binary_leases:
+      # ⚠️ **Emessa PRIMA che la seduta si apra, che e' la sequenza corretta** — a differenza di
+      # `BINARY-GH937-FRONTEND-WIDGETS`, che questo file registra come emessa a lavoro cominciato. La
+      # seduta non e' ancora stata fatta: la lease esiste perche' nel momento in cui l'autore salva il
+      # livello il path sia gia' preso.
+      # ⚠️ **Sulla CARTELLA, non su un file**: `L_DevSandbox` e' una mappa, cioe' due package —
+      # `L_DevSandbox.umap` e `Data/DA_HexMap_Sandbox.uasset` — e il secondo cambia se la seduta deve
+      # dipingere il secondo layer che entrambe le voci PIE pretendono. Entrambi sono gia' in allowlist
+      # nel `.gitignore` (righe 91-92): non c'e' un passo di allowlist da fare prima.
+      # 🔵 **Contesa misurata zero**: nessun branch remoto tocca `L_DevSandbox` — iterati i ref con
+      # `git diff --name-only origin/main...<ref>`. E l'intestazione di questo file lo prevedeva: *«il
+      # giorno in cui due sessioni lavorano la sandbox, la lease serve — e va emessa prima, sul
+      # `base_sha` di allora»*. Quel giorno e' arrivato: **quattro** sedute condividono questo livello.
+      - key: "BINARY-GH623-DEVSANDBOX-LIGHTING"
+        issue: 623
+        base_sha: "94575ef424e0475189e31ead8a2dc5d4e6cf2429"
+        operation: modify
+        paths:
+          - Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
+          - Content/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset
+        verification:
+          - load_in_editor
+          - save_without_errors
+          # La verifica che conta non e' che il livello si apra: e' il criterio di `PIE-MAPED-LIGHT` —
+          # orbitando attorno alla mappa nessuna faccia resta quasi nera, **senza** toccare l'esposizione
+          # della viewport. Un livello che si legge solo dopo aver alzato l'esposizione a mano non
+          # soddisfa la voce, e le altre tre sedute che ereditano l'allestimento vedrebbero altro.
+          - orbit_no_black_face
+          # E l'oracolo del committato e' `git status` sui due package, non «l'ho salvato»: questo
+          # repository ha gia' avuto asset presenti su disco e non versionati.
+          - git_status_clean_after_commit
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #

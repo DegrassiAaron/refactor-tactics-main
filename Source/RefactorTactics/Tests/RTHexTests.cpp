@@ -406,6 +406,85 @@ bool FRTHexCentroidTest::RunTest(const FString&)
 
 
 /**
+ * Ingombro-mondo di un insieme di celle: cio' che serve per dire «fammi vedere TUTTO» (`#623`, seduta `U21`).
+ *
+ * Distinto dal centroide qui sopra, e non ne e' un'estensione: il centroide risponde *dove guardare*, questo
+ * *quanto largo*. Una camera che inquadrasse il centroide con una distanza fissa taglierebbe le mappe grandi
+ * e sprecherebbe schermo su quelle piccole.
+ *
+ * ⚠️ Il valore atteso e' ricalcolato QUI da `FMath::Sqrt(3.0)` invece di riusare la costante del modulo:
+ * un test che prende il numero dalla stessa fonte dell'implementazione verifica che due copie siano uguali,
+ * non che il numero sia giusto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCellsBoundsTest,
+	"RefactorTactics.Hex.CellsBoundsWorld",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCellsBoundsTest::RunTest(const FString&)
+{
+	const FVector Origin(500.0, -200.0, 30.0);
+	const float HexSize = 100.f;
+	const float LayerHeight = 250.f;
+
+	// Semi-estensione di un esagono pointy-top di circumraggio `HexSize`, dai suoi vertici: i sei angoli
+	// stanno a -30 + 60k gradi, quindi |cos| massimo e' sqrt(3)/2 e |sin| massimo e' 1. La punta e' su Y.
+	const double HalfX = static_cast<double>(HexSize) * FMath::Sqrt(3.0) * 0.5;
+	const double HalfY = static_cast<double>(HexSize);
+
+	// Nessuna cella: box NON VALIDO. Non e' un dettaglio: un box degenere sull'origine sarebbe un'inquadratura
+	// plausibile e sbagliata su una mappa vuota, ed e' il difetto che `rt.Arena.Check` esiste per denunciare.
+	TestFalse(TEXT("insieme vuoto -> box non valido, non un punto inventato"),
+		URTHexLibrary::CellsBoundsWorld({}, Origin, HexSize, LayerHeight).IsValid != 0);
+
+	// Una cella: il suo INGOMBRO, non il suo centro. E' la parte che una implementazione ingenua sbaglia —
+	// prendere solo i centri taglia mezza cella su ogni bordo della mappa.
+	const FRTCellId Single(2, -1, 0);
+	const FVector Centre = URTHexLibrary::AxialToWorld(Single, Origin, HexSize, LayerHeight);
+	const FBox One = URTHexLibrary::CellsBoundsWorld({ Single }, Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("una cella -> box valido"), One.IsValid != 0);
+	TestTrue(TEXT("una cella -> min = centro - semi-estensione"),
+		One.Min.Equals(FVector(Centre.X - HalfX, Centre.Y - HalfY, Centre.Z), 0.01));
+	TestTrue(TEXT("una cella -> max = centro + semi-estensione"),
+		One.Max.Equals(FVector(Centre.X + HalfX, Centre.Y + HalfY, Centre.Z), 0.01));
+
+	// Celle LONTANE DALL'ORIGINE: il box le segue invece di restare attorno a (0,0). E' il caso che
+	// `PIE-MAPED-FRAME` chiede di allestire, e qui lo si pinna headless.
+	const FRTCellId Far(30, -12, 0);
+	const FVector FarCentre = URTHexLibrary::AxialToWorld(Far, Origin, HexSize, LayerHeight);
+	const FBox FarBox = URTHexLibrary::CellsBoundsWorld({ Far }, Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("cella lontana -> il box la contiene"), FarBox.IsInsideOrOn(FarCentre));
+	TestFalse(TEXT("cella lontana -> il box NON contiene l'origine"), FarBox.IsInsideOrOn(Origin));
+
+	// Due celle sullo stesso layer: il box copre entrambi gli ingombri.
+	const FRTCellId A(0, 0, 0);
+	const FRTCellId B(6, 0, 0);
+	const FBox Two = URTHexLibrary::CellsBoundsWorld({ A, B }, Origin, HexSize, LayerHeight);
+	const FVector WA = URTHexLibrary::AxialToWorld(A, Origin, HexSize, LayerHeight);
+	const FVector WB = URTHexLibrary::AxialToWorld(B, Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("due celle -> min in X copre la piu' a sinistra"),
+		FMath::IsNearlyEqual(Two.Min.X, FMath::Min(WA.X, WB.X) - HalfX, 0.01));
+	TestTrue(TEXT("due celle -> max in X copre la piu' a destra"),
+		FMath::IsNearlyEqual(Two.Max.X, FMath::Max(WA.X, WB.X) + HalfX, 0.01));
+
+	// MULTILIVELLO: e' il DoD di `#623` e il criterio di `PIE-MAPED-FRAME`. Il box deve coprire i layer
+	// diversi da quello attivo, o il comando mostra solo il piano su cui si sta lavorando.
+	const FRTCellId Low(0, 0, 0);
+	const FRTCellId High(0, 0, 3);
+	const FBox Stack = URTHexLibrary::CellsBoundsWorld({ Low, High }, Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("multilivello -> min Z sul layer piu' basso"),
+		FMath::IsNearlyEqual(Stack.Min.Z, Origin.Z, 0.01));
+	TestTrue(TEXT("multilivello -> max Z sul layer piu' alto"),
+		FMath::IsNearlyEqual(Stack.Max.Z, Origin.Z + 3.0 * static_cast<double>(LayerHeight), 0.01));
+
+	// L'ordine dell'input non cambia il risultato: min/max sono una piega commutativa.
+	const FBox Forward = URTHexLibrary::CellsBoundsWorld({ A, B, High }, Origin, HexSize, LayerHeight);
+	const FBox Reversed = URTHexLibrary::CellsBoundsWorld({ High, B, A }, Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("ordine irrilevante"),
+		Forward.Min.Equals(Reversed.Min, 0.01) && Forward.Max.Equals(Reversed.Max, 0.01));
+	return true;
+}
+
+
+/**
  * Il rilievo che mostra il costo di movimento nasce dal CATALOGO, non da numeri incisi nella vista.
  *
  * E' l'invariante che tiene: ribilanciare `Rough` deve cambiare la mappa da sola. Se l'altezza fosse scritta

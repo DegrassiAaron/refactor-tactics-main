@@ -190,6 +190,28 @@ public:
 	static FVector CellsCentroidWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
 		float LayerHeight);
 
+	/**
+	 * Ingombro-mondo di un insieme di celle: il box che le contiene tutte, su tutti i layer.
+	 *
+	 * Serve a rispondere «fammi vedere TUTTO» (`#623`). Distinto da `CellsCentroidWorld`, che dice *dove
+	 * guardare* e non *quanto largo*: inquadrare il centroide a distanza fissa taglia le mappe grandi e
+	 * spreca schermo su quelle piccole.
+	 *
+	 * ⚠️ E' l'**ingombro**, non i centri. Ogni cella contribuisce con l'esagono intero — semi-estensione
+	 * `HexSize·√3/2` in X e `HexSize` in Y, che sono i vertici di un pointy-top di circumraggio `HexSize`
+	 * (vedi `HexCorners`). Prendere i soli centri taglierebbe mezza cella su ogni bordo della mappa.
+	 *
+	 * ⚠️ In Z il box copre i **centri** dei layer estremi, non il volume disegnato: blocchi e rilievo hanno
+	 * un'altezza che questa funzione non conosce, ed e' un dato di presentazione. Chi inquadra puo'
+	 * espandere il box se gli serve margine.
+	 *
+	 * Insieme vuoto -> box **non valido** (`IsValid == 0`), non un box degenere sull'origine: una mappa
+	 * senza celle non ha un'inquadratura, e restituirne una plausibile e' il difetto che `rt.Arena.Check`
+	 * esiste per denunciare. Il chiamante deve controllare `IsValid` prima di usarlo.
+	 */
+	static FBox CellsBoundsWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
+		float LayerHeight);
+
 	/** Ordinamento stabile deterministico: Layer, poi X, poi Y. */
 	static bool StableLess(const FRTCellId& A, const FRTCellId& B);
 
