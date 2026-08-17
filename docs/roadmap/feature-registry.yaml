@@ -2235,6 +2235,12 @@ features:
       - RefactorTactics.Equipment.WarnsOnPointlessVariantPairing
       - RefactorTactics.Equipment.LoadoutExactlyOneEach
       - RefactorTactics.Equipment.NoInMatchProgression
+      # ➕ `#63` fetta A. ⚠️ **Non duplica i due qui sopra, e la differenza è il punto della issue**:
+      # quelli costruiscono un loadout *a mano* e ne controllano la forma, quindi verificano la REGOLA e
+      # resterebbero verdi anche se nessuna unità venisse mai equipaggiata — che è precisamente ciò che
+      # succedeva. Questo non scrive il loadout: lo **chiede** a `DefaultLoadoutFor` e poi verifica che la
+      # risposta passi `ValidateLoadout`.
+      - RefactorTactics.Equipment.DefaultLoadoutIsOnePerSlotForEveryHero
     scenarios:
       # Da `planned` a reale il 2026-08-12: le due ragioni che lo tenevano fuori sono cadute nello stesso
       # giorno — la chiave `loadout` (#602) e il produttore di `PlannedReactionAbility` (#601).
@@ -3039,7 +3045,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
-      replay_representable: done
+      replay_representable: partial
     roadmap:
       epic: E8
       checkpoints: ["8.2"]
@@ -3047,7 +3053,7 @@ features:
       - RT-FEAT-ENV-TERRAIN
     owner_specs:
       - docs/gameplay/spec-stati-temporanei-cp82.md
-    issues: [65, 625]
+    issues: [65, 625, 1077]
     tests:
       - RefactorTactics.Status.*
       - RefactorTactics.Terrain.Status
@@ -3061,6 +3067,25 @@ features:
     notes: >
       Durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Marked` cablato.
       12 test: la lezione di CP 8.2 è che un dato senza consumatore runtime non è una feature.
+
+      🔴 **`replay_representable` torna `partial` il 2026-08-17, e l'errore è dello stesso tipo che
+      questo registro aveva appena registrato — commesso il giorno dopo averlo scritto.** `#625` ha
+      portato nel TurnLog il **danno** di `Burning`, e con quello il gate è stato messo a `done`. Ma il
+      soggetto di questa feature è il **ciclo di vita** di uno stato legato alla cella, e il danno ne è
+      un terzo:
+      · **applicazione** — `ApplyTerrainOnEnterEffects`, ramo `Status`: solo `AddLogEvent`;
+      · **revoca** uscendo dalla cella — `RevokeCellBoundStatusesNotIn`: nessuna voce;
+      · **scadenza** della durata — `TickStatuses`: nessuna voce;
+      · effetto (il danno) — ✅ tracciato da `#625`.
+      Misurato: **nessuna** delle quattro `ApplyStatus` del `TurnManager` passa da `AppendLogEntry`, e
+      il TurnLog non ha né una categoria né un `Outcome` per gli stati — 35 `AppendLogEntry` nel file,
+      zero per uno status. Non è una riga mancante: è un modello che non c'è.
+      ∴ un replay vede un'unità che comincia a bruciare **senza sapere perché**, e la vede smettere
+      senza sapere se è uscita dal fuoco o se è scaduta la durata.
+      **Chiude il gate** `#1077`, che decide come uno stato entra nel TurnLog — categoria propria o
+      `Environment` con un esito nuovo — e copre i tre momenti. Non era scope di `#625` né di `#1067`.
+      💡 La lezione, di nuovo e con un caso in più: un gate si chiude sul **soggetto intero**. Qui il
+      soggetto era il ciclo di vita, e la misura ne aveva visto un terzo.
 
   - feature_id: RT-FEAT-ENV-WATER
     title: Acqua e stato Wet
@@ -3170,7 +3195,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
-      replay_representable: partial
+      replay_representable: done
     roadmap:
       epic: E8
       checkpoints: ["8.1", "8.4"]
@@ -3197,18 +3222,17 @@ features:
       La superficie corrente vive in una copia di lavoro della mappa: la mappa asset non muta a
       runtime. `Burning` danneggia nel Cleanup, prima dei KO.
 
-      🔴 **`replay_representable` e' `partial` e non `done`, ed e' una correzione in corsa.** `#625` ha
-      portato nel TurnLog il danno del **Cleanup** (8 HP, via `Status.Burning`), e il commit che lo
-      consegnava aveva messo questo gate a `done`. Sbagliato: il fuoco fa danno da **due** punti, e
-      quello tracciato e' il minore. I **10** danni immediati di `OnEnterEffects` — `RTTerrainLibrary`
-      li dichiara sulla superficie `Fire` — passano ancora solo da `AddLogEvent`
-      (`ARTTurnManager::ApplyTerrainOnEnterEffects`), quindi restano fuori dalla traccia canonica.
-      ⚠️ E ci si muore: un'unita' spinta su una cella di fuoco con 10 HP o meno **muore li'**, senza
-      nessuna voce — la stessa morte silenziosa che `#625` esisteva per togliere, in un secondo sito.
-      Misurabile sul test di `#625` stesso: il bersaglio scende 90 → 80 → 72, diciotto danni in tutto,
-      e solo otto arrivano al TurnLog. Trovato in code review, che ha rifiutato il `done`.
-      **Chiude il gate** una issue che porti `ApplyTerrainOnEnterEffects` a passare da `AppendLogEntry`,
-      con lo stesso trattamento del caso letale. Non e' scope di `#625`.
+      ✅ **`replay_representable` e' `done` dal 2026-08-16, e ci e' arrivato in due giri.** Il fuoco fa
+      danno da **due** punti, e ne serviva uno per volta:
+      · `#625` ha portato nel TurnLog il danno del **Cleanup** (8 HP, `Status.Burning`);
+      · `#1067` quello dell'**ingresso** (10 HP, `Terrain.Fire`) — il piu' grosso dei due.
+      🔴 **Il commit di `#625` aveva messo questo gate a `done` con meta' del soggetto coperto**, e la
+      code review l'ha rifiutato: i 10 danni di `OnEnterEffects` passavano ancora solo da `AddLogEvent`,
+      e chi entrava nel fuoco con pochi HP **moriva senza lasciare niente**. Misurabile sul test di
+      `#625` stesso: il bersaglio scendeva 90 → 80 → 72 — diciotto danni, otto tracciati. Il gate e'
+      tornato `partial` per un giro, ed e' l'unico caso in cui questo registro e' andato all'indietro.
+      💡 La lezione, che vale oltre il fuoco: un gate si chiude sul **soggetto intero**, e «il danno da
+      fuoco» erano due siti con due numeri diversi. La prima misura ne aveva visto uno.
 
   - feature_id: RT-FEAT-ENV-STEAM
     title: Fumo e copertura visiva
@@ -4725,10 +4749,16 @@ features:
       date: 2026-08-08
       commit: 2094b86
     notes: >
-      26 test. Statistiche e kit dai dati; **tre reazioni d'eroe su cinque** cablate al CP 6.7
-      (`Interposition`, `Deflection`, `ReactiveCapacitor`). `Hero.Wraith.InterceptShot` è rinviata a
-      E18 e `Hero.Phase.FlowReaction` a E14, e i dati lo dichiarano
+      26 test. Statistiche e kit dai dati; **tre reazioni d'eroe su quattro** cablate al CP 6.7
+      (`Interposition`, `Deflection`, `ReactiveCapacitor`). Resta `Hero.Phase.FlowReaction`, rinviata a
+      E14 perché produce movimento dentro un boundary di risoluzione, e i dati lo dichiarano
       (`Heroes.ReactionsDeclaredOrDeferred`).
+      Il denominatore era **cinque** e contava `Hero.Wraith.InterceptShot`: non è più una reazione dal
+      2026-08-10 (E18 CP 18.2, D-016), è una Predictive Action con slot `Main`,
+      `PredictiveTargeting = LockCell` e `PredictionBoundary = MovementEntry`. Non è «rinviata a E18» —
+      E18 l'ha consegnata, ed è pinnata da `Heroes.Wraith.InterceptShotIsPredictive`
+      (`RTHeroWraithTests.cpp:124`). Rimisurato il 2026-08-16 sul catalogo; `last_verified` resta al
+      2026-08-08 perché questa misura ha coperto le reazioni, non l'intera feature.
 
   - feature_id: RT-FEAT-CHAR-V02-ROSTER
     title: Roster v0.2 — Steel, Aurora, Murdock, Kwang

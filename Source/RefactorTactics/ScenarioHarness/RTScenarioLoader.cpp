@@ -106,7 +106,24 @@ namespace
 		}
 
 		const UEnum* OutcomeEnum = URTScenarioLoader::OutcomeEnumForCategory(OutCategory);
-		const int64 OutcomeValue = OutcomeEnum ? OutcomeEnum->GetValueByNameString(OutcomeText) : INDEX_NONE;
+
+		// ⚠️ **Una categoria SENZA enum non e' «esito sbagliato»: e' «categoria non asseribile», e finche'
+		// i due casi non si distinguevano il messaggio diceva `(previsti: )` — una lista vuota che non
+		// spiega niente.** E' costato un ciclo: uno scenario che chiedeva `PredictionWhiffed` falliva il
+		// caricamento con un errore che sembrava un refuso nel nome dell'esito, mentre il difetto era che
+		// `Predictive` non aveva un caso in `OutcomeEnumForCategory`. Chi aggiunge una categoria nuova al
+		// TurnLog e dimentica la riga la' dentro riceve ora una frase che gliela indica.
+		if (OutcomeEnum == nullptr)
+		{
+			OutError = FString::Printf(
+				TEXT("assertion sul TurnLog: la categoria %s non e' asseribile — non ha un enum di esiti in ")
+				TEXT("`URTScenarioLoader::OutcomeEnumForCategory`. Non e' un errore dello scenario: manca un ")
+				TEXT("caso nel loader, e va aggiunto li'."),
+				*CategoryText);
+			return false;
+		}
+
+		const int64 OutcomeValue = OutcomeEnum->GetValueByNameString(OutcomeText);
 		if (OutcomeValue == INDEX_NONE)
 		{
 			// Il messaggio nomina la CATEGORIA: `BridgeRemoved` e' un esito legittimo, ma non di `Facing`, e
@@ -153,6 +170,19 @@ const UEnum* URTScenarioLoader::OutcomeEnumForCategory(ERTLogCategory Category)
 	case ERTLogCategory::Reaction:    return StaticEnum<ERTReactionOutcome>();
 	case ERTLogCategory::Environment: return StaticEnum<ERTEnvironmentOutcome>();
 	case ERTLogCategory::Facing:      return StaticEnum<ERTFacingOutcome>();
+	// ➕ **Le due che mancavano, aggiunte il 2026-08-16.** Erano le piu' NUOVE — `Predictive` (E18) e
+	// `ReactionDecision` (CP 14.5) — e sono rimaste fuori per omissione, non per una scelta: sei categorie
+	// su otto erano asseribili e due no, senza che nessuno potesse scrivere il perche'.
+	//
+	// Il costo era due righe, e la verifica che fossero possibili e' che entrambi gli enum sono
+	// `UENUM(BlueprintType)`, quindi `StaticEnum<T>()` li risolve — misurato, non assunto: senza la macro
+	// di reflection queste due righe compilerebbero e tornerebbero `nullptr` a runtime.
+	//
+	// ⚠️ Cosa sbloccano, concretamente: `RT_Showcase_Relay_v01` non poteva asserire il proprio
+	// `PredictionWhiffed` al T2 — il turno esiste, la previsione fallisce come deve, e l'unica prova era
+	// indiretta. Un `LogEventCount` su `Predictive` faceva fallire il CARICAMENTO dello scenario.
+	case ERTLogCategory::Predictive:       return StaticEnum<ERTPredictiveOutcome>();
+	case ERTLogCategory::ReactionDecision: return StaticEnum<ERTReactionDecisionOutcome>();
 	default:                          return nullptr;
 	}
 }
@@ -305,6 +335,12 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		const TArray<TSharedPtr<FJsonValue>>* LoadoutArr = nullptr;
 		if (Obj->TryGetArrayField(TEXT("loadout"), LoadoutArr))
 		{
+			// La PRESENZA della chiave, registrata a parte dal contenuto: `"loadout": []` significa «entra
+			// spoglia» e `loadout` assente significa «monta il default dell'eroe», ma entrambe danno zero
+			// pezzi. Senza questo flag le due forme sarebbero indistinguibili, e quattro scenari che tengono
+			// ferma la spinta a 1 tornerebbero a misurare la cosa sbagliata **restando verdi**.
+			Unit.bLoadoutDeclared = true;
+
 			for (const TSharedPtr<FJsonValue>& Piece : *LoadoutArr)
 			{
 				FString PieceId;

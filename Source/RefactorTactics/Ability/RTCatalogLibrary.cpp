@@ -521,6 +521,80 @@ FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
 	return Found ? *Found : FName();
 }
 
+FName URTCatalogLibrary::DefaultGadgetFor(const FName& HeroId)
+{
+	// Fonte: **§4 di `docs/balance/RT_EquipmentCatalog_v0.1.md`**, colonna «Gadget». Le righe qui sotto sono
+	// una COPIA di quella tabella, e la parola conta: il markdown decide, il C++ esegue. A impedire che
+	// divergano in silenzio e' `scripts/check-equipment-defaults.py`, che confronta le due per ID.
+	//
+	// ⚠️ Il catalogo motiva per esteso la sola variante d'arma (D-089). Per gadget e moduli dichiara la
+	// scelta senza argomentarla, e qui NON si inventa una motivazione che la fonte non da': si scrive cosa
+	// fa il pezzo, che e' verificabile, e si lascia la ragione a chi ha compilato la tabella.
+	static const TMap<FName, FName> Defaults = {
+		// Isolante: immunita' a **una** propagazione elettrica. Gadget e' l'eroe elettrico del roster.
+		{ FName(TEXT("Hero.Gadget")), FName(TEXT("Gadget.Insulator")) },
+		// Sprinkler: acqua raggio 1. Dal 2026-08-16 e' anche l'unico produttore d'acqua che il roster puo'
+		// portare in campo — `Hero.Phase.FluidTrail` l'ha persa con D-046 superata (#1006).
+		{ FName(TEXT("Hero.Phase")), FName(TEXT("Gadget.Sprinkler")) },
+		// Copertura portatile: crea una copertura bassa su un bordo. Riktor e' l'eroe delle strutture.
+		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Gadget.PortableCover")) },
+		// Sensore: alza la Team Knowledge in un'area.
+		{ FName(TEXT("Hero.Wraith")), FName(TEXT("Gadget.Sensor")) },
+	};
+	const FName* Found = Defaults.Find(HeroId);
+	return Found ? *Found : FName();
+}
+
+FName URTCatalogLibrary::DefaultReactionModuleFor(const FName& HeroId)
+{
+	// Fonte: §4 del catalogo equipaggiamento, colonna «Reazione». Vale la stessa nota di `DefaultGadgetFor`.
+	static const TMap<FName, FName> Defaults = {
+		// Scudo reattivo: scudo 15 quando subisci danno.
+		{ FName(TEXT("Hero.Gadget")), FName(TEXT("Reaction.ReactiveShield")) },
+		// Fuga hazard: `Reposition 1` quando la cella diventa pericolosa.
+		{ FName(TEXT("Hero.Phase")), FName(TEXT("Reaction.HazardEscape")) },
+		// Interposizione: cambia bersaglio quando un alleato e' bersagliato.
+		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Reaction.AllyIntercept")) },
+		// Dash d'emergenza: `Reposition 1` quando sei bersagliato.
+		{ FName(TEXT("Hero.Wraith")), FName(TEXT("Reaction.EmergencyDash")) },
+	};
+	const FName* Found = Defaults.Find(HeroId);
+	return Found ? *Found : FName();
+}
+
+TArray<FName> URTCatalogLibrary::DefaultLoadoutFor(const FName& HeroId)
+{
+	const TArray<FName> Prescritti = {
+		DefaultWeaponVariantFor(HeroId), DefaultGadgetFor(HeroId), DefaultReactionModuleFor(HeroId)
+	};
+
+	// TUTTO O NIENTE, e su DUE condizioni diverse.
+	//
+	// 1. Un pezzo non DICHIARATO (`None`): l'eroe non ha una riga in §4.
+	// 2. Un pezzo dichiarato ma **non spedito**: §4 lo prescrive e il catalogo v0.1 non lo costruisce.
+	//    Non e' un'ipotesi — succede a due eroi su quattro. §4 assegna `Gadget.Insulator` a Gadget e
+	//    `Gadget.Sensor` a Wraith, e `MakeGadgets` li dichiara assenti con la loro ragione: il primo e' un
+	//    PASSIVO e il motore non ha immunita' per categoria (`RT-FEAT-STATUS-FRAMEWORK`, E36); il secondo
+	//    dipende dalla conoscenza parziale, che e' E13 e non esiste — e il catalogo stesso ne dichiara
+	//    raggio e durata «non specificati dalla fonte».
+	//
+	// ⚠️ **La condizione 2 si misura, non si elenca.** La tentazione era scrivere «Gadget e Wraith non hanno
+	// default»: sarebbe vero oggi e falso il giorno in cui E36 atterra, e nessuno tornerebbe a correggerlo.
+	// Chiedendo invece al catalogo se il pezzo esiste, il default di Gadget comincia a funzionare **da se'**
+	// quando `Gadget.Insulator` viene spedito, senza che questa funzione cambi di una riga.
+	//
+	// E vuoto invece che parziale: un loadout a due pezzi verrebbe rifiutato da `ValidateLoadout`, e il
+	// chiamante si troverebbe a gestire tre livelli piu' in la' un errore che nasce qui.
+	for (const FName& Id : Prescritti)
+	{
+		if (Id.IsNone() || FindEquipment(Id) == nullptr)
+		{
+			return {};
+		}
+	}
+	return Prescritti;
+}
+
 FRTActionDef URTCatalogLibrary::ApplyWeaponVariant(const FRTActionDef& BasicAttack,
 	const URTEquipmentData* Variant)
 {

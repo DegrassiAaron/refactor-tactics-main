@@ -212,9 +212,14 @@ namespace
 			// `...DoesNotOpenSecondOpportunity`). Cio' che manca e' lo spostamento, e lo deve fare `#170`
 			// insieme al contenuto del T6 dello showcase: scoprirla da sola farebbe passare un turno con
 			// `intents: []`, cioe' il verde bugiardo che `#512` fase B ha speso un giro a impedire.
+			// ⏱️ **L'owner passa da `#170` a `#1060` il 2026-08-16**, e non e' un dettaglio di tracciamento:
+			// il T6 e' stato scorporato perche' gli manca il VOCABOLARIO — `OriginalTargetEquals` e
+			// `EffectiveTargetEquals` non esistono fra i tipi di assertion, e `ERTReactionOutcome` non ha un
+			// esito che distingua il redirect. Chi sposta questa capability deve costruirli prima, altrimenti
+			// il turno si accende e nessuno puo' verificare che rediriga sul bersaglio giusto.
 			// ⚠️ Con `owner: #200` questa riga era il difetto che `check-capability-owners.py --online` esiste
 			// per trovare: dichiarata non disponibile con l'owner CHIUSO. Il gate l'ha trovata al primo giro.
-			TEXT("InterceptRevalidation"),    // owner: #170
+			TEXT("InterceptRevalidation"),    // owner: #1060
 			TEXT("Objective"),                // owner: #75
 			TEXT("Perception"),               // owner: #151
 			// Le tre che la prosa non nominava, chieste da `Spec/Movement/`: `SpatialTrigger` (tripwire che
@@ -562,21 +567,29 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		{
 			Unit->VisionRange = Spec.VisionRange;
 		}
-		// EQUIPAGGIAMENTO dichiarato dallo scenario (`#602`). Le azioni concesse si accodano al kit gia'
-		// costruito da `ConfigureFromHeroData`, che e' lo stesso percorso con cui i test montano un modulo: il
-		// pezzo entra come azione, non come flag.
+		// EQUIPAGGIAMENTO. Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader,
+		// che rifiuta lo scenario con un motivo invece di lasciarlo girare a meta'. Qui si sceglie QUALE
+		// loadout, e ad applicarlo e' `ARTUnit::EquipLoadout` — la stessa funzione che chiama
+		// `ARTGameMode::SpawnUnitForHero`. Una seconda copia qui le farebbe divergere, e uno scenario che
+		// verifica un equipaggiamento diverso da quello che il gioco monta non prova niente sul gioco.
 		//
-		// Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader, che rifiuta lo
-		// scenario con un motivo invece di lasciarlo girare a meta'. Qui si equipaggia e basta.
-		for (const FName& PieceId : Spec.Loadout)
-		{
-			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
-			if (!Piece) { continue; }
-			if (URTActionData* Granted = URTCatalogLibrary::MakeEquipmentAction(Piece, Unit))
-			{
-				Unit->Abilities.Add(Granted);
-			}
-		}
+		// ⚠️ **Tre forme, e la condizione e' sul FLAG, non sul conteggio** (`#1054`, `#602`):
+		//   · `loadout` ASSENTE  -> il default dell'eroe, cioe' quello che la partita monta. Senza questo
+		//                           ramo l'harness misurerebbe un gioco che nessuno gioca — il difetto da
+		//                           cui `#63` e' partita;
+		//   · `"loadout": []`    -> l'unita' entra SPOGLIA, e lo scenario lo sta dichiarando. E' la forma
+		//                           che tiene ferma una variabile che il gioco muove: quattro scenari
+		//                           misurano il confine Guard/Brace *con spinta 1*, e il default di Phase
+		//                           la porta a 2;
+		//   · lista              -> quei pezzi, e vincono sul default. Non si sommano: due varianti d'arma
+		//                           sarebbero un insieme che `ValidateLoadout` rifiuta.
+		//
+		// `Spec.Loadout.Num() > 0` qui sarebbe **silenziosamente sbagliato**: tratterebbe `[]` come assente
+		// e rimonterebbe il default proprio sulle unita' che chiedono di non averlo.
+		const TArray<FName> Pezzi = Spec.bLoadoutDeclared
+			? Spec.Loadout
+			: URTCatalogLibrary::DefaultLoadoutFor(Spec.HeroId);
+		Unit->EquipLoadout(Pezzi);
 
 		UnitsById.Add(Spec.Id, Unit);
 	}

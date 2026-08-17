@@ -1,80 +1,355 @@
 {
   "scenarioId": "RT_Showcase_Relay_v01",
-  "tags": ["showcase", "relay", "objectives", "gadget", "phase", "riktor", "wraith"],
+  "tags": [
+    "showcase",
+    "relay",
+    "objectives",
+    "gadget",
+    "phase",
+    "riktor",
+    "wraith"
+  ],
   "version": 2,
   "seed": 12345,
-
   "_nota": "Showcase canonica «Relay Basin». La geometria NON e' qui: e' riferita per nome e vive in MakeShowcaseRelayBasinArena, protetta da ShowcaseRelay.BasinLayoutMatchesSpec. Quarantacinque celle copiate qui sarebbero una seconda verita' che nessuno confronta con la prima. Spec: docs/product/showcase-v0.1.md",
   "fixture": "RelayBasin",
-
   "_nota_turni": "Gli otto turni esistono TUTTI come dato, anche quelli che il gioco non sa ancora giocare. Ognuno dichiara in `requires` la capability che gli manca: il runner si ferma sul primo non supportato e restituisce BLOCKED con il nome, invece di FAIL. Cosi' lo showcase dice da solo quanto lontano arriva oggi, e ogni feature che atterra ne accende un altro pezzo.",
-
   "units": [
-    { "id": "Gadget",    "hero": "Hero.Gadget",    "team": 0, "cell": [-4, 0, 0] },
-    { "id": "Phase",    "hero": "Hero.Phase",    "team": 0, "cell": [-4, 1, 0] },
-    { "id": "Riktor", "hero": "Hero.Riktor", "team": 1, "cell": [ 4, 0, 0] },
-    { "id": "Wraith",  "hero": "Hero.Wraith",  "team": 1, "cell": [ 4, 1, 0] }
+    {
+      "id": "Gadget",
+      "hero": "Hero.Gadget",
+      "team": 0,
+      "cell": [
+        -4,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "Phase",
+      "hero": "Hero.Phase",
+      "team": 0,
+      "cell": [
+        -4,
+        1,
+        0
+      ],
+      "_nota_loadout": "#1006: l'acqua NON viene piu' da un'abilita' di Phase — `FluidTrail` e' tornata uno scatto e l'unico produttore di superficie acqua e' l'EQUIPAGGIAMENTO. Dichiarare il loadout lo SOSTITUISCE per intero e `ValidateLoadout` ne pretende esattamente uno per slot: `Weapon.Impact` e' il default d'eroe di Phase (D-089), `Reaction.Anchor` e' inerte qui. L'unico pezzo che conta e' `Gadget.Sprinkler`, portata 1 — ed e' la ragione per cui Phase si avvicina gia' al T5.",
+      "loadout": [
+        "Weapon.Impact",
+        "Gadget.Sprinkler",
+        "Reaction.Anchor"
+      ]
+    },
+    {
+      "id": "Riktor",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        4,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "Wraith",
+      "hero": "Hero.Wraith",
+      "team": 1,
+      "cell": [
+        4,
+        1,
+        0
+      ]
+    }
   ],
-
   "turns": [
     {
-      "_turno": "T1 — mappa e posizionamento. Gadget entra nel corridoio di Smoke, Phase imbocca la lane d'acqua, Riktor e Wraith avanzano dal loro lato. Nessuna capability mancante: gira sul gioco di oggi.",
+      "_turno": "T1 — mappa e posizionamento, come la spec lo descrive. Gadget attraversa lo `Smoke` verso il centro; Phase imbocca la lane d'acqua; Riktor avanza al centro; **Wraith raggiunge la cresta `HighGround`** a (3,-1), che e' il punto da cui predice al T2 e da cui scende attraverso il fuoco al T3.",
       "intents": [
-        { "unit": "Gadget",    "move": [[-3, 0, 0]] },
-        { "unit": "Phase",    "move": [[-3, 1, 0]] },
-        { "unit": "Riktor", "move": [[ 3, 0, 0]] },
-        { "unit": "Wraith",  "move": [[ 3, 1, 0]] }
+        {
+          "unit": "Gadget",
+          "move": [
+            [
+              -3,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "unit": "Phase",
+          "move": [
+            [
+              -3,
+              1,
+              0
+            ]
+          ]
+        },
+        {
+          "unit": "Riktor",
+          "move": [
+            [
+              3,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "unit": "Wraith",
+          "move": [
+            [
+              3,
+              1,
+              0
+            ],
+            [
+              2,
+              1,
+              0
+            ],
+            [
+              2,
+              0,
+              0
+            ],
+            [
+              3,
+              -1,
+              0
+            ]
+          ]
+        }
+      ],
+      "_nota_wraith_sulla_cresta": "🔴 Fino al 2026-08-16 questo turno mandava Wraith a (3,1) — sulla lane d'acqua, DIETRO la porta chiusa del bordo (0,1)<->(1,1) — e nessuno se n'era accorto perche' i turni successivi erano vuoti. Da li' nessuna linea di Overwatch raggiunge i mover: una porta chiusa blocca la LOS (`HasLineOfSight` -> `BlocksTraversal` -> `URTHexDoorLibrary::BlocksBetween`), e il T4 apriva ZERO finestre. La cresta non e' una preferenza: e' cio' che rende realizzabile la coppia HOLD->FIRE tre turni dopo, perche' scendendo Wraith finisce su r=-1, la cui linea verso W non ha porte. I turni sono ordinati per DIPENDENZA DI STATO. ⚠️ Il percorso passa da (2,0), che e' `Rough`: costa 2 e vieta Dash/Charge, non il Move normale. Totale 5 MP su 6."
+    },
+    {
+      "_turno": "T2 — Wet e predizione. Wraith dichiara `InterceptShot` dalla cresta su (0,-1), una cella dell'approccio nord che Phase non attraversa: il valore del turno E' il WHIFF, e la scommessa si paga comunque — l'abilita' e' spesa che la previsione sia giusta o no.",
+      "requires": [
+        "PredictiveAction"
+      ],
+      "intents": [
+        {
+          "unit": "Wraith",
+          "ability": "Hero.Wraith.InterceptShot",
+          "targetCell": [
+            0,
+            -1,
+            0
+          ]
+        }
+      ],
+      "_nota_dalla_cresta": "La cella prevista sta sulla riga r=-1, in vista dalla cresta: la LOS da (3,-1) a (0,-1) passa per (2,-1) e (1,-1), che sono `Fire` e non bloccano la vista. E' la stessa riga su cui Wraith scendera' al T3 e dalla quale controllera' il varco al T4 — la predizione e l'Overwatch guardano lo stesso corridoio, che e' esattamente cio' che la spec chiama «approccio nord al Relay»."
+    },
+    {
+      "_turno": "T3 — bersaglio in movimento e fuoco. Wraith scende dalla cresta e attraversa la fascia `Fire` a (2,-1) e (1,-1), prendendo il danno d'ingresso e `Burning`: il prezzo della quota si paga scendendo. Finisce a (1,-1), da dove al T4 controlla il varco verso ovest.",
+      "intents": [
+        {
+          "unit": "Wraith",
+          "move": [
+            [
+              2,
+              -1,
+              0
+            ],
+            [
+              1,
+              -1,
+              0
+            ]
+          ]
+        }
       ]
     },
     {
-      "_turno": "T2 — Wet e predizione. Wraith dichiara InterceptShot su una cella prevista che Phase non attraversa: il valore del turno E' il whiff, e senza Predictive Action non c'e' niente da mostrare.",
-      "requires": ["PredictiveAction"],
-      "intents": []
-    },
-    {
-      "_turno": "T3 — bersaglio in movimento e fuoco. Wraith attraversa Fire a (2,-1) prima del Blast e prende Burning; Gadget deve risolvere il bersaglio mosso secondo la policy del catalogo.",
-      "intents": []
-    },
-    {
-      "_turno": "T4 — Overwatch. Il facing da' la LINEA (non un cono: `MakeSuppressiveZone` usa `LineCells`), e la finestra E' HOLD/FIRE. Riktor controlla (2,0) (1,0) (0,0) — tre celle, la portata di `Hero.Riktor.ImpactShot`, in linea dal facing che il suo movimento del T1 gli ha lasciato. Gadget risale il corridoio di Smoke e mette piede sul Relay: li' la risoluzione si SOSPENDE e la risposta e' un dato dello scenario, non una politica.",
-
-      "_nota_scostamento_dalla_spec": "⚠️ QUESTO TURNO E' UNA FETTA della spec owner, e va detto invece di lasciarlo dedurre. `docs/product/showcase-v0.1.md` §«Turno 4 — Overwatch» chiede: **Wraith** arma, **Gadget** entra per primo -> `HOLD`, **Phase** entra dopo -> SECONDA opportunity -> `FIRE`, con quattro asserzioni («HOLD non consuma la carica / la seconda opportunity esiste / FIRE consuma la carica / nessuna informazione futura nel DTO»). Qui c'e' un solo watcher, un solo mover e un solo `FIRE`: la sospensione della risoluzione e' dimostrata, la COPPIA HOLD->FIRE su due opportunity no. Non e' una semplificazione di comodo — sulla geometria del bacino Phase raggiunge la linea di Wraith PRIMA di Gadget, quindi l'ordine della spec richiede o un percorso che passi dall'Ice del ripiano sud o un turno di anticipo, e nessuno dei due e' stato misurato. ✅ Le quattro asserzioni sono pero' gia' dimostrate altrove, sulla stessa semantica: `Spec.Overwatch.HoldThenFire` apre DUE finestre distinte, risponde HOLD e poi FIRE, e verifica carica e troncatura. Tracciato su GitHub: issue #1038. Chi completa quel lavoro chiude lo scostamento e cancella questa nota; finche' non lo fa, il numero `scriptedDecisionsApplied` di questo scenario vale 1 e non 2, ed e' il modo piu' rapido per accorgersene.",
-
-      "requires": ["DecisionBoundary"],
+      "_turno": "T4 — Overwatch, come la spec owner lo descrive. Wraith arma da (1,-1) e la sua linea verso W — (0,-1) (-1,-1) (-2,-1) (-3,-1), quattro celle come la portata di `Wraith.PulseShot` — non incontra porte. Gadget sale di una riga ed entra per PRIMO in (-3,-1): risposta `HOLD`, l'opportunita' si scarta e la carica resta. Phase arriva dopo in (-2,-1): SECONDA opportunity, risposta `FIRE`, che consuma la carica e tronca il movimento.",
+      "requires": [
+        "DecisionBoundary"
+      ],
       "intents": [
-        { "unit": "Riktor", "ability": "Action.Overwatch" },
-        { "unit": "Gadget", "move": [[-2, 0, 0], [-1, 0, 0], [0, 0, 0]] }
+        {
+          "unit": "Wraith",
+          "ability": "Action.Overwatch"
+        },
+        {
+          "unit": "Gadget",
+          "move": [
+            [
+              -3,
+              -1,
+              0
+            ]
+          ]
+        },
+        {
+          "unit": "Phase",
+          "move": [
+            [
+              -2,
+              0,
+              0
+            ],
+            [
+              -2,
+              -1,
+              0
+            ]
+          ]
+        }
       ],
       "decisions": [
-        { "unit": "Riktor", "respond": "FIRE", "target": "Gadget" }
-      ]
+        {
+          "unit": "Wraith",
+          "respond": "HOLD"
+        },
+        {
+          "unit": "Wraith",
+          "respond": "FIRE",
+          "target": "Phase"
+        }
+      ],
+      "_nota_ordine_dei_due_ingressi": "I due percorsi hanno LUNGHEZZA diversa apposta: Gadget entra al micro-step 0 e Phase all'1. `BuildOverwatchTriggers` raggruppa per passo, quindi due bersagli nello stesso micro-step darebbero UNA sola opportunity (`Overwatch.SimultaneousTargetsSingleOpportunity`) — cioe' una decisione invece di due, e la spec non sarebbe piu' dimostrata. ⚠️ Le celle d'ingresso sono diverse per la stessa ragione per cui i passi lo sono: con la stessa cella, il secondo la troverebbe occupata dal primo."
     },
     {
-      "_turno": "T5 — fumo e struttura. Riktor apre il gate: la topologia cambia e la revisione della mappa sale. Il gate e' una porta, e le porte esistono da CP 9.3.",
-      "intents": []
+      "_turno": "T5 — fumo e struttura, piu' l'avvicinamento che il T7 richiede. Riktor apre il gate: la topologia cambia e la revisione della mappa sale (⛔ non ancora implementabile, #833). Phase intanto risale la riga r=-1 fino a (0,-1), adiacente alla fascia `Fire`: e' da li' che al T7 lo Sprinkler puo' arrivarci.",
+      "intents": [
+        {
+          "unit": "Phase",
+          "move": [
+            [
+              -1,
+              -1,
+              0
+            ],
+            [
+              0,
+              -1,
+              0
+            ]
+          ]
+        }
+      ],
+      "_nota_avvicinamento_di_phase": "⚠️ **Deviazione DICHIARATA dalla spec di questo turno, e la ragione e' del turno DOPO.** `showcase-v0.1.md` §T5 descrive solo l'apertura del gate, che oggi non e' implementabile (#833: nessuna azione del catalogo dichiara `SetDoorState`). Il T7 pero' chiede che Phase porti acqua su una zona `Fire`, e dal 2026-08-16 (#1006) l'unico produttore d'acqua e' l'EQUIPAGGIAMENTO — `Gadget.Sprinkler`, portata **1**. Un'abilita' si risolve dalla posizione INIZIALE del turno, perche' il Move viene dopo il Blast: Phase deve essere gia' adiacente al fuoco all'inizio del T7, e la coreografia non ha un'altra casella dove avvicinarsi. L'approccio sta quindi qui. ⛔ Quando #833 sblocca il gate, chi riempie questo turno tiene ENTRAMBE le cose: l'apertura e' l'azione di Riktor, l'approccio e' il movimento di Phase, e non si escludono."
     },
     {
       "_turno": "T6 — interposizione. Riktor incassa il colpo diretto a Wraith. Interposition e' gia' cablata ed e' automatica: manca la RIVALIDAZIONE della geometria sul bersaglio effettivo (D-017).",
-      "requires": ["InterceptRevalidation"],
+      "requires": [
+        "InterceptRevalidation"
+      ],
       "intents": []
     },
     {
-      "_turno": "T7 — combo ambientale. Acqua sul fuoco, propagazione elettrica ordinata, scivolata su Ice, Ram rifiutato da Rough in pianificazione. E8 e' chiusa: gira sul gioco di oggi.",
-      "intents": []
+      "_turno": "T7 — combo ambientale. Phase bagna Wraith, che sta sulla fascia `Fire` a (1,-1): l'acqua spegne il fuoco. Gadget scarica `LinearDischarge` sullo stesso bersaglio, e legge lo STATO — non l'identita' di chi ha portato l'acqua. Wraith fa un Move normale che TERMINA su `Ice` a (1,2) e scivola in modo deterministico. Riktor dichiara un `Ram` attraverso il `Rough` di (2,0): il planning lo RIFIUTA, perche' `Rough` ha `bBlocksDashCharge`.",
+      "intents": [
+        {
+          "unit": "Phase",
+          "ability": "Gadget.Sprinkler",
+          "target": "Wraith"
+        },
+        {
+          "unit": "Gadget",
+          "ability": "Hero.Gadget.LinearDischarge",
+          "target": "Wraith"
+        },
+        {
+          "unit": "Wraith",
+          "move": [
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              2,
+              0
+            ]
+          ]
+        },
+        {
+          "unit": "Riktor",
+          "dash": "Hero.Riktor.Ram",
+          "dashTo": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "_nota_cosa_dimostra": "D-029: non e' una combo di squadra. Phase pubblica uno stato, il sistema ambientale lo propaga e `LinearDischarge` legge lo stato — la stessa sequenza vale con qualunque altra sorgente d'acqua autorizzata. ⛔ **Questo turno NON e' ancora raggiunto**: lo scenario si ferma al T6 su `InterceptRevalidation` (#1060), quindi il contenuto e' scritto e non eseguito. Le sue assertion NON stanno in `expect`, che e' di scenario e verrebbe valutato al punto in cui il runner si ferma: metterle la' renderebbe rosso un turno mai giocato. Si aggiungono quando il T6 si sblocca — fuoco spento, propagazione che non colpisce due volte, scivolata deterministica, e il `Ram` che non parte."
     },
     {
       "_turno": "T8 — l'obiettivo batte il KO. Phase prende la rotta alternativa e segna sul Relay mentre Gadget va KO. Servono entrambe: la predizione che manca e l'obiettivo che non esiste.",
-      "requires": ["PredictiveAction", "Objective"],
+      "requires": [
+        "PredictiveAction",
+        "Objective"
+      ],
       "intents": []
     }
   ],
-
   "expect": [
-    { "type": "TurnsCompleted", "value": 5 },
-    { "type": "UnitHpEquals", "unit": "Gadget", "value": 82 },
-    { "type": "UnitAtCell", "unit": "Gadget",    "cell": [ 0, 0, 0] },
-    { "type": "UnitAtCell", "unit": "Phase",    "cell": [-3, 1, 0] },
-    { "type": "UnitAtCell", "unit": "Riktor", "cell": [ 3, 0, 0] },
-    { "type": "UnitAtCell", "unit": "Wraith",  "cell": [ 3, 1, 0] }
-  ]
+    {
+      "type": "TurnsCompleted",
+      "value": 5
+    },
+    {
+      "type": "LogEventCount",
+      "category": "Predictive",
+      "outcome": "PredictionWhiffed",
+      "value": 1
+    },
+    {
+      "type": "UnitHpEquals",
+      "unit": "Gadget",
+      "value": 90
+    },
+    {
+      "type": "UnitHpEquals",
+      "unit": "Phase",
+      "value": 74
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "Gadget",
+      "cell": [
+        -3,
+        -1,
+        0
+      ]
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "Phase",
+      "cell": [
+        0,
+        -1,
+        0
+      ]
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "Riktor",
+      "cell": [
+        3,
+        0,
+        0
+      ]
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "Wraith",
+      "cell": [
+        1,
+        -1,
+        0
+      ]
+    }
+  ],
+  "_nota_cosa_non_e_asserribile": "⏱️ **Aggiornata il 2026-08-16: il T2 ORA asserisce il proprio whiff.** Questa nota diceva che `LogEventCount` non copriva `Predictive` — `OutcomeEnumForCategory` restituiva `nullptr` e un `PredictionWhiffed` faceva fallire il CARICAMENTO dello scenario. Le due righe che mancavano al loader sono state aggiunte (`Predictive` e `ReactionDecision`, entrambi `UENUM` quindi risolvibili), e il T2 ha la sua assertion: se la previsione non fallisse — o se il turno non girasse affatto — il conteggio non sarebbe 1. ⛔ **Resta senza assertion propria il T3**, e la ragione e' diversa: il danno da hazard non ha un esito in `ERTEnvironmentOutcome`, cioe' #625 — `Burning` uccide fuori dal TurnLog canonico. Cio' che prova il T3 indirettamente e' la posizione finale di Wraith a (1,-1): ci si arriva solo salendo sulla cresta al T1 e scendendo per il fuoco al T3."
 }

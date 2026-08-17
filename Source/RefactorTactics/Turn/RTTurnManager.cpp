@@ -92,7 +92,8 @@ TArray<FRTCellId> ARTTurnManager::CellsEnteredAlong(const TArray<FRTCellId>& Pat
 	return Entered;
 }
 
-void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit, const TArray<FRTCellId>& Entered)
+void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit,
+	const TArray<FRTCellId>& Entered, ERTMatchPhase InPhase)
 {
 	if (!Map || !Unit) { return; }
 
@@ -108,11 +109,41 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 		{
 			if (Effect.Effect == ERTActionEffect::Damage)
 			{
+				const int32 HpPrima = Unit->Health; // serve DOPO, per classificare l'esito
 				const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Effect.Amount, Unit->Shield, Unit->Health);
 				// ApplyCombatState, non l'assegnazione diretta: e' la stessa contabilita' del danno da azione ed
 				// e' l'unica che erode anche TemporaryShield. Scrivendo Health/Shield a mano lo scudo temporaneo
 				// resterebbe al valore vecchio e il Cleanup lo sottrarrebbe una seconda volta.
 				Unit->ApplyCombatState(Result.Health, Result.Shield);
+
+				// ➕ **La voce canonica del danno da terreno** (`#1067`), gemella di quella del `Burning`
+				// (`#625`). Fino al 2026-08-16 questo danno esisteva **solo** in `AddLogEvent` — un `UE_LOG`
+				// piu' un buffer circolare troncato — e chi entrava nel fuoco con pochi HP **moriva senza
+				// lasciare niente**: nessun `Lethal`, nessun soggetto, e `DescribeFirstDivergence` senza un
+				// punto da nominare. Era il pezzo PIU' GROSSO dei due: `Fire` fa 10 danni all'ingresso
+				// contro gli 8 del Cleanup.
+				//
+				// ⚠️ Categoria `Combat` e causa in `ActionId`, come per il `Burning`: la domanda e' «quanti
+				// punti vita ha cambiato, e a chi». Qui la causa e' la **superficie**, non uno status —
+				// `Terrain.<Surface>` — cosi' il replay distingue i due danni del fuoco senza doverli
+				// dedurre dalla fase.
+				FRTTurnLogEntry Hazard;
+				Hazard.Phase = InPhase;
+				Hazard.Category = ERTLogCategory::Combat;
+				Hazard.ActionId = FName(*FString::Printf(TEXT("Terrain.%s"),
+					*StaticEnum<ERTHexSurface>()->GetNameStringByValue((int64)CellData->Surface)));
+				// La cella che ha colpito, che qui **e' davvero la causa** — al contrario del `Burning`, che
+				// segue l'unita' anche fuori dal fuoco. `TgtCell` e' la stessa: chi subisce ci sta sopra.
+				Hazard.SrcCell = Cell;
+				Hazard.TgtCell = Cell;
+				Hazard.Amount = Effect.Amount;
+				Hazard.Outcome = static_cast<uint8>(
+					URTCombatLibrary::ClassifyCombatOutcome(HpPrima, Result.Health, /*AttackerDmgBonus*/ 0));
+				// Il soggetto e' chi subisce: in un danno da terreno non c'e' un attaccante. Stessa scelta di
+				// `#625`, con la stessa tensione dichiarata rispetto a «`UnitId` = chi ha agito».
+				AppendLogEntry(Hazard, Unit);
+
+				// ⚠️ `AddLogEvent` **resta**: e' la vista leggibile, non la traccia.
 				AddLogEvent(FString::Printf(TEXT("%s: %d danni da terreno (q=%d,r=%d,L%d)"),
 					*Unit->GetName(), Effect.Amount, Cell.X, Cell.Y, Cell.Layer));
 			}
@@ -1063,7 +1094,7 @@ void ARTTurnManager::LockInAndResolve()
 
 void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell,
 	const FRTCellId& FacingSource, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget,
-	const TCHAR* LogVerb, const URTHexMapAsset* Map)
+	const TCHAR* LogVerb, const URTHexMapAsset* Map, ERTMatchPhase InPhase)
 {
 	if (!IsValid(Unit))
 	{
@@ -1128,7 +1159,7 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	// attraverso `asciutto -> fuoco -> fuoco -> asciutto` ha attraversato quelle due celle di fuoco e ne
 	// subisce le conseguenze, pur non avendo speso un solo punto movimento: il costo e' cio' che si paga per
 	// SCEGLIERE di passare, la geometria e' cio' che c'e'.
-	ApplyTerrainOnEnterEffects(Map, Unit, CellsEnteredAlong(Path));
+	ApplyTerrainOnEnterEffects(Map, Unit, CellsEnteredAlong(Path), InPhase);
 
 	// 9-10. Il piano segue l'unita' invece di riportarla indietro: la path composita dalla vecchia cella non
 	// e' piu' valida, e se non c'era un Move pianificato la destinazione diventa quella nuova — altrimenti
@@ -1799,7 +1830,8 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			// regola qui — non c'e' nessuno verso cui girarsi. E' il precedente gia' pinnato da
 			// `Facing.EnvironmentalDisplacementKeepsFacing` (scivolare sul ghiaccio non ruota). [D-104] vale
 			// per la fuga da un ATTACCANTE, che ha una minaccia da tenere davanti.
-			ApplyForcedDisplacement(Fleeing, Dest[f], Dest[f], FleeCause, TEXT("Fuga"), Map);
+			ApplyForcedDisplacement(Fleeing, Dest[f], Dest[f], FleeCause, TEXT("Fuga"), Map,
+				ERTMatchPhase::Cleanup);
 		}
 	}
 
@@ -1815,7 +1847,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			// motivo per cui le fughe si applicano prima di questo ciclo e non dopo.
 			if (Occupant && Occupant->IsAlive() && Occupant->Cell == Cell)
 			{
-				ApplyTerrainOnEnterEffects(Map, Occupant, { Cell });
+				ApplyTerrainOnEnterEffects(Map, Occupant, { Cell }, ERTMatchPhase::Cleanup);
 			}
 		}
 	}
@@ -1980,8 +2012,19 @@ void ARTTurnManager::BeginReplayRecording()
 
 FString ARTTurnManager::ResolveReplaysRoot() const
 {
+	// 🔴 **Il default lo CHIEDE, non lo ricostruisce** (`#1050`). Fino al 2026-08-16 questa funzione
+	// ripeteva qui `FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"))`, e la stessa espressione
+	// viveva in altri due punti: chi avesse spostato gli archivi ne avrebbe cambiato uno, e il lettore
+	// avrebbe elencato una cartella vuota su una macchina piena di registrazioni — indistinguibile da
+	// «non hai ancora giocato». Ne' il compilatore ne' un test se ne accorgono: sono funzioni corrette che
+	// rispondono alla stessa domanda.
+	//
+	// ⚠️ Il posto e' il **produttore**: chi scrive possiede la disposizione su disco — cartella per partita,
+	// manifest, una traccia per turno — e la radice ne e' il primo livello. Chi legge la chiede.
+	// La terza copia era in `URTReplayViewerSubsystem`, tolta con `#999`/#1005; questa e' rimasta indietro
+	// perche' allora `RTTurnManager.cpp` non era nel `writable` di nessuna track (`D-139`).
 	return ReplaysRootOverride.IsEmpty()
-		? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"))
+		? URTReplayRecorderLibrary::DefaultReplaysRoot()
 		: ReplaysRootOverride;
 }
 
@@ -2787,7 +2830,7 @@ void ARTTurnManager::ResolveDash()
 
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
-		ApplyTerrainOnEnterEffects(Snapshot.Map, Unit, Resolved[i].Entered);
+		ApplyTerrainOnEnterEffects(Snapshot.Map, Unit, Resolved[i].Entered, ERTMatchPhase::Dash);
 		// Il movimento del turno e' finito qui: si scarta il percorso pianificato e la destinazione DIVENTA
 		// la cella d'arrivo dello scatto. Senza l'assegnazione il resolver del Move vedrebbe una `PlannedCell`
 		// diversa dalla posizione attuale e proverebbe comunque ad avvicinarcisi.
@@ -3054,7 +3097,8 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 			// la minaccia (D-104), piano che segue. Una riga, perche' la primitiva esiste.
 			TMap<ARTUnit*, FRTDisplacementCause> FleeCause;
 			FleeCause.Add(Fleeing, FRTDisplacementCause{ FName(TEXT("Reaction.EmergencyDash")), NAME_None, 0 });
-			ApplyForcedDisplacement(Fleeing, FleeDest[f], FleeFrom[f], FleeCause, TEXT("Fuga"), Map);
+			ApplyForcedDisplacement(Fleeing, FleeDest[f], FleeFrom[f], FleeCause, TEXT("Fuga"), Map,
+				ERTMatchPhase::Dash);
 		}
 	}
 }
@@ -4605,7 +4649,8 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			ARTUnit* T = KTargets[a];
-			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause, TEXT("Spinta"), Map);
+			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause, TEXT("Spinta"), Map,
+				ERTMatchPhase::Blast);
 		}
 	}
 
@@ -4649,7 +4694,8 @@ void ARTTurnManager::ResolveCombat()
 			if (bContested) { continue; }
 
 			ARTUnit* T = PTargets[a];
-			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause, TEXT("Trazione"), Map);
+			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause, TEXT("Trazione"), Map,
+				ERTMatchPhase::Blast);
 		}
 	}
 
@@ -5440,7 +5486,7 @@ void ARTTurnManager::ResolveMovement()
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, HexSize, LayerH);
-		ApplyTerrainOnEnterEffects(Snapshot.Map, Units[i], Resolved[i].Entered);
+		ApplyTerrainOnEnterEffects(Snapshot.Map, Units[i], Resolved[i].Entered, ERTMatchPhase::Move);
 	}
 
 	// Orientamento di fine Move (CP 16.1, `FacingFinalAfterMove` di D-020). Si deriva dalla rotta EFFETTIVA —
