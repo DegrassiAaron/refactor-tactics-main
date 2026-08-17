@@ -74,10 +74,10 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 
 | Cluster del kit | Proposta | Release **canonica** | Owner reale | Azione |
 |---|:--:|:--:|---|---|
-| Core map | v0.1 | **v0.1**, con una coda in v0.2 | **E21** · **E47** in v0.1 · muri e porte su **E23** (v0.2) | quasi allineato |
+| Core map | v0.1 | **v0.1**, interamente | **E21** · **E47** · muri e porte su **E23**, anticipata alla v0.1 (`D-160`) | allineato |
 | Environment | v0.2 | **v0.1** ⬅️ | **E8** — **otto** feature, tutte `INTEGRATED` | il kit è **indietro** |
 | 3D map / verticalità | v0.3 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-VERTICALITY` è `IDEA` | `DEFER` |
-| Interactive map | v0.4 | **v0.2** ⬅️ | **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)) | il kit è **indietro** |
+| Interactive map | v0.4 | **v0.1** ⬅️⬅️ | **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)), anticipata il 2026-08-17 (`D-160`) | il kit è **indietro di due release**, non di una |
 | Tactical devices | v0.5 | **fuori scope dichiarato** | — | `DEFER` |
 | Destruction / debris | v0.6 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-STRUCTURAL` è `IDEA` | `DEFER` |
 | Perception / information | v0.7 | **v0.1** ⬅️ e v0.3 | **E13** (base) · **E27** (completa) | il kit è **indietro** |
@@ -113,7 +113,7 @@ modi, e vale la pena non confonderli:
 | Cluster | Epic | Stato reale delle feature |
 |---|:--:|---|
 | Environment | **E8** | **8 su 8 `INTEGRATED`** — `ERTHexSurface` ha nove valori, fuoco/acqua/ghiaccio girano |
-| Interactive map | **E23** | `DESIGNED` — la release è v0.2, non v0.4 |
+| Interactive map | **E23** | `DESIGNED` — la release è **v0.1** dal 2026-08-17 (`D-160`), non v0.2 né v0.4 |
 | Perception | **E13** | 3 `TESTABLE`, 1 `IMPLEMENTING`, 1 `SPECIFIED` — **zero** `INTEGRATED` |
 | Objectives | **E10** | 1 `RELEASE_READY`, 1 `IMPLEMENTING` — **zero** `INTEGRATED` |
 
@@ -249,6 +249,23 @@ fissarla (scenario 4 del sorgente).
 
 ### E23 — Muri, porte e interaction graph · P1
 
+> ⛔ **E23 NON È PIÙ DI QUESTA RELEASE — anticipata alla v0.1 il 2026-08-17
+> ([D-160](../decisions/RT_PDR_00_Decision_Log.md)).** L'owner della sua release è
+> [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 e §5, dove i **sette** checkpoint sono dichiarati con lo stato.
+>
+> **Il dettaglio qui sotto resta** e non è duplicato altrove: è la storia dell'epic — `D-065` (la griglia non
+> vincola la geometria del mondo), `D-071` (footprint = cerchio inscritto), `MAP-1` chiusa, `MAP-3` ancora
+> aperta, la mappatura CP → issue → feature di `D-138`, e la correzione su `23.2`. Spostarlo avrebbe
+> duplicato sessanta righe o perso il contesto in cui sono state decise; lasciarlo senza questo banner
+> avrebbe lasciato un documento a dichiarare una release falsa.
+>
+> ⚠️ **Non era una scommessa: metà dell'epic era già dentro la v0.1 quando la decisione è stata presa.**
+> Misurato sul registry, non dedotto: `23.1` è coperto da `RT-FEAT-TOOL-MAP-GEOMETRY` (**v0.1**,
+> `IMPLEMENTING`) e `23.2` da `RT-FEAT-MAP-INTERACTIVE-EDGES` (**v0.1**, `INTEGRATED`, epic **E9**) — la
+> tabella *«Dove sta il lavoro»* più sotto lo dice già con le sue parole, *«già consegnato in v0.1»*. Delle
+> cinque feature che dichiarano `epic: E23`, `RT-FEAT-MAP-INTERACTION-GRAPH` era già passata a `v0.1` col
+> giro di `#833`; `D-160` sposta le altre quattro. Dopo, **nessuna feature di E23 dichiara più v0.2**.
+
 **Tracciata su GitHub**: epic [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324).
 
 **Obiettivo**: muri e porte come **oggetti logici sugli archi**, non come mesh che il gameplay interroga.
@@ -324,7 +341,7 @@ remoto sorgente → bersaglio fuori scope perché *«richiede la privacy dei col
 
 | Release | Epic ospite | Che cosa il dominio vi aggiunge |
 |---|---|---|
-| **v0.2** | `E23` | il grafo è un **dato**: cardinalità, ordine deterministico, validator dei binding |
+| **v0.1** ⬅️ | `E23` | il grafo è un **dato**: cardinalità, ordine deterministico, validator dei binding — epic **anticipata** il 2026-08-17 (`D-160`), quindi il primo gradino di questa scala è nella release corrente |
 | **v0.3** | `E27` — Percezione completa | la relazione ha un **pubblico**: `Known`/`Unknown` per squadra, `Controller: ???`, discovery |
 | **v0.4** | `E30` — Classe di mappa Operations | **scala**: molte strutture, gate ampi, churn di path cache, leggibilità su mappe grandi |
 | **v0.5** | `E40` — Il turno simultaneo in rete | la privacy diventa **verificabile**: stato autoritativo, canary di leak, late join e reconnect |

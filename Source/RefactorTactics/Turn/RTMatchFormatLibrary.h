@@ -22,7 +22,9 @@ public:
 	static const FName FallbackFormatId;
 
 	/**
-	 * Errori delle regole risolte: identita' assente, `RoundLimit` non positivo, soglia negativa.
+	 * Errori delle regole risolte. L'elenco vive nel `.cpp` e non qui: questa riga ne portava **tre** su sette,
+	 * ed era gia' incompleta a CP 19.2 prima che CP 19.3 ne aggiungesse altri tre. Un elenco duplicato in un
+	 * commento invecchia in silenzio, e chi legge la sola dichiarazione crede di conoscere le regole.
 	 * Array vuoto = regole utilizzabili (stessa forma di `ValidateMap`/`ValidateHeroes`).
 	 */
 	static TArray<FString> ValidateRules(const FRTMatchRules& Rules);

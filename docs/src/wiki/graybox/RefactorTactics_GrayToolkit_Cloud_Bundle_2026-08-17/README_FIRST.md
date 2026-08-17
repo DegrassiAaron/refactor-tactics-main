@@ -1,11 +1,4 @@
 # RefactorTactics — Gray Toolkit Cloud Bundle
-
-> ## 🗄️ `HISTORICAL` — sorgente archiviato il **2026-08-17**
->
-> **Materiale NON autorevole**: è l'ordine di lettura proposto dall'autore del bundle, conservato per la
-> provenienza. L'esito del consumo sta in [`README.md`](README.md) e in
-> [`D-158`](../../../decisions/RT_PDR_00_Decision_Log.md).
-
 Data: 2026-08-17
 
 Questo bundle raccoglie il materiale consolidato da passare a Claude per:
