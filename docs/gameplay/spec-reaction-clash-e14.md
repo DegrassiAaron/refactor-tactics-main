@@ -114,6 +114,30 @@ dedicato, nessuna eccezione nel modello unificato. Il tetto teorico di una resol
 ⚠️ **Nessun numero è deciso qui**: resistenza del `Brace`, Charge del `Grounding` e ampiezza della deviazione
 restano aperti come li elencava il triage del 2026-08-10. Sono bilanciamento, e si restringono al playtest.
 
+### 2.6 La Preferred Response non tocca il profilo — [D-157](../decisions/RT_PDR_00_Decision_Log.md)
+
+Dal 2026-08-17 un decisore può dichiarare in planning **quale** delle risposte legali preferisce, e vedersela
+preselezionata all'apertura della finestra. La regola sta altrove — è §4.4 di
+[`spec-decision-time-bank.md`](spec-decision-time-bank.md), perché nasce dal requisito «il default è
+raggiungibile entro la grace» — e qui vale solo per ciò che **non** cambia:
+
+> La preferenza **ordina la presentazione**; il profilo **decide la legalità**. Le `AllowedResponses` di
+> §2.5 sono identiche con e senza preferenza dichiarata, e la cardinalità che apre la finestra (§2.3) non si
+> muove.
+
+`Profile.Glance` con `GLANCE LEFT` preferito resta a **3** risposte, non a una: chi cambia idea le vede tutte
+e tre. Se la preferenza non è più legale al Decision Boundary, decade alla scelta sicura della Decision
+Definition — non trascina con sé la cardinalità.
+
+⚠️ È la distinzione da tenere ferma rispetto alla **condizione dichiarata** di
+[D-109](../decisions/RT_PDR_00_Decision_Log.md), che vive nello stesso posto (`FRTArmedOverwatch`) ed è nata
+per fare l'opposto: quella **riduce** le `AllowedResponses` al trigger, e può portarle a 1 chiudendo la
+finestra. Due dichiarazioni di planning sullo stesso oggetto con effetti opposti: se si confondono, un profilo
+a tre risposte ne mostra una sola e nessun test se ne accorge.
+
+Nel Clash nulla cambia: il reveal resta a **scadenza fissa** (§7.1) e la preferenza è privata del decisore
+fino al commit, come lo è il lock.
+
 ## 3. Reaction Clash — [D-048](../decisions/RT_PDR_00_Decision_Log.md)
 
 ### 3.1 Definizione

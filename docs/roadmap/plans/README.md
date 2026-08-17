@@ -23,14 +23,31 @@ dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
 | Banner | Vocabolario | Significa | Quanti *(2026-08-17)* |
 |---|---|---|--:|
-| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 38 |
+| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 42 |
 | `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 12 |
 | `📦 DELIVERED PLAN` | secondo | *Piano già eseguito, non normativo* — equivale a `HISTORICAL` | 14 |
 | `🧱 AS-BUILT` | secondo | *Specifica di ciò che fu consegnato* — equivale a `HISTORICAL` | 7 |
 | `DONE` · `PLAN`/consumato · `BRIEF` | secondo | Casi singoli, già consumati — equivalgono a `HISTORICAL` | 3 |
 | **nessun banner** | — | Il documento apre con una citazione che non ne dichiara uno | **1** |
 
-**75 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `38 + 12 + 14 + 7 + 3 + 1 = 75`, e la somma delle categorie e' il controllo che il totale da solo non offre.
+**79 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `42 + 12 + 14 + 7 + 3 + 1 = 79`, e la somma delle categorie e' il controllo che il totale da solo non offre.
+
+> 🔵 **Rimisurato il 2026-08-17 dal ramo `docs/consolidamento-skill-plus`, e lo scarto era di uno.** La
+> cella diceva `77`; la cartella ne conteneva **78** prima che questo giro aggiungesse
+> [`skill-plus-consolidamento-2026-08-17.md`](skill-plus-consolidamento-2026-08-17.md). Il documento in
+> più era arrivato da un altro ramo mentre la misura precedente veniva scritta — la deriva che questa
+> cella dichiara di aver già subito tre volte in un giorno, e che si ripete ogni volta che qualcuno
+> somma invece di contare. Le sei categorie sono state **rilette dai banner sul disco**: `CURRENT`
+> 40 → **42**, le altre cinque invariate, e la somma torna col totale contato a parte.
+
+> 🔵 **2026-08-17, e per una volta la misura precedente era esatta.** Il ramo
+> `docs/consolidamento-replay-tactical-designer` ha trovato `75` sulla propria base — che è `main` dopo il
+> merge di #1108 — e ne aggiunge **due** `CURRENT`:
+> [`replay-canonical-intent-triage-2026-08-17.md`](replay-canonical-intent-triage-2026-08-17.md) e
+> [`cinque-processi-paralleli-2026-08-17.md`](cinque-processi-paralleli-2026-08-17.md). Le sei categorie
+> sono state **rilette dai banner sul disco**, non incrementate: `CURRENT` 38 → **40**, le altre cinque
+> invariate, e la somma torna col totale contato a parte. È il controllo che questa cella chiede, applicato
+> nel verso giusto — due metodi indipendenti, non uno più un'addizione.
 
 > 🔴 **Rimisurato il 2026-08-17, e lo scarto era di OTTO.** La riga diceva `67` e la cartella ne conteneva
 > **74** prima che questo giro ne aggiungesse uno. Non è una deriva nuova: è la stessa che questa cella

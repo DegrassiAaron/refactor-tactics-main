@@ -27,6 +27,16 @@ public:
 	/** #712: il gesto dell'autore — disegna un muro quantizzato che cuoce in coperture. */
 	TSharedPtr<FUICommandInfo> GeometryTool;
 
+	/**
+	 * `#623` / seduta `U21`: `Home` inquadra l'intera mappa editabile, multilivello compreso.
+	 *
+	 * ⚠️ **Non e' un tool e non entra in `Commands`**, che e' la palette del mode: e' un'AZIONE, e la issue
+	 * chiede esattamente una scorciatoia — *«`Home` -> inquadrare l'intera mappa editabile: oggi non esiste
+	 * un modo di dire fammi vedere tutto»*. Tutto il resto della navigazione (pan, orbit, zoom, `F`) lo
+	 * fornisce gia' il viewport di Unreal, e un `UEdMode` non possiede la camera del viewport.
+	 */
+	TSharedPtr<FUICommandInfo> FrameMap;
+
 protected:
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
 };

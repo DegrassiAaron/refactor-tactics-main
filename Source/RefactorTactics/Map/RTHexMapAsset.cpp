@@ -1,6 +1,9 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapCustomVersion.h"
+// `ValidateMap` chiama le regole del grafo di interazione invece di riscriverle: `URTStructureIdentityLibrary`
+// e' l'unico punto di lettura da nome a struttura (#832), e un secondo validator sarebbe una doppia verita'.
+#include "Map/RTStructureIdentityLibrary.h"
 #include "Serialization/CustomVersion.h"
 
 const FGuid FRTHexMapCustomVersion::GUID(0x7A3C1E44, 0x9B2D4F10, 0xA6E85C37, 0x1D0F62B9);
@@ -377,6 +380,34 @@ uint32 URTHexMapAsset::ComputeHash() const
 		// Copertura: `RefactorTactics.Simulation.MapHashSeesArcIdentity`.
 		Hash = HashCombine(Hash, HashStableId(E.StableId));
 	}
+
+	// Il GRAFO DI INTERAZIONE (CP 23.4, #833). Non entrava, e il criterio di esclusione che l'header dichiara
+	// — «non tocca la geometria ne' il comportamento» — qui e' falso: scambiare `S1 -> {D1, D2}` con
+	// `S1 -> {D2, D1}` cambia l'ordine di APPLICAZIONE dichiarato, e togliere un binding cambia quali porte si
+	// aprono. Due mappe che si giocano diverso hashavano identiche, quindi `IsSnapshotStale` e il confronto di
+	// determinismo non potevano vedere la divergenza. Trovato da una code review, non da un test.
+	//
+	// ⚠️ **Due ordini, trattati in modo OPPOSTO, ed e' la parte da non sbagliare:**
+	//   · i binding FRA LORO si ordinano per `SourceId` — la risoluzione li cerca per nome, quindi l'ordine
+	//     nell'array non e' dato, ed e' la stessa ragione per cui `Cells` viene ordinato piu' sopra;
+	//   · i `TargetIds` DENTRO un binding **non** si ordinano: quello e' l'ordine di applicazione, cioe'
+	//     esattamente il dato che #833 difende. Ordinarli renderebbe l'hash cieco alla proprieta' che deve
+	//     proteggere — pinnato da `InteractionGraph.OrderChangesMapHash` e dal suo gemello
+	//     `BindingInsertionOrderDoesNotChangeHash`, che senza questa distinzione passerebbero entrambi con la
+	//     scelta sbagliata.
+	TArray<FRTInteractionBinding> SortedBindings = InteractionBindings;
+	SortedBindings.Sort([](const FRTInteractionBinding& A, const FRTInteractionBinding& B)
+	{
+		return A.SourceId.LexicalLess(B.SourceId);
+	});
+	for (const FRTInteractionBinding& B : SortedBindings)
+	{
+		Hash = HashCombine(Hash, HashStableId(B.SourceId));
+		for (const FName& T : B.TargetIds)
+		{
+			Hash = HashCombine(Hash, HashStableId(T));
+		}
+	}
 	return Hash;
 }
 
@@ -602,6 +633,17 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 			}
 		}
 	}
+
+	// Il GRAFO DI INTERAZIONE (CP 23.4, #833). Le cinque regole vivono in `URTStructureIdentityLibrary`, che
+	// e' l'unico punto di lettura da nome a struttura: qui si CHIAMANO, non si riscrivono — un secondo
+	// validator sarebbe la doppia verita' che quella libreria esiste per impedire.
+	//
+	// 🔴 **Senza questa riga le cinque regole erano raggiungibili SOLO dai test**, trovato da una code review:
+	// una mappa spedita con un bersaglio fantasma, un binding duplicato, uno riflessivo o un `TargetIds` vuoto
+	// passava `ValidateMap()`, e a runtime `FindDoorEdges` restituiva un array vuoto — indistinguibile da una
+	// sorgente che non comanda nulla. Le regole erano il valore dichiarato del lavoro e nessun percorso di
+	// produzione poteva attivarle.
+	Errors.Append(URTStructureIdentityLibrary::ValidateInteractionGraph(this));
 	return Errors;
 }
 
