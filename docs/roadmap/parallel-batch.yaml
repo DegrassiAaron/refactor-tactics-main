@@ -1739,7 +1739,14 @@ tracks:
 
   simulation:
     status: ACTIVE
-    issue: 1060
+    issue: 583
+    # ➕ **Riassegnata il 2026-08-17 da `#1060` a `#583`.** Non è un abbandono: `#1060` resta **OPEN** e
+    # torna disponibile per chi la riprende, col proprio write-set descritto qui sotto come registro. La
+    # ragione è misurata e sta in coda alla `note`, dove si può rileggere — in breve: `#1060` ha come
+    # **primo passo** del proprio DoD quattro path del TurnLog che non possiede e che `#833` non ha
+    # rilasciato, mentre `#583` gira interamente sui file dell'harness che questa track **già** detiene.
+    # I commenti qui sotto restano come registro dei giri precedenti — `#578`, `#926`, `#923`, `#512` A e B,
+    # `#1060` — e non descrivono più lo stato.
     # ➕ **Riattivata il 2026-08-16 su `#1060`** — il T6 dello showcase, scorporato dalla voce omonima del
     # DoD/A di `#170`. È la track che riprende il proprio lavoro: lo showcase è suo da `#512`. I commenti
     # qui sotto restano come registro dei giri precedenti — `#578`, `#926`, `#923`, `#512` A e B — e non
@@ -2235,6 +2242,35 @@ tracks:
       di log nuovo su `ERTReactionOutcome`»*: quell'enum vive in `Turn/RTTurnLog.h`, cioè in **uno dei
       quattro path chiesti**. Le due strade convergono sullo stesso header, e questo è il motivo per cui la
       richiesta è la prima cosa che questo atto d'integrazione scrive.
+
+      ➕ **Riassegnata il 2026-08-17 a `#583`, e la ragione è una misura — non una preferenza di dominio.**
+      `#1060` non aveva ancora scritto: `D:/rt-simulation` era pulito e `git ls-remote --heads origin` non
+      trovava nessun branch `1060`. Il write-set era **prenotato**, e questo è il momento in cui una
+      prenotazione si può sciogliere senza costo. Le due issue chiedono gli **stessi** file dell'harness,
+      quindi non convivono: una delle due va fatta prima, e la scelta si decide su quale delle due è
+      eseguibile **per intero** oggi.
+      · `#1060` non lo è: il **primo passo** del suo DoD — bersaglio originale ed effettivo nel
+        `FRTTurnLogEntry` — vive in quattro path di `spatial`, che `#833` non ha rilasciato (OPEN, branch
+        `feat/833-interaction-graph` vivo). Il DoD dichiara pure la strada alternativa, e converge sullo
+        **stesso** header: non è un modo di aggirare l'attesa, e lo diceva già questo file.
+      · `#583` lo è: la sua voce di DoD residua tocca `RTTestScenario.h`, `RTScenarioLoader.cpp`,
+        `RTScenarioSession.cpp` e due file di test — **cinque path già in mano a questa track** — più un
+        JSON nuovo in prestito da `integration_only`.
+      ⛔ **La seconda voce di DoD di `#583` NON entra in questo giro**, ed è la issue stessa a vietarlo:
+      *«non implementare questa casella prima che `#886` sia atterrata»*. `#886` è **OPEN** (misurato oggi),
+      quindi la issue **non si chiude** con questo lavoro — si chiude la prima voce, e la seconda resta
+      dichiarata aperta con la sua ragione. Scriverla adesso significherebbe registrare nel TurnLog un dato
+      la cui necessità `#886` potrebbe rendere nulla: la issue distingue **riproducibilità** (probabilmente
+      coperta da `#886`) da **spiegabilità** (che resta sua), e le due non si chiudono insieme.
+      🔴 **Un limite a monte, misurato nel codice e non previsto, che chi lavora la issue deve leggere prima
+      di scrivere.** `ARTUnit::SetPlannedReactionCondition` (`RTUnit.cpp:589`) **rifiuta** se
+      `PlannedReactionAbility == INDEX_NONE`, e l'Overwatch costa l'azione **principale**, non lo slot
+      reazione. Il `RTTurnManager` lo dichiara nel proprio commento — *«oggi un piano di solo-Overwatch non
+      riesce a dichiararne una … resta vuoto nel caso tipico. È la metà di `#583` che questo checkpoint
+      sblocca senza chiudere»*. Conseguenza operativa: l'unità dello scenario arma l'Overwatch **e** tiene
+      una reazione nello slot (Wraith ha `Deflection`), che è il comportamento reale del gioco oggi — e va
+      **dichiarato dentro lo scenario**, non nascosto, perché è uno scostamento dalla forma che [D-109]
+      descrive. La riconciliazione dei due slot è un'altra fetta, e non appartiene a questa.
     # ➖ **Il write-set resta descritto nella `note` e i due blocchi ESCONO**, come per le chiusure
     # precedenti di questa track: nove path, tutti atterrati in `main` con la PR #1033 e oggi non
     # assegnati. I tre `Scenarios/*.json` rientrano in `integration_only`, dove la loro riga di prestito
@@ -2242,72 +2278,86 @@ tracks:
     # ⚠️ Con essi esce il `derives_from`: una vista **segue la sorgente**, e la sorgente non è più di
     # nessuno. Chi tocca `Scenarios/` o `RTScenarioSession.cpp` eredita di nuovo i due `--check`.
     #
-    # ➕ **Il write-set di `#1060`, misurato su `6dddbb65` con tre comandi e non dedotto dal dominio.**
-    # Sette path: sei liberi e non assegnati, uno in prestito da `integration_only`. Nessuno è preso per
-    # prefisso — `ScenarioHarness/` intera non serve (`RTTestReportWriter.cpp` converte il kind con
-    # `StaticEnum<>`, quindi un valore nuovo **non lo tocca**; `RTTestResult.h` ne ha solo il default) e
-    # prenderla sarebbe la prenotazione che questo file distingue dal vincolo.
-    #   · `ScenarioHarness/RTTestScenario.h`      — `ERTAssertionKind`, dove i due nomi nascono
-    #   · `ScenarioHarness/RTScenarioLoader.cpp`  — parsing e messaggio d'errore
-    #   · `ScenarioHarness/RTScenarioSession.cpp` — valutazione, **e** `AvailableCapabilities()`
-    #   · `Tests/RTScenarioLoaderTests.cpp`       — le voci di DoD sul parsing
-    #   · `Tests/RTShowcaseScenarioTests.cpp`     — `Scenario.ShowcaseRelayV01RunsTurnOne` sale da 5 turni
-    #   · `Tests/RTScenarioCorpusTests.cpp`       — `ShippedScenariosRequireKnownCapabilities` è l'ancora
-    #                                               fra i due elenchi e il corpus
+    # ➖ **Il write-set di `#1060` ESCE il 2026-08-17 con la issue**, e i due path che non servono a `#583`
+    # tornano dove stavano: `Tests/RTShowcaseScenarioTests.cpp` non assegnato,
+    # `Scenarios/RT_Showcase_Relay_v01.json` **rientra in `integration_only`**, dove la sua riga di prestito
+    # va cancellata. Gli altri cinque restano, perché sono esattamente quelli che la issue nuova tocca — non
+    # per inerzia: sono stati rimisurati uno per uno, sotto.
+    #
+    # ➕ **Il write-set di `#583`, misurato su `91157327` e non dedotto dal dominio.** Sei path: cinque già
+    # in mano alla track, uno nuovo in prestito da `integration_only`. `ScenarioHarness/` intera non serve —
+    # `RTTestReportWriter.cpp` e `RTTestResult.h` non vedono un campo nuovo sull'intent — e prenderla sarebbe
+    # la prenotazione che questo file distingue dal vincolo.
+    #   · `ScenarioHarness/RTTestScenario.h`      — il campo `Condition` sull'intent nasce qui
+    #   · `ScenarioHarness/RTScenarioLoader.cpp`  — parsing di `condition` e i suoi rifiuti motivati
+    #   · `ScenarioHarness/RTScenarioSession.cpp` — l'applicazione via `ARTUnit::SetPlannedReactionCondition`
+    #   · `Tests/RTScenarioLoaderTests.cpp`       — le voci di DoD sul parsing e sulla validazione
+    #   · `Tests/RTScenarioCorpusTests.cpp`       — `EveryShippedScenarioRuns` vede lo scenario nuovo
+    #   · `Scenarios/Spec/Overwatch/ConditionCollapsesToHold.json` — in prestito, la riga di ritorno è sotto
+    #
+    # 🔵 **Perché lo scenario nuovo NON chiede `DecisionBoundary`, che resta indisponibile.** Misurato su
+    # `RTOverwatchTriggerTests.cpp:518` (`Reactions.DeclaredConditionCollapsesToImmediateCommit`) e su
+    # `RequiresDecisionBoundary`, che è `AllowedResponses.Num() >= 2`: quando la condizione **non** è
+    # soddisfatta da nessun bersaglio resta il solo `HOLD`, cioè il regime `<= 1` di ADR-0004 §2 — coperto
+    # dalla capability `Reaction`, che è **disponibile**. È l'unico caso della condizione scrivibile e verde
+    # oggi, e non è una scorciatoia: è precisamente il collasso che [D-109] esiste per produrre.
     writable:
       - Source/RefactorTactics/ScenarioHarness/RTTestScenario.h
       - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
       - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
       - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
-      - Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp
       - Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp
       # ⬅️ In prestito da `integration_only`, non riassegnato: la riga di ritorno è in quella sezione.
-      - Scenarios/RT_Showcase_Relay_v01.json
+      - Scenarios/Spec/Overwatch/ConditionCollapsesToHold.json
+      # ⬅️ 🔴 **Aggiunto dopo la code review, e la lacuna vale più della riga.** Uno scenario nuovo *deve*
+      # essere rivendicato da una feature — `project-graph.json` lo dichiara in `diagnostics.errors`
+      # («ScenarioId non rivendicato da nessuna feature») — quindi questo lavoro non poteva NON toccare il
+      # registry. La prima stesura lo ha scritto appoggiandosi a «`integration_only` si aggiorna in
+      # integrazione», che è vero, e ha comunque sbagliato: il prestito per il JSON degli scenari era stato
+      # dichiarato due righe sopra, e lo stesso criterio non è stato applicato al file accanto. Un criterio
+      # applicato a metà è peggio di uno assente, perché la metà scritta fa sembrare misurata anche l'altra.
+      # `feature-registry.yaml` è il file più conteso del repository: una scrittura non dichiarata è
+      # invisibile a ogni altra track che legge questo file per sapere cosa è preso.
+      - docs/roadmap/feature-registry.yaml
     # ⚠️ **Un path non può stare nei due insiemi insieme**, e la riga sopra sarebbe quella contraddizione se
     # questo campo non la dichiarasse: il JSON esce da `Scenarios/` per un giro e ci rientra alla chiusura.
     # Il precedente è dello stesso lotto — `hero_kit` con `Spec/Environment/WaterQuenchesFire.json` — e la
     # regola non cambia: si prestano i **file**, mai la cartella, che resta `integration_only` per gli altri.
+    # ⚠️ **Un file che non esiste ancora si presta lo stesso**, e va detto perché la prima stesura stava per
+    # ometterlo: il prestito riguarda il *path*, non il contenuto. Crearlo dentro `Scenarios/` senza
+    # dichiararlo qui sarebbe scrivere in `integration_only` fuori dall'integrazione.
     writable_on_loan:
-      - Scenarios/RT_Showcase_Relay_v01.json
-    # ⛔ **CHIESTI a `spatial` (#833) e NON posseduti: qui non si scrive.** Sono il **primo passo** del DoD
-    # di `#1060` — `FRTTurnLogEntry` deve portare il bersaglio originale e quello effettivo, altrimenti né
-    # `EffectiveTargetEquals` né un esito di log possono dire **verso chi** è avvenuto il redirect, e la
-    # voce «fixture discriminante» resta vacua per mancanza di un posto dove leggere la risposta.
-    # ✅ **La contesa era già stata vista e scritta**: la sezione `spatial` la dichiara col nome di questa
-    # issue e con la sequenza — *«`#833` prima, `#1060` dopo il rilascio»*. Questo campo è la seconda metà
-    # di quella frase, dal lato di chi aspetta.
-    # ⚠️ **La track NON è ferma**: sei path su sette sono liberi, e il lavoro che ci sta sopra è reale —
-    # `AvailableCapabilities()`, il parsing, il contenuto del T6, i test. È la lezione che `blocked_by` ha
-    # già pagato: un blocco su un path non è un'attesa su tutto.
-    # ⛔ **Ma la issue non si CHIUDE senza il rilascio**, e va detto adesso: la verifica di mutazione del DoD
-    # («applicare la copertura del bersaglio originale invece che dell'effettivo fa cadere esattamente il
-    # test discriminante») ha bisogno di leggere quale bersaglio è stato colpito. Se `#833` non rilascia, la
-    # strada alternativa è dichiarata nel DoD stesso — un esito nuovo su `ERTReactionOutcome` — e vive
-    # nello **stesso** header: non è un modo di aggirare l'attesa.
-    release_requested:
-      - from: spatial
-        issue: 833
-        paths:
-          - Source/RefactorTactics/Turn/RTTurnLog.h
-          - Source/RefactorTactics/Turn/RTTurnLogLibrary.h
-          - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
-          - Source/RefactorTactics/Tests/RTTurnLogCauseTests.cpp
-        reason: >-
-          `FRTTurnLogEntry` deve portare bersaglio originale ed effettivo dell'interposizione: e' il primo
-          passo del DoD di #1060 e non ha un altro posto onesto. Misurato il 2026-08-16 su `6dddbb65` che
-          `feat/833-interaction-graph` non tocca nessuno dei quattro (4 file, tutti in `Map/` e
-          `Tests/RTInteractionGraphTests.cpp`) e che `D:/rt-spatial` e' pulito.
-    # ⚠️ **Due `--check` tornano a questa track con i path**, ed è la stessa eredità che la sua chiusura
-    # precedente aveva dichiarato: `Scenarios/` e `RTScenarioSession.cpp` alimentano entrambe le viste.
+      - Scenarios/Spec/Overwatch/ConditionCollapsesToHold.json
+      - docs/roadmap/feature-registry.yaml
+    # ➖ **La richiesta a `spatial` (#833) DECADE con `#1060`, e va detto invece di lasciarla scadere in
+    # silenzio.** I quattro path del TurnLog servivano al bersaglio originale/effettivo dell'interposizione:
+    # `#583` non ne tocca nessuno. La sua seconda voce di DoD — la condizione registrata nel TurnLog — è
+    # **esplicitamente vietata dalla issue stessa** finché `#886` non atterra, e `#886` è OPEN: chiederli
+    # adesso prenoterebbe un lavoro che nessuno può fare.
+    # ⚠️ **Chi riprende `#1060` la riapre**: la contesa non è risolta, è solo non più pendente. La sezione
+    # `spatial` la dichiara ancora col nome di quella issue e con la sequenza — *«`#833` prima, `#1060` dopo
+    # il rilascio»* — e quella frase resta vera dal lato di chi possiede i path.
+    release_requested: []
+    # ⚠️ **Due `--check` restano a questa track con i path**, ed è la stessa eredità che le sue chiusure
+    # precedenti hanno dichiarato: `Scenarios/` e `RTScenarioSession.cpp` alimentano entrambe le viste.
+    # Il JSON che le alimenta cambia col write-set — è quello nuovo, non lo showcase.
     derives_from:
       - source: Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
         regenerates:
           - docs/roadmap/project-graph.json
           - docs/roadmap/scenariomap.shortlist.md
-      - source: Scenarios/RT_Showcase_Relay_v01.json
+      - source: Scenarios/Spec/Overwatch/ConditionCollapsesToHold.json
         regenerates:
           - docs/roadmap/project-graph.json
           - docs/roadmap/scenariomap.shortlist.md
+      # ➕ Aggiunto con il prestito del registry: `feature-registry.json` è la sua vista e non ha altre
+      # sorgenti, quindi segue lui. Senza questa riga la vista sarebbe stata rigenerata da una track che
+      # non ne dichiarava la sorgente — la forma di scrittura silenziosa che `generated_only` esiste per
+      # rendere tracciabile.
+      - source: docs/roadmap/feature-registry.yaml
+        regenerates:
+          - docs/roadmap/feature-registry.json
+          - docs/roadmap/project-graph.json
     binary_leases: []
 
   client_tools:
@@ -4719,7 +4769,17 @@ integration_only:
   # non basta a dirlo.** La regola resta «`Scenarios/` è `integration_only`»: si prestano i **file**, uno
   # per uno, con la ragione nella `note` della track che li tiene — mai la cartella.
   #   · `Spec/Environment/WaterQuenchesFire.json`  → `hero_kit`  (l'acqua passa all'equipaggiamento)
-  #   · `RT_Showcase_Relay_v01.json`               → `simulation` (#1060: il T6 ha `intents: []`)
+  #   · `Spec/Overwatch/ConditionCollapsesToHold.json` → `simulation` (#583: il collasso di [D-109])
+  #   · `feature-registry.yaml`                        → `simulation` (#583: uno scenario nuovo va
+  #                                                      rivendicato da una feature, o `project-graph.json`
+  #                                                      lo dichiara in `diagnostics.errors`)
+  # ➖ **`RT_Showcase_Relay_v01.json` RESTITUITO il 2026-08-17**: la riassegnazione di `simulation` da
+  # `#1060` a `#583` gli toglie il consumatore, e la riga si cancella invece di restare a coprire un giro
+  # che non c'è più. Chi riprende `#1060` la riscrive — è la regola due blocchi più sotto, applicata al
+  # proprio prestito e non solo a quelli altrui.
+  # ⚠️ **Il file prestato a `#583` NON ESISTE ancora**, ed è la prima volta che questa lista lo registra:
+  # il prestito è sul **path**, perché creare un file dentro `Scenarios/` senza dichiararlo qui sarebbe
+  # scrivere in `integration_only` fuori dall'integrazione — che è precisamente ciò che la cartella impedisce.
   # ✅ **I tre di `simulation` sono RIENTRATI il 2026-08-16 con la chiusura di `#512`** — `HoldThenFire`,
   # `ProfileChangesResponse` e `RT_Showcase_Relay_v01`: la track è `IDLE` e la PR #1033 è in `main`. Le loro
   # righe sono cancellate invece di essere lasciate a invecchiare, che è il punto della regola qui sotto.
