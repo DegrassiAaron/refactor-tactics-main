@@ -149,11 +149,23 @@ non una preferenza: un pivot sbagliato non fallisce, deforma in silenzio tutto c
 Una guida d'authoring, non un Actor autorevole. `D-152`.
 
 ```text
-prisma esagonale derivato dalla cella logica
-  ├─ outer footprint   il 100% della cella
+prisma esagonale — la cella logica È un volume, non una superficie
+  ├─ lato              HexSize = 150       (1,50 m)
+  ├─ lato-a-lato       C = √3 · HexSize    (2,60 m)
+  ├─ altezza           H = LayerHeight = 250   (2,50 m)
   ├─ safe footprint    un inset, misurato in frazione di C — vedi §9, il valore è APERTO
-  └─ guide verticali   riferimenti d'altezza per modellare
+  └─ guide verticali   frazioni di H — §6.2
 ```
+
+⏱️ **I due valori assoluti qui sopra sono il canone, non ciò che il gioco fa oggi**: finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non
+atterra il mondo gira a `HexSize = 100`, quindi `C` vale `1,73 m` — mentre `H = 250` è già vero adesso.
+Le frazioni (`0.28 H` in altezza, `0.92` del lato in larghezza) non ne risentono: è per questo che il contratto misura in frazioni.
+
+🔑 **`H` è l'altezza del volume, non una distanza fra oggetti separati.** `AxialToWorld` pone i centri di
+layer adiacenti a `Layer · LayerHeight`, quindi i prismi **tassellano** anche in verticale: sopra il
+soffitto di una cella c'è il pavimento della successiva, senza intercapedine. Il campo `Height` di
+`FRTHexCellData` non è questa altezza — è un offset di rendering *dentro* il volume, e il suo commento lo
+dice: *«la logica usa Layer + archi»*.
 
 **Che cosa serve a fare**: modellare asset proporzionati, verificare che un `CellBound` non invada la cella
 adiacente, dare una silhouette coerente, e diventare il contratto dimensionale che l'arte finale dovrà
@@ -171,7 +183,33 @@ funzionalità di debug.
 
 ## 6. Dimension grammar — relativa, mai in centimetri
 
-Le misure si esprimono in frazioni di **`C`**, la distanza centro-centro fra due celle adiacenti.
+Le misure si esprimono in frazioni, e i denominatori sono **due**, uno per asse:
+
+```text
+ingombri e inset       →  frazioni di C      passo centro-centro
+elementi di BORDO      →  frazioni del lato  il bordo su cui stanno (= HexSize)
+altezze                →  frazioni di H      altezza del volume-cella
+```
+
+I riferimenti sono **tre**, e la regola non è «due assi» ma **ogni misura sul segmento che la contiene**.
+`C` e il lato sono entrambi orizzontali ma non intercambiabili: `C = √3 · lato`, quindi confonderli sbaglia
+di **1,73×**. Un pannello appoggiato a un bordo si budgeta sul **bordo** — è `0.92` del lato — mentre un
+inset, che misura quanto un asset si ritrae dal centro verso i vicini, si budgeta su `C`.
+
+⏱️ In metri: `C = 2,60 m` **al canone** (`1,73 m` finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra) e `H = 2,50 m`, che è già il
+valore di oggi. La grammatica è in frazioni proprio perché la prima delle due sta cambiando.
+
+🔴 **Che siano due è una correzione del 2026-08-17** ([`D-168`](../decisions/RT_PDR_00_Decision_Log.md)):
+fino a quel giorno anche le **altezze** erano espresse in frazioni di `C`, cioè misurate contro una
+larghezza. L'incoerenza era invisibile finché nessuno dichiarava l'altezza del volume, e si vedeva solo
+guardando i totali: `1.00 C` — la guida chiamata «massima» — valeva il **69%** del volume con la scala
+vecchia e il **104%** con quella nuova. Una guida massima che *sfora* il volume che delimita, e che
+cambia segno quando cambia la scala, è la firma di un denominatore sbagliato.
+
+⚠️ **`0.92` per la larghezza di un pannello di bordo è una frazione del LATO, non di `C`**, ed è giusto così: è una larghezza.
+La regola non è «tutto in `H`», è **ogni misura sul proprio asse**.
+
+`C` è la distanza centro-centro fra due celle adiacenti.
 
 `C` **non è una costante nuova**, e **non è `HexSize`**:
 
@@ -186,11 +224,11 @@ per questo le misure di questo documento sono in frazioni di `C`.
 
 ### 6.1 Quanto vale `C` in metri, e perché la domanda ha due risposte
 
-[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis fissa **una sola cosa**, la scala
-d'arte, dal 2026-08-09:
+[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis fissa il lato dal 2026-08-09, e da
+`D-163` quel valore governa **anche il mondo**, non solo l'authoring:
 
 ```text
-lato dell'esagono ≈ 1,5 m
+lato dell'esagono = 1,5 m        (esattamente: HexSize = 150)
 ```
 
 Il resto si deriva per geometria — `C = √3 · lato ≈ 2,60 m`, vertice-vertice `3,00 m`, apotema `~1,30 m` —
@@ -201,31 +239,84 @@ pratica e mai dichiarata nel repository (`grep -i 'UU'` sulle convenzioni dà **
 l'assunzione è esplicita perché il giorno in cui qualcuno la cambiasse ogni numero di questa sezione
 diventerebbe falso in silenzio.
 
-### 🔴 E la scala d'arte non è la scala di nessuna mappa esistente
+### 6.2 La scala d'arte governa anche il mondo — deciso, non ancora atterrato
 
 ```text
-scala d'arte      lato 1,50 m      →  C ≈ 2,60 m     ← a cui si MODELLA
-default del codice lato 1,00 m     →  C ≈ 1,73 m     ← a cui gira OGNI mappa
+canone (D-163)     lato 1,50 m      →  C ≈ 2,60 m     ← a cui si MODELLA, e a cui il mondo DEVE girare
+codice di oggi     lato 1,00 m      →  C ≈ 1,73 m     ← a cui ogni mappa gira ANCORA
 ```
 
-Misurato: sia `RTHexMapAsset.h` sia `RTHexMapActor.h` lasciano `HexSize` a `100.f`, e **nessuna mappa lo
-sovrascrive**.
+✅ **`GBX-6` è chiusa il 2026-08-17**: vince la scala d'arte, `HexSize = 150`, e la quota fra i piani
+**resta `250` uu — 2,50 m — invece di seguirla**
+([`D-163`](../decisions/RT_PDR_00_Decision_Log.md)). Questo documento **continua a non sceglierla** — non è
+il suo owner, che resta [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — ma ora
+riporta una decisione presa invece di una divergenza aperta.
+
+🔵 **Che l'altezza del volume non segua la larghezza cambia le proporzioni della scena, non i budget di
+questo contratto.** I budget verticali sono frazioni di `H`, e `H` non si muove: `0.28 H` è 70 cm prima e
+dopo. Quello che cambia è la **pianta**: ogni oggetto tiene la sua altezza mentre il pavimento su cui sta
+diventa 1,5× più largo, quindi le silhouette si distanziano e la cella smette di essere affollata. È il
+margine che rende `GBX-1` e `GBX-5` validabili **guardando** invece che discutendo — e si vede in pianta,
+non in alzato.
+
+> ⚠️ **E le altezze di `RTHexMapActor.cpp` non sono evidenza su questi budget**: sono **placeholder di
+> visualizzazione**, che [`D-168`](../decisions/RT_PDR_00_Decision_Log.md) esclude dal perimetro di questo
+> contratto.
+
+⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
+`1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella per una cella larga `2,60 m`** — cioè
+un lato di `1,50 m`, che è lo stesso vincolo detto nell'altra unità — e **rimanda il commit dei volumi
+finiti** finché non li puoi validare in PIE.
+
+> ⚠️ **Le due misure sono la stessa cosa, e vale la pena dirlo perché i documenti usano numeri diversi.**
+> Qui il termine di paragone è `C`, la larghezza lato-a-lato, perché è a quello che il contratto budgeta le
+> frazioni orizzontali (`0.92` del lato per la larghezza di un pannello; le **altezze** vanno in `H`, §6). L'owner della scala —
+> [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — parla del **lato**, perché è
+> quello che `HexSize` contiene. `C = √3 · lato`: `1,50 → 2,60`. Le due righe dicono lo stesso
+> vincolo in unità diverse, e ciascuna usa quella naturale per il proprio documento.
+
+Misurato: `HexSize` vale `100.f` in **16 occorrenze su 10 file** di `Source/`, e **nessuna mappa lo
+sovrascrive**. La distinzione che conta non è il totale ma **a cosa serve ciascuna**: **quattro** sono
+codice di gioco e decidono il mondo, le altre stanno in `Tests/` e fissano una scala arbitraria.
+I due che decidono il mondo sono `RTHexMapAsset.h:151` (l'autorevole: l'asset vince sull'actor) e
+`RTHexMapActor.h:74` (il fallback quando `MapAsset` è assente); gli altri due — `RTHUD.cpp:335` e
+`RTTurnManager.cpp` in `GetHexContext` — sono inizializzatori del ramo «nessuna mappa nel livello».
+
+🔴 **E i siti da toccare non coincidono con i file da toccare**: c'è anche
+`Source/RefactorTactics/Tests/RTHexMapTests.cpp`, che **pinna** il default a `100.f` come contratto di
+serializzazione e va aggiornato deliberatamente. ⛔ **`RTHexMapTests.cpp` non è assegnato a nessuna track** — è un `D-139` STOP, da sciogliere **prima**,
+non durante — e **`RTTurnManager.cpp` è della track `hotspot_split`, ACTIVE**: non si assegna, si coordina. Il quadro completo, con chi possiede cosa, sta in
+[`D-163`](../decisions/RT_PDR_00_Decision_Log.md) e in [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155); questo documento non è l'owner del write-set
+e non deve diventarne una seconda copia.
+
+> ⚠️ **Questo elenco non è il write-set, ed è la ragione per cui rimanda invece di ripetere.** Chi esegue
+> la migrazione partendo da qui — ed è il documento che chi modella legge — cambierebbe i siti che vede e
+> lascerebbe rosso il resto. L'owner del write-set è `parallel-batch.yaml`; l'owner del lavoro è la issue.
 
 > ⚠️ **Come si verifica, e come NON si verifica.** `HexSize` è un `UPROPERTY(EditAnywhere)` su asset e
 > attore, quindi il valore di una mappa vive dentro un `.uasset` o un `.umap` — **binari**. Un `grep` su
 > `Scenarios/` e `Config/` non li apre nemmeno: è la misura che la prima stesura di questa riga citava, e
-> non poteva sostenere la conclusione. I cinque binari di mappa vanno ispezionati direttamente
-> (`DA_HexMap_Arena`, `DA_HexMap_Sandbox`, `L_HexArena`, `L_DevSandbox`, `L_Prototype`), ed è così che la
-> conclusione è stata confermata in code review.
+> non poteva sostenere la conclusione. I binari vanno ispezionati direttamente e **con l'oracolo giusto per
+> ciascun tipo**, perché in un `.umap` il nome `Cells` è un *componente* e sarebbe presente comunque: la
+> misura, con il suo oracolo, è in [`D-163`](../decisions/RT_PDR_00_Decision_Log.md).
 
-**Le due scale divergono di 1,5×, e la divergenza non è risolta.** Una copertura bassa modellata a
+**Le due scale divergono di 1,5× finché il cambio non atterra, e la divergenza è il costo di transito.** Una copertura bassa modellata a
 `0.28 C` con `C = 2,60 m` è alta 73 cm; posata su una mappa reale — dove `C = 1,73 m` — quei 73 cm valgono
-il **42% di `C`** invece del 28% che questo contratto budgeta. ⚠️ *Il termine di paragone è `C`, non
-«l'altezza della cella»: una cella esagonale non ha un'altezza, e `C` è un passo orizzontale. La prima
-stesura scriveva «dell'altezza di cella» e invitava a cercare un numero che non esiste.*
+il **42% di `C`** invece del 28% che questo contratto budgetava. ⏱️ *Esempio dell'epoca in cui anche le altezze
+stavano in `C`: da [`D-168`](../decisions/RT_PDR_00_Decision_Log.md) la guida bassa è `0.28 H` = **70 cm**, e un'altezza
+non si rapporta più a una larghezza. Il costo di transito che l'esempio descrive resta reale — è la scala del
+mondo a non essere ancora cambiata, non il modo di misurarla.* 🔴 *Questa riga diceva: «il termine di paragone è `C`, non «l'altezza della cella»: **una cella esagonale
+non ha un'altezza**, e `C` è un passo orizzontale», e chiudeva con «la prima stesura scriveva «dell'altezza
+di cella» e invitava a cercare un numero che non esiste». La clausola in grassetto è **falsa**. La cella ha un'altezza — `LayerHeight`, un
+`UPROPERTY` accanto a `HexSize` e pinnato dallo stesso test — e vale `250`. La nota era nata per correggere
+una prima stesura che diceva «dell'altezza di cella»: ha sostituito una formulazione imprecisa con
+un'affermazione **falsa**, e nel farlo ha attivamente impedito di vedere che le guide verticali usavano il
+denominatore sbagliato. Corretto in [`D-168`](../decisions/RT_PDR_00_Decision_Log.md); l'esempio qui sopra
+resta in `C` perché descrive il costo di transito della scala, che è orizzontale.*
 
-Questo documento **non sceglie**: non è il suo owner. Ma smette di far finta che il problema non ci sia —
-chi modella oggi deve sapere che sta autorando per una cella che nessuna mappa ha. È `GBX-6`.
+Chi modella oggi deve sapere che sta autorando per una cella che **nessuna mappa ha ancora** — non più per
+una che nessuna mappa avrà mai. La differenza è tutta la decisione: prima era una domanda senza risposta,
+ora è una scadenza.
 
 > 🔑 **E §11-bis dichiara il proprio limite, che vale anche qui**: *«non è una metrica di design, e non va
 > usata come tale»*. Serve a dimensionare mesh e proporzioni — *quanto è grande questo modello* — non a
@@ -237,7 +328,9 @@ chi modella oggi deve sapere che sta autorando per una cella che nessuna mappa h
 > numerico calcolato sul valore sbagliato dei due. Corretto il **2026-08-17** consumando il bundle
 > `GrayToolkit`, che ha reso la divergenza visibile mettendo i due numeri accanto.
 
-> 🔴 **La riga precedente diceva «`C` discende da `HexSize`, default `100.f`» senza il fattore `√3`.** Chi
+> 🔴 **La riga precedente diceva «`C` discende da `HexSize`, default `100.f`» senza il fattore `√3`.**
+> *(La soglia citata qui sotto è quella dell'epoca, `0.28 C`; dal 2026-08-17 la guida bassa è `0.28 H` — il
+> caso d'errore resta identico nella forma.)* Chi
 > avesse letto «0.28 C» come 28 cm avrebbe modellato una copertura bassa alta il **58%** del dovuto —
 > `0.28 · 173 ≈ 48 cm`, e `28/48 ≈ 0,58`, cioè il fattore `1/√3`. **Il 58% è ancorato a `C ≈ 173`**, non
 > invariante: con la scala d'arte (`C ≈ 260`) lo stesso errore darebbe il 38%. Lo stesso valeva per il Safe
@@ -248,12 +341,17 @@ chi modella oggi deve sapere che sta autorando per una cella che nessuna mappa h
 Le guide verticali del volume sono **riferimenti di modellazione**, e non sono categorie di targeting:
 
 ```text
-1.00 C   guida massima
-0.85 C   strutturale
-0.55 C   standard
-0.28 C   bassa
-0.00 C   piano d'appoggio
+1.00 H   guida massima      250 cm   ← il soffitto del volume, esattamente
+0.85 H   strutturale        213 cm
+0.55 H   standard           138 cm
+0.28 H   bassa               70 cm
+0.00 H   piano d'appoggio     0 cm
 ```
+
+> ⏱️ **Erano in `C` fino al 2026-08-17**, con gli stessi coefficienti. Il denominatore cambia, i
+> coefficienti no — quindi i **centimetri cambiano**: la guida massima da `260` a `250`, la bassa da `73` a
+> `70`. Chi avesse già modellato con i valori vecchi ha uno scarto del **4%**, che a graybox è dentro il
+> rumore; chi modella da oggi usa questi. Deciso in [`D-168`](../decisions/RT_PDR_00_Decision_Log.md).
 
 > ⚠️ **Nessuna di queste soglie decide una regola.** Se il gameplay avesse bisogno di classi d'altezza, il
 > suo owner sarebbe la copertura (`ERTHexCoverType`, due valori più `None`) — e quel dato **esiste già**,

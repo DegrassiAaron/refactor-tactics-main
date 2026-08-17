@@ -4540,8 +4540,10 @@ tracks:
       mappa sovrascrive `HexSize`» concluso da un `grep` su `Scenarios/` e `Config/`, che **non aprono i
       `.uasset`** dove quel valore vive. La conclusione reggeva, l'argomento no.
 
-      ➕ **E il risultato più utile è una domanda che il bundle non poneva**: `GBX-6`, descritta più sotto
-      in questa stessa nota. Chi modella secondo il contratto costruisce per una cella che nessuna mappa ha.
+      ➕ **E il risultato più utile è stata una domanda che il bundle non poneva**: `GBX-6`, aperta qui e
+      ✅ **chiusa lo stesso giorno da `D-163`** — vince la scala d'arte. Chi modella secondo il contratto
+      costruisce per una cella che nessuna mappa ha **ancora**: la divergenza resta finché il cambio non
+      atterra, ed è la issue linkata più sotto.
 
       ➕ **Track aperta il 2026-08-17** per consumare il bundle `GrayToolkit_Cloud_Bundle` — 8 file, 4
       documenti e 2 PNG, in `docs/src/wiki/graybox/`. È il **seguito** di `graybox_kit`, chiusa poche ore
@@ -4555,7 +4557,11 @@ tracks:
       per derivare l'apotema. ⚠️ **`1 UU = 1 cm` invece non è scritto da nessuna parte** (`grep -i 'UU'`
       su quel file dà **zero**): è il default di Unreal, e il bundle lo dichiara per primo.
       🔴 **E nessuna mappa usa la scala d'arte**: girano tutte al default di `1,00 m`, quindi le due
-      divergono di **1,5×** — `GBX-6`.
+      divergono di **1,5×**. Aperta come `GBX-6` e ✅ **chiusa lo stesso giorno da `D-163`** — vince la
+      scala d'arte, `HexSize = 150`. La divergenza qui sopra resta **vera finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non
+      atterra** — il numero è scritto qui apposta, perché la nota si cancella cercando quella issue e senza
+      di esso `grep` non la trova. Chi cerca chi possiede la scala va a `D-163`, non alla riga barrata in
+      `OPEN_DECISIONS.md`.
       ➕ **Cosa è genuinamente nuovo**: le lane di maturità artistica, che nel repository prendono i
       prefissi `AC0–AC6` e `AE0–AE5` — quelli del bundle (`C`/`E`) collidevano con la severity degli
       status e con l'epic `E1`.
@@ -4656,7 +4662,12 @@ tracks:
       diciannove elementi del kit sono binari e servirebbe una **Binary Asset Lease** più una persona in
       Unreal · `docs/technical/test-manuali-pie.md`, assegnato ad altra track per tutta la durata (tre
       proprietari diversi in tre giorni, il permesso mai) · `convenzioni-contenuti-ue.md`, che non è in
-      **nessun** insieme di questo file e per `D-139` è uno STOP: è diventato `GBX-4` invece di un edit.
+      **nessun** insieme di questo file e per `D-139` era uno STOP — condizione **sanata il 2026-08-17**,
+      quando `D-163` l'ha portato nell'elenco `integration_only` in fondo a questo file. Si trova
+      cercando `convenzioni-contenuti-ue.md`: un termine di ricerca invece di una distanza, perché in un
+      file che cresce ogni numero di riga invecchia — inclusi i due che le stesure precedenti di questa
+      riga hanno sbagliato. ⚠️ **Lo STOP era però solo metà della ragione** — toglieva il permesso di
+      scrivere la risposta, non la difficoltà di trovarla, che è di design e resta. È diventato `GBX-4` invece di un edit.
 
       ⏱️ **L'intersezione di apertura è una misura DATATA e non vale al rilascio.** Diceva 11 ref remoti,
       13 worktree, 1 PR aperta; al 2026-08-17, ore 12:50, sono **11 ref · 14 worktree · 3 PR** (#1113,
@@ -5704,6 +5715,29 @@ integration_only:
   # attira le track che lo devono applicare, ed è il segnale che questa categoria esiste per leggere.
   - docs/technical/spec-asset-pipeline.md
   - docs/technical/spec-graybox-placement-contract.md
+  # ➕ **Entra il 2026-08-17 con `D-163`, e la sua stessa riga in `OPEN_DECISIONS.md` denunciava il difetto.**
+  # `GBX-4` e `GBX-6` dicevano entrambe, in grassetto, che l'owner della scala **non è assegnato a nessuna
+  # track** — cioè lo STOP di `D-139` — e che era «la ragione per cui questa voce è una domanda invece di un
+  # edit». Chiudere `GBX-6` senza assegnarlo avrebbe lasciato la decisione senza il documento che la deve
+  # scrivere. È normativo (§5 governa i percorsi di `Content/`, §11-bis la scala d'arte) e più track lo
+  # vogliono emendare: `integration_only` è la categoria giusta.
+  # 🔴 **Preso PRIMA di essere assegnato, nello stesso commit — e dirlo NON è il rimedio.**
+  # `CLAUDE.md` §5 prescrive di **fermarsi**, non di annotare. Questa nota registra una violazione, non la
+  # sana, ed è la **seconda** identica dopo `spec-asset-pipeline.md`: due precedenti fanno un'abitudine, e
+  # l'abitudine sarebbe che chiunque si assegna un path scrivendoci sopra purché lo confessi.
+  # 🔵 **Il rimedio, per la prossima volta**: la riga di allowlist in un commit **separato e precedente**,
+  # o in una PR di sola riconciliazione — costo quasi nullo, ed era disponibile.
+  # ⚠️ Il write misurato è di **50 righe aggiunte e 5 rimosse**, non «36»: oltre a §11-bis.1 la modifica
+  # tocca il **titolo** e il blocco normativo del §11-bis padre, che è la parte più portante del file.
+  # `CLAUDE.md` §5 è esplicito — «File non assegnato = STOP … Altrimenti ti fermi e lo dici» — e l'ordine
+  # corretto è dichiarare, poi scrivere. Qui le 36 righe di §11-bis.1 e questa riga di allowlist sono
+  # atterrate insieme. Questo file ha già un precedente identico (`spec-asset-pipeline.md`, poco sopra) e
+  # lo registra ad alta voce: *«applicato in ritardo e detto invece di taciuto»*. La differenza fra un
+  # precedente e un'abitudine è esattamente questa nota: chi legge `GBX-4` trova «l'ostacolo procedurale è
+  # caduto» e potrebbe leggerlo come «assegnati il path nello stesso commit», che **non** è la regola.
+  # ⚠️ **Assegnarlo NON chiude `GBX-4`**: quella domanda chiede *quale percorso* ospita il kit graybox, ed è
+  # di design. Cade solo l'ostacolo procedurale che impediva di scrivere la risposta una volta trovata.
+  - docs/technical/convenzioni-contenuti-ue.md
   # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14. ⏱️ **Il proprietario scritto qui
   # non è più quello vero**: `content_editor` l'ha rilasciato il 2026-08-16, poi `playback` l'ha tenuto in
   # prestito per `#1015`, e oggi sta nel `writable` di `playtest` — tre nomi in tre giorni, misurati in
