@@ -547,6 +547,7 @@ features:
       - Visual.Map.MultiLevel
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
       date: 2026-08-08
@@ -1377,6 +1378,7 @@ features:
       - Visual.Combat.FallbackTargetMoved
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
       - wiki:collisioni
     last_verified:
       date: 2026-08-08
@@ -1470,6 +1472,7 @@ features:
       - Spec.Brace.PushBeyondGuardThreshold
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     wiki_note: >-
       Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`.
       `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non
@@ -1550,6 +1553,7 @@ features:
       # scenario e' passato a `RT-FEAT-ACTION-SPATIAL-TRANSFER`, che e' cio' che dimostra davvero.
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1727,6 +1731,7 @@ features:
       - Combat.MoveIsFullWithoutSlow
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-09
       commit: 8a43866
@@ -1794,6 +1799,7 @@ features:
       - Spec.Movement.DashDiscardsPlannedMove
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
       - wiki:collisioni
     pie_refs: [PIE-HEXPLAY-4b, PIE-HEXPLAY-6c]
     last_verified:
@@ -1837,6 +1843,7 @@ features:
       - Spec.ActionEconomy.CooldownBlocksWithSlotFree
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1889,6 +1896,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     notes: >
       🔴 **Decisa NO il 2026-08-12** — [D-114](../decisions/RT_PDR_00_Decision_Log.md), issue #604.
       L'economia del turno **resta a slot**: due azioni leggere non valgono una pesante, e senza una
@@ -1943,6 +1951,7 @@ features:
           - Spec.ActionEconomy.PathLengthChangesEffect
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     notes: >
       ✅ **`AE-2` ACCETTATA il 2026-08-12** — [D-116](../decisions/RT_PDR_00_Decision_Log.md), issue #606.
       Il profilo di movimento determina la **legalita'** e l'efficacia di un'azione. Modello a **soglia**
@@ -2077,6 +2086,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3514,6 +3524,7 @@ features:
       - Spec.Perception.AllySpottingLetsYouShoot
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     wiki_note: >-
       Modello deciso per la v0.1 e **implementato** con CP 13.2: la conoscenza di squadra decide chi si
       puo' bersagliare. La coppia di scenari e' la specifica eseguibile del gate.
@@ -3567,6 +3578,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3612,6 +3624,7 @@ features:
       - Spec.Perception.HeardNotSeen
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-12
       commit: 9a92375
@@ -3670,6 +3683,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
