@@ -1460,7 +1460,7 @@
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset",
