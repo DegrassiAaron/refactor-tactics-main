@@ -1,5 +1,7 @@
 # APPLY_WITH_CLAUDE.md — Consolidamento 2026-08-12
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Scopo
 
 Applicare al repository `DegrassiAaron/refactor-tactics-main` le decisioni recenti su:
@@ -210,7 +212,7 @@ Non inserire acqua/connector/HUD nel Character Wiki workbook:
 - Verificare che i cataloghi Markdown contengano i numeri correnti.
 - Se serve un workbook aggiornato, creare **un output derivato/generato** dai cataloghi, con provenance e
   versione, non promuovere il research workbook a canone.
-- Se una decisione cambia una ability specifica di Flux/Riva, aggiornare prima il catalogo owner e poi
+- Se una decisione cambia una ability specifica di Gadget/Phase, aggiornare prima il catalogo owner e poi
   rigenerare/aggiornare il dataset Character Wiki come derivato.
 
 Il bundle include un audit workbook separato: non è una nuova fonte di gameplay.

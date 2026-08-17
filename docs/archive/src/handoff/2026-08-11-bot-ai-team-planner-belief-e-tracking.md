@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 🗄️ `HISTORICAL` — SORGENTE RECEPITO IL 2026-08-11
 >
 > **Materiale NON autorevole.** Il testo qui sotto è l'originale, invariato. Le sue affermazioni valgono
@@ -592,7 +594,7 @@ Difficulty Search Profile
 Non:
 
 ```cpp
-if (Character == Flux) { ... }
+if (Character == Gadget) { ... }
 ```
 
 Preferire:
@@ -716,14 +718,14 @@ Esempio:
 
 ```text
 Turn N:
-Riva    -> Setup
-Flux    -> Payoff
-Bastion -> Denier
+Phase    -> Setup
+Gadget    -> Payoff
+Riktor -> Denier
 
 Turn N+1:
-Riva    -> ObjectiveRunner
-Flux    -> Controller
-Bastion -> Protector
+Phase    -> ObjectiveRunner
+Gadget    -> Controller
+Riktor -> Protector
 ```
 
 Non imporre un role assignment rigido prima della valutazione: deve emergere dal piano di squadra migliore.
@@ -868,9 +870,9 @@ La squadra mista deve essere supportata.
 Esempio:
 
 ```text
-Human -> Flux
-Bot   -> Riva
-Bot   -> Bastion
+Human -> Gadget
+Bot   -> Phase
+Bot   -> Riktor
 ```
 
 L'intento umano è un vincolo/input del Team Planner.
@@ -887,7 +889,7 @@ Il bot ottimizza intorno al piano umano, non lo sovrascrive.
 Possibile UI:
 
 ```text
-Riva intends Flood E8
+Phase intends Flood E8
 Potential synergy: Electric
 ```
 
@@ -2058,7 +2060,7 @@ Non:
 - trasformare StateTree o Behavior Tree nel resolver tattico;
 - usare NavMesh come autorità del path;
 - leggere hidden state "perché il bot è sul server";
-- hard-codare Flux/Riva/Bastion nei combo scorer;
+- hard-codare Gadget/Phase/Riktor nei combo scorer;
 - usare percentuali belief false come se fossero statistiche calibrate;
 - sapere che un noise decoy è falso senza evidence;
 - convertire una hypothesis in knowledge;

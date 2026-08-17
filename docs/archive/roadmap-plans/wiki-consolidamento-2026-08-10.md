@@ -1,5 +1,7 @@
 # Consolidamento della Wiki — 2026-08-10
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 📸 `HISTORICAL` — REFERTO E PIANO, NON UNA VISTA DI STATO
 >
 > Questo documento registra **cosa è stato trovato** confrontando la sorgente in-repo con il clone
@@ -103,16 +105,16 @@ sorgente e deploy.
 | `Fazione-Conflux.md` | 88 | 13 | merge manuale |
 | `Fazione-Resonance.md` | 88 | 13 | merge manuale |
 | `sinergie-e-combinazioni.md` | 59 | 25 | merge manuale |
-| `Personaggio-flux.md` | 22 | 46 | merge manuale |
-| `Personaggio-riva.md` | 20 | 49 | merge manuale |
+| `Personaggio-gadget.md` | 22 | 46 | merge manuale |
+| `Personaggio-phase.md` | 20 | 49 | merge manuale |
 | `Personaggi-Paragon.md` | 5 | 55 | merge manuale |
 | `reazioni-overwatch-e-previsioni.md` | 4 | 55 | merge manuale |
 | `Meccanica-facing-e-direzionalita.md` | 13 | 35 | merge manuale |
 | `Fazioni.md` | 35 | 6 | merge manuale |
-| `Personaggio-vektor.md` | 9 | 29 | merge manuale |
+| `Personaggio-wraith.md` | 9 | 29 | merge manuale |
 | `Stato-delle-feature.md` | 12 | 25 | merge manuale |
 | `azioni-e-movimento.md` | 8 | 29 | merge manuale — **contiene la violazione D-025** |
-| `Personaggio-bastion.md` | 9 | 25 | merge manuale |
+| `Personaggio-riktor.md` | 9 | 25 | merge manuale |
 | `Home.md` | 11 | 21 | merge manuale |
 | `Personaggi.md` | 1 | 12 | merge manuale |
 | `Personaggio-aurora.md` | 9 | 1 | merge manuale — blocco Fazione → generabile |
@@ -175,7 +177,7 @@ un backport:
   sorgente non ha, e resta legittimamente dov'è;
 - **testo che il repository ha già superato**: `Meccanica-acqua-e-elettricita` dice ancora che nessun
   eroe possiede `Action.Electrify`, mentre la sorgente registra dal 2026-08-09 che
-  `Flux.ConductiveNode` **è** `Action.Electrify` (D-046, D-064); `Meccanica-facing-e-direzionalita`
+  `Hero.Gadget.ConductiveNode` **è** `Action.Electrify` (D-046, D-064); `Meccanica-facing-e-direzionalita`
   descrive il modello a «tre direzioni» uguale per tutti, mentre la sorgente ha già la rotazione
   per-eroe in *step* e cita D-060. Sono casi di **deploy**, non di backport.
 

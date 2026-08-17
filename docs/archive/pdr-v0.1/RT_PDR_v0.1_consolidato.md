@@ -1,5 +1,7 @@
 # RefactorTactics — Corpus PDR `v0.1`, consolidato in Markdown
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ⚠️ **Archivio — materiale NON autorevole.** Livello 9 della gerarchia in
 > [`../../README.md`](../../README.md). Questo documento **non** descrive il gioco di oggi: è il corpus
 > documentale del **3 agosto 2026**, scritto prima del pivot esagonale, prima del modello azioni v0.1 e prima
@@ -34,12 +36,12 @@ Non «cosa dice»: **cosa ne è rimasto**. La colonna a destra è il verdetto co
 | **04** Networking e privacy 🟢[#589](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589) | Threat model a cinque leak, classificazione dati a cinque classi, flusso preview, sanitizzazione a whitelist, rate limit, **test privacy con canary ID** | 🟢 **Il più recuperabile del corpus.** M10 (Rete e privacy) non è ancora costruita e l'invariante #6 dichiara *cosa* garantire, non *come* verificarlo. Il canary ID, il «PIE da solo non è sufficiente, serve packaged» e il test che fallisce se un tipo server-only acquisisce `replicated` sono procedure che oggi non esistono da nessuna parte |
 | **05** Simulazione deterministica 🟢[#578](https://github.com/DegrassiAaron/refactor-tactics-main/issues/578) | Schema `FRTTurnSnapshot`, ordine stabile, seed per stream nominati, event model, replay, hash, **sei test di determinismo** | **Canone nel principio** (invariante #4), più specifico nella verifica. `Hash(TurnSeed, ActionId, RollKind)` — «aggiungere un VFX casuale non sposta le estrazioni di hit/crit» — è una regola operativa che il canone non scrive. I sei test (golden · permutation · repeat ×1000 · seed · frame-rate · packaged) sono un DoD pronto |
 | **06** Mappa e pathfinding | `FRTCellId`, cell data, archi come dati di prima classe, A\* con `FGraphAStar`, cost model, cache per revisione, LOS/targeting separati | ⚠️ **Una trappola di naming.** Il `FRTCellId{X, Y, Layer}` di questo PDR è **planare quadrato**; il tipo omonimo di oggi è **assiale** `{X=q, Y=r, Layer}` ([ADR-0002](../../decisions/adr-0002-griglia-esagonale.md)). Stesso nome, semantica diversa. Il resto — archi come dati, costi interi, cache invalidata da `GraphRevision`, path/LOS/targeting come servizi distinti — è canone |
-| **07** Abilità, personaggi e GAS | Confine GAS/resolver, schema ability definition, quattro targeting policy, roster MARA/IVO/NYX/SOL, combo ambientali, bilanciamento | **Superato nell'impianto.** Niente GAS nella v0.1; il roster è **Flux · Riva · Bastion · Vektor**. Sopravvivono le **quattro moving-target policy** (`LockCell · TrackUnit · Retarget · Fizzle`), che sono nel catalogo azioni, e la regola «potere = azione + setup + rischio, non danno grezzo» |
+| **07** Abilità, personaggi e GAS | Confine GAS/resolver, schema ability definition, quattro targeting policy, roster MARA/IVO/NYX/SOL, combo ambientali, bilanciamento | **Superato nell'impianto.** Niente GAS nella v0.1; il roster è **Gadget · Phase · Riktor · Wraith**. Sopravvivono le **quattro moving-target policy** (`LockCell · TrackUnit · Retarget · Fizzle`), che sono nel catalogo azioni, e la regola «potere = azione + setup + rischio, non danno grezzo» |
 | **08** UI/UX e coordinazione | Camera, planning HUD, intenti alleati, **warning model**, Confermato/Previsto/Incerto, playback, combat log | **Misto.** La tripartizione Confermato/Previsto/Incerto è recepita. Il **warning model** — sei warning con severità `Warning`/`Error`/`Block`/`Info` — non ha un owner documentale: è recuperabile per M8 |
 | **09** Dati, validazione e modding | Primary Data Assets, ID stabili e versioni, Gameplay Tags per dominio, manifest + hash, **validator a dieci regole**, percorso modding | **Fondamenta canoniche** (`URTActionData`/`URTHeroData`/`URTEquipmentData`), verifica no. Le dieci regole del validator e il `ContentManifestHash` bloccato prima del match non hanno owner. §10 prescrive `/Docs/PDR/*.md` come sorgente e i PDF come artefatto di release: **è esattamente ciò che questo commit fa** |
 | **10** Roadmap, QA e rischi | Fasi F0-F6, acceptance criteria, test pyramid, performance budget, risk register, DoD | **Ha già una v0.2 canonica**: [`../../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md). Qui resta lo snapshot v0.1 per confronto |
 | **11** Demo | Scenario 2v2 di **otto turni completo**: mappa esagonale con coordinate, quattro schede personaggio, formato intent JSON, `ExpectedTurnLog` turno per turno, undici assert | 🟢 **Recuperabile nella forma, non nei contenuti.** Roster Aegis/Nyx/Drift/Vex mai adottato, ma la struttura *intent → ExpectedTurnLog → assert* è **letteralmente** quella del [Scenario Test Harness](../../technical/test-automatico-unreal.md). È l'antenato dello showcase [Relay Basin](../../src/showcase/relay-v0.1-scenario-spec.md): stesso relay neutrale al centro, stesso generatore a Est |
-| **12** Catalog | Azioni, fasi, movimento, targeting, fallback, reazioni e stati, otto terreni, coperture, equipaggiamenti, eroi e loadout, matrice di test | **Antenato diretto** di `catalogo-e-bilanciamento-v0.1` e quindi dei [cataloghi di bilanciamento](../../balance/README.md), che lo **superano sui numeri**. Nomina già `Bastion` — è qui che il roster corrente comincia a esistere |
+| **12** Catalog | Azioni, fasi, movimento, targeting, fallback, reazioni e stati, otto terreni, coperture, equipaggiamenti, eroi e loadout, matrice di test | **Antenato diretto** di `catalogo-e-bilanciamento-v0.1` e quindi dei [cataloghi di bilanciamento](../../balance/README.md), che lo **superano sui numeri**. Nomina già `Riktor` — è qui che il roster corrente comincia a esistere |
 
 ### Le tre cose da non prendere alla lettera
 
@@ -2056,7 +2058,7 @@ Timeline Demo 2v2<br>Turno 1 Turno 2 Turno 3 Turno 4 Turno 5 Turno 6 Turno 7 Tur
 ||Drift: muovi<br>(−1,1)→(0,−1)<br>(attiva valvola),<br>_Floodgate_su<br>(0,−1).|Vex: muovi<br>(2,0)→(2,0) (si<br>avvicina, resta su<br>(2,0)), prepara<br>_Arc Carbine_.|-_Drift_sposta l’acqua: distribuisce nuovo tile W in<br>(−1,0) e (0,0), rimuovendo V. Attiva Floodgate:<br>posiziona acqua in (0,−1) riducendo 1HP a<br>sé.<br>-_Vex_resta (2,0). Pronto a sparare.<br>-<br>Log: acqua ora in (−2,1),(−1,1),(0,0),(−1,0),(0,−1).|
 |**2**|Aegis:_Shield_<br>_Advance_<br>muovendo di 3<br>verso est fino<br>(0,0) (scudo<br>attivo).|Nyx:_Shadow_<br>_Needle_da (−1,1)<br>verso Vex (2,0).|-_Aegis_scatta da (−2,0) a (0,0), scudo pronto.<br>Incontra_Vex_: collisione;_Aegis_(Guardian) è più<br>pesante, non viene spinto.<br>-_Nyx_spara:<br>Shadow Needle (20 danni) colpisce_Vex_a (2,0)<br>oltre coperture._Vex HP_100→80.<br>- Log: Vex<br>-20 HP.|
 ||Drift: resto fermo<br>(0,−1),_Vector Shift_<br>su sé (attivo).|Vex:_Arc Carbine_<br>da (2,0) verso<br>Aegis (0,0).|-_Drift_resta (0,−1). Attiva Vector Shift (velocità 5,<br>perdendo 20HP subito: 100→80).<br>-_Vex_spara<br>Arc Carbine a Aegis: prima Aegis ha Shield<br>attivo, subisce solo 10 danni (dam.50→25<br>ridotto). HP Aegis 100→90. (Shield finito.)<br>-<br>Log: Aegis -10 HP.|
-|**3**|Aegis:_Bastion Bolt_<br>linea lunga verso<br>Nord (colpisce<br>generatore).|Nyx:_Phase Cut_<br>corri<br>(−1,1)→(3,1),<br>attacca Vex che<br>sorprende.|-_Aegis_spara: Bastion Bolt (20dmg) alla cella (2,1)<br>con Generatore (blocco). Distrugge generatore!<br>Stato: Generatore distrutto (HP 100→0).<br>-<br>_Nyx_scatta: bypassa Drift/coperture, finisce su<br>(3,1) dietro_Vex_, infliggendo 24dmg._Vex_80→56.<br>(Inoltre, segna Vex con marcatura<br>Shadowblade.)<br>- Log: Gen. -100 HP,<br>Generatore spento; Vex -24 HP,_Shadowblade_.|
+|**3**|Aegis:_Bastion Bolt_<br>linea lunga verso<br>Nord (colpisce<br>generatore).|Nyx:_Phase Cut_<br>corri<br>(−1,1)→(3,1),<br>attacca Vex che<br>sorprende.|-_Aegis_spara: Riktor Bolt (20dmg) alla cella (2,1)<br>con Generatore (blocco). Distrugge generatore!<br>Stato: Generatore distrutto (HP 100→0).<br>-<br>_Nyx_scatta: bypassa Drift/coperture, finisce su<br>(3,1) dietro_Vex_, infliggendo 24dmg._Vex_80→56.<br>(Inoltre, segna Vex con marcatura<br>Shadowblade.)<br>- Log: Gen. -100 HP,<br>Generatore spento; Vex -24 HP,_Shadowblade_.|
 
 |Turno|Intent (Blu)|Intent (Rosso)|ExpectedTurnLog (eventi chiave)|
 |---|---|---|---|
@@ -2101,7 +2103,7 @@ In sintesi, le regole di risoluzione rispecchiano un motore tattico a turni con 
 
 - **Finestra di interrupt** : Quando un trigger (attacco o condizione) si verifica, il gioco entra in modalità “Interrupt” visualizzando una notifica (“Choose Reaction – 5s remaining”). L’avatar coinvolto lampeggia. Il giocatore può selezionare un interrupt (se disponibile) entro 5s; in caso di timeout, si applica la reazione predefinita.
 
-- **Log di combat** : A lato schermo, scorrono in tempo reale le azioni eseguite con timestamp (es. “[T2.2s] Aegis ha sparato Bastion Bolt a Vex, -20 HP”). Il log è filtrabile per unità e salvabile in file. Tutti gli eventi critici (danni, morti, reset di turni) appaiono evidenziati. Questa UI di log aiuta nel debug e nel testing automatico (ogni voce può essere confrontata con l’ExpectedTurnLog atteso).
+- **Log di combat** : A lato schermo, scorrono in tempo reale le azioni eseguite con timestamp (es. “[T2.2s] Aegis ha sparato Riktor Bolt a Vex, -20 HP”). Il log è filtrabile per unità e salvabile in file. Tutti gli eventi critici (danni, morti, reset di turni) appaiono evidenziati. Questa UI di log aiuta nel debug e nel testing automatico (ogni voce può essere confrontata con l’ExpectedTurnLog atteso).
 
 Questi flussi UI seguono best practice di giochi tattici: timeline chiara, feedback immediato e log consultabile. Ad esempio, molti GDR moderni mostrano le azioni su timeline attiva con notifiche, e un pannello log dettagliato è standard nei giochi da tavolo digitalizzati. L’utente può interrompere la demo in qualsiasi momento per consultare lo stato o ripetere il turno se necessario (modalità debug).
 
@@ -2123,12 +2125,12 @@ Tabella test (asserts) – esempi di eventi chiave:
 
 |Evento chiave|Asserzione attendibile|
 |---|---|
-|**Turno 3**: Generatore distr.|Generatore HP = 0 dopo Bastion Bolt; segnale vittoria anticipata.|
+|**Turno 3**: Generatore distr.|Generatore HP = 0 dopo Riktor Bolt; segnale vittoria anticipata.|
 |**Turno 3**: Floodgate|Nuovo tile Acqua in (0,−1) e (−1,0); Drift HP ricaricato (da 90→91).|
 |**Turno 4**: Retaliation Spark|HP_Drift = 40 (100−60) dopo counter 3 colpi di Vex.|
 |**Turno 5**: Valvola distrutta|Valvola (0,−1) non più esistente; Acqua residua ferma.|
 |**Turno 5**: Drift KO|Drift HP <= 0 (muore). Nessuna azione dopo.|
-|**Turno 8**: Vex KO|HP_Vex <= 0 (muore con Bastion Bolt). Dead flag su Vex.|
+|**Turno 8**: Vex KO|HP_Vex <= 0 (muore con Riktor Bolt). Dead flag su Vex.|
 
 Ogni riga di test confronta lo stato calcolato con quello atteso. Ad es.: dopo il Turno 2, assert `Vex.HP == 80` e `Aegis.Shield == false` ; dopo Turno 3, assert `Generator.active == false` e così via. I test garantiscono che ogni chiave di evento (danno, morte, status) rispetti le regole.
 
@@ -2158,7 +2160,7 @@ Ogni riga di test confronta lo stato calcolato con quello atteso. Ad es.: dopo i
 
 - **Implementazione movimento e cover** : script per camminare su griglia, test collsione. (1 settimana)
 
-- **Aggiunta abilità base** : coding Bastion Bolt, Arc Carbine, Pressure Wave, Shadow Needle. (2 settimane)
+- **Aggiunta abilità base** : coding Riktor Bolt, Arc Carbine, Pressure Wave, Shadow Needle. (2 settimane)
 
 - **Interrupt e micro-step** : flusso di reazione in tempo reale; test _Guardian Protocol_ , _Retaliation Spark_ . (2 settimane)
 
@@ -2315,7 +2317,7 @@ Le coperture forniscono protezione direzionale o totale. Riepilogo degli element
 
 - **Ponte (Bridge):** collegamento tra due celle. Se disattivo o distrutto, non è attraversabile.
 
-- **Pannello cinetico:** gadget di Bastion, crea una copertura temporanea con specifiche.
+- **Pannello cinetico:** gadget di Riktor, crea una copertura temporanea con specifiche.
 
 Le coperture interagiscono con abilità: es. _CreateCover_ posiziona un LowCover; _Breccia/Gadget_ possono danneggiare strutture (colpo, granata, BreachCharge); _LineAttack_ o _Charge_ possono essere interrotte da cover alte.
 
@@ -2337,12 +2339,12 @@ Abbiamo definito **4 eroi** base con ruoli distinti. Tabella riepilogativa (HP, 
 
 |Eroe|Ruolo|Salute|Movimento|Range<br>Visivo|Affinità|Note|
 |---|---|---|---|---|---|---|
-|**Flux**|Attacco/<br>Controllo|90|5|6|Elettricità|Stun/Effetti +<br>elettricità|
-|**Riva**|Supporto/<br>Controllo|95|5|5|Acqua|Debuff nemici<br>(Wet) e cura|
-|**Bastion**|Difesa/Area/<br>Protezione|120|4|5|Strutture|Pannelli, scudi|
-|**Vektor**|Assalto/Duello|100|6|6|Movimento|Reazioni per<br>punire avversari|
+|**Gadget**|Attacco/<br>Controllo|90|5|6|Elettricità|Stun/Effetti +<br>elettricità|
+|**Phase**|Supporto/<br>Controllo|95|5|5|Acqua|Debuff nemici<br>(Wet) e cura|
+|**Riktor**|Difesa/Area/<br>Protezione|120|4|5|Strutture|Pannelli, scudi|
+|**Wraith**|Assalto/Duello|100|6|6|Movimento|Reazioni per<br>punire avversari|
 
-Ogni eroe ha 4 abilità fondamentali uniche (vedi catalogo per effetti), di cui una variante potenziabile. L’ **equipaggiamento iniziale consigliato** (WeaponVar, Gadget, Reazione) è: Flux con Precisione+Isolante+Scudo Reattivo, Riva con Cura+Sprinkler+Fuga hazard, Bastion con Pannello Adattivo+Copertura Portatile+Interposizione, Vektor con Intercetto Esteso+Sensore+Dash d’emergenza. Il loadout determina tattiche come push+hazard e combo acqua/elettrico.
+Ogni eroe ha 4 abilità fondamentali uniche (vedi catalogo per effetti), di cui una variante potenziabile. L’ **equipaggiamento iniziale consigliato** (WeaponVar, Gadget, Reazione) è: Gadget con Precisione+Isolante+Scudo Reattivo, Phase con Cura+Sprinkler+Fuga hazard, Riktor con Pannello Adattivo+Copertura Portatile+Interposizione, Wraith con Intercetto Esteso+Sensore+Dash d’emergenza. Il loadout determina tattiche come push+hazard e combo acqua/elettrico.
 
 ### 3. Requisiti Non Funzionali
 • **Determinismo:** Tutta la simulazione deve essere deterministica dato uno stesso seed iniziale. Si adotterà un approccio lockstep/client-server: il server calcola e invia eventi essenziali, i client riflettono la scena. I generatori di numeri casuali (FRandomStream) usano semi sincronizzati replicando un seed in fase di Snapshot【8†L27-L34】. Questo garantisce che muovendo l’input (turni, azioni) con lo stesso seme si ottengano identici risultati. (Nota: Unreal non è deterministico per default a causa di virgola mobile e tick asincroni【15†L115-L123】; si seguirà tick a step fisso o simile, e si eviteranno funzioni non deterministiche).
@@ -2379,7 +2381,7 @@ Per flessibilità e caricamento dati ottimale, useremo **PrimaryDataAsset** in C
 |BlocksVision (bool)|bool|Se blocca completamente la LOS|
 |HazardTags (array<FName>)|array|Tag di effetto (Wet, Burning, ecc.)|
 |**HeroDataAsset**|Tipo|Descrizione|
-|HeroId (FName)|stringa|ID eroe (es. "Hero.Flux")|
+|HeroId (FName)|stringa|ID eroe (es. "Hero.Gadget")|
 |Health (int)|intero|Salute massima|
 |MoveSpeed (int)|intero|Punti movimento base|
 |SightRange (int)|intero|Raggio visivo|
@@ -2458,7 +2460,7 @@ Di seguito alcuni esempi semplificati dei dati asset salvati come JSON (solo cam
 ```
 // Esempi di Hero DataAsset
 {
-"HeroId":"Hero.Flux",
+"HeroId":"Hero.Gadget",
 "Health":90,
 "MoveSpeed":5,
 "SightRange":6,
@@ -2467,7 +2469,7 @@ Di seguito alcuni esempi semplificati dei dati asset salvati come JSON (solo cam
 "ReactionModuleId":"Reaction.ReactiveShield"
 }
 {
-"HeroId":"Hero.Riva",
+"HeroId":"Hero.Phase",
 "Health":95,
 "MoveSpeed":5,
 "SightRange":5,

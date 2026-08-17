@@ -107,10 +107,10 @@ Regole:
 
 Usare i nomi RefactorTactics:
 
-- Flux
-- Riva
-- Bastion
-- Vektor
+- Gadget
+- Phase
+- Riktor
+- Wraith
 
 Le immagini/asset Paragon possono essere usate come base visuale dove previsto dal progetto, ma **non rinominare** i personaggi RT con i nomi asset.
 

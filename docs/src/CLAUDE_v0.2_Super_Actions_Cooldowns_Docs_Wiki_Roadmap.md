@@ -49,10 +49,10 @@ La v0.2 deve considerare il roster totale:
 
 ```text
 v0.1
-- Flux
-- Riva
-- Bastion
-- Vektor
+- Gadget
+- Phase
+- Riktor
+- Wraith
 
 v0.2
 - Steel
@@ -66,10 +66,10 @@ La v0.2 NON sostituisce il roster v0.1: porta il roster pianificato a **8 person
 Le fonti recenti indicano inoltre queste Signature:
 
 ```text
-Flux    -> Charge / Conductive Network
-Riva    -> Flow / Wet Territory
-Bastion -> Directional Structures / Protection
-Vektor  -> Prediction / Interception
+Gadget    -> Charge / Conductive Network
+Phase    -> Flow / Wet Territory
+Riktor -> Directional Structures / Protection
+Wraith  -> Prediction / Interception
 
 Steel   -> Guard Meter / Effective Protection
 Aurora  -> Frozen Domain
@@ -454,7 +454,7 @@ I numeri sono **baseline da playtest**, non valori retail definitivi.
 
 ### Fantasia tattica
 
-Flux porta la propria rete conduttiva al limite e scarica contemporaneamente la topologia preparata.
+Gadget porta la propria rete conduttiva al limite e scarica contemporaneamente la topologia preparata.
 
 ### Gate
 
@@ -509,7 +509,7 @@ Recovery: Overheated = 1
 - uscire dalle celle conduttive;
 - togliere Wet;
 - distruggere nodi/dispositivi;
-- costringere Flux a committare con geometria incompleta.
+- costringere Gadget a committare con geometria incompleta.
 
 ---
 
@@ -517,7 +517,7 @@ Recovery: Overheated = 1
 
 ### Fantasia tattica
 
-Riva converte un territorio d'acqua già preparato in una singola ondata di controllo.
+Phase converte un territorio d'acqua già preparato in una singola ondata di controllo.
 
 ### Gate
 
@@ -552,7 +552,7 @@ Blast:
 
 ### Costo / rischio
 
-Riva **consuma parte del setup** che ha costruito.
+Phase **consuma parte del setup** che ha costruito.
 
 Quindi la Super non è soltanto payoff: riduce il territorio preparato.
 
@@ -579,7 +579,7 @@ Recovery: Drained = 1
 
 ### Fantasia tattica
 
-Bastion trasforma le proprie strutture preparate in una configurazione difensiva di massimo controllo geometrico.
+Riktor trasforma le proprie strutture preparate in una configurazione difensiva di massimo controllo geometrico.
 
 ### Gate
 
@@ -595,7 +595,7 @@ almeno una struttura/cover controllata valida
 
 ```text
 Prep:
-  Bastion si ancora
+  Riktor si ancora
   telegraph delle strutture coinvolte
 
 Blast/Prep effect:
@@ -614,7 +614,7 @@ Blast/Prep effect:
 
 ```text
 consuma Integrità Strutturale
-Bastion non può usare Dash
+Riktor non può usare Dash
 Move finale = 0 o fortemente limitato
 ```
 
@@ -640,7 +640,7 @@ Recovery: Anchored = fino al Cleanup / 1 turno secondo playtest
 
 ### Fantasia tattica
 
-La Super più “scommessa” del roster: Vektor sceglie dove e quando il nemico passerà.
+La Super più “scommessa” del roster: Wraith sceglie dove e quando il nemico passerà.
 
 ### Gate
 
@@ -696,7 +696,7 @@ Qui il rischio di fallimento è già una parte sostanziale del costo.
 - bait;
 - fermarsi;
 - usare Dash/cover/fumo per cambiare la geometria;
-- costringere Vektor a predire troppo presto.
+- costringere Wraith a predire troppo presto.
 
 ---
 
@@ -706,10 +706,10 @@ Qui il rischio di fallimento è già una parte sostanziale del costo.
 
 Steel sacrifica una grossa parte della propria Integrità Scudo per trasformarsi temporaneamente nel punto di protezione della squadra.
 
-Preservare la differenza con Bastion:
+Preservare la differenza con Riktor:
 
 ```text
-Bastion = struttura la MAPPA
+Riktor = struttura la MAPPA
 Steel   = protegge le UNITÀ
 ```
 
@@ -984,10 +984,10 @@ Baseline:
 
 | Hero | Group A | Group B |
 |---|---|---|
-| Flux | `ElectricHeavy` | `Network` |
-| Riva | `WaterMajor` | `WaterMobility` |
-| Bastion | `StructureMajor` | `Protection` |
-| Vektor | `PredictionHeavy` | `Mobility` |
+| Gadget | `ElectricHeavy` | `Network` |
+| Phase | `WaterMajor` | `WaterMobility` |
+| Riktor | `StructureMajor` | `Protection` |
+| Wraith | `PredictionHeavy` | `Mobility` |
 | Steel | `ProtectionHeavy` | `ControlHeavy` |
 | Aurora | `CryoTerrainMajor` | `CryoMobility` |
 | Murdock | `FireSectorHeavy` | `Devices` |
@@ -1043,7 +1043,7 @@ Prima di modificarli:
 2. verificare se sono `CANONICAL`, `SOURCE_VALUE`, `DESIGN_SPEC`, ecc.;
 3. se il nuovo modello richiede una variazione, registrarla come nuova decisione di bilanciamento.
 
-Per Flux/Riva/Bastion/Vektor:
+Per Gadget/Phase/Riktor/Wraith:
 - preservare i cooldown canonici correnti della v0.1;
 - la v0.2 può aggiungere Super/group/recovery senza riscrivere arbitrariamente il kit v0.1.
 
@@ -1060,8 +1060,8 @@ Character State / Configuration System
 Possibili collegamenti:
 
 ```text
-Flux   -> Charged / Overheated
-Bastion-> Anchored / Fortress
+Gadget   -> Charged / Overheated
+Riktor-> Anchored / Fortress
 Steel  -> Guard stance
 Aurora -> Winter Avatar
 Kwang  -> Stormbound
@@ -1113,7 +1113,7 @@ Particolare attenzione a:
 
 ```text
 Murdock.KillBox
-Vektor.PerfectIntercept
+Hero.Wraith.PerfectIntercept
 ```
 
 Questi sistemi NON devono diventare un canale per leggere il planning avversario.
@@ -1197,10 +1197,10 @@ UI/Tooltip reason
 Scenario ID indicativi, adattare alla convenzione reale:
 
 ```text
-Character.Flux.Super.GridOverload.*
-Character.Riva.Super.TidalCollapse.*
-Character.Bastion.Super.FortressProtocol.*
-Character.Vektor.Super.PerfectIntercept.*
+Character.Hero.Gadget.Super.GridOverload.*
+Character.Hero.Phase.Super.TidalCollapse.*
+Character.Hero.Riktor.Super.FortressProtocol.*
+Character.Hero.Wraith.Super.PerfectIntercept.*
 
 Character.Steel.Super.CitadelProtocol.*
 Character.Aurora.Super.WinterAvatar.*
@@ -1212,11 +1212,11 @@ Aggiungere interaction scenarios v0.2, senza creare “ability di coppia”:
 
 ```text
 Aurora ice -> Kwang electric interaction
-Riva water -> Kwang electric interaction
-Bastion route shaping -> Murdock sector
+Phase water -> Kwang electric interaction
+Riktor route shaping -> Murdock sector
 Steel protection -> Murdock stationary commitment
-Flux conductive network -> Kwang anchor interaction
-Aurora domain -> Vektor prediction route change
+Gadget conductive network -> Kwang anchor interaction
+Aurora domain -> Wraith prediction route change
 ```
 
 Queste sono **interazioni sistemiche**.
@@ -1224,7 +1224,7 @@ Queste sono **interazioni sistemiche**.
 NON creare:
 
 ```text
-Ability.FluxKwang.Combo
+Ability.GadgetKwang.Combo
 Ability.AuroraKwang.TeamAttack
 ```
 
@@ -1257,7 +1257,7 @@ Charges wasted at match end
 Time between meaningful uses
 ```
 
-Per Murdock/Vektor:
+Per Murdock/Wraith:
 
 ```text
 prediction/reaction opportunities
@@ -1267,7 +1267,7 @@ whiff
 bait success
 ```
 
-Per Flux/Kwang:
+Per Gadget/Kwang:
 
 ```text
 network size
@@ -1276,7 +1276,7 @@ duplicate-hit prevented
 friendly-fire exposure
 ```
 
-Per Riva/Aurora/Bastion:
+Per Phase/Aurora/Riktor:
 
 ```text
 cells/edges modified
@@ -1594,10 +1594,10 @@ whiff/fizzle correctly consumes resources/cooldown
 Personaggi:
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Scopo:
@@ -1769,7 +1769,7 @@ La Super non deve apparire automaticamente ogni N turni se il giocatore non ha c
 
 Le Super devono avere counterplay.
 
-Alcune, soprattutto Vektor e Murdock, devono poter essere baitate o evitate.
+Alcune, soprattutto Wraith e Murdock, devono poter essere baitate o evitate.
 
 ---
 
@@ -1804,7 +1804,7 @@ Verificare:
 3. nessuna pagina Wiki mostri cooldown differenti dalla fonte authoring;
 4. nessun vecchio roster sovrascriva gli 8 personaggi;
 5. Steel/Aurora/Murdock/Kwang siano classificati v0.2;
-6. Flux/Riva/Bastion/Vektor rimangano v0.1 ma disponibili nel roster totale v0.2;
+6. Gadget/Phase/Riktor/Wraith rimangano v0.1 ma disponibili nel roster totale v0.2;
 7. nessuna Super sia marcata `IMPLEMENTED` senza codice/test reale;
 8. roadmap v0.1 non venga gonfiata;
 9. roadmap v0.2 contenga exit gate misurabili;
@@ -1900,7 +1900,7 @@ NON fare in questo task:
 - implementazione completa GAS;
 - cambio dei cooldown canonici v0.1 senza decisione;
 - nuova barra Ultimate globale;
-- hard-code `if (Hero == Flux)` nel resolver;
+- hard-code `if (Hero == Gadget)` nel resolver;
 - Super di coppia/fazione;
 - nuove statistiche inventate per riempire celle vuote;
 - promozione automatica di design baseline a `IMPLEMENTED`;

@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 🗄️ `HISTORICAL` — SORGENTE RECEPITO
 >
 > **Archiviato il 2026-08-13**, lo stesso giorno in cui è arrivato. Era in `docs/src/`, untracked.
@@ -116,10 +118,10 @@ Wraith
 Gli Stable ID tecnici restano:
 
 ```text
-Hero.Flux
-Hero.Riva
-Hero.Bastion
-Hero.Vektor
+Hero.Gadget
+Hero.Phase
+Hero.Riktor
+Hero.Wraith
 ```
 
 Non rinominare gli Stable ID per adeguarli al display name.

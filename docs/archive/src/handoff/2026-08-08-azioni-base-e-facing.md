@@ -1,4 +1,6 @@
 # REFACTORTACTICS — HANDOFF PER CLAUDE CODE
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Consolidamento azioni base, Dash, Facing, Pivot e relative conseguenze su docs / roadmap / wiki / feature registry / test
 
 Data: 2026-08-08  
@@ -337,8 +339,8 @@ Conseguenza importante:
 
 Esempio:
 
-- Vektor può riuscire a girarsi molto per sparare e restare rivolto verso il nuovo settore;
-- Bastion può avere capacità di rotazione limitata e quindi non poter attaccare facilmente un bersaglio alle spalle.
+- Wraith può riuscire a girarsi molto per sparare e restare rivolto verso il nuovo settore;
+- Riktor può avere capacità di rotazione limitata e quindi non poter attaccare facilmente un bersaglio alle spalle.
 
 La validità dell'attacco deve essere deterministica e spiegabile.
 
@@ -465,7 +467,7 @@ Questa può diventare una forma di **crowd control direzionale**.
 
 Esempio di combo desiderabile:
 
-1. Bastion protegge un settore frontalmente;
+1. Riktor protegge un settore frontalmente;
 2. un alleato/nemico usa un effetto che lo ruota di 60°;
 3. si apre una nuova linea di tiro;
 4. un secondo personaggio sfrutta la geometria cambiata.
@@ -589,7 +591,7 @@ Wait
 
 Obiettivo:
 
-> Anche con skill speciali in cooldown, Flux deve continuare a sentirsi Flux, Riva deve sentirsi Riva, Bastion deve sentirsi Bastion, Vektor deve sentirsi Vektor.
+> Anche con skill speciali in cooldown, Gadget deve continuare a sentirsi Gadget, Phase deve sentirsi Phase, Riktor deve sentirsi Riktor, Wraith deve sentirsi Wraith.
 
 Le azioni base non devono diventare “quinta/sesta ability gratuita” carica di troppi effetti.
 Devono rimanere leggibili e affidabili.
@@ -600,10 +602,10 @@ Devono rimanere leggibili e affidabili.
 
 Roster v0.1 corrente:
 
-- Flux
-- Riva
-- Bastion
-- Vektor
+- Gadget
+- Phase
+- Riktor
+- Wraith
 
 Questi valori sono **ipotesi iniziali da scenario/playtest**, NON canonizzarli come bilanciamento finale senza conferma.
 
@@ -611,16 +613,16 @@ Questi valori sono **ipotesi iniziali da scenario/playtest**, NON canonizzarli c
 
 | Personaggio | Move identity | Pivot fine Move | Dash identity | Pivot fine Dash |
 |---|---|---:|---|---:|
-| Flux | standard/tecnico | candidato ±120° | corto/tecnico | candidato ±120° |
-| Riva | fluido | candidato ±120° | molto manovrabile | candidato ±180° |
-| Bastion | pesante | candidato ±60° | charge/ram | candidato 0–60° |
-| Vektor | agile/predittivo | candidato ±180° | reposition rapido | candidato ±180° |
+| Gadget | standard/tecnico | candidato ±120° | corto/tecnico | candidato ±120° |
+| Phase | fluido | candidato ±120° | molto manovrabile | candidato ±180° |
+| Riktor | pesante | candidato ±60° | charge/ram | candidato 0–60° |
+| Wraith | agile/predittivo | candidato ±180° | reposition rapido | candidato ±180° |
 
 Questa tabella va usata come base per test e matrice di design, non come “valore già approvato”.
 
 ## 23.2 Identità azioni base — direzioni candidate
 
-### Flux
+### Gadget
 
 - Move: cerca geometrie/terreni utili alla conduzione;
 - Dash: tecnico, utile a ricostruire linee elettriche;
@@ -630,7 +632,7 @@ Questa tabella va usata come base per test e matrice di design, non come “valo
 - Interact: forte affinità con dispositivi elettrici;
 - Wait: eventuale conservazione/stabilizzazione risorsa, solo se non rompe action economy.
 
-### Riva
+### Phase
 
 - Move: interazione favorevole con Wet/Water;
 - Dash: fluido/manovrabile, potenzialmente lascia/scorre su acqua se già previsto dal kit;
@@ -640,7 +642,7 @@ Questa tabella va usata come base per test e matrice di design, non come “valo
 - Interact: forte affinità con valvole/pompe/acqua;
 - Wait: eventuale gestione risorsa acqua, se coerente con data model.
 
-### Bastion
+### Riktor
 
 - Move: pesante, forte stabilità ma Pivot ridotto;
 - Dash: ram/charge, direzionale;
@@ -650,7 +652,7 @@ Questa tabella va usata come base per test e matrice di design, non come “valo
 - Interact: affinità con cover/strutture/porte;
 - Wait: possibile consolidamento stance solo se già supportato dal design.
 
-### Vektor
+### Wraith
 
 - Move: agile e orientato a ottenere angoli;
 - Dash: forte capacità di reposition e Pivot;
@@ -804,7 +806,7 @@ Esempio concettuale:
 
 ```text
 FacingChanged
-UnitId = Bastion
+UnitId = Riktor
 From = East
 To = NorthEast
 Reason = Move.EndPivot
@@ -814,7 +816,7 @@ oppure:
 
 ```text
 FacingChanged
-UnitId = Vektor
+UnitId = Wraith
 From = South
 To = North
 Reason = Reaction.ReturnFire
@@ -1001,7 +1003,7 @@ Creare scenari minimi e leggibili almeno per:
 
 ## FACING-01 — Move Pivot 60°
 
-- unità Heavy/Bastion-like;
+- unità Heavy/Riktor-like;
 - arriva in una cella;
 - prova Pivot di 60° -> valido;
 - prova Pivot di 120°/180° -> invalido;
@@ -1009,7 +1011,7 @@ Creare scenari minimi e leggibili almeno per:
 
 ## FACING-02 — Move Pivot 180°
 
-- unità Agile/Vektor-like;
+- unità Agile/Wraith-like;
 - raggiunge la stessa cella;
 - può scegliere qualsiasi dei sei Facing finali.
 

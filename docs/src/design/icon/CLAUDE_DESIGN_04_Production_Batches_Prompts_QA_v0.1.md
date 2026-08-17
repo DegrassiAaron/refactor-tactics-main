@@ -184,7 +184,7 @@ Create all standard states and show a 1920x1080 actual-size HUD strip test.
 
 # BATCH 3 — Four v0.1 Character Kits
 
-## Flux
+## Gadget
 
 - Arc Pulse
 - Linear Discharge
@@ -192,7 +192,7 @@ Create all standard states and show a 1920x1080 actual-size HUD strip test.
 - Overload
 - Reactive Capacitor
 
-## Riva
+## Phase
 
 - Pressure Jet
 - Circular Tide
@@ -200,7 +200,7 @@ Create all standard states and show a 1920x1080 actual-size HUD strip test.
 - Mist Veil
 - Flow Reaction
 
-## Bastion
+## Riktor
 
 - Impact Shot
 - Kinetic Panel
@@ -208,7 +208,7 @@ Create all standard states and show a 1920x1080 actual-size HUD strip test.
 - Ram
 - Interposition
 
-## Vektor
+## Wraith
 
 - Pulse Shot
 - Intercept Shot

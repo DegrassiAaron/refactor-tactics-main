@@ -75,10 +75,20 @@ for _stream in (sys.stdout, sys.stderr):
 # I quattro identificatori declassati da D-120.
 LEGACY = ("Flux", "Riva", "Bastion", "Vektor")
 
-# Cartelle che il gate non guarda affatto.
-#   archive/  -> storico: il testo originale non si riscrive (regola di archive/src/README.md)
-#   src/      -> input non ancora recepito, non e' autorita' (CLAUDE.md §1)
-EXCLUDED_DIRS = ("archive", "src")
+# ✅ **VUOTA dal 2026-08-17 (`#756`), ed e' la meta' che mancava.**
+#
+# Erano `("archive", "src")`, con una ragione che valeva finche' quei testi conservavano i
+# nomi ritirati: «lo storico non si riscrive», «input non ancora recepito». D-130 ha deciso
+# l'opposto — *«il perimetro e' ovunque, e include l'archivio: e' una scelta esplicita con
+# un costo esplicito»* — e la fetta 6 l'ha eseguita: 1749 occorrenze sostituite, 54 file
+# d'archivio con un banner che dichiara la sostituzione, sei righe marcate.
+#
+# ⚠️ **Conseguenza operativa, e va detta a chi archivia invece che scoperta al primo rosso**:
+# archiviare un documento che nomina il roster con i nomi ritirati ora fa **fallire il gate**.
+# Non e' un effetto collaterale: e' come si impedisce che l'archivio torni a riempirsi. Chi
+# archivia bonifica prima, oppure marca la riga con `rename-exempt` se il nome ritirato e' il
+# soggetto della frase.
+EXCLUDED_DIRS: tuple[str, ...] = ()
 
 # Esenzioni: gli unici documenti dove un nome legacy in prosa NON e' un difetto.
 #
@@ -407,8 +417,10 @@ def main() -> int:
     total_files = len(files)
     backlog_count = sum(len(h) for h in backlog_hits.values())
 
-    print(f"File markdown normativi analizzati: {total_files}"
-          f" (governance di root + docs/, esclusi {'/'.join(EXCLUDED_DIRS)})")
+    perimetro = ("governance di root + docs/, **nessuna cartella esclusa**"
+                 if not EXCLUDED_DIRS
+                 else f"governance di root + docs/, esclusi {'/'.join(EXCLUDED_DIRS)}")
+    print(f"File markdown normativi analizzati: {total_files} ({perimetro})")
     if total_files:
         print(f"Protetti dal gate: {enforced_files}/{total_files} file"
               f" — copertura {enforced_files / total_files:.0%}"

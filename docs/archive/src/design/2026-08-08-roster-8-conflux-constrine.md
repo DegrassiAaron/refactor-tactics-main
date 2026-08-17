@@ -1,5 +1,7 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ✅ **RECEPITO il 2026-08-08.** Le quattro fazioni sono già in [`Fazioni` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Fazioni):
-> **Conflux** (Flux, Riva) e **Constrine** (Bastion, Vektor) per la v0.1; **Sentinel Directorate** (Steel,
+> **Conflux** (Gadget, Phase) e **Constrine** (Riktor, Wraith) per la v0.1; **Sentinel Directorate** (Steel,
 > Murdock) e **Resonance** (Aurora, Kwang) per la v0.2. Le schede dei quattro personaggi v0.2 esistono come
 > `DATA_SPEC` in [`../../../characters/v0.2/`](../../../characters/v0.2/).
 > Portarli a runtime è **E21** in [`../../../roadmap/roadmap-post-v0.1.md`](../../../roadmap/roadmap-post-v0.1.md),
@@ -20,22 +22,22 @@
 ## v0.1
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Showcase 2v2 corrente:
 
 ```text
 Conflux
-Flux + Riva
+Gadget + Phase
 
 vs
 
 Constrine
-Bastion + Vektor
+Riktor + Wraith
 ```
 
 ## v0.2
@@ -100,7 +102,7 @@ Questi quattro estendono il roster totale a 8 personaggi.
 
 # 3. v0.1 — Conflux
 
-## Flux
+## Gadget
 
 **Versione:** v0.1  
 **Gruppo:** Conflux  
@@ -109,7 +111,7 @@ Questi quattro estendono il roster totale a 8 personaggi.
 
 ### Identità tattica
 
-Flux accumula o distribuisce carica elettrica su bersagli, oggetti e terreno.
+Gadget accumula o distribuisce carica elettrica su bersagli, oggetti e terreno.
 
 ### Signature family
 
@@ -134,7 +136,7 @@ Environment
 
 ### Sinergie
 
-- acqua di Riva;
+- acqua di Phase;
 - metallo;
 - dispositivi;
 - nodi;
@@ -143,7 +145,7 @@ Environment
 
 ---
 
-## Riva
+## Phase
 
 **Versione:** v0.1  
 **Gruppo:** Conflux  
@@ -152,7 +154,7 @@ Environment
 
 ### Identità tattica
 
-Riva modifica lo stato del terreno creando acqua e sfruttando flusso, attrito e displacement.
+Phase modifica lo stato del terreno creando acqua e sfruttando flusso, attrito e displacement.
 
 ### Signature family
 
@@ -178,7 +180,7 @@ Environment
 
 ### Sinergie
 
-- Flux elettrifica le celle Wet;
+- Gadget elettrifica le celle Wet;
 - crea traiettorie;
 - modifica movimento;
 - spinge i nemici verso zone preparate.
@@ -187,7 +189,7 @@ Environment
 
 # 4. v0.1 — Constrine
 
-## Bastion
+## Riktor
 
 **Versione:** v0.1  
 **Gruppo:** Constrine  
@@ -196,7 +198,7 @@ Environment
 
 ### Identità tattica
 
-Bastion crea, ruota o usa strutture e coperture per rendere il campo più leggibile e restringere le opzioni avversarie.
+Riktor crea, ruota o usa strutture e coperture per rendere il campo più leggibile e restringere le opzioni avversarie.
 
 ### Signature family
 
@@ -222,14 +224,14 @@ Reaction
 
 ### Sinergie
 
-- canalizza i movimenti verso Vektor;
+- canalizza i movimenti verso Wraith;
 - crea linee favorevoli;
 - protegge durante setup alleati;
 - modifica cover e archi.
 
 ---
 
-## Vektor
+## Wraith
 
 **Versione:** v0.1  
 **Gruppo:** Constrine  
@@ -238,7 +240,7 @@ Reaction
 
 ### Identità tattica
 
-Vektor non vuole soltanto colpire dove si trova il nemico: vuole colpire dove sarà costretto o incentivato a passare.
+Wraith non vuole soltanto colpire dove si trova il nemico: vuole colpire dove sarà costretto o incentivato a passare.
 
 ### Signature family
 
@@ -264,10 +266,10 @@ Mobility
 
 ### Sinergie
 
-- Bastion restringe le rotte;
-- Riva può forzare displacement;
-- Flux può rendere alcune rotte troppo costose;
-- Vektor presidia l'uscita più probabile.
+- Riktor restringe le rotte;
+- Phase può forzare displacement;
+- Gadget può rendere alcune rotte troppo costose;
+- Wraith presidia l'uscita più probabile.
 
 ---
 
@@ -402,10 +404,10 @@ Geometry
 
 | # | Personaggio | Versione | Gruppo | Ruolo | Signature |
 |---:|---|---|---|---|---|
-| 1 | Flux | v0.1 | Conflux | Electro Controller | Charge / Conductive Network |
-| 2 | Riva | v0.1 | Conflux | Water Controller | Flow / Wet Territory |
-| 3 | Bastion | v0.1 | Constrine | Guardian / Architect | Directional Structures |
-| 4 | Vektor | v0.1 | Constrine | Predictive Duelist | Prediction / Interception |
+| 1 | Gadget | v0.1 | Conflux | Electro Controller | Charge / Conductive Network |
+| 2 | Phase | v0.1 | Conflux | Water Controller | Flow / Wet Territory |
+| 3 | Riktor | v0.1 | Constrine | Guardian / Architect | Directional Structures |
+| 4 | Wraith | v0.1 | Constrine | Predictive Duelist | Prediction / Interception |
 | 5 | Steel | v0.2 | TBD | Guardian / Vanguard | Guard Meter |
 | 6 | Aurora | v0.2 | TBD | Terrain Controller | Frozen Domain |
 | 7 | Murdock | v0.2 | TBD | Marksman | Focus / Fire Sector |
@@ -448,16 +450,16 @@ Questa sezione deve essere promossa a canone solo dopo decisione esplicita.
 La v0.1 valida quattro famiglie:
 
 ```text
-Flux
+Gadget
 → Network / Charge
 
-Riva
+Phase
 → Territory / Flow
 
-Bastion
+Riktor
 → Structure / Protection
 
-Vektor
+Wraith
 → Prediction / Interception
 ```
 
@@ -485,14 +487,14 @@ Questo è utile tecnicamente perché la v0.2 può riusare framework già validat
 
 | Framework | v0.1 | v0.2 |
 |---|---|---|
-| Personal Resource | Flux | Steel |
-| Territory / Environment | Riva | Aurora |
-| Structure / Persistent Entity | Bastion | Kwang |
-| Prediction / Reaction | Vektor | Murdock |
-| Electricity | Flux | Kwang |
-| Protection | Bastion | Steel |
-| Facing / Geometry | Bastion, Vektor | Murdock, Kwang |
-| Movement manipulation | Riva, Bastion | Aurora, Kwang |
+| Personal Resource | Gadget | Steel |
+| Territory / Environment | Phase | Aurora |
+| Structure / Persistent Entity | Riktor | Kwang |
+| Prediction / Reaction | Wraith | Murdock |
+| Electricity | Gadget | Kwang |
+| Protection | Riktor | Steel |
+| Facing / Geometry | Riktor, Wraith | Murdock, Kwang |
+| Movement manipulation | Phase, Riktor | Aurora, Kwang |
 
 ---
 
@@ -501,17 +503,17 @@ Questo è utile tecnicamente perché la v0.2 può riusare framework già validat
 ## Character scenarios
 
 ```text
-Character.Flux.*
-Character.Riva.*
-Character.Bastion.*
-Character.Vektor.*
+Character.Gadget.*
+Character.Phase.*
+Character.Riktor.*
+Character.Wraith.*
 ```
 
 ## Team scenarios
 
 ```text
-Team.Conflux.FluxRiva.*
-Team.Constrine.BastionVektor.*
+Team.Conflux.GadgetRiva.*
+Team.Constrine.RiktorVektor.*
 ```
 
 ## Showcase
@@ -523,9 +525,9 @@ RT_Showcase_Relay_v01
 Composizione:
 
 ```text
-Flux + Riva
+Gadget + Phase
 vs
-Bastion + Vektor
+Riktor + Wraith
 ```
 
 ---
@@ -571,11 +573,11 @@ Ogni Signature deve avere almeno:
 Esempio:
 
 ```text
-Character.Flux.Signature.HappyPath
-Character.Flux.Signature.Counterplay
-Character.Flux.Signature.Boundary
-Character.Flux.Signature.Interaction
-Character.Flux.Determinism.Repeat
+Character.Hero.Gadget.Signature.HappyPath
+Character.Hero.Gadget.Signature.Counterplay
+Character.Hero.Gadget.Signature.Boundary
+Character.Hero.Gadget.Signature.Interaction
+Character.Hero.Gadget.Determinism.Repeat
 ```
 
 ---
@@ -637,12 +639,12 @@ ROSTER TOTALE = 8
 
 ```text
 Conflux:
-- Flux
-- Riva
+- Gadget
+- Phase
 
 Constrine:
-- Bastion
-- Vektor
+- Riktor
+- Wraith
 ```
 
 ### v0.2

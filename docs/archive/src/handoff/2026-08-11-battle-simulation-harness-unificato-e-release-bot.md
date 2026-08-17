@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 🗄️ `HISTORICAL` — SORGENTE RECEPITO IL 2026-08-11
 >
 > **Materiale NON autorevole.** Il testo qui sotto è l'originale, invariato. Vale per **provenienza**: la
@@ -313,10 +315,10 @@ Il consolidamento più recente noto usa invece:
 
 ```text
 Roster v0.1:
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 
 Fast Reaction:
 3.0 s
@@ -986,7 +988,7 @@ Regola da inserire nella documentazione QA:
 Esempio:
 
 ```text
-Riva WR 42%
+Phase WR 42%
 
 Bot competence:
 Water setup       PASS
@@ -998,7 +1000,7 @@ Noise             UNTESTED
 Conclusione:
 
 ```text
-NON nerfare/buffare automaticamente Riva.
+NON nerfare/buffare automaticamente Phase.
 Prima correggere o certificare la competence AI.
 ```
 
@@ -1110,10 +1112,10 @@ Baseline corrente da riverificare:
 
 ```text
 Roster:
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Il bot `v0.1` deve **saper giocare legalmente e deterministicamente**, non essere ancora un Expert.
@@ -2041,7 +2043,7 @@ test(sim): add paired seed side swap and determinism audit
 
 ## Fase B — Conflict matrix
 Cercare almeno:
-- old roster vs Flux/Riva/Bastion/Vektor;
+- old roster vs Gadget/Phase/Riktor/Wraith;
 - old 5s interrupt vs 3s Fast Reaction;
 - duplicated Scenario Harness;
 - old square-grid/NavMesh bot;
