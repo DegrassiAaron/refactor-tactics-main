@@ -909,7 +909,7 @@ sessions:
     steps: |
       **Non e' una caccia ai difetti: e' una domanda di leggibilita'.** Tre unita' con
       `PushResistance = 0` (Gadget, Phase, Wraith) — una in `Action.Guard`, una in `Action.Brace`, una
-      senza difesa — e una Phase avversaria che usa `Riva.PressureJet` su ciascuna nello stesso turno.
+      senza difesa — e una Phase avversaria che usa `Hero.Phase.PressureJet` su ciascuna nello stesso turno.
       E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
       1. Guarda il turno **senza leggere i numeri**. «Questo si e' piantato» dev'essere distinguibile

@@ -5077,8 +5077,12 @@ features:
     tests: []
     scenarios:
       planned:
-        - Team.Conflux.FluxRiva.ConductiveFlood
-        - Team.Constrine.BastionVektor.OnlyExit
+        # Rinominati il 2026-08-17 (D-130: `Flux→Gadget`, `Riva→Phase`, `Bastion→Riktor`, `Vektor→Wraith`).
+        # Erano rimasti indietro perche' `check-docs-naming.py` scansiona `DOCS.rglob("*.md")` e questo file
+        # e' `.yaml`: il rename e' stato validato «pulito» su una lingua sola, e i due id sono riemersi alla
+        # prima rigenerazione di `scenariomap.shortlist.md`.
+        - Team.Conflux.GadgetPhase.ConductiveFlood
+        - Team.Constrine.RiktorWraith.OnlyExit
         - Team.Sentinel.SteelMurdock.HoldTheLine
         - Team.Resonance.AuroraKwang.FrozenAnchor
     wiki_refs:

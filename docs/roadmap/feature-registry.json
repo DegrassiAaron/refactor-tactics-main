@@ -5236,8 +5236,8 @@
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [
-        "Team.Conflux.FluxRiva.ConductiveFlood",
-        "Team.Constrine.BastionVektor.OnlyExit",
+        "Team.Conflux.GadgetPhase.ConductiveFlood",
+        "Team.Constrine.RiktorWraith.OnlyExit",
         "Team.Sentinel.SteelMurdock.HoldTheLine",
         "Team.Resonance.AuroraKwang.FrozenAnchor"
       ],
