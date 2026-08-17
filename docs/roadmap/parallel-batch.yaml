@@ -4639,6 +4639,35 @@ tracks:
           # un test se ne accorga.
           - no_widget_creates_widgets
 
+  bot_stalemate:
+    status: ACTIVE
+    issue: 1088
+    branch: probe/1088-bersaglio-legale
+    worktree: "D:/rt-1015"
+    note: >-
+      ➕ **Track aperta il 2026-08-17 su `#1088`, e per ora porta SOLO un probe.** La issue chiede, al
+      criterio 1, che la causa sia *«nominata e misurata, non ipotizzata»*: questo write-set serve a
+      produrre la misura, non la correzione. Quando la causa è nota, il write-set si rinegozia sui file
+      che la ospitano — che oggi non si sa quali siano, ed è il punto.
+      ✅ **Cosa la misura ha già escluso, senza scrivere codice**: `rt.Arena.Check` dice che la mappa
+      d'autore soddisfa **tutti e tre** i criteri di U1, quindi lo stallo non si spiega con un'arena
+      difettosa; e la riga della copertura — *«3 celle che bloccano la vista … linea di tiro interrotta»* —
+      dice che la vista bloccata fra gli spawn è **voluta**. Restano i candidati 2 (pathing) e 3 (utility).
+      🔵 **Il probe è puro e non simula una partita.** `URTHexVisionLibrary::HasLineOfSight` è
+      `BlueprintPure` e `URTMatchSetupLibrary::MakeTestArena` genera l'arena da codice: la domanda «esiste
+      una cella da cui un bersaglio è legale?» si risponde con due chiamate e un'enumerazione, senza mondo,
+      senza attori e senza `.uasset`.
+      ⛔ **Cosa questa track NON tocca**: `Source/RefactorTactics/Bot/` e `Turn/` — dove la correzione
+      probabilmente andrà — perché prenotarli adesso sarebbe prenotare in base a un'ipotesi. È la stessa
+      ragione per cui `playback` ha preso un prefisso largo e poi l'ha stretto: qui si fa il contrario,
+      si parte stretti e si chiede quando si sa.
+      ⚠️ `Tests/` è condivisa fra tutte le track: il file è dichiarato **per nome**.
+    writable:
+      # ➕ File **nuovo**, dichiarato prima di crearlo: «conteso da nessuno» non è un'assegnazione.
+      - Source/RefactorTactics/Tests/RTBotStalemateProbeTests.cpp
+    derives_from: []
+    binary_leases: []
+
   playback:
     status: IDLE
     issue: null
