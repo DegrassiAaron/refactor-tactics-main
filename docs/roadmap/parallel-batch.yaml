@@ -4510,8 +4510,10 @@ tracks:
       su quel file dà **zero**): è il default di Unreal, e il bundle lo dichiara per primo.
       🔴 **E nessuna mappa usa la scala d'arte**: girano tutte al default di `1,00 m`, quindi le due
       divergono di **1,5×**. Aperta come `GBX-6` e ✅ **chiusa lo stesso giorno da `D-163`** — vince la
-      scala d'arte, `HexSize = 150`. La divergenza qui sopra resta **vera finché il cambio non atterra**:
-      chi cerca chi la possiede va a `D-163`, non alla riga barrata in `OPEN_DECISIONS.md`.
+      scala d'arte, `HexSize = 150`. La divergenza qui sopra resta **vera finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non
+      atterra** — il numero è scritto qui apposta, perché la nota si cancella cercando quella issue e senza
+      di esso `grep` non la trova. Chi cerca chi possiede la scala va a `D-163`, non alla riga barrata in
+      `OPEN_DECISIONS.md`.
       ➕ **Cosa è genuinamente nuovo**: le lane di maturità artistica, che nel repository prendono i
       prefissi `AC0–AC6` e `AE0–AE5` — quelli del bundle (`C`/`E`) collidevano con la severity degli
       status e con l'epic `E1`.
@@ -4613,7 +4615,9 @@ tracks:
       Unreal · `docs/technical/test-manuali-pie.md`, assegnato ad altra track per tutta la durata (tre
       proprietari diversi in tre giorni, il permesso mai) · `convenzioni-contenuti-ue.md`, che non è in
       **nessun** insieme di questo file e per `D-139` era uno STOP — condizione **sanata il 2026-08-17**,
-      quando `D-163` l'ha portato in `integration_only` poche righe più sotto. È diventato `GBX-4` invece di un edit.
+      quando `D-163` l'ha portato nell'elenco `integration_only` in fondo a questo file (cerca
+      `convenzioni-contenuti-ue.md`, ~800 righe più giù — non «poche», ed è la ragione per cui qui c'è un
+      termine di ricerca e non una distanza). È diventato `GBX-4` invece di un edit.
 
       ⏱️ **L'intersezione di apertura è una misura DATATA e non vale al rilascio.** Diceva 11 ref remoti,
       13 worktree, 1 PR aperta; al 2026-08-17, ore 12:50, sono **11 ref · 14 worktree · 3 PR** (#1113,
@@ -5439,6 +5443,13 @@ integration_only:
   # edit». Chiudere `GBX-6` senza assegnarlo avrebbe lasciato la decisione senza il documento che la deve
   # scrivere. È normativo (§5 governa i percorsi di `Content/`, §11-bis la scala d'arte) e più track lo
   # vogliono emendare: `integration_only` è la categoria giusta.
+  # 🔴 **Ed è stato preso PRIMA di essere assegnato, nello stesso commit: dirlo è il punto.**
+  # `CLAUDE.md` §5 è esplicito — «File non assegnato = STOP … Altrimenti ti fermi e lo dici» — e l'ordine
+  # corretto è dichiarare, poi scrivere. Qui le 36 righe di §11-bis.1 e questa riga di allowlist sono
+  # atterrate insieme. Questo file ha già un precedente identico (`spec-asset-pipeline.md`, poco sopra) e
+  # lo registra ad alta voce: *«applicato in ritardo e detto invece di taciuto»*. La differenza fra un
+  # precedente e un'abitudine è esattamente questa nota: chi legge `GBX-4` trova «l'ostacolo procedurale è
+  # caduto» e potrebbe leggerlo come «assegnati il path nello stesso commit», che **non** è la regola.
   # ⚠️ **Assegnarlo NON chiude `GBX-4`**: quella domanda chiede *quale percorso* ospita il kit graybox, ed è
   # di design. Cade solo l'ostacolo procedurale che impediva di scrivere la risposta una volta trovata.
   - docs/technical/convenzioni-contenuti-ue.md

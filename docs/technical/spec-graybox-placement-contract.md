@@ -201,7 +201,7 @@ pratica e mai dichiarata nel repository (`grep -i 'UU'` sulle convenzioni dà **
 l'assunzione è esplicita perché il giorno in cui qualcuno la cambiasse ogni numero di questa sezione
 diventerebbe falso in silenzio.
 
-### ✅ La scala d'arte governa anche il mondo — deciso, non ancora atterrato
+### 6.2 La scala d'arte governa anche il mondo — deciso, non ancora atterrato
 
 ```text
 canone (D-163)     lato 1,50 m      →  C ≈ 2,60 m     ← a cui si MODELLA, e a cui il mondo DEVE girare
@@ -214,13 +214,27 @@ il suo owner, che resta [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue
 riporta una decisione presa invece di una divergenza aperta.
 
 ⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
-`1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella a `2,60 m`** — è il canone, e un asset
-fatto oggi alla scala vecchia sarebbe da rifare due volte — ma **rimanda il commit dei volumi finiti**
-finché non li puoi validare in PIE. Regola unica, scritta identica nell'owner della scala:
-[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1.
+`1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella per una cella larga `2,60 m`** — cioè
+un lato di `1,50 m`, che è lo stesso vincolo detto nell'altra unità — e **rimanda il commit dei volumi
+finiti** finché non li puoi validare in PIE.
 
-Misurato: sia `RTHexMapAsset.h` sia `RTHexMapActor.h` lasciano `HexSize` a `100.f`, e **nessuna mappa lo
-sovrascrive**.
+> ⚠️ **Le due misure sono la stessa cosa, e vale la pena dirlo perché i documenti usano numeri diversi.**
+> Qui il termine di paragone è `C`, la larghezza lato-a-lato, perché è a quello che il contratto budgeta le
+> frazioni (`0.28 C`, `0.92 C`). L'owner della scala —
+> [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — parla del **lato**, perché è
+> quello che `HexSize` contiene. `C = √3 · lato`: `1,50 → 2,60`. *La prima stesura diceva «regola unica,
+> scritta identica», e chi confrontava le due righe vedeva `2,60` contro `1,50` senza nulla che dicesse che
+> erano la stessa. Trovato in code review.*
+
+Misurato: **quattro** siti in `Source/` lasciano `HexSize` a `100.f`, e **nessuna mappa lo sovrascrive**.
+I due che decidono il mondo sono `RTHexMapAsset.h:151` (l'autorevole: l'asset vince sull'actor) e
+`RTHexMapActor.h:74` (il fallback quando `MapAsset` è assente); gli altri due — `RTHUD.cpp:335` e
+`RTTurnManager.cpp:4823` — sono inizializzatori del ramo «nessuna mappa nel livello».
+
+> ⚠️ *Questa riga ne nominava **due**, mentre [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) ne misura
+> quattro. Chi eseguisse la migrazione partendo da questo documento — che è quello che chi modella legge —
+> ne cambierebbe due e lascerebbe HUD e TurnManager a `100`, così un livello senza `ARTHexMapActor`
+> disegnerebbe i suoi overlay a una scala diversa da uno con. Trovato in code review.*
 
 > ⚠️ **Come si verifica, e come NON si verifica.** `HexSize` è un `UPROPERTY(EditAnywhere)` su asset e
 > attore, quindi il valore di una mappa vive dentro un `.uasset` o un `.umap` — **binari**. Un `grep` su

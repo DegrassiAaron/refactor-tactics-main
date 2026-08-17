@@ -254,7 +254,7 @@ Gli asset si spostano **dal Content Browser o via API Editor**, mai da Esplora F
 
 **Non eliminare i redirector a mano dal file system.**
 
-## 11-bis. Scala d'arte: il lato dell'esagono
+## 11-bis. La scala: il lato dell'esagono
 
 Chi modella una mesh, una porta o un pezzo di architettura ha bisogno di un riferimento metrico. La scala
 adottata è:
@@ -269,7 +269,8 @@ lato dell'esagono = 1,5 m        (esattamente: HexSize = 150)
 > **gli altri documenti citano «§11-bis», non la sotto-sezione**, e leggerebbero la versione vecchia.
 
 Serve a dimensionare **mesh, proporzioni e architettura**, così che una porta sembri una porta accanto a
-un'unità e due strutture autorate da persone diverse combacino.
+un'unità e due strutture autorate da persone diverse combacino — **e dal 2026-08-17 è anche la scala del
+mondo** (§11-bis.1): non è più solo una convenzione di modellazione, e `HexSize` non è libero.
 
 > ⚠️ **Non è una metrica di design, e non va usata come tale.**
 > [`../gameplay/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) è
