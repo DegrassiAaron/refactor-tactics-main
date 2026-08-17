@@ -5422,7 +5422,6 @@ tracks:
           # E l'oracolo del committato e' `git status` sui due package, non «l'ho salvato»: questo
           # repository ha gia' avuto asset presenti su disco e non versionati.
           - git_status_clean_after_commit
-
       # ➕ **Seconda lease, emessa il 2026-08-17 durante la seduta e non prima**, perche' la sua
       # necessita' e' emersa allora: `L_DevSandbox.umap` referenzia **`DA_HexMap_Arena`**, non
       # `DA_HexMap_Sandbox`. Misurato sul package (`RTHexMapAsset` 1, `DA_HexMap_Arena` 2, e
@@ -5466,6 +5465,60 @@ tracks:
           # devono restare verdi.
           - arena_criteria_still_green
           - git_status_clean_after_commit
+
+  hotspot_split:
+    status: ACTIVE
+    issue: null
+    branch: refactor/hotspot-split
+    note: >-
+      ➕ **Aperta il 2026-08-17 su decisione d'autore**, e va detto subito che cosa scavalca:
+      [`../technical/piano-riduzione-hotspot.md`](../technical/piano-riduzione-hotspot.md) §0.3 vieta il
+      mega-refactor e §23 lo nomina come l'antipattern che quella pagina esiste per impedire. Il divieto è
+      stato riportato all'autore **con la misura** prima di iniziare, e l'autore ha deciso diversamente:
+      questa track non è una svista, è un'eccezione dichiarata. Il piano è stato aggiornato nello stesso
+      giro — un mandato contraddetto in silenzio produce due verità sullo stesso file.
+      🔵 **Perché questi path, e perché non `RTGameMode`.** `Turn/RTTurnManager.{h,cpp}` erano **non
+      assegnati**: la `release_requested` di `replay_ui` per `#886` li elenca, ma il commento che la precede
+      dichiara *«non è un trasferimento… vale STOP ancora, finché l'atto di questa track non li rivendica
+      misurando il write-set in quel momento»*. Questo è quell'atto, e il write-set è **misurato** —
+      `git diff --name-only origin/main...refactor/hotspot-split` dà otto file, tutti sotto `Turn/` e
+      `ScenarioHarness/`. `RTGameMode.{h,cpp}` **non** sono presi: stanno nel `writable` di
+      `frontend_shell` (ACTIVE, `#937`), col perimetro ristretto all'emissione degli eventi. Erano nello
+      scope chiesto dall'autore, e sono l'unica parte che questa track dichiara **non fatta**.
+      ⛔ **Contesa nota, non risolta**: `feat/cp75-selfreposition` è vivo su `origin` e tocca
+      `Turn/RTTurnManager.cpp` con **+67 righe**. Questo lavoro ne sposta ~1300 dello stesso file, quindi il
+      merge produrrà un conflitto che nessuna strategia automatica risolve. Chi integra decide l'ordine, e
+      l'ordine sensato è far atterrare `cp75` **prima**: il suo diff è di due ordini di grandezza più piccolo.
+      ⚠️ **`#886` è bloccata finché questa track tiene i path**, e non è un effetto collaterale accettato in
+      silenzio: `simulation` è ACTIVE proprio su `#886` e aspettava questi due file. La release va restituita
+      appena il lavoro è mergiato. Nota utile a chi la riprende: `AskReactionDecision` — il punto esatto che
+      `#886` deve toccare — **non** è fra le funzioni estratte e non ha cambiato una riga, quindi il conflitto
+      fra i due lavori è di posizione nel file, non di semantica.
+      🔵 **`piano-riduzione-hotspot.md` è nel `writable`** perché questa track lo emenda: è il documento che
+      la track contraddice, e lasciarlo invariato sarebbe stato peggio che modificarlo.
+      🔵 **E `scripts/check-docs-symbols.py` c'è perché il gate era rotto, non perché faceva comodo.**
+      Citando `FRTScenarioSession` in §26 il gate è diventato rosso dicendo che il simbolo «non esiste in
+      Source/» — mentre esiste, dichiarato `class REFACTORTACTICS_API FRTScenarioSession`. Il pattern
+      accettava `class` solo coi prefissi `[AU]RT` e `struct` solo con `FRT`: una `class F*` non la vedeva
+      nessuno dei due. Misurato: **3** classi invisibili (`FRTScenarioSession`,
+      `FRTHexEditorModeCommands`, `FRTHexEditorModeToolkit`) e **0** `struct [AU]*` nell'altro verso.
+      Corretto rendendo il pattern indifferente alla keyword — i simboli noti passano da **309 a 312** — e
+      verificato per mutazione: con un simbolo inventato il gate torna rosso, quindi non è stato
+      addolcito per far passare il documento.
+    worktree: "D:/rt-refactor"
+    writable:
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
+      - Source/RefactorTactics/Turn/RTBlastContext.h
+      - Source/RefactorTactics/Turn/RTReactionPassResult.h
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.h
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+      - docs/technical/piano-riduzione-hotspot.md
+      - scripts/check-docs-symbols.py
+    derives_from: []
+    binary_leases: []
 
   match_format:
     status: IDLE
