@@ -69,6 +69,17 @@ Le correzioni di criterio non applicate qui sono elencate in §24.
    GameMode verso Subsystem. Estrarre una responsabilità **solo quando una feature corrente attraversa quel
    confine**.
 
+   > 🔴 **Questa regola è stata scavalcata una volta, con decisione d'autore del 2026-08-17**, dalla track
+   > `hotspot_split` (branch `refactor/hotspot-split`). Il divieto è stato riportato all'autore **prima** di
+   > iniziare, insieme alla misura che lo sosteneva; l'autore ha deciso di procedere comunque. La regola
+   > resta in vigore: una decisione presa una volta non la abroga, e chi arriva dopo non eredita
+   > l'autorizzazione. Che cosa è stato fatto, e con quale prova, sta in §26.
+   >
+   > Il fatto che il lavoro sia riuscito **non è un argomento per rifarlo**. La ragione per cui questa
+   > regola esiste — un refactor grande consuma il tempo della v0.1 e produce un conflitto per ogni branch
+   > vivo che tocca gli stessi file — si è verificata puntualmente: `feat/cp75-selfreposition` e `#886` la
+   > stanno pagando adesso.
+
 4. **D-139 / parallelismo.**
    - Nessuna scrittura fuori dal `writable` della propria track.
    - Nessuna modifica a `integration_only` da una track normale.
@@ -1109,10 +1120,22 @@ ore, quindi la rimisura non è un consiglio.
 
 **Hotspot: non crescono**
 
-- [ ] `wc -l Source/RefactorTactics/Turn/RTTurnManager.cpp` ≤ **6002**
-- [ ] `wc -l Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp` ≤ **1645**
-- [ ] `wc -l Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` ≤ **1459**
-- [ ] `wc -l docs/roadmap/parallel-batch.yaml` ≤ **5353**
+> ⚠️ **Tre di queste quattro soglie sono state rimisurate il 2026-08-17 dopo la track `hotspot_split`**
+> (§26). Le nuove sono qui sotto; le vecchie restano citate perché un DoD che riscrive le proprie soglie
+> senza dire quali erano diventa incontrollabile.
+
+- [ ] `wc -l Source/RefactorTactics/Turn/RTTurnManager.cpp` ≤ **4875** *(era 6002)*
+- [ ] `wc -l Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp` ≤ **1318** *(file nuovo)*
+- [ ] `wc -l Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp` ≤ **1653** *(era 1645)*
+- [ ] `wc -l Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` ≤ **1556** *(era 1459)*
+- [ ] `wc -l docs/roadmap/parallel-batch.yaml` ≤ **5611** *(era 5353)*
+
+> 🔴 **Due delle nuove soglie sono più ALTE delle vecchie, ed è un dato del piano, non una sconfitta
+> nascosta.** Estrarre funzioni aggiunge firme, doc-comment e preamboli: il Loader guadagna 97 righe per
+> perdere due funzioni da 775 e 464. Il file cresce, la funzione più grande crolla. Se la soglia da
+> difendere è la dimensione del file, questo lavoro la peggiora; se è la dimensione dell'unità che si
+> deve leggere per capire una regola, la migliora di due ordini di grandezza. **§26 riporta entrambe le
+> misure**, perché sceglierne una sola sarebbe la stessa disonestà che §11 rimprovera ai verdi muti.
 - [ ] se una soglia è superata: il commit porta l'**estrazione** che la riporta sotto, oppure la issue dichiara
       perché la crescita è irriducibile. «Valutato per estrazione» non è un esito.
 - [ ] conteggio `#include` di `RTTurnManager.cpp` non cresciuto.
@@ -1239,6 +1262,12 @@ con `--body-file`, non con `--body "…"`.
 
 # 23. Principio finale
 
+> 🔴 **Emendato il 2026-08-17.** Questa sezione diceva — e ancora dice — che la strategia non è
+> *«l'architettura potrebbe essere più pulita» → mega-refactor*. Una decisione d'autore ha fatto esattamente
+> quello, una volta, ed è documentata in §26. Il principio **non è stato ritirato**: è stato derogato con
+> una misura davanti, e la deroga vale per quel lavoro, non in generale. La differenza fra derogare e
+> abrogare è tutta qui, e cancellare questa sezione l'avrebbe persa.
+
 Il progetto non richiede una riscrittura. Richiede di evitare che quattro hotspot crescano oltre il punto di
 controllo:
 
@@ -1362,3 +1391,113 @@ il proprio conteggio permette di scoprirlo in due esecuzioni; uno che non lo dic
   misurabile da nessun'altra sessione.
 - **A7 è una baseline documentale.** Nessuna build, nessuna suite automation: la Fase A non le richiede, e questo
   documento non le dichiara eseguite.
+
+---
+
+# 26. Appendice — la deroga del 2026-08-17: `hotspot_split`
+
+Questa sezione esiste perché §0.3 e §23 sono stati **derogati una volta**, e un mandato contraddetto in
+silenzio produce due verità sullo stesso file. Registra che cosa è stato fatto, con quale prova, e che cosa
+resta aperto. Non è un permesso: chi arriva dopo trova §0.3 ancora in vigore.
+
+**Come è nata.** L'autore ha chiesto un refactor ampio senza indicare un target. Il divieto di §0.3 e la
+formulazione di §23 gli sono stati riportati **prima di iniziare**, con la misura degli hotspot rifatta sul
+`main` del giorno. L'autore ha deciso di procedere, e ha scelto scope e approccio fra alternative
+presentate. La sequenza — misura, obiezione, decisione — è la parte che vale la pena conservare: una deroga
+presa così si può rivedere, una presa in silenzio no.
+
+**Base**: `origin/main` a **`6380cbb3`**, misurata il 2026-08-17. Track `hotspot_split`, worktree
+`D:/rt-refactor`, branch `refactor/hotspot-split`. Fase A: A1 `0 0`, albero pulito, A7 **10/10** con i 45
+warning preesistenti.
+
+## Che cosa è cambiato
+
+Il metodo è uno solo, applicato tre volte: **lo stato condiviso da una funzione lunga diventa esplicito**
+— una struct dichiarata o un parametro — e i blocchi che lo usavano diventano funzioni con un confine in
+firma. Dentro ogni funzione estratta il corpo è **identico all'originale**: i campi si riprendono con alias
+per riferimento che portano i nomi che le variabili avevano. Nessuna regola di gioco è stata riscritta.
+
+| Funzione | Prima | Dopo | |
+|---|---:|---:|---|
+| `ARTTurnManager::ResolveCombat` | 1694 | **567** | −66% |
+| `URTScenarioLoader::LoadFromString` | 775 | **55** | −93% |
+| `URTScenarioLoader::Validate` | 464 | **34** | −93% |
+| `FRTScenarioSession::BeginTurn` | 336 | **110** | −67% |
+
+Le tre funzioni più grandi del repository non esistono più. La più grande oggi è `ARTTurnManager::PlanBots`
+(**571**), che nessuno ha toccato.
+
+| File | Prima | Dopo | |
+|---|---:|---:|---|
+| `Turn/RTTurnManager.cpp` | 6002 | **4875** | −1127 |
+| `Turn/RTTurnManager.h` | 1065 | 1094 | +29 |
+| `Turn/RTTurnManager_Blast.cpp` | — | 1318 | nuovo |
+| `Turn/RTBlastContext.h` | — | 174 | nuovo |
+| `Turn/RTReactionPassResult.h` | — | 91 | nuovo |
+| `ScenarioHarness/RTScenarioLoader.cpp` | 1459 | 1556 | +97 |
+| `ScenarioHarness/RTScenarioSession.cpp` | 1645 | 1653 | +8 |
+| `ScenarioHarness/RTScenarioSession.h` | 241 | 255 | +14 |
+| **Totale** | **10412** | **11016** | **+604** |
+
+**Le due misure dicono cose opposte, ed entrambe sono vere.** Le funzioni crollano, il totale cresce del
+5,8%: firme, doc-comment e preamboli costano più di quanto le funzioni perdano. Riportare solo la prima
+sarebbe la stessa disonestà dei verdi muti di §11.
+
+Tre confini, uno per file, e vale la pena nominarli perché sono ciò che il refactor ha davvero prodotto:
+
+- **`FRTBlastContext`** — i 58 valori che i pass del Blast si passavano come variabili locali di una
+  funzione sola. Erano invisibili: leggendo un pass non si poteva sapere che cosa il precedente gli avesse
+  lasciato. Ora sono campi con un nome e un commento.
+- **`SeenIds` / `BotIds` / `bUsesFixture`** — nel Loader attraversavano le sezioni. Sono diventati
+  parametri, **misurati** prima di scrivere le firme: sono esattamente i tre nomi che comparivano in più
+  di un blocco. Gli altri tre candidati (`Heroes`, `SeenCells`, `SeenVariantNames`) sono rimasti locali.
+- **`ARTTurnManager&`** in `ApplyScenarioIntents` — per riferimento e non rileggendo il membro, perché
+  `BeginTurn` ha già verificato che esista e chiude la sessione se non c'è.
+
+Effetto collaterale voluto: spostando `FRTReactionPassResult` e `FRTDisplacementCause` in un header
+proprio, il commento di `FRTArmedPrediction` — separato dalla sua struct da 83 righe di altre definizioni —
+è tornato adiacente.
+
+## Verifica
+
+| Che cosa | Esito |
+|---|---|
+| `Build.bat RefactorTactics Win64 Development` | **Succeeded** |
+| `Build.bat RefactorTacticsEditor Win64 Development` | **Succeeded** |
+| `Automation RunTests RefactorTactics` | **1014 / 1014 Success**, 0 fallimenti |
+| di cui test di scenario | **77** eseguiti, inclusi i `Scenario.Loader*` |
+| Gate documentali (§11) | **10 / 10**, 45 warning — identici alla baseline |
+
+La suite è stata eseguita **tre volte**: sui 14 pass del Blast, e poi sullo stato finale che include lo
+split su file, il Loader e la Session. Non è una formalità: la prima esecuzione ha dato lo stesso 1014/1014
+di quella finale, e senza la seconda il Loader sarebbe rimasto una modifica di 700 righe con la sola prova
+di compilazione.
+
+**Due difetti trovati dal compilatore, non dalla misura**, e vanno scritti perché sono la lezione:
+
+1. `FRTReactionPassResult Reactions` dichiarata **due volte** — l'alias del preambolo più la dichiarazione
+   originale rimasta nel corpo estratto.
+2. `ARTTurnManager* TM` non passato ad `ApplyScenarioIntents`: lo script che misurava le locali condivise
+   cercava i prefissi dei container (`TArray`, `TMap`, …) e **non i tipi puntatore del progetto**, quindi
+   non l'ha vista.
+
+Un'estrazione si progetta sulla misura, ma si conferma sul build. La misura che avesse dato «zero locali
+condivise» era falsa, e nessuna rilettura l'avrebbe smentita.
+
+## Che cosa resta aperto
+
+- 🔴 **`RTGameMode` non è stato toccato.** Era nello scope chiesto dall'autore, ed è l'unica parte
+  dichiarata **non fatta**: sta nel `writable` di `frontend_shell` (ACTIVE, `#937`), con perimetro
+  ristretto all'emissione degli eventi. Prenderlo avrebbe richiesto una release request. §7 sconsiglia
+  comunque di spaccarlo per la v0.1, e la misura è d'accordo: 16 definizioni, la più grande 205 righe —
+  non ha il difetto degli altri tre.
+- ⛔ **Conflitto vivo**: `feat/cp75-selfreposition` tocca `Turn/RTTurnManager.cpp` con **+67 righe**.
+  Questo lavoro ne sposta ~1300 dello stesso file. Nessuna strategia automatica risolve il merge:
+  l'ordine sensato è far atterrare `cp75` **prima**, perché il suo diff è di due ordini di grandezza più
+  piccolo.
+- ⚠️ **`#886` resta bloccata** finché la track tiene i path: `simulation` è ACTIVE proprio su quella issue.
+  `AskReactionDecision` — il punto esatto che `#886` deve toccare — non è fra le funzioni estratte e non ha
+  cambiato una riga, quindi il conflitto è di posizione nel file, non di semantica.
+- **Funzioni ancora grandi**, per chi riprende: `PlanBots` 571, `ParseScenarioTurns` 461, `ResolveCoverStructures`
+  338, `ResolveDash` 298, `CollectAttackIntents` 295, `FRTScenarioSession::Finish` 288. Nessuna di queste
+  giustifica da sola una nuova deroga a §0.3.
