@@ -4850,13 +4850,13 @@ generated_only:
   # `shortlist --check` non nominano nessuno di questi nove file.
   #
   # 🔴 **E qui `generated_only` copre il BLOCCO, non il file.** E' l'unica voce parzialmente generata
-  # di questo elenco: attorno ai marcatori c'e' prosa scritta a mano, che NON segue il registry e resta
-  # **non assegnata** — scriverla e' ancora uno STOP, e due track che la modificassero insieme
-  # confliggerebbero senza che nulla qui lo veda. Chi deve scriverla si assegna il path come qualunque
-  # altro file.
-  # ✏️ Il commento diceva «la prosa resta non assegnata»: vero fino al 2026-08-17, quando `#1063` l'ha
-  # portata in `integration_only`. La divisione per PORZIONE resta identica — cambia solo che l'altra
-  # meta' del file adesso ha una categoria invece di essere uno STOP.
+  # di questo elenco: attorno ai marcatori c'e' prosa scritta a mano, che NON segue il registry.
+  # ✏️ **Aggiornato il 2026-08-17 da `#1063`.** Questo blocco diceva che la prosa resta «**non assegnata**»
+  # e che «scriverla e' ancora uno STOP»: era vero fino a oggi. Ora sta in `integration_only`, quindi lo
+  # STOP e' caduto e la frase «due track che la modificassero insieme confliggerebbero senza che nulla qui
+  # lo veda» descrive un rischio che la nuova categoria governa — si emenda in integrazione, come il
+  # Decision Log. La divisione per PORZIONE resta identica: **il blocco fra i marcatori non si tocca a
+  # mano**, e chi lo fa sbaglia anche adesso.
   - path: docs/characters/*.md            # solo il blocco RT_FEATURE_STATUS; la prosa e' `integration_only`
     derives_from: [docs/roadmap/feature-registry.yaml]
     tool: "feature_registry.py wiki"

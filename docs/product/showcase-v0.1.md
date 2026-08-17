@@ -122,7 +122,7 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
   — è il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), non un
   meccanismo diverso;
 - **una** reazione d'eroe non è cablata: `Riva.FlowReaction` (⏳ E14), perché produce **movimento** dentro un
-  boundary di risoluzione. Le altre **tre su quattro** sono in partita da CP 6.7.
+  boundary di risoluzione. Le altre **tre** sono in partita da CP 6.7 — cioè **tre su quattro**.
   `Vektor.InterceptShot` **non compare in questo conto**: non è più una reazione — è una **Predictive
   Action**, ed è consegnata (vedi sotto).
 
