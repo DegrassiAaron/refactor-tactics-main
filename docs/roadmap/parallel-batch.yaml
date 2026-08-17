@@ -4642,7 +4642,7 @@ tracks:
   bot_stalemate:
     status: ACTIVE
     issue: 1088
-    branch: probe/1088-punteggi
+    branch: probe/1088-percezione
     worktree: "D:/rt-1015"
     note: >-
       ➕ **Track aperta il 2026-08-17 su `#1088`, e per ora porta SOLO un probe.** La issue chiede, al
