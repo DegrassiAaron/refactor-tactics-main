@@ -857,6 +857,11 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::SetDoorState,
 			static_cast<int32>(ERTHexDoorState::Open)) },
 		/*bInterruptible*/ true, ERTActionSlot::Main));
+	// Il puntatore deriva la forma del bersaglio da QUESTO campo, non dagli effetti ne' dall'ActionId:
+	// `StructureOp != None` -> il giocatore punta un BORDO (`RTPointerInteraction.cpp`). Senza,
+	// `Action.Interact` chiederebbe una cella, e una porta non e' una cella. Lo stato che chiede vive
+	// nell'effetto qui sopra — questo campo dice *su cosa* agisce, non *verso cosa*.
+	Catalog.Last().StructureOp = ERTStructureOp::SetDoorState;
 
 	// `Action.Overwatch` (CP 14.5) — si ARMA nel Prep e reagisce durante i micro-step del Move. E' l'azione
 	// che rende reale l'infrastruttura di E14: fino a qui `FRTOverwatchWatcher` esisteva e lo costruivano solo

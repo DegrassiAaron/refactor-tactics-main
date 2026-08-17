@@ -267,6 +267,32 @@ bool FRTInteractOpensDoorsTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractArmsEdgeTargetingTest,
+	"RefactorTactics.Actions.Interact.ArmsEdgeTargeting",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInteractArmsEdgeTargetingTest::RunTest(const FString&)
+{
+	// Dichiarare l'effetto non basta perche' il giocatore possa PUNTARE la leva: il puntatore deriva la forma
+	// del bersaglio da `StructureOp`, non dall'ActionId ne' dagli effetti —
+	// `if (Def.StructureOp != ERTStructureOp::None) return Edge;`. Senza un valore qui, `Action.Interact`
+	// chiederebbe una cella (o un'unita') e una porta non e' ne' l'una ne' l'altra: e' un BORDO.
+	const FRTActionDef Def = CoreActionDef(TEXT("Action.Interact"));
+
+	TestTrue(TEXT("Interact dichiara un'operazione su struttura"),
+		Def.StructureOp != ERTStructureOp::None);
+	TestTrue(TEXT("ed e' SetDoorState, non un'operazione di copertura"),
+		Def.StructureOp == ERTStructureOp::SetDoorState);
+
+	// ⚠️ **Il valore NON deve essere una delle due operazioni di copertura**, e non e' pedanteria: il loop
+	// delle strutture di bordo in `RTTurnManager` prende tutto cio' che non e' `None`, tratta `MoveCover` in
+	// un ramo proprio e manda **tutto il resto** al ramo che ERIGE una copertura dal catalogo terreni.
+	// Nessuno `switch` su questo enum e' esaustivo, quindi un valore nuovo non fa fallire la compilazione:
+	// passerebbe in silenzio, e `Interact` costruirebbe un muro invece di aprire una porta.
+	TestTrue(TEXT("non e' CreateCover"), Def.StructureOp != ERTStructureOp::CreateCover);
+	TestTrue(TEXT("non e' MoveCover"), Def.StructureOp != ERTStructureOp::MoveCover);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRetiredStableIdTest,
 	"RefactorTactics.Actions.RetiredStableIdIsGoneEntirely",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -858,6 +858,54 @@ bool FRTBridgeGhostTrackingTest::RunTest(const FString&)
  * cioe' prima del Blast che la usa, quindi il turno dell'erezione e' gia' un turno in cui ha riparato qualcuno.
  * Due turni di durata = protetta nel turno 1 e nel turno 2, scoperta dal 3.
  */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractDoesNotCreateCoverTest,
+	"RefactorTactics.Structures.Interact.DoesNotCreateCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInteractDoesNotCreateCoverTest::RunTest(const FString&)
+{
+	// 🔴 **Difende il ramo che tiene `Action.Interact` FUORI dal loop delle coperture** ([D-148]).
+	//
+	// `Interact` dichiara `StructureOp = SetDoorState` per farsi puntare su un bordo, e questo loop prende
+	// tutto cio' che non e' `None`: tratta `MoveCover` a parte e manda **tutto il resto** al ramo che erige
+	// una copertura dal catalogo terreni. Nessuno `switch` su `ERTStructureOp` e' esaustivo, quindi togliere
+	// il ramo delle porte **compila senza un avviso** — e l'azione costruirebbe un muro invece di aprire.
+	//
+	// ⚠️ Questo test esiste perche' la mutazione l'ha dimostrato: rimosso quel ramo, **192 test su 192
+	// restavano verdi**. La riga era una difesa senza difensori, ed e' esattamente la forma di difetto che
+	// una verifica di mutazione trova e un ciclo verde no.
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Target(1, 0); // adiacente: `Interact` ha portata 1 (D-149)
+
+	ARTUnit* Actor = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Actor"), Actor) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("all'inizio il bordo e' scoperto"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Target, Home), ERTHexCoverType::None);
+
+	// Stesso helper di `Action.CreateCover`: dichiara cella E bordo, cioe' il piano che il loop delle
+	// strutture consuma. Se `Interact` finisse in quel ramo, qui nascerebbe una copertura.
+	PlanCoverAction(Actor, TEXT("Action.Interact"), Target, ERTHexDirection::W);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("Interact NON erige una copertura"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Target, Home), ERTHexCoverType::None);
+	TestEqual(TEXT("e il TurnLog non riporta nessuna copertura creata"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKineticPanelTemporaryCoverTest,
 	"RefactorTactics.Structures.KineticPanel.TemporaryCover",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
