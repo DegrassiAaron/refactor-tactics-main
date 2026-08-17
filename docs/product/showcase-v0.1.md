@@ -13,8 +13,8 @@
 > | Ambiente: stati, propagazione, fuoco/acqua, terreno dinamico, azioni ambientali (E8, CP 8.2–8.5) | ⏳ | ✅ **epic chiusa** |
 > | Copertura bassa e alta, integrità, distruzione (CP 9.1/9.2) | ⏳ «`FRTHexCellData` non ha il campo» | ✅ **il campo c'è**: `FRTHexCover{Edge, Type, Integrity}` |
 > | Reazioni d'eroe cablate (CP 5.5 + 6.7) | ⏳ | ✅ **tre su cinque**: `Interposition`, `Deflection`, `ReactiveCapacitor` |
-> | `Riva.FlowReaction` | ⏳ rinviata | ⏳ **E14** — invariato |
-> | `Vektor.InterceptShot` | ⏳ E14 | ⏳ **E18**, come **Predictive Action** — non serve più una finestra interattiva |
+> | `Hero.Phase.FlowReaction` | ⏳ rinviata | ⏳ **E14** — invariato |
+> | `Hero.Wraith.InterceptShot` | ⏳ E14 | ⏳ **E18**, come **Predictive Action** — non serve più una finestra interattiva |
 > | Scenario Test Harness | inesistente | ✅ disponibile |
 >
 > ### La showcase è uno **scenario dell'harness**, non una seconda pipeline
@@ -113,7 +113,7 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
 - le reazioni sono **pianificate e automatiche**: non chiedono una scelta live e non sospendono la simulazione
   — è il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), non un
   meccanismo diverso;
-- **due** reazioni d'eroe non sono cablate: `Riva.FlowReaction` (⏳ E14) e `Vektor.InterceptShot` (⏳ E18, come
+- **due** reazioni d'eroe non sono cablate: `Hero.Phase.FlowReaction` (⏳ E14) e `Hero.Wraith.InterceptShot` (⏳ E18, come
   Predictive Action). Le altre tre sono in partita da CP 6.7.
 
 *(Aggiornato il 2026-08-08: `Wet`/`Obscured` avevano «durate in arrivo con CP 8.2» — CP 8.2 è chiuso; e le
@@ -281,7 +281,7 @@ planning deve restituire un **reason**, e poi Gadget committa un'azione valida. 
 
 ### Turno 6 — interposizione
 
-**Gadget** attacca Wraith. **Riktor** interpone: bersaglio originale `Vektor`, bersaglio effettivo `Bastion`. La
+**Gadget** attacca Wraith. **Riktor** interpone: bersaglio originale `Wraith`, bersaglio effettivo `Riktor`. La
 geometria si **rivalida su Riktor** — LOS, traiettoria, copertura — senza aprire una reaction annidata
 ([D-017](../decisions/RT_PDR_00_Decision_Log.md)). **Phase** `PressureJet` su Riktor. **Wraith** attacca Gadget.
 
@@ -301,7 +301,7 @@ evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel Tur
 > **Cos'è «combo» qui** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)). Questo turno è uno **scenario
 > dimostrativo di interazioni sistemiche**, non una combo di squadra: Phase e Gadget non condividono un'abilità e
 > non ricevono un bonus perché sono insieme. Phase pubblica uno stato (`Wet` / acqua sulla cella), il sistema
-> ambientale lo propaga, e `Flux.LinearDischarge` legge **lo stato**, non l'identità di Phase. La stessa
+> ambientale lo propaga, e `Hero.Gadget.LinearDischarge` legge **lo stato**, non l'identità di Phase. La stessa
 > sequenza vale con qualunque altra sorgente d'acqua autorizzata. Lo scenario **dimostra** la cooperazione:
 > non la implementa e non introduce regole competitive proprie
 > ([ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) ·
@@ -316,8 +316,8 @@ non riesce. **Gadget** completa un'ultima azione offensiva e va **KO**.
 *Expected final state*:
 
 ```text
-Flux  = KO
-Riva  = viva, sul Relay (0,0,0)
+Gadget  = KO
+Phase  = viva, sul Relay (0,0,0)
 Relay = controllato da Blue
 Match = terminato, Blue vince
 ```
@@ -347,10 +347,10 @@ Nessuna riga di questa tabella si costruisce dentro E15.
 | `KineticPanel` / `Reconfigure` come struttura, non come mesh spostata | ⏳ | **CP 9.5** |
 | Obiettivo contestabile verificato nel Cleanup, dopo ambiente e KO | ⏳ | **CP 10.2** — issue `#75` |
 | Reazioni d'eroe cablate al motore (`Interposition`, `Deflection`, `ReactiveCapacitor`) | ✅ **tre su cinque** | **CP 5.5 + 6.7** chiusi |
-| `Riva.FlowReaction` (riposizionamento **dentro** un boundary) | ⏳ rinviata | **E14** |
+| `Hero.Phase.FlowReaction` (riposizionamento **dentro** un boundary) | ⏳ rinviata | **E14** |
 | Micro-step del movimento sospendibile | ⏳ | **CP 14.2** |
 | Finestra `FIRE`/`HOLD` da 3 s | ⏳ | **CP 14.5** |
-| `Vektor.InterceptShot` come **Predictive Action** (dichiarata in Planning, nessun input in Resolution) | ⏳ | **E18** — [D-016](../decisions/RT_PDR_00_Decision_Log.md); **sganciata da E14** |
+| `Hero.Wraith.InterceptShot` come **Predictive Action** (dichiarata in Planning, nessun input in Resolution) | ⏳ | **E18** — [D-016](../decisions/RT_PDR_00_Decision_Log.md); **sganciata da E14** |
 | Orientamento come stato di gioco (facing dal movimento, retro scoperto) | ⏳ | **CP 16.1/16.2** — [ADR-0005](../decisions/adr-0005-orientamento.md) |
 | Conoscenza parziale reale (vista **a cono**, rumore, tre livelli) | ⏳ | **E13** (dipende da CP 16.1) |
 | Etichette *confermato / previsto / incerto* nell'HUD | ⏳ | **CP 11.2** |
@@ -382,8 +382,8 @@ Costruibile **oggi** (CP 15.2). Usa solo regole atterrate e serve da fixture d'i
 4. `Ice` fa scivolare nel Move;
 5. `Fire` applica l'effetto on-enter;
 6. `Smoke` limita il targeting;
-7. `Riva.PressureJet` applica danno (+ `Wet`/Push per quanto rappresentabile);
-8. `Bastion.Ram` usa `LinearCharge` e si ferma all'impatto;
+7. `Hero.Phase.PressureJet` applica danno (+ `Wet`/Push per quanto rappresentabile);
+8. `Hero.Riktor.Ram` usa `LinearCharge` e si ferma all'impatto;
 9. Counter / Deflect / Intercept **generici**;
 10. fallback su bersaglio che si sposta prima del Blast;
 11. TurnLog leggibile con reason code;
@@ -446,13 +446,13 @@ Gli input della partita golden sono un **dato**, non un click:
 
 ```text
 Turn 1
-  Flux:    MoveIntent … / MainAction … / Reaction …
-  Riva:    …
-  Bastion: …
-  Vektor:  …
+  Gadget:    MoveIntent … / MainAction … / Reaction …
+  Phase:    …
+  Riktor: …
+  Wraith:  …
 ReactionDecisions:
   Boundary X -> HOLD
-  Boundary Y -> FIRE target Riva
+  Boundary Y -> FIRE target Phase
 ```
 
 I file golden della showcase vivono con quelli del **CP 12.6**, stesso meccanismo e stessa cartella
@@ -478,7 +478,7 @@ playtest di CP 15.5: sono ragioni per iterare, non condizioni di chiusura.
 1. reintrodurre Aegis/Nyx/Drift/Vex o qualunque valore della tabella §0;
 2. creare un secondo `ARTGameMode` «showcase» con regole duplicate;
 3. cablare gli 8 turni o la relocation dentro `ARTTurnManager`;
-4. scrivere `if (HeroId == …)` o `if (ActionId == "Vektor.InterceptShot")` nel resolver;
+4. scrivere `if (HeroId == …)` o `if (ActionId == "Hero.Wraith.InterceptShot")` nel resolver;
 5. duplicare la geometria di `FRTSuppressiveZone` per l'Overwatch;
 6. valutare l'Overwatch **dopo** che il movimento è già risolto;
 7. usare `Delay`, Timeline, montage o frame rate come logica;

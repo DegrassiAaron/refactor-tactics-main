@@ -112,7 +112,7 @@ copertura. Nessuna delle due si implementa dentro l'altra.
 3. **Il bot non conosce le coperture.** `HexBot.ScoreThreatRespectsCover` usa "copertura" nel senso di linea
    di tiro bloccata; la riduzione di 10 non entra nella sua stima del danno. Cambiare le premesse del bot è
    CP 13.5, che le cambia comunque una seconda volta.
-4. **Le reazioni che redirigono un colpo** (`Intercept`, `Bastion.Interposition`) agiscono **dopo** la
+4. **Le reazioni che redirigono un colpo** (`Intercept`, `Hero.Riktor.Interposition`) agiscono **dopo** la
    raccolta: il colpo conserva la riduzione calcolata sul bersaglio originale, non su chi lo incassa davvero.
    Con la copertura non c'è oggi nessun caso in campo (nessuna azione la crea), ma quando CP 9.5 le renderà
    piazzabili il punto andrà deciso esplicitamente.
@@ -180,6 +180,6 @@ Resta all'editor una sola cosa, registrata in [`../technical/test-manuali-pie.md
 ## 8. Cosa apre
 
 - **CP 9.2**: `High` in coda a `ERTHexCoverType`, e `Integrity` che comincia a scendere davvero.
-- **CP 9.5**: `Action.CreateCover`, `Bastion.KineticPanel` e `Gadget.PortableCover` sulle coperture
+- **CP 9.5**: `Action.CreateCover`, `Hero.Riktor.KineticPanel` e `Gadget.PortableCover` sulle coperture
   temporanee — durata sul modello del terreno dinamico di E8.
 - **CP 16.2**: l'arco frontale che **annulla** la riduzione, come regola additiva.

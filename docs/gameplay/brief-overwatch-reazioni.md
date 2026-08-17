@@ -96,8 +96,8 @@ StableUnitId → ReactionInstanceId`).
 annidati · reazioni ambientali · Hack/Counterspell · probabilità di qualunque tipo.
 
 **Aggancio esistente**: `Action.SuppressiveLine` (fase Prep, priorità 30, 16 danni, CD 2) e
-`Vektor.InterceptShot` (16 danni + stop del movimento) sono **già a catalogo e testati**. Il commento in
-`RTHeroVektorTests.cpp:103` li dichiara esplicitamente «l'aggancio per E5»: l'Overwatch **si innesta lì**,
+`Hero.Wraith.InterceptShot` (16 danni + stop del movimento) sono **già a catalogo e testati**. Il commento in
+`RTHeroWraithTests.cpp:103` li dichiara esplicitamente «l'aggancio per E5»: l'Overwatch **si innesta lì**,
 non si reinventa.
 
 ## 5. Il rischio che il documento sorgente non affronta

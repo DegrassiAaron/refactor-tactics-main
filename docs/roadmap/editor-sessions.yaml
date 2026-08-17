@@ -494,10 +494,10 @@ sessions:
 
       | Eroe | `HeroId` | Pack | Blueprint | Skeletal Mesh da assegnare |
       |---|---|---|---|---|
-      | Gadget | `Hero.Flux` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
-      | Phase | `Hero.Riva` | `Paragon.Phase` | `BP_Unit_Phase` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
-      | Riktor | `Hero.Bastion` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
-      | Wraith | `Hero.Vektor` | `Paragon.Wraith` | `BP_Unit_Wraith` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
+      | Gadget | `Hero.Gadget` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
+      | Phase | `Hero.Phase` | `Paragon.Phase` | `BP_Unit_Phase` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
+      | Riktor | `Hero.Riktor` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
+      | Wraith | `Hero.Wraith` | `Paragon.Wraith` | `BP_Unit_Wraith` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
 
       ⚠️ **La mesh di Phase NON si chiama `Phase`**: e' `Phase_GDC` (22,6 MB). Gli altri file in quella
       cartella pesano 0,1 MB — sono extents, shadow e skeleton. Verificato sul disco il 2026-08-11.
@@ -552,7 +552,7 @@ sessions:
          registra chi possiede quel file, e l'invariante da scrivere e' una sola: *a schermo, un
          personaggio selezionato non cambia dimensione e non e' piu' alto della sua silhouette a riposo*.
       7. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
-         (`Hero.Flux` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
+         (`Hero.Gadget` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
          `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna
          `ARTUnit::StaticClass()`, cioe' il cilindro. Un Blueprint perfetto ma non registrato non
          viene mai istanziato.
@@ -565,7 +565,7 @@ sessions:
          |---|---|---|
          | risponde a | **chi** scende in campo | **con che aspetto** |
          | tipo | lista: un campo per riga | mappa: **due campi** per riga |
-         | contiene | `Hero.Flux` | `Hero.Flux` → `BP_Unit_Gadget` |
+         | contiene | `Hero.Gadget` | `Hero.Gadget` → `BP_Unit_Gadget` |
 
          Se la riga che stai compilando ha **un solo campo**, sei nella proprieta' sbagliata. Mettere i
          nomi dei Blueprint nelle formazioni produce `BP_Unit_Gadget non e' nel catalogo eroi` e
@@ -595,7 +595,7 @@ sessions:
       consapevolmente. Se un eroe cambiasse base visuale, il Blueprint andrebbe rinominato.
       ⚠️ **Eccezione dichiarata**: i data asset eroe (`DA_Hero_Flux`, …) restano intitolati all'**eroe**
       pur stando nella cartella del pack. Sono dati di gioco, non presentazione: non dipendono dalla
-      mesh, e `HeroId` in C++ resta `Hero.Flux`.
+      mesh, e `HeroId` in C++ resta `Hero.Gadget`.
       ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft
       reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni.
       ⚠️ **E se un personaggio appare in T-pose, schiacciato o con catene lunghissime, NON e' un

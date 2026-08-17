@@ -9,7 +9,7 @@
 ## Stato dell'implementazione (2026-08-06)
 
 **Aggiornato al 2026-08-06 (epic E6 completata)**: i quattro eroi esistono come dati
-(`URTHeroCatalogLibrary::MakeFlux/MakeRiva/MakeBastion/MakeVektor`) e `ARTGameMode` allestisce il 2v2 con loro
+(`URTHeroCatalogLibrary::MakeGadget/MakePhase/MakeRiktor/MakeWraith`) e `ARTGameMode` allestisce il 2v2 con loro
 — formazione di default **Gadget + Phase** contro **Riktor + Wraith**. I due archetipi (`ERTArchetype`) non
 partecipano più allo spawn di partita; restano come helper nei test d'integrazione.
 
@@ -42,11 +42,11 @@ sono cablate e verificate in partita.
 
 | Reazione | Semantica core riusata | Stato |
 |---|---|---|
-| `Flux.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 15 **e** 10 danni all'attaccante |
-| `Bastion.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
-| `Vektor.Deflection` | `Action.Deflect` | ✅ −20 sul colpo che l'ha innescata |
-| `Vektor.InterceptShot` | — | ⏳ **E14**: trigger d'ingresso su movimento (ADR-0004), non «sono stato colpito» |
-| `Riva.FlowReaction` | — | ⏳ **E14**: produce movimento dentro un boundary di risoluzione |
+| `Hero.Gadget.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 15 **e** 10 danni all'attaccante |
+| `Hero.Riktor.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
+| `Hero.Wraith.Deflection` | `Action.Deflect` | ✅ −20 sul colpo che l'ha innescata |
+| `Hero.Wraith.InterceptShot` | — | ⏳ **E14**: trigger d'ingresso su movimento (ADR-0004), non «sono stato colpito» |
+| `Hero.Phase.FlowReaction` | — | ⏳ **E14**: produce movimento dentro un boundary di risoluzione |
 
 Le due rinviate lo dichiarano **nei dati** (slot `None`, nessun trigger), non solo nei commenti: con lo slot
 `Reaction` il pass del turno le raccoglierebbe e registrerebbe un'attivazione che non produce nulla.
@@ -76,14 +76,14 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Flux.ArcPulse` | Impulso ad arco | attacco base | 22 danni, range 4 | 0 |
-| `Flux.LinearDischarge` | Scarica lineare | linea | 24 danni, **+8 su bersaglio `Wet`** | 2 |
-| `Flux.ConductiveNode` | Nodo conduttore | cella | **è `Action.Electrify`**: scarica sul grafo conduttivo, range 4, propagazione 3 ([D-064](../decisions/RT_PDR_00_Decision_Log.md)) | 2 |
-| `Flux.Overload` | Sovraccarico | AoE | 18 danni, `Interrupt` sui dispositivi | 3 |
-| `Flux.ReactiveCapacitor` | Capacitore reattivo | reazione | scudo 15 e 10 danni all'attaccante | 3 |
+| `Hero.Gadget.ArcPulse` | Impulso ad arco | attacco base | 22 danni, range 4 | 0 |
+| `Hero.Gadget.LinearDischarge` | Scarica lineare | linea | 24 danni, **+8 su bersaglio `Wet`** | 2 |
+| `Hero.Gadget.ConductiveNode` | Nodo conduttore | cella | **è `Action.Electrify`**: scarica sul grafo conduttivo, range 4, propagazione 3 ([D-064](../decisions/RT_PDR_00_Decision_Log.md)) | 2 |
+| `Hero.Gadget.Overload` | Sovraccarico | AoE | 18 danni, `Interrupt` sui dispositivi | 3 |
+| `Hero.Gadget.ReactiveCapacitor` | Capacitore reattivo | reazione | scudo 15 e 10 danni all'attaccante | 3 |
 
 > **Ownership del bonus `Wet`** ([D-029](../decisions/RT_PDR_00_Decision_Log.md) ·
-> [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+8` di `Flux.LinearDischarge` è una
+> [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md)). Il `+8` di `Hero.Gadget.LinearDischarge` è una
 > condizione **dell'abilità di Gadget** su uno **stato del sistema**: dipende da `Status.Wet` sul bersaglio, non
 > dall'eroe che ha applicato `Wet`. Phase è oggi la sorgente più comune, ma **non** è un requisito: qualsiasi
 > sorgente di `Wet` autorizzata dalle regole (`Gadget.Sprinkler`, acqua bassa del terreno, una futura abilità)
@@ -112,11 +112,11 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Riva.PressureJet` | Getto pressurizzato | linea | 16 danni, applica `Wet`, `Push 1` | 0 |
-| `Riva.CircularTide` | Marea circolare | AoE | cura 18 agli alleati, `Wet` ai nemici | 2 |
-| `Riva.FluidTrail` | Scia fluida | dash | `Dash 3` e crea acqua lungo il percorso | 2 |
-| `Riva.MistVeil` | Velo di nebbia | AoE | crea fumo raggio 1 | 3 |
-| `Riva.FlowReaction` | Flusso reattivo | reazione | `Reposition 1` dopo un attacco | 3 |
+| `Hero.Phase.PressureJet` | Getto pressurizzato | linea | 16 danni, applica `Wet`, `Push 1` | 0 |
+| `Hero.Phase.CircularTide` | Marea circolare | AoE | cura 18 agli alleati, `Wet` ai nemici | 2 |
+| `Hero.Phase.FluidTrail` | Scia fluida | dash | `Dash 3` e crea acqua lungo il percorso | 2 |
+| `Hero.Phase.MistVeil` | Velo di nebbia | AoE | crea fumo raggio 1 | 3 |
+| `Hero.Phase.FlowReaction` | Flusso reattivo | reazione | `Reposition 1` dopo un attacco | 3 |
 
 **Variante di `CircularTide`**
 - *Marea curativa*: cura **24**, ma **non applica `Wet`** ai nemici (niente setup elettrico).
@@ -139,11 +139,11 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Bastion.ImpactShot` | Colpo cinetico | attacco base | 8 danni, range 3, applica `Slow` | 0 |
-| `Bastion.KineticPanel` | Pannello cinetico | arco | crea una copertura da 30 HP | 2 |
-| `Bastion.Reconfigure` | Riconfigurazione | arco | sposta o ruota una copertura | 2 |
-| `Bastion.Ram` | Ariete | charge | 20 danni e `Push 1` | 2 |
-| `Bastion.Interposition` | Interposizione | reazione | intercetta un attacco diretto a un alleato | 3 |
+| `Hero.Riktor.ImpactShot` | Colpo cinetico | attacco base | 8 danni, range 3, applica `Slow` | 0 |
+| `Hero.Riktor.KineticPanel` | Pannello cinetico | arco | crea una copertura da 30 HP | 2 |
+| `Hero.Riktor.Reconfigure` | Riconfigurazione | arco | sposta o ruota una copertura | 2 |
+| `Hero.Riktor.Ram` | Ariete | charge | 20 danni e `Push 1` | 2 |
+| `Hero.Riktor.Interposition` | Interposizione | reazione | intercetta un attacco diretto a un alleato | 3 |
 
 **Variante di `KineticPanel`**
 - *Pannello rinforzato*: integrità **45**, ma durata **1 turno**.
@@ -166,11 +166,11 @@ nel vertical slice).
 
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
-| `Vektor.PulseShot` | Tiro a impulsi | attacco base | 21 danni, range 4 | 0 |
-| `Vektor.InterceptShot` | Tiro d'intercetto | reazione | 16 danni e **stop del movimento** | 2 |
-| `Vektor.PassingBlade` | Lama di passaggio | dash | `Dash 3`, 20 danni attraversando | 2 |
-| `Vektor.Deflection` | Deviazione | reazione | riduce il danno di 20 | 2 |
-| `Vektor.Feint` | Finta | controllo | marca una cella e ottiene `Reposition` | 2 |
+| `Hero.Wraith.PulseShot` | Tiro a impulsi | attacco base | 21 danni, range 4 | 0 |
+| `Hero.Wraith.InterceptShot` | Tiro d'intercetto | reazione | 16 danni e **stop del movimento** | 2 |
+| `Hero.Wraith.PassingBlade` | Lama di passaggio | dash | `Dash 3`, 20 danni attraversando | 2 |
+| `Hero.Wraith.Deflection` | Deviazione | reazione | riduce il danno di 20 | 2 |
+| `Hero.Wraith.Feint` | Finta | controllo | marca una cella e ottiene `Reposition` | 2 |
 
 **Variante di `InterceptShot`**
 - *Intercetto preciso*: **20 danni**, ma controlla **una sola cella**.
@@ -268,12 +268,12 @@ mezzo; Gadget ha il danno combo più alto.
 > `PushResistance > 0`**, cioè una decisione di contenuto sul roster, non una spinta nuova.
 >
 > ⚠️ E la spinta forte è comunque **già arrivata**, il che rende la vecchia formulazione doppiamente
-> ingannevole: `Weapon.Impact` porta `Riva.PressureJet` a **2** ([D-085](../decisions/RT_PDR_00_Decision_Log.md)),
+> ingannevole: `Weapon.Impact` porta `Hero.Phase.PressureJet` a **2** ([D-085](../decisions/RT_PDR_00_Decision_Log.md)),
 > default di Phase ([D-089](../decisions/RT_PDR_00_Decision_Log.md)) — e la colonna è rimasta dormiente
 > esattamente come prima, che è la prova di quanto sopra.
 >
 > L'esito è pinnato dallo scenario
-> `Spec.Combat.BastionIsPushedLikeAnyone`, che manda Riktor e Wraith a incassare lo stesso `Riva.PressureJet`
+> `Spec.Combat.RiktorIsPushedLikeAnyone`, che manda Riktor e Wraith a incassare lo stesso `Hero.Phase.PressureJet`
 > e li fa arretrare **entrambi**; la regola della soglia resta pinnata da
 > `RefactorTactics.Actions.PushResistanceIsAThreshold`, che il valore se lo costruisce da solo.
 >
@@ -308,16 +308,16 @@ spazio/movimento. La debolezza di ogni eroe è l'affinità di un altro — verif
 
 | # | PDF | Qui | Motivo |
 |---|---|---|---|
-| 1 | Tabelle delle abilità con nomi, effetti e cooldown sfalsati nell'estrazione | Ricostruite accoppiando `AbilityId` → effetto per posizione e per coerenza semantica (es. `Riva.MistVeil` → fumo, non «cura alleati») | L'accoppiamento letterale produceva abilità incoerenti col nome e col ruolo |
+| 1 | Tabelle delle abilità con nomi, effetti e cooldown sfalsati nell'estrazione | Ricostruite accoppiando `AbilityId` → effetto per posizione e per coerenza semantica (es. `Hero.Phase.MistVeil` → fumo, non «cura alleati») | L'accoppiamento letterale produceva abilità incoerenti col nome e col ruolo |
 | 2 | «Debolezza» dichiarata fra gli elementi fissi | ~~Assente~~ → **fissata in E6** per tutti e quattro (CP 6.2–6.5), in due coppie simmetriche | Non è stata inventata: decisa esplicitamente eroe per eroe |
 | 3 | 4 eroi | ~~In codice esistono 2 archetipi~~ → **risolto in E6**: i quattro eroi sono in codice e in partita | Lo stato aggiornato è dichiarato in testa |
-| 4 | Cooldown di `Riva.PressureJet` non leggibile nella colonna | Assunto **0** (è l'attacco base per la sua colonna «Tipo: linea» a costo 0) | Coerente con gli altri attacchi base, tutti a CD 0 — assunzione **marcata** |
-| 5 | `Bastion.ImpactShot`: 24 danni | **8 danni + `Slow` 1 turno**, range 3 invariato ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md), 2026-08-09) | A 24 era l'attacco base **più forte del roster**, mentre il ruolo dichiarato di Riktor è Utility/Emergency: la contraddizione stava nei numeri, non nel ruolo. 8 è la metà esatta di `Riva.PressureJet` (16), che sta un gradino sopra. Lo `Slow` è l'unica delle utility candidate insieme esprimibile e coerente — `ERTStructureOp` non danneggia coperture, e uno `Status` si applica al bersaglio, quindi «genera Guard su di sé» non è rappresentabile |
+| 4 | Cooldown di `Hero.Phase.PressureJet` non leggibile nella colonna | Assunto **0** (è l'attacco base per la sua colonna «Tipo: linea» a costo 0) | Coerente con gli altri attacchi base, tutti a CD 0 — assunzione **marcata** |
+| 5 | `Bastion.ImpactShot`: 24 danni | **8 danni + `Slow` 1 turno**, range 3 invariato ([ADR-0007](../decisions/adr-0007-attacco-base-per-eroe.md), 2026-08-09) | A 24 era l'attacco base **più forte del roster**, mentre il ruolo dichiarato di Riktor è Utility/Emergency: la contraddizione stava nei numeri, non nel ruolo. 8 è la metà esatta di `Riva.PressureJet` (16), che sta un gradino sopra. Lo `Slow` è l'unica delle utility candidate insieme esprimibile e coerente — `ERTStructureOp` non danneggia coperture, e uno `Status` si applica al bersaglio, quindi «genera Guard su di sé» non è rappresentabile | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 
 **Non specificato nel PDF** (da fissare in E6): debolezza di ciascun eroe (**tutte fissate**: Gadget CP 6.2, Phase
 CP 6.3, Riktor CP 6.4, Wraith CP 6.5) ·
-range di `Flux.Overload` (fissato in CP 6.2: **3**, coerente con `ConductiveNode`) e `Riva.CircularTide`
-(fissato in CP 6.3: **4**, come `Flux.Overload`) · durata di `Status.Wet` (fissata in CP 6.3: **1 turno**, come
-`Guard`/`Exposed`/`Marked` — finestra di combo stretta) · durata di `Vektor.Feint` (fissata in CP 6.5: **1 turno**, come `Wet`/`Marked`) · se le reazioni
+range di `Hero.Gadget.Overload` (fissato in CP 6.2: **3**, coerente con `ConductiveNode`) e `Hero.Phase.CircularTide`
+(fissato in CP 6.3: **4**, come `Hero.Gadget.Overload`) · durata di `Status.Wet` (fissata in CP 6.3: **1 turno**, come
+`Guard`/`Exposed`/`Marked` — finestra di combo stretta) · durata di `Hero.Wraith.Feint` (fissata in CP 6.5: **1 turno**, come `Wet`/`Marked`) · se le reazioni
 degli eroi occupino lo stesso slot dei moduli di reazione dell'equipaggiamento (probabile, ma il PDF elenca
 entrambi senza dirlo).

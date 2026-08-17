@@ -138,7 +138,7 @@ La §10 chiede `Repeat 10 → 100 → 1000`. **CP 12.1 è già a 100 ripetizioni
 | # | Domanda | Perché non la decido io |
 |---|---|---|
 | 1 | La policy per il **moving target** del turno 3 | «secondo la policy reale definita dal catalogo»: va letta dai dati di `LinearDischarge`, e se il catalogo non la dichiara è una decisione di gameplay, non documentale |
-| 2 | Come si **contende** il Relay (turno 8, Bastion fallisce «per una causa reale del ruleset») | Il sistema objective non esiste: la causa del fallimento non può essere scelta prima di sapere quali cause il ruleset ammette |
+| 2 | Come si **contende** il Relay (turno 8, Riktor fallisce «per una causa reale del ruleset») | Il sistema objective non esiste: la causa del fallimento non può essere scelta prima di sapere quali cause il ruleset ammette |
 | 3 | Se la **Predictive Action** consuma lo slot principale | Tocca l'action economy, che è materia da decisione esplicita (D-014/D-025) |
 
 ---
@@ -257,7 +257,7 @@ altro nome.
 | | |
 |---|---|
 | **Goal** | Il codice applica [D-028](../../decisions/RT_PDR_00_Decision_Log.md) |
-| **Scope** | **1.** core: `Action.Dash`, `Action.Leap`, `Action.Reposition`, `Action.Sprint` → `ERTActionSlot::Movement` (`Charge` invariato)<br>**2.** eroi: `Riva.FluidTrail` → `Movement` — vedi sotto, **non è un dettaglio**<br>**3.** resolver: dopo uno scatto il movimento è **speso** (`RTTurnManager` oggi conserva `PlannedCell` e concede il doppio movimento)<br>**4.** invariante sul roster che impedisca la ricaduta |
+| **Scope** | **1.** core: `Action.Dash`, `Action.Leap`, `Action.Reposition`, `Action.Sprint` → `ERTActionSlot::Movement` (`Charge` invariato)<br>**2.** eroi: `Hero.Phase.FluidTrail` → `Movement` — vedi sotto, **non è un dettaglio**<br>**3.** resolver: dopo uno scatto il movimento è **speso** (`RTTurnManager` oggi conserva `PlannedCell` e concede il doppio movimento)<br>**4.** invariante sul roster che impedisca la ricaduta |
 | **Non-goals** | Ribilanciare `Charge` e `Sprint` → `BAL-1` · far rispettare gli slot nel controller e nel bot: l'esito lo decide il **resolver** (invariante #1), il rifiuto in pianificazione è UX e viene dopo |
 | **Acceptance** | `Dash` + attacco **legale** e il colpo parte dalla posizione post-scatto · `Dash` + `Move` → si finisce dove ha portato lo scatto · `Charge` + `Move` legale · nessuna mobilità d'eroe senza danno occupa la principale |
 | **Test** | `Actions.Sprint.ConsumesOnlyMovement` (riscritto) · `Actions.Dash.LeavesMainAvailable` · `Actions.Dash.ConsumesTheMovement` · `Heroes.MobilityWithoutDamageIsNotMain` · `Actions.KitCanDeclareAMobilityThatCostsBothSlots` |
@@ -268,8 +268,8 @@ altro nome.
 >
 > | Azione d'eroe | Cos'è | Slot oggi | Sotto D-028 |
 > |---|---|---|---|
-> | `Bastion.Ram` | carica: 20 danni + `Push 1` | `Main` | `Main` ✅ — **è un attacco** |
-> | `Riva.FluidTrail` | `Dash 3`, `LinearDash`, **nessun effetto** | `Main` | `Movement` ❌ da correggere |
+> | `Hero.Riktor.Ram` | carica: 20 danni + `Push 1` | `Main` | `Main` ✅ — **è un attacco** |
+> | `Hero.Phase.FluidTrail` | `Dash 3`, `LinearDash`, **nessun effetto** | `Main` | `Movement` ❌ da correggere |
 >
 > Cambiare solo i quattro slot core avrebbe lasciato indietro l'unica mobilità d'eroe del roster. E il default
 > è il difetto vero: **ogni prossima mobilità nascerà sulla principale** senza che nessuno se ne accorga.
@@ -286,6 +286,7 @@ altro nome.
 > solo `PlannedAbilityIndex` **non fa cadere nulla** — `PlannedAttackTarget = nullptr` basta da solo — mentre
 > svuotare il ramo intero fa cadere esattamente quel test.
 
+<!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 ### `MOB-1` — ✅ **CORRETTA 2026-08-08** — `Vektor.PassingBlade` non passava attraverso niente
 
 Trovata il 2026-08-08 scrivendo il test dello slot `dash`, verificando perché lo scatto si fermava.
@@ -293,7 +294,7 @@ Trovata il 2026-08-08 scrivendo il test dello slot `dash`, verificando perché l
 | | |
 |---|---|
 | **Il fatto** | Il commento del kit dice: «`Dash 3` che colpisce per 20 le unità **ATTRAVERSATE** … la carica si FERMA sul primo nemico, **questa gli passa attraverso**». In `RTMovementActionLibrary` una traiettoria `LinearDash` che incontra un'unità si ferma con `BlockedByUnit`: **solo `LinearLeap` scavalca** |
-| **Conseguenza** | L'unica abilità non-base di Vektor «interamente rappresentabile» non fa la cosa che la descrive. I 20 danni dichiarati negli `Effects` non hanno un momento in cui applicarsi: nessuno viene mai attraversato |
+| **Conseguenza** | L'unica abilità non-base di Wraith «interamente rappresentabile» non fa la cosa che la descrive. I 20 danni dichiarati negli `Effects` non hanno un momento in cui applicarsi: nessuno viene mai attraversato |
 | **La scelta** | Dare a `LinearDash` (o a un nuovo stile) la traversata delle unità, **oppure** riscrivere il kit e il commento su ciò che il gioco fa. Non una terza via: oggi il dato dichiara un danno che nessun percorso può produrre |
 | **Non è** | Un difetto trovato dal test dello slot `dash`: quel test è stato riscritto per non dipenderne. È emerso *mentre* lo si scriveva, ed è il motivo per cui è finito qui invece che in una correzione di iniziativa |
 | **Risolta** | Nuovo `ERTMovementStyle::LinearPass`, **non** una modifica a `LinearDash`: quello è condiviso con `Action.Dash` e `Action.Reposition`, dove fermarsi davanti a un nemico è il comportamento giusto — cambiarlo lì avrebbe fatto passare **ogni** scatto attraverso le linee avversarie |
@@ -334,6 +335,7 @@ un campione ampio non è un'opinione di bilanciamento.
 **Cosa NON fare adesso**: cambiare i numeri. La nota `#145` diceva che scatto + attacco «domina sempre la
 carica» con valori (30 danni, spinta 2, cooldown 3) che **non sono quelli del roster**: vengono dagli
 archetipi di test — `Guardian.Sweep` (30 + `Push 2`, CD 0) contro `Guardian.Charge` (20 + `Push 1`, CD 3),
+<!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 verificati in `RTCatalogLibrary` il 2026-08-08. Sul roster eroi il confronto è un altro: `Bastion.Ram` ha
 cooldown **2**, e l'attacco base che lo batte dipende dalla fascia d'arma. È il motivo per cui questa voce
 parte da una misura e non da una correzione — e per cui la nota nel codice ora dice **su cosa** è misurata.
@@ -358,7 +360,7 @@ parte da una misura e non da una correzione — e per cui la nota nel codice ora
 | `S6-1` | Assertion `EdgeEnabled`/`EdgeDisabled`/`GraphRevisionChanged` | T5 | ✅ CP 9.3 |
 | `S8-1` | Assertion su superfici e stati (`SurfaceHasStatus`, `UnitHasStatus`) | T7 | ✅ E8 |
 | `S7-1` | **D-017**: `Intercept` rivalida la geometria sul bersaglio effettivo + test discriminante | T6 | E5 |
-| `S3-1` | Predictive Action, slice `Vektor.InterceptShot` (**E18**) | T2, T8 | D-016 |
+| `S3-1` | Predictive Action, slice `Hero.Wraith.InterceptShot` (**E18**) | T2, T8 | D-016 |
 | `S5-1` | `reactionPolicy[]` + Decision Boundary (**E14**) | T4 | E13, E16 |
 | `S9-1` | Objective `Relay` contendibile (**E10 CP 10.1/10.2**) | T8, Full | — |
 | `S10-1` | `turnlog.jsonl` + campi mancanti di `result.json` | Golden | — |

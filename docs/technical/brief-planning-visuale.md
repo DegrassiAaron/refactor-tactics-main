@@ -42,7 +42,7 @@ Sette punti su venti del §20 sono **già canone**. Vanno letti come conferma es
 | A4 | **Reaction come ramo condizionale**, mai quinta fase: `⚡ Reaction Armed` accanto alla timeline, con `?` | Impedisce che la UI insegni una sequenza sbagliata al giocatore |
 | A5 | **Modello dati del view model** con `ReactionPreview` **separata** dalla lista lineare delle fasi | Un solo array «fasi + reaction» produrrebbe proprio la quinta fase che il design vieta |
 | A6 | **Budget di presentazione**: pooling di mesh/decal, nessun Actor persistente per preview, aggiornamento a frequenza limitata (**non** ogni Tick) | Una preview che gira a Tick su 4 unità × 4 fasi è un costo silenzioso che si scopre al playtest |
-| A7 | **Displacement reattivo ≠ Move Phase**: il movimento prodotto da una reaction è speciale e **non consuma né sostituisce** la Move | Vincolo per `Riva.FlowReaction` (E14) e per il troncamento del movimento in CP 14.5 |
+| A7 | **Displacement reattivo ≠ Move Phase**: il movimento prodotto da una reaction è speciale e **non consuma né sostituisce** la Move | Vincolo per `Hero.Phase.FlowReaction` (E14) e per il troncamento del movimento in CP 14.5 |
 
 ---
 

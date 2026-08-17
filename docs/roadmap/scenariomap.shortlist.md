@@ -91,8 +91,8 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `State.Howitzer.Siege` | `RT-FEAT-CHARACTER-STATE` |
 | `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` |
 | `Stress.4v4.CoreRoster` | `RT-FEAT-STRESS-4V4` |
-| `Team.Conflux.FluxRiva.ConductiveFlood` | `RT-FEAT-FACTION-SCENARIOS` |
-| `Team.Constrine.BastionVektor.OnlyExit` | `RT-FEAT-FACTION-SCENARIOS` |
+| `Team.Conflux.GadgetPhase.ConductiveFlood` | `RT-FEAT-FACTION-SCENARIOS` |
+| `Team.Constrine.RiktorWraith.OnlyExit` | `RT-FEAT-FACTION-SCENARIOS` |
 | `Team.Resonance.AuroraKwang.FrozenAnchor` | `RT-FEAT-FACTION-SCENARIOS` |
 | `Team.Sentinel.SteelMurdock.HoldTheLine` | `RT-FEAT-FACTION-SCENARIOS` |
 | `Visual.UI.AllyIntentInspectReadOnly` | `RT-FEAT-UI-POINTER-INTERACTION` |
@@ -140,7 +140,7 @@ passaggio (`BlockedByWall`) · lo scudo assorbe **e** restituisce (`CounterStrik
 l'alleato (`FriendlyFire`) · la linea prende chi sta sulla traiettoria (`LineHitsThrough`) · il contrattacco
 richiede un'arma (`NoCounterWhenUnarmed`) · l'area prende gli alleati ma **non** chi la lancia
 (`SplashHitsAlliesNotSelf`) · lo `Slow` del Blast accorcia il **Move dello stesso turno**
-(`BastionImpactShotSlows`) e il suo gemello di controllo lo dimostra per assenza (`MoveIsFullWithoutSlow`).
+(`RiktorImpactShotSlows`) e il suo gemello di controllo lo dimostra per assenza (`MoveIsFullWithoutSlow`).
 
 **`Scenarios/Movement/` · 6** — il passo arriva sulla cella pianificata (`Basic`) · **`BasicFailsOnPurpose`** è
 l'unica prova che l'harness sappia dire «rosso» · una destinazione bloccata non produce percorso (`Blocked`) ·

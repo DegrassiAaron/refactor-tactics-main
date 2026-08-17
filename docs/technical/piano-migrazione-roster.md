@@ -1,4 +1,4 @@
-# Piano di migrazione del roster — `Flux`, `Riva`, `Bastion`, `Vektor` escono dal repository
+# Piano di migrazione del roster — `Gadget`, `Phase`, `Riktor`, `Wraith` escono dal repository
 
 > `CURRENT` · **Data**: 2026-08-13 · **Owner del piano**: questo documento
 > **Consegue da**: [D-130](../decisions/RT_PDR_00_Decision_Log.md) — la decisione è presa, l'esecuzione no
@@ -26,19 +26,19 @@ File versionati, esclusi `.uasset`/`.umap`. Conteggio per **occorrenze**, non pe
 
 ```sh
 # riproducibile
-for n in Flux Riva Bastion Vektor; do printf "%-8s %s\n" "$n" "$(grep -roF "$n" Source/ docs/ Scenarios/ | wc -l)"; done
+for n in Gadget Phase Riktor Wraith; do printf "%-8s %s\n" "$n" "$(grep -roF "$n" Source/ docs/ Scenarios/ | wc -l)"; done
 ```
 
 ### File da **rinominare**, non solo da editare — 10
 
 | File | Diventa |
 |---|---|
-| `Source/RefactorTactics/Tests/RTHeroFluxTests.cpp` | `RTHeroGadgetTests.cpp` |
-| `Source/RefactorTactics/Tests/RTHeroRivaTests.cpp` | `RTHeroPhaseTests.cpp` |
-| `Source/RefactorTactics/Tests/RTHeroBastionTests.cpp` | `RTHeroRiktorTests.cpp` |
-| `Source/RefactorTactics/Tests/RTHeroVektorTests.cpp` | `RTHeroWraithTests.cpp` |
-| `Scenarios/Combat/BastionImpactShotSlows.json` | `RiktorImpactShotSlows.json` |
-| `Scenarios/Spec/Combat/BastionIsPushedLikeAnyone.json` | `RiktorIsPushedLikeAnyone.json` |
+| `Source/RefactorTactics/Tests/RTHeroGadgetTests.cpp` | `RTHeroGadgetTests.cpp` |
+| `Source/RefactorTactics/Tests/RTHeroPhaseTests.cpp` | `RTHeroPhaseTests.cpp` |
+| `Source/RefactorTactics/Tests/RTHeroRiktorTests.cpp` | `RTHeroRiktorTests.cpp` |
+| `Source/RefactorTactics/Tests/RTHeroWraithTests.cpp` | `RTHeroWraithTests.cpp` |
+| `Scenarios/Combat/RiktorImpactShotSlows.json` | `RiktorImpactShotSlows.json` |
+| `Scenarios/Spec/Combat/RiktorIsPushedLikeAnyone.json` | `RiktorIsPushedLikeAnyone.json` |
 | `docs/wiki/…/10_Flux_scheda_Wiki.png` … `13_Vektor_…` | `10_Gadget_…` … `13_Wraith_…` (4 file) |
 
 ⚠️ Un rename di file scenario cambia anche **l'ID dello scenario** se l'harness lo deriva dal nome: da
@@ -47,11 +47,11 @@ verificare in `RTScenarioIndex.cpp` prima della fetta 4, non dopo.
 ### I 5 ID di test che sono **gate**
 
 ```
-RefactorTactics.Heroes.Bastion.MatchesCatalog
-RefactorTactics.Heroes.Bastion.KineticPanelVariantApplied
-RefactorTactics.Heroes.Bastion.ReconfigureDoesNotDuplicate
-RefactorTactics.Heroes.Bastion.ReconfigureRefusesInsteadOfGuessing
-RefactorTactics.Heroes.Vektor.InterceptShotIsPredictive
+RefactorTactics.Heroes.Hero.Riktor.MatchesCatalog
+RefactorTactics.Heroes.Hero.Riktor.KineticPanelVariantApplied
+RefactorTactics.Heroes.Hero.Riktor.ReconfigureDoesNotDuplicate
+RefactorTactics.Heroes.Hero.Riktor.ReconfigureRefusesInsteadOfGuessing
+RefactorTactics.Heroes.Hero.Wraith.InterceptShotIsPredictive
 ```
 
 Sono citati in `docs/roadmap/feature-registry.yaml`. **Un ID di test che cambia non fa fallire niente: fa
@@ -77,8 +77,8 @@ FRTTurnLogEntry:  Phase · Category · Outcome · SrcCell · TgtCell · Amount
 
 | Token | Serializzato | Trattamento |
 |---|---|---|
-| `Hero.Flux` → `Hero.Gadget` | no | **rinomina**: nessun redirect, nessuna doppia verità, nessuna finestra di transizione |
-| `Flux.ArcPulse` → `Hero.Gadget.ArcPulse` | **sì**, come `ActionId` | **rinomina** anche questo — vedi sotto |
+| `Hero.Flux` → `Hero.Gadget` | no | **rinomina**: nessun redirect, nessuna doppia verità, nessuna finestra di transizione | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
+| `Flux.ArcPulse` → `Hero.Gadget.ArcPulse` | **sì**, come `ActionId` | **rinomina** anche questo — vedi sotto | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 
 Il fatto che un token sia serializzato dice che **potrebbe** esistere una traccia da proteggere, non che esista.
 Tre misure dicono che non esiste:
@@ -117,7 +117,7 @@ per la stessa cosa.
 
 | # | Fetta | Tocca la serializzazione? | Dipende da | Gate |
 |---:|---|---|---|---|
-| 1 *(era 3)* | **`HeroId` + simboli C++**: `Hero.Flux` → `Hero.Gadget` e i quattro `MakeFlux`/`MakeRiva`/`MakeBastion`/`MakeVektor`; 4 file di test rinominati | no | — | `Unit.CanonicalHeroIdHasNoLegacyName` sostituisce `ShortHeroNameFromStableId` |
+| 1 *(era 3)* | **`HeroId` + simboli C++**: `Hero.Flux` → `Hero.Gadget` e i quattro `MakeFlux`/`MakeRiva`/`MakeBastion`/`MakeVektor`; 4 file di test rinominati | no | — | `Unit.CanonicalHeroIdHasNoLegacyName` sostituisce `ShortHeroNameFromStableId` | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 | 2 *(era 4)* | **Token abilità a catalogo** → `Hero.<Nome>.<Abilità>`; scenari JSON e i 2 file scenario rinominati | no (il catalogo non è una traccia) | 1 | i 5 ID di test aggiornati **con** il registry, `feature_registry.py generate` **e** `shortlist` |
 | 3 *(era 5)* | **Documentazione viva** — 1600 occorrenze, 106 file | — | 2 | `check-docs-naming.py --check` **senza esenzioni** per i file vivi |
 | 4 *(era 6)* | **Archivio e citazioni datate** — 1128 occorrenze, 40 file; rimozione delle esenzioni «registri datati» dal gate | — | 3 | `check-docs-naming.py --check` verde con **zero** esenzioni |
@@ -160,7 +160,7 @@ I due rischi reali sono:
 
 1. **I 5 ID di test che sono gate** (§1). Mitigazione: cambiare test e registry nello stesso commit, e
    rigenerare `project-graph.json` con `generate` **e** `shortlist`.
-2. **La sostituzione cieca in prosa.** `Flux` compare dentro parole e dentro citazioni; un `sed` globale su
+2. **La sostituzione cieca in prosa.** `Gadget` compare dentro parole e dentro citazioni; un `sed` globale su
    4994 occorrenze produrrebbe frasi che nessuno ha riletto. Mitigazione: fetta per fetta, con `git diff`
    letto, mai un solo commit da 323 file.
 
@@ -183,7 +183,7 @@ che non ripristina la provenienza ma dice a chi legge cosa cercare. Da decidere 
 
 ## 7. Definition of Done del piano
 
-- [ ] `grep -roE "Flux|Riva|Bastion|Vektor" Source/ docs/ Scenarios/ | wc -l` → **0**
+- [ ] `grep -roE "Gadget|Phase|Riktor|Wraith" Source/ docs/ Scenarios/ | wc -l` → **0**
 - [ ] `check-docs-naming.py --check` verde **con zero esenzioni** dichiarate nello script
 - [ ] Suite verde, con il conto dei test **misurato sul branch**, non copiato da qui
 - [ ] I 5 ID di test rinominati esistono con il nome nuovo e il registry li cita

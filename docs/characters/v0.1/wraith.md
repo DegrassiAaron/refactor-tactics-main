@@ -2,7 +2,7 @@
 
 > **Asset base:** Paragon — Wraith  
 > **Hero_Key:** `ASSET_VEKTOR`  
-> **RT Character ID:** `Hero.Vektor`  
+> **RT Character ID:** `Hero.Wraith`  
 > **Release:** `v0.1`  
 > **Roster status:** Release v0.1  
 > **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Wraith** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
@@ -177,14 +177,14 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Vektor.PulseShot` |
+| Ability ID | `Hero.Wraith.PulseShot` |
 | Famiglia | **Primary Weapon** |
 | Danno / portata | 21 · range 4 |
 | Payload oltre il danno | nessuno — ed è una risposta, non una lacuna |
 | Dipendenza dal base | ★★★★★ — il più alto del roster |
 
 > ⚠️ **«Primary» descrive quanto spesso lo usa, non quanto è forte.** Con 21 danni `PulseShot` non è il più
-> forte del roster — `Flux.ArcPulse` ne fa 22 — e non è il più lungo, perché Phase arriva a 5: **nessun numero
+> forte del roster — `Hero.Gadget.ArcPulse` ne fa 22 — e non è il più lungo, perché Phase arriva a 5: **nessun numero
 > lo rende «l'arma primaria»**.
 > A renderlo tale è il kit, che crea le occasioni in cui sparare è già la mossa giusta. ADR-0007 ha scelto
 > di **non** cambiare i numeri: alzarli contraddirebbe la motivazione scritta nel catalogo («−1 pagato in
@@ -204,7 +204,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 
 | Che cosa | Dove |
 | --- | --- |
-| Il payload è nel dato | `RefactorTactics.Heroes.Vektor.MatchesCatalog` |
+| Il payload è nel dato | `RefactorTactics.Heroes.Hero.Wraith.MatchesCatalog` |
 | L'effetto si vede in partita | `Visual.Combat.Defeat` — 21 a turno per quattro turni · `Visual.Map.LowCoverEdge`, dove è **il suo** colpo a passare dal bordo riparato e a scendere da 21 a 11: è la misura della copertura, e regge solo perché il suo danno è più grande della riduzione |
 
 ## Abilità
@@ -217,7 +217,7 @@ Pulse Shot è l'attacco base di Wraith: 21 danni a range 4. Offre pressione a me
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Vektor.PulseShot` |
+| Ability ID | `Hero.Wraith.PulseShot` |
 | Categoria | Attacco base |
 | Priorità | 50 |
 | Costo risorsa | — |
@@ -247,7 +247,7 @@ Intercept Shot prepara una punizione su movimento: quando un nemico entra nella 
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Vektor.InterceptShot` |
+| Ability ID | `Hero.Wraith.InterceptShot` |
 | Categoria | Reazione/Overwatch |
 | Priorità | 30 |
 | Costo risorsa | — |
@@ -277,7 +277,7 @@ Passing Blade è un Dash lineare di 3 celle che infligge 20 danni alle unità at
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Vektor.PassingBlade` |
+| Ability ID | `Hero.Wraith.PassingBlade` |
 | Categoria | Dash/Line |
 | Priorità | 30 |
 | Costo risorsa | — |
@@ -307,7 +307,7 @@ Deflection è una reazione su attacco diretto che riduce di 20 il danno del colp
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Vektor.Deflection` |
+| Ability ID | `Hero.Wraith.Deflection` |
 | Categoria | Reazione/Deflect |
 | Priorità | 15 |
 | Costo risorsa | — |
@@ -337,7 +337,7 @@ Feint è un'azione di controllo predittivo: marca una cella per 1 turno e conced
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Vektor.Feint` |
+| Ability ID | `Hero.Wraith.Feint` |
 | Categoria | Control |
 | Priorità | 40 |
 | Costo risorsa | — |
@@ -363,17 +363,17 @@ Feint è un'azione di controllo predittivo: marca una cella per 1 turno e conced
 
 ### Descrizione delle reazioni
 
-- **`Vektor.InterceptShot`** — Quando un nemico entra nella cella/zona controllata, la specifica prevede `FIRE/HOLD`; `FIRE` infligge 16 danni e ferma il movimento. Resta `DEFERRED_E14`.
-- **`Vektor.Deflection`** — Quando Wraith subisce un attacco diretto, riduce automaticamente di 20 il danno del colpo nella v0.1 corrente. È già descritta anche fra le abilità.
+- **`Hero.Wraith.InterceptShot`** — Quando un nemico entra nella cella/zona controllata, la specifica prevede `FIRE/HOLD`; `FIRE` infligge 16 danni e ferma il movimento. Resta `DEFERRED_E14`.
+- **`Hero.Wraith.Deflection`** — Quando Wraith subisce un attacco diretto, riduce automaticamente di 20 il danno del colpo nella v0.1 corrente. È già descritta anche fra le abilità.
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Vektor.InterceptShot` | Nemico entra nella cella/zona controllata | Overwatch | 3 | — | 30 | FIRE | HOLD | HOLD | 16 danni + stop movimento | DEFERRED_E14 |
-| `Vektor.Deflection` | Subisce un attacco diretto | Deflect | — | — | 15 | Deflect automatico (v0.1 attuale) | — | — | -20 danno sul colpo | IMPLEMENTED |
+| `Hero.Wraith.InterceptShot` | Nemico entra nella cella/zona controllata | Overwatch | 3 | — | 30 | FIRE | HOLD | HOLD | 16 danni + stop movimento | DEFERRED_E14 |
+| `Hero.Wraith.Deflection` | Subisce un attacco diretto | Deflect | — | — | 15 | Deflect automatico (v0.1 attuale) | — | — | -20 danno sul colpo | IMPLEMENTED |
 
 > ⚠️ **Review required:** una o più finestre temporali sono valori sorgente/storici. Il modello corrente di Fast Reaction usa una baseline di 3,0 s; questi valori vanno riallineati prima dell'implementazione.
-> `Vektor.InterceptShot` — Rinviata a E14; richiede trigger su movimento e decision boundary.
-> `Vektor.Deflection` — Reazione deterministica attuale; nessuna finestra live.
+> `Hero.Wraith.InterceptShot` — Rinviata a E14; richiede trigger su movimento e decision boundary.
+> `Hero.Wraith.Deflection` — Reazione deterministica attuale; nessuna finestra live.
 
 ## Equipaggiamento
 
@@ -407,8 +407,8 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 
 | Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Vektor.InterceptShot.Precise` | Intercetto preciso | 20 danni | Controlla una sola cella | `Vektor.InterceptShot.Extended` | Duelist | CANONICAL |
-| `Vektor.InterceptShot.Extended` | Intercetto esteso | Controlla linea di 3 celle | 14 danni | `Vektor.InterceptShot.Precise` | Control | CANONICAL |
+| `Hero.Wraith.InterceptShot.Precise` | Intercetto preciso | 20 danni | Controlla una sola cella | `Hero.Wraith.InterceptShot.Extended` | Duelist | CANONICAL |
+| `Hero.Wraith.InterceptShot.Extended` | Intercetto esteso | Controlla linea di 3 celle | 14 danni | `Hero.Wraith.InterceptShot.Precise` | Control | CANONICAL |
 
 ## Talenti
 

@@ -526,7 +526,7 @@ Prompt base:
 
 `⚡ OVERWATCH`
 
-`Vektor entered the controlled area`
+`Wraith entered the controlled area`
 
 `2.4 s`
 
@@ -566,7 +566,7 @@ Convive con il countdown della finestra, che resta l'informazione primaria:
 
 `⚡ OVERWATCH`
 
-`Vektor entered the controlled area`
+`Wraith entered the controlled area`
 
 `2.4 s          ▓▓▓▓▓▓▓░░░  18.6 s`
 
@@ -666,9 +666,9 @@ Il combat log deve essere:
 
 Esempio:
 
-`Flux → Arc Lance`  
+`Gadget → Arc Lance`  
 `Wet Chain +6`  
-`Vektor → 26 Damage`
+`Wraith → 26 Damage`
 
 ## 14.1 WHY?
 

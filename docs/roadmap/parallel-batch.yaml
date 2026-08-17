@@ -4149,7 +4149,7 @@ tracks:
 
       **Il consumo, non l'applicazione.** Il contenuto di design e' atterrato in **#995** dopo essere
       stato filtrato contro `main`: la grammatica `Master/Specialist/Access/None` regge, mentre tre
-      affermazioni dei kit no — il vincolo *«gli ID gameplay rimangono `Hero.Flux`…»* e' la clausola di
+      affermazioni dei kit no — il vincolo *«gli ID gameplay rimangono `Hero.Gadget`…»* e' la clausola di
       `D-120` superata da `D-130`/`D-134`; le due prescrizioni di rimuovere `Electric Access` da Riktor e
       `Cold Access` da Wraith hanno **zero occorrenze** misurate su `docs/`; e i kit non sanno che
       `URTHeroData::Affinity`/`Weakness` esistono **a runtime** per tutti e quattro gli eroi.

@@ -56,7 +56,7 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 > ✅ **Migrato nel codice il 2026-08-08.** A far valere la regola è il **resolver**: dopo uno scatto la
 > destinazione pianificata *diventa* la cella d'arrivo, quindi il movimento è speso comunque sia stato
 > pianificato — non un controllo che il bot potrebbe aggirare (invariante #1). Vale anche per le mobilità
-> d'eroe: `Riva.FluidTrail` è passata a **Movimento**, e l'invariante `Heroes.MobilityWithoutDamageIsNotMain`
+> d'eroe: `Hero.Phase.FluidTrail` è passata a **Movimento**, e l'invariante `Heroes.MobilityWithoutDamageIsNotMain`
 > impedisce che la prossima nasca sulla principale, dove `MakeHeroAction` la metterebbe per default.
 
 > **Slot ≡ Action Points** (consolidato il 2026-08-07). Il workbook `RefactorTactics_Balance_Matrices_v0.1.xlsx`
@@ -67,7 +67,7 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 > resta la formulazione canonica, «AP» è ammesso come sinonimo nei documenti di bilanciamento.
 >
 > **Risorsa firma** — ciò che l'MVP chiamava *energia* è per-personaggio, con nome e trigger di ricarica
-> propri: `Flux` Carica Conduttiva · `Riva` Riserva Idrica · `Bastion` Integrità Strutturale · `Vektor`
+> propri: `Gadget` Carica Conduttiva · `Phase` Riserva Idrica · `Riktor` Integrità Strutturale · `Wraith`
 > Slancio. Cap **4** per tutte (valore più basso fra i candidati), ricarica **1** sul trigger d'affinità.
 > Cambia il nome e cosa la ricarica, **non** la regola.
 
@@ -197,7 +197,7 @@ stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo disting
   invece di essere scelto a intuito. Resta da playtest come ogni valore di questa tabella.
 
 > **Perché non si chiama `Reposition`.** Quel nome è già di un'azione viva: scatto lineare di 2 celle in
-> macro-fase **`Dash`** (§2.2), concesso anche da `Riva.FlowReaction` e `Vektor.Feint`. Due entità con lo
+> macro-fase **`Dash`** (§2.2), concesso anche da `Hero.Phase.FlowReaction` e `Hero.Wraith.Feint`. Due entità con lo
 > stesso nome in due fasi diverse si pagano a ogni lettura del TurnLog, non una volta sola.
 
 **`Sprint` non è un `Dash`.** È il profilo lungo del movimento normale, quindi risolve dopo il Blast: non
@@ -360,8 +360,8 @@ movimento volontario** dell'eroe.
 
 > ⚠️ **L'anti-spinta non distingue `Brace` da `Guard` in v0.1** — [D-074](../decisions/RT_PDR_00_Decision_Log.md),
 > uscita **(B)** di [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400).
-> Il catalogo ha **un solo valore di spinta, `1`**: `Action.Push`, `Action.Charge` (da cui `Bastion.Ram`
-> eredita i suoi `20 danni + Push 1`), `Riva.PressureJet` e la variante `Riva.CircularTide.Impact`.
+> Il catalogo ha **un solo valore di spinta, `1`**: `Action.Push`, `Action.Charge` (da cui `Hero.Riktor.Ram`
+> eredita i suoi `20 danni + Push 1`), `Hero.Phase.PressureJet` e la variante `Hero.Phase.CircularTide.Impact`.
 > L'elenco è **esaustivo e senza eccezioni in tutto il progetto**: l'ultimo `Push 2` era `Guardian.Sweep`, ed
 > è sparito insieme agli archetipi legacy (`#426`, 2026-08-10) — quando questa nota è stata scritta esisteva
 > ancora, fuori dal roster, e la riga lo dichiarava come eccezione. Ora nessuna azione, in nessun catalogo,
@@ -369,7 +369,7 @@ movimento volontario** dell'eroe.
 > spostamenti prodotti **dalle azioni**.
 >
 > 🔵 **La spinta forte esiste nei DATI, e non da qui: dall'equipaggiamento** (corretto il 2026-08-16).
-> `Weapon.Impact` porta lo spostamento di `Riva.PressureJet` a **2** ([D-085](../decisions/RT_PDR_00_Decision_Log.md))
+> `Weapon.Impact` porta lo spostamento di `Hero.Phase.PressureJet` a **2** ([D-085](../decisions/RT_PDR_00_Decision_Log.md))
 > ed è il **default dichiarato** di Phase ([D-089](../decisions/RT_PDR_00_Decision_Log.md)). L'elenco delle
 > azioni qui sopra resta esatto — `Weapon.Impact` non è un'azione — ma la conclusione che se ne traeva no:
 > contro una spinta di 2 **`Guard` cede e `Brace` regge**, misurato da
@@ -482,7 +482,7 @@ appena entrato nella cella.
 > ([D-040](../decisions/RT_PDR_00_Decision_Log.md), E9.5).
 >
 > Questa riga diceva Blast mentre il [catalogo eroi](RT_HeroCatalog_v0.1.md) e il codice davano
-> `Bastion.KineticPanel` in Prep. Prevale **Prep**, e la ragione è che eretta nel Blast la copertura
+> `Hero.Riktor.KineticPanel` in Prep. Prevale **Prep**, e la ragione è che eretta nel Blast la copertura
 > arriverebbe **dopo** aver incassato i colpi di quel Blast — nel turno in cui la si paga non servirebbe a
 > nulla. Il precedente opposto di `ModifyArc` (portata *nel* Blast a E9.4) non si applica: riguarda la
 > **topologia**, e una copertura bassa non tocca né grafo né vista.
@@ -495,7 +495,7 @@ appena entrato nella cella.
 **Heal** — cura **20** HP, non supera la salute massima, non rimuove stati, può bersagliare se stessi.
 
 **Create Cover** — copertura **bassa** su un bordo dichiarato, integrità **30**, durata **2 turni**, non
-sovrapponibile. La variante di `Bastion.KineticPanel` sostituisce integrità e durata (rinforzato 45/1 turno ·
+sovrapponibile. La variante di `Hero.Riktor.KineticPanel` sostituisce integrità e durata (rinforzato 45/1 turno ·
 adattivo 25 e non scade). Fuori portata, bordo non dichiarato o già riparato → `Cancel`, con la sua voce di
 TurnLog.
 

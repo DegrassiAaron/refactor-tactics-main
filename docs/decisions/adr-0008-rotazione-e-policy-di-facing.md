@@ -43,10 +43,10 @@ hanno identità diverse e l'handoff §10 chiede esplicitamente policy separate:
 
 | Personaggio | Identità del Move | `MoveEndPivotMaxSteps` | Identità del Dash | `DashEndPivotMaxSteps` |
 |---|---|---:|---|---:|
-| Flux | standard/tecnico | **2** | corto/tecnico | **2** |
-| Riva | fluido | **2** | molto manovrabile | **3** |
-| Bastion | pesante, forte stabilità | **1** | charge/ram, direzionale | **0** |
-| Vektor | agile/predittivo | **3** | reposition rapido | **3** |
+| Gadget | standard/tecnico | **2** | corto/tecnico | **2** |
+| Phase | fluido | **2** | molto manovrabile | **3** |
+| Riktor | pesante, forte stabilità | **1** | charge/ram, direzionale | **0** |
+| Wraith | agile/predittivo | **3** | reposition rapido | **3** |
 
 > ⚠️ **Valori iniziali, non bilanciamento approvato.** La fonte (§23.1) li dà come «ipotesi iniziali da
 > scenario/playtest» e chiede di non canonizzarli come definitivi senza conferma. Sono canonici **come punto di
@@ -55,7 +55,7 @@ hanno identità diverse e l'handoff §10 chiede esplicitamente policy separate:
 
 Due scelte dentro la tabella meritano di essere dette, perché non vengono dalla fonte:
 
-- **Bastion, Dash = 0.** La fonte dà «0–60°», che è un intervallo, non un valore. Lo 0 è l'estremo che
+- **Riktor, Dash = 0.** La fonte dà «0–60°», che è un intervallo, non un valore. Lo 0 è l'estremo che
   **conserva** il comportamento di ADR-0005 per i `Linear*` (una sola direzione, quella del movimento) ed è
   coerente con l'identità dichiarata «pesante, direzionale». Alzarlo a 1 è un cambio di dato, non di modello.
 - **`StationaryPivotMaxSteps` resta universale a 3**, cioè le sei direzioni libere di ADR-0005 §1. L'handoff lo
@@ -64,7 +64,7 @@ Due scelte dentro la tabella meritano di essere dette, perché non vengono dalla
 
 **Costo dichiarato, senza attenuarlo.** Questo introduce **otto numeri** che ADR-0005 non aveva, cioè un asse di
 bilanciamento nuovo. È il prezzo esplicito della decisione: in cambio, la stessa cella d'arrivo vale
-diversamente a seconda del lato da cui ci si entra, e Bastion e Vektor acquistano un'identità di movimento che
+diversamente a seconda del lato da cui ci si entra, e Riktor e Wraith acquistano un'identità di movimento che
 oggi non hanno.
 
 ### 2. Il facing durante i micro-step è quello dell'**ultimo passo compiuto** (`FAC-4`)
@@ -195,7 +195,7 @@ proteggere da ogni direzione — `FAC-3` **non è decisa da questo ADR** e resta
 ## Conseguenze
 
 **Positive**: la stessa cella d'arrivo ha valore tattico diverso a seconda del lato da cui la si raggiunge, e un
-percorso più lungo può essere migliore perché consente un orientamento favorevole · Bastion e Vektor acquistano
+percorso più lungo può essere migliore perché consente un orientamento favorevole · Riktor e Wraith acquistano
 un'identità di movimento leggibile · il facing intermedio è definito, quindi il DoD di **E16** («snapshot e
 TurnLog dicono *quale* facing ha usato ciascun consumatore») torna verificabile · `CP 14.2`, `CP 14.4` e
 `CP 14.7` non sono più bloccati da una lacuna.
@@ -225,7 +225,7 @@ il passo successivo · **#7** rispettato (`FacingFromPath` è già una funzione 
 | Test | Cosa dimostra |
 |---|---|
 | `Facing.PivotBudgetLimitsLegalFacings` | con `MoveEndPivotMaxSteps = 1` sono legali `D` e `D±1`; con 3 tutte e sei |
-| `Facing.PivotBudgetZeroKeepsMovementDirection` | budget 0 (Bastion in Dash) ⇒ una sola direzione, quella del movimento — il comportamento di ADR-0005 conservato |
+| `Facing.PivotBudgetZeroKeepsMovementDirection` | budget 0 (Riktor in Dash) ⇒ una sola direzione, quella del movimento — il comportamento di ADR-0005 conservato |
 | `Facing.MoveAndDashBudgetsAreIndependent` | il budget del Dash non è quello del Move sullo stesso eroe |
 | `Facing.StationaryRotationIsUniversal` | da fermo tutte e sei restano legali per ogni eroe |
 | `Facing.MicroStepFacingIsLastCompletedStep` | al boundary `k` il facing è la direzione di `Path[k-1] → Path[k]` |
@@ -242,7 +242,7 @@ il passo successivo · **#7** rispettato (`FacingFromPath` è già una funzione 
 **Prima revisione — i numeri.** Alla chiusura di **CP 16.2**, con i dati del playtest. I valori della §1 sono
 ipotesi: la domanda da porre è se il pivot sia diventato un asse di scelta reale o solo un numero da consultare.
 
-**Soglia di allarme**: se il pivot alto risulta sempre preferibile — cioè se Vektor e Riva dominano il
+**Soglia di allarme**: se il pivot alto risulta sempre preferibile — cioè se Wraith e Phase dominano il
 posizionamento per la sola rotazione — la via di rientro è **comprimere la scala** (portare tutti a 1–2 step),
 non rimuovere il modello.
 

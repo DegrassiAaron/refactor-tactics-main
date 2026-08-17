@@ -20,7 +20,7 @@ nel Cleanup prima del danno di `Burning`. Dettaglio in
 > | Area | Stato |
 > |---|---|
 > | Interazioni **fuoco/acqua** (CP 8.4) | ✅ fatte |
-> | **Terreno dinamico** — cella che cambia superficie a runtime (`CreateWater`, `Ignite`, `Flux.ConductiveNode`) | ✅ fatto |
+> | **Terreno dinamico** — cella che cambia superficie a runtime (`CreateWater`, `Ignite`, `Hero.Gadget.ConductiveNode`) | ✅ fatto |
 > | **Coperture direzionali** — «non esistono nel formato dell'asset» | ✅ **esistono**: `FRTHexCover{Edge, Type, Integrity}` in `FRTHexCellData`, con `URTHexCoverLibrary`. Copertura **bassa** (CP 9.1) e **alta** (CP 9.2), con `Integrity` e distruzione |
 > | Azioni ambientali (CP 8.5) | vedi roadmap |
 > | Porte, ponti, coperture temporanee | ⏳ **da completare** |
@@ -157,5 +157,5 @@ grafo** (invalidazione delle cache di percorso).
 
 **Non specificato nel PDF** (da decidere in E8/E9): riduzione esatta della LOS attraverso il fuoco ·
 ~~durata di `Wet` fuori dall'acqua~~ **deciso al CP 8.2: 1 turno**, il valore che il catalogo eroi dichiarava
-già per `Riva.PressureJet` e `Riva.CircularTide` · comportamento del ghiaccio quando due unità scivolano nella
+già per `Hero.Phase.PressureJet` e `Hero.Phase.CircularTide` · comportamento del ghiaccio quando due unità scivolano nella
 stessa cella · se la copertura bassa protegga anche dai `Push`.

@@ -175,7 +175,7 @@ significato. `SrcCell`/`TgtCell` sono le due celle collegate — nessun campo nu
 4. **`Inactive` non ha un vettore in partita.** `SetArcState` lo espone e i test lo esercitano, ma nessuna
    azione lo usa: `ModifyArc` rimuove l'arco, il danno lo distrugge. Il ponte «disattivabile e riattivabile» è
    materiale per CP 10.1 (`Activate`/`Interact`).
-5. **Nessun `Flux.ConductiveNode`.** Il suo commento nel catalogo eroi dichiara «nessun modello di conduttività
+5. **Nessun `Hero.Gadget.ConductiveNode`.** Il suo commento nel catalogo eroi dichiara «nessun modello di conduttività
    di cella esiste» ed è **obsoleto** da CP 8.4 (terreno dinamico): quel modello ora c'è. Fuori scope, issue
    [#207](https://github.com/DegrassiAaron/refactor-tactics-main/issues/207) — non una correzione di iniziativa.
 

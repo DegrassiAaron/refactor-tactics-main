@@ -13,10 +13,10 @@ altri documenti la referenziano, non la copiano.
 
 | Identità RefactorTactics | `RT Character ID` | Slot asset Paragon | Release |
 |---|---|---|---|
-| Gadget | `Hero.Flux` | [Gadget](candidates/gadget.md) | v0.1 |
-| Phase | `Hero.Riva` | [Phase](candidates/phase.md) | v0.1 |
-| Riktor | `Hero.Bastion` | [Riktor](candidates/riktor.md) | v0.1 |
-| Wraith | `Hero.Vektor` | [Wraith](candidates/wraith.md) | v0.1 |
+| Gadget | `Hero.Gadget` | [Gadget](candidates/gadget.md) | v0.1 |
+| Phase | `Hero.Phase` | [Phase](candidates/phase.md) | v0.1 |
+| Riktor | `Hero.Riktor` | [Riktor](candidates/riktor.md) | v0.1 |
+| Wraith | `Hero.Wraith` | [Wraith](candidates/wraith.md) | v0.1 |
 | Steel *(nome di lavoro)* | `TBD` | [Steel](v0.2/steel.md) | v0.2 |
 | Aurora *(nome di lavoro)* | `TBD` | [Aurora](v0.2/aurora.md) | v0.2 |
 | Murdock *(nome di lavoro)* | `TBD` | [Murdock](v0.2/murdock.md) | v0.2 |
@@ -36,6 +36,7 @@ originale»).
 > equipaggiamento (`ERTEquipmentSlot::Gadget`, voci `Gadget.Medkit`, `Gadget.Sensor` dei cataloghi): un mapping
 > scritto senza qualificatore produrrebbe due significati per la stessa parola nello stesso documento.
 
+<!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 Il mapping **non rinomina niente nel gameplay**: `Hero.Flux` resta `Hero.Flux`, e uno slot Paragon usato come
 base visuale non diventa un personaggio RefactorTactics.
 
@@ -56,15 +57,15 @@ Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeho
 | [Grux](candidates/grux.md) | Bruiser | Battle Momentum | 3/5 | Candidate |
 | [Rampage](candidates/rampage.md) | Bruiser / Tank | Fury | 3/5 | Candidate |
 | [Sevarog](candidates/sevarog.md) | Tank / Controller | Essence Harvest | 4/5 | Candidate |
-| [Riktor](candidates/riktor.md) | Controller | Tether | 4/5 | **Roster v0.1** — `Hero.Bastion` |
+| [Riktor](candidates/riktor.md) | Controller | Tether | 4/5 | **Roster v0.1** — `Hero.Riktor` |
 | [Crunch](candidates/crunch.md) | Combo Fighter | Combo State Machine | 5/5 | Candidate |
 | [Boris](candidates/boris.md) | Bruiser | Overdrive / Heat | 3/5 | Candidate |
 | [TwinBlast](candidates/twinblast.md) | Skirmisher | Alternating Rhythm | 4/5 | Candidate |
 | [Drongo](candidates/drongo.md) | Striker / Controller | Payload Mix | 4/5 | Candidate |
-| [Wraith](candidates/wraith.md) | Recon / Predicter | Insight | 5/5 | **Roster v0.1** — `Hero.Vektor` |
+| [Wraith](candidates/wraith.md) | Recon / Predicter | Insight | 5/5 | **Roster v0.1** — `Hero.Wraith` |
 | [Lt. Belica](candidates/lt-belica.md) | Counter / Control | Suppression Charge | 4/5 | Candidate |
 | [GRIM.exe](candidates/grim-exe.md) | Ranged / Utility | Core Modes | 4/5 | Candidate |
-| [Gadget](candidates/gadget.md) | Engineer | Device Network | 5/5 | **Roster v0.1** — `Hero.Flux` |
+| [Gadget](candidates/gadget.md) | Engineer | Device Network | 5/5 | **Roster v0.1** — `Hero.Gadget` |
 | [Howitzer](candidates/howitzer.md) | Artillery | Artillery Heat | 4/5 | Candidate |
 | [Zinx](candidates/zinx.md) | Sustain / Controller | Energy Debt | 5/5 | Candidate |
 | [Muriel](candidates/muriel.md) | Support | Guardian Link | 4/5 | Candidate |
@@ -80,7 +81,7 @@ Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeho
 | [Gideon](candidates/gideon.md) | Controller / Mobility | Rift Network | 5/5 | Candidate |
 | [The Fey](candidates/the-fey.md) | Terrain Controller | Growth | 5/5 | Candidate |
 | [Morigesh](candidates/morigesh.md) | Hexer / Hunter | Hex | 4/5 | Candidate |
-| [Phase](candidates/phase.md) | Support / Mobility | Phase Link | 5/5 | **Roster v0.1** — `Hero.Riva` |
+| [Phase](candidates/phase.md) | Support / Mobility | Phase Link | 5/5 | **Roster v0.1** — `Hero.Phase` |
 | [Narbash](candidates/narbash.md) | Support / Rhythm | Beat | 4/5 | Candidate |
 | [Iggy & Scorch](candidates/iggy-and-scorch.md) | Terrain Controller / Duo | Combustion Field | 5/5 | Candidate |
 | [Sparrow](candidates/sparrow.md) | Marksman | Precision Chain | 3/5 | Candidate |

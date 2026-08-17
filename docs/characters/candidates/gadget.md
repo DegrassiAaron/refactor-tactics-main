@@ -5,7 +5,7 @@
 > 🧩 **Stato RefactorTactics:** `CANDIDATE / SIGNATURE_DEFINED`  
 > **Release:** `UNASSIGNED`  
 > **Roster ufficiale:** `NO`  
-> **Uso corrente:** base visuale del **roster v0.1** (`Hero.Flux`) — [D-037](../../decisions/RT_PDR_00_Decision_Log.md). L'asset è impegnato; il concept di Gadget resta un candidato senza release.  
+> **Uso corrente:** base visuale del **roster v0.1** (`Hero.Gadget`) — [D-037](../../decisions/RT_PDR_00_Decision_Log.md). L'asset è impegnato; il concept di Gadget resta un candidato senza release.  
 > **Asset base:** Paragon — Gadget  
 > **RT Character ID:** `TBD`
 

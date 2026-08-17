@@ -35,7 +35,7 @@
 ## 1. `MAP-1` resta aperta
 
 Verificato con `grep -icE "clearance|footprint|standab|calpestab|anchor|metri"` sul sorgente: **18
-occorrenze, zero pertinenti** — otto sono `Anchor`, il nome del profilo Brace di Bastion, e le altre sono
+occorrenze, zero pertinenti** — otto sono `Anchor`, il nome del profilo Brace di Riktor, e le altre sono
 `metri` dentro «para**metri**».
 
 Il sorgente non tocca la geometria della cella. `MAP-1` — *quale frazione di cella occupa il footprint
@@ -83,13 +83,13 @@ motivo per cui il dodicesimo costerà come i primi undici messi insieme.
 
 > ⚠️ **`Reposition` è stato respinto ieri.** [PR #397](https://github.com/DegrassiAaron/refactor-tactics-main/pull/397)
 > (`D-067`) decide che il ripiegamento dopo l'Overwatch si chiama **`Withdraw`**, perché `Action.Reposition`
-> **è un'azione viva**: scatto lineare di 2 celle in macro-fase Dash, concesso anche da `Riva.FlowReaction` e
-> `Vektor.Feint`. Il sorgente usa `Reposition` in §43, §44, §57 e §60.
+> **è un'azione viva**: scatto lineare di 2 celle in macro-fase Dash, concesso anche da `Hero.Phase.FlowReaction` e
+> `Hero.Wraith.Feint`. Il sorgente usa `Reposition` in §43, §44, §57 e §60.
 
 | Il sorgente propone | Il repository ha già | Esito |
 |---|---|---|
-| §41 — Brace profile **`Flow`** per Riva | **`Riva.FlowReaction`**: `Reposition 1` dopo un attacco subìto, fase Preparation, priorità 36 | **Collisione.** Due «Flow» di Riva in due fasi diverse si pagano a ogni lettura del TurnLog |
-| §41 — Brace profile **`Deflection`** per Vektor | **`Vektor.Deflection`**: costruita su `Action.Deflect`, cioè **riduzione del danno** | **Collisione semantica invertita.** Il sorgente lo vuole anti-displacement; nel gioco è anti-danno |
+| §41 — Brace profile **`Flow`** per Phase | **`Hero.Phase.FlowReaction`**: `Reposition 1` dopo un attacco subìto, fase Preparation, priorità 36 | **Collisione.** Due «Flow» di Phase in due fasi diverse si pagano a ogni lettura del TurnLog |
+| §41 — Brace profile **`Deflection`** per Wraith | **`Hero.Wraith.Deflection`**: costruita su `Action.Deflect`, cioè **riduzione del danno** | **Collisione semantica invertita.** Il sorgente lo vuole anti-displacement; nel gioco è anti-danno |
 | §43–§44 — **`Reposition`** | `Action.Reposition` (Dash, 2 celle) · e `D-067` ha scelto **`Withdraw`** | **Respinto ieri.** Non si riapre |
 
 Anche i nomi degli status divergono: il sorgente scrive `Rooted`, `Slowed`, `Shocked`; il codice ha

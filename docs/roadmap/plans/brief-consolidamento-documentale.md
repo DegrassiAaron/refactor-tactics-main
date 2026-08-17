@@ -191,7 +191,7 @@ E14 costruisce la **finestra** di reazione. Il sorgente chiede due cose in più 
 Il punto che rende questa area **urgente e non rinviabile**: la policy `Automatic`/`Conditional` è la
 **mitigazione principale** del rischio già registrato in `brief-overwatch-reazioni.md` §5 — «la resolution
 triplica in modo non prevedibile». Se l'Overwatch diventa universale *dopo* che la finestra è stata costruita
-assumendo un solo consumatore (`Vektor.InterceptShot`), la mitigazione arriva a valle del problema.
+assumendo un solo consumatore (`Hero.Wraith.InterceptShot`), la mitigazione arriva a valle del problema.
 
 Il sorgente aggiunge anche una regola di bilanciamento non registrata da nessuna parte: **l'Overwatch compete
 con l'azione offensiva del turno** (`Attack` OR `Ability` OR `Overwatch`, mai `Attack + Overwatch`). Va decisa
