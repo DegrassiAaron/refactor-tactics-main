@@ -1,6 +1,34 @@
 # RefactorTactics — Handoff per Claude
 ## Consolidamento Tactical Designer v0.1 · Map Editor + Scenario Composer
 
+> `HISTORICAL` · **Materiale NON autorevole**, archiviato il **2026-08-17** dopo il consolidamento.
+> **Non si applica**: si legge per sapere da dove viene una decisione. Le fonti autorevoli sono
+> [`spec-tactical-designer.md`](../../technical/spec-tactical-designer.md) — l'owner del concetto — e
+> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml).
+>
+> **Recepito in due tempi, e vale la pena dirlo perché non è la forma solita.** La parte concettuale —
+> owner documentale, `D-154`, epic [#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105),
+> feature `RT-FEAT-TOOL-SCENARIO-COMPOSER` e `RT-FEAT-TOOL-SKILL-WORKBENCH`, checkpoint `M9.4`, seduta
+> `U26` — era già atterrata con [#1108](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1108),
+> che consumava un **sorgente diverso e adiacente** (`TacticalDesigner_03`). Quando questo handoff è stato
+> aperto, il suo §5.2 chiedeva una feature che esisteva da mezz'ora.
+>
+> **Il residuo era il suo §6, ed è entrato**: le quattro slice `SC-1`…`SC-4` diventano
+> [#1114](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1114) ·
+> [#1115](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1115) ·
+> [#1116](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1116) ·
+> [#1117](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1117), sub-issue di #1105. La
+> feature aveva `issues: []`, cioè un owner senza lavoro sotto.
+>
+> ✅ **Il suo §4 chiedeva di riconfermare il gap su HEAD prima di creare la issue, e la riconferma ha
+> retto**: `URTScenarioLoader` espone `LoadFromString`, `LoadFromFile`, `Validate` e **nessun writer**;
+> l'unico `ToJson` del modulo serializza `FRTTestResult`, non lo scenario. `SC-1` non era un duplicato.
+>
+> ⚠️ **Ciò che non è entrato**: il §10 (parallelizzazione) proponeva due lane e un elenco di file da non
+> toccare in contemporanea — è governato da [`parallel-batch.yaml`](../../roadmap/parallel-batch.yaml), che
+> lo fa con un write-set misurabile invece che con una raccomandazione. Il §5.1 e il §13 (scope guard)
+> descrivono correttamente il repository e non avevano niente da applicare.
+
 **Data:** 2026-08-16  
 **Repository:** `DegrassiAaron/refactor-tactics-main`  
 **HEAD visto durante questo handoff:** `a9b674b3631bc0146f3b9de08feced954547a8d8`  
