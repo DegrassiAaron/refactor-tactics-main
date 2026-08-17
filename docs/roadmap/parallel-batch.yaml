@@ -5430,6 +5430,15 @@ integration_only:
   # attira le track che lo devono applicare, ed è il segnale che questa categoria esiste per leggere.
   - docs/technical/spec-asset-pipeline.md
   - docs/technical/spec-graybox-placement-contract.md
+  # ➕ **Entra il 2026-08-17 con `D-163`, e la sua stessa riga in `OPEN_DECISIONS.md` denunciava il difetto.**
+  # `GBX-4` e `GBX-6` dicevano entrambe, in grassetto, che l'owner della scala **non è assegnato a nessuna
+  # track** — cioè lo STOP di `D-139` — e che era «la ragione per cui questa voce è una domanda invece di un
+  # edit». Chiudere `GBX-6` senza assegnarlo avrebbe lasciato la decisione senza il documento che la deve
+  # scrivere. È normativo (§5 governa i percorsi di `Content/`, §11-bis la scala d'arte) e più track lo
+  # vogliono emendare: `integration_only` è la categoria giusta.
+  # ⚠️ **Assegnarlo NON chiude `GBX-4`**: quella domanda chiede *quale percorso* ospita il kit graybox, ed è
+  # di design. Cade solo l'ostacolo procedurale che impediva di scrivere la risposta una volta trovata.
+  - docs/technical/convenzioni-contenuti-ue.md
   # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14. ⏱️ **Il proprietario scritto qui
   # non è più quello vero**: `content_editor` l'ha rilasciato il 2026-08-16, poi `playback` l'ha tenuto in
   # prestito per `#1015`, e oggi sta nel `writable` di `playtest` — tre nomi in tre giorni, misurati in

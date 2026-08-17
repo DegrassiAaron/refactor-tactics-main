@@ -279,6 +279,24 @@ Non derivare da questo valore raggi d'abilità, portate o costi di movimento: qu
 è l'unità del gioco. Deciso con l'autore il **2026-08-09**, in sede di consolidamento del cluster Map &
 Environment ([triage](../roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md) §8.1).
 
+### 11-bis.1 — La scala del mondo segue questa, e per otto giorni non l'ha fatto
+
+✅ **Confermata dall'autore il 2026-08-17** e promossa da scala d'*authoring* a scala **del mondo**
+([`D-163`](../decisions/RT_PDR_00_Decision_Log.md)). Il lato è `1,5 m`; l'unità di `HexSize` è il
+centimetro — lo dichiara `RTHexMapAsset.h` accanto alla proprietà — quindi il valore canonico è
+**`HexSize = 150`**.
+
+> 🔴 **Fino al 2026-08-17 questa sezione descriveva una scala che nessuna mappa usava.** Misurato:
+> `HexSize` non compare in **nessun** binario di `Content/RT`, quindi tutte e cinque le mappe restavano al
+> default `100.f` — lato `1,00 m`, e una divergenza di **1,5×** fra ciò che si modellava e il mondo in cui
+> atterrava. Non era un errore di questa sezione: era che nessuno aveva chiuso il cerchio sul codice.
+> `GBX-6` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) ha reso visibile il divario e `D-163` lo chiude.
+
+⏱️ **Finché la issue [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) è aperta, il mondo gira ancora a `1,00 m`**: chi modella secondo
+questa sezione produce asset corretti per il canone e `1,5×` grandi per la mappa di oggi. È uno stato
+dichiarato, non un difetto da scoprire — ma è una ragione per non produrre volumi finiti prima che il
+cambio atterri.
+
 ## 12. Checklist di chiusura
 
 - [ ] tutti gli asset proprietari sono sotto `/Game/RT`

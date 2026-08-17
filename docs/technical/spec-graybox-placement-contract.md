@@ -201,12 +201,21 @@ pratica e mai dichiarata nel repository (`grep -i 'UU'` sulle convenzioni dà **
 l'assunzione è esplicita perché il giorno in cui qualcuno la cambiasse ogni numero di questa sezione
 diventerebbe falso in silenzio.
 
-### 🔴 E la scala d'arte non è la scala di nessuna mappa esistente
+### ✅ La scala d'arte governa anche il mondo — deciso, non ancora atterrato
 
 ```text
-scala d'arte      lato 1,50 m      →  C ≈ 2,60 m     ← a cui si MODELLA
-default del codice lato 1,00 m     →  C ≈ 1,73 m     ← a cui gira OGNI mappa
+canone (D-163)     lato 1,50 m      →  C ≈ 2,60 m     ← a cui si MODELLA, e a cui il mondo DEVE girare
+codice di oggi     lato 1,00 m      →  C ≈ 1,73 m     ← a cui ogni mappa gira ANCORA
 ```
+
+✅ **`GBX-6` è chiusa il 2026-08-17**: vince la scala d'arte, `HexSize = 150`
+([`D-163`](../decisions/RT_PDR_00_Decision_Log.md)). Questo documento **continua a non sceglierla** — non è
+il suo owner, che resta [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — ma ora
+riporta una decisione presa invece di una divergenza aperta.
+
+⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
+`1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella a `2,60 m`**: è il canone, e un asset
+fatto oggi alla scala vecchia sarebbe da rifare due volte.
 
 Misurato: sia `RTHexMapAsset.h` sia `RTHexMapActor.h` lasciano `HexSize` a `100.f`, e **nessuna mappa lo
 sovrascrive**.
@@ -218,14 +227,15 @@ sovrascrive**.
 > (`DA_HexMap_Arena`, `DA_HexMap_Sandbox`, `L_HexArena`, `L_DevSandbox`, `L_Prototype`), ed è così che la
 > conclusione è stata confermata in code review.
 
-**Le due scale divergono di 1,5×, e la divergenza non è risolta.** Una copertura bassa modellata a
+**Le due scale divergono di 1,5× finché il cambio non atterra, e la divergenza è il costo di transito.** Una copertura bassa modellata a
 `0.28 C` con `C = 2,60 m` è alta 73 cm; posata su una mappa reale — dove `C = 1,73 m` — quei 73 cm valgono
 il **42% di `C`** invece del 28% che questo contratto budgeta. ⚠️ *Il termine di paragone è `C`, non
 «l'altezza della cella»: una cella esagonale non ha un'altezza, e `C` è un passo orizzontale. La prima
 stesura scriveva «dell'altezza di cella» e invitava a cercare un numero che non esiste.*
 
-Questo documento **non sceglie**: non è il suo owner. Ma smette di far finta che il problema non ci sia —
-chi modella oggi deve sapere che sta autorando per una cella che nessuna mappa ha. È `GBX-6`.
+Chi modella oggi deve sapere che sta autorando per una cella che **nessuna mappa ha ancora** — non più per
+una che nessuna mappa avrà mai. La differenza è tutta la decisione: prima era una domanda senza risposta,
+ora è una scadenza.
 
 > 🔑 **E §11-bis dichiara il proprio limite, che vale anche qui**: *«non è una metrica di design, e non va
 > usata come tale»*. Serve a dimensionare mesh e proporzioni — *quanto è grande questo modello* — non a
