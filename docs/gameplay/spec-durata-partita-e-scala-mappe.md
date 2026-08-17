@@ -561,6 +561,71 @@ Versione del formato serializzato a **4**; i file **v3 restano leggibili** con `
 ricompare un piano più su: il test del corpus golden verifica che il formato coincida **prima** di confrontare
 gli hash, e fallisce dicendo *formato diverso*, non *divergenza*.
 
+### 16.4 Quanti Hero controlla un Player — [D-155](../decisions/RT_PDR_00_Decision_Log.md)
+
+> **`1 Player = 1 Hero` non è un'invariante del gioco: è un valore del formato.** Il numero di unità che una
+> persona comanda lo dichiara il Match Format, e nessun altro — non il `PlayerController`, non il
+> `TurnManager`, non il resolver. *(decisione dell'autore, 2026-08-17)*
+
+È lo **stesso buco** che CP 19.2 ha chiuso per `UnitsPerTeam`, un piano più sotto: allora «il 2v2 è
+un'assunzione del `GameMode`», adesso «una persona comanda una unità» è un'assunzione di tutto ciò che sta
+sopra il resolver. E i due numeri non sono lo stesso numero:
+
+| Domanda | Campo | In v0.1 |
+|---|---|---|
+| Quante unità schiera una squadra? | `UnitsPerTeam` (esiste, `FRTMatchRules`) | 2 |
+| Quante ne comanda **una persona**? | *non esiste* | 2 — **e coincide per caso** |
+
+⚠️ **In v0.1 i due valori coincidono, ed è la trappola.** 2v2 offline ha un solo umano che comanda la propria
+squadra intera: un'implementazione che legga `UnitsPerTeam` al posto del campo giusto passa **ogni test
+esistente** e sbaglia al primo formato in cui una squadra è divisa fra due persone. Il campo va **nominato**,
+non dedotto da quello che gli somiglia.
+
+#### Cosa questo vincola, e cosa no
+
+- il **resolver resta invariante**: risolve unità e intenti per id stabili e ordinamento deterministico, e non
+  deve mai sapere quante persone stanno dietro. L'associazione Player → unità serve ad **autorizzazione,
+  input, planning, `Ready`, privacy, UI e ownership della decisione di reazione** — non è una regola di
+  risoluzione, e non entra nell'hash (§16.2, classe *Regole*, per ciò che dipende dall'esito);
+- il **Planning resta una sola finestra per persona**: chi comanda due unità passa fra le proprie, vede i
+  propri intenti insieme, e diventa `Ready` solo quando tutti gli intenti richiesti sono committabili. Non si
+  aprono due Planning Phase — §7 non si sdoppia;
+- la **Decision Window guadagna un soggetto**, ed è la ragione per cui questa riga è v0.1 e non v0.2:
+  [`spec-decision-time-bank.md`](spec-decision-time-bank.md) dichiara un bank **per giocatore**
+  ([D-050](../decisions/RT_PDR_00_Decision_Log.md)) e oggi
+  `ARTTurnManager::AskReactionDecision` conosce un `OwnerUnitId` e un `bIsBotControlled` letto
+  da `ARTUnit`. Senza un'identità di chi decide, quel bank finirebbe attaccato all'unità — cioè `D-050`
+  violata dal primo commit che lo implementa;
+- **non** autorizza il 16v16, né una UI di scala maggiore, né il networking per più giocatori. È un guardrail:
+  il sistema non deve **impedire** quelle modalità, non deve prepararle.
+
+#### Portata dichiarata — e il valore che v0.1 dichiara è **2**, non 1
+
+> 🔴 **Questo paragrafo diceva il contrario ed è stato corretto in code review, prima del merge.** Diceva
+> *«l'intervallo utile in v0.1 è `[1, 1]` … finché nessun formato dichiara `2`»*, e la tabella ventisette
+> righe più sopra — nella stessa sezione — rispondeva già **2**. Le due letture non erano equivalenti:
+> decidono se il fattore di carico del Time Bank sia **vivo oggi** o **dormiente**, cioè un bank di 24 s
+> contro uno di 31,5 s nell'unico formato che il gioco spedisce.
+
+`Format.Skirmish2v2` è **offline contro bot**: c'è **un** umano, e comanda la propria squadra intera. Quindi:
+
+| Formato | `UnitsPerTeam` | Hero per **persona** |
+|---|--:|--:|
+| `Format.Skirmish2v2` (v0.1, spedito) | 2 | **2** — un umano, due unità |
+| formato competitivo ipotizzato (una persona per eroe) | 3 · 4 | **1** |
+
+**La v0.1 è già il caso multi-Hero**, ed è la ragione più forte per cui CP 19.3 non è lavoro futuro: il codice
+non assume «1 : 1» per prudenza verso una modalità che verrà, lo assume **contro il formato che gira adesso**,
+e la coincidenza fra `UnitsPerTeam` e il conteggio per persona è ciò che rende l'errore invisibile.
+
+Il caso `1` è quello **ipotetico**: nasce quando una squadra viene divisa fra più persone. L'intervallo
+esprimibile è quindi `[1, UnitsPerTeam]`, e un `MinControlledHeroesPerPlayer` **non serve**: l'estremo
+inferiore è `1` per costruzione, e due campi per un solo estremo libero sono un vocabolario più grande del
+problema.
+
+**Lavoro tracciato**: E19 · CP 19.3, feature `RT-FEAT-MATCH-FORMAT`. Il consolidamento che ha prodotto questa
+sezione è nello [spec panel del 2026-08-17](../roadmap/plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md) §3 F1.
+
 ---
 
 ## 17. Telemetria — cosa misurare al playtest
@@ -624,6 +689,9 @@ da 3 s. La sonda esiste già come design (`spec-pacing-turno.md`); qui si aggiun
   nell'header del TurnLog e **non** nell'hash (§16.1–16.3, issue `#185`).
 - **Fine partita a tre vie** — eliminazione, obiettivo, `RoundLimit` — con la **via** dichiarata accanto
   all'esito, e parità allo scadere = **pareggio dichiarato**. Implementata in CP 10.3 (2026-08-07, `#76`).
+- **`1 Player = 1 Hero` è un valore del formato, non un'invariante** ([D-155](../decisions/RT_PDR_00_Decision_Log.md),
+  §16.4, 2026-08-17): il resolver resta invariante al numero di persone, il Planning resta **una** finestra per
+  persona, e il conteggio non è `UnitsPerTeam`.
 
 ### 🧪 Baseline da playtestare
 

@@ -384,7 +384,8 @@
         "RT-FEAT-CORE-DECISION-BOUNDARY",
         "RT-FEAT-CORE-TURNLOG",
         "RT-FEAT-REACTION-FAST",
-        "RT-FEAT-MATCH-PACING"
+        "RT-FEAT-MATCH-PACING",
+        "RT-FEAT-MATCH-FORMAT"
       ],
       "completed_by": [],
       "owner_specs": [
@@ -407,7 +408,10 @@
         "Spec.TimeBank.BotDrainsLikePlayer",
         "Spec.TimeBank.ExhaustionKeepsResponsesLegal",
         "Spec.TimeBank.ReplayReadsRecordedBank",
-        "Spec.TimeBank.PacketOrderInvariant"
+        "Spec.TimeBank.PacketOrderInvariant",
+        "Spec.TimeBank.ControlLoadScalesInitialBank",
+        "Spec.TimeBank.ControlLoadNeverExtendsWindow",
+        "Spec.TimeBank.TimeoutIgnoresPreferredResponse"
       ],
       "wiki_refs": [
         "wiki:reazioni-overwatch-e-previsioni"
@@ -418,7 +422,7 @@
         "date": "2026-08-13",
         "commit": "0cff74e"
       },
-      "notes": "Sostituisce D20 («nessun cap aggregato, si misura al playtest») **prima** della misura che l'avrebbe informata: rischio assunto e dichiarato in §2.1 della spec. I due rientri di ADR-0004 §Revisione — cap per turno e `MaxPromptsPerReaction = 1` — restano validi e compatibili col bank. CP 14.8 **non precede** CP 14.5/14.6: la prima misura arriva comunque prima della taratura. Nessun codice: la feature nasce come specifica."
+      "notes": "Sostituisce D20 («nessun cap aggregato, si misura al playtest») **prima** della misura che l'avrebbe informata: rischio assunto e dichiarato in §2.1 della spec. I due rientri di ADR-0004 §Revisione — cap per turno e `MaxPromptsPerReaction = 1` — restano validi e compatibili col bank. CP 14.8 **non precede** CP 14.5/14.6: la prima misura arriva comunque prima della taratura. Nessun codice: la feature nasce come specifica. **2026-08-17 — consolidamento multi-Hero / Preferred Response** ([D-156], [D-157]; referto `plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md`). Tre aggiunte alla spec e **zero** sistemi nuovi: *(1)* il bank scala col carico di controllo con `LoadFactor` **dentro** la derivazione di `D-056` — il fattore moltiplicativo proposto dal kit e' stato respinto perche' rimetteva fuori formula il numero magico che quella derivazione aveva tolto; *(2)* `FastReactionDuration` **non** cresce col numero di Hero, ed e' ora un invariante scritto in §1.2; *(3)* `PreferredResponse` e' una dichiarazione di planning che vive accanto a `FRTArmedOverwatch::Condition` ([D-109]) e ne e' l'opposto — quella **riduce** le `AllowedResponses`, questa non le tocca. 🔴 **Una voce di DoD di #319 e' oggi falsificabile, misurata in questo giro**: `spec-turnlog.md` §4.2 prescrive `ERTLogCategory::Decision`, il codice di CP 14.5 ha in coda `ReactionDecision`, gia' serializzata in TurnLog v8. Sono due categorie sulla stessa finestra e la scelta va fatta **prima** del runtime — riga **75** di `DOC_CONFLICT_MATRIX.md`, stato `CONFLICT`. ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**: `docs/technical/test-manuali-pie.md` appartiene a un'altra track in `parallel-batch.yaml` e per `D-139` si aspetta il suo owner. Il testo pronto sta nel DoD di #319 e in §11 della spec: e' un debito **nominato**, non una dimenticanza."
     },
     {
       "feature_id": "RT-FEAT-CORE-PLAYBACK",
@@ -5467,7 +5471,8 @@
         "milestone": null,
         "checkpoints": [
           "19.1",
-          "19.2"
+          "19.2",
+          "19.3"
         ],
         "out_of_release_scope": ""
       },
@@ -5481,7 +5486,8 @@
       "issues": [
         214,
         215,
-        216
+        216,
+        1124
       ],
       "tests": [
         "RefactorTactics.MatchFormat.*",
@@ -5496,7 +5502,7 @@
         "date": "2026-08-09",
         "commit": "0bbc4c5"
       },
-      "notes": "`URTMatchFormatData` **esiste già** con validator e fallback osservabile: E19 non lo costruisce, chiude due buchi misurati — `MapClass` sul dato mappa e `UnitsPerTeam` nel formato (D-030). Entrambi chiusi il 2026-08-09 (#215, #216): la mappa dichiara la propria classe, il formato dichiara la composizione, e il `GameMode` li onora invece di assumerli. `URTHexMapAsset::CurrentFormatVersion` passa a 6; la simulazione **non** ramifica sulla classe, e un test lo misura confrontando l'hash di due partite identiche. I timer restano fuori dal formato per decisione (ADR-0005 §4c). **2026-08-10 (#375)**: `Format.Skirmish2v2` è **spedito da C++** (`URTMatchFormatLibrary::FindShippedFormat`), come le istanze di `URTActionData` e `URTHeroData` — la CLASSE resta un data asset, e un asset assegnato al `GameMode` vince. L'ordine è: asset ⇒ formato spedito ⇒ ripiego. `RoundLimit` **5** (deciso con l'utente); `ScoreToWin` **0** perché **nessuno assegna punti** — `AddTeamScore` non ha chiamanti runtime, e una soglia > 0 dichiarerebbe una vittoria irraggiungibile. Diventa un numero il giorno in cui un obiettivo la alimenta."
+      "notes": "`URTMatchFormatData` **esiste già** con validator e fallback osservabile: E19 non lo costruisce, chiude due buchi misurati — `MapClass` sul dato mappa e `UnitsPerTeam` nel formato (D-030). Entrambi chiusi il 2026-08-09 (#215, #216): la mappa dichiara la propria classe, il formato dichiara la composizione, e il `GameMode` li onora invece di assumerli. `URTHexMapAsset::CurrentFormatVersion` passa a 6; la simulazione **non** ramifica sulla classe, e un test lo misura confrontando l'hash di due partite identiche. I timer restano fuori dal formato per decisione (ADR-0005 §4c). **2026-08-10 (#375)**: `Format.Skirmish2v2` è **spedito da C++** (`URTMatchFormatLibrary::FindShippedFormat`), come le istanze di `URTActionData` e `URTHeroData` — la CLASSE resta un data asset, e un asset assegnato al `GameMode` vince. L'ordine è: asset ⇒ formato spedito ⇒ ripiego. ~~`RoundLimit` **5**~~ → **12** (corretto il 2026-08-17: `RTMatchFormatLibrary.cpp:152` scrive `12` sul formato spedito e `:184` sul ripiego, e il commento a `:150` lo dichiara load-bearing — «**D-056** ne deriva `InitialBank`, quindi questo numero muove anche il time bank; la formula si tara a CP 14.6 e li' va riletta con 12, non con 5». Con 5 questa nota affermava un bank di 10 s invece di 24: uno scarto di 2,4x su un numero che un altro documento deriva); `ScoreToWin` **0** perché **nessuno assegna punti** — `AddTeamScore` non ha chiamanti runtime, e una soglia > 0 dichiarerebbe una vittoria irraggiungibile. Diventa un numero il giorno in cui un obiettivo la alimenta. **2026-08-17 ([D-155], #1124)**: si apre **CP 19.3** e i gate NON si muovono, ed e' una scelta da dichiarare invece di lasciarla al lettore. I gate misurano cio' che la feature consegna **oggi**: `URTMatchFormatData` esiste, e' validato, spedito da C++ e onorato dal `GameMode`, e nessuna di queste cose e' regredita. Cio' che manca e' un **campo nuovo**, con il suo checkpoint e la sua issue — abbassare `data` a `partial` direbbe che il formato e' incompleto rispetto a cio' che gia' dichiara, che e' falso, e farebbe scendere lo `status` derivato per un lavoro non ancora iniziato. 🔴 **La lacuna e' stata misurata da un'altra direzione, ed e' il motivo per cui era invisibile**: `UnitsPerTeam` risponde a *quante unita' schiera una squadra*, e nessun campo risponde a *quante ne comanda una persona*. In v0.1 valgono entrambi **2** — un solo umano, 2v2 offline — quindi il campo sbagliato passa ogni test. A trovarlo e' stato il consolidamento del Decision Time Bank: [D-050] dichiara un bank **per giocatore** e `ARTTurnManager::AskReactionDecision` conosce solo un `OwnerUnitId` e un `bIsBotControlled` letto da `ARTUnit`. Questa feature **blocca** #319."
     },
     {
       "feature_id": "RT-FEAT-MATCH-PACING",
