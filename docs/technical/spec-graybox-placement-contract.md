@@ -176,21 +176,44 @@ Le misure si esprimono in frazioni di **`C`**, la distanza centro-centro fra due
 `C` **non è una costante nuova**, e **non è `HexSize`**:
 
 ```text
-C = √3 · HexSize          ≈ 173 con HexSize al suo default di 100
+C = √3 · HexSize
 ```
 
-`HexSize` è il **raggio** dell'esagono (circumraggio), non il passo della griglia: `URTHexLibrary::AxialToWorld`
-calcola `Wx = HexSize · √3 · (Q + R/2)`, quindi due celle adiacenti distano `√3 · HexSize`. `HexSize` è un
-`UPROPERTY` dell'asset mappa e dell'attore, e una mappa può cambiarlo — per questo le misure di questo
-documento sono in frazioni di `C` e non in centimetri.
+`HexSize` è il **raggio** dell'esagono (circumraggio), non il passo della griglia:
+`URTHexLibrary::AxialToWorld` calcola `Wx = HexSize · √3 · (Q + R/2)`, quindi due celle adiacenti distano
+`√3 · HexSize`. `HexSize` è un `UPROPERTY` dell'asset mappa e dell'attore, e una mappa **può cambiarlo** —
+per questo le misure di questo documento sono in frazioni di `C`.
 
-> 🔴 **Questa riga diceva «`C` discende da `HexSize`, default `100.f`» senza il fattore.** Chi avesse
-> letto «0.28 C» come 28 cm avrebbe modellato una copertura bassa alta il **58%** del dovuto — `0.28 C` con
-> `C ≈ 173` vale ≈ 48 cm, e `28 / 48 ≈ 0,58`, cioè il fattore `1/√3`. Lo stesso valeva per il Safe
-> Placement inset di `GBX-1`, espresso nella stessa unità.
-> ⚠️ *La prima stesura di questa nota diceva «alta un terzo del dovuto», confondendo il fattore d'errore
-> (`√3 ≈ 1,73`) con il suo reciproco: due numeri incompatibili nella stessa frase, uno dei quali era stato
-> scritto correttamente due righe sopra. Trovato in code review.*
+### 6.1 Quanto vale `C` in metri, e perché la domanda ha due risposte
+
+[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis fissa la **scala d'arte**:
+
+```text
+1 UU  = 1 cm
+lato dell'esagono ≈ 1,50 m          →  C ≈ 2,60 m      (apotema · 2)
+                                        vertice-vertice = 3,00 m
+```
+
+⚠️ **Il default del codice è un altro numero**, e i due non vanno confusi: `HexSize` nasce a `100.f` in
+`RTHexMapAsset.h` e `RTHexMapActor.h`, cioè un lato di **1,00 m** e `C ≈ 1,73 m`. Il default è il valore
+che una mappa ha *finché nessuno lo cambia*; la scala d'arte è quella a cui si **modella**. Chi costruisce
+una mesh usa `1,50 m`; chi legge una mappa esistente legge il suo `HexSize`.
+
+> 🔑 **E §11-bis dichiara il proprio limite, che vale anche qui**: *«non è una metrica di design, e non va
+> usata come tale»*. Serve a dimensionare mesh e proporzioni — *quanto è grande questo modello* — non a
+> misurare mappe, che si dimensionano contando i **Move** e non i metri. Il contratto di ingombro sta dal
+> lato dell'arte, ed è per questo che può usarla.
+
+> ⏱️ **Questa sezione ha portato «≈ 173 con HexSize al suo default di 100» come se fosse la scala del
+> progetto.** Era vero del default e falso della scala d'arte, che §11-bis fissava da giorni: un esempio
+> numerico calcolato sul valore sbagliato dei due. Corretto il **2026-08-17** consumando il bundle
+> `GrayToolkit`, che ha reso la divergenza visibile mettendo i due numeri accanto.
+
+> 🔴 **La riga precedente diceva «`C` discende da `HexSize`, default `100.f`» senza il fattore `√3`.** Chi
+> avesse letto «0.28 C» come 28 cm avrebbe modellato una copertura bassa alta il **58%** del dovuto — il
+> fattore `1/√3`. Lo stesso valeva per il Safe Placement inset di `GBX-1`, espresso nella stessa unità.
+> ⚠️ *E la prima stesura di questa nota diceva «alta un terzo del dovuto», confondendo il fattore d'errore
+> (`√3 ≈ 1,73`) con il suo reciproco. Trovato in code review.*
 
 Le guide verticali del volume sono **riferimenti di modellazione**, e non sono categorie di targeting:
 
