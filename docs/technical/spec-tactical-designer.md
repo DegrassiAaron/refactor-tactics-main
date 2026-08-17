@@ -140,18 +140,25 @@ nell'hash di stato** — è metadato d'authoring, e due mappe che si giocano ide
 Un authoring visuale degli scenari non ha bisogno di un formato proprio: `FRTTestScenario` esprime già
 quasi tutto ciò che serve, e va **esteso**, mai affiancato.
 
+Sono **dodici** campi, misurati sulla struct e non elencati a memoria:
+
 ```text
 FRTTestScenario
-├── ScenarioId              ID stabile e gerarchico
-├── Version                 versione del FORMATO
-├── Units[]                 FRTScenarioUnit  — eroe, squadra, cella, facing, HP, scudo, vista, loadout
-├── Cells[]                 FRTScenarioCell  — le celle che questo scenario cambia
-├── Turns[]                 FRTScenarioTurn
-│   ├── Intents[]           FRTScenarioIntent    — chi, dove si muove, quale abilità, su quale bersaglio
-│   ├── Decisions[]         FRTScenarioDecision  — risposta scriptata a una finestra: FIRE | HOLD
-│   └── Requires[]          capability necessarie → altrimenti ERTTestOutcome::Blocked
-├── Expect[]                FRTTestExpectation + ERTAssertionKind
-└── Variants[]              FRTScenarioVariant — stesso allestimento, celle diverse
+├── ScenarioId                  ID stabile e gerarchico
+├── Version                     versione del FORMATO, non del contenuto
+├── Fixture                     l'allestimento da cui si parte
+├── MapRadius                   dimensione dell'arena generata
+├── Seed                        dichiarato e NON consumato (vedi sotto)
+├── PreviewUnit                 presentazione: headless non fa niente
+├── Cells[]                     FRTScenarioCell  — le celle che questo scenario cambia
+├── Units[]                     FRTScenarioUnit  — eroe, squadra, cella, facing, HP, scudo, vista, loadout
+├── Turns[]                     FRTScenarioTurn
+│   ├── Intents[]               FRTScenarioIntent    — chi, dove si muove, quale abilità, su quale bersaglio
+│   ├── Decisions[]             FRTScenarioDecision  — risposta scriptata a una finestra: FIRE | HOLD
+│   └── Requires[]              capability necessarie → altrimenti ERTTestOutcome::Blocked
+├── Expect[]                    FRTTestExpectation + ERTAssertionKind
+├── Variants[]                  FRTScenarioVariant — stesso allestimento, celle diverse
+└── bExpectSameAcrossVariants   il canary: tutte le varianti devono dare lo stesso esito
 ```
 
 Tre proprietà che rendono questo formato adatto a essere il bersaglio di un editor visuale:
@@ -172,8 +179,18 @@ Tre proprietà che rendono questo formato adatto a essere il bersaglio di un edi
 |---|---|---|
 | status/condizioni iniziali | fixture con mitigazione o controllo attivo | il primo scenario che ne ha bisogno |
 | stato d'ambiente (acqua, fuoco, ghiaccio) | fixture d'interazione ambientale | M9.2 |
-| seed deterministico | nulla, finché il resolver è deterministico per costruzione | la prima sorgente di casualità |
-| override di skill in una variante | *baseline vs candidate* | lo Skill Workbench |
+| override di abilità in una variante | *baseline vs variante* | lo Skill Workbench |
+
+> 🔴 **Il seed NON è in questa tabella, e la prima stesura ce l'aveva messo.** `FRTTestScenario::Seed`
+> **esiste**, ed è documentato per esteso: *«Seed dichiarato ma non consumato: oggi il progetto non ha alcun
+> RNG e il determinismo viene da coordinate intere e ordinamenti totali. Il campo esiste perché il giorno in
+> cui un RNG entrerà nel resolver lo scenario debba già saperlo dichiarare — non perché faccia qualcosa
+> adesso.»*
+>
+> ⚠️ E ha un **guardiano**: `RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed` verifica che due seed
+> **diversi** diano lo stesso risultato — l'unico verso che morde su un progetto senza casualità. Chi
+> introducesse un RNG non troverebbe un campo mancante: **contraddirebbe un test verde**. Il *se* è aperto
+> (`RNG-1`/`RNG-2` in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)), il *come* no.
 
 ---
 

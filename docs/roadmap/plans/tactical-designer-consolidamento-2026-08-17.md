@@ -129,7 +129,7 @@ Il modello dati che il sorgente §37 chiede di «poter rappresentare» **esiste 
 | **Interactive decisions / reactions** | **`FRTScenarioDecision`** (`Unit`, `Respond` = `FIRE`/`HOLD`, `Target`) | **nessun gap** |
 | Expectations | `FRTTestExpectation` + 8 `ERTAssertionKind`, fra cui `LogEventCount` · `LogEventOrder` · `LogEventAmount` | — |
 | **Clone / Variant (§40.3)** | **`FRTScenarioVariant`** + `FRTScenarioVariantUnit` | varia **solo le celle**, per scelta dichiarata |
-| deterministic seed | — | non esiste un campo seed |
+| deterministic seed | **`FRTTestScenario::Seed`** — dichiarato e **non consumato**, con guardiano `RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed` | 🔴 **nessun gap**: vedi sotto |
 
 E l'esito `ERTTestOutcome::Blocked` più `FRTScenarioTurn::Requires` sono già la risposta a §41 e a §54: uno
 scenario può essere versionato **prima** che i suoi sistemi esistano, dichiarando quali capability gli
@@ -284,9 +284,15 @@ Nessuna nuova voce in `OPEN_DECISIONS.md`: le due domande che il sorgente sollev
 un innesco dichiarato.
 
 - **Invertibilità del bake** (§11) → chiusa, `D-131`.
-- **Seed deterministico nello scenario** (§37) → il formato non ha un campo seed, e non serve finché il
-  resolver è deterministico per costruzione. Diventa una domanda quando nasce il primo scenario con una
-  sorgente di casualità — e allora l'owner è `RT-FEAT-CORE-DETERMINISM`, non il Composer.
+- **Seed deterministico nello scenario** (§37) → 🔴 **questa riga diceva «il formato non ha un campo
+  seed», ed è falso**: `FRTTestScenario::Seed` esiste, ed è documentato come *«dichiarato ma non consumato
+  [...] il campo esiste perché il giorno in cui un RNG entrerà nel resolver lo scenario debba già saperlo
+  dichiarare»*. Ha anche un **guardiano** — `RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed`
+  verifica che due seed **diversi** diano lo stesso risultato, che è l'unico verso che morde su un progetto
+  senza RNG. Chi introducesse casualità non troverebbe un campo mancante: **contraddirebbe un test verde**.
+  Il *se* è aperto (`RNG-1`/`RNG-2`, [#960](https://github.com/DegrassiAaron/refactor-tactics-main/issues/960)),
+  il *come* è già scritto. Terzo errore di misura di questo referto, e la forma è sempre la stessa: dedurre
+  l'assenza invece di cercarla.
 - **Reaction choices scriptate** (§37, §40.2) → è `D-101` / `#542`, già aperta e già tracciata.
 
 ---
