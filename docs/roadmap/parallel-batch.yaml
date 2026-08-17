@@ -4233,6 +4233,12 @@ tracks:
       un'altra track che `D-139` vieta. Il contenuto delle voci esiste ed è pronto — vive nella issue di
       validazione e nell'owner doc §8, non in un edit. Torna a chi possiede il file.
 
+      📦 **Il kit è archiviato in `docs/archive/src/` col suo banner**, e il totale del README è stato
+      **rimisurato, non incrementato**: dichiarava **76**, il comando ne dava **79** *prima* di questa
+      archiviazione e **80** dopo. Lo scarto di tre era già stato previsto da `docs_kit` il 2026-08-16.
+      ⚠️ **E l'indice della radice risponde 10 contro 13 file sul disco**: tre archiviazioni di `docs_kit`
+      non hanno una riga. Non le ricostruisco — una riga d'indice dice *cosa quel sorgente ha prodotto*, e
+      scriverla senza l'istruttoria di quei kit sostituirebbe una lacuna visibile con una plausibile.
       ⛔ **Cosa questa track NON tocca, ed è il punto**: nessun `.uasset` e nessun `.umap`. I diciannove
       elementi del kit sono asset binari e servirebbe una **Binary Asset Lease** più una persona in
       Unreal; il kit stesso prescrive di non trattare il graybox come produzione artistica. `binary_leases`
