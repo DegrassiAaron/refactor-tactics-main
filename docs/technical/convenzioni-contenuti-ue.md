@@ -297,11 +297,16 @@ cioè il lato (`RTHexLibrary.cpp`: *«un pointy-top di circumraggio HexSize»*).
 d'autore dello stesso giorno. Chi modella in verticale ha quindi **due riferimenti indipendenti**: il lato
 della cella per la pianta, la quota di piano per l'alzato. Non si deriva l'uno dall'altro.
 
-| | Prima | Dal 2026-08-17 |
-|---|---:|---:|
-| Lato della cella | 1,00 m | **1,50 m** |
-| Cella lato-a-lato (`C`) | 1,73 m | **2,60 m** |
-| Quota di piano | 2,50 m | **2,50 m** *(invariata)* |
+| | Scala d'arte | Scala del mondo, oggi | Scala del mondo, al canone |
+|---|---:|---:|---:|
+| Lato della cella | 1,50 m *(dal 2026-08-09)* | 1,00 m | **1,50 m** |
+| Cella lato-a-lato (`C`) | 2,60 m | 1,73 m | **2,60 m** |
+| Altezza del volume | — | 2,50 m | **2,50 m** *(già allineata)* |
+
+⚠️ **La colonna che cambia il 2026-08-17 è la terza, non la prima**: la scala d'arte è quella dal
+2026-08-09 e `D-163` non l'ha toccata — ha deciso che il **mondo** la segue. Chi ha modellato fra il 09 e
+il 17 ha modellato giusto. E finché la issue di migrazione è aperta, la colonna che il gioco usa è la
+**seconda**.
 
 > 🔴 **Fino al 2026-08-17 questa sezione descriveva una scala che nessuna mappa usava.** Misurato:
 > `HexSize` non compare in **nessun** binario di `Content/RT` — misura e oracolo in

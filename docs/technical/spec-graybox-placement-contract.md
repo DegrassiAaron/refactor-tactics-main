@@ -154,7 +154,7 @@ prisma esagonale — la cella logica È un volume, non una superficie
   ├─ lato-a-lato       C = √3 · HexSize    (2,60 m)
   ├─ altezza           H = LayerHeight = 250   (2,50 m)
   ├─ safe footprint    un inset, misurato in frazione di C — vedi §9, il valore è APERTO
-  └─ guide verticali   frazioni di H — §7.1
+  └─ guide verticali   frazioni di H — §6.2
 ```
 
 ⏱️ **I due valori assoluti qui sopra sono il canone, non ciò che il gioco fa oggi**: finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non
@@ -186,9 +186,15 @@ funzionalità di debug.
 Le misure si esprimono in frazioni, e i denominatori sono **due**, uno per asse:
 
 ```text
-larghezze, ingombri, inset   →  frazioni di C   passo orizzontale
-altezze                      →  frazioni di H   altezza del volume-cella
+ingombri e inset       →  frazioni di C      passo centro-centro
+elementi di BORDO      →  frazioni del lato  il bordo su cui stanno (= HexSize)
+altezze                →  frazioni di H      altezza del volume-cella
 ```
+
+I riferimenti sono **tre**, e la regola non è «due assi» ma **ogni misura sul segmento che la contiene**.
+`C` e il lato sono entrambi orizzontali ma non intercambiabili: `C = √3 · lato`, quindi confonderli sbaglia
+di **1,73×**. Un pannello appoggiato a un bordo si budgeta sul **bordo** — è `0.92` del lato — mentre un
+inset, che misura quanto un asset si ritrae dal centro verso i vicini, si budgeta su `C`.
 
 ⏱️ In metri: `C = 2,60 m` **al canone** (`1,73 m` finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra) e `H = 2,50 m`, che è già il
 valore di oggi. La grammatica è in frazioni proprio perché la prima delle due sta cambiando.
@@ -253,10 +259,9 @@ diventa 1,5× più largo, quindi le silhouette si distanziano e la cella smette 
 margine che rende `GBX-1` e `GBX-5` validabili **guardando** invece che discutendo — e si vede in pianta,
 non in alzato.
 
-> ⚠️ **I budget di questo contratto non si allargano, e non devono sembrare farlo.** Sono frazioni di `H`,
-> e `H` non si muove: `0.28 H` è 70 cm prima e dopo. Chi cerca un guadagno sull'asse verticale non lo trova,
-> ed è corretto così. E le altezze di `RTHexMapActor.cpp` non sono evidenza su questi budget: sono
-> **placeholder di visualizzazione**, che `D-168` esclude dal perimetro.
+> ⚠️ **E le altezze di `RTHexMapActor.cpp` non sono evidenza su questi budget**: sono **placeholder di
+> visualizzazione**, che [`D-168`](../decisions/RT_PDR_00_Decision_Log.md) esclude dal perimetro di questo
+> contratto.
 
 ⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
 `1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella per una cella larga `2,60 m`** — cioè
@@ -270,7 +275,9 @@ finiti** finché non li puoi validare in PIE.
 > quello che `HexSize` contiene. `C = √3 · lato`: `1,50 → 2,60`. Le due righe dicono lo stesso
 > vincolo in unità diverse, e ciascuna usa quella naturale per il proprio documento.
 
-Misurato: **quattro** siti in `Source/` lasciano `HexSize` a `100.f`, e **nessuna mappa lo sovrascrive**.
+Misurato: `HexSize` vale `100.f` in **16 occorrenze su 10 file** di `Source/`, e **nessuna mappa lo
+sovrascrive**. La distinzione che conta non è il totale ma **a cosa serve ciascuna**: **quattro** sono
+codice di gioco e decidono il mondo, le altre stanno in `Tests/` e fissano una scala arbitraria.
 I due che decidono il mondo sono `RTHexMapAsset.h:151` (l'autorevole: l'asset vince sull'actor) e
 `RTHexMapActor.h:74` (il fallback quando `MapAsset` è assente); gli altri due — `RTHUD.cpp:335` e
 `RTTurnManager.cpp` in `GetHexContext` — sono inizializzatori del ramo «nessuna mappa nel livello».

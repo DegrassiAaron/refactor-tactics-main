@@ -170,12 +170,14 @@ Il kit decide la **grammatica** e non tutti i numeri, e lo dichiara esso stesso:
 grammatica, non necessariamente tutti i numeri finali»*. **Cinque** voci restano aperte, e ciascuna per una
 ragione propria: un valore che si valida **guardando** (`GBX-1`), una lacuna di grammatica (`GBX-2`), una
 scelta di presentazione su una scala che **esiste già** (`GBX-3`), un percorso che nessuno ha ancora scelto (`GBX-4`) e un ingombro che ha tre valori in tre documenti (`GBX-5`). La sesta — **due scale che
-divergevano di 1,5×** — è ✅ **CHIUSA il 2026-08-17** da [`D-163`](decisions/RT_PDR_00_Decision_Log.md):
-resta in tabella perché la sua riga porta la misura, non perché sia da decidere.
+divergevano di 1,5×** — è ✅ **CHIUSA il 2026-08-17** da [`D-163`](decisions/RT_PDR_00_Decision_Log.md), e
+sta nella sezione dedicata più sotto: la tabella qui accanto ne ha **cinque**, e questo è il conto.
 
-> 🔴 *Terza recidiva, e le prime due sono documentate qui sotto.* Il 2026-08-17, chiudendo `GBX-6`, questa
-> riga è rimasta a **«Sei»** mentre ne elencava cinque e la conclusione della sezione diceva già «cinque» —
-> l'immagine speculare esatta del caso registrato nella nota seguente. Nessun gate legge un numero in prosa,
+> 🔴 *Ennesima ricaduta — le note qui sotto ne registrano altre tre, e questa non è «la terza»: contarle è
+> proprio l'esercizio che continua a fallire.* Il 2026-08-17, chiudendo `GBX-6`, questa riga è rimasta a
+> **«Sei»** mentre ne elencava cinque e la conclusione della sezione diceva già «cinque»: la stessa
+> direzione dei casi precedenti — conclusione aggiornata, apertura no — non l'immagine speculare, come una
+> stesura di questa nota sosteneva. Nessun gate legge un numero in prosa,
 > quindi l'unica difesa è **rileggere apertura e chiusura insieme**, ogni volta che la tabella cambia.
 >
 > ⚠️ *Questa riga ha detto «quattro» finché le voci non sono state sei, e la nota in fondo alla sezione —
@@ -219,8 +221,7 @@ tace e il lavoro resta locale.
 > aspettare. Correggere l'apertura di una sezione e non la sua chiusura è lo stesso difetto due volte nello
 > stesso testo.*
 
-Tracciate su GitHub: [`#1094`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094) — che porta le **cinque** rimaste — il suo titolo lo dice — dopo che `GBX-6` è stata chiusa da [`D-163`](decisions/RT_PDR_00_Decision_Log.md); `GBX-5` e `GBX-6` erano state aggiunte il 2026-08-17
-(`question`) — aperta **nello stesso commit** di questa voce, per la ragione che `RNG-1`/`RNG-2` hanno già
+Tracciate su GitHub: [`#1094`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094) — (`question`), aperta **nello stesso commit** di questa voce e oggi intitolata alle **cinque** rimaste, dopo che `GBX-6` è stata chiusa da [`D-163`](decisions/RT_PDR_00_Decision_Log.md) — `GBX-5` e `GBX-6` vi erano state aggiunte il 2026-08-17, per la ragione che `RNG-1`/`RNG-2` hanno già
 scritto: una decisione aperta che vive solo in un documento non entra in nessuna coda di lavoro.
 
 ---
@@ -233,7 +234,7 @@ perché una riga barrata in una tabella di domande si conta lo stesso quando qua
 
 | ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
 |---|---|---|
-| `GBX-6` | La **scala d'arte** (lato 1,5 m) e la **scala di ogni mappa esistente** (lato 1,0 m) divergono di 1,5×. Quale delle due governa? | ✅ **Vince la scala d'arte**: lato `1,5 m`, `HexSize = 150` ([`D-163`](decisions/RT_PDR_00_Decision_Log.md)). ⏱️ **La decisione non è l'atterraggio**: il cambio di codice è [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155), e fino ad allora il mondo gira a `1,00 m`. *Aperta e chiusa nello stesso giorno; la misura sotto resta perché è ciò che ha reso decidibile la domanda.* 🆕 Aperta il 2026-08-17 da [D-158](decisions/RT_PDR_00_Decision_Log.md), ed è la domanda che il bundle `GrayToolkit` ha reso visibile senza porla. `convenzioni-contenuti-ue.md` §11-bis fissa il **lato a 1,5 m** come scala d'arte dal 2026-08-09; misurato, **nessuna mappa la usa** — misurato in [`D-163`](decisions/RT_PDR_00_Decision_Log.md) — `HexSize` e' un `UPROPERTY` e il valore vive dentro i `.uasset`/`.umap`, che un `grep` su `Scenarios/` e `Config/` non apre, e il default resta `100.f` in `RTHexMapAsset.h` e `RTHexMapActor.h`. **Conseguenza concreta**: una copertura bassa modellata a `0.28 C` con `C = 2,60 m` era alta 73 cm, e su una mappa reale (cella 1,73 m) copriva il **42%** invece del 28% budgetato. ⏱️ *Esempio dell'epoca: [`D-168`](decisions/RT_PDR_00_Decision_Log.md) ha poi spostato le altezze da `C` a `H`, quindi oggi la guida bassa è `0.28 H` = 70 cm. La divergenza che questa riga descriveva resta reale — cambia solo il denominatore con cui la si misura.* ⚠️ **Non si chiude scegliendo il numero più bello**: alzare `HexSize` a `150` cambia il mondo sotto ogni mappa e ogni test che misura in unità Unreal; lasciare `100` significa che §11-bis descrive una scala che nessuno usa. **Nessuna delle due è gratis**, ed è per questo che è una decisione e non una correzione. ⛔ E non era del contratto d'ingombro: l'owner della scala è `convenzioni-contenuti-ue.md` — che il 2026-08-17 **non era assegnato a nessuna track**, la stessa condizione di `GBX-4`, e che `D-163` ha portato in `integration_only` proprio per poterci scrivere la risposta |
+| ~~`GBX-6`~~ | ~~La **scala d'arte** (lato 1,5 m) e la **scala di ogni mappa esistente** (lato 1,0 m) divergono di 1,5×. Quale delle due governa?~~ | ✅ **Vince la scala d'arte**: lato `1,5 m`, `HexSize = 150` ([`D-163`](decisions/RT_PDR_00_Decision_Log.md)). ⏱️ **La decisione non è l'atterraggio**: il cambio di codice è [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155), e fino ad allora il mondo gira a `1,00 m`. *Aperta e chiusa nello stesso giorno; la misura sotto resta perché è ciò che ha reso decidibile la domanda.* 🆕 Aperta il 2026-08-17 da [D-158](decisions/RT_PDR_00_Decision_Log.md), ed è la domanda che il bundle `GrayToolkit` ha reso visibile senza porla. `convenzioni-contenuti-ue.md` §11-bis fissa il **lato a 1,5 m** come scala d'arte dal 2026-08-09; misurato, **nessuna mappa la usa** — misurato in [`D-163`](decisions/RT_PDR_00_Decision_Log.md) — `HexSize` e' un `UPROPERTY` e il valore vive dentro i `.uasset`/`.umap`, che un `grep` su `Scenarios/` e `Config/` non apre, e il default resta `100.f` in `RTHexMapAsset.h` e `RTHexMapActor.h`. **Conseguenza concreta**: una copertura bassa modellata a `0.28 C` con `C = 2,60 m` era alta 73 cm, e su una mappa reale (cella 1,73 m) copriva il **42%** invece del 28% budgetato. ⏱️ *Esempio dell'epoca: [`D-168`](decisions/RT_PDR_00_Decision_Log.md) ha poi spostato le altezze da `C` a `H`, quindi oggi la guida bassa è `0.28 H` = 70 cm. La divergenza che questa riga descriveva resta reale — cambia solo il denominatore con cui la si misura.* ⚠️ **Non si chiude scegliendo il numero più bello**: alzare `HexSize` a `150` cambia il mondo sotto ogni mappa e ogni test che misura in unità Unreal; lasciare `100` significa che §11-bis descrive una scala che nessuno usa. **Nessuna delle due è gratis**, ed è per questo che è una decisione e non una correzione. ⛔ E non era del contratto d'ingombro: l'owner della scala è `convenzioni-contenuti-ue.md` — che il 2026-08-17 **non era assegnato a nessuna track**, la stessa condizione di `GBX-4`, e che `D-163` ha portato in `integration_only` proprio per poterci scrivere la risposta |
 
 
 ---

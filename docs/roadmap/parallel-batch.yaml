@@ -4666,7 +4666,8 @@ tracks:
       quando `D-163` l'ha portato nell'elenco `integration_only` in fondo a questo file. Si trova
       cercando `convenzioni-contenuti-ue.md`: un termine di ricerca invece di una distanza, perché in un
       file che cresce ogni numero di riga invecchia — inclusi i due che le stesure precedenti di questa
-      riga hanno sbagliato. È diventato `GBX-4` invece di un edit.
+      riga hanno sbagliato. ⚠️ **Lo STOP era però solo metà della ragione** — toglieva il permesso di
+      scrivere la risposta, non la difficoltà di trovarla, che è di design e resta. È diventato `GBX-4` invece di un edit.
 
       ⏱️ **L'intersezione di apertura è una misura DATATA e non vale al rilascio.** Diceva 11 ref remoti,
       13 worktree, 1 PR aperta; al 2026-08-17, ore 12:50, sono **11 ref · 14 worktree · 3 PR** (#1113,
@@ -5720,14 +5721,14 @@ integration_only:
   # edit». Chiudere `GBX-6` senza assegnarlo avrebbe lasciato la decisione senza il documento che la deve
   # scrivere. È normativo (§5 governa i percorsi di `Content/`, §11-bis la scala d'arte) e più track lo
   # vogliono emendare: `integration_only` è la categoria giusta.
-  # 🔴 **Ed è stato preso PRIMA di essere assegnato, nello stesso commit. Dirlo NON è il rimedio.**
-  # `CLAUDE.md` §5 prescrive di **fermarsi**, non di annotare: «Altrimenti ti fermi e lo dici». Questa nota
-  # registra una violazione, non la sana — e la differenza conta perché è la **seconda** volta identica
-  # (`spec-asset-pipeline.md`, poco sopra, con la stessa formula «detto invece di taciuto»). Due precedenti
-  # sono un'abitudine, e l'abitudine è che chiunque può assegnarsi un path scrivendoci sopra purché lo
-  # confessi. 🔵 **Il rimedio vero, per la prossima volta**: la riga di allowlist entra in un commit
-  # **separato e precedente**, o in una PR di sola riconciliazione — che è esattamente ciò che questo file
-  # è, e che rende il costo quasi nullo. Chi legge questa nota cercando un permesso non lo trova.
+  # 🔴 **Preso PRIMA di essere assegnato, nello stesso commit — e dirlo NON è il rimedio.**
+  # `CLAUDE.md` §5 prescrive di **fermarsi**, non di annotare. Questa nota registra una violazione, non la
+  # sana, ed è la **seconda** identica dopo `spec-asset-pipeline.md`: due precedenti fanno un'abitudine, e
+  # l'abitudine sarebbe che chiunque si assegna un path scrivendoci sopra purché lo confessi.
+  # 🔵 **Il rimedio, per la prossima volta**: la riga di allowlist in un commit **separato e precedente**,
+  # o in una PR di sola riconciliazione — costo quasi nullo, ed era disponibile.
+  # ⚠️ Il write misurato è di **50 righe aggiunte e 5 rimosse**, non «36»: oltre a §11-bis.1 la modifica
+  # tocca il **titolo** e il blocco normativo del §11-bis padre, che è la parte più portante del file.
   # `CLAUDE.md` §5 è esplicito — «File non assegnato = STOP … Altrimenti ti fermi e lo dici» — e l'ordine
   # corretto è dichiarare, poi scrivere. Qui le 36 righe di §11-bis.1 e questa riga di allowlist sono
   # atterrate insieme. Questo file ha già un precedente identico (`spec-asset-pipeline.md`, poco sopra) e
