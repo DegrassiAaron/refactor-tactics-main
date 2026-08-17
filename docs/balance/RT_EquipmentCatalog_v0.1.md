@@ -48,7 +48,7 @@ Le varianti modificano l'**attacco base** dell'eroe (valori per tipo d'arma nel
 >   ([D-086](../decisions/RT_PDR_00_Decision_Log.md)): non si cerca parità relativa. Il vincolo è che
 >   nessuna combinazione legale sia **morta**.
 > - **Le spinte additive si sommano** ([D-085](../decisions/RT_PDR_00_Decision_Log.md)): `Impact` su
->   `Riva.PressureJet`, che già spinge di 1, produce **una spinta di 2** — non due da 1. La decisione ha
+>   `Hero.Phase.PressureJet`, che già spinge di 1, produce **una spinta di 2** — non due da 1. La decisione ha
 >   scoperto un difetto reale nel resolver, corretto lo stesso giorno.
 >
 > Il **default per eroe** non è deciso (`WV-3`): la tabella §4 qui sotto assegna gadget e reazioni, mai

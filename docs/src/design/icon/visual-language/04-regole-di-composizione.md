@@ -45,28 +45,28 @@ Le venti ability della v0.1, con la composizione derivata dal loro comportamento
 
 | Ability | Composizione |
 |---|---|
-| `Flux.ArcPulse` | BasicAttack + Electric — pulse breve |
-| `Flux.LinearDischarge` | Line + Electric |
-| `Flux.ConductiveNode` | Cell/Object + Electric — setup, cue di nodo/rete |
-| `Flux.Overload` | Circle + Electric + Damage |
-| `Flux.ReactiveCapacitor` | Reaction + Shield + Electric |
-| `Riva.PressureJet` | Line + Water + Push |
-| `Riva.CircularTide` | Circle + Water + Heal |
-| `Riva.FluidTrail` | Dash + Water — scia |
-| `Riva.MistVeil` | Circle + Water→Smoke, cue di occultamento |
-| `Riva.FlowReaction` | Reaction + Water + Reposition |
-| `Bastion.ImpactShot` | BasicAttack + impatto cinetico |
-| `Bastion.KineticPanel` | Cover creato + pannello direzionale |
-| `Bastion.Reconfigure` | Cover + cue di rotazione |
-| `Bastion.Ram` | Dash + Push + Damage |
-| `Bastion.Interposition` | Reaction + Ally + redirect |
-| `Vektor.PulseShot` | BasicAttack + pulse cinetico |
-| `Vektor.InterceptShot` | Reaction + Line/Cell controllata + stop movimento |
-| `Vektor.PassingBlade` | Dash + Line + Damage |
-| `Vektor.Deflection` | Reaction + deflessione — **non** un pool di Shield |
-| `Vektor.Feint` | Predicted + Cell mark + Reposition |
+| `Hero.Gadget.ArcPulse` | BasicAttack + Electric — pulse breve |
+| `Hero.Gadget.LinearDischarge` | Line + Electric |
+| `Hero.Gadget.ConductiveNode` | Cell/Object + Electric — setup, cue di nodo/rete |
+| `Hero.Gadget.Overload` | Circle + Electric + Damage |
+| `Hero.Gadget.ReactiveCapacitor` | Reaction + Shield + Electric |
+| `Hero.Phase.PressureJet` | Line + Water + Push |
+| `Hero.Phase.CircularTide` | Circle + Water + Heal |
+| `Hero.Phase.FluidTrail` | Dash + Water — scia |
+| `Hero.Phase.MistVeil` | Circle + Water→Smoke, cue di occultamento |
+| `Hero.Phase.FlowReaction` | Reaction + Water + Reposition |
+| `Hero.Riktor.ImpactShot` | BasicAttack + impatto cinetico |
+| `Hero.Riktor.KineticPanel` | Cover creato + pannello direzionale |
+| `Hero.Riktor.Reconfigure` | Cover + cue di rotazione |
+| `Hero.Riktor.Ram` | Dash + Push + Damage |
+| `Hero.Riktor.Interposition` | Reaction + Ally + redirect |
+| `Hero.Wraith.PulseShot` | BasicAttack + pulse cinetico |
+| `Hero.Wraith.InterceptShot` | Reaction + Line/Cell controllata + stop movimento |
+| `Hero.Wraith.PassingBlade` | Dash + Line + Damage |
+| `Hero.Wraith.Deflection` | Reaction + deflessione — **non** un pool di Shield |
+| `Hero.Wraith.Feint` | Predicted + Cell mark + Reposition |
 
-Non si disegna un fulmine per ogni ability di Flux, né un'onda per ogni ability di Riva. L'elemento è il
+Non si disegna un fulmine per ogni ability di Gadget, né un'onda per ogni ability di Phase. L'elemento è il
 payload; a distinguere le cinque ability sono geometria e funzione.
 
 ### 3.1 La chiave di una ability
@@ -74,7 +74,7 @@ payload; a distinguere le cinque ability sono geometria e funzione.
 Le ability prendono un `IconId` regolare sotto la categoria `Action`:
 
 ```text
-UI.Icon.Action.Flux.LinearDischarge
+UI.Icon.Action.Hero.Gadget.LinearDischarge
 ```
 
 Il validator (`URTIconLibrary::ValidateIconCatalog`) confronta il **prefisso** `UI.Icon.<Categoria>.` con

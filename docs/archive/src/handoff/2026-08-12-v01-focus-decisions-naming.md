@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `HISTORICAL` · **Sorgente recepito — materiale NON autorevole.**
 > Archiviato il **2026-08-13**. Recepito da [D-120…D-124](../../../decisions/RT_PDR_00_Decision_Log.md),
 > [`../../../OPEN_DECISIONS.md`](../../../OPEN_DECISIONS.md) (`BAL-1`, `BAS-2`),
@@ -24,7 +26,7 @@
 > 2. **D-120 supera D-037 senza rispondere alla sua prova.** D-037 vietava `Gadget` nudo per una ragione
 >    misurata — è già una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`, **8** oggetti `Gadget.*`) —
 >    e quella ragione non è venuta meno. Con la convenzione `<Eroe>.<Abilità>` la migrazione porterebbe
->    `Flux.ArcPulse` in `Gadget.ArcPulse`, accanto a `Gadget.Medkit`; `Phase` collide con `ERTMatchPhase`
+>    `Hero.Gadget.ArcPulse` in `Gadget.ArcPulse`, accanto a `Gadget.Medkit`; `Phase` collide con `ERTMatchPhase`
 >    (**367** occorrenze in 64 file di `Source/`). → [#716](https://github.com/DegrassiAaron/refactor-tactics-main/issues/716).
 >
 > ⚠️ **Il §6 «canary naming» è stato applicato come script, non come CI**
@@ -54,14 +56,14 @@ I nomi correnti/player-facing del roster v0.1 sono:
 | **Riktor** | `Riktor` |
 | **Wraith** | `Wraith` |
 
-I vecchi identificatori presenti nel repository (`Flux`, `Riva`, `Bastion`, `Vektor`, inclusi Stable ID o simboli C++ già serializzati) sono **legacy implementation identifiers** finché non viene eseguita una migrazione esplicita. Non usarli come nomi correnti del personaggio.
+I vecchi identificatori presenti nel repository (`Gadget`, `Phase`, `Riktor`, `Wraith`, inclusi Stable ID o simboli C++ già serializzati) sono **legacy implementation identifiers** finché non viene eseguita una migrazione esplicita. Non usarli come nomi correnti del personaggio.
 
 Quando una specifica deve citare un simbolo che oggi esiste ancora in codice, usare questa forma:
 
-- `Wraith` — legacy Stable ID/simbolo: `Vektor...`
-- `Phase` — legacy Stable ID/simbolo: `Riva...`
-- `Gadget` — legacy Stable ID/simbolo: `Flux...`
-- `Riktor` — legacy Stable ID/simbolo: `Bastion...`
+- `Wraith` — legacy Stable ID/simbolo: `Wraith...`
+- `Phase` — legacy Stable ID/simbolo: `Phase...`
+- `Gadget` — legacy Stable ID/simbolo: `Gadget...`
+- `Riktor` — legacy Stable ID/simbolo: `Riktor...`
 
 Non rinominare Stable ID, replay key, catalog key o simboli C++ in questa PR solo per uniformare la prosa: una migrazione di ID deve avere compatibilità/replay/versioning propri.
 
@@ -75,7 +77,7 @@ Non rinominare Stable ID, replay key, catalog key o simboli C++ in questa PR sol
 
 Il roster v0.1 usa come nomi canonici/player-facing **Gadget, Phase, Riktor e Wraith**.
 
-Le denominazioni `Flux`, `Riva`, `Bastion`, `Vektor` non sono più nomi correnti del roster. Possono sopravvivere temporaneamente solo come **legacy implementation identifiers** quando esistono già in codice, asset, scenario o replay.
+Le denominazioni `Gadget`, `Phase`, `Riktor`, `Wraith` non sono più nomi correnti del roster. Possono sopravvivere temporaneamente solo come **legacy implementation identifiers** quando esistono già in codice, asset, scenario o replay.
 
 **Impatto**
 
@@ -260,9 +262,9 @@ Non cambiare simboli tecnici che esistono davvero in codice. Correggere però la
 - Riktor `Anchor`
 - Wraith `Deflection`
 
-Per riferimenti esistenti come `Riva.FlowReaction` o `Vektor.Deflection`, scrivere ad esempio:
+Per riferimenti esistenti come `Hero.Phase.FlowReaction` o `Hero.Wraith.Deflection`, scrivere ad esempio:
 
-`Phase.FlowReaction` *(legacy code id: `Riva.FlowReaction`)*
+`Phase.FlowReaction` *(legacy code id: `Hero.Phase.FlowReaction`)*
 
 solo se viene pianificata una migrazione; altrimenti conservare il token esatto in backtick e chiamare **Phase/Wraith** il personaggio in prosa.
 
@@ -391,7 +393,7 @@ La condizione HP di D-109 è opzionale; il bot v0.1 non la dichiara automaticame
 Dove la roadmap nomina il personaggio per CP 14.5, usare **Wraith**. Se è necessario preservare il token tecnico corrente:
 
 ```md
-Wraith.InterceptShot (legacy Stable ID corrente: `Vektor.InterceptShot`)
+Wraith.InterceptShot (legacy Stable ID corrente: `Hero.Wraith.InterceptShot`)
 ```
 
 Non rinominare il token serializzato dentro questa PR.
@@ -459,7 +461,7 @@ La sua informazione utile — quale asset Paragon alimenta la presentazione — 
 | Overwatch | test CP14.5 + pacing tecnico con DecisionProvider immediato + sessione umana 3,0 s |
 | Rumore | validator: ogni producer acustico ha `NoiseIntensity 0..10`; nessun hardcode duplicato |
 | E21 | #287 → #288/#289 + Sessione C; FPS solo dopo skeletal/presentazione rappresentativa |
-| Naming | grep/document audit: nuova prosa non introduce Flux/Riva/Bastion/Vektor come nomi player-facing |
+| Naming | grep/document audit: nuova prosa non introduce Gadget/Phase/Riktor/Wraith come nomi player-facing |
 
 ### Canary naming suggerito
 

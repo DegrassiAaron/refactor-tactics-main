@@ -1,5 +1,7 @@
 # RefactorTactics — Map Editor Roadmap & Consolidation Brief for Claude
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 🗄️ `HISTORICAL` — SORGENTE REVISIONATO, NON APPLICATO
 >
 > **Archiviato il 2026-08-09**, dopo la revisione in
@@ -511,10 +513,10 @@ Start:
 Later, when character definitions exist, allow selecting actual units:
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Do not hard-code these names in the pathfinding service.

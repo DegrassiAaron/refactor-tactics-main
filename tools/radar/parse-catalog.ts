@@ -172,7 +172,7 @@ export function parseReactionTable(text: string): Map<string, ReactionInput> {
     // Tre colonne dati: `| Reazione | Semantica core | Stato |` -> 5 elementi con i bordi vuoti.
     if (cells.length !== 5) continue;
 
-    const id = cells[1].trim().match(/^`([A-Za-z]+\.[A-Za-z]+)`$/)?.[1];
+    const id = cells[1].trim().match(/^`([A-Za-z]+(?:\.[A-Za-z]+)+)`$/)?.[1];
     if (!id) continue;
 
     const raw = cells[3].trim();
@@ -224,7 +224,7 @@ export function parseHeroCatalog(source: URL | string, actionSource: URL | strin
       }
 
       // Riga della tabella abilita': `| \`Hero.Ability\` | Nome | Tipo | Effetto | CD |`
-      const id = cells[1].trim().match(/^`([A-Za-z]+\.[A-Za-z]+)`$/)?.[1];
+      const id = cells[1].trim().match(/^`([A-Za-z]+(?:\.[A-Za-z]+)+)`$/)?.[1];
       if (!id || cells.length < 6) continue;
 
       const effect = cells[4].trim();
@@ -266,13 +266,28 @@ export function parseHeroCatalog(source: URL | string, actionSource: URL | strin
       }
     }
 
-    // La chiave STABILE: il prefisso degli `AbilityId`. Si esige che sia UNO SOLO per eroe invece di
-    // prendere il primo — un kit con due prefissi significa che la sezione ne mescola due, e sceglierne uno
-    // in silenzio scriverebbe il radar di un eroe nel file di un altro.
-    const prefixes = [...new Set(abilities.map((a) => a.id.split('.')[0]))];
+    // La chiave STABILE: il segmento dell'EROE dentro l'`AbilityId`. Si esige che sia UNO SOLO per eroe
+    // invece di prendere il primo che capita — un kit con due chiavi significa che la sezione ne mescola
+    // due, e sceglierne una in silenzio scriverebbe il radar di un eroe nel file di un altro.
+    //
+    // 🔴 **È il PENULTIMO segmento, non il primo, e il cambio è di `#755`.** Gli `AbilityId` sono passati
+    // da `Flux.ArcPulse` a `Hero.Gadget.ArcPulse` (D-130, `#754`): col primo segmento la chiave sarebbe
+    // diventata `hero` per **tutti e quattro** gli eroi, e i quattro radar si sarebbero scritti sullo
+    // stesso file. ⚠️ Il guard qui sotto **non l'avrebbe fermato**: con `Hero.` il prefisso resta uno solo
+    // per eroe, quindi `prefixes.length === 1` era soddisfatto. A fermare tutto è stato il pattern degli
+    // id, che accettava due soli segmenti e non ne ha riconosciuto nessuno — un caso in cui il difetto è
+    // stato preso dalla parte sbagliata del codice, e per fortuna.
+    //
+    // Il penultimo funziona per entrambe le forme: `Hero.Gadget.ArcPulse` → `gadget`, e `Flux.ArcPulse`
+    // → `flux` se un catalogo restasse indietro.
+    const heroKey = (id: string) => {
+      const parts = id.split('.');
+      return parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+    };
+    const prefixes = [...new Set(abilities.map((a) => heroKey(a.id)))];
     if (prefixes.length !== 1) {
       throw new Error(
-        `${name}: gli AbilityId devono condividere un solo prefisso (trovati: ${prefixes.join(', ') || 'nessuno'}). ` +
+        `${name}: gli AbilityId devono condividere un solo segmento d'eroe (trovati: ${prefixes.join(', ') || 'nessuno'}). ` +
           `E' la chiave stabile con cui si nomina il file del radar.`,
       );
     }

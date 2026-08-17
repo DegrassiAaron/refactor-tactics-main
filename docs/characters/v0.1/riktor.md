@@ -2,7 +2,7 @@
 
 > **Asset base:** Paragon — Riktor  
 > **Hero_Key:** `ASSET_BASTION`  
-> **RT Character ID:** `Hero.Bastion`  
+> **RT Character ID:** `Hero.Riktor`  
 > **Release:** `v0.1`  
 > **Roster status:** Release v0.1  
 > **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Riktor** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
@@ -181,7 +181,7 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Bastion.ImpactShot` |
+| Ability ID | `Hero.Riktor.ImpactShot` |
 | Famiglia | **Utility / Emergency** |
 | Danno / portata | 8 · range 3 |
 | Payload oltre il danno | `Status.Slow` 1 turno |
@@ -201,9 +201,9 @@ Il controgioco è geometrico: aggirare le coperture, distruggere o rendere irril
 
 | Che cosa | Dove |
 | --- | --- |
-| Il payload è nel dato | `RefactorTactics.Heroes.Bastion.MatchesCatalog` — asserisce 8, range 3 e la presenza di `Status.Slow` |
+| Il payload è nel dato | `RefactorTactics.Heroes.Hero.Riktor.MatchesCatalog` — asserisce 8, range 3 e la presenza di `Status.Slow` |
 | Il danno si vede in partita | `Combat.CounterStrikesBack` · `Combat.NoCounterWhenUnarmed` |
-| **Lo `Slow` si vede in partita** | `Combat.BastionImpactShotSlows`, in coppia con `Combat.MoveIsFullWithoutSlow` — lo stato non è osservabile (non esiste `UnitHasStatus`), quindi si prova con la **cella** in cui il bersaglio si ferma: due invece di quattro |
+| **Lo `Slow` si vede in partita** | `Combat.RiktorImpactShotSlows`, in coppia con `Combat.MoveIsFullWithoutSlow` — lo stato non è osservabile (non esiste `UnitHasStatus`), quindi si prova con la **cella** in cui il bersaglio si ferma: due invece di quattro |
 
 ## Abilità
 
@@ -215,7 +215,7 @@ Impact Shot è l'attacco base di Riktor: 24 danni a range 3. È semplice e corto
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Bastion.ImpactShot` |
+| Ability ID | `Hero.Riktor.ImpactShot` |
 | Categoria | Attacco base |
 | Priorità | 50 |
 | Costo risorsa | — |
@@ -245,7 +245,7 @@ Kinetic Panel è un'azione di Prep che crea una copertura con integrità base 30
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Bastion.KineticPanel` |
+| Ability ID | `Hero.Riktor.KineticPanel` |
 | Categoria | Prep/Cover |
 | Priorità | 30 |
 | Costo risorsa | — |
@@ -275,7 +275,7 @@ Reconfigure sposta o ruota una copertura esistente entro range 1. Non crea nuovo
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Bastion.Reconfigure` |
+| Ability ID | `Hero.Riktor.Reconfigure` |
 | Categoria | Prep/Map |
 | Priorità | 31 |
 | Costo risorsa | — |
@@ -305,7 +305,7 @@ Ram riusa la semantica di `Action.Charge`: movimento lineare fino a 3 celle, 20 
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Bastion.Ram` |
+| Ability ID | `Hero.Riktor.Ram` |
 | Categoria | Charge |
 | Priorità | 35 |
 | Costo risorsa | — |
@@ -335,7 +335,7 @@ Interposition è la reazione firma di protezione: quando un alleato entro 2 cell
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Bastion.Interposition` |
+| Ability ID | `Hero.Riktor.Interposition` |
 | Categoria | Reazione/Intercept |
 | Priorità | 10 |
 | Costo risorsa | — |
@@ -361,13 +361,13 @@ Interposition è la reazione firma di protezione: quando un alleato entro 2 cell
 
 ### Descrizione delle reazioni
 
-- **`Bastion.Interposition`** — Quando un alleato entro 2 celle è bersagliato da un attacco diretto, Riktor intercetta automaticamente nella v0.1 corrente e diventa il bersaglio. È già descritta anche fra le abilità.
+- **`Hero.Riktor.Interposition`** — Quando un alleato entro 2 celle è bersagliato da un attacco diretto, Riktor intercetta automaticamente nella v0.1 corrente e diventa il bersaglio. È già descritta anche fra le abilità.
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Bastion.Interposition` | Alleato entro 2 celle bersagliato da attacco diretto | Intercept | — | — | 10 | Intercept automatico (v0.1 attuale) | — | — | Riktor diventa bersaglio | IMPLEMENTED |
+| `Hero.Riktor.Interposition` | Alleato entro 2 celle bersagliato da attacco diretto | Intercept | — | — | 10 | Intercept automatico (v0.1 attuale) | — | — | Riktor diventa bersaglio | IMPLEMENTED |
 
-> `Bastion.Interposition` — Reazione deterministica attuale; nessuna finestra live.
+> `Hero.Riktor.Interposition` — Reazione deterministica attuale; nessuna finestra live.
 
 ## Equipaggiamento
 
@@ -401,8 +401,8 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 
 | Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Bastion.KineticPanel.Reinforced` | Pannello rinforzato | Integrità 45 | Durata 1 turno | `Bastion.KineticPanel.Adaptive` | Guardian | CANONICAL |
-| `Bastion.KineticPanel.Adaptive` | Pannello adattivo | 1 rotazione gratuita | Integrità 25 | `Bastion.KineticPanel.Reinforced` | Controller | CANONICAL |
+| `Hero.Riktor.KineticPanel.Reinforced` | Pannello rinforzato | Integrità 45 | Durata 1 turno | `Hero.Riktor.KineticPanel.Adaptive` | Guardian | CANONICAL |
+| `Hero.Riktor.KineticPanel.Adaptive` | Pannello adattivo | 1 rotazione gratuita | Integrità 25 | `Hero.Riktor.KineticPanel.Reinforced` | Controller | CANONICAL |
 
 ## Talenti
 

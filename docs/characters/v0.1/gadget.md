@@ -2,7 +2,7 @@
 
 > **Asset base:** Paragon — Gadget  
 > **Hero_Key:** `ASSET_FLUX`  
-> **RT Character ID:** `Hero.Flux`  
+> **RT Character ID:** `Hero.Gadget`  
 > **Release:** `v0.1`  
 > **Roster status:** Release v0.1  
 > **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Gadget** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
@@ -23,6 +23,7 @@
 > Feature: `RT-FEAT-ENV-ELECTRIC` · Release: `v0.1` · Roadmap: `E8.3`  
 > Stato: **INTEGRATED** · Gate: `6/9`  
 > Scenario: `Visual.Combat.WaterElectric`  
+<!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 > Dal 2026-08-09 la scarica ha un **owner nel roster**: `Flux.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.  
 > Verificato il `2026-08-09` su `f1f85b1`
 
@@ -183,7 +184,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Flux.ArcPulse` |
+| Ability ID | `Hero.Gadget.ArcPulse` |
 | Famiglia | **Engine** — *payload rinviato, vedi sotto* |
 | Danno / portata | 22 · range 4 |
 | Payload oltre il danno | **nessuno in v0.1** |
@@ -215,7 +216,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 | Che cosa | Dove |
 | --- | --- |
-| Il payload è nel dato | `RefactorTactics.Heroes.Flux.MatchesCatalog` · `RefactorTactics.Heroes.BasicAttackByRangeBand` — è l'unico legato alla fascia condivisa |
+| Il payload è nel dato | `RefactorTactics.Heroes.Hero.Gadget.MatchesCatalog` · `RefactorTactics.Heroes.BasicAttackByRangeBand` — è l'unico legato alla fascia condivisa |
 | L'effetto si vede in partita | `Combat.BasicAttack` — 120 − 22 = 98 su Riktor |
 | Il payload di carica | ⏳ **non esiste** — dipende da `RT-FEAT-ENV-ELECTRIC`, non da questa pagina |
 
@@ -229,7 +230,7 @@ Arc Pulse è l'attacco base affidabile di Gadget. Infligge 22 danni a range 4 e 
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Flux.ArcPulse` |
+| Ability ID | `Hero.Gadget.ArcPulse` |
 | Categoria | Attacco base |
 | Priorità | 50 |
 | Costo risorsa | — |
@@ -259,7 +260,7 @@ Linear Discharge è l'attacco lineare firma di Gadget. Infligge 24 danni a range
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Flux.LinearDischarge` |
+| Ability ID | `Hero.Gadget.LinearDischarge` |
 | Categoria | Attacco lineare |
 | Priorità | 55 |
 | Costo risorsa | — |
@@ -293,7 +294,7 @@ Il concetto di Conduction si estende comunque oltre `Wet`, ma per la via della *
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Flux.ConductiveNode` |
+| Ability ID | `Hero.Gadget.ConductiveNode` |
 | Categoria | Setup/Prep |
 | Priorità | 35 |
 | Costo risorsa | — |
@@ -323,7 +324,7 @@ Overload è l'AoE di Gadget: 18 danni, range 3, raggio 1 e cooldown 3. La specif
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Flux.Overload` |
+| Ability ID | `Hero.Gadget.Overload` |
 | Categoria | AoE |
 | Priorità | 65 |
 | Costo risorsa | — |
@@ -353,7 +354,7 @@ Reactive Capacitor è la reazione difensiva/offensiva di Gadget. Quando subisce 
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Flux.ReactiveCapacitor` |
+| Ability ID | `Hero.Gadget.ReactiveCapacitor` |
 | Categoria | Reazione/Counter |
 | Priorità | 20 |
 | Costo risorsa | — |
@@ -379,13 +380,13 @@ Nella v0.1 attuale è una reazione deterministica che riusa `Action.Counter`; no
 
 ### Descrizione delle reazioni
 
-- **`Flux.ReactiveCapacitor`** — Si attiva quando Gadget subisce un attacco diretto. Nella v0.1 corrente il commit è automatico: applica scudo 15 e 10 danni all'attaccante. È già descritta anche fra le abilità.
+- **`Hero.Gadget.ReactiveCapacitor`** — Si attiva quando Gadget subisce un attacco diretto. Nella v0.1 corrente il commit è automatico: applica scudo 15 e 10 danni all'attaccante. È già descritta anche fra le abilità.
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Flux.ReactiveCapacitor` | Subisce un attacco diretto | Counter | — | — | 20 | Commit automatico (v0.1 attuale) | — | — | Scudo 15 + 10 danni all'attaccante | IMPLEMENTED |
+| `Hero.Gadget.ReactiveCapacitor` | Subisce un attacco diretto | Counter | — | — | 20 | Commit automatico (v0.1 attuale) | — | — | Scudo 15 + 10 danni all'attaccante | IMPLEMENTED |
 
-> `Flux.ReactiveCapacitor` — Reazione deterministica attuale: nessuna finestra live; il modello opportunity→commit arriva con E14.
+> `Hero.Gadget.ReactiveCapacitor` — Reazione deterministica attuale: nessuna finestra live; il modello opportunity→commit arriva con E14.
 
 ## Equipaggiamento
 
@@ -419,8 +420,8 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 
 | Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Flux.LinearDischarge.Concentrated` | Scarica concentrata | +6 danni (30 totali) | Non si propaga a un secondo bersaglio | `Flux.LinearDischarge.Branched` | Burst | CANONICAL |
-| `Flux.LinearDischarge.Branched` | Scarica ramificata | Un bersaglio aggiuntivo | −6 danni per bersaglio (18 ciascuno) | `Flux.LinearDischarge.Concentrated` | Multi-target | CANONICAL |
+| `Hero.Gadget.LinearDischarge.Concentrated` | Scarica concentrata | +6 danni (30 totali) | Non si propaga a un secondo bersaglio | `Hero.Gadget.LinearDischarge.Branched` | Burst | CANONICAL |
+| `Hero.Gadget.LinearDischarge.Branched` | Scarica ramificata | Un bersaglio aggiuntivo | −6 danni per bersaglio (18 ciascuno) | `Hero.Gadget.LinearDischarge.Concentrated` | Multi-target | CANONICAL |
 
 ## Talenti
 

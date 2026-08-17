@@ -1,4 +1,6 @@
 # RefactorTactics — Replay System, Match History e Deterministic Audit
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Prompt operativo per Claude Code: consolidamento documentazione, Wiki, Roadmap, Feature Map, Scenario Map, Epic e Issue
 
 **Data handoff:** 2026-08-10  
@@ -239,7 +241,7 @@ Esempio:
 
 ```text
 Planning:
-Vektor -> Overwatch NE
+Wraith -> Overwatch NE
 
 Resolution:
 MicroStep 2

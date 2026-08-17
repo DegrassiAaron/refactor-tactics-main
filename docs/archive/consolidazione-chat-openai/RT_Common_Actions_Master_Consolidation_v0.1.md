@@ -1,5 +1,7 @@
 # RefactorTactics — Common Actions Master Consolidation v0.1
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 **Data:** 2026-08-09  
 **Scope:** Wait, Move, BasicAttack, Guard, Brace, Activate, Interact, Overwatch, Move Profiles, Special Movement e Facing.
 
@@ -114,10 +116,10 @@ Il payload è character-specific e data-driven.
 Per ogni personaggio deve esistere almeno una situazione ripetibile in cui il Basic Attack è una scelta sensata.
 
 Direzioni v0.1 da validare:
-- Vektor: Primary Weapon;
-- Flux: Engine Attack / setup;
-- Riva: Setup Attack / Wet;
-- Bastion: Utility/Emergency.
+- Wraith: Primary Weapon;
+- Gadget: Engine Attack / setup;
+- Phase: Setup Attack / Wet;
+- Riktor: Utility/Emergency.
 
 Non canonizzare numeri o effetti finché i cataloghi non li approvano.
 

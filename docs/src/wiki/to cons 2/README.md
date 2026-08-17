@@ -1,7 +1,7 @@
 # `RefactorTactics_Facing_Flows_v0.1` — sette diagrammi del Facing
 
 > `CURRENT` · **Importati**: 2026-08-13 · **Sorgente**: `RefactorTactics_Facing_VisualDocs_Claude_Bundle_2026-08-13`
-> (archiviato in [`../../archive/src/`](../../archive/src/README.md)) · **Decisione**: [D-076](../../decisions/RT_PDR_00_Decision_Log.md) — qui stanno **asset**, non pagine.
+> (archiviato in [`../../../archive/src/`](../../../archive/src/README.md)) · **Decisione**: [D-076](../../../decisions/RT_PDR_00_Decision_Log.md) — qui stanno **asset**, non pagine.
 
 Le pagine che li usano vivono nel clone `refactor-tactics-main.wiki`. Qui c'è la copia di riferimento, con
 l'unica cosa che il pacchetto sorgente non diceva: **quale diagramma c'è davvero dentro ogni file**.
@@ -38,11 +38,11 @@ Le immagini sono **artefatti di design**, non fonti normative. Il canone resta n
 |---|---|---|
 | **F1** | ✅ allineata | Il costo del pivot **non compare**: il pacchetto avvisava che potesse presentarlo come prezzo in MP (`FAC-12`, aperta), e la verifica del 2026-08-13 dice di no — mostra il pivot finale come **tetto**, cioè ADR-0008 §1 |
 | **F2** | ✅ allineata | Idem: nessun costo MP. È la tavola migliore per «passo bloccato ⇒ facing invariato» e per il Decision Boundary |
-| **F3** | ✅ **canonica** sulla rosa a sei lati ([D-126](../../decisions/RT_PDR_00_Decision_Log.md)) | 🔴 **ma il pannello 1 no**: `FromSource · FromTrajectory · FromImpactCenter · ExplicitDirection · NonDirectional` è la policy della direzione d'impatto, cioè **`FAC-13`, aperta**. Il diagramma la presenta con la stessa grafica della parte decisa. Citando F3, dire quale metà è canone. Gli esempi `Shield Front Arc = {5,0,1}` e `Backstab = {3}` sono marcati «illustrativi» nell'immagine stessa: non sono regole |
+| **F3** | ✅ **canonica** sulla rosa a sei lati ([D-126](../../../decisions/RT_PDR_00_Decision_Log.md)) | 🔴 **ma il pannello 1 no**: `FromSource · FromTrajectory · FromImpactCenter · ExplicitDirection · NonDirectional` è la policy della direzione d'impatto, cioè **`FAC-13`, aperta**. Il diagramma la presenta con la stessa grafica della parte decisa. Citando F3, dire quale metà è canone. Gli esempi `Shield Front Arc = {5,0,1}` e `Backstab = {3}` sono marcati «illustrativi» nell'immagine stessa: non sono regole |
 | **F4** | ✅ allineata | `#164` (CP 14.4) è **chiusa**; il lavoro vivo è [#165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/165). Il diagramma dice correttamente che detection e LOS sono controlli **separati** dal facing e che non esiste snap a 180° |
 | **F5** | ⚠️ **PROPOSED** | `RotateSteps ±N`, `SetDirection`, `FaceAwayFromSource` **non esistono** in `ERTActionEffect`: è `FAC-14`, aperta. Usabile solo come direzione di design, mai come catalogo |
 | **F6** | ✅ allineata | Server authoritative, preview team sanitizzata, nessun planned facing avversario, last-known su perdita di LOS. Coerente con ADR-0005 §5 |
-| **F7** | 🔴 **snapshot datata 2026-08-13**, non una dashboard | Conteneva già almeno due righe superate quando è stata importata: `#164` vi compare `PLANNED` ma è **chiusa**, e `Spec.Facing.TurningPathUsesLastCompletedStep` vi compare `MISSING` ma **esiste da oggi**. La legenda `GREEN/PLANNED/PARTIAL/MISSING/BLOCKED` è **visuale** e non è il vocabolario del registry: lo stato vivo si legge da [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e da [`scenariomap.shortlist.md`](../../roadmap/scenariomap.shortlist.md), che sono generati |
+| **F7** | 🔴 **snapshot datata 2026-08-13**, non una dashboard | Conteneva già almeno due righe superate quando è stata importata: `#164` vi compare `PLANNED` ma è **chiusa**, e `Spec.Facing.TurningPathUsesLastCompletedStep` vi compare `MISSING` ma **esiste da oggi**. La legenda `GREEN/PLANNED/PARTIAL/MISSING/BLOCKED` è **visuale** e non è il vocabolario del registry: lo stato vivo si legge da [`feature-registry.yaml`](../../../roadmap/feature-registry.yaml) e da [`scenariomap.shortlist.md`](../../../roadmap/scenariomap.shortlist.md), che sono generati |
 
 ## Nel clone Wiki
 
@@ -59,5 +59,5 @@ Copiati con la convenzione di numerazione del clone (`NN_nome-kebab.png`), non c
 | F7 | `images/wiki/technical/23_facing-scenario-coverage-snapshot.png` |
 
 Zero duplicati: i sette hash sono stati confrontati contro i **19** PNG già presenti in `docs/wiki/`, e
-l'intersezione è **vuota**. Come avverte [`../README.md`](../README.md), il confronto si fa per **hash** e mai
+l'intersezione è **vuota**. Come avverte [`../../../wiki/README.md`](../../../wiki/README.md), il confronto si fa per **hash** e mai
 per nome — e questa cartella è la prova che il nome può sbagliare anche quando l'hash è giusto.

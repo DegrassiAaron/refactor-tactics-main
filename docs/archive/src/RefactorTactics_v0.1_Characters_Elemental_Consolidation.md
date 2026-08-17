@@ -1,5 +1,7 @@
 # RefactorTactics — v0.1 Character Elemental Consolidation
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > 🗄️ **ARCHIVIATO il 2026-08-16 — consumato.** Questo è un **sorgente**, non un owner: si legge per la
 > provenienza, mai per la regola. Insieme al suo gemello operativo
 > [`CLAUDE_Apply_Elemental_Proficiency_Consolidation_2026-08-16.md`](CLAUDE_Apply_Elemental_Proficiency_Consolidation_2026-08-16.md),
@@ -24,7 +26,7 @@
 > **due assi distinti**, e nessuno dei due implica l'altro. Il rapporto va scritto nell'owner.
 >
 > 🔴 **Il vincolo di naming è superato.** Il documento elenca fra le cose «da non rompere» che *«gli ID
-> gameplay rimangono `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`»*: è la clausola di
+> gameplay rimangono `Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`»*: è la clausola di
 > [D-120](../../decisions/RT_PDR_00_Decision_Log.md), che
 > [D-130](../../decisions/RT_PDR_00_Decision_Log.md) supera il 2026-08-13 — gli `Hero.<Nome>` si rinominano —
 > e che [D-134](../../decisions/RT_PDR_00_Decision_Log.md) completa togliendo il redirect dei token abilità.
@@ -52,10 +54,10 @@ Repository: `DegrassiAaron/refactor-tactics-main`, `main`.
 
 File principali:
 
-- `docs/characters/v0.1/flux.md` — pagina corrente di **Gadget** (`Hero.Flux`)
-- `docs/characters/v0.1/riva.md` — pagina corrente di **Phase** (`Hero.Riva`)
-- `docs/characters/v0.1/bastion.md` — pagina corrente di **Riktor** (`Hero.Bastion`)
-- `docs/characters/v0.1/vektor.md` — pagina corrente di **Wraith** (`Hero.Vektor`)
+- `docs/characters/v0.1/gadget.md` — pagina corrente di **Gadget** (`Hero.Gadget`)
+- `docs/characters/v0.1/phase.md` — pagina corrente di **Phase** (`Hero.Phase`)
+- `docs/characters/v0.1/riktor.md` — pagina corrente di **Riktor** (`Hero.Riktor`)
+- `docs/characters/v0.1/wraith.md` — pagina corrente di **Wraith** (`Hero.Wraith`)
 - `docs/characters/paragon.md` — owner del mapping identita RT ↔ slot asset Paragon
 - `docs/wiki/README.md` — D-076: `docs/wiki/` contiene solo asset; le pagine vivono nel clone `refactor-tactics-main.wiki`
 - `docs/roadmap/parallel-batch.yaml` — D-139: un path deve appartenere al `writable` di una track prima di essere modificato
@@ -63,7 +65,7 @@ File principali:
 ### Vincoli da non rompere
 
 - I nomi visibili v0.1 sono **Gadget, Phase, Riktor, Wraith**.
-- Gli ID gameplay rimangono `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`.
+- Gli ID gameplay rimangono `Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`.
 - Lo slot Paragon resta una base asset/presentation e non decide automaticamente il kit RT.
 - Non aggiornare PDF snapshot come fonte primaria.
 - Non dichiarare `IMPLEMENTED` un contratto che il runtime non supporta.
@@ -116,12 +118,12 @@ La pagina corrente e gia coerente sul nucleo: **Conduction**, fragile controller
 
 ### Capability che contano per il grado
 
-1. `Flux.LinearDischarge`
+1. `Hero.Gadget.LinearDischarge`
    - funzione: **Apply/Exploit Electric**;
    - payoff su bersaglio `Wet`;
    - contribuisce alla proficiency.
 
-2. `Flux.ConductiveNode`
+2. `Hero.Gadget.ConductiveNode`
    - coincide con `Action.Electrify` secondo D-046/D-064;
    - funzione: **Propagate Electric** sul grafo conduttivo;
    - legge acqua/superfici conductive, non crea conduttivita;
@@ -129,9 +131,9 @@ La pagina corrente e gia coerente sul nucleo: **Conduction**, fragile controller
 
 ### Capability che NON devono aumentare automaticamente il grado
 
-- `Flux.ArcPulse`: puo restare arma/danno a tema Electric; il solo tag/damage type non crea una terza capability sistemica.
-- `Flux.Overload`: puo restare AoE/EMP/device interruption; non conta come terzo produttore salvo futura decisione esplicita.
-- `Flux.ReactiveCapacitor`: counter/scudo a tema elettrico; non conta automaticamente.
+- `Hero.Gadget.ArcPulse`: puo restare arma/danno a tema Electric; il solo tag/damage type non crea una terza capability sistemica.
+- `Hero.Gadget.Overload`: puo restare AoE/EMP/device interruption; non conta come terzo produttore salvo futura decisione esplicita.
+- `Hero.Gadget.ReactiveCapacitor`: counter/scudo a tema elettrico; non conta automaticamente.
 
 ### Risultato canonico
 
@@ -159,7 +161,7 @@ Phase non deve diventare visivamente o meccanicamente una water mage. L'accesso 
 
 Capability Water di riferimento:
 
-1. `Riva.PressureJet`
+1. `Hero.Phase.PressureJet`
    - sorgente: Signature Water Gadget;
    - funzione: **Apply Water/Wet**;
    - mantiene `Wet + Push` come grammatica utile;
@@ -262,7 +264,7 @@ Contenuto owner:
 
 ## 9. Modifiche richieste alle quattro pagine docs
 
-### `docs/characters/v0.1/flux.md`
+### `docs/characters/v0.1/gadget.md`
 
 Aggiungere una sezione `## Proficiency elementale` che dichiari:
 
@@ -272,7 +274,7 @@ Aggiungere una sezione `## Proficiency elementale` che dichiari:
 - tag/danno/VFX non fanno salire automaticamente il grado;
 - non introdurre `Charged` o altri stati inesistenti.
 
-### `docs/characters/v0.1/riva.md`
+### `docs/characters/v0.1/phase.md`
 
 Aggiungere una sezione `## Proficiency elementale` che dichiari:
 
@@ -284,7 +286,7 @@ Aggiungere una sezione `## Proficiency elementale` che dichiari:
 
 Rivedere `Water Terrain Manipulator`, `Water Shaping`, `Wet Setup` e la descrizione della risorsa per evitare che sembrino il contratto finale se il target e Access.
 
-### `docs/characters/v0.1/bastion.md`
+### `docs/characters/v0.1/riktor.md`
 
 Aggiungere una sezione breve:
 
@@ -293,7 +295,7 @@ Aggiungere una sezione breve:
 - motivo: Field Architecture e Kinetic/Structures sono il centro del kit;
 - nessun Electric baseline.
 
-### `docs/characters/v0.1/vektor.md`
+### `docs/characters/v0.1/wraith.md`
 
 Aggiungere una sezione breve:
 

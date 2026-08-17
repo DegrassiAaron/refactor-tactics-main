@@ -117,7 +117,7 @@ Chi legge in ordine si ferma alla prima.»
 - `RT_EquipmentCatalog_v0.1.md:52` — «Il **default per eroe** non è deciso (`WV-3`): la tabella §4 qui
   sotto assegna gadget e reazioni, **mai varianti d'arma**.»
 - `RT_EquipmentCatalog_v0.1.md:121-126` — §4 ha una colonna **«Variante d'arma** *(D-089)*», che assegna
-  Flux→Precisione, Riva→Impatto, Bastion→Impatto, Vektor→Soppressione.
+  Gadget→Precisione, Phase→Impatto, Riktor→Impatto, Wraith→Soppressione.
 
 La nota §1 è **residuo del consolidamento**: D-089 ha chiuso `WV-3` e aggiunto la colonna, ma la frase
 che dichiarava la domanda aperta è rimasta. `OPEN_DECISIONS.md:344` è invece corretto (`WV-3` barrata,
@@ -194,5 +194,5 @@ Non sono rilievi: sono le uniche cose che questo panel non può decidere.
   costo che il campo legacy non applicato manda perduto. E resta vero che nessun eroe ha mai avuto
   l'attacco base in ricarica: quel percorso del gate `CanUseAbility` **non è mai stato percorso**.
 - **`WV-2`**, le soglie delle fasce, si chiude con una partita e non con un documento — ma D-089 ne
-  mostra già l'urgenza: con i delta assoluti di oggi Bastion ha **una sola** scelta sensata su quattro,
+  mostra già l'urgenza: con i delta assoluti di oggi Riktor ha **una sola** scelta sensata su quattro,
   ed è misurato nel corpo della decisione.

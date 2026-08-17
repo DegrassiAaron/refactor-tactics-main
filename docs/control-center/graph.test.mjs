@@ -38,8 +38,8 @@ const feature = (over = {}) => ({
 test('i link si derivano dalla config, non sono scritti a mano', () => {
   assert.equal(issueUrl(PROJECT, 142),
     'https://github.com/DegrassiAaron/refactor-tactics-main/issues/142');
-  assert.equal(docUrl(PROJECT, 'docs/characters/v0.1/flux.md'),
-    'https://github.com/DegrassiAaron/refactor-tactics-main/blob/main/docs/characters/v0.1/flux.md');
+  assert.equal(docUrl(PROJECT, 'docs/characters/v0.1/gadget.md'),
+    'https://github.com/DegrassiAaron/refactor-tactics-main/blob/main/docs/characters/v0.1/gadget.md');
 });
 
 test('senza config non si inventa un URL: null, cosi la UI puo dirlo', () => {
@@ -60,7 +60,7 @@ test('il branch dichiarato entra nel link', () => {
 test('`wiki:Page` va alla Wiki, un path va al blob: non sono la stessa cosa', () => {
   assert.equal(wikiRefUrl(PROJECT, 'wiki:overwatch'),
     'https://github.com/DegrassiAaron/refactor-tactics-main/wiki/overwatch');
-  assert.match(wikiRefUrl(PROJECT, 'docs/characters/v0.1/flux.md'),
+  assert.match(wikiRefUrl(PROJECT, 'docs/characters/v0.1/gadget.md'),
     /\/blob\/main\/docs\/characters\/v0\.1\/flux\.md$/);
 });
 

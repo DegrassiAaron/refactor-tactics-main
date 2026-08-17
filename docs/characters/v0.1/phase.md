@@ -2,7 +2,7 @@
 
 > **Asset base:** Paragon — Phase  
 > **Hero_Key:** `ASSET_RIVA`  
-> **RT Character ID:** `Hero.Riva`  
+> **RT Character ID:** `Hero.Phase`  
 > **Release:** `v0.1`  
 > **Roster status:** Release v0.1  
 > **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Phase** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
@@ -177,7 +177,7 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Phase ha
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Riva.PressureJet` |
+| Ability ID | `Hero.Phase.PressureJet` |
 | Famiglia | **Setup** |
 | Danno / portata | 16 · range 5 · forma a linea |
 | Payload oltre il danno | `Status.Wet` 1 turno · `Push 1` |
@@ -200,7 +200,7 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Phase ha
 
 | Che cosa | Dove |
 | --- | --- |
-| Il payload è nel dato | `RefactorTactics.Heroes.Riva.MatchesCatalog` |
+| Il payload è nel dato | `RefactorTactics.Heroes.Hero.Phase.MatchesCatalog` |
 | L'effetto si vede in partita | `Visual.Combat.WaterElectricCoordinated` — il `Wet` non è osservabile direttamente (il runner non ha `UnitHasStatus`), quindi lo scenario lo prova con l'aritmetica: `100 − 16 − 32 = 52`, dove i 32 valgono solo se il bersaglio è bagnato. Senza `Wet` sarebbe 60, e lo scenario diventa rosso |
 
 ## Abilità
@@ -213,7 +213,7 @@ Pressure Jet è l'attacco base tematico di Phase: una linea a range 5 che inflig
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Riva.PressureJet` |
+| Ability ID | `Hero.Phase.PressureJet` |
 | Categoria | Attacco base lineare |
 | Priorità | 50 |
 | Costo risorsa | — |
@@ -243,7 +243,7 @@ Circular Tide è l'AoE di supporto di Phase. A range 4 e raggio 1, cura 18 agli 
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Riva.CircularTide` |
+| Ability ID | `Hero.Phase.CircularTide` |
 | Categoria | AoE support |
 | Priorità | 60 |
 | Costo risorsa | — |
@@ -273,7 +273,7 @@ Fluid Trail è un Dash lineare di 3 celle che dovrebbe lasciare acqua lungo il p
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Riva.FluidTrail` |
+| Ability ID | `Hero.Phase.FluidTrail` |
 | Categoria | Dash |
 | Priorità | 30 |
 | Costo risorsa | — |
@@ -303,7 +303,7 @@ Mist Veil crea fumo in un'area di raggio 1 attorno al bersaglio. È pensata per 
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Riva.MistVeil` |
+| Ability ID | `Hero.Phase.MistVeil` |
 | Categoria | Environment/AoE |
 | Priorità | 60 |
 | Costo risorsa | — |
@@ -349,7 +349,7 @@ Flow Reaction prevede un `Reposition 1` dopo che Phase subisce un attacco. È un
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Riva.FlowReaction` |
+| Ability ID | `Hero.Phase.FlowReaction` |
 | Categoria | Reazione/Reposition |
 | Priorità | 36 |
 | Costo risorsa | — |
@@ -375,14 +375,14 @@ Per evitare TurnLog falsi è esplicitamente `DEFERRED_E14`: nel dato corrente no
 
 ### Descrizione delle reazioni
 
-- **`Riva.FlowReaction`** — Dopo un attacco subito, la specifica prevede `Reposition 1`. Richiede una decision boundary e resta `DEFERRED_E14`; la baseline di 3 s appartiene al modello futuro, non al comportamento runtime corrente.
+- **`Hero.Phase.FlowReaction`** — Dopo un attacco subito, la specifica prevede `Reposition 1`. Richiede una decision boundary e resta `DEFERRED_E14`; la baseline di 3 s appartiene al modello futuro, non al comportamento runtime corrente.
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Riva.FlowReaction` | Dopo un attacco subito | Movement reaction | 3 | — | 36 | Reposition 1 | Hold | Hold | Movimento dentro decision boundary | DEFERRED_E14 |
+| `Hero.Phase.FlowReaction` | Dopo un attacco subito | Movement reaction | 3 | — | 36 | Reposition 1 | Hold | Hold | Movimento dentro decision boundary | DEFERRED_E14 |
 
 > ⚠️ **Review required:** una o più finestre temporali sono valori sorgente/storici. Il modello corrente di Fast Reaction usa una baseline di 3,0 s; questi valori vanno riallineati prima dell'implementazione.
-> `Riva.FlowReaction` — Rinviata a E14; durata 3 s è baseline del modello Fast Reaction, non implementazione corrente.
+> `Hero.Phase.FlowReaction` — Rinviata a E14; durata 3 s è baseline del modello Fast Reaction, non implementazione corrente.
 
 ## Equipaggiamento
 
@@ -416,8 +416,8 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 
 | Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Riva.CircularTide.Healing` | Marea curativa | Cura 24 invece di 18 | Non applica Wet ai nemici | `Riva.CircularTide.Impact` | Support | CANONICAL |
-| `Riva.CircularTide.Impact` | Marea d'urto | Applica Push 1 ai nemici | Cura solo 10 | `Riva.CircularTide.Healing` | Control | CANONICAL |
+| `Hero.Phase.CircularTide.Healing` | Marea curativa | Cura 24 invece di 18 | Non applica Wet ai nemici | `Hero.Phase.CircularTide.Impact` | Support | CANONICAL |
+| `Hero.Phase.CircularTide.Impact` | Marea d'urto | Applica Push 1 ai nemici | Cura solo 10 | `Hero.Phase.CircularTide.Healing` | Control | CANONICAL |
 
 ## Talenti
 

@@ -7,7 +7,7 @@
 
 ## Contesto
 
-La documentazione e la Wiki descrivono spesso combinazioni utili fra personaggi (es. Flux + Riva). Senza una regola di ownership, una combinazione può diventare accidentalmente una seconda fonte per abilità, numeri o logica di gameplay.
+La documentazione e la Wiki descrivono spesso combinazioni utili fra personaggi (es. Gadget + Phase). Senza una regola di ownership, una combinazione può diventare accidentalmente una seconda fonte per abilità, numeri o logica di gameplay.
 
 ## Decisione
 

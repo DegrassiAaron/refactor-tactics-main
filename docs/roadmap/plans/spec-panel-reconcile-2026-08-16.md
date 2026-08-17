@@ -101,7 +101,7 @@ stessa giornata, dopo le 14:00.
 | §4 | **#583** dichiara ancora il blocco da #165 | corretta alle 12:20Z; i `#165` residui sono **cronaca della correzione** | 🔴 invecchiato |
 | §4 | **#152** dichiara «l'ultima epic della v0.1» | corretta alle 12:24Z, con nota di rettifica e attribuzione | 🔴 invecchiato |
 | §7 · §15 | **#403** è una decisione d'autore **aperta** | corretta alle 13:29Z; titolo attuale: *«la decisione c'e' (D-121), resta il gate umano U20/PIE-BAL1»* | 🔴 invecchiato |
-| §8 · §11 | `Vektor.InterceptShot` — token legacy da non migrare qui | il codice ha già **`Hero.Wraith.InterceptShot`** | 🔴 invecchiato |
+| §8 · §11 | `Vektor.InterceptShot` — token legacy da non migrare qui | il codice ha già **`Hero.Wraith.InterceptShot`** | 🔴 invecchiato | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 
 ⚠️ **Il §15 è il caso più delicato**, perché non è solo invecchiato: è un **elenco di cose che Claude non
 deve decidere**, e include #403. Una decisione già presa (D-121) lasciata in quell'elenco produce l'errore
@@ -136,8 +136,8 @@ Sono i documenti a non aver recepito la riclassificazione del 2026-08-10:
 | File | Riga | Cosa dice oggi |
 |---|---|---|
 | `docs/decisions/RT_PDR_00_Decision_Log.md` | 442 | *«**oggi** l'azione è a catalogo con `ERTActionSlot::None` e **nessun trigger** … resta una migrazione di classificazione **da tracciare, non da fare**»* — l'«oggi» è il **2026-08-08**, e non è scritto |
-| `docs/product/showcase-v0.1.md` | 116 | *«**due** reazioni d'eroe non sono cablate: `Riva.FlowReaction` e `Vektor.InterceptShot`»* |
-| `docs/characters/spec-radar-profilo-personaggio.md` | 277 | *«Le **reazioni** rinviate a E14 contano. `Vektor.InterceptShot` e `Riva.FlowReaction`…»* |
+| `docs/product/showcase-v0.1.md` | 116 | *«**due** reazioni d'eroe non sono cablate: `Hero.Phase.FlowReaction` e `Hero.Wraith.InterceptShot`»* |
+| `docs/characters/spec-radar-profilo-personaggio.md` | 277 | *«Le **reazioni** rinviate a E14 contano. `Hero.Wraith.InterceptShot` e `Hero.Phase.FlowReaction`…»* |
 | `docs/roadmap/roadmap-v0.1.md` | 102 · 174 | *«**tre reazioni su cinque** cablate; `InterceptShot`/`FlowReaction` rinviate»* |
 | `docs/roadmap/roadmap.shortlist.md` | 25 | idem — ⚠️ **vista generata**: si rigenera, non si edita |
 

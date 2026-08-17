@@ -325,8 +325,8 @@ Esempio UI:
 MY EDITOR QUEUE
 
 BLOCKING
-□ Selezionare mesh di Flux
-□ Assegnare skin di Riva
+□ Selezionare mesh di Gadget
+□ Assegnare skin di Phase
 □ Verificare Overwatch cone decal
 
 READY
@@ -527,7 +527,7 @@ Possibile struttura:
 ```yaml
 editor_tasks:
   - task_id: RT-EDITOR-CHAR-FLUX-MODEL
-    title: Select Flux character model
+    title: Select Gadget character model
     status: TODO
     priority: P0
 

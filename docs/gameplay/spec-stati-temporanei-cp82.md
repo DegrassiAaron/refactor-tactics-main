@@ -38,7 +38,7 @@ formula è coperta da un test sulla funzione pura, e nessuno in partita gliene p
 | `Slow` | ✅ `:7` | `Action.Slow`, `Ranger.Burst` | ✅ +1 costo per cella (`RTTurnManager.cpp:1782`) | **completo** |
 | `Exposed` | ✅ `:9` | `Action.Sprint` (`RTCatalogLibrary.cpp:245`) | ✅ +5 al primo danno diretto (`RTTurnManager.cpp:1399`) | **completo** |
 | `Marked` | ✅ `:11` | `Action.MarkTarget` (`RTCatalogLibrary.cpp:381`) | ❌ **mai letto**: il loop `FirstHitDelta` legge solo `Exposed`/`Guarded` | **issue `#137`** |
-| `Wet` | ✅ `:16` | `ShallowWater` con durata **0** (`RTTerrainLibrary.cpp:33`), Phase con durata 1 | ❌ doppio buco: la durata 0 è scartata da `ApplyStatus`, e `FluxWetDischargeBonus` compare **solo nei test** | **inerte** |
+| `Wet` | ✅ `:16` | `ShallowWater` con durata **0** (`RTTerrainLibrary.cpp:33`), Phase con durata 1 | ❌ doppio buco: la durata 0 è scartata da `ApplyStatus`, e `GadgetWetDischargeBonus` compare **solo nei test** | **inerte** |
 | `Burning` | ✅ `:20` | `Fire`, durata 2 (`RTTerrainLibrary.cpp:36`) | ❌ il Cleanup non infligge alcun danno (`RTTurnManager.cpp:558-578`) | **inerte** |
 | `Obscured` | ✅ `:21` | `Smoke` con durata **0** (`RTTerrainLibrary.cpp:39`) | 🟡 il cap di targeting a 2 celle **esiste e funziona**, ma deriva dal terreno (`EffectiveTargetingRange`), non dallo stato | **stato inerte, regola viva** |
 | `Electrified` | ❌ assente | — | ⏳ propagazione = CP 8.3 (`#66`) | **da dichiarare** |
@@ -118,7 +118,7 @@ all'ingresso: è già il comportamento coperto da `Terrain.Fire.ErodesTemporaryS
 ### D6 — Durata di `Wet` fuori dall'acqua = 1 turno *(chiude un «non specificato» del catalogo)*
 
 Il catalogo terreni §4 lascia aperta la durata di `Wet` applicato lontano dall'acqua. Il catalogo eroi la
-dichiara già **1 turno** per `Riva.PressureJet` e `Riva.CircularTide`: si adotta quel valore e si aggiorna il
+dichiara già **1 turno** per `Hero.Phase.PressureJet` e `Hero.Phase.CircularTide`: si adotta quel valore e si aggiorna il
 catalogo terreni, invece di tenere aperta una domanda a cui il repository ha già risposto.
 
 ## 4. Ordine del Cleanup (nuovo)
@@ -170,7 +170,7 @@ valore atteso prima dell'implementazione (es. `Burning`: 70 HP invece di 62, cio
 - **Spegnimento del fuoco da parte dell'acqua sulla *cella*** (`Environment.WaterExtinguishesFire`) → CP 8.4
   (`#67`). Qui `Wet` rimuove `Burning` **dall'unità**: è l'altra metà, e il catalogo le distingue.
 - **`Action.Ignite` / `CreateWater`** (modifica dinamica della superficie) → CP 8.5 (`#68`).
-- **Conduttività di cella** per `Flux.ConductiveNode` → nessun modello di cella conduttiva esiste ancora
+- **Conduttività di cella** per `Hero.Gadget.ConductiveNode` → nessun modello di cella conduttiva esiste ancora
   (`RTHeroCatalogLibrary.cpp:167`); resta a CP 8.3.
 - **HUD**: `RTHUD.cpp:89` mostra un solo stato per unità (ROOT/SLOW). Con otto stati serve una decisione di
   presentazione che appartiene a E11 (CP 11.1), non a questo checkpoint.

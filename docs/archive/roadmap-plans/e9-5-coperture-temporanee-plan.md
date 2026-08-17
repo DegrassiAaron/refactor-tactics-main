@@ -1,5 +1,7 @@
 # E9.5 — Pannello cinetico e coperture temporanee · piano
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `HISTORICAL` · **Piano eseguito** · **Data**: 2026-08-09
 > Epic **E9** e issue [`#73`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/73) sono
 > **chiuse**: questo documento e' il piano di un lavoro atterrato, e si legge per la provenienza.
@@ -11,7 +13,7 @@
 
 ## 1. Obiettivo
 
-`Bastion.KineticPanel` e `Bastion.Reconfigure` smettono di essere identità a `Effects` vuoto: creano e spostano
+`Hero.Riktor.KineticPanel` e `Hero.Riktor.Reconfigure` smettono di essere identità a `Effects` vuoto: creano e spostano
 una **copertura bassa temporanea**, che scade nel Cleanup e la cui rimozione aggiorna vista e grafo.
 
 ## 2. Stato verificato sul branch (non a memoria)
@@ -62,8 +64,8 @@ Ognuna è compilabile, con i suoi test, e si committa solo a suite verde.
 |---|---|---|
 | **F1** | Copertura temporanea nel modello: `FRTDynamicCover`, `TickDynamicCovers` nel Cleanup, `AddCover`/`RemoveCover` in `URTHexCoverLibrary`, outcome `CoverCreated`/`CoverExpired` nel TurnLog | `Structures.KineticPanel.TemporaryCover`, `Structures.KineticPanel.ExpiryUpdatesLOS` |
 | **F2** | `Action.CreateCover` nel catalogo core (fase Prep, portata 3, cooldown 2) + ramo in `ResolvePrep`: portata **validata**, bordo dal piano, non sovrapponibile, fallback `Cancel` con la sua voce | `Actions.CreateCover.{RejectsOutOfRange, RejectsOccupiedEdge}` |
-| **F3** | `Bastion.KineticPanel` cablato al core come `Bastion.Ram` lo è a `Action.Charge`; variante attiva che rende consumabili integrità e durata | `Heroes.Bastion.{KineticPanelCreatesCover, VariantParametersApplied}` |
-| **F4** | `Bastion.Reconfigure`: sposta una copertura temporanea **senza duplicarla**, conservando integrità e durata residua; rotazione gratuita dell'adattivo | `Heroes.Bastion.ReconfigureDoesNotDuplicate` |
+| **F3** | `Hero.Riktor.KineticPanel` cablato al core come `Hero.Riktor.Ram` lo è a `Action.Charge`; variante attiva che rende consumabili integrità e durata | `Heroes.Riktor.{KineticPanelCreatesCover, VariantParametersApplied}` |
+| **F4** | `Hero.Riktor.Reconfigure`: sposta una copertura temporanea **senza duplicarla**, conservando integrità e durata residua; rotazione gratuita dell'adattivo | `Heroes.Hero.Riktor.ReconfigureDoesNotDuplicate` |
 | **F5** | `Gadget.PortableCover`: voce di catalogo con `Drawback`, e uso in partita che riusa la semantica core di F2 | `Equipment.PortableCover.CreatesCover` |
 | **F6** | Documentazione: spec del checkpoint, Decision Log (D-a), cataloghi balance allineati, roadmap, feature registry, issue | `scripts/check-docs-links.py` |
 

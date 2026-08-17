@@ -186,7 +186,7 @@ dipende sia cosa vince sotto il cursore (§4.1) sia quale campo di piano viene s
 | `Edge` | uno dei sei bordi di una cella | `PlannedCoverEdge` + `bHasPlannedCoverEdge` | ⛔ nessun produttore — [#737](https://github.com/DegrassiAaron/refactor-tactics-main/issues/737) |
 | `Object` | l'oggetto logico intero (`DoorId`, arco, objective) | interazione, §5.1 | ⛔ risolve la mesh, non l'oggetto |
 
-Il `TargetKind` **non è una modalità che il giocatore sceglie**: la dichiara l'azione. Armare `Bastion.Reconfigure`
+Il `TargetKind` **non è una modalità che il giocatore sceglie**: la dichiara l'azione. Armare `Hero.Riktor.Reconfigure`
 apre `Targeting`/`Edge`; armare un AoE apre `Targeting`/`Cell`. Il giocatore sceglie l'azione, e la forma del
 bersaglio segue — così l'affordance è decisa prima del click, che è l'invariante di questo documento.
 

@@ -312,14 +312,14 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](scenario-index-e-tag.m
 ```json
 {
   "scenarioId": "Movement.Basic",
-  "tags": ["movement", "core", "animation", "flux", "bastion"],
+  "tags": ["movement", "core", "animation", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 3,
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [2, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
   ],
 
   "turns": [
@@ -339,10 +339,10 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](scenario-index-e-tag.m
 | `tags` | *(opzionale)* parole per cui filtrare nell'Editor: tipologia, lente, personaggio. Vedi [`scenario-index-e-tag.md`](scenario-index-e-tag.md) |
 | `mapRadius` | arena esagonale piena generata da codice (nessun `.umap` da versionare) |
 | `cells` | *(opzionale)* celle da modificare: `blocksMovement`, `blocksLineOfSight`, `moveCost` |
-| `hero` | ID stabile dal catalogo: `Hero.Flux` · `Hero.Riva` · `Hero.Bastion` · `Hero.Vektor` |
+| `hero` | ID stabile dal catalogo: `Hero.Gadget` · `Hero.Phase` · `Hero.Riktor` · `Hero.Wraith` |
 | `cell` | `[q, r]` oppure `[q, r, layer]` — il layer è opzionale e vale 0 |
 | `move` | lista di **waypoint**, come li produrrebbe il giocatore cliccando |
-| `ability` | `ActionId` dell'abilità (`Flux.ArcPulse`) — per **ID**, non per indice |
+| `ability` | `ActionId` dell'abilità (`Hero.Gadget.ArcPulse`) — per **ID**, non per indice |
 | `target` | ID di scenario del bersaglio; obbligatorio con `ability` |
 | `reaction` | `ActionId` della reazione che l'unità **arma** per il turno — nessun bersaglio |
 | `bot` | *(opzionale)* l'unità è guidata dal **pianificatore del gioco**, non dal file. Un intent scritto per lei è un errore |

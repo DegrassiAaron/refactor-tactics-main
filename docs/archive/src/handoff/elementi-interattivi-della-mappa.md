@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 🗄️ `HISTORICAL` — SORGENTE RECEPITO
 >
 > **Archiviato il 2026-08-10.** Era in `todo/consolidazione-chat-openai/`, untracked. E' il *kit* di dettaglio
@@ -143,7 +145,7 @@ Lo stesso elemento deve quindi produrre gameplay differente in base a:
 Evitare requisiti hard-coded come:
 
 ```text
-CanUseOnlyCharacter = Flux
+CanUseOnlyCharacter = Gadget
 ```
 
 Preferire un sistema a capability/tag.
@@ -169,18 +171,18 @@ Un personaggio può possedere più capability.
 Esempio concettuale iniziale:
 
 ```text
-Flux
+Gadget
 - Interaction.Electric
 - Interaction.Tech
 
-Riva
+Phase
 - Interaction.Fluid
 
-Bastion
+Riktor
 - Interaction.Engineering
 - Interaction.Force
 
-Vektor
+Wraith
 - Interaction.Precision
 - Interaction.Sensor
 ```
@@ -681,10 +683,10 @@ Reinforce
 Esempi:
 
 ```text
-Flux electrifies generator
-Riva manipulates water system
-Bastion moves/rotates structural cover
-Vektor interacts with sensor/trajectory system
+Gadget electrifies generator
+Phase manipulates water system
+Riktor moves/rotates structural cover
+Wraith interacts with sensor/trajectory system
 ```
 
 ## Reaction interaction
@@ -1261,7 +1263,7 @@ Dimostra:
 Valve
  -> Water
 
-Flux / electrical source
+Gadget / electrical source
  -> Electricity
 
 Water + Electricity
@@ -1653,7 +1655,7 @@ Aggiungere:
 - ability-driven interaction;
 - interaction requirements;
 - GAS/UI mirror se necessario;
-- Flux/Riva/Bastion/Vektor integration.
+- Gadget/Phase/Riktor/Wraith integration.
 
 ---
 

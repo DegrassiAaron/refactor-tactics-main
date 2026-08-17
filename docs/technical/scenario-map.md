@@ -130,7 +130,7 @@ Totale corpus versionato: **73** scenari (`A 40 + B 21 + D-bloccati 12`) — *ri
 > - i **pianificati erano ventuno**, non tredici: §6.2 ne elencava ventuno sotto un totale di tredici.
 >   Nessuno li aveva contati, perché contarli a mano è esattamente ciò che nessuno fa due volte.
 >
-> Nel frattempo `#346` ne ha aggiunti **due** in `Scenarios/Combat/` (`BastionImpactShotSlows` e il suo
+> Nel frattempo `#346` ne ha aggiunti **due** in `Scenarios/Combat/` (`RiktorImpactShotSlows` e il suo
 > gemello di controllo `MoveIsFullWithoutSlow`): la classe A arriva a **26** e il corpus a **56**. Le due
 > correzioni sono state calcolate su rami diversi nello stesso pomeriggio e riconciliate al merge — che è
 > il motivo per cui il totale ora si misura invece di sommarlo.
@@ -167,7 +167,7 @@ Totale corpus versionato: **73** scenari (`A 40 + B 21 + D-bloccati 12`) — *ri
 >    «una statistica è cambiata», non «undici regole si sono rotte». Un delta *disomogeneo* avrebbe voluto
 >    dire l'opposto, e sarebbe stato il momento di fermarsi.
 > 2. **La prosa scade insieme ai numeri.** Sei di quegli undici file spiegano l'aritmetica a parole
->    (*«100 − 10 − 8 = 82»*, *«`Vektor` resta a 100 pieni»*). Correggere solo le `expect` avrebbe lasciato una
+>    (*«100 − 10 − 8 = 82»*, *«`Wraith` resta a 100 pieni»*). Correggere solo le `expect` avrebbe lasciato una
 >    spiegazione che contraddice l'assertion accanto — e la spiegazione è **metà** del valore di uno scenario
 >    `Visual.*`, che esiste per dire a una persona cosa deve vedere. Sono state corrette entrambe.
 
@@ -214,7 +214,7 @@ Il verdetto è l'assertion. Nessuna di queste righe compare nel registro PIE, ed
 | `Combat.FriendlyFire` | r3 | 5 | l'AoE colpisce anche l'alleato — e porta `previewUnit` per il banco dell'anteprima |
 | `Combat.LineHitsThrough` | r4 | 4 | la linea prende chi sta sulla traiettoria prima del bersaglio |
 | `Combat.NoCounterWhenUnarmed` | r4 | 3 | il contrattacco richiede un'arma: niente reazione implicita |
-| `Combat.BastionImpactShotSlows` | r4 | 4 | lo `Slow` applicato nel **Blast** agisce sul **Move** dello stesso turno: il bersaglio si ferma due celle prima |
+| `Combat.RiktorImpactShotSlows` | r4 | 4 | lo `Slow` applicato nel **Blast** agisce sul **Move** dello stesso turno: il bersaglio si ferma due celle prima |
 | `Combat.MoveIsFullWithoutSlow` | r4 | 3 | il gemello di controllo: senza il colpo, le stesse quattro celle si percorrono tutte |
 | `Combat.SplashHitsAlliesNotSelf` | r4 | 5 | l'area prende gli alleati ma **non** chi la lancia |
 | `Movement.Basic` | r3 | 2 | il passo singolo arriva sulla cella pianificata |
@@ -530,11 +530,11 @@ resta visibile invece di sparire.
 | ScenarioId pianificato | Feature | Release |
 |---|---|---|
 | `Stress.4v4.CoreRoster` | `RT-FEAT-STRESS-4V4` | v0.1 · E17 (`#221`) |
-| `Team.Conflux.FluxRiva.ConductiveFlood` | `RT-FEAT-FACTION-SCENARIOS` | v0.2 |
-| `Team.Constrine.BastionVektor.OnlyExit` | idem | v0.2 |
+| `Team.Conflux.GadgetPhase.ConductiveFlood` | `RT-FEAT-FACTION-SCENARIOS` | v0.2 |
+| `Team.Constrine.RiktorWraith.OnlyExit` | idem | v0.2 |
 | `Team.Sentinel.SteelMurdock.HoldTheLine` | idem | v0.2 · richiede E35 |
 | `Team.Resonance.AuroraKwang.FrozenAnchor` | idem | v0.2 · richiede E35 |
-| `State.Riva.Flow` · `State.Flux.Charged` · `State.Bastion.Bulwark` · `State.Howitzer.Siege` · `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` | v0.4 · E34 (`#244`) |
+| `State.Phase.Flow` · `State.Gadget.Charged` · `State.Riktor.Bulwark` · `State.Howitzer.Siege` · `State.MultiState.Stress` | `RT-FEAT-CHARACTER-STATE` | v0.4 · E34 (`#244`) |
 | `Spec.Clash.HiddenUntilReveal` · `Spec.Clash.RevealIsFixedDeadline` · `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` | v0.1 · E14 · CP 14.7 |
 | `Spec.Brace.AnchorResistsDisplacement` · `…FlowRedirectsToLegalHexOnly` · `…DeflectOffersOnlyLegalSides` | `RT-FEAT-REACTION-PROFILE` | v0.1 · E14 · CP 14.7 |
 | `Spec.Overwatch.ConductiveDischargeUsesStandardConduction` · `…PressurePushChangesResolvedPath` · `…FrontlineFollowsFacing` | `RT-FEAT-REACTION-OVERWATCH` | v0.1 · E14 · CP 14.4 |
@@ -610,12 +610,13 @@ resta visibile invece di sparire.
 
 > ✅ **I `BAL-1` non sono più in questa lista: chiusi il 2026-08-10** (`#401`, `#402`). Tre scritti e verdi
 > al primo run — `Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.BraceWinsOnSecondHit` e
-> `Spec.Combat.BastionIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché
+<!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
+> `Spec.Combat.RiktorIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché
 > [D-075](../decisions/RT_PDR_00_Decision_Log.md) ha deciso dall'altra parte e il nome previsto avrebbe
 > significato il contrario del file. Il quarto, `Spec.Brace.PushBeyondGuardThreshold`, **non nasce**: chiedeva
 > una spinta di 2 che [D-074](../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, riscrivendo
 > invece la clausola di `Brace`. Oracolo e fixture erano quelli previsti — `UnitHpEquals`, `UnitAtCell` e
-> `Riva.PressureJet` (16 danni **e** `Push 1` nello stesso colpo) — e nessuna capability nuova è servita.
+> `Hero.Phase.PressureJet` (16 danni **e** `Push 1` nello stesso colpo) — e nessuna capability nuova è servita.
 >
 > Vale la pena notare **perché** questi quattro mancavano: `Guard` e `Brace` hanno ciascuno i propri scenari
 > e nessuno li guarda **insieme**. È la stessa forma del *dato senza consumatore*, ruotata — qui i
@@ -850,7 +851,7 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | Buco | Effetto sulla mappa | Owner |
 |---|---|---|
 | **Effetti muti** — `Wet`, `Burning`, reazione armata e cella conduttiva non emettono alcun evento | Due scenari di classe B non si possono scrivere (`Visual.Water.Wet`, `Visual.Conductive.Network`): si aprirebbero mostrando il terreno che c'era già | `scenari-validazione-visiva.md` §8.1 |
-| ~~**Azioni core senza possessore**~~ — ✅ **chiuso il 2026-08-09** (`#282`, `75b8264`): `Flux.ConductiveNode` è `Action.Electrify` e `Riva.FluidTrail` è `Action.CreateWater` | I tre scenari sono passati in classe **A**. `Ignite` e `ModifyArc` restano **senza owner per decisione**, non per debito ([D-046](../decisions/RT_PDR_00_Decision_Log.md)): nessun eroe del roster ha affinità col fuoco, i ponti non appartengono a nessun kit | — |
+| ~~**Azioni core senza possessore**~~ — ✅ **chiuso il 2026-08-09** (`#282`, `75b8264`): `Flux.ConductiveNode` è `Action.Electrify` e `Riva.FluidTrail` è `Action.CreateWater` | I tre scenari sono passati in classe **A**. `Ignite` e `ModifyArc` restano **senza owner per decisione**, non per debito ([D-046](../decisions/RT_PDR_00_Decision_Log.md)): nessun eroe del roster ha affinità col fuoco, i ponti non appartengono a nessun kit | — | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 | **Fascia D mai atterrata** — 8 `Visual.*` descritti come scritti, 0 file | Il catalogo promette vetrine che non esistono; 4 temi vivono come `Spec.*` | §6.3, da riscrivere in `scenari-validazione-visiva.md` |
 | **La camera non ha copertura, e non è un debito rinviato** — `RT-FEAT-UI-TACTICAL-CAMERA` ha `scenarios: []` e gate `scenario: todo`: zero scenari, né scritti né pianificati né promessi | Nessuno **oggi**: ciò che è verificabile della camera attuale sono automation test puri ([#865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/865)), non scenari. Il buco si apre davvero quando esisterà qualcosa da *guardare* — marker verticali, cutaway, transizione Strategic — e allora servirà anche una convenzione di ScenarioId per la camera, che non esiste | §6.3 · [`../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md`](../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md) |
 | **`Visual.Reaction.*` esiste, `Spec` no** — il campo `reaction` nell'intent c'è ed è validato | Nessuno: è un buco **chiuso**, registrato perché la documentazione lo dichiarava aperto per una working copy indietro di qualche commit | `scenari-validazione-visiva.md` §8.2 |

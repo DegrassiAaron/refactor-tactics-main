@@ -1,5 +1,7 @@
 # Lane 6 — Character
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `SNAPSHOT` · **Data**: 2026-08-12 · **HEAD**: `8b27afab`
 > **Cosa è**: la sequenza di lavoro della lane *Character*, letta sul backlog **già aperto**.
 > **Cosa non è**: una fonte di stato. Aperto/chiuso vive su GitHub; il `🟢`/`⏳`/`✅` qui dentro è la
@@ -69,7 +71,7 @@ ovvio a chi legge i titoli e invisibile a qualsiasi strumento. Se conta, va scri
 
 | Feature / Issue | Cosa | Stato | Release |
 |---|---|---|---|
-| `RT-FEAT-CHAR-V01-ROSTER` | Flux, Riva, Bastion, Vektor | `INTEGRATED` | v0.1 |
+| `RT-FEAT-CHAR-V01-ROSTER` | Gadget, Phase, Riktor, Wraith | `INTEGRATED` | v0.1 |
 | `RT-FEAT-CHAR-V02-ROSTER` | Steel, Aurora, Murdock, Kwang | `DESIGNED` | v0.2 |
 | `#322` | `[EPIC v0.2] E35` · Roster 8: Sentinel Directorate e Resonance | ⏳ **P0** post-v0.1 | v0.2 |
 | `#645` | `Action.Leap` è la quarta capacità del motore irraggiungibile dal roster | 🟢 `question` P2 | v0.1 |

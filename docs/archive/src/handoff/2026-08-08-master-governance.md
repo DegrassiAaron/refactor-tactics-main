@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 🗄️ `HISTORICAL` — SORGENTE RECEPITO
 >
 > **Archiviato il 2026-08-10.** Era in `todo/consolidazione-chat-openai/`, untracked.
@@ -279,7 +281,7 @@ Esempi trovati durante cleanup:
 Pivot per-personaggio vs regola Facing ADR più recente.
 
 ## ROSTER-01
-Roster storici vs v0.1 Flux/Riva/Bastion/Vektor e v0.2 Steel/Aurora/Murdock/Kwang.
+Roster storici vs v0.1 Gadget/Phase/Riktor/Wraith e v0.2 Steel/Aurora/Murdock/Kwang.
 
 ## TIMEBANK-01
 Valori/scope del Decision Time Bank ancora playtest/open.

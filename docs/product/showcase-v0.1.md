@@ -13,9 +13,17 @@
 > | Ambiente: stati, propagazione, fuoco/acqua, terreno dinamico, azioni ambientali (E8, CP 8.2–8.5) | ⏳ | ✅ **epic chiusa** |
 > | Copertura bassa e alta, integrità, distruzione (CP 9.1/9.2) | ⏳ «`FRTHexCellData` non ha il campo» | ✅ **il campo c'è**: `FRTHexCover{Edge, Type, Integrity}` |
 > | Reazioni d'eroe cablate (CP 5.5 + 6.7) | ⏳ | ✅ **tre su cinque**: `Interposition`, `Deflection`, `ReactiveCapacitor` |
-> | `Riva.FlowReaction` | ⏳ rinviata | ⏳ **E14** — invariato |
-> | `Vektor.InterceptShot` | ⏳ E14 | ⏳ **E18**, come **Predictive Action** — non serve più una finestra interattiva |
+> | `Hero.Phase.FlowReaction` | ⏳ rinviata | ⏳ **E14** — invariato |
+> | `Hero.Wraith.InterceptShot` | ⏳ E14 | ⏳ **E18**, come **Predictive Action** — non serve più una finestra interattiva |
 > | Scenario Test Harness | inesistente | ✅ disponibile |
+>
+> ➕ **Rettifica del 2026-08-17 — due righe di questa tabella sono scadute il 2026-08-10.** Non sono state
+> riscritte, perché la colonna *Ora* è una fotografia datata al **2026-08-08** e falsificarla perderebbe il
+> confronto che la tabella esiste per mostrare:
+> · **`Hero.Wraith.InterceptShot`** non è più `⏳ E18`: E18 è **chiusa** ([#225](https://github.com/DegrassiAaron/refactor-tactics-main/issues/225), 2026-08-10) e l'abilità è
+>   consegnata — sette test `Predictive.*`, tre dei quali d'integrazione in un `UWorld` vero.
+> · **«tre su cinque»** è ora **tre su quattro**: `InterceptShot` è uscita dall'insieme delle reazioni, e il
+>   denominatore è calato con lei. Resta `Hero.Phase.FlowReaction`.
 >
 > ### La showcase è uno **scenario dell'harness**, non una seconda pipeline
 >
@@ -113,11 +121,16 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
 - le reazioni sono **pianificate e automatiche**: non chiedono una scelta live e non sospendono la simulazione
   — è il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), non un
   meccanismo diverso;
-- **due** reazioni d'eroe non sono cablate: `Riva.FlowReaction` (⏳ E14) e `Vektor.InterceptShot` (⏳ E18, come
-  Predictive Action). Le altre tre sono in partita da CP 6.7.
+- **una** reazione d'eroe non è cablata: `Hero.Phase.FlowReaction` (⏳ E14), perché produce **movimento** dentro un
+  boundary di risoluzione. Le altre **tre** sono in partita da CP 6.7 — cioè **tre su quattro**.
+  `Hero.Wraith.InterceptShot` **non compare in questo conto**: non è più una reazione — è una **Predictive
+  Action**, ed è consegnata (vedi sotto).
 
 *(Aggiornato il 2026-08-08: `Wet`/`Obscured` avevano «durate in arrivo con CP 8.2» — CP 8.2 è chiuso; e le
 reazioni d'eroe non cablate erano cinque.)*
+*(Aggiornato il **2026-08-17**: erano «**due** non cablate», e il conto includeva `InterceptShot` —
+riclassificata **Predictive Action** il 2026-08-10 con D-016, quindi uscita dall'insieme delle reazioni.
+Il denominatore è calato con lei: **quattro**, non cinque.)*
 
 ---
 
@@ -281,7 +294,7 @@ planning deve restituire un **reason**, e poi Gadget committa un'azione valida. 
 
 ### Turno 6 — interposizione
 
-**Gadget** attacca Wraith. **Riktor** interpone: bersaglio originale `Vektor`, bersaglio effettivo `Bastion`. La
+**Gadget** attacca Wraith. **Riktor** interpone: bersaglio originale `Wraith`, bersaglio effettivo `Riktor`. La
 geometria si **rivalida su Riktor** — LOS, traiettoria, copertura — senza aprire una reaction annidata
 ([D-017](../decisions/RT_PDR_00_Decision_Log.md)). **Phase** `PressureJet` su Riktor. **Wraith** attacca Gadget.
 
@@ -301,7 +314,7 @@ evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel Tur
 > **Cos'è «combo» qui** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)). Questo turno è uno **scenario
 > dimostrativo di interazioni sistemiche**, non una combo di squadra: Phase e Gadget non condividono un'abilità e
 > non ricevono un bonus perché sono insieme. Phase pubblica uno stato (`Wet` / acqua sulla cella), il sistema
-> ambientale lo propaga, e `Flux.LinearDischarge` legge **lo stato**, non l'identità di Phase. La stessa
+> ambientale lo propaga, e `Hero.Gadget.LinearDischarge` legge **lo stato**, non l'identità di Phase. La stessa
 > sequenza vale con qualunque altra sorgente d'acqua autorizzata. Lo scenario **dimostra** la cooperazione:
 > non la implementa e non introduce regole competitive proprie
 > ([ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) ·
@@ -316,8 +329,8 @@ non riesce. **Gadget** completa un'ultima azione offensiva e va **KO**.
 *Expected final state*:
 
 ```text
-Flux  = KO
-Riva  = viva, sul Relay (0,0,0)
+Gadget  = KO
+Phase  = viva, sul Relay (0,0,0)
 Relay = controllato da Blue
 Match = terminato, Blue vince
 ```
@@ -346,11 +359,11 @@ Nessuna riga di questa tabella si costruisce dentro E15.
 | Strutture: **ponti** | ⏳ | **CP 9.4** — non blocca gli 8 turni, vedi §2.3 |
 | `KineticPanel` / `Reconfigure` come struttura, non come mesh spostata | ⏳ | **CP 9.5** |
 | Obiettivo contestabile verificato nel Cleanup, dopo ambiente e KO | ⏳ | **CP 10.2** — issue `#75` |
-| Reazioni d'eroe cablate al motore (`Interposition`, `Deflection`, `ReactiveCapacitor`) | ✅ **tre su cinque** | **CP 5.5 + 6.7** chiusi |
-| `Riva.FlowReaction` (riposizionamento **dentro** un boundary) | ⏳ rinviata | **E14** |
+| Reazioni d'eroe cablate al motore (`Interposition`, `Deflection`, `ReactiveCapacitor`) | ✅ **tre su quattro** | **CP 5.5 + 6.7** chiusi — il denominatore era cinque finché `InterceptShot` era contata fra le reazioni |
+| `Hero.Phase.FlowReaction` (riposizionamento **dentro** un boundary) | ⏳ rinviata | **E14** |
 | Micro-step del movimento sospendibile | ⏳ | **CP 14.2** |
 | Finestra `FIRE`/`HOLD` da 3 s | ⏳ | **CP 14.5** |
-| `Vektor.InterceptShot` come **Predictive Action** (dichiarata in Planning, nessun input in Resolution) | ⏳ | **E18** — [D-016](../decisions/RT_PDR_00_Decision_Log.md); **sganciata da E14** |
+| `Hero.Wraith.InterceptShot` come **Predictive Action** (dichiarata in Planning, nessun input in Resolution) | ✅ **consegnata il 2026-08-10** | **E18** chiusa ([#225](https://github.com/DegrassiAaron/refactor-tactics-main/issues/225)) — [D-016](../decisions/RT_PDR_00_Decision_Log.md); **sganciata da E14**. Sette test `Predictive.*`, di cui tre d'integrazione in un `UWorld` vero: `InterceptCellHit`, `InterceptCellMiss`, `CrossingIsNotPresence` |
 | Orientamento come stato di gioco (facing dal movimento, retro scoperto) | ⏳ | **CP 16.1/16.2** — [ADR-0005](../decisions/adr-0005-orientamento.md) |
 | Conoscenza parziale reale (vista **a cono**, rumore, tre livelli) | ⏳ | **E13** (dipende da CP 16.1) |
 | Etichette *confermato / previsto / incerto* nell'HUD | ⏳ | **CP 11.2** |
@@ -382,8 +395,8 @@ Costruibile **oggi** (CP 15.2). Usa solo regole atterrate e serve da fixture d'i
 4. `Ice` fa scivolare nel Move;
 5. `Fire` applica l'effetto on-enter;
 6. `Smoke` limita il targeting;
-7. `Riva.PressureJet` applica danno (+ `Wet`/Push per quanto rappresentabile);
-8. `Bastion.Ram` usa `LinearCharge` e si ferma all'impatto;
+7. `Hero.Phase.PressureJet` applica danno (+ `Wet`/Push per quanto rappresentabile);
+8. `Hero.Riktor.Ram` usa `LinearCharge` e si ferma all'impatto;
 9. Counter / Deflect / Intercept **generici**;
 10. fallback su bersaglio che si sposta prima del Blast;
 11. TurnLog leggibile con reason code;
@@ -446,13 +459,13 @@ Gli input della partita golden sono un **dato**, non un click:
 
 ```text
 Turn 1
-  Flux:    MoveIntent … / MainAction … / Reaction …
-  Riva:    …
-  Bastion: …
-  Vektor:  …
+  Gadget:    MoveIntent … / MainAction … / Reaction …
+  Phase:    …
+  Riktor: …
+  Wraith:  …
 ReactionDecisions:
   Boundary X -> HOLD
-  Boundary Y -> FIRE target Riva
+  Boundary Y -> FIRE target Phase
 ```
 
 I file golden della showcase vivono con quelli del **CP 12.6**, stesso meccanismo e stessa cartella
@@ -478,7 +491,7 @@ playtest di CP 15.5: sono ragioni per iterare, non condizioni di chiusura.
 1. reintrodurre Aegis/Nyx/Drift/Vex o qualunque valore della tabella §0;
 2. creare un secondo `ARTGameMode` «showcase» con regole duplicate;
 3. cablare gli 8 turni o la relocation dentro `ARTTurnManager`;
-4. scrivere `if (HeroId == …)` o `if (ActionId == "Vektor.InterceptShot")` nel resolver;
+4. scrivere `if (HeroId == …)` o `if (ActionId == "Hero.Wraith.InterceptShot")` nel resolver;
 5. duplicare la geometria di `FRTSuppressiveZone` per l'Overwatch;
 6. valutare l'Overwatch **dopo** che il movimento è già risolto;
 7. usare `Delay`, Timeline, montage o frame rate come logica;

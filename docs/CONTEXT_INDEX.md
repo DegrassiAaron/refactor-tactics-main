@@ -87,7 +87,7 @@ HEAD osservato durante la creazione di questo indice: `e2bb0fc84733b50b47ec2d629
 Difetti/attenzioni emersi dal corpus più recente:
 
 - `PushResistance` è presente nei dati ma manca ancora un consumer nella spinta (`#241`).
-- La combo documentata `Riva PressureJet → Flux` nello stesso Blast non funziona come descritto per il timing degli snapshot/fasi; lo scenario end-to-end funzionante usa acqua già disponibile prima del Blast (`#242`).
+- La combo documentata `Phase PressureJet → Gadget` nello stesso Blast non funziona come descritto per il timing degli snapshot/fasi; lo scenario end-to-end funzionante usa acqua già disponibile prima del Blast (`#242`).
 
 Per lo stato aggiornato, prevalgono sempre `docs/roadmap/roadmap-v0.1.md`, `docs/roadmap/roadmap-checkpoint.md`, issue correnti e test/code del HEAD.
 

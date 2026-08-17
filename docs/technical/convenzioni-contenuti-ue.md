@@ -32,7 +32,7 @@ La struttura è **feature-first**, non organizzata per tipo di asset. Evita cart
 Un asset sta **vicino alla feature che lo possiede**:
 
 ```text
-/Game/RT/Characters/Gadget/          <- nome del PACK Paragon, non dell'eroe (§5b): qui vive Flux
+/Game/RT/Characters/Gadget/          <- nome del PACK Paragon, non dell'eroe (§5b): qui vive Gadget
 ├── Abilities/
 ├── Animation/
 ├── Audio/
@@ -132,10 +132,10 @@ esso l'errore di aprire la cartella sbagliata.
 
 | Eroe (gioco) | `HeroId` (C++) | `<CharacterId>` (contenuti) |
 |---|---|---|
-| Gadget | `Hero.Flux` | **`Gadget`** |
-| Phase | `Hero.Riva` | **`Phase`** |
-| Riktor | `Hero.Bastion` | **`Riktor`** |
-| Wraith | `Hero.Vektor` | **`Wraith`** |
+| Gadget | `Hero.Gadget` | **`Gadget`** |
+| Phase | `Hero.Phase` | **`Phase`** |
+| Riktor | `Hero.Riktor` | **`Riktor`** |
+| Wraith | `Hero.Wraith` | **`Wraith`** |
 
 Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Blueprints/BP_Unit_Gadget`,
 `Characters/Gadget/Animation/ABP_Gadget`.
@@ -143,7 +143,7 @@ Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Bl
 **Eccezione: i dati restano intitolati all'eroe.** `DA_Hero_Flux` sta in `Characters/Gadget/Data/` ma non
 diventa `DA_Hero_Gadget`. Un data asset eroe descrive *statistiche e abilità*, che non dipendono dalla mesh:
 se Gadget cambiasse base visuale, quel file resterebbe valido parola per parola. Lo stesso vale per `HeroId`,
-che in C++ è e resta `Hero.Flux`. La mappatura fra i due mondi è **D-037**, tabella owner in
+che in C++ è e resta `Hero.Gadget`. La mappatura fra i due mondi è **D-037**, tabella owner in
 [`../characters/paragon.md`](../characters/paragon.md).
 
 ⚠️ **Costo accettato, non rimosso.** Fino al 2026-08-11 §A raccomandava l'**opposto** — il nome del

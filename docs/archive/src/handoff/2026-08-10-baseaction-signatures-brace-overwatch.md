@@ -1,4 +1,6 @@
 # RefactorTactics — Consolidamento Base Action Signatures, Brace e Overwatch
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Handoff operativo per Claude Code
 
 > 📦 **Archiviato il 2026-08-10 — recepito, non applicato.** L'esito del triage vive in
@@ -13,8 +15,8 @@
 
 **Data:** 2026-08-10  
 **Scope:** personaggi v0.1, azioni universali, Base Action Signature, Brace, Overwatch, Character Reaction Profiles, Feature Map, Scenario Map, Wiki, Roadmap, Epic/Issue GitHub.  
-**Roster v0.1 da preservare:** `Flux`, `Riva`, `Bastion`, `Vektor`.  
-**Showcase v0.1:** `Flux + Riva` vs `Bastion + Vektor`.
+**Roster v0.1 da preservare:** `Gadget`, `Phase`, `Riktor`, `Wraith`.  
+**Showcase v0.1:** `Gadget + Phase` vs `Riktor + Wraith`.
 
 ---
 
@@ -24,7 +26,7 @@ Consolidare nel repository quanto deciso/discusso sul fatto che le **azioni base
 
 Principio:
 
-> Il giocatore impara una grammatica comune una volta sola, ma Flux deve continuare a sentirsi Flux, Riva deve continuare a sentirsi Riva, Bastion deve continuare a sentirsi Bastion e Vektor deve continuare a sentirsi Vektor anche quando le loro quattro signature ability sono indisponibili.
+> Il giocatore impara una grammatica comune una volta sola, ma Gadget deve continuare a sentirsi Gadget, Phase deve continuare a sentirsi Phase, Riktor deve continuare a sentirsi Riktor e Wraith deve continuare a sentirsi Wraith anche quando le loro quattro signature ability sono indisponibili.
 
 Le azioni base NON devono diventare altre 6-8 signature ability gratuite.
 
@@ -119,10 +121,10 @@ Character Base Action
 Reaction Profile
 Overwatch Profile
 
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 
 Ground
 Grounding
@@ -191,22 +193,22 @@ Se trovi un conflitto tra questo handoff e una decisione PIÙ RECENTE nel reposi
 ## 3.1 Roster v0.1
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Showcase:
 
 ```text
 Conflux:
-- Flux
-- Riva
+- Gadget
+- Phase
 
 Constrine:
-- Bastion
-- Vektor
+- Riktor
+- Wraith
 ```
 
 Non reintrodurre come roster operativo:
@@ -324,7 +326,7 @@ Riutilizzare tipi e cataloghi esistenti.
 
 Questa matrice va consolidata come **direzione di playtest approvata**, senza inventare valori numerici.
 
-| Azione | Flux | Riva | Bastion | Vektor |
+| Azione | Gadget | Phase | Riktor | Wraith |
 |---|---|---|---|---|
 | Wait | Standard | Standard | Standard | Standard |
 | Move | Standard | Variant: Wet affinity | Standard | Standard |
@@ -354,10 +356,10 @@ Nessun bonus nascosto.
 NO:
 
 ```text
-Flux gains Charge on Wait
-Riva creates Water on Wait
-Bastion Fortifies for free on Wait
-Vektor gains Focus for free on Wait
+Gadget gains Charge on Wait
+Phase creates Water on Wait
+Riktor Fortifies for free on Wait
+Wraith gains Focus for free on Wait
 ```
 
 salvo futura regola esplicitamente approvata e bilanciata.
@@ -374,13 +376,13 @@ Normal
 Sprint
 ```
 
-## Flux
+## Gadget
 
 Per ora `STANDARD`.
 
 La conduzione deve influenzare la scelta di path tramite il contesto della mappa, non generare automaticamente Charge solo camminando.
 
-## Riva
+## Phase
 
 `VARIANT — Wet Affinity`
 
@@ -393,7 +395,7 @@ Non applicare entrambe automaticamente nella prima iterazione.
 
 Non fissare numeri senza catalogo/playtest.
 
-## Bastion
+## Riktor
 
 `STANDARD`.
 
@@ -407,7 +409,7 @@ La sensazione di stabilità/peso deve derivare soprattutto da:
 
 Non renderlo frustrante solo riducendo il Move di base senza evidenza di balance.
 
-## Vektor
+## Wraith
 
 `STANDARD`.
 
@@ -436,7 +438,7 @@ UTILITY / EMERGENCY ATTACK
 
 Ogni personaggio deve avere almeno una situazione ripetibile in cui il Basic Attack è una scelta sensata.
 
-## Flux — Engine/Setup Attack
+## Gadget — Engine/Setup Attack
 
 Direzione:
 
@@ -451,7 +453,7 @@ Non duplicare una seconda regola di conduction nel BasicAttack.
 
 Usare primitive/effect esistenti.
 
-## Riva — Setup Attack
+## Phase — Setup Attack
 
 Direzione:
 
@@ -464,9 +466,9 @@ piccolo displacement / Push
 
 Obiettivo:
 
-> Riva usa il Basic Attack anche per cambiare la geometria dello scontro.
+> Phase usa il Basic Attack anche per cambiare la geometria dello scontro.
 
-## Bastion — Utility/Emergency
+## Riktor — Utility/Emergency
 
 Direzione:
 
@@ -474,10 +476,10 @@ Direzione:
 attacco semplice
 affidabile
 payload minimo
-non compete con Vektor come shooter
+non compete con Wraith come shooter
 ```
 
-## Vektor — Primary Weapon
+## Wraith — Primary Weapon
 
 Direzione:
 
@@ -503,13 +505,13 @@ Guard != Intercept
 Guard != Overwatch
 ```
 
-## Flux
+## Gadget
 Standard.
 
-## Riva
+## Phase
 Standard.
 
-## Bastion
+## Riktor
 `VARIANT — Directional/Frontal Guard`
 
 Solo una variante leggera:
@@ -519,7 +521,7 @@ Solo una variante leggera:
 - niente Intercept automatico;
 - niente difesa signature gratis.
 
-## Vektor
+## Wraith
 Standard.
 
 ---
@@ -557,7 +559,7 @@ La differenziazione per personaggio deve essere espressa tramite `Character Reac
 
 # 11. BRACE PROFILES v0.1
 
-## 11.1 Flux — Grounding Brace
+## 11.1 Gadget — Grounding Brace
 
 Nome concettuale:
 
@@ -597,7 +599,7 @@ Player question:
 
 ---
 
-## 11.2 Riva — Flow Brace
+## 11.2 Phase — Flow Brace
 
 Trigger:
 
@@ -614,13 +616,13 @@ HOLD
 
 Direzione:
 
-> Riva non è la migliore nel dire “non mi muovo”; è brava a trasformare dove finirà.
+> Phase non è la migliore nel dire “non mi muovo”; è brava a trasformare dove finirà.
 
 Proposta di playtest:
 
 - il displacement avviene;
 - può essere mitigato parzialmente;
-- Riva può deviare la destinazione/traiettoria verso una direzione hex adiacente legalmente valida.
+- Phase può deviare la destinazione/traiettoria verso una direzione hex adiacente legalmente valida.
 
 Non è:
 
@@ -647,7 +649,7 @@ Player question:
 
 ---
 
-## 11.3 Bastion — Anchor Brace
+## 11.3 Riktor — Anchor Brace
 
 Trigger:
 
@@ -664,7 +666,7 @@ HOLD
 
 Identità:
 
-> Bastion è il riferimento del roster v0.1 per “tenere la posizione”.
+> Riktor è il riferimento del roster v0.1 per “tenere la posizione”.
 
 Direzione:
 
@@ -684,7 +686,7 @@ Player question:
 
 ---
 
-## 11.4 Vektor — Deflection Brace
+## 11.4 Wraith — Deflection Brace
 
 Trigger:
 
@@ -702,14 +704,14 @@ HOLD
 
 Direzione:
 
-- Vektor non compete con Bastion sulla pura resistenza;
+- Wraith non compete con Riktor sulla pura resistenza;
 - converte/modifica parte della traiettoria in displacement laterale;
 - mantiene la semantica di geometry defense.
 
 Vincoli:
 
 - non deve diventare Dodge universale agli attacchi;
-- non deve annullare il displacement meglio di Bastion;
+- non deve annullare il displacement meglio di Riktor;
 - mostrare solo risposte legalmente valide.
 
 Player question:
@@ -722,10 +724,10 @@ Player question:
 
 | Character | Brace Profile | Identità |
 |---|---|---|
-| Flux | Grounding | trasforma condizione/terreno in setup |
-| Riva | Flow | devia/asseconda |
-| Bastion | Anchor | riduce/nega il displacement |
-| Vektor | Deflection | cambia traiettoria |
+| Gadget | Grounding | trasforma condizione/terreno in setup |
+| Phase | Flow | devia/asseconda |
+| Riktor | Anchor | riduce/nega il displacement |
+| Wraith | Deflection | cambia traiettoria |
 
 Grammatica comune da preservare:
 
@@ -828,7 +830,7 @@ Scopo:
 
 # 15. OVERWATCH PROFILES v0.1
 
-## 15.1 Flux — Conductive Overwatch
+## 15.1 Gadget — Conductive Overwatch
 
 Geometria:
 
@@ -856,8 +858,8 @@ Player question:
 Team synergy:
 
 ```text
-Riva creates Wet
--> Flux arms Conductive Overwatch
+Phase creates Wet
+-> Gadget arms Conductive Overwatch
 -> enemy enters
 -> discharge
 -> normal conduction resolution
@@ -865,7 +867,7 @@ Riva creates Wet
 
 ---
 
-## 15.2 Riva — Pressure Overwatch
+## 15.2 Phase — Pressure Overwatch
 
 Geometria:
 
@@ -899,14 +901,14 @@ Esempi di payoff:
 - togliere da cover;
 - spingere fuori objective;
 - mandare verso acqua/hazard;
-- preparare Flux;
+- preparare Gadget;
 - rompere una traiettoria se le regole del resolver lo consentono.
 
-Questa deve essere la Base Action Signature più forte di Riva insieme al suo setup Water/Wet.
+Questa deve essere la Base Action Signature più forte di Phase insieme al suo setup Water/Wet.
 
 ---
 
-## 15.3 Bastion — Frontline Overwatch
+## 15.3 Riktor — Frontline Overwatch
 
 Geometria:
 
@@ -927,12 +929,12 @@ Non aggiungere suppression solo per riempire il design.
 
 Identità:
 
-> Bastion controlla bene un choke vicino perché costruisce/canalizza lo spazio, non perché ha il miglior Overwatch numerico.
+> Riktor controlla bene un choke vicino perché costruisce/canalizza lo spazio, non perché ha il miglior Overwatch numerico.
 
 Synergy:
 
 ```text
-Bastion structure / cover / edge control
+Riktor structure / cover / edge control
 -> restringe le rotte
 -> Frontline Overwatch acquista valore
 ```
@@ -941,7 +943,7 @@ Non renderlo contemporaneamente il miglior Brace e il miglior Overwatch.
 
 ---
 
-## 15.4 Vektor — Predictive Overwatch
+## 15.4 Wraith — Predictive Overwatch
 
 Geometria:
 
@@ -960,7 +962,7 @@ HOLD
 
 Identità:
 
-> Gli altri controllano una zona; Vektor controlla una traiettoria.
+> Gli altri controllano una zona; Wraith controlla una traiettoria.
 
 Trade-off:
 
@@ -989,24 +991,24 @@ Overwatch:
 
 | Character | Geometria | Payload | Identità |
 |---|---|---|---|
-| Flux | medium sector | Electric / Conduction | environment combo |
-| Riva | medium-short | Push + Wet | displacement/control |
-| Bastion | short-wide frontal | simple frontline shot | presidio/choke |
-| Vektor | narrow-long | intercept | prediction |
+| Gadget | medium sector | Electric / Conduction | environment combo |
+| Phase | medium-short | Push + Wet | displacement/control |
+| Riktor | short-wide frontal | simple frontline shot | presidio/choke |
+| Wraith | narrow-long | intercept | prediction |
 
 Player fantasy sintetico:
 
 ```text
-Flux:
+Gadget:
 "C'è una rete conduttiva qui."
 
-Riva:
+Phase:
 "Non voglio che tu finisca dove avevi pianificato."
 
-Bastion:
+Riktor:
 "Questa porta/choke è sotto controllo."
 
-Vektor:
+Wraith:
 "So da dove passerai."
 ```
 
@@ -1018,7 +1020,7 @@ NON modificare action economy solo per differenziare i personaggi.
 
 Differenziare prima di tutto **quali affordance sono disponibili o più interessanti**.
 
-## Flux
+## Gadget
 
 Affinità:
 
@@ -1029,7 +1031,7 @@ powered devices
 conductive systems
 ```
 
-## Riva
+## Phase
 
 Affinità:
 
@@ -1040,7 +1042,7 @@ water flow
 hydraulic elements
 ```
 
-## Bastion
+## Riktor
 
 Affinità:
 
@@ -1052,13 +1054,13 @@ bridges
 structures
 ```
 
-## Vektor
+## Wraith
 
 Standard salvo kit specifico approvato.
 
 Usare capability/tag/data esistenti.
 
-NO branch `if Hero == Flux`.
+NO branch `if Hero == Gadget`.
 
 ---
 
@@ -1068,17 +1070,17 @@ Direzione di design:
 
 | Character | Base Action identity primaria | secondaria | supporto |
 |---|---|---|---|
-| Flux | Basic Attack | Conductive systems | Brace/Overwatch conditions |
-| Riva | Overwatch | Basic Attack | Move/Interact |
-| Bastion | Brace | Guard/Architecture | Overwatch |
-| Vektor | Overwatch | Basic Attack | Brace |
+| Gadget | Basic Attack | Conductive systems | Brace/Overwatch conditions |
+| Phase | Overwatch | Basic Attack | Move/Interact |
+| Riktor | Brace | Guard/Architecture | Overwatch |
+| Wraith | Overwatch | Basic Attack | Brace |
 
 Obiettivo:
 
-- Bastion non deve dominare anche Overwatch;
-- Vektor non deve diventare tank solo per la sua Brace;
-- Riva deve vincere soprattutto via geometry control;
-- Flux deve usare environment/conduction, non bonus gratuiti.
+- Riktor non deve dominare anche Overwatch;
+- Wraith non deve diventare tank solo per la sua Brace;
+- Phase deve vincere soprattutto via geometry control;
+- Gadget deve usare environment/conduction, non bonus gratuiti.
 
 ---
 
@@ -1193,16 +1195,16 @@ Usare eventi/reason code reali se equivalenti esistono.
 Esempi di explainability:
 
 ```text
-Bastion ANCHOR:
+Riktor ANCHOR:
 Push 2 -> Push 0/1 because BraceProfile.Anchor
 
-Riva FLOW:
+Phase FLOW:
 Push direction N -> NE because selected legal Flow response
 
-Vektor DEFLECT LEFT unavailable:
+Wraith DEFLECT LEFT unavailable:
 destination blocked
 
-Flux Conductive Overwatch:
+Gadget Conductive Overwatch:
 target entered sector -> DISCHARGE -> Wet network produced normal conduction chain
 ```
 
@@ -1232,10 +1234,10 @@ Feature.Reaction.Overwatch
 Feature.Reaction.Overwatch.CharacterProfiles
 Feature.Reaction.Overwatch.PostUseMovement
 
-Feature.Character.Flux.BaseActions
-Feature.Character.Riva.BaseActions
-Feature.Character.Bastion.BaseActions
-Feature.Character.Vektor.BaseActions
+Feature.Character.Hero.Gadget.BaseActions
+Feature.Character.Hero.Phase.BaseActions
+Feature.Character.Hero.Riktor.BaseActions
+Feature.Character.Hero.Wraith.BaseActions
 ```
 
 Se il registry usa ID diversi, usare quelli reali.
@@ -1293,15 +1295,15 @@ Aggiungere o consolidare:
 
 ## CHARACTER / BASE ACTION
 
-### CHAR-BASE-001 — Flux Conductive Overwatch
+### CHAR-BASE-001 — Gadget Conductive Overwatch
 
 Setup:
 
 ```text
-Riva crea Wet in un choke
-Flux arma Overwatch
+Phase crea Wet in un choke
+Gadget arma Overwatch
 nemico entra
-Flux sceglie DISCHARGE
+Gadget sceglie DISCHARGE
 ```
 
 Assert:
@@ -1315,8 +1317,8 @@ Assert:
 Features:
 
 ```text
-Flux
-Riva
+Gadget
+Phase
 Overwatch
 Wet
 Conduction
@@ -1325,14 +1327,14 @@ ReactionOpportunity
 
 ---
 
-### CHAR-BASE-002 — Riva Pressure Overwatch
+### CHAR-BASE-002 — Phase Pressure Overwatch
 
 Setup:
 
 ```text
 enemy path A -> B -> C -> D
-enemy entra nel settore Riva a C
-Riva sceglie PUSH
+enemy entra nel settore Phase a C
+Phase sceglie PUSH
 ```
 
 Assert:
@@ -1344,12 +1346,12 @@ Assert:
 
 ---
 
-### CHAR-BASE-003 — Bastion Anchor Brace
+### CHAR-BASE-003 — Riktor Anchor Brace
 
 Setup:
 
 ```text
-Bastion vicino a objective/edge
+Riktor vicino a objective/edge
 Forced Movement incoming
 ANCHOR
 ```
@@ -1363,7 +1365,7 @@ Assert:
 
 ---
 
-### CHAR-BASE-004 — Riva Flow Brace
+### CHAR-BASE-004 — Phase Flow Brace
 
 Setup:
 
@@ -1382,7 +1384,7 @@ Assert:
 
 ---
 
-### CHAR-BASE-005 — Vektor Deflection Brace
+### CHAR-BASE-005 — Wraith Deflection Brace
 
 Setup:
 
@@ -1400,7 +1402,7 @@ Assert:
 
 ---
 
-### CHAR-BASE-006 — Vektor Predictive Overwatch
+### CHAR-BASE-006 — Wraith Predictive Overwatch
 
 Setup:
 
@@ -1418,12 +1420,12 @@ Assert:
 
 ---
 
-### CHAR-BASE-007 — Bastion Frontline Overwatch + Architecture
+### CHAR-BASE-007 — Riktor Frontline Overwatch + Architecture
 
 Setup:
 
 ```text
-Bastion restringe un choke tramite struttura/cover già prevista
+Riktor restringe un choke tramite struttura/cover già prevista
 arma Frontline Overwatch
 enemy entra frontalmente
 ```
@@ -1476,10 +1478,10 @@ Fixture con i quattro character.
 Assert concettuale/data:
 
 ```text
-Flux -> Engine/Setup
-Riva -> Setup/Wet
-Bastion -> Utility/Emergency
-Vektor -> Primary
+Gadget -> Engine/Setup
+Phase -> Setup/Wet
+Riktor -> Utility/Emergency
+Wraith -> Primary
 ```
 
 Non serve asserire balance numerico finché non approvato.
@@ -1496,7 +1498,7 @@ Usare framework reali già presenti.
 - permutazione ordine unità -> stesso risultato;
 - Brace profile non dipende da Tick;
 - risposta illegale di Flow/Deflect -> reject;
-- Bastion Anchor non applica generic damage reduction per errore;
+- Riktor Anchor non applica generic damage reduction per errore;
 - Overwatch character profile usa stessa ReactionOpportunity infrastructure;
 - HOLD non consuma se definition lo dichiara;
 - multi-target same micro-step -> una opportunity aggregata;
@@ -1567,10 +1569,10 @@ Brace = geometry/displacement defense
 Mostrare i 4 profili v0.1:
 
 ```text
-Flux    -> Grounding
-Riva    -> Flow
-Bastion -> Anchor
-Vektor  -> Deflection
+Gadget    -> Grounding
+Phase    -> Flow
+Riktor -> Anchor
+Wraith  -> Deflection
 ```
 
 Segnalare numeri come playtest/TBD.
@@ -1582,10 +1584,10 @@ Segnalare numeri come playtest/TBD.
 Spiegare framework comune e 4 profili:
 
 ```text
-Flux    -> Conductive
-Riva    -> Pressure
-Bastion -> Frontline
-Vektor  -> Predictive
+Gadget    -> Conductive
+Phase    -> Pressure
+Riktor -> Frontline
+Wraith  -> Predictive
 ```
 
 Aggiungere distinzione:
@@ -1611,10 +1613,10 @@ senza inventare il valore numerico del reduced movement.
 Aggiornare pagine:
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Aggiungere blocco `Base Action Signature` con:
@@ -1679,10 +1681,10 @@ Max 1-2 base actions fortemente Signature per hero come guideline iniziale.
 
 ```text
 Brace resta geometry/displacement defense.
-Flux    -> Grounding
-Riva    -> Flow
-Bastion -> Anchor
-Vektor  -> Deflection
+Gadget    -> Grounding
+Phase    -> Flow
+Riktor -> Anchor
+Wraith  -> Deflection
 ```
 
 Numeri `TBD/playtest`.
@@ -1690,10 +1692,10 @@ Numeri `TBD/playtest`.
 ## Decisione C — Overwatch Character Profiles
 
 ```text
-Flux    -> Conductive
-Riva    -> Pressure
-Bastion -> Frontline
-Vektor  -> Predictive
+Gadget    -> Conductive
+Phase    -> Pressure
+Riktor -> Frontline
+Wraith  -> Predictive
 ```
 
 ## Decisione D — Overwatch lifecycle
@@ -1880,10 +1882,10 @@ docs(actions): document Standard/Variant/Signature base-action grammar
 
 ```text
 feat(reaction): support character-specific Brace Reaction Profiles
-feat(reaction): implement Flux Grounding Brace profile
-feat(reaction): implement Riva Flow Brace legal displacement redirection
-feat(reaction): implement Bastion Anchor Brace profile
-feat(reaction): implement Vektor Deflection Brace profile
+feat(reaction): implement Gadget Grounding Brace profile
+feat(reaction): implement Phase Flow Brace legal displacement redirection
+feat(reaction): implement Riktor Anchor Brace profile
+feat(reaction): implement Wraith Deflection Brace profile
 feat(ui): filter Brace Decision Window to legal responses only
 test(reaction): add deterministic Brace profile coverage
 ```
@@ -1892,10 +1894,10 @@ test(reaction): add deterministic Brace profile coverage
 
 ```text
 feat(overwatch): support data-driven character Overwatch Profiles
-feat(overwatch): implement Flux Conductive Overwatch payload
-feat(overwatch): implement Riva Pressure Overwatch displacement payload
-feat(overwatch): implement Bastion Frontline Overwatch geometry
-feat(overwatch): implement Vektor Predictive Overwatch corridor profile
+feat(overwatch): implement Gadget Conductive Overwatch payload
+feat(overwatch): implement Phase Pressure Overwatch displacement payload
+feat(overwatch): implement Riktor Frontline Overwatch geometry
+feat(overwatch): implement Wraith Predictive Overwatch corridor profile
 feat(overwatch): disarm Overwatch before own normal Move
 feat(move): support data-driven post-Overwatch movement policy
 test(overwatch): add character-profile and lifecycle scenarios
@@ -1932,27 +1934,27 @@ ReactionOpportunity
   -> Overwatch Profiles
 
 Forced Movement
-  -> Riva Flow
-  -> Bastion Anchor
-  -> Vektor Deflection
+  -> Phase Flow
+  -> Riktor Anchor
+  -> Wraith Deflection
 
 Wet/Water
-  -> Riva BasicAttack
-  -> Riva Pressure OW
-  -> Flux Conductive OW
+  -> Phase BasicAttack
+  -> Phase Pressure OW
+  -> Gadget Conductive OW
 
 Conduction
-  -> Flux BasicAttack
-  -> Flux Conductive OW
+  -> Gadget BasicAttack
+  -> Gadget Conductive OW
 
 Facing
-  -> Bastion Frontline OW
-  -> Vektor Predictive OW
+  -> Riktor Frontline OW
+  -> Wraith Predictive OW
   -> Brace directional behavior if approved
 
 Structures/Cover
-  -> Bastion Base Action identity
-  -> Bastion/Vektor team synergy
+  -> Riktor Base Action identity
+  -> Riktor/Wraith team synergy
 
 Post-Overwatch movement policy
   -> Overwatch lifecycle
@@ -2042,7 +2044,7 @@ Il consolidamento è Done quando:
 1. esiste una sola grammatica corrente delle 8 azioni universali, se confermata dal Decision Log;
 2. Guard e Brace sono distinti ovunque;
 3. Base Action Signature è documentata e data-driven;
-4. Flux/Riva/Bastion/Vektor hanno profilo base leggibile;
+4. Gadget/Phase/Riktor/Wraith hanno profilo base leggibile;
 5. BasicAttack usa i quattro pattern previsti senza numeri inventati;
 6. Brace usa Grounding/Flow/Anchor/Deflection;
 7. Overwatch usa Conductive/Pressure/Frontline/Predictive;
@@ -2171,11 +2173,11 @@ Possibili candidate:
 ```text
 valore esatto movement budget dopo Overwatch
 valore numerico Brace resistance
-Riva Flow exact displacement rule
-Flux Grounding Charge amount/condition
-Riva Pressure OW damage/no-damage
-Bastion Frontline secondary effect
-Vektor Predictive Overwatch exact geometry
+Phase Flow exact displacement rule
+Gadget Grounding Charge amount/condition
+Phase Pressure OW damage/no-damage
+Riktor Frontline secondary effect
+Wraith Predictive Overwatch exact geometry
 ```
 
 NON inventare valori per chiuderle.
@@ -2230,16 +2232,16 @@ e viceversa.
 La v0.1 deve mostrare chiaramente:
 
 ```text
-Flux:
+Gadget:
 elettricità / setup / conduction
 
-Riva:
+Phase:
 Wet / displacement / geometry control
 
-Bastion:
+Riktor:
 stability / protection / architecture
 
-Vektor:
+Wraith:
 primary weapon / prediction / interception
 ```
 

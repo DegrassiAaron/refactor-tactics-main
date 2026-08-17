@@ -166,7 +166,7 @@ RT_HeroCatalog_v0.1.md      ← autorità (D-023)
 ### 4.0 Due cataloghi, una sola autorità
 
 [D-115](../decisions/RT_PDR_00_Decision_Log.md). Il catalogo eroi non è autosufficiente: la riga di
-`Flux.ConductiveNode` dichiara *«**è `Action.Electrify`**»* e non porta un numero di danno, che vive in
+`Hero.Gadget.ConductiveNode` dichiara *«**è `Action.Electrify`**»* e non porta un numero di danno, che vive in
 [`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md). La rubrica legge quindi **entrambi**,
 e il rinvio `` è `Action.X` `` è parte del contratto di lettura, non prosa libera.
 
@@ -179,8 +179,8 @@ proprio perché **non** è di Gadget: è dell'azione core che sette abilità pot
 `offense 4` invece di `6` e `5`, perché i `20` danni di `ConductiveNode` non vengono letti.
 
 ⚠️ **Un solo pattern risolve, e va distinto dall'altro che gli somiglia.** La tabella delle reazioni
-del catalogo eroi cita anch'essa azioni core — `Flux.ReactiveCapacitor` → `Action.Counter`,
-`Bastion.Interposition` → `Action.Intercept`, `Vektor.Deflection` → `Action.Deflect` — ma tiene i
+del catalogo eroi cita anch'essa azioni core — `Hero.Gadget.ReactiveCapacitor` → `Action.Counter`,
+`Hero.Riktor.Interposition` → `Action.Intercept`, `Hero.Wraith.Deflection` → `Action.Deflect` — ma tiene i
 **propri numeri inline** (`scudo 15 e 10 danni`, `−20`). Quelle riusano la **semantica**, non i valori:
 il parser non deve risolverle contro il catalogo azioni. Solo `` è `Action.X` `` delega il dato, e nel
 roster v0.1 compare **una volta sola**.
@@ -274,10 +274,28 @@ confrontabili (§1). Il loadout consigliato aprirebbe il catalogo equipaggiament
 richiederebbe di assumere **quanti bersagli** colpisce *Scarica ramificata* — che è uno scenario, non un
 dato. Le varianti restano documentate come **direzione**, senza numeri.
 
-**Le reazioni rinviate a E14 contano.** `Vektor.InterceptShot` e `Riva.FlowReaction` non producono nulla
+**Le reazioni rinviate a E14 contano.** `Hero.Wraith.InterceptShot` e `Hero.Phase.FlowReaction` non producono nulla
 in partita, ma il radar descrive l'eroe come il **catalogo lo dichiara**. Escluderle legherebbe i rating
 al calendario di implementazione: quando E14 atterra i numeri cambierebbero e il gate di §8 diventerebbe
 rosso **senza** che nessuno abbia toccato un dato competitivo.
+
+> ⚠️ **`InterceptShot` non è più rinviata, e questo paragrafo resta vero lo stesso — 2026-08-17.**
+> L'abilità è una **Predictive Action consegnata** dal 2026-08-10 (E18 chiusa, [#225](https://github.com/DegrassiAaron/refactor-tactics-main/issues/225), [D-016](../decisions/RT_PDR_00_Decision_Log.md)): produce
+> eccome in partita, ed è esercitata da tre test d'integrazione in un `UWorld` vero
+> (`Predictive.InterceptCellHit`, `…CellMiss`, `…CrossingIsNotPresence`).
+>
+> La frase qui sopra **non è stata riscritta** perché descrive ciò che il *radar* vede, e il radar legge
+> `docs/balance/RT_HeroCatalog_v0.1.md`, che la dichiara ancora `⏳ E14` (riga 48) e «reazione» (riga 170).
+> Finché il catalogo dice così, `status` resta `deferred` e questo paragrafo è **descrittivamente esatto**.
+>
+> 🔴 **La divergenza è fra catalogo e codice, e la sua correzione non è documentale**: la cella `Stato` di
+> quella riga è letta da `tools/radar/power.ts` con una **regex sulla prosa** —
+> `/trigger d'ingresso su movimento/` — che decide `isPredictive()` e quindi azzera il danno garantito
+> dell'abilità (16 → 0) nel `power` dell'eroe. Riscrivere la cella senza conservare quella frase **muove un
+> rating competitivo**; cambiare il marcatore `⏳` in `✅` rompe
+> `parse-catalog.test.ts:156`, che asserisce `status === 'deferred'`.
+> Tracciato in [#1080](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1080) con il suo costo, perché non è lo stesso lavoro di
+> [#1063](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1063).
 
 **Il cooldown pesa `disponibilità(CD) = 10 / (1 + CD/2)`** — `CD 0 → 10 · 1 → 6.67 · 2 → 5 · 3 → 4`.
 Risolve `CD 0` senza casi speciali, con **una sola costante** da giustificare invece di una tabella di
@@ -288,10 +306,10 @@ quattro. Scartata la frequenza pura `10/(1+CD)`, che fa collidere Riktor e Phase
 > proprio quelle a cooldown alto, la sua selettività *sale*. Con una tabella piatta usciva
 > `power 7 / precision 6`; con questa curva esce `6 / 7`.
 
-**Un bonus condizionale vale zero come danno.** Il `+8 su `Wet`` di `Flux.LinearDischarge` non entra in
+**Un bonus condizionale vale zero come danno.** Il `+8 su `Wet`` di `Hero.Gadget.LinearDischarge` non entra in
 nessun rating come danno: entra come **condizionalità**. La regola vale su ogni asse e su **entrambe** le
 sedi in cui il catalogo dichiara una condizione — la cella `Effetto` per gli stati, la tabella delle
-reazioni per le previsioni (`Vektor.InterceptShot`). Due meccanismi separati potrebbero divergere.
+reazioni per le previsioni (`Hero.Wraith.InterceptShot`). Due meccanismi separati potrebbero divergere.
 
 **Le ancore sono assolute, non relative al roster.** `rate(raw, ancora)` porta `raw = 0` a `1` e
 `raw = ancora` a `10`, e satura. Una normalizzazione min-max garantirebbe lo spread per costruzione, ma
@@ -432,6 +450,7 @@ La radice porta ora `width="400" height="400"`, e il contenitore può solo ridur
 
 **Il testo alternativo ripete i valori, e un gate lo verifica.** Quando il radar è pubblicato come
 immagine, il `<title>` interno non raggiunge il lettore: conta l'`alt` della pagina che lo incorpora.
+<!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 Fino al 2026-08-12 sulla Wiki erano etichette senza numeri («Profile Radar di `Flux`»): chi vede il
 grafico leggeva sei valori, chi usa uno screen reader ne riceveva zero. L'`alt` è ora
 `<title>: <asse> <valore>, …` e si ricava **dall'SVG**, mai da una tabella parallela.

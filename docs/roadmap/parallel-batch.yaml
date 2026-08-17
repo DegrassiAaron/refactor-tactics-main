@@ -2604,16 +2604,21 @@ tracks:
     binary_leases: []
 
   content_editor:
-    # 🔴 **`ACTIVE` su una issue CHIUSA, corretto il 2026-08-17.** `#451` è `CLOSED/COMPLETED` dalle
-    # `05:38Z` del 2026-08-16 — misurato con `gh issue view 451`, non dedotto — ed è la «contraddizione
-    # decidibile» che lo schema descrive.
-    # ⚠️ **Non è costato solo una riga sbagliata**: la sessione che ha lavorato `#868` ha creduto a questo
-    # campo invece di chiedere a GitHub, e ha scritto in una guida operativa prescrizioni per una seduta
-    # già eseguita. Un campo di stato stantio è un input che qualcuno userà.
-    # Il residuo di U1 non muore con la track: la voce `-H` è aperta su `#996`, e la guida su `#868`.
     status: IDLE
-    issue: null
+    issue: 451
+    # ➕ **Il costo di questa riga era gia' stato pagato, e va scritto perche' non sembri teorico**: la
+    # sessione che ha lavorato `#868` ha creduto a `issue: 451` + `note:` invece di chiedere a GitHub, e ha
+    # scritto in una guida operativa prescrizioni per una seduta **gia' eseguita e chiusa** — «prima di
+    # cominciare», «gli esiti si propongono in handoff». Un campo di stato stantio non e' igiene: e' un
+    # input che qualcuno usa. Il residuo di U1 non muore con la track: la voce `-H` e' aperta su `#996`,
+    # e la guida su `#868`.
     session: U1
+    # 🔴 **2026-08-17: portata ad `IDLE` perché `#451` è `CLOSED`.** La nota più sotto afferma *«La track
+    # resta ACTIVE su #451, che è OPEN»*: era vera quando è stata scritta ed è falsa adesso — misurato con
+    # `gh issue view 451 --json state` → `CLOSED`. Una track `ACTIVE` su una issue chiusa tiene prenotato
+    # un `writable` di 26 path che nessuno sta usando, ed è il costo che questa correzione toglie.
+    # ⚠️ Lo `status` cambia, il `writable` **no**: rilasciarlo è una decisione separata e appartiene a chi
+    # riapre la seduta, non a chi ne misura lo stato.
     # ⚠️ La seduta ha **anche** un branch, e lo schema non lo prevedeva: `session:` sostituisce
     # `branch:` perché l'unità di lavoro è un'apertura di editor, non un commit. Resta vero — ma il
     # write-set atterra comunque su un ramo, e quel ramo va nominato per essere confrontabile.
@@ -4152,7 +4157,7 @@ tracks:
 
       **Il consumo, non l'applicazione.** Il contenuto di design e' atterrato in **#995** dopo essere
       stato filtrato contro `main`: la grammatica `Master/Specialist/Access/None` regge, mentre tre
-      affermazioni dei kit no — il vincolo *«gli ID gameplay rimangono `Hero.Flux`…»* e' la clausola di
+      affermazioni dei kit no — il vincolo *«gli ID gameplay rimangono `Hero.Gadget`…»* e' la clausola di
       `D-120` superata da `D-130`/`D-134`; le due prescrizioni di rimuovere `Electric Access` da Riktor e
       `Cold Access` da Wraith hanno **zero occorrenze** misurate su `docs/`; e i kit non sanno che
       `URTHeroData::Affinity`/`Weakness` esistono **a runtime** per tutti e quattro gli eroi.
@@ -4199,7 +4204,16 @@ tracks:
   replay_ui:
     status: ACTIVE
     issue: 472              # l'ombrello di R6, tornato in primo piano: #625 e #999 sono chiuse
-    branch: feat/472-flusso-due-schermate
+    # 🔴 **2026-08-17: `feat/472-flusso-due-schermate` è MERGIATO (PR #1065) e non esiste più lato server.**
+    # Alla sentinella, non a un nome falso: è la stessa politica che questa nota descrive due paragrafi più
+    # sotto — *«questa riga dichiarava un branch inesistente per il tempo fra il merge e l'apertura del giro
+    # successivo, che è il caso per cui la sentinella esiste»*. Stavolta il giro successivo non è ancora
+    # aperto, quindi la sentinella serve davvero.
+    # ✅ Lo `status` resta **ACTIVE**, e non è un residuo: `#472` è `OPEN` ed è l'ombrello di R6 — delle tre
+    # parti mancano le due schermate `.uasset`, che vorranno una Binary Asset Lease. Branch mergiato e
+    # track finita non sono la stessa cosa, e leggere il primo come prova della seconda è l'errore che
+    # questa riconciliazione ha evitato per un soffio.
+    branch: null
     worktree: "D:/rt-client"
     note: >-
       **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
@@ -4360,7 +4374,15 @@ tracks:
   playback:
     status: ACTIVE
     issue: 1015
-    branch: docs/1015-pie-tetto
+    # 🔴 **2026-08-17: alla sentinella, e il valore prescritto dalla nota è obsoleto quanto quello scritto.**
+    # Il campo diceva `docs/1015-pie-tetto` (mergiato, cancellato) mentre la nota qui sotto prescrive
+    # *«`branch` passa a `docs/1015-handoff-pie`»*: misurati **entrambi**, nessuno dei due esiste — né su
+    # `origin` (`git ls-remote`) né in locale (`git branch -a`), dove di `1015` resta solo `main-1015`.
+    # ∴ una nota che corregge un campo invecchia insieme al campo: qui la prescrizione è sopravvissuta
+    # tre giorni al branch che nominava.
+    # ✅ Lo `status` resta **ACTIVE** ed è motivato dalla nota: `#1015` è `OPEN` e restano le voci 6 e 7 del
+    # DoD — `PIE-V01-PLAYSPEED` resa eseguibile e poi eseguita da una persona.
+    branch: null
     worktree: "D:/rt-1015"
     note: >-
       ✅ **Il CODICE di `#1015` è atterrato: PR #1028 mergiata (`02e85e23`, `2026-08-16T14:39:53Z`),
@@ -4660,6 +4682,25 @@ integration_only:
   # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14: lo tiene `content_editor`
   # su `#451`. Vedi la nota della track per la misura che lo consente. Torna qui al prossimo batch.
   - docs/balance/          # sorgente dei radar (toolchain Node)
+  # ➕ **Entrano il 2026-08-17 da `#1063`, e la ragione e' un difetto che il meccanismo ha BLOCCATO invece
+  # di scoprire al merge.** Una riconciliazione documentale aveva misurato che entrambi dichiarano
+  # `InterceptShot` come reazione — falso dal 2026-08-10 (D-016) — sapeva cosa scrivere, e si e' dovuta
+  # fermare: nessuno dei due stava in `writable`, `integration_only` o `generated_only`, cioe' erano nella
+  # condizione che `D-139` chiama STOP. E' il primo caso registrato in cui il costo della regola e'
+  # **visibile**: finora l'epic `#839` aveva solo l'esempio opposto, una violazione scoperta al merge.
+  #
+  # Entrano qui e non nel `writable` di una track per il criterio gia' usato con `test-automatico-unreal.md`
+  # e il Decision Log: **li leggono piu' processi come owner**, e assegnarli a una sola track toglierebbe
+  # agli altri il diritto di correggere un documento che consultano.
+  - docs/product/showcase-v0.1.md
+  # ⚠️ **La riga qui sotto NON contraddice `docs/characters/*.md` in `generated_only`: la completa.**
+  # Quella voce e' dichiaratamente PARZIALE — copre «solo il blocco `RT_FEATURE_STATUS`», e fino a oggi il
+  # suo commento chiudeva con «la prosa resta non assegnata». Le due categorie si dividono il file per PORZIONE,
+  # non se lo contendono: il blocco fra i marcatori lo riscrive `feature_registry.py wiki`, la prosa
+  # attorno si emenda in integrazione. Chi tocca il blocco a mano sbaglia comunque.
+  # ⚠️ Resta vero che `docs/characters/**` **attende una track propria** (vedi la nota di `proficiency`):
+  # questa riga non la sostituisce, toglie solo lo STOP a chi deve correggere una riga di prosa.
+  - docs/characters/        # la prosa; il blocco `RT_FEATURE_STATUS` resta `generated_only`
   # ⚠️ Diceva «oggi la tiene wt-cap»: quel branch è atterrato il 2026-08-14 (PR #848) e non tiene
   # più niente. `Scenarios/` torna quindi `integration_only` piena — non assegnata a nessuno.
   # ➖ **E non è più piena dal 2026-08-16: un file è in prestito, e resta elencato qui perché la cartella
@@ -4834,11 +4875,14 @@ generated_only:
   # `shortlist --check` non nominano nessuno di questi nove file.
   #
   # 🔴 **E qui `generated_only` copre il BLOCCO, non il file.** E' l'unica voce parzialmente generata
-  # di questo elenco: attorno ai marcatori c'e' prosa scritta a mano, che NON segue il registry e resta
-  # **non assegnata** — scriverla e' ancora uno STOP, e due track che la modificassero insieme
-  # confliggerebbero senza che nulla qui lo veda. Chi deve scriverla si assegna il path come qualunque
-  # altro file.
-  - path: docs/characters/*.md            # solo il blocco RT_FEATURE_STATUS; la prosa resta non assegnata
+  # di questo elenco: attorno ai marcatori c'e' prosa scritta a mano, che NON segue il registry.
+  # ✏️ **Aggiornato il 2026-08-17 da `#1063`.** Questo blocco diceva che la prosa resta «**non assegnata**»
+  # e che «scriverla e' ancora uno STOP»: era vero fino a oggi. Ora sta in `integration_only`, quindi lo
+  # STOP e' caduto e la frase «due track che la modificassero insieme confliggerebbero senza che nulla qui
+  # lo veda» descrive un rischio che la nuova categoria governa — si emenda in integrazione, come il
+  # Decision Log. La divisione per PORZIONE resta identica: **il blocco fra i marcatori non si tocca a
+  # mano**, e chi lo fa sbaglia anche adesso.
+  - path: docs/characters/*.md            # solo il blocco RT_FEATURE_STATUS; la prosa e' `integration_only`
     derives_from: [docs/roadmap/feature-registry.yaml]
     tool: "feature_registry.py wiki"
 

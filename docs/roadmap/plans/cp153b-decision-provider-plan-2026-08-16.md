@@ -35,7 +35,7 @@ Valgono per **ogni** task, senza ripeterli:
 - **Unity build**: helper e costanti in namespace anonimo devono avere nomi **distinti da ogni altro file di
   test**. La translation unit è condivisa e due omonimi collidono al merge della unity.
 - **Nomi eroe — misurato, non ereditato.** `RTHeroCatalogLibrary.cpp` dichiara **solo**
-  `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor` (tre occorrenze ciascuno), e
+  `Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith` (tre occorrenze ciascuno), e
   `Gadget`/`Phase`/`Riktor`/`Wraith` hanno **zero** occorrenze in tutto `Source/`: la fetta 3 di `D-130`
   (`#753`) non è stata eseguita. Nei test si usano **quelli**, o il catalogo non risolve — e questo piano ne
   contiene **19** occorrenze, tutte dentro esempi di codice.
@@ -125,8 +125,8 @@ In `RTScenarioLoaderTests.cpp`, dentro il namespace anonimo:
 	  "version": 1,
 	  "mapRadius": 3,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] },
-	    { "id": "B1", "hero": "Hero.Vektor",  "team": 1, "cell": [ 2, 0, 0] }
+	    { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Wraith",  "team": 1, "cell": [ 2, 0, 0] }
 	  ],
 	  "turns": [ {
 	    "intents": [],
@@ -296,7 +296,7 @@ bool FRTScenarioLoaderDecisionsRejectTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON(
 		{
 		  "scenarioId": "Spec.Decisions.Reject", "version": 1, "mapRadius": 3,
-		  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+		  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] } ],
 		  "turns": [ { "intents": [], "decisions": [ %s ] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 		}
@@ -452,7 +452,7 @@ bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
 	const TCHAR* Json = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Decisions.TurnKey", "version": 1, "mapRadius": 3,
-	  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] } ],
 	  "turns": [ { "intents": [], "desicions": [] } ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 	}
@@ -467,7 +467,7 @@ bool FRTScenarioLoaderTurnKeysTest::RunTest(const FString&)
 	const TCHAR* ConCommento = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Decisions.TurnComment", "version": 1, "mapRadius": 3,
-	  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] } ],
 	  "turns": [ { "_turno": "commento", "_nota": "altro", "intents": [] } ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 	}
@@ -560,7 +560,7 @@ bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON(
 		{
 		  "scenarioId": "Spec.Decisions.Version", "version": %d, "mapRadius": 3,
-		  "units": [ { "id": "A1", "hero": "Hero.Bastion", "team": 0, "cell": [-2, 0, 0] } ],
+		  "units": [ { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 0, 0] } ],
 		  "turns": [ { "intents": [] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 		}
@@ -677,8 +677,8 @@ bool FRTShowcaseDecisionProviderTest::RunTest(const FString&)
 		FRTScenarioUnit U; U.Id = Id; U.HeroId = FName(Hero); U.TeamId = Team; U.Cell = Cell; return U;
 	};
 	// Il guardiano e il bersaglio sulla stessa riga: il cono guarda a Ovest, il bersaglio lo attraversa.
-	Scenario.Units.Add(Unita(TEXT("Guardia"), TEXT("Hero.Bastion"), 0, FRTCellId( 2, 0, 0)));
-	Scenario.Units.Add(Unita(TEXT("Corsa"),   TEXT("Hero.Vektor"),  1, FRTCellId(-2, 0, 0)));
+	Scenario.Units.Add(Unita(TEXT("Guardia"), TEXT("Hero.Riktor"), 0, FRTCellId( 2, 0, 0)));
+	Scenario.Units.Add(Unita(TEXT("Corsa"),   TEXT("Hero.Wraith"),  1, FRTCellId(-2, 0, 0)));
 
 	{
 		FRTScenarioTurn T;
@@ -926,7 +926,7 @@ bool FRTShowcaseDecisionResidueTest::RunTest(const FString&)
 	Scenario.MapRadius = 4;
 
 	FRTScenarioUnit Sola;
-	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Bastion")); Sola.TeamId = 0;
+	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Riktor")); Sola.TeamId = 0;
 	Sola.Cell = FRTCellId(0, 0, 0);
 	Scenario.Units.Add(Sola);
 
@@ -969,8 +969,8 @@ bool FRTShowcaseDecisionQueueTest::RunTest(const FString&)
 	{
 		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; return X;
 	};
-	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Bastion"), 0, FRTCellId( 2, 0, 0)));
-	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Vektor"),  1, FRTCellId(-2, 0, 0)));
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Riktor"), 0, FRTCellId( 2, 0, 0)));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Wraith"),  1, FRTCellId(-2, 0, 0)));
 
 	FRTScenarioTurn T;
 	T.Requires.Add(TEXT("DecisionBoundary"));
@@ -1124,7 +1124,7 @@ bool FRTShowcaseDecisionSourceTest::RunTest(const FString&)
 	Scenario.ScenarioId = TEXT("Internal.TestDeciderWins");
 	Scenario.MapRadius = 4;
 	FRTScenarioUnit Sola;
-	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Bastion")); Sola.TeamId = 0;
+	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Riktor")); Sola.TeamId = 0;
 	Sola.Cell = FRTCellId(0, 0, 0);
 	Scenario.Units.Add(Sola);
 	Scenario.Turns.Add(FRTScenarioTurn());
@@ -1239,8 +1239,8 @@ bool FRTShowcaseDecisionMutationTest::RunTest(const FString&)
 		{
 			FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; return X;
 		};
-		S.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Bastion"), 0, FRTCellId( 2, 0, 0)));
-		S.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Vektor"),  1, FRTCellId(-2, 0, 0)));
+		S.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Riktor"), 0, FRTCellId( 2, 0, 0)));
+		S.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Wraith"),  1, FRTCellId(-2, 0, 0)));
 
 		FRTScenarioTurn T;
 		T.Requires.Add(TEXT("DecisionBoundary"));
@@ -1349,9 +1349,9 @@ bool FRTShowcaseDecisionRejectedTest::RunTest(const FString&)
 	{
 		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; return X;
 	};
-	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Bastion"), 0, FRTCellId( 2, 0, 0)));
-	Scenario.Units.Add(U(TEXT("Alleato"), TEXT("Hero.Flux"),    0, FRTCellId( 2, 1, 0)));
-	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Vektor"),  1, FRTCellId(-2, 0, 0)));
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Riktor"), 0, FRTCellId( 2, 0, 0)));
+	Scenario.Units.Add(U(TEXT("Alleato"), TEXT("Hero.Gadget"),    0, FRTCellId( 2, 1, 0)));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Wraith"),  1, FRTCellId(-2, 0, 0)));
 
 	FRTScenarioTurn T;
 	T.Requires.Add(TEXT("DecisionBoundary"));

@@ -161,6 +161,43 @@
 In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md),
 [`../../decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) e gli ADR.
 
+## ⚠️ Archiviare un documento: il gate dei nomi ora guarda anche qui
+
+Dal 2026-08-17 (`#756`, D-130) `scripts/check-docs-naming.py` **non esclude più `archive/`**. La
+copertura è 382 file su 382, e archiviare un documento che nomina il roster con i nomi ritirati
+— `Flux`, `Riva`, `Bastion`, `Vektor` — **fa fallire il gate**.
+
+Non è un effetto collaterale: è come si impedisce che l'archivio torni a riempirsi. Prima di
+questa fetta conteneva **1195 occorrenze in 54 file**, cresciute di 88 nei quattro giorni in cui
+la issue è rimasta aperta — perché l'archivio è dove i documenti vanno quando finiscono, e ognuno
+arriva coi nomi che il codice aveva quando è stato scritto.
+
+**Due modi di chiudere il rosso, e vanno distinti:**
+
+1. **Il nome è un residuo** → si sostituisce, e il file prende in testa la riga di provenienza che
+   i 54 già portano: *«Nomi del roster sostituiti il … per D-130 … le issue citate usano ancora i
+   nomi precedenti»*. Non ripristina la provenienza, ma dice a chi legge cosa cercare.
+2. **Il nome è il soggetto della frase** — «rinominato da …», o la mappatura stessa → si marca la
+   riga, in fondo se è dentro una tabella:
+
+   ```md
+   <!-- rename-exempt: la riga dichiara la mappatura -->
+   La decisione mappa `Flux` su **Gadget**.
+   ```
+
+   Il marcatore esenta **una riga**, e fallisce da sé quando la sua ragione cade: un marcatore su
+   una riga senza nomi ritirati è un errore, non un'esenzione dimenticata.
+
+   > 🔎 L'esempio qui sopra è **un marcatore vero**, non una finzione tipografica — e non poteva
+   > essere altro: la prima stesura di questa nota scriveva `rename-exempt: <ragione>` come
+   > segnaposto, e il gate l'ha subito segnalato **stantio**, perché la riga dopo non conteneva
+   > nomi ritirati. Un meccanismo che legge il testo grezzo non distingue la documentazione di sé
+   > stesso dal proprio uso, quindi l'unico esempio che regge è uno che funziona davvero.
+
+🔴 **Ciò che NON si fa è aggiungere una cartella a `EXCLUDED_DIRS`.** Era il meccanismo di prima, e
+il suo costo si è visto quando è stato misurato: 89 file esenti su 240, copertura 63%, e nel
+Decision Log erano esenti anche le voci **nuove**, quelle che descrivono il roster corrente.
+
 ## `design/` — specifiche per sistema
 
 | File | Sistema | Recepito da |
@@ -175,7 +212,7 @@ In caso di conflitto prevalgono [`../../product/piano-canonico-mvp.md`](../../pr
 | [`predictive-actions-e-trappole.md`](design/predictive-actions-e-trappole.md) | Azioni predittive, trappole, gambit | [`brief-delayed-actions.md`](../../gameplay/brief-delayed-actions.md) |
 | [`fazioni-v0.2-identita-visiva-e-roster.md`](design/fazioni-v0.2-identita-visiva-e-roster.md) | Fazioni, identità visiva, cooperazione | D-029 / ADR-0006 |
 | [`match-timing-e-scala-mappe.md`](design/match-timing-e-scala-mappe.md) | Durata partita, round budget, scala mappe | [`spec-durata-partita-e-scala-mappe.md`](../../gameplay/spec-durata-partita-e-scala-mappe.md) · D-030 · **E19** |
-| [`2026-08-08-hud-faction-icons.md`](design/2026-08-08-hud-faction-icons.md) | Icone fazioni, HUD icon language | D-031 · **E20** · immagini in [`../../src/media/hud/`](../../src/media/hud/) |
+| [`2026-08-08-hud-faction-icons.md`](design/2026-08-08-hud-faction-icons.md) | Icone fazioni, HUD icon language | D-031 · **E20** · immagini in [`../../src/design/hud/`](../../src/design/hud/) |
 | [`2026-08-08-roster-8-conflux-constrine.md`](design/2026-08-08-roster-8-conflux-constrine.md) | Roster 8, Conflux e Constrine | [`Fazioni` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Fazioni) + [`../../characters/v0.2/`](../../characters/v0.2/) · runtime in **E35** *(era `E21`, rinumerata il 2026-08-09: [D-039](../../decisions/RT_PDR_00_Decision_Log.md))* |
 | [`2026-08-08-cover-window-open-fire-seal.md`](design/2026-08-08-cover-window-open-fire-seal.md) | Cover Window, Open → Fire → Seal | 📅 **E22** (v0.2), con i 12 scenari di test |
 | [`2026-08-08-muri-porte-e-interazioni.md`](design/2026-08-08-muri-porte-e-interazioni.md) | Muri, porte, interazioni, validazione | 📅 **E23** (v0.2) |

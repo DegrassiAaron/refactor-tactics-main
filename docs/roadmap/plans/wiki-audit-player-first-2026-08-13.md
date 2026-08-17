@@ -102,10 +102,10 @@ difetto di stile: è la misura di quanto la pagina parla a qualcun altro.
 
 | Pagina | Occorrenze | Classe | Chi la possiede |
 |---|--:|---|---|
-| `Personaggi/vektor.md` | 16 | `REMOVE/ARCHIVE` | **#757** |
-| `Personaggi/flux.md` | 14 | `REMOVE/ARCHIVE` | **#757** |
-| `Personaggi/bastion.md` | 13 | `REMOVE/ARCHIVE` | **#757** |
-| `Personaggi/riva.md` | 13 | `REMOVE/ARCHIVE` | **#757** |
+| `Personaggi/wraith.md` | 16 | `REMOVE/ARCHIVE` | **#757** |
+| `Personaggi/gadget.md` | 14 | `REMOVE/ARCHIVE` | **#757** |
+| `Personaggi/riktor.md` | 13 | `REMOVE/ARCHIVE` | **#757** |
+| `Personaggi/phase.md` | 13 | `REMOVE/ARCHIVE` | **#757** |
 | `Guida/sinergie-e-combinazioni.md` | 12 | `PLAYER-REWRITE` | questo lavoro |
 | `Personaggi/paragon.md` | 6 | `MOVE-DEV` | mappatura pack: legittimi |
 | `Meccaniche/acqua-e-elettricita.md` | 4 | `PLAYER-REWRITE` | questo lavoro |
@@ -118,18 +118,18 @@ D-130, tracciata da **#757**, e una seconda migrazione concorrente è esattament
 ## ⚠️ La classificazione di `Personaggi/` descrive la destinazione, non lo stato
 
 *(Correzione del 2026-08-14, dalla review di #757.)* Le regole qui sopra marcano `gadget`, `phase`,
-`riktor`, `wraith` come `PLAYER-REWRITE` e `flux`, `riva`, `bastion`, `vektor` come
+`riktor`, `wraith` come `PLAYER-REWRITE` e `gadget`, `phase`, `riktor`, `wraith` come
 `REMOVE/ARCHIVE`. **Rispetto allo stato pubblicato è rovesciato**: le pagine vive sono le legacy.
 
 | Pagina raggiungibile | Parole | Link entranti | Pagina nuova | Parole | Link entranti |
 |---|--:|---|---|--:|---|
-| `flux.md` | 3 269 | sidebar + 5 pagine | `gadget.md` | 729 | solo `paragon.md` |
-| `riva.md` | 3 232 | sidebar + 5 | `phase.md` | 744 | solo `paragon.md` |
-| `bastion.md` | 3 195 | sidebar + 5 | `riktor.md` | 735 | solo `paragon.md` |
-| `vektor.md` | 3 195 | sidebar + 5 | `wraith.md` | 725 | solo `paragon.md` |
+| `gadget.md` | 3 269 | sidebar + 5 pagine | `gadget.md` | 729 | solo `paragon.md` |
+| `phase.md` | 3 232 | sidebar + 5 | `phase.md` | 744 | solo `paragon.md` |
+| `riktor.md` | 3 195 | sidebar + 5 | `riktor.md` | 735 | solo `paragon.md` |
+| `wraith.md` | 3 195 | sidebar + 5 | `wraith.md` | 725 | solo `paragon.md` |
 
-E la sidebar dichiara già i nomi nuovi puntando alle pagine vecchie — `[[Gadget|flux]]` — quindi un
-giocatore che clicca «Gadget» legge oggi una pagina che scrive «Flux» quattordici volte.
+E la sidebar dichiara già i nomi nuovi puntando alle pagine vecchie — `[[Gadget|gadget]]` — quindi un
+giocatore che clicca «Gadget» legge oggi una pagina che scrive «Gadget» quattordici volte.
 
 **Cosa resta valido**: le classi dicono dove ogni pagina deve *arrivare*, e su questo non cambia
 nulla. **Cosa era sbagliato**: leggerle come una fotografia dello stato. Una pagina `PLAYER-REWRITE`

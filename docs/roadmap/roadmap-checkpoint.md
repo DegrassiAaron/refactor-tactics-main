@@ -156,7 +156,7 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 | **E15** Showcase «Il Relè» e golden replay | parte di **M8** | **nuova** (2026-08-07): la prova integrata — fixture, scenario scriptabile, replay a hash stabile — [`showcase-v0.1.md`](../product/showcase-v0.1.md) |
 | **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](../decisions/adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
 | **E17** Validazione di stress 4v4 | oltre **M9** | **nuova** (2026-08-07): [D-011](../decisions/RT_PDR_00_Decision_Log.md). **Misura, non produzione**: dove si rompe il sistema con otto unità. Dopo E15; **non** decide il formato principale |
-| **E18** Predictive Action (thin slice) | parte di **M8** | **nuova** (2026-08-08): [D-016](../decisions/RT_PDR_00_Decision_Log.md). Una **sola** azione predittiva rende percepibile il pilastro della predizione. **Non dipende da E13/E14**: sgancia `Vektor.InterceptShot` da E14 |
+| **E18** Predictive Action (thin slice) | parte di **M8** | **nuova** (2026-08-08): [D-016](../decisions/RT_PDR_00_Decision_Log.md). Una **sola** azione predittiva rende percepibile il pilastro della predizione. **Non dipende da E13/E14**: sgancia `Vektor.InterceptShot` da E14 | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 | **E47** Mini v0.1 Autobattle | parte di **M6** | **nuova** (2026-08-16): [D-145](../decisions/RT_PDR_00_Decision_Log.md). Non aggiunge meccaniche — cambia **chi guida la squadra 0**. Il playtest M6.8 smette di richiedere che una persona *giochi* una partita intera e chiede solo di **guardarla e registrarla**. ⚠️ **Abbassa il costo, non chiude il gate**: le nove voci `PIE-HEXPLAY` restano da eseguire una per una. 🔴 Questa cella diceva «sblocca **M6**», e la colonna contiene **relazioni**, non effetti — «sblocca» si legge come «chiudere E47 libera M6», ed è falso |
 | — | **M10** Rete e privacy | **fuori** dalla v0.1 |
 
@@ -187,8 +187,8 @@ questa vista sa davvero.
 > *quello*. Due viste dello stesso stato si aggiornano **insieme**, o la seconda diventa una bugia con la data
 > sbagliata. È lo stesso motivo per cui la tabella delle epic ora esiste in **un solo posto**.
 >
-> Stessa forma, altro caso: E5 ed E6 risultavano «chiuse» mentre `Bastion.Interposition`,
-> `Vektor.Deflection`, `Flux.ReactiveCapacitor` e `Riva.FlowReaction` erano identità a catalogo con `Effects`
+> Stessa forma, altro caso: E5 ed E6 risultavano «chiuse» mentre `Hero.Riktor.Interposition`,
+> `Hero.Wraith.Deflection`, `Hero.Gadget.ReactiveCapacitor` e `Hero.Phase.FlowReaction` erano identità a catalogo con `Effects`
 > **vuoto**. Un motore che nessuno consuma non è collaudato. E5.5 ed E6.7 (chiusi il 2026-08-07) lo hanno
 > reso componibile e cablato tre reazioni su cinque. Delle due allora rinviate ne resta **una**:
 > `FlowReaction`. `InterceptShot` è uscita dall'insieme il 2026-08-10 — non è rinviata, è **consegnata**

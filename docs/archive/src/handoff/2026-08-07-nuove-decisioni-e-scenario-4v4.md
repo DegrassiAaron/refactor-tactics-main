@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ✅ **RECEPITO in parte** il 2026-08-08. Le decisioni di §3 (roster, Fast Reaction 3,0 s, ordine delle fasi,
 > griglia, no-GAS) sono **già canone** — vedi [`../../../product/piano-canonico-mvp.md`](../../../product/piano-canonico-mvp.md)
 > e il [Decision Log](../../../decisions/RT_PDR_00_Decision_Log.md): questo documento le registra, non le
@@ -129,22 +131,22 @@ Steel / Aurora / Murdock / Kwang
 Il canone operativo recente della showcase/codice è:
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Formazione v0.1 corrente:
 
 ```text
 Team 0:
-Flux
-Riva
+Gadget
+Phase
 
 Team 1:
-Bastion
-Vektor
+Riktor
+Wraith
 ```
 
 Decisione:
@@ -356,7 +358,7 @@ Mantenere separati i formati.
 ```text
 2v2
 4 personaggi totali
-Flux + Riva vs Bastion + Vektor
+Gadget + Phase vs Riktor + Wraith
 ```
 
 Scopo:
@@ -444,16 +446,16 @@ Mirror match intenzionale:
 
 ```text
 TEAM BLUE
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 
 TEAM RED
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Perché mirror:
@@ -497,16 +499,16 @@ Tre macro-direttrici:
    - objective;
    - cover;
    - linee di tiro;
-   - Bastion pressure.
+   - Riktor pressure.
 
 2. **Water / Conductive**
-   - Riva setup;
-   - Flux payoff;
+   - Phase setup;
+   - Gadget payoff;
    - friendly-fire risk;
    - terrain denial.
 
 3. **Rough / Tunnel / alternate route**
-   - Vektor prediction;
+   - Wraith prediction;
    - traps;
    - Fast Reaction;
    - noise/perception;
@@ -536,15 +538,15 @@ Nel 4v4 devono poter avvenire contemporaneamente:
 
 ```text
 CENTRO
-Bastion vs Bastion
+Riktor vs Riktor
 contest objective
 
 LATO ACQUA
-Riva + Flux
+Phase + Gadget
 setup ambientale
 
 FLANK
-Vektor
+Wraith
 predictive control
 
 REACTION BOUNDARY
@@ -567,16 +569,16 @@ Questa sequenza è una **showcase target**, non una promessa che tutte le featur
 
 Blue:
 
-- Bastion prende il centro;
-- Riva/Flux prendono la lane ambientale;
-- Vektor minaccia flank.
+- Riktor prende il centro;
+- Phase/Gadget prendono la lane ambientale;
+- Wraith minaccia flank.
 
 Red:
 
-- Bastion prepara controllo del choke;
-- Riva sceglie un setup più difensivo;
-- Flux cerca linea lunga;
-- Vektor controlla la rotta alternativa.
+- Riktor prepara controllo del choke;
+- Phase sceglie un setup più difensivo;
+- Gadget cerca linea lunga;
+- Wraith controlla la rotta alternativa.
 
 Mostrare:
 
@@ -589,7 +591,7 @@ Mostrare:
 
 ## Turno 2 — Setup Wet
 
-Una Riva usa un'azione coerente con il catalogo corrente per:
+Una Phase usa un'azione coerente con il catalogo corrente per:
 
 ```text
 damage / Wet / Push
@@ -597,7 +599,7 @@ damage / Wet / Push
 
 oppure crea superficie Wet quando la feature esiste.
 
-Flux prepara il payoff.
+Gadget prepara il payoff.
 
 Il nemico vede soltanto le informazioni lecite.
 
@@ -609,9 +611,9 @@ Obiettivo:
 
 ## Turno 3 — Predizione e whiff
 
-Flux dichiara un attacco su una posizione/target secondo la moving-target policy.
+Gadget dichiara un attacco su una posizione/target secondo la moving-target policy.
 
-Vektor usa Dash prima del Blast.
+Wraith usa Dash prima del Blast.
 
 L'attacco viene rivalidato.
 
@@ -637,9 +639,9 @@ ImpactCell
 
 ## Turno 4 — Fast Reaction firma
 
-Vektor ha preparato Overwatch / Intercept compatibile col sistema corrente.
+Wraith ha preparato Overwatch / Intercept compatibile col sistema corrente.
 
-Flux entra per primo.
+Gadget entra per primo.
 
 Prompt:
 
@@ -648,13 +650,13 @@ FIRE
 HOLD
 ```
 
-Vektor sceglie:
+Wraith sceglie:
 
 ```text
 HOLD
 ```
 
-Riva entra dopo.
+Phase entra dopo.
 
 Nuova opportunity:
 
@@ -663,7 +665,7 @@ FIRE
 HOLD
 ```
 
-Vektor:
+Wraith:
 
 ```text
 FIRE
@@ -719,7 +721,7 @@ Dopo:
 
 ## Turno 6 — Interposition
 
-Bastion protegge un alleato.
+Riktor protegge un alleato.
 
 Riutilizzare il sistema generale di:
 
@@ -738,9 +740,9 @@ Obiettivo:
 
 ## Turno 7 — Acqua + elettricità
 
-Riva prepara rete Wet/Water/Conductive.
+Phase prepara rete Wet/Water/Conductive.
 
-Flux usa propagazione elettrica.
+Gadget usa propagazione elettrica.
 
 Mostrare:
 
@@ -1485,12 +1487,12 @@ GeneratedDemoArena
 GeneratedTestArena
 
 Team0Heroes:
-Hero.Flux
-Hero.Riva
+Hero.Gadget
+Hero.Phase
 
 Team1Heroes:
-Hero.Bastion
-Hero.Vektor
+Hero.Riktor
+Hero.Wraith
 ```
 
 Il motore azioni possiede già concetti come:
@@ -1553,7 +1555,7 @@ Ordine raccomandato:
 4. permutation tests;
 5. repeat tests;
 6. introdurre decision boundary;
-7. Vektor InterceptShot come primo caso;
+7. Wraith InterceptShot come primo caso;
 8. Overwatch universale dopo il proof.
 
 ---
@@ -1629,7 +1631,7 @@ Integrare:
 - Punish Action;
 - Fast Decision ADR;
 - movement step-able refactor;
-- Vektor first interactive reaction;
+- Wraith first interactive reaction;
 - golden tests.
 
 Exit gate:
@@ -1682,9 +1684,9 @@ Target:
 
 ```text
 RT_Showcase_Relay_v01
-Flux + Riva
+Gadget + Phase
 vs
-Bastion + Vektor
+Riktor + Wraith
 ```
 
 Include solo feature realmente verdi.
@@ -1709,9 +1711,9 @@ Aggiungere checkpoint, non nuova produzione completa.
 Scenario:
 
 ```text
-Flux/Riva/Bastion/Vektor
+Gadget/Phase/Riktor/Wraith
 vs
-Flux/Riva/Bastion/Vektor
+Gadget/Phase/Riktor/Wraith
 ```
 
 Validare:
@@ -1818,7 +1820,7 @@ Proposta:
 [REACTION] Add ReactionOpportunity canonical model
 [REACTION] Implement Hold / Commit / Timeout canonical decisions
 [REACTION] Aggregate simultaneous triggers into one opportunity
-[REACTION] Implement Vektor InterceptShot as first live Fast Reaction
+[REACTION] Implement Wraith InterceptShot as first live Fast Reaction
 ```
 
 ## Predictive / traps
@@ -1871,8 +1873,8 @@ Proposta:
 Non fare:
 
 ```text
-if Hero == Flux ...
-if Hero == Vektor ...
+if Hero == Gadget ...
+if Hero == Wraith ...
 if Turn == 4 move relay ...
 if IsShowcase skip validation ...
 if IsTest SetActorLocation ...

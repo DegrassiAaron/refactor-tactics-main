@@ -335,7 +335,7 @@ sono superfici o stati?» — ed è stata **chiusa lo stesso giorno come mal pos
 [`D-059`](../../decisions/RT_PDR_00_Decision_Log.md). Il brief non lascia dietro di sé alcuna scelta di
 modello che il repository non abbia già fatto.
 
-Resta invece un **buco di implementazione**, che non è una decisione: `Riva.MistVeil` dichiara «crea fumo
+Resta invece un **buco di implementazione**, che non è una decisione: `Hero.Phase.MistVeil` dichiara «crea fumo
 raggio 1» e non lo fa — `Smoke` è l'unica superficie del catalogo che nessuna azione sa creare
 (`bCreatesSurface` assente, `Range 0` dichiarato segnaposto). Il meccanismo esiste già ed è usato da `Ignite`
 e `CreateWater`: manca il collegamento. Tracciato nella issue `#353`, non qui.

@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > 🗄️ **RECEPITO e ARCHIVIATO il 2026-08-13.** `HISTORICAL` · **materiale non autorevole**.
 >
 > ⚠️ **Questo documento NON è diventato un owner, e la riga qui sotto che lo propone è superata.** La
@@ -376,7 +378,7 @@ Spec.UI.Mouse.GhostFocusDoesNotEdit
 
 Voce prevista: **`PIE-V01-MOUSE-INTERACTION`**.
 
-1. seleziona Flux;
+1. seleziona Gadget;
 2. hover cella → LMB chiaramente Move;
 3. LMB aggiunge path;
 4. RMB pop ultimo waypoint;
