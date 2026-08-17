@@ -74,8 +74,8 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 
 | Cluster del kit | Proposta | Release **canonica** | Owner reale | Azione |
 |---|:--:|:--:|---|---|
-| Core map | v0.1 | **v0.1** ✅ | E21 · E23 · E47 | allineato |
-| Environment | v0.2 | **v0.1** ⬅️ | **E8** — nove feature `INTEGRATED` | il kit è **indietro** |
+| Core map | v0.1 | **v0.1**, con una coda in v0.2 | **E21** · **E47** in v0.1 · muri e porte su **E23** (v0.2) | quasi allineato |
+| Environment | v0.2 | **v0.1** ⬅️ | **E8** — **otto** feature, tutte `INTEGRATED` | il kit è **indietro** |
 | 3D map / verticalità | v0.3 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-VERTICALITY` è `IDEA` | `DEFER` |
 | Interactive map | v0.4 | **v0.2** ⬅️ | **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)) | il kit è **indietro** |
 | Tactical devices | v0.5 | **fuori scope dichiarato** | — | `DEFER` |
@@ -85,20 +85,60 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 | Modularization | v0.9 | **nessuna** | authoring, non contenuto di release | `DEFER` |
 | Contract freeze | v1.0 | **v1.0** ✅ | **E45** | allineato |
 
-**Due righe su dieci coincidono**, e le altre otto divergono in due modi opposti che vale la pena non
-confondere.
+**Una riga su dieci coincide esattamente** — il contract freeze. Le altre nove divergono in **quattro**
+modi, e vale la pena non confonderli:
 
-🔴 **Quattro cluster il kit li mette *dopo* dove il repository li ha già.** Environment, Interactive map,
-Perception e Objectives sono lavoro **v0.1 in gran parte chiuso**: `ERTHexSurface` ha nove valori,
-`RT-FEAT-ENV-*` sono `INTEGRATED` sotto E8, la percezione parziale è E13 e gli obiettivi dinamici E10.
-Seguire la mappatura del kit avrebbe **rinviato alla v0.2–v0.8 gli asset di sistemi già in partita**, cioè
-lasciato la v0.1 a rappresentare col solo colore ciò che il resolver calcola dal 2026-08. Non è un errore
-di ambizione della sorgente: è che il kit misura la maturità del **contenuto** e la ladder canonica misura
-quella del **sistema**, e sul contenuto il progetto è più avanti di quanto la sorgente sapesse.
+| Modo | Quali | Quante |
+|---|---|--:|
+| il repository li ha già, o li sta costruendo, prima di dove il kit li mette | Environment · Interactive map · Perception · Objectives | **4** |
+| nessuna release li possiede | 3D map · Destruction (`future`, feature `IDEA`) · Tactical devices (**fuori scope dichiarato**) | **3** |
+| a cavallo di due release | Core map (con la coda di muri e porte in v0.2) | **1** |
+| non è contenuto di release, è authoring | Modularization | **1** |
 
-➡️ **Tre cluster il repository li mette *dopo*, e restano `future`.** Verticalità, distruzione e devices
-tattici non hanno una release che li possieda: le prime due sono feature `IDEA`, i terzi sono **fuori scope
-v0.1 dichiarato** da [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
+> ⚠️ *Questa frase ha sbagliato il conto **due volte**. Diceva «due modi opposti» mentre i due paragrafi
+> che li spiegano coprivano `4 + 3 = 7` righe su nove — Core map e Modularization restavano fuori da
+> entrambi. La correzione elencò i quattro gruppi e continuò a chiamarli «tre». La somma tornava a nove in
+> entrambi i casi, ed è la stessa trappola del conto del catalogo: **un totale che torna non convalida la
+> partizione**. Ora i modi si contano nella tabella invece che nella prosa.*
+
+> ⚠️ **La riga «Core map» diceva `v0.1 ✅ allineato` elencando E23 fra gli owner, e la riga quattro più
+> sotto dichiara E23 **v0.2**.** La stessa tabella usava la stessa epic da due parti della propria
+> partizione: il cluster «core» del kit contiene muri e porte, che su `main` sono v0.2. Non è un dettaglio
+> di etichetta — è la tabella che `D-153` indica come riconciliazione di riferimento, e «allineato» non era
+> misurabile. Trovato in code review.
+
+🔴 **Quattro cluster il kit li mette *dopo* di dove stanno sulla roadmap canonica** — «dopo» riguarda la
+**release**, non lo stato di avanzamento, e i quattro non sono allo stesso stadio:
+
+| Cluster | Epic | Stato reale delle feature |
+|---|:--:|---|
+| Environment | **E8** | **8 su 8 `INTEGRATED`** — `ERTHexSurface` ha nove valori, fuoco/acqua/ghiaccio girano |
+| Interactive map | **E23** | `DESIGNED` — la release è v0.2, non v0.4 |
+| Perception | **E13** | 3 `TESTABLE`, 1 `IMPLEMENTING`, 1 `SPECIFIED` — **zero** `INTEGRATED` |
+| Objectives | **E10** | 1 `RELEASE_READY`, 1 `IMPLEMENTING` — **zero** `INTEGRATED` |
+
+> 🔴 **Questa riga diceva «tutti e tre in gran parte `INTEGRATED`», e reggeva solo per E8.** Misurato sul
+> registry che questa stessa PR rigenera: E13 ed E10 non hanno **nessuna** feature `INTEGRATED`. La tesi non
+> cade — quei cluster restano **v0.1**, quindi il kit li rinvia comunque a release future — ma la prova era
+> più forte del vero, ed è il tipo di frase che il prossimo consolidamento ricopia invece di rimisurare.
+> Trovato in code review.
+
+Tre di questi quattro sono **v0.1**; **Interactive map è v0.2**, e il kit lo mette in v0.4 — indietro di
+due release invece che di quattro, ma indietro. Seguire la mappatura del kit avrebbe **rinviato asset di
+sistemi che il progetto possiede o sta costruendo**, cioè lasciato la board a rappresentare col solo colore
+ciò che il resolver calcola già.
+
+Non è un errore di ambizione della sorgente: è che il kit misura la maturità del **contenuto** e la ladder
+canonica misura quella del **sistema**, e sul contenuto il progetto è più avanti di quanto la sorgente
+sapesse.
+
+> ⚠️ *La prima correzione di questo paragrafo diceva «tutti e quattro lavoro della **v0.1**», e per
+> Interactive map era falso — contraddetto dalla tabella sopra e dalla riga «Core map» che questa stessa PR
+> aveva aggiunto per registrare che E23 è v0.2. Corretta la metà falsa, era rimasta l'altra.*
+
+➡️ **Tre cluster non hanno una release che li possieda, e non per la stessa ragione.** Verticalità e
+distruzione sono feature `IDEA` su `future`; i devices tattici **non sono `future` affatto** — sono **fuori
+scope v0.1 dichiarato** da [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
 §11, che li rinvia a E13/E14 con motivazione registrata. Qui l'ordine del kit è giusto e la release non
 esiste: **si lasciano `future` invece di inventarne una**, ed è la parte di `D-136` che questa tabella
 applica invece di ridiscutere.

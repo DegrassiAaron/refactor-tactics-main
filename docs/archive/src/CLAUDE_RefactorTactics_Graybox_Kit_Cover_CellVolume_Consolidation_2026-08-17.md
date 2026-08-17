@@ -34,22 +34,28 @@
 > `Hero.Phase.FluidTrail` **è** `Action.CreateWater`) e non serve un secondo modello per crearla»*.
 >
 > 🔵 **La ladder di maturità della §14 è arretrata rispetto al progetto, non in anticipo.** Mette
-> Environment in v0.2, Perception in v0.7 e Objectives in v0.8: sul repository sono **v0.1 e in gran parte
-> `INTEGRATED`**. Seguirla avrebbe rinviato alle release future gli asset di sistemi già in partita. Delle
-> dieci righe **due** coincidono con la ladder canonica — Core map e il contract freeze in v1.0 — e la
-> tabella di riconciliazione vive in
+> Environment in v0.2, Perception in v0.7 e Objectives in v0.8: sul repository sono tutti e tre lavoro
+> della **v0.1**. Seguirla avrebbe rinviato alle release future gli asset di sistemi che la release già
+> possiede. ⚠️ *Il grado differisce, e la prima stesura di questo banner lo appiattiva in «in gran parte
+> `INTEGRATED`»: vale per **E8** (8 feature su 8), mentre **E13** ed **E10** non ne hanno nessuna
+> `INTEGRATED`. Corretto in code review — la conclusione regge, la prova era più forte del vero.* Delle
+> dieci righe **una sola** coincide esattamente — il contract freeze in v1.0; Core map è a cavallo, con la
+> coda di muri e porte in v0.2. La tabella di riconciliazione vive in
 > [`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md).
 >
 > ✅ **Due cose che questo documento non sapeva, e che l'audit ha trovato misurando.**
 > `ERTHexDoorState` ha **quattro** stati e la §3.4 ne conosce tre: `Locked` e `Closed` negano entrambi il
 > passaggio e sono **geometricamente identici**, quindi distinguerli col solo colore violerebbe `D-146` al
-> primo asset prodotto — è `GBX-2`, e resta aperta. E gli elementi interattivi hanno **cinque** stati
-> (`Off · Online · Overloaded · Damaged · Destroyed`), non l'`Online/Offline` della §11: `Overloaded` e
-> `Damaged` hanno transizioni d'uscita diverse, e fonderli toglierebbe al giocatore l'informazione che
-> decide l'azione successiva.
+> primo asset prodotto — è `GBX-2`, e resta aperta. E gli elementi interattivi **non si esauriscono
+> nell'`Online/Offline` della §11**: l'esempio di CP 10.1 §5 ne mostra cinque
+> (`Off · Online · Overloaded · Damaged · Destroyed`), dove `Overloaded` e `Damaged` hanno transizioni
+> d'uscita diverse e fonderli toglierebbe al giocatore l'informazione che decide l'azione successiva.
+> ⚠️ **Cinque non è il numero canonico**: quel blocco è etichettato *«Esempio, non catalogo»* e ogni
+> elemento dichiara i propri stati. Il contratto impone la ridondanza per **qualunque** cardinalità.
 >
-> ⚠️ **Sette dei diciannove elementi sono `DEFER`**, quattro per dipendenza da feature `IDEA` su release
-> `future` e tre per ragioni proprie. Il kit «completo» non è raggiungibile in v0.1, e non è un ritardo:
+> ⚠️ **Sette dei diciannove elementi sono `DEFER`**, e si dividono per ragione: **tre** per dipendenza da
+> feature `IDEA` su release `future`, **due** fuori scope v0.1 dichiarato, **due** proxy senza
+> produttore. Il kit «completo» non è raggiungibile in v0.1, e non è un ritardo:
 > sette voci su diciannove descrivono sistemi che il progetto non ha ancora deciso di costruire. Il conto
 > completo è `REUSE 2 · UPDATE 8 · CREATE 2 · DEFER 7`, e la classificazione voce per voce è in
 > [`spec-graybox-placement-contract.md`](../../technical/spec-graybox-placement-contract.md) §8.
