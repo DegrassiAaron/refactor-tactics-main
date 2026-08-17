@@ -1032,6 +1032,7 @@ features:
       - Spec.Facing.StationaryDeclaredRotationApplies
     wiki_refs:
       - wiki:facing-e-direzionalita
+      - wiki:facing-e-direzionalita-scheda-dati
     # 🔴 Questa nota diceva «Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui
     # descrive come funzionera', non come funziona oggi», e il 2026-08-13 era falsa da tempo — contraddetta
     # dai gate della sua stessa voce (`scenario: done`, `automation: done`, `runtime: partial`) e da nove
@@ -2019,6 +2020,7 @@ features:
           - Spec.ActionEconomy.OverwatchReservesMovementSlot
     wiki_refs:
       - wiki:planning-e-coordinazione
+      - wiki:planning-e-coordinazione-scheda-dati
     notes: >
       **Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque
       modello di economia. ✅ **La fetta pura e' atterrata il 2026-08-12**:
