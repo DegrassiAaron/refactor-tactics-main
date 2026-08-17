@@ -538,10 +538,26 @@ resta visibile invece di sparire.
 | `Spec.Clash.HiddenUntilReveal` · `Spec.Clash.RevealIsFixedDeadline` · `Spec.Clash.Determinism` | `RT-FEAT-REACTION-CLASH` | v0.1 · E14 · CP 14.7 |
 | `Spec.Brace.AnchorResistsDisplacement` · `…FlowRedirectsToLegalHexOnly` · `…DeflectOffersOnlyLegalSides` | `RT-FEAT-REACTION-PROFILE` | v0.1 · E14 · CP 14.7 |
 | `Spec.Overwatch.ConductiveDischargeUsesStandardConduction` · `…PressurePushChangesResolvedPath` · `…FrontlineFollowsFacing` | `RT-FEAT-REACTION-OVERWATCH` | v0.1 · E14 · CP 14.4 |
-| `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
+| `Spec.TimeBank.GraceDoesNotDrain` · `…DrainsAfterGrace` · `…NeverBelowZero` · `…TimeoutCostsFullWindow` · `…TimeoutSpendsNoCharge` · `…ClashCostsFullWindow` · `…BotDrainsLikePlayer` · `…ExhaustionKeepsResponsesLegal` · `…ReplayReadsRecordedBank` · `…PacketOrderInvariant` · `…ControlLoadScalesInitialBank` · `…ControlLoadNeverExtendsWindow` · `…TimeoutIgnoresPreferredResponse` | `RT-FEAT-CORE-DECISION-TIME-BANK` | v0.1 · E14 · CP 14.8 |
 | `Spec.Map.WallCrossesCellStillStandable` · `…FootprintCollisionBlocksCell` · `…NinetyDegreeCornerBakesCorrectly` | `RT-FEAT-MAP-STANDABILITY` | v0.2 · E23 · CP 23.6 |
 | `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.2 · E23 · CP 23.7 |
 | `Spec.Map.Interaction.SwitchOpensDoor` · `…SwitchControlsMultipleDoors` · `…OpenFailsDependentMoveBlocks` | `RT-FEAT-MAP-INTERACTION-GRAPH` | v0.2 · E23 · CP 23.4 (`#833`) |
+
+> ➕ **I `Spec.TimeBank.*` passano da dieci a TREDICI il 2026-08-17** ([D-156](../decisions/RT_PDR_00_Decision_Log.md),
+> [D-157](../decisions/RT_PDR_00_Decision_Log.md)): `ControlLoadScalesInitialBank`,
+> `ControlLoadNeverExtendsWindow` e `TimeoutIgnoresPreferredResponse`. Il numero è la somma delle righe
+> marcate `harness` nella tabella §13 di [`../gameplay/spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md),
+> **riparsata**, non incrementata a mano — ed è la stessa disciplina che questa pagina ha già dovuto imparare
+> due volte qui sotto.
+> ⚠️ **Quattro voci nate nello stesso giro NON entrano in questo conteggio, e la ragione è il livello, non
+> l'importanza**: `PreferredResponseFallsBackWhenStale`, `PreselectionSpendsNoCharge` e
+> `PreferredResponseKeepsAllowedResponses` sono `estende` — le ospita un test C++ che esiste già, e
+> duplicarle come file darebbe due verità sullo stesso comportamento; `QuickConfirmReachableWithinGrace` è
+> `funzionale · UI`, perché la **preselezione è uno stato di interfaccia** e il TurnLog registra la risposta
+> committata, non ciò che era evidenziato. Un oracolo che l'harness non ha non diventa harness perché lo
+> scriviamo nella colonna.
+> ⚠️ **I conteggi delle note datate qui sotto non sono stati riscritti**: dicono ciò che era vero alla loro
+> data, e correggerli li renderebbe falsi due volte.
 
 > ✅ **I tre `Spec.Clash.*` e i dieci `Spec.TimeBank.*` sono scrivibili — rimisurato il 2026-08-13.** Questa
 > sezione ha portato per giorni le due note qui sotto, che li dichiaravano *impossibili*: erano vere quando
