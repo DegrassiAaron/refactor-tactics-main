@@ -760,54 +760,97 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 **Non e' una caccia al bello: e' una domanda sola, ripetuta a tre distanze.** *Guardando la scena
 senza HUD e senza selezionare niente, so dire che cosa ho davanti?* Se la risposta e' no, si cambia
-la grammatica **prima** di aggiungere altri asset — e' l'unica prescrizione del kit sorgente che il
+la grammatica **prima** di aggiungere altri asset — l'unica prescrizione del kit sorgente che il
 contratto adotta senza emendarla.
 
-**Prima di aprire l'editor.** L'inset del Safe Placement Volume e' `GBX-1` e **non e' deciso**
-([#1094](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094)). Si sceglie **qui**,
-guardando — ma il valore scelto si scrive nella issue, non solo nel `.umap`: un numero che vive in un
+## Prima di aprire l'editor — tre cose, e due sono bloccanti
+
+1. 🔴 **`GBX-2` va chiusa PRIMA di modellare la porta.** Come si distingue `Locked` da `Closed` senza
+   usare il colore e' una lacuna di grammatica: modellare senza saperlo viola `D-146` **all'atto**.
+   Lo dice [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), non questa ricetta.
+2. 🔴 **`GBX-4` va chiusa PRIMA di salvare.** Senza una riga d'allowlist in `.gitignore` il `git add`
+   finale **tace**: nessun errore, nessun file, e il lavoro resta sul disco di chi l'ha fatto. E'
+   lo stato in cui `ABP_Gadget` si trova oggi.
+3. ⛔ **Serve una Binary Asset Lease su `Content/RT/Maps/Dev/L_DevSandbox/`**, dichiarata nel batch
+   prima di toccare il livello (`D-139`). U21, U25 e U26 dichiarano lo **stesso** allestimento: due
+   sedute aperte insieme sullo stesso `.umap` producono due versioni che non si fondono.
+
+`GBX-1` (l'inset) invece **non** e' bloccante: si sceglie **qui**, guardando, perche' e' l'unico modo
+di validarlo. Il valore scelto si scrive nella issue, non solo nel `.umap` — un numero che vive in un
 binario non lo trova nessuno.
 
-1. **Il volume.** Prisma esagonale sul centro cella. I sei vertici li da'
-   `URTHexLibrary::HexCorners(Center, HexSize)` e il centro `AxialToWorld` — non si incidono angoli a
-   mano, per la ragione che `spec-hex-geometry-authoring.md` §4 scrive gia' per la geometria: se la
-   convenzione dei sei lati cambiasse, la forma derivata la segue e quella incisa mente in silenzio.
-   L'inset e' una **frazione**, non centimetri.
-2. **Le guide verticali**, in frazioni di `C`. ⚠️ **`C` NON e' `HexSize`**: `HexSize` e' il raggio,
-   `C = √3 · HexSize` e' il passo fra due celle adiacenti — circa **173** con il default `100`.
-   Leggere `0.28 C` come 28 cm produce una copertura bassa alta il **58%** del dovuto.
-3. **La scena.** Unita' · copertura bassa · copertura alta · muro · porta `Open` · porta `Closed` ·
-   acqua · ghiaccio. Gli `EdgeBound` si posano con `URTHexLibrary::EdgeMidpointWorld` e
-   `EdgeRotation`, **mai** trascinandoli a occhio: il bordo `E` di una cella **e'** il bordo `W` del
-   suo vicino, e a occhio si ottengono due barriere dove ce n'e' una.
-4. **Tre distanze di camera**: ravvicinata, di gioco, tattica. La stessa scena, tre screenshot.
-5. **Screenshot in scala di grigi.** Non e' un vezzo di accessibilita': e' il modo in cui `D-146`
-   intende la ridondanza. Se due categorie si distinguono solo in colore, in grigio spariscono — e
-   con esse la prova che la grammatica funziona.
-6. **`git status` sul `.umap`.** Dev'essere pulito quando la seduta finisce, e nessun test headless
-   apre un `.umap`: e' l'unico modo di accorgersi di aver salvato per sbaglio. E' la lezione di
-   `PIE-GEO-RESIDUI`.
+## La quota, prima di tutto il resto
 
-> 🔴 **La trappola dello Z, gia' pagata DUE volte in questo repository.** Il disco della cella ha la
-> faccia superiore a `RTCellTopZ` — **2,5 uu** con lo spessore corrente — e qualunque cosa disegnata
-> **sotto** quella quota finisce dentro il disco e diventa invisibile. E' successo al contorno della
-> superficie (a `2.0`: fango e acqua non si vedevano mentre i marcatori a `3.0` si', ed e' scritto
-> nel commento sopra la costante) e agli anelli di
-> [#593](https://github.com/DegrassiAaron/refactor-tactics-main/issues/593), che stavano a `2.0`
-> contro una faccia a `2.5`. **Il volume non fa eccezione**: la sua base va legata a `RTCellTopZ`,
-> non a un numero scritto a mano. Un volume invisibile e un volume mai costruito si somigliano molto.
+🔴 **Questo passo viene per primo perche' e' quello che si sbaglia.** Il disco che rappresenta la
+cella ha la faccia superiore **2,5 uu sopra il centro**, e tutto cio' che sta sotto quella quota
+finisce *dentro* il disco e diventa invisibile.
 
-> ⚠️ **Il volume non deve comparire in PIE.** Se si vede premendo Play e' un difetto, non una
-> funzionalita' di debug: e' `EditorOnly` in senso stretto.
+⚠️ **`AxialToWorld` restituisce il CENTRO della cella** (`Z = Origin.Z + Layer*LayerHeight`), e
+`HexCorners(Center, Raggio)` genera sei vertici **complanari a quel centro**. Costruire l'esagono
+cosi' com'e' lo mette 2,5 uu **sotto** la faccia: invisibile. Va alzato.
 
-> ⚠️ **Non confondere l'inset con il clearance.** *Quanto grande posso modellare un asset* non e'
-> *dove un'unita' ci sta in piedi*: il secondo e' `CP 23.6` e appartiene alla simulazione. Prendere
-> in prestito quel numero farebbe dipendere la presentazione dal dato cotto.
+⚠️ **Il `2.5` si scrive a mano, e va detto perche'**: `RTCellTopZ` e' `constexpr` in un **namespace
+anonimo** di `RTHexMapActor.cpp` — nessun'altra unita' di compilazione puo' legarvisi, e tantomeno
+un `.umap`. Condividerla e' [#983](https://github.com/DegrassiAaron/refactor-tactics-main/issues/983),
+**aperta**. E' gia' la terza copia a mano dello stesso numero (`RTUnit.h` e `RTUnitTests.cpp` sono le
+altre due, e almeno quelle hanno un test che le pinna). Se `RTCellFlatScale` cambia, questa riga
+mente senza che nulla fallisca.
 
-> ⏱️ **Questa ricetta e' derivata dal codice e dalle convenzioni, non provata in editor.** I simboli
-> citati sono stati verificati in `Source/` (`HexCorners`, `AxialToWorld`, `EdgeMidpointWorld`,
-> `EdgeRotation`, `RTCellTopZ`); la procedura no — chi la esegue per primo la corregge dove sbaglia,
-> ed e' il motivo per cui i passi nominano simboli invece di descrivere gesti.
+🔑 **Due piani diversi, e confonderli sposta ogni misura.** Il `0.00 C` della dimension grammar e' il
+**piano d'appoggio** — il centro cella, da cui si misurano le guide. La faccia del disco e' un fatto
+di **presentazione**, e serve solo a decidere a che quota *disegnare* perche' si veda. Le guide si
+misurano dal primo, il volume si disegna sopra il secondo.
+
+## I passi
+
+1. **Il volume.** Prisma esagonale sul centro cella: i vertici da `URTHexLibrary::HexCorners`, il
+   centro da `AxialToWorld` — mai angoli incisi a mano, per la ragione che
+   [`../technical/spec-hex-geometry-authoring.md`](../technical/spec-hex-geometry-authoring.md) §4
+   scrive gia' per la geometria: se la convenzione dei sei lati cambiasse, la forma derivata la
+   segue e quella incisa mente in silenzio.
+2. **L'inset**, che e' `GBX-1`. E' una frazione di **`C`**, il passo fra due celle adiacenti.
+   ⚠️ `HexCorners` vuole il **raggio**, e `C = √3 · HexSize` — passare `HexSize · inset` produce un
+   footprint sbagliato di `1/√3`. Si converte prima di chiamare.
+3. **Le cinque guide verticali** di
+   [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md)
+   §6, misurate dal piano d'appoggio: `1.00 C` massima · `0.85 C` strutturale · `0.55 C` standard ·
+   `0.28 C` bassa · `0.00 C` appoggio. Sono cinque, non «alcune».
+4. **La scena, in COPPIE.** Non elementi isolati: la domanda e' sempre *questo o quello?*
+   · unita' · copertura **bassa vs alta** · muro **vs muro sfondato** · porta **aperta vs chiusa vs
+   bloccata** · acqua **vs** ghiaccio · **intatto vs distrutto**.
+   🔴 **Le tre coppie che il kit sorgente non chiedeva sono quelle che contano**: `muro sfondato`,
+   `Locked` e l'asse intatto/distrutto. Senza `Locked` la seduta non puo' validare `GBX-2`; senza
+   intatto/distrutto non verifica il punto (4) di `D-152` — *distrutto cambia geometria, non colore*.
+   Una scena senza di esse soddisfa il `done_when` e **non risponde alla domanda**.
+5. **Gli `EdgeBound` si posano con `EdgeMidpointWorld` e `EdgeRotation`**, mai a occhio: il bordo `E`
+   di una cella **e'** il bordo `W` del vicino, e a mano si ottengono due barriere dove ce n'e' una.
+6. **Tre distanze di camera**: ravvicinata, di gioco, tattica. La stessa scena, tre screenshot.
+7. **Screenshot anche in scala di grigi.** Non e' accessibilita': e' il modo in cui `D-146` intende
+   la ridondanza. Se due categorie si distinguono solo in colore, in grigio spariscono — e con esse
+   la prova che la grammatica funziona.
+8. **Il volume non deve arrivare al giocatore.** Il criterio dell'owner (§5) e' **la build
+   packaged**, non PIE: un attore nascosto in gioco puo' essere cotto lo stesso. Se una packaged non
+   e' disponibile nella seduta, si dichiara che il controllo **non e' stato fatto** invece di
+   sostituirlo con la prova piu' debole.
+
+> ⚠️ **Il `.umap` DEVE risultare modificato a fine seduta**, ed e' il contrario di `U22`. Li'
+> `PIE-GEO-RESIDUI` chiede `git status` pulito perche' il tool di geometria non deve persistere le
+> sue anteprime; qui il livello salvato **e' il prodotto**. Il controllo giusto e' l'inverso: che
+> risultino modificati **solo** i package del livello, e nessun altro asset toccato per errore.
+
+> 🔴 **Questi controlli non hanno ancora un posto dove registrare l'esito.** I passi 6, 7 e 8 e la
+> nota sul `.umap` sono osservazioni PIE concrete, ma `verifies:` di questa seduta e' **vuoto** e il
+> `done_when` chiede che «le sue voci PIE abbiano un esito reale». Scriverli qui e' il massimo che
+> si puo' fare da fuori: il registro `test-manuali-pie.md` appartiene a un'altra track, e le voci si
+> **propongono**. Sono in [#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096),
+> gia' redatte. Finche' quella issue non atterra, chi esegue la seduta produce screenshot e un
+> giudizio che **nessun registro conserva**.
+
+> ⏱️ **Questa ricetta e' derivata dal codice, non provata in editor.** I simboli sono stati
+> verificati in `Source/` — e uno di essi, `RTCellTopZ`, e' stato verificato **esistente ma non
+> raggiungibile**, che e' la ragione per cui il numero e' scritto a mano qui sopra. La procedura no:
+> chi la esegue per primo la corregge dove sbaglia, ed e' il motivo per cui i passi nominano simboli
+> invece di descrivere gesti.
 
 > ➕ **Seduta aperta il 2026-08-17** dal consolidamento del kit `Graybox_Kit_Cover_CellVolume` ([D-152](../decisions/RT_PDR_00_Decision_Log.md)). Owner del modello: [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md); qui c'e' solo l'esistenza della seduta. **Due cose, e stanno insieme perche' la seconda misura la prima**: il **Cell Placement Volume** — prisma esagonale `EditorOnly` con footprint sicuro e guide verticali — e una **scena di validazione** che mette in campo unita', copertura bassa e alta, muro, porta nei suoi stati, acqua e ghiaccio, e li guarda a tre distanze di camera. ⚠️ **`verifies: []` non e' una dimenticanza**, ed e' lo stesso caso di `U24`: le voci PIE di questo dominio **non esistono** — misurato, `grep -c "PIE-GBX" ../technical/test-manuali-pie.md` da' **0** — e quel registro e' assegnato a un'altra track in `parallel-batch.yaml`. Le voci si **propongono**, non si scrivono da fuori: per `D-139` si aspetta l'owner che lo tiene OGGI — il proprietario e' cambiato tre volte il 2026-08-17, il permesso mai, ed e' per questo che qui non c'e' un nome. Finche' non ci sono, questa seduta produce una scena e non chiude nessuna voce del registro. ⚠️ **`artifacts: []` per la ragione di `U21`**: l'oracolo degli artefatti e' `git ls-files`, che sa dire se un path **esiste** e non se e' stato modificato. E qui c'e' un motivo in piu': **il percorso non e' deciso** — `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — e [`../technical/asset-map.md`](../technical/asset-map.md) §6 vuole la riga d'allowlist **prima** dell'asset, o `git add` tace e il lavoro resta sul disco di chi l'ha fatto. ⛔ **Fuori da questa seduta**: i diciannove elementi del catalogo. Sette sono `DEFER` — tre per dipendenza da feature `IDEA`, due fuori scope v0.1 dichiarato, due proxy senza produttore — e dei dodici restanti la maggior parte e' `UPDATE` di presentazione su asset che esistono. Questa seduta porta **il volume e la scena**, cioe' gli strumenti con cui gli altri si giudicano — non gli altri. ⚠️ **`unblocked_by: [U21]` non e' una dipendenza tecnica ma la stessa di `U22`**: una scena di leggibilita' valutata prima che `L_DevSandbox` sia illuminato direbbe piu' sulle luci che sul kit. 🔴 **La conseguenza dei due campi vuoti INSIEME, che i due paragrafi qui sopra giustificano separatamente senza mai dirla.** Senza `verifies` e senza `artifacts` lo stato non e' derivabile: `project-graph.json` porta questa seduta con `state: "—"` e `queue_group: null`, e `editormap.shortlist.md` la conta solo fra le «senza stato derivabile» — **non compare ne' in READY ne' in WAITING**. `U24` sfugge al caso solo perche' ha artefatti. ∴ **questa seduta non entra in NESSUNA delle tre code** — `BLOCKING`, `READY`, `WAITING` — e per l'avanzamento vive attraverso `#1095`. ⚠️ *Due correzioni sulla stessa frase, in due tornate di review. Diceva «invisibile a ogni vista»: falso, `U25` compare nella tabella delle sedute e ha una sezione propria in `editormap.shortlist.md` — cio' che manca e' la CODA, non la visibilita'. Poi diceva «nessuna delle DUE code», e le code sono **tre**: `BLOCKING` e' quella da cui si pesca per prima, e scriverne due lasciava credere che fosse stata guardata.* Non e' riparabile qui: dichiarare artefatti prima che `GBX-4` scelga il percorso, o voci PIE che non esistono, sarebbe peggio — sono i due difetti che `asset-map.md` §6 documenta. Si chiude quando uno dei due campi diventa vero, ed e' il primo effetto utile della chiusura di `GBX-4`. ⚠️ ID assegnato prima del merge: `U25`, con `U24` come massimo misurato su `main` **e su tutti i diciassette branch locali e gli undici remoti**. Chi arriva secondo rinumera, non contende.
 
