@@ -2431,8 +2431,13 @@ features:
       - RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE
     owner_specs:
       - docs/decisions/adr-0004-finestre-di-reazione.md
-    issues: [163]
+    issues: [163, 166]
     tests:
+      # ➕ **2026-08-17 ([D-169], `#166`)**: la zona di un Overwatch armato e' funzione di
+      # *(cella corrente, facing dichiarato)* — il watcher spinto RILOCALIZZA, non decade. Elencato
+      # qui e non lasciato al prefisso `Reactions.*`: quel prefisso appartiene a
+      # `RT-FEAT-REACTION-PREPARED`, e `feature_registry.py` fa prefix matching.
+      - RefactorTactics.Reactions.ArmedZoneFollowsCurrentCell
       - RefactorTactics.Reactions.OpportunityIdIsDerivedNotRandom
       - RefactorTactics.Reactions.OpportunityIdUsesEveryField
       - RefactorTactics.Reactions.SingleResponseCommitsWithoutWindow

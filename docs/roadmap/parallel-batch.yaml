@@ -5603,6 +5603,20 @@ tracks:
       ⛔ **Copre la metà PURA e lo dice**: che sia `ResolveReactionBoundary` a passare `State.Pos[OwnerIdx]`
       resta non verificato, perché vive nei due file bloccati. Un pin che si spacciasse per integrazione
       sarebbe la falsa copertura che questo repository ha già pagato due volte oggi.
+      🔴 **E alla prima stesura il pin era proprio quello**: chiudeva con un'asserzione tautologica su
+      `bArmed` — campo che il test scrive e che `BuildOverwatchTriggers` riceve per `const&` — e non
+      variava mai il facing. Trovate entrambe dalla code review, **nello stesso commit che dichiarava di
+      evitarle**. Riscritto: una variabile per volta, conteggi esatti, e l'asserzione impossibile rimossa
+      invece che indebolita.
+      ➕ **Il write-set del ramo è di QUATTRO path, non due**: oltre ai due qui sotto tocca
+      `docs/decisions/RT_PDR_00_Decision_Log.md` e `docs/roadmap/parallel-batch.yaml`, entrambi
+      `integration_only` — e in integrazione questa track ha aggiornato anche `feature-registry.yaml`,
+      `roadmap-v0.1.md` e `v0.1-issue-plan.md`, dove la regola vecchia e i due test fantasma
+      sopravvivevano. Dichiarato qui perché la `note` argomentava a lungo sui due file che la track NON
+      tocca e taceva su quelli che tocca.
+      ⚠️ **Debito lasciato**: le tre fixture del test duplicano quelle di `RTOverwatchTriggerTests.cpp`,
+      che è di un'altra track. La soluzione giusta è un header di fixture condiviso, non una terza copia:
+      va fatta quando i due file tornano alla stessa persona.
     writable:
       - docs/decisions/adr-0004-finestre-di-reazione.md
       - Source/RefactorTactics/Tests/RTReactionOpportunityTests.cpp

@@ -1,6 +1,11 @@
-// L'identita' di una `ReactionOpportunity` (CP 14.3).
+// Proprieta' pure di una `ReactionOpportunity`: identita' (CP 14.3) e geometria della zona armata (CP 14.6).
 //
-// Il punto di questo file e' UNO: l'id di una opportunity si DERIVA dai sei campi che la individuano, e non
+// 🔴 L'intestazione diceva «Il punto di questo file e' UNO», e ha smesso di essere vera quando CP 14.6 ci ha
+// aggiunto un test di geometria — messo qui perche' la sua casa naturale, `RTOverwatchTriggerTests.cpp`,
+// appartiene a un'altra track (`D-139`). Corretta invece di lasciata: chi cerca la geometria dell'Overwatch
+// non guarderebbe in un file che si dichiara sugli id.
+//
+// Il primo punto resta: l'id di una opportunity si DERIVA dai sei campi che la individuano, e non
 // si genera. Un GUID runtime sarebbe piu' comodo e romperebbe il replay in silenzio — due esecuzioni dello
 // stesso scenario darebbero id diversi, quindi hash diversi, e la divergenza si presenterebbe come un difetto
 // del resolver invece che come cio' che e': un identificatore che non e' una funzione del suo stato.
@@ -33,11 +38,17 @@ namespace
 		return Key;
 	}
 
-	/** Nomi distinti per file: la unity build condivide la translation unit. */
-	URTHexMapAsset* MakeConeFollowMap(int32 Radius = 6)
+	/**
+	 * Nomi distinti per file: la unity build condivide la translation unit.
+	 *
+	 * ⚠️ **Duplicato di `MakeOverwatchMap` in `RTOverwatchTriggerTests.cpp`**, e non per scelta: quel file e'
+	 * di un'altra track. Debito dichiarato — la soluzione giusta e' un header di fixture condiviso, non una
+	 * terza copia, e va fatta quando i due file tornano alla stessa persona.
+	 */
+	URTHexMapAsset* MakeZoneFollowMap()
 	{
 		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), /*Radius*/ 6))
 		{
 			M->AddOrUpdateCell(FRTHexCellData(Id));
 		}
@@ -49,24 +60,29 @@ namespace
 	 * Un watcher costruito **esattamente come lo costruisce il resolver**: zona da `MakeSuppressiveZone`,
 	 * origine nella cella passata, direzione ricavata dal facing DICHIARATO con `Neighbor`.
 	 *
-	 * Ricopiare la geometria a mano renderebbe il test verde su una zona che il gioco non produce piu' — e' la
-	 * stessa ragione per cui la fixture di `RTOverwatchTriggerTests` chiama la funzione invece di elencare celle.
+	 * Ricopiare la geometria a mano renderebbe il test verde su una zona che il gioco non produce piu'.
+	 *
+	 * ⚠️ I tre identificatori sono **distinti**, e non e' pedanteria: nel resolver `Zone.OwnerUnitId` e'
+	 * l'indice in `Units`, `StableUnitId` e' l'id stabile dell'unita', e `ReactionInstanceId` e' l'indice in
+	 * `ArmedOverwatches` — tre cose diverse. Passarli uguali renderebbe la fixture cieca proprio alla classe di
+	 * difetto che `RTTurnManager.cpp` documenta accanto al ciclo: due Overwatch della stessa unita' che
+	 * ricadono sullo stesso indice.
 	 */
-	FRTOverwatchWatcher MakeConeFollowWatcher(const URTHexMapAsset* Map, int32 OwnerId,
-		const FRTCellId& From, ERTHexDirection Facing, int32 Range = 4)
+	FRTOverwatchWatcher MakeZoneFollowWatcher(const URTHexMapAsset* Map, const FRTCellId& From,
+		ERTHexDirection Facing, int32 OwnerIdx, int32 StableId, int32 InstanceId)
 	{
 		FRTOverwatchWatcher W;
-		W.Zone = URTOffensiveActionLibrary::MakeSuppressiveZone(Map, OwnerId, /*OwnerTeamId*/ 0, From,
-			URTHexLibrary::Neighbor(From, Facing), Range, /*Damage*/ 1);
+		W.Zone = URTOffensiveActionLibrary::MakeSuppressiveZone(Map, OwnerIdx, /*OwnerTeamId*/ 0, From,
+			URTHexLibrary::Neighbor(From, Facing), /*RangeCells*/ 4, /*Damage*/ 1);
 		W.OwnerCell = From;
 		W.ReactionDefId = TEXT("Action.Overwatch");
-		W.bArmed = true;
-		W.StableUnitId = OwnerId;
-		W.ReactionInstanceId = OwnerId;
+		W.StableUnitId = StableId;
+		W.ReactionInstanceId = InstanceId;
+		W.TeamAwareness.Add(9, ERTAwareness::Detected);
 		return W;
 	}
 
-	FRTSuppressionMover MakeConeFollowMover(int32 UnitId, const TArray<FRTCellId>& Path)
+	FRTSuppressionMover MakeZoneFollowMover(int32 UnitId, const TArray<FRTCellId>& Path)
 	{
 		FRTSuppressionMover M;
 		M.UnitId = UnitId;
@@ -357,82 +373,96 @@ bool FRTReactionConditionPlanTest::RunTest(const FString&)
 }
 
 /**
- * CP 14.6 (**D-169**) — **il cono di un Overwatch armato segue la cella CORRENTE del proprietario, col facing
- * DICHIARATO all'armamento.** Un watcher spinto **rilocalizza**: non perde la reaction.
+ * CP 14.6 (**D-169**) — **la zona di un Overwatch armato e' funzione di *(cella corrente, facing dichiarato)*.**
+ * Un watcher spinto **rilocalizza**: la linea controllata si sposta con lui e resta puntata dove aveva
+ * dichiarato.
  *
- * ## Perche' questo test esiste
+ * ## Perche' esiste
  *
- * Il DoD di `#166` chiedeva che il movimento forzato **invalidasse** l'overwatch armato. La misura dice il
- * contrario, e il codice lo motiva: `ResolveReactionBoundary` ricostruisce il watcher a **ogni micro-step**
- * dalla cella in `State.Pos`, *«un watcher costruito una volta nel Prep avrebbe la LOS di tre celle fa»*.
- * `D-169` conferma quel comportamento come **regola** invece di cambiarlo — e una regola senza test e' prosa.
+ * Il DoD di `#166` chiedeva che il movimento forzato **invalidasse** l'overwatch armato. Il codice fa il
+ * contrario e lo motiva: `ResolveReactionBoundary` ricostruisce il watcher a **ogni micro-step** dalla cella
+ * in `State.Pos`, *«un watcher costruito una volta nel Prep avrebbe la LOS di tre celle fa»*. `D-169`
+ * conferma quel comportamento come regola — e una regola senza test e' prosa.
  *
- * ## Cosa questo test copre, e cosa NO
+ * ## Le due variabili, separate
  *
- * Copre la meta' **pura**: dato un watcher costruito da una cella, il cono e' funzione di *(cella, facing)*.
- * Le due asserzioni incrociate sono il punto — ciascun watcher scatta sul proprio corridoio e **non**
- * sull'altro — perche' un test che guardasse un solo watcher passerebbe anche con un cono che non si muove.
+ * Le asserzioni variano **una cosa per volta**: prima la cella a facing fisso, poi il facing a cella fissa.
+ * 🔴 La prima stesura di questo test variava solo la cella, e la code review ha osservato che
+ * un'implementazione che ignorasse `Armed.Facing` mirando sempre a est le sarebbe passata sotto — mentre
+ * `D-169` cita questo test come cio' che pinna *anche* il facing.
  *
- * ⚠️ **NON copre** che sia davvero `ResolveReactionBoundary` a passare `State.Pos[OwnerIdx]`: quella meta' e'
- * integrazione, vive in `RTTurnManager` e nel file di test che lo esercita, ed entrambi appartengono ad altre
- * track (`D-139`). Va aggiunta da chi li possiede, e finche' manca questo pin **non prova** che il resolver usi
- * la cella corrente — prova che, se la usa, il cono la segue.
+ * ## ⚠️ Cosa NON copre
+ *
+ * È la meta' **pura**: data la coppia, la zona ne e' funzione. Che sia `ResolveReactionBoundary` a passare
+ * `State.Pos[OwnerIdx]` e `Armed.Facing` vive in `RTTurnManager` e nel file di test che lo esercita, **di
+ * altre track**. Finche' manca, questo pin non prova che il resolver usi la cella corrente — prova che, se la
+ * usa, la zona la segue.
+ *
+ * 🔴 **E non pinna «la reaction resta armata»**, che pure e' parte di `D-169`: `bArmed` lo scrive il
+ * chiamante e `BuildOverwatchTriggers` riceve i watcher per `const&`, quindi qualunque asserzione su quel
+ * campo rileggerebbe cio' che il test stesso ha appena scritto. La prima stesura ne conteneva una, ed era
+ * tautologica — esattamente il difetto che il commit dichiarava di evitare. Rimossa: quella meta' si verifica
+ * solo dove `bArmed` viene deciso.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArmedConeFollowsCurrentCellTest,
-	"RefactorTactics.Reactions.ArmedConeFollowsCurrentCell",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArmedZoneFollowsCurrentCellTest,
+	"RefactorTactics.Reactions.ArmedZoneFollowsCurrentCell",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTArmedConeFollowsCurrentCellTest::RunTest(const FString&)
+bool FRTArmedZoneFollowsCurrentCellTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = MakeConeFollowMap();
+	URTHexMapAsset* Map = MakeZoneFollowMap();
 	if (!TestNotNull(TEXT("mappa di prova"), Map)) { return false; }
-
-	// Stesso facing per entrambi: a cambiare e' SOLO la cella da cui si guarda. E' la variabile che il
-	// movimento forzato muove, e l'unica che questo test fa variare.
-	constexpr ERTHexDirection Facing = ERTHexDirection::E;
 
 	const FRTCellId Origin(0, 0, 0);
 	const FRTCellId Pushed(0, 2, 0);   // due celle piu' in la', come dopo una spinta
 
-	FRTOverwatchWatcher FromOrigin = MakeConeFollowWatcher(Map, /*OwnerId*/ 1, Origin, Facing);
-	FRTOverwatchWatcher FromPushed = MakeConeFollowWatcher(Map, /*OwnerId*/ 1, Pushed, Facing);
+	// I tre corridoi: est da (0,0), est da (0,2), e nord-est da (0,0). Tre celle ciascuno, tutte dentro il
+	// raggio 6 della mappa — la piu' lontana e' (3,-3), a distanza 3.
+	const TArray<FRTCellId> EastFromOrigin = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+	const TArray<FRTCellId> EastFromPushed = { FRTCellId(1, 2, 0), FRTCellId(2, 2, 0), FRTCellId(3, 2, 0) };
+	const TArray<FRTCellId> NorthEastFromOrigin = { FRTCellId(1, -1, 0), FRTCellId(2, -2, 0), FRTCellId(3, -3, 0) };
 
-	// Il bersaglio e' `Rilevato` per entrambi: senza, il trigger non scatta per la condizione di ADR-0004 §6 e
-	// il test misurerebbe la conoscenza di squadra invece della geometria.
-	FromOrigin.TeamAwareness.Add(9, ERTAwareness::Detected);
-	FromPushed.TeamAwareness.Add(9, ERTAwareness::Detected);
-
-	// Due corridoi paralleli, uno per riga: quello davanti alla posizione iniziale e quello davanti alla
-	// posizione dopo la spinta.
-	const TArray<FRTCellId> AlongOrigin = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
-	const TArray<FRTCellId> AlongPushed = { FRTCellId(1, 2, 0), FRTCellId(2, 2, 0), FRTCellId(3, 2, 0) };
-
-	auto Triggers = [Map](const FRTOverwatchWatcher& W, const TArray<FRTCellId>& Path)
+	auto TriggerCount = [Map](const FRTOverwatchWatcher& W, const TArray<FRTCellId>& Path)
 	{
 		return URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-			Map, /*TurnNumber*/ 4, { W }, { MakeConeFollowMover(9, Path) });
+			Map, /*TurnNumber*/ 4, { W }, { MakeZoneFollowMover(9, Path) }).Num();
 	};
 
-	// Premessa: il cono ORIGINALE vede il proprio corridoio. Senza, le due asserzioni negative sotto
-	// sarebbero verdi per la ragione sbagliata — un cono vuoto non scatta su niente.
-	TestTrue(TEXT("premessa: dalla cella iniziale il cono vede il corridoio davanti a se'"),
-		Triggers(FromOrigin, AlongOrigin).Num() > 0);
+	// --- 1. LA CELLA cambia, il facing no --------------------------------------------------------------
+	const FRTOverwatchWatcher AtOrigin =
+		MakeZoneFollowWatcher(Map, Origin, ERTHexDirection::E, /*OwnerIdx*/ 0, /*StableId*/ 41, /*InstanceId*/ 0);
+	const FRTOverwatchWatcher AtPushed =
+		MakeZoneFollowWatcher(Map, Pushed, ERTHexDirection::E, /*OwnerIdx*/ 1, /*StableId*/ 41, /*InstanceId*/ 0);
 
-	// Il cono si e' MOSSO: dalla cella nuova vede il proprio corridoio...
-	TestTrue(TEXT("spinto, il cono vede il corridoio davanti alla NUOVA cella"),
-		Triggers(FromPushed, AlongPushed).Num() > 0);
+	// Il conteggio e' **esatto**: tre celle controllate percorse in tre micro-step danno tre opportunity, come
+	// pinna `Overwatch.TriggersPerMicroStep` sullo stesso percorso. Un `> 0` lascerebbe verde una regressione
+	// che si ferma alla prima — ed e' proprio il difetto che quel test fratello esiste per prendere.
+	TestEqual(TEXT("premessa: dalla cella iniziale la zona copre il proprio corridoio, per intero"),
+		TriggerCount(AtOrigin, EastFromOrigin), 3);
 
-	// ...e non piu' quello vecchio. E' l'asserzione che distingue «il cono segue» da «il cono si allarga».
-	TestEqual(TEXT("e NON vede piu' il corridoio davanti alla cella di partenza"),
-		Triggers(FromPushed, AlongOrigin).Num(), 0);
+	TestEqual(TEXT("spinto, copre per intero il corridoio davanti alla NUOVA cella"),
+		TriggerCount(AtPushed, EastFromPushed), 3);
 
-	// Simmetrica: il watcher fermo non vede il corridoio dell'altro. Senza questa, un cono grande abbastanza
-	// da coprire entrambe le righe passerebbe le tre asserzioni precedenti.
-	TestEqual(TEXT("e il watcher fermo non vede il corridoio dell'altro"),
-		Triggers(FromOrigin, AlongPushed).Num(), 0);
+	// L'asserzione che distingue «la zona segue» da «la zona si aggiunge».
+	TestEqual(TEXT("e non copre piu' quello davanti alla cella di partenza"),
+		TriggerCount(AtPushed, EastFromOrigin), 0);
 
-	// La reaction NON e' decaduta: la spinta rilocalizza, non disarma. `bArmed` e' il `ReactionStillArmed`
-	// della condizione di trigger (ADR-0004 §6), e resta vero attraverso lo spostamento.
-	TestTrue(TEXT("dopo la spinta la reaction e' ancora armata"), FromPushed.bArmed);
+	TestEqual(TEXT("simmetrica: il watcher fermo non copre il corridoio dell'altro"),
+		TriggerCount(AtOrigin, EastFromPushed), 0);
+
+	// --- 2. IL FACING cambia, la cella no --------------------------------------------------------------
+	const FRTOverwatchWatcher AtOriginFacingNE =
+		MakeZoneFollowWatcher(Map, Origin, ERTHexDirection::NE, /*OwnerIdx*/ 0, /*StableId*/ 41, /*InstanceId*/ 1);
+
+	TestEqual(TEXT("stessa cella, facing NE: copre il corridoio nord-est per intero"),
+		TriggerCount(AtOriginFacingNE, NorthEastFromOrigin), 3);
+
+	// Senza questa, un'implementazione che ignorasse il facing e mirasse sempre a est passerebbe tutto il
+	// resto del test: e' la meta' della regola che `D-169` chiama «col facing DICHIARATO all'armamento».
+	TestEqual(TEXT("e NON copre piu' quello a est, che pure parte dalla stessa cella"),
+		TriggerCount(AtOriginFacingNE, EastFromOrigin), 0);
+
+	TestEqual(TEXT("simmetrica: il watcher a est non copre il corridoio nord-est"),
+		TriggerCount(AtOrigin, NorthEastFromOrigin), 0);
 
 	return true;
 }
