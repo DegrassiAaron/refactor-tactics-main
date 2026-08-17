@@ -115,6 +115,7 @@ di questo file: sono buchi delle fonti, e vanno chiusi lì.
 | **Icone dell'HUD** | E20 · E11 | L'**insieme** richiesto è derivato e cresce da solo — `URTIconLibrary::RequiredIconIds()` lo compone dalle fasi volontarie e dal catalogo azioni *realmente in codice*, gate `RTIconCatalogTests` — ma **path e naming sono già decisi**: `/Game/RT/UI/Icons/`, `T_UI_Icon_<Categoria>_<Nome>` ([`brief-icone-v01.md`](brief-icone-v01.md) §33–34). Manca solo la riga d'allowlist, ed è un problema concreto: chi importa le texture al path già deciso fa `git add`, git tace, e le icone restano locali |
 | **Sorgenti icona già sul disco** | E20 | `Content/RT_UI_AssetPack_FromHUD/` contiene **30 PNG** (`icons/I_Guard.png`, `I_Overwatch.png`, …) più `buttons/`, `panels/`, `tiles/`, `warnings/` e un `manifest.json` con box e margini 9-slice. Di tutto il kit **il repository traccia due file**: `README.md` e `manifest.json`. I trenta PNG no. È la famiglia più vicina a essere pronta, e la sola che nessuna riga d'allowlist prevede |
 | **Livello illuminato del graybox** | seduta **U21** | U21 dichiara di produrre «il livello illuminato **committato**», ma ha `artifacts: []`: nessuno sa quale file sarà, quindi non può entrare nell'allowlist prima della seduta |
+| **Kit graybox degli oggetti di mappa** | `RT-FEAT-UI-GRAYBOX-KIT` · `D-152` | La famiglia è **decisa e senza percorso**, ed è il caso che questa colonna descrive meglio. Il contratto esiste ([`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md)) e dice *che forma* devono avere gli asset; le convenzioni §5 non hanno una riga per un kit graybox di **oggetti** — coprono la griglia (`/Game/RT/World/Grid/`, dove `Generation/` sono i *generatori*) e le mappe, non le primitive riusabili che ci stanno sopra. Il percorso è `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), e si chiude **prima** della seduta che produce il primo asset, non dopo: è la riga 1 di §6 |
 
 ---
 
@@ -171,6 +172,20 @@ sola. Dal lato contenuti il conto è lineare e noto: **8 asset**.
 
 ⚠️ **Le release v0.5–v0.8 sono un buco dichiarato di questo documento**, non del registry: sono nate
 lo stesso giorno in cui è nato lui, e nessuno ha ancora chiesto quali asset richiedano.
+
+> 🔵 **Aggiornamento 2026-08-17 — il buco si è ristretto da un lato solo, ed è quello di sopra.** Il
+> consolidamento del Graybox Kit (`D-153`) ha misurato il fabbisogno di **oggetti di mappa** per tutte le
+> release e la risposta è che **non atterra nella v0.5–v0.8**: da lì i temi canonici sono rete, GAS,
+> dedicated server e hardening, e nessuno di essi è un tema di contenuto. Dei **sette** elementi `DEFER` del
+> catalogo, **quattro** si appoggiano alla riga **`future`** qui sopra — `RT-FEAT-MAP-STRUCTURAL` (macerie,
+> muri sfondati) e `RT-FEAT-MAP-VERTICALITY` (rampe, piattaforme) sono le due feature `IDEA` che li
+> possiedono, e finché restano `IDEA` quegli asset non hanno un committente. Gli altri tre non c'entrano con
+> `future` e hanno ciascuno una ragione propria: la **valvola** è fuori scope v0.1 dichiarato, generatore e
+> serbatoio hazard sono proxy di elementi che nessuno produce ancora. **Non è un ritardo della pipeline**: è
+> che sette voci su diciannove descrivono sistemi che il progetto non ha ancora deciso di costruire.
+> La sola release che acquisisce un impegno nuovo è la **v1.0**, e non in asset: `E45` diventa il punto in
+> cui il contratto di ingombro **si congela** perché l'arte finale possa sostituire il graybox senza
+> cambiare le regole competitive.
 
 ## 5. Da dove vengono gli asset
 

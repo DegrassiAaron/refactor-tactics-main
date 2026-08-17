@@ -252,7 +252,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E6** | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Gadget, Phase, Riktor, Wraith | INTEGRATED | 6/8 |
 | **E7** | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | IMPLEMENTING | 1/8 |
 | **E8** | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | INTEGRATED | 6/9 |
-|  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 7/9 |
 |  | `RT-FEAT-ENV-ICE` — Ghiaccio e scivolamento | INTEGRATED | 6/9 |
 |  | `RT-FEAT-ENV-STATUS` — Stati temporanei legati alla cella | INTEGRATED | 6/9 |
 |  | `RT-FEAT-ENV-STEAM` — Fumo e copertura visiva | INTEGRATED | 6/9 |
@@ -303,6 +303,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
+|  | `RT-FEAT-UI-GRAYBOX-KIT` — Graybox Kit — contratto di ingombro, pivot e presentazione degli oggetti di mappa | DESIGNED | 0/5 |
 | **E46** | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | SPECIFIED | 1/5 |
 |  | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | SPECIFIED | 1/6 |
 |  | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | SPECIFIED | 1/5 |
@@ -1595,9 +1596,32 @@ editor**, che nessun test automatico può chiudere.
 > pinnato da `RefactorTactics.Heroes.CanonicalNamesReachTheLabel`. In Sessione C resta il giudizio a schermo,
 > voce `PIE-NAME`. La presentazione resta **consumer** del resolver, mai autorità dell'esito.
 
+> ➕ **Il perimetro si allarga agli oggetti di mappa il 2026-08-17, e non ai loro checkpoint**
+> ([D-152](../decisions/RT_PDR_00_Decision_Log.md), [D-153](../decisions/RT_PDR_00_Decision_Log.md)).
+> `RT-FEAT-UI-GRAYBOX-KIT` entra in questa epic perché E21 è l'unica della v0.1 il cui DoD non è chiudibile
+> in automation — **la stessa condizione** di un contratto di leggibilità — ma `checkpoints: []` è
+> deliberato: il lavoro esecutivo **non** diventa `E21.4`. Si innesta su owner che esistono già — **E23**
+> per muri e porte, **E47** per la grammatica della board, **E15** per il Relè, **E45** per il freeze del
+> contratto — ed è la parte di `D-153` che vieta le epic create per simmetria.
+>
+> 🔑 **La distinzione che questa riga esiste per tenere in piedi**: E21 possiede come le **unità** appaiono
+> in scena, il contratto graybox possiede quanto spazio occupa **ciò che sta sulla mappa** e dove sta il suo
+> pivot. Si toccano in un punto solo — l'elemento #3 del catalogo, il cilindro segnaposto — e lì il
+> precedente è già stato pagato: [`#593`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/593),
+> il root non neutro che stirava di `1.5x` ogni Skeletal Mesh agganciata sotto. Owner del modello:
+> [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md).
+
 **Gate di chiusura dell'epic**: la sessione C di [`test-manuali-pie.md`](../technical/test-manuali-pie.md)
 è verde · nessun cilindro nel gioco se non per asset mancante · una partita registrata (video o
 screenshot) come riferimento di stato.
+
+⚠️ **Il gate non si allarga con il perimetro, ed è dichiarato**: il contratto graybox **non** aggiunge una
+voce a questo elenco, perché le sue verifiche PIE non sono ancora scritte —
+[`test-manuali-pie.md`](../technical/test-manuali-pie.md) è nel write-set di un'altra track al 2026-08-17
+(`playback`, [#1015](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1015)), e per
+[D-139](../decisions/RT_PDR_00_Decision_Log.md) si aspetta quell'owner invece di scrivere sul file di
+qualcun altro. Finché quelle voci non esistono, il contratto è **documentato e non verificato**: dirlo qui
+costa meno che scoprirlo al gate.
 
 **Dipendenze**: E6 (roster) per i dati degli eroi, E20 (icon language) per le icone dell'HUD di squadra.
 Non dipende da E11: gli anelli e le mesh non passano dai widget.

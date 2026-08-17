@@ -4633,6 +4633,85 @@ features:
       lasciando scoperti Player, Seek, Producer o Verifier — supera il costo di due righe che si
       sovrappongono. Va ridiscusso quando `RT-FEAT-REPLAY-ARCHIVE` verra' toccata per altro.
 
+  - feature_id: RT-FEAT-UI-GRAYBOX-KIT
+    title: Graybox Kit — contratto di ingombro, pivot e presentazione degli oggetti di mappa
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P2
+    status: DESIGNED
+    gates:
+      # L'owner del modello esiste da `D-152`: tassonomia, pivot, volume, grammatica degli stati.
+      # `partial` e non `done` perche' quattro domande restano aperte (`GBX-1..4`) e due di esse
+      # — l'inset e le soglie di integrita' — sono numeri che il documento si vieta di inventare.
+      spec: partial
+      # Nessun dato: e' voluto e non e' un ritardo. La tassonomia e' un VOCABOLARIO, non un enum
+      # (`D-152`), e le classi non entrano in niente di serializzato. `na` sarebbe falso pero':
+      # il Cell Placement Volume avra' bisogno di un dato d'editor per l'inset quando `GBX-1` chiude.
+      data: todo
+      # Zero: nessun asset graybox di mappa esiste in `Content/`, e il volume non e' implementato.
+      runtime: todo
+      # Presentazione e authoring: non produce voci in nessuna delle sette `ERTLogCategory`.
+      log_debug: na
+      # 🔴 L'oracolo di «e' leggibile» non esiste nell'harness e non va simulato contando ferite.
+      # Le verifiche sono di classe C — manuali — e vivono nel registro PIE.
+      automation: na
+      scenario: na
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E21
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-UI-BOARD-GRAMMAR
+      - RT-FEAT-MAP-COVER
+      - RT-FEAT-MAP-INTERACTIVE-EDGES
+      - RT-FEAT-TOOL-MAP-EDITOR
+    owner_specs:
+      - docs/technical/spec-graybox-placement-contract.md
+      - docs/technical/asset-map.md
+    # 1094 le quattro domande aperte (`GBX-1..4`) · 1095 la seduta U25 (volume + scena di validazione) ·
+    # 1096 le voci PIE, che sono bloccate da `D-139` e non da mancanza di contenuto.
+    issues: [1094, 1095, 1096]
+    tests: []
+    scenarios: []
+    wiki_refs:
+      - wiki:griglia-e-geometria
+    wiki_note: >
+      La pagina spiega che la griglia non vincola i muri — cioe' il principio da cui discende
+      `EdgeBound`. L'ingombro degli asset che stanno sulla griglia non e' spiegato da nessuna parte.
+    last_verified:
+      date: 2026-08-17
+      commit: 9677bbd4
+    notes: >
+      **Estende `RT-FEAT-UI-BOARD-GRAMMAR`, non la duplica**: quella possiede la grammatica delle
+      **celle** (colore + forma, `D-146`), questa quella degli **oggetti** che ci stanno sopra, dove
+      il secondo canale e' la geometria. Owner del modello: `spec-graybox-placement-contract.md`.
+
+      **La separazione che tiene la feature onesta** e' fra *quanto grande posso modellare un asset*
+      (questo contratto, `EditorOnly`) e *dove un'unita' ci sta in piedi* (`RT-FEAT-MAP-STANDABILITY`,
+      CP 23.6, dato cotto). Sono due numeri simili con owner diversi: confonderli creerebbe il secondo
+      owner del clearance, che e' il difetto che quest'area paga piu' caro.
+
+      ⚠️ **`epic: E21` e non un'epic nuova** (`D-153`): E21 e' «Presentazione e leggibilita'» della
+      v0.1 ed e' l'unica epic il cui DoD non e' chiudibile in automation — la stessa condizione di
+      questo contratto. `checkpoints: []` perche' il lavoro esecutivo NON e' un checkpoint di E21: si
+      innesta su owner gia' esistenti (E23 per muri/porte, E47 per la board, E15 per il Rele',
+      E45 per il freeze del contratto), ed e' esattamente cio' che `D-153` decide.
+
+      🔴 **Sette dei diciannove elementi del catalogo sono `DEFER`, e quattro dipendono da feature
+      `IDEA` su release `future`** (`RT-FEAT-MAP-STRUCTURAL`, `RT-FEAT-MAP-VERTICALITY`). Il kit
+      «completo» non e' raggiungibile in v0.1, e non e' un ritardo: sette voci su diciannove descrivono
+      sistemi che il progetto non ha ancora deciso di costruire. La valvola e' il caso limite —
+      **fuori scope v0.1 dichiarato** da CP 10.1 §11, con motivazione registrata.
+
+      ⚠️ **Nessun gate difende questo contratto oggi**, ed e' dichiarato invece che sottinteso: e' la
+      stessa condizione in cui `D-146` ha lasciato la ridondanza colore+forma. Le voci PIE non sono
+      state scritte perche' `test-manuali-pie.md` e' nel write-set della track `playback` (`#1015`)
+      al 2026-08-17 — per `D-139` si aspetta quell'owner, e il contenuto vive nella issue.
+
   - feature_id: RT-FEAT-UI-BOARD-GRAMMAR
     title: Grammatica visiva della board — colore e forma, mai solo il colore
     area: UI
@@ -5077,8 +5156,14 @@ features:
     tests: []
     scenarios:
       planned:
-        - Team.Conflux.FluxRiva.ConductiveFlood
-        - Team.Constrine.BastionVektor.OnlyExit
+        # 🔁 Rinominati il 2026-08-17 da `FluxRiva`/`BastionVektor` (`D-130`). Sono scenari `planned`:
+        # nessun file esiste, nessun redirect li mappa (`Scenarios/_redirects.json` non li nomina),
+        # quindi il rename e' gratuito — e non farlo non era gratis. `scenariomap.shortlist.md` portava
+        # gia' i nomi canonici **corretti a mano sul generato**, e la sorgente no: il `--check` restava
+        # rosso, e ogni rigenerazione rimetteva i legacy. Il gate di naming non poteva vederlo, perche'
+        # esenta i token fra backtick — che e' giusto per `Hero.Flux`, che esiste, e cieco per questi.
+        - Team.Conflux.GadgetPhase.ConductiveFlood
+        - Team.Constrine.RiktorWraith.OnlyExit
         - Team.Sentinel.SteelMurdock.HoldTheLine
         - Team.Resonance.AuroraKwang.FrozenAnchor
     wiki_refs:

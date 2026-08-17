@@ -909,7 +909,7 @@ sessions:
     steps: |
       **Non e' una caccia ai difetti: e' una domanda di leggibilita'.** Tre unita' con
       `PushResistance = 0` (Gadget, Phase, Wraith) — una in `Action.Guard`, una in `Action.Brace`, una
-      senza difesa — e una Phase avversaria che usa `Riva.PressureJet` su ciascuna nello stesso turno.
+      senza difesa — e una Phase avversaria che usa `Hero.Phase.PressureJet` su ciascuna nello stesso turno.
       E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
       1. Guarda il turno **senza leggere i numeri**. «Questo si e' piantato» dev'essere distinguibile
@@ -937,11 +937,14 @@ sessions:
     produces: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
     artifacts: []
     unblocked_by: []
-    shares_setup_with: [U22]
+    # ➕ `U25` aggiunta il 2026-08-17: condivide l'allestimento e ne dipende per la stessa ragione di
+    # `U22` — una scena di leggibilita' valutata prima delle luci direbbe piu' sulle luci che sull'oggetto
+    # guardato. Il validator e' bidirezionale e non lascia dichiarare la relazione da un lato solo.
+    shares_setup_with: [U22, U25]
     verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
     issues: [623]
     done_when: le due voci hanno un esito reale e il livello illuminato e' committato
-    unblocks: [U22]
+    unblocks: [U22, U25]
     notes: >-
       Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e
       non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e
@@ -1030,3 +1033,43 @@ sessions:
       aspettano una lease propria.
       ⚠️ ID assegnato prima del merge: `U24`, con `U23` come massimo misurato su `main` **e su tutti i
       tredici branch remoti** — non solo sul proprio. Chi arriva secondo rinumera, non contende.
+
+  - id: U25
+    title: Il volume di posa della cella, e la scena che dice se il graybox si legge
+    block: 6
+    critical: false
+    produces: verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor
+    artifacts: []
+    unblocked_by: [U21]
+    shares_setup_with: [U21]
+    verifies: []
+    issues: [1095]
+    done_when: la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro
+    unblocks: []
+    notes: >-
+      ➕ **Seduta aperta il 2026-08-17** dal consolidamento del kit `Graybox_Kit_Cover_CellVolume`
+      ([D-152](../decisions/RT_PDR_00_Decision_Log.md)). Owner del modello:
+      [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md);
+      qui c'e' solo l'esistenza della seduta.
+      **Due cose, e stanno insieme perche' la seconda misura la prima**: il **Cell Placement Volume** —
+      prisma esagonale `EditorOnly` con footprint sicuro e guide verticali — e una **scena di
+      validazione** che mette in campo unita', copertura bassa e alta, muro, porta nei suoi stati, acqua e
+      ghiaccio, e li guarda a tre distanze di camera.
+      ⚠️ **`verifies: []` non e' una dimenticanza**, ed e' lo stesso caso di `U24`: le voci PIE di questo
+      dominio **non esistono** — misurato, `grep -c "PIE-GBX" ../technical/test-manuali-pie.md` da' **0** —
+      e quel registro e' nel write-set della track `playback` (`#1015`) al 2026-08-17. Le voci si
+      **propongono**, non si scrivono da fuori: per `D-139` si aspetta quell'owner. Finche' non ci sono,
+      questa seduta produce una scena e non chiude nessuna voce del registro.
+      ⚠️ **`artifacts: []` per la ragione di `U21`**: l'oracolo degli artefatti e' `git ls-files`, che sa
+      dire se un path **esiste** e non se e' stato modificato. E qui c'e' un motivo in piu': **il percorso
+      non e' deciso** — `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — e
+      [`../technical/asset-map.md`](../technical/asset-map.md) §6 vuole la riga d'allowlist **prima**
+      dell'asset, o `git add` tace e il lavoro resta sul disco di chi l'ha fatto.
+      ⛔ **Fuori da questa seduta**: i diciannove elementi del catalogo. Otto sono `DEFER` per dipendenza
+      da feature `IDEA`, e degli undici restanti la maggior parte e' `UPDATE` di presentazione su asset che
+      esistono. Questa seduta porta **il volume e la scena**, cioe' gli strumenti con cui gli altri si
+      giudicano — non gli altri.
+      ⚠️ **`unblocked_by: [U21]` non e' una dipendenza tecnica ma la stessa di `U22`**: una scena di
+      leggibilita' valutata prima che `L_DevSandbox` sia illuminato direbbe piu' sulle luci che sul kit.
+      ⚠️ ID assegnato prima del merge: `U25`, con `U24` come massimo misurato su `main` **e su tutti i
+      diciassette branch locali e gli undici remoti**. Chi arriva secondo rinumera, non contende.
