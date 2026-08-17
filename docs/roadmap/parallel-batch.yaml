@@ -1756,10 +1756,26 @@ tracks:
       - Source/RefactorTactics/Tests/RTCoreActionTests.cpp
       - Source/RefactorTactics/Turn/RTActionEffectLibrary.h
       - Source/RefactorTactics/Turn/RTActionEffectLibrary.cpp
-      - Source/RefactorTactics/Turn/RTTurnLog.h
-      - Source/RefactorTactics/Turn/RTTurnLogLibrary.h
-      - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
-      - Source/RefactorTactics/Tests/RTTurnLogCauseTests.cpp
+      # ➖ **I quattro path del TurnLog sono RILASCIATI il 2026-08-17, per decisione d'autore.**
+      #   `Turn/RTTurnLog.h` · `Turn/RTTurnLogLibrary.h` · `Turn/RTTurnLogLibrary.cpp` ·
+      #   `Tests/RTTurnLogCauseTests.cpp`
+      # ✅ **Rilascio pulito, misurato e non assunto**: `git diff --name-only origin/main...feat/833-interaction-graph`
+      #   non li contiene — nessuno dei quattro e' stato toccato in tutta la vita del branch, quindi il
+      #   write-set dichiarato e quello misurato non divergono e non resta lavoro orfano.
+      # 🔓 **Perche': erano l'unico ostacolo dichiarato a `#1060`** — il T6 dello showcase, il cui PRIMO passo
+      #   di DoD e' far portare a `FRTTurnLogEntry` il bersaglio originale e quello effettivo
+      #   dell'interposizione (`OriginalTargetEquals` / `EffectiveTargetEquals`). Questo file lo registrava
+      #   cosi': *«#1060 non lo e' [sbloccata]: il primo passo del suo DoD vive in quattro path di `spatial`,
+      #   che #833 non ha rilasciato»*. Ora li ha rilasciati, e sono **quattro su quattro**: rilasciarne uno
+      #   solo avrebbe registrato un rilascio senza produrne l'effetto.
+      # ⚠️ **Conseguenza su `#833`, dichiarata invece di scoperta al DoD**: il gate `log_debug` chiedeva voci
+      #   canoniche (`DoorOpened`/`DoorClosed`) che si dichiarano proprio in `RTTurnLog.h`. Senza quei path
+      #   quel gate resta **`todo` dichiarato**, come lo era il gate `scenario` prima di `#1014`. Vale anche
+      #   per la strada alternativa del DoD — un esito nuovo su `ERTReactionOutcome` — perche' quell'enum vive
+      #   nello stesso header: le due strade convergevano li', ed escono insieme.
+      # ⛔ Tornano **non assegnati**, non trasferiti: nessuna track e' `ACTIVE` su `#1060` (`simulation` e'
+      #   tornata `IDLE` il 2026-08-17 con la PR #1087). Chi aprira' quella issue li rivendica allora, che e'
+      #   il momento in cui il write-set si misura.
       - Source/RefactorTactics/Tests/RTInteractionGraphTests.cpp
     # ⛔ NON in questo write-set, e la ragione e' registrata nella nota: `Scenarios/` (`integration_only`) e
     # `ScenarioHarness/RTScenarioSession.cpp` (di `simulation`, #512). Il gate `scenario` dipende da una
@@ -2300,10 +2316,18 @@ tracks:
       prenotazione si può sciogliere senza costo. Le due issue chiedono gli **stessi** file dell'harness,
       quindi non convivono: una delle due va fatta prima, e la scelta si decide su quale delle due è
       eseguibile **per intero** oggi.
-      · `#1060` non lo è: il **primo passo** del suo DoD — bersaglio originale ed effettivo nel
+      · ~~`#1060` non lo è: il **primo passo** del suo DoD — bersaglio originale ed effettivo nel
         `FRTTurnLogEntry` — vive in quattro path di `spatial`, che `#833` non ha rilasciato (OPEN, branch
         `feat/833-interaction-graph` vivo). Il DoD dichiara pure la strada alternativa, e converge sullo
-        **stesso** header: non è un modo di aggirare l'attesa, e lo diceva già questo file.
+        **stesso** header: non è un modo di aggirare l'attesa, e lo diceva già questo file.~~
+      🔓 **Superato il 2026-08-17: `#833` HA rilasciato i quattro path** (`Turn/RTTurnLog.h`,
+        `Turn/RTTurnLogLibrary.{h,cpp}`, `Tests/RTTurnLogCauseTests.cpp`), per decisione d'autore e con il
+        rilascio misurato — nessuno dei quattro era stato toccato dal branch. L'ostacolo che questa riga
+        registrava **non esiste più**, e vale anche per la strada alternativa, perché usciva lo stesso header.
+        ⚠️ Il ragionamento di questa sezione resta valido nella forma — *«una delle due va fatta prima, e la
+        scelta si decide su quale è eseguibile per intero oggi»* — ma la sua **conclusione** era vincolata a un
+        write-set che è cambiato: va rifatta invece di riletta. È il caso per cui un write-set si misura al
+        merge e non alla decisione.
       · `#583` lo è: la sua voce di DoD residua tocca `RTTestScenario.h`, `RTScenarioLoader.cpp`,
         `RTScenarioSession.cpp` e due file di test — **cinque path già in mano a questa track** — più un
         JSON nuovo in prestito da `integration_only`.
