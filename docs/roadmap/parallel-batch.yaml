@@ -4461,11 +4461,28 @@ tracks:
     binary_leases: []
 
   graytoolkit_bundle:
-    status: ACTIVE
+    status: IDLE
     issue: null
-    branch: docs/graytoolkit-bundle
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
+      ✅ **CHIUSA il 2026-08-17.** Due PR: **#1140** (`f7e9e7c6`) porta il consolidamento, **#1144**
+      (`6380cbb3`) le correzioni di due tornate di code review. Il write-set è **rilasciato**; l'elenco
+      resta nel commento sotto perché dice quali file questa track ha toccato.
+
+      🔴 **Il consolidamento è atterrato con due affermazioni false, corrette dopo.** *(a)* «`1 UU = 1 cm`
+      è già canonico in §11-bis»: quel file non contiene la stringa `UU` — fissa **solo** il lato a 1,5 m.
+      *(b)* «l'unità occupa il 46% della cella»: era un numeratore misurato a `HexSize=100` diviso per un
+      denominatore a `HexSize=150`, cioè **due scale nella stessa frazione**; il valore vero è **69%**.
+      ⚠️ **E la seconda tornata ne ha trovate altre due, sempre mie**: «il cilindro è il fallback quando il
+      riferimento soft non risolve» — nessuna soft reference a skeletal esiste in `Source/` — e «nessuna
+      mappa sovrascrive `HexSize`» concluso da un `grep` su `Scenarios/` e `Config/`, che **non aprono i
+      `.uasset`** dove quel valore vive. La conclusione reggeva, l'argomento no.
+
+      ➕ **E il risultato più utile è una domanda che il bundle non poneva**: `GBX-6`. Nessuna mappa usa la
+      scala d'arte — girano tutte al default `1,00 m` contro l'`1,5 m` di §11-bis — e le due divergono di
+      **1,5×**. Chi modella secondo il contratto costruisce per una cella che nessuna mappa ha.
+
       ➕ **Track aperta il 2026-08-17** per consumare il bundle `GrayToolkit_Cloud_Bundle` — 8 file, 4
       documenti e 2 PNG, in `docs/src/wiki/graybox/`. È il **seguito** di `graybox_kit`, chiusa poche ore
       prima, e la prima cosa misurata è che si sovrappongono: `docs/01` del bundle è **byte-identico** al
@@ -4514,16 +4531,13 @@ tracks:
       `integration_only` dal fix di `graybox_kit`, quindi la collisione è prevista e si risolve tenendo
       entrambi.
       ⚠️ **Limite dichiarato**: la misura vede i COMMIT, non il lavoro non committato negli altri worktree.
-    writable:
-      - docs/technical/spec-graybox-placement-contract.md
-      # ⚠️ Rientra qui dopo essere stato rilasciato da `graybox_kit`: §6 dichiara la metrica relativa e va
-      # riconciliata con la scala d'arte di `convenzioni-contenuti-ue.md` §11-bis, che il bundle conferma.
-      # Verificato libero: nessuna track lo rivendica, nessun ramo vivo lo tocca.
-      - docs/technical/spec-asset-pipeline.md
-      # 🆕 È l'owner dei **principi di pipeline** (presentazione-only, riferimenti soft, licenze), quindi è
-      # dove le lane di maturità artistica appartengono — non nel contratto di ingombro, che possiede lo
-      # spazio occupato e non il grado di finitura. ⚠️ Non stava in **nessun** insieme di questo file:
-      # è la condizione «file non assegnato» di `D-139`, e si prende dichiarandolo invece di aggirarlo.
+    # ➖ **Rilasciato alla chiusura**, con le misure che ne giustificavano la presa:
+    #   · `docs/technical/spec-graybox-placement-contract.md` — rientrato da `graybox_kit` per riconciliare
+    #     §6 con la scala d'arte; nessun'altra track lo rivendicava, nessun ramo vivo lo toccava.
+    #   · `docs/technical/spec-asset-pipeline.md` — owner dei principi di pipeline, dove sono entrate le
+    #     lane `AC0–AC6`/`AE0–AE5`. ⚠️ Non stava in **nessun** insieme di questo file: era la condizione
+    #     «file non assegnato» di `D-139`, presa dichiarandola invece di aggirarla.
+    writable: []
     binary_leases: []
 
   graybox_kit:
