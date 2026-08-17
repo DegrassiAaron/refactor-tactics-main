@@ -289,8 +289,19 @@ Environment ([triage](../roadmap/plans/consolidamento-chat-openai-triage-2026-08
 
 ✅ **Confermata dall'autore il 2026-08-17** e promossa da scala d'*authoring* a scala **del mondo**
 ([`D-163`](../decisions/RT_PDR_00_Decision_Log.md)). Il lato è `1,5 m`; l'unità di `HexSize` è il
-centimetro — lo dichiara `RTHexMapAsset.h` accanto alla proprietà — quindi il valore canonico è
+centimetro — lo dichiara `RTHexMapAsset.h` accanto alla proprietà — e la **dimensione** è il circumraggio,
+cioè il lato (`RTHexLibrary.cpp`: *«un pointy-top di circumraggio HexSize»*). Quindi il valore canonico è
 **`HexSize = 150`**.
+
+**La quota fra i piani resta `2,50 m`** (`LayerHeight = 250`) e non segue la larghezza — decisione
+d'autore dello stesso giorno. Chi modella in verticale ha quindi **due riferimenti indipendenti**: il lato
+della cella per la pianta, la quota di piano per l'alzato. Non si deriva l'uno dall'altro.
+
+| | Prima | Dal 2026-08-17 |
+|---|---:|---:|
+| Lato della cella | 1,00 m | **1,50 m** |
+| Cella lato-a-lato (`C`) | 1,73 m | **2,60 m** |
+| Quota di piano | 2,50 m | **2,50 m** *(invariata)* |
 
 > 🔴 **Fino al 2026-08-17 questa sezione descriveva una scala che nessuna mappa usava.** Misurato:
 > `HexSize` non compare in **nessun** binario di `Content/RT`, quindi tutte e cinque le mappe restavano al

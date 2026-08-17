@@ -208,10 +208,18 @@ canone (D-163)     lato 1,50 m      →  C ≈ 2,60 m     ← a cui si MODELLA, 
 codice di oggi     lato 1,00 m      →  C ≈ 1,73 m     ← a cui ogni mappa gira ANCORA
 ```
 
-✅ **`GBX-6` è chiusa il 2026-08-17**: vince la scala d'arte, `HexSize = 150`
+✅ **`GBX-6` è chiusa il 2026-08-17**: vince la scala d'arte, `HexSize = 150`, e la quota fra i piani
+**resta `250` uu — 2,50 m — invece di seguirla**
 ([`D-163`](../decisions/RT_PDR_00_Decision_Log.md)). Questo documento **continua a non sceglierla** — non è
 il suo owner, che resta [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — ma ora
 riporta una decisione presa invece di una divergenza aperta.
+
+🔵 **Che la quota di piano non segua la larghezza è la ragione per cui questo contratto diventa più facile
+da rispettare, non più difficile.** Le altezze restano ancorate al piano — una copertura alta è il `22%`
+della quota prima e dopo — mentre rispetto a `C` scendono da `32%` a `21%`. Ogni budget di frazione che
+questo documento assegna si trova **più spazio** di quello che aveva, senza che nessuna costante cambi:
+`0.28 C` per una copertura bassa smette di essere stretto. È il margine che rende validabili `GBX-1` e
+`GBX-5` guardando invece che discutendo.
 
 ⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
 `1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella per una cella larga `2,60 m`** — cioè
