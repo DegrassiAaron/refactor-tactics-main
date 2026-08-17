@@ -227,6 +227,32 @@ finestre di decisione. Il precedente è già stato preso due volte: `Facing` por
 `TimeoutReason`, che §10 elenca fra i requisiti informativi: sono identità e motivi, non contatori, e
 seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e sono lavoro di CP 14.7/14.8.
 
+> ✅ **Confermata il 2026-08-17 — [D-166](../decisions/RT_PDR_00_Decision_Log.md) — dopo un conflitto reale
+> con il codice.** Con **CP 14.5** è atterrata in coda a `ERTLogCategory` una categoria di nome simile,
+> `ReactionDecision`, già serializzata e letta da cinque call site: per un giorno questa §4.2 e `RTTurnLog.h`
+> hanno descritto due code diverse, e nessun gate lo vede — non è un link rotto né un simbolo inesistente,
+> sono due nomi plausibili in due documenti che nessuno legge insieme.
+>
+> **Prevale questa spec, e le due categorie coesistono** perché rispondono a due domande diverse sulla stessa
+> finestra:
+>
+> | Categoria | Enum di esito | `Amount` | Risponde a |
+> |---|---|---|---|
+> | `ReactionDecision` *(CP 14.5)* | `ERTReactionDecisionOutcome`, sei valori | **danni** | *cosa ha scelto, e perché* |
+> | `Decision` *(questa §)* | `ERTDecisionOutcome`, tre valori | **millisecondi** | *quanto è costata, e cosa resta* |
+>
+> ⚠️ **La ragione che decide è `Amount`, ed è la stessa che questo paragrafo usa già due volte**: `Amount` è
+> il payload numerico **della categoria**. Sotto `ReactionDecision` vale danni — lo dice il commento di
+> `FireChosen` — e farci scrivere anche i millisecondi del bank significherebbe che lo stesso campo, sotto la
+> stessa categoria, cambia unità di misura secondo l'esito. È il difetto che il commento di
+> `ERTReactionDecisionOutcome` argomenta di aver evitato tenendo un enum solo, reintrodotto dall'altra parte.
+>
+> Due categorie **non** sono due verità: lo sarebbero se entrambe dichiarassero *cosa è stato scelto*. Qui una
+> registra l'esito e l'altra il costo, e nessuna delle due è derivabile dall'altra.
+>
+> 🔴 **Il difetto non era il nome: era che nessuno ha riletto questa § quando CP 14.5 ne ha aggiunta una
+> simile in coda.** Registrato alla riga **75** di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md).
+
 ### 4.3 La **causa** di un esito *(2026-08-10, CP 11.3 `#79` + `#307`)*
 
 Fino a qui il TurnLog rispondeva bene a *cosa è successo* e male a *perché*. Due buchi misurati:

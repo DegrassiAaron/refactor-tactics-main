@@ -409,10 +409,21 @@ features:
       *(3)* `PreferredResponse` e' una dichiarazione di planning che vive accanto a
       `FRTArmedOverwatch::Condition` ([D-109]) e ne e' l'opposto — quella **riduce** le
       `AllowedResponses`, questa non le tocca.
-      🔴 **Una voce di DoD di #319 e' oggi falsificabile, misurata in questo giro**: `spec-turnlog.md` §4.2
-      prescrive `ERTLogCategory::Decision`, il codice di CP 14.5 ha in coda `ReactionDecision`, gia'
-      serializzata in TurnLog v8. Sono due categorie sulla stessa finestra e la scelta va fatta **prima**
-      del runtime — riga **75** di `DOC_CONFLICT_MATRIX.md`, stato `CONFLICT`.
+      ✅ **2026-08-17 — due gate chiusi, entrambi decisioni d'autore e zero codice.**
+      **[D-166]**: la categoria di log e' **`Decision`**, distinta da `ReactionDecision`. Prevale
+      `spec-turnlog.md` §4.2, che lo prescriveva dal 2026-08-09 (`#361`); la riga **75** di
+      `DOC_CONFLICT_MATRIX.md` passa da `CONFLICT` a `CONFIRMED` e la voce in `OPEN_DECISIONS` si chiude.
+      La ragione non era il nome ma **`Amount`**, che ha significato per categoria: danni sotto
+      `ReactionDecision`, millisecondi sotto `Decision`. Il formato serializzato **non cambia versione**.
+      ⚠️ Resta da SCRIVERE l'enum e la voce in coda: e' lavoro di CP 14.8, e la decisione non lo anticipa.
+      **[D-167]**: `TB-10` chiusa con la risposta che **non cambia niente** — le finestre dello stesso
+      giocatore restano in serie e il cap aggregato lo fa il bank. La misura sta in `ApplyReactionDecision`,
+      che fra le sue tre mutazioni chiama **`StopUnitInPlace` sul mover**: in un batch la seconda decisione
+      verrebbe presa prima di sapere che la prima ha fermato il bersaglio.
+      ⚠️ **La parte operativa e' su un'ALTRA issue**: `TB-10` lascia un vincolo su **CP 14.6** (`#166`) — il
+      campione di pacing deve includere il caso a **due unita' armate dello stesso giocatore**
+      (`2 x MaxPromptsPerReaction x 3,0 s` = 18 s in un turno), o taratura e baseline descrivono un gioco
+      che la v0.1 non gioca.
       ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**: `docs/technical/test-manuali-pie.md`
       appartiene a un'altra track in `parallel-batch.yaml` e per `D-139` si aspetta il suo owner. Il testo
       pronto sta nel DoD di #319 e in §11 della spec: e' un debito **nominato**, non una dimenticanza.
