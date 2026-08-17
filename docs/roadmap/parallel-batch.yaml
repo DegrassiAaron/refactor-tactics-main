@@ -2604,8 +2604,15 @@ tracks:
     binary_leases: []
 
   content_editor:
-    status: ACTIVE
-    issue: 451
+    # 🔴 **`ACTIVE` su una issue CHIUSA, corretto il 2026-08-17.** `#451` è `CLOSED/COMPLETED` dalle
+    # `05:38Z` del 2026-08-16 — misurato con `gh issue view 451`, non dedotto — ed è la «contraddizione
+    # decidibile» che lo schema descrive.
+    # ⚠️ **Non è costato solo una riga sbagliata**: la sessione che ha lavorato `#868` ha creduto a questo
+    # campo invece di chiedere a GitHub, e ha scritto in una guida operativa prescrizioni per una seduta
+    # già eseguita. Un campo di stato stantio è un input che qualcuno userà.
+    # Il residuo di U1 non muore con la track: la voce `-H` è aperta su `#996`, e la guida su `#868`.
+    status: IDLE
+    issue: null
     session: U1
     # ⚠️ La seduta ha **anche** un branch, e lo schema non lo prevedeva: `session:` sostituisce
     # `branch:` perché l'unità di lavoro è un'apertura di editor, non un commit. Resta vero — ma il
@@ -2637,7 +2644,9 @@ tracks:
       · `session_branch: feat/451-u1-voci-hex-mode` è **atterrato** con la PR **#930**
         (`2026-08-15T22:30:06Z`, `311da2d7`), write-set misurato **0** su `4ab36b48`. Il worktree
         `D:/rt-content` è ancora lì, fermo su quel branch, cioè su un commit che `main` contiene già.
-        La `issue` **#451 resta OPEN** — terza track del batch nella stessa condizione.
+        🔴 Diceva *«la `issue` #451 resta OPEN»*, e il 2026-08-16 è diventato falso: è
+        `CLOSED/COMPLETED` dalle `05:38Z`. La riga è rimasta a dirlo per un giorno, ed è quella
+        su cui `#868` si è basata invece di interrogare GitHub.
       · 🔴 **La giustificazione della lease non emessa è CADUTA.** Questa nota dice che
         `Content/RT/Maps/Dev/L_HexArena/` non riceve lease perché `wip/icon-visual-language` tiene un
         blob divergente di `DA_HexMap_Arena.uasset` (`7f7cb735` / 29895 byte contro `e31b644b` / 48245).
@@ -2947,58 +2956,23 @@ tracks:
     # `generated_only` applicata a una riassegnazione: la vista segue la sorgente, e la sorgente ha
     # cambiato proprietario. Questa track non rigenera più quelle due viste.
     derives_from: []
-    binary_leases:
-      # Prima lease emessa da questa track. `create` prenota una **destinazione**: nessun'altra track può
-      # creare questo path, e il path non esiste ancora — quindi non c'è nulla da contendere se non il
-      # nome. Un solo package: un materiale non è una mappa, e la regola «la lease si emette sulla
-      # cartella» vale per le mappe, che sono cartelle con un numero di package che non si deduce.
-      - key: "BINARY-GH896-HEXCELL-MATERIAL"
-        issue: 896
-        base_sha: "bc84fe69ddf23974a3a5640c52c5be1ef1320ce9"
-        operation: create
-        paths:
-          - Content/RT/Core/Grid/M_HexCell.uasset
-        verification:
-          - load_in_editor
-          - save_without_errors
-          # ⚠️ La verifica che conta non è che l'asset si apra: è che la mesh e l'anello dell'overlay della
-          # **stessa cella** abbiano lo stesso colore. Prendono entrambi da `URTHexLibrary::SurfaceColor`,
-          # quindi devono combaciare; se non combaciano, il materiale applica una conversione di troppo —
-          # i custom data sono già lineari (`FromSRGBColor` in `RTHexMapActor.cpp`).
-          - mesh_color_matches_overlay_ring
-
-      # 🔴 **Lease emessa DOPO il fatto, e va detto invece che nascosto.** Assegnare il materiale al
-      # componente `Cells` dell'actor richiede di salvare il livello, e l'istruzione che lo chiedeva è
-      # stata data mentre valeva la regola opposta — «non salvare `L_HexArena`, non ha lease». Il salvataggio
-      # è avvenuto, la modifica è stata **misurata prima di tenerla** (nome per nome, sull'header dei due
-      # package) e si è rivelata puramente additiva: 9 nomi in più, **zero in meno**, fra cui
-      # `/Game/RT/Core/Grid/M_HexCell` e `OverrideMaterials`. Non è #858, dove un risalvataggio toglieva.
-      # ⚠️ Sulla CARTELLA, non sul file: una mappa non è un file, e qui sono due package misurati con
-      # `git ls-files` — il `.umap` e il proprio `Data/DA_HexMap_Arena.uasset`. Il secondo non è toccato da
-      # questo lavoro, ma entra nella lease perché la mappa lo referenzia e un holder solo deve valere per
-      # entrambi.
-      - key: "BINARY-GH896-HEXARENA-ASSIGN-MATERIAL"
-        issue: 896
-        base_sha: "bc84fe69ddf23974a3a5640c52c5be1ef1320ce9"
-        operation: modify
-        paths:
-          - Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
-          - Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
-        verification:
-          - load_in_editor
-          - save_without_errors
-          # 🔴 **Diceva «il conteggio celle deve restare 98», e il branch stesso l'ha reso impossibile.**
-          # `1475582d` porta l'arena a **64** celle come modifica d'autore, misurata sull'header dei due
-          # package: `Cells 98 → 64`, `Transitions 2 → 2` intatte, celle tolte una a una via `RemoveCell` —
-          # non `ClearAsset` né `GenerateFixture`, che avrebbero azzerato anche le transizioni. La verifica
-          # era quindi insoddisfacibile per costruzione, e una verifica che non può passare non protegge
-          # niente. Il conteggio atteso è **64**, e si rilegge dal commit, non da questa riga.
-          # 🔴 **E il vecchio segnale era peggio dell'errore**: diceva «se dicesse 65 si starebbe guardando
-          # `GeneratedTestArena`». L'arena vera adesso ne ha **64** — una cella di distanza. Chi misura,
-          # legge `64` e rilegge questa riga conclude di stare guardando la mappa sbagliata proprio quando
-          # sta guardando quella giusta. ∴ **il discriminante non è più il conteggio: è `Transitions`** —
-          # l'arena ne ha 2, `GeneratedTestArena` zero, e nessuna delle due strade per generarla le crea.
-          - arena_check_still_passes
+    # 🔴 **Le due lease di `#896` sono RILASCIATE il 2026-08-17, e l'elenco torna vuoto.**
+    # Erano `BINARY-GH896-HEXCELL-MATERIAL` (`create`, `M_HexCell.uasset`) e
+    # `BINARY-GH896-HEXARENA-ASSIGN-MATERIAL` (`modify`, i due package di `L_HexArena/`). Restavano qui
+    # dopo la fine del proprio lavoro, e una prenotazione scaduta che sembra viva è peggio di nessuna.
+    # Misurato, non dedotto — tre condizioni, tutte e tre soddisfatte:
+    #   · `#896` e' **CLOSED** dal 2026-08-15;
+    #   · i tre asset sono in `main` (`git ls-files`): il lavoro e' atterrato;
+    #   · entrambe sono **stale** per la regola di questo file — *«una lease vale sul `base_sha`: se `main`
+    #     tocca lo stesso asset, la lease e' stale e va riemessa»*. Da `bc84fe69`, `main` ha toccato
+    #     `M_HexCell.uasset` **1** volta e `L_HexArena/` **2** (`8024a742`, `1475582d`).
+    # ⚠️ **Perche' rimuoverle invece di annotarle**: `binary_leases` e' l'elenco delle prenotazioni ATTIVE,
+    # ed e' cio' che un lettore interroga per sapere se puo' scrivere un binario. Tenerci dentro una lease
+    # morta ha gia' ingannato qualcuno: `#868` ha concluso che `L_HexArena/` fosse coperto, e la guida di U1
+    # ne ha portato la conseguenza sbagliata. La storia delle due lease resta nei commit che le hanno
+    # emesse; qui conta chi puo' scrivere **oggi**, e la risposta e' nessuno.
+    # ∴ chi dovra' modificare uno di quei package **emette una lease nuova**, sul proprio `base_sha`.
+    binary_leases: []
     # ⚠️ Perché `#623` / U21 **non** è il candidato, benché sia `READY` nella coda generata: la sua
     # lease su `Content/RT/Maps/Dev/L_DevSandbox/` — due package qui, uno solo in `L_Prototype`,
     # misurati e non dedotti — è emettibile, ma U21 non blocca la v0.1 (`critical: false`, `P3`)
