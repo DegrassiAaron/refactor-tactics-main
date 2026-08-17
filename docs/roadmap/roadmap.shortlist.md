@@ -37,7 +37,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E18** | ✅ | 1 | 7/9 | **Una sola** azione predittiva rende percepibile il pilastro. Non dipende da E13/E14 |
 | **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
-| **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
+| **E21** | 🟡 | 2 | 1/12 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
 | **E46** | 🟡 | 5 | 5/27 | — |
 | **E47** | — | 2 | 3/15 | — |
 
