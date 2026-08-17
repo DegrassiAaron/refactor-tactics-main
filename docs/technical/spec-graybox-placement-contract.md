@@ -186,18 +186,46 @@ per questo le misure di questo documento sono in frazioni di `C`.
 
 ### 6.1 Quanto vale `C` in metri, e perché la domanda ha due risposte
 
-[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis fissa la **scala d'arte**:
+[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis fissa **una sola cosa**, la scala
+d'arte, dal 2026-08-09:
 
 ```text
-1 UU  = 1 cm
-lato dell'esagono ≈ 1,50 m          →  C ≈ 2,60 m      (apotema · 2)
-                                        vertice-vertice = 3,00 m
+lato dell'esagono ≈ 1,5 m
 ```
 
-⚠️ **Il default del codice è un altro numero**, e i due non vanno confusi: `HexSize` nasce a `100.f` in
-`RTHexMapAsset.h` e `RTHexMapActor.h`, cioè un lato di **1,00 m** e `C ≈ 1,73 m`. Il default è il valore
-che una mappa ha *finché nessuno lo cambia*; la scala d'arte è quella a cui si **modella**. Chi costruisce
-una mesh usa `1,50 m`; chi legge una mappa esistente legge il suo `HexSize`.
+Il resto si deriva per geometria — `C = √3 · lato ≈ 2,60 m`, vertice-vertice `3,00 m`, apotema `~1,30 m` —
+**a patto** che una unità Unreal valga un centimetro.
+
+⚠️ **Che `1 UU = 1 cm` non è scritto da nessuna parte**: è la convenzione di default di Unreal, vera in
+pratica e mai dichiarata nel repository (`grep -i 'UU'` sulle convenzioni dà **zero**). Qui si assume, e
+l'assunzione è esplicita perché il giorno in cui qualcuno la cambiasse ogni numero di questa sezione
+diventerebbe falso in silenzio.
+
+### 🔴 E la scala d'arte non è la scala di nessuna mappa esistente
+
+```text
+scala d'arte      lato 1,50 m      →  C ≈ 2,60 m     ← a cui si MODELLA
+default del codice lato 1,00 m     →  C ≈ 1,73 m     ← a cui gira OGNI mappa
+```
+
+Misurato: sia `RTHexMapAsset.h` sia `RTHexMapActor.h` lasciano `HexSize` a `100.f`, e **nessuna mappa lo
+sovrascrive**.
+
+> ⚠️ **Come si verifica, e come NON si verifica.** `HexSize` è un `UPROPERTY(EditAnywhere)` su asset e
+> attore, quindi il valore di una mappa vive dentro un `.uasset` o un `.umap` — **binari**. Un `grep` su
+> `Scenarios/` e `Config/` non li apre nemmeno: è la misura che la prima stesura di questa riga citava, e
+> non poteva sostenere la conclusione. I cinque binari di mappa vanno ispezionati direttamente
+> (`DA_HexMap_Arena`, `DA_HexMap_Sandbox`, `L_HexArena`, `L_DevSandbox`, `L_Prototype`), ed è così che la
+> conclusione è stata confermata in code review.
+
+**Le due scale divergono di 1,5×, e la divergenza non è risolta.** Una copertura bassa modellata a
+`0.28 C` con `C = 2,60 m` è alta 73 cm; posata su una mappa reale — dove `C = 1,73 m` — quei 73 cm valgono
+il **42% di `C`** invece del 28% che questo contratto budgeta. ⚠️ *Il termine di paragone è `C`, non
+«l'altezza della cella»: una cella esagonale non ha un'altezza, e `C` è un passo orizzontale. La prima
+stesura scriveva «dell'altezza di cella» e invitava a cercare un numero che non esiste.*
+
+Questo documento **non sceglie**: non è il suo owner. Ma smette di far finta che il problema non ci sia —
+chi modella oggi deve sapere che sta autorando per una cella che nessuna mappa ha. È `GBX-6`.
 
 > 🔑 **E §11-bis dichiara il proprio limite, che vale anche qui**: *«non è una metrica di design, e non va
 > usata come tale»*. Serve a dimensionare mesh e proporzioni — *quanto è grande questo modello* — non a
@@ -210,8 +238,10 @@ una mesh usa `1,50 m`; chi legge una mappa esistente legge il suo `HexSize`.
 > `GrayToolkit`, che ha reso la divergenza visibile mettendo i due numeri accanto.
 
 > 🔴 **La riga precedente diceva «`C` discende da `HexSize`, default `100.f`» senza il fattore `√3`.** Chi
-> avesse letto «0.28 C» come 28 cm avrebbe modellato una copertura bassa alta il **58%** del dovuto — il
-> fattore `1/√3`. Lo stesso valeva per il Safe Placement inset di `GBX-1`, espresso nella stessa unità.
+> avesse letto «0.28 C» come 28 cm avrebbe modellato una copertura bassa alta il **58%** del dovuto —
+> `0.28 · 173 ≈ 48 cm`, e `28/48 ≈ 0,58`, cioè il fattore `1/√3`. **Il 58% è ancorato a `C ≈ 173`**, non
+> invariante: con la scala d'arte (`C ≈ 260`) lo stesso errore darebbe il 38%. Lo stesso valeva per il Safe
+> Placement inset di `GBX-1`, espresso nella stessa unità.
 > ⚠️ *E la prima stesura di questa nota diceva «alta un terzo del dovuto», confondendo il fattore d'errore
 > (`√3 ≈ 1,73`) con il suo reciproco. Trovato in code review.*
 

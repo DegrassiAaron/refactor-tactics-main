@@ -1,4 +1,11 @@
 # REFACTORTACTICS — Wiki Pack: Gray Toolkit, Asset Roadmap e Asset Contract
+
+> ## 🗄️ `HISTORICAL` — sorgente archiviato il **2026-08-17**
+>
+> **Materiale NON autorevole**, e **superato dentro il bundle stesso**: è la prima stesura delle pagine
+> Wiki, sostituita da [`04_GrayToolkit_Wiki_Pages_v2_Latest.md`](04_GrayToolkit_Wiki_Pages_v2_Latest.md).
+> Il `README_FIRST` del bundle lo dice: *«usare solo come storico/confronto»*.
+
 ## Handoff per Claude Code / Claude Cloud
 **Data:** 2026-08-17  
 **Scopo:** creare o aggiornare le pagine Wiki dedicate al Gray Toolkit, alla roadmap asset e alle regole di import/scala/placement, usando le immagini già generate e riconciliando i contenuti con la repository live.

@@ -16,6 +16,8 @@
 #include "Turn/RTReactionLibrary.h" // ERTReactionPassPoint/FRTReactionTriggerHit: la firma del pass reazioni li usa
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: l'Overwatch armato porta con se' la condizione dichiarata
 #include "Turn/RTReactionOpportunityTypes.h" // FRTReactionOpportunity/FRTReactionDecision: le firme del boundary li usano
+#include "Turn/RTReactionPassResult.h" // FRTReactionPassResult/FRTDisplacementCause: cio' che il pass reazioni raccoglie
+#include "Turn/RTBlastContext.h" // FRTBlastContext: lo stato che i pass del Blast si passano l'un l'altro
 #include "RTTurnManager.generated.h"
 
 class ARTUnit;
@@ -33,89 +35,6 @@ class URTHexMapAsset;
  * La CELLA invece e' catturata in pianificazione e non si tocca piu': e' il dato che rende la previsione una
  * scommessa invece di un ordine.
  */
-/**
- * Cosa ha spostato un'unita' contro la sua volonta' (`#307`), raccolto durante il Blast e consumato quando la
- * spinta o la trazione si applicano.
- *
- * **Una struct e non tre mappe parallele**, e la ragione e' un difetto vero: la prima stesura teneva
- * `ActionId` e `BaseActionId` in due `TMap` distinte **condivise fra spinta e trazione**, e con entrambe sullo
- * stesso bersaglio la seconda `Add` sovrascriveva la prima — una voce finiva per dichiarare l'attaccante
- * sbagliato. Trovato in code review, corretto separando le mappe per effetto. Tenere i campi INSIEME toglie
- * la classe di errore a monte: non esiste piu' un modo di disallinearli fra loro.
- */
-struct FRTDisplacementCause
-{
-	/** Azione che ha prodotto lo spostamento (`Action.Push`, `Guardian.Sweep`, …). */
-	FName ActionId;
-	/** Generica di cui `ActionId` e' un profilo, quando la dichiara (D-033). */
-	FName BaseActionId;
-	/** Priorita' intra-fase dell'azione (CP 11.3): con quale precedenza ha risolto. */
-	int32 Priority = 0;
-};
-
-/**
- * Cio' che il pass delle reazioni RACCOGLIE e che il chiamante applica insieme al resto della propria fase
- * (CP 5.1, `#505`).
- *
- * Una struct e non sette variabili locali perche' il pass smette di essere uno solo: con `D-092` diventa
- * richiamabile per fase, e sette parametri d'uscita separati sono sette occasioni di passarne uno in meno.
- * Gli array sono **paralleli** — disallinearli attribuirebbe un contrattacco all'unita' sbagliata, che e' la
- * stessa classe di difetto gia' costata una correzione a `FRTDisplacementCause` qui sopra.
- *
- * Non contiene le FUGHE (`SelfReposition`): quelle il pass le raccoglie e le applica al proprio interno, dopo
- * aver valutato tutte le reazioni sullo snapshot congelato (`D-094`). Uscire di qui con delle destinazioni da
- * applicare piu' tardi rimetterebbe in gioco proprio l'ordine che quella decisione toglie di mezzo.
- */
-struct FRTReactionPassResult
-{
-	/** Riduzione del danno per bersaglio dichiarata dalle reazioni attivate: entra nel delta del PRIMO danno. */
-	TArray<int32> DeflectDelta;
-
-	/** Colpi di ritorno, accodati ai colpi veri della fase. I cinque array che seguono gli sono paralleli. */
-	TArray<FRTAttack> CounterAttacks;
-	/** Cella di chi contrattacca, per il TurnLog. */
-	TArray<FRTCellId> CounterAttackSrc;
-	/** Identita' della reazione che ha prodotto il colpo di ritorno (CP 11.3, `#79`). */
-	TArray<FName> CounterActionId;
-	/** Generica di cui `CounterActionId` e' un profilo, quando la dichiara (D-033). */
-	TArray<FName> CounterBaseActionId;
-	/** Priorita' intra-fase della reazione. */
-	TArray<int32> CounterPriority;
-	/** E CHI contrattacca: una cella non identifica un'unita' ([D-063]). */
-	TArray<ARTUnit*> CounterAttackActors;
-
-	/**
-	 * Chi ha ANNULLATO lo spostamento che stava per subire (`Reaction.Anchor`, `CancelDisplacement`): indici
-	 * in `Units`, che i rami di spinta e trazione consultano prima di muovere.
-	 *
-	 * Un `TSet` perche' l'uso e' solo `Contains`: non ci si itera sopra, quindi l'ordine non deterministico di
-	 * `TSet` non puo' entrare nell'esito (invariante #3).
-	 */
-	TSet<int32> CancelledDisplacements;
-
-	/**
-	 * Chi ha ANNULLATO il controllo che stava per ricevere (`Reaction.Cleanse`, `CancelStatus`): indici in
-	 * `Units`, che il punto di applicazione degli stati consulta prima di applicarli.
-	 *
-	 * Quale dei controlli in arrivo salti non e' qui: lo decide chi applica, che ha davanti la lista completa
-	 * e sceglie **il piu' grave** (`URTReactionLibrary::ControlSeverityRank`). Metterlo qui vorrebbe dire
-	 * scegliere due volte, in due posti che possono divergere.
-	 */
-	TSet<int32> CancelledControls;
-
-	/**
-	 * Chi fugge SENZA una sorgente da cui allontanarsi (`Reaction.HazardEscape`): indici in `Units`, e
-	 * `HazardFleeDistance` parallelo con quante celle.
-	 *
-	 * Lista separata dalle fughe del Blast, e non e' una duplicazione: quelle hanno una direzione — via da chi
-	 * ha innescato — e il pass le applica al proprio interno con la geometria della spinta. Qui la direzione
-	 * non esiste: c'e' una cella diventata pericolosa e basta, quindi **dove** si va lo decide il chiamante
-	 * (`URTTerrainLibrary::FindEscapeCell`, che guarda il facing). Un solo array per entrambe avrebbe
-	 * costretto il pass a conoscere due geometrie.
-	 */
-	TArray<int32> HazardFlees;
-	TArray<int32> HazardFleeDistance;
-};
 
 USTRUCT()
 struct FRTArmedPrediction
@@ -521,6 +440,116 @@ protected:
 	void ResolveDash();
 	void ResolveCombat();
 	void ResolveMovement();
+
+	// --- Pass della fase Blast -------------------------------------------------------------------
+	//
+	// `ResolveCombat` ordina; questi decidono. Ogni pass riceve il contesto della fase (`FRTBlastContext`)
+	// e vi lascia cio' che i successivi leggeranno: la sequenza e' quella di `ResolveCombat`, e cambiarla
+	// cambia il gioco — l'ordine fra controllo, danno e spostamento e' una regola del catalogo, non un
+	// dettaglio di implementazione. Sono metodi e non funzioni libere perche' scrivono nei membri che
+	// devono sopravvivere alla fase: `TurnLog`, `TeamKnowledgeState`, `ReactionBlockedThisTurn`.
+
+	/** Raccoglie le unita' del livello, le ordina per cella e costruisce identita', stati e copia posizionale. */
+	void GatherBlastUnits(FRTBlastContext& Ctx) const;
+
+	/**
+	 * Rinfresca la conoscenza di squadra (CP 13.2) sulle posizioni POST-Dash.
+	 * Qui e non a inizio turno: chi ha caricato in mezzo al campo si e' esposto, e l'avversario deve saperlo
+	 * prima di sparare. Osservare prima dello scatto darebbe una fotografia che nessuna fase usa.
+	 */
+	void RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx);
+
+	/**
+	 * `Action.Cleanse` (CP 5.2): risolve PRIMA del ciclo degli intenti, che consuma `PlannedAbilityIndex`.
+	 * Il controllo (codice 30) viene prima del danno (40): purificarsi da `Exposed` dopo averne incassato il
+	 * malus non servirebbe a niente.
+	 */
+	void ResolveCleanseActions(const FRTBlastContext& Ctx);
+
+	/**
+	 * `Action.Heal` (CP 8.5): si RACCOGLIE qui, prima che il ciclo degli intenti azzeri i piani, e si applica
+	 * dopo i danni — la priorita' 70 del catalogo la mette dopo gli attacchi (50-65), quindi cura le ferite di
+	 * questo turno, non quelle del turno prima.
+	 */
+	void CollectHealActions(FRTBlastContext& Ctx);
+
+	/**
+	 * Traduce i piani delle unita' in intenti d'attacco: valida l'ABILITA' (esiste, non e' uno scatto, e'
+	 * utilizzabile), orienta chi ha un bersaglio ([D-020]), consuma la conoscenza di squadra sul targeting
+	 * (CP 13.2) e applica il fallback DICHIARATO quando l'istanza non regge. La GEOMETRIA — portata, linea di
+	 * tiro, celle colpite — non si valuta qui: la valida `URTHexCombatLibrary` sul piano.
+	 *
+	 * Intercetta anche le azioni che NON sono intenti d'attacco ma risolvono in questa fase
+	 * (`Action.ModifyArc`) o in una successiva (fase `Environment` -> Cleanup), perche' questo ciclo azzera
+	 * `PlannedAbilityIndex` per ogni unita': un pass successivo non troverebbe piu' nulla da leggere.
+	 */
+	void CollectAttackIntents(FRTBlastContext& Ctx);
+
+	/**
+	 * Aggiunge come intenti gli impatti delle cariche risolte nella fase Dash, e svuota la coda.
+	 * Il movimento e' avvenuto prima, il colpo risolve qui per priorita': applicarlo dentro il Dash lo
+	 * avrebbe messo fuori dall'ordine del catalogo.
+	 */
+	void AppendChargeImpactIntents(FRTBlastContext& Ctx);
+
+	/**
+	 * `Action.Interrupt` (CP 4.7): toglie dal piano i colpi di chi e' stato interrotto, e il colpo
+	 * dell'Interrupt stesso. Filtra `Plan.Hits` PRIMA che diventino danno o eventi, cosi' un'abilita' ad area
+	 * interrotta sparisce in un colpo solo — cosa che il registry degli effetti non saprebbe fare, perche' sa
+	 * tradurre effetti su un bersaglio ma non «annulla l'azione X».
+	 */
+	void ApplyInterrupts(FRTBlastContext& Ctx);
+
+	/**
+	 * `Action.Intercept` (CP 5.3): riscrive il bersaglio di un attacco altrui. Ha un pass tutto suo, PRIMA
+	 * delle altre reazioni, perche' il catalogo le da' la priorita' piu' bassa fra le reazioni: se risolvesse
+	 * insieme alle altre, il bersaglio originale valuterebbe il proprio Counter su un colpo che non riceve
+	 * piu'. Decide su colpi congelati, poi applica — e la rivalidazione della geometria sul nuovo bersaglio
+	 * avviene qui, dove nessuna reazione e' ancora stata valutata sui colpi riscritti.
+	 */
+	void ResolveInterceptions(FRTBlastContext& Ctx);
+
+	/**
+	 * Pass delle reazioni sui colpi del Blast (CP 5.1). Raccoglie in `Ctx.Reactions` cio' che il chiamante
+	 * applica piu' tardi — riduzione del danno e contrattacchi — mentre le fughe le applica al proprio
+	 * interno, dopo aver valutato tutte le reazioni sullo snapshot congelato ([D-094]).
+	 */
+	void RunBlastReactions(FRTBlastContext& Ctx);
+
+	/** Registra nel TurnLog gli intenti che la copertura ha fermato: l'attacco non avviene, e si dice perche'. */
+	void LogBlockedIntents(const FRTBlastContext& Ctx);
+
+	/**
+	 * Applica alla mappa cio' che il Blast ha deciso: danno alle strutture (CP 9.2), operazioni sugli archi
+	 * (CP 9.4) e ordini alle porte (CP 9.3).
+	 *
+	 * Tutto ORA, a colpi risolti, e non durante la raccolta: chi ha sparato in questo Blast non guadagna la
+	 * linea perche' il muro e' caduto — la vista e il grafo si riaprono dalla fase successiva, e l'ordine dei
+	 * colpi non cambia l'esito (invariante #3). La mappa che scrive e' la COPIA di lavoro dell'actor, non
+	 * l'asset su disco.
+	 */
+	void ApplyEnvironmentChanges(FRTBlastContext& Ctx);
+
+	/**
+	 * Spinta e trazione (CP 4.7), applicate DOPO il danno sulle posizioni dello snapshot del Blast.
+	 *
+	 * Include il punto di valutazione di `Reaction.Anchor` (CP 7.5): gli spostamenti sono decisi e non
+	 * ancora applicati, ed e' l'unico momento in cui annullarli e' possibile — dopo, vorrebbe dire rimettere
+	 * indietro un'unita' gia' mossa, con due voci di TurnLog che si contraddicono sullo stesso passo.
+	 * UNA chiamata per spinta e trazione insieme: chi e' spinto **e** tirato reagisce una volta sola.
+	 */
+	void ApplyDisplacements(FRTBlastContext& Ctx);
+
+	/** Gli attaccanti sopravvissuti spendono l'abilita' (energia e cooldown); se gratuita, accumulano energia. */
+	void ConsumeAttackerAbilities(FRTBlastContext& Ctx);
+
+	/**
+	 * Applica ai bersagli sopravvissuti gli stati dichiarati dai colpi, consultando prima chi ha annullato il
+	 * controllo con una reazione. Quale controllo salti lo decide QUI chi applica, che ha davanti la lista
+	 * completa e sceglie il piu' grave: deciderlo nel pass sarebbe sceglierlo due volte, in due posti che
+	 * possono divergere.
+	 */
+	void ApplyControlStatuses(FRTBlastContext& Ctx);
 
 	/**
 	 * Azioni AMBIENTALI pianificate (fase `Environment`, codice 50 del catalogo): risolvono nel **Cleanup**,

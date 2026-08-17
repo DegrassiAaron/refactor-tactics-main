@@ -1,4 +1,15 @@
 # REFACTORTACTICS — Wiki Pack v2
+
+> ## 🗄️ `HISTORICAL` — sorgente archiviato il **2026-08-17**
+>
+> **Materiale NON autorevole.** Propone **cinque** pagine Wiki; ne è stata pubblicata **una**
+> ([Graybox Toolkit](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/graybox-toolkit)), perché
+> le altre quattro descrivono materiale che ha già un owner nel repository. La ragione sta in
+> [`D-158`](../../../decisions/RT_PDR_00_Decision_Log.md) e in [`README.md`](README.md).
+>
+> ⚠️ Il testo pronto della pagina UML la presenta come *«vista tecnica per sviluppatori»*: **non lo è** —
+> delle classi che nomina una sola esiste in `Source/`.
+
 ## Gray Toolkit / Asset Roadmap / Asset Contract
 **Data:** 2026-08-17  
 **Scopo:** aggiornare le pagine Wiki usando **le ultime due immagini approvate**, distinguendo chiaramente:
