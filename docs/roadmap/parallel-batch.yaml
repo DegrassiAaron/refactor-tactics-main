@@ -5498,6 +5498,36 @@ tracks:
     derives_from: []
     binary_leases: []
 
+  timebank_decisions:
+    status: ACTIVE
+    issue: 319
+    branch: docs/tb-decisioni-log-e-tb10
+    worktree: "D:/rt-tb"
+    note: >-
+      ➕ **Track aperta il 2026-08-17 per chiudere due gate di `#319`, entrambi decisioni d'autore e zero
+      codice.** [D-166] risolve il `CONFLICT` della riga 75 della matrice — la categoria di log del bank e'
+      **`Decision`**, distinta da `ReactionDecision`, perche' `Amount` ha significato **per categoria** e
+      mescolare danni e millisecondi sarebbe il difetto che `ERTReactionDecisionOutcome` dichiara di evitare.
+      [D-167] chiude `TB-10` con la risposta che **non cambia niente**: le finestre restano in serie e il cap
+      aggregato lo fa il bank.
+      🔵 **La misura che ha deciso `TB-10` sta in `ApplyReactionDecision`**, e sono tre mutazioni: danno,
+      `bCharged = false`, e **`StopUnitInPlace` sul mover**. In un batch la seconda decisione verrebbe presa
+      prima di sapere che la prima ha fermato il bersaglio. ➕ E un secondo effetto: `bFire` controlla
+      `IsValid` ma non `IsAlive`, quindi un batch farebbe colpire un bersaglio gia' abbattuto.
+      ⚠️ **La parte operativa non e' qui**: `TB-10` lascia un vincolo su **CP 14.6** (`#166`) — il campione di
+      pacing deve includere il caso a **due unita' armate dello stesso giocatore**, o taratura e baseline
+      descrivono un gioco che la v0.1 non gioca.
+      🔴 **Un difetto di processo, registrato**: i due `D-nnn` sono stati riservati dal **checkout
+      principale** invece che da questo worktree, e l'allocatore lega la reservation al **branch** —
+      `rt_shared_id.py check` li ha rifiutati come *reserved-by-other-branch*. Ceduti e ripresi da qui
+      (`D-164`/`D-165` → `D-166`/`D-167`, contatore non sceso). Si riserva **dove si scrive**.
+    writable:
+      # Owner del bank e owner dei nomi di evento: entrambi non assegnati prima di questa track.
+      - docs/gameplay/spec-decision-time-bank.md
+      - docs/technical/spec-turnlog.md
+    derives_from: []
+    binary_leases: []
+
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test

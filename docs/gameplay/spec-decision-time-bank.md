@@ -522,34 +522,59 @@ quanto ha speso, quanto gli resta, e se è stato un timeout e perché.
 |---|---|
 | `DecisionId` · `OpportunityId` · owner | riusare l'identità già in uso per le opportunity |
 | `AllowedResponses` · `CanonicalResponse` | il replay riproduce **questa**, non il countdown |
-| `BankBeforeMs` · `BankConsumedMs` · `BankAfterMs` | il residuo è un dato letto, non ricalcolato (§6) |
+| `BankConsumedMs` · `BankAfterMs` | il residuo è un dato letto, non ricalcolato (§6). ⚠️ **`BankBeforeMs` NON entra**, e questa riga ne chiedeva tre fino al 2026-08-17: il residuo *prima* è `BankAfter + BankConsumed` **della stessa decisione**, cioè due numeri adiacenti — leggerli non è il ricalcolo che §6 vieta, che sarebbe sommare la storia dall'inizio. Lo argomenta [`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2, e questa § non lo aveva recepito |
 | `TimeoutReason` | distingue scadenza, disconnessione e bank esaurito: la (2) di §4 dipende da questa distinzione |
 | `ControlledHeroes` · `InitialBankMs` **una volta per match** | ➕ **2026-08-17**, e senza queste due righe §3.4 non è verificabile: `Spec.TimeBank.ControlLoadScalesInitialBank` ha per oracolo *«il bank iniziale **registrato** segue `LoadFactor`»* e non avrebbe cosa leggere. Vanno nell'**header** e non nella voce — sono costanti di match, e `FormatId` è già lì per la stessa ragione ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §16.3: nelle voci sarebbe «una costante ripetuta N volte»). ⚠️ Il conteggio si **registra**, non si ricalcola dalle unità vive: quelle muoiono durante la partita e il replay leggerebbe un numero diverso a metà match |
 
 Il TurnLog autorevole è **server-side**. Nessuno di questi campi, per un giocatore diverso dall'owner, entra in
 una vista replicata in-match (§7).
 
-### 10.1 Il nome della categoria è già preso — da risolvere prima di scrivere il bank
+### 10.1 Il nome della categoria — chiuso il 2026-08-17, [D-166](../decisions/RT_PDR_00_Decision_Log.md)
 
-🔴 **Misurato il 2026-08-17, e va risolto da chi implementa CP 14.8.**
-[`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2 (deciso il 2026-08-09 con `#361`) prescrive che
-`ERTLogCategory` guadagni **`Decision`** in coda, e `RTTestScenario.h` lo ripete nel commento di
-`LogEventAmount`. Ciò che è atterrato con CP 14.5 è però `ReactionDecision`:
+> **`Decision` nasce come categoria distinta, in coda a `ERTLogCategory`, con un enum proprio
+> (`ERTDecisionOutcome`, **tre** esiti — `BankConsumed`, `BankAfter`, `BankExhausted`) e `Amount` in millisecondi.**
+> [`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2 prevale: prescriveva questo dal 2026-08-09 (`#361`),
+> e la scelta la conferma invece di emendarla. *(decisione dell'autore)*
 
-```
-Source/RefactorTactics/Turn/RTTurnLog.h:17
-    enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision };
-```
+Il conflitto c'era, ed era vero: `ReactionDecision` è atterrata con CP 14.5, è in coda a `ERTLogCategory`,
+serializzata in TurnLog v8 e letta da cinque call site. Ma **non è la stessa categoria mancata di nome** —
+sono due fatti diversi sulla stessa finestra:
 
-Già serializzata in TurnLog v8 e letta da cinque call site. Aggiungerne una seconda in coda darebbe **due
-categorie sulla stessa finestra** — esattamente il difetto che il commento di `ERTReactionDecisionOutcome`
-argomenta di aver evitato tenendo un enum solo.
+| Categoria | Enum di esito | `Amount` | Risponde a |
+|---|---|---|---|
+| `ReactionDecision` | `ERTReactionDecisionOutcome`, sei valori | **danni** | *cosa ha scelto, e perché* |
+| `Decision` *(nuova)* | `ERTDecisionOutcome`, **tre** valori | **millisecondi** | *quanto è costata, e cosa resta* |
 
-Le due uscite, e nessuna è ovvia: *(a)* il bank scrive dentro `ReactionDecision` con esiti propri
-(`BankConsumed`, `BankAfter`), e §4.2 di `spec-turnlog.md` va emendata; *(b)* nasce `Decision` come categoria
-distinta perché il bank serve anche finestre che **non** sono reazioni (è la ragione per cui il FeatureId è
-`RT-FEAT-CORE-*` e non `-REACTION-*`, §14), e allora va detto perché due categorie non sono due verità.
-La scelta è dell'owner del TurnLog e va fatta **prima** della prima riga di runtime, non dopo.
+**La ragione che decide è `Amount`, e la scrive già il commento di `ERTReactionDecisionOutcome`.** Quel
+commento argomenta contro *«due assi per un campo solo»* e conclude che `Amount` deve restare *«la quantita'
+che dichiara di essere»*. `Amount` ha significato **per categoria**: danni per `Combat` e `ReactionDecision`,
+celle per `Move`, direzione per `Facing`. Far scrivere al bank i propri millisecondi sotto `ReactionDecision`
+significherebbe che lo stesso campo, sotto la stessa categoria, vale danni per `FireChosen` e tempo per
+`BankAfter` — cioè il difetto che quel commento dichiara di aver evitato, reintrodotto dall'altra parte.
+
+Due argomenti secondari, coerenti con il primo:
+
+- il bank è **`RT-FEAT-CORE-*` e non `-REACTION-*`** (§14) perché serve ogni Decision Window, incluse quelle
+  che non sono reazioni. Voci chiamate `ReactionDecision` su finestre che non sono reazioni sarebbero un nome
+  che mente sulla propria categoria;
+- `LogEventAmount` legge `(categoria, esito)`: con due categorie distinte un'assertion sul bank non può
+  intercettare per sbaglio la voce di un colpo, e viceversa.
+
+⚠️ **Due categorie non sono due verità**, ed è la clausola che il conflitto chiedeva di scrivere: di una
+finestra si registrano **due cose** — l'esito e il costo — e nessuna delle due è derivabile dall'altra.
+Sarebbero due verità se entrambe dichiarassero *cosa è stato scelto*.
+
+🔴 **Conteggio delle voci, corretto in code review**: questo paragrafo diceva «una finestra produce **due
+voci**» e contraddiceva §4.2, che dice *«Due voci, non tre»* riferendosi alla sola categoria `Decision`. Una
+finestra di reazione ne produce **tre**: `1 × ReactionDecision` (l'esito) + `2 × Decision` (`BankConsumed` e
+`BankAfter`). Chi implementasse CP 14.8 contando due voci in tutto ne scriverebbe una sola di `Decision`, e
+perderebbe il costo **o** il residuo — e con esso la proprietà di §6, che il residuo si **legga** invece di
+ricalcolarlo.
+
+🔴 **Il difetto vero non era il nome: era che `#361` aveva deciso e nessuno aveva riletto quella riga
+quando CP 14.5 ne ha aggiunta una simile in coda.** Il conflitto è rimasto invisibile finché il consolidamento
+del 2026-08-17 non ha confrontato la spec col codice — e nessun gate lo vede, perché non è un link rotto né un
+simbolo inesistente: sono due nomi plausibili in due documenti che nessuno legge insieme.
 
 ⚠️ La Preferred Response, invece, **non** entra nel log come dato proprio: l'esito competitivo dipende dalla
 risposta committata, e `Outcome` distingue già `HOLD` scelto da `HOLD` scaduto. Registrarla servirebbe solo a
@@ -724,6 +749,8 @@ Registrate il **2026-08-17**, con gli ID presi da `rt_shared_id.py reserve D`:
 |---|---|---|
 | [`D-156`](../decisions/RT_PDR_00_Decision_Log.md) | Il bank scala col **carico di controllo** attraverso `LoadFactor` **dentro** la derivazione di D-056; `Grace` ed `ExhaustedGrace` scalano per policy data-driven; `FastReactionDuration` resta invariata (§1.2 · §3.4) | **Consolidata** nella forma · numeri `PROPOSED` |
 | [`D-157`](../decisions/RT_PDR_00_Decision_Log.md) | `PreferredResponse` è una dichiarazione di planning distinta dal timeout: non cambia le `AllowedResponses`, non consuma risorse finché non è committata, e allo scadere vale sempre `DecisionOnTimeout` (§4.4) | **Consolidata** |
+| [`D-166`](../decisions/RT_PDR_00_Decision_Log.md) | La categoria di log del bank è **`Decision`**, distinta da `ReactionDecision`, con i tre esiti che [`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2 prescrive: `Amount` ha significato per categoria, e mescolare danni e millisecondi sotto la stessa sarebbe il difetto che `ERTReactionDecisionOutcome` dichiara di evitare (§10.1) | **Consolidata** · matrice riga 75 |
+| [`D-167`](../decisions/RT_PDR_00_Decision_Log.md) | `TB-10` chiusa: le finestre dello stesso giocatore **restano in serie**, e il cap aggregato lo fa il bank. Il boundary non cambia (§17) | **Consolidata** |
 
 ⚠️ [`D-155`](../decisions/RT_PDR_00_Decision_Log.md) — il conteggio degli Hero controllati dichiarato dal
 formato — **non è di questo documento**: il suo owner è
@@ -740,7 +767,11 @@ I restanti valori numerici restano baseline di playtest con i criteri di promozi
 
 ## 17. Domande aperte
 
-### Chiuse il 2026-08-09
+### Chiuse
+
+*(La data è nella riga, non nell'intestazione: `TB-1`…`TB-4` e `TB-6` si sono chiuse il **2026-08-09**,
+`TB-10` il **2026-08-17**. L'intestazione diceva «Chiuse il 2026-08-09» e ha smesso di essere vera appena il
+secondo gruppo è arrivato — corretto in code review.)*
 
 | ID | Domanda | Esito |
 |---|---|---|
@@ -749,6 +780,7 @@ I restanti valori numerici restano baseline di playtest con i criteri di promozi
 | `TB-3` | `InitialBank` derivato o fisso? | **derivato** da `RoundLimit` (§3.2) |
 | `TB-4` | `DecisionTimingPolicy` dentro o fuori dagli hash? | **fuori**: è wall-clock, non regola. Chiusa **per precedente** (`RTMatchFormatData.h` §14: i tempi di parete non stanno fra i parametri di regola), non per scelta. `ResolverConfigHash` non esiste nel codice |
 | `TB-6` | `ExhaustedGrace`? | **0,75 s**, valore ancora `PROPOSED` (§5) |
+| `TB-10` | Più Hero dello stesso Player possono ricevere **un solo** batch di decisione invece di finestre in serie? | **No: si serializza, e il cap è il bank** — [D-167](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-17. È la risposta che *non cambia niente nel Decision Boundary*, e la misura dice perché: `ApplyReactionDecision` compie **tre** mutazioni — danno al bersaglio, `bCharged = false`, e `StopUnitInPlace` sul mover. La terza è quella che decide: in un batch la seconda decisione verrebbe presa **prima** di sapere che la prima ha fermato il bersaglio, cioè su un contesto che non esiste più. ⚠️ **E il caso è vivo in v0.1**, non futuro: due unità dello stesso umano con Overwatch armato che scattano nello stesso micro-step gli impilano **due finestre da 3,0 s in fila**, cioè **6 s** consecutivi su una persona sola. 🔴 *Questa cella diceva **18 s**, e non seguiva dal proprio antecedente: quel numero richiede che ciascuna Overwatch esaurisca il cap di **tre** prompt su tre micro-step diversi, e [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §Revisione registra che il triage del 2026-08-10 ha misurato quel `3` **già irraggiungibile** in 2v2 da una singola Overwatch. Corretto in code review: il caso peggiore per micro-step è `2 × 3,0 s`, e il tetto per turno è un limite teorico, non una misura.* Contenere il costo aggregato è esattamente il lavoro del bank (§1) — chiedere al boundary di risolverlo sarebbe un secondo strumento per lo stesso problema. **Conseguenza vincolante su CP 14.6**: il campione di pacing deve includere due unità armate **dello stesso giocatore** — e le tre parole finali sono la sostanza, perché il DoD di `#166` chiedeva già «1, 2 e 3 unità armate» senza dire di chi: due unità su squadre **diverse** fanno aspettare due persone in parallelo, due dello **stesso** giocatore gliene impilano due in fila. Misurare le prime soddisfa la lettera e produce la baseline che questa decisione esiste per evitare |
 
 ### Aperte
 
@@ -758,7 +790,6 @@ I restanti valori numerici restano baseline di playtest con i criteri di promozi
 | `TB-7` | Quale soglia distingue «lento» da «disconnesso», e il fallback è immediato o alla deadline? | **M10**, stesso motivo. Da cui dipende §4.3 |
 | `TB-8` | La taratura di `InitialBank` e `Grace` regge la misura di CP 14.5/14.6? | alla chiusura di **CP 14.6**, con i criteri di §3.2 |
 | `TB-9` | Quale `LoadFactor(2)` e quale `ExtraControlledHeroGrace`? `1,75` / `+0,50 s` è la baseline, `+0,75 s` la variante registrata (§3.4) | **dopo `TB-8`**, e non prima: sono moltiplicatori di un valore che non è ancora tarato, e un playtest solo non separa due incognite |
-| `TB-10` | Più Hero dello stesso Player possono ricevere **un solo** batch di decisione invece di finestre in serie? | 🔴 **Viva già in v0.1**, non futura: l'unico umano comanda **due** unità, e se entrambe hanno un Overwatch armato che scatta nello stesso micro-step riceve **due finestre da 3 s in fila**. La misura dice che il cambiamento non è gratuito: `ARTTurnManager::ResolveReactionBoundary` applica ogni decisione **prima** di chiedere la successiva, ed è ciò che rende corretto il caso «due watcher, `Charges = 1`». Da valutare contro ADR-0004 §4 e `#314`, non dentro CP 14.8 — ma **prima** che CP 14.6 misuri il pacing, perché la risposta cambia il caso peggiore che quella misura andrà a osservare |
 
 ---
 
@@ -782,8 +813,12 @@ Il bank non è Done perché il countdown appare in UMG.
     verificabile e il replay ricalcola il conteggio dalle unità vive
 [ ] PreferredResponse: i quattro invarianti di §4.4, ciascuno con il proprio test
 [ ] Quick Confirm: azione semantica, nessun tasto fisico nella logica di Reaction né nel widget
-[ ] il nome della categoria di log è risolto PRIMA del runtime (§10.1): Decision o ReactionDecision,
-    non entrambe
+[x] il nome della categoria di log è RISOLTO (D-166, 2026-08-17): `Decision` distinta, `Amount` in
+    millisecondi
+[ ] ...e resta da SCRIVERLA in TRE punti, non uno: l'enum `ERTDecisionOutcome`, la voce in coda a
+    `ERTLogCategory`, e il `case` in `OutcomeEnumForCategory` (RTScenarioLoader). Senza il terzo,
+    `ParseScenarioLogEvent` non risolve l'enum e lo scenario fallisce il CARICAMENTO, non l'assertion:
+    è successo con `Predictive`, ed è stato corretto il 2026-08-16. Da valutare anche `DescribeLogEvent`
 [ ] TurnLog allineato a spec-turnlog.md, nomi confermati con l'owner
 [ ] scenari §13 automatizzati, nessun sleep nei golden
 [ ] telemetria collegata a RT-FEAT-MATCH-PACING senza sostituire ReactionDecisionSeconds
