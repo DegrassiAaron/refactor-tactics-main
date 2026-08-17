@@ -1387,7 +1387,11 @@ features:
       - RefactorTactics.Actions.Move
       - RefactorTactics.Actions.BasicAttack
       - RefactorTactics.Actions.Guard
-      - RefactorTactics.Actions.Interact.IsInertUntilImplemented
+      # `Actions.Interact.IsInertUntilImplemented` non esiste piu' (2026-08-17, [D-148]): il test era
+      # scritto per CADERE il giorno in cui l'azione avesse un effetto, e quel giorno e' arrivato. Al suo
+      # posto le due proprieta' che ora sono vere, ciascuna con la propria mutazione:
+      - RefactorTactics.Actions.Interact.DeclaresOpenDoor
+      - RefactorTactics.Actions.Interact.ArmsEdgeTargeting
       # `Actions.Activate.IsInertUntilImplemented` non esiste piu' (#199): l'azione e' uscita dal
       # catalogo (D-014 + D-025), quindi «non fa nulla» non e' piu' la proprieta' da verificare.
       # Al suo posto, dal D-134: sparita dal catalogo E non piu' reindirizzata da nulla.
@@ -1447,13 +1451,17 @@ features:
 
         · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come
                     azione e si comporta come reazione. Ambiguità di modello, non di stato.
-        · `Interact` è **a catalogo senza effetto dichiarato** (`RTCatalogLibrary.cpp:281`) e
-                    nessun ramo del resolver la esegue: un dato che nessuno consuma, il difetto che
-                    questo progetto ha già pagato quattro volte. Lo porta E10.1 insieme ad
-                    `Activate`. Dalla issue `#273` l'inerzia è **fissata da un test**
-                    (`Actions.Interact.IsInertUntilImplemented`), scritto per **cadere** il giorno
-                    in cui l'effetto arriva: verificato per mutazione il 2026-08-09 — dando un
-                    effetto a `Interact` cade quel test e solo quello.
+        · ~~`Interact` è **a catalogo senza effetto dichiarato**~~ — **superato il 2026-08-17,
+                    [D-148]**: `Action.Interact` dichiara `ERTActionEffect::SetDoorState` verso `Open`
+                    ([D-151]), e il test dell'inerzia è stato sostituito da `Interact.DeclaresOpenDoor`
+                    più `Interact.ArmsEdgeTargeting`. Il test vecchio era scritto per cadere quel
+                    giorno, ed è caduto: la nota che lo citava sarebbe rimasta vera in forma e falsa
+                    in sostanza. L'anello che mancava era **solo la dichiarazione** — effetto,
+                    trasporto e raccolta esistevano già (`RTHexDoorLibrary::SetDoorState`,
+                    `RTTurnManager` → `bChangesDoor`, `RTHexCombatLibrary` su `FirstDoorEdge`).
+                    ⚠️ Resta fuori dal runtime **il produttore lato giocatore**: `HandleTargetEdge`
+                    esiste (`#737`) ma nessun test lo lega a `Interact`, e quel test vive in
+                    `RTPointerInteractionTests.cpp`, non assegnato (D-139).
         · `Overwatch` **non è ancora un'azione**, ma dal 2026-08-10 non è più «non esiste»: E14.4
                     ha portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
                     micro-step. Resta fuori dal runtime della partita per la stessa ragione di
@@ -4701,16 +4709,20 @@ features:
       innesta su owner gia' esistenti (E23 per muri/porte, E47 per la board, E15 per il Rele',
       E45 per il freeze del contratto), ed e' esattamente cio' che `D-153` decide.
 
-      🔴 **Sette dei diciannove elementi del catalogo sono `DEFER`, e quattro dipendono da feature
+      🔴 **Sette dei diciannove elementi del catalogo sono `DEFER`, e tre dipendono da feature
       `IDEA` su release `future`** (`RT-FEAT-MAP-STRUCTURAL`, `RT-FEAT-MAP-VERTICALITY`). Il kit
       «completo» non e' raggiungibile in v0.1, e non e' un ritardo: sette voci su diciannove descrivono
-      sistemi che il progetto non ha ancora deciso di costruire. La valvola e' il caso limite —
-      **fuori scope v0.1 dichiarato** da CP 10.1 §11, con motivazione registrata.
+      sistemi che il progetto non ha ancora deciso di costruire. **Due** dei sette sono
+      fuori scope v0.1 dichiarato da CP 10.1 §11 — la piattaforma mobile e la valvola — e quest'ultima e' il
+      caso limite, perche' il kit la mette fra i diciannove «v0.1» mentre la spec la esclude con
+      motivazione registrata.
 
       ⚠️ **Nessun gate difende questo contratto oggi**, ed e' dichiarato invece che sottinteso: e' la
       stessa condizione in cui `D-146` ha lasciato la ridondanza colore+forma. Le voci PIE non sono
-      state scritte perche' `test-manuali-pie.md` e' nel write-set della track `playback` (`#1015`)
-      al 2026-08-17 — per `D-139` si aspetta quell'owner, e il contenuto vive nella issue.
+      state scritte perche' `test-manuali-pie.md` e' **assegnato a un'altra track** in
+      `parallel-batch.yaml` — per `D-139` si aspetta l'owner che lo tiene OGGI. ⚠️ Qui non c'e' un nome
+      di proposito: il proprietario e' cambiato **tre volte** il 2026-08-17 e il permesso mai. Il
+      contenuto delle voci vive nella issue.
 
   - feature_id: RT-FEAT-UI-BOARD-GRAMMAR
     title: Grammatica visiva della board — colore e forma, mai solo il colore
@@ -5164,8 +5176,9 @@ features:
         # ⏱️ **Due sessioni hanno corretto queste due righe nello stesso giorno, con lo stesso risultato e
         # due diagnosi diverse.** Il merge tiene il contesto di questa — `planned`, nessun redirect, rename
         # gratuito — e **corregge la ragione**, che era: *«il gate esenta i token fra backtick»*.
-        # Misurato: `check-docs-naming.py` itera `DOCS.rglob("*.md")` in entrambi i suoi passi, quindi
-        # **questo file non lo apre affatto** — ed e' `.yaml`. L'esenzione backtick e' una regola *dentro*
+        # Misurato: l'unico `DOCS.rglob("*.md")` di `check-docs-naming.py` filtra i `.md`, e il secondo
+        # passo (`wiki_files`) scandisce il clone della Wiki — non `docs/`. ∴ questo file non viene aperto,
+        # ed e' `.yaml`. L'esenzione backtick e' una regola *dentro*
         # un file letto, e questi due id non sono nemmeno fra backtick: non poteva essere lei.
         # ∴ la vera lacuna e' l'estensione del gate ai `.yaml`, non il trattamento dei backtick.
         # ⏱️ **Terza sessione, stesso giorno, stessa correzione** (`docs/tactical-designer-consolidamento`,
@@ -5175,6 +5188,10 @@ features:
         # non spiegava PERCHE' nessun gate lo vedesse. La spiegazione e' quella qui sopra, ed e' la sua
         # che resta. Tre sessioni indipendenti sulla stessa riga in un giorno dicono che il difetto era
         # visibile a chiunque rigenerasse: e' la lacuna del gate, non la disattenzione di qualcuno.
+        # ➕ Tracciata: **#1110**. Una lacuna identificata che resta un commento YAML non entra in nessuna
+        # coda — e' la regola «CREATE OR LINK, NEVER IGNORE» applicata a se' stessa.
+        # ➕ E la **quarta** sessione, mergiando, non ha scelto un lato: le due note rispondono a domande
+        # diverse — chi ha trovato il difetto e dove e' tracciato.
         - Team.Conflux.GadgetPhase.ConductiveFlood
         - Team.Constrine.RiktorWraith.OnlyExit
         - Team.Sentinel.SteelMurdock.HoldTheLine
