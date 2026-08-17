@@ -60,6 +60,110 @@ namespace
 	}
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphMapValidationSeesTheGraph,
+	"RefactorTactics.InteractionGraph.MapValidationSeesTheGraph",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphMapValidationSeesTheGraph::RunTest(const FString&)
+{
+	// 🔴 **Le cinque regole di `ValidateInteractionGraph` erano raggiungibili SOLO dai test.** Il validator
+	// che il gioco usa e' `URTHexMapAsset::ValidateMap()`, e non le chiamava: una mappa spedita con un
+	// bersaglio fantasma passava, e a runtime `FindDoorEdges` restituiva un array vuoto — indistinguibile da
+	// una sorgente che non comanda nulla. Trovato da una code review, non da un test.
+	//
+	// Questo test lega le due cose: chiede il difetto al validator DI PRODUZIONE, non alla libreria.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D_FANTASMA") }));
+
+	const TArray<FString> Errors = Map->ValidateMap();
+
+	TestTrue(TEXT("ValidateMap vede il bersaglio inesistente"), Errors.Num() > 0);
+	TestTrue(TEXT("e il reason code lo nomina"), AnyContains(Errors, TEXT("D_FANTASMA")));
+
+	// ⚠️ L'asserzione positiva da sola non basta: passerebbe anche contro un `ValidateMap` che segnala
+	// qualunque cosa. Una mappa con un grafo VALIDO deve restare pulita.
+	URTHexMapAsset* Good = MakeGraphMap(2);
+	PutGraphDoor(Good, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoor(Good, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"));
+	Good->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+	TestEqual(TEXT("un grafo valido non produce errori"), Good->ValidateMap().Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphOrderChangesMapHash,
+	"RefactorTactics.InteractionGraph.OrderChangesMapHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphOrderChangesMapHash::RunTest(const FString&)
+{
+	// 🔴 **`InteractionBindings` non entrava in `ComputeHash`**, quindi due mappe che si giocano DIVERSO
+	// hashavano identiche e il confronto di determinismo non poteva vedere la divergenza. Il criterio di
+	// esclusione che l'header dichiara — «non tocca la geometria ne' il comportamento» — qui e' falso:
+	// l'ordine dei bersagli E' l'ordine di applicazione, ed e' la proprieta' che #833 difende.
+	const auto MakeWith = [](const TArray<FName>& Targets)
+	{
+		URTHexMapAsset* M = MakeGraphMap(2);
+		PutGraphDoor(M, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+		PutGraphDoor(M, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"));
+		PutGraphDoor(M, FRTCellId(0, 1, 0), ERTHexDirection::E, 3, TEXT("D2"));
+		M->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), Targets));
+		return M;
+	};
+
+	URTHexMapAsset* Forward = MakeWith({ TEXT("D1"), TEXT("D2") });
+	URTHexMapAsset* Reverse = MakeWith({ TEXT("D2"), TEXT("D1") });
+
+	TestTrue(TEXT("l'ordine dei bersagli cambia l'hash della mappa"),
+		Forward->ComputeHash() != Reverse->ComputeHash());
+
+	// E il caso base: senza binding, o con lo stesso binding, l'hash torna uguale — altrimenti
+	// l'asserzione sopra passerebbe anche con un hash casuale.
+	TestEqual(TEXT("stesso grafo, stesso hash"),
+		MakeWith({ TEXT("D1"), TEXT("D2") })->ComputeHash(), Forward->ComputeHash());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphBindingInsertionOrderDoesNotChangeHash,
+	"RefactorTactics.InteractionGraph.BindingInsertionOrderDoesNotChangeHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphBindingInsertionOrderDoesNotChangeHash::RunTest(const FString&)
+{
+	// ⚠️ **La distinzione che rende l'hash corretto invece che solo diverso.** Due ordini contano in modo
+	// opposto, e trattarli allo stesso modo sarebbe un difetto in uno dei due versi:
+	//
+	//   `TargetIds` dentro un binding  -> E' DATO: l'ordine di applicazione dichiarato (test gemello sopra)
+	//   i binding FRA LORO nell'array  -> NON e' dato: la risoluzione cerca per `SourceId`
+	//
+	// Quindi i binding si ordinano prima di mescolarli, esattamente come `Cells` — *«ordine stabile -> hash
+	// indipendente dall'ordine di inserimento»* — e i `TargetIds` no. Senza questo test, ordinare anche i
+	// bersagli passerebbe il gemello e romperebbe l'invariante n. 3 senza che nulla protestasse.
+	const auto MakeTwoBindings = [](bool bS1First)
+	{
+		URTHexMapAsset* M = MakeGraphMap(2);
+		PutGraphDoor(M, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+		PutGraphDoor(M, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("S2"));
+		PutGraphDoor(M, FRTCellId(0, 1, 0), ERTHexDirection::E, 3, TEXT("D1"));
+		PutGraphDoor(M, FRTCellId(1, -1, 0), ERTHexDirection::E, 4, TEXT("D2"));
+		if (bS1First)
+		{
+			M->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+			M->InteractionBindings.Add(FRTInteractionBinding(TEXT("S2"), { TEXT("D2") }));
+		}
+		else
+		{
+			M->InteractionBindings.Add(FRTInteractionBinding(TEXT("S2"), { TEXT("D2") }));
+			M->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+		}
+		return M;
+	};
+
+	TestEqual(TEXT("l'ordine di INSERIMENTO dei binding non cambia l'hash"),
+		MakeTwoBindings(true)->ComputeHash(), MakeTwoBindings(false)->ComputeHash());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphResolvesInDeclaredOrder,
 	"RefactorTactics.InteractionGraph.ResolvesInDeclaredOrder",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
