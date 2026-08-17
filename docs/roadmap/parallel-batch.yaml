@@ -4358,14 +4358,15 @@ tracks:
     binary_leases: []
 
   graybox_kit:
-    status: IDLE
+    status: ACTIVE
     issue: null
-    branch: null
+    branch: fix/graybox-review-1099
     worktree: "D:/rt-unit"
     note: >-
-      ✅ **CHIUSA il 2026-08-17**: PR **#1099** mergiata in `main` come `9d82c806`, e la PR di
-      correzione che segue la code review chiude il lavoro. Il write-set qui sotto è **rilasciato** —
-      `spec-graybox-placement-contract.md`, `asset-map.md` e il sorgente archiviato tornano disponibili.
+      🔵 **PR #1099 mergiata** in `main` come `9d82c806`; la track **resta `ACTIVE`** perché la PR di
+      correzione che segue la code review non è ancora atterrata. Il write-set **non** si rilascia prima:
+      chiuderla mentre un ramo tocca ancora i suoi tre path era il difetto che la prima stesura di questa
+      nota ha commesso — `writable: []` accanto a un diff che modifica il sorgente archiviato.
       🔴 **La chiusura registra un errore di processo che vale più del lavoro consegnato**: la PR è stata
       **mergiata prima che la code review riportasse**, e la review ha poi trovato **due premesse false** —
       «la distruzione arriva con CP 9.2» (chiuso dal 2026-08-07, il produttore è vivo) e «`C` discende da
@@ -4408,11 +4409,14 @@ tracks:
       o ceda. Tre nomi diversi, un solo vincolo — ed è la ragione per cui `#1096` cita il batch e non un
       numero di issue.
       🔴 **`docs/technical/test-manuali-pie.md` è ASSEGNATO ALTROVE, e il lavoro che lo riguarda si ferma.**
-      Sta nel `writable` di **`playback`** (ACTIVE su `#1015`), che lo tiene **in prestito da `playtest`**
-      per le voci 6 e 7 del proprio DoD. Il kit chiede §13 una scena di validazione visiva con acceptance
-      a tre livelli di zoom, cioè **voci PIE nuove**: scriverle qui sarebbe la «piccola fix» su un file di
-      un'altra track che `D-139` vieta. Il contenuto delle voci esiste ed è pronto — vive nella issue di
-      validazione e nell'owner doc §8, non in un edit. Torna a chi possiede il file.
+      Oggi sta nel `writable` di **`playtest`**; il kit chiede §13 una scena di validazione visiva con
+      acceptance a tre livelli di zoom, cioè **voci PIE nuove**, e scriverle qui sarebbe la «piccola fix»
+      su un file di un'altra track che `D-139` vieta. Il contenuto delle voci esiste ed è pronto — vive
+      nella issue **#1096** e nell'owner doc §10, non in un edit.
+      ⚠️ **Questo paragrafo diceva «`playback` (ACTIVE su `#1015`)» cinque righe sotto quello che spiega
+      che `playback` è `IDLE` e ha restituito il path**: la nota insegnava la correzione e l'errore
+      corretto insieme. Trovato in code review — un blocco riscritto per registrare un cambiamento va
+      riletto **per intero**, non solo nel punto in cui si aggiunge.
 
       📦 **Il kit è archiviato in `docs/archive/src/` col suo banner**, e il totale del README è stato
       **rimisurato, non incrementato**: dichiarava **76**, il comando ne dava **79** *prima* di questa
@@ -4446,12 +4450,18 @@ tracks:
       allineato, `check-docs-links.py` e `check-docs-naming.py` verdi. 🔴 **`shortlist --check` era già
       disallineato su due viste** — `scenariomap.shortlist.md` e `editormap.shortlist.md` — e la misura
       precede questa track: non è un rosso che ho introdotto, e non è mio da chiudere.
-    # ➖ **Rilasciato alla chiusura.** Era: `docs/technical/spec-graybox-placement-contract.md` ·
-    # `docs/technical/asset-map.md` ·
-    # `docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md`
-    # L'elenco resta scritto invece di essere svuotato in silenzio: dice quali file questa track ha
-    # toccato, ed è ciò che la prossima intersezione deve poter leggere.
-    writable: []
+    writable:
+      - docs/technical/spec-graybox-placement-contract.md
+      - docs/technical/asset-map.md
+      - docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md
+      # 🔴 Il terzo path è entrato in code review: il ramo lo **crea e poi lo modifica**, e non stava in
+      # nessun insieme — né `writable`, né `integration_only` (che elenca `docs/archive/src/README.md`,
+      # **non** la cartella), né `generated_only`. Era la condizione «file non assegnato» di `D-139`,
+      # commessa dalla track che si era fermata davanti a `convenzioni-contenuti-ue.md` per lo stesso
+      # motivo. `docs_kit` aveva già dichiarato i propri sorgenti d'archivio: la convenzione esisteva.
+      # ✅ **Intersezione rimisurata sui TRE path**, non sui due di apertura: `git log --all --oneline --
+      # <path>` per il terzo dà solo i commit di questo ramo, e nessun altro ref lo nomina. La prima
+      # misura copriva due path su tre, ed è la lacuna che la code review ha visto.
     binary_leases: []
 
   replay_ui:

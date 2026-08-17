@@ -85,8 +85,15 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 | Modularization | v0.9 | **nessuna** | authoring, non contenuto di release | `DEFER` |
 | Contract freeze | v1.0 | **v1.0** ✅ | **E45** | allineato |
 
-**Una riga su dieci coincide esattamente** — il contract freeze — e le altre nove divergono in due modi
-opposti che vale la pena non confondere.
+**Una riga su dieci coincide esattamente** — il contract freeze. Le altre nove divergono in **tre** modi,
+e vale la pena non confonderli: **quattro** cluster il repository li ha già (più avanti del kit), **tre**
+non hanno una release che li possieda e restano `future`, **uno** è a cavallo (Core map, con la coda dei
+muri e delle porte in v0.2) e **uno** — Modularization — non è contenuto di release ma authoring, quindi
+non atterra da nessuna parte.
+
+> ⚠️ *Diceva «due modi opposti» mentre i due paragrafi che li spiegano coprono `4 + 3 = 7` righe su nove:
+> Core map e Modularization restavano fuori da entrambi. La correzione che aveva sistemato il numeratore
+> aveva allargato il buco nel denominatore. Trovato in code review.*
 
 > ⚠️ **La riga «Core map» diceva `v0.1 ✅ allineato` elencando E23 fra gli owner, e la riga quattro più
 > sotto dichiara E23 **v0.2**.** La stessa tabella usava la stessa epic da due parti della propria
@@ -94,8 +101,8 @@ opposti che vale la pena non confondere.
 > di etichetta — è la tabella che `D-153` indica come riconciliazione di riferimento, e «allineato» non era
 > misurabile. Trovato in code review.
 
-🔴 **Quattro cluster il kit li mette *dopo* dove il repository li ha già.** Environment, Interactive map,
-Perception e Objectives sono lavoro **della v0.1**, ma non allo stesso stadio — e la differenza conta:
+🔴 **Quattro cluster il kit li mette *dopo* dove il repository li ha già** — ma «dove» non è la stessa
+release per tutti e quattro, e nemmeno lo stesso stadio:
 
 | Cluster | Epic | Stato reale delle feature |
 |---|:--:|---|
@@ -110,8 +117,14 @@ Perception e Objectives sono lavoro **della v0.1**, ma non allo stesso stadio �
 > più forte del vero, ed è il tipo di frase che il prossimo consolidamento ricopia invece di rimisurare.
 > Trovato in code review.
 
-Seguire la mappatura del kit avrebbe **rinviato alla v0.2–v0.8 gli asset di sistemi che la v0.1 possiede**,
-cioè lasciato la release a rappresentare col solo colore ciò che il resolver calcola già. Non è un errore
+Tre di questi quattro sono **v0.1**; **Interactive map è v0.2**, e il kit lo mette in v0.4 — indietro di
+due release invece che di quattro, ma indietro. Seguire la mappatura del kit avrebbe **rinviato asset di
+sistemi che il progetto possiede o sta costruendo**, cioè lasciato la board a rappresentare col solo colore
+ciò che il resolver calcola già.
+
+> ⚠️ *La prima correzione di questo paragrafo diceva «tutti e quattro lavoro della **v0.1**», e per
+> Interactive map era falso — contraddetto dalla tabella due righe sopra e dalla riga «Core map» che questa
+> stessa PR aveva aggiunto per registrare che E23 è v0.2. Corretta la metà falsa, era rimasta l'altra.* Non è un errore
 di ambizione della sorgente: è che il kit misura la maturità del **contenuto** e la ladder canonica misura
 quella del **sistema**, e sul contenuto il progetto è più avanti di quanto la sorgente sapesse.
 

@@ -1077,8 +1077,12 @@ sessions:
       separatamente senza mai dirla.** Senza `verifies` e senza `artifacts` lo stato non e' derivabile:
       `project-graph.json` porta questa seduta con `state: "—"` e `queue_group: null`, e
       `editormap.shortlist.md` la conta solo fra le «senza stato derivabile» — **non compare ne' in READY
-      ne' in WAITING**. `U24` sfugge al caso solo perche' ha artefatti. ∴ **questa seduta e' invisibile a
-      ogni vista da cui una persona lavora davvero, e vive solo attraverso la issue `#1095`.** Non e'
+      ne' in WAITING**. `U24` sfugge al caso solo perche' ha artefatti. ∴ **questa seduta non entra in nessuna delle
+      due code da cui si sceglie il lavoro**, e per l'avanzamento vive attraverso la issue `#1095`.
+      ⚠️ *Diceva «invisibile a ogni vista», ed era piu' forte del vero: `U25` compare nella tabella delle
+      sedute e ha una sezione propria in `editormap.shortlist.md`. Cio' che manca e' la CODA, non la
+      visibilita' — trovato in code review, ed e' lo stesso «la prova era piu' forte del vero» che questa
+      PR contesta altrove.* Non e'
       riparabile qui: dichiarare artefatti prima che `GBX-4` scelga il percorso, o voci PIE che non
       esistono, sarebbe peggio — sono i due difetti che `asset-map.md` §6 documenta. Si chiude quando uno
       dei due campi diventa vero, ed e' il primo effetto utile della chiusura di `GBX-4`.

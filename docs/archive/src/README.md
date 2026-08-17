@@ -70,7 +70,7 @@
 > di oggi ne dà 78»* e correttamente non aveva incrementato a mano. Con l'archiviazione del Graybox Kit il
 > valore misurato è **80** = 17 + 48 + 2 + **13**.
 >
-> ⚠️ **E l'indice della radice risponde 10, non 13** — `sed -n '/^## Radice/,/^## Nota/p' … | grep -c '^| \[`' `.
+> ⚠️ **E l'indice della radice risponde 10, non 13** — ``sed -n '/^## Radice/,/^## Nota/p' … | grep -c '^| \[`' ``.
 > È il difetto della **decima volta**, tornato e più grande: tre file stanno sul disco senza una riga
 > d'indice, e sono i tre archiviati dalla track `docs_kit`
 > (`CLAUDE_Apply_Elemental_Proficiency…`, `CLAUDE_Reconcile_v0.1_Skill_Ability…`,

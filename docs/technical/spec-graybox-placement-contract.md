@@ -184,10 +184,13 @@ calcola `Wx = HexSize · √3 · (Q + R/2)`, quindi due celle adiacenti distano 
 `UPROPERTY` dell'asset mappa e dell'attore, e una mappa può cambiarlo — per questo le misure di questo
 documento sono in frazioni di `C` e non in centimetri.
 
-> 🔴 **Questa riga diceva «`C` discende da `HexSize`, default `100.f`» senza il fattore, ed era un errore
-> di 1,73×.** Chi avesse letto «0.28 C» come 28 cm avrebbe modellato una copertura bassa **alta un terzo**
-> del dovuto — e lo stesso valeva per il Safe Placement inset di `GBX-1`, espresso nella stessa unità.
-> Trovato in code review; la formula costa una riga e toglie l'intera classe di errore.
+> 🔴 **Questa riga diceva «`C` discende da `HexSize`, default `100.f`» senza il fattore.** Chi avesse
+> letto «0.28 C» come 28 cm avrebbe modellato una copertura bassa alta il **58%** del dovuto — `0.28 C` con
+> `C ≈ 173` vale ≈ 48 cm, e `28 / 48 ≈ 0,58`, cioè il fattore `1/√3`. Lo stesso valeva per il Safe
+> Placement inset di `GBX-1`, espresso nella stessa unità.
+> ⚠️ *La prima stesura di questa nota diceva «alta un terzo del dovuto», confondendo il fattore d'errore
+> (`√3 ≈ 1,73`) con il suo reciproco: due numeri incompatibili nella stessa frase, uno dei quali era stato
+> scritto correttamente due righe sopra. Trovato in code review.*
 
 Le guide verticali del volume sono **riferimenti di modellazione**, e non sono categorie di targeting:
 
@@ -236,17 +239,30 @@ Il repository ha **quattro** stati di porta, non tre:
 
 ### 7.2 Integrità: il dato è un intero, gli stati sono una lettura
 
-`FRTHexCover::Integrity` è un `int32` (catalogo v0.1: **30** per la copertura bassa), **e ha già un
-produttore vivo**: `URTHexCoverLibrary::ApplyStructureDamage` → `DamageFace` scala l'integrità sulle
-**due facce** della barriera e produce `FRTCoverDamageResult{RemainingIntegrity, bDestroyed}`, che entra
-nel TurnLog. `RefactorTactics.EnvironmentAction` pinna i valori intermedi — `Integrity == 20` dopo un
-colpo, su entrambi i versi.
+`FRTHexCover::Integrity` è un `int32` **e ha già un produttore vivo**:
+`URTHexCoverLibrary::ApplyStructureDamage` → `DamageFace` scala l'integrità sulle **due facce** della
+barriera e produce `FRTCoverDamageResult{RemainingIntegrity, bDestroyed}`, che entra nel TurnLog.
 
-> 🔴 **Questa sezione diceva «la distruzione arriva con CP 9.2, che lo scalerà», ed era falso: CP 9.2 è
-> chiuso.** Il difetto non è il numero, è il metodo — la frase è la trascrizione del commento sopra il
-> campo in `RTHexCellData.h`, scritto quando il produttore non c'era e mai aggiornato. È esattamente ciò
-> che §2 di questo file dichiara di non fare (*«le prove, misurate e non citate a memoria»*), commesso
-> nella sezione successiva. Trovato in code review.
+Il catalogo v0.1 ha **due** soglie di partenza, non una — `FRTHexCover::DefaultIntegrity` restituisce
+`50` per `High` e `30` per `Low` — e i valori residui che i test pinnano attraverso `CoverIntegrityOn`
+sono **`0 · 18 · 22 · 25 · 30`**. Non esiste una scala unica: dipende dal tipo di copertura e
+dall'ammontare del colpo.
+
+> 🔴 **Questa sezione ha sbagliato due volte, e la seconda peggio della prima.**
+> *(1)* Diceva «la distruzione arriva con CP 9.2, che lo scalerà»: **falso**, CP 9.2 è chiuso dal
+> 2026-08-07 e il produttore esiste. Era la trascrizione del commento sopra il campo in
+> `RTHexCellData.h`, scritto quando il produttore non c'era.
+> *(2)* La correzione ha poi citato come prova `RefactorTactics.EnvironmentAction` con
+> «`Integrity == 20`, su entrambi i versi» — che è un'assertion su **`FRTHexEdge`**, cioè un **ponte**
+> (`DefaultIntegrity = 40`), e i «due versi» sono le due direzioni di un **arco**, non le due facce di una
+> copertura. Le assertion vere sulla copertura, nello stesso file, danno `0/18/22/25/30` e **mai 20**.
+> ⚠️ **Sostituire una citazione sbagliata con un'altra citazione sbagliata è il difetto originale al
+> quadrato**, ed è successo dentro la PR che esisteva per ripararlo. Entrambe trovate in code review.
+> ➕ **E il generatore del difetto è tracciato invece di lasciato in piedi**: il commento in
+> `RTHexCellData.h` che prometteva CP 9.2 al futuro è
+> [#1107](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1107) — quel file è nel write-set
+> della track `spatial`, quindi la correzione le viene **passata**, non scritta da fuori. Correggere le
+> quattro trascrizioni e lasciare la fonte significa che il prossimo lettore le riscrive.
 
 Ne discende una separazione che va scritta prima di modellare:
 
@@ -258,9 +274,10 @@ Distrutto    geometria CAMBIATA — non è lo stesso oggetto ricolorato
 ```
 
 ⚠️ **Le soglie che separano danneggiato da critico non esistono**, e non si inventano qui: sono numeri di
-presentazione su una scala che appartiene al balance della copertura, non a chi modella. Ma la ragione
-**non** è più «manca il produttore» — il produttore c'è, con una scala osservabile `30 → 20 → 0` e un esito
-`bDestroyed` terminale. È `GBX-3`, §9, e ha abbastanza materiale per essere decisa **adesso**.
+presentazione su una scala che appartiene al balance della copertura, non a chi modella. La ragione **non**
+è «manca il produttore» — il produttore c'è, e `bDestroyed` è già un esito enumerato invece che una soglia
+da scegliere. Ma la scala **non è una**: due soglie di partenza (`50`/`30`) e ammontari di colpo diversi
+rendono «critico» una frazione, non un numero. È `GBX-3`, §9.
 
 ### 7.3 «Acceso/spento» non basta, e il numero di stati non lo fissa questo documento
 

@@ -4709,8 +4709,10 @@ features:
 
       ⚠️ **Nessun gate difende questo contratto oggi**, ed e' dichiarato invece che sottinteso: e' la
       stessa condizione in cui `D-146` ha lasciato la ridondanza colore+forma. Le voci PIE non sono
-      state scritte perche' `test-manuali-pie.md` e' nel write-set della track `playback` (`#1015`)
-      al 2026-08-17 — per `D-139` si aspetta quell'owner, e il contenuto vive nella issue.
+      state scritte perche' `test-manuali-pie.md` e' **assegnato a un'altra track** in
+      `parallel-batch.yaml` — per `D-139` si aspetta l'owner che lo tiene OGGI. ⚠️ Qui non c'e' un nome
+      di proposito: il proprietario e' cambiato **tre volte** il 2026-08-17 e il permesso mai. Il
+      contenuto delle voci vive nella issue.
 
   - feature_id: RT-FEAT-UI-BOARD-GRAMMAR
     title: Grammatica visiva della board — colore e forma, mai solo il colore
