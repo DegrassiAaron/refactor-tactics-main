@@ -2426,7 +2426,9 @@ tracks:
     #                                               nuovi del DoD nascono qui
     #   · `Tests/RTOverwatchTriggerTests.cpp`      — la fixture a DUE finestre di cui una non si riapre, che
     #                                               è ciò che rende non-vacua la voce sull'identità
-    #   ⛔ `Turn/RTTurnManager.{h,cpp}`            — CHIESTI a `replay_ui`, vedi `release_requested`
+    #   ⛔ ~~`Turn/RTTurnManager.{h,cpp}`          — CHIESTI a `replay_ui`, vedi `release_requested`~~
+    #      🔓 **RILASCIATI da `replay_ui` il 2026-08-17**: non sono piu' di nessuno. Restano fuori da questo
+    #      `writable` — vanno rivendicati qui, ed e' l'atto di questa track a farlo
     #   ➖ `Turn/RTTurnLogLibrary.{h,cpp}`         — liberi da #1100, e **non presi**: la mappa costruita una
     #                                               volta non ha bisogno di una lettura per categoria
     #   ➖ `Turn/RTTurnLog.h`                      — libero, e non serve: il formato v8 porta già
@@ -2441,15 +2443,25 @@ tracks:
     # sezione `integration_only`, dove valgono per tutti invece che per una track sola.
     # ⚠️ `#886` non presta nulla: i due path che prende sono **liberi**, e il terzo lo **chiede**.
     writable_on_loan: []
-    # ⛔ **CHIESTO a `replay_ui` (#472) e NON posseduto: qui non si scrive.** È l'unico path conteso che
-    # resta a `#886`, e la richiesta è **chirurgica** invece che sul file — il `reason` dice quale funzione
+    # ⛔ ~~**CHIESTO a `replay_ui` (#472) e NON posseduto: qui non si scrive.** È l'unico path conteso che
+    # resta a `#886`~~, e la richiesta è **chirurgica** invece che sul file — il `reason` dice quale funzione
     # e quale punto esatto, perché un accordo su una consultazione si concede più facilmente di un accordo
     # su `RTTurnManager.cpp`, che è uno dei file più grandi del progetto.
     # ✅ **Misurato prima di chiedere, e il costo per chi concede è basso**: `D:/rt-client` è **pulito**
     # (`git status --porcelain` vuoto dopo `update-index --refresh`), nessun branch `#472` o `feat/1085`
     # esiste lato server (`git ls-remote --heads origin`), e il campo `branch: feat/1085-cap-fumo` della
-    # track è **stantio** — quel ramo è mergiato e cancellato. `replay_ui` possiede i due path e oggi non li
+    # track è **stantio** — quel ramo è mergiato e cancellato. ~~`replay_ui` possiede i due path~~ e oggi non li
     # sta toccando.
+    # 🔓 **CONCESSO il 2026-08-17: `replay_ui` ha rilasciato i due path** (`chore/rilascio-turnmanager-replay-ui`).
+    # Le tre misure di questa richiesta sono state **rifatte da chi concede** su `a8f7f626` e reggono tutte —
+    # `#625`/`#1067` CLOSED, `#472` che non nomina il manager, worktree pulito — con **due precisazioni** che
+    # questa richiesta non conteneva e che ora vivono nel commento del rilascio: `#1085` non e' solo un branch
+    # cancellato, e' una issue **CLOSED** (il campo e' tornato alla sentinella `null`), e
+    # `feat/cp75-selfreposition` tocca `RTTurnManager.cpp` ed e' **ancora vivo**.
+    # ⛔ **Non e' un trasferimento, e questo `writable` NON e' stato scritto da chi rilascia**: i due path sono
+    # **non assegnati**, quindi qui vale STOP ancora — finche' l'atto di questa track non li rivendica
+    # misurando il write-set in quel momento. Chi lo fara' erediti anche la decisione su `cp75`: e' scaduta
+    # insieme a `#625`, e va rifatta invece che riletta.
     release_requested:
       - from: replay_ui
         issue: 472
@@ -4451,7 +4463,17 @@ tracks:
     # ➕ **2026-08-17, il giro successivo è aperto: `#1085`**, il cap di portata del fumo. La sentinella
     # `null` ha fatto il suo mestiere per il tempo in cui serviva — poche ore — e ora cede il posto a un
     # branch che esiste. `#472` resta l'ombrello e lo `status` non cambia.
-    branch: feat/1085-cap-fumo
+    # 🔴 **~~un branch che esiste~~ — MISURATO FALSO il 2026-08-17, e trovato mentre si decideva un rilascio.**
+    # `feat/1085-cap-fumo` **non c'è** fra gli 11 ref di `git ls-remote --heads origin`, e **`#1085` è
+    # `CLOSED`** (`gh issue view 1085 --json state`): non è stantio soltanto il nome del ramo, è finito il
+    # giro che lo giustificava. Il campo torna alla **sentinella `null`** — che è il suo caso documentato:
+    # *«track legittima — la issue è aperta — ma il branch dichiarato non esiste più»*.
+    # ✅ Lo `status` resta **ACTIVE** e non è un residuo, per la stessa ragione di due paragrafi sopra:
+    # `#472` è `OPEN` (verificato) ed è l'ombrello di R6, di cui mancano le due schermate `.uasset` con la
+    # loro Binary Asset Lease, che è dichiarata qui sotto. Giro chiuso e track finita non sono la stessa cosa.
+    # 💡 **Un campo `branch` si misura, non si ricorda**: questa riga è stata vera per poche ore e ha smesso
+    # di esserlo senza che nessuno la toccasse — è il terzo giro di fila in cui capita a questa track.
+    branch: null
     worktree: "D:/rt-client"
     release_requested:
       - from: spatial
@@ -4474,6 +4496,18 @@ tracks:
           specie di risorsa di una versione di formato, e si riserva prima di usarla. Se `#1060` e
           `#1077` atterrano insieme senza quella riserva, il difetto e' silenzioso.
           ⛔ Finche' il path non e' nel `writable` qui sotto, vale STOP: `#1077` non e' iniziata.
+          🔓 **~~chiede a `spatial`~~ — SUPERATA il 2026-08-17, e misurata mentre si decideva un altro
+          rilascio: non c'e' piu' un detentore a cui chiedere.** `spatial` ha rilasciato `Turn/RTTurnLog.h`
+          con la PR **#1100** insieme agli altri tre del TurnLog; verificato sul file, l'unica occorrenza di
+          quel path in un `paths:` e' **questa richiesta** — nessun `writable` di nessuna track lo dichiara,
+          e `simulation` lo registra a sua volta come *«libero»*. Il campo `from: spatial` / `issue: 833`
+          descrive quindi uno stato che non esiste piu': `#833` e' ancora `OPEN`, ma quel path non e' suo.
+          ⛔ **Cosa NON cambia**: il path resta **non assegnato**, non diventa di questa track, e lo STOP qui
+          sopra vale identico — `#1077` non e' iniziata e la rivendicazione si fa nell'atto che la apre,
+          misurando allora il write-set. Per questo la voce **non viene cancellata in questo atto**, che e'
+          un atto di rilascio verso `simulation`: cancellarla porterebbe via con se' l'avvertimento
+          sull'indice dell'enum, che e' la sola parte ancora operativa e vale per **chiunque** tocchi
+          `ERTLogCategory` — `#1060` compreso. Si chiude entrando nel `writable`, con la riserva d'indice.
     note: >-
       **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
       2026-08-16 dopo lo spec panel in
@@ -4542,43 +4576,88 @@ tracks:
       # `frontend_shell` — un path non assegnato e' uno stop, non un invito.
       - Source/RefactorTactics/Tests/RTReplayTestFixtures.h
       - docs/roadmap/plans/replay-r6-spec-panel-2026-08-16.md
-      # ➕ **Terzo giro della track: `#625`**, il danno da hazard che non lascia traccia canonica. Non e'
-      # R6 e non e' UI — e' la stessa famiglia, `replay_representable`: una morte che il replay non puo'
-      # riprodurre e che `DescribeFirstDivergence` non puo' nominare. Il worktree e la sessione sono gli
-      # stessi, quindi il write-set resta uno.
-      # ⬅️ `Turn/RTTurnManager.cpp` **riallocato da `playback`** — vedi la sua voce per la misura e per la
-      # contraddizione che ha reso necessaria la richiesta. L'header **non** entra: `#625` non aggiunge
-      # membri.
-      # 🔴 **CONTESA DICHIARATA, e la prima stesura di questa voce non la nominava.** La misura era stata
-      # fatta — `feat/cp75-selfreposition` tocca questo file, ed e' scritto anche nella sezione dei branch
-      # — ma la nota argomentava solo il lato di **chi rilascia** (`#955` chiusa, `playback` IDLE, il passo
-      # 4 in `UI/`), e non la domanda opposta: *sta gia' scrivendo qualcun altro?* Trovato in code review.
-      # Misurato ora, non ricordato:
-      #   `git diff --name-only origin/main...origin/feat/cp75-selfreposition` ->
-      #     `Turn/RTActionEffectLibrary.cpp` · `Turn/RTActionEvent.h` · **`Turn/RTTurnManager.cpp`**
-      # ⚠️ **Non e' una violazione dell'invariante**: `#cp75` non e' una track di questo batch, quindi cio'
-      # che cade non e' `WritableSet(T1) ∩ WritableSet(T2) = ∅` ma il presupposto pratico che il file fosse
-      # sgombro. E' lo stesso caso di `#904` contro `client_tools`, e cambia il rimedio: non riallocazione,
-      # ma una decisione su chi passa per primo.
-      # ✅ **Decisione: passa `#625`.** Il branch e' un **WIP fermo dal 2026-08-11** — `wip(cp75):
-      # SelfReposition — enum ed evento fatti, l'applicazione NO` — senza PR aperta, cinque giorni fermo
-      # in un repository che merge una decina di volte al giorno. `#625` e' misurato, verde su 968 test e
-      # in review. Chi riprende `cp75` merge `main` e trova venti righe in piu' in `ConcludeTurn`, in una
-      # funzione che quel WIP non tocca (`SelfReposition` vive nel Move).
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
-      # ➕ **L'header entra con `#1067`**, e la richiesta di `#625` diceva l'opposto — *«esce solo il
-      # `.cpp`: se servisse l'header, la richiesta andrebbe rifatta invece di allargare questa»*. E'
-      # servito, ed e' rifatta qui invece di allargare quella.
-      # ⚠️ **Serve per un parametro, non per un membro nuovo**: `ApplyTerrainOnEnterEffects` e
-      # `ApplyForcedDisplacement` ricevono la fase da dichiarare nella voce. Verificato che non basti
-      # leggere `Phase`: il ciclo delle fasi esce **quando vale `Planning`** e la Cleanup gira dopo,
-      # quindi il membro direbbe `Planning` — una fase che il replay non osserva mai — per tutte le voci
-      # di quella fase. E' il motivo per cui ogni altra voce del Cleanup la scrive letteralmente.
-      # ✅ **Misurato libero**, non dedotto: `playback` l'ha rilasciato alla riapertura su `#1015`
-      # (i sei path di `#955`), e sui **nove** branch remoti vivi nessuno lo tocca —
-      # `git diff --name-only origin/main...origin/<b>` su ciascuno. L'unica intersezione dell'intero
-      # sweep resta `feat/cp75-selfreposition` sul `.cpp`, gia' dichiarata sopra e gia' decisa.
-      - Source/RefactorTactics/Turn/RTTurnManager.h
+      # ➖ **I due path del TurnManager sono RILASCIATI il 2026-08-17, per decisione d'autore.**
+      #   `Turn/RTTurnManager.h` · `Turn/RTTurnManager.cpp`
+      # ✅ **Rilascio pulito, e le tre misure sono RIFATTE da chi concede** — non copiate dal `reason` di chi
+      #   chiede, che le aveva prese su `cc1e6a92`. ⚠️ **Rimisurate una seconda volta su `e638061a`**, perche'
+      #   fra la decisione e la consegna `origin/main` si e' mosso di 40 commit: le tre reggono entrambe le
+      #   volte, ma la fotografia dei branch **no** — vedi il punto sui numeri, e la violazione in fondo, che
+      #   e' venuta fuori solo dalla seconda misura.
+      #   · le due issue che li avevano portati qui sono **CLOSED**, verificato con `gh issue view <n>
+      #     --json state`: `#625` (venti righe in `ConcludeTurn`, il `.cpp` riallocato da `playback`) e
+      #     `#1067` (il parametro di fase per `ApplyTerrainOnEnterEffects`/`ApplyForcedDisplacement`,
+      #     l'header). Nessuna delle due puo' piu' scrivere;
+      #   · **`#472` non li nomina**: `gh issue view 472 --json body | grep -c TurnManager` -> **0**, contro
+      #     **7** occorrenze di `Replay`. L'ombrello di R6 vive in `Source/RefactorTactics/Replay/`, e le sue
+      #     tre parti — view model, ponte, due schermate `.uasset` — non passano dal manager;
+      #   · **nessun lavoro orfano, e la misura prescritta qui e' degenere per una ragione dichiarata**:
+      #     `git diff --name-only origin/main...<branch>` non si puo' fare perche' questa track **non ha un
+      #     branch** (vedi `branch: null` sopra), quindi al suo posto valgono le due misure che restano —
+      #     `D:/rt-client` e' **pulito** (`update-index --refresh` poi `status --porcelain` vuoto) e i due
+      #     path non compaiono in nessuno dei branch vivi, tranne l'unica eccezione dichiarata sotto.
+      #     ⚠️ **Il conteggio dei branch e' una fotografia, e va riletto come tale — non come un criterio.**
+      #     Prima misura, su `a8f7f626`: **10** branch remoti altrui piu' **11** ref locali senza omonimo su
+      #     `origin`. Seconda, su `e638061a`: ancora **10** remoti altrui, ma **non gli stessi** — quattro
+      #     nuovi, tre mergiati e cancellati, e uno (`docs/consolidamento-replay-tactical-designer`) sparito
+      #     nei minuti fra un `ls-remote` e il successivo. Il numero e' identico per coincidenza; l'insieme no.
+      #     ∴ chi rilegge non verifichi la cifra, rifaccia il comando:
+      #       `git ls-remote --heads origin`, poi `git diff --name-only origin/main...origin/<b>` per ciascuno.
+      #     ⚠️ **Cio' che questa misura non copre, detto invece di lasciarlo credere completo**: le modifiche
+      #     **non committate** nei worktree altrui. Da una sessione isolata in `D:/rt-client` non sono
+      #     misurabili — e' il limite che questa track ha gia' registrato nella sua `note` — e resta la misura
+      #     che si puo' fare, non una che si finge. ⛔ E non copre nemmeno cio' che e' **gia' mergiato**: un
+      #     sweep sui branch vivi non vede una scrittura atterrata in `main`, che e' esattamente come la
+      #     violazione in fondo a questa voce e' passata inosservata alla prima misura.
+      # 🔓 **Perche': sono l'unico ostacolo dichiarato a `#886`**, la richiesta di `simulation`
+      #   (`release_requested`, atto d'integrazione PR #1102). E' **chirurgica invece che sul file**: il suo
+      #   `reason` dice quale funzione e quale punto — una consultazione dentro
+      #   `ARTTurnManager::AskReactionDecision`, **dopo** il gate di cardinalita' e **al posto** dei rami
+      #   «bot»/«decisore legato», mai prima di `!RequiresDecisionBoundary -> HoldImmediate`, che e' il
+      #   collasso di [D-109] e si **ricalcola** — con `ApplyReactionDecision` intatta e zero campi nuovi nel
+      #   TurnLog. Ed escono **due su due**: rilasciarne uno solo registrerebbe un rilascio senza produrne
+      #   l'effetto, perche' una consultazione che tocchi la firma li vuole entrambi.
+      # ⚠️ **CONSEGUENZA DICHIARATA, invece di lasciarla scoprire: `feat/cp75-selfreposition` tocca
+      #   `RTTurnManager.cpp`, e resta vivo.** Misurato ora, non ricordato:
+      #     `git diff --name-only origin/main...origin/feat/cp75-selfreposition` ->
+      #       `Turn/RTActionEffectLibrary.cpp` · `Turn/RTActionEvent.h` · **`Turn/RTTurnManager.cpp`**
+      #   Non e' una violazione dell'invariante — `cp75` non e' una track di questo batch, quindi cio' che
+      #   cade non e' `WritableSet(T1) ∩ WritableSet(T2) = ∅` ma il presupposto pratico che il file sia
+      #   sgombro. ⚠️ **L'header non e' toccato da lui**: la contesa e' sul `.cpp` e su quello solo.
+      #   ~~✅ **Decisione: passa `#625`**~~ — eseguita e **consumata**: `#625` e' CLOSED e mergiata, quindi
+      #   quella decisione non protegge piu' nulla. **Rilasciando, il `.cpp` torna non assegnato con quel WIP
+      #   ancora vivo** (fermo dal 2026-08-11, nessuna PR), e la decisione su chi passa per primo la rifa'
+      #   chi lo rivendica — non la eredita da qui. Dirlo nell'atto e' esattamente il rimedio che una code
+      #   review ha gia' chiesto a questa track sullo stesso file.
+      # 🔴 **E LA CONTESA NON ERA SOLO `cp75`: `spatial` HA GIA' SCRITTO in `RTTurnManager.cpp`, ed e' in
+      #   `main`.** Trovato rimisurando questo atto prima della consegna, non al merge. Misurato, non dedotto:
+      #     · `git log a8f7f626..e638061a -- Source/RefactorTactics/Turn/RTTurnManager.cpp` -> `8fdfd7ec`,
+      #       *«feat(833): ERTStructureOp::SetDoorState, e il ramo che impedisce a Interact di erigere un
+      #       muro»*, **+14 righe** in `ResolveCoverStructures` (il `continue` di [D-148]);
+      #     · atterrato con la **PR #1112** (`feat/833-interaction-graph`, mergiata alle 10:36:31Z);
+      #     · al **primo parent** di quel merge il path era nel `writable` di **`replay_ui`** e **non** in
+      #       quello di `spatial` — verificato caricando `f82ad5f3^1:docs/roadmap/parallel-batch.yaml`.
+      #   ⛔ **E' una violazione dell'invariante, non un presupposto pratico che cade**: `spatial` e' una track
+      #   di questo batch, quindi `WritableSet(spatial) ∩ WritableSet(replay_ui) = ∅` e' stata rotta scrivendo.
+      #   ⚠️ Aggravante misurabile: `spatial` aveva **escluso quei due path per iscritto**, con la motivazione
+      #   *«la code review ha misurato che `Interact` vi compare zero volte … erano DEDOTTI dal dominio»* —
+      #   e la riga che li faceva uscire e' ancora nel suo commento. L'esclusione era giusta sul conteggio di
+      #   allora e falsa sul lavoro che poi e' servito: **un write-set si misura quando si scrive, non quando
+      #   si argomenta**. Nessuna riga del batch registrava la scrittura: `grep -n "D-148"` su questo file
+      #   dava **zero** prima di questa.
+      #   ✅ **Non cambia la decisione, e la rafforza**: il path era di una track che non ci scriveva e un'altra
+      #   ci ha scritto comunque. Rilasciarlo fa combaciare il registro con i fatti, invece di lasciare un
+      #   confine che il repository ha gia' attraversato.
+      #   ⚠️ **Conseguenza per chi lo rivendica**: `#833` e' ancora `OPEN` (verificato) e `spatial` resta
+      #   `ACTIVE`, quindi il rischio non e' passato — e il `.cpp` **ha gia' cambiato forma** rispetto a quando
+      #   `#886` ha scritto la propria richiesta su `cc1e6a92`. Chi apre la consultazione in
+      #   `AskReactionDecision` parte da `e638061a`, non da quello.
+      # ⛔ Tornano **non assegnati, non trasferiti.** `simulation` e' ACTIVE su `#886` e li ha chiesti, ma non
+      #   li riceve da qui: chi rivendica lo fa nel **proprio** atto, che e' il momento in cui il write-set si
+      #   misura. Fino a lì valgono STOP per tutti, richiedente compreso — e il suo `release_requested` resta
+      #   dov'e', perche' si cancella entrando nel `writable` di chi ha chiesto.
+      # ➖ Con i path escono le loro motivazioni d'ingresso — la riallocazione da `playback` e l'header di
+      #   `#1067` — perche' un `writable` dice chi **scrivera'**, e le due issue che scrivevano sono chiuse.
+      #   La contesa con `cp75` **no**: quella e' l'unico fatto ancora vivo, e per questo resta scritta qui.
       # ➕ File **non assegnato a nessuna track**, dichiarato prima di scriverci: ha gia' il setup che fa
       # bruciare un'unita' sul percorso reale (`MakeEnvWorld`/`PlanEnvAction`/`RunEnvTurn`), ed e' li' che
       # il DoD chiede di leggere `GetTurnLog()` invece di costruire la voce a mano.
@@ -4867,8 +4946,13 @@ tracks:
       # `autobattle`, a cui era stato preso e a cui la nota prometteva di negoziarlo.
       # 💡 Un `writable` dice chi **scrivera'**. Una previsione su chi scrivera' invecchia come tutte le
       # previsioni, e va rimisurata quando il turno che prevedeva comincia davvero.
-      # ➡️ **Uno dei sei ha gia' un proprietario nuovo: `Turn/RTTurnManager.cpp` e' di `replay_ui`
-      # (`#625`).** Le due track ci sono arrivate per strade diverse e nello stesso giorno — questa
+      # ➡️ ~~**Uno dei sei ha gia' un proprietario nuovo: `Turn/RTTurnManager.cpp` e' di `replay_ui`
+      # (`#625`).**~~ 🔓 **Falsa dal 2026-08-17: `replay_ui` lo ha RILASCIATO** insieme all'header, e i due
+      # tornano **non assegnati**. ✅ Dei sei elencati qui sopra sono ora liberi **cinque**, misurati sul file
+      # e non dedotti dal rilascio: il sesto — `Tests/RTMatchAutobattleTests.cpp` — e' nel `writable` di
+      # `autobattle`, cioe' proprio la riassegnazione che la riga qui sopra prometteva di negoziare.
+      # ⚠️ Libero non e' sgombro: `feat/cp75-selfreposition` tocca il `.cpp` ed e' vivo, misurato nell'atto.
+      # Le due track ci sono arrivate per strade diverse e nello stesso giorno — questa
       # rilasciando, quella chiedendo — e il conflitto di merge fra le due stesure e' stato risolto
       # tenendo **questa**, che e' la piu' recente e dice la stessa cosa meglio: i sei erano rimasti su
       # una previsione, e la previsione e' scaduta. La richiesta di `#625` argomentava la contraddizione
