@@ -348,9 +348,17 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 [`test-manuali-pie.md`](test-manuali-pie.md).
 
 > 🔴 **Le voci PIE di questo contratto non sono ancora scritte, e il motivo è un vincolo di parallelismo,
-> non una dimenticanza.** `test-manuali-pie.md` è nel write-set della track `playback` (`#1015`) al
-> 2026-08-17: per `D-139` scriverci da un'altra track sarebbe la «piccola fix» su un file non assegnato.
-> Il contenuto delle voci è pronto e vive nella issue di validazione visiva del kit.
+> non una dimenticanza.** `test-manuali-pie.md` è nel write-set della track `playback` in
+> [`parallel-batch.yaml`](../roadmap/parallel-batch.yaml): per `D-139` scriverci da un'altra track sarebbe
+> la «piccola fix» su un file assegnato a qualcun altro. Il contenuto delle voci è pronto e vive nella
+> issue di validazione visiva del kit.
+>
+> ⏱️ **La ragione è cambiata durante il consolidamento, e vale la pena scriverlo invece di aggiornare il
+> nome della causa.** All'apertura `#1015` era `OPEN` e la track ci stava lavorando; il **2026-08-17** la
+> issue è stata **chiusa** mentre questo documento veniva scritto, e il batch dichiara ancora quella track
+> `ACTIVE` con il file nel proprio `writable`. Il vincolo regge lo stesso — *«un rilascio si scrive»*, e
+> spetta a chi possiede la track — ma non poggia più su «qualcuno ci sta scrivendo»: poggia sul fatto che
+> il write-set è più vecchio di GitHub. **Chi legge questa riga controlli il batch, non la issue.**
 
 Quello che una verifica dovrà mostrare, senza HUD e senza selezione:
 
