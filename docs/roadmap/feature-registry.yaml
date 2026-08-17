@@ -6095,9 +6095,15 @@ features:
       dipinge altrove senza un errore a log. Ora il confronto e' sul componente
       (`ARTHexMapActor::IsPickOnSelectableCell`, pinnato dal test qui sopra) e `NoCollision` sul
       rilievo resta la prima difesa invece dell'unica: la protezione ha smesso di dipendere dal
-      ricordarsi di una riga. ⚠️ Il modulo `RefactorTacticsEditor` **non ha test propri** — `find
-      Source/RefactorTacticsEditor -iname "*test*"` e' vuoto — quindi le regole che lo riguardano
-      vanno estratte nel modulo runtime per essere verificabili, com'e' stato fatto qui.
+      ricordarsi di una riga. 🔴 **Questa nota diceva che il modulo `RefactorTacticsEditor` non ha test propri, e
+      dal 2026-08-16 e' FALSO**: `#993` ha portato `Private/Tests/RTHexToolPropertiesTests.cpp` con **due**
+      test, e `find Source/RefactorTacticsEditor -iname "*test*"` restituisce due voci — rimisurato il
+      2026-08-17. La conclusione non cambia e la **ragione** si': le regole che riguardano il gioco vanno
+      nel modulo runtime non perche' l'editor sia intestabile, ma perche' una regola di gioco che vive
+      nell'editor e' una **seconda risposta** alla stessa domanda. I due test dell'editor coprono il
+      proprio dominio — il costo che segue la superficie, il readout che non si aggiorna da solo — e
+      nessuno dei due decide un esito di partita. Owner dell'argomento:
+      `docs/technical/spec-tactical-designer.md` §3.
 
 
       La vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri
@@ -6259,8 +6265,10 @@ features:
       # `ProvenanceDoesNotChangeTheHash` pinna il vincolo di D-131: `bGenerated` e' metadato d'authoring
       # e non deve entrare nell'hash, o due mappe che si giocano identiche divergerebbero.
       - RefactorTactics.GeometryBake.*
-      # #712: lo SNAP del gesto d'autore vive nel runtime e non nel tool, perche' in
-      # `Source/RefactorTacticsEditor/` non esiste alcun test. I due test stanno in
+      # #712: lo SNAP del gesto d'autore vive nel runtime e non nel tool. 🔴 La ragione scritta qui era
+      # «perche' in `Source/RefactorTacticsEditor/` non esiste alcun test», e dal 2026-08-16 e' falsa (#993:
+      # due test). La ragione giusta e' che lo snap e' una regola di GEOMETRIA, non di gesto: chi la
+      # cambia cambia cosa il gioco considera un segmento valido. I due test stanno in
       # `RefactorTactics.GeometryGrammar.Snap*` -- gia' coperti dal glob qui sopra.
       # Il resto di #712 (ghost, snap percepibile, Undo, residui) e' seduta U22: non e' headless.
     scenarios:
@@ -6334,9 +6342,12 @@ features:
 
 
       Vincolo di collocazione, non preferenza: maschera, classificazione e cottura vivono nel
-      modulo **runtime** e l'editor le chiama. In `Source/RefactorTacticsEditor/` non esiste alcun
-      test — rimisurato su `origin/main` il 2026-08-12: 19 file, zero corrispondenze `*test*`. Cio'
-      che nasce dentro l'editor nasce non verificabile. *(Questa nota citava la PR #598 come «aperta,
+      modulo **runtime** e l'editor le chiama. 🔴 **La misura che sosteneva questa riga e' scaduta**: diceva
+      «in `Source/RefactorTacticsEditor/` non esiste alcun test — 19 file, zero corrispondenze `*test*`,
+      rimisurato il 2026-08-12», ed era vera allora. Dal 2026-08-16 (`#993`) il modulo ha
+      `Private/Tests/RTHexToolPropertiesTests.cpp` con due test. Il **vincolo di collocazione resta**, con
+      la ragione corretta: maschera, classificazione e cottura decidono cosa il gioco considera
+      attraversabile, e una regola di gioco non vive nello strumento che la disegna. *(Questa nota citava la PR #598 come «aperta,
       non mergiata»: e' mergiata dal 2026-08-12T07:07:42Z. L'argomento non dipendeva da quella PR ed
       e' stato rimisurato.)*
 

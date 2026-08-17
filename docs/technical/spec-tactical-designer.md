@@ -83,15 +83,34 @@ l'editor inventa una regola parallela
 **Se l'editor e il runtime possono divergere, lo strumento ha perso il suo valore** — non è più una lente
 sul gioco, è un secondo gioco che nessuno testa.
 
-Il repository applica già questo vincolo in una forma più forte di una raccomandazione, e la ragione è
-misurabile: in `Source/RefactorTacticsEditor/` **non esiste alcun test** — `find Source/RefactorTacticsEditor
--iname "*test*"` è vuoto. Perciò:
+Il repository applica già questo vincolo in una forma più forte di una raccomandazione:
 
-> **Ciò che nasce dentro il modulo editor nasce non verificabile.** La logica pura vive nel modulo runtime e
-> l'editor la chiama.
+> **La logica pura vive nel modulo runtime, e l'editor la chiama.**
 
 Non è teorico: lo snap del gesto d'autore vive in `Map/RTGeometryGrammar` e i suoi due test sono
 `RefactorTactics.GeometryGrammar.Snap*`, benché il gesto sia interamente d'editor.
+
+> 🔴 **La ragione che quasi tutti danno per questa regola è FALSA dal 2026-08-16, ed è già costata quattro
+> volte.** La formulazione corrente in tre punti del repository è *«in `Source/RefactorTacticsEditor/` non
+> esiste alcun test — `find … -iname "*test*"` è vuoto»*. **Misurato il 2026-08-17: restituisce due voci**,
+> `Private/Tests/` e `Private/Tests/RTHexToolPropertiesTests.cpp`, con **due** test — arrivati con `#993`.
+>
+> Il file di test lo dice da sé, e vale la pena citarlo perché nomina il difetto per quello che è:
+>
+> > *«Tre issue di fila (#871, #921, #931) hanno dichiarato "RefactorTacticsEditor/ non ha test, quindi la
+> > verifica è manuale" trattandolo come un dato di fatto. Non lo era: il `Build.cs` ha già `Core` — dove
+> > vive `Misc/AutomationTest.h` — e il modulo runtime, e `WITH_DEV_AUTOMATION_TESTS` è definito sui target
+> > Editor. I test non erano impossibili: non erano stati scritti.»*
+>
+> La prima stesura di **questo** documento ha ripetuto la stessa frase, ed è la quarta volta. Il correttivo
+> non è ammorbidire la regola: **è cambiarne la giustificazione.** La logica non va nel runtime perché
+> l'editor sia intestabile — non lo è più — ma perché *il modulo editor non è dove una regola di gioco
+> appartiene*: l'editor **visualizza** una risposta che il gioco dà, e una regola che vive solo lì è una
+> seconda risposta alla stessa domanda. È il §3 di questo documento, non un vincolo di tooling.
+>
+> Quello che i due test dell'editor coprono è **il proprio dominio, non il gioco**: che il pennello Fill
+> derivi il costo dalla superficie, e che il readout non si aggiorni da solo. Sono esattamente i test che un
+> modulo d'editor deve avere — e nessuno dei due decide un esito di partita.
 
 ---
 

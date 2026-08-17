@@ -88,8 +88,28 @@ per del codice.
 
 Il vincolo di collocazione che il sorgente chiede in §8 — *«sposta la logica pura nel modulo runtime»* — è
 **già la regola del repository**, ed è stata applicata anche allo snap di `#712`:
-`RefactorTactics.GeometryGrammar.Snap*` vive nel runtime perché in `Source/RefactorTacticsEditor/` non esiste
-**nessun** test.
+`RefactorTactics.GeometryGrammar.Snap*` vive nel runtime.
+
+> 🔴 **La ragione con cui il repository giustifica quella regola è scaduta, e questo referto l'ha ripetuta
+> prima di misurarla.** La formulazione in tre punti del Feature Registry e in due spec è *«in
+> `Source/RefactorTacticsEditor/` non esiste alcun test»*. Misurato il 2026-08-17: `find
+> Source/RefactorTacticsEditor -iname "*test*"` restituisce **due voci** — `Private/Tests/` e
+> `Private/Tests/RTHexToolPropertiesTests.cpp`, **due** test arrivati con `#993` il 2026-08-16.
+>
+> Il file di test nomina il difetto meglio di quanto potrei io: *«Tre issue di fila (#871, #921, #931) hanno
+> dichiarato "RefactorTacticsEditor/ non ha test, quindi la verifica è manuale" trattandolo come un dato di
+> fatto. Non lo era: [...] I test non erano impossibili: non erano stati scritti.»* Con questo referto la
+> ripetizione è alla **quarta** volta.
+>
+> **La regola resta, la giustificazione cambia**: la logica di gioco non va nel modulo editor non perché
+> quel modulo sia intestabile, ma perché una regola di gioco che vive lì è una **seconda risposta** alla
+> stessa domanda. I due test dell'editor coprono il proprio dominio — il costo che segue la superficie, il
+> readout che non si aggiorna da solo — e nessuno dei due decide un esito di partita.
+>
+> Corretto in `spec-tactical-designer.md` §3 e nelle tre note del Feature Registry. ⚠️ **Restano due
+> occorrenze non corrette** in `docs/technical/spec-hex-geometry-authoring.md` (§ soglie e § collocazione):
+> quel file **non è nel `writable` di nessuna track né in `integration_only`**, e per `D-139` è uno
+> **STOP**. Non è «una piccola fix»: è il file di un altro. Dichiarato qui perché non resti a nessuno.
 
 ### 3.3 Scenario Harness — il formato canonico che il Composer dovrà authorare
 
@@ -117,7 +137,7 @@ mancano, senza rendere rossa la suite.
 
 > 🔴 **Il sorgente non ha misurato questo file, e la prima stesura di questo referto neppure.**
 > §36 dice *«non creare un secondo scenario language se il repository possiede già un formato canonico»* — lo
-> possiede, ha 79 scenari versionati in `Scenarios/`, e copre **due** delle cose che §37 e §40.3 presentano
+> possiede, ha **78** file di scenario versionati in `Scenarios/` (`find Scenarios -name '*.json' ! -name '_redirects.json' | wc -l`, 2026-08-17 — `scenario-map.md` dichiara **73** *classificati*, misurati il 2026-08-13: contano cose diverse, e l'owner del conteggio è quello, non questo referto), e copre **due** delle cose che §37 e §40.3 presentano
 > come da progettare. Questa tabella diceva «`Interactive decisions → gap, è il seam di D-101`»: falso.
 > `D-101`/`#542` è il seam **generale** di chi produce decisioni; le decisioni **di finestra** scriptate sono
 > `#512` e sono in `main`. Sono tre cose distinte con lo stesso nome, e `RTTurnManager.h` lo dice per esteso:
