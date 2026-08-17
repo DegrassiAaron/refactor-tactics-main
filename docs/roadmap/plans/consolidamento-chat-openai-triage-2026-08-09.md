@@ -80,7 +80,7 @@ Tre osservazioni valgono più delle singole righe:
 | 3 | **Vocabolario di status** | Governance §5 propone 13 status (`IMPLEMENTED`, `IMPLEMENTED_PARTIAL`, `DATA_SPEC`, `FUTURE`, `HISTORICAL`…) | 10 status, **derivati dai gate** con regola deterministica e verificati dal validator | [`feature-registry.yaml`](../feature-registry.yaml) intestazione | **non applicare**: romperebbe `feature_registry.py validate`. I **gate** invece coincidono alla lettera (9 su 9) — quella parte è `CURRENT` |
 | 4 | **`TEAM READY 2/3`** | Kit HUD §3.5 lo prescrive come componente persistente | «non simulare un falso stato `TEAM READY 1/2` finché non è realmente supportato» | [`progettazione-hud.md:341`](../../technical/progettazione-hud.md) · UI Master §15 `UI-READY-01` | **non applicare.** Il conflitto è **interno al pacchetto**: il master corregge il kit. Prevale il master, che coincide col repository |
 | 5 | **Fog of War** | Kit HUD §11/§30/§31 struttura tre milestone attorno alla «Fog of War» | **non è FoW**: conoscenza parziale a tre livelli, geometria statica **nota** | [`DOC_CONFLICT_MATRIX` #13](../../DOC_CONFLICT_MATRIX.md) · [`brief-conoscenza-parziale.md`](../../gameplay/brief-conoscenza-parziale.md) D1 | **rinominare in sede di recepimento.** Anche qui il Map Master §29 corregge il kit |
-| 6 | **Eleggibilità per nome d'eroe** | Kit HUD §15: `Eligible: Flux / Bastion` nel pannello interazione | le abilità hanno ownership singola, le sinergie sono **derivate**; nessuna dipendenza da `HeroId` | [`ADR-0006`](../../decisions/adr-0006-ownership-abilita-sinergie.md) · [`D-029`](../../decisions/RT_PDR_00_Decision_Log.md) | **non applicare.** Il modello corretto — capability, non nome — è nel Map Master §15-§18 e nel kit Interactive Map §3 |
+| 6 | **Eleggibilità per nome d'eroe** | Kit HUD §15: `Eligible: Gadget / Riktor` nel pannello interazione | le abilità hanno ownership singola, le sinergie sono **derivate**; nessuna dipendenza da `HeroId` | [`ADR-0006`](../../decisions/adr-0006-ownership-abilita-sinergie.md) · [`D-029`](../../decisions/RT_PDR_00_Decision_Log.md) | **non applicare.** Il modello corretto — capability, non nome — è nel Map Master §15-§18 e nel kit Interactive Map §3 |
 | 7 | **Schema della pagina personaggio** | Characters Master §20 propone 11 sezioni Wiki | il template ha 16 sezioni e un campo **obbligatorio** che il master non nomina: `Misplay / Failure State` | [`D-032`](../../decisions/RT_PDR_00_Decision_Log.md) · [`characters/_Template.md`](../../characters/_Template.md) | **non applicare** lo schema. Le 4 pagine v0.1 lo compilano già: sostituirlo perderebbe un criterio anti-clone |
 
 ---
@@ -111,6 +111,7 @@ cinque domande su quindici erano già risposte. Il pacchetto va letto sapendolo.
 
 Indipendente dal pacchetto, ma scoperto perché il Map Master §11 ripete l'affermazione vecchia.
 
+<!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 [`D-046`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-09) stabilisce che **`Flux.ConductiveNode` *è*
 `Action.Electrify`**, ed è **cablata nel codice**:
 
@@ -125,7 +126,7 @@ Tre documenti dicono ancora l'opposto, in quattro punti:
 |---|---|---|
 | [`feature-registry.yaml`](../feature-registry.yaml) | 1638 | `wiki_note`: «nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale» |
 | [`acqua-e-elettricita` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/acqua-e-elettricita) | 11 · 71 | stessa affermazione, propagata dal `wiki_note` e ripetuta in prosa |
-| [`characters/v0.1/flux.md`](../../characters/v0.1/flux.md) | 26 | stessa affermazione, nella pagina dell'eroe che **ora la possiede** |
+| [`characters/v0.1/gadget.md`](../../characters/v0.1/gadget.md) | 26 | stessa affermazione, nella pagina dell'eroe che **ora la possiede** |
 
 La riga 1638 è la **sorgente**: le altre sono propagazione. Il difetto è di classe nota — *dato che nessuno
 legge* rovesciato in *decisione che nessuno propaga* — e va corretto alla sorgente, non copia per copia.
@@ -333,7 +334,7 @@ quelli che le tre macchine fanno davvero.
 | [`scripts/feature_registry.py`](../../../scripts/feature_registry.py) | **controllo nuovo**: nessuno `ScenarioId` senza una feature che lo rivendichi. Errore, non avviso, per simmetria con «`planned` ma presente» |
 | [`roadmap/feature-registry.yaml`](../feature-registry.yaml) | i **6 scenari orfani** su 54 attaccati alla feature che dimostrano; `wiki_note` di `RT-FEAT-ENV-ELECTRIC` corretta (§5) |
 | [`roadmap/feature-registry.md`](../feature-registry.md) | il controllo nuovo documentato, con il perché è un errore |
-| `feature-registry.json` · `wiki/feature-status.md` · `wiki/meccaniche/acqua-e-elettricita.md` · `characters/v0.1/flux.md` | **rigenerati** dalla sorgente |
+| `feature-registry.json` · `wiki/feature-status.md` · `wiki/meccaniche/acqua-e-elettricita.md` · `characters/v0.1/gadget.md` | **rigenerati** dalla sorgente |
 | gli stessi due file, in prosa | le due frasi **scritte a mano** che ripetevano l'affermazione superata, che nessun generatore poteva raggiungere |
 
 **Verifica di mutazione**: staccato `Visual.Map.HighCoverBlocks` dalla sua feature, `validate` esce `1`
@@ -448,7 +449,7 @@ dalla riga 24.
    consumatore, non il proprietario. Il rimando è nei due sensi. Issue `#335`.
 4. ✅ ~~**Characters & Roster**~~ — **atterrato con `#346`** (`d5b36cf`), lavorato da una sessione parallela:
    `ADR-0007`, la sezione *Profilo di attacco base* nel template applicata ai quattro eroi,
-   `Bastion.ImpactShot` 24 → 8 + `Status.Slow`, quattro scenari rimisurati e due nuovi.
+   `Hero.Riktor.ImpactShot` 24 → 8 + `Status.Slow`, quattro scenari rimisurati e due nuovi.
    **Verificato in modo indipendente** su worktree separato prima del merge: build pulita e **544/544
    `Success`**, zero `Fail`; merge di prova contro `main` senza conflitti e senza regressioni su `#321`.
    > Storia che vale la pena conservare: quel lavoro era finito in `stash@{0}` con l'etichetta

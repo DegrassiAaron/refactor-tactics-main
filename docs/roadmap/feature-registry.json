@@ -1276,7 +1276,7 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:coperture",
-        "docs/characters/v0.1/bastion.md"
+        "docs/characters/v0.1/riktor.md"
       ],
       "wiki_note": "Le coperture si **erigono, si spostano e scadono** in partita (CP 9.5). Resta da riscrivere la pagina wiki delle coperture, che descrive solo il dato di mappa.",
       "pie_refs": [],
@@ -2312,7 +2312,7 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:reazioni-overwatch-e-previsioni",
-        "docs/characters/v0.1/vektor.md"
+        "docs/characters/v0.1/wraith.md"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2523,8 +2523,8 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:reazioni-overwatch-e-previsioni",
-        "docs/characters/v0.1/bastion.md",
-        "docs/characters/v0.1/vektor.md"
+        "docs/characters/v0.1/riktor.md",
+        "docs/characters/v0.1/wraith.md"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -3170,7 +3170,7 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:acqua-e-elettricita",
-        "docs/characters/v0.1/riva.md"
+        "docs/characters/v0.1/phase.md"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -3235,7 +3235,7 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:acqua-e-elettricita",
-        "docs/characters/v0.1/flux.md"
+        "docs/characters/v0.1/gadget.md"
       ],
       "wiki_note": "Dal 2026-08-09 la scarica ha un **owner nel roster**: `Hero.Gadget.ConductiveNode` **e'** `Action.Electrify` (D-046, nata come D-039). Prima nessun eroe la possedeva e il motore era verde ma non innescabile in partita.",
       "pie_refs": [],
@@ -3373,7 +3373,7 @@
         "date": "2026-08-09",
         "commit": "4c50c07"
       },
-      "notes": "Nel repository è **fumo** (`Smoke` → `Obscured`), non vapore: la seed list dice «steam», il codice e il catalogo dicono `Smoke`. Nome allineato al codice, che è la fonte verificabile. Dal 2026-08-09 (issue 353) il fumo si **crea in partita** e non solo si dipinge su una mappa: `Hero.Phase.MistVeil` è il suo produttore, con lo stesso meccanismo di `Ignite` e `CreateWater`. Resta noto e dichiarato in `docs/characters/v0.1/riva.md`: chi è **già** nella cella quando il fumo si alza non riceve `Status.Obscured`, che è un `OnEnterEffect` — il cap di targeting vale comunque, perché è letto dalla superficie della cella."
+      "notes": "Nel repository è **fumo** (`Smoke` → `Obscured`), non vapore: la seed list dice «steam», il codice e il catalogo dicono `Smoke`. Nome allineato al codice, che è la fonte verificabile. Dal 2026-08-09 (issue 353) il fumo si **crea in partita** e non solo si dipinge su una mappa: `Hero.Phase.MistVeil` è il suo produttore, con lo stesso meccanismo di `Ignite` e `CreateWater`. Resta noto e dichiarato in `docs/characters/v0.1/phase.md`: chi è **già** nella cella quando il fumo si alza non riceve `Status.Obscured`, che è un `OnEnterEffect` — il cap di targeting vale comunque, perché è letto dalla superficie della cella."
     },
     {
       "feature_id": "RT-FEAT-ENV-ICE",
@@ -3539,8 +3539,8 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:sinergie-e-combinazioni",
-        "docs/characters/v0.1/flux.md",
-        "docs/characters/v0.1/riva.md"
+        "docs/characters/v0.1/gadget.md",
+        "docs/characters/v0.1/phase.md"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -4898,10 +4898,10 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "docs/characters/v0.1/flux.md",
-        "docs/characters/v0.1/riva.md",
-        "docs/characters/v0.1/bastion.md",
-        "docs/characters/v0.1/vektor.md",
+        "docs/characters/v0.1/gadget.md",
+        "docs/characters/v0.1/phase.md",
+        "docs/characters/v0.1/riktor.md",
+        "docs/characters/v0.1/wraith.md",
         "docs/characters/index.md"
       ],
       "wiki_note": "",

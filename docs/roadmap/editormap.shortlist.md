@@ -408,10 +408,10 @@ Paragon, non l'eroe (deciso 2026-08-11 — vedi `notes`):
 
 | Eroe | `HeroId` | Pack | Blueprint | Skeletal Mesh da assegnare |
 |---|---|---|---|---|
-| Gadget | `Hero.Flux` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
-| Phase | `Hero.Riva` | `Paragon.Phase` | `BP_Unit_Phase` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
-| Riktor | `Hero.Bastion` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
-| Wraith | `Hero.Vektor` | `Paragon.Wraith` | `BP_Unit_Wraith` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
+| Gadget | `Hero.Gadget` | `Paragon.Gadget` | `BP_Unit_Gadget` | `…/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget` |
+| Phase | `Hero.Phase` | `Paragon.Phase` | `BP_Unit_Phase` | `…/ParagonPhase/Characters/Heroes/Phase/Meshes/Phase_GDC` |
+| Riktor | `Hero.Riktor` | `Paragon.Riktor` | `BP_Unit_Riktor` | `…/ParagonRiktor/Characters/Heroes/Riktor/Meshes/Riktor` |
+| Wraith | `Hero.Wraith` | `Paragon.Wraith` | `BP_Unit_Wraith` | `…/ParagonWraith/Characters/Heroes/Wraith/Meshes/Wraith` |
 
 ⚠️ **La mesh di Phase NON si chiama `Phase`**: e' `Phase_GDC` (22,6 MB). Gli altri file in quella
 cartella pesano 0,1 MB — sono extents, shadow e skeleton. Verificato sul disco il 2026-08-11.
@@ -466,7 +466,7 @@ gia' una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`).
    registra chi possiede quel file, e l'invariante da scrivere e' una sola: *a schermo, un
    personaggio selezionato non cambia dimensione e non e' piu' alto della sua silhouette a riposo*.
 7. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
-   (`Hero.Flux` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
+   (`Hero.Gadget` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
    `RTGameMode.cpp` fa `HeroUnitClasses.Find(Hero->HeroId)` e senza corrispondenza spawna
    `ARTUnit::StaticClass()`, cioe' il cilindro. Un Blueprint perfetto ma non registrato non
    viene mai istanziato.
@@ -479,7 +479,7 @@ gia' una categoria di equipaggiamento (`ERTEquipmentSlot::Gadget`).
    |---|---|---|
    | risponde a | **chi** scende in campo | **con che aspetto** |
    | tipo | lista: un campo per riga | mappa: **due campi** per riga |
-   | contiene | `Hero.Flux` | `Hero.Flux` → `BP_Unit_Gadget` |
+   | contiene | `Hero.Gadget` | `Hero.Gadget` → `BP_Unit_Gadget` |
 
    Se la riga che stai compilando ha **un solo campo**, sei nella proprieta' sbagliata. Mettere i
    nomi dei Blueprint nelle formazioni produce `BP_Unit_Gadget non e' nel catalogo eroi` e
@@ -498,6 +498,7 @@ Procedura per animazioni e montaggi: `guida-animazioni-paragon.md` §AS.3 e §AS
 > *Candidate*: nessuno dei due e' la base visuale di un eroe della v0.1. Seguendola si sarebbero
 > costruiti due Blueprint che il gioco non istanzia.
 
+<!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 > **I quattro pack sono tutti sul disco** (verificato 2026-08-11): Gadget 1232 file, Phase 1155, Riktor 1261, Wraith 1322. `ParagonGadget` mancava ed e' stato portato con la procedura `convenzioni-contenuti-ue.md` **B.2a** (magazzino + rename headless + copia). I pack non sono nel repo (`/Content/FabAsset/` e' ignorato): chi clona se li scarica. ⚠️ **Naming deciso dall'autore il 2026-08-11**: cartelle e asset di questa seduta portano il nome del **pack Paragon**, non dell'eroe, «per non creare problemi» — in editor si vede `Gadget` e si cerca `Gadget`. Ribalta `convenzioni-contenuti-ue.md` §A, che raccomandava l'opposto perche' il nome del pack lega l'asset a una mesh sostituibile: il rischio resta, ed e' accettato consapevolmente. Se un eroe cambiasse base visuale, il Blueprint andrebbe rinominato. ⚠️ **Eccezione dichiarata**: i data asset eroe (`DA_Hero_Flux`, …) restano intitolati all'**eroe** pur stando nella cartella del pack. Sono dati di gioco, non presentazione: non dipendono dalla mesh, e `HeroId` in C++ resta `Hero.Flux`. ⚠️ Se una mesh appare **senza materiali** non e' un errore di questa seduta: sono i soft reference di A.6 — 9 asset su 1229 in Gadget, 6 su 1698 in Gideon che e' in uso da giorni. ⚠️ **E se un personaggio appare in T-pose, schiacciato o con catene lunghissime, NON e' un difetto**: senza anim BP la skeletal resta nella **posa di riferimento** dello scheletro, dove le ossa di catene e tentacoli stanno distese in fila. Riscontrato su `Riktor` il 2026-08-12. Il controllo che lo isola in dieci secondi: **apri la Skeletal Mesh nel Content Browser** — se appare cosi' anche li', fuori dal gioco e fuori dal Blueprint, e' la bind pose e la sistema **U8**. Se invece li' e' normale e in partita no, allora guarda il Blueprint.
 
 #### U8 · Animazioni ⏳
@@ -705,7 +706,7 @@ Nessuna guida copre questa procedura, quindi i passi stanno qui.
 
 **Non e' una caccia ai difetti: e' una domanda di leggibilita'.** Tre unita' con
 `PushResistance = 0` (Gadget, Phase, Wraith) — una in `Action.Guard`, una in `Action.Brace`, una
-senza difesa — e una Phase avversaria che usa `Riva.PressureJet` su ciascuna nello stesso turno.
+senza difesa — e una Phase avversaria che usa `Hero.Phase.PressureJet` su ciascuna nello stesso turno.
 E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 1. Guarda il turno **senza leggere i numeri**. «Questo si e' piantato» dev'essere distinguibile

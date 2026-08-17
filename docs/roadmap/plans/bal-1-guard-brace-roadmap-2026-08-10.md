@@ -30,7 +30,7 @@ applica `TAG_Status_Guarded`/`TAG_Status_Braced`, la spinta nel passaggio unico 
 > **Nel gioco non esiste una spinta maggiore di 1.**
 
 Misurato sul catalogo eroi: **due soli effetti `Push`, entrambi di valore `1`** — quello di
-`Riva.PressureJet` e quello dell'impatto di Bastion. Quindi la clausola che distingue `Brace` da `Guard`
+`Hero.Phase.PressureJet` e quello dell'impatto di Riktor. Quindi la clausola che distingue `Brace` da `Guard`
 sulla spinta — *«senza limite di distanza»* — **non è raggiungibile in partita**. `GuardResistedPushDistance = 1`
 copre per intero lo spazio degli spostamenti esistenti.
 
@@ -38,7 +38,7 @@ L'asse dello spostamento, che è quello su cui l'handoff voleva costruire la sep
 
 ### 1.3 Cosa fanno davvero, in numeri
 
-Bersaglio con `PushResistance = 0` (Flux, Riva, Vektor) colpito da `Riva.PressureJet` — 16 danni **e** spinta 1
+Bersaglio con `PushResistance = 0` (Gadget, Phase, Wraith) colpito da `Hero.Phase.PressureJet` — 16 danni **e** spinta 1
 nello stesso colpo:
 
 | Difesa | 1 colpo | 2 colpi |
@@ -56,11 +56,11 @@ Il catalogo e l'handoff descrivono, in modi diversi, un gioco che non è questo.
 
 ### 1.4 Effetto collaterale che nessuno ha deciso
 
-**Bastion ha `PushResistance = 1` nativo** — l'unico del roster (`Flux`, `Riva`, `Vektor` = 0) — e la
+**Riktor ha `PushResistance = 1` nativo** — l'unico del roster (`Gadget`, `Phase`, `Wraith` = 0) — e la
 resistenza è una **soglia**, non una sottrazione ([D-038](../../decisions/RT_PDR_00_Decision_Log.md), pinnata
 da `RefactorTactics.Actions.PushResistanceIsAThreshold`). Siccome ogni spinta del gioco vale 1:
 
-> Bastion è **immune a ogni spostamento del gioco, sempre, senza spendere nulla**.
+> Riktor è **immune a ogni spostamento del gioco, sempre, senza spendere nulla**.
 
 Il commento nel catalogo lo motiva in parte — *«compra HP e stabilità con movimento e vista»* — ma
 l'immunità **totale** è una conseguenza del fatto che nessuna spinta supera 1, non una scelta dichiarata. Va
@@ -91,7 +91,7 @@ Oggi `Guard` e `Brace` sono verificati **separatamente** (`Visual.Combat.GuardRe
 | `Spec.Brace.GuardAndBraceOnMixedHit` | Le tre righe della tabella §1.3 — danno **e** spinta nello stesso colpo, contro `Guard`, contro `Brace`, contro nessuno dei due | — |
 | `Spec.Brace.BraceWinsOnSecondHit` | `Guard` 17 · `Brace` 12 su due colpi. È **l'unico posto** dove il trade-off reale diventa rosso se cambia | — |
 | `Spec.Brace.PushBeyondGuardThreshold` | Spinta 2: `Guard` cede, `Brace` tiene | **Fase 0 (A)** — con (B) non si scrive |
-| `Spec.Combat.BastionIgnoresAllPushes` | §1.4 — immunità totale allo spostamento, in un verso o nell'altro | — |
+| `Spec.Combat.BastionIgnoresAllPushes` | §1.4 — immunità totale allo spostamento, in un verso o nell'altro | — | <!-- rename-exempt: nome mai esistito: il piano BAL-1 lo prevedeva e la decisione cadde dall'altra parte -->
 
 **L'oracolo esiste già**: bastano `UnitHpEquals` e `UnitAtCell`, le assertion che l'harness ha. A differenza
 degli undici `Spec.Clash.*`/`Spec.TimeBank.*` che al 2026-08-10 aspettavano `#318`, qui non manca nessuna
@@ -99,8 +99,8 @@ capability. *(aggiornato il 2026-08-13: quei gruppi sono **tredici** dopo la ric
 aspettano più — `LogEventAmount` è atterrata il 2026-08-10 con `a7e4677b`. Il contrasto di questa riga vale
 ancora per la data in cui fu scritta, non per oggi.)*
 
-**Anche la fixture esiste già**: `Riva.PressureJet` è a catalogo con 16 danni, `Push 1`, `Wet`, forma a linea,
-ed è pinnata da `RTHeroRivaTests.cpp`. Non c'è niente da costruire — era la fixture che l'handoff proponeva,
+**Anche la fixture esiste già**: `Hero.Phase.PressureJet` è a catalogo con 16 danni, `Push 1`, `Wet`, forma a linea,
+ed è pinnata da `RTHeroPhaseTests.cpp`. Non c'è niente da costruire — era la fixture che l'handoff proponeva,
 e il repository ce l'aveva.
 
 > ⚠️ **Attenzione a un dettaglio del resolver**: il knockback esclude i bersagli spinti da 2+ attaccanti
@@ -124,8 +124,8 @@ Gli scenari dicono *cosa succede*, non *cosa è divertente*: questa fase è una 
 
 `D-074` aveva scartato la Fase 0-A — introdurre una spinta `≥ 2` — e su quella premessa aveva **precluso
 l'opzione 2**. La premessa è caduta, e non perché qualcuno l'abbia riaperta: **`Weapon.Impact` su
-`Riva.PressureJet`**, che spinge già di 1, produce una spinta di **2** ([D-085](../../decisions/RT_PDR_00_Decision_Log.md)),
-ed è il loadout di **default** di Riva ([D-089](../../decisions/RT_PDR_00_Decision_Log.md)).
+`Hero.Phase.PressureJet`**, che spinge già di 1, produce una spinta di **2** ([D-085](../../decisions/RT_PDR_00_Decision_Log.md)),
+ed è il loadout di **default** di Phase ([D-089](../../decisions/RT_PDR_00_Decision_Log.md)).
 
 La spinta forte non è entrata dal catalogo azioni, dove D-074 la stava guardando: è entrata
 dall'**equipaggiamento**, sommandosi a una spinta che l'attacco base aveva già.
@@ -137,7 +137,7 @@ di nuovo un asse che le separa.
 **Cosa cambia per la decisione**: le opzioni in campo tornano **tre**. L'opzione 2 non è più preclusa,
 perché il mestiere che le mancava adesso esiste. Resta però una domanda nuova che il piano non poneva:
 quel mestiere dipende da un **equipaggiamento equipaggiato**, non da una regola del turno — quindi
-`Brace` avrebbe un ruolo contro Riva-con-Impatto e non contro chiunque altro. Se sia abbastanza per
+`Brace` avrebbe un ruolo contro Phase-con-Impatto e non contro chiunque altro. Se sia abbastanza per
 fondarci sopra una difesa, è parte di ciò che la partita deve dire.
 
 ## 5. Fase 3 — implementazione
@@ -171,7 +171,7 @@ senza motivo è il difetto che G9 ha già avuto due volte.
 |---|---|---|---|
 | [**#400**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400) | Ogni spinta del gioco vale 1: la clausola «senza limite di distanza» di `Brace` non è osservabile | — | Fase 0 decisa (A o B). Se (B): clausola riscritta a catalogo **e** nel commento del codice, così che le due letture non divergano |
 | [**#401**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/401) | `Guard` e `Brace` sono verificati separatamente: il confine può spostarsi senza rossi | #400 | I 4 scenari in `Scenarios/Spec/`, verdi, con i numeri della §1.3 pinnati |
-| [**#402**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/402) | Bastion è immune a ogni spostamento del gioco senza spendere nulla | — | Deciso se `PushResistance = 1` nativo è voluto in questa forma; scenario che lo pinna in un verso o nell'altro |
+| [**#402**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/402) | Riktor è immune a ogni spostamento del gioco senza spendere nulla | — | Deciso se `PushResistance = 1` nativo è voluto in questa forma; scenario che lo pinna in un verso o nell'altro |
 | [**#403**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403) | `BAL-1`: decidere il confine fra `Guard` e `Brace` | #400, #401 | Playtest eseguito, opzione scelta, `D-0nn` scritta, `BAL-1` rimossa da `OPEN_DECISIONS.md` |
 | [**#404**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/404) | Applicare la decisione `BAL-1` alle costanti di combat | #403 | Costanti aggiornate, i 4 scenari aggiornati e verdi, catalogo §135 allineato |
 

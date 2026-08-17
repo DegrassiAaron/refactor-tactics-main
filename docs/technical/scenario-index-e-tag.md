@@ -27,7 +27,7 @@ sufficiente finché gli scenari stavano in una cartella.
 Non regge due bisogni insieme:
 
 1. **Le lenti si incrociano.** Lo stesso scenario si apre per verificare una regola *oppure* per guardare
-   un'animazione, e si cerca «reactions **e** flux». Una gerarchia di cartelle esprime **un** asse.
+   un'animazione, e si cerca «reactions **e** gadget». Una gerarchia di cartelle esprime **un** asse.
 2. **La combo di UE non filtra da testo** (verificato in Editor). Oltre la ventina di voci, scorrerle smette
    di essere un modo di trovare qualcosa.
 
@@ -48,7 +48,7 @@ quaranta voci è sufficiente; oltre, si aggiunge un controllo contro un elenco.
 
 ```
 scenarioId : "Movement.Basic"                              identità, dichiarata dal file
-tags       : ["movement", "core", "animation", "flux"]     tipologia E lente, stesso asse
+tags       : ["movement", "core", "animation", "gadget"]     tipologia E lente, stesso asse
 percorso   : Scenarios/<qualunque>/<qualunque>.json        storage, senza promesse
 ```
 
@@ -68,10 +68,11 @@ toglierlo dall'ultimo scenario che lo portava lo fa sparire. Stessa ragione per 
 legge i file: un elenco scritto a mano invecchia, e una voce di filtro che non filtra niente è un invito a
 cercare qualcosa che non c'è.
 
+<!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 Vocabolario al 2026-08-08 (**22 voci**, dopo i corpus `Visual.*` e `Spec.*`): `animation` · `bastion` ·
-`combat` · `core` · `environment` · `expected-fail` · `flux` · `friendly-fire` · `los` · `map` · `movement` ·
-`objectives` · `pathfinding` · `perception` · `planning` · `reactions` · `relay` · `riva` · `shapes` ·
-`showcase` · `spec` · `vektor`.
+`combat` · `core` · `environment` · `expected-fail` · `gadget` · `friendly-fire` · `los` · `map` · `movement` ·
+`objectives` · `pathfinding` · `perception` · `planning` · `reactions` · `relay` · `phase` · `shapes` ·
+`showcase` · `spec` · `wraith`.
 
 Il tag **`spec`** ha un significato operativo e non solo di navigazione: marca gli scenari che descrivono una
 feature **non ancora costruita**, e che quindi escono `BLOCKED` per progetto. Filtrarci sopra risponde alla
@@ -80,7 +81,7 @@ domanda «cosa ho già dichiarato e non ho ancora fatto».
 > Questa riga è una **fotografia**, e quando è stata rimisurata era indietro di **dieci** voci su venti.
 > Tre (`objectives`, `relay`, `showcase`) erano entrate con `RT_Showcase_Relay_v01`; tre
 > (`reactions`, `shapes`, `friendly-fire`) con gli scenari di combattimento aggiunti nel frattempo; quattro
-> (`environment`, `map`, `riva`, `vektor`) col corpus visivo. Nessuna di queste è passata di qui, ed è il
+> (`environment`, `map`, `phase`, `wraith`) col corpus visivo. Nessuna di queste è passata di qui, ed è il
 > drift previsto due paragrafi più su — osservato, non ipotizzato.
 >
 > Il vocabolario **vero** resta `URTScenarioIndex::ListTags`. Si rilegge senza aprire l'editor:
@@ -148,7 +149,7 @@ l'ordine di dichiarazione:
 **Due filtri e non tre**: due assi coprono il caso che serve — una tipologia incrociata con un personaggio o
 una lente — e il terzo diventerebbe rumore prima di diventare utile.
 
-**Intersezione e non unione**: il caso è «reactions E flux». Se il filtro restituisse l'unione sembrerebbe
+**Intersezione e non unione**: il caso è «reactions E gadget». Se il filtro restituisse l'unione sembrerebbe
 funzionare (l'elenco cambia) mentre mostrerebbe *più* scenari invece di meno.
 
 ### I filtri non toccano la selezione
@@ -196,7 +197,7 @@ misurato, non per completezza:
 - query per personaggio/fazione/milestone verso una wiki che non esiste;
 - estensione di `result.json` con i metadati di classificazione;
 - validazione di `MilestoneId`/`FactionId`: nel codice non esistono né milestone né fazioni, quindi non c'è
-  niente contro cui validare. `flux` e `conflux` restano tag, non ID.
+  niente contro cui validare. `gadget` e `conflux` restano tag, non ID.
 
 ## 9. Verifiche in Editor — fatte
 

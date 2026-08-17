@@ -324,10 +324,10 @@ Verifica i path reali su `main` prima di modificare.
 
 Target atteso:
 
-- `docs/characters/v0.1/flux.md`
-- `docs/characters/v0.1/riva.md`
-- `docs/characters/v0.1/bastion.md`
-- `docs/characters/v0.1/vektor.md`
+- `docs/characters/v0.1/gadget.md`
+- `docs/characters/v0.1/phase.md`
+- `docs/characters/v0.1/riktor.md`
+- `docs/characters/v0.1/wraith.md`
 
 ## Gadget / Flux
 

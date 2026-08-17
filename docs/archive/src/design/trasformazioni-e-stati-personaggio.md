@@ -453,7 +453,7 @@ Bastion diventa quasi parte della mappa:
 **Consiglio:** **primo candidato per prototipare Alternate Form.**
 
 > ⚠️ **Correzione**: contrasta con l'identità canonica di Vektor
-> ([`../../../characters/v0.1/vektor.md`](../../../characters/v0.1/vektor.md)): *Predictive Duelist*, «il più mobile
+> ([`../../../characters/v0.1/wraith.md`](../../../characters/v0.1/wraith.md)): *Predictive Duelist*, «il più mobile
 > del roster», con `Slancio` che **recupera muovendosi**. Una forma che toglie il Dash non sospende una
 > statistica: spegne la risorsa firma e la player question («dove passerà il nemico?»). Non è uno stato dello
 > stesso personaggio, è un secondo personaggio. Se serve un banco di prova `Mobile ↔ Siege`, i candidati

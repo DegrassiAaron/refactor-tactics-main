@@ -6,7 +6,7 @@
 > **Stato al 2026-08-08.** La parte architetturale è **in codice**: `ARTUnit::VisualZOffset` esiste e
 > `ARTGameMode::HeroUnitClasses` è una `TMap<FName, TSubclassOf<ARTUnit>>`, cioè lo spawn per eroe è
 > configurabile come previsto dai punti 2 e 4. Ciò che **non** è deciso è il contenuto: **nessuna
-> corrispondenza fra i personaggi Paragon e il roster canonico (Flux · Riva · Bastion · Vektor) è stata
+> corrispondenza fra i personaggi Paragon e il roster canonico (Gadget · Phase · Riktor · Wraith) è stata
 > scelta**. Questo ADR non va letto come se il roster avesse già una resa visiva definitiva; la mappatura è
 > una voce aperta in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
 > **Contesto sorgente**: `/sc:spec-panel` → [`spec-asset-pipeline.md`](../technical/spec-asset-pipeline.md)

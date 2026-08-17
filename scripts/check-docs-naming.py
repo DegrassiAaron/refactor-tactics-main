@@ -92,33 +92,26 @@ EXCLUDED_DIRS = ("archive", "src")
 # del paragrafo.
 #
 # Tutto il resto e' protetto: e' il roster **corrente** letto da chi apre il file oggi.
-EXEMPT_FILES = (
-    "docs/decisions/RT_PDR_00_Decision_Log.md",
-    "docs/OPEN_DECISIONS.md",
-    "docs/CHANGELOG_DOCUMENTATION.md",
-    # ⚠️ I due seguenti si riconoscono dal BANNER, non dalla cartella, e sono stati
-    # scoperti solo perche' una review li ha letti: il gate invertito li aveva resi
-    # obbligatori, e la prima stesura di questa PR li ha riscritti davvero.
-    #   v0.1-issue-plan  «SNAPSHOT DI CREAZIONE DELLE ISSUE, NON NORMATIVO ... i corpi
-    #     usati per creare le issue»: rinominarli fa dire al file che avevamo scritto
-    #     «Gadget» in issue che su GitHub portano ancora «Flux».
-    #   roadmap-editor   «VISTA RITIRATA IL 2026-08-08 ... il corpo resta come
-    #     provenienza».
-    "docs/roadmap/v0.1-issue-plan.md",
-    "docs/roadmap/roadmap-editor.md",
-)
-EXEMPT_PREFIXES = (
-    "docs/decisions/adr-",      # una ADR e' datata e firmata: si annota, non si riscrive
-    # ⚠️ Referti, triage e audit: fotografano un momento, e la data sta nel corpo.
-    # NON dire «datati nel nome» — e' falso per circa 27 dei file di questa cartella
-    # (roadmap_lane_*.md, showcase-v01-audit.md, pacing-turno-plan.md, ...), e una
-    # giustificazione sbagliata regge finche' qualcuno non la verifica.
-    "docs/roadmap/plans/",
-)
+# ✅ **VUOTE dal 2026-08-17 (`#755`), e la ragione e' che il meccanismo e' cambiato.**
+#
+# Erano cinque file e due prefissi — Decision Log, OPEN_DECISIONS, changelog, gli ADR,
+# `roadmap/plans/` — esenti **per intero**, cioe' 89 file su 240 e una copertura del 63%.
+# La giustificazione era buona e resta vera: sono registri datati, e riscrivere «al
+# 2026-08-13 c'erano 1600 occorrenze di `Flux`» lo rende falso.
+#
+# Ma un'esenzione per FILE protegge molto piu' di cio' che deve: nel Decision Log erano
+# esenti anche le voci nuove, quelle che descrivono il roster **corrente**, e nessuno lo
+# avrebbe saputo. La sostituisce il marcatore `rename-exempt`, che esenta una **riga** e
+# **fallisce quando la sua ragione cade** — le due proprieta' che una lista di nomi di
+# file non puo' avere.
+#
+# Misura del cambio: 89 file esenti -> 0, copertura 63% -> 100%, con 76 righe marcate.
+EXEMPT_FILES: tuple[str, ...] = ()
+EXEMPT_PREFIXES: tuple[str, ...] = ()
 
 
 def is_exempt(rel: str) -> bool:
-    return rel in EXEMPT_FILES or rel.startswith(EXEMPT_PREFIXES)
+    return bool(EXEMPT_FILES) and rel in EXEMPT_FILES or bool(EXEMPT_PREFIXES) and rel.startswith(EXEMPT_PREFIXES)
 
 # --- maschere: ciò che NON è prosa player-facing -----------------------------
 # L'ordine conta: i blocchi recintati spariscono prima degli inline, altrimenti un
@@ -173,8 +166,93 @@ def mask(text: str) -> str:
 NAME_RE = re.compile(r"\b(" + "|".join(LEGACY) + r")\b")
 
 
+# --- il marcatore di esenzione, riga per riga (#755) --------------------------
+#
+# ⚠️ **Esiste perche' «zero occorrenze» e' un obiettivo IMPOSSIBILE per una parte dei
+# documenti, e chiederlo lo stesso produce o una falsificazione o un gate spento.**
+# Misurato eseguendo `#755`: delle 1055 occorrenze nei documenti vivi, **88** stanno
+# in frasi che parlano della rinomina STESSA — `D-130` dichiara «`Flux` -> **Gadget**»,
+# e bonificarla la fa diventare «`Gadget` -> **Gadget**», cioe' una decisione che non
+# si puo' piu' leggere. Altre **169** sono misure datate: «al 2026-08-13 c'erano 1600
+# occorrenze di `Flux`» e' un fatto di quel giorno, e riscriverlo lo rende falso.
+#
+# La forma e' un commento HTML sulla riga PRECEDENTE:
+#
+#     <!-- rename-exempt: D-130 dichiara la mappatura -->
+#     | **D-130** | ... `Flux` -> **Gadget** ... |
+#
+# 🔑 **Due proprieta' lo distinguono dalle esenzioni per file che sostituisce**:
+#   1. e' per **riga**, quindi il resto del documento resta protetto — il Decision Log
+#      era esente per intero, e ogni voce nuova poteva nominare un nome ritirato senza
+#      che nulla lo dicesse;
+#   2. un marcatore su una riga **senza** nomi ritirati e' un **ERRORE**. Un'esenzione
+#      che sopravvive al proprio motivo e' esattamente il modo in cui questo gate ha
+#      perso il 37% di copertura: qui non puo' succedere in silenzio.
+EXEMPT_MARKER = re.compile(r"<!--\s*rename-exempt:\s*(.+?)\s*-->")
+
+# «Questa riga ha ancora bisogno del marcatore?» — una domanda diversa da «questa riga
+# ha prosa player-facing sbagliata?», e vuole un pattern diverso.
+#
+# Confine a sinistra SEMPRE; a destra o un confine o una MAIUSCOLA. Le tre condizioni
+# insieme sono l'unico modo di prendere ciò che serve senza prendere ciò che no:
+#
+#   `bastion` in un tag di scenario      -> confine su entrambi i lati        ✅
+#   `BastionIsPushedLikeAnyone`          -> confine a sx, maiuscola a dx      ✅
+#   `FluxRiva` (coppia di eroi)          -> idem                              ✅
+#   `Conflux` (fazione)                  -> nessun confine a sinistra         ❌ giusto
+#   `rivaluta`, `rivalida`, `privato`    -> minuscola a destra                ❌ giusto
+#
+# ⚠️ L'ultima riga e' un difetto misurato, non un'ipotesi: con il solo confine a
+# sinistra questo pattern contava `rivalidazione` come occorrenza di `Riva`, e la
+# verifica di `#755` riportava 46 residui di cui 40 inesistenti.
+# ⚠️ **Due rami e nessun `IGNORECASE`**, e la ragione e' un difetto misurato: con
+# `re.IGNORECASE` la classe `[A-Z]` matcha **anche le minuscole**, quindi `(?=[A-Z])`
+# accettava la `l` di `rivaluta` e il pattern tornava a contare `rivalidazione`.
+# Il ramo maiuscolo ammette la maiuscola seguente (nomi composti), quello minuscolo no.
+ANY_FORM = re.compile(
+    r"\b(?:" + "|".join(LEGACY) + r")(?:\b|(?=[A-Z]))"
+    r"|\b(?:" + "|".join(n.lower() for n in LEGACY) + r")\b"
+)
+
+
+def marked_lines(raw_lines: list[str]) -> dict[int, str]:
+    """`{numero_riga_1based: ragione}` per le righe marcate.
+
+    Il marcatore vale in **due** posizioni, e la seconda non e' una comodita':
+      · sulla riga PRECEDENTE — la forma normale, leggibile;
+      · in FONDO ALLA RIGA STESSA — obbligatoria dentro una tabella, perche' un
+        commento HTML fra due righe di tabella markdown la **spezza in due**. Il
+        Decision Log e' una tabella sola e ogni decisione e' una riga: senza questa
+        seconda forma, marcare `D-130` significherebbe rompere il documento che si
+        sta cercando di preservare.
+
+    Si legge dal RAW e non dal mascherato: `mask()` cancella i commenti HTML, quindi
+    dopo la maschera il marcatore non esiste piu'.
+    """
+    marked: dict[int, str] = {}
+    for i, line in enumerate(raw_lines):
+        m = EXEMPT_MARKER.search(line)
+        if not m:
+            continue
+        # Se la riga contiene ANCHE un nome ritirato, il marcatore vale per se stessa:
+        # e' la forma in-tabella. Altrimenti vale per la riga dopo.
+        #
+        # ⚠️ Con ANY_FORM e non `NAME_RE`, per la stessa ragione di `stale_markers`:
+        # `NAME_RE` non vede `BastionIgnoresAllPushes` — concatenato, nessun confine a
+        # destra — quindi attribuiva il marcatore alla riga SUCCESSIVA, che era vuota,
+        # e lo dichiarava stantio. Un marcatore giusto, letto male, segnalato come rotto.
+        senza_marcatore = EXEMPT_MARKER.sub("", line)
+        if ANY_FORM.search(senza_marcatore):
+            marked[i + 1] = m.group(1)
+        elif i + 1 < len(raw_lines):
+            marked[i + 2] = m.group(1)
+        else:
+            marked[i + 1] = m.group(1)  # ultima riga del file: vale per se'
+    return marked
+
+
 def scan(path: Path) -> list[tuple[int, str, str]]:
-    """Ritorna [(riga, nome, testo)] delle occorrenze player-facing."""
+    """Ritorna [(riga, nome, testo)] delle occorrenze player-facing NON marcate."""
     try:
         raw = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -182,12 +260,43 @@ def scan(path: Path) -> list[tuple[int, str, str]]:
 
     masked = mask(raw)
     raw_lines = raw.splitlines()
+    marked = marked_lines(raw_lines)
     hits: list[tuple[int, str, str]] = []
     for lineno, line in enumerate(masked.splitlines(), start=1):
+        if lineno in marked:
+            continue
         for match in NAME_RE.finditer(line):
             original = raw_lines[lineno - 1].strip()
             hits.append((lineno, match.group(1), original[:120]))
     return hits
+
+
+def stale_markers(path: Path) -> list[tuple[int, str, str]]:
+    """Marcatori la cui riga NON contiene piu' un nome ritirato: vanno tolti.
+
+    E' la meta' che rende il meccanismo onesto. Senza, un marcatore messo per una
+    ragione vera resterebbe dopo che la ragione e' caduta, e il gate avrebbe di nuovo
+    delle zone cieche — solo piu' piccole e piu' difficili da trovare.
+    """
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    raw_lines = raw.splitlines()
+    stale = []
+    for lineno, reason in marked_lines(raw_lines).items():
+        riga = raw_lines[lineno - 1] if lineno - 1 < len(raw_lines) else ""
+        # Sul RAW, non sul mascherato: un token in backtick e' comunque una ragione
+        # valida per marcare, ed e' il caso piu' frequente (`Flux.ArcPulse`).
+        #
+        # ⚠️ E con ANY_FORM, non con `NAME_RE`. Misurato eseguendo `#755`: questo
+        # controllo dichiarava stantii due marcatori legittimi, perche' `NAME_RE` e'
+        # case-sensitive e con confini su entrambi i lati — non vedeva `` `bastion` ``
+        # minuscolo ne' `BastionIsPushedLikeAnyone` concatenato. Un falso positivo qui
+        # e' peggio di un'imprecisione: costringe a togliere un marcatore che serve.
+        if not ANY_FORM.search(riga):
+            stale.append((lineno, reason, riga.strip()[:100]))
+    return stale
 
 
 # ⚠️ I file di governance stanno FUORI da `docs/`, e questo gate li ha mancati fino
@@ -360,7 +469,37 @@ def main() -> int:
         else:
             print("OK — nessun nome legacy come prosa player-facing nella Wiki.")
 
-    if args.check and (enforced_hits or wiki_hits):
+    # --- marcatori stantii: la meta' che rende il meccanismo onesto (#755) ---------
+    #
+    # Un marcatore su una riga senza nomi ritirati non e' innocuo: e' una zona cieca
+    # che nessuno vede. Si controlla su TUTTI i file analizzati, esenti compresi —
+    # anzi soprattutto li', perche' e' dove i marcatori vivono.
+    stale: dict[str, list[tuple[int, str, str]]] = {}
+    marked_total = 0
+    for path in files:
+        rel = path.relative_to(REPO).as_posix()
+        try:
+            marked_total += len(marked_lines(path.read_text(encoding="utf-8").splitlines()))
+        except (OSError, UnicodeDecodeError):
+            pass
+        s = stale_markers(path)
+        if s:
+            stale[rel] = s
+
+    print()
+    if stale:
+        n = sum(len(v) for v in stale.values())
+        print(f"ERRORE — {n} marcatori `rename-exempt` STANTII: la riga che esentano non")
+        print("         contiene piu' un nome ritirato, quindi il marcatore va TOLTO.")
+        for rel, voci in sorted(stale.items()):
+            for lineno, reason, testo in voci:
+                print(f"  {rel}:{lineno}  «{reason}»")
+                print(f"      riga: {testo}")
+    elif marked_total:
+        print(f"Marcatori `rename-exempt`: {marked_total}, tutti su righe che ne hanno ancora")
+        print("bisogno. Esentano una RIGA, non un file: il resto del documento resta protetto.")
+
+    if args.check and (enforced_hits or wiki_hits or stale):
         return 1
     return 0
 

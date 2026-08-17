@@ -52,10 +52,10 @@ Repository: `DegrassiAaron/refactor-tactics-main`, `main`.
 
 File principali:
 
-- `docs/characters/v0.1/flux.md` — pagina corrente di **Gadget** (`Hero.Flux`)
-- `docs/characters/v0.1/riva.md` — pagina corrente di **Phase** (`Hero.Riva`)
-- `docs/characters/v0.1/bastion.md` — pagina corrente di **Riktor** (`Hero.Bastion`)
-- `docs/characters/v0.1/vektor.md` — pagina corrente di **Wraith** (`Hero.Vektor`)
+- `docs/characters/v0.1/gadget.md` — pagina corrente di **Gadget** (`Hero.Flux`)
+- `docs/characters/v0.1/phase.md` — pagina corrente di **Phase** (`Hero.Riva`)
+- `docs/characters/v0.1/riktor.md` — pagina corrente di **Riktor** (`Hero.Bastion`)
+- `docs/characters/v0.1/wraith.md` — pagina corrente di **Wraith** (`Hero.Vektor`)
 - `docs/characters/paragon.md` — owner del mapping identita RT ↔ slot asset Paragon
 - `docs/wiki/README.md` — D-076: `docs/wiki/` contiene solo asset; le pagine vivono nel clone `refactor-tactics-main.wiki`
 - `docs/roadmap/parallel-batch.yaml` — D-139: un path deve appartenere al `writable` di una track prima di essere modificato
@@ -262,7 +262,7 @@ Contenuto owner:
 
 ## 9. Modifiche richieste alle quattro pagine docs
 
-### `docs/characters/v0.1/flux.md`
+### `docs/characters/v0.1/gadget.md`
 
 Aggiungere una sezione `## Proficiency elementale` che dichiari:
 
@@ -272,7 +272,7 @@ Aggiungere una sezione `## Proficiency elementale` che dichiari:
 - tag/danno/VFX non fanno salire automaticamente il grado;
 - non introdurre `Charged` o altri stati inesistenti.
 
-### `docs/characters/v0.1/riva.md`
+### `docs/characters/v0.1/phase.md`
 
 Aggiungere una sezione `## Proficiency elementale` che dichiari:
 
@@ -284,7 +284,7 @@ Aggiungere una sezione `## Proficiency elementale` che dichiari:
 
 Rivedere `Water Terrain Manipulator`, `Water Shaping`, `Wet Setup` e la descrizione della risorsa per evitare che sembrino il contratto finale se il target e Access.
 
-### `docs/characters/v0.1/bastion.md`
+### `docs/characters/v0.1/riktor.md`
 
 Aggiungere una sezione breve:
 
@@ -293,7 +293,7 @@ Aggiungere una sezione breve:
 - motivo: Field Architecture e Kinetic/Structures sono il centro del kit;
 - nessun Electric baseline.
 
-### `docs/characters/v0.1/vektor.md`
+### `docs/characters/v0.1/wraith.md`
 
 Aggiungere una sezione breve:
 

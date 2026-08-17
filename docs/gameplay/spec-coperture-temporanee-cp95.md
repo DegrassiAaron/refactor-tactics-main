@@ -12,8 +12,8 @@ Fino a E9.4 una copertura era dato di mappa: la disegnava chi costruiva il livel
 danneggiare. Da qui:
 
 - `Action.CreateCover` erige una copertura bassa su un bordo, con integrità e durata;
-- `Bastion.KineticPanel` è quell'azione con un nome d'eroe, e la sua **variante** decide i due numeri;
-- `Bastion.Reconfigure` sposta una copertura esistente senza duplicarla;
+- `Hero.Riktor.KineticPanel` è quell'azione con un nome d'eroe, e la sua **variante** decide i due numeri;
+- `Hero.Riktor.Reconfigure` sposta una copertura esistente senza duplicarla;
 - `Gadget.PortableCover` dà la stessa capacità a chi non è Riktor;
 - una copertura temporanea **scade nel Cleanup**, e la sua rimozione passa dal canale che invalida le cache.
 
@@ -25,7 +25,7 @@ scriveva «nessun modello di struttura esiste» — e quella dichiarazione era v
 ### 2.1 La fase è `Prep`, e il catalogo azioni si è allineato al catalogo eroi
 
 `RT_ActionCatalog_v0.1.md` dava `Action.CreateCover` nel **Blast**; `RT_HeroCatalog_v0.1.md` e il codice
-davano `Bastion.KineticPanel` in **Prep**, con motivazione scritta. Prevale **Prep** ([D-040](../decisions/RT_PDR_00_Decision_Log.md)).
+davano `Hero.Riktor.KineticPanel` in **Prep**, con motivazione scritta. Prevale **Prep** ([D-040](../decisions/RT_PDR_00_Decision_Log.md)).
 
 Il precedente in senso opposto esiste ed è recente: E9.4 portò `Action.ModifyArc` **nel** Blast, perché
 «porte, muri e ponti cambiano tutti nello stesso momento e il Move che segue li vede». Non si applica qui, e
@@ -159,9 +159,9 @@ difetto l'argomento «si è sempre fatto così»: da oggi il precedente nel repo
 | `Cover.AddCover.RemovedStopsProtecting` | la riduzione la chiede il **consumatore reale** (`CollectHexAttacks`), non un percorso scritto per il test |
 | `Structures.KineticPanel.TemporaryCover` | ciclo di vita in un **turno vero**: eretta, regge, scade, non scade due volte |
 | `Actions.CreateCover.RejectsOutOfRangeAndOccupied` | la portata dichiarata vale, e il rifiuto è leggibile |
-| `Heroes.Bastion.KineticPanelVariantApplied` | la variante decide integrità e durata; `DurationTurns 0` non è «scade subito» |
-| `Heroes.Bastion.ReconfigureDoesNotDuplicate` | **conta** le coperture: guardare il bordo d'arrivo non accorgerebbe di una duplicazione |
-| `Heroes.Bastion.ReconfigureRefusesInsteadOfGuessing` | ambiguità e destinazione occupata rifiutate, e nulla sparisce |
+| `Heroes.Hero.Riktor.KineticPanelVariantApplied` | la variante decide integrità e durata; `DurationTurns 0` non è «scade subito» |
+| `Heroes.Hero.Riktor.ReconfigureDoesNotDuplicate` | **conta** le coperture: guardare il bordo d'arrivo non accorgerebbe di una duplicazione |
+| `Heroes.Hero.Riktor.ReconfigureRefusesInsteadOfGuessing` | ambiguità e destinazione occupata rifiutate, e nulla sparisce |
 | `Equipment.PortableCover.CreatesCover` | la semantica è condivisa: se il resolver riconoscesse l'ActionId, sarebbe rosso |
 | `Spec.Cover.TemporaryCoverExpires` | scenario-specifica scritto **prima**: da `BLOCKED` a `PASS`, 4 turni |
 

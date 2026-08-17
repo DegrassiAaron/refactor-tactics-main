@@ -40,10 +40,10 @@ un buco da riempire: la maggior parte dei personaggi non deve avere uno stato sp
 
 | CharacterId | Nome | Versione | Stance | Form | Overdrive | Environmental | Configuration | PrimaryStateType | Candidato consigliato | DesignStatus |
 |---|---|---|---|:--:|:--:|:--:|:--:|---|---|---|
-| `Hero.Flux` | Gadget | v0.1 | | | | ✅ | | Environmental | Charged | `PROPOSED` |
-| `Hero.Riva` | Phase | v0.1 | ✅ | | | | | Stance (leggero) | Flow State | `PROPOSED` |
-| `Hero.Bastion` | Riktor | v0.1 | ✅ | | | | ✅ | Stance/Configuration | Bulwark | `PROPOSED` |
-| `Hero.Vektor` | Wraith | v0.1 | | ⚠️ | | | | Form | — **vedi nota** | `REJECTED` |
+| `Hero.Gadget` | Gadget | v0.1 | | | | ✅ | | Environmental | Charged | `PROPOSED` |
+| `Hero.Phase` | Phase | v0.1 | ✅ | | | | | Stance (leggero) | Flow State | `PROPOSED` |
+| `Hero.Riktor` | Riktor | v0.1 | ✅ | | | | ✅ | Stance/Configuration | Bulwark | `PROPOSED` |
+| `Hero.Wraith` | Wraith | v0.1 | | ⚠️ | | | | Form | — **vedi nota** | `REJECTED` |
 | `Hero.Steel` | Steel | v0.2 | ✅ | | | | | Stance | Guard ↔ Assault | `PROPOSED` |
 | `Hero.Aurora` | Aurora | v0.2 | | ✅ | | ✅ | | Environmental | Frostbound | `PROPOSED` |
 | `Hero.Murdock` | Murdock | v0.2 | ✅ | | | | ✅ | Configuration | Targeting Mode | `PROPOSED` |
@@ -141,8 +141,8 @@ trasformazione non è mai locale al personaggio.
 | Riktor · Bulwark | stance in Planning | transform | normale | normale | ridotto | — | **pseudo-cover** | **modifica** | modificato | ✅ | Tocca collisione e pathfinding: il più invasivo dei tre |
 | Steel · Guard↔Assault | stance in Planning | transform | modificato | modificato | normale | — | — | — | modificato | ✅ | Nessun sistema nuovo: è un cambio di profilo |
 
-**Lettura**: `Riva · Flow` è l'unico che non tocca nessun sistema condiviso — ed è per questo il primo
-prototipo sensato, non l'ultimo. `Bastion · Bulwark` tocca cover, LOS, collisione e pathing: è un'epic a sé.
+**Lettura**: `Phase · Flow` è l'unico che non tocca nessun sistema condiviso — ed è per questo il primo
+prototipo sensato, non l'ultimo. `Riktor · Bulwark` tocca cover, LOS, collisione e pathing: è un'epic a sé.
 
 ---
 
@@ -161,7 +161,7 @@ deve essere più semplice altrove.*
 
 > **Il caso che la matrice rende visibile**: Gadget e Phase sono entrambi personaggi *ambientali*, e i loro stati
 > consigliati sono entrambi ambientali. Il budget non si spende due volte sullo stesso asse — è il motivo per
-> cui `Riva · Flow` è preferibile a `Riva · Mist Form`.
+> cui `Phase · Flow` è preferibile a `Phase · Mist Form`.
 
 ---
 
@@ -172,12 +172,12 @@ un'informazione: nessuno stato è stato validato, perché nessuno è stato costr
 
 | StateId | Character | DesignStatus | Target | Issue | Scenario | PIE | Automazione | Validato |
 |---|---|---|---|---|---|---|---|---|
-| `State.Riva.Flow` | Phase | `PROPOSED` | post-v0.1 | [#256](https://github.com/DegrassiAaron/refactor-tactics-main/issues/256) | `State.Riva.Flow` 📋 | `PIE-STATE-01…05` | ❌ | ❌ |
-| `State.Flux.Charged` | Gadget | `PROPOSED` | post-v0.1 | [#257](https://github.com/DegrassiAaron/refactor-tactics-main/issues/257) | `State.Flux.Charged` 📋 | `PIE-STATE-08` | ❌ | ❌ |
-| `State.Bastion.Bulwark` | Riktor | `PROPOSED` | post-v0.1 | [#258](https://github.com/DegrassiAaron/refactor-tactics-main/issues/258) | `State.Bastion.Bulwark` 📋 | `PIE-STATE-06…07` | ❌ | ❌ |
+| `State.Phase.Flow` | Phase | `PROPOSED` | post-v0.1 | [#256](https://github.com/DegrassiAaron/refactor-tactics-main/issues/256) | `State.Phase.Flow` 📋 | `PIE-STATE-01…05` | ❌ | ❌ |
+| `State.Gadget.Charged` | Gadget | `PROPOSED` | post-v0.1 | [#257](https://github.com/DegrassiAaron/refactor-tactics-main/issues/257) | `State.Gadget.Charged` 📋 | `PIE-STATE-08` | ❌ | ❌ |
+| `State.Riktor.Bulwark` | Riktor | `PROPOSED` | post-v0.1 | [#258](https://github.com/DegrassiAaron/refactor-tactics-main/issues/258) | `State.Riktor.Bulwark` 📋 | `PIE-STATE-06…07` | ❌ | ❌ |
 | `State.Howitzer.Siege` | Howitzer | `PROPOSED` | post-v0.1 | [#259](https://github.com/DegrassiAaron/refactor-tactics-main/issues/259) | `State.Howitzer.Siege` 📋 | `PIE-STATE-02…04` | ❌ | ❌ |
 | — *(trasversale)* | — | — | post-v0.1 | [#255](https://github.com/DegrassiAaron/refactor-tactics-main/issues/255) | `State.MultiState.Stress` 📋 | `PIE-STATE-09…10` | ❌ | ❌ |
-| `State.Vektor.Siege` | Wraith | `REJECTED` | — | — | — | — | — | — |
+| `State.Wraith.Siege` | Wraith | `REJECTED` | — | — | — | — | — | — |
 
 📋 = **definito, non scritto**. Gli scenari vivono in
 [`../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../gameplay/brief-stati-personaggio-e-trasformazioni.md) §9

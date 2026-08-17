@@ -29,7 +29,7 @@
 ## Contesto
 
 Il PDR 12 e il catalogo di bilanciamento v0.1 definiscono un vertical slice 2v2 molto più ricco di quello
-canonico: **4 eroi** (Flux, Riva, Bastion, Vektor) con 4 abilità ciascuno, ~35 azioni con ID stabili,
+canonico: **4 eroi** (Gadget, Phase, Riktor, Wraith) con 4 abilità ciascuno, ~35 azioni con ID stabili,
 **reazioni**, 8 terreni con effetti attivi, coperture direzionali e strutture (porte/ponti/pannelli),
 **obiettivi dinamici** e partita a **12 turni** massimi.
 
