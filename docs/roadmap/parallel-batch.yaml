@@ -5218,6 +5218,47 @@ tracks:
           # repository ha gia' avuto asset presenti su disco e non versionati.
           - git_status_clean_after_commit
 
+  match_format:
+    status: ACTIVE
+    issue: 1124
+    branch: feat/1124-unitsperplayer
+    worktree: "D:/rt-format"
+    note: >-
+      ➕ **Track aperta il 2026-08-17 su `#1124`** (CP 19.3, [D-155]): il formato dichiara quante unità
+      comanda una **persona**. Nasce dal consolidamento del Decision Time Bank, che ha misurato che `D-050`
+      dichiara un bank *per giocatore* mentre nel codice il giocatore non esiste come soggetto.
+      🔵 **Il write-set è stato scelto per EVITARE un path bloccato, non per comodità.** Tutti e sei i
+      consumatori runtime di `UnitsPerTeam` stanno in `RTGameMode.cpp`, che è nel `writable` di
+      `frontend_shell` (ACTIVE su `#937`): per **D-139** è STOP. La misura ha però mostrato che lo spawner
+      non era il consumatore giusto — `UnitsPerTeam` risponde *quante unità schierare*, questo campo
+      risponde *chi può comandarle* — e la regola di autorizzazione vive in `Combat/RTCombatLibrary`, che
+      non è assegnata a nessuno.
+      ⛔ **Cosa questa track NON tocca**: `Source/RefactorTactics/RTGameMode.{h,cpp}` — l'assegnazione delle
+      unità ai gruppi di controllo all'allestimento resta a chi possiede `#937`, ed è dichiarata come voce
+      residua nel DoD di `#1124` invece di essere fatta di nascosto.
+      ✅ **Suite eseguita**, dopo che l'autore ha chiuso l'editor che bloccava Live Coding:
+      `RefactorTactics.MatchFormat` **14 test, fail = 0** e `RefactorTactics.Combat` **fail = 0**, misurati
+      sull'albero unito. Più una **verifica di mutazione**: tolta la propagazione del campo da `ResolveRules`
+      cadono **esattamente** i due test che la asseriscono, e nessun altro.
+      🔴 **Questa nota ha detto il contrario fino alla code review**, ed è il difetto che questo file esiste
+      per non avere: diceva «la suite NON è stata eseguita» mentre il secondo commit del ramo esisteva
+      *perché* un test era andato rosso. Scritta al primo commit e mai rivista. Chi legge questo file la
+      prossima volta legge lo stato della verifica, non la sua storia.
+    writable:
+      - Source/RefactorTactics/Turn/RTMatchFormatData.h
+      - Source/RefactorTactics/Turn/RTMatchFormatLibrary.cpp
+      # 🔴 **L'header mancava, e la code review lo ha trovato**: la track dichiarava l'implementazione e
+      # non la propria intestazione, che e' la condizione «file non assegnato = STOP» di D-139 — la stessa
+      # lacuna che questo file registra per tre ADR il 2026-08-16.
+      - Source/RefactorTactics/Turn/RTMatchFormatLibrary.h
+      # ⚠️ `Tests/` è condivisa fra tutte le track: i file sono dichiarati **per nome**.
+      - Source/RefactorTactics/Tests/RTMatchFormatTests.cpp
+      - Source/RefactorTactics/Tests/RTMatchFormatWorldTests.cpp
+      # L'owner documentale del conteggio: §16.4 nomina il campo e la regola di ripartizione.
+      - docs/gameplay/spec-durata-partita-e-scala-mappe.md
+    derives_from: []
+    binary_leases: []
+
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test
