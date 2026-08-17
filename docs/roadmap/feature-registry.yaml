@@ -115,6 +115,7 @@ features:
       - Visual.Core.PhaseOrder
     wiki_refs:
       - wiki:struttura-del-round
+      - wiki:il-turno-simultaneo
       - wiki:esempio-di-round
     pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
