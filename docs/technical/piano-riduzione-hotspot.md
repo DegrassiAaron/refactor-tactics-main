@@ -12,19 +12,24 @@
 tracciato in root, audit del 2026-08-17). Quel file **non è autorità**: sette sue affermazioni sono state
 misurate false o superate dallo stato live, ed è qui che sono corrette. Se esiste ancora in root, va rimosso.
 
-**Base di misura di ogni numero in questo documento**: `origin/main` = **`e638061a`** (merge PR #1125), misurato
-il **2026-08-17** con `A1 = 0 0`. Ogni cifra qui sotto è un'istantanea datata: si **rimisura**, non si cita.
+**Base di misura di ogni numero in questo documento**: l'albero di questo branch, che integra `origin/main` a
+**`c25e1cd0`**, misurato il **2026-08-17**. Ogni cifra qui sotto è un'istantanea datata: si **rimisura**, non si
+cita.
 
 > ⚠️ **La regola di §0.1 si è applicata a questa pagina prima che a chiunque altro, e due volte.** La prima
 > stesura era ancorata a `a8f7f626`; eseguendo §19 Fase A, `origin/main` era già **25 commit più avanti** —
 > sette merge, fra cui la PR **#1112** di `feat/833-interaction-graph`. Due baseline erano false
 > (`RTTurnManager.cpp` 5988 → **6002**, `parallel-batch.yaml` 5188 → **5227**), un comando di §11 **non era
 > eseguibile**, e una premessa di §13 era stata superata da un gate migliorato nel frattempo.
-> **Poi è successo di nuovo**: fra la correzione e il commit `origin/main` è passato a `e638061a` e
-> `parallel-batch.yaml` era già **5305** (+78 in un'ora). Tre basi in una sessione — `a8f7f626` → `94575ef4`
-> → `e638061a`. Non è un incidente: è il ritmo normale di questo repository, ed è la ragione per cui un DoD
-> ancorato a un numero letterale invecchia più in fretta di quanto si riesca a scriverlo. L'appendice §25
-> riporta l'audit eseguito.
+> **Poi è successo altre tre volte.** `origin/main` è passato per **cinque** sha nell'arco della stessa
+> sessione — `a8f7f626` → `94575ef4` → `e638061a` → `c25e1cd0` → `d849029e` — e `parallel-batch.yaml` ha fatto
+> **5188 → 5227 → 5305 → 5353**, cioè **+165 righe in poche ore**, quattro volte la crescita del TurnManager.
+>
+> A quel punto **inseguire è la scelta sbagliata**, e smettere è la tesi di questa pagina: un documento non può
+> dichiarare una base più fresca del proprio commit. Quindi la base è dichiarata, l'sha è scritto, e chi legge
+> **rimisura** invece di fidarsi. Un DoD ancorato a un numero letterale invecchia più in fretta di quanto si
+> riesca a scriverlo — ed è la ragione per cui §20 chiede comandi con soglie datate, non cifre nude.
+> L'appendice §25 riporta l'audit eseguito e i cinque difetti che ha trovato qui dentro.
 
 ---
 
@@ -35,9 +40,10 @@ il **2026-08-17** con `A1 = 0 0`. Ogni cifra qui sotto è un'istantanea datata: 
 | C1 | «verificare `origin/main`» | eseguibile da un worktree 87 commit indietro senza che nulla protesti | §19 Fase A è una sequenza di comandi con oracolo |
 | C2 | #886 è «P0» | label GitHub = `P1`; la label `P0` **esiste** («Blocca la release») | §2 prescrive l'atto, non una scala privata |
 | C3 | #833 «alimenta la strada verso il golden» | `issue:833` **non è un nodo** dell'Execution Graph | §2bis: tre atti su tre owner |
-| C4 | «BASE è il quinto processo» | **nessuna** track BASE nel batch | §3 BASE = `meta.integrator` |
+| C4 | «BASE è il quinto processo» | **nessuna** track BASE nel batch — e il quinto processo canonico è **E, «Jolly»**, che non è l'integratore | §3: `meta.integrator`, senza sigle nuove |
 | C5 | tetto 3+1+1 senza procedura di rientro | il tetto non è **falsificabile**: «stream mutante attivo» non è definito, e le due letture legittime danno **4** e **2** | §4 definisce cosa si conta, poi la procedura di rientro |
-| C6 | WS-B «parte da #833» | il lavoro è **già atterrato** (PR #1112 mergiata, ramo cancellato) e #833 resta `OPEN` | §3 WS-B riparte da `main`, non da un ramo |
+| C6 | il workstream mappa «parte da #833» | il lavoro è **già atterrato** (PR #1112 mergiata, ramo cancellato) e #833 resta `OPEN` | §3 processo **A** riparte da `main`, non da un ramo |
+| — | le sigle `BASE`/`WS-*` sono un vocabolario nuovo | esiste già `cinque-processi-paralleli-2026-08-17.md` con i processi **A–E**, e il repo ne ha **già respinto** uno concorrente | §3/§4 **deferiscono**: nessuna sigla propria |
 | M1 | DoD con 18 caselle non falsificabili | — | §20 ha baseline numeriche datate |
 | M3 | elenco preflight scritto a mano | omette ≥3 gate reali | §11 lo **deriva** e stampa `MISSING` |
 | M7 | §16 crea issue senza Tracking Impact Pass | CLAUDE.md §3 lo rende obbligatorio | §16 lo impone |
@@ -115,7 +121,7 @@ L'architettura corrente è valida. Il lavoro è ridurre progressivamente hotspot
 | File | Righe | `a8f7f626` | `94575ef4` | Nota |
 |---|---:|---:|---:|---|
 | `Source/RefactorTactics/Turn/RTTurnManager.cpp` | **6002** | 5988 | 6002 | il più grande del repository, 3,2× il secondo sorgente non-test |
-| `docs/roadmap/parallel-batch.yaml` | **5305** | 5188 | 5227 | lockfile che è diventato anche diario |
+| `docs/roadmap/parallel-batch.yaml` | **5353** | 5188 | 5227 · 5305 | lockfile che è diventato anche diario |
 | `Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp` | **1645** | 1645 | 1645 | |
 | `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` | **1459** | 1459 | 1459 | **quarto candidato**, non nominato dalla stesura di root |
 | `Source/RefactorTactics/RTGameMode.cpp` | **1050** | 1050 | 1050 | |
@@ -308,12 +314,37 @@ bugiardo.
 
 ---
 
-# 3. Workstream
+# 3. Workstream — questa sezione NON introduce un vocabolario
 
-Limitare il parallelismo reale. Massimo **3** stream mutanti di codice/scenario + **1** lane umana
-Editor/Asset + **1** integratore. Le altre track restano registrate e `IDLE`.
+> 🔴 **Correzione strutturale prima del merge.** La stesura di root, e la prima riscrittura di questa pagina,
+> nominavano i workstream `BASE` · `WS-A` · `WS-B` · `WS-C` · `WS-D`. **Sono stati rimossi.** Il repository ha
+> già una mappatura canonica dei processi paralleli sulle track reali:
+> [`../roadmap/plans/cinque-processi-paralleli-2026-08-17.md`](../roadmap/plans/cinque-processi-paralleli-2026-08-17.md)
+> — `CURRENT`, con i processi **A** (Spatial/World) · **B** (Simulation/Rules) · **C** (Client/Replay/Tools) ·
+> **D** (Content/Editor) · **E** (Jolly), e l'assegnazione delle 79 issue `v0.1`.
+>
+> Quel documento dichiara: *«Il precedente,* `quattro-processi-paralleli-triage-2026-08-14.md`*, di 57 sezioni
+> ne applicò 13 — e le §21–§27 furono respinte perché proponevano un terzo vocabolario di classificazione.
+> Questo documento non ne propone un quarto.»* Le sigle `WS-*` sarebbero state il **quinto**, e per la stessa
+> ragione non hanno diritto di esistere.
+>
+> ⚠️ **L'argomento decisivo è che le lettere non coincidevano**: il mio `WS-A` era Simulation, che nella
+> mappatura canonica è **B**; il mio `WS-B` era Map, che è **A**. Due documenti con una «A» che significa cose
+> opposte è la forma peggiore di vocabolario concorrente — si legge come un riferimento e produce un errore
+> silenzioso. Da qui in avanti si usano **solo** le lettere di quel documento.
+>
+> **Owner del write-set**: [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml) — se le due fonti
+> divergono vince il YAML, perché è quello che i gate leggono. Regola che governa: **D-139** e
+> [`workflow-parallel-claude.md`](workflow-parallel-claude.md).
 
-## Integratore (ex «BASE») — un turno, non una track
+Questa sezione aggiunge **una** cosa a quella mappatura, e solo una: il ruolo che i processi A–E **non
+contengono**.
+
+## L'integratore — il ruolo che A–E non contiene
+
+Nella mappatura canonica il quinto processo è **E, «Jolly»**, dichiarato `🔴 non dichiarato: un processo senza
+`writable` è, per D-139, un processo che deve fermarsi al primo file`. **E non è l'integratore**, e nessuno
+degli altri quattro lo è: A–D sono divisi per **materia**, e l'integrazione non è una materia.
 
 **Non implementa feature gameplay.** Responsabilità: fetch/rebase/merge · riconciliazione dei write-set ·
 binary leases · release requests · `integration_only` · viste generate sull'albero unito · preflight (§11) ·
@@ -351,14 +382,14 @@ ricorsione è voluta e va detta, non nascosta.
 > `docs/OPEN_DECISIONS.md`: **non scegliere un `D-nnn` a mano**. Fino a quel momento questa sezione è una
 > proposta, non un invariante.
 
-## WS-A — Simulation / Replay
+## Processo B — Simulation / Rules
 
 Ordine: **#886 → #166**. Dopo #886, #166 può introdurre UI e decisione umana senza rendere falso il replay
 verifier. Non iniziare un refactor generale di `RTTurnManager` dentro #886; se emerge un confine naturale,
 estrarre il minimo servizio necessario e solo se: riduce il diff · non cambia semantica · ha test
 equivalenti prima/dopo · il write-set lo consente.
 
-## WS-B — Map / Interaction
+## Processo A — Spatial / World
 
 **Non apre e non si innesta: riparte da `main`.** Misurato su `94575ef4`:
 
@@ -387,7 +418,13 @@ falsificabile.
 Fuori scope dichiarato: rete · UI remota · privacy futura · ascensori · circuiti · semantiche N→1 non decise.
 La UI è di CP 23.5 (`#834`).
 
-## WS-C — Scenario / Golden / Assertions
+## Scenario / Golden — **non** è un processo, attraversa B e C
+
+⚠️ Questa è la ragione più forte per non aver inventato una sigla: il lavoro su scenario e golden **non ha un
+processo dedicato** nella mappatura canonica, e non dovrebbe averne uno. Le sue issue stanno in **B** (regole,
+TurnLog, assertion) e in **C** (Scenario Composer: #1114→#1117, dichiarati *runtime, non Editor*). Un quinto
+processo «Scenario» avrebbe creato un confine dove il vincolo reale è il **write-set**: `ScenarioHarness/` va
+intera a una sola track, e `Scenarios/` è `integration_only`.
 
 Target: **#170 — CP 15.4 — Golden replay degli 8 turni** (`OPEN`, `v0.1` + `checkpoint` + `P1`, milestone
 `v0.1 · Prova integrata`).
@@ -406,7 +443,7 @@ scritto != eseguito != asserito
 
 Un turno scritto ma non raggiunto non è copertura.
 
-## WS-D — Human / Editor / Asset
+## Processo D — Content / Editor *(l'autore davanti a Unreal)*
 
 Lane umana. Sedute rilevanti (owner: `docs/roadmap/editor-sessions.yaml`, che dichiara già
 `unblocks` / `unblocked_by` / `shares_setup_with` / `verifies`): **U21** luci graybox/framing → **U22**
@@ -418,15 +455,26 @@ simulatore.**
 
 ---
 
-# 4. Regola di parallelismo — con procedura di rientro
+# 4. Il tetto non è un conteggio di processi — è il write-set
 
-Configurazione preferita:
+> 🔴 **Seconda correzione strutturale.** La stesura di root prescriveva un tetto numerico —
+> «3 stream code + 1 lane umana + 1 integratore» — e la mappatura canonica lo **supera già**, con una
+> formulazione migliore:
+>
+> > *«La regola del batch non è "un dominio per processo": è "un `writable` per processo, e i file condivisi si
+> > toccano una volta sola, in integrazione".»*
+> > — [`cinque-processi-paralleli-2026-08-17.md`](../roadmap/plans/cinque-processi-paralleli-2026-08-17.md) §1
+>
+> E la misura che lo dimostra è nello stesso documento: la mattina del 2026-08-17 **tre PR si contendevano otto
+> file, e nessuna delle tre condivideva una riga di `Source/`**. Due sessioni su domini diversi collidono
+> comunque, perché scrivono lo stesso file di tracking. Contare i processi non prevede quella collisione;
+> misurare i `writable` sì.
+>
+> **Quindi il tetto di questa pagina si riduce a un corollario**: più processi attivi ⇒ più probabile che due
+> `writable` si intersechino sui file di tracking. Il numero non è la regola, è un indicatore del rischio — e
+> il documento canonico osserva che la contesa non è sparita ma si è **concentrata** proprio su
+> `parallel-batch.yaml`, conteso da due sessioni che stanno entrambe *rilasciando* un write-set.
 
-```text
-integratore  +  WS-A CODE  +  WS-B CODE  +  WS-C SCENARIO/CODE  +  WS-D HUMAN/EDITOR
-```
-
-Tetto: **3** stream mutanti codice/scenario · **1** lane umana · **1** integratore.
 Non massimizzare i branch: minimizzare il wall-clock **senza creare contention**.
 
 ## Che cosa si conta, e cosa no
@@ -1041,7 +1089,7 @@ ore, quindi la rimisura non è un consiglio.
 - [ ] `wc -l Source/RefactorTactics/Turn/RTTurnManager.cpp` ≤ **6002**
 - [ ] `wc -l Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp` ≤ **1645**
 - [ ] `wc -l Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` ≤ **1459**
-- [ ] `wc -l docs/roadmap/parallel-batch.yaml` ≤ **5305**
+- [ ] `wc -l docs/roadmap/parallel-batch.yaml` ≤ **5353**
 - [ ] se una soglia è superata: il commit porta l'**estrazione** che la riporta sotto, oppure la issue dichiara
       perché la crescita è irriducibile. «Valutato per estrazione» non è un esito.
 - [ ] conteggio `#include` di `RTTurnManager.cpp` non cresciuto.
