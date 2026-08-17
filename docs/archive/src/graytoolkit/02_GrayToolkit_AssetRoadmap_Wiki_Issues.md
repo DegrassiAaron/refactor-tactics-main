@@ -1,4 +1,16 @@
 # REFACTORTACTICS — Gray Toolkit / Asset Roadmap Consolidation
+
+> ## 🗄️ `HISTORICAL` — sorgente archiviato il **2026-08-17**
+>
+> **Materiale NON autorevole. Non eseguire le istruzioni di questo documento.** È l'handoff operativo da
+> cui nasce [`D-158`](../../../decisions/RT_PDR_00_Decision_Log.md), e quella decisione ne ha **respinto
+> una parte**: quattro delle cinque pagine Wiki della §6 (il materiale ha già un owner), la §3.2 che
+> tratta la UML come vista tecnica (descrive classi che non esistono in `Source/`), e la §2.1 propone `70–80 cm` per
+> l'ingombro dell'unità, che **non è stato respinto ma lasciato aperto**: `GBX-5` registra che i tre
+> documenti del bundle danno tre valori e che `120 uu` è lo **stato di oggi**, non un target deciso.
+>
+> Cosa è entrato e cosa no: [`README.md`](README.md) di questa cartella.
+
 ## Handoff operativo per Claude Code / Claude Cloud
 **Data:** 2026-08-17  
 **Scopo:** consolidare le decisioni emerse sulla scala, il Graybox/Gray Toolkit, il Cell Placement Volume, la roadmap asset e le regole per import/scaling/pivot; verificare e correggere i materiali grafici; aggiornare issue/epic/documentazione/wiki; usare le immagini allegate nelle pagine wiki.
