@@ -56,38 +56,6 @@ bool URTCombatLibrary::CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId
 	return UnitTeamId == PlayerTeamId;
 }
 
-int32 URTCombatLibrary::ControlGroupForUnit(int32 UnitSlotInTeam, int32 UnitsPerPlayer)
-{
-	// Fail-closed prima della divisione: `UnitsPerPlayer` a zero sarebbe una divisione per zero, e uno
-	// negativo produrrebbe un gruppo che nessun giocatore possiede. Entrambi sono "il formato non lo ha
-	// dichiarato", e la risposta a un dato mancante non e' un gruppo.
-	if (UnitsPerPlayer <= 0 || UnitSlotInTeam < 0)
-	{
-		return INDEX_NONE;
-	}
-
-	return UnitSlotInTeam / UnitsPerPlayer;
-}
-
-bool URTCombatLibrary::CanPlayerControlUnitInGroup(int32 UnitTeamId, int32 PlayerTeamId,
-	int32 UnitControlGroup, int32 PlayerControlGroup)
-{
-	// La squadra resta la prima condizione: un gruppo uguale in due squadre diverse non e' la stessa persona.
-	if (!CanPlayerControlUnit(UnitTeamId, PlayerTeamId))
-	{
-		return false;
-	}
-
-	// `INDEX_NONE` da entrambi i lati significa "il gruppo non e' calcolabile": non lo si fa coincidere con
-	// se stesso, o due dati mancanti si autorizzerebbero a vicenda.
-	if (UnitControlGroup == INDEX_NONE || PlayerControlGroup == INDEX_NONE)
-	{
-		return false;
-	}
-
-	return UnitControlGroup == PlayerControlGroup;
-}
-
 ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
 	const FRTCellId& To, int32 RangeCells)
 {

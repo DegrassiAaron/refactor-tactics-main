@@ -61,8 +61,12 @@ struct FRTMatchRules
 	 * `3/1 = 3` in un competitivo dove ognuno comanda un eroe.
 	 *
 	 * 🔵 **Il resolver non lo legge, e non deve.** Governa autorizzazione, input, planning, `Ready`, privacy
-	 * e ownership della decisione di reazione — non l'esito. `MatchFormat.ResolverIsInvariantToControlCount`
-	 * lo misura confrontando l'hash del TurnLog di due partite che differiscono per il solo conteggio.
+	 * e ownership della decisione di reazione — non l'esito.
+	 * ⚠️ `MatchFormat.ResolverIsInvariantToControlCount` confronta l'hash del TurnLog di due partite che
+	 * differiscono per il solo conteggio, ed e' oggi un **tripwire**, non un controllo vivo: nessun percorso
+	 * di risoluzione legge questo campo, quindi quel test passerebbe anche se il campo non esistesse
+	 * (verificato per mutazione). Cade il giorno in cui qualcuno ci scrivesse sopra un ramo, ed e' li' che
+	 * sta il suo valore.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Match")
 	int32 UnitsPerPlayer = 0;
@@ -159,6 +163,14 @@ public:
 	 * invalido per un campo che il suo autore non ha toccato. Ed e' anche il piu' **restrittivo** in termini
 	 * di autorita': il default concede il minimo controllo possibile, una unita' a testa, che e' la direzione
 	 * in cui questo repository sbaglia volentieri.
+	 *
+	 * ⚠️ **Il costo del default, dichiarato invece che scoperto**: un designer che autora un 2v2 nell'editor
+	 * e non tocca questo campo dichiara `1`, cioe' due persone per squadra — e il validator lo **accetta**,
+	 * perche' `2 % 1 == 0`. Sarebbe la terza descrizione dello stesso 2v2 accanto a `FindShippedFormat` e a
+	 * `MakeFallbackRules`, che scrivono entrambe `2`. Nessun controllo puo' prenderla: il validator non sa se
+	 * quel formato intende essere giocato da una persona o da due. Oggi il caso non si produce — nessun
+	 * `DA_MatchFormat` esiste su disco e il formato della v0.1 e' spedito da C++ — e il giorno in cui esistera'
+	 * un asset d'autore, il campo va compilato come si compila `UnitsPerTeam`.
 	 *
 	 * Vedi `FRTMatchRules::UnitsPerPlayer` per perche' questo campo non e' `UnitsPerTeam`.
 	 */

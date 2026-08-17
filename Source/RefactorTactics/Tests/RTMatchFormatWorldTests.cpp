@@ -536,9 +536,18 @@ bool FRTMapClassNotBranchedInSimulationTest::RunTest(const FString&)
  * gioca, questo dice *chi comanda cosa*: nessuno dei due dice *cosa succede*, e il giorno in cui qualcuno
  * scrivesse `if (Rules.UnitsPerPlayer == 1)` dentro la risoluzione, questo test cadrebbe.
  *
- * ⚠️ La squadra resta di **due** unita' in entrambe le partite: a cambiare e' solo in quante persone e'
- * divisa. Cambiare anche `UnitsPerTeam` misurerebbe due cose insieme e l'hash divergerebbe per la ragione
- * sbagliata — ci sarebbero due unita' in campo contro quattro.
+ * ⚠️ **Il test e' un TRIPWIRE, non un controllo vivo, e va detto perche' il verde non lo dice.** Nessun
+ * percorso di risoluzione legge `UnitsPerPlayer` — verificato: la verifica di mutazione che ha tolto la
+ * propagazione da `ResolveRules` ha lasciato questo test VERDE. Asserisce quindi «X non cambia Y» per una X
+ * che oggi non fa niente. Il suo valore e' futuro: cade il giorno in cui qualcuno scrivesse
+ * `if (Rules.UnitsPerPlayer == 1)` dentro la risoluzione.
+ *
+ * ⚠️ `UnitsPerTeam` resta **2** in entrambe le partite per simmetria con la forma di `MapClass`, non perche'
+ * cambiarlo sposterebbe qualcosa: questo test **non passa dallo spawner**, mette in campo una unita' per
+ * squadra con `SpawnFormatUnit`, e `Rules.UnitsPerTeam` lo consuma solo `ARTGameMode`, che qui non
+ * interviene. 🔴 Il commento precedente diceva che cambiarlo avrebbe messo «due unita' in campo contro
+ * quattro»: falso, e trovato in code review — un lettore ci avrebbe creduto che la struct delle regole
+ * governa la composizione anche nei test di mondo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatResolverInvariantToControlCountTest,
 	"RefactorTactics.MatchFormat.ResolverIsInvariantToControlCount",

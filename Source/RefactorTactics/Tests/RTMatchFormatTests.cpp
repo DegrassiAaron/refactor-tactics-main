@@ -316,6 +316,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatValidatorRejectsControlCountTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTMatchFormatValidatorRejectsControlCountTest::RunTest(const FString&)
 {
+	// ⚠️ Il needle deve essere UNICO fra i tre messaggi, e `UnitsPerPlayer` non lo e': compare in tutti e
+	// tre. Con quello, cancellare il ramo `<= 0` e lasciar cadere lo zero in un altro messaggio avrebbe
+	// lasciato l'assertion verde — cioe' il test avrebbe smesso di distinguere proprio cio' che dichiara di
+	// pinnare. Trovato in code review.
+	//
+	// E il conteggio e' `== 1`, non `> 0`: tre messaggi per un difetto solo sarebbero un allestimento fallito
+	// che non dice quale numero correggere, che e' la proprieta' per cui i messaggi sono tre.
 	auto RejectsNaming = [this](const TCHAR* What, int32 PerTeam, int32 PerPlayer, const TCHAR* Needle)
 	{
 		URTMatchFormatData* Format = MakeValidFormat();
@@ -323,20 +330,22 @@ bool FRTMatchFormatValidatorRejectsControlCountTest::RunTest(const FString&)
 		Format->UnitsPerPlayer = PerPlayer;
 
 		const TArray<FString> Errors = URTMatchFormatLibrary::ValidateFormat(Format);
-		TestTrue(FString::Printf(TEXT("%s: rifiutato"), What), Errors.Num() > 0);
+		TestEqual(FString::Printf(TEXT("%s: rifiutato, con UN solo errore"), What), Errors.Num(), 1);
 
 		bool bNames = false;
 		for (const FString& E : Errors)
 		{
 			bNames = bNames || E.Contains(Needle);
 		}
-		TestTrue(FString::Printf(TEXT("%s: l'errore nomina il difetto"), What), bNames);
+		TestTrue(FString::Printf(TEXT("%s: l'errore nomina il difetto, e non un altro"), What), bNames);
 	};
 
 	// (1) Non dichiarato. Zero non e' «nessun limite»: e' un giocatore che non comanda niente.
-	RejectsNaming(TEXT("conteggio a zero"), 2, 0, TEXT("UnitsPerPlayer"));
+	RejectsNaming(TEXT("conteggio a zero"), 2, 0, TEXT("non dichiara quante unita' comanda una persona"));
 
 	// (2) Oltre la squadra. Una persona non puo' comandare piu' unita' di quante ne esistano.
+	// ⚠️ Non e' un vincolo INDIPENDENTE: per valori positivi `A > B` implica gia' `B % A != 0`, quindi (3)
+	// lo catturerebbe. Il ramo esiste per il messaggio, ed e' il messaggio che questo caso pinna.
 	RejectsNaming(TEXT("conteggio oltre la squadra"), 2, 3, TEXT("oltre UnitsPerTeam"));
 
 	// (3) Non divide. La ripartizione e' uniforme (D-155): 3 unita' in gruppi da 2 lascerebbero un gruppo da

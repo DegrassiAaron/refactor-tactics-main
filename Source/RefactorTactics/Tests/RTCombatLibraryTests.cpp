@@ -206,69 +206,6 @@ bool FRTCombatControlAuthorityTest::RunTest(const FString&)
 }
 
 /**
- * CP 19.3 (**D-155**) — quando una squadra e' divisa fra piu' persone, l'autorita' ha una seconda condizione:
- * il **gruppo di controllo**. La ripartizione e' una divisione intera, uniforme, e il formato ne dichiara il
- * passo.
- *
- * ⚠️ Il caso che rende utile questo test e' `UnitsPerPlayer = 1`, che la v0.1 **non gioca**: li' tutte le
- * unita' cadono nel gruppo 0 e la regola nuova risponde come quella vecchia. Un test scritto sui soli valori
- * della v0.1 sarebbe verde e non coprirebbe niente — e' lo stesso difetto che
- * `MatchFormat.ControlCountIsNotUnitsPerTeam` previene un piano piu' sotto.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatControlGroupTest,
-	"RefactorTactics.Combat.ControlGroupPartitionsTheTeam",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTCombatControlGroupTest::RunTest(const FString&)
-{
-	// Una persona per eroe: ogni slot e' il proprio gruppo.
-	TestEqual(TEXT("una a testa: la prima unita' e' del gruppo 0"), URTCombatLibrary::ControlGroupForUnit(0, 1), 0);
-	TestEqual(TEXT("una a testa: la seconda e' del gruppo 1"), URTCombatLibrary::ControlGroupForUnit(1, 1), 1);
-	TestEqual(TEXT("una a testa: la terza e' del gruppo 2"), URTCombatLibrary::ControlGroupForUnit(2, 1), 2);
-
-	// Due a testa su quattro: due gruppi da due.
-	TestEqual(TEXT("due a testa: slot 0 -> gruppo 0"), URTCombatLibrary::ControlGroupForUnit(0, 2), 0);
-	TestEqual(TEXT("due a testa: slot 1 -> gruppo 0"), URTCombatLibrary::ControlGroupForUnit(1, 2), 0);
-	TestEqual(TEXT("due a testa: slot 2 -> gruppo 1"), URTCombatLibrary::ControlGroupForUnit(2, 2), 1);
-	TestEqual(TEXT("due a testa: slot 3 -> gruppo 1"), URTCombatLibrary::ControlGroupForUnit(3, 2), 1);
-
-	// FAIL-CLOSED: un conteggio non dichiarato non produce un gruppo plausibile. Zero risponderebbe `0`, che
-	// e' indistinguibile dal gruppo legittimo del primo giocatore — cioe' un'autorizzazione concessa per un
-	// dato mancante.
-	TestEqual(TEXT("conteggio a zero: nessun gruppo"), URTCombatLibrary::ControlGroupForUnit(0, 0), INDEX_NONE);
-	TestEqual(TEXT("conteggio negativo: nessun gruppo"), URTCombatLibrary::ControlGroupForUnit(0, -1), INDEX_NONE);
-	TestEqual(TEXT("slot negativo: nessun gruppo"), URTCombatLibrary::ControlGroupForUnit(-1, 2), INDEX_NONE);
-
-	// L'autorita' completa: squadra E gruppo.
-	TestTrue(TEXT("stessa squadra, stesso gruppo: comanda"),
-		URTCombatLibrary::CanPlayerControlUnitInGroup(0, 0, 1, 1));
-	TestFalse(TEXT("stessa squadra, gruppo diverso: NON comanda le unita' del compagno"),
-		URTCombatLibrary::CanPlayerControlUnitInGroup(0, 0, 1, 0));
-	TestFalse(TEXT("squadra diversa, stesso gruppo: un gruppo uguale in due squadre non e' la stessa persona"),
-		URTCombatLibrary::CanPlayerControlUnitInGroup(1, 0, 0, 0));
-	TestFalse(TEXT("gruppo non calcolabile: due dati mancanti non si autorizzano a vicenda"),
-		URTCombatLibrary::CanPlayerControlUnitInGroup(0, 0, INDEX_NONE, INDEX_NONE));
-
-	// ⚠️ **La v0.1 non cambia comportamento, e va misurato invece che promesso.** Con
-	// `UnitsPerPlayer == UnitsPerTeam` ogni unita' della squadra cade nel gruppo 0, quindi la regola nuova
-	// risponde come quella a due parametri su OGNI slot.
-	constexpr int32 UnitsPerTeamV01 = 2;
-	constexpr int32 UnitsPerPlayerV01 = 2;
-	for (int32 Slot = 0; Slot < UnitsPerTeamV01; ++Slot)
-	{
-		const int32 Group = URTCombatLibrary::ControlGroupForUnit(Slot, UnitsPerPlayerV01);
-		TestEqual(TEXT("v0.1: tutte le unita' cadono nel gruppo 0"), Group, 0);
-		TestEqual(TEXT("v0.1: la regola nuova risponde come quella vecchia"),
-			URTCombatLibrary::CanPlayerControlUnitInGroup(0, 0, Group, /*PlayerControlGroup=*/ 0),
-			URTCombatLibrary::CanPlayerControlUnit(0, 0));
-		TestEqual(TEXT("v0.1: e anche sull'unita' avversaria"),
-			URTCombatLibrary::CanPlayerControlUnitInGroup(1, 0, Group, /*PlayerControlGroup=*/ 0),
-			URTCombatLibrary::CanPlayerControlUnit(1, 0));
-	}
-
-	return true;
-}
-
-/**
  * CP 6.3: la validazione del bersaglio deve essere FAIL-CLOSED. Il difetto che questo test previene esisteva
  * davvero: il controller valutava `bHasLOS = !Grid || HasLineOfSight(...)`, quindi quando la griglia non c'era
  * piu' (dopo CP 6.1/6.2 il GameMode non la spawna) la linea di tiro risultava sempre valida e si poteva
