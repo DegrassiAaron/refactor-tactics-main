@@ -3,6 +3,7 @@
 #include "Ability/RTActionData.h" // MakeGenericActions crea le istanze accodate al kit
 #include "Ability/RTEquipmentData.h"
 #include "Combat/RTCombatLibrary.h" // DeflectDamageReduction: il numero della riduzione resta uno solo
+#include "Map/RTHexCellData.h"     // ERTHexDoorState: `Action.Interact` dichiara lo stato che chiede (D-151)
 
 ERTMatchPhase URTCatalogLibrary::MapResolutionPhase(ERTResolutionPhase Phase)
 {
@@ -813,9 +814,34 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*bInterruptible*/ false, ERTActionSlot::Main));
 	Catalog.Last().bSelfTarget = true; // si va in guardia su se' stessi: nessun bersaglio da scegliere
 
-	// `Action.Interact` — portata 1: solo oggetti ADIACENTI. Nessun effetto dichiarato finche' non esistono
-	// oggetti da attivare (porte, consolle, ponti, obiettivi): quelli sono E9/E10. Qui entrano identita',
-	// fase, priorita' e il vincolo di adiacenza, che e' gia' una regola verificabile.
+	// `Action.Interact` — portata 1: solo oggetti ADIACENTI.
+	//
+	// ✅ **Dichiara `SetDoorState` verso `Open`** ([D-148] + [D-151], 2026-08-16/17). Questa riga diceva
+	// «nessun effetto dichiarato finche' non esistono oggetti da attivare»: le porte esistono da CP 9.3, e
+	// mancava soltanto **questo** anello — l'effetto era applicabile (`RTHexDoorLibrary::SetDoorState`),
+	// trasportabile (`RTTurnManager` lo traduce in `bChangesDoor`/`DoorState`) e raccolto
+	// (`RTHexCombatLibrary` su `FirstDoorEdge`), e nessuna azione lo DICHIARAVA. Un effetto che nessuno
+	// dichiara non e' un'azione che esiste (#1014).
+	//
+	// [D-148] — l'effetto sta nel catalogo **core** e non in un profilo d'eroe perche' aprire una porta e'
+	// UNIVERSALE: chiunque la apre allo stesso modo. E' il confine di [D-033], che tiene invece fuori
+	// portata ed effetto di `BasicAttack` e `Overwatch`, dove dipendono dall'eroe.
+	//
+	// [D-151] — **`Open` e nient'altro.** Non commuta e non chiede `Closed`: `CanTransition` vieta
+	// `Locked -> Open` ma AMMETTE `Locked -> Closed`, che a una porta bloccata toglie il lock. Finche'
+	// nessuna azione dichiarava `SetDoorState` quel percorso era irraggiungibile; questa riga lo rende
+	// raggiungibile, e limitarla a `Open` e' cio' che lo tiene fuori portata senza toccare `CanTransition`.
+	// La commutazione resta la decisione aperta `INT-7`.
+	//
+	// ⚠️ Lo stato viaggia in `Amount` — interi soltanto, invariante #4 — e `Open` vale **zero**. A
+	// distinguere «dichiarato» da «campo di default» e' `bChangesDoor`, che `RTTurnManager` alza trovando la
+	// spec e non leggendone il valore: senza quel flag ogni azione del catalogo ordinerebbe di aprire ogni
+	// porta sulla propria linea di tiro.
+	//
+	// ⚠️ Con portata **1** la «prima porta sulla traiettoria» che `FirstDoorEdge` cerca **e'** il bordo
+	// bersagliato: il meccanismo di CP 9.3 vale per `Interact` senza modifiche. Non e' una coincidenza da
+	// lasciare implicita — se la portata crescesse, l'azione aprirebbe una porta che il giocatore non ha
+	// scelto, ed e' una delle ragioni per cui [D-149] la tiene a 1.
 	//
 	// `Action.Activate` NON E' PIU' NEL CATALOGO (#199). [D-014] la dichiarava «assorbita semanticamente da
 	// `Interact`» e [D-025] lo ha confermato scegliendo le sette generiche senza di lei: il catalogo la
@@ -827,7 +853,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// legacy non si cancellano»: quella regola proteggeva le tracce gia' scritte, e nessuna traccia versionata
 	// contiene `Action.Activate` — il corpus golden porta solo `Action.Move`.
 	Catalog.Add(ShippedAction(TEXT("Action.Interact"), ERTResolutionPhase::Attack, /*Priority*/ 80,
-		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
+		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::SetDoorState,
+			static_cast<int32>(ERTHexDoorState::Open)) },
 		/*bInterruptible*/ true, ERTActionSlot::Main));
 
 	// `Action.Overwatch` (CP 14.5) — si ARMA nel Prep e reagisce durante i micro-step del Move. E' l'azione

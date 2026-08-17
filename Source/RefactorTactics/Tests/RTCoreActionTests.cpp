@@ -4,6 +4,7 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Core/RTGameplayTags.h"
+#include "Map/RTHexCellData.h"
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionEvent.h"
 #include "Turn/RTActionQueue.h"
@@ -191,41 +192,78 @@ namespace
 	 * invece di rileggere il catalogo a mano: un test che replica la definizione invece di chiamarla
 	 * resta verde anche quando il codice cambia, ed e' il difetto peggiore che possa avere.
 	 */
-	void TestActionIsInert(FAutomationTestBase& T, const TCHAR* Id)
+	/**
+	 * ⚠️ **Era `TestActionIsInert`, ed e' stato AGGIORNATO invece di rimosso** — come il DoD di `#1014`
+	 * chiedeva. Asseriva anche `Effects.Num() == 0`: quella meta' e' caduta con [D-148], che porta
+	 * `SetDoorState` nel catalogo core. La meta' che RESTA vera e' piu' interessante, e ora e' l'unica:
+	 * un'azione che agisce su una STRUTTURA non produce eventi verso un'unita'.
+	 *
+	 * Non e' una debolezza del test: `RTActionEffectLibrary.cpp` fa `continue` su `SetDoorState`
+	 * proprio perche' *«un evento con `TargetUnitId` valido lo farebbe applicare a chi sta dietro la
+	 * porta»*. Questa asserzione difende quel confine, che prima era protetto per assenza.
+	 */
+	void TestActionProducesNoUnitEvents(FAutomationTestBase& T, const TCHAR* Id)
 	{
 		const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(FName(Id));
 		if (!T.TestTrue(FString::Printf(TEXT("%s e' nel catalogo"), Id), Def.ActionId == FName(Id)))
 		{
 			return;
 		}
-		T.TestEqual(FString::Printf(TEXT("%s non dichiara effetti"), Id), Def.Effects.Num(), 0);
 
 		FRTActionInstance Instance;
 		Instance.Def = Def;
 		Instance.SourceUnitId = 1;
 		Instance.TargetUnitId = 2;
 		const TArray<FRTActionEvent> Events = URTActionEffectLibrary::ProduceEvents(Instance);
-		T.TestEqual(FString::Printf(TEXT("%s risolta non produce eventi"), Id), Events.Num(), 0);
+		T.TestEqual(FString::Printf(TEXT("%s non produce eventi verso un'unita'"), Id), Events.Num(), 0);
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractIsInertTest,
-	"RefactorTactics.Actions.Interact.IsInertUntilImplemented",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractOpensDoorsTest,
+	"RefactorTactics.Actions.Interact.DeclaresOpenDoor",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTInteractIsInertTest::RunTest(const FString&)
+bool FRTInteractOpensDoorsTest::RunTest(const FString&)
 {
-	// `Action.Interact` esiste a catalogo — fase Blast, priorita' 80, portata 1 — ma NON FA NIENTE:
-	// nessun effetto dichiarato, nessun ramo del resolver che la esegua. Vedi la issue #273.
-	//
-	// Questo test fissa l'inerzia invece di ricordarsela. E' scritto per CADERE: il giorno in cui
-	// E10.1 le da' un effetto, diventa rosso e obbliga a sostituirlo con il test del comportamento
-	// vero. Senza, un effetto aggiunto a meta' passerebbe inosservato — che e' esattamente come
-	// `Marked`, il bonus Wet di Gadget e le reazioni d'eroe con `Effects` vuoto sono rimasti inerti
-	// per settimane.
-	//
-	// Il catalogo continua a dichiarare fase, priorita' e slot perche' quelle SONO decise (D-025):
-	// e' il comportamento a non esserci.
-	TestActionIsInert(*this, TEXT("Action.Interact"));
+	// ✅ **Sostituisce `Actions.Interact.IsInertUntilImplemented`**, che era scritto per CADERE il giorno
+	// in cui l'azione avesse ricevuto un effetto. Quel giorno e' [D-148] (2026-08-16): aprire una porta e'
+	// UNIVERSALE — chiunque la apre allo stesso modo — quindi l'effetto vive nel catalogo core e non in un
+	// profilo d'eroe, che e' il confine tracciato da [D-033].
+	const FRTActionDef Def = CoreActionDef(TEXT("Action.Interact"));
+
+	TestEqual(TEXT("Interact dichiara UN solo effetto"), Def.Effects.Num(), 1);
+	if (Def.Effects.Num() != 1)
+	{
+		return true;
+	}
+
+	TestTrue(TEXT("e l'effetto e' SetDoorState"),
+		Def.Effects[0].Effect == ERTActionEffect::SetDoorState);
+
+	// 🔴 **`Open` e non altro** ([D-151]). Non e' una restrizione di comodo: `CanTransition` vieta
+	// `Locked -> Open` — ed e' la protezione su cui poggia «non si apre da sola» — ma AMMETTE
+	// `Locked -> Closed`, che a una porta bloccata toglie il lock. Finche' nessuna azione dichiarava
+	// `SetDoorState` quel percorso era irraggiungibile; D-148 lo rende raggiungibile per la prima volta, e
+	// questa asserzione e' cio' che lo tiene fuori portata senza dover toccare `CanTransition`.
+	TestEqual(TEXT("verso Open, che nel trasporto e' Amount"),
+		Def.Effects[0].Amount, static_cast<int32>(ERTHexDoorState::Open));
+
+	// ⚠️ Lo stato viaggia in `Amount` e `Open` vale **zero**: un `Amount` di default sarebbe
+	// indistinguibile da una dichiarazione vera. Cio' che salva la distinzione e' `bChangesDoor`, che
+	// `RTTurnManager` alza solo trovando la spec — non il valore. L'asserzione qui sopra e' quindi
+	// necessaria ma non sufficiente da sola: senza il flag, «ogni azione del catalogo ordinerebbe di
+	// aprire ogni porta sulla propria linea di tiro» (`RTHexCombatLibrary.h`).
+	TestEqual(TEXT("Open e' zero: per questo il flag esiste"),
+		static_cast<int32>(ERTHexDoorState::Open), 0);
+
+	// La portata resta 1 ([D-149]): il giocatore bersaglia la SORGENTE, che e' adiacente, e il grafo di
+	// #833 raggiunge i bersagli remoti. Con portata 1 la «prima porta sulla traiettoria» che
+	// `FirstDoorEdge` cerca E' il bordo bersagliato — il meccanismo di CP 9.3 vale per `Interact` senza
+	// modifiche, e non e' una coincidenza da lasciare implicita.
+	TestEqual(TEXT("Interact: solo adiacente"), Def.RangeCells, 1);
+
+	// L'effetto agisce su una STRUTTURA: nessun evento verso un'unita'. E' la meta' vera di cio' che il
+	// test dell'inerzia asseriva, e sopravvive alla sua sostituzione.
+	TestActionProducesNoUnitEvents(*this, TEXT("Action.Interact"));
 	return true;
 }
 
