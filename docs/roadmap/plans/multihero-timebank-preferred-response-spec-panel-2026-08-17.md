@@ -233,11 +233,17 @@ implicitamente `Player == Hero`» non ha un oracolo (implicito non si cerca con 
 restano verdi» è vero ma non misura questo lavoro. Il primo va riscritto come una lista chiusa di documenti
 misurati; il secondo va tenuto, perché costa poco ed è già la disciplina della casa.
 
-**FOWLER** — *«Cinque nomi nuovi per tre cose.»* `SafeTimeoutResponse` esiste (F2), `MinControlledHeroesPerPlayer`
-e `MaxControlledHeroesPerPlayer` sono due campi per un intervallo che in v0.1 ha cardinalità uno, e
-`DecisionTimingPolicy` è già il nome che la spec usa (§6.1). Restano `PreferredResponse` e il conteggio del
-controllo: due nomi, non cinque. La regola del kit — *«non introdurre questi campi letteralmente se il
-repository possiede già un modello equivalente»* — è giusta e il kit non la esegue su sé stesso.
+**FOWLER** — *«Quanti di questi nomi nominano qualcosa che non ha già un nome?»* Il kit ne propone tredici
+(quattro in §1, due in §6, uno in §9, sei in §16). **Cinque duplicano vocabolario esistente**, contati uno per
+uno: `SafeTimeoutResponse` → `DecisionOnTimeout` (F2) · `MaxHeroesPerTeam` → `UnitsPerTeam`, che esiste in
+`FRTMatchRules` dal CP 19.2 · `DecisionTimingPolicy` → è già il nome che la spec usa in §6.1 · `BaseGrace` e
+`BaseExhaustedGrace` → `GraceMs` e `ExhaustedGraceMs` in §3.2. Altri due sono **sovra-specifica**:
+`MinControlledHeroesPerPlayer` e `MaxControlledHeroesPerPlayer` sono due campi per un intervallo che in v0.1
+ha cardinalità uno.
+
+Restano `PreferredResponse` e il conteggio del controllo: **due** nomi davvero nuovi. La regola sta scritta nel
+kit stesso — *«non introdurre questi campi letteralmente se il repository possiede già un modello
+equivalente»* — ed è il kit a non eseguirla su sé stesso.
 
 **COCKBURN** — *«Chi è l'attore, e qual è il suo obiettivo?»* Il kit passa da «Player» a «decisore» a «owner» senza
 dire se sono la stessa cosa. Nel codice l'unico attore è l'**unità**. Finché il modello di controllo non
