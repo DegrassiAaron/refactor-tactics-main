@@ -253,12 +253,10 @@ diventa 1,5× più largo, quindi le silhouette si distanziano e la cella smette 
 margine che rende `GBX-1` e `GBX-5` validabili **guardando** invece che discutendo — e si vede in pianta,
 non in alzato.
 
-> ⚠️ *La prima stesura di questo blocco concludeva che «ogni budget di frazione si trova più spazio di
-> quello che aveva». Non è vero su nessuno dei due assi: su `H` i budget sono identici per costruzione, e i
-> numeri che citava a sostegno — `22%` della quota, `32% → 21%` di `C` — venivano dalle costanti di
-> **visualizzazione** in `RTHexMapActor.cpp`, che [`D-168`](../decisions/RT_PDR_00_Decision_Log.md) esclude
-> esplicitamente dal perimetro di questo contratto. Premessa e conclusione non condividevano un asse.
-> Trovato in code review.*
+> ⚠️ **I budget di questo contratto non si allargano, e non devono sembrare farlo.** Sono frazioni di `H`,
+> e `H` non si muove: `0.28 H` è 70 cm prima e dopo. Chi cerca un guadagno sull'asse verticale non lo trova,
+> ed è corretto così. E le altezze di `RTHexMapActor.cpp` non sono evidenza su questi budget: sono
+> **placeholder di visualizzazione**, che `D-168` esclude dal perimetro.
 
 ⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
 `1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella per una cella larga `2,60 m`** — cioè
@@ -269,9 +267,8 @@ finiti** finché non li puoi validare in PIE.
 > Qui il termine di paragone è `C`, la larghezza lato-a-lato, perché è a quello che il contratto budgeta le
 > frazioni orizzontali (`0.92 C` per la larghezza di un pannello; le **altezze** vanno in `H`, §6). L'owner della scala —
 > [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — parla del **lato**, perché è
-> quello che `HexSize` contiene. `C = √3 · lato`: `1,50 → 2,60`. *La prima stesura diceva «regola unica,
-> scritta identica», e chi confrontava le due righe vedeva `2,60` contro `1,50` senza nulla che dicesse che
-> erano la stessa. Trovato in code review.*
+> quello che `HexSize` contiene. `C = √3 · lato`: `1,50 → 2,60`. Le due righe dicono lo stesso
+> vincolo in unità diverse, e ciascuna usa quella naturale per il proprio documento.
 
 Misurato: **quattro** siti in `Source/` lasciano `HexSize` a `100.f`, e **nessuna mappa lo sovrascrive**.
 I due che decidono il mondo sono `RTHexMapAsset.h:151` (l'autorevole: l'asset vince sull'actor) e
@@ -286,10 +283,9 @@ durante. Il quadro completo, con chi possiede cosa, sta in
 [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) e in [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155); questo documento non è l'owner del write-set
 e non deve diventarne una seconda copia.
 
-> ⚠️ *Questa riga ne nominava **due**, e la nota che la correggeva ne elencava quattro senza il test e senza
-> gli STOP — cioè rifaceva un livello più su lo stesso difetto che denunciava: chi esegue la migrazione
-> partendo da questo documento, che è quello che chi modella legge, cambia quello che vede e lascia rosso
-> il resto. Trovato in code review, due volte.*
+> ⚠️ **Questo elenco non è il write-set, ed è la ragione per cui rimanda invece di ripetere.** Chi esegue
+> la migrazione partendo da qui — ed è il documento che chi modella legge — cambierebbe i siti che vede e
+> lascerebbe rosso il resto. L'owner del write-set è `parallel-batch.yaml`; l'owner del lavoro è la issue.
 
 > ⚠️ **Come si verifica, e come NON si verifica.** `HexSize` è un `UPROPERTY(EditAnywhere)` su asset e
 > attore, quindi il valore di una mappa vive dentro un `.uasset` o un `.umap` — **binari**. Un `grep` su
