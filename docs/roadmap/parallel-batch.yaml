@@ -4657,6 +4657,25 @@ integration_only:
   # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14: lo tiene `content_editor`
   # su `#451`. Vedi la nota della track per la misura che lo consente. Torna qui al prossimo batch.
   - docs/balance/          # sorgente dei radar (toolchain Node)
+  # ➕ **Entrano il 2026-08-17 da `#1063`, e la ragione e' un difetto che il meccanismo ha BLOCCATO invece
+  # di scoprire al merge.** Una riconciliazione documentale aveva misurato che entrambi dichiarano
+  # `InterceptShot` come reazione — falso dal 2026-08-10 (D-016) — sapeva cosa scrivere, e si e' dovuta
+  # fermare: nessuno dei due stava in `writable`, `integration_only` o `generated_only`, cioe' erano nella
+  # condizione che `D-139` chiama STOP. E' il primo caso registrato in cui il costo della regola e'
+  # **visibile**: finora l'epic `#839` aveva solo l'esempio opposto, una violazione scoperta al merge.
+  #
+  # Entrano qui e non nel `writable` di una track per il criterio gia' usato con `test-automatico-unreal.md`
+  # e il Decision Log: **li leggono piu' processi come owner**, e assegnarli a una sola track toglierebbe
+  # agli altri il diritto di correggere un documento che consultano.
+  - docs/product/showcase-v0.1.md
+  # ⚠️ **La riga qui sotto NON contraddice `docs/characters/*.md` in `generated_only`: la completa.**
+  # Quella voce e' dichiaratamente PARZIALE — copre «solo il blocco `RT_FEATURE_STATUS`», e fino a oggi il
+  # suo commento chiudeva con «la prosa resta non assegnata». Le due categorie si dividono il file per PORZIONE,
+  # non se lo contendono: il blocco fra i marcatori lo riscrive `feature_registry.py wiki`, la prosa
+  # attorno si emenda in integrazione. Chi tocca il blocco a mano sbaglia comunque.
+  # ⚠️ Resta vero che `docs/characters/**` **attende una track propria** (vedi la nota di `proficiency`):
+  # questa riga non la sostituisce, toglie solo lo STOP a chi deve correggere una riga di prosa.
+  - docs/characters/        # la prosa; il blocco `RT_FEATURE_STATUS` resta `generated_only`
   # ⚠️ Diceva «oggi la tiene wt-cap»: quel branch è atterrato il 2026-08-14 (PR #848) e non tiene
   # più niente. `Scenarios/` torna quindi `integration_only` piena — non assegnata a nessuno.
   # ➖ **E non è più piena dal 2026-08-16: un file è in prestito, e resta elencato qui perché la cartella
@@ -4831,11 +4850,14 @@ generated_only:
   # `shortlist --check` non nominano nessuno di questi nove file.
   #
   # 🔴 **E qui `generated_only` copre il BLOCCO, non il file.** E' l'unica voce parzialmente generata
-  # di questo elenco: attorno ai marcatori c'e' prosa scritta a mano, che NON segue il registry e resta
-  # **non assegnata** — scriverla e' ancora uno STOP, e due track che la modificassero insieme
-  # confliggerebbero senza che nulla qui lo veda. Chi deve scriverla si assegna il path come qualunque
-  # altro file.
-  - path: docs/characters/*.md            # solo il blocco RT_FEATURE_STATUS; la prosa resta non assegnata
+  # di questo elenco: attorno ai marcatori c'e' prosa scritta a mano, che NON segue il registry.
+  # ✏️ **Aggiornato il 2026-08-17 da `#1063`.** Questo blocco diceva che la prosa resta «**non assegnata**»
+  # e che «scriverla e' ancora uno STOP»: era vero fino a oggi. Ora sta in `integration_only`, quindi lo
+  # STOP e' caduto e la frase «due track che la modificassero insieme confliggerebbero senza che nulla qui
+  # lo veda» descrive un rischio che la nuova categoria governa — si emenda in integrazione, come il
+  # Decision Log. La divisione per PORZIONE resta identica: **il blocco fra i marcatori non si tocca a
+  # mano**, e chi lo fa sbaglia anche adesso.
+  - path: docs/characters/*.md            # solo il blocco RT_FEATURE_STATUS; la prosa e' `integration_only`
     derives_from: [docs/roadmap/feature-registry.yaml]
     tool: "feature_registry.py wiki"
 

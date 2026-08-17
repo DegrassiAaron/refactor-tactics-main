@@ -279,6 +279,24 @@ in partita, ma il radar descrive l'eroe come il **catalogo lo dichiara**. Esclud
 al calendario di implementazione: quando E14 atterra i numeri cambierebbero e il gate di §8 diventerebbe
 rosso **senza** che nessuno abbia toccato un dato competitivo.
 
+> ⚠️ **`InterceptShot` non è più rinviata, e questo paragrafo resta vero lo stesso — 2026-08-17.**
+> L'abilità è una **Predictive Action consegnata** dal 2026-08-10 (E18 chiusa, [#225](https://github.com/DegrassiAaron/refactor-tactics-main/issues/225), [D-016](../decisions/RT_PDR_00_Decision_Log.md)): produce
+> eccome in partita, ed è esercitata da tre test d'integrazione in un `UWorld` vero
+> (`Predictive.InterceptCellHit`, `…CellMiss`, `…CrossingIsNotPresence`).
+>
+> La frase qui sopra **non è stata riscritta** perché descrive ciò che il *radar* vede, e il radar legge
+> `docs/balance/RT_HeroCatalog_v0.1.md`, che la dichiara ancora `⏳ E14` (riga 48) e «reazione» (riga 170).
+> Finché il catalogo dice così, `status` resta `deferred` e questo paragrafo è **descrittivamente esatto**.
+>
+> 🔴 **La divergenza è fra catalogo e codice, e la sua correzione non è documentale**: la cella `Stato` di
+> quella riga è letta da `tools/radar/power.ts` con una **regex sulla prosa** —
+> `/trigger d'ingresso su movimento/` — che decide `isPredictive()` e quindi azzera il danno garantito
+> dell'abilità (16 → 0) nel `power` dell'eroe. Riscrivere la cella senza conservare quella frase **muove un
+> rating competitivo**; cambiare il marcatore `⏳` in `✅` rompe
+> `parse-catalog.test.ts:156`, che asserisce `status === 'deferred'`.
+> Tracciato in [#1080](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1080) con il suo costo, perché non è lo stesso lavoro di
+> [#1063](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1063).
+
 **Il cooldown pesa `disponibilità(CD) = 10 / (1 + CD/2)`** — `CD 0 → 10 · 1 → 6.67 · 2 → 5 · 3 → 4`.
 Risolve `CD 0` senza casi speciali, con **una sola costante** da giustificare invece di una tabella di
 quattro. Scartata la frequenza pura `10/(1+CD)`, che fa collidere Riktor e Phase.
