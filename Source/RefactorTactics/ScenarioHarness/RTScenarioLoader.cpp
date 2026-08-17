@@ -5,6 +5,7 @@
 #include "Ability/RTCatalogLibrary.h" // un'azione di Prep risolve su se' e non dichiara un bersaglio
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: vive fuori da RTTurnLog.h, ma e' un esito del log
+#include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: il validator della condizione sta nel gioco
 #include "Map/RTHexLibrary.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -106,7 +107,24 @@ namespace
 		}
 
 		const UEnum* OutcomeEnum = URTScenarioLoader::OutcomeEnumForCategory(OutCategory);
-		const int64 OutcomeValue = OutcomeEnum ? OutcomeEnum->GetValueByNameString(OutcomeText) : INDEX_NONE;
+
+		// ⚠️ **Una categoria SENZA enum non e' «esito sbagliato»: e' «categoria non asseribile», e finche'
+		// i due casi non si distinguevano il messaggio diceva `(previsti: )` — una lista vuota che non
+		// spiega niente.** E' costato un ciclo: uno scenario che chiedeva `PredictionWhiffed` falliva il
+		// caricamento con un errore che sembrava un refuso nel nome dell'esito, mentre il difetto era che
+		// `Predictive` non aveva un caso in `OutcomeEnumForCategory`. Chi aggiunge una categoria nuova al
+		// TurnLog e dimentica la riga la' dentro riceve ora una frase che gliela indica.
+		if (OutcomeEnum == nullptr)
+		{
+			OutError = FString::Printf(
+				TEXT("assertion sul TurnLog: la categoria %s non e' asseribile — non ha un enum di esiti in ")
+				TEXT("`URTScenarioLoader::OutcomeEnumForCategory`. Non e' un errore dello scenario: manca un ")
+				TEXT("caso nel loader, e va aggiunto li'."),
+				*CategoryText);
+			return false;
+		}
+
+		const int64 OutcomeValue = OutcomeEnum->GetValueByNameString(OutcomeText);
 		if (OutcomeValue == INDEX_NONE)
 		{
 			// Il messaggio nomina la CATEGORIA: `BridgeRemoved` e' un esito legittimo, ma non di `Facing`, e
@@ -153,6 +171,19 @@ const UEnum* URTScenarioLoader::OutcomeEnumForCategory(ERTLogCategory Category)
 	case ERTLogCategory::Reaction:    return StaticEnum<ERTReactionOutcome>();
 	case ERTLogCategory::Environment: return StaticEnum<ERTEnvironmentOutcome>();
 	case ERTLogCategory::Facing:      return StaticEnum<ERTFacingOutcome>();
+	// ➕ **Le due che mancavano, aggiunte il 2026-08-16.** Erano le piu' NUOVE — `Predictive` (E18) e
+	// `ReactionDecision` (CP 14.5) — e sono rimaste fuori per omissione, non per una scelta: sei categorie
+	// su otto erano asseribili e due no, senza che nessuno potesse scrivere il perche'.
+	//
+	// Il costo era due righe, e la verifica che fossero possibili e' che entrambi gli enum sono
+	// `UENUM(BlueprintType)`, quindi `StaticEnum<T>()` li risolve — misurato, non assunto: senza la macro
+	// di reflection queste due righe compilerebbero e tornerebbero `nullptr` a runtime.
+	//
+	// ⚠️ Cosa sbloccano, concretamente: `RT_Showcase_Relay_v01` non poteva asserire il proprio
+	// `PredictionWhiffed` al T2 — il turno esiste, la previsione fallisce come deve, e l'unica prova era
+	// indiretta. Un `LogEventCount` su `Predictive` faceva fallire il CARICAMENTO dello scenario.
+	case ERTLogCategory::Predictive:       return StaticEnum<ERTPredictiveOutcome>();
+	case ERTLogCategory::ReactionDecision: return StaticEnum<ERTReactionDecisionOutcome>();
 	default:                          return nullptr;
 	}
 }
@@ -305,6 +336,12 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		const TArray<TSharedPtr<FJsonValue>>* LoadoutArr = nullptr;
 		if (Obj->TryGetArrayField(TEXT("loadout"), LoadoutArr))
 		{
+			// La PRESENZA della chiave, registrata a parte dal contenuto: `"loadout": []` significa «entra
+			// spoglia» e `loadout` assente significa «monta il default dell'eroe», ma entrambe danno zero
+			// pezzi. Senza questo flag le due forme sarebbero indistinguibili, e quattro scenari che tengono
+			// ferma la spinta a 1 tornerebbero a misurare la cosa sbagliata **restando verdi**.
+			Unit.bLoadoutDeclared = true;
+
 			for (const TSharedPtr<FJsonValue>& Piece : *LoadoutArr)
 			{
 				FString PieceId;
@@ -334,8 +371,12 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 
 			// Le chiavi di turno ammesse. Misurato sul corpus il 2026-08-16 (77 file): sono quattro —
 			// `intents` 113, `requires` 36, `_turno` 64, `_nota` 3 — e le due con `_` sono la convenzione
-			// dei commenti. `decisions` si aggiunge qui perche' la introduce questa fase, e nel corpus non
-			// compare ancora. Senza questo controllo un refuso — `desicions` per `decisions` — viene
+			// dei commenti. `decisions` si e' aggiunta qui con la fase A di `#512`, quando nel corpus non
+			// compariva ancora; dalla **fase B** compare, in due file versionati
+			// (`RT_Showcase_Relay_v01` T4 e `Spec/Overwatch/HoldThenFire` T2), che e' il motivo per cui
+			// questa riga non dice piu' «non compare ancora»: chi rimisura il corpus contro un commento
+			// scaduto trova una contraddizione e non sa quale delle due credere.
+			// Senza questo controllo un refuso — `desicions` per `decisions` — viene
 			// ignorato e il turno cade su `HoldNoDecider`, che e' indistinguibile da «nessuno ha
 			// risposto»: verde per il motivo sbagliato.
 			{
@@ -517,7 +558,13 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 							// `facing` — rotazione DICHIARATA in pianificazione (D-020, #291). Aggiunta qui e nel
 							// parser **nello stesso commit**, che e' la lezione lasciata da `edge`: le due copie
 							// vivono a trecento righe di distanza e nessun gate le confronta.
-							TEXT("facing")
+							TEXT("facing"),
+							// `condition` — la condizione dichiarata sulla reazione armata ([D-109], #583).
+							// Terza voce aggiunta qui e nel parser nello STESSO commit, e la lezione lasciata da
+							// `edge` ha smesso di essere teorica: senza questa riga lo scenario nuovo veniva
+							// rifiutato con «chiave sconosciuta», cioe' la meta' mancante del loader si sarebbe
+							// presentata come un errore di scrittura del file invece che come una lacuna del parser.
+							TEXT("condition")
 						};
 						// Si RACCOGLIE e si ORDINA prima di riportare: `IntentObj->Values` e' una TMap, e con due
 						// chiavi sbagliate nello stesso intent il messaggio nominerebbe l'una o l'altra a seconda
@@ -573,7 +620,7 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 						{
 							// Un'azione che risolve su CHI LA USA non ha un bersaglio da dichiarare: il
 							// `TurnManager` si bersaglia da solo in fase Prep (`Instance.TargetUnitId = i`), e
-							// pretenderlo qui costringerebbe a scrivere «Bastion si mette in guardia bersagliando
+							// pretenderlo qui costringerebbe a scrivere «Riktor si mette in guardia bersagliando
 							// se stesso». La domanda si pone al CATALOGO invece di elencare gli ActionId self,
 							// cosi' un'azione di Prep aggiunta domani non deve ricordarsi di questa riga.
 							//
@@ -665,6 +712,80 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 					{
 						// Nessun bersaglio da pretendere qui: una reazione non lo dichiara, lo riceve dal trigger.
 						Intent.Reaction = FName(*ReactionText);
+					}
+
+					// La condizione dichiarata sulla reazione armata ([D-109]). Oggetto e non stringa: `id` e
+					// `param` sono due cose diverse — quale condizione, e con quale soglia — e una stringa sola
+					// costringerebbe a inventare una sintassi (`"TargetHealth<=10"`) che nessuno ha deciso e che
+					// il validator del gioco non parla.
+					// 🔴 **Si guarda la PRESENZA prima del tipo, e non e' pignoleria.** `TryGetObjectField`
+					// restituisce `false` per QUALUNQUE valore che non sia un oggetto — una stringa, un numero,
+					// `null` — quindi un `"condition": "TargetHealthAtOrBelowPercent"` cadeva fuori dall'`if`
+					// senza un errore. E il gate delle chiavi sconosciute non lo vedeva, perche' `condition` e'
+					// una chiave NOTA: lo scenario girava senza condizione, l'opportunity non collassava, e
+					// l'autore leggeva solo `LogEventCount(HoldImmediate) atteso 2, ottenuto 0`. La forma con la
+					// stringa e' anche la prima che verrebbe in mente, visto che ogni altro campo dell'intent
+					// (`unit`, `ability`, `target`, `reaction`, `edge`, `facing`) e' una stringa.
+					if (IntentObj->HasField(TEXT("condition")))
+					{
+						const TSharedPtr<FJsonObject>* ConditionObj = nullptr;
+						if (!IntentObj->TryGetObjectField(TEXT("condition"), ConditionObj))
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': condition deve essere un oggetto { \"id\": ..., \"param\": N }"),
+								*Intent.UnitId);
+							return false;
+						}
+						FString ConditionId;
+						if (!(*ConditionObj)->TryGetStringField(TEXT("id"), ConditionId) || ConditionId.IsEmpty())
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': condition senza 'id'"), *Intent.UnitId);
+							return false;
+						}
+
+						// Il parametro e' INTERO e va chiesto esplicitamente: un default silenzioso qui
+						// significherebbe «soglia 0», cioe' una condizione che non e' mai vera, e lo scenario
+						// direbbe di aver ristretto il fuoco mentre lo ha spento.
+						double ParamNumber = 0.0;
+						if (!(*ConditionObj)->TryGetNumberField(TEXT("param"), ParamNumber))
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': condition '%s' senza 'param'"), *Intent.UnitId, *ConditionId);
+							return false;
+						}
+						// Il RANGE si controlla PRIMA del cast, e non e' pedanteria: `static_cast<int32>` di un
+						// double che non ci sta e' undefined behavior. `"param": 1e20` supererebbe il controllo
+						// di interezza qui sotto — e' gia' intero — e atterrerebbe su `IsDeclaredConditionAllowed`
+						// come un valore INDEFINITO: se cadesse per caso dentro `0..100` lo scenario verrebbe
+						// accettato con una soglia che non e' quella scritta nel file. Il limite dichiarato del
+						// validator e' `0..100`, quindi qui basta la finestra di `int32` per rendere il cast sicuro
+						// e lasciare a lui l'ultima parola sul dominio vero.
+						if (ParamNumber < static_cast<double>(TNumericLimits<int32>::Min())
+							|| ParamNumber > static_cast<double>(TNumericLimits<int32>::Max()))
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': condition '%s' ha un 'param' fuori scala (%f)"),
+								*Intent.UnitId, *ConditionId, ParamNumber);
+							return false;
+						}
+						// Confronto ESATTO, non `IsNearlyEqual`: la tolleranza di default e' `UE_KINDA_SMALL_NUMBER`
+						// (1e-4), quindi un `10.00005` passerebbe e verrebbe arrotondato a 10 — cioe' lo scenario
+						// girerebbe una soglia che il file non dichiara, che e' precisamente cio' che il gate `G7`
+						// vieta. Una regola sull'esattezza si verifica esattamente.
+						if (ParamNumber != FMath::RoundToDouble(ParamNumber))
+						{
+							// Gate `G7`: niente float in soglie e priorita'. Il confronto del gioco e' in
+							// aritmetica intera (`Health * 100 <= MaxHealth * Param`), quindi un `50.5` verrebbe
+							// troncato in silenzio e lo scenario descriverebbe una soglia che non e' la sua.
+							OutError = FString::Printf(
+								TEXT("intent di '%s': condition '%s' vuole un 'param' INTERO, non %f"),
+								*Intent.UnitId, *ConditionId, ParamNumber);
+							return false;
+						}
+
+						Intent.Condition = FRTDeclaredCondition(
+							FName(*ConditionId), static_cast<int32>(FMath::RoundToDouble(ParamNumber)));
 					}
 
 					const TArray<TSharedPtr<FJsonValue>>* MoveArr = nullptr;
@@ -1086,51 +1207,12 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 					*Intent.UnitId);
 				return false;
 			}
-			if (!Intent.Ability.IsNone())
-			{
-				// Bersaglio doppio: `ERROR`, non una scelta fra i due. Sceglierne uno al posto di chi ha
-				// scritto lo scenario produrrebbe un test verde su una premessa sbagliata — e quello nessuno
-				// va a riaprirlo.
-				if (Intent.bTargetsCell && !Intent.Target.IsEmpty())
-				{
-					OutError = FString::Printf(
-						TEXT("intent di '%s': dichiara sia il bersaglio '%s' sia una cella (target e targetCell insieme)"),
-						*Intent.UnitId, *Intent.Target);
-					return false;
-				}
-				if (Intent.bTargetsCell)
-				{
-					// Una cella bersaglio segue le stesse regole di ogni altra cella dello scenario: fuori
-					// dall'arena e' un errore di scrittura, non un tiro che manca.
-					continue;
-				}
-				// Azione che risolve su chi la usa: il bersaglio vuoto e' la forma CORRETTA, non un'omissione.
-				// La lettura piu' sopra l'ha gia' ammessa; qui si evita che il controllo «e' schierato?» la
-				// respinga cercando un'unita' di nome "".
-				if (Intent.Target.IsEmpty())
-				{
-					const FRTActionDef SelfDef = URTCatalogLibrary::FindCoreAction(Intent.Ability);
-					if (!SelfDef.ActionId.IsNone()
-						&& URTCatalogLibrary::MapResolutionPhase(SelfDef.ResolutionPhase) == ERTMatchPhase::Prep)
-					{
-						continue;
-					}
-				}
-				if (!SeenIds.Contains(Intent.Target))
-				{
-					OutError = FString::Printf(TEXT("intent di '%s': bersaglio '%s' non schierato"),
-						*Intent.UnitId, *Intent.Target);
-					return false;
-				}
-				if (Intent.Target == Intent.UnitId)
-				{
-					// Nessuna abilita' del roster v0.1 bersaglia se stessa: se un giorno esistesse, questo
-					// controllo va rilassato di PROPOSITO, non lasciato cadere per distrazione.
-					OutError = FString::Printf(TEXT("intent di '%s': l'unita' bersaglia se stessa"), *Intent.UnitId);
-					return false;
-				}
-			}
-
+			// ⚠️ **Reazione e condizione si validano PRIMA del blocco dell'abilita', e l'ordine non e' stilistico.**
+			// Quel blocco fa `continue` per le azioni di Prep che risolvono su chi le usa — `Action.Overwatch` e' una
+			// di quelle — e un `continue` salta il RESTO del corpo del ciclo, non solo i controlli sul bersaglio che
+			// lo motivano. Con le due validazioni piu' in basso, un intent che arma l'Overwatch NON veniva validato:
+			// ne' la sua condizione (#583) ne' la sua `reaction`, che poteva essere un nome inesistente e passare in
+			// silenzio. Trovato dal test `LoaderRejectsMalformedCondition`, che falliva sul solo caso con `ability`.
 			// La reazione si valida QUI e non a runtime perche' il suo modo di fallire e' silenzioso: armare
 			// una reazione inesistente non produce nessun effetto e nessun errore, e chi legge vedrebbe solo
 			// un'assertion sui danni che non torna, senza un indizio su dove guardare.
@@ -1182,6 +1264,91 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 					return false;
 				}
 			}
+
+			// La condizione dichiarata ([D-109]) si valida QUI per la stessa ragione della reazione: il suo modo
+			// di fallire e' SILENZIOSO. `ARTUnit::SetPlannedReactionCondition` restituisce `false` e non scrive
+			// niente — nessun log, nessun errore — quindi uno scenario con una condizione rifiutata girerebbe
+			// **senza** condizione, l'opportunity non collasserebbe, e chi legge vedrebbe solo un'assertion sugli
+			// HP che non torna. E' precisamente il difetto che #583 esiste per intercettare.
+			if (Intent.Condition.IsDeclared())
+			{
+				// Una condizione senza reazione a cui applicarsi resta orfana nel piano: e' il primo dei due
+				// rifiuti di `SetPlannedReactionCondition`, riprodotto qui perche' produca un motivo invece di un
+				// campo vuoto.
+				//
+				// ⚠️ **Ed e' il vincolo che morde davvero oggi**, non un caso di scuola: l'Overwatch costa
+				// l'azione PRINCIPALE, non lo slot reazione, quindi un intent di solo `"ability":
+				// "Action.Overwatch"` con una `condition` finisce qui. Chi scrive lo scenario deve armare ANCHE
+				// una reazione — la mancata riconciliazione dei due slot e' dichiarata in `RTTurnManager.cpp`,
+				// ramo `Action.Overwatch`, e non si scioglie da questo lato.
+				if (Intent.Reaction.IsNone())
+				{
+					OutError = FString::Printf(
+						TEXT("intent di '%s': condition '%s' senza una reaction a cui applicarsi ")
+						TEXT("(SetPlannedReactionCondition la rifiuterebbe in silenzio)"),
+						*Intent.UnitId, *Intent.Condition.Id.ToString());
+					return false;
+				}
+
+				// L'elenco delle condizioni ammesse e il range del parametro vivono nel GIOCO, non qui: questa
+				// riga chiama il validator vero (`IsDeclaredConditionAllowed`) invece di ricopiarne le regole,
+				// cosi' una condizione nuova non deve essere aggiunta in due posti — e non puo' essere ammessa
+				// dall'harness e rifiutata dal gioco.
+				if (!URTReactionOpportunityLibrary::IsDeclaredConditionAllowed(Intent.Condition))
+				{
+					OutError = FString::Printf(
+						TEXT("intent di '%s': condition '%s' param %d non e' ammessa dalla v0.1 ")
+						TEXT("(l'unica e' 'TargetHealthAtOrBelowPercent', param 0..100)"),
+						*Intent.UnitId, *Intent.Condition.Id.ToString(), Intent.Condition.Param);
+					return false;
+				}
+			}
+
+			if (!Intent.Ability.IsNone())
+			{
+				// Bersaglio doppio: `ERROR`, non una scelta fra i due. Sceglierne uno al posto di chi ha
+				// scritto lo scenario produrrebbe un test verde su una premessa sbagliata — e quello nessuno
+				// va a riaprirlo.
+				if (Intent.bTargetsCell && !Intent.Target.IsEmpty())
+				{
+					OutError = FString::Printf(
+						TEXT("intent di '%s': dichiara sia il bersaglio '%s' sia una cella (target e targetCell insieme)"),
+						*Intent.UnitId, *Intent.Target);
+					return false;
+				}
+				if (Intent.bTargetsCell)
+				{
+					// Una cella bersaglio segue le stesse regole di ogni altra cella dello scenario: fuori
+					// dall'arena e' un errore di scrittura, non un tiro che manca.
+					continue;
+				}
+				// Azione che risolve su chi la usa: il bersaglio vuoto e' la forma CORRETTA, non un'omissione.
+				// La lettura piu' sopra l'ha gia' ammessa; qui si evita che il controllo «e' schierato?» la
+				// respinga cercando un'unita' di nome "".
+				if (Intent.Target.IsEmpty())
+				{
+					const FRTActionDef SelfDef = URTCatalogLibrary::FindCoreAction(Intent.Ability);
+					if (!SelfDef.ActionId.IsNone()
+						&& URTCatalogLibrary::MapResolutionPhase(SelfDef.ResolutionPhase) == ERTMatchPhase::Prep)
+					{
+						continue;
+					}
+				}
+				if (!SeenIds.Contains(Intent.Target))
+				{
+					OutError = FString::Printf(TEXT("intent di '%s': bersaglio '%s' non schierato"),
+						*Intent.UnitId, *Intent.Target);
+					return false;
+				}
+				if (Intent.Target == Intent.UnitId)
+				{
+					// Nessuna abilita' del roster v0.1 bersaglia se stessa: se un giorno esistesse, questo
+					// controllo va rilassato di PROPOSITO, non lasciato cadere per distrazione.
+					OutError = FString::Printf(TEXT("intent di '%s': l'unita' bersaglia se stessa"), *Intent.UnitId);
+					return false;
+				}
+			}
+
 		}
 	}
 

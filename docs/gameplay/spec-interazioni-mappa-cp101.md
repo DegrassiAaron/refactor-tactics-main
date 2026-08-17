@@ -72,7 +72,7 @@ un ramo. È la stessa forma che CP 9.5 ha già dato alle strutture, dove l'opera
 singola**, le sinergie sono **derivate**, e non esiste dipendenza hard-coded fra `HeroId` per un payoff
 esprimibile sistemicamente.
 
-Un requisito `CanUseOnlyCharacter = Flux` è esattamente ciò che quella decisione vieta, e il costo si paga
+Un requisito `CanUseOnlyCharacter = Gadget` è esattamente ciò che quella decisione vieta, e il costo si paga
 due volte: il roster cresce e la mappa va riscritta; la mappa cresce e il roster va riscritto.
 
 Il requisito si esprime quindi come **capability**, cioè un tag governato che l'unità porta e l'elemento
@@ -285,7 +285,7 @@ già costruiti. Restano fuori, esplicitamente:
 - telecamere, sensori e radar — sono produttori di conoscenza, quindi dipendono da E13;
 - il controllo **remoto** sorgente → bersaglio, che richiede la privacy dei collegamenti (§8) e quindi la rete;
 - valvole, pompe e fluidodinamica: l'acqua ha un produttore nel roster ([`D-046`](../decisions/RT_PDR_00_Decision_Log.md),
-  `Riva.FluidTrail` **è** `Action.CreateWater`) e non serve un secondo modello per crearla;
+  `Hero.Phase.FluidTrail` **è** `Action.CreateWater`) e non serve un secondo modello per crearla;
 - ascensori e piattaforme mobili, che sono transizioni con stato temporale, non elementi con verbi.
 
 Il criterio non è la difficoltà: è che **ognuno di questi dipende da un sistema che non è ancora verde**.

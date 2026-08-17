@@ -79,14 +79,14 @@ public:
 	 * `Gadget.PortableCover` del catalogo equipaggiamento (CP 9.5). E' l'**unico** gadget costruito in v0.1, e
 	 * non e' l'inizio del catalogo completo: quello, con slot, loadout e validazione dell'insieme, e' l'epic E7
 	 * (`#61`, `#63`). Sta qui perche' il DoD di questo checkpoint lo nomina, e perche' e' il secondo
-	 * consumatore di `Action.CreateCover` — cioe' la prova che la semantica e' condivisa e non e' di Bastion.
+	 * consumatore di `Action.CreateCover` — cioe' la prova che la semantica e' condivisa e non e' di Riktor.
 	 */
 	static URTEquipmentData* MakePortableCoverGadget();
 
 	/**
 	 * Le **sei varianti d'arma** del catalogo equipaggiamento §1 (CP 7.1, `#60`).
 	 *
-	 * Costruite in C++ come il roster (`MakeBastion`) e non come asset di `Content/`: sono dati di catalogo che
+	 * Costruite in C++ come il roster (`MakeRiktor`) e non come asset di `Content/`: sono dati di catalogo che
 	 * il gioco spedisce sempre, e un asset li renderebbe modificabili senza passare da una review del diff —
 	 * oltre a richiedere l'editor per una regola che non ne ha bisogno.
 	 *
@@ -102,7 +102,7 @@ public:
 	 * Sono **sei** dei sette. L'unico assente e' `HazardEscape`, e non gli manca un dato: gli manca un
 	 * PREREQUISITO. Una superficie che nasce sotto un'unita' ferma oggi non le fa niente — tranne l'acqua,
 	 * che ha un ramo suo — quindi nel Cleanup non c'e' nessun danno imminente da cui fuggire e il modulo
-	 * sarebbe inerte: la trappola di `Riva.MistVeil` (`#353`). Lo chiude `#570`, e questo modulo lo segue.
+	 * sarebbe inerte: la trappola di `Phase.MistVeil` (`#353`). Lo chiude `#570`, e questo modulo lo segue.
 	 *
 	 * I sei raccontano le tre ragioni per cui un modulo puo' restare fermo, e la differenza porta a lavori
 	 * diversi: a `EmergencyDash` mancava l'**effetto** (`SelfReposition`, D-093, perche' `Push`/`Pull`
@@ -179,12 +179,39 @@ public:
 	static FName DefaultWeaponVariantFor(const FName& HeroId);
 
 	/**
+	 * Il gadget di **default** per un eroe (`#63`, CP 7.4), o `None` se l'eroe non ne ha uno dichiarato.
+	 *
+	 * ⚠️ Fino al 2026-08-16 esisteva **solo** `DefaultWeaponVariantFor`: una colonna su quattro della
+	 * tabella §4 del catalogo equipaggiamento, e da sola non compone un 1+1+1. Le altre due categorie
+	 * vivevano nel solo markdown, che nessun codice leggeva.
+	 */
+	static FName DefaultGadgetFor(const FName& HeroId);
+
+	/** Il modulo di reazione di **default** per un eroe (`#63`), o `None`. Stessa disciplina del gadget. */
+	static FName DefaultReactionModuleFor(const FName& HeroId);
+
+	/**
+	 * Il loadout completo di default: variante d'arma + gadget + modulo, **in quest'ordine**, oppure un
+	 * array **vuoto** se l'eroe non ha default dichiarati.
+	 *
+	 * Vuoto e non parziale: un loadout a due pezzi verrebbe rifiutato da `ValidateLoadout` — che pretende
+	 * esattamente uno per slot — e il chiamante si troverebbe a gestire un errore che nasce qui. Se un eroe
+	 * non ha default, non ne ha **nessuno**, e chi lo equipaggia lo scopre da un array vuoto invece che da
+	 * una validazione fallita tre livelli piu' in la'.
+	 *
+	 * ⚠️ **La fonte autorevole e' §4 di `docs/balance/RT_EquipmentCatalog_v0.1.md`**, non queste tabelle:
+	 * il C++ ne e' una copia, e a impedirle di divergere in silenzio e' `scripts/check-equipment-defaults.py`.
+	 * Il gate generale markdown↔C++ resta `#576`, aperta.
+	 */
+	static TArray<FName> DefaultLoadoutFor(const FName& HeroId);
+
+	/**
 	 * Avvisi (non errori) su una combinazione eroe/variante: cose legali che con ogni probabilita' non si
 	 * vogliono, e che nessun validator strutturale puo' vedere perche' dipendono dalla **coppia**.
 	 *
 	 * Oggi ne produce due, ed entrambe nascono da D-089:
 	 * - la variante **duplica uno status** che l'attacco base gia' applica (`Suppressive` su
-	 *   `Bastion.ImpactShot`, che rallenta di suo): si paga il costo pieno per un effetto che si ha;
+	 *   `Riktor.ImpactShot`, che rallenta di suo): si paga il costo pieno per un effetto che si ha;
 	 * - la variante porta il danno diretto **a zero o sotto**: un pulsante finto, che ADR-0007 esiste per
 	 *   evitare.
 	 *

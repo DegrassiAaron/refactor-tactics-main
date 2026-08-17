@@ -91,6 +91,10 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> FocusAction;
 
+	/** Cicla la velocita' di riproduzione `x1 · x2 · x4` (CP 47.7, #1015). */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PlaybackSpeedAction;
+
 	/** Attore attualmente selezionato (se implementa IRTSelectable). */
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
@@ -122,6 +126,22 @@ public:
 	/** Se il gesto e' armato. Serve a verificare che il rilascio lo chiuda davvero. */
 	bool IsOrbitingForTest() const { return bOrbiting; }
 
+	/**
+	 * Porta la velocita' di riproduzione al passo successivo della scala (CP 47.7, #1015).
+	 *
+	 * ⚠️ **E' l'UNICO punto in cui la UI scrive nel modello, e la firma lo rende verificabile.** Statica e
+	 * con il `ARTTurnManager` come solo parametro: non puo' leggere la selezione, non puo' toccare un
+	 * altro attore, e un test la esercita allestendo il solo turn manager — senza montare un controller,
+	 * che e' cio' che renderebbe la voce 1 del DoD non misurabile headless.
+	 *
+	 * Scrive `ViewerPlaybackSpeed` e nient'altro: in particolare **non** tocca `MaxPlaybackSeconds`, che
+	 * e' l'altro produttore della velocita' effettiva. Pinnato da
+	 * `RefactorTactics.HUD.PlaybackSpeedControlWritesOnlyTheViewerField`.
+	 *
+	 * Nullo = nessuna partita: non fa nulla. L'HUD e il controller esistono prima del turn manager.
+	 */
+	static void ApplyNextPlaybackSpeed(class ARTTurnManager* TurnManager);
+
 private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
@@ -131,6 +151,7 @@ private:
 	void OnAbility3(const FInputActionValue& Value);
 	void OnAbility4(const FInputActionValue& Value); // seleziona lo scatto (4a abilita')
 	void OnUndoWaypoint(const FInputActionValue& Value);
+	void OnCyclePlaybackSpeed(const FInputActionValue& Value);
 	void OnRecenter(const FInputActionValue& Value);
 	void OnFocusSelected(const FInputActionValue& Value);
 

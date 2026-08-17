@@ -16,7 +16,7 @@ roster a 8, Cover Window, architettura di muri e porte, formato competitivo 3v3,
 mappe Operations. Finché sono rimasti solo lì, ogni sessione ha dovuto ridecidere da capo se una cosa fosse
 v0.1 o no. Questo file registra quella ripartizione una volta sola.
 
-**Fonti** (tutte in `docs/src/`, non normative — vedi [`../src/README.md`](../src/README.md)):
+**Fonti** (tutte in `docs/src/`, non normative — vedi [`../src/`](../src/)):
 
 | Sorgente | Alimenta |
 |---|---|
@@ -728,8 +728,8 @@ Wraith, la cui forma `Siege` spegnerebbe la meccanica firma.
 **Tracciata su GitHub**: epic [#244](https://github.com/DegrassiAaron/refactor-tactics-main/issues/244), con
 11 checkpoint (`CP 34.1`–`34.11`) e 4 prototipi personaggio. Le candidature per l'intero roster stanno in
 [`../characters/matrici-stati-personaggio.md`](../characters/matrici-stati-personaggio.md); l'ordine dei
-prototipi va **dal più leggero al più invasivo** — `Riva · Flow` non tocca alcun sistema condiviso,
-`Bastion · Bulwark` tocca cover, LOS, collisione e pathing.
+prototipi va **dal più leggero al più invasivo** — `Phase · Flow` non tocca alcun sistema condiviso,
+`Riktor · Bulwark` tocca cover, LOS, collisione e pathing.
 
 ### E37 — Radar di personaggio e generatore Wiki · P3
 

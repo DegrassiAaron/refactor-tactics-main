@@ -12,19 +12,19 @@
   "_nota_da_completare": "Chi implementa: dichiara la capability `SpatialTrigger`, piazza il filo sul bordo fra (0,0) e (1,0) e riempie i tre turni. Il quarto — il teletrasporto che non scatta — dipende anche dalla capability `Teleport` e va tenuto separato: se il teletrasporto non esiste ancora, i primi tre turni valgono da soli e il quarto resta BLOCKED.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-2, 0, 0] },
-    { "id": "R1", "hero": "Hero.Riva",   "team": 0, "cell": [-2, 1, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 3, 0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-2, 0, 0] },
+    { "id": "R1", "hero": "Hero.Phase",   "team": 0, "cell": [-2, 1, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 3, 0, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — Flux attraversa il bordo con un MOVE: il filo scatta.",
+      "_turno": "T1 — Gadget attraversa il bordo con un MOVE: il filo scatta.",
       "requires": ["SpatialTrigger"],
       "intents": []
     },
     {
-      "_turno": "T2 — Riva attraversa lo stesso bordo con un DASH: scatta comunque. Il trigger geografico non guarda il tipo di movimento.",
+      "_turno": "T2 — Phase attraversa lo stesso bordo con un DASH: scatta comunque. Il trigger geografico non guarda il tipo di movimento.",
       "requires": ["SpatialTrigger"],
       "intents": []
     },

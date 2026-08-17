@@ -256,7 +256,7 @@ dopo Blast (ADR-0003 §1).
 
 **Positive**: un solo modello di reazione, estendibile a Guard, Counter, Dodge, Intercept, Ambush, Trap,
 Opportunity Attack senza toccare la pipeline · bait e bluff diventano gameplay reale · l'aggancio esiste già
-(`Action.SuppressiveLine` in fase Prep e `Vektor.InterceptShot`, entrambi a catalogo e testati) · E5 resta
+(`Action.SuppressiveLine` in fase Prep e `Hero.Wraith.InterceptShot`, entrambi a catalogo e testati) · E5 resta
 chiusa e verde.
 
 **Negative / costi**:

@@ -1,5 +1,7 @@
 # RefactorTactics — Facing System Consolidation Pack for Claude
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > 📦 **Archiviato il 2026-08-10 — recepito, non applicato.** L'esito del triage vive in
 > [`roadmap/plans/facing-consolidation-triage-2026-08-10.md`](../../../roadmap/plans/facing-consolidation-triage-2026-08-10.md),
 > e le domande che ne restano aperte in [`OPEN_DECISIONS.md`](../../../OPEN_DECISIONS.md) come `FAC-11`…`FAC-14`.
@@ -366,10 +368,10 @@ Agile    -> MaxPivotSteps = 3
 
 Examples discussed conceptually:
 
-- Bastion-type heavy defender: limited correction / high commitment;
-- Flux-type standard/technical unit: medium correction;
-- Riva-type fluid/mobile unit: larger correction;
-- Vektor-type agile/predictive unit: very high correction.
+- Riktor-type heavy defender: limited correction / high commitment;
+- Gadget-type standard/technical unit: medium correction;
+- Phase-type fluid/mobile unit: larger correction;
+- Wraith-type agile/predictive unit: very high correction.
 
 These exact values remain balance/playtest material.
 
@@ -407,7 +409,7 @@ The player cannot arbitrarily change Facing during Resolution because new inform
 Example that must not happen:
 
 ```text
-Bastion gets attacked from the side
+Riktor gets attacked from the side
 -> player freely rotates toward attacker
 ```
 
@@ -446,9 +448,9 @@ This persistence is important for tactical consequences.
 Example:
 
 ```text
-Bastion faces North
-Bastion rotates North-East to attack
-Bastion now remains North-East
+Riktor faces North
+Riktor rotates North-East to attack
+Riktor now remains North-East
 A second enemy may exploit the newly exposed side
 ```
 

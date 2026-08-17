@@ -1,19 +1,19 @@
 {
   "scenarioId": "Visual.Map.MultiLevel",
-  "tags": ["animation", "map", "movement", "pathfinding", "flux"],
+  "tags": ["animation", "map", "movement", "pathfinding", "gadget"],
   "version": 1,
   "seed": 0,
   "fixture": "TestArena",
 
-  "_nota": "La mappa ha tre dimensioni e il pathfinding lo sa. Flux sale dal layer 0 alla piattaforma sul layer 1 attraverso l'UNICA transizione che li collega, (1,0,0) -> (2,0,1), che costa 2. I layer non hanno adiacenza implicita: senza quell'arco la piattaforma e' irraggiungibile, e il percorso FALLISCE invece di teletrasportare.",
+  "_nota": "La mappa ha tre dimensioni e il pathfinding lo sa. Gadget sale dal layer 0 alla piattaforma sul layer 1 attraverso l'UNICA transizione che li collega, (1,0,0) -> (2,0,1), che costa 2. I layer non hanno adiacenza implicita: senza quell'arco la piattaforma e' irraggiungibile, e il percorso FALLISCE invece di teletrasportare.",
 
   "_nota_presentazione": "E' lo scenario da tenere aperto mentre si lavora sulla camera: un'inquadratura tattica che funziona su un piano solo diventa illeggibile appena una unita' sale. Qui si guarda se si capisce DOVE e' finita.",
 
   "_nota_costo": "Costo totale 3 su 5 MP: 2 per la transizione, 1 per il passo sulla piattaforma.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [ 1, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [-4, 0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [ 1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-4, 0, 0] }
   ],
 
   "turns": [

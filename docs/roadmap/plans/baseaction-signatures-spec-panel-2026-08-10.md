@@ -17,7 +17,7 @@ applicare»: **la maggior parte della sua sostanza è già canone**, arrivata pe
 | Sezione del sorgente | Stato nel repository | Esito |
 |---|---|---|
 | §4–5 Base Action Signature | **D-033** — il modificatore si chiama `profilo` | ⚠️ **terzo nome** per la stessa cosa |
-| §8 Basic Attack per eroe | **D-058** + [ADR-0007](../../decisions/adr-0007-attacco-base-per-eroe.md), `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` `runtime: done` | ✅ già chiuso, ma **Flux diverge** |
+| §8 Basic Attack per eroe | **D-058** + [ADR-0007](../../decisions/adr-0007-attacco-base-per-eroe.md), `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` `runtime: done` | ✅ già chiuso, ma **Gadget diverge** |
 | §10–12 Brace | **D-047** — `Brace` arma un Reaction Profile, risposta universale `Hold Ground` | ⚠️ **contraddetto** sul danno |
 | §13–16 Overwatch (framework) | **D-012**, **D-014**, **CP 14.4** — profilo «dato per eroe, non ramo nel resolver» | ✅ meccanismo pianificato |
 | §13–16 Overwatch (i quattro profili) | **non deciso** | 🟢 **contributo nuovo** |
@@ -47,7 +47,7 @@ senza una nuova decisione esplicita"*. Quella decisione esplicita **esiste già,
   Interact · Overwatch`», ed emenda D-014 **solo** su `Guard`.
 
 Il §17 costruisce poi l'intera sezione «Activate / Interact affinity» sopra una distinzione che il canone
-non ha. **Raccomandazione**: le affinità (Flux→generatori, Riva→valvole, Bastion→strutture) sono utili e
+non ha. **Raccomandazione**: le affinità (Gadget→generatori, Phase→valvole, Riktor→strutture) sono utili e
 si tengono — ma vanno espresse come *capability/affinity di `Interact`*, non come seconda azione. Il
 documento lo permette già senza modifiche di sostanza: cambia solo l'etichetta.
 
@@ -90,8 +90,8 @@ eroe» è una **guideline di design leggibile e verificabile a occhio**: si tien
 
 ### 2.4 MAGGIORE — `Deflection` è già preso, e significa il contrario
 
-**COCKBURN**: «Chiedo chi è l'attore e quale obiettivo persegue. Il §11.4 dice: *Vektor, colpito da
-Forced Movement, devia lateralmente la traiettoria*. Ma nel roster `Vektor.Deflection` **esiste già** e
+**COCKBURN**: «Chiedo chi è l'attore e quale obiettivo persegue. Il §11.4 dice: *Wraith, colpito da
+Forced Movement, devia lateralmente la traiettoria*. Ma nel roster `Hero.Wraith.Deflection` **esiste già** e
 l'attore persegue un obiettivo diverso: **subire meno danno**.»
 
 Evidenza — `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:552-557` (CP 6.7):
@@ -107,17 +107,17 @@ una reazione che **è** riduzione danno. Due entità, un nome, semantiche oppost
 
 ### 2.5 MAGGIORE — `Flow` è già preso, con un trigger diverso
 
-`Riva.FlowReaction` esiste (`RTHeroCatalogLibrary.cpp:351-353`): `Reposition 1` **dopo un attacco
+`Hero.Phase.FlowReaction` esiste (`RTHeroCatalogLibrary.cpp:351-353`): `Reposition 1` **dopo un attacco
 subito**, dichiarata con slot `None` e nessun trigger perché il suo aggancio è E14. Il §11.2 propone
 `Flow` come risposta a **Forced Movement**. Stesso nome, stesso eroe, stessa famiglia (movimento
 reattivo), **trigger diverso**.
 
-E non sono due, sono **tre**: `State.Riva.Flow` è già registrato come candidato *stance* in
+E non sono due, sono **tre**: `State.Phase.Flow` è già registrato come candidato *stance* in
 `RT-FEAT-CHARACTER-STATE` (E34, post-v0.1, `PROPOSED`). Tre accezioni di «Flow» per lo stesso eroe —
 una reazione cablata, uno stato futuro, un profilo di `Brace` — di cui due già scritte prima che questo
 sorgente arrivasse.
 
-**ADZIC**: «Serve un esempio che distingua i casi, perché la differenza non è teorica: *Riva viene
+**ADZIC**: «Serve un esempio che distingua i casi, perché la differenza non è teorica: *Phase viene
 colpita e non spostata* attiva l'una e non l'altra. Se sono la stessa cosa, il documento sta promuovendo
 `FlowReaction` da reazione-a-colpo a profilo-di-Brace, e va detto.»
 
@@ -138,11 +138,11 @@ da auditare. Il suo modello del post-Overwatch è **diverso**:
 comune a entrambi e si può tenere; il *cosa succede dopo* appartiene al gemello. Lo scenario CHAR-BASE-008
 resta bloccato finché quel modello non è deciso.
 
-### 2.7 MINORE — Flux riapre una decisione chiusa
+### 2.7 MINORE — Gadget riapre una decisione chiusa
 
-Il §8 vuole il Basic Attack di Flux come «Engine/Setup elettrico… supporta la sua engine di Conduction».
-Ma **D-058** e ADR-0007 hanno già assegnato i quattro ruoli, e per Flux l'esito è documentato nel registry:
-«**Flux resta damage-only**, e il suo motore elettrico ha già un owner che non è l'attacco base
+Il §8 vuole il Basic Attack di Gadget come «Engine/Setup elettrico… supporta la sua engine di Conduction».
+Ma **D-058** e ADR-0007 hanno già assegnato i quattro ruoli, e per Gadget l'esito è documentato nel registry:
+«**Gadget resta damage-only**, e il suo motore elettrico ha già un owner che non è l'attacco base
 (`ConductiveNode`, **D-046**)».
 
 Le quattro famiglie del §8 — `Primary Weapon · Engine · Setup · Utility` — coincidono invece **parola per
@@ -188,10 +188,10 @@ repository possiede, sopra un meccanismo che è già deciso e già pianificato.
 
 | Eroe | Profilo | Risposte oltre `Hold Ground` | Identità |
 |---|---|---|---|
-| Flux | Grounding | `GROUND` | condizione/terreno → setup |
-| Riva | Flow | `FLOW` (deviazione verso hex adiacente legale) | asseconda e ricolloca |
-| Bastion | Anchor | `ANCHOR` | il riferimento anti-displacement del roster |
-| Vektor | Deflection ⚠️ | `DEFLECT LEFT` / `DEFLECT RIGHT` | cambia traiettoria, non la ferma |
+| Gadget | Grounding | `GROUND` | condizione/terreno → setup |
+| Phase | Flow | `FLOW` (deviazione verso hex adiacente legale) | asseconda e ricolloca |
+| Riktor | Anchor | `ANCHOR` | il riferimento anti-displacement del roster |
+| Wraith | Deflection ⚠️ | `DEFLECT LEFT` / `DEFLECT RIGHT` | cambia traiettoria, non la ferma |
 
 Regge sul canone: D-047 dice che un profilo con **≥ 2 risposte legali** apre la finestra, e questi ne
 dichiarano due o tre. Il vincolo «mostrare solo risposte legali» (§11.2, §11.4) è già l'invariante di
@@ -203,10 +203,10 @@ ADR-0004. ⚠️ = collisione di nome, §2.4.
 >
 > | Riga proposta | Eroe | Esito |
 > |---|---|---|
-> | `Flux` · `Grounding` | Gadget | ✅ entra come **`Profile.Grounding`** |
-> | `Riva` · `Flow` | Phase | ✅ entra come **`Profile.Sidestep`** — «Flow» erano già **tre** entità su questo eroe, non due come diceva `BAS-4` |
-> | `Bastion` · `Anchor` | Riktor | ❌ **non entra** — `Status.Braced` resiste già allo spostamento a qualunque distanza: cardinalità 1, nessuna finestra. Non era contenuto, era un nome |
-> | `Vektor` · `Deflection` ⚠️ | Wraith | ✅ entra come **`Profile.Glance`** — cede il nome chi arriva dopo; `Vektor.Deflection` è serializzata e non si tocca |
+> | `Gadget` · `Grounding` | Gadget | ✅ entra come **`Profile.Grounding`** |
+> | `Phase` · `Flow` | Phase | ✅ entra come **`Profile.Sidestep`** — «Flow» erano già **tre** entità su questo eroe, non due come diceva `BAS-4` |
+> | `Riktor` · `Anchor` | Riktor | ❌ **non entra** — `Status.Braced` resiste già allo spostamento a qualunque distanza: cardinalità 1, nessuna finestra. Non era contenuto, era un nome |
+> | `Wraith` · `Deflection` ⚠️ | Wraith | ✅ entra come **`Profile.Glance`** — cede il nome chi arriva dopo; `Hero.Wraith.Deflection` è serializzata e non si tocca |
 >
 > *(la prima colonna cita i nomi come li scriveva il triage; il roster canonico è nella seconda — [D-120](../../decisions/RT_PDR_00_Decision_Log.md))*
 >
@@ -219,10 +219,10 @@ ADR-0004. ⚠️ = collisione di nome, §2.4.
 
 | Eroe | Geometria | Risposta | Identità |
 |---|---|---|---|
-| Flux | settore medio, direzionale | `DISCHARGE` | riusa la conduction esistente, non la reimplementa |
-| Riva | settore medio-corto | `PUSH` | rompe la geometria del piano avversario |
-| Bastion | corto, largo, frontale | colpo semplice | presidio del choke |
-| Vektor | stretto, lungo, a corridoio | `INTERCEPT` | controlla una traiettoria, non una zona |
+| Gadget | settore medio, direzionale | `DISCHARGE` | riusa la conduction esistente, non la reimplementa |
+| Phase | settore medio-corto | `PUSH` | rompe la geometria del piano avversario |
+| Riktor | corto, largo, frontale | colpo semplice | presidio del choke |
+| Wraith | stretto, lungo, a corridoio | `INTERCEPT` | controlla una traiettoria, non una zona |
 
 Regge sul canone: CP 14.4 impone che il profilo sia «area, arco, trigger e risposte legali» **come dato**,
 e che la direzione **nasca dal facing** (ADR-0005 §4c) — questi quattro profili sono esprimibili così.
@@ -230,8 +230,8 @@ Nessun numero è dichiarato, coerentemente con §0 del sorgente.
 
 ### 3.3 Budget d'identità (§18)
 
-Utile come **criterio di revisione**, non come regola: *Bastion non deve dominare anche l'Overwatch;
-Vektor non deve diventare tank per via del Brace*. Si tiene nel triage, non nel canone.
+Utile come **criterio di revisione**, non come regola: *Riktor non deve dominare anche l'Overwatch;
+Wraith non deve diventare tank per via del Brace*. Si tiene nel triage, non nel canone.
 
 ## 4. Decisioni aperte
 
@@ -251,13 +251,13 @@ Nessuna viene chiusa qui. Nessun valore numerico viene inventato.
 |---|---|---|
 | **`BAS-1`** | I quattro profili `Brace` (§3.1) entrano nel canone come contenuto di CP 14.7? | Il meccanismo è deciso (D-047), il contenuto no |
 | **`BAS-2`** | I quattro profili `Overwatch` (§3.2) entrano come contenuto di CP 14.4? | Idem, D-012/D-014 + CP 14.4 |
-| **`BAS-3`** | `Vektor.Deflection` — un nome, due semantiche: si rinomina il Brace, si rinomina la reazione, o si unificano? | Tocca il catalogo eroi già cablato (CP 6.7) |
+| **`BAS-3`** | `Vektor.Deflection` — un nome, due semantiche: si rinomina il Brace, si rinomina la reazione, o si unificano? | Tocca il catalogo eroi già cablato (CP 6.7) | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 | **`BAS-4`** | `Riva.Flow` — il Brace è la promozione di `FlowReaction` o una seconda reazione? | Trigger diversi: colpo subìto vs forced movement |
 | **`BAS-5`** | Post-Overwatch: budget ridotto (§14) o Watch Stage + Reposition (handoff gemello)? | Due modelli pari-data, il gemello si dichiara più recente |
 
 > **Le affinità di interazione del §17 non aprono una voce nuova.** «Quali capability di interazione porta
 > ciascun eroe» è già registrata come **`INT-1`** dal consolidamento del 2026-08-09, con assegnazioni
-> discusse — Flux → `Electric`/`Tech`, Riva → `Fluid`, Bastion → `Engineering`/`Force`, Vektor →
+> discusse — Gadget → `Electric`/`Tech`, Phase → `Fluid`, Riktor → `Engineering`/`Force`, Wraith →
 > `Precision`/`Sensor` — che il §17 **ricalca** (generatori/pannelli, valvole/pompe, cover/porte/barricate,
 > standard). Il sorgente non pone una domanda nuova: **propone una risposta** a una già aperta, e va letto lì.
 > Registrarla due volte produrrebbe due ID che si chiudono in momenti diversi, col secondo libero di mentire —

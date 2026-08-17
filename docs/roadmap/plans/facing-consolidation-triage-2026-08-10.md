@@ -79,7 +79,7 @@ guardarla.
 
 Già **respinta esplicitamente** da ADR-0008 (tabella *Alternative considerate*): *«l'handoff §8 dice
 esplicitamente "NON deve essere automaticamente uguale per ruolo"»*. I valori vivono per **eroe**
-(Flux 2/2 · Riva 2/3 · Bastion 1/0 · Vektor 3/3), non per archetipo.
+(Gadget 2/2 · Phase 2/3 · Riktor 1/0 · Wraith 3/3), non per archetipo.
 
 **Esito**: nessuna azione. Registrata qui solo perché la fonte la ripropone, e chi la rileggesse fra sei mesi
 la scambierebbe per una proposta aperta.

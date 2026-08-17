@@ -1,5 +1,7 @@
 # RefactorTactics — Transformation / Alternate Form Exploration
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `RESEARCH` · **Sorgente non normativo** · **Data**: 2026-08-08 · **Recepito da**:
 > [`../../../gameplay/brief-stati-personaggio-e-trasformazioni.md`](../../../gameplay/brief-stati-personaggio-e-trasformazioni.md)
 > · [D-035](../../../decisions/RT_PDR_00_Decision_Log.md) · epic **E34** in
@@ -14,14 +16,14 @@
 ## Correzioni applicate il 2026-08-08
 
 Il documento è stato **archiviato con il testo originale intatto** (convenzione 4 di
-[`../../../src/README.md`](../../../src/README.md)): le correzioni non riscrivono i paragrafi, sono note `⚠️` inserite accanto
+[`../../../src/`](../../../src/)): le correzioni non riscrivono i paragrafi, sono note `⚠️` inserite accanto
 all'affermazione che correggono. Elenco completo, così che non vada cercato nel corpo:
 
 | § | Affermazione originale | Correzione |
 |---|---|---|
 | 2 | Elenca *unità ausiliarie* e *trappole* fra i sistemi che «competono per l'attenzione» oggi | Entrambi sono **fuori dalla v0.1**: le ausiliarie hanno solo vincoli architetturali, il framework di trap è escluso da [D-016](../../../decisions/RT_PDR_00_Decision_Log.md). Il budget di attenzione della v0.1 è più libero di quanto il documento assuma |
 | 5.3 | `Decision / Planning → Prep → Dash → Blast → Move` | La sequenza canonica ha sei voci: `Planning → Prep → Dash → Blast → Move → Cleanup`. L'ordine indicato è corretto, manca il `Cleanup` — che è proprio dove un `RevertRule` a durata fissa andrebbe valutato |
-| 7 (Vektor) | `Siege Mode` come «primo candidato per prototipare Alternate Form» | Contrasta con l'identità canonica di Vektor: *Predictive Duelist*, «il più mobile del roster», `Slancio` che **recupera muovendosi**. Una forma che rimuove il Dash non è uno stato, è un secondo personaggio. Vedi la nota in §14 |
+| 7 (Wraith) | `Siege Mode` come «primo candidato per prototipare Alternate Form» | Contrasta con l'identità canonica di Wraith: *Predictive Duelist*, «il più mobile del roster», `Slancio` che **recupera muovendosi**. Una forma che rimuove il Dash non è uno stato, è un secondo personaggio. Vedi la nota in §14 |
 | 14 | «Raccomandazione specifica per la **v0.1**»: quattro trasformazioni sui quattro eroi | **Respinta.** Lo scope della v0.1 è chiuso (18 epic, 87 CP) e il rischio di scope è già dichiarato *alto*. Il framework è post-v0.1: [D-035](../../../decisions/RT_PDR_00_Decision_Log.md), epic **E34**. L'ordine di prototipazione resta valido come ordine, non come contenuto della vertical slice |
 | 15 | Schema `CharacterState` con `AbilityOverrides[]` | Resta **direzione**, non specifica. Vincoli che il documento non cita: **niente GAS** ([D-005](../../../decisions/RT_PDR_00_Decision_Log.md)) — le classi dati sono `URTActionData`/`URTHeroData`/`URTEquipmentData` — e nessun `if (Hero == X)` nel core ([ADR-0006](../../../decisions/adr-0006-ownership-abilita-sinergie.md)) |
 | 17 | `Decision Window: 3s` | Coincide con `FastReactionDuration` = **3,0 s**, di cui l'owner è [ADR-0004](../../../decisions/adr-0004-finestre-di-reazione.md) §8. È una **baseline da playtestare**, non un valore deciso: non va reintrodotto con un secondo nome |
@@ -273,7 +275,7 @@ Ordine principale:
 > ⚠️ **Correzione**: la sequenza canonica ha sei voci — `Planning → Prep → Dash → Blast → Move → **Cleanup**`
 > ([`../../../gameplay/spec-sequenza-turno.md`](../../../gameplay/spec-sequenza-turno.md)). L'ordine indicato è
 > corretto; manca la fase in cui un `RevertRule` a durata fissa andrebbe valutato, che è esattamente il
-> `Cleanup`. È lì che Bastion recupera `Integrità Strutturale`, e sarebbe lì che una forma temporanea scade.
+> `Cleanup`. È lì che Riktor recupera `Integrità Strutturale`, e sarebbe lì che una forma temporanea scade.
 
 Il normale **Move rimane l'ultima fase volontaria**.
 
@@ -312,7 +314,7 @@ Le tre opzioni sono **alternative di design**, non tre trasformazioni da dare co
 
 # 7. Roster v0.1 / v0.2 — idee già discusse
 
-## Flux
+## Gadget
 
 ### L — Charged State
 Accumula energia.
@@ -327,7 +329,7 @@ Possibili effetti:
 **Peso:** 3/10
 
 ### M — Conductor Mode
-Flux diventa un conduttore.
+Gadget diventa un conduttore.
 
 Possibili effetti:
 
@@ -339,7 +341,7 @@ Possibili effetti:
 **Peso:** 5/10
 
 ### S — Living Current
-Flux assume temporaneamente una forma energetica.
+Gadget assume temporaneamente una forma energetica.
 
 Possibili effetti:
 
@@ -354,7 +356,7 @@ Possibili effetti:
 
 ---
 
-## Riva
+## Phase
 
 ### L — Flow State
 
@@ -385,7 +387,7 @@ Le abilità diventano più orientate a:
 
 ---
 
-## Bastion
+## Riktor
 
 ### L — Fortified
 
@@ -397,7 +399,7 @@ Le abilità diventano più orientate a:
 
 ### M — Bulwark Mode
 
-Bastion diventa:
+Riktor diventa:
 
 - cover per gli alleati;
 - intercettore;
@@ -407,7 +409,7 @@ Bastion diventa:
 
 ### S — Citadel Form
 
-Bastion diventa quasi parte della mappa:
+Riktor diventa quasi parte della mappa:
 
 - quasi immobile;
 - genera cover;
@@ -420,7 +422,7 @@ Bastion diventa quasi parte della mappa:
 
 ---
 
-## Vektor
+## Wraith
 
 ### L — Stabilized Mode
 
@@ -452,8 +454,8 @@ Bastion diventa quasi parte della mappa:
 
 **Consiglio:** **primo candidato per prototipare Alternate Form.**
 
-> ⚠️ **Correzione**: contrasta con l'identità canonica di Vektor
-> ([`../../../characters/v0.1/vektor.md`](../../../characters/v0.1/vektor.md)): *Predictive Duelist*, «il più mobile
+> ⚠️ **Correzione**: contrasta con l'identità canonica di Wraith
+> ([`../../../characters/v0.1/wraith.md`](../../../characters/v0.1/wraith.md)): *Predictive Duelist*, «il più mobile
 > del roster», con `Slancio` che **recupera muovendosi**. Una forma che toglie il Dash non sospende una
 > statistica: spegne la risorsa firma e la player question («dove passerà il nemico?»). Non è uno stato dello
 > stesso personaggio, è un secondo personaggio. Se serve un banco di prova `Mobile ↔ Siege`, i candidati
@@ -1117,7 +1119,7 @@ Candidati principali:
 - Wukong — Clone Form;
 - Terra — Living Rampart;
 - Howitzer — Mobile / Siege;
-- Vektor — Mobile / Siege.
+- Wraith — Mobile / Siege.
 
 ---
 
@@ -1131,7 +1133,7 @@ Candidati:
 - TwinBlast — Precision / Suppression;
 - Narbash — Healbeat / Warbeat;
 - Sparrow — Focus / Volley;
-- Riva — Flow State.
+- Phase — Flow State.
 
 ---
 
@@ -1160,7 +1162,7 @@ Candidati:
 - Gadget — Network;
 - Riktor — Chain Warden;
 - Terra — Living Rampart;
-- Flux — Charged / Living Current;
+- Gadget — Charged / Living Current;
 - Kwang — Stormbound.
 
 ---
@@ -1218,7 +1220,7 @@ Perché:
 - Gideon — Event Horizon;
 - Morigesh — Swamp Avatar;
 - Howitzer — Siege Platform;
-- Vektor — Siege Mode;
+- Wraith — Siege Mode;
 - Riktor — Chain Warden;
 - Iggy & Scorch — Inferno Engine.
 
@@ -1238,16 +1240,16 @@ Perché:
 
 Roster:
 
-- Flux;
-- Riva;
-- Bastion;
-- Vektor.
+- Gadget;
+- Phase;
+- Riktor;
+- Wraith.
 
 Non introdurre quattro trasformazioni complete.
 
 ## Proposta
 
-### Vektor
+### Wraith
 **Alternate Form principale**
 
 `Mobile ↔ Siege`
@@ -1256,7 +1258,7 @@ Usarlo come test reale del sistema.
 
 ---
 
-### Flux
+### Gadget
 **Environmental State leggero**
 
 `Normal → Charged`
@@ -1265,7 +1267,7 @@ Serve a testare trasformazioni causate/interconnesse con il terreno.
 
 ---
 
-### Bastion
+### Riktor
 **Stance / Configuration**
 
 `Normal ↔ Bulwark`
@@ -1274,7 +1276,7 @@ Serve a testare il passaggio da character a pseudo-cover senza doppio kit.
 
 ---
 
-### Riva
+### Phase
 **State leggero**
 
 `Normal → Flow`
@@ -1289,10 +1291,10 @@ I quattro personaggi possono testare quattro livelli diversi dello stesso framew
 
 | Character | Tipo |
 |---|---|
-| Vektor | Alternate Form |
-| Flux | Environmental State |
-| Bastion | Stance / Configuration |
-| Riva | Lightweight State |
+| Wraith | Alternate Form |
+| Gadget | Environmental State |
+| Riktor | Stance / Configuration |
+| Phase | Lightweight State |
 
 Questo permette di validare l'architettura senza caricare eccessivamente la vertical slice.
 
@@ -1366,7 +1368,7 @@ La trasformazione deve essere visibile già durante Planning.
 Esempio:
 
 ```text
-Vektor
+Wraith
 Current: Mobile
 
 PLAN
@@ -1375,7 +1377,7 @@ PLAN
 3. Move → unavailable
 
 Ghost:
-- mostra Vektor nella configurazione Siege;
+- mostra Wraith nella configurazione Siege;
 - aggiorna range;
 - aggiorna linea di tiro;
 - mostra le azioni non più disponibili;
@@ -1433,7 +1435,7 @@ Environment Mutation
 Esempio:
 
 ```text
-Flux enters Electrified Tile
+Gadget enters Electrified Tile
     ↓
 Charged State
     ↓
@@ -1514,7 +1516,7 @@ e poi presentarla in modi diversi:
 - Aurora entra in **Winter Avatar**;
 - Khaimera entra in **Frenzy**;
 - Howitzer entra in **Siege**;
-- Flux diventa **Charged**;
+- Gadget diventa **Charged**;
 - Kwang diventa **Stormbound**.
 
 Il giocatore percepisce sistemi differenti.
@@ -1544,23 +1546,23 @@ Motivi:
 
 Ordine:
 
-1. **Vektor — Siege Mode**
+1. **Wraith — Siege Mode**
    - validare cambio di forma;
    - override di movimento;
    - override di una skill;
    - Action Ghost;
    - revert.
 
-2. **Flux — Charged State**
+2. **Gadget — Charged State**
    - validare trigger ambientale;
    - modifica di skill;
    - interaction tags.
 
-3. **Bastion — Bulwark**
+3. **Riktor — Bulwark**
    - validare collisione/cover;
    - character come elemento tattico.
 
-4. **Riva — Flow State**
+4. **Phase — Flow State**
    - validare uno stato leggero e temporaneo.
 
 5. **GRIM.exe — Kernel Override**

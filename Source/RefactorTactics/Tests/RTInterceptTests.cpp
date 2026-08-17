@@ -73,7 +73,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor()); // attacco base a colpo singolo
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith()); // attacco base a colpo singolo
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
@@ -88,7 +88,7 @@ namespace
 	 */
 	int32 ItcFullHit()
 	{
-		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeVektor();
+		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeWraith();
 		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
 	}
 
@@ -577,7 +577,7 @@ bool FRTInterceptNoSecondOpportunityTest::RunTest(const FString&)
 	// intercettare e il test passava... a zero interposizioni, cioe' misurando il contrario di cio' che dice.
 	// Su un altro asse la traiettoria non passa per il terzo alleato: la sua distanza dagli altri due — 3
 	// dalla vittima, 2 dall'intercettore — resta quella che il test richiede.
-	const int32 ShotRange = URTHeroCatalogLibrary::MakeVektor()->Actions[0]->RangeCells;
+	const int32 ShotRange = URTHeroCatalogLibrary::MakeWraith()->Actions[0]->RangeCells;
 	ARTUnit* Attacker = SpawnItcUnit(World, 1, FRTCellId(0, -ShotRange));
 	ARTUnit* Victim = SpawnItcUnit(World, 0, FRTCellId(0, 0));
 	ARTUnit* Saver = SpawnItcUnit(World, 0, FRTCellId(1, 0));  // a 1 dalla vittima: puo' intercettare

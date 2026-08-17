@@ -192,7 +192,7 @@ public:
 	 *   lineari resta consentito, come nella variante base.
 	 *
 	 * `bPassThrough` marca chi ATTRAVERSA le unita' ferme lungo la traiettoria (`ERTMovementStyle::LinearPass`,
-	 * la lama di Vektor): per costoro un'unita' che resta su una cella INTERMEDIA non blocca il passo.
+	 * la lama di Wraith): per costoro un'unita' che resta su una cella INTERMEDIA non blocca il passo.
 	 *
 	 * Resta un vincolo sulla cella FINALE: si passa in mezzo a qualcuno, non ci si ferma dentro. E resta
 	 * invariata la contesa fra due unita' in MOVIMENTO verso la stessa cella — attraversare chi sta fermo e

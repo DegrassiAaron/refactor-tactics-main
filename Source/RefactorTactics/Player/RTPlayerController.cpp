@@ -16,6 +16,7 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "UI/RTHUD.h" // CP 47.7: la scala x1/x2/x4 e' vocabolario di presentazione e vive nell'HUD
 #include "Core/RTTypes.h"
 #include "RefactorTactics.h"
 #include "EnhancedInputComponent.h"
@@ -206,6 +207,9 @@ void ARTPlayerController::BuildInputMappings()
 	FocusAction = NewObject<UInputAction>(this, TEXT("IA_FocusSelected"));
 	FocusAction->ValueType = EInputActionValueType::Boolean;
 
+	PlaybackSpeedAction = NewObject<UInputAction>(this, TEXT("IA_CyclePlaybackSpeed"));
+	PlaybackSpeedAction->ValueType = EInputActionValueType::Boolean;
+
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Tactical"));
 
 	// Pan (Axis2D): D=+X, A=-X, W=+Y (Swizzle YXZ), S=-Y (Swizzle YXZ + Negate).
@@ -267,6 +271,15 @@ void ARTPlayerController::BuildInputMappings()
 	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
+
+	// Velocita' di riproduzione, un tasto che CICLA `x1 · x2 · x4` (CP 47.7, #1015).
+	//
+	// ⚠️ **Un tasto solo e non tre, e la ragione e' che tre non ci sono.** `1/2/4` sarebbero i tasti
+	// ovvi per tre velocita' — e sono gia' le abilita' (`Ability1/2/4`, qui sopra). Il ciclo evita la
+	// collisione senza spostare hotkey che il giocatore ha gia' imparato, e su una scala di tre valori
+	// costa al massimo due pressioni per arrivare ovunque.
+	// `V` e' libero: verificato sull'elenco completo dei `MapKey` di questa funzione.
+	MappingContext->MapKey(PlaybackSpeedAction, EKeys::V);
 }
 
 void ARTPlayerController::BeginPlay()
@@ -317,6 +330,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(Ability4Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility4);
 		EIC->BindAction(UndoAction, ETriggerEvent::Started, this, &ARTPlayerController::OnUndoWaypoint);
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
+		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
 	}
 	else
@@ -883,6 +897,27 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 			TurnManager->LockInAndResolve();
 		}
 	}
+}
+
+void ARTPlayerController::ApplyNextPlaybackSpeed(ARTTurnManager* TurnManager)
+{
+	if (!TurnManager)
+	{
+		return;
+	}
+
+	// L'unica scrittura della UI nel modello. La scala e' dell'HUD — e' vocabolario di presentazione,
+	// non una regola — e qui si applica soltanto.
+	TurnManager->ViewerPlaybackSpeed = ARTHUD::NextViewerPlaybackSpeed(TurnManager->ViewerPlaybackSpeed);
+}
+
+void ARTPlayerController::OnCyclePlaybackSpeed(const FInputActionValue& Value)
+{
+	// Nessun vincolo di fase: si cambia ritmo mentre la risoluzione scorre — e' il punto di CP 47.2, che
+	// ha reso `TickPlayback` capace di rileggere la velocita' a ogni tick invece di congelarla — e anche
+	// prima che parta, perche' chi guarda una partita non presidiata sceglie il ritmo in anticipo.
+	ApplyNextPlaybackSpeed(
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())));
 }
 
 void ARTPlayerController::OnRestart(const FInputActionValue& Value)

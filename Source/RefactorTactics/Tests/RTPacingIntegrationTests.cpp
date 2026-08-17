@@ -107,10 +107,10 @@ bool FRTPacingSamplePerTurnTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexPacingMap(World, /*Radius=*/ 5);
 
-	ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-4, 2));
-	ARTUnit* A2 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 3));
-	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(4, -2));
-	ARTUnit* B2 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -3));
+	ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-4, 2));
+	ARTUnit* A2 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(4, -2));
+	ARTUnit* B2 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
 	ARTTurnManager* TM = SpawnHexPacingTurnManager(World);
 	if (!TM || !A1 || !A2 || !B1 || !B2) { DestroyHexPacingWorld(World); return false; }
 
@@ -147,8 +147,8 @@ bool FRTPacingCompositionTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexPacingMap(World, /*Radius=*/ 3);
 
-	ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-2, 1));
-	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, -1));
+	ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-2, 1));
+	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -1));
 	ARTTurnManager* TM = SpawnHexPacingTurnManager(World);
 	if (!TM || !A1 || !B1) { DestroyHexPacingWorld(World); return false; }
 
@@ -192,10 +192,10 @@ bool FRTPacingHashInvarianceTest::RunTest(const FString&)
 		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 		SpawnHexPacingMap(World, /*Radius=*/ 5);
 
-		ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(-4, 2));
-		ARTUnit* A2 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 3));
-		ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),   FRTCellId(4, -2));
-		ARTUnit* B2 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -3));
+		ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(-4, 2));
+		ARTUnit* A2 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+		ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),   FRTCellId(4, -2));
+		ARTUnit* B2 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
 		ARTTurnManager* TM = SpawnHexPacingTurnManager(World);
 		if (!TM || !A1 || !A2 || !B1 || !B2) { DestroyHexPacingWorld(World); return false; }
 

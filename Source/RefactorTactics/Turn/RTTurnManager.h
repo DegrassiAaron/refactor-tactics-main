@@ -462,6 +462,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float ViewerPlaybackSpeed = 1.f;
 
+	/**
+	 * Il fattore di accelerazione AUTOMATICA in vigore: quanto il tetto sta gia' comprimendo il round.
+	 *
+	 * Esiste per un motivo solo, ed e' il criterio 2 di CP 47.7 (#1015): l'etichetta del controllo di
+	 * velocita' deve dire la verita' anche quando `Max(Viewer, Cap)` sceglie il tetto — a `x1` sotto un
+	 * tetto che morde `3x` una manopola che mostrasse la sola scelta direbbe `x1` mentre lo schermo scorre
+	 * a `3x`.
+	 *
+	 * ⚠️ **E' un accessore, non un secondo produttore.** L'HUD lo legge e lo passa a
+	 * `URTPlaybackLibrary::EffectivePlaybackSpeed` insieme alla scelta: la composizione resta una sola, qui.
+	 * L'alternativa — far ricalcolare il tetto all'HUD da `MaxPlaybackSeconds` — e' la seconda verita' che
+	 * il DoD vieta con le parole *«non ricalcola, non stima»*.
+	 */
+	float GetPlaybackCapSpeed() const { return PlaybackSpeed; }
+
 	// --- Tuning del bot (utility scoring, editabile in editor senza ricompilare) -----------------
 	// Pesi interi iniettati nel FRTBotContext di PlanBots (invariante #4: niente float). I default
 	// coincidono con quelli della struct: a parita' di valori il comportamento e' invariato.
@@ -682,10 +697,14 @@ protected:
 	 *
 	 * `FacingSource` e' la cella **verso cui** l'unita' si gira: chi spinge per la spinta, chi tira per la
 	 * trazione, chi ha innescato per una fuga ([D-104](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
+	 *
+	 * ⚠️ `InPhase` viaggia fino agli hazard attraversati (passo 8): uno spostamento forzato nasce in fasi
+	 * diverse — spinta e trazione nel `Blast`, fuga in `Dash` o in `Cleanup` — e il danno da terreno che ne
+	 * consegue deve dichiarare **quella**, non una fissa (`#1067`).
 	 */
 	void ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell, const FRTCellId& FacingSource,
 		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget, const TCHAR* LogVerb,
-		const URTHexMapAsset* Map);
+		const URTHexMapAsset* Map, ERTMatchPhase InPhase);
 
 	/**
 	 * Voce di TurnLog per uno spostamento forzato ANNULLATO (#420): la spinta e' stata registrata, risolta, e
@@ -845,8 +864,18 @@ protected:
 	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via
 	 * URTCombatLibrary::ApplyDamage, Status via Unit->ApplyStatus. Usata da ResolveDash e ResolveMovement
 	 * sulle celle FRTHexMoveResult::Entered di ciascuna unita' (CP 8.1).
+	 *
+	 * ⚠️ **`InPhase` e' un parametro e non si legge da `Phase`**, ed e' il risultato di una verifica, non
+	 * una preferenza di stile (`#1067`). Due ragioni, entrambe misurate:
+	 * · il ciclo delle fasi in `LockInAndResolve` esce **quando `Phase == Planning`**, e la Cleanup gira
+	 *   dopo — quindi durante tutta la Cleanup il membro vale `Planning`, che e' una fase che il replay non
+	 *   osserva mai. E' il motivo per cui ogni voce di quella fase la scrive letteralmente;
+	 * · questa funzione e' chiamata da **quattro** siti in **tre** fasi diverse — `ResolveDash` (`Dash`),
+	 *   `ResolveMovement` (`Move`), `ResolveEnvironment` (`Cleanup`) e `ApplyForcedDisplacement`, che a sua
+	 *   volta arriva da tre punti in fasi diverse. Nessun valore fisso sarebbe giusto per tutti.
 	 */
-	void ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit, const TArray<FRTCellId>& Entered);
+	void ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit, const TArray<FRTCellId>& Entered,
+		ERTMatchPhase InPhase);
 
 	/** Le celle ENTRATE lungo un percorso: tutte tranne la partenza, dove l'unita' stava gia'. */
 	static TArray<FRTCellId> CellsEnteredAlong(const TArray<FRTCellId>& Path);

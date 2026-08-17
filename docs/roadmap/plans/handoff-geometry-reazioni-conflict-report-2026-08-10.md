@@ -72,7 +72,7 @@ Legenda: `ALIGNED` il canone lo dice già · `DUP` ha già un owner · `CONFLICT
 | 4.4 | Cover e Guard sono sistemi distinti | `ALIGNED` | `FRTHexCover` è dato di mappa, `Status.Guarded` è stato di unità. Pinnato da `Combat.ShieldWorksFromAnyDirection` |
 | **4.5** | Guard mitiga **solo** danno · Brace contesta **solo** displacement | **`CONFLICT`** | → **C6**. Nel codice **entrambi** fanno entrambe le cose |
 | 5.1-5.2 | Brace è azione distinta, lifecycle | `ALIGNED` | Sette generiche + [ADR-0004](../../decisions/adr-0004-finestre-di-reazione.md) |
-| 5.3 | Bastion: Hold Ground / Shield Read / Pivot Step | `DUP` | [`spec-reaction-clash-e14.md`](../../gameplay/spec-reaction-clash-e14.md) §4 li ha come esempi della grammatica, con `Hold Ground` risposta **universale** |
+| 5.3 | Riktor: Hold Ground / Shield Read / Pivot Step | `DUP` | [`spec-reaction-clash-e14.md`](../../gameplay/spec-reaction-clash-e14.md) §4 li ha come esempi della grammatica, con `Hold Ground` risposta **universale** |
 | 5.4 | Facing policy `Preserve/FaceThreat/FaceMovement` | `DUP` | [ADR-0008](../../decisions/adr-0008-rotazione-e-policy-di-facing.md) `FAC-2`: le policy si dichiarano sul dato. I tre nomi sono un'istanza, non un modello nuovo |
 | 6.1-6.2 | Overwatch distinto, Planning + FIRE/HOLD | `ALIGNED` | [`brief-azioni-generiche-overwatch.md`](../../gameplay/brief-azioni-generiche-overwatch.md) §4, §6 |
 | 6.3 | HOLD non ruota, non bonifica, non riposiziona | `ALIGNED` | ADR-0004: `Timeout → HOLD`, `HOLD` non consuma la charge |

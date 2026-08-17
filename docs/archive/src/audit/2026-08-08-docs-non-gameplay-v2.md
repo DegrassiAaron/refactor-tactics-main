@@ -1,5 +1,7 @@
 # RefactorTactics — Audit completo di `docs/` non-Gameplay e piano di consolidamento per Claude Code — DECISIONI CHIUSE
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 **Data audit:** 2026-08-08  
 **Repository:** `DegrassiAaron/refactor-tactics-main`  
 **Branch verificato:** `main`  
@@ -58,7 +60,7 @@ Al momento dell'audit:
 - topologia gameplay: **solo hex**;
 - `FRTCellId`: coordinate assiali hex + `Layer`;
 - vecchio substrato quadrato: rimosso;
-- roster dati corrente: **Flux · Riva · Bastion · Vektor**;
+- roster dati corrente: **Gadget · Phase · Riktor · Wraith**;
 - E4 motore azioni: implementato;
 - E5 reazioni core: implementato;
 - E6 roster: implementato;
@@ -456,7 +458,7 @@ La showcase dovrebbe diventare anche uno **Scenario Harness scenario** o una fam
 
 ### Punto BLOCKED
 
-Valutare se la showcase deve includere **una vera predictive action di Vektor** per far vedere il pilastro "scommessa sul movimento".
+Valutare se la showcase deve includere **una vera predictive action di Wraith** per far vedere il pilastro "scommessa sul movimento".
 
 Non implementare l'intero framework traps solo per la showcase.
 
@@ -492,6 +494,7 @@ Usare qualcosa come:
 Status: Accepted — presentation prototype / rollout deferred
 ```
 
+<!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 Non rinominare automaticamente Gideon/Sparrow in Flux/Riva/Bastion/Vektor: la mapping Paragon → eroe non è stata decisa.
 
 ---
@@ -697,10 +700,10 @@ Aggiornare:
 **Azione: UPDATE forte**
 
 Roster corretto:
-- Flux
-- Riva
-- Bastion
-- Vektor.
+- Gadget
+- Phase
+- Riktor
+- Wraith.
 
 Da correggere:
 
@@ -931,7 +934,7 @@ La guida è utile come recipe Unreal, ma è legata a:
 
 Questi NON sono il roster canonico.
 
-Non sostituire automaticamente i nomi con Flux/Riva/Bastion/Vektor.
+Non sostituire automaticamente i nomi con Gadget/Phase/Riktor/Wraith.
 
 Soluzione:
 - titolo/stato "Workflow prototipo Paragon";
@@ -1596,7 +1599,7 @@ Conseguenza:
 La v0.1/showcase deve mostrare **almeno una vera azione predittiva**.
 
 Direzione consigliata e approvata:
-- usarla su **Vektor**;
+- usarla su **Wraith**;
 - dichiarata interamente in Planning;
 - il giocatore scommette su cella/linea/boundary attraversata dal nemico;
 - se il trigger si verifica, payoff;
@@ -2121,7 +2124,7 @@ Se `Sprint` oggi usa Movement + Main Action, creare/refactorare il modello per `
 
 ## Predictive Action
 
-Creare/aggiornare epic/checkpoint per una slice Vektor:
+Creare/aggiornare epic/checkpoint per una slice Wraith:
 - dati;
 - trigger;
 - resolver;
@@ -2227,13 +2230,13 @@ Le 10 decisioni principali dell'audit sono chiuse.
 Claude deve fermarsi e chiedere decisione umana solo se durante il consolidamento emerge **una nuova scelta non coperta** da questo file, per esempio:
 
 - un valore numerico di `Sneak` non presente nelle fonti;
-- la forma esatta della Predictive Action di Vektor se esistono più alternative incompatibili;
+- la forma esatta della Predictive Action di Wraith se esistono più alternative incompatibili;
 - un cambio di action economy oltre il modello movement-slot approvato;
 - una modifica sostanziale al numero di slot per turno;
 - una nuova forma di reaction annidata;
 - una modifica al formato principale 3v3/4v4;
 - una rinomina pubblica dei quattro eroi;
-- una nuova mapping definitiva Paragon → Flux/Riva/Bastion/Vektor;
+- una nuova mapping definitiva Paragon → Gadget/Phase/Riktor/Wraith;
 - una scelta di rete che indebolisca la privacy temporale approvata.
 
 Non fermarsi per semplici divergenze documentali già risolte qui.

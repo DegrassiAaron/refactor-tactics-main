@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 🗄️ `HISTORICAL` — SORGENTE RECEPITO
 >
 > **Archiviato il 2026-08-10.** Era in `todo/consolidazione-chat-openai/`, untracked.
@@ -239,14 +241,14 @@ Open->Fire->Seal
 Overwatch Hold->Fire
 
 LEVEL 3 — Character
-Flux kit
-Riva kit
-Bastion kit
-Vektor kit
+Gadget kit
+Phase kit
+Riktor kit
+Wraith kit
 
 LEVEL 4 — Team
-Flux+Riva
-Bastion+Vektor
+Gadget+Phase
+Riktor+Wraith
 Faction/team coordination
 
 LEVEL 5 — Showcase
@@ -340,10 +342,10 @@ Debug.Empty
 Movement.Basic
 Movement.Collision
 Movement.Blocked
-Character.Flux.Basic
-Character.Riva.Water
-Character.Bastion.Cover
-Character.Vektor.Intercept
+Character.Hero.Gadget.Basic
+Character.Hero.Phase.Water
+Character.Hero.Riktor.Cover
+Character.Hero.Wraith.Intercept
 Environment.WaterElectric.Basic
 Reaction.Overwatch.HoldThenFire
 Map.DynamicCover.OpenFireSeal
@@ -545,7 +547,7 @@ Un solo algoritmo, pesi diversi.
 Non:
 
 ```text
-if Hero == Flux
+if Hero == Gadget
 ```
 
 Preferire:

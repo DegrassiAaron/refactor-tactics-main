@@ -92,7 +92,8 @@ TArray<FRTCellId> ARTTurnManager::CellsEnteredAlong(const TArray<FRTCellId>& Pat
 	return Entered;
 }
 
-void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit, const TArray<FRTCellId>& Entered)
+void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit,
+	const TArray<FRTCellId>& Entered, ERTMatchPhase InPhase)
 {
 	if (!Map || !Unit) { return; }
 
@@ -108,11 +109,41 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 		{
 			if (Effect.Effect == ERTActionEffect::Damage)
 			{
+				const int32 HpPrima = Unit->Health; // serve DOPO, per classificare l'esito
 				const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Effect.Amount, Unit->Shield, Unit->Health);
 				// ApplyCombatState, non l'assegnazione diretta: e' la stessa contabilita' del danno da azione ed
 				// e' l'unica che erode anche TemporaryShield. Scrivendo Health/Shield a mano lo scudo temporaneo
 				// resterebbe al valore vecchio e il Cleanup lo sottrarrebbe una seconda volta.
 				Unit->ApplyCombatState(Result.Health, Result.Shield);
+
+				// ➕ **La voce canonica del danno da terreno** (`#1067`), gemella di quella del `Burning`
+				// (`#625`). Fino al 2026-08-16 questo danno esisteva **solo** in `AddLogEvent` — un `UE_LOG`
+				// piu' un buffer circolare troncato — e chi entrava nel fuoco con pochi HP **moriva senza
+				// lasciare niente**: nessun `Lethal`, nessun soggetto, e `DescribeFirstDivergence` senza un
+				// punto da nominare. Era il pezzo PIU' GROSSO dei due: `Fire` fa 10 danni all'ingresso
+				// contro gli 8 del Cleanup.
+				//
+				// ⚠️ Categoria `Combat` e causa in `ActionId`, come per il `Burning`: la domanda e' «quanti
+				// punti vita ha cambiato, e a chi». Qui la causa e' la **superficie**, non uno status —
+				// `Terrain.<Surface>` — cosi' il replay distingue i due danni del fuoco senza doverli
+				// dedurre dalla fase.
+				FRTTurnLogEntry Hazard;
+				Hazard.Phase = InPhase;
+				Hazard.Category = ERTLogCategory::Combat;
+				Hazard.ActionId = FName(*FString::Printf(TEXT("Terrain.%s"),
+					*StaticEnum<ERTHexSurface>()->GetNameStringByValue((int64)CellData->Surface)));
+				// La cella che ha colpito, che qui **e' davvero la causa** — al contrario del `Burning`, che
+				// segue l'unita' anche fuori dal fuoco. `TgtCell` e' la stessa: chi subisce ci sta sopra.
+				Hazard.SrcCell = Cell;
+				Hazard.TgtCell = Cell;
+				Hazard.Amount = Effect.Amount;
+				Hazard.Outcome = static_cast<uint8>(
+					URTCombatLibrary::ClassifyCombatOutcome(HpPrima, Result.Health, /*AttackerDmgBonus*/ 0));
+				// Il soggetto e' chi subisce: in un danno da terreno non c'e' un attaccante. Stessa scelta di
+				// `#625`, con la stessa tensione dichiarata rispetto a «`UnitId` = chi ha agito».
+				AppendLogEntry(Hazard, Unit);
+
+				// ⚠️ `AddLogEvent` **resta**: e' la vista leggibile, non la traccia.
 				AddLogEvent(FString::Printf(TEXT("%s: %d danni da terreno (q=%d,r=%d,L%d)"),
 					*Unit->GetName(), Effect.Amount, Cell.X, Cell.Y, Cell.Layer));
 			}
@@ -342,7 +373,7 @@ void ARTTurnManager::PlanBots()
 				}
 			}
 			// Cosa la squadra sa di questo nemico. `EnemyReach` NON passa di qui: gittate e forme sono
-			// catalogo, cioe' dato pubblico — sapere che Riva ha portata 5 non e' sapere dov'e' Riva.
+			// catalogo, cioe' dato pubblico — sapere che Phase ha portata 5 non e' sapere dov'e' Phase.
 			FRTCellId KnownCell = Other->Cell;
 			int32 KnownHealth = Other->Health + Other->Shield;
 			switch (URTTeamKnowledgeLibrary::ClassifyTarget(BotKnowledge, Other->StableUnitId,
@@ -891,6 +922,26 @@ void ARTTurnManager::LockInAndResolve()
 	{
 		TArray<AActor*> Actors;
 		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+		// 🔴 **Ordine STABILE, e da `#625` non e' piu' facoltativo.** `SortTurnLog` gira **prima** di questo
+		// blocco (una volta sola, poco sopra): tutto cio' che viene appeso al TurnLog da qui in giu' resta
+		// nell'ordine in cui e' stato inserito, e `GetAllActorsOfClass` non ne ha uno — lo dice il commento
+		// di quel sort. Finche' questo loop non scriveva voci canoniche la cosa era invisibile; da quando
+		// scrive quella del danno da `Burning`, **due unita' che bruciano nello stesso Cleanup possono
+		// uscire in ordine diverso fra due esecuzioni della stessa partita**.
+		// Non e' un dettaglio di stile: `RecordTurn` scrive `HashTurnLogOrdered` nel manifest — un hash che
+		// per costruzione **non** e' invariante per permutazione — e `RTShowcaseScenarioTests` confronta due
+		// run riga per riga. Uno scambio farebbe divergere l'archivio da se' stesso.
+		// E' la stessa disciplina che `ResolveEnvironment` e `TickDynamicCovers` applicano gia', con lo
+		// stesso comparatore. Trovato in code review.
+		Actors.Sort([](const AActor& A, const AActor& B)
+		{
+			const ARTUnit* UA = Cast<ARTUnit>(&A);
+			const ARTUnit* UB = Cast<ARTUnit>(&B);
+			if (!UA || !UB) { return UA != nullptr; } // i non-unita' in coda, deterministicamente
+			return URTHexLibrary::StableLess(UA->Cell, UB->Cell);
+		});
+
 		for (AActor* Actor : Actors)
 		{
 			ARTUnit* Unit = Cast<ARTUnit>(Actor);
@@ -904,9 +955,67 @@ void ARTTurnManager::LockInAndResolve()
 			// prima lo scudo TEMPORANEO — che infatti scade solo piu' sotto, non prima.
 			if (Unit->HasStatus(TAG_Status_Burning))
 			{
+				const int32 HpPrima = Unit->Health; // serve DOPO, per classificare l'esito
 				const FRTDamageResult Burn = URTCombatLibrary::ApplyDamage(
 					URTCombatLibrary::BurningCleanupDamage, Unit->Shield, Unit->Health);
 				Unit->ApplyCombatState(Burn.Health, Burn.Shield);
+
+				// ➕ **La voce canonica del danno da hazard** (`#625`). Fino al 2026-08-16 questo danno
+				// esisteva **solo** in `AddLogEvent`, cioe' in un `UE_LOG` piu' un buffer circolare troncato:
+				// chi riproduceva la partita vedeva gli HP scendere — o un'unita' sparire — senza un evento
+				// che lo spiegasse, e `DescribeFirstDivergence` non poteva nominare quel punto. E' il difetto
+				// che il gate `replay_representable` ha trovato, e che il commento di `ERTReactionDecision`
+				// cita per nome in `RTTurnLog.h`.
+				//
+				// ⚠️ **Categoria `Combat` e non `Environment`, ed e' una scelta di modello.** La cella agisce,
+				// ma la domanda a cui questa voce risponde e' *«quanti punti vita ha cambiato, e a chi»* — la
+				// stessa per cui `Healed` sta fra gli esiti di combattimento invece di avere una categoria
+				// propria. `ERTEnvironmentOutcome` parla di **superfici e coperture**: aggiungergli valori sul
+				// danno alle unita' creerebbe due enum che rispondono alla stessa domanda sotto due categorie,
+				// che e' precisamente il difetto argomentato in `RTTurnLog.h` §`ERTReactionDecision`.
+				// La **causa** la porta `ActionId`, dove un danno da attacco porta l'identita' dell'azione: e'
+				// li' che si distingue un colpo dalle fiamme, non nella categoria.
+				//
+				// ⚠️ `AppendLogEntry(Entry, Unit)` — l'unita' che **subisce**, non chi colpisce, ed e'
+				// l'opposto della voce dell'attacco due funzioni piu' sotto. Non e' un'incoerenza: `UnitId` e'
+				// «chi ha agito», e in un danno da hazard **non c'e' un attaccante**. Lasciarlo a `0` direbbe
+				// «nessuna unita' dichiarata» su un evento che ha un soggetto solo e ovvio.
+				FRTTurnLogEntry Burning;
+				Burning.Phase = ERTMatchPhase::Cleanup;
+				Burning.Category = ERTLogCategory::Combat;
+				Burning.ActionId = TAG_Status_Burning.GetTag().GetTagName();
+				// ⚠️ **Le due celle sono DOVE SI TROVA chi brucia, non la causa del danno**, e la prima
+				// stesura di questa riga diceva il contrario («la cella agisce su chi ci sta sopra»).
+				// E' falso per la maggioranza dei tick: `Fire` concede `Burning` con durata **2**, non con
+				// il sentinella «finche' sulla cella», quindi un'unita' che esce dal fuoco continua a
+				// bruciare — e prende gli 8 danni stando su un pavimento qualunque. La causa la porta
+				// `ActionId`; queste due dicono solo dov'era. Trovato in code review.
+				Burning.SrcCell = Unit->Cell;
+				Burning.TgtCell = Unit->Cell;
+				// ⚠️ `Amount` e' il danno NOMINALE del catalogo, non gli HP effettivamente persi: e' la
+				// convenzione delle altre voci di danno (`Entry.Amount = Hit.Damage`), e cambiarla qui sola
+				// renderebbe due voci di `Combat` non confrontabili. Quanto sia arrivato agli HP lo dice
+				// `Outcome`: `ShieldAbsorbed` = zero.
+				Burning.Amount = URTCombatLibrary::BurningCleanupDamage;
+				// 🔴 **La libreria, non un ternario scritto a mano.** La prima stesura copiava quello della
+				// voce d'attacco — che a sua volta scavalca la libreria — e nel copiarlo ha ereditato il suo
+				// difetto: confrontava con `MaxHealth` invece che con la salute PRIMA del colpo, quindi
+				// un'unita' gia' ferita il cui scudo assorbiva tutto veniva scritta come `Hit` per 8 danni
+				// che non aveva preso. `ClassifyCombatOutcome` e' il posto dichiarato di quella priorita',
+				// ed e' pinnata da `RTCombatLibraryTests`. Trovato in code review.
+				Burning.Outcome = static_cast<uint8>(
+					URTCombatLibrary::ClassifyCombatOutcome(HpPrima, Burn.Health, /*AttackerDmgBonus*/ 0));
+				// ⚠️ Il soggetto e' chi SUBISCE, ed e' prescritto dal DoD di `#625` — «l'unita' che la subisce
+				// in `UnitId` (non `0`: c'e' un soggetto)». Va saputo che **inverte** la convenzione di
+				// `AppendLogEntry` («chi ha AGITO»), che la voce d'attacco rispetta passando l'attaccante:
+				// un consumatore che sommasse il danno INFLITTO per `UnitId` filtrando su `Category ==
+				// Combat` accrediterebbe a chi brucia gli 8 danni fatti a se' stesso. Oggi nessuno lo fa,
+				// e la scelta e' della issue; se un giorno servisse distinguerli, il posto e' un esito
+				// dedicato — non un commento. Sollevato in code review, e lasciato com'e' di proposito.
+				AppendLogEntry(Burning, Unit);
+
+				// ⚠️ `AddLogEvent` **resta**, e non e' ridondanza: e' la vista leggibile a schermo, il TurnLog
+				// e' la traccia. Il DoD di `#625` lo chiede esplicitamente — «non si sostituisce, si affianca».
 				AddLogEvent(FString::Printf(TEXT("%s: %d danni da Status.Burning (q=%d,r=%d,L%d)"),
 					*Unit->GetName(), URTCombatLibrary::BurningCleanupDamage,
 					Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer));
@@ -915,6 +1024,12 @@ void ARTTurnManager::LockInAndResolve()
 				{
 					// L'eliminazione da hazard non ha un beat di playback (la timeline e' gia' chiusa):
 					// la nasconde il catch-all di ConcludeTurn, che esiste proprio per questo caso.
+					//
+					// ⚠️ **La morte la porta l'`Outcome` della voce sopra, non una seconda voce.** Il DoD
+					// chiede che l'eliminazione sia «distinta dal danno che non uccide», e `Lethal` la
+					// distingue gia': una voce in piu' direbbe due volte lo stesso fatto, e il replay dovrebbe
+					// decidere quale delle due e' il colpo — che e' lo stesso motivo per cui l'attacco letale,
+					// due funzioni piu' sotto, non ne scrive una seconda.
 					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()));
 					continue; // morto adesso: non guadagna energia, non conta fra i vivi
 				}
@@ -979,7 +1094,7 @@ void ARTTurnManager::LockInAndResolve()
 
 void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell,
 	const FRTCellId& FacingSource, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget,
-	const TCHAR* LogVerb, const URTHexMapAsset* Map)
+	const TCHAR* LogVerb, const URTHexMapAsset* Map, ERTMatchPhase InPhase)
 {
 	if (!IsValid(Unit))
 	{
@@ -1044,7 +1159,7 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 	// attraverso `asciutto -> fuoco -> fuoco -> asciutto` ha attraversato quelle due celle di fuoco e ne
 	// subisce le conseguenze, pur non avendo speso un solo punto movimento: il costo e' cio' che si paga per
 	// SCEGLIERE di passare, la geometria e' cio' che c'e'.
-	ApplyTerrainOnEnterEffects(Map, Unit, CellsEnteredAlong(Path));
+	ApplyTerrainOnEnterEffects(Map, Unit, CellsEnteredAlong(Path), InPhase);
 
 	// 9-10. Il piano segue l'unita' invece di riportarla indietro: la path composita dalla vecchia cella non
 	// e' piu' valida, e se non c'era un Move pianificato la destinazione diventa quella nuova — altrimenti
@@ -1522,13 +1637,13 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		{
 			// Dal DATO, non dal nome (D-046, #282). Il confronto per ActionId funzionava finche' le uniche
 			// azioni ambientali erano quelle del catalogo core; non appena un eroe ne possiede una — e
-			// `Riva.FluidTrail` non puo' chiamarsi `Action.CreateWater` — un `if` sul nome smette di poter
+			// `Phase.FluidTrail` non puo' chiamarsi `Action.CreateWater` — un `if` sul nome smette di poter
 			// esprimere «e' quell'azione». Stessa strada di `PropagationLimit`, che infatti gia' funzionava
 			// per l'eroe che aveva ereditato `Action.Electrify`.
 			const bool bCreatesSurface = Ability->Def.bCreatesSurface;
 			const ERTHexSurface Created = Ability->Def.SurfaceCreated;
 			// La CAUSA registrata nel TurnLog resta l'ActionId dell'abilita' usata: con un eroe owner e'
-			// `Riva.FluidTrail`, non `Action.CreateWater`. Chi legge il replay deve vedere CHI ha allagato,
+			// `Phase.FluidTrail`, non `Action.CreateWater`. Chi legge il replay deve vedere CHI ha allagato,
 			// non la primitiva che c'e' sotto — l'identita' dell'eroe e' meta' del valore del log.
 			const FName EnvActionId = Ability->Def.ActionId;
 
@@ -1541,7 +1656,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				//
 				// Il raggio e' dell'AZIONE, non della superficie. Era `(Created == ShallowWater) ? 1 : 0`, cioe'
 				// il ramo che il commento qui sopra dichiara di voler evitare: con tre produttori — acqua 1,
-				// fuoco 0, fumo 1 (`Riva.MistVeil`, #353) — quel ramo dovrebbe indovinare quale superficie
+				// fuoco 0, fumo 1 (`Phase.MistVeil`, #353) — quel ramo dovrebbe indovinare quale superficie
 				// vuole quale area, e sbaglierebbe alla prima azione che allaga una cella sola.
 				const int32 Radius = FMath::Max(0, Ability->Def.SurfaceRadius);
 				// Ordine STABILE delle celle: `HexArea` restituisce gia' un'area ordinata, quindi le voci di
@@ -1715,7 +1830,8 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			// regola qui — non c'e' nessuno verso cui girarsi. E' il precedente gia' pinnato da
 			// `Facing.EnvironmentalDisplacementKeepsFacing` (scivolare sul ghiaccio non ruota). [D-104] vale
 			// per la fuga da un ATTACCANTE, che ha una minaccia da tenere davanti.
-			ApplyForcedDisplacement(Fleeing, Dest[f], Dest[f], FleeCause, TEXT("Fuga"), Map);
+			ApplyForcedDisplacement(Fleeing, Dest[f], Dest[f], FleeCause, TEXT("Fuga"), Map,
+				ERTMatchPhase::Cleanup);
 		}
 	}
 
@@ -1731,7 +1847,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			// motivo per cui le fughe si applicano prima di questo ciclo e non dopo.
 			if (Occupant && Occupant->IsAlive() && Occupant->Cell == Cell)
 			{
-				ApplyTerrainOnEnterEffects(Map, Occupant, { Cell });
+				ApplyTerrainOnEnterEffects(Map, Occupant, { Cell }, ERTMatchPhase::Cleanup);
 			}
 		}
 	}
@@ -1896,8 +2012,19 @@ void ARTTurnManager::BeginReplayRecording()
 
 FString ARTTurnManager::ResolveReplaysRoot() const
 {
+	// 🔴 **Il default lo CHIEDE, non lo ricostruisce** (`#1050`). Fino al 2026-08-16 questa funzione
+	// ripeteva qui `FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"))`, e la stessa espressione
+	// viveva in altri due punti: chi avesse spostato gli archivi ne avrebbe cambiato uno, e il lettore
+	// avrebbe elencato una cartella vuota su una macchina piena di registrazioni — indistinguibile da
+	// «non hai ancora giocato». Ne' il compilatore ne' un test se ne accorgono: sono funzioni corrette che
+	// rispondono alla stessa domanda.
+	//
+	// ⚠️ Il posto e' il **produttore**: chi scrive possiede la disposizione su disco — cartella per partita,
+	// manifest, una traccia per turno — e la radice ne e' il primo livello. Chi legge la chiede.
+	// La terza copia era in `URTReplayViewerSubsystem`, tolta con `#999`/#1005; questa e' rimasta indietro
+	// perche' allora `RTTurnManager.cpp` non era nel `writable` di nessuna track (`D-139`).
 	return ReplaysRootOverride.IsEmpty()
-		? FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Replays"))
+		? URTReplayRecorderLibrary::DefaultReplaysRoot()
 		: ReplaysRootOverride;
 }
 
@@ -1982,7 +2109,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 	};
 	TArray<FRTPendingCoverOp> Pending;
 
-	// Gli SPOSTAMENTI (`Bastion.Reconfigure`). Portano con se' chi li ha chiesti, perche' il cooldown si decide
+	// Gli SPOSTAMENTI (`Riktor.Reconfigure`). Portano con se' chi li ha chiesti, perche' il cooldown si decide
 	// solo in applicazione: una rotazione gratuita non lo spende, e quale copertura si sposta — quindi se una
 	// rotazione gratuita c'e' — si sa solo guardando il campo.
 	struct FRTPendingMoveOp
@@ -2703,7 +2830,7 @@ void ARTTurnManager::ResolveDash()
 
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
-		ApplyTerrainOnEnterEffects(Snapshot.Map, Unit, Resolved[i].Entered);
+		ApplyTerrainOnEnterEffects(Snapshot.Map, Unit, Resolved[i].Entered, ERTMatchPhase::Dash);
 		// Il movimento del turno e' finito qui: si scarta il percorso pianificato e la destinazione DIVENTA
 		// la cella d'arrivo dello scatto. Senza l'assegnazione il resolver del Move vedrebbe una `PlannedCell`
 		// diversa dalla posizione attuale e proverebbe comunque ad avvicinarcisi.
@@ -2808,7 +2935,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 		Entry.Category = ERTLogCategory::Reaction;
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
-		Entry.ActionId = Reaction->Def.ActionId; // identita': `Vektor.Deflection` non e' `Action.Deflect` (CP 5.5)
+		Entry.ActionId = Reaction->Def.ActionId; // identita': `Wraith.Deflection` non e' `Action.Deflect` (CP 5.5)
 		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		// CHI sa se il trigger e' scattato e' il chiamante: cambia con il punto, e il pass non ha modo di
@@ -2970,7 +3097,8 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 			// la minaccia (D-104), piano che segue. Una riga, perche' la primitiva esiste.
 			TMap<ARTUnit*, FRTDisplacementCause> FleeCause;
 			FleeCause.Add(Fleeing, FRTDisplacementCause{ FName(TEXT("Reaction.EmergencyDash")), NAME_None, 0 });
-			ApplyForcedDisplacement(Fleeing, FleeDest[f], FleeFrom[f], FleeCause, TEXT("Fuga"), Map);
+			ApplyForcedDisplacement(Fleeing, FleeDest[f], FleeFrom[f], FleeCause, TEXT("Fuga"), Map,
+				ERTMatchPhase::Dash);
 		}
 	}
 }
@@ -3560,7 +3688,7 @@ void ARTTurnManager::ResolveCombat()
 		Entry.Category = ERTLogCategory::Reaction;
 		Entry.SrcCell = Unit->Cell;
 		Entry.TgtCell = Unit->Cell;
-		Entry.ActionId = Reaction->Def.ActionId; // `Bastion.Interposition` non e' `Action.Intercept` (CP 5.5)
+		Entry.ActionId = Reaction->Def.ActionId; // `Riktor.Interposition` non e' `Action.Intercept` (CP 5.5)
 		Entry.BaseActionId = Reaction->Def.BaseActionId; // vuoto finche' le reazioni non dichiarano un profilo
 
 		// Il contatore di [D-092] vale anche qui: l'interposizione E' un'attivazione, e lasciarla fuori
@@ -3613,7 +3741,7 @@ void ARTTurnManager::ResolveCombat()
 	// davvero, ed e' l'unico posto dove farlo: qui il redirect e' deciso e nessuna reazione e' ancora stata
 	// valutata sui colpi riscritti, quindi la rivalidazione non puo' aprire una seconda opportunity.
 	//
-	// E' la stessa disciplina dei bonus di coppia piu' sotto (`Flux.LinearDischarge` contro `Status.Wet`):
+	// E' la stessa disciplina dei bonus di coppia piu' sotto (`Gadget.LinearDischarge` contro `Status.Wet`):
 	// cio' che dipende da CHI subisce si decide dopo l'Intercept, non prima.
 	for (int32 r = 0; r < RedirectHit.Num(); ++r)
 	{
@@ -3702,7 +3830,7 @@ void ARTTurnManager::ResolveCombat()
 		// riga l'entry sopravvive al proprio riparo, e siccome identifica la barriera con la sola coppia
 		// (cella, bordo), alla scadenza del suo timer porterebbe via **quello che trova su quel bordo**: se
 		// nel frattempo qualcuno ha riparato lo stesso varco, gli distrugge il pannello in anticipo e scrive
-		// nel TurnLog una scadenza mai avvenuta. Due Bastion sullo stesso choke point bastano — i cooldown
+		// nel TurnLog una scadenza mai avvenuta. Due Riktor sullo stesso choke point bastano — i cooldown
 		// sono per unita', quindi il secondo non aspetta il primo.
 		if (Change.bDestroyed)
 		{
@@ -3877,7 +4005,7 @@ void ARTTurnManager::ResolveCombat()
 	IncomingMarkPriority.Init(MAX_int32, Units.Num());
 	TArray<bool> bMarkedBeforeBlast;    // marchio ereditato da un turno precedente: vale per qualunque colpo
 	bMarkedBeforeBlast.Init(false, Units.Num());
-	// Stessa disciplina per `Wet`, e per la stessa ragione: `Riva.PressureJet` bagna DENTRO il Blast, quindi
+	// Stessa disciplina per `Wet`, e per la stessa ragione: `Phase.PressureJet` bagna DENTRO il Blast, quindi
 	// un bonus che leggesse solo `HasStatus` non lo vedrebbe mai — e con durata 1 il bagnato scade nel Cleanup
 	// dello stesso turno, quindi non lo vedrebbe nemmeno il turno dopo. La combo acqua+elettricita' era
 	// documentata, aveva un test verde sull'aritmetica, e non era eseguibile in partita (#242).
@@ -3968,14 +4096,14 @@ void ARTTurnManager::ResolveCombat()
 	// `ToAttacks` l'informazione non esiste piu'. Dopo l'Intercept, perche' il bersaglio puo' essere cambiato:
 	// il bonus lo decide chi il colpo lo incassa davvero.
 	//
-	// `Flux.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
+	// `Gadget.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
 	// perche' non e' un danno fisso, e vale su OGNI colpo dell'azione finche' il bersaglio e' bagnato — non
 	// solo sul primo, quindi non passa dai delta qui sotto.
 	//
 	// Due sorgenti di bagnato, e contano entrambe:
 	//   - GIA' bagnato quando il Blast comincia (acqua bassa attraversata nel Dash, o turno precedente):
 	//     `HasStatus` risponde di si', e vale per qualunque colpo;
-	//   - bagnato IN QUESTO Blast (`Riva.PressureJet`, priorita' 50): vale solo per i colpi a priorita' piu'
+	//   - bagnato IN QUESTO Blast (`Phase.PressureJet`, priorita' 50): vale solo per i colpi a priorita' piu'
 	//     ALTA, cioe' risolti dopo. `LinearDischarge` ha priorita' 55, quindi la coordinazione funziona.
 	// La seconda meta' mancava, ed e' il motivo per cui la combo firma della v0.1 non era eseguibile (#242).
 	// L'ordine e' quello canonico di ADR-0003 §3, lo stesso del marchio: non ne nasce un secondo.
@@ -3986,7 +4114,7 @@ void ARTTurnManager::ResolveCombat()
 	for (FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
-			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Flux.LinearDischarge")))
+			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Hero.Gadget.LinearDischarge")))
 		{
 			continue;
 		}
@@ -3999,7 +4127,7 @@ void ARTTurnManager::ResolveCombat()
 			IntentDefs[Hit.IntentIndex].Priority > IncomingWetPriority[Hit.TargetId];
 		if (bWetBeforeBlast || bWetFromThisBlast)
 		{
-			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::FluxWetDischargeBonus);
+			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::GadgetWetDischargeBonus);
 		}
 	}
 
@@ -4094,7 +4222,7 @@ void ARTTurnManager::ResolveCombat()
 	TMap<ARTUnit*, int32> KnockCount;
 	// Quali attaccanti spingono ciascun bersaglio (D-085). Serve perche' `KnockCount` deve contare gli
 	// ATTACCANTI e non gli eventi: dal CP 7.1 una sola azione puo' dichiarare due spinte (`Weapon.Impact` su
-	// `Riva.PressureJet`), e contarle come due attaccanti attivava «forze contraddittorie» su un duello.
+	// `Phase.PressureJet`), e contarle come due attaccanti attivava «forze contraddittorie» su un duello.
 	TMap<ARTUnit*, TSet<int32>> KnockAttackers;
 	// Trazione (`Action.Pull`, CP 4.7): stessa disciplina della spinta, array paralleli propri — una
 	// direzione INVERTITA (verso chi tira, non lontano da lui) non e' la stessa spinta con un segno cambiato
@@ -4227,7 +4355,7 @@ void ARTTurnManager::ResolveCombat()
 					//
 					// Fino a CP 7.1 le due cose coincidevano: nessuna azione del catalogo dichiarava piu' di un
 					// `Push`, quindi un evento era un attaccante. `Weapon.Impact` rompe l'equivalenza — accoda un
-					// secondo `Push 1` all'attacco base di Riva, che ne ha gia' uno — e con il conteggio per
+					// secondo `Push 1` all'attacco base di Phase, che ne ha gia' uno — e con il conteggio per
 					// evento il bersaglio finiva nel ramo «forze contraddittorie» qui sotto: **fermo**, con
 					// `OpposingForces` nel TurnLog e un solo attaccante in campo. Una causa scritta, precisa e
 					// falsa, che e' il difetto peggiore per una traccia che deve essere attribuibile.
@@ -4450,8 +4578,8 @@ void ARTTurnManager::ResolveCombat()
 			// spinta piu' forte lo sposta comunque (la guardia non e' un'ancora, catalogo v0.1 §1).
 			//
 			// ⚠️ **Dal 2026-08-11 una spinta piu' forte ESISTE** (D-085): `Weapon.Impact` su
-			// `Riva.PressureJet`, che spinge gia' di 1, produce una spinta di **2** — ed e' il loadout di
-			// DEFAULT di Riva (D-089). Fino a CP 7.1 questo ramo assorbiva ogni spinta del gioco e il commento
+			// `Phase.PressureJet`, che spinge gia' di 1, produce una spinta di **2** — ed e' il loadout di
+			// DEFAULT di Phase (D-089). Fino a CP 7.1 questo ramo assorbiva ogni spinta del gioco e il commento
 			// diceva cosi'; ora cede, e il ramo `Braced` sotto **aggiunge copertura davvero**.
 			// Pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
@@ -4476,7 +4604,7 @@ void ARTTurnManager::ResolveCombat()
 			// vedeva mai un caso proprio. **Dal 2026-08-11 la premessa di D-074 e' caduta**: `Weapon.Impact`
 			// su un attacco che spinge gia' produce una spinta di **2** (D-085), quindi `Guard` cede e questo
 			// ramo regge. La distanza torna a essere un asse che separa le due difese, e non per una v0.2:
-			// oggi, con il loadout di default di Riva.
+			// oggi, con il loadout di default di Phase.
 			//
 			// Resta vero che le due differiscono anche nel danno (-15 sul primo colpo contro -10 su ogni
 			// colpo), pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e `Spec.Brace.BraceWinsOnSecondHit`.
@@ -4521,7 +4649,8 @@ void ARTTurnManager::ResolveCombat()
 			}
 
 			ARTUnit* T = KTargets[a];
-			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause, TEXT("Spinta"), Map);
+			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause, TEXT("Spinta"), Map,
+				ERTMatchPhase::Blast);
 		}
 	}
 
@@ -4565,7 +4694,8 @@ void ARTTurnManager::ResolveCombat()
 			if (bContested) { continue; }
 
 			ARTUnit* T = PTargets[a];
-			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause, TEXT("Trazione"), Map);
+			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause, TEXT("Trazione"), Map,
+				ERTMatchPhase::Blast);
 		}
 	}
 
@@ -4722,7 +4852,7 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	// indipendenti non si nota niente; appena due bot interagiscono, chi decide per primo cambia l'esito.
 	//
 	// MISURATO, non temuto (CP 47.5): la stessa partita 2v2 bot-contro-bot, con le stesse unita' sulle stesse
-	// celle e inserite in ordine diverso, divergeva al **turno 2** — in un ordine `Bastion.Interposition` si
+	// celle e inserite in ordine diverso, divergeva al **turno 2** — in un ordine `Riktor.Interposition` si
 	// attivava, nell'altro non trovava trigger. Il turno 1 era identico byte per byte, che e' il modo in cui
 	// questa classe di difetto passa inosservata: si manifesta quando gli agenti cominciano a interagire.
 	//
@@ -5356,7 +5486,7 @@ void ARTTurnManager::ResolveMovement()
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		Units[i]->PlaceOnCell(Resolved[i].Final, Origin, HexSize, LayerH);
-		ApplyTerrainOnEnterEffects(Snapshot.Map, Units[i], Resolved[i].Entered);
+		ApplyTerrainOnEnterEffects(Snapshot.Map, Units[i], Resolved[i].Entered, ERTMatchPhase::Move);
 	}
 
 	// Orientamento di fine Move (CP 16.1, `FacingFinalAfterMove` di D-020). Si deriva dalla rotta EFFETTIVA —

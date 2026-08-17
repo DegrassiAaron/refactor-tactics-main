@@ -180,7 +180,7 @@ bool FRTHeroBasicAttackIsIndexZeroTest::RunTest(const FString&)
 			Basic->Def.Slot, ERTActionSlot::Main);
 
 		// Almeno un effetto di danno: un attacco base che non fa male non e' un attacco. NON asserisce
-		// QUANTO — 8 (Bastion) e 22 (Flux) sono entrambi legittimi, ed e' il punto di ADR-0007.
+		// QUANTO — 8 (Riktor) e 22 (Gadget) sono entrambi legittimi, ed e' il punto di ADR-0007.
 		bool bDealsDamage = false;
 		for (const FRTActionEffectSpec& Spec : Basic->Def.Effects)
 		{
@@ -204,7 +204,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroBasicAttackDeclaresBaseTest,
 bool FRTHeroBasicAttackDeclaresBaseTest::RunTest(const FString&)
 {
 	// D-033 chiede che un'azione generica con profilo sia spiegabile nel TurnLog come *azione base + profilo*.
-	// Perche' lo sia, il DATO deve dichiarare la relazione: `Bastion.ImpactShot` e' un'azione d'eroe, e chi
+	// Perche' lo sia, il DATO deve dichiarare la relazione: `Riktor.ImpactShot` e' un'azione d'eroe, e chi
 	// legge una traccia non la risolve col catalogo core.
 	//
 	// Senza questo test, dimenticare `BaseActionId` su un eroe nuovo non romperebbe NIENTE — l'azione
@@ -370,13 +370,13 @@ bool FRTHeroMobilitySlotTest::RunTest(const FString&)
 	// il roster perdesse OGNI mobilita'.
 	//
 	// 🔵 **La riga e' tornata a `> 0` il 2026-08-16, ed e' il test stesso ad averlo prescritto.** Dal
-	// 2026-08-09 chiedeva ESATTAMENTE zero, perche' D-046 (#282) aveva cablato `Riva.FluidTrail` su
-	// `Action.CreateWater` togliendo al roster l'unica mobilita' SENZA danno — `Vektor.PassingBlade` e'
+	// 2026-08-09 chiedeva ESATTAMENTE zero, perche' D-046 (#282) aveva cablato `Phase.FluidTrail` su
+	// `Action.CreateWater` togliendo al roster l'unica mobilita' SENZA danno — `Wraith.PassingBlade` e'
 	// FastMovement ma fa 20 danni, cioe' una carica — e la regola D-028 era rimasta vera e senza soggetto.
 	// Accanto c'era scritto: *«quando il roster v0.2 introdurra' una mobilita' pura, questa riga CADRA' […]
 	// a quel punto si torna a `> 0` e il ciclo ricomincia a verificare la regola davvero»*.
 	//
-	// E' caduta, ma non per la v0.2: per **#1006**. `Riva.FluidTrail` e' tornata uno scatto perche' #995 ha
+	// E' caduta, ma non per la v0.2: per **#1006**. `Phase.FluidTrail` e' tornata uno scatto perche' #995 ha
 	// deciso che Phase e' **abilitata** a Water e non padrona — grado `Access`, una sola capability
 	// elementale — e quella era la terza. Il soggetto di D-028 esiste di nuovo, quindi la guardia torna a
 	// verificare la regola invece di consuntivare un'assenza.
@@ -427,6 +427,127 @@ bool FRTHeroIdsMatchRosterTest::RunTest(const FString&)
 		TestFalse(TEXT("nessun HeroId e' vuoto"), Id.IsNone());
 	}
 
+	return true;
+}
+
+/**
+ * Ogni azione del catalogo eroi ha un nome mostrabile (issue #892).
+ *
+ * `DisplayName` e' dichiarato «nome mostrato (UI/log)» su `URTActionData`, e in partita e' l'unico canale:
+ * l'HUD non e' a schermo (#613), quindi il log e' cio' che il giocatore legge. Vuoto, produce
+ * `[RT] Piano: RTUnit_0 usa  su RTUnit_3` — due spazi al posto dell'abilita' — e
+ * `[RT] X: abilita' attiva -> `, osservati nel playtest di M6.8 il 2026-08-15.
+ *
+ * ⚠️ L'elenco si **genera** da `GetHeroRoster()`, non si trascrive: un'azione aggiunta domani senza nome
+ * deve far fallire QUESTO test, non passare inosservata perche' la lista attesa era scritta a mano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroActionDisplayNameTest,
+	"RefactorTactics.Heroes.EveryActionHasADisplayName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroActionDisplayNameTest::RunTest(const FString&)
+{
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0))
+	{
+		return false;
+	}
+
+	// Contato e verificato: senza questo, un roster che smettesse di esporre azioni renderebbe il test
+	// verde per assenza di soggetti — la forma di falso verde che #892 esiste per evitare.
+	int32 Checked = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero)
+		{
+			continue;
+		}
+		for (int32 i = 0; i < Hero->Actions.Num(); ++i)
+		{
+			const URTActionData* Action = Hero->Actions[i];
+			if (!Action)
+			{
+				continue;
+			}
+			++Checked;
+			TestFalse(
+				*FString::Printf(TEXT("%s azione #%d (%s) ha un DisplayName"),
+					*Hero->HeroId.ToString(), i, *Action->Def.ActionId.ToString()),
+				Action->DisplayName.IsEmpty());
+		}
+	}
+
+	TestTrue(TEXT("almeno un'azione controllata"), Checked > 0);
+	return true;
+}
+
+/**
+ * Ogni `ActionId` d'eroe e' `Hero.<Nome>.<Abilita>`, e nessuno porta un nome ritirato (#754, D-130).
+ *
+ * ⚠️ **Prende il posto di una spunta del DoD che non e' eseguibile.** `#754` chiede che
+ * `Catalog.ValidatorRejectsRetiredHeroAbilityId` *«diventi verde»*, ma quel test non esiste e non puo':
+ * il suo omologo `Catalog.ValidatorRejectsRetiredStableId` e' stato **rimosso** da **D-134** insieme al
+ * redirect, «perche' verificava un divieto che non esiste piu'». Dove non c'e' redirect non c'e' nulla da
+ * rifiutare: un ID ritirato semplicemente non risolve. La guardia che serviva davvero e' questa.
+ *
+ * Due asserzioni, e la seconda e' quella che il grep non sa fare. Il DoD motiva il **terzo segmento**
+ * dicendo che un prefisso piatto metterebbe `Gadget.ArcPulse` accanto a `Gadget.Medkit` (un oggetto) e a
+ * `ERTEquipmentSlot::Gadget` (serializzato). Ma «comincia per `Hero.`» non basterebbe: legare l'azione
+ * al `HeroId` del **suo** eroe fa cadere anche un'azione di Gadget che finisse sotto `Hero.Phase.` —
+ * un errore che un rename massivo produce esattamente come quello che deve correggere.
+ *
+ * Il prefisso si legge dal roster, non si scrive qui: un quinto eroe non richiede di toccare il test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroAbilityIdNamespaceTest,
+	"RefactorTactics.Heroes.AbilityIdsAreNamespacedUnderTheirHero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
+{
+	// 🔴 **NON RINOMINARE QUESTA RIGA.** Sono i quattro nomi che D-130 ritira, e devono comparire qui
+	// **scritti per esteso**: e' l'unico posto del progetto in cui nominarli e' il punto, non un residuo.
+	//
+	// Il rename di #754 li ha portati via DUE volte, e le due ragioni sono diverse.
+	//   1. Un passaggio finale cercava i nomi ritirati *senza confini di parola*, per stanare le forme
+	//      concatenate — `<ritirato>EffectAmount`, `<ritirato>Data` — che nessun pattern con `\b` o col
+	//      punto poteva vedere. Ha riscritto anche questa lista, e il test e' diventato l'opposto di se
+	//      stesso: asseriva che nessun ID contenesse i nomi **nuovi**, quindi sarebbe caduto su tutti e
+	//      venti. Una guardia rovesciata non e' una guardia rotta: e' una guardia che accusa il codice sano.
+	//   2. Poi lo stesso script e' stato rilanciato **per misurare quanti residui restassero**, e ha
+	//      disfatto la riparazione appena scritta. Uno script che sostituisce non e' una misura, per quanto
+	//      il suo ultimo `print` somigli a una.
+	const TArray<FString> Ritirati = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor") };
+
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	int32 Checked = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+		const FString Prefisso = Hero->HeroId.ToString() + TEXT(".");
+
+		for (const URTActionData* Action : Hero->Actions)
+		{
+			if (!Action) { continue; }
+			++Checked;
+			const FString Id = Action->Def.ActionId.ToString();
+
+			// 1. Nessun nome ritirato, in nessuna posizione dell'ID.
+			for (const FString& Vecchio : Ritirati)
+			{
+				TestFalse(*FString::Printf(TEXT("%s non contiene il nome ritirato '%s'"), *Id, *Vecchio),
+					Id.Contains(Vecchio));
+			}
+
+			// 2. E l'azione sta sotto il SUO eroe, non sotto un eroe qualsiasi.
+			TestTrue(*FString::Printf(TEXT("%s sta sotto il proprio eroe (%s)"), *Id, *Prefisso),
+				Id.StartsWith(Prefisso));
+		}
+	}
+
+	// Senza questo, un roster che smettesse di esporre azioni renderebbe il test verde per assenza di
+	// soggetti — la stessa forma di falso verde contro cui `EveryActionHasADisplayName` si difende.
+	TestTrue(TEXT("almeno un'azione controllata"), Checked > 0);
+	TestEqual(TEXT("il roster v0.1 dichiara venti abilita'"), Checked, 20);
 	return true;
 }
 

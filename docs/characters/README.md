@@ -5,7 +5,7 @@ Questa cartella contiene le pagine personaggio di RefactorTactics.
 ## Struttura
 
 ```text
-v0.1/        Flux · Riva · Bastion · Vektor
+v0.1/        Gadget · Phase · Riktor · Wraith
 v0.2/        Steel · Aurora · Murdock · Kwang
 candidates/  34 asset Paragon candidati
 images/      card / screenshot dei personaggi
@@ -28,7 +28,7 @@ qui non si duplica.
 | | Cos'è | Cosa non è |
 |---|---|---|
 | **Identità RefactorTactics** | nome canonico (**Gadget**), kit, lore, fazione | non cambia perché cambia l'asset |
-| **Stable ID** | `Hero.Flux` — chiave tecnica di codice, scenari e replay | **non è il nome** del personaggio |
+| **Stable ID** | `Hero.Gadget` — chiave tecnica di codice, scenari e replay | **non è il nome** del personaggio |
 | **Slot asset Paragon** | mesh, scheletro, animazioni del prototipo | non è un personaggio del roster |
 | **Release** | quando l'eroe entra nel roster operativo | non si assegna a un candidato |
 
@@ -36,13 +36,14 @@ qui non si duplica.
 decisione le colonne erano **tre** e il nome canonico coincideva con lo Stable ID; oggi sono quattro perché
 i due si sono separati.
 
+<!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 Conseguenze pratiche: `Hero.Flux` continua a **non** diventare `Hero.Gadget` — nessun ID si rinomina — ma la
 ragione non è più che «lo slot non è l'identità»: è che la migrazione ha un costo proprio e un blocker
 misurato, [#716](https://github.com/DegrassiAaron/refactor-tactics-main/issues/716). Un asset Paragon usato
 come base visuale non guadagna una release. ⚠️ **E `Gadget` nudo ora è ambiguo, non vietato**: nomina il
 personaggio in prosa player-facing, mentre `Gadget.<Oggetto>` resta il namespace dell'equipaggiamento
 (`Gadget.Medkit`, `ERTEquipmentSlot::Gadget`). Nei contesti tecnici si continua a scrivere `Paragon.Gadget`
-per lo slot e `Hero.Flux` per l'ID.
+per lo slot e `Hero.Gadget` per l'ID.
 
 ## Ownership dei kit
 

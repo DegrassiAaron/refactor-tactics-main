@@ -1,6 +1,6 @@
 {
   "scenarioId": "Movement.SwapRejectedByPlanning",
-  "tags": ["movement", "core", "planning", "flux", "bastion"],
+  "tags": ["movement", "core", "planning", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 3,
@@ -10,8 +10,8 @@
   "_conflitto": "Il RESOLVER invece lo consente: HexSim.ResolveSwapAllowed lo verifica passando percorsi costruiti a mano, quindi bypassando il planner. Le due regole non si contraddicono in astratto - una vale in pianificazione, l'altra in risoluzione - ma insieme rendono la regola del resolver IRRAGGIUNGIBILE dal gioco: nessun giocatore puo' pianificare uno scambio, perche' cliccare sulla cella di un nemico adiacente non produce un percorso. Questo scenario esiste per fissare il comportamento attuale e per non farlo cambiare per sbaglio; se un giorno lo scambio dovra' essere possibile, sara' il planner a dover cambiare, e questo file diventera' rosso - che e' esattamente cio' che deve succedere.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [0, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [1, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [0, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
   ],
 
   "turns": [

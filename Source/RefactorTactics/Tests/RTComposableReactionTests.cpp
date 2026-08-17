@@ -72,7 +72,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: questi test guardano il Blast
@@ -123,7 +123,7 @@ namespace
 	int32 CompBasicAttackDamage()
 	{
 		// Lo stesso eroe che `SpawnCompUnit` schiera: il numero viene dal catalogo, non da qui.
-		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeVektor();
+		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeWraith();
 		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
 	}
 }
@@ -133,7 +133,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMultiEffectReactionTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTMultiEffectReactionTest::RunTest(const FString&)
 {
-	// `Flux.ReactiveCapacitor` in miniatura (il cablaggio dell'eroe e' CP 6.7): scudo a chi reagisce **e**
+	// `Gadget.ReactiveCapacitor` in miniatura (il cablaggio dell'eroe e' CP 6.7): scudo a chi reagisce **e**
 	// danno a chi ha colpito, dichiarati nella stessa lista. Prima di CP 5.5 il resolver leggeva solo il primo
 	// `Damage` e ignorava tutto il resto: meta' della reazione non arrivava mai in partita.
 	UWorld* World = MakeCompWorld();
@@ -296,7 +296,7 @@ bool FRTNoHeroBranchInResolverTest::RunTest(const FString&)
 
 	// Stessa semantica, tre identita' diverse: l'esito non cambia.
 	const int32 CoreDamage = RunDeflectScenario(TEXT("Action.Deflect"));
-	const int32 HeroDamage = RunDeflectScenario(TEXT("Vektor.Deflection"));
+	const int32 HeroDamage = RunDeflectScenario(TEXT("Hero.Wraith.Deflection"));
 	const int32 OtherDamage = RunDeflectScenario(TEXT("Zzz.PermutedIdentity"));
 
 	TestEqual(TEXT("la riduzione arriva dai dati, non dall'ActionId"),

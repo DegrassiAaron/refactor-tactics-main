@@ -67,7 +67,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor()); // attacco base a colpo singolo (Ranger.Shot, 25, range 6)
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith()); // attacco base a colpo singolo (Ranger.Shot, 25, range 6)
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: i test guardano il Blast, non il movimento

@@ -56,7 +56,7 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 > ✅ **Migrato nel codice il 2026-08-08.** A far valere la regola è il **resolver**: dopo uno scatto la
 > destinazione pianificata *diventa* la cella d'arrivo, quindi il movimento è speso comunque sia stato
 > pianificato — non un controllo che il bot potrebbe aggirare (invariante #1). Vale anche per le mobilità
-> d'eroe: `Riva.FluidTrail` è passata a **Movimento**, e l'invariante `Heroes.MobilityWithoutDamageIsNotMain`
+> d'eroe: `Hero.Phase.FluidTrail` è passata a **Movimento**, e l'invariante `Heroes.MobilityWithoutDamageIsNotMain`
 > impedisce che la prossima nasca sulla principale, dove `MakeHeroAction` la metterebbe per default.
 
 > **Slot ≡ Action Points** (consolidato il 2026-08-07). Il workbook `RefactorTactics_Balance_Matrices_v0.1.xlsx`
@@ -67,7 +67,7 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 > resta la formulazione canonica, «AP» è ammesso come sinonimo nei documenti di bilanciamento.
 >
 > **Risorsa firma** — ciò che l'MVP chiamava *energia* è per-personaggio, con nome e trigger di ricarica
-> propri: `Flux` Carica Conduttiva · `Riva` Riserva Idrica · `Bastion` Integrità Strutturale · `Vektor`
+> propri: `Gadget` Carica Conduttiva · `Phase` Riserva Idrica · `Riktor` Integrità Strutturale · `Wraith`
 > Slancio. Cap **4** per tutte (valore più basso fra i candidati), ricarica **1** sul trigger d'affinità.
 > Cambia il nome e cosa la ricarica, **non** la regola.
 
@@ -197,7 +197,7 @@ stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo disting
   invece di essere scelto a intuito. Resta da playtest come ogni valore di questa tabella.
 
 > **Perché non si chiama `Reposition`.** Quel nome è già di un'azione viva: scatto lineare di 2 celle in
-> macro-fase **`Dash`** (§2.2), concesso anche da `Riva.FlowReaction` e `Vektor.Feint`. Due entità con lo
+> macro-fase **`Dash`** (§2.2), concesso anche da `Hero.Phase.FlowReaction` e `Hero.Wraith.Feint`. Due entità con lo
 > stesso nome in due fasi diverse si pagano a ogni lettura del TurnLog, non una volta sola.
 
 **`Sprint` non è un `Dash`.** È il profilo lungo del movimento normale, quindi risolve dopo il Blast: non
@@ -360,18 +360,53 @@ movimento volontario** dell'eroe.
 
 > ⚠️ **L'anti-spinta non distingue `Brace` da `Guard` in v0.1** — [D-074](../decisions/RT_PDR_00_Decision_Log.md),
 > uscita **(B)** di [#400](https://github.com/DegrassiAaron/refactor-tactics-main/issues/400).
-> Il catalogo ha **un solo valore di spinta, `1`**: `Action.Push`, `Action.Charge` (da cui `Bastion.Ram`
-> eredita i suoi `20 danni + Push 1`), `Riva.PressureJet` e la variante `Riva.CircularTide.Impact`.
+> Il catalogo ha **un solo valore di spinta, `1`**: `Action.Push`, `Action.Charge` (da cui `Hero.Riktor.Ram`
+> eredita i suoi `20 danni + Push 1`), `Hero.Phase.PressureJet` e la variante `Hero.Phase.CircularTide.Impact`.
 > L'elenco è **esaustivo e senza eccezioni in tutto il progetto**: l'ultimo `Push 2` era `Guardian.Sweep`, ed
 > è sparito insieme agli archetipi legacy (`#426`, 2026-08-10) — quando questa nota è stata scritta esisteva
 > ancora, fuori dal roster, e la riga lo dichiarava come eccezione. Ora nessuna azione, in nessun catalogo,
-> spinge di più di una cella. `Guard` resiste fino a 1 cella, quindi copre **per intero** lo
-> spazio degli spostamenti esistenti: sulla spinta le due difese danno lo stesso esito, sempre.
-> La clausola «senza limite di distanza» descriveva una regola che nessuno può osservare in partita, e questa
-> riga la sostituisce. **Ciò che davvero distingue le due è il danno**: `Guard` −15 sul solo primo colpo,
-> `Brace` −10 su ogni colpo — cioè *primo colpo pesante* contro *colpi ripetuti*, non *danno* contro
-> *spostamento*. Sul colpo singolo `Guard` domina. Il confine fra le due resta aperto come `BAL-1`.
-> La clausola torna osservabile solo se la v0.2 introduce una spinta `≥ 2`.
+> spinge di più di una cella. `Guard` resiste fino a 1 cella, quindi copre per intero lo spazio degli
+> spostamenti prodotti **dalle azioni**.
+>
+> 🔵 **La spinta forte esiste nei DATI, e non da qui: dall'equipaggiamento** (corretto il 2026-08-16).
+> `Weapon.Impact` porta lo spostamento di `Hero.Phase.PressureJet` a **2** ([D-085](../decisions/RT_PDR_00_Decision_Log.md))
+> ed è il **default dichiarato** di Phase ([D-089](../decisions/RT_PDR_00_Decision_Log.md)). L'elenco delle
+> azioni qui sopra resta esatto — `Weapon.Impact` non è un'azione — ma la conclusione che se ne traeva no:
+> contro una spinta di 2 **`Guard` cede e `Brace` regge**, misurato da
+> `Equipment.PushTwoSeparatesGuardFromBrace`.
+>
+> 🔴 **Ma quel pezzo non arriva addosso a nessuno, ed è la parte che conta** (misurato il 2026-08-16,
+> correggendo una prima stesura di questa stessa nota che diceva *«il mestiere anti-spinta di `Brace` è
+> osservabile in v0.1»*). La catena si ferma al primo anello:
+>
+> · **in partita** nessuno equipaggia — `DefaultWeaponVariantFor` ha chiamanti **solo nei test**, e né
+>   `RTGameMode.cpp` né `RTUnit.cpp` nominano equipaggiamento o loadout;
+> · **nell'harness** il loadout viene *validato* e la variante d'arma **ignorata**: `RTScenarioSession`
+>   applica gadget e moduli via `MakeEquipmentAction`, mentre le varianti passano da `EquipWeaponVariant`,
+>   che fuori dai test non ha un solo chiamante.
+>
+> Quindi la spinta di 2 è **dichiarata e mai prodotta**: in ogni partita e in ogni scenario lo spostamento
+> è `1`, e sulla spinta le due difese danno davvero lo stesso esito. Lo pinna
+> `Spec.Brace.PushBeyondGuardThreshold`, dichiarato `expected-fail`: descrive ciò che dovrebbe succedere e
+> **fallisce apposta** finché la variante non viene applicata. È anche la ragione per cui la seduta `U20`
+> non riesce a distinguere le due difese — non è presentazione e non sono i numeri.
+>
+> **Ciò che distingue le due sul colpo singolo resta il danno**: `Guard` −15 sul solo primo colpo,
+> `Brace` −10 su ogni colpo — cioè *primo colpo pesante* contro *colpi ripetuti*. Sul colpo singolo senza
+> `Weapon.Impact` `Guard` domina, ed è il trade-off pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
+> `Spec.Brace.BraceWinsOnSecondHit` (12 contro 17 su due colpi).
+>
+> ✅ **Il confine fra le due è DECISO**: [D-121](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-12) ha
+> chiuso `BAL-1` scegliendo lo **status quo** — nessuna separazione fra danno e spinta, nessuna magnitudine
+> nuova. ⏳ Resta il solo **gate umano**, la seduta `U20` / `PIE-BAL1` di
+> [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403), che verifica se la differenza è
+> *leggibile a schermo* — non *quale sia*. Se non lo fosse, D-121 vincola l'ordine: prima feedback e
+> presentazione, i numeri solo se quello non basta.
+>
+> 🔴 **Questo riquadro ha detto il contrario per quattro giorni**, ed è la ragione per cui va letto con la
+> data accanto: dichiarava *«sulla spinta le due difese danno lo stesso esito, **sempre**»*, *«il confine
+> fra le due resta **aperto** come `BAL-1`»* e *«la clausola torna osservabile solo se la **v0.2** introduce
+> una spinta `≥ 2`»*. La prima era falsa dal 2026-08-11 (D-085), le altre due dal 2026-08-12 (D-121).
 
 **Shield** — applica **25** punti scudo, consumati prima della salute · scade nel Cleanup del turno · non protegge
 dagli effetti di controllo privi di danno.
@@ -447,7 +482,7 @@ appena entrato nella cella.
 > ([D-040](../decisions/RT_PDR_00_Decision_Log.md), E9.5).
 >
 > Questa riga diceva Blast mentre il [catalogo eroi](RT_HeroCatalog_v0.1.md) e il codice davano
-> `Bastion.KineticPanel` in Prep. Prevale **Prep**, e la ragione è che eretta nel Blast la copertura
+> `Hero.Riktor.KineticPanel` in Prep. Prevale **Prep**, e la ragione è che eretta nel Blast la copertura
 > arriverebbe **dopo** aver incassato i colpi di quel Blast — nel turno in cui la si paga non servirebbe a
 > nulla. Il precedente opposto di `ModifyArc` (portata *nel* Blast a E9.4) non si applica: riguarda la
 > **topologia**, e una copertura bassa non tocca né grafo né vista.
@@ -460,7 +495,7 @@ appena entrato nella cella.
 **Heal** — cura **20** HP, non supera la salute massima, non rimuove stati, può bersagliare se stessi.
 
 **Create Cover** — copertura **bassa** su un bordo dichiarato, integrità **30**, durata **2 turni**, non
-sovrapponibile. La variante di `Bastion.KineticPanel` sostituisce integrità e durata (rinforzato 45/1 turno ·
+sovrapponibile. La variante di `Hero.Riktor.KineticPanel` sostituisce integrità e durata (rinforzato 45/1 turno ·
 adattivo 25 e non scade). Fuori portata, bordo non dichiarato o già riparato → `Cancel`, con la sua voce di
 TurnLog.
 

@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > 📦 `HISTORICAL` · **Sorgente archiviato il 2026-08-12** · **Revisionato, recepito in parte.**
 >
 > Il testo originale **non è stato riscritto**: quanto segue è l'esito della revisione. Referto completo:
@@ -166,7 +168,7 @@ non spende MoveBudget della vittima
 Serve come contrasto diretto col Teleport, non come nuovo lavoro.
 
 ### #165 — OPEN
-`CP 14.5 — Finestra, commit e cablaggio di Vektor.InterceptShot`
+`CP 14.5 — Finestra, commit e cablaggio di Hero.Wraith.InterceptShot`
 
 Possiede la prima Fast Reaction interattiva e il Decision Boundary:
 3 s, FIRE/HOLD, replay, resume, stop del movimento.

@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
 #include "Turn/RTTurnLog.h" // ERTLogCategory: un'assertion sul log parla il vocabolario del log
+#include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: la condizione dichiarata di [D-109] sull'intent
 #include "RTTestScenario.generated.h"
 
 /**
@@ -157,7 +158,7 @@ struct FRTScenarioUnit
 	UPROPERTY()
 	FString Id;
 
-	/** ID stabile dell'eroe dal catalogo: `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`. */
+	/** ID stabile dell'eroe dal catalogo: `Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`. */
 	UPROPERTY()
 	FName HeroId;
 
@@ -232,7 +233,7 @@ struct FRTScenarioUnit
 	 * abbia.
 	 *
 	 * Serve perche' altrimenti la premessa di uno scenario sulla conoscenza dipenderebbe dai numeri del
-	 * roster, **che cambiano**: `D-073` ha appena portato Flux da un valore all'altro, e con `AttackRange` a 5
+	 * roster, **che cambiano**: `D-073` ha appena portato Gadget da un valore all'altro, e con `AttackRange` a 5
 	 * contro viste da 5 a 7 non esiste oggi una distanza in cui un nemico sia insieme fuori vista e sotto tiro
 	 * — cioe' la sola configurazione in cui «non lo bersaglia» dimostri qualcosa. Il test C++ gemello
 	 * (`HexBotPlay.PlansOnPartialKnowledge`) dichiara la vista nel test per la stessa ragione, e lo scrive.
@@ -261,6 +262,23 @@ struct FRTScenarioUnit
 	 */
 	UPROPERTY()
 	TArray<FName> Loadout;
+
+	/**
+	 * La chiave `loadout` era **presente** nel file (`#1054`), anche se vuota.
+	 *
+	 * ⚠️ **Non è deducibile da `Loadout.Num()`**, ed è tutto il punto: `loadout` assente e `"loadout": []`
+	 * danno entrambi zero pezzi e significano l'opposto —
+	 *   · **assente** → l'unità riceve il default del suo eroe, cioè quello che la partita monta;
+	 *   · **`[]`** → l'unità entra **spoglia**, e lo scenario lo sta dichiarando.
+	 *
+	 * La seconda forma è nata quando `#1054` ha acceso i default nell'harness e cinque scenari hanno
+	 * cambiato risultato. Quattro non avevano numeri sbagliati: avevano perso la **variabile che tenevano
+	 * ferma**. `Spec.Brace.GuardAndBraceOnMixedHit` misura il confine Guard/Brace *con spinta 1*, e il
+	 * default di Phase la porta a 2 — senza un modo di dire «questa entra spoglia», quello scenario non può
+	 * più esistere. Uno scenario è un esperimento: deve poter tenere ferma una variabile che il gioco muove.
+	 */
+	UPROPERTY()
+	bool bLoadoutDeclared = false;
 };
 
 /**
@@ -282,7 +300,7 @@ struct FRTScenarioIntent
 	TArray<FRTCellId> Move;
 
 	/**
-	 * `ActionId` dell'abilita' da usare (`Flux.ArcPulse`). Vuoto = nessun attacco.
+	 * `ActionId` dell'abilita' da usare (`Gadget.ArcPulse`). Vuoto = nessun attacco.
 	 *
 	 * Per **ID** e non per indice: l'indice di un'abilita' nel kit si sposta appena qualcuno ne aggiunge una,
 	 * e lo scenario continuerebbe a passare verificando l'abilita' sbagliata — il tipo di test che mente.
@@ -295,7 +313,7 @@ struct FRTScenarioIntent
 	FString Target;
 
 	/**
-	 * `ActionId` della mobilita' RAPIDA (`Vektor.PassingBlade`, `Action.Dash`): risolve in fase Dash, prima
+	 * `ActionId` della mobilita' RAPIDA (`Wraith.PassingBlade`, `Action.Dash`): risolve in fase Dash, prima
 	 * del Blast. Vuoto = nessuno scatto.
 	 *
 	 * Campo separato da `Ability` e non un'alternativa, perche' dopo [D-028] occupano slot diversi: lo scatto
@@ -339,7 +357,7 @@ struct FRTScenarioIntent
 	bool bHasCoverEdge = false;
 
 	/**
-	 * `ActionId` della REAZIONE che l'unita' arma per questo turno (`Flux.ReactiveCapacitor`). Vuota = nessuna.
+	 * `ActionId` della REAZIONE che l'unita' arma per questo turno (`Gadget.ReactiveCapacitor`). Vuota = nessuna.
 	 *
 	 * Armare non e' agire: la reazione dichiara solo **cosa succedera' se** il trigger scatta durante la
 	 * risoluzione. Non ha bersaglio — lo decide il trigger (chi ha colpito, quale alleato e' stato preso) —
@@ -351,6 +369,28 @@ struct FRTScenarioIntent
 	 */
 	UPROPERTY()
 	FName Reaction;
+
+	/**
+	 * La CONDIZIONE dichiarata in pianificazione sulla reazione armata ([D-109]): `"condition": { "id":
+	 * "TargetHealthAtOrBelowPercent", "param": 10 }`. `Id` vuoto = nessuna, che e' il comportamento di sempre.
+	 *
+	 * Non e' un regime a parte e non apre niente: **riduce** le risposte legali dell'opportunity al trigger. Se
+	 * dopo la riduzione ne resta una sola il commit e' immediato e nessuna finestra si apre — ed e' l'unico
+	 * caso che uno scenario puo' esercitare oggi, perche' due o piu' risposte pretendono `DecisionBoundary`.
+	 *
+	 * ⚠️ **Sta sull'intent e non sull'unita' per la stessa ragione di `Reaction`**: e' una scelta di PIANO,
+	 * rifatta ogni turno, non una proprieta' di chi la dichiara. Un'unita' che riarma la reazione il turno dopo
+	 * senza ridichiarare la condizione se la ritroverebbe addosso senza averla chiesta, che e' esattamente il
+	 * difetto che `ARTUnit::SetPlannedReactionCondition` rifiuta quando lo slot reazione e' vuoto.
+	 *
+	 * 🔴 **Limite dichiarato, misurato e non aggirabile da qui.** `SetPlannedReactionCondition` pretende un
+	 * `PlannedReactionAbility` armato, mentre l'Overwatch costa l'azione PRINCIPALE: un intent di
+	 * solo-Overwatch **non riesce** a dichiarare una condizione, e il campo resterebbe vuoto senza dirlo. Il
+	 * loader lo rifiuta con un motivo invece di lasciarlo passare — `RTTurnManager.cpp` chiama questa
+	 * mancata riconciliazione dei due slot «la meta' di #583 che CP 14.5 sblocca senza chiudere».
+	 */
+	UPROPERTY()
+	FRTDeclaredCondition Condition;
 
 	/**
 	 * Rotazione DICHIARATA in pianificazione (D-020): `"facing": "NE"`. Da non confondere con

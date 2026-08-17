@@ -23,9 +23,9 @@ documento diceva *perché* debbano differire, né con quale regola. La conseguen
 rischiava di ereditare un attacco base scelto per analogia invece che per ruolo.
 
 Il consolidamento del 2026-08-09 proponeva quattro famiglie tattiche e una matrice di identità. La verifica
-contro il catalogo ha mostrato che **tre valori su quattro** della matrice contraddicevano il canone: Bastion
-era classificato «potenza molto bassa» pur avendo l'attacco base **più forte del roster** (24), Flux
-«medio-bassa» con il secondo più forte (22), Vektor «alta» con il terzo (21). Solo Riva era conforme.
+contro il catalogo ha mostrato che **tre valori su quattro** della matrice contraddicevano il canone: Riktor
+era classificato «potenza molto bassa» pur avendo l'attacco base **più forte del roster** (24), Gadget
+«medio-bassa» con il secondo più forte (22), Wraith «alta» con il terzo (21). Solo Phase era conforme.
 
 Serve quindi fissare **la regola**, non i quattro numeri: la regola sopravvive al roster, i numeri no.
 
@@ -46,18 +46,18 @@ l'attacco base entra nel decision making dell'eroe, **non** la sua potenza.
 
 | Eroe | Famiglia | Decisione | Effetto sui dati |
 |---|---|---|---|
-| Riva | Setup | già conforme | **nessuno** — `PressureJet` 16 / r5 / `Wet` / `Push 1` resta |
-| Bastion | Utility / Emergency | **cambiano i numeri** | `ImpactShot` **24 → 8** danni, **+ `Status.Slow` 1 turno**, range 3 invariato |
-| Vektor | Primary Weapon | **nessun cambiamento ai dati** | `PulseShot` 21 / r4 resta: «Primary» è profilo d'uso, non potenza |
-| Flux | Engine | **rinviata** | `ArcPulse` 22 / r4 resta damage-only |
+| Phase | Setup | già conforme | **nessuno** — `PressureJet` 16 / r5 / `Wet` / `Push 1` resta |
+| Riktor | Utility / Emergency | **cambiano i numeri** | `ImpactShot` **24 → 8** danni, **+ `Status.Slow` 1 turno**, range 3 invariato |
+| Wraith | Primary Weapon | **nessun cambiamento ai dati** | `PulseShot` 21 / r4 resta: «Primary» è profilo d'uso, non potenza |
+| Gadget | Engine | **rinviata** | `ArcPulse` 22 / r4 resta damage-only |
 
-**5. Flux resta damage-only in v0.1.** Nessuno stato `Charged` esiste nel codice — verificato, l'unica
+**5. Gadget resta damage-only in v0.1.** Nessuno stato `Charged` esiste nel codice — verificato, l'unica
 occorrenza della stringa è `bChargedIntoTarget`, un bool locale della carica di *movimento*.
 
-Il motore elettrico di Flux **esiste e ha già un owner**: è `ConductiveNode`, cablata su `Action.Electrify`
+Il motore elettrico di Gadget **esiste e ha già un owner**: è `ConductiveNode`, cablata su `Action.Electrify`
 da [D-046](RT_PDR_00_Decision_Log.md). Spostare la generazione di carica sull'attacco base le darebbe un
 **secondo produttore**, cioè il contrario di quello che D-046 ha appena messo in ordine. La famiglia Engine
-descrive quindi il **kit** di Flux, e in v0.1 non passa dal suo attacco base.
+descrive quindi il **kit** di Gadget, e in v0.1 non passa dal suo attacco base.
 
 **6. Il ruolo di «attacco base» resta la convenzione posizionale `URTHeroData::Actions[0]`**, resa esplicita
 da un test invece che da un commento. Un campo dedicato entra **solo** quando esiste il primo consumer
@@ -67,7 +67,7 @@ runtime (metriche, UI, tutorial) — non prima.
 
 D-033 richiede che un'azione generica con profilo sia **spiegabile nel TurnLog come *azione base + profilo***.
 Oggi i quattro attacchi base non passano da `Action.BasicAttack`: hanno `ActionId` propri
-(`Flux.ArcPulse`, `Riva.PressureJet`, `Bastion.ImpactShot`, `Vektor.PulseShot`), quindi il TurnLog registra
+(`Hero.Gadget.ArcPulse`, `Hero.Phase.PressureJet`, `Hero.Riktor.ImpactShot`, `Hero.Wraith.PulseShot`), quindi il TurnLog registra
 **il nome dell'eroe**, non la coppia.
 
 Questo ADR **non risolveva** quel punto e non lo dichiarava risolto: lo registrava come conseguenza da
@@ -78,7 +78,7 @@ consumer reale.
 > ✅ **Risolto il 2026-08-09** ([#354](https://github.com/DegrassiAaron/refactor-tactics-main/issues/354)).
 > Il consumer **era questo**: `FRTActionDef::BaseActionId` dichiara di quale generica un'azione è profilo, la
 > voce di TurnLog lo porta (formato **v5**) e `DescribeActionIdentity` rende la coppia
-> `Action.BasicAttack · Bastion.ImpactShot`.
+> `Action.BasicAttack · Hero.Riktor.ImpactShot`.
 >
 > **La regola del punto 6 non è stata violata — è stata soddisfatta.** Diceva che un campo entra *solo quando
 > esiste il consumer*; D-033 era il consumer, e finché non è stato costruito il campo non c'era. Questo è il
@@ -89,7 +89,7 @@ consumer reale.
 > da `BasicAttackIsIndexZeroForEveryHero`. `BaseActionId` dice *di cosa* un'azione è profilo, non *che ruolo*
 > ha nel kit: sono due domande diverse, e solo la prima aveva un consumer.
 
-## Perché `Slow` per Bastion
+## Perché `Slow` per Riktor
 
 Delle cinque utility proposte, tre non sono esprimibili con le primitive esistenti: `ERTStructureOp` ha solo
 `None` / `CreateCover` / `MoveCover`, quindi «danno contro cover leggera» e «rimozione di oggetto fragile»
@@ -97,28 +97,28 @@ non hanno operazione; «generazione di Guard» applicherebbe lo stato a sé, men
 lo applica al **bersaglio**; e uno stato `Stagger` non esiste.
 
 `Status.Slow` ha un consumer verificato (`MoveCostModifier`) ed è la scelta tematicamente coerente: la
-debolezza dichiarata di Bastion è `Affinity.Movement`, quindi il suo attacco base diventa la sua piccola
-risposta a chi si muove di mestiere. Resta distinto da Riva, che usa `Push`.
+debolezza dichiarata di Riktor è `Affinity.Movement`, quindi il suo attacco base diventa la sua piccola
+risposta a chi si muove di mestiere. Resta distinto da Phase, che usa `Push`.
 
-Il valore **8** è ancorato a un numero già canonico invece che scelto a caso: il documento colloca Riva (16)
-un gradino sopra Bastion, e 8 ne è la metà esatta. Lascia possibile il *finish* su bersaglio a pochi HP, che
+Il valore **8** è ancorato a un numero già canonico invece che scelto a caso: il documento colloca Phase (16)
+un gradino sopra Riktor, e 8 ne è la metà esatta. Lascia possibile il *finish* su bersaglio a pochi HP, che
 è l'uso dichiarato della famiglia.
 
 ## Conseguenze
 
 - **Una sola riga di catalogo cambia.** Il modello regge quattro identità diverse senza codice nuovo: è la
   verifica della tesi, non un suo effetto collaterale.
-- **Rimisurati** — 4 scenari e 1 file di test citavano `Bastion.ImpactShot` con il vecchio numero:
+- **Rimisurati** — 4 scenari e 1 file di test citavano `Hero.Riktor.ImpactShot` con il vecchio numero:
   `Combat.CounterStrikesBack` (81 → 90), `Combat.NoCounterWhenUnarmed` (66 → 82), `Visual.Combat.Defeat`
-  (2 → 4 turni), `Visual.Map.LowCoverEdge` (55 → 71, con i tiratori scambiati), `RTHeroBastionTests.cpp`.
+  (2 → 4 turni), `Visual.Map.LowCoverEdge` (55 → 71, con i tiratori scambiati), `RTHeroRiktorTests.cpp`.
   `RTHeroReactionTests.cpp` **non** è stato toccato: deriva l'atteso da `HeroReactDeclaredDamage(Actions[0])`
   invece di replicare il numero, ed è il modo giusto di scrivere quell'assert.
-- **Rischio dichiarato:** Bastion è già l'eroe più incompleto del roster — solo `ImpactShot` e `Ram` sono
+- **Rischio dichiarato:** Riktor è già l'eroe più incompleto del roster — solo `ImpactShot` e `Ram` sono
   interamente rappresentabili. Portarlo da 24 a 8 lo lascia con poco che funzioni finché le sue altre azioni
   non hanno un consumer. È il costo accettato di questa decisione, non un effetto imprevisto.
-- **Flux non va pubblicato come «Engine Attack»** in Wiki o Feature Registry finché il payload non esiste:
+- **Gadget non va pubblicato come «Engine Attack»** in Wiki o Feature Registry finché il payload non esiste:
   sarebbe uno stato che il codice non sostiene.
-- La coordinazione acqua+elettricità continua a passare da `Flux.LinearDischarge`, non dall'attacco base, e
+- La coordinazione acqua+elettricità continua a passare da `Hero.Gadget.LinearDischarge`, non dall'attacco base, e
   resta vincolata a [D-036](RT_PDR_00_Decision_Log.md): stesso Blast, non turni consecutivi.
 - Feature registry: la capability è `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES`, modellata su
   `RT-FEAT-ACTION-MOVE-PROFILES`. **Non** si crea `RT-FEAT-CHAR-BASE-ACTION-SIGNATURE`: sarebbe una gerarchia
@@ -131,7 +131,7 @@ un gradino sopra Bastion, e 8 ne è la metà esatta. Lascia possibile il *finish
   sono respinti.
 - **Non** introduce cooldown, charges, reload o combo counter sugli attacchi base: nessun eroe attuale li
   richiede.
-- **Non** apre `RT-FEAT-ENV-ELECTRIC`, né decide quando Flux otterrà il suo payload.
+- **Non** apre `RT-FEAT-ENV-ELECTRIC`, né decide quando Gadget otterrà il suo payload.
 - **Non** decide il formato definitivo del profilo: la convenzione `Actions[0]` è la scelta per la v0.1, non
   per sempre.
 - **Non** rende `BasicAttackUsageProfile` (§14 del consolidamento) una statistica runtime: resta rubrica di
@@ -139,11 +139,11 @@ un gradino sopra Bastion, e 8 ne è la metà esatta. Lascia possibile il *finish
 
 ## Alternative scartate
 
-- **Bastion: riclassificare la famiglia invece dei numeri.** Avrebbe avuto costo zero sui dati, e il 24/r3 è
+- **Riktor: riclassificare la famiglia invece dei numeri.** Avrebbe avuto costo zero sui dati, e il 24/r3 è
   un numero motivato (la fascia corto raggio darebbe 25, il catalogo ne toglie uno «in cambio della stazza»).
   Scartata perché avrebbe lasciato la famiglia Utility/Emergency senza alcun rappresentante in v0.1, cioè
   senza la dimostrazione che un attacco base a basso danno può essere una scelta corretta.
-- **Vektor: payoff condizionale sulla geometria.** È il design più interessante, ma richiede un consumer
+- **Wraith: payoff condizionale sulla geometria.** È il design più interessante, ma richiede un consumer
   runtime della condizione: è un checkpoint proprio, non un campo dati. Rinviato senza essere respinto.
-- **Vektor: alzare il danno.** Avrebbe reso «Primary» osservabile al prezzo di contraddire la motivazione già
+- **Wraith: alzare il danno.** Avrebbe reso «Primary» osservabile al prezzo di contraddire la motivazione già
   scritta nel catalogo («-1 pagato in mobilità»).

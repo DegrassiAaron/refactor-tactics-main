@@ -20,7 +20,7 @@ struct FRTAbilityVariant
 {
 	GENERATED_BODY()
 
-	/** ID stabile della variante (es. `Flux.LinearDischarge.Branched`). */
+	/** ID stabile della variante (es. `Gadget.LinearDischarge.Branched`). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName VariantId;
 
@@ -41,7 +41,7 @@ struct FRTAbilityVariant
 
 	/**
 	 * Numeri di catalogo della variante che **non sono effetti** e che nessun sistema consuma ancora:
-	 * l'integrita' di una struttura (`Bastion.KineticPanel`: 45 rinforzato / 25 adattivo), la durata di una
+	 * l'integrita' di una struttura (`Riktor.KineticPanel`: 45 rinforzato / 25 adattivo), la durata di una
 	 * marcatura, il numero di celle controllate.
 	 *
 	 * Esistono perche' il catalogo li DICHIARA e il compromesso fra due varianti va reso verificabile — non

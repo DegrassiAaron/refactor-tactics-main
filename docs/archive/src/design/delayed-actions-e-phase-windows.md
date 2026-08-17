@@ -1,4 +1,6 @@
 # RefactorTactics — Delayed Actions, Phase Boundaries, Fast Actions e Fast Reactions
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Specifica consolidata di design e implementazione per Claude Code
 
 **Data consolidamento:** 2026-08-07  
@@ -31,7 +33,7 @@ Conflitti già noti:
 - vecchie matrici: alcune Fast Reaction da 5–7 secondi;
 - specifica Fast Reaction più recente: **3.0 secondi baseline**;
 - vecchi PDR demo: roster Aegis/Nyx/Drift/Vex;
-- canone operativo recente: **Flux/Riva/Bastion/Vektor**;
+- canone operativo recente: **Gadget/Phase/Riktor/Wraith**;
 - vecchi PDR: sequenze di resolution più generiche;
 - canone recente delle macro-fasi: **Planning → Prep → Dash → Blast → Move**.
 
@@ -340,7 +342,7 @@ così una previsione sbagliata ha un costo reale.
 Planning:
 
 ```text
-Vektor.InterceptShot
+Hero.Wraith.InterceptShot
 Boundary = EndDash
 TargetCell = H8
 ```
@@ -1144,8 +1146,8 @@ La combo premia coordinazione e lettura del nemico.
 Planning team-only:
 
 ```text
-Riva: Pressure Jet → push toward H12
-Vektor/Flux: Delayed AoE @ EndBlast → H12
+Phase: Pressure Jet → push toward H12
+Wraith/Gadget: Delayed AoE @ EndBlast → H12
 ```
 
 L'esito resta incerto perché:
@@ -1219,7 +1221,7 @@ se la reaction deve interrompere realmente un micro-step.
 NON hardcodare:
 
 ```cpp
-if (ActionId == "Vektor.InterceptShot")
+if (ActionId == "Hero.Wraith.InterceptShot")
 ```
 
 nel TurnManager se il comportamento può essere espresso da dati/policy generali.

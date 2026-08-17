@@ -1,12 +1,37 @@
 # Guida operativa — U1 · costruire `L_HexArena`
 
-> `CURRENT` · **Per**: [#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)
+> `CURRENT` — la procedura vale ancora, su un'arena nuova.
+> ⚠️ **Nata per** [#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451), che è
+> **chiusa** (`COMPLETED`, 2026-08-16): il documento non è più assegnato a un lavoro da fare — vedi §11.
 > **Owner dei dati della seduta**: [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml), `id: U1` — se i due
 > divergono, vince quello. Qui c'è la **procedura**, lì il DoD.
 > **Owner degli esiti**: [`test-manuali-pie.md`](test-manuali-pie.md) — le sette voci si scrivono lì.
 
+> ⚠️ **Revisione 2026-08-17** — [#868](https://github.com/DegrassiAaron/refactor-tactics-main/issues/868).
+> Tre punti della procedura precedevano **D-139** (write-set di batch e Binary Asset Lease, del 2026-08-14) e
+> dicevano di fare qualcosa che oggi non si può fare, o di misurare la mappa sbagliata: il salvataggio di
+> §10b, il *dove* rilanciare `rt.Arena.Check`, e il rimedio «rigenera». Corretti qui sotto, ciascuno accanto
+> alla propria regola. I tell delle sette voci **non cambiano**.
+
 Una sola apertura dell'editor. Sette passi per costruire, sette voci da verificare, un comando per sapere se
 l'arena rispetta i tre criteri prima di committarla.
+
+⚠️ **`L_HexArena` è già committata** (dall'11 agosto) e **non va risalvata**: **nessuna Binary Asset Lease
+copre quel path**. Si verifica in un comando, e la risposta è un elenco vuoto:
+
+```sh
+python - <<'EOF'
+import yaml
+d = yaml.safe_load(open('docs/roadmap/parallel-batch.yaml', encoding='utf-8'))
+print([l['key'] for t in d['tracks'].values()
+       for l in (t.get('binary_leases') or [])
+       for p in l['paths'] if 'L_HexArena' in p])
+EOF
+```
+
+Chi dovrà modificare quei package **emette una lease nuova** sul proprio `base_sha` — è un atto di batch, non
+una decisione della seduta. I §1–§9 descrivono come l'arena **è nata** e restano validi su una mappa nuova;
+su questa non si rieseguono.
 
 ---
 
@@ -111,7 +136,10 @@ Una sola: è ciò che rende la salita una decisione invece di una scorciatoia.
 
 ## 6. Rileggi a colori
 
-`bShowOverlay` attivo, tool **Select**: ricontrolla costi e blocchi prima di salvare.
+`bShowOverlay` attivo, tool **Select**: ricontrolla costi e blocchi prima di committare.
+
+⚠️ Diceva *«prima di salvare»*, e su `L_HexArena` non si salva (vincolo in testa). Su una mappa nuova
+il salvataggio precede il commit, e la frase torna a leggersi com'era.
 
 ---
 
@@ -215,8 +243,15 @@ generato con `GenerateIntoAsset` e non hanno bisogno di quest'arena.
 L'ordine sotto è per **tool**, non per importanza: cambiare tool è ciò che costa, e le cinque voci dell'Arch
 si verificano quasi tutte con gli stessi gesti.
 
-**⚠️ Prima di cominciare, salva.** Diverse voci chiedono `Ctrl+Z`, e un Undo di troppo annulla il lavoro
-precedente — la generazione dell'arena sta dentro una sola transazione, quindi sparisce in un colpo.
+**⚠️ Prima di cominciare: non salvare** — vedi il vincolo in testa alla pagina.
+
+Le voci modificano la mappa in memoria (`-N` dipinge, `-E`/`-L` aggiungono e tolgono archi), quindi alla
+chiusura Unreal apre *Save Content?* con **tutto preselezionato**: i package di `L_HexArena/` vanno
+**deselezionati**, o si sceglie *Don't Save*. Se un `Ctrl+Z` va troppo indietro, si chiude senza salvare —
+l'asset su disco è intatto.
+
+🔴 **Questa riga diceva «prima di cominciare, salva»**, e il consiglio era già ridondante quando fu scritto:
+l'arena era in git dalle 07:57 dell'11 agosto, §10b è delle 11:13 dello stesso giorno.
 
 ### Tool Paint — `PIE-HEX-MODE-O`
 
@@ -262,11 +297,20 @@ Serve la piattaforma sul layer 1 già fatta, e almeno una transizione esistente.
 
 ### Dopo
 
-`rt.Arena.Check` un'ultima volta: **tre `[ok]`**. Le voci sopra modificano la mappa (il Fill dipinge, gli
-archi si aggiungono e tolgono), e questo conferma che l'arena sia tornata al layout verificato.
+`rt.Arena.Check` un'ultima volta, **dalla console dell'editor e senza premere Play**: è l'unica via che
+misura la mappa che hai davanti. `ApplyMapSource` gira dal `BeginPlay` del GameMode, quindi in PIE la
+sorgente è già stata scelta prima che la console sia raggiungibile — e il `BP_GameMode` di questo progetto
+ha `MapSource = GeneratedTestArena`, non il livello. Se serve PIE, la cvar `rt.Map.Source LevelAsset` va
+impostata **prima** di premere Play.
 
-Se un criterio è diventato rosso, non è un difetto del mode: è la mappa cambiata sotto. Rigenera con
-`Generate Arena V01 Into Asset` e rifai piattaforma e transizione.
+Le voci sopra hanno modificato la mappa **in memoria**, e il comando legge `HexMap->MapAsset`, non il disco:
+un rosso qui non distingue «cambiata dalle voci» da «il layout committato non passa». Per avere una risposta,
+l'ordine è **chiudi senza salvare → riapri il livello → rilancia**.
+
+Se resta rosso sull'arena riaperta, non lo risolve questa pagina: va registrato come difetto, con quale dei
+tre criteri cade. ⚠️ **Non** «rigenera con `Generate Arena V01 Into Asset`»: non scrive su disco — si ferma a
+`MarkPackageDirty()` — ma **sostituisce in memoria** il layout committato con uno generato, e il conteggio
+celle non basta a distinguerli.
 
 ## 11. Chiudere
 
@@ -274,7 +318,15 @@ Se un criterio è diventato rosso, non è un difetto del mode: è la mappa cambi
 - i due artefatti compaiono in `git ls-files`;
 - il verificatore dà `[ok]` sui tre criteri (o hai deciso e annotato di cambiarne le soglie).
 
-Poi `#451` si chiude, e si sbloccano **U13** (che estende quest'arena) e **U19** (che la misura).
+✅ **Per U1 questa checklist è già consuntivata**: `#451` è chiusa (`COMPLETED`, 2026-08-16), i due
+artefatti sono in `main` dall'11 agosto e le sette voci hanno un esito — sei ✅ e la `-H` ❌, uscita come
+[#931](https://github.com/DegrassiAaron/refactor-tactics-main/issues/931) /
+[#996](https://github.com/DegrassiAaron/refactor-tactics-main/issues/996). La riga qui sotto diceva «poi
+`#451` si chiude» e prescriveva la chiusura di una issue già chiusa.
+
+Resta valida come **condizione di uscita per una seduta di questo tipo** — su un'arena nuova, con la
+propria issue. Chiudendola si sbloccano i lavori che dipendono da quell'arena: per U1 sono stati **U13**
+(che la estende) e **U19** (che la misura).
 
 ---
 

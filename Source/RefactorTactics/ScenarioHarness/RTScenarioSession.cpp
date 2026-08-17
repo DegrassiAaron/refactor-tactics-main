@@ -66,15 +66,15 @@ namespace
 			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
 			TEXT("CreateCover"),       // E9 CP 9.5: coperture erette in partita, temporanee, spostabili
 			// D-046 (#282): un EROE possiede davvero un'azione ambientale. Non basta che il resolver la sappia
-			// risolvere — per mesi la sapeva, e nessuna unita' poteva innescarla. Oggi `Flux.ConductiveNode` e'
-			// `Action.Electrify` e `Riva.FluidTrail` e' `Action.CreateWater`.
+			// risolvere — per mesi la sapeva, e nessuna unita' poteva innescarla. Oggi `Gadget.ConductiveNode` e'
+			// `Action.Electrify` e `Phase.FluidTrail` e' `Action.CreateWater`.
 			//
 			// NON copre `Action.Ignite` ne' `Action.ModifyArc`: nessun eroe del roster le possiede, e D-046 ha
 			// deciso che restino senza owner in v0.1 (nessuna affinita' col fuoco; i ponti non appartengono a
 			// nessun kit). Uno scenario che chieda di accenderle deve restare BLOCKED, ed e' il motivo per cui
 			// questa capability non si chiama «Environment»: quella c'e' gia' e dice un'altra cosa.
 			TEXT("EnvironmentalActionOwner"),
-			// E18 CP 18.2 (D-016): `Vektor.InterceptShot` e' una Predictive Action — cella dichiarata in
+			// E18 CP 18.2 (D-016): `Wraith.InterceptShot` e' una Predictive Action — cella dichiarata in
 			// Planning, verificata al boundary del Move, nessun input durante la Resolution.
 			//
 			// ✅ **La motivazione di questa riga e' tornata VERA il 2026-08-13 sera, e vale la pena dire come.**
@@ -132,6 +132,25 @@ namespace
 			// che non dichiara rotazioni: nessuno dei due e' un prerequisito di questa chiave, perche' il
 			// giocatore un modo di chiederla ce l'ha.
 			TEXT("DeclaredRotation"),
+			// `#512` fase B: SOSPENDERE la risoluzione a un decision boundary e far rispondere qualcuno. E'
+			// l'ultima delle quattro a uscire dai non disponibili, e per lo stesso criterio delle altre tre —
+			// il campo ha un produttore che NON e' l'harness: `ARTTurnManager::AskReactionDecision`, chiamato
+			// da `ARTTurnManager::ResolveReactionBoundary` dentro la risoluzione di ogni partita e non solo
+			// negli scenari. ⚠️ Il simbolo e non il numero di riga: la prima stesura di questo commento diceva
+			// `RTTurnManager.cpp:5093`, che e' il chiamante di `BuildOverwatchTriggers` — vero di un'altra
+			// funzione, nello stesso file, a settanta righe di distanza.
+			//
+			// ⚠️ **La fase A l'ha tenuta fuori di proposito, e la ragione va letta prima di spostare la
+			// prossima.** Scoprirla senza i DATI che la rendono rispondibile non produce un verde: produce
+			// turni con finestre a cui nessuno risponde, cioe' `HOLD` per timeout dove lo scenario si aspetta
+			// un `FIRE`. La capability e le `decisions` dei tre scenari che la chiedono atterrano nello
+			// stesso commit — separarle sarebbe stato un rosso a giorni alterni.
+			//
+			// ⚠️ Il perimetro e' la finestra a UNA risposta legale per partecipante. Restano fuori il profilo
+			// di reazione a due risposte (`ReactionProfile`) e l'opportunity contested (`ReactionClash`), che
+			// sono E14.7 e stanno nell'elenco qui sotto: dichiarare disponibile la finestra non dichiara
+			// disponibile la scelta.
+			TEXT("DecisionBoundary"),
 		};
 		return Available;
 	}
@@ -168,19 +187,49 @@ namespace
 	const TSet<FString>& KnownUnavailableCapabilities()
 	{
 		static const TSet<FString> KnownUnavailable = {
-			TEXT("DecisionBoundary"),
-			TEXT("ReactionClash"),
-			TEXT("InterceptRevalidation"),
-			TEXT("Objective"),
-			TEXT("Perception"),
+			// ➖ `DecisionBoundary` e' USCITA da qui con `#512` fase B ed e' fra le disponibili, sopra.
+			TEXT("ReactionClash"),            // owner: #314
+			// ➕ **`ReactionProfile` entra con `#512` fase B, e non e' un nome nuovo inventato per comodita':
+			// e' il blocco VERO di `Spec/Brace/ProfileChangesResponse`, che fino a oggi ne dichiarava uno
+			// falso.** Quello scenario chiedeva `DecisionBoundary` scrivendo, nella propria nota, che «con la
+			// sola finestra di CP 14.5 questo file puo' diventare verde». Misurato: **non puo'**. Gli serve
+			// che `Hero.Phase` porti `Profile.Sidestep`, cioe' un profilo di reazione con DUE risposte legali,
+			// e `grep -rn "Profile.Sidestep\|ReactionProfile" Source/` da' **zero** — il concetto non esiste
+			// in nessuna forma, non e' un rename e non e' un campo vuoto da riempire.
+			//
+			// ⚠️ Senza questa riga la fase B avrebbe prodotto il difetto che vuole impedire: scoprendo
+			// `DecisionBoundary`, il T2 di quello scenario sarebbe passato da `Blocked` a **verde** — con
+			// `intents: []`, nessuna reazione armata e nessuna finestra aperta. Un turno che si sblocca senza
+			// eseguire cio' che descrive e' peggio di un rosso, perche' nessuno va a guardarlo.
+			//
+			// L'owner e' **E14.7 (`#314`)**, che porta `Reaction Profile` e `Reaction Clash` insieme. Chi la
+			// chiude sposta ENTRAMBI i nomi, non solo questo.
+			TEXT("ReactionProfile"),          // owner: #314
+			// 🔵 **`owner:` e' chi la SPOSTERA' fra le disponibili, non chi ha scritto la feature**, e questa
+			// riga e' il caso che ha costretto a distinguerlo. La feature esiste ed e' chiusa — `#200`,
+			// rivalidazione della geometria sul bersaglio effettivo (D-017), CLOSED 4/4, con tre test che la
+			// pinnano (`Cover.InterceptRecalculatesOnEffectiveTarget`, `...RevalidatesFacingOnEffectiveTarget`,
+			// `...DoesNotOpenSecondOpportunity`). Cio' che manca e' lo spostamento, e lo deve fare `#170`
+			// insieme al contenuto del T6 dello showcase: scoprirla da sola farebbe passare un turno con
+			// `intents: []`, cioe' il verde bugiardo che `#512` fase B ha speso un giro a impedire.
+			// ⏱️ **L'owner passa da `#170` a `#1060` il 2026-08-16**, e non e' un dettaglio di tracciamento:
+			// il T6 e' stato scorporato perche' gli manca il VOCABOLARIO — `OriginalTargetEquals` e
+			// `EffectiveTargetEquals` non esistono fra i tipi di assertion, e `ERTReactionOutcome` non ha un
+			// esito che distingua il redirect. Chi sposta questa capability deve costruirli prima, altrimenti
+			// il turno si accende e nessuno puo' verificare che rediriga sul bersaglio giusto.
+			// ⚠️ Con `owner: #200` questa riga era il difetto che `check-capability-owners.py --online` esiste
+			// per trovare: dichiarata non disponibile con l'owner CHIUSO. Il gate l'ha trovata al primo giro.
+			TEXT("InterceptRevalidation"),    // owner: #1060
+			TEXT("Objective"),                // owner: #75
+			TEXT("Perception"),               // owner: #151
 			// Le tre che la prosa non nominava, chieste da `Spec/Movement/`: `SpatialTrigger` (tripwire che
 			// scatta attraversando un bordo), `SemanticTrigger` (trigger che distingue Dash da Move) e
 			// `Teleport` (spostamento che non attraversa le celle intermedie). Restano fuori per lo stesso
 			// criterio delle altre — nessun produttore in partita — e sono documentate in
 			// `docs/roadmap/scenariomap.shortlist.md`, che le elenca accanto agli scenari che le chiedono.
-			TEXT("SpatialTrigger"),
-			TEXT("SemanticTrigger"),
-			TEXT("Teleport"),
+			TEXT("SpatialTrigger"),           // owner: #704
+			TEXT("SemanticTrigger"),          // owner: #704
+			TEXT("Teleport"),                 // owner: #704
 			// 🔒 RISERVATA AI TEST, e non diventera' MAI disponibile. Non e' una feature: e' il veicolo con cui
 			// `BlockedFirstTurnStaysBlocked` prova che un turno bloccato batte le assertion finali.
 			//
@@ -193,7 +242,7 @@ namespace
 			//
 			// ⚠️ Non spostarla fra le disponibili per nessun motivo: `AvailableCapabilities()` e' l'insieme di
 			// cio' che il gioco sa fare, e questo nome non e' niente.
-			TEXT("NeverAvailable"),
+			TEXT("NeverAvailable"),           // owner: none
 		};
 		// Le righe che mancano valgono quanto quelle che ci sono. L'elenco e' stato completato con `#582`:
 		// prima ne nominava due — e una capability che nessuno documenta produce un `BLOCKED` senza
@@ -518,21 +567,29 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		{
 			Unit->VisionRange = Spec.VisionRange;
 		}
-		// EQUIPAGGIAMENTO dichiarato dallo scenario (`#602`). Le azioni concesse si accodano al kit gia'
-		// costruito da `ConfigureFromHeroData`, che e' lo stesso percorso con cui i test montano un modulo: il
-		// pezzo entra come azione, non come flag.
+		// EQUIPAGGIAMENTO. Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader,
+		// che rifiuta lo scenario con un motivo invece di lasciarlo girare a meta'. Qui si sceglie QUALE
+		// loadout, e ad applicarlo e' `ARTUnit::EquipLoadout` — la stessa funzione che chiama
+		// `ARTGameMode::SpawnUnitForHero`. Una seconda copia qui le farebbe divergere, e uno scenario che
+		// verifica un equipaggiamento diverso da quello che il gioco monta non prova niente sul gioco.
 		//
-		// Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader, che rifiuta lo
-		// scenario con un motivo invece di lasciarlo girare a meta'. Qui si equipaggia e basta.
-		for (const FName& PieceId : Spec.Loadout)
-		{
-			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
-			if (!Piece) { continue; }
-			if (URTActionData* Granted = URTCatalogLibrary::MakeEquipmentAction(Piece, Unit))
-			{
-				Unit->Abilities.Add(Granted);
-			}
-		}
+		// ⚠️ **Tre forme, e la condizione e' sul FLAG, non sul conteggio** (`#1054`, `#602`):
+		//   · `loadout` ASSENTE  -> il default dell'eroe, cioe' quello che la partita monta. Senza questo
+		//                           ramo l'harness misurerebbe un gioco che nessuno gioca — il difetto da
+		//                           cui `#63` e' partita;
+		//   · `"loadout": []`    -> l'unita' entra SPOGLIA, e lo scenario lo sta dichiarando. E' la forma
+		//                           che tiene ferma una variabile che il gioco muove: quattro scenari
+		//                           misurano il confine Guard/Brace *con spinta 1*, e il default di Phase
+		//                           la porta a 2;
+		//   · lista              -> quei pezzi, e vincono sul default. Non si sommano: due varianti d'arma
+		//                           sarebbero un insieme che `ValidateLoadout` rifiuta.
+		//
+		// `Spec.Loadout.Num() > 0` qui sarebbe **silenziosamente sbagliato**: tratterebbe `[]` come assente
+		// e rimonterebbe il default proprio sulle unita' che chiedono di non averlo.
+		const TArray<FName> Pezzi = Spec.bLoadoutDeclared
+			? Spec.Loadout
+			: URTCatalogLibrary::DefaultLoadoutFor(Spec.HeroId);
+		Unit->EquipLoadout(Pezzi);
 
 		UnitsById.Add(Spec.Id, Unit);
 	}
@@ -847,8 +904,8 @@ void FRTScenarioSession::BeginTurn()
 				// gioco. Prima finiva in un log e l'attacco semplicemente non partiva: l'assertion sui danni
 				// cadeva e il report diceva FAIL, cioe' mandava a cercare una regressione che non esisteva.
 				//
-				// Il validator non puo' prenderlo al caricamento: `Riva.CircularTide` ESISTE nel catalogo, non
-				// e' nel kit di Flux — e il kit lo si conosce solo quando le unita' sono state costruite.
+				// Il validator non puo' prenderlo al caricamento: `Phase.CircularTide` ESISTE nel catalogo, non
+				// e' nel kit di Gadget — e il kit lo si conosce solo quando le unita' sono state costruite.
 				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (turno %d)"),
 					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
 				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
@@ -858,7 +915,7 @@ void FRTScenarioSession::BeginTurn()
 				// Azione che risolve su CHI LA USA (`Action.Guard`, `Action.Brace`, e ogni azione di Prep del
 				// vertical slice): il `TurnManager` si bersaglia da solo — `Instance.TargetUnitId = i`, e il
 				// `PlannedAttackTarget` non lo guarda nemmeno. Pretendere un bersaglio qui sarebbe una regola
-				// dell'HARNESS che il gioco non ha, e costringerebbe a scrivere «Bastion si mette in guardia
+				// dell'HARNESS che il gioco non ha, e costringerebbe a scrivere «Riktor si mette in guardia
 				// bersagliando se stesso» per ottenere quel che il gioco chiama semplicemente mettersi in guardia.
 				Unit->PlannedAbilityIndex = AbilityIndex;
 			}
@@ -929,6 +986,34 @@ void FRTScenarioSession::BeginTurn()
 			}
 			// Nessun ramo d'errore: che l'eroe possieda la reazione e che sia davvero una reazione lo ha gia'
 			// verificato il loader, che rifiuta lo scenario con un motivo invece di lasciarlo girare a vuoto.
+		}
+
+		// --- condizione dichiarata sulla reazione ([D-109], #583) -------------------------------------------
+		// DOPO il blocco qui sopra, e l'ordine non e' cosmetico: `SetPlannedReactionCondition` rifiuta se
+		// `PlannedReactionAbility` e' ancora `INDEX_NONE`, quindi applicarla prima significherebbe scrivere una
+		// condizione che non entra — in silenzio, che e' il modo in cui questo campo ha gia' fallito una volta.
+		//
+		// Passa dal SETTER e non dal campo: e' la stessa porta di `rt.Reaction.Condition`, il produttore reale in
+		// partita, quindi lo scenario esercita la validazione vera invece di scavalcarla. Scrivere
+		// `Unit->PlannedReactionCondition = ...` direttamente farebbe passare condizioni che il gioco rifiuta —
+		// un harness che sa fare piu' del gioco produce verdi che non descrivono nessuna partita.
+		if (Intent.Condition.IsDeclared())
+		{
+			if (!Unit->SetPlannedReactionCondition(Intent.Condition))
+			{
+				// ERROR, non un `ensure` che poi lascia proseguire. Il loader ha gia' verificato entrambi i motivi
+				// di rifiuto — reazione armata e condizione ammessa — quindi un `false` qui significa che le due
+				// validazioni si sono disallineate: e' un difetto di CHI HA SCRITTO il codice, non un esito di
+				// gioco. Proseguendo, lo scenario girerebbe SENZA condizione, l'opportunity non collasserebbe, e
+				// il report direbbe FAIL su un'assertion del TurnLog — mandando a cercare una regressione che non
+				// esiste. E' la stessa ragione, e lo stesso meccanismo, del ramo «non possiede l'abilita'» qui
+				// sopra: `ErroredBy` fa uscire `Finish()` con ERROR, che ha la precedenza su FAIL.
+				ErroredBy = FString::Printf(
+					TEXT("la condizione '%s' (%d) di '%s' e' stata rifiutata dal piano dopo essere passata dal ")
+					TEXT("loader: le due validazioni non dicono piu' la stessa cosa (turno %d)"),
+					*Intent.Condition.Id.ToString(), Intent.Condition.Param, *Intent.UnitId, TurnIndex + 1);
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
+			}
 		}
 
 		// --- rotazione dichiarata (D-020, #291) ------------------------------------------------------------

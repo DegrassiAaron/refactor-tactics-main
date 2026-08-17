@@ -27,11 +27,14 @@ const OUT = fileURLToPath(new URL('../../docs/characters/radar/', import.meta.ur
  * quattro radar sarebbero stati rigenerati **senza ruolo** con il gate verde. Il difetto si e' visto solo
  * guardando il diff degli alt della Wiki: `Gadget — Controller —` era diventato `Gadget — — —`.
  */
+// 🔵 Chiavi aggiornate con `#755`: sono i segmenti d'eroe di `Hero.<Nome>.<Abilità>` (D-130), non
+// piu' i prefissi piatti. Il guard sopra ha fatto esattamente cio' per cui esiste — «nessun ruolo per
+// la chiave "gadget"» invece di un radar disegnato con un trattino al posto del ruolo.
 const ROLES: Record<string, string> = {
-  flux: 'Controller',
-  riva: 'Support',
-  bastion: 'Guardian',
-  vektor: 'Striker',
+  gadget: 'Controller',
+  phase: 'Support',
+  riktor: 'Guardian',
+  wraith: 'Striker',
 };
 
 const check = process.argv.includes('--check');

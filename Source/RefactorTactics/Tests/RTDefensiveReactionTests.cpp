@@ -69,7 +69,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: questi test guardano il Blast
@@ -79,7 +79,7 @@ namespace
 	/** Il colpo pieno dell'attacco base, dal catalogo: era scritto `25`, il Tiro del Ranger legacy. */
 	int32 DefFullHit()
 	{
-		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeVektor();
+		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeWraith();
 		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
 	}
 

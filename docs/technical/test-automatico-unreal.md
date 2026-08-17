@@ -94,7 +94,7 @@ sapere cosa ciascuno prova:
   "cells":  [ { "cell": [q, r, layer], "blocksMovement": true,
                 "blocksLineOfSight": false, "moveCost": 0 } ],   // moveCost 0 = default (1)
 
-  "units":  [ { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0],
+  "units":  [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0],
                 "facing": "E" } ],                              // opzionale; vedi §4.2
 
   "turns":  [ { "intents":   [ { "unit": "A1", "move": [[2, -1, 0]] } ],
@@ -108,7 +108,7 @@ sapere cosa ciascuno prova:
 ```
 
 - `id` dell'unità è **locale allo scenario** (`A1`), non l'ID di gioco: lo usano intent e assertion.
-- `hero` è lo Stable ID del catalogo: `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`.
+- `hero` è lo Stable ID del catalogo: `Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`.
 - `move` sono i **waypoint**, esattamente come li produrrebbe un giocatore che clicca. Vuoto = unità ferma.
 - `cells` modifica solo le celle che interessano: le altre restano pavimento a costo 1. È ciò che permette di
   scrivere `Movement.Blocked` senza versionare una mappa.

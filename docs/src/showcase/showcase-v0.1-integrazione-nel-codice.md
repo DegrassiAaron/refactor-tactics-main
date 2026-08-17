@@ -55,8 +55,8 @@ Questa versione **non è più il canone operativo**.
 
 | Tema | Vecchio materiale | Stato corrente |
 |---|---|---|
-| Roster vertical slice | Aegis / Nyx / Drift / Vex | **Flux / Riva / Bastion / Vektor** |
-| Formazione default | variabile nei vecchi PDR | **Flux + Riva vs Bastion + Vektor** |
+| Roster vertical slice | Aegis / Nyx / Drift / Vex | **Gadget / Phase / Riktor / Wraith** |
+| Formazione default | variabile nei vecchi PDR | **Gadget + Phase vs Riktor + Wraith** |
 | Griglia | piatta / modelli precedenti | **esagonale assiale, `FRTCellId{X,Y,Layer}`** |
 | Gameplay quadrato | presente nello storico | **rimosso** |
 | Reazioni v0.1 | vecchie “interrupt window” | attualmente **reazioni pianificate automatiche**; Fast Reaction live è una nuova estensione |
@@ -135,8 +135,8 @@ Comportamento corrente:
 Formazioni di default:
 
 ```cpp
-Team0Heroes = { "Hero.Flux", "Hero.Riva" };
-Team1Heroes = { "Hero.Bastion", "Hero.Vektor" };
+Team0Heroes = { "Hero.Gadget", "Hero.Phase" };
+Team1Heroes = { "Hero.Riktor", "Hero.Wraith" };
 ```
 
 ### Conseguenza per la showcase
@@ -409,7 +409,7 @@ LinearLeap
 Se una nuova meccanica può essere espressa come dato o policy generale, **non** aggiungere:
 
 ```cpp
-if (ActionId == "Vektor.InterceptShot")
+if (ActionId == "Hero.Wraith.InterceptShot")
 ```
 
 nel `TurnManager`.
@@ -511,7 +511,7 @@ Qualunque nuovo DTO deve essere **whitelist**, non “struttura completa + flag 
 
 # 7. Roster canonico v0.1
 
-# 7.1 Flux
+# 7.1 Gadget
 
 ```text
 HP             90
@@ -526,11 +526,11 @@ Kit:
 
 | AbilityId | Effetto di design | Stato integrazione |
 |---|---|---|
-| `Flux.ArcPulse` | 22 dmg, r4 | presente |
-| `Flux.LinearDischarge` | 24 dmg, +8 vs Wet | base presente; verificare consumatore Wet |
-| `Flux.ConductiveNode` | cella conduttiva 2 turni | identità presente, mutazione cella non completata |
-| `Flux.Overload` | AoE 18 + interrupt dispositivi | danno presente; dispositivi futuri |
-| `Flux.ReactiveCapacitor` | shield 15 + 10 all'attaccante | hero-specific reaction da riallineare al sistema E5 |
+| `Hero.Gadget.ArcPulse` | 22 dmg, r4 | presente |
+| `Hero.Gadget.LinearDischarge` | 24 dmg, +8 vs Wet | base presente; verificare consumatore Wet |
+| `Hero.Gadget.ConductiveNode` | cella conduttiva 2 turni | identità presente, mutazione cella non completata |
+| `Hero.Gadget.Overload` | AoE 18 + interrupt dispositivi | danno presente; dispositivi futuri |
+| `Hero.Gadget.ReactiveCapacitor` | shield 15 + 10 all'attaccante | hero-specific reaction da riallineare al sistema E5 |
 
 Variante LinearDischarge:
 
@@ -539,7 +539,7 @@ Variante LinearDischarge:
 
 ---
 
-# 7.2 Riva
+# 7.2 Phase
 
 ```text
 HP             95
@@ -554,11 +554,11 @@ Kit:
 
 | AbilityId | Effetto di design | Stato integrazione |
 |---|---|---|
-| `Riva.PressureJet` | 16 dmg + Wet + Push 1 | ampiamente rappresentabile |
-| `Riva.CircularTide` | heal alleati + Wet nemici | dati presenti; routing effetti ally/enemy incompleto |
-| `Riva.FluidTrail` | Dash 3 + acqua lungo percorso | stile lineare presente; creazione acqua manca |
-| `Riva.MistVeil` | Smoke r1 | dato identità presente; creazione fumo manca |
-| `Riva.FlowReaction` | Reposition 1 dopo attacco | trigger/movimento reaction non supportato |
+| `Hero.Phase.PressureJet` | 16 dmg + Wet + Push 1 | ampiamente rappresentabile |
+| `Hero.Phase.CircularTide` | heal alleati + Wet nemici | dati presenti; routing effetti ally/enemy incompleto |
+| `Hero.Phase.FluidTrail` | Dash 3 + acqua lungo percorso | stile lineare presente; creazione acqua manca |
+| `Hero.Phase.MistVeil` | Smoke r1 | dato identità presente; creazione fumo manca |
+| `Hero.Phase.FlowReaction` | Reposition 1 dopo attacco | trigger/movimento reaction non supportato |
 
 Variante CircularTide:
 
@@ -567,7 +567,7 @@ Variante CircularTide:
 
 ---
 
-# 7.3 Bastion
+# 7.3 Riktor
 
 ```text
 HP            120
@@ -582,11 +582,11 @@ Kit:
 
 | AbilityId | Effetto di design | Stato integrazione |
 |---|---|---|
-| `Bastion.ImpactShot` | 24 dmg, r3 | presente |
-| `Bastion.KineticPanel` | cover 30 HP | richiede E9 |
-| `Bastion.Reconfigure` | ruota/sposta cover | richiede E9 |
-| `Bastion.Ram` | Charge, 20 dmg + Push 1 | buona base già presente |
-| `Bastion.Interposition` | intercetta colpo diretto verso alleato | deve riusare semantica `Action.Intercept` |
+| `Hero.Riktor.ImpactShot` | 24 dmg, r3 | presente |
+| `Hero.Riktor.KineticPanel` | cover 30 HP | richiede E9 |
+| `Hero.Riktor.Reconfigure` | ruota/sposta cover | richiede E9 |
+| `Hero.Riktor.Ram` | Charge, 20 dmg + Push 1 | buona base già presente |
+| `Hero.Riktor.Interposition` | intercetta colpo diretto verso alleato | deve riusare semantica `Action.Intercept` |
 
 ### Debito importante
 
@@ -598,7 +598,7 @@ Prima di aggiungere un nuovo sistema, aggiornare l'eroe per consumare il sistema
 
 ---
 
-# 7.4 Vektor
+# 7.4 Wraith
 
 ```text
 HP            100
@@ -613,11 +613,11 @@ Kit:
 
 | AbilityId | Effetto di design | Stato integrazione |
 |---|---|---|
-| `Vektor.PulseShot` | 21 dmg, r4 | presente |
-| `Vektor.InterceptShot` | reaction su movimento, 16 dmg + stop | non cablata all'eroe |
-| `Vektor.PassingBlade` | Linear Dash 3 + 20 a unità attraversate | movement style presente; verificare through-path damage |
-| `Vektor.Deflection` | reaction -20 dmg | deve riusare semantica `Action.Deflect` |
-| `Vektor.Feint` | marca cella + Reposition | non rappresentata completamente |
+| `Hero.Wraith.PulseShot` | 21 dmg, r4 | presente |
+| `Hero.Wraith.InterceptShot` | reaction su movimento, 16 dmg + stop | non cablata all'eroe |
+| `Hero.Wraith.PassingBlade` | Linear Dash 3 + 20 a unità attraversate | movement style presente; verificare through-path damage |
+| `Hero.Wraith.Deflection` | reaction -20 dmg | deve riusare semantica `Action.Deflect` |
+| `Hero.Wraith.Feint` | marca cella + Reposition | non rappresentata completamente |
 
 Varianti InterceptShot:
 
@@ -630,7 +630,7 @@ Varianti InterceptShot:
 
 Prima fetta consigliata per il roster:
 
-## Bastion.Interposition
+## Hero.Riktor.Interposition
 
 Non creare una nuova funzione di intercetto.
 
@@ -653,7 +653,7 @@ Core reaction semantics
 Hero-specific ActionId / cooldown / presentation
 ```
 
-Non sostituire semplicemente `Bastion.Interposition` con `Action.Intercept` se così si perde l'identità dell'azione.
+Non sostituire semplicemente `Hero.Riktor.Interposition` con `Action.Intercept` se così si perde l'identità dell'azione.
 
 Possibile helper di costruzione:
 
@@ -670,18 +670,18 @@ Il nome è proposto; adattarlo allo stile reale.
 
 ---
 
-## Vektor.Deflection
+## Hero.Wraith.Deflection
 
 Stessa strategia:
 
 ```text
 semantica -> Action.Deflect
-identità  -> Vektor.Deflection
+identità  -> Hero.Wraith.Deflection
 ```
 
 ---
 
-## Flux.ReactiveCapacitor
+## Hero.Gadget.ReactiveCapacitor
 
 È più complesso.
 
@@ -698,7 +698,7 @@ Il motore attuale distingue già concetti di Counter e Deflect, ma questa reazio
 Non implementarla con:
 
 ```cpp
-if Flux...
+if Gadget...
 ```
 
 nel `TurnManager`.
@@ -707,7 +707,7 @@ Serve una reazione con **lista di effetti on-commit/on-trigger**, o una policy g
 
 ---
 
-## Riva.FlowReaction
+## Hero.Phase.FlowReaction
 
 Richiede:
 
@@ -752,7 +752,7 @@ La soppressione:
 Questa è la base più vicina a:
 
 - `Action.SuppressiveLine`;
-- `Vektor.InterceptShot`;
+- `Hero.Wraith.InterceptShot`;
 - Overwatch.
 
 ### Regola
@@ -999,7 +999,7 @@ Baseline proposta:
 
 Per `Action.SuppressiveLine` il catalogo corrente dice che il nemico **resta nella cella appena raggiunta**.
 
-Quindi per Vektor InterceptShot/Overwatch movimento la baseline più coerente è:
+Quindi per Wraith InterceptShot/Overwatch movimento la baseline più coerente è:
 
 > il trigger avviene dopo l'ingresso valido nella cella controllata; FIRE colpisce il bersaglio in quella cella e può troncare i passi successivi.
 
@@ -1112,7 +1112,7 @@ Action.Counter       -> AutoCommit
 Action.Deflect       -> AutoCommit
 Action.Intercept     -> AutoCommit
 
-Vektor.InterceptShot -> PromptOwner
+Hero.Wraith.InterceptShot -> PromptOwner
 Overwatch            -> PromptOwner
 ```
 
@@ -1192,7 +1192,7 @@ UI minimale:
 ```text
 ┌──────────────────────────────┐
 │ INTERCEPT SHOT               │
-│ Target: Riva                 │
+│ Target: Phase                 │
 │ Cell: q,r,L                  │
 │                              │
 │ [ FIRE ]       [ HOLD ]      │
@@ -1234,12 +1234,12 @@ La presentazione non cambia:
 ## Squadre
 
 ### Team 0
-- Flux
-- Riva
+- Gadget
+- Phase
 
 ### Team 1
-- Bastion
-- Vektor
+- Riktor
+- Wraith
 
 ## Mappa target
 
@@ -1287,13 +1287,13 @@ Questa è la **showcase finale**, non la lista di feature già giocabili oggi.
 
 Blu:
 
-- Riva usa `FluidTrail` verso il centro;
-- Flux prende posizione.
+- Phase usa `FluidTrail` verso il centro;
+- Gadget prende posizione.
 
 Rosso:
 
-- Bastion crea `KineticPanel`;
-- Vektor prende una linea utile.
+- Riktor crea `KineticPanel`;
+- Wraith prende una linea utile.
 
 Mostrare:
 
@@ -1312,10 +1312,10 @@ Mostrare:
 
 ## Turno 2 — Setup Wet
 
-Riva:
+Phase:
 
 ```text
-PressureJet -> Vektor
+PressureJet -> Wraith
 ```
 
 Effetti:
@@ -1326,7 +1326,7 @@ Wet
 Push 1
 ```
 
-Flux:
+Gadget:
 
 ```text
 ConductiveNode
@@ -1334,7 +1334,7 @@ ConductiveNode
 
 Obiettivo UX:
 
-il giocatore vede chiaramente che Riva sta preparando qualcosa per Flux.
+il giocatore vede chiaramente che Phase sta preparando qualcosa per Gadget.
 
 ### Stato corrente
 
@@ -1346,13 +1346,13 @@ ConductiveNode richiede mutazione ambiente/cella.
 
 ## Turno 3 — Previsione e fallback
 
-Flux pianifica:
+Gadget pianifica:
 
 ```text
-LinearDischarge -> Vektor
+LinearDischarge -> Wraith
 ```
 
-Vektor usa mobilità rapida.
+Wraith usa mobilità rapida.
 
 Il bersaglio si sposta prima del Blast.
 
@@ -1375,9 +1375,9 @@ Far capire:
 
 ## Turno 4 — InterceptShot / Fast Reaction
 
-Il percorso verso l'obiettivo passa in una zona controllata da Vektor.
+Il percorso verso l'obiettivo passa in una zona controllata da Wraith.
 
-Flux entra per primo.
+Gadget entra per primo.
 
 Prompt:
 
@@ -1385,9 +1385,9 @@ Prompt:
 FIRE / HOLD
 ```
 
-Vektor HOLD.
+Wraith HOLD.
 
-Riva entra in seguito.
+Phase entra in seguito.
 
 Seconda opportunity:
 
@@ -1395,9 +1395,9 @@ Seconda opportunity:
 FIRE / HOLD
 ```
 
-Vektor FIRE.
+Wraith FIRE.
 
-Riva:
+Phase:
 
 - prende danno;
 - il movimento si ferma nella cella raggiunta.
@@ -1410,7 +1410,7 @@ Richiede il resolver micro-step sospendibile descritto sopra.
 
 ## Turno 5 — Smoke e certezza
 
-Riva usa `MistVeil`.
+Phase usa `MistVeil`.
 
 La UI passa da:
 
@@ -1436,29 +1436,29 @@ Per la prima showcase tecnica si può mostrare solo il cap di targeting, senza f
 
 ---
 
-## Turno 6 — Bastion protegge
+## Turno 6 — Riktor protegge
 
-Riva usa PressureJet su Bastion:
+Phase usa PressureJet su Riktor:
 
 - danno;
 - Wet;
 - Push.
 
-Bastion mostra Push Resistance.
+Riktor mostra Push Resistance.
 
-Flux attacca Vektor.
+Gadget attacca Wraith.
 
-Bastion usa:
+Riktor usa:
 
 ```text
 Interposition
 ```
 
-Il bersaglio del colpo viene rediretto su Bastion.
+Il bersaglio del colpo viene rediretto su Riktor.
 
 ### Prima integrazione raccomandata
 
-Mappare `Bastion.Interposition` al sistema `Action.Intercept` già esistente.
+Mappare `Hero.Riktor.Interposition` al sistema `Action.Intercept` già esistente.
 
 ---
 
@@ -1466,7 +1466,7 @@ Mappare `Bastion.Interposition` al sistema `Action.Intercept` già esistente.
 
 La rete di acqua/conduttivo è pronta.
 
-Flux usa LinearDischarge / propagazione elettrica.
+Gadget usa LinearDischarge / propagazione elettrica.
 
 Mostrare:
 
@@ -1487,15 +1487,15 @@ CP 8.3.
 
 ## Turno 8 — Obiettivo > deathmatch
 
-Flux può essere messo KO.
+Gadget può essere messo KO.
 
-Riva sopravvive sull'obiettivo.
+Phase sopravvive sull'obiettivo.
 
-Bastion/Vektor non riescono a contestare nel Cleanup.
+Riktor/Wraith non riescono a contestare nel Cleanup.
 
 Il punto obiettivo viene assegnato **dopo ambiente/KO**, come previsto dall'E10.
 
-La squadra può quindi vincere anche con Flux KO.
+La squadra può quindi vincere anche con Gadget KO.
 
 ### Obiettivo
 
@@ -1513,14 +1513,14 @@ Creare prima una sequenza che usa soltanto funzioni già atterrate.
 
 ## Showcase Lite suggerita
 
-1. spawn Flux/Riva vs Bastion/Vektor;
+1. spawn Gadget/Phase vs Riktor/Wraith;
 2. path su arena generata;
 3. Rough nega un Dash;
 4. Ice causa sliding nel Move;
 5. Fire applica on-enter;
 6. Smoke limita range;
-7. Riva PressureJet applica danno/Wet/Push;
-8. Bastion Ram usa LinearCharge;
+7. Phase PressureJet applica danno/Wet/Push;
+8. Riktor Ram usa LinearCharge;
 9. generic Counter/Deflect/Intercept;
 10. fallback su target mosso;
 11. TurnLog;
@@ -1569,17 +1569,17 @@ Gate:
 
 Prima di inventare Fast Reaction:
 
-- Bastion.Interposition -> semantica Intercept;
-- Vektor.Deflection -> semantica Deflect;
+- Hero.Riktor.Interposition -> semantica Intercept;
+- Hero.Wraith.Deflection -> semantica Deflect;
 - audit dei commenti “E5 manca” nel hero catalog;
 - test per HeroId + reaction semantics.
 
 Possibili test:
 
 ```text
-RefactorTactics.Heroes.BastionInterpositionUsesReactionSlot
-RefactorTactics.Heroes.BastionInterpositionRedirectsDirectHit
-RefactorTactics.Heroes.VektorDeflectionReducesDirectHit
+RefactorTactics.Heroes.RiktorInterpositionUsesReactionSlot
+RefactorTactics.Heroes.RiktorInterpositionRedirectsDirectHit
+RefactorTactics.Heroes.WraithDeflectionReducesDirectHit
 ```
 
 ---
@@ -1605,7 +1605,7 @@ Seguire issue #66.
 
 Dopo questa fetta:
 
-- la combo firma Flux/Riva può diventare un gate della showcase.
+- la combo firma Gadget/Phase può diventare un gate della showcase.
 
 ---
 
@@ -1661,7 +1661,7 @@ Prima del codice:
 3. definire Opportunity;
 4. estrarre movement stepper;
 5. aggiungere policy AutoCommit/PromptOwner;
-6. cablare Vektor.InterceptShot;
+6. cablare Hero.Wraith.InterceptShot;
 7. solo dopo creare Overwatch generico se serve.
 
 ---
@@ -1814,7 +1814,7 @@ rumore a Nord-Est
 senza sapere:
 
 ```text
-Vektor è in (q=3,r=-1,L0)
+Wraith è in (q=3,r=-1,L0)
 ```
 
 ---
@@ -2032,7 +2032,7 @@ Con serializzazione stabile.
 Esempio concettuale:
 
 ```text
-T07.Move.S03.U12.VektorInterceptShot.O00
+T07.Move.S03.U12.WraithInterceptShot.O00
 ```
 
 La forma esatta è da decidere, ma deve essere:
@@ -2221,20 +2221,20 @@ Definire una fixture logica:
 
 ```text
 Turn 1
-  Flux:
+  Gadget:
     MoveIntent...
     MainAction...
     Reaction...
-  Riva:
+  Phase:
     ...
-  Bastion:
+  Riktor:
     ...
-  Vektor:
+  Wraith:
     ...
 
 ReactionDecisions:
   Boundary X -> HOLD
-  Boundary Y -> FIRE target Riva
+  Boundary Y -> FIRE target Phase
 ```
 
 Il test deve poter alimentare il resolver senza interazione reale.
@@ -2361,8 +2361,8 @@ Eseguire ricerche:
 ```text
 rg "E5|reaction|Reaction" Source/RefactorTactics/Ability Source/RefactorTactics/Turn
 rg "SuppressiveZone|ResolveSuppression" Source/RefactorTactics
-rg "Hero.Bastion|Bastion.Interposition" Source/RefactorTactics
-rg "Vektor.InterceptShot|Vektor.Deflection" Source/RefactorTactics
+rg "Hero.Riktor|Hero.Riktor.Interposition" Source/RefactorTactics
+rg "Hero.Wraith.InterceptShot|Hero.Wraith.Deflection" Source/RefactorTactics
 rg "Wet|Burning|Smoke|Conductive" Source/RefactorTactics
 ```
 
@@ -2418,13 +2418,13 @@ Rimuovere debito E5 dai quattro eroi una reaction alla volta.
 
 Prima:
 
-- Bastion Interposition;
-- Vektor Deflection.
+- Riktor Interposition;
+- Wraith Deflection.
 
 Dopo:
 
-- Flux ReactiveCapacitor;
-- Riva FlowReaction.
+- Gadget ReactiveCapacitor;
+- Phase FlowReaction.
 
 Ogni PR:
 
@@ -2508,7 +2508,7 @@ Solo dopo inserire Fast Reaction.
 
 ---
 
-## Passo 10 — Vektor.InterceptShot
+## Passo 10 — Hero.Wraith.InterceptShot
 
 Prima reaction interattiva.
 
@@ -2639,7 +2639,7 @@ docs(showcase): define Relay v0.1 golden scenario and scope deltas
 
 test(showcase): add deterministic generated Relay fixture
 
-feat(heroes): align Bastion and Vektor reactions with E5 core
+feat(heroes): align Riktor and Wraith reactions with E5 core
 
 feat(environment): complete temporary status interactions
 
@@ -2657,7 +2657,7 @@ refactor(turn): expose deterministic hex movement micro-step state
 
 feat(reactions): add reaction opportunities and decision commands
 
-feat(vektor): wire InterceptShot through fast reaction opportunity
+feat(wraith): wire InterceptShot through fast reaction opportunity
 
 feat(ui): add three-second fast reaction window
 
@@ -2698,16 +2698,16 @@ La feature non è fatta finché:
 
 # 56. Definition of Done per showcase finale
 
-- [ ] Flux/Riva vs Bastion/Vektor.
+- [ ] Gadget/Phase vs Riktor/Wraith.
 - [ ] mappa Relay riproducibile.
 - [ ] 8-turn scripted scenario disponibile come fixture.
 - [ ] movimento/fallback leggibili.
 - [ ] almeno un terrain interaction reale.
 - [ ] Wet + Electricity reale.
 - [ ] Smoke reale.
-- [ ] Bastion Interposition reale.
+- [ ] Riktor Interposition reale.
 - [ ] KineticPanel reale.
-- [ ] Vektor InterceptShot/Fast Reaction reale, se Fast Reaction viene approvata per v0.1.
+- [ ] Wraith InterceptShot/Fast Reaction reale, se Fast Reaction viene approvata per v0.1.
 - [ ] objective contestabile reale.
 - [ ] KO non implica automaticamente vittoria se l'obiettivo chiude il match.
 - [ ] TurnLog spiega gli eventi chiave.
@@ -2783,7 +2783,7 @@ Copiare questa sezione come task iniziale.
 > Poi ispeziona il codice reale delle aree `Ability/`, `Turn/`, `Combat/`, `Map/`, `Terrain/`, `Unit/`, `UI/`
 > e i test pertinenti.
 >
-> Il roster vigente è **Flux + Riva vs Bastion + Vektor**. Non usare Aegis/Nyx/Drift/Vex né roster PDR
+> Il roster vigente è **Gadget + Phase vs Riktor + Wraith**. Non usare Aegis/Nyx/Drift/Vex né roster PDR
 > superati.
 >
 > Obiettivo a lungo termine: costruire `RT_Showcase_Relay_v01`, una partita golden 2v2 di 8 turni che

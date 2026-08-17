@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 🗄️ `HISTORICAL` — SORGENTE RECEPITO IN PARTE
 >
 > **Archiviato il 2026-08-10.** Era in `todo/consolidazione-chat-openai/`, untracked. E' il *kit* di dettaglio
@@ -10,7 +12,7 @@
 > |---|---|
 > | §3.5 — `TEAM READY 2/3` come componente persistente | non si simula un falso stato finche' non e' supportato — [`progettazione-hud.md`](../../../technical/progettazione-hud.md) |
 > | §11, §30, §31 — «Fog of War» | non e' FoW: conoscenza parziale a tre livelli, geometria statica **nota** — [`brief-conoscenza-parziale.md`](../../../gameplay/brief-conoscenza-parziale.md) |
-> | §15 — `Eligible: Flux / Bastion` | l'eleggibilita' e' per **capability**, mai per nome d'eroe — [`ADR-0006`](../../../decisions/adr-0006-ownership-abilita-sinergie.md) |
+> | §15 — `Eligible: Gadget / Riktor` | l'eleggibilita' e' per **capability**, mai per nome d'eroe — [`ADR-0006`](../../../decisions/adr-0006-ownership-abilita-sinergie.md) |
 >
 > Le 38 feature `HUD.*` di §28 non esistono: il registro usa `RT-FEAT-UI-*`.
 
@@ -402,7 +404,7 @@ Esempi:
 Blocca porta
 Bagno zona
 Overwatch ingresso
-Spingo Flux
+Spingo Gadget
 Focus Steel
 ```
 
@@ -552,7 +554,7 @@ Informazione derivata da intenti alleati o previsione lecita.
 Esempi:
 
 ```text
-Riva dovrebbe bagnare questa cella prima dell'attacco di Flux.
+Phase dovrebbe bagnare questa cella prima dell'attacco di Gadget.
 ```
 
 Visual language:
@@ -785,7 +787,7 @@ PORTA B-14
 State: Closed
 Interaction: Open
 Cost: 1
-Eligible: Flux / Bastion
+Eligible: Gadget / Riktor
 ```
 
 Azioni possibili dipendono dall'oggetto e dal personaggio:
@@ -976,7 +978,7 @@ Non codificare una pipeline divergente dal ruleset.
 Esempio:
 
 ```text
-Flux
+Gadget
 ARC LANCE
 → Steel
 ```
@@ -1011,7 +1013,7 @@ Il Combat Log deve essere collassabile.
 Riga sintetica:
 
 ```text
-Flux → Arc Lance → Bastion: 18
+Gadget → Arc Lance → Riktor: 18
 ```
 
 Dettaglio espanso:

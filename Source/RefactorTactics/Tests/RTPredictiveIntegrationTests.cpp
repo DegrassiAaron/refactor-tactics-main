@@ -15,7 +15,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 /**
- * CP 18.2 — `Vektor.InterceptShot` come **Predictive Action**, verificata sul PERCORSO REALE.
+ * CP 18.2 — `Wraith.InterceptShot` come **Predictive Action**, verificata sul PERCORSO REALE.
  *
  * Questi tre test girano attraverso `ARTTurnManager::LockInAndResolve`, non sulla libreria pura. La ragione
  * e' [D-036](../../../docs/decisions/RT_PDR_00_Decision_Log.md): un test che non attraversa il percorso reale
@@ -67,7 +67,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
@@ -75,15 +75,15 @@ namespace
 	}
 
 	/**
-	 * Arma `Vektor.InterceptShot` sulla cella dichiarata. L'abilita' entra nello slot 3 e non in coda:
+	 * Arma `Wraith.InterceptShot` sulla cella dichiarata. L'abilita' entra nello slot 3 e non in coda:
 	 * `AbilityCooldowns` e' dimensionato sul conteggio originale e non si allarga da solo.
 	 */
 	bool ArmPredIntercept(ARTUnit* Shooter, const FRTCellId& LockedCell, int32 SlotIndex = 3)
 	{
-		URTHeroData* Vektor = URTHeroCatalogLibrary::MakeVektor();
-		if (!Shooter || !Vektor || !Shooter->Abilities.IsValidIndex(SlotIndex)) { return false; }
+		URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+		if (!Shooter || !Wraith || !Shooter->Abilities.IsValidIndex(SlotIndex)) { return false; }
 
-		Shooter->Abilities[SlotIndex] = Vektor->Actions[1]; // InterceptShot
+		Shooter->Abilities[SlotIndex] = Wraith->Actions[1]; // InterceptShot
 		Shooter->PlannedAbilityIndex = SlotIndex;
 		Shooter->bAttackTargetsCell = true;   // mira a una CELLA, non a un'unita': e' il punto
 		Shooter->PlannedAttackCell = LockedCell;
@@ -151,7 +151,7 @@ bool FRTPredictiveInterceptHitTest::RunTest(const FString&)
 		TestEqual(TEXT("come TriggerMatched"), Entry->Outcome,
 			static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched));
 		TestTrue(TEXT("con la cella su cui si e' scommesso"), Entry->TgtCell == Locked);
-		TestEqual(TEXT("e l'identita' dell'azione"), Entry->ActionId, FName(TEXT("Vektor.InterceptShot")));
+		TestEqual(TEXT("e l'identita' dell'azione"), Entry->ActionId, FName(TEXT("Hero.Wraith.InterceptShot")));
 	}
 
 	DestroyPredWorld(World);

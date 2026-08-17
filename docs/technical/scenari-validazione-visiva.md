@@ -137,10 +137,10 @@ ostacoli `(-1,2)` `(1,-2)` `(2,1)` e la fascia Rough a costo 3 su `q=-2`.
 
 | Eroe | HP | MP | Attacco base | Note |
 |---|---:|---:|---|---|
-| Gadget | 90 | 5 | `Flux.ArcPulse` 22, r4 | `LinearDischarge` 24 r5 linea cd2 · `Overload` 18 AoE r1 |
-| Phase | 95 | 5 | `Riva.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
-| Riktor | 120 | 4 | `Bastion.ImpactShot` 8 + Slow(1), r3 | PushResistance 1 · `Ram` = carica 20 + Push 1 |
-| Wraith | 90 | 6 | `Vektor.PulseShot` 21, r4 | il più mobile |
+| Gadget | 90 | 5 | `Hero.Gadget.ArcPulse` 22, r4 | `LinearDischarge` 24 r5 linea cd2 · `Overload` 18 AoE r1 |
+| Phase | 95 | 5 | `Hero.Phase.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
+| Riktor | 120 | 4 | `Hero.Riktor.ImpactShot` 8 + Slow(1), r3 | PushResistance 1 · `Ram` = carica 20 + Push 1 |
+| Wraith | 90 | 6 | `Hero.Wraith.PulseShot` 21, r4 | il più mobile |
 
 I danni da terreno vengono dal catalogo terreni (Fire: 10 + `Burning`) e vanno confermati al primo run.
 
@@ -201,7 +201,7 @@ la spinta non si legge, non è un difetto del VFX — è la §8.1.
 | `Combat.CounterStrikesBack` *(esiste)* | r4 | la terza grammatica difensiva: lo scudo assorbe **e** restituisce danno | già nel corpus |
 
 `Visual.Reaction.Interposition` è il caso più istruttivo del catalogo. La capability `Reaction` è
-**disponibile** — `Bastion.Interposition` è cablata e automatica. Ma `FRTScenarioIntent` ha `UnitId`, `Move`,
+**disponibile** — `Hero.Riktor.Interposition` è cablata e automatica. Ma `FRTScenarioIntent` ha `UnitId`, `Move`,
 `Ability`, `Target` e nient'altro: **non esiste un campo per armare la reazione pianificata**. Il gioco lo sa
 fare, lo scenario non lo sa dire. Vedi §8.2.
 
@@ -334,10 +334,10 @@ soluzione: quelle erano azioni **generiche** per D-025 e potevano entrare nel ki
 ambientale in mano a ogni eroe sarebbe una decisione di design — «chiunque può incendiare e creare acqua» —
 non un cablaggio.
 
-La via canonica è un'altra, e il progetto l'ha già usata per le reazioni: `Flux.ConductiveNode`,
-`Riva.MistVeil` e `Riva.FluidTrail` **esistono nel catalogo eroi con `Effects` vuoti**, e i loro commenti
+La via canonica è un'altra, e il progetto l'ha già usata per le reazioni: `Hero.Gadget.ConductiveNode`,
+`Hero.Phase.MistVeil` e `Hero.Phase.FluidTrail` **esistono nel catalogo eroi con `Effects` vuoti**, e i loro commenti
 dichiarano il perché — quando furono scritte, il sistema d'ambiente non c'era. Ora c'è. Cablarle alla
-semantica core conservando l'identità dell'eroe è la stessa mossa di `Bastion.Ram` → `Action.Charge`.
+semantica core conservando l'identità dell'eroe è la stessa mossa di `Hero.Riktor.Ram` → `Action.Charge`.
 
 Ogni turno di uno scenario-spec resta con `intents` **vuoti**: la sintassi con cui si dichiarerà una risposta
 HOLD/FIRE, o un bersaglio predittivo, non è decisa. Inventarla qui creerebbe un formato che nessuno ha scelto
@@ -362,7 +362,7 @@ RefactorTactics.Scenario.ExpectedFailScenariosReallyFail     Success
 
 **Tre erano difetti miei, con una causa sola.** Lo scatto si dichiara con `dash` + `dashTo`, non con
 `ability`: dopo [D-028] occupano slot diversi — lo scatto prende il movimento, l'abilità la principale, e
-«schivo e sparo» dev'essere esprimibile. Dichiarato con `ability`, `Bastion.Ram` finiva nello slot del Blast
+«schivo e sparo» dev'essere esprimibile. Dichiarato con `ability`, `Hero.Riktor.Ram` finiva nello slot del Blast
 e non partiva. Da qui `Charge` (Gadget illeso), `PhaseOrder` (mancavano i 20 della carica) e
 `FallbackTargetMoved` (il bersaglio non si spostava).
 
@@ -381,7 +381,7 @@ sulla **portata**. Lo scenario ora fa caricare Riktor in direzione opposta, fino
 | Difetto | Perché nessuno se n'era accorto |
 |---|---|
 | `PushResistance` non riduce le spinte ([#241], **chiuso**) | era un **dato senza consumatore**: catalogo → `ARTUnit` → test che ne verificano il *valore*. Nessuno lo leggeva quando applicava una spinta |
-| la combo Phase→Gadget non è realizzabile ([#242]) | `Heroes.Flux.WetBonus` verifica l'**aritmetica** di `EffectiveAttackPower` senza passare dal `TurnManager`. Il `Wet` di `PressureJet` arriva *durante* il Blast, quando i colpi sono già preparati — e su due turni scade nel Cleanup prima di servire |
+| la combo Phase→Gadget non è realizzabile ([#242]) | `Heroes.Hero.Gadget.WetBonus` verifica l'**aritmetica** di `EffectiveAttackPower` senza passare dal `TurnManager`. Il `Wet` di `PressureJet` arriva *durante* il Blast, quando i colpi sono già preparati — e su due turni scade nel Cleanup prima di servire |
 
 Il secondo è il più istruttivo del lotto: la combo firma della v0.1 era documentata, aveva un test verde, ed
 era **ineseguibile**.
@@ -395,7 +395,7 @@ Le due sorgenti di `Wet` hanno ora uno scenario ciascuna, e servono entrambe:
 
 | Scenario | Sorgente del bagnato | Cosa dimostra |
 |---|---|---|
-| `Visual.Combat.WaterElectricCoordinated` | `Riva.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: 100−16−32 = 52 |
+| `Visual.Combat.WaterElectricCoordinated` | `Hero.Phase.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: 100−16−32 = 52 |
 | `Visual.Combat.WaterElectric` | il **terreno**, attraversato in fase Dash | che il bonus non dipende da chi bagna (D-029): 100−32 = 68 |
 
 ### Lacune dichiarate
@@ -404,9 +404,9 @@ Tre abilità del kit non hanno scenario, e non per dimenticanza:
 
 | Abilità | Perché no |
 |---|---|
-| `Riva.CircularTide` | il routing cura-agli-alleati / `Wet`-ai-nemici è dichiarato **incompleto** nel catalogo. Un'assertion scritta sul design invece che sul comportamento reale produrrebbe un `FAIL` che accusa il gioco di un difetto già noto |
-| `Riva.FluidTrail` | la mobilità è rappresentabile, la scia d'acqua no: resterebbe uno scenario che verifica un Dash e lo chiama `FluidTrail` |
-| `Vektor.Feint` | nessuna delle due metà è dichiarabile — `Status` si applica alle unità e non alle celle, e il `Reposition` passa da `MovementStyle`, non da `Effects` |
+| `Hero.Phase.CircularTide` | il routing cura-agli-alleati / `Wet`-ai-nemici è dichiarato **incompleto** nel catalogo. Un'assertion scritta sul design invece che sul comportamento reale produrrebbe un `FAIL` che accusa il gioco di un difetto già noto |
+| `Hero.Phase.FluidTrail` | la mobilità è rappresentabile, la scia d'acqua no: resterebbe uno scenario che verifica un Dash e lo chiama `FluidTrail` |
+| `Hero.Wraith.Feint` | nessuna delle due metà è dichiarabile — `Status` si applica alle unità e non alle celle, e il `Reposition` passa da `MovementStyle`, non da `Effects` |
 
 Vanno scritte quando il comportamento è **osservabile**, misurando il primo run invece di derivarlo dal
 catalogo. Le prime due sono il caso migliore per un test di **caratterizzazione**, non per una specifica.

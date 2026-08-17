@@ -22,7 +22,7 @@ devono vivere nel repository Git»*. Era stata applicata a **due** documenti su 
 | [`src/prd/prd-percorso-didattico-e-produzione.md`](src/prd/prd-percorso-didattico-e-produzione.md) | **nuovo** — curriculum UE, roadmap, rischi, analytics, guida agli asset |
 | [`src/prd/editor-griglia-esagonale-e-mappa.md`](src/prd/editor-griglia-esagonale-e-mappa.md) | **nuovo** — il prompt che ha commissionato il pivot esagonale (era `.docx`) |
 | **24 binari** | rimossi dal working tree (`docs/src/prd/` ×10 PDF + 1 `.docx`, `docs/archive/pdr-v0.1/` ×13 PDF); restano nella storia Git |
-| [`src/README.md`](src/README.md) · [`archive/README.md`](archive/README.md) | Indici riscritti; due affermazioni corrette (sotto) |
+| [`src/`](src/) · [`archive/README.md`](archive/README.md) | Indici riscritti; due affermazioni corrette (sotto) |
 | [`README.md`](../README.md) · [`README.md` di docs](README.md) · [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) · 5 cataloghi `balance/` · ADR-0003 · Decision Log · `roadmap-v0.1.md` · `v0.1-issue-plan.md` · `RT_PDR_10_…v0.2.md` · `gameplay/spec-anima-risoluzione.md` | Riferimenti riscritti verso i nuovi target |
 
 ### Tre cose che l'estrazione ha fatto emergere, e che nessuno stava cercando
@@ -34,8 +34,8 @@ l'unica copia esistente: nessun `grep`, nessun diff, nessuna citazione per riga.
 «fatto» di una cosa da fare, ed è il motivo per cui era rimasta da fare.
 
 **2. Il roster canonico nasce in un documento marcato «non recepito».**
-`src/README.md` classificava `idee-ruoli-characters.pdf` con «Recepito da: **—**». Ma **Flux · Riva · Bastion
-· Vektor** sono lì, e le quattro abilità di Flux del [catalogo eroi](balance/RT_HeroCatalog_v0.1.md) —
+`src/README.md` classificava `idee-ruoli-characters.pdf` con «Recepito da: **—**». Ma **Gadget · Phase · Riktor
+· Wraith** sono lì, e le quattro abilità di Gadget del [catalogo eroi](balance/RT_HeroCatalog_v0.1.md) —
 `LinearDischarge`, `ConductiveNode`, `Overload`, `ReactiveCapacitor` — sono le sue, nome per nome. Il
 documento era *già consumato e non registrato*: la colonna prometteva lavoro su un lavoro finito.
 
@@ -172,7 +172,7 @@ L'handoff proponeva tre concetti come nuovi: `ConditionalIntent`, `GenericAction
 | File | Modifica |
 |---|---|
 | [`characters/_Template.md`](characters/_Template.md) | Campo **`Misplay / Failure State`** nello schema, con la regola che lo distingue dal `Counterplay` |
-| `characters/v0.1/{flux,riva,bastion,vektor}.md` | Il campo compilato, **quattro modi diversi di sbagliare**: whiff nel turno · carica spesa in silenzio · struttura che persiste · superficie regalata all'avversario |
+| `characters/v0.1/{gadget,phase,riktor,wraith}.md` | Il campo compilato, **quattro modi diversi di sbagliare**: whiff nel turno · carica spesa in silenzio · struttura che persiste · superficie regalata all'avversario |
 | [`characters/README.md`](characters/README.md) | Copertura del campo: 4/4 su v0.1, ⏳ v0.2, ⛔ candidati (senza kit non c'è modo definito di fallire) |
 | [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) | §4-bis: il **profilo** come forma generale delle sette generiche, 7 guardrail, e dove esiste già |
 | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) | §7: `ConditionalIntent`, il confine con Fast Action/Reaction/Predictive/fallback, i vincoli e i 9 test |
@@ -186,7 +186,7 @@ L'handoff proponeva tre concetti come nuovi: `ConditionalIntent`, `GenericAction
 ### Decisioni prese
 
 - **nessuna trasformazione nella v0.1**: il sorgente ne proponeva quattro sui quattro eroi. Scope chiuso,
-  rischio già alto, e due dei quattro dipendono da E13 e dal sistema strutture. `Vektor: Mobile ↔ Siege` è
+  rischio già alto, e due dei quattro dipendono da E13 e dal sistema strutture. `Wraith: Mobile ↔ Siege` è
   respinta anche nel merito — una forma che toglie il Dash spegne `Slancio` e la player question;
 - **uno `Stance` è un profilo commutabile**, non un sistema nuovo: metà di E34 non richiede codice nuovo;
 - **`docs/src/` si svuota quando un sorgente è recepito.** La convenzione precedente lo lasciava sul posto con
@@ -250,7 +250,7 @@ Build `RefactorTacticsEditor` **Succeeded** al primo colpo. Alla prima esecuzion
 scenari su diciassette erano rossi** — e la ripartizione delle cause è ciò che rende questo test utile:
 
 - **tre difetti miei, una causa sola**: lo scatto si dichiara con `dash` + `dashTo`, non con `ability`
-  (dopo D-028 occupano slot diversi). Dichiarato con `ability`, `Bastion.Ram` finiva nello slot del Blast e
+  (dopo D-028 occupano slot diversi). Dichiarato con `ability`, `Hero.Riktor.Ram` finiva nello slot del Blast e
   non partiva;
 - **un quarto scenario con lo stesso errore era verde**: `RoughRefusesCharge` si aspettava che non accadesse
   nulla, e non accadeva nulla — ma perché la carica non partiva, non perché il Rough la vietasse. Senza gli
@@ -262,8 +262,8 @@ scenari su diciassette erano rossi** — e la ripartizione delle cause è ciò c
 `PushResistance` (**#241**) è un *dato senza consumatore*: dichiarato nel catalogo, copiato su `ARTUnit`,
 verificato dai test come **valore**, e mai letto quando si applica una spinta.
 
-La combo Riva→Flux (**#242**) è il caso più istruttivo della sessione: documentata nella showcase, con un
-test verde (`Heroes.Flux.WetBonus`, che verifica l'aritmetica senza passare dal `TurnManager`), e
+La combo Phase→Gadget (**#242**) è il caso più istruttivo della sessione: documentata nella showcase, con un
+test verde (`Heroes.Hero.Gadget.WetBonus`, che verifica l'aritmetica senza passare dal `TurnManager`), e
 **ineseguibile** — il `Wet` di `PressureJet` arriva durante il Blast quando i colpi sono già preparati, e su
 due turni scade nel Cleanup prima di servire.
 
@@ -276,7 +276,7 @@ nell'acqua in fase **Dash**, prima del Blast — ed è oggi il primo test end-to
 resta quella **giusta**, la suite non è rossa e il difetto non è nascosto. Quando #241 verrà chiusa, sarà
 `ExpectedFailScenariosReallyFail` a diventare rosso e a chiedere di promuoverlo.
 
-Tre abilità del kit (`Riva.CircularTide`, `Riva.FluidTrail`, `Vektor.Feint`) restano **senza scenario**, e
+Tre abilità del kit (`Hero.Phase.CircularTide`, `Hero.Phase.FluidTrail`, `Hero.Wraith.Feint`) restano **senza scenario**, e
 sono elencate col perché: il loro comportamento non è derivabile dal catalogo, e un'assertion scritta sul
 design invece che sul comportamento reale produrrebbe un rosso che accusa il gioco di un difetto già noto.
 
@@ -355,7 +355,7 @@ oggi raggiungibile dal corpus**, e la parte mancante è di formato da estendere,
 
 ### Il problema
 
-La documentazione descriveva `Water-Electric` come **«combo Flux + Riva»** in più punti — Wiki, showcase,
+La documentazione descriveva `Water-Electric` come **«combo Gadget + Phase»** in più punti — Wiki, showcase,
 handoff fazioni. Nel codice il bonus legge `Status.Wet` e **non conosce** l'eroe che l'ha applicato. Finché i
 documenti chiamavano «coppia» una regola sistemica, la prima implementazione futura avrebbe avuto ragione a
 cablare la coppia: `if HeroA && HeroB` sarebbe stato *conforme alla documentazione*.
@@ -374,7 +374,7 @@ cablare la coppia: `if HeroA && HeroB` sarebbe stato *conforme alla documentazio
   la regola. La roadmap **non** guadagna un'epic: guadagna un requisito di **DoD** (producer · consumer ·
   indipendenza dall'identità del partner).
 - **Nessuna riga di runtime toccata.** L'audit di `Source/` non ha trovato `PairBonus`, `FactionSetBonus`,
-  `ComboAbility` né branch `if HeroA && HeroB`. L'unico `if (Flux && Riva && ...)` è un null-guard in
+  `ComboAbility` né branch `if HeroA && HeroB`. L'unico `if (Gadget && Phase && ...)` è un null-guard in
   `RTHeroSpawnTests.cpp`, e la riga 157 di quel test *asserisce* che i due eroi non condividono istanze d'azione.
 
 ### Deriva collaterale chiusa: D-025
@@ -472,7 +472,7 @@ ricerca dei termini obsoleti sui soli documenti `CURRENT`/`CANONICAL`.
 |---|---|
 | **D-014** | Generiche canoniche `Wait · BasicAttack · Interact · Brace · Move · Overwatch`; `Activate`→`Interact`; `Guard` non più universale |
 | **D-015** | `Sneak · Normal · Sprint` sono **profili di `Move`**; `Sprint` **non è un Dash** |
-| **D-016** | **Un** thin slice di Predictive Action nella v0.1 (`Vektor.InterceptShot`) |
+| **D-016** | **Un** thin slice di Predictive Action nella v0.1 (`Hero.Wraith.InterceptShot`) |
 | **D-017** | `Intercept` **rivalida la geometria sul bersaglio effettivo** |
 | **D-018** | `HighGround` **senza bonus numerico** alla vista in v0.1 |
 | **D-019** | `Fast Action` ≠ `Fast Reaction` — categorie distinte sulla stessa `DecisionWindow` |

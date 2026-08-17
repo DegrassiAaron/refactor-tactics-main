@@ -581,6 +581,159 @@ bool FRTBannerListsEveryDegradationTest::RunTest(const FString&)
 	Banner->SetFromReport(Report);
 	TestEqual(TEXT("ancora due righe, non quattro"), Banner->GetLines().Num(), 2);
 
+	// ⚠️ **Il testo unico deve contenere DUE righe**, cioe' esattamente un `\n`. E' la stessa proprieta'
+	// del punto sopra vista da chi guarda lo schermo: un accessor che restituisse solo la prima riga
+	// passerebbe tutti i test sull'array e nasconderebbe meta' del problema a chi apre il gioco.
+	const FString Joined = Banner->GetLinesAsText().ToString();
+	int32 NewLines = 0;
+	for (const TCHAR C : Joined) { if (C == TEXT('\n')) { ++NewLines; } }
+	TestEqual(TEXT("due righe => un solo a capo"), NewLines, 1);
+	TestFalse(TEXT("e il testo non e' vuoto"), Joined.IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Ogni `bool` e la sua visibilita' dicono la stessa cosa.**
+ *
+ * I tre widget espongono una coppia ciascuno — `IsLoading`/`GetLoadingVisibility`,
+ * `IsArmed`/`GetModalVisibility`, `HasAnything`/`GetBannerVisibility` — e le due meta' esistono perche'
+ * il binding di `Visibility` non accetta un `bool`. Sono **due modi di leggere lo stesso stato**, ed e'
+ * esattamente la condizione in cui due copie divergono: qualcuno cambia la condizione da una parte e
+ * l'altra resta indietro, e a schermo compare un widget che dice di non avere niente da dire.
+ *
+ * Il test lega le due meta' invece di fidarsi che restino allineate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendVisibilityMatchesStateTest,
+	"RefactorTactics.Frontend.VisibilityNeverDisagreesWithState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendVisibilityMatchesStateTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// ── Loading: la visibilita' segue `IsLoading()` in tutte e cinque le fasi ──────────────────────
+	URTLoadingScreenWidgetBase* Loading = NewObject<URTLoadingScreenWidgetBase>(World);
+	const ERTLoadPhase Phases[] = { ERTLoadPhase::Idle, ERTLoadPhase::Map, ERTLoadPhase::Scenario,
+									ERTLoadPhase::Bots, ERTLoadPhase::Ready };
+	for (const ERTLoadPhase Phase : Phases)
+	{
+		Loading->SetPhase(Phase);
+		const ESlateVisibility Expected =
+			Loading->IsLoading() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+		if (!TestEqual(*FString::Printf(TEXT("fase %d: visibilita' coerente"), (int32)Phase),
+			Loading->GetLoadingVisibility(), Expected))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+	}
+
+	// ── Modale: disarmato -> Collapsed, armato -> Visible ─────────────────────────────────────────
+	URTErrorModalWidgetBase* Modal = NewObject<URTErrorModalWidgetBase>(World);
+	TestEqual(TEXT("disarmato: collassato"),
+		Modal->GetModalVisibility(), ESlateVisibility::Collapsed);
+
+	// Un ripiego NON lo arma, quindi non lo rende nemmeno visibile: le due meta' restano d'accordo
+	// anche sul caso che `ShowFor` rifiuta.
+	Modal->ShowFor(FRTStartupNote(ERTStartupOutcome::UsingTestArena));
+	TestEqual(TEXT("un ripiego non lo mostra"),
+		Modal->GetModalVisibility(), ESlateVisibility::Collapsed);
+
+	Modal->ShowFor(FRTStartupNote(ERTStartupOutcome::FormatAssetInvalid, TEXT("dettaglio")));
+	TestTrue(TEXT("armato"), Modal->IsArmed());
+	TestEqual(TEXT("e visibile"), Modal->GetModalVisibility(), ESlateVisibility::Visible);
+
+	// `DETAILS` segue il dettaglio, che in Shipping non esiste: qui il test gira in Development, dove
+	// la stringa c'e'.
+	TestEqual(TEXT("il pulsante DETAILS segue ShouldShowDetails"),
+		Modal->GetDetailsVisibility(),
+		Modal->ShouldShowDetails() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+
+	// ── Banner: la visibilita' segue `HasAnything()` ───────────────────────────────────────────────
+	URTFallbackBannerWidgetBase* Banner = NewObject<URTFallbackBannerWidgetBase>(World);
+	TestEqual(TEXT("banner vuoto: collassato"),
+		Banner->GetBannerVisibility(), ESlateVisibility::Collapsed);
+
+	FRTStartupReport Report;
+	Report.Add(ERTStartupOutcome::UsingTestArena, TEXT("120 celle"));
+	Banner->SetFromReport(Report);
+	TestTrue(TEXT("ora ha qualcosa"), Banner->HasAnything());
+	TestEqual(TEXT("ed e' visibile"), Banner->GetBannerVisibility(), ESlateVisibility::Visible);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Il modale si arma dal rapporto, e sceglie da sé la nota fatale.**
+ *
+ * E' la forma che serve in gioco: chi lo mostra ha in mano il rapporto del `GameMode`, non una nota
+ * isolata. Il test verifica anche il caso che conta di più — un rapporto con **due degradazioni e un
+ * fatale in mezzo**: il modale deve trovare il fatale, non la prima nota che incontra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTModalArmsFromReportTest,
+	"RefactorTactics.Frontend.ModalArmsItselfFromTheReport",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTModalArmsFromReportTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTErrorModalWidgetBase* Modal = NewObject<URTErrorModalWidgetBase>(World);
+
+	// Un rapporto di soli ripieghi non arma niente: la partita e' partita.
+	FRTStartupReport OnlyDegraded;
+	OnlyDegraded.Add(ERTStartupOutcome::UsingTestArena, TEXT("120 celle"));
+	OnlyDegraded.Add(ERTStartupOutcome::NoTurnManager, TEXT("Format.Skirmish2v2"));
+	Modal->ShowFromReport(OnlyDegraded);
+	TestFalse(TEXT("solo ripieghi: il modale resta disarmato"), Modal->IsArmed());
+
+	// Un fatale **in mezzo** a due degradazioni: va trovato lui, non la prima nota.
+	FRTStartupReport WithFatal;
+	WithFatal.Add(ERTStartupOutcome::LevelMapMissing, TEXT("0 celle"));
+	WithFatal.Add(ERTStartupOutcome::FormatMapMismatch, TEXT("Standard su mappa 2v2"));
+	WithFatal.Add(ERTStartupOutcome::NoTurnManager, TEXT("dopo"));
+
+	URTErrorModalWidgetBase* Modal2 = NewObject<URTErrorModalWidgetBase>(World);
+	Modal2->ShowFromReport(WithFatal);
+
+	TestTrue(TEXT("armato"), Modal2->IsArmed());
+	TestEqual(TEXT("e ha preso il FATALE, non la prima nota"),
+		Modal2->GetOutcome(), ERTStartupOutcome::FormatMapMismatch);
+	TestEqual(TEXT("col suo dettaglio"), Modal2->GetDetail(), FString(TEXT("Standard su mappa 2v2")));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * `ShowForOutcome` esiste perche' `FRTStartupNote` **non e' costruibile da Blueprint** — i suoi campi
+ * sono `BlueprintReadOnly`, quindi il nodo `Make` non serve a niente.
+ *
+ * Senza questa funzione il modale non sarebbe armabile da un Blueprint, e quindi **non sarebbe provabile
+ * in PIE** finche' non esiste il codice che lo arma davvero. Il test verifica che erediti il filtro
+ * invece di scavalcarlo: e' la scorciatoia piu' facile da sbagliare, perche' scrive i campi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTModalShowForOutcomeKeepsTheFilterTest,
+	"RefactorTactics.Frontend.ShowForOutcomeStillRefusesDegradation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTModalShowForOutcomeKeepsTheFilterTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTErrorModalWidgetBase* Modal = NewObject<URTErrorModalWidgetBase>(World);
+
+	Modal->ShowForOutcome(ERTStartupOutcome::UsingDemoArena, TEXT("non deve armare"));
+	TestFalse(TEXT("un ripiego non arma nemmeno da qui"), Modal->IsArmed());
+
+	Modal->ShowForOutcome(ERTStartupOutcome::ShippedFormatInvalid, TEXT("prova"));
+	TestTrue(TEXT("un fatale si'"), Modal->IsArmed());
+	TestEqual(TEXT("con l'esito giusto"), Modal->GetOutcome(), ERTStartupOutcome::ShippedFormatInvalid);
+	TestEqual(TEXT("e il dettaglio"), Modal->GetDetail(), FString(TEXT("prova")));
+
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }

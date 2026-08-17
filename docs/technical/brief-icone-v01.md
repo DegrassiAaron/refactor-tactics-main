@@ -232,11 +232,11 @@ incerto = dissolto + `?`.
 
 I quattro eroi del roster, più la relazione di squadra.
 
-`Flux` · `Riva` · `Bastion` · `Vektor` · `Ally` · `Enemy`
+`Gadget` · `Phase` · `Riktor` · `Wraith` · `Ally` · `Enemy`
 
-> ⚠️ **Il prefisso è tradotto.** Gli `HeroId` in codice sono `Hero.Flux`, non `Flux`: la chiave dell'icona è
-> `UI.Icon.Identity.Flux`, perché il validator confronta il segmento di categoria dentro l'ID con la categoria
-> dichiarata, e `UI.Icon.Hero.Flux` verrebbe rifiutato.
+> ⚠️ **Il prefisso è tradotto.** Gli `HeroId` in codice sono `Hero.Gadget`, non `Gadget`: la chiave dell'icona è
+> `UI.Icon.Identity.Gadget`, perché il validator confronta il segmento di categoria dentro l'ID con la categoria
+> dichiarata, e `UI.Icon.Hero.Gadget` verrebbe rifiutato.
 
 `Ally` e `Enemy` sono **relazione, non personaggi**: restano due anche quando il roster cresce. Il consumatore
 esiste già — `ARTHUD` colora gli intenti per squadra leggendo `View.bIsAlly`.

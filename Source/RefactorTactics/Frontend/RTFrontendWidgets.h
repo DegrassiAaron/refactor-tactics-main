@@ -2,6 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+// `ESlateVisibility`: e' il tipo che il binding di `Visibility` accetta, e senza di lui la funzione che
+// lo restituisce non sarebbe collegabile.
+#include "Components/SlateWrapperTypes.h"
 #include "Frontend/RTStartupReport.h"
 #include "RTFrontendWidgets.generated.h"
 
@@ -63,6 +66,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
 	void SetPhase(ERTLoadPhase InPhase);
 
+	/**
+	 * La visibilita' della schermata, nel tipo che il binding di `Visibility` accetta.
+	 *
+	 * ⚠️ Esiste per la stessa ragione di `GetBannerVisibility()`: `IsLoading()` restituisce `bool` e lo
+	 * slot vuole un `ESlateVisibility`, quindi il menu dei binding lo **filtra via** e chi cerca non lo
+	 * trova. Le tre classi di questo file hanno lo stesso problema, e averne risolta una sola avrebbe
+	 * lasciato le altre due a far perdere tempo nello stesso identico punto.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	ESlateVisibility GetLoadingVisibility() const;
+
 private:
 	UPROPERTY(Transient)
 	ERTLoadPhase Phase = ERTLoadPhase::Idle;
@@ -106,9 +120,52 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
 	void ShowFor(const FRTStartupNote& Note);
 
+	/**
+	 * Arma il modale **dal rapporto d'avvio**: prende il fatale se c'e', altrimenti non fa nulla.
+	 *
+	 * E' la forma che serve in gioco — chi mostra il modale ha in mano il rapporto del `GameMode`, non una
+	 * nota isolata — ed evita al chiamante di dover sapere *quale* delle note e' quella fatale. La regola
+	 * di quale lo sia vive in `IsFatal`, e resta li'.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	void ShowFromReport(const FRTStartupReport& Report);
+
+	/**
+	 * Arma il modale da un esito e un dettaglio.
+	 *
+	 * ⚠️ **Esiste perche' `FRTStartupNote` non e' costruibile da Blueprint**: i suoi campi sono
+	 * `BlueprintReadOnly` — di proposito, perche' una nota la produce chi rileva la condizione, non chi la
+	 * mostra — e questo rende il nodo `Make` inutilizzabile. Senza questa funzione il modale non sarebbe
+	 * armabile da un Blueprint, e quindi **non sarebbe provabile in PIE** finche' non esiste il codice che
+	 * lo arma davvero. Scoperto costruendo il widget, non previsto.
+	 *
+	 * Rifiuta gli esiti non fatali con la stessa regola di `ShowFor`.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	void ShowForOutcome(ERTStartupOutcome InOutcome, const FString& InDetail);
+
 	/** `true` quando il modale ha qualcosa da dire. Il Blueprint lo usa per mostrarsi. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
 	bool IsArmed() const { return Outcome != ERTStartupOutcome::Ok; }
+
+	/**
+	 * La visibilita' del modale, gia' nel tipo del binding.
+	 *
+	 * ⚠️ Qui e' **`Visible` e non `SelfHitTestInvisible`**: un modale deve *fermare* i click su cio' che
+	 * sta sotto, ed e' l'unica delle tre schermate per cui il valore non e' una formalita'.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	ESlateVisibility GetModalVisibility() const;
+
+	/**
+	 * La visibilita' del pulsante `DETAILS`, gia' nel tipo del binding.
+	 *
+	 * ⚠️ In Shipping e' **sempre `Collapsed`**, perche' `GetDetail()` restituisce una stringa vuota: il
+	 * dettaglio non e' nascosto, non e' proprio compilato. Un Blueprint che disegnasse il pulsante lo
+	 * stesso mostrerebbe un bottone che apre il vuoto.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	ESlateVisibility GetDetailsVisibility() const;
 
 private:
 	UPROPERTY(Transient)
@@ -141,6 +198,34 @@ public:
 	/** `true` se c'e' qualcosa da mostrare: e' la condizione con cui il Blueprint si accende. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
 	bool HasAnything() const { return Lines.Num() > 0; }
+
+	/**
+	 * Tutte le righe in un solo `FText`, separate da `\n`.
+	 *
+	 * ⚠️ **Esiste per una ragione pratica misurata sul lavoro vero**: senza, il Blueprint deve ciclare
+	 * l'array e costruire un `TextBlock` per riga — cinque nodi, `Construct Object from Class` compreso.
+	 * Con questo accessor il widget e' **un `Text Block` con un binding**, e il ciclo vive dove e'
+	 * testabile. E' la stessa regola che il progetto applica altrove: i widget non compongono, leggono.
+	 *
+	 * Il `TextBlock` che lo consuma deve avere **`Auto Wrap Text`** attivo e `Justification` a sinistra;
+	 * il numero di righe resta osservabile — e resta la cosa da verificare, perche' mostrarne una sola
+	 * nasconderebbe l'altra.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	FText GetLinesAsText() const;
+
+	/**
+	 * La visibilita' del banner, gia' nel tipo che il binding di `Visibility` accetta.
+	 *
+	 * ⚠️ **Esiste perche' `HasAnything()` non e' collegabile a quel binding**: restituisce `bool` e lo
+	 * slot vuole un `ESlateVisibility`, quindi il menu lo filtra via e chi cerca non lo trova. La via
+	 * alternativa — un `Select` in Blueprint — metterebbe in tre nodi una scelta che qui e' una riga, e
+	 * la ripeterebbe identica in ogni widget che ne ha bisogno.
+	 *
+	 * `Collapsed` e non `Hidden`: un banner assente non deve occupare spazio nel layout sotto.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	ESlateVisibility GetBannerVisibility() const;
 
 	/**
 	 * Riempie il banner dal rapporto d'avvio.

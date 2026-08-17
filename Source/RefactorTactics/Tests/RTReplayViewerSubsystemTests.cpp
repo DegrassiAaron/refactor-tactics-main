@@ -1,6 +1,10 @@
 #include "Misc/AutomationTest.h"
 #include "Replay/RTReplayViewerSubsystem.h"
 #include "Tests/RTReplayTestFixtures.h"
+// ⚠️ Il navigatore si INCLUDE e non si modifica: `Source/RefactorTactics/Frontend/` e' della track
+// `frontend_shell`. Qui serve solo per provare che le due schermate del replay stanno in piedi sopra
+// l'API che esiste gia' — se servisse cambiarla, sarebbe una richiesta a quella track, non un edit.
+#include "Frontend/RTFrontendNavigator.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -442,6 +446,125 @@ bool FRTReplayViewerSubsystemOrderTest::RunTest(const FString&)
 	{
 		TestEqual(TEXT("nell'ordine dell'indice: la piu' vecchia per prima"), Grezza[0].MatchId, Vecchia);
 	}
+
+	ReleaseSubsystemHost(GI);
+	Pulisci(R);
+	return true;
+}
+
+/**
+ * `Replay.ViewerSubsystem.TheTwoScreensHandOffThroughTheSubsystem` — il contratto fra le due schermate
+ * di R6 (`#472`), provato **prima** che i loro `.uasset` esistano.
+ *
+ * ## La domanda che nessuno aveva posto
+ *
+ * `spec-frontend-navigazione.md` §2.2 dice che `ReplayViewer` *«porta un `MatchId`, che e' il solo dato in
+ * ingresso»*. Ma `URTFrontendNavigator::PushScreen` prende **un `FName` e nient'altro**: non c'e' un
+ * payload, e nessuno aveva verificato **per dove** passa quel `MatchId`.
+ *
+ * Passa di qui: la lista **apre** l'archivio sul subsystem e *poi* spinge la schermata; il viewer trova
+ * la partita gia' aperta. Il subsystem e' lo stato condiviso, e sopravvive al cambio di livello perche' e'
+ * di `GameInstance`. Questo test lo rende un contratto invece di un'assunzione — e se un giorno il
+ * navigatore imparasse a portare dati, sara' questo a dire cosa si stava usando al suo posto.
+ *
+ * ⚠️ **Nessun widget**: le schermate non hanno binding, quindi il navigatore muove lo stack e non disegna
+ * niente. E' la stessa divisione che rende provabile il navigatore, usata qui dal lato del replay.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayTwoScreenHandoffTest,
+	"RefactorTactics.Replay.ViewerSubsystem.TheTwoScreensHandOffThroughTheSubsystem",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTReplayTwoScreenHandoffTest::RunTest(const FString&)
+{
+	const FString R = TransientRoot(TEXT("DueSchermate"));
+	Pulisci(R);
+
+	// Due partite: la scelta dalla lista deve poter cadere su una PRECISA, non sull'unica.
+	const FGuid Vecchia = ScriviArchivio(R, { Traccia(1, { ERTMatchPhase::Blast }) }, true, true,
+		FDateTime(2026, 8, 10, 9, 0, 0));
+	const FGuid Recente = ScriviArchivio(R, { Traccia(4, { ERTMatchPhase::Prep, ERTMatchPhase::Move }) },
+		true, true, FDateTime(2026, 8, 16, 9, 0, 0));
+
+	UGameInstance* GI = nullptr;
+	URTReplayViewerSubsystem* V = MakeSubsystemHost<URTReplayViewerSubsystem>(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), V)) { ReleaseSubsystemHost(GI); Pulisci(R); return false; }
+	URTFrontendNavigator* Nav = GI->GetSubsystem<URTFrontendNavigator>();
+	if (!TestNotNull(TEXT("e il navigatore accanto"), Nav))
+	{
+		ReleaseSubsystemHost(GI); Pulisci(R); return false;
+	}
+	V->SetReplaysRoot(R);
+
+	// La radice del frontend e le due schermate. I nomi sono quelli della gerarchia §2.1, senza il prefisso
+	// `WBP_RT_`: quello nomina l'`.uasset`, questo la schermata nello stack.
+	TestEqual(TEXT("il frontend parte dal menu"), Nav->InitializeFrontend(FName(TEXT("MainMenu"))),
+		ERTNavResult::Ok);
+
+	// --- Il viewer aperto SENZA una partita non e' un dead-end -------------------------------------
+	//
+	// E' il caso che la spec §2.2 vieta — «una schermata che si apra senza il suo dato non avrebbe niente
+	// da mostrare» — e la difesa non e' un divieto: e' che il subsystem lo **dica**. Un widget che chiede
+	// `IsOpen()` sa di non avere niente da disegnare, invece di leggere una posizione inventata.
+	TestEqual(TEXT("si puo' spingere il viewer"), Nav->PushScreen(FName(TEXT("ReplayViewer"))),
+		ERTNavResult::Ok);
+	TestFalse(TEXT("ma non c'e' nessuna partita aperta"), V->IsOpen());
+	TestEqual(TEXT("e la posizione non mente"), V->GetPosition().State,
+		ERTReplayPositionState::BeforeStart);
+	TestEqual(TEXT("il turno non si stampa"), V->GetTurnLabel().ToString(), FString(TEXT("—")));
+	TestEqual(TEXT("e si torna indietro"), Nav->PopScreen(), ERTNavResult::Ok);
+
+	// --- Il percorso vero: lista -> scelta -> apertura -> push --------------------------------------
+	TestEqual(TEXT("dal menu si apre la lista"), Nav->PushScreen(FName(TEXT("MatchHistory"))),
+		ERTNavResult::Ok);
+
+	TArray<FRTMatchHistoryEntry> Cronologia;
+	TestTrue(TEXT("la lista si legge"), V->LoadMatchList(/*bNewestFirst=*/true, Cronologia));
+	if (!TestEqual(TEXT("due partite"), Cronologia.Num(), 2))
+	{
+		ReleaseSubsystemHost(GI); Pulisci(R); return false;
+	}
+
+	// La riga scelta e' la SECONDA — la piu' vecchia — proprio perche' non sia quella che verrebbe per
+	// prima: se il `MatchId` non viaggiasse, il viewer aprirebbe l'altra e il test se ne accorgerebbe.
+	const FGuid Scelta = Cronologia[1].MatchId;
+	TestEqual(TEXT("ed e' la piu' vecchia"), Scelta, Vecchia);
+
+	TestEqual(TEXT("la lista apre l'archivio"), V->OpenMatch(Scelta), ERTReplayOpenResult::Opened);
+	TestEqual(TEXT("poi spinge il viewer"), Nav->PushScreen(FName(TEXT("ReplayViewer"))),
+		ERTNavResult::Ok);
+
+	// --- Il viewer trova la partita giusta ---------------------------------------------------------
+	TestEqual(TEXT("la schermata corrente e' il viewer"), Nav->GetCurrentScreen(),
+		FName(TEXT("ReplayViewer")));
+	TestTrue(TEXT("e ha una partita"), V->IsOpen());
+	TestEqual(TEXT("che e' quella scelta"), V->GetManifest().MatchId, Vecchia);
+	TestTrue(TEXT("si comincia a guardarla"), V->StepPhaseForward());
+	TestEqual(TEXT("turno 1, come dichiara la sua traccia"), V->GetPosition().TurnNumber, 1);
+
+	// --- Back: si torna alla lista, e la partita resta ---------------------------------------------
+	//
+	// ⚠️ **`Back` non chiude l'archivio, ed e' una decisione**: il navigatore RIUSA i widget invece di
+	// distruggerli, quindi «tornare alla lista» non e' «aver finito». Chiudere qui costringerebbe a
+	// rileggere il disco per un `Back` premuto per sbaglio.
+	// Chi vuole liberare le tracce chiama `Close()`, che esiste apposta — e lo fa `ReturnMain`, sotto,
+	// perche' li' il giocatore ha davvero lasciato il replay.
+	TestTrue(TEXT("dalla lista si torna indietro"), Nav->GetStack().CanGoBack());
+	TestEqual(TEXT("Back"), Nav->PopScreen(), ERTNavResult::Ok);
+	TestEqual(TEXT("si e' di nuovo sulla lista"), Nav->GetCurrentScreen(), FName(TEXT("MatchHistory")));
+	TestTrue(TEXT("e la partita e' ancora aperta"), V->IsOpen());
+
+	// --- Una seconda scelta sostituisce la prima ---------------------------------------------------
+	TestEqual(TEXT("si apre l'altra"), V->OpenMatch(Recente), ERTReplayOpenResult::Opened);
+	TestEqual(TEXT("ed e' l'altra"), V->GetManifest().MatchId, Recente);
+	TestEqual(TEXT("con la sua numerazione"), (V->StepPhaseForward(), V->GetPosition().TurnNumber), 4);
+
+	// --- ReturnMain: si lascia il replay, e le tracce si liberano ----------------------------------
+	TestEqual(TEXT("ReturnMain"), Nav->ReturnMain(), ERTNavResult::Ok);
+	TestEqual(TEXT("si e' al menu"), Nav->GetCurrentScreen(), FName(TEXT("MainMenu")));
+	V->Close(); // e' cio' che la schermata fa uscendo: il navigatore non conosce il replay
+	TestFalse(TEXT("l'archivio e' chiuso"), V->IsOpen());
+	TestEqual(TEXT("e non resta una posizione a mezz'aria"), V->GetPosition().State,
+		ERTReplayPositionState::BeforeStart);
 
 	ReleaseSubsystemHost(GI);
 	Pulisci(R);

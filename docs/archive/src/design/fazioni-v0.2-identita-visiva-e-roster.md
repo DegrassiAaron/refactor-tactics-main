@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ✅ **RECEPITO il 2026-08-08 da [D-029](../../../decisions/RT_PDR_00_Decision_Log.md) /
 > [ADR-0006](../../../decisions/adr-0006-ownership-abilita-sinergie.md).** Questo handoff resta un **input**, non
 > un'autorità (`AGENTS.md`: `docs/src/` non è fonte normativa per default). Gli owner normativi
@@ -106,10 +108,10 @@ Non esiste alcun bonus implicito per una squadra composta da membri della stessa
 
 | Character | Faction |
 |---|---|
-| Flux | Conflux |
-| Riva | Conflux |
-| Bastion | Constrine |
-| Vektor | Constrine |
+| Gadget | Conflux |
+| Phase | Conflux |
+| Riktor | Constrine |
+| Wraith | Constrine |
 
 ### v0.2
 
@@ -127,10 +129,10 @@ Non usare vecchi personaggi/proposte sostitutive del roster se sono già stati d
 Roster operativo attuale:
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 Steel
 Aurora
 Murdock
@@ -195,7 +197,7 @@ Una squadra può contenere liberamente personaggi appartenenti a fazioni diverse
 Esempio valido:
 
 ```text
-Flux
+Gadget
 Steel
 Aurora
 ```
@@ -225,8 +227,8 @@ Faction.Conflux
 ## Membri iniziali
 
 ```text
-Flux
-Riva
+Gadget
+Phase
 ```
 
 ## Identità
@@ -289,7 +291,7 @@ Non generare necessariamente il logo definitivo in questa task se non esiste una
 
 ## Personaggi
 
-### Flux
+### Gadget
 
 | Token | HEX |
 |---|---|
@@ -308,7 +310,7 @@ nodes
 environmental exploitation
 ```
 
-### Riva
+### Phase
 
 | Token | HEX |
 |---|---|
@@ -340,8 +342,8 @@ Faction.Constrine
 ## Membri iniziali
 
 ```text
-Bastion
-Vektor
+Riktor
+Wraith
 ```
 
 ## Identità
@@ -400,7 +402,7 @@ Esagono incompleto delimitato da due strutture laterali.
 
 ## Personaggi
 
-### Bastion
+### Riktor
 
 | Token | HEX |
 |---|---|
@@ -419,7 +421,7 @@ route control
 defensive geometry
 ```
 
-### Vektor
+### Wraith
 
 | Token | HEX |
 |---|---|
@@ -953,7 +955,7 @@ Se esiste già una directory canonica per gli scenari, usare quella.
 ## Stable Scenario ID
 
 ```text
-Team.Conflux.FluxRiva.ConductiveFlood
+Team.Conflux.GadgetRiva.ConductiveFlood
 ```
 
 ## Titolo
@@ -965,8 +967,8 @@ Conductive Flood
 ## Personaggi
 
 ```text
-Flux
-Riva
+Gadget
+Phase
 ```
 
 ## Obiettivo
@@ -974,13 +976,13 @@ Riva
 Dimostrare cooperazione sistemica:
 
 ```text
-Riva modifica terreno
+Phase modifica terreno
     ->
 Wet Territory
     ->
 il posizionamento/percorso cambia
     ->
-Flux crea connessione conduttiva
+Gadget crea connessione conduttiva
     ->
 payoff elettrico
 ```
@@ -999,15 +1001,15 @@ payoff elettrico
 ## Sequenza showcase indicativa
 
 Turno 1:
-- Riva crea/estende acqua verso un choke point.
-- Flux prepara un nodo o una connessione.
+- Phase crea/estende acqua verso un choke point.
+- Gadget prepara un nodo o una connessione.
 
 Turno 2:
-- Riva modifica il posizionamento o incentiva una rotta attraverso area Wet.
-- Flux completa la geometria conduttiva.
+- Phase modifica il posizionamento o incentiva una rotta attraverso area Wet.
+- Gadget completa la geometria conduttiva.
 
 Turno 3:
-- Flux usa la rete creata per il payoff elettrico.
+- Gadget usa la rete creata per il payoff elettrico.
 
 Adattare questa sequenza alle abilità effettivamente implementate.
 
@@ -1020,7 +1022,7 @@ NON inventare AbilityId che non esistono.
 ## Stable Scenario ID
 
 ```text
-Team.Constrine.BastionVektor.OnlyExit
+Team.Constrine.RiktorVektor.OnlyExit
 ```
 
 ## Titolo
@@ -1032,8 +1034,8 @@ The Only Exit
 ## Personaggi
 
 ```text
-Bastion
-Vektor
+Riktor
+Wraith
 ```
 
 ## Obiettivo
@@ -1041,11 +1043,11 @@ Vektor
 Dimostrare:
 
 ```text
-Bastion restringe le rotte
+Riktor restringe le rotte
     ->
 una soluzione diventa più probabile
     ->
-Vektor predice/intercetta
+Wraith predice/intercetta
 ```
 
 ## Feature
@@ -1208,8 +1210,8 @@ Esempio:
 
 ### Conductive Flood
 
-- ScenarioId: `Team.Conflux.FluxRiva.ConductiveFlood`
-- Characters: Flux + Riva
+- ScenarioId: `Team.Conflux.GadgetRiva.ConductiveFlood`
+- Characters: Gadget + Phase
 - Purpose: Wet Territory -> Conductive Network -> Electric payoff
 - Mode consigliata: Visual
 - Scenario file: `<path reale>`
@@ -1366,8 +1368,8 @@ Minimo:
 Quando le meccaniche necessarie esistono:
 
 ```text
-Team.Conflux.FluxRiva.ConductiveFlood
-Team.Constrine.BastionVektor.OnlyExit
+Team.Conflux.GadgetRiva.ConductiveFlood
+Team.Constrine.RiktorVektor.OnlyExit
 Team.Sentinel.SteelMurdock.HoldTheLine
 Team.Resonance.AuroraKwang.FrozenAnchor
 ```
@@ -1428,12 +1430,12 @@ DECISION — Four-faction initial roster
 The initial eight-character roster is distributed across four factions:
 
 Conflux:
-- Flux
-- Riva
+- Gadget
+- Phase
 
 Constrine:
-- Bastion
-- Vektor
+- Riktor
+- Wraith
 
 Sentinel Directorate:
 - Steel

@@ -11,7 +11,7 @@
 // Cio' che questi test NON coprono, e va detto: la finestra di 3,0 s, il commit e il troncamento del movimento
 // sono CP 14.5. Qui si produce l'opportunity, non la si risolve.
 //
-// ⚠️ Questa riga nominava anche «il cablaggio di `Vektor.InterceptShot`», ed era doppiamente falsa: [D-016]
+// ⚠️ Questa riga nominava anche «il cablaggio di `Wraith.InterceptShot`», ed era doppiamente falsa: [D-016]
 // ha reso `InterceptShot` una Predictive Action — decisa in Planning, risolta a un boundary, senza input live,
 // quindi senza finestra — e l'ha spostata in **E18**, dove e' chiusa dal 2026-08-10.
 //

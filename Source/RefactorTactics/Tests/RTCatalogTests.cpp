@@ -318,7 +318,7 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 			// sono supporto su se stessi, ma nemmeno attacchi — risolvono quando il loro trigger scatta, non
 			// nella fase in cui colpisce chi le ha dichiarate. I due archetipi legacy non ne avevano
 			// (quattro slot: attacchi, barriera, carica), quindi «tutto il resto colpisce» reggeva; il roster
-			// ne ha, e senza questa esclusione il test chiederebbe la fase Blast a `Bastion.Interposition`.
+			// ne ha, e senza questa esclusione il test chiederebbe la fase Blast a `Riktor.Interposition`.
 			if (!URTCatalogLibrary::IsFastMovement(Ability->Def)
 				&& Ability->Def.Slot != ERTActionSlot::Reaction)
 			{
@@ -330,10 +330,10 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 				{
 					// «Tutto il resto colpisce» descriveva i quattro slot degli archetipi legacy. Un kit
 					// d'eroe ha almeno quattro categorie, e le ultime due non colpiscono affatto:
-					//   - si PREPARA senza essere supporto su se' — `Bastion.Reconfigure`, `Riva.FlowReaction`,
-					//     `Vektor.InterceptShot` (fase Prep);
-					//   - agisce sull'AMBIENTE — `Flux.ConductiveNode`, `Riva.FluidTrail`, `Riva.MistVeil`,
-					//     `Bastion.KineticPanel`, che ereditano la fase dalle azioni core d'ambiente e
+					//   - si PREPARA senza essere supporto su se' — `Riktor.Reconfigure`, `Phase.FlowReaction`,
+					//     `Wraith.InterceptShot` (fase Prep);
+					//   - agisce sull'AMBIENTE — `Gadget.ConductiveNode`, `Phase.FluidTrail`, `Phase.MistVeil`,
+					//     `Riktor.KineticPanel`, che ereditano la fase dalle azioni core d'ambiente e
 					//     risolvono nel Cleanup, dopo il Move, per colpire anche chi e' appena entrato.
 					// La proprieta' che regge tutte e' che l'azione risolva in una fase in cui si GIOCA:
 					// `Snapshot`, `Planning` e `MatchEnded` non sono destinazioni per un'azione dichiarata

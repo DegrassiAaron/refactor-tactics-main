@@ -5,6 +5,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Unit/RTUnit.h"
+#include "Ability/RTCatalogLibrary.h" // DefaultLoadoutFor: l'equipaggiamento con cui un eroe entra in partita
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Turn/RTTurnManager.h"
@@ -797,6 +798,23 @@ ARTUnit* ARTGameMode::SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRT
 		// mista. Vale anche per il costo — questa riga gira una volta per unita'.
 		Unit->bIsBotControlled = (TeamId == 1) || bAutobattleInEffect;
 		Unit->ConfigureFromHeroData(Hero);
+
+		// EQUIPAGGIAMENTO (`#1054`, CP 7.4). Fino al 2026-08-16 nessuno equipaggiava: `DefaultLoadoutFor`
+		// aveva chiamanti solo nei test, e la spinta di 2 di `Weapon.Impact` esisteva nei dati e in nessuna
+		// partita — la ragione misurata per cui `Guard` e `Brace` non si distinguevano a video (`#403`).
+		//
+		// ⚠️ **Qui e non in `ConfigureFromHeroData`**, che e' la copia dei DATI dell'eroe: metterla la'
+		// equipaggerebbe anche le decine di unita' che i test unitari costruiscono per avere «un'unita'
+		// qualunque», cambiando sotto i piedi misure che non parlano di equipaggiamento.
+		//
+		// ⚠️ **E nessun ramo per il bot**: questa funzione e' il punto unico d'ingresso in partita ed e'
+		// dove si decide `bIsBotControlled` due righe sopra, quindi entrambe le squadre passano di qui.
+		// Un `if (!bIsBotControlled)` sarebbe la forma in cui «il bot gioca un altro gioco» rientra.
+		//
+		// `DefaultLoadoutFor` risponde VUOTO per un eroe i cui pezzi non sono spediti — oggi Gadget e
+		// Wraith, che §4 assegna a due gadget che v0.1 non costruisce — e un array vuoto qui non fa nulla.
+		Unit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+
 		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
 		Unit->PlaceOnCell(InCell, Origin, HexSize, LayerHeight);
 	}

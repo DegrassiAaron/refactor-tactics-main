@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `HISTORICAL` · **Sorgente consumato il 2026-08-13** · non autorevole.
 >
 > **Cosa e' entrato**: l'audit misurato del clone Wiki (§13) e' diventato
@@ -89,10 +91,10 @@ Nomi player-facing correnti attesi:
 
 I nomi legacy:
 
-- Flux
-- Riva
-- Bastion
-- Vektor
+- Gadget
+- Phase
+- Riktor
+- Wraith
 
 sono da considerare legacy salvo redirect/storia esplicita.
 

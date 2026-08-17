@@ -274,7 +274,7 @@ bool FRTShowcaseFixtureLayoutTest::RunTest(const FString&)
 
 	// Il roster canonico della v0.1, con gli ID del catalogo eroi: non gli archetipi legacy ne' i nomi
 	// storici (Aegis/Nyx/Drift/Vex). Sono gli stessi ID che `URTHeroCatalogLibrary` usa come chiave stabile.
-	for (const FName HeroId : { FName("Hero.Flux"), FName("Hero.Riva"), FName("Hero.Bastion"), FName("Hero.Vektor") })
+	for (const FName HeroId : { FName("Hero.Gadget"), FName("Hero.Phase"), FName("Hero.Riktor"), FName("Hero.Wraith") })
 	{
 		TestTrue(*FString::Printf(TEXT("%s e' in campo"), *HeroId.ToString()), Heroes.Contains(HeroId));
 	}
@@ -368,10 +368,10 @@ namespace
 	TArray<FRTShowcaseExpectedSurface> BasinExpectedSurfaces()
 	{
 		return {
-			// Corridoio ovest: Flux ci passa al turno 1; `MistVeil` ne aggiunge al turno 5.
+			// Corridoio ovest: Gadget ci passa al turno 1; `MistVeil` ne aggiunge al turno 5.
 			{ FRTCellId(-3, 0, 0), ERTHexSurface::Smoke },
 			{ FRTCellId(-2, 0, 0), ERTHexSurface::Smoke },
-			// Lane d'acqua di Riva: conduttiva, ed e' cio' che rende possibile il payoff del turno 7.
+			// Lane d'acqua di Phase: conduttiva, ed e' cio' che rende possibile il payoff del turno 7.
 			{ FRTCellId(-3, 1, 0), ERTHexSurface::ShallowWater },
 			{ FRTCellId(-2, 1, 0), ERTHexSurface::ShallowWater },
 			{ FRTCellId(-1, 1, 0), ERTHexSurface::ShallowWater },
@@ -382,7 +382,7 @@ namespace
 			// Sbarra la via diretta est->Relay ai movimenti lineari: invalida il `Ram` del turno 7.
 			{ FRTCellId( 1, 0, 0), ERTHexSurface::Rough },
 			{ FRTCellId( 2, 0, 0), ERTHexSurface::Rough },
-			// Fascia nord: Vektor la attraversa al turno 3 scendendo dalla cresta. Lontana dagli spawn.
+			// Fascia nord: Wraith la attraversa al turno 3 scendendo dalla cresta. Lontana dagli spawn.
 			{ FRTCellId( 2, -1, 0), ERTHexSurface::Fire },
 			{ FRTCellId( 1, -1, 0), ERTHexSurface::Fire },
 			// Cresta nord-est: vantaggio GEOMETRICO, nessun bonus numerico (D-024).
@@ -498,10 +498,10 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 		}
 	}
 
-	TestEqual(TEXT("Flux allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Flux")),    FRTCellId(-4, 0, 0));
-	TestEqual(TEXT("Riva allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Riva")),    FRTCellId(-4, 1, 0));
-	TestEqual(TEXT("Bastion allo spawn dichiarato"), ById.FindRef(TEXT("Hero.Bastion")), FRTCellId( 4, 0, 0));
-	TestEqual(TEXT("Vektor allo spawn dichiarato"),  ById.FindRef(TEXT("Hero.Vektor")),  FRTCellId( 4, 1, 0));
+	TestEqual(TEXT("Gadget allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Gadget")),    FRTCellId(-4, 0, 0));
+	TestEqual(TEXT("Phase allo spawn dichiarato"),    ById.FindRef(TEXT("Hero.Phase")),    FRTCellId(-4, 1, 0));
+	TestEqual(TEXT("Riktor allo spawn dichiarato"), ById.FindRef(TEXT("Hero.Riktor")), FRTCellId( 4, 0, 0));
+	TestEqual(TEXT("Wraith allo spawn dichiarato"),  ById.FindRef(TEXT("Hero.Wraith")),  FRTCellId( 4, 1, 0));
 
 	return true;
 }
@@ -600,7 +600,7 @@ bool FRTScenarioUnknownFixtureTest::RunTest(const FString&)
 	FRTTestScenario Scenario;
 	Scenario.ScenarioId = TEXT("Test.UnknownFixture");
 	Scenario.Fixture = TEXT("NonEsiste");
-	Scenario.Units.Add([]{ FRTScenarioUnit U; U.Id = TEXT("A1"); U.HeroId = TEXT("Hero.Flux");
+	Scenario.Units.Add([]{ FRTScenarioUnit U; U.Id = TEXT("A1"); U.HeroId = TEXT("Hero.Gadget");
 		U.TeamId = 0; U.Cell = FRTCellId(0, 0, 0); return U; }());
 	// Uno scenario senza assertion viene rifiutato in validazione — giustamente: passerebbe sempre. Qui ne
 	// serve una qualunque, perche' cio' che si verifica e' che si arrivi al controllo della fixture.
@@ -708,11 +708,22 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 	// lontano arriva oggi, e cosa lo ferma. E' la risposta che si muove, ed e' giusto che si muova — ogni
 	// capability che atterra ne accende un altro pezzo. Il numero e' pinnato apposta: se scendesse, sarebbe
 	// una regressione da vedere subito.
+	//
+	// ⏱️ **2026-08-16, `#512` fase B: da tre a CINQUE.** Il T4 chiedeva `DecisionBoundary`, che ora e' fra le
+	// disponibili; il T5 non chiede nulla. Il numero si e' mosso per la terza volta e per la terza ragione
+	// giusta — non e' il test ad essere stato aggiustato, e' il gioco ad essere arrivato piu' lontano.
 	TestEqual(TEXT("si ferma sul primo turno non supportato"),
 		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
-	TestEqual(TEXT("arriva a tre turni: T1 e T3 non chiedono nulla, T2 lo apre E18"), Result.TurnsPlayed, 3);
-	// Ora lo ferma il T4, che chiede la finestra di reazione: `DecisionBoundary` e' E14, non iniziata.
-	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("DecisionBoundary")));
+	TestEqual(TEXT("arriva a cinque turni: il T4 lo apre #512 fase B, il T5 non chiede nulla"),
+		Result.TurnsPlayed, 5);
+	// Ora lo ferma il T6, che chiede la rivalidazione della geometria sul bersaglio effettivo (D-017).
+	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("InterceptRevalidation")));
+	// ⚠️ **E la meta' negativa, senza la quale il verde qui sopra e' ambiguo**: il blocco NON deve piu'
+	// nominare `DecisionBoundary`. Senza questa riga, un T4 che tornasse `Blocked` per un difetto di
+	// traduzione della decisione — invece che per la capability — passerebbe il `Contains` sopra soltanto
+	// perche' il messaggio nomina un'altra capability, e il test direbbe «cinque turni» sbagliando turno.
+	TestFalse(TEXT("il T4 non e' piu' cio' che lo ferma"),
+		Result.BlockedReason.Contains(TEXT("DecisionBoundary")));
 
 	// Le assertion del turno 1 sono state valutate e sono passate: un BLOCKED non le nasconde.
 	TestTrue(TEXT("il turno 1 ha assertion valutate"), Result.Assertions.Num() > 0);
@@ -730,9 +741,28 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 		{
 			TestTrue(TEXT("il report dichiara l'esito BLOCKED"), Json.Contains(TEXT("BLOCKED")));
 			// Il motivo sta accanto all'esito: «BLOCKED» da solo direbbe che non tutto e' pronto, che si
-			// sapeva gia'. Il valore e' nel nome della capability.
-			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("DecisionBoundary")));
+			// sapeva gia'. Il valore e' nel nome della capability — che dal 2026-08-16 e' quella del T6.
+			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("InterceptRevalidation")));
 			TestTrue(TEXT("il report distingue blockedReason da error"), Json.Contains(TEXT("blockedReason")));
+			// ➕ **Il T4 ha SPARATO, e il report lo dice in due numeri.** Senza questi, «cinque turni» sarebbe
+			// compatibile con un T4 che si sblocca e non apre nessuna finestra — cioe' esattamente il verde
+			// che la fase B esiste per non produrre. `scriptedDecisionsUnused` e' la meta' negativa: una
+			// decisione dichiarata e mai consumata significa finestra scoperta, e l'harness la conta.
+			// ⚠️ **La virgola finale fa parte dell'asserzione, e non e' pedanteria**: senza, `": 2"` e' un
+			// prefisso e il `Contains` accetterebbe anche `": 21"` — il conteggio sbagliato dentro un verde.
+			// E il caso non e' ipotetico: con `": 1"` questa riga sarebbe rimasta verde nel passaggio da UNA
+			// decisione a DUE, perche' un prefisso non distingue «1» da «1 seguito da altro».
+			//
+			// ⏱️ **Da 1 a 2 con `#1038`**: lo showcase ha riavuto la propria coreografia. Wraith sale sulla
+			// cresta al T1, predice da lassu' al T2, scende attraverso il fuoco al T3 e arma al T4 da una
+			// riga — `r = -1` — la cui linea verso ovest non ha porte. Gadget entra per primo (`HOLD`),
+			// Phase dopo (`FIRE`): DUE opportunity distinte, che e' cio' che `showcase-v0.1.md` §«Turno 4»
+			// chiede. Il turno precedente ne apriva una sola perche' il T1 parcheggiava Wraith sulla lane
+			// d'acqua, dietro la porta chiusa — e nessuna linea di Overwatch usciva da li'.
+			TestTrue(TEXT("il T4 ha applicato ENTRAMBE le decisioni scriptate"),
+				Json.Contains(TEXT("\"scriptedDecisionsApplied\": 2,")));
+			TestTrue(TEXT("e non ne ha lasciata nessuna inutilizzata"),
+				Json.Contains(TEXT("\"scriptedDecisionsUnused\": 0,")));
 		}
 	}
 
@@ -848,10 +878,10 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 		U.Cell = Cell;
 		return U;
 	};
-	Scenario.Units.Add(Unita(TEXT("Flux"),    TEXT("Hero.Flux"),    0, FRTCellId(-4, 0, 0)));
-	Scenario.Units.Add(Unita(TEXT("Riva"),    TEXT("Hero.Riva"),    0, FRTCellId(-4, 1, 0)));
-	Scenario.Units.Add(Unita(TEXT("Bastion"), TEXT("Hero.Bastion"), 1, FRTCellId( 4, 0, 0)));
-	Scenario.Units.Add(Unita(TEXT("Vektor"),  TEXT("Hero.Vektor"),  1, FRTCellId( 4, 1, 0)));
+	Scenario.Units.Add(Unita(TEXT("Gadget"),    TEXT("Hero.Gadget"),    0, FRTCellId(-4, 0, 0)));
+	Scenario.Units.Add(Unita(TEXT("Phase"),    TEXT("Hero.Phase"),    0, FRTCellId(-4, 1, 0)));
+	Scenario.Units.Add(Unita(TEXT("Riktor"), TEXT("Hero.Riktor"), 1, FRTCellId( 4, 0, 0)));
+	Scenario.Units.Add(Unita(TEXT("Wraith"),  TEXT("Hero.Wraith"),  1, FRTCellId( 4, 1, 0)));
 
 	auto Movimento = [](const TCHAR* Id, const FRTCellId& Dove)
 	{
@@ -864,14 +894,14 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 	// T1 — SOLO MOVIMENTO, quattro unità nello stesso turno.
 	{
 		FRTScenarioTurn T;
-		T.Intents.Add(Movimento(TEXT("Flux"),    FRTCellId(-3, 0, 0)));
-		T.Intents.Add(Movimento(TEXT("Riva"),    FRTCellId(-3, 1, 0)));
-		T.Intents.Add(Movimento(TEXT("Bastion"), FRTCellId( 3, 0, 0)));
-		T.Intents.Add(Movimento(TEXT("Vektor"),  FRTCellId( 3, 1, 0)));
+		T.Intents.Add(Movimento(TEXT("Gadget"),    FRTCellId(-3, 0, 0)));
+		T.Intents.Add(Movimento(TEXT("Phase"),    FRTCellId(-3, 1, 0)));
+		T.Intents.Add(Movimento(TEXT("Riktor"), FRTCellId( 3, 0, 0)));
+		T.Intents.Add(Movimento(TEXT("Wraith"),  FRTCellId( 3, 1, 0)));
 		Scenario.Turns.Add(T);
 	}
 
-	// T2 — AZIONE PRINCIPALE e movimento nello stesso turno, su unità diverse. Bastion erige un pannello
+	// T2 — AZIONE PRINCIPALE e movimento nello stesso turno, su unità diverse. Riktor erige un pannello
 	// (slot principale) mentre gli altri continuano ad avvicinarsi (slot movimento): è la coesistenza dei due
 	// slot che l'intent deve saper esprimere, e senza la quale «alimentare gli intenti» significherebbe solo
 	// «muovere».
@@ -880,16 +910,16 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 		T.Requires.Add(TEXT("CreateCover"));
 
 		FRTScenarioIntent Pannello;
-		Pannello.UnitId = TEXT("Bastion");
-		Pannello.Ability = FName(TEXT("Bastion.KineticPanel"));
+		Pannello.UnitId = TEXT("Riktor");
+		Pannello.Ability = FName(TEXT("Hero.Riktor.KineticPanel"));
 		Pannello.TargetCell = FRTCellId(3, 0, 0);
 		Pannello.bTargetsCell = true;
 		Pannello.CoverEdge = ERTHexDirection::W; // verso chi arriva, che è l'unico verso che ha senso
 		Pannello.bHasCoverEdge = true;
 		T.Intents.Add(Pannello);
 
-		T.Intents.Add(Movimento(TEXT("Flux"), FRTCellId(-2, 0, 0)));
-		T.Intents.Add(Movimento(TEXT("Riva"), FRTCellId(-2, 1, 0)));
+		T.Intents.Add(Movimento(TEXT("Gadget"), FRTCellId(-2, 0, 0)));
+		T.Intents.Add(Movimento(TEXT("Phase"), FRTCellId(-2, 1, 0)));
 		Scenario.Turns.Add(T);
 	}
 
@@ -898,7 +928,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 	// turno legittimo. Un'unità sola si muove: gli altri restano fermi, che è un intento anche quello.
 	{
 		FRTScenarioTurn T;
-		T.Intents.Add(Movimento(TEXT("Riva"), FRTCellId(-1, 1, 0)));
+		T.Intents.Add(Movimento(TEXT("Phase"), FRTCellId(-1, 1, 0)));
 		Scenario.Turns.Add(T);
 	}
 
@@ -913,10 +943,10 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 		E.Cell = Cell;
 		return E;
 	};
-	Scenario.Expect.Add(Dove(TEXT("Flux"),    FRTCellId(-2, 0, 0)));
-	Scenario.Expect.Add(Dove(TEXT("Riva"),    FRTCellId(-1, 1, 0)));
-	Scenario.Expect.Add(Dove(TEXT("Bastion"), FRTCellId( 3, 0, 0))); // ha eretto, non si è mosso
-	Scenario.Expect.Add(Dove(TEXT("Vektor"),  FRTCellId( 3, 1, 0)));
+	Scenario.Expect.Add(Dove(TEXT("Gadget"),    FRTCellId(-2, 0, 0)));
+	Scenario.Expect.Add(Dove(TEXT("Phase"),    FRTCellId(-1, 1, 0)));
+	Scenario.Expect.Add(Dove(TEXT("Riktor"), FRTCellId( 3, 0, 0))); // ha eretto, non si è mosso
+	Scenario.Expect.Add(Dove(TEXT("Wraith"),  FRTCellId( 3, 1, 0)));
 	Scenario.Expect.Add([]{ FRTTestExpectation E; E.Kind = ERTAssertionKind::TurnsCompleted; E.Value = 3; return E; }());
 
 	UWorld* World = RTWorldFixtures::MakeWorld();
@@ -950,7 +980,7 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
 				URTTurnLogLibrary::DeserializeTurnLog(Result.TurnTraces[1].Bytes, Voci)))
 		{
 			const bool bPannelloNelLog = Voci.ContainsByPredicate([](const FRTTurnLogEntry& E)
-				{ return E.ActionId == FName(TEXT("Bastion.KineticPanel")); });
+				{ return E.ActionId == FName(TEXT("Hero.Riktor.KineticPanel")); });
 			TestTrue(TEXT("l'azione principale dichiarata compare nel TurnLog"), bPannelloNelLog);
 		}
 	}
@@ -973,9 +1003,9 @@ bool FRTShowcaseScriptedInputsTest::RunTest(const FString&)
  * `DecisionBoundary` e' un'etichetta del vocabolario degli scenari, non un interruttore del motore: le
  * finestre le apre gia' il CP 14.5. Scoprirla resta fase B, come dicono i vincoli globali.
  *
- * Geometria misurata, non indovinata: `Vektor` ha vista 6 e `Vektor.PulseShot` portata 4, quindi come
+ * Geometria misurata, non indovinata: `Wraith` ha vista 6 e `Wraith.PulseShot` portata 4, quindi come
  * guardiano copre il varco. Il cono E' il facing (ADR-0005 §4c): da `(2,0,0)` guardando a `W` parte da
- * `(1,0,0)` e arriva a `(-2,0,0)`. `Flux` lo attraversa. Un solo bersaglio basta per aprire la finestra
+ * `(1,0,0)` e arriva a `(-2,0,0)`. `Gadget` lo attraversa. Un solo bersaglio basta per aprire la finestra
  * perche' `HOLD` e' sempre in coda ad `AllowedResponses`, quindi la cardinalita' e' 2 e
  * `RequiresDecisionBoundary` e' vera.
  */
@@ -996,8 +1026,8 @@ bool FRTShowcaseDecisionProviderTest::RunTest(const FString&)
 		return U;
 	};
 	// Il guardiano guarda a Ovest; il bersaglio attraversa il cono da Ovest verso il centro.
-	Scenario.Units.Add(Unita(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
-	Scenario.Units.Add(Unita(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+	Scenario.Units.Add(Unita(TEXT("Guardia"), TEXT("Hero.Wraith"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(Unita(TEXT("Corsa"),   TEXT("Hero.Gadget"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
 
 	{
 		FRTScenarioTurn T;
@@ -1083,7 +1113,7 @@ bool FRTShowcaseDecisionResidueTest::RunTest(const FString&)
 	Scenario.MapRadius = 4;
 
 	FRTScenarioUnit Sola;
-	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Bastion")); Sola.TeamId = 0;
+	Sola.Id = TEXT("Sola"); Sola.HeroId = FName(TEXT("Hero.Riktor")); Sola.TeamId = 0;
 	Sola.Cell = FRTCellId(0, 0, 0);
 	Scenario.Units.Add(Sola);
 
@@ -1136,8 +1166,8 @@ bool FRTShowcaseDecisionQueueTest::RunTest(const FString&)
 	};
 	// Stessa geometria del task 5, che e' quella misurata: nessun `Requires`, o il turno sarebbe `Blocked`
 	// prima ancora di applicare gli intent.
-	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
-	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Wraith"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Gadget"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
 
 	FRTScenarioTurn T;
 	FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
@@ -1204,8 +1234,8 @@ bool FRTShowcaseUncoveredWindowTest::RunTest(const FString&)
 		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
 		return X;
 	};
-	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
-	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Wraith"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Gadget"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
 
 	FRTScenarioTurn T;
 	FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
@@ -1287,8 +1317,8 @@ bool FRTShowcaseDecisionSourceTest::RunTest(const FString&)
 		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
 		return X;
 	};
-	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
-	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Wraith"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Gadget"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
 
 	{
 		FRTScenarioTurn T;
@@ -1369,8 +1399,8 @@ bool FRTShowcaseDecisionMutationTest::RunTest(const FString&)
 			FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
 			return X;
 		};
-		S.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
-		S.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+		S.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Wraith"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+		S.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Gadget"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
 
 		FRTScenarioTurn T;
 		FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
@@ -1456,9 +1486,9 @@ bool FRTShowcaseDecisionRejectedTest::RunTest(const FString&)
 		FRTScenarioUnit X; X.Id = Id; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
 		return X;
 	};
-	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"),  1, FRTCellId( 2,  0, 0), ERTHexDirection::W));
-	Scenario.Units.Add(U(TEXT("Alleato"), TEXT("Hero.Bastion"), 1, FRTCellId( 3, -1, 0), ERTHexDirection::W));
-	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),    0, FRTCellId(-3,  0, 0), ERTHexDirection::E));
+	Scenario.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Wraith"),  1, FRTCellId( 2,  0, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Alleato"), TEXT("Hero.Riktor"), 1, FRTCellId( 3, -1, 0), ERTHexDirection::W));
+	Scenario.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Gadget"),    0, FRTCellId(-3,  0, 0), ERTHexDirection::E));
 
 	FRTScenarioTurn T;
 	FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia"); Arma.Ability = FName(TEXT("Action.Overwatch"));
@@ -1525,8 +1555,8 @@ bool FRTShowcaseDeciderLifetimeTest::RunTest(const FString&)
 			FRTScenarioUnit X; X.Id = UId; X.HeroId = FName(Hero); X.TeamId = Team; X.Cell = C; X.Facing = F;
 			return X;
 		};
-		S.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Vektor"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
-		S.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Flux"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
+		S.Units.Add(U(TEXT("Guardia"), TEXT("Hero.Wraith"), 1, FRTCellId( 2, 0, 0), ERTHexDirection::W));
+		S.Units.Add(U(TEXT("Corsa"),   TEXT("Hero.Gadget"),   0, FRTCellId(-3, 0, 0), ERTHexDirection::E));
 		FRTScenarioTurn T;
 		FRTScenarioIntent Arma; Arma.UnitId = TEXT("Guardia");
 		Arma.Ability = FName(TEXT("Action.Overwatch"));

@@ -85,57 +85,57 @@
 
 ---
 
-# E. Character Kit — Flux
+# E. Character Kit — Gadget
 
 Current v0.1 naming to support in slot art.
 
 | Scope | Ability ID | Label | Slot-art grammar |
 |---|---|---|---|
-| CORE | `Flux.ArcPulse` | Arc Pulse | Basic Attack + Electric; short pulse/bolt impact |
-| CORE | `Flux.LinearDischarge` | Linear Discharge | Line + Electric; clear linear discharge |
-| CORE_IF_SHOWN | `Flux.ConductiveNode` | Conductive Node | Cell/Object + Conductive + Electric setup; node/network cue |
-| CORE | `Flux.Overload` | Overload | Circle + Electric + Damage; radial surge |
-| CORE | `Flux.ReactiveCapacitor` | Reactive Capacitor | Reaction + Shield + Electric return cue |
+| CORE | `Hero.Gadget.ArcPulse` | Arc Pulse | Basic Attack + Electric; short pulse/bolt impact |
+| CORE | `Hero.Gadget.LinearDischarge` | Linear Discharge | Line + Electric; clear linear discharge |
+| CORE_IF_SHOWN | `Hero.Gadget.ConductiveNode` | Conductive Node | Cell/Object + Conductive + Electric setup; node/network cue |
+| CORE | `Hero.Gadget.Overload` | Overload | Circle + Electric + Damage; radial surge |
+| CORE | `Hero.Gadget.ReactiveCapacitor` | Reactive Capacitor | Reaction + Shield + Electric return cue |
 
-Do not create a lightning-bolt-only icon for every Flux ability. Differentiate geometry and function.
-
----
-
-# F. Character Kit — Riva
-
-| Scope | Ability ID | Label | Slot-art grammar |
-|---|---|---|---|
-| CORE | `Riva.PressureJet` | Pressure Jet | Line + Water + Push |
-| CORE | `Riva.CircularTide` | Circular Tide | Circle + Water + Heal/Support |
-| CORE | `Riva.FluidTrail` | Fluid Trail | Dash + Water trail |
-| CORE | `Riva.MistVeil` | Mist Veil | Circle/Area + Water→Smoke/Obscure |
-| CONDITIONAL_V01 | `Riva.FlowReaction` | Flow Reaction | Reaction + Reposition + Water |
+Do not create a lightning-bolt-only icon for every Gadget ability. Differentiate geometry and function.
 
 ---
 
-# G. Character Kit — Bastion
+# F. Character Kit — Phase
 
 | Scope | Ability ID | Label | Slot-art grammar |
 |---|---|---|---|
-| CORE | `Bastion.ImpactShot` | Impact Shot | Basic Attack + Kinetic impact |
-| CORE_IF_SHOWN | `Bastion.KineticPanel` | Kinetic Panel | Create Cover + directional panel |
-| CORE_IF_SHOWN | `Bastion.Reconfigure` | Reconfigure | Modify Cover + rotate/shift |
-| CORE | `Bastion.Ram` | Ram | Charge/Dash + Push + Damage |
-| CORE | `Bastion.Interposition` | Interposition | Reaction + Ally + redirect/intercept |
+| CORE | `Hero.Phase.PressureJet` | Pressure Jet | Line + Water + Push |
+| CORE | `Hero.Phase.CircularTide` | Circular Tide | Circle + Water + Heal/Support |
+| CORE | `Hero.Phase.FluidTrail` | Fluid Trail | Dash + Water trail |
+| CORE | `Hero.Phase.MistVeil` | Mist Veil | Circle/Area + Water→Smoke/Obscure |
+| CONDITIONAL_V01 | `Hero.Phase.FlowReaction` | Flow Reaction | Reaction + Reposition + Water |
+
+---
+
+# G. Character Kit — Riktor
+
+| Scope | Ability ID | Label | Slot-art grammar |
+|---|---|---|---|
+| CORE | `Hero.Riktor.ImpactShot` | Impact Shot | Basic Attack + Kinetic impact |
+| CORE_IF_SHOWN | `Hero.Riktor.KineticPanel` | Kinetic Panel | Create Cover + directional panel |
+| CORE_IF_SHOWN | `Hero.Riktor.Reconfigure` | Reconfigure | Modify Cover + rotate/shift |
+| CORE | `Hero.Riktor.Ram` | Ram | Charge/Dash + Push + Damage |
+| CORE | `Hero.Riktor.Interposition` | Interposition | Reaction + Ally + redirect/intercept |
 
 Brace action must not reuse Kinetic Panel or Interposition art.
 
 ---
 
-# H. Character Kit — Vektor
+# H. Character Kit — Wraith
 
 | Scope | Ability ID | Label | Slot-art grammar |
 |---|---|---|---|
-| CORE | `Vektor.PulseShot` | Pulse Shot | Basic Attack + kinetic pulse |
-| CONDITIONAL_V01 | `Vektor.InterceptShot` | Intercept Shot | Overwatch/Reaction + controlled cell/line + stop movement |
-| CORE | `Vektor.PassingBlade` | Passing Blade | Dash + Line + Damage |
-| CORE | `Vektor.Deflection` | Deflection | Reaction + deflect/impact redirect; not Shield pool |
-| CORE_IF_SHOWN | `Vektor.Feint` | Feint | Prediction + Cell mark + Reposition |
+| CORE | `Hero.Wraith.PulseShot` | Pulse Shot | Basic Attack + kinetic pulse |
+| CONDITIONAL_V01 | `Hero.Wraith.InterceptShot` | Intercept Shot | Overwatch/Reaction + controlled cell/line + stop movement |
+| CORE | `Hero.Wraith.PassingBlade` | Passing Blade | Dash + Line + Damage |
+| CORE | `Hero.Wraith.Deflection` | Deflection | Reaction + deflect/impact redirect; not Shield pool |
+| CORE_IF_SHOWN | `Hero.Wraith.Feint` | Feint | Prediction + Cell mark + Reposition |
 
 ---
 

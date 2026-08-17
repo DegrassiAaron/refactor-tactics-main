@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.StationaryDeclaredRotationApplies",
-  "tags": ["facing", "planning", "turnlog", "spec", "flux", "bastion"],
+  "tags": ["facing", "planning", "turnlog", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -12,8 +12,8 @@
   "_nota_stile": "Lo stile di movimento e' `None` perche' l'intent non dichiara `move`, non perche' lo scenario lo imposti: e' il resolver a derivarlo da quel che e' successo. Un'unita' ferma che dichiara una rotazione e' l'unico modo di cambiare orientamento senza spendere il movimento.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [0, 0, 0], "facing": "E" },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [3, 0, 0], "facing": "W" }
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [3, 0, 0], "facing": "W" }
   ],
 
   "turns": [

@@ -1,17 +1,17 @@
 {
   "scenarioId": "Visual.Environment.FireOnEnter",
-  "tags": ["animation", "environment", "vektor"],
+  "tags": ["animation", "environment", "wraith"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayLite",
 
-  "_nota": "BANCO VFX per il danno da terreno. Vektor entra nella cella di fuoco a (0,-2) e l'effetto si vede in DUE momenti distinti, che e' il motivo per cui questo scenario esiste: 10 danni all'ingresso (on-enter del catalogo terreni) e 8 nel Cleanup per `Status.Burning`, che dura 2 turni. 90 - 10 - 8 = 72. Un VFX che copre entrambi i momenti con la stessa animazione sta nascondendo una regola.",
+  "_nota": "BANCO VFX per il danno da terreno. Wraith entra nella cella di fuoco a (0,-2) e l'effetto si vede in DUE momenti distinti, che e' il motivo per cui questo scenario esiste: 10 danni all'ingresso (on-enter del catalogo terreni) e 8 nel Cleanup per `Status.Burning`, che dura 2 turni. 90 - 10 - 8 = 72. Un VFX che copre entrambi i momenti con la stessa animazione sta nascondendo una regola.",
 
   "_nota_evento": "L'ingresso emette `HazardDamage` e si puo' agganciare. Il tick di Burning nel Cleanup NON ha un evento proprio: si vede solo la barra scendere. Vedi docs/technical/scenari-validazione-visiva.md §8.1.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-4,  0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 0, -3, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-4,  0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 0, -3, 0] }
   ],
 
   "turns": [

@@ -1,26 +1,26 @@
 {
   "scenarioId": "Visual.Combat.WaterElectric",
-  "tags": ["animation", "combat", "environment", "flux", "vektor"],
+  "tags": ["animation", "combat", "environment", "gadget", "wraith"],
   "version": 1,
   "seed": 0,
   "fixture": "RelayLite",
 
-  "_nota": "La combo firma acqua+elettricita', nell'unica forma in cui il gioco di oggi la sa eseguire. Vektor scatta dentro la spina d'acqua a (0,0) in fase **Dash**; il terreno gli applica `Status.Wet` all'ingresso; il Blast arriva DOPO, e la scarica di Flux trova un bersaglio bagnato: 24 + 8 = 32. Vektor 90 -> 58.",
+  "_nota": "La combo firma acqua+elettricita', nell'unica forma in cui il gioco di oggi la sa eseguire. Wraith scatta dentro la spina d'acqua a (0,0) in fase **Dash**; il terreno gli applica `Status.Wet` all'ingresso; il Blast arriva DOPO, e la scarica di Gadget trova un bersaglio bagnato: 24 + 8 = 32. Wraith 90 -> 58.",
 
   "_nota_ordine": "Non e' un dettaglio di allestimento, e' LA regola: il bonus si applica leggendo `HasStatus(Wet)` quando i colpi vengono preparati. Solo cio' che bagna PRIMA del Blast conta — e prima del Blast c'e' il Dash, non il Move.",
 
-  "_nota_riva": "Questo scenario nasceva come «Riva bagna, Flux scarica» e alla prima esecuzione ha dato 60 invece di 52: il `Wet` di `PressureJet` si applica DURANTE il Blast, quando i colpi sono gia' stati preparati, quindi il bonus non lo vede. E nemmeno spezzando la combo su due turni funzionerebbe: quel `Wet` dura 1 turno e `TickStatuses` lo rimuove nel Cleanup dello stesso turno in cui e' stato applicato. La coordinazione fra i due eroi, cosi' com'e' documentata, **non e' oggi realizzabile**: registrato come difetto separato.",
+  "_nota_riva": "Questo scenario nasceva come «Phase bagna, Gadget scarica» e alla prima esecuzione ha dato 60 invece di 52: il `Wet` di `PressureJet` si applica DURANTE il Blast, quando i colpi sono gia' stati preparati, quindi il bonus non lo vede. E nemmeno spezzando la combo su due turni funzionerebbe: quel `Wet` dura 1 turno e `TickStatuses` lo rimuove nel Cleanup dello stesso turno in cui e' stato applicato. La coordinazione fra i due eroi, cosi' com'e' documentata, **non e' oggi realizzabile**: registrato come difetto separato.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-2, 0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 3, 0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-2, 0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 3, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "V1", "dash": "Vektor.PassingBlade", "dashTo": [0, 0, 0] },
-        { "unit": "F1", "ability": "Flux.LinearDischarge", "target": "V1" }
+        { "unit": "V1", "dash": "Hero.Wraith.PassingBlade", "dashTo": [0, 0, 0] },
+        { "unit": "F1", "ability": "Hero.Gadget.LinearDischarge", "target": "V1" }
       ]
     }
   ],
