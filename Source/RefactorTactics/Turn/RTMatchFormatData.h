@@ -47,6 +47,31 @@ struct FRTMatchRules
 	int32 UnitsPerTeam = 0;
 
 	/**
+	 * Unita' che una singola PERSONA comanda (CP 19.3, **D-155**). Uniforme: tutti i giocatori di una squadra
+	 * ne comandano lo stesso numero, e il validator rifiuta un formato in cui la squadra non si divide.
+	 *
+	 * ⚠️ NON e' `UnitsPerTeam`, e la differenza e' invisibile proprio dove conta. `UnitsPerTeam` risponde
+	 * *quante unita' schiera una squadra*; questo risponde *quante ne comanda una persona*. In
+	 * `Format.Skirmish2v2` valgono **entrambi 2** — la v0.1 e' offline contro bot, un umano comanda la
+	 * squadra intera — quindi un percorso che legga l'uno al posto dell'altro passa ogni test esistente e
+	 * sbaglia al primo formato che divide una squadra fra due persone. E' la ragione per cui il campo si
+	 * NOMINA invece di dedurlo.
+	 *
+	 * Il rapporto `UnitsPerTeam / UnitsPerPlayer` e' il numero di persone per squadra: `2/2 = 1` in v0.1,
+	 * `3/1 = 3` in un competitivo dove ognuno comanda un eroe.
+	 *
+	 * 🔵 **Il resolver non lo legge, e non deve.** Governa autorizzazione, input, planning, `Ready`, privacy
+	 * e ownership della decisione di reazione — non l'esito.
+	 * ⚠️ `MatchFormat.ResolverIsInvariantToControlCount` confronta l'hash del TurnLog di due partite che
+	 * differiscono per il solo conteggio, ed e' oggi un **tripwire**, non un controllo vivo: nessun percorso
+	 * di risoluzione legge questo campo, quindi quel test passerebbe anche se il campo non esistesse
+	 * (verificato per mutazione). Cade il giorno in cui qualcuno ci scrivesse sopra un ramo, ed e' li' che
+	 * sta il suo valore.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Match")
+	int32 UnitsPerPlayer = 0;
+
+	/**
 	 * Classe di mappa che questo formato richiede. Il validator la confronta con quella dichiarata dalla
 	 * mappa: un 3v3 Standard su una mappa disegnata per il 2v2 non e' una partita piu' stretta, e' una
 	 * partita sbagliata — e va rifiutata all'allestimento, non scoperta al terzo turno.
@@ -111,6 +136,46 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
 	int32 UnitsPerTeam = 2;
+
+	/**
+	 * Unita' comandate da una singola PERSONA (CP 19.3, **D-155**). `Format.Skirmish2v2` dichiara **2**:
+	 * la v0.1 e' offline contro bot e l'unico umano comanda la squadra intera.
+	 *
+	 * ## Perche' il default e' `1`
+	 *
+	 * > **`1 player = 1 character` e' il MODELLO del gioco.** *(decisione dell'autore, 2026-08-17)* Il default
+	 * > dichiara il modello; `Format.Skirmish2v2` dichiara **2** perche' e' l'**eccezione** — offline contro
+	 * > bot c'e' un solo umano, e comanda la squadra intera.
+	 *
+	 * 🔴 **Questo campo e' nato con default `2`, e un test lo ha falsificato prima del merge.** La
+	 * motivazione era *«un default deve descrivere il formato che il gioco spedisce»*: sbagliata due volte,
+	 * perche' il default non descrive il modello **e** non regge all'esecuzione. Le due ragioni tecniche, che
+	 * si vedono solo eseguendo:
+	 *
+	 * 1. **Il formato spedito non usa mai questo default**: `FindShippedFormat` scrive `2` a mano, e il
+	 *    ripiego pure. Il default vale solo per i formati che NON sono quello spedito, cioe' esattamente
+	 *    quelli che non descrive.
+	 * 2. **Con `2` ogni squadra di dimensione dispari nasce invalida.** `MatchFormat.GameModeHonoursComposition`
+	 *    allestisce un `Format.Test3v3` e non tocca questo campo: `3 % 2 != 0`, il validator rifiuta, e il
+	 *    test cade su un vincolo che non stava verificando. Il 3v3 e' la baseline del prossimo formato reale.
+	 *
+	 * `1` e' l'unico valore che **divide sempre** (`n % 1 == 0` per ogni `n`), quindi nessun formato nasce
+	 * invalido per un campo che il suo autore non ha toccato. Ed e' anche il piu' **restrittivo** in termini
+	 * di autorita': il default concede il minimo controllo possibile, una unita' a testa, che e' la direzione
+	 * in cui questo repository sbaglia volentieri.
+	 *
+	 * ⚠️ **Il costo del default, dichiarato invece che scoperto**: un designer che autora un 2v2 nell'editor
+	 * e non tocca questo campo dichiara `1`, cioe' due persone per squadra — e il validator lo **accetta**,
+	 * perche' `2 % 1 == 0`. Sarebbe la terza descrizione dello stesso 2v2 accanto a `FindShippedFormat` e a
+	 * `MakeFallbackRules`, che scrivono entrambe `2`. Nessun controllo puo' prenderla: il validator non sa se
+	 * quel formato intende essere giocato da una persona o da due. Oggi il caso non si produce — nessun
+	 * `DA_MatchFormat` esiste su disco e il formato della v0.1 e' spedito da C++ — e il giorno in cui esistera'
+	 * un asset d'autore, il campo va compilato come si compila `UnitsPerTeam`.
+	 *
+	 * Vedi `FRTMatchRules::UnitsPerPlayer` per perche' questo campo non e' `UnitsPerTeam`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
+	int32 UnitsPerPlayer = 1;
 
 	/** Classe di mappa richiesta (CP 19.1): il validator rifiuta l'accoppiata sbagliata. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")

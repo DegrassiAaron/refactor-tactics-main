@@ -52,7 +52,7 @@ glossario, così i documenti nuovi non moltiplicano i significati.
 | **Fast Reaction** | Scelta **live** provocata da un evento **esterno** (es. `FIRE`/`HOLD` dell'Overwatch) | [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) · [D-019](../decisions/RT_PDR_00_Decision_Log.md) |
 | **Fast Reaction** | Scelta live richiesta **dentro** la resolution a un decision boundary | ADR-0004, `FRTReactionOpportunity` |
 | **Overtime** | Prolungamento oltre il `RoundLimit` a punteggio pari | ⏳ non esiste |
-| **Match Format** | Il pacchetto di parametri di un formato (3v3 Standard, 2v2 Skirmish…) | ✅ **esiste** — `URTMatchFormatData` (`Turn/RTMatchFormatData.h`): `FormatId`, `FormatVersion`, `RoundLimit`, `ExpectedRounds`, `ScoreToWin`. Mancano `UnitsPerTeam` e la classe di mappa sul dato mappa → **E19** |
+| **Match Format** | Il pacchetto di parametri di un formato (3v3 Standard, 2v2 Skirmish…) | ✅ **esiste** — `URTMatchFormatData` (`Turn/RTMatchFormatData.h`): `FormatId`, `RoundLimit`, `ExpectedRounds`, `ScoreToWin`, `UnitsPerTeam`, `UnitsPerPlayer`, `MapClass`. ⏱️ *Rimisurata sull'header il 2026-08-17*: la riga citava `FormatVersion`, **rimosso** da [D-141](../decisions/RT_PDR_00_Decision_Log.md), e dichiarava mancanti `UnitsPerTeam` e la classe di mappa, **entrambe atterrate** con CP 19.1/19.2 il 2026-08-09. Era falsa in tre punti su tre |
 | **Ruleset** | L'insieme di regole/policy che governa un Match Format | ⏳ non esiste |
 
 **«Turno» non va usato** in documenti nuovi per indicare «il giro di una singola unità»: quel concetto non
@@ -618,10 +618,67 @@ non dedotto da quello che gli somiglia.
 non assume «1 : 1» per prudenza verso una modalità che verrà, lo assume **contro il formato che gira adesso**,
 e la coincidenza fra `UnitsPerTeam` e il conteggio per persona è ciò che rende l'errore invisibile.
 
-Il caso `1` è quello **ipotetico**: nasce quando una squadra viene divisa fra più persone. L'intervallo
-esprimibile è quindi `[1, UnitsPerTeam]`, e un `MinControlledHeroesPerPlayer` **non serve**: l'estremo
-inferiore è `1` per costruzione, e due campi per un solo estremo libero sono un vocabolario più grande del
-problema.
+Il caso `1` è quello **ipotetico**: nasce quando una squadra viene divisa fra più persone. I valori
+ammessi sono i **divisori di `UnitsPerTeam`** — non tutto l'intervallo `[1, UnitsPerTeam]`, ed è una
+correzione fatta in code review: con `UnitsPerTeam = 4` valgono `1`, `2` e `4`, mentre `3` sta dentro
+l'intervallo e viene **rifiutato** dalla ripartizione uniforme descritta sotto. La prima stesura di questa
+riga, e di [D-155](../decisions/RT_PDR_00_Decision_Log.md), dichiarava l'intervallo pieno: chi avesse
+seguito il Decision Log avrebbe scritto un formato che il validator respinge all'avvio.
+
+Un `MinUnitsPerPlayer` **non serve** comunque: l'estremo inferiore è `1` per costruzione, e due campi per
+un solo estremo libero sono un vocabolario più grande del problema.
+
+#### Il campo — `UnitsPerPlayer`, e perché non `HeroesPerPlayer`
+
+> Il campo si chiama **`UnitsPerPlayer`** e sta in `URTMatchFormatData` e `FRTMatchRules`, accanto a
+> `UnitsPerTeam`. *(CP 19.3, deciso il 2026-08-17)*
+
+Il vocabolario del formato è **unità**, non *Hero*: `UnitsPerTeam` lo usa da CP 19.2, e `Hero` è il livello
+dei **dati** (`URTHeroData`). Due parole per la stessa entità dentro lo stesso struct sarebbero il difetto
+che questa spec passa il tempo a evitare altrove.
+
+Il rapporto `UnitsPerTeam / UnitsPerPlayer` è **il numero di persone per squadra**: `2 / 2 = 1` in v0.1,
+`3 / 1 = 3` in un competitivo dove ognuno comanda un eroe.
+
+#### La ripartizione è uniforme, e il validator la impone
+
+> Tutte le persone di una squadra comandano lo **stesso** numero di unità. Un formato in cui la squadra non
+> si divide viene **rifiutato**. *(decisione dell'autore, 2026-08-17)*
+
+Il validator (`URTMatchFormatLibrary::ValidateRules`) rifiuta con **tre messaggi distinti** — ma i vincoli
+indipendenti sono **due**, e la tabella lo dice invece di lasciarlo dedurre. I messaggi sono tre perché chi
+legge un allestimento fallito deve sapere **quale** numero correggere:
+
+| Caso | Perché è un errore |
+|---|---|
+| `UnitsPerPlayer <= 0` | come per `UnitsPerTeam`, zero non è «nessun limite»: è una persona che non comanda niente |
+| `UnitsPerPlayer > UnitsPerTeam` | non si comandano unità che la squadra non schiera. ⚠️ **Non è un vincolo indipendente**: per valori positivi `A > B` implica già `B % A ≠ 0`, quindi la riga sotto lo catturerebbe. Esiste per il **messaggio**, che dice la cosa giusta invece di parlare di divisibilità a chi ha sbagliato di grosso |
+| `UnitsPerTeam % UnitsPerPlayer != 0` | un resto lascerebbe un gruppo di dimensione diversa, e **un** numero non sa esprimerne due |
+
+⚠️ **Il costo dichiarato**: questo vieta il 3v3 diviso `2 + 1`. È il prezzo di tenere il modello a un solo
+campo, e si paga finché nessun formato ne ha bisogno — il giorno in cui servisse, la sostituzione non è un
+altro `int32` ma una **ripartizione esplicita**, e va decisa allora con il caso d'uso in mano invece che oggi
+per simmetria.
+
+#### Chi legge il campo — e la regola di autorizzazione NON entra qui
+
+Il campo ha per lettori il **validator** e nient'altro. È poco, ed è deliberato: il precedente sta in
+questo stesso asset, dove `ExpectedRounds` **non è letto da alcun codice di gioco** e vive perché il
+validator ne ha bisogno.
+
+⛔ **La regola di autorizzazione per gruppi di controllo era scritta e è stata RIMOSSA prima del merge, in
+code review.** Erano due funzioni pure (`ControlGroupForUnit`, `CanPlayerControlUnitInGroup`) con il loro
+test, e non avevano **nessun chiamante**: l'assegnazione delle unità ai gruppi vive in `ARTGameMode` — dove
+stanno tutti e sei i consumatori runtime di `UnitsPerTeam` — e quel file appartiene a un'altra track in
+[`parallel-batch.yaml`](../roadmap/parallel-batch.yaml), quindi per **D-139** si aspetta il suo owner.
+
+La ragione per cui sono uscite non è la prudenza: è una **regola scritta nel repository**, e sta nell'header
+che le ospitava. Il commento di `URTCombatLibrary::IsIntentVisibleTo` dice, di sé:
+*«Se un giorno tornasse senza consumatori, la risposta e' rimuoverla, non lasciarla a fare da falsa
+copertura»*. Un test verde su una funzione che nessuno chiama misura la funzione, non il gioco — ed è il
+difetto che `#507` ha già pagato una volta su quella stessa riga.
+
+Tornano insieme al loro consumatore, quando `#937` rilascia `ARTGameMode`.
 
 **Lavoro tracciato**: E19 · CP 19.3, feature `RT-FEAT-MATCH-FORMAT`. Il consolidamento che ha prodotto questa
 sezione è nello [spec panel del 2026-08-17](../roadmap/plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md) §3 F1.
