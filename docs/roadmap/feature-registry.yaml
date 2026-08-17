@@ -596,6 +596,7 @@ features:
           - Spec.Map.NinetyDegreeCornerBakesCorrectly
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >-
       La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.
     notes: >
@@ -641,6 +642,7 @@ features:
           - Spec.Map.DoorOpensTransition
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >-
       Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.
     notes: >
@@ -4745,6 +4747,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >
       La pagina spiega che la griglia non vincola i muri — cioe' il principio da cui discende
       `EdgeBound`. L'ingombro degli asset che stanno sulla griglia non e' spiegato da nessuna parte.
@@ -6377,6 +6380,7 @@ features:
       # La pagina spiega dal 2026-08-13 il vocabolario dei dodici settori, che e' di questa feature:
       # sei direzioni per muoversi, dodici settori per MISURARE quanto una cella e' invasa.
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     last_verified:
       # Rimisurato dopo D-125: il commit precedente (05bbe3dc, merge di #714) e' ANTENATO di c1c96a30,
       # cioe' la voce era stata verificata due ore prima della decisione che la cambia.
