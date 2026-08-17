@@ -68,7 +68,7 @@ Duellante predittivo: il più mobile del roster, punisce traiettorie e movimento
 
 **Predictive Interception** premia la lettura delle traiettorie avversarie. Wraith ha il movimento più alto del roster v0.1 e usa questo vantaggio per occupare linee favorevoli, attraversare il campo e punire movimenti che diventano prevedibili.
 
-Lo **Slancio** ha cap 4 e recupera 1 quando viene eseguito movimento; il valore iniziale non è ancora specificato. `InterceptShot` è la manifestazione più diretta della meccanica, ma richiede le decision boundary di E14; `PassingBlade`, `Deflection` e `Feint` coprono rispettivamente mobilità offensiva, difesa reattiva e previsione.
+Lo **Slancio** ha cap 4 e recupera 1 quando viene eseguito movimento; il valore iniziale non è ancora specificato. `InterceptShot` è la manifestazione più diretta della meccanica ed è **giocabile**: si dichiara in pianificazione e si risolve da sola al passaggio dell'avversario, senza chiedere nulla durante la risoluzione. `PassingBlade`, `Deflection` e `Feint` coprono rispettivamente mobilità offensiva, difesa reattiva e previsione.
 
 Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le linee preparate, fare bait delle reazioni e impedire a Wraith di convertire mobilità in un duello favorevole.
 
@@ -100,7 +100,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 | Telegraphing | Zona armata/trigger osservabili secondo regole di informazione |
 | Design Status | IMPLEMENTED_PARTIAL |
 
-> Deflection è cablata; InterceptShot dipende da E14.
+> Deflection è cablata; InterceptShot è **giocabile** come Predictive Action dal 2026-08-10 (E18).
 
 ## Statistiche base
 
@@ -248,7 +248,7 @@ Intercept Shot prepara una punizione su movimento: quando un nemico entra nella 
 | Campo | Valore |
 | --- | --- |
 | Ability ID | `Vektor.InterceptShot` |
-| Categoria | Reazione/Overwatch |
+| Categoria | **Predictive Action** (non è una reazione) |
 | Priorità | 30 |
 | Costo risorsa | — |
 | Cooldown (turni) | 2 |
@@ -257,17 +257,18 @@ Intercept Shot prepara una punizione su movimento: quando un nemico entra nella 
 | Danno base | 16 |
 | Control Strength | 1 |
 | Durata (turni) | 0 |
-| Loss/Contact Policy | DecisionBoundary.E14 |
+| Loss/Contact Policy | `PredictionBoundary.MovementEntry` — la cella è bloccata alla dichiarazione (`PredictiveTargeting.LockCell`) e **non si rivaluta** |
 | Interazione terreno | 16 danni e stop movimento quando un nemico entra nella cella controllata |
-| Gameplay Tags | `Ability.Reaction.Overwatch` |
-| Implementation Status | DEFERRED_E14 |
+| Gameplay Tags | ⚠️ era `Ability.Reaction.Overwatch`, che riflette la classificazione superata. In v0.1 **non c'è GAS**, quindi questo campo è documentale e non ha un consumatore: non è stato sostituito con un tag inventato |
+| Implementation Status | **IMPLEMENTED** (2026-08-10, E18 CP 18.2) |
 | Data Status | CANONICAL |
 
-> Slot None nel dato corrente; trigger d'ingresso appartiene a E14.
+> Slot **`Main`** nel dato corrente: è un'azione dichiarata in pianificazione come le altre, non una reazione
+> tenuta pronta. Lo slot era `None` finché il rinvio a E14 era dichiarato nei dati; E18 l'ha sciolto.
 
 #### Uso tattico e limiti
 
-La meccanica dipende dalle finestre/decision boundary di E14 e quindi è `DEFERRED_E14`. Le varianti scambiano danno contro ampiezza della zona controllata.
+La meccanica **non** dipende dalle finestre di E14: si risolve a un **boundary deterministico** sull'ingresso in movimento, senza input durante la risoluzione. Il limite vero è un altro, ed è di gioco, non di implementazione — la cella si blocca alla dichiarazione e non si rivaluta, quindi una previsione sbagliata costa il cooldown a vuoto. Le varianti scambiano danno contro ampiezza della zona controllata.
 
 ### Passing Blade
 
@@ -363,17 +364,24 @@ Feint è un'azione di controllo predittivo: marca una cella per 1 turno e conced
 
 ### Descrizione delle reazioni
 
-- **`Vektor.InterceptShot`** — Quando un nemico entra nella cella/zona controllata, la specifica prevede `FIRE/HOLD`; `FIRE` infligge 16 danni e ferma il movimento. Resta `DEFERRED_E14`.
 - **`Vektor.Deflection`** — Quando Wraith subisce un attacco diretto, riduce automaticamente di 20 il danno del colpo nella v0.1 corrente. È già descritta anche fra le abilità.
+
+> ➖ **`Vektor.InterceptShot` non è più in questa sezione, ed è la correzione principale di questa pagina.**
+> Era descritta come reazione con finestra `FIRE/HOLD` da 3 s. Non lo è: dal **2026-08-10** (E18 CP 18.2) è
+> una **Predictive Action** — si dichiara in pianificazione, si risolve al passaggio dell'avversario e
+> **non chiede alcun input durante la risoluzione**. Una finestra e una scelta `FIRE/HOLD` descrivevano un
+> meccanismo che l'abilità non ha mai avuto in partita.
+> La sua scheda completa è sopra, fra le **abilità**. Vedi [#1063](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1063).
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Vektor.InterceptShot` | Nemico entra nella cella/zona controllata | Overwatch | 3 | — | 30 | FIRE | HOLD | HOLD | 16 danni + stop movimento | DEFERRED_E14 |
 | `Vektor.Deflection` | Subisce un attacco diretto | Deflect | — | — | 15 | Deflect automatico (v0.1 attuale) | — | — | -20 danno sul colpo | IMPLEMENTED |
 
 > ⚠️ **Review required:** una o più finestre temporali sono valori sorgente/storici. Il modello corrente di Fast Reaction usa una baseline di 3,0 s; questi valori vanno riallineati prima dell'implementazione.
-> `Vektor.InterceptShot` — Rinviata a E14; richiede trigger su movimento e decision boundary.
 > `Vektor.Deflection` — Reazione deterministica attuale; nessuna finestra live.
+> *(La riga di `Vektor.InterceptShot` diceva «rinviata a E14; richiede trigger su movimento e decision
+> boundary». Il rinvio è caduto per la ragione **opposta** a quella che l'aveva prodotto: non le serve una
+> finestra interattiva, le serve un boundary deterministico — ed è esattamente ciò che E18 le ha dato.)*
 
 ## Equipaggiamento
 
