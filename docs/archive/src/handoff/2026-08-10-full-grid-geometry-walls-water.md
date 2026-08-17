@@ -1,4 +1,6 @@
 # RefactorTactics — FULL CHAT CONSOLIDATION
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Griglia esagonale, geometria architettonica, muri, aperture, cover, LOS, traversal, occupazione, collisioni, reaction/intel, verticalità, distruzione, acqua ed elettricità
 ### Handoff completo per Claude
 
@@ -1401,10 +1403,10 @@ Il summary di una causa può conservare:
 
 Esempio:
 
-Vektor -> Console -> Turret -> Root
+Wraith -> Console -> Turret -> Root
 
 Summary:
-- OriginSource = Vektor
+- OriginSource = Wraith
 - ImmediateSource = Turret
 - SourceEffect = RootShot
 
@@ -1470,9 +1472,9 @@ Origin e current owner restano distinti.
 
 Esempio turret:
 
-- OriginEntityId = Vektor
+- OriginEntityId = Wraith
 - OriginTeamId = TeamA
-- CurrentOwnerEntityId = Riva
+- CurrentOwnerEntityId = Phase
 - CurrentTeamId = TeamB
 - LastOwnershipChangeEventId = ...
 

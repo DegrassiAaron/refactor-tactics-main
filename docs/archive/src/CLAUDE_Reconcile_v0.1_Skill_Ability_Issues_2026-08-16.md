@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `ARCHIVIATO` · **2026-08-16** · Consumato in due giri. **Non è autorità**: le sue premesse descrittive
 > erano già invecchiate al momento del consumo, e la revisione che lo misura è
 > [`../../roadmap/plans/spec-panel-reconcile-2026-08-16.md`](../../roadmap/plans/spec-panel-reconcile-2026-08-16.md).
@@ -235,7 +237,7 @@ Stato verificato su GitHub:
 - `1 Weapon Variant + 1 Gadget + 1 Reaction Module`.
 
 Problema da controllare:
-i default usano ancora i nomi runtime/storici `Flux/Riva/Bastion/Vektor`.
+i default usano ancora i nomi runtime/storici `Gadget/Phase/Riktor/Wraith`.
 
 Non rinominare token opportunisticamente qui se la migrazione è posseduta dalle issue dedicate.
 
@@ -603,7 +605,7 @@ Aggiorna queste issue **solo** se il contratto skill/reaction riconciliato cambi
 Il progetto sta migrando dai nomi storici:
 
 ```text
-Flux / Riva / Bastion / Vektor
+Gadget / Phase / Riktor / Wraith
 ```
 
 ai nomi correnti:

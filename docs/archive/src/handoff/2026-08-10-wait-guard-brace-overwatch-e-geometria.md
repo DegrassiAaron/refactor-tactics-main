@@ -1,4 +1,6 @@
 # RefactorTactics — Handoff per Claude
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Focus: Wait, Guard, Brace, Overwatch, Reaction Framework, Facing e geometria Hex/Wall
 
 **Scopo del file**  
@@ -203,7 +205,7 @@ Guard può invece essere frontale/laterale/posteriore rispetto al Facing.
 
 Guard baseline **non crea e non aumenta automaticamente Cover**.
 
-Se Bastion o un altro personaggio crea/fortifica una vera copertura, deve essere un effetto esplicito che modifica MapState/geometry/cover, non la semantica universale di Guard.
+Se Riktor o un altro personaggio crea/fortifica una vera copertura, deve essere un effetto esplicito che modifica MapState/geometry/cover, non la semantica universale di Guard.
 
 ## 4.5 Guard vs Brace
 
@@ -267,7 +269,7 @@ Planning
 -> resolver applies outcome
 ```
 
-## 5.3 Bastion — profilo di playtest
+## 5.3 Riktor — profilo di playtest
 
 Le maneuver discusse per il prototipo sono:
 
@@ -602,17 +604,17 @@ e mantenere COMMIT/READ/SHIFT sotto il cofano.
 Fixture proposta:
 
 ```text
-Riva Pressure Jet
+Phase Pressure Jet
 vs
-Bastion Brace
+Riktor Brace
 ```
 
-Riva:
+Phase:
 - Drive Current = COMMIT
 - Read the Anchor = READ
 - Flow Vector = SHIFT
 
-Bastion:
+Riktor:
 - Hold Ground = COMMIT
 - Shield Read = READ
 - Pivot Step = SHIFT

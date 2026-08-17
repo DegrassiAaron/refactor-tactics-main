@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ✅ **RECEPITO il 2026-08-08** (fondazione). Decisione: [D-031](../../../decisions/RT_PDR_00_Decision_Log.md).
 > Il catalogo semantico delle icone è **E20** di [`../../../roadmap/roadmap-v0.1.md`](../../../roadmap/roadmap-v0.1.md),
 > da fare **prima** dei widget di E11. Le dodici categorie complete, il world-space HUD e le icone di fazione
@@ -1476,7 +1478,7 @@ Documentare il workflow per aggiungere una nuova icona:
 Non fare:
 
 ```text
-if Character == Flux
+if Character == Gadget
     Texture = T_Conflux;
 ```
 

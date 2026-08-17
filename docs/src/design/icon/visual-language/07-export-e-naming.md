@@ -35,7 +35,7 @@ Ne discendono tre conseguenze operative:
 
 1. `<Categoria>` deve essere **esattamente** un valore di `ERTIconCategory` — l'enum a dodici voci. `Map` non
    vale: il valore è `MapInteraction`. `Intel` non vale: il valore è `Information`.
-2. `<Nome>` **può contenere punti**, quindi `UI.Icon.Action.Flux.LinearDischarge` è valido.
+2. `<Nome>` **può contenere punti**, quindi `UI.Icon.Action.Hero.Gadget.LinearDischarge` è valido.
 3. Una chiave duplicata è un **errore di validazione**, non un'icona che ne sovrascrive un'altra in silenzio.
 
 Una chiave senza icona è a sua volta un errore di validazione, non un widget vuoto.

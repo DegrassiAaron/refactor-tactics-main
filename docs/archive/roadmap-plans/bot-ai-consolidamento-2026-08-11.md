@@ -1,5 +1,7 @@
 # Referto — consolidamento Bot/AI, Team Planner, Belief e tracking
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `HISTORICAL` · **Referto consumato** · **Data**: 2026-08-11
 > I suoi sorgenti sono archiviati in [`../../archive/src/handoff/`](../../archive/src/README.md), che lo
 > cita come «Recepito da». Il §21-§27 — sette release di roadmap bot — **non** e' stato applicato, ed e'
@@ -101,7 +103,7 @@ prossimo handoff sul bot le riproporrà, e la risposta deve costare una riga.
 | §3 — il bot produce Intent normali, il resolver resta autorità | [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §1 · `CLAUDE.md` §5 |
 | §4 — il bot non legge lo stato nascosto; difficoltà = più ragionamento, mai più informazione | [`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) § E26, riquadro «Invariante di difficoltà» — con la ragione per cui è pubblicata, non interna |
 | §5.5 — NavMesh non è autorità del movimento | [ADR-0002](../../decisions/adr-0002-griglia-esagonale.md) · [`spec-pathfinding-pf3-pf4.md`](../../technical/spec-pathfinding-pf3-pf4.md) §1 |
-| §14 — niente `if (Character == Flux)` nello scoring | [ADR-0006](../../decisions/adr-0006-ownership-abilita-sinergie.md) (`D-029`) · [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §9 |
+| §14 — niente `if (Character == Gadget)` nello scoring | [ADR-0006](../../decisions/adr-0006-ownership-abilita-sinergie.md) (`D-029`) · [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §9 |
 | §15 — niente ordine di `TMap`/`TSet` come tie-break | `CLAUDE.md` §4 · [`spec-bot-hex.md`](../../gameplay/spec-bot-hex.md) §5, con il test `ChooseBestPlanOrderIndependent` |
 | §26 — Overwatch `FIRE`/`HOLD`, timeout = `HOLD` | `D-012` · [ADR-0004](../../decisions/adr-0004-finestre-di-reazione.md) · `CLAUDE.md` §2 |
 | §38 — niente look-ahead profondo/Monte Carlo in v0.1 | [`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) § E28 (v0.3) |

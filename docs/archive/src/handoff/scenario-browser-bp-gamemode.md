@@ -1,4 +1,6 @@
 # RefactorTactics — Scenario Browser per categoria in BP_GameMode
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Handoff operativo per Claude Code
 
 > Obiettivo: riorganizzare il selettore degli scenari usato da `BP_GameMode` nell'Editor Unreal in modo che gli scenari siano navigabili per **categoria primaria**, senza duplicare gli scenari e senza accoppiare la classificazione Editor alla simulazione runtime.
@@ -50,8 +52,8 @@ PrimaryCategory:
     TeamCombos
 
 Characters:
-    Flux
-    Riva
+    Gadget
+    Phase
 
 Factions:
     Conflux
@@ -72,8 +74,8 @@ Milestone:
 Lo stesso scenario deve poter essere trovato:
 
 - dalla categoria `TeamCombos`;
-- dalla pagina/wiki di Flux;
-- dalla pagina/wiki di Riva;
+- dalla pagina/wiki di Gadget;
+- dalla pagina/wiki di Phase;
 - dalla pagina/wiki Conflux;
 - cercando feature Water/Electricity;
 - filtrando per milestone v0.1;
@@ -272,10 +274,10 @@ Scenario focalizzato principalmente su un singolo personaggio.
 Esempi:
 
 ```text
-Flux.BasicKit
-Riva.WaterControl
-Bastion.CoverManipulation
-Vektor.Interception
+Hero.Gadget.BasicKit
+Hero.Phase.WaterControl
+Hero.Riktor.CoverManipulation
+Hero.Wraith.Interception
 Steel.BasicKit
 Aurora.BasicKit
 ```
@@ -303,17 +305,17 @@ Deve supportare il futuro collegamento dalla wiki della fazione allo scenario la
 > [ADR-0006](../../../decisions/adr-0006-ownership-abilita-sinergie.md).** «Team Combos» è una **categoria di
 > scenari** — cioè una fixture dimostrativa — **non** un kit condiviso né un `AbilityId` di coppia. Uno
 > scenario può essere specifico della coppia; le abilità e i numeri restano del proprio owner e la regola
-> resta sistemica. L'esempio qui sotto è corretto proprio per questo: Flux legge lo **stato** prodotto da
-> Riva, non l'identità di Riva.
+> resta sistemica. L'esempio qui sotto è corretto proprio per questo: Gadget legge lo **stato** prodotto da
+> Phase, non l'identità di Phase.
 
 Scenario focalizzato sulla cooperazione concreta fra due o più personaggi.
 
 Esempio:
 
 ```text
-Riva crea acqua
+Phase crea acqua
     ↓
-Flux elettrifica
+Gadget elettrifica
     ↓
 propagazione deterministica
 ```
@@ -650,7 +652,7 @@ Showcase
     ↓
 v0.1
     ↓
-Flux + Riva
+Gadget + Phase
 ```
 
 senza sporcare l'enum delle categorie.
@@ -755,7 +757,7 @@ Caso:
 
 ```text
 Category = Characters
-Scenario = Flux.BasicKit
+Scenario = Hero.Gadget.BasicKit
 ```
 
 L'utente cambia:
@@ -764,7 +766,7 @@ L'utente cambia:
 Category = Environment
 ```
 
-`Flux.BasicKit` non deve rimanere silenziosamente selezionato se non appartiene a Environment.
+`Hero.Gadget.BasicKit` non deve rimanere silenziosamente selezionato se non appartiene a Environment.
 
 Comportamento preferito:
 
@@ -798,8 +800,8 @@ Esempio:
         1
 
     Characters
-        Flux
-        Riva
+        Gadget
+        Phase
 
     Factions
         Conflux
@@ -936,10 +938,10 @@ Roster noto per milestone:
 
 ```text
 v0.1
-- Flux
-- Riva
-- Bastion
-- Vektor
+- Gadget
+- Phase
+- Riktor
+- Wraith
 
 v0.2
 - Steel
@@ -973,11 +975,11 @@ nella wiki di un personaggio o fazione deve essere possibile mostrare:
 Scenari correlati
 ```
 
-Esempio pagina Flux:
+Esempio pagina Gadget:
 
 ```text
 Scenarios:
-- Flux.BasicKit
+- Hero.Gadget.BasicKit
 - TeamCombo.Conflux.WaterElectric.Basic
 - SHOW_V01_FluxRiva_WaterElectric
 ```
@@ -985,7 +987,7 @@ Scenarios:
 Questo deve poter essere derivato dai metadata:
 
 ```text
-CharacterIds contains Flux
+CharacterIds contains Gadget
 ```
 
 Analogamente:
@@ -1061,8 +1063,8 @@ PrimaryCategory:
     TeamCombos
 
 CharacterIds:
-    Flux
-    Riva
+    Gadget
+    Phase
 
 FactionIds:
     Conflux
@@ -1081,17 +1083,17 @@ AutomatedTest:
 
 ---
 
-## Flux kit
+## Gadget kit
 
 ```text
 ScenarioId:
-    Character.Flux.BasicKit
+    Character.Hero.Gadget.BasicKit
 
 PrimaryCategory:
     Characters
 
 CharacterIds:
-    Flux
+    Gadget
 
 Milestone:
     v0.1
@@ -1220,7 +1222,7 @@ Esempio:
   "scenarioVersion": 1,
   "primaryCategory": "TeamCombos",
   "milestone": "v0.1",
-  "characters": ["Flux", "Riva"],
+  "characters": ["Gadget", "Phase"],
   "factions": ["Conflux"],
   "executionMode": "Headless",
   "result": "PASS"
@@ -1316,7 +1318,7 @@ Errore:
 
 ```text
 [RTScenario][Error]
-Scenario 'Character.Flux.BasicKit'
+Scenario 'Character.Hero.Gadget.BasicKit'
 does not belong to selected category 'Environment'.
 ```
 
@@ -1345,7 +1347,7 @@ stessa definition
 Dato:
 
 ```text
-Flux.BasicKit -> Characters
+Hero.Gadget.BasicKit -> Characters
 WaterElectric -> TeamCombos
 ```
 
@@ -1355,7 +1357,7 @@ Query:
 Characters
 ```
 
-deve restituire Flux e NON WaterElectric.
+deve restituire Gadget e NON WaterElectric.
 
 ---
 
@@ -1371,7 +1373,7 @@ Configurazione:
 
 ```text
 Category = Environment
-Scenario = Character.Flux.BasicKit
+Scenario = Character.Hero.Gadget.BasicKit
 ```
 
 deve essere rifiutata/azzerata esplicitamente.
@@ -1460,7 +1462,7 @@ NON:
 - creare una copia dello stesso scenario in più cartelle per farlo apparire in più categorie;
 - usare array index come ScenarioId;
 - mettere tutti i dati scenario dentro `BP_GameMode`;
-- hard-codare Flux/Riva/Conflux nel framework;
+- hard-codare Gadget/Phase/Conflux nel framework;
 - cambiare il resolver;
 - cambiare il TurnLog canonico senza necessità;
 - introdurre un secondo Test Harness;

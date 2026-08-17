@@ -19,18 +19,18 @@
 ## Il roster canonico nasce qui
 
 `docs/src/README.md` classificava `idee-ruoli-characters.pdf` come **non recepito** («Recepito da: —»). È
-falso, ed è la scoperta più utile di questa consolidazione: **Flux · Riva · Bastion · Vektor** compaiono in
+falso, ed è la scoperta più utile di questa consolidazione: **Gadget · Phase · Riktor · Wraith** compaiono in
 questo documento con ruolo, meccanica fondamentale, quattro abilità, combo e trade-off — e le quattro abilità
-di Flux sono, nome per nome, quelle del catalogo eroi di oggi:
+di Gadget sono, nome per nome, quelle del catalogo eroi di oggi:
 
 | `idee-ruoli-characters.pdf` | [`RT_HeroCatalog_v0.1.md`](../../balance/RT_HeroCatalog_v0.1.md) |
 |---|---|
-| *Scarica Lineare* — attacco in linea, devia se attraversa acqua | `Flux.LinearDischarge` — 24 danni, **+8 su bersaglio `Wet`** |
-| *Nodo Conduttore* — dispositivo che conduce elettricità fra posizioni | `Flux.ConductiveNode` — è `Action.Electrify`, propagazione 3 |
-| *Sovraccarico* — AoE sulle celle cariche | `Flux.Overload` — 18 danni, `Interrupt` sui dispositivi |
-| *Capacitore Reattivo* — counter: assorbe danno e carica chi attacca | `Flux.ReactiveCapacitor` — scudo 15 e 10 danni all'attaccante |
+| *Scarica Lineare* — attacco in linea, devia se attraversa acqua | `Hero.Gadget.LinearDischarge` — 24 danni, **+8 su bersaglio `Wet`** |
+| *Nodo Conduttore* — dispositivo che conduce elettricità fra posizioni | `Hero.Gadget.ConductiveNode` — è `Action.Electrify`, propagazione 3 |
+| *Sovraccarico* — AoE sulle celle cariche | `Hero.Gadget.Overload` — 18 danni, `Interrupt` sui dispositivi |
+| *Capacitore Reattivo* — counter: assorbe danno e carica chi attacca | `Hero.Gadget.ReactiveCapacitor` — scudo 15 e 10 danni all'attaccante |
 
-Anche il *Pannello Cinetico* di Bastion nasce qui e riappare in PDR-12. Il documento non era «da consumare»:
+Anche il *Pannello Cinetico* di Riktor nasce qui e riappare in PDR-12. Il documento non era «da consumare»:
 era **già consumato e non registrato**.
 
 ## Cosa resta vero, cosa no
@@ -468,42 +468,42 @@ Tutto il materiale è organizzato in sezioni con tabelle e diagrammi per chiarez
 #### Personaggi e classi (esempi)
 |Personaggio /<br>Classe|Ruolo|Meccanica<br>fondamentale|Abilità principali<br>(descr. breve)|Combo tipiche|Trade-off|
 |---|---|---|---|---|---|
-|**Flux (Tecnico**<br>**Elettro)**|Control<br>remoto /<br>danno in<br>linea|_Carica:_<br>accumula<br>carica elettrica<br>su oggetti o<br>nemici,<br>abilitando<br>archi elettrici|-_Scarica Lineare:_<br>attacco in linea;<br>devia se attraversa<br>acqua【13†L104-<br>L112】.<br>-_Nodo_<br>_Conduttore:_piazza<br>dispositivo che<br>conduce elettricità<br>tra posizioni.<br>-<br>_Sovraccarico:_AoE<br>su celle cariche;<br>distribuendo<br>danno tra più<br>bersagli.<br>-<br>_Capacitore_<br>_Reattivo:_counter:<br>assorbe danno e<br>carica chi attacca.|_Acqua+Elettricità:_coordina<br>con classe acqua per<br>shock (p.es.<br>Riva)<br>_Nodo + rimbalzi:_<br>posiziona nodo dietro<br>copertura e fai rimbalzare<br>fulmine.<br>_Counter +_<br>_Sovraccarico:_carica un<br>nemico poi<br>esplodi.<br>_Alimenta_<br>_porte:_elettrifica oggetti<br>ambientali.|Fragile, a dis<br>(Danno su pi<br>bersagli rido<br>bilanciare.)|
+|**Gadget (Tecnico**<br>**Elettro)**|Control<br>remoto /<br>danno in<br>linea|_Carica:_<br>accumula<br>carica elettrica<br>su oggetti o<br>nemici,<br>abilitando<br>archi elettrici|-_Scarica Lineare:_<br>attacco in linea;<br>devia se attraversa<br>acqua【13†L104-<br>L112】.<br>-_Nodo_<br>_Conduttore:_piazza<br>dispositivo che<br>conduce elettricità<br>tra posizioni.<br>-<br>_Sovraccarico:_AoE<br>su celle cariche;<br>distribuendo<br>danno tra più<br>bersagli.<br>-<br>_Capacitore_<br>_Reattivo:_counter:<br>assorbe danno e<br>carica chi attacca.|_Acqua+Elettricità:_coordina<br>con classe acqua per<br>shock (p.es.<br>Phase)<br>_Nodo + rimbalzi:_<br>posiziona nodo dietro<br>copertura e fai rimbalzare<br>fulmine.<br>_Counter +_<br>_Sovraccarico:_carica un<br>nemico poi<br>esplodi.<br>_Alimenta_<br>_porte:_elettrifica oggetti<br>ambientali.|Fragile, a dis<br>(Danno su pi<br>bersagli rido<br>bilanciare.)|
 ||||-_Getto_<br>_Pressurizzato:_<br>attacco in linea<br>con spinta|||
-|||_Flusso:_genera|direzionale<br>variabile.<br>-<br>_Marea Circolare:_<br>AoE che bagna|_Scia + Fulmine:_Riva bagna<br>il percorso, Flux<br>elettrifica.<br>_Nebbia +_<br>_Dash assassino:_copertura|Debole se us|
-|**Riva**<br>**(Manipolatrice**<br>**Acqua)**|Supporto,<br>controllo<br>terreno|acqua sul<br>campo che<br>scorre verso<br>basso (riduce<br>attrito)|zone e spinge<br>unità verso<br>esterno.<br>-_Scia_<br>_Fluida:_dash che<br>lascia scia d’acqua;<br>attraversa<br>nemici.<br>-_Velo_<br>_di Nebbia:_<br>trasforma acqua<br>in nebbia che<br>riduce visibilità<br>(tiro incerto).|<br>e spinta<br>improvvisa.<br>_Marea +_<br>_AoE alleato:_spingi nemico<br>dentro area<br>alleata.<br>_Getto su_<br>_copertura fragile:_distruggi<br>coperture.|solitaria, dipe<br>alleati per da<br>massimo.<br>Consumabile<br>limitata per t|
+|||_Flusso:_genera|direzionale<br>variabile.<br>-<br>_Marea Circolare:_<br>AoE che bagna|_Scia + Fulmine:_Riva bagna<br>il percorso, Gadget<br>elettrifica.<br>_Nebbia +_<br>_Dash assassino:_copertura|Debole se us|
+|**Phase**<br>**(Manipolatrice**<br>**Acqua)**|Supporto,<br>controllo<br>terreno|acqua sul<br>campo che<br>scorre verso<br>basso (riduce<br>attrito)|zone e spinge<br>unità verso<br>esterno.<br>-_Scia_<br>_Fluida:_dash che<br>lascia scia d’acqua;<br>attraversa<br>nemici.<br>-_Velo_<br>_di Nebbia:_<br>trasforma acqua<br>in nebbia che<br>riduce visibilità<br>(tiro incerto).|<br>e spinta<br>improvvisa.<br>_Marea +_<br>_AoE alleato:_spingi nemico<br>dentro area<br>alleata.<br>_Getto su_<br>_copertura fragile:_distruggi<br>coperture.|solitaria, dipe<br>alleati per da<br>massimo.<br>Consumabile<br>limitata per t|
 
 |Personaggio /<br>Classe|Ruolo|Meccanica<br>fondamentale|Abilità principali<br>(descr. breve)|Combo tipiche|Trade-off|
 |---|---|---|---|---|---|
 ||||-_Pannello Cinetico:_<br>piazza copertura<br>direzionale<br>protettiva (difende<br>solo da alcune<br>direzioni).<br>-<br>_Riconfigurazione:_|||
-|**Bastion**<br>**(Architetto)**|Difesa /<br>copertura|_Strutture_<br>_direzionali:_<br>crea o ruota<br>coperture ad<br>hoc (varia<br>linee di tiro)|ruota o sposta<br>copertura<br>esistente (anche<br>porte, ponti).<br>-<br>_Ariete:_dash che<br>spinge unità; se<br>sbatte contro<br>copertura infligge<br>danno (ma<br>danneggia<br>copertura).<br>-<br>_Interposizione:_<br>counter difensivo<br>lungo un arco<br>diretto (protegge<br>solo un settore,<br>colpendo i<br>proiettili).|_Pannello + Elettricità:_<br>posiziona pannello e fai<br>rimbalzare fulmine di<br>Flux.<br>_Ariete + Terreno_<br>_allagato:_spingi nemico<br>nell’acqua.<br>_Riconf. +_<br>_Fulmine:_apri linea di tiro<br>di Flux.</br>_Interposizione_<br>_+ combo Riva:_proteggi<br>alleati mentre Riva<br>prepara combo.|Danni limitat<br>da scudo mo<br>Coperture fra<br>(shatter) rich<br>manutenzion<br>Elevata dipen<br>dalla prevenz|
+|**Riktor**<br>**(Architetto)**|Difesa /<br>copertura|_Strutture_<br>_direzionali:_<br>crea o ruota<br>coperture ad<br>hoc (varia<br>linee di tiro)|ruota o sposta<br>copertura<br>esistente (anche<br>porte, ponti).<br>-<br>_Ariete:_dash che<br>spinge unità; se<br>sbatte contro<br>copertura infligge<br>danno (ma<br>danneggia<br>copertura).<br>-<br>_Interposizione:_<br>counter difensivo<br>lungo un arco<br>diretto (protegge<br>solo un settore,<br>colpendo i<br>proiettili).|_Pannello + Elettricità:_<br>posiziona pannello e fai<br>rimbalzare fulmine di<br>Gadget.<br>_Ariete + Terreno_<br>_allagato:_spingi nemico<br>nell’acqua.<br>_Riconf. +_<br>_Fulmine:_apri linea di tiro<br>di Gadget.</br>_Interposizione_<br>_+ combo Phase:_proteggi<br>alleati mentre Phase<br>prepara combo.|Danni limitat<br>da scudo mo<br>Coperture fra<br>(shatter) rich<br>manutenzion<br>Elevata dipen<br>dalla prevenz|
 
 |Personaggio /<br>Classe|Ruolo|Meccanica<br>fondamentale|Abilità principali<br>(descr. breve)|Combo tipiche|Trade-off|
 |---|---|---|---|---|---|
-|**Vektor**<br>**(Duellante**<br>**Predittivo)**|Eliminazione /<br>mobilità|_Intercettazione:_<br>colpisce<br>traiettorie<br>previste, non<br>solo posizione<br>corrente|-_Tiro d’Intercetto:_<br>scegli una cella e<br>una finestra<br>temporale; colpisci<br>chi ci passa<br>(azione sprecata<br>se nessuno la<br>attraversa).<br>-<br>_Lama di Passaggio:_<br>attacco lineare<br>corto che colpisce<br>chi attraversa la<br>linea.<br>-<br>_Deviazione:_dash<br>diagonale che<br>cambia direzione<br>di guardia dopo,<br>ignora unità come<br>pareti.<br>-_Finta:_<br>dichiara due<br>destinazioni<br>possibili; alla fine<br>conferma una<br>(coordina piani di<br>squadra, ma è<br>complessa da UI).|_Marea forzata:_Riva spinge<br>bersaglio nella cella di<br>intercetto.<br>_Riconf._<br>_armi:_Bastion chiude un<br>arco per rendere il<br>percorso<br>prevedibile.<br>_Elettricità_<br>_alternativa:_Flux crea vie<br>secondarie<br>(elettrificate).<br>_Presidio:_<br>Vektor sbarra l’unica<br>uscita rimasta.|Ottimo contr<br>bersagli prev<br>debole se ne<br>cambia piano<br>Difficile da b<br>(azioni a vuo|
-|**Pyromancer**<br>**(Incantatore**<br>**Fuoco)**|AoE danno /<br>controllo<br>terreno|_Infiammazione:_<br>crea o<br>amplifica<br>incendi<br>ambientali<br>(con<br>persistent<br>burn)|-_Palla di Fuoco:_<br>proiettile che crea<br>campo infuocato<br>(Burning) di danno<br>per tempo.<br>-<br>_Parete di Fiamme:_<br>muro di fuoco<br>continuo<br>distruttivo.<br>-<br>_Campo Infernale:_<br>AoE di largo<br>raggio con<br>bruciatura<br>persistente.<br>-<br>_Detonazione Pyro:_<br>consuma stati<br>Burning vicini per<br>esplosione<br>aggiuntiva.|_Acqua + Fuoco:_spegne<br>incendi; si abbina con Riva<br>(ad es. creare nuvola di<br>vapore<br>steamy).<br>_Combustione_<br>_multipla:_coordina con<br>danni periodici di status<br>(es. +danno se già<br>Burning).<br>_Ignizione_<br>_immediata:_associa a un<br>alleato con vento /<br>scossa.<br>_Incendiare_<br>_barili:_usare barili esplosivi<br>con fiammata.|Tende a dann<br>anche amici<br>fire) se tropp<br>concentrato;<br>necessità di_c_<br>alto. Lento n<br>muoversi, vu<br>da vicino.|
+|**Wraith**<br>**(Duellante**<br>**Predittivo)**|Eliminazione /<br>mobilità|_Intercettazione:_<br>colpisce<br>traiettorie<br>previste, non<br>solo posizione<br>corrente|-_Tiro d’Intercetto:_<br>scegli una cella e<br>una finestra<br>temporale; colpisci<br>chi ci passa<br>(azione sprecata<br>se nessuno la<br>attraversa).<br>-<br>_Lama di Passaggio:_<br>attacco lineare<br>corto che colpisce<br>chi attraversa la<br>linea.<br>-<br>_Deviazione:_dash<br>diagonale che<br>cambia direzione<br>di guardia dopo,<br>ignora unità come<br>pareti.<br>-_Finta:_<br>dichiara due<br>destinazioni<br>possibili; alla fine<br>conferma una<br>(coordina piani di<br>squadra, ma è<br>complessa da UI).|_Marea forzata:_Riva spinge<br>bersaglio nella cella di<br>intercetto.<br>_Riconf._<br>_armi:_Bastion chiude un<br>arco per rendere il<br>percorso<br>prevedibile.<br>_Elettricità_<br>_alternativa:_Flux crea vie<br>secondarie<br>(elettrificate).<br>_Presidio:_<br>Wraith sbarra l’unica<br>uscita rimasta.|Ottimo contr<br>bersagli prev<br>debole se ne<br>cambia piano<br>Difficile da b<br>(azioni a vuo|
+|**Pyromancer**<br>**(Incantatore**<br>**Fuoco)**|AoE danno /<br>controllo<br>terreno|_Infiammazione:_<br>crea o<br>amplifica<br>incendi<br>ambientali<br>(con<br>persistent<br>burn)|-_Palla di Fuoco:_<br>proiettile che crea<br>campo infuocato<br>(Burning) di danno<br>per tempo.<br>-<br>_Parete di Fiamme:_<br>muro di fuoco<br>continuo<br>distruttivo.<br>-<br>_Campo Infernale:_<br>AoE di largo<br>raggio con<br>bruciatura<br>persistente.<br>-<br>_Detonazione Pyro:_<br>consuma stati<br>Burning vicini per<br>esplosione<br>aggiuntiva.|_Acqua + Fuoco:_spegne<br>incendi; si abbina con Phase<br>(ad es. creare nuvola di<br>vapore<br>steamy).<br>_Combustione_<br>_multipla:_coordina con<br>danni periodici di status<br>(es. +danno se già<br>Burning).<br>_Ignizione_<br>_immediata:_associa a un<br>alleato con vento /<br>scossa.<br>_Incendiare_<br>_barili:_usare barili esplosivi<br>con fiammata.|Tende a dann<br>anche amici<br>fire) se tropp<br>concentrato;<br>necessità di_c_<br>alto. Lento n<br>muoversi, vu<br>da vicino.|
 
 |Personaggio /<br>Classe|Ruolo|Meccanica<br>fondamentale|Abilità principali<br>(descr. breve)|Combo tipiche|Trade-off|
 |---|---|---|---|---|---|
 |||_Congelamento:_|-_Dardo Gelido:_<br>danno a bersaglio<br>+ rallenta<br>(chilled).<br>-<br>_Tempesta_<br>_Invernale:_AoE che<br>abbassa visibilità e<br>rallenta (glaced|_Acqua ghiacciabile:_Riva<br>può creare pozze che<br>questa<br>congela.<br>_Elettrico:_<br>l’acqua gelata conduce|Debole contr<br>(lo spegne), d|
 |**Cryomancer**<br>**(Incantatrice**<br>**Ghiaccio)**|Controllo /<br>area<br>rallentamento|trasforma<br>terreno/<br>bersagli in<br>ghiaccio (slip/<br>slow)|ground).<br>-<br>_Cristallo Riflettente:_<br>pietra di ghiaccio<br>che blocca fuoco e<br>riflette parte di<br>elettricità.<br>-<br>_FrantumaGhiaccio:_<br>colpo che rompe il<br>terreno ghiacciato<br>in scaglie,<br>spingendo<br>fragole.|elettricità in modo diverso<br>(shock + slow).<br>_Inferno:_<br>fare attenzione: usare<br>acqua per spegnere il<br>fuoco altrimenti Crona<br>perde<br>vantaggio.<br>_Inciampo_<br>_alleati/avversari:_posiziona<br>laghi ghiacciati.|da condizion<br>ambientali (a<br>freddo). Mov<br>su ghiaccio p<br>sfavorirlo se<br>gestito.|
-|**Pistolero**<br>**(Sharpshooter)**|DPS a<br>distanza /<br>precisione|_Fuoco_<br>_penetrante:_<br>mira lungo<br>traiettorie<br>prevedibili<br>(tracking<br>moderato)|-_Colpo Perfetto:_<br>attacco unico a<br>lunga gittata, alto<br>danno.<br>-<br>_Pioggia di Proiettili:_<br>breve AoE lineare<br>(spara proiettili in<br>linea<br>scaglionati).<br>-<br>_Solo 1 Secondo:_<br>bonus danno al<br>bersaglio se<br>attaccato da altri<br>prima.<br>-<br>_Occhio di Falco:_<br>focalizza un’area:<br>miglior mira/<br>critico (buff alla<br>squadra per un<br>turno).|_Flank:_coordina con<br>Bastion per avere linee di<br>tiro pulite.<br>_A tutta:_<br>aggiunge Shortrange al<br>Tiro d’Intercetto di<br>Vektor.<br>_Barili:_<br>sincronizza con Pyro (barili<br>incendiabili e<br>scoperchiati).<br>_Supporto_<br>_Blitz:_assist con spotter<br>(identifica bersaglio<br>invisibile).|Fragile da co<br>corpo; una s<br>azione forte.<br>Requisto: de<br>corto raggio,<br>**overwatch**n|
+|**Pistolero**<br>**(Sharpshooter)**|DPS a<br>distanza /<br>precisione|_Fuoco_<br>_penetrante:_<br>mira lungo<br>traiettorie<br>prevedibili<br>(tracking<br>moderato)|-_Colpo Perfetto:_<br>attacco unico a<br>lunga gittata, alto<br>danno.<br>-<br>_Pioggia di Proiettili:_<br>breve AoE lineare<br>(spara proiettili in<br>linea<br>scaglionati).<br>-<br>_Solo 1 Secondo:_<br>bonus danno al<br>bersaglio se<br>attaccato da altri<br>prima.<br>-<br>_Occhio di Falco:_<br>focalizza un’area:<br>miglior mira/<br>critico (buff alla<br>squadra per un<br>turno).|_Flank:_coordina con<br>Riktor per avere linee di<br>tiro pulite.<br>_A tutta:_<br>aggiunge Shortrange al<br>Tiro d’Intercetto di<br>Wraith.<br>_Barili:_<br>sincronizza con Pyro (barili<br>incendiabili e<br>scoperchiati).<br>_Supporto_<br>_Blitz:_assist con spotter<br>(identifica bersaglio<br>invisibile).|Fragile da co<br>corpo; una s<br>azione forte.<br>Requisto: de<br>corto raggio,<br>**overwatch**n|
 
 |Personaggio /<br>Classe|Ruolo|Meccanica<br>fondamentale|Abilità principali<br>(descr. breve)|Combo tipiche|Trade-off|
 |---|---|---|---|---|---|
 |**Ingegnere /**<br>**Meccanico**|Trappole /<br>supporto|_Costruzione:_<br>piazza<br>torrette,<br>trappole e<br>interruttori|-_Miniera_<br>_Magnetica:_<br>trappola a terra<br>che attira robot<br>(immobilizza e<br>danneggia).<br>-<br>_Torretta Dronica:_<br>dispositivo che<br>attacca bersagli<br>autonomamente<br>(rotate di<br>fuoco).<br>-<br>_Riparazione_<br>_Rapida:_ripristina<br>copertura / campo<br>sul posto o dà<br>scudo<br>temporaneo.<br>-<br>_Interruttore_<br>_Remoto:_aziona<br>porte, piattaforme<br>o mina (cerca<br>sinergie).|_Trappole + Combos:_spingi<br>nemico in zona mortale<br>con Ariete +<br>Miniera.<br>_Alimenta_<br>_zona:_Flux alimenta le<br>torrette se<br>caricate.<br>_Distruzione +_<br>_Miglioramento:_rimuovi<br>barriera con esplosione e<br>sostituiscila con<br>torretta.<br>_Doppio turno:_<br>in risposta di supporto<br>con Finta.|Dipende dal<br>posizioname<br>statico; costi<br>(moduli limit<br>Delayed (ci m<br>turni a costru|
 ||||-_Richiamo Bestiale:_<br>evoca minion con<br>ruoli diversi (tank/<br>suicida/|||
 ||||buffer).<br>-<br>_Marchio del_|_Sacrifico:_coordina con<br>Supporto (usare minion||
-|**Evocatore**|Summoning /<br>paura|_Invocazione:_<br>crea creature<br>o effetti di<br>controllo<br>temporanei|_Terrore:_marchia<br>un nemico, lo<br>debolisce se vicino<br>ad alleato.<br>-<br>_Aura Vampirica:_<br>drenaggio che<br>cura te/alleati in<br>base ai danni<br>inflitti.<br>-<br>_Polverizzazione:_<br>colpo finale che<br>consuma alleati|come scudi per curare di<br>più).<br>_Marcatore +_<br>_follow-up:_combinare colpi<br>bassi dopo un marchio di<br>Vektor.<br>_Area share:_<br>rilascia psiceti di danno e<br>cura (PyroInflitto sui<br>minion).<br>_Sovraccarico:_<br>Flux carica i minion per<br>esplosione ad area.|Le creature p<br>distrarre o m<br>rapidamente<br>Complessità<br>gestione elev<br>Spesso debit<br>risorse di evo|
+|**Evocatore**|Summoning /<br>paura|_Invocazione:_<br>crea creature<br>o effetti di<br>controllo<br>temporanei|_Terrore:_marchia<br>un nemico, lo<br>debolisce se vicino<br>ad alleato.<br>-<br>_Aura Vampirica:_<br>drenaggio che<br>cura te/alleati in<br>base ai danni<br>inflitti.<br>-<br>_Polverizzazione:_<br>colpo finale che<br>consuma alleati|come scudi per curare di<br>più).<br>_Marcatore +_<br>_follow-up:_combinare colpi<br>bassi dopo un marchio di<br>Wraith.<br>_Area share:_<br>rilascia psiceti di danno e<br>cura (PyroInflitto sui<br>minion).<br>_Sovraccarico:_<br>Gadget carica i minion per<br>esplosione ad area.|Le creature p<br>distrarre o m<br>rapidamente<br>Complessità<br>gestione elev<br>Spesso debit<br>risorse di evo|
 ||||addizionali per<br>potenziarsi.|||
 
 |Personaggio /<br>Classe|Ruolo|Meccanica<br>fondamentale|Abilità principali<br>(descr. breve)|Combo tipiche|Trade-off|
 |---|---|---|---|---|---|
-|**Assassino /**<br>**Furtivo**|Eliminazione<br>singolo /<br>mobilità|_Occultamento:_<br>invisibilità/<br>trasparenza,<br>colpi critici alle<br>spalle|-_Colpo Silenzioso:_<br>attacco singolo<br>letale (backstab)<br>con drastico<br>critico da<br>dietro.<br>-_Fumo_<br>_Paralizzante:_lancia<br>fumogeno che<br>nasconde alleati/<br>avversari (riduce<br>visibilità).<br>-<br>_Lame Rotanti:_AoE<br>corta attivabile al<br>passaggio|_Nebbia + Shuriken:_la<br>fumata di Riva fornisce<br>copertura; sfrutta lame<br>per danno.<br>_Intercetta +_<br>_Elimina:_Vektor marca<br>bersaglio, Assassin ci<br>balza addosso.<br>_Rete +_<br>_Ariete:_intrappola<br>bersaglio e Bastion lo<br>spinge.<br>_Trappole /_|Potente su s<br>bersagli ma<br>estremamen<br>fragile. Se ril<br>esposto. Dip<br>fattore sorpr|
+|**Assassino /**<br>**Furtivo**|Eliminazione<br>singolo /<br>mobilità|_Occultamento:_<br>invisibilità/<br>trasparenza,<br>colpi critici alle<br>spalle|-_Colpo Silenzioso:_<br>attacco singolo<br>letale (backstab)<br>con drastico<br>critico da<br>dietro.<br>-_Fumo_<br>_Paralizzante:_lancia<br>fumogeno che<br>nasconde alleati/<br>avversari (riduce<br>visibilità).<br>-<br>_Lame Rotanti:_AoE<br>corta attivabile al<br>passaggio|_Nebbia + Shuriken:_la<br>fumata di Phase fornisce<br>copertura; sfrutta lame<br>per danno.<br>_Intercetta +_<br>_Elimina:_Vektor marca<br>bersaglio, Assassin ci<br>balza addosso.<br>_Rete +_<br>_Ariete:_intrappola<br>bersaglio e Riktor lo<br>spinge.<br>_Trappole /_|Potente su s<br>bersagli ma<br>estremamen<br>fragile. Se ril<br>esposto. Dip<br>fattore sorpr|
 ||||(colpisce chiunque<br>attraversa).<br>-<br>_Trappola a_<br>_Ragnatela:_<br>paralizza bersaglio<br>per breve tempo.|_Cloak:_evocatori con<br>minion come decoy.||
 ||||-_Carica_<br>_Tempestosa:_corsa<br>verso nemico, lo|||
 |||_Carica & Taunt:_|spinge e colpisce<br>ad area.<br>-<br>_Colpo di Scudo:_<br>scudo in avanti|_Spinta in voragine:_Ariete +<br>Terrain: spinge in baratro<br>o fuoco.<br>_Taunt +_<br>_Copertura:_protegge|Velocità lenta|
-|**Cavaliere /**<br>**Guerriero**|Corpo a<br>corpo / tank /<br>crowd control|<br>spaziale con<br>push,<br>protezione<br>squadra|che atterra (stun)<br>chi sbatte.<br>-<br>_Ruggito_<br>_Intimorente:_buff<br>difesa alleati<br>(taunt avversari<br>per centro).<br>-<br>_Martello Meteorico:_<br>attacco AoE<br>verticale (colpisce<br>zona ampia).|alleato vulnerabile (con<br>Bastion).><br>_Ruggito e_<br>_follow-up:_Vektor lo<br>anticipa fuori dalla<br>copertura con<br>Instinct.<br>_Buff sinergico:_<br>supporta Maghi area con<br>scudi e spinge nemici.|di rimanere i<br>Scalabile peg<br>endgame se<br>insensibili ai<br>control.|
+|**Cavaliere /**<br>**Guerriero**|Corpo a<br>corpo / tank /<br>crowd control|<br>spaziale con<br>push,<br>protezione<br>squadra|che atterra (stun)<br>chi sbatte.<br>-<br>_Ruggito_<br>_Intimorente:_buff<br>difesa alleati<br>(taunt avversari<br>per centro).<br>-<br>_Martello Meteorico:_<br>attacco AoE<br>verticale (colpisce<br>zona ampia).|alleato vulnerabile (con<br>Riktor).><br>_Ruggito e_<br>_follow-up:_Vektor lo<br>anticipa fuori dalla<br>copertura con<br>Instinct.<br>_Buff sinergico:_<br>supporta Maghi area con<br>scudi e spinge nemici.|di rimanere i<br>Scalabile peg<br>endgame se<br>insensibili ai<br>control.|
 
 |Personaggio /<br>Classe|Ruolo|Meccanica<br>fondamentale|Abilità principali<br>(descr. breve)|Combo tipiche|Trade-off|
 |---|---|---|---|---|---|
@@ -512,8 +512,8 @@ Tutto il materiale è organizzato in sezioni con tabelle e diagrammi per chiarez
 ||||a sé.<br>-|_Sinergie difensive:_||
 ||||_Benedizione del_|mantiene vivo il gruppo|Danno dirett|
 ||||_Santuario:_crea|durante combo di|nullo; dipend|
-|||_Aure di_|zona di guarigione|Posizione (es. Riva o|team. Vulner|
-|||_Supporto:_|continua (orbe|Bastion sul|esposto, rich|
+|||_Aure di_|zona di guarigione|Posizione (es. Phase o|team. Vulner|
+|||_Supporto:_|continua (orbe|Riktor sul|esposto, rich|
 |**Supporto /**|Guarigione /|fornisce|AoE).<br>-_Aura di_|fronte).<br>_Buff stacking:_|azioni chiare|
 |**Curatore**|buff squadra|ripristino o|_Protezione:_|prepara gruppo prima di|fuori dall’azio|
 |||potenziamenti<br>difensivi|aumenta<br>temporaneamente|combo con stato<br>Esposto.<br>_Campo_|frontale).<br<br>friendly fire a|
@@ -529,7 +529,7 @@ Cataloghiamo 30+ azioni/meccaniche ricorrenti, descrivendone effetto, risoluzion
 
 - **Pull (Tiro / Attraction)** : avvicina bersaglio al lanzatore. _Cell-locked_ o _unit-tracking_ . Usato per portare nemici su trappole o linee di fuoco【44†L69-L73】.
 
-- **Elettrificazione** : colpisce un’area o oggetto con effetto elettrico, spesso diffondibile su caselle bagnate o cariche. _Path-intercept_ (elettricità si propaga se incontri terreno conduttivo)【13†L104L112】. Ad esempio, Flux si basa su _Carica_ per far rimbalzare scariche tra nodi.
+- **Elettrificazione** : colpisce un’area o oggetto con effetto elettrico, spesso diffondibile su caselle bagnate o cariche. _Path-intercept_ (elettricità si propaga se incontri terreno conduttivo)【13†L104L112】. Ad esempio, Gadget si basa su _Carica_ per far rimbalzare scariche tra nodi.
 
 - **Irrigidimento/Gelificazione** : trasforma acqua in ghiaccio o rallenta unità. _Cell-locked_ , indipendente dal movimento del bersaglio. Può creare percorsi scivolosi (beni per il giocatore, a rischio di scivolare o rimanere intrappolati).
 
@@ -559,13 +559,13 @@ Cataloghiamo 30+ azioni/meccaniche ricorrenti, descrivendone effetto, risoluzion
 
 - **Concealment (Fumo, Bush)** : crea status di **nascosto** per chi vi entra. _Cell-locked area_ di effetto. Abbassa precisione e blocca linee vista.
 
-- **Vision-Altering (Nebbie, Oscurità)** : zona dove linee di tiro vengono confuse ( _scatter_ ). _Cell-locked_ . Es. la Nebbia di Riva rende incerti i colpi.
+- **Vision-Altering (Nebbie, Oscurità)** : zona dove linee di tiro vengono confuse ( _scatter_ ). _Cell-locked_ . Es. la Nebbia di Phase rende incerti i colpi.
 
 - **Teleport (Warp)** : bersaglio spostato istantaneamente in un’altra cella. _Destination locked_ (spostamento assoluto), _unit-tracking_ entro l’istante.
 
 - **Delayed Blast** : abilità con trigger ritardato (es. conto alla rovescia). _Cell-locked_ , attivazione a scadenza.
 
-- **Area Buff/Debuff** : zone che potenziano o indeboliscono chi vi entra (es. Aura di Bastion, zone sacre). _Cell-locked_ , persistenti.
+- **Area Buff/Debuff** : zone che potenziano o indeboliscono chi vi entra (es. Aura di Riktor, zone sacre). _Cell-locked_ , persistenti.
 
 - **Launch/Impale (Catapulta)** : tipo di push verticale (proj. su più tile). _Unit-tracking_ verticale, _pathintercept_ orizzontale.
 
@@ -624,7 +624,7 @@ Nei giochi tattici emergono pattern chiave:
 
 - **Rischio e Friendly-Fire:** abilità AoE/ambientali spesso possono colpire amici (elemento di rischio). Ad es., XCOM definisce i colpi con distruzione coperture come _“set environment on fire”_ 【28†L504-L512】. Ciò spinge il giocatore a ponderare: vale la pena spingere un nemico nell’acqua se ne faremo lo stesso _electroshock_ degli alleati? (Trade-off: alto danno vs rischio danni interni).
 
-- **Telegraphing / Counterplay:** abilità potenti dovrebbero dare indizi visivi/anticipazioni (es. area di effetto in evidenza). Ad es. Frozen Synapse (sistemi simultanei) richiede che le azioni siano intuibili (lanciano zone di colpo prima). Questo consente contromosse (dash fuori dall’area, muro contro). Inoltre, _coperture direzionali_ (Bastion) introducono telegraphi: difendi solo da un lato. Se il nemico attacca da fuori, passa oltre【19†L181-L184】.
+- **Telegraphing / Counterplay:** abilità potenti dovrebbero dare indizi visivi/anticipazioni (es. area di effetto in evidenza). Ad es. Frozen Synapse (sistemi simultanei) richiede che le azioni siano intuibili (lanciano zone di colpo prima). Questo consente contromosse (dash fuori dall’area, muro contro). Inoltre, _coperture direzionali_ (Riktor) introducono telegraphi: difendi solo da un lato. Se il nemico attacca da fuori, passa oltre【19†L181-L184】.
 
 - **Costo temporale / Resource timing:** abilità forti richiedono molte risorse (tempo, punti azione, mana). I giocatori devono bilanciare usarle subito o tenerle. Ad es. Larian, parlando di BG3, evidenzia come surface effects costino risorse preziose: “in DOS era trucco, in BG3 serve un incantesimo dedicato”【35†L88-L96】.
 
@@ -662,31 +662,31 @@ Questi esempi mostrano che **la mappa stessa è parte del roster** : usare il te
 
 1. **Trappola a imbuto** :
 
-2. Bastion posiziona pannello chiudendo un arco.
+2. Riktor posiziona pannello chiudendo un arco.
 
-3. Riva allaga il percorso alternativo.
+3. Phase allaga il percorso alternativo.
 
-4. Vektor prepara un Tiro d’Intercetto all’unica uscita.
+4. Wraith prepara un Tiro d’Intercetto all’unica uscita.
 
-5. Flux elettrifica l’acqua residua. _Esito:_ Il nemico ha opzioni limitate (accettare shock, rompere portale, fermarsi, subire attacco in uscita). Combo graduale, _NON kill garantito_ , ma riduce progressivamente opzioni nemiche.
+5. Gadget elettrifica l’acqua residua. _Esito:_ Il nemico ha opzioni limitate (accettare shock, rompere portale, fermarsi, subire attacco in uscita). Combo graduale, _NON kill garantito_ , ma riduce progressivamente opzioni nemiche.
 
 6. **Martello e incudine** :
 
-7. Bastion usa Ariete caricato.
+7. Riktor usa Ariete caricato.
 
-8. Riva contrattacca con Getto pressurizzato da lato opposto. _Esito:_ Il bersaglio viene costretto contro una copertura o sbilanciato. _Nota bilancio:_ Evitare danno doppio massivo. Dare magari solo stordimento o _Sbilanciato_ per 1-2 turni (come perde controllo, senza morte istantanea).
+8. Phase contrattacca con Getto pressurizzato da lato opposto. _Esito:_ Il bersaglio viene costretto contro una copertura o sbilanciato. _Nota bilancio:_ Evitare danno doppio massivo. Dare magari solo stordimento o _Sbilanciato_ per 1-2 turni (come perde controllo, senza morte istantanea).
 
 ##### 9. **Circuito vivente** :
 
-10. Riva lancia Scia Fluida (zona d’acqua persistente).
+10. Phase lancia Scia Fluida (zona d’acqua persistente).
 
-11. Flux posiziona Nodo Conduttore al centro.
+11. Gadget posiziona Nodo Conduttore al centro.
 
 12. Un nemico entra nell’acqua.
 
-13. Flux attiva Sovraccarico (fulmine esplosivo).
+13. Gadget attiva Sovraccarico (fulmine esplosivo).
 
-   - _Esito:_ Elettricità ad area tra le acque, colpendo bersaglio e potenzialmente anche Riva se ancora nella pozza. Richiede _tempismo_ non solo posizionamento. Trade-off in questa combo: _coordinazione elevata, rischio friendly-fire_ .
+   - _Esito:_ Elettricità ad area tra le acque, colpendo bersaglio e potenzialmente anche Phase se ancora nella pozza. Richiede _tempismo_ non solo posizionamento. Trade-off in questa combo: _coordinazione elevata, rischio friendly-fire_ .
 
 ##### **Rete + Spinta** :
 
@@ -694,25 +694,25 @@ Questi esempi mostrano che **la mappa stessa è parte del roster** : usare il te
 
 15. Rogue (Furtivo) piazza Trappola a Ragnatela su un percorso.
 
-   - Bastion usa Ariete spostando bersaglio.
+   - Riktor usa Ariete spostando bersaglio.
 
 17. Se il nemico finisce sulla ragnatela, rimane intrappolato e vulnerabile. _Esito:_ Highlight sulla coordinazione tra trappola e movement. Debole contro nemici volanti o già fuoriposto.
 
 ##### 18. **Controllo del ponte** :
 
-19. Bastion ruota coperture per creare canale.
+19. Riktor ruota coperture per creare canale.
 
    - Supporto sacrifica un turno buffando schieramento.
 
-21. Riva sposta unità nemiche nel canale con Marea Circolare.
+21. Phase sposta unità nemiche nel canale con Marea Circolare.
 
-22. Flux incatena scariche elettriche tra due nodi piazzati. _Esito:_ Nemico costretto a passare in zona elettrica, subendo danni continui. Trade-off: lunga preparazione, dipendenza sequenza.
+22. Gadget incatena scariche elettriche tra due nodi piazzati. _Esito:_ Nemico costretto a passare in zona elettrica, subendo danni continui. Trade-off: lunga preparazione, dipendenza sequenza.
 
 ##### 23. **Sventramento d’occhio** :
 
-24. Vektor dichiara destinazioni (Finta) per ampliare rami di piano.
+24. Wraith dichiara destinazioni (Finta) per ampliare rami di piano.
 
-   - Riva e Flux preparano attacchi in due possibili scorciatoie.
+   - Phase e Gadget preparano attacchi in due possibili scorciatoie.
 
 26. Dopo aver visto da dove il nemico tira fuori, la squadra si concentra nella direzione corretta. _Esito:_ Coinvolge planning segreto/cooperativo. Difficile da implementare via UI ma potente come concetto di coordinazione a turni simultanei.
 
@@ -720,7 +720,7 @@ Questi esempi mostrano che **la mappa stessa è parte del roster** : usare il te
 
 - **Bagnato (Wet):** il terreno/bersaglio è innaffiato. Conduce elettricità (dà +danno a shock), spegne fuoco/incendio【13†L117-L122】, aumenta scivolosità (rischio di spinta). I nemici “bagnati” possono anche diventare _sofferenti (soaking)_ per certe magie.
 
-- **Carico (Charged):** in attesa di una scarica elettrica. Es. dispositivi o nemici che ricevono _Carica_ . Fa scattare archi elettici adiacenti; serve a innescare macro-attacchi come _overload_ di Flux.
+- **Carico (Charged):** in attesa di una scarica elettrica. Es. dispositivi o nemici che ricevono _Carica_ . Fa scattare archi elettici adiacenti; serve a innescare macro-attacchi come _overload_ di Gadget.
 
 - **Sbilanciato (Unbalanced):** subisce penali ai tiri salvezza contro spinte/trazioni e aumento di precisione subita. Non impedisce azioni, ma rende vulnerabile a push/pull. Si ottiene se colpiti durante un movimento (es. interrompere il dash).
 
@@ -736,7 +736,7 @@ Questi esempi mostrano che **la mappa stessa è parte del roster** : usare il te
 
 - **Sfortunato / Debilitato (Cursed/Poisoned):** colpo di scenario infetto (veleno). Danno nel tempo moderato. Non permette cure immediate (es. rimuovi con antidoto / rientro in zona pulita).
 
-- **Collettivo di stato (Chain Mark):** bersaglio collegato (tipo scudo collegato) dove danni o effetti si trasferiscono. Ad esempio, nemici afflitti da “Mark” di Vektor o “Link” elettrico. L’abilità successiva che colpisce uno riflette parte sul secondo.
+- **Collettivo di stato (Chain Mark):** bersaglio collegato (tipo scudo collegato) dove danni o effetti si trasferiscono. Ad esempio, nemici afflitti da “Mark” di Wraith o “Link” elettrico. L’abilità successiva che colpisce uno riflette parte sul secondo.
 
 (Abbiamo evitato stun/perma stun o silenzi completi per mantenere flusso tattico, dato che sono spesso frustranti in sotfware di design astratto.)
 
@@ -746,7 +746,7 @@ Le azioni simultanee richiedono ordine ben definito. Proponiamo questa timeline:
 <!-- Start of picture text -->
 Riconfigurazioni Movimento unità Azioni abilità Risoluzione effetti<br>Riconfigura ambiente (es. rotate cover)<br>Muovi tutte le unità (simultaneo)<br>Piani di attacco preparati (target, dash, trappole)<br>Risolvi danni / stati / interazioni di AoE<br>Riconfigurazioni Movimento unità Azioni abilità Risoluzione effetti<br><!-- End of picture text -->
 
-- **Riconfigurazioni** : fasi preliminari dove abilità come _Riconfigurazione_ di Bastion o chiusura porte di team assegnato avvengono. Non ancora movimenti di unità.
+- **Riconfigurazioni** : fasi preliminari dove abilità come _Riconfigurazione_ di Riktor o chiusura porte di team assegnato avvengono. Non ancora movimenti di unità.
 
 - **Movimento simultaneo** : tutte le unità eseguono dash/direzione finale. Poiché è simultaneo, serve prevedere: per esempio, un push di questo turno sposterà il nemico nella casella risultante.
 
@@ -760,10 +760,10 @@ Questo schema garantisce coerenza: le modifiche mappa avvengono prima del posizi
 **Timeline (sottofasi):** mostrato sopra in `sequenceDiagram` per chiarezza di flow di turni.
 
 ##### Esempio Combo multi-actor (Trappola a imbuto):
-|chiude arco<br>Riva: allaga percorso<br>Bastion<br>Arco bloccato<br>Canale d'acqua|Vektor: intercetta uscita<br>Uscita svelata|Flux: elettrifica acqu|a<br>Scossa elettrica|
+|chiude arco<br>Phase: allaga percorso<br>Riktor<br>Arco bloccato<br>Canale d'acqua|Wraith: intercetta uscita<br>Uscita svelata|Gadget: elettrifica acqu|a<br>Scossa elettrica|
 |---|---|---|---|
 
-**Legenda:** Bastion chiude un passaggio; Riva forma un canale d’acqua alternativo; Vektor piazza un intercetto sull’unica via; Flux electrocuta il percorso.
+**Legenda:** Riktor chiude un passaggio; Phase forma un canale d’acqua alternativo; Wraith piazza un intercetto sull’unica via; Gadget electrocuta il percorso.
 
 ##### Mappa semplificata (interazioni ambientali):
 
@@ -1592,7 +1592,7 @@ Ogni eroe possiede:
 Per il vertical slice una sola abilità per eroe può avere una variante.
 
 ### 8. Eroi del vertical slice
-#### 8.1 Flux — Tecnico della conduzione
+#### 8.1 Gadget — Tecnico della conduzione
 ##### Ruolo
 - Attacco.
 
@@ -1614,11 +1614,11 @@ Per il vertical slice una sola abilità per eroe può avere una variante.
 ##### Abilità
 |ID|Abilità|Tipo|Effetto|Cooldown|
 |---|---|---|---|---|
-|`Flux.ArcPulse`|Impulso ad<br>arco|Attacco<br>base|22 danni, range 4|0|
-|`Flux.LinearDischarge`|Scarica lineare|Linea|24 danni, +8 su Wet|2|
-|`Flux.ConductiveNode`|Nodo<br>conduttore|Cella|Rende conduttiva<br>una cella|2|
-|`Flux.Overload`|Sovraccarico|AoE|18 danni, Interrupt<br>dispositivi|3|
-|`Flux.ReactiveCapacitor`|Capacitore<br>reattivo|Reazione|Scudo 15 e 10 danni<br>all’attaccante|3|
+|`Hero.Gadget.ArcPulse`|Impulso ad<br>arco|Attacco<br>base|22 danni, range 4|0|
+|`Hero.Gadget.LinearDischarge`|Scarica lineare|Linea|24 danni, +8 su Wet|2|
+|`Hero.Gadget.ConductiveNode`|Nodo<br>conduttore|Cella|Rende conduttiva<br>una cella|2|
+|`Hero.Gadget.Overload`|Sovraccarico|AoE|18 danni, Interrupt<br>dispositivi|3|
+|`Hero.Gadget.ReactiveCapacitor`|Capacitore<br>reattivo|Reazione|Scudo 15 e 10 danni<br>all’attaccante|3|
 
 ##### Variante
 ###### Scarica concentrata
@@ -1631,7 +1631,7 @@ Per il vertical slice una sola abilità per eroe può avere una variante.
 
 - −6 danni per bersaglio.
 
-#### 8.2 Riva — Manipolatrice dell’acqua
+#### 8.2 Phase — Manipolatrice dell’acqua
 ##### Ruolo
 - Supporto.
 
@@ -1653,11 +1653,11 @@ Per il vertical slice una sola abilità per eroe può avere una variante.
 ##### Abilità
 |ID|Abilità|Tipo|Effetto|Cooldown|
 |---|---|---|---|---|
-|`Riva.PressureJet`|Getto<br>pressurizzato|Linea|16 danni, Wet, Push 1|0|
-|`Riva.CircularTide`|Marea circolare|AoE|Cura alleati 18, Wet ai<br>nemici|2|
-|`Riva.FluidTrail`|Scia fluida|Dash|Dash 3 e crea acqua|2|
-|`Riva.MistVeil`|Velo di nebbia|AoE|Crea fumo raggio 1|3|
-|`Riva.FlowReaction`|Flusso reattivo|Reazione|Reposition 1 dopo un<br>attacco|3|
+|`Hero.Phase.PressureJet`|Getto<br>pressurizzato|Linea|16 danni, Wet, Push 1|0|
+|`Hero.Phase.CircularTide`|Marea circolare|AoE|Cura alleati 18, Wet ai<br>nemici|2|
+|`Hero.Phase.FluidTrail`|Scia fluida|Dash|Dash 3 e crea acqua|2|
+|`Hero.Phase.MistVeil`|Velo di nebbia|AoE|Crea fumo raggio 1|3|
+|`Hero.Phase.FlowReaction`|Flusso reattivo|Reazione|Reposition 1 dopo un<br>attacco|3|
 
 ##### Variante
 ###### Marea curativa
@@ -1670,7 +1670,7 @@ Per il vertical slice una sola abilità per eroe può avere una variante.
 
 - Applica Push 1 ai nemici.
 
-#### 8.3 Bastion — Architetto del campo
+#### 8.3 Riktor — Architetto del campo
 ##### Ruolo
 - Difesa.
 
@@ -1692,11 +1692,11 @@ Per il vertical slice una sola abilità per eroe può avere una variante.
 ##### Abilità
 |ID|Abilità|Tipo|Effetto|Cooldown|
 |---|---|---|---|---|
-|`Bastion.ImpactShot`|Colpo cinetico|Attacco<br>base|24 danni, range 3|0|
-|`Bastion.KineticPanel`|Pannello<br>cinetico|Arco|Crea copertura da<br>30 HP|2|
-|`Bastion.Reconfigure`|Riconfigurazione|Arco|Sposta o ruota una<br>copertura|2|
-|`Bastion.Ram`|Ariete|Charge|20 danni e Push 1|2|
-|`Bastion.Interposition`|Interposizione|Reazione|Intercetta attacco<br>su alleato|3|
+|`Hero.Riktor.ImpactShot`|Colpo cinetico|Attacco<br>base|24 danni, range 3|0|
+|`Hero.Riktor.KineticPanel`|Pannello<br>cinetico|Arco|Crea copertura da<br>30 HP|2|
+|`Hero.Riktor.Reconfigure`|Riconfigurazione|Arco|Sposta o ruota una<br>copertura|2|
+|`Hero.Riktor.Ram`|Ariete|Charge|20 danni e Push 1|2|
+|`Hero.Riktor.Interposition`|Interposizione|Reazione|Intercetta attacco<br>su alleato|3|
 
 ##### Variante
 ###### Pannello rinforzato
@@ -1709,7 +1709,7 @@ Per il vertical slice una sola abilità per eroe può avere una variante.
 
 - Può essere ruotato gratuitamente una volta.
 
-#### 8.4 Vektor — Duellante predittivo
+#### 8.4 Wraith — Duellante predittivo
 ##### Ruolo
 - Assalto.
 
@@ -1731,11 +1731,11 @@ Per il vertical slice una sola abilità per eroe può avere una variante.
 ##### Abilità
 |ID|Abilità|Tipo|Effetto|Cooldown|
 |---|---|---|---|---|
-|`Vektor.PulseShot`|Tiro a impulsi|Attacco<br>base|21 danni, range 4|0|
-|`Vektor.InterceptShot`|Tiro<br>d’intercetto|Reazione|16 danni e stop<br>movimento|2|
-|`Vektor.PassingBlade`|Lama di<br>passaggio|Dash|Dash 3, 20 danni<br>attraversando|2|
-|`Vektor.Deflection`|Deviazione|Reazione|Riduce danno di 20|2|
-|`Vektor.Feint`|Finta|Controllo|Marca cella e ottiene<br>Reposition|2|
+|`Hero.Wraith.PulseShot`|Tiro a impulsi|Attacco<br>base|21 danni, range 4|0|
+|`Hero.Wraith.InterceptShot`|Tiro<br>d’intercetto|Reazione|16 danni e stop<br>movimento|2|
+|`Hero.Wraith.PassingBlade`|Lama di<br>passaggio|Dash|Dash 3, 20 danni<br>attraversando|2|
+|`Hero.Wraith.Deflection`|Deviazione|Reazione|Riduce danno di 20|2|
+|`Hero.Wraith.Feint`|Finta|Controllo|Marca cella e ottiene<br>Reposition|2|
 
 ##### Variante
 ###### Intercetto preciso
@@ -1751,18 +1751,18 @@ Per il vertical slice una sola abilità per eroe può avere una variante.
 ### 9. Loadout iniziali consigliati
 |Eroe|Variante|Gadget|Reazione|
 |---|---|---|---|
-|Flux|Scarica ramificata|Isolante|Scudo reattivo|
-|Riva|Marea curativa|Sprinkler|Fuga hazard|
-|Bastion|Pannello adattivo|Copertura portatile|Interposizione|
-|Vektor|Intercetto esteso|Sensore|Dash d’emergenza|
+|Gadget|Scarica ramificata|Isolante|Scudo reattivo|
+|Phase|Marea curativa|Sprinkler|Fuga hazard|
+|Riktor|Pannello adattivo|Copertura portatile|Interposizione|
+|Wraith|Intercetto esteso|Sensore|Dash d’emergenza|
 
 ### 10. Combo da testare
 #### Acqua + elettricità
-1. Riva crea acqua.
+1. Phase crea acqua.
 
 - Una unità entra o si trova nell’acqua.
 
-3. Flux usa Electrify o Linear Discharge.
+3. Gadget usa Electrify o Linear Discharge.
 
 4. La propagazione segue le celle conduttive.
 
@@ -1779,16 +1779,16 @@ Il friendly fire è attivo.
 - **Incerto:** una cella potrebbe essere occupata o modificata durante il movimento.
 
 #### Copertura + tiro d’intercetto
-1. Bastion crea un pannello.
+1. Riktor crea un pannello.
 
 2. Il pannello chiude il percorso più sicuro.
 
-3. Vektor prepara Intercept Shot.
+3. Wraith prepara Intercept Shot.
 
 4. Il nemico sceglie se attraversare la linea o perdere posizione.
 
 #### Push + hazard
-1. Riva o Bastion applicano Push.
+1. Phase o Riktor applicano Push.
 
 - Il bersaglio entra in acqua, fuoco o area elettrificata.
 
