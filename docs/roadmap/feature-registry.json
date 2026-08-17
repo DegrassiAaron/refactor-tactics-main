@@ -4812,7 +4812,11 @@
         "docs/technical/spec-graybox-placement-contract.md",
         "docs/technical/asset-map.md"
       ],
-      "issues": [],
+      "issues": [
+        1094,
+        1095,
+        1096
+      ],
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [],

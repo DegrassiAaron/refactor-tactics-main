@@ -4212,7 +4212,12 @@ tracks:
       — cioè in nessun insieme di questo file. È la stessa condizione di `docs_kit` il 2026-08-16, e
       la stessa risposta: si dichiara prima di scrivere.
       ⚠️ `issue: null` all'apertura perché le issue **nascono da questo lavoro**, non lo precedono:
-      il kit prescrive «creare issue solo dopo audit». I numeri entrano nella nota quando esistono.
+      il kit prescrive «creare issue solo dopo audit».
+      ✅ **Aperte a valle dell'audit**: **#1094** (le quattro domande `GBX-1..4`, `question`), **#1095**
+      (la seduta **U25** — volume di posa e scena di validazione) e **#1096** (le voci PIE, che sono
+      bloccate da `D-139` e non da mancanza di contenuto). `issue` resta `null` perché **nessuna delle tre
+      è il soggetto di questa track**: questa track consolida e le apre, non le esegue. Le epic **#286**
+      (E21) e **#778** (E45) sono state aggiornate con la relazione; **nessuna epic nuova** — `D-153`.
 
       ✅ **Il write-set è MISURATO, non dedotto dal tema.** Il kit tocca dodici categorie di tracking,
       ma **dieci** dei suoi bersagli sono `integration_only` — Decision Log, `feature-registry.yaml`,

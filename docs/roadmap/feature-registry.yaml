@@ -4666,7 +4666,9 @@ features:
     owner_specs:
       - docs/technical/spec-graybox-placement-contract.md
       - docs/technical/asset-map.md
-    issues: []
+    # 1094 le quattro domande aperte (`GBX-1..4`) · 1095 la seduta U25 (volume + scena di validazione) ·
+    # 1096 le voci PIE, che sono bloccate da `D-139` e non da mancanza di contenuto.
+    issues: [1094, 1095, 1096]
     tests: []
     scenarios: []
     wiki_refs:

@@ -252,7 +252,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E6** | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Gadget, Phase, Riktor, Wraith | INTEGRATED | 6/8 |
 | **E7** | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | IMPLEMENTING | 1/8 |
 | **E8** | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | INTEGRATED | 6/9 |
-|  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 6/9 |
+|  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 7/9 |
 |  | `RT-FEAT-ENV-ICE` — Ghiaccio e scivolamento | INTEGRATED | 6/9 |
 |  | `RT-FEAT-ENV-STATUS` — Stati temporanei legati alla cella | INTEGRATED | 6/9 |
 |  | `RT-FEAT-ENV-STEAM` — Fumo e copertura visiva | INTEGRATED | 6/9 |
@@ -303,6 +303,7 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
+|  | `RT-FEAT-UI-GRAYBOX-KIT` — Graybox Kit — contratto di ingombro, pivot e presentazione degli oggetti di mappa | DESIGNED | 0/5 |
 | **E46** | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | SPECIFIED | 1/5 |
 |  | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | SPECIFIED | 1/6 |
 |  | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | SPECIFIED | 1/5 |

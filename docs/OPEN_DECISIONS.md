@@ -187,6 +187,10 @@ dice *che forma* devono avere gli asset, e tre delle quattro riguardano un **num
 si fissa quando il primo asset viene prodotto. `GBX-2` è diversa — è una lacuna di grammatica, e va chiusa
 **prima** di modellare la porta, non dopo.
 
+Tracciate su GitHub: [`#1094`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094)
+(`question`) — aperta **nello stesso commit** di questa voce, per la ragione che `RNG-1`/`RNG-2` hanno già
+scritto: una decisione aperta che vive solo in un documento non entra in nessuna coda di lavoro.
+
 ---
 
 ## ✅ Chiuse — archivio replay, dal conflict report del 2026-08-10

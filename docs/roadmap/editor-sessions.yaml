@@ -1043,7 +1043,7 @@ sessions:
     unblocked_by: [U21]
     shares_setup_with: [U21]
     verifies: []
-    issues: []
+    issues: [1095]
     done_when: la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro
     unblocks: []
     notes: >-
