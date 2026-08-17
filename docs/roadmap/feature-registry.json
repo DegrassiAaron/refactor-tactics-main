@@ -2723,7 +2723,8 @@
         "RefactorTactics.Overwatch.SameReactionTwiceHasDistinctIds"
       ],
       "scenarios": [
-        "Spec.Overwatch.HoldThenFire"
+        "Spec.Overwatch.HoldThenFire",
+        "Spec.Overwatch.ConditionCollapsesToHold"
       ],
       "scenarios_planned": [
         "Spec.Overwatch.ConductiveDischargeUsesStandardConduction",

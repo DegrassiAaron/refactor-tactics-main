@@ -11,18 +11,18 @@ const ability = (h: string, id: string) =>
 
 test('un bonus condizionato da uno stato non entra nel danno garantito', () => {
   // `24 danni, +8 su bersaglio Wet` -> 24, non 32.
-  assert.equal(guaranteedDamage(ability('Gadget', 'Flux.LinearDischarge')), 24);
+  assert.equal(guaranteedDamage(ability('Gadget', 'Hero.Gadget.LinearDischarge')), 24);
 });
 
 test('un payoff condizionato da una previsione non entra affatto', () => {
   // Stessa regola, condizionante diverso: la tabella reazioni dichiara il trigger d'ingresso su
   // movimento, quindi i 16 danni valgono solo se hai indovinato dove andra' l'avversario.
-  assert.equal(guaranteedDamage(ability('Wraith', 'Vektor.InterceptShot')), 0);
+  assert.equal(guaranteedDamage(ability('Wraith', 'Hero.Wraith.InterceptShot')), 0);
 });
 
 test('un danno incondizionato entra per intero', () => {
-  assert.equal(guaranteedDamage(ability('Wraith', 'Vektor.PulseShot')), 21);
-  assert.equal(guaranteedDamage(ability('Gadget', 'Flux.ConductiveNode')), 20);
+  assert.equal(guaranteedDamage(ability('Wraith', 'Hero.Wraith.PulseShot')), 21);
+  assert.equal(guaranteedDamage(ability('Gadget', 'Hero.Gadget.ConductiveNode')), 20);
 });
 
 test('i quattro power_raw coincidono con quelli pubblicati in #603', () => {

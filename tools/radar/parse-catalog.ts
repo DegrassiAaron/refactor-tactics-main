@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 export interface AbilityInput {
   id: string;
   /** Colonna `Tipo` del catalogo: `attacco base` · `linea` · `AoE` · `cella` · `dash` · `arco` ·
-   *  `charge` · `reazione` · `controllo`. Da qui si deriva la selettivita' (#603). */
+   *  `charge` · `reazione` · `predittiva` · `controllo`. Da qui si deriva la selettivita' (#603), e
+   *  da `predittiva` la condizionalita' del payoff in `power.ts` (#1080). */
   kind: string;
   /** Danno dichiarato nella cella `Effetto`. `null` quando l'abilita' non fa danno. */
   damage: number | null;

@@ -1462,7 +1462,7 @@
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset",
@@ -2450,6 +2450,13 @@
         "Objective"
       ],
       "path": "Scenarios/Spec/Objective/PointSurvivesKO.json"
+    },
+    {
+      "id": "Spec.Overwatch.ConditionCollapsesToHold",
+      "requires": [
+        "Reaction"
+      ],
+      "path": "Scenarios/Spec/Overwatch/ConditionCollapsesToHold.json"
     },
     {
       "id": "Spec.Overwatch.HoldThenFire",
