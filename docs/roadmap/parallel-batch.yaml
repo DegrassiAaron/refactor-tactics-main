@@ -2958,20 +2958,41 @@ tracks:
     derives_from: []
     # 🔴 **Le due lease di `#896` sono RILASCIATE il 2026-08-17, e l'elenco torna vuoto.**
     # Erano `BINARY-GH896-HEXCELL-MATERIAL` (`create`, `M_HexCell.uasset`) e
-    # `BINARY-GH896-HEXARENA-ASSIGN-MATERIAL` (`modify`, i due package di `L_HexArena/`). Restavano qui
-    # dopo la fine del proprio lavoro, e una prenotazione scaduta che sembra viva è peggio di nessuna.
-    # Misurato, non dedotto — tre condizioni, tutte e tre soddisfatte:
-    #   · `#896` e' **CLOSED** dal 2026-08-15;
-    #   · i tre asset sono in `main` (`git ls-files`): il lavoro e' atterrato;
-    #   · entrambe sono **stale** per la regola di questo file — *«una lease vale sul `base_sha`: se `main`
-    #     tocca lo stesso asset, la lease e' stale e va riemessa»*. Da `bc84fe69`, `main` ha toccato
-    #     `M_HexCell.uasset` **1** volta e `L_HexArena/` **2** (`8024a742`, `1475582d`).
-    # ⚠️ **Perche' rimuoverle invece di annotarle**: `binary_leases` e' l'elenco delle prenotazioni ATTIVE,
-    # ed e' cio' che un lettore interroga per sapere se puo' scrivere un binario. Tenerci dentro una lease
-    # morta ha gia' ingannato qualcuno: `#868` ha concluso che `L_HexArena/` fosse coperto, e la guida di U1
-    # ne ha portato la conseguenza sbagliata. La storia delle due lease resta nei commit che le hanno
-    # emesse; qui conta chi puo' scrivere **oggi**, e la risposta e' nessuno.
-    # ∴ chi dovra' modificare uno di quei package **emette una lease nuova**, sul proprio `base_sha`.
+    # `BINARY-GH896-HEXARENA-ASSIGN-MATERIAL` (`modify`, i due package di `L_HexArena/`).
+    # ⚠️ **Perché rimuoverle invece di annotarle**: `binary_leases` è l'elenco delle prenotazioni ATTIVE, ed
+    # è ciò che si interroga per sapere se si può scrivere un binario **oggi**. Tenerci una lease morta ha
+    # già ingannato qualcuno — `#868` ha concluso che `L_HexArena/` fosse coperto, e quella conclusione è
+    # finita in un documento normativo.
+    #
+    # Le ragioni del rilascio, una per lease, perché **non sono la stessa**:
+    # · `HEXARENA-ASSIGN-MATERIAL` è **stale** per la regola di questo file — *«una lease vale sul
+    #   `base_sha`: se `main` tocca lo stesso asset, la lease è stale e va riemessa»*. Da `bc84fe69`, `main`
+    #   ha toccato `L_HexArena/` **due** volte: `8024a742` (il materiale) e `1475582d` (l'arena a 64 celle).
+    # · `HEXCELL-MATERIAL` **non è stale, è ADEMPIUTA**, ed è una distinzione che va tenuta.
+    #   🔴 La prima stesura di questo commento la dichiarava stale citando l'unico commit che tocca
+    #   `M_HexCell.uasset` dopo il `base_sha` — ma quel commit è `7e213a15`, cioè **la creazione stessa**
+    #   (`git log --diff-filter=A`). Una `create` prenota una destinazione: vederla creata dal proprio holder
+    #   è consumo, non invalidazione. «Stale» descrive una base spostata **da altri**. La conclusione
+    #   (rimuovere) regge lo stesso, l'argomento no — e riusato su una `create` futura sarebbe sbagliato.
+    # · entrambe: `#896` è **CLOSED** dal 2026-08-15, e i tre asset sono in `main` — verificato con
+    #   `git ls-tree -r --name-only origin/main -- <path>`, non con `git ls-files`, che legge l'index locale
+    #   e non direbbe nulla su `main`. 🔴 La prima stesura citava proprio `git ls-files` sotto la dicitura
+    #   «misurato, non dedotto»: l'affermazione era vera e la misura non la stabiliva.
+    #
+    # ⚠️ **Ciò che le lease portavano con sé, e che il rilascio NON deve buttare via.** La prima stesura le
+    # ha cancellate con il loro contenuto, e `git grep` non trovava più queste due cose in tutto `docs/`:
+    # · **le verification dichiarate e mai consuntivate** — `load_in_editor`, `save_without_errors`,
+    #   `mesh_color_matches_overlay_ring` (mesh e anello dell'overlay della **stessa cella** devono avere lo
+    #   stesso colore: prendono entrambi da `URTHexLibrary::SurfaceColor`, quindi se non combaciano il
+    #   materiale applica una conversione di troppo — i custom data sono già lineari) e
+    #   `arena_check_still_passes`. Nessuna delle ragioni del rilascio è «le verifiche sono passate»:
+    #   restano **non eseguite**, e questa riga è l'unico posto che lo dice.
+    # · **il discriminante fra l'arena vera e quella generata**, che non è il conteggio celle:
+    #   è **`Transitions`** — `L_HexArena` ne ha **2**, `GeneratedTestArena` **zero**, e nessuna delle due
+    #   strade per generarla le crea. Serve perché `MakeArenaV01` produce anch'essa **64** celle (61 + 3 di
+    #   piattaforma): contarle non distingue l'arena committata da una appena rigenerata.
+    # ∴ chi dovrà modificare uno di quei package **emette una lease nuova**, sul proprio `base_sha`, e
+    # riprende da qui le verification che nessuno ha ancora eseguito.
     binary_leases: []
     # ⚠️ Perché `#623` / U21 **non** è il candidato, benché sia `READY` nella coda generata: la sua
     # lease su `Content/RT/Maps/Dev/L_DevSandbox/` — due package qui, uno solo in `L_Prototype`,

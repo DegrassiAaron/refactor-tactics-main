@@ -1,6 +1,8 @@
 # Guida operativa — U1 · costruire `L_HexArena`
 
-> `CURRENT` · **Per**: [#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)
+> `CURRENT` — la procedura vale ancora, su un'arena nuova.
+> ⚠️ **Nata per** [#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451), che è
+> **chiusa** (`COMPLETED`, 2026-08-16): il documento non è più assegnato a un lavoro da fare — vedi §11.
 > **Owner dei dati della seduta**: [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml), `id: U1` — se i due
 > divergono, vince quello. Qui c'è la **procedura**, lì il DoD.
 > **Owner degli esiti**: [`test-manuali-pie.md`](test-manuali-pie.md) — le sette voci si scrivono lì.
@@ -14,10 +16,22 @@
 Una sola apertura dell'editor. Sette passi per costruire, sette voci da verificare, un comando per sapere se
 l'arena rispetta i tre criteri prima di committarla.
 
-⚠️ **`L_HexArena` è già committata** (dall'11 agosto) e **non va risalvata**: nessuna Binary Asset Lease
-**viva** copre quel path — quella che c'è, `BINARY-GH896-…`, è di un altro lavoro ed è *stale* rispetto al
-proprio `base_sha`. Verifica in [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml). I §1–§9
-descrivono come l'arena **è nata** e restano validi su una mappa nuova; su questa non si rieseguono.
+⚠️ **`L_HexArena` è già committata** (dall'11 agosto) e **non va risalvata**: **nessuna Binary Asset Lease
+copre quel path**. Si verifica in un comando, e la risposta è un elenco vuoto:
+
+```sh
+python - <<'EOF'
+import yaml
+d = yaml.safe_load(open('docs/roadmap/parallel-batch.yaml', encoding='utf-8'))
+print([l['key'] for t in d['tracks'].values()
+       for l in (t.get('binary_leases') or [])
+       for p in l['paths'] if 'L_HexArena' in p])
+EOF
+```
+
+Chi dovrà modificare quei package **emette una lease nuova** sul proprio `base_sha` — è un atto di batch, non
+una decisione della seduta. I §1–§9 descrivono come l'arena **è nata** e restano validi su una mappa nuova;
+su questa non si rieseguono.
 
 ---
 
@@ -122,7 +136,10 @@ Una sola: è ciò che rende la salita una decisione invece di una scorciatoia.
 
 ## 6. Rileggi a colori
 
-`bShowOverlay` attivo, tool **Select**: ricontrolla costi e blocchi prima di salvare.
+`bShowOverlay` attivo, tool **Select**: ricontrolla costi e blocchi prima di committare.
+
+⚠️ Diceva *«prima di salvare»*, e su `L_HexArena` non si salva (vincolo in testa). Su una mappa nuova
+il salvataggio precede il commit, e la frase torna a leggersi com'era.
 
 ---
 
