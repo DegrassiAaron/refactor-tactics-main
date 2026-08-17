@@ -3121,6 +3121,12 @@ tracks:
     issue: 937
     branch: null            # seduta d'editor: l'unita' di lavoro e' un'apertura di Unreal, non un commit
     session: U24
+    # ➕ **Aperto il 2026-08-17, e il campo esisteva gia' per questo caso.** La nota qui sotto lo
+    # prescriveva — *«se la seduta apre un ramo per committare gli `.uasset`, va nominato in
+    # `session_branch`»* — e fino a oggi il worktree era **detached** su `78dfd2f7`: lavoro d'editor non
+    # committato, su nessun ramo, quindi con un write-set che nessun'altra track poteva confrontare.
+    # E' esattamente il difetto che il campo e' nato per chiudere il 2026-08-14 su U1.
+    session_branch: feat/937-loading-screen-asset
     worktree: D:/rt-menu
     note: >-
       ➕ **Riattivata il 2026-08-16 come SEDUTA, non come sessione di codice.** La parte C++ di E46 e'
@@ -3172,6 +3178,19 @@ tracks:
       # `RTMatchAutobattleTests.cpp`. Elencato **per nome** e non come prefisso `Tests/`, che e' conteso
       # da quattro track.
       - Source/RefactorTactics/Tests/RTStartupReportTests.cpp
+      # 🔴 **Dichiarato il 2026-08-17 a file gia' scritto, ed e' la SECONDA volta su questo perimetro.**
+      # Il test dei binding dentro i `WBP_RT_*` esisteva gia' nella working directory — `?? ` in
+      # `git status`, mai committato — mentre nessun `writable` lo nominava. La track ha il precedente
+      # giusto due righe piu' su: `RTStartupReportTests.cpp` e' *«dichiarato prima di crearlo»*, con la
+      # motivazione scritta. Qui non e' andata cosi', e registrarlo a posteriori vale — da adesso il path
+      # e' preso — ma questa voce non finge di aver seguito la sequenza.
+      # ⚠️ **Per nome e non come prefisso `Tests/`**, che e' conteso da quattro track: prenderlo per
+      # prefisso bloccherebbe chiunque scriva un test. Stessa forma delle due righe precedenti.
+      # ⚠️ **Il test e il suo asset si coprono a vicenda finche' restano entrambi fuori da git**: pretende
+      # `/Game/RT/UI/Framework/WBP_RT_LoadingScreen`, che e' anch'esso untracked. Su un clone pulito
+      # mancano tutti e due e la suite e' verde **per assenza**; committarne uno solo la fa rossa. I due
+      # path vanno nello stesso commit, e l'ordine non e' una preferenza di stile.
+      - Source/RefactorTactics/Tests/RTFrontendWidgetAssetTests.cpp
       # ⚠️ **Il file RESTA qui, e nel giro di un giorno la domanda si e' aperta e richiusa due volte.**
       # Vale la pena scrivere la sequenza, perche' e' il caso d'uso per cui questo file esiste:
       #   1. `replay_ui` (#472) prende il path per scrivere la §2.2 — `#936` era chiusa, il branch
