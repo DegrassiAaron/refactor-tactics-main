@@ -1,29 +1,23 @@
 # Guida operativa — U1 · costruire `L_HexArena`
 
-> `HISTORICAL` come seduta, **riusabile come procedura**.
-> [#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451) è **chiusa** (`COMPLETED`, il
-> 2026-08-16): `L_HexArena` e `DA_HexMap_Arena` sono in `main` dall'**11 agosto**, e le sette voci hanno già
-> un esito in [`test-manuali-pie.md`](test-manuali-pie.md) — sei ✅ e una ❌, la `-H`, uscita come
-> [#931](https://github.com/DegrassiAaron/refactor-tactics-main/issues/931) /
-> [#996](https://github.com/DegrassiAaron/refactor-tactics-main/issues/996).
->
-> ∴ **questa pagina non è più una lista di cose da fare.** Restano validi i §1–§9 come *come si costruisce
-> un'arena che soddisfa i tre criteri* — utili alla prossima mappa — e i §10–§11 come *come si verificano le
-> sette voci del mode*. Chi la rilegge per U1 non deve rieseguirla.
->
-> **Owner dei dati della seduta**: [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml), `id: U1` — se i
-> due divergono, vince quello. ⚠️ **Oggi divergono**: quel file prescrive ancora di rileggere l'overlay
-> *«prima di salvare»* e dichiara che «nessuna guida copre ancora questa procedura». È
-> `integration_only`, quindi **non è correggibile da qui** e la divergenza è dichiarata invece che risolta.
+> `CURRENT` · **Per**: [#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)
+> **Owner dei dati della seduta**: [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml), `id: U1` — se i due
+> divergono, vince quello. Qui c'è la **procedura**, lì il DoD.
+> **Owner degli esiti**: [`test-manuali-pie.md`](test-manuali-pie.md) — le sette voci si scrivono lì.
 
-> 🔴 **Vincolo che vale prima di ogni altra riga, e che i §1–§9 precedono.**
-> `Content/RT/Maps/Dev/L_HexArena/` è già committato e **non va risalvato**: nessuna Binary Asset Lease viva
-> lo copre (**D-139** — verifica in [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml)).
-> I §1–§9 sono stati scritti *mentre* l'arena nasceva e dicono «salva» e «committa»: erano corretti allora,
-> e oggi si leggono come storia. Rieseguirli su questa mappa significherebbe riscrivere un binario senza
-> lease; su una mappa **nuova** vanno benissimo.
+> ⚠️ **Revisione 2026-08-17** — [#868](https://github.com/DegrassiAaron/refactor-tactics-main/issues/868).
+> Tre punti della procedura precedevano **D-139** (write-set di batch e Binary Asset Lease, del 2026-08-14) e
+> dicevano di fare qualcosa che oggi non si può fare, o di misurare la mappa sbagliata: il salvataggio di
+> §10b, il *dove* rilanciare `rt.Arena.Check`, e il rimedio «rigenera». Corretti qui sotto, ciascuno accanto
+> alla propria regola. I tell delle sette voci **non cambiano**.
 
-Sette passi per costruire, sette voci da verificare, un comando per sapere se l'arena rispetta i tre criteri.
+Una sola apertura dell'editor. Sette passi per costruire, sette voci da verificare, un comando per sapere se
+l'arena rispetta i tre criteri prima di committarla.
+
+⚠️ **`L_HexArena` è già committata** (dall'11 agosto) e **non va risalvata**: nessuna Binary Asset Lease
+**viva** copre quel path — quella che c'è, `BINARY-GH896-…`, è di un altro lavoro ed è *stale* rispetto al
+proprio `base_sha`. Verifica in [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml). I §1–§9
+descrivono come l'arena **è nata** e restano validi su una mappa nuova; su questa non si rieseguono.
 
 ---
 
@@ -128,10 +122,7 @@ Una sola: è ciò che rende la salita una decisione invece di una scorciatoia.
 
 ## 6. Rileggi a colori
 
-`bShowOverlay` attivo, tool **Select**: ricontrolla costi e blocchi prima di committare.
-
-⚠️ Diceva *«prima di salvare»*. Su `L_HexArena` oggi non si salva (vedi il vincolo in testa); su una mappa
-nuova il salvataggio è il passo che precede il commit, e allora la frase torna a leggersi com'era.
+`bShowOverlay` attivo, tool **Select**: ricontrolla costi e blocchi prima di salvare.
 
 ---
 
@@ -168,14 +159,7 @@ Non serve stimarli a occhio. Con l'arena nel livello, in console (`ò` o `~`):
 rt.Arena.Check
 ```
 
-Misura l'asset e stampa i numeri.
-
-🔴 **L'esempio qui sotto NON è l'arena della v0.1, ed è la trappola che questa guida insegna a riconoscere
-duecento righe più in basso.** Sono **65 celle**: è `GeneratedTestArena`, la mappa generata — l'arena vera
-ne ha **64** dopo `1475582d`. Che sia la mappa sbagliata lo confermano i suoi stessi numeri, `57%` e `56%`,
-identici a quelli attribuiti a `MakeTestArena` in fondo a questa sezione. È tenuto come **esempio di
-formato**, non come termine di paragone: se la tua run assomiglia a questa, stai misurando la mappa
-generata.
+Misura l'asset e stampa i numeri:
 
 ```
 [RT] Criteri dell'arena su 65 celle (budget 5, rapporto max 1.50, scarto minimo 15%):
@@ -216,17 +200,8 @@ danno.
 
 ## 10. Le sette voci
 
-Si verificano in una sola apertura dell'editor. Gli esiti vanno in
-[`test-manuali-pie.md`](test-manuali-pie.md) — **già scritti per U1**: sei ✅ e la `-H` ❌.
-
-⚠️ **Chi rifà queste verifiche non scrive quel registro da sé.** Ha cambiato proprietario più volte in
-pochi giorni, quindi il nome della track qui invecchierebbe: si rilegge dal batch al momento di scrivere, e
-gli esiti si **propongono in handoff** al proprietario corrente.
-
-```sh
-python -c "import yaml;d=yaml.safe_load(open('docs/roadmap/parallel-batch.yaml',encoding='utf-8'));\
-print([k for k,v in d['tracks'].items() if 'docs/technical/test-manuali-pie.md' in (v.get('writable') or [])])"
-```
+Si verificano nella stessa apertura, sull'arena appena costruita. Gli esiti si scrivono in
+[`test-manuali-pie.md`](test-manuali-pie.md).
 
 | Voce | Cosa guardi | Tool |
 |---|---|---|
@@ -251,34 +226,15 @@ generato con `GenerateIntoAsset` e non hanno bisogno di quest'arena.
 L'ordine sotto è per **tool**, non per importanza: cambiare tool è ciò che costa, e le cinque voci dell'Arch
 si verificano quasi tutte con gli stessi gesti.
 
-**⚠️ Non salvare `L_HexArena`, né all'inizio né alla fine** — vedi il vincolo in testa alla pagina, che
-non si ripete qui per non farlo invecchiare in due posti.
+**⚠️ Prima di cominciare: non salvare** — vedi il vincolo in testa alla pagina.
 
-**Il rischio concreto, e come si evita.** Le voci **modificano la mappa in memoria**: `-N` dipinge una
-regione, `-E` e `-L` aggiungono e tolgono archi. Alla chiusura Unreal apre *Save Content?* con **tutto
-preselezionato**, e premere il pulsante di default scrive sopra `DA_HexMap_Arena.uasset` committato. Vanno
-quindi **deselezionati** i package di `L_HexArena/`, oppure si sceglie *Don't Save*. È la perdita binaria
-che `#858` ha già pagato una volta.
+Le voci modificano la mappa in memoria (`-N` dipinge, `-E`/`-L` aggiungono e tolgono archi), quindi alla
+chiusura Unreal apre *Save Content?* con **tutto preselezionato**: i package di `L_HexArena/` vanno
+**deselezionati**, o si sceglie *Don't Save*. Se un `Ctrl+Z` va troppo indietro, si chiude senza salvare —
+l'asset su disco è intatto.
 
 🔴 **Questa riga diceva «prima di cominciare, salva»**, e il consiglio era già ridondante quando fu scritto:
-l'arena era in git dalle 07:57 dell'11 agosto (`2e2caff6`), §10b è delle 11:13 dello stesso giorno.
-
-⚠️ **Sull'Undo, una precisazione che cambia il rimedio.** Il rischio «un `Ctrl+Z` annulla l'arena intera»
-nasceva dalla `FScopedTransaction` di `GenerateFixtureIntoAsset`, e vale **solo se la generazione è
-avvenuta nella sessione corrente**. Aprendo il livello da `main` — che è il caso di oggi — quella
-transazione non è nel buffer di undo e `Ctrl+Z` non può arrivarci. Resta invece vero il rischio delle
-modifiche di *questa* passata, ed è coperto dal paragrafo qui sopra.
-
-⚠️ **`git checkout` da solo non basta a editor aperto.** Ripristina il file, non l'oggetto caricato in
-memoria: il prossimo salvataggio riscriverebbe la versione svuotata, e `rt.Arena.Check` continuerebbe a
-misurare quella in RAM (legge `HexMap->MapAsset`, non il disco). L'ordine che funziona è **prima chiudi
-senza salvare, poi eventualmente `git checkout`, poi riapri**.
-
-Le sette voci non hanno bisogno di **scrivere il package**: quello che verificano è il **mode** — i tool,
-il gizmo, l'overlay — e il terreno serve solo come materiale su cui premere. ⚠️ Ciò **non** significa che
-la mappa resti intatta: `-N` dipinge una regione e `-E`/`-L` aggiungono e tolgono archi, quindi a fine
-seduta l'asset in memoria è modificato. È il motivo per cui la chiusura va fatta come sopra, e per cui
-§*Dopo* rilancia il verificatore.
+l'arena era in git dalle 07:57 dell'11 agosto, §10b è delle 11:13 dello stesso giorno.
 
 ### Tool Paint — `PIE-HEX-MODE-O`
 
@@ -324,69 +280,20 @@ Serve la piattaforma sul layer 1 già fatta, e almeno una transizione esistente.
 
 ### Dopo
 
-`rt.Arena.Check` un'ultima volta: **tre `[ok]`**. Le voci sopra modificano la mappa (il Fill dipinge, gli
-archi si aggiungono e tolgono).
+`rt.Arena.Check` un'ultima volta, **dalla console dell'editor e senza premere Play**: è l'unica via che
+misura la mappa che hai davanti. `ApplyMapSource` gira dal `BeginPlay` del GameMode, quindi in PIE la
+sorgente è già stata scelta prima che la console sia raggiungibile — e il `BP_GameMode` di questo progetto
+ha `MapSource = GeneratedTestArena`, non il livello. Se serve PIE, la cvar `rt.Map.Source LevelAsset` va
+impostata **prima** di premere Play.
 
-⚠️ **E per questo il confronto va fatto sull'asset RICARICATO, non su quello in memoria.**
-`rt.Arena.Check` legge `HexMap->MapAsset`, cioe' l'oggetto vivo con dentro le modifiche appena fatte: un
-rosso qui non distingue «la mappa e' cambiata sotto le voci» da «il layout committato non passa». L'ordine
-che risponde e' **chiudi senza salvare → riapri → rilancia**.
+Le voci sopra hanno modificato la mappa **in memoria**, e il comando legge `HexMap->MapAsset`, non il disco:
+un rosso qui non distingue «cambiata dalle voci» da «il layout committato non passa». Per avere una risposta,
+l'ordine è **chiudi senza salvare → riapri il livello → rilancia**.
 
-**⚠️ Lancialo dalla console dell'editor, col livello aperto e senza premere Play.** È l'unica via che non
-ha trappole: `ApplyMapSource` gira dentro `SetupHexMatch`, chiamata dal `BeginPlay` del GameMode, quindi
-senza Play non interviene e il comando misura la mappa che hai davanti.
-
-🔴 **Non farlo in PIE contando su `rt.Map.Source LevelAsset` digitata nella console di PIE**: quando quella
-console è raggiungibile la partita è **già allestita** e la mappa è già stata scelta. È la trappola che
-`RTTestConsole.cpp` documenta per la stessa cvar — *«la variabile viene impostata e non serve a niente,
-senza un errore che lo dica»*. Se proprio serve PIE, la cvar va impostata **prima** di premere Play, dalla
-console dell'editor.
-
-✅ **Sulla via PIE il log di conferma c'è, e va usato.** `ResolveMapSource` scrive «SCAVALCA la proprieta'»
-solo `if (Resolved != MapSource)` — e la proprietà **non** è `LevelAsset`: `BP_GameMode` la serializza a
-`GeneratedTestArena`, deliberatamente. Quindi impostando `LevelAsset` quella riga **compare**, e la sua
-assenza è il segnale che la cvar non ha preso.
-
-⚠️ Un `rt.Map.Source` scritto male non è silenzioso ma **non** produce quella riga: produce
-*«rt.Map.Source='…' non e' un valore di ERTMapSource: ignorata, uso la proprieta' del GameMode»*. Sono due
-messaggi diversi per due errori diversi, e nessuno dei due è il silenzio.
-
-**Il tell che dice «stai misurando un'altra mappa»** vale **solo sulla via PIE**, perché tutti questi
-messaggi escono da `ApplyMapSource`, che senza Play non gira. Sulla via consigliata — console dell'editor,
-niente Play — cercarli nel log darebbe sempre «nessuna occorrenza», che **non è una prova di nulla**: lì la
-garanzia è strutturale, non testimoniale.
-
-Su PIE i casi sono tre, e il terzo non ha il prefisso degli altri due:
-
-```
-[RT] MapSource=GeneratedTestArena: ...  La mappa del livello e' ignorata.
-[RT] MapSource=GeneratedDemoArena: ...  La mappa del livello e' ignorata.
-[RT] Mappa esagonale del livello assente o senza celle: uso un'arena di ripiego ...
-```
-
-Se compare uno dei tre, quella run non vale — né i suoi `[ok]` né i suoi `[no]`.
-
-⚠️ **Il controllo che funziona su entrambe le vie** è il conteggio celle stampato dal comando stesso: deve
-coincidere con `NumCells()` dell'asset del livello. L'arena committata ne ha **64**; **65** è
-`GeneratedTestArena`, ed è il numero dell'esempio di §8.
-
-Se un criterio è rosso **e stavi misurando la mappa giusta**, la causa più probabile è la mappa cambiata
-sotto le voci. Il rimedio: **chiudi l'editor senza salvare, riapri `L_HexArena` e rilancia
-`rt.Arena.Check`**. L'asset su disco non e' mai stato scritto, quindi torna da se' a com'e' in `main`.
-
-⚠️ **Il «riapri» non è un dettaglio**: `rt.Arena.Check` ha bisogno di un mondo attivo — a editor chiuso
-risponde `Nessun mondo attivo.` — ed è proprio la riapertura a far ricaricare l'asset da disco.
-
-⚠️ **Non «rigenera con `Generate Arena V01 Into Asset`».** Non perché quel comando scriva su disco — non lo
-fa, si ferma a `MarkPackageDirty()` come il Fill e l'Arch — ma perché **sostituisce in memoria l'arena
-committata** con una generata: butteresti via il layout a 64 celle di `main`, per un
-cambiamento che al massimo era da annullare. E se poi il prompt di chiusura venisse confermato per
-distrazione, quella perdita finirebbe su disco.
-
-⚠️ **Se invece il criterio è rosso anche sull'arena appena riaperta**, allora non è la seduta ad averlo
-rotto: è il layout committato a non soddisfarlo più, e non lo risolve nessun rimedio di questa pagina. Va
-registrato come difetto — con il numero di celle e quale dei tre criteri cade — e la chiusura di §11 non
-è raggiungibile finché resta aperto.
+Se resta rosso sull'arena riaperta, non lo risolve questa pagina: va registrato come difetto, con quale dei
+tre criteri cade. ⚠️ **Non** «rigenera con `Generate Arena V01 Into Asset`»: non scrive su disco — si ferma a
+`MarkPackageDirty()` — ma **sostituisce in memoria** il layout committato con uno generato, e il conteggio
+celle non basta a distinguerli.
 
 ## 11. Chiudere
 

@@ -2604,19 +2604,8 @@ tracks:
     binary_leases: []
 
   content_editor:
-    # 🔴 **`ACTIVE` su una issue CHIUSA per un'intera giornata, il 2026-08-16.** `#451` è
-    # `CLOSED/COMPLETED` dalle `05:38Z` — misurato con `gh issue view 451`, non dedotto — e le sette voci
-    # hanno già un esito in `test-manuali-pie.md` (sei ✅ e la `-H` ❌, uscita come `#931`/`#996`). Questo
-    # file continuava a dichiarare *«la `issue` #451 resta OPEN»*, ed è precisamente la «contraddizione
-    # decidibile» che lo schema descrive: `status: ACTIVE` con una `issue` chiusa.
-    # ⚠️ **E non è costato solo una riga sbagliata.** La sessione che ha lavorato `#868` ha creduto a
-    # questo campo invece di chiedere a GitHub, e ha scritto in una guida operativa prescrizioni per una
-    # seduta **già eseguita e chiusa** — «prima di cominciare», «gli esiti si propongono in handoff». Un
-    # campo di stato stantio non è un dettaglio di igiene: è un input che qualcuno userà.
-    # ∴ la track passa a `IDLE` con `issue: null`. Il residuo di U1 non muore con lei: la `-H` è aperta
-    # su `#996`, e ciò che resta da correggere nella guida è su `#868`.
-    status: IDLE
-    issue: null
+    status: ACTIVE
+    issue: 451
     session: U1
     # ⚠️ La seduta ha **anche** un branch, e lo schema non lo prevedeva: `session:` sostituisce
     # `branch:` perché l'unità di lavoro è un'apertura di editor, non un commit. Resta vero — ma il
@@ -2668,20 +2657,7 @@ tracks:
       criterio d'accettazione di `#451` è quindi **già soddisfatto**, e il residuo è la seduta vera —
       le sette voci, tutte ⏳ in `test-manuali-pie.md`, più il controllo dei criteri di U1-B
       sull'arena che c'è.
-      🔴 **CORRETTO il 2026-08-16: «la lease NON è emessa» era falso, e lo smentiscono i dati di questo
-      stesso file.** `binary_leases` più sotto contiene `BINARY-GH896-HEXARENA-ASSIGN-MATERIAL`,
-      `operation: modify`, su **questi due package**, con `save_without_errors` fra le proprie
-      `verification`; il suo commento lo dichiara apertamente (*«Lease emessa DOPO il fatto»*). La prosa
-      qui sotto è più vecchia dei dati e non fu riletta quando la lease venne aggiunta — e un file che si
-      contraddice fra testo e dati fa vincere il testo a chi legge in fretta. È successo: `#868` ha
-      ereditato questa riga e l'ha portata dentro la guida di U1 come motivazione di un divieto.
-      ✅ **Il divieto resta, con la ragione che regge alla verifica**: nessuna lease **viva** copre oggi
-      quel path, perché `BINARY-GH896-…` è **stale** — dal suo `base_sha` `bc84fe69`, `main` ha toccato
-      la cartella due volte (`8024a742`, il materiale stesso atterrato, e `1475582d`, l'arena scesa a 64
-      celle), e la regola di questo file dice che allora va riemessa. ⚠️ **Non** «è di `#896` e non di
-      `#451`»: l'unità di D-139 è *un holder per path*, e l'holder è la **track**, che è la stessa —
-      quella ragione non regge da sola ed era scritta anche nella guida, dove è stata corretta.
-      ⏱️ Quanto segue resta come **storia della prima motivazione**, che era vera quando fu scritta:
+      ⚠️ **La lease su `Content/RT/Maps/Dev/L_HexArena/` NON è emessa, e non è una dimenticanza.**
       `wip/icon-visual-language` è `preexisting` e tiene una versione divergente dello stesso
       package: blob `7f7cb735`, **29895 byte**, contro `e31b644b` / 48245 byte che `origin/main`
       condivide col merge-base `2d184220`. Due `.uasset` non si fondono: una lease `modify` qui
@@ -2713,8 +2689,7 @@ tracks:
       emettibile**: c'era un secondo holder di fatto, ora non c'è. Resta non emessa per una ragione
       diversa e più semplice — la seduta non ha bisogno di modificare il package, perché i due
       artefatti sono già committati. La seduta resta comunque vincolata a **non salvare** il
-      package finché la lease non è emessa.
-      Le sette voci verificano
+      package finché la lease non è emessa. Le sette voci verificano
       il *mode* — Arch, Fill, ciclo del gizmo, snap cross-layer, catalogo terreni — non il terreno, e
       la issue lo dichiara nel proprio *Out of scope*. Se il controllo dei criteri U1-B mostrasse
       che l'arena va corretta, la track **si ferma e chiede la riallocazione**: emettere la lease è
@@ -2959,15 +2934,13 @@ tracks:
       - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.cpp
       - Source/RefactorTacticsEditor/Public/RTHexEditorMode.h
       - Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp
-      # ➕ **La guida della seduta U1 entra il 2026-08-16, per `#868`.** È la procedura che `#451` segue,
-      # cioè la issue su cui questa track è `ACTIVE`: il documento e la seduta che lo esegue avevano
-      # proprietari diversi — uno la track, l'altro nessuno.
-      # ⚠️ **La lacuna non è stata scoperta adesso**: `#868` esiste *perché* la sessione che ha trovato i tre
-      # delta si è fermata invece di correggerli, e ha scritto nel proprio corpo *«File non assegnato = STOP …
-      # se si decide di assegnarla, la riallocazione va scritta nel batch prima della correzione»*. Questa
-      # riga è quella decisione, presa nel commit che la precede e non nello stesso che corregge la guida.
-      # Misurato prima di prenderla: **zero** occorrenze in questo file, e **nessuno** dei branch remoti vivi
-      # la tocca (`git diff --name-only origin/main...origin/<b>`, uno per uno, dopo `git fetch --prune`).
+      # ➕ **La guida della seduta U1 entra il 2026-08-17, per `#868`** (aperta): documenta la procedura del
+      # mode Hex Map e dell'arena, che è il dominio di questa track — gli stessi tool e lo stesso actor che
+      # stanno qui sopra. ⚠️ **Non** «perché è la procedura di `#451`»: quella issue è `CLOSED/COMPLETED` dal
+      # 2026-08-16, e la prima stesura di questa riga la dava per aperta fidandosi del `note:` di questa
+      # track invece di chiedere a GitHub.
+      # Misurato prima di prenderla: **zero** occorrenze in questo file, e nessuno dei branch remoti vivi la
+      # tocca (`git diff --name-only origin/main...origin/<b>`, uno per uno, dopo `git fetch --prune`).
       - docs/technical/guida-seduta-u1-arena.md
     # ➖ **Il `derives_from` segue il file**: la catena `test-manuali-pie.md` → `editormap.shortlist.md`
     # + `project-graph.json` passa a `playtest` insieme alla sorgente. È la regola già scritta in
