@@ -301,7 +301,15 @@ celle non basta a distinguerli.
 - i due artefatti compaiono in `git ls-files`;
 - il verificatore dà `[ok]` sui tre criteri (o hai deciso e annotato di cambiarne le soglie).
 
-Poi `#451` si chiude, e si sbloccano **U13** (che estende quest'arena) e **U19** (che la misura).
+✅ **Per U1 questa checklist è già consuntivata**: `#451` è chiusa (`COMPLETED`, 2026-08-16), i due
+artefatti sono in `main` dall'11 agosto e le sette voci hanno un esito — sei ✅ e la `-H` ❌, uscita come
+[#931](https://github.com/DegrassiAaron/refactor-tactics-main/issues/931) /
+[#996](https://github.com/DegrassiAaron/refactor-tactics-main/issues/996). La riga qui sotto diceva «poi
+`#451` si chiude» e prescriveva la chiusura di una issue già chiusa.
+
+Resta valida come **condizione di uscita per una seduta di questo tipo** — su un'arena nuova, con la
+propria issue. Chiudendola si sbloccano i lavori che dipendono da quell'arena: per U1 sono stati **U13**
+(che la estende) e **U19** (che la misura).
 
 ---
 
