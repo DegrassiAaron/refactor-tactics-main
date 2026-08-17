@@ -356,7 +356,7 @@
         },
         {
           "id": "PIE-V01-MATCHEND",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-TEST-CONSOLE",
@@ -364,11 +364,11 @@
         },
         {
           "id": "PIE-HEX-LAYER",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-TRANS",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-LAYER-FOCUS",
@@ -1711,7 +1711,7 @@
     },
     {
       "id": "PIE-HEX-LAYER",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-LAYER-CLICK",
@@ -1799,7 +1799,7 @@
     },
     {
       "id": "PIE-HEX-TRANS",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-VIZ-BLOCCHI",
@@ -2063,7 +2063,7 @@
     },
     {
       "id": "PIE-V01-MATCHEND",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-V01-MATCHLEN",
