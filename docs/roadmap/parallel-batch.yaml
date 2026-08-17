@@ -4218,6 +4218,27 @@ tracks:
     # branch che esiste. `#472` resta l'ombrello e lo `status` non cambia.
     branch: feat/1085-cap-fumo
     worktree: "D:/rt-client"
+    release_requested:
+      - from: spatial
+        issue: 833
+        paths:
+          - Source/RefactorTactics/Turn/RTTurnLog.h
+        reason: >-
+          `#1077` deve dare un posto agli STATI nel TurnLog, e oggi non ne hanno nessuno: misurato il
+          2026-08-17, `ERTLogCategory` ha otto valori e nessuno e' per gli stati, non esiste un
+          `ERTStatusOutcome`, e delle 35 `AppendLogEntry` del `TurnManager` **zero** ne scrivono uno.
+          Serve una categoria nuova piu' il suo enum di esito, e vivono entrambi qui.
+          ⚠️ **Questa richiesta e' la SECONDA sullo stesso file, e le due non sono equivalenti.**
+          `simulation` lo ha chiesto per `#1060` — campi nuovi in `FRTTurnLogEntry` — mentre questa
+          tocca `ERTLogCategory`, che viaggia come `uint8` nel formato serializzato. La regola del file
+          e' che i valori nuovi si aggiungono **in coda** perche' i log gia' su disco non cambino
+          significato: due branch che aggiungono in coda producono lo **stesso indice per valori
+          diversi**, e il conflitto non lo vede il compilatore — lo vedono gli archivi, come una traccia
+          che dice una cosa per un'altra.
+          ∴ chi concede non decida solo *chi* scrive il file, ma **quale indice prende chi**: e' la stessa
+          specie di risorsa di una versione di formato, e si riserva prima di usarla. Se `#1060` e
+          `#1077` atterrano insieme senza quella riserva, il difetto e' silenzioso.
+          ⛔ Finche' il path non e' nel `writable` qui sotto, vale STOP: `#1077` non e' iniziata.
     note: >-
       **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
       2026-08-16 dopo lo spec panel in
