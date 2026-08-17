@@ -353,12 +353,16 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 > la «piccola fix» su un file assegnato a qualcun altro. Il contenuto delle voci è pronto e vive nella
 > issue di validazione visiva del kit.
 >
-> ⏱️ **La ragione è cambiata durante il consolidamento, e vale la pena scriverlo invece di aggiornare il
-> nome della causa.** All'apertura `#1015` era `OPEN` e la track ci stava lavorando; il **2026-08-17** la
-> issue è stata **chiusa** mentre questo documento veniva scritto, e il batch dichiara ancora quella track
-> `ACTIVE` con il file nel proprio `writable`. Il vincolo regge lo stesso — *«un rilascio si scrive»*, e
-> spetta a chi possiede la track — ma non poggia più su «qualcuno ci sta scrivendo»: poggia sul fatto che
-> il write-set è più vecchio di GitHub. **Chi legge questa riga controlli il batch, non la issue.**
+> ⏱️ **La causa è cambiata tre volte in una sessione, e il vincolo non si è mai mosso.** All'apertura il
+> file era in prestito a `playback` per `#1015`; poi `#1015` è stata **chiusa** mentre questo documento
+> veniva scritto e il batch dichiarava ancora quella track `ACTIVE`; infine il rilascio è stato scritto e
+> il path è **tornato a `playtest`**, che è `IDLE` — e in questo file `writable` su una track `IDLE`
+> significa **prenotato**, non libero.
+>
+> **Il proprietario è cambiato, il permesso no.** La condizione di sblocco non è mai stata «la issue X
+> chiude»: è che la track proprietaria **rilasci il path o lo ceda**. Chi legge questa riga apra
+> [`parallel-batch.yaml`](../roadmap/parallel-batch.yaml) e guardi chi lo tiene **oggi** — la risposta è
+> cambiata tre volte in un giorno, e ogni volta un nome scritto qui sarebbe invecchiato in silenzio.
 
 Quello che una verifica dovrà mostrare, senza HUD e senza selezione:
 

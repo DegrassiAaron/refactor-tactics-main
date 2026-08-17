@@ -4382,14 +4382,15 @@ tracks:
       definizione non si assegnano: si aggiornano **una volta in integrazione**. Restano due path
       nel `writable`, e sono i soli che questa track possiede.
 
-      ⏱️ **AGGIORNAMENTO in code review, e il controllo è scaduto DENTRO il lavoro** — la lezione che
-      `docs/archive/src/README.md` racconta alla sua quindicesima volta. **`#1015` è `CLOSED`**: lo era
-      `OPEN` quando questa track ha misurato, e non lo è più. **Ma il file resta assegnato**, e non è un
-      cavillo: questo documento dichiara `playback` ancora `ACTIVE` con `test-manuali-pie.md` nel proprio
-      `writable`, e *«un rilascio si scrive»* — è la riga con cui `unit_presentation` ha spiegato perché un
-      `writable` pieno su una track chiusa fa ricomparire proprietari che non esistono. Il rilascio spetta a
-      chi possiede quella track, non a chi passa. ∴ il vincolo regge, la ragione è cambiata: non più «un'altra
-      track ci sta lavorando» ma «il dato del batch è più vecchio di GitHub, e non tocca a me riallinearlo».
+      ⏱️ **Il proprietario di `test-manuali-pie.md` è cambiato TRE volte mentre questa track lavorava, e
+      il permesso non si è mai mosso.** (1) All'apertura: in prestito a `playback` per `#1015`, `ACTIVE`.
+      (2) In code review: `#1015` **chiusa**, ma il batch dichiarava ancora `playback` `ACTIVE` col path nel
+      `writable` — *«un rilascio si scrive»*, e non tocca a chi passa scriverlo per altri. (3) Al merge
+      finale: il rilascio **è stato scritto**, `playback` è `IDLE` con `writable: []`, e il path è **tornato
+      a `playtest`** — che è `IDLE`, e in questo file `writable` su una track `IDLE` significa **prenotato**.
+      ∴ **la condizione di sblocco non è mai stata «la issue chiude»**: è che la track proprietaria rilasci
+      o ceda. Tre nomi diversi, un solo vincolo — ed è la ragione per cui `#1096` cita il batch e non un
+      numero di issue.
       🔴 **`docs/technical/test-manuali-pie.md` è ASSEGNATO ALTROVE, e il lavoro che lo riguarda si ferma.**
       Sta nel `writable` di **`playback`** (ACTIVE su `#1015`), che lo tiene **in prestito da `playtest`**
       per le voci 6 e 7 del proprio DoD. Il kit chiede §13 una scena di validazione visiva con acceptance
