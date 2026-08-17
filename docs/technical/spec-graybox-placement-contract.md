@@ -214,8 +214,10 @@ il suo owner, che resta [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue
 riporta una decisione presa invece di una divergenza aperta.
 
 ⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
-`1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella a `2,60 m`**: è il canone, e un asset
-fatto oggi alla scala vecchia sarebbe da rifare due volte.
+`1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella a `2,60 m`** — è il canone, e un asset
+fatto oggi alla scala vecchia sarebbe da rifare due volte — ma **rimanda il commit dei volumi finiti**
+finché non li puoi validare in PIE. Regola unica, scritta identica nell'owner della scala:
+[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1.
 
 Misurato: sia `RTHexMapAsset.h` sia `RTHexMapActor.h` lasciano `HexSize` a `100.f`, e **nessuna mappa lo
 sovrascrive**.

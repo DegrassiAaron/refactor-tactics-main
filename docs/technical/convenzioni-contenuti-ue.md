@@ -256,12 +256,17 @@ Gli asset si spostano **dal Content Browser o via API Editor**, mai da Esplora F
 
 ## 11-bis. Scala d'arte: il lato dell'esagono
 
-Chi modella una mesh, una porta o un pezzo di architettura ha bisogno di un riferimento metrico. La scala di
-authoring adottata è:
+Chi modella una mesh, una porta o un pezzo di architettura ha bisogno di un riferimento metrico. La scala
+adottata è:
 
 ```text
-lato dell'esagono ≈ 1,5 m
+lato dell'esagono = 1,5 m        (esattamente: HexSize = 150)
 ```
+
+> ⏱️ **Questa riga diceva «la scala di *authoring*» e «≈ 1,5 m» fino al 2026-08-17.** Da
+> [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) non è più solo d'authoring — governa anche il mondo — e
+> il `≈` non è più approssimativo: il valore è esatto. La correzione sta qui e non solo in §11-bis.1 perché
+> **gli altri documenti citano «§11-bis», non la sotto-sezione**, e leggerebbero la versione vecchia.
 
 Serve a dimensionare **mesh, proporzioni e architettura**, così che una porta sembri una porta accanto a
 un'unità e due strutture autorate da persone diverse combacino.
@@ -294,8 +299,18 @@ centimetro — lo dichiara `RTHexMapAsset.h` accanto alla proprietà — quindi 
 
 ⏱️ **Finché la issue [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) è aperta, il mondo gira ancora a `1,00 m`**: chi modella secondo
 questa sezione produce asset corretti per il canone e `1,5×` grandi per la mappa di oggi. È uno stato
-dichiarato, non un difetto da scoprire — ma è una ragione per non produrre volumi finiti prima che il
-cambio atterri.
+dichiarato, non un difetto da scoprire.
+
+**Cosa fare nel frattempo — e le due istruzioni non si contraddicono**: si modella **alla scala nuova**
+(`1,5 m`), perché rifare un asset alla scala vecchia significherebbe rifarlo due volte. Quello che conviene
+rimandare non è modellare: è **committare volumi finiti** prima che il cambio atterri, perché fino a quel
+momento non si possono validare *guardandoli in PIE* — e la validazione visiva è il solo modo di chiudere
+`GBX-1` e `GBX-5`.
+
+> ⚠️ *La prima stesura diceva «una ragione per non produrre volumi finiti», mentre
+> [`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md) §6.1 diceva «modella a
+> `2,60 m`»: due owner con istruzioni opposte per la stessa persona, e nessuna gerarchia dichiarata fra
+> loro. Trovato in code review.*
 
 ## 12. Checklist di chiusura
 

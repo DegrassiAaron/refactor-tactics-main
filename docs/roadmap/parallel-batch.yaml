@@ -4509,7 +4509,9 @@ tracks:
       per derivare l'apotema. ⚠️ **`1 UU = 1 cm` invece non è scritto da nessuna parte** (`grep -i 'UU'`
       su quel file dà **zero**): è il default di Unreal, e il bundle lo dichiara per primo.
       🔴 **E nessuna mappa usa la scala d'arte**: girano tutte al default di `1,00 m`, quindi le due
-      divergono di **1,5×** — `GBX-6`.
+      divergono di **1,5×**. Aperta come `GBX-6` e ✅ **chiusa lo stesso giorno da `D-163`** — vince la
+      scala d'arte, `HexSize = 150`. La divergenza qui sopra resta **vera finché il cambio non atterra**:
+      chi cerca chi la possiede va a `D-163`, non alla riga barrata in `OPEN_DECISIONS.md`.
       ➕ **Cosa è genuinamente nuovo**: le lane di maturità artistica, che nel repository prendono i
       prefissi `AC0–AC6` e `AE0–AE5` — quelli del bundle (`C`/`E`) collidevano con la severity degli
       status e con l'epic `E1`.
@@ -4610,7 +4612,8 @@ tracks:
       diciannove elementi del kit sono binari e servirebbe una **Binary Asset Lease** più una persona in
       Unreal · `docs/technical/test-manuali-pie.md`, assegnato ad altra track per tutta la durata (tre
       proprietari diversi in tre giorni, il permesso mai) · `convenzioni-contenuti-ue.md`, che non è in
-      **nessun** insieme di questo file e per `D-139` è uno STOP: è diventato `GBX-4` invece di un edit.
+      **nessun** insieme di questo file e per `D-139` era uno STOP — condizione **sanata il 2026-08-17**,
+      quando `D-163` l'ha portato in `integration_only` poche righe più sotto. È diventato `GBX-4` invece di un edit.
 
       ⏱️ **L'intersezione di apertura è una misura DATATA e non vale al rilascio.** Diceva 11 ref remoti,
       13 worktree, 1 PR aperta; al 2026-08-17, ore 12:50, sono **11 ref · 14 worktree · 3 PR** (#1113,
