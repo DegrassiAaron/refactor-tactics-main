@@ -157,9 +157,9 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:regole-fondamentali",
         "wiki:turnlog-e-determinismo",
-        "wiki:turnlog-e-determinismo-scheda-dati"
+        "wiki:turnlog-e-determinismo-scheda-dati",
+        "wiki:regole-fondamentali"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -223,9 +223,9 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:regole-fondamentali",
         "wiki:turnlog-e-determinismo",
-        "wiki:turnlog-e-determinismo-scheda-dati"
+        "wiki:turnlog-e-determinismo-scheda-dati",
+        "wiki:regole-fondamentali"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2481,7 +2481,10 @@
         "Spec.Reaction.AnchorCancelsPush"
       ],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -4541,7 +4544,9 @@
         "Movement.Basic"
       ],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:tactical-designer"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -5532,7 +5537,10 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:che-cose-refactortactics",
+        "wiki:la-tua-prima-partita"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -5588,7 +5596,9 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:la-tua-prima-partita"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -6405,7 +6415,9 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:tactical-designer"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -6507,7 +6519,9 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:tactical-designer"
+      ],
       "wiki_note": "",
       "pie_refs": [
         "PIE-V01-DEBUG"
@@ -6569,7 +6583,9 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:tactical-designer"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -6621,7 +6637,9 @@
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:tactical-designer"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},
