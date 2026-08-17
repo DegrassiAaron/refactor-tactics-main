@@ -745,7 +745,7 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 **Sbloccata da**: — · **Percorso critico**: no
 **Produce**: i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`
-**Artefatti**: `Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset` ⏳
+**Artefatti**: `Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset` ⏳
 **Finita quando**: i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori
 **Sblocca**: E46.3, E46.5, E46.6
 
