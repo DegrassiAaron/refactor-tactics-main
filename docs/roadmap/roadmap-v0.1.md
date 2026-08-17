@@ -383,10 +383,21 @@ silenzio.
 | **E19** | Classe di mappa e composizione | P2 | 2 | `URTMatchFormatData` **esiste già**, e i due buchi misurati sono **chiusi** (2026-08-09, `#215`/`#216`): la mappa dichiara la propria `MapClass` e il formato dichiara `UnitsPerTeam`, entrambi con consumatori runtime. Dal 2026-08-10 `Format.Skirmish2v2` è **spedito da C++** (`#375`), come le istanze di azioni ed eroi: il formato canonico non dipende più da un `.uasset` che il repository non contiene. **Lo stato autorevole è in [`feature-registry.yaml`](feature-registry.yaml) (`RT-FEAT-MATCH-FORMAT`)**, non in questa riga |
 | **E20** | HUD Icon Language | P2 | 3 | Le icone sono un **catalogo semantico**, non texture referenziate nei widget: E11 costruisce l'HUD adesso, e riscrivere ogni widget dopo costa più del file di dati in più ([D-031](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E21** | Presentazione e leggibilità | P1 | 3 | Il gioco smette di essere cilindri colorati. Era l'unico lavoro **dentro** lo scope di release che nessuna epic copriva: viveva solo nella milestone M8, e il Feature Registry lo ha reso visibile il 2026-08-08 |
+| **E23** | Muri, porte e interaction graph | P1 | 7 | **Anticipata dalla v0.2 il 2026-08-17** ([D-160](../decisions/RT_PDR_00_Decision_Log.md)). Non è scope nuovo: **metà è già passata** — `E23.3` (identità stabile attraverso il cook) è chiuso con [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832), e `E23.4` (interaction graph) è in corso su [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833), la cui prima fetta è già in `main`. L'anticipazione è in parte una **presa d'atto**: il lavoro stava atterrando in v0.1 mentre l'epic dichiarava v0.2, e cinque owner si contraddicevano. ⚠️ La milestone `v0.2 · Struttura e finestre` porta il vincolo *«nessuna epic di questa milestone si apre prima che i 15 gate della v0.1 siano verdi»*: E23 **esce** da quella milestone, quindi il vincolo non le si applica più — e la sua descrizione è stata corretta lato GitHub |
 | **E47** | Mini v0.1 Autobattle — la partita che si guarda | P1 | 6 | Le nove voci `PIE-HEXPLAY` tengono aperti **M6**, l'epic **E2** e i gate **G10**/**G13**, e ognuna chiede a una persona di *giocare* una partita intera. Il turno avanza già da solo (`StartPlanningTimer → PlanBots`, `OnPlanningTimeout → LockInAndResolve`) e `HexMatch.PlaysToCompletion` prova il 2v2 bot-contro-bot headless: manca solo che **entrambe** le squadre siano del bot in partita, perché `SpawnHero` assegna il bot alla sola squadra 1. Non è scope nuovo — è il **riordino** che cambia il costo di quattro gate da «gioca» a «guarda» ([D-145](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E46** | Frontend shell e ciclo di partita | P1 | 6 | Una build che avvia **direttamente in partita** e non offre modo di iniziarla, riavviarla o uscirne non è un vertical slice consegnabile: è un eseguibile che carica una mappa. ⚠️ **È scope nuovo, dichiarato come tale** ([D-144](../decisions/RT_PDR_00_Decision_Log.md)) — la prima stesura di questa riga diceva che completava `G13`, ed era **falso**: le due riserve di `G13` sono *dati* (mappa d'autore via `PIE-V01-ARENA`, e la via a punti mai esercitata), e nessuna delle due è di E46. Nessun gate della v0.1 richiede questa epic. Le sezioni DEV/TEST del menu — Scenario Browser/Detail/Runner UI, Bot Simulation — restano **fuori** perché sono tooling già classificato `out_of_release_scope`. ⚠️ D-144 portava una **seconda** ragione — nessun catalogo scenari nel pacchetto — e non regge più: [`#935`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935) ha chiuso quella causa di `#926` lo stesso 2026-08-16, e gli scenari ora entrano nel pak |
 
-**Totale: 23 epic, 112 checkpoint**
+**Totale: 24 epic, 119 checkpoint**
+
+> ➕ **Da 23/112 a 24/119 il 2026-08-17**, per l'anticipazione di **E23** (`D-160`) e i suoi **sette**
+> checkpoint. Il totale precedente era **giusto** — verificato sommando la colonna `CP`, non rileggendo la
+> cifra — quindi qui non si corregge un errore: si registra un cambio di scope.
+>
+> ⚠️ **E i checkpoint di E23 sono sette, non cinque.** La prima stesura di questa riga scriveva `117`, contando
+> `E23.1`–`E23.5`: `E23.6` e `E23.7` — standability cotta da geometria e transizione come dato — cadevano
+> **fuori dall'intervallo di righe letto** nell'owner di provenienza. Sono esattamente i due checkpoint che
+> `RT-FEAT-MAP-STANDABILITY` e `RT-FEAT-MAP-TRANSITION-CLEARANCE` dichiarano, e la loro assenza sarebbe stata
+> invisibile a ogni gate: nessuno confronta una tabella di prosa con il registry.
 
 > ⏱️ **Quindicesima previsione di questo repository, e ha retto: `23 / 112`.** Questo ramo aveva
 > scritto `22 / 106` con la sola **E47** e accanto: «`docs/menu-frontend-consolidamento` aggiunge
@@ -1871,6 +1882,43 @@ Non entra in [`v0.1-issue-plan.md`](v0.1-issue-plan.md), che è uno snapshot `HI
 `#14`–`#85`: come per **E21**, il numero si legge da questa riga —
 `test_feature_registry_roadmap_map.py` lo pretende, e la prima stesura di questa sezione lo aveva
 dimenticato. La domanda aperta sul seed è [#960](https://github.com/DegrassiAaron/refactor-tactics-main/issues/960).
+
+### E23 — Muri, porte e interaction graph · P1
+
+**Perché è qui** *(2026-08-17, [D-160](../decisions/RT_PDR_00_Decision_Log.md))*. Anticipata dalla **v0.2**.
+Non è scope nuovo e non è una scommessa: **metà dell'epic è già passata**. `E23.3` è chiuso con
+[#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832) e `E23.4` è in corso su
+[#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833), con la prima fetta già in `main`.
+L'anticipazione è in gran parte una **presa d'atto**: il lavoro stava atterrando nella v0.1 mentre l'epic
+dichiarava v0.2, e **cinque owner** si contraddicevano — GitHub, Feature Registry, Execution Graph,
+`roadmap-post-v0.1.md` e `scenario-map.md`.
+
+**Obiettivo**: muri e porte come **oggetti logici sugli archi**, non come mesh che il gameplay interroga.
+
+| CP | Obiettivo | DoD misurabile | Stato |
+|---|---|---|---|
+| **E23.1** | Separazione geometria/logica | La logica di transizione non legge la mesh: legge archi e stati. Cambiare l'arte non cambia il gameplay | |
+| **E23.2** | Porta come oggetto logico unico | Una porta larga più celle resta **un** oggetto con **uno** stato, non N archi indipendenti (gruppo atomico) | |
+| **E23.3** | Stable ID e binding | Gli ID sono stabili attraverso il cook; binding duplicati o in conflitto sono errori di validazione, non comportamenti impliciti | ✅ [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832) |
+| **E23.4** | Interaction graph | Chi può agire su cosa è un grafo **dato**, con cardinalità dichiarata. ⚠️ `D-150`: l'operazione su N bersagli **non** è atomica — si applicano gli applicabili e si riporta l'esito degli altri | 🟡 [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833) |
+| **E23.5** | Leggibilità | Etichette tattiche, hover sorgente→bersagli e bersaglio→controllori; **mai il solo colore** a distinguere uno stato | |
+| **E23.6** | Standability cotta da geometria | Il muro sta dove vuole — 90°, obliquo, a metà cella — e la calpestabilità è l'esito di `Footprint @ CellAnchor ∩ blocking geometry`, calcolato **in cottura**. Il runtime continua a leggere `bBlocksMovement`. Scenari: `Spec.Map.WallCrossesCellStillStandable` · `.FootprintCollisionBlocksCell` · `.NinetyDegreeCornerBakesCorrectly` | |
+| **E23.7** | La transizione è un dato, non un corollario della cella | `Cell A` valida ∧ `Cell B` valida ∧ `A→B` chiusa è esprimibile **senza** inventare una copertura che non copre. Include la *swept clearance*: si verifica il corridoio attraversato, non i soli estremi. Scenari: `Spec.Map.ValidCellsBlockedTransition` · `.DoorOpensTransition` | |
+
+> ⚠️ **Il consumatore di `E23.4` è `E10.1`** ([#74](https://github.com/DegrassiAaron/refactor-tactics-main/issues/74),
+> `Activate` e `Interact` sugli oggetti): senza il grafo, un'azione su un oggetto non ha come nominare il
+> proprio bersaglio. L'arco è dichiarato in [`execution-graph.yaml`](execution-graph.yaml).
+>
+> 🔴 **E23.4 NON è un prerequisito del golden replay `E15.4`**, e la confusione è già costata una premessa
+> falsa: un handoff affermava che `#833` «abilita una parte del T5 dello showcase». Il gate del turno 5 è una
+> **porta**, risolta da `EdgeDisabled → EdgeEnabled` più `GraphRevision`, con `E9.3` chiuso — vedi la riga di
+> T5 in §11 e [`plans/showcase-v01-audit.md`](plans/showcase-v01-audit.md). T5 è runnable dopo `S2-1`.
+>
+> ⚠️ **Ciò che manca a `E23.4` è a monte del grafo**: `ERTActionEffect::SetDoorState` esiste ed è applicato,
+> ma `git grep SetDoorState -- Source/RefactorTactics/Ability/` dà **zero** — nessuna azione di catalogo né
+> abilità del roster lo dichiara, e `Action.Interact` è a catalogo e **inerte** (`TestActionIsInert`). La
+> catena locale è nel DoD di `#833`, che ha assorbito
+> [#1014](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1014).
 
 ---
 
