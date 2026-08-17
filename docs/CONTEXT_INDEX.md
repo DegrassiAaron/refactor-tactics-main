@@ -241,6 +241,21 @@ Owner principali:
 - `Source/RefactorTactics/Pathfinding/`
 - test `RTHex*`
 
+### Strumenti d'authoring — mappa, scenari, abilità
+
+Owner del **concetto e del confine**, dal 2026-08-17 ([D-154](decisions/RT_PDR_00_Decision_Log.md)):
+
+- `docs/technical/spec-tactical-designer.md` — cosa uno strumento d'editor ha il diritto di decidere, e cosa
+  deve invece chiedere al gioco. Risponde a una domanda sola: *se l'editor e il runtime possono divergere,
+  lo strumento ha perso il suo valore*. Contiene la scala di maturità `TD 0.1 … TD 1.0`, che è **maturità di
+  uno strumento e non una release** — `TD 0.7` non ha niente a che vedere con `v0.7`
+- `docs/roadmap/editormap.shortlist.md` — quale seduta d'editor fare, e in che ordine (**generata**)
+- `docs/technical/scenario-map.md` — chi verifica cosa, fra macchina e persona
+- `Source/RefactorTacticsEditor/` — il mode e i cinque tool. ⚠️ **Ha test dal 2026-08-16** (`#993`,
+  `Private/Tests/`): la frase «quel modulo non ha test», che vive ancora in due punti di
+  `spec-hex-geometry-authoring.md`, è **superata**
+- `Source/RefactorTactics/ScenarioHarness/` — il formato scenario canonico che ogni authoring deve produrre
+
 ### Eroi / azioni / bilanciamento
 
 Owner numerici:

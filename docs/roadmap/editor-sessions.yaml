@@ -1045,7 +1045,11 @@ sessions:
     produces: verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21]
+    # ➕ `U26` aggiunta il 2026-08-17 in code review: il commento di `U21` dichiarava «quattro sedute
+    # condividono `L_DevSandbox` illuminato» mentre la relazione era scritta su **quattro coppie su sei** —
+    # il validator controlla la sola SIMMETRIA, quindi taceva. `U25` e `U26` si guardano sulla stessa scena
+    # illuminata: chi ne apre una trova scritto che c'e' l'altra.
+    shares_setup_with: [U21, U26]
     verifies: []
     issues: [1095]
     done_when: la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro
@@ -1085,7 +1089,7 @@ sessions:
     produces: verdetto su leggibilita' della griglia di lavoro e della sonda di movimento
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21, U22]
+    shares_setup_with: [U21, U22, U25]
     verifies: []
     issues: [622, 711]
     done_when: le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale

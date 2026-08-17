@@ -314,7 +314,7 @@ stantia (test di invalidazione) · le regole ambientali sono coperte da test pur
 > superata perché `RT-FEAT-TOOL-BALANCE-GROUND` era **già v0.1 `IMPLEMENTING`**: una scala di maturità
 > collocata nella roadmap di release entra in concorrenza con la consegna, e perde.
 >
-> Al 2026-08-17 `TD 0.1` è quasi chiuso e i suoi residui sono `#622`, `#623` e `#712` — cioè due sedute
+> Al 2026-08-17 `TD 0.1` è quasi chiuso e i suoi residui sono `#622`, `#623` e `#712` — cioè **tre** sedute
 > (`U21`, `U22`, `U26`) e una fetta di codice. Gli stadi da `TD 0.2` in poi hanno owner nel
 > [Feature Registry](feature-registry.yaml) (`RT-FEAT-TOOL-SCENARIO-COMPOSER`,
 > `RT-FEAT-TOOL-SKILL-WORKBENCH`) e **nessuna issue aperta**: si aprono quando `TD 0.1` chiude, o la loro

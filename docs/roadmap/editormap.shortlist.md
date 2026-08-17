@@ -754,7 +754,7 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 #### U25 · Il volume di posa della cella, e la scena che dice se il graybox si legge —
 
-**Sbloccata da**: U21 · **Preparazione condivisa con**: U21 · **Percorso critico**: no
+**Sbloccata da**: U21 · **Preparazione condivisa con**: U21, U26 · **Percorso critico**: no
 **Produce**: verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor
 **Finita quando**: la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro
 
@@ -762,7 +762,7 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 #### U26 · La griglia di lavoro e la sonda di movimento nell'editor —
 
-**Sbloccata da**: U21 · **Preparazione condivisa con**: U21, U22 · **Percorso critico**: no
+**Sbloccata da**: U21 · **Preparazione condivisa con**: U21, U22, U25 · **Percorso critico**: no
 **Produce**: verdetto su leggibilita' della griglia di lavoro e della sonda di movimento
 **Finita quando**: le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale
 

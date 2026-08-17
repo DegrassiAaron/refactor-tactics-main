@@ -6593,7 +6593,7 @@ features:
       facing, HP, scudo, vista, loadout), turni con intent, **decisioni di finestra scriptate**
       (`FRTScenarioDecision`, `FIRE`/`HOLD`, da `#512`), aspettative (`FRTTestExpectation` su otto
       `ERTAssertionKind`), capability richieste per turno (`Requires` → `ERTTestOutcome::Blocked`) e
-      **varianti** (`FRTScenarioVariant`). Oggi tutto questo si scrive a mano in JSON: 79 file in
+      **varianti** (`FRTScenarioVariant`). Oggi tutto questo si scrive a mano in JSON: **78** file in
       `Scenarios/`.
       ⚠️ **Il sorgente che ha proposto questa capability chiedeva di progettare un modello dati che
       esiste gia'**, ed e' il difetto che questa nota esiste per prevenire al prossimo giro. Prima
@@ -6652,8 +6652,13 @@ features:
       🔴 **Il nome `Candidate` e' gia' occupato, e la misura che lo dice va conservata.**
       `grep -ril "candidate" Source/RefactorTactics --include=*.h` restituisce cinque file —
       `RTActionDef.h`, `RTCatalogLibrary.h`, `RTHexBotLibrary.h`, `RTPointerInteraction.h`,
-      `RTMovementActionLibrary.h` — e in tutti e cinque significa **mossa candidata del bot**
-      (`BuildCandidates`, `ChooseBestPlan`, le candidate d'attacco che nascono da `ReachableCells`).
+      `RTMovementActionLibrary.h`. 🔴 **Questa nota diceva «in tutti e cinque», ed era sovradichiarato**:
+      in **quattro** significa **mossa candidata del bot** (`BuildCandidates`, `ChooseBestPlan`, le candidate
+      d'attacco che nascono da `ReachableCells`); nel quinto, `RTPointerInteraction.h`, `FRTPointerCandidates`
+      e' *«cosa il raycast ha trovato sotto il cursore, prima che qualcuno decida cosa significa»* — un
+      **terzo** spazio semantico. La conclusione regge lo stesso e anzi si rafforza: `Candidate` in questo
+      repository e' gia' ambiguo fra due significati, e un terzo lo renderebbe illeggibile. Trovato in code
+      review, ed e' la forma di errore che questo paragrafo esiste per prevenire.
       E' un'alternativa valutata **dentro un turno**, non una configurazione confrontata **fra due
       esecuzioni**: due spazi semantici sotto la stessa parola. Chi implementera' questa feature usi
       **`Variant`**, che e' gia' il vocabolario dello scenario (`FRTScenarioVariant`).

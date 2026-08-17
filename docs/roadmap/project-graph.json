@@ -1514,7 +1514,8 @@
       ],
       "unblocks": [],
       "shares_setup_with": [
-        "U21"
+        "U21",
+        "U26"
       ],
       "verifies": [],
       "issues": [
@@ -1543,7 +1544,8 @@
       "unblocks": [],
       "shares_setup_with": [
         "U21",
-        "U22"
+        "U22",
+        "U25"
       ],
       "verifies": [],
       "issues": [

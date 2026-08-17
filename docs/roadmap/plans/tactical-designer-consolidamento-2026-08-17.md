@@ -157,7 +157,12 @@ attribuibile. È scritto nel DoD della issue di TD 0.3.
 
 ### 3.4 Replay, indice, bilanciamento
 
-- `RT-FEAT-REPLAY-ARCHIVE` **INTEGRATED**: recorder, Player, `history.rtindex`, 26 test. È metà di §52.
+- `RT-FEAT-REPLAY-ARCHIVE` **INTEGRATED**: recorder, Player, `history.rtindex`. È metà di §52.
+  🔴 Questa riga diceva «**26** test», ripreso dal registry (`last_verified: 2026-08-10`) invece che misurato
+  — cioè il contrario di quello che il §1 di questo stesso documento fa con «undici/sette». Misurato il
+  2026-08-17: `grep -rhoE '"RefactorTactics\.Replay[A-Za-z0-9_.]*"' Source/RefactorTactics/Tests/ | sort -u |
+  wc -l` → **48**. Il registry non è stato aggiornato qui: quel campo è di chi possiede la feature, e la
+  misura è registrata perché il prossimo che la legge non la riprenda a sua volta.
 - `RT-FEAT-UI-SCENARIO-BROWSER` **INTEGRATED**: `ScenarioId` staccato dal percorso, tag, `ResolvePath`. È
   metà di §54.
 - `RT-FEAT-TOOL-BALANCE-GROUND` **IMPLEMENTING**: cataloghi + matrice di test. `#543` porta il vincolo di
@@ -213,7 +218,7 @@ Mappatura sugli owner reali:
 
 | Stadio | Owner reale | Stato misurato |
 |---|---|---|
-| **TD 0.1** Mappa deterministica + fondamenta scenario | `RT-FEAT-TOOL-MAP-EDITOR` · `RT-FEAT-TOOL-MAP-GEOMETRY` · `RT-FEAT-TEST-SCENARIO-HARNESS` · **M9.1** | quasi chiuso — residuo `#622`, `#623`, `#712`, sedute U21/U22 |
+| **TD 0.1** Mappa deterministica + fondamenta scenario | `RT-FEAT-TOOL-MAP-EDITOR` · `RT-FEAT-TOOL-MAP-GEOMETRY` · `RT-FEAT-TEST-SCENARIO-HARNESS` · **M9.1** | quasi chiuso — residuo `#622`, `#623`, `#712`, sedute **U21 · U22 · U26** |
 | **TD 0.2** Scenario Composer MVP | **G1** → `RT-FEAT-TOOL-SCENARIO-COMPOSER` (nuova) · **M9.4** | non cominciato |
 | **TD 0.3** Skill Workbench MVP | **G2** → `RT-FEAT-TOOL-SKILL-WORKBENCH` (nuova) · **M9.4** | non cominciato |
 | **TD 0.4** Loop integrato | **G4** — dipende da TD 0.2 + TD 0.3 | non cominciato |
