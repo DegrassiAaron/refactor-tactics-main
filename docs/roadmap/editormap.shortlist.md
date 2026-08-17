@@ -758,6 +758,57 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 **Produce**: verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor
 **Finita quando**: la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro
 
+**Non e' una caccia al bello: e' una domanda sola, ripetuta a tre distanze.** *Guardando la scena
+senza HUD e senza selezionare niente, so dire che cosa ho davanti?* Se la risposta e' no, si cambia
+la grammatica **prima** di aggiungere altri asset — e' l'unica prescrizione del kit sorgente che il
+contratto adotta senza emendarla.
+
+**Prima di aprire l'editor.** L'inset del Safe Placement Volume e' `GBX-1` e **non e' deciso**
+([#1094](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094)). Si sceglie **qui**,
+guardando — ma il valore scelto si scrive nella issue, non solo nel `.umap`: un numero che vive in un
+binario non lo trova nessuno.
+
+1. **Il volume.** Prisma esagonale sul centro cella. I sei vertici li da'
+   `URTHexLibrary::HexCorners(Center, HexSize)` e il centro `AxialToWorld` — non si incidono angoli a
+   mano, per la ragione che `spec-hex-geometry-authoring.md` §4 scrive gia' per la geometria: se la
+   convenzione dei sei lati cambiasse, la forma derivata la segue e quella incisa mente in silenzio.
+   L'inset e' una **frazione**, non centimetri.
+2. **Le guide verticali**, in frazioni di `C`. ⚠️ **`C` NON e' `HexSize`**: `HexSize` e' il raggio,
+   `C = √3 · HexSize` e' il passo fra due celle adiacenti — circa **173** con il default `100`.
+   Leggere `0.28 C` come 28 cm produce una copertura bassa alta il **58%** del dovuto.
+3. **La scena.** Unita' · copertura bassa · copertura alta · muro · porta `Open` · porta `Closed` ·
+   acqua · ghiaccio. Gli `EdgeBound` si posano con `URTHexLibrary::EdgeMidpointWorld` e
+   `EdgeRotation`, **mai** trascinandoli a occhio: il bordo `E` di una cella **e'** il bordo `W` del
+   suo vicino, e a occhio si ottengono due barriere dove ce n'e' una.
+4. **Tre distanze di camera**: ravvicinata, di gioco, tattica. La stessa scena, tre screenshot.
+5. **Screenshot in scala di grigi.** Non e' un vezzo di accessibilita': e' il modo in cui `D-146`
+   intende la ridondanza. Se due categorie si distinguono solo in colore, in grigio spariscono — e
+   con esse la prova che la grammatica funziona.
+6. **`git status` sul `.umap`.** Dev'essere pulito quando la seduta finisce, e nessun test headless
+   apre un `.umap`: e' l'unico modo di accorgersi di aver salvato per sbaglio. E' la lezione di
+   `PIE-GEO-RESIDUI`.
+
+> 🔴 **La trappola dello Z, gia' pagata DUE volte in questo repository.** Il disco della cella ha la
+> faccia superiore a `RTCellTopZ` — **2,5 uu** con lo spessore corrente — e qualunque cosa disegnata
+> **sotto** quella quota finisce dentro il disco e diventa invisibile. E' successo al contorno della
+> superficie (a `2.0`: fango e acqua non si vedevano mentre i marcatori a `3.0` si', ed e' scritto
+> nel commento sopra la costante) e agli anelli di
+> [#593](https://github.com/DegrassiAaron/refactor-tactics-main/issues/593), che stavano a `2.0`
+> contro una faccia a `2.5`. **Il volume non fa eccezione**: la sua base va legata a `RTCellTopZ`,
+> non a un numero scritto a mano. Un volume invisibile e un volume mai costruito si somigliano molto.
+
+> ⚠️ **Il volume non deve comparire in PIE.** Se si vede premendo Play e' un difetto, non una
+> funzionalita' di debug: e' `EditorOnly` in senso stretto.
+
+> ⚠️ **Non confondere l'inset con il clearance.** *Quanto grande posso modellare un asset* non e'
+> *dove un'unita' ci sta in piedi*: il secondo e' `CP 23.6` e appartiene alla simulazione. Prendere
+> in prestito quel numero farebbe dipendere la presentazione dal dato cotto.
+
+> ⏱️ **Questa ricetta e' derivata dal codice e dalle convenzioni, non provata in editor.** I simboli
+> citati sono stati verificati in `Source/` (`HexCorners`, `AxialToWorld`, `EdgeMidpointWorld`,
+> `EdgeRotation`, `RTCellTopZ`); la procedura no — chi la esegue per primo la corregge dove sbaglia,
+> ed e' il motivo per cui i passi nominano simboli invece di descrivere gesti.
+
 > ➕ **Seduta aperta il 2026-08-17** dal consolidamento del kit `Graybox_Kit_Cover_CellVolume` ([D-152](../decisions/RT_PDR_00_Decision_Log.md)). Owner del modello: [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md); qui c'e' solo l'esistenza della seduta. **Due cose, e stanno insieme perche' la seconda misura la prima**: il **Cell Placement Volume** — prisma esagonale `EditorOnly` con footprint sicuro e guide verticali — e una **scena di validazione** che mette in campo unita', copertura bassa e alta, muro, porta nei suoi stati, acqua e ghiaccio, e li guarda a tre distanze di camera. ⚠️ **`verifies: []` non e' una dimenticanza**, ed e' lo stesso caso di `U24`: le voci PIE di questo dominio **non esistono** — misurato, `grep -c "PIE-GBX" ../technical/test-manuali-pie.md` da' **0** — e quel registro e' assegnato a un'altra track in `parallel-batch.yaml`. Le voci si **propongono**, non si scrivono da fuori: per `D-139` si aspetta l'owner che lo tiene OGGI — il proprietario e' cambiato tre volte il 2026-08-17, il permesso mai, ed e' per questo che qui non c'e' un nome. Finche' non ci sono, questa seduta produce una scena e non chiude nessuna voce del registro. ⚠️ **`artifacts: []` per la ragione di `U21`**: l'oracolo degli artefatti e' `git ls-files`, che sa dire se un path **esiste** e non se e' stato modificato. E qui c'e' un motivo in piu': **il percorso non e' deciso** — `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — e [`../technical/asset-map.md`](../technical/asset-map.md) §6 vuole la riga d'allowlist **prima** dell'asset, o `git add` tace e il lavoro resta sul disco di chi l'ha fatto. ⛔ **Fuori da questa seduta**: i diciannove elementi del catalogo. Sette sono `DEFER` — tre per dipendenza da feature `IDEA`, due fuori scope v0.1 dichiarato, due proxy senza produttore — e dei dodici restanti la maggior parte e' `UPDATE` di presentazione su asset che esistono. Questa seduta porta **il volume e la scena**, cioe' gli strumenti con cui gli altri si giudicano — non gli altri. ⚠️ **`unblocked_by: [U21]` non e' una dipendenza tecnica ma la stessa di `U22`**: una scena di leggibilita' valutata prima che `L_DevSandbox` sia illuminato direbbe piu' sulle luci che sul kit. 🔴 **La conseguenza dei due campi vuoti INSIEME, che i due paragrafi qui sopra giustificano separatamente senza mai dirla.** Senza `verifies` e senza `artifacts` lo stato non e' derivabile: `project-graph.json` porta questa seduta con `state: "—"` e `queue_group: null`, e `editormap.shortlist.md` la conta solo fra le «senza stato derivabile» — **non compare ne' in READY ne' in WAITING**. `U24` sfugge al caso solo perche' ha artefatti. ∴ **questa seduta non entra in NESSUNA delle tre code** — `BLOCKING`, `READY`, `WAITING` — e per l'avanzamento vive attraverso `#1095`. ⚠️ *Due correzioni sulla stessa frase, in due tornate di review. Diceva «invisibile a ogni vista»: falso, `U25` compare nella tabella delle sedute e ha una sezione propria in `editormap.shortlist.md` — cio' che manca e' la CODA, non la visibilita'. Poi diceva «nessuna delle DUE code», e le code sono **tre**: `BLOCKING` e' quella da cui si pesca per prima, e scriverne due lasciava credere che fosse stata guardata.* Non e' riparabile qui: dichiarare artefatti prima che `GBX-4` scelga il percorso, o voci PIE che non esistono, sarebbe peggio — sono i due difetti che `asset-map.md` §6 documenta. Si chiude quando uno dei due campi diventa vero, ed e' il primo effetto utile della chiusura di `GBX-4`. ⚠️ ID assegnato prima del merge: `U25`, con `U24` come massimo misurato su `main` **e su tutti i diciassette branch locali e gli undici remoti**. Chi arriva secondo rinumera, non contende.
 
 #### U26 · La griglia di lavoro e la sonda di movimento nell'editor —

@@ -1053,6 +1053,57 @@ sessions:
     verifies: []
     issues: [1095]
     done_when: la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro
+    steps: |
+      **Non e' una caccia al bello: e' una domanda sola, ripetuta a tre distanze.** *Guardando la scena
+      senza HUD e senza selezionare niente, so dire che cosa ho davanti?* Se la risposta e' no, si cambia
+      la grammatica **prima** di aggiungere altri asset — e' l'unica prescrizione del kit sorgente che il
+      contratto adotta senza emendarla.
+
+      **Prima di aprire l'editor.** L'inset del Safe Placement Volume e' `GBX-1` e **non e' deciso**
+      ([#1094](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094)). Si sceglie **qui**,
+      guardando — ma il valore scelto si scrive nella issue, non solo nel `.umap`: un numero che vive in un
+      binario non lo trova nessuno.
+
+      1. **Il volume.** Prisma esagonale sul centro cella. I sei vertici li da'
+         `URTHexLibrary::HexCorners(Center, HexSize)` e il centro `AxialToWorld` — non si incidono angoli a
+         mano, per la ragione che `spec-hex-geometry-authoring.md` §4 scrive gia' per la geometria: se la
+         convenzione dei sei lati cambiasse, la forma derivata la segue e quella incisa mente in silenzio.
+         L'inset e' una **frazione**, non centimetri.
+      2. **Le guide verticali**, in frazioni di `C`. ⚠️ **`C` NON e' `HexSize`**: `HexSize` e' il raggio,
+         `C = √3 · HexSize` e' il passo fra due celle adiacenti — circa **173** con il default `100`.
+         Leggere `0.28 C` come 28 cm produce una copertura bassa alta il **58%** del dovuto.
+      3. **La scena.** Unita' · copertura bassa · copertura alta · muro · porta `Open` · porta `Closed` ·
+         acqua · ghiaccio. Gli `EdgeBound` si posano con `URTHexLibrary::EdgeMidpointWorld` e
+         `EdgeRotation`, **mai** trascinandoli a occhio: il bordo `E` di una cella **e'** il bordo `W` del
+         suo vicino, e a occhio si ottengono due barriere dove ce n'e' una.
+      4. **Tre distanze di camera**: ravvicinata, di gioco, tattica. La stessa scena, tre screenshot.
+      5. **Screenshot in scala di grigi.** Non e' un vezzo di accessibilita': e' il modo in cui `D-146`
+         intende la ridondanza. Se due categorie si distinguono solo in colore, in grigio spariscono — e
+         con esse la prova che la grammatica funziona.
+      6. **`git status` sul `.umap`.** Dev'essere pulito quando la seduta finisce, e nessun test headless
+         apre un `.umap`: e' l'unico modo di accorgersi di aver salvato per sbaglio. E' la lezione di
+         `PIE-GEO-RESIDUI`.
+
+      > 🔴 **La trappola dello Z, gia' pagata DUE volte in questo repository.** Il disco della cella ha la
+      > faccia superiore a `RTCellTopZ` — **2,5 uu** con lo spessore corrente — e qualunque cosa disegnata
+      > **sotto** quella quota finisce dentro il disco e diventa invisibile. E' successo al contorno della
+      > superficie (a `2.0`: fango e acqua non si vedevano mentre i marcatori a `3.0` si', ed e' scritto
+      > nel commento sopra la costante) e agli anelli di
+      > [#593](https://github.com/DegrassiAaron/refactor-tactics-main/issues/593), che stavano a `2.0`
+      > contro una faccia a `2.5`. **Il volume non fa eccezione**: la sua base va legata a `RTCellTopZ`,
+      > non a un numero scritto a mano. Un volume invisibile e un volume mai costruito si somigliano molto.
+
+      > ⚠️ **Il volume non deve comparire in PIE.** Se si vede premendo Play e' un difetto, non una
+      > funzionalita' di debug: e' `EditorOnly` in senso stretto.
+
+      > ⚠️ **Non confondere l'inset con il clearance.** *Quanto grande posso modellare un asset* non e'
+      > *dove un'unita' ci sta in piedi*: il secondo e' `CP 23.6` e appartiene alla simulazione. Prendere
+      > in prestito quel numero farebbe dipendere la presentazione dal dato cotto.
+
+      > ⏱️ **Questa ricetta e' derivata dal codice e dalle convenzioni, non provata in editor.** I simboli
+      > citati sono stati verificati in `Source/` (`HexCorners`, `AxialToWorld`, `EdgeMidpointWorld`,
+      > `EdgeRotation`, `RTCellTopZ`); la procedura no — chi la esegue per primo la corregge dove sbaglia,
+      > ed e' il motivo per cui i passi nominano simboli invece di descrivere gesti.
     unblocks: []
     notes: >-
       ➕ **Seduta aperta il 2026-08-17** dal consolidamento del kit `Graybox_Kit_Cover_CellVolume`
