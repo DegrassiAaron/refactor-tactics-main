@@ -556,7 +556,7 @@ features:
     title: Standability derivata da anchor, footprint e clearance
     area: Map
     kind: gameplay
-    release: v0.2
+    release: v0.1          # D-160: E23 anticipata alla v0.1
     priority: P2
     status: DESIGNED
     gates:
@@ -607,7 +607,7 @@ features:
     title: Validità della transizione distinta da quella della cella
     area: Map
     kind: gameplay
-    release: v0.2
+    release: v0.1          # D-160: E23 anticipata alla v0.1
     priority: P2
     status: DESIGNED
     gates:
@@ -653,7 +653,7 @@ features:
     title: Identita' stabile di una struttura attraverso cook, scenari e replay
     area: Map
     kind: gameplay
-    release: v0.2
+    release: v0.1          # D-160: E23 anticipata alla v0.1 — CP 23.3, #832 e' CLOSED
     priority: P1
     status: DESIGNED
     gates:
@@ -700,7 +700,7 @@ features:
     title: "Interaction graph: la relazione sorgente -> bersaglio e' un dato"
     area: Map
     kind: gameplay
-    release: v0.2
+    release: v0.1
     priority: P1
     status: DESIGNED
     gates:
@@ -4320,7 +4320,7 @@ features:
     title: "Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio"
     area: UI
     kind: ui
-    release: v0.2
+    release: v0.1          # D-160: E23 anticipata alla v0.1
     priority: P2
     status: DESIGNED
     gates:

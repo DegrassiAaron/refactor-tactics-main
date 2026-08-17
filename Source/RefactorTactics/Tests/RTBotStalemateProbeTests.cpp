@@ -28,6 +28,8 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Bot/RTHexBotLibrary.h"
+#include "Perception/RTTeamKnowledge.h"
+#include "Perception/RTPerceptionLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -394,6 +396,181 @@ bool FRTBotStalemateNoPerceivedEnemyTest::RunTest(const FString&)
 	// comportamento per «non vedo nessuno»: cercare, pattugliare, tenere una formazione.
 	TestEqual(TEXT("senza nemici percepiti il piano scelto RESTA all'origine"), Chosen.DestCell, SelfCell);
 	TestFalse(TEXT("e non porta attacco"), Chosen.bHasAttack);
+
+	return true;
+}
+
+/**
+ * **La partita headless**: il ciclo percezione -> decisione -> movimento, con le funzioni del gioco.
+ *
+ * I tre probe precedenti hanno costruito `Ctx.Enemies` a mano. Questo no: passa da
+ * `URTTeamKnowledgeLibrary::Observe` e `ClassifyTarget`, cioe' dalla **stessa percezione** che
+ * `ARTTurnManager::PlanBots` consulta, e riproduce il filtro con la stessa struttura a tre casi.
+ *
+ * ⚠️ **Misura l'anello che restava LETTO**: quante unita' avversarie entrano in `Ctx.Enemies`, turno per
+ * turno. Se scende a zero e le posizioni si congelano, la catena di #1088 e' misurata da capo a fondo.
+ *
+ * ⚠️ **Cosa NON riproduce, dichiarato**: il resolver, le reazioni, gli scatti, il consumo di energia e il
+ * facing che ruota. E' il ciclo di **decisione**, che e' dove lo stallo vive — dodici round di sola
+ * `Fase Move` dicono che il resto non stava succedendo comunque.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotStalemateHeadlessMatchTest,
+	"RefactorTactics.Bot.StalemateProbeHeadlessMatchLosesContact",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+namespace
+{
+	struct FRTHeadlessRunReport
+	{
+		int32 FirstTurnWithoutContact = INDEX_NONE;
+		int32 FrozenSince = INDEX_NONE;
+		int32 PeakPerceived = 0;
+		int32 TotalAttackPlans = 0;
+	};
+}
+
+/** Il ciclo percezione -> decisione -> movimento su una mappa qualsiasi. Vedi il test qui sotto. */
+static FRTHeadlessRunReport RTRunHeadlessDecisionLoop(URTHexMapAsset* Arena, FAutomationTestBase& T,
+	const TCHAR* Label)
+{
+	FRTHeadlessRunReport Out;
+	const FRTArenaCriteriaReport Criteria = URTArenaCriteriaLibrary::EvaluateWithDerivedSpawns(Arena);
+
+	// Due unita' per squadra, agli spawn derivati e a una cella di distanza: e' il 2v2 del formato spedito.
+	struct FProbeUnit { int32 Id; int32 Team; FRTCellId Cell; };
+	// ⚠️ **NON agli spawn derivati**, e la prima stesura sbagliava proprio qui: quelli distano **8** mentre
+	// `FRTPerceiver::VisionRange` vale **5** di default, quindi nessuno vedeva nessuno **su nessuna arena** —
+	// e il congelamento che ne usciva era un artefatto dell'allestimento, non il difetto. L'ha scoperto il
+	// controllo sull'esagono liscio, che dava contatto zero dove il contatto e' impossibile da bloccare.
+	//
+	// Le due squadre partono quindi a distanza **4**, dentro il raggio visivo e a cavallo del centro: e' la
+	// configurazione in cui le unita' si sono davvero fermate in partita (distanza 3), e l'unica differenza
+	// fra le due arene diventa la **copertura**.
+	TArray<FProbeUnit> Units;
+	Units.Add({ 1, 0, FRTCellId(-2, 0, 0) });
+	Units.Add({ 2, 0, FRTCellId(-2, 1, 0) });
+	Units.Add({ 3, 1, FRTCellId(2, 0, 0) });
+	Units.Add({ 4, 1, FRTCellId(2, -1, 0) });
+
+	TArray<FRTTeamKnowledge> Knowledge;
+	Knowledge.SetNum(2);
+
+	TArray<FRTCellId> PreviousCells;
+
+	for (int32 Turn = 1; Turn <= 12; ++Turn)
+	{
+		// --- 1. Percezione, con la funzione del gioco: ogni squadra osserva con i propri vivi.
+		for (int32 Team = 0; Team < 2; ++Team)
+		{
+			TArray<FRTPerceiver> Observers;
+			TArray<FRTLastKnownContact> EnemiesNow;
+			for (const FProbeUnit& U : Units)
+			{
+				if (U.Team == Team)
+				{
+					FRTPerceiver P; P.Cell = U.Cell;
+					Observers.Add(P);
+				}
+				else
+				{
+					FRTLastKnownContact C; C.StableUnitId = U.Id; C.Cell = U.Cell;
+					EnemiesNow.Add(C);
+				}
+			}
+			Knowledge[Team] = URTTeamKnowledgeLibrary::Observe(Arena, Team, Turn, Observers, EnemiesNow,
+				Knowledge[Team]);
+		}
+
+		// --- 2. Decisione, unita' per unita', col filtro di percezione di `PlanBots`.
+		int32 TotalPerceived = 0;
+		TArray<FRTHexSimUnit> SimUnits;
+		for (const FProbeUnit& U : Units) { SimUnits.Add(FRTHexSimUnit(U.Id, U.Cell, /*budget*/ 5)); }
+		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena, SimUnits);
+
+		TArray<FRTCellId> NextCells;
+		for (const FProbeUnit& Self : Units)
+		{
+			FRTHexBotContext Ctx;
+			Ctx.Origin = Self.Cell;
+			Ctx.AttackRange = 4;
+			Ctx.AttackDamage = 21;
+			Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Ctx.AttackRange);
+
+			for (const FProbeUnit& Other : Units)
+			{
+				if (Other.Team == Self.Team) { continue; }
+
+				// La stessa struttura a tre casi di `PlanBots`: chi non e' ne' visto ne' ricordato NON entra.
+				FRTCellId KnownCell = Other.Cell;
+				const ERTTargetKnowledge Class = URTTeamKnowledgeLibrary::ClassifyTarget(
+					Knowledge[Self.Team], Other.Id, Other.Team, Other.Cell);
+				if (Class == ERTTargetKnowledge::Rejected) { continue; }
+				if (Class == ERTTargetKnowledge::CellOnly
+					&& !URTTeamKnowledgeLibrary::LastKnownCell(Knowledge[Self.Team], Other.Id, KnownCell))
+				{
+					continue;
+				}
+				Ctx.Enemies.Add(KnownCell);
+				Ctx.EnemyRanges.Add(4);
+				Ctx.EnemyHealth.Add(100);
+			}
+			TotalPerceived += Ctx.Enemies.Num();
+
+			const FRTHexBotPlan Plan = URTHexBotLibrary::PlanUnit(Snapshot, Self.Id, Ctx);
+			if (Plan.bHasAttack) { ++Out.TotalAttackPlans; }
+			NextCells.Add(Plan.DestCell);
+		}
+
+		// --- 3. Le posizioni si muovono ancora?
+		const bool bFrozen = (PreviousCells.Num() == NextCells.Num()) && (PreviousCells == NextCells);
+		Out.PeakPerceived = FMath::Max(Out.PeakPerceived, TotalPerceived);
+		T.AddInfo(FString::Printf(TEXT("[%s] turno %2d: nemici percepiti = %d | piani con attacco finora = %d%s"),
+			Label, Turn, TotalPerceived, Out.TotalAttackPlans,
+			bFrozen ? TEXT("  [posizioni congelate]") : TEXT("")));
+
+		if (TotalPerceived == 0 && Out.FirstTurnWithoutContact == INDEX_NONE) { Out.FirstTurnWithoutContact = Turn; }
+		if (bFrozen && Out.FrozenSince == INDEX_NONE) { Out.FrozenSince = Turn; }
+		if (!bFrozen) { Out.FrozenSince = INDEX_NONE; }
+
+		PreviousCells = NextCells;
+		for (int32 i = 0; i < Units.Num(); ++i) { Units[i].Cell = NextCells[i]; }
+	}
+
+	T.AddInfo(FString::Printf(TEXT("[%s] primo turno senza contatto: %d | congelate da: %d | picco contatti: %d"),
+		Label, Out.FirstTurnWithoutContact, Out.FrozenSince, Out.PeakPerceived));
+	return Out;
+}
+
+bool FRTBotStalemateHeadlessMatchTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { return false; }
+	URTHexMapAsset* Demo = URTMatchSetupLibrary::MakeDemoArena(GetTransientPackage(), 4);
+	if (!TestNotNull(TEXT("arena demo generata"), Demo)) { return false; }
+
+	const FRTHeadlessRunReport Covered = RTRunHeadlessDecisionLoop(Arena, *this, TEXT("copertura"));
+	const FRTHeadlessRunReport Open = RTRunHeadlessDecisionLoop(Demo, *this, TEXT("esagono liscio"));
+
+	const int32 FirstTurnWithoutContact = Covered.FirstTurnWithoutContact;
+	const int32 FrozenSince = Covered.FrozenSince;
+
+	// ⚠️ Nessuna delle due righe qui sotto e' un'assunzione: sono il RISULTATO, e messe come asserzioni
+	// perche' un probe che stampa e non asserisce smette di misurare senza dirlo. Se un giorno cadono, il
+	// comportamento del bot e' cambiato — ed e' esattamente quando #1088 va riletta.
+	TestTrue(TEXT("le posizioni si congelano entro i 12 turni"), FrozenSince != INDEX_NONE);
+
+	// ⚠️ **Il controllo che toglie la vacuita'.** Sull'arena con copertura il contatto non c'e' MAI, quindi
+	// «si congelano dopo averlo perso» e' soddisfatto anche da «non l'hanno mai avuto»: la riga sopra, da
+	// sola, non distingue le due cose. L'esagono liscio e' lo stesso ciclo su una mappa dove la vista non
+	// e' mai interrotta — se anche li' il contatto fosse zero, a essere rotto sarebbe il mio modello, non
+	// il bot.
+	TestTrue(TEXT("con copertura il contatto C'E'"), Covered.PeakPerceived > 0);
+	TestTrue(TEXT("sull'esagono liscio anche"), Open.PeakPerceived > 0);
+
+	// 🔴 **Il risultato che falsifica l'ipotesi della percezione**, e va pinnato perche' e' cio' che si e'
+	// misurato: le unita' si congelano **pur vedendo** gli avversari, su entrambe le arene. Se un giorno
+	// una delle due righe cade, il comportamento e' cambiato e #1088 va riletta.
+	TestTrue(TEXT("con copertura si congelano NONOSTANTE il contatto"), Covered.FrozenSince != INDEX_NONE);
+	TestTrue(TEXT("e sull'esagono liscio pure"), Open.FrozenSince != INDEX_NONE);
 
 	return true;
 }

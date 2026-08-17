@@ -39,7 +39,7 @@ cita.
 |---|---|---|---|
 | C1 | «verificare `origin/main`» | eseguibile da un worktree 87 commit indietro senza che nulla protesti | §19 Fase A è una sequenza di comandi con oracolo |
 | C2 | #886 è «P0» | label GitHub = `P1`; la label `P0` **esiste** («Blocca la release») | §2 prescrive l'atto, non una scala privata |
-| C3 | #833 «alimenta la strada verso il golden» | `issue:833` **non è un nodo** dell'Execution Graph | §2bis: tre atti su tre owner |
+| C3 | #833 «alimenta la strada verso il golden» | `issue:833` **non era un nodo** dell'Execution Graph — e la dipendenza da T5 è **falsa**, misurata | §2bis: tre atti **eseguiti**, un quarto owner, una decisione aperta |
 | C4 | «BASE è il quinto processo» | **nessuna** track BASE nel batch — e il quinto processo canonico è **E, «Jolly»**, che non è l'integratore | §3: `meta.integrator`, senza sigle nuove |
 | C5 | tetto 3+1+1 senza procedura di rientro | il tetto non è **falsificabile**: «stream mutante attivo» non è definito, e le due letture legittime danno **4** e **2** | §4 definisce cosa si conta, poi la procedura di rientro |
 | C6 | il workstream mappa «parte da #833» | il lavoro è **già atterrato** (PR #1112 mergiata, ramo cancellato) e #833 resta `OPEN` | §3 processo **A** riparte da `main`, non da un ramo |
@@ -259,7 +259,7 @@ TurnLog decision → verifier → resolver → stesso risultato
 
 ---
 
-# 2bis. #833 è dentro la v0.1 — tre atti, tre owner
+# 2bis. #833 è dentro la v0.1 — tre atti eseguiti, un quarto owner, una decisione aperta
 
 **Decisione d'autore del 2026-08-17**: `#833` appartiene alla **v0.1**.
 
@@ -307,10 +307,33 @@ Resta misurato oggi, e resta **dentro** il DoD di #833:
 - `Action.Interact` è a catalogo (fase `Blast`, priorità 80, portata 1, slot `Main`) e **inerte**, perché la
   lista di effetti è `{}` — pinnato da `TestActionIsInert` in `Tests/RTCoreActionTests.cpp`.
 
-Conseguenza operativa: chiudere #833 sul solo **dato** lascia T5 dello showcase non eseguibile. Il gate
-`scenario` della feature va trattato secondo la regola di `RTScenarioSession`: una capability si dichiara
-disponibile solo quando **l'harness non è il primo produttore**. Uno scenario scritto prima sarebbe verde e
-bugiardo.
+🔴 **Correzione: «#833 abilita T5 dello showcase» è FALSO, e questa pagina lo affermava.** L'affermazione
+veniva dall'handoff di root ed è stata ereditata senza misurarla — lo stesso difetto che §0.7 denuncia.
+Misurato:
+
+| Fonte | Dice |
+|---|---|
+| `../roadmap/roadmap-v0.1.md`, riga di **T5** | *«✅ dopo `S2-1` — il gate è una porta, **CP 9.3 è chiuso**»* |
+| `../roadmap/plans/showcase-v01-audit.md` | *«il gate del turno 5 è una porta (CP 9.3): il meccanismo **esiste già** — stato di bordo, blocco del passo, revisione che sale»* |
+| idem, tabella degli sblocchi | l'assertion di T5 è `S6-1` — `EdgeEnabled`/`EdgeDisabled`/`GraphRevisionChanged`, ✅ CP 9.3 |
+
+T5 usa il **cambio di stato di un edge**, che esiste da CP 9.3; #833 è il **grafo sorgente → bersaglio**, cosa
+diversa. Conseguenza: **nessun arco `issue:833 → issue:170`** è stato scritto nell'Execution Graph. L'arco che
+le prove sostengono è `issue:833 → issue:74` — #74 (CP 10.1, `Activate`/`Interact` sugli oggetti) *consuma* il
+dato, secondo `../roadmap/plans/cinque-processi-paralleli-2026-08-17.md` §3.
+
+Resta vera la conseguenza sul **gate `scenario`** della feature, che è un'altra cosa: va trattato secondo la
+regola di `RTScenarioSession` — una capability si dichiara disponibile solo quando **l'harness non è il primo
+produttore**. Uno scenario scritto prima sarebbe verde e bugiardo.
+
+⚠️ **E «dentro la v0.1» ha ramificazioni che questa pagina sottostimava: gli atti non sono tre.** Eseguendoli:
+
+- il **quarto** owner è `../technical/scenario-map.md` (`integration_only`, `CURRENT`, scritto a mano), che
+  dichiara ancora *«v0.2 · E23 · CP 23.4 (#833)»*;
+- **CP 23.4 appartiene a E23, epic `v0.2`**, e il gate lo ha rifiutato: `feature_registry.py validate` risponde
+  `ERROR — checkpoint 'E23.4' che nessun owner dichiara`. Una issue v0.1 con un checkpoint in un'epic v0.2 è
+  un'incoerenza reale, **decisione d'autore aperta**: anticipare E23, riassegnare #833, o dichiarare
+  l'eccezione. Nessuna delle tre è un atto meccanico, e nessuna è stata presa qui.
 
 ---
 

@@ -116,7 +116,7 @@ giorno**: [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/9
 
 **24 epic** su 9 release (v0.2 · v0.3 · v0.4 · v0.5 · v0.6 · v0.7 · v0.8 · v0.9 · v1.0) · release, titolo e issue da [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.
 
-> ⚠️ **Epic non ancora aperte**: 7 feature post-v0.1 (v0.2 **5** · v0.3 **2**) hanno `roadmap.epic` nullo; **25** la dichiarano. Un campo nullo qui non e' piu' un limite dello schema — dal 2026-08-13 le epic post-v0.1 sono scrivibili — quindi significa **l'epic non e' ancora aperta**, e la motivazione va nelle `notes` della feature. Le contraddizioni fra release della feature e release della sua epic sono diagnosticate dalla §2.2 di [`roadmap-v0.1.md`](roadmap-v0.1.md), che ha una tabella apposta.
+> ⚠️ **Epic non ancora aperte**: 7 feature post-v0.1 (v0.2 **5** · v0.3 **2**) hanno `roadmap.epic` nullo; **20** la dichiarano. Un campo nullo qui non e' piu' un limite dello schema — dal 2026-08-13 le epic post-v0.1 sono scrivibili — quindi significa **l'epic non e' ancora aperta**, e la motivazione va nelle `notes` della feature. Le contraddizioni fra release della feature e release della sua epic sono diagnosticate dalla §2.2 di [`roadmap-v0.1.md`](roadmap-v0.1.md), che ha una tabella apposta.
 
 <!-- RT_SHORTLIST_RELEASES:END -->
 
