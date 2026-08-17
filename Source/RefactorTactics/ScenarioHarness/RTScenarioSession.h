@@ -126,6 +126,20 @@ private:
 	void BeginTurn();
 
 	/**
+	 * Traduce gli `intents` del turno corrente in piani sulle unita': azione, bersaglio, facing, percorso.
+	 *
+	 * E' la parte piu' lunga di `BeginTurn` e sta a parte perche' fa una cosa sola — scrivere piani — mentre
+	 * cio' che la circonda ne fa altre: verificare le capability richieste, azzerare i piani del turno prima,
+	 * far decidere i bot. Passa dal percorso REALE come farebbe il giocatore: uno scenario che scrivesse
+	 * direttamente lo stato salterebbe le regole che dovrebbe verificare.
+	 *
+	 * Il turn manager arriva per RIFERIMENTO e non come puntatore letto dal membro: quando questa funzione
+	 * viene chiamata `BeginTurn` ha gia' verificato che esista, e un riferimento dice che il controllo e'
+	 * stato fatto — un puntatore riaprirebbe la domanda in un punto dove la risposta e' gia' nota.
+	 */
+	void ApplyScenarioIntents(ARTTurnManager& TurnManagerRef);
+
+	/**
 	 * Seleziona in PIE l'unita' dichiarata da `PreviewUnit`, cosi' l'ANTEPRIMA del suo attacco compare da
 	 * sola durante la pausa prima del primo turno.
 	 *

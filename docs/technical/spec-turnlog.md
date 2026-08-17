@@ -227,6 +227,43 @@ finestre di decisione. Il precedente è già stato preso due volte: `Facing` por
 `TimeoutReason`, che §10 elenca fra i requisiti informativi: sono identità e motivi, non contatori, e
 seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e sono lavoro di CP 14.7/14.8.
 
+> ✅ **Confermata il 2026-08-17 — [D-166](../decisions/RT_PDR_00_Decision_Log.md) — dopo un conflitto reale
+> con il codice.** Con **CP 14.5** è atterrata in coda a `ERTLogCategory` una categoria di nome simile,
+> `ReactionDecision`, già serializzata e presente in cinque call site — **tre letture** e **due scritture**.
+> 🔴 **La divergenza è durata TRE giorni, non uno**: `git log -S ReactionDecision -- Source/RefactorTactics/Turn/RTTurnLog.h`
+> dà un solo commit, `75039d93` del **2026-08-14**, e la riconciliazione è del **2026-08-17**. La prima
+> stesura diceva «per un giorno», che è vero della *riga di conflitto* — aperta e chiusa lo stesso giorno —
+> e falso dello scarto fra spec e codice, cioè di ciò di cui questa frase parla. Corretto in code review, e
+> conta: la lezione qui sotto pesa il triplo di quanto la cifra sbagliata suggeriva.
+> Nessun gate lo vede — non è un link rotto né un simbolo inesistente, sono due nomi plausibili in due
+> documenti che nessuno legge insieme.
+>
+> **Prevale questa spec, e le due categorie coesistono** perché rispondono a due domande diverse sulla stessa
+> finestra:
+>
+> | Categoria | Enum di esito | `Amount` | Risponde a |
+> |---|---|---|---|
+> | `ReactionDecision` *(CP 14.5)* | `ERTReactionDecisionOutcome`, sei valori | **danni** | *cosa ha scelto, e perché* |
+> | `Decision` *(questa §)* | `ERTDecisionOutcome`, tre valori | **millisecondi** | *quanto è costata, e cosa resta* |
+>
+> ⚠️ **La ragione che decide è `Amount`, ed è la stessa che questo paragrafo usa già due volte**: `Amount` è
+> il payload numerico **della categoria**. Sotto `ReactionDecision` vale danni — lo dice il commento di
+> `FireChosen` — e farci scrivere anche i millisecondi del bank significherebbe che lo stesso campo, sotto la
+> stessa categoria, cambia unità di misura secondo l'esito. È il difetto che il commento di
+> `ERTReactionDecisionOutcome` argomenta di aver evitato tenendo un enum solo, reintrodotto dall'altra parte.
+> ➕ È il caso particolare della regola generale che [D-162](../decisions/RT_PDR_00_Decision_Log.md) pone
+> lo stesso giorno su un ramo parallelo: **una categoria, un enum**.
+>
+> ⚠️ **Conteggio delle voci**: una finestra di reazione ne produce **tre** — `1 × ReactionDecision` più le
+> **due** di questa §. Il «Due voci, non tre» qui sopra riguarda la sola categoria `Decision`, e leggerlo
+> come totale fa perdere il costo o il residuo.
+>
+> Due categorie **non** sono due verità: lo sarebbero se entrambe dichiarassero *cosa è stato scelto*. Qui una
+> registra l'esito e l'altra il costo, e nessuna delle due è derivabile dall'altra.
+>
+> 🔴 **Il difetto non era il nome: era che nessuno ha riletto questa § quando CP 14.5 ne ha aggiunta una
+> simile in coda.** Registrato alla riga **75** di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md).
+
 ### 4.3 La **causa** di un esito *(2026-08-10, CP 11.3 `#79` + `#307`)*
 
 Fino a qui il TurnLog rispondeva bene a *cosa è successo* e male a *perché*. Due buchi misurati:
