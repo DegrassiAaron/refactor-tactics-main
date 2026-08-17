@@ -2922,6 +2922,15 @@ tracks:
       criterio d'accettazione di `#451` è quindi **già soddisfatto**, e il residuo è la seduta vera —
       le sette voci, tutte ⏳ in `test-manuali-pie.md`, più il controllo dei criteri di U1-B
       sull'arena che c'è.
+      🔴 **IL PARAGRAFO QUI SOTTO È SCADUTO — rimisurato il 2026-08-17, vedi `map_framing`.**
+      `wip/icon-visual-language` **non esiste più** (né su `origin`, né in locale, né in un worktree),
+      quindi il contendente che rendeva impossibile la lease è sparito; e **entrambi** i blob citati sono
+      superati — `origin/main` porta `ba504155` / 34542 byte dopo `1475582d` (*«l'arena scende a 64 celle,
+      ed è una modifica d'autore»*), quindi anche il «98 celle» descrive lo stato **precedente** a un
+      cambiamento voluto. La lease **è stata emessa** come `BINARY-GH623-ARENA-CELLS`.
+      Il testo resta com'è, non riscritto: descriveva correttamente una situazione che c'era, e la sua
+      analisi dei due package — header, name table, aritmetica — è il modo giusto di misurare un binario.
+      Ciò che è scaduto è la **premessa**, non il metodo.
       ⚠️ **La lease su `Content/RT/Maps/Dev/L_HexArena/` NON è emessa, e non è una dimenticanza.**
       `wip/icon-visual-language` è `preexisting` e tiene una versione divergente dello stesso
       package: blob `7f7cb735`, **29895 byte**, contro `e31b644b` / 48245 byte che `origin/main`
@@ -5412,6 +5421,50 @@ tracks:
           - orbit_no_black_face
           # E l'oracolo del committato e' `git status` sui due package, non «l'ho salvato»: questo
           # repository ha gia' avuto asset presenti su disco e non versionati.
+          - git_status_clean_after_commit
+
+      # ➕ **Seconda lease, emessa il 2026-08-17 durante la seduta e non prima**, perche' la sua
+      # necessita' e' emersa allora: `L_DevSandbox.umap` referenzia **`DA_HexMap_Arena`**, non
+      # `DA_HexMap_Sandbox`. Misurato sul package (`RTHexMapAsset` 1, `DA_HexMap_Arena` 2, e
+      # `DA_HexMap_Sandbox` **0**). Ne segue che dipingere una cella nella sandbox modifica l'asset
+      # dell'**arena**, che la prima lease non copre: la seduta stava per scrivere fuori lease
+      # credendo di essere dentro.
+      #
+      # 🔴 **Questo file diceva che una lease qui NON si poteva emettere, e la ragione e' scaduta.**
+      # La nota di `content_editor` argomenta: *«`wip/icon-visual-language` e' `preexisting` e tiene una
+      # versione divergente dello stesso package: blob `7f7cb735`, 29895 byte, contro `e31b644b` /
+      # 48245 byte che `origin/main` condivide col merge-base»*, e conclude che una lease `modify`
+      # significherebbe **due holder sullo stesso path**. Rimisurato il 2026-08-17, e non regge piu':
+      #   · `wip/icon-visual-language` **non esiste**, ne' su `origin` (`git ls-remote --heads`), ne'
+      #     in locale, ne' in un worktree. Il contendente e' sparito, e con lui la ragione.
+      #   · **entrambi** i blob citati sono superati: `origin/main` porta **`ba504155` / 34542 byte**,
+      #     che non e' ne' `e31b644b` ne' `7f7cb735`. L'arena e' cambiata con **`1475582d`** — *«l'arena
+      #     scende a 64 celle, ed e' una modifica d'autore»* — quindi il «98 celle» della nota e' lo
+      #     stato PRECEDENTE a un cambiamento deliberato, non la misura di oggi.
+      #   · cinque branch remoti tengono ancora `e31b644b`: sono **indietro**, non divergenti in avanti,
+      #     e nessuno di essi e' ACTIVE in questo batch.
+      # ∴ contesa misurata **zero**, e la lease si emette. La nota di `content_editor` resta dov'e' come
+      # provenienza: descrive correttamente una situazione che c'era.
+      #
+      # ⚠️ **Su un FILE e non sulla cartella**, al contrario della prima: `Content/RT/Maps/Dev/L_HexArena/`
+      # contiene anche `L_HexArena.umap`, che questa seduta non apre e non tocca. La regola «la lease si
+      # emette sulla cartella» vale per le mappe che si aprono; qui il bersaglio e' un data asset che una
+      # ALTRA mappa referenzia, e prenotare il livello dell'arena bloccherebbe `U1` senza motivo.
+      - key: "BINARY-GH623-ARENA-CELLS"
+        issue: 623
+        base_sha: "a5fe779d7a828c030186278c13e5b1740cb3c495"
+        operation: modify
+        paths:
+          - Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
+        verification:
+          - load_in_editor
+          - save_without_errors
+          # ⚠️ La verifica specifica di QUESTA lease: l'arena e' gia' passata una volta per una
+          # regressione silenziosa — la versione di `wip` aveva `Cells` 98 -> 61 e l'array
+          # `Transitions` **non piu' serializzato affatto**. Dopo il salvataggio il conto delle celle
+          # e le transizioni devono esserci ancora: `rt.Arena.Check` le riporta, e i suoi tre criteri
+          # devono restare verdi.
+          - arena_criteria_still_green
           - git_status_clean_after_commit
 
   match_format:
