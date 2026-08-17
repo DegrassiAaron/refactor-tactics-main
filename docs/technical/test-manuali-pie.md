@@ -50,9 +50,20 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
-## Stato in numeri — 2026-08-16
+## Stato in numeri — 2026-08-17
 
-**150 voci**: ✅ **41 verdi** · 🟡 **23 parziali** (regola coperta da test, resta il visivo) · ❌ **1 fallita** · ⏳ **85 aperte**.
+**150 voci**: ✅ **44 verdi** · 🟡 **23 parziali** (regola coperta da test, resta il visivo) · ❌ **1 fallita** · ⏳ **82 aperte**.
+
+*(Rimisurate **sull'albero mergiato** il **2026-08-17**, dopo la prima seduta del mandato QA Terminal D
+([#1013](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1013), seduta **U18**). Il totale
+**non cambia** — 150 — e cambia solo la ripartizione: tre voci passano da ⏳ a ✅ (`PIE-V01-MATCHEND` e
+`PIE-HEX-LAYER` **con riserva**, `PIE-HEX-TRANS` piena), quindi `41→44` e `85→82`. ⚠️ **La misura è stata
+fatta due volte, e la prima non valeva**: sul branch della seduta il comando dava `44/23/82` mentre
+`origin/main` era avanti di 249 commit e sei di quelli toccavano questo file — il merge ha dato conflitto
+proprio qui, su `PIE-V01-PLAYSPEED` che un'altra sessione stava eseguendo lo stesso giorno. È il caso che
+le note qui sotto descrivono da mesi: **due sessioni, due numeri, entrambi giusti quando scritti e nessuno
+dei due valido dopo l'unione**. Il valore sopra è del comando, eseguito dopo il merge. `senza-marcatore`
+misurato: **0**.)*
 
 *(Rimisurate col comando qui sotto il **2026-08-16**, aggiungendo `PIE-V01-PLAYSPEED` con
 [#955](https://github.com/DegrassiAaron/refactor-tactics-main/issues/955). ⚠️ **Di questa sessione è una
