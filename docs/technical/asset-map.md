@@ -176,11 +176,13 @@ lo stesso giorno in cui è nato lui, e nessuno ha ancora chiesto quali asset ric
 > 🔵 **Aggiornamento 2026-08-17 — il buco si è ristretto da un lato solo, ed è quello di sopra.** Il
 > consolidamento del Graybox Kit (`D-153`) ha misurato il fabbisogno di **oggetti di mappa** per tutte le
 > release e la risposta è che **non atterra nella v0.5–v0.8**: da lì i temi canonici sono rete, GAS,
-> dedicated server e hardening, e nessuno di essi è un tema di contenuto. Gli otto elementi `DEFER` del
-> catalogo si appoggiano invece alla riga **`future`** qui sopra — `RT-FEAT-MAP-STRUCTURAL` (macerie, muri
-> sfondati) e `RT-FEAT-MAP-VERTICALITY` (rampe, piattaforme) sono le due feature `IDEA` che li possiedono,
-> e finché restano `IDEA` quegli asset non hanno un committente. **Non è un ritardo della pipeline**: è che
-> metà del catalogo descrive sistemi che il progetto non ha ancora deciso di costruire.
+> dedicated server e hardening, e nessuno di essi è un tema di contenuto. Dei **sette** elementi `DEFER` del
+> catalogo, **quattro** si appoggiano alla riga **`future`** qui sopra — `RT-FEAT-MAP-STRUCTURAL` (macerie,
+> muri sfondati) e `RT-FEAT-MAP-VERTICALITY` (rampe, piattaforme) sono le due feature `IDEA` che li
+> possiedono, e finché restano `IDEA` quegli asset non hanno un committente. Gli altri tre non c'entrano con
+> `future` e hanno ciascuno una ragione propria: la **valvola** è fuori scope v0.1 dichiarato, generatore e
+> serbatoio hazard sono proxy di elementi che nessuno produce ancora. **Non è un ritardo della pipeline**: è
+> che sette voci su diciannove descrivono sistemi che il progetto non ha ancora deciso di costruire.
 > La sola release che acquisisce un impegno nuovo è la **v1.0**, e non in asset: `E45` diventa il punto in
 > cui il contratto di ingombro **si congela** perché l'arte finale possa sostituire il graybox senza
 > cambiare le regole competitive.

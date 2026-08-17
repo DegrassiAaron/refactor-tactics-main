@@ -4701,9 +4701,9 @@ features:
       innesta su owner gia' esistenti (E23 per muri/porte, E47 per la board, E15 per il Rele',
       E45 per il freeze del contratto), ed e' esattamente cio' che `D-153` decide.
 
-      🔴 **Otto dei diciannove elementi del catalogo sono `DEFER`, e cinque dipendono da feature
+      🔴 **Sette dei diciannove elementi del catalogo sono `DEFER`, e quattro dipendono da feature
       `IDEA` su release `future`** (`RT-FEAT-MAP-STRUCTURAL`, `RT-FEAT-MAP-VERTICALITY`). Il kit
-      «completo» non e' raggiungibile in v0.1, e non e' un ritardo: meta' del suo catalogo descrive
+      «completo» non e' raggiungibile in v0.1, e non e' un ritardo: sette voci su diciannove descrivono
       sistemi che il progetto non ha ancora deciso di costruire. La valvola e' il caso limite —
       **fuori scope v0.1 dichiarato** da CP 10.1 §11, con motivazione registrata.
 

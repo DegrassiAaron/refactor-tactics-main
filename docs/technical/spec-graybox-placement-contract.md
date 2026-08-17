@@ -283,7 +283,15 @@ l'handoff chiede: `REUSE` · `UPDATE` · `CREATE` · `DEFER`.
 | 18 | Relè | `CellBound` | **AS_BUILT** (dominio) — è l'obiettivo della showcase E15 «Il Relè» | `UPDATE` |
 | 19 | Marker di spawn | `EditorOnly` | **PARTIAL** — lo spawn esiste in `RTMatchSetupLibrary`; il marker d'authoring no | `CREATE` |
 
-**Il conto**: `REUSE` 2 · `UPDATE` 7 · `CREATE` 2 · `DEFER` 8. Nessun elemento resta senza classificazione.
+**Il conto**: `REUSE` 2 · `UPDATE` 8 · `CREATE` 2 · `DEFER` 7 — somma **19**, e nessun elemento resta senza
+classificazione. Dei sette `DEFER`, **quattro** dipendono da feature `IDEA` su release `future` (#9 e #10 da
+`RT-FEAT-MAP-STRUCTURAL`, #11 e #12 da `RT-FEAT-MAP-VERTICALITY`); gli altri tre sono la valvola — **fuori
+scope dichiarato** — e due proxy senza produttore.
+
+> ⚠️ **Questa riga diceva `UPDATE 7 · DEFER 8`**, ed era la coppia invertita: un conteggio scritto leggendo
+> la tabella invece di contarla. La somma tornava lo stesso a **19**, che è il motivo per cui non saltava
+> all'occhio — ed è il caso in cui un totale corretto non dice nulla sugli addendi. Rimisurato contando le
+> righe con la loro colonna `Azione`, non rileggendole.
 
 > 🔴 **La valvola è il caso che dimostra perché un kit si filtra.** Il kit la mette fra i diciannove della
 > v0.1. CP 10.1 §11 la dichiara fuori scope con una motivazione registrata: *«l'acqua ha un produttore nel

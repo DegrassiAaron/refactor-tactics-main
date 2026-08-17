@@ -48,9 +48,10 @@
 > `Damaged` hanno transizioni d'uscita diverse, e fonderli toglierebbe al giocatore l'informazione che
 > decide l'azione successiva.
 >
-> ⚠️ **Otto dei diciannove elementi sono `DEFER`**, cinque per dipendenza da feature `IDEA` su release
-> `future`. Il kit «completo» non è raggiungibile in v0.1, e non è un ritardo: metà del catalogo descrive
-> sistemi che il progetto non ha ancora deciso di costruire. La classificazione voce per voce è in
+> ⚠️ **Sette dei diciannove elementi sono `DEFER`**, quattro per dipendenza da feature `IDEA` su release
+> `future` e tre per ragioni proprie. Il kit «completo» non è raggiungibile in v0.1, e non è un ritardo:
+> sette voci su diciannove descrivono sistemi che il progetto non ha ancora deciso di costruire. Il conto
+> completo è `REUSE 2 · UPDATE 8 · CREATE 2 · DEFER 7`, e la classificazione voce per voce è in
 > [`spec-graybox-placement-contract.md`](../../technical/spec-graybox-placement-contract.md) §8.
 
 ## Handoff operativo per Claude Code / Claude Cloud — consolidamento + roadmap + issue
