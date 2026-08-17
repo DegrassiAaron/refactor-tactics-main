@@ -4894,10 +4894,17 @@ tracks:
   map_framing:
     status: ACTIVE
     issue: 623
-    branch: feat/623-inquadratura-mappa
-    worktree: "D:/rt-u21"
+    # 🔴 **`branch: null` dal 2026-08-17, non `feat/623-inquadratura-mappa`.** Quel ramo e' atterrato con
+    # la PR **#1121** (`55609782`) ed e' stato cancellato lato server: e' la sentinella documentata nello
+    # schema — *«track legittima, la issue e' aperta, ma il branch dichiarato non esiste piu'»*. Lasciarlo
+    # sarebbe il difetto che questo file rimprovera a `client_tools` e a `content_editor`: chi misurasse il
+    # write-set con `git diff … origin/feat/623-inquadratura-mappa` otterrebbe un **errore**, non un numero.
+    branch: null
+    # ✂️ `worktree` rimosso insieme a `D:/rt-u21`: un path che non esiste non aiuta `git worktree list`,
+    # che e' il comando per cui il campo esiste.
     session: U21
-    session_branch: feat/623-inquadratura-mappa
+    # ✂️ `session_branch` rimosso per la stessa ragione di `branch`. La parte che resta di `#623` e' una
+    # SEDUTA — luci e verdetto — e una seduta non ha un ramo finche' non salva qualcosa.
     note: >-
       ➕ **Track aperta il 2026-08-17 per `#623`, seduta `U21`.** La issue ha tre parti di natura diversa e
       la sua stessa `note` lo dichiara — *«A e B non si chiudono a vicenda»*: **A** e' la seduta luci in
@@ -4924,17 +4931,15 @@ tracks:
       vero quando l'ho misurato — prima di aggiungere questa track e di rigenerare la vista — e falso
       quando l'ho scritto. Trovato in code review contro lo sha che la lease qui sotto pinna, che e' il
       punto: un numero ancorato a un ref fisso resta falsificabile per sempre, e questo lo era.
-    writable:
-      # La regola e la sua verifica, nel modulo runtime.
-      - Source/RefactorTactics/Map/RTHexLibrary.h
-      - Source/RefactorTactics/Map/RTHexLibrary.cpp
-      - Source/RefactorTactics/Tests/RTHexTests.cpp
-      # Il mode che registra `Home` e la lista dei comandi. I primi due riallocati, i secondi due presi
-      # perche' non assegnati.
-      - Source/RefactorTacticsEditor/Public/RTHexEditorMode.h
-      - Source/RefactorTacticsEditor/Private/RTHexEditorMode.cpp
-      - Source/RefactorTacticsEditor/Public/RTHexEditorModeCommands.h
-      - Source/RefactorTacticsEditor/Private/RTHexEditorModeCommands.cpp
+    # ✂️ **Write-set SVUOTATO alla chiusura della parte B**, e non e' simmetria: i sette sorgenti sono
+    # atterrati con #1121 e questa track non ne riscrivera' nessuno. Un `writable` dice chi **scrivera'**,
+    # non chi ha scritto — e' la stessa regola con cui `playback` ha restituito i propri.
+    # ➡️ **`RTHexEditorMode.{h,cpp}` NON tornano a `content_editor`**: quella track e' `IDLE` su una issue
+    # chiusa, e restituirli le rimetterebbe in mano due file che non ha ragione di riaprire. Restano
+    # liberi, cioe' assegnabili dal prossimo batch a chi li chiedera' davvero.
+    # ⚠️ La track resta `ACTIVE` perche' **`#623` e' aperta**: restano le luci e le due voci `PIE-*`. Le
+    # due cose non coincidono, ed e' la distinzione che `playback` ha gia' dovuto scrivere per `#1015`.
+    writable: []
     # `editor-sessions.yaml` e' `integration_only` e resta li': i passi della seduta ci entrano come atto
     # d'integrazione, non come prenotazione. La vista `editormap.shortlist.md` la segue.
     derives_from:
