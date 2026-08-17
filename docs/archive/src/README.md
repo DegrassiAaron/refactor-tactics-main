@@ -102,16 +102,22 @@
 > entrambi i lati — una riga d'indice dice *cosa quel sorgente ha prodotto*, e indovinarlo sostituirebbe una
 > lacuna visibile con una plausibile.
 >
-> 🔴 **Diciottesima volta, e la formula ha smesso di avere quattro addendi.** Il bundle `GrayToolkit`
-> archivia in una **sottocartella nuova**, `graytoolkit/`, e per diciassette volte questo conteggio si è
-> scritto come `design + handoff + audit + radice`. Non basta più: il comando risponde **90** =
+> 🔴 **Diciannovesima volta, e la formula ha smesso di avere quattro addendi.** Il bundle `GrayToolkit`
+> archivia in una **sottocartella nuova**, `graytoolkit/`, e questo conteggio si era sempre scritto come una
+> somma di `design/`, `handoff/`, `audit/` e radice. Non basta più: il comando risponde **90** =
 > 17 `design/` + 48 `handoff/` + 2 `audit/` + **4 `graytoolkit/`** + **19 in radice**.
 >
-> ⚠️ **E lo scarto non è tutto mio.** Il valore dichiarato era **83** con 16 in radice; alla misura di oggi
-> la radice ne conta **19**, quindi tre sono arrivati da altri rami mentre questo era aperto. Il totale non
-> è stato incrementato: è stato **riletto**, e la formula riscritta perché la sua forma era diventata falsa
-> prima dei suoi numeri. Una somma che torna su addendi sbagliati è il difetto che questo file conosce
-> meglio di ogni altro.
+> ⚠️ **E lo scarto è tutto mio**, contro quanto la prima stesura di questa nota affermava. Diceva che tre
+> file erano «arrivati da altri rami», confrontandosi col valore **83 / 16 in radice** — che era vecchio di
+> due revisioni. Il valore vero da cui si parte è **86 / 19**, scritto poche righe più sopra in questo
+> stesso file: la radice **non si è mossa**, e il delta `+4` è per intero `graytoolkit/`. Inventare un
+> contributo altrui in un file che esiste per non farlo è il difetto peggiore che potesse ospitare.
+> Trovato in code review.
+>
+> ⚠️ **E l'ordinale si conta, non si sceglie.** La prima stesura scriveva «ventunesima», saltando due
+> numeri; questa è la **diciannovesima**. 🔴 Nel contarli è emerso che **«diciottesima» è rivendicata da due
+> note diverse** — un difetto preesistente, che non correggo qui perché appartiene a chi le ha scritte, ma
+> che rende il contatore inaffidabile per chiunque lo incrementi a occhio.
 
 > 🔵 **Diciassettesima volta, e questa volta lo scarto era zero: `81` era esatto quando è stato scritto.**
 > Il ramo `docs/consolidamento-replay-tactical-designer` ha misurato **81** sulla propria base — che è
@@ -399,6 +405,27 @@ dove è finita quella parte che è sopravvissuta al filtro.
 |---|---|---|
 | [`2026-08-08-docs-gameplay.md`](audit/2026-08-08-docs-gameplay.md) | Audit di `gameplay/` + piano di consolidamento | [`CHANGELOG_DOCUMENTATION.md`](../../CHANGELOG_DOCUMENTATION.md), Decision Log |
 | [`2026-08-08-docs-non-gameplay-v2.md`](audit/2026-08-08-docs-non-gameplay-v2.md) | Audit del resto di `docs/` | [`CHANGELOG_DOCUMENTATION.md`](../../CHANGELOG_DOCUMENTATION.md), Decision Log |
+
+## `graytoolkit/` — bundle Gray Toolkit, 2026-08-17
+
+Archiviato come **cartella** e non in radice perché è un bundle: quattro documenti e due immagini che si
+leggono insieme. L'istruttoria del consumo, con cosa è entrato e cosa no, sta in
+[`graytoolkit/README.md`](graytoolkit/README.md).
+
+| File | Oggetto | Recepito da |
+|---|---|---|
+| [`02_GrayToolkit_AssetRoadmap_Wiki_Issues.md`](graytoolkit/02_GrayToolkit_AssetRoadmap_Wiki_Issues.md) | Handoff operativo: world scale, asset rules, lane art, roadmap asset, cinque pagine Wiki | [D-158](../../decisions/RT_PDR_00_Decision_Log.md) · lane `AC0–AC6`/`AE0–AE5` in [`spec-asset-pipeline.md`](../../technical/spec-asset-pipeline.md) §11-bis · `GBX-5` e `GBX-6` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). ⚠️ **Quattro delle cinque pagine Wiki non sono state create**: descrivono materiale con owner già esistente |
+| [`03_GrayToolkit_Wiki_Pages_Original.md`](graytoolkit/03_GrayToolkit_Wiki_Pages_Original.md) | Prima stesura delle pagine Wiki | **Superato dentro il bundle stesso** da `04`; conservato per confronto |
+| [`04_GrayToolkit_Wiki_Pages_v2_Latest.md`](graytoolkit/04_GrayToolkit_Wiki_Pages_v2_Latest.md) | Struttura Wiki v2 con testo pronto | Pagina **Graybox Toolkit** pubblicata; le altre quattro no |
+| [`README_FIRST.md`](graytoolkit/README_FIRST.md) | Ordine di lettura proposto dall'autore | Conservato per provenienza |
+| `images/RT_GrayToolkit_Public_Infographic_v2.png` | Infografica pubblica | Pubblicata come `images/wiki/core/24_graybox-toolkit-overview.png`. ⚠️ Tre delle sue «regole asset» contraddicono il canone, e la pagina che la ospita le corregge |
+| `images/RT_GrayToolkit_UML_Developer_v2.png` | UML «per sviluppatori» | Pubblicata come **proposta**: delle classi che nomina, **una sola** esiste in `Source/` |
+
+> ⚠️ **`01_Graybox_Kit_Cover_CellVolume_Consolidation.md` non è qui**, ed è voluto: era **byte-identico**
+> al kit già archiviato in radice (`md5 4048a39b17513e88da41d3c7ba75aaee`). Archiviarlo due volte avrebbe
+> creato una seconda copia da tenere allineata.
+
+---
 
 ## Radice — sorgenti senza cartella
 

@@ -313,52 +313,58 @@ Slice successivi (spec separata o estensione): **Audio** (SFX sui delegate + mus
 ## 11-bis. Le lane di maturità — quanto è finito un asset, non quanto è grande
 
 > Aggiunto il **2026-08-17** da `D-158`, consumando il bundle `GrayToolkit`. È l'unica parte di quel
-> materiale che il repository non aveva: **zero** occorrenze di queste lane in `docs/` prima di oggi.
+> materiale che il repository non aveva: **zero** occorrenze del *concetto* in `docs/` prima di oggi.
+>
+> ⚠️ **I prefissi sono `AC`/`AE` e non `C`/`E` come nel bundle, e la ragione è una collisione misurata**:
+> `C0`–`C3` è già la **severity degli status** (`roadmap-post-v0.1.md` §36.4, e `feature-registry.yaml` la
+> usa), mentre `E1` è già un'**epic** — quattro feature dichiarano `epic: E1`. «Il contratto si congela a
+> `C2`/`E1`» si sarebbe letto come un riferimento all'Epic 1. Trovato in code review: la misura che
+> dichiarava «zero occorrenze» aveva contato il concetto, non il **token**.
 
 Il progetto sapeva dire *quali* asset servono ([`asset-map.md`](asset-map.md)) e *quanto spazio* possono
 occupare ([`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md)). Non sapeva dire
 **a che punto è** un asset fra il segnaposto e l'arte finale, e la conseguenza è concreta: «il cilindro va
 sostituito» e «il modello va texturizzato» sono due lavori diversi che finivano nella stessa frase.
 
-### Personaggi — `C0` → `C6`
+### Personaggi — `AC0` → `AC6`
 
 | | Stadio | Cosa esiste |
 |---|---|---|
-| **C0** | Cylinder | il segnaposto primitivo: forma, scala, facing |
-| **C1** | Silhouette | proporzioni riconoscibili a colpo d'occhio, senza dettaglio |
-| **C2** | Gameplay Proxy | ingombro e pivot definitivi — da qui il **contratto è congelato** |
-| **C3** | Blockout | volumi d'arte, ancora senza topologia di produzione |
-| **C4** | Production Mesh | topologia, UV, rig |
-| **C5** | Textured | materiali e texture |
-| **C6** | Final Art | l'asset che il giocatore vede |
+| **AC0** | Cylinder | il segnaposto primitivo: forma, scala, facing |
+| **AC1** | Silhouette | proporzioni riconoscibili a colpo d'occhio, senza dettaglio |
+| **AC2** | Gameplay Proxy | ingombro e pivot definitivi — da qui il **contratto è congelato** |
+| **AC3** | Blockout | volumi d'arte, ancora senza topologia di produzione |
+| **AC4** | Production Mesh | topologia, UV, rig |
+| **AC5** | Textured | materiali e texture |
+| **AC6** | Final Art | l'asset che il giocatore vede |
 
-### Ambiente e prop — `E0` → `E5`
+### Ambiente e prop — `AE0` → `AE5`
 
 | | Stadio | Cosa esiste |
 |---|---|---|
-| **E0** | Primitive | box, cilindro, piano: l'oggetto occupa spazio e basta |
-| **E1** | Gameplay Graybox | la forma dice **cosa è** — è il livello che il Graybox Kit definisce |
-| **E2** | Art Blockout | proporzioni d'arte |
-| **E3** | Production Mesh | topologia e UV |
-| **E4** | Textured | materiali |
-| **E5** | Final | l'asset definitivo |
+| **AE0** | Primitive | box, cilindro, piano: l'oggetto occupa spazio e basta |
+| **AE1** | Gameplay Graybox | la forma dice **cosa è** — è il livello che il Graybox Kit definisce |
+| **AE2** | Art Blockout | proporzioni d'arte |
+| **AE3** | Production Mesh | topologia e UV |
+| **AE4** | Textured | materiali |
+| **AE5** | Final | l'asset definitivo |
 
 ### Dove sta il progetto oggi, misurato
 
 | Famiglia | Stadio | Come si verifica |
 |---|---|---|
-| Unità in partita | **C0** | `ARTUnit` istanzia un cilindro con `BaseMeshScale`, e la skeletal è un fallback |
-| Oggetti di mappa | **E0** | nessun asset graybox di mappa esiste in `Content/` — [`asset-map.md`](asset-map.md) §2.1 |
+| Unità in partita | fra **AC0** e **AC1** | I quattro `BP_Unit_*` con Skeletal Mesh **sono committati** (seduta U7) e il cilindro è il **fallback** quando il riferimento soft non risolve — `RTUnit.cpp` lo dichiara. `git ls-files Content/ | grep BP_Unit` ne conta **4** |
+| Oggetti di mappa | **AE0** | nessun asset graybox di mappa esiste in `Content/` — [`asset-map.md`](asset-map.md) §2.1 |
 
 ### Le due regole che rendono le lane utili invece che decorative
 
-**1. Il contratto si congela a `C2`/`E1`, non a `C6`/`E5`.** Ingombro, pivot e snap sono fissati appena
+**1. Il contratto si congela a `AC2`/`AE1`, non a `AC6`/`AE5`.** Ingombro, pivot e snap sono fissati appena
 l'asset diventa un proxy giocabile: tutto ciò che viene dopo è *aspetto*. È la stessa cosa che
 `spec-graybox-placement-contract.md` dice per gli oggetti di mappa — l'arte finale può cambiare
 completamente estetica, **non** le regole competitive.
 
 **2. Uno stadio non è una promessa di data.** Come le release, le lane dicono un **ordine**, non un
-calendario. `RT-FEAT-CHAR-PRESENTATION` è la feature che porta le unità da `C0` in avanti, e il suo gate
+calendario. `RT-FEAT-CHAR-PRESENTATION` è la feature che porta le unità da `AC0` in avanti, e il suo gate
 `packaged` resta `todo` finché la build mostra ancora i cilindri.
 
 > ⚠️ **Cosa queste lane NON sono.** Non un tracker: lo stato vive nel
