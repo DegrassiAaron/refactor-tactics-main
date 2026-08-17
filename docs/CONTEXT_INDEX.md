@@ -281,6 +281,9 @@ Carica:
 
 - `docs/technical/convenzioni-contenuti-ue.md`
 - `docs/technical/asset-map.md` — quali asset servono e quanti ne mancano (registro)
+- `docs/technical/spec-graybox-placement-contract.md` — quanto spazio occupa un asset di mappa, dov'è il
+  suo pivot, come si legge il suo stato. ⚠️ Non è il clearance: *quanto grande posso modellare* non è
+  *dove un'unità ci sta in piedi* (CP 23.6)
 - `Content/RT/`
 - eventuali guide feature-specifiche
 

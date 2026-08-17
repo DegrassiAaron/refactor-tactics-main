@@ -160,6 +160,39 @@ un documento non entra in nessuna coda di lavoro.
 
 ---
 
+## Aperte — ingombro e leggibilità degli oggetti graybox, dal consolidamento del 2026-08-17
+
+Origine: [`archive/src/README.md`](archive/src/README.md) (kit `Graybox_Kit_Cover_CellVolume`),
+[D-152](decisions/RT_PDR_00_Decision_Log.md) e l'owner
+[`technical/spec-graybox-placement-contract.md`](technical/spec-graybox-placement-contract.md).
+
+Il kit decide la **grammatica** e non tutti i numeri, e lo dichiara esso stesso: *«la sessione ha deciso la
+grammatica, non necessariamente tutti i numeri finali»*. Quattro voci restano aperte, e tre delle quattro
+sono aperte per la stessa ragione — **sarebbero numeri inventati sopra un produttore che non è ancora
+atterrato**.
+
+⚠️ **`GBX-1` non è la stessa domanda di `STA-*`**, e la distinzione è l'unica cosa che impedisce il secondo
+owner del clearance: *quanto grande posso modellare un asset* è un contratto d'authoring `EditorOnly`,
+*dove un'unità ci sta in piedi* è un dato cotto di CP 23.6. Chiuderle insieme le fonderebbe.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `GBX-1` | Quale frazione di `C` è il **Safe Placement inset** — il margine che un asset `CellBound` lascia rispetto al bordo della cella? | Il kit propone **~90%** e lo dichiara *«baseline di design da validare visivamente, non un numero competitivo sacro»*. Non si deduce perché l'unico modo di validarlo è **guardarlo**: un inset che sembra generoso a camera tattica può far sembrare le celle vuote a camera ravvicinata. ⚠️ **E non si prende in prestito da CP 23.6**: quel numero risponde a un'altra domanda (§1.1 dell'owner), e usarlo qui creerebbe una dipendenza della presentazione dal dato cotto — cioè la simulazione che decide come si modella. Innesco: la seduta che produce il Cell Placement Volume |
+| `GBX-2` | Quale **canale non cromatico** distingue una porta `Closed` da una `Locked`? | È il caso che rompe `D-146` se lasciato aperto, ed è un contributo dell'audit — il kit conosce **tre** stati di porta, `ERTHexDoorState` ne ha **quattro**. `Closed` e `Locked` **negano entrambi il passaggio** e hanno la stessa geometria: la sola differenza è che il secondo non si apre. Se l'unico canale a distinguerli fosse il colore, la regola «mai solo il colore» sarebbe violata dal primo asset prodotto. Non si deduce perché le opzioni sono di design e si escludono a vicenda — un marcatore geometrico sul pannello, una barra applicata, un'icona d'overlay — e ciascuna costa un pezzo di grammatica diverso |
+| `GBX-3` | A quali valori di `Integrity` corrispondono **«danneggiato»** e **«critico»**? | `FRTHexCover::Integrity` è un `int32` (catalogo v0.1: **30** per la copertura bassa) e oggi ha **un solo consumatore**, `ValidateMap` — *«un riparo a 0 non è un riparo»*. Le soglie intermedie non esistono perché **niente le scala ancora**: la distruzione arriva con **CP 9.2**. Fissarle ora significherebbe scrivere numeri di bilanciamento per un produttore che non c'è, e vincolare CP 9.2 a una scala decisa da chi non la implementa. Innesco: CP 9.2 |
+| `GBX-4` | Sotto quale percorso di `Content/` vive il kit graybox degli **oggetti**? | [`technical/convenzioni-contenuti-ue.md`](technical/convenzioni-contenuti-ue.md) §5 è **normativo** e non ha una riga per questa famiglia: copre la griglia (`/Game/RT/World/Grid/`, dove `Generation/` sono i *generatori*), le mappe, i personaggi, la UI. Un kit di primitive riusabili non è nessuno dei quattro. ⚠️ **Non si sceglie di fatto committando il primo asset**: [`technical/asset-map.md`](technical/asset-map.md) §6 dice che la riga d'allowlist viene **prima**, e senza di essa `git add` tace e l'asset resta locale — è lo stato di `ABP_Gadget` oggi. 🔴 E il file che deve rispondere **non è assegnato a nessuna track** in [`roadmap/parallel-batch.yaml`](roadmap/parallel-batch.yaml): né `writable`, né `integration_only`, né `generated_only`. Per `D-139` è uno **STOP**, ed è la ragione per cui questa voce è una domanda invece di un edit |
+
+**Nessuna delle quattro blocca il consolidamento**, e nessuna blocca l'apertura del lavoro: il contratto
+dice *che forma* devono avere gli asset, e tre delle quattro riguardano un **numero** o un **percorso** che
+si fissa quando il primo asset viene prodotto. `GBX-2` è diversa — è una lacuna di grammatica, e va chiusa
+**prima** di modellare la porta, non dopo.
+
+Tracciate su GitHub: [`#1094`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094)
+(`question`) — aperta **nello stesso commit** di questa voce, per la ragione che `RNG-1`/`RNG-2` hanno già
+scritto: una decisione aperta che vive solo in un documento non entra in nessuna coda di lavoro.
+
+---
+
 ## ✅ Chiuse — archivio replay, dal conflict report del 2026-08-10
 
 Origine: [conflict report replay](roadmap/plans/replay-system-conflict-report-2026-08-10.md) §9.

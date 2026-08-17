@@ -1379,10 +1379,12 @@
       "artifacts": [],
       "unblocked_by": [],
       "unblocks": [
-        "U22"
+        "U22",
+        "U25"
       ],
       "shares_setup_with": [
-        "U22"
+        "U22",
+        "U25"
       ],
       "verifies": [
         {
@@ -1487,6 +1489,34 @@
         937
       ],
       "done_when": "i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori"
+    },
+    {
+      "id": "U25",
+      "title": "Il volume di posa della cella, e la scena che dice se il graybox si legge",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "—",
+      "queue_group": null,
+      "produces": "verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "U21",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [
+        "U21"
+      ],
+      "verifies": [],
+      "issues": [
+        1095
+      ],
+      "done_when": "la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro"
     }
   ],
   "editor_queue": {

@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 117,
+  "count": 118,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -4772,6 +4772,65 @@
       "pie_refs": [],
       "last_verified": {},
       "notes": "R6 del piano replay: `WBP_RT_MatchHistory` e `WBP_RT_ReplayViewer`, dichiarate in `spec-frontend-navigazione.md` §2.2. Il core lo porta gia' `RT-FEAT-REPLAY-ARCHIVE` (`INTEGRATED`): questa feature **non riscrive ne' il seek ne' il Player**, e la revisione che la apre — `plans/replay-r6-spec-panel-2026-08-16.md` — verifica quella tabella riga per riga.\n⚠️ **Il pezzo che la issue dichiarava assente e non lo e': la posizione.** Dopo `AdvancePhase` il cursore punta gia' alla fase SUCCESSIVA e puo' aver cambiato traccia, quindi «turno e fase correnti» non si leggono da li' — una UI che ci provasse mostrerebbe il turno sbagliato a ogni fine turno. Vive in un view model (`Replay/RTReplayViewModel.h`), come `FRTMatchHeaderView` per l'HUD e `FRTScreenStack` per la navigazione: e' cio' che rende `automation` raggiungibile senza widget.\n🔴 **Incoerenza di release dichiarata, e il validator NON la intercetta.** Questa feature e' `v0.1` per allineamento a E46 (decisione del 2026-08-16, panel §5b) mentre `RT-FEAT-REPLAY-ARCHIVE`, da cui dipende, e' `v0.2`. Il controllo sulle `dependencies` verifica che il `FeatureId` esista, non che la release sia coerente — misurato su `scripts/feature_registry.py:547`. Non e' bloccante: il core e' gia' `INTEGRATED`, quindi la v0.1 non aspetta nulla. La chiusura pulita e' promuovere anche l'archivio, che e' scope di release e merita una `D-nnn`.\n**Stato al 2026-08-16**, dopo il secondo giro: il view model (`#472`, **11** test) e il **ponte Blueprint** (`#999`, `Replay/RTReplayViewerSubsystem.{h,cpp}`, **6** test) esistono, e l'area `RefactorTactics.Replay` chiude **47/47**. ⚠️ I numeri si rimisurano a ogni giro e non si incrementano a mente: erano `8` e `38` nella prima stesura di questa riga, `11` e `41` dopo la prima code review, `11+3` e `44` all'apertura della PR del ponte, e `11+6` e `47` dopo la seconda — che ha trovato meta' dei forwarder senza copertura. Sono giusti un'ora per volta. `runtime` e `automation` restano `partial`: da qui in su mancano le **due schermate** e il loro `.uasset`, che vorranno una Binary Asset Lease, piu' il bootstrap del frontend — che pero' e' di E46 (`#938`), non di questa feature. Un `done` direbbe che `#472` e' finita, e non lo e'.\n⚠️ **Doppio conteggio dichiarato**: `RefactorTactics.Replay.ViewModel.*` e' assorbito dal pattern generico `RefactorTactics.Replay.*` di `RT-FEAT-REPLAY-ARCHIVE`, quindi gli 8 test contano per due feature. **Si accetta invece di restringere il pattern dell'altra**: restringerlo cambierebbe la misura di una feature `INTEGRATED` che non e' in lavorazione qui, e il rischio di sbagliarla — lasciando scoperti Player, Seek, Producer o Verifier — supera il costo di due righe che si sovrappongono. Va ridiscusso quando `RT-FEAT-REPLAY-ARCHIVE` verra' toccata per altro."
+    },
+    {
+      "feature_id": "RT-FEAT-UI-GRAYBOX-KIT",
+      "title": "Graybox Kit — contratto di ingombro, pivot e presentazione degli oggetti di mappa",
+      "area": "UI",
+      "kind": "ui",
+      "release": "v0.1",
+      "priority": "P2",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "na",
+        "automation": "na",
+        "scenario": "na",
+        "ui_wiki": "partial",
+        "packaged": "todo",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 5,
+      "roadmap": {
+        "epic": "E21",
+        "milestone": null,
+        "checkpoints": [],
+        "out_of_release_scope": ""
+      },
+      "dependencies": [
+        "RT-FEAT-UI-BOARD-GRAMMAR",
+        "RT-FEAT-MAP-COVER",
+        "RT-FEAT-MAP-INTERACTIVE-EDGES",
+        "RT-FEAT-TOOL-MAP-EDITOR"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/technical/spec-graybox-placement-contract.md",
+        "docs/technical/asset-map.md"
+      ],
+      "issues": [
+        1094,
+        1095,
+        1096
+      ],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [
+        "wiki:griglia-e-geometria"
+      ],
+      "wiki_note": "La pagina spiega che la griglia non vincola i muri — cioe' il principio da cui discende `EdgeBound`. L'ingombro degli asset che stanno sulla griglia non e' spiegato da nessuna parte.",
+      "pie_refs": [],
+      "last_verified": {
+        "date": "2026-08-17",
+        "commit": "9677bbd4"
+      },
+      "notes": "**Estende `RT-FEAT-UI-BOARD-GRAMMAR`, non la duplica**: quella possiede la grammatica delle **celle** (colore + forma, `D-146`), questa quella degli **oggetti** che ci stanno sopra, dove il secondo canale e' la geometria. Owner del modello: `spec-graybox-placement-contract.md`.\n**La separazione che tiene la feature onesta** e' fra *quanto grande posso modellare un asset* (questo contratto, `EditorOnly`) e *dove un'unita' ci sta in piedi* (`RT-FEAT-MAP-STANDABILITY`, CP 23.6, dato cotto). Sono due numeri simili con owner diversi: confonderli creerebbe il secondo owner del clearance, che e' il difetto che quest'area paga piu' caro.\n⚠️ **`epic: E21` e non un'epic nuova** (`D-153`): E21 e' «Presentazione e leggibilita'» della v0.1 ed e' l'unica epic il cui DoD non e' chiudibile in automation — la stessa condizione di questo contratto. `checkpoints: []` perche' il lavoro esecutivo NON e' un checkpoint di E21: si innesta su owner gia' esistenti (E23 per muri/porte, E47 per la board, E15 per il Rele', E45 per il freeze del contratto), ed e' esattamente cio' che `D-153` decide.\n🔴 **Sette dei diciannove elementi del catalogo sono `DEFER`, e quattro dipendono da feature `IDEA` su release `future`** (`RT-FEAT-MAP-STRUCTURAL`, `RT-FEAT-MAP-VERTICALITY`). Il kit «completo» non e' raggiungibile in v0.1, e non e' un ritardo: sette voci su diciannove descrivono sistemi che il progetto non ha ancora deciso di costruire. La valvola e' il caso limite — **fuori scope v0.1 dichiarato** da CP 10.1 §11, con motivazione registrata.\n⚠️ **Nessun gate difende questo contratto oggi**, ed e' dichiarato invece che sottinteso: e' la stessa condizione in cui `D-146` ha lasciato la ridondanza colore+forma. Le voci PIE non sono state scritte perche' `test-manuali-pie.md` e' nel write-set della track `playback` (`#1015`) al 2026-08-17 — per `D-139` si aspetta quell'owner, e il contenuto vive nella issue."
     },
     {
       "feature_id": "RT-FEAT-UI-BOARD-GRAMMAR",

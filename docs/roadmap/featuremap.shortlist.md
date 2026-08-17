@@ -20,12 +20,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**117 feature** · v0.1 **81** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
+**118 feature** · v0.1 **82** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 7 |
-| `DESIGNED` | 18 |
+| `DESIGNED` | 19 |
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 27 |
 | `TESTABLE` | 9 |
@@ -204,7 +204,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | E26 | Epic E26 |
 | `RT-FEAT-BOT-COMPETENCE` — Schema di competenza del bot — cosa il bot sa davvero usare | v0.8 | IDEA | 0/6 | E43 | — |
 
-### UI · 17
+### UI · 18
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -224,6 +224,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | v0.1 | SPECIFIED | 1/5 | E46 | — |
 | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | v0.1 | SPECIFIED | 1/6 | E46 | — |
 | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | v0.1 | SPECIFIED | 1/5 | E46 | — |
+| `RT-FEAT-UI-GRAYBOX-KIT` — Graybox Kit — contratto di ingombro, pivot e presentazione degli oggetti di mappa | v0.1 | DESIGNED | 0/5 | E21 | — |
 | `RT-FEAT-UI-STRUCTURE-READABILITY` — Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio | v0.2 | DESIGNED | 0/7 | E23 | — |
 
 <!-- RT_SHORTLIST_FEATURES:END -->
