@@ -82,7 +82,7 @@
       "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Hero.Phase.Flow, State.Hero.Gadget.Charged, State.Hero.Riktor.Bulwark, State.Howitzer.Siege, State.MultiState.Stress",
       "[execution-graph issue:314] nessuna feature del registry dichiara questa issue: il suo domain_group 'actions_reactions' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
       "[execution-graph issue:512] nessuna feature del registry dichiara questa issue: il suo domain_group 'core_simulation' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
-      "[execution-graph] 10 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
+      "[execution-graph] 11 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.1, E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
     ],
     "unresolved_prerequisites": [],
     "milestone_conflicts": []
@@ -1426,6 +1426,7 @@
       "unblocks": [],
       "shares_setup_with": [
         "U21",
+        "U25",
         "U26"
       ],
       "verifies": [
@@ -1516,11 +1517,13 @@
       "unblocks": [],
       "shares_setup_with": [
         "U21",
+        "U22",
         "U26"
       ],
       "verifies": [],
       "issues": [
-        1095
+        1095,
+        1094
       ],
       "done_when": "la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro"
     },
@@ -3648,6 +3651,64 @@
         "readiness_reason": "aspetta issue:954, issue:956"
       },
       {
+        "id": "issue:833",
+        "kind": "issue",
+        "ref": "833",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "map_environment",
+        "domain_group_source": "derived",
+        "checkpoint": null,
+        "state": null,
+        "state_source": null,
+        "state_note": "issue senza checkpoint: lo stato vive su GitHub",
+        "feature_ids": [
+          "RT-FEAT-MAP-INTERACTION-GRAPH"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:833",
+            "to": "issue:74",
+            "type": "requires",
+            "hard": true,
+            "rationale": "`#74` (CP 10.1, `Activate`/`Interact` sugli oggetti) consuma il grafo sorgente -> bersaglio che `#833` (CP 23.4) dichiara come dato. La direzione e' quella misurata sul motore: `SetDoorState` esiste e restituisce i cambi realmente avvenuti (`D-150`), ma nessuna azione di catalogo lo dichiara — `git grep SetDoorState -- Source/RefactorTactics/Ability/` da' **zero** — quindi il consumatore ha bisogno del dato, non il contrario."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:74",
+        "kind": "issue",
+        "ref": "74",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "objectives_match",
+        "domain_group_source": "derived",
+        "checkpoint": "E10.1",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-OBJECTIVE-SYSTEM"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:833",
+            "to": "issue:74",
+            "type": "requires",
+            "hard": true,
+            "rationale": "`#74` (CP 10.1, `Activate`/`Interact` sugli oggetti) consuma il grafo sorgente -> bersaglio che `#833` (CP 23.4) dichiara come dato. La direzione e' quella misurata sul motore: `SetDoorState` esiste e restituisce i cambi realmente avvenuti (`D-150`), ma nessuna azione di catalogo lo dichiara — `git grep SetDoorState -- Source/RefactorTactics/Ability/` da' **zero** — quindi il consumatore ha bisogno del dato, non il contrario."
+          }
+        ],
+        "outgoing": [],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:833"
+      },
+      {
         "id": "session:U7",
         "kind": "session",
         "ref": "U7",
@@ -3929,6 +3990,13 @@
         "rationale": "Rischio di versioning e migrazione del formato. Finche' un owner non lo rende un gate, resta una relazione di consistenza."
       },
       {
+        "from": "issue:833",
+        "to": "issue:74",
+        "type": "requires",
+        "hard": true,
+        "rationale": "`#74` (CP 10.1, `Activate`/`Interact` sugli oggetti) consuma il grafo sorgente -> bersaglio che `#833` (CP 23.4) dichiara come dato. La direzione e' quella misurata sul motore: `SetDoorState` esiste e restituisce i cambi realmente avvenuti (`D-150`), ma nessuna azione di catalogo lo dichiara — `git grep SetDoorState -- Source/RefactorTactics/Ability/` da' **zero** — quindi il consumatore ha bisogno del dato, non il contrario."
+      },
+      {
         "from": "session:U7",
         "to": "issue:287",
         "type": "implements",
@@ -3972,34 +4040,34 @@
       }
     ],
     "stats": {
-      "nodes": 27,
-      "edges": 29,
-      "hard_edges": 15,
+      "nodes": 29,
+      "edges": 30,
+      "hard_edges": 16,
       "soft_edges": 10,
       "by_readiness": {
         "BLOCKED": 3,
         "DONE": 3,
-        "READY": 15,
-        "UNKNOWN": 6
+        "READY": 16,
+        "UNKNOWN": 7
       },
       "by_execution_lane": {
         "asset": 2,
-        "code": 23,
+        "code": 25,
         "pie": 2
       },
       "by_domain_group": {
         "actions_reactions": 4,
         "characters_content": 7,
         "core_simulation": 4,
-        "map_environment": 3,
-        "objectives_match": 2,
+        "map_environment": 4,
+        "objectives_match": 3,
         "tooling_data_qa": 6,
         "ui_presentation": 1
       },
       "by_release": {
-        "v0.1": 27
+        "v0.1": 29
       },
-      "state_unknown": 15
+      "state_unknown": 17
     }
   }
 }
