@@ -149,11 +149,19 @@ non una preferenza: un pivot sbagliato non fallisce, deforma in silenzio tutto c
 Una guida d'authoring, non un Actor autorevole. `D-152`.
 
 ```text
-prisma esagonale derivato dalla cella logica
-  ├─ outer footprint   il 100% della cella
+prisma esagonale — la cella logica È un volume, non una superficie
+  ├─ lato              HexSize = 150       (1,50 m)
+  ├─ lato-a-lato       C = √3 · HexSize    (2,60 m)
+  ├─ altezza           H = LayerHeight = 250   (2,50 m)
   ├─ safe footprint    un inset, misurato in frazione di C — vedi §9, il valore è APERTO
-  └─ guide verticali   riferimenti d'altezza per modellare
+  └─ guide verticali   frazioni di H — §7.1
 ```
+
+🔑 **`H` è l'altezza del volume, non una distanza fra oggetti separati.** `AxialToWorld` pone i centri di
+layer adiacenti a `Layer · LayerHeight`, quindi i prismi **tassellano** anche in verticale: sopra il
+soffitto di una cella c'è il pavimento della successiva, senza intercapedine. Il campo `Height` di
+`FRTHexCellData` non è questa altezza — è un offset di rendering *dentro* il volume, e il suo commento lo
+dice: *«la logica usa Layer + archi»*.
 
 **Che cosa serve a fare**: modellare asset proporzionati, verificare che un `CellBound` non invada la cella
 adiacente, dare una silhouette coerente, e diventare il contratto dimensionale che l'arte finale dovrà
@@ -171,7 +179,24 @@ funzionalità di debug.
 
 ## 6. Dimension grammar — relativa, mai in centimetri
 
-Le misure si esprimono in frazioni di **`C`**, la distanza centro-centro fra due celle adiacenti.
+Le misure si esprimono in frazioni, e i denominatori sono **due**, uno per asse:
+
+```text
+larghezze, ingombri, inset   →  frazioni di C   (2,60 m)   passo orizzontale
+altezze                      →  frazioni di H   (2,50 m)   altezza del volume-cella
+```
+
+🔴 **Che siano due è una correzione del 2026-08-17** ([`D-168`](../decisions/RT_PDR_00_Decision_Log.md)):
+fino a quel giorno anche le **altezze** erano espresse in frazioni di `C`, cioè misurate contro una
+larghezza. L'incoerenza era invisibile finché nessuno dichiarava l'altezza del volume, e si vedeva solo
+guardando i totali: `1.00 C` — la guida chiamata «massima» — valeva il **69%** del volume con la scala
+vecchia e il **104%** con quella nuova. Una guida massima che *sfora* il volume che delimita, e che
+cambia segno quando cambia la scala, è la firma di un denominatore sbagliato.
+
+⚠️ **`0.92 C` per la larghezza di un pannello di bordo resta in `C`**, ed è giusto così: è una larghezza.
+La regola non è «tutto in `H`», è **ogni misura sul proprio asse**.
+
+`C` è la distanza centro-centro fra due celle adiacenti.
 
 `C` **non è una costante nuova**, e **non è `HexSize`**:
 
@@ -218,7 +243,7 @@ riporta una decisione presa invece di una divergenza aperta.
 da rispettare, non più difficile.** Le altezze restano ancorate al piano — una copertura alta è il `22%`
 della quota prima e dopo — mentre rispetto a `C` scendono da `32%` a `21%`. Ogni budget di frazione che
 questo documento assegna si trova **più spazio** di quello che aveva, senza che nessuna costante cambi:
-`0.28 C` per una copertura bassa smette di essere stretto. È il margine che rende validabili `GBX-1` e
+`0.28 H` per una copertura bassa smette di essere stretto rispetto a ciò che la circonda. È il margine che rende validabili `GBX-1` e
 `GBX-5` guardando invece che discutendo.
 
 ⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
@@ -228,7 +253,7 @@ finiti** finché non li puoi validare in PIE.
 
 > ⚠️ **Le due misure sono la stessa cosa, e vale la pena dirlo perché i documenti usano numeri diversi.**
 > Qui il termine di paragone è `C`, la larghezza lato-a-lato, perché è a quello che il contratto budgeta le
-> frazioni (`0.28 C`, `0.92 C`). L'owner della scala —
+> frazioni orizzontali (`0.92 C` per la larghezza di un pannello; le **altezze** vanno in `H`, §6). L'owner della scala —
 > [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — parla del **lato**, perché è
 > quello che `HexSize` contiene. `C = √3 · lato`: `1,50 → 2,60`. *La prima stesura diceva «regola unica,
 > scritta identica», e chi confrontava le due righe vedeva `2,60` contro `1,50` senza nulla che dicesse che
@@ -253,9 +278,16 @@ I due che decidono il mondo sono `RTHexMapAsset.h:151` (l'autorevole: l'asset vi
 
 **Le due scale divergono di 1,5× finché il cambio non atterra, e la divergenza è il costo di transito.** Una copertura bassa modellata a
 `0.28 C` con `C = 2,60 m` è alta 73 cm; posata su una mappa reale — dove `C = 1,73 m` — quei 73 cm valgono
-il **42% di `C`** invece del 28% che questo contratto budgeta. ⚠️ *Il termine di paragone è `C`, non
-«l'altezza della cella»: una cella esagonale non ha un'altezza, e `C` è un passo orizzontale. La prima
-stesura scriveva «dell'altezza di cella» e invitava a cercare un numero che non esiste.*
+il **42% di `C`** invece del 28% che questo contratto budgetava. ⏱️ *Esempio dell'epoca in cui anche le altezze
+stavano in `C`: da [`D-168`](../decisions/RT_PDR_00_Decision_Log.md) la guida bassa è `0.28 H` = **70 cm**, e un'altezza
+non si rapporta più a una larghezza. Il costo di transito che l'esempio descrive resta reale — è la scala del
+mondo a non essere ancora cambiata, non il modo di misurarla.* 🔴 *Questa riga diceva: «il termine di paragone è `C`, non «l'altezza della cella»: **una cella esagonale
+non ha un'altezza**, e il numero non esiste». **È falso.** La cella ha un'altezza — `LayerHeight`, un
+`UPROPERTY` accanto a `HexSize` e pinnato dallo stesso test — e vale `250`. La nota era nata per correggere
+una prima stesura che diceva «dell'altezza di cella»: ha sostituito una formulazione imprecisa con
+un'affermazione **falsa**, e nel farlo ha attivamente impedito di vedere che le guide verticali usavano il
+denominatore sbagliato. Corretto in [`D-168`](../decisions/RT_PDR_00_Decision_Log.md); l'esempio qui sopra
+resta in `C` perché descrive il costo di transito della scala, che è orizzontale.*
 
 Chi modella oggi deve sapere che sta autorando per una cella che **nessuna mappa ha ancora** — non più per
 una che nessuna mappa avrà mai. La differenza è tutta la decisione: prima era una domanda senza risposta,
@@ -271,7 +303,9 @@ ora è una scadenza.
 > numerico calcolato sul valore sbagliato dei due. Corretto il **2026-08-17** consumando il bundle
 > `GrayToolkit`, che ha reso la divergenza visibile mettendo i due numeri accanto.
 
-> 🔴 **La riga precedente diceva «`C` discende da `HexSize`, default `100.f`» senza il fattore `√3`.** Chi
+> 🔴 **La riga precedente diceva «`C` discende da `HexSize`, default `100.f`» senza il fattore `√3`.**
+> *(La soglia citata qui sotto è quella dell'epoca, `0.28 C`; dal 2026-08-17 la guida bassa è `0.28 H` — il
+> caso d'errore resta identico nella forma.)* Chi
 > avesse letto «0.28 C» come 28 cm avrebbe modellato una copertura bassa alta il **58%** del dovuto —
 > `0.28 · 173 ≈ 48 cm`, e `28/48 ≈ 0,58`, cioè il fattore `1/√3`. **Il 58% è ancorato a `C ≈ 173`**, non
 > invariante: con la scala d'arte (`C ≈ 260`) lo stesso errore darebbe il 38%. Lo stesso valeva per il Safe
@@ -282,12 +316,17 @@ ora è una scadenza.
 Le guide verticali del volume sono **riferimenti di modellazione**, e non sono categorie di targeting:
 
 ```text
-1.00 C   guida massima
-0.85 C   strutturale
-0.55 C   standard
-0.28 C   bassa
-0.00 C   piano d'appoggio
+1.00 H   guida massima      250 cm   ← il soffitto del volume, esattamente
+0.85 H   strutturale        213 cm
+0.55 H   standard           138 cm
+0.28 H   bassa               70 cm
+0.00 H   piano d'appoggio     0 cm
 ```
+
+> ⏱️ **Erano in `C` fino al 2026-08-17**, con gli stessi coefficienti. Il denominatore cambia, i
+> coefficienti no — quindi i **centimetri cambiano**: la guida massima da `260` a `250`, la bassa da `73` a
+> `70`. Chi avesse già modellato con i valori vecchi ha uno scarto del **4%**, che a graybox è dentro il
+> rumore; chi modella da oggi usa questi. Deciso in [`D-168`](../decisions/RT_PDR_00_Decision_Log.md).
 
 > ⚠️ **Nessuna di queste soglie decide una regola.** Se il gameplay avesse bisogno di classi d'altezza, il
 > suo owner sarebbe la copertura (`ERTHexCoverType`, due valori più `None`) — e quel dato **esiste già**,
