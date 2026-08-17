@@ -4397,6 +4397,67 @@ tracks:
     writable: []
     binary_leases: []
 
+  graytoolkit_bundle:
+    status: ACTIVE
+    issue: null
+    branch: docs/graytoolkit-bundle
+    worktree: "D:/rt-unit"
+    note: >-
+      ➕ **Track aperta il 2026-08-17** per consumare il bundle `GrayToolkit_Cloud_Bundle` — 8 file, 4
+      documenti e 2 PNG, in `docs/src/wiki/graybox/`. È il **seguito** di `graybox_kit`, chiusa poche ore
+      prima, e la prima cosa misurata è che si sovrappongono: `docs/01` del bundle è **byte-identico** al
+      kit già consumato e archiviato (`md5 4048a39b17513e88da41d3c7ba75aaee`, verificato contro l'originale
+      nella root). Non si riconsuma: il README del bundle stesso lo chiama «dettaglio tecnico delle
+      decisioni precedenti».
+
+      **Cosa il repository conferma**: `1 UU = 1 cm` e **hex side ≈ 1,5 m** sono **già canonici** —
+      `convenzioni-contenuti-ue.md` §11-bis li fissa come *scala d'arte* e `D-071` li cita per derivare
+      l'apotema. Raggio interno ~1,30 m e vertex-to-vertex 3,00 m ne discendono per geometria. Il bundle
+      **conferma** la scala, non la introduce.
+      ➕ **Cosa è genuinamente nuovo**: le lane di maturità artistica `C0–C6` (personaggi) e `E0–E5`
+      (ambiente/prop) — misurato, **zero** occorrenze in `docs/` fuori da `archive/` e `src/`.
+
+      🔴 **La UML del bundle descrive un'architettura che non esiste, e questo decide come si pubblica.**
+      Misurati **tutti** i simboli che dichiara: `FRTCellData` ed `ESurfaceType` esistono con **altro nome**
+      (`FRTHexCellData`, `ERTHexSurface`); `FRTCellPlacementVolume`, `URTGrayboxAssetContract`,
+      `URTGrayboxPrototypeCatalog`, `ARTGrayboxPrototypeActor`, `URTGrayboxMapAssembler`,
+      `URTGrayboxValidator`, `URTUnitScaleReference`, `EHeightClass`, `EOccupancy` e `FCoverData` danno
+      **zero** occorrenze in `Source/`. Solo `FRTCellId` è reale. Pubblicarla come «vista tecnica per
+      sviluppatori» manderebbe qualcuno a cercare `URTGrayboxValidator`: è lo stesso difetto del kit Camera,
+      già registrato in `docs/archive/src/README.md` — *«nomi plausibili di feature assenti»*.
+
+      🔴 **E tre «regole asset» dell'infografica contraddicono il canone**: «snap alla griglia esagonale,
+      allineamento perfetto sempre» contro `spec-hex-geometry-authoring.md` §3 (*«un muro non deve seguire
+      il perimetro di un esagono»*); «pivot centrato» contro il pivot contract di `D-152` (**bottom-center**
+      per `CellBound`); «niente sbordo oltre il volume cella» contro `EdgeBound`, che per definizione **non**
+      sta nel footprint di nessuna delle due celle che condividono il bordo.
+
+      🔵 **L'ingombro dell'unità ha tre valori in tre documenti dello stesso bundle**, ed è il conflitto più
+      utile: il kit dice `0.23 C`, il doc 02 dice `70–80 cm`, l'infografica dice `1,10–1,20 m`. Misurato:
+      `BaseMeshScale = (1.2, 1.2, 1.8)` su un cilindro engine da 50 uu di raggio dà **1,20 m** — quindi
+      l'immagine mostra **lo stato di oggi presentato come raccomandazione**, mentre il kit chiedeva
+      esplicitamente di rimpicciolire l'unità. Non è una contraddizione secca: è che i tre parlano di
+      *attuale* e *target* senza dirlo.
+
+      ✅ **Intersezione misurata il 2026-08-17**: `git ls-remote --heads origin` **14** ref, `git branch`
+      **16** locali, `git worktree list` **12**, `gh pr list --state open` **0**. `git diff --name-only
+      origin/main...<ref>` sui rami documentali vivi: **nessuno** tocca i due path del `writable`. Un ramo
+      (`docs/bonifica-vektor-archivio`) tocca `docs/archive/src/`, ma un file diverso — e quella cartella è
+      `integration_only` dal fix di `graybox_kit`, quindi la collisione è prevista e si risolve tenendo
+      entrambi.
+      ⚠️ **Limite dichiarato**: la misura vede i COMMIT, non il lavoro non committato negli altri worktree.
+    writable:
+      - docs/technical/spec-graybox-placement-contract.md
+      # ⚠️ Rientra qui dopo essere stato rilasciato da `graybox_kit`: §6 dichiara la metrica relativa e va
+      # riconciliata con la scala d'arte di `convenzioni-contenuti-ue.md` §11-bis, che il bundle conferma.
+      # Verificato libero: nessuna track lo rivendica, nessun ramo vivo lo tocca.
+      - docs/technical/spec-asset-pipeline.md
+      # 🆕 È l'owner dei **principi di pipeline** (presentazione-only, riferimenti soft, licenze), quindi è
+      # dove le lane di maturità artistica appartengono — non nel contratto di ingombro, che possiede lo
+      # spazio occupato e non il grado di finitura. ⚠️ Non stava in **nessun** insieme di questo file:
+      # è la condizione «file non assegnato» di `D-139`, e si prende dichiarandolo invece di aggirarlo.
+    binary_leases: []
+
   graybox_kit:
     status: IDLE
     issue: null

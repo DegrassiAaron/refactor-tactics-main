@@ -310,6 +310,65 @@ Slice successivi (spec separata o estensione): **Audio** (SFX sui delegate + mus
 
 ---
 
+## 11-bis. Le lane di maturità — quanto è finito un asset, non quanto è grande
+
+> Aggiunto il **2026-08-17** da `D-158`, consumando il bundle `GrayToolkit`. È l'unica parte di quel
+> materiale che il repository non aveva: **zero** occorrenze di queste lane in `docs/` prima di oggi.
+
+Il progetto sapeva dire *quali* asset servono ([`asset-map.md`](asset-map.md)) e *quanto spazio* possono
+occupare ([`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md)). Non sapeva dire
+**a che punto è** un asset fra il segnaposto e l'arte finale, e la conseguenza è concreta: «il cilindro va
+sostituito» e «il modello va texturizzato» sono due lavori diversi che finivano nella stessa frase.
+
+### Personaggi — `C0` → `C6`
+
+| | Stadio | Cosa esiste |
+|---|---|---|
+| **C0** | Cylinder | il segnaposto primitivo: forma, scala, facing |
+| **C1** | Silhouette | proporzioni riconoscibili a colpo d'occhio, senza dettaglio |
+| **C2** | Gameplay Proxy | ingombro e pivot definitivi — da qui il **contratto è congelato** |
+| **C3** | Blockout | volumi d'arte, ancora senza topologia di produzione |
+| **C4** | Production Mesh | topologia, UV, rig |
+| **C5** | Textured | materiali e texture |
+| **C6** | Final Art | l'asset che il giocatore vede |
+
+### Ambiente e prop — `E0` → `E5`
+
+| | Stadio | Cosa esiste |
+|---|---|---|
+| **E0** | Primitive | box, cilindro, piano: l'oggetto occupa spazio e basta |
+| **E1** | Gameplay Graybox | la forma dice **cosa è** — è il livello che il Graybox Kit definisce |
+| **E2** | Art Blockout | proporzioni d'arte |
+| **E3** | Production Mesh | topologia e UV |
+| **E4** | Textured | materiali |
+| **E5** | Final | l'asset definitivo |
+
+### Dove sta il progetto oggi, misurato
+
+| Famiglia | Stadio | Come si verifica |
+|---|---|---|
+| Unità in partita | **C0** | `ARTUnit` istanzia un cilindro con `BaseMeshScale`, e la skeletal è un fallback |
+| Oggetti di mappa | **E0** | nessun asset graybox di mappa esiste in `Content/` — [`asset-map.md`](asset-map.md) §2.1 |
+
+### Le due regole che rendono le lane utili invece che decorative
+
+**1. Il contratto si congela a `C2`/`E1`, non a `C6`/`E5`.** Ingombro, pivot e snap sono fissati appena
+l'asset diventa un proxy giocabile: tutto ciò che viene dopo è *aspetto*. È la stessa cosa che
+`spec-graybox-placement-contract.md` dice per gli oggetti di mappa — l'arte finale può cambiare
+completamente estetica, **non** le regole competitive.
+
+**2. Uno stadio non è una promessa di data.** Come le release, le lane dicono un **ordine**, non un
+calendario. `RT-FEAT-CHAR-PRESENTATION` è la feature che porta le unità da `C0` in avanti, e il suo gate
+`packaged` resta `todo` finché la build mostra ancora i cilindri.
+
+> ⚠️ **Cosa queste lane NON sono.** Non un tracker: lo stato vive nel
+> [`feature-registry.yaml`](../roadmap/feature-registry.yaml) e nelle sedute di
+> [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml). Non una tassonomia di dati: **zero enum**,
+> come per la placement taxonomy. Sono un **vocabolario** per dire a che punto è una cosa, e servono
+> soprattutto a non confondere «manca l'asset» con «l'asset c'è ma è grezzo».
+
+---
+
 ## 12. Decisioni
 
 **Prese (2026-08-03):**
