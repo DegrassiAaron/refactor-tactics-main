@@ -4929,6 +4929,7 @@ tracks:
       - docs/archive/src/RefactorTactics_Claude_MultiHero_TimeBank_PreferredReaction_2026-08-17.md
     derives_from: []
     binary_leases: []
+
   map_framing:
     status: ACTIVE
     issue: 623

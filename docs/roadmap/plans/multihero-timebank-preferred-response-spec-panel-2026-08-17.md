@@ -1,7 +1,10 @@
 # Multi-Hero, Decision Time Bank e Preferred Response — spec panel
 
 > `CURRENT` · **Stato**: revisione chiusa, consolidamento eseguito · **Data**: 2026-08-17
-> **HEAD della revisione**: `94575ef4` · branch `docs/consolidamento-multihero-timebank` · worktree `D:/rt-reaction`
+> **Base della revisione**: `origin/main` a `94575ef4` (merge di #1104) — è l'albero su cui le misure F1–F9 sono
+> state prese. Il lavoro vive sul branch `docs/consolidamento-multihero-timebank`, worktree `D:/rt-reaction`,
+> il cui HEAD è un altro commit: 🔴 questa riga chiamava `94575ef4` «HEAD della revisione **·** branch …»,
+> cioè attribuiva a un commit di `main` l'identità del ramo. Corretto in code review.
 > **Sorgente revisionata**: il kit `RefactorTactics_Claude_MultiHero_TimeBank_PreferredReaction_2026-08-17.md`,
 > archiviato in [`../../archive/src/`](../../archive/src/RefactorTactics_Claude_MultiHero_TimeBank_PreferredReaction_2026-08-17.md)
 > alla fine di questo giro — venti sezioni, tre decisioni proposte, quindici criteri di accettazione.
@@ -119,9 +122,17 @@ micro-step con `Charges = 1`»: il secondo non trova più la charge e viene salt
 esplicito). Un *Player Decision Batch* che raccolga le risposte e applichi dopo cambia quella semantica.
 
 Il kit lo sospetta e si ferma al posto giusto (*«non implementarlo automaticamente dentro #319»*). La misura
-lo conferma: **resta fuori dal consolidamento**, e resta come domanda aperta con la sua misura allegata —
-non come issue, perché non esiste ancora il caso che la produce (un solo umano in v0.1, e un Player controlla
-un Hero).
+lo conferma: **resta fuori dal consolidamento**, e resta come domanda aperta (`TB-10`) con la sua misura
+allegata — non come issue, perché è una **domanda**, non un deliverable: cambiare l'ordine
+`chiedi → applica → chiedi` tocca la semantica del Decision Boundary, e va deciso prima di essere costruito.
+
+> 🔴 **Questo paragrafo diceva anche «non esiste ancora il caso che la produce — un solo umano in v0.1, e un
+> Player controlla un Hero», ed era falso. Corretto in code review.** In v0.1 l'unico umano comanda **due**
+> unità: se entrambe hanno un Overwatch armato e scattano nello stesso micro-step, quella persona riceve
+> **due finestre da 3 s in fila**, ed è esattamente il caso del §11 del kit. (Il commento a `:5271` esclude
+> due Overwatch della **stessa unità** — *«un'unità pianifica una sola abilità per turno»* — non due unità
+> dello stesso giocatore.) `TB-10` non è dormiente: è una domanda di pacing **viva nella v0.1**, e la sua
+> risposta cambia il caso peggiore che CP 14.6 andrà a misurare.
 
 ### F5 · La categoria di log che il bank userà ha già un omonimo in coda
 
@@ -258,7 +269,7 @@ un'altra risposta le somiglia**. `FIRE:<UnitId>` porta il bersaglio dentro la st
 nessun matching parziale.
 
 **ADZIC** — *«Mostrami l'esempio in cui il timeout non fa FIRE.»* Il kit lo scrive, ed è il suo pezzo migliore
-(§7). Va reso eseguibile: `Reaction.TimeoutIgnoresPreferredResponse` con `PreferredResponse = FIRE:<n>`,
+(§7). Va reso eseguibile: `Spec.TimeBank.TimeoutIgnoresPreferredResponse` con `PreferredResponse = FIRE:<n>`,
 nessun input, e le tre asserzioni separate — risposta `HOLD`, charge **non** spesa, reaction ancora armata.
 Una sola delle tre passerebbe anche se il codice sbagliasse le altre due.
 
@@ -278,7 +289,7 @@ produce test che non falliscono mai.
 | Time Bank sensibile al carico di controllo | ✅ entra, riformulato dentro la derivazione (F7) | `spec-decision-time-bank.md` · `#319` |
 | `FastReactionDuration` invariata col numero di Hero | ✅ entra come invariante esplicito | `spec-decision-time-bank.md` §1.2 |
 | Coefficienti `+0,50` / `+0,75` / `×1,75` | ⚠️ entra la **forma**, non i due numeri concorrenti (F6) | domanda aperta ancorata a `TB-8` |
-| `PreferredResponse` distinta dal timeout | ✅ entra, sul precedente `D-109` (F9) | `spec-decision-time-bank.md` §4.2 · `#319` |
+| `PreferredResponse` distinta dal timeout | ✅ entra, sul precedente `D-109` (F9) | `spec-decision-time-bank.md` **§4.4** · `#319` |
 | `SafeTimeoutResponse` come nome nuovo | ❌ **respinto** (F2) | si usa `DecisionOnTimeout` |
 | Quick Confirm come azione semantica | ✅ entra, col conflitto Space dichiarato (F3) | `spec-decision-time-bank.md` §11 · verifica PIE |
 | Player Decision Batch (più Hero, un boundary) | ⛔ **fuori**, con la misura che lo motiva (F4) | domanda aperta, nessuna issue |

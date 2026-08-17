@@ -599,12 +599,29 @@ non dedotto da quello che gli somiglia.
 - **non** autorizza il 16v16, né una UI di scala maggiore, né il networking per più giocatori. È un guardrail:
   il sistema non deve **impedire** quelle modalità, non deve prepararle.
 
-#### Portata dichiarata
+#### Portata dichiarata — e il valore che v0.1 dichiara è **2**, non 1
 
-L'intervallo utile in v0.1 è `[1, 1]` per formato competitivo standard e `[1, 2]` come massimo esprimibile —
-e finché nessun formato dichiara `2`, il codice deve comunque leggerlo dal dato invece di assumerlo. Un
-`MinControlledHeroesPerPlayer` **non serve**: in v0.1 l'intervallo ha cardinalità uno, e due campi per un
-estremo solo sono un vocabolario più grande del problema.
+> 🔴 **Questo paragrafo diceva il contrario ed è stato corretto in code review, prima del merge.** Diceva
+> *«l'intervallo utile in v0.1 è `[1, 1]` … finché nessun formato dichiara `2`»*, e la tabella ventisette
+> righe più sopra — nella stessa sezione — rispondeva già **2**. Le due letture non erano equivalenti:
+> decidono se il fattore di carico del Time Bank sia **vivo oggi** o **dormiente**, cioè un bank di 24 s
+> contro uno di 31,5 s nell'unico formato che il gioco spedisce.
+
+`Format.Skirmish2v2` è **offline contro bot**: c'è **un** umano, e comanda la propria squadra intera. Quindi:
+
+| Formato | `UnitsPerTeam` | Hero per **persona** |
+|---|--:|--:|
+| `Format.Skirmish2v2` (v0.1, spedito) | 2 | **2** — un umano, due unità |
+| formato competitivo ipotizzato (una persona per eroe) | 3 · 4 | **1** |
+
+**La v0.1 è già il caso multi-Hero**, ed è la ragione più forte per cui CP 19.3 non è lavoro futuro: il codice
+non assume «1 : 1» per prudenza verso una modalità che verrà, lo assume **contro il formato che gira adesso**,
+e la coincidenza fra `UnitsPerTeam` e il conteggio per persona è ciò che rende l'errore invisibile.
+
+Il caso `1` è quello **ipotetico**: nasce quando una squadra viene divisa fra più persone. L'intervallo
+esprimibile è quindi `[1, UnitsPerTeam]`, e un `MinControlledHeroesPerPlayer` **non serve**: l'estremo
+inferiore è `1` per costruzione, e due campi per un solo estremo libero sono un vocabolario più grande del
+problema.
 
 **Lavoro tracciato**: E19 · CP 19.3, feature `RT-FEAT-MATCH-FORMAT`. Il consolidamento che ha prodotto questa
 sezione è nello [spec panel del 2026-08-17](../roadmap/plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md) §3 F1.
