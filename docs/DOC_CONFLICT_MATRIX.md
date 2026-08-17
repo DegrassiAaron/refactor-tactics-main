@@ -19,7 +19,7 @@
 > catalogo»*, *«north-star»*: fino a ieri quelle fonti erano **ventiquattro binari** e l'unico modo di
 > controllarle era aprire un PDF a una certa pagina. Ora sono Markdown con sezioni —
 > [`archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md`](archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md) e i quattro
-> documenti di [`src/prd/`](src/README.md) — quindi una riga di questa matrice si può **falsificare con un
+> documenti di [`src/prd/`](src/) — quindi una riga di questa matrice si può **falsificare con un
 > `grep`** invece che sulla parola di chi l'ha scritta. Le righe non sono state riscritte: cambia cosa si può
 > fare per verificarle.
 

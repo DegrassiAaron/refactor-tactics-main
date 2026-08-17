@@ -2,7 +2,7 @@
 > Il catalogo semantico delle icone è **E20** di [`../../../roadmap/roadmap-v0.1.md`](../../../roadmap/roadmap-v0.1.md),
 > da fare **prima** dei widget di E11. Le dodici categorie complete, il world-space HUD e le icone di fazione
 > per il roster 8 sono **E25** in [`../../../roadmap/roadmap-post-v0.1.md`](../../../roadmap/roadmap-post-v0.1.md).
-> Immagini sorgente in [`../../../src/media/hud/`](../../../src/media/hud/). Verifica visiva: `PIE-ICON-01`.
+> Immagini sorgente in [`../../../src/design/hud/`](../../../src/design/hud/). Verifica visiva: `PIE-ICON-01`.
 
 # REFACTORTACTICS — HANDOFF CLAUDE CODE
 ## Faction Icons, HUD Icon Language, UI Icon Catalog e roadmap completa di implementazione

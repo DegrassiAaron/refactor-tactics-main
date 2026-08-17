@@ -80,7 +80,7 @@ pretende `NE`.
 corrispondono **esattamente** al manifest §27 del pacchetto, e l'audit richiesto era *«confronta gli hash
 contro gli asset già presenti»* — che dà verde. Gli hash erano giusti: mentivano i **nomi**. Corretti in
 entrambe le sedi; la tabella di provenienza è in
-[`../../wiki/RefactorTactics_Facing_Flows_v0.1/README.md`](../../wiki/RefactorTactics_Facing_Flows_v0.1/README.md).
+[`../../archive/src/handoff/2026-08-13-facing-visualdocs.md`](../../archive/src/handoff/2026-08-13-facing-visualdocs.md).
 
 **(b) `F3` disegna una decisione aperta con la grafica del canone.** Il pannello *«Direzione in entrata»*
 (`FromSource · FromTrajectory · FromImpactCenter · ExplicitDirection · NonDirectional`) è la policy di
