@@ -21,6 +21,11 @@ Usa search/grep prima di aprire file lunghi. `docs/src/` è input/north-star non
 come autorità implicita. `docs/archive/` è storico, e `docs/archive/src/` conserva i sorgenti già recepiti —
 utile per la provenienza, mai per la regola.
 
+Un `.pdf` non è **mai** autoritativo (**D-009**): resta fuori dal preflight e si apre solo per provenienza,
+rationale storico o confronto richiesto; se è l'export di una spec Markdown corrente, vince il Markdown. La
+sigla `PDR` nel nome di un file Markdown non lo rende storico — `docs/decisions/RT_PDR_00_Decision_Log.md` è
+canonico perché è l'owner corrente. Regola estesa in [`AGENTS.md`](AGENTS.md).
+
 ## 2. Pin rapidi
 
 - UE **5.8.1**; v0.1 **2v2 offline vs bot**; hex multilivello; roster **Gadget/Phase/Riktor/Wraith**

@@ -43,6 +43,17 @@ normativa per default**. *(Dal 2026-08-12 sono Markdown: in `docs/` non c'è pi�
 audit) con l'indice di chi li possiede oggi. Se cerchi la provenienza di una regola, è lì; se cerchi la regola,
 è nell'owner.
 
+### PDF: mai source of truth
+
+Un `.pdf` non è **mai** fonte normativa: è export, reference o audit artifact — inclusi i PRD/PDR esportati
+([D-009](docs/decisions/RT_PDR_00_Decision_Log.md)). Non entra nel preflight; si apre solo quando il task
+chiede provenienza, rationale storico o confronto con una decisione precedente. Se un PDF è l'export di una
+spec Markdown corrente, **il Markdown resta l'owner**: un export è una vista, e una vista segue la sorgente.
+
+⚠️ La sigla `PDR`/`PRD` nel **nome** non rende storico un file Markdown — la sostanza è chi possiede la regola
+oggi, non come si chiama il file. [`docs/decisions/RT_PDR_00_Decision_Log.md`](docs/decisions/RT_PDR_00_Decision_Log.md)
+è canonico proprio perché è l'owner corrente del Decision Log.
+
 Se una decisione più recente dichiara esplicitamente di superare una regola più vecchia ma il canone non è
 ancora sincronizzato, **segnala la deriva e aggiorna gli owner documentali pertinenti**; non scegliere per
 plausibilità. Se due fonti normative restano davvero incompatibili, fermati e registra/segnala il conflitto.
