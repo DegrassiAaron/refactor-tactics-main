@@ -18,16 +18,26 @@ I cinque processi sono divisi per **materia** (spatial, simulation, client, cont
 parallelismo reale è invece limitato dal **write-set**: due sessioni possono lavorare a due domini
 diversi e collidere lo stesso, perché scrivono lo stesso file di tracking.
 
-Misurato oggi: le tre PR aperte si contendono **otto** file, e nessuna delle tre condivide una riga di
-`Source/`.
+Misurato la mattina del 2026-08-17 su `9a1bd1d4`: le tre PR aperte si contendevano **otto** file, e
+nessuna delle tre condivideva una riga di `Source/`.
 
-| File conteso | PR che lo tocca |
+| File conteso | PR che lo toccava |
 |---|---|
 | `docs/roadmap/feature-registry.yaml` / `.json` | #1112 *(spatial)*, #1104 *(graybox)* |
 | `docs/roadmap/parallel-batch.yaml` | #1113 *(replay_ui)*, #1104 |
 | `docs/decisions/RT_PDR_00_Decision_Log.md` | #1104 |
 | `docs/OPEN_DECISIONS.md` · `docs/CONTEXT_INDEX.md` | #1104 |
 | `docs/archive/src/README.md` · `docs/roadmap/editor-sessions.yaml` | #1104 |
+
+> ⏱️ **Rimisurato poche ore dopo, su `94575ef4`, e la fotografia era già scaduta** — il che vale come
+> prova della tesi meglio della tabella stessa. #1104 e #1112 sono **atterrate**; restano **#1120**
+> (chiusura della track `graybox_kit`) e **#1113**, e toccano **un solo file entrambe**:
+> `docs/roadmap/parallel-batch.yaml`.
+>
+> ∴ La contesa non è sparita, si è **concentrata**: il file che dichiara chi può scrivere cosa è
+> l'ultimo rimasto conteso, ed è conteso da due sessioni che stanno entrambe *rilasciando* un write-set.
+> La tabella qui sopra resta con la sua data perché è la misura che ha motivato le scelte di questo
+> giro — in particolare il non aver toccato Feature Registry, Decision Log e `OPEN_DECISIONS.md`.
 
 ∴ **La regola del batch non è «un dominio per processo»: è «un `writable` per processo, e i file
 condivisi si toccano una volta sola, in integrazione».** I cinque processi qui sotto sono una vista
@@ -48,7 +58,7 @@ il triage del 2026-08-14 respinse `work_tracks`.
 | **A** | Spatial / World | `spatial` | `D:/rt-spatial` | 🟢 `ACTIVE` su **#833**, PR **#1112** aperta |
 | **B** | Simulation / Rules | `simulation` | `D:/rt-simulation` | 🟢 `ACTIVE` su **#886** |
 | **C** | Client / Replay / Tools | `replay_ui` · `client_tools` · `frontend_shell` | `D:/rt-client` · `D:/rt-menu` | 🟢 `replay_ui` `ACTIVE` (#472, PR **#1113**), `frontend_shell` `ACTIVE` (#937, seduta U24), `client_tools` `IDLE` (#78) |
-| **D** | Content / Editor *(autore)* | `content_editor` · `graybox_kit` · sedute `U*` | `D:/rt-content` · `D:/rt-unit` | 🟡 `content_editor` **`IDLE`** — #451 è `CLOSED`; `graybox_kit` `ACTIVE`, PR **#1104** aperta |
+| **D** | Content / Editor *(autore)* | `content_editor` · `graybox_kit` · sedute `U*` | `D:/rt-content` · `D:/rt-unit` | 🟡 `content_editor` **`IDLE`** — #451 è `CLOSED`; `graybox_kit` era `ACTIVE` e **sta chiudendo** con #1120 |
 | **E** | Jolly | *nessuna* — da dichiarare all'apertura | `D:/rt-xxx` | 🔴 **non dichiarato**: un processo senza `writable` è, per `D-139`, un processo che deve fermarsi al primo file |
 
 ---
@@ -178,10 +188,12 @@ sull'albero unito, al passo 8 della chiusura del batch — mai sulla propria bas
    riapre la seduta — ma finché resta, il processo **D** non ha una track viva propria.
 2. 🔴 **Il processo E non esiste in `parallel-batch.yaml`.** Va dichiarato prima di scrivere la sua
    prima riga, o `D-139` lo ferma al primo file.
-3. 🟡 **#1104 e #1113 tengono aperti `parallel-batch.yaml`, il Decision Log e `OPEN_DECISIONS.md`.**
-   Finché non atterrano, ogni processo che voglia registrare una decisione va in conflitto. È la
-   ragione per cui il triage del Canonical Intent ha portato le sue quattro domande in una **issue**
-   invece che in `OPEN_DECISIONS.md`.
+3. 🟡 **`parallel-batch.yaml` è l'ultimo file conteso, e lo contendono due rilasci.** La mattina del
+   2026-08-17 erano contesi anche il Decision Log e `OPEN_DECISIONS.md` (#1104): è la ragione per cui
+   il triage del Canonical Intent ha portato le sue quattro domande in una **issue** invece che lì.
+   #1104 è atterrata; restano **#1120** e **#1113**, entrambe sul solo `parallel-batch.yaml`. Quando
+   atterrano, `RCI-1`…`RCI-4` vanno riconciliate in `OPEN_DECISIONS.md` — è un debito **dichiarato**,
+   con un owner (#1119) e non una lacuna.
 
 ---
 

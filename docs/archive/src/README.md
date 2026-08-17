@@ -68,10 +68,13 @@
 > `handoff/` + 2 `audit/` + **12 in radice** — contro i **76** dichiarati qui sotto. I tre di scarto erano
 > già stati **previsti** dalla track `docs_kit` il 2026-08-16, che aveva scritto *«dichiara 72 e la misura
 > di oggi ne dà 78»* e correttamente non aveva incrementato a mano. Con l'archiviazione del Graybox Kit il
-> valore misurato sulla propria base era **80** = 17 + 48 + 2 + **13**; il valore vivo sull'albero unito
-> è **81**, e il paragrafo ⏭️ qui sotto lo documenta con la previsione che l'aveva anticipato.
+> valore misurato sulla propria base era **80** = 17 + 48 + 2 + **13**; sull'albero unito di *quel giro*
+> è stato **81**, e il paragrafo ⏭️ qui sotto lo documenta con la previsione che l'aveva anticipato.
+> ⏭️ **Superato lo stesso giorno**: il valore vivo è **83**, misurato dal paragrafo 🔵 in testa. Questa riga
+> diceva *«il valore vivo … è 81»* e l'aggettivo è scaduto in poche ore — è la deriva che questa pagina
+> combatte, e la correzione è stata **datare la misura** invece di riscriverne il racconto.
 >
-> ⚠️ **E l'indice della radice risponde 11, non 14** — ``sed -n '/^## Radice/,/^## Nota/p' … | grep -c '^| \[`' ``.
+> ⚠️ **E l'indice della radice rispondeva 11, non 14** *(misura del 2026-08-17, giro del Graybox)* — ``sed -n '/^## Radice/,/^## Nota/p' … | grep -c '^| \[`' ``.
 > È il difetto della **decima volta**, tornato e più grande: tre file stanno sul disco senza una riga
 > d'indice, e sono i tre archiviati dalla track `docs_kit`
 > (`CLAUDE_Apply_Elemental_Proficiency…`, `CLAUDE_Reconcile_v0.1_Skill_Ability…`,
@@ -106,15 +109,23 @@
 > risponde **83** = 17 `design/` + 48 `handoff/` + 2 `audit/` + **16 in radice**, e la somma degli addendi
 > è stata verificata contro il totale ricorsivo con **due comandi diversi**, non dedotta da `81 + 2`.
 >
-> ⚠️ **La previsione, scritta prima del merge**: [#1104](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1104)
-> è aperta e tocca **questo file**. Non archivia in radice — il suo sorgente Graybox è già qui dal
-> 2026-08-17 — quindi il totale dovrebbe restare **83** anche dopo la sua unione, ma il conflitto su questa
-> riga è **atteso**. Si risolve rieseguendo il comando sull'albero unito, non scegliendo un lato.
+> ⏭️ **La previsione era scritta prima del merge, ed è metà giusta e metà sbagliata — la metà sbagliata
+> vale più dell'altra.** Diceva: *«#1104 è aperta e tocca questo file. Non archivia in radice, quindi il
+> totale dovrebbe restare **83** anche dopo la sua unione, ma il conflitto su questa riga è **atteso**»*.
+> #1104 è atterrata, `git merge origin/main` ha risposto **83** — e **il conflitto non è arrivato**: git
+> ha unito i due paragrafi in silenzio, perché toccavano righe adiacenti e non le stesse.
 >
-> ⚠️ **I tre file senza riga d'indice restano tre, e il rapporto peggiora in valore assoluto**: l'indice
-> della radice risponde **13** contro **16** sul disco. I due sorgenti di questo giro portano la propria
-> riga; i tre di `docs_kit` no, per la ragione che questa pagina dichiara due volte — indovinare cosa un
-> sorgente ha prodotto sostituisce una lacuna visibile con una plausibile.
+> 🔴 **Ed è il caso peggiore, non il migliore.** Quindici volte questa pagina ha imparato dal conflitto:
+> il conflitto *costringe* a rimisurare. L'auto-merge no — ha prodotto un documento in cui due paragrafi
+> dichiaravano `81` e `83` insieme, e nessun gate lo vede. È stato trovato **diffando il risultato**
+> (`git diff <mia-base>..HEAD -- docs/archive/src/README.md`), che è l'unico controllo che regge quando
+> il merge è pulito. La lezione di questo giro non è un numero: **un merge senza conflitti non è un merge
+> verificato**.
+>
+> ⚠️ **I tre file senza riga d'indice restano tre**: l'indice della radice risponde **13** contro **16**
+> sul disco, come previsto. I due sorgenti di questo giro portano la propria riga; i tre di `docs_kit` no,
+> per la ragione che questa pagina dichiara due volte — indovinare cosa un sorgente ha prodotto
+> sostituisce una lacuna visibile con una plausibile.
 >
 > Gli **83** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
 > normativa. ➕ **E un file che non è Markdown**: `handoff/2026-08-12-grid-data-consolidation-audit.xlsx`.
