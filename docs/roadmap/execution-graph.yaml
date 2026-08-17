@@ -315,20 +315,21 @@ nodes:
   # una porta risolta da `EdgeDisabled -> EdgeEnabled` piu' `GraphRevision`, con **CP 9.3 chiuso** —
   # `roadmap-v0.1.md` (*«T5: dopo S2-1, il gate e' una porta»*) e `plans/showcase-v01-audit.md`
   # (*«il meccanismo esiste gia'»*, e l'assertion di T5 e' `S6-1`). T5 e' runnable e non dipende da qui.
-  # 🔴 **`checkpoint:` VOLUTAMENTE ASSENTE, e il gate ha deciso al posto mio.** `#833` e' **CP 23.4**, che
-  # appartiene a **E23**, epic **v0.2** (`roadmap-post-v0.1.md`: *«Interactive map | v0.2 | E23»*).
-  # Scrivendo `checkpoint: E23.4` su un nodo `release: v0.1`, `feature_registry.py validate` risponde
-  # **ERROR: checkpoint 'E23.4' che nessun owner dichiara** — ed e' corretto: nessun owner della v0.1 lo
-  # dichiara, perche' quell'epic non e' della v0.1. Il campo e' opzionale (`issue:512`, `issue:542` non
-  # l'hanno), quindi l'informazione vive qui e il gate resta verde.
-  # ⚠️ **Decisione d'autore APERTA, non risolta da questo giro**: una issue v0.1 il cui checkpoint sta in
-  # un'epic v0.2 e' un'incoerenza reale. Le tre uscite sono anticipare **E23**, riassegnare `#833` a un
-  # checkpoint v0.1, o dichiarare l'eccezione in un owner. Nessuna e' un atto meccanico.
-  # ⚠️ **E una quarta sede dichiara ancora `v0.2`**: `docs/technical/scenario-map.md` (`CURRENT`, scritto a
-  # mano) alla riga di `RT-FEAT-MAP-INTERACTION-GRAPH` — *«v0.2 · E23 · CP 23.4 (#833)»*. Non toccata qui:
-  # e' owner di un'altra domanda e la sua riga segue la decisione sull'epic, non la precede.
+  # ✅ **`checkpoint: E23.4` ora e' scrivibile, e la ragione e' una decisione, non un aggiramento.**
+  # Il 2026-08-17 questo campo era **assente per decisione del gate**: `feature_registry.py validate`
+  # rispondeva `ERROR — checkpoint 'E23.4' che nessun owner dichiara`, perche' **E23 era un'epic v0.2** e
+  # nessun owner della v0.1 la dichiarava. L'incoerenza — issue v0.1 con checkpoint in un'epic v0.2 — e'
+  # stata risolta all'origine: **`D-160` anticipa E23 intera alla v0.1**, e `roadmap-v0.1.md` §3/§5 ora
+  # dichiara i suoi **sette** checkpoint. Il gate ha smesso di rifiutare perche' la premessa e' cambiata,
+  # non perche' il campo sia stato forzato.
+  # ⛔ **NON ha un arco verso `#170`, e l'assenza e' misurata.** L'handoff che ha motivato questo giro
+  # affermava che `#833` «abilita una parte del T5 dello showcase»: e' **falso**. Il gate del turno 5 e'
+  # una porta risolta da `EdgeDisabled -> EdgeEnabled` piu' `GraphRevision`, con **E9.3 chiuso** —
+  # `roadmap-v0.1.md` (*«T5: dopo S2-1, il gate e' una porta»*) e `plans/showcase-v01-audit.md`
+  # (*«il meccanismo esiste gia'»*, assertion `S6-1`). T5 e' runnable e non dipende da qui.
   - id: issue:833
     release: v0.1
+    checkpoint: E23.4
 
   # `#74` entra **solo** perche' l'arco qui sotto ha bisogno di due nodi. E' il consumatore dichiarato
   # di `#833` in `plans/cinque-processi-paralleli-2026-08-17.md` §3: *«#74 CP 10.1 — Activate e Interact
