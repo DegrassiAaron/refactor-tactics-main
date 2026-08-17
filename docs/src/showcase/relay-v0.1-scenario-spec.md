@@ -3,7 +3,7 @@
 
 **Stato:** DESIGN FIXTURE / scenario target della v0.1  
 **Baseline documentale:** Unreal Engine 5.8.1 salvo diversa patch bloccata nel repository  
-**Roster:** Team Blue = Flux + Riva; Team Red = Bastion + Vektor  
+**Roster:** Team Blue = Gadget + Phase; Team Red = Riktor + Wraith  
 **Scopo:** trasformare la showcase in una specifica riproducibile, utile come demo, Scenario Harness fixture, golden replay e test di integrazione.
 
 > IMPORTANTE: questo file definisce il **risultato di design desiderato**. Claude deve verificare il repository corrente prima di implementare o rinominare API, action ID, range, priorità, costi, cooldown e schema dello Scenario Harness.  
@@ -82,8 +82,8 @@ Tutte le celle non elencate come speciali sono `Floor`.
 | Zona | Celle | Stato iniziale / uso |
 |---|---|---|
 | Relay | `(0,0,0)` | Objective centrale |
-| Team Blue spawn | `(-4,0,0)`, `(-4,1,0)` | Flux, Riva |
-| Team Red spawn | `(4,0,0)`, `(4,1,0)` | Bastion, Vektor |
+| Team Blue spawn | `(-4,0,0)`, `(-4,1,0)` | Gadget, Phase |
+| Team Red spawn | `(4,0,0)`, `(4,1,0)` | Riktor, Wraith |
 | Smoke flank | `(-3,-1,0)`, `(-3,0,0)`, `(-3,1,0)` | Smoke |
 | High Ground ridge | `(-1,-3,0)`, `(0,-3,0)`, `(1,-3,0)`, `(-2,-2,0)`, `(-1,-2,0)`, `(0,-2,0)`, `(1,-2,0)`, `(2,-2,0)`, `(2,-1,0)` | HighGround |
 | Fire pocket | `(0,-1,0)`, `(1,-1,0)` | Fire |
@@ -140,10 +140,10 @@ La rappresentazione concreta deve seguire il modello E9 corrente, non questa pse
 
 | Unit | Team | Start | HP/MP | Facing iniziale |
 |---|---:|---|---|---|
-| Flux | Blue | `(-4,0,0)` | usare catalogo corrente | E |
-| Riva | Blue | `(-4,1,0)` | usare catalogo corrente | E |
-| Bastion | Red | `(4,0,0)` | usare catalogo corrente | W |
-| Vektor | Red | `(4,1,0)` | usare catalogo corrente | W |
+| Gadget | Blue | `(-4,0,0)` | usare catalogo corrente | E |
+| Phase | Blue | `(-4,1,0)` | usare catalogo corrente | E |
+| Riktor | Red | `(4,0,0)` | usare catalogo corrente | W |
+| Wraith | Red | `(4,1,0)` | usare catalogo corrente | W |
 
 Objective:
 
@@ -168,7 +168,7 @@ Se il progetto ha uno schema seed diverso, mantenerne solo la semantica: seed es
 
 ## Turno 1 — Apertura, terreno, cover e quota
 
-### Flux
+### Gadget
 
 ```text
 Start: (-4,0,0)
@@ -188,11 +188,11 @@ Atteso:
 - Ghost Path leggibile;
 - `MoveStep` nel TurnLog.
 
-### Riva
+### Phase
 
 ```text
 Start: (-4,1,0)
-Action: Riva.FluidTrail
+Action: Hero.Phase.FluidTrail
 DashPath:
   (-4,1,0)
   (-3,2,0)
@@ -208,11 +208,11 @@ Atteso:
 - quando la mutazione terreno è disponibile: acqua lasciata sul percorso secondo la definizione corrente;
 - nessuna logica showcase-only.
 
-### Bastion
+### Riktor
 
 ```text
 Start: (4,0,0)
-Prep: Bastion.KineticPanel
+Prep: Hero.Riktor.KineticPanel
 PanelTarget: settore centrale verso W
 MovePath:
   (4,0,0)
@@ -226,7 +226,7 @@ Atteso:
 - KineticPanel crea cover solo se E9/runtime structure è disponibile;
 - altrimenti lo scenario resta marcato `RequiresFeature`.
 
-### Vektor
+### Wraith
 
 ```text
 Start: (4,1,0)
@@ -268,11 +268,11 @@ TurnLog
 
 ## Turno 2 — Setup Wet, modifica cover e prima Predictive Action
 
-### Flux
+### Gadget
 
 ```text
 Start: (-2,0,0)
-Main: Flux.ConductiveNode
+Main: Hero.Gadget.ConductiveNode
 TargetCell: (0,2,0)   # bridge approach
 MovePath:
   (-2,0,0)
@@ -286,12 +286,12 @@ Atteso:
 - se il range corrente non consente `(0,2,0)`, Claude deve scegliere la cella valida più vicina alla lane senza cambiare lo scopo;
 - quando implementato, la cella/nodo diventa conduttiva per la durata prevista dal catalogo.
 
-### Riva
+### Phase
 
 ```text
 Start: (-1,2,0)
-Blast: Riva.PressureJet
-Target: Vektor
+Blast: Hero.Phase.PressureJet
+Target: Wraith
 ExpectedEffects:
   Damage
   Wet
@@ -300,24 +300,24 @@ Move:
   scegliere una rotta che NON attraversi PredictCell
 ```
 
-### Bastion
+### Riktor
 
 ```text
 Start: (3,0,0)
-Prep/Main: Bastion.Reconfigure
+Prep/Main: Hero.Riktor.Reconfigure
 Target: KineticPanel
 Expected: orientare la cover per chiudere una linea verso il Relay
 MoveEnd: (2,0,0) se legalmente raggiungibile
 ```
 
-### Vektor
+### Wraith
 
 ```text
 Start: (2,-1,0)
-PredictiveAction: Vektor.InterceptShot
+PredictiveAction: Hero.Wraith.InterceptShot
 PredictedCell: (0,1,0)
 Window: boundary/phase previsto dalla definizione corrente
-Expected: Riva non attraversa (0,1,0)
+Expected: Phase non attraversa (0,1,0)
 Result: WHIFF
 ```
 
@@ -349,20 +349,20 @@ Reason code
 
 ## Turno 3 — Moving target, Fire/Burning e fallback
 
-### Flux
+### Gadget
 
 ```text
 Start: (-1,1,0)
-Blast: Flux.LinearDischarge
-DeclaredTarget: Vektor @ posizione di Planning
+Blast: Hero.Gadget.LinearDischarge
+DeclaredTarget: Wraith @ posizione di Planning
 MovingTargetPolicy for showcase variant: AttackCell OR il fallback realmente definito nel catalogo
 ```
 
-### Vektor
+### Wraith
 
 ```text
 Start: posizione risultante da T2
-Dash: Vektor.PassingBlade
+Dash: Hero.Wraith.PassingBlade
 DesiredPath:
   passare per almeno una cella Fire fra:
   (1,-1,0)
@@ -375,14 +375,14 @@ Atteso:
 - Dash risolve prima del Blast;
 - `Fire` applica on-enter;
 - `Burning` viene applicato;
-- Flux rivalida il target al Blast;
+- Gadget rivalida il target al Blast;
 - se il target si è mosso, applica il fallback data-driven;
 - nessun tracking inventato.
 
-### Riva
+### Phase
 
 ```text
-Blast: Riva.CircularTide
+Blast: Hero.Phase.CircularTide
 Center: (1,0,0) o cella valida più vicina che mostri AoE senza friendly-fire involontario
 ```
 
@@ -392,7 +392,7 @@ Atteso:
 - routing ally/enemy secondo implementazione reale;
 - Wet/Push solo se definiti dalla variante scelta.
 
-### Bastion
+### Riktor
 
 ```text
 Action: Brace / postura difensiva disponibile nel catalogo
@@ -417,9 +417,9 @@ Defense posture
 
 ## Turno 4 — Overwatch, HOLD e FIRE
 
-Posizionare Vektor in modo che il suo cono, derivato dal Facing, controlli l'accesso centrale/bridge.
+Posizionare Wraith in modo che il suo cono, derivato dal Facing, controlli l'accesso centrale/bridge.
 
-### Vektor
+### Wraith
 
 ```text
 Main: Overwatch
@@ -428,13 +428,13 @@ Charges: 1
 Timeout: HOLD
 ```
 
-### Flux
+### Gadget
 
 ```text
 MoveProfile: Sprint
-Path: entra per primo nel cono di Vektor
+Path: entra per primo nel cono di Wraith
 ExpectedOpportunity #1:
-  Target = Flux
+  Target = Gadget
   Responses = FIRE / HOLD
 TestPolicyResponse = HOLD
 ```
@@ -446,12 +446,12 @@ Atteso:
 - presentation slow-motion ammessa;
 - HOLD non consuma la charge.
 
-### Riva
+### Phase
 
 ```text
 Move: entra nel cono in un micro-step successivo
 ExpectedOpportunity #2:
-  Target = Riva
+  Target = Phase
   Responses = FIRE / HOLD
 TestPolicyResponse = FIRE
 ```
@@ -460,10 +460,10 @@ Atteso:
 
 - seconda opportunity reale, non preannunciata;
 - FIRE consuma la charge;
-- applicare effetto Overwatch del profilo Vektor definito dal catalogo;
+- applicare effetto Overwatch del profilo Wraith definito dal catalogo;
 - nessun terzo prompt dopo il consumo.
 
-### Bastion
+### Riktor
 
 ```text
 Move/Wait: mantiene controllo del lato Est
@@ -488,21 +488,21 @@ Movement micro-step trigger
 
 ## Turno 5 — Smoke, targeting, Interact e Deflect
 
-### Riva
+### Phase
 
 ```text
-Action: Riva.MistVeil
-Center: (1,1,0) o cella valida che includa Vektor ma non renda impossibile tutto il test
+Action: Hero.Phase.MistVeil
+Center: (1,1,0) o cella valida che includa Wraith ma non renda impossibile tutto il test
 ExpectedTerrainMutation: Smoke radius 1 quando supportata
 ```
 
-### Flux
+### Gadget
 
 Prima del Commit, validare un draft volutamente borderline:
 
 ```text
 Draft:
-  Flux.LinearDischarge -> Vektor
+  Hero.Gadget.LinearDischarge -> Wraith
 ```
 
 La UI/validator deve mostrare l'effetto reale di Smoke (es. cap targeting corrente).  
@@ -510,17 +510,17 @@ Poi committare un attacco legalmente valido:
 
 ```text
 Commit:
-  Flux.ArcPulse / BasicAttack -> Vektor
+  Hero.Gadget.ArcPulse / BasicAttack -> Wraith
 ```
 
-### Vektor
+### Wraith
 
 ```text
-PreparedReaction: Vektor.Deflection
+PreparedReaction: Hero.Wraith.Deflection
 Expected: riduzione del danno secondo semantica Action.Deflect
 ```
 
-### Bastion
+### Riktor
 
 ```text
 Interact:
@@ -551,21 +551,21 @@ GraphRevision
 
 ## Turno 6 — Interposition, redirect, Wet e Push
 
-### Flux
+### Gadget
 
 ```text
-Blast: Flux.ArcPulse / BasicAttack
-Target: Vektor
+Blast: Hero.Gadget.ArcPulse / BasicAttack
+Target: Wraith
 ```
 
-### Bastion
+### Riktor
 
 ```text
-PreparedReaction: Bastion.Interposition
+PreparedReaction: Hero.Riktor.Interposition
 Trigger: direct attack toward ally
 Expected:
-  original target = Vektor
-  effective target = Bastion
+  original target = Wraith
+  effective target = Riktor
 ```
 
 Dopo redirect:
@@ -575,27 +575,27 @@ Revalidate:
   LOS
   trajectory
   cover
-against Bastion as effective target
+against Riktor as effective target
 ```
 
 Non aprire una reaction interattiva annidata per la rivalidazione.
 
-### Riva
+### Phase
 
 ```text
-Blast: Riva.PressureJet
-Target: Bastion
+Blast: Hero.Phase.PressureJet
+Target: Riktor
 Expected:
   Damage
   Wet
   Push 1 if destination valid
 ```
 
-### Vektor
+### Wraith
 
 ```text
-Blast: Vektor.PulseShot
-Target: Flux
+Blast: Hero.Wraith.PulseShot
+Target: Gadget
 ```
 
 ### Checkpoint T6
@@ -618,12 +618,12 @@ Two teams resolving simultaneous offensive intents
 
 Questo è il turno più denso della showcase.
 
-### Riva
+### Phase
 
 Preferenza:
 
 ```text
-Riva.FluidTrail
+Hero.Phase.FluidTrail
 ```
 
 con path che raggiunga almeno una delle celle Fire:
@@ -643,14 +643,14 @@ Water enters Fire
 → EnvironmentChanged logged
 ```
 
-Se il catalogo corrente non consente questa combinazione tramite FluidTrail, Claude deve mantenere lo scopo e usare l'azione Riva realmente prevista per creare acqua, senza inventare una action showcase.
+Se il catalogo corrente non consente questa combinazione tramite FluidTrail, Claude deve mantenere lo scopo e usare l'azione Phase realmente prevista per creare acqua, senza inventare una action showcase.
 
-### Flux
+### Gadget
 
 Usare la versione dell'attacco elettrico che massimizza il test della propagazione:
 
 ```text
-Flux.LinearDischarge or Flux.Overload
+Hero.Gadget.LinearDischarge or Hero.Gadget.Overload
 ```
 
 Target primario: un nemico Wet o su rete Water/Conductive.
@@ -667,7 +667,7 @@ initial hit
 
 Non hard-codificare numeri in questo scenario se il catalogo corrente li ha cambiati.
 
-### Vektor
+### Wraith
 
 ```text
 Normal Move through Ice
@@ -678,12 +678,12 @@ Atteso:
 - se restano i requisiti correnti, slide deterministico +1;
 - il Dash NON usa lo stesso slide se la regola corrente lo vieta.
 
-### Bastion
+### Riktor
 
 Creare durante il Planning un draft non valido:
 
 ```text
-Bastion.Ram through Rough
+Hero.Riktor.Ram through Rough
 ```
 
 Expected validation:
@@ -715,19 +715,19 @@ EnvironmentChanged events
 
 Situazione desiderata:
 
-- Riva è a una Move breve dal Relay `(0,0,0)`;
-- Flux è a HP basso;
-- Vektor prova a prevedere l'accesso più ovvio;
-- Bastion è separato dal Relay da Rough/cover/gate/topology.
+- Phase è a una Move breve dal Relay `(0,0,0)`;
+- Gadget è a HP basso;
+- Wraith prova a prevedere l'accesso più ovvio;
+- Riktor è separato dal Relay da Rough/cover/gate/topology.
 
-### Vektor
+### Wraith
 
 ```text
-PredictiveAction: Vektor.InterceptShot
+PredictiveAction: Hero.Wraith.InterceptShot
 PredictedCell: accesso ovvio al Relay, es. (1,0,0)
 ```
 
-### Riva
+### Phase
 
 ```text
 Move:
@@ -738,7 +738,7 @@ Expected:
   InterceptShot = WHIFF
 ```
 
-### Bastion
+### Riktor
 
 ```text
 Move/Action:
@@ -749,20 +749,20 @@ Expected:
 
 La causa deve essere reale: posizione, costo Rough, GateEdge, occupazione o budget. Non forzare un fallimento artificiale.
 
-### Flux
+### Gadget
 
 ```text
-Blast: attacco finale su Vektor
+Blast: attacco finale su Wraith
 Expected:
-  Flux resta esposto
+  Gadget resta esposto
 ```
 
-### Vektor / Red payoff
+### Wraith / Red payoff
 
 ```text
-Vektor.PulseShot or valid attack -> Flux
+Hero.Wraith.PulseShot or valid attack -> Gadget
 Expected:
-  Flux KO
+  Gadget KO
 ```
 
 ### Cleanup
@@ -777,9 +777,9 @@ TurnLog finalize
 Finale desiderato:
 
 ```text
-Flux = KO
-Riva = alive on Relay
-Bastion/Vektor = not contesting Relay
+Gadget = KO
+Phase = alive on Relay
+Riktor/Wraith = not contesting Relay
 Team Blue scores/wins by objective according to current ruleset
 ```
 
@@ -840,36 +840,36 @@ Non serve implementarle tutte in una PR. Usare solo quelle già supportate o nec
 
 ```text
 TurnCompleted(1)
-UnitAtCell(Flux, -2,0,0)
-UnitAtCell(Riva, -1,2,0)
-UnitAtCell(Bastion, 3,0,0)
-UnitAtCell(Vektor, 2,-1,0)
+UnitAtCell(Gadget, -2,0,0)
+UnitAtCell(Phase, -1,2,0)
+UnitAtCell(Riktor, 3,0,0)
+UnitAtCell(Wraith, 2,-1,0)
 ```
 
 ## T2
 
 ```text
-EventExists(PredictiveActionDeclared, Vektor)
-EventExists(PredictionWhiffed, Vektor)
-UnitHasStatus(Vektor, Wet)              # se PressureJet già lo supporta
+EventExists(PredictiveActionDeclared, Wraith)
+EventExists(PredictionWhiffed, Wraith)
+UnitHasStatus(Wraith, Wet)              # se PressureJet già lo supporta
 ```
 
 ## T3
 
 ```text
-UnitHasStatus(Vektor, Burning)
-EventExists(TargetMoved or fallback reason, Flux.LinearDischarge)
+UnitHasStatus(Wraith, Burning)
+EventExists(TargetMoved or fallback reason, Hero.Gadget.LinearDischarge)
 ```
 
 ## T4
 
 ```text
-ReactionOpportunity(Owner=Vektor, Target=Flux)
+ReactionOpportunity(Owner=Wraith, Target=Gadget)
 ReactionResponse(HOLD)
-ReactionStillArmed(Vektor)
-ReactionOpportunity(Owner=Vektor, Target=Riva)
+ReactionStillArmed(Wraith)
+ReactionOpportunity(Owner=Wraith, Target=Phase)
 ReactionResponse(FIRE)
-ReactionConsumed(Vektor)
+ReactionConsumed(Wraith)
 ```
 
 ## T5
@@ -884,8 +884,8 @@ EventExists(Deflect)
 
 ```text
 EventExists(Intercept)
-OriginalTarget=Vektor
-EffectiveTarget=Bastion
+OriginalTarget=Wraith
+EffectiveTarget=Riktor
 NoNestedInteractiveReaction
 ```
 
@@ -902,9 +902,9 @@ InvalidDraft(Ram,Rough)
 ## T8
 
 ```text
-PredictionWhiffed(Vektor)
-UnitKO(Flux)
-UnitAtCell(Riva,0,0,0)
+PredictionWhiffed(Wraith)
+UnitKO(Gadget)
+UnitAtCell(Phase,0,0,0)
 ObjectiveUpdated(Relay, TeamBlue)
 MatchEnded
 ```
@@ -935,18 +935,18 @@ SUPERSEDED
 Almeno:
 
 ```text
-Riva.FluidTrail terrain mutation
-Riva.MistVeil terrain mutation
-Flux.ConductiveNode mutation/duration
+Hero.Phase.FluidTrail terrain mutation
+Hero.Phase.MistVeil terrain mutation
+Hero.Gadget.ConductiveNode mutation/duration
 Electric propagation
 Water + Fire
 KineticPanel
 Reconfigure
 Interact + GateEdge + GraphRevision
-Vektor.InterceptShot predictive thin slice
+Hero.Wraith.InterceptShot predictive thin slice
 Universal Overwatch + Fast Decision
-Bastion.Interposition using generic Intercept
-Vektor.Deflection using generic Deflect
+Hero.Riktor.Interposition using generic Intercept
+Hero.Wraith.Deflection using generic Deflect
 Objective Relay
 Scenario Harness assertions
 ```

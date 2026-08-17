@@ -1,5 +1,7 @@
 # Lane 2 — Simulation / Turn
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `SNAPSHOT` · **Data**: 2026-08-12 · **HEAD**: `59fa6f8a` (riallineato al merge)
 > **Cosa è**: la sequenza di lavoro della lane *Simulation / Turn*, letta sul backlog **già aperto**.
 > **Cosa non è**: una fonte di stato. Aperto/chiuso vive su GitHub; il `⏳`/`✅` qui dentro è la
@@ -52,7 +54,7 @@ CP 14.5│    CP 14.6
 | Issue | Checkpoint | Stato | Dipende da | Prio |
 |---|---|---|---|:--:|
 | ~~`#163`~~ | CP 14.3 — Modello unificato opportunity → commit | ✅ **chiusa 2026-08-12** | — | P2 |
-| `#165` | CP 14.5 — Finestra, commit e cablaggio di `Vektor.InterceptShot` | 🟢 **pronta** | CP 14.4 = `#164` ✅ | P2 |
+| `#165` | CP 14.5 — Finestra, commit e cablaggio di `Hero.Wraith.InterceptShot` | 🟢 **pronta** | CP 14.4 = `#164` ✅ | P2 |
 | `#166` | CP 14.6 — Counterplay, UI della finestra, misura del pacing | ⏳ bloccata | `#165` | P2 |
 | `#314` | CP 14.7 — Reaction Profile e Reaction Clash | ⏳ bloccata | `#165` · *segue* `#166` | P3 |
 | `#319` | CP 14.8 — Decision Time Bank | 🟢 **pronta** (nessuna dipendenza dichiarata) | — | P3 |

@@ -74,9 +74,9 @@ rivela · zona di raggiungibilità prevista nell'HUD · jamming e relay.
 
 | Azione | Range | Vista di chi la usa |
 |---|---:|---:|
-| `Flux.ArcPulse` | 4 | 7 |
-| `Vektor.PulseShot` | 4 | 6 |
-| `Bastion.ImpactShot` | 3 | 5 |
+| `Hero.Gadget.ArcPulse` | 4 | 7 |
+| `Hero.Wraith.PulseShot` | 4 | 6 |
+| `Hero.Riktor.ImpactShot` | 3 | 5 |
 | `Action.LineAttack` | 5 | ≥ 5 |
 
 Nessuna azione **verificata** supera la vista del proprietario: il vincolo `range ≤ vista` è già soddisfatto,
@@ -87,7 +87,7 @@ la vista lunga concede *anticipo*, non un colpo gratis. L'argomento non cambia c
 a 7, perché dipende dal fatto che **nessuna** azione ci arrivi.
 
 > ⚠️ **Aggiornato il 2026-08-10.** Questo paragrafo diceva «il delta **vista 6 vs 5**» e chiudeva con
-> *«questo evita di aggravare la dominanza di `Vektor` su `Flux` e `Riva` già registrata in CP 6.5»*. Entrambe le
+> *«questo evita di aggravare la dominanza di `Wraith` su `Gadget` e `Phase` già registrata in CP 6.5»*. Entrambe le
 > affermazioni sono superate: dopo [D-073](../decisions/RT_PDR_00_Decision_Log.md) Gadget ha **vista 7**, quindi
 > lo scarto massimo è di **due** punti, e la dominanza non è più «da evitare di aggravare» — **non esiste
 > più** (`#131` chiusa: nessun eroe domina nessun altro sulle quattro statistiche base).

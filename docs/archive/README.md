@@ -19,7 +19,7 @@ La fonte di verità del progetto è:
 
 | Cartella / file | Cos'è |
 |---|---|
-| [`src/`](src/README.md) | **I 69 sorgenti recepiti** — `design/`, `handoff/`, `audit/`, spostati qui dal 2026-08-08. Hanno un indice proprio con la colonna «Recepito da». Dal 2026-08-09 include anche i sorgenti **revisionati e non applicati**, con l'esito in testa al file. *(Diceva **28** fino al 2026-08-14: un totale scritto a mano che nessun gate confronta con la cartella. Rimisurato con `find docs/archive/src -name '*.md' ! -name README.md \| wc -l` → **69**, che è anche ciò che `src/README.md` dichiara.)* |
+| [`src/`](src/) | **I 69 sorgenti recepiti** — `design/`, `handoff/`, `audit/`, spostati qui dal 2026-08-08. Hanno un indice proprio con la colonna «Recepito da». Dal 2026-08-09 include anche i sorgenti **revisionati e non applicati**, con l'esito in testa al file. *(Diceva **28** fino al 2026-08-14: un totale scritto a mano che nessun gate confronta con la cartella. Rimisurato con `find docs/archive/src -name '*.md' ! -name README.md \| wc -l` → **69**, che è anche ciò che `src/README.md` dichiara.)* |
 | [`roadmap-plans/`](roadmap-plans/README.md) | **I 20 piani e referti storici** spostati da `docs/roadmap/plans/` il 2026-08-14 — **10** `HISTORICAL` e **10** `SNAPSHOT`. ⚠️ Il criterio è il **banner**, non la data nel nome: quella ne coglieva 35 su 68, e di quei 35 ne prendeva **22 dichiarati `CURRENT`**. I `CURRENT` restano in [`../roadmap/plans/`](../roadmap/plans/README.md), che ha un indice del criterio |
 | [`pdr-v0.1/`](pdr-v0.1/RT_PDR_v0.1_consolidato.md) | Il corpus dei tredici PDR `v0.1` in **un solo Markdown**, con la tabella «cosa vale oggi» documento per documento. I PDF sono stati rimossi il 2026-08-12 e restano nella storia Git |
 | `gameplay/` | Spec superate: terreni, knockback, bot utility, sequenza turno esplorativa |
@@ -47,8 +47,8 @@ raccontava la storia di una cartella, dava indicazioni operative sbagliate al pr
 ### Se incontri un path `*.pdf` in un documento archiviato
 
 I ventitré PDF di `docs/` sono stati rimossi il **2026-08-12** e il loro testo vive in Markdown. I documenti
-archiviati che li citano — [`src/design/delayed-actions-e-phase-windows.md`](src/README.md),
-[`src/handoff/roadmap-docs-test-e-showcase-v0.1.md`](src/README.md),
+archiviati che li citano — [`src/design/delayed-actions-e-phase-windows.md`](src/),
+[`src/handoff/roadmap-docs-test-e-showcase-v0.1.md`](src/),
 [`gameplay/spec-terreni.md`](gameplay/spec-terreni.md) — **non sono stati riscritti**, per la regola qui sopra:
 quei documenti dicono da quali file provenivano, e nel momento in cui sono stati scritti quei file c'erano.
 
@@ -57,5 +57,5 @@ Dove sono finiti:
 | Path citato negli storici | Oggi |
 |---|---|
 | `docs/archive/pdr-v0.1/RT_PDR_NN_*.pdf` | [`pdr-v0.1/RT_PDR_v0.1_consolidato.md`](pdr-v0.1/RT_PDR_v0.1_consolidato.md), sezione `PDR-NN` |
-| `docs/src/prd/idee-base.pdf` · `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` | [`../src/prd/`](../src/README.md), quattro documenti tematici |
+| `docs/src/prd/idee-base.pdf` · `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` | [`../src/prd/`](../src/), quattro documenti tematici |
 | `docs/src/prd/sequenza-risoluzione-turno.pdf` | [`gameplay/sequenza-turno-exploratory.md`](gameplay/sequenza-turno-exploratory.md) — c'era già |

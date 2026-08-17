@@ -89,7 +89,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWaterElectricPropagationTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 bool FRTWaterElectricPropagationTest::RunTest(const FString&)
 {
-	// **Nome vincolante** del catalogo §15. La combo firma, verificata in PARTITA: Flux elettrifica un nemico
+	// **Nome vincolante** del catalogo §15. La combo firma, verificata in PARTITA: Gadget elettrifica un nemico
 	// nell'acqua, e la scarica raggiunge il secondo nemico due celle piu' in la' lungo la pozza.
 	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -113,7 +113,7 @@ bool FRTWaterElectricPropagationTest::RunTest(const FString&)
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
@@ -302,7 +302,7 @@ bool FRTPropagationStopsAtNonConductiveTest::RunTest(const FString&)
 
 	// Contro-prova: un'unita' BAGNATA all'asciutto non e' un ponte. La conduzione e' della CELLA
 	// (`bConductsElectricity`), non dello stato dell'unita' — `Status.Wet` resta il bonus di
-	// `Flux.LinearDischarge`. Due modelli di conduzione paralleli sarebbero la duplicazione che il canone vieta.
+	// `Gadget.LinearDischarge`. Due modelli di conduzione paralleli sarebbero la duplicazione che il canone vieta.
 	TestFalse(TEXT("Floor non conduce"),
 		URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Floor).bConductsElectricity);
 	TestTrue(TEXT("acqua bassa e superficie conduttiva si'"),

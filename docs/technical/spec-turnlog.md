@@ -44,11 +44,11 @@
 ## `BaseActionId`: perché sta nella voce, e perché non entra nell'hash
 
 Dal formato **v5** ogni voce porta `BaseActionId` accanto a `ActionId`: l'azione **generica** di cui quella è
-un profilo — `Action.BasicAttack` per `Bastion.ImpactShot`. Serve a
+un profilo — `Action.BasicAttack` per `Hero.Riktor.ImpactShot`. Serve a
 [D-033](../decisions/RT_PDR_00_Decision_Log.md), che chiede che un'azione generica con profilo sia
 «spiegabile nel TurnLog come *azione base + profilo*».
 
-**Perché nella voce e non solo nel catalogo.** `Bastion.ImpactShot` è un'azione **d'eroe**: chi legge una
+**Perché nella voce e non solo nel catalogo.** `Hero.Riktor.ImpactShot` è un'azione **d'eroe**: chi legge una
 traccia non la risolve con `FindCoreAction`, gli servirebbero i data asset del roster. Senza il campo nella
 voce la traccia non è spiegabile da sola.
 

@@ -31,10 +31,10 @@ I nomi canonici del roster sono fissati da [D-120](../decisions/RT_PDR_00_Decisi
 
 | Nome canonico | Scheda | Stable ID (legacy) | Base visuale |
 |---|---|---|---|
-| **Gadget** | [scheda](v0.1/flux.md) | `Hero.Flux` | `Paragon.Gadget` |
-| **Phase** | [scheda](v0.1/riva.md) | `Hero.Riva` | `Paragon.Phase` |
-| **Riktor** | [scheda](v0.1/bastion.md) | `Hero.Bastion` | `Paragon.Riktor` |
-| **Wraith** | [scheda](v0.1/vektor.md) | `Hero.Vektor` | `Paragon.Wraith` |
+| **Gadget** | [scheda](v0.1/gadget.md) | `Hero.Gadget` | `Paragon.Gadget` |
+| **Phase** | [scheda](v0.1/phase.md) | `Hero.Phase` | `Paragon.Phase` |
+| **Riktor** | [scheda](v0.1/riktor.md) | `Hero.Riktor` | `Paragon.Riktor` |
+| **Wraith** | [scheda](v0.1/wraith.md) | `Hero.Wraith` | `Paragon.Wraith` |
 
 > **I token della colonna «Stable ID» sono legacy implementation identifiers, non nomi del personaggio.**
 > Sopravvivono dove esistono già — codice, asset, scenari, replay — e **non si rinominano**: una migrazione

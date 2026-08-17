@@ -149,26 +149,26 @@ bool FRTNoiseAttenuationBySurfaceTest::RunTest(const FString&)
 	const FRTCellId Origin(0, 0);
 	const FRTCellId TwoAway(2, 0);
 
-	// Su terreno libero uno Sprint (5) attenuato di 2 celle arriva a 3: lo sentono Riva e Bastion
-	// (soglia 3), non Flux e Vektor (soglia 5). E' l'esempio che D-041 usa per giustificare i valori.
+	// Su terreno libero uno Sprint (5) attenuato di 2 celle arriva a 3: lo sentono Phase e Riktor
+	// (soglia 3), non Gadget e Wraith (soglia 5). E' l'esempio che D-041 usa per giustificare i valori.
 	const int32 OnFloor = HeardAt(Map, Sprint(Origin), TwoAway);
 	TestEqual(TEXT("Sprint su terreno libero, a due celle: 3"), OnFloor, 3);
 
-	const URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
-	const URTHeroData* Flux = URTHeroCatalogLibrary::MakeFlux();
-	if (!TestNotNull(TEXT("Riva costruita"), Riva) || !TestNotNull(TEXT("Flux costruito"), Flux)) { return false; }
-	TestTrue(TEXT("Riva (orecchio fine, 3) lo sente"),
-		URTAcousticPropagationLibrary::IsAudible(OnFloor, Riva->HearingThreshold));
-	TestFalse(TEXT("Flux (5) non lo sente"),
-		URTAcousticPropagationLibrary::IsAudible(OnFloor, Flux->HearingThreshold));
+	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	const URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
+	if (!TestNotNull(TEXT("Phase costruita"), Phase) || !TestNotNull(TEXT("Gadget costruito"), Gadget)) { return false; }
+	TestTrue(TEXT("Phase (orecchio fine, 3) lo sente"),
+		URTAcousticPropagationLibrary::IsAudible(OnFloor, Phase->HearingThreshold));
+	TestFalse(TEXT("Gadget (5) non lo sente"),
+		URTAcousticPropagationLibrary::IsAudible(OnFloor, Gadget->HearingThreshold));
 
-	// Lo STESSO Sprint, dall'acqua bassa: +2 alla sorgente. Arriva a 5, e adesso lo sente anche Flux.
+	// Lo STESSO Sprint, dall'acqua bassa: +2 alla sorgente. Arriva a 5, e adesso lo sente anche Gadget.
 	// E' la differenza che D-042 descrive a parole — «sprintarci fa 7 su 10, come un Dash su terreno libero».
 	SetNoiseSurface(Map, Origin, ERTHexSurface::ShallowWater);
 	const int32 FromWater = HeardAt(Map, Sprint(Origin), TwoAway);
 	TestEqual(TEXT("Sprint dall'acqua bassa, a due celle: 5"), FromWater, 5);
-	TestTrue(TEXT("adesso lo sente anche Flux"),
-		URTAcousticPropagationLibrary::IsAudible(FromWater, Flux->HearingThreshold));
+	TestTrue(TEXT("adesso lo sente anche Gadget"),
+		URTAcousticPropagationLibrary::IsAudible(FromWater, Gadget->HearingThreshold));
 	return true;
 }
 
@@ -186,24 +186,24 @@ bool FRTNoiseThresholdDecidesTest::RunTest(const FString&)
 {
 	// I quattro valori di D-041, dal catalogo. Pinnati: sono una decisione, e una decisione che nessun test
 	// guarda e' una riga di documentazione.
-	const URTHeroData* Flux = URTHeroCatalogLibrary::MakeFlux();
-	const URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
-	const URTHeroData* Bastion = URTHeroCatalogLibrary::MakeBastion();
-	const URTHeroData* Vektor = URTHeroCatalogLibrary::MakeVektor();
-	if (!TestNotNull(TEXT("roster costruito"), Flux) || !TestNotNull(TEXT("roster costruito"), Riva)
-		|| !TestNotNull(TEXT("roster costruito"), Bastion) || !TestNotNull(TEXT("roster costruito"), Vektor))
+	const URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
+	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	const URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+	if (!TestNotNull(TEXT("roster costruito"), Gadget) || !TestNotNull(TEXT("roster costruito"), Phase)
+		|| !TestNotNull(TEXT("roster costruito"), Riktor) || !TestNotNull(TEXT("roster costruito"), Wraith))
 	{
 		return false;
 	}
-	TestEqual(TEXT("Flux 5"), Flux->HearingThreshold, 5);
-	TestEqual(TEXT("Riva 3"), Riva->HearingThreshold, 3);
-	TestEqual(TEXT("Bastion 3"), Bastion->HearingThreshold, 3);
-	TestEqual(TEXT("Vektor 5"), Vektor->HearingThreshold, 5);
+	TestEqual(TEXT("Gadget 5"), Gadget->HearingThreshold, 5);
+	TestEqual(TEXT("Phase 3"), Phase->HearingThreshold, 3);
+	TestEqual(TEXT("Riktor 3"), Riktor->HearingThreshold, 3);
+	TestEqual(TEXT("Wraith 5"), Wraith->HearingThreshold, 5);
 
 	// L'udito COMPENSA la vista: chi vede lontano sente meno. E' la proprieta' che rende l'udito una seconda
 	// via all'informazione e non un raddoppio della prima.
-	TestTrue(TEXT("Flux vede piu' di Riva"), Flux->VisionRange > Riva->VisionRange);
-	TestTrue(TEXT("...e in cambio sente meno"), Flux->HearingThreshold > Riva->HearingThreshold);
+	TestTrue(TEXT("Gadget vede piu' di Phase"), Gadget->VisionRange > Phase->VisionRange);
+	TestTrue(TEXT("...e in cambio sente meno"), Gadget->HearingThreshold > Phase->HearingThreshold);
 
 	TestTrue(TEXT("soglia raggiunta esattamente: si sente"),
 		URTAcousticPropagationLibrary::IsAudible(3, 3));
@@ -399,7 +399,7 @@ bool FRTNoisePlausibleAreaIgnoresSourceTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeNoiseMap(6);
 	const FRTCellId Listener(0, 0);
-	const int32 Threshold = 3; // orecchio di Riva/Bastion (D-041)
+	const int32 Threshold = 3; // orecchio di Phase/Riktor (D-041)
 
 	// Due sorgenti reali, in direzioni opposte, che arrivano all'ascoltatore con la STESSA intensita'.
 	FRTNoiseEvent East;

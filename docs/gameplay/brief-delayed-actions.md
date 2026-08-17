@@ -4,7 +4,7 @@
 > Il brief lasciava l'epic fuori roadmap. La decisione è di includere **una sola** Predictive Action reale,
 > per rendere percepibile il pilastro della predizione senza aprire il framework di trap.
 >
-> **Bersaglio preferito**: `Vektor.InterceptShot`.
+> **Bersaglio preferito**: `Hero.Wraith.InterceptShot`.
 >
 > ```text
 > Planning: previsione dichiarata per intero
@@ -17,6 +17,7 @@
 > **Non va trasformata in Fast Reaction.** Resta fuori dalla v0.1: framework completo di trap/mine/gambit
 > persistenti, editor visuale di trigger, catene di predictive action, interrupt annidati.
 >
+<!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 > 🔎 **Nota di stato verificata il 2026-08-08.** Oggi `Vektor.InterceptShot` è a catalogo con
 > `ERTActionSlot::None` e **nessun trigger**, e il rinvio a **E14** è dichiarato *nei dati*
 > (`RTHeroCatalogLibrary.cpp`) perché il suo trigger è d'ingresso su movimento. Trattarla come Predictive

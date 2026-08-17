@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ✅ **RECEPITO il 2026-08-08** (parte v0.1) · 📅 **il resto pianificato**.
 > I cinque test PIE di §24.1 sono in [`../../../technical/test-manuali-pie.md`](../../../technical/test-manuali-pie.md)
 > come `PIE-AI-01`…`PIE-AI-05`; il comportamento del bot v0.1 è descritto al giocatore in
@@ -551,17 +553,17 @@ Esempio concettuale per il roster corrente atteso dagli ultimi documenti (verifi
 
 | Profilo | Bias principali |
 |---|---|
-| Flux / tecnico elettrico | danno elettrico, propagazione, setup acqua/elettrico |
-| Riva / controller acqua | control, environment, ally synergy, displacement |
-| Bastion / difesa-cover | cover, team safety, objective hold, route control |
-| Vektor / predittivo | flank, interception, prediction, high payoff gambit |
+| Gadget / tecnico elettrico | danno elettrico, propagazione, setup acqua/elettrico |
+| Phase / controller acqua | control, environment, ally synergy, displacement |
+| Riktor / difesa-cover | cover, team safety, objective hold, route control |
+| Wraith / predittivo | flank, interception, prediction, high payoff gambit |
 
 Se il roster canonico ha nomi diversi, usare i ruoli/ability ID reali e aggiornare questa tabella.
 
 Mai:
 
 ```text
-if Hero == Flux -> hard-coded branch
+if Hero == Gadget -> hard-coded branch
 ```
 
 Preferire:
@@ -587,8 +589,8 @@ Prima versione:
 Esempio:
 
 ```text
-Riva -> crea Wet
-Flux -> Electric payoff
+Phase -> crea Wet
+Gadget -> Electric payoff
 ```
 
 La coppia può avere:
@@ -757,7 +759,7 @@ Esempio debug server-side:
 
 ```text
 BOT PLAN selected
-Unit = Vektor
+Unit = Wraith
 Action = Overwatch East
 Score = 842
 
@@ -1437,9 +1439,9 @@ Assert:
 Usare il roster **canonico corrente**. Se confermato dagli ultimi documenti:
 
 ```text
-Flux + Riva
+Gadget + Phase
 vs
-Bastion + Vektor
+Riktor + Wraith
 ```
 
 Altrimenti sostituire coi nomi reali.

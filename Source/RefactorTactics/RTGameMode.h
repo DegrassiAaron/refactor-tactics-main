@@ -75,21 +75,21 @@ public:
 	/**
 	 * Eroi della squadra 0 (giocatore) e della squadra 1 (bot), per `HeroId` del catalogo eroi v0.1.
 	 *
-	 * Default: **Flux + Riva** contro **Bastion + Vektor**. Le due coppie non sono casuali — Riva bagna e
-	 * Flux fulmina (`+8` su `Status.Wet`), Bastion costruisce e Vektor sfrutta lo spazio: ogni squadra ha una
+	 * Default: **Gadget + Phase** contro **Riktor + Wraith**. Le due coppie non sono casuali — Phase bagna e
+	 * Gadget fulmina (`+8` su `Status.Wet`), Riktor costruisce e Wraith sfrutta lo spazio: ogni squadra ha una
 	 * combo interna giocabile, che e' l'unico modo di vedere in partita cio' che CP 6.2/6.3 hanno costruito.
 	 *
 	 * E' un DATO e non una scelta scritta nel codice: cambiare formazione non richiede ricompilare, e quando
 	 * la selezione pre-partita esistera' (north-star) questa restera' solo il valore di partenza.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
-	TArray<FName> Team0Heroes = { TEXT("Hero.Flux"), TEXT("Hero.Riva") };
+	TArray<FName> Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Phase") };
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
-	TArray<FName> Team1Heroes = { TEXT("Hero.Bastion"), TEXT("Hero.Vektor") };
+	TArray<FName> Team1Heroes = { TEXT("Hero.Riktor"), TEXT("Hero.Wraith") };
 
 	/**
-	 * Classe visiva per `HeroId` (es. `BP_Unit_Flux` con skeletal mesh). Un eroe assente da questa mappa
+	 * Classe visiva per `HeroId` (es. `BP_Unit_Gadget` con skeletal mesh). Un eroe assente da questa mappa
 	 * ricade su `ARTUnit` — il cilindro segnaposto — che resta il comportamento di ripiego di sempre: un
 	 * personaggio senza asset si vede lo stesso e la partita si gioca.
 	 */
@@ -207,7 +207,7 @@ public:
 	FString ScenarioFilterA;
 
 	/**
-	 * Secondo filtro, in **intersezione** con il primo: `reactions` + `flux` mostra gli scenari che portano
+	 * Secondo filtro, in **intersezione** con il primo: `reactions` + `gadget` mostra gli scenari che portano
 	 * entrambi i tag.
 	 *
 	 * Due e non tre: due assi coprono il caso che serve — una tipologia incrociata con un personaggio o una

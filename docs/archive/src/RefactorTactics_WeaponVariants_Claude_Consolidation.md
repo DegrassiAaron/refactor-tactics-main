@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > 🗄️ **ARCHIVIATO il 2026-08-11 — consumato.** Questo è un **sorgente**, non un owner: si legge per la
 > provenienza, mai per la regola. Il contenuto recepito vive ora nelle fonti canoniche.
 >
@@ -96,14 +98,14 @@ Numeri dell'attacco base discussi:
 
 | Eroe | Attacco base | Danno | Portata | Identità rilevante |
 |---|---|---:|---:|---|
-| Flux | ArcPulse | 22 | 4 | bonus condizionale contro bersaglio Wet |
-| Riva | PressureJet | 16 | 5 | applica Wet + Push 1 |
-| Vektor | PulseShot | 21 | 4 | attacco base neutro |
-| Bastion | ImpactShot | 8 | 3 | Utility / Emergency, attacco deliberatamente debole |
+| Gadget | ArcPulse | 22 | 4 | bonus condizionale contro bersaglio Wet |
+| Phase | PressureJet | 16 | 5 | applica Wet + Push 1 |
+| Wraith | PulseShot | 21 | 4 | attacco base neutro |
+| Riktor | ImpactShot | 8 | 3 | Utility / Emergency, attacco deliberatamente debole |
 
 Nota importante:
 
-- Bastion ha deliberatamente un danno base molto inferiore agli altri.
+- Riktor ha deliberatamente un danno base molto inferiore agli altri.
 - Il suo attacco non deve essere “normalizzato” verso un ruolo DPS.
 - La progettazione delle varianti deve supportare anche attacchi base a forte componente utility.
 
@@ -162,8 +164,8 @@ La variante deve poter scegliere il proprio delta in base a una **fascia del dan
 
 Motivazione:
 
-- `+6` su Bastion 8 vale troppo rispetto a `+6` su Flux 22;
-- `−6` su Bastion 8 distrugge completamente l'attacco;
+- `+6` su Riktor 8 vale troppo rispetto a `+6` su Gadget 22;
+- `−6` su Riktor 8 distrugge completamente l'attacco;
 - vogliamo preservare affinità senza generare combinazioni morte.
 
 ### Regola fondamentale
@@ -253,7 +255,7 @@ FinalPush =
 Esempio confermato:
 
 ```text
-Riva PressureJet
+Phase PressureJet
 BasePush = 1
 
 WeaponVariant.Impact
@@ -264,9 +266,9 @@ FinalPush = 2
 
 Quindi:
 
-> **Riva + Impatto => Push 2.**
+> **Phase + Impatto => Push 2.**
 
-Non introdurre eccezioni specifiche per Riva.
+Non introdurre eccezioni specifiche per Phase.
 
 Se questa combinazione risulta troppo forte, bilanciare:
 
@@ -278,7 +280,7 @@ Se questa combinazione risulta troppo forte, bilanciare:
 NON aggiungere:
 
 ```cpp
-if (Character == Riva)
+if (Character == Phase)
 {
     ...
 }
@@ -288,9 +290,9 @@ if (Character == Riva)
 
 # 6. Conseguenze di design
 
-## 6.1 Bastion non deve essere il riferimento per normalizzare il roster
+## 6.1 Riktor non deve essere il riferimento per normalizzare il roster
 
-Bastion è deliberatamente Utility/Emergency.
+Riktor è deliberatamente Utility/Emergency.
 
 Il fatto che alcune varianti abbiano valore diverso su di lui è accettabile.
 
@@ -298,13 +300,13 @@ Il problema da evitare è:
 
 - una variante impossibile da scegliere;
 - un attacco ridotto a danno puramente simbolico senza payoff equivalente;
-- una variante che diventa gratuitamente forte perché Bastion non valorizza il danno perso.
+- una variante che diventa gratuitamente forte perché Riktor non valorizza il danno perso.
 
 Quindi misurare il trade-off sul valore tattico complessivo, non sulla sola percentuale di danno.
 
 ---
 
-## 6.2 Riva + Impatto diventa uno stress test prioritario
+## 6.2 Phase + Impatto diventa uno stress test prioritario
 
 PressureJet ha già:
 
@@ -461,17 +463,17 @@ BetterHazards = true
 
 | Eroe | Default proposto |
 |---|---|
-| Flux | Soppressione |
-| Riva | Precisione |
-| Vektor | Sovraccarico |
-| Bastion | Impatto |
+| Gadget | Soppressione |
+| Phase | Precisione |
+| Wraith | Sovraccarico |
+| Riktor | Impatto |
 
 Razionale:
 
-- Flux → controllo oltre al danno;
-- Riva → estende il setup Wet/Push pagando danno;
-- Vektor → enfatizza il burst e il ritmo di tiro;
-- Bastion → trasforma l'attacco in strumento di displacement/emergenza.
+- Gadget → controllo oltre al danno;
+- Phase → estende il setup Wet/Push pagando danno;
+- Wraith → enfatizza il burst e il ritmo di tiro;
+- Riktor → trasforma l'attacco in strumento di displacement/emergenza.
 
 **STATO: proposta forte, non ancora dichiarata esplicitamente definitiva dall'utente.**
 
@@ -678,7 +680,7 @@ Con 4 eroi e 4 varianti attive:
 
 Creare fixture/scenari deterministici almeno per:
 
-## Flux
+## Gadget
 
 - Precisione
 - Impatto
@@ -692,14 +694,14 @@ Verificare in particolare:
 - burst;
 - control.
 
-## Riva
+## Phase
 
 Tutte e 4.
 
 PRIORITÀ:
 
 ```text
-Riva + Impact
+Phase + Impact
 => PressureJet Push 2
 ```
 
@@ -716,7 +718,7 @@ Testare:
 - push blocked;
 - collisione simultanea.
 
-## Vektor
+## Wraith
 
 Verificare soprattutto:
 
@@ -724,7 +726,7 @@ Verificare soprattutto:
 - Sovraccarico e downtime;
 - trade-off danno/control.
 
-## Bastion
+## Riktor
 
 Verificare:
 
@@ -732,7 +734,7 @@ Verificare:
 - Impact come utility;
 - Suppression con danno basso ma effetto utile;
 - Precision come utility a distanza;
-- Overload non trasformi automaticamente Bastion in damage dealer.
+- Overload non trasformi automaticamente Riktor in damage dealer.
 
 ---
 
@@ -854,7 +856,7 @@ Documentare:
 - simultaneità;
 - reason codes.
 
-## Characters / Riva
+## Characters / Phase
 
 Aggiornare il caso:
 
@@ -863,7 +865,7 @@ PressureJet base Push 1
 Impact variant => Push 2
 ```
 
-## Characters / Bastion
+## Characters / Riktor
 
 Specificare che:
 
@@ -915,7 +917,7 @@ Aggiungere:
 
 - Weapon Variant MVP;
 - 16-loadout matrix;
-- Riva Push 2 stress test;
+- Phase Push 2 stress test;
 - balance telemetry;
 - bot policy comparison;
 - experimental variants future.
@@ -997,7 +999,7 @@ Reason/modifier chain visibile.
 
 16 combinazioni.
 
-### Issue 8 — Riva Impact Stress Scenario
+### Issue 8 — Phase Impact Stress Scenario
 
 Push 2 + environment/objective.
 
@@ -1097,7 +1099,7 @@ La feature è Done quando:
 2. nessun CharacterId branch è richiesto;
 3. la fascia deriva dal BaseDamage;
 4. i Push si sommano;
-5. Riva + Impact produce Push 2;
+5. Phase + Impact produce Push 2;
 6. MultiTarget e Environmental non sono selezionabili in v0.1;
 7. TurnLog spiega i modifier;
 8. test automatici coprono le 16 combinazioni base;
@@ -1114,7 +1116,7 @@ La feature è Done quando:
 - percentuali;
 - moltiplicatori;
 - eccezioni per CharacterId;
-- hard-code Riva/Bastion;
+- hard-code Phase/Riktor;
 - varianti experimental visibili nel loadout;
 - band che cambia durante il match;
 - client che decide il valore finale;
@@ -1139,7 +1141,7 @@ feat(combat): resolve damage-band variant modifiers
 
 feat(displacement): support additive push stacking
 
-test(combat): add weapon variant matrix and Riva push2 golden scenarios
+test(combat): add weapon variant matrix and Phase push2 golden scenarios
 
 feat(ui): expose resolved weapon variant trade-offs
 
@@ -1174,7 +1176,7 @@ Collegarla alle epic esistenti di:
 - v0.1 playable variants = Precision / Impact / Overload / Suppression.
 - MultiTarget / Environmental remain catalogued but disabled/experimental.
 - Push effects stack additively.
-- Riva + Impact = Push 2.
+- Phase + Impact = Push 2.
 - No hero-specific branches.
 
 ## Provisional
@@ -1185,10 +1187,10 @@ Collegarla alle epic esistenti di:
   - High 19+
 - Numeric damage deltas per band.
 - Default variant assignment:
-  - Flux / Suppression
-  - Riva / Precision
-  - Vektor / Overload
-  - Bastion / Impact
+  - Gadget / Suppression
+  - Phase / Precision
+  - Wraith / Overload
+  - Riktor / Impact
 
 ## Open
 
@@ -1235,7 +1237,7 @@ Ordine suggerito:
 3. aggiornare Wiki Weapon Variants + Displacement;
 4. aggiornare Roadmap / Feature Map;
 5. creare epic + issue;
-6. creare scenari Riva Push 2;
+6. creare scenari Phase Push 2;
 7. aggiungere validator;
 8. implementare data model;
 9. implementare band resolver;

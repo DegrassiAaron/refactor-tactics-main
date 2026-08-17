@@ -1,4 +1,6 @@
 # RefactorTactics — Character Radar & Wiki Visualization Pipeline
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Handoff operativo per Claude Code
 
 **Obiettivo:** consolidare nel repository RefactorTactics le decisioni emerse sul modo di rappresentare e confrontare i personaggi tramite radar/spider chart, definire la pipeline dati → grafici → Wiki, aggiornare documentazione e tracker di progetto, e creare/aggiornare Epic e Issue senza duplicare materiale già esistente.
@@ -150,7 +152,7 @@ Durante la discussione sono stati usati esempi numerici per mostrare il sistema.
 
 **NON assumere che siano valori canonici.**
 
-In particolare Flux, Riva, Bastion e Vektor devono essere valorizzati solo dopo verifica contro i dati correnti del repository / balance matrix.
+In particolare Gadget, Phase, Riktor e Wraith devono essere valorizzati solo dopo verifica contro i dati correnti del repository / balance matrix.
 
 Se il repository possiede già rating equivalenti:
 
@@ -258,10 +260,10 @@ Docs/
   Wiki/
     Data/
       Characters/
-        flux.yaml
-        riva.yaml
-        bastion.yaml
-        vektor.yaml
+        gadget.yaml
+        phase.yaml
+        riktor.yaml
+        wraith.yaml
     Assets/
       Generated/
         radar/
@@ -287,9 +289,9 @@ Non creare queste cartelle se il repo possiede già equivalenti.
 Esempio concettuale:
 
 ```yaml
-id: character.flux
-slug: flux
-displayName: Flux
+id: character.gadget
+slug: gadget
+displayName: Gadget
 role: Controller
 
 profile:
@@ -313,7 +315,7 @@ tags:
   - ComboStarter
 ```
 
-Gli esempi numerici discussi in chat non rendono canonico Flux.
+Gli esempi numerici discussi in chat non rendono canonico Gadget.
 
 # 11. VALIDAZIONE
 
@@ -387,9 +389,9 @@ Adattare al package manager reale del repo.
 
 ```bash
 pnpm wiki:charts
-pnpm wiki:chart flux
-pnpm wiki:compare flux riva profile
-pnpm wiki:compare flux riva balance
+pnpm wiki:chart gadget
+pnpm wiki:compare gadget phase profile
+pnpm wiki:compare gadget phase balance
 ```
 
 Se il repo usa npm/yarn/Make/PowerShell/task runner differente, integrare con quello esistente.
@@ -526,7 +528,7 @@ Roster Overview, pagine personaggio, docs generator.
 Schema, renderer, golden e duplicate tests.
 
 ## ISSUE 8 — Define Canonical Ratings for v0.1 Roster
-Flux, Riva, Bastion, Vektor.
+Gadget, Phase, Riktor, Wraith.
 
 Acceptance:
 - nessun valore arbitrario;
@@ -808,7 +810,7 @@ Comandi eseguiti e risultato.
 ## Decisioni aperte
 In particolare:
 - criteri quantitativi definitivi per kit/stats → rating 1–10;
-- rating canonici Flux/Riva/Bastion/Vektor;
+- rating canonici Gadget/Phase/Riktor/Wraith;
 - ownership finale YAML vs export Data Asset;
 - policy CI per generated artifacts.
 

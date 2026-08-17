@@ -324,9 +324,9 @@ Può essere più caratterizzato, ma deve:
 
 Esempio:
 
-`Flux.LinearDischarge` = Line + Electric + controlled branch hint.
+`Hero.Gadget.LinearDischarge` = Line + Electric + controlled branch hint.
 
-Non creare un'immagine narrativa complessa di Flux che spara.
+Non creare un'immagine narrativa complessa di Gadget che spara.
 
 ---
 

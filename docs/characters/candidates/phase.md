@@ -5,7 +5,7 @@
 > 🧩 **Stato RefactorTactics:** `CANDIDATE / SIGNATURE_DEFINED`  
 > **Release:** `UNASSIGNED`  
 > **Roster ufficiale:** `NO`  
-> **Uso corrente:** base visuale del **roster v0.1** (`Hero.Riva`) — [D-037](../../decisions/RT_PDR_00_Decision_Log.md). L'asset è impegnato; il concept di Phase resta un candidato senza release.  
+> **Uso corrente:** base visuale del **roster v0.1** (`Hero.Phase`) — [D-037](../../decisions/RT_PDR_00_Decision_Log.md). L'asset è impegnato; il concept di Phase resta un candidato senza release.  
 > **Asset base:** Paragon — Phase  
 > **RT Character ID:** `TBD`
 

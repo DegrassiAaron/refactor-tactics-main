@@ -119,7 +119,7 @@ e `Result: Succeeded` verificato sull'output completo della build — le due lez
   combustibile, l'algoritmo è lo stesso BFS di CP 8.3.
 - **Targeting per cella**: `Ignite`/`CreateWater` colpiscono la cella del **bersaglio**, come `Electrify`.
   Incendiare una cella vuota richiede il bersaglio-cella dell'HUD (E11).
-- **`Flux.ConductiveNode`**: ora sarebbe rappresentabile (il terreno dinamico esiste), ma cablarla è **CP 8.5**
+- **`Hero.Gadget.ConductiveNode`**: ora sarebbe rappresentabile (il terreno dinamico esiste), ma cablarla è **CP 8.5**
   insieme alle altre azioni ambientali — qui sarebbe un cambio al catalogo eroi fuori scope.
 - **Congelare l'acqua / evaporare**: il catalogo le elenca fra le interazioni, ma nessuna azione del v0.1 le
   produce. `Ice` esiste come superficie e scivola già (CP 8.1).

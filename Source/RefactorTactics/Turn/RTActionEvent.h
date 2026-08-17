@@ -141,7 +141,7 @@ enum class ERTActionEffect : uint8
  * Un effetto DICHIARATO da un'azione del catalogo: cosa fa e quanto.
  *
  * Un'azione ne dichiara una LISTA, perche' molte ne combinano piu' d'uno: la Spazzata del Guardian infligge
- * danno **e** respinge; `Riva.PressureJet` del catalogo v0.1 fa danno, bagna e spinge. Con un solo effetto per
+ * danno **e** respinge; `Phase.PressureJet` del catalogo v0.1 fa danno, bagna e spinge. Con un solo effetto per
  * azione, la seconda meta' finirebbe di nuovo in un flag hard-coded — cioe' il problema che il motore azioni
  * esiste per togliere.
  */

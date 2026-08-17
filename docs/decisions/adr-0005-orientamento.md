@@ -183,7 +183,8 @@ raggruppare i lati che le servono (`{FrontLeft, Front, FrontRight}`), ma quell'i
 
 🔴 **Nessuno dei tre consumatori di questa sezione cambia comportamento, e il motivo è misurato.** Il cono a
 120° è **strettamente contenuto** nell'insieme dei tre lati frontali: replicando `HexCone`/`HexLine` con le
-costanti reali su un difensore e raggio `1..10` si contano **50** celle di divergenza, **tutte** nel verso
+costanti reali su un difensore e raggio `1..10` si contano **45** celle di divergenza (diceva `50`, cifra
+della regola a linea poi scartata, corretta da [D-147](RT_PDR_00_Decision_Log.md)), **tutte** nel verso
 «tre-lati dentro / cono fuori» e **zero** nel verso opposto, con la prima a distanza **2**. Spostare §4a, §4b
 o §4c sull'insieme dei lati sarebbe quindi un **buff difensivo netto**, non una rinomina — e il divieto di
 avere due definizioni di «davanti» resta in vigore proprio perché nessun consumatore d'area si muove.

@@ -20,12 +20,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**117 feature** · v0.1 **81** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
+**120 feature** · v0.1 **82** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **6**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 7 |
-| `DESIGNED` | 18 |
+| `DESIGNED` | 21 |
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 27 |
 | `TESTABLE` | 9 |
@@ -62,7 +62,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-CHAR-RADAR-MODEL` — Modello dei radar di profilo — Profile e Balance | v0.4 | DONE | 4/4 | E37 | — |
 | `RT-FEAT-CHAR-RADAR-RATINGS-V01` — Rubrica — i rating derivati dal catalogo eroi | v0.4 | DONE | 4/4 | E37 | — |
-| `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Gadget, Phase, Riktor, Wraith | v0.1 | INTEGRATED | 6/8 | E6 | I 4 eroi corrispondono al catalogo; **3 reazioni su 5** cablate |
+| `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Gadget, Phase, Riktor, Wraith | v0.1 | INTEGRATED | 6/8 | E6 | I 4 eroi corrispondono al catalogo; **3 reazioni su 4** cablate |
 | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | v0.1 | IMPLEMENTING | 1/7 | E21 · M8 | Il lavoro che viveva solo in M8, reso visibile dal registry |
 | `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | v0.2 | DESIGNED | 0/9 | — | — |
 | `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | v0.2 | DESIGNED | 0/9 | — | Le 10 voci `PIE-STATE-*` sono la sua controparte umana, e restano ⏳ |
@@ -93,7 +93,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
 | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | v0.1 | INTEGRATED | 6/9 | E8 | Sul grafo dell'acqua, limite 3 passi, unicità per evento, ordine totale |
-| `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | v0.1 | INTEGRATED | 6/9 | E8 | `Burning` danneggia nel Cleanup **prima** dei KO |
+| `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | v0.1 | INTEGRATED | 7/9 | E8 | `Burning` danneggia nel Cleanup **prima** dei KO |
 | `RT-FEAT-ENV-ICE` — Ghiaccio e scivolamento | v0.1 | INTEGRATED | 6/9 | E8 | Vigente e testato benché il catalogo lo dicesse «rimandabile» |
 | `RT-FEAT-ENV-STATUS` — Stati temporanei legati alla cella | v0.1 | INTEGRATED | 6/9 | E8 | La durata è legata **alla cella**, non all'unità |
 | `RT-FEAT-ENV-STEAM` — Fumo e copertura visiva | v0.1 | INTEGRATED | 6/9 | E8 | Il bersaglio si **vede** e non si può colpire |
@@ -184,7 +184,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | v0.1 | SPECIFIED | 1/10 | E14 | Due opportunity contese: chi vince, e una sola volta |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/10 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
-### Tools · 15
+### Tools · 17
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -202,9 +202,11 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | v0.3 | DESIGNED | 0/8 | E27 | — |
 | `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | v0.3 | DESIGNED | 0/8 | E28 | — |
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | E26 | Epic E26 |
+| `RT-FEAT-TOOL-SCENARIO-COMPOSER` — Scenario Composer — authoring visuale sopra il formato scenario canonico | future | DESIGNED | 0/7 | M9 | — |
+| `RT-FEAT-TOOL-SKILL-WORKBENCH` — Skill Workbench — varianti di abilita' separate dal dato di produzione | future | DESIGNED | 0/7 | M9 | — |
 | `RT-FEAT-BOT-COMPETENCE` — Schema di competenza del bot — cosa il bot sa davvero usare | v0.8 | IDEA | 0/6 | E43 | — |
 
-### UI · 17
+### UI · 18
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -224,6 +226,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | v0.1 | SPECIFIED | 1/5 | E46 | — |
 | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | v0.1 | SPECIFIED | 1/6 | E46 | — |
 | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | v0.1 | SPECIFIED | 1/5 | E46 | — |
+| `RT-FEAT-UI-GRAYBOX-KIT` — Graybox Kit — contratto di ingombro, pivot e presentazione degli oggetti di mappa | v0.1 | DESIGNED | 0/5 | E21 | — |
 | `RT-FEAT-UI-STRUCTURE-READABILITY` — Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio | v0.2 | DESIGNED | 0/7 | E23 | — |
 
 <!-- RT_SHORTLIST_FEATURES:END -->

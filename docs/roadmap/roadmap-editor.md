@@ -313,7 +313,7 @@ mancante, variante senza svantaggio) e accettare i tuoi.
 ### U11 · I 4 eroi ⏳
 
 **Sbloccata da**: E6 (CP 6.1–6.6 della roadmap v0.1) · **Percorso critico**: sì
-**Produce**: i data asset di Flux, Riva, Bastion e Vektor, e lo spawn 2v2 che li usa
+**Produce**: i data asset di Gadget, Phase, Riktor e Wraith, e lo spawn 2v2 che li usa
 
 **Cosa fai**: un asset eroe per personaggio con statistiche distinte (90/95/120/100 HP, 5/5/4/6 MP), poi una
 partita per vedere che il bot gestisca MP diversi senza proporre mosse illegali. Asset mancante = fallback al

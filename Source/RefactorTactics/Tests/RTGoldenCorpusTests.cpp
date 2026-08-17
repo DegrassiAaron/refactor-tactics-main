@@ -67,7 +67,7 @@ namespace
 		Log.Add(MakeGoldenEntry(ERTMatchPhase::Prep, ERTLogCategory::Reaction,
 			0, TEXT("Action.Guard")));
 		Log.Add(MakeGoldenEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
-			static_cast<uint8>(ERTCombatOutcome::Hit), TEXT("Vektor.PulseShot"), 21));
+			static_cast<uint8>(ERTCombatOutcome::Hit), TEXT("Hero.Wraith.PulseShot"), 21));
 		Log.Add(MakeGoldenEntry(ERTMatchPhase::Move, ERTLogCategory::Move,
 			static_cast<uint8>(ERTMoveOutcome::Moved), TEXT("Action.Move"), 2));
 		return Log;
@@ -96,7 +96,7 @@ bool FRTGoldenCorpusDivergenceTest::RunTest(const FString&)
 		TestFalse(TEXT("una divergenza va descritta"), Diag.IsEmpty());
 		TestTrue(TEXT("la diagnosi dice il TURNO"), Diag.Contains(TEXT("turno 3")));
 		TestTrue(TEXT("la diagnosi dice la FASE"), Diag.Contains(TEXT("Blast")));
-		TestTrue(TEXT("la diagnosi dice l'ACTIONID"), Diag.Contains(TEXT("Vektor.PulseShot")));
+		TestTrue(TEXT("la diagnosi dice l'ACTIONID"), Diag.Contains(TEXT("Hero.Wraith.PulseShot")));
 	}
 
 	// Divergenza SOLO nell'azione, su una voce di movimento. E' il caso che la verifica di mutazione ha

@@ -28,16 +28,16 @@ Una sinergia **non è** una Ability Definition e non introduce per default un nu
 Corretto:
 
 ```text
-Riva.PressureJet -> Status.Wet
-Flux.LinearDischarge -> se Target.HasStatus(Wet), +8
+Hero.Phase.PressureJet -> Status.Wet
+Hero.Gadget.LinearDischarge -> se Target.HasStatus(Wet), +8
 ```
 
-Il secondo passaggio dipende da `Wet`, non da `Hero.Riva`. Una futura sorgente di Wet può abilitare lo stesso payoff se le regole lo consentono.
+Il secondo passaggio dipende da `Wet`, non da `Hero.Phase`. Una futura sorgente di Wet può abilitare lo stesso payoff se le regole lo consentono.
 
 Errato:
 
 ```text
-if SourceHero == Riva && AttackerHero == Flux:
+if SourceHero == Phase && AttackerHero == Gadget:
     BonusDamage += 8
 ```
 
@@ -61,7 +61,7 @@ Se una pagina di sinergia deve spiegare un'abilità, la **linka** alla pagina ow
 
 ## 6. Scenari
 
-Uno ScenarioId come `Team.Conflux.FluxRiva.ConductiveFlood` può essere specifico della coppia perché la fixture deve mostrare quella cooperazione. Questo non crea una dipendenza nei dati dell'abilità.
+Uno ScenarioId come `Team.Conflux.GadgetPhase.ConductiveFlood` può essere specifico della coppia perché la fixture deve mostrare quella cooperazione. Questo non crea una dipendenza nei dati dell'abilità.
 
 ```text
 Scenario -> Intents -> existing Ability/Action definitions -> systemic rules -> TurnLog

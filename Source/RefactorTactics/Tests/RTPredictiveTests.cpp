@@ -25,7 +25,7 @@ namespace
 		FRTPredictiveShot S;
 		S.SourceUnitId = Source;
 		S.LockedCell = Cell;
-		S.ActionId = TEXT("Vektor.InterceptShot");
+		S.ActionId = TEXT("Hero.Wraith.InterceptShot");
 		S.Hostiles = Hostiles;
 		return S;
 	}

@@ -113,6 +113,17 @@ Content/**/*.txt
 !Content/RT/Characters/Phase/Animation/ABP_Phase.uasset
 !Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset
 !Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset
+# I widget del frontend (E46). Stesso criterio degli altri: non sono arte, sono **logica di
+# presentazione da cui dipende una verifica** — `PIE-V01-FRONTEND-ERROR` e `-NAV` si eseguono su questi.
+# Le classi base vivono in C++ (`Source/RefactorTactics/Frontend/RTFrontendWidgets.h`) e questi `.uasset`
+# ne portano il solo layout, che nessun test automatico puo' coprire.
+#
+# ⚠️ **Riammessi PRIMA che due dei tre esistano**, come l'arena di `#449` e il materiale di `#896`: al
+# contrario `git add` non fa nulla e **non lo dice**, e la seduta si chiude credendo di aver versionato.
+# `WBP_RT_FallbackBanner` esiste dal 2026-08-16 ed e' il primo a entrare.
+!Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset
+!Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
+!Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset
 
 # Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
 .superpowers/

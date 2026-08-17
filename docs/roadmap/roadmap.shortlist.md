@@ -22,9 +22,9 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E3** | ✅ | — | — | `FRTGridCoord`, `URTGridLibrary` e `ARTGridActor` non esistono più: doppia manutenzione = ambiguità su dove va scritta una regola |
 | **E4** | ✅ | 5 | 32/45 | Priorità intera intra-fase, fallback, collisioni senza bias di Player ID — regge azioni, reazioni, ambiente e obiettivi |
 | **E5** | ✅ | 2 | 12/17 | Counter/Deflect/Brace/Shield/Cleanse/Intercept preparate in planning, una attivazione per turno, **nessuna attesa nel resolver** |
-| **E6** | ✅ | 1 | 6/8 | Gadget, Phase, Riktor, Wraith da dati; **3 reazioni su 5** cablate, `InterceptShot`→E18 e `FlowReaction`→E14 |
+| **E6** | ✅ | 1 | 6/8 | Gadget, Phase, Riktor, Wraith da dati; **3 reazioni su 4** cablate, resta `FlowReaction`→E14; `InterceptShot` è Predictive e consegnata (D-016) |
 | **E7** | 🟡 | 1 | 1/8 | Scelta orizzontale: ogni variante ha uno svantaggio |
-| **E8** | ✅ | 8 | 49/72 | 8 superfici, stati temporanei legati alla cella, propagazione elettrica sul grafo dell'acqua, fuoco/acqua dinamici |
+| **E8** | ✅ | 8 | 50/72 | 8 superfici, stati temporanei legati alla cella, propagazione elettrica sul grafo dell'acqua, fuoco/acqua dinamici |
 | **E9** | ✅ | 5 | 33/43 | Copertura per **bordo**, porte come bordo (mappa v4), ponti come **arco** (v5), pannello cinetico temporaneo |
 | **E10** | 🟡 | 2 | 9/18 | Fine partita a tre vie ✅; ⏳ **nessun oggetto da attivare** in mappa |
 | **E11** | 🟡 | 10 | 31/71 | Preview, input e playback esistono; ⏳ **Ghost Timeline** e i comandi `rt.Debug.*` completi |
@@ -37,7 +37,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E18** | ✅ | 1 | 7/9 | **Una sola** azione predittiva rende percepibile il pilastro. Non dipende da E13/E14 |
 | **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
-| **E21** | 🟡 | 1 | 1/7 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
+| **E21** | 🟡 | 2 | 1/12 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
 | **E46** | 🟡 | 5 | 5/27 | — |
 | **E47** | — | 2 | 3/15 | — |
 

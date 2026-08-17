@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 🗄️ `HISTORICAL` — SORGENTE RECEPITO
 >
 > **Archiviato il 2026-08-10.** Era in `todo/consolidazione-chat-openai/`, untracked.
@@ -7,7 +9,7 @@
 > della grammatica delle interazioni (E10 · CP 10.1): l'elemento dichiara i verbi, l'unita' le capability, e la
 > legalita' esce da tre filtri indipendenti.
 >
-> ⚠️ **Non applicare** §11 cosi' com'e': `D-046` ha reso `Flux.ConductiveNode` un `Action.Electrify`, e la
+> ⚠️ **Non applicare** §11 cosi' com'e': `D-046` ha reso `Hero.Gadget.ConductiveNode` un `Action.Electrify`, e la
 > conduzione e' della **cella** — non dello stato dell'unita' ([`D2` di `spec-propagazione-elettrica-cp83.md`](../../../gameplay/spec-propagazione-elettrica-cp83.md)).
 > Le sigle nuove che propone (`ENV-001`, `MAP-001`) duplicano regole che hanno gia' un identificatore.
 
@@ -345,11 +347,11 @@ Wet(unit) != Conductive(cell/edge)
 
 `ShallowWater` applica Wet mentre l'unità è sostenuta dalla cella.
 
-Riva può applicare Wet anche fuori dall'acqua; nella guida corrente la durata adottata è 1 turno.
+Phase può applicare Wet anche fuori dall'acqua; nella guida corrente la durata adottata è 1 turno.
 
 Interazioni v0.1 documentate:
 - Wet rimuove Burning;
-- `Flux.LinearDischarge` ottiene +8 danni contro un bersaglio Wet.
+- `Hero.Gadget.LinearDischarge` ottiene +8 danni contro un bersaglio Wet.
 
 Questi numeri devono restare nel catalogo/spec normativa, non sparsi nel codice.
 
@@ -380,9 +382,9 @@ Stato importante:
 
 > il motore della propagazione risulta implementato/testato, ma nessuno dei quattro eroi v0.1 possiede normalmente `Action.Electrify` come skill standard.
 
-Quindi non scrivere nelle pagine hero che Flux “possiede Electrify” se il catalogo non lo dichiara.
+Quindi non scrivere nelle pagine hero che Gadget “possiede Electrify” se il catalogo non lo dichiara.
 
-Flux ha invece una sinergia corrente con Wet tramite `LinearDischarge`.
+Gadget ha invece una sinergia corrente con Wet tramite `LinearDischarge`.
 
 Ponti possono dichiarare `bConductsElectricity`; se inattivi/distrutti interrompono la catena.
 
@@ -593,10 +595,10 @@ Interaction.Mechanical
 
 Mapping hero discussi solo come esempi da verificare:
 ```text
-Flux -> Electric / Tech
-Riva -> Fluid
-Bastion -> Engineering / Force
-Vektor -> Precision / Sensor
+Gadget -> Electric / Tech
+Phase -> Fluid
+Riktor -> Engineering / Force
+Wraith -> Precision / Sensor
 ```
 
 Non renderli canon automaticamente.
@@ -694,10 +696,10 @@ Reinforce
 ## Ability-driven
 Esempi concettuali:
 ```text
-Flux + generator/electric system
-Riva + water/valve system
-Bastion + structural cover
-Vektor + sensor/trajectory system
+Gadget + generator/electric system
+Phase + water/valve system
+Riktor + structural cover
+Wraith + sensor/trajectory system
 ```
 
 Questi esempi NON autorizzano branch hard-coded per nome eroe.
@@ -1230,7 +1232,7 @@ Propagazione segue celle conduttive, non distanza geometrica.
 ## ENV-003 — Wet Removes Burning
 Validare la regola corrente.
 
-## ENV-004 — Flux Wet Bonus
+## ENV-004 — Gadget Wet Bonus
 `LinearDischarge` usa il modifier del catalogo corrente.
 
 ## ENV-005 — Fire Water Interaction
@@ -1344,7 +1346,7 @@ Azione:
 preservare design, non dichiararlo automaticamente v0.1 Done.
 
 ## INTERACTION-CAPABILITY-01
-I mapping Flux/Riva/Bastion/Vektor -> capability sono esempi concettuali nel prompt interazioni.
+I mapping Gadget/Phase/Riktor/Wraith -> capability sono esempi concettuali nel prompt interazioni.
 
 Azione:
 non canonizzarli finché Hero Catalog/Decision Log non li approva.

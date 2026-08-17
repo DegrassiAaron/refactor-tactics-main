@@ -63,9 +63,9 @@ sistemi per la stessa cosa.
 
 | | Quando si decide | Input durante la Resolution | Esempio |
 |---|---|---|---|
-| **Normal Action** | Planning | no | `Flux.ArcPulse` |
+| **Normal Action** | Planning | no | `Hero.Gadget.ArcPulse` |
 | **Delayed / Predictive Action** | Planning, **interamente** | **no** | «sparo dove *penso* che arriverai» |
-| **Prepared Reaction** | Planning (armata) | no — una sola risposta legale | `Bastion.Interposition` |
+| **Prepared Reaction** | Planning (armata) | no — una sola risposta legale | `Hero.Riktor.Interposition` |
 | **Fast Reaction** | **live**, al boundary | sì — evento **esterno** | Overwatch: `FIRE` / `HOLD` |
 | **Fast Action** | **live**, al boundary | sì — continuazione di una **propria** azione | `LEFT` / `RIGHT` dopo un'ability |
 | **Forced movement** | nessuno: è subito | no | knockback, spinta ambientale |

@@ -75,7 +75,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeVektor());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
@@ -116,7 +116,7 @@ namespace
 
 	/**
 	 * Come `PlanCoverAction`, ma con un'abilita' d'EROE gia' costruita dal catalogo (e la sua variante attiva).
-	 * Serve perche' il pannello di Bastion non e' un'azione core: e' un'azione core con un nome d'eroe, e la
+	 * Serve perche' il pannello di Riktor non e' un'azione core: e' un'azione core con un nome d'eroe, e la
 	 * differenza va verificata su cio' che il giocatore usa davvero.
 	 */
 	void PlanHeroCoverAction(ARTUnit* Caster, URTActionData* HeroAction, const FRTCellId& TargetCell,
@@ -147,6 +147,27 @@ namespace
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
 			if (E.Category == ERTLogCategory::Environment && E.Outcome == static_cast<uint8>(Outcome)) { ++N; }
+		}
+		return N;
+	}
+
+	/**
+	 * Le voci canoniche del danno da `Status.Burning` di UNA unita', per esito (`#625`).
+	 *
+	 * Gemella di `CountEnvOutcome`, e nata dalla stessa ragione: i test di `#625` scrivevano ciascuno il
+	 * proprio giro su `GetTurnLog()`, terzo e quarto loop aperto dello stesso file. Trovato in code review.
+	 */
+	int32 CountBurningEntries(const ARTTurnManager* TM, int32 UnitId, ERTCombatOutcome Outcome)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.ActionId == FName(TEXT("Status.Burning"))
+				&& E.UnitId == UnitId
+				&& E.Outcome == static_cast<uint8>(Outcome))
+			{
+				++N;
+			}
 		}
 		return N;
 	}
@@ -272,7 +293,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionMistVeilTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActionMistVeilTest::RunTest(const FString&)
 {
-	// Issue #353. `Riva.MistVeil` dichiarava «crea fumo raggio 1» e non lo faceva: `Smoke` era l'unica delle
+	// Issue #353. `Phase.MistVeil` dichiarava «crea fumo raggio 1» e non lo faceva: `Smoke` era l'unica delle
 	// otto superfici che nessuna azione sapeva creare. Il test non si ferma alla superficie — verifica anche
 	// il CAP di targeting, perche' e' quello l'effetto tattico, e una superficie dipinta che non cambia nulla
 	// sarebbe lo stesso difetto di prima con un colore in piu'.
@@ -292,9 +313,9 @@ bool FRTActionMistVeilTest::RunTest(const FString&)
 
 	// L'abilita' vera del catalogo, non una ricostruita nel test: la issue nasceva proprio da uno scarto fra
 	// cio' che il catalogo dichiarava e cio' che l'azione faceva.
-	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
-	if (!TestNotNull(TEXT("Riva costruita"), Riva)) { DestroyEnvWorld(World); return false; }
-	URTActionData* MistVeil = Riva->Actions.IsValidIndex(3) ? Riva->Actions[3] : nullptr;
+	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	if (!TestNotNull(TEXT("Phase costruita"), Phase)) { DestroyEnvWorld(World); return false; }
+	URTActionData* MistVeil = Phase->Actions.IsValidIndex(3) ? Phase->Actions[3] : nullptr;
 	if (!TestNotNull(TEXT("MistVeil nel kit"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;
@@ -837,6 +858,54 @@ bool FRTBridgeGhostTrackingTest::RunTest(const FString&)
  * cioe' prima del Blast che la usa, quindi il turno dell'erezione e' gia' un turno in cui ha riparato qualcuno.
  * Due turni di durata = protetta nel turno 1 e nel turno 2, scoperta dal 3.
  */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractDoesNotCreateCoverTest,
+	"RefactorTactics.Structures.Interact.DoesNotCreateCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInteractDoesNotCreateCoverTest::RunTest(const FString&)
+{
+	// 🔴 **Difende il ramo che tiene `Action.Interact` FUORI dal loop delle coperture** ([D-148]).
+	//
+	// `Interact` dichiara `StructureOp = SetDoorState` per farsi puntare su un bordo, e questo loop prende
+	// tutto cio' che non e' `None`: tratta `MoveCover` a parte e manda **tutto il resto** al ramo che erige
+	// una copertura dal catalogo terreni. Nessuno `switch` su `ERTStructureOp` e' esaustivo, quindi togliere
+	// il ramo delle porte **compila senza un avviso** — e l'azione costruirebbe un muro invece di aprire.
+	//
+	// ⚠️ Questo test esiste perche' la mutazione l'ha dimostrato: rimosso quel ramo, **192 test su 192
+	// restavano verdi**. La riga era una difesa senza difensori, ed e' esattamente la forma di difetto che
+	// una verifica di mutazione trova e un ciclo verde no.
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	const FRTCellId Home(0, 0);
+	const FRTCellId Target(1, 0); // adiacente: `Interact` ha portata 1 (D-149)
+
+	ARTUnit* Actor = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Actor"), Actor) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("all'inizio il bordo e' scoperto"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Target, Home), ERTHexCoverType::None);
+
+	// Stesso helper di `Action.CreateCover`: dichiara cella E bordo, cioe' il piano che il loop delle
+	// strutture consuma. Se `Interact` finisse in quel ramo, qui nascerebbe una copertura.
+	PlanCoverAction(Actor, TEXT("Action.Interact"), Target, ERTHexDirection::W);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("Interact NON erige una copertura"),
+		URTHexCoverLibrary::CoverBetween(MapActor->MapAsset, Target, Home), ERTHexCoverType::None);
+	TestEqual(TEXT("e il TurnLog non riporta nessuna copertura creata"),
+		CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverCreated), 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKineticPanelTemporaryCoverTest,
 	"RefactorTactics.Structures.KineticPanel.TemporaryCover",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -958,7 +1027,7 @@ bool FRTCreateCoverRejectsTest::RunTest(const FString&)
 }
 
 /**
- * CP 9.5 — `Bastion.KineticPanel` erige davvero, e la VARIANTE attiva decide integrita' e durata.
+ * CP 9.5 — `Riktor.KineticPanel` erige davvero, e la VARIANTE attiva decide integrita' e durata.
  *
  * Fino a qui i `Parameters` delle varianti erano una dichiarazione che nessun sistema leggeva, in tutto il
  * progetto: il catalogo scriveva «45 per un turno solo» e «25 che non scade» e il gioco applicava sempre 30/2.
@@ -968,10 +1037,10 @@ bool FRTCreateCoverRejectsTest::RunTest(const FString&)
  * turno stesso), l'adattivo che `DurationTurns = 0` significa «non scade da sola» e non «scade subito» — la
  * lettura sbagliata piu' probabile, e quella che il campo non perdonerebbe.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionPanelVariantAppliedTest,
-	"RefactorTactics.Heroes.Bastion.KineticPanelVariantApplied",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorPanelVariantAppliedTest,
+	"RefactorTactics.Heroes.Riktor.KineticPanelVariantApplied",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
+bool FRTRiktorPanelVariantAppliedTest::RunTest(const FString&)
 {
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -996,13 +1065,13 @@ bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
 
 	// L'abilita' e' quella del catalogo eroi, non l'azione core: e' cio' che il giocatore ha in mano. Due
 	// istanze distinte, cosi' nessuno stato dell'una puo' spiegare il comportamento dell'altra.
-	URTActionData* PanelA = URTHeroCatalogLibrary::MakeBastion()->Actions[1];
-	URTActionData* PanelB = URTHeroCatalogLibrary::MakeBastion()->Actions[1];
+	URTActionData* PanelA = URTHeroCatalogLibrary::MakeRiktor()->Actions[1];
+	URTActionData* PanelB = URTHeroCatalogLibrary::MakeRiktor()->Actions[1];
 
 	PlanHeroCoverAction(WithReinforced, PanelA, Reinforced, ERTHexDirection::W,
-		TEXT("Bastion.KineticPanel.Reinforced"));
+		TEXT("Hero.Riktor.KineticPanel.Reinforced"));
 	PlanHeroCoverAction(WithAdaptive, PanelB, Adaptive, ERTHexDirection::SW,
-		TEXT("Bastion.KineticPanel.Adaptive"));
+		TEXT("Hero.Riktor.KineticPanel.Adaptive"));
 	RunEnvTurn(TM);
 
 	// I due parametri si verificano dove ciascuno e' osservabile, e non e' un ripiego: e' il compromesso
@@ -1030,7 +1099,7 @@ bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
 }
 
 /**
- * CP 9.5 — `Bastion.Reconfigure` SPOSTA una copertura: non ne crea una seconda.
+ * CP 9.5 — `Riktor.Reconfigure` SPOSTA una copertura: non ne crea una seconda.
  *
  * E' il nome che la DoD vincola (`ReconfigureDoesNotDuplicate`), e il difetto che sorveglia e' preciso: una
  * implementazione che «aggiunge sul bordo nuovo» senza togliere dal vecchio raddoppierebbe la protezione con
@@ -1039,10 +1108,10 @@ bool FRTBastionPanelVariantAppliedTest::RunTest(const FString&)
  *
  * Verifica anche che l'integrita' VIAGGI con la copertura: spostare un pannello ammaccato non lo ripara.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionReconfigureTest,
-	"RefactorTactics.Heroes.Bastion.ReconfigureDoesNotDuplicate",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorReconfigureTest,
+	"RefactorTactics.Heroes.Riktor.ReconfigureDoesNotDuplicate",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionReconfigureTest::RunTest(const FString&)
+bool FRTRiktorReconfigureTest::RunTest(const FString&)
 {
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -1051,10 +1120,10 @@ bool FRTBastionReconfigureTest::RunTest(const FString&)
 	const FRTCellId Home(0, 0);
 	const FRTCellId Panel(1, 0);
 
-	ARTUnit* Bastion = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Riktor = SpawnEnvUnit(World, 0, Home);
 	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Bastion"), Bastion) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyEnvWorld(World);
 		return false;
@@ -1063,11 +1132,11 @@ bool FRTBastionReconfigureTest::RunTest(const FString&)
 	// Una copertura gia' in campo, ammaccata: 18 punti struttura invece di 30.
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Panel, ERTHexDirection::W, ERTHexCoverType::Low, 18);
 
-	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
+	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeRiktor()->Actions[2];
 	TestTrue(TEXT("Reconfigure dichiara di spostare"),
 		Reconfigure->Def.StructureOp == ERTStructureOp::MoveCover);
 
-	PlanHeroCoverAction(Bastion, Reconfigure, Panel, ERTHexDirection::E);
+	PlanHeroCoverAction(Riktor, Reconfigure, Panel, ERTHexDirection::E);
 	RunEnvTurn(TM);
 
 	const FRTHexCellData* Cell = MapActor->MapAsset->FindCell(Panel);
@@ -1099,10 +1168,10 @@ bool FRTBastionReconfigureTest::RunTest(const FString&)
  * pericoloso, perche' la via naturale — togli, poi aggiungi — cancella la copertura quando l'aggiunta
  * fallisce. Qui si verifica che torni dov'era.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBastionReconfigureRefusesTest,
-	"RefactorTactics.Heroes.Bastion.ReconfigureRefusesInsteadOfGuessing",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRiktorReconfigureRefusesTest,
+	"RefactorTactics.Heroes.Riktor.ReconfigureRefusesInsteadOfGuessing",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
+bool FRTRiktorReconfigureRefusesTest::RunTest(const FString&)
 {
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -1112,10 +1181,10 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 	const FRTCellId Two(1, 0);   // cella con DUE coperture
 	const FRTCellId One(0, 1);   // cella con una sola, ma destinazione occupata
 
-	ARTUnit* Bastion = SpawnEnvUnit(World, 0, Home);
+	ARTUnit* Riktor = SpawnEnvUnit(World, 0, Home);
 	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Bastion"), Bastion) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Riktor"), Riktor) || !TestNotNull(TEXT("Foe"), Foe) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyEnvWorld(World);
 		return false;
@@ -1124,8 +1193,8 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Two, ERTHexDirection::W, ERTHexCoverType::Low, 30);
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, Two, ERTHexDirection::E, ERTHexCoverType::Low, 30);
 
-	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
-	PlanHeroCoverAction(Bastion, Reconfigure, Two, ERTHexDirection::NE);
+	URTActionData* Reconfigure = URTHeroCatalogLibrary::MakeRiktor()->Actions[2];
+	PlanHeroCoverAction(Riktor, Reconfigure, Two, ERTHexDirection::NE);
 	RunEnvTurn(TM);
 
 	TestEqual(TEXT("ambiguo: rifiutato"), CountEnvOutcome(TM, ERTEnvironmentOutcome::CoverRejected), 1);
@@ -1142,12 +1211,12 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 	URTHexCoverLibrary::AddCover(MapActor->MapAsset, NorthEast,
 		ERTHexDirection::SW, ERTHexCoverType::Low, 30); // la faccia opposta del bordo NE di `One`
 
-	// `Bastion.Reconfigure` ha COOLDOWN 2: come sopra, il secondo rifiuto va chiesto quando l'azione e'
+	// `Riktor.Reconfigure` ha COOLDOWN 2: come sopra, il secondo rifiuto va chiesto quando l'azione e'
 	// tornata disponibile, non al turno dopo (#135).
 	RunEnvTurn(TM);
 
-	URTActionData* Second = URTHeroCatalogLibrary::MakeBastion()->Actions[2];
-	PlanHeroCoverAction(Bastion, Second, One, ERTHexDirection::NE);
+	URTActionData* Second = URTHeroCatalogLibrary::MakeRiktor()->Actions[2];
+	PlanHeroCoverAction(Riktor, Second, One, ERTHexDirection::NE);
 	RunEnvTurn(TM);
 
 	TestEqual(TEXT("destinazione occupata: rifiutato"),
@@ -1160,7 +1229,7 @@ bool FRTBastionReconfigureRefusesTest::RunTest(const FString&)
 }
 
 /**
- * CP 9.5 — `Gadget.PortableCover` erige la stessa copertura, in mano a chi non e' Bastion.
+ * CP 9.5 — `Gadget.PortableCover` erige la stessa copertura, in mano a chi non e' Riktor.
  *
  * E' la prova che `Action.CreateCover` e' semantica CONDIVISA e non l'abilita' di un eroe travestita: se il
  * resolver riconoscesse il pannello per ActionId invece che per `StructureOp`, questo test sarebbe rosso — ed
@@ -1192,7 +1261,7 @@ bool FRTPortableCoverGadgetTest::RunTest(const FString&)
 	const FRTCellId Home(0, 0);
 	const FRTCellId Target(1, 0);
 
-	// Un'unita' QUALUNQUE: non ha il kit di Bastion, ha solo il gadget.
+	// Un'unita' QUALUNQUE: non ha il kit di Riktor, ha solo il gadget.
 	ARTUnit* Carrier = SpawnEnvUnit(World, 0, Home);
 	ARTUnit* Foe = SpawnEnvUnit(World, 1, FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -1243,7 +1312,7 @@ bool FRTPortableCoverGadgetTest::RunTest(const FString&)
  * frattempo qualcuno ha riparato lo stesso varco, gli distrugge il pannello con un turno di anticipo e scrive
  * nel TurnLog una scadenza che non e' avvenuta.
  *
- * Non e' un caso limite: due Bastion, o un Bastion e un alleato con `Gadget.PortableCover`, che rinforzano lo
+ * Non e' un caso limite: due Riktor, o un Riktor e un alleato con `Gadget.PortableCover`, che rinforzano lo
  * stesso passaggio sono gioco normale — i cooldown sono per unita', quindi il secondo non aspetta il primo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverGhostTrackingTest,
@@ -1383,9 +1452,9 @@ bool FRTBornSurfaceIsNotOnlyFireTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
 
-	URTHeroData* Riva = URTHeroCatalogLibrary::MakeRiva();
-	URTActionData* MistVeil = (Riva && Riva->Actions.IsValidIndex(3)) ? Riva->Actions[3] : nullptr;
-	if (!TestNotNull(TEXT("MistVeil nel kit di Riva"), MistVeil)) { DestroyEnvWorld(World); return false; }
+	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	URTActionData* MistVeil = (Phase && Phase->Actions.IsValidIndex(3)) ? Phase->Actions[3] : nullptr;
+	if (!TestNotNull(TEXT("MistVeil nel kit di Phase"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;
 	Caster->PlannedAbilityIndex = 3;
@@ -1494,6 +1563,352 @@ bool FRTHazardEscapeFleesBeforeDamageTest::RunTest(const FString&)
 		Target->Cell, URTHexLibrary::Neighbor(FRTCellId(2, 0), ERTHexDirection::W));
 	TestTrue(TEXT("e infatti NON e' finito nella cella che il ripiego avrebbe scelto"),
 		Target->Cell != URTHexLibrary::Neighbor(FRTCellId(2, 0), ERTHexDirection::E));
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `Actions.Hazard.BurningLeavesACanonicalEntry` — il danno da fuoco entra nel TurnLog (`#625`).
+ *
+ * 🔴 Fino al 2026-08-16 il danno da `Status.Burning` esisteva **solo** in `AddLogEvent`: un `UE_LOG` piu'
+ * un buffer circolare troncato, che non e' la traccia. Chi riproduceva la partita vedeva gli HP scendere
+ * senza un evento che lo spiegasse, e `DescribeFirstDivergence` non poteva nominare quel punto — il
+ * difetto che il gate `replay_representable` ha trovato.
+ *
+ * ⚠️ **Si fa bruciare un'unita' sul percorso vero e si legge `GetTurnLog()`**: e' un requisito del DoD, e
+ * la ragione e' che una voce costruita a mano proverebbe che la struct si compila, non che qualcuno la
+ * scrive. Qui il fuoco lo accende `Action.Ignite` e il danno arriva nel Cleanup, come in partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardBurningLogTest,
+	"RefactorTactics.Actions.Hazard.BurningLeavesACanonicalEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardBurningLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	// 🔴 **I punti vita si fissano qui e non si ereditano dal catalogo eroi**, e la prima stesura li
+	// lasciava al default di `ConfigureFromHeroData` (90). L'asserzione `Hit` sopravviveva solo perche'
+	// 90 − 10 (fuoco all'ingresso) − 8 (Cleanup) resta positivo: un ribilanciamento che portasse quell'eroe
+	// sotto i 18 HP avrebbe fatto flippare questo test su `Lethal`, per una modifica in un altro file.
+	// Il ramo che si verifica lo sceglie il test. Trovato in code review.
+	Target->Shield = 0;
+	Target->Health = 60;
+
+	const int32 HpPrima = Target->Health;
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	// Premessa: se non brucia, il resto non prova niente.
+	const bool bBruciato = Target->Health < HpPrima && Target->HasStatus(TAG_Status_Burning);
+	if (!TestTrue(TEXT("premessa: l'unita' brucia davvero"), bBruciato))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	// La voce canonica: categoria, causa, soggetto, quantita'.
+	int32 Trovate = 0;
+	FRTTurnLogEntry Voce;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Status.Burning")))
+		{
+			++Trovate;
+			Voce = E;
+		}
+	}
+
+	if (TestEqual(TEXT("una voce di Burning nel TurnLog"), Trovate, 1))
+	{
+		TestEqual(TEXT("nel Cleanup"), Voce.Phase, ERTMatchPhase::Cleanup);
+		// ⚠️ `Combat` e non `Environment`: la domanda e' «quanti punti vita, e a chi» — la stessa per cui
+		// `Healed` sta fra gli esiti di combattimento. La CAUSA la porta `ActionId`, ed e' li' che questo
+		// danno si distingue da un colpo.
+		TestEqual(TEXT("categoria Combat"), Voce.Category, ERTLogCategory::Combat);
+		TestEqual(TEXT("il danno dichiarato dal catalogo"), Voce.Amount,
+			URTCombatLibrary::BurningCleanupDamage);
+		// 🔴 Il soggetto e' chi SUBISCE: in un danno da hazard non c'e' un attaccante, e `0` direbbe
+		// «nessuna unita' dichiarata» su un evento che ne ha una sola.
+		TestEqual(TEXT("il soggetto e' chi brucia"), Voce.UnitId, Target->StableUnitId);
+		TestNotEqual(TEXT("e non e' lo zero del «nessuno»"), Voce.UnitId, 0);
+		TestEqual(TEXT("non letale: Hit"), Voce.Outcome, (uint8)ERTCombatOutcome::Hit);
+	}
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `Actions.Hazard.BurningDeathIsNotSilent` — chi muore bruciato lascia una traccia.
+ *
+ * 🔴 E' il caso peggiore del difetto: il `continue` che salta l'unita' morta la faceva **sparire in
+ * silenzio**, e un replay vedeva un'unita' in meno senza un evento che lo dicesse.
+ *
+ * ⚠️ La morte la porta l'**`Outcome`** della stessa voce, non una seconda voce: `Lethal` distingue gia'
+ * l'eliminazione dal danno che non uccide, e due voci direbbero due volte lo stesso fatto — lo stesso
+ * motivo per cui l'attacco letale non ne scrive una seconda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardBurningLethalLogTest,
+	"RefactorTactics.Actions.Hazard.BurningDeathIsNotSilent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardBurningLethalLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	// 🔴 **I numeri sono scelti perche' l'unita' muoia del danno GIUSTO**, e la prima stesura li aveva
+	// sbagliati: con `Health = 1` moriva ai **10** danni immediati della superficie `Fire`, senza mai
+	// arrivare al Cleanup — quindi zero voci di `Burning`, e la premessa `!IsAlive()` non se ne accorgeva
+	// perche' una morte vale l'altra per quell'asserzione.
+	//   `Fire`  -> 10 danni subito + `Burning 2`   (`RTTerrainLibrary.cpp`)
+	//   Cleanup ->  8 danni                        (`URTCombatLibrary::BurningCleanupDamage`)
+	// `Health = 12` cade nell'unica finestra che serve: sopravvive al primo (12 - 10 = 2) e muore del
+	// secondo (2 - 8 < 0). Lo scudo va a zero, o assorbirebbe il colpo e il caso letale non si darebbe.
+	Target->Shield = 0;
+	Target->Health = 12;
+
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	if (!TestFalse(TEXT("premessa: l'unita' e' morta"), Target->IsAlive()))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("una voce letale, con il suo soggetto"),
+		CountBurningEntries(TM, Target->StableUnitId, ERTCombatOutcome::Lethal), 1);
+	// ⚠️ E **una sola** voce in tutto: la morte la porta l'`Outcome`, non una seconda riga. Contare anche
+	// le non letali distingue «ha scritto `Lethal`» da «ha scritto due voci, una delle quali `Lethal`» —
+	// che e' la scelta di modello dichiarata nel codice, e senza questa riga non sarebbe pinnata.
+	TestEqual(TEXT("e nessuna voce Hit per lo stesso fatto"),
+		CountBurningEntries(TM, Target->StableUnitId, ERTCombatOutcome::Hit), 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `Actions.Hazard.BurningAbsorbedByShieldIsNotAHit` — il terzo ramo, che nessuno copriva.
+ *
+ * 🔴 **Questo test nasce da un difetto che i primi due non potevano vedere**: entrambi lasciavano lo
+ * scudo a `0`, quindi l'esito non poteva mai essere `ShieldAbsorbed` — e proprio quel ramo era **scritto
+ * male**. Confrontava la salute dopo il colpo con `MaxHealth` invece che con quella prima, cosi'
+ * un'unita' gia' ferita il cui scudo assorbiva tutto finiva nella traccia come `Hit` per 8 danni che non
+ * aveva preso. La traccia — la cosa che `#625` esiste per rendere autorevole — avrebbe mentito.
+ * Trovato in code review.
+ *
+ * ⚠️ Serve uno scudo che regga **entrambi** i colpi del turno: 10 all'ingresso piu' 8 nel Cleanup.
+ * Con meno, il primo lo consuma e il secondo arriva agli HP — e si tornerebbe a misurare `Hit`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardBurningShieldedLogTest,
+	"RefactorTactics.Actions.Hazard.BurningAbsorbedByShieldIsNotAHit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardBurningShieldedLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnEnvMap(World);
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
+
+	// Ferita **e** protetta: e' la combinazione che il confronto con `MaxHealth` sbagliava.
+	Target->Health = 40;
+	Target->Shield = 30; // 10 all'ingresso + 8 nel Cleanup, e ne avanza
+
+	const int32 HpPrima = Target->Health;
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: brucia"), Target->HasStatus(TAG_Status_Burning)))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+	if (!TestEqual(TEXT("premessa: lo scudo ha retto, gli HP non sono scesi"), Target->Health, HpPrima))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("l'esito e' ShieldAbsorbed"),
+		CountBurningEntries(TM, Target->StableUnitId, ERTCombatOutcome::ShieldAbsorbed), 1);
+	TestEqual(TEXT("e NON Hit: nessun HP e' stato perso"),
+		CountBurningEntries(TM, Target->StableUnitId, ERTCombatOutcome::Hit), 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `Actions.Hazard.TerrainDamageLeavesACanonicalEntry` — il danno **all'ingresso** entra nel TurnLog
+ * (`#1067`).
+ *
+ * 🔴 Gemello di `#625`, e il pezzo **piu' grosso dei due**: `Fire` fa **10** danni a chi ci entra contro
+ * gli **8** del Cleanup. Fino al 2026-08-16 esisteva solo in `AddLogEvent` — un `UE_LOG` piu' un buffer
+ * circolare troncato — quindi il replay vedeva gli HP scendere senza un evento che lo spiegasse.
+ * Misurabile sul test di `#625`: il bersaglio scendeva `90 → 80 → 72`, diciotto danni, e otto tracciati.
+ *
+ * ⚠️ Si **cammina** dentro il fuoco sul percorso vero — `PlannedPath` e `RunEnvTurn` — invece di chiamare
+ * la funzione: e' un requisito del DoD, e la ragione e' che la fase dichiarata dalla voce dipende da
+ * QUALE dei quattro siti la chiama. Una chiamata diretta non lo proverebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardTerrainEntryLogTest,
+	"RefactorTactics.Actions.Hazard.TerrainDamageLeavesACanonicalEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardTerrainEntryLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+	if (!TestNotNull(TEXT("mappa"), MapActor)) { DestroyEnvWorld(World); return false; }
+
+	// Una cella di fuoco sul percorso. La si accende nel DATO, non con un'azione: qui il soggetto e' il
+	// terreno che c'e' gia', non chi lo crea.
+	FRTHexCellData Fuoco(FRTCellId(1, 0));
+	Fuoco.Surface = ERTHexSurface::Fire;
+	MapActor->MapAsset->AddOrUpdateCell(Fuoco);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Mover = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Mover || !TM) { DestroyEnvWorld(World); return false; }
+
+	// Punti vita fissati qui e non ereditati dal catalogo eroi: e' il ramo `Hit` che si vuole verificare,
+	// e un ribilanciamento non deve poterlo far diventare `Lethal` da un altro file.
+	Mover->Shield = 0;
+	Mover->Health = 60;
+	Mover->PlannedAbilityIndex = INDEX_NONE; // nessuna azione: l'unica fonte di danno e' il terreno
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	RunEnvTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: attraversando il fuoco ha perso HP"), Mover->Health < 60))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	int32 Trovate = 0;
+	FRTTurnLogEntry Voce;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Terrain.Fire")))
+		{
+			++Trovate;
+			Voce = E;
+		}
+	}
+
+	if (TestEqual(TEXT("una voce di Terrain.Fire nel TurnLog"), Trovate, 1))
+	{
+		// ⚠️ **`Move` e non `Cleanup`**: e' il danno dell'INGRESSO, e si distingue da quello del `Burning`
+		// per fase **e** per `ActionId`. Se la fase fosse letta dal membro `Phase` sarebbe sbagliata — il
+		// ciclo delle fasi esce su `Planning` e la Cleanup gira dopo.
+		TestEqual(TEXT("nella fase del movimento"), Voce.Phase, ERTMatchPhase::Move);
+		TestEqual(TEXT("categoria Combat"), Voce.Category, ERTLogCategory::Combat);
+		TestEqual(TEXT("il danno dichiarato dal catalogo terreni"), Voce.Amount, 10);
+		TestEqual(TEXT("il soggetto e' chi ci e' entrato"), Voce.UnitId, Mover->StableUnitId);
+		TestNotEqual(TEXT("e non lo zero del «nessuno»"), Voce.UnitId, 0);
+		// La cella che ha colpito: qui **e' davvero la causa**, al contrario del `Burning` che segue
+		// l'unita' anche fuori dal fuoco.
+		TestEqual(TEXT("la cella e' quella in fiamme"), Voce.SrcCell, FRTCellId(1, 0));
+		TestEqual(TEXT("non letale: Hit"), Voce.Outcome, (uint8)ERTCombatOutcome::Hit);
+	}
+
+	// ⚠️ E le DUE voci del fuoco convivono, distinte: l'ingresso e il Cleanup. E' il motivo per cui la
+	// causa sta in `ActionId` e non nella categoria — senza, il replay avrebbe due danni indistinguibili.
+	int32 Burning = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Status.Burning"))) { ++Burning; }
+	}
+	TestEqual(TEXT("e accanto c'e' quella del Burning, distinta"), Burning, 1);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `Actions.Hazard.TerrainDeathIsNotSilent` — chi muore **entrando** lascia una traccia.
+ *
+ * 🔴 Era il caso peggiore del difetto: un'unita' con pochi HP spinta o mossa su una cella di fuoco moriva
+ * dentro `ApplyTerrainOnEnterEffects` **senza lasciare niente** — nessun `Lethal`, nessun soggetto, e per
+ * `DescribeFirstDivergence` nessun punto da nominare. Un'unita' spariva dal campo e il replay non poteva
+ * dire perche'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardTerrainDeathLogTest,
+	"RefactorTactics.Actions.Hazard.TerrainDeathIsNotSilent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardTerrainDeathLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+	if (!TestNotNull(TEXT("mappa"), MapActor)) { DestroyEnvWorld(World); return false; }
+
+	FRTHexCellData Fuoco(FRTCellId(1, 0));
+	Fuoco.Surface = ERTHexSurface::Fire;
+	MapActor->MapAsset->AddOrUpdateCell(Fuoco);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Mover = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Mover || !TM) { DestroyEnvWorld(World); return false; }
+
+	// ⚠️ Sotto i **10** danni dell'ingresso, cosi' che a ucciderla sia QUEL danno e non il `Burning` del
+	// Cleanup: e' la stessa attenzione che `#625` ha dovuto imparare al contrario, dove `Health = 1`
+	// faceva morire l'unita' all'ingresso invece che nel Cleanup.
+	Mover->Shield = 0;
+	Mover->Health = 6;
+	Mover->PlannedAbilityIndex = INDEX_NONE;
+	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	RunEnvTurn(TM);
+
+	if (!TestFalse(TEXT("premessa: e' morta"), Mover->IsAlive()))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	int32 Letali = 0;
+	int32 NonLetali = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Terrain.Fire")) && E.UnitId == Mover->StableUnitId)
+		{
+			(E.Outcome == (uint8)ERTCombatOutcome::Lethal ? Letali : NonLetali) += 1;
+		}
+	}
+	TestEqual(TEXT("una voce letale, col suo soggetto"), Letali, 1);
+	TestEqual(TEXT("e nessuna seconda voce per lo stesso fatto"), NonLetali, 0);
+
+	// ⚠️ E **nessuna** voce di `Burning`: e' morta prima di arrivarci. Senza questa riga il test resterebbe
+	// verde anche se il `Lethal` arrivasse dal Cleanup invece che dall'ingresso — cioe' misurando l'altro
+	// difetto, gia' chiuso.
+	int32 Burning = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.ActionId == FName(TEXT("Status.Burning"))) { ++Burning; }
+	}
+	TestEqual(TEXT("morta all'ingresso, non nel Cleanup"), Burning, 0);
 
 	DestroyEnvWorld(World);
 	return true;

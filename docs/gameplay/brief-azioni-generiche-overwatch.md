@@ -211,7 +211,7 @@ Con l'Overwatch universale il rischio **non è più teorico**: se otto unità po
 governabile solo se la maggior parte delle opportunity si risolve senza fermarla.
 
 Ed è la ragione per cui la policy sta nel **DoD di CP 14.3** e non in CP 14.6: costruire la finestra assumendo
-un solo consumatore (`Vektor.InterceptShot`) e poi renderla universale significa scoprire il problema **dopo**
+un solo consumatore (`Hero.Wraith.InterceptShot`) e poi renderla universale significa scoprire il problema **dopo**
 aver costruito la soluzione sbagliata. La misura di CP 14.5 misura allora qualcosa di governabile, non un
 sistema da rifare.
 

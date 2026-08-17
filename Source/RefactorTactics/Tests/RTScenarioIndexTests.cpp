@@ -36,7 +36,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexBuildTest,
 bool FRTScenarioIndexBuildTest::RunTest(const FString&)
 {
 	const TArray<TPair<FString, FString>> Files = {
-		IndexFile(TEXT("/x/QualsiasiCartella/uno.json"),   TEXT("Reaction.Overwatch.Hold"), TEXT("\"reactions\", \"flux\"")),
+		IndexFile(TEXT("/x/QualsiasiCartella/uno.json"),   TEXT("Reaction.Overwatch.Hold"), TEXT("\"reactions\", \"gadget\"")),
 		IndexFile(TEXT("/x/AltraCartella/due.json"),       TEXT("Movement.Basic"),          TEXT("\"movement\"")),
 	};
 
@@ -107,7 +107,7 @@ bool FRTScenarioIndexBrokenFileTest::RunTest(const FString&)
 /**
  * T3 — Due filtri sono una **intersezione**, non una unione.
  *
- * E' la ragione per cui i filtri sono due: il caso che serve e' «reactions E flux». Se questo test si
+ * E' la ragione per cui i filtri sono due: il caso che serve e' «reactions E gadget». Se questo test si
  * rompesse restituendo l'unione, il filtro sembrerebbe funzionare (l'elenco cambia) mentre mostrerebbe
  * piu' scenari invece di meno.
  */

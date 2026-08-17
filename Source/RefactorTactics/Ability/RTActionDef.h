@@ -161,9 +161,18 @@ enum class ERTReactionTrigger : uint8
 };
 
 /**
- * Che cosa un'azione fa a una copertura di bordo (CP 9.5). Dato del catalogo, non un ramo nell'orchestratore:
- * la stessa operazione appartiene all'azione core, a un'abilita' d'eroe e a un gadget, e i tre non devono
- * diventare tre `if` sull'ActionId.
+ * Che cosa un'azione fa a una **struttura di bordo** (CP 9.5). Dato del catalogo, non un ramo
+ * nell'orchestratore: la stessa operazione appartiene all'azione core, a un'abilita' d'eroe e a un gadget, e
+ * i tre non devono diventare tre `if` sull'ActionId.
+ *
+ * ⚠️ **Questo campo decide anche la FORMA DEL BERSAGLIO**, e non solo l'esecuzione: il puntatore deriva
+ * `ERTPointerTargetKind::Edge` da `StructureOp != None` (`RTPointerInteraction.cpp`) — prima di guardare
+ * `Shape`. Un'azione che agisce su un bordo e non lo dichiara qui chiederebbe al giocatore una cella.
+ *
+ * 🔴 **Aggiungere un valore qui NON fa fallire la compilazione**: nessun consumatore fa uno `switch`
+ * esaustivo, e il loop delle strutture in `RTTurnManager` tratta come `CreateCover` **tutto cio' che non e'
+ * `None` ne' `MoveCover`. Chi aggiunge un valore deve quindi aggiungere anche il proprio ramo li', o l'azione
+ * erigera' una copertura in silenzio. Verificato aggiungendo `SetDoorState`.
  */
 UENUM(BlueprintType)
 enum class ERTStructureOp : uint8
@@ -173,7 +182,17 @@ enum class ERTStructureOp : uint8
 	/** Erige una copertura bassa temporanea sul bordo dichiarato dal piano. */
 	CreateCover,
 	/** Sposta una copertura gia' esistente su un altro bordo, conservandone integrita' e durata residua. */
-	MoveCover
+	MoveCover,
+	/**
+	 * Porta una PORTA allo stato dichiarato da `ERTActionEffect::SetDoorState` ([D-148]).
+	 *
+	 * Non e' un'operazione di copertura e non passa dal loop delle strutture: l'esecuzione la raccoglie il
+	 * Blast su `FirstDoorEdge` (CP 9.3) e la applica `URTHexDoorLibrary::SetDoorState`, che resta l'unico
+	 * ingresso di mutazione. Il valore serve al **targeting** — far chiedere al giocatore un bordo invece di
+	 * una cella — e a nient'altro: lo STATO viaggia nell'effetto, non qui, cosi' `Open` e `Closed` non
+	 * diventano due valori di questo enum.
+	 */
+	SetDoorState
 };
 
 /**
@@ -195,7 +214,7 @@ enum class ERTMovementStyle : uint8
 	/** Salto: ignora unita' e celle intermedie, conta solo dove si atterra (`Leap`). */
 	LinearLeap,
 	/**
-	 * ATTRAVERSA le unita' sulla traiettoria e le colpisce, poi prosegue (`Vektor.PassingBlade`).
+	 * ATTRAVERSA le unita' sulla traiettoria e le colpisce, poi prosegue (`Wraith.PassingBlade`).
 	 *
 	 * La differenza con `LinearLeap` non e' il danno ma cosa si tocca: il salto **scavalca** e non incontra
 	 * nessuno, la lama passa **in mezzo** e applica a ognuno gli effetti dell'azione. Con `LinearCharge`
@@ -268,12 +287,12 @@ struct FRTActionDef
 	FName ActionId;
 
 	/**
-	 * Di quale AZIONE GENERICA questa e' un profilo (es. `Bastion.ImpactShot` -> `Action.BasicAttack`).
+	 * Di quale AZIONE GENERICA questa e' un profilo (es. `Riktor.ImpactShot` -> `Action.BasicAttack`).
 	 * `None` per le azioni che non sono profilo di niente — le generiche stesse, e le abilita' firma.
 	 *
 	 * Esiste perche' [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md) chiede che un'azione generica
 	 * con profilo sia spiegabile **nel TurnLog** come *azione base + profilo*, e senza questo campo la
-	 * relazione non e' scritta da nessuna parte: `Bastion.ImpactShot` e' un'azione d'EROE, quindi un lettore
+	 * relazione non e' scritta da nessuna parte: `Riktor.ImpactShot` e' un'azione d'EROE, quindi un lettore
 	 * della traccia non la risolve nemmeno consultando il catalogo core.
 	 *
 	 * E' un dato e non una deduzione: dedurlo dal nome (`Hero.Qualcosa` = attacco base?) funzionerebbe finche'
@@ -321,7 +340,7 @@ struct FRTActionDef
 	 * Che cosa l'azione fa a una STRUTTURA di bordo (CP 9.5). `None` per tutto il resto.
 	 *
 	 * Esiste per la stessa ragione di `MovementStyle`, e la sua assenza si sarebbe pagata subito: erigere una
-	 * copertura e' semantica di **tre** identita' diverse — l'azione core, l'abilita' di Bastion e il gadget
+	 * copertura e' semantica di **tre** identita' diverse — l'azione core, l'abilita' di Riktor e il gadget
 	 * portatile — e senza un dato il resolver avrebbe tre `if` sull'ActionId, cioe' un ramo per eroe nel core.
 	 * `Ignite`, `CreateWater` ed `Electrify` sono ancora riconosciute per ActionId: la' i produttori sono uno
 	 * ciascuno, e il campo si aggiungera' quando smetteranno di esserlo.
@@ -349,7 +368,7 @@ struct FRTActionDef
 	 * (`if (Id == "Action.CreateWater")`). Il commento di allora lo ammetteva e rimandava: «inventare un campo
 	 * SurfaceCreated per due sole azioni sarebbe un dato che nessun'altra azione userebbe; quando le azioni
 	 * ambientali saranno molte, il posto giusto e' quel campo». La condizione e' arrivata da un'altra
-	 * direzione: con D-046 un EROE possiede un'azione ambientale, e `Riva.FluidTrail` non puo' chiamarsi
+	 * direzione: con D-046 un EROE possiede un'azione ambientale, e `Phase.FluidTrail` non puo' chiamarsi
 	 * `Action.CreateWater`. Un confronto per nome non sa esprimere «e' quell'azione con un nome d'eroe» —
 	 * un campo si', ed e' la stessa strada di `PropagationLimit`, che infatti funzionava gia'.
 	 */
@@ -368,7 +387,7 @@ struct FRTActionDef
 	 *
 	 * Nasce con lo stesso argomento di `SurfaceCreated` (D-046): il resolver cablava
 	 * `(Created == ShallowWater) ? 1 : 0`, cioe' proprio il ramo che il commento accanto dichiarava di voler
-	 * evitare. Finche' i produttori erano due il ramo reggeva; con `Riva.MistVeil` (issue #353) i raggi
+	 * evitare. Finche' i produttori erano due il ramo reggeva; con `Phase.MistVeil` (issue #353) i raggi
 	 * dichiarati diventano tre e il ramo dovrebbe indovinare quale superficie vuole quale area.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")

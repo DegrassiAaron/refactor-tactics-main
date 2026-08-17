@@ -526,7 +526,7 @@ Prompt base:
 
 `⚡ OVERWATCH`
 
-`Vektor entered the controlled area`
+`Wraith entered the controlled area`
 
 `2.4 s`
 
@@ -566,7 +566,7 @@ Convive con il countdown della finestra, che resta l'informazione primaria:
 
 `⚡ OVERWATCH`
 
-`Vektor entered the controlled area`
+`Wraith entered the controlled area`
 
 `2.4 s          ▓▓▓▓▓▓▓░░░  18.6 s`
 
@@ -666,9 +666,9 @@ Il combat log deve essere:
 
 Esempio:
 
-`Flux → Arc Lance`  
+`Gadget → Arc Lance`  
 `Wet Chain +6`  
-`Vektor → 26 Damage`
+`Wraith → 26 Damage`
 
 ## 14.1 WHY?
 
@@ -1095,6 +1095,53 @@ Non alterano:
 - ordine logico;
 - outcome;
 - seed.
+
+## 29.1 Cosa esiste in v0.1, e con quale superficie
+
+> Scritto il **2026-08-16** con CP 47.7 ([#1015](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1015)).
+> Questa sezione descriveva quattro controlli **possibili**; due esistono, due no, e senza dirlo la sezione
+> non distingue una decisione presa da una non ancora presa.
+
+| Controllo | v0.1 | Dove |
+|---|---|---|
+| **skip** | ✅ esiste | `ARTHUD::DrawHUD`, tasto `Spazio`, etichetta `(Spazio: salta)` |
+| **speed** | ✅ esiste — `x1 · x2 · x4` | `ARTHUD::ComposePlaybackSpeedLabel` + `ARTPlayerController`, tasto `V` |
+| **pause visiva** | ⛔ **fuori scope dichiarato** | è del Replay Player (`RT-FEAT-REPLAY-ARCHIVE`, #472/#999): lì si guarda una partita **registrata**, qui una **in corso** |
+| **focus event** | ⏳ non deciso | nessuna issue |
+
+⚠️ **La `speed` è resa in Canvas, non come widget §4.1, ed è una deviazione consapevole da §13.2.**
+La §13.2 elenca i `playback controls` fra gli elementi promossi nel `Resolution HUD`, cioè nel layer §4.1
+— che è UMG. In v0.1 il controllo vive nella riga di stato del Canvas, insieme a `skip`. Le due ragioni,
+in ordine di peso:
+
+1. **Il contratto §4.1 vieta al widget di raggiungere il modello.** `URTScreenHudWidgetBase` non espone
+   l'`ARTTurnManager` ai Blueprint — *«se non c'è il puntatore, non c'è il modo di ricalcolare»* — e
+   `URTHudViewModel` è interamente `BlueprintPure`: **cinque viste, zero comandi**. Un controllo che
+   *scrive* avrebbe richiesto di aprire una porta di scrittura in quel contratto, cioè una decisione
+   architetturale, dentro un checkpoint che il suo stesso DoD dichiara «solo presentazione».
+2. Un `WBP_RT_*` nuovo costa un `.uasset` — quindi una Binary Asset Lease e passi manuali in Editor —
+   per un controllo che è un numero e un tasto.
+
+**Quando questa deviazione va sciolta**: quando lo Screen HUD §4.1 acquisisce un percorso di *comando*
+— cioè quando un widget avrà un modo dichiarato di scrivere nel modello. Allora `speed` e `skip` si
+spostano insieme, e questa sottosezione va cancellata invece che aggiornata.
+
+## 29.2 L'etichetta dice due numeri quando ne servono due
+
+La velocità mostrata **non è sempre quella scelta**. La composizione è `Max(Viewer, Cap)`
+(`URTPlaybackLibrary::EffectivePlaybackSpeed`, CP 47.2): quando il tetto di durata morde più forte della
+preferenza, a scorrere è il tetto.
+
+- coincidono → **un numero**: `x2`
+- divergono → **due numeri, e chi vince**: `x2 -> x3 (tetto)`
+
+⚠️ Mostrare la sola velocità scelta è l'implementazione che viene in mente per prima ed è **sbagliata**:
+produce un'etichetta che dice `x1` mentre lo schermo scorre a `3x`. È il difetto che il controllo esiste
+per togliere — dover dedurre il ritmo — aggravato dal fatto che un numero c'è e mente. Pinnato da
+`RefactorTactics.HUD.PlaybackSpeedLabelDeclaresTheCapWhenItWins`.
+
+⚠️ **Un limite noto, dichiarato**: la scelta **non sopravvive al riavvio** (`R`), perché `OpenLevel`
+ricrea l'`ARTTurnManager`. Farla sopravvivere richiede uno stato fuori dall'attore, che v0.1 non ha.
 
 ---
 

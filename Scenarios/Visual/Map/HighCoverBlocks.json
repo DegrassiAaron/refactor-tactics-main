@@ -1,11 +1,11 @@
 {
   "scenarioId": "Visual.Map.HighCoverBlocks",
-  "tags": ["animation", "map", "los", "pathfinding", "flux", "bastion"],
+  "tags": ["animation", "map", "los", "pathfinding", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "fixture": "CoverYard",
 
-  "_nota": "La copertura ALTA nega l'attraversamento del bordo a vista, passo e proiettili (CP 9.2). Un turno solo, e la barriera fra (0,0) e (1,0) nega DUE cose diverse: il colpo di Flux su Bastion non parte, e il suo movimento verso (1,0) deve girare intorno. Bastion resta a 120, Flux arriva lo stesso ma per un'altra strada.",
+  "_nota": "La copertura ALTA nega l'attraversamento del bordo a vista, passo e proiettili (CP 9.2). Un turno solo, e la barriera fra (0,0) e (1,0) nega DUE cose diverse: il colpo di Gadget su Riktor non parte, e il suo movimento verso (1,0) deve girare intorno. Riktor resta a 120, Gadget arriva lo stesso ma per un'altra strada.",
 
   "_nota_perche_una_fixture_nuova": "La copertura alta non compariva in nessuna delle tre fixture esistenti, e il Relay Basin non era il posto dove metterla: e' la mappa autorata degli 8 turni, protetta da `BasinLayoutMatchesSpec`, e aggiungerle una barriera per comodita' di test avrebbe cambiato la showcase per una ragione che con la showcase non c'entra. `CoverYard` e' un cortile spoglio — raggio 3, nessun terreno — dove l'unica cosa che spiega un esito e' il bordo.",
 
@@ -14,14 +14,14 @@
   "_nota_abbattimento": "Che la barriera si ABBATTA (integrita' 50, riapertura dalla fase successiva) questo scenario non lo mostra, e non per scelta: `ERTActionEffect::DamageStructure` esiste su una sola azione, `Action.HeavyAttack`, che e' core e non appartiene al kit di nessuna unita'. Finche' resta cosi', nessuno scenario puo' sfondare un muro.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",    "team": 0, "cell": [-1, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [ 2, 0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [ 2, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "F1", "ability": "Flux.ArcPulse", "target": "B1", "move": [[1, 0, 0]] }
+        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse", "target": "B1", "move": [[1, 0, 0]] }
       ]
     }
   ],

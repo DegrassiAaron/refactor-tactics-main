@@ -30,7 +30,7 @@ Il sorgente (§14) proponeva **quattro** stati sui quattro eroi della vertical s
   in [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §8;
 - due dei quattro stati proposti **dipendono da sistemi non ancora costruiti**: `Charged` dal canale ambientale
   e acustico di **E13**, `Bulwark` dal sistema strutture che oggi regge solo in parte `KineticPanel`;
-- il terzo, `Vektor: Mobile ↔ Siege`, **contraddice l'eroe**: `Slancio` recupera muovendosi e la player
+- il terzo, `Wraith: Mobile ↔ Siege`, **contraddice l'eroe**: `Slancio` recupera muovendosi e la player
   question è «dove passerà il nemico?». Una forma che toglie il Dash non sospende una statistica, spegne la
   meccanica firma.
 
@@ -136,9 +136,9 @@ che non gira è peggio di uno che manca — sembra copertura. Gli ID seguono la 
 
 | ID | Cosa valida | Perché è questo, e non un altro |
 |---|---|---|
-| `State.Riva.Flow` | Trigger su sequenza, stato leggero, nessun override | **Il primo da scrivere.** È l'unico che non tocca cover, LOS, collisione o pathing: se fallisce, il difetto è nel framework, non nell'integrazione |
-| `State.Flux.Charged` | Trigger ambientale, mutazione di skill, interazione con `Wet` | Valida la pipeline `ambiente → stato → abilità → ambiente`. Il caso interessante è che il bonus legge `Status.Wet` **senza sapere chi l'ha applicato** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)) |
-| `State.Bastion.Bulwark` | Pseudo-cover, LOS, protezione dell'alleato, pathing | Il più invasivo: quattro sistemi condivisi in un colpo solo. Va scritto **dopo** i due leggeri |
+| `State.Phase.Flow` | Trigger su sequenza, stato leggero, nessun override | **Il primo da scrivere.** È l'unico che non tocca cover, LOS, collisione o pathing: se fallisce, il difetto è nel framework, non nell'integrazione |
+| `State.Gadget.Charged` | Trigger ambientale, mutazione di skill, interazione con `Wet` | Valida la pipeline `ambiente → stato → abilità → ambiente`. Il caso interessante è che il bonus legge `Status.Wet` **senza sapere chi l'ha applicato** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `State.Riktor.Bulwark` | Pseudo-cover, LOS, protezione dell'alleato, pathing | Il più invasivo: quattro sistemi condivisi in un colpo solo. Va scritto **dopo** i due leggeri |
 | `State.Howitzer.Siege` | Alternate Form completa: override movimento + skill, revert a costo di `Prep` | Il banco di prova di `Mobile ↔ Siege`. **Non Wraith**: vedi §2 |
 | `State.MultiState.Stress` | Più unità in stati diversi nello stesso turno | Il solo che può rompere il determinismo. Deve dimostrare **permutazione-invarianza**: stessi stati, ordine di inserimento diverso, `TurnLog` e hash identici |
 

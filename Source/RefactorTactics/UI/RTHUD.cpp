@@ -1,10 +1,12 @@
 #include "UI/RTHUD.h"
+#include "UI/RTHudViewModel.h"
 #include "RTGameMode.h"
 #include "Unit/RTUnit.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnRules.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
@@ -91,6 +93,104 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 			}
 		}
 	}
+}
+
+namespace
+{
+	/**
+	 * Compone una riga della terna.
+	 *
+	 * `BusyWithoutName` arriva da fuori invece di essere una costante qui dentro perche' il ripiego di uno
+	 * slot occupato SENZA nome non e' lo stesso per tutti e tre: sul movimento e' un percorso tracciato a
+	 * waypoint — il caso piu' comune del gioco — mentre su principale e reazione un'occupazione senza azione
+	 * non ha un nome proprio, e chiamarla «percorso» sarebbe una riga che mente su cosa sta succedendo.
+	 *
+	 * «libero» invece resta costante: uno slot vuoto e' vuoto allo stesso modo su tutti e tre.
+	 */
+	FRTSlotLine ComposeOneSlotLine(const TCHAR* SlotLabel, const TCHAR* BusyWithoutName,
+		const FRTPlannedSlotView& Slot)
+	{
+		FRTSlotLine Line;
+		Line.bOccupied = Slot.bOccupied;
+
+		if (!Slot.bOccupied)
+		{
+			Line.Text = FString::Printf(TEXT("%s: libero"), SlotLabel);
+		}
+		else if (!Slot.DisplayName.IsEmpty())
+		{
+			Line.Text = FString::Printf(TEXT("%s: %s"), SlotLabel, *Slot.DisplayName.ToString());
+		}
+		else
+		{
+			Line.Text = FString::Printf(TEXT("%s: %s"), SlotLabel, BusyWithoutName);
+		}
+
+		return Line;
+	}
+}
+
+TArray<FRTSlotLine> ARTHUD::ComposeSlotLines(const FRTUnitSlotsView& Slots)
+{
+	return {
+		ComposeOneSlotLine(TEXT("Movimento"),  TEXT("percorso"),  Slots.Movement),
+		ComposeOneSlotLine(TEXT("Principale"), TEXT("occupata"),  Slots.Main),
+		ComposeOneSlotLine(TEXT("Reazione"),   TEXT("armata"),    Slots.Reaction),
+	};
+}
+
+float ARTHUD::NextViewerPlaybackSpeed(float Current)
+{
+	// La scala di CP 47.2 (#955). Ordinata crescente: la regola qui sotto ne dipende.
+	static const float Scale[] = { 1.f, 2.f, 4.f };
+	const float Tol = 1e-3f;
+
+	// Un valore non positivo vale «non scelto», esattamente come lo tratta `EffectivePlaybackSpeed`:
+	// leggerlo come x1 tiene una sola convenzione fra il modello e il controllo.
+	const float From = (Current > 0.f) ? Current : 1.f;
+
+	// La piu' piccola legale STRETTAMENTE maggiore. Il giro (`x4 -> x1`) e il rientro da fuori scala
+	// (`x3 -> x4`) sono lo stesso caso, non due rami: sopra il massimo non esiste nessuna legale, e si
+	// torna in testa.
+	for (const float Speed : Scale)
+	{
+		if (From < Speed - Tol)
+		{
+			return Speed;
+		}
+	}
+	return Scale[0];
+}
+
+FString ARTHUD::ComposePlaybackSpeedLabel(float ViewerSpeed, float CapSpeed)
+{
+	// Stessa convenzione del modello: non positivo = «non scelto» = x1. Un'etichetta «x0» direbbe che la
+	// riproduzione e' ferma, che e' un'altra cosa e non e' vera.
+	const float Chosen = (ViewerSpeed > 0.f) ? ViewerSpeed : 1.f;
+
+	// ⚠️ INTERROGA la composizione, non la rifa'. E' la stessa funzione che `TickPlayback` usa per
+	// scorrere: se un giorno `Max` diventasse altro, l'etichetta segue senza che nessuno se ne ricordi.
+	const float Effective = URTPlaybackLibrary::EffectivePlaybackSpeed(Chosen, CapSpeed);
+
+	// Interi quando lo sono — la scala offre `x1 · x2 · x4` — ma il TETTO e' un fattore continuo,
+	// derivato da `MaxPlaybackSeconds`, e un `x3` arrotondato da `2.6` sarebbe un numero inventato.
+	auto FormatSpeed = [](float Value) -> FString
+	{
+		return FMath::IsNearlyEqual(Value, FMath::RoundToFloat(Value), 0.05f)
+			? FString::Printf(TEXT("x%d"), FMath::RoundToInt(Value))
+			: FString::Printf(TEXT("x%.1f"), Value);
+	};
+
+	// Coincidono: un numero solo. Due numeri uguali su ogni round normale sarebbero rumore, e il rumore
+	// costante e' il modo in cui un'informazione smette di essere letta.
+	if (FMath::IsNearlyEqual(Effective, Chosen, 1e-3f))
+	{
+		return FormatSpeed(Chosen);
+	}
+
+	// Divergono: si dicono ENTRAMBI, e si dice chi ha vinto. Senza la parola «tetto» due numeri
+	// costringono a indovinare quale sia la scelta e quale l'effetto.
+	return FString::Printf(TEXT("%s -> %s (tetto)"), *FormatSpeed(Chosen), *FormatSpeed(Effective));
 }
 
 void ARTHUD::DrawHUD()
@@ -207,7 +307,7 @@ void ARTHUD::DrawHUD()
 		// impossibile dire chi sta facendo cosa — e un giudizio sul bot o sul ritmo della partita, che e' cio'
 		// che il playtest deve dare, non varrebbe nulla. Posizione FISSA (non sotto lo status): un'etichetta che
 		// salta quando arriva un ROOT si legge peggio di una ferma.
-		// Il nome CANONICO del catalogo (D-120), non l'ID stabile: `Hero.Flux` si legge `Gadget`. Il ripiego
+		// Il nome CANONICO del catalogo (D-120), non l'ID stabile: `Hero.Gadget` si legge `Gadget`. Il ripiego
 		// sull'ID resta dentro `DisplayLabel` per le unita' che nessun eroe ha configurato.
 		// CHI viene colpito, marcato sull'UNITA' e non solo sulla cella — il prefisso e il colore sono stati
 		// decisi sopra, insieme al nome, perche' la larghezza serviva al vincolo.
@@ -483,6 +583,21 @@ void ARTHUD::DrawHUD()
 				Status += FString::Printf(TEXT("  -  %.0fs"), FMath::CeilToFloat(Remaining));
 			}
 		}
+
+		// Il controllo di velocita' (CP 47.7, #1015). Sta nella riga di stato e non in un pannello suo
+		// perche' quella riga e' l'unico elemento sempre visibile durante la risoluzione — che e' quando
+		// serve — e perche' `progettazione-hud.md` §31 mette turn/phase/timer fra i persistenti.
+		//
+		// ⚠️ **Mostrato anche fuori dalla risoluzione, di proposito.** Chi guarda una partita non
+		// presidiata sceglie il ritmo PRIMA che il round parta: una manopola che compare solo mentre
+		// scorre costringe a inseguirla. Il tetto fuori dal playback non morde, quindi li' l'etichetta e'
+		// un numero solo.
+		//
+		// ⚠️ Il tasto e' nominato accanto al valore, come `(Spazio: salta)` due righe sopra: un HUD in
+		// Canvas non ha nulla su cui passare il mouse, quindi una scorciatoia non scritta e' una
+		// scorciatoia che non esiste.
+		Status += FString::Printf(TEXT("  -  Velocita': %s (V)"),
+			*ComposePlaybackSpeedLabel(TurnManager->ViewerPlaybackSpeed, TurnManager->GetPlaybackCapSpeed()));
 		float TW = 0.f, TH = 0.f;
 		GetTextSize(Status, TW, TH, nullptr, 1.2f);
 		DrawText(Status, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, 16.f, nullptr, 1.2f);
@@ -572,6 +687,31 @@ void ARTHUD::DrawHUD()
 					: (bUsable ? FLinearColor(0.8f, 0.8f, 0.8f, 1.f) : FLinearColor(0.45f, 0.45f, 0.45f, 1.f));
 				DrawText(Line, Color, X, Y, nullptr, 1.f);
 				Y += LineH;
+			}
+
+			// La terna movimento / principale / reazione (CP 11.1). La barra qui sopra dice quali abilita'
+			// HO; questa dice quali dei tre slot del turno ho gia' speso, e da cosa.
+			//
+			// Le tre righe si disegnano SEMPRE, anche a piano vuoto: la riga d'intento sopra le teste salta
+			// le unita' senza ordini, quindi uno slot libero non si vedeva da nessuna parte — ed e' meta'
+			// della domanda che il giocatore si pone in pianificazione.
+			//
+			// In basso a DESTRA perche' e' l'unica zona libera: il combat log tiene il basso a sinistra, le
+			// abilita' il centro. L'ingombro non e' un dettaglio estetico, e' meta' del giudizio di
+			// `PIE-V01-HUD`.
+			const TArray<FRTSlotLine> SlotLines = ComposeSlotLines(URTHudViewModel::BuildUnitSlots(Sel));
+			float SlotY = Canvas->SizeY - 24.f - LineH * (SlotLines.Num() - 1);
+			for (const FRTSlotLine& SlotLine : SlotLines)
+			{
+				float SW = 0.f, SH = 0.f;
+				GetTextSize(SlotLine.Text, SW, SH, nullptr, 1.f);
+
+				// Grigio per lo slot libero, bianco per quello speso: la stessa scala che la barra abilita'
+				// usa gia' per «c'e' ma non e' attivo», cosi' le due letture non chiedono due convenzioni.
+				DrawText(SlotLine.Text,
+					SlotLine.bOccupied ? FLinearColor::White : FLinearColor(0.55f, 0.55f, 0.55f, 1.f),
+					Canvas->SizeX - SW - 24.f, SlotY, nullptr, 1.f);
+				SlotY += LineH;
 			}
 		}
 	}

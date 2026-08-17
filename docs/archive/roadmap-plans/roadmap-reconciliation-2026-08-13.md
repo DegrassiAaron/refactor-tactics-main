@@ -1,5 +1,7 @@
 # Referto — Secondo passaggio sull'handoff di reconciliation (2026-08-13)
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `SNAPSHOT` · **Data**: 2026-08-13
 > **Cosa e'**: il secondo passaggio sullo stesso handoff, riconciliazione **parziale**.
 > **Cosa non e'**: una fonte di stato. ⚠️ Contiene affermazioni **superate lo stesso giorno**: dice che
@@ -315,11 +317,12 @@ del 2026-08-10 vale ancora, e questa passata non l'ha aggirata.
 > è generato e un rigenerato avrebbe potuto perderle.
 >
 > ➕ L'ultimo merge ha portato un **gate nuovo**, `scripts/check-docs-naming.py`, eseguito su questo albero:
+<!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 > **exit 0**. Cerca i nomi legacy del roster (`Flux`, `Riva`, `Bastion`, `Vektor`) usati come prosa
 > player-facing, e per scelta dichiarata fallisce **solo** sui file in `ENFORCED` — che oggi sono **3 su
 > 220**, cioè l'1% di copertura, con **832** occorrenze di arretrato in 72 file. `OPEN_DECISIONS.md` vi
 > compare con 29 occorrenze, **preesistenti**: verificato che il diff di questo lavoro non ne aggiunga
-> nessuna (`git diff origin/main...HEAD | grep '^+' | grep -cE '\b(Flux\|Riva\|Bastion\|Vektor)\b'` → **0**,
+> nessuna (`git diff origin/main...HEAD | grep '^+' | grep -cE '\b(Gadget\|Phase\|Riktor\|Wraith)\b'` → **0**,
 > su tutti i file toccati).
 
 ## 7. Cosa la code review ha respinto — e il difetto comune alle otto voci

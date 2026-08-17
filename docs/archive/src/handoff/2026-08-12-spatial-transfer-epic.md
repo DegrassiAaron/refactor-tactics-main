@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > 📦 `HISTORICAL` · **Sorgente archiviato il 2026-08-12** · **Revisionato, recepito in larga parte.**
 >
 > Il testo originale **non è stato riscritto**: quanto segue è l'esito della revisione. Referto completo:
@@ -838,7 +840,7 @@ Scenarios/Spec/Movement/TeleportSkipsIntermediateCells.json
 Contiene già:
 
 ```text
-Flux 90 HP
+Gadget 90 HP
 due celle Fire intermedie
 Teleport oltre la corsia
 HP finale atteso = 90

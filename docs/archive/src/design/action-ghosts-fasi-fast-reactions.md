@@ -1,4 +1,6 @@
 # RefactorTactics — Action Ghosts, ordine delle fasi e Fast Reactions
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Specifica di design/implementazione da usare come contesto per Claude
 
 ### Contesto
@@ -43,7 +45,7 @@ Esempio:
 ```text
 PREP:  Hardlight Barricade
 DASH:  -
-BLAST: Bastion Bolt
+BLAST: Riktor Bolt
 MOVE:  Move verso H8
 ```
 
@@ -272,7 +274,7 @@ Esempio:
 ```text
 Aegis:
 PREP  Barricade
-BLAST Bastion Bolt
+BLAST Riktor Bolt
 MOVE  H8
 
 Drift:

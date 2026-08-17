@@ -31,10 +31,14 @@ le costanti reali (`RT_HEX_DX/DY`, `RT_HEX_LINE_SCALE = 1024`) su un difensore e
 
 | | |
 |---|---:|
-| celle su cui le due letture divergono | **50** |
-| divergenze «tre-lati **dentro** / cono **fuori**» | **50** |
+| celle su cui le due letture divergono | **45** |
+| divergenze «tre-lati **dentro** / cono **fuori**» | **45** |
 | divergenze nel verso opposto | **0** |
-| distanza della prima divergenza | **2** |
+| distanza della prima divergenza | **2** — e a quella distanza ce n'è **una sola**, `(1, -2)` |
+
+⚠️ **Le prime due righe dicevano `50` fino al 2026-08-16**, ed erano la misura della regola a **linea** che
+questo stesso referto ha scartato: le cifre erano sopravvissute alla regola. Corrette da [D-147](../../decisions/RT_PDR_00_Decision_Log.md). La
+conclusione — contenimento stretto, quindi buff difensivo — non cambia.
 
 Il cono è **strettamente contenuto** nell'insieme dei tre lati. Sostituire la primitiva nei consumatori
 d'area non sarebbe stata una rinomina: sarebbe stato un **buff difensivo** — `Guard` che tiene e copertura
@@ -76,7 +80,7 @@ pretende `NE`.
 corrispondono **esattamente** al manifest §27 del pacchetto, e l'audit richiesto era *«confronta gli hash
 contro gli asset già presenti»* — che dà verde. Gli hash erano giusti: mentivano i **nomi**. Corretti in
 entrambe le sedi; la tabella di provenienza è in
-[`../../wiki/RefactorTactics_Facing_Flows_v0.1/README.md`](../../wiki/RefactorTactics_Facing_Flows_v0.1/README.md).
+[`../../archive/src/handoff/2026-08-13-facing-visualdocs.md`](../../archive/src/handoff/2026-08-13-facing-visualdocs.md).
 
 **(b) `F3` disegna una decisione aperta con la grafica del canone.** Il pannello *«Direzione in entrata»*
 (`FromSource · FromTrajectory · FromImpactCenter · ExplicitDirection · NonDirectional`) è la policy di

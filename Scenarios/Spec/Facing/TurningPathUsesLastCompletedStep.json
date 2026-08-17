@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.TurningPathUsesLastCompletedStep",
-  "tags": ["facing", "movement", "core", "spec", "flux", "bastion"],
+  "tags": ["facing", "movement", "core", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -12,8 +12,8 @@
   "_nota_perche_non_asserisce_il_boundary": "L'harness non sa asserire uno stato INTERMEDIO: `UnitFacing` legge lo snapshot a fine turno. Il facing ai micro-step e' coperto dai test unitari (`Facing.MicroStepFacingIsLastCompletedStep`, `Facing.MicroStepZeroKeepsEntryFacing`), e duplicare qui il resolver per osservare il boundary renderebbe l'harness piu' capace del gioco. Questo scenario prova la REGOLA sul percorso reale (Intent -> Planning -> Snapshot -> Resolver); il boundary resta ai test unitari finche' un consumatore reale non lo osserva a fine turno.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [3, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [3, 0, 0] }
   ],
 
   "turns": [

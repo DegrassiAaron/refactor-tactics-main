@@ -81,7 +81,7 @@ che li apre.
 > | Candidato | Scartato perché |
 > |---|---|
 > | `StructuralSlot` | **`Slot` è già preso, e da una cosa che non c'entra**: `ERTActionSlot` è l'economia del turno (`Main`, `Movement`, `None`), quella su cui `#149` misura il bilanciamento della carica. Due «slot» in due domini diversi si pagano a ogni lettura, che è esattamente il costo che `D-070` esiste per evitare |
-> | `Panel` | Collide con **`Bastion.KineticPanel`**, il pannello cinetico temporaneo di E9 (CP 9.5) — e quello è *copertura*, cioè la cosa più vicina a uno slot strutturale che il gioco già abbia. La collisione sarebbe la peggiore possibile: due entità simili con lo stesso nome |
+> | `Panel` | Collide con **`Hero.Riktor.KineticPanel`**, il pannello cinetico temporaneo di E9 (CP 9.5) — e quello è *copertura*, cioè la cosa più vicina a uno slot strutturale che il gioco già abbia. La collisione sarebbe la peggiore possibile: due entità simili con lo stesso nome |
 > | `Section` | Libero nel repository, ma è il termine con cui **Unreal** nomina le sezioni di una mesh (`SectionIndex`): il primo lavoro sulla presentazione delle strutture lo troverebbe già occupato dall'engine |
 >
 > ⚠️ Il nome è **solo il nome**: il modello §40 (integrità, stati, slot adiacenti, riparazione) resta da

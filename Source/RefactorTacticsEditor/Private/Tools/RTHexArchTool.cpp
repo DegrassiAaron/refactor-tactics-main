@@ -69,7 +69,7 @@ void URTHexArchTool::OnClicked(const FInputDeviceRay& ClickPos)
 	FVector Center;
 	if (!RTHexEditor::ResolveClickedCell(TargetWorld, Actor, ClickPos, Cell, Center)) { return; }
 
-	DestroyPendingGizmo(); // no duplicati su re-click
+	DestroyPendingGizmo(ERTArchPendingClose::ReClick); // no duplicati su re-click
 
 	TargetActor = Actor;
 	From = Cell;
@@ -92,12 +92,45 @@ void URTHexArchTool::OnClicked(const FInputDeviceRay& ClickPos)
 
 void URTHexArchTool::Shutdown(EToolShutdownType ShutdownType)
 {
-	DestroyPendingGizmo();
+	DestroyPendingGizmo(ERTArchPendingClose::Shutdown);
 	USingleClickTool::Shutdown(ShutdownType);
 }
 
-void URTHexArchTool::DestroyPendingGizmo()
+namespace
 {
+	const TCHAR* ArchPendingCloseToString(ERTArchPendingClose Reason)
+	{
+		switch (Reason)
+		{
+		case ERTArchPendingClose::ReClick:          return TEXT("re-click su una nuova cella From");
+		case ERTArchPendingClose::Shutdown:         return TEXT("Shutdown del tool (cambio tool o uscita dal mode)");
+		case ERTArchPendingClose::Committed:        return TEXT("Commit: la transizione e' stata scritta");
+		case ERTArchPendingClose::ClearedByUser:    return TEXT("ClearArch dal pannello");
+		case ERTArchPendingClose::SwitchedToRemove: return TEXT("passaggio a Remove");
+		}
+		return TEXT("<motivo non mappato>");
+	}
+}
+
+/**
+ * `#996`, passo 1. Questa funzione era l'unica del giro a NON loggare, mentre tutte le sue cinque chiamanti
+ * loggano: quando un gizmo spariva, il registro conteneva tutto tranne la riga che diceva chi l'aveva chiuso.
+ *
+ * ⚠️ **Il segnale piu' importante di questo log e' la sua ASSENZA.** Se al gesto che #996 descrive — modificare
+ * la Transform Location dell'actor con un arco pendente — il gizmo sparisce e qui NON compare nessuna riga,
+ * allora `DestroyPendingGizmo` non e' stata chiamata: il tool e' vivo, e la causa sta altrove. Un log che tace
+ * e' un dato solo per chi sa che doveva parlare, e questo commento e' il posto dove sta scritto.
+ *
+ * Per questo si stampano anche `bHasFrom` e la presenza del gizmo PRIMA di azzerarli: distinguono una
+ * chiusura vera da una chiamata a vuoto, che le cinque chiamanti fanno regolarmente.
+ */
+void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
+{
+	UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco: chiusura del pendente — %s (bHasFrom=%d, gizmo %s)."),
+		ArchPendingCloseToString(Reason),
+		bHasFrom ? 1 : 0,
+		Gizmo ? TEXT("presente") : TEXT("assente"));
+
 	if (GetToolManager() && GetToolManager()->GetPairedGizmoManager())
 	{
 		GetToolManager()->GetPairedGizmoManager()->DestroyAllGizmosByOwner(this);
@@ -125,9 +158,27 @@ void URTHexArchTool::OnGizmoMoved(UTransformProxy* InProxy, FTransform InTransfo
 	bToValid = (Cell != From) && Map && Map->ContainsCell(Cell) && Map->ContainsCell(From);
 	ToWorld = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH);
 
-	// Ri-snap del proxy al centro della cella; SetTransform ri-emette OnTransformChanged -> guardia.
+	// Ri-snap al centro della cella. Si scrive sul GIZMO, non sul proxy, e non e' una preferenza:
+	//
+	//   `UTransformProxy::SetTransform` aggiorna `SharedTransform` e fa broadcast di `OnTransformChanged`,
+	//   ma non muove niente a schermo — e `OnTransformChanged` non compare in tutto
+	//   `CombinedTransformGizmo.cpp`: il gizmo **non si iscrive al proprio proxy**. Il `GizmoActor` viene
+	//   posizionato una volta sola in `SetActiveTarget` e poi guidato dai sub-gizmo, quindi scrivere sul
+	//   proxy lasciava il gizmo dov'era: il ri-snap si vedeva al gesto DOPO, quando un sub-gizmo
+	//   ricominciava a interagire e rileggeva lo stato (#931).
+	//
+	// ⚠️ `ReinitializeGizmoTransform` e NON `SetNewGizmoTransform`: la seconda «genera gli stessi eventi
+	// Change/Modify, e quindi funziona con Undo/Redo», e un ri-snap automatico nell'undo stack sarebbe un
+	// passo che l'utente non ha compiuto — con `PIE-HEX-MODE-E` che verifica proprio Undo/Redo.
+	//
+	// La guardia resta: `Reinitialize` non rientra in `OnGizmoMoved`, ma il proxy va comunque allineato
+	// perche' e' lui il bersaglio letto altrove, e quella scrittura si' che ri-emette l'evento.
 	bSnapping = true;
 	InProxy->SetTransform(FTransform(ToWorld));
+	if (Gizmo)
+	{
+		Gizmo->ReinitializeGizmoTransform(FTransform(ToWorld));
+	}
 	bSnapping = false;
 
 	if (Properties) { Properties->To = To; Properties->bToValid = bToValid; }
@@ -144,17 +195,17 @@ void URTHexArchTool::CommitArch()
 	const int32 Cost = Properties ? Properties->Cost : 2;
 	const bool bBidir = Properties ? Properties->bBidirectional : true;
 	TargetActor->AddTransitionData(From, To, Cost, Kind, bBidir);
-	DestroyPendingGizmo();
+	DestroyPendingGizmo(ERTArchPendingClose::Committed);
 }
 
 void URTHexArchTool::ClearPending()
 {
-	DestroyPendingGizmo();
+	DestroyPendingGizmo(ERTArchPendingClose::ClearedByUser);
 }
 
 void URTHexArchTool::RemoveNearestArch(ARTHexMapActor* Actor, const FInputDeviceRay& ClickPos)
 {
-	DestroyPendingGizmo(); // esci da un eventuale Add pendente
+	DestroyPendingGizmo(ERTArchPendingClose::SwitchedToRemove); // esci da un eventuale Add pendente
 
 	const URTHexMapAsset* Map = Actor->MapAsset;
 	if (!Map || Map->Transitions.Num() == 0)

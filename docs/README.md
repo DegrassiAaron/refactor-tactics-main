@@ -24,7 +24,7 @@ deterministico, su una griglia **esagonale multilivello**.
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |
 | 6 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
 | 7 | **Requisiti lungo periodo** | [`roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6 — **direzione, non scope** |
-| 8 | **Visione north-star** | [`src/prd/`](src/README.md) — i PRD, in Markdown dal 2026-08-12 | Prodotto a lungo termine, **non** obiettivo attuale |
+| 8 | **Visione north-star** | [`src/prd/`](src/) — i PRD, in Markdown dal 2026-08-12 | Prodotto a lungo termine, **non** obiettivo attuale |
 | 9 | **Storico** | [`archive/`](archive/) | Materiale superato, conservato per provenienza |
 
 > **Il canone e gli ADR non possono divergere.** La tabella dice che il livello 1 prevale sul livello 2, ma un

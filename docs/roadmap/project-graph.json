@@ -68,7 +68,7 @@
       "[RT-FEAT-UI-REPLAY-VIEWER] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-TRANSFORMATION] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
-      "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
+      "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.GadgetPhase.ConductiveFlood, Team.Constrine.RiktorWraith.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
       "[RT-FEAT-STRESS-4V4] 1 scenario/i dichiarati planned: Stress.4v4.CoreRoster",
       "[RT-FEAT-MATCH-AUTOBATTLE] 4 scenario/i dichiarati planned: AutoBattle.OpenField, AutoBattle.Obstacles, AutoBattle.Hazard, AutoBattle.Objective",
       "[RT-FEAT-BOT-FAIRNESS] 1 scenario/i dichiarati planned: Spec.Bot.DecoyNoiseIndistinguishable",
@@ -79,7 +79,7 @@
       "[RT-FEAT-ABILITY-RUNTIME] nessuna pagina Wiki collegata",
       "[RT-FEAT-INTENT-CONDITIONAL] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHARACTER-STATE] nessuna pagina Wiki collegata",
-      "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Riva.Flow, State.Flux.Charged, State.Bastion.Bulwark, State.Howitzer.Siege, State.MultiState.Stress",
+      "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Hero.Phase.Flow, State.Hero.Gadget.Charged, State.Hero.Riktor.Bulwark, State.Howitzer.Siege, State.MultiState.Stress",
       "[execution-graph issue:314] nessuna feature del registry dichiara questa issue: il suo domain_group 'actions_reactions' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
       "[execution-graph issue:512] nessuna feature del registry dichiara questa issue: il suo domain_group 'core_simulation' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
       "[execution-graph] 10 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
@@ -216,6 +216,7 @@
     "M9.1": "⏳",
     "M9.2": "⏳",
     "M9.3": "⏳",
+    "M9.4": "⏳",
     "M10.1": "⏳",
     "M10.2": "⏳",
     "M10.3": "⏳",
@@ -326,7 +327,8 @@
     "E46.5": "⏳",
     "E46.6": "⏳",
     "E47.1": "⏳",
-    "E47.2": "⏳",
+    "E47.2": "✅",
+    "E47.7": "✅",
     "E47.3": "⏳",
     "E47.4": "⏳",
     "E47.5": "⏳",
@@ -468,7 +470,7 @@
         },
         {
           "id": "PIE-HEX-MODE-H",
-          "state": ""
+          "state": "🟡"
         },
         {
           "id": "PIE-HEX-MODE-L",
@@ -1378,10 +1380,14 @@
       "artifacts": [],
       "unblocked_by": [],
       "unblocks": [
-        "U22"
+        "U22",
+        "U25",
+        "U26"
       ],
       "shares_setup_with": [
-        "U22"
+        "U22",
+        "U25",
+        "U26"
       ],
       "verifies": [
         {
@@ -1418,7 +1424,8 @@
       ],
       "unblocks": [],
       "shares_setup_with": [
-        "U21"
+        "U21",
+        "U26"
       ],
       "verifies": [
         {
@@ -1449,17 +1456,17 @@
       "block": 6,
       "critical": false,
       "execution_lane": "pie",
-      "state": "⏳",
+      "state": "🟡",
       "queue_group": "READY",
       "produces": "i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`",
       "artifacts": [
         {
           "path": "Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset",
@@ -1486,6 +1493,66 @@
         937
       ],
       "done_when": "i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori"
+    },
+    {
+      "id": "U25",
+      "title": "Il volume di posa della cella, e la scena che dice se il graybox si legge",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "—",
+      "queue_group": null,
+      "produces": "verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "U21",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [
+        "U21",
+        "U26"
+      ],
+      "verifies": [],
+      "issues": [
+        1095
+      ],
+      "done_when": "la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro"
+    },
+    {
+      "id": "U26",
+      "title": "La griglia di lavoro e la sonda di movimento nell'editor",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "—",
+      "queue_group": null,
+      "produces": "verdetto su leggibilita' della griglia di lavoro e della sonda di movimento",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "U21",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [
+        "U21",
+        "U22",
+        "U25"
+      ],
+      "verifies": [],
+      "issues": [
+        622,
+        711
+      ],
+      "done_when": "le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale"
     }
   ],
   "editor_queue": {
@@ -1684,7 +1751,7 @@
     },
     {
       "id": "PIE-HEX-MODE-H",
-      "state": ""
+      "state": "🟡"
     },
     {
       "id": "PIE-HEX-MODE-I",
@@ -2003,6 +2070,10 @@
       "state": "⏳"
     },
     {
+      "id": "PIE-V01-PLAYSPEED",
+      "state": "⏳"
+    },
+    {
       "id": "PIE-V01-POINTER",
       "state": "⏳"
     },
@@ -2122,11 +2193,6 @@
       "path": "Scenarios/Combat/BasicAttack.json"
     },
     {
-      "id": "Combat.BastionImpactShotSlows",
-      "requires": [],
-      "path": "Scenarios/Combat/BastionImpactShotSlows.json"
-    },
-    {
       "id": "Combat.BlockedByWall",
       "requires": [],
       "path": "Scenarios/Combat/BlockedByWall.json"
@@ -2157,6 +2223,11 @@
       "id": "Combat.NoCounterWhenUnarmed",
       "requires": [],
       "path": "Scenarios/Combat/NoCounterWhenUnarmed.json"
+    },
+    {
+      "id": "Combat.RiktorImpactShotSlows",
+      "requires": [],
+      "path": "Scenarios/Combat/RiktorImpactShotSlows.json"
     },
     {
       "id": "Combat.SplashHitsAlliesNotSelf",
@@ -2197,7 +2268,6 @@
       "id": "RT_Showcase_Relay_v01",
       "requires": [
         "DecisionBoundary",
-        "DeclaredRotation",
         "InterceptRevalidation",
         "Objective",
         "PredictiveAction"
@@ -2236,9 +2306,14 @@
     {
       "id": "Spec.Brace.ProfileChangesResponse",
       "requires": [
-        "DecisionBoundary"
+        "ReactionProfile"
       ],
       "path": "Scenarios/Spec/Brace/ProfileChangesResponse.json"
+    },
+    {
+      "id": "Spec.Brace.PushBeyondGuardThreshold",
+      "requires": [],
+      "path": "Scenarios/Spec/Brace/PushBeyondGuardThreshold.json"
     },
     {
       "id": "Spec.Clash.ReadBeatsStand",
@@ -2273,9 +2348,9 @@
       "path": "Scenarios/Spec/Clash/TieAppliesOnce.json"
     },
     {
-      "id": "Spec.Combat.BastionIsPushedLikeAnyone",
+      "id": "Spec.Combat.RiktorIsPushedLikeAnyone",
       "requires": [],
-      "path": "Scenarios/Spec/Combat/BastionIsPushedLikeAnyone.json"
+      "path": "Scenarios/Spec/Combat/RiktorIsPushedLikeAnyone.json"
     },
     {
       "id": "Spec.Cover.TemporaryCoverExpires",
@@ -2413,10 +2488,16 @@
       "path": "Scenarios/Spec/Objective/PointSurvivesKO.json"
     },
     {
+      "id": "Spec.Overwatch.ConditionCollapsesToHold",
+      "requires": [
+        "Reaction"
+      ],
+      "path": "Scenarios/Spec/Overwatch/ConditionCollapsesToHold.json"
+    },
+    {
       "id": "Spec.Overwatch.HoldThenFire",
       "requires": [
-        "DecisionBoundary",
-        "DeclaredRotation"
+        "DecisionBoundary"
       ],
       "path": "Scenarios/Spec/Overwatch/HoldThenFire.json"
     },
@@ -2565,6 +2646,7 @@
     "BotPlanning",
     "Cover",
     "CreateCover",
+    "DecisionBoundary",
     "DeclaredRotation",
     "Environment",
     "EnvironmentalActionOwner",
@@ -2905,8 +2987,8 @@
             "rationale": null
           }
         ],
-        "readiness": "BLOCKED",
-        "readiness_reason": "aspetta capability:DecisionBoundary"
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:165"
       },
       {
         "id": "issue:66",
@@ -3359,7 +3441,7 @@
         "domain_group": "core_simulation",
         "domain_group_source": "derived",
         "checkpoint": "E47.2",
-        "state": "⏳",
+        "state": "✅",
         "state_source": "checkpoint:E47.2",
         "state_note": null,
         "feature_ids": [
@@ -3384,8 +3466,8 @@
             "rationale": null
           }
         ],
-        "readiness": "READY",
-        "readiness_reason": "nessun prerequisito hard"
+        "readiness": "DONE",
+        "readiness_reason": "checkpoint:E47.2"
       },
       {
         "id": "issue:956",
@@ -3525,7 +3607,7 @@
         ],
         "outgoing": [],
         "readiness": "BLOCKED",
-        "readiness_reason": "aspetta issue:955, issue:957"
+        "readiness_reason": "aspetta issue:957"
       },
       {
         "id": "issue:959",
@@ -3878,15 +3960,14 @@
         ],
         "scenario_consumers": [
           "RT_Showcase_Relay_v01",
-          "Spec.Brace.ProfileChangesResponse",
           "Spec.Clash.ReadBeatsStand",
           "Spec.Clash.ShiftBeatsRead",
           "Spec.Clash.StandBeatsShift",
           "Spec.Clash.TieAppliesOnce",
           "Spec.Overwatch.HoldThenFire"
         ],
-        "available": false,
-        "available_source": "provider"
+        "available": true,
+        "available_source": "runtime"
       }
     ],
     "stats": {
@@ -3895,10 +3976,10 @@
       "hard_edges": 15,
       "soft_edges": 10,
       "by_readiness": {
-        "BLOCKED": 4,
-        "DONE": 2,
-        "READY": 16,
-        "UNKNOWN": 5
+        "BLOCKED": 3,
+        "DONE": 3,
+        "READY": 15,
+        "UNKNOWN": 6
       },
       "by_execution_lane": {
         "asset": 2,

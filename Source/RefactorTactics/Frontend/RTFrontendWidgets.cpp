@@ -33,6 +33,11 @@ FText URTLoadingScreenWidgetBase::GetPhaseText() const
 	return FText::GetEmpty();
 }
 
+ESlateVisibility URTLoadingScreenWidgetBase::GetLoadingVisibility() const
+{
+	return IsLoading() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+}
+
 // ─── Modale d'errore ─────────────────────────────────────────────────────────────────────────────
 
 void URTErrorModalWidgetBase::ShowFor(const FRTStartupNote& Note)
@@ -47,6 +52,32 @@ void URTErrorModalWidgetBase::ShowFor(const FRTStartupNote& Note)
 
 	Outcome = Note.Outcome;
 	Detail = Note.Detail;
+}
+
+void URTErrorModalWidgetBase::ShowFromReport(const FRTStartupReport& Report)
+{
+	// Quale nota sia quella fatale lo decide `FindFatal`, che a sua volta chiede a `IsFatal`: il
+	// chiamante non deve saperlo, e non deve poterlo ridecidere.
+	const ERTStartupOutcome Fatal = URTStartupReportLibrary::FindFatal(Report);
+	if (Fatal == ERTStartupOutcome::Ok)
+	{
+		return;
+	}
+
+	for (const FRTStartupNote& Note : Report.Notes)
+	{
+		if (Note.Outcome == Fatal)
+		{
+			ShowFor(Note);
+			return;
+		}
+	}
+}
+
+void URTErrorModalWidgetBase::ShowForOutcome(ERTStartupOutcome InOutcome, const FString& InDetail)
+{
+	// Passa da `ShowFor` invece di scrivere i campi: il filtro sui non-fatali resta in un posto solo.
+	ShowFor(FRTStartupNote(InOutcome, InDetail));
 }
 
 FText URTErrorModalWidgetBase::GetReasonText() const
@@ -71,7 +102,39 @@ bool URTErrorModalWidgetBase::ShouldShowDetails() const
 	return !GetDetail().IsEmpty();
 }
 
+ESlateVisibility URTErrorModalWidgetBase::GetModalVisibility() const
+{
+	// `Visible` e non `SelfHitTestInvisible`: un modale deve **fermare** i click su cio' che sta sotto.
+	// E' l'unica delle tre schermate per cui questo valore non e' una formalita'.
+	return IsArmed() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+}
+
+ESlateVisibility URTErrorModalWidgetBase::GetDetailsVisibility() const
+{
+	// In Shipping `GetDetail()` e' vuoto per costruzione, quindi qui esce sempre `Collapsed`: il pulsante
+	// non esiste invece di aprire il vuoto.
+	return ShouldShowDetails() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+}
+
 // ─── Banner di ripiego ───────────────────────────────────────────────────────────────────────────
+
+FText URTFallbackBannerWidgetBase::GetLinesAsText() const
+{
+	if (Lines.Num() == 0)
+	{
+		return FText::GetEmpty();
+	}
+
+	// `FText::Join` invece di concatenare stringhe: il separatore resta un `FText` e la localizzazione
+	// non si perde per strada. Il carattere e' un a capo vero, non un token da sostituire nel widget.
+	return FText::Join(FText::FromString(TEXT("\n")), Lines);
+}
+
+ESlateVisibility URTFallbackBannerWidgetBase::GetBannerVisibility() const
+{
+	// `Collapsed` e non `Hidden`: un banner assente non deve occupare spazio nel layout sotto.
+	return HasAnything() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+}
 
 void URTFallbackBannerWidgetBase::SetFromReport(const FRTStartupReport& Report)
 {

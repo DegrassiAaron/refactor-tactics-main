@@ -24,7 +24,7 @@ esistono. Nove file sono stati riaperti a mano prima di dichiararli rotti, e nes
 ## 2. Difetto 1 — `CP n.m` non è risolvibile (corretto)
 
 I due spazi di numerazione dei checkpoint **collidono su 20 numeri su 22**: `6.3` è «Input e pianificazione»
-in M6 e «Riva» in E6; `7.2`, `8.1`, `9.1`, `10.1` idem. Il `feature-registry.yaml` si era già difeso — un
+in M6 e «Phase» in E6; `7.2`, `8.1`, `9.1`, `10.1` idem. Il `feature-registry.yaml` si era già difeso — un
 checkpoint di milestone non si scrive mai nel campo `checkpoints` — ma `editor-sessions.yaml`, creato il
 2026-08-10, usava la forma nuda `CP 6.3` **e mescolava i due spazi senza segnalarlo**:
 

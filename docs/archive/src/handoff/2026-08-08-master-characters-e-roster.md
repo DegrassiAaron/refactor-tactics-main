@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > ## 🗄️ `HISTORICAL` — SORGENTE RECEPITO
 >
 > **Archiviato il 2026-08-10.** Era in `todo/consolidazione-chat-openai/`, untracked.
@@ -44,18 +46,18 @@ Non usare un vecchio PDF o workbook per sovrascrivere il roster corrente.
 ## v0.1
 
 ```text
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 ```
 
 Showcase 2v2:
 
 ```text
-Flux + Riva
+Gadget + Phase
 vs
-Bastion + Vektor
+Riktor + Wraith
 ```
 
 ## v0.2
@@ -109,19 +111,23 @@ Mapping approvato:
 
 | RefactorTactics | Paragon Asset Slot | Release |
 |---|---|---|
-| Flux | Gadget | v0.1 |
-| Riva | Phase | v0.1 |
-| Bastion | Riktor | v0.1 |
-| Vektor | Wraith | v0.1 |
+| Gadget | Gadget | v0.1 |
+| Phase | Phase | v0.1 |
+| Riktor | Riktor | v0.1 |
+| Wraith | Wraith | v0.1 |
 | Steel | Steel | v0.2 |
 | Aurora | Aurora | v0.2 |
 | Murdock | Murdock | v0.2 |
 | Kwang | Kwang | v0.2 |
 
 Non rinominare:
+<!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 - Flux -> Gadget
+<!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 - Riva -> Phase
+<!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 - Bastion -> Riktor
+<!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 - Vektor -> Wraith
 
 Il mapping Paragon riguarda mesh/animazioni/portrait/VFX/reference visuale, non l'identità gameplay.
@@ -135,10 +141,10 @@ Per v0.2 i nomi correnti coincidono con gli slot Paragon, ma non assumere che si
 Per v0.1 usare gli ID canonici già presenti nel progetto, ad esempio:
 
 ```text
-Hero.Flux
-Hero.Riva
-Hero.Bastion
-Hero.Vektor
+Hero.Gadget
+Hero.Phase
+Hero.Riktor
+Hero.Wraith
 ```
 
 Per v0.2:
@@ -152,7 +158,7 @@ Per v0.2:
 
 ## v0.1
 
-### Flux
+### Gadget
 ```text
 Signature: Conduction / Charge / Conductive Network
 Role: Controller / Striker
@@ -165,7 +171,7 @@ Identità:
 - forte sinergia con Wet/acqua;
 - valore derivato anche dalla mappa.
 
-### Riva
+### Phase
 ```text
 Signature: Water Shaping / Flow / Wet Territory
 Role: Support / Controller
@@ -178,7 +184,7 @@ Identità:
 - setup di combo;
 - controllo del terreno.
 
-### Bastion
+### Riktor
 ```text
 Signature: Field Architecture / Directional Structures / Protection
 Role: Guardian / Controller
@@ -190,7 +196,7 @@ Identità:
 - canalizzazione delle rotte;
 - controllo degli archi/transizioni.
 
-### Vektor
+### Wraith
 ```text
 Signature: Predictive Interception
 Role: Striker / Controller
@@ -239,12 +245,12 @@ Baseline confermata per la showcase v0.1:
 
 ```text
 CONFLUX
-- Flux
-- Riva
+- Gadget
+- Phase
 
 CONSTRINE
-- Bastion
-- Vektor
+- Riktor
+- Wraith
 ```
 
 Per v0.2:
@@ -262,10 +268,10 @@ Quindi:
 
 | Character | Release | Faction |
 |---|---|---|
-| Flux | v0.1 | Conflux |
-| Riva | v0.1 | Conflux |
-| Bastion | v0.1 | Constrine |
-| Vektor | v0.1 | Constrine |
+| Gadget | v0.1 | Conflux |
+| Phase | v0.1 | Conflux |
+| Riktor | v0.1 | Constrine |
+| Wraith | v0.1 | Constrine |
 | Steel | v0.2 | TBD |
 | Aurora | v0.2 | TBD |
 | Murdock | v0.2 | TBD |
@@ -312,21 +318,21 @@ La complessità deve restare leggibile.
 
 Sono direzioni di prototipo/playtest, non numeri canonici.
 
-## Flux
+## Gadget
 - Move: cerca geometrie utili alla conduzione;
 - Basic Attack: Engine/Setup Attack elettrico;
 - Guard/Brace: possibile grounding/carica;
 - Overwatch: profilo conduttivo/settoriale;
 - Activate: alta affinità con dispositivi elettrici.
 
-## Riva
+## Phase
 - Move: fluido e legato alle superfici;
 - Basic Attack: setup Wet/displacement;
 - Guard/Brace: evasione/flow dove definito;
 - Overwatch: pressione/spinta/Wet;
 - Interact: forte relazione con valvole/acqua/ambiente.
 
-## Bastion
+## Riktor
 - Move: pesante/stabile;
 - Basic Attack: utility/fallback/finish;
 - Guard: identità forte di protezione;
@@ -334,7 +340,7 @@ Sono direzioni di prototipo/playtest, non numeri canonici.
 - Overwatch: controllo frontale;
 - Activate/Interact: cover/porte/strutture.
 
-## Vektor
+## Wraith
 - Move: agile/predittivo;
 - Basic Attack: Primary Weapon;
 - Guard/Brace: line control/focus più che tanking;
@@ -362,13 +368,13 @@ Non duplicare qui i payload numerici: devono vivere nel catalogo/data source com
 
 # 11. Combo team v0.1
 
-## Flux + Riva
+## Gadget + Phase
 
 Pattern principale:
 
 ```text
-Riva crea Wet / acqua
--> Flux sfrutta conduzione / propagazione elettrica
+Phase crea Wet / acqua
+-> Gadget sfrutta conduzione / propagazione elettrica
 ```
 
 La combo deve:
@@ -377,13 +383,13 @@ La combo deve:
 - poter coinvolgere friendly-fire/rischio se previsto;
 - non diventare kill garantita.
 
-## Bastion + Vektor
+## Riktor + Wraith
 
 Pattern principale:
 
 ```text
-Bastion modifica cover/rotte
--> Vektor sfrutta traiettorie prevedibili / Intercept
+Riktor modifica cover/rotte
+-> Wraith sfrutta traiettorie prevedibili / Intercept
 ```
 
 La combo deve premiare la canalizzazione senza eliminare tutte le opzioni nemiche.
@@ -406,10 +412,10 @@ Determinism.Repeat
 Namespace consigliato:
 
 ```text
-Character.Flux.*
-Character.Riva.*
-Character.Bastion.*
-Character.Vektor.*
+Character.Gadget.*
+Character.Phase.*
+Character.Riktor.*
+Character.Wraith.*
 Character.Steel.*
 Character.Aurora.*
 Character.Murdock.*
@@ -427,7 +433,7 @@ Non legare il namespace alla fazione se il mapping di v0.2 è TBD.
 ```text
 Team.Conflux.WaterElectric
 Team.Constrine.ArchitectureInterception
-Showcase.v0.1.FluxRivaVsBastionVektor
+Showcase.v0.1.GadgetRivaVsBastionVektor
 ```
 
 Ogni scenario deve poter essere scoperto da metadata:
@@ -589,7 +595,7 @@ Validator:
 ## Character Wiki Data v0.4
 È molto più vicino alla baseline corrente:
 - roster ufficiale 8;
-- v0.1 = Flux/Riva/Bastion/Vektor;
+- v0.1 = Gadget/Phase/Riktor/Wraith;
 - v0.2 = Steel/Aurora/Murdock/Kwang.
 
 Può essere usato come authoring/reconciliation input se il repository lo considera ancora attivo.
@@ -634,12 +640,12 @@ Asset / Provenienza visuale
 Esempio asset:
 
 ```text
-RefactorTactics Character: Flux
+RefactorTactics Character: Gadget
 Paragon asset base: Gadget
 Release: v0.1
 ```
 
-Non scrivere “Flux è Gadget”.
+Non scrivere “Gadget è Gadget”.
 
 ---
 
@@ -716,9 +722,9 @@ Per Super/Cooldown pianificare metriche come:
 - charges wasted.
 
 Per signature:
-- Flux/Kwang: network/propagation;
-- Riva/Aurora/Bastion: cells/edges modified;
-- Vektor/Murdock: prediction/reaction opportunities;
+- Gadget/Kwang: network/propagation;
+- Phase/Aurora/Riktor: cells/edges modified;
+- Wraith/Murdock: prediction/reaction opportunities;
 - Steel: effective protections.
 
 Non trasformare queste metriche in production telemetry obbligatoria per la v0.1.
@@ -748,7 +754,7 @@ La Character Master Matrix può restare come authoring/design matrix se viene al
 1. qualunque `v0.1 = Steel/Aurora/Murdock/Kwang` -> superseded.
 2. Aegis/Nyx/Drift/Vex operativi -> archive/history.
 3. Mara/Ivo/Nyx/Sol operativi -> archive/history.
-4. vecchi mapping asset di Flux diversi da Gadget -> historical.
+4. vecchi mapping asset di Gadget diversi da Gadget -> historical.
 5. workbook Character Wiki v0.2 con v0.1 sbagliato -> superseded da v0.3/v0.4.
 6. `Roster_8_Conflux_Constrine.md` non corretto -> archive/superseded.
 7. `Roster_8_Conflux_Constrine_CORRETTO.md` -> utile come history/recovery, ma v0.2 faction mapping resta TBD.
@@ -779,10 +785,10 @@ La Character Master Matrix può restare come authoring/design matrix se viene al
 - scenarios/playtest.
 
 ## v0.1 Signature Validation
-- Flux Conduction;
-- Riva Water;
-- Bastion Architecture;
-- Vektor Prediction;
+- Gadget Conduction;
+- Phase Water;
+- Riktor Architecture;
+- Wraith Prediction;
 - team combos;
 - counterplay.
 

@@ -111,7 +111,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 HearingThreshold = 5;
 
-	/** Affinità e debolezza ambientale dell'eroe (identità per le combo fra eroi, es. Flux su bersaglio Wet). */
+	/** Affinità e debolezza ambientale dell'eroe (identità per le combo fra eroi, es. Gadget su bersaglio Wet). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FName Affinity;
 
@@ -132,7 +132,7 @@ public:
 	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
 	 * deve restare localizzabile.
 	 *
-	 * ⚠️ **Non è lo Stable ID.** `HeroId` resta `Hero.Flux` e non si rinomina: D-120 tiene i due piani
+	 * ⚠️ **Non è lo Stable ID.** `HeroId` resta `Hero.Gadget` e non si rinomina: D-120 tiene i due piani
 	 * separati, e la migrazione degli identificatori ha un blocker proprio ancora aperto (#716).
 	 * Vuoto = nessun eroe l'ha dichiarato: la presentazione ricade su `ShortHeroName`, mai su stringa vuota.
 	 */
@@ -193,7 +193,7 @@ public:
 
 	/**
 	 * Cella bersagliata dall'azione principale, in alternativa a `PlannedAttackTarget`: le aree si centrano
-	 * su una CELLA, che puo' essere vuota (`Flux.Overload` su un varco, una cella conduttiva senza nessuno
+	 * su una CELLA, che puo' essere vuota (`Gadget.Overload` su un varco, una cella conduttiva senza nessuno
 	 * sopra). Valida solo con `bAttackTargetsCell`.
 	 *
 	 * Chiude a meta' il limite dichiarato in `RTTurnManager` (CP 8.3): la pianificazione non aveva un
@@ -203,7 +203,7 @@ public:
 	FRTCellId PlannedAttackCell;
 
 	/**
-	 * Variante di abilita' attiva su questa unita' (es. `Bastion.KineticPanel.Reinforced`). `None` = i numeri
+	 * Variante di abilita' attiva su questa unita' (es. `Riktor.KineticPanel.Reinforced`). `None` = i numeri
 	 * del catalogo base.
 	 *
 	 * E' il **minimo** che rende consumabili i `Parameters` delle varianti, che fino a CP 9.5 nessuno leggeva:
@@ -219,7 +219,7 @@ public:
 
 	/**
 	 * Bordo bersagliato dalle azioni che agiscono su una STRUTTURA di bordo (CP 9.5: `Action.CreateCover`,
-	 * `Bastion.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
+	 * `Riktor.Reconfigure`). Valido solo con `bHasPlannedCoverEdge`.
 	 *
 	 * Serve un dato in piu' perche' una copertura sta su un BORDO, e una cella ne ha sei: con portata 3 la
 	 * coppia (chi la erige, cella bersaglio) non basta a determinarlo — a portata 1 sarebbe bastata, ma il
@@ -386,6 +386,32 @@ public:
 	 */
 	void ConfigureFromHeroData(const URTHeroData* Hero);
 
+	/**
+	 * Applica un loadout a questa unità: le tre categorie, ognuna col **suo** verbo (`#1054`, CP 7.4).
+	 *
+	 * - **variante d'arma** → MODIFICA l'attacco base (indice 0). Non viene accodata: sarebbe un'azione in
+	 *   più invece di un'arma diversa, ed è l'errore che l'harness faceva prima di `#63`.
+	 * - **gadget** e **modulo di reazione** → CONCEDONO un'azione, che si accoda.
+	 *
+	 * Sta su `ARTUnit` e non su `URTCatalogLibrary` perché l'unità è il soggetto — e perché così la
+	 * **partita e l'harness chiamano la stessa funzione**. Scriverla due volte le farebbe divergere, e
+	 * uno scenario che verifica un equipaggiamento diverso da quello che il gioco monta non prova niente
+	 * sul gioco: è tutto il valore che il corpus ha.
+	 *
+	 * ⚠️ **Non fa validazione**: che l'insieme sia 1+1+1 lo dichiara `ValidateLoadout`, e chi passa di qui
+	 * lo ha già fatto — il loader per uno scenario, `DefaultLoadoutFor` per la partita (che restituisce
+	 * *tutto o niente*, mai un insieme parziale). Un pezzo che non esiste viene saltato, non è un errore:
+	 * fermarsi a metà lascerebbe l'unità equipaggiata in parte, che è peggio di non esserlo.
+	 *
+	 * ⚠️ **Idempotente per costruzione contro il difetto peggiore.** L'attacco base viene **duplicato**
+	 * prima di essere modificato, perché `ConfigureFromHeroData` fa `Abilities = Hero->Actions`, cioè copia
+	 * i *puntatori*: senza la duplicazione, due unità che condividessero lo stesso `URTHeroData` si
+	 * applicherebbero la variante a vicenda — e `RangeCells` **accumula**, quindi la seconda perderebbe due
+	 * celle invece di una. Oggi non succede (`GetHeroRoster()` ricostruisce a ogni chiamata), ma nulla lo
+	 * pinna, e una cache del roster — ottimizzazione plausibile — lo introdurrebbe **in silenzio**.
+	 */
+	void EquipLoadout(const TArray<FName>& PieceIds);
+
 	int32 NumAbilities() const { return Abilities.Num(); }
 	URTActionData* GetAbility(int32 Index) const;
 
@@ -450,8 +476,8 @@ public:
 	 * Applica uno status per Turns turni (non accorcia una durata gia' piu' lunga), oppure legato alla cella
 	 * se Turns == PersistentWhileOnCell.
 	 *
-	 * Le due nature convivono senza sovrascriversi: chi e' bagnato dall'acqua E dall'abilita' di Riva resta
-	 * bagnato per la durata di Riva anche dopo essere uscito dall'acqua.
+	 * Le due nature convivono senza sovrascriversi: chi e' bagnato dall'acqua E dall'abilita' di Phase resta
+	 * bagnato per la durata di Phase anche dopo essere uscito dall'acqua.
 	 */
 	void ApplyStatus(FGameplayTag Tag, int32 Turns);
 
@@ -539,7 +565,7 @@ private:
 	/**
 	 * Status legati alla cella (durata PersistentWhileOnCell). Contenitore separato e non una sentinella
 	 * dentro StatusTurns: le due nature devono poter coesistere sullo STESSO tag senza che una cancelli
-	 * l'altra (acqua bassa + `Riva.PressureJet` sono entrambe sorgenti di `Wet`).
+	 * l'altra (acqua bassa + `Phase.PressureJet` sono entrambe sorgenti di `Wet`).
 	 */
 	UPROPERTY()
 	TSet<FGameplayTag> CellBoundStatuses;
@@ -631,7 +657,7 @@ public:
 	static FLinearColor TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1);
 
 	/**
-	 * Ultimo segmento di uno Stable ID: `Hero.Flux` -> `Flux`.
+	 * Ultimo segmento di uno Stable ID: `Hero.Gadget` -> `Gadget`.
 	 *
 	 * ⚠️ **Non e' piu' il nome mostrato a schermo, ed e' cambiato il 2026-08-13** (#715). Fino ad allora
 	 * questa funzione ERA l'etichetta, e la sua descrizione lo diceva; oggi l'etichetta la sceglie

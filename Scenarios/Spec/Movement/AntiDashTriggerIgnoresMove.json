@@ -12,18 +12,18 @@
   "_nota_da_completare": "Dipende dalla issue #307 (la causa dello spostamento deve essere leggibile) e dal modello di trigger semantico, che non esiste ancora. Chi lo implementa: dichiara la capability `SemanticTrigger`, arma la trappola su V1 e riempie gli intent. Le assertion attese sono sugli HP di F1 — **invariati** dopo il Move, **ridotti** dopo il Dash — piu' la voce di TurnLog che nomina il trigger.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Flux",   "team": 0, "cell": [-2, 0, 0] },
-    { "id": "V1", "hero": "Hero.Vektor", "team": 1, "cell": [ 3, 0, 0] }
+    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-2, 0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 3, 0, 0] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — Vektor arma una trappola sul bordo fra (0,0) e (1,0), condizionata al solo movimento di tipo Dash. Flux attraversa quel bordo con un MOVE normale: la trappola NON scatta.",
+      "_turno": "T1 — Wraith arma una trappola sul bordo fra (0,0) e (1,0), condizionata al solo movimento di tipo Dash. Gadget attraversa quel bordo con un MOVE normale: la trappola NON scatta.",
       "requires": ["SemanticTrigger"],
       "intents": []
     },
     {
-      "_turno": "T2 — stessa trappola, stesso bordo, stesso attraversamento: ma questa volta Flux ci passa con un DASH. La trappola scatta.",
+      "_turno": "T2 — stessa trappola, stesso bordo, stesso attraversamento: ma questa volta Gadget ci passa con un DASH. La trappola scatta.",
       "requires": ["SemanticTrigger"],
       "intents": []
     }

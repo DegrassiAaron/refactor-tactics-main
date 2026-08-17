@@ -1,4 +1,6 @@
 # RefactorTactics — Overwatch Runtime Lifecycle, Watch Stage e Reposition
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 ## Handoff operativo per Claude Code
 
 > 📦 **Archiviato il 2026-08-10 — recepito, non applicato.** L'esito del triage vive in
@@ -33,7 +35,7 @@ La direzione corrente è:
 Il modello NON deve diventare:
 
 - una stance mobile che segue il personaggio;
-- una skill hard-coded di Vektor o di un singolo eroe;
+- una skill hard-coded di Wraith o di un singolo eroe;
 - un sistema che ricalcola automaticamente percorsi dopo aver visto la Resolution;
 - una reservation nascosta di celle future;
 - una catena arbitraria di reaction annidate;
@@ -604,8 +606,8 @@ Tutte le unità che devono fare Reposition lo risolvono simultaneamente fra loro
 Niente ordine artificiale:
 
 ```text
-Vektor reposition
-poi Bastion reposition
+Wraith reposition
+poi Riktor reposition
 ```
 
 Se due unità tentano la stessa cella nello stesso micro-step, applicare la collision policy corrente del Movement Resolver.
@@ -1991,7 +1993,7 @@ controlled reactive threat during enemy Standard Move.
 
 # 52. ULTIMA REGOLA OPERATIVA
 
-Non passare ancora ai profili specifici di Flux/Riva/Bastion/Vektor finché:
+Non passare ancora ai profili specifici di Gadget/Phase/Riktor/Wraith finché:
 
 ```text
 Watch Stage

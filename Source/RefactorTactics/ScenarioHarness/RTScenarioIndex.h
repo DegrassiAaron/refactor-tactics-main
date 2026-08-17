@@ -29,7 +29,7 @@ struct FRTScenarioEntry
  * Prima di questo indice l'ID **era** il percorso (`Movement.Basic` -> `Scenarios/Movement/Basic.json`), e
  * la cartella era quindi l'unico raggruppamento possibile. Non basta: lo stesso scenario si apre per
  * verificare una regola oppure per guardare un'animazione, e queste lenti si incrociano fra loro
- * (`reactions` **e** `flux`). Una gerarchia sola ne esprime una.
+ * (`reactions` **e** `gadget`). Una gerarchia sola ne esprime una.
  *
  * Staccando l'ID dal percorso si paga un prezzo — due file possono ora dichiarare lo stesso `scenarioId`,
  * cosa che il filesystem prima rendeva impossibile — e l'indice è il solo posto dove accorgersene:
@@ -88,7 +88,7 @@ public:
 	 * ID degli scenari che portano **entrambi** i tag dati, in ordine alfabetico. Un filtro vuoto non
 	 * restringe nulla, quindi `ListIds("", "")` è l'elenco completo.
 	 *
-	 * Intersezione e non unione: il caso che serve è «reactions **e** flux», non «reactions o flux».
+	 * Intersezione e non unione: il caso che serve è «reactions **e** gadget», non «reactions o gadget».
 	 */
 	static TArray<FString> ListIds(const FString& FilterA, const FString& FilterB);
 
@@ -108,6 +108,12 @@ public:
 	/** Segue la catena di redirect fino a un ID che non ne ha altri, o fino a `MaxRedirectHops`. Pura. */
 	static FString ApplyRedirects(const TMap<FString, FString>& Redirects, const FString& ScenarioId);
 
-	/** Forma canonica di un tag: senza spazi ai bordi, minuscolo. `Flux` e `flux ` sono lo stesso filtro. */
+	// ⚠️ L'esempio qui sotto mostra lo STESSO tag in due forme, ed e' l'unico modo in cui puo' dimostrare
+	// qualcosa. Il rename del roster (#753) lo aveva rotto proprio li': la riga usava il nome ritirato
+	// dell'eroe maiuscolo e minuscolo, il replace ha aggiornato solo la forma maiuscola, e l'esempio si e'
+	// trovato a confrontare due tag DIVERSI — vero come frase, muto come esempio.
+	// Un rename che passa sulla prosa puo' invalidare un esempio senza rompere il codice, e nessun gate lo
+	// vede perche' il file compila: se un giorno queste due parole smettono di essere la stessa, e' rotto.
+	/** Forma canonica di un tag: senza spazi ai bordi, minuscolo. `Gadget` e `gadget ` sono lo stesso filtro. */
 	static FString NormalizeTag(const FString& Tag);
 };

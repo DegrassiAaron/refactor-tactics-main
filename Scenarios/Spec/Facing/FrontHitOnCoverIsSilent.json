@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.FrontHitOnCoverIsSilent",
-  "tags": ["facing", "cover", "combat", "turnlog", "spec", "bastion", "vektor"],
+  "tags": ["facing", "cover", "combat", "turnlog", "spec", "riktor", "wraith"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -12,8 +12,8 @@
   "_nota_valore_zero": "`value: 0` non e' un'assertion debole: `LogEventCount` a zero asserisce l'ASSENZA, ed e' la stessa forma con cui il progetto verifica che una voce non trapeli prima del reveal.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [-1, 0, 0], "facing": "E" },
-    { "id": "V1", "hero": "Hero.Vektor",  "team": 1, "cell": [2, 0, 0],  "facing": "W" }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [-1, 0, 0], "facing": "E" },
+    { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [2, 0, 0],  "facing": "W" }
   ],
 
   "turns": [
@@ -21,13 +21,13 @@
       "_turno": "T1 — stesso pannello sul bordo EST dello scenario gemello.",
       "requires": ["CreateCover"],
       "intents": [
-        { "unit": "B1", "ability": "Bastion.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" }
+        { "unit": "B1", "ability": "Hero.Riktor.KineticPanel", "targetCell": [-1, 0, 0], "edge": "E" }
       ]
     },
     {
       "_turno": "T2 — V1 spara da est, e stavolta B1 lo sta guardando: il riparo fa il suo mestiere.",
       "intents": [
-        { "unit": "V1", "ability": "Vektor.PulseShot", "target": "B1" }
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot", "target": "B1" }
       ]
     }
   ],

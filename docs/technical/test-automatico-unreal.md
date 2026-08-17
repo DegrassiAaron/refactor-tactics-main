@@ -87,17 +87,20 @@ sapere cosa ciascuno prova:
 ```jsonc
 {
   "scenarioId": "Movement.Blocked",   // ID stabile e gerarchico; dà il nome alla cartella di output
-  "version": 1,                       // versione del FORMATO, non del contenuto
+  "version": 1,                       // versione del FORMATO, non del contenuto — 2 se usi `decisions`
   "seed": 0,                          // dichiarato ma NON consumato — vedi §4.1
   "mapRadius": 3,                     // arena esagonale GENERATA: nessun .umap da versionare
 
   "cells":  [ { "cell": [q, r, layer], "blocksMovement": true,
                 "blocksLineOfSight": false, "moveCost": 0 } ],   // moveCost 0 = default (1)
 
-  "units":  [ { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0],
+  "units":  [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0],
                 "facing": "E" } ],                              // opzionale; vedi §4.2
 
-  "turns":  [ { "intents": [ { "unit": "A1", "move": [[2, -1, 0]] } ] } ],
+  "turns":  [ { "intents":   [ { "unit": "A1", "move": [[2, -1, 0]] } ],
+                "requires":  ["DecisionBoundary"],                      // capability attese; vedi §4.3
+                "decisions": [ { "unit": "V1", "respond": "FIRE",
+                                 "target": "A1" } ] } ],                // richiede "version": 2
 
   "expect": [ { "type": "UnitAtCell",     "unit": "A1", "cell": [-2, 0, 0] },
               { "type": "TurnsCompleted", "value": 1 } ]
@@ -105,10 +108,25 @@ sapere cosa ciascuno prova:
 ```
 
 - `id` dell'unità è **locale allo scenario** (`A1`), non l'ID di gioco: lo usano intent e assertion.
-- `hero` è lo Stable ID del catalogo: `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`.
+- `hero` è lo Stable ID del catalogo: `Hero.Gadget`, `Hero.Phase`, `Hero.Riktor`, `Hero.Wraith`.
 - `move` sono i **waypoint**, esattamente come li produrrebbe un giocatore che clicca. Vuoto = unità ferma.
 - `cells` modifica solo le celle che interessano: le altre restano pavimento a costo 1. È ciò che permette di
   scrivere `Movement.Blocked` senza versionare una mappa.
+- `decisions` (**#512**, CP 15.3 metà B) sono le risposte scriptate ai *decision boundary* di quel turno:
+  `respond` vale `FIRE` o `HOLD`, e `target` è **obbligatorio con `FIRE`** e **vietato con `HOLD`**. Si
+  consumano **in ordine di dichiarazione**, una per finestra, per l'unità che le nomina.
+  - ⚠️ **Richiedono `"version": 2`.** Un file che le porta dichiarando `1` viene rifiutato, e non è
+    pedanteria: una build vecchia non conosce la chiave, la ignorerebbe in silenzio e giocherebbe il turno
+    **non scriptato**. Una lista vuota non chiede nulla di nuovo e resta valida a versione 1.
+  - ⚠️ **Il residuo è un errore, non un avanzo**: una decisione dichiarata che nessuna finestra consuma fa
+    cadere il turno, e così una finestra che si apre senza una decisione che la nomini. Se restassero
+    silenziose, due decisioni scritte e una applicata sarebbero verdi.
+  - Il numero di finestre non si deduce dai micro-step: un `FIRE` **tronca** il movimento residuo e ne apre
+    quindi una sola, un `HOLD` lascia proseguire. Contale nel TurnLog prima di fissare quante decisioni
+    dichiarare.
+  - Chi risponde è registrato in `result.json` come `decisionSource` — `scenario`, `test-override` o
+    `none` — insieme a `scriptedDecisionsApplied` e `scriptedDecisionsUnused`. Un decisore bindato **prima**
+    della sessione ha la precedenza, ed è per questo che la provenienza si scrive invece di dedurla.
 
 ### 4.1 Il `seed` non fa niente, e va bene così
 
@@ -282,7 +300,7 @@ numero finto.
 |---|---|
 | Assertion su HP, scudo, stati, TurnLog | da aggiungere quando uno scenario le richiede |
 | Intent diversi dal movimento (abilità, reazioni) | non implementati: il prompt chiedeva esplicitamente di non procedere finché `Movement.Basic` non fosse stabile |
-| **Politica per le Fast Reaction** | aperta. Quando E14 introdurrà le finestre, uno scenario dovrà poter dichiarare la risposta attesa (`FIRE`/`HOLD`/timeout) **come dato**, altrimenti diventa non deterministico |
+| **Politica per le Fast Reaction** | ✅ **chiusa il 2026-08-16 con `#512`** (PR #1016). Diceva: *«quando E14 introdurrà le finestre, uno scenario dovrà poter dichiarare la risposta attesa (`FIRE`/`HOLD`/timeout) come dato, altrimenti diventa non deterministico»* — ed è la condizione che si è avverata. Oggi `turns[].decisions` è quel dato (§4, `"version": 2`), nessun timer reale la attraversa, e il decisore è iniettabile con la precedenza al test. ⏳ Resta di **fase B** la sola capability `DecisionBoundary`: scoprirla senza le `decisions` negli scenari che la chiedono li farebbe girare con finestre a cui nessuno risponde |
 | **Nessun bypass** | invariante permanente: se un giorno un percorso di test saltasse il resolver, i test smetterebbero di misurare il gioco |
 
 🔴 **Nessuna di queste quattro voci è iniziabile da una sessione che possiede solo `ScenarioHarness/`**, e

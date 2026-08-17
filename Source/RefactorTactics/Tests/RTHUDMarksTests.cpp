@@ -85,36 +85,36 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 	UWorld* World = MakeMarksWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
-	// Stessa geometria di `Combat.FriendlyFire`: Riva adiacente al bersaglio, dentro l'area r1.
-	ARTUnit* Flux    = SpawnMarksUnit(World, TEXT("Hero.Flux"),    0, FRTCellId(-1, 0, 0));
-	ARTUnit* Riva    = SpawnMarksUnit(World, TEXT("Hero.Riva"),    0, FRTCellId( 1, 0, 0));
-	ARTUnit* Bastion = SpawnMarksUnit(World, TEXT("Hero.Bastion"), 1, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("Flux"), Flux) || !TestNotNull(TEXT("Riva"), Riva) || !TestNotNull(TEXT("Bastion"), Bastion))
+	// Stessa geometria di `Combat.FriendlyFire`: Phase adiacente al bersaglio, dentro l'area r1.
+	ARTUnit* Gadget    = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    0, FRTCellId(-1, 0, 0));
+	ARTUnit* Phase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
+	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 1, FRTCellId( 2, 0, 0));
+	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Phase"), Phase) || !TestNotNull(TEXT("Riktor"), Riktor))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
-	const int32 Overload = MarksAbilityIndex(Flux, TEXT("Flux.Overload"));
-	if (!TestTrue(TEXT("Flux ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Flux->PlannedAbilityIndex = Overload;
-	Flux->PlannedAttackTarget = Bastion;
+	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
+	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Gadget->PlannedAbilityIndex = Overload;
+	Gadget->PlannedAttackTarget = Riktor;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Flux, Riva, Bastion }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Gadget, Phase, Riktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
 	DestroyMarksWorld(World);
 
 	// L'area di raggio 1 accende il bersaglio piu' i suoi vicini: piu' di una cella distingue «area» da
 	// «bersaglio singolo».
 	TestTrue(FString::Printf(TEXT("l'area e' accesa (celle: %d)"), Hit.Num()), Hit.Num() > 1);
-	TestTrue(TEXT("il bersaglio e' nella zona"), Hit.Contains(Bastion->Cell));
-	TestTrue(TEXT("anche la cella di Riva e' nella zona"), Hit.Contains(Riva->Cell));
+	TestTrue(TEXT("il bersaglio e' nella zona"), Hit.Contains(Riktor->Cell));
+	TestTrue(TEXT("anche la cella di Phase e' nella zona"), Hit.Contains(Phase->Cell));
 
 	// Il punto del test: l'ALLEATA e' segnalata come fuoco amico.
 	TestEqual(TEXT("una sola cella di fuoco amico"), Ally.Num(), 1);
-	TestTrue(TEXT("ed e' quella di Riva"), Ally.Contains(Riva->Cell));
+	TestTrue(TEXT("ed e' quella di Phase"), Ally.Contains(Phase->Cell));
 	// Chi lancia non si segnala mai da solo.
-	TestFalse(TEXT("Flux non e' marcato"), Ally.Contains(Flux->Cell));
+	TestFalse(TEXT("Gadget non e' marcato"), Ally.Contains(Gadget->Cell));
 	return true;
 }
 
@@ -134,20 +134,20 @@ bool FRTHUDEnemyPlansAreNotReadTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
 	// Stavolta e' l'avversario a pianificare, su un bersaglio del giocatore.
-	ARTUnit* NemicoFlux = SpawnMarksUnit(World, TEXT("Hero.Flux"),    1, FRTCellId(-1, 0, 0));
-	ARTUnit* MioRiva    = SpawnMarksUnit(World, TEXT("Hero.Riva"),    0, FRTCellId( 1, 0, 0));
-	ARTUnit* MioBastion = SpawnMarksUnit(World, TEXT("Hero.Bastion"), 0, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("unita'"), NemicoFlux) || !MioRiva || !MioBastion)
+	ARTUnit* NemicoGadget = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    1, FRTCellId(-1, 0, 0));
+	ARTUnit* MioPhase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
+	ARTUnit* MioRiktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 0, FRTCellId( 2, 0, 0));
+	if (!TestNotNull(TEXT("unita'"), NemicoGadget) || !MioPhase || !MioRiktor)
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
-	NemicoFlux->PlannedAbilityIndex = MarksAbilityIndex(NemicoFlux, TEXT("Flux.Overload"));
-	NemicoFlux->PlannedAttackTarget = MioBastion;
+	NemicoGadget->PlannedAbilityIndex = MarksAbilityIndex(NemicoGadget, TEXT("Hero.Gadget.Overload"));
+	NemicoGadget->PlannedAttackTarget = MioRiktor;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ NemicoFlux, MioRiva, MioBastion }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ NemicoGadget, MioPhase, MioRiktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
 	DestroyMarksWorld(World);
 
 	TestEqual(TEXT("nessuna cella dal piano avversario"), Hit.Num(), 0);
@@ -169,25 +169,25 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 	UWorld* World = MakeMarksWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
-	ARTUnit* Flux    = SpawnMarksUnit(World, TEXT("Hero.Flux"),    0, FRTCellId(-1, 0, 0));
-	ARTUnit* Riva    = SpawnMarksUnit(World, TEXT("Hero.Riva"),    0, FRTCellId( 1, 0, 0));
-	ARTUnit* Bastion = SpawnMarksUnit(World, TEXT("Hero.Bastion"), 1, FRTCellId( 2, 0, 0));
-	if (!Flux || !Riva || !Bastion) { DestroyMarksWorld(World); return false; }
+	ARTUnit* Gadget    = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    0, FRTCellId(-1, 0, 0));
+	ARTUnit* Phase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
+	ARTUnit* Riktor = SpawnMarksUnit(World, TEXT("Hero.Riktor"), 1, FRTCellId( 2, 0, 0));
+	if (!Gadget || !Phase || !Riktor) { DestroyMarksWorld(World); return false; }
 
-	const int32 Overload = MarksAbilityIndex(Flux, TEXT("Flux.Overload"));
-	if (!TestTrue(TEXT("Flux ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Flux->PlannedAbilityIndex = Overload;
-	Flux->PlannedAttackTarget = Bastion;
+	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
+	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Gadget->PlannedAbilityIndex = Overload;
+	Gadget->PlannedAttackTarget = Riktor;
 
 	// Si spegne il flag sulla COPIA dell'unita', non nel catalogo: il test non deve lasciare il roster sporco
 	// per chi gira dopo di lui.
-	URTActionData* Ability = const_cast<URTActionData*>(Flux->GetAbility(Overload));
+	URTActionData* Ability = const_cast<URTActionData*>(Gadget->GetAbility(Overload));
 	if (!TestNotNull(TEXT("abilita'"), Ability)) { DestroyMarksWorld(World); return false; }
 	const bool bSaved = Ability->Def.bFriendlyFire;
 	Ability->Def.bFriendlyFire = false;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Flux, Riva, Bastion }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Gadget, Phase, Riktor }, /*PlayerTeamId=*/ 0, Hit, Ally);
 
 	Ability->Def.bFriendlyFire = bSaved;
 	DestroyMarksWorld(World);

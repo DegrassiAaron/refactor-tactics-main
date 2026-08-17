@@ -1,5 +1,7 @@
 # Referto — Spatial Transfer, epic e serie di checkpoint
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `HISTORICAL` · **Referto di triage e spec panel**, non una fonte. · **Data**: 2026-08-12 · **Base**: `dda87f1a`
 > **Sorgente esaminato**: `RefactorTactics_SpatialTransfer_Epic_Claude_2026-08-12.md`, archiviato in
 > [`../../archive/src/handoff/2026-08-12-spatial-transfer-epic.md`](../../archive/src/handoff/2026-08-12-spatial-transfer-epic.md).
@@ -35,7 +37,7 @@ Nessuna viene dal kit; tutte prese su `dda87f1a`.
 | **M1** | `ERTMovementStyle` ha **sei** valori e `LinearLeap` è fra questi | `RTActionDef.h:185` | il kit li elenca **corretti**, incluso `LinearPass` |
 | **M2** | La semantica del trasferimento **esiste**: `Result.Entered = { destinazione }` | `RTMovementActionLibrary.cpp` | confermata, ed è il fondamento di tutto il resto |
 | **M3** | Il test che la dimostra è **verde** | `RefactorTactics.Actions.Leap.IgnoresIntermediateCells` | confermato |
-| **M4** | Lo scenario esiste, ed è `BLOCKED` di proposito | `Scenarios/Spec/Movement/TeleportSkipsIntermediateCells.json` | `requires: ["Teleport"]`, Flux 90 HP, due celle `Fire`, istruzioni di completamento dentro |
+| **M4** | Lo scenario esiste, ed è `BLOCKED` di proposito | `Scenarios/Spec/Movement/TeleportSkipsIntermediateCells.json` | `requires: ["Teleport"]`, Gadget 90 HP, due celle `Fire`, istruzioni di completamento dentro |
 | **M5** | 🔴 **E39 è libera** | ultima epic assegnata: **E38** = [#609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609); E37 chiusa | il kit **ordina di non hardcodarla prima dell'audit**, e aveva ragione a ordinarlo: il repository ha già pagato una collisione su `E21` e **tredici** su `D-nnn` |
 | **M6** | Le **nove** issue di dipendenza hanno gli stati che il kit dichiara | `#645 #605 #436 #165 #159` OPEN · `#307 #308 #146 #425` CLOSED | **9 su 9 corrette** |
 | **M7** | `Action.Anchor` e `Reaction.Anchor` esistono con semantica di resistenza | [D-094](../../decisions/RT_PDR_00_Decision_Log.md) | la collisione di nome che il kit segnala al §19 è **reale** |

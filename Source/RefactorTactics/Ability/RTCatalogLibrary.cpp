@@ -3,6 +3,7 @@
 #include "Ability/RTActionData.h" // MakeGenericActions crea le istanze accodate al kit
 #include "Ability/RTEquipmentData.h"
 #include "Combat/RTCombatLibrary.h" // DeflectDamageReduction: il numero della riduzione resta uno solo
+#include "Map/RTHexCellData.h"     // ERTHexDoorState: `Action.Interact` dichiara lo stato che chiede (D-151)
 
 ERTMatchPhase URTCatalogLibrary::MapResolutionPhase(ERTResolutionPhase Phase)
 {
@@ -127,12 +128,12 @@ URTEquipmentData* URTCatalogLibrary::MakePortableCoverGadget()
 	Cover->DisplayName = FText::FromString(TEXT("Copertura portatile"));
 	Cover->Slot = ERTEquipmentSlot::Gadget;
 	Cover->Advantage = FText::FromString(
-		TEXT("erige una copertura bassa su un bordo, anche per chi non e' Bastion"));
+		TEXT("erige una copertura bassa su un bordo, anche per chi non e' Riktor"));
 
 	// Lo svantaggio e' **obbligatorio** (regola di prodotto: senza, l'equipaggiamento e' una scelta verticale),
 	// e il catalogo equipaggiamento non ne dichiara uno specifico per questo gadget. Invece di inventare un
 	// numero si dichiara quello che i cataloghi gia' dicono: **cooldown 3** per ogni gadget, contro il 2 del
-	// pannello d'eroe, e l'unico slot gadget occupato. Chi non e' Bastion puo' erigere pannelli, ma piu' di
+	// pannello d'eroe, e l'unico slot gadget occupato. Chi non e' Riktor puo' erigere pannelli, ma piu' di
 	// rado e rinunciando a medkit, isolante o sensore.
 	Cover->Drawback = FText::FromString(
 		TEXT("ricarica 3 turni invece dei 2 del pannello d'eroe, e occupa l'unico slot gadget"));
@@ -199,7 +200,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	Split->ExtraTargets = 1;
 	Variants.Add(Split);
 
-	// Soppressione — applica `Slow`, −5 danni. Stesso mestiere dell'attacco base di Bastion (ADR-0007), che
+	// Soppressione — applica `Slow`, −5 danni. Stesso mestiere dell'attacco base di Riktor (ADR-0007), che
 	// e' la prova che lo `Slow` su un attacco base e' gia' rappresentabile e gia' osservato in partita.
 	URTEquipmentData* Suppressive = WeaponVariant(TEXT("Weapon.Suppressive"), TEXT("Soppressione"),
 		TEXT("l'attacco base applica Status.Slow per 1 turno"), TEXT("-5 danni"));
@@ -270,7 +271,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeGadgets()
 	// ⛔ I QUATTRO ASSENTI, con la ragione ciascuno — sono quattro ragioni diverse, non «mancano».
 	//
 	// - `Gadget.SmokeEmitter` (fumo raggio 1): **nessuna azione core crea `ERTHexSurface::Smoke`**. L'unica
-	//   che lo fa e' `Riva.MistVeil`, che e' d'eroe e risolve in `Preparation` — e la fase e' proprio il
+	//   che lo fa e' `Phase.MistVeil`, che e' d'eroe e risolve in `Preparation` — e la fase e' proprio il
 	//   difetto che `#353` ha documentato. Serve prima un'azione core del fumo, come `CreateWater` lo e'
 	//   dell'acqua.
 	// - `Gadget.Insulator` (immunita' a una propagazione elettrica): e' un PASSIVO, e non concede un'azione.
@@ -280,7 +281,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeGadgets()
 	//   catalogo stesso dichiara raggio e durata «non specificati dalla fonte», quindi mancano anche i numeri.
 	// - `Gadget.Anchor` (impedisce **una** spinta): il campo `PushResistance` esiste ma e' una SOGLIA
 	//   permanente, non un contatore. Darlo a chi porta l'ancora lo renderebbe immune a OGNI spinta del gioco
-	//   — tutte valgono 1 — cioe' esattamente l'immunita' non decisa che `D-075` ha appena tolto a Bastion.
+	//   — tutte valgono 1 — cioe' esattamente l'immunita' non decisa che `D-075` ha appena tolto a Riktor.
 	//   «Una» spinta richiede un consumo per turno che non esiste.
 
 	return Gadgets;
@@ -369,7 +370,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeReactionModules()
 	// `Reaction.HazardEscape` — l'ULTIMO dei sette, e il piu' lungo da arrivare. Non gli mancava un dato ne'
 	// un momento: gli mancava l'EVENTO. Finche' una superficie che nasceva sotto un'unita' ferma non le faceva
 	// niente (`#570`), nel Cleanup non c'era nessun danno imminente da cui fuggire e il modulo sarebbe stato
-	// inerte — la trappola di `Riva.MistVeil` (`#353`).
+	// inerte — la trappola di `Phase.MistVeil` (`#353`).
 	//
 	// Si fugge verso la cella che si ha DAVANTI, e il facing lo dichiara il giocatore: la fuga e' prevedibile
 	// guardando il campo invece che arbitraria. Se davanti non si puo', si ripiega sull'ordine canonico delle
@@ -399,9 +400,9 @@ TArray<FString> URTCatalogLibrary::WarnOnVariantForAttack(const FRTActionDef& Ba
 		*Variant->EquipmentId.ToString(), *BasicAttack.ActionId.ToString());
 
 	// 1. STATUS DUPLICATO. E' la regola generale dietro un caso concreto: `Weapon.Suppressive` applica
-	// `Slow`, e `Bastion.ImpactShot` lo applica gia' — quindi la variante fa pagare 5 danni su 8 per un
+	// `Slow`, e `Riktor.ImpactShot` lo applica gia' — quindi la variante fa pagare 5 danni su 8 per un
 	// effetto che l'eroe possiede. Non e' subottimale, e' priva di senso, e D-086 la vieta. La regola non
-	// nomina Bastion: vale per ogni eroe futuro il cui attacco base porti gia' uno status.
+	// nomina Riktor: vale per ogni eroe futuro il cui attacco base porti gia' uno status.
 	for (const FRTActionEffectSpec& Aggiunto : Variant->AddedEffects)
 	{
 		if (Aggiunto.Effect != ERTActionEffect::Status || !Aggiunto.StatusTag.IsValid()) { continue; }
@@ -507,18 +508,92 @@ FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
 	// ⚠️ Nessuno usa `Weapon.Overcharge`, ed e' deliberato: il suo costo e' `WV-1`, ancora aperto (#510). Un
 	// default il cui prezzo si decide dopo cambierebbe insieme a quella risposta.
 	static const TMap<FName, FName> Defaults = {
-		// Flux vede a 7 e sparava a 4: `Precision` e' l'unica che riduce quel divario (18 a portata 5).
-		{ FName(TEXT("Hero.Flux")),    FName(TEXT("Weapon.Precision")) },
-		// Riva e' il setter del roster, e `Impact` porta la sua spinta da 1 a 2 (D-085).
-		{ FName(TEXT("Hero.Riva")),    FName(TEXT("Weapon.Impact")) },
-		// Vektor e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
-		{ FName(TEXT("Hero.Vektor")),  FName(TEXT("Weapon.Suppressive")) },
-		// Bastion tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
+		// Gadget vede a 7 e sparava a 4: `Precision` e' l'unica che riduce quel divario (18 a portata 5).
+		{ FName(TEXT("Hero.Gadget")),    FName(TEXT("Weapon.Precision")) },
+		// Phase e' il setter del roster, e `Impact` porta la sua spinta da 1 a 2 (D-085).
+		{ FName(TEXT("Hero.Phase")),    FName(TEXT("Weapon.Impact")) },
+		// Wraith e' il piu' mobile (Move 6): `Suppressive` gli da' come impedirlo agli altri.
+		{ FName(TEXT("Hero.Wraith")),  FName(TEXT("Weapon.Suppressive")) },
+		// Riktor tiene `Impact` perche' e' l'unica che NON gli toglie danno — paga in portata — e l'attacco
 		// base diventa displacement, coerente con Utility/Emergency (ADR-0007).
-		{ FName(TEXT("Hero.Bastion")), FName(TEXT("Weapon.Impact")) },
+		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Weapon.Impact")) },
 	};
 	const FName* Found = Defaults.Find(HeroId);
 	return Found ? *Found : FName();
+}
+
+FName URTCatalogLibrary::DefaultGadgetFor(const FName& HeroId)
+{
+	// Fonte: **§4 di `docs/balance/RT_EquipmentCatalog_v0.1.md`**, colonna «Gadget». Le righe qui sotto sono
+	// una COPIA di quella tabella, e la parola conta: il markdown decide, il C++ esegue. A impedire che
+	// divergano in silenzio e' `scripts/check-equipment-defaults.py`, che confronta le due per ID.
+	//
+	// ⚠️ Il catalogo motiva per esteso la sola variante d'arma (D-089). Per gadget e moduli dichiara la
+	// scelta senza argomentarla, e qui NON si inventa una motivazione che la fonte non da': si scrive cosa
+	// fa il pezzo, che e' verificabile, e si lascia la ragione a chi ha compilato la tabella.
+	static const TMap<FName, FName> Defaults = {
+		// Isolante: immunita' a **una** propagazione elettrica. Gadget e' l'eroe elettrico del roster.
+		{ FName(TEXT("Hero.Gadget")), FName(TEXT("Gadget.Insulator")) },
+		// Sprinkler: acqua raggio 1. Dal 2026-08-16 e' anche l'unico produttore d'acqua che il roster puo'
+		// portare in campo — `Hero.Phase.FluidTrail` l'ha persa con D-046 superata (#1006).
+		{ FName(TEXT("Hero.Phase")), FName(TEXT("Gadget.Sprinkler")) },
+		// Copertura portatile: crea una copertura bassa su un bordo. Riktor e' l'eroe delle strutture.
+		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Gadget.PortableCover")) },
+		// Sensore: alza la Team Knowledge in un'area.
+		{ FName(TEXT("Hero.Wraith")), FName(TEXT("Gadget.Sensor")) },
+	};
+	const FName* Found = Defaults.Find(HeroId);
+	return Found ? *Found : FName();
+}
+
+FName URTCatalogLibrary::DefaultReactionModuleFor(const FName& HeroId)
+{
+	// Fonte: §4 del catalogo equipaggiamento, colonna «Reazione». Vale la stessa nota di `DefaultGadgetFor`.
+	static const TMap<FName, FName> Defaults = {
+		// Scudo reattivo: scudo 15 quando subisci danno.
+		{ FName(TEXT("Hero.Gadget")), FName(TEXT("Reaction.ReactiveShield")) },
+		// Fuga hazard: `Reposition 1` quando la cella diventa pericolosa.
+		{ FName(TEXT("Hero.Phase")), FName(TEXT("Reaction.HazardEscape")) },
+		// Interposizione: cambia bersaglio quando un alleato e' bersagliato.
+		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Reaction.AllyIntercept")) },
+		// Dash d'emergenza: `Reposition 1` quando sei bersagliato.
+		{ FName(TEXT("Hero.Wraith")), FName(TEXT("Reaction.EmergencyDash")) },
+	};
+	const FName* Found = Defaults.Find(HeroId);
+	return Found ? *Found : FName();
+}
+
+TArray<FName> URTCatalogLibrary::DefaultLoadoutFor(const FName& HeroId)
+{
+	const TArray<FName> Prescritti = {
+		DefaultWeaponVariantFor(HeroId), DefaultGadgetFor(HeroId), DefaultReactionModuleFor(HeroId)
+	};
+
+	// TUTTO O NIENTE, e su DUE condizioni diverse.
+	//
+	// 1. Un pezzo non DICHIARATO (`None`): l'eroe non ha una riga in §4.
+	// 2. Un pezzo dichiarato ma **non spedito**: §4 lo prescrive e il catalogo v0.1 non lo costruisce.
+	//    Non e' un'ipotesi — succede a due eroi su quattro. §4 assegna `Gadget.Insulator` a Gadget e
+	//    `Gadget.Sensor` a Wraith, e `MakeGadgets` li dichiara assenti con la loro ragione: il primo e' un
+	//    PASSIVO e il motore non ha immunita' per categoria (`RT-FEAT-STATUS-FRAMEWORK`, E36); il secondo
+	//    dipende dalla conoscenza parziale, che e' E13 e non esiste — e il catalogo stesso ne dichiara
+	//    raggio e durata «non specificati dalla fonte».
+	//
+	// ⚠️ **La condizione 2 si misura, non si elenca.** La tentazione era scrivere «Gadget e Wraith non hanno
+	// default»: sarebbe vero oggi e falso il giorno in cui E36 atterra, e nessuno tornerebbe a correggerlo.
+	// Chiedendo invece al catalogo se il pezzo esiste, il default di Gadget comincia a funzionare **da se'**
+	// quando `Gadget.Insulator` viene spedito, senza che questa funzione cambi di una riga.
+	//
+	// E vuoto invece che parziale: un loadout a due pezzi verrebbe rifiutato da `ValidateLoadout`, e il
+	// chiamante si troverebbe a gestire tre livelli piu' in la' un errore che nasce qui.
+	for (const FName& Id : Prescritti)
+	{
+		if (Id.IsNone() || FindEquipment(Id) == nullptr)
+		{
+			return {};
+		}
+	}
+	return Prescritti;
 }
 
 FRTActionDef URTCatalogLibrary::ApplyWeaponVariant(const FRTActionDef& BasicAttack,
@@ -739,9 +814,34 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*bInterruptible*/ false, ERTActionSlot::Main));
 	Catalog.Last().bSelfTarget = true; // si va in guardia su se' stessi: nessun bersaglio da scegliere
 
-	// `Action.Interact` — portata 1: solo oggetti ADIACENTI. Nessun effetto dichiarato finche' non esistono
-	// oggetti da attivare (porte, consolle, ponti, obiettivi): quelli sono E9/E10. Qui entrano identita',
-	// fase, priorita' e il vincolo di adiacenza, che e' gia' una regola verificabile.
+	// `Action.Interact` — portata 1: solo oggetti ADIACENTI.
+	//
+	// ✅ **Dichiara `SetDoorState` verso `Open`** ([D-148] + [D-151], 2026-08-16/17). Questa riga diceva
+	// «nessun effetto dichiarato finche' non esistono oggetti da attivare»: le porte esistono da CP 9.3, e
+	// mancava soltanto **questo** anello — l'effetto era applicabile (`RTHexDoorLibrary::SetDoorState`),
+	// trasportabile (`RTTurnManager` lo traduce in `bChangesDoor`/`DoorState`) e raccolto
+	// (`RTHexCombatLibrary` su `FirstDoorEdge`), e nessuna azione lo DICHIARAVA. Un effetto che nessuno
+	// dichiara non e' un'azione che esiste (#1014).
+	//
+	// [D-148] — l'effetto sta nel catalogo **core** e non in un profilo d'eroe perche' aprire una porta e'
+	// UNIVERSALE: chiunque la apre allo stesso modo. E' il confine di [D-033], che tiene invece fuori
+	// portata ed effetto di `BasicAttack` e `Overwatch`, dove dipendono dall'eroe.
+	//
+	// [D-151] — **`Open` e nient'altro.** Non commuta e non chiede `Closed`: `CanTransition` vieta
+	// `Locked -> Open` ma AMMETTE `Locked -> Closed`, che a una porta bloccata toglie il lock. Finche'
+	// nessuna azione dichiarava `SetDoorState` quel percorso era irraggiungibile; questa riga lo rende
+	// raggiungibile, e limitarla a `Open` e' cio' che lo tiene fuori portata senza toccare `CanTransition`.
+	// La commutazione resta la decisione aperta `INT-7`.
+	//
+	// ⚠️ Lo stato viaggia in `Amount` — interi soltanto, invariante #4 — e `Open` vale **zero**. A
+	// distinguere «dichiarato» da «campo di default» e' `bChangesDoor`, che `RTTurnManager` alza trovando la
+	// spec e non leggendone il valore: senza quel flag ogni azione del catalogo ordinerebbe di aprire ogni
+	// porta sulla propria linea di tiro.
+	//
+	// ⚠️ Con portata **1** la «prima porta sulla traiettoria» che `FirstDoorEdge` cerca **e'** il bordo
+	// bersagliato: il meccanismo di CP 9.3 vale per `Interact` senza modifiche. Non e' una coincidenza da
+	// lasciare implicita — se la portata crescesse, l'azione aprirebbe una porta che il giocatore non ha
+	// scelto, ed e' una delle ragioni per cui [D-149] la tiene a 1.
 	//
 	// `Action.Activate` NON E' PIU' NEL CATALOGO (#199). [D-014] la dichiarava «assorbita semanticamente da
 	// `Interact`» e [D-025] lo ha confermato scegliendo le sette generiche senza di lei: il catalogo la
@@ -753,8 +853,15 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// legacy non si cancellano»: quella regola proteggeva le tracce gia' scritte, e nessuna traccia versionata
 	// contiene `Action.Activate` — il corpus golden porta solo `Action.Move`.
 	Catalog.Add(ShippedAction(TEXT("Action.Interact"), ERTResolutionPhase::Attack, /*Priority*/ 80,
-		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
+		/*Range*/ 1, /*Cooldown*/ 0, ERTActionFallback::Cancel,
+		{ FRTActionEffectSpec(ERTActionEffect::SetDoorState,
+			static_cast<int32>(ERTHexDoorState::Open)) },
 		/*bInterruptible*/ true, ERTActionSlot::Main));
+	// Il puntatore deriva la forma del bersaglio da QUESTO campo, non dagli effetti ne' dall'ActionId:
+	// `StructureOp != None` -> il giocatore punta un BORDO (`RTPointerInteraction.cpp`). Senza,
+	// `Action.Interact` chiederebbe una cella, e una porta non e' una cella. Lo stato che chiede vive
+	// nell'effetto qui sopra — questo campo dice *su cosa* agisce, non *verso cosa*.
+	Catalog.Last().StructureOp = ERTStructureOp::SetDoorState;
 
 	// `Action.Overwatch` (CP 14.5) — si ARMA nel Prep e reagisce durante i micro-step del Move. E' l'azione
 	// che rende reale l'infrastruttura di E14: fino a qui `FRTOverwatchWatcher` esisteva e lo costruivano solo
@@ -855,7 +962,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// **Friendly fire**: non serve piu' dichiararlo qui. Dal 2026-08-08 `bFriendlyFire` e' vero di DEFAULT
 	// (vedi `FRTActionDef`), perche' la riga esplicita qui sotto non raggiungeva il roster: gli eroi si
 	// costruiscono con `MakeHeroAction`, che non aveva il parametro, e «la copia da qui e basta» non e'
-	// avvenuto — `Flux.Overload` aveva preso danno e raggio ma non il fuoco amico.
+	// avvenuto — `Gadget.Overload` aveva preso danno e raggio ma non il fuoco amico.
 	Catalog.Add(ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
@@ -1110,7 +1217,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	//
 	// **Durata 2 turni** per entrambe, dal catalogo terreni §2 (fuoco) e dal catalogo azioni §6 (acqua).
 	// La superficie creata e' un DATO dell'azione, non un ramo nel resolver: cosi' un'abilita' d'eroe che
-	// copia questa definizione (D-046: `Riva.FluidTrail`) eredita il comportamento senza che nessuno debba
+	// copia questa definizione (D-046: `Phase.FluidTrail`) eredita il comportamento senza che nessuno debba
 	// aggiungere il suo nome a un `if`.
 	{
 		FRTActionDef Ignite = ShippedAction(TEXT("Action.Ignite"), ERTResolutionPhase::Environment, /*Priority*/ 60,

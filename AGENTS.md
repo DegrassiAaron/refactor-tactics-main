@@ -193,9 +193,18 @@ validazione · serializzazione/replay · privacy intenti.
   Vale soprattutto prima di dichiarare una **verifica di mutazione**: se il test atteso non era in lista, il
   suo «non è caduto» non significa niente.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
-- **Il repository ha due toolchain, e nessuna gira in CI**: Python in `scripts/` (`check-docs-links.py`,
-  `check-docs-symbols.py`, `check-docs-tables.py`, `feature_registry.py`) e **Node 22** in `tools/radar/` — rubrica dei rating e
-  generatore SVG dei radar di personaggio. I gate si eseguono **a mano**, ed è una scelta:
+- **Il repository ha due toolchain, e nessuna gira in CI**: Python in `scripts/` e **Node 22** in
+  `tools/radar/` — rubrica dei rating e generatore SVG dei radar di personaggio.
+  I gate Python sono **ogni `scripts/check-*.py`** (sei il 2026-08-16 — `ls scripts/check-*.py` è
+  l'elenco, e non si trascrive qui), più `feature_registry.py validate|generate|shortlist` e
+  `rt_shared_id.py check`, che non seguono quel prefisso e vanno nominati.
+  *(Riscritto il 2026-08-16: questa riga elencava i gate **per nome** e ne conosceva **tre su sei**.
+  Mancavano `check-docs-naming.py`, `check-capability-owners.py` — atterrata con `#1043` lo stesso
+  giorno — e `check-equipment-defaults.py`. Non è una svista ripetuta tre volte: un elenco scritto a
+  mano dentro un documento non ha modo di accorgersi di un file nuovo, e chi aggiunge un gate non
+  passa di qui. La forma `check-*` si aggiorna da sé; il numero accanto è una misura datata, non una
+  seconda lista.)*
+  I gate si eseguono **a mano**, ed è una scelta:
   **`.github/workflows/` non esiste, e la sua assenza è deliberata.** Non introdurre CI, package manager o
   build step senza chiedere: `tools/radar/` ha **zero dipendenze** apposta.
   *(Corretto il 2026-08-16: la riga diceva «`.github/` non esiste», e dal 2026-08-16 è falsa —

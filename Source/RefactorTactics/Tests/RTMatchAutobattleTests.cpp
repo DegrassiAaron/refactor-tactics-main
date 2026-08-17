@@ -953,7 +953,7 @@ namespace
 	struct FRTAutobattleSlot
 	{
 		int32 TeamId;
-		bool bIsVektor;      // il roster del 2v2 headless: un tiratore e un corpo a corpo per squadra
+		bool bIsWraith;      // il roster del 2v2 headless: un tiratore e un corpo a corpo per squadra
 		FRTCellId Cell;
 	};
 
@@ -981,9 +981,9 @@ namespace
 		for (int32 Index : Order)
 		{
 			const FRTAutobattleSlot& Slot = AutobattleStandardSlots()[Index];
-			const URTHeroData* Hero = Slot.bIsVektor
-				? URTHeroCatalogLibrary::MakeVektor()
-				: URTHeroCatalogLibrary::MakeBastion();
+			const URTHeroData* Hero = Slot.bIsWraith
+				? URTHeroCatalogLibrary::MakeWraith()
+				: URTHeroCatalogLibrary::MakeRiktor();
 			Spawned.Add(SpawnAutobattleUnit(World, Slot.TeamId, Hero, Slot.Cell));
 		}
 		return Spawned;
@@ -1236,8 +1236,8 @@ bool FRTAutobattleNoPathTest::RunTest(const FString&)
 	}
 	Map->SortCells();
 
-	ARTUnit* Trapped = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), Walled);
-	ARTUnit* Free    = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(4, -2));
+	ARTUnit* Trapped = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Walled);
+	ARTUnit* Free    = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Trapped || !Free)
 	{
@@ -1315,8 +1315,8 @@ bool FRTAutobattleAllWaitTest::RunTest(const FString&)
 	SpawnAutobattleMap(World);
 
 	// Fuori dal bot e lontane: nessun piano viene scritto da nessuno.
-	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 2), false);
-	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -2), false);
+	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 2), false);
+	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -2), false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B)
 	{
@@ -1398,13 +1398,13 @@ bool FRTAutobattleSimultaneousKOTest::RunTest(const FString&)
 		ARTUnit* Second = nullptr;
 		if (bTeam0First)
 		{
-			First  = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), CellA, false);
-			Second = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), CellB, false);
+			First  = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), CellA, false);
+			Second = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), CellB, false);
 		}
 		else
 		{
-			Second = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(), CellB, false);
-			First  = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), CellA, false);
+			Second = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), CellB, false);
+			First  = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), CellA, false);
 		}
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !First || !Second) { RTWorldFixtures::DestroyWorld(World); return false; }
@@ -1508,8 +1508,8 @@ bool FRTAutobattleRoundLimitTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 	SpawnAutobattleMap(World);
 
-	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 2), false);
-	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -2), false);
+	ARTUnit* A = SpawnAutobattleUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 2), false);
+	ARTUnit* B = SpawnAutobattleUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -2), false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B)
 	{

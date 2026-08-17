@@ -54,9 +54,9 @@ Evidenza — `Source/RefactorTactics/Ability/RTCatalogLibrary.cpp:363-365` e
 | Quando si dichiara | come mobilità del turno | in Planning, insieme al Watch |
 
 Due entità, un nome, fasi diverse. È la **terza collisione in due handoff pari-data**: il gemello ne portava
-già due (`Vektor.Deflection`, `Riva.Flow`). E qui il costo è più alto, perché `Reposition` non è solo un
-nome di catalogo: è cablato in `RTMovementActionLibrary` fra le mobilità lineari, e `Riva.FlowReaction` e
-`Vektor.Feint` ne concedono uno.
+già due (`Hero.Wraith.Deflection`, `Hero.Phase.Flow`). E qui il costo è più alto, perché `Reposition` non è solo un
+nome di catalogo: è cablato in `RTMovementActionLibrary` fra le mobilità lineari, e `Hero.Phase.FlowReaction` e
+`Hero.Wraith.Feint` ne concedono uno.
 
 **Raccomandazione**: se il modello viene accettato, il profilo post-Watch ha bisogno di un nome proprio —
 `WatchdrawMove`, `PostWatchMove`, o qualunque cosa l'autore preferisca purché non sia `Reposition`. Rinominare
@@ -121,8 +121,8 @@ in planning. Sono due design diversi con conseguenze diverse sul bluff.
 
 **ADZIC**: «Prima di chiedere scenari nuovi, guardo se il caso è già scritto. Lo è, e coincide.»
 
-`Scenarios/Spec/.../HoldThenFire.json` descrive: Vektor controlla un varco → **Flux** entra e Vektor risponde
-`HOLD` → poi **Riva** entra e Vektor risponde `FIRE`. Due bersagli **diversi**, che è esattamente la
+`Scenarios/Spec/.../HoldThenFire.json` descrive: Wraith controlla un varco → **Gadget** entra e Wraith risponde
+`HOLD` → poi **Phase** entra e Wraith risponde `FIRE`. Due bersagli **diversi**, che è esattamente la
 semantica che il §22 vuole difendere: «*lascio passare questo bersaglio e scommetto su un'occasione
 migliore*». Lo scenario non contraddice la cadence: **la esprime**, ed era stato scritto prima.
 

@@ -45,10 +45,10 @@ namespace
 		return false;
 	}
 
-	/** L'attacco base di Vektor: `PulseShot`, 21 danni a portata 4 (catalogo eroi). */
-	FRTActionDef VektorBasicAttack()
+	/** L'attacco base di Wraith: `PulseShot`, 21 danni a portata 4 (catalogo eroi). */
+	FRTActionDef WraithBasicAttack()
 	{
-		return URTHeroCatalogLibrary::MakeVektor()->Actions[0]->Def;
+		return URTHeroCatalogLibrary::MakeWraith()->Actions[0]->Def;
 	}
 }
 
@@ -67,7 +67,7 @@ bool FRTWeaponVariantTradeoffTest::RunTest(const FString&)
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("il catalogo delle varianti e' strutturalmente valido"), Errors.Num(), 0);
 
-	const FRTActionDef Base = VektorBasicAttack();
+	const FRTActionDef Base = WraithBasicAttack();
 
 	for (const URTEquipmentData* V : Variants)
 	{
@@ -112,7 +112,7 @@ bool FRTPrecisionRangeAndDamageTest::RunTest(const FString&)
 	}
 	if (!TestNotNull(TEXT("Weapon.Precision e' nel catalogo"), Precision)) { return false; }
 
-	const FRTActionDef Base = VektorBasicAttack();
+	const FRTActionDef Base = WraithBasicAttack();
 	const FRTActionDef Modified = URTCatalogLibrary::ApplyWeaponVariant(Base, Precision);
 
 	// I delta si SOMMANO alla portata dell'arma, non la sostituiscono: la variante non sa quale attacco base
@@ -153,15 +153,15 @@ bool FRTVariantAddedEffectsTest::RunTest(const FString&)
 		return false;
 	}
 
-	// `Riva.PressureJet` e' l'attacco base che gia' fa TRE cose: danno, `Wet` e spinta. E' il caso che
+	// `Phase.PressureJet` e' l'attacco base che gia' fa TRE cose: danno, `Wet` e spinta. E' il caso che
 	// distingue «aggiunge» da «sostituisce»: applicando una variante, cio' che l'arma faceva deve restare.
-	const FRTActionDef Riva = URTHeroCatalogLibrary::MakeRiva()->Actions[0]->Def;
-	const int32 EffectsBefore = Riva.Effects.Num();
+	const FRTActionDef Phase = URTHeroCatalogLibrary::MakePhase()->Actions[0]->Def;
+	const int32 EffectsBefore = Phase.Effects.Num();
 
-	const FRTActionDef Suppressed = URTCatalogLibrary::ApplyWeaponVariant(Riva, Suppressive);
+	const FRTActionDef Suppressed = URTCatalogLibrary::ApplyWeaponVariant(Phase, Suppressive);
 	TestEqual(TEXT("la Soppressione aggiunge un effetto, non ne sostituisce"),
 		Suppressed.Effects.Num(), EffectsBefore + 1);
-	TestTrue(TEXT("l'attacco di Riva continua a bagnare"), HasEffect(Suppressed, ERTActionEffect::Status));
+	TestTrue(TEXT("l'attacco di Phase continua a bagnare"), HasEffect(Suppressed, ERTActionEffect::Status));
 	TestTrue(TEXT("e continua a spingere"), HasEffect(Suppressed, ERTActionEffect::Push));
 
 	bool bHasSlow = false;
@@ -173,7 +173,7 @@ bool FRTVariantAddedEffectsTest::RunTest(const FString&)
 
 	// L'Impatto su un'arma a portata 1 non deve produrre portata -1: si resta a contatto. Senza il clamp la
 	// def uscirebbe illegale, e `ValidateActions` la rifiuterebbe.
-	FRTActionDef Melee = Riva;
+	FRTActionDef Melee = Phase;
 	Melee.RangeCells = 1;
 	const FRTActionDef Pushed = URTCatalogLibrary::ApplyWeaponVariant(Melee, Impact);
 	TestEqual(TEXT("portata 1 meno 1 resta 0, non -1"), Pushed.RangeCells, 0);
@@ -206,7 +206,7 @@ bool FRTSplitHasNoConsumerTest::RunTest(const FString&)
 
 	TestEqual(TEXT("il dato dichiara il bersaglio in piu'"), Split->ExtraTargets, 1);
 
-	const FRTActionDef Base = VektorBasicAttack();
+	const FRTActionDef Base = WraithBasicAttack();
 	const FRTActionDef Modified = URTCatalogLibrary::ApplyWeaponVariant(Base, Split);
 	TestEqual(TEXT("ma sull'azione prodotta si vede solo lo svantaggio"),
 		DirectDamage(Modified), DirectDamage(Base) - 6);
@@ -368,7 +368,7 @@ bool FRTEmergencyDashExistsTest::RunTest(const FString&)
 // =====================================================================================================
 // D-085 — le spinte additive della stessa azione si SOMMANO.
 //
-// `Riva.PressureJet` spinge già di 1; `Weapon.Impact` aggiunge `Push 1`. Il catalogo dice che il
+// `Phase.PressureJet` spinge già di 1; `Weapon.Impact` aggiunge `Push 1`. Il catalogo dice che il
 // risultato è **una spinta di 2**, e non due spinte da 1: sono cose osservabilmente diverse — una spinta
 // di 2 attraversa la cella intermedia, due da 1 la valutano due volte.
 //
@@ -465,29 +465,29 @@ bool FRTImpactVariantStacksPushTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 	SpawnEquipMap(World, 8);
 
-	// Riva spinge da (0,0) verso (1,0): il bersaglio deve finire a (3,0), due celle più in là.
-	ARTUnit* Riva = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeRiva());
-	ARTUnit* Bersaglio = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeVektor());
+	// Phase spinge da (0,0) verso (1,0): il bersaglio deve finire a (3,0), due celle più in là.
+	ARTUnit* Phase = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakePhase());
+	ARTUnit* Bersaglio = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeWraith());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Riva"), Riva) || !TestNotNull(TEXT("bersaglio"), Bersaglio) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Phase"), Phase) || !TestNotNull(TEXT("bersaglio"), Bersaglio) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyEquipWorld(World);
 		return false;
 	}
 
-	EquipVariantOnBasicAttack(Riva, Impact);
+	EquipVariantOnBasicAttack(Phase, Impact);
 
 	// Due spec `Push` nella stessa azione: è la configurazione che produceva il difetto.
 	int32 PushSpecs = 0;
-	for (const FRTActionEffectSpec& Spec : Riva->Abilities[0]->Def.Effects)
+	for (const FRTActionEffectSpec& Spec : Phase->Abilities[0]->Def.Effects)
 	{
 		if (Spec.Effect == ERTActionEffect::Push) { ++PushSpecs; }
 	}
 	TestEqual(TEXT("l'attacco modificato dichiara due spinte separate"), PushSpecs, 2);
 
-	Riva->PlannedAbilityIndex = 0;
-	Riva->PlannedAttackTarget = Bersaglio;
-	Riva->PlannedCell = Riva->Cell;
+	Phase->PlannedAbilityIndex = 0;
+	Phase->PlannedAttackTarget = Bersaglio;
+	Phase->PlannedCell = Phase->Cell;
 	Bersaglio->PlannedAbilityIndex = INDEX_NONE;
 	Bersaglio->PlannedCell = Bersaglio->Cell;
 
@@ -646,7 +646,7 @@ bool FRTGadgetsWithoutEngineSupportTest::RunTest(const FString&)
 	// `Anchor`: `PushResistance` è una soglia permanente, non un contatore per turno. Il roster è a zero dopo
 	// D-075, e un gadget che la alzasse renderebbe immune a OGNI spinta — tutte valgono 1.
 	TestEqual(TEXT("il roster non ha resistenza nativa (D-075), e il gadget non puo' introdurla come soglia"),
-		URTHeroCatalogLibrary::MakeBastion()->PushResistance, 0);
+		URTHeroCatalogLibrary::MakeRiktor()->PushResistance, 0);
 	return true;
 }
 
@@ -659,13 +659,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultWeaponVariantsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 {
-	TestEqual(TEXT("Flux: Precisione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Flux")),
+	TestEqual(TEXT("Gadget: Precisione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Gadget")),
 		FName(TEXT("Weapon.Precision")));
-	TestEqual(TEXT("Riva: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Riva")),
+	TestEqual(TEXT("Phase: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Phase")),
 		FName(TEXT("Weapon.Impact")));
-	TestEqual(TEXT("Vektor: Soppressione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Vektor")),
+	TestEqual(TEXT("Wraith: Soppressione"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Wraith")),
 		FName(TEXT("Weapon.Suppressive")));
-	TestEqual(TEXT("Bastion: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Bastion")),
+	TestEqual(TEXT("Riktor: Impatto"), URTCatalogLibrary::DefaultWeaponVariantFor(TEXT("Hero.Riktor")),
 		FName(TEXT("Weapon.Impact")));
 
 	// Un eroe sconosciuto NON ricade su un default: meglio nessuna variante che una sbagliata in silenzio.
@@ -674,7 +674,7 @@ bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 
 	// Nessun default usa `Overcharge` finché il suo costo è `WV-1` (#510): un default il cui prezzo si
 	// decide dopo cambierebbe insieme a quella risposta. Il test lo pinna, così la scelta resta consapevole.
-	const TCHAR* Roster[] = { TEXT("Hero.Flux"), TEXT("Hero.Riva"), TEXT("Hero.Vektor"), TEXT("Hero.Bastion") };
+	const TCHAR* Roster[] = { TEXT("Hero.Gadget"), TEXT("Hero.Phase"), TEXT("Hero.Wraith"), TEXT("Hero.Riktor") };
 	for (const TCHAR* H : Roster)
 	{
 		TestTrue(*FString::Printf(TEXT("%s non ha Overcharge come default"), H),
@@ -693,6 +693,114 @@ bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Ogni eroe del roster ha un default **per tutte e tre le categorie**, e l'insieme è legale (#63, CP 7.4).
+ *
+ * ⚠️ **Questo test esiste perché `Equipment.LoadoutExactlyOneEach` non lo copre, e la differenza è il punto
+ * di `#63`.** Quel test costruisce un loadout a mano e ne controlla la forma: verifica la **regola**, e
+ * resterebbe verde anche se nessuna unità venisse mai equipaggiata — che è precisamente ciò che succedeva.
+ * Qui invece il loadout non si scrive: si **chiede al codice**, e poi si verifica che ciò che ha risposto
+ * sia legale. Un default mancante fa rosso qui e in nessun altro posto.
+ *
+ * Il roster si legge da `GetHeroIds()` e non si trascrive: un quinto eroe senza default deve far rosso
+ * senza che nessuno aggiorni il test. È la stessa disciplina di `Heroes.EveryActionHasADisplayName`.
+ *
+ * ⚠️ I **valori** non sono qui: la loro fonte è §4 del catalogo equipaggiamento, e a tenerli d'accordo col
+ * C++ è `scripts/check-equipment-defaults.py`. Duplicarli anche qui creerebbe la terza copia, cioè il
+ * difetto che il DoD di `#63` nomina per primo — *«una copia diverge, e questo repository l'ha già pagato
+ * quattro volte»*. Questo test verifica la **forma** e la **legalità**; il gate verifica i valori.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultLoadoutTest,
+	"RefactorTactics.Equipment.DefaultLoadoutIsOnePerSlotForEveryHero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDefaultLoadoutTest::RunTest(const FString&)
+{
+	const TArray<FName> Roster = URTHeroCatalogLibrary::GetHeroIds();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	int32 ConLoadout = 0;
+	for (const FName& HeroId : Roster)
+	{
+		const FString Who = HeroId.ToString();
+		const TArray<FName> Loadout = URTCatalogLibrary::DefaultLoadoutFor(HeroId);
+
+		// I tre pezzi che §4 PRESCRIVE, che non è detto siano spediti.
+		const TArray<FName> Prescritti = {
+			URTCatalogLibrary::DefaultWeaponVariantFor(HeroId),
+			URTCatalogLibrary::DefaultGadgetFor(HeroId),
+			URTCatalogLibrary::DefaultReactionModuleFor(HeroId),
+		};
+		bool bTuttiSpediti = true;
+		for (const FName& Id : Prescritti)
+		{
+			if (Id.IsNone() || URTCatalogLibrary::FindEquipment(Id) == nullptr) { bTuttiSpediti = false; }
+		}
+
+		// ⚠️ **L'invariante, e non l'elenco.** Due eroi su quattro non hanno un loadout, perché §4 prescrive
+		// loro un gadget che v0.1 non costruisce — `Gadget.Insulator` è un passivo (E36), `Gadget.Sensor`
+		// dipende da E13. Scrivere qui «Gadget e Wraith non hanno default» sarebbe vero oggi e **falso il
+		// giorno in cui E36 atterra**, e nessuno tornerebbe a correggerlo. Il test pinna invece la regola che
+		// lega le due cose: hai il loadout **se e solo se** tutti e tre i pezzi prescritti sono spediti.
+		TestEqual(*FString::Printf(TEXT("%s: ha il loadout se e solo se i tre pezzi sono spediti"), *Who),
+			Loadout.Num() == 3, bTuttiSpediti);
+
+		if (Loadout.Num() != 3)
+		{
+			// Un default assente non è mai parziale: o tre pezzi o nessuno, perché due sarebbero rifiutati
+			// da `ValidateLoadout` tre livelli più in là.
+			TestEqual(*FString::Printf(TEXT("%s: senza i pezzi il default e' VUOTO, non parziale"), *Who),
+				Loadout.Num(), 0);
+			continue;
+		}
+		++ConLoadout;
+
+		// Ogni pezzo esiste davvero, e i tre slot sono coperti una volta ciascuno. Contare a tre non basta:
+		// tre gadget sarebbero tre pezzi validi e un loadout illegale — `ValidateLoadout` lo dichiara.
+		TArray<const URTEquipmentData*> Pezzi;
+		for (const FName& PieceId : Loadout)
+		{
+			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
+			if (!TestNotNull(*FString::Printf(TEXT("%s: '%s' e' nel catalogo"), *Who, *PieceId.ToString()),
+				Piece))
+			{
+				continue;
+			}
+			Pezzi.Add(Piece);
+		}
+
+		// L'anello che lega il default alla REGOLA: non «tre pezzi qualsiasi» ma un insieme che il
+		// validator accetta. Senza questo, un default potrebbe essere legale a occhio e rifiutato in partita.
+		const TArray<FString> Errori = URTCatalogLibrary::ValidateLoadout(Pezzi);
+		for (const FString& E : Errori) { AddError(FString::Printf(TEXT("%s: %s"), *Who, *E)); }
+		TestEqual(*FString::Printf(TEXT("%s: il default passa ValidateLoadout"), *Who), Errori.Num(), 0);
+
+		// E le tre funzioni per categoria rispondono coerentemente con l'insieme: sono la via che un
+		// chiamante userà per una sola categoria, e divergere da `DefaultLoadoutFor` le renderebbe una
+		// seconda verità.
+		for (const FName& Id : Prescritti)
+		{
+			TestTrue(*FString::Printf(TEXT("%s: '%s' e' nel loadout composto"), *Who, *Id.ToString()),
+				Loadout.Contains(Id));
+		}
+	}
+
+	// Il conteggio è una MISURA, non un'asserzione di uguaglianza: dice quanti eroi sono equipaggiabili
+	// oggi, e sale da sé quando i pezzi mancanti arrivano. Zero invece sarebbe un difetto — significherebbe
+	// che nessun default funziona, cioè che questa fetta non ha consegnato niente.
+	TestTrue(*FString::Printf(TEXT("almeno un eroe ha un loadout completo (oggi: %d su %d)"),
+		ConLoadout, Roster.Num()), ConLoadout > 0);
+
+	// Un eroe sconosciuto non ricade su un default: meglio nessun equipaggiamento che uno sbagliato in
+	// silenzio. È la stessa scelta già fatta da `DefaultWeaponVariantFor`, estesa all'insieme.
+	TestEqual(TEXT("un eroe senza riga ottiene un loadout vuoto"),
+		URTCatalogLibrary::DefaultLoadoutFor(TEXT("Hero.NonEsiste")).Num(), 0);
+	TestTrue(TEXT("...e nessuna delle tre categorie inventa un valore"),
+		URTCatalogLibrary::DefaultGadgetFor(TEXT("Hero.NonEsiste")).IsNone()
+		&& URTCatalogLibrary::DefaultReactionModuleFor(TEXT("Hero.NonEsiste")).IsNone());
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVariantWarningsTest,
 	"RefactorTactics.Equipment.WarnsOnPointlessVariantPairing",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -705,28 +813,28 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 		return nullptr;
 	};
 
-	const FRTActionDef Bastion = URTHeroCatalogLibrary::MakeBastion()->Actions[0]->Def;
-	const FRTActionDef Vektor = VektorBasicAttack();
+	const FRTActionDef Riktor = URTHeroCatalogLibrary::MakeRiktor()->Actions[0]->Def;
+	const FRTActionDef Wraith = WraithBasicAttack();
 
 	// Il caso concreto che ha fatto nascere la regola: `ImpactShot` rallenta già, quindi `Suppressive` fa
 	// pagare 5 danni su 8 per un effetto che l'eroe possiede — legale e privo di senso (D-086).
 	const URTEquipmentData* Suppressive = Trova(TEXT("Weapon.Suppressive"));
 	if (!TestNotNull(TEXT("Weapon.Suppressive"), Suppressive)) { return false; }
-	const TArray<FString> SuBastion = URTCatalogLibrary::WarnOnVariantForAttack(Bastion, Suppressive);
-	TestTrue(TEXT("Bastion + Soppressione: avvisato"), SuBastion.Num() > 0);
+	const TArray<FString> SuRiktor = URTCatalogLibrary::WarnOnVariantForAttack(Riktor, Suppressive);
+	TestTrue(TEXT("Riktor + Soppressione: avvisato"), SuRiktor.Num() > 0);
 	bool bNominaLoStatus = false;
-	for (const FString& W : SuBastion) { bNominaLoStatus |= W.Contains(TEXT("Slow")); }
+	for (const FString& W : SuRiktor) { bNominaLoStatus |= W.Contains(TEXT("Slow")); }
 	TestTrue(TEXT("e l'avviso dice QUALE status e' duplicato"), bNominaLoStatus);
 
 	// Il gemello di controllo: lo stesso identico dato su un attacco che NON rallenta non avvisa. Senza
 	// questo, un avviso che scattasse sempre passerebbe il test sopra e non direbbe niente.
-	const TArray<FString> SuVektor = URTCatalogLibrary::WarnOnVariantForAttack(Vektor, Suppressive);
-	TestEqual(TEXT("Vektor + Soppressione: nessun avviso, il suo attacco non rallenta"), SuVektor.Num(), 0);
+	const TArray<FString> SuWraith = URTCatalogLibrary::WarnOnVariantForAttack(Wraith, Suppressive);
+	TestEqual(TEXT("Wraith + Soppressione: nessun avviso, il suo attacco non rallenta"), SuWraith.Num(), 0);
 
 	// I default scelti da D-089 devono essere puliti: se un default producesse un avviso, la decisione
 	// sarebbe da rivedere — ed è esattamente il momento in cui vogliamo saperlo.
-	URTHeroData* Eroi[] = { URTHeroCatalogLibrary::MakeFlux(), URTHeroCatalogLibrary::MakeRiva(),
-		URTHeroCatalogLibrary::MakeVektor(), URTHeroCatalogLibrary::MakeBastion() };
+	URTHeroData* Eroi[] = { URTHeroCatalogLibrary::MakeGadget(), URTHeroCatalogLibrary::MakePhase(),
+		URTHeroCatalogLibrary::MakeWraith(), URTHeroCatalogLibrary::MakeRiktor() };
 	for (URTHeroData* Eroe : Eroi)
 	{
 		const FName DefId = URTCatalogLibrary::DefaultWeaponVariantFor(Eroe->HeroId);
@@ -744,8 +852,8 @@ bool FRTVariantWarningsTest::RunTest(const FString&)
 // CP 7.4 metà regola (#63) — 1+1+1, e nessuna progressione in partita.
 //
 // ⚠️ La metà **default** non è qui, e non è una dimenticanza: dei quattro loadout consigliati dal catalogo
-// §4 solo quello di Bastion è interamente costruibile — a Flux manca `Gadget.Insulator` (E36), a Vektor
-// `Gadget.Sensor` (E13) e `Reaction.EmergencyDash` (#505), a Riva `Reaction.HazardEscape` (#505). Caricarli
+// §4 solo quello di Riktor è interamente costruibile — a Gadget manca `Gadget.Insulator` (E36), a Wraith
+// `Gadget.Sensor` (E13) e `Reaction.EmergencyDash` (#505), a Phase `Reaction.HazardEscape` (#505). Caricarli
 // oggi significherebbe scrivere default con dei buchi.
 // =====================================================================================================
 
@@ -856,7 +964,7 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 	//
 	// [D-074] aveva deciso che «ogni spinta del gioco vale 1», e su quella premessa il resolver dichiarava a
 	// commento che `Guard` intercetta OGNI spinta e che `Brace` «non aggiunge copertura». Con `Weapon.Impact`
-	// su `Riva.PressureJet` — che D-089 ha reso il **default** di Riva — una spinta di 2 esiste in partita, e
+	// su `Phase.PressureJet` — che D-089 ha reso il **default** di Phase — una spinta di 2 esiste in partita, e
 	// quella premessa è caduta.
 	//
 	// La conseguenza non è cosmetica: a distanza 2 `Guard` cede e `Brace` regge, quindi le due difese
@@ -876,16 +984,16 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 		UWorld* World = MakeEquipWorld();
 		if (!TestNotNull(TEXT("world guard"), World)) { return false; }
 		SpawnEquipMap(World, 8);
-		ARTUnit* Riva = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeRiva());
-		ARTUnit* Guardato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeVektor());
+		ARTUnit* Phase = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakePhase());
+		ARTUnit* Guardato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeWraith());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (Riva && Guardato && TM)
+		if (Phase && Guardato && TM)
 		{
-			EquipVariantOnBasicAttack(Riva, Impact);
+			EquipVariantOnBasicAttack(Phase, Impact);
 			Guardato->ApplyStatus(TAG_Status_Guarded, 1);
-			Riva->PlannedAbilityIndex = 0;
-			Riva->PlannedAttackTarget = Guardato;
-			Riva->PlannedCell = Riva->Cell;
+			Phase->PlannedAbilityIndex = 0;
+			Phase->PlannedAttackTarget = Guardato;
+			Phase->PlannedCell = Phase->Cell;
 			Guardato->PlannedAbilityIndex = INDEX_NONE;
 			Guardato->PlannedCell = Guardato->Cell;
 			RunEquipTurn(TM);
@@ -902,16 +1010,16 @@ bool FRTPushTwoAgainstDefencesTest::RunTest(const FString&)
 		UWorld* World = MakeEquipWorld();
 		if (!TestNotNull(TEXT("world brace"), World)) { return false; }
 		SpawnEquipMap(World, 8);
-		ARTUnit* Riva = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeRiva());
-		ARTUnit* Piantato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeVektor());
+		ARTUnit* Phase = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakePhase());
+		ARTUnit* Piantato = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeWraith());
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (Riva && Piantato && TM)
+		if (Phase && Piantato && TM)
 		{
-			EquipVariantOnBasicAttack(Riva, Impact);
+			EquipVariantOnBasicAttack(Phase, Impact);
 			Piantato->ApplyStatus(TAG_Status_Braced, 1);
-			Riva->PlannedAbilityIndex = 0;
-			Riva->PlannedAttackTarget = Piantato;
-			Riva->PlannedCell = Riva->Cell;
+			Phase->PlannedAbilityIndex = 0;
+			Phase->PlannedAttackTarget = Piantato;
+			Phase->PlannedCell = Phase->Cell;
 			Piantato->PlannedAbilityIndex = INDEX_NONE;
 			Piantato->PlannedCell = Piantato->Cell;
 			RunEquipTurn(TM);
@@ -947,8 +1055,8 @@ bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("Weapon.Overcharge"), Overcharge)) { return false; }
 
 	// Istanza costruita come la costruisce il gioco: dal roster, non a mano.
-	URTHeroData* Vektor = URTHeroCatalogLibrary::MakeVektor();
-	URTActionData* Basic = Vektor->Actions[0];
+	URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+	URTActionData* Basic = Wraith->Actions[0];
 	const int32 RangePrima = Basic->RangeCells;
 	const int32 PowerPrima = Basic->Power;
 
@@ -962,23 +1070,23 @@ bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
 
 	// `Overcharge` è il caso che perderebbe di più: la ricarica è il suo intero prezzo (D-090). Se lo
 	// specchio non la ricevesse, la variante sarebbe un bonus gratis in partita.
-	URTHeroData* Flux = URTHeroCatalogLibrary::MakeFlux();
-	URTActionData* FluxBasic = Flux->Actions[0];
-	const int32 CooldownPrima = FluxBasic->CooldownTurns;
-	URTCatalogLibrary::EquipWeaponVariant(FluxBasic, Overcharge);
+	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
+	URTActionData* GadgetBasic = Gadget->Actions[0];
+	const int32 CooldownPrima = GadgetBasic->CooldownTurns;
+	URTCatalogLibrary::EquipWeaponVariant(GadgetBasic, Overcharge);
 	TestEqual(TEXT("Overcharge: la ricarica arriva allo specchio, non solo a Def"),
-		FluxBasic->CooldownTurns, CooldownPrima + 1);
-	TestEqual(TEXT("e coincide con Def"), FluxBasic->CooldownTurns, FluxBasic->Def.CooldownTurns);
+		GadgetBasic->CooldownTurns, CooldownPrima + 1);
+	TestEqual(TEXT("e coincide con Def"), GadgetBasic->CooldownTurns, GadgetBasic->Def.CooldownTurns);
 
 	// Riequipaggiare due volte non accumula: `Power` si RICALCOLA dagli effetti, non si somma.
-	URTCatalogLibrary::EquipWeaponVariant(FluxBasic, Overcharge);
+	URTCatalogLibrary::EquipWeaponVariant(GadgetBasic, Overcharge);
 	int32 DannoDichiarato = 0;
-	for (const FRTActionEffectSpec& S : FluxBasic->Def.Effects)
+	for (const FRTActionEffectSpec& S : GadgetBasic->Def.Effects)
 	{
 		if (S.Effect == ERTActionEffect::Damage) { DannoDichiarato = S.Amount; break; }
 	}
 	TestEqual(TEXT("Power resta uguale al danno dichiarato, senza accumulare"),
-		FluxBasic->Power, DannoDichiarato);
+		GadgetBasic->Power, DannoDichiarato);
 	return true;
 }
 
@@ -1002,8 +1110,8 @@ bool FRTEmergencyDashInPlayTest::RunTest(const FString&)
 	SpawnEquipMap(World, 8);
 
 	// L'attaccante è a (0,0), chi reagisce a (1,0): la fuga lo porta a (2,0), lontano dalla minaccia.
-	ARTUnit* Attaccante = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeVektor());
-	ARTUnit* Reattore = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeVektor());
+	ARTUnit* Attaccante = SpawnEquipUnit(World, 0, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeWraith());
+	ARTUnit* Reattore = SpawnEquipUnit(World, 1, FRTCellId(1, 0), URTHeroCatalogLibrary::MakeWraith());
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Attaccante || !Reattore || !TM) { DestroyEquipWorld(World); return false; }
 

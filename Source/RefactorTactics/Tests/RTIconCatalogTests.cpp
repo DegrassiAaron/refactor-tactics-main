@@ -150,14 +150,14 @@ bool FRTIconV01CategoriesTest::RunTest(const FString&)
 			*URTIconLibrary::CategoryName(Category)), Populated.Contains(Category));
 	}
 
-	// I quattro eroi del roster, con il prefisso TRADOTTO: `Hero.Flux` -> `UI.Icon.Identity.Flux`. Senza la
-	// traduzione la chiave sarebbe `UI.Icon.Hero.Flux`, che il validator rifiuta perche' il segmento non
+	// I quattro eroi del roster, con il prefisso TRADOTTO: `Hero.Gadget` -> `UI.Icon.Identity.Gadget`. Senza la
+	// traduzione la chiave sarebbe `UI.Icon.Hero.Gadget`, che il validator rifiuta perche' il segmento non
 	// combacia con la categoria dichiarata.
 	//
 	// ⚠️ **La fonte qui e' `GetHeroRoster()`, non `GetHeroIds()`, e la differenza e' tutto il valore del
 	// test.** `RequiredIconIds()` deriva le chiavi da `GetHeroIds()`: confrontarle con la stessa lista
-	// renderebbe questo controllo vero per costruzione — un `Hero.Vektorr` scritto per sbaglio produrrebbe
-	// `UI.Icon.Identity.Vektorr` e il test lo troverebbe, contento. Misurato: con quella mutazione attiva il
+	// renderebbe questo controllo vero per costruzione — un `Hero.Wraithr` scritto per sbaglio produrrebbe
+	// `UI.Icon.Identity.Wraithr` e il test lo troverebbe, contento. Misurato: con quella mutazione attiva il
 	// test passava. Il roster e' la fonte che il gioco spedisce davvero, ed e' l'unica contro cui il
 	// confronto significa qualcosa.
 	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
@@ -183,7 +183,7 @@ bool FRTIconV01CategoriesTest::RunTest(const FString&)
 	TestEqual(TEXT("le chiavi Identity sono quattro eroi piu' due relazioni"),
 		IdentityKeys, URTHeroCatalogLibrary::GetHeroRoster().Num() + 2);
 	TestFalse(TEXT("nessuna chiave conserva il prefisso Hero."),
-		Required.Contains(FName(TEXT("UI.Icon.Hero.Flux"))));
+		Required.Contains(FName(TEXT("UI.Icon.Hero.Gadget"))));
 
 	// Relazione di squadra: il consumatore esiste gia' (`ARTHUD` legge `View.bIsAlly`).
 	TestTrue(TEXT("Identity.Ally"), Required.Contains(FName(TEXT("UI.Icon.Identity.Ally"))));

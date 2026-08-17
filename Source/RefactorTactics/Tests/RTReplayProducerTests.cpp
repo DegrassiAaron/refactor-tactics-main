@@ -99,10 +99,10 @@ namespace
 	ARTTurnManager* SetUpMatch(UWorld* World)
 	{
 		SpawnReplayProducerMap(World, /*Radius=*/ 5);
-		SpawnReplayProducerUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(),  FRTCellId(-4, 2));
-		SpawnReplayProducerUnit(World, 0, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(-4, 3));
-		SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeVektor(),  FRTCellId(4, -2));
-		SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(4, -3));
+		SpawnReplayProducerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(),  FRTCellId(-4, 2));
+		SpawnReplayProducerUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+		SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(),  FRTCellId(4, -2));
+		SpawnReplayProducerUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
 
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 

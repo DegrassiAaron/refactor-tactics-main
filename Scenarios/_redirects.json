@@ -1,3 +1,5 @@
 {
-  "_comment": "Vecchio ScenarioId -> nuovo ScenarioId. Consultata SOLO quando un ID non risulta piu' nell'indice, cosi' un ID vivo vince sempre su una voce rimasta indietro. Il prefisso _ nel nome del file lo tiene fuori dalla scansione degli scenari. Vuota finche' nessuno rinomina: le chiavi che cominciano per _ non sono redirect."
+  "_comment": "Vecchio ScenarioId -> nuovo ScenarioId. Consultata SOLO quando un ID non risulta piu' nell'indice, cosi' un ID vivo vince sempre su una voce rimasta indietro. Il prefisso _ nel nome del file lo tiene fuori dalla scansione degli scenari. Vuota finche' nessuno rinomina: le chiavi che cominciano per _ non sono redirect.",
+  "Combat.BastionImpactShotSlows": "Combat.RiktorImpactShotSlows",
+  "Spec.Combat.BastionIsPushedLikeAnyone": "Spec.Combat.RiktorIsPushedLikeAnyone"
 }

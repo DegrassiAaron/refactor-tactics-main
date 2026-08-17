@@ -1,19 +1,19 @@
 {
   "scenarioId": "Spec.Clash.StandBeatsShift",
-  "tags": ["spec", "reactions", "clash", "bastion", "riva"],
+  "tags": ["spec", "reactions", "clash", "riktor", "phase"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-048/D-049). Secondo lato della matrice: chi TIENE lo spazio batte chi lo CAMBIA. Riva prova a scartare di lato (SHIFT) contro un Bastion che controlla il varco impegnandosi (STAND): lo spazio e' gia' occupato, quindi lo scarto non trova geometria e Riva finisce lo scambio in svantaggio.",
+  "_nota": "SPECIFICA ESEGUIBILE di E14.7 (D-048/D-049). Secondo lato della matrice: chi TIENE lo spazio batte chi lo CAMBIA. Phase prova a scartare di lato (SHIFT) contro un Riktor che controlla il varco impegnandosi (STAND): lo spazio e' gia' occupato, quindi lo scarto non trova geometria e Phase finisce lo scambio in svantaggio.",
 
   "_nota_perche_esiste": "Come gli altri `Spec.Clash.*`: esce BLOCKED finche' `ReactionClash` non esiste. La matrice ha tre lati e ognuno ha il proprio file, cosi' un lato che si rompe nomina se stesso invece di far cadere un test unico che dice solo «matrice sbagliata».",
 
-  "_nota_da_completare": "Intent del turno 2 vuoti: la sintassi della maneuver contested non e' decisa. Chi implementa E14.7 aggiunge l'assertion sulla cella finale di Riva — e' quella la prova che lo SHIFT non ha trovato spazio — e sui suoi HP.",
+  "_nota_da_completare": "Intent del turno 2 vuoti: la sintassi della maneuver contested non e' decisa. Chi implementa E14.7 aggiunge l'assertion sulla cella finale di Phase — e' quella la prova che lo SHIFT non ha trovato spazio — e sui suoi HP.",
 
   "units": [
-    { "id": "B1", "hero": "Hero.Bastion", "team": 0, "cell": [ 0, 0, 0] },
-    { "id": "R1", "hero": "Hero.Riva",    "team": 1, "cell": [-3, 1, 0] }
+    { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [ 0, 0, 0] },
+    { "id": "R1", "hero": "Hero.Phase",    "team": 1, "cell": [-3, 1, 0] }
   ],
 
   "turns": [
@@ -24,7 +24,7 @@
       ]
     },
     {
-      "_turno": "T2 — il confronto. Bastion tiene il varco (STAND), Riva prova lo scarto laterale (SHIFT). STAND batte SHIFT.",
+      "_turno": "T2 — il confronto. Riktor tiene il varco (STAND), Phase prova lo scarto laterale (SHIFT). STAND batte SHIFT.",
       "requires": ["DecisionBoundary", "ReactionClash"],
       "intents": []
     }

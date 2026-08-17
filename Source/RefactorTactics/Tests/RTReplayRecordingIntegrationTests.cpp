@@ -104,8 +104,8 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 
 	SpawnRecMap(World, /*Radius=*/ 4);
 
-	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-2, 0, 0));
-	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0, 0));
+	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 0, 0));
+	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0));
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
 	if (!TestNotNull(TEXT("TurnManager"), TM)) { DestroyRecWorld(World); return false; }
@@ -215,8 +215,8 @@ bool FRTReplayNoRecordingWithoutStartTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo creato"), World)) { return false; }
 
 	SpawnRecMap(World, /*Radius=*/ 4);
-	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeVektor(), FRTCellId(-2, 0, 0));
-	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBastion(), FRTCellId(2, 0, 0));
+	SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 0, 0));
+	SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0));
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
 	if (!TestNotNull(TEXT("TurnManager"), TM)) { DestroyRecWorld(World); return false; }

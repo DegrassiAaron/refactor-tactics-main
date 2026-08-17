@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.IllegalDeclaredRotationIsRejected",
-  "tags": ["facing", "movement", "planning", "turnlog", "spec", "flux", "bastion"],
+  "tags": ["facing", "movement", "planning", "turnlog", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -16,8 +16,8 @@
   "_nota_controllo": "Il caso di controllo e' `Spec.Facing.StationaryDeclaredRotationApplies`: la stessa direzione W, dichiarata da fermo, viene ACCETTATA. Senza quella meta' questo scenario passerebbe anche con un resolver che rifiuta ogni rotazione dichiarata.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux", "team": 0, "cell": [-2, 0, 0], "facing": "E" },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [3, 0, 0], "facing": "W" }
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [3, 0, 0], "facing": "W" }
   ],
 
   "turns": [

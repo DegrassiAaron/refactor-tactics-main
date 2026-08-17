@@ -156,7 +156,7 @@ budget **5 MP**, reazioni, terreni e obiettivi.
 | **E15** Showcase «Il Relè» e golden replay | parte di **M8** | **nuova** (2026-08-07): la prova integrata — fixture, scenario scriptabile, replay a hash stabile — [`showcase-v0.1.md`](../product/showcase-v0.1.md) |
 | **E16** Orientamento e direzionalità | parte di **M8**/**M9** | **nuova** (2026-08-07): [ADR-0005](../decisions/adr-0005-orientamento.md); il facing deriva dal movimento e decide difesa, percezione e reazioni. **Prerequisito di E13** |
 | **E17** Validazione di stress 4v4 | oltre **M9** | **nuova** (2026-08-07): [D-011](../decisions/RT_PDR_00_Decision_Log.md). **Misura, non produzione**: dove si rompe il sistema con otto unità. Dopo E15; **non** decide il formato principale |
-| **E18** Predictive Action (thin slice) | parte di **M8** | **nuova** (2026-08-08): [D-016](../decisions/RT_PDR_00_Decision_Log.md). Una **sola** azione predittiva rende percepibile il pilastro della predizione. **Non dipende da E13/E14**: sgancia `Vektor.InterceptShot` da E14 |
+| **E18** Predictive Action (thin slice) | parte di **M8** | **nuova** (2026-08-08): [D-016](../decisions/RT_PDR_00_Decision_Log.md). Una **sola** azione predittiva rende percepibile il pilastro della predizione. **Non dipende da E13/E14**: sgancia `Vektor.InterceptShot` da E14 | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 | **E47** Mini v0.1 Autobattle | parte di **M6** | **nuova** (2026-08-16): [D-145](../decisions/RT_PDR_00_Decision_Log.md). Non aggiunge meccaniche — cambia **chi guida la squadra 0**. Il playtest M6.8 smette di richiedere che una persona *giochi* una partita intera e chiede solo di **guardarla e registrarla**. ⚠️ **Abbassa il costo, non chiude il gate**: le nove voci `PIE-HEXPLAY` restano da eseguire una per una. 🔴 Questa cella diceva «sblocca **M6**», e la colonna contiene **relazioni**, non effetti — «sblocca» si legge come «chiudere E47 libera M6», ed è falso |
 | — | **M10** Rete e privacy | **fuori** dalla v0.1 |
 
@@ -187,12 +187,14 @@ questa vista sa davvero.
 > *quello*. Due viste dello stesso stato si aggiornano **insieme**, o la seconda diventa una bugia con la data
 > sbagliata. È lo stesso motivo per cui la tabella delle epic ora esiste in **un solo posto**.
 >
-> Stessa forma, altro caso: E5 ed E6 risultavano «chiuse» mentre `Bastion.Interposition`,
-> `Vektor.Deflection`, `Flux.ReactiveCapacitor` e `Riva.FlowReaction` erano identità a catalogo con `Effects`
+> Stessa forma, altro caso: E5 ed E6 risultavano «chiuse» mentre `Hero.Riktor.Interposition`,
+> `Hero.Wraith.Deflection`, `Hero.Gadget.ReactiveCapacitor` e `Hero.Phase.FlowReaction` erano identità a catalogo con `Effects`
 > **vuoto**. Un motore che nessuno consuma non è collaudato. E5.5 ed E6.7 (chiusi il 2026-08-07) lo hanno
-> reso componibile e cablato tre reazioni su cinque; `InterceptShot` e `FlowReaction` restano rinviate — la
-> prima ora come **Predictive Action** (E18, [D-016](../decisions/RT_PDR_00_Decision_Log.md)), che la sgancia
-> da E14.
+> reso componibile e cablato tre reazioni su cinque. Delle due allora rinviate ne resta **una**:
+> `FlowReaction`. `InterceptShot` è uscita dall'insieme il 2026-08-10 — non è rinviata, è **consegnata**
+> come **Predictive Action** (E18 CP 18.2, [D-016](../decisions/RT_PDR_00_Decision_Log.md)), che la sgancia
+> da E14 ed è pinnata da `Heroes.Wraith.InterceptShotIsPredictive`. Contate **al 2026-08-16**, le reazioni
+> d'eroe sono **tre su quattro**: il denominatore è calato con lei.
 
 Conseguenza pratica: **chi lavora su M6 sta lavorando su E2**. Le issue `#31`–`#38` sono i checkpoint 6.1–6.8;
 si chiudono una volta, aggiornando entrambe le viste.
@@ -299,9 +301,25 @@ Assorbe **H8** e il residuo di **H5**.
 | **M9.1** | Residuo editor mappa (H5) | Verifiche PIE aperte dell'editor mode chiuse (`E/F/G/H/L/N`); copia-incolla di regioni e palette Slate **solo se** l'uso reale le richiede (YAGNI: la mappa di prova di M6 è il banco di prova) |
 | **M9.2** | Superfici attive | Acqua/fuoco/elettricità con effetto sul turno (costo, hazard di fine turno, propagazione deterministica); ogni modifica ambientale compare nel TurnLog |
 | **M9.3** | Cover dinamica e passaggi | Coperture distruttibili/mobili e porte-ponti che cambiano la topologia: le modifiche **invalidano** cache e path (revisione dell'asset), mai path fantasma |
+| **M9.4** | **Tactical Designer — un solo loop** ([#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105)) | Mappa, personaggi, scenario e varianti di abilità si authorano dagli stessi dati che il resolver esegue: nessuna regola di gioco vive nel modulo editor, e una preview che diverge dall'esito è un difetto, non una approssimazione. Owner: [`spec-tactical-designer.md`](../technical/spec-tactical-designer.md) |
 
 **DoD di milestone**: un incremento ambientale cambia in modo osservabile l'esito di un turno · nessuna cache
 stantia (test di invalidazione) · le regole ambientali sono coperte da test puri.
+
+> **M9.4 è una scala di maturità di uno strumento, non una release** ([D-154](../decisions/RT_PDR_00_Decision_Log.md),
+> 2026-08-17). Gli stadi `TD 0.1 … TD 1.0` di
+> [`spec-tactical-designer.md`](../technical/spec-tactical-designer.md) §6 **non** corrispondono alle release
+> di gioco: `TD 0.7` non ha niente a che vedere con `v0.7`. Il precedente che rende necessaria questa riga è
+> del 2026-08-13, quando una milestone *«Skill Balance Lab v0.3»* proposta da un sorgente fu dichiarata
+> superata perché `RT-FEAT-TOOL-BALANCE-GROUND` era **già v0.1 `IMPLEMENTING`**: una scala di maturità
+> collocata nella roadmap di release entra in concorrenza con la consegna, e perde.
+>
+> Al 2026-08-17 `TD 0.1` è quasi chiuso e i suoi residui sono `#622`, `#623` e `#712` — cioè **tre** sedute
+> (`U21`, `U22`, `U26`) e una fetta di codice. Gli stadi da `TD 0.2` in poi hanno owner nel
+> [Feature Registry](feature-registry.yaml) (`RT-FEAT-TOOL-SCENARIO-COMPOSER`,
+> `RT-FEAT-TOOL-SKILL-WORKBENCH`) e **nessuna issue aperta**: si aprono quando `TD 0.1` chiude, o la loro
+> prima riga sarebbe «serve un consumatore che non esiste». La metà di **misura** — batch, metriche,
+> confronto su suite — resta di **E43** (v0.8) e non si duplica qui.
 
 > **Scala delle mappe (2026-08-07, D-010)**: le mappe di M9 **non** sono vincolate alla compattezza di Atlas
 > Reactor. Il principio è *«compatto nel tempo, non necessariamente piccolo nello spazio»* e la metrica è

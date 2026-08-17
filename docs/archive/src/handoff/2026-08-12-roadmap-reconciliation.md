@@ -1,3 +1,5 @@
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `HISTORICAL` · **Sorgente recepito il 2026-08-12** · **Materiale NON autorevole**
 >
 > Handoff di reconciliation prodotto fuori dal repository e **applicato in parte**. Il testo che segue è
@@ -155,7 +157,7 @@ La Epic E14 dice ancora **CP 14.1–14.6**.
 Aggiornare l'ownership:
 
 - 14.1–14.4: base/opportunity/trigger già atterrati secondo issue live.
-- **#165 — CP14.5**: prima Decision Window viva + Vektor InterceptShot.
+- **#165 — CP14.5**: prima Decision Window viva + Wraith InterceptShot.
 - **#166 — CP14.6**: counterplay + UI + pacing.
 - **#314 — CP14.7**: Reaction Profile + Reaction Clash; P3; la baseline Brace non deve rallentare perché cardinalità 1.
 - **#319 — CP14.8**: Decision Time Bank; dopo 14.7 e mai prima di 14.5/14.6.
@@ -221,10 +223,10 @@ Non forzarle in categorie semanticamente sbagliate solo per far passare il valid
 
 Valori da D-041 già in runtime:
 
-- Flux = 5
-- Riva = 3
-- Bastion = 3
-- Vektor = 5
+- Gadget = 5
+- Phase = 3
+- Riktor = 3
+- Wraith = 5
 
 **Soglia bassa = udito migliore.**
 
@@ -391,7 +393,7 @@ Lavoro parallelo:
 
 ## R2 — Fast Reaction baseline
 
-- #165 Decision Window viva + Vektor InterceptShot;
+- #165 Decision Window viva + Wraith InterceptShot;
 - #166 counterplay/UI/pacing;
 - solo dopo: #314 Reaction Profile/Clash;
 - solo dopo: #319 Time Bank.
@@ -498,7 +500,7 @@ Stato decisionale corrente:
 - **E32 #333** — competitive 4v4 solo se E24 lo giustifica
 - **E34 #244** — Character State / Configuration System
 
-E34 ha già una roadmap completa CP34.1–34.11 + prototipi Riva Flow, Flux Charged, Bastion Bulwark, Howitzer Siege. **Non creare un secondo sistema Transformation.**
+E34 ha già una roadmap completa CP34.1–34.11 + prototipi Phase Flow, Gadget Charged, Riktor Bulwark, Howitzer Siege. **Non creare un secondo sistema Transformation.**
 
 ---
 

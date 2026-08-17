@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Harness.LogAssertionsReadTheTurnLog",
-  "tags": ["harness", "turnlog", "spec", "flux", "bastion"],
+  "tags": ["harness", "turnlog", "spec", "gadget", "riktor"],
   "version": 1,
   "seed": 0,
   "mapRadius": 4,
@@ -14,14 +14,14 @@
   "_nota_assenza": "Il conteggio a zero e' l'altra meta' della capability: `DeclarationRejected` non deve esserci perche' nessuno ha dichiarato una rotazione. E' la forma che serve alla segretezza (`Spec.Clash.HiddenUntilReveal`), dove cio' che conta e' che una voce NON compaia prima del reveal.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [0, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "A1", "ability": "Flux.ArcPulse", "target": "B1" },
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" },
         { "unit": "B1", "move": [[1, 0, 0]] }
       ]
     }

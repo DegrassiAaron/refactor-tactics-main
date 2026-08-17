@@ -1,6 +1,6 @@
 {
   "scenarioId": "Spec.Facing.DashReorients",
-  "tags": ["facing", "movement", "dash", "spec", "bastion", "flux"],
+  "tags": ["facing", "movement", "dash", "spec", "riktor", "gadget"],
   "version": 1,
   "seed": 0,
   "mapRadius": 5,
@@ -8,14 +8,14 @@
   "_nota": "CP 16.1 / D-020: `FacingAfterDash`. B1 scatta verso sud-est e finisce orientata a SE, non piu' a est. Lo scatto spende il movimento del turno (D-028), quindi nessun Move successivo puo' riscrivere l'orientamento: cio' che si misura qui e' la scrittura del Dash, isolata.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Flux",    "team": 0, "cell": [-3, 0, 0] },
-    { "id": "B1", "hero": "Hero.Bastion", "team": 1, "cell": [1, 0, 0] }
+    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-3, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "B1", "dash": "Bastion.Ram", "dashTo": [1, 2, 0] }
+        { "unit": "B1", "dash": "Hero.Riktor.Ram", "dashTo": [1, 2, 0] }
       ]
     }
   ],

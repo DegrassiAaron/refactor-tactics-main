@@ -47,11 +47,11 @@ un pilastro di prodotto, e qui costava una scelta di algoritmo, non una feature.
 ### D2 — La conduzione è della CELLA, mai dello stato dell'unità
 
 Il modello ha due portatori possibili: la cella (`bConductsElectricity`) e l'unità (`Status.Wet`, che
-`Riva.PressureJet` applica anche all'asciutto). **La propagazione guarda solo le celle.**
+`Hero.Phase.PressureJet` applica anche all'asciutto). **La propagazione guarda solo le celle.**
 
 *Perché*: due modelli di conduzione paralleli sarebbero la duplicazione che il canone vieta, e renderebbero la
 regola impredicibile (chi è bagnato non si vede sulla mappa quanto l'acqua). `Status.Wet` resta ciò che è già:
-il moltiplicatore di `Flux.LinearDischarge` (+8), verificato da `Heroes.Flux.WetBonus`.
+il moltiplicatore di `Hero.Gadget.LinearDischarge` (+8), verificato da `Heroes.Hero.Gadget.WetBonus`.
 
 Verificato da un test (`StopsAtNonConductive`): un'unità sull'asciutto **non è un ponte**, nemmeno se adiacente.
 
@@ -133,7 +133,7 @@ negativo né sulla differenza fra i due danni.
 ## 5. Fuori scope dichiarato
 
 - **Interazioni fuoco/acqua** (`Wet` spegne `Burning`, acqua che congela): **CP 8.4** (`#67`).
-- **`Flux.ConductiveNode`**: «rende conduttiva una cella per 2 turni» richiede **terreno dinamico** (una cella
+- **`Hero.Gadget.ConductiveNode`**: «rende conduttiva una cella per 2 turni» richiede **terreno dinamico** (una cella
   che cambia superficie a runtime), che il modello non ha — la mappa è un asset statico. Resta senza effetti,
   come dichiarato dal catalogo eroi; la sua abilitazione naturale è CP 8.4/E9.
 - **Targeting per cella** di `Action.Electrify` (colpire una pozza vuota): E11, vedi D3.

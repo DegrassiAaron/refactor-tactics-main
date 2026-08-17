@@ -18,9 +18,11 @@ test('un effetto sconosciuto e un ERRORE, non uno zero silenzioso', () => {
   writeFileSync(tmp, s);
   try {
     const flux = parseHeroCatalog(tmp, A).find((x) => x.name === 'Gadget')!;
-    // `Flux.Overload` e' un AbilityId, NON il nome mostrato: D-120 ha rinominato l'eroe in `Gadget` e
-    // lasciato fermi gli Stable ID. L'errore del vocabolario nomina l'abilita', quindi qui resta `Flux.`.
-    assert.throws(() => assertKnownEffects(flux), /Flux\.Overload.*Confonde/);
+    // `Hero.Gadget.Overload` e' un AbilityId, NON il nome mostrato. Il commento qui diceva che D-120
+    // aveva rinominato l'eroe «e lasciato fermi gli Stable ID, quindi qui resta `Flux.`»: era vero fino
+    // a **D-130**, che gli ID li ha migrati (fetta 4, #754). Una nota che spiega perche' un valore NON
+    // cambia diventa falsa nel momento esatto in cui quel valore cambia, e nessun gate la rilegge.
+    assert.throws(() => assertKnownEffects(flux), /Hero\.Gadget\.Overload.*Confonde/);
   } finally { rmSync(tmp); }
 });
 
