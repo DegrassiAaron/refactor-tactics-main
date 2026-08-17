@@ -33,6 +33,12 @@ void FRTHexEditorModeCommands::RegisterCommands()
 	UI_COMMAND(GeometryTool, "Geometry", "Disegna un muro quantizzato: si trascina, il ghost mostra prima del rilascio se il segmento e' legale, e al rilascio la cottura lo trasforma in coperture.",
 		EUserInterfaceActionType::ToggleButton, FInputChord());
 	ToolCommands.Add(GeometryTool);
+
+	// `#623`: azione, non tool — vedi il commento sul campo. Deliberatamente NON aggiunta a `ToolCommands`:
+	// quella lista e' la palette, e `URTHexEditorMode::Enter` la consuma con `RegisterTool`, che si aspetta
+	// un builder per ogni voce. Il binding vive in `URTHexEditorMode::BindCommands`.
+	UI_COMMAND(FrameMap, "Frame Map", "Inquadra l'intera mappa editabile, comprese le celle sui layer diversi da quello attivo.",
+		EUserInterfaceActionType::Button, FInputChord(EKeys::Home));
 }
 
 TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> FRTHexEditorModeCommands::GetCommands()
