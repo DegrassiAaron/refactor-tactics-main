@@ -3045,7 +3045,7 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: na
-      replay_representable: done
+      replay_representable: partial
     roadmap:
       epic: E8
       checkpoints: ["8.2"]
@@ -3053,7 +3053,7 @@ features:
       - RT-FEAT-ENV-TERRAIN
     owner_specs:
       - docs/gameplay/spec-stati-temporanei-cp82.md
-    issues: [65, 625]
+    issues: [65, 625, 1077]
     tests:
       - RefactorTactics.Status.*
       - RefactorTactics.Terrain.Status
@@ -3067,6 +3067,25 @@ features:
     notes: >
       Durata legata alla cella, danno di `Burning` nel Cleanup prima dei KO, `Marked` cablato.
       12 test: la lezione di CP 8.2 è che un dato senza consumatore runtime non è una feature.
+
+      🔴 **`replay_representable` torna `partial` il 2026-08-17, e l'errore è dello stesso tipo che
+      questo registro aveva appena registrato — commesso il giorno dopo averlo scritto.** `#625` ha
+      portato nel TurnLog il **danno** di `Burning`, e con quello il gate è stato messo a `done`. Ma il
+      soggetto di questa feature è il **ciclo di vita** di uno stato legato alla cella, e il danno ne è
+      un terzo:
+      · **applicazione** — `ApplyTerrainOnEnterEffects`, ramo `Status`: solo `AddLogEvent`;
+      · **revoca** uscendo dalla cella — `RevokeCellBoundStatusesNotIn`: nessuna voce;
+      · **scadenza** della durata — `TickStatuses`: nessuna voce;
+      · effetto (il danno) — ✅ tracciato da `#625`.
+      Misurato: **nessuna** delle quattro `ApplyStatus` del `TurnManager` passa da `AppendLogEntry`, e
+      il TurnLog non ha né una categoria né un `Outcome` per gli stati — 35 `AppendLogEntry` nel file,
+      zero per uno status. Non è una riga mancante: è un modello che non c'è.
+      ∴ un replay vede un'unità che comincia a bruciare **senza sapere perché**, e la vede smettere
+      senza sapere se è uscita dal fuoco o se è scaduta la durata.
+      **Chiude il gate** `#1077`, che decide come uno stato entra nel TurnLog — categoria propria o
+      `Environment` con un esito nuovo — e copre i tre momenti. Non era scope di `#625` né di `#1067`.
+      💡 La lezione, di nuovo e con un caso in più: un gate si chiude sul **soggetto intero**. Qui il
+      soggetto era il ciclo di vita, e la misura ne aveva visto un terzo.
 
   - feature_id: RT-FEAT-ENV-WATER
     title: Acqua e stato Wet

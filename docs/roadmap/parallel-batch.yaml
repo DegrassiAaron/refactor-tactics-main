@@ -3540,7 +3540,10 @@ tracks:
   unit_presentation:
     status: IDLE
     issue: 593
-    branch: feat/593-root-neutro-unit
+    # ➖ `branch` azzerato il 2026-08-17: `feat/593-root-neutro-unit` non esiste piu' su
+    # `origin`. Una track IDLE che nomina un branch morto e' il drift che questo documento
+    # ha gia' pagato quattro volte in un giorno.
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
       ✅ **CHIUSA il 2026-08-16**: PR **#977** mergiata in `main` come `a4d4a274`, issue `#593` chiusa.
@@ -3608,11 +3611,11 @@ tracks:
       diciotto: **zero** tocca `docs/technical/spec-team-identity.md` o `docs/characters/`.
       ⚠️ **Limite dichiarato**: la misura vede i COMMIT, non il lavoro non committato negli altri
       worktree. Contro quello un batch non protegge, e non e' questo file a poterlo promettere.
-    writable:
-      - Source/RefactorTactics/Unit/RTUnit.h
-      - Source/RefactorTactics/Unit/RTUnit.cpp
-      - Source/RefactorTactics/Tests/RTUnitTests.cpp
-      - docs/technical/spec-team-identity.md
+    # ➖ **Rilasciato il 2026-08-17.** La track e' `IDLE` e il suo lavoro e' atterrato, ma il
+    # `writable` era rimasto pieno: e' il difetto per cui `roster_rename` e' ricomparsa fra i
+    # proprietari di `RTCatalogLibrary.cpp` misurando la contesa per `#63`. Un rilascio si scrive.
+    # Era: `Source/RefactorTactics/Unit/RTUnit.h` · `Source/RefactorTactics/Unit/RTUnit.cpp` · `Source/RefactorTactics/Tests/RTUnitTests.cpp` · `docs/technical/spec-team-identity.md`
+    writable: []
     binary_leases: []
 
   state_hash:
@@ -3682,16 +3685,11 @@ tracks:
       **quattro** `UnrealEditor-Cmd` di altre sessioni (`rt-autobattle`, `rt-content`, `rt-simulation`,
       `rt-client`), letti dalla loro command line e non dedotti dal nome del processo. Una run di
       automation per volta resta la regola, e questa track compila il target Editor.
-    writable:
-      - Source/RefactorTactics/Turn/RTMatchStateHash.h
-      - Source/RefactorTactics/Turn/RTMatchStateHash.cpp
-      - Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp
-      # ➖ `Map/RTHexMapAsset.{h,cpp}` e `Tests/RTHexDoorTests.cpp` **passati a `spatial` (#833)** il
-      # 2026-08-16. Non e' una revoca: questa track li aveva gia' dichiarati *«rilasciati … tornano
-      # disponibili»* nella nota qui sopra, e la nota continua a nominarli uno per uno — la storia di cosa
-      # questa track ha toccato resta leggibile li'. Escono dal campo perche' un elenco tenuto come storia
-      # e un'intersezione calcolata sui campi non possono dire due cose diverse: finche' restavano scritti,
-      # qualunque controllo avrebbe visto una contesa che le due track non hanno.
+    # ➖ **Rilasciato il 2026-08-17.** La track e' `IDLE` e il suo lavoro e' atterrato, ma il
+    # `writable` era rimasto pieno: e' il difetto per cui `roster_rename` e' ricomparsa fra i
+    # proprietari di `RTCatalogLibrary.cpp` misurando la contesa per `#63`. Un rilascio si scrive.
+    # Era: `Source/RefactorTactics/Turn/RTMatchStateHash.h` · `Source/RefactorTactics/Turn/RTMatchStateHash.cpp` · `Source/RefactorTactics/Tests/RTMatchStateHashTests.cpp`
+    writable: []
     binary_leases: []
 
   hero_kit:
@@ -3771,11 +3769,11 @@ tracks:
       l'acqua passa all'equipaggiamento. Lo scenario torna **PASS 5/5**. È il **primo** del corpus a usare
       `loadout`, e il primo tentativo è stato rifiutato dal loader — `ValidateLoadout` pretende esattamente
       un pezzo per slot, non solo quello che serve.
-    writable:
-      - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
-      - Source/RefactorTactics/Tests/RTHeroRivaTests.cpp
-      - Source/RefactorTactics/Tests/RTHeroCatalogTests.cpp
-      - Scenarios/Spec/Environment/WaterQuenchesFire.json
+    # ➖ **Rilasciato il 2026-08-17.** La track e' `IDLE` e il suo lavoro e' atterrato, ma il
+    # `writable` era rimasto pieno: e' il difetto per cui `roster_rename` e' ricomparsa fra i
+    # proprietari di `RTCatalogLibrary.cpp` misurando la contesa per `#63`. Un rilascio si scrive.
+    # Era: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp` · `Source/RefactorTactics/Tests/RTHeroRivaTests.cpp` · `Source/RefactorTactics/Tests/RTHeroCatalogTests.cpp` · `Scenarios/Spec/Environment/WaterQuenchesFire.json`
+    writable: []
     binary_leases: []
 
   roster_rename:
@@ -4009,12 +4007,22 @@ tracks:
     binary_leases: []
 
   reconcile_skill:
-    status: ACTIVE
+    status: IDLE
     issue: null
-    branch: docs/reconcile-audit-skill
+    branch: null
     worktree: "D:/rt-unit"
-    mandate: docs/src/CLAUDE_Reconcile_v0.1_Skill_Ability_Issues_2026-08-16.md
+    mandate: docs/archive/src/CLAUDE_Reconcile_v0.1_Skill_Ability_Issues_2026-08-16.md
     note: >-
+      ✅ **CHIUSA il 2026-08-17.** La PR **#1023** è mergiata dal 2026-08-16 e il branch
+      `docs/reconcile-audit-skill` non esiste più su `origin` — la track era rimasta `ACTIVE` su lavoro già
+      atterrato, cioè **esattamente il drift** che questa stessa sessione ha registrato quattro volte per
+      altri (`spatial`, `replay_ui`, `client_tools`, `content_editor`) e corretto tre volte per sé.
+      Trovata rileggendo le proprie track invece di quelle altrui. Write-set **svuotato**.
+
+      ➕ Il campo `mandate:` puntava a `docs/src/`, dove il documento **non è più**: è stato archiviato, e
+      il puntatore è rimasto indietro. Aggiornato a `docs/archive/src/`, che è anche la prova che il
+      consumo è finito — la nota qui sotto diceva «va archiviato quando il consumo è finito».
+
       ➕ **Track aperta il 2026-08-16 su un MANDATO, non su una issue** — come le tre track QA, e per la
       stessa ragione: il lavoro nasce da un documento d'autore che descrive *cosa* fare. `issue: null`
       perché nessuna singola issue lo possiede: il mandato ne riconcilia **23**.
@@ -4038,16 +4046,29 @@ tracks:
 
       ⛔ **Questo giro NON tocca nessuna issue GitHub e nessun altro file**: produce il referto e basta.
       Le correzioni ai body sono il passo successivo, e non hanno write-set perché non toccano il repo.
-    writable:
-      - docs/roadmap/plans/reconcile-skill-audit-2026-08-16.md
+    # Rilasciato alla chiusura: `docs/roadmap/plans/reconcile-skill-audit-2026-08-16.md` torna non assegnato.
+    writable: []
     binary_leases: []
 
   proficiency:
-    status: ACTIVE
-    issue: 995
-    branch: docs/995-proficiency-misura
+    status: IDLE
+    issue: null
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
+      ✅ **Track CHIUSA il 2026-08-17, ma `#995` resta APERTA**, e i due fatti non si contraddicono: la PR
+      **#1019** ha consegnato la **misura**, che era la prima delle due fasi, ed è mergiata dal 2026-08-16
+      con il branch ormai cancellato. Nessuna sessione sta lavorando alla seconda — la scrittura dell'owner
+      — quindi la track è ferma, mentre il mandato no.
+      ⚠️ `issue: null` perché lo `status` è `IDLE`: il numero vive nella nota, e `#995` è il posto dove
+      guardare per riprendere.
+
+      🔴 Era rimasta `ACTIVE` su un branch che non esiste più: lo **stesso drift** registrato quattro volte
+      in questa sessione per track altrui e corretto tre volte per le proprie. Trovato solo rileggendo le
+      proprie invece di quelle degli altri — che è il modo in cui questi record invecchiano.
+      Write-set **svuotato**: `plans/proficiency-misura-2026-08-16.md` e `docs/characters/elemental-proficiency.md`
+      tornano non assegnati.
+
       ➕ **Track aperta il 2026-08-16 su `#995`, in forma UNICA per due fasi sequenziali.** Nasce da un
       brainstorming che ha scelto di separare la **misura** dalla **scrittura dell'owner**, e la ragione
       è un precedente misurato: la baseline di `#995` dava Phase = `Access`, e applicando il criterio
@@ -4080,9 +4101,9 @@ tracks:
       ⚠️ `docs/roadmap/plans/` è esente dal gate di naming (`EXEMPT_PREFIXES`), quindi il referto può
       citare `Riva.CircularTide` e `Flux.LinearDischarge` senza falsificare i nomi legacy: è un
       documento datato che fotografa il codice **com'è**, e il codice porta ancora quei nomi.
-    writable:
-      - docs/roadmap/plans/proficiency-misura-2026-08-16.md
-      - docs/characters/elemental-proficiency.md
+    # Rilasciato alla chiusura — vedi la nota. Era: `plans/proficiency-misura-2026-08-16.md` e
+    # `docs/characters/elemental-proficiency.md`, che tornano non assegnati.
+    writable: []
     binary_leases: []
 
   docs_kit:
@@ -4154,9 +4175,11 @@ tracks:
       ✅ Gate eseguiti su questo ramo: `check-docs-links.py` verde (3786 link, 388 file). `check-docs-naming.py`
       **non** copre questi file — la sua prima riga dichiara *«esclusi archive/src»* — quindi il banner puo'
       citare i nomi legacy dei kit senza falsificarli.
-    writable:
-      - docs/archive/src/RefactorTactics_v0.1_Characters_Elemental_Consolidation.md
-      - docs/archive/src/CLAUDE_Apply_Elemental_Proficiency_Consolidation_2026-08-16.md
+    # ➖ **Rilasciato il 2026-08-17.** La track e' `IDLE` e il suo lavoro e' atterrato, ma il
+    # `writable` era rimasto pieno: e' il difetto per cui `roster_rename` e' ricomparsa fra i
+    # proprietari di `RTCatalogLibrary.cpp` misurando la contesa per `#63`. Un rilascio si scrive.
+    # Era: `docs/archive/src/RefactorTactics_v0.1_Characters_Elemental_Consolidation.md` · `docs/archive/src/CLAUDE_Apply_Elemental_Proficiency_Consolidation_2026-08-16.md`
+    writable: []
     binary_leases: []
 
   replay_ui:
