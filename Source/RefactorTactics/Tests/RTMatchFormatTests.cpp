@@ -236,6 +236,125 @@ bool FRTMatchFormatDeclaresUnitsPerTeamTest::RunTest(const FString&)
 }
 
 /**
+ * CP 19.3 (**D-155**) — il formato dichiara quante unita' comanda una **persona**, e il valore attraversa
+ * `ResolveRules` come gli altri.
+ *
+ * Il campo entra per la stessa ragione di `UnitsPerTeam` a CP 19.2 — «una costante dell'orchestratore
+ * diventa un dato» — ma risponde a un'ALTRA domanda, ed e' il motivo per cui esistono due numeri e non uno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatDeclaresUnitsPerPlayerTest,
+	"RefactorTactics.MatchFormat.DeclaresUnitsPerPlayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchFormatDeclaresUnitsPerPlayerTest::RunTest(const FString&)
+{
+	// Il formato SPEDITO, non uno costruito qui: e' il valore che la v0.1 gioca davvero.
+	const URTMatchFormatData* Shipped = URTMatchFormatLibrary::FindShippedFormat(
+		URTMatchFormatLibrary::Skirmish2v2FormatId);
+	if (!TestNotNull(TEXT("il formato spedito esiste"), Shipped)) { return false; }
+	TestEqual(TEXT("Format.Skirmish2v2: un umano comanda la squadra intera, quindi due unita'"),
+		Shipped->UnitsPerPlayer, 2);
+
+	// Un competitivo dove ognuno comanda un eroe: 3 unita' per squadra, 1 a testa -> tre persone.
+	URTMatchFormatData* Competitive = MakeValidFormat();
+	Competitive->FormatId = FName(TEXT("Format.Standard3v3"));
+	Competitive->UnitsPerTeam = 3;
+	Competitive->UnitsPerPlayer = 1;
+
+	FRTMatchRules Rules;
+	FString Reason;
+	TestTrue(TEXT("un formato a una unita' per persona si risolve"),
+		URTMatchFormatLibrary::ResolveRules(Competitive, Rules, Reason));
+	TestEqual(TEXT("e il conteggio arriva alle regole in vigore"), Rules.UnitsPerPlayer, 1);
+
+	// Il ripiego deve descrivere il vertical slice: senza il campo fallirebbe la propria validazione, e la
+	// (D1) «la partita si avvia comunque» smetterebbe di valere.
+	const FRTMatchRules Fallback = URTMatchFormatLibrary::MakeFallbackRules();
+	TestEqual(TEXT("anche il ripiego dichiara il conteggio"), Fallback.UnitsPerPlayer, 2);
+	FString FallbackReason;
+	TestTrue(TEXT("e resta usabile"),
+		URTMatchFormatLibrary::AreRulesUsable(Fallback, FallbackReason));
+
+	return true;
+}
+
+/**
+ * CP 19.3 — **i due numeri non sono lo stesso numero**, ed e' il test che la v0.1 non puo' produrre da sola.
+ *
+ * In `Format.Skirmish2v2` valgono entrambi `2`: un percorso che legga `UnitsPerTeam` al posto di
+ * `UnitsPerPlayer` passa ogni altro test di questo file. Qui i due divergono, e diventa osservabile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatControlCountIsNotUnitsPerTeamTest,
+	"RefactorTactics.MatchFormat.ControlCountIsNotUnitsPerTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchFormatControlCountIsNotUnitsPerTeamTest::RunTest(const FString&)
+{
+	// Quattro unita' per squadra, due a testa: due persone per squadra.
+	URTMatchFormatData* Split = MakeValidFormat();
+	Split->FormatId = FName(TEXT("Format.SplitTeam4v4"));
+	Split->UnitsPerTeam = 4;
+	Split->UnitsPerPlayer = 2;
+
+	FRTMatchRules Rules;
+	FString Reason;
+	TestTrue(TEXT("un formato che divide la squadra si risolve"),
+		URTMatchFormatLibrary::ResolveRules(Split, Rules, Reason));
+
+	TestEqual(TEXT("la squadra ne schiera quattro"), Rules.UnitsPerTeam, 4);
+	TestEqual(TEXT("e una persona ne comanda due"), Rules.UnitsPerPlayer, 2);
+	TestNotEqual(TEXT("i due campi NON coincidono: chi legge l'uno per l'altro qui sbaglia"),
+		Rules.UnitsPerTeam, Rules.UnitsPerPlayer);
+
+	return true;
+}
+
+/**
+ * CP 19.3 — il validator rifiuta i **tre** modi in cui il conteggio puo' essere sbagliato, e ognuno nomina il
+ * campo. Sono tre e non uno perche' chi legge un allestimento fallito deve sapere quale numero correggere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatValidatorRejectsControlCountTest,
+	"RefactorTactics.MatchFormat.ValidatorRejectsControlCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchFormatValidatorRejectsControlCountTest::RunTest(const FString&)
+{
+	auto RejectsNaming = [this](const TCHAR* What, int32 PerTeam, int32 PerPlayer, const TCHAR* Needle)
+	{
+		URTMatchFormatData* Format = MakeValidFormat();
+		Format->UnitsPerTeam = PerTeam;
+		Format->UnitsPerPlayer = PerPlayer;
+
+		const TArray<FString> Errors = URTMatchFormatLibrary::ValidateFormat(Format);
+		TestTrue(FString::Printf(TEXT("%s: rifiutato"), What), Errors.Num() > 0);
+
+		bool bNames = false;
+		for (const FString& E : Errors)
+		{
+			bNames = bNames || E.Contains(Needle);
+		}
+		TestTrue(FString::Printf(TEXT("%s: l'errore nomina il difetto"), What), bNames);
+	};
+
+	// (1) Non dichiarato. Zero non e' «nessun limite»: e' un giocatore che non comanda niente.
+	RejectsNaming(TEXT("conteggio a zero"), 2, 0, TEXT("UnitsPerPlayer"));
+
+	// (2) Oltre la squadra. Una persona non puo' comandare piu' unita' di quante ne esistano.
+	RejectsNaming(TEXT("conteggio oltre la squadra"), 2, 3, TEXT("oltre UnitsPerTeam"));
+
+	// (3) Non divide. La ripartizione e' uniforme (D-155): 3 unita' in gruppi da 2 lascerebbero un gruppo da
+	// uno, e UN numero non sa esprimere due dimensioni diverse.
+	RejectsNaming(TEXT("squadra che non si divide"), 3, 2, TEXT("non si divide"));
+
+	// E il caso legittimo simmetrico NON deve essere rifiutato, o il vincolo di divisibilita' starebbe
+	// vietando il formato che il gioco spedisce.
+	URTMatchFormatData* Valid = MakeValidFormat();
+	Valid->UnitsPerTeam = 4;
+	Valid->UnitsPerPlayer = 2;
+	TestEqual(TEXT("quattro unita' in gruppi da due: nessun errore"),
+		URTMatchFormatLibrary::ValidateFormat(Valid).Num(), 0);
+
+	return true;
+}
+
+/**
  * **Un numero di versione non torna su questa classe senza la macchina che lo regge** (`D-141`, #844).
  *
  * ## Perche' un test che pinna un'ASSENZA

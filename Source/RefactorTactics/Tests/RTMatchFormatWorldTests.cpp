@@ -528,6 +528,73 @@ bool FRTMapClassNotBranchedInSimulationTest::RunTest(const FString&)
 }
 
 /**
+ * CP 19.3 (**D-155**) — **il resolver e' invariante al conteggio di controllo**, e non e' una proprieta' che si
+ * legge dal codice: si misura giocando due partite identiche che differiscono per il solo `UnitsPerPlayer` e
+ * confrontando la traccia.
+ *
+ * E' la stessa forma di `MapClass.NotBranchedInSimulation`, e per la stessa ragione. Quel campo dice *dove* si
+ * gioca, questo dice *chi comanda cosa*: nessuno dei due dice *cosa succede*, e il giorno in cui qualcuno
+ * scrivesse `if (Rules.UnitsPerPlayer == 1)` dentro la risoluzione, questo test cadrebbe.
+ *
+ * ⚠️ La squadra resta di **due** unita' in entrambe le partite: a cambiare e' solo in quante persone e'
+ * divisa. Cambiare anche `UnitsPerTeam` misurerebbe due cose insieme e l'hash divergerebbe per la ragione
+ * sbagliata — ci sarebbero due unita' in campo contro quattro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMatchFormatResolverInvariantToControlCountTest,
+	"RefactorTactics.MatchFormat.ResolverIsInvariantToControlCount",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMatchFormatResolverInvariantToControlCountTest::RunTest(const FString&)
+{
+	auto PlayAndHash = [](int32 UnitsPerPlayer, uint32& OutLogHash, int32& OutRounds) -> UWorld*
+	{
+		UWorld* W = MakeFormatWorld();
+		if (!W) { return nullptr; }
+
+		SpawnFormatMap(W, /*Radius=*/ 5);
+
+		SpawnFormatUnit(W, 0, FRTCellId(-4, 2));
+		SpawnFormatUnit(W, 1, FRTCellId(4, -2));
+
+		ARTTurnManager* TM = W->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		FRTMatchRules Rules;
+		Rules.FormatId = FName(TEXT("Format.ControlCountTest"));
+		Rules.RoundLimit = 3;
+		Rules.UnitsPerTeam = 2;
+		Rules.UnitsPerPlayer = UnitsPerPlayer;
+		TM->SetMatchRules(Rules);
+
+		OutRounds = 0;
+		while (TM->GetPhase() != ERTMatchPhase::MatchEnded && OutRounds < 10)
+		{
+			PlayEmptyRound(TM);
+			++OutRounds;
+		}
+
+		OutLogHash = URTTurnLogLibrary::HashTurnLog(TM->GetTurnLog());
+		return W;
+	};
+
+	uint32 HashWholeTeam = 0, HashOnePerPerson = 0;
+	int32 RoundsWholeTeam = 0, RoundsOnePerPerson = 0;
+
+	// Una persona comanda entrambe le unita': e' la v0.1.
+	UWorld* A = PlayAndHash(/*UnitsPerPlayer=*/ 2, HashWholeTeam, RoundsWholeTeam);
+	if (!TestNotNull(TEXT("prima partita"), A)) { return false; }
+	DestroyFormatWorld(A);
+
+	// Due persone, una unita' a testa: il formato competitivo ipotizzato.
+	UWorld* B = PlayAndHash(/*UnitsPerPlayer=*/ 1, HashOnePerPerson, RoundsOnePerPerson);
+	if (!TestNotNull(TEXT("seconda partita"), B)) { return false; }
+	DestroyFormatWorld(B);
+
+	TestEqual(TEXT("stessa durata"), RoundsOnePerPerson, RoundsWholeTeam);
+	TestEqual(TEXT("e la stessa traccia: chi comanda non entra in una sola decisione del turno"),
+		HashOnePerPerson, HashWholeTeam);
+
+	return true;
+}
+
+/**
  * CP 19.1 — la classe del vertical slice e' `Skirmish`, e lo e' **per default**: una mappa scritta prima che
  * il campo esistesse (`FormatVersion` 5) non deve cambiare significato solo per essere stata ricaricata.
  */

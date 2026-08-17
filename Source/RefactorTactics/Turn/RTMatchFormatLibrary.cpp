@@ -34,6 +34,35 @@ TArray<FString> URTMatchFormatLibrary::ValidateRules(const FRTMatchRules& Rules)
 			Rules.UnitsPerTeam));
 	}
 
+	// CP 19.3 (D-155): quante unita' comanda una PERSONA. Tre rifiuti, e ognuno dice una cosa diversa —
+	// messaggi distinti perche' chi legge un allestimento fallito deve sapere quale numero correggere.
+	if (Rules.UnitsPerPlayer <= 0)
+	{
+		Errors.Add(FString::Printf(
+			TEXT("UnitsPerPlayer %d: il formato non dichiara quante unita' comanda una persona"),
+			Rules.UnitsPerPlayer));
+	}
+	else if (Rules.UnitsPerTeam > 0)
+	{
+		// I due controlli seguenti hanno senso solo con entrambi i numeri positivi: applicarli a un
+		// `UnitsPerTeam` gia' rifiutato aggiungerebbe due righe che ripetono lo stesso difetto.
+		if (Rules.UnitsPerPlayer > Rules.UnitsPerTeam)
+		{
+			Errors.Add(FString::Printf(
+				TEXT("UnitsPerPlayer %d oltre UnitsPerTeam %d: una persona non puo' comandare piu' unita' di quante la squadra ne schieri"),
+				Rules.UnitsPerPlayer, Rules.UnitsPerTeam));
+		}
+		else if (Rules.UnitsPerTeam % Rules.UnitsPerPlayer != 0)
+		{
+			// La ripartizione e' UNIFORME per decisione (D-155): un formato che non si divide descriverebbe
+			// gruppi di controllo di dimensione diversa, e il campo — che e' UN numero — non saprebbe dirlo.
+			// Rifiutare qui e' l'alternativa a un dato che mente.
+			Errors.Add(FString::Printf(
+				TEXT("UnitsPerTeam %d non si divide in gruppi da UnitsPerPlayer %d: la ripartizione del controllo e' uniforme, e un resto lascerebbe un gruppo di dimensione diversa che questo campo non sa esprimere"),
+				Rules.UnitsPerTeam, Rules.UnitsPerPlayer));
+		}
+	}
+
 	return Errors;
 }
 
@@ -72,6 +101,7 @@ TArray<FString> URTMatchFormatLibrary::ValidateFormat(const URTMatchFormatData* 
 	Rules.RoundLimit = Format->RoundLimit;
 	Rules.ScoreToWin = Format->ScoreToWin;
 	Rules.UnitsPerTeam = Format->UnitsPerTeam;
+	Rules.UnitsPerPlayer = Format->UnitsPerPlayer;
 	Rules.MapClass = Format->MapClass;
 
 	TArray<FString> Errors = ValidateRules(Rules);
@@ -121,6 +151,7 @@ bool URTMatchFormatLibrary::ResolveRules(const URTMatchFormatData* Format, FRTMa
 	OutRules.RoundLimit = Format->RoundLimit;
 	OutRules.ScoreToWin = Format->ScoreToWin;
 	OutRules.UnitsPerTeam = Format->UnitsPerTeam;
+	OutRules.UnitsPerPlayer = Format->UnitsPerPlayer;
 	OutRules.MapClass = Format->MapClass;
 	return true;
 }
@@ -168,6 +199,10 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	Format->ExpectedRounds = 10;
 	Format->ScoreToWin = 0;
 	Format->UnitsPerTeam = 2;
+	// Un umano solo, che comanda la squadra intera: il 2v2 offline contro bot **e' gia'** il caso
+	// multi-unita', e i due numeri coincidono. E' precisamente cio' che rende invisibile un percorso che
+	// legga l'uno al posto dell'altro (CP 19.3, D-155).
+	Format->UnitsPerPlayer = 2;
 	Format->MapClass = ERTMapClass::Skirmish;
 	return Format;
 }
@@ -187,6 +222,9 @@ FRTMatchRules URTMatchFormatLibrary::MakeFallbackRules()
 	// Skirmish. Un ripiego che non dichiarasse la composizione fallirebbe la propria validazione, e la (D1)
 	// «la partita si avvia comunque» smetterebbe di valere.
 	Rules.UnitsPerTeam = 2;
+	// Stessa ragione, e lo stesso vincolo: un ripiego con `UnitsPerPlayer` non dichiarato fallirebbe la
+	// propria validazione, e la (D1) «la partita si avvia comunque» smetterebbe di valere.
+	Rules.UnitsPerPlayer = 2;
 	Rules.MapClass = ERTMapClass::Skirmish;
 	return Rules;
 }

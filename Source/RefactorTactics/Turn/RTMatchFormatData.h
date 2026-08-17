@@ -47,6 +47,27 @@ struct FRTMatchRules
 	int32 UnitsPerTeam = 0;
 
 	/**
+	 * Unita' che una singola PERSONA comanda (CP 19.3, **D-155**). Uniforme: tutti i giocatori di una squadra
+	 * ne comandano lo stesso numero, e il validator rifiuta un formato in cui la squadra non si divide.
+	 *
+	 * ⚠️ NON e' `UnitsPerTeam`, e la differenza e' invisibile proprio dove conta. `UnitsPerTeam` risponde
+	 * *quante unita' schiera una squadra*; questo risponde *quante ne comanda una persona*. In
+	 * `Format.Skirmish2v2` valgono **entrambi 2** — la v0.1 e' offline contro bot, un umano comanda la
+	 * squadra intera — quindi un percorso che legga l'uno al posto dell'altro passa ogni test esistente e
+	 * sbaglia al primo formato che divide una squadra fra due persone. E' la ragione per cui il campo si
+	 * NOMINA invece di dedurlo.
+	 *
+	 * Il rapporto `UnitsPerTeam / UnitsPerPlayer` e' il numero di persone per squadra: `2/2 = 1` in v0.1,
+	 * `3/1 = 3` in un competitivo dove ognuno comanda un eroe.
+	 *
+	 * 🔵 **Il resolver non lo legge, e non deve.** Governa autorizzazione, input, planning, `Ready`, privacy
+	 * e ownership della decisione di reazione — non l'esito. `MatchFormat.ResolverIsInvariantToControlCount`
+	 * lo misura confrontando l'hash del TurnLog di due partite che differiscono per il solo conteggio.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Match")
+	int32 UnitsPerPlayer = 0;
+
+	/**
 	 * Classe di mappa che questo formato richiede. Il validator la confronta con quella dichiarata dalla
 	 * mappa: un 3v3 Standard su una mappa disegnata per il 2v2 non e' una partita piu' stretta, e' una
 	 * partita sbagliata — e va rifiutata all'allestimento, non scoperta al terzo turno.
@@ -111,6 +132,18 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
 	int32 UnitsPerTeam = 2;
+
+	/**
+	 * Unita' comandate da una singola PERSONA (CP 19.3, **D-155**). `Format.Skirmish2v2` dichiara **2**:
+	 * la v0.1 e' offline contro bot e l'unico umano comanda la squadra intera.
+	 *
+	 * Il default e' `2` e non `1` perche' un default deve descrivere il formato che il gioco spedisce, non
+	 * quello che vorremmo: con `1` un asset d'autore che non tocca il campo dichiarerebbe una partita a due
+	 * persone per squadra, che nessuna modalita' esistente gioca. Vedi `FRTMatchRules::UnitsPerPlayer` per
+	 * perche' questo campo non e' `UnitsPerTeam`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
+	int32 UnitsPerPlayer = 2;
 
 	/** Classe di mappa richiesta (CP 19.1): il validator rifiuta l'accoppiata sbagliata. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")

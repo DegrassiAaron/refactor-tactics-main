@@ -183,6 +183,39 @@ public:
 	static bool CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId);
 
 	/**
+	 * Il **gruppo di controllo** a cui appartiene l'unita' che occupa la posizione `UnitSlotInTeam` nella
+	 * propria squadra, dato il conteggio dichiarato dal formato (CP 19.3, **D-155**).
+	 *
+	 * E' una divisione intera e nient'altro: con `UnitsPerPlayer = 1` ogni unita' ha il proprio gruppo (una
+	 * persona per eroe), con `UnitsPerPlayer = UnitsPerTeam` tutte cadono nel gruppo `0` — che e' la v0.1,
+	 * dove un umano comanda la squadra intera. La ripartizione e' **uniforme** per decisione, e il validator
+	 * del formato rifiuta i casi che non si dividono: qui non c'e' un resto da gestire perche' non puo'
+	 * arrivarci.
+	 *
+	 * **FAIL-CLOSED**: `UnitsPerPlayer <= 0` o `UnitSlotInTeam < 0` -> `INDEX_NONE`. Un conteggio non
+	 * dichiarato non deve produrre un gruppo plausibile: `0` sarebbe indistinguibile dal gruppo legittimo del
+	 * primo giocatore, cioe' un'autorizzazione concessa per un dato mancante.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static int32 ControlGroupForUnit(int32 UnitSlotInTeam, int32 UnitsPerPlayer);
+
+	/**
+	 * AUTORITA' sull'unita' quando una squadra e' divisa fra piu' persone (CP 19.3, **D-155**): oltre alla
+	 * squadra deve coincidere anche il **gruppo di controllo**.
+	 *
+	 * Estende la regola di sopra invece di sostituirla, e le due non si contraddicono: con un formato in cui
+	 * `UnitsPerPlayer == UnitsPerTeam` ogni unita' della squadra cade nel gruppo `0` e questa funzione
+	 * risponde esattamente come quella a due parametri. E' il motivo per cui la v0.1 non cambia comportamento
+	 * — verificato da un test, non promesso.
+	 *
+	 * **FAIL-CLOSED** sui gruppi non validi (`INDEX_NONE` da `ControlGroupForUnit`): niente gruppo, niente
+	 * comando.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static bool CanPlayerControlUnitInGroup(int32 UnitTeamId, int32 PlayerTeamId, int32 UnitControlGroup,
+		int32 PlayerControlGroup);
+
+	/**
 	 * Vero se il bersaglio e' ingaggiabile su griglia esagonale: entro `RangeCells` (distanza esagonale) e con
 	 * linea di tiro libera sulla mappa.
 	 *
