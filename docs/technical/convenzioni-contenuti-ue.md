@@ -304,8 +304,8 @@ della cella per la pianta, la quota di piano per l'alzato. Non si deriva l'uno d
 | Quota di piano | 2,50 m | **2,50 m** *(invariata)* |
 
 > 🔴 **Fino al 2026-08-17 questa sezione descriveva una scala che nessuna mappa usava.** Misurato:
-> `HexSize` non compare in **nessun** binario di `Content/RT`, quindi ogni mappa restava al
-> default `100.f` — lato `1,00 m`, e una divergenza di **1,5×** fra ciò che si modellava e il mondo in cui
+> `HexSize` non compare in **nessun** binario di `Content/RT` — misura e oracolo in
+> [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) — quindi ogni mappa restava al default `100.f` — lato `1,00 m`, e una divergenza di **1,5×** fra ciò che si modellava e il mondo in cui
 > atterrava. Non era un errore di questa sezione: era che nessuno aveva chiuso il cerchio sul codice.
 > `GBX-6` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) ha reso visibile il divario e `D-163` lo chiude.
 

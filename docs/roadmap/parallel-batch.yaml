@@ -4540,8 +4540,10 @@ tracks:
       mappa sovrascrive `HexSize`» concluso da un `grep` su `Scenarios/` e `Config/`, che **non aprono i
       `.uasset`** dove quel valore vive. La conclusione reggeva, l'argomento no.
 
-      ➕ **E il risultato più utile è una domanda che il bundle non poneva**: `GBX-6`, descritta più sotto
-      in questa stessa nota. Chi modella secondo il contratto costruisce per una cella che nessuna mappa ha.
+      ➕ **E il risultato più utile è stata una domanda che il bundle non poneva**: `GBX-6`, aperta qui e
+      ✅ **chiusa lo stesso giorno da `D-163`** — vince la scala d'arte. Chi modella secondo il contratto
+      costruisce per una cella che nessuna mappa ha **ancora**: la divergenza resta finché il cambio non
+      atterra, ed è la issue linkata più sotto.
 
       ➕ **Track aperta il 2026-08-17** per consumare il bundle `GrayToolkit_Cloud_Bundle` — 8 file, 4
       documenti e 2 PNG, in `docs/src/wiki/graybox/`. È il **seguito** di `graybox_kit`, chiusa poche ore
@@ -4661,9 +4663,10 @@ tracks:
       Unreal · `docs/technical/test-manuali-pie.md`, assegnato ad altra track per tutta la durata (tre
       proprietari diversi in tre giorni, il permesso mai) · `convenzioni-contenuti-ue.md`, che non è in
       **nessun** insieme di questo file e per `D-139` era uno STOP — condizione **sanata il 2026-08-17**,
-      quando `D-163` l'ha portato nell'elenco `integration_only` in fondo a questo file (cerca
-      `convenzioni-contenuti-ue.md`, ~800 righe più giù — non «poche», ed è la ragione per cui qui c'è un
-      termine di ricerca e non una distanza). È diventato `GBX-4` invece di un edit.
+      quando `D-163` l'ha portato nell'elenco `integration_only` in fondo a questo file. Si trova
+      cercando `convenzioni-contenuti-ue.md`: un termine di ricerca invece di una distanza, perché in un
+      file che cresce ogni numero di riga invecchia — inclusi i due che le stesure precedenti di questa
+      riga hanno sbagliato. È diventato `GBX-4` invece di un edit.
 
       ⏱️ **L'intersezione di apertura è una misura DATATA e non vale al rilascio.** Diceva 11 ref remoti,
       13 worktree, 1 PR aperta; al 2026-08-17, ore 12:50, sono **11 ref · 14 worktree · 3 PR** (#1113,

@@ -159,7 +159,7 @@ prisma esagonale — la cella logica È un volume, non una superficie
 
 ⏱️ **I due valori assoluti qui sopra sono il canone, non ciò che il gioco fa oggi**: finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non
 atterra il mondo gira a `HexSize = 100`, quindi `C` vale `1,73 m` — mentre `H = 250` è già vero adesso.
-Le frazioni (`0.28 H`, `0.92 C`) non ne risentono: è per questo che il contratto misura in frazioni.
+Le frazioni (`0.28 H` in altezza, `0.92` del lato in larghezza) non ne risentono: è per questo che il contratto misura in frazioni.
 
 🔑 **`H` è l'altezza del volume, non una distanza fra oggetti separati.** `AxialToWorld` pone i centri di
 layer adiacenti a `Layer · LayerHeight`, quindi i prismi **tassellano** anche in verticale: sopra il
@@ -200,7 +200,7 @@ guardando i totali: `1.00 C` — la guida chiamata «massima» — valeva il **6
 vecchia e il **104%** con quella nuova. Una guida massima che *sfora* il volume che delimita, e che
 cambia segno quando cambia la scala, è la firma di un denominatore sbagliato.
 
-⚠️ **`0.92 C` per la larghezza di un pannello di bordo resta in `C`**, ed è giusto così: è una larghezza.
+⚠️ **`0.92` per la larghezza di un pannello di bordo è una frazione del LATO, non di `C`**, ed è giusto così: è una larghezza.
 La regola non è «tutto in `H`», è **ogni misura sul proprio asse**.
 
 `C` è la distanza centro-centro fra due celle adiacenti.
@@ -218,11 +218,11 @@ per questo le misure di questo documento sono in frazioni di `C`.
 
 ### 6.1 Quanto vale `C` in metri, e perché la domanda ha due risposte
 
-[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis fissa **una sola cosa**, la scala
-d'arte, dal 2026-08-09:
+[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis fissa il lato dal 2026-08-09, e da
+`D-163` quel valore governa **anche il mondo**, non solo l'authoring:
 
 ```text
-lato dell'esagono ≈ 1,5 m
+lato dell'esagono = 1,5 m        (esattamente: HexSize = 150)
 ```
 
 Il resto si deriva per geometria — `C = √3 · lato ≈ 2,60 m`, vertice-vertice `3,00 m`, apotema `~1,30 m` —
@@ -265,7 +265,7 @@ finiti** finché non li puoi validare in PIE.
 
 > ⚠️ **Le due misure sono la stessa cosa, e vale la pena dirlo perché i documenti usano numeri diversi.**
 > Qui il termine di paragone è `C`, la larghezza lato-a-lato, perché è a quello che il contratto budgeta le
-> frazioni orizzontali (`0.92 C` per la larghezza di un pannello; le **altezze** vanno in `H`, §6). L'owner della scala —
+> frazioni orizzontali (`0.92` del lato per la larghezza di un pannello; le **altezze** vanno in `H`, §6). L'owner della scala —
 > [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — parla del **lato**, perché è
 > quello che `HexSize` contiene. `C = √3 · lato`: `1,50 → 2,60`. Le due righe dicono lo stesso
 > vincolo in unità diverse, e ciascuna usa quella naturale per il proprio documento.
@@ -273,13 +273,12 @@ finiti** finché non li puoi validare in PIE.
 Misurato: **quattro** siti in `Source/` lasciano `HexSize` a `100.f`, e **nessuna mappa lo sovrascrive**.
 I due che decidono il mondo sono `RTHexMapAsset.h:151` (l'autorevole: l'asset vince sull'actor) e
 `RTHexMapActor.h:74` (il fallback quando `MapAsset` è assente); gli altri due — `RTHUD.cpp:335` e
-`RTTurnManager.cpp:4823` — sono inizializzatori del ramo «nessuna mappa nel livello».
+`RTTurnManager.cpp` in `GetHexContext` — sono inizializzatori del ramo «nessuna mappa nel livello».
 
 🔴 **E i siti da toccare non coincidono con i file da toccare**: c'è anche
 `Source/RefactorTactics/Tests/RTHexMapTests.cpp`, che **pinna** il default a `100.f` come contratto di
-serializzazione e va aggiornato deliberatamente. ⛔ **Due di questi path non sono assegnati a nessuna track**
-— `RTTurnManager.cpp` e `RTHexMapTests.cpp` — cioè sono `D-139` STOP: vanno assegnati **prima**, non
-durante. Il quadro completo, con chi possiede cosa, sta in
+serializzazione e va aggiornato deliberatamente. ⛔ **`RTHexMapTests.cpp` non è assegnato a nessuna track** — è un `D-139` STOP, da sciogliere **prima**,
+non durante — e **`RTTurnManager.cpp` è della track `hotspot_split`, ACTIVE**: non si assegna, si coordina. Il quadro completo, con chi possiede cosa, sta in
 [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) e in [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155); questo documento non è l'owner del write-set
 e non deve diventarne una seconda copia.
 
@@ -290,11 +289,9 @@ e non deve diventarne una seconda copia.
 > ⚠️ **Come si verifica, e come NON si verifica.** `HexSize` è un `UPROPERTY(EditAnywhere)` su asset e
 > attore, quindi il valore di una mappa vive dentro un `.uasset` o un `.umap` — **binari**. Un `grep` su
 > `Scenarios/` e `Config/` non li apre nemmeno: è la misura che la prima stesura di questa riga citava, e
-> non poteva sostenere la conclusione. I binari vanno ispezionati direttamente, e **con l'oracolo giusto per
-> ciascun tipo**: `Cells` per l'asset dati (`DA_HexMap_Arena`), **`MapAsset`** per i livelli (`L_HexArena`,
-> `L_DevSandbox`) — dove `Cells` è il nome di un *componente* e sarebbe presente comunque, quindi non prova
-> nulla. Gli altri due file non hanno nulla da serializzare: `DA_HexMap_Sandbox` è vuoto e `L_Prototype` non
-> contiene alcun `HexMap`. Confermato in code review — alla terza stesura.
+> non poteva sostenere la conclusione. I binari vanno ispezionati direttamente e **con l'oracolo giusto per
+> ciascun tipo**, perché in un `.umap` il nome `Cells` è un *componente* e sarebbe presente comunque: la
+> misura, con il suo oracolo, è in [`D-163`](../decisions/RT_PDR_00_Decision_Log.md).
 
 **Le due scale divergono di 1,5× finché il cambio non atterra, e la divergenza è il costo di transito.** Una copertura bassa modellata a
 `0.28 C` con `C = 2,60 m` è alta 73 cm; posata su una mappa reale — dove `C = 1,73 m` — quei 73 cm valgono
