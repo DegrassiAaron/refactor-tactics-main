@@ -15,8 +15,11 @@ Loop canonico:
 Il **Move normale resta l'ultima fase volontaria**. Dash e spostamenti speciali possono avvenire prima solo
 perché appartengono alla loro fase/regola specifica.
 
-Roster v0.1 corrente: **Gadget · Phase · Riktor · Wraith** (D-120). `Hero.Flux`, `Hero.Riva`, `Hero.Bastion` e
-`Hero.Vektor` restano gli **Stable ID**: sono chiavi di codice, scenari e replay, non nomi, e non si rinominano.
+Roster v0.1 corrente: **Gadget · Phase · Riktor · Wraith** (D-120). I nomi legacy del roster **non esistono più
+nel repository** ([D-130](docs/decisions/RT_PDR_00_Decision_Log.md), che ne conserva la mappatura): gli
+`Hero.<Nome>` sono stati rinominati e i venti token abilità sono atterrati su `Hero.<Nome>.<Abilità>` **senza
+redirect** — [D-134](docs/decisions/RT_PDR_00_Decision_Log.md) ha cancellato `ResolveLegacyActionId`. Le cinque
+fette del piano sono chiuse: oggi un nome legacy che ricompare è un difetto, non un residuo.
 Il formato competitivo finale non è ancora bloccato: **3v3 è una baseline di studio, 4v4 uno stress test**, non
 trasformarli in una decisione definitiva.
 
@@ -107,7 +110,7 @@ Regole da non regredire:
 - Le finestre live sono **in scope**: modello unificato `Opportunity → Commit`, con decision boundary espliciti.
 - Baseline Fast Reaction: **3,0 s**, `Timeout → HOLD`.
 - Overwatch non deve conoscere trigger futuri o intenti privati avversari.
-- Thin slice predittivo v0.1: **`Vektor.InterceptShot`**.
+- Thin slice predittivo v0.1: **`Hero.Wraith.InterceptShot`**.
 - In caso di Intercept, la geometria/cover va rivalidata sul **bersaglio effettivo**, senza aprire una nuova
   opportunity solo per quella rivalidazione.
 - High Ground non dà un bonus numerico alla vista nella v0.1: quota, LOS e cover bastano finché i playtest non
