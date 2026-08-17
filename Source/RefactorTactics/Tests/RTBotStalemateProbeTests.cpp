@@ -325,4 +325,77 @@ bool FRTBotStalemateCandidateScoresTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * L'anello che chiude la catena: **senza nemici percepiti il bot resta fermo.**
+ *
+ * I due probe precedenti hanno escluso geometria, pathing e utility — ma tutti e tre costruivano
+ * `Ctx.Enemies` **a mano**, cioe' assumendo conoscenza perfetta. Il gioco no.
+ *
+ * `ARTTurnManager::PlanBots` passa ogni avversario per `URTTeamKnowledgeLibrary::ClassifyTarget`:
+ *
+ *   · `Allowed`  -> la squadra lo vede: cella e condizione attuali;
+ *   · `CellOnly` -> contatto incerto: vale la cella dell'ULTIMO contatto, e **senza ricordo si fa
+ *                   `continue`** — *«incerto senza ricordo: non e' ne' bersaglio ne' minaccia
+ *                   contabilizzabile»*;
+ *   · `Rejected` -> *«Ignoto alla squadra: non e' un bersaglio»*.
+ *
+ * Un nemico non percepito **non entra in `Ctx.Enemies`**. E un `Ctx` senza nemici toglie in un colpo solo
+ * il bersaglio (nessuna candidata d'attacco) e l'incentivo di avvicinamento (`WApproach` misura
+ * l'avvicinamento *a un nemico*). Restano candidate tutte equivalenti, e il tie-break di `ChooseBestPlan`
+ * — *«a parita' vince la mossa minima da Origin, restare vince»* — le risolve **restando**.
+ *
+ * ⚠️ Questo test misura l'ULTIMO anello, non l'intera catena: che in partita la percezione si perda
+ * davvero sull'arena con copertura resta un'inferenza dal codice e dalle tracce, non una misura. E' il
+ * limite dichiarato, e il passo successivo e' una partita headless che stampi `Ctx.Enemies.Num()`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotStalemateNoPerceivedEnemyTest,
+	"RefactorTactics.Bot.StalemateProbeNoPerceivedEnemyMeansStandStill",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotStalemateNoPerceivedEnemyTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { return false; }
+
+	const FRTCellId SelfCell(-4, 0, 0);
+
+	TArray<FRTHexSimUnit> ProbeUnits;
+	ProbeUnits.Add(FRTHexSimUnit(1, SelfCell, /*budget*/ 5));
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena, ProbeUnits);
+
+	// Il contesto che il filtro di percezione produce quando la squadra non vede nessuno e non ricorda
+	// nessuno: nemici **vuoti**. Tutto il resto identico al probe precedente.
+	FRTHexBotContext Ctx;
+	Ctx.Origin = SelfCell;
+	Ctx.AttackRange = 4;
+	Ctx.AttackDamage = 21;
+	Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Ctx.AttackRange);
+
+	const TArray<FRTHexBotPlan> Candidates = URTHexBotLibrary::BuildCandidates(Snapshot, 1, Ctx);
+
+	int32 WithAttack = 0;
+	for (const FRTHexBotPlan& Plan : Candidates)
+	{
+		if (Plan.bHasAttack) { ++WithAttack; }
+	}
+
+	const FRTHexBotPlan Chosen = URTHexBotLibrary::ChooseBestPlan(Arena, Candidates, Ctx);
+
+	AddInfo(FString::Printf(TEXT("senza nemici percepiti: %d candidate, %d con attacco"),
+		Candidates.Num(), WithAttack));
+	AddInfo(FString::Printf(TEXT("scelto: dest (q=%d,r=%d) — origine (q=%d,r=%d)"),
+		Chosen.DestCell.X, Chosen.DestCell.Y, SelfCell.X, SelfCell.Y));
+
+	// --- Nessun bersaglio: nessuna candidata d'attacco. Ovvio, e va pinnato perche' e' la premessa
+	// dell'asserzione successiva.
+	TestEqual(TEXT("senza nemici non nasce nessuna candidata d'attacco"), WithAttack, 0);
+
+	// --- **Il fatto che spiega lo stallo**: il bot non si muove. Non e' un difetto della scelta — e' il
+	// tie-break che fa il suo mestiere su candidate tutte equivalenti. Cio' che manca al bot e' un
+	// comportamento per «non vedo nessuno»: cercare, pattugliare, tenere una formazione.
+	TestEqual(TEXT("senza nemici percepiti il piano scelto RESTA all'origine"), Chosen.DestCell, SelfCell);
+	TestFalse(TEXT("e non porta attacco"), Chosen.bHasAttack);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
