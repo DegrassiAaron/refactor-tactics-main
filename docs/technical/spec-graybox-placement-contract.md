@@ -157,6 +157,10 @@ prisma esagonale — la cella logica È un volume, non una superficie
   └─ guide verticali   frazioni di H — §7.1
 ```
 
+⏱️ **I due valori assoluti qui sopra sono il canone, non ciò che il gioco fa oggi**: finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non
+atterra il mondo gira a `HexSize = 100`, quindi `C` vale `1,73 m` — mentre `H = 250` è già vero adesso.
+Le frazioni (`0.28 H`, `0.92 C`) non ne risentono: è per questo che il contratto misura in frazioni.
+
 🔑 **`H` è l'altezza del volume, non una distanza fra oggetti separati.** `AxialToWorld` pone i centri di
 layer adiacenti a `Layer · LayerHeight`, quindi i prismi **tassellano** anche in verticale: sopra il
 soffitto di una cella c'è il pavimento della successiva, senza intercapedine. Il campo `Height` di
@@ -182,9 +186,12 @@ funzionalità di debug.
 Le misure si esprimono in frazioni, e i denominatori sono **due**, uno per asse:
 
 ```text
-larghezze, ingombri, inset   →  frazioni di C   (2,60 m)   passo orizzontale
-altezze                      →  frazioni di H   (2,50 m)   altezza del volume-cella
+larghezze, ingombri, inset   →  frazioni di C   passo orizzontale
+altezze                      →  frazioni di H   altezza del volume-cella
 ```
+
+⏱️ In metri: `C = 2,60 m` **al canone** (`1,73 m` finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra) e `H = 2,50 m`, che è già il
+valore di oggi. La grammatica è in frazioni proprio perché la prima delle due sta cambiando.
 
 🔴 **Che siano due è una correzione del 2026-08-17** ([`D-168`](../decisions/RT_PDR_00_Decision_Log.md)):
 fino a quel giorno anche le **altezze** erano espresse in frazioni di `C`, cioè misurate contro una
@@ -239,12 +246,19 @@ codice di oggi     lato 1,00 m      →  C ≈ 1,73 m     ← a cui ogni mappa g
 il suo owner, che resta [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — ma ora
 riporta una decisione presa invece di una divergenza aperta.
 
-🔵 **Che la quota di piano non segua la larghezza è la ragione per cui questo contratto diventa più facile
-da rispettare, non più difficile.** Le altezze restano ancorate al piano — una copertura alta è il `22%`
-della quota prima e dopo — mentre rispetto a `C` scendono da `32%` a `21%`. Ogni budget di frazione che
-questo documento assegna si trova **più spazio** di quello che aveva, senza che nessuna costante cambi:
-`0.28 H` per una copertura bassa smette di essere stretto rispetto a ciò che la circonda. È il margine che rende validabili `GBX-1` e
-`GBX-5` guardando invece che discutendo.
+🔵 **Che l'altezza del volume non segua la larghezza cambia le proporzioni della scena, non i budget di
+questo contratto.** I budget verticali sono frazioni di `H`, e `H` non si muove: `0.28 H` è 70 cm prima e
+dopo. Quello che cambia è la **pianta**: ogni oggetto tiene la sua altezza mentre il pavimento su cui sta
+diventa 1,5× più largo, quindi le silhouette si distanziano e la cella smette di essere affollata. È il
+margine che rende `GBX-1` e `GBX-5` validabili **guardando** invece che discutendo — e si vede in pianta,
+non in alzato.
+
+> ⚠️ *La prima stesura di questo blocco concludeva che «ogni budget di frazione si trova più spazio di
+> quello che aveva». Non è vero su nessuno dei due assi: su `H` i budget sono identici per costruzione, e i
+> numeri che citava a sostegno — `22%` della quota, `32% → 21%` di `C` — venivano dalle costanti di
+> **visualizzazione** in `RTHexMapActor.cpp`, che [`D-168`](../decisions/RT_PDR_00_Decision_Log.md) esclude
+> esplicitamente dal perimetro di questo contratto. Premessa e conclusione non condividevano un asse.
+> Trovato in code review.*
 
 ⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
 `1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella per una cella larga `2,60 m`** — cioè
@@ -264,17 +278,27 @@ I due che decidono il mondo sono `RTHexMapAsset.h:151` (l'autorevole: l'asset vi
 `RTHexMapActor.h:74` (il fallback quando `MapAsset` è assente); gli altri due — `RTHUD.cpp:335` e
 `RTTurnManager.cpp:4823` — sono inizializzatori del ramo «nessuna mappa nel livello».
 
-> ⚠️ *Questa riga ne nominava **due**, mentre [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) ne misura
-> quattro. Chi eseguisse la migrazione partendo da questo documento — che è quello che chi modella legge —
-> ne cambierebbe due e lascerebbe HUD e TurnManager a `100`, così un livello senza `ARTHexMapActor`
-> disegnerebbe i suoi overlay a una scala diversa da uno con. Trovato in code review.*
+🔴 **E i siti da toccare non coincidono con i file da toccare**: c'è anche
+`Source/RefactorTactics/Tests/RTHexMapTests.cpp`, che **pinna** il default a `100.f` come contratto di
+serializzazione e va aggiornato deliberatamente. ⛔ **Due di questi path non sono assegnati a nessuna track**
+— `RTTurnManager.cpp` e `RTHexMapTests.cpp` — cioè sono `D-139` STOP: vanno assegnati **prima**, non
+durante. Il quadro completo, con chi possiede cosa, sta in
+[`D-163`](../decisions/RT_PDR_00_Decision_Log.md) e in [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155); questo documento non è l'owner del write-set
+e non deve diventarne una seconda copia.
+
+> ⚠️ *Questa riga ne nominava **due**, e la nota che la correggeva ne elencava quattro senza il test e senza
+> gli STOP — cioè rifaceva un livello più su lo stesso difetto che denunciava: chi esegue la migrazione
+> partendo da questo documento, che è quello che chi modella legge, cambia quello che vede e lascia rosso
+> il resto. Trovato in code review, due volte.*
 
 > ⚠️ **Come si verifica, e come NON si verifica.** `HexSize` è un `UPROPERTY(EditAnywhere)` su asset e
 > attore, quindi il valore di una mappa vive dentro un `.uasset` o un `.umap` — **binari**. Un `grep` su
 > `Scenarios/` e `Config/` non li apre nemmeno: è la misura che la prima stesura di questa riga citava, e
-> non poteva sostenere la conclusione. I cinque binari di mappa vanno ispezionati direttamente
-> (`DA_HexMap_Arena`, `DA_HexMap_Sandbox`, `L_HexArena`, `L_DevSandbox`, `L_Prototype`), ed è così che la
-> conclusione è stata confermata in code review.
+> non poteva sostenere la conclusione. I binari vanno ispezionati direttamente, e **con l'oracolo giusto per
+> ciascun tipo**: `Cells` per l'asset dati (`DA_HexMap_Arena`), **`MapAsset`** per i livelli (`L_HexArena`,
+> `L_DevSandbox`) — dove `Cells` è il nome di un *componente* e sarebbe presente comunque, quindi non prova
+> nulla. Gli altri due file non hanno nulla da serializzare: `DA_HexMap_Sandbox` è vuoto e `L_Prototype` non
+> contiene alcun `HexMap`. Confermato in code review — alla terza stesura.
 
 **Le due scale divergono di 1,5× finché il cambio non atterra, e la divergenza è il costo di transito.** Una copertura bassa modellata a
 `0.28 C` con `C = 2,60 m` è alta 73 cm; posata su una mappa reale — dove `C = 1,73 m` — quei 73 cm valgono
@@ -282,7 +306,8 @@ il **42% di `C`** invece del 28% che questo contratto budgetava. ⏱️ *Esempio
 stavano in `C`: da [`D-168`](../decisions/RT_PDR_00_Decision_Log.md) la guida bassa è `0.28 H` = **70 cm**, e un'altezza
 non si rapporta più a una larghezza. Il costo di transito che l'esempio descrive resta reale — è la scala del
 mondo a non essere ancora cambiata, non il modo di misurarla.* 🔴 *Questa riga diceva: «il termine di paragone è `C`, non «l'altezza della cella»: **una cella esagonale
-non ha un'altezza**, e il numero non esiste». **È falso.** La cella ha un'altezza — `LayerHeight`, un
+non ha un'altezza**, e `C` è un passo orizzontale», e chiudeva con «la prima stesura scriveva «dell'altezza
+di cella» e invitava a cercare un numero che non esiste». La clausola in grassetto è **falsa**. La cella ha un'altezza — `LayerHeight`, un
 `UPROPERTY` accanto a `HexSize` e pinnato dallo stesso test — e vale `250`. La nota era nata per correggere
 una prima stesura che diceva «dell'altezza di cella»: ha sostituito una formulazione imprecisa con
 un'affermazione **falsa**, e nel farlo ha attivamente impedito di vedere che le guide verticali usavano il

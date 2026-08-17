@@ -5443,7 +5443,14 @@ integration_only:
   # edit». Chiudere `GBX-6` senza assegnarlo avrebbe lasciato la decisione senza il documento che la deve
   # scrivere. È normativo (§5 governa i percorsi di `Content/`, §11-bis la scala d'arte) e più track lo
   # vogliono emendare: `integration_only` è la categoria giusta.
-  # 🔴 **Ed è stato preso PRIMA di essere assegnato, nello stesso commit: dirlo è il punto.**
+  # 🔴 **Ed è stato preso PRIMA di essere assegnato, nello stesso commit. Dirlo NON è il rimedio.**
+  # `CLAUDE.md` §5 prescrive di **fermarsi**, non di annotare: «Altrimenti ti fermi e lo dici». Questa nota
+  # registra una violazione, non la sana — e la differenza conta perché è la **seconda** volta identica
+  # (`spec-asset-pipeline.md`, poco sopra, con la stessa formula «detto invece di taciuto»). Due precedenti
+  # sono un'abitudine, e l'abitudine è che chiunque può assegnarsi un path scrivendoci sopra purché lo
+  # confessi. 🔵 **Il rimedio vero, per la prossima volta**: la riga di allowlist entra in un commit
+  # **separato e precedente**, o in una PR di sola riconciliazione — che è esattamente ciò che questo file
+  # è, e che rende il costo quasi nullo. Chi legge questa nota cercando un permesso non lo trova.
   # `CLAUDE.md` §5 è esplicito — «File non assegnato = STOP … Altrimenti ti fermi e lo dici» — e l'ordine
   # corretto è dichiarare, poi scrivere. Qui le 36 righe di §11-bis.1 e questa riga di allowlist sono
   # atterrate insieme. Questo file ha già un precedente identico (`spec-asset-pipeline.md`, poco sopra) e
