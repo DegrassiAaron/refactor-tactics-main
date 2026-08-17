@@ -274,28 +274,27 @@ confrontabili (§1). Il loadout consigliato aprirebbe il catalogo equipaggiament
 richiederebbe di assumere **quanti bersagli** colpisce *Scarica ramificata* — che è uno scenario, non un
 dato. Le varianti restano documentate come **direzione**, senza numeri.
 
-**Le reazioni rinviate a E14 contano.** `Hero.Wraith.InterceptShot` e `Hero.Phase.FlowReaction` non producono nulla
-in partita, ma il radar descrive l'eroe come il **catalogo lo dichiara**. Escluderle legherebbe i rating
-al calendario di implementazione: quando E14 atterra i numeri cambierebbero e il gate di §8 diventerebbe
-rosso **senza** che nessuno abbia toccato un dato competitivo.
+**Le reazioni rinviate a E14 contano.** `Hero.Phase.FlowReaction` non produce nulla in partita, ma il radar
+descrive l'eroe come il **catalogo lo dichiara**. Escluderla legherebbe i rating al calendario di
+implementazione: quando E14 atterra i numeri cambierebbero e il gate di §8 diventerebbe rosso **senza** che
+nessuno abbia toccato un dato competitivo.
 
-> ⚠️ **`InterceptShot` non è più rinviata, e questo paragrafo resta vero lo stesso — 2026-08-17.**
-> L'abilità è una **Predictive Action consegnata** dal 2026-08-10 (E18 chiusa, [#225](https://github.com/DegrassiAaron/refactor-tactics-main/issues/225), [D-016](../decisions/RT_PDR_00_Decision_Log.md)): produce
-> eccome in partita, ed è esercitata da tre test d'integrazione in un `UWorld` vero
-> (`Predictive.InterceptCellHit`, `…CellMiss`, `…CrossingIsNotPresence`).
+> ✅ **Risolto il 2026-08-17 da [#1080](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1080).** Questo paragrafo nominava **due** rinviate.
+> `InterceptShot` non lo è: è una **Predictive Action consegnata** dal 2026-08-10 (E18 chiusa,
+> [#225](https://github.com/DegrassiAaron/refactor-tactics-main/issues/225), [D-016](../decisions/RT_PDR_00_Decision_Log.md)), esercitata da tre test d'integrazione in un `UWorld`
+> vero — `Predictive.InterceptCellHit`, `…CellMiss`, `…CrossingIsNotPresence`.
 >
-> La frase qui sopra **non è stata riscritta** perché descrive ciò che il *radar* vede, e il radar legge
-> `docs/balance/RT_HeroCatalog_v0.1.md`, che la dichiara ancora `⏳ E14` (riga 48) e «reazione» (riga 170).
-> Finché il catalogo dice così, `status` resta `deferred` e questo paragrafo è **descrittivamente esatto**.
+> ⚠️ **La frase è rimasta indietro per un giorno di proposito, e vale la pena dire perché.** Descrive ciò
+> che il *radar* vede, e il radar legge il catalogo: finché quello dichiarava `⏳ E14`, il paragrafo era
+> **descrittivamente esatto** e riscriverlo l'avrebbe reso falso. Si è potuto correggere solo **dopo** che
+> il catalogo è stato corretto — cioè nell'ordine giusto, non nello stesso momento.
 >
-> 🔴 **La divergenza è fra catalogo e codice, e la sua correzione non è documentale**: la cella `Stato` di
-> quella riga è letta da `tools/radar/power.ts` con una **regex sulla prosa** —
-> `/trigger d'ingresso su movimento/` — che decide `isPredictive()` e quindi azzera il danno garantito
-> dell'abilità (16 → 0) nel `power` dell'eroe. Riscrivere la cella senza conservare quella frase **muove un
-> rating competitivo**; cambiare il marcatore `⏳` in `✅` rompe
-> `parse-catalog.test.ts:156`, che asserisce `status === 'deferred'`.
-> Tracciato in [#1080](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1080) con il suo costo, perché non è lo stesso lavoro di
-> [#1063](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1063).
+> 🔴 **E la correzione del catalogo non era documentale**: la cella `Stato` della tabella reazioni era letta
+> da `tools/radar/power.ts` con una **regex sulla prosa** — `/trigger d'ingresso su movimento/` — che
+> decideva `isPredictive()` e quindi azzerava il danno garantito dell'abilità (16 → 0) nel `power`
+> dell'eroe. Riscrivere quella cella avrebbe **mosso un rating competitivo senza toccare un numero**.
+> Oggi la condizionalità viene dalla colonna **`Tipo = predittiva`**, che è un campo con vocabolario
+> chiuso: la prosa attorno può cambiare senza spostare i radar.
 
 **Il cooldown pesa `disponibilità(CD) = 10 / (1 + CD/2)`** — `CD 0 → 10 · 1 → 6.67 · 2 → 5 · 3 → 4`.
 Risolve `CD 0` senza casi speciali, con **una sola costante** da giustificare invece di una tabella di
