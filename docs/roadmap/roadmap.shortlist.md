@@ -24,7 +24,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E5** | ✅ | 2 | 12/17 | Counter/Deflect/Brace/Shield/Cleanse/Intercept preparate in planning, una attivazione per turno, **nessuna attesa nel resolver** |
 | **E6** | ✅ | 1 | 6/8 | Gadget, Phase, Riktor, Wraith da dati; **3 reazioni su 4** cablate, resta `FlowReaction`→E14; `InterceptShot` è Predictive e consegnata (D-016) |
 | **E7** | 🟡 | 1 | 1/8 | Scelta orizzontale: ogni variante ha uno svantaggio |
-| **E8** | ✅ | 8 | 51/72 | 8 superfici, stati temporanei legati alla cella, propagazione elettrica sul grafo dell'acqua, fuoco/acqua dinamici |
+| **E8** | ✅ | 8 | 50/72 | 8 superfici, stati temporanei legati alla cella, propagazione elettrica sul grafo dell'acqua, fuoco/acqua dinamici |
 | **E9** | ✅ | 5 | 33/43 | Copertura per **bordo**, porte come bordo (mappa v4), ponti come **arco** (v5), pannello cinetico temporaneo |
 | **E10** | 🟡 | 2 | 9/18 | Fine partita a tre vie ✅; ⏳ **nessun oggetto da attivare** in mappa |
 | **E11** | 🟡 | 10 | 31/71 | Preview, input e playback esistono; ⏳ **Ghost Timeline** e i comandi `rt.Debug.*` completi |
