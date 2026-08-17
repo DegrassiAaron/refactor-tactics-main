@@ -5581,6 +5581,34 @@ tracks:
     derives_from: []
     binary_leases: []
 
+  overwatch_lifecycle:
+    status: ACTIVE
+    issue: 166
+    branch: feat/166-cp146
+    worktree: "D:/rt-166"
+    note: >-
+      ➕ **Track aperta il 2026-08-17 su `#166` (CP 14.6), e porta SOLO la prima riga del suo DoD.** Il resto
+      del checkpoint — UI della finestra, countdown, misura del pacing — **non può partire**: `#886` è il seam
+      che l'issue stessa dichiara *«deve atterrare prima o insieme»* ed è aperto, e i due file principali sono
+      di altre track (`Turn/RTTurnManager.*` → `hotspot_split`, `docs/technical/test-manuali-pie.md` →
+      `playtest`). Per `D-139` è STOP su entrambi.
+      🔵 **Cosa questa track consegna**: [D-169] — cosa invalida un Overwatch armato in v0.1 — e il pin
+      puro che la difende. La riga di DoD chiedeva *«KO, Stun, Disarm e movimento forzato invalidano»*: **due**
+      di quei quattro non esistono come stati (catalogo misurato: `Braced Burning Electrified Exposed Guarded
+      Marked Obscured Reveal Root Slow Wet`), **uno** era già verde dal CP 14.5 senza che nessuno lo spuntasse,
+      e **uno** contraddiceva il codice — il watcher spinto **rilocalizza**, non decade.
+      ⚠️ **Il test sta in `RTReactionOpportunityTests.cpp` e non in `RTOverwatchTriggerTests.cpp`**, che
+      sarebbe la sua casa naturale: quello è di `simulation` su `#886`. Il file scelto è libero, e la scelta
+      è dichiarata invece di sembrare arbitraria.
+      ⛔ **Copre la metà PURA e lo dice**: che sia `ResolveReactionBoundary` a passare `State.Pos[OwnerIdx]`
+      resta non verificato, perché vive nei due file bloccati. Un pin che si spacciasse per integrazione
+      sarebbe la falsa copertura che questo repository ha già pagato due volte oggi.
+    writable:
+      - docs/decisions/adr-0004-finestre-di-reazione.md
+      - Source/RefactorTactics/Tests/RTReactionOpportunityTests.cpp
+    derives_from: []
+    binary_leases: []
+
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test

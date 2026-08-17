@@ -144,6 +144,27 @@ ha una definizione e l'Overwatch sparerebbe a unità che la squadra non percepis
 > un canale diverso dichiara anche la propria soglia. Ciò che resta vietato a tutti è sparare a una posizione
 > **dedotta** senza alcun contatto (`Resonance Shot`, north-star).
 
+> **Precisazione 2026-08-17 — [D-169](RT_PDR_00_Decision_Log.md): cosa rende falso `ReactionStillArmed`.**
+> Il quarto termine della condizione era l'unico senza un elenco, e CP 14.6 ne chiedeva uno che nominava
+> quattro eventi — due dei quali non esistono nel gioco.
+>
+> | Evento | `ReactionStillArmed` | Perché |
+> |---|---|---|
+> | **KO del proprietario** | ❌ falso | già vero nel codice dal CP 14.5: il watcher caduto viene saltato, «in silenzio, come per la predittiva» |
+> | **Charge già spesa** | ❌ falso | `Charges = 1` (§8): `bCharged` **è** questo termine |
+> | **Cap dei prompt raggiunto** | ❌ falso | §8, `MaxPromptsPerReaction`: una reaction che ha esaurito le proprie domande non entra fra quelle valutate |
+> | **Movimento forzato del proprietario** | ✅ **resta vero** | il watcher **rilocalizza**: si ricostruisce a ogni micro-step dalla cella corrente, col facing **dichiarato** all'armamento. Guarda dal punto nuovo, nella stessa direzione |
+>
+> ⚠️ **La riga del movimento forzato è la sola che decide qualcosa di nuovo**, e conferma il comportamento
+> esistente invece di cambiarlo. Il motivo è scritto accanto al codice che lo produce: *«un watcher costruito
+> una volta nel Prep avrebbe la LOS di tre celle fa»*. Farlo decadere avrebbe dovuto argomentare contro
+> [ADR-0005](adr-0005-orientamento.md) §4c — il facing si dichiara e non cambia dopo l'impegno — e nessuno
+> lo ha fatto.
+>
+> ⛔ **`Stun` e `Disarm` non compaiono in questa tabella perché non esistono**: il catalogo degli stati è
+> `Braced · Burning · Electrified · Exposed · Guarded · Marked · Obscured · Reveal · Root · Slow · Wet`.
+> Rientreranno insieme allo stato che li porta, e questa tabella guadagnerà due righe — non prima.
+
 ### 7. Visibilità della finestra *(risolve §8.1)*
 
 - **Decide** solo il proprietario della reaction.

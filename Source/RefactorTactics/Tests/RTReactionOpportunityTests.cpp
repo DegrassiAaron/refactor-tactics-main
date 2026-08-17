@@ -11,6 +11,10 @@
 #include "Unit/RTUnit.h"
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionOpportunityTypes.h"
+#include "Combat/RTOffensiveActionLibrary.h"  // MakeSuppressiveZone: la stessa geometria del resolver
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"                 // Neighbor: il facing dichiarato diventa una cella
+#include "Map/RTHexMapAsset.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -27,6 +31,48 @@ namespace
 		Key.ReactionDefId = TEXT("Action.Counter");
 		Key.Seq = 0;
 		return Key;
+	}
+
+	/** Nomi distinti per file: la unity build condivide la translation unit. */
+	URTHexMapAsset* MakeConeFollowMap(int32 Radius = 6)
+	{
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		{
+			M->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+		M->SortCells();
+		return M;
+	}
+
+	/**
+	 * Un watcher costruito **esattamente come lo costruisce il resolver**: zona da `MakeSuppressiveZone`,
+	 * origine nella cella passata, direzione ricavata dal facing DICHIARATO con `Neighbor`.
+	 *
+	 * Ricopiare la geometria a mano renderebbe il test verde su una zona che il gioco non produce piu' — e' la
+	 * stessa ragione per cui la fixture di `RTOverwatchTriggerTests` chiama la funzione invece di elencare celle.
+	 */
+	FRTOverwatchWatcher MakeConeFollowWatcher(const URTHexMapAsset* Map, int32 OwnerId,
+		const FRTCellId& From, ERTHexDirection Facing, int32 Range = 4)
+	{
+		FRTOverwatchWatcher W;
+		W.Zone = URTOffensiveActionLibrary::MakeSuppressiveZone(Map, OwnerId, /*OwnerTeamId*/ 0, From,
+			URTHexLibrary::Neighbor(From, Facing), Range, /*Damage*/ 1);
+		W.OwnerCell = From;
+		W.ReactionDefId = TEXT("Action.Overwatch");
+		W.bArmed = true;
+		W.StableUnitId = OwnerId;
+		W.ReactionInstanceId = OwnerId;
+		return W;
+	}
+
+	FRTSuppressionMover MakeConeFollowMover(int32 UnitId, const TArray<FRTCellId>& Path)
+	{
+		FRTSuppressionMover M;
+		M.UnitId = UnitId;
+		M.TeamId = 1;
+		M.Path = Path;
+		return M;
 	}
 }
 
@@ -307,6 +353,87 @@ bool FRTReactionConditionPlanTest::RunTest(const FString&)
 		GEngine->DestroyWorldContext(World);
 	}
 	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return true;
+}
+
+/**
+ * CP 14.6 (**D-169**) — **il cono di un Overwatch armato segue la cella CORRENTE del proprietario, col facing
+ * DICHIARATO all'armamento.** Un watcher spinto **rilocalizza**: non perde la reaction.
+ *
+ * ## Perche' questo test esiste
+ *
+ * Il DoD di `#166` chiedeva che il movimento forzato **invalidasse** l'overwatch armato. La misura dice il
+ * contrario, e il codice lo motiva: `ResolveReactionBoundary` ricostruisce il watcher a **ogni micro-step**
+ * dalla cella in `State.Pos`, *«un watcher costruito una volta nel Prep avrebbe la LOS di tre celle fa»*.
+ * `D-169` conferma quel comportamento come **regola** invece di cambiarlo — e una regola senza test e' prosa.
+ *
+ * ## Cosa questo test copre, e cosa NO
+ *
+ * Copre la meta' **pura**: dato un watcher costruito da una cella, il cono e' funzione di *(cella, facing)*.
+ * Le due asserzioni incrociate sono il punto — ciascun watcher scatta sul proprio corridoio e **non**
+ * sull'altro — perche' un test che guardasse un solo watcher passerebbe anche con un cono che non si muove.
+ *
+ * ⚠️ **NON copre** che sia davvero `ResolveReactionBoundary` a passare `State.Pos[OwnerIdx]`: quella meta' e'
+ * integrazione, vive in `RTTurnManager` e nel file di test che lo esercita, ed entrambi appartengono ad altre
+ * track (`D-139`). Va aggiunta da chi li possiede, e finche' manca questo pin **non prova** che il resolver usi
+ * la cella corrente — prova che, se la usa, il cono la segue.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArmedConeFollowsCurrentCellTest,
+	"RefactorTactics.Reactions.ArmedConeFollowsCurrentCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArmedConeFollowsCurrentCellTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeConeFollowMap();
+	if (!TestNotNull(TEXT("mappa di prova"), Map)) { return false; }
+
+	// Stesso facing per entrambi: a cambiare e' SOLO la cella da cui si guarda. E' la variabile che il
+	// movimento forzato muove, e l'unica che questo test fa variare.
+	constexpr ERTHexDirection Facing = ERTHexDirection::E;
+
+	const FRTCellId Origin(0, 0, 0);
+	const FRTCellId Pushed(0, 2, 0);   // due celle piu' in la', come dopo una spinta
+
+	FRTOverwatchWatcher FromOrigin = MakeConeFollowWatcher(Map, /*OwnerId*/ 1, Origin, Facing);
+	FRTOverwatchWatcher FromPushed = MakeConeFollowWatcher(Map, /*OwnerId*/ 1, Pushed, Facing);
+
+	// Il bersaglio e' `Rilevato` per entrambi: senza, il trigger non scatta per la condizione di ADR-0004 §6 e
+	// il test misurerebbe la conoscenza di squadra invece della geometria.
+	FromOrigin.TeamAwareness.Add(9, ERTAwareness::Detected);
+	FromPushed.TeamAwareness.Add(9, ERTAwareness::Detected);
+
+	// Due corridoi paralleli, uno per riga: quello davanti alla posizione iniziale e quello davanti alla
+	// posizione dopo la spinta.
+	const TArray<FRTCellId> AlongOrigin = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+	const TArray<FRTCellId> AlongPushed = { FRTCellId(1, 2, 0), FRTCellId(2, 2, 0), FRTCellId(3, 2, 0) };
+
+	auto Triggers = [Map](const FRTOverwatchWatcher& W, const TArray<FRTCellId>& Path)
+	{
+		return URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+			Map, /*TurnNumber*/ 4, { W }, { MakeConeFollowMover(9, Path) });
+	};
+
+	// Premessa: il cono ORIGINALE vede il proprio corridoio. Senza, le due asserzioni negative sotto
+	// sarebbero verdi per la ragione sbagliata — un cono vuoto non scatta su niente.
+	TestTrue(TEXT("premessa: dalla cella iniziale il cono vede il corridoio davanti a se'"),
+		Triggers(FromOrigin, AlongOrigin).Num() > 0);
+
+	// Il cono si e' MOSSO: dalla cella nuova vede il proprio corridoio...
+	TestTrue(TEXT("spinto, il cono vede il corridoio davanti alla NUOVA cella"),
+		Triggers(FromPushed, AlongPushed).Num() > 0);
+
+	// ...e non piu' quello vecchio. E' l'asserzione che distingue «il cono segue» da «il cono si allarga».
+	TestEqual(TEXT("e NON vede piu' il corridoio davanti alla cella di partenza"),
+		Triggers(FromPushed, AlongOrigin).Num(), 0);
+
+	// Simmetrica: il watcher fermo non vede il corridoio dell'altro. Senza questa, un cono grande abbastanza
+	// da coprire entrambe le righe passerebbe le tre asserzioni precedenti.
+	TestEqual(TEXT("e il watcher fermo non vede il corridoio dell'altro"),
+		Triggers(FromOrigin, AlongPushed).Num(), 0);
+
+	// La reaction NON e' decaduta: la spinta rilocalizza, non disarma. `bArmed` e' il `ReactionStillArmed`
+	// della condizione di trigger (ADR-0004 §6), e resta vero attraverso lo spostamento.
+	TestTrue(TEXT("dopo la spinta la reaction e' ancora armata"), FromPushed.bArmed);
+
 	return true;
 }
 
