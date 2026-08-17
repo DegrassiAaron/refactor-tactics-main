@@ -25,6 +25,9 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "Map/RTArenaCriteriaLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTHexSim.h"
+#include "Turn/RTHexSimLibrary.h"
+#include "Bot/RTHexBotLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -189,6 +192,135 @@ bool FRTBotStalemateDemoArenaContrastTest::RunTest(const FString&)
 
 	TestTrue(TEXT("sull'esagono liscio gli spawn si vedono"), bDemoSpawnsSee);
 	TestFalse(TEXT("sull'arena di prova la copertura interrompe la linea fra gli spawn"), bTestSpawnsSee);
+
+	return true;
+}
+
+/**
+ * Il secondo probe: **il bot genera la candidata «attacca», e con quale punteggio la perde?**
+ *
+ * Il primo probe ha stabilito che la geometria non impedisce il tiro. Restava il candidato 3 — l'utility
+ * non sceglie l'attacco — che pero' e' una localizzazione, non una causa. Qui si guarda dentro.
+ *
+ * ⚠️ **Due fatti letti nel codice, che restringono prima ancora di misurare:**
+ *
+ *  · `DeriveKiteStandoff` da' standoff `0` sotto gittata 5. Sul roster v0.1 **solo Phase** (`PressureJet`,
+ *    gittata 5) tiene le distanze; Gadget e Wraith (4) e Riktor (3) **chiudono**. Lo stallo a distanza 3
+ *    non e' quindi il kiting che fa il suo mestiere — non per tre unita' su quattro.
+ *  · `ChooseBestPlan` dichiara un **tie-break assoluto**: *«a parita' di punteggio vince la MOSSA MINIMA
+ *    da Origin (restare vince)»*. Se attaccare non migliorasse **strettamente** il punteggio, restare
+ *    fermi sarebbe il comportamento corretto del confronto — e il difetto starebbe nei punteggi.
+ *
+ * ⚠️ **Misura una situazione ISOLATA**, e questo e' il suo limite dichiarato: una coppia di unita', nessun
+ * alleato, nessuna occupazione di terze celle. Se qui il bot attacca e in partita no, la causa sta in cio'
+ * che questo scenario NON riproduce — ed e' un risultato utile quanto il contrario.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotStalemateCandidateScoresTest,
+	"RefactorTactics.Bot.StalemateProbeAttackCandidateIsGeneratedAndScored",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotStalemateCandidateScoresTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { return false; }
+
+	// La posizione di stallo misurata in gioco: **distanza 3 con linea di tiro libera**.
+	//
+	// ⚠️ La coppia si DERIVA dalla mappa, non si sceglie a mano. Il primo tentativo fissava due celle a
+	// occhio e cadeva sulla propria precondizione: fra `(-1,0)` e `(2,0)` passa la barriera centrale, quindi
+	// il tiro non era legale e il probe non misurava nulla. Cercarla toglie l'indovinello e rende il test
+	// robusto alla geometria — se un giorno nessuna coppia simile esistesse, sarebbe **quello** il risultato.
+	FRTCellId SelfCell, EnemyCell;
+	bool bFound = false;
+	const TArray<FRTCellId> Layer0 = Arena->CellsInLayer(0);
+	for (const FRTCellId& A : Layer0)
+	{
+		for (const FRTCellId& B : Layer0)
+		{
+			if (URTHexLibrary::HexDistance(A, B) == 3 && URTHexVisionLibrary::HasLineOfSight(Arena, A, B))
+			{
+				SelfCell = A; EnemyCell = B; bFound = true;
+				break;
+			}
+		}
+		if (bFound) { break; }
+	}
+
+	if (!TestTrue(TEXT("esiste una coppia a distanza 3 con tiro libero"), bFound)) { return false; }
+	AddInfo(FString::Printf(TEXT("coppia derivata: (q=%d,r=%d) -> (q=%d,r=%d), distanza 3, tiro libero"),
+		SelfCell.X, SelfCell.Y, EnemyCell.X, EnemyCell.Y));
+
+	TArray<FRTHexSimUnit> ProbeUnits;
+	ProbeUnits.Add(FRTHexSimUnit(1, SelfCell, /*budget*/ 5));
+	ProbeUnits.Add(FRTHexSimUnit(2, EnemyCell, /*budget*/ 5));
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena, ProbeUnits);
+
+	// I pesi restano quelli di default, che sono anche quelli che il gioco logga a ogni partita.
+	FRTHexBotContext Ctx;
+	Ctx.Origin = SelfCell;
+	Ctx.Enemies.Add(EnemyCell);
+	Ctx.EnemyRanges.Add(4);
+	Ctx.EnemyHealth.Add(100);
+	Ctx.AttackRange = 4;   // `Hero.Gadget.ArcPulse`
+	Ctx.AttackDamage = 21; // `Hero.Wraith.PulseShot`
+	Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Ctx.AttackRange);
+
+	AddInfo(FString::Printf(TEXT("standoff derivato da gittata %d: %d (0 = chiude la distanza)"),
+		Ctx.AttackRange, Ctx.KiteStandoff));
+
+	const TArray<FRTHexBotPlan> Candidates = URTHexBotLibrary::BuildCandidates(Snapshot, 1, Ctx);
+
+	int32 WithAttack = 0;
+	int32 BestAttackScore = TNumericLimits<int32>::Min();
+	int32 BestNoAttackScore = TNumericLimits<int32>::Min();
+	int32 StayNoAttack = TNumericLimits<int32>::Min();
+	int32 StayWithAttack = TNumericLimits<int32>::Min();
+
+	for (const FRTHexBotPlan& Plan : Candidates)
+	{
+		const int32 Score = URTHexBotLibrary::ScorePlan(Arena, Plan, Ctx);
+		const bool bStays = (Plan.DestCell == SelfCell);
+
+		if (Plan.bHasAttack)
+		{
+			++WithAttack;
+			BestAttackScore = FMath::Max(BestAttackScore, Score);
+			if (bStays) { StayWithAttack = FMath::Max(StayWithAttack, Score); }
+		}
+		else
+		{
+			BestNoAttackScore = FMath::Max(BestNoAttackScore, Score);
+			if (bStays) { StayNoAttack = FMath::Max(StayNoAttack, Score); }
+		}
+	}
+
+	AddInfo(FString::Printf(TEXT("candidate: %d totali, %d con attacco"), Candidates.Num(), WithAttack));
+	AddInfo(FString::Printf(TEXT("punteggi: miglior attacco %d, miglior non-attacco %d"),
+		BestAttackScore, BestNoAttackScore));
+	AddInfo(FString::Printf(TEXT("restando fermo: con attacco %d, senza attacco %d"),
+		StayWithAttack, StayNoAttack));
+
+	const FRTHexBotPlan Chosen = URTHexBotLibrary::ChooseBestPlan(Arena, Candidates, Ctx);
+	AddInfo(FString::Printf(TEXT("scelto: dest (q=%d,r=%d) %s, punteggio %d"),
+		Chosen.DestCell.X, Chosen.DestCell.Y,
+		Chosen.bHasAttack ? TEXT("CON attacco") : TEXT("senza attacco"),
+		URTHexBotLibrary::ScorePlan(Arena, Chosen, Ctx)));
+
+	// --- Primo anello: la candidata esiste? La documentazione di `BuildCandidates` promette «una per
+	// ciascun nemico entro gittata e in linea di vista DA QUELLA CELLA», e le due condizioni sono
+	// verificate sopra.
+	TestTrue(TEXT("con bersaglio in gittata e visibile, esiste almeno una candidata con attacco"),
+		WithAttack > 0);
+
+	// --- Secondo anello: attaccare da fermo batte STRETTAMENTE il non attaccare da fermo? Il tie-break di
+	// `ChooseBestPlan` fa vincere «restare» a parita', quindi il pareggio non basterebbe.
+	if (WithAttack > 0)
+	{
+		TestTrue(TEXT("attaccare da fermo batte strettamente il non attaccare da fermo"),
+			StayWithAttack > StayNoAttack);
+	}
+
+	// --- Terzo anello, ed e' quello che chiude il candidato 3: la scelta finale porta l'attacco.
+	TestTrue(TEXT("il piano scelto ha un attacco"), Chosen.bHasAttack);
 
 	return true;
 }
