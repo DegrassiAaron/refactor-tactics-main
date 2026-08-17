@@ -171,6 +171,8 @@ features:
       - RT_Showcase_Relay_v01
     wiki_refs:
       - wiki:regole-fondamentali
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-16
       commit: 79633a3
@@ -222,6 +224,8 @@ features:
       - Visual.Core.PhaseOrder
     wiki_refs:
       - wiki:regole-fondamentali
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-10
       commit: 51b5afa
@@ -261,7 +265,9 @@ features:
     tests:
       - RefactorTactics.Replay.*
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-10
       commit: b9c096c
@@ -1479,11 +1485,25 @@ features:
       - wiki:azioni-e-movimento-scheda-dati
     wiki_note: >-
       Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`.
-      `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non
-      esiste ancora.
+      `Brace` funziona ma come reazione; `Interact` dichiara l'apertura della porta ma non ha ancora
+      un produttore lato giocatore; di `Overwatch` il resolver costruisce le opportunity, e quello
+      che manca è la UI con cui rispondere.
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      # Rimisurata il 2026-08-17: il `wiki_note` era falso in DUE clausole su tre, ed e' il difetto
+      # che il consolidamento della Wiki ha aperto come `GAP-2` guardandone una sola. La forma del
+      # difetto conta piu' delle due righe: il `notes:` qui sotto e' stato aggiornato da D-148 lo
+      # stesso giorno, il `wiki_note` no — la nota INTERNA si corregge quando qualcuno lavora la
+      # feature, quella PUBBLICATA invecchia da sola, e nessun gate confronta le due.
+      #   · «`Interact` e' a catalogo **senza effetto**»: falso, `RTCatalogLibrary.cpp:819` dichiara
+      #     `SetDoorState` verso `Open` ([D-148] + [D-151]).
+      #   · «`Overwatch` non esiste ancora»: falso, **e anche il `notes:` lo era** — diceva «nessun
+      #     ramo del resolver lo esegue ... il consumatore e' E14.5». CP 14.5 e' chiusa: misurato
+      #     `RTTurnManager.cpp:5257`, l'unica chiamata a `BuildOverwatchTriggers` fuori dai test.
+      #     Era la contraddizione con `RT-FEAT-REACTION-OVERWATCH`, verificata il 2026-08-16.
+      # ⚠️ Rimisurato lo STATO delle tre azioni, non i gate: test e scenari non sono stati rieseguiti
+      # in questo giro, e restano `partial` come li aveva lasciati il 2026-08-08.
+      date: 2026-08-17
+      commit: a3affe04
     notes: >
       Delle sette azioni generiche di D-025, **quattro sono complete e testate**
       (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la
@@ -1503,12 +1523,17 @@ features:
                     ⚠️ Resta fuori dal runtime **il produttore lato giocatore**: `HandleTargetEdge`
                     esiste (`#737`) ma nessun test lo lega a `Interact`, e quel test vive in
                     `RTPointerInteractionTests.cpp`, non assegnato (D-139).
-        · `Overwatch` **non è ancora un'azione**, ma dal 2026-08-10 non è più «non esiste»: E14.4
-                    ha portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
-                    micro-step. Resta fuori dal runtime della partita per la stessa ragione di
-                    `Interact` — nessun ramo del resolver lo esegue — e il consumatore è E14.5.
-                    La riga precedente citava un `grep` che oggi restituisce codice: aggiornata
-                    perché una nota che descrive un'assenza smette di essere vera senza avvisare.
+        · `Overwatch` **non è ancora un'azione**, ma non è nemmeno più fuori dal runtime: E14.4 ha
+                    portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
+                    micro-step, e ~~«nessun ramo del resolver lo esegue, il consumatore è E14.5»~~
+                    è **superato il 2026-08-17**: CP 14.5 è chiusa e `RTTurnManager.cpp:5257` è la
+                    chiamata, l'unica fuori dai test. Quello che manca ora è il **giocatore**: la
+                    finestra si apre e finisce nel TurnLog, ma la UI per rispondere è CP 14.6.
+                    Questa riga è stata riscritta due volte dallo stesso difetto — descriveva
+                    un'assenza, e un'assenza smette di essere vera senza che nulla diventi rosso.
+                    La prima volta citava un `grep` che aveva iniziato a restituire codice; la
+                    seconda nominava un checkpoint che nel frattempo era stato chiuso. Un puntatore
+                    a lavoro **futuro** invecchia esattamente come uno a lavoro assente.
 
       I gate restano `partial` perché la feature davvero non è completa; `completed_by` dice
       **chi** la completa, così la stessa mancanza non viene contata due volte.
@@ -6049,7 +6074,9 @@ features:
       - Movement.BasicFailsOnPurpose
       - Combat.BasicAttack
       - Spec.Harness.LogAssertionsReadTheTurnLog
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-11
       commit: eb3cc42
@@ -6111,7 +6138,9 @@ features:
       - RefactorTactics.Simulation.GoldenCorpusRejectsFormatMismatch
     scenarios:
       - RT_Showcase_Relay_v01
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
