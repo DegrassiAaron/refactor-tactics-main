@@ -1,6 +1,8 @@
 # RefactorTactics — Handoff Claude
 ## Replay, Canonical Intent, Decisioni Runtime, Privacy Server/Client e Roadmap v0.1 → v1.0
 
+> 🔄 **Nomi del roster sostituiti il 2026-08-17** per [D-130] (`Flux`→`Gadget`, `Riva`→`Phase`, `Bastion`→`Riktor`, `Vektor`→`Wraith`). Le issue e le PR che questo documento cita usano ancora i nomi precedenti: è il costo dichiarato dalla decisione, non una svista.
+
 > `HISTORICAL` · **Materiale NON autorevole**, archiviato il **2026-08-17** dopo il consolidamento.
 > **Non si applica**: si legge per sapere da dove viene una decisione. Le fonti autorevoli restano
 > [`adr-0009-replay-logico-canonico.md`](../../decisions/adr-0009-replay-logico-canonico.md),
