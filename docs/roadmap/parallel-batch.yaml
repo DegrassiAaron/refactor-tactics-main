@@ -503,7 +503,18 @@ batch:
   # sceglieva la propria issue: `#1067` era una delle candidate per questa track ed era già presa da una
   # sessione viva in `D:/rt-client`. La misura che l'ha esclusa è `git worktree list` più lo `status` di
   # ciascuno — le prime due fonti (branch remoti, `writable`) non la vedevano ancora.
-  base_sha: "6dddbb65c0a666498dbb8dc4ece27d11a7439f03"
+  # 🔴 **E si è mossa DENTRO questo giro, per la settima volta che questo file lo registra**: `6dddbb65` →
+  # `86135adf`, **5 commit** fra il push di questo branch e il suo merge. Due PR: `#1076`
+  # (`chore/d139-igiene-track`) e `#1078` (`fix/gate-env-status-parziale`).
+  # ⚠️ **La prima tocca QUESTO file** — svuota i `writable` di nove track `IDLE` rimasti pieni — quindi non
+  # era un `base_sha` da aggiornare: era **un merge da fare**. Fatto, e verificato il **risultato** invece
+  # della lista dei conflitti, che è il caso in cui si perde in silenzio: `git diff origin/main HEAD` dà
+  # **un solo file** e **sei** righe rimosse, tutte di questa riconciliazione. Nessuna riga di `#1076` è
+  # andata persa nell'auto-merge.
+  # ✅ **E il merge ha reso falsa una riga di questa stessa riconciliazione**, riscritta invece che lasciata:
+  # il difetto di `hero_kit` che questo giro aveva trovato e non corretto è stato sciolto da `#1076`. Vedi
+  # la nota accanto ai prestiti in `integration_only`.
+  base_sha: "86135adfedb86cb9ad3b1269d8dd71d55a7cb27e"
   created_at: "2026-08-14"
   # Base di creazione, tenuta perché è ciò che l'`id` nomina: `84cbb70c6f5082682e59a71d442b71e78fac4322`.
   # Verificato che sia ancora antenato della base corrente (`git merge-base --is-ancestor`): sì —
@@ -4662,17 +4673,21 @@ integration_only:
   # dal vincolo. Un prestito in entrata e in uscita nello stesso giorno non è un'oscillazione: è la prova che
   # la riga si cancella e si riscrive invece di restare a coprire due giri diversi.
   #
-  # 🔴 **Un difetto PREESISTENTE misurato mentre si aggiungeva la riga qui sopra, e NON corretto perché di
-  # un'altra track**: `hero_kit` tiene `Scenarios/Spec/Environment/WaterQuenchesFire.json` nel proprio
-  # `writable` **senza** `writable_on_loan`. È esattamente la contraddizione che quel campo esiste per
-  # impedire — un path assegnato e `integration_only` nello stesso file — e la riga di prestito due righe
-  # sopra la **descrive** senza renderla interrogabile, che è l'argomento con cui `writable_on_loan` è nato.
-  # ⚠️ Non è nelle voci `preexisting`, che registrano gli altri due casi della stessa specie (i tre di
-  # `content_editor`, e `RTMatchAutobattleTests.cpp` fra `autobattle` e `playback`): questo mancava.
-  # Lo scioglie chi possiede `hero_kit` aggiungendo il campo, o restituendo il file.
-  # ➡️ Il comando che lo trova, per chi rifà la misura invece di ereditarla: confronto **per prefisso** fra
-  # ogni `writable` e questa lista — l'uguaglianza esatta non basta, perché qui c'è la cartella `Scenarios/`
-  # e là ci sono i file. Con l'uguaglianza il caso di `hero_kit` è invisibile, ed è per questo che è durato.
+  # 🔴 **Un difetto PREESISTENTE era misurato qui, ed è stato SCIOLTO mentre questo branch aspettava il
+  # merge.** Diceva che `hero_kit` teneva `Scenarios/Spec/Environment/WaterQuenchesFire.json` nel proprio
+  # `writable` **senza** `writable_on_loan` — la contraddizione che quel campo esiste per impedire, un path
+  # assegnato e `integration_only` nello stesso file.
+  # ✅ **Sciolto dalla PR #1076** (`0987b6ee`, 2026-08-17), che ha svuotato i `writable` di nove track `IDLE`
+  # rimasti pieni dopo la chiusura: `hero_kit` ha **restituito** il file. Delle due strade che questa nota
+  # indicava — aggiungere il campo o restituire il path — è la seconda, ed è la migliore: un prestito che
+  # non serve più non si documenta meglio, si chiude.
+  # ⚠️ **La riga è riscritta invece di cancellata**, perché il comando che ha trovato il difetto vale ancora
+  # e la lista qui sopra continua a crescere: il confronto è **per prefisso** fra ogni `writable` e questo
+  # elenco — l'uguaglianza esatta non basta, perché qui c'è la cartella `Scenarios/` e là i file. Con
+  # l'uguaglianza il caso di `hero_kit` era invisibile, ed è per questo che era durato.
+  # ⛔ **E resta un caso della stessa specie, oggi**: i tre path di `content_editor` (`CLAUDE.md`,
+  # `AGENTS.md`, `qa-prompt-terminal-a-determinismo.md`) sono ancora in un `writable` **e** in questo
+  # elenco. Quello sì è nelle voci `preexisting`, e lo scioglie chi possiede `#451`.
   # ⚠️ **Tornano qui alla chiusura delle rispettive track**, e chi le chiude cancella la propria riga:
   # un prestito che nessuno restituisce è indistinguibile da una riassegnazione, e questa lista è l'unico
   # posto da cui si vede che un file prestato non è di chi lo ha in mano.
