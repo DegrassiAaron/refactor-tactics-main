@@ -98,19 +98,29 @@ void URTHexEditorMode::FrameEditableMap()
 		return;
 	}
 
-	TArray<FRTCellId> Ids;
-	Ids.Reserve(Map->Cells.Num());
-	for (const FRTHexCellData& Cell : Map->Cells)
-	{
-		Ids.Add(Cell.Id);
-	}
-
-	const FBox Bounds = URTHexLibrary::CellsBoundsWorld(Ids, Origin, HexSize, LayerHeight);
+	// Le celle INTERE, non i soli id: l'overload su `FRTHexCellData` tiene conto della quota d'autore, che
+	// `RebuildInstances` applica al render. Con i soli id una mappa con celle alzate verrebbe inquadrata
+	// piatta sul piano del layer, e le piu' alte resterebbero fuori.
+	const FBox Bounds = URTHexLibrary::CellsBoundsWorld(Map->Cells, Origin, HexSize, LayerHeight);
 	if (Bounds.IsValid == 0)
 	{
 		UE_LOG(LogRTHexEditorMode, Warning, TEXT("Frame Map: l'asset mappa non ha celle."));
 		return;
 	}
+
+	// ⚠️ Si inquadrano TUTTE le celle, anche quando `LayerView` ne disegna solo una parte — in `ActiveOnly`
+	// il filtro instanzia il solo piano attivo. Non e' una svista: `PIE-MAPED-FRAME` chiede esattamente
+	// *«tutte le celle esistenti, comprese quelle su layer diversi da `ActiveLayer`»*, quindi restringere
+	// al disegnato violerebbe il criterio. Il prezzo e' che in `ActiveOnly` la camera indietreggia per
+	// includere geometria non visibile, e chi guarda vede lo stesso piano piu' lontano senza capire perche':
+	// per questo il log dice **quanti** piani sono entrati nel conto.
+	TSet<int32> Layers;
+	for (const FRTHexCellData& Cell : Map->Cells)
+	{
+		Layers.Add(Cell.Id.Layer);
+	}
+	UE_LOG(LogRTHexEditorMode, Log, TEXT("Frame Map: %d celle su %d layer."),
+		Map->Cells.Num(), Layers.Num());
 
 	if (GEditor)
 	{

@@ -197,6 +197,26 @@ FBox URTHexLibrary::CellsBoundsWorld(const TArray<FRTCellId>& Cells, const FVect
 	return Box;
 }
 
+FBox URTHexLibrary::CellsBoundsWorld(const TArray<FRTHexCellData>& Cells, const FVector& Origin, float HexSize,
+	float LayerHeight)
+{
+	FBox Box(ForceInit);
+
+	const double HalfX = static_cast<double>(HexSize) * RT_SQRT3 * 0.5;
+	const double HalfY = static_cast<double>(HexSize);
+
+	for (const FRTHexCellData& Cell : Cells)
+	{
+		const FVector Centre = AxialToWorld(Cell.Id, Origin, HexSize, LayerHeight);
+		// La quota d'autore alza la cella nel RENDER (`ARTHexMapActor::RebuildInstances`): il box deve
+		// contenere dove la cella si vede, non dove il suo layer sarebbe.
+		const double Z = Centre.Z + static_cast<double>(Cell.Height);
+		Box += FVector(Centre.X - HalfX, Centre.Y - HalfY, Z);
+		Box += FVector(Centre.X + HalfX, Centre.Y + HalfY, Z);
+	}
+	return Box;
+}
+
 FColor URTHexLibrary::SurfaceColor(ERTHexSurface Surface)
 {
 	// Tinte scelte per essere distinguibili fra loro e dal rosso del blocco (test:

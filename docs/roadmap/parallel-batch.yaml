@@ -4938,9 +4938,15 @@ tracks:
       `URTHexLibrary::CellsBoundsWorld` con i propri test, e l'editor la **chiama**. La ragione NON e'
       che il modulo editor sia intestabile — dal 2026-08-16 ha i suoi test (`#993`, `D-154`) — ma che una
       regola di gioco che vive nell'editor e' una seconda risposta alla stessa domanda.
-      🔵 **Il write-set e' otto file, misurato contro la propria BASE e non contro `origin/main`**:
+      🔵 **Il write-set e' DIECI file, misurato contro la propria BASE e non contro `origin/main`**:
       `main` e' avanzato di 18 commit mentre questa track lavorava, e `git diff --name-only origin/main`
-      restituiva **29** path, i due terzi dei quali di altri. `git diff --name-only <base>` da' otto.
+      restituiva **29** path, i due terzi dei quali di altri.
+      `git diff --name-only 94575ef424e0475189e31ead8a2dc5d4e6cf2429 HEAD` da' **dieci**: i sette sorgenti
+      del `writable`, piu' `editor-sessions.yaml`, `editormap.shortlist.md` e **questo file**.
+      🔴 **Questa riga diceva «otto», e il numero era invecchiato DENTRO il commit che lo scriveva**: era
+      vero quando l'ho misurato — prima di aggiungere questa track e di rigenerare la vista — e falso
+      quando l'ho scritto. Trovato in code review contro lo sha che la lease qui sotto pinna, che e' il
+      punto: un numero ancorato a un ref fisso resta falsificabile per sempre, e questo lo era.
     writable:
       # La regola e la sua verifica, nel modulo runtime.
       - Source/RefactorTactics/Map/RTHexLibrary.h

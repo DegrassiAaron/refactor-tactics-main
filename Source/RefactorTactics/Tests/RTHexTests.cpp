@@ -432,14 +432,18 @@ bool FRTHexCellsBoundsTest::RunTest(const FString&)
 
 	// Nessuna cella: box NON VALIDO. Non e' un dettaglio: un box degenere sull'origine sarebbe un'inquadratura
 	// plausibile e sbagliata su una mappa vuota, ed e' il difetto che `rt.Arena.Check` esiste per denunciare.
-	TestFalse(TEXT("insieme vuoto -> box non valido, non un punto inventato"),
-		URTHexLibrary::CellsBoundsWorld({}, Origin, HexSize, LayerHeight).IsValid != 0);
+	// ⚠️ `TArray<FRTCellId>{}` esplicito e non `{}`: con due overload la lista vuota e' ambigua, e il
+	// compilatore lo dice. Entrambi devono rispondere «non valido», quindi si verificano tutti e due.
+	TestFalse(TEXT("insieme vuoto (id) -> box non valido, non un punto inventato"),
+		URTHexLibrary::CellsBoundsWorld(TArray<FRTCellId>{}, Origin, HexSize, LayerHeight).IsValid != 0);
+	TestFalse(TEXT("insieme vuoto (celle) -> box non valido"),
+		URTHexLibrary::CellsBoundsWorld(TArray<FRTHexCellData>{}, Origin, HexSize, LayerHeight).IsValid != 0);
 
 	// Una cella: il suo INGOMBRO, non il suo centro. E' la parte che una implementazione ingenua sbaglia —
 	// prendere solo i centri taglia mezza cella su ogni bordo della mappa.
 	const FRTCellId Single(2, -1, 0);
 	const FVector Centre = URTHexLibrary::AxialToWorld(Single, Origin, HexSize, LayerHeight);
-	const FBox One = URTHexLibrary::CellsBoundsWorld({ Single }, Origin, HexSize, LayerHeight);
+	const FBox One = URTHexLibrary::CellsBoundsWorld(TArray<FRTCellId>{ Single }, Origin, HexSize, LayerHeight);
 	TestTrue(TEXT("una cella -> box valido"), One.IsValid != 0);
 	TestTrue(TEXT("una cella -> min = centro - semi-estensione"),
 		One.Min.Equals(FVector(Centre.X - HalfX, Centre.Y - HalfY, Centre.Z), 0.01));
@@ -450,14 +454,14 @@ bool FRTHexCellsBoundsTest::RunTest(const FString&)
 	// `PIE-MAPED-FRAME` chiede di allestire, e qui lo si pinna headless.
 	const FRTCellId Far(30, -12, 0);
 	const FVector FarCentre = URTHexLibrary::AxialToWorld(Far, Origin, HexSize, LayerHeight);
-	const FBox FarBox = URTHexLibrary::CellsBoundsWorld({ Far }, Origin, HexSize, LayerHeight);
+	const FBox FarBox = URTHexLibrary::CellsBoundsWorld(TArray<FRTCellId>{ Far }, Origin, HexSize, LayerHeight);
 	TestTrue(TEXT("cella lontana -> il box la contiene"), FarBox.IsInsideOrOn(FarCentre));
 	TestFalse(TEXT("cella lontana -> il box NON contiene l'origine"), FarBox.IsInsideOrOn(Origin));
 
 	// Due celle sullo stesso layer: il box copre entrambi gli ingombri.
 	const FRTCellId A(0, 0, 0);
 	const FRTCellId B(6, 0, 0);
-	const FBox Two = URTHexLibrary::CellsBoundsWorld({ A, B }, Origin, HexSize, LayerHeight);
+	const FBox Two = URTHexLibrary::CellsBoundsWorld(TArray<FRTCellId>{ A, B }, Origin, HexSize, LayerHeight);
 	const FVector WA = URTHexLibrary::AxialToWorld(A, Origin, HexSize, LayerHeight);
 	const FVector WB = URTHexLibrary::AxialToWorld(B, Origin, HexSize, LayerHeight);
 	TestTrue(TEXT("due celle -> min in X copre la piu' a sinistra"),
@@ -469,17 +473,37 @@ bool FRTHexCellsBoundsTest::RunTest(const FString&)
 	// diversi da quello attivo, o il comando mostra solo il piano su cui si sta lavorando.
 	const FRTCellId Low(0, 0, 0);
 	const FRTCellId High(0, 0, 3);
-	const FBox Stack = URTHexLibrary::CellsBoundsWorld({ Low, High }, Origin, HexSize, LayerHeight);
+	const FBox Stack = URTHexLibrary::CellsBoundsWorld(TArray<FRTCellId>{ Low, High }, Origin, HexSize, LayerHeight);
 	TestTrue(TEXT("multilivello -> min Z sul layer piu' basso"),
 		FMath::IsNearlyEqual(Stack.Min.Z, Origin.Z, 0.01));
 	TestTrue(TEXT("multilivello -> max Z sul layer piu' alto"),
 		FMath::IsNearlyEqual(Stack.Max.Z, Origin.Z + 3.0 * static_cast<double>(LayerHeight), 0.01));
 
 	// L'ordine dell'input non cambia il risultato: min/max sono una piega commutativa.
-	const FBox Forward = URTHexLibrary::CellsBoundsWorld({ A, B, High }, Origin, HexSize, LayerHeight);
-	const FBox Reversed = URTHexLibrary::CellsBoundsWorld({ High, B, A }, Origin, HexSize, LayerHeight);
+	const FBox Forward = URTHexLibrary::CellsBoundsWorld(TArray<FRTCellId>{ A, B, High }, Origin, HexSize, LayerHeight);
+	const FBox Reversed = URTHexLibrary::CellsBoundsWorld(TArray<FRTCellId>{ High, B, A }, Origin, HexSize, LayerHeight);
 	TestTrue(TEXT("ordine irrilevante"),
 		Forward.Min.Equals(Reversed.Min, 0.01) && Forward.Max.Equals(Reversed.Max, 0.01));
+
+	// QUOTA D'AUTORE: l'overload su `FRTHexCellData` deve alzare il box, perche' `RebuildInstances` alza
+	// la cella nel render. Trovato in code review, ed e' un difetto **latente**: al 2026-08-17 nessun
+	// produttore scrive `Height` — l'unica assegnazione in `Source/` sta in `RTHexDoorTests.cpp`.
+	FRTHexCellData Raised(FRTCellId(0, 0, 0));
+	Raised.Height = 600;
+	const FBox WithHeight = URTHexLibrary::CellsBoundsWorld(TArray<FRTHexCellData>{ Raised },
+		Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("quota d'autore -> il box sale con la cella"),
+		FMath::IsNearlyEqual(WithHeight.Max.Z, Origin.Z + 600.0, 0.01));
+
+	// E con quota zero i due overload devono coincidere: se divergessero, il piu' usato dei due
+	// racconterebbe una mappa diversa dall'altro.
+	FRTHexCellData Flat(FRTCellId(2, -1, 0));
+	const FBox ViaData = URTHexLibrary::CellsBoundsWorld(TArray<FRTHexCellData>{ Flat },
+		Origin, HexSize, LayerHeight);
+	const FBox ViaId = URTHexLibrary::CellsBoundsWorld(TArray<FRTCellId>{ Flat.Id },
+		Origin, HexSize, LayerHeight);
+	TestTrue(TEXT("quota zero -> i due overload coincidono"),
+		ViaData.Min.Equals(ViaId.Min, 0.01) && ViaData.Max.Equals(ViaId.Max, 0.01));
 	return true;
 }
 

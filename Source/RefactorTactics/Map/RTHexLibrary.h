@@ -212,6 +212,26 @@ public:
 	static FBox CellsBoundsWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
 		float LayerHeight);
 
+	/**
+	 * Come sopra, ma tenendo conto della **quota d'autore** di ciascuna cella (`FRTHexCellData::Height`).
+	 *
+	 * Esiste perche' l'overload su `FRTCellId` e' corretto per cio' che riceve — un id non porta la quota —
+	 * e chi inquadra invece la conosce. `ARTHexMapActor::RebuildInstances` disegna ogni cella a
+	 * `World.Z + Height`: una mappa con celle alzate produrrebbe un box piatto sul piano del layer, e
+	 * l'inquadratura taglierebbe proprio le celle piu' alte.
+	 *
+	 * ⚠️ `Height` e' **rendering** e non logica — lo dichiara il suo commento, e la logica usa `Layer` piu'
+	 * archi. Sta qui lo stesso perche' la domanda «fammi vedere tutto» e' una domanda di rendering: il box
+	 * deve contenere cio' che si VEDE, non cio' che il resolver considera.
+	 *
+	 * 🔵 **Al 2026-08-17 nessun produttore scrive quel campo**: misurato, l'unica assegnazione in `Source/`
+	 * sta in `RTHexDoorTests.cpp`. Questo overload e' quindi una difesa contro un difetto **latente**, non
+	 * la correzione di uno osservato — ed e' scritto ora perche' costa due righe adesso e un'inquadratura
+	 * sbagliata il giorno in cui un pennello imparera' ad alzare una cella.
+	 */
+	static FBox CellsBoundsWorld(const TArray<FRTHexCellData>& Cells, const FVector& Origin, float HexSize,
+		float LayerHeight);
+
 	/** Ordinamento stabile deterministico: Layer, poi X, poi Y. */
 	static bool StableLess(const FRTCellId& A, const FRTCellId& B);
 
