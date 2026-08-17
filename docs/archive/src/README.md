@@ -102,6 +102,17 @@
 > entrambi i lati — una riga d'indice dice *cosa quel sorgente ha prodotto*, e indovinarlo sostituirebbe una
 > lacuna visibile con una plausibile.
 >
+> 🔴 **Diciottesima volta, e la formula ha smesso di avere quattro addendi.** Il bundle `GrayToolkit`
+> archivia in una **sottocartella nuova**, `graytoolkit/`, e per diciassette volte questo conteggio si è
+> scritto come `design + handoff + audit + radice`. Non basta più: il comando risponde **90** =
+> 17 `design/` + 48 `handoff/` + 2 `audit/` + **4 `graytoolkit/`** + **19 in radice**.
+>
+> ⚠️ **E lo scarto non è tutto mio.** Il valore dichiarato era **83** con 16 in radice; alla misura di oggi
+> la radice ne conta **19**, quindi tre sono arrivati da altri rami mentre questo era aperto. Il totale non
+> è stato incrementato: è stato **riletto**, e la formula riscritta perché la sua forma era diventata falsa
+> prima dei suoi numeri. Una somma che torna su addendi sbagliati è il difetto che questo file conosce
+> meglio di ogni altro.
+
 > 🔵 **Diciassettesima volta, e questa volta lo scarto era zero: `81` era esatto quando è stato scritto.**
 > Il ramo `docs/consolidamento-replay-tactical-designer` ha misurato **81** sulla propria base — che è
 > `9a1bd1d4`, cioè `main` **dopo** il merge di #1108 — e archivia **due** sorgenti in radice:
@@ -159,7 +170,7 @@
 > disco. I due di questo giro portano la propria riga; i tre di `docs_kit`/`reconcile_skill` no, per la
 > ragione che questa pagina dichiara tre volte.
 >
-> Gli **86** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
+> I **90** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
 > normativa. ➕ **E un file che non è Markdown**: `handoff/2026-08-12-grid-data-consolidation-audit.xlsx`.
 > Il comando qui sotto filtra `-name '*.md'` e **non lo conta**: è dichiarato qui perché un allegato invisibile
 > alla formula è esattamente il modo in cui questo numero è già andato fuori sincrono sei volte.

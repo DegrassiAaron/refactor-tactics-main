@@ -373,7 +373,7 @@ Resolver
 Predictive outcome nel TurnLog
 ```
 
-Vektor `InterceptShot` è già stato riclassificato in questo modello.
+Wraith `InterceptShot` è già stato riclassificato in questo modello.
 
 ---
 
