@@ -68,7 +68,7 @@
       "[RT-FEAT-UI-REPLAY-VIEWER] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-TRANSFORMATION] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
-      "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
+      "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.GadgetPhase.ConductiveFlood, Team.Constrine.RiktorWraith.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
       "[RT-FEAT-STRESS-4V4] 1 scenario/i dichiarati planned: Stress.4v4.CoreRoster",
       "[RT-FEAT-MATCH-AUTOBATTLE] 4 scenario/i dichiarati planned: AutoBattle.OpenField, AutoBattle.Obstacles, AutoBattle.Hazard, AutoBattle.Objective",
       "[RT-FEAT-BOT-FAIRNESS] 1 scenario/i dichiarati planned: Spec.Bot.DecoyNoiseIndistinguishable",
@@ -216,6 +216,7 @@
     "M9.1": "⏳",
     "M9.2": "⏳",
     "M9.3": "⏳",
+    "M9.4": "⏳",
     "M10.1": "⏳",
     "M10.2": "⏳",
     "M10.3": "⏳",
@@ -1379,10 +1380,12 @@
       "artifacts": [],
       "unblocked_by": [],
       "unblocks": [
-        "U22"
+        "U22",
+        "U26"
       ],
       "shares_setup_with": [
-        "U22"
+        "U22",
+        "U26"
       ],
       "verifies": [
         {
@@ -1419,7 +1422,8 @@
       ],
       "unblocks": [],
       "shares_setup_with": [
-        "U21"
+        "U21",
+        "U26"
       ],
       "verifies": [
         {
@@ -1487,6 +1491,36 @@
         937
       ],
       "done_when": "i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori"
+    },
+    {
+      "id": "U26",
+      "title": "La griglia di lavoro e la sonda di movimento nell'editor",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "—",
+      "queue_group": null,
+      "produces": "verdetto su leggibilita' della griglia di lavoro e della sonda di movimento",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "U21",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [
+        "U21",
+        "U22"
+      ],
+      "verifies": [],
+      "issues": [
+        622,
+        711
+      ],
+      "done_when": "le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale"
     }
   ],
   "editor_queue": {

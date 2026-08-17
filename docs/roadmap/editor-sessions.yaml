@@ -937,11 +937,11 @@ sessions:
     produces: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
     artifacts: []
     unblocked_by: []
-    shares_setup_with: [U22]
+    shares_setup_with: [U22, U26]
     verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
     issues: [623]
     done_when: le due voci hanno un esito reale e il livello illuminato e' committato
-    unblocks: [U22]
+    unblocks: [U22, U26]
     notes: >-
       Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e
       non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e
@@ -965,7 +965,7 @@ sessions:
     produces: verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21]
+    shares_setup_with: [U21, U26]
     verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI]
     issues: [712]
     done_when: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
@@ -1030,3 +1030,40 @@ sessions:
       aspettano una lease propria.
       ⚠️ ID assegnato prima del merge: `U24`, con `U23` come massimo misurato su `main` **e su tutti i
       tredici branch remoti** — non solo sul proprio. Chi arriva secondo rinumera, non contende.
+
+  - id: U26
+    title: La griglia di lavoro e la sonda di movimento nell'editor
+    block: 6
+    critical: false
+    produces: verdetto su leggibilita' della griglia di lavoro e della sonda di movimento
+    artifacts: []
+    unblocked_by: [U21]
+    shares_setup_with: [U21, U22]
+    verifies: []
+    issues: [622, 711]
+    done_when: le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale
+    unblocks: []
+    notes: >-
+      ➕ **Seduta aperta il 2026-08-17 dal consolidamento Tactical Designer** ([D-154], referto
+      `plans/tactical-designer-consolidamento-2026-08-17.md`). Nasce da un buco misurato: `#622` e
+      `#711` chiedono ENTRAMBE, nel proprio DoD, una voce `PIE-*` «collocata in una **seduta** di
+      `editor-sessions.yaml` — una voce che non sta in una seduta non viene eseguita mai», e nessuna
+      seduta le riceveva. `#623` aveva `U21` e `#712` aveva `U22`; queste due erano le sole due issue
+      d'editor aperte senza un posto dove atterrare.
+      ⚠️ **`verifies: []` non e' una dimenticanza, ed e' la stessa scelta di `U24`.** Le voci non
+      esistono ancora — misurato: `grep -cE "PIE-(MAPED-GRID|HEX-MOVEMENT-PROBE)"
+      docs/technical/test-manuali-pie.md` da' **0** — e **non vanno create adesso**: una voce che
+      chiede di verificare una griglia di lavoro che nessun codice disegna direbbe qualcosa di falso
+      sul repository, e il registro PIE e' una lista di cose *verificabili*, non di cose desiderate.
+      Le crea la PR che implementa, che e' anche l'unica che sa che aspetto avranno. `#711` ha gia'
+      scelto il proprio nome: `PIE-HEX-MOVEMENT-PROBE`.
+      ⚠️ **Le due issue condividono l'allestimento, non lo scopo.** La griglia di lavoro (`#622`) si
+      guarda **dove le celle non esistono**; la sonda (`#711`) si guarda dove esistono, su una mappa
+      con superfici costose e una transizione. Stessa apertura, stesso `L_DevSandbox` illuminato da
+      `U21`, due verdetti distinti: chi ne esegue una sola lo dichiara, invece di chiudere la seduta.
+      ⚠️ `unblocked_by: [U21]` per la stessa ragione pratica di `U22`: su una scena non illuminata il
+      verdetto direbbe piu' sulle luci che sulla griglia.
+      ⚠️ ID assegnato prima del merge: `U26`, con `U25` come massimo misurato su `main` **e su tutti i
+      branch remoti** — `U25` vive su `origin/docs/graybox-kit-consolidamento`, che al 2026-08-17 e'
+      la PR **#1099** aperta. Preso `U26` e non `U25` proprio per questo. Chi arriva secondo rinumera,
+      non contende.

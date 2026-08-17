@@ -24,7 +24,7 @@
       "branch": "main"
     }
   },
-  "count": 117,
+  "count": 119,
   "features": [
     {
       "feature_id": "RT-FEAT-CORE-TURN",
@@ -5236,8 +5236,8 @@
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [
-        "Team.Conflux.FluxRiva.ConductiveFlood",
-        "Team.Constrine.BastionVektor.OnlyExit",
+        "Team.Conflux.GadgetPhase.ConductiveFlood",
+        "Team.Constrine.RiktorWraith.OnlyExit",
         "Team.Sentinel.SteelMurdock.HoldTheLine",
         "Team.Resonance.AuroraKwang.FrozenAnchor"
       ],
@@ -6002,7 +6002,8 @@
       "completed_by": [],
       "owner_specs": [
         "docs/technical/test-e-diagnosi.md",
-        "docs/technical/scenari-validazione-visiva.md"
+        "docs/technical/scenari-validazione-visiva.md",
+        "docs/technical/spec-tactical-designer.md"
       ],
       "issues": [
         169,
@@ -6132,7 +6133,8 @@
       "completed_by": [],
       "owner_specs": [
         "docs/roadmap/editormap.shortlist.md",
-        "docs/roadmap/hex-map-roadmap.md"
+        "docs/roadmap/hex-map-roadmap.md",
+        "docs/technical/spec-tactical-designer.md"
       ],
       "issues": [
         567,
@@ -6209,6 +6211,7 @@
       "completed_by": [],
       "owner_specs": [
         "docs/technical/spec-hex-geometry-authoring.md",
+        "docs/technical/spec-tactical-designer.md",
         "docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md",
         "docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md",
         "docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md"
@@ -6441,7 +6444,8 @@
       "completed_by": [],
       "owner_specs": [
         "docs/balance/README.md",
-        "docs/balance/RT_TestMatrix_v0.1.md"
+        "docs/balance/RT_TestMatrix_v0.1.md",
+        "docs/technical/spec-tactical-designer.md"
       ],
       "issues": [
         28,
@@ -6461,6 +6465,104 @@
         "commit": "2094b86"
       },
       "notes": "I cataloghi versionati e la matrice di test esistono; il workbook `.xlsx` è la fonte dei numeri. Manca un banco che li **eserciti** in modo ripetibile oltre alla suite. ⚠️ **D-102** (2026-08-11) dice cosa quel banco dovra' portare con se': un risultato bot-contro-bot **non e' evidenza di bilanciamento** finche' il bot non e' certificato sulle capability che lo producono (`PASS`/`PARTIAL`/`FAIL`/`UNTESTED`, ciascuno legato a uno scenario reale). Non e' teorico: `roadmap-checkpoint.md` misura «**10** round bot-vs-bot» e annota da se' «ma e' un bot contro un bot» — il dubbio c'era, mancava il modo di scioglierlo. Un nerf deciso su un bot che non sa usare un'abilita' **sembra** funzionare, e copre il difetto vero: che quell'abilita' non entra mai fra le candidate. Tracciata in **#543**, senza milestone e con l'innesco dichiarato: l'esistenza di partite in serie, che oggi non c'e'."
+    },
+    {
+      "feature_id": "RT-FEAT-TOOL-SCENARIO-COMPOSER",
+      "title": "Scenario Composer — authoring visuale sopra il formato scenario canonico",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "future",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "na",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": null,
+        "milestone": "M9",
+        "checkpoints": [],
+        "out_of_release_scope": "Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9.4 e dalla EditorMap, non dalle epic di una release."
+      },
+      "dependencies": [
+        "RT-FEAT-TEST-SCENARIO-HARNESS",
+        "RT-FEAT-TOOL-MAP-EDITOR",
+        "RT-FEAT-UI-SCENARIO-BROWSER"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/technical/spec-tactical-designer.md",
+        "docs/roadmap/plans/tactical-designer-consolidamento-2026-08-17.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "Il gap e' l'**authoring**, non il formato. `FRTTestScenario` esprime gia' unita' (cella, facing, HP, scudo, vista, loadout), turni con intent, **decisioni di finestra scriptate** (`FRTScenarioDecision`, `FIRE`/`HOLD`, da `#512`), aspettative (`FRTTestExpectation` su otto `ERTAssertionKind`), capability richieste per turno (`Requires` → `ERTTestOutcome::Blocked`) e **varianti** (`FRTScenarioVariant`). Oggi tutto questo si scrive a mano in JSON: 79 file in `Scenarios/`. ⚠️ **Il sorgente che ha proposto questa capability chiedeva di progettare un modello dati che esiste gia'**, ed e' il difetto che questa nota esiste per prevenire al prossimo giro. Prima di aggiungere un campo, misurare `RTTestScenario.h`: la meta' di cio' che sembra mancante c'e'. Cio' che manca davvero e' elencato in `spec-tactical-designer.md` §5, con l'innesco di ciascuno: status iniziali, stato d'ambiente, seed, override di skill in una variante. ⚠️ `spec: partial` e non `done`: l'owner descrive il confine, le proprieta' del formato e i punti d'innesto, **non** il modello della UI ne' il workflow d'authoring. Dichiararlo `done` farebbe derivare `SPECIFIED` su una cosa di cui nessuno ha ancora deciso la forma. ⚠️ `issues: []` e' vero al 2026-08-17: la prima issue eseguibile di questo filone e' la serializzazione round-trip, e non si apre finche' TD 0.1 ha residui aperti (`#622`, `#712`). Aprirla ora produrrebbe una issue la cui prima riga sarebbe «serve un consumatore che non esiste» — la stessa disciplina di `#704` e di E43."
+    },
+    {
+      "feature_id": "RT-FEAT-TOOL-SKILL-WORKBENCH",
+      "title": "Skill Workbench — varianti di abilita' separate dal dato di produzione",
+      "area": "Tools",
+      "kind": "tooling",
+      "release": "future",
+      "priority": "P3",
+      "status": "DESIGNED",
+      "status_derived": "DESIGNED",
+      "gates": {
+        "spec": "partial",
+        "data": "todo",
+        "runtime": "todo",
+        "log_debug": "todo",
+        "automation": "todo",
+        "scenario": "todo",
+        "ui_wiki": "todo",
+        "packaged": "na",
+        "network_privacy": "na",
+        "replay_representable": "na"
+      },
+      "gates_done": 0,
+      "gates_applicable": 7,
+      "roadmap": {
+        "epic": null,
+        "milestone": "M9",
+        "checkpoints": [],
+        "out_of_release_scope": "Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9.4 e dalla EditorMap. La meta' di MISURA — batch, metriche, confronto su suite — resta invece di **E43** (v0.8) e di `RT-FEAT-TOOL-BALANCE-GROUND`: questa feature produce la variante, quella la misura."
+      },
+      "dependencies": [
+        "RT-FEAT-TOOL-SCENARIO-COMPOSER",
+        "RT-FEAT-TOOL-BALANCE-GROUND",
+        "RT-FEAT-DATA-ASSET-PIPELINE"
+      ],
+      "completed_by": [],
+      "owner_specs": [
+        "docs/technical/spec-tactical-designer.md",
+        "docs/roadmap/plans/tactical-designer-consolidamento-2026-08-17.md"
+      ],
+      "issues": [],
+      "tests": [],
+      "scenarios": [],
+      "scenarios_planned": [],
+      "wiki_refs": [],
+      "wiki_note": "",
+      "pie_refs": [],
+      "last_verified": {},
+      "notes": "Il concetto che manca e' **una configurazione di abilita' che non e' il dato di produzione** — la si prova, la si confronta con la baseline, e diventa produzione solo con un atto esplicito. 🔴 **Il nome `Candidate` e' gia' occupato, e la misura che lo dice va conservata.** `grep -ril \"candidate\" Source/RefactorTactics --include=*.h` restituisce cinque file — `RTActionDef.h`, `RTCatalogLibrary.h`, `RTHexBotLibrary.h`, `RTPointerInteraction.h`, `RTMovementActionLibrary.h` — e in tutti e cinque significa **mossa candidata del bot** (`BuildCandidates`, `ChooseBestPlan`, le candidate d'attacco che nascono da `ReachableCells`). E' un'alternativa valutata **dentro un turno**, non una configurazione confrontata **fra due esecuzioni**: due spazi semantici sotto la stessa parola. Chi implementera' questa feature usi **`Variant`**, che e' gia' il vocabolario dello scenario (`FRTScenarioVariant`). ⚠️ **Il punto d'innesto esiste, e porta il proprio trade-off scritto.** `FRTScenarioVariant` varia oggi **solo le celle**, e la struct dichiara perche': *«una variante che potesse cambiare eroi, squadre o condizione iniziale non sarebbe piu' lo stesso scenario con un ingresso diverso, e il confronto fra le sue tracce non direbbe piu' quale ingresso ha prodotto la differenza»*. Il baseline-vs-variante e' esattamente «servisse variare altro»: non nasce un secondo meccanismo, si estende questo — e l'estensione deve **dichiarare** cosa smette di essere attribuibile. ⚠️ **Nessun punteggio opaco diventa un gate** (`spec-tactical-designer.md` §8). E l'ordine con `D-102` non e' negoziabile: il competence gate del bot (`#543`) viene **prima** di qualunque confronto a lotti, o si misura un'abilita' che il bot non sa usare."
     },
     {
       "feature_id": "RT-FEAT-DATA-STABLE-IDS",
