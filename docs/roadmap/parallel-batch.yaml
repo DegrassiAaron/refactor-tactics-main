@@ -310,6 +310,36 @@
 # mano dentro Unreal. La lease non previene un conflitto, previene un lavoro perso.
 # `key` semantica e legata a GitHub, mai `LEASE-001`. Una lease vale sul `base_sha`: se `main`
 # tocca lo stesso asset, la lease è **stale** e va riemessa.
+#
+# ### Una lease si emette PRIMA, e per un lavoro che deve ancora accadere
+#
+# ⚠️ Emetterla a lavoro finito non protegge niente: nasce già consumata, e resta nell'elenco a dire che
+# qualcuno può scrivere quando non c'è più nulla da scrivere. È la condizione in cui erano le due lease di
+# `#896`, rilasciate il 2026-08-17 — e l'elenco che le conteneva ha fatto concludere a `#868` che
+# `L_HexArena/` fosse coperto, portando quella conclusione dentro una guida operativa.
+# ∴ davanti a un binario toccato **senza** lease la domanda non è «ne emetto una adesso», ma
+# **«questo path verrà toccato ancora?»**. Se sì, la lease la emette chi riapre quel lavoro, sul proprio
+# `base_sha`. Se no, si dichiara la posizione — che è ciò che segue.
+#
+# ### Path che NON entrano in una lease, e perché
+#
+# Dichiarati qui perché la prossima sessione lo sappia **prima** di aprire l'editor, invece di scoprirlo a
+# lavoro atterrato. Non è un permesso di scrivere: è la registrazione di una decisione già presa.
+#
+# · `Content/RT/Core/Framework/BP_GameMode.uasset` — ⛔ posizione già scritta e motivata nella `note` della
+#   track che l'ha decisa (`#926`): «paga un binario (lease + editor) e cambia il comportamento predefinito
+#   del gioco che si distribuisce». Resta valida: chi lo tocca lo fa come atto d'integrazione dichiarato,
+#   non prenotandolo.
+#
+# · `Content/RT/Maps/Dev/L_DevSandbox/` — 🟡 **caso opposto, e per questo va detto**: è il banco per prove
+#   distruttive (`convenzioni-contenuti-ue.md` §5 e la nota di `#451`: *«il sandbox resta il banco per prove
+#   distruttive, l'arena è la mappa stabile»*). Verrà riaperto spesso, quindi una lease **ha senso** — ma
+#   **al momento in cui ci si lavora**, non ora. Le modifiche atterrate con la PR **#1089** sono state
+#   committate senza lease, e la lacuna è registrata lì: erano lavoro dell'autore in editor, cioè
+#   dell'holder predefinito, e il rischio immediato era la perdita di una working directory volatile.
+#   ⚠️ Ciò che quella PR NON dimostra è che la cartella non ne abbia bisogno: dimostra che quella volta il
+#   contendente era uno solo. Il giorno in cui due sessioni lavorano la sandbox, la lease serve — e va
+#   emessa prima, sul `base_sha` di allora.
 
 # ⚠️ Bump da 1 a 2 il 2026-08-14: questo giro ha aggiunto `session_branch`, `worktree` e
 # `reconciled_count`, e ha ammesso `branch: null`. Un consumatore pinnato a v1 — cioè il validator
