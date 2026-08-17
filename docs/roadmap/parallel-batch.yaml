@@ -3175,6 +3175,11 @@ tracks:
       # invece di un handoff che aspetta una sessione di `playtest` che non c'e'.
       # ✅ Misurato libero al momento del prestito: `playtest` e' `IDLE` con `issue`, `branch` e
       # `worktree` tutti a `null` — nessuna sessione aperta, non solo nessuna dichiarata.
+      # ⬅️ **RIENTRATO il 2026-08-17**: il prestito a `playback` per `#1015` è scaduto alla chiusura di
+      # quella issue, come diceva. `PIE-V01-PLAYSPEED` torna a essere manutenuta da chi la esegue — e
+      # resta **⏳**: eseguita con due aggiramenti (`#1069`, `#1088`), quindi non sulla configurazione
+      # spedita. Chi la riprende la porta a `✅` quando quelle due chiudono.
+      - docs/technical/test-manuali-pie.md
       - docs/technical/qa-prompt-terminal-d-verifiche-pie.md
     # La catena arriva qui **con la sorgente**, da `content_editor`: la vista segue il file, e il file
     # ha cambiato proprietario. `project-graph.json` ha altre sorgenti — `spatial` ne possiede una —
@@ -4476,8 +4481,17 @@ tracks:
           - no_widget_creates_widgets
 
   playback:
-    status: ACTIVE
-    issue: 1015
+    status: IDLE
+    issue: null
+    # ✅ **CHIUSA il 2026-08-17: `#1015` è chiusa e il write-set è rilasciato.** Il controllo in HUD è in
+    # `main` (PR #1028), e la voce 7 del DoD — `PIE-V01-PLAYSPEED` **eseguita** — è stata consuntivata nel
+    # commento di chiusura: `x2` e `x4` leggibili, nessuna velocità a cui si smette di capire.
+    # ⚠️ **La voce di verifica manuale resta `⏳`, e non è una contraddizione**: è stata eseguita con due
+    # aggiramenti — GameMode C++ per `#1069`, arena demo per `#1088` — quindi l'esito c'è e la
+    # configurazione spedita no. Passa a `✅` quando quelle due chiudono e qualcuno la riesegue sul default.
+    # ➖ `docs/technical/test-manuali-pie.md` **restituito a `playtest`**, che è dove il prestito diceva di
+    # riportarlo. Con lui esce `derives_from`: l'obbligo di rigenerare le due viste segue la sorgente, e la
+    # sorgente non è più qui.
     # 🔴 **2026-08-17: alla sentinella, e il valore prescritto dalla nota è obsoleto quanto quello scritto.**
     # Il campo diceva `docs/1015-pie-tetto` (mergiato, cancellato) mentre la nota qui sotto prescrive
     # *«`branch` passa a `docs/1015-handoff-pie`»*: misurati **entrambi**, nessuno dei due esiste — né su
@@ -4607,7 +4621,7 @@ tracks:
       verificare»* — ed è falsa da quando #958 ha scritto il test (`RTMatchAutobattleTests.cpp:1058`).
       **Non è di questa track**: il file è `integration_only` e sta nel `writable` di `replay_ui`.
       Registrato qui perché qualcuno lo corregga, non toccato.
-    writable:
+    writable: []
       # ⬅️ **Riallocato da `client_tools` il 2026-08-16**, che lo teneva prenotato da `IDLE` su `#78`.
       # ✂️ **STRETTO lo stesso giorno, alla decisione del bivio: A — Canvas + Enhanced Input.** Il
       # prefisso `Source/RefactorTactics/UI/` era preso perche' la superficie non era decisa, con la
@@ -4628,8 +4642,10 @@ tracks:
       # `integration_only` da chi riconcilia»*, ed e' una promessa che si mantiene ora invece di
       # rimandarla a una riconciliazione futura — altrimenti il file torna scoperto com'era.
       # ⬅️ **Preso in prestito da `playtest`, che e' `IDLE` su tutti e quattro i campi**: e' cio' che
-      # resta da scrivere per le voci 6 e 7 del DoD. Torna alla chiusura della track.
-      - docs/technical/test-manuali-pie.md
+      # resta da scrivere per le voci 6 e 7 del DoD.
+      # ➖ **RESTITUITO a `playtest` il 2026-08-17 con la chiusura di `#1015`**, che era la scadenza
+      # dichiarata. Il prestito e' durato un giorno e ha fatto le due cose per cui era stato preso: togliere
+      # dalla precondizione la frase che #1028 aveva reso falsa, e annotare l'esito dell'esecuzione.
       # ↩️ **RIPRESO, dopo essere stato rilasciato dallo stesso branch poche ore prima, e la correzione va
       # detta invece che nascosta in un elenco.** Il commit precedente ha liberato i sei path di `#955`
       # scrivendo che *«il DoD di #1015 vieta di toccare il modello»*. Vero per la scrittura; **troppo
@@ -4682,11 +4698,9 @@ tracks:
     # l'obbligo.** `derives_from` era `[]` perche' il write-set precedente non alimentava viste; ora
     # `test-manuali-pie.md` e' qui, e le sue due viste vanno rigenerate da chi lo scrive. Copiato dalla
     # dichiarazione di `playtest`, non dedotto — e li' resta, perche' il file torna.
-    derives_from:
-      - source: docs/technical/test-manuali-pie.md
-        regenerates:
-          - docs/roadmap/editormap.shortlist.md
-          - docs/roadmap/project-graph.json
+    # ➖ **Svuotato il 2026-08-17 insieme alla restituzione della sorgente**, com'era previsto: la vista
+    # segue la sorgente, e la sorgente non e' piu' qui. `playtest` dichiara gia' le stesse due viste.
+    derives_from: []
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
