@@ -1,6 +1,7 @@
 #include "Combat/RTOffensiveActionLibrary.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "Terrain/RTTerrainLibrary.h" // il cap di portata e' un dato del terreno (`#1085`)
 #include "Turn/RTMovementActionLibrary.h"
 
 TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map, const FRTCellId& From,
@@ -19,8 +20,26 @@ TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map
 	// mirato e' piu' vicino. Un colpo che si fermasse sul primo bersaglio mirato sarebbe l'attacco base.
 	const FIntPoint UnitStep((Toward.X - From.X) / Distance, (Toward.Y - From.Y) / Distance);
 
+	// ➕ **Il cap di portata attraverso il terreno** (`#1085`). `-1` = nessun cap attivo; `0` = esaurito.
+	//
+	// 🔴 Fino al 2026-08-17 `MaxTargetingRangeThrough` era **dichiarato, testato e mai letto**: il catalogo
+	// dava `2` al fumo, `spec-terreni-e8.md` lo confermava in due punti — «il cap offensivo definito qui
+	// resta» — e `RTTerrainTests` ne verificava il **valore**. Nessuna riga di produzione lo leggeva, quindi
+	// il fumo non limitava niente e il test era verde lo stesso: e' la forma piu' insidiosa del dato senza
+	// consumatore, perche' la copertura fa sembrare la feature viva.
+	//
+	// ⚠️ **E' un limite diverso da `bBlocksLineOfSight`, e i due convivono**: quello INTERROMPE la linea
+	// prima della cella, questo la ACCORCIA dopo averla attraversata. Il fumo infatti non blocca la vista
+	// (`bBlocksLineOfSight = false` nel catalogo): oscura, e chi spara attraverso non vede lontano.
+	int32 CapResiduo = -1;
+
 	for (int32 K = 1; K <= RangeCells; ++K)
 	{
+		if (CapResiduo == 0)
+		{
+			break; // il terreno attraversato ha esaurito la portata che concedeva
+		}
+
 		const FRTCellId Next(From.X + UnitStep.X * K, From.Y + UnitStep.Y * K, From.Layer);
 
 		const FRTHexCellData* Data = Map->FindCell(Next);
@@ -34,6 +53,24 @@ TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map
 		}
 
 		Cells.Add(Next);
+		if (CapResiduo > 0)
+		{
+			--CapResiduo;
+		}
+
+		// Il cap si arma DOPO aver aggiunto la cella: si conta da quella di fumo in avanti. L'alternativa —
+		// limitare la portata totale — non regge, perche' con il fumo alla quinta cella e un cap di 2 la
+		// linea dovrebbe fermarsi PRIMA di aver incontrato cio' che la limita: un effetto che precede la
+		// sua causa.
+		//
+		// ⚠️ Fra piu' cap attivi vince il **minimo**: due banchi di fumo non possono allungare la portata.
+		// Il valore arriva dal CATALOGO, non da una costante qui: cambiare il numero nei dati cambia il
+		// comportamento senza toccare il resolver.
+		const int32 Cap = URTTerrainLibrary::FindTerrainDef(Data->Surface).MaxTargetingRangeThrough;
+		if (Cap > 0)
+		{
+			CapResiduo = (CapResiduo < 0) ? Cap : FMath::Min(CapResiduo, Cap);
+		}
 	}
 
 	return Cells;

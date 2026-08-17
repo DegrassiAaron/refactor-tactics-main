@@ -4211,7 +4211,10 @@ tracks:
     # parti mancano le due schermate `.uasset`, che vorranno una Binary Asset Lease. Branch mergiato e
     # track finita non sono la stessa cosa, e leggere il primo come prova della seconda è l'errore che
     # questa riconciliazione ha evitato per un soffio.
-    branch: null
+    # ➕ **2026-08-17, il giro successivo è aperto: `#1085`**, il cap di portata del fumo. La sentinella
+    # `null` ha fatto il suo mestiere per il tempo in cui serviva — poche ore — e ora cede il posto a un
+    # branch che esiste. `#472` resta l'ombrello e lo `status` non cambia.
+    branch: feat/1085-cap-fumo
     worktree: "D:/rt-client"
     note: >-
       **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
@@ -4322,6 +4325,15 @@ tracks:
       # bruciare un'unita' sul percorso reale (`MakeEnvWorld`/`PlanEnvAction`/`RunEnvTurn`), ed e' li' che
       # il DoD chiede di leggere `GetTurnLog()` invece di costruire la voce a mano.
       - Source/RefactorTactics/Tests/RTEnvironmentActionTests.cpp
+      # ➕ **`#1085`: il cap di portata del fumo.** Due file **non assegnati a nessuna track**, dichiarati
+      # prima di scriverci — «libero» non è «assegnato», ed è la stessa formula usata per
+      # `RTEnvironmentActionTests.cpp` sopra.
+      # ✅ Misurato libero sui **nove** branch remoti vivi, non dedotto:
+      # `git diff --name-only origin/main...origin/<b>` su ciascuno → nessuno li tocca.
+      # ⛔ `Terrain/RTTerrainLibrary.{h,cpp}` **non** entrano: il valore c'è già nel catalogo e questa issue
+      # lo **legge**, non lo cambia. Se servisse toccarlo, sarebbe una richiesta nuova.
+      - Source/RefactorTactics/Combat/RTOffensiveActionLibrary.cpp
+      - Source/RefactorTactics/Tests/RTOffensiveActionTests.cpp
     derives_from:
       - source: docs/roadmap/feature-registry.yaml
         regenerates:
