@@ -2581,6 +2581,12 @@ features:
       - RefactorTactics.Overwatch.SameReactionTwiceHasDistinctIds
     scenarios:
       - Spec.Overwatch.HoldThenFire
+      # ➕ **`#583`, 2026-08-17.** L'altra meta' di `HoldThenFire`, e la coppia non e' ridondante: quello
+      # dimostra la finestra che si APRE (due risposte, `HOLD` poi `FIRE`), questo dimostra la finestra che
+      # NON si apre — la condizione dichiarata di [D-109] riduce le risposte a una sola e il commit e'
+      # immediato. E' anche l'unico dei due che gira senza `DecisionBoundary`, perche' il regime `<= 1` e'
+      # coperto da `Reaction`: il collasso non ha una finestra a cui chiedere il permesso.
+      - Spec.Overwatch.ConditionCollapsesToHold
       # Dichiarati dal triage del 2026-08-10 (`plans/baseaction-signatures-spec-panel-2026-08-10.md`):
       # sono i tre scenari `CHAR-BASE-*` del sorgente che NON erano gia' coperti, rinominati sulla
       # convenzione reale. `CHAR-BASE-006` non entra: **e'** `Spec.Overwatch.HoldThenFire`, gia' sopra.

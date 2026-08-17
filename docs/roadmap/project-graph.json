@@ -2422,6 +2422,13 @@
       "path": "Scenarios/Spec/Objective/PointSurvivesKO.json"
     },
     {
+      "id": "Spec.Overwatch.ConditionCollapsesToHold",
+      "requires": [
+        "Reaction"
+      ],
+      "path": "Scenarios/Spec/Overwatch/ConditionCollapsesToHold.json"
+    },
+    {
       "id": "Spec.Overwatch.HoldThenFire",
       "requires": [
         "DecisionBoundary"

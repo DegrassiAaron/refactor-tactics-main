@@ -988,6 +988,29 @@ void FRTScenarioSession::BeginTurn()
 			// verificato il loader, che rifiuta lo scenario con un motivo invece di lasciarlo girare a vuoto.
 		}
 
+		// --- condizione dichiarata sulla reazione ([D-109], #583) -------------------------------------------
+		// DOPO il blocco qui sopra, e l'ordine non e' cosmetico: `SetPlannedReactionCondition` rifiuta se
+		// `PlannedReactionAbility` e' ancora `INDEX_NONE`, quindi applicarla prima significherebbe scrivere una
+		// condizione che non entra — in silenzio, che e' il modo in cui questo campo ha gia' fallito una volta.
+		//
+		// Passa dal SETTER e non dal campo: e' la stessa porta di `rt.Reaction.Condition`, il produttore reale in
+		// partita, quindi lo scenario esercita la validazione vera invece di scavalcarla. Scrivere
+		// `Unit->PlannedReactionCondition = ...` direttamente farebbe passare condizioni che il gioco rifiuta —
+		// un harness che sa fare piu' del gioco produce verdi che non descrivono nessuna partita.
+		if (Intent.Condition.IsDeclared())
+		{
+			const bool bAccepted = Unit->SetPlannedReactionCondition(Intent.Condition);
+
+			// Il loader ha gia' verificato **entrambi** i motivi di rifiuto — reazione armata e condizione
+			// ammessa — quindi un `false` qui significa che le due validazioni si sono disallineate, non che lo
+			// scenario e' sbagliato. Va detto forte: in silenzio diventerebbe un'opportunity che non collassa, e
+			// l'assertion cadrebbe a valle senza indicare la causa.
+			ensureAlwaysMsgf(bAccepted,
+				TEXT("[RT] scenario: la condizione '%s' (%d) di '%s' e' stata rifiutata dal piano dopo essere ")
+				TEXT("passata dal loader: le due validazioni non dicono piu' la stessa cosa"),
+				*Intent.Condition.Id.ToString(), Intent.Condition.Param, *Intent.UnitId);
+		}
+
 		// --- rotazione dichiarata (D-020, #291) ------------------------------------------------------------
 		// Si scrive e basta: la LEGALITA' non si valuta qui. Il resolver la verifica a fine Move su
 		// `MovementStyleThisTurn` e `WalkedThisTurn` — cioe' su quel che e' successo davvero — e produce
