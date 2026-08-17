@@ -771,6 +771,39 @@ preexisting:
   #   giusto sulla giustificazione sbagliata»*. Registrato qui perché chi possiede quella track la
   #   rilegga, non perché sia deciso da questa riconciliazione.
 
+  - branch: docs/piano-riduzione-hotspot
+    state: LIVE            # pushato 2026-08-17 · PR #1134 aperta verso `main` · worktree `D:/rt-simulation`
+    measured: 8            # `git diff --name-only origin/main...HEAD` DOPO il commit degli owner; 1 doc + 2 sorgenti + 4 viste + questo file
+    collides_with: []      # calcolato sui path: nessuna track ACTIVE dichiara questi otto nel proprio `writable`
+    note: >-
+      Piano di riduzione degli hotspot: riscrittura misurata dell'handoff
+      `RefactorTactics_Architecture_Process_Improvement_Claude.md`, che stava **non tracciato in root** e non è
+      autorità — sette sue affermazioni erano false o superate. Il documento entra in `integration_only`
+      (vedi la sua riga in fondo a questo file).
+      ⚠️ **Il write-set è interamente `integration_only`, e non è un'esenzione presa da sé.** Sette degli otto
+      file sono `feature-registry.yaml` · `execution-graph.yaml` · questo file · più le quattro viste che le
+      prime due alimentano. Sono toccati su **richiesta esplicita dell'autore**, che è la forma prevista —
+      *«si aggiornano una volta in integrazione»* — e per un atto solo: portare `#833` dentro la **v0.1**
+      (label + milestone `v0.1 · Mondo giocabile`, `RT-FEAT-MAP-INTERACTION-GRAPH` a `release: v0.1`, nodo
+      `issue:833` nel grafo). Le viste sono rigenerate qui perché chi possiede la sorgente le rigenera.
+      🔴 **Due prescrizioni dello stesso mandato NON eseguite, e la ragione è misurata invece che rimandata.**
+      · L'arco `issue:833 → issue:170` **non è stato scritto**: la sua giustificazione — *«#833 abilita una
+        parte del T5 dello showcase»* — è **falsa**. Il gate del turno 5 è una porta risolta da
+        `EdgeDisabled → EdgeEnabled` più `GraphRevision`, con **CP 9.3 chiuso**: T5 è runnable dopo `S2-1`.
+        L'arco scritto è quello che le prove sostengono, `issue:833 → issue:74` (*«#74 consuma #833»*).
+      · `checkpoint: E23.4` sul nodo è **assente per decisione del gate**: `feature_registry.py validate`
+        risponde `ERROR — checkpoint 'E23.4' che nessun owner dichiara`, perché **E23 è un'epic v0.2**. Una
+        issue v0.1 il cui checkpoint sta in un'epic v0.2 è un'incoerenza reale, ed è **decisione d'autore
+        aperta**: anticipare E23, riassegnare `#833`, o dichiarare l'eccezione.
+      ⚠️ **Una quarta sede dichiara ancora `v0.2`** e non è stata toccata: `docs/technical/scenario-map.md`
+      (`integration_only`, `CURRENT`, scritto a mano) alla riga di `RT-FEAT-MAP-INTERACTION-GRAPH`. Segue la
+      decisione sull'epic, non la precede.
+      ✅ Gate su questo albero: `validate` **0 errori · 45 warning**, identico alla baseline misurata prima
+      delle modifiche; `generate --check` e `shortlist --check` allineati dopo la rigenerazione; links,
+      symbols e tables verdi. `naming` è **ROSSO per un difetto preesistente** (`Vektor` in un handoff
+      archiviato, commit `2f85aa9c`) che un altro branch sta già bonificando —
+      `docs/bonifica-vektor-archivio`. Nessuna riga di `Source/`, nessun binario, nessuna lease.
+
   - branch: feat/cp75-selfreposition
     state: DORMANT         # ultimo commit 2026-08-11 20:17 · c1e151ef
     measured: 3            # rimisurato su `base_sha` 4ab36b48: stessi tre file, quinto giro di fila
@@ -5189,6 +5222,17 @@ integration_only:
   - docs/archive/src/README.md
   - docs/roadmap/plans/README.md
   - docs/technical/workflow-parallel-claude.md
+  # ➕ **Entra il 2026-08-17, nato in questo giro e dichiarato PRIMA del merge, non dopo.** È il piano di
+  # riduzione degli hotspot (`RTTurnManager.cpp`, questo file, `RTScenarioSession.cpp`,
+  # `RTScenarioLoader.cpp`), riscrittura misurata di un handoff che stava non tracciato in root — PR **#1134**.
+  # Categoria scelta per analogia con `workflow-parallel-claude.md` qui sopra: è un documento di processo che
+  # più branch possono voler emendare, e tenerlo nel `writable` di una track significherebbe che tutte le
+  # altre chiedono il permesso per una riga.
+  # ⚠️ **Alla creazione era in NESSUN insieme, cioè la condizione che `D-139` chiama STOP** — la stessa
+  # lacuna che le righe qui sopra registrano per tre ADR. Dichiararlo è l'atto che il documento stesso
+  # impone al proprio §0.4 (*«un file nuovo si dichiara prima di crearlo»*), applicato in ritardo e detto
+  # invece di taciuto: il file esisteva già quando la riga è stata scritta.
+  - docs/technical/piano-riduzione-hotspot.md
   - docs/technical/scenario-map.md
   # ➕ **Entra il 2026-08-16, e fino a oggi non era in NESSUN insieme** — né assegnato a una track, né
   # riconciliato, né generato. Misurato aprendo `#1015`: `grep` su questo file lo trovava in **zero**

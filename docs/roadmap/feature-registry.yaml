@@ -700,7 +700,7 @@ features:
     title: "Interaction graph: la relazione sorgente -> bersaglio e' un dato"
     area: Map
     kind: gameplay
-    release: v0.2
+    release: v0.1
     priority: P1
     status: DESIGNED
     gates:
