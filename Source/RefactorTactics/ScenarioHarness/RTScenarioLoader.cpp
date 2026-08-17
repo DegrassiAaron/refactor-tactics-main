@@ -718,9 +718,24 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 					// `param` sono due cose diverse — quale condizione, e con quale soglia — e una stringa sola
 					// costringerebbe a inventare una sintassi (`"TargetHealth<=10"`) che nessuno ha deciso e che
 					// il validator del gioco non parla.
-					const TSharedPtr<FJsonObject>* ConditionObj = nullptr;
-					if (IntentObj->TryGetObjectField(TEXT("condition"), ConditionObj) && ConditionObj != nullptr)
+					// 🔴 **Si guarda la PRESENZA prima del tipo, e non e' pignoleria.** `TryGetObjectField`
+					// restituisce `false` per QUALUNQUE valore che non sia un oggetto — una stringa, un numero,
+					// `null` — quindi un `"condition": "TargetHealthAtOrBelowPercent"` cadeva fuori dall'`if`
+					// senza un errore. E il gate delle chiavi sconosciute non lo vedeva, perche' `condition` e'
+					// una chiave NOTA: lo scenario girava senza condizione, l'opportunity non collassava, e
+					// l'autore leggeva solo `LogEventCount(HoldImmediate) atteso 2, ottenuto 0`. La forma con la
+					// stringa e' anche la prima che verrebbe in mente, visto che ogni altro campo dell'intent
+					// (`unit`, `ability`, `target`, `reaction`, `edge`, `facing`) e' una stringa.
+					if (IntentObj->HasField(TEXT("condition")))
 					{
+						const TSharedPtr<FJsonObject>* ConditionObj = nullptr;
+						if (!IntentObj->TryGetObjectField(TEXT("condition"), ConditionObj))
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': condition deve essere un oggetto { \"id\": ..., \"param\": N }"),
+								*Intent.UnitId);
+							return false;
+						}
 						FString ConditionId;
 						if (!(*ConditionObj)->TryGetStringField(TEXT("id"), ConditionId) || ConditionId.IsEmpty())
 						{
@@ -739,7 +754,26 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 								TEXT("intent di '%s': condition '%s' senza 'param'"), *Intent.UnitId, *ConditionId);
 							return false;
 						}
-						if (!FMath::IsNearlyEqual(ParamNumber, FMath::RoundToDouble(ParamNumber)))
+						// Il RANGE si controlla PRIMA del cast, e non e' pedanteria: `static_cast<int32>` di un
+						// double che non ci sta e' undefined behavior. `"param": 1e20` supererebbe il controllo
+						// di interezza qui sotto — e' gia' intero — e atterrerebbe su `IsDeclaredConditionAllowed`
+						// come un valore INDEFINITO: se cadesse per caso dentro `0..100` lo scenario verrebbe
+						// accettato con una soglia che non e' quella scritta nel file. Il limite dichiarato del
+						// validator e' `0..100`, quindi qui basta la finestra di `int32` per rendere il cast sicuro
+						// e lasciare a lui l'ultima parola sul dominio vero.
+						if (ParamNumber < static_cast<double>(TNumericLimits<int32>::Min())
+							|| ParamNumber > static_cast<double>(TNumericLimits<int32>::Max()))
+						{
+							OutError = FString::Printf(
+								TEXT("intent di '%s': condition '%s' ha un 'param' fuori scala (%f)"),
+								*Intent.UnitId, *ConditionId, ParamNumber);
+							return false;
+						}
+						// Confronto ESATTO, non `IsNearlyEqual`: la tolleranza di default e' `UE_KINDA_SMALL_NUMBER`
+						// (1e-4), quindi un `10.00005` passerebbe e verrebbe arrotondato a 10 — cioe' lo scenario
+						// girerebbe una soglia che il file non dichiara, che e' precisamente cio' che il gate `G7`
+						// vieta. Una regola sull'esattezza si verifica esattamente.
+						if (ParamNumber != FMath::RoundToDouble(ParamNumber))
 						{
 							// Gate `G7`: niente float in soglie e priorita'. Il confronto del gioco e' in
 							// aritmetica intera (`Health * 100 <= MaxHealth * Param`), quindi un `50.5` verrebbe

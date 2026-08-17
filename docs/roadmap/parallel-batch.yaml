@@ -2309,6 +2309,16 @@ tracks:
       - Source/RefactorTactics/Tests/RTScenarioCorpusTests.cpp
       # ⬅️ In prestito da `integration_only`, non riassegnato: la riga di ritorno è in quella sezione.
       - Scenarios/Spec/Overwatch/ConditionCollapsesToHold.json
+      # ⬅️ 🔴 **Aggiunto dopo la code review, e la lacuna vale più della riga.** Uno scenario nuovo *deve*
+      # essere rivendicato da una feature — `project-graph.json` lo dichiara in `diagnostics.errors`
+      # («ScenarioId non rivendicato da nessuna feature») — quindi questo lavoro non poteva NON toccare il
+      # registry. La prima stesura lo ha scritto appoggiandosi a «`integration_only` si aggiorna in
+      # integrazione», che è vero, e ha comunque sbagliato: il prestito per il JSON degli scenari era stato
+      # dichiarato due righe sopra, e lo stesso criterio non è stato applicato al file accanto. Un criterio
+      # applicato a metà è peggio di uno assente, perché la metà scritta fa sembrare misurata anche l'altra.
+      # `feature-registry.yaml` è il file più conteso del repository: una scrittura non dichiarata è
+      # invisibile a ogni altra track che legge questo file per sapere cosa è preso.
+      - docs/roadmap/feature-registry.yaml
     # ⚠️ **Un path non può stare nei due insiemi insieme**, e la riga sopra sarebbe quella contraddizione se
     # questo campo non la dichiarasse: il JSON esce da `Scenarios/` per un giro e ci rientra alla chiusura.
     # Il precedente è dello stesso lotto — `hero_kit` con `Spec/Environment/WaterQuenchesFire.json` — e la
@@ -2318,6 +2328,7 @@ tracks:
     # dichiararlo qui sarebbe scrivere in `integration_only` fuori dall'integrazione.
     writable_on_loan:
       - Scenarios/Spec/Overwatch/ConditionCollapsesToHold.json
+      - docs/roadmap/feature-registry.yaml
     # ➖ **La richiesta a `spatial` (#833) DECADE con `#1060`, e va detto invece di lasciarla scadere in
     # silenzio.** I quattro path del TurnLog servivano al bersaglio originale/effettivo dell'interposizione:
     # `#583` non ne tocca nessuno. La sua seconda voce di DoD — la condizione registrata nel TurnLog — è
@@ -2339,6 +2350,14 @@ tracks:
         regenerates:
           - docs/roadmap/project-graph.json
           - docs/roadmap/scenariomap.shortlist.md
+      # ➕ Aggiunto con il prestito del registry: `feature-registry.json` è la sua vista e non ha altre
+      # sorgenti, quindi segue lui. Senza questa riga la vista sarebbe stata rigenerata da una track che
+      # non ne dichiarava la sorgente — la forma di scrittura silenziosa che `generated_only` esiste per
+      # rendere tracciabile.
+      - source: docs/roadmap/feature-registry.yaml
+        regenerates:
+          - docs/roadmap/feature-registry.json
+          - docs/roadmap/project-graph.json
     binary_leases: []
 
   client_tools:
@@ -4751,6 +4770,9 @@ integration_only:
   # per uno, con la ragione nella `note` della track che li tiene — mai la cartella.
   #   · `Spec/Environment/WaterQuenchesFire.json`  → `hero_kit`  (l'acqua passa all'equipaggiamento)
   #   · `Spec/Overwatch/ConditionCollapsesToHold.json` → `simulation` (#583: il collasso di [D-109])
+  #   · `feature-registry.yaml`                        → `simulation` (#583: uno scenario nuovo va
+  #                                                      rivendicato da una feature, o `project-graph.json`
+  #                                                      lo dichiara in `diagnostics.errors`)
   # ➖ **`RT_Showcase_Relay_v01.json` RESTITUITO il 2026-08-17**: la riassegnazione di `simulation` da
   # `#1060` a `#583` gli toglie il consumatore, e la riga si cancella invece di restare a coprire un giro
   # che non c'è più. Chi riprende `#1060` la riscrive — è la regola due blocchi più sotto, applicata al

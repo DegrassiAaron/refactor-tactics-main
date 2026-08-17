@@ -999,16 +999,21 @@ void FRTScenarioSession::BeginTurn()
 		// un harness che sa fare piu' del gioco produce verdi che non descrivono nessuna partita.
 		if (Intent.Condition.IsDeclared())
 		{
-			const bool bAccepted = Unit->SetPlannedReactionCondition(Intent.Condition);
-
-			// Il loader ha gia' verificato **entrambi** i motivi di rifiuto — reazione armata e condizione
-			// ammessa — quindi un `false` qui significa che le due validazioni si sono disallineate, non che lo
-			// scenario e' sbagliato. Va detto forte: in silenzio diventerebbe un'opportunity che non collassa, e
-			// l'assertion cadrebbe a valle senza indicare la causa.
-			ensureAlwaysMsgf(bAccepted,
-				TEXT("[RT] scenario: la condizione '%s' (%d) di '%s' e' stata rifiutata dal piano dopo essere ")
-				TEXT("passata dal loader: le due validazioni non dicono piu' la stessa cosa"),
-				*Intent.Condition.Id.ToString(), Intent.Condition.Param, *Intent.UnitId);
+			if (!Unit->SetPlannedReactionCondition(Intent.Condition))
+			{
+				// ERROR, non un `ensure` che poi lascia proseguire. Il loader ha gia' verificato entrambi i motivi
+				// di rifiuto — reazione armata e condizione ammessa — quindi un `false` qui significa che le due
+				// validazioni si sono disallineate: e' un difetto di CHI HA SCRITTO il codice, non un esito di
+				// gioco. Proseguendo, lo scenario girerebbe SENZA condizione, l'opportunity non collasserebbe, e
+				// il report direbbe FAIL su un'assertion del TurnLog — mandando a cercare una regressione che non
+				// esiste. E' la stessa ragione, e lo stesso meccanismo, del ramo «non possiede l'abilita'» qui
+				// sopra: `ErroredBy` fa uscire `Finish()` con ERROR, che ha la precedenza su FAIL.
+				ErroredBy = FString::Printf(
+					TEXT("la condizione '%s' (%d) di '%s' e' stata rifiutata dal piano dopo essere passata dal ")
+					TEXT("loader: le due validazioni non dicono piu' la stessa cosa (turno %d)"),
+					*Intent.Condition.Id.ToString(), Intent.Condition.Param, *Intent.UnitId, TurnIndex + 1);
+				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
+			}
 		}
 
 		// --- rotazione dichiarata (D-020, #291) ------------------------------------------------------------

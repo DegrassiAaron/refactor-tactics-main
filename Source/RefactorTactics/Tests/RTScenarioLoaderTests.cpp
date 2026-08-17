@@ -1058,6 +1058,27 @@ bool FRTScenarioLoaderConditionRejectTest::RunTest(const FString&)
 			Error.Contains(Atteso));
 	};
 
+	// 🔴 **Il caso che falliva DAVVERO in silenzio, e che questo test non copriva.** Gli altri sei
+	// esercitano strade che producono gia' un `OutError`; questa no. `TryGetObjectField` restituisce `false`
+	// per qualunque valore non-oggetto, `condition` e' una chiave NOTA quindi il gate delle chiavi
+	// sconosciute tace, e lo scenario girava SENZA condizione con l'autore che leggeva solo un'assertion del
+	// TurnLog caduta. La forma con la stringa e' anche la prima che verrebbe in mente: ogni altro campo
+	// dell'intent e' una stringa. Trovato dalla code review, non dal test che diceva di coprire il silenzio.
+	Rifiuta(TEXT("condition come stringa invece che oggetto"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection",
+		          "condition": "TargetHealthAtOrBelowPercent" })"),
+		TEXT("oggetto"));
+	Rifiuta(TEXT("condition come numero"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection", "condition": 10 })"),
+		TEXT("oggetto"));
+
+	// Il gemello del `101` gia' coperto: `IsDeclaredConditionAllowed` chiede `Param >= 0` e la coppia
+	// verifica **entrambi** i lati del dominio, non solo quello a cui si pensa per primo.
+	Rifiuta(TEXT("soglia negativa"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection",
+		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": -1 } })"),
+		TEXT("-1"));
+
 	// ⚠️ **Il caso che morde davvero**, e non e' un caso di scuola: l'Overwatch costa l'azione PRINCIPALE,
 	// quindi un intent di solo-Overwatch con una condizione e' precisamente cio' che qualcuno scrivera' per
 	// primo leggendo [D-109]. `SetPlannedReactionCondition` lo rifiuterebbe in silenzio.
@@ -1086,6 +1107,17 @@ bool FRTScenarioLoaderConditionRejectTest::RunTest(const FString&)
 		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 50.5 } })"),
 		TEXT("INTERO"));
 
+	// 🔴 **Il caso che il controllo di interezza NON intercetta**, e per cui il range va verificato prima del
+	// cast: `1e20` E' un intero, quindi passa di li' senza un graffio, ma non entra in un `int32` — e
+	// `static_cast` di un double fuori scala e' undefined behavior. Il valore indefinito che ne esce
+	// arriverebbe a `IsDeclaredConditionAllowed`, che controlla `0..100`: se ci cadesse dentro per caso, lo
+	// scenario sarebbe ACCETTATO con una soglia diversa da quella scritta nel file. Silenziosamente, che e'
+	// il modo di fallire contro cui questo intero file esiste.
+	Rifiuta(TEXT("soglia fuori dalla scala di int32"),
+		TEXT(R"({ "unit": "V1", "reaction": "Hero.Wraith.Deflection",
+		          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 1e20 } })"),
+		TEXT("fuori scala"));
+
 	// I due campi si chiedono ENTRAMBI: un default silenzioso su `param` significherebbe soglia 0, cioe' una
 	// condizione mai vera — il fuoco spento invece che ristretto.
 	Rifiuta(TEXT("condizione senza param"),
@@ -1105,6 +1137,46 @@ bool FRTScenarioLoaderConditionRejectTest::RunTest(const FString&)
 	Rifiuta(TEXT("reazione inesistente insieme a un'azione di Prep"),
 		TEXT(R"({ "unit": "V1", "ability": "Action.Overwatch", "reaction": "Hero.Wraith.NonEsiste" })"),
 		TEXT("NonEsiste"));
+	return true;
+}
+
+/**
+ * Le chiavi che cominciano per `_` sono COMMENTI anche dentro `expect`.
+ *
+ * ⚠️ **Oggi questo e' vero per ASSENZA di controllo, non per una regola**, ed e' la ragione per cui il test
+ * esiste: turni, decisioni e intent hanno ciascuno un elenco chiuso di chiavi note che ammette il prefisso
+ * `_` esplicitamente; `expect` no. `Spec.Overwatch.ConditionCollapsesToHold` mette la spiegazione di ogni
+ * assertion accanto all'assertion — dove serve a chi la modifichera' — e senza questa riga il giorno in cui
+ * qualcuno aggiungesse il quarto elenco quel file si romperebbe con «chiave sconosciuta: _assertion»,
+ * lontano da dove ha inserito la regola. Il test trasforma una convenzione accidentale in una garantita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderExpectCommentKeysTest,
+	"RefactorTactics.Scenario.LoaderTreatsUnderscoreKeysAsCommentsInExpect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderExpectCommentKeysTest::RunTest(const FString&)
+{
+	const FString Json = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Expect.Comments", "version": 2, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
+	  "expect": [
+	    { "_assertion": "perche' questa assertion esiste", "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] },
+	    { "type": "TurnsCompleted", "value": 1 }
+	  ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("un commento dentro un'assertion non la invalida"),
+		URTScenarioLoader::LoadFromString(*Json, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *Error));
+		return false;
+	}
+	// E il commento non diventa un'assertion in piu': due voci scritte, due lette.
+	TestEqual(TEXT("le assertion restano due"), Scenario.Expect.Num(), 2);
 	return true;
 }
 
