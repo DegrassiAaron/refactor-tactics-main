@@ -65,6 +65,55 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 Oltre la v1.0 resta **north-star non pianificato**: progressione, modding pubblico, editor mappe a runtime.
 Non si aprono epic per ciò che non ha una release.
 
+### Il Graybox Kit attraversa questa ladder, e non ne genera una seconda
+
+Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). Il kit
+`Graybox_Kit_Cover_CellVolume` propone dieci cluster di maturità degli asset con una propria mappatura
+`v0.1 → v1.0`. **L'ordine si preserva, i numeri di release si prendono da qui** — è il precedente di
+[D-138](../decisions/RT_PDR_00_Decision_Log.md), che ha già respinto una ladder proposta da un handoff.
+
+| Cluster del kit | Proposta | Release **canonica** | Owner reale | Azione |
+|---|:--:|:--:|---|---|
+| Core map | v0.1 | **v0.1** ✅ | E21 · E23 · E47 | allineato |
+| Environment | v0.2 | **v0.1** ⬅️ | **E8** — nove feature `INTEGRATED` | il kit è **indietro** |
+| 3D map / verticalità | v0.3 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-VERTICALITY` è `IDEA` | `DEFER` |
+| Interactive map | v0.4 | **v0.2** ⬅️ | **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)) | il kit è **indietro** |
+| Tactical devices | v0.5 | **fuori scope dichiarato** | — | `DEFER` |
+| Destruction / debris | v0.6 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-STRUCTURAL` è `IDEA` | `DEFER` |
+| Perception / information | v0.7 | **v0.1** ⬅️ e v0.3 | **E13** (base) · **E27** (completa) | il kit è **indietro** |
+| Objectives | v0.8 | **v0.1** ⬅️ e v0.4 | **E10** (base) · **E31** (multipli) | il kit è **indietro** |
+| Modularization | v0.9 | **nessuna** | authoring, non contenuto di release | `DEFER` |
+| Contract freeze | v1.0 | **v1.0** ✅ | **E45** | allineato |
+
+**Due righe su dieci coincidono**, e le altre otto divergono in due modi opposti che vale la pena non
+confondere.
+
+🔴 **Quattro cluster il kit li mette *dopo* dove il repository li ha già.** Environment, Interactive map,
+Perception e Objectives sono lavoro **v0.1 in gran parte chiuso**: `ERTHexSurface` ha nove valori,
+`RT-FEAT-ENV-*` sono `INTEGRATED` sotto E8, la percezione parziale è E13 e gli obiettivi dinamici E10.
+Seguire la mappatura del kit avrebbe **rinviato alla v0.2–v0.8 gli asset di sistemi già in partita**, cioè
+lasciato la v0.1 a rappresentare col solo colore ciò che il resolver calcola dal 2026-08. Non è un errore
+di ambizione della sorgente: è che il kit misura la maturità del **contenuto** e la ladder canonica misura
+quella del **sistema**, e sul contenuto il progetto è più avanti di quanto la sorgente sapesse.
+
+➡️ **Tre cluster il repository li mette *dopo*, e restano `future`.** Verticalità, distruzione e devices
+tattici non hanno una release che li possieda: le prime due sono feature `IDEA`, i terzi sono **fuori scope
+v0.1 dichiarato** da [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
+§11, che li rinvia a E13/E14 con motivazione registrata. Qui l'ordine del kit è giusto e la release non
+esiste: **si lasciano `future` invece di inventarne una**, ed è la parte di `D-136` che questa tabella
+applica invece di ridiscutere.
+
+> ⚠️ **Nessun tema di release cambia per far tornare questa tabella**, e la sorgente stessa lo vieta:
+> *«non cambiare il tema delle release globali solo per far coincidere questa tabella»*. Dalla **v0.5** in
+> poi i temi canonici sono rete, GAS, dedicated server e hardening — **nessuno è un tema di contenuto**, e
+> un cluster di asset non ha dove atterrarci. È esattamente il motivo per cui le cinque righe centrali del
+> kit non trovano casa: non sono state rifiutate, non c'è la stanza.
+>
+> 🔑 **L'unica release che acquisisce un impegno nuovo è la v1.0**, e non in asset: **E45** è «un gate di
+> produzione, non una release di feature», ed è dove il contratto di ingombro e pivot **si congela** perché
+> l'arte finale possa sostituire il graybox senza cambiare le regole competitive. Il contratto vive in
+> [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md).
+
 > **Numerazione continua.** Le epic proseguono da E18 (ultima della v0.1) senza azzerarsi per release: un
 > riferimento a «E23» resta univoco per sempre. Le due epic **E19** ed **E20** appartengono alla **v0.1** pur
 > nascendo da sorgenti di questa roadmap — vedi [Cosa la v0.1 deve già rispettare](#cosa-la-v01-deve-già-rispettare).

@@ -4201,6 +4201,71 @@ tracks:
     writable: []
     binary_leases: []
 
+  graybox_kit:
+    status: ACTIVE
+    issue: null
+    branch: docs/graybox-kit-consolidamento
+    worktree: "D:/rt-unit"
+    note: >-
+      ➕ **Track aperta il 2026-08-17 per consumare un kit d'autore**, `Graybox_Kit_Cover_CellVolume`
+      (1620 righe), **untracked nella root del checkout principale** (`D:/Repositories/refactor-tactics-main`)
+      — cioè in nessun insieme di questo file. È la stessa condizione di `docs_kit` il 2026-08-16, e
+      la stessa risposta: si dichiara prima di scrivere.
+      ⚠️ `issue: null` all'apertura perché le issue **nascono da questo lavoro**, non lo precedono:
+      il kit prescrive «creare issue solo dopo audit». I numeri entrano nella nota quando esistono.
+
+      ✅ **Il write-set è MISURATO, non dedotto dal tema.** Il kit tocca dodici categorie di tracking,
+      ma **dieci** dei suoi bersagli sono `integration_only` — Decision Log, `feature-registry.yaml`,
+      `roadmap-v0.1.md`, `roadmap-post-v0.1.md`, `editor-sessions.yaml`, `scenario-map.md`,
+      `OPEN_DECISIONS.md`, `DOC_CONFLICT_MATRIX.md`, `CONTEXT_INDEX.md` e questo file — e per
+      definizione non si assegnano: si aggiornano **una volta in integrazione**. Restano due path
+      nel `writable`, e sono i soli che questa track possiede.
+
+      🔴 **`docs/technical/test-manuali-pie.md` è ASSEGNATO ALTROVE, e il lavoro che lo riguarda si ferma.**
+      Sta nel `writable` di **`playback`** (ACTIVE su `#1015`), che lo tiene **in prestito da `playtest`**
+      per le voci 6 e 7 del proprio DoD. Il kit chiede §13 una scena di validazione visiva con acceptance
+      a tre livelli di zoom, cioè **voci PIE nuove**: scriverle qui sarebbe la «piccola fix» su un file di
+      un'altra track che `D-139` vieta. Il contenuto delle voci esiste ed è pronto — vive nella issue di
+      validazione e nell'owner doc §8, non in un edit. Torna a chi possiede il file.
+
+      ⛔ **Cosa questa track NON tocca, ed è il punto**: nessun `.uasset` e nessun `.umap`. I diciannove
+      elementi del kit sono asset binari e servirebbe una **Binary Asset Lease** più una persona in
+      Unreal; il kit stesso prescrive di non trattare il graybox come produzione artistica. `binary_leases`
+      resta vuoto **per scelta dichiarata**, non per dimenticanza: il lavoro in editor è tracciato come
+      seduta e come issue, e resta da eseguire.
+
+      ✅ **Intersezione misurata il 2026-08-17 sui tre comandi**, non dedotta: `git ls-remote --heads origin`
+      (**11** ref, `main` incluso), `git worktree list` (**13** worktree), `gh pr list --state open`
+      (**1** PR: #1087). E i tre comandi **non bastavano**: `git branch` ne dà **17** in locale, e sei di
+      quelli — `fix/1080-catalogo-predictive`, `wip/doc-binari`, `feat/1077-status-turnlog`, `pr-963-review`
+      e i due `backup/869-*` — non compaiono né in `ls-remote` né in `gh`. `git diff --name-only
+      origin/main...<ref>` per **tutti e diciassette**: **zero** tocca `docs/technical/asset-map.md`, e il
+      secondo path non esiste su nessun ramo.
+      ⚠️ **Cinque rami toccano invece *questo* file** (`wip/doc-binari`, `feat/1077-status-turnlog`,
+      `pr-963-review`, i due `backup/869-*`): è `integration_only`, il conflitto è previsto, e chi mergia
+      per secondo **tiene entrambe le track** invece di scegliere un lato.
+      ⚠️ **Limite dichiarato, come per `unit_presentation`**: la misura vede i COMMIT, non il lavoro non
+      committato negli altri worktree. Questa sessione è isolata in `D:/rt-unit` e non può eseguire `git`
+      altrove; contro quello un batch non protegge, e non è questo file a poterlo promettere.
+
+      ⏱️ **`origin/main` è avanzato durante l'audit**: il branch è nato da `9677bbd4` mentre `origin/main`
+      era già a `78dfd2f7` (**2** commit avanti, PR #1089). La baseline dei gate è stata misurata **prima**
+      di toccare qualunque file: `feature_registry.py validate` **0 errori / 45 warning**, `generate --check`
+      allineato, `check-docs-links.py` e `check-docs-naming.py` verdi. 🔴 **`shortlist --check` era già
+      disallineato su due viste** — `scenariomap.shortlist.md` e `editormap.shortlist.md` — e la misura
+      precede questa track: non è un rosso che ho introdotto, e non è mio da chiudere.
+    writable:
+      - docs/technical/spec-graybox-placement-contract.md
+      # 🆕 Non esiste su nessun ramo: è l'owner che questo consolidamento crea. Il kit chiede un
+      # «placement contract documentato» e nel repository non c'è un documento che risponda —
+      # `spec-hex-geometry-authoring.md` possiede la geometria *tattica* (asse + offset interi), non
+      # l'ingombro degli asset che ci stanno sopra.
+      - docs/technical/asset-map.md
+      # ⚠️ Entra perché è l'**asset tracker** e il kit aggiunge una famiglia che oggi non ha nessuna riga:
+      # misurato, le 17 voci v0.1 sono personaggi, mappe, materiali e framework — zero graybox di mappa.
+      # Verificato non conteso: nessuna track lo rivendica, nessun ramo vivo lo tocca.
+    binary_leases: []
+
   replay_ui:
     status: ACTIVE
     issue: 472              # l'ombrello di R6, tornato in primo piano: #625 e #999 sono chiuse

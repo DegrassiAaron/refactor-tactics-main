@@ -1595,9 +1595,32 @@ editor**, che nessun test automatico può chiudere.
 > pinnato da `RefactorTactics.Heroes.CanonicalNamesReachTheLabel`. In Sessione C resta il giudizio a schermo,
 > voce `PIE-NAME`. La presentazione resta **consumer** del resolver, mai autorità dell'esito.
 
+> ➕ **Il perimetro si allarga agli oggetti di mappa il 2026-08-17, e non ai loro checkpoint**
+> ([D-152](../decisions/RT_PDR_00_Decision_Log.md), [D-153](../decisions/RT_PDR_00_Decision_Log.md)).
+> `RT-FEAT-UI-GRAYBOX-KIT` entra in questa epic perché E21 è l'unica della v0.1 il cui DoD non è chiudibile
+> in automation — **la stessa condizione** di un contratto di leggibilità — ma `checkpoints: []` è
+> deliberato: il lavoro esecutivo **non** diventa `E21.4`. Si innesta su owner che esistono già — **E23**
+> per muri e porte, **E47** per la grammatica della board, **E15** per il Relè, **E45** per il freeze del
+> contratto — ed è la parte di `D-153` che vieta le epic create per simmetria.
+>
+> 🔑 **La distinzione che questa riga esiste per tenere in piedi**: E21 possiede come le **unità** appaiono
+> in scena, il contratto graybox possiede quanto spazio occupa **ciò che sta sulla mappa** e dove sta il suo
+> pivot. Si toccano in un punto solo — l'elemento #3 del catalogo, il cilindro segnaposto — e lì il
+> precedente è già stato pagato: [`#593`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/593),
+> il root non neutro che stirava di `1.5x` ogni Skeletal Mesh agganciata sotto. Owner del modello:
+> [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md).
+
 **Gate di chiusura dell'epic**: la sessione C di [`test-manuali-pie.md`](../technical/test-manuali-pie.md)
 è verde · nessun cilindro nel gioco se non per asset mancante · una partita registrata (video o
 screenshot) come riferimento di stato.
+
+⚠️ **Il gate non si allarga con il perimetro, ed è dichiarato**: il contratto graybox **non** aggiunge una
+voce a questo elenco, perché le sue verifiche PIE non sono ancora scritte —
+[`test-manuali-pie.md`](../technical/test-manuali-pie.md) è nel write-set di un'altra track al 2026-08-17
+(`playback`, [#1015](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1015)), e per
+[D-139](../decisions/RT_PDR_00_Decision_Log.md) si aspetta quell'owner invece di scrivere sul file di
+qualcun altro. Finché quelle voci non esistono, il contratto è **documentato e non verificato**: dirlo qui
+costa meno che scoprirlo al gate.
 
 **Dipendenze**: E6 (roster) per i dati degli eroi, E20 (icon language) per le icone dell'HUD di squadra.
 Non dipende da E11: gli anelli e le mesh non passano dai widget.
