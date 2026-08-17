@@ -91,7 +91,7 @@ modi, e vale la pena non confonderli:
 | Modo | Quali | Quante |
 |---|---|--:|
 | il repository li ha già, o li sta costruendo, prima di dove il kit li mette | Environment · Interactive map · Perception · Objectives | **4** |
-| nessuna release li possiede: restano `future` | 3D map · Destruction · Tactical devices | **3** |
+| nessuna release li possiede | 3D map · Destruction (`future`, feature `IDEA`) · Tactical devices (**fuori scope dichiarato**) | **3** |
 | a cavallo di due release | Core map (con la coda di muri e porte in v0.2) | **1** |
 | non è contenuto di release, è authoring | Modularization | **1** |
 
@@ -128,15 +128,17 @@ due release invece che di quattro, ma indietro. Seguire la mappatura del kit avr
 sistemi che il progetto possiede o sta costruendo**, cioè lasciato la board a rappresentare col solo colore
 ciò che il resolver calcola già.
 
-> ⚠️ *La prima correzione di questo paragrafo diceva «tutti e quattro lavoro della **v0.1**», e per
-> Interactive map era falso — contraddetto dalla tabella due righe sopra e dalla riga «Core map» che questa
-> stessa PR aveva aggiunto per registrare che E23 è v0.2. Corretta la metà falsa, era rimasta l'altra.* Non è un errore
-di ambizione della sorgente: è che il kit misura la maturità del **contenuto** e la ladder canonica misura
-quella del **sistema**, e sul contenuto il progetto è più avanti di quanto la sorgente sapesse.
+Non è un errore di ambizione della sorgente: è che il kit misura la maturità del **contenuto** e la ladder
+canonica misura quella del **sistema**, e sul contenuto il progetto è più avanti di quanto la sorgente
+sapesse.
 
-➡️ **Tre cluster il repository li mette *dopo*, e restano `future`.** Verticalità, distruzione e devices
-tattici non hanno una release che li possieda: le prime due sono feature `IDEA`, i terzi sono **fuori scope
-v0.1 dichiarato** da [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
+> ⚠️ *La prima correzione di questo paragrafo diceva «tutti e quattro lavoro della **v0.1**», e per
+> Interactive map era falso — contraddetto dalla tabella sopra e dalla riga «Core map» che questa stessa PR
+> aveva aggiunto per registrare che E23 è v0.2. Corretta la metà falsa, era rimasta l'altra.*
+
+➡️ **Tre cluster non hanno una release che li possieda, e non per la stessa ragione.** Verticalità e
+distruzione sono feature `IDEA` su `future`; i devices tattici **non sono `future` affatto** — sono **fuori
+scope v0.1 dichiarato** da [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
 §11, che li rinvia a E13/E14 con motivazione registrata. Qui l'ordine del kit è giusto e la release non
 esiste: **si lasciano `future` invece di inventarne una**, ed è la parte di `D-136` che questa tabella
 applica invece di ridiscutere.

@@ -105,15 +105,17 @@ sviluppa e non è committato — il caso peggiore dei tre, perché il gioco funz
 chiunque cloni. Le altre tre non esistono. È esattamente il perimetro della seduta **U8**, ed è l'unica
 famiglia della v0.1 con lavoro aperto.
 
-### 2.1 Famiglie attese che non hanno ancora un path
+### 2.1 Famiglie attese che non hanno una riga d'allowlist
 
-**Quattro** cose che la v0.1 richiede e che **non hanno un path nell'allowlist**. *(Diceva «Due» quando le
-righe erano tre, e la quarta è arrivata il 2026-08-17 senza che la frase si muovesse. ⚠️ E il predicato era
-sbagliato oltre al numero: «né in una seduta» è falso per due righe su quattro — U21 possiede il livello
-illuminato, U25 il kit graybox. Ciò che manca a tutte e quattro è il **percorso**, non il produttore. Due
-correzioni in code review sulla stessa frase: la prima aveva riletto il numero e non il predicato.)* Non
-sono dimenticanze
-di questo file: sono buchi delle fonti, e vanno chiusi lì.
+**Quattro** cose che la v0.1 richiede e per cui **`git add` tace**, perché nessuna riga di `.gitignore` le
+riammette. È l'unico predicato vero di tutte e quattro: il *percorso* ce l'hanno in due (le icone lo hanno
+deciso, i sorgenti icona esistono già sul disco), la *seduta* in altre due (U21, U25). Non sono
+dimenticanze di questo file: sono buchi delle fonti, e vanno chiusi lì.
+
+> ⚠️ *Questa frase ha sbagliato **tre volte** e ogni correzione ne ha riletta una parte sola: prima il
+> numero («Due» con tre righe), poi il predicato «né in una seduta» (falso per U21 e U25), poi «manca il
+> percorso» (falso per le prime due righe). Il titolo della sezione portava lo stesso errore e non era
+> stato toccato. Ora il predicato è quello che la tabella qui sotto verifica riga per riga.*
 
 | Famiglia | Chi la richiede | Perché manca un path |
 |---|---|---|

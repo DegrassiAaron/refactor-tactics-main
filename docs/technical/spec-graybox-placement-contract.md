@@ -290,7 +290,7 @@ due modi diversi di non funzionare, con transizioni d'uscita diverse (`Stabilize
 l'azione successiva.
 
 > ⚠️ **Quel blocco è etichettato «Esempio, non catalogo», e questo documento non lo promuove a norma.**
-> §2 di quell'owner dice che **ogni elemento dichiara i propri stati**: il primo con quattro o sei stati
+> la stessa §5 dice che **ogni elemento dichiara i propri stati**: il primo con quattro o sei stati
 > non violerebbe niente. La regola che questo contratto impone è un'altra e vale per qualunque cardinalità:
 > **ogni stato dichiarato da un elemento dev'essere distinguibile su due canali**, e gli stati che si
 > somigliano funzionalmente — due modi di essere rotto, due modi di essere chiuso — hanno bisogno di un
@@ -410,7 +410,8 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 > «piccola fix» su un file di qualcun altro. Il contenuto delle voci è pronto e vive nella issue di
 > validazione visiva del kit.
 >
-> **Qui non c'è un nome di proposito**, e il paragrafo sotto dice perché.
+> **Il nome dell'owner non si scrive qui, e il paragrafo sotto dice perché**: è cambiato tre volte in un
+> giorno, e ogni nome inciso in questa riga sarebbe invecchiato in silenzio. Si legge nel batch.
 >
 > ⏱️ **La causa è cambiata tre volte in una sessione, e il vincolo non si è mai mosso.** All'apertura il
 > file era in prestito a `playback` per `#1015`; poi `#1015` è stata **chiusa** mentre questo documento

@@ -189,10 +189,17 @@ owner del clearance: *quanto grande posso modellare un asset* è un contratto d'
 | `GBX-3` | A quali valori di `Integrity` corrispondono **«danneggiato»** e **«critico»**? | 🔴 **Riscritta due volte il 2026-08-17, e la seconda volta perché la prima correzione aveva sbagliato i numeri.** *(1)* La stesura originale diceva che *«niente le scala ancora»* con innesco su **CP 9.2** — che è **chiuso dal 2026-08-07** (`#70`): una domanda ancorata a un evento **già scattato** non si sveglia più. *(2)* La correzione citava una scala «`30 → 20 → 0`» e un test a sostegno: entrambi sbagliati. Il `20` veniva da un'assertion su **`FRTHexEdge`** — un **ponte** — e non esiste una scala unica. **I fatti misurati**: `FRTHexCover::DefaultIntegrity` dà **`50` per `High` e `30` per `Low`** (due soglie di partenza), i residui che i test pinnano sono **`0 · 18 · 22 · 25 · 30`**, e `bDestroyed` è un esito **enumerato**, non una soglia. **Perché resta aperta**: «critico» non può essere un numero assoluto — con due partenze diverse dev'essere una **frazione**, e sceglierla è presentazione, non balance. Nessun innesco da aspettare. Owner dei fatti: [`technical/spec-graybox-placement-contract.md`](technical/spec-graybox-placement-contract.md) §7.2 |
 | `GBX-4` | Sotto quale percorso di `Content/` vive il kit graybox degli **oggetti**? | [`technical/convenzioni-contenuti-ue.md`](technical/convenzioni-contenuti-ue.md) §5 è **normativo** e non ha una riga per questa famiglia: copre la griglia (`/Game/RT/World/Grid/`, dove `Generation/` sono i *generatori*), le mappe, i personaggi, la UI. Un kit di primitive riusabili non è nessuno dei quattro. ⚠️ **Non si sceglie di fatto committando il primo asset**: [`technical/asset-map.md`](technical/asset-map.md) §6 dice che la riga d'allowlist viene **prima**, e senza di essa `git add` tace e l'asset resta locale — è lo stato di `ABP_Gadget` oggi. 🔴 E il file che deve rispondere **non è assegnato a nessuna track** in [`roadmap/parallel-batch.yaml`](roadmap/parallel-batch.yaml): né `writable`, né `integration_only`, né `generated_only`. Per `D-139` è uno **STOP**, ed è la ragione per cui questa voce è una domanda invece di un edit |
 
-**Nessuna delle quattro blocca il consolidamento**, e nessuna blocca l'apertura del lavoro: il contratto
-dice *che forma* devono avere gli asset, e tre delle quattro riguardano un **numero** o un **percorso** che
-si fissa quando il primo asset viene prodotto. `GBX-2` è diversa — è una lacuna di grammatica, e va chiusa
-**prima** di modellare la porta, non dopo.
+**Nessuna delle quattro blocca il consolidamento**: il contratto dice *che forma* devono avere gli asset,
+e nessuna di queste domande cambia quella forma. Ma **due vanno chiuse prima di produrre**, non dopo:
+`GBX-2` perché è una lacuna di grammatica — modellare la porta senza sapere come si distingue `Locked`
+violerebbe `D-146` all'atto — e `GBX-4` perché la riga d'allowlist viene **prima** dell'asset, o `git add`
+tace e il lavoro resta locale.
+
+> ⚠️ *Questo paragrafo diceva che «tre delle quattro riguardano un numero o un percorso che si fissa quando
+> il primo asset viene prodotto», ed era il gemello non corretto della frase in testa alla sezione: falso
+> per `GBX-4` — che la sua stessa riga smentisce in grassetto — e per `GBX-3`, che non ha più un innesco da
+> aspettare. Correggere l'apertura di una sezione e non la sua chiusura è lo stesso difetto due volte nello
+> stesso testo.*
 
 Tracciate su GitHub: [`#1094`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094)
 (`question`) — aperta **nello stesso commit** di questa voce, per la ragione che `RNG-1`/`RNG-2` hanno già

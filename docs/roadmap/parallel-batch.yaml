@@ -4390,11 +4390,11 @@ tracks:
       (E21) e **#778** (E45) sono state aggiornate con la relazione; **nessuna epic nuova** — `D-153`.
 
       ✅ **Il write-set è MISURATO, non dedotto dal tema.** Il kit tocca dodici categorie di tracking,
-      ma **dieci** dei suoi bersagli sono `integration_only` — Decision Log, `feature-registry.yaml`,
+      ma **undici** dei suoi bersagli sono `integration_only` — Decision Log, `feature-registry.yaml`,
       `roadmap-v0.1.md`, `roadmap-post-v0.1.md`, `editor-sessions.yaml`, `scenario-map.md`,
-      `OPEN_DECISIONS.md`, `DOC_CONFLICT_MATRIX.md`, `CONTEXT_INDEX.md` e questo file — e per
-      definizione non si assegnano: si aggiornano **una volta in integrazione**. Restano **tre** path
-      nel `writable` — l'owner nuovo, l'asset tracker e il sorgente archiviato — e sono i soli che questa
+      `OPEN_DECISIONS.md`, `DOC_CONFLICT_MATRIX.md`, `CONTEXT_INDEX.md`, `docs/archive/src/README.md`
+      e questo file — e per definizione non si assegnano: si aggiornano **una volta in integrazione**.
+      Restano **tre** path nel `writable` — l'owner nuovo, l'asset tracker e il sorgente archiviato — e sono i soli che questa
       track possiede. ⚠️ **Il terzo è stato aggiunto in code review**: la prima stesura diceva «due», e il
       file che questo ramo crea in `docs/archive/src/` non stava in nessun insieme. Vedi il commento
       accanto al path.
@@ -4435,8 +4435,8 @@ tracks:
       (**1** PR: #1087). E i tre comandi **non bastavano**: `git branch` ne dà **17** in locale, e sei di
       quelli — `fix/1080-catalogo-predictive`, `wip/doc-binari`, `feat/1077-status-turnlog`, `pr-963-review`
       e i due `backup/869-*` — non compaiono né in `ls-remote` né in `gh`. `git diff --name-only
-      origin/main...<ref>` per **tutti e diciassette**: **zero** tocca `docs/technical/asset-map.md`, e il
-      secondo path non esisteva ancora su nessun ramo. ⏱️ *Misura datata: dal merge di #1099 quel file è
+      origin/main...<ref>` per **tutti e diciassette**: **zero** tocca `docs/technical/asset-map.md`, e
+      `spec-graybox-placement-contract.md` non esisteva ancora su nessun ramo. ⏱️ *Misura datata: dal merge di #1099 quel file è
       in `main`. La riga resta com'era — riscriverla la renderebbe falsa al suo istante — e il commento
       accanto al path porta lo stato di oggi.*
       ⚠️ **Cinque rami toccano invece *questo* file** (`wip/doc-binari`, `feat/1077-status-turnlog`,
@@ -4998,8 +4998,11 @@ integration_only:
   # codice ne aveva quattro — con il §4.2 dello stesso file che ne usava già un quarto. L'errore è poi
   # passato a valle nel mandato che quella spec governa.
   - docs/technical/test-automatico-unreal.md
-  # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14: lo tiene `content_editor`
-  # su `#451`. Vedi la nota della track per la misura che lo consente. Torna qui al prossimo batch.
+  # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14. ⏱️ **Il proprietario scritto qui
+  # non è più quello vero**: `content_editor` l'ha rilasciato il 2026-08-16, poi `playback` l'ha tenuto in
+  # prestito per `#1015`, e oggi sta nel `writable` di `playtest` — tre nomi in tre giorni, misurati in
+  # questo stesso file. Il nome invecchia, il `writable` no: chi cerca il permesso guardi **lì**.
+  # *(Era: «lo tiene `content_editor` su `#451`».)* Torna qui al prossimo batch.
   - docs/balance/          # sorgente dei radar (toolchain Node)
   # ➕ **Entrano il 2026-08-17 da `#1063`, e la ragione e' un difetto che il meccanismo ha BLOCCATO invece
   # di scoprire al merge.** Una riconciliazione documentale aveva misurato che entrambi dichiarano
