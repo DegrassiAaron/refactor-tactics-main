@@ -4379,8 +4379,11 @@ tracks:
       ma **dieci** dei suoi bersagli sono `integration_only` — Decision Log, `feature-registry.yaml`,
       `roadmap-v0.1.md`, `roadmap-post-v0.1.md`, `editor-sessions.yaml`, `scenario-map.md`,
       `OPEN_DECISIONS.md`, `DOC_CONFLICT_MATRIX.md`, `CONTEXT_INDEX.md` e questo file — e per
-      definizione non si assegnano: si aggiornano **una volta in integrazione**. Restano due path
-      nel `writable`, e sono i soli che questa track possiede.
+      definizione non si assegnano: si aggiornano **una volta in integrazione**. Restano **tre** path
+      nel `writable` — l'owner nuovo, l'asset tracker e il sorgente archiviato — e sono i soli che questa
+      track possiede. ⚠️ **Il terzo è stato aggiunto in code review**: la prima stesura diceva «due», e il
+      file che questo ramo crea in `docs/archive/src/` non stava in nessun insieme. Vedi il commento
+      accanto al path.
 
       ⏱️ **Il proprietario di `test-manuali-pie.md` è cambiato TRE volte mentre questa track lavorava, e
       il permesso non si è mai mosso.** (1) All'apertura: in prestito a `playback` per `#1015`, `ACTIVE`.
@@ -4440,6 +4443,16 @@ tracks:
       # ⚠️ Entra perché è l'**asset tracker** e il kit aggiunge una famiglia che oggi non ha nessuna riga:
       # misurato, le 17 voci v0.1 sono personaggi, mappe, materiali e framework — zero graybox di mappa.
       # Verificato non conteso: nessuna track lo rivendica, nessun ramo vivo lo tocca.
+      - docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md
+      # 🔴 **Aggiunto in code review, ed era uno STOP per la regola di questa stessa track.** Il branch
+      # crea questo file (1674 righe) e la nota dichiarava *«restano due path nel writable, e sono i soli
+      # che questa track possiede»*: il write-set misurato è di **19** file, 18 coperti e questo no —
+      # né `writable`, né `integration_only` (che elenca `docs/archive/src/README.md`, **non** la
+      # cartella), né `generated_only`. È la condizione «file non assegnato» di `D-139`, commessa dalla
+      # track che si era fermata davanti a `convenzioni-contenuti-ue.md` per lo stesso motivo.
+      # ✅ La convenzione esisteva già: `docs_kit` aveva dichiarato entrambi i propri sorgenti d'archivio
+      # nel `writable` (si legge nel suo commento di rilascio). Non seguirla lasciava scoperta una
+      # collisione con qualunque ramo che archiviasse nella stessa cartella.
     binary_leases: []
 
   replay_ui:

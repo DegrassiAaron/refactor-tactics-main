@@ -107,7 +107,9 @@ famiglia della v0.1 con lavoro aperto.
 
 ### 2.1 Famiglie attese che non hanno ancora un path
 
-Due cose che la v0.1 richiede e che **non stanno né nell'allowlist né in una seduta**. Non sono dimenticanze
+**Quattro** cose che la v0.1 richiede e che **non stanno né nell'allowlist né in una seduta**. *(Diceva «Due»
+quando le righe erano tre, e la quarta è arrivata il 2026-08-17 senza che la frase si muovesse — prosa e dati
+dello stesso file che si contraddicono, trovato in code review.)* Non sono dimenticanze
 di questo file: sono buchi delle fonti, e vanno chiusi lì.
 
 | Famiglia | Chi la richiede | Perché manca un path |
@@ -115,7 +117,7 @@ di questo file: sono buchi delle fonti, e vanno chiusi lì.
 | **Icone dell'HUD** | E20 · E11 | L'**insieme** richiesto è derivato e cresce da solo — `URTIconLibrary::RequiredIconIds()` lo compone dalle fasi volontarie e dal catalogo azioni *realmente in codice*, gate `RTIconCatalogTests` — ma **path e naming sono già decisi**: `/Game/RT/UI/Icons/`, `T_UI_Icon_<Categoria>_<Nome>` ([`brief-icone-v01.md`](brief-icone-v01.md) §33–34). Manca solo la riga d'allowlist, ed è un problema concreto: chi importa le texture al path già deciso fa `git add`, git tace, e le icone restano locali |
 | **Sorgenti icona già sul disco** | E20 | `Content/RT_UI_AssetPack_FromHUD/` contiene **30 PNG** (`icons/I_Guard.png`, `I_Overwatch.png`, …) più `buttons/`, `panels/`, `tiles/`, `warnings/` e un `manifest.json` con box e margini 9-slice. Di tutto il kit **il repository traccia due file**: `README.md` e `manifest.json`. I trenta PNG no. È la famiglia più vicina a essere pronta, e la sola che nessuna riga d'allowlist prevede |
 | **Livello illuminato del graybox** | seduta **U21** | U21 dichiara di produrre «il livello illuminato **committato**», ma ha `artifacts: []`: nessuno sa quale file sarà, quindi non può entrare nell'allowlist prima della seduta |
-| **Kit graybox degli oggetti di mappa** | `RT-FEAT-UI-GRAYBOX-KIT` · `D-152` | La famiglia è **decisa e senza percorso**, ed è il caso che questa colonna descrive meglio. Il contratto esiste ([`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md)) e dice *che forma* devono avere gli asset; le convenzioni §5 non hanno una riga per un kit graybox di **oggetti** — coprono la griglia (`/Game/RT/World/Grid/`, dove `Generation/` sono i *generatori*) e le mappe, non le primitive riusabili che ci stanno sopra. Il percorso è `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), e si chiude **prima** della seduta che produce il primo asset, non dopo: è la riga 1 di §6 |
+| **Kit graybox degli oggetti di mappa** | `RT-FEAT-UI-GRAYBOX-KIT` · `D-152` · seduta **U25** ([#1095](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1095)) | La famiglia è **decisa e senza percorso**, ed è il caso che questa colonna descrive meglio. ⚠️ **A differenza di U21 qui la seduta esiste già**, e la riga la nomina: la lacuna non è «chi lo produce» ma «dove va». Il contratto esiste ([`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md)) e dice *che forma* devono avere gli asset; le convenzioni §5 non hanno una riga per un kit graybox di **oggetti** — coprono la griglia (`/Game/RT/World/Grid/`, dove `Generation/` sono i *generatori*) e le mappe, non le primitive riusabili che ci stanno sopra. Il percorso è `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), e si chiude **prima** della seduta che produce il primo asset, non dopo: è la riga 1 di §6 |
 
 ---
 

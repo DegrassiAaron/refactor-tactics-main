@@ -1,6 +1,6 @@
 # RefactorTactics — Context Index
 
-> `CURRENT` · **Tipo**: indice di navigazione per assistenti/agent · **Ultimo aggiornamento**: 2026-08-14
+> `CURRENT` · **Tipo**: indice di navigazione per assistenti/agent · **Ultimo aggiornamento**: 2026-08-17
 >
 > Questo file dice **quale contesto caricare e in che ordine**. Non è una nuova fonte normativa e non duplica le regole: per ogni concetto rimanda al suo owner.
 >

@@ -74,8 +74,8 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 
 | Cluster del kit | Proposta | Release **canonica** | Owner reale | Azione |
 |---|:--:|:--:|---|---|
-| Core map | v0.1 | **v0.1** ✅ | E21 · E23 · E47 | allineato |
-| Environment | v0.2 | **v0.1** ⬅️ | **E8** — nove feature `INTEGRATED` | il kit è **indietro** |
+| Core map | v0.1 | **v0.1**, con una coda in v0.2 | **E21** · **E47** in v0.1 · muri e porte su **E23** (v0.2) | quasi allineato |
+| Environment | v0.2 | **v0.1** ⬅️ | **E8** — **otto** feature, tutte `INTEGRATED` | il kit è **indietro** |
 | 3D map / verticalità | v0.3 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-VERTICALITY` è `IDEA` | `DEFER` |
 | Interactive map | v0.4 | **v0.2** ⬅️ | **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)) | il kit è **indietro** |
 | Tactical devices | v0.5 | **fuori scope dichiarato** | — | `DEFER` |
@@ -85,14 +85,33 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 | Modularization | v0.9 | **nessuna** | authoring, non contenuto di release | `DEFER` |
 | Contract freeze | v1.0 | **v1.0** ✅ | **E45** | allineato |
 
-**Due righe su dieci coincidono**, e le altre otto divergono in due modi opposti che vale la pena non
-confondere.
+**Una riga su dieci coincide esattamente** — il contract freeze — e le altre nove divergono in due modi
+opposti che vale la pena non confondere.
+
+> ⚠️ **La riga «Core map» diceva `v0.1 ✅ allineato` elencando E23 fra gli owner, e la riga quattro più
+> sotto dichiara E23 **v0.2**.** La stessa tabella usava la stessa epic da due parti della propria
+> partizione: il cluster «core» del kit contiene muri e porte, che su `main` sono v0.2. Non è un dettaglio
+> di etichetta — è la tabella che `D-153` indica come riconciliazione di riferimento, e «allineato» non era
+> misurabile. Trovato in code review.
 
 🔴 **Quattro cluster il kit li mette *dopo* dove il repository li ha già.** Environment, Interactive map,
-Perception e Objectives sono lavoro **v0.1 in gran parte chiuso**: `ERTHexSurface` ha nove valori,
-`RT-FEAT-ENV-*` sono `INTEGRATED` sotto E8, la percezione parziale è E13 e gli obiettivi dinamici E10.
-Seguire la mappatura del kit avrebbe **rinviato alla v0.2–v0.8 gli asset di sistemi già in partita**, cioè
-lasciato la v0.1 a rappresentare col solo colore ciò che il resolver calcola dal 2026-08. Non è un errore
+Perception e Objectives sono lavoro **della v0.1**, ma non allo stesso stadio — e la differenza conta:
+
+| Cluster | Epic | Stato reale delle feature |
+|---|:--:|---|
+| Environment | **E8** | **8 su 8 `INTEGRATED`** — `ERTHexSurface` ha nove valori, fuoco/acqua/ghiaccio girano |
+| Interactive map | **E23** | `DESIGNED` — la release è v0.2, non v0.4 |
+| Perception | **E13** | 3 `TESTABLE`, 1 `IMPLEMENTING`, 1 `SPECIFIED` — **zero** `INTEGRATED` |
+| Objectives | **E10** | 1 `RELEASE_READY`, 1 `IMPLEMENTING` — **zero** `INTEGRATED` |
+
+> 🔴 **Questa riga diceva «tutti e tre in gran parte `INTEGRATED`», e reggeva solo per E8.** Misurato sul
+> registry che questa stessa PR rigenera: E13 ed E10 non hanno **nessuna** feature `INTEGRATED`. La tesi non
+> cade — quei cluster restano **v0.1**, quindi il kit li rinvia comunque a release future — ma la prova era
+> più forte del vero, ed è il tipo di frase che il prossimo consolidamento ricopia invece di rimisurare.
+> Trovato in code review.
+
+Seguire la mappatura del kit avrebbe **rinviato alla v0.2–v0.8 gli asset di sistemi che la v0.1 possiede**,
+cioè lasciato la release a rappresentare col solo colore ciò che il resolver calcola già. Non è un errore
 di ambizione della sorgente: è che il kit misura la maturità del **contenuto** e la ladder canonica misura
 quella del **sistema**, e sul contenuto il progetto è più avanti di quanto la sorgente sapesse.
 
