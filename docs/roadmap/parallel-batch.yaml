@@ -4358,11 +4358,24 @@ tracks:
     binary_leases: []
 
   graybox_kit:
-    status: ACTIVE
+    status: IDLE
     issue: null
-    branch: docs/graybox-kit-consolidamento
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
+      ✅ **CHIUSA il 2026-08-17**: PR **#1099** mergiata in `main` come `9d82c806`, e la PR di
+      correzione che segue la code review chiude il lavoro. Il write-set qui sotto è **rilasciato** —
+      `spec-graybox-placement-contract.md`, `asset-map.md` e il sorgente archiviato tornano disponibili.
+      🔴 **La chiusura registra un errore di processo che vale più del lavoro consegnato**: la PR è stata
+      **mergiata prima che la code review riportasse**, e la review ha poi trovato **due premesse false** —
+      «la distruzione arriva con CP 9.2» (chiuso dal 2026-08-07, il produttore è vivo) e «`C` discende da
+      `HexSize`» (manca il fattore `√3`, cioè un errore di 1,73× su ogni misura del documento). Entrambe
+      erano **trascritte da un commento invece che misurate**, che è precisamente ciò che la §2 di quel
+      documento dichiara di non fare. Una review lanciata e non attesa non è una review.
+      ⚠️ **Il rimedio è stato una seconda PR, non una rettifica in linea**: `main` aveva già il documento
+      sbagliato per il tempo fra i due merge, e chiunque l'abbia letto in quella finestra ha letto due
+      numeri falsi. È il costo di non aver aspettato, ed è scritto qui perché la prossima track lo eviti.
+
       ➕ **Track aperta il 2026-08-17 per consumare un kit d'autore**, `Graybox_Kit_Cover_CellVolume`
       (1620 righe), **untracked nella root del checkout principale** (`D:/Repositories/refactor-tactics-main`)
       — cioè in nessun insieme di questo file. È la stessa condizione di `docs_kit` il 2026-08-16, e
@@ -4433,26 +4446,12 @@ tracks:
       allineato, `check-docs-links.py` e `check-docs-naming.py` verdi. 🔴 **`shortlist --check` era già
       disallineato su due viste** — `scenariomap.shortlist.md` e `editormap.shortlist.md` — e la misura
       precede questa track: non è un rosso che ho introdotto, e non è mio da chiudere.
-    writable:
-      - docs/technical/spec-graybox-placement-contract.md
-      # 🆕 Non esiste su nessun ramo: è l'owner che questo consolidamento crea. Il kit chiede un
-      # «placement contract documentato» e nel repository non c'è un documento che risponda —
-      # `spec-hex-geometry-authoring.md` possiede la geometria *tattica* (asse + offset interi), non
-      # l'ingombro degli asset che ci stanno sopra.
-      - docs/technical/asset-map.md
-      # ⚠️ Entra perché è l'**asset tracker** e il kit aggiunge una famiglia che oggi non ha nessuna riga:
-      # misurato, le 17 voci v0.1 sono personaggi, mappe, materiali e framework — zero graybox di mappa.
-      # Verificato non conteso: nessuna track lo rivendica, nessun ramo vivo lo tocca.
-      - docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md
-      # 🔴 **Aggiunto in code review, ed era uno STOP per la regola di questa stessa track.** Il branch
-      # crea questo file (1674 righe) e la nota dichiarava *«restano due path nel writable, e sono i soli
-      # che questa track possiede»*: il write-set misurato è di **19** file, 18 coperti e questo no —
-      # né `writable`, né `integration_only` (che elenca `docs/archive/src/README.md`, **non** la
-      # cartella), né `generated_only`. È la condizione «file non assegnato» di `D-139`, commessa dalla
-      # track che si era fermata davanti a `convenzioni-contenuti-ue.md` per lo stesso motivo.
-      # ✅ La convenzione esisteva già: `docs_kit` aveva dichiarato entrambi i propri sorgenti d'archivio
-      # nel `writable` (si legge nel suo commento di rilascio). Non seguirla lasciava scoperta una
-      # collisione con qualunque ramo che archiviasse nella stessa cartella.
+    # ➖ **Rilasciato alla chiusura.** Era: `docs/technical/spec-graybox-placement-contract.md` ·
+    # `docs/technical/asset-map.md` ·
+    # `docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md`
+    # L'elenco resta scritto invece di essere svuotato in silenzio: dice quali file questa track ha
+    # toccato, ed è ciò che la prossima intersezione deve poter leggere.
+    writable: []
     binary_leases: []
 
   replay_ui:
