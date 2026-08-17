@@ -21,18 +21,34 @@ Ogni file qui porta un **banner di stato** nella prima riga dopo il titolo. È l
 ⚠️ **I banner parlano due vocabolari.** Non è un difetto da sanare riscrivendo 24 documenti — è un fatto da
 dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
-| Banner | Vocabolario | Significa | Quanti *(2026-08-16)* |
+| Banner | Vocabolario | Significa | Quanti *(2026-08-17)* |
 |---|---|---|--:|
-| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 35 |
-| `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 8 |
+| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 38 |
+| `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 12 |
 | `📦 DELIVERED PLAN` | secondo | *Piano già eseguito, non normativo* — equivale a `HISTORICAL` | 14 |
 | `🧱 AS-BUILT` | secondo | *Specifica di ciò che fu consegnato* — equivale a `HISTORICAL` | 7 |
 | `DONE` · `PLAN`/consumato · `BRIEF` | secondo | Casi singoli, già consumati — equivalgono a `HISTORICAL` | 3 |
+| **nessun banner** | — | Il documento apre con una citazione che non ne dichiara uno | **1** |
 
-**67 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `35 + 8 + 14 + 7 + 3 = 67`, e la somma delle categorie e' il controllo che il totale da solo non offre. I due totali si rimisurano eseguendo:
+**75 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `38 + 12 + 14 + 7 + 3 + 1 = 75`, e la somma delle categorie e' il controllo che il totale da solo non offre.
+
+> 🔴 **Rimisurato il 2026-08-17, e lo scarto era di OTTO.** La riga diceva `67` e la cartella ne conteneva
+> **74** prima che questo giro ne aggiungesse uno. Non è una deriva nuova: è la stessa che questa cella
+> dichiara di aver già subito tre volte in un giorno, e la contromisura scritta — *rimisurare dopo il merge* —
+> non era stata eseguita dai rami successivi. Gli addendi sono stati ricalcolati **tutti**, non incrementati:
+> `CURRENT` 35 → **38**, `SNAPSHOT` 8 → **12**.
+>
+> ➕ **E lo script ha prodotto una categoria che la tabella non aveva**: un documento —
+> [`cp153b-decision-provider-plan-2026-08-16.md`](cp153b-decision-provider-plan-2026-08-16.md) — apre con
+> `> **Per chi esegue:** …` e **nessun banner**. Non è stato riscritto per farlo rientrare in una casella:
+> il criterio di questa pagina è che il banner sia l'unica cosa da guardare, e un documento che non ne ha
+> uno è un fatto da dichiarare, non un errore di formattazione da nascondere sommandolo altrove. La riga
+> nuova esiste perché la somma torni **senza** che nessuno debba indovinare dove sia finito l'ottavo.
+
+I due totali si rimisurano eseguendo:
 
 ```sh
-ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 67
+ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 75
 ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
 
 # La ripartizione per banner — il numero che fino al 2026-08-16 nessun comando produceva.

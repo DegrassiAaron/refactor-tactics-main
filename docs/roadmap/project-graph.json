@@ -216,6 +216,7 @@
     "M9.1": "⏳",
     "M9.2": "⏳",
     "M9.3": "⏳",
+    "M9.4": "⏳",
     "M10.1": "⏳",
     "M10.2": "⏳",
     "M10.3": "⏳",
@@ -1380,11 +1381,13 @@
       "unblocked_by": [],
       "unblocks": [
         "U22",
-        "U25"
+        "U25",
+        "U26"
       ],
       "shares_setup_with": [
         "U22",
-        "U25"
+        "U25",
+        "U26"
       ],
       "verifies": [
         {
@@ -1421,7 +1424,8 @@
       ],
       "unblocks": [],
       "shares_setup_with": [
-        "U21"
+        "U21",
+        "U26"
       ],
       "verifies": [
         {
@@ -1510,13 +1514,45 @@
       ],
       "unblocks": [],
       "shares_setup_with": [
-        "U21"
+        "U21",
+        "U26"
       ],
       "verifies": [],
       "issues": [
         1095
       ],
       "done_when": "la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro"
+    },
+    {
+      "id": "U26",
+      "title": "La griglia di lavoro e la sonda di movimento nell'editor",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "—",
+      "queue_group": null,
+      "produces": "verdetto su leggibilita' della griglia di lavoro e della sonda di movimento",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "U21",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [
+        "U21",
+        "U22",
+        "U25"
+      ],
+      "verifies": [],
+      "issues": [
+        622,
+        711
+      ],
+      "done_when": "le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale"
     }
   ],
   "editor_queue": {

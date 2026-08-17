@@ -161,9 +161,18 @@ enum class ERTReactionTrigger : uint8
 };
 
 /**
- * Che cosa un'azione fa a una copertura di bordo (CP 9.5). Dato del catalogo, non un ramo nell'orchestratore:
- * la stessa operazione appartiene all'azione core, a un'abilita' d'eroe e a un gadget, e i tre non devono
- * diventare tre `if` sull'ActionId.
+ * Che cosa un'azione fa a una **struttura di bordo** (CP 9.5). Dato del catalogo, non un ramo
+ * nell'orchestratore: la stessa operazione appartiene all'azione core, a un'abilita' d'eroe e a un gadget, e
+ * i tre non devono diventare tre `if` sull'ActionId.
+ *
+ * ⚠️ **Questo campo decide anche la FORMA DEL BERSAGLIO**, e non solo l'esecuzione: il puntatore deriva
+ * `ERTPointerTargetKind::Edge` da `StructureOp != None` (`RTPointerInteraction.cpp`) — prima di guardare
+ * `Shape`. Un'azione che agisce su un bordo e non lo dichiara qui chiederebbe al giocatore una cella.
+ *
+ * 🔴 **Aggiungere un valore qui NON fa fallire la compilazione**: nessun consumatore fa uno `switch`
+ * esaustivo, e il loop delle strutture in `RTTurnManager` tratta come `CreateCover` **tutto cio' che non e'
+ * `None` ne' `MoveCover`. Chi aggiunge un valore deve quindi aggiungere anche il proprio ramo li', o l'azione
+ * erigera' una copertura in silenzio. Verificato aggiungendo `SetDoorState`.
  */
 UENUM(BlueprintType)
 enum class ERTStructureOp : uint8
@@ -173,7 +182,17 @@ enum class ERTStructureOp : uint8
 	/** Erige una copertura bassa temporanea sul bordo dichiarato dal piano. */
 	CreateCover,
 	/** Sposta una copertura gia' esistente su un altro bordo, conservandone integrita' e durata residua. */
-	MoveCover
+	MoveCover,
+	/**
+	 * Porta una PORTA allo stato dichiarato da `ERTActionEffect::SetDoorState` ([D-148]).
+	 *
+	 * Non e' un'operazione di copertura e non passa dal loop delle strutture: l'esecuzione la raccoglie il
+	 * Blast su `FirstDoorEdge` (CP 9.3) e la applica `URTHexDoorLibrary::SetDoorState`, che resta l'unico
+	 * ingresso di mutazione. Il valore serve al **targeting** — far chiedere al giocatore un bordo invece di
+	 * una cella — e a nient'altro: lo STATO viaggia nell'effetto, non qui, cosi' `Open` e `Closed` non
+	 * diventano due valori di questo enum.
+	 */
+	SetDoorState
 };
 
 /**
