@@ -405,10 +405,12 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 [`test-manuali-pie.md`](test-manuali-pie.md).
 
 > 🔴 **Le voci PIE di questo contratto non sono ancora scritte, e il motivo è un vincolo di parallelismo,
-> non una dimenticanza.** `test-manuali-pie.md` è nel write-set della track `playback` in
-> [`parallel-batch.yaml`](../roadmap/parallel-batch.yaml): per `D-139` scriverci da un'altra track sarebbe
-> la «piccola fix» su un file assegnato a qualcun altro. Il contenuto delle voci è pronto e vive nella
-> issue di validazione visiva del kit.
+> non una dimenticanza.** `test-manuali-pie.md` è **assegnato a un'altra track** in
+> [`parallel-batch.yaml`](../roadmap/parallel-batch.yaml): per `D-139` scriverci da qui sarebbe la
+> «piccola fix» su un file di qualcun altro. Il contenuto delle voci è pronto e vive nella issue di
+> validazione visiva del kit.
+>
+> **Qui non c'è un nome di proposito**, e il paragrafo sotto dice perché.
 >
 > ⏱️ **La causa è cambiata tre volte in una sessione, e il vincolo non si è mai mosso.** All'apertura il
 > file era in prestito a `playback` per `#1015`; poi `#1015` è stata **chiusa** mentre questo documento

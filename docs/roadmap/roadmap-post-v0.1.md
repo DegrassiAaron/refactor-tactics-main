@@ -85,15 +85,21 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 | Modularization | v0.9 | **nessuna** | authoring, non contenuto di release | `DEFER` |
 | Contract freeze | v1.0 | **v1.0** ✅ | **E45** | allineato |
 
-**Una riga su dieci coincide esattamente** — il contract freeze. Le altre nove divergono in **tre** modi,
-e vale la pena non confonderli: **quattro** cluster il repository li ha già (più avanti del kit), **tre**
-non hanno una release che li possieda e restano `future`, **uno** è a cavallo (Core map, con la coda dei
-muri e delle porte in v0.2) e **uno** — Modularization — non è contenuto di release ma authoring, quindi
-non atterra da nessuna parte.
+**Una riga su dieci coincide esattamente** — il contract freeze. Le altre nove divergono in **quattro**
+modi, e vale la pena non confonderli:
 
-> ⚠️ *Diceva «due modi opposti» mentre i due paragrafi che li spiegano coprono `4 + 3 = 7` righe su nove:
-> Core map e Modularization restavano fuori da entrambi. La correzione che aveva sistemato il numeratore
-> aveva allargato il buco nel denominatore. Trovato in code review.*
+| Modo | Quali | Quante |
+|---|---|--:|
+| il repository li ha già, o li sta costruendo, prima di dove il kit li mette | Environment · Interactive map · Perception · Objectives | **4** |
+| nessuna release li possiede: restano `future` | 3D map · Destruction · Tactical devices | **3** |
+| a cavallo di due release | Core map (con la coda di muri e porte in v0.2) | **1** |
+| non è contenuto di release, è authoring | Modularization | **1** |
+
+> ⚠️ *Questa frase ha sbagliato il conto **due volte**. Diceva «due modi opposti» mentre i due paragrafi
+> che li spiegano coprivano `4 + 3 = 7` righe su nove — Core map e Modularization restavano fuori da
+> entrambi. La correzione elencò i quattro gruppi e continuò a chiamarli «tre». La somma tornava a nove in
+> entrambi i casi, ed è la stessa trappola del conto del catalogo: **un totale che torna non convalida la
+> partizione**. Ora i modi si contano nella tabella invece che nella prosa.*
 
 > ⚠️ **La riga «Core map» diceva `v0.1 ✅ allineato` elencando E23 fra gli owner, e la riga quattro più
 > sotto dichiara E23 **v0.2**.** La stessa tabella usava la stessa epic da due parti della propria
@@ -101,8 +107,8 @@ non atterra da nessuna parte.
 > di etichetta — è la tabella che `D-153` indica come riconciliazione di riferimento, e «allineato» non era
 > misurabile. Trovato in code review.
 
-🔴 **Quattro cluster il kit li mette *dopo* dove il repository li ha già** — ma «dove» non è la stessa
-release per tutti e quattro, e nemmeno lo stesso stadio:
+🔴 **Quattro cluster il kit li mette *dopo* di dove stanno sulla roadmap canonica** — «dopo» riguarda la
+**release**, non lo stato di avanzamento, e i quattro non sono allo stesso stadio:
 
 | Cluster | Epic | Stato reale delle feature |
 |---|:--:|---|

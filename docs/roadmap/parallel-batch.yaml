@@ -4436,7 +4436,9 @@ tracks:
       quelli — `fix/1080-catalogo-predictive`, `wip/doc-binari`, `feat/1077-status-turnlog`, `pr-963-review`
       e i due `backup/869-*` — non compaiono né in `ls-remote` né in `gh`. `git diff --name-only
       origin/main...<ref>` per **tutti e diciassette**: **zero** tocca `docs/technical/asset-map.md`, e il
-      secondo path non esiste su nessun ramo.
+      secondo path non esisteva ancora su nessun ramo. ⏱️ *Misura datata: dal merge di #1099 quel file è
+      in `main`. La riga resta com'era — riscriverla la renderebbe falsa al suo istante — e il commento
+      accanto al path porta lo stato di oggi.*
       ⚠️ **Cinque rami toccano invece *questo* file** (`wip/doc-binari`, `feat/1077-status-turnlog`,
       `pr-963-review`, i due `backup/869-*`): è `integration_only`, il conflitto è previsto, e chi mergia
       per secondo **tiene entrambe le track** invece di scegliere un lato.
@@ -4449,10 +4451,22 @@ tracks:
       di toccare qualunque file: `feature_registry.py validate` **0 errori / 45 warning**, `generate --check`
       allineato, `check-docs-links.py` e `check-docs-naming.py` verdi. 🔴 **`shortlist --check` era già
       disallineato su due viste** — `scenariomap.shortlist.md` e `editormap.shortlist.md` — e la misura
-      precede questa track: non è un rosso che ho introdotto, e non è mio da chiudere.
+      precede questa track. ✅ **Poi l'ho chiuso lo stesso**, perché la causa era a portata: i nomi canonici
+      erano stati corretti **sul generato** e non sulla sorgente, quindi ogni rigenerazione rimetteva i
+      legacy. Oggi `shortlist --check` è verde. *(La prima stesura si fermava a «non è mio da chiudere»:
+      vera quando fu scritta, stantia due commit dopo — e un disclaim che sopravvive alla propria causa
+      manda il prossimo a cercare un rosso che non c'è.)*
     writable:
       - docs/technical/spec-graybox-placement-contract.md
+      # 🆕 Nato da questo consolidamento: è l'owner che il repository non aveva —
+      # `spec-hex-geometry-authoring.md` possiede la geometria *tattica*, non l'ingombro degli asset che
+      # ci stanno sopra. ⏱️ **Dal 2026-08-17 è in `main`** (PR #1099, `9d82c806`): la misura d'apertura
+      # diceva «non esiste su nessun ramo» ed è scaduta col merge. Resta non conteso — nessun'altra
+      # track lo rivendica.
       - docs/technical/asset-map.md
+      # ⚠️ Entra perché è l'**asset tracker** e il kit aggiunge una famiglia che non aveva nessuna riga:
+      # misurato, le 17 voci v0.1 sono personaggi, mappe, materiali e framework — zero graybox di mappa.
+      # Verificato non conteso: nessuna track lo rivendica, nessun ramo vivo lo tocca.
       - docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md
       # 🔴 Il terzo path è entrato in code review: il ramo lo **crea e poi lo modifica**, e non stava in
       # nessun insieme — né `writable`, né `integration_only` (che elenca `docs/archive/src/README.md`,

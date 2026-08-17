@@ -1069,8 +1069,9 @@ sessions:
       dell'asset, o `git add` tace e il lavoro resta sul disco di chi l'ha fatto.
       ⛔ **Fuori da questa seduta**: i diciannove elementi del catalogo. Sette sono `DEFER` — tre per
       dipendenza da feature `IDEA`, due fuori scope v0.1 dichiarato, due proxy senza produttore — e dei
-      dodici restanti la maggior parte e' `UPDATE` di presentazione su asset che esistono. Questa seduta porta **il volume e la scena**, cioe' gli strumenti con cui gli altri si
-      giudicano — non gli altri.
+      dodici restanti la maggior parte e' `UPDATE` di presentazione su asset che esistono. Questa
+      seduta porta **il volume e la scena**, cioe' gli strumenti con cui gli altri si giudicano — non
+      gli altri.
       ⚠️ **`unblocked_by: [U21]` non e' una dipendenza tecnica ma la stessa di `U22`**: una scena di
       leggibilita' valutata prima che `L_DevSandbox` sia illuminato direbbe piu' sulle luci che sul kit.
       🔴 **La conseguenza dei due campi vuoti INSIEME, che i due paragrafi qui sopra giustificano

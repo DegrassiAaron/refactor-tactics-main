@@ -4704,8 +4704,10 @@ features:
       🔴 **Sette dei diciannove elementi del catalogo sono `DEFER`, e tre dipendono da feature
       `IDEA` su release `future`** (`RT-FEAT-MAP-STRUCTURAL`, `RT-FEAT-MAP-VERTICALITY`). Il kit
       «completo» non e' raggiungibile in v0.1, e non e' un ritardo: sette voci su diciannove descrivono
-      sistemi che il progetto non ha ancora deciso di costruire. La valvola e' il caso limite —
-      **fuori scope v0.1 dichiarato** da CP 10.1 §11, con motivazione registrata.
+      sistemi che il progetto non ha ancora deciso di costruire. **Due** dei sette sono
+      fuori scope v0.1 dichiarato da CP 10.1 §11 — la piattaforma mobile e la valvola — e quest'ultima e' il
+      caso limite, perche' il kit la mette fra i diciannove «v0.1» mentre la spec la esclude con
+      motivazione registrata.
 
       ⚠️ **Nessun gate difende questo contratto oggi**, ed e' dichiarato invece che sottinteso: e' la
       stessa condizione in cui `D-146` ha lasciato la ridondanza colore+forma. Le voci PIE non sono
@@ -5170,6 +5172,8 @@ features:
         # **questo file non lo apre affatto** — ed e' `.yaml`. L'esenzione backtick e' una regola *dentro*
         # un file letto, e questi due id non sono nemmeno fra backtick: non poteva essere lei.
         # ∴ la vera lacuna e' l'estensione del gate ai `.yaml`, non il trattamento dei backtick.
+        # ➕ Tracciata: **#1110**. Una lacuna identificata che resta un commento YAML non entra in nessuna
+        # coda — e' la regola «CREATE OR LINK, NEVER IGNORE» applicata a se' stessa.
         - Team.Conflux.GadgetPhase.ConductiveFlood
         - Team.Constrine.RiktorWraith.OnlyExit
         - Team.Sentinel.SteelMurdock.HoldTheLine

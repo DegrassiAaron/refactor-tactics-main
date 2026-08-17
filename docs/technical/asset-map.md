@@ -107,9 +107,12 @@ famiglia della v0.1 con lavoro aperto.
 
 ### 2.1 Famiglie attese che non hanno ancora un path
 
-**Quattro** cose che la v0.1 richiede e che **non stanno né nell'allowlist né in una seduta**. *(Diceva «Due»
-quando le righe erano tre, e la quarta è arrivata il 2026-08-17 senza che la frase si muovesse — prosa e dati
-dello stesso file che si contraddicono, trovato in code review.)* Non sono dimenticanze
+**Quattro** cose che la v0.1 richiede e che **non hanno un path nell'allowlist**. *(Diceva «Due» quando le
+righe erano tre, e la quarta è arrivata il 2026-08-17 senza che la frase si muovesse. ⚠️ E il predicato era
+sbagliato oltre al numero: «né in una seduta» è falso per due righe su quattro — U21 possiede il livello
+illuminato, U25 il kit graybox. Ciò che manca a tutte e quattro è il **percorso**, non il produttore. Due
+correzioni in code review sulla stessa frase: la prima aveva riletto il numero e non il predicato.)* Non
+sono dimenticanze
 di questo file: sono buchi delle fonti, e vanno chiusi lì.
 
 | Famiglia | Chi la richiede | Perché manca un path |
