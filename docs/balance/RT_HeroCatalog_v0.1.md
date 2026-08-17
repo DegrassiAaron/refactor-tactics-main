@@ -187,6 +187,10 @@ nel vertical slice).
 > (`PredictionBoundary = MovementEntry`), senza input durante la Resolution.
 > È da `Tipo = predittiva` che la rubrica dei radar deduce che il payoff è **condizionale a una previsione**
 > e non entra nel danno garantito (#557, #1080).
+> ⚠️ **Quella parola è un ingresso di calcolo, non un'etichetta**: scriverla diversamente — `predittivo`,
+> `predittiva ` con uno spazio — non fa fallire nessun gate del catalogo, ma rimette 16 danni nel `power`
+> di Wraith. A intercettarlo è un test che pinna il valore (`Radar.ParseCatalog`), non un controllo di
+> dominio: se cambi questa cella, esegui `node --test tools/radar/*.test.ts`.
 
 **Variante di `InterceptShot`**
 - *Intercetto preciso*: **20 danni**, ma controlla **una sola cella**.

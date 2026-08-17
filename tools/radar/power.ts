@@ -25,8 +25,14 @@ const WEIGHT_SCALE = 60 * 10;
  *  reazioni — `/trigger d'ingresso su movimento/` — e il difetto era che nessuno poteva saperlo: chi
  *  avesse riscritto quella cella per correggerne il contenuto (e c'era da correggerlo: dichiarava
  *  `InterceptShot` una reazione rinviata a E14, falso dal 2026-08-10) avrebbe **mosso un rating** senza
- *  toccare un numero. Ora legge la colonna `Tipo`, che e' un campo del catalogo con un vocabolario
- *  chiuso: correggere la prosa attorno non cambia piu' i radar. Vedi `#1080`. */
+ *  toccare un numero. Ora legge la colonna `Tipo`, che e' un campo: correggere la prosa attorno non
+ *  cambia piu' i radar. Vedi `#1080`.
+ *
+ *  ⚠️ **`kind` NON ha un gate come `KNOWN_EFFECTS`**: il suo vocabolario e' documentato in
+ *  `parse-catalog.ts`, non validato. Un `predittivo` al posto di `predittiva` scriverebbe un tipo che
+ *  nessuno rifiuta, e il payoff tornerebbe a contare per intero — lo stesso difetto di prima, spostato
+ *  di una casella. Cio' che lo intercetta e' un test che **pinna il valore**, non un controllo di
+ *  dominio: `parse-catalog.test.ts`, «una azione predittiva NON e una reazione». */
 function isPredictive(ability: AbilityInput): boolean {
   return ability.kind === 'predittiva';
 }
