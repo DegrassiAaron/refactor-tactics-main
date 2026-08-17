@@ -555,7 +555,7 @@ batch:
   # sono ricalcolati su `base_sha`, e tenere due basi vive significherebbe avere due misure che si
   # somigliano. Serve solo a dire che fra le due riconciliazioni il batch è **avanzato di sette
   # PR** — misurate, non elencate a memoria — non che sia stato riscritto.
-  reconciled_at: "2026-08-16"
+  reconciled_at: "2026-08-17"
   # ⚠️ `reconciled_at` da solo non distingue una riconciliazione da due nello stesso giorno, ed è
   # esattamente il caso di oggi: la data era già corretta *prima* di questo giro, quindi non
   # segnalava nulla. Il contatore è ciclo di vita del **batch**, come `status:`, e non stato di una
@@ -670,7 +670,7 @@ batch:
   # `awk`/`sed` dentro `subprocess(shell=True)`, cioè `cmd.exe`, dove non esistono — output vuoto, exit 0,
   # nessun errore. Rifatta in shell POSIX: nove branch, tutti misurati. Un conteggio a zero è la forma che
   # prende un comando che non ha girato, ed è indistinguibile dalla buona notizia che sembra.
-  reconciled_count: 9
+  reconciled_count: 10
 
 # --- Branch già vivi al momento del calcolo ---------------------------------------------------
 #
@@ -1312,6 +1312,24 @@ preexisting:
       nuova · `client_tools` guadagna `branch` e `worktree` (la sessione è partita) · `content_editor`
       registra che il worktree non esiste più · tre voci `preexisting` passano a `LANDED` e due entrano.
       **Nessun `writable` esistente viene ristretto o allargato.**
+
+  - branch: chore/chiusura-track-graybox
+    state: LIVE            # worktree `D:/rt-unit`, aperto il 2026-08-17
+    measured: 1
+    collides_with: [chore/rilascio-turnmanager-replay-ui]
+    note: >-
+      L'**ottava** riconciliazione, aperta per chiudere `graybox_kit` e non per manutenere il file. Un
+      solo file — `docs/roadmap/parallel-batch.yaml` — che è `integration_only` e quindi nel `writable`
+      di nessuno. Si dichiara qui per la stessa ragione delle tre precedenti: una PR che tocca **solo**
+      questo file è manutenzione del batch, e il batch deve poterla vedere.
+      🔴 **`collides_with` NON è vuoto, ed è una collisione viva**: `chore/rilascio-turnmanager-replay-ui`
+      (PR **#1113**) tocca il blocco `replay_ui`, che sta subito dopo `graybox_kit`. Misurata con
+      `git diff --name-only origin/main...<ref>` su tutti gli **11** ref remoti al 2026-08-17: è l'unica
+      PR aperta che tocchi questo file. Il conflitto è previsto e banale — due track in due punti diversi
+      della stessa sezione — e si risolve tenendo **entrambe**.
+      ➕ **Porta anche un fix strutturale**: `docs/archive/src/` entra in `integration_only` come
+      cartella. Finora c'era il solo `README.md`, quindi ogni kit appena archiviato era «file non
+      assegnato» per `D-139` — una lacuna che `graybox_kit` ha scoperto inciampandoci.
 
   - branch: chore/512-batch-simulation
     state: LIVE            # worktree `D:/rt-simulation`, aperto il 2026-08-16
@@ -4358,124 +4376,54 @@ tracks:
     binary_leases: []
 
   graybox_kit:
-    status: ACTIVE
+    status: IDLE
     issue: null
-    branch: fix/graybox-review-1099
+    branch: null
     worktree: "D:/rt-unit"
     note: >-
-      🔵 **PR #1099 mergiata** in `main` come `9d82c806`; la track **resta `ACTIVE`** perché la PR di
-      correzione che segue la code review non è ancora atterrata. Il write-set **non** si rilascia prima:
-      chiuderla mentre un ramo tocca ancora i suoi tre path era il difetto che la prima stesura di questa
-      nota ha commesso — `writable: []` accanto a un diff che modifica il sorgente archiviato.
-      🔴 **La chiusura registra un errore di processo che vale più del lavoro consegnato**: la PR è stata
-      **mergiata prima che la code review riportasse**, e la review ha poi trovato **due premesse false** —
-      «la distruzione arriva con CP 9.2» (chiuso dal 2026-08-07, il produttore è vivo) e «`C` discende da
-      `HexSize`» (manca il fattore `√3`, cioè un errore di 1,73× su ogni misura del documento). Entrambe
-      erano **trascritte da un commento invece che misurate**, che è precisamente ciò che la §2 di quel
-      documento dichiara di non fare. Una review lanciata e non attesa non è una review.
-      ⚠️ **Il rimedio è stato una seconda PR, non una rettifica in linea**: `main` aveva già il documento
-      sbagliato per il tempo fra i due merge, e chiunque l'abbia letto in quella finestra ha letto due
-      numeri falsi. È il costo di non aver aspettato, ed è scritto qui perché la prossima track lo eviti.
+      ✅ **CHIUSA il 2026-08-17.** Consumava il kit d'autore `Graybox_Kit_Cover_CellVolume` (1620 righe),
+      **untracked nella root del checkout principale** — la condizione che questo file esiste per rendere
+      visibile, applicata a un sorgente invece che a un owner. Due PR: **#1099** (`9d82c806`) porta il
+      consolidamento, **#1104** (`94575ef4`) le correzioni di quattro tornate di code review.
+      **Cosa ha prodotto**: l'owner `spec-graybox-placement-contract.md`, `D-152`/`D-153`, la feature
+      `RT-FEAT-UI-GRAYBOX-KIT`, la seduta **U25**, e le issue **#1094** (`GBX-1..4`), **#1095**, **#1096**.
+      Epic **#286** e **#778** aggiornate; nessuna creata.
 
-      ➕ **Track aperta il 2026-08-17 per consumare un kit d'autore**, `Graybox_Kit_Cover_CellVolume`
-      (1620 righe), **untracked nella root del checkout principale** (`D:/Repositories/refactor-tactics-main`)
-      — cioè in nessun insieme di questo file. È la stessa condizione di `docs_kit` il 2026-08-16, e
-      la stessa risposta: si dichiara prima di scrivere.
-      ⚠️ `issue: null` all'apertura perché le issue **nascono da questo lavoro**, non lo precedono:
-      il kit prescrive «creare issue solo dopo audit».
-      ✅ **Aperte a valle dell'audit**: **#1094** (le quattro domande `GBX-1..4`, `question`), **#1095**
-      (la seduta **U25** — volume di posa e scena di validazione) e **#1096** (le voci PIE, che sono
-      bloccate da `D-139` e non da mancanza di contenuto). `issue` resta `null` perché **nessuna delle tre
-      è il soggetto di questa track**: questa track consolida e le apre, non le esegue. Le epic **#286**
-      (E21) e **#778** (E45) sono state aggiornate con la relazione; **nessuna epic nuova** — `D-153`.
+      🔴 **La lezione di processo NON si ripete qui: sta in `D-152`**, che è il suo owner. In una riga: la
+      prima PR è stata mergiata prima che la review riportasse, e la review ha trovato due premesse false
+      già su `main` — entrambe **trascritte da un commento invece che misurate**. Le due fonti del difetto
+      sono tracciate: **#1107** (il commento in `RTHexCellData.h`, passato a `spatial` che possiede il
+      file) e **#1110** (il gate di naming che non apre i `.yaml`).
+      ⚠️ *La prima stesura di questa nota ripeteva qui l'intera retrospettiva, che era già in `D-152` e in
+      un paragrafo di questa stessa nota. Riga 9: «non è un registro storico, e non si accumula».*
 
-      ✅ **Il write-set è MISURATO, non dedotto dal tema.** Il kit tocca dodici categorie di tracking,
-      ma **undici** dei suoi bersagli sono `integration_only` — Decision Log, `feature-registry.yaml`,
-      `roadmap-v0.1.md`, `roadmap-post-v0.1.md`, `editor-sessions.yaml`, `scenario-map.md`,
-      `OPEN_DECISIONS.md`, `DOC_CONFLICT_MATRIX.md`, `CONTEXT_INDEX.md`, `docs/archive/src/README.md`
-      e questo file — e per definizione non si assegnano: si aggiornano **una volta in integrazione**.
-      Restano **tre** path nel `writable` — l'owner nuovo, l'asset tracker e il sorgente archiviato — e sono i soli che questa
-      track possiede. ⚠️ **Il terzo è stato aggiunto in code review**: la prima stesura diceva «due», e il
-      file che questo ramo crea in `docs/archive/src/` non stava in nessun insieme. Vedi il commento
-      accanto al path.
+      ⛔ **Cosa questa track NON ha toccato, ed è il punto**: nessun `.uasset` e nessun `.umap` — i
+      diciannove elementi del kit sono binari e servirebbe una **Binary Asset Lease** più una persona in
+      Unreal · `docs/technical/test-manuali-pie.md`, assegnato ad altra track per tutta la durata (tre
+      proprietari diversi in tre giorni, il permesso mai) · `convenzioni-contenuti-ue.md`, che non è in
+      **nessun** insieme di questo file e per `D-139` è uno STOP: è diventato `GBX-4` invece di un edit.
 
-      ⏱️ **Il proprietario di `test-manuali-pie.md` è cambiato TRE volte mentre questa track lavorava, e
-      il permesso non si è mai mosso.** (1) All'apertura: in prestito a `playback` per `#1015`, `ACTIVE`.
-      (2) In code review: `#1015` **chiusa**, ma il batch dichiarava ancora `playback` `ACTIVE` col path nel
-      `writable` — *«un rilascio si scrive»*, e non tocca a chi passa scriverlo per altri. (3) Al merge
-      finale: il rilascio **è stato scritto**, `playback` è `IDLE` con `writable: []`, e il path è **tornato
-      a `playtest`** — che è `IDLE`, e in questo file `writable` su una track `IDLE` significa **prenotato**.
-      ∴ **la condizione di sblocco non è mai stata «la issue chiude»**: è che la track proprietaria rilasci
-      o ceda. Tre nomi diversi, un solo vincolo — ed è la ragione per cui `#1096` cita il batch e non un
-      numero di issue.
-      🔴 **`docs/technical/test-manuali-pie.md` è ASSEGNATO ALTROVE, e il lavoro che lo riguarda si ferma.**
-      Oggi sta nel `writable` di **`playtest`**; il kit chiede §13 una scena di validazione visiva con
-      acceptance a tre livelli di zoom, cioè **voci PIE nuove**, e scriverle qui sarebbe la «piccola fix»
-      su un file di un'altra track che `D-139` vieta. Il contenuto delle voci esiste ed è pronto — vive
-      nella issue **#1096** e nell'owner doc §10, non in un edit.
-      ⚠️ **Questo paragrafo diceva «`playback` (ACTIVE su `#1015`)» cinque righe sotto quello che spiega
-      che `playback` è `IDLE` e ha restituito il path**: la nota insegnava la correzione e l'errore
-      corretto insieme. Trovato in code review — un blocco riscritto per registrare un cambiamento va
-      riletto **per intero**, non solo nel punto in cui si aggiunge.
+      ⏱️ **L'intersezione di apertura è una misura DATATA e non vale al rilascio.** Diceva 11 ref remoti,
+      13 worktree, 1 PR aperta; al 2026-08-17, ore 12:50, sono **11 ref · 14 worktree · 3 PR** (#1113,
+      #1120, #1121). Il rilascio è stato verificato **adesso** e non su quella: `git diff --name-only
+      origin/main...<ref>` su tutti i ref vivi → **zero** tocca i tre path.
+      🔴 **E una collisione live va nominata**: **#1113** (`chore/rilascio-turnmanager-replay-ui`) tocca
+      *questo* file nel blocco `replay_ui`, subito dopo questo. Chi mergia per secondo tiene entrambe le
+      track invece di scegliere un lato.
+    # ➖ **Rilasciato alla chiusura**, con le misure che ne giustificavano la presa — servono alla prossima
+    # track che li rivendica, ed è la ragione per cui l'elenco non si svuota in silenzio:
+    #   · `docs/technical/spec-graybox-placement-contract.md` — creato da questa track; nessun'altra lo
+    #     rivendicava. ⏱️ Dal merge di #1099 è in `main`.
+    #   · `docs/technical/asset-map.md` — «verificato non conteso: nessuna track lo rivendica, nessun ramo
+    #     vivo lo tocca» (misura d'apertura, riconfermata al rilascio).
+    #   · `docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md`
+    #     — `git log --all --oneline -- <path>` dà solo i commit di questo ramo.
+    # 🔴 **Il terzo path era entrato in code review, e la lacuna che lo ha reso invisibile è STRUTTURALE**:
+    # `integration_only` elencava `docs/archive/src/README.md` ma non la **cartella**, quindi ogni kit
+    # archiviato finiva in nessun insieme. Rilasciare il path non lo avrebbe impedito al prossimo: la
+    # cartella è stata aggiunta a `integration_only`, come già fanno `docs/balance/` e `docs/characters/`.
+    writable: []
 
-      📦 **Il kit è archiviato in `docs/archive/src/` col suo banner**, e il totale del README è stato
-      **rimisurato, non incrementato**: dichiarava **76**, il comando ne dava **79** *prima* di questa
-      archiviazione e **80** dopo. Lo scarto di tre era già stato previsto da `docs_kit` il 2026-08-16.
-      ⚠️ **E l'indice della radice risponde 10 contro 13 file sul disco**: tre archiviazioni di `docs_kit`
-      non hanno una riga. Non le ricostruisco — una riga d'indice dice *cosa quel sorgente ha prodotto*, e
-      scriverla senza l'istruttoria di quei kit sostituirebbe una lacuna visibile con una plausibile.
-      ⛔ **Cosa questa track NON tocca, ed è il punto**: nessun `.uasset` e nessun `.umap`. I diciannove
-      elementi del kit sono asset binari e servirebbe una **Binary Asset Lease** più una persona in
-      Unreal; il kit stesso prescrive di non trattare il graybox come produzione artistica. `binary_leases`
-      resta vuoto **per scelta dichiarata**, non per dimenticanza: il lavoro in editor è tracciato come
-      seduta e come issue, e resta da eseguire.
-
-      ✅ **Intersezione misurata il 2026-08-17 sui tre comandi**, non dedotta: `git ls-remote --heads origin`
-      (**11** ref, `main` incluso), `git worktree list` (**13** worktree), `gh pr list --state open`
-      (**1** PR: #1087). E i tre comandi **non bastavano**: `git branch` ne dà **17** in locale, e sei di
-      quelli — `fix/1080-catalogo-predictive`, `wip/doc-binari`, `feat/1077-status-turnlog`, `pr-963-review`
-      e i due `backup/869-*` — non compaiono né in `ls-remote` né in `gh`. `git diff --name-only
-      origin/main...<ref>` per **tutti e diciassette**: **zero** tocca `docs/technical/asset-map.md`, e
-      `spec-graybox-placement-contract.md` non esisteva ancora su nessun ramo. ⏱️ *Misura datata: dal merge di #1099 quel file è
-      in `main`. La riga resta com'era — riscriverla la renderebbe falsa al suo istante — e il commento
-      accanto al path porta lo stato di oggi.*
-      ⚠️ **Cinque rami toccano invece *questo* file** (`wip/doc-binari`, `feat/1077-status-turnlog`,
-      `pr-963-review`, i due `backup/869-*`): è `integration_only`, il conflitto è previsto, e chi mergia
-      per secondo **tiene entrambe le track** invece di scegliere un lato.
-      ⚠️ **Limite dichiarato, come per `unit_presentation`**: la misura vede i COMMIT, non il lavoro non
-      committato negli altri worktree. Questa sessione è isolata in `D:/rt-unit` e non può eseguire `git`
-      altrove; contro quello un batch non protegge, e non è questo file a poterlo promettere.
-
-      ⏱️ **`origin/main` è avanzato durante l'audit**: il branch è nato da `9677bbd4` mentre `origin/main`
-      era già a `78dfd2f7` (**2** commit avanti, PR #1089). La baseline dei gate è stata misurata **prima**
-      di toccare qualunque file: `feature_registry.py validate` **0 errori / 45 warning**, `generate --check`
-      allineato, `check-docs-links.py` e `check-docs-naming.py` verdi. 🔴 **`shortlist --check` era già
-      disallineato su due viste** — `scenariomap.shortlist.md` e `editormap.shortlist.md` — e la misura
-      precede questa track. ✅ **Poi l'ho chiuso lo stesso**, perché la causa era a portata: i nomi canonici
-      erano stati corretti **sul generato** e non sulla sorgente, quindi ogni rigenerazione rimetteva i
-      legacy. Oggi `shortlist --check` è verde. *(La prima stesura si fermava a «non è mio da chiudere»:
-      vera quando fu scritta, stantia due commit dopo — e un disclaim che sopravvive alla propria causa
-      manda il prossimo a cercare un rosso che non c'è.)*
-    writable:
-      - docs/technical/spec-graybox-placement-contract.md
-      # 🆕 Nato da questo consolidamento: è l'owner che il repository non aveva —
-      # `spec-hex-geometry-authoring.md` possiede la geometria *tattica*, non l'ingombro degli asset che
-      # ci stanno sopra. ⏱️ **Dal 2026-08-17 è in `main`** (PR #1099, `9d82c806`): la misura d'apertura
-      # diceva «non esiste su nessun ramo» ed è scaduta col merge. Resta non conteso — nessun'altra
-      # track lo rivendica.
-      - docs/technical/asset-map.md
-      # ⚠️ Entra perché è l'**asset tracker** e il kit aggiunge una famiglia che non aveva nessuna riga:
-      # misurato, le 17 voci v0.1 sono personaggi, mappe, materiali e framework — zero graybox di mappa.
-      # Verificato non conteso: nessuna track lo rivendica, nessun ramo vivo lo tocca.
-      - docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md
-      # 🔴 Il terzo path è entrato in code review: il ramo lo **crea e poi lo modifica**, e non stava in
-      # nessun insieme — né `writable`, né `integration_only` (che elenca `docs/archive/src/README.md`,
-      # **non** la cartella), né `generated_only`. Era la condizione «file non assegnato» di `D-139`,
-      # commessa dalla track che si era fermata davanti a `convenzioni-contenuti-ue.md` per lo stesso
-      # motivo. `docs_kit` aveva già dichiarato i propri sorgenti d'archivio: la convenzione esisteva.
-      # ✅ **Intersezione rimisurata sui TRE path**, non sui due di apertura: `git log --all --oneline --
-      # <path>` per il terzo dà solo i commit di questo ramo, e nessun altro ref lo nomina. La prima
-      # misura copriva due path su tre, ed è la lacuna che la code review ha visto.
     binary_leases: []
 
   replay_ui:
@@ -4965,6 +4913,12 @@ integration_only:
   - docs/roadmap/execution-graph.yaml
   - docs/roadmap/editor-sessions.yaml
   - docs/roadmap/parallel-batch.yaml
+  - docs/archive/src/       # ➕ **La CARTELLA, dal 2026-08-17**, non il solo README: ogni kit archiviato
+                            # ci finisce dentro, e finora nessun insieme lo copriva — un sorgente appena
+                            # archiviato era «file non assegnato» per `D-139`, cioè uno STOP, e la track
+                            # `graybox_kit` ci è inciampata dopo essersi fermata davanti a
+                            # `convenzioni-contenuti-ue.md` per la stessa ragione. Rilasciare quel path
+                            # avrebbe chiuso il caso e non la lacuna. Stessa forma di `docs/balance/`.
   - docs/archive/src/README.md
   - docs/roadmap/plans/README.md
   - docs/technical/workflow-parallel-claude.md
