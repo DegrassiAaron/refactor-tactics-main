@@ -37,7 +37,7 @@ kit — non una regola implicita del terreno.
 
 ### Reazioni — aggiornamento del 2026-08-07 (CP 6.7, `#155`)
 
-Le reazioni **non** sono più in quella lista: il motore di E5 le regge (CP 5.5, `#154`) e tre delle cinque
+Le reazioni **non** sono più in quella lista: il motore di E5 le regge (CP 5.5, `#154`) e tre delle quattro
 sono cablate e verificate in partita.
 
 | Reazione | Semantica core riusata | Stato |
@@ -45,11 +45,19 @@ sono cablate e verificate in partita.
 | `Hero.Gadget.ReactiveCapacitor` | `Action.Counter` | ✅ scudo 15 **e** 10 danni all'attaccante |
 | `Hero.Riktor.Interposition` | `Action.Intercept` | ✅ incassa il colpo diretto a un alleato entro 2 celle |
 | `Hero.Wraith.Deflection` | `Action.Deflect` | ✅ −20 sul colpo che l'ha innescata |
-| `Hero.Wraith.InterceptShot` | — | ⏳ **E14**: trigger d'ingresso su movimento (ADR-0004), non «sono stato colpito» |
 | `Hero.Phase.FlowReaction` | — | ⏳ **E14**: produce movimento dentro un boundary di risoluzione |
 
-Le due rinviate lo dichiarano **nei dati** (slot `None`, nessun trigger), non solo nei commenti: con lo slot
-`Reaction` il pass del turno le raccoglierebbe e registrerebbe un'attivazione che non produce nulla.
+La rinviata lo dichiara **nei dati** (slot `None`, nessun trigger), non solo nei commenti: con lo slot
+`Reaction` il pass del turno la raccoglierebbe e registrerebbe un'attivazione che non produce nulla.
+
+> ➖ **`Hero.Wraith.InterceptShot` è uscita da questa tabella il 2026-08-17, e il denominatore è calato con
+> lei: erano cinque.** Non è una reazione — dal 2026-08-10 è una **Predictive Action** consegnata
+> (E18 CP 18.2, [D-016](../decisions/RT_PDR_00_Decision_Log.md)), con slot `Main`,
+> `PredictiveTargeting = LockCell` e `PredictionBoundary = MovementEntry`. Non attende un innesco: si
+> dichiara in pianificazione e si risolve a un boundary deterministico.
+> Il suo **Tipo** nella tabella delle abilità di Wraith è ora `predittiva`, ed è **lì** che la rubrica dei
+> radar legge la condizionalità del payoff — non più da questa cella di prosa.
+
 Identità, cooldown ed effetti restano dell'eroe; fase, priorità, slot e trigger vengono dall'azione core.
 
 ## Struttura di un eroe
@@ -167,10 +175,18 @@ nel vertical slice).
 | AbilityId | Abilità | Tipo | Effetto | CD |
 |---|---|---|---|---:|
 | `Hero.Wraith.PulseShot` | Tiro a impulsi | attacco base | 21 danni, range 4 | 0 |
-| `Hero.Wraith.InterceptShot` | Tiro d'intercetto | reazione | 16 danni e **stop del movimento** | 2 |
+| `Hero.Wraith.InterceptShot` | Tiro d'intercetto | predittiva | 16 danni e **stop del movimento** | 2 |
 | `Hero.Wraith.PassingBlade` | Lama di passaggio | dash | `Dash 3`, 20 danni attraversando | 2 |
 | `Hero.Wraith.Deflection` | Deviazione | reazione | riduce il danno di 20 | 2 |
 | `Hero.Wraith.Feint` | Finta | controllo | marca una cella e ottiene `Reposition` | 2 |
+
+> ℹ️ **`InterceptShot` è di tipo `predittiva`, e il trigger non sta nella cella `Effetto`** — quella cella ha
+> un **vocabolario chiuso**, verificato da `Radar.Vocabulary`, e scriverci prosa la fa fallire. Il trigger è
+> **d'ingresso su movimento**, non «sono stato colpito»: la cella si dichiara in pianificazione, si blocca
+> (`PredictiveTargeting = LockCell`) e si risolve al passaggio dell'avversario
+> (`PredictionBoundary = MovementEntry`), senza input durante la Resolution.
+> È da `Tipo = predittiva` che la rubrica dei radar deduce che il payoff è **condizionale a una previsione**
+> e non entra nel danno garantito (#557, #1080).
 
 **Variante di `InterceptShot`**
 - *Intercetto preciso*: **20 danni**, ma controlla **una sola cella**.

@@ -154,13 +154,30 @@ test('la tabella reazioni si unisce all abilita, senza duplicarla', () => {
 });
 
 test('una reazione rinviata a E14 dichiara status deferred e nessuna semantica core', () => {
-  const vektor = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Wraith')!;
-  const intercept = vektor.abilities.find((a) => a.id === 'Hero.Wraith.InterceptShot')!;
+  // Il soggetto era `InterceptShot`, che dal 2026-08-10 NON e' una reazione (#1080): e' uscita dalla
+  // tabella, e con lei il denominatore. Il caso da pinnare resta — una reazione davvero rinviata —
+  // e oggi l'unica e' `FlowReaction`. Cambiare soggetto e' l'unico modo di NON indebolire il test:
+  // cancellarlo avrebbe tolto la copertura a `status: 'deferred'`, che nessun altro test esercita.
+  const phase = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Phase')!;
+  const flow = phase.abilities.find((a) => a.id === 'Hero.Phase.FlowReaction')!;
 
-  assert.equal(intercept.reaction?.status, 'deferred');
-  assert.equal(intercept.reaction?.coreSemantics, null);
-  // La nota resta grezza: e' da qui che la rubrica ricava la condizionalita' predittiva.
-  assert.match(intercept.reaction!.note, /trigger d'ingresso su movimento/);
+  assert.equal(flow.reaction?.status, 'deferred');
+  assert.equal(flow.reaction?.coreSemantics, null);
+  assert.match(flow.reaction!.note, /produce movimento dentro un boundary/);
+});
+
+test('una azione predittiva NON e una reazione, e la condizionalita viene dal Tipo', () => {
+  const wraith = parseHeroCatalog(HERO_CATALOG, ACTION_CATALOG).find((h) => h.name === 'Wraith')!;
+  const intercept = wraith.abilities.find((a) => a.id === 'Hero.Wraith.InterceptShot')!;
+
+  // Fuori dalla tabella delle reazioni: non attende un innesco, si dichiara in pianificazione.
+  assert.equal(intercept.reaction, null);
+  // ⚠️ E' QUESTA la riga che tiene insieme catalogo e rubrica. Fino al 2026-08-17 `isPredictive()`
+  // faceva match su una frase in prosa (`/trigger d'ingresso su movimento/`) dentro la cella `Stato`
+  // della tabella reazioni: chi avesse riscritto quella cella avrebbe azzerato la condizionalita' del
+  // payoff — 16 danni al posto di 0 nel `power` di Wraith — senza toccare un numero.
+  assert.equal(intercept.kind, 'predittiva');
+  assert.equal(intercept.damage, 16);
 });
 
 test('un abilita che non e una reazione ha reaction null', () => {

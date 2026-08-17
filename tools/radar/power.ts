@@ -15,12 +15,20 @@ const WEIGHT_SCALE = 60 * 10;
  *  lo dichiara in due sedi diverse, e la regola e' **una sola** (#557):
  *
  *  - nella cella `Effetto`, come bonus su uno stato — `+8 su bersaglio Wet`;
- *  - nella tabella delle reazioni, come trigger che richiede una **previsione** — l'intero payoff di
- *    `InterceptShot` dipende dall'aver indovinato dove andra' l'avversario.
+ *  - nella colonna `Tipo`, come azione **predittiva** — l'intero payoff di `InterceptShot` dipende
+ *    dall'aver indovinato dove andra' l'avversario, quindi zero e' il danno che ci si puo' aspettare
+ *    senza chiedere niente.
  *
- *  Trattarle come due meccanismi separati produrrebbe due strade che possono divergere. */
+ *  Trattarle come due meccanismi separati produrrebbe due strade che possono divergere.
+ *
+ *  ⚠️ **Fino al 2026-08-17 questa funzione faceva match su una FRASE IN PROSA** della tabella delle
+ *  reazioni — `/trigger d'ingresso su movimento/` — e il difetto era che nessuno poteva saperlo: chi
+ *  avesse riscritto quella cella per correggerne il contenuto (e c'era da correggerlo: dichiarava
+ *  `InterceptShot` una reazione rinviata a E14, falso dal 2026-08-10) avrebbe **mosso un rating** senza
+ *  toccare un numero. Ora legge la colonna `Tipo`, che e' un campo del catalogo con un vocabolario
+ *  chiuso: correggere la prosa attorno non cambia piu' i radar. Vedi `#1080`. */
 function isPredictive(ability: AbilityInput): boolean {
-  return /trigger d'ingresso su movimento/.test(ability.reaction?.note ?? '');
+  return ability.kind === 'predittiva';
 }
 
 /** Il danno che l'azione produce **senza chiedere niente**. Zero quando l'intero payoff e' condizionale.
