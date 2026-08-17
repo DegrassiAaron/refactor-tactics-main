@@ -5160,8 +5160,14 @@ features:
         # nessun file esiste, nessun redirect li mappa (`Scenarios/_redirects.json` non li nomina),
         # quindi il rename e' gratuito — e non farlo non era gratis. `scenariomap.shortlist.md` portava
         # gia' i nomi canonici **corretti a mano sul generato**, e la sorgente no: il `--check` restava
-        # rosso, e ogni rigenerazione rimetteva i legacy. Il gate di naming non poteva vederlo, perche'
-        # esenta i token fra backtick — che e' giusto per `Hero.Flux`, che esiste, e cieco per questi.
+        # rosso, e ogni rigenerazione rimetteva i legacy.
+        # ⏱️ **Due sessioni hanno corretto queste due righe nello stesso giorno, con lo stesso risultato e
+        # due diagnosi diverse.** Il merge tiene il contesto di questa — `planned`, nessun redirect, rename
+        # gratuito — e **corregge la ragione**, che era: *«il gate esenta i token fra backtick»*.
+        # Misurato: `check-docs-naming.py` itera `DOCS.rglob("*.md")` in entrambi i suoi passi, quindi
+        # **questo file non lo apre affatto** — ed e' `.yaml`. L'esenzione backtick e' una regola *dentro*
+        # un file letto, e questi due id non sono nemmeno fra backtick: non poteva essere lei.
+        # ∴ la vera lacuna e' l'estensione del gate ai `.yaml`, non il trattamento dei backtick.
         - Team.Conflux.GadgetPhase.ConductiveFlood
         - Team.Constrine.RiktorWraith.OnlyExit
         - Team.Sentinel.SteelMurdock.HoldTheLine
