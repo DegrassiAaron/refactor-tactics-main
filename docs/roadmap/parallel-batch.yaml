@@ -4578,8 +4578,11 @@ tracks:
       - docs/roadmap/plans/replay-r6-spec-panel-2026-08-16.md
       # ➖ **I due path del TurnManager sono RILASCIATI il 2026-08-17, per decisione d'autore.**
       #   `Turn/RTTurnManager.h` · `Turn/RTTurnManager.cpp`
-      # ✅ **Rilascio pulito, e le tre misure sono RIFATTE da chi concede** — su `a8f7f626`, non copiate dal
-      #   `reason` di chi chiede, che le aveva prese su `cc1e6a92`:
+      # ✅ **Rilascio pulito, e le tre misure sono RIFATTE da chi concede** — non copiate dal `reason` di chi
+      #   chiede, che le aveva prese su `cc1e6a92`. ⚠️ **Rimisurate una seconda volta su `e638061a`**, perche'
+      #   fra la decisione e la consegna `origin/main` si e' mosso di 40 commit: le tre reggono entrambe le
+      #   volte, ma la fotografia dei branch **no** — vedi il punto sui numeri, e la violazione in fondo, che
+      #   e' venuta fuori solo dalla seconda misura.
       #   · le due issue che li avevano portati qui sono **CLOSED**, verificato con `gh issue view <n>
       #     --json state`: `#625` (venti righe in `ConcludeTurn`, il `.cpp` riallocato da `playback`) e
       #     `#1067` (il parametro di fase per `ApplyTerrainOnEnterEffects`/`ApplyForcedDisplacement`,
@@ -4591,13 +4594,20 @@ tracks:
       #     `git diff --name-only origin/main...<branch>` non si puo' fare perche' questa track **non ha un
       #     branch** (vedi `branch: null` sopra), quindi al suo posto valgono le due misure che restano —
       #     `D:/rt-client` e' **pulito** (`update-index --refresh` poi `status --porcelain` vuoto) e i due
-      #     path non compaiono in **nessuno** dei **10** branch remoti vivi ne' in **nessuno** degli **11**
-      #     ref locali che **non** hanno un omonimo su `origin` (gli altri sei duplicano ref remoti gia'
-      #     misurati), tranne l'unica eccezione dichiarata sotto.
+      #     path non compaiono in nessuno dei branch vivi, tranne l'unica eccezione dichiarata sotto.
+      #     ⚠️ **Il conteggio dei branch e' una fotografia, e va riletto come tale — non come un criterio.**
+      #     Prima misura, su `a8f7f626`: **10** branch remoti altrui piu' **11** ref locali senza omonimo su
+      #     `origin`. Seconda, su `e638061a`: ancora **10** remoti altrui, ma **non gli stessi** — quattro
+      #     nuovi, tre mergiati e cancellati, e uno (`docs/consolidamento-replay-tactical-designer`) sparito
+      #     nei minuti fra un `ls-remote` e il successivo. Il numero e' identico per coincidenza; l'insieme no.
+      #     ∴ chi rilegge non verifichi la cifra, rifaccia il comando:
+      #       `git ls-remote --heads origin`, poi `git diff --name-only origin/main...origin/<b>` per ciascuno.
       #     ⚠️ **Cio' che questa misura non copre, detto invece di lasciarlo credere completo**: le modifiche
       #     **non committate** nei worktree altrui. Da una sessione isolata in `D:/rt-client` non sono
       #     misurabili — e' il limite che questa track ha gia' registrato nella sua `note` — e resta la misura
-      #     che si puo' fare, non una che si finge.
+      #     che si puo' fare, non una che si finge. ⛔ E non copre nemmeno cio' che e' **gia' mergiato**: un
+      #     sweep sui branch vivi non vede una scrittura atterrata in `main`, che e' esattamente come la
+      #     violazione in fondo a questa voce e' passata inosservata alla prima misura.
       # 🔓 **Perche': sono l'unico ostacolo dichiarato a `#886`**, la richiesta di `simulation`
       #   (`release_requested`, atto d'integrazione PR #1102). E' **chirurgica invece che sul file**: il suo
       #   `reason` dice quale funzione e quale punto — una consultazione dentro
@@ -4618,6 +4628,29 @@ tracks:
       #   ancora vivo** (fermo dal 2026-08-11, nessuna PR), e la decisione su chi passa per primo la rifa'
       #   chi lo rivendica — non la eredita da qui. Dirlo nell'atto e' esattamente il rimedio che una code
       #   review ha gia' chiesto a questa track sullo stesso file.
+      # 🔴 **E LA CONTESA NON ERA SOLO `cp75`: `spatial` HA GIA' SCRITTO in `RTTurnManager.cpp`, ed e' in
+      #   `main`.** Trovato rimisurando questo atto prima della consegna, non al merge. Misurato, non dedotto:
+      #     · `git log a8f7f626..e638061a -- Source/RefactorTactics/Turn/RTTurnManager.cpp` -> `8fdfd7ec`,
+      #       *«feat(833): ERTStructureOp::SetDoorState, e il ramo che impedisce a Interact di erigere un
+      #       muro»*, **+14 righe** in `ResolveCoverStructures` (il `continue` di [D-148]);
+      #     · atterrato con la **PR #1112** (`feat/833-interaction-graph`, mergiata alle 10:36:31Z);
+      #     · al **primo parent** di quel merge il path era nel `writable` di **`replay_ui`** e **non** in
+      #       quello di `spatial` — verificato caricando `f82ad5f3^1:docs/roadmap/parallel-batch.yaml`.
+      #   ⛔ **E' una violazione dell'invariante, non un presupposto pratico che cade**: `spatial` e' una track
+      #   di questo batch, quindi `WritableSet(spatial) ∩ WritableSet(replay_ui) = ∅` e' stata rotta scrivendo.
+      #   ⚠️ Aggravante misurabile: `spatial` aveva **escluso quei due path per iscritto**, con la motivazione
+      #   *«la code review ha misurato che `Interact` vi compare zero volte … erano DEDOTTI dal dominio»* —
+      #   e la riga che li faceva uscire e' ancora nel suo commento. L'esclusione era giusta sul conteggio di
+      #   allora e falsa sul lavoro che poi e' servito: **un write-set si misura quando si scrive, non quando
+      #   si argomenta**. Nessuna riga del batch registrava la scrittura: `grep -n "D-148"` su questo file
+      #   dava **zero** prima di questa.
+      #   ✅ **Non cambia la decisione, e la rafforza**: il path era di una track che non ci scriveva e un'altra
+      #   ci ha scritto comunque. Rilasciarlo fa combaciare il registro con i fatti, invece di lasciare un
+      #   confine che il repository ha gia' attraversato.
+      #   ⚠️ **Conseguenza per chi lo rivendica**: `#833` e' ancora `OPEN` (verificato) e `spatial` resta
+      #   `ACTIVE`, quindi il rischio non e' passato — e il `.cpp` **ha gia' cambiato forma** rispetto a quando
+      #   `#886` ha scritto la propria richiesta su `cc1e6a92`. Chi apre la consultazione in
+      #   `AskReactionDecision` parte da `e638061a`, non da quello.
       # ⛔ Tornano **non assegnati, non trasferiti.** `simulation` e' ACTIVE su `#886` e li ha chiesti, ma non
       #   li riceve da qui: chi rivendica lo fa nel **proprio** atto, che e' il momento in cui il write-set si
       #   misura. Fino a lì valgono STOP per tutti, richiedente compreso — e il suo `release_requested` resta
