@@ -4463,25 +4463,39 @@ tracks:
   graytoolkit_bundle:
     status: IDLE
     issue: null
+    # ➖ `branch` a null perché entrambi i rami sono mergiati e cancellati lato server
+    # (`git ls-remote | grep graytoolkit` → solo quello della chiusura).
     branch: null
+    # ⚠️ `worktree` resta popolato e NON contraddice `branch: null`: la directory esiste e ospita
+    # altre track. Chi misura con `git worktree list` ci trova il branch della PR di chiusura,
+    # non uno di questa track.
     worktree: "D:/rt-unit"
     note: >-
       ✅ **CHIUSA il 2026-08-17.** Due PR: **#1140** (`f7e9e7c6`) porta il consolidamento, **#1144**
       (`6380cbb3`) le correzioni di due tornate di code review. Il write-set è **rilasciato**; l'elenco
-      resta nel commento sotto perché dice quali file questa track ha toccato.
+      resta nel commento sotto: sono i path **presi**, con le misure che ne giustificavano la presa —
+      **non** il footprint della track, che è di **13** file fra i due merge.
+      **Cosa ha prodotto**: `D-158` · la sezione §6.1 del contratto (le due scale distinte) · le lane
+      `AC0–AC6`/`AE0–AE5` in `spec-asset-pipeline.md` §11-bis · `GBX-5` e `GBX-6` in `OPEN_DECISIONS.md`,
+      tracciate su **#1094** · la pagina Wiki *Graybox Toolkit* con due immagini · l'archivio
+      `docs/archive/src/graytoolkit/` (4 sorgenti, 2 PNG, README di provenienza).
 
       🔴 **Il consolidamento è atterrato con due affermazioni false, corrette dopo.** *(a)* «`1 UU = 1 cm`
       è già canonico in §11-bis»: quel file non contiene la stringa `UU` — fissa **solo** il lato a 1,5 m.
-      *(b)* «l'unità occupa il 46% della cella»: era un numeratore misurato a `HexSize=100` diviso per un
-      denominatore a `HexSize=150`, cioè **due scale nella stessa frazione**; il valore vero è **69%**.
-      ⚠️ **E la seconda tornata ne ha trovate altre due, sempre mie**: «il cilindro è il fallback quando il
+      *(b)* «l'unità occupa il 46% della cella»: il numeratore — `120 uu` da `BaseMeshScale` su un cilindro
+      engine — **non dipende da `HexSize` affatto**; l'errore era scegliere per denominatore la **scala
+      d'arte** (`260`) rispondendo a una domanda sulle **mappe reali** (`173`). Valore vero: **69%**.
+      ⚠️ *La prima stesura di questa riga diagnosticava «due scale nella stessa frazione», che manda a
+      cercare sul numeratore un fattore che non c'è: una diagnosi sbagliata dell'errore giusto.*
+      ⚠️ **E la seconda tornata ne ha trovate quindici, di cui quattordici della stessa specie — una
+      correzione applicata al documento che ospitava l'errore e non ai cinque che lo ripetevano.** Due
+      erano fatti nuovi, sempre miei: «il cilindro è il fallback quando il
       riferimento soft non risolve» — nessuna soft reference a skeletal esiste in `Source/` — e «nessuna
       mappa sovrascrive `HexSize`» concluso da un `grep` su `Scenarios/` e `Config/`, che **non aprono i
       `.uasset`** dove quel valore vive. La conclusione reggeva, l'argomento no.
 
-      ➕ **E il risultato più utile è una domanda che il bundle non poneva**: `GBX-6`. Nessuna mappa usa la
-      scala d'arte — girano tutte al default `1,00 m` contro l'`1,5 m` di §11-bis — e le due divergono di
-      **1,5×**. Chi modella secondo il contratto costruisce per una cella che nessuna mappa ha.
+      ➕ **E il risultato più utile è una domanda che il bundle non poneva**: `GBX-6`, descritta più sotto
+      in questa stessa nota. Chi modella secondo il contratto costruisce per una cella che nessuna mappa ha.
 
       ➕ **Track aperta il 2026-08-17** per consumare il bundle `GrayToolkit_Cloud_Bundle` — 8 file, 4
       documenti e 2 PNG, in `docs/src/wiki/graybox/`. È il **seguito** di `graybox_kit`, chiusa poche ore
@@ -4501,6 +4515,21 @@ tracks:
       status e con l'epic `E1`.
       ⏱️ *Le tre righe qui sopra sono state riscritte in code review: la prima stesura dichiarava `1 UU`
       canonico e usava i prefissi del bundle.*
+
+      🔴 **Questo branch collide con DUE PR aperte, su file `integration_only`, e va detto qui perché chi
+      merge lo sappia prima di scoprirlo dal conflitto.** Misurato con
+      `git diff --name-only origin/main...<branch>`, non dedotto:
+      · **#1145** (`chore/1113-followup-review`) tocca **esattamente e solo** `docs/roadmap/parallel-batch.yaml`,
+        cioè l'unico file che questa chiusura modifica. Sovrapposizione **totale** sul path.
+      · **#1153** (`chore/d161-categoria-turnlog`) tocca **esattamente e solo**
+        `docs/decisions/RT_PDR_00_Decision_Log.md`, dove questa chiusura riscrive l'argomento di `D-158`.
+      Entrambe sono legittime **per costruzione** — quei due path stanno in `integration_only`, che esiste
+      perché più track li emendino — ma «legittima» non vuol dire «silenziosa»: chi merge per secondo
+      rilegge invece di ripetere. ⚠️ *La stesura precedente di questa nota non le cercava: due erano vive,
+      e una era sul file che stavo scrivendo.*
+      ⛔ **Nessun `.uasset` e nessun `.umap`**, quindi `binary_leases: []` è una posizione dichiarata e non
+      un campo lasciato vuoto. ⚠️ **Due `.png` sono stati committati** in `docs/archive/src/graytoolkit/images/`
+      per conservare la provenienza: non sono asset di gioco e non passano da una lease, ma vanno detti.
 
       🔴 **La UML del bundle descrive un'architettura che non esiste, e questo decide come si pubblica.**
       Misurati **tutti** i simboli che dichiara: `FRTCellData` ed `ESurfaceType` esistono con **altro nome**
@@ -4524,8 +4553,18 @@ tracks:
       esplicitamente di rimpicciolire l'unità. Non è una contraddizione secca: è che i tre parlano di
       *attuale* e *target* senza dirlo.
 
-      ✅ **Intersezione misurata il 2026-08-17**: `git ls-remote --heads origin` **14** ref, `git branch`
-      **16** locali, `git worktree list` **12**, `gh pr list --state open` **0**. `git diff --name-only
+      ✅ **Intersezione misurata all'apertura il 2026-08-17**: `git ls-remote --heads origin` **14** ref,
+      `git branch` **16** locali, `git worktree list` **12**, `gh pr list --state open` **0**.
+      ⏱️ **E rimisurata al RILASCIO**, perché una fotografia d'apertura non giustifica una chiusura — è la
+      regola che `graybox_kit` ha scritto poche ore prima: oggi sono **13** ref, **16** locali, **13**
+      worktree e **3** PR aperte. Tre numeri su quattro erano già falsi.
+      ⚠️ **E il quarto è cambiato mentre lo scrivevo**: la prima stesura di questa riga diceva «2 PR
+      aperte», misurate pochi minuti prima; **#1153** è comparsa nell'intervallo. Non è un refuso da
+      correggere in silenzio — è la ragione per cui una fotografia va rifatta al rilascio invece che
+      citata dall'apertura, scritta dal caso stesso che la stava dimostrando.
+      ✅ Il rilascio regge: `git diff --name-only origin/main...<ref>` sui **due** rami vivi con contenuto
+      — gli altri quattro hanno diff **vuoto** contro `main` — non tocca né `spec-asset-pipeline.md` né
+      `spec-graybox-placement-contract.md`. `git diff --name-only
       origin/main...<ref>` sui rami documentali vivi: **nessuno** tocca i due path del `writable`. Un ramo
       (`docs/bonifica-vektor-archivio`) tocca `docs/archive/src/`, ma un file diverso — e quella cartella è
       `integration_only` dal fix di `graybox_kit`, quindi la collisione è prevista e si risolve tenendo
@@ -4537,6 +4576,11 @@ tracks:
     #   · `docs/technical/spec-asset-pipeline.md` — owner dei principi di pipeline, dove sono entrate le
     #     lane `AC0–AC6`/`AE0–AE5`. ⚠️ Non stava in **nessun** insieme di questo file: era la condizione
     #     «file non assegnato» di `D-139`, presa dichiarandola invece di aggirarla.
+    # 🔴 **E svuotare il `writable` li rimanderebbe entrambi in quella condizione**, che è il difetto e non
+    # la sua soluzione: sono **owner documentali** — governano come si modella e come si importa — quindi
+    # entrano in `integration_only`, dove stanno già `scenario-map.md` e gli altri owner contesi. È la
+    # stessa correzione strutturale che `graybox_kit` ha fatto per `docs/archive/src/`: rilasciare un path
+    # chiude il caso, assegnarlo chiude la lacuna.
     writable: []
     binary_leases: []
 
@@ -5343,6 +5387,18 @@ integration_only:
   # codice ne aveva quattro — con il §4.2 dello stesso file che ne usava già un quarto. L'errore è poi
   # passato a valle nel mandato che quella spec governa.
   - docs/technical/test-automatico-unreal.md
+  # ➕ **Entrano il 2026-08-17 dalla chiusura di `graytoolkit_bundle`, e la ragione è che rilasciarli
+  # senza assegnarli avrebbe RIPETUTO il difetto che quella track aveva appena registrato.**
+  # `spec-asset-pipeline.md` non stava in **nessun** insieme quando la track l'ha preso: era la condizione
+  # «file non assegnato» di `D-139`, presa dichiarandola. Svuotare il `writable` alla chiusura ce lo
+  # rimanda — e con esso `spec-graybox-placement-contract.md`, che ci era arrivato da `graybox_kit`.
+  # Sono owner documentali: dicono **come si modella** e **come si importa**, quindi più track vorranno
+  # emendarli, che è la definizione di questa categoria.
+  # ⚠️ **`spec-graybox-placement-contract.md` è nato ieri e ha già cambiato proprietario due volte** —
+  # `graybox_kit` → `graytoolkit_bundle` → qui. Non è instabilità del file: è che un contratto nuovo
+  # attira le track che lo devono applicare, ed è il segnale che questa categoria esiste per leggere.
+  - docs/technical/spec-asset-pipeline.md
+  - docs/technical/spec-graybox-placement-contract.md
   # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14. ⏱️ **Il proprietario scritto qui
   # non è più quello vero**: `content_editor` l'ha rilasciato il 2026-08-16, poi `playback` l'ha tenuto in
   # prestito per `#1015`, e oggi sta nel `writable` di `playtest` — tre nomi in tre giorni, misurati in
