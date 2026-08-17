@@ -2604,9 +2604,15 @@ tracks:
     binary_leases: []
 
   content_editor:
-    status: ACTIVE
+    status: IDLE
     issue: 451
     session: U1
+    # 🔴 **2026-08-17: portata ad `IDLE` perché `#451` è `CLOSED`.** La nota più sotto afferma *«La track
+    # resta ACTIVE su #451, che è OPEN»*: era vera quando è stata scritta ed è falsa adesso — misurato con
+    # `gh issue view 451 --json state` → `CLOSED`. Una track `ACTIVE` su una issue chiusa tiene prenotato
+    # un `writable` di 26 path che nessuno sta usando, ed è il costo che questa correzione toglie.
+    # ⚠️ Lo `status` cambia, il `writable` **no**: rilasciarlo è una decisione separata e appartiene a chi
+    # riapre la seduta, non a chi ne misura lo stato.
     # ⚠️ La seduta ha **anche** un branch, e lo schema non lo prevedeva: `session:` sostituisce
     # `branch:` perché l'unità di lavoro è un'apertura di editor, non un commit. Resta vero — ma il
     # write-set atterra comunque su un ramo, e quel ramo va nominato per essere confrontabile.
@@ -4196,7 +4202,16 @@ tracks:
   replay_ui:
     status: ACTIVE
     issue: 472              # l'ombrello di R6, tornato in primo piano: #625 e #999 sono chiuse
-    branch: feat/472-flusso-due-schermate
+    # 🔴 **2026-08-17: `feat/472-flusso-due-schermate` è MERGIATO (PR #1065) e non esiste più lato server.**
+    # Alla sentinella, non a un nome falso: è la stessa politica che questa nota descrive due paragrafi più
+    # sotto — *«questa riga dichiarava un branch inesistente per il tempo fra il merge e l'apertura del giro
+    # successivo, che è il caso per cui la sentinella esiste»*. Stavolta il giro successivo non è ancora
+    # aperto, quindi la sentinella serve davvero.
+    # ✅ Lo `status` resta **ACTIVE**, e non è un residuo: `#472` è `OPEN` ed è l'ombrello di R6 — delle tre
+    # parti mancano le due schermate `.uasset`, che vorranno una Binary Asset Lease. Branch mergiato e
+    # track finita non sono la stessa cosa, e leggere il primo come prova della seconda è l'errore che
+    # questa riconciliazione ha evitato per un soffio.
+    branch: null
     worktree: "D:/rt-client"
     note: >-
       **R6 del piano replay** — l'interfaccia che guarda una partita registrata (`#472`), aperta il
@@ -4357,7 +4372,15 @@ tracks:
   playback:
     status: ACTIVE
     issue: 1015
-    branch: docs/1015-pie-tetto
+    # 🔴 **2026-08-17: alla sentinella, e il valore prescritto dalla nota è obsoleto quanto quello scritto.**
+    # Il campo diceva `docs/1015-pie-tetto` (mergiato, cancellato) mentre la nota qui sotto prescrive
+    # *«`branch` passa a `docs/1015-handoff-pie`»*: misurati **entrambi**, nessuno dei due esiste — né su
+    # `origin` (`git ls-remote`) né in locale (`git branch -a`), dove di `1015` resta solo `main-1015`.
+    # ∴ una nota che corregge un campo invecchia insieme al campo: qui la prescrizione è sopravvissuta
+    # tre giorni al branch che nominava.
+    # ✅ Lo `status` resta **ACTIVE** ed è motivato dalla nota: `#1015` è `OPEN` e restano le voci 6 e 7 del
+    # DoD — `PIE-V01-PLAYSPEED` resa eseguibile e poi eseguita da una persona.
+    branch: null
     worktree: "D:/rt-1015"
     note: >-
       ✅ **Il CODICE di `#1015` è atterrato: PR #1028 mergiata (`02e85e23`, `2026-08-16T14:39:53Z`),
