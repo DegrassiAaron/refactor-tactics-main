@@ -71,7 +71,10 @@ test('la riscrittura tocca l alt e lascia intatti URL e riga', () => {
 
 test('gli otto SVG committati producono otto alt distinti', () => {
   const alts = new Set<string>();
-  for (const hero of ['flux', 'riva', 'bastion', 'vektor']) {
+  // Chiavi dei file REALI in `docs/characters/radar/`, non nomi mostrati: D-130 li ha rinominati
+  // insieme agli SVG. Le fixture qui sopra restano `flux-…` di proposito — sono URL inventati
+  // (`github.com/x/y`) che nessuno legge dal disco, e cambiarli non proverebbe niente di più.
+  for (const hero of ['gadget', 'phase', 'riktor', 'wraith']) {
     for (const view of ['profile', 'balance']) {
       alts.add(expectedAlt(readFileSync(`${RADAR}${hero}-${view}.svg`, 'utf8')));
     }

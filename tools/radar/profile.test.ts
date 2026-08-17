@@ -40,7 +40,7 @@ test('la mitigazione su di se alza durability, quella sugli alleati no', () => {
   const [flux, bastion] = ['Gadget', 'Riktor'].map((n) => roster().find((h) => h.name === n)!);
   // Gadget 90 HP + scudo 15 -> supera Phase, che ne ha 95 e nessuna mitigazione.
   assert.equal(profileAxes(flux).durability, 7);
-  // `Bastion.Interposition` incassa per un ALLEATO: va in support, non in durability.
+  // `Hero.Riktor.Interposition` incassa per un ALLEATO: va in support, non in durability.
   assert.ok(profileAxes(bastion).support > 1);
 });
 
