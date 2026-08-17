@@ -22,7 +22,7 @@ devono vivere nel repository Git»*. Era stata applicata a **due** documenti su 
 | [`src/prd/prd-percorso-didattico-e-produzione.md`](src/prd/prd-percorso-didattico-e-produzione.md) | **nuovo** — curriculum UE, roadmap, rischi, analytics, guida agli asset |
 | [`src/prd/editor-griglia-esagonale-e-mappa.md`](src/prd/editor-griglia-esagonale-e-mappa.md) | **nuovo** — il prompt che ha commissionato il pivot esagonale (era `.docx`) |
 | **24 binari** | rimossi dal working tree (`docs/src/prd/` ×10 PDF + 1 `.docx`, `docs/archive/pdr-v0.1/` ×13 PDF); restano nella storia Git |
-| [`src/README.md`](src/README.md) · [`archive/README.md`](archive/README.md) | Indici riscritti; due affermazioni corrette (sotto) |
+| [`src/`](src/) · [`archive/README.md`](archive/README.md) | Indici riscritti; due affermazioni corrette (sotto) |
 | [`README.md`](../README.md) · [`README.md` di docs](README.md) · [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) · 5 cataloghi `balance/` · ADR-0003 · Decision Log · `roadmap-v0.1.md` · `v0.1-issue-plan.md` · `RT_PDR_10_…v0.2.md` · `gameplay/spec-anima-risoluzione.md` | Riferimenti riscritti verso i nuovi target |
 
 ### Tre cose che l'estrazione ha fatto emergere, e che nessuno stava cercando

@@ -19,14 +19,14 @@
 | **Canonico (vincolante)** | *questo file* | Decisioni operative del progetto |
 | **Esecuzione** | [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) | Milestone, checkpoint, DoD misurabili, stato |
 | **Requisiti di lungo periodo** | [`../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6, QA, rischi — direzione, non scope |
-| **Visione (north-star)** | i 3 PRD + «Intenti condivisi», in [`../src/prd/`](../src/README.md) | Prodotto a lungo termine, **non** scope attuale |
+| **Visione (north-star)** | i 3 PRD + «Intenti condivisi», in [`../src/prd/`](../src/) | Prodotto a lungo termine, **non** scope attuale |
 | **Storico / superato** | `00-Intro.pdf`, `01-StrutturaTutorial.pdf`, `02-Tutorial.pdf`, `03-TutorialToMVP.pdf` — **rimossi da `docs/src/` il 2026-08-07**, recuperabili dallo storico git | Brief e corsi da cui è nato il progetto (fase chiusa) |
 
 I 4 PRD descrivono un prodotto molto più ambizioso (4v4 competitivo, GAS, netcode avanzato,
 modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 
 > ⚠️ **Formato cambiato il 2026-08-12**: i PRD erano **dieci PDF** in `docs/src/prd/`. Ora sono **quattro
-> Markdown tematici** ([indice](../src/README.md)), per la regola di manutenzione PDR-00 §6 #5 /
+> Markdown tematici** ([indice](../src/)), per la regola di manutenzione PDR-00 §6 #5 /
 > [D-009](../decisions/RT_PDR_00_Decision_Log.md). Posizione e autorità non cambiano: restano livello 8,
 > north-star, non normativi. I PDF restano nella storia Git.
 
