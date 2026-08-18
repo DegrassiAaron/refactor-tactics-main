@@ -3271,11 +3271,19 @@ tracks:
         verification:
           - load_in_editor
           - save_without_errors
-          # ⛔ Ereditate dal rilascio di `content_editor`, che le dichiarava e non le ha mai eseguite.
-          # Il discriminante fra l'arena vera e quella generata **non e' il conteggio celle**: e'
-          # `Transitions` — `L_HexArena` ne ha 2, `GeneratedTestArena` zero — perche' `MakeArenaV01`
-          # produce anch'essa 64 celle (61 + 3 di piattaforma).
-          - arena_check_still_passes
+          # 🔴 **Qui la prima stesura di questa lease aveva trascritto `arena_check_still_passes`, e non si
+          # applica a questo package.** Ereditarla sembrava giusto — il rilascio di `content_editor`
+          # elencava quel nome — ma il suo discriminante (`Transitions`: `L_HexArena` ne ha 2,
+          # `GeneratedTestArena` zero) riguarda **l'arena**, e `L_DevSandbox` non e' un'arena: e' la
+          # sandbox di sviluppo. Una verification giusta sul package sbagliato e' una casella che si
+          # spunta senza aver guardato niente.
+          # ✅ **Al suo posto quella che il package rischia davvero, e ha un difetto reale alle spalle**:
+          # `DA_HexMap_Sandbox` — che sta in `Data/`, dentro questa lease — **si e' gia' ritrovato a zero
+          # celle** in PIE. Sintomo: viewport nera, nessuna unita', pareggio immediato. Il comportamento
+          # di ripiego e' coperto da `RefactorTactics.MatchSetup.GameModeFallsBackOnEmptyMapAsset`, ma
+          # **nessun test guarda dentro questo asset**: che il ripiego funzioni non dice che la sandbox
+          # sia allestita.
+          - hexmap_asset_has_cells
           # ➕ Propria di questa lease. Non nasce piu' dal sospetto sul calo — l'autore l'ha risolto — ma
           # resta perche' e' l'unica verifica che guarda il CONTENUTO del livello: nessun test headless
           # apre un `.umap`, e la dimensione non distingue un attore rimosso da una ricompattazione.
@@ -3303,6 +3311,21 @@ tracks:
           # non deve produrre occorrenze fuori dal navigatore. E' l'invariante 1 di CP 46.1, e un `.uasset`
           # e' l'unico posto dove puo' rientrare senza che un test se ne accorga.
           - no_widget_creates_widgets
+        # ✅ **Consuntivo del 2026-08-18 — due su quattro eseguite, e headless invece che a mano.**
+        # Sui TRE widget che esistono (`FrontendRoot` e `ModalLayer` non sono ancora stati creati).
+        # · `inherits_declared_base_class` ✅ — ogni package contiene la propria classe base **6** volte e
+        #   le altre due **zero**: la diagonale e' piena e il fuori-diagonale vuoto, quindi il criterio
+        #   discrimina invece di limitarsi a trovare. Un grep che dicesse «6» ovunque non proverebbe nulla.
+        # · `no_widget_creates_widgets` ✅ — `AddToViewport`/`RemoveFromParent`/`CreateWidget` danno **zero**
+        #   in tutti e tre. Lo zero e' significativo perche' la controprova lo e': lo stesso metodo sul
+        #   navigatore trova **2/1/3**. Senza quella misura, uno zero non distingue «assente» da «non lo
+        #   sto cercando bene».
+        # ⚠️ **Il grep va fatto sui byte del package**: `rg` salta i binari per default e rispondeva **0**
+        #   dove `grep` contava **6**. Due metodi, e il primo mentiva in silenzio.
+        # ⏳ `load_in_editor` e `save_without_errors` **restano non eseguite** e non sono surrogabili:
+        #   `RefactorTactics.Frontend` carica la *generated class* del package, che e' un'altra cosa
+        #   dall'aprire il Blueprint — l'editor ricompila e segnala errori che il load a runtime non vede.
+        #   D-139 human-first: qui serve l'autore, e nessuno dei 27 test verdi lo sostituisce.
 
   verification:
     status: IDLE
