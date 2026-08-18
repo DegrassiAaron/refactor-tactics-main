@@ -254,17 +254,23 @@ Gli asset si spostano **dal Content Browser o via API Editor**, mai da Esplora F
 
 **Non eliminare i redirector a mano dal file system.**
 
-## 11-bis. Scala d'arte: il lato dell'esagono
+## 11-bis. La scala: il lato dell'esagono
 
-Chi modella una mesh, una porta o un pezzo di architettura ha bisogno di un riferimento metrico. La scala di
-authoring adottata è:
+Chi modella una mesh, una porta o un pezzo di architettura ha bisogno di un riferimento metrico. La scala
+adottata è:
 
 ```text
-lato dell'esagono ≈ 1,5 m
+lato dell'esagono = 1,5 m        (esattamente: HexSize = 150)
 ```
 
+> ⏱️ **Questa riga diceva «la scala di *authoring*» e «≈ 1,5 m» fino al 2026-08-17.** Da
+> [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) non è più solo d'authoring — governa anche il mondo — e
+> il `≈` non è più approssimativo: il valore è esatto. La correzione sta qui e non solo in §11-bis.1 perché
+> **gli altri documenti citano «§11-bis», non la sotto-sezione**, e leggerebbero la versione vecchia.
+
 Serve a dimensionare **mesh, proporzioni e architettura**, così che una porta sembri una porta accanto a
-un'unità e due strutture autorate da persone diverse combacino.
+un'unità e due strutture autorate da persone diverse combacino — **e dal 2026-08-17 è anche la scala del
+mondo** (§11-bis.1): non è più solo una convenzione di modellazione, e `HexSize` non è libero.
 
 > ⚠️ **Non è una metrica di design, e non va usata come tale.**
 > [`../gameplay/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) è
@@ -278,6 +284,50 @@ un'unità e due strutture autorate da persone diverse combacino.
 Non derivare da questo valore raggi d'abilità, portate o costi di movimento: quelli sono in celle, e la cella
 è l'unità del gioco. Deciso con l'autore il **2026-08-09**, in sede di consolidamento del cluster Map &
 Environment ([triage](../roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md) §8.1).
+
+### 11-bis.1 — La scala del mondo segue questa, e per otto giorni non l'ha fatto
+
+✅ **Confermata dall'autore il 2026-08-17** e promossa da scala d'*authoring* a scala **del mondo**
+([`D-163`](../decisions/RT_PDR_00_Decision_Log.md)). Il lato è `1,5 m`; l'unità di `HexSize` è il
+centimetro — lo dichiara `RTHexMapAsset.h` accanto alla proprietà — e la **dimensione** è il circumraggio,
+cioè il lato (`RTHexLibrary.cpp`: *«un pointy-top di circumraggio HexSize»*). Quindi il valore canonico è
+**`HexSize = 150`**.
+
+**La quota fra i piani resta `2,50 m`** (`LayerHeight = 250`) e non segue la larghezza — decisione
+d'autore dello stesso giorno. Chi modella in verticale ha quindi **due riferimenti indipendenti**: il lato
+della cella per la pianta, la quota di piano per l'alzato. Non si deriva l'uno dall'altro.
+
+| | Scala d'arte | Scala del mondo, oggi | Scala del mondo, al canone |
+|---|---:|---:|---:|
+| Lato della cella | 1,50 m *(dal 2026-08-09)* | 1,00 m | **1,50 m** |
+| Cella lato-a-lato (`C`) | 2,60 m | 1,73 m | **2,60 m** |
+| Altezza del volume | — | 2,50 m | **2,50 m** *(già allineata)* |
+
+⚠️ **La colonna che cambia il 2026-08-17 è la terza, non la prima**: la scala d'arte è quella dal
+2026-08-09 e `D-163` non l'ha toccata — ha deciso che il **mondo** la segue. Chi ha modellato fra il 09 e
+il 17 ha modellato giusto. E finché la issue di migrazione è aperta, la colonna che il gioco usa è la
+**seconda**.
+
+> 🔴 **Fino al 2026-08-17 questa sezione descriveva una scala che nessuna mappa usava.** Misurato:
+> `HexSize` non compare in **nessun** binario di `Content/RT` — misura e oracolo in
+> [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) — quindi ogni mappa restava al default `100.f` — lato `1,00 m`, e una divergenza di **1,5×** fra ciò che si modellava e il mondo in cui
+> atterrava. Non era un errore di questa sezione: era che nessuno aveva chiuso il cerchio sul codice.
+> `GBX-6` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) ha reso visibile il divario e `D-163` lo chiude.
+
+⏱️ **Finché la issue [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) è aperta, il mondo gira ancora a `1,00 m`**: chi modella secondo
+questa sezione produce asset corretti per il canone e `1,5×` grandi per la mappa di oggi. È uno stato
+dichiarato, non un difetto da scoprire.
+
+**Cosa fare nel frattempo — e le due istruzioni non si contraddicono**: si modella **alla scala nuova**
+(`1,5 m`), perché rifare un asset alla scala vecchia significherebbe rifarlo due volte. Quello che conviene
+rimandare non è modellare: è **committare volumi finiti** prima che il cambio atterri, perché fino a quel
+momento non si possono validare *guardandoli in PIE* — e la validazione visiva è il solo modo di chiudere
+`GBX-1` e `GBX-5`.
+
+> ⚠️ *La prima stesura diceva «una ragione per non produrre volumi finiti», mentre
+> [`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md) §6.1 diceva «modella a
+> `2,60 m`»: due owner con istruzioni opposte per la stessa persona, e nessuna gerarchia dichiarata fra
+> loro. Trovato in code review.*
 
 ## 12. Checklist di chiusura
 
