@@ -1381,8 +1381,8 @@
       "block": 6,
       "critical": false,
       "execution_lane": "pie",
-      "state": "⏳",
-      "queue_group": "READY",
+      "state": "✅",
+      "queue_group": "DONE",
       "produces": "verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato",
       "artifacts": [],
       "unblocked_by": [],
@@ -1399,11 +1399,11 @@
       "verifies": [
         {
           "id": "PIE-MAPED-LIGHT",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-MAPED-FRAME",
-          "state": "⏳"
+          "state": "✅"
         }
       ],
       "issues": [
@@ -1418,14 +1418,14 @@
       "critical": false,
       "execution_lane": "pie",
       "state": "⏳",
-      "queue_group": "WAITING",
+      "queue_group": "READY",
       "produces": "verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo",
       "artifacts": [],
       "unblocked_by": [
         {
           "ref": "U21",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "seduta"
         }
       ],
@@ -1515,8 +1515,8 @@
       "unblocked_by": [
         {
           "ref": "U21",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "seduta"
         }
       ],
@@ -1546,8 +1546,8 @@
       "unblocked_by": [
         {
           "ref": "U21",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "seduta"
         }
       ],
@@ -1605,17 +1605,17 @@
     "READY": [
       "U18",
       "U20",
-      "U21"
+      "U22"
     ],
     "WAITING": [
       "U11",
       "U13",
       "U14",
       "U19",
-      "U16",
-      "U22"
+      "U16"
     ],
     "DONE": [
+      "U21",
       "U24",
       "U27"
     ]
@@ -1923,11 +1923,11 @@
     },
     {
       "id": "PIE-MAPED-FRAME",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-MAPED-LIGHT",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-MP4",

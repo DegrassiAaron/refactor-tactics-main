@@ -5730,19 +5730,9 @@ tracks:
     binary_leases: []
 
   map_framing:
-    status: ACTIVE
-    issue: 623
-    # 🔴 **`branch: null` dal 2026-08-17, non `feat/623-inquadratura-mappa`.** Quel ramo e' atterrato con
-    # la PR **#1121** (`55609782`) ed e' stato cancellato lato server: e' la sentinella documentata nello
-    # schema — *«track legittima, la issue e' aperta, ma il branch dichiarato non esiste piu'»*. Lasciarlo
-    # sarebbe il difetto che questo file rimprovera a `client_tools` e a `content_editor`: chi misurasse il
-    # write-set con `git diff … origin/feat/623-inquadratura-mappa` otterrebbe un **errore**, non un numero.
+    status: IDLE
+    issue: null
     branch: null
-    # ✂️ `worktree` rimosso insieme a `D:/rt-u21`: un path che non esiste non aiuta `git worktree list`,
-    # che e' il comando per cui il campo esiste.
-    session: U21
-    # ✂️ `session_branch` rimosso per la stessa ragione di `branch`. La parte che resta di `#623` e' una
-    # SEDUTA — luci e verdetto — e una seduta non ha un ramo finche' non salva qualcosa.
     note: >-
       ➕ **Track aperta il 2026-08-17 per `#623`, seduta `U21`.** La issue ha tre parti di natura diversa e
       la sua stessa `note` lo dichiara — *«A e B non si chiudono a vicenda»*: **A** e' la seduta luci in
@@ -5760,6 +5750,12 @@ tracks:
       `URTHexLibrary::CellsBoundsWorld` con i propri test, e l'editor la **chiama**. La ragione NON e'
       che il modulo editor sia intestabile — dal 2026-08-16 ha i suoi test (`#993`, `D-154`) — ma che una
       regola di gioco che vive nell'editor e' una seconda risposta alla stessa domanda.
+      ✅ **Track CHIUSA il 2026-08-18: `#623` e' `CLOSED`.** Le due voci `PIE-MAPED-LIGHT` e
+      `PIE-MAPED-FRAME` sono nel registro con un esito reale (PR **#1189**, `e66450f5`) e `U21` e'
+      passata a **2/2 ✅** nella vista rigenerata. `writable` e `binary_leases` erano gia' vuoti.
+      ⚠️ Cio' che resta di questo filone NON e' di questa track: **#1186** (il pannello che dice cosa
+      contiene la mappa) e' nata da qui ma e' lavoro di codice, e prendera' la propria track quando
+      qualcuno la aprira'.
       ✅ **La seduta `U21` e' stata ESEGUITA il 2026-08-18** (PR **#1177**, merge `1ddded3a`):
       `L_DevSandbox` ha le tre luci e le due voci `PIE-MAPED-LIGHT` / `PIE-MAPED-FRAME` hanno un esito
       reale. La track resta `ACTIVE` perche' **`#623` e' aperta**: quelle due voci vanno scritte in
