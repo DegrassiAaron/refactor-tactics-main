@@ -1460,7 +1460,7 @@
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset",
@@ -1486,7 +1486,7 @@
       "issues": [
         937
       ],
-      "done_when": "i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori"
+      "done_when": "i cinque `.uasset` esistono e si aprono senza errori; i TRE con una classe base (`WBP_RT_FallbackBanner`, `WBP_RT_ErrorModal`, `WBP_RT_LoadingScreen`) ereditano da quella dichiarata e leggono il dato invece di comporlo; i DUE strutturali (`WBP_RT_FrontendRoot`, `WBP_RT_ModalLayer`) non creano ne' rimuovono widget"
     }
   ],
   "editor_queue": {

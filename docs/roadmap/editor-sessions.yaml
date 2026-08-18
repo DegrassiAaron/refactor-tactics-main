@@ -999,7 +999,11 @@ sessions:
     shares_setup_with: []
     verifies: []
     issues: [937]
-    done_when: i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori
+    done_when: >-
+      i cinque `.uasset` esistono e si aprono senza errori; i TRE con una classe base
+      (`WBP_RT_FallbackBanner`, `WBP_RT_ErrorModal`, `WBP_RT_LoadingScreen`) ereditano da quella
+      dichiarata e leggono il dato invece di comporlo; i DUE strutturali
+      (`WBP_RT_FrontendRoot`, `WBP_RT_ModalLayer`) non creano ne' rimuovono widget
     # ⚠️ Checkpoint **prefissati**, non numeri di issue: `unblocks` risolve contro checkpoint, epic e
     # sedute, e la prima stesura ci aveva messo `[938, 940, 941]` — il validator e' andato in eccezione.
     # `E46.3` e' l'aggancio del frontend (Main Menu), `E46.5` il Result, `E46.6` la Pause.
@@ -1028,5 +1032,16 @@ sessions:
       `#938`, `#940` e `#941` · `WBP_RT_TacticalHUD` e' l'HUD in-match e ha gia' il suo root (CP 11.7) ·
       le due schermate del replay (`WBP_RT_MatchHistory`, `WBP_RT_ReplayViewer`) sono di `#472`, e
       aspettano una lease propria.
+      🔴 **Il `done_when` chiedeva ai cinque widget una cosa che solo tre possono fare, e riscriverlo e'
+      del 2026-08-18.** Diceva *«ereditano dalle classi base giuste»*: le classi base dichiarate in
+      `RTFrontendWidgets.h` sono **tre** — `URTLoadingScreenWidgetBase`, `URTErrorModalWidgetBase`,
+      `URTFallbackBannerWidgetBase` — e per `WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer` non esiste una
+      «classe base giusta»: erediterebbero da `UUserWidget` nudo, e il criterio diventava **vacuo**
+      esattamente sui due widget che nessun test copre. `RTFrontendWidgetAssetTests.cpp` ne conosce
+      **tre** su cinque, misurato.
+      ✅ **Decisione dell'autore: i due restano nei cinque** — sono widget, non impalcatura da togliere dal
+      piano. Cambia il criterio, non lo scopo: per loro vale `no_widget_creates_widgets`, che e'
+      l'invariante 1 di CP 46.1 e l'unica cosa che un contenitore strutturale puo' violare. Un `.uasset` e'
+      il solo posto dove `AddToViewport` puo' rientrare senza che un test se ne accorga.
       ⚠️ ID assegnato prima del merge: `U24`, con `U23` come massimo misurato su `main` **e su tutti i
       tredici branch remoti** — non solo sul proprio. Chi arriva secondo rinumera, non contende.

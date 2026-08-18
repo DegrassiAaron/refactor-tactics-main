@@ -3246,6 +3246,41 @@ tracks:
       # ⚠️ Sui **file** e non sulla cartella: la regola «la lease si emette sulla cartella» vale per le
       # mappe, che sono cartelle con un numero di package che non si deduce. Cinque widget sono cinque
       # package, e si contano.
+      # ➕ **Emessa il 2026-08-18, ed e' una lease NUOVA e non un'estensione di quella dei widget.**
+      # `content_editor` ha **rilasciato** le sue (`binary_leases: []`) scrivendo la regola che si applica
+      # qui: *«chi dovra' modificare uno di quei package emette una lease nuova, sul proprio `base_sha`, e
+      # riprende da qui le verification che nessuno ha ancora eseguito»*. Le `verification` qui sotto sono
+      # quelle, trascritte e non reinventate.
+      # ⚠️ **Sulla CARTELLA e non sul singolo file**: e' la regola opposta a quella dei widget, e vale per
+      # le mappe — una mappa e' una cartella con un numero di package che non si deduce. `L_DevSandbox`
+      # ne ha **due**, misurati da `content_editor` e non ricontati qui.
+      # ⚠️ **`operation: edit`**: il package esiste gia' in `main` (`2874cf3b`, dentro il merge #1089) e la
+      # working directory lo ha gia' modificato. La lease arriva **dopo** la modifica, come per i widget:
+      # registrarla vale — da adesso il path e' preso — ma la sequenza corretta resta emettere prima.
+      # ⚠️ **Il package CALA di 7755 byte** rispetto a `HEAD` (68432 → 60677, −11%), e il dato resta
+      # scritto qui perche' fra binari il calo e' normalmente il segnale di una perdita. **Non lo e':
+      # verificato con l'autore il 2026-08-18 — meno dati e' l'esito voluto.** La misura si annota con la
+      # risoluzione accanto, non al posto: chi rilegge il diff trova un binario che dimagrisce e deve
+      # poter sapere che qualcuno se l'e' chiesto.
+      - key: "BINARY-GH937-DEVSANDBOX-MAP"
+        issue: 937
+        base_sha: "3f595da950447ac0887b2220a63a9bc5b627babb"
+        operation: edit
+        paths:
+          - Content/RT/Maps/Dev/L_DevSandbox/
+        verification:
+          - load_in_editor
+          - save_without_errors
+          # ⛔ Ereditate dal rilascio di `content_editor`, che le dichiarava e non le ha mai eseguite.
+          # Il discriminante fra l'arena vera e quella generata **non e' il conteggio celle**: e'
+          # `Transitions` — `L_HexArena` ne ha 2, `GeneratedTestArena` zero — perche' `MakeArenaV01`
+          # produce anch'essa 64 celle (61 + 3 di piattaforma).
+          - arena_check_still_passes
+          # ➕ Propria di questa lease. Non nasce piu' dal sospetto sul calo — l'autore l'ha risolto — ma
+          # resta perche' e' l'unica verifica che guarda il CONTENUTO del livello: nessun test headless
+          # apre un `.umap`, e la dimensione non distingue un attore rimosso da una ricompattazione.
+          - actors_still_present
+
       - key: "BINARY-GH937-FRONTEND-WIDGETS"
         issue: 937
         base_sha: "5bfae1ce147db5107947d2033a03c1439f4e9874"
