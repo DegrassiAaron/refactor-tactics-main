@@ -1863,8 +1863,14 @@ tracks:
     binary_leases: []
 
   simulation:
-    status: ACTIVE
-    issue: 886
+    # ✅ **CHIUSA il 2026-08-18**: `#886` è `CLOSED` e la PR **#1176** è in `main` (`05139fd5`, `09:23:41Z`).
+    # Il branch `feat/886-verifier-legge-la-traccia` non esiste più — verificato con `git ls-remote`, e la
+    # verifica **non era pro forma**: `gh pr merge` ha risposto con un errore (`'main' is already used by
+    # worktree at D:/rt-client`) **dopo** aver mergiato, lasciando il ramo in piedi. L'esito del comando
+    # diceva fallimento, il server diceva `MERGED`. 💡 Con più worktree aperti, `gh pr merge --delete-branch`
+    # fa metà del lavoro e lo dice male: la cancellazione va rifatta a mano e verificata.
+    status: IDLE
+    issue: null
     # ➕ **Riattivata il 2026-08-17 su `#886`** — il Verifier rilegge le decisioni di reazione dal TurnLog.
     # ⛔ **Ed è ACTIVE con un path ~~CHIESTO~~ RILASCIATO e non posseduto**: finché `Turn/RTTurnManager.{h,cpp}` non entra
     # nel `writable` qui sotto vale **STOP**, e `#886` non è iniziata. La track non è però ferma: i due file
@@ -2061,7 +2067,9 @@ tracks:
     # il difetto appena costato una misura sbagliata a questa sessione: `feat/833-applicazione-e-archi` gira
     # in `D:/rt-simulation` e `git ls-remote` non lo vede. Scriverlo qui è la sola cosa che lo renda
     # misurabile prima del push.
-    branch: feat/886-verifier-legge-la-traccia
+    # ➖ **Mergiato e cancellato il 2026-08-18** (PR #1176). Il campo torna alla prima delle quattro accezioni
+    # che questo file distingue: «nessun branch vivo, il lavoro è in `main`».
+    branch: null
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -2560,11 +2568,28 @@ tracks:
     # ∴ `Turn/RTTurnManager_Blast.cpp` **non entra** in questo `writable`: e' il file dove le funzioni
     # estratte *sono finite*, non dove sta il punto che `#886` tocca. Una misura ereditata avrebbe fatto
     # prendere il file sbagliato, o preso tutti e due «per sicurezza».
-    writable:
-      - Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp
-      - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
-      - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+    # ➖ **I quattro path ESCONO con la chiusura, e oggi non sono di nessuno**:
+    # `Tests/RTSimulationDeterminismTests.cpp`, `Tests/RTOverwatchTriggerTests.cpp` e
+    # `Turn/RTTurnManager.{h,cpp}`, tutti atterrati in `main` con la PR #1176.
+    # ⚠️ **`RTOverwatchTriggerTests.cpp` NON è stato toccato**, ed è una misura e non una svista: il
+    # write-set effettivo (`git diff --name-only origin/main...HEAD` prima del merge) sono **tre** file di
+    # `Source/`. La fixture «a due finestre di cui una non si riapre» che il DoD chiedeva **esisteva già**
+    # come scenario — `Spec.Overwatch.HoldThenFire`, due decisioni a micro-step diversi — e i test nuovi
+    # sono `Replay.Verifier.*`, la cui casa è il file che già li ospita. Un `writable` è un permesso, non un
+    # obbligo: prenderne uno e non usarlo costa a chi lo aspettava, e va detto invece di lasciarlo dedurre.
+    # ⛔ **Il debito che questa track lascia, nominato invece che dimenticato**: `feat/cp75-selfreposition` è
+    # ancora vivo e tocca `RTTurnManager.cpp`. L'intersezione con `#886` era **vuota a livello di funzione**
+    # — tre hunk in `ResolveCombat` contro `AskReactionDecision` a `:3879` — ma il suo conflitto con lo
+    # split della **#1161** resta, e non è cresciuto per causa di questo lavoro: il diff di `#886` è
+    # localizzato in una funzione che lo split non ha toccato.
+    # 💡 **La lezione che vale oltre questa track, e che nessuno dei tre atti aveva scritto.** I due path del
+    # `TurnManager` sono passati per **tre** stati in ventiquattro ore — rilasciati da `replay_ui`,
+    # rivendicati da `hotspot_split` per lo split, restituiti dalla #1164 — e la `release_requested` ne
+    # raccontava solo il primo. Una richiesta di rilascio dice **chi rilascia**, mai **chi prende dopo**: fra
+    # il rilascio e la rivendicazione ci può stare una track intera, e chi legge solo la propria sezione
+    # conclude «liberi» quando sono di qualcun altro. La misura che risponde è il `grep` del path su
+    # **tutti** i `writable` del file.
+    writable: []
     # ➖ **I commenti sui PRESTITI escono con essi.** Descrivevano il giro di `#583` — il JSON degli scenari
     # e `feature-registry.yaml`, entrambi restituiti con la PR #1087 — e lasciarli qui li farebbe leggere
     # come regole di questo giro, che di prestiti non ne ha. Le lezioni che portavano non si perdono: «si
