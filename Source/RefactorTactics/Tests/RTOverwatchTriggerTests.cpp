@@ -1361,9 +1361,14 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 	// ⚠️ **`BLOCKED` non e' un successo**, e senza questa riga lo diventerebbe in silenzio: uno scenario che
 	// dichiara una capability indisponibile esce senza eseguire nulla, e ogni conteggio sotto darebbe zero —
 	// cioe' il difetto «non riprodotto» sarebbe indistinguibile da «assente».
-	TestTrue(FString::Printf(TEXT("lo scenario ha eseguito (esito: %d · error: '%s' · blocked: '%s' · turni: %d)"),
+	// 🔴 **Si pretende `Pass`, non «diverso da `Blocked` e `Error`»**, e la differenza non e' pedanteria: con
+	// quel guard piu' debole un `Fail` passava in silenzio, cioe' le due `Expect` che l'harness obbliga a
+	// dichiarare potevano cadere tutte senza che il test se ne accorgesse — bastava che i due contatori sotto
+	// tornassero. Un domani in cui un'unita' che arma l'Overwatch potesse muoversi, questo test resterebbe
+	// verde su uno scenario rotto. Trovato da una code review.
+	TestEqual(FString::Printf(TEXT("lo scenario e' PASS (esito: %d · error: '%s' · blocked: '%s' · turni: %d)"),
 			static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason, Result.TurnsPlayed),
-		Result.Outcome != ERTTestOutcome::Blocked && Result.Outcome != ERTTestOutcome::Error);
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
 
 	ARTTurnManager* Manager = nullptr;
 	for (TActorIterator<ARTTurnManager> It(World); It; ++It)
@@ -1374,6 +1379,7 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 
 	int32 FireEntries = 0;
 	int32 FireEntriesWithDamage = 0;
+	int32 FireEntriesWithoutTarget = 0;
 	if (TestNotNull(TEXT("il TurnManager e' nel mondo"), Manager))
 	{
 		for (const FRTTurnLogEntry& Entry : Manager->GetTurnLog())
@@ -1382,6 +1388,7 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 			if (Entry.Outcome != static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen)) { continue; }
 			++FireEntries;
 			if (Entry.Amount > 0) { ++FireEntriesWithDamage; }
+			if (Entry.SelectedTargetUnitId == INDEX_NONE) { ++FireEntriesWithoutTarget; }
 		}
 	}
 
@@ -1393,6 +1400,15 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 	// TurnLog non deve dichiarare un danno che non e' stato inflitto.
 	TestEqual(TEXT("una sola voce dichiara danno: il secondo colpisce un bersaglio gia' abbattuto"),
 		FireEntriesWithDamage, 1);
+
+	// 🔴 **Ogni `FireChosen` deve NOMINARE il proprio bersaglio, anche quello che non ha colpito.**
+	// `ArmRecordedReactionDecisions` ricostruisce la risposta dal log — `FireResponse(SelectedTargetUnitId)` —
+	// quindi una voce senza bersaglio diventa `"FIRE:-1"`, che `IsResponseAllowed` rifiuta: rieseguendo la
+	// partita come Verifier si otterrebbe una divergenza spuria, `HoldRejected` al posto di `FireChosen` e un
+	// hash del turno diverso dall'originale. La prima stesura di questo fix aveva proprio quel difetto, e a
+	// trovarlo e' stata una code review: nessun test rieseguiva come Verifier una partita con due `FIRE`.
+	TestEqual(TEXT("ogni `FIRE` registrato nomina il bersaglio: la traccia resta rigiocabile"),
+		FireEntriesWithoutTarget, 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

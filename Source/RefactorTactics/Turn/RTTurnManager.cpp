@@ -4130,6 +4130,17 @@ void ARTTurnManager::ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMov
 		if (Decision.Outcome == ERTReactionDecisionOutcome::FireChosen && !bTargetStanding)
 		{
 			Armed.bCharged = false;
+
+			// 🔴 **Il bersaglio va nominato anche quando non lo si colpisce**, e ometterlo rompeva il
+			// round-trip della traccia consegnato da `#886`. `ArmRecordedReactionDecisions` RICOSTRUISCE la
+			// risposta dal TurnLog — `FireResponse(Entry.SelectedTargetUnitId)` per ogni `FireChosen` — quindi
+			// una voce senza bersaglio produce `"FIRE:-1"`, che `IsResponseAllowed` rifiuta: la
+			// ri-simulazione registrerebbe una divergenza spuria, tornerebbe `HoldRejected` e cambierebbe
+			// l'hash del turno rispetto alla partita originale.
+			// ⚠️ Prima di #1158 il caso non esisteva perche' il ramo `FIRE` girava per intero e assegnava
+			// questo campo; separando i due rami il campo va assegnato **due volte**, non una. Trovato da una
+			// code review, non da un test: nessuno rieseguiva come Verifier una partita con due `FIRE`.
+			Entry.SelectedTargetUnitId = TargetIdx;
 		}
 		AppendLogEntry(Entry, WatchOwner);
 		return;
