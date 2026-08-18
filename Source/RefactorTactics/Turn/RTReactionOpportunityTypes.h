@@ -109,6 +109,92 @@ struct FRTReactionOpportunity
 
 
 /**
+ * Le tre intenzioni della grammatica di playtest (`spec-reaction-clash-e14.md` §4, [D-049]).
+ *
+ * ⚠️ **`PROPOSED FOR PLAYTEST`, non canoniche**: la matrice `READ > STAND > SHIFT > READ` e' universale, i
+ * payoff per eroe NO — quelli non entrano nei dati d'eroe finche' il playtest non li promuove.
+ *
+ * L'enum e' **chiuso a tre valori**, ed e' l'unico enum nuovo che E14.7 introduce (§11). Un quarto valore
+ * sarebbe una quarta intenzione, cioe' una modifica alla grammatica: si decide, non si aggiunge.
+ */
+UENUM()
+enum class ERTGrammarIntent : uint8
+{
+	/** Tenere la posizione. Il fallback di chi e' in `Brace`, e la scelta sicura di §9. */
+	Stand,
+	/** Leggere l'avversario e anticiparlo. Batte `Stand`, perde contro `Shift`. */
+	Read,
+	/** Spostarsi per uscire dalla linea. Batte `Read`, perde contro `Stand`. */
+	Shift
+};
+
+
+/**
+ * Un partecipante a un boundary contested: chi e', e **la sua** opportunity.
+ *
+ * 🔴 **L'opportunity e' PER PARTECIPANTE, e non e' un dettaglio di comodita': e' la privacy di §7.2.**
+ * Quella tabella dice che in un Clash l'esistenza della finestra e' nota a entrambi, ma le *risposte legali
+ * dell'altro* non sono **mai inviate** e la sua scelta non lo e' prima del reveal. Un unico
+ * `FRTReactionOpportunity` che elencasse i partecipanti con le rispettive risposte sarebbe, per costruzione,
+ * il DTO che le rivela — quindi non e' quello che viaggia.
+ *
+ * ∴ ogni partecipante riceve il DTO a due campi che ha sempre ricevuto (`Key` + le **sue**
+ * `AllowedResponses`), e i partecipanti vivono ACCANTO. E' lo stesso motivo per cui `FRTOverwatchTrigger`
+ * tiene i bersagli fuori dal DTO invece che dentro, dichiarato nel commento di quel tipo: l'elenco chiuso di
+ * campi verificato da `Overwatch.OpportunityLeaksNoFuture` e' l'unica barriera che impedisce a un campo di
+ * informazione altrui di entrare, e si allarga solo con una ragione — non per far stare comoda una feature.
+ */
+USTRUCT()
+struct FRTReactionParticipant
+{
+	GENERATED_BODY()
+
+	/** Chi risponde. Indice di unita', come `FRTReactionOpportunityKey::OwnerId`. */
+	UPROPERTY()
+	int32 UnitId = INDEX_NONE;
+
+	/** Cio' che QUESTO partecipante vede: la sua chiave e le sue risposte legali, e niente dell'altro. */
+	UPROPERTY()
+	FRTReactionOpportunity Opportunity;
+
+	FRTReactionParticipant() = default;
+	FRTReactionParticipant(int32 InUnitId, const FRTReactionOpportunity& InOpportunity)
+		: UnitId(InUnitId), Opportunity(InOpportunity) {}
+};
+
+
+/**
+ * Un boundary con piu' di un partecipante (E14.7, [D-048]).
+ *
+ * ⚠️ **Non esiste un campo `Type = Clash`, e questo tipo non lo introduce**: `IsContested` e' una funzione
+ * dei partecipanti e delle loro cardinalita', ricalcolata dove serve. Un campo sarebbe una seconda verita'
+ * accanto alla cardinalita', e le due divergerebbero al primo profilo che cambia — e' il rischio (b) che
+ * l'epic elenca e la ragione per cui §3.1 dice «contested e' derivato, non dichiarato».
+ *
+ * `Key` e' quella CONDIVISA — l'identita' del boundary, non di una delle due opportunity — cosi' che il
+ * TurnLog possa registrare due lock contro un solo `OpportunityId` e il budget di §8 contarne **uno**.
+ */
+USTRUCT()
+struct FRTContestedBoundary
+{
+	GENERATED_BODY()
+
+	/** L'identita' del boundary, condivisa fra i partecipanti. */
+	UPROPERTY()
+	FRTReactionOpportunityKey Key;
+
+	/**
+	 * I partecipanti, in **ordine canonico** e non di arrivo (§7.3).
+	 *
+	 * L'ordine di arrivo sarebbe una dipendenza dal tempo reale, contro l'invariante #4: due esecuzioni
+	 * della stessa partita registrerebbero i lock in ordini diversi e l'hash divergerebbe.
+	 */
+	UPROPERTY()
+	TArray<FRTReactionParticipant> Participants;
+};
+
+
+/**
  * Salute di un bersaglio al micro-step: quanto basta a valutare una condizione dichiarata, e non un byte di
  * piu'.
  *
@@ -408,4 +494,47 @@ public:
 	 * puntatore, nessun contatore globale, nessun GUID.
 	 */
 	static FString DeriveOpportunityId(const FRTReactionOpportunityKey& Key);
+
+	// --- E14.7: Reaction Clash ([D-048]) ---------------------------------------------------------------
+
+	/**
+	 * Il boundary e' **contested**? Vero quando **due** partecipanti hanno ciascuno almeno due risposte
+	 * legali (§3.1).
+	 *
+	 * ⚠️ **Derivato, mai dichiarato.** Non c'e' un campo da leggere: il criterio e' *quanti partecipanti
+	 * hanno una scelta vera*, ed e' la stessa domanda che `RequiresDecisionBoundary` fa per uno solo. Due
+	 * partecipanti di cui uno con una risposta obbligata **non** sono un Clash — §3.2 lo dice in negativo,
+	 * e senza questo controllo un attacco base diventerebbe un Clash appena qualcuno arma un `Brace`.
+	 */
+	static bool IsContested(const FRTContestedBoundary& Boundary);
+
+	/**
+	 * Quanti partecipanti hanno una scelta vera. E' la misura su cui `IsContested` decide, esposta perche'
+	 * un test possa distinguere «uno solo ce l'ha» da «nessuno», che il booleano confonde.
+	 */
+	static int32 CountParticipantsWithChoice(const FRTContestedBoundary& Boundary);
+
+	/**
+	 * L'ordine canonico dei partecipanti (§7.3): `ReactionPriority → AbilityPriority → UnitInitiative →
+	 * StableUnitId → ReactionInstanceId`, cioe' l'ordine totale che ADR-0004 §4 ha gia'.
+	 *
+	 * ⚠️ **Ordina in luogo e NON e' l'ordine di arrivo**: il momento del lock e' precisamente cio' che §7.1
+	 * tiene non osservabile. Qui i partecipanti portano solo `UnitId` e la propria opportunity, quindi
+	 * l'ordine si riduce al primo criterio disponibile — `UnitId` crescente — che e' `StableUnitId` sotto un
+	 * altro nome. Il giorno in cui un partecipante portera' la propria priorita', questa funzione e' il posto
+	 * dove aggiungerla: un secondo ordinamento altrove sarebbe una seconda regola.
+	 */
+	static void SortParticipantsCanonically(FRTContestedBoundary& Boundary);
+
+	/**
+	 * La matrice della grammatica: `READ > STAND > SHIFT > READ` ([D-049], §4.1).
+	 *
+	 * Restituisce `+1` se `A` batte `B`, `-1` se perde, `0` per il pareggio (intenzioni uguali). E' un ciclo
+	 * a tre: nessuna intenzione domina, ed e' la proprieta' che rende la scelta una lettura dell'avversario
+	 * invece di un calcolo.
+	 *
+	 * ⚠️ `PROPOSED FOR PLAYTEST`: la **matrice** e' universale e vive qui; i **payoff** per eroe non entrano
+	 * nei dati d'eroe finche' il playtest non li promuove (§4.3).
+	 */
+	static int32 CompareGrammarIntents(ERTGrammarIntent A, ERTGrammarIntent B);
 };

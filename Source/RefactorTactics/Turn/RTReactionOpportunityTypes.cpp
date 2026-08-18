@@ -107,6 +107,58 @@ bool URTReactionOpportunityLibrary::IsResponseAllowed(const FRTReactionOpportuni
 	});
 }
 
+int32 URTReactionOpportunityLibrary::CountParticipantsWithChoice(const FRTContestedBoundary& Boundary)
+{
+	int32 WithChoice = 0;
+	for (const FRTReactionParticipant& P : Boundary.Participants)
+	{
+		// La stessa domanda che si fa per il single-responder, e non una seconda regola: «questo partecipante
+		// ha davvero una scelta?». Riusarla e' cio' che tiene UNA sola definizione di cardinalita' nel gioco.
+		if (RequiresDecisionBoundary(P.Opportunity))
+		{
+			++WithChoice;
+		}
+	}
+	return WithChoice;
+}
+
+bool URTReactionOpportunityLibrary::IsContested(const FRTContestedBoundary& Boundary)
+{
+	// DUE, non «almeno uno»: §3.2 e' esplicita in negativo — se una delle due risposte e' di fatto obbligata,
+	// l'opportunity NON e' contested e si degrada a single-responder. Senza questo `>= 2` un attacco base
+	// diventerebbe un Clash appena qualcuno arma un `Brace`, che e' il caso che la spec esclude per primo.
+	return CountParticipantsWithChoice(Boundary) >= 2;
+}
+
+void URTReactionOpportunityLibrary::SortParticipantsCanonically(FRTContestedBoundary& Boundary)
+{
+	// `StableSort` e non `Sort`: a parita' di criterio l'ordine dev'essere quello d'ingresso e non uno
+	// qualunque, o due esecuzioni identiche potrebbero registrare i due lock in ordine diverso — che e'
+	// precisamente la dipendenza dal tempo reale che §7.3 esiste per escludere.
+	Boundary.Participants.StableSort([](const FRTReactionParticipant& A, const FRTReactionParticipant& B)
+	{
+		return A.UnitId < B.UnitId;
+	});
+}
+
+int32 URTReactionOpportunityLibrary::CompareGrammarIntents(ERTGrammarIntent A, ERTGrammarIntent B)
+{
+	if (A == B)
+	{
+		return 0; // pareggio: intenzioni uguali. §5 dice che il Tie non e' un fallimento, e si applica UNA volta
+	}
+
+	// Il ciclo, scritto per intero invece che con aritmetica modulare: `(A - B + 3) % 3` darebbe la stessa
+	// risposta e non direbbe QUALE regola sta applicando. Tre righe leggibili valgono piu' di una furba, e il
+	// giorno in cui il playtest cambia una relazione si cambia la riga che la porta.
+	const bool bAWins =
+		(A == ERTGrammarIntent::Read  && B == ERTGrammarIntent::Stand) ||
+		(A == ERTGrammarIntent::Stand && B == ERTGrammarIntent::Shift) ||
+		(A == ERTGrammarIntent::Shift && B == ERTGrammarIntent::Read);
+
+	return bAWins ? 1 : -1;
+}
+
 FRTReactionDecision URTReactionOpportunityLibrary::DecisionOnTimeout(const FRTReactionOpportunity&)
 {
 	// PURA e costante: `HOLD`, sempre. Non guarda l'opportunity di proposito — se la guardasse, esisterebbe

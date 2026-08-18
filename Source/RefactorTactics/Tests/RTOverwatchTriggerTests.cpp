@@ -1414,4 +1414,170 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ─── E14.7 · Reaction Clash ([D-048], [D-049]) ──────────────────────────────────────────────────────────
+//
+// Il Clash e' logica su `AllowedResponses`: chi le produce — profilo d'eroe, condizione dichiarata, catalogo
+// — non lo riguarda. Per questo i test qui sotto costruiscono i partecipanti a mano invece di passare dal
+// `Brace`: il profilo e' D-047 e vive in `Ability/`, che questa track ha CHIESTO e non possiede.
+
+namespace
+{
+	/** Un partecipante con `N` risposte legali, sintetiche: qui conta la cardinalita', non il contenuto. */
+	FRTReactionParticipant MakeContender(int32 UnitId, int32 ResponseCount)
+	{
+		FRTReactionOpportunity Opp;
+		Opp.Key.TurnNumber = 3;
+		Opp.Key.MacroPhase = ERTMatchPhase::Move;
+		Opp.Key.OwnerId = UnitId;
+		Opp.Key.ReactionDefId = FName(TEXT("Action.Brace"));
+		for (int32 I = 0; I < ResponseCount; ++I)
+		{
+			Opp.AllowedResponses.Add(FString::Printf(TEXT("RESPONSE_%d"), I));
+		}
+		return FRTReactionParticipant(UnitId, Opp);
+	}
+}
+
+/**
+ * **Contested e' DERIVATO, non dichiarato** ([D-048], §3.1) — e la meta' negativa e' quella che conta.
+ *
+ * Non esiste un campo `Type = Clash` da leggere: il criterio e' *quanti partecipanti hanno una scelta vera*.
+ * Il test verifica le tre configurazioni che la spec distingue, e la seconda e' quella che §3.2 mette per
+ * iscritto in negativo: due partecipanti di cui **uno obbligato** non sono un Clash. Senza quel caso, un
+ * `IsContested` scritto come «ci sono due partecipanti» passerebbe — ed e' l'implementazione sbagliata piu'
+ * naturale da scrivere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashContestedIsDerivedTest,
+	"RefactorTactics.Clash.ContestedIsDerivedNotDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashContestedIsDerivedTest::RunTest(const FString&)
+{
+	// (a) due partecipanti con scelta vera ciascuno -> CONTESTED
+	{
+		FRTContestedBoundary B;
+		B.Participants = { MakeContender(1, 2), MakeContender(9, 3) };
+		TestTrue(TEXT("due partecipanti con >= 2 risposte ciascuno: contested"),
+			URTReactionOpportunityLibrary::IsContested(B));
+		TestEqual(TEXT("e sono due ad avere una scelta"),
+			URTReactionOpportunityLibrary::CountParticipantsWithChoice(B), 2);
+	}
+
+	// (b) LA META' NEGATIVA: due partecipanti, ma uno ha una risposta obbligata. §3.2 lo esclude per nome.
+	{
+		FRTContestedBoundary B;
+		B.Participants = { MakeContender(1, 2), MakeContender(9, 1) };
+		TestFalse(TEXT("un partecipante obbligato non fa un Clash: si degrada a single-responder"),
+			URTReactionOpportunityLibrary::IsContested(B));
+		TestEqual(TEXT("uno solo ha una scelta"),
+			URTReactionOpportunityLibrary::CountParticipantsWithChoice(B), 1);
+	}
+
+	// (c) e zero risposte non e' «una scelta»: e' il caso degenere, non il contested.
+	{
+		FRTContestedBoundary B;
+		B.Participants = { MakeContender(1, 0), MakeContender(9, 0) };
+		TestFalse(TEXT("nessuno con una scelta: nessun Clash"),
+			URTReactionOpportunityLibrary::IsContested(B));
+	}
+
+	// (d) il criterio NON e' il numero di partecipanti: tre partecipanti tutti obbligati restano non-contested.
+	{
+		FRTContestedBoundary B;
+		B.Participants = { MakeContender(1, 1), MakeContender(5, 1), MakeContender(9, 1) };
+		TestFalse(TEXT("tre partecipanti senza scelta non fanno un Clash"),
+			URTReactionOpportunityLibrary::IsContested(B));
+	}
+
+	return true;
+}
+
+/**
+ * L'ordine dei lock e' **canonico**, non di arrivo (§7.3).
+ *
+ * Il momento in cui ciascuno blocca la propria scelta e' precisamente cio' che §7.1 tiene non osservabile:
+ * se il TurnLog registrasse i due lock nell'ordine di arrivo, due esecuzioni della stessa partita
+ * produrrebbero tracce diverse e l'hash divergerebbe — la dipendenza dal tempo reale che l'invariante #4
+ * vieta.
+ *
+ * ⚠️ Il test costruisce l'array **al contrario** di proposito: con i partecipanti gia' in ordine passerebbe
+ * anche un'implementazione che non ordina affatto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashLockOrderIsCanonicalTest,
+	"RefactorTactics.Clash.LockOrderIsCanonicalNotArrival",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashLockOrderIsCanonicalTest::RunTest(const FString&)
+{
+	FRTContestedBoundary B;
+	B.Participants = { MakeContender(9, 2), MakeContender(1, 2) }; // arrivo: 9 poi 1
+
+	URTReactionOpportunityLibrary::SortParticipantsCanonically(B);
+
+	if (!TestEqual(TEXT("i partecipanti restano due"), B.Participants.Num(), 2)) { return false; }
+	TestEqual(TEXT("primo in ordine canonico"), B.Participants[0].UnitId, 1);
+	TestEqual(TEXT("secondo in ordine canonico"), B.Participants[1].UnitId, 9);
+
+	// Due ordinamenti dello stesso insieme danno la stessa sequenza: e' l'invariante che rende la traccia
+	// riproducibile, e si verifica ordinando una seconda volta un array gia' ordinato.
+	FRTContestedBoundary Again;
+	Again.Participants = { MakeContender(1, 2), MakeContender(9, 2) }; // arrivo opposto
+	URTReactionOpportunityLibrary::SortParticipantsCanonically(Again);
+	TestEqual(TEXT("l'ordine non dipende da come sono arrivati"),
+		Again.Participants[0].UnitId, B.Participants[0].UnitId);
+
+	return true;
+}
+
+/**
+ * La grammatica e' un **ciclo**: `READ > STAND > SHIFT > READ` ([D-049], §4.1).
+ *
+ * Le tre relazioni si verificano tutte e in **entrambi i versi** — se `A` batte `B`, `B` deve perdere contro
+ * `A` — piu' i tre pareggi. Senza l'antisimmetria una tabella che restituisse `+1` a chiunque passerebbe la
+ * meta' delle asserzioni.
+ *
+ * ⚠️ E si verifica che **nessuna intenzione domini**: ognuna vince una volta e perde una volta. E' la
+ * proprieta' che rende la scelta una lettura dell'avversario invece di un calcolo — se una dominasse, il
+ * Clash sarebbe risolto prima di cominciare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashGrammarIsACycleTest,
+	"RefactorTactics.Clash.GrammarIsACycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashGrammarIsACycleTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+	const ERTGrammarIntent Stand = ERTGrammarIntent::Stand;
+	const ERTGrammarIntent Read  = ERTGrammarIntent::Read;
+	const ERTGrammarIntent Shift = ERTGrammarIntent::Shift;
+
+	TestEqual(TEXT("READ batte STAND"),  Lib::CompareGrammarIntents(Read, Stand),  1);
+	TestEqual(TEXT("STAND batte SHIFT"), Lib::CompareGrammarIntents(Stand, Shift), 1);
+	TestEqual(TEXT("SHIFT batte READ"),  Lib::CompareGrammarIntents(Shift, Read),  1);
+
+	// L'altro verso, che rende la matrice antisimmetrica invece che «vince sempre il primo argomento».
+	TestEqual(TEXT("STAND perde contro READ"),  Lib::CompareGrammarIntents(Stand, Read),  -1);
+	TestEqual(TEXT("SHIFT perde contro STAND"), Lib::CompareGrammarIntents(Shift, Stand), -1);
+	TestEqual(TEXT("READ perde contro SHIFT"),  Lib::CompareGrammarIntents(Read, Shift),  -1);
+
+	TestEqual(TEXT("STAND pareggia con se stesso"), Lib::CompareGrammarIntents(Stand, Stand), 0);
+	TestEqual(TEXT("READ pareggia con se stesso"),  Lib::CompareGrammarIntents(Read, Read),   0);
+	TestEqual(TEXT("SHIFT pareggia con se stesso"), Lib::CompareGrammarIntents(Shift, Shift), 0);
+
+	// Nessuna intenzione domina: ognuna vince esattamente una volta e perde esattamente una volta.
+	const ERTGrammarIntent All[] = { Stand, Read, Shift };
+	for (ERTGrammarIntent A : All)
+	{
+		int32 Wins = 0, Losses = 0;
+		for (ERTGrammarIntent B : All)
+		{
+			if (A == B) { continue; }
+			const int32 R = Lib::CompareGrammarIntents(A, B);
+			if (R > 0) { ++Wins; } else if (R < 0) { ++Losses; }
+		}
+		TestEqual(TEXT("ogni intenzione vince una volta sola"), Wins, 1);
+		TestEqual(TEXT("e perde una volta sola"), Losses, 1);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
