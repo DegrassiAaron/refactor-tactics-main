@@ -6522,6 +6522,52 @@ tracks:
       - scripts/test_docs_inventory.py
     derives_from: []
     binary_leases: []
+  geometry_gesture:
+    status: ACTIVE
+    issue: 712
+    branch: docs/1013-u22-seduta
+    worktree: "D:/rt-u22"
+    session: U22
+    session_branch: docs/1013-u22-seduta
+    note: >-
+      + **Track aperta il 2026-08-18 per la seduta `U22`**, sbloccata da `U21` (#623, chiusa): il ghost si
+      valuta su una scena illuminata, o il verdetto direbbe piu' sulle luci che sul tool.
+      **La seduta OSSERVA, non scrive codice.** `#712` e' implementata: `RTHexGeometryTool` e' registrato
+      nel mode, e la parte verificabile e' gia' nel runtime — `SnapToGrammar` con i suoi due test,
+      `ValidateSegment` con quelli di `#620`, `BakeCell` con quelli di `#621`. Restano le quattro voci
+      `PIE-GEO-*`, che non sono osservabili headless: ghost, snap percepibile, granularita' dell'Undo e
+      residui vivono nell'occhio di chi disegna. Nessun file di `Source/` entra nel `writable`: quelli del
+      tool restano a `content_editor` (IDLE), e questa track non li tocca.
+      ⚠️ **Il write-set e' un BINARIO, ed e' l'asset mappa — non il livello.** Disegnare un segmento cuoce
+      coperture dentro `FRTHexCover`, che e' dato dell'asset: lo dice il criterio di `PIE-GEO-RESIDUI`
+      («le coperture cotte **restano**, sono dato dell'asset»). Il `.umap` invece deve restare **pulito**,
+      ed e' il `done_when` della seduta: la geometria non si salva nel livello, e `git status` e' l'unico
+      modo di accorgersene perche' nessun test headless apre un `.umap`.
+      ⚠️ **L'asset e' `DA_Format_Scratch`, non `DA_HexMap_Sandbox`** — il nome inganna, e la seduta
+      precedente ci ha perso tempo: il primo e' un `URTHexMapAsset` con 37 celle, il secondo e' vuoto
+      (1416 byte, zero celle). Chi apre la sandbox lavora sul primo.
+    writable: []
+    derives_from: []
+    binary_leases:
+      # Emessa **prima** che la seduta si apra. Sui FILE e non sulla cartella: la seduta disegna, quindi
+      # tocca l'asset mappa; il `.umap` e' nella lease solo perche' il criterio di `PIE-GEO-RESIDUI`
+      # chiede di **verificare che NON cambi**, e un path che si controlla e' un path che si prenota.
+      # Contesa misurata **zero**: nessuna lease attiva su `L_DevSandbox` — quella di `#937`
+      # (`BINARY-GH937-DEVSANDBOX-MAP`) e' stata rilasciata alla chiusura di `frontend_shell`.
+      - key: "BINARY-GH712-GEOMETRY-GESTURE"
+        issue: 712
+        base_sha: "c3a44084883de26741834e5999cb057e6537b3c9"
+        operation: modify
+        paths:
+          - Content/RT/Maps/Dev/L_DevSandbox/Data/DA_Format_Scratch.uasset
+          - Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
+        verification:
+          - load_in_editor
+          # ⚠️ La verifica che discrimina, e va nel verso opposto alle altre lease di questo file: il
+          # `.umap` deve risultare **NON modificato** a fine seduta. Se cambia, la geometria si sta
+          # salvando nel livello invece che nell'asset, ed e' il difetto che `PIE-GEO-RESIDUI` cerca.
+          - umap_unchanged_after_session
+          - git_status_clean_after_commit
 
   scenario_vocab:
     # ➕ **Track NUOVA, nata il 2026-08-18 da una collisione fra due sessioni** — e la collisione è il motivo
