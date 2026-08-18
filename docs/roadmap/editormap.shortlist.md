@@ -52,13 +52,13 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**26 sedute** — ✅ **1** · 🟡 **12** · ⏳ **7** · **6** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**27 sedute** — ✅ **3** · 🟡 **12** · ⏳ **6** · **6** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
 ### My Editor Queue
 
-**BLOCKING** 10 · **READY** 3 · **WAITING** 6 · **DONE** 1. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 3 · **WAITING** 5 · **DONE** 3. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -77,7 +77,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 - **U18** · Verifiche senza prerequisiti — 4/15 voci verdi
 - **U20** · Confine fra Guard e Brace — 0/1 voci verdi
-- **U21** · Luci del graybox e inquadratura della mappa — 0/2 voci verdi · sblocca U22, U25, U26
+- **U22** · Il gesto dell'autore — ghost, snap e Undo del tool Geometry — 0/4 voci verdi
 
 **WAITING** — *Aspetta codice*
 
@@ -86,11 +86,12 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U14** · Ambiente in partita — attende `U13` ⏳
 - **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` 🟡, `U5` 🟡, `U7` 🟡, `U8` ⏳
 - **U16** · Misura dei KPI — attende `U6` 🟡
-- **U22** · Il gesto dell'autore — ghost, snap e Undo del tool Geometry — attende `U21` ⏳
 
 **DONE** — *Finite*
 
+- **U21** · Luci del graybox e inquadratura della mappa ✅
 - **U24** · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root ✅
+- **U27** · Il pulsante BACK del modale d'errore, collegato al navigatore ✅
 
 ### Tutte le sedute
 
@@ -117,13 +118,14 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U16** | Misura dei KPI | `PIE` | numeri reali nella tabella KPI | U6 | sì | 0/1 | 🟡 |
 | **U17** | Release v0.1 | `PIE` | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
 | **U20** | Confine fra Guard e Brace | `PIE` | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
-| **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
+| **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 2/2 | ✅ |
 | **U22** | Il gesto dell'autore — ghost, snap e Undo del tool Geometry | `PIE` | verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo | U21 | no | 0/4 | ⏳ |
 | **U24** | I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root | `PIE` | i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/` | — | no | — | ✅ |
 | **U25** | Il volume di posa della cella, e la scena che dice se il graybox si legge | `PIE` | verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor | U21 | no | — | — |
 | **U26** | La griglia di lavoro e la sonda di movimento nell'editor | `PIE` | verdetto su leggibilita' della griglia di lavoro e della sonda di movimento | U21 | no | — | — |
+| **U27** | Il pulsante BACK del modale d'errore, collegato al navigatore | `PIE` | il `BACK` di `WBP_RT_ErrorModal` che chiama `BackFromError` invece di essere disegnato e inerte | — | no | — | ✅ |
 
-**Lane**: `PIE` **23** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
+**Lane**: `PIE` **24** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
 
 ### Blocco 1 — Eseguibile oggi
 
@@ -722,11 +724,11 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 > Nasce dal piano `BAL-1` (`plans/bal-1-guard-brace-roadmap-2026-08-10.md` §6). **Non entra nel subset `RELEASE-V01`**: `BAL-1` non blocca la consegna, e un gate che si allarga senza motivo e' il difetto che G9 ha gia' avuto due volte. La seduta ha una voce sola di proposito — e' una domanda che si risponde una volta, guardandola. ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
 
-#### U21 · Luci del graybox e inquadratura della mappa ⏳
+#### U21 · Luci del graybox e inquadratura della mappa ✅
 
 **Sbloccata da**: — · **Preparazione condivisa con**: U22, U25, U26 · **Percorso critico**: no
 **Produce**: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
-**Verifichi**: `PIE-MAPED-LIGHT` ⏳ · `PIE-MAPED-FRAME` ⏳
+**Verifichi**: `PIE-MAPED-LIGHT` ✅ · `PIE-MAPED-FRAME` ✅
 **Finita quando**: le due voci hanno un esito reale e il livello illuminato e' committato
 **Sblocca**: U22, U25, U26
 
@@ -859,6 +861,15 @@ fra loro. Vale la pena leggere `#983` prima di scegliere un numero.
 **Finita quando**: le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale
 
 > ➕ **Seduta aperta il 2026-08-17 dal consolidamento Tactical Designer** ([D-154], referto `plans/tactical-designer-consolidamento-2026-08-17.md`). Nasce da un buco misurato: `#622` e `#711` chiedono ENTRAMBE, nel proprio DoD, una voce `PIE-*` «collocata in una **seduta** di `editor-sessions.yaml` — una voce che non sta in una seduta non viene eseguita mai», e nessuna seduta le riceveva. `#623` aveva `U21` e `#712` aveva `U22`; queste due erano le sole due issue d'editor aperte senza un posto dove atterrare. ⚠️ **`verifies: []` non e' una dimenticanza, ed e' la stessa scelta di `U24`.** Le voci non esistono ancora — misurato: `grep -cE "PIE-(MAPED-GRID|HEX-MOVEMENT-PROBE)" docs/technical/test-manuali-pie.md` da' **0** — e **non vanno create adesso**: una voce che chiede di verificare una griglia di lavoro che nessun codice disegna direbbe qualcosa di falso sul repository, e il registro PIE e' una lista di cose *verificabili*, non di cose desiderate. Le crea la PR che implementa, che e' anche l'unica che sa che aspetto avranno. `#711` ha gia' scelto il proprio nome: `PIE-HEX-MOVEMENT-PROBE`. ⚠️ **Le due issue condividono l'allestimento, non lo scopo.** La griglia di lavoro (`#622`) si guarda **dove le celle non esistono**; la sonda (`#711`) si guarda dove esistono, su una mappa con superfici costose e una transizione. Stessa apertura, stesso `L_DevSandbox` illuminato da `U21`, due verdetti distinti: chi ne esegue una sola lo dichiara, invece di chiudere la seduta. ⚠️ `unblocked_by: [U21]` per la stessa ragione pratica di `U22`: su una scena non illuminata il verdetto direbbe piu' sulle luci che sulla griglia. ⚠️ ID assegnato prima del merge: `U26`, con `U25` come massimo misurato su `main` **e su tutti i branch remoti** — `U25` vive su `origin/docs/graybox-kit-consolidamento`, che al 2026-08-17 e' la PR **#1099** aperta. Preso `U26` e non `U25` proprio per questo. Chi arriva secondo rinumera, non contende.
+
+#### U27 · Il pulsante BACK del modale d'errore, collegato al navigatore ✅
+
+**Sbloccata da**: — · **Percorso critico**: no
+**Produce**: il `BACK` di `WBP_RT_ErrorModal` che chiama `BackFromError` invece di essere disegnato e inerte
+**Artefatti**: `Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset` ✅
+**Finita quando**: il pulsante chiama `BackFromError(GetPhaseWhenArmed())` sul navigatore — non `PopScreen` ne' `ReturnMain` diretti — e il package si salva senza errori
+
+> ➕ **Aperta il 2026-08-18 per l'ULTIMA voce del DoD di `#937`.** Il C++ e' consegnato (PR #1183): `URTFrontendNavigator::BackFromError` sceglie fra `ReturnMain` a partita viva e `CloseModal`+`PopScreen` durante il loading, provato da **3** test e da una verifica di mutazione che ne fa cadere esattamente due. Quel che manca e' un collegamento dentro il Blueprint: il pulsante `BACK` esiste nel package — misurato, la stringa «Back» c'e' — e **non chiama niente**. ⛔ **Il pulsante deve chiamare `BackFromError`, non `PopScreen` ne' `ReturnMain`.** Quei due sono sul navigatore e un Blueprint puo' chiamarli: sarebbe il widget che naviga da se', cioe' l'invariante 1 di CP 46.1 violata **dentro un `.uasset`**, dove nessun test di navigazione se ne accorge. La regola di dove si torna vive in un posto solo, e questa seduta non e' quel posto. ⚠️ **La fase si passa, non si sceglie**: l'argomento e' `GetPhaseWhenArmed()`, che il widget espone gia'. Un Blueprint che passasse una costante — `Ready` fisso, per dire — riporterebbe la decisione dentro la UI per un'altra strada. ⚠️ **Non e' esercitabile a schermo dopo questa seduta, e va saputo prima.** Nessuno chiama `InitializeFrontend`: e' di CP 46.3 (`#938`). Il collegamento si verifica **nel grafo del Blueprint**, non giocando — ed e' la ragione per cui `verifies: []`, come per `U24`. ⚠️ **Lease `BINARY-GH937-ERRORMODAL-BACK`, su UN package.** `WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer` sono toccati da `origin/feat/937-widget-layout`, un branch vivo che non dichiara nessuna lease: questa seduta non li apre e non li prenota. ⚠️ ID assegnato prima del merge: `U27`, con `U26` come massimo misurato su `main` **e su tutti i diciotto branch remoti**, non solo sul proprio. Chi arriva secondo rinumera, non contende.
 
 > **64 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-FMTVER-*` 1 · `PIE-HEX-*` 12 · `PIE-HEXPLAY-*` 1 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-NAME-*` 1 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 4 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 

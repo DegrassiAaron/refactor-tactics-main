@@ -1303,3 +1303,45 @@ sessions:
       branch remoti** — `U25` vive su `origin/docs/graybox-kit-consolidamento`, che al 2026-08-17 e'
       la PR **#1099** aperta. Preso `U26` e non `U25` proprio per questo. Chi arriva secondo rinumera,
       non contende.
+
+  - id: U27
+    title: Il pulsante BACK del modale d'errore, collegato al navigatore
+    block: 6
+    critical: false
+    produces: il `BACK` di `WBP_RT_ErrorModal` che chiama `BackFromError` invece di essere disegnato e inerte
+    artifacts:
+      - Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
+    unblocked_by: []
+    # ⚠️ **Vuoto, e la prima stesura ci aveva messo `[U24]`** — il validator l'ha respinto perche'
+    # `shares_setup_with` e' **simmetrico** e U24 non ricambiava. Ma la correzione giusta non era
+    # aggiungere U27 di la': le due sedute **non** condividono un allestimento. U24 costruiva cinque
+    # package da zero; questa ne apre **uno** per collegare un nodo, e non ha bisogno di niente che U24
+    # preparasse. Un campo di parentela riempito per far tacere un gate e' peggio di un campo vuoto.
+    shares_setup_with: []
+    verifies: []
+    issues: [937]
+    done_when: >-
+      il pulsante chiama `BackFromError(GetPhaseWhenArmed())` sul navigatore — non `PopScreen` ne'
+      `ReturnMain` diretti — e il package si salva senza errori
+    unblocks: []
+    notes: >-
+      ➕ **Aperta il 2026-08-18 per l'ULTIMA voce del DoD di `#937`.** Il C++ e' consegnato (PR #1183):
+      `URTFrontendNavigator::BackFromError` sceglie fra `ReturnMain` a partita viva e
+      `CloseModal`+`PopScreen` durante il loading, provato da **3** test e da una verifica di mutazione
+      che ne fa cadere esattamente due. Quel che manca e' un collegamento dentro il Blueprint: il
+      pulsante `BACK` esiste nel package — misurato, la stringa «Back» c'e' — e **non chiama niente**.
+      ⛔ **Il pulsante deve chiamare `BackFromError`, non `PopScreen` ne' `ReturnMain`.** Quei due sono
+      sul navigatore e un Blueprint puo' chiamarli: sarebbe il widget che naviga da se', cioe'
+      l'invariante 1 di CP 46.1 violata **dentro un `.uasset`**, dove nessun test di navigazione se ne
+      accorge. La regola di dove si torna vive in un posto solo, e questa seduta non e' quel posto.
+      ⚠️ **La fase si passa, non si sceglie**: l'argomento e' `GetPhaseWhenArmed()`, che il widget espone
+      gia'. Un Blueprint che passasse una costante — `Ready` fisso, per dire — riporterebbe la decisione
+      dentro la UI per un'altra strada.
+      ⚠️ **Non e' esercitabile a schermo dopo questa seduta, e va saputo prima.** Nessuno chiama
+      `InitializeFrontend`: e' di CP 46.3 (`#938`). Il collegamento si verifica **nel grafo del
+      Blueprint**, non giocando — ed e' la ragione per cui `verifies: []`, come per `U24`.
+      ⚠️ **Lease `BINARY-GH937-ERRORMODAL-BACK`, su UN package.** `WBP_RT_FrontendRoot` e
+      `WBP_RT_ModalLayer` sono toccati da `origin/feat/937-widget-layout`, un branch vivo che non
+      dichiara nessuna lease: questa seduta non li apre e non li prenota.
+      ⚠️ ID assegnato prima del merge: `U27`, con `U26` come massimo misurato su `main` **e su tutti i
+      diciotto branch remoti**, non solo sul proprio. Chi arriva secondo rinumera, non contende.

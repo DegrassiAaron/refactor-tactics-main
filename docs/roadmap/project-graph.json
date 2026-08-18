@@ -1381,8 +1381,8 @@
       "block": 6,
       "critical": false,
       "execution_lane": "pie",
-      "state": "⏳",
-      "queue_group": "READY",
+      "state": "✅",
+      "queue_group": "DONE",
       "produces": "verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato",
       "artifacts": [],
       "unblocked_by": [],
@@ -1399,11 +1399,11 @@
       "verifies": [
         {
           "id": "PIE-MAPED-LIGHT",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-MAPED-FRAME",
-          "state": "⏳"
+          "state": "✅"
         }
       ],
       "issues": [
@@ -1418,14 +1418,14 @@
       "critical": false,
       "execution_lane": "pie",
       "state": "⏳",
-      "queue_group": "WAITING",
+      "queue_group": "READY",
       "produces": "verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo",
       "artifacts": [],
       "unblocked_by": [
         {
           "ref": "U21",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "seduta"
         }
       ],
@@ -1515,8 +1515,8 @@
       "unblocked_by": [
         {
           "ref": "U21",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "seduta"
         }
       ],
@@ -1546,8 +1546,8 @@
       "unblocked_by": [
         {
           "ref": "U21",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "seduta"
         }
       ],
@@ -1563,6 +1563,30 @@
         711
       ],
       "done_when": "le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale"
+    },
+    {
+      "id": "U27",
+      "title": "Il pulsante BACK del modale d'errore, collegato al navigatore",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "✅",
+      "queue_group": "DONE",
+      "produces": "il `BACK` di `WBP_RT_ErrorModal` che chiama `BackFromError` invece di essere disegnato e inerte",
+      "artifacts": [
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset",
+          "tracked": true
+        }
+      ],
+      "unblocked_by": [],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [],
+      "issues": [
+        937
+      ],
+      "done_when": "il pulsante chiama `BackFromError(GetPhaseWhenArmed())` sul navigatore — non `PopScreen` ne' `ReturnMain` diretti — e il package si salva senza errori"
     }
   ],
   "editor_queue": {
@@ -1581,18 +1605,19 @@
     "READY": [
       "U18",
       "U20",
-      "U21"
+      "U22"
     ],
     "WAITING": [
       "U11",
       "U13",
       "U14",
       "U19",
-      "U16",
-      "U22"
+      "U16"
     ],
     "DONE": [
-      "U24"
+      "U21",
+      "U24",
+      "U27"
     ]
   },
   "pie_entries": [
@@ -1898,11 +1923,11 @@
     },
     {
       "id": "PIE-MAPED-FRAME",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-MAPED-LIGHT",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-MP4",

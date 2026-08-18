@@ -12,6 +12,9 @@
 #include "Misc/AutomationTest.h"
 #include "Frontend/RTScreenStack.h"
 #include "Frontend/RTFrontendNavigator.h"
+// Per `ERTLoadPhase`: il `BACK` del modale d'errore sceglie fra `PopScreen` e `ReturnMain` guardando la
+// fase raggiunta dall'allestimento, che e' un dato d'avvio e non di navigazione (CP 46.2).
+#include "Frontend/RTStartupReport.h"
 #include "Engine/GameInstance.h"
 #include "Blueprint/UserWidget.h"
 // Solo per avere una `UUserWidget` **concreta** da istanziare: `UUserWidget` e' `Abstract`.
@@ -677,6 +680,140 @@ bool FRTFrontendPresentsAndReusesWidgetsTest::RunTest(const FString&)
 		(void*)Nav->FindLiveWidget(Play), (void*)PlayWidget);
 
 	ReleaseNavigator(GI);
+	return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CP 46.2 (#937) — il `BACK` del modale d'errore.
+//
+// La voce del DoD chiede **due** esiti, non uno: `PopScreen` se l'errore compare durante il loading,
+// `ReturnMain` se compare a partita gia' viva. Non e' una raffinatezza — `PopScreen` a partita viva
+// lascerebbe una partita **sotto** il menu, che e' lo stato che CP 46.6 vieta.
+//
+// ⚠️ **Il discriminante non e' un flag nuovo**: e' `FRTStartupReport::Phase`, che vale `Ready` solo se
+// l'allestimento e' arrivato in fondo. Il dato esisteva gia' e nessuno lo leggeva.
+//
+// ⚠️ **Il widget non naviga da se'**: espone la fase in cui e' stato armato, e il navigatore decide. E'
+// l'invariante di CP 46.1 — un solo owner del flow — e questi test la esercitano dal lato del navigatore.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Errore durante il loading: non e' stato costruito niente, quindi si torna alla schermata precedente.
+ *
+ * ⚠️ **Il modale va chiuso PRIMA del pop, e il test lo verifica dall'esito e non dall'ordine dei
+ * comandi**: `PopScreen` con un modale aperto risponde `BlockedByModal`, perche' la schermata sotto e'
+ * disabilitata. Un'implementazione che facesse solo `PopScreen()` restituirebbe quel codice e lascerebbe
+ * il giocatore **dentro il modale** — cioe' proprio il dead-end che il DoD vieta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackFromErrorDuringLoadingPopsTest,
+	"RefactorTactics.Frontend.BackFromErrorDuringLoadingPopsScreen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackFromErrorDuringLoadingPopsTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	// ⚠️ **Profondita' 3, e non e' un dettaglio.** A profondita' 2 (`Main → Play`) questo test sarebbe
+	// **vacuo**: `PopScreen` e `ReturnMain` porterebbero entrambi a `Main` con `GetDepth() == 1`, quindi
+	// passerebbe anche con la regola invertita. Trovato ragionando sulla mutazione prima di committare —
+	// la prima stesura usava due schermate e sarebbe stata verde per il motivo sbagliato.
+	Nav->InitializeFrontend(Main);
+	Nav->PushScreen(Play);
+	Nav->PushScreen(Settings);
+	Nav->ShowModal(ErrorModal);
+	TestTrue(TEXT("precondizione: il modale e' aperto"), Nav->IsModalOpen());
+
+	// Ogni fase che non sia `Ready` e' «durante il loading»: l'allestimento non e' arrivato in fondo.
+	const ERTNavResult Result = Nav->BackFromError(ERTLoadPhase::Scenario);
+
+	TestEqual(TEXT("la transizione riesce"), Result, ERTNavResult::Ok);
+	TestFalse(TEXT("il modale e' chiuso"), Nav->IsModalOpen());
+	// Un livello sotto — `Play` — e **non** la radice: e' l'asserzione che distingue `PopScreen` da
+	// `ReturnMain`, e senza di essa i due esiti sarebbero indistinguibili.
+	TestEqual(TEXT("si torna alla schermata precedente, non alla radice"), Nav->GetCurrentScreen(), Play);
+	TestEqual(TEXT("e lo stack e' sceso di UNO, non smontato"), Nav->GetDepth(), 2);
+
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * Errore a partita gia' viva: `ReturnMain`, che **smonta**.
+ *
+ * La differenza con il test sopra non e' cosmetica: qui lo stack torna alla radice da qualunque
+ * profondita', mentre un `PopScreen` scenderebbe di un solo livello e lascerebbe la partita viva sotto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackFromErrorWhenLiveReturnsMainTest,
+	"RefactorTactics.Frontend.BackFromErrorWhenGameIsLiveReturnsMain",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackFromErrorWhenLiveReturnsMainTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	// Profondita' 3: se il `BACK` facesse `PopScreen` si fermerebbe a `Play`, e la differenza fra i due
+	// esiti sarebbe invisibile a profondita' 2. E' la ragione per cui questo test non usa lo stack minimo.
+	Nav->InitializeFrontend(Main);
+	Nav->PushScreen(Play);
+	Nav->PushScreen(Settings);
+	Nav->ShowModal(ErrorModal);
+
+	const ERTNavResult Result = Nav->BackFromError(ERTLoadPhase::Ready);
+
+	TestEqual(TEXT("la transizione riesce"), Result, ERTNavResult::Ok);
+	TestFalse(TEXT("nessun modale resta aperto"), Nav->IsModalOpen());
+	TestEqual(TEXT("si torna alla radice"), Nav->GetCurrentScreen(), Main);
+	TestEqual(TEXT("e NON di un solo livello: lo stack e' smontato"), Nav->GetDepth(), 1);
+
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * Il `BACK` non e' un dead-end **da nessuna delle fasi**, e il test misura la propria copertura.
+ *
+ * ⚠️ **Senza l'ultima asserzione questo test sarebbe vacuo**: un ciclo su un enum non dice quante fasi
+ * abbia guardato, e il giorno in cui `ERTLoadPhase` ne guadagnasse una il ciclo continuerebbe a passare
+ * ignorandola. E' il difetto che questo repository ha gia' pagato con i test generativi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackFromErrorHasNoDeadEndTest,
+	"RefactorTactics.Frontend.BackFromErrorLeavesNoDeadEndFromAnyPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackFromErrorHasNoDeadEndTest::RunTest(const FString&)
+{
+	const ERTLoadPhase Phases[] = { ERTLoadPhase::Idle, ERTLoadPhase::Map, ERTLoadPhase::Scenario,
+									ERTLoadPhase::Bots, ERTLoadPhase::Ready };
+
+	int32 Covered = 0;
+	for (const ERTLoadPhase Phase : Phases)
+	{
+		UGameInstance* GI = nullptr;
+		URTFrontendNavigator* Nav = MakeNavigator(GI);
+		if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+		Nav->InitializeFrontend(Main);
+		Nav->PushScreen(Play);
+		Nav->ShowModal(ErrorModal);
+
+		const ERTNavResult Result = Nav->BackFromError(Phase);
+
+		TestEqual(*FString::Printf(TEXT("fase %d: la transizione riesce"), (int32)Phase),
+			Result, ERTNavResult::Ok);
+		TestFalse(*FString::Printf(TEXT("fase %d: nessun modale resta aperto"), (int32)Phase),
+			Nav->IsModalOpen());
+		TestTrue(*FString::Printf(TEXT("fase %d: la schermata sotto e' interattiva"), (int32)Phase),
+			Nav->IsScreenInteractive());
+
+		++Covered;
+		ReleaseNavigator(GI);
+	}
+
+	// La copertura e' il risultato, non il numero di giri: se l'enum cresce, questo assert cade.
+	TestEqual(TEXT("coperte tutte le fasi dichiarate da ERTLoadPhase"),
+		Covered, (int32)ERTLoadPhase::Ready + 1);
+
 	return true;
 }
 
