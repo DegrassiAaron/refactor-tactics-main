@@ -394,9 +394,16 @@ Il repository ha **quattro** stati di porta, non tre:
 > stato; un'icona d'overlay spostava il canale nella **UI**, cioè fuori da questo contratto e dentro il
 > linguaggio icone di **E20**, che ha un owner diverso.
 >
-> ⚠️ **Costo accettato, non rimosso**: il catalogo di §8 guadagna una voce, perché i due stati non
-> condividono più una mesh sola. È il prezzo di avere il marcatore *dentro* la silhouette invece che sopra
-> — ed è ciò che lo rende leggibile in scala di grigi a tutte e tre le distanze, che è la verifica di §10.
+> ⚠️ **Costo accettato, non rimosso**: l'elemento **#8** del catalogo passa da una mesh a **due** —
+> `SM_Graybox_Door_Panel` e `SM_Graybox_Door_Locked` in §8.1. È il prezzo di avere il marcatore *dentro* la
+> silhouette invece che sopra, ed è ciò che lo rende leggibile in scala di grigi a tutte e tre le distanze,
+> che è la verifica di §10.
+>
+> ⚠️ **Il conto degli elementi NON cambia e resta diciannove**: §8 classifica **elementi**, §8.1 elenca
+> **path**, e una porta a due mesh è un elemento con due file. *La prima stesura scriveva «il catalogo di §8
+> guadagna una voce» — qui, in `D-171` e in `OPEN_DECISIONS.md` — e in nessuno dei tre applicava il cambio:
+> chi fosse andato a contare §8 avrebbe trovato `19` con `UPDATE 8` e una famiglia-porta a due mesh che non
+> compariva. Un costo dichiarato in tre punti e applicato in zero. Trovato in code review su #1188.*
 
 ### 7.2 Integrità: il dato è un intero, gli stati sono una lettura
 
@@ -427,26 +434,69 @@ dall'ammontare del colpo.
 
 Ne discende una separazione che va scritta prima di modellare:
 
+🔑 **I quattro predicati NON sono mutuamente esclusivi, quindi l'ordine di valutazione è parte della
+regola.** Si legge dall'alto e **il primo che regge vince**:
+
 ```text
-Intatto      geometria piena, corpo neutro       Integrity == DefaultIntegrity(Type)
-Danneggiato  stessa geometria + marcatore        Integrity <  DefaultIntegrity(Type)
-Critico      stessa geometria + marcatore forte  Integrity * 3 <= DefaultIntegrity(Type)
-Distrutto    geometria CAMBIATA — non è lo       bDestroyed
-             stesso oggetto ricolorato
+1. Distrutto    geometria CAMBIATA — non è lo       l'entry non è più in `Covers`
+                stesso oggetto ricolorato
+2. Critico      stessa geometria + marcatore forte  Integrity * 3 <= DefaultIntegrity(Type)
+3. Danneggiato  stessa geometria + marcatore        Integrity <  DefaultIntegrity(Type)
+4. Intatto      geometria piena, corpo neutro       altrimenti
 ```
+
+> 🔴 **Questa scaletta è la seconda stesura, e la prima era difettosa in tre punti indipendenti — trovati in
+> code review su #1188, tutti verificati contro `Source/`.**
+>
+> *(1)* **Non era ordinata, e senza ordine `Critico` è irraggiungibile.** Una `High` a `10` soddisfa
+> `danneggiato` (`10 < 50`) **e** `critico` (`10*3 = 30 ≤ 50`): chiunque la implementasse come catena
+> `if/else if` nell'ordine dichiarato non arriverebbe mai allo stato che la decisione esiste per rendere
+> visibile.
+>
+> *(2)* **`Intatto` era `Integrity == DefaultIntegrity(Type)`, e non copriva i valori SOPRA il catalogo.**
+> `Hero.Riktor.KineticPanel` li produce oggi: la variante `Reinforced` dichiara `Integrity` **45** e
+> `Adaptive` **25** nei propri `Parameters`
+> ([`RTHeroCatalogLibrary.cpp`](../../Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp)), e
+> `ARTTurnManager` le applica con `AddCover(..., ERTHexCoverType::Low, Op.Integrity)` — dove
+> `DefaultIntegrity(Low)` è `30`. Un pannello rinforzato a `45` non era intatto, non era danneggiato e non
+> era critico: **nessuno stato da renderizzare**. Con `altrimenti` è intatto, che è ciò che è.
+>
+> *(3)* **`Distrutto ⟺ bDestroyed` non era osservabile, e `bDestroyed` non è un «esito enumerato».** È un
+> `bool` su una struct di **ritorno** (`FRTCoverDamageResult`,
+> [`RTHexCoverLibrary.h`](../../Source/RefactorTactics/Map/RTHexCoverLibrary.h)), valorizzato e seguito
+> immediatamente da `Updated.Covers.RemoveAt(I)`: a fase conclusa l'entry **non esiste più** nella cella,
+> quindi chi legge il dato di mappa non può osservarlo mai. Per il presentatore «distrutto» è l'**assenza**
+> dell'entry; `bDestroyed` è il segnale dell'**evento**, e vive nel TurnLog di quel turno. La frase
+> «esito enumerato» era una trascrizione di questa sezione, e la ripeteva anche `D-172`.
 
 ✅ **Le soglie esistono dal 2026-08-18, e sono FRAZIONI del catalogo — `D-172`.** Non potevano essere numeri
 assoluti: le partenze sono **due**, `50` per `High` e `30` per `Low`, quindi «critico» o è una frazione o è
-due numeri scollegati. La regola è in **aritmetica intera** — nessun float, nessun arrotondamento da
-concordare fra chi modella e chi legge — e `Distrutto` non è una soglia affatto: `bDestroyed` era **già** un
-esito enumerato in `FRTCoverDamageResult`.
+due numeri scollegati. La regola è in **aritmetica intera**: nessun float, nessun arrotondamento da
+concordare fra chi modella e chi legge.
 
-**Perché ⅓, misurato invece che scelto**: `Action.HeavyAttack` fa `20` di `DamageStructure`
+**Perché ⅓, e cosa la misura dimostra davvero.** `Action.HeavyAttack` fa `20` di `DamageStructure`
 ([`RTHexCoverTests.cpp`](../../Source/RefactorTactics/Tests/RTHexCoverTests.cpp)), quindi le sequenze reali
-sono `High 50 → 30 → 10 → 0` e `Low 30 → 10 → 0`. Con ⅓ «critico» cade **esattamente sull'ultimo passo
-prima di zero su entrambi i tipi**, cioè significa *un altro colpo e cade* — l'informazione che decide
-l'azione successiva. Con ½ e ¼ una `Low` non sarebbe **mai** critica (`10 > 7`): cadrebbe da «danneggiata»,
-e lo stato più forte della grammatica non si vedrebbe su metà del catalogo.
+sono `High 50 → 30 → 10 → 0` e `Low 30 → 10 → 0`. Con ⅓ «critico» cade **sull'ultimo passo prima di zero su
+entrambi i tipi**, cioè significa *un altro colpo e cade*. La misura **esclude ¼**: lì una `Low` a `10` resta
+«danneggiata» (`10 > 7`) e cadrebbe senza mai mostrare lo stato più forte, che su metà del catalogo non si
+vedrebbe.
+
+> ⚠️ **Ciò che la misura NON fa è selezionare ⅓ contro ½, e la prima stesura lo sosteneva.** Su queste due
+> sequenze `Integrity * 2 <= Default` classifica **esattamente come** `* 3`: entrambe danno critico a `10` su
+> `High` e su `Low`. Fra le due la scelta è ⅓ perché è la **più stretta** — «critico» resta raro, e il giorno
+> in cui arrivasse un colpo più leggero di `20` continuerebbe a significare *l'ultimo colpo* invece di
+> anticiparsi. È un argomento di design, non una misura, e chiamarlo «misurato invece che scelto» era
+> vendere come discriminante un esperimento che discrimina solo contro ¼. Trovato in code review.
+
+⚠️ **Un residuo noto, dichiarato invece che scoperto a valle**: `FRTHexCover` ha il default di costruttore
+`InIntegrity = 30` **fisso e indipendente dal `Type`**
+([`RTHexCellData.h`](../../Source/RefactorTactics/Map/RTHexCellData.h)), mentre `DefaultIntegrity(High)` è
+`50`. Una `High` autorata così — `FRTHexCover(Edge, ERTHexCoverType::High)`, che è ciò che si ottiene
+aggiungendo una entry a mano — nasce a `30` e per questa regola legge **«danneggiato» senza essere stata
+colpita**. Il difetto è nel costruttore, non nella lettura — il costruttore accetta il `Type` e **ignora** la
+funzione che sa cosa quel tipo vale — ed è tracciato in
+[#1194](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1194) invece di essere aggirato qui,
+perché `Map/RTHexCellData.h` è nel write-set della track `spatial`.
 
 ⚠️ **Resta presentazione, e la frazione è ciò che lo garantisce**: la lettura non entra nel resolver, non
 cambia la riduzione del danno — che è di `Combat/` — e non entra in `ComputeHash`. Se il balance muove
@@ -547,6 +597,13 @@ Sotto `World/` e non sotto `World/Grid/`: §5 di
 `/Game/RT/Graybox/`: quel livello è organizzato per **dominio**, e «graybox» è un modo di fare gli asset —
 promuoverlo ad arte finale, sotto `World/`, è un rename locale.
 
+⚠️ **Esistono due cartelle `Graybox`, e non è l'ambiguità che `D-173` rifiuta.** `Maps/Dev/L_DevSandbox/Graybox/`
+è materiale graybox **locale a quella mappa**; questa è il **kit condiviso**. Le separa il criterio degli asset
+di mappa già normativo in §5 — *«se è usato da più mappe, va in una cartella condivisa»* — perché la natura è
+la stessa e cambia lo scope. Il caso scartato era diverso: generatori e oggetti sono cose di natura diversa, e
+nessun criterio di scope li avrebbe separati. *Registrato dopo la code review su #1188, che ha notato la
+collisione prima che qualcuno la incontrasse.*
+
 ⚠️ **La riga d'allowlist in `.gitignore` viene PRIMA del primo asset**, e c'è già:
 [`asset-map.md`](asset-map.md) §6 lo prescrive perché senza di essa `git add` **tace e non segnala nulla**.
 Oracolo: `git check-ignore -q <file>` → exit **`1`**; con `-v` esce `0` in entrambi i casi e non distingue.
@@ -600,8 +657,15 @@ Registrate perché non tornino: un handoff respinto senza motivo scritto si ripr
 
 ### 9.2 Chiuse
 
-Restano nominate qui perché §7 e §8 le citano, e un ID che sparisce dall'unico posto che lo definisce manda
-il lettore a cercarlo altrove.
+Restano nominate qui perché il Decision Log, `OPEN_DECISIONS.md` e le issue continuano a citarle **per ID**:
+questa tabella è la mappa `GBX-* → esito` nell'owner del contratto, così chi arriva da una `D-nnn` trova da
+quale sezione la domanda nasceva. Un ID che sparisce dall'unico documento che lo definisce manda il lettore a
+cercarlo altrove.
+
+> ⚠️ *La prima stesura giustificava la sezione con «perché §7 e §8 le citano», e il **suo stesso diff** aveva
+> reso quella frase falsa: le citazioni in §7.1 e §7.2 erano state sostituite con `D-171` e `D-172`, e §8 non
+> ha mai nominato `GBX-4`. Misurato: `grep -n "GBX-[234]"` su questo file trova hit **solo** in §9.2. Vera
+> del testo di prima, falsa del testo che la conteneva. Trovato in code review su #1188.*
 
 | ID | Esito | Dove |
 |---|---|---|
