@@ -39,7 +39,22 @@ for n in Gadget Phase Riktor Wraith; do printf "%-8s %s\n" "$n" "$(grep -roF "$n
 | `Source/RefactorTactics/Tests/RTHeroWraithTests.cpp` | `RTHeroWraithTests.cpp` |
 | `Scenarios/Combat/RiktorImpactShotSlows.json` | `RiktorImpactShotSlows.json` |
 | `Scenarios/Spec/Combat/RiktorIsPushedLikeAnyone.json` | `RiktorIsPushedLikeAnyone.json` |
-| `docs/wiki/…/10_Flux_scheda_Wiki.png` … `13_Vektor_…` | `10_Gadget_…` … `13_Wraith_…` (4 file) |
+| `docs/src/wiki/v0.1/roster-legacy/10_Flux_scheda_Wiki.png` … `13_Vektor_…` | 🔴 **il rename non basta**: vedi sotto |
+
+⚠️ **Le prime sei righe sono già fatte, e questa tabella non è più in grado di dirlo** *(verificato il
+2026-08-18)*. I sei file esistono su disco col nome di destinazione — `ls Source/RefactorTactics/Tests/` e
+`ls Scenarios/` lo mostrano. La bonifica di D-130 ha riscritto **entrambe** le colonne, quindi «da» e
+«diventa» coincidono e il lavoro concluso è indistinguibile da quello mai iniziato. L'unica riga
+sopravvissuta intatta è la settima, perché il suo nome è dentro un `_` e il pattern del gate richiede un
+confine di parola: la tabella si è conservata **solo dove il gate non arrivava**.
+
+🔴 **E la settima riga non si chiude con un rename.** Quei quattro PNG portano i nomi legacy **nei pixel**,
+non solo nel nome del file: rinominarli produrrebbe un file che si chiama col nome canonico e mostra quello
+vecchio — cioè esattamente il difetto misurato in
+[#853](https://github.com/DegrassiAaron/refactor-tactics-main/issues/853), dove l'attributo `alt` è
+corretto e l'immagine no. Vanno **rigenerati** prima, rinominati poi. Il path è cambiato il 2026-08-17: non
+sono più sotto `docs/wiki/`. Perimetro completo e le altre 26 immagini nella stessa condizione:
+[#1166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1166).
 
 ⚠️ Un rename di file scenario cambia anche **l'ID dello scenario** se l'harness lo deriva dal nome: da
 verificare in `RTScenarioIndex.cpp` prima della fetta 4, non dopo.
@@ -121,7 +136,15 @@ per la stessa cosa.
 | 2 *(era 4)* | **Token abilità a catalogo** → `Hero.<Nome>.<Abilità>`; scenari JSON e i 2 file scenario rinominati | no (il catalogo non è una traccia) | 1 | i 5 ID di test aggiornati **con** il registry, `feature_registry.py generate` **e** `shortlist` |
 | 3 *(era 5)* | **Documentazione viva** — 1600 occorrenze, 106 file | — | 2 | `check-docs-naming.py --check` **senza esenzioni** per i file vivi |
 | 4 *(era 6)* | **Archivio e citazioni datate** — 1128 occorrenze, 40 file; rimozione delle esenzioni «registri datati» dal gate | — | 3 | `check-docs-naming.py --check` verde con **zero** esenzioni |
-| 5 *(era 7)* | **Wiki** (repo separato): 4 PNG rinominati, pagine rigenerate da un checkout col registry aggiornato | — | 2 | `deploy --wiki-root` da albero allineato |
+| 5 *(era 7)* | **Wiki** (repo separato): 4 PNG **rigenerati e poi** rinominati, pagine rigenerate da un checkout col registry aggiornato | — | 2 | `deploy --wiki-root` da albero allineato — 🔴 **non copre i pixel**, vedi sotto |
+
+🔴 **Il gate della fetta 5 non può chiuderla.** `deploy --wiki-root` sincronizza i blocchi
+`RT_FEATURE_STATUS` e non guarda dentro le immagini; `check-docs-naming.py` analizza `.md`, e un PNG non è
+un `.md`. Le quattro card `images/roster/26…29_*-card-v0.1.png` del clone portano il nome legacy **come
+titolo stampato** — verificato aprendole il 2026-08-18 — quindi questa fetta si dichiara chiusa mentre il
+giocatore continua a leggere i nomi vecchi. Finché la rigenerazione non precede il rename, il verde di
+questo gate è un falso negativo. Tracciato in
+[#1166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1166).
 
 ### Ordine, e perché non è negoziabile
 
