@@ -429,11 +429,20 @@ bool FRTReplayVerifierOrphanRecordedResponseTest::RunTest(const FString&)
  * falso. Quell'esito non e' la scelta di nessuno: e' la constatazione che non c'era scelta, e rileggerlo
  * dalla traccia farebbe dipendere una regola del gioco da un file.
  *
- * ⚠️ **Il verdetto vuoto e' la parte che discrimina.** Se le voci `HoldImmediate` finissero nella mappa,
- * resterebbero non consumate — nessuna finestra le chiede — e verrebbero riportate come orfane su una
- * ri-simulazione perfettamente riuscita: un falso positivo sistematico. E se la consultazione stesse PRIMA
- * del gate di cardinalita', la chiave verrebbe cercata e il collasso smetterebbe di essere una funzione
- * dello stato.
+ * Il test ha DUE meta', e la seconda e' nata da una verifica di mutazione fallita: con la sola traccia
+ * originale, spostare la consultazione PRIMA del gate non faceva cadere niente. La ragione era che la
+ * traccia di questo scenario contiene **solo** `HoldImmediate`, che la costruzione scarta: la mappa restava
+ * vuota, il ramo non veniva nemmeno raggiunto, e «non consulta la traccia» era vero per assenza di traccia.
+ *
+ *     (a) traccia ORIGINALE      -> verdetto VUOTO. Se le voci del collasso finissero nella mappa
+ *                                   resterebbero non consumate — nessuna finestra le chiede — e sarebbero
+ *                                   riportate come orfane su una ri-simulazione riuscita
+ *     (b) traccia PERTURBATA     -> la voce del collasso diventa un `FIRE`. Se qualcuno la consultasse,
+ *                                   l'esito smetterebbe di essere `HoldImmediate`; e la chiave, che nessuna
+ *                                   finestra reclama, dev'essere segnalata orfana
+ *
+ * ⚠️ Nella (b) il verdetto NON e' vuoto, ed e' corretto che non lo sia: una traccia che porta una risposta
+ * per una finestra che non apre e' un disaccordo, e tacerlo sarebbe il difetto gemello.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierCollapsedWindowTest,
 	"RefactorTactics.Replay.Verifier.CollapsedWindowIgnoresTheTrace",
@@ -461,6 +470,7 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 		return false;
 	}
 
+	// (a) traccia originale: il collasso si ricalcola, e le sue voci non lasciano residui.
 	const FRTTestResult B = RunAsVerifier(Scenario, Traccia, nullptr, Divergenze);
 
 	TestEqual(FString::Printf(TEXT("il collasso ricalcolato da' lo stesso stato (%08x vs %08x)"),
@@ -473,6 +483,44 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 	{
 		AddError(FString::Printf(TEXT("primo disaccordo: %s"), *Divergenze[0]));
 	}
+
+	// (b) traccia PERTURBATA: la voce del collasso diventa un `FIRE`. E' la meta' che discrimina, perche'
+	// costringe la mappa a NON essere vuota — e una mappa vuota rende «non consulta la traccia» vero per
+	// assenza di traccia, cioe' vacuo. Con la consultazione spostata prima del gate, questa finestra
+	// smetterebbe di produrre `HoldImmediate`.
+	TArray<FRTTurnLogEntry> Tentatrice = Traccia;
+	FString ChiaveCollasso;
+	for (FRTTurnLogEntry& E : Tentatrice)
+	{
+		if (E.Category == ERTLogCategory::ReactionDecision
+			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::HoldImmediate)
+		{
+			ChiaveCollasso = E.OpportunityId;
+			E.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
+			E.SelectedTargetUnitId = 0; // un bersaglio qualunque: il punto e' che la risposta NON venga letta
+			break;
+		}
+	}
+	if (!TestFalse(TEXT("c'era una voce di collasso da rendere tentatrice"), ChiaveCollasso.IsEmpty()))
+	{
+		return false;
+	}
+
+	const FRTTestResult C = RunAsVerifier(Scenario, Tentatrice, nullptr, Divergenze);
+
+	TestEqual(FString::Printf(TEXT("il FIRE registrato NON viene applicato: stesso stato (%08x vs %08x)"),
+		C.StateHash, A.StateHash), C.StateHash, A.StateHash);
+	TestEqual(TEXT("e la finestra collassata produce ancora HoldImmediate"),
+		CountOutcome(AllEntries(C), ERTReactionDecisionOutcome::HoldImmediate), Collassi);
+	TestEqual(TEXT("nessun FIRE nella ri-simulazione"),
+		CountOutcome(AllEntries(C), ERTReactionDecisionOutcome::FireChosen), 0);
+
+	bool bCollassoOrfano = false;
+	for (const FString& D : Divergenze)
+	{
+		if (D.Contains(TEXT("orfana")) && D.Contains(ChiaveCollasso)) { bCollassoOrfano = true; }
+	}
+	TestTrue(TEXT("e la risposta che nessuna finestra ha reclamato e' segnalata"), bCollassoOrfano);
 
 	return true;
 }
