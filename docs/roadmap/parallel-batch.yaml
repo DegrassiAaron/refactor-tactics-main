@@ -1915,8 +1915,19 @@ tracks:
     # atterrati in `main` e oggi non sono di nessuno. Chi li rivendica rilegge la contesa con
     # `feat/cp75-selfreposition`, che resta `DORMANT` e tocca `RTTurnManager.cpp`.
     # ⚠️ **Il branch e' mergiato e cancellato** lato server e in locale, verificato con `git ls-remote`.
-    status: IDLE
-    issue: null
+    # ➕ **Riattivata il 2026-08-18 su `#1060`** (`v0.1`, P2): il T6 dello showcase non ha il **vocabolario**
+    # per essere verificato — `OriginalTargetEquals` ed `EffectiveTargetEquals` non esistono in
+    # `ERTAssertionKind`. E' il collo di bottiglia che `#170` (CP 15.4, **P1**) dichiara per se': *«il collo di
+    # bottiglia e' uno solo e non e' il contenuto: e' il vocabolario delle assertion»*.
+    # ⚠️ **Lo scope e' la VOCE 1 del DoD, non la issue intera**, e la ragione e' un write-set che non ho: il
+    # contenuto del T6 vive in `Scenarios/RT_Showcase_Relay_v01.json`, che e' `integration_only`, e il turno
+    # non sarebbe comunque eseguibile — i turni dello showcase sono ordinati per dipendenza di stato e il T5 e'
+    # vuoto finche' `#833` non chiude. Il vocabolario invece e' indipendente da entrambi, e senza di lui la
+    # feature (`#200`, gia' in `main`) resta non verificabile da uno scenario.
+    # ⚠️ **`docs/technical/spec-turnlog.md` entra nel `writable`**: non e' `integration_only` e non e' di
+    # nessuna track — cioe' era in STOP — e il formato del TurnLog e' cio' che questo giro estende.
+    status: ACTIVE
+    issue: 1060
     # ➕ **Riattivata il 2026-08-17 su `#886`** — il Verifier rilegge le decisioni di reazione dal TurnLog.
     # ⛔ **Ed è ACTIVE con un path ~~CHIESTO~~ RILASCIATO e non posseduto**: finché `Turn/RTTurnManager.{h,cpp}` non entra
     # nel `writable` qui sotto vale **STOP**, e `#886` non è iniziata. La track non è però ferma: i due file
@@ -2120,7 +2131,9 @@ tracks:
     # qui è ciò che lo rende misurabile prima del push.
     # ➖ **Mergiato e cancellato il 2026-08-18** (PR #1182). Il campo torna alla prima delle quattro accezioni
     # che questo file distingue: «nessun branch vivo, il lavoro è in `main`».
-    branch: null
+    # ➕ **E ne prende un terzo nello stesso giorno, per `#1060`.** ⚠️ Locale e non ancora pushato: invisibile
+    # a `git ls-remote`, quindi questa riga è l'unica cosa che lo rende misurabile prima del push.
+    branch: feat/1060-vocabolario-intercept
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -2679,7 +2692,22 @@ tracks:
     # liberi e non assegnati. ⚠️ Chi li riprende **rilegge** la contesa con `feat/cp75-selfreposition`, che
     # resta `DORMANT` e tocca `RTTurnManager.cpp`: la decisione presa a favore di `#1158` valeva per quel giro,
     # e il campo `collides_with` di quella voce torna vuoto perché nessuna track li dichiara più.
-    writable: []
+    # ➕ **Nove path nuovi il 2026-08-18 per `#1060`**, misurati liberi uno per uno — nessuno in
+    # `integration_only`, nessuno nel `writable` di un'altra track, e **zero** intersezioni su 44 branch vivi
+    # (`git diff --name-only origin/main...<b>` per ciascuno, non dedotto dai nomi).
+    # ⚠️ **`RTTurnManager_Blast.cpp` e non `RTTurnManager.cpp`**: l'interposizione vive nel primo, e i due sono
+    # file distinti. Prenderli entrambi avrebbe riaperto la contesa con `feat/cp75-selfreposition` senza che
+    # questo giro ne abbia bisogno.
+    writable:
+      - Source/RefactorTactics/Turn/RTTurnLog.h
+      - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
+      - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
+      - Source/RefactorTactics/ScenarioHarness/RTTestScenario.h
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioRunner.cpp
+      - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+      - Source/RefactorTactics/Tests/RTScenarioRunnerTests.cpp
+      - docs/technical/spec-turnlog.md
     # ➖ **I commenti sui PRESTITI escono con essi.** Descrivevano il giro di `#583` — il JSON degli scenari
     # e `feature-registry.yaml`, entrambi restituiti con la PR #1087 — e lasciarli qui li farebbe leggere
     # come regole di questo giro, che di prestiti non ne ha. Le lezioni che portavano non si perdono: «si
