@@ -5584,6 +5584,57 @@ tracks:
     derives_from: []
     binary_leases: []
 
+  docs_ia_v2:
+    status: ACTIVE
+    issue: 1165
+    branch: docs/nomi-legacy-residui-e-track-docs
+    worktree: "D:/Repositories/refactor-tactics-main"
+    note: >-
+      ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
+      (#1165), e il primo giro non sposta niente: dichiara il write-set e chiude i tre residui di `D-130`
+      che l'inventario ha trovato (#1167).
+
+      ✅ **Intersezione misurata, non dedotta**: `git diff --name-only origin/main...<ramo>` su **32**
+      riferimenti — ogni branch locale più ogni `origin/*` diverso da `main` — e **zero** tocca uno dei
+      path qui sotto. Il batch è per il resto drenato: delle track `ACTIVE` di ieri nessuna ha un branch
+      vivo e non mergiato (`feat/833-interaction-graph`, `probe/1088-partita-headless` e
+      `refactor/hotspot-split` non esistono più lato server; `docs/1013-seduta-u18` è antenato di `main`).
+
+      ⚠️ **`docs/characters/data/wiki-manifest-v0.4.json` NON è nel `writable` e viene toccato lo
+      stesso**: `docs/characters/` è `integration_only`, e questa è la sua unica scrittura del giro —
+      quattro degli undici path che il manifest dichiara non esistono più, e l'annotazione dice che è uno
+      snapshot storico invece di correggerne i valori. Misurato prima di scrivere: nessuno dei 32 rami
+      tocca `docs/characters/`.
+
+      ⛔ **Cosa questa track NON prende, ed è la parte che conta**: `docs/src/**`. Un branch **locale e non
+      pushato** — `docs/consolidamento-asset-wiki-src`, 11 commit, ultimo il 2026-08-17 alle 23:16, nessuna
+      PR — ha già rinominato `to consolidate/` e `to cons 2/`, creato `docs/src/wiki/{facing,fazioni,v0.1}/`
+      e cancellato sette duplicati esatti: **71 file, tutti sotto `docs/src/` tranne `docs/wiki/README.md`**.
+      È lavoro che le fasi 2 e 3 di #1165 avrebbero rifatto. Nessuna delle tre fonti canoniche lo vede —
+      non è in un `writable`, non ha un branch remoto, non ha una PR — l'ha trovato `git worktree list` più
+      lo `status`, che è **la seconda volta** che questo file registra quella scoperta (vedi `client_tools`).
+      Quel ramo va portato a PR prima che la fase 2 apra.
+
+      🔴 **`docs/control-center/graph.test.mjs` era «non assegnato» da quando `content_editor` l'ha
+      rilasciato il 2026-08-16, e in quella finestra è diventato rosso**: `8056972e` ha rinominato
+      l'ingresso del test e non il suo atteso. Un path libero non è un path sorvegliato — `check-docs-naming.py`
+      protegge 407 Markdown e un `.mjs` non è un Markdown, quindi il rosso è vissuto su `main` un giorno
+      intero. Entra qui dentro finché #1165 non lo consegna a chi possiede il Control Center.
+
+      📋 **Baseline dei gate su `7fc3a3d7`, pinnata perché le fasi successive non se ne prendano la colpa**:
+      tutti verdi tranne `node --test docs/control-center/graph.test.mjs` → `1`, **3 fallimenti su 30**.
+      Questo giro ne chiude uno; restano i due contratti su epic (`E23`/`E38`/`E39`) e release (`v0.5`) che
+      la roadmap non dichiara, che sono difetti di dato del registry e di altre track.
+
+      ⚠️ **Le fasi 1–6 estenderanno questo `writable` una fase per volta**, non in anticipo: la fase 1
+      aggiunge `scripts/docs_inventory.py` e i due gate con `EXEMPT_DIRS`, la fase 4 `docs/technical/**`.
+      Dichiarare oggi tutto `docs/` significherebbe bloccare mezzo repository per una settimana.
+    writable:
+      - docs/control-center/graph.test.mjs
+      - RefactorTactics — Issue Tracking Completeness Rule.md
+    derives_from: []
+    binary_leases: []
+
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test

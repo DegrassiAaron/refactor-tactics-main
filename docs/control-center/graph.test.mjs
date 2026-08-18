@@ -57,11 +57,17 @@ test('il branch dichiarato entra nel link', () => {
 // clone (`wiki:`), il catalogo eroi resta nel repository. Il vecchio esempio citava
 // `docs/wiki/meccaniche/overwatch.md` e `wiki:Meccanica-overwatch`: il primo e' un percorso
 // cancellato, il secondo un nome col prefisso che le pagine non hanno piu' dal 2026-08-10.
+//
+// 🔴 L'atteso ha detto `flux.md` mentre l'ingresso diceva gia' `gadget.md`, dal 2026-08-17 al
+// 2026-08-18: `8056972e` — *«i documenti vivi perdono i nomi ritirati, e il gate smette di avere
+// zone cieche»* — ha rinominato la riga sopra e non questa, e il test e' rimasto rosso su `main`
+// per un giorno. Una rinomina applicata a meta' lascia un omonimo, e qui l'omonimo era l'oracolo.
+// La zona cieca era il gate stesso: `check-docs-naming.py` protegge i Markdown, non i `.mjs`.
 test('`wiki:Page` va alla Wiki, un path va al blob: non sono la stessa cosa', () => {
   assert.equal(wikiRefUrl(PROJECT, 'wiki:overwatch'),
     'https://github.com/DegrassiAaron/refactor-tactics-main/wiki/overwatch');
   assert.match(wikiRefUrl(PROJECT, 'docs/characters/v0.1/gadget.md'),
-    /\/blob\/main\/docs\/characters\/v0\.1\/flux\.md$/);
+    /\/blob\/main\/docs\/characters\/v0\.1\/gadget\.md$/);
 });
 
 // --- Chiavi di checkpoint -------------------------------------------------------------------------
