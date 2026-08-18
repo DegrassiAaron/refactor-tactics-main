@@ -2579,7 +2579,17 @@ tracks:
     #   **una sola** track, misurato interrogando questo file col parser invece di leggerne la prosa;
     # · **nessun'altra track ci scrive** — `git log --remotes=origin --not origin/main --name-only --
     #   Source/RefactorTactics/UI/` → **zero commit**. Non c'è un solo branch vivo dentro `UI/`.
-    status: ACTIVE
+    #
+    # 🔻 **`ACTIVE` → `IDLE` il 2026-08-18, a lavoro consegnato.** Il passo 4 è in `main` con la PR #1172:
+    # `ComposeIntentCertaintyStyle`, `ComposeIntentLabel` e `ComposeDashSegments` rendono i tre livelli, e
+    # la suite gira **1032/1032** sull'albero fuso. Delle sei voci del DoD di `#78` cinque sono chiuse.
+    # ⚠️ **`issue: 78` RESTA valorizzata, e la track NON è finita**: manca `PIE-V01-INTENT`, che è una
+    # verifica umana e vive in `docs/technical/test-manuali-pie.md` — file della track `playtest` (`#942`,
+    # oggi `#1013`). Questa track non può registrarne l'esito, e non è un cavillo: è il caso che il file
+    # stesso registra come *«il primo in cui il confine morde su una registrazione invece che su
+    # un'implementazione»*. `IDLE` con `issue` valorizzata dice esattamente questo — la issue è viva, la
+    # seduta no — ed è la stessa forma di `unit_presentation` con `#593`.
+    status: IDLE
     issue: 78
     # ═══ CONSOLIDAMENTO del 2026-08-16, misurato su `origin/main` @ `9f2be669` dopo `git fetch --prune`.
     # Il registro dei quattro significati precedenti di `branch:` resta sotto, come provenienza; questo
@@ -2659,8 +2669,16 @@ tracks:
     # worktree in due track `ACTIVE` sarebbero due sessioni esecutive nella stessa working directory, che è
     # ciò che `D-135` vieta; per questo il rilascio e la presa sono un atto solo, come per un path che
     # cambia `writable`. La track che lo cede scende a `IDLE` e non perde nessuno dei suoi cinque path.
-    branch: feat/78-resa-certezza-hud
-    worktree: "D:/rt-client"
+    # 🔻 **Chiusa il 2026-08-18: `feat/78-resa-certezza-hud` è MERGIATO con la PR #1172** (`0accdd47`,
+    # `08:25:42Z`), verificato lato server e non dall'output di `gh pr merge` — `git branch -r --contains`
+    # trova i commit in `origin/main`, e `git ls-remote` non vede più il ramo. I due campi tornano `null`
+    # con lo stesso significato con cui li aveva `#964`: **il branch dichiarato non esiste più**.
+    # ⬅️ **E `D:/rt-client` torna libero.** Nessuna track lo dichiara adesso: `replay_ui` lo ha ceduto per
+    # aprire questa sessione, e chi riapre R6 (`#472`) o rientra su `#78` per la verifica PIE lo ridichiara
+    # allora. Una directory di lavoro non si tiene prenotata fra due sessioni — è la stessa ragione per cui
+    # è stata ceduta, applicata nel verso opposto.
+    branch: null           # mergiato con PR #1172 (2026-08-18T08:25:42Z), assente da `git ls-remote`
+    worktree: null         # `D:/rt-client` esiste ma nessuna track lo rivendica: è libero
     # ═══ `blocked_by: 904` e `blocked_paths` RIMOSSI il 2026-08-16: **#904 è `MERGED`** (`95d2d39f`,
     # `12:05:41Z`). Lo schema di questi campi lo prescrive alla lettera — *«si cancella al **merge**, non
     # alla lettura: una `blocked_by` su una PR già `MERGED` è una contraddizione decidibile»* — e sono
