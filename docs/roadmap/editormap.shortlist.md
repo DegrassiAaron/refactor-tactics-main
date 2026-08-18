@@ -52,13 +52,13 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**26 sedute** — ✅ **1** · 🟡 **12** · ⏳ **7** · **6** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**26 sedute** — ✅ **2** · 🟡 **12** · ⏳ **6** · **6** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
 ### My Editor Queue
 
-**BLOCKING** 10 · **READY** 3 · **WAITING** 6 · **DONE** 1. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 3 · **WAITING** 5 · **DONE** 2. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -77,7 +77,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 - **U18** · Verifiche senza prerequisiti — 4/15 voci verdi
 - **U20** · Confine fra Guard e Brace — 0/1 voci verdi
-- **U21** · Luci del graybox e inquadratura della mappa — 0/2 voci verdi · sblocca U22, U25, U26
+- **U22** · Il gesto dell'autore — ghost, snap e Undo del tool Geometry — 0/4 voci verdi
 
 **WAITING** — *Aspetta codice*
 
@@ -86,10 +86,10 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 - **U14** · Ambiente in partita — attende `U13` ⏳
 - **U19** · Durata, ritmo e scala — attende `U6` 🟡, `U1` 🟡, `U5` 🟡, `U7` 🟡, `U8` ⏳
 - **U16** · Misura dei KPI — attende `U6` 🟡
-- **U22** · Il gesto dell'autore — ghost, snap e Undo del tool Geometry — attende `U21` ⏳
 
 **DONE** — *Finite*
 
+- **U21** · Luci del graybox e inquadratura della mappa ✅
 - **U24** · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root ✅
 
 ### Tutte le sedute
@@ -117,7 +117,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U16** | Misura dei KPI | `PIE` | numeri reali nella tabella KPI | U6 | sì | 0/1 | 🟡 |
 | **U17** | Release v0.1 | `PIE` | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
 | **U20** | Confine fra Guard e Brace | `PIE` | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
-| **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
+| **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 2/2 | ✅ |
 | **U22** | Il gesto dell'autore — ghost, snap e Undo del tool Geometry | `PIE` | verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo | U21 | no | 0/4 | ⏳ |
 | **U24** | I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root | `PIE` | i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/` | — | no | — | ✅ |
 | **U25** | Il volume di posa della cella, e la scena che dice se il graybox si legge | `PIE` | verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor | U21 | no | — | — |
@@ -722,11 +722,11 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 > Nasce dal piano `BAL-1` (`plans/bal-1-guard-brace-roadmap-2026-08-10.md` §6). **Non entra nel subset `RELEASE-V01`**: `BAL-1` non blocca la consegna, e un gate che si allarga senza motivo e' il difetto che G9 ha gia' avuto due volte. La seduta ha una voce sola di proposito — e' una domanda che si risponde una volta, guardandola. ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
 
-#### U21 · Luci del graybox e inquadratura della mappa ⏳
+#### U21 · Luci del graybox e inquadratura della mappa ✅
 
 **Sbloccata da**: — · **Preparazione condivisa con**: U22, U25, U26 · **Percorso critico**: no
 **Produce**: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
-**Verifichi**: `PIE-MAPED-LIGHT` ⏳ · `PIE-MAPED-FRAME` ⏳
+**Verifichi**: `PIE-MAPED-LIGHT` ✅ · `PIE-MAPED-FRAME` ✅
 **Finita quando**: le due voci hanno un esito reale e il livello illuminato e' committato
 **Sblocca**: U22, U25, U26
 
