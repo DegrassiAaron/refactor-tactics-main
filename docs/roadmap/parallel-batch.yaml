@@ -3333,9 +3333,9 @@ tracks:
       **0**: due celle in tutto, quindi «la viz non confonde i livelli» non è stato messo alla prova),
       `PIE-V01-REACTCOND` **resta ⏳** e `PIE-TEST-CONSOLE` cambia **richiesta**.
       🔴 **La seduta ha prodotto un difetto, che è il modo giusto in cui una verifica finisce**: `#1034` —
-      il giocatore **non può armare nessuna reazione**. La sua formazione è `{Hero.Flux, Hero.Riva}`, la
-      reazione di Flux sta all'indice **4** e i tasti mappati sono quattro (indici 0–3), Riva non ne ha; la
-      sola reazione entro gli indici raggiungibili è `Vektor.Deflection`, e Vektor gioca **nel team del
+      il giocatore **non può armare nessuna reazione**. La sua formazione è `{Hero.Gadget, Hero.Phase}`, la
+      reazione di Gadget sta all'indice **4** e i tasti mappati sono quattro (indici 0–3), Phase non ne ha; la
+      sola reazione entro gli indici raggiungibili è `Hero.Wraith.Deflection`, e Wraith gioca **nel team del
       bot**. Il difetto è stato **registrato senza ripararlo**, come §1 del mandato prescrive.
       ➕ **`PIE-TEST-CONSOLE`: la biforcazione che la voce dichiarava è stata sciolta dall'autore** —
       l'**Output Log è il medium legittimo**. Ribalta l'obiezione del 2026-08-08 (*«una risposta che non si
@@ -5961,6 +5961,21 @@ integration_only:
   # il test **deve** esserlo» — ed è il caso in cui una regola scritta bene fallisce lo stesso:
   # nessun gate rilegge questa lista quando nasce un file nuovo.
   - scripts/test_feature_registry_roadmap_map.py
+  # ➕ **Entrano il 2026-08-18 con `#1109`, PRIMA di essere scritti — che è il punto.**
+  # `scripts/check-docs-naming.py` è il gate di `D-120`/`D-130` e non stava in nessun insieme: per `D-139`
+  # era uno STOP. Questo commit **assegna e basta**; la modifica del gate arriva nel commit successivo.
+  # 🔵 **L'ordine non è cerimonia**: `parallel-batch.yaml` ha già registrato due prese retroattive
+  # (`spec-asset-pipeline.md` e `convenzioni-contenuti-ue.md`), entrambe dichiarate ad alta voce e nessuna
+  # delle due sanata. Due precedenti fanno un'abitudine — «assegnati un path scrivendoci sopra, purché lo
+  # confessi» — e l'unico modo di non farne tre è pagare il costo, che è un commit di due righe.
+  # ⚠️ **`test_check_docs_naming.py` nasce con `#1109`**, e il path entra qui prima del file: alla data di
+  # questo commit il gate non aveva **una sola prova che potesse fallire**, ed è la ragione per cui quella
+  # issue chiede una verifica di mutazione nei due versi invece di un `--check` verde.
+  # ⏱️ *Nessun conteggio di file in questa nota: il perimetro si legge dal referto del gate, che lo stampa
+  # per estensione a ogni esecuzione. Una stesura precedente diceva «407 file» — vero quando fu scritta e
+  # falso dopo il commit successivo dello STESSO branch, che ha portato il perimetro a 412.*
+  - scripts/check-docs-naming.py
+  - scripts/test_check_docs_naming.py
   - RefactorTactics.uproject
   - Source/RefactorTactics/RefactorTactics.Build.cs
   - Config/

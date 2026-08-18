@@ -20,6 +20,13 @@ Solo aprire le immagini lo rivela — ed è la ragione per cui l'audit visivo de
 **Qui i file sono stati scambiati**, così che il nome descriva il contenuto. Di conseguenza la colonna hash
 qui sotto **non coincide** con quella del manifest sorgente per F4 e F6: è la stessa coppia, invertita.
 
+🔴 **Correzione del 2026-08-17: fino a oggi questa riga era falsa.** Lo scambio era stato *descritto* qui e
+mai *eseguito* sui byte — i due file continuavano a portare il nome l'uno dell'altro, e le colonne `SHA-256`
+e «Nel clone» di questo README erano invertite rispetto ai file reali. Ora lo scambio è stato applicato, e
+le tabelle qui sotto sono vere: `F4` porta `20184b83…`, `F6` porta `1eb43243…`, verificati dopo l'operazione.
+⚠️ **Il clone non era coinvolto**: `20_facing-overwatch-reaction.png` conteneva già il diagramma F4, aperto
+e controllato. L'errore viveva solo in questa cartella, cioè nell'unico posto che si dichiarava corretto.
+
 | File (nome corretto) | Contenuto reale | SHA-256 | Nel manifest sorgente era |
 |---|---|---|---|
 | `F1_Lifecycle_del_Facing_nel_Turno.png` | F1 — lifecycle nel turno | `5f9ad7b5…e81f1` | F1 ✅ |
