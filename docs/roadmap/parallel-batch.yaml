@@ -2704,7 +2704,13 @@ tracks:
       - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
       - Source/RefactorTactics/ScenarioHarness/RTTestScenario.h
       - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
-      - Source/RefactorTactics/ScenarioHarness/RTScenarioRunner.cpp
+      # 🔴 **`RTScenarioSession.cpp` e NON `RTScenarioRunner.cpp`**, corretto in corsa: la prima stesura aveva
+      # rivendicato il Runner per analogia col nome, ma le assertion si valutano nella **Session** — misurato
+      # con `grep ERTAssertionKind::` sui due file, che dà 8 casi nella prima e zero nel secondo. Un write-set
+      # dedotto dal nome è la stessa specie di errore che D-139 esiste per rendere visibile; qui l'ha reso
+      # visibile il compilatore un minuto dopo, ma su un file altrui sarebbe stata una scrittura non
+      # autorizzata. Il Runner esce: questo giro non lo tocca.
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
       - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
       - Source/RefactorTactics/Tests/RTScenarioRunnerTests.cpp
       - docs/technical/spec-turnlog.md

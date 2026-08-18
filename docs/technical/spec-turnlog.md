@@ -66,6 +66,38 @@ ragionamento con cui `FormatId` è rimasto fuori (CP 10.3).
 Le tracce **v2, v3 e v4 restano leggibili**, col campo vuoto — e il loader non lo deduce dall'`ActionId`:
 quei byte non contenevano quell'informazione, e inventarla è il difetto che il versionamento esiste per
 evitare (`LegacyVersionWithoutBaseActionIdIsReadable`).
+
+## `OriginalTargetUnitId`: i due capi di un redirect *(formato **v9**, [#1060](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1060))*
+
+Dal formato **v9** una voce che redirige un colpo porta **chi era il bersaglio prima**. Oggi la produce la
+sola interposizione (`ERTReactionTrigger::AllyHitByDirectAttack`): Riktor si mette davanti a Wraith, e il
+colpo destinato a Wraith lo incassa Riktor. `UnitId` porta già l'altro capo — chi reagisce **è** chi
+incassa — quindi la voce ora nomina **entrambi**.
+
+**Perché un campo e non la sola `SrcCell`**, dove la cella del protetto è già scritta. È l'inferenza
+cella → unità che [D-063](../decisions/RT_PDR_00_Decision_Log.md) ha dichiarato non valida introducendo
+`UnitId`, e qui è pure peggio: la `SrcCell` di questa voce è la cella di **un'altra** unità, quindi chi legge
+deve già sapere che la voce è un'interposizione per interpretarla. Un'assertion di scenario che risolvesse la
+cella troverebbe l'occupante di **fine turno**, non chi era bersagliato al Blast.
+
+**Perché fuori dall'hash.** Il trasferimento è **già discriminato** da `SrcCell`, che nell'hash c'è:
+interporsi per Wraith invece che per Phase dà due celle diverse, quindi due hash diversi. Il campo rende quel
+fatto *leggibile* senza inferenza, non lo aggiunge — zero potere discriminante in più, stesso argomento di
+`BaseActionId`. ✅ **Conseguenza verificabile: gli hash golden non cambiano**, né per le tracce con
+interposizioni né per le altre. È la differenza con la v8, che li fece cambiare per le tracce con decisioni.
+
+> 🔴 **Porta uno `StableUnitId`, non l'indice in `Units`** — e la distinzione non è stilistica. Nella stessa
+> struct convivono **due spazi di identificatori**: `UnitId` è stabile, `SelectedTargetUnitId` (v8) è
+> l'indice di risoluzione. I due capi di un trasferimento stanno nella **stessa voce**: nominarli in spazi
+> diversi la renderebbe illeggibile, e l'errore non si vedrebbe subito — sono entrambi `int32`, e su
+> un'arena piccola i valori coincidono per caso.
+
+Il campo abilita le due assertion di scenario `OriginalTargetEquals` ed `EffectiveTargetEquals`, senza le
+quali la feature dell'interposizione — in `main` da `#200`, con tre test unitari — non era verificabile da
+uno scenario: `LogEventCount(Reaction, Activated) == 1` è vero anche col bersaglio effettivo **sbagliato**.
+
+Le tracce **dalla v2 alla v8 restano leggibili**, col campo a `INDEX_NONE`, e il loader **non** lo deduce
+dalla `SrcCell` risolvendo l'occupante: su una traccia storica quella cella può aver cambiato inquilino.
 >
 > Dettaglio delle regole di copertura: [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) ·
 > [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md).

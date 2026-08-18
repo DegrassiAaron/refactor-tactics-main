@@ -532,7 +532,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -565,6 +565,8 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		AppendStringUtf8(Out, E.OpportunityId);
 		AppendI32LE(Out, E.ReactionInstanceId);
 		AppendI32LE(Out, E.SelectedTargetUnitId);
+		// v9: chi era il bersaglio PRIMA di un redirect (#1060). In coda, i campi precedenti non si spostano.
+		AppendI32LE(Out, E.OriginalTargetUnitId);
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -592,8 +594,12 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// altro valore e' rifiutato: interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
-	const bool bHasReactionDecision =
-		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
+	// v9 (#1060): il redirect. Come per ogni estensione precedente, la versione nuova implica tutte quelle
+	// sotto — le versioni sono cumulative, non alternative.
+	const bool bHasRedirectOrigin =
+		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin));
+	const bool bHasReactionDecision = bHasRedirectOrigin
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
 	const bool bHasPriority = bHasReactionDecision
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithPriority));
 	const bool bHasUnitId = bHasPriority
@@ -728,6 +734,17 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		// Sotto la v8 i tre campi restano ai loro default — id vuoto, `INDEX_NONE` sui due interi — e qui non
 		// c'e' nemmeno la tentazione di dedurli: in quelle versioni nessuna finestra si apriva in partita, e
 		// una traccia senza decisioni e' completa cosi' com'e', non monca.
+		if (bHasRedirectOrigin)
+		{
+			if (!ReadI32LE(Bytes, Pos, E.OriginalTargetUnitId))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
+		// Sotto la v9 resta `INDEX_NONE`, e **non** si deduce dalla `SrcCell` risolvendo l'occupante — che pure
+		// sarebbe possibile. E' la stessa inferenza che D-063 vieta, e su una traccia storica sarebbe peggio:
+		// la cella dice dove il protetto stava al Blast, l'occupante di fine turno puo' essere un altro.
 		OutEntries.Add(E);
 	}
 

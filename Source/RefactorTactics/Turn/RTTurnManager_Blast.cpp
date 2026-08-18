@@ -691,6 +691,24 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 			// altrimenti un danno comparso su un'unita' mai bersagliata risulterebbe inspiegabile nel replay.
 			Entry.SrcCell = Units[OriginalTarget]->Cell;
 			Entry.TgtCell = Unit->Cell;
+			// ➕ **E lo dice per IDENTITA', non solo per cella** (`#1060`, formato v9). Le due celle bastano a
+			// discriminare due partite — ed e' per questo che il campo resta fuori dall'hash — ma non a farsi
+			// leggere: chi rilegge la voce dovrebbe risolvere `SrcCell` in un'unita', che e' l'inferenza che
+			// [D-063] vieta. Senza questo campo `OriginalTargetEquals` non aveva un dato su cui poggiare, e la
+			// feature dell'interposizione (`#200`, in `main` da giorni) restava non verificabile da uno scenario.
+			// ⚠️ `UnitId` porta gia' l'altro capo — chi INCASSA e' l'unita' che reagisce — quindi la voce ora
+			// nomina entrambi i capi del trasferimento.
+			//
+			// 🔴 **`StableUnitId` e NON l'indice in `Units`**, ed e' la differenza che rende il campo usabile.
+			// `OriginalTarget` qui e' un indice di risoluzione (`Plan.Hits[].TargetId`); `AppendLogEntry` scrive
+			// invece `Entry.UnitId = Actor->StableUnitId`. Scrivere l'indice farebbe nominare alla **stessa
+			// voce** i due capi del trasferimento in **due spazi di identificatori diversi** — e chi la legge
+			// non ha modo di accorgersene, perche' sono entrambi `int32` e su un'arena piccola i valori
+			// coincidono per caso.
+			// ⚠️ Nota per chi estende: `SelectedTargetUnitId` (v8) porta invece l'INDICE. I due spazi convivono
+			// gia' in questa struct, e questo campo sceglie quello stabile perche' e' l'unico che regge fuori
+			// dalla singola risoluzione — che e' esattamente cio' che un'assertion di scenario deve confrontare.
+			Entry.OriginalTargetUnitId = Units[OriginalTarget]->StableUnitId;
 			AddLogEvent(FString::Printf(TEXT("%s: si interpone per %s"),
 				*Unit->GetName(), *Units[OriginalTarget]->GetName()));
 		}

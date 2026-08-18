@@ -861,6 +861,20 @@ namespace
 					Obj->TryGetBoolField(TEXT("value"), bAlive);
 					Exp.Value = bAlive ? 1 : 0;
 				}
+				// I due capi di un REDIRECT (#1060). `unit` obbligatorio in entrambe: senza, l'assertion
+				// confronterebbe un id vuoto e passerebbe o fallirebbe per un motivo che non e' quello scritto —
+				// lo stesso argomento con cui `UnitHpEquals` rifiuta un `value` mancante invece di indovinare 0.
+				else if (Type == TEXT("OriginalTargetEquals") || Type == TEXT("EffectiveTargetEquals"))
+				{
+					Exp.Kind = (Type == TEXT("OriginalTargetEquals"))
+						? ERTAssertionKind::OriginalTargetEquals
+						: ERTAssertionKind::EffectiveTargetEquals;
+					if (!Obj->TryGetStringField(TEXT("unit"), Exp.UnitId) || Exp.UnitId.IsEmpty())
+					{
+						OutError = FString::Printf(TEXT("assertion %s: manca il campo unit"), *Type);
+						return false;
+					}
+				}
 				else if (Type == TEXT("UnitFacing"))
 				{
 					Exp.Kind = ERTAssertionKind::UnitFacing;

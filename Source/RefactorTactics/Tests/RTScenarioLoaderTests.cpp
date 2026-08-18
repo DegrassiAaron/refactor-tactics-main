@@ -1180,4 +1180,66 @@ bool FRTScenarioLoaderExpectCommentKeysTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il parsing dei due capi di un redirect, e il suo rifiuto (#1060).
+ *
+ * ⚠️ La meta' che conta e' la **seconda**: `unit` mancante deve essere un errore, non un id vuoto accettato
+ * in silenzio. Un'assertion che confronta una stringa vuota fallisce (o peggio passa) per un motivo che non
+ * e' quello scritto nello scenario — ed e' lo stesso argomento con cui `UnitHpEquals` rifiuta un `value`
+ * mancante invece di indovinare `0`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderRedirectExpectTest,
+	"RefactorTactics.Scenario.LoaderParsesRedirectExpectations",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderRedirectExpectTest::RunTest(const FString&)
+{
+	const FString Ok = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Expect.Redirect", "version": 2, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
+	  "expect": [
+	    { "type": "OriginalTargetEquals", "unit": "V1" },
+	    { "type": "EffectiveTargetEquals", "unit": "B1" }
+	  ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("i due capi del redirect si leggono"),
+		URTScenarioLoader::LoadFromString(*Ok, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("motivo del rifiuto: %s"), *Error));
+		return false;
+	}
+	if (TestEqual(TEXT("due assertion lette"), Scenario.Expect.Num(), 2))
+	{
+		TestTrue(TEXT("la prima e' OriginalTargetEquals su V1"),
+			Scenario.Expect[0].Kind == ERTAssertionKind::OriginalTargetEquals
+			&& Scenario.Expect[0].UnitId == TEXT("V1"));
+		TestTrue(TEXT("la seconda e' EffectiveTargetEquals su B1"),
+			Scenario.Expect[1].Kind == ERTAssertionKind::EffectiveTargetEquals
+			&& Scenario.Expect[1].UnitId == TEXT("B1"));
+	}
+
+	// Senza `unit` non c'e' niente da confrontare: si rifiuta invece di accettare un id vuoto.
+	const FString NoUnit = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.Expect.RedirectNoUnit", "version": 2, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
+	  "expect": [ { "type": "EffectiveTargetEquals" } ]
+	}
+	)JSON");
+
+	FRTTestScenario Rejected;
+	FString RejectError;
+	TestFalse(TEXT("senza `unit` l'assertion non passa la lettura"),
+		URTScenarioLoader::LoadFromString(*NoUnit, Rejected, RejectError));
+	TestTrue(TEXT("e il messaggio nomina il campo mancante"),
+		RejectError.Contains(TEXT("unit")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
