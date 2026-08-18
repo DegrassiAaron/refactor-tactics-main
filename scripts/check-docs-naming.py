@@ -208,7 +208,23 @@ NAME_RE = re.compile(r"\b(" + "|".join(LEGACY) + r")\b")
 # La seconda forma non e' ammessa nei Markdown: `#` a inizio riga e' un titolo, e
 # accettarla trasformerebbe ogni titolo che contiene «rename-exempt» in un'esenzione.
 EXEMPT_MARKER = re.compile(r"<!--\s*rename-exempt:\s*(.+?)\s*-->")
-EXEMPT_MARKER_YAML = re.compile(r"#\s*rename-exempt:\s*(.+?)\s*$", re.M)
+# ⚠️ **Due vincoli, e ognuno chiude un falso negativo misurato.**
+#
+#   1. Il `#` deve **aprire la riga** (solo spazi prima). Accettandolo ovunque, un valore
+#      che *documenta* il marcatore — `note: "per esentare scrivi # rename-exempt: ..."`,
+#      la cosa piu' naturale che qualcuno scriva — diventava un marcatore vero ed esentava
+#      la riga successiva. Un `#` dentro una stringa quotata **non e' un commento YAML**, e
+#      distinguerlo davvero vorrebbe un parser: qui vince la regola conservativa, e la
+#      forma «in fondo alla riga» resta disponibile come `<!-- -->`, che ha delimitatori
+#      chiusi e non soffre del problema.
+#   2. `[^\S\n]` invece di `\s` — spazi ma **non** newline. Con `\s*`, un marcatore senza
+#      ragione (`# rename-exempt:`) assorbiva la riga SEGUENTE come propria ragione, e
+#      `mask_for` la cancellava: un nome ritirato li' sotto spariva senza che nulla lo
+#      dicesse. E' il caso peggiore — un'esenzione che nessuno ha chiesto, su una riga che
+#      nessuno stava esentando.
+EXEMPT_MARKER_YAML = re.compile(
+    r"^[^\S\n]*#[^\S\n]*rename-exempt:[^\S\n]*(.+?)[^\S\n]*$", re.M
+)
 
 # Negli YAML valgono **entrambe** le forme, e l'alternanza non e' generosita': le `note:`
 # di `parallel-batch.yaml` sono blocchi markdown, quindi chi ci scrive dentro usa la forma
@@ -217,7 +233,7 @@ EXEMPT_MARKER_YAML = re.compile(r"#\s*rename-exempt:\s*(.+?)\s*$", re.M)
 # `#` a inizio riga e' un titolo, e accettarla trasformerebbe ogni titolo che contiene
 # «rename-exempt» in un'esenzione su 407 file.
 EXEMPT_MARKER_ANY = re.compile(
-    EXEMPT_MARKER.pattern + "|" + r"#\s*rename-exempt:\s*(.+?)\s*$", re.M
+    EXEMPT_MARKER.pattern + "|" + EXEMPT_MARKER_YAML.pattern, re.M
 )
 
 

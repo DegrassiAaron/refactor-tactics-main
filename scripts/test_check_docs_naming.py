@@ -196,6 +196,63 @@ def test_marcatore_yaml_stantio_fa_fallire():
         assert run_check(root) == 1, "un marcatore su una riga senza nomi ritirati deve uscire 1"
 
 
+def test_cancelletto_dentro_una_stringa_NON_e_un_marcatore():
+    """🔴 **Falso negativo trovato sondando i casi limite, non da un rosso.**
+
+    Un `#` dentro una stringa quotata **non e' un commento YAML**. Prima del vincolo «il
+    `#` apre la riga», il valore che *documenta* il marcatore — la cosa piu' naturale che
+    qualcuno scriva in un file di governance — diventava un marcatore vero ed esentava la
+    riga successiva. Misurato: `EXIT=0` dove doveva essere `1`.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(Path(tmp), {
+            "docs/roadmap/batch.yaml":
+                'tracks:\n  demo:\n'
+                '    note: "per esentare scrivi # rename-exempt: motivo"\n'
+                '    altro: "Riva gioca nel team"\n',
+        })
+        assert run_check(root) == 1, (
+            "un # dentro una stringa quotata non deve esentare la riga successiva"
+        )
+
+
+def test_marcatore_yaml_senza_ragione_non_mangia_la_riga_dopo():
+    """🔴 **Il buco peggiore: un'esenzione che nessuno aveva chiesto.**
+
+    Con `\\s*` dopo i due punti — che include il newline — un marcatore senza ragione
+    assorbiva la riga **seguente** come propria ragione, e `mask_for` la cancellava. Un
+    nome ritirato li' sotto spariva in silenzio. Ora `[^\\S\\n]*` non attraversa la riga.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(Path(tmp), {
+            "docs/roadmap/batch.yaml":
+                "# rename-exempt:\n"
+                "# Riva gioca nel team\n"
+                "tracks: {}\n",
+        })
+        assert run_check(root) == 1, (
+            "un marcatore senza ragione non deve inghiottire la riga successiva"
+        )
+
+
+def test_forma_html_in_fondo_alla_riga_vale_negli_yaml():
+    """Il trade-off del vincolo qui sopra, e la ragione per cui e' accettabile.
+
+    Negli YAML il marcatore `#` deve stare su una riga sua. Chi ha bisogno di esentare
+    **la riga stessa** — il caso in-tabella dei Markdown — usa la forma HTML, che ha
+    delimitatori chiusi e non puo' essere confusa con il contenuto di una stringa.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(Path(tmp), {
+            "docs/roadmap/batch.yaml":
+                'tracks:\n  demo:\n'
+                '    note: "Riva e Phase"  <!-- rename-exempt: dichiara la mappatura -->\n',
+        })
+        assert run_check_su_yaml_letto(root) == 0, (
+            "la forma HTML deve poter esentare la riga stessa, anche in YAML"
+        )
+
+
 def test_forma_cancelletto_RIFIUTATA_nei_markdown():
     """🔑 **La proprieta' di sicurezza dell'intero dispatch, e non era testata.**
 
