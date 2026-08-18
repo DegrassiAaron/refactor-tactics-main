@@ -5587,12 +5587,19 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: docs/nomi-legacy-residui-e-track-docs
+    branch: null
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
       (#1165), e il primo giro non sposta niente: dichiara il write-set e chiude i tre residui di `D-130`
       che l'inventario ha trovato (#1167).
+
+      ⚠️ **`branch: null` dal 2026-08-18, ed è la sentinella documentata, non un campo mancante**: il ramo
+      che ha aperto questa track — `docs/nomi-legacy-residui-e-track-docs` — è stato mergiato con la PR
+      **#1169** (`b73f6064`) e cancellato lato server nello stesso minuto, mentre #1165 resta aperta per le
+      fasi 1–6. È lo stesso caso di `client_tools` il 2026-08-14. La riga è nata **stantia in partenza**: la
+      track e il ramo che la dichiarava sono atterrati nello stesso commit, quindi il nome era falso appena
+      mergiato. Chi apre la fase 1 rimette qui il proprio ramo.
 
       ✅ **Intersezione misurata, non dedotta**: `git diff --name-only origin/main...<ramo>` su **32**
       riferimenti — ogni branch locale più ogni `origin/*` diverso da `main` — e **zero** tocca uno dei
