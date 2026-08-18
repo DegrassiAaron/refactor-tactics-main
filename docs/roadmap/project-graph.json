@@ -1464,8 +1464,8 @@
       "block": 6,
       "critical": false,
       "execution_lane": "pie",
-      "state": "🟡",
-      "queue_group": "READY",
+      "state": "✅",
+      "queue_group": "DONE",
       "produces": "i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`",
       "artifacts": [
         {
@@ -1478,15 +1478,15 @@
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset",
-          "tracked": false
+          "tracked": true
         }
       ],
       "unblocked_by": [],
@@ -1500,7 +1500,7 @@
       "issues": [
         937
       ],
-      "done_when": "i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori"
+      "done_when": "i cinque `.uasset` esistono e si aprono senza errori; i TRE con una classe base (`WBP_RT_FallbackBanner`, `WBP_RT_ErrorModal`, `WBP_RT_LoadingScreen`) ereditano da quella dichiarata e leggono il dato invece di comporlo; i DUE strutturali (`WBP_RT_FrontendRoot`, `WBP_RT_ModalLayer`) non creano ne' rimuovono widget"
     },
     {
       "id": "U25",
@@ -1581,8 +1581,7 @@
     "READY": [
       "U18",
       "U20",
-      "U21",
-      "U24"
+      "U21"
     ],
     "WAITING": [
       "U11",
@@ -1592,7 +1591,9 @@
       "U16",
       "U22"
     ],
-    "DONE": []
+    "DONE": [
+      "U24"
+    ]
   },
   "pie_entries": [
     {

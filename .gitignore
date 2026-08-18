@@ -90,6 +90,12 @@ Content/**/*.txt
 !Content/RT/Characters/Shared/Materials/M_TeamRing.uasset
 !Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
 !Content/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset
+# ➕ **Riammesso il 2026-08-18 per #623, e non e' un asset di questa seduta.** `L_DevSandbox` lo
+# referenzia dal commit `7db11313` (#937) ma non era mai entrato nel repository: chiunque apra la
+# sandbox riceve un `LoadErrors` e l'actor mappa resta senza dati. ⚠️ Il nome inganna: NON e' un
+# formato di partita, e' un `URTHexMapAsset` con le celle vere della sandbox (20583 byte) — mentre
+# `DA_HexMap_Sandbox.uasset` qui sopra e' versionato ma VUOTO (1416 byte, zero celle).
+!Content/RT/Maps/Dev/L_DevSandbox/Data/DA_Format_Scratch.uasset
 # L'arena della seduta U1 — riammessa *prima* che l'asset esista, perche' altrimenti `git add`
 # non fa nulla e non segnala nulla, e la seduta si chiude senza che gli artefatti entrino.
 !Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
@@ -124,6 +130,11 @@ Content/**/*.txt
 !Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset
 !Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
 !Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset
+# I due strutturali non hanno una classe base C++ — `RTFrontendWidgets.h` ne dichiara tre — quindi
+# ereditano da `UUserWidget` nudo e il loro criterio non e' l'ereditarieta' ma `no_widget_creates_widgets`
+# (invariante 1 di CP 46.1). Riammessi con lo stesso anticipo degli altri, per la stessa ragione.
+!Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset
+!Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset
 # Il kit graybox degli oggetti di mappa — D-173, percorso deciso il 2026-08-18. Riammesso PRIMA che
 # esista un solo asset, che e' la ragione per cui la decisione e la riga stanno nello stesso commit:
 # senza di essa "git add" tace e non segnala nulla, ed e' lo stato in cui e' rimasto ABP_Gadget.
