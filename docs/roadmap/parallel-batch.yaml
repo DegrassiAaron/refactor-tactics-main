@@ -1419,7 +1419,24 @@ tracks:
   spatial:
     status: ACTIVE
     issue: 833
-    branch: feat/833-interaction-graph
+    # 🔴 **Corretti `branch:` e `worktree:` il 2026-08-18 da `simulation`, e non e' un'invasione: erano
+    # entrambi falsi e il secondo nominava la directory in cui un'altra track sta scrivendo.** La misura,
+    # non la memoria:
+    #   · `git ls-remote --heads origin` non trova `feat/833-interaction-graph` — quel ramo non esiste lato
+    #     server. I due rami di `#833` che sono esistiti sono `fix/833-validatemap-e-hash` (in `main`) e
+    #     `feat/833-applicazione-e-archi`, **MERGED** con la PR **#1168** alle `07:10:33Z` e cancellato;
+    #   · `git worktree list` mostra `D:/rt-simulation` in **detached HEAD** — nessun ramo aperto — e
+    #     `D:/rt-spatial` su `feat/886-verifier-legge-la-traccia`, cioe' `simulation`.
+    # ∴ le due track si erano **scambiate le directory** rispetto a cio' che il file dichiarava, e per
+    # qualche ora entrambe hanno detto `D:/rt-spatial`. Non era una contesa di write-set — l'intersezione
+    # fra i due `writable` e' **vuota** — ma un campo che manda la prossima sessione nella stanza sbagliata.
+    # ⚠️ `status: ACTIVE` e `issue: 833` **restano**: la issue e' `OPEN` e non tocca a chi passa deciderne lo
+    # stato. Qui si correggono solo i due campi misurabili dall'esterno.
+    # ⛔ **Cio' che questa sessione NON ha potuto verificare, detto invece che assunto**: se
+    # `D:/rt-simulation` sia pulita. E' isolata in `D:/rt-spatial` e ogni comando diretto altrove viene
+    # rifiutato, quindi `git status` la' non e' misurabile da qui — `git worktree list`, che gira da
+    # dentro, lo e'. Chi riapre la track lo verifica prima di scrivere.
+    branch: null
     note: >-
       ➕ **Passata a `#833` il 2026-08-16** — E23 CP 23.4, `RT-FEAT-MAP-INTERACTION-GRAPH`, **P1**: il grafo
       `Source → Target` come **dato**, con cardinalità `1→1` e `1→N`, ordine deterministico e validazione
@@ -1724,7 +1741,10 @@ tracks:
     # proprio `writable`) **tornava**, ACTIVE x ACTIVE. Trovato dalla code review. Fra inventare un'eccezione
     # allo schema e lasciare il mandato a chi puo' esercitarlo, si sceglie il secondo: questa track non sta
     # facendo il Terminal B, e chi lo riapre lo rivendica insieme al file invece di ereditare una contesa.
-    worktree: "D:/rt-spatial"
+    # 🔴 **Era `"D:/rt-spatial"` fino al 2026-08-18** — vedi il blocco sopra `branch:` per la misura. L'ultimo
+    # giro di questa track (`feat/833-applicazione-e-archi`, PR #1168) ha lavorato in `D:/rt-simulation`, che
+    # `git worktree list` mostra oggi in detached HEAD.
+    worktree: "D:/rt-simulation"
     writable:
       # ➖ `docs/technical/qa-prompt-terminal-b-scenario-runner.md` **rilasciato il 2026-08-16**, e non e'
       # una rinuncia al mandato: e' la meta' di questa track della violazione che l'intestazione dichiara
@@ -2030,11 +2050,37 @@ tracks:
     # dire il falso in un modo che questo file ha già pagato al contrario, scrivendo `null` su una sessione
     # che aveva scritto. Il branch di lavoro nasce col primo commit di codice, e chi lo apre riscrive questa
     # riga invece di lasciarla mentire — la misura è `git ls-remote --heads origin`, non la memoria.
-    branch: null
+    # ✅ **Riscritta il 2026-08-18 col primo commit, che è questo.** Nato da `origin/main` @ `7fc3a3d7` —
+    # cioè dalla PR #1164, che ha restituito i due path — dentro `D:/rt-spatial`.
+    # ⚠️ **Qui l'atto d'integrazione e il branch di lavoro sono lo STESSO ramo**, al contrario di
+    # `chore/1060-batch-simulation`, e la differenza va dichiarata invece di lasciarla dedurre: restano due
+    # **commit** distinti, e il primo tocca solo questo file. La proprietà che conta — *si dichiara prima di
+    # scrivere* — è nell'ordine dei commit, non nel numero dei rami; separare i rami avrebbe aggiunto una PR
+    # senza aggiungere una garanzia.
+    # 🔴 **E finché non è pushato questo ramo è INVISIBILE a chiunque misuri i write-set**, che è esattamente
+    # il difetto appena costato una misura sbagliata a questa sessione: `feat/833-applicazione-e-archi` gira
+    # in `D:/rt-simulation` e `git ls-remote` non lo vede. Scriverlo qui è la sola cosa che lo renda
+    # misurabile prima del push.
+    branch: feat/886-verifier-legge-la-traccia
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
-    worktree: "D:/rt-simulation"
+    # 🔴 **Cambia il 2026-08-18: `D:/rt-simulation` NON e' piu' dove questa track gira**, e la riga precedente
+    # diceva il falso da qualche ora. Misurato con `git worktree list`, non ricordato: in `D:/rt-simulation`
+    # gira **`feat/833-applicazione-e-archi`**, cioe' la track `spatial` — un ramo **locale, mai pushato**,
+    # quindi invisibile a `git ls-remote` e a chiunque misuri i write-set solo lato server. Le due track si
+    # sono **scambiate le directory** rispetto a cio' che questo file dichiarava, e nessun comando lo
+    # segnalava: il campo `worktree:` non ha un gate.
+    # ⚠️ **La sessione di `#886` non poteva scegliere**: e' confinata dall'harness in `D:/rt-spatial` e ogni
+    # comando diretto altrove viene rifiutato. Registrato perche' e' un vincolo che nessun documento del
+    # repository esprime — `git worktree list` mostra una directory disponibile senza dire che per te e'
+    # irraggiungibile — e perche' il primo turno di questa sessione si e' fermato proprio li'.
+    # ✅ **Intersezione fra le due track: VUOTA**, misurata path per path e non dedotta dal fatto che i domini
+    # sembrino distanti — `spatial` ha `Map/`, `Ability/`, `Turn/RTActionEffectLibrary` e i propri test;
+    # nessuno dei quattro path di `#886` compare nel suo `writable`. La contesa era sulla **directory**, che
+    # `D-139` non vincola: la regola parla di write-set, e due sessioni in due cartelle diverse che scrivono
+    # file diversi non violano nulla. Cio' che violerebbe e' lasciare che il file dica dove non sono.
+    worktree: "D:/rt-spatial"
     note: >-
       IDLE perché **il lavoro è atterrato**, non per dipendenza. `#165` (CP 14.5, finestra e primo
       consumatore) è chiusa: PR **#878** mergiata in `main` alle `21:16Z` del 2026-08-14
@@ -2488,9 +2534,37 @@ tracks:
     #                                               volta non ha bisogno di una lettura per categoria
     #   ➖ `Turn/RTTurnLog.h`                      — libero, e non serve: il formato v8 porta già
     #                                               `OpportunityId`, non nascono campi
+    #
+    # ➕ **RIVENDICATI il 2026-08-18, e questo e' l'atto che le due righe sopra annunciavano.** Fra
+    # l'annuncio e l'atto i due path hanno cambiato padrone una volta in piu', e la riga 🔓 sopra e' rimasta
+    # vera solo per poche ore:
+    #   · `replay_ui` li rilascia (2026-08-17) → non assegnati;
+    #   · `hotspot_split` li **rivendica** lo stesso giorno per lo split di `RTTurnManager.cpp` (PR #1161),
+    #     e la sua nota dichiarava per iscritto *«`#886` e' bloccata finche' questa track tiene i path»*;
+    #   · la track chiude con la PR **#1164** (`7fc3a3d7`), che restituisce entrambi.
+    # 🔴 **Chi legge solo la `release_requested` conclude il contrario del vero.** Quel blocco dice chi
+    # *rilascia*; non dice chi ha *preso* dopo, e fra i due c'e' stata una track intera. La misura che
+    # risponde e' `grep` del path su TUTTI i `writable` del file, non la lettura della propria sezione —
+    # e su `7fc3a3d7` da' **zero** occorrenze fuori da questa richiesta.
+    # ✅ **La decisione su `cp75` e' RIFATTA, non riletta** (era scaduta con `#625`, e il commento sotto lo
+    # chiedeva). `feat/cp75-selfreposition` e' vivo su `origin` e tocca `RTTurnManager.cpp`, ma
+    # l'intersezione **a livello di funzione e' vuota**: tre hunk in `ResolveCombat`, **+67 righe e 0
+    # cancellazioni**, ultimo commit **2026-08-11** con messaggio che dichiara `wip`. `AskReactionDecision`
+    # sta a `RTTurnManager.cpp:3879` — misurato su `7fc3a3d7`, non dedotto.
+    # ⚠️ **Il debito di `cp75` NON e' nostro e non va ereditato in silenzio**: quel ramo e' basato su un
+    # `RTTurnManager.cpp` **pre-split**, quindi dovra' riconciliare ~1300 righe spostate dalla #1161. Il
+    # conflitto esisteva prima di questa track e non cresce per causa sua — il diff di `#886` e' localizzato
+    # in una funzione che lo split non ha toccato.
+    # ⚠️ **E il write-set del giro precedente era misurato su `bd806e4f`, cioe' PRIMA dello split**: rimisurato
+    # su `7fc3a3d7`, `AskReactionDecision` e `ResolveReactionBoundary` sono rimaste in `RTTurnManager.cpp`.
+    # ∴ `Turn/RTTurnManager_Blast.cpp` **non entra** in questo `writable`: e' il file dove le funzioni
+    # estratte *sono finite*, non dove sta il punto che `#886` tocca. Una misura ereditata avrebbe fatto
+    # prendere il file sbagliato, o preso tutti e due «per sicurezza».
     writable:
       - Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp
       - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
     # ➖ **I commenti sui PRESTITI escono con essi.** Descrivevano il giro di `#583` — il JSON degli scenari
     # e `feature-registry.yaml`, entrambi restituiti con la PR #1087 — e lasciarli qui li farebbe leggere
     # come regole di questo giro, che di prestiti non ne ha. Le lezioni che portavano non si perdono: «si
@@ -2498,13 +2572,19 @@ tracks:
     # sezione `integration_only`, dove valgono per tutti invece che per una track sola.
     # ⚠️ `#886` non presta nulla: i due path che prende sono **liberi**, e ~~il terzo lo **chiede**~~ — dal
     # 2026-08-17 i due del `TurnManager` sono **rilasciati e non assegnati**, quindi non c'è più niente da
-    # chiedere e resta lo STOP finché l'atto di questa track non li rivendica. Annotato qui perché è un
+    # chiedere e ~~resta lo STOP finché l'atto di questa track non li rivendica~~. Annotato qui perché è un
     # **omonimo** della riga barrata quaranta righe sopra: una code review ne aveva trovato la prima coppia.
+    # ✅ **L'atto e' arrivato il 2026-08-18 e lo STOP e' caduto**: i quattro path del `writable` sono tutti
+    # **posseduti**, e questa track scrive. Barrata la sola proposizione che il fatto rende falsa — «resta lo
+    # STOP» — e non le due misure che la circondano, che reggono ancora.
     writable_on_loan: []
-    # ⛔ **NON posseduto: qui non si scrive.** ~~CHIESTO a `replay_ui` (#472)~~ — ⚠️ **rilasciati, non
+    # ⛔ ~~**NON posseduto: qui non si scrive.**~~ ✅ **Posseduto dal 2026-08-18**, e la proibizione cade con
+    # la richiesta che la portava: ~~CHIESTO a `replay_ui` (#472)~~ — ⚠️ **rilasciati, non
     # trasferiti**: non c'e' più nessuno a cui chiedere, e ~~È l'unico path conteso che resta a `#886`~~
-    # non sono più contesi ma **non assegnati**. La proibizione invece **resta in forza**, e va letta qui e
-    # non quattro righe sotto.
+    # non sono più contesi ma ~~**non assegnati**~~ **di questa track**. ⚠️ Qui si barra **anche** il divieto,
+    # al contrario di quanto la nota sotto prescriveva il 2026-08-17: allora il rilascio cambiava solo il
+    # *perche'* e lasciava intatto il *cosa*, oggi la rivendicazione cambia il *cosa*. La regola non e'
+    # cambiata — «si barra la proposizione, non le parole vicine» — e' cambiato quale proposizione e' falsa.
     # 🔴 **La prima stesura di questa barratura ritirava proprio la proibizione, e la code review l'ha
     # trovato**: `~~…NON posseduto: qui non si scrive…~~` presentava come falso uno STOP che la stessa hunk
     # ri-affermava più sotto (*«quindi qui vale STOP ancora»*). Una barratura marca cio' che il rilascio rende
@@ -2532,28 +2612,17 @@ tracks:
     # **non assegnati**, quindi qui vale STOP ancora — finche' l'atto di questa track non li rivendica
     # misurando il write-set in quel momento. Chi lo fara' erediti anche la decisione su `cp75`: e' scaduta
     # insieme a `#625`, e va rifatta invece che riletta.
-    release_requested:
-      - from: replay_ui
-        issue: 472
-        paths:
-          - Source/RefactorTactics/Turn/RTTurnManager.h
-          - Source/RefactorTactics/Turn/RTTurnManager.cpp
-        reason: >-
-          `#886` deve far vincere una risposta REGISTRATA sul decisore corrente, e il punto in cui accade e'
-          uno solo: `ARTTurnManager::AskReactionDecision`. La modifica e' una consultazione, non una
-          riscrittura — la sorgente e' una mappa `OpportunityId -> risposta` costruita una volta dalla
-          traccia, e il resto della funzione non cambia.
-          🔴 **E il PUNTO esatto conta, perche' la prima stesura del DoD lo aveva sbagliato.** Diceva
-          «consultata prima di ogni altro ramo, bot compreso»; misurato, il primo ramo NON e' il bot, e'
-          `!RequiresDecisionBoundary -> HoldImmediate`, cioe' il collasso di [D-109]. Consultare la traccia
-          li' riaprirebbe una decisione che il gioco dichiara inesistente, e per quelle finestre la traccia
-          contiene `HoldImmediate` — che non e' la scelta di nessuno. ∴ la consultazione va **dopo** il gate
-          di cardinalita' e **al posto** dei rami «bot» e «decisore legato»: il collasso resta una funzione
-          pura dello stato e si RICALCOLA, mai si rilegge.
-          ⚠️ **Chi concede sappia anche cosa NON viene toccato**: `ApplyReactionDecision` resta intatta (CP
-          14.5 ha separato le due proprio per questo), e non nascono campi nel TurnLog — il formato v8 porta
-          gia' `OpportunityId`. Il diff atteso su `RTTurnManager.cpp` e' localizzato in una funzione sola.
-          ⛔ Finche' i due path non sono nel `writable` qui sopra, vale STOP: `#886` non e' iniziata.
+    # ✅ **ESTINTA il 2026-08-18: i due path sono nel `writable` qui sopra, e con essi cade tutto il blocco.**
+    # Non e' stata «concessa» — e' passata per tre stati e nessuno di loro era una concessione a `#886`:
+    # rilascio di `replay_ui` → rivendicazione di `hotspot_split` → restituzione con la PR **#1164**. Il
+    # `reason` che stava qui non si perde: e' il §3.1 del progetto, ed e' rimasto vero parola per parola
+    # attraverso lo split che ha riscritto il file intorno a quella funzione.
+    # 💡 **La lezione che vale oltre questo giro, e che nessuno dei tre atti aveva scritto**: una
+    # `release_requested` dice **chi rilascia**, mai **chi prende dopo**. Fra il rilascio e la
+    # rivendicazione ci puo' stare una track intera — qui c'e' stata, per quattordici ore — e chi legge solo
+    # la propria sezione conclude «liberi» quando sono di qualcun altro. La misura che risponde e' il
+    # `grep` del path su **tutti** i `writable` del file; la lettura della propria richiesta no.
+    release_requested: []
     # ⚠️ **Due `--check` restano a questa track con i path**, ed è la stessa eredità che le sue chiusure
     # precedenti hanno dichiarato: `Scenarios/` e `RTScenarioSession.cpp` alimentano entrambe le viste.
     # Il JSON che le alimenta cambia col write-set — è quello nuovo, non lo showcase.

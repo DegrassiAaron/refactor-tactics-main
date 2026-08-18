@@ -2485,8 +2485,12 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: done
-      # ⚠️ Rappresentabile sì, riletta no: il Verifier ri-simula col resolver. Seam: **#886**.
-      replay_representable: partial
+      # ✅ **`done` dal 2026-08-18**: ~~rappresentabile sì, riletta no~~ — il seam **#886** è chiuso e il
+      # Verifier rilegge le decisioni dalla traccia invece di richiederle. Prova:
+      # `Replay.Verifier.ReactionDecisionsComeFromTheTrace` ri-simula senza decisore e ritrova lo stesso
+      # `StateHash`, e la sua terza esecuzione — senza traccia, stato **diverso** — impedisce al verde di
+      # essere vacuo.
+      replay_representable: done
     roadmap:
       epic: E14
       checkpoints: ["14.3"]
@@ -2574,7 +2578,9 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
-      replay_representable: partial
+      # ✅ **`done` dal 2026-08-18** — il seam **#886** è chiuso: il Verifier rilegge le decisioni dalla
+      # traccia. Vedi la nota sotto per cosa questo NON copre (i 3,0 s restano senza lettore).
+      replay_representable: done
     roadmap:
       epic: E14
       checkpoints: ["14.5", "14.6"]
@@ -2624,6 +2630,17 @@ features:
       resolver, e `grep OpportunityId Source/` non trova consumatori fuori da serializzazione e
       test. Oggi regge **per assenza di decisore umano**: al primo `FIRE` umano di CP 14.6 diventa
       falsa con un resolver corretto. Seam: **#886**.
+      ✅ **2026-08-18 — il gate passa a `done`: il seam #886 è chiuso.** `AskReactionDecision`
+      consulta una mappa `OpportunityId → risposta` costruita dalla traccia, **dopo** il gate di
+      cardinalità e **al posto** dei rami «bot» e «decisore legato»; il collasso di [D-109] resta
+      ricalcolato. La riga qui sopra prevedeva che al primo `FIRE` umano la proprietà diventasse
+      falsa: quel `FIRE` ora è riproducibile senza decisore, e
+      `Replay.Verifier.RecordedResponseBeatsLiveDecider` lo dimostra **in negativo** — un decisore
+      collegato che risponderebbe `HOLD` non viene interrogato nemmeno una volta.
+      ⚠️ **Il gate riguarda la decisione, non i 3,0 s**: `FastReactionDuration` resta senza lettore e
+      la voce resta `IMPLEMENTING` per CP 14.6 (`#166`). Un `HoldTimeout` registrato si rilegge come
+      `HOLD` — è l'esito che era stato applicato — ma *quando* la finestra sia scaduta non è nella
+      traccia e non lo diventa qui.
       ⚠️ `automation: done` significa che la **copertura esiste** e non che la suite sia stata
       rieseguita dopo il merge: «842 verdi su 842» della PR è misurato sulla base **precedente**.
       Sull'albero unito è stata verificata la **compilazione** (`Result: Succeeded`, zero warning,
@@ -2678,9 +2695,14 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
-      # ⚠️ `partial` e non `done`: la decisione **e' rappresentabile** nella traccia ed entra nell'hash,
-      # ma nessuno la **rilegge** — il Verifier di ADR-0009 ri-simula col resolver. Seam: **#886**.
-      replay_representable: partial
+      # ⚠️ ~~`partial` e non `done`: la decisione **e' rappresentabile** nella traccia ed entra nell'hash,
+      # ma nessuno la **rilegge** — il Verifier di ADR-0009 ri-simula col resolver. Seam: **#886**.~~
+      # ✅ **`done` dal 2026-08-18: il seam #886 e' chiuso e qualcuno rilegge.** La clausola che rendeva
+      # `partial` questo gate — «nessuno la rilegge» — e' l'unica cosa cambiata, ed e' il motivo per cui
+      # si barra tutta invece di emendarla. Il `FIRE` dell'Overwatch e' il caso verificato:
+      # `Spec.Overwatch.HoldThenFire` ri-simulato dalla sola traccia tronca il movimento come nella
+      # partita reale, e senza traccia non lo tronca — le due meta' insieme.
+      replay_representable: done
     roadmap:
       epic: E14
       checkpoints: ["14.4"]
