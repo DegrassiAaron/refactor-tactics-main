@@ -815,8 +815,12 @@ preexisting:
   - branch: feat/cp75-selfreposition
     state: DORMANT         # ultimo commit 2026-08-11 20:17 · c1e151ef
     measured: 3            # rimisurato su `base_sha` 4ab36b48: stessi tre file, quinto giro di fila
-    collides_with: [simulation]
+    collides_with: []
     note: >-
+      ➖ **Richiusa il 2026-08-18 a fine giornata**: `#1158` è mergiata (PR #1182) e `simulation` ha rilasciato
+      i tre path, quindi nessuna track dichiara più `RTTurnManager.cpp`. È il terzo giro in cui questa voce
+      passa da collisione a intersezione vuota **senza che il branch cambi di una riga**: a muoversi è sempre
+      l'altro lato. Il registro sotto resta perché dice cosa succede al prossimo che lo rivendica.
       🔁 **Riaperta il 2026-08-18 su UN path, ed è il caso che la riga sotto aveva previsto**: *«chi lo
       prenderà in un batch futuro riaprirà la stessa contesa»*. `simulation` riparte su `#1158` e dichiara
       `Turn/RTTurnManager.{h,cpp}`; di questi tre file il branch ne tocca **uno**, `RTTurnManager.cpp` —
@@ -1902,8 +1906,17 @@ tracks:
     # ⚠️ **La riattivazione è possibile SOLO perché `#886` è atterrata un'ora fa**: i due path del TurnManager
     # erano suoi fino alle `09:23Z`, e questa issue vive dentro `ApplyReactionDecision`. Rimisurato prima di
     # rivendicarli, non ereditato dalla riga sopra.
-    status: ACTIVE
-    issue: 1158
+    # ✅ **CHIUSA il 2026-08-18: `#1158` e' `CLOSED`**, chiusa dal merge della PR **#1182** (`730f8bb0`,
+    # `15:17:47Z`) — la keyword `Closes` ha funzionato, e la issue si e' chiusa da sola due secondi dopo.
+    # 🔴 **E «Chiude #N» NON avrebbe funzionato**: la prima stesura del body usava la forma italiana e
+    # `gh pr view --json closingIssuesReferences` rispondeva `[]`. Verificato prima del merge, non dopo: una
+    # PR che sembra chiudere una issue senza farlo la lascia aperta e nessuno se ne accorge.
+    # ✅ **Il write-set torna libero**: `Turn/RTTurnManager.{h,cpp}` e `Tests/RTOverwatchTriggerTests.cpp` sono
+    # atterrati in `main` e oggi non sono di nessuno. Chi li rivendica rilegge la contesa con
+    # `feat/cp75-selfreposition`, che resta `DORMANT` e tocca `RTTurnManager.cpp`.
+    # ⚠️ **Il branch e' mergiato e cancellato** lato server e in locale, verificato con `git ls-remote`.
+    status: IDLE
+    issue: null
     # ➕ **Riattivata il 2026-08-17 su `#886`** — il Verifier rilegge le decisioni di reazione dal TurnLog.
     # ⛔ **Ed è ACTIVE con un path ~~CHIESTO~~ RILASCIATO e non posseduto**: finché `Turn/RTTurnManager.{h,cpp}` non entra
     # nel `writable` qui sotto vale **STOP**, e `#886` non è iniziata. La track non è però ferma: i due file
@@ -2105,7 +2118,9 @@ tracks:
     # ➕ **E ne prende uno nuovo lo stesso giorno, per `#1158`.** ⚠️ Ramo **locale e non ancora pushato**: è
     # invisibile a `git ls-remote`, che è il difetto registrato quattro righe più su a proprio danno. Scriverlo
     # qui è ciò che lo rende misurabile prima del push.
-    branch: fix/1158-overwatch-bersaglio-abbattuto
+    # ➖ **Mergiato e cancellato il 2026-08-18** (PR #1182). Il campo torna alla prima delle quattro accezioni
+    # che questo file distingue: «nessun branch vivo, il lavoro è in `main`».
+    branch: null
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -2660,10 +2675,11 @@ tracks:
     # tre file, e nessun `--check` esistente se ne sarebbe accorto — `yaml.safe_load` accetta il duplicato in
     # silenzio. Trovato perché la rivendicazione è stata **riletta come dato** (`len(writable)`) invece che
     # riletta a schermo. È un ottavo controllo per `#840`: **chiave duplicata dentro una track**.
-    writable:
-      - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
-      - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
+    # ➖ **Rilasciati il 2026-08-18 con la chiusura di `#1158`**: i tre path sono atterrati in `main` e tornano
+    # liberi e non assegnati. ⚠️ Chi li riprende **rilegge** la contesa con `feat/cp75-selfreposition`, che
+    # resta `DORMANT` e tocca `RTTurnManager.cpp`: la decisione presa a favore di `#1158` valeva per quel giro,
+    # e il campo `collides_with` di quella voce torna vuoto perché nessuna track li dichiara più.
+    writable: []
     # ➖ **I commenti sui PRESTITI escono con essi.** Descrivevano il giro di `#583` — il JSON degli scenari
     # e `feature-registry.yaml`, entrambi restituiti con la PR #1087 — e lasciarli qui li farebbe leggere
     # come regole di questo giro, che di prestiti non ne ha. Le lezioni che portavano non si perdono: «si
