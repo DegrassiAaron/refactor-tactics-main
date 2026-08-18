@@ -109,6 +109,7 @@ milestone corrente (coerente con la regola di scope in `CLAUDE.md`).
 | Input (Enhanced Input) | `/Game/RT/Core/Input/` | `IMC_Tactical`, `IA_CameraPan`, `IA_SelectCell`, … |
 | Camera tattica | `/Game/RT/Core/Camera/` | |
 | Griglia esagonale | `/Game/RT/World/Grid/` | `Hex/` mesh e cella base · `Selection/` selezione e hover · `Visualization/` materiali, path preview, overlay · `Generation/` generatori graybox |
+| Kit graybox degli **oggetti** | `/Game/RT/World/Graybox/` | primitive posabili riusabili fra mappe: `Cover/` · `Doors/` · `Surfaces/` · `Volumes/`. **D-173** ⚠️ Non è `Grid/Generation/`, che sono i **generatori**: qui ci sono gli oggetti che si posano. Owner del contratto di ingombro e pivot: [`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md) |
 | Turni | `/Game/RT/Systems/` | `Planning/` intenti · `Turns/` fase e Ready · `Resolution/` playback · `Movement/` configurazione |
 | Personaggi | `/Game/RT/Characters/<CharacterId>/` | ogni personaggio è **autonomo**. ⚠️ `<CharacterId>` = nome del **pack Paragon** (§5b) |
 | Abilità di un personaggio | `/Game/RT/Characters/<CharacterId>/Abilities/` | |
