@@ -5723,6 +5723,19 @@ tracks:
       `URTHexLibrary::CellsBoundsWorld` con i propri test, e l'editor la **chiama**. La ragione NON e'
       che il modulo editor sia intestabile — dal 2026-08-16 ha i suoi test (`#993`, `D-154`) — ma che una
       regola di gioco che vive nell'editor e' una seconda risposta alla stessa domanda.
+      ✅ **La seduta `U21` e' stata ESEGUITA il 2026-08-18** (PR **#1177**, merge `1ddded3a`):
+      `L_DevSandbox` ha le tre luci e le due voci `PIE-MAPED-LIGHT` / `PIE-MAPED-FRAME` hanno un esito
+      reale. La track resta `ACTIVE` perche' **`#623` e' aperta**: quelle due voci vanno scritte in
+      `docs/technical/test-manuali-pie.md`, che e' nel `writable` di `playtest` — proposte in handoff
+      (`D-139`), non scritte da qui.
+      ⚠️ **La seduta e' stata fatta DUE volte**, e il costo va registrato: la prima versione e' stata
+      scartata per un conflitto binario con `7db11313` (#937) sullo stesso `.umap`. Vedi il registro
+      delle lease qui sotto per la causa a monte.
+      ➕ **Due file fuori lease sono entrati con #1177, per decisione esplicita dell'autore**:
+      `Data/DA_Format_Scratch.uasset` — coperto da `BINARY-GH937-DEVSANDBOX-MAP`, non da questa track —
+      e la sua riga di allowlist in `.gitignore` (`integration_only`). Il conflitto con `D-139` e' stato
+      sollevato prima, non dopo: l'asset era referenziato dal livello e mai versionato, quindi la mappa
+      era rotta per chiunque non lo avesse nel proprio worktree.
       🔵 **Il write-set e' DIECI file, misurato contro la propria BASE e non contro `origin/main`**:
       `main` e' avanzato di 18 commit mentre questa track lavorava, e `git diff --name-only origin/main`
       restituiva **29** path, i due terzi dei quali di altri.
@@ -5745,125 +5758,27 @@ tracks:
     # d'integrazione, non come prenotazione. La vista `editormap.shortlist.md` la segue.
     derives_from:
       - docs/roadmap/editormap.shortlist.md
-    binary_leases:
-      # ⚠️ **Emessa PRIMA che la seduta si apra, che e' la sequenza corretta** — a differenza di
-      # `BINARY-GH937-FRONTEND-WIDGETS`, che questo file registra come emessa a lavoro cominciato. La
-      # seduta non e' ancora stata fatta: la lease esiste perche' nel momento in cui l'autore salva il
-      # livello il path sia gia' preso.
-      # ⚠️ **Sulla CARTELLA, non su un file**: `L_DevSandbox` e' una mappa, cioe' due package —
-      # `L_DevSandbox.umap` e `Data/DA_HexMap_Sandbox.uasset` — e il secondo cambia se la seduta deve
-      # dipingere il secondo layer che entrambe le voci PIE pretendono. Entrambi sono gia' in allowlist
-      # nel `.gitignore` (righe 91-92): non c'e' un passo di allowlist da fare prima.
-      # 🔵 **Contesa misurata zero**: nessun branch remoto tocca `L_DevSandbox` — iterati i ref con
-      # `git diff --name-only origin/main...<ref>`. E l'intestazione di questo file lo prevedeva: *«il
-      # giorno in cui due sessioni lavorano la sandbox, la lease serve — e va emessa prima, sul
-      # `base_sha` di allora»*. Quel giorno e' arrivato: **quattro** sedute condividono questo livello.
-      - key: "BINARY-GH623-DEVSANDBOX-LIGHTING"
-        issue: 623
-        base_sha: "94575ef424e0475189e31ead8a2dc5d4e6cf2429"
-        operation: modify
-        paths:
-          - Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
-          - Content/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset
-        verification:
-          - load_in_editor
-          - save_without_errors
-          # La verifica che conta non e' che il livello si apra: e' il criterio di `PIE-MAPED-LIGHT` —
-          # orbitando attorno alla mappa nessuna faccia resta quasi nera, **senza** toccare l'esposizione
-          # della viewport. Un livello che si legge solo dopo aver alzato l'esposizione a mano non
-          # soddisfa la voce, e le altre tre sedute che ereditano l'allestimento vedrebbero altro.
-          - orbit_no_black_face
-          # E l'oracolo del committato e' `git status` sui due package, non «l'ho salvato»: questo
-          # repository ha gia' avuto asset presenti su disco e non versionati.
-          - git_status_clean_after_commit
-      # ➕ **Seconda lease, emessa il 2026-08-17 durante la seduta e non prima**, perche' la sua
-      # necessita' e' emersa allora: `L_DevSandbox.umap` referenzia **`DA_HexMap_Arena`**, non
-      # `DA_HexMap_Sandbox`. Misurato sul package (`RTHexMapAsset` 1, `DA_HexMap_Arena` 2, e
-      # `DA_HexMap_Sandbox` **0**). Ne segue che dipingere una cella nella sandbox modifica l'asset
-      # dell'**arena**, che la prima lease non copre: la seduta stava per scrivere fuori lease
-      # credendo di essere dentro.
-      #
-      # 🔴 **Questo file diceva che una lease qui NON si poteva emettere, e la ragione e' scaduta.**
-      # La nota di `content_editor` argomenta: *«`wip/icon-visual-language` e' `preexisting` e tiene una
-      # versione divergente dello stesso package: blob `7f7cb735`, 29895 byte, contro `e31b644b` /
-      # 48245 byte che `origin/main` condivide col merge-base»*, e conclude che una lease `modify`
-      # significherebbe **due holder sullo stesso path**. Rimisurato il 2026-08-17, e non regge piu':
-      #   · `wip/icon-visual-language` **non esiste**, ne' su `origin` (`git ls-remote --heads`), ne'
-      #     in locale, ne' in un worktree. Il contendente e' sparito, e con lui la ragione.
-      #   · **entrambi** i blob citati sono superati: `origin/main` porta **`ba504155` / 34542 byte**,
-      #     che non e' ne' `e31b644b` ne' `7f7cb735`. L'arena e' cambiata con **`1475582d`** — *«l'arena
-      #     scende a 64 celle, ed e' una modifica d'autore»* — quindi il «98 celle» della nota e' lo
-      #     stato PRECEDENTE a un cambiamento deliberato, non la misura di oggi.
-      #   · cinque branch remoti tengono ancora `e31b644b`: sono **indietro**, non divergenti in avanti,
-      #     e nessuno di essi e' ACTIVE in questo batch.
-      # ∴ contesa misurata **zero**, e la lease si emette. La nota di `content_editor` resta dov'e' come
-      # provenienza: descrive correttamente una situazione che c'era.
-      #
-      # ⚠️ **Su un FILE e non sulla cartella**, al contrario della prima: `Content/RT/Maps/Dev/L_HexArena/`
-      # contiene anche `L_HexArena.umap`, che questa seduta non apre e non tocca. La regola «la lease si
-      # emette sulla cartella» vale per le mappe che si aprono; qui il bersaglio e' un data asset che una
-      # ALTRA mappa referenzia, e prenotare il livello dell'arena bloccherebbe `U1` senza motivo.
-      - key: "BINARY-GH623-ARENA-CELLS"
-        issue: 623
-        base_sha: "a5fe779d7a828c030186278c13e5b1740cb3c495"
-        operation: modify
-        paths:
-          - Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
-        verification:
-          - load_in_editor
-          - save_without_errors
-          # ⚠️ La verifica specifica di QUESTA lease: l'arena e' gia' passata una volta per una
-          # regressione silenziosa — la versione di `wip` aveva `Cells` 98 -> 61 e l'array
-          # `Transitions` **non piu' serializzato affatto**. Dopo il salvataggio il conto delle celle
-          # e le transizioni devono esserci ancora: `rt.Arena.Check` le riporta, e i suoi tre criteri
-          # devono restare verdi.
-          - arena_criteria_still_green
-          - git_status_clean_after_commit
-
-  hotspot_split:
-    status: IDLE
-    issue: null
-    branch: null            # PR #1161 mergiata (`563707d2`); ramo cancellato — verificato con `git ls-remote`
-    worktree: null          # `D:/rt-refactor` rimosso alla chiusura
-    note: >-
-      ✅ **Track CHIUSA il 2026-08-17**: la PR **#1161** è in `main` (`563707d2`) e il branch
-      `refactor/hotspot-split` è cancellato lato server — verificato con `git ls-remote --heads origin`,
-      non con l'esito del comando. ⚠️ `gh pr view --json merged` ha risposto **HTTP 503** subito dopo il
-      merge: la conferma è stata presa con `git log origin/main` e `git ls-tree`, ed è il motivo per cui
-      quella verifica non si delega a `gh`.
-      ✅ **Cosa ha consegnato.** Le tre funzioni più grandi del repository non esistono più:
-      `ResolveCombat` **1694 → 567**, `LoadFromString` **775 → 55**, `Validate` **464 → 34**,
-      `BeginTurn` **336 → 110**. La più grande oggi è `PlanBots` (**571**), mai toccata.
-      `RTTurnManager.cpp` passa da **6002 a 4875** righe, coi quattordici pass del Blast in
-      `RTTurnManager_Blast.cpp`. Verifica: build Game e Editor verdi, **1018/1018** test sull'albero
-      **mergiato**, gate **10/10**.
-      🔴 **Ha derogato a una regola scritta, e la deroga è dichiarata**: `../technical/piano-riduzione-hotspot.md`
-      §0.3 vieta il mega-refactor. Il divieto è stato riportato all'autore con la misura *prima* di
-      iniziare; l'autore ha deciso di procedere. §26 di quel documento registra il lavoro, e §0.3/§23 sono
-      emendati invece che cancellati — derogare non è abrogare, e chi arriva dopo non eredita
-      l'autorizzazione.
-      ➕ **Ha corretto un gate rotto**: `check-docs-symbols.py` legava la parola chiave al prefisso
-      (`class` solo `[AU]RT`, `struct` solo `FRT`), quindi non vedeva le **3** `class F*` del repository e
-      dichiarava inesistente `FRTScenarioSession`, che esiste. Simboli noti **309 → 312**, verificato per
-      mutazione.
-      ➖ **I dieci path tornano non assegnati**, e due contano per qualcun altro:
-      `Turn/RTTurnManager.{h,cpp}` sono **liberi**, quindi la `release_requested` di `replay_ui` per
-      `#886` è soddisfatta e `simulation` può iniziare. `AskReactionDecision` — il punto esatto che `#886`
-      deve toccare — non è fra le funzioni estratte e **non ha cambiato una riga**: chi riprende quella
-      issue trova la funzione dov'era, solo in un file più corto.
-      ⛔ **Debito lasciato, nominato invece che dimenticato.** *(1)* `feat/cp75-selfreposition` è ancora
-      vivo e tocca `Turn/RTTurnManager.cpp` con **+67 righe** su un file di cui questo lavoro ha spostato
-      ~1300: il conflitto è reale e va risolto a mano da chi lo riprende. *(2)* `RTGameMode` **non è stato
-      toccato** benché fosse nello scope chiesto — è nel `writable` di `frontend_shell` (`#937`) e serviva
-      una release request. La misura peraltro non lo sostiene: 16 definizioni, la maggiore 205 righe.
-      🔵 **Un difetto di metodo, registrato perché non si ripeta**: lo script che misurava le variabili
-      condivise da una funzione prima di estrarla cercava i prefissi dei container (`TArray`, `TMap`, …) e
-      **non i tipi puntatore del progetto**, quindi non vide `ARTTurnManager* TM`. L'ha trovata il
-      compilatore. Un'estrazione si progetta sulla misura e si conferma sul build — e una misura che
-      risponde «zero» va guardata due volte, perché è anche la risposta che dà quando cerca la cosa
-      sbagliata.
-    writable: []
-    derives_from: []
+    # ✂️ **Entrambe le lease RILASCIATE il 2026-08-18: la seduta e' stata eseguita.** Una lease vale
+    # finche' qualcuno sta per scrivere quel binario; tenerla dopo il salvataggio blocca gli altri su un
+    # lavoro finito. `L_DevSandbox.umap` e `DA_Format_Scratch.uasset` sono in `main` con la PR **#1177**.
+    #
+    # 🔴 **`BINARY-GH623-DEVSANDBOX-LIGHTING` non ha protetto niente, e la ragione va scritta.** Il path
+    # era gia' coperto da `BINARY-GH937-DEVSANDBOX-MAP` (`frontend_shell`, sulla CARTELLA): **due lease
+    # sullo stesso file**, che e' esattamente l'invariante che `D-139` esiste per impedire. Il conflitto
+    # e' arrivato puntuale — `7db11313` ha riscritto il livello mentre la prima versione della seduta era
+    # aperta — e una delle due versioni e' stata rifatta a mano dentro Unreal, perche' due `.umap` non si
+    # fondono. Nessun gate lo ha visto: il validator che dovrebbe leggere questo file (**#840**) non e'
+    # mai stato scritto, e questo file lo invoca in cinque punti come ragione per cui i campi devono
+    # essere leggibili. La lease non previene un conflitto, previene un lavoro perso: qui non ha fatto
+    # nemmeno quello, perche' nessuno confrontava gli insiemi.
+    #
+    # ✂️ **`BINARY-GH623-ARENA-CELLS` e' stata emessa e MAI USATA.** L'avevo emessa il 2026-08-17 su una
+    # necessita' dedotta — `L_DevSandbox` referenziava `DA_HexMap_Arena`, quindi dipingere nella sandbox
+    # avrebbe modificato l'asset dell'arena — e la misura successiva l'ha smentita due volte: la mappa
+    # aveva gia' i piani che servivano (`Frame Map: 64 celle su 2 layer`), e poi `7db11313` ha spostato il
+    # riferimento su un asset proprio della sandbox. `DA_HexMap_Arena.uasset` non e' mai stato toccato.
+    # Registrato invece che cancellato in silenzio: una prenotazione presa su una premessa falsa e' un
+    # costo pagato da chi nel frattempo non ha potuto scrivere quel path.
     binary_leases: []
 
   match_format:
