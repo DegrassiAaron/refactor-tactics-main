@@ -4222,7 +4222,14 @@
       ],
       "tests": [
         "RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed",
-        "RefactorTactics.Reactions.IntentViewSkipsDeadAndKeepsOrder"
+        "RefactorTactics.Reactions.IntentViewSkipsDeadAndKeepsOrder",
+        "RefactorTactics.UI.IntentCertaintyClassification",
+        "RefactorTactics.UI.IntentViewDefaultsToUnknown",
+        "RefactorTactics.UI.NoEnemyIntentExposed",
+        "RefactorTactics.UI.IntentCertaintyRendering",
+        "RefactorTactics.UI.ArmedReactionRendering",
+        "RefactorTactics.UI.IntentLabelGrammar",
+        "RefactorTactics.UI.IntentDashSegments"
       ],
       "scenarios": [],
       "scenarios_planned": [],
@@ -4234,10 +4241,10 @@
         "PIE-V01-INTENT"
       ],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-18",
+        "commit": "0accdd4"
       },
-      "notes": "Il filtro per squadra esiste ed è testato (confermato / previsto / incerto arrivano da lì), ma la resa a schermo dei tre livelli è dentro CP 11.2, non chiuso."
+      "notes": "Il filtro per squadra esiste ed è testato, e dal 2026-08-18 la resa a schermo dei tre livelli esiste: `ARTHUD::ComposeIntentCertaintyStyle` traduce il livello in peso del tratto, densità del tratteggio e `?`, e `ComposeIntentLabel` compone l'etichetta. La classificazione resta del simulatore — la HUD legge `FRTIntentView::Certainty` e non la ricalcola, con un test che lo pinna su una vista deliberatamente contraddittoria. ⚠️ La gradazione NON passa dall'opacità: `AHUD::DrawLine` finisce in `FBatchedElements::AddLine`, che forza `OpaqueColor.A = 1`, quindi su una linea di Canvas l'alpha è inerte. Chi tocca questa resa lo sappia prima di provarci. ⏳ Resta `PIE-V01-INTENT`, che è verifica umana e appartiene alla track `playtest`. E resta fuori dalla v0.1 l'**icona di squadra** che la grammatica assegna al livello «previsto»: `ARTHUD` è un Canvas senza percorso per le icone del catalogo, e quel pezzo appartiene al layer widget (#613)."
     },
     {
       "feature_id": "RT-FEAT-UI-WARNINGS",
