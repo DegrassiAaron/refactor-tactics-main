@@ -5811,6 +5811,18 @@ integration_only:
   # il test **deve** esserlo» — ed è il caso in cui una regola scritta bene fallisce lo stesso:
   # nessun gate rilegge questa lista quando nasce un file nuovo.
   - scripts/test_feature_registry_roadmap_map.py
+  # ➕ **Entrano il 2026-08-18 con `#1109`, PRIMA di essere scritti — che è il punto.**
+  # `scripts/check-docs-naming.py` è il gate di `D-120`/`D-130` e non stava in nessun insieme: per `D-139`
+  # era uno STOP. Questo commit **assegna e basta**; la modifica del gate arriva nel commit successivo.
+  # 🔵 **L'ordine non è cerimonia**: `parallel-batch.yaml` ha già registrato due prese retroattive
+  # (`spec-asset-pipeline.md` e `convenzioni-contenuti-ue.md`), entrambe dichiarate ad alta voce e nessuna
+  # delle due sanata. Due precedenti fanno un'abitudine — «assegnati un path scrivendoci sopra, purché lo
+  # confessi» — e l'unico modo di non farne tre è pagare il costo, che è un commit di due righe.
+  # ⚠️ **`test_check_docs_naming.py` non esiste ancora**: il gate che protegge 407 file non ha una sola
+  # prova che possa fallire, ed è la ragione per cui `#1109` chiede una verifica di mutazione nei due
+  # versi invece di un `--check` verde. Il path entra qui perché il test nasce in quella issue.
+  - scripts/check-docs-naming.py
+  - scripts/test_check_docs_naming.py
   - RefactorTactics.uproject
   - Source/RefactorTactics/RefactorTactics.Build.cs
   - Config/
