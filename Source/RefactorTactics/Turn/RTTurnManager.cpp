@@ -4017,6 +4017,22 @@ void ARTTurnManager::ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>&
 			? URTReactionOpportunityLibrary::FireResponse(Entry.SelectedTargetUnitId)
 			: FString(URTReactionOpportunityLibrary::HoldResponse());
 
+		// ⚠️ Due voci con la STESSA chiave: `Add` sovrascriverebbe, e una risposta andrebbe persa senza che
+		// nessuno lo dica — cioe' il difetto che questa issue esiste per prevenire, spostato di un anello.
+		// Il caso non e' teorico: `FRTReactionOpportunityKey` non porta l'istanza della reaction, e
+		// `ResolveReactionBoundary` lo dichiara — due Overwatch della stessa unita' nello stesso micro-step
+		// ricadrebbero sulla stessa chiave. Oggi non si produce (un'unita' pianifica una sola abilita' per
+		// turno); il giorno in cui si producesse, la traccia diventerebbe ambigua e va **detto**, non
+		// arrotondato. La PRIMA vince: l'ordine della traccia e' canonico (`EntryLess`), quindi «la prima»
+		// e' una regola e non un caso.
+		if (const FRTReactionDecision* Existing = RecordedDecisions.Find(Entry.OpportunityId))
+		{
+			VerificationDivergences.Add(FString::Printf(
+				TEXT("traccia ambigua: due risposte registrate per %s ('%s' tenuta, '%s' scartata)"),
+				*Entry.OpportunityId, *Existing->Response, *Response));
+			continue;
+		}
+
 		RecordedDecisions.Add(Entry.OpportunityId, FRTReactionDecision(Response, Outcome));
 	}
 }

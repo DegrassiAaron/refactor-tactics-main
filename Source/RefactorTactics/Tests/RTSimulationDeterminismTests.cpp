@@ -422,6 +422,75 @@ bool FRTReplayVerifierOrphanRecordedResponseTest::RunTest(const FString&)
 
 
 /**
+ * Due risposte registrate con la STESSA chiave sono una traccia ambigua, e si dice invece di arrotondare.
+ *
+ * `TMap::Add` sovrascriverebbe, e una risposta sparirebbe senza che nessuno se ne accorga — la stessa
+ * famiglia di difetti che `#886` esiste per chiudere, spostata di un anello: dentro la costruzione della
+ * mappa invece che dentro la consultazione.
+ *
+ * ⚠️ **Il caso oggi non si produce in partita**, e il test lo fabbrica di proposito duplicando una voce:
+ * `FRTReactionOpportunityKey` non porta l'istanza della reaction — i suoi sei campi sono turno, macro-fase,
+ * micro-step, proprietario, reaction e `Seq` — quindi due Overwatch della **stessa** unita' nello stesso
+ * micro-step ricadrebbero sulla stessa chiave. `ResolveReactionBoundary` lo dichiara gia' per il proprio
+ * conto. Un difetto che il codice sa di poter avere merita un test prima del giorno in cui arriva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierAmbiguousTraceTest,
+	"RefactorTactics.Replay.Verifier.AmbiguousTraceIsReported",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayVerifierAmbiguousTraceTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadDeterminismScenario(*this, TEXT("Spec.Overwatch.HoldThenFire"), Scenario)) { return false; }
+
+	TArray<FString> Divergenze;
+	const FRTTestResult A = RunAsVerifier(Scenario, {}, nullptr, Divergenze);
+	if (A.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la partita di riferimento e' fallita: %s"), *A.ErrorMessage));
+		return false;
+	}
+
+	// La voce del `FIRE`, duplicata con l'esito ribaltato: se la seconda vincesse, il bersaglio non verrebbe
+	// piu' troncato e lo stato finale cambierebbe. La prima deve vincere, e la seconda essere dichiarata.
+	TArray<FRTTurnLogEntry> Ambigua = AllEntries(A);
+	FString ChiaveDoppia;
+	for (int32 I = 0; I < Ambigua.Num(); ++I)
+	{
+		const FRTTurnLogEntry& E = Ambigua[I];
+		if (E.Category == ERTLogCategory::ReactionDecision
+			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::FireChosen)
+		{
+			ChiaveDoppia = E.OpportunityId;
+			FRTTurnLogEntry Gemella = E;
+			Gemella.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
+			Gemella.SelectedTargetUnitId = 0;
+			Ambigua.Insert(Gemella, I + 1);
+			break;
+		}
+	}
+	if (!TestFalse(TEXT("c'era una voce da duplicare"), ChiaveDoppia.IsEmpty())) { return false; }
+
+	const FRTTestResult B = RunAsVerifier(WithoutScriptedDecisions(Scenario), Ambigua, nullptr, Divergenze);
+
+	TestEqual(FString::Printf(TEXT("la PRIMA vince: stesso stato della partita reale (%08x vs %08x)"),
+		B.StateHash, A.StateHash), B.StateHash, A.StateHash);
+
+	bool bAmbiguitaNominata = false;
+	for (const FString& D : Divergenze)
+	{
+		if (D.Contains(TEXT("ambigua")) && D.Contains(ChiaveDoppia)) { bAmbiguitaNominata = true; }
+	}
+	TestTrue(TEXT("e l'ambiguita' e' dichiarata con la chiave che la porta"), bAmbiguitaNominata);
+	if (!bAmbiguitaNominata)
+	{
+		for (const FString& D : Divergenze) { AddError(FString::Printf(TEXT("divergenza: %s"), *D)); }
+	}
+
+	return true;
+}
+
+
+/**
  * Una finestra COLLASSATA ricalcola il proprio esito e non consulta la traccia (`#886`, voce 2 — [D-109]).
  *
  * `Spec.Overwatch.ConditionCollapsesToHold` produce `HoldImmediate`: la condizione dichiarata filtra via
