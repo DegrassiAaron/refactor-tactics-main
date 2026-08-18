@@ -84,6 +84,34 @@ ERTNavResult URTFrontendNavigator::ReturnMain()
 	return Result;
 }
 
+ERTNavResult URTFrontendNavigator::BackFromError(ERTLoadPhase PhaseWhenArmed)
+{
+	// A partita viva si **smonta**. `ReturnMain` porta via anche i modali, quindi non serve chiuderli
+	// prima — ed e' provato da `ReturnMainClearsScreensAndModals`, che esiste dal CP 46.1.
+	if (PhaseWhenArmed == ERTLoadPhase::Ready)
+	{
+		return ReturnMain();
+	}
+
+	// Durante il loading non e' stato costruito niente: si torna alla schermata precedente. Ma il modale
+	// va chiuso **prima**, o `PopScreen` risponde `BlockedByModal` e il giocatore resta dentro il modale.
+	if (IsModalOpen())
+	{
+		const ERTNavResult Closed = CloseModal();
+		if (Closed != ERTNavResult::Ok)
+		{
+			// Si propaga invece di proseguire: un pop dopo una chiusura fallita agirebbe su uno stato che
+			// non e' quello che si crede.
+			return Closed;
+		}
+	}
+
+	// ⚠️ `BlockedAtRoot` **si propaga e non e' un difetto**: se il modale d'errore compare gia' sulla
+	// radice non c'e' nulla sotto cui tornare, e il chiamante deve saperlo invece di vedersi un `Ok` che
+	// non ha mosso niente. Il dead-end non esiste comunque, perche' il modale e' stato chiuso qui sopra.
+	return PopScreen();
+}
+
 UUserWidget* URTFrontendNavigator::FindLiveWidget(FName ScreenId) const
 {
 	const TObjectPtr<UUserWidget>* Found = LiveWidgets.Find(ScreenId);

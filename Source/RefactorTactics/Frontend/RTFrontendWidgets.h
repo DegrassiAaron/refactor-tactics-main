@@ -24,13 +24,21 @@
  *  2. **Il widget non decide se e' fatale.** `IsFatal` vive nella libreria ed e' l'unico posto in cui la
  *     divisione modale/banner e' scritta.
  *  3. **Il widget non naviga da se'.** Nessuna di queste classi chiama `PushScreen`/`PopScreen`: espongono
- *     l'**intenzione** (`RequestBack`) e il navigatore decide, perche' e' lui l'unico owner del flow
- *     (CP 46.1).
+ *     un **dato** — `GetPhaseWhenArmed()` — e il navigatore decide, perche' e' lui l'unico owner del flow
+ *     (CP 46.1). La regola di *dove* torna il `BACK` vive in `URTFrontendNavigator::BackFromError`.
+ *     🔴 **Questa riga citava `RequestBack`, che non e' mai esistito.** Per due giorni e' stata l'unica
+ *     occorrenza di quel nome in tutto `Source/`, e descriveva un meccanismo che nessuno aveva scritto:
+ *     il pulsante `BACK` era disegnato nel `.uasset` e non chiamava niente. Un commento che nomina un
+ *     simbolo assente e' peggio di un commento mancante — si legge come una garanzia.
  *
  * ⚠️ **Il limite di questi vincoli, detto invece che sottinteso**: valgono per la superficie C++. Un
- * Blueprint derivato puo' sempre aggiungersi una variabile stringa e disegnarla — nessun gate lo impedisce,
- * perche' i `.uasset` non sono versionati in questo repository. E' la stessa riserva che CP 11.7 scrive
- * per le proprie basi.
+ * Blueprint derivato puo' sempre aggiungersi una variabile stringa e disegnarla.
+ * 🔴 **La ragione che questa riserva dava e' scaduta il 2026-08-18**: diceva *«nessun gate lo impedisce,
+ * perche' i `.uasset` non sono versionati in questo repository»*, e i cinque `WBP_RT_*` **sono versionati**
+ * (PR #1178). Esiste anche un gate: `RTFrontendWidgetAssetTests.cpp` apre i package e verifica i binding
+ * dentro di essi. La riserva **regge lo stesso** — un test sui binding non impedisce a un Blueprint di
+ * disegnare una stringa propria — ma regge per un motivo diverso da quello scritto, e i due non vanno
+ * confusi: il primo era un'assenza di infrastruttura, il secondo e' un limite di cio' che si verifica.
  */
 
 /**
@@ -149,6 +157,20 @@ public:
 	bool IsArmed() const { return Outcome != ERTStartupOutcome::Ok; }
 
 	/**
+	 * La fase raggiunta dall'allestimento quando questo modale e' stato armato.
+	 *
+	 * Serve a **una** cosa: il `BACK`. `URTFrontendNavigator::BackFromError` la legge per scegliere fra
+	 * tornare indietro e smontare, e la regola di quale dei due vive **li'**, non qui — questo widget
+	 * espone un dato, non una decisione di navigazione (invariante 1 di CP 46.1).
+	 *
+	 * ⚠️ **`Idle` quando il modale e' stato armato senza un report**, cioe' da `ShowFor` o
+	 * `ShowForOutcome`: e' il default prudente, e porta il `BACK` a `PopScreen`. L'alternativa —
+	 * assumere `Ready` — smonterebbe una partita che potrebbe non essere mai stata avviata.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	ERTLoadPhase GetPhaseWhenArmed() const { return PhaseWhenArmed; }
+
+	/**
 	 * La visibilita' del modale, gia' nel tipo del binding.
 	 *
 	 * ⚠️ Qui e' **`Visible` e non `SelfHitTestInvisible`**: un modale deve *fermare* i click su cio' che
@@ -173,6 +195,10 @@ private:
 
 	UPROPERTY(Transient)
 	FString Detail;
+
+	/** Vedi `GetPhaseWhenArmed`. La scrive solo `ShowFromReport`, che e' l'unica ad avere un report. */
+	UPROPERTY(Transient)
+	ERTLoadPhase PhaseWhenArmed = ERTLoadPhase::Idle;
 };
 
 /**

@@ -3680,9 +3680,17 @@ tracks:
     # ∴ `IDLE` **con la issue ancora sua**: nessuna sessione e' aperta in questo momento — la seduta
     # d'editor e' finita e il residuo e' codice, non `.uasset` — ma `#937` non e' consegnata, e i
     # `writable` restano dichiarati anche per `#938`…`#941`, che sono aperte.
-    status: IDLE
-    issue: null   # nessuna sessione aperta; il residuo di `#937` e' nella nota, non in un branch vivo
-    branch: null            # seduta d'editor: l'unita' di lavoro e' un'apertura di Unreal, non un commit
+    # ➕ **Riattivata il 2026-08-18 per il residuo di `#937`: il collegamento del `BACK` al navigatore.**
+    # Non e' lavoro d'editor e non apre una seduta — `session` resta `null`. E' codice in `Frontend/`,
+    # che questa track ha gia' nel proprio `writable`: il perimetro si dichiara **prima** di scrivere, ed
+    # e' la seconda volta oggi che questa voce lo fa in anticipo invece che a posteriori.
+    status: ACTIVE
+    issue: 937
+    # ⚠️ **`branch` e non `session`**: la seduta d'editor U24 e' chiusa e questo residuo e' codice, quindi
+    # l'unita' di lavoro torna a essere un commit. La track ha usato entrambe le forme nello stesso giorno,
+    # ed e' esattamente il caso che lo schema descrive quando dice che una track umana usa `session:` **al
+    # posto di** `branch:`.
+    branch: feat/937-back-navigator
     session: null
     # ➕ **Aperto il 2026-08-17, e il campo esisteva gia' per questo caso.** La nota qui sotto lo
     # prescriveva — *«se la seduta apre un ramo per committare gli `.uasset`, va nominato in
