@@ -1065,6 +1065,13 @@ sessions:
       seduta ha prodotto asset e non ha chiuso nessuna voce del registro, esattamente come dichiarava.
       ⏳ **Cio' che resta non e' d'editor**: nessuno chiama `InitializeFrontend`, che e' di CP 46.3
       (`#938`). I cinque Blueprint esistono, sono provati, e non li avvia nessuno.
+      🔴 **La seduta e' chiusa, `#937` NO — e le due cose sono state confuse per un merge.** Una voce del
+      DoD non e' implementata: il `BACK` del modale deve fare `PopScreen` prima dell'avvio e `ReturnMain`
+      a partita viva, e misurando i package si trova la stringa «Back» in `WBP_RT_ErrorModal` con **zero**
+      `ReturnMain`/`PopScreen`/`RequestBack`. Il pulsante e' disegnato e non chiama niente.
+      ∴ **`done_when` di questa seduta resta soddisfatto**: chiedeva cinque `.uasset` che si aprono, con
+      il criterio giusto per ciascuno, e quelli ci sono. Una seduta d'editor consegna asset; il
+      collegamento al navigatore e' codice, e non era mai stato suo.
       ─────
       ➕ **Seduta aperta il 2026-08-16, a lavoro gia' cominciato**: i widget si stavano costruendo e il
       tracking non li nominava — ne' qui, ne' come `binary_leases`. `grep -n "WBP_RT_" editor-sessions.yaml`
