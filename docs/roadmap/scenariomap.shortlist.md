@@ -17,7 +17,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**77 scenari versionati** — misurati su `Scenarios/`: **66** eseguibili · **11** `BLOCKED` per una capability assente · **63** dichiarati `planned` nel registry e non ancora scritti.
+**78 scenari versionati** — misurati su `Scenarios/`: **67** eseguibili · **11** `BLOCKED` per una capability assente · **66** dichiarati `planned` nel registry e non ancora scritti.
 
 **Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `DecisionBoundary` · `DeclaredRotation` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
 
@@ -77,6 +77,8 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.Privacy.HiddenEnemyHoverNoLeak` | `RT-FEAT-UI-POINTER-INTERACTION` |
 | `Spec.TimeBank.BotDrainsLikePlayer` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.ClashCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.ControlLoadNeverExtendsWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.ControlLoadScalesInitialBank` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.DrainsAfterGrace` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.ExhaustionKeepsResponsesLegal` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.GraceDoesNotDrain` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
@@ -84,6 +86,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 | `Spec.TimeBank.PacketOrderInvariant` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.ReplayReadsRecordedBank` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.TimeoutCostsFullWindow` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
+| `Spec.TimeBank.TimeoutIgnoresPreferredResponse` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `Spec.TimeBank.TimeoutSpendsNoCharge` | `RT-FEAT-CORE-DECISION-TIME-BANK` |
 | `State.Hero.Gadget.Charged` | `RT-FEAT-CHARACTER-STATE` |
 | `State.Hero.Phase.Flow` | `RT-FEAT-CHARACTER-STATE` |

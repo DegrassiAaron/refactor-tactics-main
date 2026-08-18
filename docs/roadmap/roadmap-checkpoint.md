@@ -301,9 +301,25 @@ Assorbe **H8** e il residuo di **H5**.
 | **M9.1** | Residuo editor mappa (H5) | Verifiche PIE aperte dell'editor mode chiuse (`E/F/G/H/L/N`); copia-incolla di regioni e palette Slate **solo se** l'uso reale le richiede (YAGNI: la mappa di prova di M6 è il banco di prova) |
 | **M9.2** | Superfici attive | Acqua/fuoco/elettricità con effetto sul turno (costo, hazard di fine turno, propagazione deterministica); ogni modifica ambientale compare nel TurnLog |
 | **M9.3** | Cover dinamica e passaggi | Coperture distruttibili/mobili e porte-ponti che cambiano la topologia: le modifiche **invalidano** cache e path (revisione dell'asset), mai path fantasma |
+| **M9.4** | **Tactical Designer — un solo loop** ([#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105)) | Mappa, personaggi, scenario e varianti di abilità si authorano dagli stessi dati che il resolver esegue: nessuna regola di gioco vive nel modulo editor, e una preview che diverge dall'esito è un difetto, non una approssimazione. Owner: [`spec-tactical-designer.md`](../technical/spec-tactical-designer.md) |
 
 **DoD di milestone**: un incremento ambientale cambia in modo osservabile l'esito di un turno · nessuna cache
 stantia (test di invalidazione) · le regole ambientali sono coperte da test puri.
+
+> **M9.4 è una scala di maturità di uno strumento, non una release** ([D-154](../decisions/RT_PDR_00_Decision_Log.md),
+> 2026-08-17). Gli stadi `TD 0.1 … TD 1.0` di
+> [`spec-tactical-designer.md`](../technical/spec-tactical-designer.md) §6 **non** corrispondono alle release
+> di gioco: `TD 0.7` non ha niente a che vedere con `v0.7`. Il precedente che rende necessaria questa riga è
+> del 2026-08-13, quando una milestone *«Skill Balance Lab v0.3»* proposta da un sorgente fu dichiarata
+> superata perché `RT-FEAT-TOOL-BALANCE-GROUND` era **già v0.1 `IMPLEMENTING`**: una scala di maturità
+> collocata nella roadmap di release entra in concorrenza con la consegna, e perde.
+>
+> Al 2026-08-17 `TD 0.1` è quasi chiuso e i suoi residui sono `#622`, `#623` e `#712` — cioè **tre** sedute
+> (`U21`, `U22`, `U26`) e una fetta di codice. Gli stadi da `TD 0.2` in poi hanno owner nel
+> [Feature Registry](feature-registry.yaml) (`RT-FEAT-TOOL-SCENARIO-COMPOSER`,
+> `RT-FEAT-TOOL-SKILL-WORKBENCH`) e **nessuna issue aperta**: si aprono quando `TD 0.1` chiude, o la loro
+> prima riga sarebbe «serve un consumatore che non esiste». La metà di **misura** — batch, metriche,
+> confronto su suite — resta di **E43** (v0.8) e non si duplica qui.
 
 > **Scala delle mappe (2026-08-07, D-010)**: le mappe di M9 **non** sono vincolate alla compattezza di Atlas
 > Reactor. Il principio è *«compatto nel tempo, non necessariamente piccolo nello spazio»* e la metrica è

@@ -65,6 +65,95 @@ v0.1 o no. Questo file registra quella ripartizione una volta sola.
 Oltre la v1.0 resta **north-star non pianificato**: progressione, modding pubblico, editor mappe a runtime.
 Non si aprono epic per ciò che non ha una release.
 
+### Il Graybox Kit attraversa questa ladder, e non ne genera una seconda
+
+Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). Il kit
+`Graybox_Kit_Cover_CellVolume` propone dieci cluster di maturità degli asset con una propria mappatura
+`v0.1 → v1.0`. **L'ordine si preserva, i numeri di release si prendono da qui** — è il precedente di
+[D-138](../decisions/RT_PDR_00_Decision_Log.md), che ha già respinto una ladder proposta da un handoff.
+
+| Cluster del kit | Proposta | Release **canonica** | Owner reale | Azione |
+|---|:--:|:--:|---|---|
+| Core map | v0.1 | **v0.1**, interamente | **E21** · **E47** · muri e porte su **E23**, anticipata alla v0.1 (`D-160`) | allineato |
+| Environment | v0.2 | **v0.1** ⬅️ | **E8** — **otto** feature, tutte `INTEGRATED` | il kit è **indietro** |
+| 3D map / verticalità | v0.3 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-VERTICALITY` è `IDEA` | `DEFER` |
+| Interactive map | v0.4 | **v0.1** ⬅️⬅️ | **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)), anticipata il 2026-08-17 (`D-160`) | il kit è **indietro di due release**, non di una |
+| Tactical devices | v0.5 | **fuori scope dichiarato** | — | `DEFER` |
+| Destruction / debris | v0.6 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-STRUCTURAL` è `IDEA` | `DEFER` |
+| Perception / information | v0.7 | **v0.1** ⬅️ e v0.3 | **E13** (base) · **E27** (completa) | il kit è **indietro** |
+| Objectives | v0.8 | **v0.1** ⬅️ e v0.4 | **E10** (base) · **E31** (multipli) | il kit è **indietro** |
+| Modularization | v0.9 | **nessuna** | authoring, non contenuto di release | `DEFER` |
+| Contract freeze | v1.0 | **v1.0** ✅ | **E45** | allineato |
+
+**Una riga su dieci coincide esattamente** — il contract freeze. Le altre nove divergono in **quattro**
+modi, e vale la pena non confonderli:
+
+| Modo | Quali | Quante |
+|---|---|--:|
+| il repository li ha già, o li sta costruendo, prima di dove il kit li mette | Environment · Interactive map · Perception · Objectives | **4** |
+| nessuna release li possiede | 3D map · Destruction (`future`, feature `IDEA`) · Tactical devices (**fuori scope dichiarato**) | **3** |
+| a cavallo di due release | Core map (con la coda di muri e porte in v0.2) | **1** |
+| non è contenuto di release, è authoring | Modularization | **1** |
+
+> ⚠️ *Questa frase ha sbagliato il conto **due volte**. Diceva «due modi opposti» mentre i due paragrafi
+> che li spiegano coprivano `4 + 3 = 7` righe su nove — Core map e Modularization restavano fuori da
+> entrambi. La correzione elencò i quattro gruppi e continuò a chiamarli «tre». La somma tornava a nove in
+> entrambi i casi, ed è la stessa trappola del conto del catalogo: **un totale che torna non convalida la
+> partizione**. Ora i modi si contano nella tabella invece che nella prosa.*
+
+> ⚠️ **La riga «Core map» diceva `v0.1 ✅ allineato` elencando E23 fra gli owner, e la riga quattro più
+> sotto dichiara E23 **v0.2**.** La stessa tabella usava la stessa epic da due parti della propria
+> partizione: il cluster «core» del kit contiene muri e porte, che su `main` sono v0.2. Non è un dettaglio
+> di etichetta — è la tabella che `D-153` indica come riconciliazione di riferimento, e «allineato» non era
+> misurabile. Trovato in code review.
+
+🔴 **Quattro cluster il kit li mette *dopo* di dove stanno sulla roadmap canonica** — «dopo» riguarda la
+**release**, non lo stato di avanzamento, e i quattro non sono allo stesso stadio:
+
+| Cluster | Epic | Stato reale delle feature |
+|---|:--:|---|
+| Environment | **E8** | **8 su 8 `INTEGRATED`** — `ERTHexSurface` ha nove valori, fuoco/acqua/ghiaccio girano |
+| Interactive map | **E23** | `DESIGNED` — la release è **v0.1** dal 2026-08-17 (`D-160`), non v0.2 né v0.4 |
+| Perception | **E13** | 3 `TESTABLE`, 1 `IMPLEMENTING`, 1 `SPECIFIED` — **zero** `INTEGRATED` |
+| Objectives | **E10** | 1 `RELEASE_READY`, 1 `IMPLEMENTING` — **zero** `INTEGRATED` |
+
+> 🔴 **Questa riga diceva «tutti e tre in gran parte `INTEGRATED`», e reggeva solo per E8.** Misurato sul
+> registry che questa stessa PR rigenera: E13 ed E10 non hanno **nessuna** feature `INTEGRATED`. La tesi non
+> cade — quei cluster restano **v0.1**, quindi il kit li rinvia comunque a release future — ma la prova era
+> più forte del vero, ed è il tipo di frase che il prossimo consolidamento ricopia invece di rimisurare.
+> Trovato in code review.
+
+Tre di questi quattro sono **v0.1**; **Interactive map è v0.2**, e il kit lo mette in v0.4 — indietro di
+due release invece che di quattro, ma indietro. Seguire la mappatura del kit avrebbe **rinviato asset di
+sistemi che il progetto possiede o sta costruendo**, cioè lasciato la board a rappresentare col solo colore
+ciò che il resolver calcola già.
+
+Non è un errore di ambizione della sorgente: è che il kit misura la maturità del **contenuto** e la ladder
+canonica misura quella del **sistema**, e sul contenuto il progetto è più avanti di quanto la sorgente
+sapesse.
+
+> ⚠️ *La prima correzione di questo paragrafo diceva «tutti e quattro lavoro della **v0.1**», e per
+> Interactive map era falso — contraddetto dalla tabella sopra e dalla riga «Core map» che questa stessa PR
+> aveva aggiunto per registrare che E23 è v0.2. Corretta la metà falsa, era rimasta l'altra.*
+
+➡️ **Tre cluster non hanno una release che li possieda, e non per la stessa ragione.** Verticalità e
+distruzione sono feature `IDEA` su `future`; i devices tattici **non sono `future` affatto** — sono **fuori
+scope v0.1 dichiarato** da [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
+§11, che li rinvia a E13/E14 con motivazione registrata. Qui l'ordine del kit è giusto e la release non
+esiste: **si lasciano `future` invece di inventarne una**, ed è la parte di `D-136` che questa tabella
+applica invece di ridiscutere.
+
+> ⚠️ **Nessun tema di release cambia per far tornare questa tabella**, e la sorgente stessa lo vieta:
+> *«non cambiare il tema delle release globali solo per far coincidere questa tabella»*. Dalla **v0.5** in
+> poi i temi canonici sono rete, GAS, dedicated server e hardening — **nessuno è un tema di contenuto**, e
+> un cluster di asset non ha dove atterrarci. È esattamente il motivo per cui le cinque righe centrali del
+> kit non trovano casa: non sono state rifiutate, non c'è la stanza.
+>
+> 🔑 **L'unica release che acquisisce un impegno nuovo è la v1.0**, e non in asset: **E45** è «un gate di
+> produzione, non una release di feature», ed è dove il contratto di ingombro e pivot **si congela** perché
+> l'arte finale possa sostituire il graybox senza cambiare le regole competitive. Il contratto vive in
+> [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md).
+
 > **Numerazione continua.** Le epic proseguono da E18 (ultima della v0.1) senza azzerarsi per release: un
 > riferimento a «E23» resta univoco per sempre. Le due epic **E19** ed **E20** appartengono alla **v0.1** pur
 > nascendo da sorgenti di questa roadmap — vedi [Cosa la v0.1 deve già rispettare](#cosa-la-v01-deve-già-rispettare).
@@ -160,6 +249,23 @@ fissarla (scenario 4 del sorgente).
 
 ### E23 — Muri, porte e interaction graph · P1
 
+> ⛔ **E23 NON È PIÙ DI QUESTA RELEASE — anticipata alla v0.1 il 2026-08-17
+> ([D-160](../decisions/RT_PDR_00_Decision_Log.md)).** L'owner della sua release è
+> [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 e §5, dove i **sette** checkpoint sono dichiarati con lo stato.
+>
+> **Il dettaglio qui sotto resta** e non è duplicato altrove: è la storia dell'epic — `D-065` (la griglia non
+> vincola la geometria del mondo), `D-071` (footprint = cerchio inscritto), `MAP-1` chiusa, `MAP-3` ancora
+> aperta, la mappatura CP → issue → feature di `D-138`, e la correzione su `23.2`. Spostarlo avrebbe
+> duplicato sessanta righe o perso il contesto in cui sono state decise; lasciarlo senza questo banner
+> avrebbe lasciato un documento a dichiarare una release falsa.
+>
+> ⚠️ **Non era una scommessa: metà dell'epic era già dentro la v0.1 quando la decisione è stata presa.**
+> Misurato sul registry, non dedotto: `23.1` è coperto da `RT-FEAT-TOOL-MAP-GEOMETRY` (**v0.1**,
+> `IMPLEMENTING`) e `23.2` da `RT-FEAT-MAP-INTERACTIVE-EDGES` (**v0.1**, `INTEGRATED`, epic **E9**) — la
+> tabella *«Dove sta il lavoro»* più sotto lo dice già con le sue parole, *«già consegnato in v0.1»*. Delle
+> cinque feature che dichiarano `epic: E23`, `RT-FEAT-MAP-INTERACTION-GRAPH` era già passata a `v0.1` col
+> giro di `#833`; `D-160` sposta le altre quattro. Dopo, **nessuna feature di E23 dichiara più v0.2**.
+
 **Tracciata su GitHub**: epic [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324).
 
 **Obiettivo**: muri e porte come **oggetti logici sugli archi**, non come mesh che il gameplay interroga.
@@ -235,7 +341,7 @@ remoto sorgente → bersaglio fuori scope perché *«richiede la privacy dei col
 
 | Release | Epic ospite | Che cosa il dominio vi aggiunge |
 |---|---|---|
-| **v0.2** | `E23` | il grafo è un **dato**: cardinalità, ordine deterministico, validator dei binding |
+| **v0.1** ⬅️ | `E23` | il grafo è un **dato**: cardinalità, ordine deterministico, validator dei binding — epic **anticipata** il 2026-08-17 (`D-160`), quindi il primo gradino di questa scala è nella release corrente |
 | **v0.3** | `E27` — Percezione completa | la relazione ha un **pubblico**: `Known`/`Unknown` per squadra, `Controller: ???`, discovery |
 | **v0.4** | `E30` — Classe di mappa Operations | **scala**: molte strutture, gate ampi, churn di path cache, leggibilità su mappe grandi |
 | **v0.5** | `E40` — Il turno simultaneo in rete | la privacy diventa **verificabile**: stato autoritativo, canary di leak, late join e reconnect |

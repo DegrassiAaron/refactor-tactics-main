@@ -40,6 +40,36 @@ enum class ERTMapClass : uint8
  * Le celle sono conservate in un array con ORDINE STABILE (Layer, X, Y); una cache Id->indice velocizza l'accesso
  * runtime senza essere il formato autorevole. Nessun Actor per cella. Coerente con gli invarianti (determinismo).
  */
+/**
+ * Una sorgente comanda N bersagli (CP 23.4, #833). Cardinalita' dichiarata: `1->1` e `1->N`.
+ *
+ * ⚠️ **Lo schema regge `N->M` anche se la semantica e' `1->N`, ed e' deliberato**: `INT-5` — la composizione
+ * di piu' sorgenti sullo stesso bersaglio (AND/OR/priorita') — e' aperta in `OPEN_DECISIONS.md`. Il dato puo'
+ * quindi *rappresentare* due sorgenti che nominano lo stesso bersaglio, e la validazione lo **accetta**; a
+ * rifiutarlo e' la risoluzione, con un reason code esplicito. Se lo rifiutasse la validazione, `INT-5`
+ * riceverebbe una risposta dall'implementazione invece che da una decisione.
+ */
+USTRUCT(BlueprintType)
+struct FRTInteractionBinding
+{
+	GENERATED_BODY()
+
+	/** StableId (CP 23.3) della struttura che COMANDA. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	FName SourceId;
+
+	/**
+	 * StableId dei bersagli, **nell'ordine di applicazione**. L'ordine e' quello scritto qui: esplicito,
+	 * deterministico, e non l'ordine di iterazione di una `TMap` (invariante n. 3).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TArray<FName> TargetIds;
+
+	FRTInteractionBinding() = default;
+	FRTInteractionBinding(FName InSourceId, const TArray<FName>& InTargetIds)
+		: SourceId(InSourceId), TargetIds(InTargetIds) {}
+};
+
 UCLASS(BlueprintType)
 class REFACTORTACTICS_API URTHexMapAsset : public UPrimaryDataAsset
 {
@@ -135,6 +165,36 @@ public:
 	/** Transizioni esplicite (archi verticali/speciali): scale, rampe, ponti, tunnel, ascensori. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<FRTHexEdge> Transitions;
+
+	/**
+	 * Grafo di interazione `Source -> Target` (CP 23.4, #833): quale struttura comanda quali altre.
+	 *
+	 * E' un DATO d'asset e non codice: nessuna coppia `S1 -> D1` vive in C++ ne' in un riferimento Blueprint.
+	 * Sorgente e bersagli si nominano con gli **StableId di CP 23.3** — questa feature non inventa un secondo
+	 * sistema di identita', e infatti `ResolveInteractionTargets` passa da `FindDoorEdges`.
+	 *
+	 * ⚠️ L'array e' l'ordine AUTOREVOLE dei bersagli: `TargetIds` si applica come e' scritto, mai nell'ordine
+	 * di iterazione di una `TMap`/`TSet` (invariante n. 3). Chi rieditasse l'asset cambierebbe l'ordine di
+	 * applicazione, ed e' voluto: e' una scelta d'autore, non un dettaglio d'implementazione.
+	 *
+	 * ⚠️ **`N` non ha un tetto, ed e' dichiarato invece che lasciato scoprire.** Il DoD di #833 chiede l'uno o
+	 * l'altro: qui non c'e' limite perche' non c'e' un fallimento MISURATO che ne motivi uno. Cio' che la scala
+	 * poteva rompere e' l'ORDINE, e quello e' verificato — `InteractionGraph.OrderHoldsAtScale` prova quaranta
+	 * bersagli e pretende la sequenza dichiarata. Un tetto scritto senza un fallimento che lo giustifichi
+	 * rifiuterebbe asset legittimi in nome di una costante che nessuno sa spiegare.
+	 *
+	 * 🔴 **Il COSTO pero' non e' lineare, e questa riga lo diceva.** Affermava che «ne' la risoluzione ne'
+	 * l'applicazione degradano con la cardinalita', essendo entrambe scansioni lineari»: falso, e trovato da una
+	 * code review. `ApplyInteraction` chiama la commutazione **una volta per bersaglio**, e ogni chiamata
+	 * scandisce l'intero array delle celle due volte (gruppo + commutazione), quindi il costo va come
+	 * `bersagli × celle × porte`; la risoluzione paga `TargetIds × Bindings` per il controllo dei bersagli
+	 * contesi, piu' una scansione completa per ogni `FindDoorEdges`. La decisione di non mettere un tetto resta,
+	 * perche' poggia sull'assenza di un fallimento e non sul costo — ma il costo si dichiara invece di
+	 * affermarne uno comodo e non misurato. Se un giorno una mappa grande lo rendera' visibile, il rimedio e'
+	 * un indice, non un limite alla cardinalita' che un autore puo' scrivere.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TArray<FRTInteractionBinding> InteractionBindings;
 
 	/** Aggiunge o aggiorna (per Id) una cella; incrementa la revisione. */
 	void AddOrUpdateCell(const FRTHexCellData& Cell);

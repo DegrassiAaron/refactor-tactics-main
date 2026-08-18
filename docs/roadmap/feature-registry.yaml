@@ -115,6 +115,7 @@ features:
       - Visual.Core.PhaseOrder
     wiki_refs:
       - wiki:struttura-del-round
+      - wiki:il-turno-simultaneo
       - wiki:esempio-di-round
     pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
@@ -169,6 +170,8 @@ features:
     scenarios:
       - RT_Showcase_Relay_v01
     wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
       - wiki:regole-fondamentali
     last_verified:
       date: 2026-08-16
@@ -220,6 +223,8 @@ features:
     scenarios:
       - Visual.Core.PhaseOrder
     wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
       - wiki:regole-fondamentali
     last_verified:
       date: 2026-08-10
@@ -260,7 +265,9 @@ features:
     tests:
       - RefactorTactics.Replay.*
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-10
       commit: b9c096c
@@ -306,6 +313,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -344,6 +352,12 @@ features:
       - RT-FEAT-CORE-TURNLOG
       - RT-FEAT-REACTION-FAST
       - RT-FEAT-MATCH-PACING
+      # ➕ **2026-08-17 (D-155)**: non e' una dipendenza di comodo. `D-050` dichiara un bank **per
+      # giocatore** e nel percorso della Decision Window non esiste nessun giocatore —
+      # `AskReactionDecision` prende un `OwnerUnitId` e un `bIsBotControlled` letto da `ARTUnit`.
+      # Il soggetto del bank lo porta CP 19.3 su questa feature: senza, il bank finisce attaccato
+      # all'unita' e `D-050` e' violata dal primo commit che lo implementa.
+      - RT-FEAT-MATCH-FORMAT
     owner_specs:
       - docs/gameplay/spec-decision-time-bank.md
       - docs/decisions/adr-0004-finestre-di-reazione.md
@@ -359,6 +373,13 @@ features:
       # cioe' i `golden` di spec-decision-time-bank.md §13 meno i due che ESTENDONO un test C++ esistente
       # (`OverwatchTimeoutIsHold`, `HoldKeepsReactionArmed`). `PrivacyNoBankLeak` e' uscito: e' `funzionale`
       # e vive in M10, non in v0.1.
+      # ➕ **Da dieci a TREDICI il 2026-08-17** (D-156, D-157): il conteggio e' la somma delle righe marcate
+      # `harness` nella tabella §13 della spec, non un numero incrementato a mano — misurato riparsando la
+      # tabella. Le tre nuove coprono il carico di controllo (§3.4) e l'invariante 1 della Preferred
+      # Response (§4.4). Le altre quattro voci nate nello stesso giro NON entrano qui: tre sono `estende`
+      # (un test C++ esistente le ospita, duplicarle come file darebbe due verita' sullo stesso
+      # comportamento) e `QuickConfirmReachableWithinGrace` e' `funzionale · UI` — la preselezione e' uno
+      # stato di interfaccia, e il TurnLog registra la risposta committata, non cio' che era evidenziato.
       - planned:
           - Spec.TimeBank.GraceDoesNotDrain
           - Spec.TimeBank.DrainsAfterGrace
@@ -370,8 +391,12 @@ features:
           - Spec.TimeBank.ExhaustionKeepsResponsesLegal
           - Spec.TimeBank.ReplayReadsRecordedBank
           - Spec.TimeBank.PacketOrderInvariant
+          - Spec.TimeBank.ControlLoadScalesInitialBank
+          - Spec.TimeBank.ControlLoadNeverExtendsWindow
+          - Spec.TimeBank.TimeoutIgnoresPreferredResponse
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest.
       La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.
@@ -384,6 +409,40 @@ features:
       ADR-0004 §Revisione — cap per turno e `MaxPromptsPerReaction = 1` — restano validi e
       compatibili col bank. CP 14.8 **non precede** CP 14.5/14.6: la prima misura arriva comunque
       prima della taratura. Nessun codice: la feature nasce come specifica.
+      **2026-08-17 — consolidamento multi-Hero / Preferred Response** ([D-156], [D-157]; referto
+      `plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md`). Tre aggiunte alla spec e
+      **zero** sistemi nuovi: *(1)* il bank scala col carico di controllo con `LoadFactor` **dentro** la
+      derivazione di `D-056` — il fattore moltiplicativo proposto dal kit e' stato respinto perche'
+      rimetteva fuori formula il numero magico che quella derivazione aveva tolto; *(2)*
+      `FastReactionDuration` **non** cresce col numero di Hero, ed e' ora un invariante scritto in §1.2;
+      *(3)* `PreferredResponse` e' una dichiarazione di planning che vive accanto a
+      `FRTArmedOverwatch::Condition` ([D-109]) e ne e' l'opposto — quella **riduce** le
+      `AllowedResponses`, questa non le tocca.
+      ✅ **2026-08-17 — due gate chiusi, entrambi decisioni d'autore e zero codice.**
+      **[D-166]**: la categoria di log e' **`Decision`**, distinta da `ReactionDecision`. Prevale
+      `spec-turnlog.md` §4.2, che lo prescriveva dal 2026-08-09 (`#361`); la riga **75** di
+      `DOC_CONFLICT_MATRIX.md` passa da `CONFLICT` a `CONFIRMED` e la voce in `OPEN_DECISIONS` si chiude.
+      La ragione non era il nome ma **`Amount`**, che ha significato per categoria: danni sotto
+      `ReactionDecision`, millisecondi sotto `Decision` — l'argomento sta nell'owner (§10.1) e non si duplica
+      qui. E' il caso particolare di [D-162], *una categoria, un enum*. Il formato serializzato **non cambia
+      versione**.
+      ⚠️ **Resta da scriverla in TRE siti, non uno**: l'enum `ERTDecisionOutcome`, la voce in coda a
+      `ERTLogCategory`, e il `case` in `OutcomeEnumForCategory` — senza il terzo lo scenario fallisce il
+      CARICAMENTO, non l'assertion, ed e' successo con `Predictive` il 2026-08-16. Lavoro di CP 14.8.
+      ⚠️ **Conteggio delle voci**: una finestra di reazione ne produce **tre** — una `ReactionDecision` piu'
+      le due di `Decision` — e `Spec.TimeBank.ReplayReadsRecordedBank`, gia' fra i `planned`, asserira'
+      contro questa forma.
+      **[D-167]**: `TB-10` chiusa con la risposta che **non cambia niente** — le finestre dello stesso
+      giocatore restano in serie e il cap aggregato lo fa il bank. La misura sta in `ApplyReactionDecision`,
+      che fra le sue tre mutazioni chiama **`StopUnitInPlace` sul mover**: in un batch la seconda decisione
+      verrebbe presa prima di sapere che la prima ha fermato il bersaglio.
+      ⚠️ **La parte operativa e' su un'ALTRA issue**: `TB-10` lascia un vincolo su **CP 14.6** (`#166`) — il
+      campione di pacing deve includere il caso a **due unita' armate dello stesso giocatore**
+      (`2 x MaxPromptsPerReaction x 3,0 s` = 18 s in un turno), o taratura e baseline descrivono un gioco
+      che la v0.1 non gioca.
+      ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**: `docs/technical/test-manuali-pie.md`
+      appartiene a un'altra track in `parallel-batch.yaml` e per `D-139` si aspetta il suo owner. Il testo
+      pronto sta nel DoD di #319 e in §11 della spec: e' un debito **nominato**, non una dimenticanza.
 
   - feature_id: RT-FEAT-CORE-PLAYBACK
     title: Playback della risoluzione
@@ -513,6 +572,7 @@ features:
       - Visual.Map.MultiLevel
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
       date: 2026-08-08
@@ -524,7 +584,7 @@ features:
     title: Standability derivata da anchor, footprint e clearance
     area: Map
     kind: gameplay
-    release: v0.2
+    release: v0.1          # D-160: E23 anticipata alla v0.1
     priority: P2
     status: DESIGNED
     gates:
@@ -561,6 +621,7 @@ features:
           - Spec.Map.NinetyDegreeCornerBakesCorrectly
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >-
       La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.
     notes: >
@@ -575,7 +636,7 @@ features:
     title: Validità della transizione distinta da quella della cella
     area: Map
     kind: gameplay
-    release: v0.2
+    release: v0.1          # D-160: E23 anticipata alla v0.1
     priority: P2
     status: DESIGNED
     gates:
@@ -606,6 +667,7 @@ features:
           - Spec.Map.DoorOpensTransition
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >-
       Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.
     notes: >
@@ -621,7 +683,7 @@ features:
     title: Identita' stabile di una struttura attraverso cook, scenari e replay
     area: Map
     kind: gameplay
-    release: v0.2
+    release: v0.1          # D-160: E23 anticipata alla v0.1 — CP 23.3, #832 e' CLOSED
     priority: P1
     status: DESIGNED
     gates:
@@ -668,7 +730,7 @@ features:
     title: "Interaction graph: la relazione sorgente -> bersaglio e' un dato"
     area: Map
     kind: gameplay
-    release: v0.2
+    release: v0.1
     priority: P1
     status: DESIGNED
     gates:
@@ -997,6 +1059,7 @@ features:
       - Spec.Facing.StationaryDeclaredRotationApplies
     wiki_refs:
       - wiki:facing-e-direzionalita
+      - wiki:facing-e-direzionalita-scheda-dati
     # 🔴 Questa nota diceva «Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui
     # descrive come funzionera', non come funziona oggi», e il 2026-08-13 era falsa da tempo — contraddetta
     # dai gate della sua stessa voce (`scenario: done`, `automation: done`, `runtime: partial`) e da nove
@@ -1343,6 +1406,7 @@ features:
       - Visual.Combat.FallbackTargetMoved
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
       - wiki:collisioni
     last_verified:
       date: 2026-08-08
@@ -1387,7 +1451,11 @@ features:
       - RefactorTactics.Actions.Move
       - RefactorTactics.Actions.BasicAttack
       - RefactorTactics.Actions.Guard
-      - RefactorTactics.Actions.Interact.IsInertUntilImplemented
+      # `Actions.Interact.IsInertUntilImplemented` non esiste piu' (2026-08-17, [D-148]): il test era
+      # scritto per CADERE il giorno in cui l'azione avesse un effetto, e quel giorno e' arrivato. Al suo
+      # posto le due proprieta' che ora sono vere, ciascuna con la propria mutazione:
+      - RefactorTactics.Actions.Interact.DeclaresOpenDoor
+      - RefactorTactics.Actions.Interact.ArmsEdgeTargeting
       # `Actions.Activate.IsInertUntilImplemented` non esiste piu' (#199): l'azione e' uscita dal
       # catalogo (D-014 + D-025), quindi «non fa nulla» non e' piu' la proprieta' da verificare.
       # Al suo posto, dal D-134: sparita dal catalogo E non piu' reindirizzata da nulla.
@@ -1432,13 +1500,42 @@ features:
       - Spec.Brace.PushBeyondGuardThreshold
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     wiki_note: >-
       Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`.
-      `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non
-      esiste ancora.
+      `Brace` funziona ma come reazione; `Interact` dichiara l'apertura della porta ma non ha ancora
+      un produttore lato giocatore; di `Overwatch` il resolver costruisce le opportunity, e quello
+      che manca è la UI con cui rispondere.
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      # Rimisurata il 2026-08-17: il `wiki_note` era falso in DUE clausole su tre, ed e' il difetto
+      # che il consolidamento della Wiki ha aperto come `GAP-2` guardandone una sola. La forma del
+      # difetto conta piu' delle due righe: il `notes:` qui sotto e' stato aggiornato da D-148 lo
+      # stesso giorno, il `wiki_note` no — la nota INTERNA si corregge quando qualcuno lavora la
+      # feature, quella PUBBLICATA invecchia da sola, e nessun gate confronta le due.
+      #   · «`Interact` e' a catalogo **senza effetto**»: falso, in `RTCatalogLibrary.cpp` la riga
+      #     `Catalog.Add(ShippedAction(TEXT("Action.Interact") ...))` porta un `FRTActionEffectSpec`
+      #     con `ERTActionEffect::SetDoorState` verso `ERTHexDoorState::Open` ([D-148] + [D-151]).
+      #   · «`Overwatch` non esiste ancora»: falso, **e anche il `notes:` lo era** — diceva «nessun
+      #     ramo del resolver lo esegue ... il consumatore e' E14.5». CP 14.5 e' chiusa: misurata
+      #     l'unica chiamata a `BuildOverwatchTriggers` fuori dai test, dentro
+      #     `ARTTurnManager::ResolveReactionBoundary`.
+      #     Era la contraddizione con `RT-FEAT-REACTION-OVERWATCH`, verificata il 2026-08-16.
+      # 🔴 **Le due righe qui sopra citavano `RTTurnManager.cpp` alla riga 5257 e `RTCatalogLibrary.cpp`
+      # alla 819 — scritte qui senza i due punti, perche' un audit dei puntatori le rileggerebbe come
+      # riferimenti vivi e le segnalerebbe rotte ogni volta; sono citazioni di cio' che era, non indirizzi —
+      # e
+      # una code review le ha falsificate lo stesso giorno in cui sono state scritte.** Il primo
+      # puntatore era VERO quando l'ho misurato (`a3affe04`, file di 6002 righe) ed e' morto nel merge
+      # che ho fatto io sedici minuti dopo: lo split del Blast ha portato via 1253 righe, il file ne ha
+      # 4875 e la riga 5257 **non esiste piu'**. Il secondo non e' mai stato giusto: la 819 e' il
+      # COMMENTO che afferma la dichiarazione, non la dichiarazione — chi andava a verificare trovava
+      # una prosa che ripete la tesi invece del codice che la prova, ed e' il modo piu' insidioso di
+      # sbagliare una citazione, perche' a colpo d'occhio conferma. Entrambi ora citano il simbolo,
+      # come vuole la regola del repository: un numero di riga non fallisce mai, si limita a mentire.
+      # ⚠️ Rimisurato lo STATO delle tre azioni, non i gate: test e scenari non sono stati rieseguiti
+      # in questo giro, e restano `partial` come li aveva lasciati il 2026-08-08.
+      date: 2026-08-17
+      commit: a3affe04
     notes: >
       Delle sette azioni generiche di D-025, **quattro sono complete e testate**
       (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la
@@ -1447,19 +1544,33 @@ features:
 
         · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come
                     azione e si comporta come reazione. Ambiguità di modello, non di stato.
-        · `Interact` è **a catalogo senza effetto dichiarato** (`RTCatalogLibrary.cpp:281`) e
-                    nessun ramo del resolver la esegue: un dato che nessuno consuma, il difetto che
-                    questo progetto ha già pagato quattro volte. Lo porta E10.1 insieme ad
-                    `Activate`. Dalla issue `#273` l'inerzia è **fissata da un test**
-                    (`Actions.Interact.IsInertUntilImplemented`), scritto per **cadere** il giorno
-                    in cui l'effetto arriva: verificato per mutazione il 2026-08-09 — dando un
-                    effetto a `Interact` cade quel test e solo quello.
-        · `Overwatch` **non è ancora un'azione**, ma dal 2026-08-10 non è più «non esiste»: E14.4
-                    ha portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
-                    micro-step. Resta fuori dal runtime della partita per la stessa ragione di
-                    `Interact` — nessun ramo del resolver lo esegue — e il consumatore è E14.5.
-                    La riga precedente citava un `grep` che oggi restituisce codice: aggiornata
-                    perché una nota che descrive un'assenza smette di essere vera senza avvisare.
+        · ~~`Interact` è **a catalogo senza effetto dichiarato**~~ — **superato il 2026-08-17,
+                    [D-148]**: `Action.Interact` dichiara `ERTActionEffect::SetDoorState` verso `Open`
+                    ([D-151]), e il test dell'inerzia è stato sostituito da `Interact.DeclaresOpenDoor`
+                    più `Interact.ArmsEdgeTargeting`. Il test vecchio era scritto per cadere quel
+                    giorno, ed è caduto: la nota che lo citava sarebbe rimasta vera in forma e falsa
+                    in sostanza. L'anello che mancava era **solo la dichiarazione** — effetto,
+                    trasporto e raccolta esistevano già (`RTHexDoorLibrary::SetDoorState`,
+                    `RTTurnManager` → `bChangesDoor`, `RTHexCombatLibrary` su `FirstDoorEdge`).
+                    ⚠️ Resta fuori dal runtime **il produttore lato giocatore**: `HandleTargetEdge`
+                    esiste (`#737`) ma nessun test lo lega a `Interact`, e quel test vive in
+                    `RTPointerInteractionTests.cpp`, non assegnato (D-139).
+        · `Overwatch` **non è ancora un'azione**, ma non è nemmeno più fuori dal runtime: E14.4 ha
+                    portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
+                    micro-step, e ~~«nessun ramo del resolver lo esegue, il consumatore è E14.5»~~
+                    è **superato il 2026-08-17**: CP 14.5 è chiusa, e la chiamata — l'unica fuori
+                    dai test — vive in `ARTTurnManager::ResolveReactionBoundary`. Quello che manca
+                    ora è il **giocatore**: la finestra si apre e finisce nel TurnLog, ma la UI per
+                    rispondere è CP 14.6.
+                    Questa riga è stata riscritta **tre** volte dallo stesso difetto — descriveva
+                    un'assenza, e un'assenza smette di essere vera senza che nulla diventi rosso.
+                    La prima volta citava un `grep` che aveva iniziato a restituire codice; la
+                    seconda nominava un checkpoint che nel frattempo era stato chiuso; la terza —
+                    scritta per correggere le prime due — puntava a `RTTurnManager.cpp` alla riga 5257, ed è
+                    morta **nel merge dello stesso lavoro che la introduceva**, quando lo split del
+                    Blast ha accorciato il file di 1253 righe. Un puntatore a lavoro **futuro**
+                    invecchia come uno a lavoro assente, e un numero di riga invecchia più in fretta
+                    di entrambi: qui è sopravvissuto sedici minuti.
 
       I gate restano `partial` perché la feature davvero non è completa; `completed_by` dice
       **chi** la completa, così la stessa mancanza non viene contata due volte.
@@ -1508,6 +1619,7 @@ features:
       # scenario e' passato a `RT-FEAT-ACTION-SPATIAL-TRANSFER`, che e' cio' che dimostra davvero.
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1685,6 +1797,7 @@ features:
       - Combat.MoveIsFullWithoutSlow
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-09
       commit: 8a43866
@@ -1752,6 +1865,7 @@ features:
       - Spec.Movement.DashDiscardsPlannedMove
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
       - wiki:collisioni
     pie_refs: [PIE-HEXPLAY-4b, PIE-HEXPLAY-6c]
     last_verified:
@@ -1795,6 +1909,7 @@ features:
       - Spec.ActionEconomy.CooldownBlocksWithSlotFree
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1847,6 +1962,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     notes: >
       🔴 **Decisa NO il 2026-08-12** — [D-114](../decisions/RT_PDR_00_Decision_Log.md), issue #604.
       L'economia del turno **resta a slot**: due azioni leggere non valgono una pesante, e senza una
@@ -1901,6 +2017,7 @@ features:
           - Spec.ActionEconomy.PathLengthChangesEffect
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     notes: >
       ✅ **`AE-2` ACCETTATA il 2026-08-12** — [D-116](../decisions/RT_PDR_00_Decision_Log.md), issue #606.
       Il profilo di movimento determina la **legalita'** e l'efficacia di un'azione. Modello a **soglia**
@@ -1968,6 +2085,7 @@ features:
           - Spec.ActionEconomy.OverwatchReservesMovementSlot
     wiki_refs:
       - wiki:planning-e-coordinazione
+      - wiki:planning-e-coordinazione-scheda-dati
     notes: >
       **Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque
       modello di economia. ✅ **La fetta pura e' atterrata il 2026-08-12**:
@@ -2035,6 +2153,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2129,6 +2248,7 @@ features:
       - Spec.Predictive.WhiffOnEmptyCell
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
       - docs/characters/v0.1/wraith.md
     last_verified:
       date: 2026-08-10
@@ -2245,7 +2365,9 @@ features:
       # Da `planned` a reale il 2026-08-12: le due ragioni che lo tenevano fuori sono cadute nello stesso
       # giorno — la chiave `loadout` (#602) e il produttore di `PlannedReactionAbility` (#601).
       - Spec.Reaction.AnchorCancelsPush
-    wiki_refs: []
+    wiki_refs:
+      - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-11
       commit: 891534c
@@ -2327,6 +2449,7 @@ features:
       - Visual.Reaction.Interposition
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
       - docs/characters/v0.1/riktor.md
       - docs/characters/v0.1/wraith.md
     last_verified:
@@ -2385,6 +2508,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     last_verified:
       date: 2026-08-15
       commit: 53ec531f
@@ -2474,6 +2598,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
       date: 2026-08-15
@@ -2581,6 +2706,12 @@ features:
       - RefactorTactics.Overwatch.SameReactionTwiceHasDistinctIds
     scenarios:
       - Spec.Overwatch.HoldThenFire
+      # ➕ **`#583`, 2026-08-17.** L'altra meta' di `HoldThenFire`, e la coppia non e' ridondante: quello
+      # dimostra la finestra che si APRE (due risposte, `HOLD` poi `FIRE`), questo dimostra la finestra che
+      # NON si apre — la condizione dichiarata di [D-109] riduce le risposte a una sola e il commit e'
+      # immediato. E' anche l'unico dei due che gira senza `DecisionBoundary`, perche' il regime `<= 1` e'
+      # coperto da `Reaction`: il collasso non ha una finestra a cui chiedere il permesso.
+      - Spec.Overwatch.ConditionCollapsesToHold
       # Dichiarati dal triage del 2026-08-10 (`plans/baseaction-signatures-spec-panel-2026-08-10.md`):
       # sono i tre scenari `CHAR-BASE-*` del sorgente che NON erano gia' coperti, rinominati sulla
       # convenzione reale. `CHAR-BASE-006` non entra: **e'** `Spec.Overwatch.HoldThenFire`, gia' sopra.
@@ -2592,6 +2723,7 @@ features:
     wiki_refs:
       - wiki:overwatch
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** apre la finestra e la registra nel TurnLog dal 2026-08-14, ma nessun giocatore puo' ancora rispondere: la UI e' CP 14.6.
     last_verified:
@@ -2744,6 +2876,7 @@ features:
           - Spec.Brace.GlanceOffersOnlyLegalSides
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       `Hold Ground` — la risposta base — funziona gia' in partita; i profili d'eroe che ne dichiarano altre no.
     last_verified:
@@ -2846,6 +2979,7 @@ features:
           - Spec.Clash.Determinism
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       Decisa nella forma (D-048), **non implementata** e con la grammatica ancora in playtest.
     last_verified:
@@ -2896,6 +3030,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
       date: 2026-08-08
@@ -3458,6 +3593,7 @@ features:
       - Spec.Perception.AllySpottingLetsYouShoot
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     wiki_note: >-
       Modello deciso per la v0.1 e **implementato** con CP 13.2: la conoscenza di squadra decide chi si
       puo' bersagliare. La coppia di scenari e' la specifica eseguibile del gate.
@@ -3511,6 +3647,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3556,6 +3693,7 @@ features:
       - Spec.Perception.HeardNotSeen
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-12
       commit: 9a92375
@@ -3614,6 +3752,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -4109,19 +4248,47 @@ features:
       - docs/technical/progettazione-hud.md
       - docs/technical/brief-planning-visuale.md
     issues: [78]
+    # ⬆️ **Da 2 a 9 test il 2026-08-18, con la PR #1172.** I due che c'erano non sono sbagliati — coprono la
+    # privacy dell'intento, che è metà di questa feature — ma **nessuno dei due tocca la certezza**, che è
+    # ciò che il titolo promette. Lo scarto era già stato misurato in `parallel-batch.yaml` e lasciato «a chi
+    # riapre la track»: i test di CP 11.2 stanno tutti sotto `RefactorTactics.UI.`, che il pattern
+    # `RefactorTactics.Reactions.*` non raggiunge, quindi il DoD poteva diventare verde su GitHub e la
+    # feature restare muta nelle viste generate.
     tests:
       - RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed
       - RefactorTactics.Reactions.IntentViewSkipsDeadAndKeepsOrder
+      # La classificazione: quale campo del piano decide quale livello.
+      - RefactorTactics.UI.IntentCertaintyClassification
+      # Il DTO non popolato non afferma nessun livello (`Unknown = 0`, memoria azzerata compresa).
+      - RefactorTactics.UI.IntentViewDefaultsToUnknown
+      # Due scene che differiscono SOLO per i piani nemici danno lo stesso livello.
+      - RefactorTactics.UI.NoEnemyIntentExposed
+      # La resa: i tre livelli sono distinguibili a due a due, e seguono il campo invece dei flag.
+      - RefactorTactics.UI.IntentCertaintyRendering
+      - RefactorTactics.UI.ArmedReactionRendering
+      # Cio' che il giocatore legge: il `?` del piano, quello della reazione armata, lo scatto.
+      - RefactorTactics.UI.IntentLabelGrammar
+      # La geometria del tratteggio, col tetto che impedisce la regressione da proiezione degenere.
+      - RefactorTactics.UI.IntentDashSegments
     scenarios: []
     wiki_refs:
       - wiki:come-si-gioca
     pie_refs: [PIE-V01-INTENT]
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-18
+      commit: 0accdd4
     notes: >
-      Il filtro per squadra esiste ed è testato (confermato / previsto / incerto arrivano da lì),
-      ma la resa a schermo dei tre livelli è dentro CP 11.2, non chiuso.
+      Il filtro per squadra esiste ed è testato, e dal 2026-08-18 la resa a schermo dei tre livelli
+      esiste: `ARTHUD::ComposeIntentCertaintyStyle` traduce il livello in peso del tratto, densità del
+      tratteggio e `?`, e `ComposeIntentLabel` compone l'etichetta. La classificazione resta del
+      simulatore — la HUD legge `FRTIntentView::Certainty` e non la ricalcola, con un test che lo pinna
+      su una vista deliberatamente contraddittoria.
+      ⚠️ La gradazione NON passa dall'opacità: `AHUD::DrawLine` finisce in `FBatchedElements::AddLine`,
+      che forza `OpaqueColor.A = 1`, quindi su una linea di Canvas l'alpha è inerte. Chi tocca questa
+      resa lo sappia prima di provarci.
+      ⏳ Resta `PIE-V01-INTENT`, che è verifica umana e appartiene alla track `playtest`. E resta fuori
+      dalla v0.1 l'**icona di squadra** che la grammatica assegna al livello «previsto»: `ARTHUD` è un
+      Canvas senza percorso per le icone del catalogo, e quel pezzo appartiene al layer widget (#613).
 
   - feature_id: RT-FEAT-UI-WARNINGS
     title: Avvisi di collisione, fuoco amico e risorse
@@ -4274,7 +4441,7 @@ features:
     title: "Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio"
     area: UI
     kind: ui
-    release: v0.2
+    release: v0.1          # D-160: E23 anticipata alla v0.1
     priority: P2
     status: DESIGNED
     gates:
@@ -4350,7 +4517,8 @@ features:
       - RefactorTactics.Scenario.ListIdsFromFiles
     scenarios:
       - Movement.Basic
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -4626,6 +4794,90 @@ features:
       misura di una feature `INTEGRATED` che non e' in lavorazione qui, e il rischio di sbagliarla —
       lasciando scoperti Player, Seek, Producer o Verifier — supera il costo di due righe che si
       sovrappongono. Va ridiscusso quando `RT-FEAT-REPLAY-ARCHIVE` verra' toccata per altro.
+
+  - feature_id: RT-FEAT-UI-GRAYBOX-KIT
+    title: Graybox Kit — contratto di ingombro, pivot e presentazione degli oggetti di mappa
+    area: UI
+    kind: ui
+    release: v0.1
+    priority: P2
+    status: DESIGNED
+    gates:
+      # L'owner del modello esiste da `D-152`: tassonomia, pivot, volume, grammatica degli stati.
+      # `partial` e non `done` perche' quattro domande restano aperte (`GBX-1..4`) e due di esse
+      # — l'inset e le soglie di integrita' — sono numeri che il documento si vieta di inventare.
+      spec: partial
+      # Nessun dato: e' voluto e non e' un ritardo. La tassonomia e' un VOCABOLARIO, non un enum
+      # (`D-152`), e le classi non entrano in niente di serializzato. `na` sarebbe falso pero':
+      # il Cell Placement Volume avra' bisogno di un dato d'editor per l'inset quando `GBX-1` chiude.
+      data: todo
+      # Zero: nessun asset graybox di mappa esiste in `Content/`, e il volume non e' implementato.
+      runtime: todo
+      # Presentazione e authoring: non produce voci in nessuna delle sette `ERTLogCategory`.
+      log_debug: na
+      # 🔴 L'oracolo di «e' leggibile» non esiste nell'harness e non va simulato contando ferite.
+      # Le verifiche sono di classe C — manuali — e vivono nel registro PIE.
+      automation: na
+      scenario: na
+      ui_wiki: partial
+      packaged: todo
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: E21
+      checkpoints: []
+    dependencies:
+      - RT-FEAT-UI-BOARD-GRAMMAR
+      - RT-FEAT-MAP-COVER
+      - RT-FEAT-MAP-INTERACTIVE-EDGES
+      - RT-FEAT-TOOL-MAP-EDITOR
+    owner_specs:
+      - docs/technical/spec-graybox-placement-contract.md
+      - docs/technical/asset-map.md
+    # 1094 le quattro domande aperte (`GBX-1..4`) · 1095 la seduta U25 (volume + scena di validazione) ·
+    # 1096 le voci PIE, che sono bloccate da `D-139` e non da mancanza di contenuto.
+    issues: [1094, 1095, 1096]
+    tests: []
+    scenarios: []
+    wiki_refs:
+      - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
+    wiki_note: >
+      La pagina spiega che la griglia non vincola i muri — cioe' il principio da cui discende
+      `EdgeBound`. L'ingombro degli asset che stanno sulla griglia non e' spiegato da nessuna parte.
+    last_verified:
+      date: 2026-08-17
+      commit: 9677bbd4
+    notes: >
+      **Estende `RT-FEAT-UI-BOARD-GRAMMAR`, non la duplica**: quella possiede la grammatica delle
+      **celle** (colore + forma, `D-146`), questa quella degli **oggetti** che ci stanno sopra, dove
+      il secondo canale e' la geometria. Owner del modello: `spec-graybox-placement-contract.md`.
+
+      **La separazione che tiene la feature onesta** e' fra *quanto grande posso modellare un asset*
+      (questo contratto, `EditorOnly`) e *dove un'unita' ci sta in piedi* (`RT-FEAT-MAP-STANDABILITY`,
+      CP 23.6, dato cotto). Sono due numeri simili con owner diversi: confonderli creerebbe il secondo
+      owner del clearance, che e' il difetto che quest'area paga piu' caro.
+
+      ⚠️ **`epic: E21` e non un'epic nuova** (`D-153`): E21 e' «Presentazione e leggibilita'» della
+      v0.1 ed e' l'unica epic il cui DoD non e' chiudibile in automation — la stessa condizione di
+      questo contratto. `checkpoints: []` perche' il lavoro esecutivo NON e' un checkpoint di E21: si
+      innesta su owner gia' esistenti (E23 per muri/porte, E47 per la board, E15 per il Rele',
+      E45 per il freeze del contratto), ed e' esattamente cio' che `D-153` decide.
+
+      🔴 **Sette dei diciannove elementi del catalogo sono `DEFER`, e tre dipendono da feature
+      `IDEA` su release `future`** (`RT-FEAT-MAP-STRUCTURAL`, `RT-FEAT-MAP-VERTICALITY`). Il kit
+      «completo» non e' raggiungibile in v0.1, e non e' un ritardo: sette voci su diciannove descrivono
+      sistemi che il progetto non ha ancora deciso di costruire. **Due** dei sette sono
+      fuori scope v0.1 dichiarato da CP 10.1 §11 — la piattaforma mobile e la valvola — e quest'ultima e' il
+      caso limite, perche' il kit la mette fra i diciannove «v0.1» mentre la spec la esclude con
+      motivazione registrata.
+
+      ⚠️ **Nessun gate difende questo contratto oggi**, ed e' dichiarato invece che sottinteso: e' la
+      stessa condizione in cui `D-146` ha lasciato la ridondanza colore+forma. Le voci PIE non sono
+      state scritte perche' `test-manuali-pie.md` e' **assegnato a un'altra track** in
+      `parallel-batch.yaml` — per `D-139` si aspetta l'owner che lo tiene OGGI. ⚠️ Qui non c'e' un nome
+      di proposito: il proprietario e' cambiato **tre volte** il 2026-08-17 e il permesso mai. Il
+      contenuto delle voci vive nella issue.
 
   - feature_id: RT-FEAT-UI-BOARD-GRAMMAR
     title: Grammatica visiva della board — colore e forma, mai solo il colore
@@ -5071,8 +5323,32 @@ features:
     tests: []
     scenarios:
       planned:
-        - Team.Conflux.FluxRiva.ConductiveFlood
-        - Team.Constrine.BastionVektor.OnlyExit
+        # 🔁 Rinominati il 2026-08-17 da `FluxRiva`/`BastionVektor` (`D-130`). Sono scenari `planned`:
+        # nessun file esiste, nessun redirect li mappa (`Scenarios/_redirects.json` non li nomina),
+        # quindi il rename e' gratuito — e non farlo non era gratis. `scenariomap.shortlist.md` portava
+        # gia' i nomi canonici **corretti a mano sul generato**, e la sorgente no: il `--check` restava
+        # rosso, e ogni rigenerazione rimetteva i legacy.
+        # ⏱️ **Due sessioni hanno corretto queste due righe nello stesso giorno, con lo stesso risultato e
+        # due diagnosi diverse.** Il merge tiene il contesto di questa — `planned`, nessun redirect, rename
+        # gratuito — e **corregge la ragione**, che era: *«il gate esenta i token fra backtick»*.
+        # Misurato: l'unico `DOCS.rglob("*.md")` di `check-docs-naming.py` filtra i `.md`, e il secondo
+        # passo (`wiki_files`) scandisce il clone della Wiki — non `docs/`. ∴ questo file non viene aperto,
+        # ed e' `.yaml`. L'esenzione backtick e' una regola *dentro*
+        # un file letto, e questi due id non sono nemmeno fra backtick: non poteva essere lei.
+        # ∴ la vera lacuna e' l'estensione del gate ai `.yaml`, non il trattamento dei backtick.
+        # ⏱️ **Terza sessione, stesso giorno, stessa correzione** (`docs/tactical-designer-consolidamento`,
+        # `D-154`): arrivata dal consolidamento Tactical Designer, che doveva rigenerare le viste e ha
+        # trovato `shortlist --check` gia' rosso sulla propria base. La sua diagnosi si fermava a *«il
+        # rename e' stato applicato al generato invece che alla sorgente»* — vera ma incompleta, perche'
+        # non spiegava PERCHE' nessun gate lo vedesse. La spiegazione e' quella qui sopra, ed e' la sua
+        # che resta. Tre sessioni indipendenti sulla stessa riga in un giorno dicono che il difetto era
+        # visibile a chiunque rigenerasse: e' la lacuna del gate, non la disattenzione di qualcuno.
+        # ➕ Tracciata: **#1109**, in lavorazione su **#1170** — il perimetro del gate si estende ai `.yaml` e questo file e' fra quelli che verra' a leggere. ⏱️ *Resta APERTA: «una issue e' finita quando e' stata mergiata», e finche' non lo e' questa riga descrive un difetto ancora vivo. (Il puntatore diceva `#1110`, duplicato di `#1109` aperto tre minuti dopo e chiuso come tale.)*. Una lacuna identificata che resta un commento YAML non entra in nessuna
+        # coda — e' la regola «CREATE OR LINK, NEVER IGNORE» applicata a se' stessa.
+        # ➕ E la **quarta** sessione, mergiando, non ha scelto un lato: le due note rispondono a domande
+        # diverse — chi ha trovato il difetto e dove e' tracciato.
+        - Team.Conflux.GadgetPhase.ConductiveFlood
+        - Team.Constrine.RiktorWraith.OnlyExit
         - Team.Sentinel.SteelMurdock.HoldTheLine
         - Team.Resonance.AuroraKwang.FrozenAnchor
     wiki_refs:
@@ -5204,17 +5480,24 @@ features:
       replay_representable: na
     roadmap:
       epic: E19
-      checkpoints: ["19.1", "19.2"]
+      # ➕ **19.3 entra il 2026-08-17 (D-155)**: il formato dichiara quante unita' comanda una PERSONA.
+      # Terzo buco della stessa forma di 19.1/19.2, un piano piu' sopra — e il campo non e'
+      # `UnitsPerTeam`, che risponde a un'altra domanda. In v0.1 i due numeri coincidono, quindi
+      # leggere quello sbagliato passa ogni test esistente: e' la ragione per cui il campo va
+      # nominato invece che dedotto.
+      checkpoints: ["19.1", "19.2", "19.3"]
     dependencies:
       - RT-FEAT-DATA-ASSET-PIPELINE
     owner_specs:
       - docs/gameplay/spec-durata-partita-e-scala-mappe.md
-    issues: [214, 215, 216]
+    issues: [214, 215, 216, 1124]
     tests:
       - RefactorTactics.MatchFormat.*
       - RefactorTactics.MapClass.*
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:che-cose-refactortactics
+      - wiki:la-tua-prima-partita
     last_verified:
       date: 2026-08-09
       commit: 0bbc4c5
@@ -5229,10 +5512,27 @@ features:
       **2026-08-10 (#375)**: `Format.Skirmish2v2` è **spedito da C++**
       (`URTMatchFormatLibrary::FindShippedFormat`), come le istanze di `URTActionData` e
       `URTHeroData` — la CLASSE resta un data asset, e un asset assegnato al `GameMode` vince.
-      L'ordine è: asset ⇒ formato spedito ⇒ ripiego. `RoundLimit` **5** (deciso con l'utente);
+      L'ordine è: asset ⇒ formato spedito ⇒ ripiego. ~~`RoundLimit` **5**~~ → **12** (corretto il
+      2026-08-17: `RTMatchFormatLibrary.cpp:152` scrive `12` sul formato spedito e `:184` sul ripiego, e
+      il commento a `:150` lo dichiara load-bearing — «**D-056** ne deriva `InitialBank`, quindi questo
+      numero muove anche il time bank; la formula si tara a CP 14.6 e li' va riletta con 12, non con 5».
+      Con 5 questa nota affermava un bank di 10 s invece di 24: uno scarto di 2,4x su un numero che un
+      altro documento deriva);
       `ScoreToWin` **0** perché **nessuno assegna punti** — `AddTeamScore` non ha chiamanti
       runtime, e una soglia > 0 dichiarerebbe una vittoria irraggiungibile. Diventa un numero il
       giorno in cui un obiettivo la alimenta.
+      **2026-08-17 ([D-155], #1124)**: si apre **CP 19.3** e i gate NON si muovono, ed e' una scelta da
+      dichiarare invece di lasciarla al lettore. I gate misurano cio' che la feature consegna **oggi**:
+      `URTMatchFormatData` esiste, e' validato, spedito da C++ e onorato dal `GameMode`, e nessuna di
+      queste cose e' regredita. Cio' che manca e' un **campo nuovo**, con il suo checkpoint e la sua
+      issue — abbassare `data` a `partial` direbbe che il formato e' incompleto rispetto a cio' che gia'
+      dichiara, che e' falso, e farebbe scendere lo `status` derivato per un lavoro non ancora iniziato.
+      🔴 **La lacuna e' stata misurata da un'altra direzione, ed e' il motivo per cui era invisibile**:
+      `UnitsPerTeam` risponde a *quante unita' schiera una squadra*, e nessun campo risponde a *quante ne
+      comanda una persona*. In v0.1 valgono entrambi **2** — un solo umano, 2v2 offline — quindi il campo
+      sbagliato passa ogni test. A trovarlo e' stato il consolidamento del Decision Time Bank: [D-050]
+      dichiara un bank **per giocatore** e `ARTTurnManager::AskReactionDecision` conosce solo un
+      `OwnerUnitId` e un `bIsBotControlled` letto da `ARTUnit`. Questa feature **blocca** #319.
 
   - feature_id: RT-FEAT-MATCH-PACING
     title: Pacing del turno e del match
@@ -5264,7 +5564,8 @@ features:
     tests:
       - RefactorTactics.Pacing.*
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:la-tua-prima-partita
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -5832,6 +6133,10 @@ features:
     owner_specs:
       - docs/technical/test-e-diagnosi.md
       - docs/technical/scenari-validazione-visiva.md
+      # Dal 2026-08-17 (D-154): il formato di questo harness e' il bersaglio dell'authoring visuale
+      # di `RT-FEAT-TOOL-SCENARIO-COMPOSER`. `spec-tactical-designer.md` §5 elenca cosa il formato
+      # esprime gia' e cosa no — serve a impedire che un editor futuro ne inventi un secondo.
+      - docs/technical/spec-tactical-designer.md
     issues: [169, 542, 957]
     tests:
       - RefactorTactics.Scenario.*
@@ -5840,7 +6145,9 @@ features:
       - Movement.BasicFailsOnPurpose
       - Combat.BasicAttack
       - Spec.Harness.LogAssertionsReadTheTurnLog
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-11
       commit: eb3cc42
@@ -5902,7 +6209,9 @@ features:
       - RefactorTactics.Simulation.GoldenCorpusRejectsFormatMismatch
     scenarios:
       - RT_Showcase_Relay_v01
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -5925,7 +6234,11 @@ features:
       log_debug: done
       automation: done
       scenario: na
-      ui_wiki: todo
+      # `todo` -> `partial` il 2026-08-17: la pagina `Tecnica/tactical-designer.md` esiste e descrive i
+      # cinque tool, l'overlay e la vista a livelli — cioe' come si USA questo strumento. Resta `partial`
+      # perche' due sezioni della stessa pagina dichiarano cio' che non esiste (`#622`, `#711`): una pagina
+      # che promette meta' di se' non e' una copertura completa, ed e' meglio dirlo qui che nella pagina.
+      ui_wiki: partial
       packaged: na
       network_privacy: na
       replay_representable: na
@@ -5941,6 +6254,10 @@ features:
     owner_specs:
       - docs/roadmap/editormap.shortlist.md
       - docs/roadmap/hex-map-roadmap.md
+      # Owner del CONCETTO e del confine editor/runtime, dal 2026-08-17 (D-154). Non duplica i due
+      # sopra: quelli dicono quale seduta fare e cosa fu consegnato, questo dice cosa lo strumento
+      # ha il diritto di decidere. Le sonde d'editor (`#711`, `#695`) sono lo stadio `TD 0.5`.
+      - docs/technical/spec-tactical-designer.md
     issues: [567, 622, 623, 551, 552, 553, 554, 588, 695, 711]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
@@ -5958,7 +6275,11 @@ features:
       - RefactorTactics.HexMapActor.CostReliefSurvivesTheSightSlab
       - RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      # Pagina della Developer Zone, creata il 2026-08-17: spiega come si USA la modalita' Hex Map —
+      # i cinque tool, il pennello a raggio, l'overlay, la vista `Focus` — e dichiara per iscritto le
+      # due cose che non esistono (`#622`, `#711`) invece di lasciarle intuire.
+      - wiki:tactical-designer
     last_verified:
       date: 2026-08-12
       commit: 4fce92ca
@@ -5975,9 +6296,15 @@ features:
       dipinge altrove senza un errore a log. Ora il confronto e' sul componente
       (`ARTHexMapActor::IsPickOnSelectableCell`, pinnato dal test qui sopra) e `NoCollision` sul
       rilievo resta la prima difesa invece dell'unica: la protezione ha smesso di dipendere dal
-      ricordarsi di una riga. ⚠️ Il modulo `RefactorTacticsEditor` **non ha test propri** — `find
-      Source/RefactorTacticsEditor -iname "*test*"` e' vuoto — quindi le regole che lo riguardano
-      vanno estratte nel modulo runtime per essere verificabili, com'e' stato fatto qui.
+      ricordarsi di una riga. 🔴 **Questa nota diceva che il modulo `RefactorTacticsEditor` non ha test propri, e
+      dal 2026-08-16 e' FALSO**: `#993` ha portato `Private/Tests/RTHexToolPropertiesTests.cpp` con **due**
+      test, e `find Source/RefactorTacticsEditor -iname "*test*"` restituisce due voci — rimisurato il
+      2026-08-17. La conclusione non cambia e la **ragione** si': le regole che riguardano il gioco vanno
+      nel modulo runtime non perche' l'editor sia intestabile, ma perche' una regola di gioco che vive
+      nell'editor e' una **seconda risposta** alla stessa domanda. I due test dell'editor coprono il
+      proprio dominio — il costo che segue la superficie, il readout che non si aggiorna da solo — e
+      nessuno dei due decide un esito di partita. Owner dell'argomento:
+      `docs/technical/spec-tactical-designer.md` §3.
 
 
       La vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri
@@ -6119,6 +6446,10 @@ features:
       # Owner tecnico del modello, creato il 2026-08-13: prima il tema viveva solo in referti,
       # archivio e registry. I tre sotto restano come provenienza della decisione, non come regola.
       - docs/technical/spec-hex-geometry-authoring.md
+      # Il confine editor/runtime che questa feature rispetta — la logica pura nel modulo runtime,
+      # l'editor che la chiama — ha un owner proprio dal 2026-08-17 (D-154). `spec-hex-geometry-
+      # authoring.md` resta l'owner del MODELLO; questo lo e' della REGOLA di collocazione.
+      - docs/technical/spec-tactical-designer.md
       - docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md
       - docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md
       - docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md
@@ -6135,8 +6466,10 @@ features:
       # `ProvenanceDoesNotChangeTheHash` pinna il vincolo di D-131: `bGenerated` e' metadato d'authoring
       # e non deve entrare nell'hash, o due mappe che si giocano identiche divergerebbero.
       - RefactorTactics.GeometryBake.*
-      # #712: lo SNAP del gesto d'autore vive nel runtime e non nel tool, perche' in
-      # `Source/RefactorTacticsEditor/` non esiste alcun test. I due test stanno in
+      # #712: lo SNAP del gesto d'autore vive nel runtime e non nel tool. 🔴 La ragione scritta qui era
+      # «perche' in `Source/RefactorTacticsEditor/` non esiste alcun test», e dal 2026-08-16 e' falsa (#993:
+      # due test). La ragione giusta e' che lo snap e' una regola di GEOMETRIA, non di gesto: chi la
+      # cambia cambia cosa il gioco considera un segmento valido. I due test stanno in
       # `RefactorTactics.GeometryGrammar.Snap*` -- gia' coperti dal glob qui sopra.
       # Il resto di #712 (ghost, snap percepibile, Undo, residui) e' seduta U22: non e' headless.
     scenarios:
@@ -6148,6 +6481,7 @@ features:
       # La pagina spiega dal 2026-08-13 il vocabolario dei dodici settori, che e' di questa feature:
       # sei direzioni per muoversi, dodici settori per MISURARE quanto una cella e' invasa.
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     last_verified:
       # Rimisurato dopo D-125: il commit precedente (05bbe3dc, merge di #714) e' ANTENATO di c1c96a30,
       # cioe' la voce era stata verificata due ore prima della decisione che la cambia.
@@ -6210,9 +6544,12 @@ features:
 
 
       Vincolo di collocazione, non preferenza: maschera, classificazione e cottura vivono nel
-      modulo **runtime** e l'editor le chiama. In `Source/RefactorTacticsEditor/` non esiste alcun
-      test — rimisurato su `origin/main` il 2026-08-12: 19 file, zero corrispondenze `*test*`. Cio'
-      che nasce dentro l'editor nasce non verificabile. *(Questa nota citava la PR #598 come «aperta,
+      modulo **runtime** e l'editor le chiama. 🔴 **La misura che sosteneva questa riga e' scaduta**: diceva
+      «in `Source/RefactorTacticsEditor/` non esiste alcun test — 19 file, zero corrispondenze `*test*`,
+      rimisurato il 2026-08-12», ed era vera allora. Dal 2026-08-16 (`#993`) il modulo ha
+      `Private/Tests/RTHexToolPropertiesTests.cpp` con due test. Il **vincolo di collocazione resta**, con
+      la ragione corretta: maschera, classificazione e cottura decidono cosa il gioco considera
+      attraversabile, e una regola di gioco non vive nello strumento che la disegna. *(Questa nota citava la PR #598 come «aperta,
       non mergiata»: e' mergiata dal 2026-08-12T07:07:42Z. L'argomento non dipendeva da quella PR ed
       e' stato rimisurato.)*
 
@@ -6255,7 +6592,8 @@ features:
       - RefactorTactics.MatchFormat.ValidatorRejectsInvalidAsset
       - RefactorTactics.ScenarioIndex.DuplicateIdIsRejected
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -6339,7 +6677,8 @@ features:
       - RefactorTactics.Scenario.AutoRunOverrideIsNotSilent
       - RefactorTactics.Pacing.CsvRowMatchesHeader
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     pie_refs: [PIE-V01-DEBUG]
     last_verified:
       date: 2026-08-08
@@ -6375,12 +6714,16 @@ features:
     owner_specs:
       - docs/balance/README.md
       - docs/balance/RT_TestMatrix_v0.1.md
+      # Dal 2026-08-17 (D-154): il guardrail «nessun punteggio opaco diventa un gate» e l'ordine
+      # rispetto a D-102 — competence gate PRIMA del confronto a lotti — hanno un owner scritto.
+      - docs/technical/spec-tactical-designer.md
     issues: [28, 543]
     tests:
       - RefactorTactics.Heroes.RosterIsBalanced
       - RefactorTactics.Catalog.ShippedCatalogMatchesAbilities
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -6395,6 +6738,146 @@ features:
       Un nerf deciso su un bot che non sa usare un'abilita' **sembra** funzionare, e copre il
       difetto vero: che quell'abilita' non entra mai fra le candidate. Tracciata in **#543**, senza
       milestone e con l'innesco dichiarato: l'esistenza di partite in serie, che oggi non c'e'.
+
+  # ─── Tactical Designer (D-154, 2026-08-17) ───────────────────────────────────
+  # Le due feature qui sotto sono i due soli GAP misurati del filone Tactical Designer: authoring
+  # visuale degli scenari, e configurazione di varianti di skill separate dalla produzione. Tutto il
+  # resto di quel filone ha gia' un owner in questo file — `RT-FEAT-TOOL-MAP-EDITOR`,
+  # `-MAP-GEOMETRY`, `RT-FEAT-TEST-SCENARIO-HARNESS`, `-TEST-GOLDEN`, `RT-FEAT-TOOL-BALANCE-GROUND`,
+  # `RT-FEAT-UI-SCENARIO-BROWSER`, `RT-FEAT-REPLAY-ARCHIVE` — e le sonde d'editor restano dentro
+  # `RT-FEAT-TOOL-MAP-EDITOR`, che gia' dichiara `#711` e `#695`.
+  #
+  # ⚠️ `checkpoints: []` con `milestone: M9` non e' una svista ed e' la stessa scelta di
+  # `RT-FEAT-TOOL-MAP-EDITOR`: `known_roadmap_refs()` legge i checkpoint dai soli `roadmap-v0.1.md`
+  # e `roadmap-post-v0.1.md`, mai da `roadmap-checkpoint.md`. `M9.4` e' dichiarata li' come vista di
+  # esecuzione, e citarla qui produrrebbe «checkpoint inesistente». Il campo e' vuoto per
+  # **impossibilita' del validator**, non perche' il checkpoint non esista — lo stesso difetto che
+  # `D-138` ha corretto per le epic post-v0.1, e che qui non e' stato corretto perche' allargare
+  # `known_roadmap_refs()` a un terzo owner e' un lavoro suo, non un effetto collaterale di questo:
+  # tracciato in **#1106**, aperto contestualmente perche' un difetto dichiarato senza issue e' prosa.
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  - feature_id: RT-FEAT-TOOL-SCENARIO-COMPOSER
+    title: Scenario Composer — authoring visuale sopra il formato scenario canonico
+    area: Tools
+    kind: tooling
+    release: future
+    priority: P3
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: na
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: null
+      milestone: M9
+      checkpoints: []
+      out_of_release_scope: >-
+        Strumento d'editor: non entra nella build di gioco e non ha un gate di release.
+        Tracciato da M9.4 e dalla EditorMap, non dalle epic di una release.
+    dependencies:
+      - RT-FEAT-TEST-SCENARIO-HARNESS
+      - RT-FEAT-TOOL-MAP-EDITOR
+      - RT-FEAT-UI-SCENARIO-BROWSER
+    owner_specs:
+      - docs/technical/spec-tactical-designer.md
+      - docs/roadmap/plans/tactical-designer-consolidamento-2026-08-17.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs:
+      - wiki:tactical-designer
+    notes: >
+      Il gap e' l'**authoring**, non il formato. `FRTTestScenario` esprime gia' unita' (cella,
+      facing, HP, scudo, vista, loadout), turni con intent, **decisioni di finestra scriptate**
+      (`FRTScenarioDecision`, `FIRE`/`HOLD`, da `#512`), aspettative (`FRTTestExpectation` su otto
+      `ERTAssertionKind`), capability richieste per turno (`Requires` → `ERTTestOutcome::Blocked`) e
+      **varianti** (`FRTScenarioVariant`). Oggi tutto questo si scrive a mano in JSON: **78** file in
+      `Scenarios/`.
+      ⚠️ **Il sorgente che ha proposto questa capability chiedeva di progettare un modello dati che
+      esiste gia'**, ed e' il difetto che questa nota esiste per prevenire al prossimo giro. Prima
+      di aggiungere un campo, misurare `RTTestScenario.h`: la meta' di cio' che sembra mancante c'e'.
+      Cio' che manca davvero e' elencato in `spec-tactical-designer.md` §5, con l'innesco di ciascuno:
+      status iniziali, stato d'ambiente, seed, override di skill in una variante.
+      ⚠️ `spec: partial` e non `done`: l'owner descrive il confine, le proprieta' del formato e i
+      punti d'innesto, **non** il modello della UI ne' il workflow d'authoring. Dichiararlo `done`
+      farebbe derivare `SPECIFIED` su una cosa di cui nessuno ha ancora deciso la forma.
+      ⚠️ `issues: []` e' vero al 2026-08-17: la prima issue eseguibile di questo filone e' la
+      serializzazione round-trip, e non si apre finche' TD 0.1 ha residui aperti (`#622`, `#712`).
+      Aprirla ora produrrebbe una issue la cui prima riga sarebbe «serve un consumatore che non
+      esiste» — la stessa disciplina di `#704` e di E43.
+
+  - feature_id: RT-FEAT-TOOL-SKILL-WORKBENCH
+    title: Skill Workbench — varianti di abilita' separate dal dato di produzione
+    area: Tools
+    kind: tooling
+    release: future
+    priority: P3
+    status: DESIGNED
+    gates:
+      spec: partial
+      data: todo
+      runtime: todo
+      log_debug: todo
+      automation: todo
+      scenario: todo
+      ui_wiki: todo
+      packaged: na
+      network_privacy: na
+      replay_representable: na
+    roadmap:
+      epic: null
+      milestone: M9
+      checkpoints: []
+      out_of_release_scope: >-
+        Strumento d'editor: non entra nella build di gioco e non ha un gate di release.
+        Tracciato da M9.4 e dalla EditorMap. La meta' di MISURA — batch, metriche, confronto su
+        suite — resta invece di **E43** (v0.8) e di `RT-FEAT-TOOL-BALANCE-GROUND`: questa feature
+        produce la variante, quella la misura.
+    dependencies:
+      - RT-FEAT-TOOL-SCENARIO-COMPOSER
+      - RT-FEAT-TOOL-BALANCE-GROUND
+      - RT-FEAT-DATA-ASSET-PIPELINE
+    owner_specs:
+      - docs/technical/spec-tactical-designer.md
+      - docs/roadmap/plans/tactical-designer-consolidamento-2026-08-17.md
+    issues: []
+    tests: []
+    scenarios: []
+    wiki_refs: []
+    notes: >
+      Il concetto che manca e' **una configurazione di abilita' che non e' il dato di produzione** —
+      la si prova, la si confronta con la baseline, e diventa produzione solo con un atto esplicito.
+      🔴 **Il nome `Candidate` e' gia' occupato, e la misura che lo dice va conservata.**
+      `grep -ril "candidate" Source/RefactorTactics --include=*.h` restituisce cinque file —
+      `RTActionDef.h`, `RTCatalogLibrary.h`, `RTHexBotLibrary.h`, `RTPointerInteraction.h`,
+      `RTMovementActionLibrary.h`. 🔴 **Questa nota diceva «in tutti e cinque», ed era sovradichiarato**:
+      in **quattro** significa **mossa candidata del bot** (`BuildCandidates`, `ChooseBestPlan`, le candidate
+      d'attacco che nascono da `ReachableCells`); nel quinto, `RTPointerInteraction.h`, `FRTPointerCandidates`
+      e' *«cosa il raycast ha trovato sotto il cursore, prima che qualcuno decida cosa significa»* — un
+      **terzo** spazio semantico. La conclusione regge lo stesso e anzi si rafforza: `Candidate` in questo
+      repository e' gia' ambiguo fra due significati, e un terzo lo renderebbe illeggibile. Trovato in code
+      review, ed e' la forma di errore che questo paragrafo esiste per prevenire.
+      E' un'alternativa valutata **dentro un turno**, non una configurazione confrontata **fra due
+      esecuzioni**: due spazi semantici sotto la stessa parola. Chi implementera' questa feature usi
+      **`Variant`**, che e' gia' il vocabolario dello scenario (`FRTScenarioVariant`).
+      ⚠️ **Il punto d'innesto esiste, e porta il proprio trade-off scritto.** `FRTScenarioVariant`
+      varia oggi **solo le celle**, e la struct dichiara perche': *«una variante che potesse cambiare
+      eroi, squadre o condizione iniziale non sarebbe piu' lo stesso scenario con un ingresso
+      diverso, e il confronto fra le sue tracce non direbbe piu' quale ingresso ha prodotto la
+      differenza»*. Il baseline-vs-variante e' esattamente «servisse variare altro»: non nasce un
+      secondo meccanismo, si estende questo — e l'estensione deve **dichiarare** cosa smette di
+      essere attribuibile.
+      ⚠️ **Nessun punteggio opaco diventa un gate** (`spec-tactical-designer.md` §8). E l'ordine
+      con `D-102` non e' negoziabile: il competence gate del bot (`#543`) viene **prima** di
+      qualunque confronto a lotti, o si misura un'abilita' che il bot non sa usare.
 
   # ─────────────────────────────────────────────────────────────────────────────
   # L. Data / production infrastructure

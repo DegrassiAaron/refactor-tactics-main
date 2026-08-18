@@ -38,7 +38,7 @@
   "diagnostics": {
     "errors": [],
     "warnings": [
-      "[RT-FEAT-CORE-DECISION-TIME-BANK] 10 scenario/i dichiarati planned: Spec.TimeBank.GraceDoesNotDrain, Spec.TimeBank.DrainsAfterGrace, Spec.TimeBank.NeverBelowZero, Spec.TimeBank.TimeoutCostsFullWindow, Spec.TimeBank.TimeoutSpendsNoCharge, Spec.TimeBank.ClashCostsFullWindow, Spec.TimeBank.BotDrainsLikePlayer, Spec.TimeBank.ExhaustionKeepsResponsesLegal, Spec.TimeBank.ReplayReadsRecordedBank, Spec.TimeBank.PacketOrderInvariant",
+      "[RT-FEAT-CORE-DECISION-TIME-BANK] 13 scenario/i dichiarati planned: Spec.TimeBank.GraceDoesNotDrain, Spec.TimeBank.DrainsAfterGrace, Spec.TimeBank.NeverBelowZero, Spec.TimeBank.TimeoutCostsFullWindow, Spec.TimeBank.TimeoutSpendsNoCharge, Spec.TimeBank.ClashCostsFullWindow, Spec.TimeBank.BotDrainsLikePlayer, Spec.TimeBank.ExhaustionKeepsResponsesLegal, Spec.TimeBank.ReplayReadsRecordedBank, Spec.TimeBank.PacketOrderInvariant, Spec.TimeBank.ControlLoadScalesInitialBank, Spec.TimeBank.ControlLoadNeverExtendsWindow, Spec.TimeBank.TimeoutIgnoresPreferredResponse",
       "[RT-FEAT-MAP-HEXGRAPH] tutte le voci PIE che la dimostrano sono verdi (PIE-HEXPLAY-1) ma il gate packaged e' ancora partial: puo' avanzare",
       "[RT-FEAT-MAP-STANDABILITY] 3 scenario/i dichiarati planned: Spec.Map.WallCrossesCellStillStandable, Spec.Map.FootprintCollisionBlocksCell, Spec.Map.NinetyDegreeCornerBakesCorrectly",
       "[RT-FEAT-MAP-TRANSITION-CLEARANCE] 2 scenario/i dichiarati planned: Spec.Map.ValidCellsBlockedTransition, Spec.Map.DoorOpensTransition",
@@ -51,7 +51,6 @@
       "[RT-FEAT-ACTION-PLAN-VALIDATION] 1 scenario/i dichiarati planned: Spec.ActionEconomy.OverwatchReservesMovementSlot",
       "[RT-FEAT-ACTION-DELAYED] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-TRAPS] nessuna pagina Wiki collegata",
-      "[RT-FEAT-ACTION-EQUIPMENT] nessuna pagina Wiki collegata",
       "[RT-FEAT-REACTION-FAST] feature di gameplay TESTABLE senza scenario che la dimostri",
       "[RT-FEAT-REACTION-OVERWATCH] 3 scenario/i dichiarati planned: Spec.Overwatch.ConductiveDischargeUsesStandardConduction, Spec.Overwatch.PressurePushChangesResolvedPath, Spec.Overwatch.FrontlineFollowsFacing",
       "[RT-FEAT-REACTION-PROFILE] 3 scenario/i dichiarati planned: Spec.Brace.GroundingChargesOnDeclaredTerrain, Spec.Brace.SidestepRedirectsToLegalHexOnly, Spec.Brace.GlanceOffersOnlyLegalSides",
@@ -68,7 +67,7 @@
       "[RT-FEAT-UI-REPLAY-VIEWER] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-TRANSFORMATION] nessuna pagina Wiki collegata",
       "[RT-FEAT-CHAR-AUXILIARY-UNITS] nessuna pagina Wiki collegata",
-      "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.FluxRiva.ConductiveFlood, Team.Constrine.BastionVektor.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
+      "[RT-FEAT-FACTION-SCENARIOS] 4 scenario/i dichiarati planned: Team.Conflux.GadgetPhase.ConductiveFlood, Team.Constrine.RiktorWraith.OnlyExit, Team.Sentinel.SteelMurdock.HoldTheLine, Team.Resonance.AuroraKwang.FrozenAnchor",
       "[RT-FEAT-STRESS-4V4] 1 scenario/i dichiarati planned: Stress.4v4.CoreRoster",
       "[RT-FEAT-MATCH-AUTOBATTLE] 4 scenario/i dichiarati planned: AutoBattle.OpenField, AutoBattle.Obstacles, AutoBattle.Hazard, AutoBattle.Objective",
       "[RT-FEAT-BOT-FAIRNESS] 1 scenario/i dichiarati planned: Spec.Bot.DecoyNoiseIndistinguishable",
@@ -82,7 +81,7 @@
       "[RT-FEAT-CHARACTER-STATE] 5 scenario/i dichiarati planned: State.Hero.Phase.Flow, State.Hero.Gadget.Charged, State.Hero.Riktor.Bulwark, State.Howitzer.Siege, State.MultiState.Stress",
       "[execution-graph issue:314] nessuna feature del registry dichiara questa issue: il suo domain_group 'actions_reactions' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
       "[execution-graph issue:512] nessuna feature del registry dichiara questa issue: il suo domain_group 'core_simulation' non e' verificabile, e il giorno in cui l'area cambiasse la divergenza non verrebbe notata",
-      "[execution-graph] 10 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
+      "[execution-graph] 12 checkpoint citati dal grafo non dichiarano il glifo in roadmap-v0.1.md (E10.1, E10.2, E14.5, E14.6, E14.7, E14.8, E15.4, E15.5, E21.1, E21.2, E21.3, E23.4): i loro nodi restano UNKNOWN e l'ignoranza si propaga a valle. Su 100 checkpoint di epic l'owner ne annota 18, e 65 dei restanti hanno gia' una issue chiusa"
     ],
     "unresolved_prerequisites": [],
     "milestone_conflicts": []
@@ -216,6 +215,7 @@
     "M9.1": "⏳",
     "M9.2": "⏳",
     "M9.3": "⏳",
+    "M9.4": "⏳",
     "M10.1": "⏳",
     "M10.2": "⏳",
     "M10.3": "⏳",
@@ -313,6 +313,7 @@
     "E18.2": "✅",
     "E19.1": "✅",
     "E19.2": "✅",
+    "E19.3": "⏳",
     "E20.1": "✅",
     "E20.2": "⏳",
     "E20.3": "⏳",
@@ -327,11 +328,18 @@
     "E46.6": "⏳",
     "E47.1": "⏳",
     "E47.2": "✅",
-    "E47.7": "⏳",
+    "E47.7": "✅",
     "E47.3": "⏳",
     "E47.4": "⏳",
     "E47.5": "⏳",
-    "E47.6": "⏳"
+    "E47.6": "⏳",
+    "E23.1": "⏳",
+    "E23.2": "⏳",
+    "E23.3": "⏳",
+    "E23.4": "⏳",
+    "E23.5": "⏳",
+    "E23.6": "⏳",
+    "E23.7": "⏳"
   },
   "editor_sessions": [
     {
@@ -354,7 +362,7 @@
         },
         {
           "id": "PIE-V01-MATCHEND",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-TEST-CONSOLE",
@@ -362,11 +370,11 @@
         },
         {
           "id": "PIE-HEX-LAYER",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-TRANS",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-LAYER-FOCUS",
@@ -1379,10 +1387,14 @@
       "artifacts": [],
       "unblocked_by": [],
       "unblocks": [
-        "U22"
+        "U22",
+        "U25",
+        "U26"
       ],
       "shares_setup_with": [
-        "U22"
+        "U22",
+        "U25",
+        "U26"
       ],
       "verifies": [
         {
@@ -1419,7 +1431,9 @@
       ],
       "unblocks": [],
       "shares_setup_with": [
-        "U21"
+        "U21",
+        "U25",
+        "U26"
       ],
       "verifies": [
         {
@@ -1450,8 +1464,8 @@
       "block": 6,
       "critical": false,
       "execution_lane": "pie",
-      "state": "🟡",
-      "queue_group": "READY",
+      "state": "✅",
+      "queue_group": "DONE",
       "produces": "i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`",
       "artifacts": [
         {
@@ -1468,11 +1482,11 @@
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset",
-          "tracked": false
+          "tracked": true
         }
       ],
       "unblocked_by": [],
@@ -1487,6 +1501,68 @@
         937
       ],
       "done_when": "i cinque `.uasset` esistono e si aprono senza errori; i TRE con una classe base (`WBP_RT_FallbackBanner`, `WBP_RT_ErrorModal`, `WBP_RT_LoadingScreen`) ereditano da quella dichiarata e leggono il dato invece di comporlo; i DUE strutturali (`WBP_RT_FrontendRoot`, `WBP_RT_ModalLayer`) non creano ne' rimuovono widget"
+    },
+    {
+      "id": "U25",
+      "title": "Il volume di posa della cella, e la scena che dice se il graybox si legge",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "—",
+      "queue_group": null,
+      "produces": "verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "U21",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [
+        "U21",
+        "U22",
+        "U26"
+      ],
+      "verifies": [],
+      "issues": [
+        1095,
+        1094
+      ],
+      "done_when": "la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro"
+    },
+    {
+      "id": "U26",
+      "title": "La griglia di lavoro e la sonda di movimento nell'editor",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "—",
+      "queue_group": null,
+      "produces": "verdetto su leggibilita' della griglia di lavoro e della sonda di movimento",
+      "artifacts": [],
+      "unblocked_by": [
+        {
+          "ref": "U21",
+          "resolved": false,
+          "state": "⏳",
+          "kind": "seduta"
+        }
+      ],
+      "unblocks": [],
+      "shares_setup_with": [
+        "U21",
+        "U22",
+        "U25"
+      ],
+      "verifies": [],
+      "issues": [
+        622,
+        711
+      ],
+      "done_when": "le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale"
     }
   ],
   "editor_queue": {
@@ -1505,8 +1581,7 @@
     "READY": [
       "U18",
       "U20",
-      "U21",
-      "U24"
+      "U21"
     ],
     "WAITING": [
       "U11",
@@ -1516,7 +1591,9 @@
       "U16",
       "U22"
     ],
-    "DONE": []
+    "DONE": [
+      "U24"
+    ]
   },
   "pie_entries": [
     {
@@ -1641,7 +1718,7 @@
     },
     {
       "id": "PIE-HEX-LAYER",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-LAYER-CLICK",
@@ -1729,7 +1806,7 @@
     },
     {
       "id": "PIE-HEX-TRANS",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-VIZ-BLOCCHI",
@@ -1993,7 +2070,7 @@
     },
     {
       "id": "PIE-V01-MATCHEND",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-V01-MATCHLEN",
@@ -2420,6 +2497,13 @@
         "Objective"
       ],
       "path": "Scenarios/Spec/Objective/PointSurvivesKO.json"
+    },
+    {
+      "id": "Spec.Overwatch.ConditionCollapsesToHold",
+      "requires": [
+        "Reaction"
+      ],
+      "path": "Scenarios/Spec/Overwatch/ConditionCollapsesToHold.json"
     },
     {
       "id": "Spec.Overwatch.HoldThenFire",
@@ -3574,6 +3658,64 @@
         "readiness_reason": "aspetta issue:954, issue:956"
       },
       {
+        "id": "issue:833",
+        "kind": "issue",
+        "ref": "833",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "map_environment",
+        "domain_group_source": "derived",
+        "checkpoint": "E23.4",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-MAP-INTERACTION-GRAPH"
+        ],
+        "provides": [],
+        "incoming": [],
+        "outgoing": [
+          {
+            "from": "issue:833",
+            "to": "issue:74",
+            "type": "requires",
+            "hard": true,
+            "rationale": "`#74` (CP 10.1, `Activate`/`Interact` sugli oggetti) consuma il grafo sorgente -> bersaglio che `#833` (CP 23.4) dichiara come dato. La direzione e' quella misurata sul motore: `SetDoorState` esiste e restituisce i cambi realmente avvenuti (`D-150`), ma nessuna azione di catalogo lo dichiara — `git grep SetDoorState -- Source/RefactorTactics/Ability/` da' **zero** — quindi il consumatore ha bisogno del dato, non il contrario."
+          }
+        ],
+        "readiness": "READY",
+        "readiness_reason": "nessun prerequisito hard"
+      },
+      {
+        "id": "issue:74",
+        "kind": "issue",
+        "ref": "74",
+        "release": "v0.1",
+        "execution_lane": "code",
+        "domain_group": "objectives_match",
+        "domain_group_source": "derived",
+        "checkpoint": "E10.1",
+        "state": null,
+        "state_source": null,
+        "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
+        "feature_ids": [
+          "RT-FEAT-OBJECTIVE-SYSTEM"
+        ],
+        "provides": [],
+        "incoming": [
+          {
+            "from": "issue:833",
+            "to": "issue:74",
+            "type": "requires",
+            "hard": true,
+            "rationale": "`#74` (CP 10.1, `Activate`/`Interact` sugli oggetti) consuma il grafo sorgente -> bersaglio che `#833` (CP 23.4) dichiara come dato. La direzione e' quella misurata sul motore: `SetDoorState` esiste e restituisce i cambi realmente avvenuti (`D-150`), ma nessuna azione di catalogo lo dichiara — `git grep SetDoorState -- Source/RefactorTactics/Ability/` da' **zero** — quindi il consumatore ha bisogno del dato, non il contrario."
+          }
+        ],
+        "outgoing": [],
+        "readiness": "UNKNOWN",
+        "readiness_reason": "stato non misurabile offline di issue:833"
+      },
+      {
         "id": "session:U7",
         "kind": "session",
         "ref": "U7",
@@ -3855,6 +3997,13 @@
         "rationale": "Rischio di versioning e migrazione del formato. Finche' un owner non lo rende un gate, resta una relazione di consistenza."
       },
       {
+        "from": "issue:833",
+        "to": "issue:74",
+        "type": "requires",
+        "hard": true,
+        "rationale": "`#74` (CP 10.1, `Activate`/`Interact` sugli oggetti) consuma il grafo sorgente -> bersaglio che `#833` (CP 23.4) dichiara come dato. La direzione e' quella misurata sul motore: `SetDoorState` esiste e restituisce i cambi realmente avvenuti (`D-150`), ma nessuna azione di catalogo lo dichiara — `git grep SetDoorState -- Source/RefactorTactics/Ability/` da' **zero** — quindi il consumatore ha bisogno del dato, non il contrario."
+      },
+      {
         "from": "session:U7",
         "to": "issue:287",
         "type": "implements",
@@ -3898,34 +4047,34 @@
       }
     ],
     "stats": {
-      "nodes": 27,
-      "edges": 29,
-      "hard_edges": 15,
+      "nodes": 29,
+      "edges": 30,
+      "hard_edges": 16,
       "soft_edges": 10,
       "by_readiness": {
         "BLOCKED": 3,
         "DONE": 3,
-        "READY": 15,
-        "UNKNOWN": 6
+        "READY": 16,
+        "UNKNOWN": 7
       },
       "by_execution_lane": {
         "asset": 2,
-        "code": 23,
+        "code": 25,
         "pie": 2
       },
       "by_domain_group": {
         "actions_reactions": 4,
         "characters_content": 7,
         "core_simulation": 4,
-        "map_environment": 3,
-        "objectives_match": 2,
+        "map_environment": 4,
+        "objectives_match": 3,
         "tooling_data_qa": 6,
         "ui_presentation": 1
       },
       "by_release": {
-        "v0.1": 27
+        "v0.1": 29
       },
-      "state_unknown": 15
+      "state_unknown": 17
     }
   }
 }

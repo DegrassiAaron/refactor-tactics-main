@@ -310,6 +310,77 @@ Slice successivi (spec separata o estensione): **Audio** (SFX sui delegate + mus
 
 ---
 
+## 11-bis. Le lane di maturità — quanto è finito un asset, non quanto è grande
+
+> Aggiunto il **2026-08-17** da `D-158`, consumando il bundle `GrayToolkit`. È l'unica parte di quel
+> materiale che il repository non aveva: **zero** occorrenze del *concetto* in `docs/` prima di oggi.
+>
+> ⚠️ **I prefissi sono `AC`/`AE` e non `C`/`E` come nel bundle, e la ragione è una collisione misurata**:
+> `C0`–`C3` è già la **severity degli status** (`roadmap-post-v0.1.md` §36.4, e `feature-registry.yaml` la
+> usa), mentre `E1` è già un'**epic** — quattro feature dichiarano `epic: E1`. «Il contratto si congela a
+> `C2`/`E1`» si sarebbe letto come un riferimento all'Epic 1. Trovato in code review: la misura che
+> dichiarava «zero occorrenze» aveva contato il concetto, non il **token**.
+
+Il progetto sapeva dire *quali* asset servono ([`asset-map.md`](asset-map.md)) e *quanto spazio* possono
+occupare ([`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md)). Non sapeva dire
+**a che punto è** un asset fra il segnaposto e l'arte finale, e la conseguenza è concreta: «il cilindro va
+sostituito» e «il modello va texturizzato» sono due lavori diversi che finivano nella stessa frase.
+
+### Personaggi — `AC0` → `AC6`
+
+| | Stadio | Cosa esiste |
+|---|---|---|
+| **AC0** | Cylinder | il segnaposto primitivo: forma, scala, facing |
+| **AC1** | Silhouette | proporzioni riconoscibili a colpo d'occhio, senza dettaglio |
+| **AC2** | Gameplay Proxy | ingombro e pivot definitivi — da qui il **contratto è congelato** |
+| **AC3** | Blockout | volumi d'arte, ancora senza topologia di produzione |
+| **AC4** | Production Mesh | topologia, UV, rig |
+| **AC5** | Textured | materiali e texture |
+| **AC6** | Final Art | l'asset che il giocatore vede |
+
+### Ambiente e prop — `AE0` → `AE5`
+
+| | Stadio | Cosa esiste |
+|---|---|---|
+| **AE0** | Primitive | box, cilindro, piano: l'oggetto occupa spazio e basta |
+| **AE1** | Gameplay Graybox | la forma dice **cosa è** — è il livello che il Graybox Kit definisce |
+| **AE2** | Art Blockout | proporzioni d'arte |
+| **AE3** | Production Mesh | topologia e UV |
+| **AE4** | Textured | materiali |
+| **AE5** | Final | l'asset definitivo |
+
+### Dove sta il progetto oggi, misurato
+
+| Famiglia | Stadio | Come si verifica |
+|---|---|---|
+| Unità in partita | **AC0** | I quattro `BP_Unit_*` sono committati, ma le Skeletal Mesh che referenziano **no**: stanno sotto `Content/FabAsset/`, che `.gitignore` esclude — `git ls-files Content/FabAsset` dà **0**. Su un clone pulito il personaggio non risolve e resta il cilindro, creato **incondizionatamente** da `/Engine/BasicShapes/Cylinder` |
+| Oggetti di mappa | **AE0** | nessun asset graybox di mappa esiste in `Content/` — [`asset-map.md`](asset-map.md) §2.1 |
+
+### Le due regole che rendono le lane utili invece che decorative
+
+**1. Il contratto si congela a `AC2`/`AE1`, non a `AC6`/`AE5`.** Ingombro, pivot e snap sono fissati appena
+l'asset diventa un proxy giocabile: tutto ciò che viene dopo è *aspetto*. È la stessa cosa che
+`spec-graybox-placement-contract.md` dice per gli oggetti di mappa — l'arte finale può cambiare
+completamente estetica, **non** le regole competitive.
+
+**2. Uno stadio non è una promessa di data.** Come le release, le lane dicono un **ordine**, non un
+calendario. `RT-FEAT-CHAR-PRESENTATION` è la feature che porta le unità da `AC0` in avanti, e il suo gate
+`packaged` resta `todo` finché la build mostra ancora i cilindri.
+
+> ⚠️ **Attenzione a cosa conta come «l'asset c'è».** Una stesura di questa tabella aveva promosso le unità
+> a «fra `AC0` e `AC1`» perché i quattro `BP_Unit_*` sono committati — ma un Blueprint che referenzia una
+> mesh **non versionata** non porta niente a chi clona. Lo stadio si misura su ciò che il repository
+> consegna, non su ciò che funziona sulla macchina di chi lo ha costruito: è la stessa distinzione che
+> [`asset-map.md`](asset-map.md) §1 fa fra ✅ *committato* e 🟡 *su disco*.
+
+> ⚠️ **Cosa queste lane NON sono.** Non un tracker: lo stato vive nel
+> [`feature-registry.yaml`](../roadmap/feature-registry.yaml) e nelle sedute di
+> [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml). Non una tassonomia di dati: **zero enum**,
+> come per la placement taxonomy. Sono un **vocabolario** per dire a che punto è una cosa, e servono
+> soprattutto a non confondere «manca l'asset» con «l'asset c'è ma è grezzo».
+
+---
+
 ## 12. Decisioni
 
 **Prese (2026-08-03):**

@@ -21,14 +21,20 @@ Usa search/grep prima di aprire file lunghi. `docs/src/` è input/north-star non
 come autorità implicita. `docs/archive/` è storico, e `docs/archive/src/` conserva i sorgenti già recepiti —
 utile per la provenienza, mai per la regola.
 
+Un `.pdf` non è **mai** autoritativo (**D-009**): resta fuori dal preflight e si apre solo per provenienza,
+rationale storico o confronto richiesto; se è l'export di una spec Markdown corrente, vince il Markdown. La
+sigla `PDR` nel nome di un file Markdown non lo rende storico — `docs/decisions/RT_PDR_00_Decision_Log.md` è
+canonico perché è l'owner corrente. Regola estesa in [`AGENTS.md`](AGENTS.md).
+
 ## 2. Pin rapidi
 
 - UE **5.8.1**; v0.1 **2v2 offline vs bot**; hex multilivello; roster **Gadget/Phase/Riktor/Wraith**
-  (**D-120**). I nomi legacy **escono dal repository** (**D-130**): `Flux→Gadget`, `Riva→Phase`,
-  `Bastion→Riktor`, `Vektor→Wraith`. Gli `Hero.<Nome>` si **rinominano** (non sono nel TurnLog); i token
-  abilità sono `ActionId` **serializzati**, quindi si **redirigono** e atterrano su `Hero.<Nome>.<Abilità>`.
-  ⚠️ Fino all'esecuzione del piano il codice porta ancora i nomi vecchi: non trattarli come corretti, e non
-  fare search/replace fuori dalle fette — [`docs/technical/piano-migrazione-roster.md`](docs/technical/piano-migrazione-roster.md).
+  (**D-120**). I nomi legacy sono **usciti dal repository** (**D-130**): gli `Hero.<Nome>` sono stati
+  rinominati e i venti token abilità sono atterrati su `Hero.<Nome>.<Abilità>` **senza redirect** — **D-134**
+  ha cancellato `ResolveLegacyActionId`, quindi non esiste una doppia verità da risolvere in lettura.
+  ✅ Le cinque fette del piano sono chiuse (#753–#757) e il gate è verde **senza esenzioni**: oggi un nome
+  legacy che ricompare è un difetto, non un residuo da tollerare —
+  [`docs/technical/piano-migrazione-roster.md`](docs/technical/piano-migrazione-roster.md).
   Gate: `python scripts/check-docs-naming.py --check`.
 - Fasi: `Planning → Prep → Dash → Blast → Move → Cleanup`; Move normale resta dopo Blast.
 - Un solo substrato: `FRTCellId`; no gameplay quadrato parallelo.
@@ -38,7 +44,7 @@ utile per la provenienza, mai per la regola.
   esempi. Niente ability di coppia né branch `if HeroA && HeroB`.
 - **Sprint = profilo Move, non Dash**.
 - Reazioni: `Opportunity → Commit`; Fast Reaction **3,0 s**, timeout **HOLD**.
-- `Vektor.InterceptShot` = thin slice Predictive v0.1.
+- `Hero.Wraith.InterceptShot` = thin slice Predictive v0.1.
 - High Ground: nessun bonus numerico alla vista in v0.1.
 - Formato competitivo finale non deciso: 3v3 è baseline, 4v4 stress test.
 

@@ -1,0 +1,64 @@
+{
+  "scenarioId": "Spec.Overwatch.ConditionCollapsesToHold",
+  "tags": ["spec", "reactions", "overwatch", "wraith", "gadget", "d109"],
+  "version": 2,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "SPECIFICA ESEGUIBILE di [D-109]: la condizione dichiarata in pianificazione RIDUCE le risposte legali, e quando ne resta una sola il commit e' immediato — nessuna finestra si apre. Wraith controlla un varco con l'Overwatch e dichiara «spara solo sotto il 10%»; Gadget attraversa in piena salute, quindi non e' piu' una risposta legale e resta il solo HOLD. Gadget passa ILLESO e completa il proprio percorso invece di essere troncato.",
+
+  "_nota_perche_esiste": "Il collasso era coperto SOLO headless (`Reactions.DeclaredConditionCollapsesToImmediateCommit`, che chiama `BuildOverwatchTriggers` direttamente). Il cablaggio dalla dichiarazione al resolver — `SetPlannedReactionCondition` -> `PlannedReactionCondition` -> `Armed.Condition` -> `BuildOverwatchTriggers` -> `AskReactionDecision` — non lo esercitava nessuno: `grep -rli condition Scenarios/` dava ZERO, quindi una regressione che spezzasse un anello non avrebbe fatto cadere niente. Questo file percorre il giro vero, `Intent -> Planning -> Snapshot -> Resolver -> TurnLog`. E' la prima voce di DoD di #583.",
+
+  "_nota_perche_NON_chiede_DecisionBoundary": "Non e' una scorciatoia per aggirare una capability indisponibile: e' il senso del meccanismo. `RequiresDecisionBoundary` e' `AllowedResponses.Num() >= 2`, e il collasso lascia una sola risposta — quindi questo scenario vive nel regime `<= 1` di ADR-0004 §2, che la capability `Reaction` copre. Un caso in cui la condizione e' SODDISFATTA lascerebbe `{FIRE:bersaglio, HOLD}`, cioe' due risposte e una finestra vera, e resterebbe BLOCKED fino a CP 14.6 (#166). Il collasso e' l'unica meta' di [D-109] osservabile oggi, ed e' anche quella che porta il valore: la mitigazione di pacing.",
+
+  "_nota_scostamento_dai_due_slot": "🔴 V1 arma l'Overwatch E tiene armata `Hero.Wraith.Deflection`, e la seconda non serve alla storia: serve al codice. `ARTUnit::SetPlannedReactionCondition` RIFIUTA se `PlannedReactionAbility` e' `INDEX_NONE`, mentre l'Overwatch costa l'azione PRINCIPALE — quindi un piano di solo-Overwatch non riesce a dichiarare una condizione, e il campo resterebbe vuoto senza dirlo. Il limite e' dichiarato in `RTTurnManager.cpp`, ramo `Action.Overwatch`: «la meta' di #583 che CP 14.5 sblocca senza chiudere». Questo scenario descrive il gioco COM'E' oggi, non come dovrebbe essere: la riconciliazione dei due slot e' un'altra fetta, e quando arrivera' questa riga si cancella e la `reaction` esce dall'intent. La Deflection non scatta mai qui — nessuno colpisce V1.",
+
+  "_nota_geometria": "Ripresa da `Spec/Overwatch/HoldThenFire.json`, che ha gia' pagato l'errore: la zona dell'Overwatch e' una LINEA e nasce dal facing letto in PREP, quindi V1 dichiara `facing` fra le UNITA' (piazzamento) e non fra gli intent — una rotazione dichiarata si applica dentro `ResolveMovement`, troppo tardi per il proprio cono. V1 e' a (2,-1) e guarda W: controlla (1,-1) (0,-1) (-1,-1) (-2,-1), la portata di `Hero.Wraith.PulseShot`. G1 entra nella linea a (-2,-1) e prosegue verso (-1,-1): due passi DENTRO la zona, quindi due opportunity — una per micro-step, perche' `BuildOverwatchTriggers` raggruppa per passo e un HOLD non consuma la carica.",
+
+  "units": [
+    { "id": "G1", "hero": "Hero.Gadget", "team": 0, "cell": [-3, 0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [2, -1, 0], "facing": "W" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — avvicinamento. Gira sul gioco di oggi: G1 si porta all'imbocco del varco, fuori dalla linea controllata. Nessun Overwatch e' ancora armato, quindi non c'e' niente da innescare.",
+      "intents": [
+        { "unit": "G1", "move": [[-2, 0, 0]] }
+      ]
+    },
+    {
+      "_turno": "T2 — il collasso. V1 arma l'Overwatch sul varco che gia' controlla e dichiara «spara solo se il bersaglio e' al 10% di salute o meno». G1 entra in piena salute (90/90 = 100%): non soddisfa la condizione, quindi non e' una risposta legale, e di `AllowedResponses` resta il solo HOLD. Una sola risposta non e' una scelta: `AskReactionDecision` chiude con `HoldImmediate` senza aprire nessuna finestra e senza spendere un prompt. G1 completa i due passi e arriva a (-1,-1) invece di essere troncato a (-2,-1).",
+      "requires": ["Reaction"],
+      "intents": [
+        {
+          "unit": "V1",
+          "ability": "Action.Overwatch",
+          "reaction": "Hero.Wraith.Deflection",
+          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 10 }
+        },
+        { "unit": "G1", "move": [[-2, -1, 0], [-1, -1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "IL DISCRIMINANTE. `HoldImmediate` e' l'outcome che `AskReactionDecision` produce SOLO quando `RequiresDecisionBoundary` e' falso, cioe' solo quando la condizione ha davvero ridotto le risposte a una. ⚠️ **Misurato annullando l'applicazione della condizione** (2026-08-17): lo scenario esce `FAIL (8/10 assertion)` — cadono DUE assertion, questa (`atteso 2, ottenuto 0`) e il `HoldNoDecider == 0` qui sotto, che diventa 2 perche' la finestra si apre e nessun decisore e' collegato. 🔴 **La prima stesura di questa riga diceva «cade QUESTA e nessun'altra», e derivava il numero da `6/8` letto come 'una fallita': e' `Assertions.Num() - PassedCount()`, cioe' DUE. Un conteggio dedotto invece che letto, dentro il commento che si vanta di misurare.** Cio' che resta vero, ed e' il punto: le assertion sull'EFFETTO — cella e HP, qui sotto — restano soddisfatte anche col cablaggio rotto, perche' senza decisore la finestra risponde `HOLD` per default e il bersaglio passa illeso in ENTRAMBI i casi. Uno scenario che avesse asserito solo «passa illeso» sarebbe stato VERDE con la condizione spenta.",
+      "type": "LogEventCount", "category": "ReactionDecision", "outcome": "HoldImmediate", "value": 2 },
+
+    { "_assertion": "Le altre CINQUE alternative a zero, esplicitamente — cioe' tutti gli altri valori di `ERTReactionDecisionOutcome`, non un sottoinsieme comodo. Contare cio' che deve esserci non dice niente su cio' che non deve esserci: senza queste righe un `HoldImmediate` corretto convivrebbe con una finestra aperta di troppo. ⚠️ La prima stesura ne elencava TRE e ometteva `HoldTimeout` e `HoldRejected` — che sono esattamente i due che un decisore COLLEGATO produce (risposta vuota, risposta illegale). Il giorno in cui qualcuno aggiungesse un blocco `decisions` a questo scenario, una finestra che si apre e scade sarebbe passata inosservata attraverso un'enumerazione parziale, mentre questo stesso commento prometteva che l'enumerazione proteggeva. Un elenco che dice «tutte le alternative» si scrive contro l'enum, non contro i casi che vengono in mente.",
+      "type": "LogEventCount", "category": "ReactionDecision", "outcome": "HoldNoDecider", "value": 0 },
+    { "type": "LogEventCount", "category": "ReactionDecision", "outcome": "HoldChosen", "value": 0 },
+    { "type": "LogEventCount", "category": "ReactionDecision", "outcome": "FireChosen", "value": 0 },
+    { "type": "LogEventCount", "category": "ReactionDecision", "outcome": "HoldTimeout", "value": 0 },
+    { "type": "LogEventCount", "category": "ReactionDecision", "outcome": "HoldRejected", "value": 0 },
+
+    { "_assertion": "L'EFFETTO, misurato e non dedotto dal log: se l'Overwatch avesse sparato il movimento sarebbe stato TRONCATO nella cella raggiunta — e' la semantica che `HoldThenFire` dimostra sul FIRE. G1 arriva dove aveva chiesto di arrivare.",
+      "type": "UnitAtCell", "unit": "G1", "cell": [-1, -1, 0] },
+    { "type": "UnitHpEquals", "unit": "G1", "value": 90 },
+
+    { "_assertion": "V1 non si e' mosso: il watcher spara da fermo, e una posizione diversa significherebbe che la fixture non e' quella descritta.",
+      "type": "UnitAtCell", "unit": "V1", "cell": [2, -1, 0] },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}

@@ -5,6 +5,10 @@
 > **Dipende da**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) (accettato) · CP 14.5–14.6 per la calibrazione
 > **Contesto sorgente**: discussione del 2026-08-09, kit `RefactorTactics_Decision_Time_Bank_Claude_Consolidation_2026-08-09.md`
 > **Audit di provenienza**: [`decision-time-bank-conflict-report-2026-08-09.md`](../roadmap/plans/decision-time-bank-conflict-report-2026-08-09.md)
+> **Esteso il 2026-08-17** ([D-156](../decisions/RT_PDR_00_Decision_Log.md), [D-157](../decisions/RT_PDR_00_Decision_Log.md)):
+> carico di controllo (§3.4) e Preferred Response (§4.4), dal kit
+> [`…MultiHero_TimeBank_PreferredReaction_2026-08-17`](../archive/src/RefactorTactics_Claude_MultiHero_TimeBank_PreferredReaction_2026-08-17.md),
+> filtrato dallo [spec panel](../roadmap/plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md).
 >
 > Le **regole** di questo documento sono decise. I **valori numerici** restano `PROPOSED FOR PLAYTEST` con i
 > criteri di promozione di §3.2: non vanno pubblicati come definitivi né sulla Wiki né altrove.
@@ -36,7 +40,20 @@ della Resolution: chi decide in fretta la conserva, chi usa tutta la finestra la
 
 - non allunga la singola Fast Reaction: `FastReactionDuration` resta **3,0 s** e la finestra resta bounded;
 - non è un timer per abilità: è **uno** per giocatore, come `FastReactionDuration` è **uno** di sistema;
-- non è un anti-AFK timer: l'anti-AFK è il timeout, che esiste già ed è una funzione pura.
+- non è un anti-AFK timer: l'anti-AFK è il timeout, che esiste già ed è una funzione pura;
+- **`MaxWindow` non cresce con il numero di Hero controllati** — nemmeno di un decimo di secondo. Chi ne
+  controlla due riceve un **budget aggregato** più largo (§3.4), non una finestra più lunga: allungare la
+  finestra allungherebbe la Resolution a ogni prompt, cioè peggiorerebbe il problema di pacing che il bank
+  esiste per contenere. *(invariante di [D-156](../decisions/RT_PDR_00_Decision_Log.md))*
+
+  > 🔴 **Il soggetto è `MaxWindow`, e questa riga diceva «la finestra» — corretto in code review.**
+  > `ExhaustedGrace` **scala** col carico (§3.4: 0,75 s → 1,00 s), e §5 la definisce come la durata utile
+  > quando il bank è a zero: letta alla lettera, la formulazione precedente era falsificata dal proprio §3.4.
+  > La distinzione che conta è quella fra il **tetto** e il **pavimento**. Il tetto — `FastReactionDuration`,
+  > 3,0 s — è ciò che determina quanto può allungarsi la Resolution, e non si muove mai. `ExhaustedGrace` è il
+  > pavimento sotto il tetto: cresce da 0,75 s a 1,00 s, resta lontanissimo dai 3,0 s, e **nessuna finestra
+  > dura più di prima**. Chi comanda due unità arriva a zero più in fretta perché le domande sono di due
+  > unità: un pavimento un po' più alto è la stessa compensazione del budget, non una finestra più lunga.
 
 ---
 
@@ -88,13 +105,16 @@ Il bank è **per giocatore** e **per match**. `BankFloor = 0`: mai negativo.
 
 | Parametro | Baseline proposta | Stato | Criterio di promozione a `CANONICAL` |
 |---|---|---|---|
-| `InitialBankMs` | `RoundLimit × (MaxWindow − Grace)` → **24 s** in 2v2, 32–40 s in 3v3 | `PROPOSED` | il bank residuo mediano a fine match cade fra il 20 % e il 50 % dell'iniziale su ≥ 10 partite |
-| `GraceMs` | **1,0 s** | `PROPOSED` | il **p50** delle risposte in playtest cade sotto la grace e il **p90** non supera `MaxWindow` |
-| `MaxWindowMs` | — | **`CANONICAL`** | è `FastReactionDuration` = 3,0 s. **Non introdurre un secondo nome** |
-| costo del timeout | **`MaxWindow − Grace`** = 2,0 s | **deciso** | non è un parametro: è la durata realmente occupata (§4) |
-| `ExhaustedGraceMs` | **0,75 s** | `PROPOSED` | il p90 delle risposte *a bank esaurito* resta sotto la soglia: se lo supera, la finestra ridotta sta escludendo il giocatore invece di metterlo sotto pressione |
+| `InitialBankMs` | `RoundLimit × (MaxWindow − Grace)` → **24 s** in 2v2, 32–40 s in 3v3 — ⚠️ **valori per `LoadFactor = 1`**, vedi §3.4 | `PROPOSED` | il bank residuo mediano a fine match cade fra il 20 % e il 50 % dell'iniziale su ≥ 10 partite |
+| `GraceMs` | **1,0 s** — ⚠️ per `n = 1`; §3.4 la fa scalare | `PROPOSED` | il **p50** delle risposte in playtest cade sotto la grace e il **p90** non supera `MaxWindow` |
+| `MaxWindowMs` | — | **`CANONICAL`** | è `FastReactionDuration` = 3,0 s. **Non introdurre un secondo nome**, e **non** scala col carico di controllo (§1.2) |
+| costo del timeout | **`MaxWindow − Grace`** — 2,0 s con `Grace = 1,0 s` | **deciso** *(la regola; il numero segue la grace)* | non è un parametro: è la durata realmente occupata (§4) |
+| `ExhaustedGraceMs` | **0,75 s** — ⚠️ per `n = 1`; §3.4 la fa scalare | `PROPOSED` | il p90 delle risposte *a bank esaurito* resta sotto la soglia: se lo supera, la finestra ridotta sta escludendo il giocatore invece di metterlo sotto pressione |
 | `LatencyAllowanceMs` | `min(HalfRTT, 250 ms)` | `PROPOSED` | vedi §8 |
 | `RefillPerTurnMs` | **0** | `PROPOSED` | variante futura, fuori dal primo consolidamento |
+| `LoadFactor(n)` | `1` per `n = 1`; **1,75** per `n = 2` | `PROPOSED` | §3.4 — un solo parametro libero, con limiti argomentati |
+| `ExtraControlledHeroGraceMs` | **+0,50 s** per Hero oltre il primo | `PROPOSED` | §3.4 — `TB-9`, non promuovibile prima di `TB-8` |
+| `ExtraControlledHeroExhaustedGraceMs` | **+0,25 s** per Hero oltre il primo | `PROPOSED` | §3.4 — stesso vincolo di sopra |
 
 > **`InitialBankMs` è derivato, non inventato.** I «30 s» della discussione erano l'unico numero senza
 > ancoraggio. `RoundLimit` esiste già in `URTMatchFormatData` (10–14 in 2v2, 16–20 in 3v3, implementato e
@@ -114,6 +134,109 @@ timeout        → consumo 2,0 s      (§4 — la finestra è stata occupata per
 
 Lockare `HOLD` a 0,4 s e lasciare scadere producono lo **stesso esito** e costi opposti: 0,0 s contro 2,0 s.
 È il gradiente che rende il bank uno strumento di pacing, e il motivo per cui §4.2 è vincolante.
+
+### 3.4 Carico di controllo — [D-156](../decisions/RT_PDR_00_Decision_Log.md)
+
+> Il bank è del **giocatore**, e un giocatore che decide per due Hero riceve più domande nello stesso turno.
+> `InitialBank`, `Grace` ed `ExhaustedGrace` scalano con il numero di Hero **realmente controllati in questo
+> match**; `MaxWindow` no, mai (§1.2).
+
+Il conteggio non è la dimensione del roster e non è `UnitsPerTeam`: è quante unità quel giocatore ha il
+diritto di comandare, e lo dichiara il formato
+([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §16.4). In v0.1 — 2v2 offline
+con **un** umano — i due numeri valgono entrambi `2` e la distinzione è invisibile: è il caso in cui leggere il
+campo sbagliato passa ogni test, e per questo il campo giusto va **nominato**, non dedotto.
+
+#### Il fattore sta dentro la derivazione, non dopo
+
+[D-056](../decisions/RT_PDR_00_Decision_Log.md) ha reso `InitialBank` **derivato** per togliere un numero
+magico. Moltiplicare il risultato per una costante lo rimetterebbe dentro, e fuori dalla formula, dove non
+scala più con niente. La forma è quindi:
+
+```
+InitialBank = RoundLimit × (MaxWindow − Grace) × LoadFactor(ControlledHeroes)
+
+LoadFactor(1) = 1            per costruzione: il caso di riferimento non si tocca
+LoadFactor(n) ∈ [1, n]       il carico non riduce mai il budget, e due Hero non costano più di due giocatori
+```
+
+I due limiti sono argomentati, non assunti: sotto `1` un giocatore verrebbe punito per controllare di più,
+sopra `n` riceverebbe più tempo di quanto ne riceverebbero `n` persone separate, e il bank smetterebbe di
+essere un budget. **1,75 per `n = 2` è un punto dell'intervallo**, non una scelta: il playtest lo confronta con
+`1,0` e `2,0`, che sono i due estremi con un significato.
+
+#### Grace ed esaurimento
+
+| Parametro | Forma | Con i valori proposti · 1 Hero | 2 Hero |
+|---|---|---|---|
+| `Grace` | `GraceMs + ExtraControlledHeroGraceMs × (n − 1)` | 1,00 s | 1,50 s |
+| `ExhaustedGrace` | `ExhaustedGraceMs + ExtraControlledHeroExhaustedGraceMs × (n − 1)` | 0,75 s | 1,00 s |
+| `MaxWindow` | **invariante** | 3,00 s | **3,00 s** |
+
+> ⚠️ **La variante `+0,75 s` di Grace per Hero extra è registrata e non adottata.** Porterebbe la grace a
+> 1,75 s su una finestra da 3,00 s: più della metà della finestra diventerebbe gratuita, e il gradiente di
+> §3.3 — che è ciò che rende il bank uno strumento di pacing — si dimezzerebbe. Resta un candidato di
+> playtest sotto `TB-9`, non una baseline alternativa.
+>
+> 🔴 **E la baseline adottata sta *sulla linea* con cui si respinge la variante — va detto, non nascosto.**
+> `+0,50 s` porta la grace a 1,50 s su 3,00 s: **esattamente metà** finestra gratuita, cioè il criterio
+> «più della metà» regge solo per disuguaglianza stretta. La porzione drenabile passa da 2,0 s a 1,5 s, cioè
+> **un quarto** del gradiente se ne va già con la baseline. Chi tara `TB-9` deve sapere che sta scegliendo
+> fra due punti di una curva ripida, non fra un valore prudente e uno azzardato — e che l'esempio di §3.3 è
+> scritto per `Grace = 1,0 s`, quindi il gradiente a due Hero **non compare** in nessuna riga di questo
+> documento e va calcolato prima di giudicarlo.
+>
+> 🔴 E vale per tutti e tre i coefficienti: **si tarano su un valore che non è tarato**. `GraceMs = 1,0 s` è
+> `PROPOSED`, e il suo criterio di promozione (§3.2) dipende da un p50 che CP 14.6 non ha ancora misurato.
+> Promuovere un moltiplicatore prima della sua base significa misurare due incognite con un esperimento solo:
+> `TB-9` è esplicitamente **bloccata da `TB-8`** (§17).
+
+#### L'effetto composto — da leggere prima di tarare
+
+⚠️ **La Grace entra due volte, e la seconda è facile da non vedere.** `InitialBank` è derivato da
+`(MaxWindow − Grace)`: una grace più larga **riduce** il costo di un timeout e, con lo stesso `RoundLimit`,
+riduce anche il bank. Con `RoundLimit = 12` e i valori proposti:
+
+| | `Grace` | costo di un timeout | `InitialBank` | timeout prima dell'esaurimento | **per Hero** |
+|---|--:|--:|--:|--:|--:|
+| 1 Hero | 1,00 s | 2,00 s | `12 × 2,00 × 1,00` = **24,0 s** | 12 | **12** |
+| **2 Hero — è la v0.1** | 1,50 s | 1,50 s | `12 × 1,50 × 1,75` = **31,5 s** | 21 | **10,5** |
+
+`RoundLimit = 12` è il valore del formato spedito (`URTMatchFormatLibrary::FindShippedFormat`), non un numero
+d'esempio.
+
+Il risultato è che chi controlla due Hero riceve un budget più largo in assoluto e **leggermente più stretto
+per unità** — che è la direzione giusta, ma è un esito *derivato*, non un obiettivo dichiarato. Va detto
+perché la taratura di `LoadFactor` non si fa a mente: cambiare `ExtraControlledHeroGraceMs` sposta anche la
+colonna del bank, e chi ne modifica uno solo pensando di isolare una variabile ne muove tre.
+
+> 🔴 **Conseguenza sui numeri della v0.1, dichiarata invece che lasciata al lettore.**
+> `Format.Skirmish2v2` è offline contro bot: un umano comanda **due** unità
+> ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §16.4). La v0.1 **è** la
+> seconda riga della tabella, non la prima. Quindi i valori di §3.2 — `InitialBank` **24 s**, costo del
+> timeout **2,0 s**, `Grace` **1,0 s** — sono quelli per `n = 1`, e il formato che spedisce oggi deriva
+> **31,5 s**, **1,5 s** e **1,5 s**.
+>
+> Il numero si muove perché la **derivazione** si muove, ed è esattamente ciò che
+> [D-056](../decisions/RT_PDR_00_Decision_Log.md) ha comprato scegliendo un valore derivato invece che
+> scelto: nessun numero è stato promosso a mano, e tutti restano `PROPOSED`. ⚠️ **Non è doppio conteggio**:
+> la derivazione di §3.2 scala con `RoundLimit`, cioè con la **lunghezza del match**, e non ha mai
+> considerato quante unità comanda una persona — in 3v3 dà 32–40 s per la stessa ragione, non perché la
+> squadra sia più grande. `LoadFactor` è l'asse nuovo, ortogonale a quello.
+>
+> **Va confermato a CP 14.6**, con il criterio di §3.2 (residuo mediano fra il 20 % e il 50 %): è la prima
+> misura in cui 24 s e 31,5 s producono osservabili diversi, ed è `TB-9`.
+
+#### Cosa questo non cambia
+
+- il bank resta **uno** per giocatore, condiviso fra tutte le sue finestre: il carico cambia la **taglia**,
+  non il numero di bank;
+- le `AllowedResponses` restano invariate (§5): il carico non tocca le opzioni, come non le tocca
+  l'esaurimento;
+- i parametri restano **wall-clock** (§6.1) anche se leggono un valore di regola dal formato — leggere
+  `ControlledHeroes` non li rende regola, esattamente come non lo faceva leggere `RoundLimit`;
+- il conteggio è un **input canonico registrato** come il residuo: il replay lo legge, non lo ricalcola dal
+  numero di unità vive al momento della lettura, che cambia durante la partita.
 
 ---
 
@@ -163,6 +286,64 @@ Senza questa eccezione, a M10 si innesca una spirale — lag o disconnessione �
 ridotta a `ExhaustedGrace` → altri timeout — in cui la qualità della linea decide la partita. La soglia che
 distingue «lento» da «disconnesso» dipende dalla policy di rete e resta aperta come `TB-7`.
 
+### 4.4 Preferred Response — [D-157](../decisions/RT_PDR_00_Decision_Log.md)
+
+§4.2 chiede che il **default** sia preselezionato. La Preferred Response chiede il passo successivo: che a
+essere preselezionata sia la risposta che il giocatore ha **scelto in anticipo**, quando è ancora legale.
+
+> Un giocatore può dichiarare in planning, insieme alla reaction che arma, quale risposta preferisce se la
+> finestra si aprirà. All'apertura, se quella risposta è ancora fra le `AllowedResponses`, è quella a essere
+> preselezionata. Un `Confirm` la committa.
+
+```
+REACTION                          Preferred = FIRE:7, ancora legale
+> FIRE  <                         → preselezionata
+  HOLD
+[CONFIRM]                         → un input, e spara
+
+REACTION                          Preferred = FIRE:7, il bersaglio non è più un'opzione
+> HOLD  <                         → si torna alla scelta sicura di §4.2
+  FIRE:9
+[CONFIRM]                         → un input, e tiene
+```
+
+#### I quattro invarianti
+
+Sono la ragione per cui questa è una preferenza e non una macro, e nessuno dei quattro è negoziabile.
+
+| # | Invariante | Perché |
+|---|---|---|
+| 1 | **Il timeout ignora la Preferred Response.** Allo scadere vale sempre `URTReactionOpportunityLibrary::DecisionOnTimeout`, cioè `HOLD` | ADR-0004 §3: un input mancato non spende una risorsa irreversibile. Se `FIRE` preferito diventasse `FIRE` allo scadere, l'assenza di input spenderebbe una charge — il divieto sarebbe aggirato dalla preselezione invece che dal codice |
+| 2 | **Preselezionato non è committato.** Nessuna risorsa si muove finché non arriva un commit valido | vedere `FIRE` evidenziato non consuma la charge, non arma nulla, non entra nel TurnLog come decisione |
+| 3 | **Non cambia le `AllowedResponses`.** La preferenza ordina la presentazione, non filtra la legalità | è la riga che la distingue dalla **condizione dichiarata** di [D-109](../decisions/RT_PDR_00_Decision_Log.md), che invece le riduce al trigger. Due dichiarazioni di planning, due effetti opposti, sullo stesso oggetto: se si confondono, un profilo a tre risposte ne mostra una sola e nessun test se ne accorge |
+| 4 | **Il confronto è esatto.** Una preferenza si applica solo se compare **identica** fra le `AllowedResponses` | `FIRE:<UnitId>` porta il bersaglio dentro la stringa: con `FIRE:7` preferito e il solo `FIRE:9` legale, la risposta è *degrada alla scelta sicura*, non *spara a un altro*. Il predicato è `IsResponseAllowed`, che già fa confronto esatto su elenco chiuso — nessun matching parziale, nessuna riscrittura del bersaglio |
+
+#### Dove vive, e dove non vive
+
+Una reaction armata porta già una dichiarazione fatta dal decisore in planning:
+`FRTArmedOverwatch::Condition` ([D-109](../decisions/RT_PDR_00_Decision_Log.md), *«vuota = nessuna»*). La
+Preferred Response è la seconda, e sta **accanto a quella**, non altrove.
+
+⚠️ **Non su `FRTReactionOpportunity`.** Quel tipo ha due campi (`Key`, `AllowedResponses`), è costruito dal
+server e raggiunge il client: è il DTO che `Overwatch.OpportunityLeaksNoFuture` esiste per tenere pulito. La
+preferenza è informazione **privata del decisore** (§7) e non ha ragione di attraversarlo.
+
+#### Quick Confirm
+
+Il percorso «prompt aperto → risposta preselezionata committata» deve essere **un solo input**, con percorso
+equivalente su mouse, tastiera e controller, e il tempo fino a quell'input dentro la grace: è §4.2 applicata
+alla preselezione, non un requisito nuovo.
+
+⚠️ **La Reaction conosce un'azione semantica, mai un tasto.** Il binding sta nel mapping context, non dentro
+la logica della finestra né dentro il widget.
+
+> 🔴 **Space è già occupato, misurato il 2026-08-17**: `RTPlayerController.cpp:256` mappa `LockInAction` su
+> `EKeys::SpaceBar`, cioè la chiusura del planning (`LockInAndResolve`). Planning e Decision Boundary non sono
+> mai aperti insieme, quindi il riuso è **possibile** — ma è una decisione sul contesto di input, non un
+> default naturale, e chi la prende deve dire perché non confonde chi gioca. Il mapping è costruito in C++ con
+> `NewObject<UInputAction>` e `Config/DefaultInput.ini` non nomina `Space`: non c'è un asset da guardare, e il
+> conflitto si vede solo leggendo il codice.
+
 ---
 
 ## 5. Bank esaurito
@@ -193,6 +374,7 @@ Il wall-clock non entra nel resolver. Il bank sopravvive a questo vincolo solo c
 | Simulation Time | dentro il segmento, invariato |
 | Presentation Time | può rallentare, non decide ([ADR-0004 §3](../decisions/adr-0004-finestre-di-reazione.md)) |
 | Decision Time | produce **un dato**: `Response` oppure `TimeoutResponse`, più `BankAfterMs` |
+| Carico di controllo | costante di match: `ControlledHeroes` e `InitialBankMs` si **leggono dall'header** del log (§10), non si ricalcolano dalle unità vive |
 | Wall-clock | non è mai letto dal resolver |
 
 ### 6.1 Dove vivono i parametri — chiuso per precedente
@@ -250,6 +432,19 @@ l'avversario non sapeva esistere una finestra rivela che una finestra c'è stata
 **Verifica**: canary test come per l'invariante #6 — un giocatore riceve una finestra privata, e la vista
 avversaria (DTO, replicazione, log pubblico, spettatore, late join) deve essere **identica** al caso senza
 finestra.
+
+### 7.1 Preferred Response e carico di controllo — cosa è privato, cosa non lo è
+
+| Dato | Visibilità | Perché |
+|---|---|---|
+| `PreferredResponse` (§4.4) | **owner-only** | è un'intenzione dichiarata prima che la finestra esista. Rivelarla anticipa la risposta *prima del momento in cui la Reaction Definition permette il reveal*, che nel Clash è a scadenza fissa ([D-048](../decisions/RT_PDR_00_Decision_Log.md)) |
+| Numero di Hero controllati | **pubblico se il formato lo rende pubblico** | è una proprietà del formato, non una decisione: in un 2v2 dove ognuno comanda due unità lo sanno entrambi prima di cominciare |
+| `LoadFactor` applicato | **derivabile, quindi non protetto** | è una funzione pura e documentata (§3.2) del conteggio della riga sopra: chi conosce il formato lo conosce per costruzione. Trattarlo come segreto sarebbe una classificazione **inapplicabile**, e un canary scritto su di essa asserirebbe l'impossibile o verrebbe indebolito in silenzio |
+| Bank residuo, e `InitialBank` di un altro giocatore | **owner-only** | resta chiuso da §7. È il **prodotto** a essere protetto, non i suoi fattori: sapere che il fattore vale 1,75 non dice quanto tempo è rimasto a chi decide |
+
+⚠️ Il Quick Confirm non deve creare un canale: un input che arriva prima non deve produrre un pacchetto, un
+tempo di elaborazione o un'animazione osservabili dall'avversario. È la stessa forma di `D-021` — *«il canale
+non è il pacchetto, è la sua assenza»* — applicata a un input reso deliberatamente più veloce.
 
 ---
 
@@ -327,11 +522,63 @@ quanto ha speso, quanto gli resta, e se è stato un timeout e perché.
 |---|---|
 | `DecisionId` · `OpportunityId` · owner | riusare l'identità già in uso per le opportunity |
 | `AllowedResponses` · `CanonicalResponse` | il replay riproduce **questa**, non il countdown |
-| `BankBeforeMs` · `BankConsumedMs` · `BankAfterMs` | il residuo è un dato letto, non ricalcolato (§6) |
+| `BankConsumedMs` · `BankAfterMs` | il residuo è un dato letto, non ricalcolato (§6). ⚠️ **`BankBeforeMs` NON entra**, e questa riga ne chiedeva tre fino al 2026-08-17: il residuo *prima* è `BankAfter + BankConsumed` **della stessa decisione**, cioè due numeri adiacenti — leggerli non è il ricalcolo che §6 vieta, che sarebbe sommare la storia dall'inizio. Lo argomenta [`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2, e questa § non lo aveva recepito |
 | `TimeoutReason` | distingue scadenza, disconnessione e bank esaurito: la (2) di §4 dipende da questa distinzione |
+| `ControlledHeroes` · `InitialBankMs` **una volta per match** | ➕ **2026-08-17**, e senza queste due righe §3.4 non è verificabile: `Spec.TimeBank.ControlLoadScalesInitialBank` ha per oracolo *«il bank iniziale **registrato** segue `LoadFactor`»* e non avrebbe cosa leggere. Vanno nell'**header** e non nella voce — sono costanti di match, e `FormatId` è già lì per la stessa ragione ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §16.3: nelle voci sarebbe «una costante ripetuta N volte»). ⚠️ Il conteggio si **registra**, non si ricalcola dalle unità vive: quelle muoiono durante la partita e il replay leggerebbe un numero diverso a metà match |
 
 Il TurnLog autorevole è **server-side**. Nessuno di questi campi, per un giocatore diverso dall'owner, entra in
 una vista replicata in-match (§7).
+
+### 10.1 Il nome della categoria — chiuso il 2026-08-17, [D-166](../decisions/RT_PDR_00_Decision_Log.md)
+
+> **`Decision` nasce come categoria distinta, in coda a `ERTLogCategory`, con un enum proprio
+> (`ERTDecisionOutcome`, **tre** esiti — `BankConsumed`, `BankAfter`, `BankExhausted`) e `Amount` in millisecondi.**
+> [`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2 prevale: prescriveva questo dal 2026-08-09 (`#361`),
+> e la scelta la conferma invece di emendarla. *(decisione dell'autore)*
+
+Il conflitto c'era, ed era vero: `ReactionDecision` è atterrata con CP 14.5, è in coda a `ERTLogCategory`,
+serializzata in TurnLog v8 e letta da cinque call site. Ma **non è la stessa categoria mancata di nome** —
+sono due fatti diversi sulla stessa finestra:
+
+| Categoria | Enum di esito | `Amount` | Risponde a |
+|---|---|---|---|
+| `ReactionDecision` | `ERTReactionDecisionOutcome`, sei valori | **danni** | *cosa ha scelto, e perché* |
+| `Decision` *(nuova)* | `ERTDecisionOutcome`, **tre** valori | **millisecondi** | *quanto è costata, e cosa resta* |
+
+**La ragione che decide è `Amount`, e la scrive già il commento di `ERTReactionDecisionOutcome`.** Quel
+commento argomenta contro *«due assi per un campo solo»* e conclude che `Amount` deve restare *«la quantita'
+che dichiara di essere»*. `Amount` ha significato **per categoria**: danni per `Combat` e `ReactionDecision`,
+celle per `Move`, direzione per `Facing`. Far scrivere al bank i propri millisecondi sotto `ReactionDecision`
+significherebbe che lo stesso campo, sotto la stessa categoria, vale danni per `FireChosen` e tempo per
+`BankAfter` — cioè il difetto che quel commento dichiara di aver evitato, reintrodotto dall'altra parte.
+
+Due argomenti secondari, coerenti con il primo:
+
+- il bank è **`RT-FEAT-CORE-*` e non `-REACTION-*`** (§14) perché serve ogni Decision Window, incluse quelle
+  che non sono reazioni. Voci chiamate `ReactionDecision` su finestre che non sono reazioni sarebbero un nome
+  che mente sulla propria categoria;
+- `LogEventAmount` legge `(categoria, esito)`: con due categorie distinte un'assertion sul bank non può
+  intercettare per sbaglio la voce di un colpo, e viceversa.
+
+⚠️ **Due categorie non sono due verità**, ed è la clausola che il conflitto chiedeva di scrivere: di una
+finestra si registrano **due cose** — l'esito e il costo — e nessuna delle due è derivabile dall'altra.
+Sarebbero due verità se entrambe dichiarassero *cosa è stato scelto*.
+
+🔴 **Conteggio delle voci, corretto in code review**: questo paragrafo diceva «una finestra produce **due
+voci**» e contraddiceva §4.2, che dice *«Due voci, non tre»* riferendosi alla sola categoria `Decision`. Una
+finestra di reazione ne produce **tre**: `1 × ReactionDecision` (l'esito) + `2 × Decision` (`BankConsumed` e
+`BankAfter`). Chi implementasse CP 14.8 contando due voci in tutto ne scriverebbe una sola di `Decision`, e
+perderebbe il costo **o** il residuo — e con esso la proprietà di §6, che il residuo si **legga** invece di
+ricalcolarlo.
+
+🔴 **Il difetto vero non era il nome: era che `#361` aveva deciso e nessuno aveva riletto quella riga
+quando CP 14.5 ne ha aggiunta una simile in coda.** Il conflitto è rimasto invisibile finché il consolidamento
+del 2026-08-17 non ha confrontato la spec col codice — e nessun gate lo vede, perché non è un link rotto né un
+simbolo inesistente: sono due nomi plausibili in due documenti che nessuno legge insieme.
+
+⚠️ La Preferred Response, invece, **non** entra nel log come dato proprio: l'esito competitivo dipende dalla
+risposta committata, e `Outcome` distingue già `HOLD` scelto da `HOLD` scaduto. Registrarla servirebbe solo a
+verificare una proprietà di UI, che è una verifica funzionale e non una del replay (§13).
 
 ---
 
@@ -344,7 +591,20 @@ Requisiti, in ordine di vincolo:
 3. distinzione leggibile fra fase **free** (grace, nessun drenaggio) e fase **drain**;
 4. bank residuo visibile **al solo proprietario** (§7);
 5. stato di esaurimento comunicato con forma o testo, **mai col solo colore**;
-6. percorso tastiera/controller equivalente a quello del mouse.
+6. percorso tastiera/controller equivalente a quello del mouse;
+7. **la risposta preselezionata è visibilmente tale** (§4.4), e si distingue da «prima della lista». Se il
+   giocatore non vede *quale* risposta sta per confermare, il Quick Confirm diventa un tasto che fa qualcosa
+   di ignoto — che è peggio del menu che sostituisce;
+8. quando la Preferred Response **decade** perché non più legale, la UI lo dice invece di cambiare selezione in
+   silenzio: chi ha dichiarato `FIRE` e si vede confermare `HOLD` deve sapere perché, o attribuirà al gioco un
+   errore che non ha commesso.
+
+> ⚠️ I requisiti (7) e (8) sono **verifiche PIE**, non test headless: la preselezione è uno stato di
+> interfaccia e il TurnLog registra la risposta committata, non ciò che era evidenziato. Il testo pronto per
+> [`test-manuali-pie.md`](../technical/test-manuali-pie.md) sta nel DoD di
+> [`#319`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/319) — la voce non è stata scritta da
+> questo consolidamento perché quel file appartiene a un'altra track (`D-139`), e la ragione è registrata
+> nello [spec panel](../roadmap/plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md) §6.
 
 Se il playtest mostra che i numeri peggiorano la lettura in tre secondi, si degrada la presentazione — barra
 senza cifre — non il requisito (1).
@@ -381,7 +641,10 @@ confermare con l'owner» e i nomi erano stati scritti nella mappa lo stesso, in 
 
 Il livello ora significa una cosa sola:
 
-- **`harness`** — file `Spec.TimeBank.*` eseguibile dal RT Scenario Test Harness. Sono **dieci**, e sono
+- **`harness`** — file `Spec.TimeBank.*` eseguibile dal RT Scenario Test Harness. Sono **tredici** dal
+  2026-08-17 — erano dieci, e le tre nuove sono le righe `ControlLoad*` e `TimeoutIgnoresPreferredResponse` di
+  §3.4 e §4.4; il conteggio è la somma delle righe marcate **harness** nella tabella sotto, non un numero
+  incrementato a mano. Sono
   diventati scrivibili quando `#318` ha dato all'harness le assertion che leggono il TurnLog e `#361` ha
   deciso *come* il bank ci entra ([`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2). Prima erano
   classificati `golden` e non erano esprimibili in nessuna forma automatica.
@@ -410,6 +673,13 @@ Il livello ora significa una cosa sola:
 | `Spec.TimeBank.PrivacyNoBankLeak` | canary: vista avversaria identica con e senza finestra privata (§7) | funzionale · M10 |
 | `Spec.TimeBank.ClashCostsFullWindow` | in un Clash la wall-clock resta 3,0 s a prescindere dal bank (§1.1) | **harness** |
 | `Spec.TimeBank.PacingScriptedMatch` | match scriptato: prompt totali, tempo di decisione, esaurimenti, timeout | funzionale |
+| `Spec.TimeBank.ControlLoadScalesInitialBank` | due Hero controllati ⇒ il bank iniziale registrato segue `LoadFactor`, non la baseline (§3.4) | **harness** |
+| `Spec.TimeBank.ControlLoadNeverExtendsWindow` | al variare del conteggio `MaxWindow` resta 3,0 s: il costo del timeout è `MaxWindow − Grace` con la **grace scalata**, mai un `MaxWindow` diverso (§1.2 · §3.4). ⚠️ **Due casi, non uno**: bank pieno **e** bank a zero — con `ExhaustedGrace` che scala (0,75 → 1,00 s) la finestra degradata resta comunque sotto `MaxWindow`, ed è l'unico modo in cui l'asserzione copre l'invariante che nomina | **harness** |
+| `Spec.TimeBank.TimeoutIgnoresPreferredResponse` | `PreferredResponse = FIRE:<n>`, nessun input ⇒ risposta `HOLD`, **nessuna charge spesa**, reaction ancora armata. Tre asserzioni separate: una sola passerebbe anche col codice sbagliato (§4.4, invariante 1) | **harness** |
+| `Spec.TimeBank.PreferredResponseFallsBackWhenStale` | preferenza non più fra le `AllowedResponses` ⇒ si preseleziona la scelta sicura, **confronto esatto**: `FIRE:7` preferito con solo `FIRE:9` legale non spara a 9 (§4.4, invariante 4) | estende |
+| `Spec.TimeBank.PreselectionSpendsNoCharge` | preselezionare non muove risorse: nessun commit, nessuna charge, nessuna voce di decisione nel log (§4.4, invariante 2) | estende |
+| `Spec.TimeBank.PreferredResponseKeepsAllowedResponses` | l'elenco legale è identico con e senza preferenza dichiarata — è la riga che distingue la preferenza dalla condizione di [D-109](../decisions/RT_PDR_00_Decision_Log.md) (§4.4, invariante 3) | estende |
+| `Spec.TimeBank.QuickConfirmReachableWithinGrace` | dall'apertura del prompt al commit della risposta **preselezionata** passa un solo input e meno della grace, su mouse, tastiera e controller (§4.4 · §11) | funzionale · UI |
 
 **Un test non va scritto**: nessun test che verifichi solo che una costante valga 30, 1 o 3. I valori sono
 `PROPOSED` e cambieranno; ciò che va pinnato sono le **relazioni** (grace non drena, timeout costa meno del
@@ -473,6 +743,20 @@ Registrate nel [Decision Log](../decisions/RT_PDR_00_Decision_Log.md) il 2026-08
 | [`D-056`](../decisions/RT_PDR_00_Decision_Log.md) | `InitialBank` **derivato** da `RoundLimit × (MaxWindow − Grace)` | **Consolidata** nella forma |
 | [`D-057`](../decisions/RT_PDR_00_Decision_Log.md) | Il bot possiede un bank: nessun ramo `IsBot` nella Decision Window | **Consolidata** |
 
+Registrate il **2026-08-17**, con gli ID presi da `rt_shared_id.py reserve D`:
+
+| ID | Decisione | Stato |
+|---|---|---|
+| [`D-156`](../decisions/RT_PDR_00_Decision_Log.md) | Il bank scala col **carico di controllo** attraverso `LoadFactor` **dentro** la derivazione di D-056; `Grace` ed `ExhaustedGrace` scalano per policy data-driven; `FastReactionDuration` resta invariata (§1.2 · §3.4) | **Consolidata** nella forma · numeri `PROPOSED` |
+| [`D-157`](../decisions/RT_PDR_00_Decision_Log.md) | `PreferredResponse` è una dichiarazione di planning distinta dal timeout: non cambia le `AllowedResponses`, non consuma risorse finché non è committata, e allo scadere vale sempre `DecisionOnTimeout` (§4.4) | **Consolidata** |
+| [`D-166`](../decisions/RT_PDR_00_Decision_Log.md) | La categoria di log del bank è **`Decision`**, distinta da `ReactionDecision`, con i tre esiti che [`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2 prescrive: `Amount` ha significato per categoria, e mescolare danni e millisecondi sotto la stessa sarebbe il difetto che `ERTReactionDecisionOutcome` dichiara di evitare (§10.1) | **Consolidata** · matrice riga 75 |
+| [`D-167`](../decisions/RT_PDR_00_Decision_Log.md) | `TB-10` chiusa: le finestre dello stesso giocatore **restano in serie**, e il cap aggregato lo fa il bank. Il boundary non cambia (§17) | **Consolidata** |
+
+⚠️ [`D-155`](../decisions/RT_PDR_00_Decision_Log.md) — il conteggio degli Hero controllati dichiarato dal
+formato — **non è di questo documento**: il suo owner è
+[`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §16.4. Il bank lo **legge**,
+come legge `RoundLimit`, e non lo definisce.
+
 I restanti valori numerici restano baseline di playtest con i criteri di promozione di §3.2.
 
 > Gli ID sono partiti da **D-050** e non da D-044: al momento dell'assegnazione `docs/decisioni-movimento`
@@ -483,7 +767,11 @@ I restanti valori numerici restano baseline di playtest con i criteri di promozi
 
 ## 17. Domande aperte
 
-### Chiuse il 2026-08-09
+### Chiuse
+
+*(La data è nella riga, non nell'intestazione: `TB-1`…`TB-4` e `TB-6` si sono chiuse il **2026-08-09**,
+`TB-10` il **2026-08-17**. L'intestazione diceva «Chiuse il 2026-08-09» e ha smesso di essere vera appena il
+secondo gruppo è arrivato — corretto in code review.)*
 
 | ID | Domanda | Esito |
 |---|---|---|
@@ -492,6 +780,7 @@ I restanti valori numerici restano baseline di playtest con i criteri di promozi
 | `TB-3` | `InitialBank` derivato o fisso? | **derivato** da `RoundLimit` (§3.2) |
 | `TB-4` | `DecisionTimingPolicy` dentro o fuori dagli hash? | **fuori**: è wall-clock, non regola. Chiusa **per precedente** (`RTMatchFormatData.h` §14: i tempi di parete non stanno fra i parametri di regola), non per scelta. `ResolverConfigHash` non esiste nel codice |
 | `TB-6` | `ExhaustedGrace`? | **0,75 s**, valore ancora `PROPOSED` (§5) |
+| `TB-10` | Più Hero dello stesso Player possono ricevere **un solo** batch di decisione invece di finestre in serie? | **No: si serializza, e il cap è il bank** — [D-167](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-17. È la risposta che *non cambia niente nel Decision Boundary*, e la misura dice perché: `ApplyReactionDecision` compie **tre** mutazioni — danno al bersaglio, `bCharged = false`, e `StopUnitInPlace` sul mover. La terza è quella che decide: in un batch la seconda decisione verrebbe presa **prima** di sapere che la prima ha fermato il bersaglio, cioè su un contesto che non esiste più. ⚠️ **E il caso è vivo in v0.1**, non futuro: due unità dello stesso umano con Overwatch armato che scattano nello stesso micro-step gli impilano **due finestre da 3,0 s in fila**, cioè **6 s** consecutivi su una persona sola. 🔴 *Questa cella diceva **18 s**, e non seguiva dal proprio antecedente: quel numero richiede che ciascuna Overwatch esaurisca il cap di **tre** prompt su tre micro-step diversi, e [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §Revisione registra che il triage del 2026-08-10 ha misurato quel `3` **già irraggiungibile** in 2v2 da una singola Overwatch. Corretto in code review: il caso peggiore per micro-step è `2 × 3,0 s`, e il tetto per turno è un limite teorico, non una misura.* Contenere il costo aggregato è esattamente il lavoro del bank (§1) — chiedere al boundary di risolverlo sarebbe un secondo strumento per lo stesso problema. **Conseguenza vincolante su CP 14.6**: il campione di pacing deve includere due unità armate **dello stesso giocatore** — e le tre parole finali sono la sostanza, perché il DoD di `#166` chiedeva già «1, 2 e 3 unità armate» senza dire di chi: due unità su squadre **diverse** fanno aspettare due persone in parallelo, due dello **stesso** giocatore gliene impilano due in fila. Misurare le prime soddisfa la lettera e produce la baseline che questa decisione esiste per evitare |
 
 ### Aperte
 
@@ -500,6 +789,7 @@ I restanti valori numerici restano baseline di playtest con i criteri di promozi
 | `TB-5` | Quale quota di RTT si sottrae dal consumo, con quale cap? | **M10**: dipende da una policy di rete che non esiste |
 | `TB-7` | Quale soglia distingue «lento» da «disconnesso», e il fallback è immediato o alla deadline? | **M10**, stesso motivo. Da cui dipende §4.3 |
 | `TB-8` | La taratura di `InitialBank` e `Grace` regge la misura di CP 14.5/14.6? | alla chiusura di **CP 14.6**, con i criteri di §3.2 |
+| `TB-9` | Quale `LoadFactor(2)` e quale `ExtraControlledHeroGrace`? `1,75` / `+0,50 s` è la baseline, `+0,75 s` la variante registrata (§3.4) | **dopo `TB-8`**, e non prima: sono moltiplicatori di un valore che non è ancora tarato, e un playtest solo non separa due incognite |
 
 ---
 
@@ -516,6 +806,19 @@ Il bank non è Done perché il countdown appare in UMG.
 [ ] fallback preselezionato e raggiungibile entro la grace (§4.2), MISURATO su mouse e controller
 [ ] il bot ha un bank e nessun ramo IsBot attraversa la Decision Window (§9.1)
 [ ] replay legge il residuo dal log (§6)
+[ ] il SOGGETTO del bank esiste: un'identità di giocatore distinta dall'unità (D-155), o il bank
+    finisce attaccato all'unità e D-050 è violata dal primo commit
+[ ] il carico di controllo entra nella derivazione, non dopo (D-156 §3.4); MaxWindow invariata
+[ ] `ControlledHeroes` e `InitialBankMs` sono nell'header del TurnLog (§10): senza, §3.4 non è
+    verificabile e il replay ricalcola il conteggio dalle unità vive
+[ ] PreferredResponse: i quattro invarianti di §4.4, ciascuno con il proprio test
+[ ] Quick Confirm: azione semantica, nessun tasto fisico nella logica di Reaction né nel widget
+[x] il nome della categoria di log è RISOLTO (D-166, 2026-08-17): `Decision` distinta, `Amount` in
+    millisecondi
+[ ] ...e resta da SCRIVERLA in TRE punti, non uno: l'enum `ERTDecisionOutcome`, la voce in coda a
+    `ERTLogCategory`, e il `case` in `OutcomeEnumForCategory` (RTScenarioLoader). Senza il terzo,
+    `ParseScenarioLogEvent` non risolve l'enum e lo scenario fallisce il CARICAMENTO, non l'assertion:
+    è successo con `Predictive`, ed è stato corretto il 2026-08-16. Da valutare anche `DescribeLogEvent`
 [ ] TurnLog allineato a spec-turnlog.md, nomi confermati con l'owner
 [ ] scenari §13 automatizzati, nessun sleep nei golden
 [ ] telemetria collegata a RT-FEAT-MATCH-PACING senza sostituire ReactionDecisionSeconds

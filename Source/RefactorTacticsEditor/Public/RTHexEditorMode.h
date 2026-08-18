@@ -22,4 +22,19 @@ public:
 	virtual void Enter() override;
 	virtual void CreateToolkit() override;
 	virtual TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> GetModeCommands() const override;
+
+protected:
+	/** Aggiunge il binding di `Home` a quelli che `UEdMode` installa da se' (fra cui `F` sulla selezione). */
+	virtual void BindCommands() override;
+
+private:
+	/**
+	 * `#623`: porta in vista tutte le celle dell'asset mappa, su tutti i layer.
+	 *
+	 * ⚠️ **Nessuna geometria qui dentro.** L'ingombro lo calcola `URTHexLibrary::CellsBoundsWorld`, che sta
+	 * nel modulo runtime e ha i propri test: una regola che decide *dove finisce la mappa* non e' una
+	 * decisione dello strumento che la disegna. Questo metodo raccoglie gli ingressi, chiama, e passa il
+	 * risultato al viewport.
+	 */
+	void FrameEditableMap();
 };

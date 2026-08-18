@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
 #include "Turn/RTTurnLog.h" // ERTLogCategory: un'assertion sul log parla il vocabolario del log
+#include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: la condizione dichiarata di [D-109] sull'intent
 #include "RTTestScenario.generated.h"
 
 /**
@@ -368,6 +369,28 @@ struct FRTScenarioIntent
 	 */
 	UPROPERTY()
 	FName Reaction;
+
+	/**
+	 * La CONDIZIONE dichiarata in pianificazione sulla reazione armata ([D-109]): `"condition": { "id":
+	 * "TargetHealthAtOrBelowPercent", "param": 10 }`. `Id` vuoto = nessuna, che e' il comportamento di sempre.
+	 *
+	 * Non e' un regime a parte e non apre niente: **riduce** le risposte legali dell'opportunity al trigger. Se
+	 * dopo la riduzione ne resta una sola il commit e' immediato e nessuna finestra si apre — ed e' l'unico
+	 * caso che uno scenario puo' esercitare oggi, perche' due o piu' risposte pretendono `DecisionBoundary`.
+	 *
+	 * ⚠️ **Sta sull'intent e non sull'unita' per la stessa ragione di `Reaction`**: e' una scelta di PIANO,
+	 * rifatta ogni turno, non una proprieta' di chi la dichiara. Un'unita' che riarma la reazione il turno dopo
+	 * senza ridichiarare la condizione se la ritroverebbe addosso senza averla chiesta, che e' esattamente il
+	 * difetto che `ARTUnit::SetPlannedReactionCondition` rifiuta quando lo slot reazione e' vuoto.
+	 *
+	 * 🔴 **Limite dichiarato, misurato e non aggirabile da qui.** `SetPlannedReactionCondition` pretende un
+	 * `PlannedReactionAbility` armato, mentre l'Overwatch costa l'azione PRINCIPALE: un intent di
+	 * solo-Overwatch **non riesce** a dichiarare una condizione, e il campo resterebbe vuoto senza dirlo. Il
+	 * loader lo rifiuta con un motivo invece di lasciarlo passare — `RTTurnManager.cpp` chiama questa
+	 * mancata riconciliazione dei due slot «la meta' di #583 che CP 14.5 sblocca senza chiudere».
+	 */
+	UPROPERTY()
+	FRTDeclaredCondition Condition;
 
 	/**
 	 * Rotazione DICHIARATA in pianificazione (D-020): `"facing": "NE"`. Da non confondere con

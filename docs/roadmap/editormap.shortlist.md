@@ -52,13 +52,13 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**24 sedute** — ✅ **0** · 🟡 **13** · ⏳ **7** · **4** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**26 sedute** — ✅ **1** · 🟡 **12** · ⏳ **7** · **6** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
 ### My Editor Queue
 
-**BLOCKING** 10 · **READY** 4 · **WAITING** 6 · **DONE** 0. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 3 · **WAITING** 6 · **DONE** 1. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -75,10 +75,9 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
-- **U18** · Verifiche senza prerequisiti — 1/15 voci verdi
+- **U18** · Verifiche senza prerequisiti — 4/15 voci verdi
 - **U20** · Confine fra Guard e Brace — 0/1 voci verdi
-- **U21** · Luci del graybox e inquadratura della mappa — 0/2 voci verdi · sblocca U22
-- **U24** · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root · sblocca E46.3, E46.5, E46.6
+- **U21** · Luci del graybox e inquadratura della mappa — 0/2 voci verdi · sblocca U22, U25, U26
 
 **WAITING** — *Aspetta codice*
 
@@ -91,13 +90,13 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **DONE** — *Finite*
 
-- —
+- **U24** · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root ✅
 
 ### Tutte le sedute
 
 | | Seduta | Lane | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|:--:|---|---|:--:|:--:|:--:|
-| **U18** | Verifiche senza prerequisiti | `PIE` | verdetto su quindici voci che non attendono nulla | — | no | 1/15 | 🟡 |
+| **U18** | Verifiche senza prerequisiti | `PIE` | verdetto su quindici voci che non attendono nulla | — | no | 4/15 | 🟡 |
 | **U1** | Mappa-arena hex | `ASSET` | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 6/7 | 🟡 |
 | **U2** | Partita hex, primo giro | `PIE` | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 7/8 | 🟡 |
 | **U3** | Input e pianificazione | `PIE` | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
@@ -120,9 +119,11 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U20** | Confine fra Guard e Brace | `PIE` | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
 | **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 0/2 | ⏳ |
 | **U22** | Il gesto dell'autore — ghost, snap e Undo del tool Geometry | `PIE` | verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo | U21 | no | 0/4 | ⏳ |
-| **U24** | I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root | `PIE` | i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/` | — | no | — | 🟡 |
+| **U24** | I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root | `PIE` | i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/` | — | no | — | ✅ |
+| **U25** | Il volume di posa della cella, e la scena che dice se il graybox si legge | `PIE` | verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor | U21 | no | — | — |
+| **U26** | La griglia di lavoro e la sonda di movimento nell'editor | `PIE` | verdetto su leggibilita' della griglia di lavoro e della sonda di movimento | U21 | no | — | — |
 
-**Lane**: `PIE` **21** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
+**Lane**: `PIE` **23** · `ASSET` **3**. `ASSET` significa che l'uscita e' un asset da costruire e committare, `PIE` che e' un verdetto da dare guardando il gioco. Non e' l'evidenza: U7 e' `ASSET` **e** verifica due voci `PIE-*`. Serve a rispondere a una domanda sola — *cosa mi serve per farla, il gioco che gira o gli asset che non ho ancora?*
 
 ### Blocco 1 — Eseguibile oggi
 
@@ -132,7 +133,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **Sbloccata da**: — · **Percorso critico**: no
 **Produce**: verdetto su quindici voci che non attendono nulla
-**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ⏳ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ⏳ · `PIE-HEX-TRANS` ⏳ · `PIE-HEX-LAYER-FOCUS` ⏳ · `PIE-HEX-LAYER-CLICK` ⏳ · `PIE-HEX-LAYER-PANEL` ⏳ · `PIE-V01-REACTCOND` ⏳ · `PIE-HEX-VIZ-BLOCCHI` ⏳ · `PIE-HEX-VIZ-COSTO` 🟡 · `PIE-HEX-VIZ-BORDI` ⏳ · `PIE-HEX-VIZ-PORTE` ⏳ · `PIE-HEX-VIZ-UNDO` ⏳ · `PIE-HEX-VIZ-TRANSIZIONI` ⏳
+**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ✅ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ✅ · `PIE-HEX-TRANS` ✅ · `PIE-HEX-LAYER-FOCUS` ⏳ · `PIE-HEX-LAYER-CLICK` ⏳ · `PIE-HEX-LAYER-PANEL` ⏳ · `PIE-V01-REACTCOND` ⏳ · `PIE-HEX-VIZ-BLOCCHI` ⏳ · `PIE-HEX-VIZ-COSTO` 🟡 · `PIE-HEX-VIZ-BORDI` ⏳ · `PIE-HEX-VIZ-PORTE` ⏳ · `PIE-HEX-VIZ-UNDO` ⏳ · `PIE-HEX-VIZ-TRANSIZIONI` ⏳
 **Finita quando**: le quindici voci hanno esito reale nel registro
 
 **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
@@ -705,7 +706,7 @@ Nessuna guida copre questa procedura, quindi i passi stanno qui.
 
 **Non e' una caccia ai difetti: e' una domanda di leggibilita'.** Tre unita' con
 `PushResistance = 0` (Gadget, Phase, Wraith) — una in `Action.Guard`, una in `Action.Brace`, una
-senza difesa — e una Phase avversaria che usa `Riva.PressureJet` su ciascuna nello stesso turno.
+senza difesa — e una Phase avversaria che usa `Hero.Phase.PressureJet` su ciascuna nello stesso turno.
 E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 1. Guarda il turno **senza leggere i numeri**. «Questo si e' piantato» dev'essere distinguibile
@@ -723,32 +724,141 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 #### U21 · Luci del graybox e inquadratura della mappa ⏳
 
-**Sbloccata da**: — · **Preparazione condivisa con**: U22 · **Percorso critico**: no
+**Sbloccata da**: — · **Preparazione condivisa con**: U22, U25, U26 · **Percorso critico**: no
 **Produce**: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
 **Verifichi**: `PIE-MAPED-LIGHT` ⏳ · `PIE-MAPED-FRAME` ⏳
 **Finita quando**: le due voci hanno un esito reale e il livello illuminato e' committato
-**Sblocca**: U22
+**Sblocca**: U22, U25, U26
 
-> Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e questo repository non modifica `.umap` da riga di comando. ⚠️ `artifacts` e' VUOTO di proposito, benche' la seduta committi un livello. L'oracolo degli artefatti e' `git ls-files`, che sa dire se un path esiste e non se e' stato MODIFICATO: `L_DevSandbox.umap` e' gia' tracciato da mesi, quindi dichiararlo qui farebbe derivare 🟡 («parte fatta») su una seduta non ancora aperta. Lo stato deriva dalle due voci PIE, che sono la cosa che davvero non esiste ancora. Il livello committato resta nella DoD della issue. ⚠️ Il sorgente chiedeva anche di ricostruire la navigazione della camera (MMB pan, RMB orbit, wheel zoom, WASD, F focus). **Il viewport di Unreal le fornisce gia' tutte**, e un `UEdMode` non possiede la camera del viewport: `RTCameraPawn` e' la camera di GIOCO, un oggetto diverso. Resta solo l'inquadratura della mappa, che e' `PIE-MAPED-FRAME`. ⚠️ ID assegnato al merge: preso `U21` con `U20` come ultimo su `main`. Chi arriva secondo rinumera, non contende.
+> Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e questo repository non modifica `.umap` da riga di comando. ⚠️ `artifacts` e' VUOTO di proposito, benche' la seduta committi un livello. L'oracolo degli artefatti e' `git ls-files`, che sa dire se un path esiste e non se e' stato MODIFICATO: `L_DevSandbox.umap` e' gia' tracciato da mesi, quindi dichiararlo qui farebbe derivare 🟡 («parte fatta») su una seduta non ancora aperta. Lo stato deriva dalle due voci PIE, che sono la cosa che davvero non esiste ancora. Il livello committato resta nella DoD della issue. ⚠️ Il sorgente chiedeva anche di ricostruire la navigazione della camera (MMB pan, RMB orbit, wheel zoom, WASD, F focus). **Il viewport di Unreal le fornisce gia' tutte**, e un `UEdMode` non possiede la camera del viewport: `RTCameraPawn` e' la camera di GIOCO, un oggetto diverso. Resta solo l'inquadratura della mappa, che e' `PIE-MAPED-FRAME`. ⚠️ ID assegnato al merge: preso `U21` con `U20` come ultimo su `main`. Chi arriva secondo rinumera, non contende. --- **COSA FAI** — i passi stanno qui perche' nessuna guida copre ancora l'illuminazione: la checklist di `convenzioni-contenuti-ue.md` §12 riguarda dove va un asset, non come si accende una scena. Stessa ragione per cui `U1` e `U16` portano i propri. **0. Misura il prerequisito invece di assumerlo.** Entrambe le voci PIE chiedono celle su **≥2 layer**, e `PIE-MAPED-FRAME` chiede anche celle **lontane dall'origine**. Se `L_DevSandbox` non le ha, dipingile prima: tool **Paint** con `BrushRadius` alto per il piano 0, `ActiveLayer=1` per il secondo, tool **Arch** per una transizione. `rt.Arena.Check` dice se la mappa ha celle; la vista `Focus` dice se i piani sono due. Cosi' facendo cambia anche `Data/DA_HexMap_Sandbox.uasset`, ed e' il motivo per cui la lease copre **entrambi** i package. **1. Le luci, e perche' sono piu' di una.** Il criterio di `PIE-MAPED-LIGHT` vieta esattamente *«una meta' leggibile e una no»*, che e' la firma di una **sola** luce direzionale: la faccia opposta al sole non riceve niente. Serve quindi anche una sorgente ambientale che riempia l'ombra, e qualcosa che quella sorgente possa raccogliere. Il sorgente proponeva `Directional Light` + `Sky Light` + `Sky Atmosphere`: la combinazione e' ragionevole, ma il criterio e' l'**orbita**, non la lista degli attori — chi la ottiene con meno pezzi ha comunque ragione. **2. L'esposizione si fissa NEL LIVELLO, non nella viewport.** Il prerequisito dice *«nessuna modifica all'esposizione della viewport»*, e non e' un dettaglio procedurale: se la scena si legge solo dopo aver alzato l'esposizione a mano, allora non si legge — e le altre tre sedute che ereditano questo allestimento vedrebbero altro. Un `Post Process Volume` **unbound** nel livello e' lo scope giusto. ⛔ **NON toccare `Config/DefaultEngine.ini`** per l'auto-exposure di progetto: `Config/` e' `integration_only` in `parallel-batch.yaml`, e cambiare un default di progetto per un banco di prove distruttive e' il caso che `#926` ha gia' respinto — «paga un binario e cambia il comportamento predefinito del gioco che si distribuisce». **3. Il verdetto e' un'orbita, non uno screenshot.** Gira attorno alla mappa e guarda le facce che il sole non prende: superficie, marcatori blocca-movimento/blocca-vista e contorni dei piani di contesto devono restare distinguibili **da ogni angolo**. **4. `PIE-MAPED-FRAME` nella stessa apertura.** Con il mode Hex Map attivo, premi **`Home`**: la vista deve portare dentro **tutte** le celle, comprese quelle sui layer diversi da `ActiveLayer` e quelle lontane dall'origine. ⚠️ Il comando arriva con `#623` parte B: serve un editor compilato **dopo** quel merge, o il tasto non fa niente e il verdetto sarebbe sul binario sbagliato. **5. Salva e committa.** L'oracolo e' `git status` sui due package, non «l'ho salvato»: questo repository ha gia' avuto asset presenti su disco e non versionati. ⚠️ **Lease binaria obbligatoria prima di salvare** — `BINARY-GH623-DEVSANDBOX-LIGHTING` in `parallel-batch.yaml`. Due `.umap` non si fondono, e quattro sedute usano questo livello.
 
 #### U22 · Il gesto dell'autore — ghost, snap e Undo del tool Geometry ⏳
 
-**Sbloccata da**: U21 · **Preparazione condivisa con**: U21 · **Percorso critico**: no
+**Sbloccata da**: U21 · **Preparazione condivisa con**: U21, U25, U26 · **Percorso critico**: no
 **Produce**: verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo
 **Verifichi**: `PIE-GEO-GHOST` ⏳ · `PIE-GEO-SNAP` ⏳ · `PIE-GEO-UNDO` ⏳ · `PIE-GEO-RESIDUI` ⏳
 **Finita quando**: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
 
 > Nasce da #712, il gesto dell'autore. La seduta esiste perche' QUATTRO voci del suo DoD non sono osservabili headless: ghost, snap, Undo e residui vivono nell'occhio di chi disegna, non in una asserzione. La parte verificabile e' gia' nel runtime — `SnapToGrammar` con i suoi due test, `ValidateSegment` con i cinque di #620, `BakeCell` con i sette di #621 — e il tool d'editor NON contiene una sola regola: misurato, tre chiamate al runtime e zero logica duplicata. ⚠️ `unblocked_by: [U21]` non e' una dipendenza tecnica ma pratica: `L_DevSandbox` va illuminato prima, o il ghost si valuta su una scena in cui non si vede niente — e il verdetto direbbe piu' sulle luci che sul tool. ⚠️ `PIE-GEO-RESIDUI` chiede anche un `git status` pulito sul `.umap`: la geometria non si salva nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`. ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch remoti. Chi arriva secondo rinumera, non contende.
 
-#### U24 · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root 🟡
+#### U24 · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root ✅
 
 **Sbloccata da**: — · **Percorso critico**: no
 **Produce**: i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`
-**Artefatti**: `Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset` ⏳ · `Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset` ⏳
+**Artefatti**: `Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset` ✅ · `Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset` ✅
 **Finita quando**: i cinque `.uasset` esistono e si aprono senza errori; i TRE con una classe base (`WBP_RT_FallbackBanner`, `WBP_RT_ErrorModal`, `WBP_RT_LoadingScreen`) ereditano da quella dichiarata e leggono il dato invece di comporlo; i DUE strutturali (`WBP_RT_FrontendRoot`, `WBP_RT_ModalLayer`) non creano ne' rimuovono widget
 **Sblocca**: E46.3, E46.5, E46.6
 
 > ➕ **Seduta aperta il 2026-08-16, a lavoro gia' cominciato**: i widget si stavano costruendo e il tracking non li nominava — ne' qui, ne' come `binary_leases`. `grep -n "WBP_RT_" editor-sessions.yaml` dava **zero**, e nessuna lease copriva `Content/RT/UI/`. Un `.uasset` senza lease e' il caso che `D-139` esiste per impedire: due binari non si fondono. **Cosa costruire e in che ordine** sta in [`../technical/guida-frontend-umg.md`](../technical/guida-frontend-umg.md), che e' l'owner del *come*; la spec del *cosa* e' `spec-frontend-navigazione.md`. Qui c'e' solo l'esistenza della seduta e il suo write-set. ⚠️ **`verifies: []` non e' una dimenticanza, ed e' il punto piu' scomodo di questa seduta**: `PIE-V01-FRONTEND-NAV` e `-ERROR` **non esistono** — misurato, `grep -c "PIE-V01-FRONTEND" docs/technical/test-manuali-pie.md` da' **0** — e quel registro appartiene alla track `playtest`. Le voci si **propongono** in handoff, non si scrivono da fuori: finche' non ci sono, questa seduta produce asset e non chiude nessuna voce del registro. ⚠️ **Il primo e il secondo widget si verificano subito, il terzo no.** Il dato del banner lo produce gia' `ARTGameMode` e quello del modale si forza con un formato invalido; il `LoadingScreen` ha il suo dato ma un allestimento **istantaneo**, quindi a schermo non si vede — la guida lo dice al suo §6, e va saputo prima di concludere che il widget sia rotto. ⚠️ **Nessuno chiama ancora `InitializeFrontend`**: il navigatore esiste, testato, e non lo avvia nessuno — l'aggancio e' di **CP 46.3** (`#938`). Fino ad allora questi Blueprint si provano solo a mano, chiamando le funzioni da un livello di prova. ⛔ **Fuori da questa seduta**: `WBP_RT_MainMenu`, `WBP_RT_ResultScreen` e `WBP_RT_PauseMenu` sono di `#938`, `#940` e `#941` · `WBP_RT_TacticalHUD` e' l'HUD in-match e ha gia' il suo root (CP 11.7) · le due schermate del replay (`WBP_RT_MatchHistory`, `WBP_RT_ReplayViewer`) sono di `#472`, e aspettano una lease propria. 🔴 **Il `done_when` chiedeva ai cinque widget una cosa che solo tre possono fare, e riscriverlo e' del 2026-08-18.** Diceva *«ereditano dalle classi base giuste»*: le classi base dichiarate in `RTFrontendWidgets.h` sono **tre** — `URTLoadingScreenWidgetBase`, `URTErrorModalWidgetBase`, `URTFallbackBannerWidgetBase` — e per `WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer` non esiste una «classe base giusta»: erediterebbero da `UUserWidget` nudo, e il criterio diventava **vacuo** esattamente sui due widget che nessun test copre. `RTFrontendWidgetAssetTests.cpp` ne conosce **tre** su cinque, misurato. ✅ **Decisione dell'autore: i due restano nei cinque** — sono widget, non impalcatura da togliere dal piano. Cambia il criterio, non lo scopo: per loro vale `no_widget_creates_widgets`, che e' l'invariante 1 di CP 46.1 e l'unica cosa che un contenitore strutturale puo' violare. Un `.uasset` e' il solo posto dove `AddToViewport` puo' rientrare senza che un test se ne accorga. ⚠️ ID assegnato prima del merge: `U24`, con `U23` come massimo misurato su `main` **e su tutti i tredici branch remoti** — non solo sul proprio. Chi arriva secondo rinumera, non contende.
+
+#### U25 · Il volume di posa della cella, e la scena che dice se il graybox si legge —
+
+**Sbloccata da**: U21 · **Preparazione condivisa con**: U21, U22, U26 · **Percorso critico**: no
+**Produce**: verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor
+**Finita quando**: la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro
+
+**Non e' una caccia al bello: e' una domanda sola, ripetuta a tre distanze.** *Guardando la scena
+senza HUD e senza selezionare niente, so dire che cosa ho davanti?* Se la risposta e' no, si cambia
+la grammatica **prima** di aggiungere altri asset — l'unica prescrizione del kit sorgente che il
+contratto adotta senza emendarla.
+
+⚠️ **Questa ricetta non ripete numeri e formule, e la ragione e' misurata.** Due stesure precedenti
+li contenevano ed erano **sbagliate entrambe**, ciascuna in modo diverso, perche' chi le scrive non
+puo' eseguire i passi: la quota del volume ignorava l'altezza per-cella, e la conversione dell'inset
+ne invertiva la semantica. I valori vivono negli owner linkati qui sotto; questa lista dice **cosa
+fare, in che ordine, e dove si sbaglia**.
+
+**Prima di aprire l'editor — tre condizioni, tutte e tre bloccanti.**
+
+· ⛔ **Binary Asset Lease** su `Content/RT/Maps/Dev/L_DevSandbox/`, dichiarata nel batch prima di
+toccare il livello (`D-139`). **Quattro** sedute dichiarano lo stesso allestimento — `U21`, `U22`,
+`U25`, `U26` — e due aperte insieme sullo stesso `.umap` producono due versioni che non si fondono.
+E' l'unica delle tre la cui omissione **distrugge lavoro**.
+· 🔴 **`GBX-2` chiusa**, o non si modella la porta: come si distinguono `Closed` e `Locked` senza il
+colore e' una lacuna di grammatica, e modellare senza saperlo viola `D-146` all'atto.
+· 🔴 **`U21` fatta**: una scena di leggibilita' valutata prima delle luci direbbe piu' sulle luci che
+sul kit.
+
+`GBX-1` — l'inset — **non** e' bloccante: si sceglie **qui**, guardando, ed e' l'unico modo di
+validarlo. Il valore scelto si scrive in
+[#1094](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094), la issue che lo
+possiede; scriverlo solo nel `.umap` significa perderlo.
+⚠️ **`GBX-4` NON blocca questa seduta**, e va detto perche' una stesura precedente lo affermava:
+`L_DevSandbox.umap` e il suo `DA_HexMap_Sandbox` sono **gia' nell'allowlist**, quindi il livello si
+salva e si committa oggi. `GBX-4` morde solo se il volume diventa un **asset separato** sotto un
+percorso non deciso.
+
+**La quota, prima di tutto il resto.** E' il passo che si sbaglia, e viene per primo apposta.
+
+· Il disco che rappresenta la cella e' **opaco**, e tutto cio' che sta sotto la sua faccia superiore
+diventa invisibile. Un volume invisibile e un volume mai costruito si somigliano molto.
+· ⚠️ **La quota della faccia NON e' una costante sola**: `RebuildInstances` somma l'**altezza della
+cella** prima dello spessore del disco, quindi su una cella elevata la faccia sta piu' in alto di
+quanto una formula a termine singolo suggerisca. Chi disegna a quota fissa affonda il volume in ogni
+cella rialzata.
+· ⚠️ **La costante dello spessore non e' raggiungibile**: `RTCellTopZ` e' `constexpr` in un namespace
+anonimo, e condividerla e'
+[#983](https://github.com/DegrassiAaron/refactor-tactics-main/issues/983), **aperta**. Qualunque
+valore si usi qui e' una copia a mano che nessun compilatore verifica — e le altre due copie che
+esistono in `Source/` non stanno meglio: il test che dovrebbe pinnarle confronta **due copie a mano**
+fra loro. Vale la pena leggere `#983` prima di scegliere un numero.
+
+**I passi.**
+
+1. **Il volume**: prisma esagonale sul centro cella, vertici da `URTHexLibrary::HexCorners`, centro
+   da `AxialToWorld` — mai angoli incisi a mano, per la ragione che
+   [`../technical/spec-hex-geometry-authoring.md`](../technical/spec-hex-geometry-authoring.md) §4
+   scrive gia' per la geometria.
+2. **Il footprint sicuro** e' l'**outer footprint meno un inset**, non l'outer scalato:
+   [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md)
+   §5 lo definisce e `GBX-1` ne fissa il valore. ⚠️ L'inset e' in frazioni di **`C`** mentre
+   `HexCorners` vuole il **raggio**, e i due differiscono di `√3`: la conversione sta in §6.
+3. **Le guide verticali** sono quelle di §6 — cinque, con le loro frazioni. Si leggono di la', non si
+   ricopiano: sono gia' cambiate una volta.
+4. **La scena, in COPPIE.** La domanda e' sempre *questo o quello?*
+   · unita' · copertura **bassa vs alta** · muro **vs muro sfondato** · porta nei suoi **quattro**
+   stati (`Open` · `Closed` · `Locked` · `Destroyed`) · acqua **vs** ghiaccio · **intatto vs
+   distrutto**.
+   🔴 **Le coppie che il kit sorgente non chiedeva sono quelle che contano**: senza `Locked` la
+   seduta non valida `GBX-2`; senza `Destroyed` non guarda lo stato **terminale** della porta; senza
+   intatto/distrutto non verifica il punto (4) di `D-152` — *distrutto cambia geometria, non colore*.
+   Una scena senza di esse soddisfa il `done_when` e **non risponde alla domanda**.
+5. **Gli `EdgeBound` si posano con `EdgeMidpointWorld` e `EdgeRotation`**, mai a occhio: il bordo `E`
+   di una cella **e'** il bordo `W` del vicino, e a mano si ottengono due barriere dove ce n'e' una.
+6. **Tre distanze di camera** — ravvicinata, di gioco, tattica — e gli screenshot **anche in scala di
+   grigi**: non e' accessibilita', e' il modo in cui `D-146` intende la ridondanza. Se due categorie
+   si distinguono solo in colore, in grigio spariscono, e con esse la prova.
+7. **Il volume non deve arrivare al giocatore.** Il criterio dell'owner (§5) e' la build **packaged**,
+   non PIE: un attore nascosto in gioco puo' essere cotto lo stesso. Se una packaged non e'
+   disponibile nella seduta, si dichiara che il controllo **non e' stato fatto** invece di
+   sostituirlo con la prova piu' debole.
+
+> ⚠️ **Il `.umap` DEVE risultare modificato a fine seduta**, ed e' il contrario di `U22`: li'
+> `PIE-GEO-RESIDUI` chiede `git status` pulito perche' il tool di geometria non deve persistere le
+> anteprime, qui il livello salvato **e' il prodotto**. Il controllo giusto e' l'inverso: che
+> risultino modificati **solo** i package del livello, e nessun altro asset toccato per errore.
+
+> 🔴 **Nessuno di questi controlli ha un posto dove registrare l'esito.** `verifies:` e' vuoto e il
+> `done_when` chiede che «le sue voci PIE abbiano un esito reale»: le voci sono redatte in
+> [#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096) e il registro
+> appartiene a un'altra track. Finche' quella issue non atterra, la seduta produce screenshot e un
+> giudizio che **nessun registro conserva**.
+
+> ⏱️ **Derivata dal codice e dagli owner, non provata in editor.** I simboli sono verificati in
+> `Source/`; la procedura no. Due stesure sono state riscritte in code review — la prima costruiva il
+> volume dentro il disco, la seconda sbagliava la quota sulle celle elevate e invertiva l'inset. Chi
+> la esegue per primo la corregge dove sbaglia ancora, ed e' il motivo per cui i passi **nominano
+> owner e simboli invece di ripetere numeri**.
+
+> ➕ **Seduta aperta il 2026-08-17** dal consolidamento del kit `Graybox_Kit_Cover_CellVolume` ([D-152](../decisions/RT_PDR_00_Decision_Log.md)). Owner del modello: [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md); qui c'e' solo l'esistenza della seduta. **Due cose, e stanno insieme perche' la seconda misura la prima**: il **Cell Placement Volume** — prisma esagonale `EditorOnly` con footprint sicuro e guide verticali — e una **scena di validazione** che mette in campo unita', copertura bassa e alta, muro, porta nei suoi stati, acqua e ghiaccio, e li guarda a tre distanze di camera. ⚠️ **`verifies: []` non e' una dimenticanza**, ed e' lo stesso caso di `U24`: le voci PIE di questo dominio **non esistono** — misurato, `grep -c "PIE-GBX" ../technical/test-manuali-pie.md` da' **0** — e quel registro e' assegnato a un'altra track in `parallel-batch.yaml`. Le voci si **propongono**, non si scrivono da fuori: per `D-139` si aspetta l'owner che lo tiene OGGI — il proprietario e' cambiato tre volte il 2026-08-17, il permesso mai, ed e' per questo che qui non c'e' un nome. Finche' non ci sono, questa seduta produce una scena e non chiude nessuna voce del registro. ⚠️ **`artifacts: []` per la ragione di `U21`**: l'oracolo degli artefatti e' `git ls-files`, che sa dire se un path **esiste** e non se e' stato modificato. E qui c'e' un motivo in piu': **il percorso non e' deciso** — `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — e [`../technical/asset-map.md`](../technical/asset-map.md) §6 vuole la riga d'allowlist **prima** dell'asset, o `git add` tace e il lavoro resta sul disco di chi l'ha fatto. ⛔ **Fuori da questa seduta**: i diciannove elementi del catalogo. Sette sono `DEFER` — tre per dipendenza da feature `IDEA`, due fuori scope v0.1 dichiarato, due proxy senza produttore — e dei dodici restanti la maggior parte e' `UPDATE` di presentazione su asset che esistono. Questa seduta porta **il volume e la scena**, cioe' gli strumenti con cui gli altri si giudicano — non gli altri. ⚠️ **`unblocked_by: [U21]` non e' una dipendenza tecnica ma la stessa di `U22`**: una scena di leggibilita' valutata prima che `L_DevSandbox` sia illuminato direbbe piu' sulle luci che sul kit. 🔴 **La conseguenza dei due campi vuoti INSIEME, che i due paragrafi qui sopra giustificano separatamente senza mai dirla.** Senza `verifies` e senza `artifacts` lo stato non e' derivabile: `project-graph.json` porta questa seduta con `state: "—"` e `queue_group: null`, e `editormap.shortlist.md` la conta solo fra le «senza stato derivabile» — **non compare ne' in READY ne' in WAITING**. `U24` sfugge al caso solo perche' ha artefatti. ∴ **questa seduta non entra in NESSUNA delle tre code** — `BLOCKING`, `READY`, `WAITING` — e per l'avanzamento vive attraverso `#1095`. ⚠️ *Due correzioni sulla stessa frase, in due tornate di review. Diceva «invisibile a ogni vista»: falso, `U25` compare nella tabella delle sedute e ha una sezione propria in `editormap.shortlist.md` — cio' che manca e' la CODA, non la visibilita'. Poi diceva «nessuna delle DUE code», e le code sono **tre**: `BLOCKING` e' quella da cui si pesca per prima, e scriverne due lasciava credere che fosse stata guardata.* Non e' riparabile qui: dichiarare artefatti prima che `GBX-4` scelga il percorso, o voci PIE che non esistono, sarebbe peggio — sono i due difetti che `asset-map.md` §6 documenta. Si chiude quando uno dei due campi diventa vero, ed e' il primo effetto utile della chiusura di `GBX-4`. ⚠️ ID assegnato prima del merge: `U25`, con `U24` come massimo misurato su `main` **e su tutti i diciassette branch locali e gli undici remoti**. Chi arriva secondo rinumera, non contende.
+
+#### U26 · La griglia di lavoro e la sonda di movimento nell'editor —
+
+**Sbloccata da**: U21 · **Preparazione condivisa con**: U21, U22, U25 · **Percorso critico**: no
+**Produce**: verdetto su leggibilita' della griglia di lavoro e della sonda di movimento
+**Finita quando**: le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale
+
+> ➕ **Seduta aperta il 2026-08-17 dal consolidamento Tactical Designer** ([D-154], referto `plans/tactical-designer-consolidamento-2026-08-17.md`). Nasce da un buco misurato: `#622` e `#711` chiedono ENTRAMBE, nel proprio DoD, una voce `PIE-*` «collocata in una **seduta** di `editor-sessions.yaml` — una voce che non sta in una seduta non viene eseguita mai», e nessuna seduta le riceveva. `#623` aveva `U21` e `#712` aveva `U22`; queste due erano le sole due issue d'editor aperte senza un posto dove atterrare. ⚠️ **`verifies: []` non e' una dimenticanza, ed e' la stessa scelta di `U24`.** Le voci non esistono ancora — misurato: `grep -cE "PIE-(MAPED-GRID|HEX-MOVEMENT-PROBE)" docs/technical/test-manuali-pie.md` da' **0** — e **non vanno create adesso**: una voce che chiede di verificare una griglia di lavoro che nessun codice disegna direbbe qualcosa di falso sul repository, e il registro PIE e' una lista di cose *verificabili*, non di cose desiderate. Le crea la PR che implementa, che e' anche l'unica che sa che aspetto avranno. `#711` ha gia' scelto il proprio nome: `PIE-HEX-MOVEMENT-PROBE`. ⚠️ **Le due issue condividono l'allestimento, non lo scopo.** La griglia di lavoro (`#622`) si guarda **dove le celle non esistono**; la sonda (`#711`) si guarda dove esistono, su una mappa con superfici costose e una transizione. Stessa apertura, stesso `L_DevSandbox` illuminato da `U21`, due verdetti distinti: chi ne esegue una sola lo dichiara, invece di chiudere la seduta. ⚠️ `unblocked_by: [U21]` per la stessa ragione pratica di `U22`: su una scena non illuminata il verdetto direbbe piu' sulle luci che sulla griglia. ⚠️ ID assegnato prima del merge: `U26`, con `U25` come massimo misurato su `main` **e su tutti i branch remoti** — `U25` vive su `origin/docs/graybox-kit-consolidamento`, che al 2026-08-17 e' la PR **#1099** aperta. Preso `U26` e non `U25` proprio per questo. Chi arriva secondo rinumera, non contende.
 
 > **64 voci del registro non stanno in nessuna seduta** — `PIE-BU-*` 4 · `PIE-CP-*` 1 · `PIE-FMTVER-*` 1 · `PIE-HEX-*` 12 · `PIE-HEXPLAY-*` 1 · `PIE-MP-*` 1 · `PIE-MUT-*` 2 · `PIE-NAME-*` 1 · `PIE-P-*` 1 · `PIE-REPLAY-*` 1 · `PIE-SCEN-*` 2 · `PIE-STATE-*` 10 · `PIE-TEST-*` 2 · `PIE-V-*` 4 · `PIE-VIS-*` 21. Non e' per forza un difetto (le `PIE-VIS-*` hanno il proprio scenario, le `PIE-STATE-*` verificano un sistema che non esiste), ma una voce che non sta in una seduta non viene eseguita mai: e' la ragione per cui questo conteggio e' qui.
 

@@ -20,12 +20,12 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 
 <!-- RT_SHORTLIST_FEATURES:BEGIN -->
 
-**117 feature** · v0.1 **81** · v0.2 **19** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **4**.
+**120 feature** · v0.1 **87** · v0.2 **14** · v0.3 **5** · v0.4 **4** · v0.5 **1** · v0.6 **1** · v0.7 **1** · v0.8 **1** · future **6**.
 
 | Stato | Quante |
 |---|--:|
 | `IDEA` | 7 |
-| `DESIGNED` | 18 |
+| `DESIGNED` | 21 |
 | `SPECIFIED` | 13 |
 | `IMPLEMENTING` | 27 |
 | `TESTABLE` | 9 |
@@ -129,10 +129,10 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | v0.1 | INTEGRATED | 7/9 | E9 | Una porta chiusa toglie passo **e** linea di tiro con lo stesso `BlocksTraversal` |
 | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | v0.1 | INTEGRATED | 7/9 | E9 | L'arco è **additivo**: romperlo annulla il percorso, non lo allunga |
 | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole | v0.1 | IMPLEMENTING | 6/10 | E16 | Deriva da Move e Dash, entra in snapshot e hash, e da dietro annulla `Guard` |
-| `RT-FEAT-MAP-INTERACTION-GRAPH` — Interaction graph: la relazione sorgente -> bersaglio e' un dato | v0.2 | DESIGNED | 0/10 | E23 | — |
-| `RT-FEAT-MAP-STANDABILITY` — Standability derivata da anchor, footprint e clearance | v0.2 | DESIGNED | 0/8 | E23 | — |
-| `RT-FEAT-MAP-STRUCTURE-IDENTITY` — Identita' stabile di una struttura attraverso cook, scenari e replay | v0.2 | DESIGNED | 0/8 | E23 | — |
-| `RT-FEAT-MAP-TRANSITION-CLEARANCE` — Validità della transizione distinta da quella della cella | v0.2 | DESIGNED | 0/8 | E23 | — |
+| `RT-FEAT-MAP-INTERACTION-GRAPH` — Interaction graph: la relazione sorgente -> bersaglio e' un dato | v0.1 | DESIGNED | 0/10 | E23 | — |
+| `RT-FEAT-MAP-STANDABILITY` — Standability derivata da anchor, footprint e clearance | v0.1 | DESIGNED | 0/8 | E23 | — |
+| `RT-FEAT-MAP-STRUCTURE-IDENTITY` — Identita' stabile di una struttura attraverso cook, scenari e replay | v0.1 | DESIGNED | 0/8 | E23 | — |
+| `RT-FEAT-MAP-TRANSITION-CLEARANCE` — Validità della transizione distinta da quella della cella | v0.1 | DESIGNED | 0/8 | E23 | — |
 | `RT-FEAT-MAP-STRUCTURAL` — Strutture: integrita', crolli a catena e macerie | future | IDEA | 0/9 | — | Lo slot si chiama **`Bulkhead`** (D-082): il verbo *breach* resta un'azione, e `BreachCharge` è ciò che lo apre |
 | `RT-FEAT-MAP-VERTICALITY` — Verticalita': vault, drop, salita e cadute | future | IDEA | 0/9 | — | — |
 | `RT-FEAT-MAP-WATER-DYNAMICS` — Acqua tattica: profondita', flooding e corrente | future | IDEA | 0/9 | — | La profondità è una **superficie**, non un asse (D-081): il flooding esiste già come cambio di superficie |
@@ -184,7 +184,7 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | v0.1 | SPECIFIED | 1/10 | E14 | Due opportunity contese: chi vince, e una sola volta |
 | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | v0.1 | DESIGNED | 0/10 | E14 | Continuazione della **propria** azione, non risposta all'avversario |
 
-### Tools · 15
+### Tools · 17
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -202,9 +202,11 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-BOT-BELIEF` — Belief — celle plausibili, decadimento e minaccia proiettata | v0.3 | DESIGNED | 0/8 | E27 | — |
 | `RT-FEAT-BOT-PREDICTIVE` — Scenari nemici plausibili e piano robusto | v0.3 | DESIGNED | 0/8 | E28 | — |
 | `RT-FEAT-BOT-TACTICAL` — Team Planner — piano di squadra, ruoli dinamici e sinergie | v0.2 | DESIGNED | 0/8 | E26 | Epic E26 |
+| `RT-FEAT-TOOL-SCENARIO-COMPOSER` — Scenario Composer — authoring visuale sopra il formato scenario canonico | future | DESIGNED | 0/7 | M9 | — |
+| `RT-FEAT-TOOL-SKILL-WORKBENCH` — Skill Workbench — varianti di abilita' separate dal dato di produzione | future | DESIGNED | 0/7 | M9 | — |
 | `RT-FEAT-BOT-COMPETENCE` — Schema di competenza del bot — cosa il bot sa davvero usare | v0.8 | IDEA | 0/6 | E43 | — |
 
-### UI · 17
+### UI · 18
 
 | Feature | Rel. | Stato | Gate | Vista | Cosa fissa |
 |---|:--:|:--:|--:|:--:|---|
@@ -224,7 +226,8 @@ dimostra) · `RELEASE_READY` (+ documentato in Wiki/UI) · `DONE` (+ packaged e 
 | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | v0.1 | SPECIFIED | 1/5 | E46 | — |
 | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | v0.1 | SPECIFIED | 1/6 | E46 | — |
 | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | v0.1 | SPECIFIED | 1/5 | E46 | — |
-| `RT-FEAT-UI-STRUCTURE-READABILITY` — Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio | v0.2 | DESIGNED | 0/7 | E23 | — |
+| `RT-FEAT-UI-GRAYBOX-KIT` — Graybox Kit — contratto di ingombro, pivot e presentazione degli oggetti di mappa | v0.1 | DESIGNED | 0/5 | E21 | — |
+| `RT-FEAT-UI-STRUCTURE-READABILITY` — Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio | v0.1 | DESIGNED | 0/7 | E23 | — |
 
 <!-- RT_SHORTLIST_FEATURES:END -->
 

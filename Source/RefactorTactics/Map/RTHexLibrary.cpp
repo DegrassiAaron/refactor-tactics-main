@@ -175,6 +175,48 @@ FVector URTHexLibrary::CellsCentroidWorld(const TArray<FRTCellId>& Cells, const 
 	return Sum / static_cast<double>(Cells.Num());
 }
 
+FBox URTHexLibrary::CellsBoundsWorld(const TArray<FRTCellId>& Cells, const FVector& Origin, float HexSize,
+	float LayerHeight)
+{
+	FBox Box(ForceInit); // non valido finche' non entra una cella: una mappa vuota non ha un'inquadratura
+
+	// Semi-estensione dell'esagono, non del suo centro. I sei vertici di un pointy-top di circumraggio
+	// `HexSize` stanno a -30 + 60k gradi (`HexCorners`), quindi |cos| massimo e' sqrt(3)/2 e |sin| e' 1:
+	// la cella e' piu' STRETTA in X che in Y, e le due semi-estensioni non sono intercambiabili.
+	const double HalfX = static_cast<double>(HexSize) * RT_SQRT3 * 0.5;
+	const double HalfY = static_cast<double>(HexSize);
+
+	for (const FRTCellId& Cell : Cells)
+	{
+		const FVector Centre = AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+		// `+=` su un FBox e' min/max componente per componente: piega commutativa, quindi l'ordine
+		// dell'input non cambia il risultato.
+		Box += FVector(Centre.X - HalfX, Centre.Y - HalfY, Centre.Z);
+		Box += FVector(Centre.X + HalfX, Centre.Y + HalfY, Centre.Z);
+	}
+	return Box;
+}
+
+FBox URTHexLibrary::CellsBoundsWorld(const TArray<FRTHexCellData>& Cells, const FVector& Origin, float HexSize,
+	float LayerHeight)
+{
+	FBox Box(ForceInit);
+
+	const double HalfX = static_cast<double>(HexSize) * RT_SQRT3 * 0.5;
+	const double HalfY = static_cast<double>(HexSize);
+
+	for (const FRTHexCellData& Cell : Cells)
+	{
+		const FVector Centre = AxialToWorld(Cell.Id, Origin, HexSize, LayerHeight);
+		// La quota d'autore alza la cella nel RENDER (`ARTHexMapActor::RebuildInstances`): il box deve
+		// contenere dove la cella si vede, non dove il suo layer sarebbe.
+		const double Z = Centre.Z + static_cast<double>(Cell.Height);
+		Box += FVector(Centre.X - HalfX, Centre.Y - HalfY, Z);
+		Box += FVector(Centre.X + HalfX, Centre.Y + HalfY, Z);
+	}
+	return Box;
+}
+
 FColor URTHexLibrary::SurfaceColor(ERTHexSurface Surface)
 {
 	// Tinte scelte per essere distinguibili fra loro e dal rosso del blocco (test:
