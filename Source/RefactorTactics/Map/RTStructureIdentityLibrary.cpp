@@ -97,8 +97,12 @@ TArray<FRTStructureEdgeRef> URTStructureIdentityLibrary::ResolveInteractionTarge
 		// struttura senza che nessuno abbia detto cosa succede quando agiscono entrambe. Quindi si rifiuta,
 		// con reason code, ed e' la risoluzione a farlo — esattamente dove l'header di #832 lo dichiara.
 		//
-		// Il rifiuto e' dell'INTERA risoluzione e non del singolo bersaglio conteso: l'operazione su N
-		// bersagli e' dichiarata atomica, e applicarne una parte sarebbe una seconda decisione non presa.
+		// 🔴 Il rifiuto e' dell'INTERA risoluzione e non del singolo bersaglio conteso — ma **non per
+		// atomicita'**, che [D-150] ha fatto cadere il 2026-08-16 («si applicano i bersagli applicabili e si
+		// riporta l'esito degli altri»). Quella era la ragione scritta qui, ed e' sopravvissuta alla decisione
+		// che la smentiva. La ragione vera: `INT-5` non ha deciso **chi comanda** un bersaglio conteso, quindi
+		// quel bersaglio non ha un comandante riconosciuto; risolvere gli altri attribuirebbe a questa sorgente
+		// un'operazione parziale che nessuno le ha assegnato. E' una lacuna di AUTORITA', non di transazione.
 		for (const FName& TargetId : Binding.TargetIds)
 		{
 			for (const FRTInteractionBinding& Other : Map->InteractionBindings)
@@ -188,6 +192,36 @@ TArray<FString> URTStructureIdentityLibrary::ValidateInteractionGraph(const URTH
 			Errors.Append(ValidateReferences(Map, { Binding.SourceId }));
 		}
 		Errors.Append(ValidateReferences(Map, Binding.TargetIds));
+
+		// 🔴 **Il bersaglio che risolve un ARCO e non una porta e' il «binding cross-layer» dello Scope**, ed e'
+		// l'unica forma di quel difetto che questo repository puo' MISURARE: gli archi sono la sola struttura
+		// che collega layer diversi — `spec-mappa-multilivello.md` dice che celle su layer diversi non sono
+		// adiacenti «mai, nemmeno se si trovano una sopra l'altra», e si collegano solo con transizioni
+		// esplicite. Una PORTA cross-layer non e' rappresentabile: `FindDoorEdges` la costruisce da
+		// `(cella, direzione)`, e il vicino di un bordo sta per costruzione sullo stesso layer.
+		//
+		// Senza questa regola il difetto e' SILENZIOSO, ed e' peggio di un bersaglio fantasma: `ValidateReferences`
+		// accetta il nome — sa che un riferimento risolve «una porta OPPURE un arco» (#832) — mentre
+		// `ResolveInteractionTargets` passa solo da `FindDoorEdges` e restituisce zero bersagli. L'asset e'
+		// valido, l'`Interact` e' legale, e non succede niente: nessuno dei due lati ha modo di accorgersene.
+		//
+		// ⚠️ Si rifiuta il bersaglio, NON si estende la risoluzione agli archi. Un arco ha uno stato proprio
+		// (`ERTHexArcState`, solo `Active` e' percorribile) e un ingresso di mutazione proprio, quindi
+		// «comandare un arco» e' una semantica che nessuna decisione ha preso: deciderla qui la darebbe per
+		// implementazione, che e' lo stesso errore che `INT-5` evita poco sopra.
+		for (const FName& TargetId : Binding.TargetIds)
+		{
+			if (TargetId.IsNone())
+			{
+				continue; // gia' segnalato da `ValidateReferences`: un difetto, un errore
+			}
+			if (FindDoorEdges(Map, TargetId).Num() == 0 && FindArcs(Map, TargetId).Num() > 0)
+			{
+				Errors.Add(FString::Printf(
+					TEXT("Error: il bersaglio '%s' e' un arco (struttura cross-layer) e la risoluzione ")
+					TEXT("comanda solo porte: binding non applicabile"), *TargetId.ToString()));
+			}
+		}
 	}
 	return Errors;
 }
