@@ -121,4 +121,26 @@ public:
 	 * una apre e una chiude danno lo stesso esito in qualunque ordine.
 	 */
 	static TArray<FRTDoorChange> ApplyDoorOps(URTHexMapAsset* Map, const TArray<FRTDoorOp>& Ops);
+
+	/**
+	 * Applica un'interazione REMOTA: risolve i bersagli comandati da `SourceId` nel grafo di CP 23.4 (#833) e
+	 * li porta a `State`, con **una sola revisione** qualunque sia il numero di bersagli.
+	 *
+	 * ⚠️ **Non e' un secondo ingresso di mutazione**: passa dalla stessa commutazione di `SetDoorState` — stesse
+	 * regole di transizione, stesso trattamento del gruppo `DoorId`, stesse voci — e si limita a commettere una
+	 * volta in fondo invece che una per bersaglio. Le regole restano dove erano.
+	 *
+	 * ⚠️ **L'operazione NON e' atomica** ([D-150]): applica i bersagli applicabili e riporta gli altri in
+	 * `OutRefusals` con un reason code che nomina la struttura, il suo stato e quello richiesto. E' il
+	 * comportamento che il motore ha gia' un livello sotto, non una scelta nuova — e toglie di mezzo la
+	 * pre-validazione che «tutto o niente» richiederebbe, dato che la commutazione non sa tornare indietro.
+	 *
+	 * L'ordine di applicazione e' quello dichiarato in `FRTInteractionBinding::TargetIds`, che e' dato d'asset
+	 * e autorevole; dentro ogni bersaglio vale l'ordine canonico di cella.
+	 *
+	 * Sorgente sconosciuta, senza binding o con un bersaglio conteso (`INT-5`): nessun cambio. Il terzo caso si
+	 * distingue dagli altri due perche' arriva con un reason code, non perche' la lista e' vuota.
+	 */
+	static TArray<FRTDoorChange> ApplyInteraction(URTHexMapAsset* Map, FName SourceId, ERTHexDoorState State,
+		int32 ActorId = INDEX_NONE, TArray<FString>* OutRefusals = nullptr);
 };

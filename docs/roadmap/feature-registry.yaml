@@ -1512,12 +1512,26 @@ features:
       # difetto conta piu' delle due righe: il `notes:` qui sotto e' stato aggiornato da D-148 lo
       # stesso giorno, il `wiki_note` no — la nota INTERNA si corregge quando qualcuno lavora la
       # feature, quella PUBBLICATA invecchia da sola, e nessun gate confronta le due.
-      #   · «`Interact` e' a catalogo **senza effetto**»: falso, `RTCatalogLibrary.cpp:819` dichiara
-      #     `SetDoorState` verso `Open` ([D-148] + [D-151]).
+      #   · «`Interact` e' a catalogo **senza effetto**»: falso, in `RTCatalogLibrary.cpp` la riga
+      #     `Catalog.Add(ShippedAction(TEXT("Action.Interact") ...))` porta un `FRTActionEffectSpec`
+      #     con `ERTActionEffect::SetDoorState` verso `ERTHexDoorState::Open` ([D-148] + [D-151]).
       #   · «`Overwatch` non esiste ancora»: falso, **e anche il `notes:` lo era** — diceva «nessun
-      #     ramo del resolver lo esegue ... il consumatore e' E14.5». CP 14.5 e' chiusa: misurato
-      #     `RTTurnManager.cpp:5257`, l'unica chiamata a `BuildOverwatchTriggers` fuori dai test.
+      #     ramo del resolver lo esegue ... il consumatore e' E14.5». CP 14.5 e' chiusa: misurata
+      #     l'unica chiamata a `BuildOverwatchTriggers` fuori dai test, dentro
+      #     `ARTTurnManager::ResolveReactionBoundary`.
       #     Era la contraddizione con `RT-FEAT-REACTION-OVERWATCH`, verificata il 2026-08-16.
+      # 🔴 **Le due righe qui sopra citavano `RTTurnManager.cpp` alla riga 5257 e `RTCatalogLibrary.cpp`
+      # alla 819 — scritte qui senza i due punti, perche' un audit dei puntatori le rileggerebbe come
+      # riferimenti vivi e le segnalerebbe rotte ogni volta; sono citazioni di cio' che era, non indirizzi —
+      # e
+      # una code review le ha falsificate lo stesso giorno in cui sono state scritte.** Il primo
+      # puntatore era VERO quando l'ho misurato (`a3affe04`, file di 6002 righe) ed e' morto nel merge
+      # che ho fatto io sedici minuti dopo: lo split del Blast ha portato via 1253 righe, il file ne ha
+      # 4875 e la riga 5257 **non esiste piu'**. Il secondo non e' mai stato giusto: la 819 e' il
+      # COMMENTO che afferma la dichiarazione, non la dichiarazione — chi andava a verificare trovava
+      # una prosa che ripete la tesi invece del codice che la prova, ed e' il modo piu' insidioso di
+      # sbagliare una citazione, perche' a colpo d'occhio conferma. Entrambi ora citano il simbolo,
+      # come vuole la regola del repository: un numero di riga non fallisce mai, si limita a mentire.
       # ⚠️ Rimisurato lo STATO delle tre azioni, non i gate: test e scenari non sono stati rieseguiti
       # in questo giro, e restano `partial` come li aveva lasciati il 2026-08-08.
       date: 2026-08-17
@@ -1544,14 +1558,19 @@ features:
         · `Overwatch` **non è ancora un'azione**, ma non è nemmeno più fuori dal runtime: E14.4 ha
                     portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
                     micro-step, e ~~«nessun ramo del resolver lo esegue, il consumatore è E14.5»~~
-                    è **superato il 2026-08-17**: CP 14.5 è chiusa e `RTTurnManager.cpp:5257` è la
-                    chiamata, l'unica fuori dai test. Quello che manca ora è il **giocatore**: la
-                    finestra si apre e finisce nel TurnLog, ma la UI per rispondere è CP 14.6.
-                    Questa riga è stata riscritta due volte dallo stesso difetto — descriveva
+                    è **superato il 2026-08-17**: CP 14.5 è chiusa, e la chiamata — l'unica fuori
+                    dai test — vive in `ARTTurnManager::ResolveReactionBoundary`. Quello che manca
+                    ora è il **giocatore**: la finestra si apre e finisce nel TurnLog, ma la UI per
+                    rispondere è CP 14.6.
+                    Questa riga è stata riscritta **tre** volte dallo stesso difetto — descriveva
                     un'assenza, e un'assenza smette di essere vera senza che nulla diventi rosso.
                     La prima volta citava un `grep` che aveva iniziato a restituire codice; la
-                    seconda nominava un checkpoint che nel frattempo era stato chiuso. Un puntatore
-                    a lavoro **futuro** invecchia esattamente come uno a lavoro assente.
+                    seconda nominava un checkpoint che nel frattempo era stato chiuso; la terza —
+                    scritta per correggere le prime due — puntava a `RTTurnManager.cpp` alla riga 5257, ed è
+                    morta **nel merge dello stesso lavoro che la introduceva**, quando lo split del
+                    Blast ha accorciato il file di 1253 righe. Un puntatore a lavoro **futuro**
+                    invecchia come uno a lavoro assente, e un numero di riga invecchia più in fretta
+                    di entrambi: qui è sopravvissuto sedici minuti.
 
       I gate restano `partial` perché la feature davvero non è completa; `completed_by` dice
       **chi** la completa, così la stessa mancanza non viene contata due volte.
