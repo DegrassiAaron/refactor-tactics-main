@@ -21,23 +21,61 @@ struct FRTSlotLine
 };
 
 /**
- * Come disegnare un intento, dato quanto e' certo (CP 11.2). Tre parametri, uno per ciascun elemento che la
- * grammatica visiva del 2026-08-07 nomina: la linea, il ghost, il punto interrogativo.
+ * Come disegnare un intento, dato quanto e' certo (CP 11.2).
  *
  * ⚠️ **Non contiene il livello, e non e' una dimenticanza.** Se portasse anche `ERTIntentCertainty` il Canvas
  * potrebbe fare `if (Style.Certainty == ...)` e la regola tornerebbe a vivere nel widget, che e' cio' che
  * l'invariante #1 di questa issue vieta — *«la classificazione arriva dal resolver: la UI non ricalcola il
  * perche'»*. Qui arriva il **cosa disegnare**, non il perche'.
+ *
+ * ─── Cosa di questa struct NON copre la grammatica del 2026-08-07, dichiarato invece che taciuto ───
+ *
+ * ⚠️ **Manca l'«icona di squadra» che la grammatica assegna a «previsto»**, e non e' una rinegoziazione
+ * silenziosa: `ARTHUD` e' un Canvas che disegna testo, linee e rettangoli, e non ha un percorso per le icone
+ * del catalogo. Le tre chiavi ESISTONO gia' — `UI.Icon.Certainty.{Confirmed,Predicted,Uncertain}`, pretese da
+ * `RefactorTactics.IconCatalog.V01CategoriesPopulated` — e aggiungere qui un canale che nessuno disegna
+ * sarebbe un campo dichiarato, trasportato e mai letto. L'icona appartiene al layer widget (§4.1 di
+ * `progettazione-hud.md`, che e' **#613**), e la si aggiunge quando esiste chi la rende.
+ *
+ * ⚠️ **E il tratteggio su «incerto» e' un'AGGIUNTA alla grammatica, non una sua lettura**: la tabella
+ * assegna a quel livello «ghost dissolto · `?`» e non dice niente della linea. Una rotta incerta con la linea
+ * piena di «confermato» direbbe pero' la cosa sbagliata proprio dove il percorso e' contendibile. Scelta
+ * consapevole; se qualcuno la rinegozia, si rinegozia sulla tabella e non qui.
  */
 struct FRTIntentCertaintyStyle
 {
 	/**
-	 * Moltiplicatore d'opacita' del ghost: `1` pienamente leggibile, valori bassi «attenuato» e «dissolto».
-	 * Moltiplica l'alpha gia' scelto da chi disegna, invece di sostituirlo: la destinazione pianificata era
-	 * gia' a `0.35` per conto suo, e un valore assoluto la riporterebbe a piena opacita' proprio nel caso
-	 * incerto — cioe' l'opposto della grammatica.
+	 * Peso del tratto: e' QUESTO il canale con cui la grammatica esprime «pienamente leggibile / attenuato /
+	 * dissolto» sulle linee.
+	 *
+	 * 🔴 **Non e' un'opacita', e la prima stesura di questa struct sbagliava proprio qui.** Portava un
+	 * `GhostOpacity` moltiplicato nell'alpha del colore, e su una linea di Canvas **non ha alcun effetto**:
+	 * `AHUD::DrawLine` costruisce un `FCanvasLineItem` — la cui dichiarazione documenta *«blend mode will be
+	 * disregarded for these — only `SE_BLEND_Opaque` is currently supported»* — e finisce in
+	 * `FBatchedElements::AddLine`, che apre con *«Ensure the line isn't masked out. Some legacy code relies
+	 * on Color.A being ignored»* e forza `OpaqueColor.A = 1`. Una rotta «dissolta» e una «attenuata»
+	 * uscivano **pixel-identiche**, e il test non se ne accorgeva perche' asseriva la struct, non il disegno.
+	 * Trovato dalla code review, verificato nel sorgente dell'engine e non dedotto dal comportamento.
+	 *
+	 * Lo spessore l'engine lo rispetta (`LineItem.LineThickness`), quindi la gradazione passa di qui.
+	 *
+	 * ⚠️ **I default di questa struct sono quelli del livello INCERTO, non di `Confirmed`**, ed è lo stesso
+	 * principio per cui `ERTIntentCertainty::Unknown` vale zero: una struct che nessuno ha popolato non deve
+	 * affermare la garanzia più forte del dominio. 🔴 La prima stesura li aveva messi uguali a `Confirmed`, e
+	 * la coincidenza rendeva *vacuo* qualunque assert su quel livello — una funzione che ignorasse l'input e
+	 * restituisse `FRTIntentCertaintyStyle{}` sarebbe passata. Trovato dalla code review; ora una funzione
+	 * rotta così fallisce i confronti a coppie, perché darebbe a tutti e tre i livelli la resa incerta.
 	 */
-	float GhostOpacity = 1.f;
+	float LineThickness = 1.25f;
+
+	/**
+	 * Frazione ACCESA di ogni tratto, fra 0 e 1: `1` linea continua, valori bassi un tratteggio piu' rado —
+	 * cioe' l'altro modo in cui una linea si legge come «dissolta» senza poter essere trasparente.
+	 *
+	 * Insieme a `LineThickness` copre la gradazione che l'alpha non puo' dare, e i due variano nella stessa
+	 * direzione di proposito: piu' il livello e' incerto, piu' il tratto e' sottile E rado.
+	 */
+	float DashDutyCycle = 0.3f;
 
 	/**
 	 * La linea che accompagna l'intento va tratteggiata invece che piena.
@@ -48,10 +86,16 @@ struct FRTIntentCertaintyStyle
 	 * `Predicted` e' fermo con un bersaglio — la sua linea e' il collegamento. `Uncertain` si muove — la sua
 	 * linea e' la rotta.
 	 */
-	bool bDashedLine = false;
+	bool bDashedLine = true;
 
-	/** Da appendere all'etichetta: vuoto, oppure `?`. La grammatica lo da' al solo livello incerto. */
-	FString Mark;
+	/**
+	 * L'etichetta porta il `?`. La grammatica lo da' al solo livello incerto.
+	 *
+	 * ⚠️ **Un `bool` e non la stringa da appendere**: questa funzione gira una volta per vista visibile per
+	 * frame dentro `DrawHUD`, e un `FString` allocherebbe ogni volta per un valore con due stati. Il glifo
+	 * vive in un posto solo, dentro `ComposeIntentLabel`.
+	 */
+	bool bUncertaintyMark = true;
 
 	/**
 	 * Una reazione e' armata, e va resa con la grammatica «incerto» qualunque sia il livello del PIANO.
@@ -161,6 +205,39 @@ public:
 	 * e' cio' che il DoD chiede quando dice «un test headless su `ARTHUD`».
 	 */
 	static FRTIntentCertaintyStyle ComposeIntentCertaintyStyle(const struct FRTIntentView& View);
+
+	/**
+	 * I segmenti ACCESI di una linea tratteggiata, in coordinate schermo, gia' pronti da disegnare.
+	 *
+	 * ⚠️ **Statica e non una lambda dentro `DrawHUD`, dopo che la code review ha notato che l'unica geometria
+	 * nuova era l'unica parte senza test.** Il conteggio dei tratti, il rapporto acceso/spento e il tetto qui
+	 * sotto sono decisioni verificabili, e questa classe tiene le decisioni verificabili nelle statiche —
+	 * `ClampOverlayAnchor`, `ComputePlannedHitMarks`, `ComposeSlotLines`.
+	 *
+	 * 🔴 **Il tetto sul numero di tratti non e' prudenza: senza, un solo segmento poteva costare centinaia di
+	 * migliaia di `DrawLine` in un frame.** `UCanvas::Project` divide per una `W` che viene solo *clampata* a
+	 * `UE_KINDA_SMALL_NUMBER`, quindi una cella pochi centimetri davanti al piano della camera supera il test
+	 * `Z > 0` e proietta a coordinate dell'ordine di `1e6`: `Len / PeriodPx` dava decine di migliaia di
+	 * iterazioni per segmento, per ogni segmento, per ogni frame. Prima di questo lavoro la stessa geometria
+	 * costava esattamente **una** `DrawLine`, quindi sarebbe stata una regressione introdotta da qui.
+	 *
+	 * @param DutyCycle frazione accesa di ogni tratto (`FRTIntentCertaintyStyle::DashDutyCycle`); `>= 1`
+	 *                  restituisce il segmento intero, cioe' la linea piena.
+	 */
+	static TArray<TPair<FVector2D, FVector2D>> ComposeDashSegments(const FVector2D& A, const FVector2D& B,
+		float DutyCycle);
+
+	/**
+	 * L'etichetta dell'intento, composta per intero: azione, bersaglio, `?` del livello e reazione armata.
+	 *
+	 * ⚠️ **Esiste perche' il `?` NON puo' vivere in una format string dentro `DrawHUD`.** La voce di DoD
+	 * *«la presenza di una reazione armata e' resa con la grammatica incerto»* stava in un
+	 * `Printf(TEXT("  (reazione: %s ?)"))` che nessun test headless raggiungeva: togliendo quel `?` la suite
+	 * restava verde e la voce smetteva di essere soddisfatta. Trovato dalla code review — ed era anche un
+	 * pezzo di grammatica visiva tornato dentro il widget, cioe' l'invariante #1 violata dalla porta di
+	 * servizio.
+	 */
+	static FString ComposeIntentLabel(const struct FRTIntentView& View, const FRTIntentCertaintyStyle& Style);
 
 	/**
 	 * La velocita' successiva sulla scala `x1 · x2 · x4` (CP 47.7, #1015).

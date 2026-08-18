@@ -145,20 +145,32 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 
 	// La grammatica visiva di CP 11.2, fissata il 2026-08-07 e non rinegoziabile qui. I tre livelli arrivano
 	// gia' decisi da `URTIntentPrivacyLibrary::ClassifyPlan`: questo `switch` traduce, non classifica.
+	//
+	// 🔴 **Ogni ramo assegna TUTTI i campi, e non e' verbosita'.** Quando i default della struct sono passati
+	// a quelli del livello incerto — la correzione di un finding di review — i due rami certi smisero di
+	// riportare `bUncertaintyMark` a `false` e ogni intento a schermo si prese il `?`: `Confirmed` e
+	// `Predicted` ereditavano il default che nessuno li obbligava a sovrascrivere. La suite l'ha preso al
+	// primo giro (`IntentCertaintyRendering` e `IntentLabelGrammar`, quattro assert), ma la lezione resta:
+	// un ramo che assegna solo *alcuni* campi dipende in silenzio dal valore di costruzione, e quel valore
+	// e' cambiato una volta e puo' cambiare ancora.
 	switch (View.Certainty)
 	{
 	case ERTIntentCertainty::Confirmed:
-		// «Linea piena · ghost pienamente leggibile · nessun `?`». Niente da attenuare: l'unita' sta ferma e
-		// non punta niente, quindi non c'e' un avversario che possa smentirla entro questo turno.
-		Style.GhostOpacity = 1.f;
+		// «Linea piena · ghost pienamente leggibile · nessun `?`». Niente da alleggerire: l'unita' sta ferma
+		// e non punta niente, quindi non c'e' un avversario che possa smentirla entro questo turno.
+		Style.LineThickness = 2.5f;
 		Style.bDashedLine = false;
+		Style.DashDutyCycle = 1.f;
+		Style.bUncertaintyMark = false;
 		break;
 
 	case ERTIntentCertainty::Predicted:
 		// «Linea tratteggiata · ghost attenuato». Il collegamento al bersaglio vale nello snapshot corrente:
 		// il tratteggio dice «adesso e' valido», non «andra' cosi'».
-		Style.GhostOpacity = 0.6f;
+		Style.LineThickness = 2.f;
 		Style.bDashedLine = true;
+		Style.DashDutyCycle = 0.5f;
+		Style.bUncertaintyMark = false;
 		break;
 
 	default:
@@ -166,12 +178,16 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 		// calcolato riceve la resa che promette meno, mai quella che promette di piu'.
 		//
 		// ⚠️ **`default:` invece dei due `case` espliciti, ed e' una scelta contro l'abitudine.** Con
-		// `Unknown` scritto per nome, un quinto enumeratore aggiunto domani cadrebbe fuori dallo `switch` e
-		// prenderebbe i valori di costruzione della struct — cioe' `GhostOpacity = 1` e nessun `?`, la resa
-		// di `Confirmed`. Un livello nuovo e sconosciuto verrebbe disegnato come il piu' certo di tutti.
-		Style.GhostOpacity = 0.3f;
+		// `Unknown` scritto per nome, un quinto enumeratore aggiunto domani cadrebbe fuori dallo `switch`
+		// senza che nessuno se ne accorga; cosi' invece riceve la resa che promette meno.
+		// ⚠️ Le tre righe qui sotto **ripetono** i default della struct, e stavolta di proposito: quei
+		// default sono anch'essi i valori del livello incerto, per la ragione scritta sulla dichiarazione.
+		// La ridondanza e' voluta perche' questo ramo dica cosa disegna anche a chi non risale all'header —
+		// e se un giorno divergessero, e' `IntentCertaintyRendering` a cadere, non lo schermo in silenzio.
+		Style.LineThickness = 1.25f;
 		Style.bDashedLine = true;
-		Style.Mark = TEXT("?");
+		Style.DashDutyCycle = 0.3f;
+		Style.bUncertaintyMark = true;
 		break;
 	}
 
@@ -181,6 +197,88 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 	Style.bReactionArmed = !View.ReactionName.IsEmpty();
 
 	return Style;
+}
+
+TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D& A, const FVector2D& B,
+	float DutyCycle)
+{
+	// Linea piena: un segmento solo, e nessun costo aggiunto rispetto a prima di CP 11.2.
+	if (DutyCycle >= 1.f)
+	{
+		return { TPair<FVector2D, FVector2D>(A, B) };
+	}
+
+	const float Len = FVector2D::Distance(A, B);
+
+	// Periodo del tratteggio **in pixel di schermo**, non nel mondo: un tratteggio calcolato in world space si
+	// infittirebbe con la distanza fino a tornare pieno, cioe' «previsto» si leggerebbe come «confermato»
+	// sulle unita' lontane.
+	const float PeriodPx = 14.f;
+
+	// 🔴 **Il tetto e' la ragione per cui questa funzione esiste.** `UCanvas::Project` divide per una `W` solo
+	// *clampata* a `UE_KINDA_SMALL_NUMBER`: una cella pochi centimetri davanti al piano della camera passa il
+	// test `Z > 0` e proietta a coordinate dell'ordine di `1e6`, che senza limite diventano decine di migliaia
+	// di `DrawLine` per segmento, ogni frame. Il valore non e' arbitrario: nessuno schermo ha piu' di qualche
+	// migliaio di pixel di diagonale, quindi oltre questo numero di tratti non c'e' piu' niente da vedere —
+	// il tetto toglie lavoro invisibile, non dettaglio.
+	const int32 MaxSteps = 512;
+	const int32 Steps = FMath::Clamp(FMath::RoundToInt(Len / PeriodPx), 1, MaxSteps);
+
+	TArray<TPair<FVector2D, FVector2D>> Segments;
+	Segments.Reserve(Steps);
+	for (int32 s = 0; s < Steps; ++s)
+	{
+		const float T0 = static_cast<float>(s) / Steps;
+		const float T1 = (static_cast<float>(s) + FMath::Clamp(DutyCycle, 0.05f, 1.f)) / Steps;
+		Segments.Emplace(FMath::Lerp(A, B, T0), FMath::Lerp(A, B, T1));
+	}
+	return Segments;
+}
+
+FString ARTHUD::ComposeIntentLabel(const FRTIntentView& View, const FRTIntentCertaintyStyle& Style)
+{
+	FString Label;
+	if (!View.ActionName.IsEmpty() && View.bHasTarget)
+	{
+		Label = FString::Printf(TEXT("%s -> %s"), *View.ActionName.ToString(), *HexCellText(View.TargetCell));
+	}
+	else if (!View.ActionName.IsEmpty())
+	{
+		Label = View.ActionName.ToString();
+	}
+	else if (View.bMoving)
+	{
+		Label = FString::Printf(TEXT("-> %s"), *HexCellText(View.PlannedCell));
+	}
+	else if (View.bDashing)
+	{
+		// 🔴 **Questo ramo mancava, e senza di esso lo scatto finiva nel ramo «fermo».** Prima era solo
+		// incompleto; col `?` di CP 11.2 appeso subito dopo diventava **auto-contraddittorio** — «fermo ?» su
+		// un'unita' che sta per attraversare la mappa, con la preview magenta dello scatto disegnata accanto.
+		// Le due meta' della stessa etichetta affermavano cose opposte. Trovato dalla code review.
+		Label = FString::Printf(TEXT("scatto -> %s"), *HexCellText(View.DashCell));
+	}
+	else
+	{
+		Label = TEXT("fermo");
+	}
+
+	// Il `?` del livello incerto qualifica il PIANO, e la reazione qui sotto ha il proprio.
+	if (Style.bUncertaintyMark)
+	{
+		Label += TEXT(" ?");
+	}
+
+	// ⚠️ **Il ramo si apre su `bReactionArmed`, che e' `!ReactionName.IsEmpty()` e nient'altro** — mai su un
+	// livello della reazione, che il DTO non porta piu'. Porta sempre il `?`: una reazione armata attende per
+	// definizione un trigger che decide l'avversario, quindi e' incerta anche quando il piano che
+	// l'accompagna e' `Confirmed`. Per un avversario `ReactionName` e' vuota per costruzione, quindi questo
+	// ramo non si apre mai su una vista nemica.
+	if (Style.bReactionArmed)
+	{
+		Label += FString::Printf(TEXT("  (reazione: %s ?)"), *View.ReactionName.ToString());
+	}
+	return Label;
 }
 
 float ARTHUD::NextViewerPlaybackSpeed(float Current)
@@ -457,26 +555,15 @@ void ARTHUD::DrawHUD()
 		// 2. FILTRA per l'osservatore. Da qui in giu' lo stato completo non si tocca piu'.
 		const TArray<FRTIntentView> Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeam, Authoritative);
 
-		// Tratteggio della grammatica di CP 11.2. Spezza il segmento in tratti di lunghezza costante **sullo
-		// schermo**: un tratteggio calcolato nel mondo si infittirebbe con la distanza fino a tornare pieno,
-		// cioe' il livello «previsto» si leggerebbe come «confermato» sulle unita' lontane.
+		// Disegna cio' che `ComposeDashSegments` ha gia' deciso. Qui non resta nessuna scelta: il conteggio
+		// dei tratti, il rapporto acceso/spento e il tetto vivono nella statica, dove un test li raggiunge.
 		auto DrawIntentLine = [this](const FVector2D& A, const FVector2D& B, const FLinearColor& C,
-			float Thickness, bool bDashed)
+			const FRTIntentCertaintyStyle& S)
 		{
-			if (!bDashed)
+			const float Duty = S.bDashedLine ? S.DashDutyCycle : 1.f;
+			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, Duty))
 			{
-				DrawLine(A.X, A.Y, B.X, B.Y, C, Thickness);
-				return;
-			}
-			const float Len = FVector2D::Distance(A, B);
-			const int32 Steps = FMath::Max(1, FMath::RoundToInt(Len / 14.f));
-			for (int32 s = 0; s < Steps; ++s)
-			{
-				// Meta' tratto e meta' vuoto: il rapporto e' quello che rende il tratteggio riconoscibile
-				// anche su un segmento corto, dove pochi tratti lunghi sembrerebbero una linea spezzata.
-				const FVector2D P0 = FMath::Lerp(A, B, static_cast<float>(s) / Steps);
-				const FVector2D P1 = FMath::Lerp(A, B, (static_cast<float>(s) + 0.5f) / Steps);
-				DrawLine(P0.X, P0.Y, P1.X, P1.Y, C, Thickness);
+				DrawLine(Seg.Key.X, Seg.Key.Y, Seg.Value.X, Seg.Value.Y, C, S.LineThickness);
 			}
 		};
 
@@ -499,47 +586,10 @@ void ARTHUD::DrawHUD()
 			// da qui in giu' per decidere lo stile: quella e' la regola, e vive in `ClassifyPlan`.
 			const FRTIntentCertaintyStyle Style = ComposeIntentCertaintyStyle(View);
 
-			// Il ghost e' il piano disegnato — rotta, destinazione, waypoint, collegamento al bersaglio — ed e'
-			// **solo lui** a graduarsi.
-			// ⚠️ **L'etichetta resta a piena opacita' di proposito**: al 30% sarebbe illeggibile, e la
-			// grammatica gradua il *ghost*, non il testo. Sull'etichetta l'incertezza si legge dal `?`, che
-			// e' l'altro elemento che la tabella del 2026-08-07 assegna a quel livello.
-			const FLinearColor GhostColor(Color.R, Color.G, Color.B, Color.A * Style.GhostOpacity);
-
-			// Descrizione testuale dell'intento, dalla sola vista.
-			FString Intent;
-			if (!View.ActionName.IsEmpty() && View.bHasTarget)
-			{
-				Intent = FString::Printf(TEXT("%s -> %s"), *View.ActionName.ToString(), *HexCellText(View.TargetCell));
-			}
-			else if (!View.ActionName.IsEmpty())
-			{
-				Intent = View.ActionName.ToString();
-			}
-			else if (View.bMoving)
-			{
-				Intent = FString::Printf(TEXT("-> %s"), *HexCellText(View.PlannedCell));
-			}
-			else
-			{
-				Intent = TEXT("fermo");
-			}
-			// Il `?` del livello incerto, appeso all'intento e non alla riga intera: qualifica il PIANO, e la
-			// reazione qui sotto ha il proprio.
-			if (!Style.Mark.IsEmpty())
-			{
-				Intent += TEXT(" ") + Style.Mark;
-			}
-
-			// La reazione compare solo se la vista ce l'ha: per un avversario e' vuota per costruzione.
-			// ⚠️ **Il ramo si apre su `bReactionArmed`, che e' `!ReactionName.IsEmpty()` e nient'altro** — mai
-			// su un livello della reazione, che il DTO non porta piu'. Porta sempre il `?`: una reazione armata
-			// attende per definizione un trigger che decide l'avversario, quindi e' incerta anche quando il
-			// piano che l'accompagna e' `Confirmed`.
-			if (Style.bReactionArmed)
-			{
-				Intent += FString::Printf(TEXT("  (reazione: %s ?)"), *View.ReactionName.ToString());
-			}
+			// Descrizione testuale dell'intento, dalla sola vista. Composta da una statica pura: il `?` del
+			// livello e quello della reazione armata sono grammatica visiva, e in una format string qui
+			// dentro nessun test headless li raggiungerebbe.
+			const FString Intent = ComposeIntentLabel(View, Style);
 
 			// Etichetta sopra la testa, posizionata dalla CELLA (identita' stabile), non da un pointer all'Actor.
 			const FVector Head = HexCellWorld(View.OwnerCell, Origin, HexSize, LayerH) + FVector(0.f, 0.f, WorldHeadOffset);
@@ -579,28 +629,34 @@ void ARTHUD::DrawHUD()
 					const FVector B = Project(HexCellWorld(PathCells[i], Origin, HexSize, LayerH));
 					if (A.Z > 0.f && B.Z > 0.f)
 					{
-						DrawIntentLine(FVector2D(A.X, A.Y), FVector2D(B.X, B.Y), GhostColor, 2.f, Style.bDashedLine);
+						DrawIntentLine(FVector2D(A.X, A.Y), FVector2D(B.X, B.Y), Color, Style);
 					}
 				}
 
 				const FVector DestScreen = Project(HexCellWorld(View.PlannedCell, Origin, HexSize, LayerH));
 				if (DestScreen.Z > 0.f)
 				{
-					// L'opacita' MOLTIPLICA lo `0.35` che la destinazione aveva gia': era il suo modo di dire
-					// «e' una previsione, non un'unita'», e sostituirlo avrebbe reso il ghost incerto piu'
-					// solido di quello confermato di prima.
-					DrawRect(FLinearColor(Color.R, Color.G, Color.B, 0.35f * Style.GhostOpacity),
+					// 🔴 **La destinazione NON e' graduata, e la prima stesura la graduava — sbagliando due
+					// volte.** Questo blocco vive dentro `if (View.bMoving)`, e `ClassifyPlan` restituisce
+					// `Uncertain` ogni volta che `bMoving`: il livello qui e' **sempre** lo stesso, quindi
+					// attenuare non distingue niente e toglie soltanto leggibilita' — il rettangolo passava da
+					// alpha `0.35` a `0.105`, in permanenza, per ogni unita' in movimento. E' lo stesso
+					// argomento con cui la preview dello scatto e' esentata poche righe piu' sotto, che non era
+					// stato applicato qui. Trovato dalla code review.
+					DrawRect(FLinearColor(Color.R, Color.G, Color.B, 0.35f),
 						DestScreen.X - 12.f, DestScreen.Y - 12.f, 24.f, 24.f);
 				}
 			}
 
 			// Marker sui waypoint cliccati: la vista li porta solo per le unita' proprie.
+			// ⚠️ Non graduati, per la stessa ragione della destinazione: i waypoint appartengono a un piano di
+			// movimento, e un piano di movimento e' `Uncertain` per costruzione.
 			for (const FRTCellId& WP : View.PlannedWaypoints)
 			{
 				const FVector WPScreen = Project(HexCellWorld(WP, Origin, HexSize, LayerH));
 				if (WPScreen.Z > 0.f)
 				{
-					DrawRect(GhostColor, WPScreen.X - 5.f, WPScreen.Y - 5.f, 10.f, 10.f);
+					DrawRect(Color, WPScreen.X - 5.f, WPScreen.Y - 5.f, 10.f, 10.f);
 				}
 			}
 
@@ -633,15 +689,20 @@ void ARTHUD::DrawHUD()
 			}
 
 			// Linea verso il bersaglio d'attacco pianificato (dalla CELLA del bersaglio, non dal suo Actor).
-			// E' la linea del livello «previsto» — un'unita' ferma che punta qualcosa — quindi e' qui che il
-			// tratteggio si vede piu' spesso: `Predicted` e' il livello piu' frequente, misurato al 51,1%.
+			//
+			// ⚠️ **E' l'UNICO elemento grafico su cui il livello varia davvero, e quindi l'unico che la
+			// gradazione informa.** Un bersaglio senza movimento e' `Predicted`, un bersaglio mentre ci si
+			// sposta e' `Uncertain`: qui il tratto passa da 2,0 a 1,25 e il tratteggio da mezzo a un terzo
+			// acceso, e la differenza si vede. La rotta e la destinazione, invece, esistono solo quando
+			// l'unita' si muove — cioe' sempre allo stesso livello. `Predicted` e' anche il livello piu'
+			// frequente, misurato al 51,1%.
 			if (View.bHasTarget && HeadScreen.Z > 0.f)
 			{
 				const FVector TgtScreen = Project(HexCellWorld(View.TargetCell, Origin, HexSize, LayerH) + FVector(0.f, 0.f, WorldHeadOffset));
 				if (TgtScreen.Z > 0.f)
 				{
 					DrawIntentLine(FVector2D(HeadScreen.X, HeadScreen.Y), FVector2D(TgtScreen.X, TgtScreen.Y),
-						GhostColor, 2.f, Style.bDashedLine);
+						Color, Style);
 				}
 			}
 		}

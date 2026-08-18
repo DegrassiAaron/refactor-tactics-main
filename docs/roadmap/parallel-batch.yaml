@@ -2679,9 +2679,18 @@ tracks:
     # `RTHUD.{h,cpp}` insieme si dichiarano, come sempre.
     note: >-
       CP 11.2 — il livello di certezza degli intenti alleati.
-      🔵 **SESSIONE APERTA il 2026-08-16 su `feat/78-contratto-certezza` (`D:/rt-78`), e `blocked_by`
-      NON la ferma: ne ferma un quarto.** Lo spec panel dello stesso giorno ha misurato che il lavoro di
-      questo checkpoint sta in quattro passi, e che solo l'ultimo tocca il file conteso:
+      ✅ **SESSIONE APERTA il 2026-08-17 su `feat/78-resa-certezza-hud` (`D:/rt-client`), e il PASSO 4 —
+      l'ultimo — è quello che sta scrivendo.** I tre passi precedenti sono in `main`; questo è la resa in
+      `ARTHUD`, che i campi `branch` e `worktree` qui sopra dichiarano.
+      🔴 **La riga che segue diceva «SESSIONE APERTA il 2026-08-16 su `feat/78-contratto-certezza`
+      (`D:/rt-78`)», ed era falsa nello stesso commit che la conteneva**: quel branch è mergiato con la PR
+      #964 e `D:/rt-78` non esiste — lo dichiarano i due commenti di campo poche righe sopra, che l'avevano
+      già misurato. La prosa obbligatoria contraddiceva i campi che esiste per giustificare, ed è la forma di
+      difetto che questo file nomina due volte altrove: *«l'ultimo commento di una issue non è il suo
+      stato»*. Trovata dalla code review, non da chi l'aveva scritta.
+      ⚠️ Cade con lei anche *«e `blocked_by` NON la ferma: ne ferma un quarto»*: `blocked_by` è stato rimosso
+      al merge di #904, quindi non c'è più niente che fermi il quarto passo — è ciò che questo branch fa.
+      Il resto del blocco resta perché i quattro passi sono ancora la mappa giusta del checkpoint:
       · **1 — riscrivere il DoD**: ✅ fatto, la issue è stata riscritta e le ragioni stanno nel commento
         del 2026-08-16. Non tocca file del repository;
       · **2 — misurare la distribuzione** dei tre livelli: ✅ fatto — `Predicted` **51,1 %**,
@@ -4739,6 +4748,23 @@ tracks:
     # non aveva dove aprirsi. Una track senza branch teneva ferma una track col lavoro pronto.
     # ↩️ **Come si ribalta**: le due schermate `.uasset` di R6 sono lavoro d'editor. Chi le apre rimette
     # `ACTIVE`, ridichiara il worktree e **riemette** la lease qui sotto misurandone allora il `base_sha`.
+    #
+    # ⚠️ **Il `writable` resta PIENO su una track `IDLE`, ed è una scelta che va difesa perché è la
+    # minoranza**: misurato col parser, delle 20 track `IDLE` **17 hanno `writable: []`** e solo tre no —
+    # `content_editor` (25 path, `#451`), `autobattle` (1) e questa (5). Lo schema elenca `writable` fra i
+    # campi «se ACTIVE», quindi la lettura più semplice direbbe di svuotarlo. Non lo svuoto, e la ragione è
+    # quella che questo file ha già scritto per `client_tools` quando era `IDLE` sulla stessa issue:
+    # *«il `writable` è lasciato INTATTO di proposito, e non per inerzia … quali file tocchi il passo
+    # successivo lo decide chi lo scrive, e restringere adesso sarebbe indovinare»*.
+    # 🔴 **Ma la differenza con `client_tools` conta, e va detta**: là il write-set era ampio e il lavoro non
+    # progettato; qui è **stretto e già deciso** — le due schermate `.uasset` di `#472` vivono in
+    # `Source/RefactorTactics/Replay/` e nei suoi tre test, e la lease qui sotto ne nomina i path esatti.
+    # Tenerli è quindi una prenotazione con un oggetto, non una prudenza generica.
+    # ⚠️ **E ha un costo reale, che chi lo paga deve poter vedere**: la prossima sessione che serva
+    # `Source/RefactorTactics/Replay/` trova «file non assegnato = STOP» e deve negoziare con una track che
+    # ha `branch: null` e zero commit vivi. Se quel giorno arriva prima che `#472` riparta, **la risposta
+    # giusta è cedere i path**, esattamente come questo commit ha ceduto il worktree. Trovato dalla code
+    # review, che ha misurato la minoranza invece di leggere la prosa.
     status: IDLE
     issue: 472              # l'ombrello di R6, tornato in primo piano: #625 e #999 sono chiuse
     # 🔴 **2026-08-17: `feat/472-flusso-due-schermate` è MERGIATO (PR #1065) e non esiste più lato server.**
@@ -5108,33 +5134,25 @@ tracks:
       # `WBP_RT_ErrorModal` e `WBP_RT_FallbackBanner`, che sono di `frontend_shell`: i **due path di questa
       # lease** non li ha toccati nessuno, e `git ls-tree origin/main` conferma che non esistono ancora —
       # coerente con `operation: create`. Cade per mancanza di titolare, non per un asset che si è mosso.
-      # ♻️ **Riemissione, per non ricostruirla a memoria**: `key: BINARY-GH472-REPLAY-SCREENS`,
-      # `issue: 472`, `operation: create`, `paths:` i due `WBP_RT_MatchHistory.uasset` e
-      # `WBP_RT_ReplayViewer.uasset` sotto `Content/RT/UI/Framework/`, `verification:` le quattro voci
-      # `load_in_editor` · `save_without_errors` · `list_selection_opens_that_match` ·
-      # `no_widget_creates_widgets`, di cui le ultime due restano commentate qui sotto con il loro perché.
-      # ⚠️ Il `base_sha` **non si ricopia**: si misura all'apertura della seduta, che è la ragione per cui
-      # una lease vale su una fotografia e non per sempre.
+      # ♻️ **Riemissione, in PROSA e non come corpo commentato.** La prima stesura di questo rilascio teneva
+      # qui le dodici righe della lease commentate una per una — ed è precisamente ciò contro cui il rilascio
+      # delle lease di `#896` argomenta, poche migliaia di righe più su: un blocco che si rilegge come YAML
+      # valido si legge come una lease, e `git grep WBP_RT_MatchHistory.uasset` lo restituiva intero. È il
+      # rischio che ha già ingannato qualcuno una volta — `#868` concluse che `L_HexArena/` fosse coperto, e
+      # quella conclusione finì in un documento normativo. Trovato dalla code review.
       #
-      # - key: "BINARY-GH472-REPLAY-SCREENS"
-      #   issue: 472
-      #   base_sha: "10c01335ba41cdcf0efd8f3da348498a747473d3"   # ⚠️ da rimisurare alla riemissione
-      #   operation: create
-      #   paths:
-      #     - Content/RT/UI/Framework/WBP_RT_MatchHistory.uasset
-      #     - Content/RT/UI/Framework/WBP_RT_ReplayViewer.uasset
-      #   verification:
-      #     - load_in_editor
-      #     - save_without_errors
-          # ⚠️ La verifica che conta non e' che si aprano: e' che il **passaggio del dato** funzioni a
-          # schermo come lo prova `TheTwoScreensHandOffThroughTheSubsystem` senza widget — si sceglie una
-          # riga dalla lista e il viewer mostra QUELLA partita. Il `MatchId` non viaggia nel `PushScreen`,
-          # che porta un `FName` e basta: viaggia perche' la lista **apre** l'archivio sul subsystem prima
-          # di spingere la schermata. Un widget che invertisse i due passi aprirebbe il viewer sul vuoto.
-      #     - list_selection_opens_that_match
-          # ⛔ E l'invariante 1 di CP 46.1, che un `.uasset` e' l'unico posto dove puo' rientrare senza che
-          # un test se ne accorga.
-      #     - no_widget_creates_widgets
+      # Chi riapre `#472` la riemette con: chiave `BINARY-GH472-REPLAY-SCREENS`, issue 472, operazione
+      # **create**, i due widget `WBP_RT_MatchHistory` e `WBP_RT_ReplayViewer` sotto
+      # `Content/RT/UI/Framework/`, e quattro verifiche — si caricano in editor · si salvano senza errori ·
+      # **scegliere una riga della lista apre QUELLA partita** · nessun widget ne crea altri.
+      # ⚠️ Il `base_sha` **non si ricopia**: si misura all'apertura della seduta. Una lease vale su una
+      # fotografia, e ricopiarne una vecchia è il modo di averne una stale senza accorgersene.
+      # ⛔ **La terza verifica è quella che conta**, e il suo perché non va perso con la forma: il `MatchId`
+      # non viaggia nel `PushScreen` — che porta un `FName` e basta — ma perché la lista **apre** l'archivio
+      # sul subsystem prima di spingere la schermata, come lo prova `TheTwoScreensHandOffThroughTheSubsystem`
+      # senza widget. Un widget che invertisse i due passi aprirebbe il viewer sul vuoto. La quarta è
+      # l'invariante 1 di CP 46.1, e un `.uasset` è l'unico posto dove può rientrare senza che un test se ne
+      # accorga.
       []
 
   bot_stalemate:
