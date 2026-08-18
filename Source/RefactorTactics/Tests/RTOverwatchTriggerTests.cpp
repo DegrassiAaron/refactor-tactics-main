@@ -34,6 +34,15 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"   // serializzazione e hash: il replay della decisione
 #include "Turn/RTTurnRules.h"
+// #1158: il doppio `FIRE` si riproduce dal PERCORSO REALE — uno scenario costruito in memoria, non un file in
+// `Scenarios/` (la issue lo dichiara: «nessuno scenario nuovo»). Da qui arrivano il mondo, il runner e il
+// `TurnManager` da cui si legge il `TurnLog`, che e' la fonte autorevole su cui il difetto si misura.
+#include "EngineUtils.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTTestScenario.h"
+#include "ScenarioHarness/RTTestResult.h"
+#include "Tests/RTWorldFixtures.h"
+#include "Turn/RTTurnManager.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1224,6 +1233,168 @@ bool FRTOverwatchSegmentedResolutionOverheadTest::RunTest(const FString&)
 		BulkMs > 0.0 ? (SteppedMs - BulkMs) / BulkMs * 100.0 : 0.0,
 		WindowsOpened, URTReactionOpportunityLibrary::MaxPromptsPerReaction(), Repetitions));
 
+	return true;
+}
+
+
+/**
+ * DUE Overwatch di unita' diverse sullo stesso mover: il secondo `FIRE` non deve dichiarare un danno che non
+ * ha inflitto (#1158).
+ *
+ * Il difetto, misurato nella issue e non supposto: `ResolveReactionBoundary` costruisce i `Triggers` **una
+ * volta sola** prima del ciclo per-opportunity, e l'unico guard per iterazione e' `bCharged` — che e' **per
+ * watcher**, non per bersaglio. `ApplyReactionDecision` calcola poi `bFire` con `IsValid(Units[TargetIdx])` e
+ * **nessun `IsAlive()`**, mentre `ARTUnit::ApplyCombatState` dichiara di NON distruggere l'Actor alla morte
+ * («la rimozione VISIVA e la distruzione sono differite … cosi' il colpo mortale resta osservabile»). Quindi
+ * `IsValid` resta vero su un'unita' a 0 HP e il secondo `FIRE` esegue tutto il corpo — danno, charge spesa,
+ * `StopUnitInPlace`, e `Entry.Amount = Armed.Damage` nel TurnLog **autorevole**.
+ *
+ * ⚠️ **Si misura sul TurnLog e non sugli HP**, ed e' la differenza fra vedere il difetto e non vederlo: gli HP
+ * del bersaglio sono gia' a zero, quindi il secondo colpo non li cambia e una assertion sulla salute passerebbe
+ * anche col bug vivo. Cio' che il difetto rompe e' la **fonte autorevole**, che dichiara piu' danno di quanto
+ * ne sia stato inflitto.
+ *
+ * ⚠️ Lo scenario si costruisce in MEMORIA: la issue dichiara «nessuno scenario nuovo», e `Scenarios/` e'
+ * `integration_only`. Il percorso pero' e' quello vero — `URTScenarioRunner::Run` entra dagli stessi ingressi
+ * del giocatore — quindi qui non nasce nessun resolver parallelo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSecondFireOnDownedTargetTest,
+	"RefactorTactics.Overwatch.SecondFireOnDownedTargetLogsNoDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
+{
+	// Due Wraith che guardano la STESSA cella da lati opposti: `MakeSuppressiveZone` costruisce una LINEA
+	// lungo il facing, quindi (-1,-1,0) cade nella zona di entrambi. Sono due WATCHER diversi sullo stesso
+	// bersaglio — quindi due opportunity — non due bersagli nello stesso passo, che darebbero una opportunity
+	// sola (`Overwatch.SimultaneousTargetsSingleOpportunity`).
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Unit.Overwatch.DoubleFireOnDownedTarget");
+	Scenario.Version = 2;
+	Scenario.Seed = 0;
+	Scenario.MapRadius = 5;
+
+	FRTScenarioUnit W1;
+	W1.Id = TEXT("W1");
+	W1.HeroId = TEXT("Hero.Wraith");
+	W1.TeamId = 1;
+	W1.Cell = FRTCellId(2, -1, 0);
+	W1.Facing = ERTHexDirection::W;
+	Scenario.Units.Add(W1);
+
+	FRTScenarioUnit W2;
+	W2.Id = TEXT("W2");
+	W2.HeroId = TEXT("Hero.Wraith");
+	W2.TeamId = 1;
+	W2.Cell = FRTCellId(-3, -1, 0);
+	W2.Facing = ERTHexDirection::E;
+	Scenario.Units.Add(W2);
+
+	// ⚠️ `Health` basso E DICHIARATO: serve che il PRIMO colpo abbatta il bersaglio, che e' la premessa
+	// dell'intero caso. Col valore di roster il mover sopravvivrebbe a entrambi i colpi e il difetto non
+	// avrebbe modo di manifestarsi — il test resterebbe verde su un bug vivo.
+	FRTScenarioUnit M1;
+	M1.Id = TEXT("M1");
+	M1.HeroId = TEXT("Hero.Gadget");
+	M1.TeamId = 0;
+	M1.Cell = FRTCellId(-2, 0, 0);
+	M1.Health = 10;
+	Scenario.Units.Add(M1);
+
+	FRTScenarioTurn Turn;
+	// La finestra live e' una capability: dichiararla e' cio' che distingue un `BLOCKED` onesto da un `Error`.
+	Turn.Requires.Add(TEXT("DecisionBoundary"));
+
+	FRTScenarioIntent ArmW1;
+	ArmW1.UnitId = TEXT("W1");
+	ArmW1.Ability = TEXT("Action.Overwatch");
+	Turn.Intents.Add(ArmW1);
+
+	FRTScenarioIntent ArmW2;
+	ArmW2.UnitId = TEXT("W2");
+	ArmW2.Ability = TEXT("Action.Overwatch");
+	Turn.Intents.Add(ArmW2);
+
+	FRTScenarioIntent MoveM1;
+	MoveM1.UnitId = TEXT("M1");
+	MoveM1.Move.Add(FRTCellId(-1, -1, 0));
+	Turn.Intents.Add(MoveM1);
+
+	// Entrambi rispondono `FIRE` sullo stesso bersaglio: e' la configurazione che [D-155] dichiara NORMALE in
+	// v0.1 — un umano comanda due unita', entrambe possono coprire lo stesso corridoio.
+	FRTScenarioDecision FireW1;
+	FireW1.Unit = TEXT("W1");
+	FireW1.Respond = TEXT("FIRE");
+	FireW1.Target = TEXT("M1");
+	Turn.Decisions.Add(FireW1);
+
+	FRTScenarioDecision FireW2;
+	FireW2.Unit = TEXT("W2");
+	FireW2.Respond = TEXT("FIRE");
+	FireW2.Target = TEXT("M1");
+	Turn.Decisions.Add(FireW2);
+
+	Scenario.Turns.Add(Turn);
+
+	// ⚠️ L'harness RIFIUTA uno scenario senza `expect` — «lo scenario passerebbe sempre» — ed è la stessa
+	// disciplina che vieta i test vacui. Qui le due assertion dicono qualcosa di vero e non banale: chi arma un
+	// Overwatch spende l'azione principale e **non si muove**, quindi i watcher devono trovarsi dove sono
+	// stati posati. La misura del difetto resta in C++ sotto, perché guarda il TurnLog e non lo stato finale.
+	FRTTestExpectation W1Stays;
+	W1Stays.Kind = ERTAssertionKind::UnitAtCell;
+	W1Stays.UnitId = TEXT("W1");
+	W1Stays.Cell = FRTCellId(2, -1, 0);
+	Scenario.Expect.Add(W1Stays);
+
+	FRTTestExpectation W2Stays;
+	W2Stays.Kind = ERTAssertionKind::UnitAtCell;
+	W2Stays.UnitId = TEXT("W2");
+	W2Stays.Cell = FRTCellId(-3, -1, 0);
+	Scenario.Expect.Add(W2Stays);
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+
+	// ⚠️ **`BLOCKED` non e' un successo**, e senza questa riga lo diventerebbe in silenzio: uno scenario che
+	// dichiara una capability indisponibile esce senza eseguire nulla, e ogni conteggio sotto darebbe zero —
+	// cioe' il difetto «non riprodotto» sarebbe indistinguibile da «assente».
+	TestTrue(FString::Printf(TEXT("lo scenario ha eseguito (esito: %d · error: '%s' · blocked: '%s' · turni: %d)"),
+			static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason, Result.TurnsPlayed),
+		Result.Outcome != ERTTestOutcome::Blocked && Result.Outcome != ERTTestOutcome::Error);
+
+	ARTTurnManager* Manager = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It)
+	{
+		Manager = *It;
+		break;
+	}
+
+	int32 FireEntries = 0;
+	int32 FireEntriesWithDamage = 0;
+	if (TestNotNull(TEXT("il TurnManager e' nel mondo"), Manager))
+	{
+		for (const FRTTurnLogEntry& Entry : Manager->GetTurnLog())
+		{
+			if (Entry.Category != ERTLogCategory::ReactionDecision) { continue; }
+			if (Entry.Outcome != static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen)) { continue; }
+			++FireEntries;
+			if (Entry.Amount > 0) { ++FireEntriesWithDamage; }
+		}
+	}
+
+	// La premessa del caso: due watcher, due finestre, due `FIRE` scelti. Se questa cade, non e' il difetto ad
+	// essere assente — e' lo scenario a non descriverlo, e va corretto prima di leggere la riga dopo.
+	TestEqual(TEXT("due `FIRE` sono stati scelti, uno per watcher"), FireEntries, 2);
+
+	// 🔴 IL PUNTO: **uno solo** dei due ha inflitto danno. L'altro ha sparato a un bersaglio gia' a terra, e il
+	// TurnLog non deve dichiarare un danno che non e' stato inflitto.
+	TestEqual(TEXT("una sola voce dichiara danno: il secondo colpisce un bersaglio gia' abbattuto"),
+		FireEntriesWithDamage, 1);
+
+	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 
