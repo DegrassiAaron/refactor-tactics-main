@@ -21,6 +21,51 @@ struct FRTSlotLine
 };
 
 /**
+ * Come disegnare un intento, dato quanto e' certo (CP 11.2). Tre parametri, uno per ciascun elemento che la
+ * grammatica visiva del 2026-08-07 nomina: la linea, il ghost, il punto interrogativo.
+ *
+ * ⚠️ **Non contiene il livello, e non e' una dimenticanza.** Se portasse anche `ERTIntentCertainty` il Canvas
+ * potrebbe fare `if (Style.Certainty == ...)` e la regola tornerebbe a vivere nel widget, che e' cio' che
+ * l'invariante #1 di questa issue vieta — *«la classificazione arriva dal resolver: la UI non ricalcola il
+ * perche'»*. Qui arriva il **cosa disegnare**, non il perche'.
+ */
+struct FRTIntentCertaintyStyle
+{
+	/**
+	 * Moltiplicatore d'opacita' del ghost: `1` pienamente leggibile, valori bassi «attenuato» e «dissolto».
+	 * Moltiplica l'alpha gia' scelto da chi disegna, invece di sostituirlo: la destinazione pianificata era
+	 * gia' a `0.35` per conto suo, e un valore assoluto la riporterebbe a piena opacita' proprio nel caso
+	 * incerto — cioe' l'opposto della grammatica.
+	 */
+	float GhostOpacity = 1.f;
+
+	/**
+	 * La linea che accompagna l'intento va tratteggiata invece che piena.
+	 *
+	 * ⚠️ **Quale linea dipende dal livello, ed e' una proprieta' di `ClassifyPlan`, non una scelta di qui.**
+	 * `Confirmed` significa fermo E senza bersaglio: non ha ne' rotta ne' collegamento al bersaglio, quindi
+	 * per lui «linea piena» non ha oggetto e resta una garanzia sul caso in cui una linea ci fosse.
+	 * `Predicted` e' fermo con un bersaglio — la sua linea e' il collegamento. `Uncertain` si muove — la sua
+	 * linea e' la rotta.
+	 */
+	bool bDashedLine = false;
+
+	/** Da appendere all'etichetta: vuoto, oppure `?`. La grammatica lo da' al solo livello incerto. */
+	FString Mark;
+
+	/**
+	 * Una reazione e' armata, e va resa con la grammatica «incerto» qualunque sia il livello del PIANO.
+	 *
+	 * 🔴 **Si abilita su `ReactionName`, mai su un livello della reazione**, e la ragione e' scritta sul DTO:
+	 * `ReactionCertainty` e' uscito da `FRTIntentView` il 2026-08-16 perche' non ha mai potuto assumere un
+	 * secondo valore, e finche' esisteva il suo default `Confirmed` significava insieme «nessuna reazione» e
+	 * «reazione certa» — una UI che lo leggesse senza controllare prima il nome disegnerebbe una reazione
+	 * confermata dove non ce n'e' nessuna. Il nome vuoto e' l'unico segnale che distingue i due casi.
+	 */
+	bool bReactionArmed = false;
+};
+
+/**
  * HUD disegnato in C++ (nessun asset UMG): barra HP/scudo sopra ogni unita' viva
  * e, a partita conclusa, il messaggio di esito al centro dello schermo.
  */
@@ -96,6 +141,26 @@ public:
 	 * puo' dipenderne.
 	 */
 	static TArray<FRTSlotLine> ComposeSlotLines(const struct FRTUnitSlotsView& Slots);
+
+	/**
+	 * Come rendere un intento, dato il livello di certezza che la vista **porta gia' calcolato** (CP 11.2).
+	 *
+	 * ⚠️ **Legge `View.Certainty` e non lo ricalcola**, ed e' il primo invariante della issue: `ClassifyPlan`
+	 * vive in `URTIntentPrivacyLibrary` perche' e' il simulatore a decidere, e una seconda copia della regola
+	 * dentro la HUD divergerebbe senza che nessun test se ne accorga — il precedente e' `IsIntentVisibleTo`
+	 * (#507). Qui non c'e' nessun `bMoving`, nessun `bHasTarget`: se comparissero, sarebbe la regola riscritta.
+	 *
+	 * ⚠️ **`Unknown` non ha una resa propria e riceve la piu' PRUDENTE**, cioe' quella del livello incerto.
+	 * L'enum lo dichiara — *«un `Unknown` che arriva alla presentazione e' un difetto a monte»* — e il difetto
+	 * non si ripara qui; si evita solo di **premiarlo**. Un campo mai calcolato che ereditasse la resa piena
+	 * affermerebbe a schermo la garanzia piu' forte del dominio, che e' esattamente il difetto per cui
+	 * `Unknown` vale zero. Distinguerlo *visivamente* da `Uncertain` chiederebbe una quarta grammatica per uno
+	 * stato che non deve arrivare a schermo, e il catalogo icone ne pretende **tre** apposta.
+	 *
+	 * Statica e pura come `ComposeSlotLines`: cosi' i tre livelli si verificano senza montare una partita, che
+	 * e' cio' che il DoD chiede quando dice «un test headless su `ARTHUD`».
+	 */
+	static FRTIntentCertaintyStyle ComposeIntentCertaintyStyle(const struct FRTIntentView& View);
 
 	/**
 	 * La velocita' successiva sulla scala `x1 · x2 · x4` (CP 47.7, #1015).

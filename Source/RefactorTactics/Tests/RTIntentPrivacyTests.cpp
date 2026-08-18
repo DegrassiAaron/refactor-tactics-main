@@ -1,5 +1,8 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
+// La RESA dei tre livelli (CP 11.2, passo 4) vive su `ARTHUD` come statica pura: si verifica senza montare
+// una partita, che e' cio' che il DoD intende con «test headless su `ARTHUD`».
+#include "UI/RTHUD.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -301,6 +304,139 @@ bool FRTNoEnemyIntentExposedTest::RunTest(const FString&)
 		const TArray<FRTIntentView> V = URTIntentPrivacyLibrary::FilterForTeam(0, { RevealedEnemy });
 		if (!TestEqual(TEXT("il nemico rivelato produce una vista"), V.Num(), 1)) { return false; }
 		TestTrue(TEXT("senza la sua reazione"), V[0].ReactionName.IsEmpty());
+	}
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// CP 11.2, passo 4: la RESA. I tre livelli devono arrivare a schermo distinguibili.
+//
+// ⚠️ **Perche' questi test stanno qui e non in `RTHUDMarksTests.cpp`**, che sarebbe la casa naturale di una
+// statica di `ARTHUD`: quel file non e' nel `writable` di nessuna track del batch corrente, e per `D-139` un
+// path non assegnato e' STOP. Questo file e' di `client_tools`, che possiede `#78`, e ospita gia' i tre test
+// di certezza — quindi la scelta e' anche coerente, non solo permessa. Precedente identico e dichiarato:
+// `overwatch_lifecycle` ha messo il pin di `#166` in `RTReactionOpportunityTests.cpp` per non toccare un file
+// di `simulation`. Se un giorno `RTHUDMarksTests.cpp` viene assegnato a questa track, questi due si spostano.
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIntentCertaintyRenderingTest,
+	"RefactorTactics.UI.IntentCertaintyRendering",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIntentCertaintyRenderingTest::RunTest(const FString&)
+{
+	// Il DoD chiede che «tre viste con `Certainty` diversa producano un output osservabilmente diverso». Il
+	// verbo che conta e' **diverso**, non «corretto»: ecco perche' il cuore del test sono i confronti a
+	// COPPIE e non tre confronti con valori attesi.
+	//
+	// 🔴 **Senza i confronti a coppie questo test sarebbe VACUO, e per una ragione precisa.** I valori di
+	// costruzione di `FRTIntentCertaintyStyle` — opacita' `1`, nessun tratteggio, nessun `?` — coincidono
+	// esattamente con lo stile di `Confirmed`. Una `ComposeIntentCertaintyStyle` che ignorasse l'input e
+	// restituisse `FRTIntentCertaintyStyle{}` passerebbe qualunque assert scritto come «Confirmed vale 1,
+	// niente tratteggio, niente `?`». I confronti a coppie la fanno fallire su due righe.
+	auto ViewWith = [](ERTIntentCertainty Level)
+	{
+		FRTIntentView V;
+		V.bIsAlly = true;
+		V.Certainty = Level;
+		return V;
+	};
+
+	const FRTIntentCertaintyStyle Confirmed = ARTHUD::ComposeIntentCertaintyStyle(ViewWith(ERTIntentCertainty::Confirmed));
+	const FRTIntentCertaintyStyle Predicted = ARTHUD::ComposeIntentCertaintyStyle(ViewWith(ERTIntentCertainty::Predicted));
+	const FRTIntentCertaintyStyle Uncertain = ARTHUD::ComposeIntentCertaintyStyle(ViewWith(ERTIntentCertainty::Uncertain));
+
+	// 1. I tre livelli sono distinguibili A DUE A DUE. Una scala a tre valori che ne rendesse due allo stesso
+	//    modo sarebbe una scala a due, e il giocatore non potrebbe leggere la differenza che la issue esiste
+	//    per mostrargli.
+	TestNotEqual(TEXT("confermato e previsto non si disegnano uguali"),
+		Confirmed.GhostOpacity, Predicted.GhostOpacity);
+	TestNotEqual(TEXT("previsto e incerto non si disegnano uguali"),
+		Predicted.GhostOpacity, Uncertain.GhostOpacity);
+	TestNotEqual(TEXT("confermato e incerto non si disegnano uguali"),
+		Confirmed.GhostOpacity, Uncertain.GhostOpacity);
+
+	// 2. E la grammatica del 2026-08-07 nei suoi tre elementi, uno per livello.
+	TestFalse(TEXT("confermato: linea piena"), Confirmed.bDashedLine);
+	TestTrue(TEXT("previsto: linea tratteggiata"), Predicted.bDashedLine);
+	TestTrue(TEXT("confermato e' il ghost pienamente leggibile"), Confirmed.GhostOpacity >= 1.f);
+	TestTrue(TEXT("previsto e' attenuato, non dissolto"),
+		Predicted.GhostOpacity < Confirmed.GhostOpacity && Predicted.GhostOpacity > Uncertain.GhostOpacity);
+
+	// 3. Il `?` appartiene al SOLO livello incerto. E' l'elemento piu' facile da spargere ovunque «per
+	//    prudenza», e un `?` su tutto non dice piu' niente.
+	TestTrue(TEXT("confermato: nessun ?"), Confirmed.Mark.IsEmpty());
+	TestTrue(TEXT("previsto: nessun ?"), Predicted.Mark.IsEmpty());
+	TestEqual(TEXT("incerto: il punto interrogativo"), Uncertain.Mark, FString(TEXT("?")));
+
+	// 4. 🔴 **La UI NON ricalcola**, ed e' l'invariante #1 della issue. Questa vista si CONTRADDICE apposta:
+	//    porta `bMoving`, `bDashing` e un bersaglio — cioe' tutto cio' che farebbe dire «incerto» a chiunque
+	//    riclassificasse — ma il livello calcolato dal simulatore dice `Confirmed`. Una `ComposeIntentCertaintyStyle`
+	//    che guardasse i flag invece del campo produrrebbe qui lo stile incerto, e questo assert cadrebbe.
+	//    Senza questo caso, una copia della regola dentro la HUD resterebbe verde: e' il precedente
+	//    `IsIntentVisibleTo` (#507), dove la divergenza non la vide nessuno.
+	{
+		FRTIntentView Contradictory = ViewWith(ERTIntentCertainty::Confirmed);
+		Contradictory.bMoving = true;
+		Contradictory.bDashing = true;
+		Contradictory.bHasTarget = true;
+		Contradictory.PlannedCell = FRTCellId(5, 0);
+		const FRTIntentCertaintyStyle S = ARTHUD::ComposeIntentCertaintyStyle(Contradictory);
+		TestEqual(TEXT("la resa segue il livello, non i flag del piano"), S.GhostOpacity, Confirmed.GhostOpacity);
+		TestTrue(TEXT("e non inventa un ? che il livello non chiede"), S.Mark.IsEmpty());
+	}
+
+	// 5. `Unknown` non deve MAI ricevere la resa di `Confirmed`: e' il difetto per cui vale zero. Un campo mai
+	//    calcolato che ereditasse il ghost pieno affermerebbe a schermo la garanzia piu' forte del dominio.
+	{
+		const FRTIntentCertaintyStyle S = ARTHUD::ComposeIntentCertaintyStyle(ViewWith(ERTIntentCertainty::Unknown));
+		TestNotEqual(TEXT("il livello mai calcolato non si disegna come confermato"),
+			S.GhostOpacity, Confirmed.GhostOpacity);
+		TestTrue(TEXT("e non promette una linea piena"), S.bDashedLine);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArmedReactionRenderingTest,
+	"RefactorTactics.UI.ArmedReactionRendering",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArmedReactionRenderingTest::RunTest(const FString&)
+{
+	// Il DoD: «la presenza di una reazione armata e' resa con la grammatica incerto, e la resa si abilita su
+	// `ReactionName`, MAI su `ReactionCertainty`». La seconda meta' e' oggi indimostrabile per costruzione —
+	// quel campo non esiste piu' — quindi cio' che resta verificabile e' la prima: il segnale e' il NOME.
+	FRTIntentView Armed;
+	Armed.bIsAlly = true;
+	Armed.Certainty = ERTIntentCertainty::Confirmed;
+	Armed.ReactionName = FText::FromString(TEXT("Contrattacco"));
+
+	FRTIntentView Bare;
+	Bare.bIsAlly = true;
+	Bare.Certainty = ERTIntentCertainty::Confirmed;
+
+	const FRTIntentCertaintyStyle WithReaction = ARTHUD::ComposeIntentCertaintyStyle(Armed);
+	const FRTIntentCertaintyStyle NoReaction = ARTHUD::ComposeIntentCertaintyStyle(Bare);
+
+	TestTrue(TEXT("il nome pieno arma la resa della reazione"), WithReaction.bReactionArmed);
+	TestFalse(TEXT("il nome vuoto no"), NoReaction.bReactionArmed);
+
+	// ⚠️ **I due assert qui sopra da soli non basterebbero**, ed e' lo stesso difetto che fece togliere
+	// `ReactionCertainty` dal DTO: misurerebbero che un booleano copia un `IsEmpty()`. La domanda che conta e'
+	// se armare una reazione CAMBIA qualcosa nella resa — cioe' se il segnale e' causalmente vivo.
+	TestNotEqual(TEXT("armare una reazione cambia cio' che si disegna"),
+		WithReaction.bReactionArmed, NoReaction.bReactionArmed);
+
+	// E la reazione e' un SECONDO asse: non contamina il livello del piano, che resta quello che il simulatore
+	// ha calcolato. Lo pinna gia' `IntentCertaintyClassification` sul DTO; qui si pinna sulla resa.
+	TestEqual(TEXT("e non tocca il ghost del piano"), WithReaction.GhostOpacity, NoReaction.GhostOpacity);
+	TestEqual(TEXT("ne' la sua linea"), WithReaction.bDashedLine, NoReaction.bDashedLine);
+
+	// Una reazione armata su un piano INCERTO resta armata: i due assi sono indipendenti in entrambi i versi.
+	{
+		FRTIntentView MovingArmed = Armed;
+		MovingArmed.Certainty = ERTIntentCertainty::Uncertain;
+		const FRTIntentCertaintyStyle S = ARTHUD::ComposeIntentCertaintyStyle(MovingArmed);
+		TestTrue(TEXT("reazione armata anche su piano incerto"), S.bReactionArmed);
+		TestEqual(TEXT("col ghost del proprio livello"), S.Mark, FString(TEXT("?")));
 	}
 	return true;
 }
