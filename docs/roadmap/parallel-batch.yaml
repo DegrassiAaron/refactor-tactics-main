@@ -3651,13 +3651,21 @@ tracks:
     binary_leases: []
 
   frontend_shell:
-    # ✅ **Torna IDLE il 2026-08-18: la seduta U24 ha chiuso con la PR #1178** (`1ff48baf`), e
-    # `#937` e' `CLOSED`. `IDLE` e non assente: `#938`…`#941` sono aperte e le scrivera' questa track,
-    # quindi i `writable` restano dichiarati. E' il caso «prenotato, non in uso» che lo schema ammette —
-    # gia' usato da questa voce il 2026-08-16, e vale in particolare per `RTGameMode.{h,cpp}`, che
-    # tornerebbero contendibili se la track sparisse.
+    # ✅ **Torna IDLE il 2026-08-18: la seduta U24 ha chiuso con la PR #1178** (`1ff48baf`).
+    # 🔴 **La prima stesura di questa riga aggiungeva «e `#937` e' `CLOSED`», ed era falso quando l'ho
+    # scritto.** La issue e' rimasta **aperta**: una voce del suo DoD — *«`BACK`: `PopScreen` prima
+    # dell'avvio, `ReturnMain` a partita viva»* — non e' implementata. Misurato: `WBP_RT_ErrorModal`
+    # contiene la stringa «Back» (il pulsante c'e') e **zero** `ReturnMain`/`PopScreen`/`RequestBack`;
+    # in tutto `Source/` `RequestBack` compare **una sola volta, dentro un commento**. Il pulsante esiste,
+    # il comportamento non e' collegato a nulla.
+    # ⚠️ La premessa falsa e' arrivata su `main` col merge di #1180 perche' la chiusura e' stata scritta
+    # **prima** di consuntivare il DoD voce per voce. E' l'ordine sbagliato, ed e' lo stesso difetto che
+    # questo repository ha gia' pagato mergiando prima dell'esito di una review.
+    # ∴ `IDLE` **con la issue ancora sua**: nessuna sessione e' aperta in questo momento — la seduta
+    # d'editor e' finita e il residuo e' codice, non `.uasset` — ma `#937` non e' consegnata, e i
+    # `writable` restano dichiarati anche per `#938`…`#941`, che sono aperte.
     status: IDLE
-    issue: null
+    issue: null   # nessuna sessione aperta; il residuo di `#937` e' nella nota, non in un branch vivo
     branch: null            # seduta d'editor: l'unita' di lavoro e' un'apertura di Unreal, non un commit
     session: null
     # ➕ **Aperto il 2026-08-17, e il campo esisteva gia' per questo caso.** La nota qui sotto lo
@@ -3671,12 +3679,17 @@ tracks:
     session_branch: null
     worktree: D:/rt-menu
     note: >-
-      ✅ **CHIUSA il 2026-08-18 — la seduta U24 ha consegnato tutti e cinque i `WBP_RT_*`** (PR #1178,
-      `1ff48baf`). I tre con classe base leggono il dato invece di comporlo; `WBP_RT_FrontendRoot` e
-      `WBP_RT_ModalLayer` non ne hanno una, e per loro il criterio e' `no_widget_creates_widgets`.
-      Suite misurate sull'albero unito con due metodi concordi: **27** `Frontend.*` + **11** `Startup.*`.
-      ⏳ **Cio' che resta non sono i widget ma l'aggancio**: nessuno chiama `InitializeFrontend`, che e'
-      di CP 46.3 (`#938`). Cinque Blueprint esistono, sono provati, e non li avvia nessuno.
+      ✅ **La SEDUTA U24 ha chiuso il 2026-08-18 — cinque `WBP_RT_*` su cinque** (PR #1178, `1ff48baf`).
+      I tre con classe base leggono il dato invece di comporlo; `WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer`
+      non ne hanno una, e per loro il criterio e' `no_widget_creates_widgets`. Suite misurate sull'albero
+      unito con due metodi concordi: **27** `Frontend.*` + **11** `Startup.*`.
+      ⏳ **`#937` NON e' chiusa, e la seduta chiusa non la chiude**: il residuo e' il `BACK` del modale —
+      il pulsante esiste nel `.uasset` e non chiama niente. Non e' lavoro d'editor e non e' un widget da
+      costruire: e' il collegamento fra l'intenzione del widget e il navigatore, che di quel flow e'
+      l'unico owner (CP 46.1).
+      ⚠️ **E non basta implementarlo: serve poterlo esercitare.** Nessuno chiama `InitializeFrontend`,
+      che e' di CP 46.3 (`#938`) — quindi i cinque Blueprint esistono, sono provati, e non li avvia
+      nessuno. Chi riprende `#937` deve sapere che la sua ultima voce **dipende** da quel checkpoint.
       ─────
       ➕ **Riattivata il 2026-08-16 come SEDUTA, non come sessione di codice.** La parte C++ di E46 e'
       consegnata; quello che comincia adesso e' la costruzione dei `WBP_RT_*` in editor — seduta **U24**
