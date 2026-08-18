@@ -4090,14 +4090,58 @@ void ARTTurnManager::ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMov
 	Entry.Priority = URTCatalogLibrary::FindCoreAction(Armed.ActionId).Priority;
 
 	const int32 TargetIdx = URTReactionOpportunityLibrary::FireResponseTarget(Decision.Response);
+
+	// 🔴 **`IsAlive()` e non solo `IsValid()`** (#1158). `ARTUnit::ApplyCombatState` NON distrugge l'Actor alla
+	// morte e lo dichiara — «la rimozione VISIVA e la distruzione sono differite … cosi' il colpo mortale resta
+	// osservabile» — quindi `IsValid` resta **vero** su un'unita' a 0 HP. Senza questo guard, due Overwatch
+	// armati sullo stesso mover producevano due `FIRE`: il secondo colpiva un bersaglio gia' abbattuto dal
+	// primo e scriveva `Entry.Amount = Armed.Damage` nel TurnLog **autorevole**, cioe' un danno mai inflitto.
+	//
+	// I `Triggers` si costruiscono UNA volta prima del ciclo per-opportunity, e l'unico guard per iterazione e'
+	// `bCharged` — che e' per **watcher**, non per bersaglio: nessuno dei due impediva il caso.
+	//
+	// ⚠️ Il predicato e' quello che questo file usa gia' ovunque (`:182` con tanto di commento «un cadavere non
+	// vede e non si nasconde»), non un secondo criterio nuovo: la sua assenza qui era un'incoerenza, e nessun
+	// commento la difendeva.
+	const bool bTargetStanding = Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx])
+		&& Units[TargetIdx]->IsAlive();
 	const bool bFire = Decision.Outcome == ERTReactionDecisionOutcome::FireChosen
-		&& Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx]) && State.Pos.IsValidIndex(TargetIdx);
+		&& bTargetStanding && State.Pos.IsValidIndex(TargetIdx);
 
 	if (!bFire)
 	{
-		// `HOLD`, in tutte e cinque le sue forme: si perde l'OPPORTUNITY, non la reaction. `bCharged` resta
+		// ⚠️ **Qui finiscono DUE casi diversi, e vanno distinti perche' la charge si comporta diversamente.**
+		//
+		// (1) `HOLD`, in tutte e cinque le sue forme: si perde l'OPPORTUNITY, non la reaction. `bCharged` resta
 		// vero, quindi un micro-step successivo puo' ancora aprire una finestra nuova — ed e' precisamente
 		// cio' che rende possibile il bait: lascio passare il tank perche' penso che dietro arrivi di meglio.
+		//
+		// (2) `FIRE` scelto su un bersaglio **gia' abbattuto** (#1158). Non e' un `HOLD`: il giocatore ha
+		// premuto, e il log deve continuare a dirlo — `Entry.Outcome` resta `FireChosen`. Cio' che non deve
+		// dire e' un danno mai inflitto, quindi `Entry.Amount` resta a zero e non si tronca nessun movimento
+		// (il bersaglio non si muove piu' comunque).
+		//
+		// 🔴 **La charge in questo secondo caso si spende, ed e' STATUS QUO — non una decisione presa qui.**
+		// Prima di #1158 il ramo `FIRE` girava per intero anche sul bersaglio a terra, e `Armed.bCharged = false`
+		// con esso. Se il watcher debba spenderla o conservarla e' una domanda di **regola**, dichiarata fuori
+		// scope dalla issue e da decidere dall'owner di ADR-0004: le due letture — *ha sparato* contro *non
+		// c'era piu' niente da colpire* — sono entrambe difendibili. Conservarla qui sarebbe rispondere di
+		// iniziativa, e per giunta cambiando il comportamento osservabile insieme alla correzione del log.
+		if (Decision.Outcome == ERTReactionDecisionOutcome::FireChosen && !bTargetStanding)
+		{
+			Armed.bCharged = false;
+
+			// 🔴 **Il bersaglio va nominato anche quando non lo si colpisce**, e ometterlo rompeva il
+			// round-trip della traccia consegnato da `#886`. `ArmRecordedReactionDecisions` RICOSTRUISCE la
+			// risposta dal TurnLog — `FireResponse(Entry.SelectedTargetUnitId)` per ogni `FireChosen` — quindi
+			// una voce senza bersaglio produce `"FIRE:-1"`, che `IsResponseAllowed` rifiuta: la
+			// ri-simulazione registrerebbe una divergenza spuria, tornerebbe `HoldRejected` e cambierebbe
+			// l'hash del turno rispetto alla partita originale.
+			// ⚠️ Prima di #1158 il caso non esisteva perche' il ramo `FIRE` girava per intero e assegnava
+			// questo campo; separando i due rami il campo va assegnato **due volte**, non una. Trovato da una
+			// code review, non da un test: nessuno rieseguiva come Verifier una partita con due `FIRE`.
+			Entry.SelectedTargetUnitId = TargetIdx;
+		}
 		AppendLogEntry(Entry, WatchOwner);
 		return;
 	}

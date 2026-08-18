@@ -817,6 +817,22 @@ preexisting:
     measured: 3            # rimisurato su `base_sha` 4ab36b48: stessi tre file, quinto giro di fila
     collides_with: []
     note: >-
+      ➖ **Richiusa il 2026-08-18 a fine giornata**: `#1158` è mergiata (PR #1182) e `simulation` ha rilasciato
+      i tre path, quindi nessuna track dichiara più `RTTurnManager.cpp`. È il terzo giro in cui questa voce
+      passa da collisione a intersezione vuota **senza che il branch cambi di una riga**: a muoversi è sempre
+      l'altro lato. Il registro sotto resta perché dice cosa succede al prossimo che lo rivendica.
+      🔁 **Riaperta il 2026-08-18 su UN path, ed è il caso che la riga sotto aveva previsto**: *«chi lo
+      prenderà in un batch futuro riaprirà la stessa contesa»*. `simulation` riparte su `#1158` e dichiara
+      `Turn/RTTurnManager.{h,cpp}`; di questi tre file il branch ne tocca **uno**, `RTTurnManager.cpp` —
+      non più `Turn/` per prefisso, quindi l'intersezione è **1 su 3**, misurata con
+      `git diff --name-only origin/main...origin/feat/cp75-selfreposition` e non ereditata.
+      ⚠️ **La decisione è la stessa di allora e per la stessa ragione, riletta invece che ricopiata**: il
+      branch è fermo dal **2026-08-11** con un commit `wip` che dichiara da sé di essere incompleto
+      (*«enum ed evento fatti, l'applicazione NO»*) e **nessuna PR aperta** — verificato con `gh pr list`
+      oggi, non dedotto dallo stato `DORMANT` di questo campo. Passa `#1158`, che è un bug `v0.1` su una voce
+      di TurnLog che dichiara un danno mai inflitto. Chi riprenderà `cp75` troverà `ApplyReactionDecision`
+      cambiata in una riga e dovrà rifare il merge di quella funzione.
+      ⏱️ **Il registro precedente resta qui sotto**, e la prima riga va letta al passato:
       🔵 **La collisione con `simulation` è CADUTA il 2026-08-16, e non perché il branch sia cambiato:
       perché è cambiata la track.** I tre file sono gli stessi da cinque riconciliazioni, tutti dentro
       `Turn/` — ma `simulation` non dichiara più `Turn/` per prefisso: è ripartita su `#926` con un
@@ -1417,8 +1433,22 @@ preexisting:
 tracks:
 
   spatial:
-    status: ACTIVE
-    issue: 833
+    # ✅ **Torna IDLE il 2026-08-18: `#833` ha consegnato tutto ciò che era nel suo write-set.** PR **#1168**
+    # mergiata (`f673cc51`), suite **1028/1028**, sette mutazioni ognuna sul test atteso. La issue **resta
+    # aperta** e non è un lavoro abbandonato: le tre voci residue — collegamento runtime, esito per-bersaglio
+    # nel TurnLog, test che stampa il produttore — vivono in `Combat/RTHexCombatLibrary.{h,cpp}`,
+    # `Turn/RTTurnManager.cpp` e `Tests/RTPlayerInteractionTests.cpp`, che **non sono nel `writable` di
+    # nessuna track**: la condizione che D-139 chiama STOP. Sono una riallocazione da chiedere, non un residuo
+    # da raccogliere di passaggio.
+    # ⚠️ **Misurato che NESSUN altro blocker spaziale v0.1 è prendibile**, prima di dichiarare IDLE: l'epic P0
+    # del dominio (`#16`) ha 7 checkpoint su 8 chiusi e l'unico aperto è `#38`, un playtest umano di un'altra
+    # track; le sei issue aperte di `Map/Environment` hanno ognuna un impedimento misurato (write-set altrui,
+    # epic-contenitore, decisioni di design non prese, un DoD coi numeri di una regola scartata).
+    # ⚠️ **Il `writable` qui sotto resta PRENOTATO**, nel senso che lo schema documenta: `#833` è aperta, e chi
+    # ne riprende il residuo eredita questi path invece di ricontrattarli. Non è «in uso» — nessuna sessione ci
+    # sta scrivendo.
+    status: IDLE
+    issue: null
     # 🔴 **Corretti `branch:` e `worktree:` il 2026-08-18 da `simulation`, e non e' un'invasione: erano
     # entrambi falsi e il secondo nominava la directory in cui un'altra track sta scrivendo.** La misura,
     # non la memoria:
@@ -1869,6 +1899,22 @@ tracks:
     # worktree at D:/rt-client`) **dopo** aver mergiato, lasciando il ramo in piedi. L'esito del comando
     # diceva fallimento, il server diceva `MERGED`. 💡 Con più worktree aperti, `gh pr merge --delete-branch`
     # fa metà del lavoro e lo dice male: la cancellazione va rifatta a mano e verificata.
+    # ➕ **Riattivata il 2026-08-18 su `#1158`** (bug, `v0.1`, P2): due Overwatch armati sullo stesso mover, il
+    # secondo `FIRE` colpisce un bersaglio già abbattuto e **scrive nel TurnLog un danno mai inflitto**. È il
+    # difetto che `ApplyReactionDecision` ha per assenza di `IsAlive()` — guard che lo stesso file usa in altri
+    # sette punti, uno col commento «un cadavere non vede e non si nasconde».
+    # ⚠️ **La riattivazione è possibile SOLO perché `#886` è atterrata un'ora fa**: i due path del TurnManager
+    # erano suoi fino alle `09:23Z`, e questa issue vive dentro `ApplyReactionDecision`. Rimisurato prima di
+    # rivendicarli, non ereditato dalla riga sopra.
+    # ✅ **CHIUSA il 2026-08-18: `#1158` e' `CLOSED`**, chiusa dal merge della PR **#1182** (`730f8bb0`,
+    # `15:17:47Z`) — la keyword `Closes` ha funzionato, e la issue si e' chiusa da sola due secondi dopo.
+    # 🔴 **E «Chiude #N» NON avrebbe funzionato**: la prima stesura del body usava la forma italiana e
+    # `gh pr view --json closingIssuesReferences` rispondeva `[]`. Verificato prima del merge, non dopo: una
+    # PR che sembra chiudere una issue senza farlo la lascia aperta e nessuno se ne accorge.
+    # ✅ **Il write-set torna libero**: `Turn/RTTurnManager.{h,cpp}` e `Tests/RTOverwatchTriggerTests.cpp` sono
+    # atterrati in `main` e oggi non sono di nessuno. Chi li rivendica rilegge la contesa con
+    # `feat/cp75-selfreposition`, che resta `DORMANT` e tocca `RTTurnManager.cpp`.
+    # ⚠️ **Il branch e' mergiato e cancellato** lato server e in locale, verificato con `git ls-remote`.
     status: IDLE
     issue: null
     # ➕ **Riattivata il 2026-08-17 su `#886`** — il Verifier rilegge le decisioni di reazione dal TurnLog.
@@ -2069,6 +2115,11 @@ tracks:
     # misurabile prima del push.
     # ➖ **Mergiato e cancellato il 2026-08-18** (PR #1176). Il campo torna alla prima delle quattro accezioni
     # che questo file distingue: «nessun branch vivo, il lavoro è in `main`».
+    # ➕ **E ne prende uno nuovo lo stesso giorno, per `#1158`.** ⚠️ Ramo **locale e non ancora pushato**: è
+    # invisibile a `git ls-remote`, che è il difetto registrato quattro righe più su a proprio danno. Scriverlo
+    # qui è ciò che lo rende misurabile prima del push.
+    # ➖ **Mergiato e cancellato il 2026-08-18** (PR #1182). Il campo torna alla prima delle quattro accezioni
+    # che questo file distingue: «nessun branch vivo, il lavoro è in `main`».
     branch: null
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
@@ -2088,8 +2139,29 @@ tracks:
     # nessuno dei quattro path di `#886` compare nel suo `writable`. La contesa era sulla **directory**, che
     # `D-139` non vincola: la regola parla di write-set, e due sessioni in due cartelle diverse che scrivono
     # file diversi non violano nulla. Cio' che violerebbe e' lasciare che il file dica dove non sono.
-    worktree: "D:/rt-spatial"
+    # 🔴 **Torna `D:/rt-simulation` il 2026-08-18, e lo scambio descritto qui sopra si chiude.** La sessione che
+    # riparte su `#1158` è confinata dall'harness in `D:/rt-simulation` — lo stesso vincolo che il blocco
+    # precedente registra per `#886` in `D:/rt-spatial`, applicato all'altra directory. Non è una preferenza:
+    # è dove quella sessione può eseguire comandi.
+    worktree: "D:/rt-simulation"
     note: >-
+      ➕ **Riattivata il 2026-08-18 su `#1158`.** Il difetto è misurato nella issue in cinque punti e nasce da
+      una code review, non da un sospetto: `ApplyReactionDecision` calcola `bFire` con
+      `Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx])` e **nessun `IsAlive()`**, mentre
+      `ARTUnit::ApplyCombatState` dichiara di NON distruggere l'Actor alla morte — «la rimozione VISIVA e la
+      distruzione sono differite … così il colpo mortale resta osservabile». Quindi `IsValid` resta vero su
+      un'unità a 0 HP, e il secondo `FIRE` esegue tutto: danno, `bCharged = false`, `StopUnitInPlace`, e
+      `Entry.Amount = Armed.Damage` nel TurnLog **autorevole**.
+      ⚠️ **La contesa su `Turn/RTTurnManager.cpp` è nominale e va registrata, non temuta**:
+      `origin/feat/cp75-selfreposition` lo tocca, ma è **dormiente** — ultimo commit `wip(cp75)` del
+      2026-08-11, nessuna PR aperta, misurato con `gh pr list` e `git log -1`. Sta in `preexisting`.
+      ⛔ **Fuori scope per decisione della issue, e non per dimenticanza**: se il secondo watcher spenda o
+      conservi la charge è una domanda di REGOLA, da decidere dall'owner di ADR-0004. Il DoD lo mette per
+      iscritto — «la decisione sulla charge è **registrata** prima di implementarla, non dedotta dal codice
+      scritto» — quindi il fix non deve rispondere di iniziativa.
+      --- ⛔ **Da qui in giù è STORIA del giro di `#886` e delle track precedenti.** I campi correnti sono
+      quelli in testa alla sezione, e questa riga **non li ricopia**: è la lezione che questo file si è già
+      contestato due volte, l'ultima quando un banner duplicava `status` e `issue` e invecchiava con loro.
       IDLE perché **il lavoro è atterrato**, non per dipendenza. `#165` (CP 14.5, finestra e primo
       consumatore) è chiusa: PR **#878** mergiata in `main` alle `21:16Z` del 2026-08-14
       (`53ec531f`), issue chiusa il 2026-08-15. Il branch `feat/165-finestra-overwatch` non esiste
@@ -2589,6 +2661,24 @@ tracks:
     # il rilascio e la rivendicazione ci può stare una track intera, e chi legge solo la propria sezione
     # conclude «liberi» quando sono di qualcun altro. La misura che risponde è il `grep` del path su
     # **tutti** i `writable` del file.
+    # ➕ **Rivendicati il 2026-08-18 per `#1158`**, e la lezione qui sopra si applica a sé stessa: i due path
+    # del `TurnManager` erano di `#886` fino alle `09:23Z` di oggi e sono tornati liberi col suo merge. Il
+    # `grep` su **tutti** i `writable` — che è la misura che quel paragrafo prescrive — dà oggi zero altri
+    # rivendicanti.
+    # ⚠️ **Non è il write-set di `#886` che torna**: quella track aveva questi due file per una consultazione
+    # in `AskReactionDecision`, questa li ha per un guard in `ApplyReactionDecision`. Funzioni diverse dello
+    # stesso file: la coincidenza è di path, non di lavoro.
+    # 🔴 **E qui c'è una trappola che ha quasi prodotto un file che diceva il falso.** La prima stesura di
+    # questa rivendicazione aveva messo il blocco `writable` accanto a `worktree:`, **duecento righe più su** —
+    # dove sta negli altri track. Ma questa sezione ne ha già uno **qui**, e in YAML una chiave duplicata non è
+    # un errore: **vince l'ultima**. Il file avrebbe dichiarato `writable: []` mentre la sessione scriveva su
+    # tre file, e nessun `--check` esistente se ne sarebbe accorto — `yaml.safe_load` accetta il duplicato in
+    # silenzio. Trovato perché la rivendicazione è stata **riletta come dato** (`len(writable)`) invece che
+    # riletta a schermo. È un ottavo controllo per `#840`: **chiave duplicata dentro una track**.
+    # ➖ **Rilasciati il 2026-08-18 con la chiusura di `#1158`**: i tre path sono atterrati in `main` e tornano
+    # liberi e non assegnati. ⚠️ Chi li riprende **rilegge** la contesa con `feat/cp75-selfreposition`, che
+    # resta `DORMANT` e tocca `RTTurnManager.cpp`: la decisione presa a favore di `#1158` valeva per quel giro,
+    # e il campo `collides_with` di quella voce torna vuoto perché nessuna track li dichiara più.
     writable: []
     # ➖ **I commenti sui PRESTITI escono con essi.** Descrivevano il giro di `#583` — il JSON degli scenari
     # e `feature-registry.yaml`, entrambi restituiti con la PR #1087 — e lasciarli qui li farebbe leggere
@@ -3577,18 +3667,46 @@ tracks:
     binary_leases: []
 
   frontend_shell:
-    status: ACTIVE
-    issue: 937
+    # ✅ **Torna IDLE il 2026-08-18: la seduta U24 ha chiuso con la PR #1178** (`1ff48baf`).
+    # 🔴 **La prima stesura di questa riga aggiungeva «e `#937` e' `CLOSED`», ed era falso quando l'ho
+    # scritto.** La issue e' rimasta **aperta**: una voce del suo DoD — *«`BACK`: `PopScreen` prima
+    # dell'avvio, `ReturnMain` a partita viva»* — non e' implementata. Misurato: `WBP_RT_ErrorModal`
+    # contiene la stringa «Back» (il pulsante c'e') e **zero** `ReturnMain`/`PopScreen`/`RequestBack`;
+    # in tutto `Source/` `RequestBack` compare **una sola volta, dentro un commento**. Il pulsante esiste,
+    # il comportamento non e' collegato a nulla.
+    # ⚠️ La premessa falsa e' arrivata su `main` col merge di #1180 perche' la chiusura e' stata scritta
+    # **prima** di consuntivare il DoD voce per voce. E' l'ordine sbagliato, ed e' lo stesso difetto che
+    # questo repository ha gia' pagato mergiando prima dell'esito di una review.
+    # ∴ `IDLE` **con la issue ancora sua**: nessuna sessione e' aperta in questo momento — la seduta
+    # d'editor e' finita e il residuo e' codice, non `.uasset` — ma `#937` non e' consegnata, e i
+    # `writable` restano dichiarati anche per `#938`…`#941`, che sono aperte.
+    status: IDLE
+    issue: null   # nessuna sessione aperta; il residuo di `#937` e' nella nota, non in un branch vivo
     branch: null            # seduta d'editor: l'unita' di lavoro e' un'apertura di Unreal, non un commit
-    session: U24
+    session: null
     # ➕ **Aperto il 2026-08-17, e il campo esisteva gia' per questo caso.** La nota qui sotto lo
     # prescriveva — *«se la seduta apre un ramo per committare gli `.uasset`, va nominato in
-    # `session_branch`»* — e fino a oggi il worktree era **detached** su `78dfd2f7`: lavoro d'editor non
-    # committato, su nessun ramo, quindi con un write-set che nessun'altra track poteva confrontare.
+    # `session_branch`»* — e fino ad allora il worktree era **detached** su `78dfd2f7`: lavoro d'editor
+    # non committato, su nessun ramo, quindi con un write-set che nessun'altra track poteva confrontare.
     # E' esattamente il difetto che il campo e' nato per chiudere il 2026-08-14 su U1.
-    session_branch: feat/937-loading-screen-asset
+    # ➖ **Azzerato con la chiusura**: `feat/937-loading-screen-asset` e' mergiato, e un `session_branch`
+    # che nomina un ramo gia' atterrato e' la stessa bugia che questo file ha gia' registrato su U1 —
+    # «nominava un branch CANCELLATO». Il valore storico resta in questo commento, non nel campo.
+    session_branch: null
     worktree: D:/rt-menu
     note: >-
+      ✅ **La SEDUTA U24 ha chiuso il 2026-08-18 — cinque `WBP_RT_*` su cinque** (PR #1178, `1ff48baf`).
+      I tre con classe base leggono il dato invece di comporlo; `WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer`
+      non ne hanno una, e per loro il criterio e' `no_widget_creates_widgets`. Suite misurate sull'albero
+      unito con due metodi concordi: **27** `Frontend.*` + **11** `Startup.*`.
+      ⏳ **`#937` NON e' chiusa, e la seduta chiusa non la chiude**: il residuo e' il `BACK` del modale —
+      il pulsante esiste nel `.uasset` e non chiama niente. Non e' lavoro d'editor e non e' un widget da
+      costruire: e' il collegamento fra l'intenzione del widget e il navigatore, che di quel flow e'
+      l'unico owner (CP 46.1).
+      ⚠️ **E non basta implementarlo: serve poterlo esercitare.** Nessuno chiama `InitializeFrontend`,
+      che e' di CP 46.3 (`#938`) — quindi i cinque Blueprint esistono, sono provati, e non li avvia
+      nessuno. Chi riprende `#937` deve sapere che la sua ultima voce **dipende** da quel checkpoint.
+      ─────
       ➕ **Riattivata il 2026-08-16 come SEDUTA, non come sessione di codice.** La parte C++ di E46 e'
       consegnata; quello che comincia adesso e' la costruzione dei `WBP_RT_*` in editor — seduta **U24**
       in [`editor-sessions.yaml`](editor-sessions.yaml).
@@ -3694,118 +3812,42 @@ tracks:
           - docs/roadmap/project-graph.json
           - docs/roadmap/charts/roadmap-map.svg
         shared_with: [integrazione]
-    binary_leases:
-      # 🔴 **Emessa il 2026-08-16 a lavoro gia' cominciato, e va detto invece che datata all'indietro.**
-      # I widget si stavano costruendo mentre `Content/RT/UI/` non era in nessuna lease e in nessun
-      # `writable`: la regola dice che la lease si emette **prima** di salvare, e qui non e' andata cosi'.
-      # Registrarla ora vale comunque — da adesso il path e' preso e nessun'altra track puo' crearlo —
-      # ma la sequenza corretta resta quella, e questa voce non finge di averla seguita.
-      # ⚠️ **`create` prenota una DESTINAZIONE**: i cinque package non esistono, quindi non c'e' nulla da
-      # contendere se non il nome. La cartella `Content/RT/UI/Framework/` nasce col primo widget —
-      # `convenzioni-contenuti-ue.md` §3 vieta di crearla vuota in anticipo.
-      # ⚠️ Sui **file** e non sulla cartella: la regola «la lease si emette sulla cartella» vale per le
-      # mappe, che sono cartelle con un numero di package che non si deduce. Cinque widget sono cinque
-      # package, e si contano.
-      # ➕ **Emessa il 2026-08-18, ed e' una lease NUOVA e non un'estensione di quella dei widget.**
-      # `content_editor` ha **rilasciato** le sue (`binary_leases: []`) scrivendo la regola che si applica
-      # qui: *«chi dovra' modificare uno di quei package emette una lease nuova, sul proprio `base_sha`, e
-      # riprende da qui le verification che nessuno ha ancora eseguito»*. Le `verification` qui sotto sono
-      # quelle, trascritte e non reinventate.
-      # ⚠️ **Sulla CARTELLA e non sul singolo file**: e' la regola opposta a quella dei widget, e vale per
-      # le mappe — una mappa e' una cartella con un numero di package che non si deduce. `L_DevSandbox`
-      # ne ha **due**, misurati da `content_editor` e non ricontati qui.
-      # ⚠️ **`operation: edit`**: il package esiste gia' in `main` (`2874cf3b`, dentro il merge #1089) e la
-      # working directory lo ha gia' modificato. La lease arriva **dopo** la modifica, come per i widget:
-      # registrarla vale — da adesso il path e' preso — ma la sequenza corretta resta emettere prima.
-      # ⚠️ **Il package CALA di 7755 byte** rispetto a `HEAD` (68432 → 60677, −11%), e il dato resta
-      # scritto qui perche' fra binari il calo e' normalmente il segnale di una perdita. **Non lo e':
-      # verificato con l'autore il 2026-08-18 — meno dati e' l'esito voluto.** La misura si annota con la
-      # risoluzione accanto, non al posto: chi rilegge il diff trova un binario che dimagrisce e deve
-      # poter sapere che qualcuno se l'e' chiesto.
-      - key: "BINARY-GH937-DEVSANDBOX-MAP"
-        issue: 937
-        base_sha: "3f595da950447ac0887b2220a63a9bc5b627babb"
-        operation: edit
-        paths:
-          - Content/RT/Maps/Dev/L_DevSandbox/
-        verification:
-          - load_in_editor
-          - save_without_errors
-          # 🔴 **Qui la prima stesura di questa lease aveva trascritto `arena_check_still_passes`, e non si
-          # applica a questo package.** Ereditarla sembrava giusto — il rilascio di `content_editor`
-          # elencava quel nome — ma il suo discriminante (`Transitions`: `L_HexArena` ne ha 2,
-          # `GeneratedTestArena` zero) riguarda **l'arena**, e `L_DevSandbox` non e' un'arena: e' la
-          # sandbox di sviluppo. Una verification giusta sul package sbagliato e' una casella che si
-          # spunta senza aver guardato niente.
-          # ✅ **Al suo posto quella che il package rischia davvero, e ha un difetto reale alle spalle**:
-          # `DA_HexMap_Sandbox` — che sta in `Data/`, dentro questa lease — **si e' gia' ritrovato a zero
-          # celle** in PIE. Sintomo: viewport nera, nessuna unita', pareggio immediato. Il comportamento
-          # di ripiego e' coperto da `RefactorTactics.MatchSetup.GameModeFallsBackOnEmptyMapAsset`, ma
-          # **nessun test guarda dentro questo asset**: che il ripiego funzioni non dice che la sandbox
-          # sia allestita.
-          - hexmap_asset_has_cells
-        # ✅ **Consuntivo del 2026-08-18: quattro su quattro, eseguite dall'autore in editor.**
-        # `load_in_editor` · `save_without_errors` · `hexmap_asset_has_cells` (l'array `Cells` di
-        # `URTHexMapAsset` — `NumCells()` e' `Cells.Num()`, ed e' `EditAnywhere`, quindi si legge nel
-        # dettaglio dell'asset) · `actors_still_present`, che chiude la domanda aperta dal calo di 7755 byte.
-        # 🔴 **Un tentativo di misurarle headless e' stato fatto e NON vale: lo si registra perche' il
-        # numero che produce e' credibile e sbagliato.** Avviando il gioco su `L_DevSandbox` il log dice
-        # *«65 celle»* — ma la riga sopra dice `MapSource=GeneratedTestArena: la mappa del livello e'
-        # ignorata`. Quelle 65 celle sono dell'**arena generata**, non di `DA_HexMap_Sandbox`: leggerle
-        # come conferma di `hexmap_asset_has_cells` avrebbe consuntivato una verifica misurando un altro
-        # oggetto. La sola misura valida su quell'asset resta quella in editor.
-        # ⚠️ **E lo stesso log riporta un `Error` che NON e' un difetto**: `DA_Format_Rotto` — `FormatId`
-        # assente, `RoundLimit` 0, «partita non allestita». E' lo strumento che la seduta **prescrive**
-        # (`editor-sessions.yaml` U24: *«quello del modale si forza con un formato invalido»*, e
-        # `guida-frontend-umg.md` §riga 48 lo conferma), sta in questa stessa cartella ed e' **ignorato**
-        # da `Content/**/*.uasset`. Chi rilegge quel log deve sapere che l'errore e' il meccanismo di
-        # prova che funziona, non l'allestimento che si rompe.
-          # ➕ Propria di questa lease. Non nasce piu' dal sospetto sul calo — l'autore l'ha risolto — ma
-          # resta perche' e' l'unica verifica che guarda il CONTENUTO del livello: nessun test headless
-          # apre un `.umap`, e la dimensione non distingue un attore rimosso da una ricompattazione.
-          - actors_still_present
-
-      - key: "BINARY-GH937-FRONTEND-WIDGETS"
-        issue: 937
-        base_sha: "5bfae1ce147db5107947d2033a03c1439f4e9874"
-        operation: create
-        paths:
-          - Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset
-          - Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
-          - Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset
-          - Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset
-          - Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset
-        verification:
-          - load_in_editor
-          - save_without_errors
-          # La verifica che conta non e' che il widget si apra: e' che erediti dalla classe base **giusta**
-          # — `URTFallbackBannerWidgetBase`, `URTErrorModalWidgetBase`, `URTLoadingScreenWidgetBase` — e che
-          # legga il dato invece di comporlo. Un widget che scrivesse da se' «Loading map…» sarebbe la
-          # seconda autorita' sulle fasi d'avvio, che e' il difetto per cui `ERTLoadPhase` esiste.
-          - inherits_declared_base_class
-          # ⛔ E che **nessuno dei cinque** crei o rimuova widget: `grep -rn "AddToViewport|RemoveFromParent"`
-          # non deve produrre occorrenze fuori dal navigatore. E' l'invariante 1 di CP 46.1, e un `.uasset`
-          # e' l'unico posto dove puo' rientrare senza che un test se ne accorga.
-          - no_widget_creates_widgets
-        # ✅ **Consuntivo del 2026-08-18 — due su quattro eseguite, e headless invece che a mano.**
-        # Sui TRE widget che esistono (`FrontendRoot` e `ModalLayer` non sono ancora stati creati).
-        # · `inherits_declared_base_class` ✅ — ogni package contiene la propria classe base **6** volte e
-        #   le altre due **zero**: la diagonale e' piena e il fuori-diagonale vuoto, quindi il criterio
-        #   discrimina invece di limitarsi a trovare. Un grep che dicesse «6» ovunque non proverebbe nulla.
-        # · `no_widget_creates_widgets` ✅ — `AddToViewport`/`RemoveFromParent`/`CreateWidget` danno **zero**
-        #   in tutti e tre. Lo zero e' significativo perche' la controprova lo e': lo stesso metodo sul
-        #   navigatore trova **2/1/3**. Senza quella misura, uno zero non distingue «assente» da «non lo
-        #   sto cercando bene».
-        # ⚠️ **Il grep va fatto sui byte del package**: `rg` salta i binari per default e rispondeva **0**
-        #   dove `grep` contava **6**. Due metodi, e il primo mentiva in silenzio.
-        # ✅ `load_in_editor` e `save_without_errors` — **eseguite dall'autore in editor il 2026-08-18**,
-        #   sui tre widget, senza errori. Non erano surrogabili e la distinzione va tenuta: i 27 test
-        #   `RefactorTactics.Frontend` caricano la *generated class* del package, che e' un'altra cosa
-        #   dall'aprire il Blueprint — l'editor **ricompila** e segnala cio' che il load a runtime non
-        #   vede. D-139 human-first: qui serviva l'autore, e nessun test verde lo sostituiva.
-        # ∴ **Quattro su quattro consuntivate.** Restano da costruire `WBP_RT_FrontendRoot` e
-        #   `WBP_RT_ModalLayer`: quando esisteranno, le quattro verification si rieseguono su di loro —
-        #   una lease `create` copre i cinque package, non i primi tre.
+    # ✅ **RILASCIATE il 2026-08-18 con la chiusura di U24 (PR #1178).** Il rilascio conserva cio' che le
+    # lease portavano — e' la lezione che `content_editor` ha pagato cancellandole col loro contenuto, e
+    # dopo la quale `git grep` non trovava piu' in tutto `docs/` le verification dichiarate.
+    #
+    # ⚠️ **Ma qui il rilascio dice una cosa che quello non poteva dire: le verifiche sono passate.**
+    # `content_editor` scriveva *«nessuna delle ragioni del rilascio e' "le verifiche sono passate":
+    # restano non eseguite»*. Queste otto invece lo sono, e con la provenienza di ciascuna:
+    #
+    # · `BINARY-GH937-FRONTEND-WIDGETS` — `create`, cinque package, tutti consegnati.
+    #   `inherits_declared_base_class` ✅ headless: ogni package contiene la propria classe base **6**
+    #   volte e le altre due **zero** — diagonale piena e fuori-diagonale vuoto, quindi il criterio
+    #   discrimina invece di limitarsi a trovare. Non si applica a `FrontendRoot`/`ModalLayer`, che una
+    #   classe base non ce l'hanno.
+    #   `no_widget_creates_widgets` ✅ headless su tutti e cinque: `AddToViewport`/`RemoveFromParent`/
+    #   `CreateWidget` a zero, con la controprova che lo rende significativo — lo stesso metodo sul
+    #   navigatore trova **2/1/3**.
+    #   `load_in_editor` e `save_without_errors` ✅ **dall'autore in editor**: non erano surrogabili, e la
+    #   distinzione va conservata perche' e' il punto — caricare la generated class non e' aprire il
+    #   Blueprint, che ricompila e segnala cio' che il load a runtime non vede.
+    # · `BINARY-GH937-DEVSANDBOX-MAP` — `edit`, sulla cartella. Quattro verification, tutte dall'autore
+    #   in editor: `load_in_editor`, `save_without_errors`, `hexmap_asset_has_cells`,
+    #   `actors_still_present`. Quest'ultima chiude la domanda aperta dal calo di 7755 byte del `.umap`,
+    #   che l'autore ha dichiarato voluto.
+    #
+    # 🔴 **Due trappole trovate emettendo queste lease, e valgono per la prossima.**
+    # · **Una verification giusta puo' stare sul package sbagliato.** `arena_check_still_passes` era stata
+    #   trascritta qui dal rilascio di `content_editor`, ma il suo discriminante — `Transitions`, che
+    #   `L_HexArena` ha a 2 e `GeneratedTestArena` a zero — riguarda **l'arena**, e `L_DevSandbox` e' la
+    #   sandbox. Sostituita con `hexmap_asset_has_cells`, che e' il rischio reale di quel package.
+    # · **Il grep sui `.uasset` va fatto sui byte.** `rg` salta i binari per default e rispondeva **0**
+    #   dove `grep` contava **6**: due metodi, e il primo mentiva in silenzio.
+    #
+    # ∴ Chi dovra' modificare uno di questi package emette una lease nuova, sul proprio `base_sha`. Le
+    # verification qui sopra sono **eseguite**, non ereditate: si rifanno perche' il package cambia, non
+    # perche' nessuno le abbia mai fatte.
+    binary_leases: []
 
   verification:
     status: IDLE
