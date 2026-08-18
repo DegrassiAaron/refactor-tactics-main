@@ -680,7 +680,75 @@ protected:
 public:
 	FRTReactionDeciderSignature ReactionDecider;
 
+	/**
+	 * Arma il manager con le decisioni di reazione GIA' PRESE, lette da una traccia (`#886`).
+	 *
+	 * E' la meta' che mancava al DoD di CP 14.5: *«la decisione entra nel TurnLog e il replay la riproduce
+	 * senza reinterrogare nessuno»*. Da qui in poi `AskReactionDecision` consulta questa mappa **al posto**
+	 * dei rami «bot» e «decisore legato» — non prima del gate di cardinalita', che resta calcolato ([D-109]).
+	 *
+	 * Chiama chi **ri-simula** (il Verifier: test, corpus golden, diagnosi), mai il gioco. Con la mappa vuota
+	 * — cioe' sempre, in partita — il comportamento e' identico a quello di prima: il costo per il percorso
+	 * normale e' un `Num() == 0`.
+	 *
+	 * ⚠️ Le voci `HoldImmediate` **si scartano** invece di essere caricate. Quelle finestre non vengono mai
+	 * consultate (le precede il gate di cardinalita'), quindi tenerle qui le farebbe risultare **orfane a fine
+	 * corsa su una ri-simulazione perfettamente riuscita** — un falso positivo sistematico — e le renderebbe
+	 * applicabili per errore a una finestra che non e' la loro.
+	 *
+	 * ⚠️ La risposta si **ricostruisce** da `Outcome` e `SelectedTargetUnitId`: il TurnLog non porta la
+	 * stringa. `FireChosen` da' `FIRE:<id>`, ogni altro esito da' `HOLD` — che e' cio' che quegli esiti hanno
+	 * applicato, per quanto diverso sia il modo in cui ci sono arrivati.
+	 */
+	void ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>& TraceEntries);
+
+	/**
+	 * I disaccordi fra traccia e ri-simulazione, in ordine di rilevazione ([D-170]).
+	 *
+	 * Vuoto = la ri-simulazione ha reclamato ogni risposta registrata e nessuna finestra e' rimasta scoperta.
+	 * **Non e' un canale di gioco**: un fatto della partita entra nella traccia, un giudizio sulla verifica
+	 * no — e un esito nuovo su `ERTReactionDecisionOutcome` avrebbe fatto differire la traccia ri-simulata
+	 * dall'originale proprio quando il confronto degli hash deve dire qualcosa.
+	 *
+	 * ⚠️ Non sostituisce `DescribeFirstDivergence`, che confronta due tracce **a valle**: questo nasce
+	 * **durante** la ri-simulazione, sulla singola chiave, e dice *quale* chiave — che un hash diverso non sa.
+	 */
+	const TArray<FString>& GetVerificationDivergences() const { return VerificationDivergences; }
+
+	/**
+	 * Registra come divergenza ogni risposta registrata che nessuna finestra ha reclamato (`#886`, voce 4).
+	 *
+	 * Va chiamata **a fine ri-simulazione**, quando «non ancora consumata» e «mai consumata» smettono di
+	 * essere la stessa cosa. Una chiave orfana e' il sintomo che le chiavi hanno smesso di combaciare —
+	 * `MicroStepIndex` e `Seq` sono funzione dello svolgimento — e ignorarla in silenzio e' precisamente il
+	 * difetto che `#886` esiste per prevenire: una divergenza indistinguibile dal successo.
+	 */
+	void ReportOrphanRecordedDecisions();
+
 protected:
+
+	/**
+	 * Le risposte registrate, per `OpportunityId`. Vuota fuori dalla ri-simulazione.
+	 *
+	 * ⚠️ **Una mappa e non un array**: l'`OpportunityId` e' un'IDENTITA', non un indice. Indicizzare per
+	 * ordine di comparsa sembrerebbe equivalente e non lo e' — applicare una risposta cambia i micro-step
+	 * successivi, quindi cambia le chiavi delle finestre successive, e la prima finestra che non si riapre
+	 * farebbe scorrere tutte le altre di uno.
+	 */
+	TMap<FString, FRTReactionDecision> RecordedDecisions;
+
+	/**
+	 * Le chiavi gia' consumate, per distinguere l'orfana dalla non-ancora-vista.
+	 *
+	 * `mutable` insieme al gemello qui sotto, e la ragione va detta perche' un `mutable` e' quasi sempre un
+	 * odore: `AskReactionDecision` e' `const` per dichiarare che **non tocca lo stato di gioco**, e quella
+	 * garanzia resta intatta. Questi due campi sono contabilita' della VERIFICA — chi ha reclamato cosa, e
+	 * cosa non tornava — cioe' esattamente la categoria che [D-170] tiene fuori dal mondo di gioco.
+	 */
+	mutable TSet<FString> ConsumedDecisionKeys;
+
+	/** Il verdetto in costruzione. Vedi `GetVerificationDivergences`. */
+	mutable TArray<FString> VerificationDivergences;
 
 	/**
 	 * Applica le cure raccolte da `ResolveCombat` (CP 8.5). Chiamata da DUE punti — dopo i danni, e nel ramo

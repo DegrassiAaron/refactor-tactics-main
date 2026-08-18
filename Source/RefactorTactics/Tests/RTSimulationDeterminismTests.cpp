@@ -26,6 +26,8 @@
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "Turn/RTTurnManager.h"
+#include "Turn/RTReactionOpportunityTypes.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Algo/Reverse.h"
@@ -51,6 +53,112 @@ namespace
 		}
 		return true;
 	}
+
+	/**
+	 * Le voci di TUTTI i turni di un risultato, rilette dalla traccia serializzata (`#886`).
+	 *
+	 * Per turno e non in blocco perche' e' cosi' che l'harness le consegna, e concatenarle qui e' l'unica
+	 * cosa che il Verifier deve fare per avere la partita intera: le chiavi portano gia' `TurnNumber`, quindi
+	 * due turni non si confondono.
+	 */
+	TArray<FRTTurnLogEntry> AllEntries(const FRTTestResult& Result)
+	{
+		TArray<FRTTurnLogEntry> All;
+		for (const FRTTurnTrace& Trace : Result.TurnTraces)
+		{
+			TArray<FRTTurnLogEntry> Entries;
+			if (URTTurnLogLibrary::DeserializeTurnLog(Trace.Bytes, Entries))
+			{
+				All.Append(Entries);
+			}
+		}
+		return All;
+	}
+
+	/** Quante voci di decisione la traccia porta, e quante di esse sono un `FIRE`. */
+	void CountDecisionEntries(const TArray<FRTTurnLogEntry>& Entries, int32& OutDecisions, int32& OutFires)
+	{
+		OutDecisions = 0;
+		OutFires = 0;
+		for (const FRTTurnLogEntry& E : Entries)
+		{
+			if (E.Category != ERTLogCategory::ReactionDecision) { continue; }
+			++OutDecisions;
+			if (static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::FireChosen)
+			{
+				++OutFires;
+			}
+		}
+	}
+
+	/** Quante voci di decisione portano questo esito. */
+	int32 CountOutcome(const TArray<FRTTurnLogEntry>& Entries, ERTReactionDecisionOutcome Wanted)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : Entries)
+		{
+			if (E.Category == ERTLogCategory::ReactionDecision
+				&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == Wanted)
+			{
+				++N;
+			}
+		}
+		return N;
+	}
+
+	/**
+	 * Esegue uno scenario come farebbe il VERIFIER: mondo nuovo, `TurnManager` armato con la traccia (vuota
+	 * = ri-simulazione normale) e — se `Decider` c'e' — un decisore vivo che risponde comunque.
+	 *
+	 * Il manager si spawna PRIMA di `Run`: `FRTScenarioSession` riusa quello che trova nel mondo
+	 * (`GetActorOfClass`) invece di crearne un secondo, ed e' l'unico punto in cui il test puo' configurarlo.
+	 * Le divergenze si leggono prima di distruggere il mondo, per la stessa ragione.
+	 */
+	FRTTestResult RunAsVerifier(const FRTTestScenario& Scenario, const TArray<FRTTurnLogEntry>& Trace,
+		TFunction<FString(const FRTReactionOpportunity&, int32)> Decider, TArray<FString>& OutDivergences)
+	{
+		OutDivergences.Reset();
+
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!World) { return FRTTestResult(); }
+
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM)
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return FRTTestResult();
+		}
+
+		if (Trace.Num() > 0)
+		{
+			TM->ArmRecordedReactionDecisions(Trace);
+		}
+		if (Decider)
+		{
+			TM->ReactionDecider.BindLambda(Decider);
+		}
+
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+
+		// A corsa finita «non ancora consumata» e «mai consumata» smettono di coincidere: e' l'istante in cui
+		// una chiave orfana diventa dichiarabile.
+		TM->ReportOrphanRecordedDecisions();
+		OutDivergences = TM->GetVerificationDivergences();
+
+		RTWorldFixtures::DestroyWorld(World);
+		return Result;
+	}
+
+	/** Lo stesso scenario senza le proprie `decisions`: nessuno risponde, se non la traccia. */
+	FRTTestScenario WithoutScriptedDecisions(const FRTTestScenario& Scenario)
+	{
+		FRTTestScenario Stripped = Scenario;
+		for (FRTScenarioTurn& Turn : Stripped.Turns)
+		{
+			Turn.Decisions.Reset();
+		}
+		return Stripped;
+	}
 }
 
 /**
@@ -67,40 +175,308 @@ namespace
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierResimulationTest,
 	"RefactorTactics.Replay.Verifier.ResimulationIsDeterministic",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
+// ⚠️ **Due scenari e non uno, dal 2026-08-18 (`#886`).** `Movement.Collision` copre le collisioni e non ha
+// finestre di reazione: su di lui il determinismo di una partita CON decisioni non e' mai stato verificato.
+// `Spec.Overwatch.HoldThenFire` ne ha due, e una spende la carica troncando un movimento — cioe' il caso in
+// cui una decisione cambia lo stato successivo. Il primo NON viene sostituito: sono due proprieta' diverse, e
+// scambiare la copertura per un rinnovo e' il modo in cui una suite dimagrisce senza che nessuno lo decida.
 bool FRTReplayVerifierResimulationTest::RunTest(const FString&)
 {
-	FRTTestScenario Scenario;
-	if (!LoadDeterminismScenario(*this, TEXT("Movement.Collision"), Scenario)) { return false; }
+	const TCHAR* Ids[] = { TEXT("Movement.Collision"), TEXT("Spec.Overwatch.HoldThenFire") };
 
-	const FRTTestResult First = RTWorldFixtures::RunScenarioIsolated(Scenario);
-	if (First.Outcome == ERTTestOutcome::Error)
+	for (const TCHAR* Id : Ids)
 	{
-		AddError(FString::Printf(TEXT("la prima esecuzione e' fallita: %s"), *First.ErrorMessage));
+		FRTTestScenario Scenario;
+		if (!LoadDeterminismScenario(*this, Id, Scenario)) { return false; }
+
+		const FRTTestResult First = RTWorldFixtures::RunScenarioIsolated(Scenario);
+		if (First.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("[%s] la prima esecuzione e' fallita: %s"), Id, *First.ErrorMessage));
+			return false;
+		}
+		// Un hash a zero significherebbe «nessuno stato»: confrontare zeri fra loro non proverebbe nulla.
+		TestNotEqual(FString::Printf(TEXT("[%s] lo stato finale produce un hash reale"), Id), First.StateHash, 0u);
+
+		constexpr int32 Repetitions = 100;
+		int32 Divergences = 0;
+		for (int32 I = 1; I < Repetitions; ++I)
+		{
+			const FRTTestResult Again = RTWorldFixtures::RunScenarioIsolated(Scenario);
+			if (Again.StateHash != First.StateHash || Again.OutcomeString() != First.OutcomeString())
+			{
+				++Divergences;
+				if (Divergences <= 3) // le prime tre bastano a diagnosticare; oltre e' rumore
+				{
+					AddError(FString::Printf(
+						TEXT("[%s] divergenza alla ripetizione %d: hash %08x invece di %08x, esito '%s' invece di '%s'"),
+						Id, I, Again.StateHash, First.StateHash, *Again.OutcomeString(), *First.OutcomeString()));
+				}
+			}
+		}
+
+		TestEqual(FString::Printf(TEXT("[%s] nessuna divergenza su %d ripetizioni"), Id, Repetitions),
+			Divergences, 0);
+	}
+
+	return true;
+}
+
+/**
+ * Il Verifier ri-simula leggendo le decisioni DALLA TRACCIA, e non le chiede a nessuno (`#886`, voce 1).
+ *
+ * Le tre esecuzioni servono tutte e tre, e la terza e' quella che rende il test non-vacuo:
+ *
+ *     A  scenario CON `decisions`          -> la partita di riferimento, e la traccia che produce
+ *     B  scenario SENZA, traccia armata    -> deve dare lo STESSO stato finale di A
+ *     C  scenario SENZA, senza traccia     -> deve dare uno stato DIVERSO
+ *
+ * Senza la C, la B passerebbe anche con una feature che non fa niente: basterebbe che le decisioni non
+ * contassero. La C dimostra che contano — e' l'unico `FIRE` dello scenario a troncare il movimento di Phase,
+ * e senza decisore quel movimento arriva in fondo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierDecisionsFromTraceTest,
+	"RefactorTactics.Replay.Verifier.ReactionDecisionsComeFromTheTrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayVerifierDecisionsFromTraceTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadDeterminismScenario(*this, TEXT("Spec.Overwatch.HoldThenFire"), Scenario)) { return false; }
+
+	TArray<FString> Divergenze;
+	const FRTTestResult A = RunAsVerifier(Scenario, {}, nullptr, Divergenze);
+	if (A.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la partita di riferimento e' fallita: %s"), *A.ErrorMessage));
 		return false;
 	}
-	// Un hash a zero significherebbe «nessuno stato»: confrontare zeri fra loro non proverebbe nulla.
-	TestNotEqual(TEXT("lo stato finale produce un hash reale"), First.StateHash, 0u);
+	TestNotEqual(TEXT("la partita di riferimento produce un hash reale"), A.StateHash, 0u);
 
-	constexpr int32 Repetitions = 100;
-	int32 Divergences = 0;
-	for (int32 I = 1; I < Repetitions; ++I)
+	const TArray<FRTTurnLogEntry> Traccia = AllEntries(A);
+	int32 Decisioni = 0, Fuochi = 0;
+	CountDecisionEntries(Traccia, Decisioni, Fuochi);
+
+	// La fixture DEVE avere due finestre, o la voce sull'identita' non e' falsificabile: con una sola,
+	// indicizzare per chiave e indicizzare per ordine sono indistinguibili.
+	if (!TestTrue(FString::Printf(TEXT("la traccia porta almeno due decisioni (ne ha %d)"), Decisioni),
+		Decisioni >= 2))
 	{
-		const FRTTestResult Again = RTWorldFixtures::RunScenarioIsolated(Scenario);
-		if (Again.StateHash != First.StateHash || Again.OutcomeString() != First.OutcomeString())
+		return false;
+	}
+	TestEqual(TEXT("e una di esse e' il FIRE che tronca il movimento"), Fuochi, 1);
+
+	// B: nessuno risponde in questa esecuzione, se non la traccia.
+	const FRTTestScenario Muto = WithoutScriptedDecisions(Scenario);
+	const FRTTestResult B = RunAsVerifier(Muto, Traccia, nullptr, Divergenze);
+	TestEqual(TEXT("la ri-simulazione dalla traccia dichiara di non aver avuto una sorgente propria"),
+		B.DecisionSource, FString(TEXT("none")));
+	TestEqual(FString::Printf(TEXT("stesso stato finale della partita reale (%08x vs %08x)"),
+		B.StateHash, A.StateHash), B.StateHash, A.StateHash);
+	TestEqual(TEXT("e nessun disaccordo fra traccia e ri-simulazione"), Divergenze.Num(), 0);
+	if (Divergenze.Num() > 0)
+	{
+		AddError(FString::Printf(TEXT("primo disaccordo: %s"), *Divergenze[0]));
+	}
+
+	// C: la controprova. Senza traccia e senza decisore le finestre restano senza risposta, il `FIRE` non
+	// avviene e il bersaglio arriva dove la traccia dice che non e' arrivato.
+	const FRTTestResult C = RunAsVerifier(Muto, {}, nullptr, Divergenze);
+	TestNotEqual(TEXT("senza traccia lo stato finale e' DIVERSO (altrimenti le decisioni non contano)"),
+		C.StateHash, A.StateHash);
+
+	return true;
+}
+
+
+/**
+ * Una risposta REGISTRATA batte il decisore corrente, che non viene interrogato affatto (`#886`, voce 3).
+ *
+ * E' la precedenza verificata in NEGATIVO: un decisore vivo, collegato, che risponderebbe `HOLD` a tutto —
+ * cioe' l'opposto del `FIRE` che la traccia contiene.
+ *
+ * ⚠️ Le due asserzioni servono INSIEME. Il solo hash passerebbe anche se il decisore fosse interrogato e la
+ * sua risposta poi scartata: sarebbe la cosa giusta fatta per caso, e il giorno in cui il decisore e' una UI
+ * umana significherebbe aprire una finestra a un giocatore per poi ignorarla. Il solo contatore passerebbe
+ * con una feature che non applica niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierRecordedBeatsLiveTest,
+	"RefactorTactics.Replay.Verifier.RecordedResponseBeatsLiveDecider",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayVerifierRecordedBeatsLiveTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadDeterminismScenario(*this, TEXT("Spec.Overwatch.HoldThenFire"), Scenario)) { return false; }
+
+	TArray<FString> Divergenze;
+	const FRTTestResult A = RunAsVerifier(Scenario, {}, nullptr, Divergenze);
+	if (A.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la partita di riferimento e' fallita: %s"), *A.ErrorMessage));
+		return false;
+	}
+
+	const TArray<FRTTurnLogEntry> Traccia = AllEntries(A);
+	int32 Decisioni = 0, Fuochi = 0;
+	CountDecisionEntries(Traccia, Decisioni, Fuochi);
+	if (!TestTrue(TEXT("la traccia contiene un FIRE, che e' cio' che il decisore ostile negherebbe"), Fuochi > 0))
+	{
+		return false;
+	}
+
+	int32 Interrogazioni = 0;
+	auto Ostile = [&Interrogazioni](const FRTReactionOpportunity&, int32) -> FString
+	{
+		++Interrogazioni;
+		return URTReactionOpportunityLibrary::HoldResponse();
+	};
+
+	const FRTTestResult B = RunAsVerifier(WithoutScriptedDecisions(Scenario), Traccia, Ostile, Divergenze);
+
+	TestEqual(TEXT("il decisore vivo non viene interrogato nemmeno una volta"), Interrogazioni, 0);
+	TestEqual(FString::Printf(TEXT("e l'esito e' quello della traccia, non il suo (%08x vs %08x)"),
+		B.StateHash, A.StateHash), B.StateHash, A.StateHash);
+	TestEqual(TEXT("nessun disaccordo"), Divergenze.Num(), 0);
+
+	return true;
+}
+
+
+/**
+ * Una risposta registrata che nessuna finestra reclama NON finisce su un'altra, e il disaccordo si vede
+ * (`#886`, voce 4). `OpportunityId` e' un'identita', non un ordine.
+ *
+ * La traccia si PERTURBA invece di costruire uno scenario apposta: si prende quella vera e si cambia la
+ * chiave del `FIRE` in una che la ri-simulazione non produrra' mai. Cosi' la partita e' identica e l'unica
+ * variabile e' l'identita' della risposta — che e' precisamente cio' che il test deve isolare.
+ *
+ * ⚠️ **E' il test che cade se si indicizza per ordine di comparsa.** Con un array, la seconda finestra
+ * prenderebbe la seconda risposta senza guardarne la chiave: la partita tornerebbe identica all'originale,
+ * zero divergenze, e la perturbazione sarebbe invisibile. Con una fixture a UNA sola finestra le due
+ * implementazioni sarebbero indistinguibili — per questo lo scenario ne ha due.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierOrphanRecordedResponseTest,
+	"RefactorTactics.Replay.Verifier.OrphanRecordedResponseIsReported",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayVerifierOrphanRecordedResponseTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadDeterminismScenario(*this, TEXT("Spec.Overwatch.HoldThenFire"), Scenario)) { return false; }
+
+	TArray<FString> Divergenze;
+	const FRTTestResult A = RunAsVerifier(Scenario, {}, nullptr, Divergenze);
+	if (A.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la partita di riferimento e' fallita: %s"), *A.ErrorMessage));
+		return false;
+	}
+
+	TArray<FRTTurnLogEntry> Perturbata = AllEntries(A);
+	const FString ChiaveInventata = TEXT("99|3|7|5|action.overwatch|0");
+	FString ChiaveOriginale;
+	for (FRTTurnLogEntry& E : Perturbata)
+	{
+		if (E.Category == ERTLogCategory::ReactionDecision
+			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::FireChosen)
 		{
-			++Divergences;
-			if (Divergences <= 3) // le prime tre bastano a diagnosticare; oltre e' rumore
-			{
-				AddError(FString::Printf(
-					TEXT("divergenza alla ripetizione %d: hash %08x invece di %08x, esito '%s' invece di '%s'"),
-					I, Again.StateHash, First.StateHash, *Again.OutcomeString(), *First.OutcomeString()));
-			}
+			ChiaveOriginale = E.OpportunityId;
+			E.OpportunityId = ChiaveInventata;
+			break;
+		}
+	}
+	if (!TestFalse(TEXT("la traccia conteneva un FIRE da perturbare"), ChiaveOriginale.IsEmpty()))
+	{
+		return false;
+	}
+	TestNotEqual(TEXT("e la chiave inventata non e' quella vera"), ChiaveInventata, ChiaveOriginale);
+
+	const FRTTestResult B = RunAsVerifier(WithoutScriptedDecisions(Scenario), Perturbata, nullptr, Divergenze);
+
+	// (a) la risposta non e' stata applicata a NESSUNA finestra: nella traccia della ri-simulazione non c'e'
+	// un solo `FIRE`. E' l'asserzione che cade con l'indicizzazione per ordine.
+	const TArray<FRTTurnLogEntry> TracciaB = AllEntries(B);
+	TestEqual(TEXT("nessun FIRE nella ri-simulazione: la risposta orfana non e' scivolata su un'altra finestra"),
+		CountOutcome(TracciaB, ERTReactionDecisionOutcome::FireChosen), 0);
+	TestNotEqual(TEXT("e lo stato finale differisce da quello reale"), B.StateHash, A.StateHash);
+
+	// (b) il disaccordo e' SEGNALATO, e in entrambe le sue facce: la finestra vera senza risposta, e la
+	// risposta inventata senza finestra. Una sola delle due lascerebbe l'altra meta' silenziosa.
+	bool bOrfanaNominata = false;
+	bool bFinestraScoperta = false;
+	for (const FString& D : Divergenze)
+	{
+		if (D.Contains(TEXT("orfana")) && D.Contains(ChiaveInventata)) { bOrfanaNominata = true; }
+		if (D.Contains(TEXT("non coperta")) && D.Contains(ChiaveOriginale)) { bFinestraScoperta = true; }
+	}
+	TestTrue(TEXT("la chiave orfana e' nominata nel verdetto"), bOrfanaNominata);
+	TestTrue(TEXT("e la finestra rimasta scoperta anche"), bFinestraScoperta);
+	if (!bOrfanaNominata || !bFinestraScoperta)
+	{
+		for (const FString& D : Divergenze)
+		{
+			AddError(FString::Printf(TEXT("divergenza riportata: %s"), *D));
 		}
 	}
 
-	TestEqual(FString::Printf(TEXT("nessuna divergenza su %d ripetizioni"), Repetitions), Divergences, 0);
 	return true;
 }
+
+
+/**
+ * Una finestra COLLASSATA ricalcola il proprio esito e non consulta la traccia (`#886`, voce 2 — [D-109]).
+ *
+ * `Spec.Overwatch.ConditionCollapsesToHold` produce `HoldImmediate`: la condizione dichiarata filtra via
+ * ogni bersaglio, resta il solo `HOLD`, e `RequiresDecisionBoundary` — che e' `AllowedResponses >= 2` — e'
+ * falso. Quell'esito non e' la scelta di nessuno: e' la constatazione che non c'era scelta, e rileggerlo
+ * dalla traccia farebbe dipendere una regola del gioco da un file.
+ *
+ * ⚠️ **Il verdetto vuoto e' la parte che discrimina.** Se le voci `HoldImmediate` finissero nella mappa,
+ * resterebbero non consumate — nessuna finestra le chiede — e verrebbero riportate come orfane su una
+ * ri-simulazione perfettamente riuscita: un falso positivo sistematico. E se la consultazione stesse PRIMA
+ * del gate di cardinalita', la chiave verrebbe cercata e il collasso smetterebbe di essere una funzione
+ * dello stato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierCollapsedWindowTest,
+	"RefactorTactics.Replay.Verifier.CollapsedWindowIgnoresTheTrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadDeterminismScenario(*this, TEXT("Spec.Overwatch.ConditionCollapsesToHold"), Scenario))
+	{
+		return false;
+	}
+
+	TArray<FString> Divergenze;
+	const FRTTestResult A = RunAsVerifier(Scenario, {}, nullptr, Divergenze);
+	if (A.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la partita di riferimento e' fallita: %s"), *A.ErrorMessage));
+		return false;
+	}
+
+	const TArray<FRTTurnLogEntry> Traccia = AllEntries(A);
+	const int32 Collassi = CountOutcome(Traccia, ERTReactionDecisionOutcome::HoldImmediate);
+	if (!TestTrue(TEXT("la traccia porta almeno un HoldImmediate, o il test non verifica niente"), Collassi > 0))
+	{
+		return false;
+	}
+
+	const FRTTestResult B = RunAsVerifier(Scenario, Traccia, nullptr, Divergenze);
+
+	TestEqual(FString::Printf(TEXT("il collasso ricalcolato da' lo stesso stato (%08x vs %08x)"),
+		B.StateHash, A.StateHash), B.StateHash, A.StateHash);
+	TestEqual(TEXT("e sempre lo stesso numero di collassi"),
+		CountOutcome(AllEntries(B), ERTReactionDecisionOutcome::HoldImmediate), Collassi);
+	TestEqual(TEXT("nessuna divergenza: le voci del collasso non entrano nella mappa e non restano orfane"),
+		Divergenze.Num(), 0);
+	if (Divergenze.Num() > 0)
+	{
+		AddError(FString::Printf(TEXT("primo disaccordo: %s"), *Divergenze[0]));
+	}
+
+	return true;
+}
+
 
 /**
  * L'ORDINE dell'input non cambia l'esito.

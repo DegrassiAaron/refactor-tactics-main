@@ -3888,6 +3888,46 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 			ERTReactionDecisionOutcome::HoldImmediate);
 	}
 
+	// --- La TRACCIA, se questa e' una ri-simulazione (`#886`) --------------------------------------------
+	//
+	// Sta QUI e non una riga piu' su: sopra c'e' il collasso di [D-109], che e' una funzione pura dello stato
+	// e si RICALCOLA. Per quelle finestre la traccia contiene `HoldImmediate`, che non e' la scelta di
+	// nessuno — e' la constatazione che non c'era scelta — e rileggerlo farebbe dipendere una regola del gioco
+	// dalla traccia. Sta qui e non una riga piu' giu' perche' una risposta REGISTRATA batte il decisore
+	// corrente: sostituisce *chi decide*, non *se c'e' da decidere*.
+	if (RecordedDecisions.Num() > 0)
+	{
+		const FString Key = URTReactionOpportunityLibrary::DeriveOpportunityId(Opportunity.Key);
+		if (const FRTReactionDecision* Recorded = RecordedDecisions.Find(Key))
+		{
+			// Rifiutata anche se registrata, e non e' diffidenza verso la traccia: se una risposta che allora
+			// era legale oggi non lo e', le due esecuzioni hanno smesso di combaciare. Trattarla come un
+			// normale `HoldRejected` di gioco mascherebbe un difetto del resolver da esito di partita.
+			if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, Recorded->Response))
+			{
+				ConsumedDecisionKeys.Add(Key);
+				VerificationDivergences.Add(FString::Printf(
+					TEXT("risposta registrata illegale nella ri-simulazione: '%s' non e' fra le AllowedResponses della finestra %s"),
+					*Recorded->Response, *Key));
+				return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+					ERTReactionDecisionOutcome::HoldRejected);
+			}
+
+			ConsumedDecisionKeys.Add(Key);
+			return *Recorded;
+		}
+
+		// La ri-simulazione apre una finestra che la traccia non copre. L'esito applicato resta un `HOLD` —
+		// una finestra va pur risolta, e sparare qui spenderebbe una carica su un disaccordo — ma il fatto
+		// che ci sia stato un disaccordo NON si perde: e' [D-170], il giudizio sulla verifica esce da un
+		// canale che non e' il TurnLog. Senza questa riga il caso sarebbe indistinguibile da «nessuno ha
+		// risposto», cioe' da un successo.
+		VerificationDivergences.Add(FString::Printf(
+			TEXT("finestra non coperta dalla traccia: nessuna risposta registrata per %s"), *Key));
+		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+			ERTReactionDecisionOutcome::HoldNoDecider);
+	}
+
 	// Il decisore INIETTATO ha la precedenza su tutto, bot compreso: e' il punto di sostituzione, e un test
 	// che ne collega uno deve poter scriptare anche le risposte di un'unita' del bot.
 	if (!ReactionDecider.IsBound())
@@ -3944,6 +3984,63 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 	const bool bFire = URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE;
 	return FRTReactionDecision(Response,
 		bFire ? ERTReactionDecisionOutcome::FireChosen : ERTReactionDecisionOutcome::HoldChosen);
+}
+
+void ARTTurnManager::ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>& TraceEntries)
+{
+	RecordedDecisions.Reset();
+	ConsumedDecisionKeys.Reset();
+	VerificationDivergences.Reset();
+
+	for (const FRTTurnLogEntry& Entry : TraceEntries)
+	{
+		if (Entry.Category != ERTLogCategory::ReactionDecision || Entry.OpportunityId.IsEmpty())
+		{
+			continue;
+		}
+
+		const ERTReactionDecisionOutcome Outcome = static_cast<ERTReactionDecisionOutcome>(Entry.Outcome);
+
+		// ⛔ Il collasso NON entra nella mappa. Quelle finestre non arrivano mai fin qui — le precede il gate
+		// di cardinalita' — quindi una voce `HoldImmediate` caricata resterebbe non consumata a fine corsa e
+		// verrebbe segnalata come orfana su una ri-simulazione riuscita. Scartarla in ingresso e' anche cio'
+		// che la rende inapplicabile per errore a una finestra che non e' la sua.
+		if (Outcome == ERTReactionDecisionOutcome::HoldImmediate)
+		{
+			continue;
+		}
+
+		// La stringa si RICOSTRUISCE: il TurnLog porta l'esito e il bersaglio, non la risposta. Il `FIRE` e'
+		// l'unico esito con un bersaglio; gli altri cinque hanno applicato `HOLD`, per quanto diversa sia la
+		// storia che raccontano — ed e' la risposta, non l'esito, cio' da cui dipende il determinismo.
+		const FString Response = (Outcome == ERTReactionDecisionOutcome::FireChosen)
+			? URTReactionOpportunityLibrary::FireResponse(Entry.SelectedTargetUnitId)
+			: FString(URTReactionOpportunityLibrary::HoldResponse());
+
+		RecordedDecisions.Add(Entry.OpportunityId, FRTReactionDecision(Response, Outcome));
+	}
+}
+
+void ARTTurnManager::ReportOrphanRecordedDecisions()
+{
+	// Ordinato per chiave prima di riportare: `TMap` non garantisce l'ordine di iterazione, e un verdetto che
+	// cambia riga a ogni esecuzione sarebbe un non-determinismo introdotto proprio dal codice che verifica il
+	// determinismo.
+	TArray<FString> Orphans;
+	for (const TPair<FString, FRTReactionDecision>& Pair : RecordedDecisions)
+	{
+		if (!ConsumedDecisionKeys.Contains(Pair.Key))
+		{
+			Orphans.Add(Pair.Key);
+		}
+	}
+	Orphans.Sort();
+
+	for (const FString& Key : Orphans)
+	{
+		VerificationDivergences.Add(FString::Printf(
+			TEXT("risposta registrata orfana: nessuna finestra ha reclamato %s"), *Key));
+	}
 }
 
 void ARTTurnManager::ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State,
