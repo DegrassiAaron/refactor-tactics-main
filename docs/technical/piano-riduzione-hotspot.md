@@ -860,10 +860,17 @@ ne hanno ancora bisogno`.
 |---|---|
 | «il gate copre solo un sottoinsieme delle cartelle» | ❌ **superata** — copertura 100%, nessuna cartella esclusa |
 | «il gate non dichiara la propria copertura» | ❌ **superata** — stampa `387/387` e i marcatori |
-| «le sorgenti `.yaml` restano fuori» | ✅ **ancora vera** — analizza *file markdown*, e le sorgenti che rigenerano le viste sono YAML |
+| «le sorgenti `.yaml` restano fuori» | ❌ **superata il 2026-08-18** — `#1109`/[#1170](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1170) hanno esteso il perimetro a `.md · .yaml · .yml`, e il referto lo dichiara **per estensione** |
 
-Quindi il lavoro residuo non è più «misurare la copertura»: è **estendere la proprietà protetta oltre il
-markdown**. Ed è più stretto di quanto la prima stesura credesse.
+✅ **E anche il lavoro residuo è chiuso.** Diceva: *«non è più "misurare la copertura": è estendere la
+proprietà protetta oltre il markdown»* — fatto il 2026-08-18. Il perimetro è `.md · .yaml · .yml`, il
+referto stampa il conteggio **per estensione** (senza, «zero occorrenze» e «zero file letti» restano
+indistinguibili), e il gate ha per la prima volta dei test che possono fallire.
+
+> ⏱️ **I numeri qui sopra restano quelli di `94575ef4`**, e vanno letti come tali: la stringa
+> `File markdown normativi analizzati:` non esiste più — oggi è `File normativi analizzati:` seguita da una
+> riga `per estensione:`. La misura è datata e resta valida per la sua data; il totale corrente si legge
+> eseguendo lo script, non da qui.
 
 ## Direzione
 

@@ -3292,7 +3292,7 @@ tracks:
       🔴 **La seduta ha prodotto un difetto, che è il modo giusto in cui una verifica finisce**: `#1034` —
       il giocatore **non può armare nessuna reazione**. La sua formazione è `{Hero.Gadget, Hero.Phase}`, la
       reazione di Gadget sta all'indice **4** e i tasti mappati sono quattro (indici 0–3), Phase non ne ha; la
-      sola reazione entro gli indici raggiungibili è `Wraith.Deflection`, e Wraith gioca **nel team del
+      sola reazione entro gli indici raggiungibili è `Hero.Wraith.Deflection`, e Wraith gioca **nel team del
       bot**. Il difetto è stato **registrato senza ripararlo**, come §1 del mandato prescrive.
       ➕ **`PIE-TEST-CONSOLE`: la biforcazione che la voce dichiarava è stata sciolta dall'autore** —
       l'**Output Log è il medium legittimo**. Ribalta l'obiezione del 2026-08-08 (*«una risposta che non si
@@ -5818,9 +5818,12 @@ integration_only:
   # (`spec-asset-pipeline.md` e `convenzioni-contenuti-ue.md`), entrambe dichiarate ad alta voce e nessuna
   # delle due sanata. Due precedenti fanno un'abitudine — «assegnati un path scrivendoci sopra, purché lo
   # confessi» — e l'unico modo di non farne tre è pagare il costo, che è un commit di due righe.
-  # ⚠️ **`test_check_docs_naming.py` non esiste ancora**: il gate che protegge 407 file non ha una sola
-  # prova che possa fallire, ed è la ragione per cui `#1109` chiede una verifica di mutazione nei due
-  # versi invece di un `--check` verde. Il path entra qui perché il test nasce in quella issue.
+  # ⚠️ **`test_check_docs_naming.py` nasce con `#1109`**, e il path entra qui prima del file: alla data di
+  # questo commit il gate non aveva **una sola prova che potesse fallire**, ed è la ragione per cui quella
+  # issue chiede una verifica di mutazione nei due versi invece di un `--check` verde.
+  # ⏱️ *Nessun conteggio di file in questa nota: il perimetro si legge dal referto del gate, che lo stampa
+  # per estensione a ogni esecuzione. Una stesura precedente diceva «407 file» — vero quando fu scritta e
+  # falso dopo il commit successivo dello STESSO branch, che ha portato il perimetro a 412.*
   - scripts/check-docs-naming.py
   - scripts/test_check_docs_naming.py
   - RefactorTactics.uproject

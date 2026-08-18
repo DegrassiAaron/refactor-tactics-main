@@ -60,6 +60,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -207,12 +208,22 @@ NAME_RE = re.compile(r"\b(" + "|".join(LEGACY) + r")\b")
 # La seconda forma non e' ammessa nei Markdown: `#` a inizio riga e' un titolo, e
 # accettarla trasformerebbe ogni titolo che contiene «rename-exempt» in un'esenzione.
 EXEMPT_MARKER = re.compile(r"<!--\s*rename-exempt:\s*(.+?)\s*-->")
-EXEMPT_MARKER_YAML = re.compile(r"#\s*rename-exempt:\s*(.+?)\s*$")
+EXEMPT_MARKER_YAML = re.compile(r"#\s*rename-exempt:\s*(.+?)\s*$", re.M)
+
+# Negli YAML valgono **entrambe** le forme, e l'alternanza non e' generosita': le `note:`
+# di `parallel-batch.yaml` sono blocchi markdown, quindi chi ci scrive dentro usa la forma
+# HTML per riflesso — e trovarla ignorata darebbe un gate rosso senza spiegazione, con
+# `stale_markers` cieco nello stesso punto. Nei `.md` invece la forma `#` resta VIETATA:
+# `#` a inizio riga e' un titolo, e accettarla trasformerebbe ogni titolo che contiene
+# «rename-exempt» in un'esenzione su 407 file.
+EXEMPT_MARKER_ANY = re.compile(
+    EXEMPT_MARKER.pattern + "|" + r"#\s*rename-exempt:\s*(.+?)\s*$", re.M
+)
 
 
 def exempt_marker_for(path: Path) -> re.Pattern:
     """Il pattern del marcatore che vale per QUESTO file."""
-    return EXEMPT_MARKER_YAML if path.suffix == ".yaml" else EXEMPT_MARKER
+    return EXEMPT_MARKER_ANY if path.suffix in YAML_SUFFIXES else EXEMPT_MARKER
 
 # «Questa riga ha ancora bisogno del marcatore?» — una domanda diversa da «questa riga
 # ha prosa player-facing sbagliata?», e vuole un pattern diverso.
@@ -239,7 +250,11 @@ ANY_FORM = re.compile(
 )
 
 
-def marked_lines(raw_lines: list[str], marker: re.Pattern = EXEMPT_MARKER) -> dict[int, str]:
+def marked_lines(raw_lines: list[str], marker: re.Pattern) -> dict[int, str]:
+    # ⚠️ `marker` e' OBBLIGATORIO, e la ragione e' un difetto vero: con un default
+    # `EXEMPT_MARKER` questa firma ha lasciato passare un call site su tre — il conteggio
+    # dei marcatori in `main()` — che continuava a leggere solo la forma markdown. Un
+    # parametro richiesto lo avrebbe reso un `TypeError` invece di un numero sbagliato.
     """`{numero_riga_1based: ragione}` per le righe marcate.
 
     Il marcatore vale in **due** posizioni, e la seconda non e' una comodita':
@@ -266,13 +281,33 @@ def marked_lines(raw_lines: list[str], marker: re.Pattern = EXEMPT_MARKER) -> di
         # destra — quindi attribuiva il marcatore alla riga SUCCESSIVA, che era vuota,
         # e lo dichiarava stantio. Un marcatore giusto, letto male, segnalato come rotto.
         senza_marcatore = marker.sub("", line)
+        # Con l'alternanza i gruppi sono due e uno dei due e' `None`: la ragione e' il
+        # primo non nullo. Con il pattern singolo il comportamento non cambia.
+        reason = next((gr for gr in m.groups() if gr is not None), "")
         if ANY_FORM.search(senza_marcatore):
-            marked[i + 1] = m.group(1)
+            marked[i + 1] = reason
         elif i + 1 < len(raw_lines):
-            marked[i + 2] = m.group(1)
+            marked[i + 2] = reason
         else:
-            marked[i + 1] = m.group(1)  # ultima riga del file: vale per se'
+            marked[i + 1] = reason  # ultima riga del file: vale per se'
     return marked
+
+
+def mask_for(path: Path, text: str) -> str:
+    """`mask()`, piu' la RAGIONE del marcatore YAML.
+
+    ⚠️ **Simmetria con la forma HTML, non un'aggiunta.** `mask()` azzera i commenti HTML,
+    quindi la ragione di un `<!-- rename-exempt: D-130 dichiara «Flux» -> Gadget -->` non
+    viene mai scansionata. Il marcatore YAML vive in un commento `#`, che `mask()` non
+    tocca: senza questa riga la ragione **piu' naturale** — quella che nomina la mappatura,
+    cioe' l'esempio che il modulo stesso porta piu' sopra — renderebbe rosso il gate
+    proprio mentre si esenta una riga. L'autore non avrebbe modo di capirlo, perche' il
+    gate indicherebbe la riga del marcatore invece della riga esentata.
+    """
+    text = mask(text)
+    if path.suffix in YAML_SUFFIXES:
+        text = EXEMPT_MARKER_YAML.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
+    return text
 
 
 def scan(path: Path) -> list[tuple[int, str, str]]:
@@ -282,7 +317,7 @@ def scan(path: Path) -> list[tuple[int, str, str]]:
     except (OSError, UnicodeDecodeError):
         return []
 
-    masked = mask(raw)
+    masked = mask_for(path, raw)
     raw_lines = raw.splitlines()
     marked = marked_lines(raw_lines, exempt_marker_for(path))
     hits: list[tuple[int, str, str]] = []
@@ -343,7 +378,22 @@ ROOT_GOVERNANCE = ("CLAUDE.md", "AGENTS.md", "README.md")
 # invece che una speranza**: delle 14 occorrenze grezze trovate all'apertura di `#1109`,
 # **10** erano gia' dentro backtick o fence e cadevano da sole. Non serve una maschera
 # YAML-specifica perche' in questo repository lo YAML *e'* un contenitore di markdown.
-PROTECTED_SUFFIXES = ("*.md", "*.yaml")
+# ⚠️ **`.yml` e `.yaml` insieme, e non e' zelo.** Oggi sotto `docs/` non c'e' nessun
+# `.yml` — misurato — ed e' esattamente la condizione in cui la lacuna non e' rossa e si
+# legge come «pulito»: la stessa forma per cui `#1109` e' esistita. `BARE_PATH` conosce
+# gia' entrambe le grafie (`ya?ml`), quindi il repository sa che la seconda e' viva.
+PROTECTED_SUFFIXES = ("*.md", "*.yaml", "*.yml")
+YAML_SUFFIXES = (".yaml", ".yml")
+
+# ⚠️ **Limite noto, e l'escape non e' quello dei Markdown.** Negli YAML la maschera
+# markdown copre commenti e note, che e' dove vive la prosa di questo repository — ma un
+# **valore scalare** che debba legittimamente contenere un id legacy (un `tests:` che
+# cita `Heroes.Vektor.InterceptShotIsPredictive`, per dire) non puo' essere messo fra
+# backtick: cambierebbe il dato che il tooling legge. Oggi non capita — misurato, il gate
+# e' verde — ma il giorno che capita l'unica via e' il marcatore `# rename-exempt:` sulla
+# riga precedente. Che funziona **anche** se la ragione nomina l'eroe: la sua ragione e'
+# mascherata come quella della forma HTML, ed e' il difetto che `#1170` ha corretto prima
+# che qualcuno lo incontrasse.
 
 
 def docs_files() -> list[Path]:
@@ -360,10 +410,6 @@ def docs_files() -> list[Path]:
             files.append(path)
     return sorted(set(files))
 
-
-# Nome storico: c'e' chi lo importa. Delega, cosi' non esistono due perimetri.
-def markdown_files() -> list[Path]:
-    return docs_files()
 
 
 # --- la Wiki pubblicata (repo separato, D-076: il clone E' la fonte) ----------
@@ -457,9 +503,7 @@ def main() -> int:
     # un totale unico che sommava 375 `.md` e **zero** `.yaml`, e quel numero si leggeva
     # come copertura. Un conteggio aggregato rende «nessuna occorrenza» e «nessun file
     # letto» indistinguibili — che e' la definizione di un gate cieco che rassicura.
-    per_suffix: dict[str, int] = {}
-    for f in files:
-        per_suffix[f.suffix or "(senza estensione)"] = per_suffix.get(f.suffix or "(senza estensione)", 0) + 1
+    per_suffix = Counter(f.suffix or "(senza estensione)" for f in files)
     dettaglio = " · ".join(f"{n} {s}" for s, n in sorted(per_suffix.items()))
     print(f"File normativi analizzati: {total_files} ({perimetro})")
     print(f"  per estensione: {dettaglio}")
@@ -469,7 +513,8 @@ def main() -> int:
               f" · esenti (registri datati): {total_files - enforced_files}")
     else:
         # Checkout parziale o `docs/` spostata: meglio dirlo che dividere per zero.
-        print("Nessun file markdown trovato sotto docs/ — controlla il checkout.")
+        print("Nessun file normativo trovato sotto docs/ — controlla il checkout."
+              f" (estensioni cercate: {', '.join(PROTECTED_SUFFIXES)})")
     print()
 
     if enforced_hits:
@@ -533,7 +578,8 @@ def main() -> int:
     for path in files:
         rel = path.relative_to(REPO).as_posix()
         try:
-            marked_total += len(marked_lines(path.read_text(encoding="utf-8").splitlines()))
+            marked_total += len(marked_lines(
+                path.read_text(encoding="utf-8").splitlines(), exempt_marker_for(path)))
         except (OSError, UnicodeDecodeError):
             pass
         s = stale_markers(path)

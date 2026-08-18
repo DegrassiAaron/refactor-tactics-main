@@ -112,7 +112,6 @@ def _tree(tmp: Path, extra: dict[str, str] | None = None) -> Path:
     if extra:
         files.update(extra)
     make_tree(root, files)
-    shutil.copy(GATE, root / "scripts" / "check-docs-naming.py") if (root / "scripts").exists() else None
     (root / "scripts").mkdir(exist_ok=True)
     shutil.copy(GATE, root / "scripts" / "check-docs-naming.py")
     return root
@@ -197,24 +196,119 @@ def test_marcatore_yaml_stantio_fa_fallire():
         assert run_check(root) == 1, "un marcatore su una riga senza nomi ritirati deve uscire 1"
 
 
+def test_forma_cancelletto_RIFIUTATA_nei_markdown():
+    """🔑 **La proprieta' di sicurezza dell'intero dispatch, e non era testata.**
+
+    Il gate documenta che accettare `# rename-exempt:` nei Markdown «trasformerebbe ogni
+    titolo che contiene «rename-exempt» in un'esenzione» su 407 file. Verifica per
+    ispezione: se `exempt_marker_for` restituisse l'alternanza per **tutti** i suffissi,
+    i test precedenti restavano verdi e questa porta si apriva.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(Path(tmp), {
+            # ⚠️ **Nessuna riga vuota fra i due**, ed e' la differenza fra un test che
+            # prova qualcosa e uno che non prova niente: il marcatore esenta la riga
+            # IMMEDIATAMENTE successiva, quindi con una riga vuota in mezzo l'esenzione
+            # cadrebbe sul vuoto e il test passerebbe **anche** con la porta aperta.
+            # Misurato: con la riga vuota, la mutazione «alternanza per ogni suffisso»
+            # lasciava tutti i test verdi.
+            "docs/technical/nota.md":
+                "# rename-exempt: sembra un marcatore ma e' un titolo\n"
+                "Riva manipola l'acqua.\n",
+        })
+        assert run_check(root) == 1, (
+            "un titolo markdown non deve poter esentare la riga che segue"
+        )
+
+
+def test_forma_html_ACCETTATA_nei_markdown():
+    """L'altra meta' del dispatch: 82 marcatori reali vivono in questa forma.
+
+    Una mutazione che restituisse il pattern YAML per ogni suffisso li spegnerebbe tutti,
+    e senza questo test la suite non se ne accorgerebbe.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(Path(tmp), {
+            "docs/technical/nota.md":
+                "<!-- rename-exempt: la riga dichiara la mappatura -->\n"
+                "D-130 rinomina Riva in Phase.\n",
+        })
+        assert run_check(root) == 0, "il marcatore HTML deve esentare la riga successiva"
+
+
+def test_forma_html_ACCETTATA_dentro_una_nota_yaml():
+    """Le `note:` di `parallel-batch.yaml` sono markdown: chi ci scrive usa `<!-- -->`.
+
+    Misurato prima della correzione: `marked_lines` col solo pattern YAML restituiva `{}`
+    su questo input — il marcatore era invisibile in **entrambe** le direzioni, e
+    `stale_markers` non poteva nemmeno segnalarlo.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(Path(tmp), {
+            "docs/roadmap/batch.yaml":
+                "tracks:\n  demo:\n    note: >-\n"
+                "      <!-- rename-exempt: la riga dichiara la mappatura -->\n"
+                "      D-130 rinomina Riva in Phase.\n",
+        })
+        assert run_check_su_yaml_letto(root) == 0, (
+            "la forma HTML deve valere dentro una nota YAML, che e' markdown"
+        )
+
+
+def test_la_ragione_del_marcatore_yaml_non_e_prosa():
+    """La ragione piu' naturale nomina la mappatura — e senza maschera diventava rossa.
+
+    Simmetria con la forma HTML, che `mask()` azzera da sempre: senza questo, esentare
+    una riga con la motivazione ovvia faceva fallire il gate **sulla riga del marcatore**,
+    indicando all'autore un punto diverso da quello che stava esentando.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(Path(tmp), {
+            "docs/roadmap/batch.yaml":
+                "# rename-exempt: D-130 dichiara la mappatura Flux -> Gadget\n"
+                "# la riga nomina Flux come personaggio\n"
+                "tracks: {}\n",
+        })
+        assert run_check_su_yaml_letto(root) == 0, (
+            "la ragione del marcatore non e' prosa player-facing"
+        )
+
+
 def test_perimetro_dichiara_le_estensioni():
     """AC 3: senza il conteggio per estensione, «zero occorrenze» e «zero file letti»
-    restano indistinguibili — che e' come il difetto e' passato inosservato."""
-    proc = subprocess.run(
-        [sys.executable, str(GATE), "--check"],
-        cwd=str(REPO), capture_output=True, text=True, errors="replace",
-    )
-    assert ".yaml" in proc.stdout, "il perimetro deve dichiarare quanti .yaml ha letto"
-    assert ".md" in proc.stdout, "il perimetro deve dichiarare quanti .md ha letto"
+    restano indistinguibili — che e' come il difetto e' passato inosservato.
+
+    ⚠️ Si asserisce sulla **riga** `per estensione:`, non su `".yaml" in stdout`: quella
+    forma era soddisfatta anche da un gate che usciva `1` per un hit in un file il cui
+    path conteneva «.yaml», cioe' da un output che diceva il contrario.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(Path(tmp))
+        code, out = _run(root)
+        riga = next((l for l in out.splitlines() if "per estensione:" in l), None)
+        assert riga is not None, "manca la riga del perimetro per estensione"
+        assert ".md" in riga and ".yaml" in riga, f"perimetro incompleto: {riga!r}"
+        assert code == 0, "l'albero di prova e' pulito: il perimetro non deve fallire"
 
 
-def test_i_cinque_yaml_del_repository_sono_nel_perimetro():
-    """Pinna il fatto misurato in `#1109`: cinque `.yaml` sotto `docs/`, zero letti prima."""
-    files = gate.docs_files()
-    yaml_files = [f for f in files if f.suffix == ".yaml"]
-    assert len(yaml_files) >= 5, (
-        f"attesi almeno 5 .yaml nel perimetro, trovati {len(yaml_files)}"
-    )
+def test_ogni_estensione_protetta_entra_nel_perimetro():
+    """La proprieta' e' «il perimetro raccoglie cio' che dichiara», non «ci sono N file».
+
+    ⚠️ La prima stesura contava i `.yaml` del **repository vero** e pretendeva `>= 5`:
+    sarebbe diventata rossa se qualcuno avesse spostato `docs/roadmap/`, per una ragione
+    che non ha nulla a che vedere col comportamento del gate.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _tree(Path(tmp), {
+            "docs/roadmap/a.yaml": "tracks: {}\n",
+            "docs/roadmap/b.yml": "tracks: {}\n",
+            "docs/technical/c.md": "Phase.\n",
+        })
+        code, out = _run(root)
+        riga = next(l for l in out.splitlines() if "per estensione:" in l)
+        for atteso in (".md", ".yaml", ".yml"):
+            assert atteso in riga, f"{atteso} non e' nel perimetro: {riga!r}"
+        assert code == 0
 
 
 if __name__ == "__main__":

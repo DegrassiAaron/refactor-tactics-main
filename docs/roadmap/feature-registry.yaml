@@ -5315,7 +5315,7 @@ features:
         # non spiegava PERCHE' nessun gate lo vedesse. La spiegazione e' quella qui sopra, ed e' la sua
         # che resta. Tre sessioni indipendenti sulla stessa riga in un giorno dicono che il difetto era
         # visibile a chiunque rigenerasse: e' la lacuna del gate, non la disattenzione di qualcuno.
-        # ➕ Tracciata: **#1110**. Una lacuna identificata che resta un commento YAML non entra in nessuna
+        # ➕ Tracciata: **#1109** — ✅ **chiusa il 2026-08-18**: il gate apre i `.yaml`, e questo file e' fra i cinque che ora legge. *(Il puntatore diceva `#1110`, che era un duplicato di `#1109` aperto tre minuti dopo e chiuso come tale.)*. Una lacuna identificata che resta un commento YAML non entra in nessuna
         # coda — e' la regola «CREATE OR LINK, NEVER IGNORE» applicata a se' stessa.
         # ➕ E la **quarta** sessione, mergiando, non ha scelto un lato: le due note rispondono a domande
         # diverse — chi ha trovato il difetto e dove e' tracciato.
