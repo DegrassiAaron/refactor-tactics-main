@@ -198,7 +198,21 @@ NAME_RE = re.compile(r"\b(" + "|".join(LEGACY) + r")\b")
 #   2. un marcatore su una riga **senza** nomi ritirati e' un **ERRORE**. Un'esenzione
 #      che sopravvive al proprio motivo e' esattamente il modo in cui questo gate ha
 #      perso il 37% di copertura: qui non puo' succedere in silenzio.
+# Due forme, perche' il gate copre due sintassi (#1109):
+#   · `<!-- rename-exempt: ... -->`  nei Markdown e nelle NOTE dei YAML, che in questo
+#     repository sono markdown incorporato — le `note:` di `parallel-batch.yaml` usano
+#     grassetti, backtick e liste esattamente come un `.md`;
+#   · `# rename-exempt: ...`         nei COMMENTI YAML, dove un commento HTML sarebbe
+#     testo inerte e chi legge il file non capirebbe perche' e' li'.
+# La seconda forma non e' ammessa nei Markdown: `#` a inizio riga e' un titolo, e
+# accettarla trasformerebbe ogni titolo che contiene «rename-exempt» in un'esenzione.
 EXEMPT_MARKER = re.compile(r"<!--\s*rename-exempt:\s*(.+?)\s*-->")
+EXEMPT_MARKER_YAML = re.compile(r"#\s*rename-exempt:\s*(.+?)\s*$")
+
+
+def exempt_marker_for(path: Path) -> re.Pattern:
+    """Il pattern del marcatore che vale per QUESTO file."""
+    return EXEMPT_MARKER_YAML if path.suffix == ".yaml" else EXEMPT_MARKER
 
 # «Questa riga ha ancora bisogno del marcatore?» — una domanda diversa da «questa riga
 # ha prosa player-facing sbagliata?», e vuole un pattern diverso.
@@ -225,7 +239,7 @@ ANY_FORM = re.compile(
 )
 
 
-def marked_lines(raw_lines: list[str]) -> dict[int, str]:
+def marked_lines(raw_lines: list[str], marker: re.Pattern = EXEMPT_MARKER) -> dict[int, str]:
     """`{numero_riga_1based: ragione}` per le righe marcate.
 
     Il marcatore vale in **due** posizioni, e la seconda non e' una comodita':
@@ -241,7 +255,7 @@ def marked_lines(raw_lines: list[str]) -> dict[int, str]:
     """
     marked: dict[int, str] = {}
     for i, line in enumerate(raw_lines):
-        m = EXEMPT_MARKER.search(line)
+        m = marker.search(line)
         if not m:
             continue
         # Se la riga contiene ANCHE un nome ritirato, il marcatore vale per se stessa:
@@ -251,7 +265,7 @@ def marked_lines(raw_lines: list[str]) -> dict[int, str]:
         # `NAME_RE` non vede `BastionIgnoresAllPushes` — concatenato, nessun confine a
         # destra — quindi attribuiva il marcatore alla riga SUCCESSIVA, che era vuota,
         # e lo dichiarava stantio. Un marcatore giusto, letto male, segnalato come rotto.
-        senza_marcatore = EXEMPT_MARKER.sub("", line)
+        senza_marcatore = marker.sub("", line)
         if ANY_FORM.search(senza_marcatore):
             marked[i + 1] = m.group(1)
         elif i + 1 < len(raw_lines):
@@ -270,7 +284,7 @@ def scan(path: Path) -> list[tuple[int, str, str]]:
 
     masked = mask(raw)
     raw_lines = raw.splitlines()
-    marked = marked_lines(raw_lines)
+    marked = marked_lines(raw_lines, exempt_marker_for(path))
     hits: list[tuple[int, str, str]] = []
     for lineno, line in enumerate(masked.splitlines(), start=1):
         if lineno in marked:
@@ -294,7 +308,7 @@ def stale_markers(path: Path) -> list[tuple[int, str, str]]:
         return []
     raw_lines = raw.splitlines()
     stale = []
-    for lineno, reason in marked_lines(raw_lines).items():
+    for lineno, reason in marked_lines(raw_lines, exempt_marker_for(path)).items():
         riga = raw_lines[lineno - 1] if lineno - 1 < len(raw_lines) else ""
         # Sul RAW, non sul mascherato: un token in backtick e' comunque una ragione
         # valida per marcare, ed e' il caso piu' frequente (`Flux.ArcPulse`).
@@ -319,18 +333,37 @@ def stale_markers(path: Path) -> list[tuple[int, str, str]]:
 ROOT_GOVERNANCE = ("CLAUDE.md", "AGENTS.md", "README.md")
 
 
-def markdown_files() -> list[Path]:
+# Le estensioni protette. `.yaml` entra con `#1109`, e la ragione e' misurata: sotto
+# `docs/` i file YAML contengono **prosa lunga** — le `note:` di `parallel-batch.yaml`,
+# gli `steps` di `editor-sessions.yaml`, i `notes` del feature registry — scritta in
+# markdown e letta da persone. Il gate ne ha ignorate 5 per giorni, e in una di esse un
+# nome ritirato sopravviveva in una frase che descriveva **il presente**.
+#
+# 🔑 **La maschera markdown funziona sugli YAML senza modifiche, ed e' un fatto misurato
+# invece che una speranza**: delle 14 occorrenze grezze trovate all'apertura di `#1109`,
+# **10** erano gia' dentro backtick o fence e cadevano da sole. Non serve una maschera
+# YAML-specifica perche' in questo repository lo YAML *e'* un contenitore di markdown.
+PROTECTED_SUFFIXES = ("*.md", "*.yaml")
+
+
+def docs_files() -> list[Path]:
     files = []
     for name in ROOT_GOVERNANCE:
         path = REPO / name
         if path.is_file():
             files.append(path)
-    for path in sorted(DOCS.rglob("*.md")):
-        rel_parts = path.relative_to(DOCS).parts
-        if rel_parts and rel_parts[0] in EXCLUDED_DIRS:
-            continue
-        files.append(path)
-    return files
+    for pattern in PROTECTED_SUFFIXES:
+        for path in sorted(DOCS.rglob(pattern)):
+            rel_parts = path.relative_to(DOCS).parts
+            if rel_parts and rel_parts[0] in EXCLUDED_DIRS:
+                continue
+            files.append(path)
+    return sorted(set(files))
+
+
+# Nome storico: c'e' chi lo importa. Delega, cosi' non esistono due perimetri.
+def markdown_files() -> list[Path]:
+    return docs_files()
 
 
 # --- la Wiki pubblicata (repo separato, D-076: il clone E' la fonte) ----------
@@ -396,7 +429,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    files = markdown_files()
+    files = docs_files()
     enforced_hits: dict[str, list[tuple[int, str, str]]] = {}
     backlog_hits: dict[str, list[tuple[int, str, str]]] = {}
     enforced_files = 0
@@ -420,7 +453,16 @@ def main() -> int:
     perimetro = ("governance di root + docs/, **nessuna cartella esclusa**"
                  if not EXCLUDED_DIRS
                  else f"governance di root + docs/, esclusi {'/'.join(EXCLUDED_DIRS)}")
-    print(f"File markdown normativi analizzati: {total_files} ({perimetro})")
+    # ⚠️ **Per ESTENSIONE, e non e' cosmesi** (`#1109`): questo gate ha stampato per giorni
+    # un totale unico che sommava 375 `.md` e **zero** `.yaml`, e quel numero si leggeva
+    # come copertura. Un conteggio aggregato rende «nessuna occorrenza» e «nessun file
+    # letto» indistinguibili — che e' la definizione di un gate cieco che rassicura.
+    per_suffix: dict[str, int] = {}
+    for f in files:
+        per_suffix[f.suffix or "(senza estensione)"] = per_suffix.get(f.suffix or "(senza estensione)", 0) + 1
+    dettaglio = " · ".join(f"{n} {s}" for s, n in sorted(per_suffix.items()))
+    print(f"File normativi analizzati: {total_files} ({perimetro})")
+    print(f"  per estensione: {dettaglio}")
     if total_files:
         print(f"Protetti dal gate: {enforced_files}/{total_files} file"
               f" — copertura {enforced_files / total_files:.0%}"
