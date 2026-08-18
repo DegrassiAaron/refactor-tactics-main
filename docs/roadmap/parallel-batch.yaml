@@ -3556,6 +3556,12 @@ tracks:
     issue: 937
     branch: null            # seduta d'editor: l'unita' di lavoro e' un'apertura di Unreal, non un commit
     session: U24
+    # ➕ **Aperto il 2026-08-17, e il campo esisteva gia' per questo caso.** La nota qui sotto lo
+    # prescriveva — *«se la seduta apre un ramo per committare gli `.uasset`, va nominato in
+    # `session_branch`»* — e fino a oggi il worktree era **detached** su `78dfd2f7`: lavoro d'editor non
+    # committato, su nessun ramo, quindi con un write-set che nessun'altra track poteva confrontare.
+    # E' esattamente il difetto che il campo e' nato per chiudere il 2026-08-14 su U1.
+    session_branch: feat/937-loading-screen-asset
     worktree: D:/rt-menu
     note: >-
       ➕ **Riattivata il 2026-08-16 come SEDUTA, non come sessione di codice.** La parte C++ di E46 e'
@@ -3607,6 +3613,19 @@ tracks:
       # `RTMatchAutobattleTests.cpp`. Elencato **per nome** e non come prefisso `Tests/`, che e' conteso
       # da quattro track.
       - Source/RefactorTactics/Tests/RTStartupReportTests.cpp
+      # 🔴 **Dichiarato il 2026-08-17 a file gia' scritto, ed e' la SECONDA volta su questo perimetro.**
+      # Il test dei binding dentro i `WBP_RT_*` esisteva gia' nella working directory — `?? ` in
+      # `git status`, mai committato — mentre nessun `writable` lo nominava. La track ha il precedente
+      # giusto due righe piu' su: `RTStartupReportTests.cpp` e' *«dichiarato prima di crearlo»*, con la
+      # motivazione scritta. Qui non e' andata cosi', e registrarlo a posteriori vale — da adesso il path
+      # e' preso — ma questa voce non finge di aver seguito la sequenza.
+      # ⚠️ **Per nome e non come prefisso `Tests/`**, che e' conteso da quattro track: prenderlo per
+      # prefisso bloccherebbe chiunque scriva un test. Stessa forma delle due righe precedenti.
+      # ⚠️ **Il test e il suo asset si coprono a vicenda finche' restano entrambi fuori da git**: pretende
+      # `/Game/RT/UI/Framework/WBP_RT_LoadingScreen`, che e' anch'esso untracked. Su un clone pulito
+      # mancano tutti e due e la suite e' verde **per assenza**; committarne uno solo la fa rossa. I due
+      # path vanno nello stesso commit, e l'ordine non e' una preferenza di stile.
+      - Source/RefactorTactics/Tests/RTFrontendWidgetAssetTests.cpp
       # ⚠️ **Il file RESTA qui, e nel giro di un giorno la domanda si e' aperta e richiusa due volte.**
       # Vale la pena scrivere la sequenza, perche' e' il caso d'uso per cui questo file esiste:
       #   1. `replay_ui` (#472) prende il path per scrivere la §2.2 — `#936` era chiusa, il branch
@@ -3662,6 +3681,65 @@ tracks:
       # ⚠️ Sui **file** e non sulla cartella: la regola «la lease si emette sulla cartella» vale per le
       # mappe, che sono cartelle con un numero di package che non si deduce. Cinque widget sono cinque
       # package, e si contano.
+      # ➕ **Emessa il 2026-08-18, ed e' una lease NUOVA e non un'estensione di quella dei widget.**
+      # `content_editor` ha **rilasciato** le sue (`binary_leases: []`) scrivendo la regola che si applica
+      # qui: *«chi dovra' modificare uno di quei package emette una lease nuova, sul proprio `base_sha`, e
+      # riprende da qui le verification che nessuno ha ancora eseguito»*. Le `verification` qui sotto sono
+      # quelle, trascritte e non reinventate.
+      # ⚠️ **Sulla CARTELLA e non sul singolo file**: e' la regola opposta a quella dei widget, e vale per
+      # le mappe — una mappa e' una cartella con un numero di package che non si deduce. `L_DevSandbox`
+      # ne ha **due**, misurati da `content_editor` e non ricontati qui.
+      # ⚠️ **`operation: edit`**: il package esiste gia' in `main` (`2874cf3b`, dentro il merge #1089) e la
+      # working directory lo ha gia' modificato. La lease arriva **dopo** la modifica, come per i widget:
+      # registrarla vale — da adesso il path e' preso — ma la sequenza corretta resta emettere prima.
+      # ⚠️ **Il package CALA di 7755 byte** rispetto a `HEAD` (68432 → 60677, −11%), e il dato resta
+      # scritto qui perche' fra binari il calo e' normalmente il segnale di una perdita. **Non lo e':
+      # verificato con l'autore il 2026-08-18 — meno dati e' l'esito voluto.** La misura si annota con la
+      # risoluzione accanto, non al posto: chi rilegge il diff trova un binario che dimagrisce e deve
+      # poter sapere che qualcuno se l'e' chiesto.
+      - key: "BINARY-GH937-DEVSANDBOX-MAP"
+        issue: 937
+        base_sha: "3f595da950447ac0887b2220a63a9bc5b627babb"
+        operation: edit
+        paths:
+          - Content/RT/Maps/Dev/L_DevSandbox/
+        verification:
+          - load_in_editor
+          - save_without_errors
+          # 🔴 **Qui la prima stesura di questa lease aveva trascritto `arena_check_still_passes`, e non si
+          # applica a questo package.** Ereditarla sembrava giusto — il rilascio di `content_editor`
+          # elencava quel nome — ma il suo discriminante (`Transitions`: `L_HexArena` ne ha 2,
+          # `GeneratedTestArena` zero) riguarda **l'arena**, e `L_DevSandbox` non e' un'arena: e' la
+          # sandbox di sviluppo. Una verification giusta sul package sbagliato e' una casella che si
+          # spunta senza aver guardato niente.
+          # ✅ **Al suo posto quella che il package rischia davvero, e ha un difetto reale alle spalle**:
+          # `DA_HexMap_Sandbox` — che sta in `Data/`, dentro questa lease — **si e' gia' ritrovato a zero
+          # celle** in PIE. Sintomo: viewport nera, nessuna unita', pareggio immediato. Il comportamento
+          # di ripiego e' coperto da `RefactorTactics.MatchSetup.GameModeFallsBackOnEmptyMapAsset`, ma
+          # **nessun test guarda dentro questo asset**: che il ripiego funzioni non dice che la sandbox
+          # sia allestita.
+          - hexmap_asset_has_cells
+        # ✅ **Consuntivo del 2026-08-18: quattro su quattro, eseguite dall'autore in editor.**
+        # `load_in_editor` · `save_without_errors` · `hexmap_asset_has_cells` (l'array `Cells` di
+        # `URTHexMapAsset` — `NumCells()` e' `Cells.Num()`, ed e' `EditAnywhere`, quindi si legge nel
+        # dettaglio dell'asset) · `actors_still_present`, che chiude la domanda aperta dal calo di 7755 byte.
+        # 🔴 **Un tentativo di misurarle headless e' stato fatto e NON vale: lo si registra perche' il
+        # numero che produce e' credibile e sbagliato.** Avviando il gioco su `L_DevSandbox` il log dice
+        # *«65 celle»* — ma la riga sopra dice `MapSource=GeneratedTestArena: la mappa del livello e'
+        # ignorata`. Quelle 65 celle sono dell'**arena generata**, non di `DA_HexMap_Sandbox`: leggerle
+        # come conferma di `hexmap_asset_has_cells` avrebbe consuntivato una verifica misurando un altro
+        # oggetto. La sola misura valida su quell'asset resta quella in editor.
+        # ⚠️ **E lo stesso log riporta un `Error` che NON e' un difetto**: `DA_Format_Rotto` — `FormatId`
+        # assente, `RoundLimit` 0, «partita non allestita». E' lo strumento che la seduta **prescrive**
+        # (`editor-sessions.yaml` U24: *«quello del modale si forza con un formato invalido»*, e
+        # `guida-frontend-umg.md` §riga 48 lo conferma), sta in questa stessa cartella ed e' **ignorato**
+        # da `Content/**/*.uasset`. Chi rilegge quel log deve sapere che l'errore e' il meccanismo di
+        # prova che funziona, non l'allestimento che si rompe.
+          # ➕ Propria di questa lease. Non nasce piu' dal sospetto sul calo — l'autore l'ha risolto — ma
+          # resta perche' e' l'unica verifica che guarda il CONTENUTO del livello: nessun test headless
+          # apre un `.umap`, e la dimensione non distingue un attore rimosso da una ricompattazione.
+          - actors_still_present
+
       - key: "BINARY-GH937-FRONTEND-WIDGETS"
         issue: 937
         base_sha: "5bfae1ce147db5107947d2033a03c1439f4e9874"
@@ -3684,6 +3762,25 @@ tracks:
           # non deve produrre occorrenze fuori dal navigatore. E' l'invariante 1 di CP 46.1, e un `.uasset`
           # e' l'unico posto dove puo' rientrare senza che un test se ne accorga.
           - no_widget_creates_widgets
+        # ✅ **Consuntivo del 2026-08-18 — due su quattro eseguite, e headless invece che a mano.**
+        # Sui TRE widget che esistono (`FrontendRoot` e `ModalLayer` non sono ancora stati creati).
+        # · `inherits_declared_base_class` ✅ — ogni package contiene la propria classe base **6** volte e
+        #   le altre due **zero**: la diagonale e' piena e il fuori-diagonale vuoto, quindi il criterio
+        #   discrimina invece di limitarsi a trovare. Un grep che dicesse «6» ovunque non proverebbe nulla.
+        # · `no_widget_creates_widgets` ✅ — `AddToViewport`/`RemoveFromParent`/`CreateWidget` danno **zero**
+        #   in tutti e tre. Lo zero e' significativo perche' la controprova lo e': lo stesso metodo sul
+        #   navigatore trova **2/1/3**. Senza quella misura, uno zero non distingue «assente» da «non lo
+        #   sto cercando bene».
+        # ⚠️ **Il grep va fatto sui byte del package**: `rg` salta i binari per default e rispondeva **0**
+        #   dove `grep` contava **6**. Due metodi, e il primo mentiva in silenzio.
+        # ✅ `load_in_editor` e `save_without_errors` — **eseguite dall'autore in editor il 2026-08-18**,
+        #   sui tre widget, senza errori. Non erano surrogabili e la distinzione va tenuta: i 27 test
+        #   `RefactorTactics.Frontend` caricano la *generated class* del package, che e' un'altra cosa
+        #   dall'aprire il Blueprint — l'editor **ricompila** e segnala cio' che il load a runtime non
+        #   vede. D-139 human-first: qui serviva l'autore, e nessun test verde lo sostituiva.
+        # ∴ **Quattro su quattro consuntivate.** Restano da costruire `WBP_RT_FrontendRoot` e
+        #   `WBP_RT_ModalLayer`: quando esisteranno, le quattro verification si rieseguono su di loro —
+        #   una lease `create` copre i cinque package, non i primi tre.
 
   verification:
     status: IDLE

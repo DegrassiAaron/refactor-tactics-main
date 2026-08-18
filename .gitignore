@@ -124,6 +124,11 @@ Content/**/*.txt
 !Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset
 !Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
 !Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset
+# I due strutturali non hanno una classe base C++ — `RTFrontendWidgets.h` ne dichiara tre — quindi
+# ereditano da `UUserWidget` nudo e il loro criterio non e' l'ereditarieta' ma `no_widget_creates_widgets`
+# (invariante 1 di CP 46.1). Riammessi con lo stesso anticipo degli altri, per la stessa ragione.
+!Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset
+!Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset
 
 # Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
 .superpowers/
