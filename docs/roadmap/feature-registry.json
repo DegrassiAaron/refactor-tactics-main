@@ -2587,9 +2587,9 @@
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "done",
-        "replay_representable": "partial"
+        "replay_representable": "done"
       },
-      "gates_done": 4,
+      "gates_done": 5,
       "gates_applicable": 10,
       "roadmap": {
         "epic": "E14",
@@ -2653,9 +2653,9 @@
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo",
-        "replay_representable": "partial"
+        "replay_representable": "done"
       },
-      "gates_done": 5,
+      "gates_done": 6,
       "gates_applicable": 10,
       "roadmap": {
         "epic": "E14",
@@ -2704,7 +2704,7 @@
         "date": "2026-08-15",
         "commit": "53ec531f"
       },
-      "notes": "Finestra **3,0 s**, timeout **HOLD**. `network_privacy` è `todo` e non `na`: la finestra viaggia in rete quando arriva M10 e non deve rivelare intenti avversari (invariante #6, D-021 privacy temporale). In v0.1 offline non è verificabile, ma non è nemmeno «non applicabile». **2026-08-14/15 — CP 14.5 (`#165`, PR #878) è atterrata.** `ResolveMovement` ha smesso di risolvere in un colpo e guida `Begin`/`ResolveNext`/`Finish`, aprendo il Decision Boundary **fra** due micro-step; `FIRE` tronca il residuo con `StopUnitInPlace`, quindi le collisioni successive cambiano davvero. TurnLog **v8**. Undici test elencati qui sopra. ⚠️ **La «finestra da 3,0 s» del titolo NON è consegnata**, ed è la ragione per cui questa voce resta `IMPLEMENTING` con due checkpoint: `grep -rn \"FastReactionDuration\" Source/` dà **una sola occorrenza, dentro un commento**. In CP 14.5 il valore non aveva lettore — nessun decisore attende — quindi lo spec panel del 2026-08-14 l'ha spostato in **CP 14.6** (`#166`), dove il lettore è il countdown della UI. ⚠️ `replay_representable: partial` e non `done`, e la distinzione è quella che il gate esiste per fare: la decisione **è rappresentabile** — `OpportunityId` e `SelectedTargetUnitId` viaggiano nella v8 e entrano nell'hash — ma **nessuno la rilegge**. Il *Player* di ADR-0009 non ricalcola, quindi per lui la proprietà è vera per costruzione; il *Verifier* ri-simula col resolver, e `grep OpportunityId Source/` non trova consumatori fuori da serializzazione e test. Oggi regge **per assenza di decisore umano**: al primo `FIRE` umano di CP 14.6 diventa falsa con un resolver corretto. Seam: **#886**. ⚠️ `automation: done` significa che la **copertura esiste** e non che la suite sia stata rieseguita dopo il merge: «842 verdi su 842» della PR è misurato sulla base **precedente**. Sull'albero unito è stata verificata la **compilazione** (`Result: Succeeded`, zero warning, e i nomi dei test presenti nel binario prodotto), non l'esecuzione. Limiti dichiarati alla chiusura: il bot non pianifica `Action.Overwatch` e l'umano non ha un decisore, quindi **in partita il percorso `FIRE` non è ancora raggiungibile** (è #166); `MovementMode.Withdraw` (D-070) non esiste nel codice, quindi armare l'Overwatch non riserva lo slot movimento — l'azione è più forte di come è disegnata, e il destinatario è **#653**. ⚠️ `validate` avverte «feature di gameplay TESTABLE senza scenario che la dimostri», ed è un avvertimento **corretto che oggi non si può chiudere**: uno scenario passa dal percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, e su quel percorso la finestra di un'unità umana si chiude in `HoldNoDecider` — non esiste un modo, dentro uno scenario, di rispondere `FIRE`. Il decisore iniettabile dell'harness è **#512** (CP 15.3 metà B), la UI è **#166**: prima di uno dei due, uno scenario potrebbe asserire solo che la finestra si è aperta e chiusa da sola, cioè meno di quanto gli undici test già verificano. Il warning resta in piedi di proposito — è la lacuna vera, non un falso positivo da mettere a tacere."
+      "notes": "Finestra **3,0 s**, timeout **HOLD**. `network_privacy` è `todo` e non `na`: la finestra viaggia in rete quando arriva M10 e non deve rivelare intenti avversari (invariante #6, D-021 privacy temporale). In v0.1 offline non è verificabile, ma non è nemmeno «non applicabile». **2026-08-14/15 — CP 14.5 (`#165`, PR #878) è atterrata.** `ResolveMovement` ha smesso di risolvere in un colpo e guida `Begin`/`ResolveNext`/`Finish`, aprendo il Decision Boundary **fra** due micro-step; `FIRE` tronca il residuo con `StopUnitInPlace`, quindi le collisioni successive cambiano davvero. TurnLog **v8**. Undici test elencati qui sopra. ⚠️ **La «finestra da 3,0 s» del titolo NON è consegnata**, ed è la ragione per cui questa voce resta `IMPLEMENTING` con due checkpoint: `grep -rn \"FastReactionDuration\" Source/` dà **una sola occorrenza, dentro un commento**. In CP 14.5 il valore non aveva lettore — nessun decisore attende — quindi lo spec panel del 2026-08-14 l'ha spostato in **CP 14.6** (`#166`), dove il lettore è il countdown della UI. ⚠️ `replay_representable: partial` e non `done`, e la distinzione è quella che il gate esiste per fare: la decisione **è rappresentabile** — `OpportunityId` e `SelectedTargetUnitId` viaggiano nella v8 e entrano nell'hash — ma **nessuno la rilegge**. Il *Player* di ADR-0009 non ricalcola, quindi per lui la proprietà è vera per costruzione; il *Verifier* ri-simula col resolver, e `grep OpportunityId Source/` non trova consumatori fuori da serializzazione e test. Oggi regge **per assenza di decisore umano**: al primo `FIRE` umano di CP 14.6 diventa falsa con un resolver corretto. Seam: **#886**. ✅ **2026-08-18 — il gate passa a `done`: il seam #886 è chiuso.** `AskReactionDecision` consulta una mappa `OpportunityId → risposta` costruita dalla traccia, **dopo** il gate di cardinalità e **al posto** dei rami «bot» e «decisore legato»; il collasso di [D-109] resta ricalcolato. La riga qui sopra prevedeva che al primo `FIRE` umano la proprietà diventasse falsa: quel `FIRE` ora è riproducibile senza decisore, e `Replay.Verifier.RecordedResponseBeatsLiveDecider` lo dimostra **in negativo** — un decisore collegato che risponderebbe `HOLD` non viene interrogato nemmeno una volta. ⚠️ **Il gate riguarda la decisione, non i 3,0 s**: `FastReactionDuration` resta senza lettore e la voce resta `IMPLEMENTING` per CP 14.6 (`#166`). Un `HoldTimeout` registrato si rilegge come `HOLD` — è l'esito che era stato applicato — ma *quando* la finestra sia scaduta non è nella traccia e non lo diventa qui. ⚠️ `automation: done` significa che la **copertura esiste** e non che la suite sia stata rieseguita dopo il merge: «842 verdi su 842» della PR è misurato sulla base **precedente**. Sull'albero unito è stata verificata la **compilazione** (`Result: Succeeded`, zero warning, e i nomi dei test presenti nel binario prodotto), non l'esecuzione. Limiti dichiarati alla chiusura: il bot non pianifica `Action.Overwatch` e l'umano non ha un decisore, quindi **in partita il percorso `FIRE` non è ancora raggiungibile** (è #166); `MovementMode.Withdraw` (D-070) non esiste nel codice, quindi armare l'Overwatch non riserva lo slot movimento — l'azione è più forte di come è disegnata, e il destinatario è **#653**. ⚠️ `validate` avverte «feature di gameplay TESTABLE senza scenario che la dimostri», ed è un avvertimento **corretto che oggi non si può chiudere**: uno scenario passa dal percorso reale `Intent → Planning → Snapshot → Resolver → TurnLog`, e su quel percorso la finestra di un'unità umana si chiude in `HoldNoDecider` — non esiste un modo, dentro uno scenario, di rispondere `FIRE`. Il decisore iniettabile dell'harness è **#512** (CP 15.3 metà B), la UI è **#166**: prima di uno dei due, uno scenario potrebbe asserire solo che la finestra si è aperta e chiusa da sola, cioè meno di quanto gli undici test già verificano. Il warning resta in piedi di proposito — è la lacuna vera, non un falso positivo da mettere a tacere."
     },
     {
       "feature_id": "RT-FEAT-REACTION-OVERWATCH",
@@ -2725,9 +2725,9 @@
         "ui_wiki": "partial",
         "packaged": "todo",
         "network_privacy": "todo",
-        "replay_representable": "partial"
+        "replay_representable": "done"
       },
-      "gates_done": 5,
+      "gates_done": 6,
       "gates_applicable": 10,
       "roadmap": {
         "epic": "E14",

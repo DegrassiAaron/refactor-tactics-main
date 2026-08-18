@@ -1419,7 +1419,24 @@ tracks:
   spatial:
     status: ACTIVE
     issue: 833
-    branch: feat/833-interaction-graph
+    # 🔴 **Corretti `branch:` e `worktree:` il 2026-08-18 da `simulation`, e non e' un'invasione: erano
+    # entrambi falsi e il secondo nominava la directory in cui un'altra track sta scrivendo.** La misura,
+    # non la memoria:
+    #   · `git ls-remote --heads origin` non trova `feat/833-interaction-graph` — quel ramo non esiste lato
+    #     server. I due rami di `#833` che sono esistiti sono `fix/833-validatemap-e-hash` (in `main`) e
+    #     `feat/833-applicazione-e-archi`, **MERGED** con la PR **#1168** alle `07:10:33Z` e cancellato;
+    #   · `git worktree list` mostra `D:/rt-simulation` in **detached HEAD** — nessun ramo aperto — e
+    #     `D:/rt-spatial` su `feat/886-verifier-legge-la-traccia`, cioe' `simulation`.
+    # ∴ le due track si erano **scambiate le directory** rispetto a cio' che il file dichiarava, e per
+    # qualche ora entrambe hanno detto `D:/rt-spatial`. Non era una contesa di write-set — l'intersezione
+    # fra i due `writable` e' **vuota** — ma un campo che manda la prossima sessione nella stanza sbagliata.
+    # ⚠️ `status: ACTIVE` e `issue: 833` **restano**: la issue e' `OPEN` e non tocca a chi passa deciderne lo
+    # stato. Qui si correggono solo i due campi misurabili dall'esterno.
+    # ⛔ **Cio' che questa sessione NON ha potuto verificare, detto invece che assunto**: se
+    # `D:/rt-simulation` sia pulita. E' isolata in `D:/rt-spatial` e ogni comando diretto altrove viene
+    # rifiutato, quindi `git status` la' non e' misurabile da qui — `git worktree list`, che gira da
+    # dentro, lo e'. Chi riapre la track lo verifica prima di scrivere.
+    branch: null
     note: >-
       ➕ **Passata a `#833` il 2026-08-16** — E23 CP 23.4, `RT-FEAT-MAP-INTERACTION-GRAPH`, **P1**: il grafo
       `Source → Target` come **dato**, con cardinalità `1→1` e `1→N`, ordine deterministico e validazione
@@ -1724,7 +1741,10 @@ tracks:
     # proprio `writable`) **tornava**, ACTIVE x ACTIVE. Trovato dalla code review. Fra inventare un'eccezione
     # allo schema e lasciare il mandato a chi puo' esercitarlo, si sceglie il secondo: questa track non sta
     # facendo il Terminal B, e chi lo riapre lo rivendica insieme al file invece di ereditare una contesa.
-    worktree: "D:/rt-spatial"
+    # 🔴 **Era `"D:/rt-spatial"` fino al 2026-08-18** — vedi il blocco sopra `branch:` per la misura. L'ultimo
+    # giro di questa track (`feat/833-applicazione-e-archi`, PR #1168) ha lavorato in `D:/rt-simulation`, che
+    # `git worktree list` mostra oggi in detached HEAD.
+    worktree: "D:/rt-simulation"
     writable:
       # ➖ `docs/technical/qa-prompt-terminal-b-scenario-runner.md` **rilasciato il 2026-08-16**, e non e'
       # una rinuncia al mandato: e' la meta' di questa track della violazione che l'intestazione dichiara
