@@ -5978,7 +5978,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: docs/1165-fase1-governance-auditor
+    branch: null
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6040,6 +6040,22 @@ tracks:
 
       ➖ **Esce `RefactorTactics — Issue Tracking Completeness Rule.md`**: il file e' stato cancellato con
       `ceb27c8e` e un `writable` che nomina un path inesistente e' rumore. Un rilascio si scrive.
+
+      ✅ **Fase 1 CHIUSA**: PR **#1193** in `main` come `f3ae7374`, ramo cancellato lato server.
+      `branch` torna `null` — la sentinella, non un campo mancante. Il `writable` **resta pieno**, ed e'
+      voluto: quei cinque path sono gli owner della governance e dell'auditor, e le fasi 2–6 li
+      riscrivono. Un rilascio si scrive quando il lavoro finisce, e #1165 e' aperta.
+      🔴 **E' la seconda volta in un giorno che questa riga nasce stantia**: una track che dichiara il
+      proprio ramo lo perde nell'istante in cui la PR che la pubblica viene mergiata, quindi ogni fase
+      costa due commit — uno per prenderlo, uno per renderlo. Il difetto e' strutturale, non una svista:
+      `branch:` descrive una sessione viva, e una track che vive piu' di una sessione non ne ha uno solo.
+      La forma giusta e' probabilmente per-fase, ma cambiarla e' modificare lo schema di `D-139` e non si
+      fa dentro una fase; registrato qui perche' chi apre la fase 2 non lo riscopra.
+
+      📌 **Fase 2, il perimetro misurato dopo il consolidamento di #1173**: `docs/src/prd/` (5),
+      `docs/src/design/icon/**` (285 asset + 16 documenti), `docs/src/showcase/`, `docs/src/grid/` e i due
+      handoff nella radice di `docs/src/`. Il riordino di `docs/src/wiki/` **e' gia' fatto** e non va
+      rifatto. Le 24 schede in `docs/src/wiki/v0.1/roster-legacy/` non sono di questa issue: sono #1166.
     writable:
       - docs/control-center/graph.test.mjs
       - docs/README.md
