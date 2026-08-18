@@ -402,7 +402,7 @@
         },
         {
           "id": "PIE-HEX-VIZ-BORDI",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-VIZ-PORTE",
@@ -1813,7 +1813,7 @@
     },
     {
       "id": "PIE-HEX-VIZ-BORDI",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-VIZ-COSTO",
