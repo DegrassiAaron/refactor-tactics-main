@@ -268,11 +268,32 @@ TArray<FRTDoorChange> URTHexDoorLibrary::ApplyInteraction(URTHexMapAsset* Map, F
 	}
 	if (Targets.Num() == 0)
 	{
-		return Changes; // sorgente senza binding: legale, e non fa niente
+		// 🔴 **Due casi diversi finivano nello stesso silenzio.** Una sorgente SENZA binding non fa niente ed e'
+		// legale — nessun reason code, non e' successo nulla. Ma un binding che ESISTE e non risolve nessuna
+		// porta e' un difetto: il bersaglio nomina un arco, oppure uno `StableId` rinominato da quando l'asset
+		// e' stato scritto. `ValidateInteractionGraph` lo prende, ma e' un gate che in questo repository si
+		// esegue **a mano** — quindi a runtime deve dirlo qualcuno, o il giocatore preme una leva che non fa
+		// niente e nessuno sa perche'.
+		if (OutRefusals != nullptr && ResolveErrors.Num() == 0)
+		{
+			for (const FRTInteractionBinding& Binding : Map->InteractionBindings)
+			{
+				if (Binding.SourceId == SourceId)
+				{
+					OutRefusals->Add(FString::Printf(
+						TEXT("Refused: la sorgente '%s' dichiara un binding che non risolve nessuna porta"),
+						*SourceId.ToString()));
+					break;
+				}
+			}
+		}
+		return Changes;
 	}
 
 	TArray<FRTHexCellData> Work = Map->Cells;
 	TSet<int32> Touched;
+	// Un rifiuto per STRUTTURA, non per bordo: vedi il commento nel ramo del rifiuto.
+	TSet<FName> RefusedStructures;
 	for (const FRTStructureEdgeRef& Target : Targets)
 	{
 		// Lo stato si legge PRIMA di commutare e sulla copia di lavoro, non sulla mappa: un bersaglio
@@ -306,10 +327,28 @@ TArray<FRTDoorChange> URTHexDoorLibrary::ApplyInteraction(URTHexMapAsset* Map, F
 			//
 			// Il discrimine e' lo stato che il bordo ha ORA: se e' gia' quello richiesto, l'operazione ha
 			// ottenuto cio' che voleva su quel bersaglio — che sia stata lei un attimo fa o che ci fosse gia'.
-			// Se e' un altro, la transizione e' stata negata davvero (`Locked -> Open`, `Destroyed -> qualunque`)
-			// ed e' il caso che [D-150] vuole riportato.
-			if (OutRefusals != nullptr && Before != State)
+			//
+			// ⚠️ **`Destroyed` soddisfa un `Open`, e l'uguaglianza di enum non lo vede.** Un varco sfondato non
+			// nega passo ne' vista (`StateBlocks(Destroyed)` e' falso): chi ordina «apri» ha gia' cio' che
+			// voleva, e dirgli «e' Destroyed e non transita a Open» lo manderebbe a cercare un'altra strada che
+			// non gli serve. Il criterio e' la proprieta' OSSERVABILE, non il nome dello stato — e vale solo per
+			// `Open`, perche' `Closed` e `Locked` bloccano entrambi ma non sono intercambiabili (cambia CHI puo'
+			// riaprire), quindi li' l'uguaglianza resta il criterio giusto.
+			const bool bAlreadySatisfied = (Before == State)
+				|| (State == ERTHexDoorState::Open && !URTHexDoorLibrary::StateBlocks(Before));
+
+			// 🔴 **Un rifiuto per STRUTTURA, non per bordo — ed e' l'immagine speculare del difetto qui sopra.**
+			// Un portone di tre bordi tutti `Locked` arriva come tre bersagli e nessuno di loro commuta: senza
+			// questa deduplica il giocatore leggerebbe tre fallimenti per UNA struttura, cioe' esattamente cio'
+			// che il dato vieta un livello sotto («un portone e' un evento, non tre», `RTHexCellData.h`). Il
+			// percorso di successo era gia' coperto; questo e' quello in cui rifiutano tutti.
+			const bool bAlreadyRefused = !TargetName.IsNone() && RefusedStructures.Contains(TargetName);
+			if (OutRefusals != nullptr && !bAlreadySatisfied && !bAlreadyRefused)
 			{
+				if (!TargetName.IsNone())
+				{
+					RefusedStructures.Add(TargetName);
+				}
 				// ⚠️ **Si riporta e si prosegue** ([D-150]): l'operazione su N bersagli NON e' atomica, applica gli
 				// applicabili e dichiara gli altri. E' il comportamento che il motore ha gia' un livello sotto —
 				// `CanTransition` salta il bordo che non puo' transitare e commuta il resto — invece di

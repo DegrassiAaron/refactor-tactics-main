@@ -178,12 +178,20 @@ public:
 	 * applicazione, ed e' voluto: e' una scelta d'autore, non un dettaglio d'implementazione.
 	 *
 	 * ⚠️ **`N` non ha un tetto, ed e' dichiarato invece che lasciato scoprire.** Il DoD di #833 chiede l'uno o
-	 * l'altro: qui non c'e' un limite perche' non c'e' una regola che ne giustifichi uno — ne' la risoluzione
-	 * ne' l'applicazione degradano con la cardinalita', essendo entrambe scansioni lineari senza contenitori
-	 * associativi. Cio' che la scala poteva rompere e' l'ORDINE, e quello e' misurato:
-	 * `InteractionGraph.OrderHoldsAtScale` prova quaranta bersagli e pretende la sequenza dichiarata. Un tetto
-	 * scritto qui sarebbe un numero senza un fallimento che lo motivi — e li' fuori, un asset legittimo che lo
-	 * superasse verrebbe rifiutato da una costante che nessuno sa spiegare.
+	 * l'altro: qui non c'e' limite perche' non c'e' un fallimento MISURATO che ne motivi uno. Cio' che la scala
+	 * poteva rompere e' l'ORDINE, e quello e' verificato — `InteractionGraph.OrderHoldsAtScale` prova quaranta
+	 * bersagli e pretende la sequenza dichiarata. Un tetto scritto senza un fallimento che lo giustifichi
+	 * rifiuterebbe asset legittimi in nome di una costante che nessuno sa spiegare.
+	 *
+	 * 🔴 **Il COSTO pero' non e' lineare, e questa riga lo diceva.** Affermava che «ne' la risoluzione ne'
+	 * l'applicazione degradano con la cardinalita', essendo entrambe scansioni lineari»: falso, e trovato da una
+	 * code review. `ApplyInteraction` chiama la commutazione **una volta per bersaglio**, e ogni chiamata
+	 * scandisce l'intero array delle celle due volte (gruppo + commutazione), quindi il costo va come
+	 * `bersagli × celle × porte`; la risoluzione paga `TargetIds × Bindings` per il controllo dei bersagli
+	 * contesi, piu' una scansione completa per ogni `FindDoorEdges`. La decisione di non mettere un tetto resta,
+	 * perche' poggia sull'assenza di un fallimento e non sul costo — ma il costo si dichiara invece di
+	 * affermarne uno comodo e non misurato. Se un giorno una mappa grande lo rendera' visibile, il rimedio e'
+	 * un indice, non un limite alla cardinalita' che un autore puo' scrivere.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<FRTInteractionBinding> InteractionBindings;

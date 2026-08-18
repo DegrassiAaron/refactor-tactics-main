@@ -724,6 +724,96 @@ bool FRTInteractionGraphWideDoorIsOneTargetNotThreeRefusals::RunTest(const FStri
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphWideDoorRefusesOnceNotPerEdge,
+	"RefactorTactics.InteractionGraph.WideDoorRefusesOnceNotPerEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphWideDoorRefusesOnceNotPerEdge::RunTest(const FString&)
+{
+	// 🔴 L'immagine SPECULARE di `WideDoorIsOneTargetNotThreeRefusals`, e il caso che quel test non copriva:
+	// li' il portone si apriva tutto e i bordi successivi non erano rifiuti; qui **non commuta nessuno**, e
+	// senza deduplica per struttura il giocatore leggerebbe due fallimenti per UNA porta. Trovato da una code
+	// review: il percorso di successo era testato, quello in cui rifiutano tutti no.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoorInState(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"), ERTHexDoorState::Locked);
+	PutGraphDoorInState(Map, FRTCellId(1, -1, 0), ERTHexDirection::E, 2, TEXT("D1"), ERTHexDoorState::Locked);
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+	TestEqual(TEXT("il portone e' due bordi"),
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S1")).Num(), 2);
+
+	const int32 RevisionBefore = Map->Revision;
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, INDEX_NONE, &Refusals);
+
+	TestEqual(TEXT("niente si apre: e' Locked"), Changes.Num(), 0);
+	TestEqual(TEXT("UN rifiuto per la struttura, non uno per bordo"), Refusals.Num(), 1);
+	TestTrue(TEXT("e nomina la struttura"), AnyContains(Refusals, TEXT("D1")));
+	TestEqual(TEXT("una transizione rifiutata non muove la revisione"), Map->Revision, RevisionBefore);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphDestroyedDoorAlreadyGrantsOpen,
+	"RefactorTactics.InteractionGraph.DestroyedDoorAlreadyGrantsOpen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphDestroyedDoorAlreadyGrantsOpen::RunTest(const FString&)
+{
+	// 🔴 Un varco SFONDATO non nega passo ne' vista, quindi chi ordina «apri» ha gia' cio' che voleva — anche
+	// se `Destroyed != Open` come valore di enum e la transizione e' vietata. Riportarlo come rifiuto manderebbe
+	// il giocatore a cercare un'altra strada che non gli serve. Il criterio e' la proprieta' OSSERVABILE.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoorInState(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"), ERTHexDoorState::Destroyed);
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, INDEX_NONE, &Refusals);
+
+	TestEqual(TEXT("niente cambia: `Destroyed` e' terminale"), Changes.Num(), 0);
+	TestEqual(TEXT("ma non e' un rifiuto: il passaggio c'e' gia'"), Refusals.Num(), 0);
+
+	// ⚠️ La meta' che impedisce di scambiare la regola per «`Destroyed` non rifiuta mai»: chiedere di CHIUDERE
+	// un varco sfondato e' un fallimento vero, e va riportato.
+	TArray<FString> CloseRefusals;
+	URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Closed, INDEX_NONE, &CloseRefusals);
+	TestEqual(TEXT("chiudere un varco sfondato invece rifiuta"), CloseRefusals.Num(), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphBindingThatResolvesToNothingIsReported,
+	"RefactorTactics.InteractionGraph.BindingThatResolvesToNothingIsReported",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphBindingThatResolvesToNothingIsReported::RunTest(const FString&)
+{
+	// 🔴 Un binding che ESISTE e non risolve nessuna porta non deve essere indistinguibile da «nessun binding».
+	// `ValidateInteractionGraph` prende il caso, ma in questo repository i gate si eseguono **a mano**: se
+	// l'asset arriva a runtime cosi', il giocatore preme una leva che non fa niente e nessuno sa perche'.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphArc(Map, FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), TEXT("A1"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("A1") }));
+
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, INDEX_NONE, &Refusals);
+
+	TestEqual(TEXT("non cambia niente"), Changes.Num(), 0);
+	TestEqual(TEXT("ma il silenzio e' rotto"), Refusals.Num(), 1);
+	TestTrue(TEXT("e il reason code nomina la sorgente"), AnyContains(Refusals, TEXT("S1")));
+
+	// ⚠️ La meta' che tiene la regola stretta: una sorgente SENZA binding e' legale e non produce reason code.
+	// Senza questa asserzione, «riporta sempre» passerebbe il test qui sopra.
+	TArray<FString> NoBinding;
+	URTHexDoorLibrary::ApplyInteraction(Map, TEXT("D_INESISTENTE"), ERTHexDoorState::Open, INDEX_NONE, &NoBinding);
+	TestEqual(TEXT("una sorgente senza binding resta silenziosa"), NoBinding.Num(), 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphApplicationFollowsDeclaredOrder,
 	"RefactorTactics.InteractionGraph.ApplicationFollowsDeclaredOrder",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
