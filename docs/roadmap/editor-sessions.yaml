@@ -22,7 +22,7 @@
 #   artifacts          path repo da verificare con `git ls-files`; vuoto se produce un verdetto
 #   unblocked_by       checkpoint/epic/sedute che devono avere il CODICE fatto (un 🟡 basta e anzi e' il
 #                      caso normale). **Sempre prefissato**, perche' i due spazi di numerazione dei
-#                      checkpoint collidono su 20 numeri su 22: `6.3` e' «input hex» in M6 e «Riva» in E6.
+#                      checkpoint collidono su 20 numeri su 22: `6.3` e' «input hex» in M6 e «Phase» in E6.
 #                      Forme ammesse:  M6.3 (checkpoint di milestone, owner `roadmap-checkpoint.md`)
 #                                      E1.3 (checkpoint di epic,      owner `roadmap-v0.1.md` §2.2)
 #                                      E8   (epic intera,             owner `roadmap-v0.1.md` §2.1)
