@@ -3,6 +3,10 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Frontend/RTScreenStack.h"
+// Per `ERTLoadPhase`, che `BackFromError` prende come parametro. E' l'unico punto in cui la navigazione
+// tocca un tipo d'avvio, e la direzione della dipendenza e' voluta: il flow legge un dato dello startup,
+// mai il contrario — `RTStartupReport.h` non sa che esista un navigatore.
+#include "Frontend/RTStartupReport.h"
 #include "RTFrontendNavigator.generated.h"
 
 class UUserWidget;
@@ -73,6 +77,26 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Frontend")
 	ERTNavResult ReturnMain();
+
+	/**
+	 * Il `BACK` di un modale d'errore d'avvio: **due esiti, e la fase decide quale**.
+	 *
+	 * - errore **durante il loading** (`Phase` diversa da `Ready`): non e' stato costruito niente, quindi
+	 *   si chiude il modale e si torna alla schermata precedente;
+	 * - errore **a partita gia' viva** (`Phase == Ready`): `ReturnMain`, che **smonta**. Un `PopScreen`
+	 *   lascerebbe una partita viva **sotto** il menu, ed e' lo stato che CP 46.6 vieta.
+	 *
+	 * ⚠️ **Il modale si chiude prima del pop, e non e' un dettaglio d'ordine**: `PopScreen` con un modale
+	 * aperto risponde `BlockedByModal` — la schermata sotto e' disabilitata. Chiamarlo direttamente
+	 * lascerebbe il giocatore dentro il modale, cioe' il dead-end che il DoD di CP 46.1 vieta.
+	 *
+	 * ⚠️ **Il parametro e' un dato d'avvio, non una scelta gia' presa.** Chi chiama passa la fase in cui
+	 * il modale e' stato armato — `URTErrorModalWidgetBase::GetPhaseWhenArmed()` — e la regola di *dove*
+	 * si torna vive qui, perche' il navigatore e' l'unico owner del flow (invariante 1 di CP 46.1). Un
+	 * widget che scegliesse fra `PopScreen` e `ReturnMain` sarebbe la seconda autorita' sulla navigazione.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Frontend")
+	ERTNavResult BackFromError(ERTLoadPhase PhaseWhenArmed);
 
 	/** La schermata in cima. */
 	UFUNCTION(BlueprintPure, Category = "Frontend")
