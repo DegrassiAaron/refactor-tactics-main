@@ -1563,6 +1563,30 @@
         711
       ],
       "done_when": "le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale"
+    },
+    {
+      "id": "U27",
+      "title": "Il pulsante BACK del modale d'errore, collegato al navigatore",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "✅",
+      "queue_group": "DONE",
+      "produces": "il `BACK` di `WBP_RT_ErrorModal` che chiama `BackFromError` invece di essere disegnato e inerte",
+      "artifacts": [
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset",
+          "tracked": true
+        }
+      ],
+      "unblocked_by": [],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [],
+      "issues": [
+        937
+      ],
+      "done_when": "il pulsante chiama `BackFromError(GetPhaseWhenArmed())` sul navigatore — non `PopScreen` ne' `ReturnMain` diretti — e il package si salva senza errori"
     }
   ],
   "editor_queue": {
@@ -1592,7 +1616,8 @@
       "U22"
     ],
     "DONE": [
-      "U24"
+      "U24",
+      "U27"
     ]
   },
   "pie_entries": [

@@ -3686,12 +3686,12 @@ tracks:
     # e' la seconda volta oggi che questa voce lo fa in anticipo invece che a posteriori.
     status: ACTIVE
     issue: 937
-    # ⚠️ **`branch` e non `session`**: la seduta d'editor U24 e' chiusa e questo residuo e' codice, quindi
-    # l'unita' di lavoro torna a essere un commit. La track ha usato entrambe le forme nello stesso giorno,
-    # ed e' esattamente il caso che lo schema descrive quando dice che una track umana usa `session:` **al
-    # posto di** `branch:`.
-    branch: feat/937-back-navigator
-    session: null
+    # ⚠️ **La track ha usato ENTRAMBE le forme su `#937`, e nello stesso giorno.** `session:` per U24, che
+    # costruiva `.uasset`; `branch:` per il `BACK` del navigatore, che era codice. Ora torna a `session:`
+    # — **U27** — perche' quel che resta e' un collegamento da fare dentro un Blueprint. Non e' incoerenza:
+    # e' lo schema che lo prevede, e ogni passaggio e' stato dichiarato invece che dedotto.
+    branch: null
+    session: U27
     # ➕ **Aperto il 2026-08-17, e il campo esisteva gia' per questo caso.** La nota qui sotto lo
     # prescriveva — *«se la seduta apre un ramo per committare gli `.uasset`, va nominato in
     # `session_branch`»* — e fino ad allora il worktree era **detached** su `78dfd2f7`: lavoro d'editor
@@ -3855,7 +3855,36 @@ tracks:
     # ∴ Chi dovra' modificare uno di questi package emette una lease nuova, sul proprio `base_sha`. Le
     # verification qui sopra sono **eseguite**, non ereditate: si rifanno perche' il package cambia, non
     # perche' nessuno le abbia mai fatte.
-    binary_leases: []
+    binary_leases:
+      # ➕ **Emessa il 2026-08-18 PRIMA di aprire l'editor**, ed e' la prima volta che questa track ci
+      # riesce: le due precedenti sono state registrate a lavoro gia' cominciato, e la nota di ciascuna lo
+      # dice invece di datarle all'indietro.
+      # ⚠️ **UN solo package, e non i cinque della lease rilasciata.** Il collegamento del `BACK` tocca
+      # `WBP_RT_ErrorModal` e nient'altro: una lease sui cinque prenoterebbe binari che questa seduta non
+      # apre, e li toglierebbe a chi ci sta lavorando davvero — vedi la riga qui sotto.
+      # 🔴 **`WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer` sono toccati da un branch VIVO che non dichiara
+      # nessuna lease**: `origin/feat/937-widget-layout`, misurato — `git diff --name-only
+      # origin/main...origin/feat/937-widget-layout` da' quei due `.uasset` e **zero** file sotto `docs/`.
+      # Non e' un conflitto con questa lease, che non li nomina; e' una violazione di D-139 registrata qui
+      # perche' qualcuno la veda, dato che due `.uasset` non si fondono e quel branch li sta gia' scrivendo.
+      - key: "BINARY-GH937-ERRORMODAL-BACK"
+        issue: 937
+        base_sha: "b036411f039f0e33306ef9bab78bd035544cac27"
+        operation: edit
+        paths:
+          - Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
+        verification:
+          - load_in_editor
+          - save_without_errors
+          # ⛔ Le due che contano per QUESTA modifica, e la seconda e' il motivo per cui la seduta esiste.
+          # `back_button_calls_backfromerror`: il pulsante deve chiamare `BackFromError` passando
+          # `GetPhaseWhenArmed()`, **non** `PopScreen` o `ReturnMain` diretti — quelli sarebbero il widget
+          # che naviga da se', cioe' l'invariante 1 di CP 46.1 violata dentro un `.uasset`, dove nessun
+          # test di navigazione se ne accorgerebbe.
+          - back_button_calls_backfromerror
+          # `no_widget_creates_widgets` si rifa': il package cambia, e questa e' l'unica verifica che
+          # protegge l'invariante nel posto dove puo' rientrare senza che un test lo veda.
+          - no_widget_creates_widgets
 
   verification:
     status: IDLE
