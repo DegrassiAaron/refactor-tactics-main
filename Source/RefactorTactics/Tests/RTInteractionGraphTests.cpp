@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexDoorLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTStructureIdentityLibrary.h"
@@ -44,6 +45,35 @@ namespace
 		Data.Doors.Add(Door);
 		Map->AddOrUpdateCell(Data);
 		Map->SortCells();
+	}
+
+	/** Come `PutGraphDoor`, ma con lo stato iniziale dichiarato: serve ai bersagli che NON devono aprirsi. */
+	void PutGraphDoorInState(URTHexMapAsset* Map, const FRTCellId& Id, ERTHexDirection Edge, int32 DoorId,
+		FName StableId, ERTHexDoorState State)
+	{
+		const FRTHexCellData* Existing = Map->FindCell(Id);
+		FRTHexCellData Data = Existing ? *Existing : FRTHexCellData(Id);
+		FRTHexDoor Door(Edge, State, DoorId);
+		Door.StableId = StableId;
+		Data.Doors.Add(Door);
+		Map->AddOrUpdateCell(Data);
+		Map->SortCells();
+	}
+
+	/**
+	 * Arco con nome pubblico fra due celle. `AddTransition` non lo nomina — un arco e' identificato dalla
+	 * coppia `(From, To)` — quindi lo `StableId` si scrive dopo, sull'arco appena creato.
+	 */
+	void PutGraphArc(URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To, FName StableId)
+	{
+		Map->AddTransition(From, To, 1, ERTHexTransitionKind::Stair, false);
+		for (FRTHexEdge& Arc : Map->Transitions)
+		{
+			if (Arc.From == From && Arc.To == To)
+			{
+				Arc.StableId = StableId;
+			}
+		}
 	}
 
 	/** Vero se una delle stringhe contiene il frammento: i reason code si cercano, non si confrontano interi. */
@@ -251,6 +281,61 @@ bool FRTInteractionGraphMissingTargetFailsValidation::RunTest(const FString&)
 	TestTrue(TEXT("il bersaglio inesistente e' segnalato"), Errors.Num() > 0);
 	TestTrue(TEXT("il reason code nomina la struttura mancante"),
 		AnyContains(Errors, TEXT("D_FANTASMA")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphArcTargetFailsValidation,
+	"RefactorTactics.InteractionGraph.ArcTargetFailsValidation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphArcTargetFailsValidation::RunTest(const FString&)
+{
+	// Il «binding cross-layer illegale» che lo Scope di #833 dichiara errore d'asset, nella sola forma che
+	// questo repository puo' MISURARE: una PORTA cross-layer non esiste — `FindDoorEdges` la costruisce da
+	// `(cella, direzione)` e il vicino di un bordo sta sullo stesso layer — mentre l'ARCO e' esattamente la
+	// struttura che i layer li attraversa (`spec-mappa-multilivello.md`: «celle su layer diversi non sono
+	// adiacenti. Mai»).
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphArc(Map, FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), TEXT("A1"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("A1") }));
+
+	const TArray<FString> Errors = URTStructureIdentityLibrary::ValidateInteractionGraph(Map);
+
+	TestTrue(TEXT("il bersaglio-arco e' segnalato"), Errors.Num() > 0);
+	TestTrue(TEXT("il reason code nomina la struttura"), AnyContains(Errors, TEXT("A1")));
+
+	// ⚠️ **Questa e' la meta' che dice PERCHE' la regola serve**, e senza di essa il test proverebbe solo che
+	// un errore esce. Il nome `A1` risolve — `ValidateReferences` conosce entrambi i domini e non si lamenta,
+	// perche' un riferimento e' valido se trova «una porta OPPURE un arco» (#832) — ma la risoluzione passa
+	// solo da `FindDoorEdges` e restituisce ZERO bersagli. Prima di questa regola l'asset era valido, l'
+	// `Interact` legale, e non succedeva niente: un difetto che nessuno dei due lati poteva vedere.
+	TestEqual(TEXT("il riferimento all'arco di per se' e' valido"),
+		URTStructureIdentityLibrary::ValidateReferences(Map, { TEXT("A1") }).Num(), 0);
+	TestEqual(TEXT("ma la risoluzione non lo comanda: zero bersagli"),
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S1")).Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphArcInTheAssetIsNotAnError,
+	"RefactorTactics.InteractionGraph.ArcInTheAssetIsNotAnError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphArcInTheAssetIsNotAnError::RunTest(const FString&)
+{
+	// ⚠️ La regola sopra rifiuta un BERSAGLIO che e' un arco, non un asset che contiene archi: una mappa
+	// multilivello ne ha per costruzione, e una regola che li contasse renderebbe invalido ogni asset vero.
+	// Senza questo test il falso positivo si scoprirebbe su una mappa di produzione.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoor(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"));
+	PutGraphArc(Map, FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), TEXT("A1"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+	TestEqual(TEXT("un arco che non e' bersaglio non e' un errore"),
+		URTStructureIdentityLibrary::ValidateInteractionGraph(Map).Num(), 0);
+	TestEqual(TEXT("e il binding verso la porta risolve"),
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S1")).Num(), 1);
 	return true;
 }
 
@@ -468,6 +553,307 @@ bool FRTInteractionGraphResolutionIgnoresDoorState::RunTest(const FString&)
 	TestEqual(TEXT("una porta Locked risolve come le altre"), Targets.Num(), 1);
 	TestEqual(TEXT("e non e' un errore d'asset"),
 		URTStructureIdentityLibrary::ValidateInteractionGraph(Map).Num(), 0);
+	return true;
+}
+
+/**
+ * ── L'APPLICAZIONE ────────────────────────────────────────────────────────────────────────────────
+ *
+ * I test qui sopra provano la RISOLUZIONE: chi e' comandato. Questi provano cosa e' CAMBIATO, che e' l'altra
+ * meta' dichiarata da [D-150] e che il DoD di #833 registrava come «resta da fare».
+ *
+ * ⚠️ **Cosa questi test NON provano, detto qui perche' non venga letto di piu' di quel che c'e'**: che un
+ * giocatore possa aprire una porta remota in partita. Il percorso runtime dell'`Interact` passa da
+ * `RTHexCombatLibrary` su `FirstDoorEdge` (CP 9.3) e apre la porta ADIACENTE bersagliata; nessuno chiama
+ * ancora `ApplyInteraction`. Quel collegamento vive in `Combat/` e `Turn/RTTurnManager.cpp`, fuori dal
+ * write-set di questa track.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphSourceOpensTarget,
+	"RefactorTactics.InteractionGraph.SourceOpensTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphSourceOpensTarget::RunTest(const FString&)
+{
+	// `1 -> 1`: la sorgente comanda un bersaglio, il bersaglio si apre, e la revisione si muove UNA volta.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoor(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+	const int32 RevisionBefore = Map->Revision;
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, 7, &Refusals);
+
+	TestEqual(TEXT("il bersaglio remoto e' cambiato"), Changes.Num(), 1);
+	TestEqual(TEXT("nessun rifiuto"), Refusals.Num(), 0);
+	TestEqual(TEXT("la revisione si incrementa UNA volta"), Map->Revision, RevisionBefore + 1);
+
+	// ⚠️ L'asserzione che conta e' sullo STATO DELLA MAPPA, non sul valore di ritorno: una funzione che
+	// restituisse le voci giuste senza scrivere passerebbe tutto il resto.
+	TestEqual(TEXT("e la porta e' davvero Open sulla mappa"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Map, FRTCellId(1, 0, 0), FRTCellId(2, 0, 0))),
+		static_cast<int32>(ERTHexDoorState::Open));
+
+	// La sorgente NON e' un bersaglio di se stessa: resta come era. Senza, «comanda» e «si apre» sarebbero
+	// indistinguibili sul caso piu' semplice.
+	TestEqual(TEXT("la sorgente non si e' aperta da sola"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Map, FRTCellId(0, 0, 0), FRTCellId(1, 0, 0))),
+		static_cast<int32>(ERTHexDoorState::Closed));
+
+	if (Changes.Num() == 1)
+	{
+		TestEqual(TEXT("chi ha comandato viaggia con l'esito"), Changes[0].ActorId, 7);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphMultiTargetIsOneRevision,
+	"RefactorTactics.InteractionGraph.MultiTargetIsOneRevision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphMultiTargetIsOneRevision::RunTest(const FString&)
+{
+	// `1 -> N`: **una** voce di revisione, non N. E' il requisito che ha imposto di separare la commutazione
+	// dal commit: applicando i bersagli uno per uno con `SetDoorState`, la revisione si muoverebbe tre volte e
+	// chi la osserva per invalidare una cache vedrebbe tre eventi dove ce n'e' stato uno.
+	URTHexMapAsset* Map = MakeGraphMap(3);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoor(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"));
+	PutGraphDoor(Map, FRTCellId(0, 1, 0), ERTHexDirection::E, 3, TEXT("D2"));
+	PutGraphDoor(Map, FRTCellId(-1, 1, 0), ERTHexDirection::E, 4, TEXT("D3"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1"), TEXT("D2"), TEXT("D3") }));
+
+	const int32 RevisionBefore = Map->Revision;
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, INDEX_NONE, &Refusals);
+
+	TestEqual(TEXT("tre bersagli cambiati"), Changes.Num(), 3);
+	TestEqual(TEXT("nessun rifiuto"), Refusals.Num(), 0);
+	TestEqual(TEXT("UNA revisione per tre bersagli"), Map->Revision, RevisionBefore + 1);
+
+	// I tre sono aperti DAVVERO: il conteggio delle voci da solo non lo dice.
+	TestEqual(TEXT("D1 aperta"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Map, FRTCellId(1, 0, 0), FRTCellId(2, 0, 0))),
+		static_cast<int32>(ERTHexDoorState::Open));
+	TestEqual(TEXT("D2 aperta"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Map, FRTCellId(0, 1, 0), FRTCellId(1, 1, 0))),
+		static_cast<int32>(ERTHexDoorState::Open));
+	TestEqual(TEXT("D3 aperta"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Map, FRTCellId(-1, 1, 0), FRTCellId(0, 1, 0))),
+		static_cast<int32>(ERTHexDoorState::Open));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphRefusedTargetDoesNotStopTheOthers,
+	"RefactorTactics.InteractionGraph.RefusedTargetDoesNotStopTheOthers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphRefusedTargetDoesNotStopTheOthers::RunTest(const FString&)
+{
+	// [D-150]: l'operazione NON e' atomica. Una `Locked` in mezzo agli N si riporta con reason code e gli altri
+	// si aprono lo stesso. Il caso ha un esito DECISO, e questo test e' cio' che impedisce di reintrodurre
+	// «tutto o niente» — che richiederebbe una pre-validazione su tutti gli N, dato che la commutazione non
+	// sa tornare indietro.
+	URTHexMapAsset* Map = MakeGraphMap(3);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoor(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"));
+	PutGraphDoorInState(Map, FRTCellId(0, 1, 0), ERTHexDirection::E, 3, TEXT("D2"), ERTHexDoorState::Locked);
+	PutGraphDoor(Map, FRTCellId(-1, 1, 0), ERTHexDirection::E, 4, TEXT("D3"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1"), TEXT("D2"), TEXT("D3") }));
+
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, INDEX_NONE, &Refusals);
+
+	TestEqual(TEXT("due bersagli su tre sono cambiati"), Changes.Num(), 2);
+	TestEqual(TEXT("il terzo e' riportato, non taciuto"), Refusals.Num(), 1);
+	TestTrue(TEXT("il reason code nomina la struttura rifiutata"), AnyContains(Refusals, TEXT("D2")));
+
+	// ⚠️ Il reason code deve dire PERCHE', non solo che: senza lo stato, il giocatore preme e non sa se la
+	// porta e' bloccata, gia' aperta o inesistente — tre casi con rimedi diversi.
+	TestTrue(TEXT("e dice che era Locked"), AnyContains(Refusals, TEXT("Locked")));
+
+	TestEqual(TEXT("la Locked e' rimasta Locked"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Map, FRTCellId(0, 1, 0), FRTCellId(1, 1, 0))),
+		static_cast<int32>(ERTHexDoorState::Locked));
+	TestEqual(TEXT("ma D3, che viene DOPO di lei, si e' aperta"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Map, FRTCellId(-1, 1, 0), FRTCellId(0, 1, 0))),
+		static_cast<int32>(ERTHexDoorState::Open));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphWideDoorIsOneTargetNotThreeRefusals,
+	"RefactorTactics.InteractionGraph.WideDoorIsOneTargetNotThreeRefusals",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphWideDoorIsOneTargetNotThreeRefusals::RunTest(const FString&)
+{
+	// 🔴 Il PORTONE LARGO, che e' il caso su cui l'applicazione sbaglia se legge «nessun cambio» come
+	// «rifiutato». `FindDoorEdges` restituisce tutti i bordi che portano quel nome — un portone di due bordi
+	// arriva come DUE bersagli — e la commutazione propaga sul `DoorId`: il primo bersaglio apre l'intero
+	// gruppo, il secondo trova il lavoro fatto. Senza il discrimine sullo stato, meta' portone risulterebbe
+	// rifiutata mentre e' aperta, e il giocatore leggerebbe un fallimento che non c'e' stato.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	// Due bordi, UN portone: stesso `DoorId` e stesso nome pubblico.
+	PutGraphDoor(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"));
+	PutGraphDoor(Map, FRTCellId(1, -1, 0), ERTHexDirection::E, 2, TEXT("D1"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+	// La premessa del test, asserita invece che assunta: il nome risolve DUE bordi.
+	TestEqual(TEXT("il portone e' due bordi"),
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S1")).Num(), 2);
+
+	const int32 RevisionBefore = Map->Revision;
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, INDEX_NONE, &Refusals);
+
+	TestEqual(TEXT("il portone si apre tutto insieme"), Changes.Num(), 2);
+	TestEqual(TEXT("e NESSUN bordo risulta rifiutato"), Refusals.Num(), 0);
+	TestEqual(TEXT("un portone largo si apre una volta, non due"), Map->Revision, RevisionBefore + 1);
+
+	TestEqual(TEXT("primo bordo aperto"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Map, FRTCellId(1, 0, 0), FRTCellId(2, 0, 0))),
+		static_cast<int32>(ERTHexDoorState::Open));
+	TestEqual(TEXT("secondo bordo aperto"),
+		static_cast<int32>(URTHexDoorLibrary::DoorBetween(Map, FRTCellId(1, -1, 0), FRTCellId(2, -1, 0))),
+		static_cast<int32>(ERTHexDoorState::Open));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphWideDoorRefusesOnceNotPerEdge,
+	"RefactorTactics.InteractionGraph.WideDoorRefusesOnceNotPerEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphWideDoorRefusesOnceNotPerEdge::RunTest(const FString&)
+{
+	// 🔴 L'immagine SPECULARE di `WideDoorIsOneTargetNotThreeRefusals`, e il caso che quel test non copriva:
+	// li' il portone si apriva tutto e i bordi successivi non erano rifiuti; qui **non commuta nessuno**, e
+	// senza deduplica per struttura il giocatore leggerebbe due fallimenti per UNA porta. Trovato da una code
+	// review: il percorso di successo era testato, quello in cui rifiutano tutti no.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoorInState(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"), ERTHexDoorState::Locked);
+	PutGraphDoorInState(Map, FRTCellId(1, -1, 0), ERTHexDirection::E, 2, TEXT("D1"), ERTHexDoorState::Locked);
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+	TestEqual(TEXT("il portone e' due bordi"),
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, TEXT("S1")).Num(), 2);
+
+	const int32 RevisionBefore = Map->Revision;
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, INDEX_NONE, &Refusals);
+
+	TestEqual(TEXT("niente si apre: e' Locked"), Changes.Num(), 0);
+	TestEqual(TEXT("UN rifiuto per la struttura, non uno per bordo"), Refusals.Num(), 1);
+	TestTrue(TEXT("e nomina la struttura"), AnyContains(Refusals, TEXT("D1")));
+	TestEqual(TEXT("una transizione rifiutata non muove la revisione"), Map->Revision, RevisionBefore);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphDestroyedDoorAlreadyGrantsOpen,
+	"RefactorTactics.InteractionGraph.DestroyedDoorAlreadyGrantsOpen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphDestroyedDoorAlreadyGrantsOpen::RunTest(const FString&)
+{
+	// 🔴 Un varco SFONDATO non nega passo ne' vista, quindi chi ordina «apri» ha gia' cio' che voleva — anche
+	// se `Destroyed != Open` come valore di enum e la transizione e' vietata. Riportarlo come rifiuto manderebbe
+	// il giocatore a cercare un'altra strada che non gli serve. Il criterio e' la proprieta' OSSERVABILE.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoorInState(Map, FRTCellId(1, 0, 0), ERTHexDirection::E, 2, TEXT("D1"), ERTHexDoorState::Destroyed);
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, INDEX_NONE, &Refusals);
+
+	TestEqual(TEXT("niente cambia: `Destroyed` e' terminale"), Changes.Num(), 0);
+	TestEqual(TEXT("ma non e' un rifiuto: il passaggio c'e' gia'"), Refusals.Num(), 0);
+
+	// ⚠️ La meta' che impedisce di scambiare la regola per «`Destroyed` non rifiuta mai»: chiedere di CHIUDERE
+	// un varco sfondato e' un fallimento vero, e va riportato.
+	TArray<FString> CloseRefusals;
+	URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Closed, INDEX_NONE, &CloseRefusals);
+	TestEqual(TEXT("chiudere un varco sfondato invece rifiuta"), CloseRefusals.Num(), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphBindingThatResolvesToNothingIsReported,
+	"RefactorTactics.InteractionGraph.BindingThatResolvesToNothingIsReported",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphBindingThatResolvesToNothingIsReported::RunTest(const FString&)
+{
+	// 🔴 Un binding che ESISTE e non risolve nessuna porta non deve essere indistinguibile da «nessun binding».
+	// `ValidateInteractionGraph` prende il caso, ma in questo repository i gate si eseguono **a mano**: se
+	// l'asset arriva a runtime cosi', il giocatore preme una leva che non fa niente e nessuno sa perche'.
+	URTHexMapAsset* Map = MakeGraphMap(2);
+	PutGraphDoor(Map, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphArc(Map, FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), TEXT("A1"));
+	Map->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("A1") }));
+
+	TArray<FString> Refusals;
+	const TArray<FRTDoorChange> Changes =
+		URTHexDoorLibrary::ApplyInteraction(Map, TEXT("S1"), ERTHexDoorState::Open, INDEX_NONE, &Refusals);
+
+	TestEqual(TEXT("non cambia niente"), Changes.Num(), 0);
+	TestEqual(TEXT("ma il silenzio e' rotto"), Refusals.Num(), 1);
+	TestTrue(TEXT("e il reason code nomina la sorgente"), AnyContains(Refusals, TEXT("S1")));
+
+	// ⚠️ La meta' che tiene la regola stretta: una sorgente SENZA binding e' legale e non produce reason code.
+	// Senza questa asserzione, «riporta sempre» passerebbe il test qui sopra.
+	TArray<FString> NoBinding;
+	URTHexDoorLibrary::ApplyInteraction(Map, TEXT("D_INESISTENTE"), ERTHexDoorState::Open, INDEX_NONE, &NoBinding);
+	TestEqual(TEXT("una sorgente senza binding resta silenziosa"), NoBinding.Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteractionGraphApplicationFollowsDeclaredOrder,
+	"RefactorTactics.InteractionGraph.ApplicationFollowsDeclaredOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTInteractionGraphApplicationFollowsDeclaredOrder::RunTest(const FString&)
+{
+	// L'ordine delle voci prodotte e' quello DICHIARATO in `TargetIds`, non l'ordine canonico di cella: se lo
+	// fosse, l'unica cosa osservabile dell'ordine di applicazione sparirebbe dentro un `Sort` finale.
+	//
+	// ⚠️ **Si perturba l'ordine di dichiarazione, non si ripete la stessa chiamata**: dentro lo stesso processo
+	// anche un ordine sbagliato e' ripetibile — e' la stessa ragione per cui `OrderIgnoresAssetInsertionOrder`
+	// costruisce due mappe invece di risolvere due volte. Qui le due liste sono l'una l'inverso dell'altra e
+	// **contro l'ordine di cella**, cosi' un `Sort` globale farebbe cadere una delle due asserzioni.
+	const FRTCellId First(1, 0, 0);
+	const FRTCellId Second(-1, 1, 0);
+
+	URTHexMapAsset* Forward = MakeGraphMap(3);
+	PutGraphDoor(Forward, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoor(Forward, First, ERTHexDirection::E, 2, TEXT("D1"));
+	PutGraphDoor(Forward, Second, ERTHexDirection::E, 3, TEXT("D2"));
+	Forward->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1"), TEXT("D2") }));
+
+	URTHexMapAsset* Reverse = MakeGraphMap(3);
+	PutGraphDoor(Reverse, FRTCellId(0, 0, 0), ERTHexDirection::E, 1, TEXT("S1"));
+	PutGraphDoor(Reverse, First, ERTHexDirection::E, 2, TEXT("D1"));
+	PutGraphDoor(Reverse, Second, ERTHexDirection::E, 3, TEXT("D2"));
+	Reverse->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D2"), TEXT("D1") }));
+
+	const TArray<FRTDoorChange> A =
+		URTHexDoorLibrary::ApplyInteraction(Forward, TEXT("S1"), ERTHexDoorState::Open);
+	const TArray<FRTDoorChange> B =
+		URTHexDoorLibrary::ApplyInteraction(Reverse, TEXT("S1"), ERTHexDoorState::Open);
+
+	TestEqual(TEXT("due voci per la lista diretta"), A.Num(), 2);
+	TestEqual(TEXT("due voci per la lista inversa"), B.Num(), 2);
+	if (A.Num() == 2 && B.Num() == 2)
+	{
+		TestTrue(TEXT("la lista diretta applica D1 per prima"), A[0].Cell == First);
+		TestTrue(TEXT("la lista inversa applica D2 per prima"), B[0].Cell == Second);
+	}
 	return true;
 }
 
