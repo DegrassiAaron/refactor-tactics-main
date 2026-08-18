@@ -176,6 +176,14 @@ public:
 	 * ⚠️ L'array e' l'ordine AUTOREVOLE dei bersagli: `TargetIds` si applica come e' scritto, mai nell'ordine
 	 * di iterazione di una `TMap`/`TSet` (invariante n. 3). Chi rieditasse l'asset cambierebbe l'ordine di
 	 * applicazione, ed e' voluto: e' una scelta d'autore, non un dettaglio d'implementazione.
+	 *
+	 * ⚠️ **`N` non ha un tetto, ed e' dichiarato invece che lasciato scoprire.** Il DoD di #833 chiede l'uno o
+	 * l'altro: qui non c'e' un limite perche' non c'e' una regola che ne giustifichi uno — ne' la risoluzione
+	 * ne' l'applicazione degradano con la cardinalita', essendo entrambe scansioni lineari senza contenitori
+	 * associativi. Cio' che la scala poteva rompere e' l'ORDINE, e quello e' misurato:
+	 * `InteractionGraph.OrderHoldsAtScale` prova quaranta bersagli e pretende la sequenza dichiarata. Un tetto
+	 * scritto qui sarebbe un numero senza un fallimento che lo motivi — e li' fuori, un asset legittimo che lo
+	 * superasse verrebbe rifiutato da una costante che nessuno sa spiegare.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<FRTInteractionBinding> InteractionBindings;

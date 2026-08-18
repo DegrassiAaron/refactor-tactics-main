@@ -2,6 +2,7 @@
 #include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTStructureIdentityLibrary.h"
 
 namespace
 {
@@ -48,6 +49,139 @@ namespace
 			return false; // non si apre da sola: serve l'apertura autorizzata di CP 10.1
 		}
 		return true;
+	}
+
+	/** Nome leggibile di uno stato, per i reason code. Uno `switch` e non la reflection: `StaticEnum` dipende
+	 *  dai nomi generati, che in packaged sono un'altra cosa — e un reason code che cambia col target non e'
+	 *  osservabile. */
+	const TCHAR* StateName(ERTHexDoorState State)
+	{
+		switch (State)
+		{
+		case ERTHexDoorState::Open:      return TEXT("Open");
+		case ERTHexDoorState::Closed:    return TEXT("Closed");
+		case ERTHexDoorState::Locked:    return TEXT("Locked");
+		case ERTHexDoorState::Destroyed: return TEXT("Destroyed");
+		}
+		return TEXT("?");
+	}
+
+	/** Ordine canonico delle voci: da qui escono righe di TurnLog, e due esecuzioni le scrivono uguali. */
+	void SortDoorChanges(TArray<FRTDoorChange>& Changes)
+	{
+		Changes.Sort([](const FRTDoorChange& A, const FRTDoorChange& B)
+		{
+			if (!(A.Cell == B.Cell)) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
+			return URTHexLibrary::StableLess(A.Toward, B.Toward);
+		});
+	}
+
+	/**
+	 * Commuta un bordo dentro un array di celle **di lavoro**, senza toccare la mappa.
+	 *
+	 * ⚠️ **Il commit e' del chiamante, e questa e' l'unica ragione per cui la funzione esiste.** Finche' la
+	 * commutazione e la scrittura stavano insieme, N bersagli producevano N revisioni: il DoD di #833 ne
+	 * chiede **una** per l'intera operazione, e chi la osserva non deve vedere tre cambi dove ce n'e' stato
+	 * uno. Separandole, `SetDoorState` resta il caso `N = 1` e l'interazione su piu' bersagli commette in
+	 * fondo — senza un secondo ingresso di mutazione, che e' l'invariante che questa libreria difende.
+	 *
+	 * `OutTouched` accumula gli INDICI delle celle modificate, non le celle: due bersagli che condividono una
+	 * cella devono comporsi sulla stessa copia, e portarsi via una copia per bersaglio farebbe vincere
+	 * l'ultimo — cioe' perdere in silenzio il cambio del primo.
+	 */
+	TArray<FRTDoorChange> CommutateEdge(TArray<FRTHexCellData>& Work, const FRTCellId& From,
+		const FRTCellId& To, ERTHexDoorState State, TSet<int32>& OutTouched)
+	{
+		TArray<FRTDoorChange> Changes;
+
+		ERTHexDirection Forward = ERTHexDirection::E;
+		ERTHexDirection Backward = ERTHexDirection::E;
+		if (!URTHexCoverLibrary::EdgeDirection(From, To, Forward)
+			|| !URTHexCoverLibrary::EdgeDirection(To, From, Backward))
+		{
+			return Changes; // non adiacenti: nessun bordo da commutare
+		}
+
+		// Il GRUPPO, se una delle due facce lo dichiara: un portone largo si commuta tutto insieme, altrimenti
+		// chi lo comanda dovrebbe sapere da se' di quali bordi e' fatto — conoscenza che finirebbe nel chiamante
+		// invece che nel dato.
+		int32 GroupId = INDEX_NONE;
+		for (const FRTHexCellData& Cell : Work)
+		{
+			if (Cell.Id == From)
+			{
+				if (const FRTHexDoor* Door = Cell.DoorOn(Forward)) { GroupId = Door->DoorId; }
+				break;
+			}
+		}
+		if (GroupId == INDEX_NONE)
+		{
+			for (const FRTHexCellData& Cell : Work)
+			{
+				if (Cell.Id == To)
+				{
+					if (const FRTHexDoor* Door = Cell.DoorOn(Backward)) { GroupId = Door->DoorId; }
+					break;
+				}
+			}
+		}
+
+		// Si scandisce l'array delle celle nel suo ordine, che e' stabile: due esecuzioni della stessa partita
+		// producono le stesse voci nella stessa sequenza.
+		for (int32 Index = 0; Index < Work.Num(); ++Index)
+		{
+			FRTHexCellData& Cell = Work[Index];
+			for (FRTHexDoor& Door : Cell.Doors)
+			{
+				// Con un gruppo contano tutte le voci che lo dichiarano, ovunque siano; senza, solo le due facce
+				// di QUESTO bordo — e in entrambi i casi si scrive su ogni faccia dichiarata, cosi' le due non
+				// possono divergere.
+				const bool bInOperation = (GroupId != INDEX_NONE)
+					? (Door.DoorId == GroupId)
+					: ((Cell.Id == From && Door.Edge == Forward) || (Cell.Id == To && Door.Edge == Backward));
+				if (!bInOperation || !CanTransition(Door.State, State))
+				{
+					continue;
+				}
+
+				Door.State = State;
+				OutTouched.Add(Index);
+
+				FRTDoorChange Change;
+				Change.Cell = Cell.Id;
+				Change.Toward = NeighborAcross(Cell.Id, Door.Edge);
+				Change.State = State;
+				Change.bBlocking = URTHexDoorLibrary::StateBlocks(State);
+				Changes.Add(Change);
+			}
+		}
+		return Changes;
+	}
+
+	/**
+	 * Scrive sulla mappa le celle toccate: **una** chiamata, quindi **una** revisione.
+	 *
+	 * ⚠️ L'ordine e' quello di `Work`, non quello di `Touched`: si scandisce l'array e si chiede al set se
+	 * l'indice c'e'. Iterare il `TSet` darebbe lo stesso INSIEME in un ordine che dipende dall'hash — l'esatta
+	 * dipendenza che l'invariante n. 3 vieta, e che qui finirebbe dentro le voci scritte nell'asset.
+	 */
+	void CommitTouched(URTHexMapAsset* Map, const TArray<FRTHexCellData>& Work, const TSet<int32>& Touched)
+	{
+		if (Map == nullptr || Touched.Num() == 0)
+		{
+			return; // una transizione rifiutata non e' un cambiamento della mappa: la revisione non si muove
+		}
+
+		TArray<FRTHexCellData> Updated;
+		Updated.Reserve(Touched.Num());
+		for (int32 Index = 0; Index < Work.Num(); ++Index)
+		{
+			if (Touched.Contains(Index))
+			{
+				Updated.Add(Work[Index]);
+			}
+		}
+		Map->UpdateCells(Updated);
 	}
 }
 
@@ -101,76 +235,107 @@ TArray<FRTDoorChange> URTHexDoorLibrary::SetDoorState(URTHexMapAsset* Map, const
 		return Changes;
 	}
 
-	ERTHexDirection Forward = ERTHexDirection::E;
-	ERTHexDirection Backward = ERTHexDirection::E;
-	if (!URTHexCoverLibrary::EdgeDirection(From, To, Forward)
-		|| !URTHexCoverLibrary::EdgeDirection(To, From, Backward))
+	// Il caso `N = 1` della commutazione: si lavora su una copia e si commette in fondo. La sequenza e'
+	// identica a quella di prima — stesse voci, stesso ordine, UNA sola revisione per l'intero gruppo — ma il
+	// calcolo ora vive in un posto solo, che e' cio' che permette all'interazione su N bersagli di comporsi
+	// senza aprire un secondo ingresso di mutazione.
+	TArray<FRTHexCellData> Work = Map->Cells;
+	TSet<int32> Touched;
+	Changes = CommutateEdge(Work, From, To, State, Touched);
+	CommitTouched(Map, Work, Touched);
+
+	SortDoorChanges(Changes);
+	return Changes;
+}
+
+TArray<FRTDoorChange> URTHexDoorLibrary::ApplyInteraction(URTHexMapAsset* Map, FName SourceId,
+	ERTHexDoorState State, int32 ActorId, TArray<FString>* OutRefusals)
+{
+	TArray<FRTDoorChange> Changes;
+	if (Map == nullptr || SourceId.IsNone())
 	{
-		return Changes; // non adiacenti: nessun bordo da commutare
+		return Changes;
 	}
 
-	// Il GRUPPO, se una delle due facce lo dichiara: un portone largo si commuta tutto insieme, altrimenti
-	// chi lo comanda dovrebbe sapere da se' di quali bordi e' fatto — conoscenza che finirebbe nel chiamante
-	// invece che nel dato.
-	int32 GroupId = INDEX_NONE;
-	if (const FRTHexCellData* Near = Map->FindCell(From))
+	// La risoluzione decide CHI e' comandato — compreso il rifiuto per bersaglio conteso (`INT-5`), che
+	// arriva qui come reason code e non come lista vuota senza spiegazione.
+	TArray<FString> ResolveErrors;
+	const TArray<FRTStructureEdgeRef> Targets =
+		URTStructureIdentityLibrary::ResolveInteractionTargets(Map, SourceId, &ResolveErrors);
+	if (OutRefusals != nullptr)
 	{
-		if (const FRTHexDoor* Door = Near->DoorOn(Forward)) { GroupId = Door->DoorId; }
+		OutRefusals->Append(ResolveErrors);
 	}
-	if (GroupId == INDEX_NONE)
+	if (Targets.Num() == 0)
 	{
-		if (const FRTHexCellData* Far = Map->FindCell(To))
-		{
-			if (const FRTHexDoor* Door = Far->DoorOn(Backward)) { GroupId = Door->DoorId; }
-		}
+		return Changes; // sorgente senza binding: legale, e non fa niente
 	}
 
-	// Si scandisce l'array delle celle nel suo ordine, che e' stabile: due esecuzioni della stessa partita
-	// producono le stesse voci nella stessa sequenza.
-	TArray<FRTHexCellData> Updated;
-	for (const FRTHexCellData& Cell : Map->Cells)
+	TArray<FRTHexCellData> Work = Map->Cells;
+	TSet<int32> Touched;
+	for (const FRTStructureEdgeRef& Target : Targets)
 	{
-		FRTHexCellData Copy = Cell;
-		bool bTouched = false;
-		for (FRTHexDoor& Door : Copy.Doors)
+		// Lo stato si legge PRIMA di commutare e sulla copia di lavoro, non sulla mappa: un bersaglio
+		// precedente puo' aver gia' mosso questo stesso bordo — un portone largo condiviso — e un reason code
+		// che citasse lo stato iniziale spiegherebbe un rifiuto con un fatto non piu' vero.
+		ERTHexDoorState Before = ERTHexDoorState::Open;
+		FName TargetName;
+		for (const FRTHexCellData& Cell : Work)
 		{
-			// Con un gruppo contano tutte le voci che lo dichiarano, ovunque siano; senza, solo le due facce
-			// di QUESTO bordo — e in entrambi i casi si scrive su ogni faccia dichiarata, cosi' le due non
-			// possono divergere.
-			const bool bInOperation = (GroupId != INDEX_NONE)
-				? (Door.DoorId == GroupId)
-				: ((Cell.Id == From && Door.Edge == Forward) || (Cell.Id == To && Door.Edge == Backward));
-			if (!bInOperation || !CanTransition(Door.State, State))
+			if (Cell.Id == Target.Cell)
 			{
-				continue;
+				if (const FRTHexDoor* Door = Cell.DoorOn(Target.Edge))
+				{
+					Before = Door->State;
+					TargetName = Door->StableId;
+				}
+				break;
 			}
-
-			Door.State = State;
-			bTouched = true;
-
-			FRTDoorChange Change;
-			Change.Cell = Cell.Id;
-			Change.Toward = NeighborAcross(Cell.Id, Door.Edge);
-			Change.State = State;
-			Change.bBlocking = StateBlocks(State);
-			Changes.Add(Change);
 		}
-		if (bTouched)
+
+		TArray<FRTDoorChange> Local = CommutateEdge(Work, Target.Cell,
+			NeighborAcross(Target.Cell, Target.Edge), State, Touched);
+
+		if (Local.Num() == 0)
 		{
-			Updated.Add(Copy);
+			// 🔴 **«Nessun cambio» non significa «rifiutato», e confonderli produce falsi rifiuti su un caso
+			// REALE: il portone largo.** `FindDoorEdges` restituisce TUTTI i bordi che portano quel nome, quindi
+			// un portone di tre bordi arriva qui come tre bersagli; il primo li commuta tutti e tre insieme —
+			// `CommutateEdge` propaga sul `DoorId` — e i due successivi trovano il lavoro gia' fatto. Riportarli
+			// direbbe al giocatore che due terzi del portone hanno rifiutato, mentre e' aperto.
+			//
+			// Il discrimine e' lo stato che il bordo ha ORA: se e' gia' quello richiesto, l'operazione ha
+			// ottenuto cio' che voleva su quel bersaglio — che sia stata lei un attimo fa o che ci fosse gia'.
+			// Se e' un altro, la transizione e' stata negata davvero (`Locked -> Open`, `Destroyed -> qualunque`)
+			// ed e' il caso che [D-150] vuole riportato.
+			if (OutRefusals != nullptr && Before != State)
+			{
+				// ⚠️ **Si riporta e si prosegue** ([D-150]): l'operazione su N bersagli NON e' atomica, applica gli
+				// applicabili e dichiara gli altri. E' il comportamento che il motore ha gia' un livello sotto —
+				// `CanTransition` salta il bordo che non puo' transitare e commuta il resto — invece di
+				// contraddirlo con una pre-validazione «tutto o niente» che nessuno ha chiesto.
+				OutRefusals->Add(FString::Printf(
+					TEXT("Refused: il bersaglio '%s' su %s e' %s e non transita a %s"),
+					TargetName.IsNone() ? TEXT("?") : *TargetName.ToString(),
+					*Target.Cell.ToString(), StateName(Before), StateName(State)));
+			}
+			continue;
 		}
+
+		// Ordine canonico DENTRO il bersaglio; fra bersagli vince l'ordine dichiarato in `TargetIds`, che e'
+		// autorevole (invariante n. 3). Un `Sort` globale in fondo lo cancellerebbe, e con esso l'unica cosa
+		// che il giocatore puo' osservare dell'ordine di applicazione.
+		SortDoorChanges(Local);
+		for (FRTDoorChange& Change : Local)
+		{
+			Change.ActorId = ActorId; // chi ha comandato viaggia con l'esito (#405)
+		}
+		Changes.Append(Local);
 	}
 
-	// UNA sola revisione per l'intero gruppo: chi la osserva non deve vedere tre cambi dove ce n'e' stato uno.
-	// Con `Updated` vuoto non incrementa nulla — una transizione rifiutata non e' un cambiamento della mappa.
-	Map->UpdateCells(Updated);
-
-	// Ordine canonico: da qui escono voci di TurnLog, e due esecuzioni devono scriverle nello stesso ordine.
-	Changes.Sort([](const FRTDoorChange& A, const FRTDoorChange& B)
-	{
-		if (!(A.Cell == B.Cell)) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
-		return URTHexLibrary::StableLess(A.Toward, B.Toward);
-	});
+	// UNA revisione per l'intera interazione, qualunque sia N: e' il requisito che ha imposto di separare la
+	// commutazione dal commit.
+	CommitTouched(Map, Work, Touched);
 	return Changes;
 }
 
