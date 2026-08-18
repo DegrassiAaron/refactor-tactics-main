@@ -815,8 +815,20 @@ preexisting:
   - branch: feat/cp75-selfreposition
     state: DORMANT         # ultimo commit 2026-08-11 20:17 · c1e151ef
     measured: 3            # rimisurato su `base_sha` 4ab36b48: stessi tre file, quinto giro di fila
-    collides_with: []
+    collides_with: [simulation]
     note: >-
+      🔁 **Riaperta il 2026-08-18 su UN path, ed è il caso che la riga sotto aveva previsto**: *«chi lo
+      prenderà in un batch futuro riaprirà la stessa contesa»*. `simulation` riparte su `#1158` e dichiara
+      `Turn/RTTurnManager.{h,cpp}`; di questi tre file il branch ne tocca **uno**, `RTTurnManager.cpp` —
+      non più `Turn/` per prefisso, quindi l'intersezione è **1 su 3**, misurata con
+      `git diff --name-only origin/main...origin/feat/cp75-selfreposition` e non ereditata.
+      ⚠️ **La decisione è la stessa di allora e per la stessa ragione, riletta invece che ricopiata**: il
+      branch è fermo dal **2026-08-11** con un commit `wip` che dichiara da sé di essere incompleto
+      (*«enum ed evento fatti, l'applicazione NO»*) e **nessuna PR aperta** — verificato con `gh pr list`
+      oggi, non dedotto dallo stato `DORMANT` di questo campo. Passa `#1158`, che è un bug `v0.1` su una voce
+      di TurnLog che dichiara un danno mai inflitto. Chi riprenderà `cp75` troverà `ApplyReactionDecision`
+      cambiata in una riga e dovrà rifare il merge di quella funzione.
+      ⏱️ **Il registro precedente resta qui sotto**, e la prima riga va letta al passato:
       🔵 **La collisione con `simulation` è CADUTA il 2026-08-16, e non perché il branch sia cambiato:
       perché è cambiata la track.** I tre file sono gli stessi da cinque riconciliazioni, tutti dentro
       `Turn/` — ma `simulation` non dichiara più `Turn/` per prefisso: è ripartita su `#926` con un
@@ -1417,8 +1429,22 @@ preexisting:
 tracks:
 
   spatial:
-    status: ACTIVE
-    issue: 833
+    # ✅ **Torna IDLE il 2026-08-18: `#833` ha consegnato tutto ciò che era nel suo write-set.** PR **#1168**
+    # mergiata (`f673cc51`), suite **1028/1028**, sette mutazioni ognuna sul test atteso. La issue **resta
+    # aperta** e non è un lavoro abbandonato: le tre voci residue — collegamento runtime, esito per-bersaglio
+    # nel TurnLog, test che stampa il produttore — vivono in `Combat/RTHexCombatLibrary.{h,cpp}`,
+    # `Turn/RTTurnManager.cpp` e `Tests/RTPlayerInteractionTests.cpp`, che **non sono nel `writable` di
+    # nessuna track**: la condizione che D-139 chiama STOP. Sono una riallocazione da chiedere, non un residuo
+    # da raccogliere di passaggio.
+    # ⚠️ **Misurato che NESSUN altro blocker spaziale v0.1 è prendibile**, prima di dichiarare IDLE: l'epic P0
+    # del dominio (`#16`) ha 7 checkpoint su 8 chiusi e l'unico aperto è `#38`, un playtest umano di un'altra
+    # track; le sei issue aperte di `Map/Environment` hanno ognuna un impedimento misurato (write-set altrui,
+    # epic-contenitore, decisioni di design non prese, un DoD coi numeri di una regola scartata).
+    # ⚠️ **Il `writable` qui sotto resta PRENOTATO**, nel senso che lo schema documenta: `#833` è aperta, e chi
+    # ne riprende il residuo eredita questi path invece di ricontrattarli. Non è «in uso» — nessuna sessione ci
+    # sta scrivendo.
+    status: IDLE
+    issue: null
     # 🔴 **Corretti `branch:` e `worktree:` il 2026-08-18 da `simulation`, e non e' un'invasione: erano
     # entrambi falsi e il secondo nominava la directory in cui un'altra track sta scrivendo.** La misura,
     # non la memoria:
@@ -1869,8 +1895,15 @@ tracks:
     # worktree at D:/rt-client`) **dopo** aver mergiato, lasciando il ramo in piedi. L'esito del comando
     # diceva fallimento, il server diceva `MERGED`. 💡 Con più worktree aperti, `gh pr merge --delete-branch`
     # fa metà del lavoro e lo dice male: la cancellazione va rifatta a mano e verificata.
-    status: IDLE
-    issue: null
+    # ➕ **Riattivata il 2026-08-18 su `#1158`** (bug, `v0.1`, P2): due Overwatch armati sullo stesso mover, il
+    # secondo `FIRE` colpisce un bersaglio già abbattuto e **scrive nel TurnLog un danno mai inflitto**. È il
+    # difetto che `ApplyReactionDecision` ha per assenza di `IsAlive()` — guard che lo stesso file usa in altri
+    # sette punti, uno col commento «un cadavere non vede e non si nasconde».
+    # ⚠️ **La riattivazione è possibile SOLO perché `#886` è atterrata un'ora fa**: i due path del TurnManager
+    # erano suoi fino alle `09:23Z`, e questa issue vive dentro `ApplyReactionDecision`. Rimisurato prima di
+    # rivendicarli, non ereditato dalla riga sopra.
+    status: ACTIVE
+    issue: 1158
     # ➕ **Riattivata il 2026-08-17 su `#886`** — il Verifier rilegge le decisioni di reazione dal TurnLog.
     # ⛔ **Ed è ACTIVE con un path ~~CHIESTO~~ RILASCIATO e non posseduto**: finché `Turn/RTTurnManager.{h,cpp}` non entra
     # nel `writable` qui sotto vale **STOP**, e `#886` non è iniziata. La track non è però ferma: i due file
@@ -2069,7 +2102,10 @@ tracks:
     # misurabile prima del push.
     # ➖ **Mergiato e cancellato il 2026-08-18** (PR #1176). Il campo torna alla prima delle quattro accezioni
     # che questo file distingue: «nessun branch vivo, il lavoro è in `main`».
-    branch: null
+    # ➕ **E ne prende uno nuovo lo stesso giorno, per `#1158`.** ⚠️ Ramo **locale e non ancora pushato**: è
+    # invisibile a `git ls-remote`, che è il difetto registrato quattro righe più su a proprio danno. Scriverlo
+    # qui è ciò che lo rende misurabile prima del push.
+    branch: fix/1158-overwatch-bersaglio-abbattuto
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -2088,8 +2124,29 @@ tracks:
     # nessuno dei quattro path di `#886` compare nel suo `writable`. La contesa era sulla **directory**, che
     # `D-139` non vincola: la regola parla di write-set, e due sessioni in due cartelle diverse che scrivono
     # file diversi non violano nulla. Cio' che violerebbe e' lasciare che il file dica dove non sono.
-    worktree: "D:/rt-spatial"
+    # 🔴 **Torna `D:/rt-simulation` il 2026-08-18, e lo scambio descritto qui sopra si chiude.** La sessione che
+    # riparte su `#1158` è confinata dall'harness in `D:/rt-simulation` — lo stesso vincolo che il blocco
+    # precedente registra per `#886` in `D:/rt-spatial`, applicato all'altra directory. Non è una preferenza:
+    # è dove quella sessione può eseguire comandi.
+    worktree: "D:/rt-simulation"
     note: >-
+      ➕ **Riattivata il 2026-08-18 su `#1158`.** Il difetto è misurato nella issue in cinque punti e nasce da
+      una code review, non da un sospetto: `ApplyReactionDecision` calcola `bFire` con
+      `Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx])` e **nessun `IsAlive()`**, mentre
+      `ARTUnit::ApplyCombatState` dichiara di NON distruggere l'Actor alla morte — «la rimozione VISIVA e la
+      distruzione sono differite … così il colpo mortale resta osservabile». Quindi `IsValid` resta vero su
+      un'unità a 0 HP, e il secondo `FIRE` esegue tutto: danno, `bCharged = false`, `StopUnitInPlace`, e
+      `Entry.Amount = Armed.Damage` nel TurnLog **autorevole**.
+      ⚠️ **La contesa su `Turn/RTTurnManager.cpp` è nominale e va registrata, non temuta**:
+      `origin/feat/cp75-selfreposition` lo tocca, ma è **dormiente** — ultimo commit `wip(cp75)` del
+      2026-08-11, nessuna PR aperta, misurato con `gh pr list` e `git log -1`. Sta in `preexisting`.
+      ⛔ **Fuori scope per decisione della issue, e non per dimenticanza**: se il secondo watcher spenda o
+      conservi la charge è una domanda di REGOLA, da decidere dall'owner di ADR-0004. Il DoD lo mette per
+      iscritto — «la decisione sulla charge è **registrata** prima di implementarla, non dedotta dal codice
+      scritto» — quindi il fix non deve rispondere di iniziativa.
+      --- ⛔ **Da qui in giù è STORIA del giro di `#886` e delle track precedenti.** I campi correnti sono
+      quelli in testa alla sezione, e questa riga **non li ricopia**: è la lezione che questo file si è già
+      contestato due volte, l'ultima quando un banner duplicava `status` e `issue` e invecchiava con loro.
       IDLE perché **il lavoro è atterrato**, non per dipendenza. `#165` (CP 14.5, finestra e primo
       consumatore) è chiusa: PR **#878** mergiata in `main` alle `21:16Z` del 2026-08-14
       (`53ec531f`), issue chiusa il 2026-08-15. Il branch `feat/165-finestra-overwatch` non esiste
@@ -2589,7 +2646,24 @@ tracks:
     # il rilascio e la rivendicazione ci può stare una track intera, e chi legge solo la propria sezione
     # conclude «liberi» quando sono di qualcun altro. La misura che risponde è il `grep` del path su
     # **tutti** i `writable` del file.
-    writable: []
+    # ➕ **Rivendicati il 2026-08-18 per `#1158`**, e la lezione qui sopra si applica a sé stessa: i due path
+    # del `TurnManager` erano di `#886` fino alle `09:23Z` di oggi e sono tornati liberi col suo merge. Il
+    # `grep` su **tutti** i `writable` — che è la misura che quel paragrafo prescrive — dà oggi zero altri
+    # rivendicanti.
+    # ⚠️ **Non è il write-set di `#886` che torna**: quella track aveva questi due file per una consultazione
+    # in `AskReactionDecision`, questa li ha per un guard in `ApplyReactionDecision`. Funzioni diverse dello
+    # stesso file: la coincidenza è di path, non di lavoro.
+    # 🔴 **E qui c'è una trappola che ha quasi prodotto un file che diceva il falso.** La prima stesura di
+    # questa rivendicazione aveva messo il blocco `writable` accanto a `worktree:`, **duecento righe più su** —
+    # dove sta negli altri track. Ma questa sezione ne ha già uno **qui**, e in YAML una chiave duplicata non è
+    # un errore: **vince l'ultima**. Il file avrebbe dichiarato `writable: []` mentre la sessione scriveva su
+    # tre file, e nessun `--check` esistente se ne sarebbe accorto — `yaml.safe_load` accetta il duplicato in
+    # silenzio. Trovato perché la rivendicazione è stata **riletta come dato** (`len(writable)`) invece che
+    # riletta a schermo. È un ottavo controllo per `#840`: **chiave duplicata dentro una track**.
+    writable:
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
     # ➖ **I commenti sui PRESTITI escono con essi.** Descrivevano il giro di `#583` — il JSON degli scenari
     # e `feature-registry.yaml`, entrambi restituiti con la PR #1087 — e lasciarli qui li farebbe leggere
     # come regole di questo giro, che di prestiti non ne ha. Le lezioni che portavano non si perdono: «si
