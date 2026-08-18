@@ -5853,7 +5853,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: null
+    branch: docs/1165-fase1-governance-auditor
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -5902,9 +5902,26 @@ tracks:
       ⚠️ **Le fasi 1–6 estenderanno questo `writable` una fase per volta**, non in anticipo: la fase 1
       aggiunge `scripts/docs_inventory.py` e i due gate con `EXEMPT_DIRS`, la fase 4 `docs/technical/**`.
       Dichiarare oggi tutto `docs/` significherebbe bloccare mezzo repository per una settimana.
+
+      ➕ **Fase 1, 2026-08-18** — governance IA v2 e l'auditor. Cinque path entrano, e nessuno era di
+      qualcun altro: intersezione misurata con `git diff --name-only origin/main...<ramo>` su **42**
+      riferimenti fra branch locali e `origin/*`, zero collisioni.
+      · `docs/README.md` — owner della governance documentale, **non** `integration_only`;
+      · `scripts/docs_inventory.py` + il suo test, che si modificano nello stesso commit (la regola in
+        testa alla sezione `integration_only` vale anche fuori di lì);
+      · `scripts/check-docs-symbols.py` e `check-docs-tables.py`, per la sola riga `EXEMPT_DIRS`, che
+        guadagna `docs/research/` **prima che la cartella esista** — una riga di esenzione aggiunta dopo
+        non fa niente e non lo dice, come l'allowlist di `.gitignore`.
+
+      ➖ **Esce `RefactorTactics — Issue Tracking Completeness Rule.md`**: il file e' stato cancellato con
+      `ceb27c8e` e un `writable` che nomina un path inesistente e' rumore. Un rilascio si scrive.
     writable:
       - docs/control-center/graph.test.mjs
-      - RefactorTactics — Issue Tracking Completeness Rule.md
+      - docs/README.md
+      - scripts/docs_inventory.py
+      - scripts/test_docs_inventory.py
+      - scripts/check-docs-symbols.py
+      - scripts/check-docs-tables.py
     derives_from: []
     binary_leases: []
 
