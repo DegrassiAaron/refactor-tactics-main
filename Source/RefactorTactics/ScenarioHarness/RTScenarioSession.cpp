@@ -750,88 +750,9 @@ void FRTScenarioSession::ApplyPreviewSelection()
 	}
 }
 
-void FRTScenarioSession::BeginTurn()
+void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 {
-	ARTTurnManager* TM = TurnManager.Get();
-	if (!TM || !Scenario.Turns.IsValidIndex(TurnIndex))
-	{
-		Finish();
-		return;
-	}
-
-	// PRIMA passata: un nome che il vocabolario non conosce e' un refuso di chi ha scritto lo scenario, non
-	// un'attesa del gioco — `Error`, che ha precedenza su tutto (vedi `ErroredBy`).
-	//
-	// ⚠️ Va PRIMA della disponibilita', e non e' un dettaglio d'ordine: nello stesso `requires` un refuso puo'
-	// stare accanto a una capability legittimamente assente, e chiedendo prima la disponibilita' il refuso si
-	// nasconderebbe dietro il `Blocked` dell'altra senza che nulla lo dica. E' esattamente il caso che ha
-	// tenuto invisibile `Facing` in `RT_Showcase_Relay_v01` turno 4: `["DecisionBoundary", "Facing"]`.
-	for (const FString& Required : Scenario.Turns[TurnIndex].Requires)
-	{
-		if (!IsCapabilityKnown(Required))
-		{
-			ErroredBy = FString::Printf(
-				TEXT("turno %d: la capability '%s' non esiste. Non e' un'attesa: e' un nome che nessun elenco ")
-				TEXT("dichiara, quindi lo scenario e' scritto male. I nomi validi stanno in ")
-				TEXT("`RTScenarioSession.cpp`, `AvailableCapabilities()` e `KnownUnavailableCapabilities()`."),
-				TurnIndex + 1, *Required);
-			Finish();
-			return;
-		}
-	}
-
-	// Il turno chiede qualcosa che il gioco non sa ancora fare? Ci si ferma QUI, dichiarando cosa manca.
-	// Non si gioca "quel che si puo'" del turno: un turno a meta' produrrebbe uno stato che non corrisponde
-	// ne' al gioco di oggi ne' a quello di domani, e ogni assertion successiva mentirebbe.
-	for (const FString& Required : Scenario.Turns[TurnIndex].Requires)
-	{
-		if (!IsCapabilityAvailable(Required))
-		{
-			BlockedBy = FString::Printf(TEXT("turno %d: manca la capability '%s'"), TurnIndex + 1, *Required);
-			Finish();
-			return;
-		}
-	}
-
-	// La coda delle risposte di QUESTO turno. Si ripopola a ogni turno e non si accumula: una decisione del
-	// turno 1 rimasta in coda risponderebbe a una finestra del turno 2, e lo scenario direbbe una cosa che
-	// non ha scritto. Sta dopo i due controlli sulle capability perche' un turno che non si gioca non ha
-	// finestre da servire.
-	PendingDecisions = Scenario.Turns[TurnIndex].Decisions;
-	PendingConsumed.Init(false, PendingDecisions.Num());
-	AppliedDecisionDescs.Reset();
-	// Lo snapshot si ricattura al primo boundary di QUESTO turno: fra un turno e l'altro le unita' muoiono e
-	// il resolver rifa' il proprio array, quindi tenerlo sarebbe peggio che ricostruirlo.
-	RuntimeUnitsForTurn.Reset();
-
-	// Tutte ferme per default: un'unita' senza intent nel turno NON eredita il piano del turno prima.
-	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
-	{
-		if (ARTUnit* U = Pair.Value.Get())
-		{
-			U->PlannedCell = U->Cell;
-			U->PlannedPath.Reset();
-			U->PlannedWaypoints.Reset();
-			// Anche il piano d'ATTACCO: senza, un'unita' che ha attaccato al turno 1 continuerebbe a farlo
-			// nei turni successivi senza che lo scenario glielo chieda.
-			U->PlannedAbilityIndex = INDEX_NONE;
-			U->PlannedAttackTarget = nullptr;
-			U->bAttackTargetsCell = false;
-			// E il BORDO dichiarato: senza, un pannello eretto al turno 1 lascerebbe il lato scritto nel piano
-			// e un'azione di struttura del turno 3 lo troverebbe gia' pronto senza averlo chiesto.
-			U->bHasPlannedCoverEdge = false;
-			// Lo SCATTO non si azzera qui, ed e' deliberato: `RTTurnManager` lo consuma a ogni risoluzione
-			// («consumato per questo turno, valido o no»), quindi un reset in questo punto sarebbe una seconda
-			// copia della stessa regola — quella che smette di essere aggiornata quando la prima cambia.
-			//
-			// Verificato per mutazione: azzerarlo qui non fa cadere alcun test, perche' non c'e' niente da
-			// azzerare. E' il modo in cui questa riga, scritta d'istinto insieme alle due sopra, e' stata tolta.
-			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
-			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
-			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.
-			U->ClearReactionPlan();
-		}
-	}
+	ARTTurnManager* TM = &TurnManagerRef;
 
 	for (const FRTScenarioIntent& Intent : Scenario.Turns[TurnIndex].Intents)
 	{
@@ -1061,6 +982,93 @@ void FRTScenarioSession::BeginTurn()
 				*Scenario.ScenarioId, *Intent.UnitId);
 		}
 	}
+}
+
+void FRTScenarioSession::BeginTurn()
+{
+	ARTTurnManager* TM = TurnManager.Get();
+	if (!TM || !Scenario.Turns.IsValidIndex(TurnIndex))
+	{
+		Finish();
+		return;
+	}
+
+	// PRIMA passata: un nome che il vocabolario non conosce e' un refuso di chi ha scritto lo scenario, non
+	// un'attesa del gioco — `Error`, che ha precedenza su tutto (vedi `ErroredBy`).
+	//
+	// ⚠️ Va PRIMA della disponibilita', e non e' un dettaglio d'ordine: nello stesso `requires` un refuso puo'
+	// stare accanto a una capability legittimamente assente, e chiedendo prima la disponibilita' il refuso si
+	// nasconderebbe dietro il `Blocked` dell'altra senza che nulla lo dica. E' esattamente il caso che ha
+	// tenuto invisibile `Facing` in `RT_Showcase_Relay_v01` turno 4: `["DecisionBoundary", "Facing"]`.
+	for (const FString& Required : Scenario.Turns[TurnIndex].Requires)
+	{
+		if (!IsCapabilityKnown(Required))
+		{
+			ErroredBy = FString::Printf(
+				TEXT("turno %d: la capability '%s' non esiste. Non e' un'attesa: e' un nome che nessun elenco ")
+				TEXT("dichiara, quindi lo scenario e' scritto male. I nomi validi stanno in ")
+				TEXT("`RTScenarioSession.cpp`, `AvailableCapabilities()` e `KnownUnavailableCapabilities()`."),
+				TurnIndex + 1, *Required);
+			Finish();
+			return;
+		}
+	}
+
+	// Il turno chiede qualcosa che il gioco non sa ancora fare? Ci si ferma QUI, dichiarando cosa manca.
+	// Non si gioca "quel che si puo'" del turno: un turno a meta' produrrebbe uno stato che non corrisponde
+	// ne' al gioco di oggi ne' a quello di domani, e ogni assertion successiva mentirebbe.
+	for (const FString& Required : Scenario.Turns[TurnIndex].Requires)
+	{
+		if (!IsCapabilityAvailable(Required))
+		{
+			BlockedBy = FString::Printf(TEXT("turno %d: manca la capability '%s'"), TurnIndex + 1, *Required);
+			Finish();
+			return;
+		}
+	}
+
+	// La coda delle risposte di QUESTO turno. Si ripopola a ogni turno e non si accumula: una decisione del
+	// turno 1 rimasta in coda risponderebbe a una finestra del turno 2, e lo scenario direbbe una cosa che
+	// non ha scritto. Sta dopo i due controlli sulle capability perche' un turno che non si gioca non ha
+	// finestre da servire.
+	PendingDecisions = Scenario.Turns[TurnIndex].Decisions;
+	PendingConsumed.Init(false, PendingDecisions.Num());
+	AppliedDecisionDescs.Reset();
+	// Lo snapshot si ricattura al primo boundary di QUESTO turno: fra un turno e l'altro le unita' muoiono e
+	// il resolver rifa' il proprio array, quindi tenerlo sarebbe peggio che ricostruirlo.
+	RuntimeUnitsForTurn.Reset();
+
+	// Tutte ferme per default: un'unita' senza intent nel turno NON eredita il piano del turno prima.
+	for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+	{
+		if (ARTUnit* U = Pair.Value.Get())
+		{
+			U->PlannedCell = U->Cell;
+			U->PlannedPath.Reset();
+			U->PlannedWaypoints.Reset();
+			// Anche il piano d'ATTACCO: senza, un'unita' che ha attaccato al turno 1 continuerebbe a farlo
+			// nei turni successivi senza che lo scenario glielo chieda.
+			U->PlannedAbilityIndex = INDEX_NONE;
+			U->PlannedAttackTarget = nullptr;
+			U->bAttackTargetsCell = false;
+			// E il BORDO dichiarato: senza, un pannello eretto al turno 1 lascerebbe il lato scritto nel piano
+			// e un'azione di struttura del turno 3 lo troverebbe gia' pronto senza averlo chiesto.
+			U->bHasPlannedCoverEdge = false;
+			// Lo SCATTO non si azzera qui, ed e' deliberato: `RTTurnManager` lo consuma a ogni risoluzione
+			// («consumato per questo turno, valido o no»), quindi un reset in questo punto sarebbe una seconda
+			// copia della stessa regola — quella che smette di essere aggiornata quando la prima cambia.
+			//
+			// Verificato per mutazione: azzerarlo qui non fa cadere alcun test, perche' non c'e' niente da
+			// azzerare. E' il modo in cui questa riga, scritta d'istinto insieme alle due sopra, e' stata tolta.
+			// E la reazione armata: il turn manager la consuma da solo, ma solo se il trigger scatta. Senza
+			// questo azzeramento una reazione mai scattata resterebbe armata per tutto lo scenario, e un
+			// turno successivo la vedrebbe partire senza che nessun intent l'abbia chiesta.
+			U->ClearReactionPlan();
+		}
+	}
+
+	// Gli intent del turno diventano piani sulle unita': e' la parte lunga, e sta in una funzione propria.
+	ApplyScenarioIntents(*TM);
 
 	// Uno scenario scritto male non si gioca: fermarsi qui evita di produrre uno stato che nessuna assertion
 	// puo' interpretare, e soprattutto evita di riportarlo come se fosse un verdetto sul gioco.

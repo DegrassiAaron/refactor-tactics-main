@@ -80,6 +80,7 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:struttura-del-round",
+        "wiki:il-turno-simultaneo",
         "wiki:esempio-di-round"
       ],
       "wiki_note": "",
@@ -156,6 +157,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
+        "wiki:turnlog-e-determinismo",
+        "wiki:turnlog-e-determinismo-scheda-dati",
         "wiki:regole-fondamentali"
       ],
       "wiki_note": "",
@@ -220,6 +223,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
+        "wiki:turnlog-e-determinismo",
+        "wiki:turnlog-e-determinismo-scheda-dati",
         "wiki:regole-fondamentali"
       ],
       "wiki_note": "",
@@ -280,7 +285,10 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:turnlog-e-determinismo",
+        "wiki:turnlog-e-determinismo-scheda-dati"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -339,7 +347,8 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:reazioni-overwatch-e-previsioni"
+        "wiki:reazioni-overwatch-e-previsioni",
+        "wiki:reazioni-overwatch-e-previsioni-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -414,7 +423,8 @@
         "Spec.TimeBank.TimeoutIgnoresPreferredResponse"
       ],
       "wiki_refs": [
-        "wiki:reazioni-overwatch-e-previsioni"
+        "wiki:reazioni-overwatch-e-previsioni",
+        "wiki:reazioni-overwatch-e-previsioni-scheda-dati"
       ],
       "wiki_note": "Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest. La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.",
       "pie_refs": [],
@@ -422,7 +432,7 @@
         "date": "2026-08-13",
         "commit": "0cff74e"
       },
-      "notes": "Sostituisce D20 («nessun cap aggregato, si misura al playtest») **prima** della misura che l'avrebbe informata: rischio assunto e dichiarato in §2.1 della spec. I due rientri di ADR-0004 §Revisione — cap per turno e `MaxPromptsPerReaction = 1` — restano validi e compatibili col bank. CP 14.8 **non precede** CP 14.5/14.6: la prima misura arriva comunque prima della taratura. Nessun codice: la feature nasce come specifica. **2026-08-17 — consolidamento multi-Hero / Preferred Response** ([D-156], [D-157]; referto `plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md`). Tre aggiunte alla spec e **zero** sistemi nuovi: *(1)* il bank scala col carico di controllo con `LoadFactor` **dentro** la derivazione di `D-056` — il fattore moltiplicativo proposto dal kit e' stato respinto perche' rimetteva fuori formula il numero magico che quella derivazione aveva tolto; *(2)* `FastReactionDuration` **non** cresce col numero di Hero, ed e' ora un invariante scritto in §1.2; *(3)* `PreferredResponse` e' una dichiarazione di planning che vive accanto a `FRTArmedOverwatch::Condition` ([D-109]) e ne e' l'opposto — quella **riduce** le `AllowedResponses`, questa non le tocca. 🔴 **Una voce di DoD di #319 e' oggi falsificabile, misurata in questo giro**: `spec-turnlog.md` §4.2 prescrive `ERTLogCategory::Decision`, il codice di CP 14.5 ha in coda `ReactionDecision`, gia' serializzata in TurnLog v8. Sono due categorie sulla stessa finestra e la scelta va fatta **prima** del runtime — riga **75** di `DOC_CONFLICT_MATRIX.md`, stato `CONFLICT`. ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**: `docs/technical/test-manuali-pie.md` appartiene a un'altra track in `parallel-batch.yaml` e per `D-139` si aspetta il suo owner. Il testo pronto sta nel DoD di #319 e in §11 della spec: e' un debito **nominato**, non una dimenticanza."
+      "notes": "Sostituisce D20 («nessun cap aggregato, si misura al playtest») **prima** della misura che l'avrebbe informata: rischio assunto e dichiarato in §2.1 della spec. I due rientri di ADR-0004 §Revisione — cap per turno e `MaxPromptsPerReaction = 1` — restano validi e compatibili col bank. CP 14.8 **non precede** CP 14.5/14.6: la prima misura arriva comunque prima della taratura. Nessun codice: la feature nasce come specifica. **2026-08-17 — consolidamento multi-Hero / Preferred Response** ([D-156], [D-157]; referto `plans/multihero-timebank-preferred-response-spec-panel-2026-08-17.md`). Tre aggiunte alla spec e **zero** sistemi nuovi: *(1)* il bank scala col carico di controllo con `LoadFactor` **dentro** la derivazione di `D-056` — il fattore moltiplicativo proposto dal kit e' stato respinto perche' rimetteva fuori formula il numero magico che quella derivazione aveva tolto; *(2)* `FastReactionDuration` **non** cresce col numero di Hero, ed e' ora un invariante scritto in §1.2; *(3)* `PreferredResponse` e' una dichiarazione di planning che vive accanto a `FRTArmedOverwatch::Condition` ([D-109]) e ne e' l'opposto — quella **riduce** le `AllowedResponses`, questa non le tocca. ✅ **2026-08-17 — due gate chiusi, entrambi decisioni d'autore e zero codice.** **[D-166]**: la categoria di log e' **`Decision`**, distinta da `ReactionDecision`. Prevale `spec-turnlog.md` §4.2, che lo prescriveva dal 2026-08-09 (`#361`); la riga **75** di `DOC_CONFLICT_MATRIX.md` passa da `CONFLICT` a `CONFIRMED` e la voce in `OPEN_DECISIONS` si chiude. La ragione non era il nome ma **`Amount`**, che ha significato per categoria: danni sotto `ReactionDecision`, millisecondi sotto `Decision` — l'argomento sta nell'owner (§10.1) e non si duplica qui. E' il caso particolare di [D-162], *una categoria, un enum*. Il formato serializzato **non cambia versione**. ⚠️ **Resta da scriverla in TRE siti, non uno**: l'enum `ERTDecisionOutcome`, la voce in coda a `ERTLogCategory`, e il `case` in `OutcomeEnumForCategory` — senza il terzo lo scenario fallisce il CARICAMENTO, non l'assertion, ed e' successo con `Predictive` il 2026-08-16. Lavoro di CP 14.8. ⚠️ **Conteggio delle voci**: una finestra di reazione ne produce **tre** — una `ReactionDecision` piu' le due di `Decision` — e `Spec.TimeBank.ReplayReadsRecordedBank`, gia' fra i `planned`, asserira' contro questa forma. **[D-167]**: `TB-10` chiusa con la risposta che **non cambia niente** — le finestre dello stesso giocatore restano in serie e il cap aggregato lo fa il bank. La misura sta in `ApplyReactionDecision`, che fra le sue tre mutazioni chiama **`StopUnitInPlace` sul mover**: in un batch la seconda decisione verrebbe presa prima di sapere che la prima ha fermato il bersaglio. ⚠️ **La parte operativa e' su un'ALTRA issue**: `TB-10` lascia un vincolo su **CP 14.6** (`#166`) — il campione di pacing deve includere il caso a **due unita' armate dello stesso giocatore** (`2 x MaxPromptsPerReaction x 3,0 s` = 18 s in un turno), o taratura e baseline descrivono un gioco che la v0.1 non gioca. ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**: `docs/technical/test-manuali-pie.md` appartiene a un'altra track in `parallel-batch.yaml` e per `D-139` si aspetta il suo owner. Il testo pronto sta nel DoD di #319 e in §11 della spec: e' un debito **nominato**, non una dimenticanza."
     },
     {
       "feature_id": "RT-FEAT-CORE-PLAYBACK",
@@ -602,7 +612,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:azioni-e-movimento"
+        "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -668,7 +679,8 @@
         "Spec.Map.NinetyDegreeCornerBakesCorrectly"
       ],
       "wiki_refs": [
-        "wiki:griglia-e-geometria"
+        "wiki:griglia-e-geometria",
+        "wiki:griglia-e-geometria-scheda-dati"
       ],
       "wiki_note": "La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.",
       "pie_refs": [],
@@ -725,7 +737,8 @@
         "Spec.Map.DoorOpensTransition"
       ],
       "wiki_refs": [
-        "wiki:griglia-e-geometria"
+        "wiki:griglia-e-geometria",
+        "wiki:griglia-e-geometria-scheda-dati"
       ],
       "wiki_note": "Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.",
       "pie_refs": [],
@@ -1146,7 +1159,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:facing-e-direzionalita"
+        "wiki:facing-e-direzionalita",
+        "wiki:facing-e-direzionalita-scheda-dati"
       ],
       "wiki_note": "Il facing e' **stato di gioco autorevole** e il turno lo esegue: deriva dal movimento, un'azione con bersaglio riorienta prima di risolvere, e la difesa direzionale lo legge. Restano scoperti l'**input** della rotazione dichiarata (#291) e l'**indicatore in HUD** dell'arco frontale: la regola c'e', il modo di sceglierla e di vederla no.",
       "pie_refs": [],
@@ -1548,6 +1562,7 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati",
         "wiki:collisioni"
       ],
       "wiki_note": "",
@@ -1632,15 +1647,16 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:azioni-e-movimento"
+        "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati"
       ],
-      "wiki_note": "Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`. `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non esiste ancora.",
+      "wiki_note": "Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`. `Brace` funziona ma come reazione; `Interact` dichiara l'apertura della porta ma non ha ancora un produttore lato giocatore; di `Overwatch` il resolver costruisce le opportunity, e quello che manca è la UI con cui rispondere.",
       "pie_refs": [],
       "last_verified": {
-        "date": "2026-08-08",
-        "commit": "2094b86"
+        "date": "2026-08-17",
+        "commit": "a3affe04"
       },
-      "notes": "Delle sette azioni generiche di D-025, **quattro sono complete e testate** (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la revisione di granularità del 2026-08-08 ha corretto una nota che diceva «sei su sette esistono a catalogo e nel runtime» — vera per il catalogo, falsa per il runtime:\n\n  · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come\n              azione e si comporta come reazione. Ambiguità di modello, non di stato.\n  · ~~`Interact` è **a catalogo senza effetto dichiarato**~~ — **superato il 2026-08-17,\n              [D-148]**: `Action.Interact` dichiara `ERTActionEffect::SetDoorState` verso `Open`\n              ([D-151]), e il test dell'inerzia è stato sostituito da `Interact.DeclaresOpenDoor`\n              più `Interact.ArmsEdgeTargeting`. Il test vecchio era scritto per cadere quel\n              giorno, ed è caduto: la nota che lo citava sarebbe rimasta vera in forma e falsa\n              in sostanza. L'anello che mancava era **solo la dichiarazione** — effetto,\n              trasporto e raccolta esistevano già (`RTHexDoorLibrary::SetDoorState`,\n              `RTTurnManager` → `bChangesDoor`, `RTHexCombatLibrary` su `FirstDoorEdge`).\n              ⚠️ Resta fuori dal runtime **il produttore lato giocatore**: `HandleTargetEdge`\n              esiste (`#737`) ma nessun test lo lega a `Interact`, e quel test vive in\n              `RTPointerInteractionTests.cpp`, non assegnato (D-139).\n  · `Overwatch` **non è ancora un'azione**, ma dal 2026-08-10 non è più «non esiste»: E14.4\n              ha portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i\n              micro-step. Resta fuori dal runtime della partita per la stessa ragione di\n              `Interact` — nessun ramo del resolver lo esegue — e il consumatore è E14.5.\n              La riga precedente citava un `grep` che oggi restituisce codice: aggiornata\n              perché una nota che descrive un'assenza smette di essere vera senza avvisare.\n\nI gate restano `partial` perché la feature davvero non è completa; `completed_by` dice **chi** la completa, così la stessa mancanza non viene contata due volte."
+      "notes": "Delle sette azioni generiche di D-025, **quattro sono complete e testate** (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la revisione di granularità del 2026-08-08 ha corretto una nota che diceva «sei su sette esistono a catalogo e nel runtime» — vera per il catalogo, falsa per il runtime:\n\n  · `Brace`   esiste, ma i suoi test vivono sotto `Reactions.Brace.*`: è a catalogo come\n              azione e si comporta come reazione. Ambiguità di modello, non di stato.\n  · ~~`Interact` è **a catalogo senza effetto dichiarato**~~ — **superato il 2026-08-17,\n              [D-148]**: `Action.Interact` dichiara `ERTActionEffect::SetDoorState` verso `Open`\n              ([D-151]), e il test dell'inerzia è stato sostituito da `Interact.DeclaresOpenDoor`\n              più `Interact.ArmsEdgeTargeting`. Il test vecchio era scritto per cadere quel\n              giorno, ed è caduto: la nota che lo citava sarebbe rimasta vera in forma e falsa\n              in sostanza. L'anello che mancava era **solo la dichiarazione** — effetto,\n              trasporto e raccolta esistevano già (`RTHexDoorLibrary::SetDoorState`,\n              `RTTurnManager` → `bChangesDoor`, `RTHexCombatLibrary` su `FirstDoorEdge`).\n              ⚠️ Resta fuori dal runtime **il produttore lato giocatore**: `HandleTargetEdge`\n              esiste (`#737`) ma nessun test lo lega a `Interact`, e quel test vive in\n              `RTPointerInteractionTests.cpp`, non assegnato (D-139).\n  · `Overwatch` **non è ancora un'azione**, ma non è nemmeno più fuori dal runtime: E14.4 ha\n              portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i\n              micro-step, e ~~«nessun ramo del resolver lo esegue, il consumatore è E14.5»~~\n              è **superato il 2026-08-17**: CP 14.5 è chiusa, e la chiamata — l'unica fuori\n              dai test — vive in `ARTTurnManager::ResolveReactionBoundary`. Quello che manca\n              ora è il **giocatore**: la finestra si apre e finisce nel TurnLog, ma la UI per\n              rispondere è CP 14.6.\n              Questa riga è stata riscritta **tre** volte dallo stesso difetto — descriveva\n              un'assenza, e un'assenza smette di essere vera senza che nulla diventi rosso.\n              La prima volta citava un `grep` che aveva iniziato a restituire codice; la\n              seconda nominava un checkpoint che nel frattempo era stato chiuso; la terza —\n              scritta per correggere le prime due — puntava a `RTTurnManager.cpp` alla riga 5257, ed è\n              morta **nel merge dello stesso lavoro che la introduceva**, quando lo split del\n              Blast ha accorciato il file di 1253 righe. Un puntatore a lavoro **futuro**\n              invecchia come uno a lavoro assente, e un numero di riga invecchia più in fretta\n              di entrambi: qui è sopravvissuto sedici minuti.\n\nI gate restano `partial` perché la feature davvero non è completa; `completed_by` dice **chi** la completa, così la stessa mancanza non viene contata due volte."
     },
     {
       "feature_id": "RT-FEAT-ACTION-MOVE-PROFILES",
@@ -1705,7 +1721,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:azioni-e-movimento"
+        "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -1835,7 +1852,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:azioni-e-movimento"
+        "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -1904,6 +1922,7 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati",
         "wiki:collisioni"
       ],
       "wiki_note": "",
@@ -1970,7 +1989,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:azioni-e-movimento"
+        "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2026,7 +2046,8 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:azioni-e-movimento"
+        "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2085,7 +2106,8 @@
         "Spec.ActionEconomy.PathLengthChangesEffect"
       ],
       "wiki_refs": [
-        "wiki:azioni-e-movimento"
+        "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2149,7 +2171,8 @@
         "Spec.ActionEconomy.OverwatchReservesMovementSlot"
       ],
       "wiki_refs": [
-        "wiki:planning-e-coordinazione"
+        "wiki:planning-e-coordinazione",
+        "wiki:planning-e-coordinazione-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2199,7 +2222,8 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:azioni-e-movimento"
+        "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2317,6 +2341,7 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:reazioni-overwatch-e-previsioni",
+        "wiki:reazioni-overwatch-e-previsioni-scheda-dati",
         "docs/characters/v0.1/wraith.md"
       ],
       "wiki_note": "",
@@ -2456,7 +2481,10 @@
         "Spec.Reaction.AnchorCancelsPush"
       ],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:azioni-e-movimento",
+        "wiki:azioni-e-movimento-scheda-dati"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -2528,6 +2556,7 @@
       "scenarios_planned": [],
       "wiki_refs": [
         "wiki:reazioni-overwatch-e-previsioni",
+        "wiki:reazioni-overwatch-e-previsioni-scheda-dati",
         "docs/characters/v0.1/riktor.md",
         "docs/characters/v0.1/wraith.md"
       ],
@@ -2594,7 +2623,8 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:reazioni-overwatch-e-previsioni"
+        "wiki:reazioni-overwatch-e-previsioni",
+        "wiki:reazioni-overwatch-e-previsioni-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -2663,7 +2693,8 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:reazioni-overwatch-e-previsioni"
+        "wiki:reazioni-overwatch-e-previsioni",
+        "wiki:reazioni-overwatch-e-previsioni-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -2738,7 +2769,8 @@
       ],
       "wiki_refs": [
         "wiki:overwatch",
-        "wiki:reazioni-overwatch-e-previsioni"
+        "wiki:reazioni-overwatch-e-previsioni",
+        "wiki:reazioni-overwatch-e-previsioni-scheda-dati"
       ],
       "wiki_note": "Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** apre la finestra e la registra nel TurnLog dal 2026-08-14, ma nessun giocatore puo' ancora rispondere: la UI e' CP 14.6.",
       "pie_refs": [],
@@ -2803,7 +2835,8 @@
         "Spec.Brace.GlanceOffersOnlyLegalSides"
       ],
       "wiki_refs": [
-        "wiki:reazioni-overwatch-e-previsioni"
+        "wiki:reazioni-overwatch-e-previsioni",
+        "wiki:reazioni-overwatch-e-previsioni-scheda-dati"
       ],
       "wiki_note": "`Hold Ground` — la risposta base — funziona gia' in partita; i profili d'eroe che ne dichiarano altre no.",
       "pie_refs": [],
@@ -2869,7 +2902,8 @@
         "Spec.Clash.Determinism"
       ],
       "wiki_refs": [
-        "wiki:reazioni-overwatch-e-previsioni"
+        "wiki:reazioni-overwatch-e-previsioni",
+        "wiki:reazioni-overwatch-e-previsioni-scheda-dati"
       ],
       "wiki_note": "Decisa nella forma (D-048), **non implementata** e con la grammatica ancora in playtest.",
       "pie_refs": [],
@@ -2924,7 +2958,8 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:reazioni-overwatch-e-previsioni"
+        "wiki:reazioni-overwatch-e-previsioni",
+        "wiki:reazioni-overwatch-e-previsioni-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [
@@ -3613,7 +3648,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:visibilita-rumore-e-informazione"
+        "wiki:visibilita-rumore-e-informazione",
+        "wiki:visibilita-rumore-e-informazione-scheda-dati"
       ],
       "wiki_note": "Modello deciso per la v0.1 e **implementato** con CP 13.2: la conoscenza di squadra decide chi si puo' bersagliare. La coppia di scenari e' la specifica eseguibile del gate.",
       "pie_refs": [],
@@ -3679,7 +3715,8 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:visibilita-rumore-e-informazione"
+        "wiki:visibilita-rumore-e-informazione",
+        "wiki:visibilita-rumore-e-informazione-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -3747,7 +3784,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:visibilita-rumore-e-informazione"
+        "wiki:visibilita-rumore-e-informazione",
+        "wiki:visibilita-rumore-e-informazione-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -3807,7 +3845,8 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:visibilita-rumore-e-informazione"
+        "wiki:visibilita-rumore-e-informazione",
+        "wiki:visibilita-rumore-e-informazione-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -4505,7 +4544,9 @@
         "Movement.Basic"
       ],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:tactical-designer"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -4827,7 +4868,8 @@
       "scenarios": [],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:griglia-e-geometria"
+        "wiki:griglia-e-geometria",
+        "wiki:griglia-e-geometria-scheda-dati"
       ],
       "wiki_note": "La pagina spiega che la griglia non vincola i muri — cioe' il principio da cui discende `EdgeBound`. L'ingombro degli asset che stanno sulla griglia non e' spiegato da nessuna parte.",
       "pie_refs": [],
@@ -5495,7 +5537,10 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:che-cose-refactortactics",
+        "wiki:la-tua-prima-partita"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -5551,7 +5596,9 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:la-tua-prima-partita"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -6086,7 +6133,10 @@
         "Spec.Harness.LogAssertionsReadTheTurnLog"
       ],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:turnlog-e-determinismo",
+        "wiki:turnlog-e-determinismo-scheda-dati"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -6155,7 +6205,10 @@
         "RT_Showcase_Relay_v01"
       ],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:turnlog-e-determinismo",
+        "wiki:turnlog-e-determinismo-scheda-dati"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -6301,7 +6354,8 @@
       ],
       "scenarios_planned": [],
       "wiki_refs": [
-        "wiki:griglia-e-geometria"
+        "wiki:griglia-e-geometria",
+        "wiki:griglia-e-geometria-scheda-dati"
       ],
       "wiki_note": "",
       "pie_refs": [],
@@ -6361,7 +6415,9 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:tactical-designer"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -6463,7 +6519,9 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:tactical-designer"
+      ],
       "wiki_note": "",
       "pie_refs": [
         "PIE-V01-DEBUG"
@@ -6525,7 +6583,9 @@
       ],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:tactical-designer"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {
@@ -6577,7 +6637,9 @@
       "tests": [],
       "scenarios": [],
       "scenarios_planned": [],
-      "wiki_refs": [],
+      "wiki_refs": [
+        "wiki:tactical-designer"
+      ],
       "wiki_note": "",
       "pie_refs": [],
       "last_verified": {},

@@ -63,9 +63,18 @@ SYMBOL_RE = re.compile(r"`([UAFE]RT[A-Za-z0-9_]+)(?:::[A-Za-z0-9_]+)?`")
 # la classe rimossa — altrimenti il gate si autoassolve proprio sui simboli che
 # gli interessano di piu'. Scoperto con un test di mutazione: la prima versione
 # lasciava passare `URTGridLibrary`, viva solo dentro un commento.
+# La KEYWORD non decide il prefisso, e legarli e' costato un falso positivo il 2026-08-17:
+# `FRTScenarioSession` e' dichiarata `class REFACTORTACTICS_API FRTScenarioSession`, quindi il
+# pattern `class` (che accettava solo `[AU]RT`) non la vedeva e quello `struct` (che accetta solo
+# `FRT`) nemmeno. Il gate la dichiarava «inesistente in Source/» mentre esisteva, e l'effetto pratico
+# era una censura: nessun documento normativo poteva citarla in una tabella-inventario.
+# In C++ `class` e `struct` differiscono per il solo accesso di default — la convenzione UE sul
+# prefisso e' ortogonale alla parola chiave, e il gate ora lo rispecchia.
+# Misurato quando la correzione e' stata scritta: 3 `class F*` (`FRTScenarioSession`,
+# `FRTHexEditorModeCommands`, `FRTHexEditorModeToolkit`) e 0 `struct [AU]*`, quindi il difetto era
+# unidirezionale — ma il pattern copre entrambi i versi, perche' l'asimmetria era la causa.
 DECL_RES = (
-    re.compile(r"^\s*class\s+(?:\w+_API\s+)?([AU]RT[A-Za-z0-9_]+)\b", re.M),
-    re.compile(r"^\s*struct\s+(?:\w+_API\s+)?(FRT[A-Za-z0-9_]+)\b", re.M),
+    re.compile(r"^\s*(?:class|struct)\s+(?:\w+_API\s+)?([AUF]RT[A-Za-z0-9_]+)\b", re.M),
     re.compile(r"^\s*enum\s+class\s+(ERT[A-Za-z0-9_]+)\b", re.M),
     re.compile(r"^\s*using\s+([UAFE]RT[A-Za-z0-9_]+)\s*=", re.M),
     re.compile(r"^\s*typedef\s+.*\b([UAFE]RT[A-Za-z0-9_]+)\s*;", re.M),

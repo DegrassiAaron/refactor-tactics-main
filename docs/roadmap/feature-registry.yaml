@@ -115,6 +115,7 @@ features:
       - Visual.Core.PhaseOrder
     wiki_refs:
       - wiki:struttura-del-round
+      - wiki:il-turno-simultaneo
       - wiki:esempio-di-round
     pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
@@ -169,6 +170,8 @@ features:
     scenarios:
       - RT_Showcase_Relay_v01
     wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
       - wiki:regole-fondamentali
     last_verified:
       date: 2026-08-16
@@ -220,6 +223,8 @@ features:
     scenarios:
       - Visual.Core.PhaseOrder
     wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
       - wiki:regole-fondamentali
     last_verified:
       date: 2026-08-10
@@ -260,7 +265,9 @@ features:
     tests:
       - RefactorTactics.Replay.*
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-10
       commit: b9c096c
@@ -306,6 +313,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -388,6 +396,7 @@ features:
           - Spec.TimeBank.TimeoutIgnoresPreferredResponse
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest.
       La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.
@@ -409,10 +418,28 @@ features:
       *(3)* `PreferredResponse` e' una dichiarazione di planning che vive accanto a
       `FRTArmedOverwatch::Condition` ([D-109]) e ne e' l'opposto — quella **riduce** le
       `AllowedResponses`, questa non le tocca.
-      🔴 **Una voce di DoD di #319 e' oggi falsificabile, misurata in questo giro**: `spec-turnlog.md` §4.2
-      prescrive `ERTLogCategory::Decision`, il codice di CP 14.5 ha in coda `ReactionDecision`, gia'
-      serializzata in TurnLog v8. Sono due categorie sulla stessa finestra e la scelta va fatta **prima**
-      del runtime — riga **75** di `DOC_CONFLICT_MATRIX.md`, stato `CONFLICT`.
+      ✅ **2026-08-17 — due gate chiusi, entrambi decisioni d'autore e zero codice.**
+      **[D-166]**: la categoria di log e' **`Decision`**, distinta da `ReactionDecision`. Prevale
+      `spec-turnlog.md` §4.2, che lo prescriveva dal 2026-08-09 (`#361`); la riga **75** di
+      `DOC_CONFLICT_MATRIX.md` passa da `CONFLICT` a `CONFIRMED` e la voce in `OPEN_DECISIONS` si chiude.
+      La ragione non era il nome ma **`Amount`**, che ha significato per categoria: danni sotto
+      `ReactionDecision`, millisecondi sotto `Decision` — l'argomento sta nell'owner (§10.1) e non si duplica
+      qui. E' il caso particolare di [D-162], *una categoria, un enum*. Il formato serializzato **non cambia
+      versione**.
+      ⚠️ **Resta da scriverla in TRE siti, non uno**: l'enum `ERTDecisionOutcome`, la voce in coda a
+      `ERTLogCategory`, e il `case` in `OutcomeEnumForCategory` — senza il terzo lo scenario fallisce il
+      CARICAMENTO, non l'assertion, ed e' successo con `Predictive` il 2026-08-16. Lavoro di CP 14.8.
+      ⚠️ **Conteggio delle voci**: una finestra di reazione ne produce **tre** — una `ReactionDecision` piu'
+      le due di `Decision` — e `Spec.TimeBank.ReplayReadsRecordedBank`, gia' fra i `planned`, asserira'
+      contro questa forma.
+      **[D-167]**: `TB-10` chiusa con la risposta che **non cambia niente** — le finestre dello stesso
+      giocatore restano in serie e il cap aggregato lo fa il bank. La misura sta in `ApplyReactionDecision`,
+      che fra le sue tre mutazioni chiama **`StopUnitInPlace` sul mover**: in un batch la seconda decisione
+      verrebbe presa prima di sapere che la prima ha fermato il bersaglio.
+      ⚠️ **La parte operativa e' su un'ALTRA issue**: `TB-10` lascia un vincolo su **CP 14.6** (`#166`) — il
+      campione di pacing deve includere il caso a **due unita' armate dello stesso giocatore**
+      (`2 x MaxPromptsPerReaction x 3,0 s` = 18 s in un turno), o taratura e baseline descrivono un gioco
+      che la v0.1 non gioca.
       ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**: `docs/technical/test-manuali-pie.md`
       appartiene a un'altra track in `parallel-batch.yaml` e per `D-139` si aspetta il suo owner. Il testo
       pronto sta nel DoD di #319 e in §11 della spec: e' un debito **nominato**, non una dimenticanza.
@@ -545,6 +572,7 @@ features:
       - Visual.Map.MultiLevel
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
       date: 2026-08-08
@@ -593,6 +621,7 @@ features:
           - Spec.Map.NinetyDegreeCornerBakesCorrectly
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >-
       La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.
     notes: >
@@ -638,6 +667,7 @@ features:
           - Spec.Map.DoorOpensTransition
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >-
       Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.
     notes: >
@@ -1029,6 +1059,7 @@ features:
       - Spec.Facing.StationaryDeclaredRotationApplies
     wiki_refs:
       - wiki:facing-e-direzionalita
+      - wiki:facing-e-direzionalita-scheda-dati
     # 🔴 Questa nota diceva «Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui
     # descrive come funzionera', non come funziona oggi», e il 2026-08-13 era falsa da tempo — contraddetta
     # dai gate della sua stessa voce (`scenario: done`, `automation: done`, `runtime: partial`) e da nove
@@ -1375,6 +1406,7 @@ features:
       - Visual.Combat.FallbackTargetMoved
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
       - wiki:collisioni
     last_verified:
       date: 2026-08-08
@@ -1468,13 +1500,42 @@ features:
       - Spec.Brace.PushBeyondGuardThreshold
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     wiki_note: >-
       Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`.
-      `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non
-      esiste ancora.
+      `Brace` funziona ma come reazione; `Interact` dichiara l'apertura della porta ma non ha ancora
+      un produttore lato giocatore; di `Overwatch` il resolver costruisce le opportunity, e quello
+      che manca è la UI con cui rispondere.
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      # Rimisurata il 2026-08-17: il `wiki_note` era falso in DUE clausole su tre, ed e' il difetto
+      # che il consolidamento della Wiki ha aperto come `GAP-2` guardandone una sola. La forma del
+      # difetto conta piu' delle due righe: il `notes:` qui sotto e' stato aggiornato da D-148 lo
+      # stesso giorno, il `wiki_note` no — la nota INTERNA si corregge quando qualcuno lavora la
+      # feature, quella PUBBLICATA invecchia da sola, e nessun gate confronta le due.
+      #   · «`Interact` e' a catalogo **senza effetto**»: falso, in `RTCatalogLibrary.cpp` la riga
+      #     `Catalog.Add(ShippedAction(TEXT("Action.Interact") ...))` porta un `FRTActionEffectSpec`
+      #     con `ERTActionEffect::SetDoorState` verso `ERTHexDoorState::Open` ([D-148] + [D-151]).
+      #   · «`Overwatch` non esiste ancora»: falso, **e anche il `notes:` lo era** — diceva «nessun
+      #     ramo del resolver lo esegue ... il consumatore e' E14.5». CP 14.5 e' chiusa: misurata
+      #     l'unica chiamata a `BuildOverwatchTriggers` fuori dai test, dentro
+      #     `ARTTurnManager::ResolveReactionBoundary`.
+      #     Era la contraddizione con `RT-FEAT-REACTION-OVERWATCH`, verificata il 2026-08-16.
+      # 🔴 **Le due righe qui sopra citavano `RTTurnManager.cpp` alla riga 5257 e `RTCatalogLibrary.cpp`
+      # alla 819 — scritte qui senza i due punti, perche' un audit dei puntatori le rileggerebbe come
+      # riferimenti vivi e le segnalerebbe rotte ogni volta; sono citazioni di cio' che era, non indirizzi —
+      # e
+      # una code review le ha falsificate lo stesso giorno in cui sono state scritte.** Il primo
+      # puntatore era VERO quando l'ho misurato (`a3affe04`, file di 6002 righe) ed e' morto nel merge
+      # che ho fatto io sedici minuti dopo: lo split del Blast ha portato via 1253 righe, il file ne ha
+      # 4875 e la riga 5257 **non esiste piu'**. Il secondo non e' mai stato giusto: la 819 e' il
+      # COMMENTO che afferma la dichiarazione, non la dichiarazione — chi andava a verificare trovava
+      # una prosa che ripete la tesi invece del codice che la prova, ed e' il modo piu' insidioso di
+      # sbagliare una citazione, perche' a colpo d'occhio conferma. Entrambi ora citano il simbolo,
+      # come vuole la regola del repository: un numero di riga non fallisce mai, si limita a mentire.
+      # ⚠️ Rimisurato lo STATO delle tre azioni, non i gate: test e scenari non sono stati rieseguiti
+      # in questo giro, e restano `partial` come li aveva lasciati il 2026-08-08.
+      date: 2026-08-17
+      commit: a3affe04
     notes: >
       Delle sette azioni generiche di D-025, **quattro sono complete e testate**
       (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la
@@ -1494,12 +1555,22 @@ features:
                     ⚠️ Resta fuori dal runtime **il produttore lato giocatore**: `HandleTargetEdge`
                     esiste (`#737`) ma nessun test lo lega a `Interact`, e quel test vive in
                     `RTPointerInteractionTests.cpp`, non assegnato (D-139).
-        · `Overwatch` **non è ancora un'azione**, ma dal 2026-08-10 non è più «non esiste»: E14.4
-                    ha portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
-                    micro-step. Resta fuori dal runtime della partita per la stessa ragione di
-                    `Interact` — nessun ramo del resolver lo esegue — e il consumatore è E14.5.
-                    La riga precedente citava un `grep` che oggi restituisce codice: aggiornata
-                    perché una nota che descrive un'assenza smette di essere vera senza avvisare.
+        · `Overwatch` **non è ancora un'azione**, ma non è nemmeno più fuori dal runtime: E14.4 ha
+                    portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
+                    micro-step, e ~~«nessun ramo del resolver lo esegue, il consumatore è E14.5»~~
+                    è **superato il 2026-08-17**: CP 14.5 è chiusa, e la chiamata — l'unica fuori
+                    dai test — vive in `ARTTurnManager::ResolveReactionBoundary`. Quello che manca
+                    ora è il **giocatore**: la finestra si apre e finisce nel TurnLog, ma la UI per
+                    rispondere è CP 14.6.
+                    Questa riga è stata riscritta **tre** volte dallo stesso difetto — descriveva
+                    un'assenza, e un'assenza smette di essere vera senza che nulla diventi rosso.
+                    La prima volta citava un `grep` che aveva iniziato a restituire codice; la
+                    seconda nominava un checkpoint che nel frattempo era stato chiuso; la terza —
+                    scritta per correggere le prime due — puntava a `RTTurnManager.cpp` alla riga 5257, ed è
+                    morta **nel merge dello stesso lavoro che la introduceva**, quando lo split del
+                    Blast ha accorciato il file di 1253 righe. Un puntatore a lavoro **futuro**
+                    invecchia come uno a lavoro assente, e un numero di riga invecchia più in fretta
+                    di entrambi: qui è sopravvissuto sedici minuti.
 
       I gate restano `partial` perché la feature davvero non è completa; `completed_by` dice
       **chi** la completa, così la stessa mancanza non viene contata due volte.
@@ -1548,6 +1619,7 @@ features:
       # scenario e' passato a `RT-FEAT-ACTION-SPATIAL-TRANSFER`, che e' cio' che dimostra davvero.
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1725,6 +1797,7 @@ features:
       - Combat.MoveIsFullWithoutSlow
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-09
       commit: 8a43866
@@ -1792,6 +1865,7 @@ features:
       - Spec.Movement.DashDiscardsPlannedMove
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
       - wiki:collisioni
     pie_refs: [PIE-HEXPLAY-4b, PIE-HEXPLAY-6c]
     last_verified:
@@ -1835,6 +1909,7 @@ features:
       - Spec.ActionEconomy.CooldownBlocksWithSlotFree
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1887,6 +1962,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     notes: >
       🔴 **Decisa NO il 2026-08-12** — [D-114](../decisions/RT_PDR_00_Decision_Log.md), issue #604.
       L'economia del turno **resta a slot**: due azioni leggere non valgono una pesante, e senza una
@@ -1941,6 +2017,7 @@ features:
           - Spec.ActionEconomy.PathLengthChangesEffect
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     notes: >
       ✅ **`AE-2` ACCETTATA il 2026-08-12** — [D-116](../decisions/RT_PDR_00_Decision_Log.md), issue #606.
       Il profilo di movimento determina la **legalita'** e l'efficacia di un'azione. Modello a **soglia**
@@ -2008,6 +2085,7 @@ features:
           - Spec.ActionEconomy.OverwatchReservesMovementSlot
     wiki_refs:
       - wiki:planning-e-coordinazione
+      - wiki:planning-e-coordinazione-scheda-dati
     notes: >
       **Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque
       modello di economia. ✅ **La fetta pura e' atterrata il 2026-08-12**:
@@ -2075,6 +2153,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2169,6 +2248,7 @@ features:
       - Spec.Predictive.WhiffOnEmptyCell
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
       - docs/characters/v0.1/wraith.md
     last_verified:
       date: 2026-08-10
@@ -2285,7 +2365,9 @@ features:
       # Da `planned` a reale il 2026-08-12: le due ragioni che lo tenevano fuori sono cadute nello stesso
       # giorno — la chiave `loadout` (#602) e il produttore di `PlannedReactionAbility` (#601).
       - Spec.Reaction.AnchorCancelsPush
-    wiki_refs: []
+    wiki_refs:
+      - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-11
       commit: 891534c
@@ -2367,6 +2449,7 @@ features:
       - Visual.Reaction.Interposition
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
       - docs/characters/v0.1/riktor.md
       - docs/characters/v0.1/wraith.md
     last_verified:
@@ -2425,6 +2508,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     last_verified:
       date: 2026-08-15
       commit: 53ec531f
@@ -2514,6 +2598,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
       date: 2026-08-15
@@ -2638,6 +2723,7 @@ features:
     wiki_refs:
       - wiki:overwatch
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** apre la finestra e la registra nel TurnLog dal 2026-08-14, ma nessun giocatore puo' ancora rispondere: la UI e' CP 14.6.
     last_verified:
@@ -2790,6 +2876,7 @@ features:
           - Spec.Brace.GlanceOffersOnlyLegalSides
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       `Hold Ground` — la risposta base — funziona gia' in partita; i profili d'eroe che ne dichiarano altre no.
     last_verified:
@@ -2892,6 +2979,7 @@ features:
           - Spec.Clash.Determinism
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       Decisa nella forma (D-048), **non implementata** e con la grammatica ancora in playtest.
     last_verified:
@@ -2942,6 +3030,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
       date: 2026-08-08
@@ -3504,6 +3593,7 @@ features:
       - Spec.Perception.AllySpottingLetsYouShoot
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     wiki_note: >-
       Modello deciso per la v0.1 e **implementato** con CP 13.2: la conoscenza di squadra decide chi si
       puo' bersagliare. La coppia di scenari e' la specifica eseguibile del gate.
@@ -3557,6 +3647,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3602,6 +3693,7 @@ features:
       - Spec.Perception.HeardNotSeen
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-12
       commit: 9a92375
@@ -3660,6 +3752,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -4396,7 +4489,8 @@ features:
       - RefactorTactics.Scenario.ListIdsFromFiles
     scenarios:
       - Movement.Basic
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -4719,6 +4813,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >
       La pagina spiega che la griglia non vincola i muri — cioe' il principio da cui discende
       `EdgeBound`. L'ingombro degli asset che stanno sulla griglia non e' spiegato da nessuna parte.
@@ -5372,7 +5467,9 @@ features:
       - RefactorTactics.MatchFormat.*
       - RefactorTactics.MapClass.*
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:che-cose-refactortactics
+      - wiki:la-tua-prima-partita
     last_verified:
       date: 2026-08-09
       commit: 0bbc4c5
@@ -5439,7 +5536,8 @@ features:
     tests:
       - RefactorTactics.Pacing.*
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:la-tua-prima-partita
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -6019,7 +6117,9 @@ features:
       - Movement.BasicFailsOnPurpose
       - Combat.BasicAttack
       - Spec.Harness.LogAssertionsReadTheTurnLog
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-11
       commit: eb3cc42
@@ -6081,7 +6181,9 @@ features:
       - RefactorTactics.Simulation.GoldenCorpusRejectsFormatMismatch
     scenarios:
       - RT_Showcase_Relay_v01
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -6351,6 +6453,7 @@ features:
       # La pagina spiega dal 2026-08-13 il vocabolario dei dodici settori, che e' di questa feature:
       # sei direzioni per muoversi, dodici settori per MISURARE quanto una cella e' invasa.
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     last_verified:
       # Rimisurato dopo D-125: il commit precedente (05bbe3dc, merge di #714) e' ANTENATO di c1c96a30,
       # cioe' la voce era stata verificata due ore prima della decisione che la cambia.
@@ -6461,7 +6564,8 @@ features:
       - RefactorTactics.MatchFormat.ValidatorRejectsInvalidAsset
       - RefactorTactics.ScenarioIndex.DuplicateIdIsRejected
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -6545,7 +6649,8 @@ features:
       - RefactorTactics.Scenario.AutoRunOverrideIsNotSilent
       - RefactorTactics.Pacing.CsvRowMatchesHeader
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     pie_refs: [PIE-V01-DEBUG]
     last_verified:
       date: 2026-08-08
@@ -6589,7 +6694,8 @@ features:
       - RefactorTactics.Heroes.RosterIsBalanced
       - RefactorTactics.Catalog.ShippedCatalogMatchesAbilities
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -6658,7 +6764,8 @@ features:
     issues: []
     tests: []
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     notes: >
       Il gap e' l'**authoring**, non il formato. `FRTTestScenario` esprime gia' unita' (cella,
       facing, HP, scudo, vista, loadout), turni con intent, **decisioni di finestra scriptate**
