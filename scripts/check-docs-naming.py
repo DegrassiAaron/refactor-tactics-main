@@ -199,47 +199,28 @@ NAME_RE = re.compile(r"\b(" + "|".join(LEGACY) + r")\b")
 #   2. un marcatore su una riga **senza** nomi ritirati e' un **ERRORE**. Un'esenzione
 #      che sopravvive al proprio motivo e' esattamente il modo in cui questo gate ha
 #      perso il 37% di copertura: qui non puo' succedere in silenzio.
-# Due forme, perche' il gate copre due sintassi (#1109):
-#   · `<!-- rename-exempt: ... -->`  nei Markdown e nelle NOTE dei YAML, che in questo
-#     repository sono markdown incorporato — le `note:` di `parallel-batch.yaml` usano
-#     grassetti, backtick e liste esattamente come un `.md`;
-#   · `# rename-exempt: ...`         nei COMMENTI YAML, dove un commento HTML sarebbe
-#     testo inerte e chi legge il file non capirebbe perche' e' li'.
-# La seconda forma non e' ammessa nei Markdown: `#` a inizio riga e' un titolo, e
-# accettarla trasformerebbe ogni titolo che contiene «rename-exempt» in un'esenzione.
-EXEMPT_MARKER = re.compile(r"<!--\s*rename-exempt:\s*(.+?)\s*-->")
-# ⚠️ **Due vincoli, e ognuno chiude un falso negativo misurato.**
+# 🔑 **UNA forma sola, anche ora che il gate copre gli YAML (`#1109`).** I delimitatori
+# chiusi non sono uno stile: sono la ragione per cui questo marcatore non puo' essere
+# confuso con il contenuto del file che lo ospita. Funziona in tutti e tre i posti dove
+# serve — verificato: in un `.md`, dentro una `note:` YAML (che e' markdown), e **dentro
+# un commento YAML**, dove `# <!-- rename-exempt: ... -->` e' semplicemente testo del
+# commento.
 #
-#   1. Il `#` deve **aprire la riga** (solo spazi prima). Accettandolo ovunque, un valore
-#      che *documenta* il marcatore — `note: "per esentare scrivi # rename-exempt: ..."`,
-#      la cosa piu' naturale che qualcuno scriva — diventava un marcatore vero ed esentava
-#      la riga successiva. Un `#` dentro una stringa quotata **non e' un commento YAML**, e
-#      distinguerlo davvero vorrebbe un parser: qui vince la regola conservativa, e la
-#      forma «in fondo alla riga» resta disponibile come `<!-- -->`, che ha delimitatori
-#      chiusi e non soffre del problema.
-#   2. `[^\S\n]` invece di `\s` — spazi ma **non** newline. Con `\s*`, un marcatore senza
-#      ragione (`# rename-exempt:`) assorbiva la riga SEGUENTE come propria ragione, e
-#      `mask_for` la cancellava: un nome ritirato li' sotto spariva senza che nulla lo
-#      dicesse. E' il caso peggiore — un'esenzione che nessuno ha chiesto, su una riga che
-#      nessuno stava esentando.
-EXEMPT_MARKER_YAML = re.compile(
-    r"^[^\S\n]*#[^\S\n]*rename-exempt:[^\S\n]*(.+?)[^\S\n]*$", re.M
-)
-
-# Negli YAML valgono **entrambe** le forme, e l'alternanza non e' generosita': le `note:`
-# di `parallel-batch.yaml` sono blocchi markdown, quindi chi ci scrive dentro usa la forma
-# HTML per riflesso — e trovarla ignorata darebbe un gate rosso senza spiegazione, con
-# `stale_markers` cieco nello stesso punto. Nei `.md` invece la forma `#` resta VIETATA:
-# `#` a inizio riga e' un titolo, e accettarla trasformerebbe ogni titolo che contiene
-# «rename-exempt» in un'esenzione su 407 file.
-EXEMPT_MARKER_ANY = re.compile(
-    EXEMPT_MARKER.pattern + "|" + EXEMPT_MARKER_YAML.pattern, re.M
-)
-
-
-def exempt_marker_for(path: Path) -> re.Pattern:
-    """Il pattern del marcatore che vale per QUESTO file."""
-    return EXEMPT_MARKER_ANY if path.suffix in YAML_SUFFIXES else EXEMPT_MARKER
+# ⚠️ **Una seconda forma `# rename-exempt:` e' stata scritta e poi RITIRATA**, e il motivo
+# vale piu' del codice risparmiato: in un formato che non si sta parsando, «riga che inizia
+# per `#`» non significa «commento». Tre falsi negativi misurati, tutti raggiungibili da
+# testo che qualcuno scriverebbe in buona fede:
+#   · `# rename-exempt: ` con **uno spazio** dopo i due punti — il backtracking prendeva lo
+#     spazio come ragione, ed esentava la riga dopo. Un carattere invisibile ribaltava il
+#     gate da rosso a verde, senza diagnostica;
+#   · un **titolo markdown** dentro un block scalar `note: |` — contenuto, non commento —
+#     esentava la riga successiva. E' precisamente il pericolo che vietava la forma `#` nei
+#     `.md`: le note YAML *sono* markdown, quindi il divieto doveva valere anche li';
+#   · un `#` sulla **riga di continuazione** di uno scalare quotato multi-riga: ancora
+#     contenuto, accettato come marcatore.
+# Distinguerli davvero richiede un parser YAML. Una sintassi con delimitatori chiusi non ne
+# ha bisogno, ed e' la ragione per cui era gia' quella giusta.
+EXEMPT_MARKER = re.compile(r"<!--\s*rename-exempt:\s*(.+?)\s*-->")
 
 # «Questa riga ha ancora bisogno del marcatore?» — una domanda diversa da «questa riga
 # ha prosa player-facing sbagliata?», e vuole un pattern diverso.
@@ -266,7 +247,7 @@ ANY_FORM = re.compile(
 )
 
 
-def marked_lines(raw_lines: list[str], marker: re.Pattern) -> dict[int, str]:
+def marked_lines(raw_lines: list[str]) -> dict[int, str]:
     # ⚠️ `marker` e' OBBLIGATORIO, e la ragione e' un difetto vero: con un default
     # `EXEMPT_MARKER` questa firma ha lasciato passare un call site su tre — il conteggio
     # dei marcatori in `main()` — che continuava a leggere solo la forma markdown. Un
@@ -286,7 +267,7 @@ def marked_lines(raw_lines: list[str], marker: re.Pattern) -> dict[int, str]:
     """
     marked: dict[int, str] = {}
     for i, line in enumerate(raw_lines):
-        m = marker.search(line)
+        m = EXEMPT_MARKER.search(line)
         if not m:
             continue
         # Se la riga contiene ANCHE un nome ritirato, il marcatore vale per se stessa:
@@ -296,7 +277,7 @@ def marked_lines(raw_lines: list[str], marker: re.Pattern) -> dict[int, str]:
         # `NAME_RE` non vede `BastionIgnoresAllPushes` — concatenato, nessun confine a
         # destra — quindi attribuiva il marcatore alla riga SUCCESSIVA, che era vuota,
         # e lo dichiarava stantio. Un marcatore giusto, letto male, segnalato come rotto.
-        senza_marcatore = marker.sub("", line)
+        senza_marcatore = EXEMPT_MARKER.sub("", line)
         # Con l'alternanza i gruppi sono due e uno dei due e' `None`: la ragione e' il
         # primo non nullo. Con il pattern singolo il comportamento non cambia.
         reason = next((gr for gr in m.groups() if gr is not None), "")
@@ -309,33 +290,22 @@ def marked_lines(raw_lines: list[str], marker: re.Pattern) -> dict[int, str]:
     return marked
 
 
-def mask_for(path: Path, text: str) -> str:
-    """`mask()`, piu' la RAGIONE del marcatore YAML.
-
-    ⚠️ **Simmetria con la forma HTML, non un'aggiunta.** `mask()` azzera i commenti HTML,
-    quindi la ragione di un `<!-- rename-exempt: D-130 dichiara «Flux» -> Gadget -->` non
-    viene mai scansionata. Il marcatore YAML vive in un commento `#`, che `mask()` non
-    tocca: senza questa riga la ragione **piu' naturale** — quella che nomina la mappatura,
-    cioe' l'esempio che il modulo stesso porta piu' sopra — renderebbe rosso il gate
-    proprio mentre si esenta una riga. L'autore non avrebbe modo di capirlo, perche' il
-    gate indicherebbe la riga del marcatore invece della riga esentata.
-    """
-    text = mask(text)
-    if path.suffix in YAML_SUFFIXES:
-        text = EXEMPT_MARKER_YAML.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
-    return text
-
-
 def scan(path: Path) -> list[tuple[int, str, str]]:
-    """Ritorna [(riga, nome, testo)] delle occorrenze player-facing NON marcate."""
+    """Ritorna [(riga, nome, testo)] delle occorrenze player-facing NON marcate.
+
+    🔑 La **ragione** del marcatore non viene mai scansionata, e non serve codice per
+    ottenerlo: `mask()` azzera i commenti HTML, e il marcatore *e'* un commento HTML.
+    Cosi' una motivazione che nomina la mappatura — «`D-130` dichiara «Flux» -> Gadget»,
+    cioe' la piu' naturale che esista — non fa rosso il gate mentre si esenta una riga.
+    """
     try:
         raw = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return []
 
-    masked = mask_for(path, raw)
+    masked = mask(raw)
     raw_lines = raw.splitlines()
-    marked = marked_lines(raw_lines, exempt_marker_for(path))
+    marked = marked_lines(raw_lines)
     hits: list[tuple[int, str, str]] = []
     for lineno, line in enumerate(masked.splitlines(), start=1):
         if lineno in marked:
@@ -359,7 +329,7 @@ def stale_markers(path: Path) -> list[tuple[int, str, str]]:
         return []
     raw_lines = raw.splitlines()
     stale = []
-    for lineno, reason in marked_lines(raw_lines, exempt_marker_for(path)).items():
+    for lineno, reason in marked_lines(raw_lines).items():
         riga = raw_lines[lineno - 1] if lineno - 1 < len(raw_lines) else ""
         # Sul RAW, non sul mascherato: un token in backtick e' comunque una ragione
         # valida per marcare, ed e' il caso piu' frequente (`Flux.ArcPulse`).
@@ -394,37 +364,32 @@ ROOT_GOVERNANCE = ("CLAUDE.md", "AGENTS.md", "README.md")
 # invece che una speranza**: delle 14 occorrenze grezze trovate all'apertura di `#1109`,
 # **10** erano gia' dentro backtick o fence e cadevano da sole. Non serve una maschera
 # YAML-specifica perche' in questo repository lo YAML *e'* un contenitore di markdown.
-# ⚠️ **`.yml` e `.yaml` insieme, e non e' zelo.** Oggi sotto `docs/` non c'e' nessun
-# `.yml` — misurato — ed e' esattamente la condizione in cui la lacuna non e' rossa e si
-# legge come «pulito»: la stessa forma per cui `#1109` e' esistita. `BARE_PATH` conosce
-# gia' entrambe le grafie (`ya?ml`), quindi il repository sa che la seconda e' viva.
-PROTECTED_SUFFIXES = ("*.md", "*.yaml", "*.yml")
-YAML_SUFFIXES = (".yaml", ".yml")
-
-# ⚠️ **Limite noto, e l'escape non e' quello dei Markdown.** Negli YAML la maschera
-# markdown copre commenti e note, che e' dove vive la prosa di questo repository — ma un
-# **valore scalare** che debba legittimamente contenere un id legacy (un `tests:` che
-# cita `Heroes.Vektor.InterceptShotIsPredictive`, per dire) non puo' essere messo fra
-# backtick: cambierebbe il dato che il tooling legge. Oggi non capita — misurato, il gate
-# e' verde — ma il giorno che capita l'unica via e' il marcatore `# rename-exempt:` sulla
-# riga precedente. Che funziona **anche** se la ragione nomina l'eroe: la sua ragione e'
-# mascherata come quella della forma HTML, ed e' il difetto che `#1170` ha corretto prima
-# che qualcuno lo incontrasse.
+# ⚠️ **`.yml` accanto a `.yaml`, e non e' zelo.** Alla data di `#1109` sotto `docs/` non
+# c'era nessun `.yml` — misurato — ed e' esattamente la condizione in cui una lacuna non
+# e' rossa e si legge come «pulito»: la stessa forma per cui `#1109` e' esistita.
+# `BARE_PATH` conosce gia' entrambe le grafie (`ya?ml`), quindi il repository sa che la
+# seconda e' viva.
+PROTECTED_SUFFIXES = (".md", ".yaml", ".yml")
 
 
 def docs_files() -> list[Path]:
-    files = []
-    for name in ROOT_GOVERNANCE:
-        path = REPO / name
-        if path.is_file():
-            files.append(path)
-    for pattern in PROTECTED_SUFFIXES:
-        for path in sorted(DOCS.rglob(pattern)):
-            rel_parts = path.relative_to(DOCS).parts
-            if rel_parts and rel_parts[0] in EXCLUDED_DIRS:
-                continue
-            files.append(path)
-    return sorted(set(files))
+    """I file protetti: governance di root + tutto `docs/` con un suffisso protetto.
+
+    Una traversata sola, filtrata sul suffisso. Le tre `rglob()` per pattern che questa
+    funzione aveva prima costringevano a tenere **due** elenchi di estensioni allineati a
+    mano — e un'estensione aggiunta a uno solo dei due sarebbe stata *contata* nel referto
+    senza essere *protetta*: cioe' «conta come letto, non e' protetto», che e' la forma
+    esatta del difetto per cui `#1109` e' stata aperta.
+    """
+    files = [REPO / name for name in ROOT_GOVERNANCE if (REPO / name).is_file()]
+    for path in DOCS.rglob("*"):
+        if path.suffix not in PROTECTED_SUFFIXES or not path.is_file():
+            continue
+        rel_parts = path.relative_to(DOCS).parts
+        if rel_parts and rel_parts[0] in EXCLUDED_DIRS:
+            continue
+        files.append(path)
+    return sorted(files)
 
 
 
@@ -594,8 +559,7 @@ def main() -> int:
     for path in files:
         rel = path.relative_to(REPO).as_posix()
         try:
-            marked_total += len(marked_lines(
-                path.read_text(encoding="utf-8").splitlines(), exempt_marker_for(path)))
+            marked_total += len(marked_lines(path.read_text(encoding="utf-8").splitlines()))
         except (OSError, UnicodeDecodeError):
             pass
         s = stale_markers(path)
