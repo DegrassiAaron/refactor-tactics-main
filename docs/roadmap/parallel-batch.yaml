@@ -2205,6 +2205,25 @@ tracks:
       con la stessa `AskReactionDecision` dell'Overwatch. Suite **1057/1057**, tre mutazioni ognuna sul test
       atteso e ripristinate byte per byte. `SIDESTEP` si esprime con `SelfReposition 1` — **D-176**, ID
       riservato, voce canonica da scrivere in integrazione perché il Decision Log è `integration_only`.
+      ✅ **Fetta 4 CONSEGNATA il 2026-08-19** (commit `0e68fe7f`): `Spec.Brace.ProfileChangesResponse` è
+      **PASS (7/7)** e `ReactionProfile` è fra le capability disponibili. Suite **1061/1061**, tre mutazioni
+      ognuna sul test atteso. Il formato scenario sale a **v3** — il vocabolario di `decisions.respond`
+      accetta le risposte di profilo — e il bump è argomentato invece che dato per scontato: il cambiamento è
+      solo espansivo, e si bumpa per il verso che conta (una build vecchia deve rifiutare col messaggio
+      giusto invece di accusare il file).
+      🔴 **Una duplicazione trovata dal rosso e non dalla lettura**: `decisions` era validata in **due** posti
+      — il parser e `Validate` — e aggiornandone uno solo il corpus è diventato rosso col messaggio della
+      copia vecchia. Estratta in `ValidateDecisionForm`, chiamata da entrambi.
+      ➖ **Il prestito di `Scenarios/Spec/Brace/ProfileChangesResponse.json` RIENTRA col merge**, che è la
+      scadenza dichiarata: il file torna a `integration_only` e la sua riga in `writable_on_loan` si cancella
+      invece di invecchiare.
+      ⛔ **Ciò che la fetta 4 NON chiude, e la issue resta OPEN**: `ReactionClash` è tuttora fra le
+      indisponibili. Le sue funzioni pure esistono — `ResolveContestedBoundary`, `MakeClashLogEntries`,
+      arrivate dalle PR #1210/#1211 di un'altra sessione — e **nessun punto del resolver le chiama**. E la
+      decisione del `Brace` non entra nel TurnLog: `ArmRecordedReactionDecisions` ricostruisce la risposta
+      dall'`Outcome` assumendo il vocabolario `HOLD`/`FIRE:`, quindi una traccia `Hold Ground` verrebbe
+      rifiutata in ri-simulazione. Sono le due fette che restano.
+      --- ⛔ **Da qui la misura del 2026-08-19 mattina, superata dalla consegna qui sopra.**
       ⛔ **La fetta 4 è misurata e NON aperta, e il perimetro è la ragione**: portare
       `Spec.Brace.ProfileChangesResponse` a verde e togliere `ReactionProfile` da
       `KnownUnavailableCapabilities()` richiede che il vocabolario delle `decisions` accetti le risposte del
@@ -2873,16 +2892,10 @@ tracks:
       - path: Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
         from: spatial
         returns_when: "#314 chiude, o prima se `#833` riparte e li richiede"
-      # ➕ **Prestito della fetta 4, aperto il 2026-08-19.** È lo scenario che D-047 dichiara come propria
-      # specifica eseguibile, e la fetta 4 esiste per portarlo da `BLOCKED` a verde: il suo T2 è `intents: []`
-      # con un `_nota_da_completare` che descrive per esteso cosa scriverci.
-      # ⚠️ **`Scenarios/` è `integration_only`, quindi UNA riga sola e non la cartella**: prendere il prefisso
-      # significherebbe rivendicare la sorgente di `scenariomap` e `project-graph`, cioè due viste generate che
-      # non sono mie da rigenerare. Il prestito nomina **il file**, e resta il caso già visto con
-      # `ConditionCollapsesToHold.json` — restituito quando la track chiuse.
-      - path: Scenarios/Spec/Brace/ProfileChangesResponse.json
-        from: integration_only
-        returns_when: "la fetta 4 atterra: il file torna a `integration_only` col merge"
+      # ➖ **Il prestito di `Scenarios/Spec/Brace/ProfileChangesResponse.json` è RIENTRATO il 2026-08-19**, ed
+      # è la scadenza che era stata dichiarata aprendolo — «la fetta 4 atterra». La riga si cancella invece di
+      # restare a invecchiare: un elenco che resta scritto e un'intersezione che si calcola sui campi non
+      # possono dire due cose diverse. La storia vive nella `note`, che lo nomina.
     # ⚠️ ~~`#886` non presta nulla~~: i due path che prende sono **liberi**, e ~~il terzo lo **chiede**~~ — dal
     # 2026-08-17 i due del `TurnManager` sono **rilasciati e non assegnati**, quindi non c'è più niente da
     # chiedere e ~~resta lo STOP finché l'atto di questa track non li rivendica~~. Annotato qui perché è un
