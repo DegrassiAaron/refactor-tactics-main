@@ -2200,6 +2200,21 @@ tracks:
       Per `GROUND` e `GLANCE` la spec §2.5 e `D-132` dichiarano aperti «Charge del `Grounding`» e «ampiezza
       della deviazione»: una risposta extra si offre **solo se il profilo ne dichiara gli effetti**, e
       l'assenza degli altri due è il registro di quelle due decisioni, non una dimenticanza.
+      ✅ **Fetta 3 CONSEGNATA il 2026-08-19** (commit `2d513d9b`, ramo non ancora pushato): il ramo
+      `Status.Braced` di `RTTurnManager_Blast.cpp` costruisce l'opportunity dal profilo e chiede la decisione
+      con la stessa `AskReactionDecision` dell'Overwatch. Suite **1057/1057**, tre mutazioni ognuna sul test
+      atteso e ripristinate byte per byte. `SIDESTEP` si esprime con `SelfReposition 1` — **D-176**, ID
+      riservato, voce canonica da scrivere in integrazione perché il Decision Log è `integration_only`.
+      ⛔ **La fetta 4 è misurata e NON aperta, e il perimetro è la ragione**: portare
+      `Spec.Brace.ProfileChangesResponse` a verde e togliere `ReactionProfile` da
+      `KnownUnavailableCapabilities()` richiede che il vocabolario delle `decisions` accetti le risposte del
+      profilo — oggi `RTScenarioLoader.cpp:484` rifiuta tutto ciò che non sia `FIRE` o `HOLD`, con un errore
+      esplicito. Servirebbero quindi `ScenarioHarness/RTScenarioLoader.cpp` e `RTTestScenario.h` (liberi, ma
+      **non assegnati**: da rivendicare), un **prestito** di `Scenarios/Spec/Brace/ProfileChangesResponse.json`
+      da `integration_only`, e una **versione di formato** — che questo file tratta come risorsa contesa, da
+      prendere dopo un `gh pr list`. ⚠️ E la capability non si sposta prima: scoprirla con il T2 ancora a
+      `intents: []` farebbe passare uno scenario **senza eseguire ciò che descrive**, che è l'errore già
+      pagato con `DecisionBoundary` e registrato nel commento di `#314` del 2026-08-16.
       ⚠️ **La contesa su `Ability/RTCatalogLibrary.cpp` è nominale e va registrata, non temuta**:
       `origin/feat/641-sprint-post-blast` lo tocca, ma è **dormiente** — ultimo commit `WIP` del 2026-08-12,
       nessuna PR aperta (`gh pr list --head` → `[]`) — e l'intersezione a livello di **funzione è vuota**: il
