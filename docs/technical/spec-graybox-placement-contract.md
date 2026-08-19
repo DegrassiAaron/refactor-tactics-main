@@ -462,12 +462,12 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 > il punto *(3)* qui sotto — «distrutto non è osservabile dal dato di mappa» — scritto **dentro** una
 > scaletta che lo pretendeva osservabile.
 >
-> *(B)* **L'assenza dell'entry non significa distruzione, e i modi di produrla sono TRE — che nemmeno
-> passano tutti per la stessa funzione:**
+> *(B)* **L'assenza dell'entry non significa distruzione, e i modi di produrla IN PARTITA sono TRE — che
+> nemmeno passano tutti per la stessa funzione:**
 >
 > | Percorso | Come l'entry sparisce | Esito loggato |
 > |---|---|---|
-> | il danno porta l'integrità a zero | `Updated.Covers.RemoveAt(I)`, **inline** dentro `ApplyStructureDamage` ([`RTHexCoverLibrary.cpp`](../../Source/RefactorTactics/Map/RTHexCoverLibrary.cpp)) | `CoverDestroyed` ([`RTTurnManager_Blast.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp)) |
+> | il danno porta l'integrità a zero | `Updated.Covers.RemoveAt(I)` dentro `DamageFace`, l'helper che `ApplyStructureDamage` chiama una volta per faccia ([`RTHexCoverLibrary.cpp`](../../Source/RefactorTactics/Map/RTHexCoverLibrary.cpp)) | `CoverDestroyed` ([`RTTurnManager_Blast.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp)) |
 > | la durata scade | `URTHexCoverLibrary::RemoveCover`, da `TickDynamicCovers` ([`RTTurnManager.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager.cpp)) | `CoverExpired` |
 > | `Reconfigure` sposta il pannello su un altro bordo | `URTHexCoverLibrary::RemoveCover` | `CoverMoved` |
 >
@@ -476,6 +476,13 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 > renderizzato come macerie. Quello dello spostamento è peggio: il bordo di partenza sarebbe reso come
 > macerie mentre lo stesso pannello è intero sul bordo accanto. ∴ il TurnLog distingue i tre casi; il dato
 > di mappa, a fase conclusa, non ne conserva **nessuno**.
+>
+> ⚠️ **«In partita» è una restrizione necessaria, non un'esitazione**: `grep -nE "Covers\.(RemoveAt|RemoveAll)" Source/`
+> trova un **quarto** sito, `BakeCell` ([`RTGeometryBake.cpp`](../../Source/RefactorTactics/Map/RTGeometryBake.cpp)),
+> che scarta le coperture `bGenerated` al rebake. È authoring: il suo unico chiamante fuori dai test è
+> `RTHexGeometryTool` nel modulo Editor, e non logga **nessun** `ERTEnvironmentOutcome` — misurato, zero
+> occorrenze nel file. Non indebolisce la conclusione, ma un conteggio senza il suo dominio manda chi
+> verifica su un quarto sito e riapre la domanda che questa sezione chiude.
 >
 > ⚠️ *Questo punto ne ha enumerati male DUE volte, e la seconda è istruttiva. Prima diceva «due» —
 > distruzione e scadenza — qualificandosi «misurato non dedotto»; poi, correggendolo a tre, ha attribuito
