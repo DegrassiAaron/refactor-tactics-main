@@ -100,6 +100,38 @@ TArray<FString> URTCatalogLibrary::BraceExecutableResponses(const FName& Profile
 	return Responses;
 }
 
+TArray<FString> URTCatalogLibrary::AllReactionProfileResponses()
+{
+	// Si parte da `Hold Ground` perche' e' universale: appartiene a ogni profilo, compreso quello base, e
+	// nessuna voce del catalogo la elenca — per costruzione, come dichiara `FRTReactionProfileDef`.
+	TArray<FString> All = BraceAllowedResponses(NAME_None);
+
+	for (const FRTReactionProfileDef& Profile : GetReactionProfileCatalog())
+	{
+		for (const FRTReactionResponseDef& Extra : Profile.ExtraResponses)
+		{
+			// `AddUnique` e non `Add`: due profili possono offrire la stessa risposta — oggi non capita, e il
+			// giorno in cui capitasse un elenco con un duplicato farebbe stampare due volte lo stesso token
+			// nel messaggio d'errore del loader, che e' il posto in cui si va a leggere quando qualcosa non
+			// torna.
+			All.AddUnique(Extra.Response);
+		}
+	}
+	return All;
+}
+
+bool URTCatalogLibrary::IsKnownReactionProfileResponse(const FString& Response)
+{
+	// Confronto esatto e case-sensitive, come `URTReactionOpportunityLibrary::IsResponseAllowed`: le due
+	// domande sono diverse — «esiste nel catalogo» contro «e' legale in questa finestra» — ma se una fosse
+	// piu' tollerante dell'altra ci sarebbe una risposta accettata dal loader e rifiutata dal resolver, cioe'
+	// uno scenario che si carica e poi non decide.
+	return AllReactionProfileResponses().ContainsByPredicate([&Response](const FString& Known)
+	{
+		return Known.Equals(Response, ESearchCase::CaseSensitive);
+	});
+}
+
 TArray<FRTActionEffectSpec> URTCatalogLibrary::BraceResponseEffects(const FName& ProfileId,
 	const FString& Response)
 {

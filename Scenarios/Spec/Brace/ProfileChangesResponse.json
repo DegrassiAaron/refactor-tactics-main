@@ -1,42 +1,62 @@
 {
   "scenarioId": "Spec.Brace.ProfileChangesResponse",
   "tags": ["spec", "reactions", "brace", "profile", "riktor", "phase"],
-  "version": 1,
+  "version": 3,
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "SPECIFICA ESEGUIBILE di D-047. Due eroi dichiarano la STESSA azione — `Action.Brace` — e reagiscono in modo diverso, perche' la risposta viene dal loro Reaction Profile e non dall'azione. Riktor resta sulla cella (`Hold Ground`, la risposta universale); Phase, il cui profilo dichiara una risposta di scarto, non ci resta. Nessun `if CharacterId` nel resolver puo' produrre questo risultato: e' il dato a decidere.",
+  "_nota": "SPECIFICA ESEGUIBILE di D-047. Due eroi dichiarano la STESSA azione — `Action.Brace` — e reagiscono in modo diverso allo STESSO colpo, perche' la risposta viene dal loro Reaction Profile e non dall'azione. Riktor resta sulla cella (`Hold Ground`, la risposta universale, che e' il comportamento del gioco da CP 5.2); Phase, il cui profilo dichiara `SIDESTEP`, non ci resta. Nessun `if CharacterId` nel resolver puo' produrre questo risultato: e' il dato a decidere.",
 
-  "_nota_perche_esiste": "E' la prova che D-047 non e' un rename. Se `Brace` restasse un buff fisso, i due eroi finirebbero nella stessa cella con gli stessi HP e questo file sarebbe verde per il motivo sbagliato — quindi l'assertion che conta e' la DIFFERENZA fra i due, non il valore di uno solo.",
+  "_nota_perche_esiste": "E' la prova che D-047 non e' un rename. Se `Brace` restasse un buff fisso, i due difensori resterebbero ENTRAMBI fermi — il ramo `Status.Braced` regge la spinta a qualunque distanza — e questo file sarebbe verde per il motivo sbagliato. Quindi l'assertion che conta e' la DIFFERENZA fra i due, non il valore di uno solo: B1 fermo E R1 spostato, insieme.",
 
-  "_nota_da_completare": "Il turno 2 richiede un profilo di reazione a due risposte. I profili sono DECISI dal 2026-08-13 (D-127, chiude `BAS-1` — non `CLASH-2`, che sono i payoff del Clash e una cosa diversa): Phase (`Hero.Phase`) ha `Profile.Sidestep`, e Riktor (`Hero.Riktor`) NON ha un profilo, perche' `Status.Braced` resiste gia' allo spostamento a qualunque distanza. Questo RAFFORZA lo scenario invece di indebolirlo: la differenza fra i due non nasce da due profili diversi ma da profilo-contro-comportamento-base, che e' il caso piu' stretto. Chi implementa E14.7 assegna `Profile.Sidestep` a R1, riempie gli intent del T2 con un attaccante che spinge, e aggiunge l'assertion sulla cella finale di R1, che deve differire da quella di partenza mentre quella di B1 no.",
+  "_nota_perche_un_turno_solo": "🔴 La stesura precedente aveva due turni — «entrambi si irrigidiscono», poi «la differenza» — e NON avrebbe potuto funzionare: `Action.Brace` applica `Status.Braced` con durata **1** e ha **cooldown 1** (`RTCatalogLibrary.cpp:1259-1263`), quindi al T2 lo stato e' scaduto e l'azione non e' ridichiarabile. Prep e Blast stanno nello stesso turno — `Preparation` risolve prima di `Attack` — quindi il turno unico non e' una semplificazione: e' l'unica forma in cui la premessa dello scenario e' vera.",
 
-  "_nota_requires_corretta": "🔴 2026-08-16 (#512 fase B): la `requires` del T2 diceva `DecisionBoundary` e la nota qui sotto sosteneva che «con la sola finestra di CP 14.5 questo file puo' diventare verde». MISURATO: e' falso. `Profile.Sidestep` non esiste in nessuna forma — `grep -rn \"Profile.Sidestep\\|ReactionProfile\" Source/` da' ZERO — e senza profilo il T2 non ha una seconda risposta da scegliere, quindi nessuna finestra si apre e non c'e' niente da decidere. Scoprendo `DecisionBoundary` questo turno sarebbe passato da BLOCKED a verde con `intents: []`: un turno che si sblocca senza eseguire cio' che descrive. La `requires` dice ora il blocco vero, `ReactionProfile`, il cui owner e' E14.7 (#314). Lo scenario resta BLOCKED — sullo stesso checkpoint di sempre, ma per la ragione giusta.",
+  "_nota_perche_PressureJet_e_non_Action_Push": "🔴 `Action.Push` e' un'azione di catalogo che **nessun eroe porta nel proprio kit** — misurato: lo scenario la dichiarava e il corpus rispondeva «'V1' non possiede l'abilita' 'Action.Push'». L'unica azione del gioco che spinge stando in un kit e' `Hero.Phase.PressureJet` (16 danni, `Push 1`, forma a linea), la stessa fixture di `Spec.Brace.GuardAndBraceOnMixedHit` — che la usa per la stessa ragione e lo dichiara: e' l'unica che porta danno e spinta nello stesso colpo.",
+
+  "_nota_loadout_vuoto": "I due attaccanti entrano SPOGLI (`\"loadout\": []`), ed e' la riga che tiene in vita questo file — copiata dal gemello `GuardAndBraceOnMixedHit`, che l'ha gia' pagata. Dal 2026-08-16 (#1054) il gioco monta i default, e quello di Phase e' `Weapon.Impact`: la spinta di `PressureJet` passa da 1 a **2**. Qui la variabile da tenere ferma e' la SPINTA A 1, perche' questo scenario misura *chi* decide lo spostamento, non *quanto* vale la soglia di una difesa.",
+
+  "_nota_geometria": "Due duelli separati e simmetrici, perche' un colpo ha un bersaglio: servono due attaccanti. B1 e' a (0,0) con V1 a (-1,0); R1 e' a (0,3) con V2 a (-1,3). Le due spinte vanno entrambe verso +q, quindi le destinazioni sono (1,0) e (1,3) — a tre celle di distanza, nessuna interferenza fra i duelli e nessuna destinazione contesa. La linea di `PressureJet` prosegue oltre il bersaglio ma non incontra nessuno: da (-1,0) attraversa (0,0)(1,0)(2,0)(3,0), da (-1,3) attraversa (0,3)(1,3)(2,3) — e nessuna delle due tocca l'altro duello. Tutte le celle stanno dentro `mapRadius` 4 (la piu' lontana, (-1,3), dista 3).",
+
+  "_nota_il_limite_dichiarato": "⚠️ Con una spinta di **1** la cella in cui R1 finisce scartando e' la STESSA in cui sarebbe finito subendo la spinta, perche' `SelfReposition` allontana lungo la linea di chi ha innescato (D-176). Questo scenario resta dimostrativo lo stesso, e la ragione va letta invece che dedotta: R1 e' in `Brace`, e senza profilo il ramo `Status.Braced` lo terrebbe FERMO come B1. Cio' che si osserva non e' «R1 e' stato spinto» ma «R1 in Brace non e' rimasto dov'era, e B1 in Brace si'» — che solo il profilo puo' produrre. Il caso in cui scarto e spinta divergono davvero e' la spinta di 2, e non e' scrivibile qui: servirebbe il `Weapon.Impact` che la riga sopra toglie di proposito.",
 
   "units": [
     { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [ 0, 0, 0] },
-    { "id": "R1", "hero": "Hero.Phase",    "team": 0, "cell": [ 0, 1, 0] },
-    { "id": "V1", "hero": "Hero.Wraith",  "team": 1, "cell": [-3, 0, 0] }
+    { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [ 0, 3, 0] },
+    { "id": "V1", "hero": "Hero.Phase",  "team": 1, "cell": [-1, 0, 0], "loadout": [] },
+    { "id": "V2", "hero": "Hero.Phase",  "team": 1, "cell": [-1, 3, 0], "loadout": [] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — entrambi si irrigidiscono. Gira sul gioco di oggi: `Action.Brace` e' un'azione principale di Prep e il suo effetto base (-10 a ogni danno diretto, blocco della prima spinta) e' quello di sempre. Nessuna finestra si apre: col solo profilo base la cardinalita' resta 1.",
+      "_turno": "T1 — la differenza, in un turno solo. Nel `Prep` B1 e R1 dichiarano `Action.Brace`: identica azione, identico costo, identico `Status.Braced`. Nell'`Attack` V1 colpisce B1 e V2 colpisce R1 con lo stesso `Hero.Phase.PressureJet`. Il ramo `Status.Braced` costruisce per ciascuno l'opportunity dalle risposte del PROPRIO profilo: B1 (Riktor) non ne ha uno, quindi una sola risposta e nessuna finestra — commit immediato, il comportamento di sempre. R1 (Phase) porta `Profile.Sidestep`, quindi due risposte e la finestra si apre; la `decisions` qui sotto risponde `SIDESTEP` e R1 lascia la cella.",
+      "requires": ["ReactionProfile"],
       "intents": [
         { "unit": "B1", "ability": "Action.Brace" },
-        { "unit": "R1", "ability": "Action.Brace" }
+        { "unit": "R1", "ability": "Action.Brace" },
+        { "unit": "V1", "ability": "Hero.Phase.PressureJet", "target": "B1" },
+        { "unit": "V2", "ability": "Hero.Phase.PressureJet", "target": "R1" }
+      ],
+      "decisions": [
+        { "_nota": "Nessuna decisione per B1: la sua finestra non si apre, e dichiararne una qui sarebbe il caso simmetrico della «finestra scoperta» — una decisione che nessuno consuma, che `FRTScenarioSession` conta nel residuo e segnala.",
+          "unit": "R1", "respond": "SIDESTEP" }
       ]
-    },
-    {
-      "_turno": "T2 — la differenza. Con un profilo che dichiara una seconda risposta legale, la stessa preparazione produce reazioni diverse: Riktor (B1) tiene la cella col comportamento base, Phase (R1) scarta con `Profile.Sidestep`. E' un boundary SINGLE-RESPONDER: un solo partecipante ha una scelta vera, quindi NON e' contested e non serve `ReactionClash` (D-048 chiede DUE partecipanti con >= 2 risposte ciascuno). Serve pero' il PROFILO, che e' la seconda risposta: senza, la cardinalita' resta 1 come al T1 e non c'e' nessun boundary — la finestra di CP 14.5 e' necessaria e non sufficiente.",
-      "requires": ["ReactionProfile"],
-      "intents": []
     }
   ],
 
   "expect": [
-    { "type": "UnitAtCell",     "unit": "B1", "cell": [0, 0, 0] },
-    { "type": "UnitAtCell",     "unit": "R1", "cell": [0, 1, 0] },
+    { "_assertion": "IL DISCRIMINANTE, e va letto come una coppia. B1 in `Brace` resta dov'era: e' il ramo `Status.Braced`, che regge la spinta a qualunque distanza. Senza il profilo di R1, la riga sotto direbbe la stessa cosa e questo file sarebbe verde senza dimostrare niente.",
+      "type": "UnitAtCell", "unit": "B1", "cell": [0, 0, 0] },
+    { "_assertion": "L'ALTRA META': R1, nello stesso `Brace` e contro lo stesso colpo, NON resta. La differenza fra le due righe e' l'unica cosa che questo scenario dimostra, ed e' prodotta da un dato — `Hero.Phase.ReactionProfileId = Profile.Sidestep` — non da un ramo nel resolver.",
+      "type": "UnitAtCell", "unit": "R1", "cell": [1, 3, 0] },
+
+    { "_assertion": "I due attaccanti non si muovono: `Push` sposta il bersaglio, mai la sorgente. Una posizione diversa significherebbe che la fixture non e' quella descritta.",
+      "type": "UnitAtCell", "unit": "V1", "cell": [-1, 0, 0] },
+    { "type": "UnitAtCell", "unit": "V2", "cell": [-1, 3, 0] },
+
+    { "_assertion": "IL DANNO E' IDENTICO PER I DUE, e questa riga e' il controllo dell'altra meta': `Brace` toglie **10** a ogni danno diretto (`RTCombatLibrary.h:112`), quindi 16 - 10 = 6 per entrambi — 120-6 per Riktor, 95-6 per Phase. Se scartare riducesse anche il danno, la differenza fra i due difensori avrebbe due cause invece di una e questo scenario non direbbe piu' quale. `SIDESTEP` sposta e basta.",
+      "type": "UnitHpEquals", "unit": "B1", "value": 114 },
+    { "type": "UnitHpEquals", "unit": "R1", "value": 89 },
+
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

@@ -422,6 +422,36 @@ Nascono **`BLOCKED`** e va bene: è la prassi del repository — una feature ha 
 essere costruita, come `Spec.Overwatch.HoldThenFire`. Il gate `requires` dichiara la capability mancante
 (`DecisionBoundary`, `ReactionClash`).
 
+> ✅ **`Spec.Brace.ProfileChangesResponse` è VERDE dal 2026-08-19** (E14.7 fetta 4): `ReactionProfile` è fra le
+> capability disponibili e il suo T2 non è più `intents: []`. Gli otto `Spec.Clash.*` restano `BLOCKED` su
+> `ReactionClash`, che è tuttora indisponibile — le sue funzioni pure esistono e **nessun punto del resolver
+> le chiama**.
+
+### 12.1 Il vocabolario di `decisions` — versione **3** del formato scenario
+
+Uno scenario scripta la risposta a un boundary con `decisions[].respond`. Fino alla v2 il vocabolario era
+chiuso a `FIRE` / `HOLD`; dalla **v3** accetta anche le risposte di un Reaction Profile:
+
+```jsonc
+"decisions": [
+  { "unit": "V1", "respond": "FIRE", "target": "R1" },  // target OBBLIGATORIO
+  { "unit": "V1", "respond": "HOLD" },                  // e VIETATO con tutto il resto
+  { "unit": "R1", "respond": "SIDESTEP" }               // v3: risposta di profilo
+]
+```
+
+Tre proprietà, ciascuna con la ragione per cui non è un dettaglio:
+
+- **il vocabolario si chiede al catalogo** (`URTCatalogLibrary::AllReactionProfileResponses`), non si
+  riscrive nel loader: una seconda lista divergerebbe al primo profilo aggiunto, e a divergere sarebbe il
+  *gate* — cioè il pezzo il cui mestiere è accorgersene;
+- **il gate di versione fa dire al messaggio la cosa giusta**: senza, una build a `SupportedVersion = 2`
+  accetterebbe un file `version: 2` con `respond: "SIDESTEP"` e lo rifiuterebbe con «risposta sconosciuta»,
+  accusando il file mentre il difetto è la build;
+- **una risposta legale nel catalogo può non esserlo in quella finestra** — `SIDESTEP` chiesto a Riktor, che
+  non ha profilo. La session lo verifica con `IsResponseAllowed` e lo dichiara come nota del turno; senza,
+  il resolver produrrebbe un `HoldRejected` che nel referto somiglia a un `HOLD` voluto.
+
 ## 13. Metriche di playtest
 
 Si riusano i nomi in vigore — `ReactionDecisionSeconds` e `ResolutionPlaybackSeconds` restano **separate**,

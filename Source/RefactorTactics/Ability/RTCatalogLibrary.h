@@ -170,6 +170,24 @@ public:
 	static TArray<FRTActionEffectSpec> BraceResponseEffects(const FName& ProfileId, const FString& Response);
 
 	/**
+	 * Tutte le risposte che un Reaction Profile puo' offrire, `Hold Ground` compresa — l'unione, senza
+	 * duplicati e in ordine deterministico.
+	 *
+	 * Esiste per il **loader degli scenari**, che deve poter rifiutare un refuso in `decisions` senza
+	 * riscrivere l'elenco: una seconda lista in `RTScenarioLoader.cpp` divergerebbe al primo profilo
+	 * aggiunto, e a divergere sarebbe il gate — cioe' il pezzo il cui mestiere e' accorgersene.
+	 *
+	 * ⚠️ **Elenca le DICHIARATE, non le eseguibili**, e la differenza qui e' voluta: uno scenario deve poter
+	 * **nominare** una risposta che il resolver non sa ancora applicare, perche' e' cosi' che un file di
+	 * specifica descrive una feature prima che esista — la prassi con cui questo repository scrive gli
+	 * scenari `BLOCKED`. A dire «non e' eseguibile» ci pensa il `requires`, non l'errore di parsing.
+	 */
+	static TArray<FString> AllReactionProfileResponses();
+
+	/** Vero se la stringa e' una delle risposte di `AllReactionProfileResponses`. Confronto esatto. */
+	static bool IsKnownReactionProfileResponse(const FString& Response);
+
+	/**
 	 * Vero se l'azione e' una mobilita' RAPIDA, cioe' risolve nella macro-fase Dash (scatto, carica, salto,
 	 * riposizionamento, corsa). E' l'unico gate di «questa azione e' uno scatto»: prima di #142 il resolver
 	 * leggeva la fase e il resto del gioco un flag booleano sull'asset, e le due risposte divergevano — le

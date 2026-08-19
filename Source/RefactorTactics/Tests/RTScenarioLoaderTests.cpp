@@ -777,7 +777,15 @@ bool FRTScenarioLoaderVersionTwoTest::RunTest(const FString&)
 
 	Prova(1, true);   // i 76 scenari esistenti restano a 1 e non si toccano
 	Prova(2, true);   // la versione che dichiara `decisions`
-	Prova(3, false);  // il gate resta un gate
+	// 🔁 **`3` e' passata da rifiutata ad accettata il 2026-08-19** (E14.7 fetta 4): e' la versione che
+	// ammette in `decisions.respond` le risposte di un Reaction Profile. Il numero si e' mosso di uno e il
+	// test **non** ha perso il proprio mestiere: il caso «il gate resta un gate» e' ora la riga sotto.
+	Prova(3, true);
+	// ⚠️ **La riga che conta e' questa, e va SEMPRE tenuta a `SupportedVersion + 1`**: senza, il test
+	// dimostrerebbe solo che le versioni note si caricano — cioe' niente sul gate. Il verso protetto e'
+	// quello dichiarato in `RTScenarioLoader.h`: una build vecchia deve RIFIUTARE uno scenario che non sa
+	// leggere invece di ignorarne i campi, e da `#926` gli scenari viaggiano dentro il pacchetto.
+	Prova(URTScenarioLoader::SupportedVersion + 1, false);
 	return true;
 }
 
