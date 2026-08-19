@@ -477,12 +477,18 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 > macerie mentre lo stesso pannello è intero sul bordo accanto. ∴ il TurnLog distingue i tre casi; il dato
 > di mappa, a fase conclusa, non ne conserva **nessuno**.
 >
-> ⚠️ **«In partita» è una restrizione necessaria, non un'esitazione**: `grep -nE "Covers\.(RemoveAt|RemoveAll)" Source/`
-> trova un **quarto** sito, `BakeCell` ([`RTGeometryBake.cpp`](../../Source/RefactorTactics/Map/RTGeometryBake.cpp)),
-> che scarta le coperture `bGenerated` al rebake. È authoring: il suo unico chiamante fuori dai test è
-> `RTHexGeometryTool` nel modulo Editor, e non logga **nessun** `ERTEnvironmentOutcome` — misurato, zero
-> occorrenze nel file. Non indebolisce la conclusione, ma un conteggio senza il suo dominio manda chi
-> verifica su un quarto sito e riapre la domanda che questa sezione chiude.
+> ⚠️ **«In partita» è una restrizione necessaria, non un'esitazione**: `BakeCell`
+> ([`RTGeometryBake.cpp`](../../Source/RefactorTactics/Map/RTGeometryBake.cpp)) scarta le coperture
+> `bGenerated` al rebake, quindi toglie entry senza che nessuno le abbia colpite. È **authoring**: il suo
+> unico chiamante fuori dai test è `RTHexGeometryTool`, nel modulo Editor, e non logga nessun
+> `ERTEnvironmentOutcome`. Non indebolisce la conclusione — è dichiarato perché chi cerca dove le entry
+> spariscono lo incontra comunque, e senza il dominio riaprirebbe la domanda che questa sezione chiude.
+>
+> ⛔ *Qui c'era un comando di verifica, ed è stato tolto invece che riparato. Sbagliava due volte: senza `-r`
+> non cercava nella cartella, e il suo pattern prendeva anche `DynamicCovers`, un altro contenitore — così
+> «quarto sito» era falso, perché a mutare le `Covers` di cella sono `DamageFace`, `RemoveCover` e
+> `BakeCell`. Un oracolo sbagliato è peggio di nessun oracolo: chi lo esegue conclude che l'affermazione non
+> è misurata. I simboli sono nominati; il comando lo sceglie chi verifica.*
 >
 > ⚠️ *Questo punto ne ha enumerati male DUE volte, e la seconda è istruttiva. Prima diceva «due» —
 > distruzione e scadenza — qualificandosi «misurato non dedotto»; poi, correggendolo a tre, ha attribuito
