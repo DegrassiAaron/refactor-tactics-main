@@ -6097,7 +6097,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: docs/1165-fase5-contratti-generati
+    branch: null
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6304,6 +6304,14 @@ tracks:
         con una lista vuota non faceva cadere niente.
       ⛔ La meta' QA della fase resta chiusa: le cartelle `qa/` avrebbero preso i runbook, che sono
       bloccati dalle stesse track della fase 4.
+
+      ✅ **Fase 5 CHIUSA**: PR **#1223** in `main`. `branch: null`.
+      Restano nel `writable` gli owner della governance e dell'auditor, piu' `docs/generated/`, che ora
+      ha un README: e' l'owner del contratto e la fase 6 lo tocchera' ancora.
+      📌 **Cosa manca a #1165**, misurato e non stimato: la fase 6 — archive, navigazione,
+      validazione finale — e i **due mezzi** rimandati per `D-139`: `runbooks/` (7 documenti su 12 sono
+      di `playtest`, `content_editor`, `frontend_shell`) e le cartelle `qa/`, che avrebbero preso gli
+      stessi file. Si aprono con un `git mv` quando quelle track rilasciano.
     writable:
       - docs/README.md
       - docs/generated/
