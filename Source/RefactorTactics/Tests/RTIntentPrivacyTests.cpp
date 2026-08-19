@@ -356,12 +356,38 @@ bool FRTIntentCertaintyRenderingTest::RunTest(const FString&)
 	// `AHUD::DrawLine` finisce in `FBatchedElements::AddLine`, che forza `OpaqueColor.A = 1` — quindi
 	// asserire l'alpha significava misurare un campo che l'engine butta via, con il test verde e lo schermo
 	// invariato. Lo spessore l'engine lo rispetta.
-	TestNotEqual(TEXT("confermato e previsto non si disegnano uguali"),
-		Confirmed.LineThickness, Predicted.LineThickness);
-	TestNotEqual(TEXT("previsto e incerto non si disegnano uguali"),
-		Predicted.LineThickness, Uncertain.LineThickness);
-	TestNotEqual(TEXT("confermato e incerto non si disegnano uguali"),
-		Confirmed.LineThickness, Uncertain.LineThickness);
+	// 🔴 **Riscritti il 2026-08-19, dopo che la verifica PIE ha BOCCIATO una resa che questi assert
+	// dichiaravano corretta.** Dicevano `TestNotEqual` sullo spessore: `2,0 != 1,25` e' vero, e il test era
+	// verde mentre un occhio davanti allo schermo diceva *«si somigliano troppo»*. **«Diverso» non e'
+	// «distinguibile»**, ed e' la sola cosa che un test headless non puo' misurare da solo — ma puo'
+	// misurare che la differenza stia su un canale che ha superato una verifica umana, e con quale margine.
+	//
+	// Ogni coppia ha quindi **il suo** canale, quello che regge:
+
+	// · `Confirmed` vs `Predicted` → la linea, piena contro tratteggiata. Canale confermato dalla seduta del
+	//   2026-08-19: «le linee tratteggiate si vedevano». E' la grammatica del 2026-08-07 alla lettera.
+	TestNotEqual(TEXT("confermato e previsto: li separa la linea, piena contro tratteggiata"),
+		Confirmed.bDashedLine, Predicted.bDashedLine);
+
+	// · `Predicted` vs `Uncertain` → il colore, con un divario MINIMO invece che una disuguaglianza. La resa
+	//   bocciata aveva la stessa vividezza su entrambi e affidava il confronto a un pixel di spessore: con
+	//   una soglia, quella resa non passa. Senza, passerebbe di nuovo.
+	TestTrue(TEXT("previsto e incerto: li separa il colore, e di un margine leggibile"),
+		Predicted.ColorSaturation - Uncertain.ColorSaturation >= 0.5f);
+	// ⚠️ Il tratteggio NON puo' separarli, e va pinnato: sono entrambi tratteggiati di proposito — e' cio'
+	// che aveva tolto al tratteggio il suo potere discriminante quando era l'unico canale in gioco.
+	TestEqual(TEXT("e il tratteggio non li separa: lo portano entrambi"),
+		Predicted.bDashedLine, Uncertain.bDashedLine);
+
+	// · `Confirmed` vs `Uncertain` → entrambi i canali insieme, che e' il confronto piu' facile dei tre.
+	TestNotEqual(TEXT("confermato e incerto: la linea"), Confirmed.bDashedLine, Uncertain.bDashedLine);
+	TestTrue(TEXT("confermato e incerto: e anche il colore"),
+		Confirmed.ColorSaturation - Uncertain.ColorSaturation >= 0.5f);
+
+	// Lo spessore resta e accompagna, ma non porta piu' da solo nessun confronto: e' quello che la seduta ha
+	// insegnato. Pinnato come rinforzo, non come discriminante.
+	TestTrue(TEXT("il tratto si assottiglia col livello, a rinforzo"),
+		Uncertain.LineThickness < Predicted.LineThickness && Predicted.LineThickness < Confirmed.LineThickness);
 
 	// 2. E la grammatica del 2026-08-07 nei suoi tre elementi, uno per livello.
 	TestFalse(TEXT("confermato: linea piena"), Confirmed.bDashedLine);
@@ -372,13 +398,11 @@ bool FRTIntentCertaintyRenderingTest::RunTest(const FString&)
 	// passando da `Unknown`. Trovato dalla code review contando cosa sopravvive a una mutazione.
 	TestTrue(TEXT("incerto: linea tratteggiata"), Uncertain.bDashedLine);
 
-	// Il tratto si alleggerisce nella stessa direzione in cui il livello si indebolisce, su entrambi i canali
-	// che l'engine rende davvero: piu' sottile E piu' rado.
-	TestTrue(TEXT("previsto e' attenuato, non dissolto"),
-		Predicted.LineThickness < Confirmed.LineThickness && Predicted.LineThickness > Uncertain.LineThickness);
+	// La linea di `Confirmed` e' continua per davvero, non «quasi»: e' l'altra meta' del canale che lo separa
+	// da `Predicted`, e un duty di `0,99` lo renderebbe un tratteggio fittissimo invece che una linea piena.
 	TestTrue(TEXT("confermato e' continuo"), Confirmed.DashDutyCycle >= 1.f);
-	TestTrue(TEXT("e il tratteggio si dirada col livello"),
-		Uncertain.DashDutyCycle < Predicted.DashDutyCycle && Predicted.DashDutyCycle < Confirmed.DashDutyCycle);
+	TestTrue(TEXT("e i due livelli tratteggiati non sono continui"),
+		Predicted.DashDutyCycle < 1.f && Uncertain.DashDutyCycle < 1.f);
 
 	// 3. Il `?` appartiene al SOLO livello incerto. E' l'elemento piu' facile da spargere ovunque «per
 	//    prudenza», e un `?` su tutto non dice piu' niente.
@@ -400,6 +424,7 @@ bool FRTIntentCertaintyRenderingTest::RunTest(const FString&)
 		Contradictory.PlannedCell = FRTCellId(5, 0);
 		const FRTIntentCertaintyStyle S = ARTHUD::ComposeIntentCertaintyStyle(Contradictory);
 		TestEqual(TEXT("la resa segue il livello, non i flag del piano"), S.LineThickness, Confirmed.LineThickness);
+		TestEqual(TEXT("col colore del livello, non dei flag"), S.ColorSaturation, Confirmed.ColorSaturation);
 		TestFalse(TEXT("e non inventa un ? che il livello non chiede"), S.bUncertaintyMark);
 	}
 
@@ -410,6 +435,8 @@ bool FRTIntentCertaintyRenderingTest::RunTest(const FString&)
 		TestNotEqual(TEXT("il livello mai calcolato non si disegna come confermato"),
 			S.LineThickness, Confirmed.LineThickness);
 		TestTrue(TEXT("e non promette una linea piena"), S.bDashedLine);
+		TestTrue(TEXT("ne' il colore pieno di chi e' certo"),
+			Confirmed.ColorSaturation - S.ColorSaturation >= 0.5f);
 	}
 	return true;
 }
@@ -526,6 +553,68 @@ bool FRTArmedReactionLabelTest::RunTest(const FString&)
 		TestFalse(TEXT("un'unita' che scatta non e' «ferma»"), L.Contains(TEXT("fermo")));
 		TestTrue(TEXT("l'etichetta nomina lo scatto"), L.Contains(TEXT("scatto")));
 		TestTrue(TEXT("e la cella di arrivo"), L.Contains(TEXT("q=4")));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCertaintyTintTest,
+	"RefactorTactics.UI.IntentCertaintyTint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCertaintyTintTest::RunTest(const FString&)
+{
+	// Il ciano di squadra usato dalla HUD per le proprie unita'.
+	const FLinearColor Team(0.2f, 0.9f, 1.f, 1.f);
+
+	const FLinearColor Full = ARTHUD::ApplyCertaintyTint(Team, 1.f);
+	const FLinearColor Faded = ARTHUD::ApplyCertaintyTint(Team, 0.35f);
+
+	// A saturazione piena il colore non si tocca: il livello certo deve avere il colore di squadra, non una
+	// sua approssimazione.
+	// ⚠️ **Confronto per componenti con tolleranza, e non `TestEqual` sul `FLinearColor` intero.** Quello
+	// esige l'uguaglianza esatta dei bit, e `FMath::Lerp(Lum, R, 1.f)` calcola `Lum + (R - Lum) * 1` — che in
+	// virgola mobile non ritorna esattamente `R`. Il test falliva stampando due colori **identici** a
+	// schermo, perche' il messaggio arrotonda a sei decimali: un rosso illeggibile su una differenza che non
+	// esiste per l'occhio ne' per il rendering.
+	TestEqual(TEXT("saturazione piena: R intatto"), Full.R, Team.R, 1.e-6f);
+	TestEqual(TEXT("saturazione piena: G intatto"), Full.G, Team.G, 1.e-6f);
+	TestEqual(TEXT("saturazione piena: B intatto"), Full.B, Team.B, 1.e-6f);
+
+	// 🔴 **L'ALPHA non si tocca mai**, ed e' la lezione che questa funzione porta incisa: su una linea di
+	// Canvas non arriva a destinazione, e graduarlo darebbe l'illusione di aver fatto qualcosa. Se un giorno
+	// qualcuno lo modificasse qui, il test cade prima che la resa torni a mentire.
+	TestEqual(TEXT("l'alpha resta quello di partenza"), Faded.A, Team.A);
+
+	// La LUMINANZA si conserva: sbiadire non deve rendere il tratto meno visibile, solo meno vivido. E' la
+	// differenza fra «incerto» e «quasi invisibile», e su una mappa chiara la seconda sarebbe un difetto.
+	auto Lum = [](const FLinearColor& C) { return 0.30f * C.R + 0.59f * C.G + 0.11f * C.B; };
+	TestEqual(TEXT("la luminanza non cambia: piu' spento, non piu' fioco"), Lum(Faded), Lum(Team), 0.01f);
+
+	// E la SATURAZIONE cala davvero. Misurata come distanza dal grigio: e' il canale su cui la verifica PIE
+	// del 2026-08-19 ha chiesto un margine, e senza questo assert la funzione potrebbe restituire l'input.
+	auto SpreadFromGrey = [&Lum](const FLinearColor& C)
+	{
+		const float L = Lum(C);
+		return FMath::Abs(C.R - L) + FMath::Abs(C.G - L) + FMath::Abs(C.B - L);
+	};
+	TestTrue(TEXT("il colore sbiadito e' piu' vicino al grigio"), SpreadFromGrey(Faded) < SpreadFromGrey(Team));
+	// Con un margine, non di un capello: e' esattamente la differenza che un occhio deve cogliere a schermo.
+	TestTrue(TEXT("e di un margine leggibile, non di un capello"),
+		SpreadFromGrey(Faded) <= SpreadFromGrey(Team) * 0.5f);
+
+	// A zero si arriva al grigio puro: i tre canali coincidono. Pinnato perche' e' il caso limite che dice
+	// se il lerp va verso il grigio o verso qualcos'altro.
+	{
+		const FLinearColor Grey = ARTHUD::ApplyCertaintyTint(Team, 0.f);
+		TestEqual(TEXT("saturazione zero: grigio puro (R=G)"), Grey.R, Grey.G, 0.001f);
+		TestEqual(TEXT("saturazione zero: grigio puro (G=B)"), Grey.G, Grey.B, 0.001f);
+	}
+
+	// Un valore fuori scala non deve produrre un colore fuori gamma: la funzione lo clampa.
+	{
+		const FLinearColor Over = ARTHUD::ApplyCertaintyTint(Team, 3.f);
+		TestEqual(TEXT("una saturazione oltre 1 vale 1 (R)"), Over.R, Full.R, 1.e-6f);
+		TestEqual(TEXT("una saturazione oltre 1 vale 1 (G)"), Over.G, Full.G, 1.e-6f);
+		TestEqual(TEXT("una saturazione oltre 1 vale 1 (B)"), Over.B, Full.B, 1.e-6f);
 	}
 	return true;
 }

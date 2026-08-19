@@ -159,8 +159,9 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 		// «Linea piena · ghost pienamente leggibile · nessun `?`». Niente da alleggerire: l'unita' sta ferma
 		// e non punta niente, quindi non c'e' un avversario che possa smentirla entro questo turno.
 		Style.LineThickness = 2.5f;
-		Style.bDashedLine = false;
+		Style.bDashedLine = false;   // ← la linea PIENA: e' questo che lo separa da `Predicted`
 		Style.DashDutyCycle = 1.f;
+		Style.ColorSaturation = 1.f;
 		Style.bUncertaintyMark = false;
 		break;
 
@@ -170,6 +171,10 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 		Style.LineThickness = 2.f;
 		Style.bDashedLine = true;
 		Style.DashDutyCycle = 0.5f;
+		// ⚠️ Colore PIENO come `Confirmed`, e non e' una svista: fra questi due la differenza la porta la
+		// linea — piena contro tratteggiata — che in PIE si vede. Sbiadire anche qui spenderebbe il canale
+		// del colore su un confronto gia' risolto, lasciandolo piu' debole dove serve davvero.
+		Style.ColorSaturation = 1.f;
 		Style.bUncertaintyMark = false;
 		break;
 
@@ -187,6 +192,11 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 		Style.LineThickness = 1.25f;
 		Style.bDashedLine = true;
 		Style.DashDutyCycle = 0.3f;
+		// 🔴 **Il canale che porta davvero la differenza da `Predicted`.** La resa precedente affidava quel
+		// confronto a spessore e densita' — `2,0` contro `1,25` px, `0,5` contro `0,3` di acceso — e la
+		// verifica PIE del 2026-08-19 l'ha bocciata: *«si somigliano troppo»*. Il colore sbiadito si legge da
+		// lontano, ed e' l'unico canale forte che l'engine lasci passare su una linea.
+		Style.ColorSaturation = 0.35f;
 		Style.bUncertaintyMark = true;
 		break;
 	}
@@ -197,6 +207,24 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 	Style.bReactionArmed = !View.ReactionName.IsEmpty();
 
 	return Style;
+}
+
+FLinearColor ARTHUD::ApplyCertaintyTint(const FLinearColor& TeamColor, float Saturation)
+{
+	// Luminanza percettiva: il verde pesa piu' del blu per l'occhio. Con una media aritmetica il grigio
+	// risultante cambierebbe anche la CHIAREZZA del tratto, cioe' quanto si vede — e la visibilita' non e'
+	// cio' che stiamo graduando: un livello incerto deve essere meno vivido, non meno leggibile.
+	const float Lum = 0.30f * TeamColor.R + 0.59f * TeamColor.G + 0.11f * TeamColor.B;
+	const float S = FMath::Clamp(Saturation, 0.f, 1.f);
+
+	// ⚠️ L'alpha si copia intatto: su una linea di Canvas non arriva comunque a destinazione
+	// (`AddLine` lo forza a 1), e fingere di graduarlo qui rimetterebbe in piedi l'illusione che la code
+	// review ha smontato.
+	return FLinearColor(
+		FMath::Lerp(Lum, TeamColor.R, S),
+		FMath::Lerp(Lum, TeamColor.G, S),
+		FMath::Lerp(Lum, TeamColor.B, S),
+		TeamColor.A);
 }
 
 TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D& A, const FVector2D& B,
@@ -560,10 +588,13 @@ void ARTHUD::DrawHUD()
 		auto DrawIntentLine = [this](const FVector2D& A, const FVector2D& B, const FLinearColor& C,
 			const FRTIntentCertaintyStyle& S)
 		{
+			// Il colore di squadra sbiadito secondo il livello: e' il canale che separa «previsto» da
+			// «incerto», dopo che la verifica PIE ha bocciato spessore e densita' come troppo deboli.
+			const FLinearColor Tinted = ApplyCertaintyTint(C, S.ColorSaturation);
 			const float Duty = S.bDashedLine ? S.DashDutyCycle : 1.f;
 			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, Duty))
 			{
-				DrawLine(Seg.Key.X, Seg.Key.Y, Seg.Value.X, Seg.Value.Y, C, S.LineThickness);
+				DrawLine(Seg.Key.X, Seg.Key.Y, Seg.Value.X, Seg.Value.Y, Tinted, S.LineThickness);
 			}
 		};
 

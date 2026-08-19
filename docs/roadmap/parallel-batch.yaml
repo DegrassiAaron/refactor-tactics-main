@@ -2932,7 +2932,22 @@ tracks:
     # stesso registra come *«il primo in cui il confine morde su una registrazione invece che su
     # un'implementazione»*. `IDLE` con `issue` valorizzata dice esattamente questo — la issue è viva, la
     # seduta no — ed è la stessa forma di `unit_presentation` con `#593`.
-    status: IDLE
+    #
+    # 🔺 **RIAPERTA il 2026-08-19: la verifica PIE ha BOCCIATO la resa, e il difetto è in questo write-set.**
+    # `PIE-V01-INTENT` è stata eseguita con una persona alla tastiera e il verdetto è *«si somigliano
+    # troppo»*: gli intenti si vedono, ma «previsto» e «incerto» non si distinguono a colpo d'occhio.
+    # Referto completo su `#1013`, dove vive il registro — questa track non ce lo scrive.
+    # ⚠️ **Non è una regressione né una scoperta esterna: è la stessa decisione sbagliata due volte.** Quando
+    # la code review ha dimostrato che l'alpha è inerte sulle linee (`AddLine` forza `OpaqueColor.A = 1`), la
+    # gradazione è stata spostata su spessore e densità del tratteggio — due canali deboli — mentre quella
+    # riga dell'engine tocca **solo l'alpha** e lascia intatto l'**RGB**. Il canale forte era lì.
+    # ✅ **La seduta ha anche detto cosa FUNZIONA**, ed è la metà che vale di più: *«le linee tratteggiate si
+    # vedevano»*. Il tratteggio come canale regge; il difetto era averlo esteso a **entrambi** i livelli che
+    # portano una linea, così che non separasse più niente.
+    # ⛔ **Due esiti della verifica NON sono lavoro di questa track e restano a chi li possiede**: che il
+    # giocatore non possa armare una reazione (la quinta abilità non ha un tasto — tocca l'input), e che il
+    # criterio della voce chieda tre livelli quando in partita due sono raggiungibili (tocca il registro PIE).
+    status: ACTIVE
     issue: 78
     # ═══ CONSOLIDAMENTO del 2026-08-16, misurato su `origin/main` @ `9f2be669` dopo `git fetch --prune`.
     # Il registro dei quattro significati precedenti di `branch:` resta sotto, come provenienza; questo
@@ -3020,8 +3035,12 @@ tracks:
     # aprire questa sessione, e chi riapre R6 (`#472`) o rientra su `#78` per la verifica PIE lo ridichiara
     # allora. Una directory di lavoro non si tiene prenotata fra due sessioni — è la stessa ragione per cui
     # è stata ceduta, applicata nel verso opposto.
-    branch: null           # mergiato con PR #1172 (2026-08-18T08:25:42Z), assente da `git ls-remote`
-    worktree: null         # `D:/rt-client` esiste ma nessuna track lo rivendica: è libero
+    # 🔺 **Riempiti di nuovo il 2026-08-19 con la riapertura.** `fix/78-grammatica-leggibile` è aperto su
+    # `origin/main` @ `215559f5`, e il worktree è ancora `D:/rt-client` — **misurato libero prima di
+    # riprenderlo**, non dato per scontato: `worktree` era `null` su tutte le track, e nessuna lo dichiarava.
+    # Se ce l'avesse avuto qualcun altro, questa sessione si sarebbe aperta altrove o non si sarebbe aperta.
+    branch: fix/78-grammatica-leggibile
+    worktree: "D:/rt-client"
     # ═══ `blocked_by: 904` e `blocked_paths` RIMOSSI il 2026-08-16: **#904 è `MERGED`** (`95d2d39f`,
     # `12:05:41Z`). Lo schema di questi campi lo prescrive alla lettera — *«si cancella al **merge**, non
     # alla lettura: una `blocked_by` su una PR già `MERGED` è una contraddizione decidibile»* — e sono
