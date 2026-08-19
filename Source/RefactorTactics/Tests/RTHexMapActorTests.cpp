@@ -281,10 +281,20 @@ namespace
 	 * Condiviso dalle due funzioni sotto, che senza divergevano gia' appena nate: una accumulava su tutti i
 	 * componenti omonimi, l'altra usciva al primo — due risposte diverse alla stessa domanda.
 	 *
+	 * ⚠️ **Nome prefissato col dominio del file, come la riga 16 prescrive**: gli helper in namespace
+	 * anonimo di due `.cpp` dello stesso modulo finiscono nella stessa unita' di traduzione con la unity
+	 * build, e due `FindIsm` omonimi sarebbero una ridefinizione — riportata sui call site, non sulla
+	 * definizione, e comparsa/sparita a seconda del raggruppamento.
+	 *
+	 * ⚠️ **Presuppone che il nome identifichi UN componente**, che e' vero per costruzione: i quattro ISM
+	 * di `ARTHexMapActor` sono `CreateDefaultSubobject` distinti. Non c'e' quindi dipendenza dall'ordine di
+	 * `GetComponents` — che itera un `TSet` e non e' ordinato (`CLAUDE.md` §5). Se un giorno esistessero due
+	 * omonimi, questa funzione andrebbe cambiata, non il chiamante.
+	 *
 	 * ⚠️ `PickIgnoresGeometryThatIsNotTheGrid` ha ancora la propria passata: vive **sopra** questo namespace
 	 * e ne risolve due in un giro solo. Chi la unifica sposti prima il namespace.
 	 */
-	UInstancedStaticMeshComponent* FindIsm(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
+	UInstancedStaticMeshComponent* FindMapActorIsm(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
 	{
 		TArray<UInstancedStaticMeshComponent*> Isms;
 		Actor->GetComponents(Isms);
@@ -299,7 +309,7 @@ namespace
 	TArray<FTransform> InstancesOf(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
 	{
 		TArray<FTransform> Out;
-		if (const UInstancedStaticMeshComponent* Ism = FindIsm(Actor, ComponentName))
+		if (const UInstancedStaticMeshComponent* Ism = FindMapActorIsm(Actor, ComponentName))
 		{
 			Out.Reserve(Ism->GetInstanceCount());
 			for (int32 I = 0; I < Ism->GetInstanceCount(); ++I)
@@ -319,9 +329,9 @@ namespace
 	 * buttava via proprio i transform — e il test dell'idempotenza lo faceva tre volte per componente.
 	 * Chi invece **asserisce** sulle posizioni continua a usare `InstancesOf`: le due domande sono diverse.
 	 */
-	int32 InstanceCountOf(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
+	int32 MapActorIsmCount(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
 	{
-		const UInstancedStaticMeshComponent* Ism = FindIsm(Actor, ComponentName);
+		const UInstancedStaticMeshComponent* Ism = FindMapActorIsm(Actor, ComponentName);
 		// `INDEX_NONE` = componente assente, distinto da «presente e vuoto», che e' 0.
 		return Ism ? Ism->GetInstanceCount() : INDEX_NONE;
 	}
@@ -719,13 +729,13 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	// smette di ripulire il componente, ed e' proprio il caso che questo test esiste per prendere.
 	// `CelleIniziali` e non `7`: la dimensione della fixture e' gia' asserita sopra, e ripeterne il numero
 	// qui creerebbe due fatti apparentemente indipendenti che in realta' sono lo stesso.
-	TestEqual(TEXT("l'ISM ha una istanza per cella"), InstanceCountOf(Actor, TEXT("Cells")), CelleIniziali);
+	TestEqual(TEXT("l'ISM ha una istanza per cella"), MapActorIsmCount(Actor, TEXT("Cells")), CelleIniziali);
 
 	// I tre ISM che l'asset di default lasciava vuoti. I conteggi si leggono qui una volta sola e si
 	// riusano dopo le ricostruzioni: il test non incide i valori, verifica che NON cambino.
-	const int32 ReliefIniziali = InstanceCountOf(Actor, TEXT("Relief"));
-	const int32 BlockersIniziali = InstanceCountOf(Actor, TEXT("Blockers"));
-	const int32 BordiIniziali = InstanceCountOf(Actor, TEXT("EdgeFeatures"));
+	const int32 ReliefIniziali = MapActorIsmCount(Actor, TEXT("Relief"));
+	const int32 BlockersIniziali = MapActorIsmCount(Actor, TEXT("Blockers"));
+	const int32 BordiIniziali = MapActorIsmCount(Actor, TEXT("EdgeFeatures"));
 
 	// ⚠️ **I numeri sono ATTESI dalla fixture, non letti dall'actor**, ed e' la differenza fra un test e una
 	// tautologia. La fixture dichiara **una** cella costosa, **una** che blocca il movimento e **un** solo
@@ -757,13 +767,13 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	// Una per componente, perche' le quattro `ClearInstances()` sono quattro righe distinte e togliendone
 	// una sola le altre tre non se ne accorgono.
 	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in Cells"),
-		InstanceCountOf(Actor, TEXT("Cells")), CelleIniziali);
+		MapActorIsmCount(Actor, TEXT("Cells")), CelleIniziali);
 	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in Relief"),
-		InstanceCountOf(Actor, TEXT("Relief")), ReliefIniziali);
+		MapActorIsmCount(Actor, TEXT("Relief")), ReliefIniziali);
 	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in Blockers"),
-		InstanceCountOf(Actor, TEXT("Blockers")), BlockersIniziali);
+		MapActorIsmCount(Actor, TEXT("Blockers")), BlockersIniziali);
 	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in EdgeFeatures"),
-		InstanceCountOf(Actor, TEXT("EdgeFeatures")), BordiIniziali);
+		MapActorIsmCount(Actor, TEXT("EdgeFeatures")), BordiIniziali);
 
 	// ⚠️ La guardia `> 0` non e' difensiva: senza, `CelleIniziali == 0` renderebbe il seme vero, il ciclo
 	// non girerebbe mai e l'asserzione passerebbe su un actor vuoto. Stesso schema, stesso file: i due
@@ -795,7 +805,7 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	TestEqual(TEXT("dopo la ricostruzione la cella nuova e' mappata"),
 		Actor->NumInstanceCells(), CelleIniziali + 1);
 	TestEqual(TEXT("dopo la ricostruzione la cella nuova ha la sua istanza nell'ISM"),
-		InstanceCountOf(Actor, TEXT("Cells")), CelleIniziali + 1);
+		MapActorIsmCount(Actor, TEXT("Cells")), CelleIniziali + 1);
 
 	// ⚠️ Il totale che cresce NON dice che sia arrivata `Nuova`: una ricostruzione che emettesse un
 	// duplicato di una cella gia' presente darebbe lo stesso `+1` e passerebbe. L'asserzione che conta e'

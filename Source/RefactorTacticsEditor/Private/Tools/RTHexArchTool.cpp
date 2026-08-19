@@ -129,10 +129,12 @@ namespace
  * click in Add — e una riga unica avrebbe annunciato «passaggio a Remove» o «re-click» su transizioni mai
  * avvenute, in un log il cui unico compito e' disambiguare.
  *
- * ⚠️ **Cosa significa il SILENZIO, con precisione.** A verbosita' di default `LogTemp` non stampa `Verbose`,
- * quindi nessuna riga vuol dire *«non chiamata, **oppure** chiamata senza nulla di pendente»* — non la sola
- * prima. Per distinguerle serve `-LogCmds="LogTemp Verbose"`. Chi esegue il gesto di `#996` con un arco
- * **effettivamente** pendente e non vede righe ha invece l'informazione che cerca: il tool non c'entra.
+ * ⚠️ **Entrambe a `Log`, e la scelta e' deliberata.** Il segnale piu' importante di `#996` e' l'ASSENZA di
+ * righe: se al gesto il gizmo sparisce e qui non compare nulla, `DestroyPendingGizmo` non e' stata chiamata
+ * e la causa sta altrove. Mettere il caso a vuoto a `Verbose` — che a verbosita' di default non si stampa —
+ * avrebbe reso il silenzio ambiguo fra «non chiamata» e «chiamata senza nulla di pendente», cioe' avrebbe
+ * tolto proprio la garanzia per cui il log esiste. Una riga in piu' per click a vuoto e' il prezzo, e non
+ * mente su cosa e' successo.
  */
 void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 {
@@ -148,7 +150,7 @@ void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 	}
 	else
 	{
-		UE_LOG(LogTemp, Verbose, TEXT("[HexMode] Arco: nessun pendente da chiudere (chiamata con motivo %s)."),
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco: nessun pendente da chiudere (chiamata con motivo %s)."),
 			ArchPendingCloseToString(Reason));
 	}
 
