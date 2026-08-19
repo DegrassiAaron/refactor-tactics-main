@@ -173,6 +173,16 @@ class TestInvarianti(unittest.TestCase):
         inv.ORFANE_NOTE["docs/technical/img/z.png"] = "2026-08-18 · ragione, #1165"
         self.assertEqual(inv.controlla(inventario_finto(orfane=[])), 1)
 
+    def test_un_contratto_incoerente_e_una_violazione(self):
+        """Il quarto invariante deve essere **collegato** a `controlla()`, non solo esistere.
+        La verifica di mutazione l'ha trovato scollegato: sostituendo la chiamata con una lista
+        vuota, prima di questo test non cadeva niente — un gate che tace e' peggio di uno assente,
+        perche' il suo OK viene creduto."""
+        finto = {"output": "docs/inesistente.json", "generatore": "scripts/non-esiste.py",
+                 "comando": "x", "check": None, "sorgenti": [], "consumatori": []}
+        with unittest.mock.patch.object(inv, "CONTRATTI", [finto]):
+            self.assertGreater(inv.controlla(inventario_finto()), 0)
+
     def test_senza_wiki_il_terzo_invariante_non_gira_e_lo_dice(self):
         """Senza il clone, nove immagini incorporate via URL assoluto risultano orfane. Il gate
         non le segnala e **non finge** di aver controllato: e' la meta' non eseguita."""
@@ -229,6 +239,31 @@ class TestContratto(unittest.TestCase):
         out = subprocess.run(["git", "-C", REPO, "ls-files", "docs/src"],
                              capture_output=True, text=True, encoding="utf-8").stdout
         self.assertEqual(out.strip(), "", "docs/src ha di nuovo file versionati")
+
+    def test_il_contratto_dei_generati_dice_il_vero(self):
+        """Sui file veri: ogni generatore esiste, ogni output esiste, ogni `--check` dichiarato e'
+        implementato, e la tabella di `docs/generated/README.md` e' allineata alla dichiarazione.
+        E' il test che si accorge di un contratto diventato finzione."""
+        guasti = inv.controlla_contratto()
+        self.assertEqual(guasti, [], chr(10).join(guasti))
+
+    def test_generati_e_contratti_non_divergono(self):
+        """Due elenchi della stessa cosa divergono alla prima aggiunta: `GENERATI` serve
+        all'invariante sulle orfane, `CONTRATTI` alla provenienza, e devono parlare degli stessi
+        artefatti."""
+        output = {c["output"].rstrip("*") for c in inv.CONTRATTI}
+        for area in inv.GENERATI:
+            self.assertTrue(any(area.startswith(o) or o.startswith(area) for o in output),
+                            f"l'area {area} non compare fra gli output del contratto")
+
+    def test_la_tabella_non_si_scrive_a_mano(self):
+        """Il blocco fra i marcatori e' generato: se qualcuno lo edita nel documento, il confronto
+        con `tabella_contratto()` lo dice. Senza, il contratto diventerebbe due testi che divergono."""
+        path = os.path.join(REPO, inv.CONTRATTO_DOC)
+        text = open(path, encoding="utf-8").read()
+        self.assertIn(inv.CONTRATTO_BEGIN, text)
+        corpo = text.split(inv.CONTRATTO_BEGIN, 1)[1].split(inv.CONTRATTO_END, 1)[0].strip()
+        self.assertEqual(corpo, inv.tabella_contratto().strip())
 
     def test_ogni_dichiarazione_porta_una_data(self):
         """Una promessa senza data non scade, e un allowlist che non scade diventa un permesso."""
