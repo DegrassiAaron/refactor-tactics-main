@@ -406,6 +406,7 @@ contabilità e tutte vere il giorno in cui è nato:
 | Nessuna immagine incorporata e mancante | Un `![…](x.png)` che punta a un file che non c'è. `check-docs-links.py` lo vede già; qui il messaggio dice **quale documento** la incorpora |
 | Nessun duplicato esatto taciuto | Due path, stesso SHA-256. Un duplicato legittimo esiste — si dichiara in `DUPLICATI_NOTI` **con la ragione e la data** — uno taciuto no |
 | Nessuna orfana fuori dall'area grezza | Un'immagine che nessuno referenzia, in una cartella di owner |
+| Il contratto dei generati dice il vero | Un output dichiarato senza generatore, o un `--check` promesso e non implementato |
 
 `DUPLICATI_NOTI` e `ORFANE_NOTE` **non sono esenzioni**: sono promesse datate che il gate verifica al
 contrario, e una voce che non corrisponde più a niente lo fa fallire. Stessa disciplina di `DEBITO_NOTO`.
@@ -422,4 +423,10 @@ Due avvertenze, entrambe imparate sbagliando:
   escludono per **dichiarazione** (`FAMIGLIE_TEMPLATE`), mai alzando una soglia.
 
 Pillow è **facoltativo**: senza, dimensioni e hash percettivi non si calcolano, lo script lo dichiara, e i
-tre invarianti restano verificabili.
+quattro invarianti restano verificabili.
+
+Il quarto ha un owner leggibile: [`generated/README.md`](generated/README.md) tiene la tabella
+`source → generator → output → consumer` per **ogni** artefatto generato di `docs/`, ovunque viva — i
+radar in `characters/`, le shortlist in `roadmap/`, e i tre blocchi che stanno **dentro** documenti
+scritti a mano. La tabella non si scrive a mano: nasce da `CONTRATTI` nell'auditor
+(`--emit-contract`), perché due elenchi della stessa cosa divergono alla prima aggiunta.

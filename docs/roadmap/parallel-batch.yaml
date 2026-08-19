@@ -6097,7 +6097,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: null
+    branch: docs/1165-fase5-contratti-generati
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6288,8 +6288,25 @@ tracks:
       avrebbe detto: un `owner_spec` non e' un link Markdown. Chi apre la fase 5 lo sappia — spostare un
       documento nominato dal registry costa una rigenerazione, non una sostituzione di testo.
       ➖ `docs/technical/` esce dal `writable`: il giro e' finito e le fasi 5-6 lo rimisureranno.
+
+      ➕ **Fase 5, 2026-08-19** — il contratto degli artefatti generati prende un owner **durevole**.
+      `generated_only` qui dentro resta, ed e' governance del lotto — *questi path non si assegnano* —
+      ma questo file **si riscrive a ogni batch** e lo dichiara in testa: un contratto che scade quando
+      finisce un giro di sessioni non e' un contratto. La provenienza
+      (`source -> generator -> output -> consumer`) vive in `docs/generated/README.md`, e la sua tabella
+      e' **generata** da `CONTRATTI` in `scripts/docs_inventory.py`: due elenchi della stessa cosa
+      divergono alla prima aggiunta, e questo repository l'ha gia' pagato coi gate elencati per nome.
+      · Quarto invariante di `--check`: generatore che esiste, output che esiste, `--check` che il
+        generatore **implementa** davvero — e la tabella allineata alla dichiarazione.
+      · Due difetti trovati dai test, non in produzione: il criterio sui marcatori cercava la forma
+        chiusa e non vedeva quelli **parametrizzati** (`RT_FEATURE_STATUS:BEGIN <feature-id>`); e la
+        verifica di mutazione ha mostrato il gate nuovo **scollegato** da `controlla()` — sostituirlo
+        con una lista vuota non faceva cadere niente.
+      ⛔ La meta' QA della fase resta chiusa: le cartelle `qa/` avrebbero preso i runbook, che sono
+      bloccati dalle stesse track della fase 4.
     writable:
       - docs/README.md
+      - docs/generated/
       - docs/control-center/graph.test.mjs
       - docs/generated/
       - docs/research/

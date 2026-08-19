@@ -10,8 +10,9 @@ quante immagini ci fossero, chi le usasse, quali fossero la stessa immagine due 
     python scripts/docs_inventory.py --check             # exit 1 se un invariante cade
     python scripts/docs_inventory.py --json              # scrive build/docs-audit/*.json
     python scripts/docs_inventory.py --wiki-root <clone> # conta anche il clone come consumer
+    python scripts/docs_inventory.py --emit-contract     # riscrive la tabella del contratto
 
-## I tre invarianti di `--check`
+## I quattro invarianti di `--check`
 
   1. **Nessuna immagine referenziata e mancante.** Il gemello per le immagini di
      `check-docs-links.py`, che pero' verifica i target di *ogni* link: qui la domanda e' ristretta
@@ -20,6 +21,10 @@ quante immagini ci fossero, chi le usasse, quali fossero la stessa immagine due 
      puo' essere legittimo — vedi `DUPLICATI_NOTI` — ma deve essere **scritto**, con la ragione
      accanto. Non e' un'esenzione: e' una promessa che il gate verifica al contrario, e una voce
      che non corrisponde piu' a niente lo fa fallire, esattamente come `DEBITO_NOTO` dell'altro gate.
+  4. **Il contratto degli artefatti generati dice il vero.** Ogni output dichiarato in `CONTRATTI`
+     ha un generatore che esiste, un file che esiste, e un `--check` che il generatore **implementa**
+     davvero. La tabella di `docs/generated/README.md` si scrive da qui, e il gate fallisce se
+     qualcuno la modifica li': un contratto scritto due volte diverge alla prima aggiunta.
   3. **Un'immagine orfana sta solo in area di ricerca, o e' un output con un owner.** Misurato il
      2026-08-17: le 393 immagini senza un solo riferimento erano **tutte** sotto `docs/src/`, e
      fuori di li' gli orfani erano **zero**. E' la proprieta' che la riorganizzazione deve
@@ -82,6 +87,88 @@ GENERATI = {
     "docs/generated/icons/": "scripts/build-icon-assets.py",
     "docs/characters/radar/": "tools/radar/generate.ts",
     "docs/roadmap/charts/": "scripts/feature_registry.py",
+}
+
+# --- Il contratto degli artefatti generati ---------------------------------------------------------
+#
+# `source -> generator -> output -> consumer`, dichiarato **una volta**. La tabella di
+# `docs/generated/README.md` si scrive da qui (`--emit-contract`) e si verifica da qui (`--check`):
+# un contratto scritto due volte diverge alla prima aggiunta, ed e' il difetto che questo repository
+# ha gia' pagato con l'elenco dei gate in `AGENTS.md` — sei gate, tre conosciuti.
+#
+# ⚠️ Perche' non vive in `parallel-batch.yaml`, che ha gia' un `generated_only` con `derives_from`:
+# quel file **si riscrive a ogni batch** e lo dichiara in testa («vive quanto il batch, non e' un
+# registro storico»). Un contratto che scade quando finisce un lotto di sessioni non e' un contratto.
+# Li' resta la sua funzione di governance — *questi path non si assegnano* — e qui la provenienza.
+#
+# `check` e' il comando che dice se l'output e' allineato alla sorgente. `None` significa **che non
+# esiste**, ed e' un'informazione, non una lacuna da nascondere: e' l'unico modo per accorgersi che un
+# artefatto versionato non ha modo di dichiararsi stantio.
+CONTRATTI = [
+    {
+        "output": "docs/roadmap/feature-registry.json",
+        "generatore": "scripts/feature_registry.py",
+        "comando": "python scripts/feature_registry.py generate",
+        "check": "python scripts/feature_registry.py generate --check",
+        "sorgenti": ["docs/roadmap/feature-registry.yaml"],
+        "consumatori": ["docs/control-center/", "docs/roadmap/project-graph.json"],
+    },
+    {
+        "output": "docs/roadmap/project-graph.json",
+        "generatore": "scripts/feature_registry.py",
+        "comando": "python scripts/feature_registry.py generate",
+        "check": "python scripts/feature_registry.py generate --check",
+        "sorgenti": ["docs/roadmap/feature-registry.yaml", "docs/roadmap/editor-sessions.yaml",
+                     "docs/roadmap/execution-graph.yaml", "docs/roadmap/roadmap-v0.1.md",
+                     "docs/roadmap/roadmap-checkpoint.md", "Scenarios/"],
+        "consumatori": ["docs/control-center/", "Wiki: Stato del progetto"],
+    },
+    {
+        "output": "docs/roadmap/charts/roadmap-map.svg",
+        "generatore": "scripts/feature_registry.py",
+        "comando": "python scripts/feature_registry.py generate",
+        "check": "python scripts/feature_registry.py generate --check",
+        "sorgenti": ["docs/roadmap/feature-registry.yaml"],
+        "consumatori": ["docs/roadmap/roadmap-v0.1.md"],
+    },
+    {
+        "output": "docs/roadmap/*.shortlist.md",
+        "generatore": "scripts/feature_registry.py",
+        "comando": "python scripts/feature_registry.py shortlist",
+        "check": None,
+        "sorgenti": ["docs/roadmap/feature-registry.yaml", "docs/roadmap/editor-sessions.yaml",
+                     "docs/roadmap/roadmap-v0.1.md", "Scenarios/"],
+        "consumatori": ["lettura umana in code review — sono le viste che restano nel repository"],
+    },
+    {
+        "output": "docs/characters/radar/*.svg",
+        "generatore": "tools/radar/generate.ts",
+        "comando": "node tools/radar/generate.ts",
+        "check": "node tools/radar/generate.ts --check",
+        "sorgenti": ["docs/balance/"],
+        "consumatori": ["docs/characters/v0.1/*.md", "Wiki: pagine personaggio (URL assoluto)"],
+    },
+    {
+        "output": "docs/generated/icons/",
+        "generatore": "scripts/build-icon-assets.py",
+        "comando": "python scripts/build-icon-assets.py",
+        "check": "python scripts/build-icon-assets.py --check",
+        "sorgenti": ["scripts/build-icon-assets.py (la geometria e' dichiarata nel generatore)",
+                     "Source/RefactorTactics/Ability/RTCatalogLibrary.cpp"],
+        "consumatori": ["nessuno oggi: sono master iconografici in attesa di E20"],
+    },
+]
+
+# Blocchi generati DENTRO un documento scritto a mano: il file e' authored, la porzione fra i due
+# marcatori no. E' la forma piu' facile da rompere — rigenerare cancella la prosa che qualcuno ha
+# scritto dentro il blocco, e un `--check` che confronta il file intero non lo distingue.
+BLOCCHI_GENERATI = {
+    "RT_SUITE_COUNT": ("python scripts/feature_registry.py suite",
+                       ["docs/README.md", "docs/roadmap/roadmap-v0.1.md"]),
+    "RT_FEATURE_BY_EPIC": ("python scripts/feature_registry.py generate",
+                           ["docs/roadmap/roadmap-v0.1.md"]),
+    "RT_FEATURE_STATUS": ("python scripts/feature_registry.py deploy",
+                          ["docs/characters/index.md", "docs/characters/v0.1/*.md"]),
 }
 
 # Duplicati esatti dichiarati: SHA-256 -> ragione. NON e' un'esenzione, e' una **promessa datata**:
@@ -287,6 +374,101 @@ def misura_immagine(abs_path, ext):
         return (None, None, None, None)
 
 
+CONTRATTO_DOC = "docs/generated/README.md"
+CONTRATTO_BEGIN = "<!-- RT_CONTRATTO_GENERATI:BEGIN -->"
+CONTRATTO_END = "<!-- RT_CONTRATTO_GENERATI:END -->"
+
+
+def tabella_contratto():
+    """La tabella Markdown del contratto, derivata da `CONTRATTI`. Nessun testo scritto a mano."""
+    righe = ["| Output | Generatore | Comando | `--check` | Sorgenti |",
+             "|---|---|---|---|---|"]
+    for c in CONTRATTI:
+        check = f"`{c['check']}`" if c["check"] else "**nessuno**"
+        sorgenti = " · ".join(f"`{x}`" for x in c["sorgenti"])
+        righe.append(f"| `{c['output']}` | `{c['generatore']}` | `{c['comando']}` | {check} | {sorgenti} |")
+    righe += ["", "| Blocco | Comando | Dentro |", "|---|---|---|"]
+    for nome, (cmd, dentro) in sorted(BLOCCHI_GENERATI.items()):
+        righe.append(f"| `{nome}` | `{cmd}` | {' · '.join(f'`{d}`' for d in dentro)} |")
+    return "\n".join(righe)
+
+
+def scrivi_contratto():
+    """Riscrive il blocco fra i marcatori. La prosa attorno resta di chi l'ha scritta."""
+    path = os.path.join(REPO, CONTRATTO_DOC)
+    text = open(path, encoding="utf-8").read()
+    i, j = text.index(CONTRATTO_BEGIN), text.index(CONTRATTO_END)
+    # Le righe vuote attorno alla tabella non sono estetica: in GFM un paragrafo comincia alla prima
+    # riga non vuota, e il marcatore `<!-- ... -->` E' una riga non vuota. Senza lo stacco il
+    # delimitatore `|---|` finisce in terza posizione invece che in seconda, e `check-docs-tables.py`
+    # segnala — giustamente — una tabella che GitHub non renderebbe. Trovato dal gate, non dedotto.
+    # Le righe vuote attorno alla tabella non sono estetica: in GFM un paragrafo comincia alla
+    # prima riga non vuota, e il marcatore `<!-- ... -->` E' una riga non vuota. Senza lo stacco
+    # il delimitatore `|---|` finisce in terza posizione invece che in seconda, e
+    # `check-docs-tables.py` segnala — giustamente — una tabella che GitHub non renderebbe.
+    # Trovato dal gate, non dedotto.
+    stacco = "\n\n"
+    nuovo = text[:i + len(CONTRATTO_BEGIN)] + stacco + tabella_contratto() + stacco + text[j:]
+    if nuovo != text:
+        open(path, "w", encoding="utf-8").write(nuovo)
+        return True
+    return False
+
+
+def controlla_contratto():
+    """Il contratto dice il vero: generatori e output esistono, e la tabella e' allineata."""
+    guasti = []
+    for c in CONTRATTI:
+        if not os.path.exists(os.path.join(REPO, c["generatore"])):
+            guasti.append(f"il generatore {c['generatore']} non esiste (output {c['output']})")
+        out = c["output"]
+        if "*" in out:
+            import glob as _g
+            if not _g.glob(os.path.join(REPO, out)):
+                guasti.append(f"nessun file corrisponde all'output {out}")
+        elif not os.path.exists(os.path.join(REPO, out)):
+            guasti.append(f"l'output {out} non esiste")
+        if c["check"] and "--check" not in open(os.path.join(REPO, c["generatore"]),
+                                                encoding="utf-8", errors="ignore").read():
+            guasti.append(f"{c['generatore']} dichiara un --check che non implementa")
+
+    # ogni area di GENERATI deve comparire fra gli output: sono la stessa cosa detta due volte,
+    # e questa e' la riga che impedisce che divergano.
+    output = {c["output"].rstrip("*") for c in CONTRATTI}
+    for area in GENERATI:
+        if not any(area.startswith(o) or o.startswith(area) for o in output):
+            guasti.append(f"GENERATI dichiara l'area {area}, che il contratto non nomina")
+
+    for nome, (_, dentro) in BLOCCHI_GENERATI.items():
+        for d in dentro:
+            if "*" in d:
+                continue
+            p = os.path.join(REPO, d)
+            if not os.path.exists(p):
+                guasti.append(f"il blocco {nome} dichiara {d}, che non esiste")
+            elif f"{nome}:BEGIN" not in open(p, encoding="utf-8", errors="ignore").read():
+                # ⚠️ Si cerca il PREFISSO, non la forma chiusa `<!-- NOME:BEGIN -->`: due dei tre
+                # marcatori sono **parametrizzati** — `RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-ROSTER`
+                # apre un blocco per feature, e ce ne sono piu' d'uno nello stesso file. La prima
+                # stesura cercava la forma chiusa e ha dichiarato mancante un marcatore presente
+                # quattro volte: un criterio meccanico va validato sul contenuto, non solo scritto.
+                guasti.append(f"{d} non contiene il marcatore {nome}")
+
+    path = os.path.join(REPO, CONTRATTO_DOC)
+    if not os.path.exists(path):
+        guasti.append(f"{CONTRATTO_DOC} non esiste: il contratto non ha un owner leggibile")
+    else:
+        text = open(path, encoding="utf-8").read()
+        if CONTRATTO_BEGIN not in text or CONTRATTO_END not in text:
+            guasti.append(f"{CONTRATTO_DOC} ha perso i marcatori del blocco generato")
+        else:
+            corpo = text.split(CONTRATTO_BEGIN, 1)[1].split(CONTRATTO_END, 1)[0].strip()
+            if corpo != tabella_contratto().strip():
+                guasti.append(f"{CONTRATTO_DOC} non e' allineato: "
+                              "`python scripts/docs_inventory.py --emit-contract`")
+    return guasti
+
+
 def inventario(wiki_root=None):
     principale = REPO
     files = tracked(principale)
@@ -450,6 +632,15 @@ def controlla(inv):
         print("  sa perche' e' li. Collegala al documento che la possiede, spostala nell'area giusta,")
         print("  oppure dichiarala in ORFANE_NOTE con la ragione accanto.")
 
+    contratto = controlla_contratto()
+    if contratto:
+        guasti += len(contratto)
+        print(f"\nERRORE — {len(contratto)} incoerenze nel contratto degli artefatti generati:")
+        for g in contratto:
+            print(f"  {g}")
+        print("  Un output versionato senza generatore che lo scriva e' un file a mano con")
+        print("  un'etichetta che mente; una tabella disallineata e' un contratto che nessuno legge.")
+
     orfane_vive = set(inv["orfane"])
     note_stantie = [p for p in ORFANE_NOTE if p not in orfane_vive]
     if note_stantie:
@@ -467,6 +658,8 @@ def main():
     ap.add_argument("--check", action="store_true", help="esce 1 se un invariante cade")
     ap.add_argument("--json", nargs="?", const=os.path.join(REPO, "build", "docs-audit"),
                     metavar="DIR", help="scrive gli artefatti JSON (default build/docs-audit)")
+    ap.add_argument("--emit-contract", action="store_true",
+                    help=f"riscrive la tabella del contratto in {CONTRATTO_DOC}")
     ap.add_argument("--wiki-root", metavar="PATH",
                     help="il clone della Wiki: e' un repository separato (D-076) e git non lo elenca")
     args = ap.parse_args()
@@ -475,6 +668,11 @@ def main():
         if not os.path.exists(os.path.join(args.wiki_root, ".git")):
             print(f"--wiki-root non e' un clone git: {args.wiki_root}", file=sys.stderr)
             return 2
+
+    if args.emit_contract:
+        cambiato = scrivi_contratto()
+        print(f"{CONTRATTO_DOC}: {'riscritto' if cambiato else 'gia allineato'}")
+        return 0
 
     inv = inventario(args.wiki_root)
     stampa_report(inv)
@@ -501,11 +699,12 @@ def main():
         # Il messaggio dice **quali** invarianti hanno girato: un «OK» che ne copre due su tre
         # e ne nomina tre e' la forma di gate che smette di essere creduta.
         if inv["wiki_visto"]:
-            print("\nOK — nessuna immagine mancante, nessun duplicato taciuto, "
-                  "nessuna orfana fuori dall'area grezza.")
+            print("\nOK — nessuna immagine mancante, nessun duplicato taciuto, nessuna orfana "
+                  "fuori dall'area grezza, contratto dei generati coerente.")
         else:
-            print("\nOK sui due invarianti eseguiti — nessuna immagine mancante, nessun duplicato "
-                  "taciuto. Il terzo (orfane) non e' stato valutato: vedi la NOTA sopra.")
+            print("\nOK sui tre invarianti eseguiti — nessuna immagine mancante, nessun "
+                  "duplicato taciuto, contratto dei generati coerente. Quello sulle orfane "
+                  "non e' stato valutato: vedi la NOTA sopra.")
     return 0
 
 
