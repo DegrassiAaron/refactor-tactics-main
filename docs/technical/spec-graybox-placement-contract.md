@@ -434,19 +434,77 @@ dall'ammontare del colpo.
 
 Ne discende una separazione che va scritta prima di modellare:
 
-🔑 **I quattro predicati NON sono mutuamente esclusivi, quindi l'ordine di valutazione è parte della
-regola.** Si legge dall'alto e **il primo che regge vince**:
+🔑 **Il dominio della lettura è UNA ENTRY di `Covers`**, e i tre predicati non sono mutuamente esclusivi:
+l'ordine di valutazione è parte della regola. Si legge dall'alto e **il primo che regge vince**:
 
 ```text
-1. Distrutto    geometria CAMBIATA — non è lo       l'entry non è più in `Covers`
-                stesso oggetto ricolorato
-2. Critico      stessa geometria + marcatore forte  Integrity * 3 <= DefaultIntegrity(Type)
-3. Danneggiato  stessa geometria + marcatore        Integrity <  DefaultIntegrity(Type)
-4. Intatto      geometria piena, corpo neutro       altrimenti
+Dato: una entry di `Covers` — cioè una copertura che ESISTE.
+
+1. Critico      stessa geometria + marcatore forte  Integrity * 3 <= DefaultIntegrity(Type)
+2. Danneggiato  stessa geometria + marcatore        Integrity <  DefaultIntegrity(Type)
+3. Intatto      geometria piena, corpo neutro       altrimenti
 ```
 
-> 🔴 **Questa scaletta è la seconda stesura, e la prima era difettosa in tre punti indipendenti — trovati in
-> code review su #1188, tutti verificati contro `Source/`.**
+**«Distrutto» NON è in questa scaletta, e a toglierlo è `D-175`.** Non è una lettura del dato di mappa: è la
+transizione `ERTEnvironmentOutcome::CoverDestroyed`
+([`RTTurnLog.h`](../../Source/RefactorTactics/Turn/RTTurnLog.h)), che vive nel TurnLog. Il presentatore che
+deve cambiare geometria — macerie invece del pannello — la prende **da lì**, non dall'assenza dell'entry.
+
+> 🔴 **Questa è la TERZA stesura, e la seconda sbagliava il dominio in due modi che si sommano — trovati
+> nella riverifica di [#1197](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1197), entrambi
+> verificati contro `Source/`. Emendamento: `D-175`.**
+>
+> *(A)* **Il predicato `1. Distrutto ⟸ l'entry non è più in Covers` non aveva dominio.** Gli altri predicati
+> leggono `Integrity`, che esiste solo se l'entry c'è; quello leggeva la sua **assenza**. Due domini in una
+> catena sola, e §7.2 non dichiarava nessun quantificatore: col dominio «i bordi della mappa» il predicato 1
+> regge su **ogni bordo nudo**, e il presentatore rende «geometria CAMBIATA» su una mappa vuota; col dominio
+> «le entry di `Covers`» il predicato 1 è **irraggiungibile**, perché chi itera vede solo ciò che c'è. ∴ era
+> il punto *(3)* qui sotto — «distrutto non è osservabile dal dato di mappa» — scritto **dentro** una
+> scaletta che lo pretendeva osservabile.
+>
+> *(B)* **L'assenza dell'entry non significa distruzione, e i modi di produrla IN PARTITA sono TRE — che
+> nemmeno passano tutti per la stessa funzione:**
+>
+> | Percorso | Come l'entry sparisce | Esito loggato |
+> |---|---|---|
+> | il danno porta l'integrità a zero | `Updated.Covers.RemoveAt(I)` dentro `DamageFace`, l'helper che `ApplyStructureDamage` chiama una volta per faccia ([`RTHexCoverLibrary.cpp`](../../Source/RefactorTactics/Map/RTHexCoverLibrary.cpp)) | `CoverDestroyed` ([`RTTurnManager_Blast.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp)) |
+> | la durata scade | `URTHexCoverLibrary::RemoveCover`, da `TickDynamicCovers` ([`RTTurnManager.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager.cpp)) | `CoverExpired` |
+> | `Reconfigure` sposta il pannello su un altro bordo | `URTHexCoverLibrary::RemoveCover` | `CoverMoved` |
+>
+> Il caso della scadenza è vivo oggi: `Hero.Riktor.KineticPanel.Reinforced` dichiara `Integrity 45` e
+> `DurationTurns 1`, quindi a Cleanup il pannello sparisce **integro** — e la seconda stesura lo avrebbe
+> renderizzato come macerie. Quello dello spostamento è peggio: il bordo di partenza sarebbe reso come
+> macerie mentre lo stesso pannello è intero sul bordo accanto. ∴ il TurnLog distingue i tre casi; il dato
+> di mappa, a fase conclusa, non ne conserva **nessuno**.
+>
+> ⚠️ **«In partita» è una restrizione necessaria, non un'esitazione**: `BakeCell`
+> ([`RTGeometryBake.cpp`](../../Source/RefactorTactics/Map/RTGeometryBake.cpp)) scarta le coperture
+> `bGenerated` al rebake, quindi toglie entry senza che nessuno le abbia colpite. È **authoring**: il suo
+> unico chiamante fuori dai test è `RTHexGeometryTool`, nel modulo Editor, e non logga nessun
+> `ERTEnvironmentOutcome`. Non indebolisce la conclusione — è dichiarato perché chi cerca dove le entry
+> spariscono lo incontra comunque, e senza il dominio riaprirebbe la domanda che questa sezione chiude.
+>
+> ⛔ *Qui c'era un comando di verifica, ed è stato tolto invece che riparato. Sbagliava due volte: senza `-r`
+> non cercava nella cartella, e il suo pattern prendeva anche `DynamicCovers`, un altro contenitore — così
+> «quarto sito» era falso, perché a mutare le `Covers` di cella sono `DamageFace`, `RemoveCover` e
+> `BakeCell`. Un oracolo sbagliato è peggio di nessun oracolo: chi lo esegue conclude che l'affermazione non
+> è misurata. I simboli sono nominati; il comando lo sceglie chi verifica.*
+>
+> ⚠️ *Questo punto ne ha enumerati male DUE volte, e la seconda è istruttiva. Prima diceva «due» —
+> distruzione e scadenza — qualificandosi «misurato non dedotto»; poi, correggendolo a tre, ha attribuito
+> tutti e tre a `RemoveCover`, che ha **due soli chiamanti di produzione**: la distruzione rimuove l'entry
+> inline e non passa di lì. Un conteggio dichiarato è falsificabile contro `Source/` — e la correzione di un
+> conteggio lo è esattamente quanto il conteggio. Entrambe trovate in code review su
+> [#1208](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1208). La conclusione non è mai
+> cambiata, e `D-175` ne esce rafforzata: l'assenza è ancora meno informativa di quanto si sostenesse.*
+>
+> ✅ **Togliere «distrutto» dalla scaletta chiude entrambi con un emendamento solo**, e non chiede al
+> presentatore nessuno stato che oggi non ha: la scaletta resta una funzione pura di una entry esistente, e
+> la geometria cambiata la guida l'evento che già la nomina.
+
+> 🔴 **La PRIMA stesura era difettosa in tre punti indipendenti — trovati in code review su #1188, tutti
+> verificati contro `Source/`.** Restano scritti perché la correzione qui sopra poggia sul punto *(3)*, e
+> perché un difetto rimosso senza traccia si riscrive.
 >
 > *(1)* **Non era ordinata, e senza ordine `Critico` è irraggiungibile.** Una `High` a `10` soddisfa
 > `danneggiato` (`10 < 50`) **e** `critico` (`10*3 = 30 ≤ 50`): chiunque la implementasse come catena
@@ -454,20 +512,30 @@ regola.** Si legge dall'alto e **il primo che regge vince**:
 > visibile.
 >
 > *(2)* **`Intatto` era `Integrity == DefaultIntegrity(Type)`, e non copriva i valori SOPRA il catalogo.**
-> `Hero.Riktor.KineticPanel` li produce oggi: la variante `Reinforced` dichiara `Integrity` **45** e
-> `Adaptive` **25** nei propri `Parameters`
-> ([`RTHeroCatalogLibrary.cpp`](../../Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp)), e
-> `ARTTurnManager` le applica con `AddCover(..., ERTHexCoverType::Low, Op.Integrity)` — dove
+> `Hero.Riktor.KineticPanel.Reinforced` ne produce uno oggi: dichiara `Integrity` **45** nei propri
+> `Parameters` ([`RTHeroCatalogLibrary.cpp`](../../Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp)),
+> e `ARTTurnManager` lo applica con `AddCover(..., ERTHexCoverType::Low, Op.Integrity)` — dove
 > `DefaultIntegrity(Low)` è `30`. Un pannello rinforzato a `45` non era intatto, non era danneggiato e non
 > era critico: **nessuno stato da renderizzare**. Con `altrimenti` è intatto, che è ciò che è.
+>
+> ⚠️ *Questo punto nominava anche il `25` di `Adaptive` fra i «valori SOPRA il catalogo», e il `25` sta
+> **sotto** un default di `30`. Corretto il 2026-08-19: non è un esempio della lacuna che `altrimenti`
+> chiude, è un secondo produttore del difetto di
+> [#1194](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1194) — vedi il residuo più sotto.*
 >
 > *(3)* **`Distrutto ⟺ bDestroyed` non era osservabile, e `bDestroyed` non è un «esito enumerato».** È un
 > `bool` su una struct di **ritorno** (`FRTCoverDamageResult`,
 > [`RTHexCoverLibrary.h`](../../Source/RefactorTactics/Map/RTHexCoverLibrary.h)), valorizzato e seguito
 > immediatamente da `Updated.Covers.RemoveAt(I)`: a fase conclusa l'entry **non esiste più** nella cella,
-> quindi chi legge il dato di mappa non può osservarlo mai. Per il presentatore «distrutto» è l'**assenza**
-> dell'entry; `bDestroyed` è il segnale dell'**evento**, e vive nel TurnLog di quel turno. La frase
-> «esito enumerato» era una trascrizione di questa sezione, e la ripeteva anche `D-172`.
+> quindi chi legge il dato di mappa non può osservarlo mai. `bDestroyed` è il segnale dell'**evento**, e
+> vive nel TurnLog di quel turno. La frase «esito enumerato» era una trascrizione di questa sezione, e la
+> ripeteva anche `D-172`.
+>
+> ⚠️ *Questo punto concludeva «per il presentatore distrutto è l'**assenza** dell'entry», ed è la conclusione
+> che `D-175` ha dovuto correggere: l'assenza è prodotta **anche** dalla scadenza e dallo spostamento,
+> quindi non identifica la distruzione — vedi la tabella dei tre percorsi al punto *(B)*.
+> Il resto del punto — `bDestroyed` non è osservabile dal dato di mappa — regge, ed è
+> esattamente ciò su cui `D-175` si appoggia. Corretto il 2026-08-19.*
 
 ✅ **Le soglie esistono dal 2026-08-18, e sono FRAZIONI del catalogo — `D-172`.** Non potevano essere numeri
 assoluti: le partenze sono **due**, `50` per `High` e `30` per `Low`, quindi «critico» o è una frazione o è
@@ -497,6 +565,17 @@ colpita**. Il difetto è nel costruttore, non nella lettura — il costruttore a
 funzione che sa cosa quel tipo vale — ed è tracciato in
 [#1194](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1194) invece di essere aggirato qui,
 perché `Map/RTHexCellData.h` è nel write-set della track `spatial`.
+
+⚠️ **E i produttori sono DUE, non uno — misurato il 2026-08-19.** Il secondo non passa dal costruttore:
+`Hero.Riktor.KineticPanel.Adaptive` dichiara `Integrity` **25** nei propri `Parameters`
+([`RTHeroCatalogLibrary.cpp`](../../Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp)) e
+`ARTTurnManager` lo applica come `Low`, il cui default è `30` — quindi un pannello adattivo appena eretto
+legge **«danneggiato» senza essere stato colpito**, esattamente come la `High` autorata a mano.
+`RTEnvironmentActionTests.cpp` lo pinna alla creazione e due turni dopo, e
+[`riktor.md`](../characters/v0.1/riktor.md) dichiara che `Adaptive` *«scende a 25»*: la fragilità **è** il
+prezzo della rotazione gratuita, quindi il numero non è un refuso. ∴ le due opzioni che #1194 aveva scritto
+per il costruttore **non chiudono questo caso** — la variante passa il valore esplicitamente — e la scelta
+è stata riportata là, dove si prende una volta sola.
 
 ⚠️ **Resta presentazione, e la frazione è ciò che lo garantisce**: la lettura non entra nel resolver, non
 cambia la riduzione del danno — che è di `Combat/` — e non entra in `ComputeHash`. Se il balance muove
@@ -599,7 +678,7 @@ promuoverlo ad arte finale, sotto `World/`, è un rename locale.
 
 ⚠️ **Esistono due cartelle `Graybox`, e non è l'ambiguità che `D-173` rifiuta.** `Maps/Dev/L_DevSandbox/Graybox/`
 è materiale graybox **locale a quella mappa**; questa è il **kit condiviso**. Le separa il criterio degli asset
-di mappa già normativo in §5 — *«se è usato da più mappe, va in una cartella condivisa»* — perché la natura è
+di mappa già normativo in **§5b** — *«se è usato da più mappe, va in una cartella condivisa»* — perché la natura è
 la stessa e cambia lo scope. Il caso scartato era diverso: generatori e oggetti sono cose di natura diversa, e
 nessun criterio di scope li avrebbe separati. *Registrato dopo la code review su #1188, che ha notato la
 collisione prima che qualcuno la incontrasse.*
