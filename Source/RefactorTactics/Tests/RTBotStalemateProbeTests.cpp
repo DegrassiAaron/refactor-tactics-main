@@ -537,31 +537,25 @@ namespace
 			return;
 		}
 
-		// ⛔ **Una chiamata di `PlanTeam` PER SQUADRA**, come la sua firma prescrive: le prenotazioni sono
-		// informazione sui piani, e i piani di una squadra sono privati. Passando qui tutte e quattro le
-		// unita' insieme, un bot schiverebbe la cella di un avversario — un intento che nessun giocatore
-		// puo' vedere (CP 13.5).
+		// ⚠️ **Questo ramo rispecchia `ARTTurnManager::PlanBots`, e deve continuare a farlo**: uno snapshot
+		// di pianificazione PER SQUADRA, `PlanUnit` su quello, e la rotta scelta prenotata subito dopo. Se
+		// qui si usasse una funzione che il gioco non chiama, il probe misurerebbe un gemello della
+		// correzione invece della correzione — ed e' esattamente l'errore in cui i primi cinque probe di
+		// #1088 sono caduti, modellando la decisione invece di attraversare la risoluzione.
+		//
+		// ⛔ Per squadra, ed e' fairness (CP 13.5): con uno snapshot condiviso un bot schiverebbe la cella
+		// di un AVVERSARIO, cioe' un intento che nessun giocatore puo' vedere.
 		OutPlanned.SetNum(Units.Num());
-		for (int32 Team = 0; Team < 2; ++Team)
+		TMap<int32, FRTHexSnapshot> TeamSnapshots;
+		for (int32 I = 0; I < Units.Num(); ++I)
 		{
-			TArray<int32> TeamIds;
-			TArray<FRTHexBotContext> TeamContexts;
-			TArray<int32> SlotOf;              // dove rimettere il piano, per non perdere il parallelismo
-			for (int32 I = 0; I < Units.Num(); ++I)
-			{
-				if (Units[I].Team != Team) { continue; }
-				TeamIds.Add(Units[I].Id);
-				TeamContexts.Add(Contexts[I]);
-				SlotOf.Add(I);
-			}
-			if (TeamIds.Num() == 0) { continue; }
+			FRTHexSnapshot* TeamSnapshot = TeamSnapshots.Find(Units[I].Team);
+			if (!TeamSnapshot) { TeamSnapshot = &TeamSnapshots.Add(Units[I].Team, OutSnapshot); }
 
-			const TArray<FRTHexBotPlan> Plans = URTHexBotLibrary::PlanTeam(OutSnapshot, TeamIds, TeamContexts);
-			for (int32 K = 0; K < Plans.Num() && K < SlotOf.Num(); ++K)
-			{
-				if (Plans[K].bHasAttack) { ++OutAttackPlans; }
-				OutPlanned[SlotOf[K]] = Plans[K].DestCell;
-			}
+			const FRTHexBotPlan Plan = URTHexBotLibrary::PlanUnit(*TeamSnapshot, Units[I].Id, Contexts[I]);
+			if (Plan.bHasAttack) { ++OutAttackPlans; }
+			OutPlanned[I] = Plan.DestCell;
+			URTHexBotLibrary::ReservePlannedRoute(*TeamSnapshot, Units[I].Id, Plan.DestCell);
 		}
 	}
 }
@@ -855,9 +849,10 @@ bool FRTBotStalemateContendersTest::RunTest(const FString&)
 /**
  * La correzione, misurata sullo STESSO ciclo che ha prodotto il difetto.
  *
- * Cambia una cosa sola rispetto al test qui sopra: le unita' sono pianificate con `PlanTeam` — una chiamata
- * per squadra — invece che con `PlanUnit` una alla volta. Tutto il resto e' identico, arena compresa, ed e'
- * cio' che rende il confronto una misura invece di due esecuzioni diverse.
+ * Cambia una cosa sola rispetto al test qui sopra: le unita' pianificano su uno snapshot PER SQUADRA e
+ * prenotano la rotta scelta — come fa `ARTTurnManager::PlanBots` — invece di decidere tutte sullo stesso
+ * snapshot congelato. Tutto il resto e' identico, arena compresa, ed e' cio' che rende il confronto una
+ * misura invece di due esecuzioni diverse.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotStalemateTeamPlanningBreaksItTest,
 	"RefactorTactics.Bot.StalemateBreaksWithTeamPlanning",
@@ -869,8 +864,8 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { return false; }
 
 	// ⚠️ **Il controllo di non-vacuita', e qui e' l'intero test.** Se lo stallo non si formasse piu' da solo
-	// — per un cambio all'utility, all'arena o al catalogo — allora «con `PlanTeam` non ci sono contese»
-	// sarebbe vero senza che `PlanTeam` c'entri, e questo test direbbe il falso restando verde. La prima
+	// — per un cambio all'utility, all'arena o al catalogo — allora «con la prenotazione non ci sono contese»
+	// sarebbe vero senza che la prenotazione c'entri, e questo test direbbe il falso restando verde. La prima
 	// stesura di `RTBotTeamPlanningTests.cpp` e' caduta esattamente cosi', su un allestimento che credevo
 	// producesse la contesa e non la produceva.
 	const FRTProbeContestReport Before = RTRunSimultaneousResolutionProbe(Arena, *this,

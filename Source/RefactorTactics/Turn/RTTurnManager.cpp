@@ -223,7 +223,38 @@ void ARTTurnManager::PlanBots()
 	EnsureMatchRoster();
 
 	TArray<ARTUnit*> Units;
-	const FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units); // solo unita' vive; Units[i].UnitId == i
+	const FRTHexSnapshot BaseSnapshot = MakeCurrentSnapshot(Units); // solo unita' vive; Units[i].UnitId == i
+
+	// #1088 — UNO SNAPSHOT DI PIANIFICAZIONE PER SQUADRA, e non era cosi'.
+	//
+	// Fino a qui ogni bot pianificava sullo stesso snapshot congelato prima del ciclo: la seconda unita' non
+	// sapeva cosa avesse scelto la prima, sceglieva la stessa cella, e la risoluzione simultanea le fermava
+	// entrambe (`BlockedContested`). Deterministico, quindi il turno dopo ricreava la contesa identica — e la
+	// partita si bloccava. Misurato sull'arena spedita: 24 contese in 12 turni, TUTTE fra compagni di
+	// squadra, zero mosse.
+	//
+	// ⛔ **Per squadra, e non e' un'ottimizzazione: e' fairness** (CP 13.5, `RT-FEAT-BOT-FAIRNESS`). Le
+	// prenotazioni sono informazione sui piani, e i piani di una squadra sono privati: con un solo snapshot
+	// condiviso un bot eviterebbe la cella dove sta per andare un AVVERSARIO, cioe' schiverebbe un intento
+	// che nessun giocatore puo' vedere. Due squadre che si contendono la stessa cella devono continuare a
+	// contendersela — quella e' una collisione legittima, e la risolve il resolver.
+	TMap<int32, FRTHexSnapshot> PlanningSnapshots;
+
+	// Prenota nello snapshot della squadra la rotta che il bot ha appena scelto.
+	//
+	// ⚠️ **Solo il movimento NORMALE.** Lo scatto risolve in una fase separata e con le proprie priorita', e
+	// la sua traiettoria e' LINEARE: `ReservePlannedRoute` cammina il grafo, quindi per uno scatto
+	// prenoterebbe celle che non verranno attraversate. Lo stallo di #1088 e' tutto in fase Move — nei
+	// dodici turni misurati la fase Dash non e' mai avvenuta — e allargare la prenotazione allo scatto
+	// sarebbe una modifica non misurata a una fase che non ha il difetto.
+	auto ReserveNormalMove = [](FRTHexSnapshot& TeamSnapshot, const ARTUnit* PlannedBot, int32 PlannedIdx)
+	{
+		if (!PlannedBot || PlannedBot->PlannedDashAbility != INDEX_NONE)
+		{
+			return; // scatta: la sua cella di arrivo la decide la fase Dash
+		}
+		URTHexBotLibrary::ReservePlannedRoute(TeamSnapshot, PlannedIdx, PlannedBot->PlannedCell);
+	};
 
 	// CP 13.5 — la conoscenza dev'esistere PRIMA che qualcuno ci pianifichi sopra. `ResolveCombat` la
 	// rinfresca a valle del Dash, cioe' DOPO: al primo turno sarebbe vuota, e un bot che pianifica su una
@@ -244,6 +275,19 @@ void ARTTurnManager::PlanBots()
 		Bot->PlannedAbilityIndex = INDEX_NONE;
 		Bot->PlannedPath.Reset();       // il bot pianifica destinazioni, non percorsi a waypoint
 		Bot->PlannedWaypoints.Reset();
+
+		// Lo snapshot su cui QUESTO bot pianifica: quello della sua squadra, che porta le prenotazioni delle
+		// compagne gia' passate di qui. Il primo bot di ogni squadra lo trova vergine, copiato dalla base.
+		FRTHexSnapshot* TeamSnapshotPtr = PlanningSnapshots.Find(Bot->TeamId);
+		if (!TeamSnapshotPtr)
+		{
+			TeamSnapshotPtr = &PlanningSnapshots.Add(Bot->TeamId, BaseSnapshot);
+		}
+		// Il resto del corpo legge `Snapshot` come prima: cambia da DOVE viene, non cosa contiene — a parte
+		// le celle che le compagne hanno gia' preso. Nessun `Add` avviene da qui alla fine dell'iterazione,
+		// quindi il riferimento resta valido.
+		FRTHexSnapshot& TeamSnapshot = *TeamSnapshotPtr;
+		const FRTHexSnapshot& Snapshot = TeamSnapshot;
 
 		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e salta il turno.
 		//
@@ -490,6 +534,9 @@ void ARTTurnManager::PlanBots()
 				}
 				Bot->PlannedCell = Best;
 			}
+			// #1088 — anche qui, ed e' il ramo che il difetto colpiva per primo: due compagne che cercano il
+			// contatto puntano ENTRAMBE la cella piu' vicina al centro, che e' una sola.
+			ReserveNormalMove(TeamSnapshot, Bot, BotIdx);
 			continue; // niente da bersagliare: nessun attacco, nessuno scatto verso un nemico che non si conosce
 		}
 
@@ -585,6 +632,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, NearestKnownCell);
 			AddLogEvent(FString::Printf(TEXT("%s: arretra -> (q=%d,r=%d,L%d)"),
 				*Bot->GetName(), Bot->PlannedCell.X, Bot->PlannedCell.Y, Bot->PlannedCell.Layer));
+			ReserveNormalMove(TeamSnapshot, Bot, BotIdx);
 			continue;
 		}
 
@@ -769,6 +817,10 @@ void ARTTurnManager::PlanBots()
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
 				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT("")));
 		}
+
+		// #1088 — l'ultima cosa che il bot fa: dichiarare alle compagne dove sta andando. Copre i quattro
+		// rami qui sopra; i due `continue` piu' in alto prenotano per conto proprio, perche' escono prima.
+		ReserveNormalMove(TeamSnapshot, Bot, BotIdx);
 	}
 }
 

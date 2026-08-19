@@ -224,31 +224,20 @@ public:
 	 * potrebbero attraversare la stessa cella in momenti diversi senza contendersela. Qui la seconda dovra'
 	 * trovare una rotta disgiunta, e in un corridoio stretto potrebbe non trovarne. E' un prezzo scelto: lo
 	 * stallo di #1088 costava ZERO mosse per dodici turni.
+	 *
+	 * ⛔ **Lo snapshot su cui si prenota e' PER SQUADRA, e non e' un'ottimizzazione: e' fairness.** Le
+	 * prenotazioni sono informazione sui piani, e i piani di una squadra sono privati (CP 13.5,
+	 * `RT-FEAT-BOT-FAIRNESS`: *«il bot non vede piu' di te»*). Prenotando su uno snapshot condiviso fra le
+	 * due squadre, un bot eviterebbe la cella dove sta per andare un AVVERSARIO — cioe' schiverebbe un
+	 * intento che nessun giocatore puo' vedere. Due squadre che si contendono la stessa cella devono
+	 * continuare a contendersela: quella e' una collisione legittima, che il resolver risolve, e non il
+	 * difetto di #1088.
+	 *
+	 * ⚠️ **Chi prenota rende la pianificazione dipendente dall'ORDINE**: chi decide prima ha piu' scelta.
+	 * Non intacca il determinismo — l'ordine e' quello dello snapshot, stabile — ma e' una regola nuova, e
+	 * chi chiama deve iterare in un ordine stabile, non nell'ordine di enumerazione degli Actor.
 	 */
 	static void ReservePlannedRoute(FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& DestCell);
-
-	/**
-	 * Pianifica un'INTERA squadra: ogni unita' decide sapendo cosa hanno gia' prenotato le precedenti.
-	 * `Contexts` e' parallelo a `UnitIds`. Restituisce un piano per unita', nello stesso ordine.
-	 *
-	 * E' la correzione di **#1088**. `PlanUnit` da sola e' corretta e resta: il difetto nasceva dal
-	 * chiamarla in un ciclo passando a tutte lo stesso snapshot congelato, cosi' che due compagne
-	 * scegliessero la stessa cella e la risoluzione simultanea le fermasse entrambe — per dodici turni,
-	 * perche' la pianificazione e' deterministica e ricreava la stessa contesa.
-	 *
-	 * ⚠️ **La pianificazione diventa dipendente dall'ORDINE di `UnitIds`**: chi decide prima ha piu' scelta.
-	 * Non intacca il determinismo — l'ordine e' quello dello snapshot, stabile — ma e' una regola nuova, e
-	 * chi chiama deve passare un ordine stabile, non l'ordine di enumerazione degli Actor.
-	 *
-	 * ⛔ **UNA CHIAMATA PER SQUADRA, e non e' un'ottimizzazione: e' fairness.** Le prenotazioni sono
-	 * informazione sui piani, e i piani di una squadra sono privati (CP 13.5, `RT-FEAT-BOT-FAIRNESS`:
-	 * *«il bot non vede piu' di te»*). Passando qui unita' di squadre diverse, un bot eviterebbe la cella
-	 * dove sta per andare un AVVERSARIO — cioe' schiverebbe un intento che nessun giocatore puo' vedere.
-	 * Due squadre che si contendono la stessa cella devono continuare a contendersela: quella e' una
-	 * collisione legittima, che il resolver risolve, e non il difetto di #1088.
-	 */
-	static TArray<FRTHexBotPlan> PlanTeam(const FRTHexSnapshot& Snapshot, const TArray<int32>& UnitIds,
-		const TArray<FRTHexBotContext>& Contexts);
 
 	/**
 	 * La risposta del bot a una finestra di reazione (CP 14.5). Restituisce una delle `AllowedResponses`.

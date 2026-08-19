@@ -330,27 +330,6 @@ void URTHexBotLibrary::ReservePlannedRoute(FRTHexSnapshot& Snapshot, int32 UnitI
 	}
 }
 
-TArray<FRTHexBotPlan> URTHexBotLibrary::PlanTeam(const FRTHexSnapshot& Snapshot, const TArray<int32>& UnitIds,
-	const TArray<FRTHexBotContext>& Contexts)
-{
-	TArray<FRTHexBotPlan> Out;
-
-	// Copia locale: le prenotazioni servono a questa pianificazione e NON devono uscire di qui. Lo snapshot
-	// del chiamante resta quello autorevole del turno — se le celle prenotate finissero dentro, la fase Move
-	// troverebbe occupate delle celle su cui non c'e' nessuno.
-	FRTHexSnapshot Working = Snapshot;
-
-	const int32 Num = FMath::Min(UnitIds.Num(), Contexts.Num());
-	Out.Reserve(Num);
-	for (int32 I = 0; I < Num; ++I)
-	{
-		const FRTHexBotPlan Plan = PlanUnit(Working, UnitIds[I], Contexts[I]);
-		Out.Add(Plan);
-		ReservePlannedRoute(Working, UnitIds[I], Plan.DestCell);
-	}
-
-	return Out;
-}
 
 FRTCellId URTHexBotLibrary::BestKiteCell(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Threat)
 {

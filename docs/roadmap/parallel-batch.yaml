@@ -5628,15 +5628,26 @@ tracks:
       stesso snapshot congelato, e due compagne scelgono la stessa cella.
       ➕ **Write-set rinegoziato il 2026-08-19, come questa nota prevedeva.** I tre path aggiunti erano
       liberi e non assegnati, verificato scandendo `writable`/`integration_only`/`writable_on_loan` di ogni
-      track: la correzione vive in `URTHexBotLibrary::PlanTeam`, che pianifica una squadra intera tenendo
-      conto di ciò che le compagne hanno già prenotato.
-      ⛔ **`Turn/RTTurnManager.cpp` NON è in questo write-set, ed è la parte che va detta.** Quando la
-      richiesta è stata formulata era libero; nel frattempo `simulation` l'ha preso ripartendo su `#314`
-      (`6382adc0`), e sovrapporre due `writable` è esattamente ciò che questo file impedisce. La
-      correzione è quindi **completa in `Bot/` ma non ancora innestata**: `PlanBots` continua a chiamare
-      `PlanUnit` in un ciclo finché una riga sola non potrà cambiare in `RTTurnManager.cpp`. Misurato che
-      `simulation` non ha modifiche pendenti su quel file (`git diff origin/main...origin/feat/314-…` è
-      vuoto), quindi il conflitto è di dichiarazione e non di contenuto — ma resta un conflitto.
+      track: la correzione vive in `URTHexBotLibrary::ReservePlannedRoute`, che segna la rotta scelta come
+      occupata per le compagne e libera per chi l'ha presa.
+      🔴 **`Turn/RTTurnManager.cpp` è dichiarato QUI e anche da `simulation`, e la sovrapposizione va
+      letta prima di toccarlo.** Quando questa track ha chiesto il path era libero; nel frattempo
+      `simulation` l'ha preso ripartendo su `#314` (`6382adc0`). L'autore possiede entrambe le track e ha
+      autorizzato l'innesto, **misurata la condizione che lo rende a basso rischio** — e rimisurata al
+      merge, perché nel frattempo `#314` ha mergiato due volte (PR **#1210** e **#1211**): il branch
+      `feat/314-reaction-profile-e-clash` è interamente in `main` (`git diff
+      origin/main...origin/feat/314-…` **vuoto**), e soprattutto **`main` non ha toccato
+      `RTTurnManager.cpp`** dalla base di questa track (`git diff <merge-base> origin/main --
+      Turn/RTTurnManager.cpp` **vuoto**): il lavoro di `#314` è andato in `RTReactionLibrary` e affini.
+      ∴ la sovrapposizione resta **di dichiarazione, non di contenuto**. ⚠️ Non è nulla: se una sessione
+      riapre `#314` e tocca `PlanBots`, i due branch confliggono — e il conflitto va risolto, non dedotto.
+      ⛔ **L'innesto NON è stato «una riga», e la stima iniziale era sbagliata.** `PlanBots` non chiama
+      `PlanUnit`: costruisce candidate proprie (`AddCandidates`, quattro pool) e chiama `ChooseBestPlan`,
+      con **cinque punti d'uscita**. La modifica reale è uno snapshot di pianificazione **per squadra**
+      più la prenotazione della rotta ai tre rami che muovono.
+      ➖ **`PlanTeam` è stata scritta, testata e poi RIMOSSA nello stesso lavoro.** Non aveva consumatori
+      in produzione — `PlanBots` non poteva usarla — e un secondo percorso parallelo diverge dal primo
+      alla prima modifica. Resta `ReservePlannedRoute`, che è ciò che il gioco chiama.
       ⚠️ `Tests/` è condivisa fra tutte le track: i file sono dichiarati **per nome**.
     writable:
       # ➕ File **nuovo**, dichiarato prima di crearlo: «conteso da nessuno» non è un'assegnazione.
@@ -5645,13 +5656,9 @@ tracks:
       - Source/RefactorTactics/Tests/RTBotTeamPlanningTests.cpp
       - Source/RefactorTactics/Bot/RTHexBotLibrary.h
       - Source/RefactorTactics/Bot/RTHexBotLibrary.cpp
-    release_requested:
-      # Il path che serve all'innesto e che questa track NON ha. `from` è la track detentrice, `issue`
-      # quella che lo tiene: entrambe verificabili con `gh issue view 314` e col `writable` di `simulation`.
-      - from: simulation
-        issue: 314
-        paths:
-          - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # 🔴 Sovrapposto con `simulation` (#314), autorizzato dall'autore — vedi la nota. Da rimuovere di qui
+      # alla chiusura della track, perché la sovrapposizione non deve sopravviverle.
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
     derives_from: []
     binary_leases: []
 
