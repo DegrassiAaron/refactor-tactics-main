@@ -1654,6 +1654,60 @@ bool FRTClashTieAppliesOnceTest::RunTest(const FString&)
 }
 
 /**
+ * **Ogni risposta che un profilo offre esiste come maneuver, e dichiara un'intenzione** (§5, §11).
+ *
+ * E' il test che tiene insieme le due metà di E14.7: `Ability/` dichiara **quali** risposte un eroe offre,
+ * `Turn/` dichiara **cosa sono**. Se le due liste divergessero — una risposta senza maneuver — il Clash
+ * confronterebbe un'intenzione inventata dal fallback, e nessuno se ne accorgerebbe: `FindManeuver`
+ * restituisce `STAND` per gli id sconosciuti, quindi il difetto sarebbe **silenzioso e verde**.
+ *
+ * ⚠️ Il test parte dal **catalogo dei profili** e non da una lista scritta qui: una lista a mano tornerebbe
+ * verde il giorno in cui qualcuno aggiunge un profilo e dimentica la maneuver — cioè esattamente il giorno
+ * in cui deve diventare rossa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashEveryResponseHasAManeuverTest,
+	"RefactorTactics.Clash.EveryProfileResponseHasAManeuver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashEveryResponseHasAManeuverTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+
+	// Gli id noti al catalogo delle maneuver, per confronto.
+	TSet<FName> Known;
+	for (const FRTManeuverDef& M : Lib::GetManeuverCatalog()) { Known.Add(M.ManeuverId); }
+
+	int32 Checked = 0;
+	for (const FRTReactionProfileDef& Profile : URTCatalogLibrary::GetReactionProfileCatalog())
+	{
+		// Ogni risposta del profilo, `Hold Ground` compresa: si parte da cio' che l'eroe offre davvero.
+		for (const FString& Response : URTCatalogLibrary::BraceAllowedResponses(Profile.ProfileId))
+		{
+			++Checked;
+			const FName Id(*Response);
+			TestTrue(FString::Printf(TEXT("'%s' (profilo %s) esiste nel catalogo delle maneuver"),
+				*Response, *Profile.ProfileId.ToString()), Known.Contains(Id));
+		}
+	}
+
+	// Il conteggio impedisce al test di essere vacuo su un catalogo vuoto: tre profili, e `Glance` ne porta
+	// tre risposte contro le due degli altri due.
+	TestEqual(TEXT("le risposte controllate sono sette (2 + 2 + 3)"), Checked, 7);
+
+	// E la maneuver universale dichiara `STAND`: e' il fallback di §9 per il difensore, e se dichiarasse
+	// un'altra intenzione il timeout porterebbe in partita una scelta che nessuno ha fatto.
+	TestTrue(TEXT("`Hold Ground` e' STAND"),
+		Lib::FindManeuver(FName(TEXT("Hold Ground"))).Intent == ERTGrammarIntent::Stand);
+
+	// Le tre dei profili coprono tutte e tre le intenzioni: senza, la matrice avrebbe rami irraggiungibili
+	// col roster reale — un ciclo di cui il gioco userebbe solo un lato.
+	TSet<ERTGrammarIntent> Covered;
+	for (const FRTManeuverDef& M : Lib::GetManeuverCatalog()) { Covered.Add(M.Intent); }
+	TestEqual(TEXT("il roster copre tutte e tre le intenzioni della grammatica"), Covered.Num(), 3);
+
+	return true;
+}
+
+/**
  * Il costo si consuma al **lock valido, anche perdendo** (§9).
  *
  * E' la regola che rende la scelta una scelta: senza, *«provo comunque, tanto se perdo non costa nulla»* la

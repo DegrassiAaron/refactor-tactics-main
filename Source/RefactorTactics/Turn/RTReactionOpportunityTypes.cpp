@@ -253,6 +253,60 @@ FRTClashResolution URTReactionOpportunityLibrary::ResolveContestedBoundary(
 	return Out;
 }
 
+TArray<FRTManeuverDef> URTReactionOpportunityLibrary::GetManeuverCatalog()
+{
+	// Le quattro maneuver che il roster v0.1 puo' esprimere: la universale piu' le tre dei profili di
+	// [D-047]. Gli id coincidono con le stringhe di `AllowedResponses` — cercare il significato di una
+	// risposta e' guardare qui, non appaiare due liste per indice.
+	//
+	// ⚠️ **Le liste di effetti sono VUOTE, e non e' un lavoro lasciato a meta'**: §2.5 dice che resistenza
+	// del `Brace`, Charge del `Grounding` e ampiezza della deviazione sono bilanciamento e si restringono al
+	// playtest. Un esito senza effetti e' un esito che non applica niente, ed e' quello che serve perche' il
+	// Clash giri prima che i numeri esistano. Scriverne di inventati sarebbe peggio che lasciarli vuoti:
+	// diventerebbero il riferimento contro cui il playtest si confronta.
+	//
+	// `GLANCE LEFT` e `GLANCE RIGHT` sono DUE maneuver e non una con un parametro: §6 dice che la direzione
+	// e' un payload quando serve, ma qui le due sono gia' due risposte legali distinte in `AllowedResponses`
+	// — e la cardinalita' di `Profile.Glance` (3) dipende proprio da questo.
+	return {
+		{ FName(TEXT("Hold Ground")),  ERTGrammarIntent::Stand },
+		{ FName(TEXT("GROUND")),       ERTGrammarIntent::Stand, /*bHasCost=*/ true },
+		{ FName(TEXT("SIDESTEP")),     ERTGrammarIntent::Shift },
+		{ FName(TEXT("GLANCE LEFT")),  ERTGrammarIntent::Read },
+		{ FName(TEXT("GLANCE RIGHT")), ERTGrammarIntent::Read }
+	};
+}
+
+FRTManeuverDef URTReactionOpportunityLibrary::FindManeuver(const FName& ManeuverId)
+{
+	for (const FRTManeuverDef& M : GetManeuverCatalog())
+	{
+		if (M.ManeuverId == ManeuverId)
+		{
+			return M;
+		}
+	}
+
+	// Sconosciuta: `STAND` senza effetti. Non applica niente e non vince nulla — inventarle un esito
+	// farebbe accadere in partita qualcosa che nessuno ha dichiarato.
+	return FRTManeuverDef(ManeuverId, ERTGrammarIntent::Stand);
+}
+
+TArray<FRTActionEffectSpec> URTReactionOpportunityLibrary::EffectsForOutcome(
+	const FRTManeuverDef& Maneuver, ERTClashOutcome Outcome)
+{
+	switch (Outcome)
+	{
+	case ERTClashOutcome::Win:  return Maneuver.WinEffects;
+	case ERTClashOutcome::Tie:  return Maneuver.TieEffects;
+	case ERTClashOutcome::Lose: return Maneuver.LoseEffects;
+	}
+
+	// Funzione TOTALE: un caso per ogni valore dell'enum, nessun `default` che nasconda un esito nuovo.
+	// Se un quarto esito nascesse, questo `return` non lo coprirebbe in silenzio — il compilatore avverte.
+	return TArray<FRTActionEffectSpec>();
+}
+
 TArray<int32> URTReactionOpportunityLibrary::UnitsConsumingCost(const TArray<FRTContestedLock>& Locks,
 	const FRTClashResolution& Resolution)
 {

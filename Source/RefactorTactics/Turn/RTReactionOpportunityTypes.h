@@ -5,6 +5,7 @@
 #include "Combat/RTOffensiveActionLibrary.h" // FRTSuppressiveZone, FRTSuppressionMover: la geometria e' UNA
 #include "Perception/RTPerceptionLibrary.h"  // ERTAwareness: il trigger richiede `Detected`, non «visibile»
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: header leggero, lo usa anche ARTUnit
+#include "Turn/RTActionEvent.h" // FRTActionEffectSpec: i tre esiti di una maneuver sono primitive del catalogo (§5)
 #include "Turn/RTTurnLog.h" // ERTReactionDecisionOutcome: l'esito di una finestra vive con gli altri esiti di log
 #include "Turn/RTTurnRules.h"
 #include "RTReactionOpportunityTypes.generated.h"
@@ -126,6 +127,63 @@ enum class ERTGrammarIntent : uint8
 	Read,
 	/** Spostarsi per uscire dalla linea. Batte `Read`, perde contro `Stand`. */
 	Shift
+};
+
+
+/**
+ * Una **maneuver**: cio' che una risposta del profilo E' — intenzione, costo, e i tre esiti (§5, §11).
+ *
+ * 🔵 **L'id della maneuver E' la stringa della risposta**, e non un campo in piu': `AllowedResponses`
+ * contiene gia' `GROUND`, `SIDESTEP`, `GLANCE LEFT`, e cercarne il significato qui evita una seconda lista
+ * allineata per indice — la struttura che si disallinea, come dice il commento di `FireResponse`. Il profilo
+ * dichiara **quali** risposte offre; questo catalogo dice **cosa sono**.
+ *
+ * ⚠️ **I tre esiti sono `FRTActionEffectSpec` e nient'altro**, ed e' il vincolo di determinismo di §5: mai
+ * una callback. Un `WinOutcome` che richiedesse una primitiva inesistente e' un errore di validazione del
+ * ruleset, non un caso da risolvere nel resolver.
+ *
+ * 🔵 **Win/Tie/Lose non e' successo/fallimento**: il `Tie` di `Hold Ground` e' *«nessun displacement»*, cioe'
+ * esattamente cio' che il difensore voleva. E' questo che rende diversi i profili a parita' di matrice — un
+ * tank tollera il `Lose`, un duellante ha `Win` enorme e `Lose` pesante.
+ *
+ * ⚠️ **Nessun numero di bilanciamento e' deciso qui.** Le liste di effetti nascono **vuote** per le tre
+ * maneuver del roster: resistenza del `Brace`, Charge del `Grounding` e ampiezza della deviazione restano
+ * aperti e si restringono al playtest (§2.5). Una lista vuota e' un esito che non applica niente — non un
+ * dato mancante — ed e' cio' che permette al Clash di girare prima che i numeri esistano.
+ */
+USTRUCT()
+struct FRTManeuverDef
+{
+	GENERATED_BODY()
+
+	/** Coincide con la stringa della risposta in `AllowedResponses`. */
+	UPROPERTY()
+	FName ManeuverId;
+
+	/** L'intenzione che questa maneuver esprime nella matrice di [D-049]. */
+	UPROPERTY()
+	ERTGrammarIntent Intent = ERTGrammarIntent::Stand;
+
+	/** La maneuver costa una risorsa (§9). Il pagamento lo esegue chi la possiede: qui si dichiara solo *se*. */
+	UPROPERTY()
+	bool bHasCost = false;
+
+	/** La **policy diversa** di §9: se vero, il costo non si consuma perdendo. Default `false` — si paga. */
+	UPROPERTY()
+	bool bRefundIfLost = false;
+
+	UPROPERTY()
+	TArray<FRTActionEffectSpec> WinEffects;
+
+	UPROPERTY()
+	TArray<FRTActionEffectSpec> TieEffects;
+
+	UPROPERTY()
+	TArray<FRTActionEffectSpec> LoseEffects;
+
+	FRTManeuverDef() = default;
+	FRTManeuverDef(const FName& InId, ERTGrammarIntent InIntent, bool bInHasCost = false)
+		: ManeuverId(InId), Intent(InIntent), bHasCost(bInHasCost) {}
 };
 
 
@@ -720,4 +778,30 @@ public:
 	 */
 	static TArray<FRTTurnLogEntry> MakeClashLogEntries(const FRTContestedBoundary& Boundary,
 		const TArray<FRTContestedLock>& Locks, const FRTClashResolution& Resolution);
+
+	/**
+	 * Il catalogo delle maneuver: cosa significano le risposte che i profili offrono (§5, §11).
+	 *
+	 * `Hold Ground` c'e' **anche se e' universale**, e non e' un'eccezione: e' la maneuver `STAND`, il
+	 * fallback che §9 assegna al difensore allo scadere, e senza una voce propria il suo `Tie` — *«nessun
+	 * displacement»* — non avrebbe dove essere dichiarato.
+	 */
+	static TArray<FRTManeuverDef> GetManeuverCatalog();
+
+	/**
+	 * La maneuver con questo id, o una `STAND` senza effetti se l'id e' sconosciuto.
+	 *
+	 * Fail-closed nel verso giusto: una risposta che il catalogo non conosce non applica **niente** e non
+	 * vince nulla. Inventarle un esito sarebbe far accadere in partita qualcosa che nessuno ha dichiarato.
+	 */
+	static FRTManeuverDef FindManeuver(const FName& ManeuverId);
+
+	/**
+	 * Gli effetti che un partecipante subisce dato il proprio esito (§5).
+	 *
+	 * ⚠️ Restituisce la lista **dichiarata dalla maneuver**, che oggi e' vuota per tutte: i numeri sono
+	 * bilanciamento e non sono decisi. Vuoto significa «questo esito non applica niente», che e' diverso da
+	 * «questo esito non esiste» — ed e' cio' che permette al Clash di girare prima del playtest.
+	 */
+	static TArray<FRTActionEffectSpec> EffectsForOutcome(const FRTManeuverDef& Maneuver, ERTClashOutcome Outcome);
 };
