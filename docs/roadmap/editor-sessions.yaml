@@ -1325,6 +1325,18 @@ sessions:
       `ReturnMain` diretti — e il package si salva senza errori
     unblocks: []
     notes: >-
+      ✅ **CHIUSA il 2026-08-19 — il pulsante chiama `BackFromError`, misurato sui byte del package.**
+      `BackFromError` **2**, `GetPhaseWhenArmed` **2**, `RTFrontendNavigator` **1**; e soprattutto
+      `PopScreen`, `ReturnMain`, `PushScreen`, `CloseModal` tutti a **zero** — il widget non naviga da se',
+      che era l'unica cosa che questa seduta poteva sbagliare. Suite `Frontend` **30/30** dopo il
+      salvataggio: il resave non ha rotto i tre binding di visibilita'. Lease rilasciata, quattro
+      verification su quattro.
+      ⚠️ **Cio' che la misura NON prova**, e vale dirlo: un grep sui byte trova i nomi, non la topologia
+      del grafo. Che il pin `PhaseWhenArmed` prenda `GetPhaseWhenArmed()` invece di una costante regge
+      perche' quel nome **compare** — una costante non lo nominerebbe — ma un grafo che lo chiamasse
+      ignorandone il valore passerebbe lo stesso. La chiude il primo test che apra il grafo eventi di un
+      `WBP_RT_*`, che oggi non esiste.
+      ─────
       ➕ **Aperta il 2026-08-18 per l'ULTIMA voce del DoD di `#937`.** Il C++ e' consegnato (PR #1183):
       `URTFrontendNavigator::BackFromError` sceglie fra `ReturnMain` a partita viva e
       `CloseModal`+`PopScreen` durante il loading, provato da **3** test e da una verifica di mutazione
