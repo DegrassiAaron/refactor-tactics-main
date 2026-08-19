@@ -2184,6 +2184,29 @@ tracks:
     # per una misura.
     worktree: "D:/rt-simulation"
     note: >-
+      ➕ **Fetta 3 di `#314`, aperta il 2026-08-19: il Reaction Profile prende un consumatore.** Le due fette
+      precedenti hanno consegnato le funzioni pure (PR #1192) e il dato di catalogo (PR #1204); il profilo
+      però **non è letto da nessuno in partita** — `BraceAllowedResponses` ha zero chiamanti fuori dai test e
+      `ARTUnit::ReactionProfileId` è trasportato e mai consultato. È la forma esatta del difetto che `#583`
+      chiama per nome, e questa fetta lo chiude invece di aggiungerne un secondo strato.
+      ⛔ **Ciò che questa fetta NON fa, deciso prima di scrivere e non scoperto a metà**: la macchina del Clash
+      (D-048 runtime) resta fuori. Aggiungere `LockChoice`/`Reveal`/`ResolveClash` accanto a `IsContested` e
+      `CompareGrammarIntents` — che oggi chiamano solo i test — avrebbe raddoppiato il codice senza
+      consumatore invece di dargliene uno.
+      ⚠️ **Solo UNO dei tre profili ha una semantica decisa, e gli altri due non si inventano.**
+      `Profile.Sidestep` ce l'ha da `BAS-4`, che lo dichiara «risponde al **Forced Movement**» nella stessa
+      forma di `Riva.FlowReaction` (`Reposition 1`) — quindi si esprime con `SelfReposition(1)`, la primitiva
+      che `Reaction.EmergencyDash` e `Reaction.HazardEscape` già usano, e **nessun numero nuovo entra**.
+      Per `GROUND` e `GLANCE` la spec §2.5 e `D-132` dichiarano aperti «Charge del `Grounding`» e «ampiezza
+      della deviazione»: una risposta extra si offre **solo se il profilo ne dichiara gli effetti**, e
+      l'assenza degli altri due è il registro di quelle due decisioni, non una dimenticanza.
+      ⚠️ **La contesa su `Ability/RTCatalogLibrary.cpp` è nominale e va registrata, non temuta**:
+      `origin/feat/641-sprint-post-blast` lo tocca, ma è **dormiente** — ultimo commit `WIP` del 2026-08-12,
+      nessuna PR aperta (`gh pr list --head` → `[]`) — e l'intersezione a livello di **funzione è vuota**: il
+      suo hunk è in `GetCoreActionCatalog` a `:717`, i profili stanno in `GetReactionProfileCatalog` a `:8`.
+      Il file è qui in **prestito** da `spatial`, e il prestito non si allarga: si scrive la sola sezione
+      profili. ⚠️ Quel ramo è basato su un `RTCatalogLibrary.cpp` **pre-#1204**, quindi dovrà riconciliare i
+      profili quando riparte — un debito che non nasce qui e non cresce per causa di questa fetta.
       ➕ **Riattivata il 2026-08-18 su `#1158`.** Il difetto è misurato nella issue in cinque punti e nasce da
       una code review, non da un sospetto: `ApplyReactionDecision` calcola `bFire` con
       `Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx])` e **nessun `IsAlive()`**, mentre
@@ -2755,6 +2778,18 @@ tracks:
       - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
       - Source/RefactorTactics/Turn/RTTurnManager.h
       - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # ➕ **Rivendicato il 2026-08-19 dalla fetta 3, e non ereditato da una misura vecchia.** Il giro di
+      # `#886` lo aveva ESCLUSO con un argomento che allora era giusto — «e' il file dove le funzioni estratte
+      # dalla #1161 sono finite, non dove sta il punto che `#886` tocca» — e per la fetta 3 vale l'opposto: il
+      # ramo che oggi applica `Hold Ground` e' `RTTurnManager_Blast.cpp:1138`, cioe' il punto esatto in cui il
+      # profilo deve poter aprire la finestra. La misura si rifa', non si rilegge.
+      # ✅ **Non e' di nessuno**: `scenario_vocab` lo ha RILASCIATO il 2026-08-19 chiudendo `#1060`, e il
+      # `grep` del path su TUTTI i `writable` piu' `integration_only` da' **zero** occorrenze in campo. Un path
+      # non assegnato non si scrive e basta: lo rivendica chi lo prende, ed e' questo atto a farlo.
+      # ✅ **Nessun branch vivo lo tocca**: misurato con
+      # `git log --remotes=origin --not origin/main -- <path>`, che su tutti e venti i rami remoti restituisce
+      # **un solo** commit — e quello tocca `RTCatalogLibrary.cpp`, non questo file.
+      - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
       - Source/RefactorTactics/Turn/RTActionEvent.h
       - Source/RefactorTactics/Ability/RTHeroData.h
       - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h
