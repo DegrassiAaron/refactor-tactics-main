@@ -20,13 +20,14 @@ enum class ERTHexArchOp : uint8
 /**
  * Perche' un arco pendente e' stato chiuso — `#996`.
  *
- * Le cinque voci sono le cinque chiamanti di `DestroyPendingGizmo`, e servono a una domanda sola: quando un
- * gizmo sparisce, e' stato chiuso da noi o e' sparito da solo? Senza il motivo, il log direbbe *che* e'
- * successo e non *perche'*, che e' esattamente l'ambiguita' che la issue esiste per sciogliere.
+ * Un motivo per ogni chiamante di `DestroyPendingGizmo`, per rispondere a una domanda sola: quando un gizmo
+ * sparisce, e' stato chiuso da noi o e' sparito da solo? Senza, il log direbbe *che* e' successo e non
+ * *perche'*.
  *
- * ⚠️ **Non c'e' un valore di default, ed e' deliberato**: il parametro senza default costringe una sesta
- * chiamante — se un giorno nascera' — a dichiarare la propria ragione invece di scivolare dentro un
- * `Unknown` che nessuno noterebbe leggendo il log.
+ * ⚠️ **Il parametro non ha un valore di default**, cosi' una chiamante nuova deve passarne uno invece di
+ * scivolare dentro un `Unknown`. E' quanto il compilatore puo' garantire: che il valore *sia giusto* resta
+ * disciplina di chi scrive la chiamante — passare `Shutdown` da un sito che non e' uno shutdown compila, e
+ * il log direbbe il falso.
  */
 enum class ERTArchPendingClose : uint8
 {
@@ -39,7 +40,17 @@ enum class ERTArchPendingClose : uint8
 	/** `ClearPending`: il bottone `ClearArch` del pannello. */
 	ClearedByUser,
 	/** `RemoveNearestArch`: si esce da un Add pendente perche' l'operazione e' passata a Remove. */
-	SwitchedToRemove
+	SwitchedToRemove,
+
+	/**
+	 * Sentinella di conteggio — **non e' un motivo** e non va passata a `DestroyPendingGizmo`.
+	 *
+	 * Esiste perche' un sesto enumeratore aggiunto senza toccare `ArchPendingCloseToString` degraderebbe
+	 * **in silenzio** al fallback: lo `switch` non ha `default:` e MSVC C4062 e' spento per default. Con
+	 * questa voce lo `static_assert` accanto alla funzione fallisce alla compilazione, che e' il momento
+	 * giusto per accorgersene.
+	 */
+	Count
 };
 
 /** Factory del tool archi. */
@@ -133,6 +144,7 @@ protected:
 	FRTCellId To;
 	bool bHasFrom = false;
 	bool bToValid = false;
+
 	bool bSnapping = false;
 	FVector FromWorld = FVector::ZeroVector;
 	FVector ToWorld = FVector::ZeroVector;
