@@ -61,7 +61,11 @@ TEXT_EXT = (".md", ".py", ".ts", ".js", ".mjs", ".html", ".json", ".yaml", ".yml
             ".cpp", ".h", ".cs", ".ini", ".csv", ".txt", ".sh", ".ps1")
 
 # Aree in cui un'immagine orfana e' ammessa: materiale grezzo non ancora consumato, e storico.
-AREE_GREZZE = ("docs/src/", "docs/research/", "docs/archive/")
+# ➖ `docs/src/` esce il 2026-08-19: la fase 3 di #1165 l'ha svuotata e `git ls-files docs/src`
+# restituisce **zero**. La cartella sopravvive nel checkout dell'autore per un export `.zip` che
+# `.gitignore` copre, e questo e' il motivo per cui il contratto la verifica con git e non con
+# `os.path.isdir`: su questa macchina la cartella c'e', su un clone pulito no.
+AREE_GREZZE = ("docs/research/", "docs/archive/")
 
 # Aree **generate**: il loro owner non e' un documento che le incorpora, e' il generatore che le
 # scrive. Chiedere un riferimento entrante a un output sarebbe la domanda sbagliata — i 296 file di
@@ -85,30 +89,22 @@ GENERATI = {
 # fallire. Stessa disciplina di `DEBITO_NOTO` in `check-docs-links.py`, e stesso motivo per cui
 # esiste: un gate senza via d'uscita viene disattivato *per intero* al primo blocco legittimo.
 #
-# ⚠️ Le quattro voci di oggi sono il **debito misurato all'apertura di #1165**, non un permesso:
-# ognuna nomina la fase che la chiude. Chi consolida il gruppo toglie la riga nello stesso commit.
-DUPLICATI_NOTI: dict[str, str] = {
-    "9c0e4984fd4d46486f5f62c1ed36da4e0f4407e0b615c104eb314a3dfb971053":
-        "2026-08-18 · graytoolkit infografica: il kit archiviato e la copia in `src/wiki/graybox/` "
-        "sono lo stesso file. Zero riferimenti da entrambi i lati — quale sopravvive e' triage di "
-        "provenienza, fase 2 di #1165",
-    "be99b3e4430adb0dbba487d7456e06be208d5f370773134843458339be2e3364":
-        "2026-08-18 · idem per il diagramma UML dello stesso kit: stessa coppia, stessa decisione, "
-        "fase 2 di #1165",
-    "7ccad0889dd9fc8366bfc972772c719c73aeab7b09586a33f62b7bf66d14652e":
-        "2026-08-18 · `technical/img/Mock-HUD.png` e la sorgente grezza `src/design/hud/hud-example.png`. "
-        "Il consolidamento tocca `progettazione-hud.md`, che e' `integration_only`: fase 3 di #1165",
-    "fb7e1d2365a629680ceb1245afa45bb5faaa7ff06701b377c4f863290507ec3d":
-        "2026-08-18 · `technical/img/UI-style-guide.png` (referenziata da `progettazione-hud.md` §1) "
-        "e la sua sorgente grezza in `src/design/ui/`. Stessa fase 3 di #1165, stesso owner",
-}
+# ✅ **Oggi e' vuoto, e va tenuto vuoto.** Le quattro voci con cui e' nato — il debito misurato
+# all'apertura di #1165 — sono state consolidate dalla fase 3: due copie del kit graytoolkit e le
+# due sorgenti grezze di `technical/img/`. In ogni gruppo e' sopravvissuta la copia nell'area che la
+# possiede, e le voci sono sparite con i gruppi. E' il comportamento che il gate pretende: una
+# promessa mantenuta si cancella, non si lascia a decorare l'elenco.
+DUPLICATI_NOTI: dict[str, str] = {}
 
 # Immagini orfane ammesse fuori dall'area grezza: path -> ragione. Stessa natura di sopra.
 ORFANE_NOTE: dict[str, str] = {
     "docs/technical/img/Mock-HUD.png":
-        "2026-08-18 · §46 di `progettazione-hud.md` dichiara i mockup che *devono esistere* e questo "
-        "e' uno di quelli, ma il documento non lo incorpora: manca il link, non l'immagine. "
-        "Il documento e' `integration_only`, quindi la riga la scrive chi integra — fase 3 di #1165",
+        "2026-08-19 · e' il mockup «Planning — Selected + Warning» che §46 di `progettazione-hud.md` "
+        "dichiara necessario, e la prima stesura di questa voce diceva che bastava aggiungere il link. "
+        "APERTA l'immagine: mostra **FLUX** come eroe selezionato, piu' «ORBITRON» e «EXO 2» — nomi che "
+        "precedono perfino il roster legacy di D-130. Incorporarla in un documento CURRENT porterebbe "
+        "nomi ritirati nei pixel di una pagina viva, che e' esattamente il difetto di #1166. Resta "
+        "orfana finche' non e' rigenerata: il perimetro e' #1166, non una riga mancante",
 }
 
 # 🔴 **Un file che DICHIARA un path non lo sta usando**, e questi due lo dichiarano di mestiere.

@@ -1576,7 +1576,7 @@ pagine wiki illustrate. Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md)
 
 **Dipendenze**: E11 (HUD, log e debug) — E20 va fatta **prima** che i widget di E11 siano scritti, o diventa
 un refactor invece di una fondazione. Le immagini sorgente sono in
-[`../src/design/hud/`](../src/design/hud/).
+[`../research/design/hud/`](../research/design/hud/).
 
 **Rischi**: il catalogo semantico è utile solo se le chiavi sono **stabili**. Rinominare `Status.Wet` dopo che
 scenari e test lo usano costa quanto rinominare un'azione a catalogo.

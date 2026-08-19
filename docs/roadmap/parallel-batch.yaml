@@ -5978,7 +5978,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: docs/1165-fase2-src-prd-icon-showcase-grid
+    branch: docs/1165-fase3-immagini-e-svuotamento-src
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6091,7 +6091,37 @@ tracks:
       `docs/src/showcase/relay-v0.1-scenario-spec.md` come provenienza, ed e' un **record datato** — la
       regola di `docs/README.md` dice che uno storico che descrive un mondo scomparso non si corregge.
       Il nuovo path e' nel commit di move, che `git log --follow` attraversa.
+
+      ➕ **Fase 3, 2026-08-19** — `docs/src/` si svuota: gli ultimi 112 file vanno in
+      `research/{wiki,design,handoff}`, e `git ls-files docs/src` restituisce **zero**. Con essi
+      `docs/src/` esce da `EXEMPT_DIRS` e da `AREE_GREZZE`, e la prova che non ha spento niente e' il
+      numero invariato: **155** documenti per `check-docs-symbols.py` e **165** per
+      `check-docs-tables.py`, prima e dopo.
+      · I **quattro duplicati esatti** dichiarati all'apertura sono consolidati — in ogni gruppo
+        sopravvive la copia nell'area che la possiede — e `DUPLICATI_NOTI` torna **vuoto**: 7,4 MB in meno.
+      · `.gitignore` entra per una riga: `git mv` di una CARTELLA porta con se' i file **non tracciati**,
+        e un `.zip` da 3,8 MB e' uscito dall'area ignorata solo perche' la cartella cambiava nome. La
+        regola ora copre anche `research/` e `generated/`.
+
+      🔴 **`Mock-HUD.png` resta orfana, e la ragione scritta prima era sbagliata.** La voce di
+      `ORFANE_NOTE` diceva «manca il link, non l'immagine» e prescriveva di incorporarla in §46 di
+      `progettazione-hud.md`. **Aperta**: mostra `FLUX` come eroe selezionato, piu' «ORBITRON» e «EXO 2»,
+      nomi che precedono perfino il roster legacy di `D-130`. Incorporarla in un documento CURRENT
+      porterebbe nomi ritirati nei pixel di una pagina viva, cioe' il difetto di **#1166**. La voce
+      resta, con la ragione misurata al posto di quella supposta.
+
+      ⛔ **La famiglia `systems-map` e' stata spostata, non consolidata**: 23 file, 31,2 MB, zero
+      riferimenti, e in ogni topic il file «composite» **e'** i due pannelli affiancati
+      (`larghezza(composite) = larghezza(uml) + larghezza(infografic)`, verificato aprendone due). Non
+      sono duplicati esatti: la cancellazione e' una decisione dell'autore, non di una sessione.
     writable:
+      # Fase 3: gli ultimi file di `docs/src/`, piu' quelli che i loro riferimenti costringono a toccare.
+      - docs/src/
+      - .gitignore
+      - docs/DOC_CONFLICT_MATRIX.md
+      - docs/wiki/README.md
+      - docs/roadmap/roadmap-post-v0.1.md
+      - docs/roadmap/plans/project-control-center-spec.md
       - docs/control-center/graph.test.mjs
       - docs/README.md
       - scripts/docs_inventory.py

@@ -35,12 +35,13 @@ SOURCE = os.path.join(REPO, "Source")
 # esista — stessa disciplina dell'allowlist di `.gitignore`, dove la riga aggiunta dopo non fa niente
 # e non lo dice.
 #
-# ➕ `docs/research/` dal 2026-08-18: e' la destinazione di `docs/src/` nella IA v2 — PRD di visione,
-# design non canonico, handoff. Cambia il nome, non la natura: resta materiale che **non descrive il
-# codice di oggi**, quindi la copertura del gate non cambia rispetto a prima dello spostamento.
+# ➕ `docs/research/` dal 2026-08-18, ➖ `docs/src/` dal 2026-08-19: la seconda e' stata svuotata dalle
+# fasi 2 e 3 di #1165 e non ha piu' file versionati. Cambia il nome, non la natura — resta materiale
+# che **non descrive il codice di oggi** — e la prova che la copertura non e' cambiata e' il numero:
+# **155 documenti** prima dello spostamento e 155 dopo. Un gate il cui scope cala stampa `OK` lo stesso.
 # ⛔ `docs/generated/` NON entra, ed e' deliberato: un artefatto generato che cita un simbolo
 # inesistente e' un difetto del **generatore**, e un gate che tace su di lui lo nasconde.
-EXEMPT_DIRS = ("docs/archive/", "docs/src/", "docs/research/", "docs/roadmap/plans/")
+EXEMPT_DIRS = ("docs/archive/", "docs/research/", "docs/roadmap/plans/")
 
 # Documenti che si dichiarano storici o propositivi: non descrivono il codice di oggi.
 EXEMPT_MARKERS = (
