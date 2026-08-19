@@ -5,7 +5,7 @@
 > [`RefactorTactics_TacticalDesigner_03_Roadmap_v1.0_Scenari_SkillWorkbench_Claude.md`](../../archive/src/RefactorTactics_TacticalDesigner_03_Roadmap_v1.0_Scenari_SkillWorkbench_Claude.md),
 > più il criterio con cui ogni sua sezione è stata accolta, ridotta o respinta.
 > **Cosa non è**: una fonte di stato. Il modello vive in
-> [`../../technical/spec-tactical-designer.md`](../../technical/spec-tactical-designer.md), lo stato nel
+> [`../../technical/tooling/spec-tactical-designer.md`](../../technical/tooling/spec-tactical-designer.md), lo stato nel
 > [`../feature-registry.yaml`](../feature-registry.yaml) e nelle issue.
 
 ---
@@ -210,7 +210,7 @@ progetto»*. Applicato alla lettera, e con un precedente:
 > `RT-FEAT-TOOL-BALANCE-GROUND` era **già v0.1 `IMPLEMENTING`**. Una scala di maturità di uno *strumento*
 > non è una release di *gioco*, e collocarla nella roadmap di release la fa competere con la consegna.
 
-La scala vive in [`spec-tactical-designer.md`](../../technical/spec-tactical-designer.md) §6 come **stadi di
+La scala vive in [`spec-tactical-designer.md`](../../technical/tooling/spec-tactical-designer.md) §6 come **stadi di
 capability** — `TD 0.1` … `TD 1.0` — con una riga in testa che dice ciò che nessun lettore deve dedurre:
 **`TD 0.7` non ha niente a che vedere con `RefactorTactics v0.7`**.
 
@@ -225,7 +225,7 @@ Mappatura sugli owner reali:
 | **TD 0.5** Probe ed explainability | `RT-FEAT-TOOL-MAP-EDITOR` — `#711`, `#695` | parziale |
 | **TD 0.6** Registrazione e replay authoring | `RT-FEAT-REPLAY-ARCHIVE` (INTEGRATED) + conversione replay→scenario | metà esistente |
 | **TD 0.7** Batch e analytics | `RT-FEAT-TOOL-BALANCE-GROUND` · **E43** (`#776`, v0.8) · `#543` · `#542` | epic aperta, issue `P0` aperte |
-| **TD 0.8** Matrice, varianti, regressione | `RT-FEAT-UI-SCENARIO-BROWSER` · `RT-FEAT-TEST-GOLDEN` · [`scenario-map.md`](../../technical/scenario-map.md) | parziale |
+| **TD 0.8** Matrice, varianti, regressione | `RT-FEAT-UI-SCENARIO-BROWSER` · `RT-FEAT-TEST-GOLDEN` · [`scenario-map.md`](../../technical/tooling/scenario-map.md) | parziale |
 | **TD 0.9** Governance e promozione | dipende da TD 0.3 | non cominciato |
 | **TD 1.0** — | il DoD di §56, ridotto a ciò che è verificabile | — |
 

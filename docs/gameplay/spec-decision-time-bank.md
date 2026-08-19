@@ -512,7 +512,7 @@ scala col formato e si legge dal formato stesso.
 
 ## 10. TurnLog
 
-⚠️ [`spec-turnlog.md`](../technical/spec-turnlog.md) è l'**owner** dei nomi di evento e dei reason code: i nomi
+⚠️ [`spec-turnlog.md`](../technical/architecture/spec-turnlog.md) è l'**owner** dei nomi di evento e dei reason code: i nomi
 qui sotto sono *requisiti informativi*, non identificatori. Non si ipotizzano nomi senza aprire quel file.
 
 Il log deve poter rispondere, per ogni Decision Window: chi decideva, cosa poteva scegliere, cosa ha scelto,
@@ -522,7 +522,7 @@ quanto ha speso, quanto gli resta, e se è stato un timeout e perché.
 |---|---|
 | `DecisionId` · `OpportunityId` · owner | riusare l'identità già in uso per le opportunity |
 | `AllowedResponses` · `CanonicalResponse` | il replay riproduce **questa**, non il countdown |
-| `BankConsumedMs` · `BankAfterMs` | il residuo è un dato letto, non ricalcolato (§6). ⚠️ **`BankBeforeMs` NON entra**, e questa riga ne chiedeva tre fino al 2026-08-17: il residuo *prima* è `BankAfter + BankConsumed` **della stessa decisione**, cioè due numeri adiacenti — leggerli non è il ricalcolo che §6 vieta, che sarebbe sommare la storia dall'inizio. Lo argomenta [`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2, e questa § non lo aveva recepito |
+| `BankConsumedMs` · `BankAfterMs` | il residuo è un dato letto, non ricalcolato (§6). ⚠️ **`BankBeforeMs` NON entra**, e questa riga ne chiedeva tre fino al 2026-08-17: il residuo *prima* è `BankAfter + BankConsumed` **della stessa decisione**, cioè due numeri adiacenti — leggerli non è il ricalcolo che §6 vieta, che sarebbe sommare la storia dall'inizio. Lo argomenta [`spec-turnlog.md`](../technical/architecture/spec-turnlog.md) §4.2, e questa § non lo aveva recepito |
 | `TimeoutReason` | distingue scadenza, disconnessione e bank esaurito: la (2) di §4 dipende da questa distinzione |
 | `ControlledHeroes` · `InitialBankMs` **una volta per match** | ➕ **2026-08-17**, e senza queste due righe §3.4 non è verificabile: `Spec.TimeBank.ControlLoadScalesInitialBank` ha per oracolo *«il bank iniziale **registrato** segue `LoadFactor`»* e non avrebbe cosa leggere. Vanno nell'**header** e non nella voce — sono costanti di match, e `FormatId` è già lì per la stessa ragione ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §16.3: nelle voci sarebbe «una costante ripetuta N volte»). ⚠️ Il conteggio si **registra**, non si ricalcola dalle unità vive: quelle muoiono durante la partita e il replay leggerebbe un numero diverso a metà match |
 
@@ -533,7 +533,7 @@ una vista replicata in-match (§7).
 
 > **`Decision` nasce come categoria distinta, in coda a `ERTLogCategory`, con un enum proprio
 > (`ERTDecisionOutcome`, **tre** esiti — `BankConsumed`, `BankAfter`, `BankExhausted`) e `Amount` in millisecondi.**
-> [`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2 prevale: prescriveva questo dal 2026-08-09 (`#361`),
+> [`spec-turnlog.md`](../technical/architecture/spec-turnlog.md) §4.2 prevale: prescriveva questo dal 2026-08-09 (`#361`),
 > e la scelta la conferma invece di emendarla. *(decisione dell'autore)*
 
 Il conflitto c'era, ed era vero: `ReactionDecision` è atterrata con CP 14.5, è in coda a `ERTLogCategory`,
@@ -635,7 +635,7 @@ stesso residuo, altrimenti il replay diverge.
 
 ## 13. Copertura di verifica
 
-Nomi allineati alla tassonomia di [`scenario-map.md`](../technical/scenario-map.md) (`Spec.*`).
+Nomi allineati alla tassonomia di [`scenario-map.md`](../technical/tooling/scenario-map.md) (`Spec.*`).
 **Riconciliati con la mappa il 2026-08-09** (issue `#361`): prima di allora questa tabella diceva «da
 confermare con l'owner» e i nomi erano stati scritti nella mappa lo stesso, in numero e livello diversi.
 
@@ -646,7 +646,7 @@ Il livello ora significa una cosa sola:
   §3.4 e §4.4; il conteggio è la somma delle righe marcate **harness** nella tabella sotto, non un numero
   incrementato a mano. Sono
   diventati scrivibili quando `#318` ha dato all'harness le assertion che leggono il TurnLog e `#361` ha
-  deciso *come* il bank ci entra ([`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2). Prima erano
+  deciso *come* il bank ci entra ([`spec-turnlog.md`](../technical/architecture/spec-turnlog.md) §4.2). Prima erano
   classificati `golden` e non erano esprimibili in nessuna forma automatica.
 - **`estende`** — non è uno scenario nuovo: estende un test C++ che esiste già. Duplicarlo come file
   produrrebbe due verità sullo stesso comportamento.
@@ -749,7 +749,7 @@ Registrate il **2026-08-17**, con gli ID presi da `rt_shared_id.py reserve D`:
 |---|---|---|
 | [`D-156`](../decisions/RT_PDR_00_Decision_Log.md) | Il bank scala col **carico di controllo** attraverso `LoadFactor` **dentro** la derivazione di D-056; `Grace` ed `ExhaustedGrace` scalano per policy data-driven; `FastReactionDuration` resta invariata (§1.2 · §3.4) | **Consolidata** nella forma · numeri `PROPOSED` |
 | [`D-157`](../decisions/RT_PDR_00_Decision_Log.md) | `PreferredResponse` è una dichiarazione di planning distinta dal timeout: non cambia le `AllowedResponses`, non consuma risorse finché non è committata, e allo scadere vale sempre `DecisionOnTimeout` (§4.4) | **Consolidata** |
-| [`D-166`](../decisions/RT_PDR_00_Decision_Log.md) | La categoria di log del bank è **`Decision`**, distinta da `ReactionDecision`, con i tre esiti che [`spec-turnlog.md`](../technical/spec-turnlog.md) §4.2 prescrive: `Amount` ha significato per categoria, e mescolare danni e millisecondi sotto la stessa sarebbe il difetto che `ERTReactionDecisionOutcome` dichiara di evitare (§10.1) | **Consolidata** · matrice riga 75 |
+| [`D-166`](../decisions/RT_PDR_00_Decision_Log.md) | La categoria di log del bank è **`Decision`**, distinta da `ReactionDecision`, con i tre esiti che [`spec-turnlog.md`](../technical/architecture/spec-turnlog.md) §4.2 prescrive: `Amount` ha significato per categoria, e mescolare danni e millisecondi sotto la stessa sarebbe il difetto che `ERTReactionDecisionOutcome` dichiara di evitare (§10.1) | **Consolidata** · matrice riga 75 |
 | [`D-167`](../decisions/RT_PDR_00_Decision_Log.md) | `TB-10` chiusa: le finestre dello stesso giocatore **restano in serie**, e il cap aggregato lo fa il bank. Il boundary non cambia (§17) | **Consolidata** |
 
 ⚠️ [`D-155`](../decisions/RT_PDR_00_Decision_Log.md) — il conteggio degli Hero controllati dichiarato dal

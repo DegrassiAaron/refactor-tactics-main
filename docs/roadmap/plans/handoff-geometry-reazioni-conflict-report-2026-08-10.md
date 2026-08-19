@@ -239,7 +239,7 @@ male: o diventa una copertura che non protegge, o diventa `bBlocksMovement` su u
 perfettamente calpestabile.
 
 E c'è un secondo buco: gli adiacenti orizzontali sono **calcolati**, non archi
-([`spec-pathfinding-pf3-pf4.md`](../../technical/spec-pathfinding-pf3-pf4.md) §2, [D-013](../../decisions/RT_PDR_00_Decision_Log.md)).
+([`spec-pathfinding-pf3-pf4.md`](../../technical/architecture/spec-pathfinding-pf3-pf4.md) §2, [D-013](../../decisions/RT_PDR_00_Decision_Log.md)).
 `FRTHexEdge` esiste solo per i salti di layer. Quindi *non esiste oggi un dato su cui appendere «questa
 transizione orizzontale è chiusa»* che non sia la copertura.
 
@@ -255,7 +255,7 @@ transizione orizzontale è chiusa»* che non sia la copertura.
 
 La §13 e la §28 chiedono di correggere la documentazione che afferma `wall == hex side`.
 **Misurato: nessun documento canonico lo afferma.** L'unica riga che ci somiglia è
-[`spec-mappa-multilivello.md`](../../technical/spec-mappa-multilivello.md) §4:
+[`spec-mappa-multilivello.md`](../../technical/architecture/spec-mappa-multilivello.md) §4:
 
 > *«Una copertura appartiene a **uno dei sei lati**, non alla cella»*
 

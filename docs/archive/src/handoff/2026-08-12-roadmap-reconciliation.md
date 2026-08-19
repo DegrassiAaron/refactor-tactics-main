@@ -6,7 +6,7 @@
 > l'originale e **non è stato riscritto**: le correzioni stanno qui in testa e nel referto.
 >
 > **Referto**: [`../../roadmap-plans/roadmap-reconciliation-2026-08-12.md`](../../roadmap-plans/roadmap-reconciliation-2026-08-12.md)
-> **Owner nato da qui**: [`../../../technical/spec-pointer-interaction.md`](../../../technical/spec-pointer-interaction.md) (CP 11.8)
+> **Owner nato da qui**: [`../../../technical/systems/spec-pointer-interaction.md`](../../../technical/systems/spec-pointer-interaction.md) (CP 11.8)
 >
 > ⚠️ **Quattro premesse erano fuori data al momento della lettura**, e il documento lo aveva previsto (§0.1:
 > *«Non fidarti delle checklist storiche…»*). L'audit è stato rifatto su `ee0da4b3`, non su `dda87f1a`:

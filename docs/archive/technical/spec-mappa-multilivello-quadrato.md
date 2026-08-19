@@ -4,7 +4,7 @@
 > rimosso dal codice al **CP 7.2**. Conservata per provenienza: spiega *perche'* il grafo tattico ha la forma
 > che ha, ed e' la fonte di diverse decisioni ancora valide.
 >
-> **Non descrive il gioco di oggi.** Spec corrente: [`spec-mappa-multilivello.md`](../../technical/spec-mappa-multilivello.md).
+> **Non descrive il gioco di oggi.** Spec corrente: [`spec-mappa-multilivello.md`](../../technical/architecture/spec-mappa-multilivello.md).
 > Archiviata il 2026-08-08.
 
 # Design — Mappa multilivello: ponte sopraelevato (vertical slice PF.4)

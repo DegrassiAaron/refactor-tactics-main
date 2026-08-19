@@ -76,7 +76,7 @@ Il documento §5 chiede un **widget** che elenchi gli scenari. `RT-FEAT-UI-SCENA
 è `INTEGRATED`, e non è un widget: è l'indice C++ nato da
 [`#209`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/209) — ScenarioId staccato dal
 percorso, tag su un solo asse, `ResolvePath` che rifiuta un ID ambiguo, catena di redirect. Owner spec
-[`scenario-index-e-tag.md`](../../technical/scenario-index-e-tag.md), test `ScenarioIndex.*`.
+[`scenario-index-e-tag.md`](../../technical/tooling/scenario-index-e-tag.md), test `ScenarioIndex.*`.
 
 È il caso inverso di quello solito: di norma si scopre che «X non esiste» è vero del nome e falso della
 semantica. Qui il **nome esiste e la cosa no**. Chi legge il registry cercando lo Scenario Browser trova

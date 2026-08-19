@@ -8,15 +8,15 @@
 > | Documento | Risponde a |
 > |---|---|
 > | [`scenario-index-e-tag.md`](scenario-index-e-tag.md) | **Come si identifica e si trova** uno scenario |
-> | [`scenari-validazione-visiva.md`](scenari-validazione-visiva.md) | **Cosa si guarda** nel corpus `Visual.*`, e cosa oggi non è guardabile |
-> | [`test-manuali-pie.md`](test-manuali-pie.md) | Il **registro** delle verifiche interattive: esito atteso e stato |
+> | [`scenari-validazione-visiva.md`](../scenari-validazione-visiva.md) | **Cosa si guarda** nel corpus `Visual.*`, e cosa oggi non è guardabile |
+> | [`test-manuali-pie.md`](../test-manuali-pie.md) | Il **registro** delle verifiche interattive: esito atteso e stato |
 > | **questo file** | **Chi esegue cosa** — la ripartizione fra automatico e umano, e il subset che gate la release |
 >
-> Come si scrive ed esegue uno scenario: [`test-e-diagnosi.md`](test-e-diagnosi.md).
+> Come si scrive ed esegue uno scenario: [`test-e-diagnosi.md`](../test-e-diagnosi.md).
 
 ## 1. Perché esiste
 
-Il gate **G9** della [Definition of Done](../roadmap/v0.1-definition-of-done.md) chiede che «il subset
+Il gate **G9** della [Definition of Done](../../roadmap/v0.1-definition-of-done.md) chiede che «il subset
 `RELEASE-V01` delle verifiche manuali sia eseguito», e dichiara che la marcatura vive nel registro PIE.
 **Quel marcatore non esisteva nel registro** — misurato con `git grep -c RELEASE-V01 HEAD -- docs/` il
 2026-08-09: **sei righe in tre file**, quattro nei sorgenti archiviati e due nella DoD stessa. **Zero in
@@ -136,7 +136,7 @@ Totale corpus versionato: **78** scenari (`A 46 + B 21 + D-bloccati 11`) — *ri
 > il motivo per cui il totale ora si misura invece di sommarlo.
 >
 > Da qui in avanti i tre numeri si **misurano**: `python scripts/feature_registry.py shortlist` li scrive
-> in [`../roadmap/scenariomap.shortlist.md`](../roadmap/scenariomap.shortlist.md) §1 leggendo `Scenarios/`
+> in [`../../roadmap/scenariomap.shortlist.md`](../../roadmap/scenariomap.shortlist.md) §1 leggendo `Scenarios/`
 > e le capability dichiarate in `RTScenarioSession.cpp`, e `shortlist --check` fallisce se divergono.
 > **La ripartizione A/B/C resta umana** — dipende da dove sta l'oracolo, non dai file — ed è il motivo per
 > cui questa pagina continua a esistere.
@@ -154,7 +154,7 @@ Totale corpus versionato: **78** scenari (`A 46 + B 21 + D-bloccati 11`) — *ri
 > percorso: le cartelle sono storage e non promettono nulla ([`scenario-index-e-tag.md`](scenario-index-e-tag.md) §2).
 
 > 🔁 **Il corpus si rimisura quando cambia un numero di bilanciamento — 2026-08-10, `#131`.**
-> Wraith è sceso da 100 a 90 HP ([D-069](../decisions/RT_PDR_00_Decision_Log.md)) e **11 scenari** sono
+> Wraith è sceso da 100 a 90 HP ([D-069](../../decisions/RT_PDR_00_Decision_Log.md)) e **11 scenari** sono
 > diventati rossi in blocco, tutti con lo **stesso** delta di −10 su un'unità Wraith: `Combat.LineHitsThrough`,
 > `Combat.SplashHitsAlliesNotSelf`, `Spec.Environment.{ElectricPropagation, WaterQuenchesFire}`,
 > `Visual.Combat.{PushResistance, WaterElectric, WaterElectricCoordinated}`,
@@ -187,7 +187,7 @@ Totale corpus versionato: **78** scenari (`A 46 + B 21 + D-bloccati 11`) — *ri
 > `RT-FEAT-TOOL-MAP-GEOMETRY`, così il warning di `validate` lo tiene visibile come vuole §6.2.
 >
 > ➕ **Dal 2026-08-13 quella regola ha un owner che la enuncia**:
-> [`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md) §14 dice quali verifiche di quest'area
+> [`spec-hex-geometry-authoring.md`](../systems/spec-hex-geometry-authoring.md) §14 dice quali verifiche di quest'area
 > vanno in automation e quali in seduta PIE, e ripete che le fixture geometriche vivono in
 > `RTOccupancyFixtures.h`. La stessa revisione ha respinto sette scenari `Spec.Environment.*` proposti da un
 > handoff: descrivono capability che non esistono, e uno scenario scritto prima della capability verifica il
@@ -290,7 +290,7 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 
 112 voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
 registro — che è verificabile — con la ragione per cui serve una persona. Il dettaglio di ogni voce (esito
-atteso, stato, copertura headless già esistente) resta in [`test-manuali-pie.md`](test-manuali-pie.md), che
+atteso, stato, copertura headless già esistente) resta in [`test-manuali-pie.md`](../test-manuali-pie.md), che
 ne è l'owner: qui non se ne ricopia nessuno, perché è esattamente la duplicazione che questo repository ha già
 pagato quattro volte.
 
@@ -350,7 +350,7 @@ utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 > dovuto ricordarsi di «promuoverli» — è la differenza fra uno scenario-spec e una nota in un documento.
 
 I **nove** rimasti (l'elenco misurato è in
-[`../roadmap/scenariomap.shortlist.md`](../roadmap/scenariomap.shortlist.md) §1, generato):
+[`../../roadmap/scenariomap.shortlist.md`](../../roadmap/scenariomap.shortlist.md) §1, generato):
 
 | ScenarioId | `requires` | Epic che lo accende |
 |---|---|---|
@@ -368,7 +368,7 @@ I **nove** rimasti (l'elenco misurato è in
 > **esisteva ed era chiuso** (CP 8.3, 8.5, 9.4 verdi), mancava solo **chi possiede** le azioni. Non era
 > un'epic da costruire ma una issue di cablaggio — `#282` — e infatti è l'unica delle cinque capability
 > mancanti che sia stata chiusa in giornata. Il confine resta dichiarato nel codice: la capability **non**
-> copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../decisions/RT_PDR_00_Decision_Log.md)
+> copre `Action.Ignite` né `Action.ModifyArc`, che per [D-046](../../decisions/RT_PDR_00_Decision_Log.md)
 > restano senza owner in v0.1.
 
 ### 6.2 Pianificati nel Feature Registry — non ancora scritti · **63**
@@ -399,7 +399,7 @@ resta visibile invece di sparire.
 > turni durerà**. Scriverli oggi produrrebbe un `ERROR` — difetto del test — non un `BLOCKED`, che è la
 > forma legittima di una specifica anticipata. Li sblocca **E47.4**
 > ([#957](https://github.com/DegrassiAaron/refactor-tactics-main/issues/957)), che **segue** — senza esserne
-> bloccata — il seam `DecisionProvider` di [D-101](../decisions/RT_PDR_00_Decision_Log.md)
+> bloccata — il seam `DecisionProvider` di [D-101](../../decisions/RT_PDR_00_Decision_Log.md)
 > ([#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)).
 > 🔴 **La riga diceva «non si apre prima», ed erano due errori in uno** (corretti il 2026-08-16):
 > il free-run non è bloccato da nulla — `PlanBotsForTest()` esiste, serve un ciclo — e il numero era in
@@ -414,10 +414,10 @@ resta visibile invece di sparire.
 > `RT-FEAT-UI-POINTER-INTERACTION` (CP 11.8): cinque `Visual.UI.*` e uno `Spec.Privacy.*`.
 > Restano `planned` per la ragione dichiarata in testa a questa sezione — **manca l'oracolo**, non il tempo:
 > l'esito atteso di un click è la casella della matrice di
-> [`spec-pointer-interaction.md`](spec-pointer-interaction.md) §5, e finché il `PlayerController` non ha un
+> [`spec-pointer-interaction.md`](../systems/spec-pointer-interaction.md) §5, e finché il `PlayerController` non ha un
 > **contesto esplicito** quell'esito non è leggibile da uno scenario in nessun formato. `Spec.Privacy.HiddenEnemyHoverNoLeak`
 > ha in più una dipendenza di contenuto: il filtro di rilevamento sull'hover è E13.
-> Referto: [`../archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md`](../archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md).
+> Referto: [`../../archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md`](../../archive/roadmap-plans/roadmap-reconciliation-2026-08-12.md).
 
 > 🔴 **E un settimo non si aggiunge, il 2026-08-13.** Un sorgente di consolidamento proponeva di estendere la
 > grammatica di scenario con `hover` / `lmb` / `rmb` / `pointerMode` per coprire il contratto del puntatore.
@@ -488,11 +488,11 @@ resta visibile invece di sparire.
 > `Brace` occupa la principale); due sono **bloccati su `FAC-12`** e si scrivono quando la decisione esiste,
 > non prima; due sono **assorbiti** — «densità da fermo» non ha un fatto proprio, e la privacy del piano è
 > già di `RT-FEAT-NET-PRIVATE-PLANNING`. Il sesto sopravvissuto è riformulato:
-> `OverwatchReservesMovementSlot` asserisce la **causa** di [D-070](../decisions/RT_PDR_00_Decision_Log.md)
+> `OverwatchReservesMovementSlot` asserisce la **causa** di [D-070](../../decisions/RT_PDR_00_Decision_Log.md)
 > invece del divieto di `Dash`, che è una conseguenza.
 >
-> ⚠️ **Uno dei sei non si scriverà con questa epic**, e resta `planned` di proposito: `Spec.ActionEconomy.PathLengthChangesEffect` dipende dai **fatti del percorso** (`AE-3`), non dal profilo di movimento, ed è dichiarato *in prestito* sotto `RT-FEAT-ACTION-MOVEMENT-COMPAT` finché `AE-3` non ha una feature propria. Stesso motivo per cui `Spec.ActionEconomy.SprintEnhancesMomentum` è scrivibile solo a metà: la parte «lo Sprint potenzia» esiste, la parte «di quanto» dipende da quante celle hai percorso. Registrato in [`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md) §6. Referto:
-> [`../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md`](../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md) §6.
+> ⚠️ **Uno dei sei non si scriverà con questa epic**, e resta `planned` di proposito: `Spec.ActionEconomy.PathLengthChangesEffect` dipende dai **fatti del percorso** (`AE-3`), non dal profilo di movimento, ed è dichiarato *in prestito* sotto `RT-FEAT-ACTION-MOVEMENT-COMPAT` finché `AE-3` non ha una feature propria. Stesso motivo per cui `Spec.ActionEconomy.SprintEnhancesMomentum` è scrivibile solo a metà: la parte «lo Sprint potenzia» esiste, la parte «di quanto» dipende da quante celle hai percorso. Registrato in [`../../gameplay/spec-compatibilita-azioni-movimento.md`](../../gameplay/spec-compatibilita-azioni-movimento.md) §6. Referto:
+> [`../../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md`](../../archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md) §6.
 >
 > ➕ **+13 il 2026-08-11 dal consolidamento Bot/AI** — tre `RT-FEAT-BOT-FAIRNESS`, cinque
 > `RT-FEAT-BOT-TACTICAL`, tre `RT-FEAT-BOT-BELIEF`, due `RT-FEAT-BOT-PREDICTIVE`. Il sorgente ne proponeva
@@ -500,7 +500,7 @@ resta visibile invece di sparire.
 > spazio di nomi accanto a quello che l'indice e l'harness già risolvono. Venti dei 33 descrivevano
 > comportamenti di feature senza spec né gate — un nome pianificato per un sistema che non ha ancora una
 > forma è un nome che verrà rinominato. Referto:
-> [`../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md`](../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md) §4.4.
+> [`../../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md`](../../archive/roadmap-plans/bot-ai-consolidamento-2026-08-11.md) §4.4.
 >
 > ⚠️ **Il titolo di questa sezione diceva «38» mentre il suo primo paragrafo diceva «trentaquattro»**, ed
 > erano entrambi vecchi. Rimisurato il 2026-08-11 su `scenariomap.shortlist.md`, che è **generato**: è la
@@ -511,7 +511,7 @@ resta visibile invece di sparire.
 > `Spec.Map.*`. **È la prima volta che il numero SCENDE**, e per due motivi diversi che vale la pena non
 > confondere: dei **quattro di `BAL-1`**, tre sono stati **scritti** il 2026-08-10 (`#401`, verdi al primo
 > run) e il quarto — `Spec.Brace.PushBeyondGuardThreshold` — è stato **cancellato**, non rinviato: chiedeva
-> una spinta di 2 che [D-074](../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, quindi
+> una spinta di 2 che [D-074](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, quindi
 > non ha più un soggetto. Un piano che sparisce perché la decisione l'ha reso privo di oggetto non è un
 > piano evaso.
 > I `TimeBank` sono passati da 8 a 10 con la riconciliazione di `#361` (sotto); i sei di Brace/Overwatch e i
@@ -543,10 +543,10 @@ resta visibile invece di sparire.
 | `Spec.Map.ValidCellsBlockedTransition` · `…DoorOpensTransition` | `RT-FEAT-MAP-TRANSITION-CLEARANCE` | v0.1 · E23 · CP 23.7 |
 | `Spec.Map.Interaction.SwitchOpensDoor` · `…SwitchControlsMultipleDoors` · `…OpenFailsDependentMoveBlocks` | `RT-FEAT-MAP-INTERACTION-GRAPH` | v0.1 · E23 · CP 23.4 (`#833`) |
 
-> ➕ **I `Spec.TimeBank.*` passano da dieci a TREDICI il 2026-08-17** ([D-156](../decisions/RT_PDR_00_Decision_Log.md),
-> [D-157](../decisions/RT_PDR_00_Decision_Log.md)): `ControlLoadScalesInitialBank`,
+> ➕ **I `Spec.TimeBank.*` passano da dieci a TREDICI il 2026-08-17** ([D-156](../../decisions/RT_PDR_00_Decision_Log.md),
+> [D-157](../../decisions/RT_PDR_00_Decision_Log.md)): `ControlLoadScalesInitialBank`,
 > `ControlLoadNeverExtendsWindow` e `TimeoutIgnoresPreferredResponse`. Il numero è la somma delle righe
-> marcate `harness` nella tabella §13 di [`../gameplay/spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md),
+> marcate `harness` nella tabella §13 di [`../../gameplay/spec-decision-time-bank.md`](../../gameplay/spec-decision-time-bank.md),
 > **riparsata**, non incrementata a mano — ed è la stessa disciplina che questa pagina ha già dovuto imparare
 > due volte qui sotto.
 > ⚠️ **Quattro voci nate nello stesso giro NON entrano in questo conteggio, e la ragione è il livello, non
@@ -584,8 +584,8 @@ resta visibile invece di sparire.
 
 > 🔴 **La lezione è la forma del difetto, non i numeri.** `#318` e `#361` sono state chiuse il 2026-08-09 e la
 > terza assertion è atterrata poche ore dopo; le righe che le dichiaravano bloccanti sono rimaste in **quattro**
-> derivati — questa sezione, il commento di [`feature-registry.yaml`](../roadmap/feature-registry.yaml),
-> [`scenariomap.shortlist.md`](../roadmap/scenariomap.shortlist.md) §6.2 e il «prerequisito bloccante» di
+> derivati — questa sezione, il commento di [`feature-registry.yaml`](../../roadmap/feature-registry.yaml),
+> [`scenariomap.shortlist.md`](../../roadmap/scenariomap.shortlist.md) §6.2 e il «prerequisito bloccante» di
 > [`#319`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/319) — per **quattro giorni**, tutte
 > con lo stesso numero sbagliato. Chiudere l'issue che porta una capability non chiude le righe che la
 > dichiaravano assente: quelle si cercano per **numero di issue**, non per argomento.
@@ -601,9 +601,9 @@ resta visibile invece di sparire.
 > danno andato a segno o no (`UnitHpEquals`). È un oracolo indiretto, e un test che misura la vista contando
 > ferite è più fragile di quanto sembri. Va deciso quando `MAP-2` si chiude.
 
-> ✅ **I tre `Spec.Map.Interaction.*` sono stati scelti, non trascritti — 2026-08-14, [D-138](../decisions/RT_PDR_00_Decision_Log.md).**
+> ✅ **I tre `Spec.Map.Interaction.*` sono stati scelti, non trascritti — 2026-08-14, [D-138](../../decisions/RT_PDR_00_Decision_Log.md).**
 > Il consolidamento del dominio muri/porte
-> ([referto](../roadmap/plans/walls-doors-interaction-spec-panel-2026-08-13.md)) ne proponeva **quattordici**,
+> ([referto](../../roadmap/plans/walls-doors-interaction-spec-panel-2026-08-13.md)) ne proponeva **quattordici**,
 > distribuiti su privacy, rete, Operations e authoring. Tre sono entrati, e il criterio è l'unico che conti:
 > **hanno un oracolo oggi**. «L'unità è arrivata oltre la porta» e «l'unità è rimasta dov'era» si scrivono con
 > `UnitAtCell`, che c'è.
@@ -628,9 +628,9 @@ resta visibile invece di sparire.
 > al primo run — `Spec.Brace.GuardAndBraceOnMixedHit`, `Spec.Brace.BraceWinsOnSecondHit` e
 <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 > `Spec.Combat.RiktorIsPushedLikeAnyone`, quest'ultimo **rinominato** da `…BastionIgnoresAllPushes` perché
-> [D-075](../decisions/RT_PDR_00_Decision_Log.md) ha deciso dall'altra parte e il nome previsto avrebbe
+> [D-075](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso dall'altra parte e il nome previsto avrebbe
 > significato il contrario del file. Il quarto, `Spec.Brace.PushBeyondGuardThreshold`, **non nasce**: chiedeva
-> una spinta di 2 che [D-074](../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, riscrivendo
+> una spinta di 2 che [D-074](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, riscrivendo
 > invece la clausola di `Brace`. Oracolo e fixture erano quelli previsti — `UnitHpEquals`, `UnitAtCell` e
 > `Hero.Phase.PressureJet` (16 danni **e** `Push 1` nello stesso colpo) — e nessuna capability nuova è servita.
 >
@@ -645,10 +645,10 @@ resta visibile invece di sparire.
 > ⚠️ **I sei `Spec.Brace.*` / `Spec.Overwatch.*` del 2026-08-10 sono bloccati da altro, e la differenza
 > conta.** Non aspettano una capability dell'harness — un anti-displacement e una lista di risposte legali si
 > osservano benissimo con `UnitAtCell` — aspettano una **decisione**: quali siano i quattro profili di `Brace`
-> e di `Overwatch` è `BAS-1` e `BAS-2` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md). Scriverli prima
+> e di `Overwatch` è `BAS-1` e `BAS-2` in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). Scriverli prima
 > significherebbe fissare in un file eseguibile un contenuto che nessuno ha approvato, ed è il modo più
 > efficace di far sembrare decisa una proposta. Sono in **classe D per scelta**, non per debito tecnico.
-> Origine e triage: [`../roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md`](../roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md).
+> Origine e triage: [`../../roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md`](../../roadmap/plans/baseaction-signatures-spec-panel-2026-08-10.md).
 >
 > Per i `Spec.TimeBank.*` l'affermazione «una sola capability li sblocca tutti» **non reggeva alla verifica**.
 > I tre punti sono stati riconciliati il 2026-08-09 con l'issue **`#361`**, e il risultato è questo:
@@ -682,7 +682,7 @@ perché siano eseguibili.
 
 ### 6.3 Dichiarati e mai scritti — la fascia D che non è atterrata
 
-La **fascia D** di [`scenari-validazione-visiva.md`](scenari-validazione-visiva.md) elenca 8 scenari `Visual.*`
+La **fascia D** di [`scenari-validazione-visiva.md`](../scenari-validazione-visiva.md) elenca 8 scenari `Visual.*`
 descritti come «scritti adesso con `requires`». **Nessuno degli otto file esiste**, verificato il 2026-08-09:
 nessun `Visual.*` del corpus dichiara un `requires` diverso da `Reaction`, che è disponibile.
 
@@ -702,7 +702,7 @@ oggi promette file che non ci sono. Registrato in §8.
 > non dichiarato non ha niente da correggere finché qualcuno non decide cosa vada verificato.
 >
 > Il consolidamento del *Camera Roadmap v1.0* ne ha proposti **34**
-> ([triage](../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md)), e **nessuno è stato aggiunto qui**:
+> ([triage](../../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md)), e **nessuno è stato aggiunto qui**:
 > i loro nomi (`CAMERA-BASIC-PAN-ZOOM-ROTATE`, `CAMERA-CUTAWAY-ROOF`, …) non seguono la convenzione del
 > corpus — `Visual.*`, `Spec.*`, `Movement.*` — e **la maggior parte** verifica sistemi che non esistono:
 > Strategic View, Camera Director, `ActiveLayer`, cutaway, spectator, marker verticali. Uno ScenarioId
@@ -842,7 +842,7 @@ del criterio, non una svista.
 > `editor-sessions.yaml`, l'assegnazione **c'è per tutte e nove**: l'affermazione era vera quando è stata
 > scritta e nessuno l'ha rimisurata dopo che U11 e U15 sono nate. Il prossimo passo di G9 è **eseguirle**.
 > Il conteggio delle voci davvero orfane — 55, nessuna nel subset — vive in
-> [`../roadmap/editormap.shortlist.md`](../roadmap/editormap.shortlist.md), che è coerente con questa misura.
+> [`../../roadmap/editormap.shortlist.md`](../../roadmap/editormap.shortlist.md), che è coerente con questa misura.
 
 `PIE-FACING-1` è entrata col merge di E16, e non per completezza: dal CP 16.2 l'emisfero posteriore è
 **scoperto**, quindi il facing decide il danno. Un orientamento visibile diverso da quello che il resolver ha
@@ -867,26 +867,26 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | Buco | Effetto sulla mappa | Owner |
 |---|---|---|
 | **Effetti muti** — `Wet`, `Burning`, reazione armata e cella conduttiva non emettono alcun evento | Due scenari di classe B non si possono scrivere (`Visual.Water.Wet`, `Visual.Conductive.Network`): si aprirebbero mostrando il terreno che c'era già | `scenari-validazione-visiva.md` §8.1 |
-| ~~**Azioni core senza possessore**~~ — ✅ **chiuso il 2026-08-09** (`#282`, `75b8264`): `Flux.ConductiveNode` è `Action.Electrify` e `Riva.FluidTrail` è `Action.CreateWater` | I tre scenari sono passati in classe **A**. `Ignite` e `ModifyArc` restano **senza owner per decisione**, non per debito ([D-046](../decisions/RT_PDR_00_Decision_Log.md)): nessun eroe del roster ha affinità col fuoco, i ponti non appartengono a nessun kit | — | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
+| ~~**Azioni core senza possessore**~~ — ✅ **chiuso il 2026-08-09** (`#282`, `75b8264`): `Flux.ConductiveNode` è `Action.Electrify` e `Riva.FluidTrail` è `Action.CreateWater` | I tre scenari sono passati in classe **A**. `Ignite` e `ModifyArc` restano **senza owner per decisione**, non per debito ([D-046](../../decisions/RT_PDR_00_Decision_Log.md)): nessun eroe del roster ha affinità col fuoco, i ponti non appartengono a nessun kit | — | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 | **Fascia D mai atterrata** — 8 `Visual.*` descritti come scritti, 0 file | Il catalogo promette vetrine che non esistono; 4 temi vivono come `Spec.*` | §6.3, da riscrivere in `scenari-validazione-visiva.md` |
-| **La camera non ha copertura, e non è un debito rinviato** — `RT-FEAT-UI-TACTICAL-CAMERA` ha `scenarios: []` e gate `scenario: todo`: zero scenari, né scritti né pianificati né promessi | Nessuno **oggi**: ciò che è verificabile della camera attuale sono automation test puri ([#865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/865)), non scenari. Il buco si apre davvero quando esisterà qualcosa da *guardare* — marker verticali, cutaway, transizione Strategic — e allora servirà anche una convenzione di ScenarioId per la camera, che non esiste | §6.3 · [`../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md`](../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md) |
+| **La camera non ha copertura, e non è un debito rinviato** — `RT-FEAT-UI-TACTICAL-CAMERA` ha `scenarios: []` e gate `scenario: todo`: zero scenari, né scritti né pianificati né promessi | Nessuno **oggi**: ciò che è verificabile della camera attuale sono automation test puri ([#865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/865)), non scenari. Il buco si apre davvero quando esisterà qualcosa da *guardare* — marker verticali, cutaway, transizione Strategic — e allora servirà anche una convenzione di ScenarioId per la camera, che non esiste | §6.3 · [`../../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md`](../../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md) |
 | **`Visual.Reaction.*` esiste, `Spec` no** — il campo `reaction` nell'intent c'è ed è validato | Nessuno: è un buco **chiuso**, registrato perché la documentazione lo dichiarava aperto per una working copy indietro di qualche commit | `scenari-validazione-visiva.md` §8.2 |
 | **Nessuna assertion su punteggio e conoscenza** — mancano `TeamScoreEquals` e un modo di asserire sulla conoscenza di squadra | Due scenari-spec non potranno diventare verdi anche quando la capability atterra | `_nota_da_completare` di `Spec.Objective.*` e `Spec.Perception.*` |
 | ~~**Nessuna assertion che legga il TurnLog**~~ — ✅ **chiuso il 2026-08-09** (`#318`): `LogEventCount` e `LogEventOrder` leggono il log accumulato dalla sessione, e l'evento si nomina per nome | I tre `Spec.Clash.*` sono **scrivibili** (li scrive CP 14.7). Gli otto `Spec.TimeBank.*` **no**: manca il contatore, e prima serve la decisione su come tre valori in millisecondi entrano in un `FRTTurnLogEntry` che ha un solo `Amount` — vedi §6.2 | `test-automatico-unreal.md` §5.1 |
 | ~~**Il contatore del log, e le due liste `Spec.TimeBank.*` che divergono**~~ — ✅ **chiuso il 2026-08-09** (`#361`): `spec-turnlog.md` §4.2 dichiara la categoria `Decision` e due voci (`BankConsumed`, `BankAfter`) con il valore in `Amount`; le liste sono riconciliate a **dieci** scenari `harness`. I conteggi della riga precedente erano sbagliati in entrambi i sensi: §13 elencava **20** nomi, non 13, e gli orfani erano **zero** | I dieci `Spec.TimeBank.*` sono **scrivibili** appena esiste l'assertion sul contatore, che ora ha un formato da leggere. Li scrive CP 14.8 | §6.2 · `spec-turnlog.md` §4.2 |
 | ~~**L'assertion sul contatore del log**~~ — ✅ **chiusa il 2026-08-09** (`#361`): `LogEventAmount` legge `Amount` della prima voce che corrisponde, in coda all'enum come `UnitFacing` e `LogEventCount` prima di lei | I dieci `Spec.TimeBank.*` non hanno più un ostacolo tecnico: restano **da scrivere**, ed è lavoro di CP 14.8 | `test-automatico-unreal.md` §5.1 |
-| **Il frontend non ha copertura di nessuna classe, e le sue sei voci di classe C non sono scrivibili da chi le ha specificate** *(2026-08-16)* — le quattro feature `RT-FEAT-UI-FRONTEND-*` di **E46** nascono con `scenario: na` e `automation: todo`: ~~il repository non ha infrastruttura di test UI, quindi non esiste né uno scenario né un automation test che istanzi un widget e ne verifichi la navigazione~~ 🔴 **falso dal 2026-08-16**: CP 46.1 ([`#936`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/936)) ha prodotto **17 automation test** che fanno esattamente questo — istanziano un widget e verificano la navigazione, senza `.uasset`. Resta vero che **nessuno scenario** copre il frontend, ed è corretto: uno scenario descrive una partita, e il menu non è in partita (`scenario: na` nel registry) | Oggi **nessuno**, perché E46 è `SPECIFIED` e non c'è codice. Il buco si apre al primo checkpoint implementato: i sei DoD nominano `PIE-V01-FRONTEND-NAV`, `-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE`, e **nessuna di quelle voci esiste nel registro**. ⚠️ Non sono state create per un vincolo di processo, non per dimenticanza: [`test-manuali-pie.md`](test-manuali-pie.md) appartiene dal 2026-08-16 alla track **`playtest`** e D-139 dice che un file non assegnato è uno **stop**. La procedura non è aspettare: quella track dichiara che *«chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone** in handoff»*. Le sei voci si propongono quando il primo checkpoint di E46 produce qualcosa da guardare. Finché non succede i conteggi della §2 e della §5 **non** includono E46, il che è corretto: contarle sarebbe dichiarare un registro che non le contiene | [`spec-frontend-navigazione.md`](spec-frontend-navigazione.md) §8 · [D-144](../decisions/RT_PDR_00_Decision_Log.md) |
+| **Il frontend non ha copertura di nessuna classe, e le sue sei voci di classe C non sono scrivibili da chi le ha specificate** *(2026-08-16)* — le quattro feature `RT-FEAT-UI-FRONTEND-*` di **E46** nascono con `scenario: na` e `automation: todo`: ~~il repository non ha infrastruttura di test UI, quindi non esiste né uno scenario né un automation test che istanzi un widget e ne verifichi la navigazione~~ 🔴 **falso dal 2026-08-16**: CP 46.1 ([`#936`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/936)) ha prodotto **17 automation test** che fanno esattamente questo — istanziano un widget e verificano la navigazione, senza `.uasset`. Resta vero che **nessuno scenario** copre il frontend, ed è corretto: uno scenario descrive una partita, e il menu non è in partita (`scenario: na` nel registry) | Oggi **nessuno**, perché E46 è `SPECIFIED` e non c'è codice. Il buco si apre al primo checkpoint implementato: i sei DoD nominano `PIE-V01-FRONTEND-NAV`, `-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE`, e **nessuna di quelle voci esiste nel registro**. ⚠️ Non sono state create per un vincolo di processo, non per dimenticanza: [`test-manuali-pie.md`](../test-manuali-pie.md) appartiene dal 2026-08-16 alla track **`playtest`** e D-139 dice che un file non assegnato è uno **stop**. La procedura non è aspettare: quella track dichiara che *«chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone** in handoff»*. Le sei voci si propongono quando il primo checkpoint di E46 produce qualcosa da guardare. Finché non succede i conteggi della §2 e della §5 **non** includono E46, il che è corretto: contarle sarebbe dichiarare un registro che non le contiene | [`spec-frontend-navigazione.md`](../spec-frontend-navigazione.md) §8 · [D-144](../../decisions/RT_PDR_00_Decision_Log.md) |
 | **Nessuna assertion sul determinismo** — e non deve esserci: `HashTurnLog` **ordina** prima di mescolare, quindi è invariante per permutazione e non vede l'ordine; un hash letterale in un JSON si romperebbe alla prima voce nuova del log | `Spec.Clash.Determinism` va scritto sull'ordine (`LogEventOrder`), non su un checksum. Il determinismo vero si verifica **eseguendo due volte**: è una proprietà del runner | `test-automatico-unreal.md` §5.1 |
-| **Un'aspettativa non dichiara la propria natura, e questo è ciò che manca al Tactical Designer** *(2026-08-17, [D-154](../decisions/RT_PDR_00_Decision_Log.md))* — `ERTAssertionKind` dice **cosa** si verifica (`UnitAtCell`, `LogEventCount`, …), non **di che natura** è l'aspettativa. Le quattro nature sono distinte in [`spec-tactical-designer.md`](spec-tactical-designer.md) §7 — invariante forte · aspettativa di design · soglia di bilanciamento · osservazione di telemetria — e nel formato non esistono | Oggi **nessuno**: con un corpus intero scritto a mano da chi conosce il proprio caso, la distinzione vive nella testa dell'autore. Il buco si apre al primo confronto `baseline ↔ variante`, quando qualcosa dovrà **classificare** una differenza: una soglia di bilanciamento superata è un'informazione, un'invariante caduta è un difetto, e trattarle uguali produce l'errore in entrambi i versi — un nerf che sembra una regressione, o una regressione archiviata come nerf. ⚠️ **Non si chiude con una convenzione sui nomi**: dedurre la natura dal prefisso dello `ScenarioId` sarebbe lo string matching fragile proprio dove serve robustezza. È un DoD di `RT-FEAT-TOOL-SKILL-WORKBENCH`, non un lavoro separato | [`spec-tactical-designer.md`](spec-tactical-designer.md) §7 · `RTTestScenario.h` |
-| **Le due feature del Tactical Designer nascono con `scenario: todo` e zero scenari, ed è corretto** *(2026-08-17)* — `RT-FEAT-TOOL-SCENARIO-COMPOSER` e `RT-FEAT-TOOL-SKILL-WORKBENCH` sono `DESIGNED`, senza codice e senza issue aperte | Nessuno **oggi**, e il conteggio della §2 non le include — contarle dichiarerebbe un corpus che non esiste. ⚠️ Quando atterreranno, la loro copertura è di **classe A** e non B: *«l'authoring visuale produce lo stesso `FRTTestScenario` di una fixture scritta a mano»* è una proprietà di **round-trip**, che una macchina giudica meglio di un occhio. La classe C resta per la sola **leggibilità** della timeline, e vive nella seduta **U26** | [`spec-tactical-designer.md`](spec-tactical-designer.md) §9 · [`../roadmap/feature-registry.yaml`](../roadmap/feature-registry.yaml) |
+| **Un'aspettativa non dichiara la propria natura, e questo è ciò che manca al Tactical Designer** *(2026-08-17, [D-154](../../decisions/RT_PDR_00_Decision_Log.md))* — `ERTAssertionKind` dice **cosa** si verifica (`UnitAtCell`, `LogEventCount`, …), non **di che natura** è l'aspettativa. Le quattro nature sono distinte in [`spec-tactical-designer.md`](spec-tactical-designer.md) §7 — invariante forte · aspettativa di design · soglia di bilanciamento · osservazione di telemetria — e nel formato non esistono | Oggi **nessuno**: con un corpus intero scritto a mano da chi conosce il proprio caso, la distinzione vive nella testa dell'autore. Il buco si apre al primo confronto `baseline ↔ variante`, quando qualcosa dovrà **classificare** una differenza: una soglia di bilanciamento superata è un'informazione, un'invariante caduta è un difetto, e trattarle uguali produce l'errore in entrambi i versi — un nerf che sembra una regressione, o una regressione archiviata come nerf. ⚠️ **Non si chiude con una convenzione sui nomi**: dedurre la natura dal prefisso dello `ScenarioId` sarebbe lo string matching fragile proprio dove serve robustezza. È un DoD di `RT-FEAT-TOOL-SKILL-WORKBENCH`, non un lavoro separato | [`spec-tactical-designer.md`](spec-tactical-designer.md) §7 · `RTTestScenario.h` |
+| **Le due feature del Tactical Designer nascono con `scenario: todo` e zero scenari, ed è corretto** *(2026-08-17)* — `RT-FEAT-TOOL-SCENARIO-COMPOSER` e `RT-FEAT-TOOL-SKILL-WORKBENCH` sono `DESIGNED`, senza codice e senza issue aperte | Nessuno **oggi**, e il conteggio della §2 non le include — contarle dichiarerebbe un corpus che non esiste. ⚠️ Quando atterreranno, la loro copertura è di **classe A** e non B: *«l'authoring visuale produce lo stesso `FRTTestScenario` di una fixture scritta a mano»* è una proprietà di **round-trip**, che una macchina giudica meglio di un occhio. La classe C resta per la sola **leggibilità** della timeline, e vive nella seduta **U26** | [`spec-tactical-designer.md`](spec-tactical-designer.md) §9 · [`../../roadmap/feature-registry.yaml`](../../roadmap/feature-registry.yaml) |
 
 ## 10. Rapporto con gli altri documenti
 
 | Documento | Rapporto |
 |---|---|
-| [`test-manuali-pie.md`](test-manuali-pie.md) | **Owner** delle voci: stato ed esito atteso si scrivono lì. Qui se ne classifica l'esecutore e se ne dichiara il subset di release |
-| [`scenari-validazione-visiva.md`](scenari-validazione-visiva.md) | **Owner** della classe B: cosa si guarda, con quale fixture e quali numeri |
+| [`test-manuali-pie.md`](../test-manuali-pie.md) | **Owner** delle voci: stato ed esito atteso si scrivono lì. Qui se ne classifica l'esecutore e se ne dichiara il subset di release |
+| [`scenari-validazione-visiva.md`](../scenari-validazione-visiva.md) | **Owner** della classe B: cosa si guarda, con quale fixture e quali numeri |
 | [`scenario-index-e-tag.md`](scenario-index-e-tag.md) | **Owner** dell'identità: `ScenarioId`, tag, redirect, indice |
-| [`../roadmap/v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md) | **Consumer**: G9 punta al subset di §8 |
-| [`../roadmap/feature-registry.yaml`](../roadmap/feature-registry.yaml) | **Consumer e sorgente**: il gate `scenario` di una feature è `done` solo se uno scenario la **dimostra**; gli `planned` di §6.2 vengono da lì |
-| [`test-e-diagnosi.md`](test-e-diagnosi.md) | Come si scrive ed esegue uno scenario, e come si legge un report fallito |
+| [`../../roadmap/v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) | **Consumer**: G9 punta al subset di §8 |
+| [`../../roadmap/feature-registry.yaml`](../../roadmap/feature-registry.yaml) | **Consumer e sorgente**: il gate `scenario` di una feature è `done` solo se uno scenario la **dimostra**; gli `planned` di §6.2 vengono da lì |
+| [`test-e-diagnosi.md`](../test-e-diagnosi.md) | Come si scrive ed esegue uno scenario, e come si legge un report fallito |

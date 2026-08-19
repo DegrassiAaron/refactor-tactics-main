@@ -11,11 +11,11 @@
 > **Base di rollback**: il ramo `feat/skeletal-units` citato sotto è storia, non una via d'uscita praticabile —
 > tornare al quadrato oggi significherebbe rifare M6–M11.
 >
-> Come fu costruito: [`../technical/h6-hex-sim-spec.md`](../technical/h6-hex-sim-spec.md) ·
-> [`../technical/h6-4-hex-vision-spec.md`](../technical/h6-4-hex-vision-spec.md) ·
-> [`../technical/h6-5-hex-bot-spec.md`](../technical/h6-5-hex-bot-spec.md) (tutte `AS-BUILT`).
-> Com'è oggi: [`../technical/architettura-codice.md`](../technical/architettura-codice.md) ·
-> [`../technical/spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md).
+> Come fu costruito: [`../technical/systems/h6-hex-sim-spec.md`](../technical/systems/h6-hex-sim-spec.md) ·
+> [`../technical/systems/h6-4-hex-vision-spec.md`](../technical/systems/h6-4-hex-vision-spec.md) ·
+> [`../technical/systems/h6-5-hex-bot-spec.md`](../technical/systems/h6-5-hex-bot-spec.md) (tutte `AS-BUILT`).
+> Com'è oggi: [`../technical/architecture/architettura-codice.md`](../technical/architecture/architettura-codice.md) ·
+> [`../technical/architecture/spec-pathfinding-pf3-pf4.md`](../technical/architecture/spec-pathfinding-pf3-pf4.md).
 > **Contesto sorgente**: `/sc:spec-panel` su [`editor-griglia-esagonale-e-mappa.md`](../research/prd/editor-griglia-esagonale-e-mappa.md)
 > *(era un `.docx`, convertito il 2026-08-12)*
 

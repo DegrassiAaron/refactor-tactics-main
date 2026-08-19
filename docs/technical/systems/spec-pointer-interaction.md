@@ -3,8 +3,8 @@
 > **Owner documentale** del contratto del puntatore. `CURRENT` · normativo.
 > Checkpoint **CP 11.8** ([#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)),
 > epic **E11** ([#25](https://github.com/DegrassiAaron/refactor-tactics-main/issues/25)) —
-> [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 → E11.
-> Feature: `RT-FEAT-UI-POINTER-INTERACTION` in [`feature-registry.yaml`](../roadmap/feature-registry.yaml) —
+> [`roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) §5 → E11.
+> Feature: `RT-FEAT-UI-POINTER-INTERACTION` in [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) —
 > **lo stato vive lì**, non in questo file.
 
 Questo documento fissa **prima del codice** una sola tabella:
@@ -30,7 +30,7 @@ nessuna parte — e una regola che vive solo in una cascata di `if` non è verif
 Il valore è renderle **enunciabili e testabili**, e rendere visibili le **cinque** che oggi non reggono (§6).
 
 *(La stesura del 2026-08-12 diceva «nove decisioni su dieci» e «le tre che non reggono». La revisione del
-2026-08-13 ne ha misurate altre due — §6.4 e §6.5 — e una di esse, [D-128](../decisions/RT_PDR_00_Decision_Log.md),
+2026-08-13 ne ha misurate altre due — §6.4 e §6.5 — e una di esse, [D-128](../../decisions/RT_PDR_00_Decision_Log.md),
 **cambia** deliberatamente un comportamento invece di descriverlo. La frase «nove su dieci» è stata tolta e
 non corretta con un altro numero: era una stima, e sostituirne una con un'altra non la rende una misura.)*
 
@@ -46,7 +46,7 @@ non corretta con un altro numero: era una stima, e sostituirne una con un'altra 
 - nuove regole di Door / Cover / Objective.
 
 > ↩️ **Eredità.** [`spec-hover-cella.md`](spec-hover-cella.md) è `HISTORICAL` (substrato quadrato, superato da
-> [ADR-0002](../decisions/adr-0002-griglia-esagonale.md)). La domanda che poneva — *cosa succede sotto il
+> [ADR-0002](../../decisions/adr-0002-griglia-esagonale.md)). La domanda che poneva — *cosa succede sotto il
 > cursore* — non era stata riassegnata a nessun owner dal pivot esagonale: **la riprende questo file**.
 
 ---
@@ -98,7 +98,7 @@ d'origine, non come stato.
 | 1. Nessuno stato esplicito | ✅ **chiuso** — `ARTPlayerController::GetPointerContext()`, derivato e non memorizzato |
 | 2. Nessuna consapevolezza di fase nell'input | ✅ **chiuso** — `ResolutionPlayback` esce dalla fase del `TurnManager` |
 | 3. Nessuna precedenza HUD → mondo | ⏳ **aperto** — dipende dai widget UMG di [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613): senza hitbox non c'è nulla che consumi il puntatore |
-| 4. Nessuno stato neutro | ✅ **chiuso** — [D-128](../decisions/RT_PDR_00_Decision_Log.md): `SelectedAbilityIndex` nasce a `INDEX_NONE` |
+| 4. Nessuno stato neutro | ✅ **chiuso** — [D-128](../../decisions/RT_PDR_00_Decision_Log.md): `SelectedAbilityIndex` nasce a `INDEX_NONE` |
 | 5. Nessun produttore UI | ✅ **chiuso** — i tre produttori esistono e sono coperti |
 
 > ⚠️ **`ReactionWindow` e `Modal` esistono nell'enum e nessuno li produce.** Sono ordinati correttamente in
@@ -171,7 +171,7 @@ dell'interazione, e vale insieme alla fase.
 > 🔴 **`Planning` non è rappresentabile oggi**, ed è la voce 4 di §2.1: `SelectedAbilityIndex` nasce a `0` e
 > nessuno lo riporta a un valore non valido, quindi un'abilità è **sempre** armata e il contesto neutro non
 > esiste. La riga della tabella dice «nessuna abilità armata» perché è ciò che CP 11.8 deve costruire, non
-> ciò che si misura. Senza quello stato, [D-128](../decisions/RT_PDR_00_Decision_Log.md) non è implementabile:
+> ciò che si misura. Senza quello stato, [D-128](../../decisions/RT_PDR_00_Decision_Log.md) non è implementabile:
 > non c'è un «neutro» in cui il click possa ispezionare.
 
 ### `Targeting` ha un `TargetKind`
@@ -265,7 +265,7 @@ Esiti ammessi — l'elenco è **chiuso**:
 | `Cell` | `Targeting` / `Unit` | `Inspect` contesto | `NoOp` — l'azione vuole un'unità | `Cancel` |
 | `FriendlyUnit` | `IdleSelection` / `Planning` | `Inspect` | `Select` | `NoOp` |
 | `FriendlyUnit` | `Targeting` / `Unit` | `Preview` con alleato marcato in area | `Confirm` **solo** se l'azione ammette bersagli alleati, altrimenti `Blocked` | `Cancel` |
-| `EnemyUnit` **rilevata** | `IdleSelection` / `Planning` | `Inspect` pubblico | `Inspect` — **non pianifica** ([D-128](../decisions/RT_PDR_00_Decision_Log.md)) | `Cancel` |
+| `EnemyUnit` **rilevata** | `IdleSelection` / `Planning` | `Inspect` pubblico | `Inspect` — **non pianifica** ([D-128](../../decisions/RT_PDR_00_Decision_Log.md)) | `Cancel` |
 | `EnemyUnit` **rilevata** | `Targeting` / `Unit` | `Preview` dell'attacco: portata, copertura sul lato, esito atteso | `Confirm` attacco/carica · `Blocked(reason)` se illegale | `Cancel` → `Planning` |
 | `EnemyUnit` **non rilevata** | tutti | `NoOp` — §6.1 | `NoOp` | `NoOp` |
 | `CoverEdge` | `Planning` / `Targeting` / `Cell` | `Inspect` lato e valore | `NoOp` (non è un bersaglio in questi contesti) | `NoOp` |
@@ -301,7 +301,7 @@ mondo, qualunque cosa ci sia sotto.
 | `Modal` | `Inspect` | `Confirm` del modale | `Cancel` del modale |
 
 > Durante `ReactionWindow` il targeting normale **non si riapre**: le opzioni sono quelle che
-> l'opportunity dichiara, e sono già sanificate ([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)).
+> l'opportunity dichiara, e sono già sanificate ([ADR-0004](../../decisions/adr-0004-finestre-di-reazione.md)).
 
 ### 5.4 `OpenContext`: la forma minima
 
@@ -320,7 +320,7 @@ Stato: CHIUSA
 
 Hover su un verbo mostra **cosa cambierebbe** senza applicarlo. I reason code passano dallo stesso filtro
 di §6.1 prima di raggiungere il widget: un motivo che rivela stato privato viene degradato, non mostrato.
-I verbi e i requisiti restano di [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
+I verbi e i requisiti restano di [`../../gameplay/spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md)
 ([#74](https://github.com/DegrassiAaron/refactor-tactics-main/issues/74)): qui si dichiara solo che il
 puntatore li **elenca** invece di sceglierli.
 
@@ -406,7 +406,7 @@ diventa il suo opposto: garantire che l'input consumato **non** raggiunga anche 
 lo slot `0` di quell'eroe — e il giocatore non l'ha armato, l'ha trovato armato.
 
 È il motivo per cui l'incoerenza che questo documento portava nella propria §5.1 era reale: l'hover su un
-nemico diceva `Inspect`, il click faceva `Confirm`. [D-128](../decisions/RT_PDR_00_Decision_Log.md) la chiude
+nemico diceva `Inspect`, il click faceva `Confirm`. [D-128](../../decisions/RT_PDR_00_Decision_Log.md) la chiude
 scegliendo il lato dell'affordance — in `Planning` il click **ispeziona**, e per bersagliare bisogna armare.
 
 ✅ **Consegnata il 2026-08-13 sera.** `SelectedAbilityIndex` nasce a `INDEX_NONE`, `ARTUnit::SelectAbility`
@@ -462,7 +462,7 @@ tempo.)*
 - [ ] Le precedenze `Modal/Reaction UI > HUD > world tactical hit` sono esplicite nel codice, non implicite — ⏳ **#613**: senza hitbox UMG non c'è nulla che consumi il puntatore
 - [x] Il resolver di hit restituisce un **target logico** (`FRTCellId` · `UnitId` · StableObjectId), mai una decisione di gameplay — `URTPointerLibrary::ResolveTarget`
 - [x] Il `PlayerController` usa un **contesto esplicito** (§4); niente cascata di `if` sul tipo di Actor colpito — `GetPointerContext()`, derivato
-- [x] Esiste uno stato **neutro**: entrando in Planning nessuna abilità è armata, e il click su un nemico ispeziona ([D-128](../decisions/RT_PDR_00_Decision_Log.md), §6.4)
+- [x] Esiste uno stato **neutro**: entrando in Planning nessuna abilità è armata, e il click su un nemico ispeziona ([D-128](../../decisions/RT_PDR_00_Decision_Log.md), §6.4)
 - [x] `Targeting` porta un `TargetKind` dichiarato dall'azione (§4), non una modalità che il giocatore sceglie a parte
 - [x] La precedenza **intra-mondo** di §4.1 è esplicita: in `Pathing` la cella vince sulla mesh di porta/ponte/hazard, e in `Targeting`/`Cell` vince sull'unità che la occupa
 - [ ] Un oggetto multi-mesh (porta a segmenti, ponte ad archi) risolve all'**oggetto logico intero** — 🟡 il resolver ha il ramo `Object`, ma nessun produttore di candidati lo popola: serve il raycast di `OnSelect` che riconosca gli elementi logici (**#74** per le porte)
@@ -474,7 +474,7 @@ tempo.)*
 - [ ] Door, Cover, Bridge e Objective risolvono l'**oggetto logico** e chiedono la legalità ai servizi di §3
 - [ ] Durante `ResolutionPlayback` le sole scelte di gameplay possibili sono le Decision Boundary autorizzate da E14
 - [ ] Ogni rifiuto porta un **reason code**: `Blocked` senza motivo è un difetto, non un esito — 🟡 i tre produttori nuovi lo dicono (`UE_LOG` con la ragione); i rami preesistenti di `OnSelect` no, e il reason **a schermo** è **#613**
-- [x] `PIE-V01-POINTER` registrata in [`test-manuali-pie.md`](test-manuali-pie.md) — registrata; ⏳ **non ancora eseguita**
+- [x] `PIE-V01-POINTER` registrata in [`test-manuali-pie.md`](../test-manuali-pie.md) — registrata; ⏳ **non ancora eseguita**
 
 ### Test automatici minimi
 
@@ -552,10 +552,10 @@ questo documento.
 - [`progettazione-hud.md`](progettazione-hud.md) — **cosa mostra** l'HUD (§4.1 Screen, §4.2 Tactical Overlay,
   §18 Target/Hover Inspector). Questo file dice **cosa fa il puntatore**: i due non si sovrappongono.
 - [`brief-planning-visuale.md`](brief-planning-visuale.md) — ghost e timeline, consumer di §5.1.
-- [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) — la `ReactionWindow` di §5.3.
+- [ADR-0004](../../decisions/adr-0004-finestre-di-reazione.md) — la `ReactionWindow` di §5.3.
 - [`spec-hover-cella.md`](spec-hover-cella.md) — `HISTORICAL`, provenienza dell'hover (§1).
-- [`scenario-map.md`](scenario-map.md) — classe dei sei scenari di §7.
-- [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) — i **verbi**
+- [`scenario-map.md`](../tooling/scenario-map.md) — classe dei sei scenari di §7.
+- [`../../gameplay/spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) — i **verbi**
   che `OpenContext` elenca (§5.4). Il puntatore li mostra; non li definisce e non ne giudica i requisiti.
 
 ### Provenienza della revisione 2026-08-13
@@ -566,6 +566,6 @@ stati adottati come documenti: **una superficie ha un owner**, e questo file lo 
 stato recepito il loro contenuto — §2.1, §4.1, §5.4, §5.5, §5.6, §6.4, §6.5 e le otto righe nuove della
 matrice — dentro la nomenclatura che il repository usa già.
 
-Gli originali sono in [`../archive/src/design/`](../archive/src/design/) per provenienza:
+Gli originali sono in [`../../archive/src/design`](../../archive/src/design/) per provenienza:
 `2026-08-13-mouse-world-ui-interaction.md` e `2026-08-13-mouse-interaction-integration-plan.md`. Servono a
 ricostruire *da dove* nasce una regola, non a deciderla.

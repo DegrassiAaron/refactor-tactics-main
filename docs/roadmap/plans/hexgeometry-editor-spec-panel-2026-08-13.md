@@ -141,7 +141,7 @@ che un consolidamento deve trovare.
 | # | Esperto | Problema |
 |---|---|---|
 | H1 | Nygard | Il §7 del brief dà `0–3 / 4–5 / 6+` come baseline stabile. `MSE-2`, aperta il 2026-08-12 e **quantificata il 2026-08-13**, dice che due muri perimetrali bastano a produrre `Blocked` con quattro lati aperti. Chi legge il §7 crede che le soglie siano un fatto |
-| H2 | Wiegers | L'owner tecnico manca davvero (verificato). Il brief ha ragione, e questa revisione lo crea: [`spec-hex-geometry-authoring.md`](../../technical/spec-hex-geometry-authoring.md) |
+| H2 | Wiegers | L'owner tecnico manca davvero (verificato). Il brief ha ragione, e questa revisione lo crea: [`spec-hex-geometry-authoring.md`](../../technical/systems/spec-hex-geometry-authoring.md) |
 | H3 | Crispin | La Wiki `Meccaniche/griglia-e-geometria.md` **esiste già** e spiega bene il principio, ma **non nomina i dodici settori**: il vocabolario che il brief §30 chiede («12 settori come misura di occupancy, non movimento») è l'unico pezzo mancante |
 | H4 | Newman | `#687` è un **bug P1 aperto**: `FormatVersion` non finisce nei byte serializzati. Sia il brief §37 sia `C4` toccano lo stesso punto. Finché è aperta, nessuna DoD può dipendere dall'avvio di una migrazione |
 | H5 | Adzic | Il bundle propone 7 scenari `Spec.Environment.*`: **zero esistono**. La convenzione è giusta e il corpus c'è (35 in `Scenarios/Spec/`), ma sono scenari di capability **non ancora implementate** — restano `planned`, e vanno scritti quando la capability esiste, non prima |
@@ -179,8 +179,8 @@ concetto → domanda → authority). Sono entrati quasi intatti nell'owner tecni
 
 | Azione | Dove |
 |---|---|
-| **Creato** l'owner tecnico che mancava | [`docs/technical/spec-hex-geometry-authoring.md`](../../technical/spec-hex-geometry-authoring.md) `CURRENT` |
-| **Corretto** `C4`: FormatVersion 3 → 7, aggiunti `Doors` e `OccupancySurcharge`, puntatore all'owner | [`spec-mappa-multilivello.md`](../../technical/spec-mappa-multilivello.md) |
+| **Creato** l'owner tecnico che mancava | [`docs/technical/systems/spec-hex-geometry-authoring.md`](../../technical/systems/spec-hex-geometry-authoring.md) `CURRENT` |
+| **Corretto** `C4`: FormatVersion 3 → 7, aggiunti `Doors` e `OccupancySurcharge`, puntatore all'owner | [`spec-mappa-multilivello.md`](../../technical/architecture/spec-mappa-multilivello.md) |
 | **Aperta** `MSE-3` (i due modelli di calpestabilità) | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
 | **Aggiornata** `MSE-2` con i numeri misurati | idem |
 | **Archiviati** brief e bundle, con riga d'indice ciascuno | `docs/archive/src/handoff/` |

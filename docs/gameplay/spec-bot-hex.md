@@ -3,7 +3,7 @@
 > `CURRENT` · **Data**: 2026-08-10 · **Owner del concetto «bot»** · **Issue**: [#202](https://github.com/DegrassiAaron/refactor-tactics-main/issues/202)
 >
 > **Questa è la spec attiva**: descrive il bot **com'è oggi** ed è il documento in cui il bot si cambia.
-> Non va confusa con [`../technical/h6-5-hex-bot-spec.md`](../technical/h6-5-hex-bot-spec.md), che è
+> Non va confusa con [`../technical/systems/h6-5-hex-bot-spec.md`](../technical/systems/h6-5-hex-bot-spec.md), che è
 > `AS-BUILT` al checkpoint H6.5 (2026-08-05) e descrive uno stato superato: da allora il bot ha acquistato
 > aree, fuoco amico, penalità sul collaterale agli alleati e la cella di fuga. Quel documento resta com'è —
 > un `AS-BUILT` superato non si riscrive, si supera.
@@ -256,7 +256,7 @@ bot legge il **catalogo**, non i nomi.
 
 - Codice: `Source/RefactorTactics/Bot/RTHexBotLibrary.{h,cpp}` · consumatore: `ARTTurnManager::PlanBots`
 - Il bot che verrà: [`spec-bot-tattico.md`](spec-bot-tattico.md) — Team Planner, belief, reazioni (E13/E26/E27/E28)
-- Storia: [`../technical/h6-5-hex-bot-spec.md`](../technical/h6-5-hex-bot-spec.md) (`AS-BUILT` H6.5)
-- Architettura: [`../technical/architettura-codice.md`](../technical/architettura-codice.md)
+- Storia: [`../technical/systems/h6-5-hex-bot-spec.md`](../technical/systems/h6-5-hex-bot-spec.md) (`AS-BUILT` H6.5)
+- Architettura: [`../technical/architecture/architettura-codice.md`](../technical/architecture/architettura-codice.md)
 - Wiki, lato giocatore: [`avversario-bot` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/avversario-bot)
 - Decisioni che lo vincoleranno: [ADR-0005](../decisions/adr-0005-orientamento.md) · [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) · [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md)

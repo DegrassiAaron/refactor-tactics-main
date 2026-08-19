@@ -4,12 +4,12 @@
 > occupa** un asset di mappa, **dove sta il suo pivot**, e **come si legge il suo stato** senza chiedere
 > nulla alla simulazione.
 >
-> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e al
-> [Decision Log](../decisions/RT_PDR_00_Decision_Log.md) — `D-152` e `D-153` sono le decisioni che questo
+> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) e al
+> [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md) — `D-152` e `D-153` sono le decisioni che questo
 > documento esegue, `D-146` è quella che estende.
 >
 > **Nato da** un handoff d'autore del 2026-08-17 (`Graybox_Kit_Cover_CellVolume`, 1620 righe), archiviato
-> in [`../archive/src/README.md`](../archive/src/README.md). Il kit è stato **filtrato** contro `main`, non
+> in [`../../archive/src/README.md`](../../archive/src/README.md). Il kit è stato **filtrato** contro `main`, non
 > applicato: tre delle sue prescrizioni descrivono un repository che non esiste, e sono elencate in §9.
 
 ---
@@ -22,16 +22,16 @@ numero.
 
 | Tema | Owner |
 |---|---|
-| Coordinate, `FRTCellId`, transizioni fra layer, formato dell'asset | [`spec-mappa-multilivello.md`](spec-mappa-multilivello.md) |
+| Coordinate, `FRTCellId`, transizioni fra layer, formato dell'asset | [`spec-mappa-multilivello.md`](../architecture/spec-mappa-multilivello.md) |
 | Geometria **tattica**: asse, offset interi, occupancy, cottura | [`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md) |
 | **Standability**: footprint e clearance che decidono dove si sta in piedi | `RT-FEAT-MAP-STANDABILITY` — E23 / CP 23.6 |
-| Regole di copertura, riduzione danno, distruzione | [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) · [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md) |
-| Verbi e stati degli elementi interattivi | [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) |
+| Regole di copertura, riduzione danno, distruzione | [`../../gameplay/spec-copertura-cp91.md`](../../gameplay/spec-copertura-cp91.md) · [`../../gameplay/spec-copertura-alta-cp92.md`](../../gameplay/spec-copertura-alta-cp92.md) |
+| Verbi e stati degli elementi interattivi | [`../../gameplay/spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) |
 | Grammatica visiva delle **celle** (colore + forma) | `D-146` · `RT-FEAT-UI-BOARD-GRAMMAR` |
-| Percorsi e naming dentro `Content/` | [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) |
-| Quali asset esistono e quanti mancano | [`asset-map.md`](asset-map.md) |
-| Principi di pipeline: presentazione-only, riferimenti soft, licenze | [`spec-asset-pipeline.md`](spec-asset-pipeline.md) |
-| Stato di avanzamento | [`../roadmap/feature-registry.yaml`](../roadmap/feature-registry.yaml) |
+| Percorsi e naming dentro `Content/` | [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) |
+| Quali asset esistono e quanti mancano | [`asset-map.md`](../tooling/asset-map.md) |
+| Principi di pipeline: presentazione-only, riferimenti soft, licenze | [`spec-asset-pipeline.md`](../architecture/spec-asset-pipeline.md) |
+| Stato di avanzamento | [`../../roadmap/feature-registry.yaml`](../../roadmap/feature-registry.yaml) |
 
 > ⚠️ **Non è un tracker.** Se una riga di questo file dichiara uno stato di implementazione, è un difetto.
 
@@ -199,7 +199,7 @@ inset, che misura quanto un asset si ritrae dal centro verso i vicini, si budget
 ⏱️ In metri: `C = 2,60 m` **al canone** (`1,73 m` finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra) e `H = 2,50 m`, che è già il
 valore di oggi. La grammatica è in frazioni proprio perché la prima delle due sta cambiando.
 
-🔴 **Che siano due è una correzione del 2026-08-17** ([`D-168`](../decisions/RT_PDR_00_Decision_Log.md)):
+🔴 **Che siano due è una correzione del 2026-08-17** ([`D-168`](../../decisions/RT_PDR_00_Decision_Log.md)):
 fino a quel giorno anche le **altezze** erano espresse in frazioni di `C`, cioè misurate contro una
 larghezza. L'incoerenza era invisibile finché nessuno dichiarava l'altezza del volume, e si vedeva solo
 guardando i totali: `1.00 C` — la guida chiamata «massima» — valeva il **69%** del volume con la scala
@@ -224,7 +224,7 @@ per questo le misure di questo documento sono in frazioni di `C`.
 
 ### 6.1 Quanto vale `C` in metri, e perché la domanda ha due risposte
 
-[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis fissa il lato dal 2026-08-09, e da
+[`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) §11-bis fissa il lato dal 2026-08-09, e da
 `D-163` quel valore governa **anche il mondo**, non solo l'authoring:
 
 ```text
@@ -248,8 +248,8 @@ codice di oggi     lato 1,00 m      →  C ≈ 1,73 m     ← a cui ogni mappa g
 
 ✅ **`GBX-6` è chiusa il 2026-08-17**: vince la scala d'arte, `HexSize = 150`, e la quota fra i piani
 **resta `250` uu — 2,50 m — invece di seguirla**
-([`D-163`](../decisions/RT_PDR_00_Decision_Log.md)). Questo documento **continua a non sceglierla** — non è
-il suo owner, che resta [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — ma ora
+([`D-163`](../../decisions/RT_PDR_00_Decision_Log.md)). Questo documento **continua a non sceglierla** — non è
+il suo owner, che resta [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) §11-bis.1 — ma ora
 riporta una decisione presa invece di una divergenza aperta.
 
 🔵 **Che l'altezza del volume non segua la larghezza cambia le proporzioni della scena, non i budget di
@@ -260,7 +260,7 @@ margine che rende `GBX-1` e `GBX-5` validabili **guardando** invece che discuten
 non in alzato.
 
 > ⚠️ **E le altezze di `RTHexMapActor.cpp` non sono evidenza su questi budget**: sono **placeholder di
-> visualizzazione**, che [`D-168`](../decisions/RT_PDR_00_Decision_Log.md) esclude dal perimetro di questo
+> visualizzazione**, che [`D-168`](../../decisions/RT_PDR_00_Decision_Log.md) esclude dal perimetro di questo
 > contratto.
 
 ⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
@@ -271,7 +271,7 @@ finiti** finché non li puoi validare in PIE.
 > ⚠️ **Le due misure sono la stessa cosa, e vale la pena dirlo perché i documenti usano numeri diversi.**
 > Qui il termine di paragone è `C`, la larghezza lato-a-lato, perché è a quello che il contratto budgeta le
 > frazioni orizzontali (`0.92` del lato per la larghezza di un pannello; le **altezze** vanno in `H`, §6). L'owner della scala —
-> [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §11-bis.1 — parla del **lato**, perché è
+> [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) §11-bis.1 — parla del **lato**, perché è
 > quello che `HexSize` contiene. `C = √3 · lato`: `1,50 → 2,60`. Le due righe dicono lo stesso
 > vincolo in unità diverse, e ciascuna usa quella naturale per il proprio documento.
 
@@ -286,7 +286,7 @@ I due che decidono il mondo sono `RTHexMapAsset.h:151` (l'autorevole: l'asset vi
 `Source/RefactorTactics/Tests/RTHexMapTests.cpp`, che **pinna** il default a `100.f` come contratto di
 serializzazione e va aggiornato deliberatamente. ⛔ **`RTHexMapTests.cpp` non è assegnato a nessuna track** — è un `D-139` STOP, da sciogliere **prima**,
 non durante — e **`RTTurnManager.cpp` è della track `hotspot_split`, ACTIVE**: non si assegna, si coordina. Il quadro completo, con chi possiede cosa, sta in
-[`D-163`](../decisions/RT_PDR_00_Decision_Log.md) e in [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155); questo documento non è l'owner del write-set
+[`D-163`](../../decisions/RT_PDR_00_Decision_Log.md) e in [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155); questo documento non è l'owner del write-set
 e non deve diventarne una seconda copia.
 
 > ⚠️ **Questo elenco non è il write-set, ed è la ragione per cui rimanda invece di ripetere.** Chi esegue
@@ -298,12 +298,12 @@ e non deve diventarne una seconda copia.
 > `Scenarios/` e `Config/` non li apre nemmeno: è la misura che la prima stesura di questa riga citava, e
 > non poteva sostenere la conclusione. I binari vanno ispezionati direttamente e **con l'oracolo giusto per
 > ciascun tipo**, perché in un `.umap` il nome `Cells` è un *componente* e sarebbe presente comunque: la
-> misura, con il suo oracolo, è in [`D-163`](../decisions/RT_PDR_00_Decision_Log.md).
+> misura, con il suo oracolo, è in [`D-163`](../../decisions/RT_PDR_00_Decision_Log.md).
 
 **Le due scale divergono di 1,5× finché il cambio non atterra, e la divergenza è il costo di transito.** Una copertura bassa modellata a
 `0.28 C` con `C = 2,60 m` è alta 73 cm; posata su una mappa reale — dove `C = 1,73 m` — quei 73 cm valgono
 il **42% di `C`** invece del 28% che questo contratto budgetava. ⏱️ *Esempio dell'epoca in cui anche le altezze
-stavano in `C`: da [`D-168`](../decisions/RT_PDR_00_Decision_Log.md) la guida bassa è `0.28 H` = **70 cm**, e un'altezza
+stavano in `C`: da [`D-168`](../../decisions/RT_PDR_00_Decision_Log.md) la guida bassa è `0.28 H` = **70 cm**, e un'altezza
 non si rapporta più a una larghezza. Il costo di transito che l'esempio descrive resta reale — è la scala del
 mondo a non essere ancora cambiata, non il modo di misurarla.* 🔴 *Questa riga diceva: «il termine di paragone è `C`, non «l'altezza della cella»: **una cella esagonale
 non ha un'altezza**, e `C` è un passo orizzontale», e chiudeva con «la prima stesura scriveva «dell'altezza
@@ -311,7 +311,7 @@ di cella» e invitava a cercare un numero che non esiste». La clausola in grass
 `UPROPERTY` accanto a `HexSize` e pinnato dallo stesso test — e vale `250`. La nota era nata per correggere
 una prima stesura che diceva «dell'altezza di cella»: ha sostituito una formulazione imprecisa con
 un'affermazione **falsa**, e nel farlo ha attivamente impedito di vedere che le guide verticali usavano il
-denominatore sbagliato. Corretto in [`D-168`](../decisions/RT_PDR_00_Decision_Log.md); l'esempio qui sopra
+denominatore sbagliato. Corretto in [`D-168`](../../decisions/RT_PDR_00_Decision_Log.md); l'esempio qui sopra
 resta in `C` perché descrive il costo di transito della scala, che è orizzontale.*
 
 Chi modella oggi deve sapere che sta autorando per una cella che **nessuna mappa ha ancora** — non più per
@@ -351,7 +351,7 @@ Le guide verticali del volume sono **riferimenti di modellazione**, e non sono c
 > ⏱️ **Erano in `C` fino al 2026-08-17**, con gli stessi coefficienti. Il denominatore cambia, i
 > coefficienti no — quindi i **centimetri cambiano**: la guida massima da `260` a `250`, la bassa da `73` a
 > `70`. Chi avesse già modellato con i valori vecchi ha uno scarto del **4%**, che a graybox è dentro il
-> rumore; chi modella da oggi usa questi. Deciso in [`D-168`](../decisions/RT_PDR_00_Decision_Log.md).
+> rumore; chi modella da oggi usa questi. Deciso in [`D-168`](../../decisions/RT_PDR_00_Decision_Log.md).
 
 > ⚠️ **Nessuna di queste soglie decide una regola.** Se il gameplay avesse bisogno di classi d'altezza, il
 > suo owner sarebbe la copertura (`ERTHexCoverType`, due valori più `None`) — e quel dato **esiste già**,
@@ -447,7 +447,7 @@ Dato: una entry di `Covers` — cioè una copertura che ESISTE.
 
 **«Distrutto» NON è in questa scaletta, e a toglierlo è `D-175`.** Non è una lettura del dato di mappa: è la
 transizione `ERTEnvironmentOutcome::CoverDestroyed`
-([`RTTurnLog.h`](../../Source/RefactorTactics/Turn/RTTurnLog.h)), che vive nel TurnLog. Il presentatore che
+([`RTTurnLog.h`](../../../Source/RefactorTactics/Turn/RTTurnLog.h)), che vive nel TurnLog. Il presentatore che
 deve cambiare geometria — macerie invece del pannello — la prende **da lì**, non dall'assenza dell'entry.
 
 > 🔴 **Questa è la TERZA stesura, e la seconda sbagliava il dominio in due modi che si sommano — trovati
@@ -467,8 +467,8 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 >
 > | Percorso | Come l'entry sparisce | Esito loggato |
 > |---|---|---|
-> | il danno porta l'integrità a zero | `Updated.Covers.RemoveAt(I)` dentro `DamageFace`, l'helper che `ApplyStructureDamage` chiama una volta per faccia ([`RTHexCoverLibrary.cpp`](../../Source/RefactorTactics/Map/RTHexCoverLibrary.cpp)) | `CoverDestroyed` ([`RTTurnManager_Blast.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp)) |
-> | la durata scade | `URTHexCoverLibrary::RemoveCover`, da `TickDynamicCovers` ([`RTTurnManager.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager.cpp)) | `CoverExpired` |
+> | il danno porta l'integrità a zero | `Updated.Covers.RemoveAt(I)` dentro `DamageFace`, l'helper che `ApplyStructureDamage` chiama una volta per faccia ([`RTHexCoverLibrary.cpp`](../../../Source/RefactorTactics/Map/RTHexCoverLibrary.cpp)) | `CoverDestroyed` ([`RTTurnManager_Blast.cpp`](../../../Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp)) |
+> | la durata scade | `URTHexCoverLibrary::RemoveCover`, da `TickDynamicCovers` ([`RTTurnManager.cpp`](../../../Source/RefactorTactics/Turn/RTTurnManager.cpp)) | `CoverExpired` |
 > | `Reconfigure` sposta il pannello su un altro bordo | `URTHexCoverLibrary::RemoveCover` | `CoverMoved` |
 >
 > Il caso della scadenza è vivo oggi: `Hero.Riktor.KineticPanel.Reinforced` dichiara `Integrity 45` e
@@ -478,7 +478,7 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 > di mappa, a fase conclusa, non ne conserva **nessuno**.
 >
 > ⚠️ **«In partita» è una restrizione necessaria, non un'esitazione**: `BakeCell`
-> ([`RTGeometryBake.cpp`](../../Source/RefactorTactics/Map/RTGeometryBake.cpp)) scarta le coperture
+> ([`RTGeometryBake.cpp`](../../../Source/RefactorTactics/Map/RTGeometryBake.cpp)) scarta le coperture
 > `bGenerated` al rebake, quindi toglie entry senza che nessuno le abbia colpite. È **authoring**: il suo
 > unico chiamante fuori dai test è `RTHexGeometryTool`, nel modulo Editor, e non logga nessun
 > `ERTEnvironmentOutcome`. Non indebolisce la conclusione — è dichiarato perché chi cerca dove le entry
@@ -513,7 +513,7 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 >
 > *(2)* **`Intatto` era `Integrity == DefaultIntegrity(Type)`, e non copriva i valori SOPRA il catalogo.**
 > `Hero.Riktor.KineticPanel.Reinforced` ne produce uno oggi: dichiara `Integrity` **45** nei propri
-> `Parameters` ([`RTHeroCatalogLibrary.cpp`](../../Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp)),
+> `Parameters` ([`RTHeroCatalogLibrary.cpp`](../../../Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp)),
 > e `ARTTurnManager` lo applica con `AddCover(..., ERTHexCoverType::Low, Op.Integrity)` — dove
 > `DefaultIntegrity(Low)` è `30`. Un pannello rinforzato a `45` non era intatto, non era danneggiato e non
 > era critico: **nessuno stato da renderizzare**. Con `altrimenti` è intatto, che è ciò che è.
@@ -525,7 +525,7 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 >
 > *(3)* **`Distrutto ⟺ bDestroyed` non era osservabile, e `bDestroyed` non è un «esito enumerato».** È un
 > `bool` su una struct di **ritorno** (`FRTCoverDamageResult`,
-> [`RTHexCoverLibrary.h`](../../Source/RefactorTactics/Map/RTHexCoverLibrary.h)), valorizzato e seguito
+> [`RTHexCoverLibrary.h`](../../../Source/RefactorTactics/Map/RTHexCoverLibrary.h)), valorizzato e seguito
 > immediatamente da `Updated.Covers.RemoveAt(I)`: a fase conclusa l'entry **non esiste più** nella cella,
 > quindi chi legge il dato di mappa non può osservarlo mai. `bDestroyed` è il segnale dell'**evento**, e
 > vive nel TurnLog di quel turno. La frase «esito enumerato» era una trascrizione di questa sezione, e la
@@ -543,7 +543,7 @@ due numeri scollegati. La regola è in **aritmetica intera**: nessun float, ness
 concordare fra chi modella e chi legge.
 
 **Perché ⅓, e cosa la misura dimostra davvero.** `Action.HeavyAttack` fa `20` di `DamageStructure`
-([`RTHexCoverTests.cpp`](../../Source/RefactorTactics/Tests/RTHexCoverTests.cpp)), quindi le sequenze reali
+([`RTHexCoverTests.cpp`](../../../Source/RefactorTactics/Tests/RTHexCoverTests.cpp)), quindi le sequenze reali
 sono `High 50 → 30 → 10 → 0` e `Low 30 → 10 → 0`. Con ⅓ «critico» cade **sull'ultimo passo prima di zero su
 entrambi i tipi**, cioè significa *un altro colpo e cade*. La misura **esclude ¼**: lì una `Low` a `10` resta
 «danneggiata» (`10 > 7`) e cadrebbe senza mai mostrare lo stato più forte, che su metà del catalogo non si
@@ -558,7 +558,7 @@ vedrebbe.
 
 ⚠️ **Un residuo noto, dichiarato invece che scoperto a valle**: `FRTHexCover` ha il default di costruttore
 `InIntegrity = 30` **fisso e indipendente dal `Type`**
-([`RTHexCellData.h`](../../Source/RefactorTactics/Map/RTHexCellData.h)), mentre `DefaultIntegrity(High)` è
+([`RTHexCellData.h`](../../../Source/RefactorTactics/Map/RTHexCellData.h)), mentre `DefaultIntegrity(High)` è
 `50`. Una `High` autorata così — `FRTHexCover(Edge, ERTHexCoverType::High)`, che è ciò che si ottiene
 aggiungendo una entry a mano — nasce a `30` e per questa regola legge **«danneggiato» senza essere stata
 colpita**. Il difetto è nel costruttore, non nella lettura — il costruttore accetta il `Type` e **ignora** la
@@ -568,11 +568,11 @@ perché `Map/RTHexCellData.h` è nel write-set della track `spatial`.
 
 ⚠️ **E i produttori sono DUE, non uno — misurato il 2026-08-19.** Il secondo non passa dal costruttore:
 `Hero.Riktor.KineticPanel.Adaptive` dichiara `Integrity` **25** nei propri `Parameters`
-([`RTHeroCatalogLibrary.cpp`](../../Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp)) e
+([`RTHeroCatalogLibrary.cpp`](../../../Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp)) e
 `ARTTurnManager` lo applica come `Low`, il cui default è `30` — quindi un pannello adattivo appena eretto
 legge **«danneggiato» senza essere stato colpito**, esattamente come la `High` autorata a mano.
 `RTEnvironmentActionTests.cpp` lo pinna alla creazione e due turni dopo, e
-[`riktor.md`](../characters/v0.1/riktor.md) dichiara che `Adaptive` *«scende a 25»*: la fragilità **è** il
+[`riktor.md`](../../characters/v0.1/riktor.md) dichiara che `Adaptive` *«scende a 25»*: la fragilità **è** il
 prezzo della rotazione gratuita, quindi il numero non è un refuso. ∴ le due opzioni che #1194 aveva scritto
 per il costruttore **non chiudono questo caso** — la variante passa il valore esplicitamente — e la scelta
 è stata riportata là, dove si prende una volta sola.
@@ -587,7 +587,7 @@ la dimension grammar di §6 è relativa e mai in centimetri.
 
 Il kit propone `Online/Offline` come «accent acceso/spento». È troppo poco, e l'owner degli elementi
 interattivi lo mostra con un esempio di macchina a stati
-([`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) §5) in cui un
+([`../../gameplay/spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) §5) in cui un
 generatore ne ha cinque — `Off · Online · Overloaded · Damaged · Destroyed`. `Overloaded` e `Damaged` sono
 due modi diversi di non funzionare, con transizioni d'uscita diverse (`Stabilize`/`Disconnect` contro
 `Repair`): una grammatica a due stati li fonderebbe, e il giocatore perderebbe l'informazione che decide
@@ -656,7 +656,7 @@ classificazione. I sette `DEFER` si dividono per **ragione**, e le ragioni sono 
 
 > 🔴 **La valvola è il caso che dimostra perché un kit si filtra.** Il kit la mette fra i diciannove della
 > v0.1. CP 10.1 §11 la dichiara fuori scope con una motivazione registrata: *«l'acqua ha un produttore nel
-> roster ([`D-046`](../decisions/RT_PDR_00_Decision_Log.md), `Hero.Phase.FluidTrail` **è**
+> roster ([`D-046`](../../decisions/RT_PDR_00_Decision_Log.md), `Hero.Phase.FluidTrail` **è**
 > `Action.CreateWater`) e non serve un secondo modello per crearla»*. Modellarla ora non sarebbe lavoro in
 > anticipo: sarebbe l'asset di un sistema che il progetto ha deciso di non costruire.
 
@@ -671,7 +671,7 @@ classificazione. I sette `DEFER` si dividono per **ragione**, e le ragioni sono 
 ```
 
 Sotto `World/` e non sotto `World/Grid/`: §5 di
-[`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) descrive già `Grid/Generation/` come
+[`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) descrive già `Grid/Generation/` come
 *«generatori graybox»*, e porte e coperture stanno sui **bordi** (§3), non sulla griglia. Non un top-level
 `/Game/RT/Graybox/`: quel livello è organizzato per **dominio**, e «graybox» è un modo di fare gli asset —
 promuoverlo ad arte finale, sotto `World/`, è un rename locale.
@@ -684,7 +684,7 @@ nessun criterio di scope li avrebbe separati. *Registrato dopo la code review su
 collisione prima che qualcuno la incontrasse.*
 
 ⚠️ **La riga d'allowlist in `.gitignore` viene PRIMA del primo asset**, e c'è già:
-[`asset-map.md`](asset-map.md) §6 lo prescrive perché senza di essa `git add` **tace e non segnala nulla**.
+[`asset-map.md`](../tooling/asset-map.md) §6 lo prescrive perché senza di essa `git add` **tace e non segnala nulla**.
 Oracolo: `git check-ignore -q <file>` → exit **`1`**; con `-v` esce `0` in entrambi i casi e non distingue.
 
 ⏱️ **Il percorso non rende committabile un asset oggi**: finché
@@ -696,7 +696,7 @@ Oracolo: `git check-ignore -q <file>` → exit **`1`**; con `-v` esce `0` in ent
 
 ## 9. Quello che questo documento **non** decide
 
-Sono domande aperte, e restano aperte. Vivono in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), che è il
+Sono domande aperte, e restano aperte. Vivono in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), che è il
 posto delle cose che aspettano una persona; qui c'è solo *quali sono* e *da quale sezione nascono*.
 
 **Ne restano due, e condividono l'oracolo**: si validano **guardando**, e la scena in cui guardarle è la
@@ -731,7 +731,7 @@ Registrate perché non tornino: un handoff respinto senza motivo scritto si ripr
 3. **«Temporary / Energy Cover»** fra le forme della cover. `ERTHexCoverType` ha `None · Low · High` e il
    commento sopra l'enum dichiara il criterio: *«inventare oggi un valore che nessuna regola sa applicare»*
    sarebbe l'errore. La copertura temporanea ha un owner proprio
-   ([`../gameplay/spec-coperture-temporanee-cp95.md`](../gameplay/spec-coperture-temporanee-cp95.md)) e
+   ([`../../gameplay/spec-coperture-temporanee-cp95.md`](../../gameplay/spec-coperture-temporanee-cp95.md)) e
    non entra da qui.
 
 ### 9.2 Chiuse
@@ -762,12 +762,12 @@ sottinteso — è la stessa condizione in cui `D-146` ha lasciato la ridondanza 
 
 La ragione non è trascuratezza: l'oracolo di «è leggibile» non esiste nell'harness e non va simulato
 contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C** secondo
-[`scenario-map.md`](scenario-map.md), e il loro registro è
-[`test-manuali-pie.md`](test-manuali-pie.md).
+[`scenario-map.md`](../tooling/scenario-map.md), e il loro registro è
+[`test-manuali-pie.md`](../test-manuali-pie.md).
 
 > 🔴 **Le voci PIE di questo contratto non sono ancora scritte, e il motivo è un vincolo di parallelismo,
 > non una dimenticanza.** `test-manuali-pie.md` è **assegnato a un'altra track** in
-> [`parallel-batch.yaml`](../roadmap/parallel-batch.yaml): per `D-139` scriverci da qui sarebbe la
+> [`parallel-batch.yaml`](../../roadmap/parallel-batch.yaml): per `D-139` scriverci da qui sarebbe la
 > «piccola fix» su un file di qualcun altro. Il contenuto delle voci è pronto e vive nella issue di
 > validazione visiva del kit.
 >
@@ -782,7 +782,7 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 >
 > **Il proprietario è cambiato, il permesso no.** La condizione di sblocco non è mai stata «la issue X
 > chiude»: è che la track proprietaria **rilasci il path o lo ceda**. Chi legge questa riga apra
-> [`parallel-batch.yaml`](../roadmap/parallel-batch.yaml) e guardi chi lo tiene **oggi** — la risposta è
+> [`parallel-batch.yaml`](../../roadmap/parallel-batch.yaml) e guardi chi lo tiene **oggi** — la risposta è
 > cambiata tre volte in un giorno, e ogni volta un nome scritto qui sarebbe invecchiato in silenzio.
 
 Quello che una verifica dovrà mostrare, senza HUD e senza selezione:

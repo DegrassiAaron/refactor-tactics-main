@@ -196,7 +196,7 @@ python scripts/test_rt_shared_id.py                             # 33 test, uno a
 
 L'atomicità copre tutti i worktree di **questo clone** — lock nel git common dir — e non altri cloni o
 altri PC: là `audit-refs` diagnostica prima del merge invece di prevenire. Meccanismo e recovery in
-[`technical/workflow-parallel-claude.md`](technical/workflow-parallel-claude.md).
+[`technical/workflow-parallel-claude.md`](technical/tooling/workflow-parallel-claude.md).
 
 ⚠️ **L'allocatore risolve la collisione di numerazione e nient'altro: due worktree possono ancora scrivere
 lo stesso file.** Per quello serve il write-set del batch — [`roadmap/parallel-batch.yaml`](roadmap/parallel-batch.yaml),
@@ -234,8 +234,8 @@ Owner principali:
   Forced — percorre lo spazio) contro **`Transfer`** (Leap · Blink · Swap · Recall — cambia posizione senza
   percorrerlo); `Reaction` è una **causa**, non una famiglia. È l'unico documento che le confronta; i
   singoli restano owner di sé stessi
-- `docs/technical/spec-mappa-multilivello.md`
-- `docs/technical/spec-pathfinding-pf3-pf4.md`
+- `docs/technical/architecture/spec-mappa-multilivello.md`
+- `docs/technical/architecture/spec-pathfinding-pf3-pf4.md`
 - `docs/gameplay/spec-copertura-cp91.md` e successive spec CP9.x
 - `Source/RefactorTactics/Map/`
 - `Source/RefactorTactics/Pathfinding/`
@@ -245,12 +245,12 @@ Owner principali:
 
 Owner del **concetto e del confine**, dal 2026-08-17 ([D-154](decisions/RT_PDR_00_Decision_Log.md)):
 
-- `docs/technical/spec-tactical-designer.md` — cosa uno strumento d'editor ha il diritto di decidere, e cosa
+- `docs/technical/tooling/spec-tactical-designer.md` — cosa uno strumento d'editor ha il diritto di decidere, e cosa
   deve invece chiedere al gioco. Risponde a una domanda sola: *se l'editor e il runtime possono divergere,
   lo strumento ha perso il suo valore*. Contiene la scala di maturità `TD 0.1 … TD 1.0`, che è **maturità di
   uno strumento e non una release** — `TD 0.7` non ha niente a che vedere con `v0.7`
 - `docs/roadmap/editormap.shortlist.md` — quale seduta d'editor fare, e in che ordine (**generata**)
-- `docs/technical/scenario-map.md` — chi verifica cosa, fra macchina e persona
+- `docs/technical/tooling/scenario-map.md` — chi verifica cosa, fra macchina e persona
 - `Source/RefactorTacticsEditor/` — il mode e i cinque tool. ⚠️ **Ha test dal 2026-08-16** (`#993`,
   `Private/Tests/`): la frase «quel modulo non ha test», che vive ancora in due punti di
   `spec-hex-geometry-authoring.md`, è **superata**
@@ -271,7 +271,7 @@ Il workbook XLSX è **research**, non owner dei numeri vigenti.
 
 Carica:
 
-- `docs/technical/test-automatico-unreal.md`
+- `docs/technical/tooling/test-automatico-unreal.md`
 - `docs/product/showcase-v0.1.md`
 - `Scenarios/`
 - `Source/RefactorTactics/ScenarioHarness/`
@@ -284,8 +284,8 @@ Uno scenario `BLOCKED` è valido come specifica anticipata; `FAIL` indica un dif
 
 Carica:
 
-- `docs/technical/progettazione-hud.md`
-- `docs/technical/brief-planning-visuale.md`
+- `docs/technical/systems/progettazione-hud.md`
+- `docs/technical/systems/brief-planning-visuale.md`
 - `docs/gameplay/brief-conoscenza-parziale.md`
 - `Source/RefactorTactics/UI/`
 - `Source/RefactorTactics/Player/`
@@ -294,9 +294,9 @@ Carica:
 
 Carica:
 
-- `docs/technical/convenzioni-contenuti-ue.md`
-- `docs/technical/asset-map.md` — quali asset servono e quanti ne mancano (registro)
-- `docs/technical/spec-graybox-placement-contract.md` — quanto spazio occupa un asset di mappa, dov'è il
+- `docs/technical/tooling/convenzioni-contenuti-ue.md`
+- `docs/technical/tooling/asset-map.md` — quali asset servono e quanti ne mancano (registro)
+- `docs/technical/systems/spec-graybox-placement-contract.md` — quanto spazio occupa un asset di mappa, dov'è il
   suo pivot, come si legge il suo stato. ⚠️ Non è il clearance: *quanto grande posso modellare* non è
   *dove un'unità ci sta in piedi* (CP 23.6)
 - `Content/RT/`

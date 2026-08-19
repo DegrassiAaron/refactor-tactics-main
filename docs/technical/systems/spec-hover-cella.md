@@ -1,6 +1,6 @@
 # Spec — CP 1.4 Evidenziazione cella sotto il cursore (hover)
 
-> ⚠️ **Superato dal pivot esagonale** ([ADR-0002](../decisions/adr-0002-griglia-esagonale.md)) — **riferimento storico, non normativo.**
+> ⚠️ **Superato dal pivot esagonale** ([ADR-0002](../../decisions/adr-0002-griglia-esagonale.md)) — **riferimento storico, non normativo.**
 > Descrive il substrato **quadrato**, rimosso dal codice al **CP 7.2** (`Grid/`, `URTGridLibrary`, `FRTGridCoord`, resolver e bot quadrati). `ARTGridActor` e `URTGridLibrary` non esistono più; l'hover vive sul percorso `WorldToCellId` del controller.
 > Conservato per provenienza e come comportamento di riferimento della parità hex (M6). Punto di ritorno: tag `pre-hex-only`.
 
@@ -67,5 +67,5 @@ Evidenziare in tempo reale la **cella sotto il cursore** del mouse (hover). **Pr
 
 ## 9. Riferimenti
 
-- Roadmap: [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) CP 1.4; [`test-manuali-pie.md`](test-manuali-pie.md) PIE-CP1.4.
+- Roadmap: [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) CP 1.4; [`test-manuali-pie.md`](../test-manuali-pie.md) PIE-CP1.4.
 - Codice: `RTPlayerController.cpp` (OnSelect), `RTGridActor.cpp` (costruttore/BuildGrid), `RTGridLibrary.h`.

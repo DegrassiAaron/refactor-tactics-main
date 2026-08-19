@@ -337,7 +337,7 @@ convenzione reale al momento di scriverli.
 
 | Tema | Owner |
 |---|---|
-| Modello spaziale, celle, transizioni fra layer | [`../technical/spec-mappa-multilivello.md`](../technical/spec-mappa-multilivello.md) |
+| Modello spaziale, celle, transizioni fra layer | [`../technical/architecture/spec-mappa-multilivello.md`](../technical/architecture/spec-mappa-multilivello.md) |
 | Porte, ponti, coperture: dato, stato e test | i cinque spec di E9 |
 | Superfici, stati temporanei, propagazione | [`spec-terreni-e8.md`](spec-terreni-e8.md) · [`spec-propagazione-elettrica-cp83.md`](spec-propagazione-elettrica-cp83.md) |
 | Tassonomia delle azioni generiche | [`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md) · [`D-025`](../decisions/RT_PDR_00_Decision_Log.md) |

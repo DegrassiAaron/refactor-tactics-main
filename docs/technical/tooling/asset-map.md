@@ -6,9 +6,9 @@
 > **Cosa non è.** Non è l'owner di percorsi e naming: quello è
 > [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md), che è normativo e da cui questo file **deriva**
 > ogni path. Non è l'owner dei principi di pipeline (presentazione-only, riferimenti soft con fallback,
-> licenze): quello è [`spec-asset-pipeline.md`](spec-asset-pipeline.md). Non è l'owner dello stato delle
-> sedute in editor: quello è [`../roadmap/editor-sessions.yaml`](../roadmap/editor-sessions.yaml), reso in
-> [`../roadmap/editormap.shortlist.md`](../roadmap/editormap.shortlist.md).
+> licenze): quello è [`spec-asset-pipeline.md`](../architecture/spec-asset-pipeline.md). Non è l'owner dello stato delle
+> sedute in editor: quello è [`../../roadmap/editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), reso in
+> [`../../roadmap/editormap.shortlist.md`](../../roadmap/editormap.shortlist.md).
 >
 > Nasce perché quelle tre fonti, insieme, **non rispondono a una domanda**: *quali asset servono e quanti ne
 > mancano*. `convenzioni-contenuti-ue.md` §4 lo dichiara esplicitamente — «questo documento non è un
@@ -122,7 +122,7 @@ dimenticanze di questo file: sono buchi delle fonti, e vanno chiusi lì.
 | **Icone dell'HUD** | E20 · E11 | L'**insieme** richiesto è derivato e cresce da solo — `URTIconLibrary::RequiredIconIds()` lo compone dalle fasi volontarie e dal catalogo azioni *realmente in codice*, gate `RTIconCatalogTests` — ma **path e naming sono già decisi**: `/Game/RT/UI/Icons/`, `T_UI_Icon_<Categoria>_<Nome>` ([`brief-icone-v01.md`](brief-icone-v01.md) §33–34). Manca solo la riga d'allowlist, ed è un problema concreto: chi importa le texture al path già deciso fa `git add`, git tace, e le icone restano locali |
 | **Sorgenti icona già sul disco** | E20 | `Content/RT_UI_AssetPack_FromHUD/` contiene **30 PNG** (`icons/I_Guard.png`, `I_Overwatch.png`, …) più `buttons/`, `panels/`, `tiles/`, `warnings/` e un `manifest.json` con box e margini 9-slice. Di tutto il kit **il repository traccia due file**: `README.md` e `manifest.json`. I trenta PNG no. È la famiglia più vicina a essere pronta, e la sola che nessuna riga d'allowlist prevede |
 | **Livello illuminato del graybox** | seduta **U21** | U21 dichiara di produrre «il livello illuminato **committato**», ma ha `artifacts: []`: nessuno sa quale file sarà, quindi non può entrare nell'allowlist prima della seduta |
-| **Kit graybox degli oggetti di mappa** | `RT-FEAT-UI-GRAYBOX-KIT` · `D-152` · seduta **U25** ([#1095](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1095)) | La famiglia è **decisa e senza percorso** — l'unica delle quattro a cui manchi davvero, oltre alla riga d'allowlist. ⚠️ **A differenza di U21 qui la seduta esiste già**, e la riga la nomina: la lacuna non è «chi lo produce» ma «dove va». Il contratto esiste ([`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md)) e dice *che forma* devono avere gli asset; le convenzioni §5 non hanno una riga per un kit graybox di **oggetti** — coprono la griglia (`/Game/RT/World/Grid/`, dove `Generation/` sono i *generatori*) e le mappe, non le primitive riusabili che ci stanno sopra. Il percorso è `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), e si chiude **prima** della seduta che produce il primo asset, non dopo: è la riga 1 di §6 |
+| **Kit graybox degli oggetti di mappa** | `RT-FEAT-UI-GRAYBOX-KIT` · `D-152` · seduta **U25** ([#1095](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1095)) | La famiglia è **decisa e senza percorso** — l'unica delle quattro a cui manchi davvero, oltre alla riga d'allowlist. ⚠️ **A differenza di U21 qui la seduta esiste già**, e la riga la nomina: la lacuna non è «chi lo produce» ma «dove va». Il contratto esiste ([`spec-graybox-placement-contract.md`](../systems/spec-graybox-placement-contract.md)) e dice *che forma* devono avere gli asset; le convenzioni §5 non hanno una riga per un kit graybox di **oggetti** — coprono la griglia (`/Game/RT/World/Grid/`, dove `Generation/` sono i *generatori*) e le mappe, non le primitive riusabili che ci stanno sopra. Il percorso è `GBX-4` in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), e si chiude **prima** della seduta che produce il primo asset, non dopo: è la riga 1 di §6 |
 
 ---
 
@@ -141,7 +141,7 @@ committare niente.
 | Muri e porte come oggetti | **E23** | ignoto | l'epic definisce il **modello logico**; se servano mesh dedicate non è deciso |
 
 **Gli eroi sono già scelti e già speccati**: Steel e Murdock (Sentinel Directorate), Aurora e Kwang
-(Resonance), in [`../characters/v0.2/`](../characters/v0.2/) — E35 li porta a runtime, non li inventa. Il
+(Resonance), in [`../../characters/v0.2`](../../characters/v0.2/) — E35 li porta a runtime, non li inventa. Il
 `<Pack>` è il **nome del pack Paragon**, non quello dell'eroe di gioco (§5b delle convenzioni) — e per i
 quattro nuovi **è già dichiarato**: ogni scheda in `docs/characters/v0.2/` porta `Asset base: Paragon —
 <Nome>` e `Hero_Key`. I percorsi sono quindi già risolvibili (`Characters/Steel/Blueprints/BP_Unit_Steel.uasset`
@@ -150,7 +150,7 @@ adottata per U1, U7 e U8.
 
 > ⚠️ **Oggi i dati dell'eroe non sono un asset committato, e la ragione va verificata prima di farne una
 > regola.** In `Content/` non esiste nessun `DA_Hero_*`, e l'esempio in §5 delle convenzioni descrive dove
-> *starebbe*, non un file che esiste. Ma [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) descrive
+> *starebbe*, non un file che esiste. Ma [`roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) descrive
 > `URTHeroData` come `UPrimaryDataAsset` con asset `PDA_*` sotto `Content/RT/`: **le due fonti divergono**,
 > e questo registro non è l'owner che può chiudere la divergenza.
 > *(Una prima stesura citava `#375` a sostegno di «spedito da C++». È un'attribuzione sbagliata: #375 è il

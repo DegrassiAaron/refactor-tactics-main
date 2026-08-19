@@ -6,7 +6,7 @@
 > Log, **prevalgono codice e Decision Log**.
 >
 > **Ownership**: qui si definisce **come** un concetto viene rappresentato. **Dove e quando** un elemento
-> appare è di [`progettazione-hud.md`](../../../../technical/progettazione-hud.md). Nessuna regola vive in
+> appare è di [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md). Nessuna regola vive in
 > entrambi i posti: quando serve l'altra metà, si rimanda.
 
 ## 1. I due assi
@@ -79,7 +79,7 @@ ornamentazione interna.
 ## 4. Che cosa questo documento non decide
 
 Non decide **quando** un'icona appare, in quale slot, con quale stato di disponibilità, né se un elemento è
-persistente o contestuale: è [`progettazione-hud.md`](../../../../technical/progettazione-hud.md) §7, §31, §49.
+persistente o contestuale: è [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md) §7, §31, §49.
 
 Non decide che cosa il giocatore ha il diritto di vedere. La privacy è architetturale
 ([D-021](../../../../decisions/RT_PDR_00_Decision_Log.md)): un'icona non può rappresentare informazione che il

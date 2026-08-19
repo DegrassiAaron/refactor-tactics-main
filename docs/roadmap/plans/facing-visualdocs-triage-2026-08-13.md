@@ -102,7 +102,7 @@ Il pacchetto chiedeva di correggere documenti stale. Cercandoli ne sono emersi t
 | Difetto | Dove | Correzione |
 |---|---|---|
 | Il blocco di stato pubblicato sulla Wiki diceva *«Decisione accettata (ADR-0005) ma **non implementata**»* — contraddetto dai gate della sua stessa voce (`scenario: done`, `automation: done`) e da nove scenari verdi. Il giocatore leggeva «non implementata» di una meccanica che il gioco esegue | `wiki_note` di `RT-FEAT-MAP-FACING` | Riscritta: la regola c'è, mancano **input** e **indicatore HUD** |
-| La scomposizione del corpus scenari per classe era ferma al **2026-08-09** e sbagliava di **13**: `A 27 + B 21 + D 12 = 60` contro un corpus reale di **73**. Il documento **sapeva** di essere disallineato e chiedeva di rifare il conto «voce per voce» | [`../../technical/scenario-map.md`](../../technical/scenario-map.md) §Conteggio | Rifatta classificando ogni file con la regola dichiarata: `A 40 + B 21 + D 12 = 73`, verificata contro il generato |
+| La scomposizione del corpus scenari per classe era ferma al **2026-08-09** e sbagliava di **13**: `A 27 + B 21 + D 12 = 60` contro un corpus reale di **73**. Il documento **sapeva** di essere disallineato e chiedeva di rifare il conto «voce per voce» | [`../../technical/tooling/scenario-map.md`](../../technical/tooling/scenario-map.md) §Conteggio | Rifatta classificando ogni file con la regola dichiarata: `A 40 + B 21 + D 12 = 73`, verificata contro il generato |
 | La riga **E16** della roadmap dichiarava `HexCone` *«una sola primitiva»* | [`../roadmap-v0.1.md`](../roadmap-v0.1.md) | Emendata con D-126 |
 
 ## 5. Decisioni che restano aperte

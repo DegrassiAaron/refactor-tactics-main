@@ -41,7 +41,7 @@ sarebbero la stessa stringa in un log, e D-031 li vuole concetti distinti.
 > **Recepito qui il 2026-08-12** da `docs/research/design/icon/visual-language/02-color-system.md`, che dichiara
 > di essere «sorgente di design, non canone». `docs/src/` diventa vincolante solo quando un owner
 > documentale lo consuma: questa sezione è quell'atto per i token **semantici**. I token **chrome**
-> (`RT_UI_*`) restano di [`progettazione-hud.md`](progettazione-hud.md) §32 e non si riscrivono qui.
+> (`RT_UI_*`) restano di [`progettazione-hud.md`](../systems/progettazione-hud.md) §32 e non si riscrivono qui.
 >
 > ⚠️ **La sorgente si è mossa durante il recepimento**, e la prima stesura di questa sezione ha recepito una
 > versione superata **trentasei secondi** prima che venisse corretta. Quello che segue è lo stato del
@@ -60,7 +60,7 @@ sarebbero la stessa stringa in un log, e D-031 li vuole concetti distinti.
 
 **Il colore è il secondo canale. La silhouette è il primo.** Ogni icona deve restare distinguibile in
 grayscale: il grayscale non è un tema, è il test di accettazione. Un'icona che funziona solo a colori non è
-accettata, e il rosso critico — `RT_UI_Red`, che [`progettazione-hud.md`](progettazione-hud.md) §32 possiede
+accettata, e il rosso critico — `RT_UI_Red`, che [`progettazione-hud.md`](../systems/progettazione-hud.md) §32 possiede
 — è **solo rinforzo**: non porta mai un segnale da solo. Il suo valore si legge lì, non qui.
 
 ### Token semantici
@@ -114,7 +114,7 @@ Exposed, Guarded, Marked, Wet, Braced, Burning, Obscured, Electrified`) e nessun
 > ⚠️ **`Movement` e `Defense` non condividono più `#009E73`, e la ragione vale più della correzione.** La
 > prima stesura di questa sezione riportava quella collisione come «accettabile perché non competono mai
 > nella stessa decisione: gruppi diversi della skill bar». La premessa è **falsa**, e a falsificarla è un
-> documento **versionato**: [`progettazione-hud.md`](progettazione-hud.md) §6.7 mette `Move`, `Wait`,
+> documento **versionato**: [`progettazione-hud.md`](../systems/progettazione-hud.md) §6.7 mette `Move`, `Wait`,
 > `Guard` e `Overwatch` nella **stessa lista** «Universal Actions» dell'Action Dock — cioè sotto gli occhi
 > nello stesso momento. `Defense` è passato a `#56B4E9`.
 >
@@ -129,7 +129,7 @@ Exposed, Guarded, Marked, Wet, Braced, Burning, Obscured, Electrified`) e nessun
 ### Cosa il colore non decide
 
 - **`Certainty`** non usa il colore come canale: la grammatica è già in
-  [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §11.2 — confermato = linea piena · previsto =
+  [`../../roadmap/roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) §11.2 — confermato = linea piena · previsto =
   tratteggiata + icona di squadra · incerto = dissolto + `?`.
 - **Gli elementi non cambiano per squadra.** Un fuoco alleato è dello stesso colore di un fuoco nemico: a
   cambiare è chi lo ha causato, non che cosa è.

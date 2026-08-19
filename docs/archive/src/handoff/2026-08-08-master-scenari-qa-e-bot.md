@@ -11,7 +11,7 @@
 >
 > ⚠️ **Non applicare** la `PrimaryCategory` obbligatoria di §5: l'identita' degli scenari ha **un asse solo**
 > — `scenarioId` puntato piu' tag liberi, ID staccato dal percorso
-> ([`scenario-index-e-tag.md`](../../../technical/scenario-index-e-tag.md), `#209`). Delle 11 `RT-FEAT-BOT-*`
+> ([`scenario-index-e-tag.md`](../../../technical/tooling/scenario-index-e-tag.md), `#209`). Delle 11 `RT-FEAT-BOT-*`
 > di §30 ne esistono due.
 
 # RefactorTactics — Scenarios / QA / Bots Master Consolidation v0.1

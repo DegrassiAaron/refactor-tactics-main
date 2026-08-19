@@ -2,7 +2,7 @@
 
 > **Owner** dello strato che esiste **prima e dopo** la partita: main menu, transizioni, stati comuni,
 > pausa, risultato. Non descrive l'HUD in-match, che ha il proprio owner in
-> [`progettazione-hud.md`](progettazione-hud.md).
+> [`progettazione-hud.md`](systems/progettazione-hud.md).
 > **Nasce da** [D-144](../decisions/RT_PDR_00_Decision_Log.md) · epic **E46** in
 > [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) · revisione della sorgente in
 > [`plans/menu-frontend-spec-panel-2026-08-16.md`](../roadmap/plans/menu-frontend-spec-panel-2026-08-16.md).
@@ -41,7 +41,7 @@ Sono due strati con due root, due cicli di vita e due owner documentali.
 |---|---|---|
 | Root | `WBP_RT_FrontendRoot` | `WBP_RT_TacticalHUD` (CP 11.7) |
 | Vive | fuori dalla partita, e in pausa | dentro la partita |
-| Owner | questo documento | [`progettazione-hud.md`](progettazione-hud.md) §4.1 |
+| Owner | questo documento | [`progettazione-hud.md`](systems/progettazione-hud.md) §4.1 |
 | Input | navigazione di schermate | contratto del puntatore (CP 11.8) |
 
 ⚠️ **Non esiste un `WBP_GameHUDRoot`.** Il root dell'HUD in-match è già `WBP_RT_TacticalHUD`, deciso a
@@ -133,7 +133,7 @@ Un solo owner del flow. I widget **non** si creano e non si distruggono a vicend
 
 Il navigation controller **non possiede** il contesto `Modal` del `PlayerController`.
 
-[`spec-pointer-interaction.md`](spec-pointer-interaction.md) (CP 11.8) **dichiara** sette contesti —
+[`spec-pointer-interaction.md`](systems/spec-pointer-interaction.md) (CP 11.8) **dichiara** sette contesti —
 `IdleSelection · Planning · Pathing · Targeting · ResolutionPlayback · ReactionWindow · Modal` — e la
 precedenza `Modal/Reaction UI > HUD > world tactical hit`.
 

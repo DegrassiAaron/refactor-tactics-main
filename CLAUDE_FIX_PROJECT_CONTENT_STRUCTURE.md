@@ -34,9 +34,9 @@ Leggi nell'ordine:
 5. ADR pertinenti
 6. `docs/DOC_CONFLICT_MATRIX.md`
 7. `docs/OPEN_DECISIONS.md`
-8. `docs/technical/convenzioni-contenuti-ue.md`
-9. `docs/technical/asset-map.md`
-10. `docs/technical/spec-asset-pipeline.md` se esiste
+8. `docs/technical/tooling/convenzioni-contenuti-ue.md`
+9. `docs/technical/tooling/asset-map.md`
+10. `docs/technical/architecture/spec-asset-pipeline.md` se esiste
 11. `docs/roadmap/feature-registry.yaml`
 12. `docs/roadmap/execution-graph.yaml`
 13. `docs/roadmap/parallel-batch.yaml` se il lavoro è parallelo
@@ -48,7 +48,7 @@ Verifica in particolare le decisioni più recenti che hanno superato regole prec
 
 ## 1. Regola Content
 
-L'owner normativo dei percorsi resta `docs/technical/convenzioni-contenuti-ue.md`.
+L'owner normativo dei percorsi resta `docs/technical/tooling/convenzioni-contenuti-ue.md`.
 
 Tutti gli asset proprietari Unreal runtime/editor di RefactorTactics stanno sotto:
 
@@ -197,8 +197,8 @@ Link minimi:
 - `docs/product/piano-canonico-mvp.md`
 - `docs/roadmap/roadmap-checkpoint.md`
 - `docs/roadmap/feature-registry.yaml`
-- `docs/technical/convenzioni-contenuti-ue.md`
-- `docs/technical/asset-map.md`
+- `docs/technical/tooling/convenzioni-contenuti-ue.md`
+- `docs/technical/tooling/asset-map.md`
 - `docs/technical/test-manuali-pie.md`
 - `docs/OPEN_DECISIONS.md`
 
@@ -206,7 +206,7 @@ Riallinea la sezione Git LFS a `.gitattributes`/`.gitignore` correnti.
 
 ## 8. Asset Map
 
-`docs/technical/asset-map.md` è il tracker degli asset, non l'owner dei percorsi.
+`docs/technical/tooling/asset-map.md` è il tracker degli asset, non l'owner dei percorsi.
 
 Rimisura:
 - allowlist `.gitignore`;

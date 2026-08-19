@@ -385,7 +385,7 @@ per un id non nel registry.
 > verificava «lo `ScenarioId` che dichiaro esiste davvero?» e non «esiste uno scenario che nessuno
 > dichiara?». Al momento dell'aggiunta erano **6 su 54**, fra cui `Visual.Map.HighCoverBlocks` e
 > `Spec.Environment.ElectricPropagation` — tutti documentati in
-> [`../technical/scenario-map.md`](../technical/scenario-map.md), tutti eseguiti, nessuno collegato a una
+> [`../technical/tooling/scenario-map.md`](../technical/tooling/scenario-map.md), tutti eseguiti, nessuno collegato a una
 > feature. Uno scenario che nessuno rivendica passa e non dimostra niente a nessuno: è la stessa famiglia
 > del dato che nessun consumatore legge.
 >

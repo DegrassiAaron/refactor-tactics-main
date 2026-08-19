@@ -1,9 +1,9 @@
 # Spec — Tactical Designer: un solo loop fra mappa, skill e scenario
 
 > `CURRENT` · **Stato**: owner del **concetto** e del suo confine, allineato al codice il **2026-08-17**
-> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e al
-> [Decision Log](../decisions/RT_PDR_00_Decision_Log.md).
-> **Nato da**: [referto di consolidamento del 2026-08-17](../roadmap/plans/tactical-designer-consolidamento-2026-08-17.md),
+> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) e al
+> [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md).
+> **Nato da**: [referto di consolidamento del 2026-08-17](../../roadmap/plans/tactical-designer-consolidamento-2026-08-17.md),
 > che ha verificato l'assenza di un owner: *Tactical Designer*, *Skill Workbench* e *Scenario Composer* non
 > avevano **nessuna** occorrenza fuori da `docs/archive/`.
 
@@ -11,8 +11,8 @@ Questo documento risponde a **una** domanda: *quali strumenti d'authoring esisto
 diritto di decidere, e che cosa devono invece chiedere al gioco?*
 
 > ⚠️ **Non è un tracker.** Lo stato di implementazione vive nel
-> [`feature-registry.yaml`](../roadmap/feature-registry.yaml) e nelle issue. Le sedute vivono in
-> [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml). Se una riga di questo file dichiara uno stato,
+> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e nelle issue. Le sedute vivono in
+> [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml). Se una riga di questo file dichiara uno stato,
 > è un difetto.
 
 ---
@@ -21,14 +21,14 @@ diritto di decidere, e che cosa devono invece chiedere al gioco?*
 
 | Tema | Owner |
 |---|---|
-| Grammatica dei segmenti, occupancy a dodici settori, cottura verso i bordi | [`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md) |
-| Coordinate, `FRTCellId`, transizioni fra layer, formato dell'asset mappa | [`spec-mappa-multilivello.md`](spec-mappa-multilivello.md) |
-| Come si scrive ed esegue uno scenario | [`test-e-diagnosi.md`](test-e-diagnosi.md) |
+| Grammatica dei segmenti, occupancy a dodici settori, cottura verso i bordi | [`spec-hex-geometry-authoring.md`](../systems/spec-hex-geometry-authoring.md) |
+| Coordinate, `FRTCellId`, transizioni fra layer, formato dell'asset mappa | [`spec-mappa-multilivello.md`](../architecture/spec-mappa-multilivello.md) |
+| Come si scrive ed esegue uno scenario | [`test-e-diagnosi.md`](../test-e-diagnosi.md) |
 | Come si identifica e si trova uno scenario | [`scenario-index-e-tag.md`](scenario-index-e-tag.md) |
 | Chi verifica cosa — macchina, occhio umano, nessuno | [`scenario-map.md`](scenario-map.md) |
-| Il registro delle verifiche interattive | [`test-manuali-pie.md`](test-manuali-pie.md) |
-| Serializzazione del TurnLog e replay canonico | [`spec-turnlog-serialize.md`](spec-turnlog-serialize.md) · [ADR-0009](../decisions/adr-0009-replay-logico-canonico.md) |
-| Priorità, milestone e checkpoint | [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) |
+| Il registro delle verifiche interattive | [`test-manuali-pie.md`](../test-manuali-pie.md) |
+| Serializzazione del TurnLog e replay canonico | [`spec-turnlog-serialize.md`](../architecture/spec-turnlog-serialize.md) · [ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md) |
+| Priorità, milestone e checkpoint | [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) |
 
 ---
 
@@ -129,7 +129,7 @@ Non è teorico: lo snap del gesto d'autore vive in `Map/RTGeometryGrammar` e i s
 | TurnLog | `ARTTurnManager` | **solo leggere** |
 
 ⚠️ **La riga con due produttori è l'unica delicata, ed è già risolta.**
-[`D-131`](../decisions/RT_PDR_00_Decision_Log.md) dà a `FRTHexCover` il campo `bGenerated`: il rebake rimuove
+[`D-131`](../../decisions/RT_PDR_00_Decision_Log.md) dà a `FRTHexCover` il campo `bGenerated`: il rebake rimuove
 e riscrive **solo** le coperture generate e non tocca mai quelle dipinte a mano. Il campo **non entra
 nell'hash di stato** — è metadato d'authoring, e due mappe che si giocano identiche non devono divergere.
 
@@ -190,7 +190,7 @@ Tre proprietà che rendono questo formato adatto a essere il bersaglio di un edi
 > ⚠️ E ha un **guardiano**: `RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed` verifica che due seed
 > **diversi** diano lo stesso risultato — l'unico verso che morde su un progetto senza casualità. Chi
 > introducesse un RNG non troverebbe un campo mancante: **contraddirebbe un test verde**. Il *se* è aperto
-> (`RNG-1`/`RNG-2` in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)), il *come* no.
+> (`RNG-1`/`RNG-2` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md)), il *come* no.
 
 ---
 
@@ -199,7 +199,7 @@ Tre proprietà che rendono questo formato adatto a essere il bersaglio di un edi
 ⚠️ **`TD 0.x` non è una release di gioco.** `TD 0.7` non ha **niente** a che vedere con
 `RefactorTactics v0.7`: è il grado di maturità di uno *strumento*, che non entra nella build, non ha un gate
 di release e non compete con la consegna. Le release di gioco stanno in
-[`roadmap-post-v0.1.md`](../roadmap/roadmap-post-v0.1.md) e non sono state toccate.
+[`roadmap-post-v0.1.md`](../../roadmap/roadmap-post-v0.1.md) e non sono state toccate.
 
 > 🔴 **Il precedente.** Un sorgente del 2026-08-13 proponeva una milestone *«Skill Balance Lab v0.3»*, e il
 > consolidamento di quel giorno la dichiarò superata: `RT-FEAT-TOOL-BALANCE-GROUND` era **già v0.1
@@ -273,7 +273,7 @@ E in particolare, sul bilanciamento:
 > compongono, e non decide niente da solo.
 
 Il vincolo che viene prima di tutti gli altri è
-[`D-102`](../decisions/RT_PDR_00_Decision_Log.md): *un risultato bot-vs-bot non è evidenza di bilanciamento
+[`D-102`](../../decisions/RT_PDR_00_Decision_Log.md): *un risultato bot-vs-bot non è evidenza di bilanciamento
 finché non sappiamo che il bot sa usare la capability misurata*. Un bot che non usa una reazione produce un
 numero in cui quella reazione sembra debole — **il numero è vero e la conclusione è falsa**, e niente nel
 numero lo segnala. Per questo TD 0.7 segue il competence gate, e non lo precede.
@@ -288,13 +288,13 @@ numero lo segnala. Per questo TD 0.7 segue il competence gate, e non lo precede.
 | **Fixture runtime** | targeting, LOS, copertura, percorso, spostamento, reazioni | modulo runtime, Automation |
 | **Scenario** | esecuzione deterministica, baseline↔variante, invarianti forti | `Scenarios/`, Scenario Harness |
 | **Editor** | binding modello↔toolkit, save/load, selezione, Undo/Redo | dove sostenibile sotto il layer widget |
-| **PIE / manuale** | leggibilità, overlay, ergonomia, percezione della latenza | [`test-manuali-pie.md`](test-manuali-pie.md), dentro una seduta |
+| **PIE / manuale** | leggibilità, overlay, ergonomia, percezione della latenza | [`test-manuali-pie.md`](../test-manuali-pie.md), dentro una seduta |
 
 Due regole che il repository ha già pagato per imparare:
 
 - **Una verifica PIE che non appartiene a una seduta tende a non essere mai eseguita.** Le sedute vivono in
-  [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml) e la vista è
-  [`editormap.shortlist.md`](../roadmap/editormap.shortlist.md), **generata**.
+  [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml) e la vista è
+  [`editormap.shortlist.md`](../../roadmap/editormap.shortlist.md), **generata**.
 - **Un test importante deve essere dimostrato capace di diventare rosso.** Si rompe *una* mutazione per
   volta e deve cadere esattamente il test che protegge quella regola — se ne cadono zero, il test non
   verificava; se ne cadono cinque, non si sa quale.
@@ -305,9 +305,9 @@ Due regole che il repository ha già pagato per imparare:
 
 | Domanda | Fonte |
 |---|---|
-| A che punto è una capability | [`feature-registry.yaml`](../roadmap/feature-registry.yaml) e le viste generate |
-| Quale seduta d'editor fare, e in che ordine | [`editormap.shortlist.md`](../roadmap/editormap.shortlist.md) |
+| A che punto è una capability | [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e le viste generate |
+| Quale seduta d'editor fare, e in che ordine | [`editormap.shortlist.md`](../../roadmap/editormap.shortlist.md) |
 | Chi verifica cosa fra macchina e persona | [`scenario-map.md`](scenario-map.md) |
-| Quali domande di modello sono aperte | [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) |
+| Quali domande di modello sono aperte | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
 | Che lavoro è aperto adesso | l'epic [#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105) e le sue sub-issue |
-| Perché questo documento esiste | [referto 2026-08-17](../roadmap/plans/tactical-designer-consolidamento-2026-08-17.md) · [D-154](../decisions/RT_PDR_00_Decision_Log.md) |
+| Perché questo documento esiste | [referto 2026-08-17](../../roadmap/plans/tactical-designer-consolidamento-2026-08-17.md) · [D-154](../../decisions/RT_PDR_00_Decision_Log.md) |

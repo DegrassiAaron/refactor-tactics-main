@@ -306,5 +306,5 @@ decide a tavolino.
 | [`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md) | Overwatch, profili delle generiche |
 | [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) | pivot, rotazione dichiarata, policy di facing |
 | [`../balance/RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) | i numeri: slot, fasi, MP, cooldown |
-| [`../technical/progettazione-hud.md`](../technical/progettazione-hud.md) | Action Dock e Ghost Timeline |
+| [`../technical/systems/progettazione-hud.md`](../technical/systems/progettazione-hud.md) | Action Dock e Ghost Timeline |
 | *questa pagina* | come i quattro budget si tengono, e la proposta di legarli al movimento |

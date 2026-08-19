@@ -1,9 +1,9 @@
 # Scenari di validazione visiva
 
 > **Owner** del corpus di scenari che si aprono **per guardare**, non per far girare un'assertion.
-> L'identità e i tag stanno in [`scenario-index-e-tag.md`](scenario-index-e-tag.md); come si scrive ed esegue
+> L'identità e i tag stanno in [`scenario-index-e-tag.md`](tooling/scenario-index-e-tag.md); come si scrive ed esegue
 > uno scenario sta in [`test-e-diagnosi.md`](test-e-diagnosi.md); **chi esegue cosa** — quali verifiche sono
-> automatiche e quali richiedono una persona — sta in [`scenario-map.md`](scenario-map.md), dove questo corpus
+> automatiche e quali richiedono una persona — sta in [`scenario-map.md`](tooling/scenario-map.md), dove questo corpus
 > è la **classe B**. Qui c'è **quali scenari servono, cosa si guarda in ciascuno, e cosa oggi non è guardabile**.
 >
 > Definito il **2026-08-08**, issue `#231`. Stato al **2026-08-09**: **21 scenari** in `Scenarios/Visual/`,

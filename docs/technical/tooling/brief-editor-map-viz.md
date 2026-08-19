@@ -2,9 +2,9 @@
 
 > `CURRENT` · **Stato**: brief di requisiti, **interamente implementato** al 2026-08-12
 > **Nato da**: la seduta U1 del 2026-08-10 ([#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)), costruendo `L_HexArena`
-> **Non è** [`E21`](../roadmap/roadmap-v0.1.md): quella è la leggibilità **in partita**, per il giocatore
+> **Non è** [`E21`](../../roadmap/roadmap-v0.1.md): quella è la leggibilità **in partita**, per il giocatore
 > **Lo stato non vive qui**: è in `RT-FEAT-TOOL-MAP-EDITOR` del
-> [`feature-registry.yaml`](../roadmap/feature-registry.yaml), gate `log_debug`. Questo brief dice
+> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml), gate `log_debug`. Questo brief dice
 > *cosa serve e perché*; quanto ne esiste lo dice il registry.
 
 > ## ✅ Serie chiusa 4/4 — 2026-08-12
@@ -30,7 +30,7 @@
 > a comando, costo di rigenerazione, come mostrare la quota, se serve una legenda — **nessuna delle
 > quattro issue le ha decise**. E le acceptance **visive** dell'intera serie non sono verificate:
 > chiudono su una seduta, e vivono nelle cinque voci `PIE-HEX-VIZ-*` di
-> [`test-manuali-pie.md`](test-manuali-pie.md). `log_debug: done` dice che l'esito **è osservabile**,
+> [`test-manuali-pie.md`](../test-manuali-pie.md). `log_debug: done` dice che l'esito **è osservabile**,
 > non che qualcuno l'ha osservato.
 
 ## 1. Perché esiste

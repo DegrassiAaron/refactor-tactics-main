@@ -2,8 +2,8 @@
 
 > `HISTORICAL` · **Materiale NON autorevole.** Si legge per sapere da dove viene una decisione. Le fonti
 > autorevoli sono [`../../../decisions/RT_PDR_00_Decision_Log.md`](../../../decisions/RT_PDR_00_Decision_Log.md)
-> (`D-158`), [`../../../technical/spec-graybox-placement-contract.md`](../../../technical/spec-graybox-placement-contract.md)
-> e [`../../../technical/spec-asset-pipeline.md`](../../../technical/spec-asset-pipeline.md) §11-bis.
+> (`D-158`), [`../../../technical/systems/spec-graybox-placement-contract.md`](../../../technical/systems/spec-graybox-placement-contract.md)
+> e [`../../../technical/architecture/spec-asset-pipeline.md`](../../../technical/architecture/spec-asset-pipeline.md) §11-bis.
 
 ## Cosa conteneva
 
@@ -41,7 +41,7 @@ accorga.
 ## Cosa è entrato
 
 **Le lane di maturità**, che nel repository si chiamano `AC0–AC6` e `AE0–AE5` — l'unica parte che non
-aveva. Sono in [`../../../technical/spec-asset-pipeline.md`](../../../technical/spec-asset-pipeline.md)
+aveva. Sono in [`../../../technical/architecture/spec-asset-pipeline.md`](../../../technical/architecture/spec-asset-pipeline.md)
 §11-bis, con la regola che le rende utili: **il contratto si congela a `AC2`/`AE1`**, non a `AC6`/`AE5`.
 ⚠️ **I prefissi non sono quelli del bundle**, che usava `C`/`E`: collidevano con la severity degli status
 (`C0`–`C3`) e con l'epic `E1`.

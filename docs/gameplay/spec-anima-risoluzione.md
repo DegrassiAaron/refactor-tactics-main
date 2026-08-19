@@ -8,7 +8,7 @@
 > Adzic (pacing/esempi), Crispin (testabilità/determinismo). Documentale: **nessuna modifica al codice**.
 > Decisioni prese: **durata configurabile (default compatto) · movimento Move tutti in parallelo · spec prima del codice**.
 > Ancorata al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)), alla roadmap
-> ([`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)), al resolver movimento ([`spec-mappa-multilivello.md`](../technical/spec-mappa-multilivello.md)).
+> ([`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)), al resolver movimento ([`spec-mappa-multilivello.md`](../technical/architecture/spec-mappa-multilivello.md)).
 
 > ⚠️ **Riscritta nel modello a segmenti il 2026-08-08.** Questa spec assumeva che il lock-in calcolasse
 > **una volta sola** l'intera timeline del round, e che il playback la riproducesse dall'inizio alla fine.
@@ -262,8 +262,8 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 
 - Canone: [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) — invarianti #1 (regole decidono), #4 (determinismo).
 - Roadmap: [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) — collocare AN.x come slice north-star post-MVP.
-- Resolver movimento e `Entered`: [`spec-mappa-multilivello.md`](../technical/spec-mappa-multilivello.md),
-  [`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md).
+- Resolver movimento e `Entered`: [`spec-mappa-multilivello.md`](../technical/architecture/spec-mappa-multilivello.md),
+  [`spec-pathfinding-pf3-pf4.md`](../technical/architecture/spec-pathfinding-pf3-pf4.md).
 - Ispirazione (north-star, non canone): [`sequenza-turno-exploratory.md`](../archive/gameplay/sequenza-turno-exploratory.md)
   (timeline stile Phantom Brigade, batching, pacing ~60s, speed-up; **stack/reazioni fuori MVP**).
   *Trascrizione del PDF `sequenza-risoluzione-turno.pdf`, rimosso il 2026-08-12.*
