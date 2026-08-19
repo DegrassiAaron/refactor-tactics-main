@@ -6073,9 +6073,18 @@ tracks:
     # git su questo file l'ha resa visibile — che è esattamente il lavoro che `D-139` gli assegna.
     # ✅ **Il nome `simulation` resta a `#314`, che è atterrata in `main` per prima.** Ceduto senza discutere:
     # la precedenza è una regola, non una trattativa, e `#1060` non ha bisogno di quel nome per esistere.
-    status: ACTIVE
-    issue: 1060
-    branch: feat/1060-vocabolario-intercept
+    # ✅ **CHIUSA il 2026-08-19**: la voce 1 del DoD di `#1060` è consegnata — PR **#1196** (`f936e6fb`), suite
+    # **1051/1051**, quattro mutazioni ognuna sul test atteso. La issue **resta APERTA** e non è lavoro
+    # abbandonato: il contenuto del T6 vive in `Scenarios/` (`integration_only`) e non sarebbe comunque
+    # eseguibile finché `#833` lascia vuoto il T5.
+    # ✅ **E con essa si chiude la contesa su `ScenarioHarness/RTScenarioSession.cpp`**, nel modo più semplice
+    # dei due che erano sul tavolo: `#1060` è atterrata per prima, quindi `simulation` (`#314`) trova il file
+    # con due `case` in più in una funzione che non tocca. Il path torna a una sola track — la sua — e
+    # l'invariante, violata e **dichiarata** per un giorno, torna intatta senza che nessuno abbia dovuto
+    # rinunciare al proprio lavoro.
+    status: IDLE
+    issue: null
+    branch: null
     worktree: "D:/rt-simulation"
     # 🔴 **UN path è conteso, ed è dichiarato invece che aggirato: `ScenarioHarness/RTScenarioSession.cpp`.**
     # Sta anche nel `writable` di `simulation` (`#314`). Le misure, perché chi integra decida sui fatti:
@@ -6089,21 +6098,24 @@ tracks:
     # è violata **adesso**, con i dati per chiuderla. Le uscite sono due e nessuna è mia da scegliere: `#1060`
     # atterra prima e `#314` fa merge su una funzione che non tocca, oppure `#1060` cede il path e la
     # valutazione delle due assertion aspetta. Finché nessuno decide, questa track **non scrive altro** lì.
-    writable:
-      - Source/RefactorTactics/Turn/RTTurnLog.h
-      - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
-      - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
-      - Source/RefactorTactics/ScenarioHarness/RTTestScenario.h
-      - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
-      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-      - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
-      - Source/RefactorTactics/Tests/RTScenarioRunnerTests.cpp
-      # ➕ Aggiunto dopo la code review: nessun test copriva la serializzazione del campo nuovo, mentre ogni
-      # versione precedente ha la coppia round-trip + `LegacyVersionWithout…IsReadable`. Un errore nell'ordine
-      # dei campi fra `Serialize` e `Deserialize` sarebbe stato **silenzioso**.
-      - Source/RefactorTactics/Tests/RTTurnLogSerializationTests.cpp
-      - docs/technical/spec-turnlog.md
+    # ➖ **Rilasciati il 2026-08-19 con la chiusura**: i dieci path sono atterrati in `main` e tornano liberi
+    # e non assegnati. L'elenco vive nella `note`, che è dove le altre track chiuse tengono la propria storia.
+    # 🔴 **La prima stesura li aveva messi in un campo `released:` inventato sul momento** — cioè un
+    # undicesimo campo in un file che dichiara il proprio elenco **chiuso** e chiede di argomentare ogni
+    # aggiunta contro di esso. Un campo che nessuno legge non è documentazione: è un dato che diverge in
+    # silenzio dal primo giro in cui qualcuno dimentica di aggiornarlo.
+    writable: []
     note: >-
+      ✅ **CHIUSA il 2026-08-19 — i dieci path rilasciati, uno per uno**: `Turn/RTTurnLog.h` ·
+      `Turn/RTTurnLogLibrary.cpp` · `Turn/RTTurnManager_Blast.cpp` · `ScenarioHarness/RTTestScenario.h` ·
+      `ScenarioHarness/RTScenarioLoader.cpp` · `ScenarioHarness/RTScenarioSession.cpp` ·
+      `Tests/RTScenarioLoaderTests.cpp` · `Tests/RTScenarioRunnerTests.cpp` ·
+      `Tests/RTTurnLogSerializationTests.cpp` · `docs/technical/spec-turnlog.md`.
+      ⚠️ **Il sesto era conteso con `simulation` (`#314`) e la contesa si chiude da sé**: `#1060` è atterrata
+      per prima, quindi quella track trova il file con due `case` in più in una funzione che non tocca. Nessuno
+      ha dovuto rinunciare al proprio lavoro, e l'invariante — violata e **dichiarata** per un giorno — torna
+      intatta. Chi riprende questi path rilegge la contesa invece di ereditarne la risoluzione.
+      --- ⛔ **Da qui in giù è STORIA del giro di `#1060`.** I campi correnti sono quelli in testa alla sezione.
       Il **vocabolario** che rende verificabile l'interposizione: `OriginalTargetEquals` ed
       `EffectiveTargetEquals`, più il campo `OriginalTargetUnitId` del formato **v9** su cui poggiano. È il
       collo di bottiglia che `#170` (CP 15.4, **P1**) dichiara per sé — *«non è il contenuto: è il vocabolario
