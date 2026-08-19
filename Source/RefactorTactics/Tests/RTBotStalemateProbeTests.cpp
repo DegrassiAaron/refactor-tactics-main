@@ -462,7 +462,8 @@ namespace
 	 */
 	void PlanProbeTurn(URTHexMapAsset* Arena, const TArray<FRTProbeUnit>& Units,
 		TArray<FRTTeamKnowledge>& Knowledge, int32 Turn,
-		FRTHexSnapshot& OutSnapshot, TArray<FRTCellId>& OutPlanned, int32& OutPerceived, int32& OutAttackPlans)
+		FRTHexSnapshot& OutSnapshot, TArray<FRTCellId>& OutPlanned, int32& OutPerceived, int32& OutAttackPlans,
+		bool bPlanAsTeam = false)
 	{
 		OutPlanned.Reset();
 		OutPerceived = 0;
@@ -494,6 +495,7 @@ namespace
 		for (const FRTProbeUnit& U : Units) { SimUnits.Add(FRTHexSimUnit(U.Id, U.Cell, /*budget*/ 5)); }
 		OutSnapshot = URTHexSimLibrary::MakeSnapshot(Arena, SimUnits);
 
+		TArray<FRTHexBotContext> Contexts;
 		for (const FRTProbeUnit& Self : Units)
 		{
 			FRTHexBotContext Ctx;
@@ -521,10 +523,45 @@ namespace
 				Ctx.EnemyHealth.Add(100);
 			}
 			OutPerceived += Ctx.Enemies.Num();
+			Contexts.Add(Ctx);
+		}
 
-			const FRTHexBotPlan Plan = URTHexBotLibrary::PlanUnit(OutSnapshot, Self.Id, Ctx);
-			if (Plan.bHasAttack) { ++OutAttackPlans; }
-			OutPlanned.Add(Plan.DestCell);
+		if (!bPlanAsTeam)
+		{
+			for (int32 I = 0; I < Units.Num(); ++I)
+			{
+				const FRTHexBotPlan Plan = URTHexBotLibrary::PlanUnit(OutSnapshot, Units[I].Id, Contexts[I]);
+				if (Plan.bHasAttack) { ++OutAttackPlans; }
+				OutPlanned.Add(Plan.DestCell);
+			}
+			return;
+		}
+
+		// ⛔ **Una chiamata di `PlanTeam` PER SQUADRA**, come la sua firma prescrive: le prenotazioni sono
+		// informazione sui piani, e i piani di una squadra sono privati. Passando qui tutte e quattro le
+		// unita' insieme, un bot schiverebbe la cella di un avversario — un intento che nessun giocatore
+		// puo' vedere (CP 13.5).
+		OutPlanned.SetNum(Units.Num());
+		for (int32 Team = 0; Team < 2; ++Team)
+		{
+			TArray<int32> TeamIds;
+			TArray<FRTHexBotContext> TeamContexts;
+			TArray<int32> SlotOf;              // dove rimettere il piano, per non perdere il parallelismo
+			for (int32 I = 0; I < Units.Num(); ++I)
+			{
+				if (Units[I].Team != Team) { continue; }
+				TeamIds.Add(Units[I].Id);
+				TeamContexts.Add(Contexts[I]);
+				SlotOf.Add(I);
+			}
+			if (TeamIds.Num() == 0) { continue; }
+
+			const TArray<FRTHexBotPlan> Plans = URTHexBotLibrary::PlanTeam(OutSnapshot, TeamIds, TeamContexts);
+			for (int32 K = 0; K < Plans.Num() && K < SlotOf.Num(); ++K)
+			{
+				if (Plans[K].bHasAttack) { ++OutAttackPlans; }
+				OutPlanned[SlotOf[K]] = Plans[K].DestCell;
+			}
 		}
 	}
 }
@@ -647,7 +684,7 @@ namespace
  * RISOLUZIONE SIMULTANEA, dove il difetto vive.
  */
 static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Arena, FAutomationTestBase& T,
-	const TCHAR* Label)
+	const TCHAR* Label, bool bPlanAsTeam = false)
 {
 	FRTProbeContestReport Out;
 
@@ -660,7 +697,7 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 		int32 Perceived = 0;
 		FRTHexSnapshot Snapshot;
 		TArray<FRTCellId> Planned;
-		PlanProbeTurn(Arena, Units, Knowledge, Turn, Snapshot, Planned, Perceived, Out.AttackPlans);
+		PlanProbeTurn(Arena, Units, Knowledge, Turn, Snapshot, Planned, Perceived, Out.AttackPlans, bPlanAsTeam);
 
 		// --- 3. I percorsi come li costruisce la fase Move: la rotta autorevole verso la destinazione
 		// pianificata, e chi non ha un percorso valido resta fermo occupando la propria cella.
@@ -811,6 +848,45 @@ bool FRTBotStalemateContendersTest::RunTest(const FString&)
 	// gioco: e' la stessa difesa del probe headless qui sopra.
 	TestEqual(TEXT("sull'esagono liscio nessuna contesa"), Open.Contests, 0);
 	TestTrue(TEXT("e li' qualcuno si muove"), Open.TurnsWithAnyMove > 0);
+
+	return true;
+}
+
+/**
+ * La correzione, misurata sullo STESSO ciclo che ha prodotto il difetto.
+ *
+ * Cambia una cosa sola rispetto al test qui sopra: le unita' sono pianificate con `PlanTeam` — una chiamata
+ * per squadra — invece che con `PlanUnit` una alla volta. Tutto il resto e' identico, arena compresa, ed e'
+ * cio' che rende il confronto una misura invece di due esecuzioni diverse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotStalemateTeamPlanningBreaksItTest,
+	"RefactorTactics.Bot.StalemateBreaksWithTeamPlanning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { return false; }
+
+	// ⚠️ **Il controllo di non-vacuita', e qui e' l'intero test.** Se lo stallo non si formasse piu' da solo
+	// — per un cambio all'utility, all'arena o al catalogo — allora «con `PlanTeam` non ci sono contese»
+	// sarebbe vero senza che `PlanTeam` c'entri, e questo test direbbe il falso restando verde. La prima
+	// stesura di `RTBotTeamPlanningTests.cpp` e' caduta esattamente cosi', su un allestimento che credevo
+	// producesse la contesa e non la produceva.
+	const FRTProbeContestReport Before = RTRunSimultaneousResolutionProbe(Arena, *this,
+		TEXT("una alla volta"), /*bPlanAsTeam=*/ false);
+	TestTrue(TEXT("premessa: pianificate una alla volta, le compagne si bloccano ancora"),
+		Before.Contests > 0 && Before.TurnsWithAnyMove == 0);
+
+	const FRTProbeContestReport After = RTRunSimultaneousResolutionProbe(Arena, *this,
+		TEXT("come squadra"), /*bPlanAsTeam=*/ true);
+
+	AddInfo(FString::Printf(TEXT("contese: %d -> %d | turni con almeno una mossa: %d -> %d"),
+		Before.Contests, After.Contests, Before.TurnsWithAnyMove, After.TurnsWithAnyMove));
+
+	// Le due righe che dicono che lo stallo e' sciolto: nessuna contesa fra compagni, e il campo si muove.
+	TestEqual(TEXT("con la pianificazione di squadra le contese spariscono"), After.Contests, 0);
+	TestTrue(TEXT("e le unita' si muovono davvero"), After.TurnsWithAnyMove > 0);
 
 	return true;
 }

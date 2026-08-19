@@ -5614,29 +5614,44 @@ tracks:
   bot_stalemate:
     status: ACTIVE
     issue: 1088
-    branch: probe/1088-partita-headless
+    branch: probe/1088-chi-contende
     worktree: "D:/rt-1015"
     note: >-
-      ➕ **Track aperta il 2026-08-17 su `#1088`, e per ora porta SOLO un probe.** La issue chiede, al
-      criterio 1, che la causa sia *«nominata e misurata, non ipotizzata»*: questo write-set serve a
-      produrre la misura, non la correzione. Quando la causa è nota, il write-set si rinegozia sui file
-      che la ospitano — che oggi non si sa quali siano, ed è il punto.
-      ✅ **Cosa la misura ha già escluso, senza scrivere codice**: `rt.Arena.Check` dice che la mappa
-      d'autore soddisfa **tutti e tre** i criteri di U1, quindi lo stallo non si spiega con un'arena
-      difettosa; e la riga della copertura — *«3 celle che bloccano la vista … linea di tiro interrotta»* —
-      dice che la vista bloccata fra gli spawn è **voluta**. Restano i candidati 2 (pathing) e 3 (utility).
-      🔵 **Il probe è puro e non simula una partita.** `URTHexVisionLibrary::HasLineOfSight` è
-      `BlueprintPure` e `URTMatchSetupLibrary::MakeTestArena` genera l'arena da codice: la domanda «esiste
-      una cella da cui un bersaglio è legale?» si risponde con due chiamate e un'enumerazione, senza mondo,
-      senza attori e senza `.uasset`.
-      ⛔ **Cosa questa track NON tocca**: `Source/RefactorTactics/Bot/` e `Turn/` — dove la correzione
-      probabilmente andrà — perché prenotarli adesso sarebbe prenotare in base a un'ipotesi. È la stessa
-      ragione per cui `playback` ha preso un prefisso largo e poi l'ha stretto: qui si fa il contrario,
-      si parte stretti e si chiede quando si sa.
-      ⚠️ `Tests/` è condivisa fra tutte le track: il file è dichiarato **per nome**.
+      ➕ **Track aperta il 2026-08-17 su `#1088`.** Il write-set nasceva stretto — un solo probe — perché la
+      issue chiede, al criterio 1, che la causa sia *«nominata e misurata, non ipotizzata»*, e prenotare i
+      file della correzione prima di conoscerla sarebbe stato prenotare in base a un'ipotesi.
+      ✅ **Criterio 1 chiuso il 2026-08-18, e la causa NON è quella che i primi cinque probe cercavano.**
+      Misurato attraversando la risoluzione simultanea invece di applicare `Plan.DestCell`: sull'arena con
+      copertura, 12 turni, **24 contese tutte fra COMPAGNI di squadra**, zero fra avversari, zero turni con
+      una mossa. Sull'esagono liscio, stesso ciclo: zero contese. La regola di contesa fa il suo mestiere —
+      due unità non stanno nella stessa cella — mentre `PlanBots` pianifica **un'unità alla volta** sullo
+      stesso snapshot congelato, e due compagne scelgono la stessa cella.
+      ➕ **Write-set rinegoziato il 2026-08-19, come questa nota prevedeva.** I tre path aggiunti erano
+      liberi e non assegnati, verificato scandendo `writable`/`integration_only`/`writable_on_loan` di ogni
+      track: la correzione vive in `URTHexBotLibrary::PlanTeam`, che pianifica una squadra intera tenendo
+      conto di ciò che le compagne hanno già prenotato.
+      ⛔ **`Turn/RTTurnManager.cpp` NON è in questo write-set, ed è la parte che va detta.** Quando la
+      richiesta è stata formulata era libero; nel frattempo `simulation` l'ha preso ripartendo su `#314`
+      (`6382adc0`), e sovrapporre due `writable` è esattamente ciò che questo file impedisce. La
+      correzione è quindi **completa in `Bot/` ma non ancora innestata**: `PlanBots` continua a chiamare
+      `PlanUnit` in un ciclo finché una riga sola non potrà cambiare in `RTTurnManager.cpp`. Misurato che
+      `simulation` non ha modifiche pendenti su quel file (`git diff origin/main...origin/feat/314-…` è
+      vuoto), quindi il conflitto è di dichiarazione e non di contenuto — ma resta un conflitto.
+      ⚠️ `Tests/` è condivisa fra tutte le track: i file sono dichiarati **per nome**.
     writable:
       # ➕ File **nuovo**, dichiarato prima di crearlo: «conteso da nessuno» non è un'assegnazione.
       - Source/RefactorTactics/Tests/RTBotStalemateProbeTests.cpp
+      # ➕ 2026-08-19: la correzione di #1088. Il file nuovo è dichiarato prima di crearlo, come sopra.
+      - Source/RefactorTactics/Tests/RTBotTeamPlanningTests.cpp
+      - Source/RefactorTactics/Bot/RTHexBotLibrary.h
+      - Source/RefactorTactics/Bot/RTHexBotLibrary.cpp
+    release_requested:
+      # Il path che serve all'innesto e che questa track NON ha. `from` è la track detentrice, `issue`
+      # quella che lo tiene: entrambe verificabili con `gh issue view 314` e col `writable` di `simulation`.
+      - from: simulation
+        issue: 314
+        paths:
+          - Source/RefactorTactics/Turn/RTTurnManager.cpp
     derives_from: []
     binary_leases: []
 

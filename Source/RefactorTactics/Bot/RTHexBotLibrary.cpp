@@ -309,6 +309,49 @@ FRTHexBotPlan URTHexBotLibrary::PlanUnit(const FRTHexSnapshot& Snapshot, int32 U
 	return ChooseBestPlan(Snapshot.Map, BuildCandidates(Snapshot, UnitId, Context), Context);
 }
 
+void URTHexBotLibrary::ReservePlannedRoute(FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& DestCell)
+{
+	// La rotta AUTOREVOLE, cioe' quella che la fase Move calcolera' — non una stima fatta qui. Se la
+	// prenotazione partisse da un percorso diverso da quello che verra' davvero percorso, riserverebbe celle
+	// che nessuno usa e ne lascerebbe libere altre che due unita' si contenderanno lo stesso.
+	const TArray<FRTCellId> Route = URTHexSimLibrary::FindPathForUnit(Snapshot, UnitId, DestCell).Path;
+
+	// Percorso vuoto o di una sola cella = l'unita' resta dov'e': la sua cella e' gia' in `Occupancy`, e non
+	// c'e' niente da prenotare.
+	for (const FRTCellId& Cell : Route)
+	{
+		// `Add` sovrascriverebbe l'occupante di una cella gia' presa. Non deve mai succedere — la rotta viene
+		// da `FindPathForUnit`, che le celle altrui le evita — ma la sovrascrittura sarebbe silenziosa e
+		// cancellerebbe una prenotazione precedente, cioe' il difetto che questa funzione esiste per chiudere.
+		if (!Snapshot.Occupancy.Contains(Cell))
+		{
+			Snapshot.Occupancy.Add(Cell, UnitId);
+		}
+	}
+}
+
+TArray<FRTHexBotPlan> URTHexBotLibrary::PlanTeam(const FRTHexSnapshot& Snapshot, const TArray<int32>& UnitIds,
+	const TArray<FRTHexBotContext>& Contexts)
+{
+	TArray<FRTHexBotPlan> Out;
+
+	// Copia locale: le prenotazioni servono a questa pianificazione e NON devono uscire di qui. Lo snapshot
+	// del chiamante resta quello autorevole del turno — se le celle prenotate finissero dentro, la fase Move
+	// troverebbe occupate delle celle su cui non c'e' nessuno.
+	FRTHexSnapshot Working = Snapshot;
+
+	const int32 Num = FMath::Min(UnitIds.Num(), Contexts.Num());
+	Out.Reserve(Num);
+	for (int32 I = 0; I < Num; ++I)
+	{
+		const FRTHexBotPlan Plan = PlanUnit(Working, UnitIds[I], Contexts[I]);
+		Out.Add(Plan);
+		ReservePlannedRoute(Working, UnitIds[I], Plan.DestCell);
+	}
+
+	return Out;
+}
+
 FRTCellId URTHexBotLibrary::BestKiteCell(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Threat)
 {
 	// Le candidate arrivano da ReachableCells: budget, celle bloccate, occupanti e archi sono gia' applicati,
