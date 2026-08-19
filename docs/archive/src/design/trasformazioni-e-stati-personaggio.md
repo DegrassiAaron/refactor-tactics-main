@@ -16,7 +16,7 @@
 ## Correzioni applicate il 2026-08-08
 
 Il documento è stato **archiviato con il testo originale intatto** (convenzione 4 di
-[`../../../src/`](../../../research/)): le correzioni non riscrivono i paragrafi, sono note `⚠️` inserite accanto
+`docs/src/`, la cartella sorgenti di allora): le correzioni non riscrivono i paragrafi, sono note `⚠️` inserite accanto
 all'affermazione che correggono. Elenco completo, così che non vada cercato nel corpo:
 
 | § | Affermazione originale | Correzione |

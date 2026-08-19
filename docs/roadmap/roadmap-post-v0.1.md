@@ -16,7 +16,7 @@ roster a 8, Cover Window, architettura di muri e porte, formato competitivo 3v3,
 mappe Operations. Finché sono rimasti solo lì, ogni sessione ha dovuto ridecidere da capo se una cosa fosse
 v0.1 o no. Questo file registra quella ripartizione una volta sola.
 
-**Fonti** (tutte in `docs/src/`, non normative — vedi [`../src/`](../research/)):
+**Fonti** (tutte in `docs/archive/src/`, non normative — vedi [`../archive/src/`](../archive/src/)):
 
 | Sorgente | Alimenta |
 |---|---|

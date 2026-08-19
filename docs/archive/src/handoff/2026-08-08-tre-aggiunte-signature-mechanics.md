@@ -14,7 +14,7 @@
 
 ## Correzioni applicate il 2026-08-08
 
-Testo originale **intatto** (convenzione 4 di [`../../../src/`](../../../research/)). Errori di fatto rilevati
+Testo originale **intatto** (convenzione 4 di `docs/src/`, la cartella sorgenti di allora). Errori di fatto rilevati
 eseguendo la task:
 
 | § | Affermazione originale | Correzione |
