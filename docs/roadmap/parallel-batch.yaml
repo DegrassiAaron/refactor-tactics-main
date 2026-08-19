@@ -6071,7 +6071,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: docs/1165-fase4-technical-split
+    branch: null
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6254,8 +6254,15 @@ tracks:
       in integrazione e si dichiara nella nota — prenderlo e' il modo di trasformare una regola in una
       contesa. Quattordici rami vivi toccano uno dei 158, da 1 a 3 file ciascuno: i
       conflitti saranno testuali e su una riga di link.
+
+      ✅ **Fase 4 CHIUSA**: PR **#1219** in `main`, ramo cancellato. `branch: null`.
+      Il conto vero l'ha dato il gate, non la stima: 26 documenti spostati e **800 riferimenti**
+      riscritti — 264 entranti, 297 uscenti, 49 fra due file spostati, 149 etichette, 41 `owner_specs`.
+      🔴 **Il registry e' uscito 1 con 39 errori `owner spec inesistente`**, e nessun gate sui link lo
+      avrebbe detto: un `owner_spec` non e' un link Markdown. Chi apre la fase 5 lo sappia — spostare un
+      documento nominato dal registry costa una rigenerazione, non una sostituzione di testo.
+      ➖ `docs/technical/` esce dal `writable`: il giro e' finito e le fasi 5-6 lo rimisureranno.
     writable:
-      - docs/technical/
       - docs/README.md
       - docs/control-center/graph.test.mjs
       - docs/generated/
