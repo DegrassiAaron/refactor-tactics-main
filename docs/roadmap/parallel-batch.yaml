@@ -2810,6 +2810,20 @@ tracks:
       - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h
       - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
       - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+      # ➕ **I tre path della fetta 4, rivendicati il 2026-08-19.** Servono perche' il vocabolario di
+      # `decisions` e' oggi CHIUSO a `FIRE`/`HOLD` (`RTScenarioLoader.cpp:484`, con errore esplicito), quindi
+      # le risposte di un Reaction Profile non sono scriptabili in uno scenario e
+      # `Spec.Brace.ProfileChangesResponse` non puo' diventare verde.
+      # ✅ **Nessuno li possiede**: `grep` del path su TUTTI i `writable` piu' `integration_only` → zero.
+      # ✅ **Nessun branch vivo li tocca**: `git log --remotes=origin --not origin/main -- <path>` → vuoto,
+      # sui ventuno rami remoti misurati dopo `git fetch --prune`.
+      # ⚠️ **E la track sorella e' stata rimisurata, non ricordata**: `feat/314-reaction-profile-e-clash` —
+      # dove un'ALTRA sessione ha consegnato D-048 mentre girava la fetta 3 — ha oggi write-set **vuoto**
+      # contro `main` (le PR #1210 e #1211 sono atterrate). Nessuna contesa in volo; e se quella sessione
+      # riparte, questi tre path non sono i suoi: lei vive in `Turn/`, questi stanno in `ScenarioHarness/`.
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
+      - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
       - Source/RefactorTactics/Tests/RTDefensiveReactionTests.cpp
       - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
       # ➕ **Tre path aggiunti il 2026-08-19, e non erano previsti: li ha resi necessari un GATE, non una
@@ -2859,6 +2873,16 @@ tracks:
       - path: Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
         from: spatial
         returns_when: "#314 chiude, o prima se `#833` riparte e li richiede"
+      # ➕ **Prestito della fetta 4, aperto il 2026-08-19.** È lo scenario che D-047 dichiara come propria
+      # specifica eseguibile, e la fetta 4 esiste per portarlo da `BLOCKED` a verde: il suo T2 è `intents: []`
+      # con un `_nota_da_completare` che descrive per esteso cosa scriverci.
+      # ⚠️ **`Scenarios/` è `integration_only`, quindi UNA riga sola e non la cartella**: prendere il prefisso
+      # significherebbe rivendicare la sorgente di `scenariomap` e `project-graph`, cioè due viste generate che
+      # non sono mie da rigenerare. Il prestito nomina **il file**, e resta il caso già visto con
+      # `ConditionCollapsesToHold.json` — restituito quando la track chiuse.
+      - path: Scenarios/Spec/Brace/ProfileChangesResponse.json
+        from: integration_only
+        returns_when: "la fetta 4 atterra: il file torna a `integration_only` col merge"
     # ⚠️ ~~`#886` non presta nulla~~: i due path che prende sono **liberi**, e ~~il terzo lo **chiede**~~ — dal
     # 2026-08-17 i due del `TurnManager` sono **rilasciati e non assegnati**, quindi non c'è più niente da
     # chiedere e ~~resta lo STOP finché l'atto di questa track non li rivendica~~. Annotato qui perché è un
