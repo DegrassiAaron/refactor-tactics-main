@@ -1926,8 +1926,29 @@ tracks:
     # esattamente il difetto per cui CP 14.5 aveva gia' spostato quel valore qui, ed e' scritto nella issue.
     # La sola riga di `#166` lavorabile senza UI — gli invalidanti, `D-169` — e' **gia' consegnata** nella
     # PR **#1162** dalla track `overwatch_lifecycle`, che vive in `D:/rt-166`.
-    status: ACTIVE
-    issue: 314
+    # 🔴 **RITIRATA da `#314` il 2026-08-19: due sessioni stavano lavorando la stessa issue in parallelo.**
+    # La PR **#1217** (`feat/314-clash-finestra-contested`, ultimo commit alle `13:58`) fa la stessa cosa
+    # sugli **stessi otto file** — scenario, `RTScenarioSession.cpp`, `RTScenarioLoader.{h,cpp}`,
+    # `RTTurnManager.cpp`, `RTCatalogLibrary.{h,cpp}` e i due file di test — e il suo titolo numera le
+    # proprie fette come questa track numerava le sue. Non e' una contesa di write-set risolvibile: e' la
+    # stessa issue, presa due volte.
+    # ✅ **Cede questa track**, e non per anzianita': `#1217` e' piu' avanti — ha gia' esteso il loader degli
+    # scenari, che era il blocco su cui questa sessione si era appena fermata.
+    # 🔴 **Perche' non me ne sono accorto prima, che e' la parte che vale.** All'apertura, il 2026-08-18,
+    # `git ls-remote` non mostrava **nessun** branch su `#314` e nessuna track lo dichiarava: la misura era
+    # giusta **allora**. Quel ramo e' nato dopo, e le quattro fette successive hanno impiegato ore senza che
+    # nessuna rimisurasse. 💡 **Un write-set si misura a ogni fetta, non solo all'apertura della track**: fra
+    # un commit e il successivo il repository cambia, e una track aperta su misure vecchie e' esattamente il
+    # difetto che questo file esiste per impedire — applicato al tempo invece che allo spazio.
+    # ➖ Il lavoro **gia' in `main`** resta e non si tocca: PR #1192 (contested, ordine canonico, grammatica),
+    # #1204 (Reaction Profile), #1210 (reveal a scadenza fissa), #1211 (costo al lock e TurnLog del Clash),
+    # #1216 (maneuver con i tre esiti). `#1217` ci si appoggia: ha `main` mergiato dentro alle `13:58`.
+    # ➖ Cio' che questa sessione aveva scritto **e non pushato** — il cablaggio del boundary in
+    # `ResolveCombat`, il traduttore delle risposte di profilo nell'harness, lo sblocco della capability e il
+    # T2 dello scenario — e' stato **scartato**, non pushato a meta'. Due PR sugli stessi otto file avrebbero
+    # prodotto un conflitto che qualcuno avrebbe dovuto risolvere a mano.
+    status: IDLE
+    issue: null
     # ➕ **Riattivata il 2026-08-17 su `#886`** — il Verifier rilegge le decisioni di reazione dal TurnLog.
     # ⛔ **Ed è ACTIVE con un path ~~CHIESTO~~ RILASCIATO e non posseduto**: finché `Turn/RTTurnManager.{h,cpp}` non entra
     # nel `writable` qui sotto vale **STOP**, e `#886` non è iniziata. La track non è però ferma: i due file
@@ -2134,7 +2155,10 @@ tracks:
     # qui è ciò che lo rende misurabile prima del push.
     # ➖ **Mergiato e cancellato il 2026-08-18** (PR #1182). Il campo torna alla prima delle quattro accezioni
     # che questo file distingue: «nessun branch vivo, il lavoro è in `main`».
-    branch: feat/314-reaction-profile-e-clash
+    # ➖ **Mergiato per intero e cancellato il 2026-08-19 col ritiro.** Verificato con
+    # `git merge-base --is-ancestor` che `origin/main` lo contiene tutto prima di rimuoverlo: cinque PR
+    # atterrate, nessun commit orfano.
+    branch: null
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -2729,25 +2753,19 @@ tracks:
     # `scenariomap.shortlist.md` lo dichiarano in `derives_from`. Misurato, non ricordato — ed è anche il
     # motivo per cui quel file *sembrava* assegnato a `timebank_decisions`: le sue due occorrenze lì sono
     # righe di `derives_from`, non di `writable`. Una vista che nomina una sorgente non la possiede.
-    writable:
-      - Source/RefactorTactics/Turn/RTReactionLibrary.h
-      - Source/RefactorTactics/Turn/RTReactionLibrary.cpp
-      - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
-      - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
-      - Source/RefactorTactics/Turn/RTTurnManager.h
+    writable: []
+    # ─── il write-set che ESCE, elencato per provenienza e non cancellato in silenzio ───
+    #   Turn/RTReactionLibrary.{h,cpp} · Turn/RTReactionOpportunityTypes.{h,cpp} · Turn/RTTurnManager.h
       # ➖ `RTTurnManager.cpp` **CEDUTO a `bot_stalemate`** il 2026-08-19, per `#1088`. Non è una rinuncia
       # gratuita: `feat/314-reaction-profile-e-clash` è interamente mergiato in `main` (PR #1210, #1211) e
       # questa track non ha lavoro pendente su quel file — misurato,
       # `git diff <merge-base> origin/main -- Turn/RTTurnManager.cpp` è **vuoto**. Un path con due holder
       # viola `D-139` («un holder per path») e nessuno script lo intercetta: l'unica applicazione è questa
       # riga. Se `#314` riapre e serve di nuovo, si richiede — non si ri-dichiara in parallelo.
-      - Source/RefactorTactics/Turn/RTActionEvent.h
-      - Source/RefactorTactics/Ability/RTHeroData.h
-      - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h
-      - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
-      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
-      - Source/RefactorTactics/Tests/RTDefensiveReactionTests.cpp
-      - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
+    #   Turn/RTActionEvent.h · Ability/RTHeroData.h · Ability/RTHeroCatalogLibrary.{h,cpp}
+    #   ScenarioHarness/RTScenarioSession.cpp · Tests/RTDefensiveReactionTests.cpp
+    #   Tests/RTOverwatchTriggerTests.cpp · Unit/RTUnit.{h,cpp} · Tests/RTHeroDataBoundaryTests.cpp
+    #   docs/gameplay/spec-reaction-clash-e14.md
       # ➕ **Tre path aggiunti il 2026-08-19, e non erano previsti: li ha resi necessari un GATE, non una
       # scelta.** Aggiunto `ReactionProfileId` a `URTHeroData`, `Unit.HeroDataCrossesTheBoundary` è
       # diventato rosso — è un test per reflection che pretende che **ogni** campo dell'eroe sia
@@ -2757,10 +2775,15 @@ tracks:
       # ∴ il campo si trasporta (`ARTUnit::ReactionProfileId`) e la riga entra in `Routes[]`. Tutti e tre
       # erano **liberi** — misurati, nessun `writable` li conteneva — e **nessun branch vivo** tocca
       # `Unit/`.
-      - Source/RefactorTactics/Unit/RTUnit.h
-      - Source/RefactorTactics/Unit/RTUnit.cpp
-      - Source/RefactorTactics/Tests/RTHeroDataBoundaryTests.cpp
-      - docs/gameplay/spec-reaction-clash-e14.md
+    # ➖ **Il write-set ESCE col ritiro del 2026-08-19, e tutti i path tornano non assegnati.** Erano
+    # quindici; `RTTurnManager.cpp` era già uscito poche ore prima verso `bot_stalemate` (vedi sopra), e i
+    # restanti quattordici sono atterrati in `main` con le cinque PR di questa track. Nessuno di essi ha
+    # lavoro pendente qui.
+    # ⚠️ **Chi li riprende sappia che `#1217` li sta toccando adesso**: scenario,
+    # `RTScenarioSession.cpp`, `RTScenarioLoader.{h,cpp}`, `RTTurnManager.cpp`, `RTCatalogLibrary.{h,cpp}` e
+    # i due file di test. Non sono liberi *di fatto* solo perché nessuna track li dichiara — è la stessa
+    # cecità che questo ritiro registra: **un ramo aperto non compare in nessun `writable`**, e va cercato
+    # con `git ls-remote` prima di prendere un path.
     # ➖ **I commenti sui PRESTITI escono con essi.** Descrivevano il giro di `#583` — il JSON degli scenari
     # e `feature-registry.yaml`, entrambi restituiti con la PR #1087 — e lasciarli qui li farebbe leggere
     # come regole di questo giro, che di prestiti non ne ha. Le lezioni che portavano non si perdono: «si
@@ -2788,13 +2811,16 @@ tracks:
     # **liberi** — nessun `writable` li contiene. Sono il posto dove i quattro eroi si costruiscono
     # (`MakeGadget`, `MakePhase`, `MakeRiktor`, `MakeWraith`), cioè dove il campo che referenzia il profilo
     # prende il proprio valore. Senza, il profilo esisterebbe e nessun eroe lo porterebbe.
-    writable_on_loan:
-      - path: Source/RefactorTactics/Ability/RTCatalogLibrary.h
-        from: spatial
-        returns_when: "#314 chiude, o prima se `#833` riparte e li richiede"
-      - path: Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
-        from: spatial
-        returns_when: "#314 chiude, o prima se `#833` riparte e li richiede"
+    # ➖ **I due prestiti RIENTRANO col ritiro del 2026-08-19**, e la condizione che li governava si è
+    # avverata alla lettera: `returns_when: "#314 chiude"`. Non chiude come previsto — chiude perché la
+    # track cede la issue a `#1217` — ma per `spatial` la differenza non esiste: i suoi due file di
+    # `Ability/RTCatalogLibrary` tornano suoi, e il perimetro prestato (una `USTRUCT`, una funzione di
+    # catalogo con tre voci) è **atterrato in `main`** con la PR #1204.
+    # ⚠️ **`#1217` li sta toccando adesso**, e chi possiede `spatial` lo sappia: il prestito rientra, la
+    # contesa no. Il terzo prestito — `Scenarios/Spec/Brace/ProfileChangesResponse.json`, preso da
+    # `integration_only` poche ore fa — rientra **senza aver prodotto niente**: il T2 che questa sessione
+    # gli aveva scritto è stato scartato, e il file è quello di `main`.
+    writable_on_loan: []
     # ⚠️ ~~`#886` non presta nulla~~: i due path che prende sono **liberi**, e ~~il terzo lo **chiede**~~ — dal
     # 2026-08-17 i due del `TurnManager` sono **rilasciati e non assegnati**, quindi non c'è più niente da
     # chiedere e ~~resta lo STOP finché l'atto di questa track non li rivendica~~. Annotato qui perché è un
