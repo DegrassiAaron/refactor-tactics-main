@@ -6046,7 +6046,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: docs/1165-fase3-immagini-e-svuotamento-src
+    branch: null
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6182,39 +6182,32 @@ tracks:
       riferimenti, e in ogni topic il file «composite» **e'** i due pannelli affiancati
       (`larghezza(composite) = larghezza(uml) + larghezza(infografic)`, verificato aprendone due). Non
       sono duplicati esatti: la cancellazione e' una decisione dell'autore, non di una sessione.
+
+      ✅ **Fase 3 CHIUSA**: PR **#1203** in `main`, ramo cancellato lato server. `branch` torna `null`.
+      ➖ **Rilasciati i path a giro finito**, e sono di due specie. Le cinque voci `docs/src/*` non
+      descrivono piu' niente: la cartella ha **zero** file versionati, e un `writable` che nomina un
+      path inesistente e' rumore che il prossimo lettore deve interpretare. Gli altri tredici sono i
+      file toccati **una volta sola** per far seguire un riferimento al suo file — `README.md`,
+      `piano-canonico-mvp.md`, i cataloghi, gli ADR, `.gitignore`: tenerli prenotati bloccherebbe altre
+      track per un lavoro gia' fatto.
+      ⚠️ **Le fasi 4–6 li riprenderanno se serve, e li rimisureranno.** Lo split di `technical/` rompera'
+      link in file che oggi non sono di nessuno: quali, lo dice `check-docs-links.py` **dopo** il `git mv`,
+      non un grep prima — la fase 2 ha imparato che il grep sulla forma assoluta ne vede la meta'.
+
+      📌 **Resta aperta una decisione, e non e' di una sessione**: la famiglia `systems-map` in
+      `docs/research/design/systems-map/` — 23 file, 31,2 MB, **zero riferimenti**, e in ogni topic il
+      composite **e'** i due pannelli affiancati. Non sono duplicati esatti. Tre opzioni misurate:
+      solo composite (−14,7 MB), solo pannelli (−16,5 MB), oppure archiviare tutto — il contenuto
+      descrive un'architettura **con GAS**, che il canone esclude dalla v0.1.
     writable:
-      # Fase 3: gli ultimi file di `docs/src/`, piu' quelli che i loro riferimenti costringono a toccare.
-      - docs/src/
-      - .gitignore
-      - docs/DOC_CONFLICT_MATRIX.md
-      - docs/wiki/README.md
-      - docs/roadmap/roadmap-post-v0.1.md
-      - docs/roadmap/plans/project-control-center-spec.md
-      - docs/control-center/graph.test.mjs
       - docs/README.md
-      - scripts/docs_inventory.py
-      - scripts/test_docs_inventory.py
+      - docs/control-center/graph.test.mjs
+      - docs/generated/
+      - docs/research/
       - scripts/check-docs-symbols.py
       - scripts/check-docs-tables.py
-      # Fase 2: le quattro aree e le loro destinazioni, piu' i file che i loro riferimenti costringono
-      # a toccare. Le sorgenti restano dichiarate finche' il move non e' mergiato: un `git mv` scrive
-      # da entrambi i lati.
-      - docs/src/prd/
-      - docs/src/design/icon/
-      - docs/src/showcase/
-      - docs/src/grid/
-      - docs/research/
-      - docs/generated/
-      - scripts/build-icon-assets.py
-      - README.md
-      - docs/archive/README.md
-      - docs/product/piano-canonico-mvp.md
-      - docs/technical/brief-icone-v01.md
-      # ⚠️ Entrano dopo la misura col gate, non prima: i 26 link rotti stavano in questi file e in
-      # forma relativa, che il grep sulla forma assoluta non vedeva.
-      - docs/CHANGELOG_DOCUMENTATION.md
-      - docs/roadmap/hex-map-roadmap.md
-      - docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md
+      - scripts/docs_inventory.py
+      - scripts/test_docs_inventory.py
     derives_from: []
     binary_leases: []
 
