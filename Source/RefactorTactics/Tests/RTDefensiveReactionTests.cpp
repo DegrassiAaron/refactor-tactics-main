@@ -734,4 +734,209 @@ bool FRTBraceRiktorHasNoProfileTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Cio' che il profilo DICHIARA e cio' che il gioco sa ESEGUIRE oggi non coincidono, e la distanza si
+ * misura** ([D-132] contro `spec-reaction-clash-e14.md` §2.5).
+ *
+ * Non e' un difetto da correggere qui: `Profile.Grounding` e `Profile.Glance` sono contenuto **deciso**,
+ * mentre «Charge del `Grounding`» e «ampiezza della deviazione» sono dichiarati **aperti** dalla stessa spec.
+ * Finche' lo restano, quelle due risposte non hanno effetti e il resolver non le offre — offrire una scelta
+ * che non sa applicare significherebbe fermare la resolution per non fare niente.
+ *
+ * ⚠️ **Questo test e' scritto per DIVENTARE ROSSO quando una delle due voci si chiude**, ed e' il suo scopo:
+ * chi aggiunge gli effetti a `GROUND` aggiorna qui il conteggio e trova, nella riga accanto, che deve anche
+ * togliere la voce da `OPEN_DECISIONS.md`. Un test che dicesse solo `>= 1` lascerebbe la chiusura passare in
+ * silenzio, e la distanza fra i due elenchi tornerebbe implicita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceDeclaredIsNotYetExecutableTest,
+	"RefactorTactics.Reactions.Brace.DeclaredIsNotYetExecutable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceDeclaredIsNotYetExecutableTest::RunTest(const FString&)
+{
+	struct FCase { const TCHAR* ProfileId; int32 Declared; int32 Executable; const TCHAR* Why; };
+	const FCase Cases[] = {
+		{ TEXT("Profile.Grounding"), 2, 1, TEXT("Charge del Grounding: aperta, spec §2.5") },
+		{ TEXT("Profile.Sidestep"),  2, 2, TEXT("decisa da BAS-4: SelfReposition 1") },
+		{ TEXT("Profile.Glance"),    3, 1, TEXT("ampiezza della deviazione: aperta, spec §2.5") },
+	};
+
+	for (const FCase& C : Cases)
+	{
+		const FName Id(C.ProfileId);
+		TestEqual(FString::Printf(TEXT("%s: dichiarate (%s)"), C.ProfileId, C.Why),
+			URTCatalogLibrary::BraceAllowedResponses(Id).Num(), C.Declared);
+		TestEqual(FString::Printf(TEXT("%s: eseguibili"), C.ProfileId),
+			URTCatalogLibrary::BraceExecutableResponses(Id).Num(), C.Executable);
+
+		// `Hold Ground` apre entrambi gli elenchi e non ha effetti propri: il suo esito e' il ramo
+		// `Status.Braced` del resolver, che gira da CP 5.2 e che [D-047] dichiara invariato.
+		TestEqual(FString::Printf(TEXT("%s: `Hold Ground` non passa dal motore effetti"), C.ProfileId),
+			URTCatalogLibrary::BraceResponseEffects(Id, TEXT("Hold Ground")).Num(), 0);
+	}
+
+	// La meta' che conta per il resolver: **solo** Sidestep apre davvero una finestra oggi. Un test che
+	// contasse le sole cardinalita' dichiarate resterebbe verde anche se il cablaggio non esistesse.
+	int32 OpensInPlay = 0;
+	for (const FCase& C : Cases)
+	{
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = URTCatalogLibrary::BraceExecutableResponses(FName(C.ProfileId));
+		if (URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp)) { ++OpensInPlay; }
+	}
+	TestEqual(TEXT("un solo profilo su tre apre la finestra in partita"), OpensInPlay, 1);
+
+	// E l'effetto di `SIDESTEP` e' la primitiva esistente, non una nuova: `SelfReposition 1`, la stessa che
+	// `Reaction.EmergencyDash` e `Reaction.HazardEscape` portano da D-093. Se qualcuno la sostituisse con un
+	// effetto proprio, il ramo del resolver che la legge continuerebbe a funzionare e la ragione per cui
+	// «nessun numero nuovo entra» sarebbe falsa senza che nulla diventi rosso.
+	const TArray<FRTActionEffectSpec> Sidestep =
+		URTCatalogLibrary::BraceResponseEffects(TEXT("Profile.Sidestep"), TEXT("SIDESTEP"));
+	if (TestEqual(TEXT("SIDESTEP dichiara un solo effetto"), Sidestep.Num(), 1))
+	{
+		TestTrue(TEXT("ed e' `SelfReposition`"), Sidestep[0].Effect == ERTActionEffect::SelfReposition);
+		TestEqual(TEXT("di una cella, come EmergencyDash e HazardEscape"), Sidestep[0].Amount, 1);
+	}
+
+	return true;
+}
+
+
+namespace
+{
+	/** Come `SpawnDefUnit`, ma l'eroe lo sceglie il chiamante: il profilo di reazione viene da li'. */
+	ARTUnit* SpawnDefHeroUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell, const URTHeroData* Hero)
+	{
+		if (!World || !Hero) { return nullptr; }
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false;
+		U->ConfigureFromHeroData(Hero);
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cell;
+		return U;
+	}
+
+	/**
+	 * Un Blast in cui `Attaccante` spinge `Difensore`, che e' in `Brace`. `Response` e' cio' che il decisore
+	 * risponde alla finestra; `nullptr` significa **nessun decisore collegato**, che e' il caso di un'unita'
+	 * umana senza UI.
+	 *
+	 * Restituisce la cella in cui il difensore finisce.
+	 */
+	FRTCellId RunBracePushTurn(const URTHeroData* DefenderHero, const TCHAR* Response, int32& OutPrompts)
+	{
+		OutPrompts = 0;
+		UWorld* World = MakeDefWorld();
+		if (!World) { return FRTCellId(); }
+		SpawnDefMap(World);
+
+		ARTUnit* Attaccante = SpawnDefUnit(World, 0, FRTCellId(0, 0, 0));
+		ARTUnit* Difensore  = SpawnDefHeroUnit(World, 1, FRTCellId(1, 0, 0), DefenderHero);
+		ARTTurnManager* TM  = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		FRTCellId Result;
+		if (Attaccante && Difensore && TM)
+		{
+			const int32 Push = AddDefAbility(Attaccante, TEXT("Action.Push"));
+			Attaccante->PlannedAbilityIndex = Push;
+			Attaccante->PlannedAttackTarget = Difensore;
+			Difensore->ApplyStatus(TAG_Status_Braced, 1);
+			Difensore->PlannedAbilityIndex = INDEX_NONE;
+
+			if (Response)
+			{
+				TM->ReactionDecider.BindLambda(
+					[Response, &OutPrompts](const FRTReactionOpportunity&, int32) -> FString
+					{
+						// Conta le volte in cui la finestra ha chiesto davvero: e' la differenza fra «si apre»
+						// e «si committa da sola», che il solo esito non distingue.
+						++OutPrompts;
+						return FString(Response);
+					});
+			}
+
+			RunDefTurn(TM);
+			Result = Difensore->Cell;
+		}
+
+		DestroyDefWorld(World);
+		return Result;
+	}
+}
+
+/**
+ * 🔵 **Il Reaction Profile ha un consumatore in PARTITA** ([D-047], fetta 3 di E14.7).
+ *
+ * Fino al 2026-08-19 `BraceAllowedResponses` aveva **zero** chiamanti fuori dai test e
+ * `ARTUnit::ReactionProfileId` era trasportato e mai letto: un dato con produttore e senza consumatore, che
+ * e' il difetto che `#583` chiama per nome — «supera ogni test unitario, e il gioco non avra' mai una
+ * condizione da valutare». Questo test e' la prova che il profilo attraversa il resolver.
+ *
+ * ⚠️ **Le tre meta' non sono ridondanti, e nessuna da sola dimostra la proprieta'**:
+ * · con `SIDESTEP` il difensore si muove — se mancasse, il profilo sarebbe letto e ignorato;
+ * · con `Hold Ground` resta — se mancasse, «si e' mosso» proverebbe solo che la spinta lo ha spostato, cioe'
+ *   che il `Brace` ha smesso di funzionare;
+ * · **senza decisore** resta, e la finestra non e' stata chiesta a nessuno — e' il fail-closed di ADR-0004
+ *   §3 applicato al `Brace`: la scelta sicura e' `Hold Ground`, non il `HOLD` dell'Overwatch, che qui non
+ *   sarebbe nemmeno una risposta legale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceProfileDecidesInPlayTest,
+	"RefactorTactics.Reactions.Brace.ProfileDecidesInPlay",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceProfileDecidesInPlayTest::RunTest(const FString&)
+{
+	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	if (!TestNotNull(TEXT("Phase, che porta `Profile.Sidestep`"), Phase)) { return false; }
+	if (!TestTrue(TEXT("e il profilo e' quello atteso"),
+		Phase->ReactionProfileId == FName(TEXT("Profile.Sidestep")))) { return false; }
+
+	const FRTCellId Start(1, 0, 0);
+
+	int32 PromptsSidestep = 0;
+	const FRTCellId ConScarto = RunBracePushTurn(Phase, TEXT("SIDESTEP"), PromptsSidestep);
+	TestTrue(TEXT("con `SIDESTEP` il difensore lascia la cella"), ConScarto != Start);
+	TestEqual(TEXT("e la finestra e' stata chiesta una volta"), PromptsSidestep, 1);
+
+	int32 PromptsHold = 0;
+	const FRTCellId ConHold = RunBracePushTurn(Phase, TEXT("Hold Ground"), PromptsHold);
+	TestTrue(TEXT("con `Hold Ground` resta dov'era"), ConHold == Start);
+	TestEqual(TEXT("e la finestra e' stata chiesta anche qui"), PromptsHold, 1);
+
+	int32 PromptsNessuno = 0;
+	const FRTCellId SenzaDecisore = RunBracePushTurn(Phase, nullptr, PromptsNessuno);
+	TestTrue(TEXT("senza decisore la scelta sicura tiene la posizione"), SenzaDecisore == Start);
+	TestEqual(TEXT("e nessuno e' stato interrogato"), PromptsNessuno, 0);
+
+	// **La baseline**: Riktor non ha un profilo, quindi nessuna finestra si apre per lui e il decisore non
+	// viene mai chiamato — nemmeno se ne colleghi uno che risponderebbe `SIDESTEP`. E' la meta' che protegge
+	// tutto cio' che e' verde oggi: se il profilo base aprisse un prompt, ogni `Brace` della v0.1 ne
+	// aprirebbe uno.
+	const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	if (TestNotNull(TEXT("Riktor"), Riktor))
+	{
+		int32 PromptsRiktor = 0;
+		const FRTCellId Piantato = RunBracePushTurn(Riktor, TEXT("SIDESTEP"), PromptsRiktor);
+		TestTrue(TEXT("Riktor tiene la cella col comportamento base"), Piantato == Start);
+		TestEqual(TEXT("e nessuna finestra si e' aperta per lui"), PromptsRiktor, 0);
+	}
+
+	// 🔴 **Wraith e' la meta' che pinna QUALE dei due elenchi il resolver interroga.** `Profile.Glance`
+	// dichiara **tre** risposte ([D-132]) e nessuna delle due extra ha effetti, quindi le eseguibili sono
+	// una sola e nessuna finestra si apre. Con `BraceAllowedResponses` al posto di `BraceExecutableResponses`
+	// il resolver aprirebbe qui un prompt su `GLANCE LEFT`, che poi non saprebbe applicare — e senza questa
+	// meta' la sostituzione resterebbe verde, perche' l'unita' finirebbe comunque ferma.
+	const URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+	if (TestNotNull(TEXT("Wraith"), Wraith))
+	{
+		int32 PromptsWraith = 0;
+		const FRTCellId Fermo = RunBracePushTurn(Wraith, TEXT("GLANCE LEFT"), PromptsWraith);
+		TestEqual(TEXT("nessuna finestra per un profilo senza effetti dichiarati"), PromptsWraith, 0);
+		TestTrue(TEXT("e il `Brace` di Wraith regge come sempre"), Fermo == Start);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

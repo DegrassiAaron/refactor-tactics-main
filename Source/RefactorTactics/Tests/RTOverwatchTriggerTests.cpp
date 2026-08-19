@@ -1580,4 +1580,66 @@ bool FRTClashGrammarIsACycleTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **La scelta sicura preferisce `HOLD` quando c'e', e altrimenti prende la prima** — e l'ordine dei due rami
+ * e' la regola, non un dettaglio di scrittura.
+ *
+ * 🔴 **Il caso che questo test esiste per impedire**: `DecisionOnTimeout` restituiva la costante `HOLD` e il
+ * commento dichiarava che «il valore non dipende dall'opportunity». Era vero finche' l'unico produttore di
+ * finestre era l'Overwatch; il `Brace` di [D-047] chiama la propria scelta sicura `Hold Ground`, e con la
+ * costante ognuna delle sue finestre sarebbe scaduta su una risposta **fuori** dalle proprie
+ * `AllowedResponses` — cioe' il resolver avrebbe applicato una risposta che lui stesso considera illegale.
+ *
+ * ⚠️ E la meta' che protegge l'Overwatch e' la prima: li' `HOLD` sta in **coda**, dopo i `FIRE:`. Una
+ * `SafeResponse` scritta come «prendi la prima» sparerebbe allo scadere della finestra, che e' esattamente
+ * cio' che ADR-0004 §3 vieta con l'argomento asimmetrico — un input mancato non spende una risorsa
+ * irreversibile. Le due meta' sono l'una il controllo dell'altra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSafeResponsePrefersHoldTest,
+	"RefactorTactics.Reactions.SafeResponsePrefersHoldWhenOffered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSafeResponsePrefersHoldTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+
+	// (a) Vocabolario dell'Overwatch, nell'ordine REALE che `BuildOverwatchTriggers` produce: i `FIRE:` e
+	// `HOLD` in coda. La prima risposta e' uno sparo, e non dev'essere l'esito di una scadenza.
+	{
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = { Lib::FireResponse(7), Lib::FireResponse(9), Lib::HoldResponse() };
+
+		TestEqual(TEXT("con `HOLD` in coda la scelta sicura resta `HOLD`"),
+			Lib::SafeResponse(Opp), Lib::HoldResponse());
+		TestEqual(TEXT("e la scadenza non spara"),
+			Lib::DecisionOnTimeout(Opp).Response, Lib::HoldResponse());
+		TestEqual(TEXT("l'esito dice da dove viene"),
+			Lib::DecisionOnTimeout(Opp).Outcome, ERTReactionDecisionOutcome::HoldTimeout);
+	}
+
+	// (b) Vocabolario del `Brace`: nessun `HOLD`, e la scelta sicura e' la prima — che il catalogo tiene in
+	// testa proprio per questo. La risposta dev'essere LEGALE, ed e' l'asserzione che il caso richiede:
+	// un ripiego fuori dall'elenco sarebbe un `IsResponseAllowed` falso deciso dal resolver stesso.
+	{
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = URTCatalogLibrary::BraceExecutableResponses(TEXT("Profile.Sidestep"));
+
+		TestEqual(TEXT("senza `HOLD` la scelta sicura e' la prima"),
+			Lib::SafeResponse(Opp), FString(TEXT("Hold Ground")));
+		TestTrue(TEXT("ed e' una risposta LEGALE per quella finestra"),
+			Lib::IsResponseAllowed(Opp, Lib::SafeResponse(Opp)));
+		TestFalse(TEXT("mentre `HOLD` non lo sarebbe"),
+			Lib::IsResponseAllowed(Opp, Lib::HoldResponse()));
+	}
+
+	// (c) Elenco vuoto: nessuna prima da prendere, e non se ne inventa una. Con zero risposte
+	// `RequiresDecisionBoundary` e' falso, quindi quella finestra non si e' mai aperta.
+	{
+		FRTReactionOpportunity Opp;
+		TestEqual(TEXT("elenco vuoto: `HOLD`"), Lib::SafeResponse(Opp), Lib::HoldResponse());
+		TestFalse(TEXT("e nessun boundary si era aperto"), Lib::RequiresDecisionBoundary(Opp));
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

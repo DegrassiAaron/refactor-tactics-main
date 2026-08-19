@@ -10,6 +10,43 @@ class URTActionData;
 #include "RTCatalogLibrary.generated.h"
 
 /**
+ * Una risposta del Reaction Profile, e gli **effetti** con cui si esprime (`spec-reaction-clash-e14.md` §5).
+ *
+ * ⚠️ **Gli effetti non sono un ornamento: sono cio' che rende la risposta eseguibile.** §5 dice che gli esiti
+ * si esprimono *«solo con le primitive del catalogo effetti gia' esistente … mai una callback»*, e una
+ * risposta senza effetti e' una scelta che il resolver non sa applicare — offrirla aprirebbe una finestra su
+ * un'opzione inerte, che e' peggio del non aprirla.
+ *
+ * 🔴 **Oggi UNO solo dei tre profili la dichiara, e l'assenza degli altri due e' un REGISTRO, non una
+ * dimenticanza**: `spec-reaction-clash-e14.md` §2.5 e [D-132] lasciano esplicitamente aperti «Charge del
+ * `Grounding`» e «ampiezza della deviazione». `Profile.Sidestep` ce l'ha perche' `BAS-4` lo ha deciso — «e'
+ * nuovo, si chiama `Profile.Sidestep` e risponde al **Forced Movement**», nella stessa forma di
+ * `Riva.FlowReaction` (`Reposition 1`) — e si esprime con `SelfReposition`, la primitiva che
+ * `Reaction.EmergencyDash` e `Reaction.HazardEscape` gia' usano. Nessun numero nuovo entra qui.
+ */
+USTRUCT()
+struct FRTReactionResponseDef
+{
+	GENERATED_BODY()
+
+	/** Il token della risposta, come compare in `AllowedResponses`: `SIDESTEP`, `GROUND`, `GLANCE LEFT`. */
+	UPROPERTY()
+	FString Response;
+
+	/**
+	 * Le primitive con cui la risposta si applica. **Vuoto = dichiarata ma non eseguibile**: il catalogo la
+	 * conta nella cardinalita' di [D-132] e il resolver non la offre, finche' la decisione che le manca non
+	 * e' presa. Le due domande sono diverse e questa e' la seconda.
+	 */
+	UPROPERTY()
+	TArray<FRTActionEffectSpec> Effects;
+
+	FRTReactionResponseDef() = default;
+	FRTReactionResponseDef(const FString& InResponse, const TArray<FRTActionEffectSpec>& InEffects)
+		: Response(InResponse), Effects(InEffects) {}
+};
+
+/**
  * Un **Reaction Profile**: cio' che `Action.Brace` arma, oltre alla risposta universale (E14.7, [D-047]).
  *
  * ⚠️ **Vive nel catalogo e non fra i dati d'eroe**, ed e' `spec-reaction-clash-e14.md` §2.5 a deciderlo:
@@ -35,12 +72,16 @@ struct FRTReactionProfileDef
 	/**
 	 * Le risposte oltre `Hold Ground`. **Vuoto per il profilo base**, e in quel caso la cardinalita' resta 1
 	 * — nessuna finestra si apre, che e' il caso di Riktor ([D-047], §2.5).
+	 *
+	 * ⚠️ Da `TArray<FString>` a `TArray<FRTReactionResponseDef>` il 2026-08-19: una risposta porta ora con se'
+	 * gli effetti con cui si applica. Il **contenuto** non cambia — i token e la cardinalita' di [D-132] sono
+	 * gli stessi — e cambia cio' che il resolver puo' chiedere al catalogo senza dedurlo.
 	 */
 	UPROPERTY()
-	TArray<FString> ExtraResponses;
+	TArray<FRTReactionResponseDef> ExtraResponses;
 
 	FRTReactionProfileDef() = default;
-	FRTReactionProfileDef(const FName& InProfileId, const TArray<FString>& InExtraResponses)
+	FRTReactionProfileDef(const FName& InProfileId, const TArray<FRTReactionResponseDef>& InExtraResponses)
 		: ProfileId(InProfileId), ExtraResponses(InExtraResponses) {}
 };
 
@@ -101,6 +142,32 @@ public:
 	 * nuova, nessun enum di tipo.
 	 */
 	static TArray<FString> BraceAllowedResponses(const FName& ProfileId);
+
+	/**
+	 * Le risposte che il resolver puo' **eseguire** oggi: `Hold Ground` piu' le extra che dichiarano effetti.
+	 *
+	 * 🔴 **Non e' un doppione di `BraceAllowedResponses`, e la differenza fra le due e' misurabile**: quella
+	 * dice cosa il profilo **dichiara** — la cardinalita' che [D-132] ha deciso, 2/2/3 — e questa cosa il
+	 * gioco **sa applicare**. Oggi divergono su due profili, e la divergenza non nasce qui: `Profile.Grounding`
+	 * e `Profile.Glance` esistono come contenuto deciso mentre «Charge del `Grounding`» e «ampiezza della
+	 * deviazione» restano dichiarati aperti dalla spec §2.5. Questa funzione rende quella distanza
+	 * **misurabile** invece di lasciarla implicita, e sparisce il giorno in cui le due voci si chiudono.
+	 *
+	 * ⚠️ E' fail-closed nello stesso verso di `FindReactionProfile`: una risposta che il resolver non sa
+	 * applicare non si offre. Offrirla aprirebbe una finestra su una scelta inerte — un prompt che rallenta la
+	 * resolution per non fare niente, e che nessun test distinguerebbe da uno che funziona.
+	 */
+	static TArray<FString> BraceExecutableResponses(const FName& ProfileId);
+
+	/**
+	 * Gli effetti con cui una risposta del profilo si applica, o **vuoto** se il profilo non la dichiara.
+	 *
+	 * `Hold Ground` restituisce vuoto ed e' corretto: il suo esito non passa dal motore effetti — e' il
+	 * comportamento che il ramo `Status.Braced` del resolver ha da CP 5.2, e [D-047] dichiara per iscritto che
+	 * **non si muove di un numero**. Tradurla in primitive sarebbe riscrivere una regola gia' scritta, cioe' la
+	 * seconda verita' che questa epic elenca fra i propri rischi.
+	 */
+	static TArray<FRTActionEffectSpec> BraceResponseEffects(const FName& ProfileId, const FString& Response);
 
 	/**
 	 * Vero se l'azione e' una mobilita' RAPIDA, cioe' risolve nella macro-fase Dash (scatto, carica, salto,

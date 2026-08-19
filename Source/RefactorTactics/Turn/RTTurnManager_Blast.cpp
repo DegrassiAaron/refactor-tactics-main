@@ -1064,6 +1064,12 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		// e da qui dipendono la sequenza del playback e quella del combat log.
 		TArray<ARTUnit*> KTargets;
 		TArray<FRTCellId> KFinal;
+
+		// Chi si e' spostato per SCELTA e non per la spinta ([D-047]): serve al solo verbo del log, che
+		// altrimenti racconterebbe «spinto» un'unita' che ha deciso di scartare. Il TurnLog esiste per dire
+		// QUALE difesa ha retto e quale no — un verbo sbagliato e' la stessa lacuna di `#420`, un livello sopra.
+		TSet<const ARTUnit*> Sidestepped;
+
 		for (ARTUnit* T : Units)
 		{
 			const int32* Pushes = KnockCount.Find(T);
@@ -1137,6 +1143,74 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// una spinta >= 2 avrebbe lasciato `Brace` senza mestiere. Quel mestiere ora esiste.
 			if (T->HasStatus(TAG_Status_Braced))
 			{
+				// ➕ **[D-047], fetta 3 di E14.7: da qui il `Brace` non decide piu' da solo.** Le risposte
+				// legali vengono dal Reaction Profile che l'unita' porta, e la loro CARDINALITA' dice se si
+				// apre una finestra — con la regola che ADR-0004 §2 ha gia' (`AllowedResponses >= 2`), non con
+				// una nuova. E' il punto in cui `URTCatalogLibrary::BraceAllowedResponses` smette di essere un
+				// dato che leggono solo i test.
+				//
+				// ⚠️ **Col profilo base non cambia NIENTE, ed e' una proprieta' e non una fortuna**: l'elenco
+				// ha la sola `Hold Ground`, `RequiresDecisionBoundary` e' falso, `AskReactionDecision`
+				// restituisce subito `HoldImmediate` senza chiedere a nessuno, e si finisce nelle due righe di
+				// sempre. Nessun prompt e nessuna sospensione per chi si copre e basta — la voce di DoD «col
+				// profilo base nessun boundary si apre» e' vera per COSTRUZIONE, non per un `if` che la
+				// protegge.
+				FRTReactionOpportunity BraceOpportunity;
+				BraceOpportunity.Key.TurnNumber = TurnNumber;
+				BraceOpportunity.Key.MacroPhase = ERTMatchPhase::Blast; // la spinta si risolve qui, e la
+				                                                        // chiave dice la fase del TURNO
+				BraceOpportunity.Key.OwnerId = Units.IndexOfByKey(T);
+				BraceOpportunity.Key.ReactionDefId = FName(TEXT("Action.Brace"));
+
+				// Le ESEGUIBILI, non le dichiarate: `Profile.Grounding` e `Profile.Glance` sono contenuto
+				// deciso da [D-132] e non hanno ancora effetti — offrirle qui aprirebbe una finestra su una
+				// scelta che il resolver non sa applicare, cioe' un prompt che ferma la resolution per non
+				// fare niente. La distanza fra i due elenchi e' misurata da un test, non lasciata implicita.
+				BraceOpportunity.AllowedResponses =
+					URTCatalogLibrary::BraceExecutableResponses(T->ReactionProfileId);
+
+				const FRTReactionDecision BraceDecision = AskReactionDecision(
+					BraceOpportunity, BraceOpportunity.Key.OwnerId, T->bIsBotControlled);
+
+				// La risposta si traduce in primitive del catalogo effetti (`spec-reaction-clash-e14.md` §5) e
+				// non in un ramo per token: un `if (Response == "SIDESTEP")` qui sarebbe il branch per eroe che
+				// [D-047] esiste per togliere, scritto una riga sotto la funzione che lo evita.
+				int32 EscapeSteps = 0;
+				for (const FRTActionEffectSpec& Effect :
+					URTCatalogLibrary::BraceResponseEffects(T->ReactionProfileId, BraceDecision.Response))
+				{
+					if (Effect.Effect == ERTActionEffect::SelfReposition)
+					{
+						EscapeSteps = Effect.Amount;
+					}
+				}
+
+				if (EscapeSteps > 0)
+				{
+					// 🔴 **Lo scarto NON si applica qui: entra in `KTargets` come una spinta qualunque.**
+					// Dentro questo ciclo le destinazioni degli altri bersagli si calcolano ancora sulle celle
+					// dello snapshot, e muovere un'unita' adesso le farebbe dipendere dall'ordine di
+					// iterazione — l'invariante #4. Passando di la' eredita anche il controllo di destinazione
+					// contesa, che dev'essere la stessa regola per tutti quelli che si muovono in questo Blast.
+					const FRTCellId Escape = URTHexCombatLibrary::HexKnockbackDestination(
+						KnockFrom[T], T->Cell, EscapeSteps, Map, KOccupied);
+					if (Escape != T->Cell)
+					{
+						KTargets.Add(T);
+						KFinal.Add(Escape);
+						Sidestepped.Add(T);
+						continue;
+					}
+
+					// Nessuna cella dove scartare — bordo, ostacolo, unita' dietro. Si ripiega sul
+					// comportamento base invece di sprecare la scelta, ed e' l'opposto di
+					// `Reaction.EmergencyDash` («se non c'e' dove andare si spreca»): li' una reazione si
+					// consuma, qui `Hold Ground` non e' una risorsa. Chi sceglie di scartare non deve finire
+					// meno protetto di chi non ha scelto affatto.
+					AddLogEvent(FString::Printf(
+						TEXT("%s: nessuna cella per scartare, tiene la posizione"), *T->GetName()));
+				}
+
 				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Braced, &PushCause);
 				continue;
@@ -1171,8 +1245,8 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			}
 
 			ARTUnit* T = KTargets[a];
-			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause, TEXT("Spinta"), Map,
-				ERTMatchPhase::Blast);
+			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause,
+				Sidestepped.Contains(T) ? TEXT("Scarto") : TEXT("Spinta"), Map, ERTMatchPhase::Blast);
 		}
 	}
 
