@@ -107,15 +107,26 @@ namespace
 		case ERTArchPendingClose::Committed:        return TEXT("Commit: la transizione e' stata scritta");
 		case ERTArchPendingClose::ClearedByUser:    return TEXT("ClearArch dal pannello");
 		case ERTArchPendingClose::SwitchedToRemove: return TEXT("passaggio a Remove");
+		// ⚠️ **`Count` e' un `case` esplicito, non una dimenticanza.** Senza, lo `switch` non copre tutti
+		// gli enumeratori e Clang emette `-Wswitch` — che sotto promozione dei warning e' un errore di
+		// compilazione in un file che oggi compila pulito. Non e' un motivo di chiusura: se arriva qui,
+		// qualcuno l'ha passata a `DestroyPendingGizmo`, e il testo deve dirlo invece di travestirsi da
+		// motivo plausibile.
+		case ERTArchPendingClose::Count:            return TEXT("<Count: sentinella, non un motivo di chiusura>");
 		}
 		return TEXT("<motivo non mappato>");
 	}
 
-	// Il fallback qui sopra e' l'ultima difesa, non la prima: senza questo assert un sesto enumeratore
-	// scivolerebbe dentro `<motivo non mappato>` a runtime, e il log direbbe di non sapere invece di
-	// dirlo a chi scrive il codice. `Count` non e' un motivo: e' il modo di contare gli altri.
+	// 🔴 **Questo assert pinna il CONTEGGIO, non la mappatura, e il suo messaggio non deve invitare ad
+	// aggirarlo** (corretto in code review, `#1052`). La prima stesura diceva «aggiorna
+	// `ArchPendingCloseToString` prima di toccare questo numero», e la via di minor resistenza era
+	// **bumpare il 5 a 6**: dopo di che il codice compila senza `case` per il motivo nuovo e il log degrada
+	// in silenzio — esattamente cio' che l'assert doveva impedire.
+	// La difesa vera contro un enumeratore non mappato e' lo `switch` esaustivo qui sopra (`-Wswitch` su
+	// Clang); questo assert e' la rete **secondaria**, e serve su MSVC, dove C4062 e' spento per default.
+	// ∴ se fallisce: aggiungi il `case`, poi aggiorna il numero. Mai il contrario.
 	static_assert(static_cast<uint8>(ERTArchPendingClose::Count) == 5,
-		"ERTArchPendingClose e' cambiato: aggiorna ArchPendingCloseToString prima di toccare questo numero.");
+		"ERTArchPendingClose e' cambiato: aggiungi il case in ArchPendingCloseToString, POI aggiorna questo numero.");
 }
 
 /**
@@ -165,8 +176,6 @@ void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 	Proxy = nullptr;
 	bHasFrom = false;
 	bToValid = false;
-	// Lo stato torna coerente: il prossimo orfano e' un evento nuovo e va segnalato di nuovo.
-	bOrphanMarkerReported = false;
 	if (Properties) { Properties->bHasFrom = false; Properties->bToValid = false; }
 }
 
@@ -298,19 +307,16 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 	// Arco pendente (indipendente dall'asset).
 	if (bHasFrom)
 	{
-		// `#1052`, punto 3 — lo stato che proverebbe la tesi di `#996` non era mai osservato. Se il gizmo
-		// manager ha distrutto il gizmo alle nostre spalle, la GC azzera `Gizmo` mentre `bHasFrom` resta
-		// vero: da qui in poi si disegna un marker verde su una scena che non ha piu' il gizmo, e nessuno
-		// lo dice. ⚠️ Una volta sola: `Render` gira a ogni frame, e sessanta righe al secondo sarebbero
-		// rumore invece di evidenza.
-		if (!Gizmo && !bOrphanMarkerReported)
-		{
-			bOrphanMarkerReported = true;
-			UE_LOG(LogTemp, Warning,
-				TEXT("[HexMode] Arco: marker pendente senza gizmo (From %s). `DestroyPendingGizmo` NON e' "
-					 "stata chiamata: il gizmo e' sparito senza il tool."),
-				*From.ToString());
-		}
+		// ⛔ **Qui stava un rilevatore di «marker senza gizmo», ed e' stato RITIRATO in code review**
+		// (`#1052`, punto 3). La condizione era `bHasFrom && !Gizmo`, sulla premessa che la GC azzerasse
+		// `Gizmo` quando il manager distrugge il gizmo alle spalle del tool. **La premessa e' falsa**:
+		// `Gizmo` e' una `UPROPERTY` **forte** (vedi la sua dichiarazione), quindi tiene l'oggetto
+		// raggiungibile e il puntatore non si azzera — la condizione puo' non avverarsi mai.
+		// ∴ era una verifica strutturalmente inosservabile, cioe' **lo stesso difetto che `#1052` corregge
+		// nel test**, ricommesso dentro la correzione. Vale la regola che questo repository applica gia'
+		// altrove: se una copertura non copre, si toglie invece di lasciarla a fare da falsa copertura.
+		// Osservare davvero quel caso richiede un canale diverso — un mirror `TWeakObjectPtr`, o una
+		// callback di distruzione del manager — e va deciso leggendo l'API, non assumendola.
 
 		RTHexEditor::DrawHexMarker(PDI, FromWorld, MarkerRadius, FColor::Green);
 		if (bToValid)

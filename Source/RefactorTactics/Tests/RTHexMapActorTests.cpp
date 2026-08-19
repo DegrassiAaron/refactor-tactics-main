@@ -275,15 +275,31 @@ bool FRTHexMapActorPickTest::RunTest(const FString&)
 
 namespace
 {
+	/**
+	 * L'ISM che si chiama cosi', o `nullptr`.
+	 *
+	 * Unico posto in cui la ricerca per nome e' scritta: le due funzioni sotto la condividono. Tenerne due
+	 * copie le faceva gia' divergere appena nate — una accumulava su tutti i componenti omonimi, l'altra
+	 * usciva al primo — e sarebbero state due risposte diverse alla stessa domanda.
+	 */
+	UInstancedStaticMeshComponent* FindIsm(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
+	{
+		TArray<UInstancedStaticMeshComponent*> Isms;
+		Actor->GetComponents(Isms);
+		for (UInstancedStaticMeshComponent* Ism : Isms)
+		{
+			if (Ism && Ism->GetName() == ComponentName) { return Ism; }
+		}
+		return nullptr;
+	}
+
 	/** Le istanze di un ISM, in world space: quello che l'autore della mappa vede davvero. */
 	TArray<FTransform> InstancesOf(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
 	{
 		TArray<FTransform> Out;
-		TArray<UInstancedStaticMeshComponent*> Isms;
-		Actor->GetComponents(Isms);
-		for (const UInstancedStaticMeshComponent* Ism : Isms)
+		if (const UInstancedStaticMeshComponent* Ism = FindIsm(Actor, ComponentName))
 		{
-			if (Ism->GetName() != ComponentName) { continue; }
+			Out.Reserve(Ism->GetInstanceCount());
 			for (int32 I = 0; I < Ism->GetInstanceCount(); ++I)
 			{
 				FTransform Xf;
@@ -303,13 +319,9 @@ namespace
 	 */
 	int32 InstanceCountOf(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
 	{
-		TArray<UInstancedStaticMeshComponent*> Isms;
-		Actor->GetComponents(Isms);
-		for (const UInstancedStaticMeshComponent* Ism : Isms)
-		{
-			if (Ism->GetName() == ComponentName) { return Ism->GetInstanceCount(); }
-		}
-		return INDEX_NONE; // componente assente: distinto da «presente e vuoto», che e' 0
+		const UInstancedStaticMeshComponent* Ism = FindIsm(Actor, ComponentName);
+		// `INDEX_NONE` = componente assente, distinto da «presente e vuoto», che e' 0.
+		return Ism ? Ism->GetInstanceCount() : INDEX_NONE;
 	}
 }
 
@@ -676,9 +688,13 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	// diventano non osservabili — si possono cancellare tutte e tre senza che una sola asserzione cada.
 	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius*/ 1); // 7 celle
 	{
-		// `ReliefHeightForCost(1) = 0`: al costo del pavimento il rilievo non esiste. Serve un sovrapprezzo.
+		// `ReliefHeightForCost(1) = 0`: al costo del pavimento il rilievo non esiste, serve un sovrapprezzo.
+		// ⚠️ Superficie E costo dal **catalogo**, come la riga 10 di questo file dichiara e come fa
+		// `CostReliefSurvivesTheSightSlab`: scrivere `MoveCost = 2` a mano produceva una cella che si
+		// dichiara `Floor` e costa come `Rough`, cioe' un dato che il pennello non potrebbe dipingere.
 		FRTHexCellData Costosa(FRTCellId(1, 0, 0));
-		Costosa.MoveCost = 2;
+		Costosa.Surface = ERTHexSurface::Rough;
+		Costosa.MoveCost = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Rough).MoveCost;
 		Asset->AddOrUpdateCell(Costosa);
 
 		FRTHexCellData Blocco(FRTCellId(0, 1, 0));
@@ -689,7 +705,9 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 		ConBordo.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low));
 		Asset->AddOrUpdateCell(ConBordo);
 
-		Asset->SortCells();
+		// ⚠️ Nessun `SortCells()`: i tre id esistono gia' nell'area di raggio 1, quindi `AddOrUpdateCell`
+		// prende il ramo di aggiornamento in place e l'ordine non cambia. Rimetterlo qui sarebbe un passo
+		// che sembra necessario e non lo e', e verrebbe copiato come tale nella prossima fixture.
 	}
 
 	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
@@ -707,7 +725,9 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	// Le DUE misure, e servono entrambe: l'array di mapping (sopra) e le istanze davvero nell'ISM (qui). La
 	// prima regge il raycast di selezione, la seconda e' cio' che si vede. Si scollano se la ricostruzione
 	// smette di ripulire il componente, ed e' proprio il caso che questo test esiste per prendere.
-	TestEqual(TEXT("l'ISM ha una istanza per cella"), InstanceCountOf(Actor, TEXT("Cells")), 7);
+	// `CelleIniziali` e non `7`: la dimensione della fixture e' gia' asserita sopra, e ripeterne il numero
+	// qui creerebbe due fatti apparentemente indipendenti che in realta' sono lo stesso.
+	TestEqual(TEXT("l'ISM ha una istanza per cella"), InstanceCountOf(Actor, TEXT("Cells")), CelleIniziali);
 
 	// I tre ISM che l'asset di default lasciava vuoti. I conteggi si leggono qui una volta sola e si
 	// riusano dopo le ricostruzioni: il test non incide i valori, verifica che NON cambino.

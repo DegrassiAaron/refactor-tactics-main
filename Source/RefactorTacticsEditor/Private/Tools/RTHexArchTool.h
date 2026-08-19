@@ -150,21 +150,6 @@ protected:
 	FRTCellId To;
 	bool bHasFrom = false;
 	bool bToValid = false;
-
-	/**
-	 * Il marker verde e' gia' stato segnalato come orfano — `#1052`, punto 3.
-	 *
-	 * `Gizmo` e' una `UPROPERTY TObjectPtr`: se il gizmo manager lo distrugge alle spalle del tool, la GC
-	 * azzera il puntatore mentre `bHasFrom` **resta vero**. `Render` continua a disegnare il marker su una
-	 * scena senza gizmo, e nessuno lo segnala. La coppia `bHasFrom && !Gizmo` e' la **firma positiva** di
-	 * «il gizmo e' sparito senza di noi», ed e' cio' che trasforma gli AC 2/3 di `#996` da *«non abbiamo
-	 * visto righe, quindi probabilmente…»* a un'osservazione registrata — **senza aprire l'editor**.
-	 *
-	 * ⚠️ Serve perche' `Render` gira a ogni frame: senza, la riga uscirebbe sessanta volte al secondo e
-	 * sarebbe rumore invece di evidenza. Si riarma in `DestroyPendingGizmo`, cioe' quando lo stato torna
-	 * coerente.
-	 */
-	bool bOrphanMarkerReported = false;
 	bool bSnapping = false;
 	FVector FromWorld = FVector::ZeroVector;
 	FVector ToWorld = FVector::ZeroVector;
