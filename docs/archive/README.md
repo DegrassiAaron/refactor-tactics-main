@@ -57,5 +57,5 @@ Dove sono finiti:
 | Path citato negli storici | Oggi |
 |---|---|
 | `docs/archive/pdr-v0.1/RT_PDR_NN_*.pdf` | [`pdr-v0.1/RT_PDR_v0.1_consolidato.md`](pdr-v0.1/RT_PDR_v0.1_consolidato.md), sezione `PDR-NN` |
-| `docs/src/prd/idee-base.pdf` · `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` | [`../src/prd/`](../src/), quattro documenti tematici |
+| `docs/src/prd/idee-base.pdf` · `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` | [`../research/prd/`](../research/prd/), quattro documenti tematici |
 | `docs/src/prd/sequenza-risoluzione-turno.pdf` | [`gameplay/sequenza-turno-exploratory.md`](gameplay/sequenza-turno-exploratory.md) — c'era già |

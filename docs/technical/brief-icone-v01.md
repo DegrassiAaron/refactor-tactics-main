@@ -38,16 +38,23 @@ sarebbero la stessa stringa in un log, e D-031 li vuole concetti distinti.
 
 ## Colore
 
-> **Recepito qui il 2026-08-12** da `docs/src/design/icon/visual-language/02-color-system.md`, che dichiara
+> **Recepito qui il 2026-08-12** da `docs/research/design/icon/visual-language/02-color-system.md`, che dichiara
 > di essere «sorgente di design, non canone». `docs/src/` diventa vincolante solo quando un owner
 > documentale lo consuma: questa sezione è quell'atto per i token **semantici**. I token **chrome**
 > (`RT_UI_*`) restano di [`progettazione-hud.md`](progettazione-hud.md) §32 e non si riscrivono qui.
 >
-> ⚠️ **La sorgente non è versionata e si è mossa durante il recepimento.** `docs/src/design/icon/` risulta
-> untracked, e la prima stesura di questa sezione ha recepito una versione superata **trentasei secondi**
-> prima che venisse corretta. Quello che segue è lo stato del **2026-08-12 ore 11:06**; finché quel materiale
-> non entra nel repository (issue di riconciliazione della tassonomia) ogni recepimento è una fotografia, e
-> il modo di accorgersene è confrontare i valori con `progettazione-hud.md`, che invece è versionato.
+> ⚠️ **La sorgente si è mossa durante il recepimento**, e la prima stesura di questa sezione ha recepito una
+> versione superata **trentasei secondi** prima che venisse corretta. Quello che segue è lo stato del
+> **2026-08-12 ore 11:06**, e il modo di accorgersi di una deriva è confrontare i valori con
+> `progettazione-hud.md`.
+>
+> ✅ **La clausola «la sorgente non è versionata» è scaduta.** Diceva che `docs/src/design/icon/` risultava
+> untracked e che ogni recepimento restava una fotografia «finché quel materiale non entra nel repository».
+> Quel materiale **è** nel repository — misurato: `git ls-files docs/research/design/icon` elenca i
+> documenti, e i 296 master iconografici stanno in `docs/generated/icons/` con il loro generatore
+> (`scripts/build-icon-assets.py`). Riscritta il 2026-08-19 con la fase 2 di
+> [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165): una condizione d'innesco già
+> scattata, che continuava a prescrivere un'attesa finita.
 
 ### La regola che governa tutte le altre
 

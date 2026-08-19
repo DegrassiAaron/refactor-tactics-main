@@ -3,7 +3,7 @@
 > **Stato**: canone di progetto · **Ultimo aggiornamento**: 2026-08-05
 > **Scopo**: raccogliere le decisioni operative vincolanti del gioco — invarianti, architettura, regole
 > numeriche — in un'unica specifica coerente. Questo documento è la **fonte di verità** per
-> l'implementazione. In caso di conflitto con i PRD in `docs/src/prd/`, prevale questo file.
+> l'implementazione. In caso di conflitto con i PRD in `docs/research/prd/`, prevale questo file.
 >
 > ⚠️ **Fase tutorial chiusa (2026-08-05)**: nato come riconciliazione dei due corsi (`02-Tutorial`,
 > `03-TutorialToMVP`) per costruire l'MVP, questo piano è ora il canone di un progetto di **prodotto**.
@@ -19,14 +19,14 @@
 | **Canonico (vincolante)** | *questo file* | Decisioni operative del progetto |
 | **Esecuzione** | [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) | Milestone, checkpoint, DoD misurabili, stato |
 | **Requisiti di lungo periodo** | [`../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6, QA, rischi — direzione, non scope |
-| **Visione (north-star)** | i 3 PRD + «Intenti condivisi», in [`../src/prd/`](../src/) | Prodotto a lungo termine, **non** scope attuale |
+| **Visione (north-star)** | i 3 PRD + «Intenti condivisi», in [`../research/prd/`](../research/prd/) | Prodotto a lungo termine, **non** scope attuale |
 | **Storico / superato** | `00-Intro.pdf`, `01-StrutturaTutorial.pdf`, `02-Tutorial.pdf`, `03-TutorialToMVP.pdf` — **rimossi da `docs/src/` il 2026-08-07**, recuperabili dallo storico git | Brief e corsi da cui è nato il progetto (fase chiusa) |
 
 I 4 PRD descrivono un prodotto molto più ambizioso (4v4 competitivo, GAS, netcode avanzato,
 modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 
 > ⚠️ **Formato cambiato il 2026-08-12**: i PRD erano **dieci PDF** in `docs/src/prd/`. Ora sono **quattro
-> Markdown tematici** ([indice](../src/)), per la regola di manutenzione PDR-00 §6 #5 /
+> Markdown tematici** ([indice](../research/prd/)), per la regola di manutenzione PDR-00 §6 #5 /
 > [D-009](../decisions/RT_PDR_00_Decision_Log.md). Posizione e autorità non cambiano: restano livello 8,
 > north-star, non normativi. I PDF restano nella storia Git.
 
@@ -412,9 +412,9 @@ Esplicitamente **fuori** dall'MVP, in ordine di priorità indicativa (P0 → P3)
 Il documento più completo per il post-MVP è **«PRD e piano completo di sviluppo»** (45 pagine). *(Fino al
 2026-08-12 questa riga citava il path `docs/RefactorTactics_ Product Requirements Document e piano completo di
 sviluppo.pdf`, che non esisteva più da mesi.)* Il suo testo è ora distribuito per tema fra
-[`prd-visione-e-requisiti.md`](../src/prd/prd-visione-e-requisiti.md),
-[`prd-architettura-rete-e-intenti.md`](../src/prd/prd-architettura-rete-e-intenti.md) e
-[`prd-percorso-didattico-e-produzione.md`](../src/prd/prd-percorso-didattico-e-produzione.md); ciascuno apre
+[`prd-visione-e-requisiti.md`](../research/prd/prd-visione-e-requisiti.md),
+[`prd-architettura-rete-e-intenti.md`](../research/prd/prd-architettura-rete-e-intenti.md) e
+[`prd-percorso-didattico-e-produzione.md`](../research/prd/prd-percorso-didattico-e-produzione.md); ciascuno apre
 con una sezione che dice quali di questi punti sono **recuperabili** e quali **superati**.
 
 Rispetto ai 3 PRD aggiunge decisioni/specifiche non altrove presenti, da usare come riferimento quando le

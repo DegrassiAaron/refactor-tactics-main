@@ -10,8 +10,8 @@ visibile finche' qualcuno non confronta i due file a occhio.
 Qui la geometria e' dichiarata **una volta** come lista di primitivi astratti; SVG e PNG sono due
 backend che la leggono. Correggere un'icona significa toccare un solo blocco di coordinate.
 
-Convenzioni (docs/src/design/icon/visual-language/01-principi.md)
-----------------------------------------------------------------
+Convenzioni (docs/research/design/icon/visual-language/01-principi.md)
+---------------------------------------------------------------------
 canvas 24x24 · visual bounds 20x20 · centro logico 12,12 · stroke ~2 px · max 3 componenti
 dominanti · master monocromatico e tintabile (bianco su alpha).
 
@@ -39,7 +39,12 @@ SS = 32
 """Fattore di supersampling. Si disegna a 24*32 px e si riduce con LANCZOS: e' cio' che produce
 un bordo pulito a 24 px senza che il glifo debba essere ridisegnato per ogni dimensione."""
 
-OUT = Path("docs/src/design/icon/assets")
+# ⚠️ Spostato il 2026-08-19 da `docs/src/design/icon/assets` (#1165, fase 2). Questi file sono
+# **output**, non ricerca: hanno un generatore committato e un `--check`, quindi vivono in
+# `docs/generated/`. La riga cambia **nello stesso commit** del `git mv` — una vista segue la
+# sorgente, e un generatore che scrive dove i file non stanno piu' li ricrea nel posto vecchio
+# senza che nessuno se ne accorga.
+OUT = Path("docs/generated/icons")
 PNG_SIZES = (16, 24, 48, 96)
 
 

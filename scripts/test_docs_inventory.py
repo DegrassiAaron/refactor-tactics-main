@@ -153,6 +153,15 @@ class TestInvarianti(unittest.TestCase):
             orfane_fuori_area_grezza=["docs/technical/img/z.png"]))
         self.assertEqual(guasti, 1)
 
+    def test_orfana_in_area_generata_non_e_una_violazione(self):
+        """Un output non ha riferimenti entranti **per costruzione**: il suo owner e' il generatore.
+        Senza questa via i 296 file di `docs/generated/icons/` sarebbero 296 violazioni il giorno
+        in cui la fase 2 di #1165 li sposta li'."""
+        guasti = inv.controlla(inventario_finto(
+            orfane=["docs/generated/icons/action-move-24.png"],
+            orfane_fuori_area_grezza=[]))
+        self.assertEqual(guasti, 0)
+
     def test_orfana_dichiarata_non_e_una_violazione(self):
         inv.ORFANE_NOTE["docs/technical/img/z.png"] = "2026-08-18 · ragione, #1165"
         guasti = inv.controlla(inventario_finto(orfane=["docs/technical/img/z.png"],
@@ -189,6 +198,17 @@ class TestContratto(unittest.TestCase):
         for prefisso in inv.FAMIGLIE_TEMPLATE:
             self.assertTrue(os.path.isdir(os.path.join(REPO, prefisso)),
                             f"FAMIGLIE_TEMPLATE nomina {prefisso}, che non esiste piu'")
+
+    def test_ogni_area_generata_ha_il_suo_generatore_nel_repository(self):
+        """La parte che conta di `GENERATI`: un output senza generatore committato e' un binario
+        scritto a mano con un'etichetta che mente, e l'esenzione smetterebbe di proteggere qualcosa.
+        E' anche il motivo per cui `docs/characters/images/` non e' nell'elenco — quelle card si
+        dichiarano generate in un manifest, e il generatore nel repository non c'e'."""
+        for area, generatore in inv.GENERATI.items():
+            self.assertTrue(os.path.isdir(os.path.join(REPO, area)),
+                            f"GENERATI nomina l'area {area}, che non esiste")
+            self.assertTrue(os.path.isfile(os.path.join(REPO, generatore)),
+                            f"l'area {area} dichiara {generatore}, che non esiste")
 
     def test_le_aree_grezze_esistono_o_sono_dichiarate_future(self):
         """`docs/research/` non esiste ancora: e' la destinazione della IA v2, e la riga entra

@@ -91,7 +91,7 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 | ADR [0002](docs/decisions/adr-0002-griglia-esagonale.md) · [0003](docs/decisions/adr-0003-modello-azioni-v01.md) · [0004](docs/decisions/adr-0004-finestre-di-reazione.md) | Pivot esagonale · modello azioni · finestre di reazione |
 | [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md) | Cosa aspetta una decisione, e perché non è deducibile |
 
-> ⚠️ I PRD in [`docs/src/prd/`](docs/src/) e il [corpus PDR](docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
+> ⚠️ I PRD in [`docs/research/prd/`](docs/research/prd/) e il [corpus PDR](docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
 > descrivono un prodotto più ambizioso dello scope corrente
 > e in parte si contraddicono. Le decisioni effettive sono riconciliate nel **piano canonico**, che ha la
 > precedenza; i conflitti noti sono registrati in

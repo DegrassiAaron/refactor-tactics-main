@@ -16,7 +16,7 @@
 > [`../technical/h6-5-hex-bot-spec.md`](../technical/h6-5-hex-bot-spec.md) (tutte `AS-BUILT`).
 > Com'è oggi: [`../technical/architettura-codice.md`](../technical/architettura-codice.md) ·
 > [`../technical/spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md).
-> **Contesto sorgente**: `/sc:spec-panel` su [`editor-griglia-esagonale-e-mappa.md`](../src/prd/editor-griglia-esagonale-e-mappa.md)
+> **Contesto sorgente**: `/sc:spec-panel` su [`editor-griglia-esagonale-e-mappa.md`](../research/prd/editor-griglia-esagonale-e-mappa.md)
 > *(era un `.docx`, convertito il 2026-08-12)*
 
 ## Contesto

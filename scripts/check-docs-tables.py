@@ -43,7 +43,7 @@ DOCS = os.path.join(REPO, "docs")
 
 # ⚠️ Esenzioni per **prefisso di path**: spostare un documento ne cambia la copertura in silenzio.
 # Misurato il 2026-08-17 con `EXEMPT_DIRS = ()`: lo scope passa da 165 a 404 documenti e il gate esce
-# 1 su sei file (i quattro PRD di `docs/src/prd/`, `docs/roadmap/plans/h5c7-flood-fill-spec.md`,
+# 1 su sei file (i quattro PRD, oggi in `docs/research/prd/`, `docs/roadmap/plans/h5c7-flood-fill-spec.md`,
 # `docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md`).
 # ➕ `docs/research/` dal 2026-08-18, prima che la cartella esista: e' dove la IA v2 di #1165 porta
 # `docs/src/`, e la natura del materiale non cambia col nome. Vedi la nota gemella in

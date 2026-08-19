@@ -20,10 +20,14 @@ quante immagini ci fossero, chi le usasse, quali fossero la stessa immagine due 
      puo' essere legittimo — vedi `DUPLICATI_NOTI` — ma deve essere **scritto**, con la ragione
      accanto. Non e' un'esenzione: e' una promessa che il gate verifica al contrario, e una voce
      che non corrisponde piu' a niente lo fa fallire, esattamente come `DEBITO_NOTO` dell'altro gate.
-  3. **Un'immagine orfana sta solo in area di ricerca.** Misurato il 2026-08-17: le 393 immagini
-     senza un solo riferimento erano **tutte** sotto `docs/src/`, e fuori di li' gli orfani erano
-     **zero**. E' la proprieta' che la riorganizzazione deve conservare — un'immagine che nessuno
-     usa e che non e' materiale grezzo e' un file che nessuno sa perche' e' li.
+  3. **Un'immagine orfana sta solo in area di ricerca, o e' un output con un owner.** Misurato il
+     2026-08-17: le 393 immagini senza un solo riferimento erano **tutte** sotto `docs/src/`, e
+     fuori di li' gli orfani erano **zero**. E' la proprieta' che la riorganizzazione deve
+     conservare — un'immagine che nessuno usa e che non e' materiale grezzo e' un file che nessuno
+     sa perche' e' li.
+     ⚠️ Un **generato** non ha riferimenti entranti e non deve averne: il suo owner e' il generatore
+     che lo scrive, dichiarato in `GENERATI`. Chiedere un link a `docs/generated/icons/` sarebbe la
+     domanda sbagliata — sono 296 file prodotti da una geometria, non da una pagina.
      ⚠️ **Questo terzo invariante si valuta solo con `--wiki-root`**, e senza lo script lo dice
      invece di fingere: il clone e' un repository separato (D-076) che incorpora otto radar SVG e
      `roadmap-map.svg` via `raw.githubusercontent.com`. Senza il clone quei nove risultano orfani —
@@ -58,6 +62,23 @@ TEXT_EXT = (".md", ".py", ".ts", ".js", ".mjs", ".html", ".json", ".yaml", ".yml
 
 # Aree in cui un'immagine orfana e' ammessa: materiale grezzo non ancora consumato, e storico.
 AREE_GREZZE = ("docs/src/", "docs/research/", "docs/archive/")
+
+# Aree **generate**: il loro owner non e' un documento che le incorpora, e' il generatore che le
+# scrive. Chiedere un riferimento entrante a un output sarebbe la domanda sbagliata — i 296 file di
+# `docs/generated/icons/` non li linka nessuno e non devono: li produce `build-icon-assets.py` dalla
+# geometria dichiarata, e cancellarli o rinominarli si fa toccando quello.
+#
+# ⚠️ Il generatore dev'essere **committato**, ed e' la parte che conta: un output senza generatore
+# nel repository e' un binario scritto a mano con un'etichetta che mente. `TestContratto` verifica
+# che ognuno di questi file esista davvero, cosi' una rinomina del generatore non lascia in piedi
+# un'esenzione che non protegge piu' niente. Trovato misurando: le 38 card Paragon si dichiarano
+# «generated wiki data cards» in un manifest, e il loro generatore **non e' nel repository** —
+# per questo `docs/characters/images/` NON e' qui dentro.
+GENERATI = {
+    "docs/generated/icons/": "scripts/build-icon-assets.py",
+    "docs/characters/radar/": "tools/radar/generate.ts",
+    "docs/roadmap/charts/": "scripts/feature_registry.py",
+}
 
 # Duplicati esatti dichiarati: SHA-256 -> ragione. NON e' un'esenzione, e' una **promessa datata**:
 # il gate la verifica al contrario, e una voce che non corrisponde piu' a un gruppo vivo lo fa
@@ -312,7 +333,9 @@ def inventario(wiki_root=None):
 
     orfane = sorted(r for r in immagini if not entranti.get(r))
     orfane_fuori = [r for r in orfane
-                    if not r.startswith(AREE_GREZZE) and r not in ORFANE_NOTE]
+                    if not r.startswith(AREE_GREZZE)
+                    and not r.startswith(tuple(GENERATI))
+                    and r not in ORFANE_NOTE]
 
     candidati = []
     saltate_template = 0
@@ -351,6 +374,7 @@ def inventario(wiki_root=None):
             "riferimenti": len(refs),
             "immagini_referenziate": sum(1 for r in immagini if entranti.get(r)),
             "orfane": len(orfane),
+            "orfane_generate": sum(1 for r in orfane if r.startswith(tuple(GENERATI))),
             "gruppi_duplicati_esatti": len(duplicati),
             "near_duplicate_candidati": len(candidati),
             "coppie_template_escluse": saltate_template,
@@ -369,6 +393,7 @@ def stampa_report(inv):
     print(f"riferimenti raccolti: {c['riferimenti']} · immagini referenziate: "
           f"{c['immagini_referenziate']}/{c['immagini']}")
     print(f"orfane: {c['orfane']} (ammesse in {', '.join(AREE_GREZZE)}) · "
+          f"generate con owner: {c['orfane_generate']} · "
           f"fuori area: {len(inv['orfane_fuori_area_grezza'])}")
     print(f"gruppi di duplicati esatti: {c['gruppi_duplicati_esatti']} "
           f"(dichiarati in DUPLICATI_NOTI: {len(DUPLICATI_NOTI)})")
@@ -424,9 +449,10 @@ def controlla(inv):
         print(f"\nERRORE — {len(fuori)} immagini senza un solo riferimento, fuori dall'area grezza:")
         for p in fuori:
             print(f"  {p}")
-        print(f"  Un'immagine orfana e' ammessa solo in {', '.join(AREE_GREZZE)}: altrove significa")
-        print("  che nessuno sa perche' e' li. Collegala al documento che la possiede, spostala")
-        print("  nell'area giusta, oppure dichiarala in ORFANE_NOTE con la ragione accanto.")
+        print(f"  Un'immagine orfana e' ammessa solo in {', '.join(AREE_GREZZE)}, o in un'area")
+        print(f"  generata con owner dichiarato ({', '.join(GENERATI)}): altrove significa che nessuno")
+        print("  sa perche' e' li. Collegala al documento che la possiede, spostala nell'area giusta,")
+        print("  oppure dichiarala in ORFANE_NOTE con la ragione accanto.")
 
     orfane_vive = set(inv["orfane"])
     note_stantie = [p for p in ORFANE_NOTE if p not in orfane_vive]

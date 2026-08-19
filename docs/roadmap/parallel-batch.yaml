@@ -5978,7 +5978,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: null
+    branch: docs/1165-fase2-src-prd-icon-showcase-grid
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6056,6 +6056,41 @@ tracks:
       `docs/src/design/icon/**` (285 asset + 16 documenti), `docs/src/showcase/`, `docs/src/grid/` e i due
       handoff nella radice di `docs/src/`. Il riordino di `docs/src/wiki/` **e' gia' fatto** e non va
       rifatto. Le 24 schede in `docs/src/wiki/v0.1/roster-legacy/` non sono di questa issue: sono #1166.
+
+      ➕ **Fase 2, 2026-08-19** — quattro aree di `docs/src/` prendono il nome che dice cosa sono.
+      Intersezione misurata su **42** riferimenti: **una** collisione sola, e la si evita invece di
+      risolverla (sotto).
+      · `docs/src/prd/` -> `docs/research/prd/`
+      · `docs/src/design/icon/{visual-language,CLAUDE_DESIGN_*,*.csv}` -> `docs/research/design/icon/`
+      · `docs/src/design/icon/assets/` -> **`docs/generated/icons/`**: ha un generatore committato con
+        un `--check`, quindi non e' ricerca ma output. `OUT` di `scripts/build-icon-assets.py` cambia
+        **nello stesso commit** — una vista che segue la sorgente, al contrario
+      · `docs/src/showcase/` -> `docs/research/design/showcase/` · `docs/src/grid/` -> `.../grid/`
+      · l'unico handoff non-icona finito sotto `design/icon/` va in `docs/research/handoff/`
+
+      ⚠️ **`docs/generated/` NON e' in `EXEMPT_DIRS` e non deve entrarci**: un generato che cita un
+      simbolo inesistente e' un difetto del generatore. Nessun `.md` si sposta li' — misurato, sono 285
+      immagini e zero documenti.
+
+      ⚠️ **File `integration_only` toccati una volta**, ed e' la loro regola: `docs/product/showcase-v0.1.md`,
+      `docs/roadmap/roadmap-v0.1.md`, `docs/roadmap/v0.1-issue-plan.md`, i cinque cataloghi di
+      `docs/balance/`, `docs/decisions/RT_PDR_00_Decision_Log.md` e `adr-000{2,3}`.
+      🔴 **Non era il piano, ed e' un errore di misura da registrare.** La prima stesura di questa nota
+      diceva *«due righe di prosa»* e teneva `v0.1-issue-plan.md` fuori dal write-set per non collidere
+      con `feat/166-cp146` (PR #1162). Il grep che aveva prodotto quella conclusione cercava
+      `docs/src/prd`, cioe' la forma **assoluta**: i link veri sono **relativi** — `../src/prd/x.md` — e
+      non li vedeva. Misurati con il gate invece che col grep, i link rotti erano **26 in 16 file**, e
+      uno era proprio li. Un link rotto non e' una citazione stantia: o si aggiorna, o
+      `check-docs-links.py` resta rosso. La collisione su quel file va risolta al merge; e' un `git mv`
+      di riferimenti, quindi il conflitto e' testuale e banale.
+      ⛔ **Il Decision Log: link si, prosa no.** `D-026` cita
+      `docs/src/showcase/relay-v0.1-scenario-spec.md` in prosa fra backtick — resta com'e', perche' e'
+      un record datato e la regola di `docs/README.md` dice che uno storico non si corregge. Il **link**
+      alla riga 120, invece, e' stato riscritto: un link che non risolve non e' storia, e' un difetto.
+      ⛔ **E il Decision Log non si tocca**: `D-026` cita
+      `docs/src/showcase/relay-v0.1-scenario-spec.md` come provenienza, ed e' un **record datato** — la
+      regola di `docs/README.md` dice che uno storico che descrive un mondo scomparso non si corregge.
+      Il nuovo path e' nel commit di move, che `git log --follow` attraversa.
     writable:
       - docs/control-center/graph.test.mjs
       - docs/README.md
@@ -6063,6 +6098,25 @@ tracks:
       - scripts/test_docs_inventory.py
       - scripts/check-docs-symbols.py
       - scripts/check-docs-tables.py
+      # Fase 2: le quattro aree e le loro destinazioni, piu' i file che i loro riferimenti costringono
+      # a toccare. Le sorgenti restano dichiarate finche' il move non e' mergiato: un `git mv` scrive
+      # da entrambi i lati.
+      - docs/src/prd/
+      - docs/src/design/icon/
+      - docs/src/showcase/
+      - docs/src/grid/
+      - docs/research/
+      - docs/generated/
+      - scripts/build-icon-assets.py
+      - README.md
+      - docs/archive/README.md
+      - docs/product/piano-canonico-mvp.md
+      - docs/technical/brief-icone-v01.md
+      # ⚠️ Entrano dopo la misura col gate, non prima: i 26 link rotti stavano in questi file e in
+      # forma relativa, che il grep sulla forma assoluta non vedeva.
+      - docs/CHANGELOG_DOCUMENTATION.md
+      - docs/roadmap/hex-map-roadmap.md
+      - docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md
     derives_from: []
     binary_leases: []
 

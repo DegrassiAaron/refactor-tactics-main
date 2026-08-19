@@ -24,7 +24,7 @@ deterministico, su una griglia **esagonale multilivello**.
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |
 | 6 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
 | 7 | **Requisiti lungo periodo** | [`roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6 — **direzione, non scope** |
-| 8 | **Visione north-star** | [`src/prd/`](src/) — i PRD, in Markdown dal 2026-08-12 | Prodotto a lungo termine, **non** obiettivo attuale |
+| 8 | **Visione north-star** | [`research/prd/`](research/prd/) — i PRD, in Markdown dal 2026-08-12 | Prodotto a lungo termine, **non** obiettivo attuale |
 | 9 | **Storico** | [`archive/`](archive/) | Materiale superato, conservato per provenienza |
 
 > **Il canone e gli ADR non possono divergere.** La tabella dice che il livello 1 prevale sul livello 2, ma un
@@ -137,7 +137,7 @@ progressione, modding.
 **Quali decisioni sono definitive?** Quelle in [`decisions/`](decisions/) con stato `Consolidata` e gli
 invarianti del canone. **Quali sono aperte?** [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md).
 
-**Cosa è solo storico?** Tutto in [`archive/`](archive/); i PRD di visione in [`src/`](src/) e il corpus PDR in
+**Cosa è solo storico?** Tutto in [`archive/`](archive/); i PRD di visione in [`research/prd/`](research/prd/) e il corpus PDR in
 [`archive/pdr-v0.1/`](archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md); i piani consegnati in
 [`roadmap/plans/`](roadmap/plans/); e i singoli documenti che portano in testa il banner **⚠️ Superato** o
 **📦 Piano consegnato**.
@@ -201,7 +201,13 @@ docs/
 ├── characters/  pagine personaggio: v0.1, v0.2, candidati Paragon — **un kit per pagina**
 │   └── radar/   gli otto SVG generati da `tools/radar/`: output, non si editano
 ├── control-center/  la vista web sopra gli artefatti generati dal Feature Registry
-├── src/         sorgenti non normativi ancora da consumare: PRD di visione, dataset, media
+├── research/    non normativo: PRD di visione, design, handoff — la ex `src/`, col nome che lo dice
+│   ├── prd/        i quattro PRD tematici + il prompt del pivot esagonale
+│   ├── design/     icone, showcase, griglie stampabili
+│   └── handoff/    prompt e consegne di sessione, non ancora consumati
+├── generated/   **output**, non ricerca: ha un generatore committato e non si edita
+│   └── icons/      i master iconografici di `scripts/build-icon-assets.py`
+├── src/         quel che resta della casella di posta, in attesa di triage
 └── archive/     materiale superato
     ├── src/        i sorgenti già recepiti: design, handoff, audit
     └── pdr-v0.1/   il corpus PDR v0.1, consolidato in un Markdown
@@ -218,8 +224,12 @@ docs/
 1. **I nomi dei file restano in italiano kebab-case**, non `UPPER_SNAKE` inglese come nella struttura di
    riferimento. Il repository ha una convenzione consolidata e mescolarla peggiorerebbe la leggibilità;
    la clausola «riutilizzare i file esistenti quando possibile» lo consente.
-2. **`src/` non è documentazione**: è la casella di posta dei sorgenti grezzi (PRD di visione, brief non ancora
-   triagiati). Vive accanto ai documenti perché è da lì che nascono, ma **non è normativa** e non compare nella
+2. **`src/` non è documentazione**: è la casella di posta dei sorgenti grezzi (brief non ancora triagiati).
+   > **Dal 2026-08-19 si sta svuotando davvero** ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165),
+   > fase 2): PRD, icone, showcase e griglie sono sotto [`research/`](research/), e i 296 master
+   > iconografici — che hanno un generatore — sotto [`generated/icons/`](generated/icons/). `src` era
+   > ambiguo in un repository che ha anche `Source/`, e conteneva quattro cose diverse sotto un nome
+   > che non ne descriveva nessuna. Vive accanto ai documenti perché è da lì che nascono, ma **non è normativa** e non compare nella
    gerarchia delle fonti sopra il livello 8.
    > **Dal 2026-08-08 la casella si svuota.** Un sorgente recepito si sposta in
    > [`archive/src/`](archive/src/README.md), invece di restare con un banner. La cartella `src/` risponde ora
@@ -235,8 +245,8 @@ dicono già; la cartella no, e finché non lo dice l'etichetta va cercata un fil
 | Natura | Dove sta | Chi la scrive | Cosa succede se la si edita |
 |---|---|---|---|
 | **authored** | `product/` · `gameplay/` · `technical/` · `balance/` · `decisions/` · `characters/` | una persona | è il posto giusto: qui si cambia una regola |
-| **generated** | `roadmap/*.shortlist.md` · `roadmap/*.json` · `roadmap/charts/` · `characters/radar/` | un generatore | **si perde alla rigenerazione**: si corregge la sorgente |
-| **research** | `src/` oggi, `research/` nella struttura target | chiunque, senza gate | non decide niente, e non risolve un conflitto |
+| **generated** | `generated/` · `roadmap/*.shortlist.md` · `roadmap/*.json` · `roadmap/charts/` · `characters/radar/` | un generatore | **si perde alla rigenerazione**: si corregge la sorgente |
+| **research** | `research/`, più quel che resta in `src/` | chiunque, senza gate | non decide niente, e non risolve un conflitto |
 | **archive** | `archive/` | nessuno: si conserva | riscriverla falsifica la storia |
 
 **`src/` diventa `research/`** ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)):
