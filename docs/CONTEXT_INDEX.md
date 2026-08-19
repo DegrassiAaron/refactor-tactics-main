@@ -26,7 +26,8 @@ Per default **NON fanno parte del contesto autorevole**:
 
 - file allegati in chat o caricati esternamente in conversazioni precedenti;
 - copie locali/PDF degli stessi documenti se nel repository esiste una versione Markdown corrente;
-- `docs/src/` salvo richiesta esplicita di vision/north-star/provenienza;
+- `docs/research/` salvo richiesta esplicita di vision/north-star/provenienza — è la ex `docs/src/`,
+  svuotata il 2026-08-19 ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165));
 - `docs/archive/` salvo richiesta storica;
 - handoff/prompt temporanei, inclusi file root del tipo `*_Claude_*.md`, salvo che il task chieda proprio di consolidarli;
 - workbook di ricerca non canonici quando esiste un catalogo Markdown owner.
@@ -161,8 +162,15 @@ Il repository ne ha **due**, e nessuna gira in CI: i gate si eseguono **a mano**
 
 | | dove | cosa |
 |---|---|---|
-| **Python** | `scripts/` | `check-docs-links.py` · `check-docs-symbols.py` · `check-docs-tables.py` · `feature_registry.py` · `rt_shared_id.py` |
+| **Python** | `scripts/` | **ogni** `scripts/check-*.py` — `ls scripts/check-*.py` è l'elenco, e non si trascrive qui — più `feature_registry.py`, `rt_shared_id.py` e `docs_inventory.py`, che non seguono quel prefisso e vanno nominati |
 | **Node 22** | `tools/radar/` | rubrica dei rating e generatore SVG dei radar di personaggio |
+
+> 🔴 **Fino al 2026-08-19 questa tabella elencava i gate Python per nome, e ne conosceva tre su sei.**
+> Mancavano `check-docs-naming.py`, `check-capability-owners.py` e `check-equipment-defaults.py`, più
+> `docs_inventory.py`, che è nato dopo. È lo stesso difetto che `AGENTS.md` ha già pagato e corretto il
+> 2026-08-16, con la stessa causa: **un elenco scritto a mano dentro un documento non ha modo di
+> accorgersi di un file nuovo**, e chi aggiunge un gate non passa di qui. La forma `check-*` si aggiorna
+> da sé; i tre che non la seguono restano nominati, perché lì l'elenco è l'unica via.
 
 `tools/radar/` legge i cataloghi di bilanciamento, calcola i rating dei radar e produce gli SVG in
 [`characters/radar/`](characters/radar/), che sono **versionati con un gate**:

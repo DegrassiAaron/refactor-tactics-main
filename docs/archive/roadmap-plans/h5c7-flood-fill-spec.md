@@ -5,11 +5,11 @@
 > La specifica del checkpoint, congelata. **Il corpo qui sotto non va aggiornato**: comandi, nomi di branch e percorsi sono quelli di allora, e
 > correggerli falsificherebbe la storia invece di renderla utile.
 >
-> Stato corrente: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) · indice dei documenti correnti:
+> Stato corrente: [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) · indice dei documenti correnti:
 > [`../../README.md`](../../README.md). Banner aggiunto il 2026-08-08.
 
 > **Stato**: Approvata (design) · **Data**: 2026-08-04 · **Branch**: `feat/hex-grid`
-> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../hex-map-roadmap.md) (riga H5c+, shape/fill). Non tocca il quadrato.
+> **Fonte**: milestone H5 di [`hex-map-roadmap.md`](../../roadmap/hex-map-roadmap.md) (riga H5c+, shape/fill). Non tocca il quadrato.
 
 ## 1. Contesto e obiettivo
 Dipingere cella-per-cella (anche con drag/raggio) è lento per riempire regioni ampie della stessa superficie.

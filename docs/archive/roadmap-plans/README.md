@@ -17,8 +17,19 @@ criterio sbagliato in questo repository — coglieva **35** file su **68** che u
 dei 35 ne prendeva **22 dichiarati `CURRENT`**.
 
 Il criterio giusto era già scritto dentro i documenti: il **banner di stato**. Questa cartella raccoglie i
-soli piani che si dichiaravano `HISTORICAL` o `SNAPSHOT` — cioè quelli che avevano già smesso di pretendere
-di essere veri.
+soli piani che si dichiarano **storici** — `DELIVERED PLAN`, `AS-BUILT`, `DONE`, `BRIEF`, `HISTORICAL` —
+cioè quelli che avevano già smesso di pretendere di essere veri.
+
+> 🔴 **Fino al 2026-08-19 questa riga diceva «`HISTORICAL` o `SNAPSHOT`», e contraddiceva l'altro owner.**
+> [`../../roadmap/plans/README.md`](../../roadmap/plans/README.md) dice che uno `SNAPSHOT` **resta là**
+> finché è *l'ultima misura del suo oggetto*: è la stessa regola detta con più precisione, e fra due
+> owner che si contraddicono ha vinto il più fine. Nessuno dei 12 `SNAPSHOT` è stato spostato — se lo
+> fossero stati sulla riga vecchia, l'archivio avrebbe assorbito misure ancora valide e nessun gate
+> lo avrebbe detto: due documenti in prosa che si contraddicono non li vede nessuno script.
+>
+> ➕ **Nello stesso giorno sono arrivati 23 documenti** che il criterio raccoglieva già e che erano
+> rimasti in `roadmap/plans/`: la fase 6 di [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165) ha applicato la regola
+> invece di riscriverla.
 
 > ⚠️ **Nessuno stato è stato riscritto per farli entrare qui.** È la differenza fra archiviare e dichiarare
 > superato: la prima è una riorganizzazione, la seconda è un'affermazione su un documento. Un archivio che
