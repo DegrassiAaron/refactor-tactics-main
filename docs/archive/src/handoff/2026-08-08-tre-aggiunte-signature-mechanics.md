@@ -14,7 +14,7 @@
 
 ## Correzioni applicate il 2026-08-08
 
-Testo originale **intatto** (convenzione 4 dei sorgenti, riaffermata da [`../README.md`](../README.md)). Errori di fatto rilevati
+Testo originale **intatto** (la convenzione dei sorgenti, riaffermata da [`../README.md`](../README.md)). Errori di fatto rilevati
 eseguendo la task:
 
 | § | Affermazione originale | Correzione |

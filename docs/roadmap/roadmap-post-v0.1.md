@@ -11,7 +11,8 @@
 
 ## Perché esiste
 
-Sette documenti di `docs/archive/src/` prodotti il 2026-08-07/08 descrivono sistemi che **non stanno nella v0.1**:
+Sette documenti prodotti il 2026-08-07/08 in `docs/src/`, oggi in `docs/archive/src/`, descrivono sistemi che
+**non stanno nella v0.1**:
 roster a 8, Cover Window, architettura di muri e porte, formato competitivo 3v3, bot tattico ed esperto,
 mappe Operations. Finché sono rimasti solo lì, ogni sessione ha dovuto ridecidere da capo se una cosa fosse
 v0.1 o no. Questo file registra quella ripartizione una volta sola.
