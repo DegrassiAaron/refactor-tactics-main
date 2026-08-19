@@ -423,9 +423,16 @@ essere costruita, come `Spec.Overwatch.HoldThenFire`. Il gate `requires` dichiar
 (`DecisionBoundary`, `ReactionClash`).
 
 > ✅ **`Spec.Brace.ProfileChangesResponse` è VERDE dal 2026-08-19** (E14.7 fetta 4): `ReactionProfile` è fra le
-> capability disponibili e il suo T2 non è più `intents: []`. Gli otto `Spec.Clash.*` restano `BLOCKED` su
-> `ReactionClash`, che è tuttora indisponibile — le sue funzioni pure esistono e **nessun punto del resolver
-> le chiama**.
+> capability disponibili, e il file **esegue ciò che descrive** — un turno solo, con una `decisions` che
+> risponde `SIDESTEP` a una finestra che si apre davvero.
+> 🔴 **Questa riga diceva «il suo T2 non è più `intents: []`», e quel T2 non esiste**: lo scenario è a **un
+> turno**, perché `Action.Brace` dura 1 turno e ha cooldown 1 — al T2 lo stato è scaduto e l'azione non è
+> ridichiarabile. La frase descriveva il piano invece del file, ed era ripetuta identica in
+> `RTScenarioSession.cpp`: due sedi, una sola misura sbagliata.
+> ⚠️ **I quattro `Spec.Clash.*` restano `BLOCKED`** su `ReactionClash`, che è tuttora indisponibile — le sue
+> funzioni pure esistono e **nessun punto del resolver le chiama**. 🔴 Diceva «gli **otto**»: sono **quattro**
+> su disco (`ReadBeatsStand`, `StandBeatsShift`, `ShiftBeatsRead`, `TieAppliesOnce`) — contati con `ls`, non
+> letti dalla tabella di §12, che ne elenca dieci fra scritti e ancora da scrivere.
 
 ### 12.1 Il vocabolario di `decisions` — versione **3** del formato scenario
 

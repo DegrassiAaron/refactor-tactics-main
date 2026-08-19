@@ -362,8 +362,19 @@ FString URTHexBotLibrary::DecideReactionResponse(const FRTReactionOpportunity& O
 		}
 	}
 
-	// Nessun `FIRE` legale — la condizione dichiarata li ha filtrati tutti, o la finestra offre solo `HOLD`.
-	// Si risponde `HOLD` esplicitamente invece di lasciare la stringa vuota: vuota significa «non ho
-	// risposto», cioe' una scadenza, e il bot non e' scaduto — ha deciso, e non aveva altro da decidere.
-	return URTReactionOpportunityLibrary::HoldResponse();
+	// Nessun `FIRE` legale — la condizione dichiarata li ha filtrati tutti, o la finestra non ne offre.
+	// Si risponde esplicitamente invece di lasciare la stringa vuota: vuota significa «non ho risposto»,
+	// cioe' una scadenza, e il bot non e' scaduto — ha deciso, e non aveva altro da decidere.
+	//
+	// 🔴 **`SafeResponse` e non la costante `HoldResponse()`, dal 2026-08-19.** Era `HOLD` fisso, e con
+	// l'arrivo del `Brace` di [D-047] quella costante e' diventata una risposta **illegale**: una finestra di
+	// `Brace` offre `{Hold Ground, SIDESTEP}`, dove `HOLD` non compare. Il resolver la rifiutava con
+	// `HoldRejected` — l'esito riservato a una risposta *stale o inventata* — quindi ogni bot in `Brace` con
+	// un profilo si vedeva registrare come illegale una risposta perfettamente ragionevole. In v0.1, che e'
+	// **2v2 offline vs bot**, quello era il caso normale e non un caso limite.
+	//
+	// ⚠️ Questo era un **omonimo**: la stessa correzione era gia' stata applicata ai sei ripieghi di
+	// `ARTTurnManager::AskReactionDecision` e non era stata cercata qui, che e' il settimo produttore della
+	// stessa scelta. `grep` della forma corretta, non la memoria di dove si e' scritto.
+	return URTReactionOpportunityLibrary::SafeResponse(Opportunity);
 }

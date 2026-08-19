@@ -161,10 +161,16 @@ namespace
 			//     questa stessa fetta. E' la lezione scritta quattro righe piu' su — scoprire una capability
 			//     senza i dati che la rendono rispondibile produce finestre a cui nessuno risponde — e qui
 			//     capability e vocabolario atterrano nello **stesso commit**, come fece la fase A;
-			//   · il **T2 dello scenario e' pieno**: `Spec.Brace.ProfileChangesResponse` non ha piu'
-			//     `intents: []`. Senza questo, scoprirla avrebbe fatto passare da `Blocked` a verde un turno
-			//     che non esegue cio' che descrive — il difetto esatto che la nota di `ReactionProfile`
-			//     nell'elenco di sotto registrava, e che sarebbe stato ironico ripetere chiudendola.
+			//   · lo scenario **esegue davvero cio' che descrive**: `Spec.Brace.ProfileChangesResponse` non ha
+			//     piu' un turno con `intents: []`, e la sua `decisions` risponde `SIDESTEP` a una finestra che
+			//     si apre per davvero. Senza questo, scoprirla avrebbe fatto passare da `Blocked` a verde un
+			//     turno vuoto — il difetto esatto che la nota di `ReactionProfile` nell'elenco di sotto
+			//     registrava, e che sarebbe stato ironico ripetere chiudendola.
+			//     🔴 **Questa riga diceva «il T2 e' pieno» e il T2 NON ESISTE PIU'**: lo stesso commit che la
+			//     scriveva ha ridotto lo scenario a **un turno solo**, perche' `Action.Brace` dura 1 turno e ha
+			//     cooldown 1 — al T2 lo stato e' scaduto e l'azione non e' ridichiarabile. Il commento
+			//     descriveva il piano, non il file; chi fosse andato a cercare quel T2 per riderivare la
+			//     condizione non avrebbe potuto dire se fosse soddisfatta o abbandonata in silenzio.
 			//
 			// ⚠️ **`ReactionClash` NON scende, e la riga di sotto che dice «chi la chiude sposta ENTRAMBI i
 			// nomi» va letta come prescrizione, non come misura**: sposta entrambi chi chiude `#314`, e questa
@@ -1320,6 +1326,27 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 
 		if (D.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive))
 		{
+			// ⚠️ **Anche `HOLD` si verifica contro la finestra, dal 2026-08-19.** Sembra la risposta che non
+			// puo' mai essere illegale, e con il solo Overwatch lo era davvero — `BuildOverwatchTriggers` la
+			// aggiunge sempre. Il `Brace` di [D-047] ha rotto quella premessa: le sue risposte sono
+			// `{Hold Ground, SIDESTEP}` e `HOLD` non c'e'. Senza questo controllo uno scenario che scrivesse
+			// `respond: "HOLD"` su una finestra di `Brace` la vedeva **consumata e contata come applicata**
+			// (`applied=1`, `unused=0`, nessuna nota, esito `PASS`) mentre il resolver la rifiutava con
+			// `HoldRejected` — cioe' esattamente il «un test smette di verificare senza dirlo» che il ramo
+			// delle risposte di profilo, dieci righe piu' giu', era stato scritto per impedire.
+			// 💡 La correzione era stata applicata al ramo nuovo e non al suo gemello: un criterio applicato a
+			// meta' e' come non applicarlo, perche' l'esito verde arriva comunque dalla strada scoperta.
+			if (!URTReactionOpportunityLibrary::IsResponseAllowed(
+				Opportunity, URTReactionOpportunityLibrary::HoldResponse()))
+			{
+				const FString Motivo = FString::Printf(
+					TEXT("turno %d: '%s' risponde 'HOLD', che non e' fra le risposte legali della sua finestra")
+					TEXT(" (una finestra di `Brace` usa 'Hold Ground')"),
+					TurnIndex + 1, *D.Unit);
+				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+				Notes.Add(Motivo);
+				return FString();
+			}
 			return Consuma(URTReactionOpportunityLibrary::HoldResponse());
 		}
 

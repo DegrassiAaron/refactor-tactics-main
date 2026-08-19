@@ -2843,6 +2843,17 @@ tracks:
       - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h
       - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
       - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+      # ➕ **Rivendicato il 2026-08-19 dalla code review della PR #1217**, e non è un allargamento
+      # opportunistico: `URTHexBotLibrary::DecideReactionResponse` ripiegava sulla **costante** `HOLD`, che per
+      # una finestra di `Brace` non è fra le `AllowedResponses` — il resolver la rifiutava con `HoldRejected`,
+      # l'esito riservato a una risposta *inventata*. In v0.1, che è **2v2 offline vs bot**, quello era il caso
+      # normale: ogni unità del bot in `Brace` con un profilo.
+      # 💡 Era un **omonimo** della correzione già applicata ai sei ripieghi di `AskReactionDecision`, e non
+      # cercato: il settimo produttore della stessa scelta viveva in un altro file.
+      # ✅ **Non è di nessuno**: `grep` del path su tutti i `writable` più `integration_only` → **zero**
+      # occorrenze in campo. ✅ **Nessun branch vivo lo tocca**:
+      # `git log --remotes=origin --not origin/main -- <path>` → vuoto.
+      - Source/RefactorTactics/Bot/RTHexBotLibrary.cpp
       - Source/RefactorTactics/Tests/RTDefensiveReactionTests.cpp
       - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
       # ➕ **Tre path aggiunti il 2026-08-19, e non erano previsti: li ha resi necessari un GATE, non una
@@ -2892,10 +2903,18 @@ tracks:
       - path: Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
         from: spatial
         returns_when: "#314 chiude, o prima se `#833` riparte e li richiede"
-      # ➖ **Il prestito di `Scenarios/Spec/Brace/ProfileChangesResponse.json` è RIENTRATO il 2026-08-19**, ed
-      # è la scadenza che era stata dichiarata aprendolo — «la fetta 4 atterra». La riga si cancella invece di
-      # restare a invecchiare: un elenco che resta scritto e un'intersezione che si calcola sui campi non
-      # possono dire due cose diverse. La storia vive nella `note`, che lo nomina.
+      # 🔴 **Il prestito era stato CHIUSO TROPPO PRESTO, e questa riga lo riapre** (code review del
+      # 2026-08-19). La cancellazione era avvenuta sullo stesso branch che quel file **lo scrive ancora**:
+      # `git diff --name-only origin/main...HEAD` lo elenca, ma dopo quel commit il path non compariva né in
+      # `writable` né in `writable_on_loan`, mentre `Scenarios/` è `integration_only`. Cioè il branch portava
+      # una scrittura su un path che il batch non gli assegnava più — la condizione che `CLAUDE.md` §5
+      # (**D-139**) chiama **STOP**, prodotta da un atto che voleva essere di pulizia.
+      # 💡 «Il prestito rientra col merge» è vero e non autorizza a scriverlo **prima** del merge: il write-set
+      # di un branch aperto si misura, e finché il branch è aperto quel file è suo. La riga si cancella in
+      # **integrazione**, non qui.
+      - path: Scenarios/Spec/Brace/ProfileChangesResponse.json
+        from: integration_only
+        returns_when: "col merge della PR #1217 — la riga si cancella in integrazione, non sul branch"
     # ⚠️ ~~`#886` non presta nulla~~: i due path che prende sono **liberi**, e ~~il terzo lo **chiede**~~ — dal
     # 2026-08-17 i due del `TurnManager` sono **rilasciati e non assegnati**, quindi non c'è più niente da
     # chiedere e ~~resta lo STOP finché l'atto di questa track non li rivendica~~. Annotato qui perché è un

@@ -17,14 +17,13 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**78 scenari versionati** — misurati su `Scenarios/`: **67** eseguibili · **11** `BLOCKED` per una capability assente · **66** dichiarati `planned` nel registry e non ancora scritti.
+**78 scenari versionati** — misurati su `Scenarios/`: **68** eseguibili · **10** `BLOCKED` per una capability assente · **66** dichiarati `planned` nel registry e non ancora scritti.
 
-**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `DecisionBoundary` · `DeclaredRotation` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
+**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `DecisionBoundary` · `DeclaredRotation` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `ReactionProfile` · `Structures`.
 
 | Scenario `BLOCKED` | Capability che manca |
 |---|---|
 | `RT_Showcase_Relay_v01` | `InterceptRevalidation` · `Objective` |
-| `Spec.Brace.ProfileChangesResponse` | `ReactionProfile` |
 | `Spec.Clash.ReadBeatsStand` | `ReactionClash` |
 | `Spec.Clash.ShiftBeatsRead` | `ReactionClash` |
 | `Spec.Clash.StandBeatsShift` | `ReactionClash` |

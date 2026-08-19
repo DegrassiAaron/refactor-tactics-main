@@ -1159,7 +1159,25 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				BraceOpportunity.Key.TurnNumber = TurnNumber;
 				BraceOpportunity.Key.MacroPhase = ERTMatchPhase::Blast; // la spinta si risolve qui, e la
 				                                                        // chiave dice la fase del TURNO
-				BraceOpportunity.Key.OwnerId = Units.IndexOfByKey(T);
+				// 🔴 **`OwnerId` vive nello spazio di id di `MakeCurrentSnapshot`, NON in quello del Blast**, e
+				// la differenza non e' teorica: `GatherBlastUnits` aggiunge **ogni** `ARTUnit` senza filtrare
+				// (`Ctx.Units`), mentre `MakeCurrentSnapshot` scarta i morti — il suo commento lo dichiara,
+				// «i morti (es. nel Blast) non si muovono e non bloccano». Entrambi ordinano per cella, quindi
+				// **un solo caduto che ordina prima di questa unita' sposta di uno tutti gli indici a valle**.
+				//
+				// ⚠️ Ogni consumatore di `Key.OwnerId` assume lo spazio alive-only: `DecideScriptedResponse`
+				// risolve `RuntimeUnits[OwnerUnitId]` su un array preso da `MakeCurrentSnapshot`. Con l'indice
+				// del Blast, una partita in cui qualcuno e' gia' caduto risolverebbe l'unita' SBAGLIATA — la
+				// decisione scriptata non verrebbe riconosciuta e la finestra scadrebbe in `Hold Ground`, con
+				// l'harness che segnala «finestra scoperta» invece del difetto vero.
+				//
+				// L'Overwatch e' immune per costruzione — `ResolveMovement` costruisce il proprio `Units`
+				// **da** `MakeCurrentSnapshot` — e questo ramo era l'unico produttore nell'altro spazio.
+				// ⛔ Nessun test lo vedeva: gli scenari hanno tutte le unita' vive, e con zero morti i due
+				// spazi coincidono. Trovato da una code review, non dalla suite.
+				TArray<ARTUnit*> AliveUnits;
+				MakeCurrentSnapshot(AliveUnits);
+				BraceOpportunity.Key.OwnerId = AliveUnits.IndexOfByKey(T);
 				BraceOpportunity.Key.ReactionDefId = FName(TEXT("Action.Brace"));
 
 				// Le ESEGUIBILI, non le dichiarate: `Profile.Grounding` e `Profile.Glance` sono contenuto
@@ -1175,13 +1193,19 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// La risposta si traduce in primitive del catalogo effetti (`spec-reaction-clash-e14.md` §5) e
 				// non in un ramo per token: un `if (Response == "SIDESTEP")` qui sarebbe il branch per eroe che
 				// [D-047] esiste per togliere, scritto una riga sotto la funzione che lo evita.
+				// ⚠️ **Si ACCUMULA e non si assegna**, e i due `Max(0, …)` non sono prudenza generica: una
+				// risposta che dichiarasse due `SelfReposition` con un `=` avrebbe applicato solo l'ultima,
+				// silenziosamente e in un ordine deciso dal catalogo. Un `Amount` negativo — che nessun profilo
+				// scrive oggi — invertirebbe la direzione della fuga trasformando uno scarto in un avvicinamento.
+				// Nessuno dei due casi esiste nel catalogo attuale, ed e' proprio per questo che vanno chiusi
+				// qui: il giorno in cui esistessero, non lo direbbe nessun test.
 				int32 EscapeSteps = 0;
 				for (const FRTActionEffectSpec& Effect :
 					URTCatalogLibrary::BraceResponseEffects(T->ReactionProfileId, BraceDecision.Response))
 				{
 					if (Effect.Effect == ERTActionEffect::SelfReposition)
 					{
-						EscapeSteps = Effect.Amount;
+						EscapeSteps += FMath::Max(0, Effect.Amount);
 					}
 				}
 
