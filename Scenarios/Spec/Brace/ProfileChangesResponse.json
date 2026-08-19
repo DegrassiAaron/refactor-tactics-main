@@ -17,11 +17,13 @@
 
   "_nota_geometria": "Due duelli separati e simmetrici, perche' un colpo ha un bersaglio: servono due attaccanti. B1 e' a (0,0) con V1 a (-1,0); R1 e' a (0,3) con V2 a (-1,3). Le due spinte vanno entrambe verso +q, quindi le destinazioni sono (1,0) e (1,3) — a tre celle di distanza, nessuna interferenza fra i duelli e nessuna destinazione contesa. La linea di `PressureJet` prosegue oltre il bersaglio ma non incontra nessuno: da (-1,0) attraversa (0,0)(1,0)(2,0)(3,0), da (-1,3) attraversa (0,3)(1,3)(2,3) — e nessuna delle due tocca l'altro duello. Tutte le celle stanno dentro `mapRadius` 4 (la piu' lontana, (-1,3), dista 3).",
 
-  "_nota_il_limite_dichiarato": "⚠️ Con una spinta di **1** la cella in cui R1 finisce scartando e' la STESSA in cui sarebbe finito subendo la spinta, perche' `SelfReposition` allontana lungo la linea di chi ha innescato (D-176). Questo scenario resta dimostrativo lo stesso, e la ragione va letta invece che dedotta: R1 e' in `Brace`, e senza profilo il ramo `Status.Braced` lo terrebbe FERMO come B1. Cio' che si osserva non e' «R1 e' stato spinto» ma «R1 in Brace non e' rimasto dov'era, e B1 in Brace si'» — che solo il profilo puo' produrre. Il caso in cui scarto e spinta divergono davvero e' la spinta di 2, e non e' scrivibile qui: servirebbe il `Weapon.Impact` che la riga sopra toglie di proposito.",
+  "_nota_il_discriminante": "🔴 **Questo file aveva un limite dichiarato, ed e' CADUTO il 2026-08-19 insieme al difetto che lo causava.** Diceva: «con una spinta di 1 la cella in cui R1 finisce scartando e' la STESSA in cui sarebbe finito subendo la spinta», perche' lo scarto usava `HexKnockbackDestination` — che allontana dall'attaccante, cioe' percorre la linea. Una code review ha misurato la conseguenza vera: siccome il ramo `Status.Braced` blocca gia' la spinta a QUALUNQUE distanza, quel `SIDESTEP` era **strettamente dominato** da `Hold Ground`. Non era un limite dello scenario: era un difetto di design. Ora lo scarto ESCE dalla linea (`URTReactionLibrary::FindSidestepCell`) e le due celle divergono, quindi questo file discrimina davvero — togliendo il ramo `Braced` R1 finirebbe a (1,3), non a (1,2).",
+
+  "_nota_il_facing_e_dichiarato": "R1 dichiara `facing: \"NE\"` al piazzamento, e non e' un dettaglio di fixture: `FindSidestepCell` preferisce la cella che l'unita' ha DAVANTI — stessa regola di `Reaction.HazardEscape` (D-104), perche' la fuga sia prevedibile guardando il campo invece che dall'ordine interno delle direzioni. Senza il facing dichiarato lo scarto cadrebbe sull'ordine canonico e questo file passerebbe per un motivo che nessuno ha scelto.",
 
   "units": [
     { "id": "B1", "hero": "Hero.Riktor", "team": 0, "cell": [ 0, 0, 0] },
-    { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [ 0, 3, 0] },
+    { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [ 0, 3, 0], "facing": "NE" },
     { "id": "V1", "hero": "Hero.Phase",  "team": 1, "cell": [-1, 0, 0], "loadout": [] },
     { "id": "V2", "hero": "Hero.Phase",  "team": 1, "cell": [-1, 3, 0], "loadout": [] }
   ],
@@ -46,8 +48,8 @@
   "expect": [
     { "_assertion": "IL DISCRIMINANTE, e va letto come una coppia. B1 in `Brace` resta dov'era: e' il ramo `Status.Braced`, che regge la spinta a qualunque distanza. Senza il profilo di R1, la riga sotto direbbe la stessa cosa e questo file sarebbe verde senza dimostrare niente.",
       "type": "UnitAtCell", "unit": "B1", "cell": [0, 0, 0] },
-    { "_assertion": "L'ALTRA META': R1, nello stesso `Brace` e contro lo stesso colpo, NON resta. La differenza fra le due righe e' l'unica cosa che questo scenario dimostra, ed e' prodotta da un dato — `Hero.Phase.ReactionProfileId = Profile.Sidestep` — non da un ramo nel resolver.",
-      "type": "UnitAtCell", "unit": "R1", "cell": [1, 3, 0] },
+    { "_assertion": "L'ALTRA META', e da oggi e' un DISCRIMINANTE vero. R1, nello stesso `Brace` e contro lo stesso colpo, non resta — e non finisce dove la spinta voleva mandarlo: (1,3) e' la cella della spinta, (1,2) e' lo scarto fuori dalla linea. Le due sono diverse, quindi questa riga distingue «il profilo ha deciso» da «il `Brace` non si e' applicato», che e' cio' che con lo scarto lungo la linea non poteva fare.",
+      "type": "UnitAtCell", "unit": "R1", "cell": [1, 2, 0] },
 
     { "_assertion": "I due attaccanti non si muovono: `Push` sposta il bersaglio, mai la sorgente. Una posizione diversa significherebbe che la fixture non e' quella descritta.",
       "type": "UnitAtCell", "unit": "V1", "cell": [-1, 0, 0] },

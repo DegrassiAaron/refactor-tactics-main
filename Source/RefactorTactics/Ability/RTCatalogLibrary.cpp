@@ -39,13 +39,17 @@ TArray<FRTReactionProfileDef> URTCatalogLibrary::GetReactionProfileCatalog()
 		// ⚠️ **`1` non e' un numero nuovo**: e' l'`Amount` che quelle due reazioni portano da D-093. La
 		// «ampiezza della deviazione» che §2.5 lascia aperta riguarda `GLANCE`, non questo.
 		//
-		// ⚠️ **La direzione non e' un parametro** ed e' una decisione d'autore del 2026-08-19: ci si allontana
-		// di 1 dalla linea di chi spinge, che e' cio' che `SelfReposition` significa da D-093 («la sorgente
-		// arretra allontanandosi da chi l'ha innescata»). Conseguenza dichiarata invece che scoperta: contro
-		// una spinta di **1** l'esito coincide con il subirla, quindi la scelta vera esiste contro le spinte
-		// di 2 — `Weapon.Impact` su `Phase.PressureJet`, che e' il loadout di DEFAULT di Phase (D-085/D-089).
-		// L'alternativa perpendicolare e' stata considerata e scartata: avrebbe richiesto una geometria nuova
-		// e due sotto-decisioni (quale perpendicolare, e cosa vale se entrambe sono illegali).
+		// 🔴 **La GEOMETRIA e' cambiata il 2026-08-19, e questo commento diceva il contrario.** Sosteneva che
+		// ci si allontana lungo la linea di chi spinge, e che «la scelta vera esiste contro le spinte di 2».
+		// Una code review ha misurato che e' falso: il ramo `Status.Braced` blocca la spinta a QUALUNQUE
+		// distanza, quindi contro la spinta di 2 `Hold Ground` tiene la cella e `SIDESTEP` la cedeva — a
+		// danno identico. Era una risposta **strettamente dominata**, cioe' un prompt che non compra niente.
+		// Ora lo scarto ESCE dalla linea: `URTReactionLibrary::FindSidestepCell`, spec §2.5-bis.
+		//
+		// ⚠️ **L'`Amount` non e' piu' una distanza e resta `1` di proposito**: uno scarto e' di una cella per
+		// definizione — «esci dalla linea» non ha un multiplo. Il valore serve al resolver per DISTINGUERE una
+		// risposta che sposta da una che non sposta, ed e' l'unico modo in cui il catalogo puo' dirlo senza un
+		// ramo per token. La primitiva resta quella di D-093, non ne nasce una nuova.
 		{ FName(TEXT("Profile.Sidestep")),  { FRTReactionResponseDef(TEXT("SIDESTEP"),
 			{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }) } },
 

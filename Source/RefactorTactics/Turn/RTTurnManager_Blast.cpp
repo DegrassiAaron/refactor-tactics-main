@@ -1236,8 +1236,21 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					// dello snapshot, e muovere un'unita' adesso le farebbe dipendere dall'ordine di
 					// iterazione — l'invariante #4. Passando di la' eredita anche il controllo di destinazione
 					// contesa, che dev'essere la stessa regola per tutti quelli che si muovono in questo Blast.
-					const FRTCellId Escape = URTHexCombatLibrary::HexKnockbackDestination(
-						KnockFrom[T], T->Cell, EscapeSteps, Map, KOccupied);
+					// 🔴 **FUORI dalla linea, non lungo di essa** — la correzione del 2026-08-19.
+					// `HexKnockbackDestination` allontana dall'attaccante, cioe' manda l'unita' **dove la
+					// spinta voleva**: e siccome il ramo `Braced` blocca gia' la spinta a qualunque distanza,
+					// `SIDESTEP` cedeva una cella per ottenere cio' che `Hold Ground` dava gratis. Una risposta
+					// strettamente dominata non e' una scelta, e un boundary che ne offre una costa un prompt
+					// senza comprare niente. `FindSidestepCell` esce dalla linea; le due sotto-decisioni —
+					// quale cella, e cosa vale se non ce n'e' nessuna — seguono il precedente di
+					// `Reaction.HazardEscape` invece di aprirne uno secondo.
+					//
+					// ⚠️ `EscapeSteps` non entra piu' nella geometria: uno scarto e' **di una cella** per
+					// definizione — «esci dalla linea» non ha un multiplo. Il valore resta letto perche' e' cio'
+					// che DISTINGUE una risposta che sposta da una che non sposta, ed e' l'unico modo in cui il
+					// catalogo puo' dirlo senza un ramo per token.
+					const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+						Map, T->Cell, KnockFrom[T], T->Facing, KOccupied);
 					if (Escape != T->Cell)
 					{
 						KTargets.Add(T);

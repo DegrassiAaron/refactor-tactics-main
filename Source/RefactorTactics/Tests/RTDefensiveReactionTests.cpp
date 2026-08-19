@@ -971,6 +971,107 @@ bool FRTBraceProfileDecidesInPlayTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 **`SIDESTEP` esce dalla LINEA di spinta, e non la percorre** ([D-047] §2.5-bis).
+ *
+ * E' la correzione di un difetto di **design**, non di codice: fino al 2026-08-19 lo scarto usava
+ * `HexKnockbackDestination`, che allontana dall'attaccante — cioe' mandava l'unita' **dove la spinta voleva
+ * mandarla**. Siccome il ramo `Status.Braced` blocca gia' la spinta a *qualunque* distanza, `Hold Ground`
+ * teneva la cella e `SIDESTEP` la cedeva, con lo **stesso danno**: una risposta strettamente dominata, cioe'
+ * un boundary che costa un prompt e non compra niente.
+ *
+ * ⚠️ **Questo test asserisce la proprieta' che rende la scelta una scelta**, e non una cella particolare: la
+ * destinazione **non sta sulla linea** — ne' dove la spinta spinge, ne' da dove arriva. Pinnare una cella
+ * fissa avrebbe legato il test all'ordine canonico invece che alla regola, e sarebbe diventato rosso a ogni
+ * riordino delle direzioni senza che nulla di sbagliato fosse accaduto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSidestepLeavesTheLineTest,
+	"RefactorTactics.Reactions.Brace.SidestepLeavesThePushLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSidestepLeavesTheLineTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnDefMap(World, 6);
+	const URTHexMapAsset* Map = MapActor ? MapActor->MapAsset : nullptr;
+	if (!TestNotNull(TEXT("mappa"), (void*)Map)) { DestroyDefWorld(World); return false; }
+
+	// Spinta da ovest verso est: chi spinge e' a (-1,0), il bersaglio a (0,0).
+	const FRTCellId PushFrom(-1, 0, 0);
+	const FRTCellId Target(0, 0, 0);
+
+	ERTHexDirection PushDir;
+	if (!TestTrue(TEXT("la linea di spinta ha una direzione"),
+		URTHexLibrary::DirectionTowards(PushFrom, Target, PushDir)))
+	{
+		DestroyDefWorld(World); return false;
+	}
+	const FRTCellId Ahead  = URTHexLibrary::Neighbor(Target, PushDir);
+	const FRTCellId Behind = URTHexLibrary::Neighbor(Target, URTHexLibrary::OppositeDirection(PushDir));
+
+	// (a) Campo libero: lo scarto esiste e NON sta sulla linea. E' la proprieta' che il difetto violava.
+	{
+		const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::NE, /*Occupied*/ {});
+
+		TestTrue(TEXT("lo scarto porta via dalla cella"), Escape != Target);
+		TestTrue(TEXT("e NON dove la spinta spingeva"), Escape != Ahead);
+		TestTrue(TEXT("ne' verso chi spinge"), Escape != Behind);
+		TestTrue(TEXT("resta comunque adiacente"),
+			URTHexLibrary::Neighbors(Target).Contains(Escape));
+	}
+
+	// (b) **Il facing decide**, come per `Reaction.HazardEscape`: lo stesso identico caso con due
+	// orientamenti diversi da' due scarti diversi. Senza questa meta', «esce dalla linea» sarebbe compatibile
+	// con un ordine canonico che ignora il giocatore.
+	{
+		const FRTCellId VersoNE = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::NE, {});
+		const FRTCellId VersoSE = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::SE, {});
+
+		TestTrue(TEXT("guardando a NE si scarta a NE"),
+			VersoNE == URTHexLibrary::Neighbor(Target, ERTHexDirection::NE));
+		TestTrue(TEXT("guardando a SE si scarta a SE"),
+			VersoSE == URTHexLibrary::Neighbor(Target, ERTHexDirection::SE));
+		TestTrue(TEXT("e i due esiti differiscono davvero"), VersoNE != VersoSE);
+	}
+
+	// (c) **Il facing punta SULLA linea**: non si puo' obbedire, e si ripiega sull'ordine canonico — che e'
+	// comunque fuori dalla linea. E' il caso che distingue «preferisci il facing» da «segui il facing».
+	{
+		const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, PushDir, {});
+
+		TestTrue(TEXT("il facing sulla linea non viene obbedito"), Escape != Ahead);
+		TestTrue(TEXT("e nemmeno il suo opposto"), Escape != Behind);
+		TestTrue(TEXT("ma uno scarto si trova lo stesso"), Escape != Target);
+	}
+
+	// (d) **Tutte le uscite occupate**: si ripiega su `Hold Ground`, e chi chiama lo legge da `== From`.
+	// ⚠️ Si occupano i QUATTRO fuori linea; `Ahead` e `Behind` restano liberi di proposito — se la funzione
+	// li offrisse come scarto, questo caso passerebbe comunque e il difetto originale tornerebbe da qui.
+	{
+		TArray<FRTCellId> Occupied;
+		for (const FRTCellId& N : URTHexLibrary::Neighbors(Target))
+		{
+			if (N != Ahead && N != Behind) { Occupied.Add(N); }
+		}
+		TestEqual(TEXT("le uscite fuori linea sono quattro"), Occupied.Num(), 4);
+
+		const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::NE, Occupied);
+		TestTrue(TEXT("senza uscite si tiene la posizione, non si ripiega sulla linea"), Escape == Target);
+	}
+
+	// (e) Fail-closed senza mappa autorevole, come `FindEscapeCell`.
+	TestTrue(TEXT("senza mappa non si scarta"),
+		URTReactionLibrary::FindSidestepCell(nullptr, Target, PushFrom, ERTHexDirection::NE, {}) == Target);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
  * 🔴 **Il BOT deve poter rispondere a una finestra di `Brace`, e la sua risposta dev'essere LEGALE.**
  *
  * `URTHexBotLibrary::DecideReactionResponse` cerca un `FIRE:` e altrimenti ripiega sulla scelta sicura. Fino

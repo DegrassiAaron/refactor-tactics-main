@@ -2,6 +2,7 @@
 #include "Core/RTGameplayTags.h" // TAG_Status_Root/Slow: la lista degli stati di controllo (CP 7.5)
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h" // GraphNeighbors: uno scarto passa dal grafo, non dai vicini geometrici
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionQueue.h"
 
@@ -184,4 +185,68 @@ TArray<FRTActionEvent> URTReactionLibrary::BuildReactionEvents(const FRTActionDe
 	}
 
 	return Events;
+}
+
+FRTCellId URTReactionLibrary::FindSidestepCell(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& PushFrom, ERTHexDirection Facing, const TArray<FRTCellId>& Occupied)
+{
+	if (!Map)
+	{
+		return From; // fail-closed: senza mappa non si sa dove si puo' andare, come `FindEscapeCell`
+	}
+
+	// Le due celle DELLA LINEA, che sono esattamente cio' da cui si esce: quella verso cui la spinta manda —
+	// `PushFrom -> From` prolungata — e quella da cui la spinta arriva. Si ricavano dalla direzione della
+	// spinta invece che dalla geometria a mano: `DirectionTowards` e' la stessa funzione che il resolver usa
+	// per orientare, quindi «sulla linea» significa qui cio' che significa altrove.
+	ERTHexDirection PushDir;
+	if (!URTHexLibrary::DirectionTowards(PushFrom, From, PushDir))
+	{
+		// Attaccante e bersaglio sulla stessa cella assiale: non c'e' una linea da cui uscire. Non e' un
+		// errore — e' il caso in cui `HexKnockbackDestination` stesso non produce spostamento.
+		return From;
+	}
+	const FRTCellId Ahead  = URTHexLibrary::Neighbor(From, PushDir);
+	const FRTCellId Behind = URTHexLibrary::Neighbor(From, URTHexLibrary::OppositeDirection(PushDir));
+
+	// Le celle davvero raggiungibili: il GRAFO, non i sei vicini geometrici. Un dislivello senza arco o un
+	// muro non sono uno scarto solo perche' la cella e' adiacente sulla griglia — stessa disciplina di
+	// `URTTerrainLibrary::FindEscapeCell`, e per la stessa ragione.
+	TArray<FRTCellId> Reachable;
+	for (const TPair<FRTCellId, int32>& Step : URTHexPathLibrary::GraphNeighbors(Map, From))
+	{
+		Reachable.Add(Step.Key);
+	}
+
+	auto IsSidestep = [&Reachable, &Occupied, &Ahead, &Behind](const FRTCellId& Candidate)
+	{
+		// ⚠️ **L'esclusione della linea viene PRIMA della raggiungibilita'**, e l'ordine e' la regola: se
+		// `Ahead` fosse raggiungibile e libera, un controllo scritto al contrario la offrirebbe come scarto —
+		// cioe' riprodurrebbe esattamente la risposta dominata che questa funzione esiste per togliere.
+		if (Candidate == Ahead || Candidate == Behind) { return false; }
+		return Reachable.Contains(Candidate) && !Occupied.Contains(Candidate);
+	};
+
+	// 1) Dove sta guardando: e' la scelta che il giocatore puo' prevedere senza conoscere l'ordine interno
+	//    delle direzioni ([D-104], e il precedente di `FindEscapeCell`).
+	const FRTCellId Faced = URTHexLibrary::Neighbor(From, Facing);
+	if (IsSidestep(Faced))
+	{
+		return Faced;
+	}
+
+	// 2) Ripiego nell'ordine canonico delle direzioni (E, NE, NW, W, SW, SE): arbitrario per il giocatore ma
+	//    DICHIARATO e stabile, quindi due situazioni identiche danno lo stesso scarto.
+	for (const FRTCellId& Candidate : URTHexLibrary::Neighbors(From))
+	{
+		if (IsSidestep(Candidate))
+		{
+			return Candidate;
+		}
+	}
+
+	// 3) Nessuna cella fuori dalla linea: chi chiama ripiega su `Hold Ground`. ⚠️ E' l'opposto di
+	//    `EmergencyDash`, che in questo caso si SPRECA: li' una reazione si consuma, qui `Hold Ground` non e'
+	//    una risorsa — chi sceglie di scartare non deve finire meno protetto di chi non ha scelto affatto.
+	return From;
 }

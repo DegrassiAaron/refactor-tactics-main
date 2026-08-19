@@ -151,13 +151,36 @@ numero nuovo per la stessa ragione. La scelta è vincolata da `BAS-4`, che dichi
 chiama `Profile.Sidestep` e risponde al **Forced Movement**», nella stessa forma di `Riva.FlowReaction`
 (`Reposition 1`).
 
-**La direzione non è un parametro**, e la conseguenza va detta invece che scoperta: `SelfReposition` allontana
-di una cella dalla linea di chi ha innescato, quindi contro una spinta di **1** l'esito coincide con il
-subirla. La scelta vera esiste contro le spinte di **2** — `Weapon.Impact` su `Phase.PressureJet`, che
-[D-089](../decisions/RT_PDR_00_Decision_Log.md) ha reso il loadout di *default* di Phase. L'alternativa
-perpendicolare («esci dalla linea») è stata considerata e **scartata**: avrebbe richiesto una geometria nuova
-e due sotto-decisioni — quale delle due perpendicolari, e cosa vale se sono entrambe illegali — cioè avrebbe
-aperto due domande per chiuderne una.
+**`SIDESTEP` esce dalla LINEA di spinta, non la percorre.**
+
+> 🔴 **Corretto il 2026-08-19, ed era un difetto di design e non di codice.** Questo paragrafo diceva:
+> *«`SelfReposition` allontana di una cella dalla linea di chi ha innescato … la scelta vera esiste contro le
+> spinte di 2»*, e l'alternativa perpendicolare era dichiarata **scartata**. Una code review ha misurato che
+> quella conclusione è falsa in entrambe le metà: il ramo `Status.Braced` blocca la spinta a **qualunque**
+> distanza — non guarda `KnockDist` — quindi contro la spinta di 2 `Hold Ground` tiene la cella mentre
+> `SIDESTEP` la cede. Con danno identico (§5: lo scarto non riduce nulla), `SIDESTEP` era **strettamente
+> dominato**: non esisteva un caso in cui convenisse. Un decision boundary in cui un'opzione è sempre
+> peggiore non è una scelta, ed è peggio di nessun boundary — costa un prompt e non compra niente.
+
+La destinazione è una cella **fuori dalla linea**: i vicini del bersaglio, meno i due che stanno sulla linea —
+quello verso cui la spinta spinge e quello da cui arriva. Restano quattro candidate, e le due sotto-decisioni
+seguono il precedente già in vigore per `Reaction.HazardEscape`
+(`URTTerrainLibrary::FindEscapeCell`) invece di aprirne uno secondo:
+
+| Domanda | Risposta | Perché |
+|---|---|---|
+| Quale delle quattro? | **la cella che si ha davanti**, se è fra le candidate | la scelta è prevedibile guardando il campo, senza conoscere l'ordine interno delle direzioni ([D-104]) |
+| E se il facing punta sulla linea? | **ordine canonico** `E, NE, NW, W, SW, SE` | arbitrario per il giocatore ma *dichiarato* e stabile: due situazioni identiche danno lo stesso scarto |
+| E se nessuna è praticabile? | **`Hold Ground`** | ⚠️ è l'opposto di `Reaction.EmergencyDash`, che in quel caso **si spreca**: là una reazione si consuma, qui `Hold Ground` non è una risorsa — chi sceglie di scartare non deve finire meno protetto di chi non ha scelto affatto |
+
+Praticabile = raggiungibile sul **grafo** (`GraphNeighbors`: archi e dislivelli contano, non i sei vicini
+geometrici) e non occupata. La funzione è `URTReactionLibrary::FindSidestepCell`, pura e fail-closed, pinnata
+da `Reactions.Brace.SidestepLeavesThePushLine` — che asserisce la **proprietà** («non sta sulla linea») e non
+una cella fissa, per non diventare rosso a ogni riordino delle direzioni.
+
+✅ **Conseguenza misurata**: `Spec.Brace.ProfileChangesResponse` ora **discrimina**. Con lo scarto lungo la
+linea le due celle coincidevano e togliere il ramo `Braced` lasciava lo scenario verde; ora la cella dello
+scarto `(1,2)` e quella della spinta `(1,3)` sono diverse, e la stessa mutazione fa cadere **due** assertion.
 
 **Se non c'è dove scartare si ripiega su `Hold Ground`**, e qui la regola è l'opposto di
 `Reaction.EmergencyDash` («se non c'è dove andare si spreca»): là una reazione si consuma, qui `Hold Ground`
