@@ -2134,7 +2134,18 @@ tracks:
     # qui è ciò che lo rende misurabile prima del push.
     # ➖ **Mergiato e cancellato il 2026-08-18** (PR #1182). Il campo torna alla prima delle quattro accezioni
     # che questo file distingue: «nessun branch vivo, il lavoro è in `main`».
-    branch: feat/314-reaction-profile-e-clash
+    # 🔁 **Riscritto il 2026-08-19 per la TERZA fetta di `#314`**, e il ramo precedente non è più quello di
+    # lavoro: `feat/314-reaction-profile-e-clash` è **interamente in `main`** — misurato con
+    # `git diff --name-only origin/main...origin/feat/314-reaction-profile-e-clash`, che è **vuoto**, e con
+    # `git log origin/main..origin/<ramo>`, pure vuoto. Le sue due fette sono le PR **#1192** (contested
+    # derivato, ordine canonico, grammatica) e **#1204** (D-047, il Reaction Profile). ⚠️ Il ramo **esiste
+    # ancora lato server**: `gh pr merge --delete-branch` non lo ha cancellato, ed è lo stesso difetto già
+    # registrato in testa a questa track per `#886` — l'esito del comando diceva fallimento e il server diceva
+    # `MERGED`. Non lo cancello da qui: `D:/rt-spatial` ce l'ha ancora in checkout, e cancellare il ramo su cui
+    # un worktree altrui è agganciato non è una pulizia, è una sorpresa per chi ci torna.
+    # ⛔ **E per questo la fetta 3 nasce su un ramo NUOVO invece di riusare quello**: due worktree non possono
+    # tenere in checkout lo stesso branch, e `git switch` lì fallirebbe. Nato da `origin/main` @ `2b9ddb07`.
+    branch: feat/314-clash-finestra-contested
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -2163,7 +2174,15 @@ tracks:
     # è in **detached HEAD** — la sessione di `#1158` ha finito — e `D:/rt-spatial` è su
     # `feat/314-reaction-profile-e-clash`. 💡 Il campo cambia tre volte in un giorno perché registra un fatto
     # che cambia tre volte; lasciarlo fermo lo renderebbe stabile e falso.
-    worktree: "D:/rt-spatial"
+    # 🔁 **Quarta riscrittura, il 2026-08-19: torna `D:/rt-simulation` con la fetta 3.** Vale la regola scritta
+    # sopra — il campo segue **la sessione** — e la sessione che riprende `#314` è confinata dall'harness qui.
+    # ⛔ **Ciò che questa sessione NON ha potuto misurare, detto invece che assunto**: se `D:/rt-spatial` sia
+    # ancora aperto. `git worktree list` lo mostra agganciato a `feat/314-reaction-profile-e-clash` — ma un
+    # worktree agganciato non è una sessione viva, e da dentro `D:/rt-simulation` non c'è comando che
+    # distingua le due cose. Il campo si riscrive perché **l'autore ha dichiarato di riprendere `#314` qui**,
+    # e quella dichiarazione è la sola fonte che risponde alla domanda. Registrata come tale, non spacciata
+    # per una misura.
+    worktree: "D:/rt-simulation"
     note: >-
       ➕ **Riattivata il 2026-08-18 su `#1158`.** Il difetto è misurato nella issue in cinque punti e nasce da
       una code review, non da un sospetto: `ApplyReactionDecision` calcola `bFire` con
