@@ -560,6 +560,35 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 SelectedTargetUnitId = INDEX_NONE;
 
+	/**
+	 * CHI era il bersaglio ORIGINALE, quando un colpo e' stato **redirezionato** (`#1060`). `INDEX_NONE` su
+	 * ogni voce che non redirige — che e' la verita': non c'e' stato nessun trasferimento.
+	 *
+	 * Oggi lo produce la sola interposizione (`ERTReactionTrigger::AllyHitByDirectAttack`): Riktor si mette
+	 * davanti a Wraith, e il colpo che era per Wraith lo incassa Riktor. `UnitId` dice **chi lo incassa** —
+	 * e' l'unita' che reagisce — quindi con questo campo la voce nomina entrambi i capi del trasferimento.
+	 *
+	 * 🔴 **Porta uno `StableUnitId`, come `UnitId` e a differenza di `SelectedTargetUnitId`**, che invece porta
+	 * l'indice di risoluzione. I due spazi di identificatori convivono in questa struct dalla v8, e la scelta
+	 * qui non e' stilistica: i due capi del trasferimento stanno nella **stessa voce**, e nominarli in spazi
+	 * diversi sarebbe illeggibile — sono entrambi `int32`, e su un'arena piccola i valori coincidono per caso,
+	 * quindi l'errore non si manifesterebbe finche' qualcuno non gioca una partita grande.
+	 *
+	 * ⚠️ **Un campo proprio e non la sola `SrcCell`**, benche' la cella del protetto sia scritta li'. E' la
+	 * stessa inferenza che [D-063] ha dichiarato non valida introducendo `UnitId`, e qui e' pure peggio: la
+	 * `SrcCell` di questa voce e' la cella di un'ALTRA unita', quindi chi legge deve gia' sapere che questa
+	 * voce e' un'interposizione per interpretarla. Un'assertion di scenario che risolvesse la cella
+	 * troverebbe l'occupante di fine turno, non chi era bersagliato al Blast.
+	 *
+	 * ⚠️ **NON entra nell'hash** ([D-063]): il trasferimento e' **gia' discriminato** da `SrcCell`, che
+	 * nell'hash c'e' — interporsi per Wraith invece che per Phase da' due celle diverse e quindi due hash
+	 * diversi. Questo campo rende quel fatto **leggibile** senza inferenza, non lo aggiunge. E' lo stesso
+	 * argomento di `BaseActionId` (funzione di `ActionId`) e di `Priority`: zero potere discriminante in piu',
+	 * e includerlo invaliderebbe in blocco gli hash golden per un dato che non discrimina nulla.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 OriginalTargetUnitId = INDEX_NONE;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -663,7 +692,28 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * ripete perche' e' il difetto peggiore possibile per un formato versionato — il loader sceglie
 	 * l'interpretazione dal numero e non ha modo di accorgersi dello scambio.
 	 */
-	WithReactionDecision = 8
+	WithReactionDecision = 8,
+	/**
+	 * + `OriginalTargetUnitId` per voce (`#1060`): CHI era il bersaglio prima di un redirect. Il campo va in
+	 * coda, dopo `SelectedTargetUnitId`; nessuno dei precedenti si sposta.
+	 *
+	 * Serve perche' la feature dell'interposizione esiste dal `#200` e **non e' verificabile da uno scenario**:
+	 * `OriginalTargetEquals` ed `EffectiveTargetEquals` non avevano un dato su cui poggiare. Il bersaglio
+	 * effettivo era gia' leggibile (`UnitId`), l'originale no — viveva solo come `SrcCell`, cioe' come
+	 * inferenza che [D-063] vieta.
+	 *
+	 * Le tracce dalla 2 alla 8 restano LEGGIBILI, con `OriginalTargetUnitId` a `INDEX_NONE`: e' esattamente
+	 * cio' che quei byte dicevano, perche' in quelle versioni il redirect non era registrato.
+	 *
+	 * ✅ **Gli hash golden NON cambiano, e non e' un caso fortunato**: il campo sta fuori dall'hash per
+	 * costruzione (vedi la sua dichiarazione), quindi ogni traccia — con o senza interposizioni — conserva
+	 * l'hash che aveva. E' la differenza con la v8, che invece li fece cambiare per le tracce con decisioni.
+	 *
+	 * ⚠️ Il numero **9 e' stato verificato su tutti i ref**, come [D-070] impone dopo il caso della v6
+	 * rivendicata due volte: 44 ref esaminati leggendo `ERTTurnLogFormatVersion` in ciascuno — 8 e' il massimo
+	 * dichiarato ovunque, e nessuno rivendica il 9.
+	 */
+	WithRedirectOrigin = 9
 };
 
 /**

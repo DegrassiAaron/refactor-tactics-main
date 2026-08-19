@@ -1270,5 +1270,98 @@ bool FRTScenarioAmbiguousTargetTest::RunTest(const FString&)
 }
 
 
+namespace
+{
+	/**
+	 * Interposizione: Gadget spara a Wraith, Riktor si mette in mezzo. E' la fixture di `Visual.Reaction.
+	 * Interposition`, costruita in memoria perche' `Scenarios/` e' `integration_only`.
+	 */
+	FRTTestScenario MakeRedirectScenario()
+	{
+		FRTTestScenario S;
+		S.ScenarioId = TEXT("Probe.RedirectVocabulary");
+		S.MapRadius = 4;
+
+		FRTScenarioUnit F; F.Id = TEXT("F1"); F.HeroId = TEXT("Hero.Gadget"); F.TeamId = 0; F.Cell = FRTCellId(0, 0, 0);
+		FRTScenarioUnit V; V.Id = TEXT("V1"); V.HeroId = TEXT("Hero.Wraith"); V.TeamId = 1; V.Cell = FRTCellId(2, 0, 0);
+		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Riktor"); B.TeamId = 1; B.Cell = FRTCellId(2, 1, 0);
+		S.Units.Add(F); S.Units.Add(V); S.Units.Add(B);
+
+		FRTScenarioTurn T;
+		T.Requires.Add(TEXT("Reaction"));
+		FRTScenarioIntent Arm;  Arm.UnitId = TEXT("B1"); Arm.Reaction = TEXT("Hero.Riktor.Interposition");
+		FRTScenarioIntent Shot; Shot.UnitId = TEXT("F1"); Shot.Ability = TEXT("Hero.Gadget.ArcPulse"); Shot.Target = TEXT("V1");
+		T.Intents.Add(Arm); T.Intents.Add(Shot);
+		S.Turns.Add(T);
+		return S;
+	}
+}
+
+/**
+ * Il vocabolario del REDIRECT: `OriginalTargetEquals` ed `EffectiveTargetEquals` (#1060).
+ *
+ * La feature esiste in `main` dal `#200` — `URTHexCombatLibrary` rivalida la geometria sul bersaglio
+ * effettivo, con tre test che la pinnano — ma **nessuno scenario poteva verificarla**: il TurnLog non
+ * nominava il bersaglio originale, e le due assertion non esistevano. Questo test copre il vocabolario, che
+ * e' cio' che `#170` (CP 15.4) dichiara come proprio unico collo di bottiglia.
+ *
+ * ⚠️ **E' scritto come coppia PASS/FAIL, non come singolo verde**, per la ragione che l'intestazione di
+ * questo file dichiara: un'assertion che non sa fallire non verifica niente. La seconda meta' scambia i due
+ * capi del trasferimento — `Original` su chi ha incassato, `Effective` su chi era bersagliato — e pretende
+ * `FAIL`. Senza, entrambe le assertion passerebbero anche se leggessero lo stesso campo, che e' precisamente
+ * l'errore che la spec del T6 avverte di evitare quando chiede un test **discriminante**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRedirectVocabularyTest,
+	"RefactorTactics.Scenario.RedirectVocabularyNamesBothEnds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRedirectVocabularyTest::RunTest(const FString&)
+{
+	// (a) I due capi dichiarati GIUSTI: Wraith era il bersaglio, Riktor l'ha incassato.
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+		FRTTestScenario S = MakeRedirectScenario();
+		FRTTestExpectation Orig; Orig.Kind = ERTAssertionKind::OriginalTargetEquals; Orig.UnitId = TEXT("V1");
+		FRTTestExpectation Eff;  Eff.Kind  = ERTAssertionKind::EffectiveTargetEquals; Eff.UnitId  = TEXT("B1");
+		S.Expect.Add(Orig); S.Expect.Add(Eff);
+
+		const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+		DestroyRunnerWorld(World);
+
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("ERROR invece di eseguire: %s"), *Result.ErrorMessage));
+			return false;
+		}
+		TestEqual(TEXT("il redirect nomina entrambi i capi: originale V1, effettivo B1"),
+			Result.OutcomeString(), FString(TEXT("PASS")));
+	}
+
+	// (b) I due capi SCAMBIATI: deve fallire. E' la meta' che rende il test discriminante.
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("world (b)"), World)) { return false; }
+
+		FRTTestScenario S = MakeRedirectScenario();
+		FRTTestExpectation Orig; Orig.Kind = ERTAssertionKind::OriginalTargetEquals; Orig.UnitId = TEXT("B1");
+		FRTTestExpectation Eff;  Eff.Kind  = ERTAssertionKind::EffectiveTargetEquals; Eff.UnitId  = TEXT("V1");
+		S.Expect.Add(Orig); S.Expect.Add(Eff);
+
+		const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+		DestroyRunnerWorld(World);
+
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("ERROR invece di eseguire (b): %s"), *Result.ErrorMessage));
+			return false;
+		}
+		TestEqual(TEXT("scambiando i due capi lo scenario FALLISCE: le assertion discriminano"),
+			Result.OutcomeString(), FString(TEXT("FAIL")));
+	}
+
+	return true;
+}
+
 
 #endif // WITH_DEV_AUTOMATION_TESTS
