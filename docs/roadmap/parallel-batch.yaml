@@ -3784,14 +3784,20 @@ tracks:
     # Non e' lavoro d'editor e non apre una seduta — `session` resta `null`. E' codice in `Frontend/`,
     # che questa track ha gia' nel proprio `writable`: il perimetro si dichiara **prima** di scrivere, ed
     # e' la seconda volta oggi che questa voce lo fa in anticipo invece che a posteriori.
-    status: ACTIVE
-    issue: 937
-    # ⚠️ **La track ha usato ENTRAMBE le forme su `#937`, e nello stesso giorno.** `session:` per U24, che
-    # costruiva `.uasset`; `branch:` per il `BACK` del navigatore, che era codice. Ora torna a `session:`
-    # — **U27** — perche' quel che resta e' un collegamento da fare dentro un Blueprint. Non e' incoerenza:
-    # e' lo schema che lo prevede, e ogni passaggio e' stato dichiarato invece che dedotto.
+    # ✅ **IDLE dal 2026-08-19: `#937` e' consegnata e chiusa.** Questa volta la frase e' scritta **dopo**
+    # aver consuntivato il DoD voce per voce — il 2026-08-18 era stata scritta prima, ed era falsa per un
+    # giorno intero su `main` (vedi il blocco piu' sotto). L'ordine e' il punto: prima la misura, poi la
+    # dichiarazione, poi il merge.
+    # ⚠️ `IDLE` e non assente: `#938`…`#941` restano aperte e le scrivera' questa track, quindi i
+    # `writable` continuano a valere — in particolare `RTGameMode.{h,cpp}`, che tornerebbero contendibili
+    # se la track sparisse.
+    # 💡 **La track ha usato ENTRAMBE le forme su `#937`, e nello stesso giorno.** `session:` per U24 e
+    # U27, che aprivano `.uasset`; `branch:` per il `BACK` del navigatore, che era codice. Non e'
+    # incoerenza: e' lo schema che lo prevede, e ogni passaggio e' stato dichiarato invece che dedotto.
+    status: IDLE
+    issue: null
     branch: null
-    session: U27
+    session: null
     # ➕ **Aperto il 2026-08-17, e il campo esisteva gia' per questo caso.** La nota qui sotto lo
     # prescriveva — *«se la seduta apre un ramo per committare gli `.uasset`, va nominato in
     # `session_branch`»* — e fino ad allora il worktree era **detached** su `78dfd2f7`: lavoro d'editor
@@ -3962,29 +3968,32 @@ tracks:
       # ⚠️ **UN solo package, e non i cinque della lease rilasciata.** Il collegamento del `BACK` tocca
       # `WBP_RT_ErrorModal` e nient'altro: una lease sui cinque prenoterebbe binari che questa seduta non
       # apre, e li toglierebbe a chi ci sta lavorando davvero — vedi la riga qui sotto.
-      # 🔴 **`WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer` sono toccati da un branch VIVO che non dichiara
-      # nessuna lease**: `origin/feat/937-widget-layout`, misurato — `git diff --name-only
-      # origin/main...origin/feat/937-widget-layout` da' quei due `.uasset` e **zero** file sotto `docs/`.
-      # Non e' un conflitto con questa lease, che non li nomina; e' una violazione di D-139 registrata qui
-      # perche' qualcuno la veda, dato che due `.uasset` non si fondono e quel branch li sta gia' scrivendo.
-      - key: "BINARY-GH937-ERRORMODAL-BACK"
-        issue: 937
-        base_sha: "b036411f039f0e33306ef9bab78bd035544cac27"
-        operation: edit
-        paths:
-          - Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
-        verification:
-          - load_in_editor
-          - save_without_errors
-          # ⛔ Le due che contano per QUESTA modifica, e la seconda e' il motivo per cui la seduta esiste.
-          # `back_button_calls_backfromerror`: il pulsante deve chiamare `BackFromError` passando
-          # `GetPhaseWhenArmed()`, **non** `PopScreen` o `ReturnMain` diretti — quelli sarebbero il widget
-          # che naviga da se', cioe' l'invariante 1 di CP 46.1 violata dentro un `.uasset`, dove nessun
-          # test di navigazione se ne accorgerebbe.
-          - back_button_calls_backfromerror
-          # `no_widget_creates_widgets` si rifa': il package cambia, e questa e' l'unica verifica che
-          # protegge l'invariante nel posto dove puo' rientrare senza che un test lo veda.
-          - no_widget_creates_widgets
+      # 🔴 **`WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer` erano toccati da un branch VIVO che non dichiarava
+      # nessuna lease**: `feat/937-widget-layout` — misurato il 2026-08-18, quei due `.uasset` e **zero**
+      # file sotto `docs/`. ⏱️ **Atterrato con la PR #1187**, quindi il buco e' chiuso di fatto: la nota
+      # resta perche' e' successo, non perche' sia ancora aperto. Non fu un conflitto con questa lease,
+      # che non li nomina — fu un binario scritto senza prenotarlo, e due `.uasset` non si fondono.
+      # ✅ Ed e' la ragione per cui questa lease ne copre **uno**: prenotare i cinque avrebbe tolto a
+      # quella sessione i package che stava gia' scrivendo.
+      # ✅ **RILASCIATA il 2026-08-19: U27 ha chiuso, quattro verification su quattro.** Il contenuto resta
+      # qui e non nella chiave, come per le tre lease precedenti di questa track.
+      # · `load_in_editor` · `save_without_errors` ✅ dall'autore, che ha collegato il nodo in editor.
+      # · `back_button_calls_backfromerror` ✅ **misurato sui byte del package**: `BackFromError` **2**,
+      #   `GetPhaseWhenArmed` **2**, `RTFrontendNavigator` **1** — e soprattutto `PopScreen`, `ReturnMain`,
+      #   `PushScreen` e `CloseModal` tutti a **zero**. Il widget non naviga da se', che era il punto.
+      # · `no_widget_creates_widgets` ✅ `AddToViewport`/`RemoveFromParent`/`CreateWidget` a **zero**.
+      # ✅ Suite `RefactorTactics.Frontend` **30/30** dopo il salvataggio: il resave non ha rotto i tre
+      #   binding di visibilita', che e' il difetto piu' probabile quando un `.uasset` si riapre.
+      # ⚠️ **Il limite della misura, dichiarato invece che sottinteso.** Un grep sui byte prova che i nomi
+      #   sono nel package, **non** che il pin `PhaseWhenArmed` sia collegato a `GetPhaseWhenArmed()`
+      #   invece che a una costante: quella e' la terza forma di sbagliarlo elencata da
+      #   `guida-frontend-umg.md` §5.4, ed e' l'unica che questa verifica non falsifica. Regge perche'
+      #   `GetPhaseWhenArmed` **compare** — una costante non lo nominerebbe — ma un grafo che lo chiamasse
+      #   e poi ne ignorasse il valore passerebbe lo stesso. Chi vorra' chiuderla del tutto ha una strada:
+      #   il primo test che apre il grafo eventi di un `WBP_RT_*`, che oggi non esiste.
+      # ∴ Chi dovra' modificare questo package emette una lease nuova sul proprio `base_sha`.
+      #   Le quattro qui sopra sono **eseguite**, non ereditate.
+      []
 
   verification:
     status: IDLE
