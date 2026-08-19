@@ -3036,9 +3036,18 @@ tracks:
     # allora. Una directory di lavoro non si tiene prenotata fra due sessioni — è la stessa ragione per cui
     # è stata ceduta, applicata nel verso opposto.
     # 🔺 **Riempiti di nuovo il 2026-08-19 con la riapertura.** `fix/78-grammatica-leggibile` è aperto su
-    # `origin/main` @ `215559f5`, e il worktree è ancora `D:/rt-client` — **misurato libero prima di
-    # riprenderlo**, non dato per scontato: `worktree` era `null` su tutte le track, e nessuna lo dichiarava.
-    # Se ce l'avesse avuto qualcun altro, questa sessione si sarebbe aperta altrove o non si sarebbe aperta.
+    # `origin/main` @ `215559f5`, e il worktree è ancora `D:/rt-client`.
+    # 🔴 **La prima stesura di questa riga portava una misura FALSA, ed è stata trovata dalla code review.**
+    # Diceva *«`worktree` era `null` su tutte le track, e nessuna lo dichiarava»*: falso su entrambe le
+    # clausole. Interrogato col parser, **22** track hanno `worktree` non-null, e `content_editor` nomina
+    # proprio questo path in **`mandate_worktree: "D:/rt-client"`** (riga del suo blocco). Avevo misurato la
+    # riga di *questa* track e scritto una conclusione su *tutto il file* — l'errore di soggetto che questo
+    # repository ha già pagato altrove.
+    # ✅ **Cosa regge della decisione, rimisurato**: `content_editor` è `IDLE` con `branch: null` e il suo
+    # `worktree` operativo è `D:/rt-content`; nessuna track `ACTIVE` dichiara `D:/rt-client`. Non c'era una
+    # sessione viva da scavalcare, quindi la presa è legittima — ma lo è per questa ragione, non per quella
+    # che c'era scritta. ⚠️ Chi riaprisse `#451` trova il proprio `mandate_worktree` occupato: si negozia
+    # allora, e questa riga serve perché la scoperta non arrivi a lavoro cominciato.
     branch: fix/78-grammatica-leggibile
     worktree: "D:/rt-client"
     # ═══ `blocked_by: 904` e `blocked_paths` RIMOSSI il 2026-08-16: **#904 è `MERGED`** (`95d2d39f`,

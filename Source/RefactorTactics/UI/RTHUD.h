@@ -28,7 +28,41 @@ struct FRTSlotLine
  * l'invariante #1 di questa issue vieta — *«la classificazione arriva dal resolver: la UI non ricalcola il
  * perche'»*. Qui arriva il **cosa disegnare**, non il perche'.
  *
- * ─── Cosa di questa struct NON copre la grammatica del 2026-08-07, dichiarato invece che taciuto ───
+ * ═══ LA MATRICE, che e' la cosa che mancava alla grammatica del 2026-08-07 ═══
+ *
+ * Quella tabella assegna uno stile a ogni livello e **presuppone** che ogni livello abbia gli elementi su cui
+ * applicarlo. Misurato sul codice il 2026-08-19, non e' vero: quattro elementi su sei esistono per un livello
+ * solo, e non possono distinguere niente per costruzione.
+ *
+ *   elemento              condizione di disegno    livelli su cui puo' comparire
+ *   ────────────────────  ───────────────────────  ─────────────────────────────
+ *   etichetta             `bHasPlan`               Confirmed · Predicted · Uncertain
+ *   linea al bersaglio    `if (bHasTarget)`        Predicted · Uncertain
+ *   rotta                 `if (bMoving)`           solo Uncertain
+ *   destinazione          `if (bMoving)`           solo Uncertain
+ *   waypoint              movimento                solo Uncertain
+ *   preview scatto        `if (bDashing)`          solo Uncertain
+ *
+ * 🔴 **`Confirmed` non disegna NESSUNA linea**: e' fermo, senza bersaglio e senza scatto, quindi non entra in
+ * nessuno dei tre `if`. Gli resta l'etichetta. Ogni stile di linea assegnato a quel livello e' inosservabile —
+ * e per due riscritture di questa struct e' rimasto scritto lo stesso, perche' la matrice non c'era.
+ *
+ * ─── Cosa ne segue, e perche' questa struct e' piu' piccola di quella che sostituisce ───
+ *
+ * · **`Confirmed` e `Predicted` si distinguono gia' dal CONTENUTO dell'etichetta** — uno nomina un bersaglio,
+ *   l'altro no (`ComposeIntentLabel`). Non serve un canale grafico per loro, e cercarlo e' stato l'errore.
+ * · **Il tratteggio e' quindi LIBERO** per l'unico confronto grafico che esiste davvero, `Predicted` contro
+ *   `Uncertain` sulla linea al bersaglio. E' il confronto che il giocatore incontra nell'**87%** dei casi
+ *   (`Predicted` 51,1 % + `Uncertain` 36,1 % sulla distribuzione misurata), ed e' quello su cui la verifica
+ *   PIE del 2026-08-19 ha bocciato la resa precedente.
+ * · **Il colore NON e' un canale disponibile**: in questa HUD e' gia' l'identita' di squadra — ciano contro
+ *   giallo (`RTHUD.cpp`, il ramo `bOwn`). Una stesura precedente lo spendeva per la certezza, sbiadendo del
+ *   65 % la croma di **ogni** unita' in movimento; due semantiche sullo stesso canale, e la seconda pagata
+ *   dalla prima. Rimosso.
+ * · **Gli elementi mono-livello non si graduano.** Vale per rotta, destinazione, waypoint e preview dello
+ *   scatto: sono sempre `Uncertain`, quindi qualunque gradazione li' e' un simbolo che non varia — costa
+ *   leggibilita' e non informa. Scritto **una volta qui** invece di essere riscoperto elemento per elemento,
+ *   che e' come e' andata finora: tre volte, sullo stesso errore.
  *
  * ⚠️ **Manca l'«icona di squadra» che la grammatica assegna a «previsto»**, e non e' una rinegoziazione
  * silenziosa: `ARTHUD` e' un Canvas che disegna testo, linee e rettangoli, e non ha un percorso per le icone
@@ -36,82 +70,56 @@ struct FRTSlotLine
  * `RefactorTactics.IconCatalog.V01CategoriesPopulated` — e aggiungere qui un canale che nessuno disegna
  * sarebbe un campo dichiarato, trasportato e mai letto. L'icona appartiene al layer widget (§4.1 di
  * `progettazione-hud.md`, che e' **#613**), e la si aggiunge quando esiste chi la rende.
- *
- * ⚠️ **E il tratteggio su «incerto» e' un'AGGIUNTA alla grammatica, non una sua lettura**: la tabella
- * assegna a quel livello «ghost dissolto · `?`» e non dice niente della linea. Una rotta incerta con la linea
- * piena di «confermato» direbbe pero' la cosa sbagliata proprio dove il percorso e' contendibile. Scelta
- * consapevole; se qualcuno la rinegozia, si rinegozia sulla tabella e non qui.
  */
 struct FRTIntentCertaintyStyle
 {
 	/**
-	 * Peso del tratto: e' QUESTO il canale con cui la grammatica esprime «pienamente leggibile / attenuato /
-	 * dissolto» sulle linee.
+	 * Peso del tratto, in pixel. Accompagna il tratteggio sull'unico confronto grafico che esiste
+	 * (`Predicted` contro `Uncertain`), e non lo porta da solo.
 	 *
-	 * 🔴 **Non e' un'opacita', e la prima stesura di questa struct sbagliava proprio qui.** Portava un
-	 * `GhostOpacity` moltiplicato nell'alpha del colore, e su una linea di Canvas **non ha alcun effetto**:
-	 * `AHUD::DrawLine` costruisce un `FCanvasLineItem` — la cui dichiarazione documenta *«blend mode will be
-	 * disregarded for these — only `SE_BLEND_Opaque` is currently supported»* — e finisce in
-	 * `FBatchedElements::AddLine`, che apre con *«Ensure the line isn't masked out. Some legacy code relies
-	 * on Color.A being ignored»* e forza `OpaqueColor.A = 1`. Una rotta «dissolta» e una «attenuata»
-	 * uscivano **pixel-identiche**, e il test non se ne accorgeva perche' asseriva la struct, non il disegno.
-	 * Trovato dalla code review, verificato nel sorgente dell'engine e non dedotto dal comportamento.
+	 * 🔴 **Da solo NON distingue due livelli: misurato in PIE il 2026-08-19.** Una stesura precedente
+	 * affidava proprio a questo campo — `2,0` contro `1,25` px — piu' la densita' del tratteggio l'intero
+	 * confronto, e il verdetto di chi guardava e' stato *«si somigliano troppo»*. Resta come **rinforzo**:
+	 * spinge nella stessa direzione del canale che decide, e se un giorno restasse solo lui il test cade.
 	 *
-	 * Lo spessore l'engine lo rispetta (`LineItem.LineThickness`), quindi la gradazione passa di qui.
+	 * ⚠️ Non e' un'opacita', e una stesura ancora precedente lo era: `GhostOpacity`, moltiplicato nell'alpha.
+	 * Su una linea di Canvas non ha **alcun** effetto — `AHUD::DrawLine` costruisce un `FCanvasLineItem`
+	 * (*«blend mode will be disregarded … only `SE_BLEND_Opaque`»*) che finisce in
+	 * `FBatchedElements::AddLine`, il quale forza `OpaqueColor.A = 1`. Lo spessore invece l'engine lo
+	 * rispetta. Chi tocca questa resa lo sappia prima di provarci.
 	 *
-	 * ⚠️ **I default di questa struct sono quelli del livello INCERTO, non di `Confirmed`**, ed è lo stesso
-	 * principio per cui `ERTIntentCertainty::Unknown` vale zero: una struct che nessuno ha popolato non deve
-	 * affermare la garanzia più forte del dominio. 🔴 La prima stesura li aveva messi uguali a `Confirmed`, e
-	 * la coincidenza rendeva *vacuo* qualunque assert su quel livello — una funzione che ignorasse l'input e
-	 * restituisse `FRTIntentCertaintyStyle{}` sarebbe passata. Trovato dalla code review; ora una funzione
-	 * rotta così fallisce i confronti a coppie, perché darebbe a tutti e tre i livelli la resa incerta.
+	 * ⚠️ **I default sono quelli del livello INCERTO**, per lo stesso principio per cui
+	 * `ERTIntentCertainty::Unknown` vale zero: una struct che nessuno ha popolato non deve affermare la
+	 * garanzia piu' forte del dominio.
 	 */
 	float LineThickness = 1.25f;
 
 	/**
 	 * Frazione ACCESA di ogni tratto, fra 0 e 1: `1` linea continua, valori bassi un tratteggio piu' rado.
 	 *
-	 * ⚠️ **Da solo NON distingue due livelli, ed e' stato misurato in PIE il 2026-08-19**: fra `0,5` e `0,3`
-	 * di acceso, su tratti di un paio di pixel, l'occhio non legge una differenza. Serve a rendere il
-	 * tratteggio riconoscibile *come* tratteggio, non a graduarlo.
+	 * Serve a rendere il tratteggio riconoscibile **come** tratteggio, non a graduarlo: fra `0,5` e `0,3` di
+	 * acceso, su tratti di un paio di pixel, l'occhio non legge una differenza — misurato in PIE.
 	 */
 	float DashDutyCycle = 0.3f;
 
 	/**
-	 * Quanto il colore del tratto resta VIVIDO: `1` pieno, valori bassi lo sbiadiscono verso il grigio della
-	 * stessa luminanza. E' il canale che porta la differenza fra «previsto» e «incerto».
-	 *
-	 * 🔴 **Aggiunto il 2026-08-19 perche' la verifica PIE ha BOCCIATO la resa precedente**, e la ragione e'
-	 * istruttiva: quando la code review ha dimostrato che l'alpha e' inerte sulle linee, la gradazione e'
-	 * stata spostata su spessore e densita' del tratteggio — due canali troppo deboli, e un occhio davanti
-	 * allo schermo ha detto che i due livelli «si somigliano troppo». Ma `FBatchedElements::AddLine` forza a
-	 * `1` **solo l'alpha**: l'**RGB lo conserva**. Il canale forte era disponibile e non era stato usato.
-	 *
-	 * ⚠️ **Sbiadisce verso il grigio, non verso il nero o il bianco**: la mappa di gioco e' chiara, quindi
-	 * scurire aumenterebbe il contrasto invece di ridurlo, e schiarire farebbe sparire il tratto su fondo
-	 * chiaro. Togliere la *saturazione* tenendo la luminanza riduce la vividezza — che e' cio' che comunica
-	 * certezza — senza rendere la linea meno visibile, ed e' robusto rispetto al colore di squadra.
-	 *
-	 * ✅ **`Confirmed` e `Predicted` lo tengono a `1` entrambi**: fra quei due la differenza la fa la linea,
-	 * piena contro tratteggiata, che e' cio' che la grammatica del 2026-08-07 prescrive e che in PIE **si
-	 * vede** — il referto lo dice esplicitamente. Un solo canale per ogni confronto, quello che regge.
-	 */
-	float ColorSaturation = 0.35f;
-
-	/**
 	 * La linea che accompagna l'intento va tratteggiata invece che piena.
 	 *
-	 * ⚠️ **Quale linea dipende dal livello, ed e' una proprieta' di `ClassifyPlan`, non una scelta di qui.**
-	 * `Confirmed` significa fermo E senza bersaglio: non ha ne' rotta ne' collegamento al bersaglio, quindi
-	 * per lui «linea piena» non ha oggetto e resta una garanzia sul caso in cui una linea ci fosse.
-	 * `Predicted` e' fermo con un bersaglio — la sua linea e' il collegamento. `Uncertain` si muove — la sua
-	 * linea e' la rotta.
+	 * ✅ **E' IL canale che decide, ed e' l'unico verificato da un occhio umano**: la seduta PIE del
+	 * 2026-08-19 ha riportato *«le linee tratteggiate si vedevano»*. Separa `Predicted` — collegamento al
+	 * bersaglio **pieno**, il piano vale nello snapshot corrente — da `Uncertain`, dove ogni linea e'
+	 * tratteggiata perche' quel piano dipende da una scelta che l'avversario puo' ancora fare.
 	 *
-	 * ✅ **Il tratteggio in PIE si vede**, ed e' un dato di ritorno dalla seduta del 2026-08-19: come canale
-	 * funziona. Cio' che non funzionava era **estenderlo a tutti e due** i livelli che portano una linea —
-	 * `Predicted` e `Uncertain` erano entrambi tratteggiati, e un canale che vale per entrambi i termini di
-	 * un confronto non distingue niente. Restituito al ruolo che la grammatica gli da': separa la linea
-	 * **piena** di `Confirmed` da quella di `Predicted`. Fra `Predicted` e `Uncertain` decide il colore.
+	 * 🔴 **La stesura precedente lo dava a ENTRAMBI, ed e' per questo che i due livelli si somigliavano.**
+	 * Un canale che vale per tutti e due i termini di un confronto non lo decide, e restava solo un pixel di
+	 * spessore a separarli. Il tratteggio e' libero proprio perche' `Confirmed` non disegna nessuna linea —
+	 * vedi la matrice sull'intestazione della struct: quel livello non entra in nessuno dei tre `if` che
+	 * disegnano geometria, quindi non c'e' nessuno da cui doverlo distinguere qui.
+	 *
+	 * ⚠️ **Su `Uncertain` vale anche per la rotta, e li' NON distingue niente**: le rotte sono incerte per
+	 * costruzione. Non e' una gradazione mascherata, e' un'affermazione vera su una classe intera — «un
+	 * percorso e' sempre contendibile» — che costa nulla perche' non toglie leggibilita' a un confronto che
+	 * non esiste. Diverso dal graduarne il colore, che toglieva croma senza dire niente.
 	 */
 	bool bDashedLine = true;
 
@@ -266,18 +274,14 @@ public:
 	 */
 	static FString ComposeIntentLabel(const struct FRTIntentView& View, const FRTIntentCertaintyStyle& Style);
 
-	/**
-	 * Il colore di squadra sbiadito secondo la certezza: sposta verso il grigio della STESSA luminanza.
-	 *
-	 * ⚠️ **Tocca solo l'RGB e lascia l'alpha dov'e'**, perche' l'alpha su una linea di Canvas non arriva a
-	 * destinazione — `FBatchedElements::AddLine` lo forza a `1`. Toccarlo darebbe l'illusione di aver
-	 * graduato qualcosa: e' esattamente l'errore che questa funzione esiste per non ripetere.
-	 *
-	 * La luminanza si conserva con i pesi percettivi standard (`0.30 / 0.59 / 0.11`) invece di una media
-	 * semplice: il verde pesa piu' del blu per l'occhio, e un grigio calcolato a media aritmetica cambierebbe
-	 * anche la chiarezza del tratto — cioe' la sua **visibilita'**, che non e' cio' che vogliamo graduare.
-	 */
-	static FLinearColor ApplyCertaintyTint(const FLinearColor& TeamColor, float Saturation);
+	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
+	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:
+	// il colore in questa HUD e' **gia'** l'identita' di squadra (ciano contro giallo), quindi la certezza
+	// glielo toglieva; veniva applicata anche alle **rotte**, che sono `Uncertain` per costruzione, cioe'
+	// spendeva il 65 % della croma di ogni unita' in movimento senza distinguere niente; e l'engine ha gia'
+	// `FLinearColor::Desaturate`, che non si poteva riusare perche' lerpa **anche l'alpha** verso zero —
+	// resuscitando l'illusione che tutto questo lavoro esiste per evitare.
+	// Il confronto che serviva lo porta ora il tratteggio, che e' libero e che in PIE si vede.
 
 	/**
 	 * La velocita' successiva sulla scala `x1 · x2 · x4` (CP 47.7, #1015).

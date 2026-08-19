@@ -158,23 +158,29 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 	case ERTIntentCertainty::Confirmed:
 		// «Linea piena · ghost pienamente leggibile · nessun `?`». Niente da alleggerire: l'unita' sta ferma
 		// e non punta niente, quindi non c'e' un avversario che possa smentirla entro questo turno.
+		// ⚠️ **Questi valori non raggiungono nessun `DrawLine`, ed e' un fatto della matrice, non un difetto.**
+		// `Confirmed` e' fermo, senza bersaglio e senza scatto: non entra in `if (bMoving)` ne' in
+		// `if (bHasTarget)` ne' in `if (bDashing)`, quindi non ha geometria da disegnare. Restano valori
+		// **sicuri** per il caso in cui un giorno un elemento nuovo comparisse a questo livello — non una
+		// promessa che oggi si veda qualcosa. Cio' che distingue `Confirmed` a schermo e' il CONTENUTO
+		// dell'etichetta: non nomina nessun bersaglio, e non porta il `?`.
 		Style.LineThickness = 2.5f;
-		Style.bDashedLine = false;   // ← la linea PIENA: e' questo che lo separa da `Predicted`
+		Style.bDashedLine = false;
 		Style.DashDutyCycle = 1.f;
-		Style.ColorSaturation = 1.f;
 		Style.bUncertaintyMark = false;
 		break;
 
 	case ERTIntentCertainty::Predicted:
 		// «Linea tratteggiata · ghost attenuato». Il collegamento al bersaglio vale nello snapshot corrente:
 		// il tratteggio dice «adesso e' valido», non «andra' cosi'».
-		Style.LineThickness = 2.f;
-		Style.bDashedLine = true;
-		Style.DashDutyCycle = 0.5f;
-		// ⚠️ Colore PIENO come `Confirmed`, e non e' una svista: fra questi due la differenza la porta la
-		// linea — piena contro tratteggiata — che in PIE si vede. Sbiadire anche qui spenderebbe il canale
-		// del colore su un confronto gia' risolto, lasciandolo piu' debole dove serve davvero.
-		Style.ColorSaturation = 1.f;
+		// 🔺 **Linea PIENA, ed e' il cambiamento che questa revisione porta.** Prima era tratteggiata come
+		// `Uncertain`, e i due livelli restavano separati da un pixel di spessore: la verifica PIE li ha
+		// bocciati. Il collegamento al bersaglio e' l'**unico** elemento su cui questi due livelli
+		// coesistono, e ora e' pieno per uno e tratteggiato per l'altro — il canale che un occhio umano ha
+		// confermato di vedere, speso sull'87 % dei casi reali.
+		Style.LineThickness = 2.5f;
+		Style.bDashedLine = false;
+		Style.DashDutyCycle = 1.f;
 		Style.bUncertaintyMark = false;
 		break;
 
@@ -189,14 +195,14 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 		// default sono anch'essi i valori del livello incerto, per la ragione scritta sulla dichiarazione.
 		// La ridondanza e' voluta perche' questo ramo dica cosa disegna anche a chi non risale all'header —
 		// e se un giorno divergessero, e' `IntentCertaintyRendering` a cadere, non lo schermo in silenzio.
+		// Tratteggiata: ogni linea di questo livello dipende da una scelta che l'avversario puo' ancora fare.
+		// ⚠️ Vale sia per il collegamento al bersaglio — dove **decide**, contro la linea piena di
+		// `Predicted` — sia per la rotta, dove non distingue niente perche' le rotte sono tutte incerte. La
+		// seconda non e' una gradazione mascherata: e' un'affermazione vera su una classe intera, e non
+		// toglie leggibilita' a un confronto che non esiste.
 		Style.LineThickness = 1.25f;
 		Style.bDashedLine = true;
 		Style.DashDutyCycle = 0.3f;
-		// 🔴 **Il canale che porta davvero la differenza da `Predicted`.** La resa precedente affidava quel
-		// confronto a spessore e densita' — `2,0` contro `1,25` px, `0,5` contro `0,3` di acceso — e la
-		// verifica PIE del 2026-08-19 l'ha bocciata: *«si somigliano troppo»*. Il colore sbiadito si legge da
-		// lontano, ed e' l'unico canale forte che l'engine lasci passare su una linea.
-		Style.ColorSaturation = 0.35f;
 		Style.bUncertaintyMark = true;
 		break;
 	}
@@ -207,24 +213,6 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 	Style.bReactionArmed = !View.ReactionName.IsEmpty();
 
 	return Style;
-}
-
-FLinearColor ARTHUD::ApplyCertaintyTint(const FLinearColor& TeamColor, float Saturation)
-{
-	// Luminanza percettiva: il verde pesa piu' del blu per l'occhio. Con una media aritmetica il grigio
-	// risultante cambierebbe anche la CHIAREZZA del tratto, cioe' quanto si vede — e la visibilita' non e'
-	// cio' che stiamo graduando: un livello incerto deve essere meno vivido, non meno leggibile.
-	const float Lum = 0.30f * TeamColor.R + 0.59f * TeamColor.G + 0.11f * TeamColor.B;
-	const float S = FMath::Clamp(Saturation, 0.f, 1.f);
-
-	// ⚠️ L'alpha si copia intatto: su una linea di Canvas non arriva comunque a destinazione
-	// (`AddLine` lo forza a 1), e fingere di graduarlo qui rimetterebbe in piedi l'illusione che la code
-	// review ha smontato.
-	return FLinearColor(
-		FMath::Lerp(Lum, TeamColor.R, S),
-		FMath::Lerp(Lum, TeamColor.G, S),
-		FMath::Lerp(Lum, TeamColor.B, S),
-		TeamColor.A);
 }
 
 TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D& A, const FVector2D& B,
@@ -588,13 +576,15 @@ void ARTHUD::DrawHUD()
 		auto DrawIntentLine = [this](const FVector2D& A, const FVector2D& B, const FLinearColor& C,
 			const FRTIntentCertaintyStyle& S)
 		{
-			// Il colore di squadra sbiadito secondo il livello: e' il canale che separa «previsto» da
-			// «incerto», dopo che la verifica PIE ha bocciato spessore e densita' come troppo deboli.
-			const FLinearColor Tinted = ApplyCertaintyTint(C, S.ColorSaturation);
+			// ⚠️ **Il colore arriva INTATTO, ed e' una scelta.** In questa HUD il colore e' gia' l'identita'
+			// di squadra — ciano contro giallo — e una stesura precedente lo sbiadiva secondo la certezza,
+			// togliendo croma a ogni unita' in movimento per un confronto che su quell'elemento non esiste.
+			// Due semantiche sullo stesso canale, e la seconda pagata dalla prima. Qui la certezza parla col
+			// tratteggio, che e' libero.
 			const float Duty = S.bDashedLine ? S.DashDutyCycle : 1.f;
 			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, Duty))
 			{
-				DrawLine(Seg.Key.X, Seg.Key.Y, Seg.Value.X, Seg.Value.Y, Tinted, S.LineThickness);
+				DrawLine(Seg.Key.X, Seg.Key.Y, Seg.Value.X, Seg.Value.Y, C, S.LineThickness);
 			}
 		};
 
@@ -721,12 +711,17 @@ void ARTHUD::DrawHUD()
 
 			// Linea verso il bersaglio d'attacco pianificato (dalla CELLA del bersaglio, non dal suo Actor).
 			//
-			// ⚠️ **E' l'UNICO elemento grafico su cui il livello varia davvero, e quindi l'unico che la
-			// gradazione informa.** Un bersaglio senza movimento e' `Predicted`, un bersaglio mentre ci si
-			// sposta e' `Uncertain`: qui il tratto passa da 2,0 a 1,25 e il tratteggio da mezzo a un terzo
-			// acceso, e la differenza si vede. La rotta e la destinazione, invece, esistono solo quando
-			// l'unita' si muove — cioe' sempre allo stesso livello. `Predicted` e' anche il livello piu'
-			// frequente, misurato al 51,1%.
+			// ⚠️ **E' l'UNICO elemento grafico su cui il livello varia davvero, e quindi l'unico che una
+			// distinzione informa.** Un bersaglio senza movimento e' `Predicted`, un bersaglio mentre ci si
+			// sposta e' `Uncertain`: qui la linea passa da **piena** a **tratteggiata**, ed e' il canale che
+			// la seduta PIE del 2026-08-19 ha confermato visibile. La rotta e la destinazione, invece,
+			// esistono solo quando l'unita' si muove — cioe' sempre allo stesso livello.
+			// 🔴 **Questo commento diceva «il tratto passa da 2,0 a 1,25 e il tratteggio da mezzo a un terzo
+			// acceso, e la differenza si vede»**: e' esattamente la tesi che quella seduta ha BOCCIATO, ed e'
+			// rimasta scritta accanto al codice che descriveva mentre l'intestazione della struct, 600 righe
+			// piu' su, gia' diceva il contrario. Trovato dalla code review. Chi cercava se lo spessore possa
+			// portare un confronto trovava per primo la risposta sbagliata.
+			// I due livelli qui coprono l'**87 %** dei casi reali (`Predicted` 51,1 % + `Uncertain` 36,1 %).
 			if (View.bHasTarget && HeadScreen.Z > 0.f)
 			{
 				const FVector TgtScreen = Project(HexCellWorld(View.TargetCell, Origin, HexSize, LayerH) + FVector(0.f, 0.f, WorldHeadOffset));
