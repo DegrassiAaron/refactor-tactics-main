@@ -11,6 +11,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTReactionLibrary.h"
+#include "Turn/RTReactionOpportunityTypes.h" // RequiresDecisionBoundary: la cardinalita' del profilo la decide LEI
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
@@ -168,7 +169,14 @@ bool FRTDefensivesMatchCatalogTest::RunTest(const FString&)
 		URTCatalogLibrary::FindCoreAction(TEXT("Action.Counter")).ReactionTrigger == ERTReactionTrigger::HitByDirectAttack);
 	TestTrue(TEXT("Deflect ha un trigger"),
 		URTCatalogLibrary::FindCoreAction(TEXT("Action.Deflect")).ReactionTrigger == ERTReactionTrigger::HitByDirectAttack);
-	TestTrue(TEXT("Brace non e' una reazione: nessun trigger"),
+	// 🔁 **Sostituita con E14.7 ([D-047]).** Diceva «Brace non e' una reazione: nessun trigger», e il FATTO
+	// resta vero — `ReactionTrigger` e' `None` — ma la conclusione no: dal Reaction Profile il `Brace` **e'**
+	// l'accesso a una reazione, solo che non scatta su un evento. Non ha un trigger perche' e' il giocatore
+	// ad armarla in `Prep`, non perche' non reagisca a niente.
+	// ⚠️ L'asserzione non si cancella: senza, il giorno in cui qualcuno desse al `Brace` un
+	// `ERTReactionTrigger` il loop delle reazioni comincerebbe a raccoglierlo per conto suo, e nessun test lo
+	// direbbe. Cambia cio' che il messaggio **insegna**, non cio' che il codice controlla.
+	TestTrue(TEXT("Brace non scatta su un evento: lo arma il giocatore, quindi nessun trigger"),
 		URTCatalogLibrary::FindCoreAction(TEXT("Action.Brace")).ReactionTrigger == ERTReactionTrigger::None);
 
 	// I numeri che il catalogo dichiara come effetti stanno nei DATI, non in una costante del resolver.
@@ -599,6 +607,129 @@ bool FRTApplyDamageDeltaTest::RunTest(const FString&)
 	const TArray<FRTAttack> Clamped = URTCombatResolver::ApplyDamageDelta(Attacks, Huge);
 	TestEqual(TEXT("il danno si azzera, non diventa negativo"), Clamped[0].Power, 0);
 	TestEqual(TEXT("e il colpo resta nell'array"), Clamped.Num(), 3);
+
+	return true;
+}
+
+
+// ─── E14.7 · Reaction Profile ([D-047]) ─────────────────────────────────────────────────────────────────
+
+/**
+ * Col **profilo base** il `Brace` ha **una** risposta legale, quindi nessun boundary si apre ([D-047] §2.3).
+ *
+ * E' la voce di DoD che protegge tutto cio' che e' verde oggi: se il profilo base aprisse una finestra, ogni
+ * `Brace` della v0.1 diventerebbe un prompt e la resolution rallenterebbe per ogni unita' che si copre.
+ *
+ * ⚠️ La verifica passa da `RequiresDecisionBoundary` — la stessa funzione che il resolver interroga — e non
+ * da un conteggio scritto qui: un test che contasse `Num() == 1` per conto proprio resterebbe verde anche se
+ * la regola del boundary cambiasse soglia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceBaseProfileSingleResponseTest,
+	"RefactorTactics.Reactions.Brace.BaseProfileHasSingleResponse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceBaseProfileSingleResponseTest::RunTest(const FString&)
+{
+	const TArray<FString> Base = URTCatalogLibrary::BraceAllowedResponses(NAME_None);
+
+	TestEqual(TEXT("il profilo base offre una sola risposta"), Base.Num(), 1);
+	TestEqual(TEXT("ed e' `Hold Ground`, la risposta universale"), Base[0], FString(TEXT("Hold Ground")));
+
+	FRTReactionOpportunity Opp;
+	Opp.AllowedResponses = Base;
+	TestFalse(TEXT("quindi nessun decision boundary si apre"),
+		URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp));
+
+	// Un profilo SCONOSCIUTO da' lo stesso esito, ed e' fail-closed nel verso giusto: un piano salvato prima
+	// che il catalogo cambiasse non deve poter aprire una finestra su scelte che il gioco non ha piu'.
+	const TArray<FString> Unknown = URTCatalogLibrary::BraceAllowedResponses(TEXT("Profile.NonEsiste"));
+	TestEqual(TEXT("un profilo sconosciuto ricade sul base"), Unknown.Num(), 1);
+
+	return true;
+}
+
+/**
+ * Un profilo d'eroe con una **seconda** risposta porta la cardinalita' a >= 2 e apre la finestra con la
+ * regola che ADR-0004 §2 **ha gia'** ([D-047] §2.3): nessuna regola nuova, nessun enum di tipo.
+ *
+ * I tre profili del roster si verificano **uno per uno con la propria cardinalita' attesa**, e non «almeno
+ * due»: `Profile.Glance` ne porta **due** di extra, quindi 3, ed e' l'unico. Un test che chiedesse solo
+ * `>= 2` non distinguerebbe Glance da Sidestep, e la differenza e' l'unica cosa che quel profilo aggiunge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceRicherProfileOpensWindowTest,
+	"RefactorTactics.Reactions.Brace.RicherProfileOpensWindow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceRicherProfileOpensWindowTest::RunTest(const FString&)
+{
+	struct FCase { const TCHAR* ProfileId; int32 Expected; };
+	const FCase Cases[] = {
+		{ TEXT("Profile.Grounding"), 2 },
+		{ TEXT("Profile.Sidestep"),  2 },
+		{ TEXT("Profile.Glance"),    3 },
+	};
+
+	for (const FCase& C : Cases)
+	{
+		const TArray<FString> Responses = URTCatalogLibrary::BraceAllowedResponses(FName(C.ProfileId));
+		TestEqual(FString::Printf(TEXT("%s: cardinalita'"), C.ProfileId), Responses.Num(), C.Expected);
+
+		// `Hold Ground` resta la prima e non viene sostituita: un profilo AGGIUNGE, non rimpiazza.
+		TestEqual(FString::Printf(TEXT("%s: `Hold Ground` resta la risposta universale"), C.ProfileId),
+			Responses[0], FString(TEXT("Hold Ground")));
+
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = Responses;
+		TestTrue(FString::Printf(TEXT("%s: apre il decision boundary"), C.ProfileId),
+			URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp));
+	}
+
+	// Il catalogo ne dichiara TRE, e il conteggio e' parte della verifica: un quarto profilo comparso senza
+	// una decisione sarebbe un eroe che apre una finestra che nessuno ha discusso.
+	TestEqual(TEXT("il catalogo dichiara tre profili"),
+		URTCatalogLibrary::GetReactionProfileCatalog().Num(), 3);
+
+	return true;
+}
+
+/**
+ * **Riktor non ha un profilo, e nessuna finestra si apre per lui** ([D-047] §2.5).
+ *
+ * E' la baseline con cui CP 14.6 confronta gli altri tre quando misura il pacing, e va pinnata: se un giorno
+ * qualcuno gliene assegnasse uno, il caso «un eroe senza finestra» sparirebbe dal roster e la misura del
+ * pacing perderebbe il proprio controllo — senza che nulla diventi rosso.
+ *
+ * ⚠️ Il test verifica **entrambe** le metà: che Riktor non ne abbia uno, e che gli altri tre sì. Solo la
+ * prima passerebbe anche su un roster in cui nessuno ha un profilo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceRiktorHasNoProfileTest,
+	"RefactorTactics.Reactions.Brace.RiktorHasNoProfile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceRiktorHasNoProfileTest::RunTest(const FString&)
+{
+	int32 WithProfile = 0;
+	int32 WithoutProfile = 0;
+
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+
+		const TArray<FString> Responses = URTCatalogLibrary::BraceAllowedResponses(Hero->ReactionProfileId);
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = Responses;
+		const bool bOpens = URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp);
+
+		if (Hero->HeroId == FName(TEXT("Hero.Riktor")))
+		{
+			TestTrue(TEXT("Riktor non dichiara un profilo"), Hero->ReactionProfileId.IsNone());
+			TestFalse(TEXT("e il suo `Brace` non apre nessuna finestra"), bOpens);
+		}
+
+		if (bOpens) { ++WithProfile; } else { ++WithoutProfile; }
+	}
+
+	// L'altra meta': tre eroi APRONO la finestra. Senza, «Riktor non ne ha uno» sarebbe vero anche su un
+	// roster in cui il profilo non esiste per nessuno — cioe' su una feature che non e' stata costruita.
+	TestEqual(TEXT("tre eroi del roster aprono la finestra sul `Brace`"), WithProfile, 3);
+	TestEqual(TEXT("e uno solo non la apre"), WithoutProfile, 1);
 
 	return true;
 }

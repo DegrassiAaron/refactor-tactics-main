@@ -267,6 +267,9 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// Debolezza acqua: stesso identificatore che Phase (CP 6.3) usera' come sua affinita', cosi' la combo
 	// "Gadget su bersaglio Wet" e "l'affinita' di Phase e' l'acqua" restano lo stesso concetto, non due nomi.
 	Gadget->Weakness = TEXT("Affinity.Water");
+	// E14.7 [D-047]: il profilo che il `Brace` arma. Il token NON porta il prefisso d'eroe — `Profile.Grounding`
+	// e non `Gadget.Grounding` — cosi' il profilo si riassegna quando il roster cresce, senza rename.
+	Gadget->ReactionProfileId = TEXT("Profile.Grounding");
 
 	// Indice 0 — ArcPulse, attacco base. 22 danni / range 4 e' ESATTAMENTE la fascia "medio raggio" del
 	// catalogo azioni v0.1 §1: non e' una coincidenza da verificare a mano, e' la stessa tabella.
@@ -368,6 +371,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// Simmetrica a Gadget (Affinity.Water e' gia' la sua debolezza): la rivalita' fra i due eroi legati dalla
 	// combo Wet e' un solo identificatore condiviso in entrambe le direzioni, non due nomi da sincronizzare.
 	Phase->Weakness = TEXT("Affinity.Electricity");
+	Phase->ReactionProfileId = TEXT("Profile.Sidestep"); // E14.7 [D-047]
 
 	// Indice 0 — PressureJet, attacco base. 16 danni non corrisponde a NESSUNA fascia di
 	// `BasicAttackDamageForRange` (28/25/22/20): a differenza di `Gadget.ArcPulse`, l'attacco base di Phase e'
@@ -527,6 +531,13 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// Simmetrica a Wraith (CP 6.5), come Gadget/Phase fra loro: il roster chiude in due coppie. Il piu' lento
 	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.
 	Riktor->Weakness = TEXT("Affinity.Movement");
+	// ⛔ **Riktor NON ha un profilo, e il campo resta `None` di proposito** ([D-047], §2.5). La proposta gli
+	// assegnava `ANCHOR` — «annulla lo spostamento» — ma `Hold Ground` lo fa gia' e con la stessa ampiezza:
+	// il ramo `Braced` del resolver non controlla `KnockDist`, a differenza di `Guarded`. Una seconda
+	// risposta identica alla prima lascerebbe la cardinalita' a 1 senza aprire nulla, e sarebbe la terza
+	// scrittura della stessa regola dopo `Reaction.Anchor` e `Gadget.Anchor`.
+	// ∴ il roster tiene **un eroe senza finestra sul `Brace`**, ed e' la baseline con cui CP 14.6 confronta
+	// gli altri tre quando misura il pacing. La riga non si aggiunge: l'assenza e' il contenuto.
 
 	// Indice 0 — ImpactShot, attacco base. **8 danni / range 3** (ADR-0007). Come `Phase.PressureJet`, non e'
 	// una fascia di `BasicAttackDamageForRange`: l'attacco base e' dell'eroe, non della tabella generica.
@@ -654,6 +665,8 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// Simmetrica a Riktor: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
 	// Il roster chiude in due coppie — Gadget↔Phase sull'acqua, Riktor↔Wraith sullo spazio.
 	Wraith->Weakness = TEXT("Affinity.Structures");
+	// E14.7 [D-047]: `Profile.Glance` porta DUE risposte extra, quindi cardinalita' 3 — l'unico del roster.
+	Wraith->ReactionProfileId = TEXT("Profile.Glance");
 
 	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Phase e Riktor, non e' la fascia
 	// generica (a range 4 darebbe 22). Un punto in meno del medio raggio, pagato in mobilita'.

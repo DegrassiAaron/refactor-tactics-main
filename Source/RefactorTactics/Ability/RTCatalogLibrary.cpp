@@ -5,6 +5,51 @@
 #include "Combat/RTCombatLibrary.h" // DeflectDamageReduction: il numero della riduzione resta uno solo
 #include "Map/RTHexCellData.h"     // ERTHexDoorState: `Action.Interact` dichiara lo stato che chiede (D-151)
 
+TArray<FRTReactionProfileDef> URTCatalogLibrary::GetReactionProfileCatalog()
+{
+	// I tre profili di `spec-reaction-clash-e14.md` §2.5, e **tre e' il numero giusto**: Riktor non ne ha uno
+	// perche' `Hold Ground` fa gia' cio' che il suo `ANCHOR` avrebbe fatto. Vedi il commento della
+	// dichiarazione — qui non si ripete, si esegue.
+	//
+	// I token NON portano il prefisso d'eroe: `Profile.Sidestep` e non `Phase.Sidestep`. E' cio' che permette
+	// di riassegnare un profilo quando il roster cresce, senza che il rename tocchi un dato di gioco.
+	return {
+		{ FName(TEXT("Profile.Grounding")), { TEXT("GROUND") } },
+		{ FName(TEXT("Profile.Sidestep")),  { TEXT("SIDESTEP") } },
+		{ FName(TEXT("Profile.Glance")),    { TEXT("GLANCE LEFT"), TEXT("GLANCE RIGHT") } }
+	};
+}
+
+FRTReactionProfileDef URTCatalogLibrary::FindReactionProfile(const FName& ProfileId)
+{
+	if (!ProfileId.IsNone())
+	{
+		for (const FRTReactionProfileDef& Def : GetReactionProfileCatalog())
+		{
+			if (Def.ProfileId == ProfileId)
+			{
+				return Def;
+			}
+		}
+	}
+
+	// Profilo base: id vuoto e nessuna risposta extra. Ci si arriva da due strade — chi non ne dichiara uno
+	// (Riktor) e chi ne dichiara uno che il catalogo non conosce — e l'esito e' lo stesso di proposito:
+	// cardinalita' 1, nessuna finestra. Inventare risposte per un profilo assente aprirebbe un boundary su
+	// scelte che il gioco non ha.
+	return FRTReactionProfileDef();
+}
+
+TArray<FString> URTCatalogLibrary::BraceAllowedResponses(const FName& ProfileId)
+{
+	// `Hold Ground` PRIMA e sempre: e' la risposta universale, ed e' anche il fallback che §9 assegna al
+	// difensore allo scadere della finestra. La sua posizione non e' estetica — un `AllowedResponses` il cui
+	// primo elemento non fosse la scelta sicura renderebbe l'ordine dell'array una regola implicita.
+	TArray<FString> Responses = { TEXT("Hold Ground") };
+	Responses.Append(FindReactionProfile(ProfileId).ExtraResponses);
+	return Responses;
+}
+
 ERTMatchPhase URTCatalogLibrary::MapResolutionPhase(ERTResolutionPhase Phase)
 {
 	// Funzione TOTALE: un caso per ogni valore dell'enum, nessun `default` che nasconda una fase dimenticata
