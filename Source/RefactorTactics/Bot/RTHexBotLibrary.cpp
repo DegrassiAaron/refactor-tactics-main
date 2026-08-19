@@ -6,6 +6,8 @@
 #include "Terrain/RTTerrainLibrary.h"
 #include "Turn/RTFacingLibrary.h" // CP 13.5: il facing d'arrivo si deriva con la regola, non a mano
 #include "Turn/RTHexSimLibrary.h"
+#include "Pathfinding/RTHexPath.h" // ERTHexPathStatus: una prenotazione fallita si distingue da una vuota
+#include "RefactorTactics.h"       // LogRT
 
 namespace
 {
@@ -308,6 +310,60 @@ FRTHexBotPlan URTHexBotLibrary::PlanUnit(const FRTHexSnapshot& Snapshot, int32 U
 {
 	return ChooseBestPlan(Snapshot.Map, BuildCandidates(Snapshot, UnitId, Context), Context);
 }
+
+TArray<FRTCellId> URTHexBotLibrary::ReservePlannedRoute(FRTHexSnapshot& Snapshot, int32 UnitId,
+	const FRTCellId& DestCell)
+{
+	const FRTHexPathResult Found = URTHexSimLibrary::FindPathForUnit(Snapshot, UnitId, DestCell);
+
+	// 🔴 **Una rotta che non esiste NON e' una prenotazione riuscita, e tacerlo riporta il difetto.** Se il
+	// pathfinding fallisce — `NoPath`, `GoalInvalid`, `StartInvalid`, tetto di nodi — il ciclo qui sotto non
+	// gira, la funzione non prenota nulla, e la compagna successiva trova la stessa destinazione libera: la
+	// contesa di #1088, stavolta senza traccia. Si prenota allora almeno la DESTINAZIONE, che e' l'unica
+	// cella su cui la contesa e' certa, e si dice che e' successo.
+	if (Found.Path.Num() < 2)
+	{
+		// Restare fermi e' il caso NORMALE, non un fallimento: la cella dell'unita' e' gia' in `Occupancy` e
+		// non c'e' nessuna rotta da prenotare. Si distingue confrontando la destinazione con la posizione.
+		const FRTHexSimUnit* Self = Snapshot.Units.FindByPredicate(
+			[UnitId](const FRTHexSimUnit& U) { return U.UnitId == UnitId; });
+		const bool bStayingPut = Self && Self->Cell == DestCell;
+
+		if (!bStayingPut)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] Prenotazione rotta u%d -> %s: nessun percorso (stato %d). Prenotata la sola destinazione."),
+				UnitId, *DestCell.ToString(), static_cast<int32>(Found.Status));
+			if (!Snapshot.Occupancy.Contains(DestCell))
+			{
+				Snapshot.Occupancy.Add(DestCell, UnitId);
+			}
+		}
+		return TArray<FRTCellId>();
+	}
+
+	for (const FRTCellId& Cell : Found.Path)
+	{
+		// `Add` sovrascriverebbe l'occupante di una cella gia' presa. Non deve mai succedere — la rotta viene
+		// da `FindPathForUnit`, che le celle altrui le evita — ma la sovrascrittura sarebbe silenziosa e
+		// cancellerebbe una prenotazione precedente, cioe' il difetto che questa funzione esiste per chiudere.
+		// Quindi si NOTIFICA invece di ingoiare: se questa riga compare, l'invariante e' rotta a monte.
+		if (const int32* Occupant = Snapshot.Occupancy.Find(Cell))
+		{
+			if (*Occupant != UnitId)
+			{
+				UE_LOG(LogRT, Warning,
+					TEXT("[RT] Prenotazione rotta u%d: la cella %s risulta gia' di u%d — invariante rotta a monte."),
+					UnitId, *Cell.ToString(), *Occupant);
+			}
+			continue;
+		}
+		Snapshot.Occupancy.Add(Cell, UnitId);
+	}
+
+	return Found.Path;
+}
+
 
 FRTCellId URTHexBotLibrary::BestKiteCell(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Threat)
 {
