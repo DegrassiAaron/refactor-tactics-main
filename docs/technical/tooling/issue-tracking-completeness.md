@@ -4,7 +4,7 @@
 > qui sta il dettaglio, lì il richiamo. Una regola scritta tre volte diverge alla prima correzione.
 >
 > Recepita il **2026-08-16** da un documento di consolidamento esterno
-> ([`docs/archive/src/`](../archive/src/README.md) ne conserva la provenienza).
+> ([`docs/archive/src/`](../../archive/src/README.md) ne conserva la provenienza).
 
 ## Il principio
 
@@ -29,7 +29,7 @@ costa più di un campo vuoto: sporca le viste generate, e il prossimo che cerca 
 ## Il blocco `## Tracking`
 
 Ogni Issue creata deve contenerlo. Il template di
-[`.github/ISSUE_TEMPLATE/`](../../.github/ISSUE_TEMPLATE/) lo precompila, così non dipende dalla memoria.
+[`.github/ISSUE_TEMPLATE/`](../../../.github/ISSUE_TEMPLATE/) lo precompila, così non dipende dalla memoria.
 
 ```text
 ## Tracking
@@ -72,7 +72,7 @@ dall'allocatore: si verificano sul remote (`gh issue list --search "EPIC in:titl
 Se sì: collega la feature, aggiornane lo stato, indica quali acceptance criteria copre. **Una feature è
 implementata da molte Issue** — non creare una feature per ogni task tecnico.
 
-⚠️ Owner dello stato: [`docs/roadmap/feature-registry.yaml`](../roadmap/feature-registry.yaml), e **solo**
+⚠️ Owner dello stato: [`docs/roadmap/feature-registry.yaml`](../../roadmap/feature-registry.yaml), e **solo**
 quello. `status` è **derivato dai gate**, non dichiarato: la Issue referenzia il `feature_id`, non copia lo
 stato. Le viste (`feature-registry.json`, `project-graph.json`, le `*.shortlist.md`) si **rigenerano**.
 
@@ -102,8 +102,8 @@ motivazione esplicita**. Non servono tre test se uno copre il rischio.
 
 Data Asset, mesh/material, Blueprint, collision, Niagara, Widget, Enhanced Input, livelli, Actor, GameMode,
 Gameplay Tag, verifiche visive. Se sì, collega o crea una voce in
-[`editor-sessions.yaml`](../roadmap/editor-sessions.yaml) — la vista è
-[`editormap.shortlist.md`](../roadmap/editormap.shortlist.md), **generata**.
+[`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml) — la vista è
+[`editormap.shortlist.md`](../../roadmap/editormap.shortlist.md), **generata**.
 
 La voce dice: cosa fare · dove nell'Editor · asset coinvolti · prerequisiti · risultato atteso · come si
 verifica.
@@ -112,7 +112,7 @@ verifica.
 > che la feature sia usabile: se restano passi in Editor, la Issue non è completa finché non li ha tracciati.
 
 ⚠️ Le verifiche PIE hanno un owner proprio,
-[`test-manuali-pie.md`](test-manuali-pie.md): la Editor Map ne cita gli **ID**, mai l'esito atteso.
+[`test-manuali-pie.md`](../test-manuali-pie.md): la Editor Map ne cita gli **ID**, mai l'esito atteso.
 
 ### 6 · Asset
 
@@ -135,7 +135,7 @@ Placeholder acceptable: Yes/No
 
 **Non bloccare una Issue di gameplay su un asset finale quando basta un graybox** — dichiaralo.
 
-⚠️ La destinazione segue [`convenzioni-contenuti-ue.md`](tooling/convenzioni-contenuti-ue.md), ed è normativa. E un
+⚠️ La destinazione segue [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md), ed è normativa. E un
 `.uasset` nuovo richiede la **riga di allowlist prima che l'asset esista**: `.gitignore` esclude
 `Content/**/*.uasset` e riammette per file. Nell'ordine inverso `git add` non fa nulla e non lo dice.
 

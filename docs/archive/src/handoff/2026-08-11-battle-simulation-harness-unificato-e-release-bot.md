@@ -6,7 +6,7 @@
 > regola vive negli owner che l'hanno recepito.
 >
 > **Recepito da**: [`../../../gameplay/spec-bot-tattico.md`](../../../gameplay/spec-bot-tattico.md) ·
-> [`../../../technical/test-e-diagnosi.md`](../../../technical/test-e-diagnosi.md) ·
+> [`../../../technical/runbooks/test-e-diagnosi.md`](../../../technical/runbooks/test-e-diagnosi.md) ·
 > [`../../../decisions/RT_PDR_00_Decision_Log.md`](../../../decisions/RT_PDR_00_Decision_Log.md) `D-101`,
 > `D-102` · referto
 > [`../../roadmap-plans/bot-ai-consolidamento-2026-08-11.md`](../../roadmap-plans/bot-ai-consolidamento-2026-08-11.md) §9.

@@ -1,7 +1,7 @@
 # Indice degli scenari e tag
 
 > **Owner** del modello di identità e classificazione degli scenari.
-> Come si scrive ed esegue uno scenario sta in [`test-e-diagnosi.md`](../test-e-diagnosi.md); qui c'è **dove
+> Come si scrive ed esegue uno scenario sta in [`test-e-diagnosi.md`](../runbooks/test-e-diagnosi.md); qui c'è **dove
 > vive** e **come lo si trova**.
 >
 > Deciso il **2026-08-08**, issue `#209`. Origine: handoff

@@ -13,7 +13,7 @@
 > | **Quale seduta fare, e in che ordine** | [`editormap.shortlist.md`](editormap.shortlist.md) — **la vista, generata** |
 > | Cosa va verificato in editor, e cosa è già verificato | [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) — **il registro** |
 > | Cosa conviene fare prima | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) — **le priorità** |
-> | Come si lancia una sessione di verifica | [`../technical/debug-vs-unreal.md`](../technical/debug-vs-unreal.md) |
+> | Come si lancia una sessione di verifica | [`../technical/runbooks/debug-vs-unreal.md`](../technical/runbooks/debug-vs-unreal.md) |
 >
 > Il corpo resta come provenienza: il metodo con cui furono ordinate le sedute è ancora ragionevole, e servirà
 > se un giorno questa vista verrà **generata** invece che scritta.
@@ -58,9 +58,9 @@ quando la seduta è finita, cosa sblocca.
 [`test-manuali-pie.md`](../technical/test-manuali-pie.md). Qui si citano gli **ID**, mai il contenuto.
 
 **Non è** un manuale → la procedura passo-passo sta nelle guide esistenti
-([`guida-animazioni-paragon.md`](../technical/guida-animazioni-paragon.md),
+([`guida-animazioni-paragon.md`](../technical/runbooks/guida-animazioni-paragon.md),
 [`convenzioni-contenuti-ue.md`](../technical/tooling/convenzioni-contenuti-ue.md) §5/§6/§11,
-[`../technical/debug-vs-unreal.md`](../technical/debug-vs-unreal.md)), e viene linkata. I passi espliciti compaiono
+[`../technical/runbooks/debug-vs-unreal.md`](../technical/runbooks/debug-vs-unreal.md)), e viene linkata. I passi espliciti compaiono
 solo dove nessuna guida copre ancora la cosa: oggi **U1** (costruire l'arena) e **U16** (misurare i KPI).
 
 **Non decide lo scope** → milestone e DoD di prodotto restano nelle altre due roadmap. Se una seduta scopre che
@@ -252,7 +252,7 @@ anello di team). **Fuori percorso critico**: nessuna di queste sedute blocca la 
 **Cosa fai**: i 26 pack Paragon sono in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`,
 non più `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B). ⚠️ Gideon, Sparrow e altri 3 pack sono
 stati danneggiati dalla migrazione del 2026-08-06 e **vanno riscaricati da Fab** prima di usarli.
-Procedura: [`guida-animazioni-paragon.md`](../technical/guida-animazioni-paragon.md) §AS.3 e §AS.4 punto 4.
+Procedura: [`guida-animazioni-paragon.md`](../technical/runbooks/guida-animazioni-paragon.md) §AS.3 e §AS.4 punto 4.
 Collocazione: `/Game/RT/Characters/<CharacterId>/Blueprints/` (§5); i pack di terze parti restano **fuori** da
 `/Game/RT`. Assegna le classi a `GuardianUnitClass` / `RangerUnitClass` e tieni `VisualZOffset=0`.
 
@@ -265,7 +265,7 @@ Collocazione: `/Game/RT/Characters/<CharacterId>/Blueprints/` (§5); i pack di t
 **Sbloccata da**: U7 · **Preparazione condivisa con**: U7, U9 · **Percorso critico**: no
 **Produce**: `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death
 
-**Cosa fai**: procedura completa in [`guida-animazioni-paragon.md`](../technical/guida-animazioni-paragon.md) §AS.4a
+**Cosa fai**: procedura completa in [`guida-animazioni-paragon.md`](../technical/runbooks/guida-animazioni-paragon.md) §AS.4a
 (locomozione Idle↔Run pilotata dai delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++),
 più §«Ripetere per il Ranger» per il duplicato.
 
@@ -427,5 +427,5 @@ sbagliato.
 | *questo file* | **Operativo in editor**: sedute, artefatti, ordine, dipendenze |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | **Registro delle verifiche**: esito atteso e stato delle voci `PIE-*` |
 | [`convenzioni-contenuti-ue.md`](../technical/tooling/convenzioni-contenuti-ue.md) | **Normativo**: dove va un asset, come si chiama, come si sposta |
-| [`guida-animazioni-paragon.md`](../technical/guida-animazioni-paragon.md) | Procedura per personaggi, AnimBP e montaggi |
-| [`../technical/debug-vs-unreal.md`](../technical/debug-vs-unreal.md) | Compilare, avviare, debuggare, eseguire i test |
+| [`guida-animazioni-paragon.md`](../technical/runbooks/guida-animazioni-paragon.md) | Procedura per personaggi, AnimBP e montaggi |
+| [`../technical/runbooks/debug-vs-unreal.md`](../technical/runbooks/debug-vs-unreal.md) | Compilare, avviare, debuggare, eseguire i test |

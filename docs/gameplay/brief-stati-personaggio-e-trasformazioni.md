@@ -132,7 +132,7 @@ e comunque dipendente da **E14**) · il costo in action economy.
 
 Cinque scenari, **da scrivere quando E34 apre**: oggi descriverebbero un sistema che non esiste, e uno scenario
 che non gira è peggio di uno che manca — sembra copertura. Gli ID seguono la convenzione del corpus
-([`../technical/scenari-validazione-visiva.md`](../technical/scenari-validazione-visiva.md)).
+([`../technical/runbooks/scenari-validazione-visiva.md`](../technical/runbooks/scenari-validazione-visiva.md)).
 
 | ID | Cosa valida | Perché è questo, e non un altro |
 |---|---|---|

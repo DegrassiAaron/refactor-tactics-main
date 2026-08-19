@@ -6,7 +6,7 @@
 > **Gemella di** [`guida-screen-hud-umg.md`](guida-screen-hud-umg.md), che CP 11.7 ha scritto per lo
 > stesso motivo. La differenza: quella è l'HUD **in-match**, questa è ciò che vive **prima e dopo** la
 > partita.
-> **La spec dice *cosa*** — [`spec-frontend-navigazione.md`](spec-frontend-navigazione.md) — **questa
+> **La spec dice *cosa*** — [`spec-frontend-navigazione.md`](../architecture/spec-frontend-navigazione.md) — **questa
 > guida dice *come***.
 
 ---
@@ -57,7 +57,7 @@ vede. Il banner è la prima cosa che rende visibile la riserva di `G13`.
 
 ## 3. Dove vanno gli asset
 
-Da [`convenzioni-contenuti-ue.md`](tooling/convenzioni-contenuti-ue.md) §3:
+Da [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) §3:
 
 ```text
 /Game/RT/UI/Framework/          ← i widget del frontend
@@ -242,7 +242,7 @@ Non farlo su «si vede che funziona»: è il precedente annotato nel registry pe
 
 ## 9. In caso di dubbio
 
-- **Cosa** deve fare una schermata → [`spec-frontend-navigazione.md`](spec-frontend-navigazione.md)
-- **Dove** va un asset → [`convenzioni-contenuti-ue.md`](tooling/convenzioni-contenuti-ue.md)
+- **Cosa** deve fare una schermata → [`spec-frontend-navigazione.md`](../architecture/spec-frontend-navigazione.md)
+- **Dove** va un asset → [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md)
 - **Come si comporta** l'HUD in-match → [`guida-screen-hud-umg.md`](guida-screen-hud-umg.md)
-- **Perché** E46 esiste → [D-144](../decisions/RT_PDR_00_Decision_Log.md)
+- **Perché** E46 esiste → [D-144](../../decisions/RT_PDR_00_Decision_Log.md)

@@ -408,7 +408,7 @@ porta in testa **«✅ RECEPITO il 2026-08-08»**: il master ne è il riassunto,
 
 | Proposta del master | Dove esisteva già |
 |---|---|
-| §0 tutti i producer passano dallo stesso path; niente `SetActorLocation`/`ApplyDamage` | [`test-automatico-unreal.md`](../../technical/tooling/test-automatico-unreal.md) · [`test-e-diagnosi.md`](../../technical/test-e-diagnosi.md) · `AGENTS.md` — **tre** punti |
+| §0 tutti i producer passano dallo stesso path; niente `SetActorLocation`/`ApplyDamage` | [`test-automatico-unreal.md`](../../technical/tooling/test-automatico-unreal.md) · [`test-e-diagnosi.md`](../../technical/runbooks/test-e-diagnosi.md) · `AGENTS.md` — **tre** punti |
 | §6 execution mode Visual · Fast · Headless | `test-automatico-unreal.md`, con l'**equivalenza fra i tre come test** |
 | §5 `PrimaryCategory` | ✗ respinta — riga 54 |
 | §7 Scenario Registry, Stable ScenarioId | [`scenario-index-e-tag.md`](../../technical/tooling/scenario-index-e-tag.md) (`#209`) |

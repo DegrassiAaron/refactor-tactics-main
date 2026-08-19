@@ -7,7 +7,7 @@
 > `CURRENT` · **Ultimo aggiornamento**: 2026-08-08 (verificata contro `Scenarios/` e `ScenarioHarness/`:
 > cinque scenari, quattro comandi console, percorsi corretti — nessuna correzione necessaria).
 > La **spec** dell'harness — schema, assertion, esiti, `StateHash` — è
-> [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md).
+> [`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md).
 
 ---
 
@@ -22,7 +22,7 @@
 
 La regola pratica: **se puoi verificarlo senza aprire l'editor, fallo senza aprire l'editor.** Le voci PIE
 esistono per ciò che resta — leggibilità, ritmo, giudizio — e sono elencate in
-[`test-manuali-pie.md`](test-manuali-pie.md).
+[`test-manuali-pie.md`](../test-manuali-pie.md).
 
 ### Il livello packaged, e perché serve
 
@@ -251,7 +251,7 @@ gameplay. È la proprietà che rende un test verde significativo.
 
 ### 3-bis. Chi decide: un harness solo, e provider che restituiscono decisioni
 
-**[D-101](../decisions/RT_PDR_00_Decision_Log.md)** (2026-08-11). L'harness sopra è **l'unico**, e ogni modo
+**[D-101](../../decisions/RT_PDR_00_Decision_Log.md)** (2026-08-11). L'harness sopra è **l'unico**, e ogni modo
 di giocare uno scenario è una sua modalità — non un secondo harness.
 
 Oggi chi produce le decisioni è deciso in due punti diversi, entrambi nati per necessità:
@@ -277,12 +277,12 @@ reazione. Scriptato, bot, replay, umano e policy di test differiscono solo per *
 > collauderebbe un percorso che nessun giocatore attraversa.
 
 Le modalità di esecuzione — visuale, veloce, headless, batch, audit di replay — cambiano **cosa si vede**,
-mai cosa succede. È lo stesso confine che [D-078](../decisions/RT_PDR_00_Decision_Log.md) traccia fra chi
+mai cosa succede. È lo stesso confine che [D-078](../../decisions/RT_PDR_00_Decision_Log.md) traccia fra chi
 riproduce un replay e chi lo verifica.
 
 ### 3-ter. Un risultato bot-contro-bot non è ancora una misura di bilanciamento
 
-**[D-102](../decisions/RT_PDR_00_Decision_Log.md)** (2026-08-11). Vale quando l'harness comincerà a produrre
+**[D-102](../../decisions/RT_PDR_00_Decision_Log.md)** (2026-08-11). Vale quando l'harness comincerà a produrre
 partite in serie, ed è già vero adesso su un numero che il repository usa.
 
 `roadmap-checkpoint.md` misura i round per partita e annota, correttamente: *«**10** misurato bot-vs-bot —
@@ -307,7 +307,7 @@ candidate** — che è il sintomo tecnico di ciò che questa regola protegge.
 
 File `.json` sotto `Scenarios/`, in **qualunque** sottocartella. L'ID lo dichiara il file, non il percorso:
 spostare uno scenario non ne cambia l'identità, e a trovarlo ci pensano i **tag**. Il modello, il perché e la
-tabella di redirect stanno in [`scenario-index-e-tag.md`](tooling/scenario-index-e-tag.md).
+tabella di redirect stanno in [`scenario-index-e-tag.md`](../tooling/scenario-index-e-tag.md).
 
 ```json
 {
@@ -336,7 +336,7 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](tooling/scenario-index
 | Campo | Significato |
 |---|---|
 | `scenarioId` | ID stabile e gerarchico, **univoco** fra tutti gli scenari. Non deve corrispondere al percorso |
-| `tags` | *(opzionale)* parole per cui filtrare nell'Editor: tipologia, lente, personaggio. Vedi [`scenario-index-e-tag.md`](tooling/scenario-index-e-tag.md) |
+| `tags` | *(opzionale)* parole per cui filtrare nell'Editor: tipologia, lente, personaggio. Vedi [`scenario-index-e-tag.md`](../tooling/scenario-index-e-tag.md) |
 | `mapRadius` | arena esagonale piena generata da codice (nessun `.umap` da versionare) |
 | `cells` | *(opzionale)* celle da modificare: `blocksMovement`, `blocksLineOfSight`, `moveCost` |
 | `hero` | ID stabile dal catalogo: `Hero.Gadget` · `Hero.Phase` · `Hero.Riktor` · `Hero.Wraith` |
@@ -357,7 +357,7 @@ Un'unità dichiarata `"bot": true` non prende il piano dal file: lo produce `ART
 stesso che gira in partita. L'harness non apre un canale nuovo — usa `PlanBotsForTest()`, l'appiglio che il
 runner dichiara da sempre come l'unico.
 
-> ⚠️ **Non è il seam dei `DecisionProvider`** ([D-101](../decisions/RT_PDR_00_Decision_Log.md), #542, v0.2).
+> ⚠️ **Non è il seam dei `DecisionProvider`** ([D-101](../../decisions/RT_PDR_00_Decision_Log.md), #542, v0.2).
 > Quello serve quando i modi di giocare uno scenario diventano tre — bot vs bot, replay, umano+bot. Qui resta
 > uno: file per gli umani, pianificatore per i bot, che è la composizione della v0.1.
 
@@ -537,7 +537,7 @@ negli scenari — così non esistono voci che non filtrano niente.
 
 I filtri sono una **vista, non un vincolo**: restringere l'elenco non tocca mai `ScenarioToRun`. Uno scenario
 già scelto resta scelto ed eseguito anche mentre i filtri mostrano altro. Il perché sta in
-[`scenario-index-e-tag.md`](tooling/scenario-index-e-tag.md).
+[`scenario-index-e-tag.md`](../tooling/scenario-index-e-tag.md).
 
 Si impostano una volta nei *Class Defaults* di `BP_GameMode`, si salva, e da lì in poi **al primo Play lo
 scenario parte**. Non c'è niente da ridigitare a ogni riavvio dell'editor.
@@ -714,7 +714,7 @@ rt.Test.Scenario <ScenarioId>           auto-run al prossimo Play, PREVALE su BP
 | `Scenarios/` | scenari `.json` versionati |
 | `Saved/RTTests/` | report delle esecuzioni (artefatti, non versionati) |
 | `Saved/Logs/RefactorTactics.log` | log del motore |
-| [`test-manuali-pie.md`](test-manuali-pie.md) | verifiche interattive, con stato |
+| [`test-manuali-pie.md`](../test-manuali-pie.md) | verifiche interattive, con stato |
 
 Tre cose diverse, tre nomi diversi: **`Scenarios/`** sono i *dati* (cosa deve succedere),
 **`ScenarioHarness/`** è il *motore* che li esegue, **`Tests/`** sono i *test C++*.

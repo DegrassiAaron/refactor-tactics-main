@@ -3969,7 +3969,7 @@ features:
     owner_specs:
       - docs/technical/systems/progettazione-hud.md
       # La ricetta d'Editor: cosa il codice NON puo' preparare, perche' i `.uasset` non si versionano.
-      - docs/technical/guida-screen-hud-umg.md
+      - docs/technical/runbooks/guida-screen-hud-umg.md
     issues: [613]
     tests:
       - RefactorTactics.HudViewModel.*
@@ -4584,7 +4584,7 @@ features:
       checkpoints: ["46.1", "46.2"]
     dependencies: []
     owner_specs:
-      - docs/technical/spec-frontend-navigazione.md
+      - docs/technical/architecture/spec-frontend-navigazione.md
     issues: [936, 937]
     tests:
       - RefactorTactics.Frontend.*
@@ -4678,7 +4678,7 @@ features:
     dependencies:
       - RT-FEAT-UI-FRONTEND-SHELL
     owner_specs:
-      - docs/technical/spec-frontend-navigazione.md
+      - docs/technical/architecture/spec-frontend-navigazione.md
     issues: [938]
     tests: []
     scenarios: []
@@ -4718,7 +4718,7 @@ features:
       - RT-FEAT-MATCH-FORMAT
       - RT-FEAT-MATCH-END-CONDITIONS
     owner_specs:
-      - docs/technical/spec-frontend-navigazione.md
+      - docs/technical/architecture/spec-frontend-navigazione.md
     issues: [939, 940]
     tests: []
     scenarios: []
@@ -4760,7 +4760,7 @@ features:
     dependencies:
       - RT-FEAT-UI-FRONTEND-SHELL
     owner_specs:
-      - docs/technical/spec-frontend-navigazione.md
+      - docs/technical/architecture/spec-frontend-navigazione.md
     issues: [941]
     tests: []
     scenarios: []
@@ -4799,7 +4799,7 @@ features:
       - RT-FEAT-UI-FRONTEND-SHELL
       - RT-FEAT-REPLAY-ARCHIVE
     owner_specs:
-      - docs/technical/spec-frontend-navigazione.md
+      - docs/technical/architecture/spec-frontend-navigazione.md
       - docs/decisions/adr-0009-replay-logico-canonico.md
     issues: [472, 999]
     tests:
@@ -5147,7 +5147,7 @@ features:
       - RT-FEAT-CHAR-V01-ROSTER
       - RT-FEAT-CORE-PLAYBACK
     owner_specs:
-      - docs/technical/guida-animazioni-paragon.md
+      - docs/technical/runbooks/guida-animazioni-paragon.md
       - docs/technical/systems/spec-team-identity.md
       - docs/decisions/adr-0001-skeletal-unit.md
       # Owner del mapping identità RT -> slot asset Paragon (D-037).
@@ -6192,8 +6192,8 @@ features:
       - RT-FEAT-CORE-TURN
       - RT-FEAT-CORE-DETERMINISM
     owner_specs:
-      - docs/technical/test-e-diagnosi.md
-      - docs/technical/scenari-validazione-visiva.md
+      - docs/technical/runbooks/test-e-diagnosi.md
+      - docs/technical/runbooks/scenari-validazione-visiva.md
       # Dal 2026-08-17 (D-154): il formato di questo harness e' il bersaglio dell'authoring visuale
       # di `RT-FEAT-TOOL-SCENARIO-COMPOSER`. `spec-tactical-designer.md` §5 elenca cosa il formato
       # esprime gia' e cosa no — serve a impedire che un editor futuro ne inventi un secondo.
@@ -6732,7 +6732,7 @@ features:
     dependencies:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
-      - docs/technical/debug-vs-unreal.md
+      - docs/technical/runbooks/debug-vs-unreal.md
     issues: [80]
     tests:
       - RefactorTactics.Scenario.AutoRunOverrideIsNotSilent

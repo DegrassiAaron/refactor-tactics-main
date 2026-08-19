@@ -76,7 +76,7 @@ Tre trappole che questo repository ha già pagato:
 - **Prima di chiudere si riesegue il pass.** Una issue chiusa con tracking incoerenti è incompleta — e il
   DoD si consuntiva nel commento di chiusura, non spuntando il body.
 
-Owner della regola: [`docs/technical/issue-tracking-completeness.md`](docs/technical/issue-tracking-completeness.md).
+Owner della regola: [`docs/technical/tooling/issue-tracking-completeness.md`](docs/technical/tooling/issue-tracking-completeness.md).
 
 ## 4. Classifica il task
 

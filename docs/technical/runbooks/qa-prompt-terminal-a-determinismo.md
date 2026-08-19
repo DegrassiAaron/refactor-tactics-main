@@ -7,7 +7,7 @@
 > cancellata da una pulizia degli untracked mentre veniva recensita. Un mandato che non è in `git` non ha
 > storia, non ha revisione e sparisce senza lasciare traccia.
 > 🔴 **La v2 corregge tre difetti misurati sulla v1** dallo spec panel
-> ([`../roadmap/plans/qa-terminal-a-determinism-spec-panel-2026-08-15.md`](../roadmap/plans/qa-terminal-a-determinism-spec-panel-2026-08-15.md)):
+> ([`../../roadmap/plans/qa-terminal-a-determinism-spec-panel-2026-08-15.md`](../../roadmap/plans/qa-terminal-a-determinism-spec-panel-2026-08-15.md)):
 > **C1** l'ownership era dichiarata per cartelle inesistenti e ignorava il meccanismo di allocazione del
 > repository · **C2** il mandato diceva «costruisci il primo strato» su uno strato che ha già 859 test ·
 > **C3** chiedeva un test «stesso seed → stesso output» vacuo per costruzione.
@@ -23,16 +23,16 @@ deterministico dei test**. Gli altri due mandati sono lo Scenario Runner
 
 ## 0. Regola fondamentale — verifica prima di modificare
 
-1. leggi [`../../AGENTS.md`](../../AGENTS.md) e [`../../CLAUDE.md`](../../CLAUDE.md): sono il contratto del
+1. leggi [`../../../AGENTS.md`](../../../AGENTS.md) e [`../../../CLAUDE.md`](../../../CLAUDE.md): sono il contratto del
    repository e **prevalgono su questo documento** ovunque i due divergano;
 2. verifica branch/worktree corrente (`git branch --show-current`, `git worktree list`);
 3. aggiorna la conoscenza di `main` senza distruggere modifiche locali (`git fetch --prune origin`);
-4. leggi [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml) — vedi §1, è la condizione che
+4. leggi [`../../roadmap/parallel-batch.yaml`](../../roadmap/parallel-batch.yaml) — vedi §1, è la condizione che
    decide se puoi scrivere;
 5. leggi Decision Log / ADR applicabili, il Feature Registry e la roadmap corrente;
 6. cerca i test già presenti **per semantica, non per nome** (§5);
 7. verifica la versione UE: il `.uproject` dichiara `"EngineAssociation": "5.8"`, mentre
-   [`../../CLAUDE.md`](../../CLAUDE.md) dice `5.8.1`. **Se la differenza conta per ciò che stai facendo,
+   [`../../../CLAUDE.md`](../../../CLAUDE.md) dice `5.8.1`. **Se la differenza conta per ciò che stai facendo,
    chiedi invece di scegliere.**
 
 Gli handoff e i documenti storici sono contesto, non source of truth. Il repository corrente prevale.
@@ -49,7 +49,7 @@ Baseline: **UE 5.8.x**, core C++ deterministico, vertical slice v0.1 2v2 offline
 `Golden/Movement.Collision`.
 
 🔴 **E il repository non alloca per cartella: alloca per path di file**, in
-[`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml), con l'invariante **D-139**:
+[`../../roadmap/parallel-batch.yaml`](../../roadmap/parallel-batch.yaml), con l'invariante **D-139**:
 
 > **File non assegnato = STOP.** Il path deve stare nel `writable` della tua track. Altrimenti ti fermi e
 > lo dici — niente «solo questa piccola fix».
@@ -100,7 +100,7 @@ D-139 esiste per impedire.
 | hash del TurnLog | `URTTurnLogLibrary::HashTurnLog`, chiamato da **5** file di test |
 | golden | `Tests/Golden/Movement.Basic`, `Tests/Golden/Movement.Collision` |
 | determinismo / permutazioni | `Simulation.ChecksumStableAcrossPermutations`, `Simulation.StateHashDistinguishesOutcomes`, `Replay.Verifier.ResimulationIsDeterministic` |
-| convenzioni di test | [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md), [`test-e-diagnosi.md`](test-e-diagnosi.md), [`../balance/RT_TestMatrix_v0.1.md`](../balance/RT_TestMatrix_v0.1.md) |
+| convenzioni di test | [`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md), [`test-e-diagnosi.md`](test-e-diagnosi.md), [`../../balance/RT_TestMatrix_v0.1.md`](../../balance/RT_TestMatrix_v0.1.md) |
 
 **Totale: 859 test dichiarati** (`IMPLEMENT_*_AUTOMATION_TEST`) in `Tests/`.
 
@@ -141,7 +141,7 @@ esplicitamente:
   `Hash(TurnSeed, ActionId, RollKind)`, e oggi nessun RNG consuma il seed.
 
 ⚠️ **Ma la ragione va scritta dove il DoD la chiede**: *«accanto all'invariante #4»* del
-[piano canonico](../product/piano-canonico-mvp.md) §5, **non solo nella issue** — «una procedura scartata
+[piano canonico](../../product/piano-canonico-mvp.md) §5, **non solo nella issue** — «una procedura scartata
 in silenzio si ripropone fra sei mesi». Per questo `docs/product/piano-canonico-mvp.md` è nel `writable`
 della track.
 
@@ -181,7 +181,7 @@ massivi.** Con 105 file piatti, ogni consolidamento **è** massivo: le due istru
 soddisfacibili.
 
 Le convenzioni esistono e hanno un owner:
-[`test-automatico-unreal.md`](tooling/test-automatico-unreal.md). **Leggile e seguile.** Non riorganizzare
+[`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md). **Leggile e seguile.** Non riorganizzare
 `Tests/`. Se trovi una convenzione mancante, **segnalala a Terminal C**: la documentazione non è il tuo
 write-set.
 
@@ -217,7 +217,7 @@ log no»* e porta a implementare un duplicato di ciò che esiste già.
 
 Entrambi rispettano già: serializzazione normalizzata · ordine stabile · niente timestamp real-time ·
 niente dipendenza dall'ordine dei container · stessa semantica → stesso hash. Il gate di determinismo è
-speccato in [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md) §7.1.
+speccato in [`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md) §7.1.
 
 **Non cambiare un formato canonico già deciso senza ADR/Decision Log.**
 
@@ -262,7 +262,7 @@ Il repository dichiara **due volte** che il seed non è consumato:
 - `ScenarioHarness/RTTestScenario.h:509` — «Seed dichiarato ma **non consumato**: oggi il progetto non ha
   alcun RNG e il determinismo viene da …»
 - `ScenarioHarness/RTTestResult.h:74` — idem
-- [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md) **§4.1** si intitola *«Il `seed` non fa niente,
+- [`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md) **§4.1** si intitola *«Il `seed` non fa niente,
   e va bene così»*
 
 Un test «stesso seed → stesso output» su un sistema **senza RNG** confronta una funzione deterministica
@@ -425,6 +425,6 @@ Non implementare fuzzing, network test o massive simulation adesso.
 Non fondare: **misura, poi chiudi il delta.**
 
 1. Esegui i comandi del §7 e verifica la tabella del §2.
-2. Trova la tua track in [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml). **Se non hai
+2. Trova la tua track in [`../../roadmap/parallel-batch.yaml`](../../roadmap/parallel-batch.yaml). **Se non hai
    un `writable`, fermati e chiedilo.**
 3. Poi, e solo poi, generalizza la fixture (§2) verso il merge target del §10.
