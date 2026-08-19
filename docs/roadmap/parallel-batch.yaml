@@ -3472,6 +3472,13 @@ tracks:
       rilegge dal file — `grep -n "mandate:"` — non da qui.
       Se una delle tre non regge, il turno non è cominciato: è la prima cosa che il mandato chiede
       di verificare.
+      ➖ **Cinque path rilasciati il 2026-08-19.** La track e' `IDLE` e la sua issue **#451 e'
+      CLOSED**; nessun branch la nomina e nessun ramo vivo tocca quei file — misurato su tutti i
+      riferimenti locali e `origin/*`. Erano claim stantii, ed e' il difetto che questo file
+      documenta gia' due volte: un `writable` non svuotato fa ricomparire una track fra i
+      proprietari e blocca lavoro altrui per settimane. *Un rilascio si scrive.*
+      Erano: i tre `qa-prompt-terminal-{a,b,c}`, `guida-seduta-u1-arena.md`,
+      `issue-tracking-completeness.md` — tutti spostati in `technical/{runbooks,tooling}/`.
     writable:
       # ➖ **`docs/technical/test-manuali-pie.md` esce, il 2026-08-16, e passa alla track `playtest`.**
       # Non perché questa track abbia sbagliato a tenerlo: lo teneva per la seduta U1, cioè per una
@@ -3545,7 +3552,6 @@ tracks:
       # ➕ **Il file del mandato QA Terminal C**, entrato con la PR #919: i tre mandati sono passati nel
       # `writable` della track che li esegue, perché chi esegue un mandato lo corregge quando lo misura
       # sbagliato. Vedi la documentazione di `mandate` nello schema in testa al file.
-      - docs/technical/qa-prompt-terminal-c-architettura-qa.md
       # ➕ **Consolidamento del 2026-08-16: la Issue Tracking Completeness Rule.** Deroga dichiarata —
       # `CLAUDE.md` e `AGENTS.md` sono `integration_only` e vengono presi da questa track per un giro,
       # perché la regola nuova va scritta **una volta sola** e in tre file che devono restare coerenti fra
@@ -3564,9 +3570,6 @@ tracks:
       # lascerebbe un gate che mente — la forma di difetto che questo file esiste per rendere visibile.
       - CLAUDE.md
       - AGENTS.md
-      - docs/technical/issue-tracking-completeness.md
-      - docs/technical/qa-prompt-terminal-a-determinismo.md
-      - docs/technical/qa-prompt-terminal-b-scenario-runner.md
       - .github/
       # ➕ Il testo integrale della regola nella root, per gli agenti esterni che leggono da lì e non
       # risolvono rimandi. ⚠️ È una **seconda copia** della stessa regola, ed è il contrario di ciò che
@@ -3660,7 +3663,6 @@ tracks:
       # track invece di chiedere a GitHub.
       # Misurato prima di prenderla: **zero** occorrenze in questo file, e nessuno dei branch remoti vivi la
       # tocca (`git diff --name-only origin/main...origin/<b>`, uno per uno, dopo `git fetch --prune`).
-      - docs/technical/guida-seduta-u1-arena.md
     # ➖ **Il `derives_from` segue il file**: la catena `test-manuali-pie.md` → `editormap.shortlist.md`
     # + `project-graph.json` passa a `playtest` insieme alla sorgente. È la regola già scritta in
     # `generated_only` applicata a una riassegnazione: la vista segue la sorgente, e la sorgente ha
@@ -3952,6 +3954,10 @@ tracks:
       in un **test**, per avere una `UUserWidget` concreta, ed è annotato).
       ⚠️ `Tests/RTFrontendNavigationTests.cpp` è dichiarato **per nome** e non per prefisso: `Tests/` è
       condivisa fra tutte le track, e prenderla per prefisso bloccherebbe chiunque scriva un test.
+      ➖ **Due path rilasciati il 2026-08-19.** La track e' `IDLE`, non ha branch e non ha
+      nemmeno una issue (`issue: null`): non c'e' niente che possa reclamarli. Erano
+      `guida-frontend-umg.md` e `spec-frontend-navigazione.md`, ora in `technical/runbooks/` e
+      `technical/architecture/`.
     writable:
       - Source/RefactorTactics/Frontend/
       - Source/RefactorTactics/Tests/RTFrontendNavigationTests.cpp
@@ -3988,12 +3994,10 @@ tracks:
       # file e' **finito** con la §2.2, e un `writable` dichiara chi scrivera', non chi ha scritto.
       # 💡 La lezione, per la prossima riallocazione: un write-set si misura sui branch **vivi al
       # momento del merge**, non a quello della decisione. Fra i due c'e' stata una PR.
-      - docs/technical/spec-frontend-navigazione.md
       # ➕ **File nuovo, dichiarato prima di crearlo** (2026-08-16): la guida per costruire i `WBP_RT_*`
       # in editor. E' il gemello di `guida-screen-hud-umg.md` — che CP 11.7 ha scritto per lo stesso
       # motivo — e sta accanto alla spec perche' la spec dice *cosa*, la guida *come*. Le due si leggono
       # insieme e le scrive la stessa track.
-      - docs/technical/guida-frontend-umg.md
       # ➕ **Entrano il 2026-08-16 con CP 46.2** (`#937`), e la richiesta è stata istruita invece che
       # data per scontata: lo spec panel aveva scritto *«va assegnato prima»* credendoli non assegnati,
       # e la misura ha detto che erano di `autobattle`. Quella track ha **finito** (`#954` `CLOSED`, PR
@@ -6097,7 +6101,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: null
+    branch: docs/1165-runbooks-e-rilascio-track
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6338,8 +6342,30 @@ tracks:
       `ACTIVE` proprio per quello.
       📌 Fuori perimetro e ancora aperte: **#1198** (il `--check` del generatore icone e' morto per un
       simbolo rinominato) e **#1166** (nomi legacy nei pixel di 30 immagini piu' `Mock-HUD.png`).
+
+      ➕ **`runbooks/` si apre il 2026-08-19, con dieci documenti su dodici.** La fase 4 l'aveva tenuta
+      chiusa perche' sette erano assegnati; misurato oggi, **cinque di quei sette erano claim stantii**:
+      `content_editor` e' `IDLE` e la sua issue **#451 e' CLOSED**, `frontend_shell` e' `IDLE` **senza
+      issue**, e nessuna delle due ha un branch. I loro path si rilasciano — *«un rilascio si scrive»*,
+      ed e' lo stesso rimedio applicato a `docs_kit` il 2026-08-17.
+      ⛔ **Due restano fuori, e questa volta il blocco e' reale**: `test-manuali-pie.md` e
+      `qa-prompt-terminal-d-verifiche-pie.md` sono di `playtest`, che e' **viva davvero** — issue
+      **#1013 OPEN**, branch `docs/1013-seduta-u18` presente **sul remoto**, e `docs/1013-seduta-u18-2`
+      sta modificando proprio `test-manuali-pie.md`. Dieci su dodici non e' mezza cartella: i due
+      mancanti sono **nominati nel README** con la issue che li tiene, che e' la differenza fra uno
+      stato parziale e uno stato ignoto.
+      ➕ Con essi tornano a casa i due misfiled: `spec-frontend-navigazione.md` -> `architecture/`,
+      `issue-tracking-completeness.md` -> `tooling/`.
+
+      ⛔ **`docs/qa/` NON si apre, ed e' una decisione invece di un rinvio.** Il piano la prevedeva
+      *prima* che `technical/` si dividesse. Dopo la fase 4 il materiale QA e' gia' distribuito:
+      `test-automatico-unreal.md`, `scenario-map.md` e `scenario-index-e-tag.md` stanno in `tooling/`,
+      gli altri quattro vanno in `runbooks/`. Un `qa/` di primo livello sarebbe un **terzo asse** sugli
+      stessi file — `test-automatico-unreal.md` e' insieme «strumento» e «QA», e dovrebbe stare in due
+      posti. E' la versione-cartella di *un concetto, un owner*, ed e' il motivo per cui non si fa.
     writable:
       - docs/README.md
+      - docs/technical/
       - docs/roadmap/plans/
       - docs/archive/roadmap-plans/
       - docs/generated/
