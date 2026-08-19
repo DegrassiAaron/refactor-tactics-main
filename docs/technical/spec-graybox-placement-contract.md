@@ -462,26 +462,28 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 > il punto *(3)* qui sotto — «distrutto non è osservabile dal dato di mappa» — scritto **dentro** una
 > scaletta che lo pretendeva osservabile.
 >
-> *(B)* **L'assenza dell'entry non significa distruzione, e i modi di produrla sono TRE.**
-> `URTHexCoverLibrary::RemoveCover` ([`RTTurnManager.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager.cpp))
-> è chiamata da tre percorsi, e ognuno logga un esito **diverso** in `ERTEnvironmentOutcome`:
+> *(B)* **L'assenza dell'entry non significa distruzione, e i modi di produrla sono TRE — che nemmeno
+> passano tutti per la stessa funzione:**
 >
-> | Percorso | Esito | Il bordo resta nudo perché |
+> | Percorso | Come l'entry sparisce | Esito loggato |
 > |---|---|---|
-> | il danno porta l'integrità a zero | `CoverDestroyed` | è stata **abbattuta** |
-> | `TickDynamicCovers`, allo scadere della durata | `CoverExpired` | è **scaduta**, e sparisce integra |
-> | `Reconfigure`, che sposta un pannello su un altro bordo | `CoverMoved` | si è **spostata**, e il pannello esiste ancora |
+> | il danno porta l'integrità a zero | `Updated.Covers.RemoveAt(I)`, **inline** dentro `ApplyStructureDamage` ([`RTHexCoverLibrary.cpp`](../../Source/RefactorTactics/Map/RTHexCoverLibrary.cpp)) | `CoverDestroyed` ([`RTTurnManager_Blast.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp)) |
+> | la durata scade | `URTHexCoverLibrary::RemoveCover`, da `TickDynamicCovers` ([`RTTurnManager.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager.cpp)) | `CoverExpired` |
+> | `Reconfigure` sposta il pannello su un altro bordo | `URTHexCoverLibrary::RemoveCover` | `CoverMoved` |
 >
 > Il caso della scadenza è vivo oggi: `Hero.Riktor.KineticPanel.Reinforced` dichiara `Integrity 45` e
 > `DurationTurns 1`, quindi a Cleanup il pannello sparisce **integro** — e la seconda stesura lo avrebbe
 > renderizzato come macerie. Quello dello spostamento è peggio: il bordo di partenza sarebbe reso come
 > macerie mentre lo stesso pannello è intero sul bordo accanto. ∴ il TurnLog distingue i tre casi; il dato
-> di mappa, dopo `RemoveCover`, non ne conserva **nessuno**.
+> di mappa, a fase conclusa, non ne conserva **nessuno**.
 >
-> ⚠️ *Questo punto ne enumerava **due** — distruzione e scadenza — e si qualificava «misurato non dedotto».
-> Il terzo l'ha trovato la code review su [#1208](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1208):
-> un conteggio dichiarato è falsificabile contro `Source/`, e questo lo era. Non invalida `D-175`, lo
-> rafforza.*
+> ⚠️ *Questo punto ne ha enumerati male DUE volte, e la seconda è istruttiva. Prima diceva «due» —
+> distruzione e scadenza — qualificandosi «misurato non dedotto»; poi, correggendolo a tre, ha attribuito
+> tutti e tre a `RemoveCover`, che ha **due soli chiamanti di produzione**: la distruzione rimuove l'entry
+> inline e non passa di lì. Un conteggio dichiarato è falsificabile contro `Source/` — e la correzione di un
+> conteggio lo è esattamente quanto il conteggio. Entrambe trovate in code review su
+> [#1208](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1208). La conclusione non è mai
+> cambiata, e `D-175` ne esce rafforzata: l'assenza è ancora meno informativa di quanto si sostenesse.*
 >
 > ✅ **Togliere «distrutto» dalla scaletta chiude entrambi con un emendamento solo**, e non chiede al
 > presentatore nessuno stato che oggi non ha: la scaletta resta una funzione pura di una entry esistente, e
@@ -517,8 +519,9 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 > ripeteva anche `D-172`.
 >
 > ⚠️ *Questo punto concludeva «per il presentatore distrutto è l'**assenza** dell'entry», ed è la conclusione
-> che `D-175` ha dovuto correggere: l'assenza è prodotta **anche** dalla scadenza, quindi non identifica la
-> distruzione. Il resto del punto — `bDestroyed` non è osservabile dal dato di mappa — regge, ed è
+> che `D-175` ha dovuto correggere: l'assenza è prodotta **anche** dalla scadenza e dallo spostamento,
+> quindi non identifica la distruzione — vedi la tabella dei tre percorsi al punto *(B)*.
+> Il resto del punto — `bDestroyed` non è osservabile dal dato di mappa — regge, ed è
 > esattamente ciò su cui `D-175` si appoggia. Corretto il 2026-08-19.*
 
 ✅ **Le soglie esistono dal 2026-08-18, e sono FRAZIONI del catalogo — `D-172`.** Non potevano essere numeri
