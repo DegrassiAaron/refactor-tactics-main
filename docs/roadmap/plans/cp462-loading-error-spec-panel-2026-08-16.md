@@ -3,7 +3,7 @@
 > `CURRENT` · **Stato**: revisione chiusa, **DoD esteso** dalle due decisioni del §8 · **Data**: 2026-08-16
 > **HEAD della revisione**: `385ae694` (subito dopo il merge di CP 46.1, `#972`)
 > **Oggetto**: il DoD di [`#937`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/937),
-> owner [`spec-frontend-navigazione.md`](../../technical/spec-frontend-navigazione.md) §4.
+> owner [`spec-frontend-navigazione.md`](../../technical/architecture/spec-frontend-navigazione.md) §4.
 > **Scopo**: verificare che ciò che il checkpoint chiede di *mostrare* abbia un **produttore**, prima che
 > qualcuno lo implementi. È la lezione che questo repository paga più spesso — un dato dichiarato,
 > trasportato e mai prodotto.

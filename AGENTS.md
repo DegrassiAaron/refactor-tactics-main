@@ -224,7 +224,7 @@ validazione · serializzazione/replay · privacy intenti.
   *(Corretto il 2026-08-16: la riga diceva «`.github/` non esiste», e dal 2026-08-16 è falsa —
   `.github/ISSUE_TEMPLATE/` esiste e precompila il blocco `## Tracking`. La decisione proteggeva la **CI**,
   non la cartella, e l'oracolo che la verificava — `git ls-tree … -- .github/` in
-  [`qa-prompt-terminal-b`](docs/technical/qa-prompt-terminal-b-scenario-runner.md) — è stato ristretto a
+  [`qa-prompt-terminal-b`](docs/technical/runbooks/qa-prompt-terminal-b-scenario-runner.md) — è stato ristretto a
   `workflows/` nello stesso commit. Un template non esegue niente; un workflow sì. Precedente del
   2026-08-12: diceva «è vuota», che induceva a cercare una cartella inesistente.)*
 - ⚠️ **`tools/radar/` non è solo documentazione.** I rating si calcolano dai cataloghi di bilanciamento
@@ -260,7 +260,7 @@ viste generate e si trova due volte.
 Il pass si **riesegue prima di chiudere**: una Issue chiusa con tracking incoerenti è incompleta.
 
 Regola completa, con le dodici categorie e cosa scrivere in ciascuna:
-[`docs/technical/issue-tracking-completeness.md`](docs/technical/issue-tracking-completeness.md).
+[`docs/technical/tooling/issue-tracking-completeness.md`](docs/technical/tooling/issue-tracking-completeness.md).
 
 ## Git
 

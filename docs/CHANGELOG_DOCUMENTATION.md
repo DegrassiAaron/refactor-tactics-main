@@ -228,7 +228,7 @@ sembrati coperti: il verde diceva soltanto che il JSON era ben formato.
 |---|---|
 | `Tests/RTScenarioCorpusTests.cpp` | **nuovo** — `Scenario.EveryShippedScenarioRuns` scopre il corpus dall'indice e lo esegue tutto; `Scenario.ExpectedFailScenariosReallyFail` verifica che i dichiarati-rossi lo siano davvero |
 | `Scenarios/Spec/**` | **5 scenari-specifica**: Overwatch, Objective, Predictive, Perception, CreateCover |
-| [`technical/scenari-validazione-visiva.md`](technical/scenari-validazione-visiva.md) | §6-bis: il corpus come test, gli scenari-spec, e tre lacune dichiarate |
+| [`technical/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | §6-bis: il corpus come test, gli scenari-spec, e tre lacune dichiarate |
 | [`technical/scenario-index-e-tag.md`](technical/tooling/scenario-index-e-tag.md) | vocabolario 20 → **22** (`perception`, `spec`) |
 
 ### Le due decisioni
@@ -317,7 +317,7 @@ Cercando di scriverle sono emersi due limiti che nessun documento dichiarava:
 
 | File | Modifica |
 |---|---|
-| [`technical/scenari-validazione-visiva.md`](technical/scenari-validazione-visiva.md) | **nuovo** — owner del corpus: le tre fasce, la tavolozza delle fixture, i quattro eventi disponibili, e in §8 cosa manca in ordine di resa |
+| [`technical/scenari-validazione-visiva.md`](technical/runbooks/scenari-validazione-visiva.md) | **nuovo** — owner del corpus: le tre fasce, la tavolozza delle fixture, i quattro eventi disponibili, e in §8 cosa manca in ordine di resa |
 | `Scenarios/Visual/**` | **17 scenari nuovi**, i primi del progetto a riferire una **fixture** invece di generare l'arena |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | 17 voci `PIE-VIS-*`; conteggio **rimisurato col comando**: 83 (25/21/37) → **100 (25/21/54)** |
 | [`technical/scenario-index-e-tag.md`](technical/tooling/scenario-index-e-tag.md) | vocabolario dei tag da 10 a **20** voci: la fotografia era indietro di **dieci**, e solo quattro erano di questa sessione |
@@ -585,7 +585,7 @@ decisioni e non il piano.
 ## 2026-08-07 — Riorganizzazione in `product/gameplay/technical/balance/roadmap/decisions/`
 
 **Origine**: revisione `/sc:spec-panel` su `docs/archive/src/handoff/consolidamento-prd-source-of-truth.md`,
-registrata in [`brief-consolidamento-documentale.md`](roadmap/plans/brief-consolidamento-documentale.md).
+registrata in [`brief-consolidamento-documentale.md`](archive/roadmap-plans/brief-consolidamento-documentale.md).
 **HEAD di partenza**: `50159c6`.
 
 ### Struttura

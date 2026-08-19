@@ -1076,7 +1076,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 > | Packaging Windows **Shipping** | ✅ `BUILD SUCCESSFUL` · 569 MB · binario 159 MB, avviato e attivo (223 MB RAM) |
 > | Partita completa **senza editor**, fino alla vittoria | ✅ `Partita finita: Vince il team 1 (rosso) - per eliminazione (round 6/12)` — 6 turni, zero crash |
 >
-> Ricetta in [`../technical/test-e-diagnosi.md`](../technical/test-e-diagnosi.md) §1. Note operative: il
+> Ricetta in [`../technical/runbooks/test-e-diagnosi.md`](../technical/runbooks/test-e-diagnosi.md) §1. Note operative: il
 > **cook Shipping non produce log** (`UE_LOG` a livello `Display` è compilato fuori), quindi la partita si
 > verifica sul pacchetto **Development**; e lanciare `Packaged/Windows/RefactorTactics.exe` avvia il
 > **launcher stub** da 168 KB — il binario vero sta in `RefactorTactics/Binaries/Win64/`.

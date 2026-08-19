@@ -173,6 +173,16 @@ class TestInvarianti(unittest.TestCase):
         inv.ORFANE_NOTE["docs/technical/img/z.png"] = "2026-08-18 · ragione, #1165"
         self.assertEqual(inv.controlla(inventario_finto(orfane=[])), 1)
 
+    def test_un_contratto_incoerente_e_una_violazione(self):
+        """Il quarto invariante deve essere **collegato** a `controlla()`, non solo esistere.
+        La verifica di mutazione l'ha trovato scollegato: sostituendo la chiamata con una lista
+        vuota, prima di questo test non cadeva niente — un gate che tace e' peggio di uno assente,
+        perche' il suo OK viene creduto."""
+        finto = {"output": "docs/inesistente.json", "generatore": "scripts/non-esiste.py",
+                 "comando": "x", "check": None, "sorgenti": [], "consumatori": []}
+        with unittest.mock.patch.object(inv, "CONTRATTI", [finto]):
+            self.assertGreater(inv.controlla(inventario_finto()), 0)
+
     def test_senza_wiki_il_terzo_invariante_non_gira_e_lo_dice(self):
         """Senza il clone, nove immagini incorporate via URL assoluto risultano orfane. Il gate
         non le segnala e **non finge** di aver controllato: e' la meta' non eseguita."""
@@ -229,6 +239,70 @@ class TestContratto(unittest.TestCase):
         out = subprocess.run(["git", "-C", REPO, "ls-files", "docs/src"],
                              capture_output=True, text=True, encoding="utf-8").stdout
         self.assertEqual(out.strip(), "", "docs/src ha di nuovo file versionati")
+
+    def test_il_contratto_dei_generati_dice_il_vero(self):
+        """Sui file veri: ogni generatore esiste, ogni output esiste, ogni `--check` dichiarato e'
+        implementato, e la tabella di `docs/generated/README.md` e' allineata alla dichiarazione.
+        E' il test che si accorge di un contratto diventato finzione."""
+        guasti = inv.controlla_contratto()
+        self.assertEqual(guasti, [], chr(10).join(guasti))
+
+    def test_generati_e_contratti_non_divergono(self):
+        """Due elenchi della stessa cosa divergono alla prima aggiunta: `GENERATI` serve
+        all'invariante sulle orfane, `CONTRATTI` alla provenienza, e devono parlare degli stessi
+        artefatti."""
+        output = {c["output"].rstrip("*") for c in inv.CONTRATTI}
+        for area in inv.GENERATI:
+            self.assertTrue(any(area.startswith(o) or o.startswith(area) for o in output),
+                            f"l'area {area} non compare fra gli output del contratto")
+
+    def test_la_tabella_non_si_scrive_a_mano(self):
+        """Il blocco fra i marcatori e' generato: se qualcuno lo edita nel documento, il confronto
+        con `tabella_contratto()` lo dice. Senza, il contratto diventerebbe due testi che divergono."""
+        path = os.path.join(REPO, inv.CONTRATTO_DOC)
+        text = open(path, encoding="utf-8").read()
+        self.assertIn(inv.CONTRATTO_BEGIN, text)
+        corpo = text.split(inv.CONTRATTO_BEGIN, 1)[1].split(inv.CONTRATTO_END, 1)[0].strip()
+        self.assertEqual(corpo, inv.tabella_contratto().strip())
+
+    def test_i_conteggi_dei_piani_sono_letti_dai_file(self):
+        """La somma delle categorie torna col totale contato a parte: e' il controllo che il README
+        di `roadmap/plans/` chiede da se', e che a mano e' fallito tre volte in un giorno."""
+        tot, per_banner, arch = inv.conteggio_piani()
+        self.assertEqual(sum(per_banner.values()), tot,
+                         "la somma dei banner non torna col totale")
+        self.assertGreater(tot, 0)
+        self.assertGreater(arch, 0)
+
+    def test_il_blocco_dei_piani_e_allineato(self):
+        """Il blocco fra i marcatori e' generato: se qualcuno lo riscrive nel documento, il gate
+        lo dice. Il numero che ci stava prima era sbagliato in due modi contemporaneamente."""
+        path = os.path.join(REPO, inv.PIANI_DIR, "README.md")
+        text = open(path, encoding="utf-8").read()
+        self.assertIn(inv.PIANI_BEGIN, text)
+        corpo = text.split(inv.PIANI_BEGIN, 1)[1].split(inv.PIANI_END, 1)[0].strip()
+        self.assertEqual(corpo, inv.tabella_piani().strip())
+
+    def test_in_archivio_niente_di_vivo_e_nessuno_snapshot_nuovo(self):
+        """La regola raffinata: uno `SNAPSHOT` resta in `plans/` finche' e' l'ultima misura del suo
+        oggetto. I due README si contraddicevano, e una contraddizione fra due testi in prosa non
+        la vede nessuno script — qui diventa verificabile.
+
+        Due asserzioni distinte: **nessun CURRENT** in archivio, che sarebbe un errore vero; e
+        nessuno `SNAPSHOT` fuori dall'insieme congelato del 2026-08-14, cosi' l'eredita' resta
+        ammessa e la regola vecchia non puo' rientrare per abitudine."""
+        import subprocess as _s
+        arch = [p for p in _s.run(["git", "-C", REPO, "ls-files", inv.PIANI_ARCHIVIO],
+                                  capture_output=True, text=True, encoding="utf-8").stdout.split()
+                if p.endswith(".md") and not p.endswith("README.md")]
+        vivi = [p for p in arch if inv._banner(os.path.join(REPO, p)) == "CURRENT"]
+        self.assertEqual(vivi, [], "in archivio ci sono documenti CURRENT: " + ", ".join(vivi))
+        nuovi = [p for p in arch
+                 if inv._banner(os.path.join(REPO, p)) == "SNAPSHOT"
+                 and os.path.basename(p) not in inv.SNAPSHOT_ARCHIVIATI_2026_08_14]
+        self.assertEqual(nuovi, [],
+                         "uno SNAPSHOT nuovo e' finito in archivio, cioe' la regola vecchia "
+                         "riapplicata per abitudine: " + ", ".join(nuovi))
 
     def test_ogni_dichiarazione_porta_una_data(self):
         """Una promessa senza data non scade, e un allowlist che non scade diventa un permesso."""

@@ -5,30 +5,48 @@
 
 | Cartella | Risponde a | n |
 |---|---|--:|
-| [`architecture/`](architecture/) | *com'è fatto il sistema* — classi, mappa, pathfinding, TurnLog, pipeline degli asset | 7 |
+| [`architecture/`](architecture/) | *com'è fatto il sistema* — classi, mappa, pathfinding, TurnLog, pipeline degli asset, navigazione frontend | 8 |
 | [`systems/`](systems/) | *come si comporta un sottosistema* — hex sim, vision, bot, geometria, HUD, puntatore | 10 |
-| [`tooling/`](tooling/) | *con cosa si lavora* — tactical designer, scenari, test automatici, workflow, convenzioni | 9 |
-| *primo livello* | **runbook, piani e due documenti bloccati** — vedi sotto | 17 |
+| [`tooling/`](tooling/) | *con cosa si lavora* — tactical designer, scenari, test automatici, workflow, convenzioni, tracking delle issue | 10 |
+| [`runbooks/`](runbooks/) | *cosa si esegue a mano* — verifiche in editor, mandati QA, guide di seduta, diagnosi | 10 |
+| *primo livello* | **tre piani e due documenti bloccati** — vedi sotto | 5 |
 
-## Perché diciassette documenti sono ancora al primo livello
+## Perché cinque documenti sono ancora al primo livello
 
-Non è una migrazione lasciata a metà per stanchezza: sono **bloccati da
-[D-139](../decisions/RT_PDR_00_Decision_Log.md)**, la regola per cui un path che sta nel `writable` di
-un'altra track non si tocca.
+**Due sono bloccati da [D-139](../decisions/RT_PDR_00_Decision_Log.md)**, e il blocco è reale:
+`test-manuali-pie.md` e `qa-prompt-terminal-d-verifiche-pie.md` stanno nel `writable` della track
+`playtest`, che è viva davvero — issue
+[#1013](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1013) **aperta**, branch
+`docs/1013-seduta-u18` presente sul remoto, e un secondo ramo che sta modificando proprio il primo dei
+due. Vanno in [`runbooks/`](runbooks/) quando quella track rilascia, ed è un `git mv` di due righe.
 
-**`runbooks/` non è stata aperta**, e la cartella non esiste. Dei dodici documenti che ci andrebbero —
-`test-manuali-pie.md`, i quattro `qa-prompt-terminal-*`, le quattro `guida-*`, `debug-vs-unreal.md`,
-`test-e-diagnosi.md`, `scenari-validazione-visiva.md` — **sette sono assegnati**: due alla track
-`playtest`, che è `ACTIVE`, gli altri a `content_editor` e `frontend_shell`. Mezza cartella `runbooks/`
-sarebbe uno stato peggiore di nessuna: chi cerca un runbook dovrebbe guardare in due posti e indovinare
-il criterio. Si apre quando quelle track rilasciano, ed è un `git mv` di dodici righe.
+> 🔵 **`runbooks/` è stata aperta il 2026-08-19 con dieci documenti su dodici.** La fase 4 l'aveva
+> tenuta chiusa perché *sette* erano assegnati; rimisurato, **cinque di quei sette erano claim
+> stantii**: `content_editor` è `IDLE` con la issue #451 **chiusa**, `frontend_shell` è `IDLE` **senza
+> issue**, e nessuna delle due ha un branch. I loro path sono stati rilasciati — *un rilascio si
+> scrive* — e con essi sono tornati a casa anche `spec-frontend-navigazione.md` (`architecture/`) e
+> `issue-tracking-completeness.md` (`tooling/`).
+>
+> Dieci su dodici non è mezza cartella: i due mancanti sono **nominati qui, con la issue che li
+> tiene**. È la differenza fra uno stato parziale e uno stato ignoto.
 
-Restano fuori per la stessa ragione **`spec-frontend-navigazione.md`** (`frontend_shell`, andrebbe in
-`architecture/`) e **`issue-tracking-completeness.md`** (`content_editor`, andrebbe in `tooling/`).
+**Tre sono piani, e non hanno ancora una casa.** `piano-migrazione-roster.md`,
+`piano-migrazione-stable-id.md` e `piano-riduzione-hotspot.md` non sono specifiche: sono piani di
+esecuzione, e il repository ne ha già due case — [`../roadmap/plans/`](../roadmap/plans/) e
+[`../archive/roadmap-plans/`](../archive/roadmap-plans/), separate dal **banner**. ⚠️ I tre non
+concordano fra loro: uno è `CURRENT`, uno `HISTORICAL`, e il terzo **non ha banner**. Finché il banner
+è il criterio, tre documenti con tre risposte diverse non si spostano insieme.
 
-E restano i tre **`piano-*.md`**, che non hanno un blocco ma una domanda aperta: `docs/roadmap/plans/`
-e `docs/archive/roadmap-plans/` sono **due case per la stessa categoria**, e nessuno dei due nomi dice
-quale. La decide la fase 6 di [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165).
+## ⛔ Non esiste una cartella `qa/`, ed è una decisione
+
+Il piano di [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165) ne prevedeva
+una, *prima* che `technical/` si dividesse. Dopo la divisione il materiale QA è già distribuito:
+`test-automatico-unreal.md`, `scenario-map.md` e `scenario-index-e-tag.md` stanno in `tooling/`, i
+mandati e le verifiche in `runbooks/`. Un `qa/` di primo livello sarebbe un **terzo asse** sugli stessi
+file — `test-automatico-unreal.md` è insieme «strumento» e «QA», e dovrebbe stare in due posti.
+
+È la versione-cartella di *un concetto, un owner*: la cartella dice **che natura ha** un documento, non
+di quale disciplina parla. Della disciplina rispondono i link.
 
 ## Cosa è costato lo spostamento, misurato
 

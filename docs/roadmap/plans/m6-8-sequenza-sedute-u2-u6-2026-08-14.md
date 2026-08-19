@@ -38,7 +38,7 @@ significa produrre un verdetto che non si può registrare.
 una volta.
 
 1. **GameMode Override** sul livello: `RTGameMode` (procedura in
-   [`../../technical/debug-vs-unreal.md`](../../technical/debug-vs-unreal.md) §2).
+   [`../../technical/runbooks/debug-vs-unreal.md`](../../technical/runbooks/debug-vs-unreal.md) §2).
 2. **`MapSource = GeneratedTestArena`** — `ARTGameMode`, categoria *RefactorTactics ▸ Map*. Il default è
    `LevelAsset`: **va cambiato**, altrimenti si gioca sull'arena d'autore o sul ripiego liscio, e metà delle
    voci non ha l'oggetto da osservare. `MakeTestArena` fornisce esagono r=4, ostacoli, **muro che blocca la

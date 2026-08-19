@@ -24,7 +24,7 @@
 > **Prima di aprire l'editor**: molte di queste voci hanno già una copertura automatica, e alcune si
 > riproducono senza toccare il mouse con uno **scenario** (`rt.Test.Scenario <Id>` + Play). Come si eseguono
 > i test, come si scrive uno scenario e come si legge un report fallito:
-> **[`test-e-diagnosi.md`](test-e-diagnosi.md)**.
+> **[`test-e-diagnosi.md`](runbooks/test-e-diagnosi.md)**.
 > Il PIE serve per ciò che nessun test vede: che si **veda** a schermo e che il giocatore **capisca**.
 
 - Apri il progetto: doppio clic su `RefactorTactics.uproject`. All'avvio l'editor può chiedere **quale versione
@@ -153,7 +153,7 @@ scritta qui sotto: si misura **dopo il merge**, col comando. `senza-marcatore` r
 > *sembra* coperto due volte e non lo è nemmeno una. Sono `Visual.Combat.GuardReducesFirstHit`,
 > `Visual.Combat.BraceReducesEveryHit` e `Visual.Combat.WaterElectricCoordinated`, arrivati **dopo** il blocco
 > di 18 voci del 2026-08-08. La convenzione «ogni scenario visivo porta una voce PIE» era scritta
-> ([`scenari-validazione-visiva.md`](scenari-validazione-visiva.md) §9) ma **nessun comando la verificava**.
+> ([`scenari-validazione-visiva.md`](runbooks/scenari-validazione-visiva.md) §9) ma **nessun comando la verificava**.
 > Ora c'è, ed è una riga:
 >
 > ```bash
@@ -236,7 +236,7 @@ di sembrare verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte
 | **In attesa di codice** | `V01-ELEC` `V01-FIREWATER` (E8, ora **chiusa**: il codice c'è, la verifica a schermo no) · `V01-HUD` (E11) | **3** — `V01-LOWCOVER` è uscita da qui il 2026-08-07 (CP 9.1) e `V01-DOOR` il 2026-08-08 (CP 9.3): per entrambe la regola è ora coperta headless, e sono passate a 🟡 |
 | **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
-| **Scenari visivi** (corpus `Visual.*`) | `VIS-FIRE` `VIS-ICE` `VIS-WETFIRE` `VIS-KO` `VIS-CHARGE` `VIS-ROUGH` `VIS-COMBO` `VIS-COORD` `VIS-PUSH` `VIS-FALLBACK` `VIS-SMOKE` `VIS-PHASES` `VIS-LEVEL` `VIS-COVER` `VIS-DOOR` `VIS-HIGH` `VIS-INTERPOSE` `VIS-DEFLECT` `VIS-HIGHCOVER` `VIS-GUARD` `VIS-BRACE` | **21** — nessuna precondizione oltre a scegliere lo scenario e premere Play. Non sono gate: la regola è già coperta headless dalle assertion, qui si guarda la **leggibilità**. Catalogo: [`scenari-validazione-visiva.md`](scenari-validazione-visiva.md) · classe **B** in [`scenario-map.md`](tooling/scenario-map.md) |
+| **Scenari visivi** (corpus `Visual.*`) | `VIS-FIRE` `VIS-ICE` `VIS-WETFIRE` `VIS-KO` `VIS-CHARGE` `VIS-ROUGH` `VIS-COMBO` `VIS-COORD` `VIS-PUSH` `VIS-FALLBACK` `VIS-SMOKE` `VIS-PHASES` `VIS-LEVEL` `VIS-COVER` `VIS-DOOR` `VIS-HIGH` `VIS-INTERPOSE` `VIS-DEFLECT` `VIS-HIGHCOVER` `VIS-GUARD` `VIS-BRACE` | **21** — nessuna precondizione oltre a scegliere lo scenario e premere Play. Non sono gate: la regola è già coperta headless dalle assertion, qui si guarda la **leggibilità**. Catalogo: [`scenari-validazione-visiva.md`](runbooks/scenari-validazione-visiva.md) · classe **B** in [`scenario-map.md`](tooling/scenario-map.md) |
 
 ## Subset di release — il marcatore `RELEASE-V01`
 
@@ -505,7 +505,7 @@ percorso — passi 1-9 e 13 — è eseguibile.
 > headless** (30 test `RefactorTactics.Scenario.*` + `RefactorTactics.ScenarioIndex.*`, misurati il
 > 2026-08-08). Restano cinque cose che nessun test automatico può vedere, perché riguardano ciò che accade
 > **a schermo** e ciò che l'utente **non deve** dover fare.
-> Guida d'uso: [`test-e-diagnosi.md`](test-e-diagnosi.md) · modello di classificazione:
+> Guida d'uso: [`test-e-diagnosi.md`](runbooks/test-e-diagnosi.md) · modello di classificazione:
 > [`scenario-index-e-tag.md`](tooling/scenario-index-e-tag.md).
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
@@ -686,7 +686,7 @@ emerge un difetto).
 ## Scenari di validazione visiva — corpus `Visual.*`
 
 > Aggiunte il **2026-08-08** con il corpus omonimo. Owner del catalogo:
-> [`scenari-validazione-visiva.md`](scenari-validazione-visiva.md).
+> [`scenari-validazione-visiva.md`](runbooks/scenari-validazione-visiva.md).
 >
 > **Precondizione comune a tutte**: `Scenario Filter A = animation` nel `BP_GameMode`, poi
 > `Scenario To Run = <id>` e Play — oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari
