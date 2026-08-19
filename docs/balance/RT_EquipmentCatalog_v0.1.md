@@ -1,7 +1,7 @@
 # RT — Catalogo equipaggiamento v0.1
 
 > **Fonte**: catalogo di bilanciamento v0.1 §6 · PDR-12 — oggi in
-> [`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md) e
+> [`prd-personaggi-azioni-e-bilanciamento.md`](../research/prd/prd-personaggi-azioni-e-bilanciamento.md) e
 > [`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) · **Checkpoint**: CP 1.2 (issue `#28`)
 > **Implementazione**: epic **E7** (`#60`–`#63`). È l'epic **tagliabile per prima** se il tempo stringe

@@ -29,7 +29,7 @@ SOURCE = os.path.join(REPO, "Source")
 
 # ⚠️ Queste esenzioni sono per **prefisso di path**, quindi spostare un documento ne cambia la
 # copertura **senza che nessuno lo dica**. Misurato il 2026-08-17 con `EXEMPT_DIRS = ()`: lo scope
-# passa da 155 a 389 documenti e il gate esce 1 su due file (`docs/src/prd/prd-architettura-rete-e-intenti.md`,
+# passa da 155 a 389 documenti e il gate esce 1 su due file (`docs/research/prd/prd-architettura-rete-e-intenti.md`,
 # `docs/roadmap/plans/replay-canonical-intent-triage-2026-08-17.md`). E' il rischio principale della
 # riorganizzazione di #1165, ed e' per questo che i nomi nuovi entrano qui **prima** che la cartella
 # esista — stessa disciplina dell'allowlist di `.gitignore`, dove la riga aggiunta dopo non fa niente

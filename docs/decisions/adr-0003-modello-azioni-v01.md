@@ -16,7 +16,7 @@
 > | Economia dell'azione principale | `Overwatch` è **universale** ([D-012](RT_PDR_00_Decision_Log.md)/[D-014](RT_PDR_00_Decision_Log.md)) ed è un'**azione principale che arma una reazione**: compete con `Attack`/`Ability`. Da non confondere con lo **slot reazione** preparato, che è un'altra cosa e resta indipendente |
 > | Famiglia del movimento | `Sneak · Move · Sprint` sono **profili del movement slot** ([D-015](RT_PDR_00_Decision_Log.md)) e risolvono nella fase **`Move`**, dopo il Blast. `Dash · Leap · Charge · Reposition` restano movimenti **speciali** della fase `Dash`. **`Sprint` non è un Dash** |
 > **Contesto sorgente**: PDR-12 ([`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md))
-> + catalogo di bilanciamento v0.1 ([`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md)),
+> + catalogo di bilanciamento v0.1 ([`prd-personaggi-azioni-e-bilanciamento.md`](../research/prd/prd-personaggi-azioni-e-bilanciamento.md)),
 > su richiesta di realizzare la roadmap v0.1 (`docs/archive/src/handoff/roadmap-v0.1-prompt-originale.md`)
 >
 > ⚠️ **Emendamento 2026-08-07** — [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md):

@@ -16,11 +16,11 @@ devono vivere nel repository Git»*. Era stata applicata a **due** documenti su 
 | File | Modifica |
 |---|---|
 | [`archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md`](archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md) | **nuovo** — i tredici PDR `v0.1` in un solo documento, con la tabella «cosa vale oggi» per ciascuno |
-| [`src/prd/prd-visione-e-requisiti.md`](src/prd/prd-visione-e-requisiti.md) | **nuovo** — visione, perimetro, requisiti funzionali, idee fondative |
-| [`src/prd/prd-architettura-rete-e-intenti.md`](src/prd/prd-architettura-rete-e-intenti.md) | **nuovo** — architettura, stack, networking, modding, e il PRD «Intenti condivisi» integrale |
-| [`src/prd/prd-personaggi-azioni-e-bilanciamento.md`](src/prd/prd-personaggi-azioni-e-bilanciamento.md) | **nuovo** — roster, azioni, terreni, coperture, catalogo di bilanciamento |
-| [`src/prd/prd-percorso-didattico-e-produzione.md`](src/prd/prd-percorso-didattico-e-produzione.md) | **nuovo** — curriculum UE, roadmap, rischi, analytics, guida agli asset |
-| [`src/prd/editor-griglia-esagonale-e-mappa.md`](src/prd/editor-griglia-esagonale-e-mappa.md) | **nuovo** — il prompt che ha commissionato il pivot esagonale (era `.docx`) |
+| [`src/prd/prd-visione-e-requisiti.md`](research/prd/prd-visione-e-requisiti.md) | **nuovo** — visione, perimetro, requisiti funzionali, idee fondative |
+| [`src/prd/prd-architettura-rete-e-intenti.md`](research/prd/prd-architettura-rete-e-intenti.md) | **nuovo** — architettura, stack, networking, modding, e il PRD «Intenti condivisi» integrale |
+| [`src/prd/prd-personaggi-azioni-e-bilanciamento.md`](research/prd/prd-personaggi-azioni-e-bilanciamento.md) | **nuovo** — roster, azioni, terreni, coperture, catalogo di bilanciamento |
+| [`src/prd/prd-percorso-didattico-e-produzione.md`](research/prd/prd-percorso-didattico-e-produzione.md) | **nuovo** — curriculum UE, roadmap, rischi, analytics, guida agli asset |
+| [`src/prd/editor-griglia-esagonale-e-mappa.md`](research/prd/editor-griglia-esagonale-e-mappa.md) | **nuovo** — il prompt che ha commissionato il pivot esagonale (era `.docx`) |
 | **24 binari** | rimossi dal working tree (`docs/src/prd/` ×10 PDF + 1 `.docx`, `docs/archive/pdr-v0.1/` ×13 PDF); restano nella storia Git |
 | [`src/`](src/) · [`archive/README.md`](archive/README.md) | Indici riscritti; due affermazioni corrette (sotto) |
 | [`README.md`](../README.md) · [`README.md` di docs](README.md) · [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) · 5 cataloghi `balance/` · ADR-0003 · Decision Log · `roadmap-v0.1.md` · `v0.1-issue-plan.md` · `RT_PDR_10_…v0.2.md` · `gameplay/spec-anima-risoluzione.md` | Riferimenti riscritti verso i nuovi target |

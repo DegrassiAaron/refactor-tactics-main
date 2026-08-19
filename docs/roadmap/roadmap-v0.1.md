@@ -4,7 +4,7 @@
 > **Questa è l'unica vista dello stato delle epic** (§2.1); la vista di esecuzione per milestone è
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md), che non lo duplica.
 > **Scope sorgente**: PDR-12 ([`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md))
-> + catalogo di bilanciamento v0.1 ([`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md))
+> + catalogo di bilanciamento v0.1 ([`prd-personaggi-azioni-e-bilanciamento.md`](../research/prd/prd-personaggi-azioni-e-bilanciamento.md))
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md)
 >
 > Questa è la vista **di release**: cosa deve esistere perché la v0.1 sia consegnabile.
@@ -460,7 +460,7 @@ silenzio.
 > totale non porta.)*
 
 *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
-consolidando [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md):
+consolidando [`../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md`](../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md):
 **E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
 l'estrazione del micro-step; consolidando
 [`../archive/src/design/action-ghosts-fasi-fast-reactions.md`](../archive/src/design/action-ghosts-fasi-fast-reactions.md):
@@ -1238,7 +1238,7 @@ cosa di `AllowedResponses ≤ 1` (ADR-0004 §2), che la deriva dai dati invece d
 
 **Obiettivo**: una partita dimostrativa 2v2 di 8 turni che sia allo stesso tempo **fixture d'integrazione,
 golden replay e demo**. Fonte:
-[`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md).
+[`../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md`](../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md).
 Scenario: `RT_Showcase_Relay_v01`, arena `L_Showcase_Relay`, `Gadget + Phase` vs `Riktor + Wraith`.
 
 **Regola dell'epic** — la showcase è un **consumer**: espone il gap → si costruisce il sistema generale nella
@@ -2076,7 +2076,7 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) | **Durata, round e scala delle mappe**: target di partita, `RoundLimit` per formato, budget del round, classi di mappa e telemetria. Vincola **E10** (fine partita), **E11** (timer a HUD), **E14** (3 s) e il level design futuro |
 | [`showcase-v0.1.md`](../product/showcase-v0.1.md) | Scenario della showcase **E15**: canone corrente, target, delta di scope |
 | [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) · [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) · [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md) · [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) | Brief di scoping: cosa entra in **E11**/**E13**/**E14** e cosa resta north-star |
-| [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md) · [`../archive/src/design/action-ghosts-fasi-fast-reactions.md`](../archive/src/design/action-ghosts-fasi-fast-reactions.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
+| [`../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md`](../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md) · [`../archive/src/design/action-ghosts-fasi-fast-reactions.md`](../archive/src/design/action-ghosts-fasi-fast-reactions.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
 | *questo file* | **Release v0.1**: epic, checkpoint, DoD per checkpoint |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |

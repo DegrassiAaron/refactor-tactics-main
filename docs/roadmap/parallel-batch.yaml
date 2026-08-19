@@ -6072,11 +6072,21 @@ tracks:
       simbolo inesistente e' un difetto del generatore. Nessun `.md` si sposta li' — misurato, sono 285
       immagini e zero documenti.
 
-      ⚠️ **Tre file `integration_only` toccati una volta**, ed e' la loro regola:
-      `docs/product/showcase-v0.1.md` e i due gate `check-docs-{symbols,tables}.py` (che citano per nome
-      i file misurati). ⛔ **`docs/roadmap/v0.1-issue-plan.md` resta fuori**: due righe di prosa che
-      nominano un path sorgente, e il file e' conteso da `feat/166-cp146` (PR **#1162** aperta). Una
-      citazione stantia in un piano costa meno di un conflitto su un file che non e' di nessuno.
+      ⚠️ **File `integration_only` toccati una volta**, ed e' la loro regola: `docs/product/showcase-v0.1.md`,
+      `docs/roadmap/roadmap-v0.1.md`, `docs/roadmap/v0.1-issue-plan.md`, i cinque cataloghi di
+      `docs/balance/`, `docs/decisions/RT_PDR_00_Decision_Log.md` e `adr-000{2,3}`.
+      🔴 **Non era il piano, ed e' un errore di misura da registrare.** La prima stesura di questa nota
+      diceva *«due righe di prosa»* e teneva `v0.1-issue-plan.md` fuori dal write-set per non collidere
+      con `feat/166-cp146` (PR #1162). Il grep che aveva prodotto quella conclusione cercava
+      `docs/src/prd`, cioe' la forma **assoluta**: i link veri sono **relativi** — `../src/prd/x.md` — e
+      non li vedeva. Misurati con il gate invece che col grep, i link rotti erano **26 in 16 file**, e
+      uno era proprio li. Un link rotto non e' una citazione stantia: o si aggiorna, o
+      `check-docs-links.py` resta rosso. La collisione su quel file va risolta al merge; e' un `git mv`
+      di riferimenti, quindi il conflitto e' testuale e banale.
+      ⛔ **Il Decision Log: link si, prosa no.** `D-026` cita
+      `docs/src/showcase/relay-v0.1-scenario-spec.md` in prosa fra backtick — resta com'e', perche' e'
+      un record datato e la regola di `docs/README.md` dice che uno storico non si corregge. Il **link**
+      alla riga 120, invece, e' stato riscritto: un link che non risolve non e' storia, e' un difetto.
       ⛔ **E il Decision Log non si tocca**: `D-026` cita
       `docs/src/showcase/relay-v0.1-scenario-spec.md` come provenienza, ed e' un **record datato** — la
       regola di `docs/README.md` dice che uno storico che descrive un mondo scomparso non si corregge.
@@ -6102,6 +6112,11 @@ tracks:
       - docs/archive/README.md
       - docs/product/piano-canonico-mvp.md
       - docs/technical/brief-icone-v01.md
+      # ⚠️ Entrano dopo la misura col gate, non prima: i 26 link rotti stavano in questi file e in
+      # forma relativa, che il grep sulla forma assoluta non vedeva.
+      - docs/CHANGELOG_DOCUMENTATION.md
+      - docs/roadmap/hex-map-roadmap.md
+      - docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md
     derives_from: []
     binary_leases: []
 
