@@ -483,6 +483,9 @@ void ARTUnit::ConfigureFromHeroData(const URTHeroData* Hero)
 	PushResistance = Hero->PushResistance;
 	Affinity = Hero->Affinity;
 	Weakness = Hero->Weakness;
+	// E14.7 [D-047]: il profilo che il `Brace` armera'. `NAME_None` per chi non ne dichiara uno (Riktor), ed
+	// e' un valore legittimo — non un campo dimenticato: significa profilo base, cardinalita' 1.
+	ReactionProfileId = Hero->ReactionProfileId;
 
 	// Le azioni sono gia' URTActionData*: si copiano cosi' come sono, non si ricostruiscono con MakeAbility
 	// (quella e' la via delle abilita' legacy inventate in codice, non dei dati del catalogo eroi).

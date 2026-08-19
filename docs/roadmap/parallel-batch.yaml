@@ -2743,6 +2743,18 @@ tracks:
       - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
       - Source/RefactorTactics/Tests/RTDefensiveReactionTests.cpp
       - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
+      # ➕ **Tre path aggiunti il 2026-08-19, e non erano previsti: li ha resi necessari un GATE, non una
+      # scelta.** Aggiunto `ReactionProfileId` a `URTHeroData`, `Unit.HeroDataCrossesTheBoundary` è
+      # diventato rosso — è un test per reflection che pretende che **ogni** campo dell'eroe sia
+      # classificato: instradato sull'unità, o esentato con un motivo scritto. Non è un falso allarme, è
+      # la domanda giusta: un profilo che l'eroe dichiara e l'unità non porta sarebbe un dato che il
+      # resolver non può leggere.
+      # ∴ il campo si trasporta (`ARTUnit::ReactionProfileId`) e la riga entra in `Routes[]`. Tutti e tre
+      # erano **liberi** — misurati, nessun `writable` li conteneva — e **nessun branch vivo** tocca
+      # `Unit/`.
+      - Source/RefactorTactics/Unit/RTUnit.h
+      - Source/RefactorTactics/Unit/RTUnit.cpp
+      - Source/RefactorTactics/Tests/RTHeroDataBoundaryTests.cpp
       - docs/gameplay/spec-reaction-clash-e14.md
     # ➖ **I commenti sui PRESTITI escono con essi.** Descrivevano il giro di `#583` — il JSON degli scenari
     # e `feature-registry.yaml`, entrambi restituiti con la PR #1087 — e lasciarli qui li farebbe leggere
