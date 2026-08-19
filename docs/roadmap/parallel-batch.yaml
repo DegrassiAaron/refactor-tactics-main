@@ -2735,7 +2735,12 @@ tracks:
       - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
       - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
       - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # ➖ `RTTurnManager.cpp` **CEDUTO a `bot_stalemate`** il 2026-08-19, per `#1088`. Non è una rinuncia
+      # gratuita: `feat/314-reaction-profile-e-clash` è interamente mergiato in `main` (PR #1210, #1211) e
+      # questa track non ha lavoro pendente su quel file — misurato,
+      # `git diff <merge-base> origin/main -- Turn/RTTurnManager.cpp` è **vuoto**. Un path con due holder
+      # viola `D-139` («un holder per path») e nessuno script lo intercetta: l'unica applicazione è questa
+      # riga. Se `#314` riapre e serve di nuovo, si richiede — non si ri-dichiara in parallelo.
       - Source/RefactorTactics/Turn/RTActionEvent.h
       - Source/RefactorTactics/Ability/RTHeroData.h
       - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h
@@ -5614,29 +5619,49 @@ tracks:
   bot_stalemate:
     status: ACTIVE
     issue: 1088
-    branch: probe/1088-partita-headless
+    branch: probe/1088-chi-contende
     worktree: "D:/rt-1015"
     note: >-
-      ➕ **Track aperta il 2026-08-17 su `#1088`, e per ora porta SOLO un probe.** La issue chiede, al
-      criterio 1, che la causa sia *«nominata e misurata, non ipotizzata»*: questo write-set serve a
-      produrre la misura, non la correzione. Quando la causa è nota, il write-set si rinegozia sui file
-      che la ospitano — che oggi non si sa quali siano, ed è il punto.
-      ✅ **Cosa la misura ha già escluso, senza scrivere codice**: `rt.Arena.Check` dice che la mappa
-      d'autore soddisfa **tutti e tre** i criteri di U1, quindi lo stallo non si spiega con un'arena
-      difettosa; e la riga della copertura — *«3 celle che bloccano la vista … linea di tiro interrotta»* —
-      dice che la vista bloccata fra gli spawn è **voluta**. Restano i candidati 2 (pathing) e 3 (utility).
-      🔵 **Il probe è puro e non simula una partita.** `URTHexVisionLibrary::HasLineOfSight` è
-      `BlueprintPure` e `URTMatchSetupLibrary::MakeTestArena` genera l'arena da codice: la domanda «esiste
-      una cella da cui un bersaglio è legale?» si risponde con due chiamate e un'enumerazione, senza mondo,
-      senza attori e senza `.uasset`.
-      ⛔ **Cosa questa track NON tocca**: `Source/RefactorTactics/Bot/` e `Turn/` — dove la correzione
-      probabilmente andrà — perché prenotarli adesso sarebbe prenotare in base a un'ipotesi. È la stessa
-      ragione per cui `playback` ha preso un prefisso largo e poi l'ha stretto: qui si fa il contrario,
-      si parte stretti e si chiede quando si sa.
-      ⚠️ `Tests/` è condivisa fra tutte le track: il file è dichiarato **per nome**.
+      ➕ **Track aperta il 2026-08-17 su `#1088`.** Il write-set nasceva stretto — un solo probe — perché la
+      issue chiede, al criterio 1, che la causa sia *«nominata e misurata, non ipotizzata»*, e prenotare i
+      file della correzione prima di conoscerla sarebbe stato prenotare in base a un'ipotesi.
+      ✅ **Criterio 1 chiuso il 2026-08-18, e la causa NON è quella che i primi cinque probe cercavano.**
+      Misurato attraversando la risoluzione simultanea invece di applicare `Plan.DestCell`: sull'arena con
+      copertura, 12 turni, **24 contese tutte fra COMPAGNI di squadra**, zero fra avversari, zero turni con
+      una mossa. Sull'esagono liscio, stesso ciclo: zero contese. La regola di contesa fa il suo mestiere —
+      due unità non stanno nella stessa cella — mentre `PlanBots` pianifica **un'unità alla volta** sullo
+      stesso snapshot congelato, e due compagne scelgono la stessa cella.
+      ➕ **Write-set rinegoziato il 2026-08-19, come questa nota prevedeva.** I tre path aggiunti erano
+      liberi e non assegnati, verificato scandendo `writable`/`integration_only`/`writable_on_loan` di ogni
+      track: la correzione vive in `URTHexBotLibrary::ReservePlannedRoute`, che segna la rotta scelta come
+      occupata per le compagne e libera per chi l'ha presa.
+      ➕ **`Turn/RTTurnManager.cpp` è stato CEDUTO da `simulation` nello stesso commit, non dichiarato in
+      parallelo.** La prima stesura di questa nota lo teneva in entrambi i `writable` spiegando perché il
+      rischio fosse basso — ma `D-139` dice «un holder per path», e nessuno script intercetta un doppio
+      holder: l'unica applicazione della regola è la riga che lo dichiara. Una code review l'ha chiamata per
+      quello che era, una violazione con una giustificazione accanto.
+      Condizione della cessione, misurata: `feat/314-reaction-profile-e-clash` è interamente in `main`
+      (PR **#1210**, **#1211**) e **`main` non ha toccato quel file** dalla base di questa track
+      (`git diff <merge-base> origin/main -- Turn/RTTurnManager.cpp` **vuoto**) — il lavoro di `#314` è
+      andato in `RTReactionLibrary` e affini. ⚠️ Se `#314` riapre e serve di nuovo, si **richiede**.
+      ⛔ **L'innesto NON è stato «una riga», e la stima iniziale era sbagliata.** `PlanBots` non chiama
+      `PlanUnit`: costruisce candidate proprie (`AddCandidates`, quattro pool) e chiama `ChooseBestPlan`,
+      con **cinque punti d'uscita**. La modifica reale è uno snapshot di pianificazione **per squadra**
+      più la prenotazione della rotta ai tre rami che muovono.
+      ➖ **`PlanTeam` è stata scritta, testata e poi RIMOSSA nello stesso lavoro.** Non aveva consumatori
+      in produzione — `PlanBots` non poteva usarla — e un secondo percorso parallelo diverge dal primo
+      alla prima modifica. Resta `ReservePlannedRoute`, che è ciò che il gioco chiama.
+      ⚠️ `Tests/` è condivisa fra tutte le track: i file sono dichiarati **per nome**.
     writable:
       # ➕ File **nuovo**, dichiarato prima di crearlo: «conteso da nessuno» non è un'assegnazione.
       - Source/RefactorTactics/Tests/RTBotStalemateProbeTests.cpp
+      # ➕ 2026-08-19: la correzione di #1088. Il file nuovo è dichiarato prima di crearlo, come sopra.
+      - Source/RefactorTactics/Tests/RTBotTeamPlanningTests.cpp
+      - Source/RefactorTactics/Bot/RTHexBotLibrary.h
+      - Source/RefactorTactics/Bot/RTHexBotLibrary.cpp
+      # 🔴 Sovrapposto con `simulation` (#314), autorizzato dall'autore — vedi la nota. Da rimuovere di qui
+      # alla chiusura della track, perché la sovrapposizione non deve sopravviverle.
+      - Source/RefactorTactics/Turn/RTTurnManager.cpp
     derives_from: []
     binary_leases: []
 

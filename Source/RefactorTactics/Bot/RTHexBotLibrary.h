@@ -213,6 +213,45 @@ public:
 	static FRTHexBotPlan PlanUnit(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTHexBotContext& Context);
 
 	/**
+	 * Segna in `Snapshot` le celle che l'unita' PRENOTA per raggiungere `DestCell` — la rotta intera, non la
+	 * sola destinazione — cosi' che chi pianifica dopo non le veda libere.
+	 *
+	 * ⚠️ Prenota con l'id dell'unita' stessa, e non e' un dettaglio: `ReachableCells` tratta come occupata
+	 * solo una cella il cui occupante e' un ALTRO (`*Occupant != UnitId`), quindi l'unita' non blocca la
+	 * propria rotta mentre la blocca a tutte le altre.
+	 *
+	 * ⚠️ **E' piu' restrittivo del necessario**, dichiarato: nella risoluzione a micro-step due unita'
+	 * potrebbero attraversare la stessa cella in momenti diversi senza contendersela. Qui la seconda dovra'
+	 * trovare una rotta disgiunta, e in un corridoio stretto potrebbe non trovarne. E' un prezzo scelto: lo
+	 * stallo di #1088 costava ZERO mosse per dodici turni.
+	 *
+	 * ⛔ **Lo snapshot su cui si prenota e' PER SQUADRA, e non e' un'ottimizzazione: e' fairness.** Le
+	 * prenotazioni sono informazione sui piani, e i piani di una squadra sono privati (CP 13.5,
+	 * `RT-FEAT-BOT-FAIRNESS`: *«il bot non vede piu' di te»*). Prenotando su uno snapshot condiviso fra le
+	 * due squadre, un bot eviterebbe la cella dove sta per andare un AVVERSARIO — cioe' schiverebbe un
+	 * intento che nessun giocatore puo' vedere. Due squadre che si contendono la stessa cella devono
+	 * continuare a contendersela: quella e' una collisione legittima, che il resolver risolve, e non il
+	 * difetto di #1088.
+	 *
+	 * ⚠️ **Chi prenota rende la pianificazione dipendente dall'ORDINE**: chi decide prima ha piu' scelta.
+	 * Non intacca il determinismo — l'ordine e' quello dello snapshot, stabile — ma e' una regola nuova, e
+	 * chi chiama deve iterare in un ordine stabile, non nell'ordine di enumerazione degli Actor.
+	 *
+	 * 🔴 **Quello che questa prenotazione garantisce e' DESTINAZIONI distinte, non PERCORSI disgiunti.**
+	 * `ARTTurnManager::ResolveMovement` ricalcola la rotta su uno snapshot FRESCO, dove le prenotazioni non
+	 * esistono: chi pianifica dopo sceglie una destinazione libera, ma puo' poi raggiungerla per la via
+	 * diretta, cioe' quella che qui era stata scartata. Il limite e' dichiarato e misurato — sulla
+	 * configurazione spedita non si osserva alcuna contesa, ma non e' impedita per costruzione.
+	 * ⛔ Fissare la rotta su `PlannedPath` **non** chiude il buco: quel ramo di `ResolveMovement` non
+	 * riapplica l'occupazione fresca, e una rotta vecchia di due fasi produce sovrapposizioni reali.
+	 *
+	 * Restituisce la rotta prenotata. Vuota = l'unita' resta dov'e', oppure il pathfinding ha fallito — e in
+	 * quel caso e' loggato e la sola destinazione viene prenotata comunque.
+	 */
+	static TArray<FRTCellId> ReservePlannedRoute(FRTHexSnapshot& Snapshot, int32 UnitId,
+		const FRTCellId& DestCell);
+
+	/**
 	 * La risposta del bot a una finestra di reazione (CP 14.5). Restituisce una delle `AllowedResponses`.
 	 *
 	 * ⚠️ **La firma E' il requisito.** Il DoD chiede che il bot decida «con la sola opportunity sanitizzata e
