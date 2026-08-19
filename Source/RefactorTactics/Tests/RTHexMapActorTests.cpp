@@ -278,9 +278,13 @@ namespace
 	/**
 	 * L'ISM che si chiama cosi', o `nullptr`.
 	 *
-	 * Unico posto in cui la ricerca per nome e' scritta: le due funzioni sotto la condividono. Tenerne due
-	 * copie le faceva gia' divergere appena nate — una accumulava su tutti i componenti omonimi, l'altra
-	 * usciva al primo — e sarebbero state due risposte diverse alla stessa domanda.
+	 * Condiviso dalle due funzioni sotto, che senza divergevano gia' appena nate: una accumulava su tutti i
+	 * componenti omonimi, l'altra usciva al primo — due risposte diverse alla stessa domanda.
+	 *
+	 * ⚠️ **Non e' l'unico posto del file in cui si cerca un ISM per nome**, e dirlo sarebbe falso:
+	 * `PickIgnoresGeometryThatIsNotTheGrid` ha la propria passata, perche' ne risolve **due** in un giro
+	 * solo e vive sopra questo namespace. Unificarla richiederebbe spostare il namespace, che e' un
+	 * rimaneggiamento piu' largo di quanto `#1052` giustifichi: annotato invece che fatto a meta'.
 	 */
 	UInstancedStaticMeshComponent* FindIsm(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
 	{
@@ -771,8 +775,8 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 		InstanceCountOf(Actor, TEXT("EdgeFeatures")), BordiIniziali);
 
 	// ⚠️ La guardia `> 0` non e' difensiva: senza, `CelleIniziali == 0` renderebbe il seme vero, il ciclo
-	// non girerebbe mai e l'asserzione passerebbe su un actor vuoto. Stesso schema, stesso file, righe 125
-	// e 141.
+	// non girerebbe mai e l'asserzione passerebbe su un actor vuoto. Stesso schema, stesso file: i due
+	// cicli `bAllOnActiveLayer` di `LayerFilterOnConstruction` lo proteggono cosi'.
 	bool bMappaturaStabile = (CelleIniziali > 0) && (Actor->NumInstanceCells() == CelleIniziali);
 	for (int32 I = 0; bMappaturaStabile && I < CelleIniziali; ++I)
 	{
@@ -787,11 +791,17 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	Asset->AddOrUpdateCell(FRTHexCellData(Nuova));
 	Asset->SortCells();
 
-	// ⚠️ Che l'actor non veda ancora la cella e' un PASSO, non un'invariante: passa solo perche' oggi
-	// `AddOrUpdateCell` incrementa `Revision` senza fare broadcast di `OnMapChanged`. Renderlo un
-	// notificatore — che e' il fix naturale per la meta' «osservatori» di #996 — farebbe rosso questo test
-	// per un motivo che non ha nulla a che vedere con l'idempotenza delle istanze. Resta come commento
-	// perche' spiega perche' la chiamata qui sotto e' l'unica causa possibile dell'effetto misurato.
+	// ⚠️ **Questa asserzione e' la GUARDIA DI CAUSALITA' dell'intera sezione «EFFETTO», e va tenuta.**
+	// Senza, basta che `RebuildInstances` diventi condizionale **e** che `AddOrUpdateCell` faccia broadcast
+	// perche' l'actor si ricostruisca da solo: la chiamata esplicita qui sotto diventerebbe un no-op e ogni
+	// asserzione seguente resterebbe verde, misurando una causa che non c'e' piu'.
+	// 🔴 **L'AC 6 di `#1052` chiedeva di toglierla, e per un giro l'ho tolta**: l'argomento era che un
+	// domani farebbe rosso questo test per un motivo estraneo all'idempotenza. Vero, ma la conclusione era
+	// sbagliata — la prosa non asserisce, e quel rosso e' **l'unico modo** che il progetto ha di accorgersi
+	// che la sezione sotto ha smesso di misurare cio' che dichiara. Se cade, la risposta non e' cancellarla:
+	// e' riscrivere la sezione EFFETTO attorno alla nuova causa.
+	TestEqual(TEXT("finche' non si ricostruisce, l'actor non vede la cella nuova"),
+		Actor->NumInstanceCells(), CelleIniziali);
 
 	Actor->RebuildInstances();
 	TestEqual(TEXT("dopo la ricostruzione la cella nuova e' mappata"),

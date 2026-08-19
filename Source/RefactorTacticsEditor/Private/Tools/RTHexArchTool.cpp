@@ -307,16 +307,15 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 	// Arco pendente (indipendente dall'asset).
 	if (bHasFrom)
 	{
-		// ⛔ **Qui stava un rilevatore di «marker senza gizmo», ed e' stato RITIRATO in code review**
-		// (`#1052`, punto 3). La condizione era `bHasFrom && !Gizmo`, sulla premessa che la GC azzerasse
-		// `Gizmo` quando il manager distrugge il gizmo alle spalle del tool. **La premessa e' falsa**:
-		// `Gizmo` e' una `UPROPERTY` **forte** (vedi la sua dichiarazione), quindi tiene l'oggetto
-		// raggiungibile e il puntatore non si azzera — la condizione puo' non avverarsi mai.
-		// ∴ era una verifica strutturalmente inosservabile, cioe' **lo stesso difetto che `#1052` corregge
-		// nel test**, ricommesso dentro la correzione. Vale la regola che questo repository applica gia'
-		// altrove: se una copertura non copre, si toglie invece di lasciarla a fare da falsa copertura.
-		// Osservare davvero quel caso richiede un canale diverso — un mirror `TWeakObjectPtr`, o una
-		// callback di distruzione del manager — e va deciso leggendo l'API, non assumendola.
+		// ⛔ **`bHasFrom && !Gizmo` NON e' osservabile, e non e' un'inferenza dalla dichiarazione.**
+		// Misurato in `UInteractiveGizmoManager::DestroyGizmo` (UE 5.8.1): deregistra dall'input router,
+		// chiama `Shutdown()`, rimuove dalla propria `ActiveGizmos` e invalida — **nessun `MarkAsGarbage`**.
+		// Il manager rilascia quindi solo il proprio riferimento; il nostro `Gizmo` e' una `UPROPERTY`
+		// forte, l'oggetto resta raggiungibile e la GC non lo raccoglie ∴ il puntatore non si azzera.
+		// ⚠️ La ragione conta: un `UPROPERTY` forte **viene** azzerato se il referente e' marcato garbage,
+		// quindi «e' forte» da solo non basta a concludere — e la prima stesura di questo commento si
+		// fermava li'. Chi volesse osservare davvero il caso ha due strade, entrambe da verificare
+		// sull'API prima di scrivere: un canale che marchi l'oggetto, o una callback di distruzione.
 
 		RTHexEditor::DrawHexMarker(PDI, FromWorld, MarkerRadius, FColor::Green);
 		if (bToValid)

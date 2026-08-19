@@ -169,25 +169,30 @@ namespace
 		return TEXT("<esito non mappato>");
 	}
 
-	/**
-	 * La riga che distingue le due funzioni del gesto — `#996` passo 1, completato da `#1052`.
-	 *
-	 * ⚠️ **Chiamata da DUE punti, e il primo e' quello che conta.** La prima stesura la metteva solo in
-	 * `PostEditChangeProperty`, ma il gesto degli AC 2/3 di `#996` e' **spostare l'actor**, che passa per
-	 * `OnConstruction` — come il commento di quella funzione dice da sempre («spostamento dell'actor»).
-	 * L'osservatore restava quindi davanti allo stesso silenzio che la strumentazione doveva togliere.
-	 * Trovato in code review sulla PR di `#1052`.
-	 *
-	 * ⚠️ **Si stampano DUE conteggi, e il secondo e' quello nuovo.** `NumInstanceCells()` e' la lunghezza
-	 * dell'array di mapping, che viene `Reset()` a ogni ricostruzione **anche se** l'ISM non e' stato
-	 * ripulito: da solo direbbe «7 celle» mentre la griglia si sdoppia a schermo. E' il difetto che
-	 * `RebuildInstancesIsIdempotentForInstances` esiste per prendere, e un diagnostico cieco proprio a
-	 * quello non serve a niente.
-	 */
-	void LogRebuildTrace(const TCHAR* Trigger, ERTBindOutcome Bind, int32 CelleMappate, int32 IstanzeISM)
+	/** Il conteggio istanze di un ISM, o `INDEX_NONE` se il componente non c'e'. */
+	int32 CountOf(const UInstancedStaticMeshComponent* Ism)
 	{
-		UE_LOG(LogRT, Log, TEXT("[HexMap] %s: BindToMapAsset %s; RebuildInstances -> %d celle mappate, %d istanze in Cells."),
-			Trigger, BindOutcomeToString(Bind), CelleMappate, IstanzeISM);
+		return Ism ? Ism->GetInstanceCount() : INDEX_NONE;
+	}
+
+	/**
+	 * La riga che distingue le due funzioni del gesto — `#996` passo 1.
+	 *
+	 * ⚠️ **`Trigger` porta anche l'ORDINE, e non e' una formalita'**: `OnConstruction` ricostruisce e POI
+	 * si iscrive, `PostEditChangeProperty` fa l'inverso. Una frase che fissasse una sequenza sarebbe falsa
+	 * in uno dei due siti — e questa strumentazione esiste proprio per dire quale funzione ha fatto cosa.
+	 *
+	 * ⚠️ **Si stampano TUTTI E QUATTRO gli ISM.** `NumInstanceCells()` e' la lunghezza dell'array di
+	 * mapping, che viene `Reset()` a ogni ricostruzione **anche se** un componente non e' stato ripulito:
+	 * da solo direbbe «7 celle» mentre a schermo si accumula. E leggerne uno solo ripeterebbe la cecita'
+	 * uno-su-quattro che `RebuildInstancesIsIdempotentForInstances` ha appena smesso di avere.
+	 */
+	void LogRebuildTrace(const TCHAR* Trigger, ERTBindOutcome Bind,
+		int32 CelleMappate, int32 Celle, int32 Rilievi, int32 Blocchi, int32 Bordi)
+	{
+		UE_LOG(LogRT, Log,
+			TEXT("[HexMap] %s | bind: %s | %d celle mappate | istanze Cells=%d Relief=%d Blockers=%d EdgeFeatures=%d."),
+			Trigger, BindOutcomeToString(Bind), CelleMappate, Celle, Rilievi, Blocchi, Bordi);
 	}
 }
 #endif // WITH_EDITOR
@@ -205,12 +210,15 @@ void ARTHexMapActor::OnConstruction(const FTransform& Transform)
 	const URTHexMapAsset* PrimaDelBind = BoundAsset.Get();
 	BindToMapAsset();
 
-	// ⚠️ Solo in editor: `OnConstruction` gira anche allo `SpawnActor` di gioco, e li' questa riga sarebbe
-	// rumore su ogni spawn senza avere un osservatore che la legge.
-	LogRebuildTrace(TEXT("OnConstruction (apertura livello, spostamento actor, undo)"),
+	// ⚠️ **`WITH_EDITOR` non esclude il PIE, e il commento precedente diceva il contrario.** E' 1 in ogni
+	// build con l'editor, PIE compreso; taglia fuori solo packaged e standalone. Va bene lo stesso — il
+	// PIE e' proprio dove le procedure `PIE-HEX-MODE-*` guardano il log — ma la ragione e' «serve solo
+	// dove esiste un editor», non «tace nel gioco».
+	// ⚠️ Qui l'ordine e' **ricostruisci poi iscriviti**: i conteggi vengono da una `RebuildInstances` che
+	// ha girato PRIMA che l'iscrizione esistesse, ed e' il motivo per cui il testo lo dichiara.
+	LogRebuildTrace(TEXT("OnConstruction (apertura livello, spostamento actor, undo) — rebuild PRIMA del bind"),
 		ClassifyBind(PrimaDelBind, BoundAsset.Get()),
-		NumInstanceCells(),
-		Cells ? Cells->GetInstanceCount() : INDEX_NONE);
+		NumInstanceCells(), CountOf(Cells), CountOf(Relief), CountOf(Blockers), CountOf(EdgeFeatures));
 #endif
 }
 
@@ -232,15 +240,20 @@ void ARTHexMapActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 
 	RebuildInstances();
 
-	// ⚠️ **`Interactive` si salta, e non e' una preferenza di verbosita'.** Unreal chiama questa funzione a
-	// ogni tick del mouse mentre si trascina uno slider (`HexSize`, `LayerHeight`, `DemoRadius`): senza il
-	// filtro sarebbero due righe per movimento, cioe' lo stesso rumore che `URTHexArchTool::Render` gia'
-	// evita con il suo one-shot. Il valore finale arriva comunque con il `ValueSet` che chiude il trascinamento.
-	if (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+	// ⚠️ **`ChangeType` e' una MASCHERA DI BIT, non un valore.** `EPropertyChangeType::Type` e' un `uint32`
+	// e `Interactive` vale `1 << 6` (letto in `UnrealType.h`): un evento che combini `ValueSet |
+	// Interactive` non e' uguale a `Interactive` e passerebbe un confronto con `!=`, riportando il log a
+	// sparare a ogni tick del mouse — cioe' esattamente cio' che il filtro esiste per impedire. La prima
+	// stesura usava `!=`; trovato in code review.
+	// Il valore finale arriva comunque col `ValueSet` che chiude il trascinamento, quindi non si perde nulla.
+	if ((PropertyChangedEvent.ChangeType & EPropertyChangeType::Interactive) == 0)
 	{
-		const FString Trigger = FString::Printf(TEXT("PostEditChangeProperty su '%s'"),
+		// Costruiti DENTRO il ramo: su un trascinamento questa funzione gira a ogni movimento del mouse, e
+		// una `FString::Printf` per una riga che non verra' stampata e' lavoro speso per niente.
+		const FString Trigger = FString::Printf(TEXT("PostEditChangeProperty su '%s' — bind PRIMA del rebuild"),
 			*PropertyChangedEvent.GetPropertyName().ToString());
-		LogRebuildTrace(*Trigger, Esito, NumInstanceCells(), Cells ? Cells->GetInstanceCount() : INDEX_NONE);
+		LogRebuildTrace(*Trigger, Esito,
+			NumInstanceCells(), CountOf(Cells), CountOf(Relief), CountOf(Blockers), CountOf(EdgeFeatures));
 	}
 }
 
