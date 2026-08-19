@@ -20,20 +20,14 @@ enum class ERTHexArchOp : uint8
 /**
  * Perche' un arco pendente e' stato chiuso — `#996`.
  *
- * Le cinque voci sono le cinque chiamanti di `DestroyPendingGizmo`, e servono a una domanda sola: quando un
- * gizmo sparisce, e' stato chiuso da noi o e' sparito da solo? Senza il motivo, il log direbbe *che* e'
- * successo e non *perche'*, che e' esattamente l'ambiguita' che la issue esiste per sciogliere.
+ * Un motivo per ogni chiamante di `DestroyPendingGizmo`, per rispondere a una domanda sola: quando un gizmo
+ * sparisce, e' stato chiuso da noi o e' sparito da solo? Senza, il log direbbe *che* e' successo e non
+ * *perche'*.
  *
- * ⚠️ **Non c'e' un valore di default, ed e' deliberato**: il parametro senza default costringe una sesta
- * chiamante — se un giorno nascera' — a passare **un** valore invece di scivolare dentro un `Unknown` che
- * nessuno noterebbe leggendo il log.
- *
- * 🔴 **E si ferma li': la prima stesura di questo commento prometteva di piu' del vero** (`#1052`). Diceva
- * che il parametro «costringe a dichiarare la **propria** ragione». Il compilatore non lo fa e non puo':
- * `DestroyPendingGizmo(ERTArchPendingClose::Shutdown)` da un sito nuovo compila, e fa dire al log una cosa
- * **falsa** — peggio di un `Unknown`, perche' indistinguibile da uno Shutdown vero. Cio' che il compilatore
- * garantisce e' solo che un valore ci sia. Il resto e' disciplina di chi aggiunge la chiamante, e va scritto
- * come tale invece di essere attribuito a una garanzia che non esiste.
+ * ⚠️ **Il parametro non ha un valore di default**, cosi' una chiamante nuova deve passarne uno invece di
+ * scivolare dentro un `Unknown`. E' quanto il compilatore puo' garantire: che il valore *sia giusto* resta
+ * disciplina di chi scrive la chiamante — passare `Shutdown` da un sito che non e' uno shutdown compila, e
+ * il log direbbe il falso.
  */
 enum class ERTArchPendingClose : uint8
 {

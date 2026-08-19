@@ -149,22 +149,28 @@ ARTHexMapActor::ARTHexMapActor()
 #if WITH_EDITOR
 namespace
 {
-	/** Come e' finita l'iscrizione all'asset. Tre stati, non due: vedi il commento della funzione sotto. */
-	enum class ERTBindOutcome : uint8 { Invariata, Agganciata, Staccata };
+	/**
+	 * Come e' finita l'iscrizione all'asset. Le transizioni possibili sono **quattro**, non tre: chi
+	 * debugga «il vecchio asset guida ancora l'actor?» ha bisogno di distinguere un primo aggancio da uno
+	 * scambio, perche' solo il secondo ha dovuto rimuovere un delegate.
+	 */
+	enum class ERTBindOutcome : uint8 { Invariata, Agganciata, Scambiata, Staccata };
 
 	ERTBindOutcome ClassifyBind(const URTHexMapAsset* Prima, const URTHexMapAsset* Dopo)
 	{
 		if (Prima == Dopo) { return ERTBindOutcome::Invariata; }
-		return Dopo ? ERTBindOutcome::Agganciata : ERTBindOutcome::Staccata;
+		if (!Dopo)         { return ERTBindOutcome::Staccata; }
+		return Prima ? ERTBindOutcome::Scambiata : ERTBindOutcome::Agganciata;
 	}
 
 	const TCHAR* BindOutcomeToString(ERTBindOutcome Outcome)
 	{
 		switch (Outcome)
 		{
-		case ERTBindOutcome::Agganciata: return TEXT("si e' AGGANCIATO a un asset");
-		case ERTBindOutcome::Staccata:   return TEXT("si e' STACCATO e non segue piu' nulla");
-		case ERTBindOutcome::Invariata:  return TEXT("non ha cambiato l'iscrizione");
+		case ERTBindOutcome::Agganciata: return TEXT("primo aggancio a un asset");
+		case ERTBindOutcome::Scambiata:  return TEXT("SCAMBIO di asset (il precedente e' stato sganciato)");
+		case ERTBindOutcome::Staccata:   return TEXT("sganciato, non segue piu' nulla");
+		case ERTBindOutcome::Invariata:  return TEXT("invariata");
 		}
 		return TEXT("<esito non mappato>");
 	}
@@ -178,21 +184,32 @@ namespace
 	/**
 	 * La riga che distingue le due funzioni del gesto — `#996` passo 1.
 	 *
-	 * ⚠️ **`Trigger` porta anche l'ORDINE, e non e' una formalita'**: `OnConstruction` ricostruisce e POI
-	 * si iscrive, `PostEditChangeProperty` fa l'inverso. Una frase che fissasse una sequenza sarebbe falsa
-	 * in uno dei due siti — e questa strumentazione esiste proprio per dire quale funzione ha fatto cosa.
+	 * ⚠️ **L'ordine delle due chiamate lo porta `Trigger`**, perche' i due siti lo hanno opposto:
+	 * `OnConstruction` ricostruisce e poi si iscrive, `PostEditChangeProperty` fa l'inverso. Una frase con
+	 * una sequenza fissa sarebbe falsa in uno dei due, e questa riga esiste per dire chi ha fatto cosa.
 	 *
-	 * ⚠️ **Si stampano TUTTI E QUATTRO gli ISM.** `NumInstanceCells()` e' la lunghezza dell'array di
-	 * mapping, che viene `Reset()` a ogni ricostruzione **anche se** un componente non e' stato ripulito:
-	 * da solo direbbe «7 celle» mentre a schermo si accumula. E leggerne uno solo ripeterebbe la cecita'
-	 * uno-su-quattro che `RebuildInstancesIsIdempotentForInstances` ha appena smesso di avere.
+	 * ⚠️ **Si leggono tutti e quattro gli ISM.** `NumInstanceCells()` e' la lunghezza dell'array di mapping,
+	 * che viene `Reset()` a ogni ricostruzione **anche se** un componente non e' stato ripulito: da solo
+	 * direbbe «7 celle» mentre a schermo si accumula. Leggerne uno solo lascerebbe ciechi sugli altri tre.
+	 * ⚠️ I conteggi viaggiano in una struct a campi **nominati** e non come `int32` in fila: gli ISM sono
+	 * `protected`, quindi una funzione libera non puo' leggerli dall'actor, e cinque parametri dello stesso
+	 * tipo si trasporrebbero senza che il compilatore dica niente — mislabelando quale componente accumula.
 	 */
-	void LogRebuildTrace(const TCHAR* Trigger, ERTBindOutcome Bind,
-		int32 CelleMappate, int32 Celle, int32 Rilievi, int32 Blocchi, int32 Bordi)
+	struct FRTIsmSnapshot
+	{
+		int32 Mapped = INDEX_NONE;
+		int32 Cells = INDEX_NONE;
+		int32 Relief = INDEX_NONE;
+		int32 Blockers = INDEX_NONE;
+		int32 EdgeFeatures = INDEX_NONE;
+	};
+
+	void LogRebuildTrace(const TCHAR* Trigger, ERTBindOutcome Bind, const FRTIsmSnapshot& Snap)
 	{
 		UE_LOG(LogRT, Log,
 			TEXT("[HexMap] %s | bind: %s | %d celle mappate | istanze Cells=%d Relief=%d Blockers=%d EdgeFeatures=%d."),
-			Trigger, BindOutcomeToString(Bind), CelleMappate, Celle, Rilievi, Blocchi, Bordi);
+			Trigger, BindOutcomeToString(Bind), Snap.Mapped,
+			Snap.Cells, Snap.Relief, Snap.Blockers, Snap.EdgeFeatures);
 	}
 }
 #endif // WITH_EDITOR
@@ -210,15 +227,18 @@ void ARTHexMapActor::OnConstruction(const FTransform& Transform)
 	const URTHexMapAsset* PrimaDelBind = BoundAsset.Get();
 	BindToMapAsset();
 
-	// ⚠️ **`WITH_EDITOR` non esclude il PIE, e il commento precedente diceva il contrario.** E' 1 in ogni
-	// build con l'editor, PIE compreso; taglia fuori solo packaged e standalone. Va bene lo stesso — il
-	// PIE e' proprio dove le procedure `PIE-HEX-MODE-*` guardano il log — ma la ragione e' «serve solo
-	// dove esiste un editor», non «tace nel gioco».
-	// ⚠️ Qui l'ordine e' **ricostruisci poi iscriviti**: i conteggi vengono da una `RebuildInstances` che
-	// ha girato PRIMA che l'iscrizione esistesse, ed e' il motivo per cui il testo lo dichiara.
+	// `WITH_EDITOR` e' 1 anche in PIE: taglia fuori solo packaged e standalone, che e' quanto serve — la
+	// traccia ha senso dove un editor esiste.
+	// Qui l'ordine e' ricostruisci-poi-iscriviti, e i conteggi vengono da una `RebuildInstances` girata
+	// PRIMA che l'iscrizione esistesse: per questo il testo lo dichiara invece di lasciarlo sottinteso.
+	FRTIsmSnapshot Snap;
+	Snap.Mapped = NumInstanceCells();
+	Snap.Cells = CountOf(Cells);
+	Snap.Relief = CountOf(Relief);
+	Snap.Blockers = CountOf(Blockers);
+	Snap.EdgeFeatures = CountOf(EdgeFeatures);
 	LogRebuildTrace(TEXT("OnConstruction (apertura livello, spostamento actor, undo) — rebuild PRIMA del bind"),
-		ClassifyBind(PrimaDelBind, BoundAsset.Get()),
-		NumInstanceCells(), CountOf(Cells), CountOf(Relief), CountOf(Blockers), CountOf(EdgeFeatures));
+		ClassifyBind(PrimaDelBind, BoundAsset.Get()), Snap);
 #endif
 }
 
@@ -240,20 +260,23 @@ void ARTHexMapActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 
 	RebuildInstances();
 
-	// ⚠️ **`ChangeType` e' una MASCHERA DI BIT, non un valore.** `EPropertyChangeType::Type` e' un `uint32`
-	// e `Interactive` vale `1 << 6` (letto in `UnrealType.h`): un evento che combini `ValueSet |
-	// Interactive` non e' uguale a `Interactive` e passerebbe un confronto con `!=`, riportando il log a
-	// sparare a ogni tick del mouse — cioe' esattamente cio' che il filtro esiste per impedire. La prima
-	// stesura usava `!=`; trovato in code review.
-	// Il valore finale arriva comunque col `ValueSet` che chiude il trascinamento, quindi non si perde nulla.
+	// ⚠️ **`ChangeType` e' una maschera di bit**: `EPropertyChangeType::Type` e' un `uint32` e `Interactive`
+	// vale `1 << 6`. Un evento `ValueSet | Interactive` non e' *uguale* a `Interactive`, quindi un confronto
+	// con `!=` lo lascerebbe passare e il log tornerebbe a sparare a ogni tick del mouse su uno slider.
+	// Nulla va perso: il valore finale arriva col `ValueSet` che chiude il trascinamento.
 	if ((PropertyChangedEvent.ChangeType & EPropertyChangeType::Interactive) == 0)
 	{
-		// Costruiti DENTRO il ramo: su un trascinamento questa funzione gira a ogni movimento del mouse, e
+		// Costruiti dentro il ramo: su un trascinamento questa funzione gira a ogni movimento del mouse, e
 		// una `FString::Printf` per una riga che non verra' stampata e' lavoro speso per niente.
 		const FString Trigger = FString::Printf(TEXT("PostEditChangeProperty su '%s' — bind PRIMA del rebuild"),
 			*PropertyChangedEvent.GetPropertyName().ToString());
-		LogRebuildTrace(*Trigger, Esito,
-			NumInstanceCells(), CountOf(Cells), CountOf(Relief), CountOf(Blockers), CountOf(EdgeFeatures));
+		FRTIsmSnapshot Snap;
+		Snap.Mapped = NumInstanceCells();
+		Snap.Cells = CountOf(Cells);
+		Snap.Relief = CountOf(Relief);
+		Snap.Blockers = CountOf(Blockers);
+		Snap.EdgeFeatures = CountOf(EdgeFeatures);
+		LogRebuildTrace(*Trigger, Esito, Snap);
 	}
 }
 

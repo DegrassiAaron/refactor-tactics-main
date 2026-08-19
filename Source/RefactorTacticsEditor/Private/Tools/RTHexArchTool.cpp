@@ -107,48 +107,32 @@ namespace
 		case ERTArchPendingClose::Committed:        return TEXT("Commit: la transizione e' stata scritta");
 		case ERTArchPendingClose::ClearedByUser:    return TEXT("ClearArch dal pannello");
 		case ERTArchPendingClose::SwitchedToRemove: return TEXT("passaggio a Remove");
-		// ⚠️ **`Count` e' un `case` esplicito, non una dimenticanza.** Senza, lo `switch` non copre tutti
-		// gli enumeratori e Clang emette `-Wswitch` — che sotto promozione dei warning e' un errore di
-		// compilazione in un file che oggi compila pulito. Non e' un motivo di chiusura: se arriva qui,
-		// qualcuno l'ha passata a `DestroyPendingGizmo`, e il testo deve dirlo invece di travestirsi da
-		// motivo plausibile.
+		// `Count` e' un `case` esplicito perche' senza lo `switch` non copre l'enum e Clang emette
+		// `-Wswitch`. Non e' un motivo di chiusura: se compare nel log, qualcuno l'ha passata per errore.
 		case ERTArchPendingClose::Count:            return TEXT("<Count: sentinella, non un motivo di chiusura>");
 		}
 		return TEXT("<motivo non mappato>");
 	}
 
-	// 🔴 **Questo assert pinna il CONTEGGIO, non la mappatura, e il suo messaggio non deve invitare ad
-	// aggirarlo** (corretto in code review, `#1052`). La prima stesura diceva «aggiorna
-	// `ArchPendingCloseToString` prima di toccare questo numero», e la via di minor resistenza era
-	// **bumpare il 5 a 6**: dopo di che il codice compila senza `case` per il motivo nuovo e il log degrada
-	// in silenzio — esattamente cio' che l'assert doveva impedire.
-	// La difesa vera contro un enumeratore non mappato e' lo `switch` esaustivo qui sopra (`-Wswitch` su
-	// Clang); questo assert e' la rete **secondaria**, e serve su MSVC, dove C4062 e' spento per default.
-	// ∴ se fallisce: aggiungi il `case`, poi aggiorna il numero. Mai il contrario.
+	// Rete secondaria dello `switch` esaustivo qui sopra, per MSVC dove C4062 e' spento per default.
+	// Se fallisce: aggiungi il `case`, POI aggiorna il numero. Mai il contrario — bumpare il numero da solo
+	// lascia il motivo nuovo senza `case` e il log degrada in silenzio.
 	static_assert(static_cast<uint8>(ERTArchPendingClose::Count) == 5,
 		"ERTArchPendingClose e' cambiato: aggiungi il case in ArchPendingCloseToString, POI aggiorna questo numero.");
 }
 
 /**
- * `#996`, passo 1. Questa funzione era l'unica del giro a NON loggare, mentre tutte le sue cinque chiamanti
- * loggano: quando un gizmo spariva, il registro conteneva tutto tranne la riga che diceva chi l'aveva chiuso.
+ * `#996`, passo 1: quando un gizmo sparisce, questa riga dice chi l'ha chiuso.
  *
- * ⚠️ **Il segnale piu' importante di questo log e' la sua ASSENZA.** Se al gesto che #996 descrive — modificare
- * la Transform Location dell'actor con un arco pendente — il gizmo sparisce e qui NON compare nessuna riga,
- * allora `DestroyPendingGizmo` non e' stata chiamata: il tool e' vivo, e la causa sta altrove. Un log che tace
- * e' un dato solo per chi sa che doveva parlare, e questo commento e' il posto dove sta scritto.
+ * ⚠️ **Chiusura vera e chiamata a vuoto hanno righe diverse, e non e' verbosita'.** Le chiamanti la invocano
+ * anche quando non c'e' niente da chiudere — `RemoveNearestArch` a ogni click in Remove, `OnClicked` al primo
+ * click in Add — e una riga unica avrebbe annunciato «passaggio a Remove» o «re-click» su transizioni mai
+ * avvenute, in un log il cui unico compito e' disambiguare.
  *
- * Per questo si stampano anche `bHasFrom` e la presenza del gizmo PRIMA di azzerarli: distinguono una
- * chiusura vera da una chiamata a vuoto, che le cinque chiamanti fanno regolarmente.
- *
- * 🔴 **E fino a `#1052` le due cose finivano nella stessa riga, che affermava una transizione mai avvenuta.**
- * `RemoveNearestArch` e' chiamata a **ogni** click mentre `Operation == Remove`, quindi il secondo click e i
- * successivi stampavano *«passaggio a Remove»* senza che nessun passaggio fosse avvenuto; simmetricamente il
- * **primo** click in Add stampava *«re-click su una nuova cella From»* con `bHasFrom=0` e nessun gizmo. In un
- * log il cui unico compito e' disambiguare, e' la stessa sovraffermazione che il commento dell'enum esiste
- * per prevenire — e che quel commento a sua volta commetteva.
- * ∴ la chiamata a vuoto ha ora una riga **propria**, e a `Verbose`: l'evidenza che la chiamata c'e' stata
- * resta, ma non si traveste da chiusura.
+ * ⚠️ **Cosa significa il SILENZIO, con precisione.** A verbosita' di default `LogTemp` non stampa `Verbose`,
+ * quindi nessuna riga vuol dire *«non chiamata, **oppure** chiamata senza nulla di pendente»* — non la sola
+ * prima. Per distinguerle serve `-LogCmds="LogTemp Verbose"`. Chi esegue il gesto di `#996` con un arco
+ * **effettivamente** pendente e non vede righe ha invece l'informazione che cerca: il tool non c'entra.
  */
 void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 {
@@ -307,15 +291,14 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 	// Arco pendente (indipendente dall'asset).
 	if (bHasFrom)
 	{
-		// ⛔ **`bHasFrom && !Gizmo` NON e' osservabile, e non e' un'inferenza dalla dichiarazione.**
-		// Misurato in `UInteractiveGizmoManager::DestroyGizmo` (UE 5.8.1): deregistra dall'input router,
-		// chiama `Shutdown()`, rimuove dalla propria `ActiveGizmos` e invalida — **nessun `MarkAsGarbage`**.
-		// Il manager rilascia quindi solo il proprio riferimento; il nostro `Gizmo` e' una `UPROPERTY`
-		// forte, l'oggetto resta raggiungibile e la GC non lo raccoglie ∴ il puntatore non si azzera.
-		// ⚠️ La ragione conta: un `UPROPERTY` forte **viene** azzerato se il referente e' marcato garbage,
-		// quindi «e' forte» da solo non basta a concludere — e la prima stesura di questo commento si
-		// fermava li'. Chi volesse osservare davvero il caso ha due strade, entrambe da verificare
-		// sull'API prima di scrivere: un canale che marchi l'oggetto, o una callback di distruzione.
+		// ⛔ **Non provare a rilevare qui un gizmo sparito con `bHasFrom && !Gizmo`: non e' osservabile.**
+		// `UInteractiveGizmoManager::DestroyGizmo` (UE 5.8.1) deregistra dall'input router, chiama
+		// `Shutdown()`, rimuove dalla propria `ActiveGizmos` e invalida — **nessun `MarkAsGarbage`**.
+		// Rilascia quindi solo il proprio riferimento: il nostro `Gizmo` e' una `UPROPERTY` forte, l'oggetto
+		// resta raggiungibile, la GC non lo raccoglie e il puntatore non si azzera mai.
+		// (Un `UPROPERTY` forte **viene** azzerato se il referente e' marcato garbage: e' quel passaggio a
+		// mancare, non la forza del riferimento.) Osservare il caso richiede un canale che marchi l'oggetto
+		// o una callback di distruzione, da verificare sull'API prima di scrivere.
 
 		RTHexEditor::DrawHexMarker(PDI, FromWorld, MarkerRadius, FColor::Green);
 		if (bToValid)

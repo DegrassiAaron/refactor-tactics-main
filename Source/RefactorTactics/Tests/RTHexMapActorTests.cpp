@@ -281,10 +281,8 @@ namespace
 	 * Condiviso dalle due funzioni sotto, che senza divergevano gia' appena nate: una accumulava su tutti i
 	 * componenti omonimi, l'altra usciva al primo — due risposte diverse alla stessa domanda.
 	 *
-	 * ⚠️ **Non e' l'unico posto del file in cui si cerca un ISM per nome**, e dirlo sarebbe falso:
-	 * `PickIgnoresGeometryThatIsNotTheGrid` ha la propria passata, perche' ne risolve **due** in un giro
-	 * solo e vive sopra questo namespace. Unificarla richiederebbe spostare il namespace, che e' un
-	 * rimaneggiamento piu' largo di quanto `#1052` giustifichi: annotato invece che fatto a meta'.
+	 * ⚠️ `PickIgnoresGeometryThatIsNotTheGrid` ha ancora la propria passata: vive **sopra** questo namespace
+	 * e ne risolve due in un giro solo. Chi la unifica sposti prima il namespace.
 	 */
 	UInstancedStaticMeshComponent* FindIsm(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
 	{
@@ -654,29 +652,19 @@ bool FRTHexMapActorReliefUnderSlabTest::RunTest(const FString&)
  * ⚠️ `AddOrUpdateCell` **non** fa broadcast di `OnMapChanged` (incrementa solo `Revision`): verificato, ed e'
  * cio' che rende la chiamata esplicita qui sotto l'unica causa possibile dell'effetto misurato.
  *
- * 🔴 **La prima stesura misurava solo `NumInstanceCells()`, e il nome del test MENTIVA.** Quel contatore e'
- * `InstanceCells.Num()` — l'array di mapping istanza->cella — e viene `Reset()` in `RebuildInstances`
- * **indipendentemente** da `Cells->ClearInstances()`, che sta alla riga PRIMA. Togliendo `ClearInstances`
- * l'ISM accumula 7, 14, 21 istanze mentre l'array ne dichiara sempre 7: la griglia si sdoppia a schermo e il
- * test restava verde. Misurato, non temuto — la verifica di mutazione ha dato **9 test su 9 verdi** con la
- * riga commentata. Per questo si legge anche `GetInstanceCount()` del componente `Cells`, che e' la cosa che
- * la mutazione rompe e che il nome del test promette.
+ * ⚠️ **`NumInstanceCells()` da solo NON basta, e il nome del test lo promette.** Quel contatore e'
+ * `InstanceCells.Num()` — l'array di mapping istanza->cella — e `RebuildInstances` lo `Reset()`
+ * **indipendentemente** dalle `ClearInstances()` dei componenti: togliendone una, l'ISM accumula 7, 14, 21
+ * istanze mentre l'array ne dichiara sempre 7, la griglia si sdoppia a schermo e ogni conteggio di mapping
+ * resta verde. Per questo si legge anche `GetInstanceCount()` di ciascun componente.
  *
- * 🔴 **E la seconda stesura ha corretto quel difetto per UN componente su quattro** (`#1052`, code review
- * della PR #1048 rientrata dopo il merge). Gli ISM sono `Cells`, `Relief`, `Blockers`, `EdgeFeatures`, e
- * con l'asset di default gli ultimi tre non erano «non verificati»: erano **strutturalmente non
- * osservabili**. `MakeActorTestAsset` produce celle di default, e da li' `MoveCost = 1` da'
- * `ReliefHeightForCost(1) = 0`, nessun flag accende `Blockers`, nessun Cover accende `EdgeFeatures`.
- * ∴ si potevano cancellare **tre** delle quattro `ClearInstances()` di `ARTHexMapActor::RebuildInstances`
- * — quelle di `Relief`, `Blockers` ed `EdgeFeatures` — senza che una sola asserzione cadesse, mentre a
- * schermo quei componenti accumulavano.
- * ⚠️ **I riferimenti qui sopra sono al SIMBOLO e non a `file:riga`, ed e' una correzione di questa stessa
- * issue**: la prima stesura citava `RTHexMapActor.cpp:495/:500/:505`, e le righe che il commit aggiungeva
- * a `PostEditChangeProperty` le avevano gia' spostate **nello stesso commit che le scriveva**. Un
- * `file:riga` non fallisce mai rumorosamente: porta il lettore in mezzo a un'altra funzione e nessun gate
- * se ne accorge.
- * Per questo l'asset qui sotto porta una cella costosa, una che blocca e una con un bordo: non e' un
- * ampliamento di scope, e' cio' che rende misurabile l'invariante gia' dichiarata.
+ * ⚠️ **E l'asset NON puo' essere quello di default.** Gli ISM sono quattro — `Cells`, `Relief`, `Blockers`,
+ * `EdgeFeatures` — ma `MakeActorTestAsset` produce celle di default, dove `MoveCost = 1` da'
+ * `ReliefHeightForCost(1) = 0`, nessun flag accende `Blockers` e nessun Cover accende `EdgeFeatures`. Con
+ * quell'asset gli ultimi tre non sono «non verificati»: sono **strutturalmente non osservabili**, e tre
+ * delle quattro `ClearInstances()` di `ARTHexMapActor::RebuildInstances` si possono cancellare senza che
+ * una sola asserzione cada. Per questo la fixture porta una cella costosa, una che blocca e una con un
+ * bordo: non e' ampliamento di scope, e' cio' che rende misurabile l'invariante gia' dichiarata.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorRebuildIsIdempotentTest,
 	"RefactorTactics.HexMapActor.RebuildInstancesIsIdempotentForInstances",
@@ -739,12 +727,15 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	const int32 BlockersIniziali = InstanceCountOf(Actor, TEXT("Blockers"));
 	const int32 BordiIniziali = InstanceCountOf(Actor, TEXT("EdgeFeatures"));
 
-	// ⚠️ Il vero contenuto di questo blocco e' `> 0`, non il numero esatto: se uno di questi fosse zero, la
-	// sua `ClearInstances()` tornerebbe cancellabile in silenzio — che e' il difetto che il test esisteva
-	// per prendere e non prendeva.
-	TestTrue(TEXT("il rilievo della cella costosa e' istanziato"), ReliefIniziali > 0);
-	TestTrue(TEXT("il volume della cella che blocca e' istanziato"), BlockersIniziali > 0);
-	TestTrue(TEXT("il pannello del bordo dichiarato e' istanziato"), BordiIniziali > 0);
+	// ⚠️ **I numeri sono ATTESI dalla fixture, non letti dall'actor**, ed e' la differenza fra un test e una
+	// tautologia. La fixture dichiara **una** cella costosa, **una** che blocca il movimento e **un** solo
+	// bordo con copertura: i conteggi corretti sono 1/1/1 e si sanno senza guardare l'actor. Asserire
+	// `> 0` e poi confrontare le misure post-ricostruzione contro quelle stesse baseline nasconderebbe una
+	// sovra-produzione: un rilievo per OGNI cella darebbe baseline 7, e tutti i confronti seguenti
+	// tornerebbero comunque.
+	TestEqual(TEXT("una sola cella costosa, un solo rilievo"), ReliefIniziali, 1);
+	TestEqual(TEXT("una sola cella che blocca, un solo volume"), BlockersIniziali, 1);
+	TestEqual(TEXT("un solo bordo dichiarato, un solo pannello"), BordiIniziali, 1);
 
 	TArray<FRTCellId> PrimaDelle;
 	PrimaDelle.Reserve(CelleIniziali);
@@ -795,11 +786,8 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	// Senza, basta che `RebuildInstances` diventi condizionale **e** che `AddOrUpdateCell` faccia broadcast
 	// perche' l'actor si ricostruisca da solo: la chiamata esplicita qui sotto diventerebbe un no-op e ogni
 	// asserzione seguente resterebbe verde, misurando una causa che non c'e' piu'.
-	// 🔴 **L'AC 6 di `#1052` chiedeva di toglierla, e per un giro l'ho tolta**: l'argomento era che un
-	// domani farebbe rosso questo test per un motivo estraneo all'idempotenza. Vero, ma la conclusione era
-	// sbagliata — la prosa non asserisce, e quel rosso e' **l'unico modo** che il progetto ha di accorgersi
-	// che la sezione sotto ha smesso di misurare cio' che dichiara. Se cade, la risposta non e' cancellarla:
-	// e' riscrivere la sezione EFFETTO attorno alla nuova causa.
+	// ⚠️ Se un giorno cade, **non cancellarla**: e' il segnale che la causa e' cambiata, e la risposta e'
+	// riscrivere la sezione EFFETTO attorno a quella nuova. Un commento al suo posto non asserisce nulla.
 	TestEqual(TEXT("finche' non si ricostruisce, l'actor non vede la cella nuova"),
 		Actor->NumInstanceCells(), CelleIniziali);
 
