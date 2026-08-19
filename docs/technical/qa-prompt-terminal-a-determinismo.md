@@ -100,7 +100,7 @@ D-139 esiste per impedire.
 | hash del TurnLog | `URTTurnLogLibrary::HashTurnLog`, chiamato da **5** file di test |
 | golden | `Tests/Golden/Movement.Basic`, `Tests/Golden/Movement.Collision` |
 | determinismo / permutazioni | `Simulation.ChecksumStableAcrossPermutations`, `Simulation.StateHashDistinguishesOutcomes`, `Replay.Verifier.ResimulationIsDeterministic` |
-| convenzioni di test | [`test-automatico-unreal.md`](test-automatico-unreal.md), [`test-e-diagnosi.md`](test-e-diagnosi.md), [`../balance/RT_TestMatrix_v0.1.md`](../balance/RT_TestMatrix_v0.1.md) |
+| convenzioni di test | [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md), [`test-e-diagnosi.md`](test-e-diagnosi.md), [`../balance/RT_TestMatrix_v0.1.md`](../balance/RT_TestMatrix_v0.1.md) |
 
 **Totale: 859 test dichiarati** (`IMPLEMENT_*_AUTOMATION_TEST`) in `Tests/`.
 
@@ -181,7 +181,7 @@ massivi.** Con 105 file piatti, ogni consolidamento **è** massivo: le due istru
 soddisfacibili.
 
 Le convenzioni esistono e hanno un owner:
-[`test-automatico-unreal.md`](test-automatico-unreal.md). **Leggile e seguile.** Non riorganizzare
+[`test-automatico-unreal.md`](tooling/test-automatico-unreal.md). **Leggile e seguile.** Non riorganizzare
 `Tests/`. Se trovi una convenzione mancante, **segnalala a Terminal C**: la documentazione non è il tuo
 write-set.
 
@@ -217,7 +217,7 @@ log no»* e porta a implementare un duplicato di ciò che esiste già.
 
 Entrambi rispettano già: serializzazione normalizzata · ordine stabile · niente timestamp real-time ·
 niente dipendenza dall'ordine dei container · stessa semantica → stesso hash. Il gate di determinismo è
-speccato in [`test-automatico-unreal.md`](test-automatico-unreal.md) §7.1.
+speccato in [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md) §7.1.
 
 **Non cambiare un formato canonico già deciso senza ADR/Decision Log.**
 
@@ -262,7 +262,7 @@ Il repository dichiara **due volte** che il seed non è consumato:
 - `ScenarioHarness/RTTestScenario.h:509` — «Seed dichiarato ma **non consumato**: oggi il progetto non ha
   alcun RNG e il determinismo viene da …»
 - `ScenarioHarness/RTTestResult.h:74` — idem
-- [`test-automatico-unreal.md`](test-automatico-unreal.md) **§4.1** si intitola *«Il `seed` non fa niente,
+- [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md) **§4.1** si intitola *«Il `seed` non fa niente,
   e va bene così»*
 
 Un test «stesso seed → stesso output» su un sistema **senza RNG** confronta una funzione deterministica

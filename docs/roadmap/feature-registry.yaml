@@ -215,8 +215,8 @@ features:
     dependencies:
       - RT-FEAT-CORE-TURN
     owner_specs:
-      - docs/technical/spec-turnlog.md
-      - docs/technical/spec-turnlog-serialize.md
+      - docs/technical/architecture/spec-turnlog.md
+      - docs/technical/architecture/spec-turnlog-serialize.md
     issues: [81, 178, 307, 420]
     tests:
       - RefactorTactics.TurnLog.*
@@ -259,7 +259,7 @@ features:
     dependencies:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
-      - docs/technical/spec-turnlog-serialize.md
+      - docs/technical/architecture/spec-turnlog-serialize.md
       - docs/decisions/adr-0009-replay-logico-canonico.md
     issues: [415, 469, 470, 471, 416, 490]
     tests:
@@ -512,7 +512,7 @@ features:
     dependencies: []
     owner_specs:
       - docs/decisions/adr-0002-griglia-esagonale.md
-      - docs/technical/spec-mappa-multilivello.md
+      - docs/technical/architecture/spec-mappa-multilivello.md
     issues: [31, 687]
     tests:
       - RefactorTactics.Hex.*
@@ -559,8 +559,8 @@ features:
     dependencies:
       - RT-FEAT-MAP-HEXGRAPH
     owner_specs:
-      - docs/technical/spec-pathfinding.md
-      - docs/technical/spec-pathfinding-pf3-pf4.md
+      - docs/technical/architecture/spec-pathfinding.md
+      - docs/technical/architecture/spec-pathfinding-pf3-pf4.md
     issues: [32]
     tests:
       - RefactorTactics.HexPath.*
@@ -610,7 +610,7 @@ features:
       # domanda con due modelli diversi — cerchio inscritto (D-071, qui, non implementato) e dodici
       # settori con soglie (#619, la', implementato) — e danno risposte diverse sulla stessa
       # geometria. Quale dei due scrive `bBlocksMovement` non e' deciso; l'innesco e' #621.
-      - docs/technical/spec-hex-geometry-authoring.md
+      - docs/technical/systems/spec-hex-geometry-authoring.md
       - docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md
     issues: [324, 717]
     tests: []
@@ -922,7 +922,7 @@ features:
     dependencies:
       - RT-FEAT-MAP-HEXGRAPH
     owner_specs:
-      - docs/technical/h6-4-hex-vision-spec.md
+      - docs/technical/systems/h6-4-hex-vision-spec.md
     issues: [34]
     tests:
       - RefactorTactics.HexVision.*
@@ -991,7 +991,7 @@ features:
       # facing, e facing nei micro-step = ultimo passo compiuto. Nessuno dei tre e' implementato.
       - docs/decisions/adr-0008-rotazione-e-policy-di-facing.md
       - docs/decisions/RT_PDR_00_Decision_Log.md
-      - docs/technical/spec-turnlog.md
+      - docs/technical/architecture/spec-turnlog.md
     issues: [175, 176, 177, 291, 341, 339, 726, 737]
     # La rotazione DICHIARATA (girarsi restando fermi) e' regola implementata ma senza produttore: nessun
     # input la scrive. Il gate `runtime` resta `done` perche' l'orientamento DERIVATO — quello che un'unita'
@@ -1294,7 +1294,7 @@ features:
       - RT-FEAT-MAP-PATHFINDING
     owner_specs:
       - docs/gameplay/spec-ponti-cp94.md
-      - docs/technical/spec-mappa-multilivello.md
+      - docs/technical/architecture/spec-mappa-multilivello.md
     issues: [72, 206]
     tests:
       - RefactorTactics.Structures.Bridge
@@ -3837,7 +3837,7 @@ features:
       checkpoints: ["11.1"]
     dependencies: []
     owner_specs:
-      - docs/technical/progettazione-hud.md
+      - docs/technical/systems/progettazione-hud.md
     # ⚠️ `77` è il checkpoint CP 11.1, e il suo DoD riguarda l'**HUD**: non contiene nulla di camera.
     # Resta perché `checkpoints: ["11.1"]` lo implica, ma è il legame nominale che il commento sui
     # `pie_refs` in testa a questo file descrive — stessa issue dichiarata da più feature. Le tre
@@ -3910,8 +3910,8 @@ features:
       - RT-FEAT-MAP-PATHFINDING
       - RT-FEAT-CORE-TURN
     owner_specs:
-      - docs/technical/progettazione-hud.md
-      - docs/technical/spec-hover-cella.md
+      - docs/technical/systems/progettazione-hud.md
+      - docs/technical/systems/spec-hover-cella.md
     issues: [77, 607]
     tests:
       - RefactorTactics.Preview.*
@@ -3967,7 +3967,7 @@ features:
       - RT-FEAT-UI-PLANNING
       - RT-FEAT-UI-ICON-LANGUAGE
     owner_specs:
-      - docs/technical/progettazione-hud.md
+      - docs/technical/systems/progettazione-hud.md
       # La ricetta d'Editor: cosa il codice NON puo' preparare, perche' i `.uasset` non si versionano.
       - docs/technical/guida-screen-hud-umg.md
     issues: [613]
@@ -4098,7 +4098,7 @@ features:
       - RT-FEAT-UI-PLANNING
       - RT-FEAT-UI-SCREEN-HUD
     owner_specs:
-      - docs/technical/spec-pointer-interaction.md
+      - docs/technical/systems/spec-pointer-interaction.md
     issues: [705, 737]
     # 🔁 **Era vuoto di proposito fino al 2026-08-13 mattina**, e la ragione vale ancora per i nove nomi
     # che restano dichiarati nell'owner e non scritti: `validate` tratta un pattern senza corrispondenza
@@ -4222,7 +4222,7 @@ features:
       - RT-FEAT-UI-PLANNING
       - RT-FEAT-UI-CERTAINTY
     owner_specs:
-      - docs/technical/brief-planning-visuale.md
+      - docs/technical/systems/brief-planning-visuale.md
     issues: [172, 173]
     tests: []
     scenarios: []
@@ -4267,8 +4267,8 @@ features:
       - RT-FEAT-UI-PLANNING
       - RT-FEAT-NET-PRIVATE-PLANNING
     owner_specs:
-      - docs/technical/progettazione-hud.md
-      - docs/technical/brief-planning-visuale.md
+      - docs/technical/systems/progettazione-hud.md
+      - docs/technical/systems/brief-planning-visuale.md
     issues: [78]
     # ⬆️ **Da 2 a 9 test il 2026-08-18, con la PR #1172.** I due che c'erano non sono sbagliati — coprono la
     # privacy dell'intento, che è metà di questa feature — ma **nessuno dei due tocca la certezza**, che è
@@ -4338,7 +4338,7 @@ features:
     completed_by:
       - RT-FEAT-UI-CERTAINTY
     owner_specs:
-      - docs/technical/progettazione-hud.md
+      - docs/technical/systems/progettazione-hud.md
     issues: [77, 78]
     tests:
       - RefactorTactics.Preview.AllyInAreaIsFlagged
@@ -4380,7 +4380,7 @@ features:
     dependencies:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
-      - docs/technical/spec-turnlog.md
+      - docs/technical/architecture/spec-turnlog.md
     issues: [79]
     tests:
       - RefactorTactics.TurnLog.DescribeEntry
@@ -4434,7 +4434,7 @@ features:
       - RT-FEAT-UI-PLANNING
     owner_specs:
       - docs/decisions/RT_PDR_00_Decision_Log.md
-      - docs/technical/brief-icone-v01.md
+      - docs/technical/tooling/brief-icone-v01.md
     issues: [217, 218, 219, 220, 265, 266, 267, 268, 269, 637]
     tests:
       - RefactorTactics.IconCatalog.*
@@ -4531,7 +4531,7 @@ features:
     dependencies:
       - RT-FEAT-TEST-SCENARIO-HARNESS
     owner_specs:
-      - docs/technical/scenario-index-e-tag.md
+      - docs/technical/tooling/scenario-index-e-tag.md
     issues: [209]
     tests:
       - RefactorTactics.ScenarioIndex.*
@@ -4855,10 +4855,16 @@ features:
       # L'owner del modello esiste da `D-152`: tassonomia, pivot, volume, grammatica degli stati.
       # `partial` e non `done` perche' DUE domande restano aperte — `GBX-1` (l'inset) e `GBX-5` (l'ingombro
       # dell'unita') — e condividono l'oracolo: si validano guardando, alla seduta U25.
-      # ⏱️ Dal 2026-08-18 sono due e non quattro: `GBX-2`, `GBX-3` e `GBX-4` sono chiuse da `D-171`, `D-172`
-      # e `D-173` (#1188). Questa riga diceva «quattro domande restano aperte (`GBX-1..4`)» e aggiungeva che
-      # «due di esse — l'inset e le soglie di integrita' — sono numeri che il documento si vieta di
-      # inventare»: le soglie ORA sono decise, e sono una frazione del catalogo invece di un numero.
+      # ⏱️ Dal 2026-08-18 sono due: `GBX-2`, `GBX-3` e `GBX-4` sono chiuse da `D-171`, `D-172` e `D-173`
+      # (#1188). Questa riga diceva «quattro domande restano aperte (`GBX-1..4`)» e aggiungeva che «due di
+      # esse — l'inset e le soglie di integrita' — sono numeri che il documento si vieta di inventare»: le
+      # soglie ORA sono decise, e sono una frazione del catalogo invece di un numero.
+      # 🔵 **E l'aritmetica non tornava, corretta il 2026-08-19**: la riga diceva «sono due e non quattro»
+      # dopo averne chiuse tre, cioe' 4 - 3 = 1. Le due aperte non sono un sottoinsieme di `GBX-1..4`:
+      # `GBX-5` e' nata il 2026-08-17 da `D-158`, DOPO che quell'insieme era stato scritto, e `GBX-6` e'
+      # stata chiusa da `D-163`. Un commento che esiste per essere verificato non puo' chiedere di fidarsi.
+      # ⚠️ `D-175` (2026-08-19) emenda `D-172` — «distrutto» esce dalla scaletta di lettura — ma NON
+      # riapre `GBX-3`: la domanda resta chiusa, cambia la formulazione della risposta. Il gate non si muove.
       spec: partial
       # Nessun dato: e' voluto e non e' un ritardo. La tassonomia e' un VOCABOLARIO, non un enum
       # (`D-152`), e le classi non entrano in niente di serializzato. `na` sarebbe falso pero':
@@ -4885,8 +4891,8 @@ features:
       - RT-FEAT-MAP-INTERACTIVE-EDGES
       - RT-FEAT-TOOL-MAP-EDITOR
     owner_specs:
-      - docs/technical/spec-graybox-placement-contract.md
-      - docs/technical/asset-map.md
+      - docs/technical/systems/spec-graybox-placement-contract.md
+      - docs/technical/tooling/asset-map.md
     # 1094 le domande aperte del contratto — DUE dal 2026-08-18 (`GBX-1` e `GBX-5`), dopo che `GBX-2`,
     # `GBX-3` e `GBX-4` sono state chiuse da `D-171`/`D-172`/`D-173` in #1188 · 1095 la seduta U25
     # (volume + scena di validazione) · 1096 le voci PIE, che sono bloccate da `D-139` e non da mancanza
@@ -5142,7 +5148,7 @@ features:
       - RT-FEAT-CORE-PLAYBACK
     owner_specs:
       - docs/technical/guida-animazioni-paragon.md
-      - docs/technical/spec-team-identity.md
+      - docs/technical/systems/spec-team-identity.md
       - docs/decisions/adr-0001-skeletal-unit.md
       # Owner del mapping identità RT -> slot asset Paragon (D-037).
       - docs/characters/paragon.md
@@ -5831,7 +5837,7 @@ features:
       # amico, penalita' sul collaterale, cella di fuga — e dichiara cosa NON sa ancora (Team Knowledge E13,
       # facing E16, reazioni E14). La spec H6.5 resta come storia `AS-BUILT` e non si riscrive.
       - docs/gameplay/spec-bot-hex.md
-      - docs/technical/h6-5-hex-bot-spec.md
+      - docs/technical/systems/h6-5-hex-bot-spec.md
     issues: [36, 202]
     tests:
       - RefactorTactics.HexBot.*
@@ -6191,7 +6197,7 @@ features:
       # Dal 2026-08-17 (D-154): il formato di questo harness e' il bersaglio dell'authoring visuale
       # di `RT-FEAT-TOOL-SCENARIO-COMPOSER`. `spec-tactical-designer.md` §5 elenca cosa il formato
       # esprime gia' e cosa no — serve a impedire che un editor futuro ne inventi un secondo.
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
     issues: [169, 542, 957]
     tests:
       - RefactorTactics.Scenario.*
@@ -6312,7 +6318,7 @@ features:
       # Owner del CONCETTO e del confine editor/runtime, dal 2026-08-17 (D-154). Non duplica i due
       # sopra: quelli dicono quale seduta fare e cosa fu consegnato, questo dice cosa lo strumento
       # ha il diritto di decidere. Le sonde d'editor (`#711`, `#695`) sono lo stadio `TD 0.5`.
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
     issues: [567, 622, 623, 551, 552, 553, 554, 588, 695, 711]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
@@ -6359,7 +6365,7 @@ features:
       nell'editor e' una **seconda risposta** alla stessa domanda. I due test dell'editor coprono il
       proprio dominio — il costo che segue la superficie, il readout che non si aggiorna da solo — e
       nessuno dei due decide un esito di partita. Owner dell'argomento:
-      `docs/technical/spec-tactical-designer.md` §3.
+      `docs/technical/tooling/spec-tactical-designer.md` §3.
 
 
       La vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri
@@ -6399,7 +6405,7 @@ features:
 
 
       **Serie viz editor: 4/4 chiusa il 2026-08-12, e `log_debug` avanza a `done` con lei.** Owner
-      del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e costo leggibili),
+      del perimetro: `docs/technical/tooling/brief-editor-map-viz.md`. `#551` (superficie e costo leggibili),
       `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede»), `#553` (coperture,
       porte e transizioni sui BORDI) e `#554` (le transizioni e la raggiungibilita') sono chiuse e
       mergiate — PR `#670`, `#673` e `#707`, commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`, `2f3c53cf`,
@@ -6500,11 +6506,11 @@ features:
     owner_specs:
       # Owner tecnico del modello, creato il 2026-08-13: prima il tema viveva solo in referti,
       # archivio e registry. I tre sotto restano come provenienza della decisione, non come regola.
-      - docs/technical/spec-hex-geometry-authoring.md
+      - docs/technical/systems/spec-hex-geometry-authoring.md
       # Il confine editor/runtime che questa feature rispetta — la logica pura nel modulo runtime,
       # l'editor che la chiama — ha un owner proprio dal 2026-08-17 (D-154). `spec-hex-geometry-
       # authoring.md` resta l'owner del MODELLO; questo lo e' della REGOLA di collocazione.
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
       - docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md
       - docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md
       - docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md
@@ -6638,7 +6644,7 @@ features:
     dependencies:
       - RT-FEAT-DATA-ASSET-PIPELINE
     owner_specs:
-      - docs/technical/test-automatico-unreal.md
+      - docs/technical/tooling/test-automatico-unreal.md
     issues: [30]
     tests:
       - RefactorTactics.Catalog.Validator*
@@ -6771,7 +6777,7 @@ features:
       - docs/balance/RT_TestMatrix_v0.1.md
       # Dal 2026-08-17 (D-154): il guardrail «nessun punteggio opaco diventa un gate» e l'ordine
       # rispetto a D-102 — competence gate PRIMA del confronto a lotti — hanno un owner scritto.
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
     issues: [28, 543]
     tests:
       - RefactorTactics.Heroes.RosterIsBalanced
@@ -6842,7 +6848,7 @@ features:
       - RT-FEAT-TOOL-MAP-EDITOR
       - RT-FEAT-UI-SCENARIO-BROWSER
     owner_specs:
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
       - docs/roadmap/plans/tactical-designer-consolidamento-2026-08-17.md
     issues: []
     tests: []
@@ -6901,7 +6907,7 @@ features:
       - RT-FEAT-TOOL-BALANCE-GROUND
       - RT-FEAT-DATA-ASSET-PIPELINE
     owner_specs:
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
       - docs/roadmap/plans/tactical-designer-consolidamento-2026-08-17.md
     issues: []
     tests: []
@@ -6961,7 +6967,7 @@ features:
       checkpoints: ["1.3"]
     dependencies: []
     owner_specs:
-      - docs/technical/convenzioni-contenuti-ue.md
+      - docs/technical/tooling/convenzioni-contenuti-ue.md
       # Gli ID stabili esistono e reggono. Il ritiro dei TRE legacy (`Action.Guard`, `Action.Activate`,
       # `Action.Sprint`) e' eseguito (#199); il piano che lo descriveva e' `HISTORICAL` dal D-134, che ha
       # rimosso il redirect invece di estenderlo — nessuna traccia versionata lo consumava.
@@ -7010,8 +7016,8 @@ features:
     dependencies:
       - RT-FEAT-DATA-STABLE-IDS
     owner_specs:
-      - docs/technical/spec-asset-pipeline.md
-      - docs/technical/convenzioni-contenuti-ue.md
+      - docs/technical/architecture/spec-asset-pipeline.md
+      - docs/technical/tooling/convenzioni-contenuti-ue.md
     issues: [28, 29]
     tests:
       - RefactorTactics.Catalog.*
@@ -7049,7 +7055,7 @@ features:
       - RT-FEAT-DATA-ASSET-PIPELINE
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
-      - docs/technical/spec-turnlog-serialize.md
+      - docs/technical/architecture/spec-turnlog-serialize.md
     issues: [81]
     tests:
       - RefactorTactics.HexMap.SortAndDeterministicHash
@@ -7336,7 +7342,7 @@ features:
       - RT-FEAT-CORE-TURN
       - RT-FEAT-DATA-ASSET-PIPELINE
     owner_specs:
-      - docs/technical/convenzioni-contenuti-ue.md
+      - docs/technical/tooling/convenzioni-contenuti-ue.md
     issues: [85, 959]
     tests: []
     scenarios: []

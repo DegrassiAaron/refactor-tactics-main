@@ -31,7 +31,7 @@
 > `Scenarios/`** — stesso loader, stesso runner, stesso `result.json`, stesso `StateHash`. Costruirle una
 > pipeline propria significherebbe che la showcase gira su un percorso che il gioco non usa, ed è
 > esattamente il difetto che l'harness esiste per impedire. Spec:
-> [`../technical/test-automatico-unreal.md`](../technical/test-automatico-unreal.md).
+> [`../technical/tooling/test-automatico-unreal.md`](../technical/tooling/test-automatico-unreal.md).
 >
 > ### Punto risolto: sì, serve una Predictive Action vera
 >

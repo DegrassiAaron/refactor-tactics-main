@@ -12,7 +12,7 @@
 > **Cosa è**: l'ordine in cui i pezzi dell'interfaccia entrano, e **dove passa il confine** fra ciò che è
 > già disegnato e ciò che va costruito.
 > **Cosa non è**: l'owner della UI. Il documento normativo resta
-> [`progettazione-hud.md`](../../technical/progettazione-hud.md); lo stato delle feature resta
+> [`progettazione-hud.md`](../../technical/systems/progettazione-hud.md); lo stato delle feature resta
 > [`feature-registry.yaml`](../feature-registry.yaml).
 
 ---

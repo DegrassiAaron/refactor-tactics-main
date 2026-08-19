@@ -369,7 +369,7 @@ produttore**. Uno scenario scritto prima sarebbe verde e bugiardo.
 >
 > **Owner del write-set**: [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml) — se le due fonti
 > divergono vince il YAML, perché è quello che i gate leggono. Regola che governa: **D-139** e
-> [`workflow-parallel-claude.md`](workflow-parallel-claude.md).
+> [`workflow-parallel-claude.md`](tooling/workflow-parallel-claude.md).
 
 Questa sezione aggiunge **una** cosa a quella mappatura, e solo una: il ruolo che i processi A–E **non
 contengono**.

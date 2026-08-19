@@ -10,7 +10,7 @@
 > **Riferimenti**: [`adr-0004-finestre-di-reazione.md`](../../decisions/adr-0004-finestre-di-reazione.md) ·
 > [`adr-0009-replay-logico-canonico.md`](../../decisions/adr-0009-replay-logico-canonico.md) ·
 > [`cp145-finestra-overwatch-spec-panel-2026-08-14.md`](cp145-finestra-overwatch-spec-panel-2026-08-14.md) ·
-> [`../../technical/scenario-map.md`](../../technical/scenario-map.md)
+> [`../../technical/tooling/scenario-map.md`](../../technical/tooling/scenario-map.md)
 > **Particolarità**: tre delle quattro decisioni di questo design sono state prese **contro una misura che
 > ha falsificato l'ipotesi di partenza**, e la quarta ha ristretto il write-set prima che una riga di
 > codice lo toccasse. Le misure sono riportate accanto alla decisione, non in appendice.

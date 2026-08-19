@@ -135,5 +135,5 @@ di timer.
 
 Per questi il design system fornisce **tile, mask, pattern, node, arrowhead, end-cap, border e marker** — i
 pezzi con cui il sistema runtime costruisce la geometria finale. L'elenco completo di ciò che non va
-rasterizzato è in [`progettazione-hud.md`](../../../../technical/progettazione-hud.md) §41.2, che resta
+rasterizzato è in [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md) §41.2, che resta
 l'owner della pipeline verso Unreal.

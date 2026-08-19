@@ -25,7 +25,7 @@
 > avrebbe presi è [`#738`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/738).
 >
 > **Owner canonici** (invariati): [`spec-decision-time-bank.md`](../../../gameplay/spec-decision-time-bank.md) ·
-> [`spec-turnlog.md`](../../../technical/spec-turnlog.md) §4.2 ·
+> [`spec-turnlog.md`](../../../technical/architecture/spec-turnlog.md) §4.2 ·
 > [`adr-0004-finestre-di-reazione.md`](../../../decisions/adr-0004-finestre-di-reazione.md).
 > **Predecessore**: [`2026-08-09-decision-time-bank.md`](2026-08-09-decision-time-bank.md).
 

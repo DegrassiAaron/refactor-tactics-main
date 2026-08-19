@@ -120,7 +120,7 @@ probabilmente stati dell'HUD, non tag di gioco — e in quel caso appartengono a
 > **`Identity` entra.** Ha una fonte generativa come le altre tre: `URTHeroCatalogLibrary::GetHeroRoster()`
 > costruisce il roster **in codice** — `MakeGadget()`, `MakePhase()`, `MakeRiktor()`, `MakeWraith()` — quindi
 > gli `HeroId` sono enumerabili esattamente come gli `ActionId`. Quattro chiavi, e un consumatore reale: il
-> team roster di [`progettazione-hud.md`](../../../../technical/progettazione-hud.md) §6.2.
+> team roster di [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md) §6.2.
 >
 > **`Certainty` esce.** Tre verifiche, tutte negative: `Confirmed` e `Predicted` non compaiono in alcuna
 > forma nel codice; l'unico `Uncertain` è `ERTAwareness::Uncertain`, che appartiene all'asse **Knowledge**;

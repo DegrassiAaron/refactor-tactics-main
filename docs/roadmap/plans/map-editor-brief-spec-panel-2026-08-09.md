@@ -351,5 +351,5 @@ e `CreateWater`: manca il collegamento. Tracciato nella issue `#353`, non qui.
 | [`../roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) | Owner di **E23** — muri, porte e interaction graph (v0.2) |
 | [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) | Owner di **M9**, dove vive il residuo dell'editor |
 | [`../../gameplay/spec-porte-cp93.md`](../../gameplay/spec-porte-cp93.md) · [`spec-terreni-e8.md`](../../gameplay/spec-terreni-e8.md) · [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) | Owner delle tre aree che il brief ridefinisce |
-| [`../../technical/scenario-map.md`](../../technical/scenario-map.md) | Owner della ripartizione automatico/umano che §24 ignora |
+| [`../../technical/tooling/scenario-map.md`](../../technical/tooling/scenario-map.md) | Owner della ripartizione automatico/umano che §24 ignora |
 | [`consolidamento-chat-openai-triage-2026-08-09.md`](consolidamento-chat-openai-triage-2026-08-09.md) | Triage gemello, stesso metodo, sorgente diverso |

@@ -342,7 +342,7 @@ Non si introduce un tipo parallelo. `FRTReactionOpportunity` (ADR-0004 §2) si e
 ## 12. Scenari
 
 Categoria a **tag** (`clash`, `reactions`), non a categoria primaria: l'enum di categorie primarie è stato
-**scartato** in [`scenario-index-e-tag.md`](../technical/scenario-index-e-tag.md) §8. Il prefisso è il **modo**
+**scartato** in [`scenario-index-e-tag.md`](../technical/tooling/scenario-index-e-tag.md) §8. Il prefisso è il **modo**
 (`Spec` / `Visual`), com'è per ogni ScenarioId del repository.
 
 | ScenarioId | Dimostra |

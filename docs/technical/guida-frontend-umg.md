@@ -57,7 +57,7 @@ vede. Il banner è la prima cosa che rende visibile la riserva di `G13`.
 
 ## 3. Dove vanno gli asset
 
-Da [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §3:
+Da [`convenzioni-contenuti-ue.md`](tooling/convenzioni-contenuti-ue.md) §3:
 
 ```text
 /Game/RT/UI/Framework/          ← i widget del frontend
@@ -243,6 +243,6 @@ Non farlo su «si vede che funziona»: è il precedente annotato nel registry pe
 ## 9. In caso di dubbio
 
 - **Cosa** deve fare una schermata → [`spec-frontend-navigazione.md`](spec-frontend-navigazione.md)
-- **Dove** va un asset → [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md)
+- **Dove** va un asset → [`convenzioni-contenuti-ue.md`](tooling/convenzioni-contenuti-ue.md)
 - **Come si comporta** l'HUD in-match → [`guida-screen-hud-umg.md`](guida-screen-hud-umg.md)
 - **Perché** E46 esiste → [D-144](../decisions/RT_PDR_00_Decision_Log.md)

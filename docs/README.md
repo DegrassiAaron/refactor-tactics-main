@@ -64,21 +64,21 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Delayed Actions e boundary nominati | [`gameplay/brief-delayed-actions.md`](gameplay/brief-delayed-actions.md) | ⏳ nessuna epic |
 | Griglia esagonale e coordinate | [`decisions/adr-0002-griglia-esagonale.md`](decisions/adr-0002-griglia-esagonale.md) | ✅ |
 | Orientamento e direzionalità | [`decisions/adr-0005-orientamento.md`](decisions/adr-0005-orientamento.md) · [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md) | ⏳ E16 · ADR-0008 (2026-08-10) **supera** §1 e §3 di ADR-0005: la rotazione è una **capacità del personaggio** in step, e il facing nei micro-step è quello dell'**ultimo passo compiuto** |
-| **Il bot** — politica, utility, candidate | [`gameplay/spec-bot-hex.md`](gameplay/spec-bot-hex.md) | ✅ spec **attiva** (2026-08-10, [#202](https://github.com/DegrassiAaron/refactor-tactics-main/issues/202)) · ⚠️ dichiara ciò che il bot **non** sa ancora: niente Team Knowledge (⏳ E13), niente facing (⏳ E16), niente reazioni (⏳ E14) · storia in [`technical/h6-5-hex-bot-spec.md`](technical/h6-5-hex-bot-spec.md) (`AS-BUILT`) |
+| **Il bot** — politica, utility, candidate | [`gameplay/spec-bot-hex.md`](gameplay/spec-bot-hex.md) | ✅ spec **attiva** (2026-08-10, [#202](https://github.com/DegrassiAaron/refactor-tactics-main/issues/202)) · ⚠️ dichiara ciò che il bot **non** sa ancora: niente Team Knowledge (⏳ E13), niente facing (⏳ E16), niente reazioni (⏳ E14) · storia in [`technical/h6-5-hex-bot-spec.md`](technical/systems/h6-5-hex-bot-spec.md) (`AS-BUILT`) |
 | Migrazione degli Stable ID legacy | [`technical/piano-migrazione-stable-id.md`](technical/piano-migrazione-stable-id.md) | ⏳ **piano, non eseguito** ([#199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/199)) · tassonomia decisa da [D-014](decisions/RT_PDR_00_Decision_Log.md)/[D-015](decisions/RT_PDR_00_Decision_Log.md) |
-| Mappa come grafo tattico, multilivello | [`technical/spec-mappa-multilivello.md`](technical/spec-mappa-multilivello.md) · [`technical/spec-pathfinding-pf3-pf4.md`](technical/spec-pathfinding-pf3-pf4.md) | ✅ |
+| Mappa come grafo tattico, multilivello | [`technical/spec-mappa-multilivello.md`](technical/architecture/spec-mappa-multilivello.md) · [`technical/spec-pathfinding-pf3-pf4.md`](technical/architecture/spec-pathfinding-pf3-pf4.md) | ✅ |
 | Terreni, stati e propagazione | [`gameplay/spec-terreni-e8.md`](gameplay/spec-terreni-e8.md) + spec CP 8.2/8.3/8.4 | ✅ E8 |
 | Conoscenza parziale: vista **e** udito | [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md) | ⏳ E13 |
 | Durata partita, round, scala mappe | [`gameplay/spec-durata-partita-e-scala-mappe.md`](gameplay/spec-durata-partita-e-scala-mappe.md) (D-010) | ✅ |
 | Pacing del turno misurato | [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | ✅ |
 | Privacy dell'intento | invariante #6 + `URTIntentPrivacyLibrary` | ✅ offline |
-| TurnLog, reason code, serializzazione | [`technical/spec-turnlog.md`](technical/spec-turnlog.md) · [`technical/spec-turnlog-serialize.md`](technical/spec-turnlog-serialize.md) | ✅ |
+| TurnLog, reason code, serializzazione | [`technical/spec-turnlog.md`](technical/architecture/spec-turnlog.md) · [`technical/spec-turnlog-serialize.md`](technical/architecture/spec-turnlog-serialize.md) | ✅ |
 | Replay — cosa è autorevole e chi può calcolare | [`decisions/adr-0009-replay-logico-canonico.md`](decisions/adr-0009-replay-logico-canonico.md) | ⏳ **decisione presa, R1/R3 da implementare** (2026-08-10) · due prodotti: il **Player** riproduce la traccia e non calcola, il **Verifier** ri-simula e non presenta · forma dell'archivio in [D-077](decisions/RT_PDR_00_Decision_Log.md) |
-| HUD e leggibilità | [`technical/progettazione-hud.md`](technical/progettazione-hud.md) · [`technical/brief-planning-visuale.md`](technical/brief-planning-visuale.md) | ⏳ E11 |
-| Mappa delle classi C++ | [`technical/architettura-codice.md`](technical/architettura-codice.md) | ✅ |
-| Struttura di `Content/`, naming asset | [`technical/convenzioni-contenuti-ue.md`](technical/convenzioni-contenuti-ue.md) | ✅ **normativo** |
-| Quali asset servono, quali esistono, quanti mancano | [`technical/asset-map.md`](technical/asset-map.md) | registro, misurato sull'allowlist |
-| Test automatici e scenari | [`technical/test-automatico-unreal.md`](technical/test-automatico-unreal.md) | ✅ harness consegnato · ⏳ assertion oltre il movimento |
+| HUD e leggibilità | [`technical/progettazione-hud.md`](technical/systems/progettazione-hud.md) · [`technical/brief-planning-visuale.md`](technical/systems/brief-planning-visuale.md) | ⏳ E11 |
+| Mappa delle classi C++ | [`technical/architettura-codice.md`](technical/architecture/architettura-codice.md) | ✅ |
+| Struttura di `Content/`, naming asset | [`technical/convenzioni-contenuti-ue.md`](technical/tooling/convenzioni-contenuti-ue.md) | ✅ **normativo** |
+| Quali asset servono, quali esistono, quanti mancano | [`technical/asset-map.md`](technical/tooling/asset-map.md) | registro, misurato sull'allowlist |
+| Test automatici e scenari | [`technical/test-automatico-unreal.md`](technical/tooling/test-automatico-unreal.md) | ✅ harness consegnato · ⏳ assertion oltre il movimento |
 | Verifiche interattive in editor | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | 🟡 |
 | Scenario della showcase | [`product/showcase-v0.1.md`](product/showcase-v0.1.md) | ⏳ E15 |
 | Gate di release | [`roadmap/v0.1-definition-of-done.md`](roadmap/v0.1-definition-of-done.md) | ⏳ |
@@ -207,7 +207,6 @@ docs/
 │   └── handoff/    prompt e consegne di sessione, non ancora consumati
 ├── generated/   **output**, non ricerca: ha un generatore committato e non si edita
 │   └── icons/      i master iconografici di `scripts/build-icon-assets.py`
-├── src/         quel che resta della casella di posta, in attesa di triage
 └── archive/     materiale superato
     ├── src/        i sorgenti già recepiti: design, handoff, audit
     └── pdr-v0.1/   il corpus PDR v0.1, consolidato in un Markdown
@@ -224,16 +223,19 @@ docs/
 1. **I nomi dei file restano in italiano kebab-case**, non `UPPER_SNAKE` inglese come nella struttura di
    riferimento. Il repository ha una convenzione consolidata e mescolarla peggiorerebbe la leggibilità;
    la clausola «riutilizzare i file esistenti quando possibile» lo consente.
-2. **`src/` non è documentazione**: è la casella di posta dei sorgenti grezzi (brief non ancora triagiati).
-   > **Dal 2026-08-19 si sta svuotando davvero** ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165),
-   > fase 2): PRD, icone, showcase e griglie sono sotto [`research/`](research/), e i 296 master
-   > iconografici — che hanno un generatore — sotto [`generated/icons/`](generated/icons/). `src` era
-   > ambiguo in un repository che ha anche `Source/`, e conteneva quattro cose diverse sotto un nome
-   > che non ne descriveva nessuna. Vive accanto ai documenti perché è da lì che nascono, ma **non è normativa** e non compare nella
-   gerarchia delle fonti sopra il livello 8.
-   > **Dal 2026-08-08 la casella si svuota.** Un sorgente recepito si sposta in
-   > [`archive/src/`](archive/src/README.md), invece di restare con un banner. La cartella `src/` risponde ora
-   > a una domanda sola — *cosa non è ancora stato consumato?* — e la risposta è la posizione del file, non una
+2. **`research/` non è documentazione**: è la casella di posta dei sorgenti grezzi — PRD di visione,
+   design non canonico, handoff non ancora triagiati. Vive accanto ai documenti perché è da lì che
+   nascono, ma **non è normativa** e non compare nella gerarchia delle fonti sopra il livello 8.
+   > **`src/` non esiste più.** Il 2026-08-19 la fase 3 di
+   > [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165) ha portato via gli ultimi
+   > 112 file: `git ls-files docs/src` restituisce **zero**. `src` era ambiguo in un repository che ha
+   > anche `Source/`, e conteneva quattro cose diverse sotto un nome che non ne descriveva nessuna —
+   > PRD di visione, una pipeline di icone **generate**, kit non consumati e media. Oggi la natura la
+   > dice la cartella: [`research/`](research/) per la ricerca, [`generated/`](generated/) per gli output.
+   >
+   > **La casella continua a svuotarsi**, come dal 2026-08-08: un sorgente recepito si sposta in
+   > [`archive/src/`](archive/src/README.md) invece di restare con un banner. `research/` risponde a una
+   > domanda sola — *cosa non è ancora stato consumato?* — e la risposta è la posizione del file, non una
    > colonna di un indice.
 
 ### Le quattro nature di un file, e perché la posizione le deve dire
@@ -246,18 +248,17 @@ dicono già; la cartella no, e finché non lo dice l'etichetta va cercata un fil
 |---|---|---|---|
 | **authored** | `product/` · `gameplay/` · `technical/` · `balance/` · `decisions/` · `characters/` | una persona | è il posto giusto: qui si cambia una regola |
 | **generated** | `generated/` · `roadmap/*.shortlist.md` · `roadmap/*.json` · `roadmap/charts/` · `characters/radar/` | un generatore | **si perde alla rigenerazione**: si corregge la sorgente |
-| **research** | `research/`, più quel che resta in `src/` | chiunque, senza gate | non decide niente, e non risolve un conflitto |
+| **research** | `research/` | chiunque, senza gate | non decide niente, e non risolve un conflitto |
 | **archive** | `archive/` | nessuno: si conserva | riscriverla falsifica la storia |
 
-**`src/` diventa `research/`** ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)):
-stesso contenuto, nome che dice cos'è invece di dove nasce. Non è una rinomina cosmetica —
+**`src/` è diventata `research/`** ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165),
+chiusa il 2026-08-19): stesso contenuto, nome che dice cos'è invece di dove nasce. Non è una rinomina cosmetica —
 `src` è ambiguo in un repository che ha anche `Source/`, e la casella di posta contiene PRD di visione,
 handoff, pipeline di icone e kit non consumati, cioè quattro cose diverse sotto un nome che non ne
 descrive nessuna.
 
 ⚠️ **La posizione governa i gate, non solo la leggibilità.** `check-docs-symbols.py` e
-`check-docs-tables.py` esentano **per prefisso di path**: `archive/`, `src/`, `research/`,
-`roadmap/plans/`. Spostare un documento dentro o fuori da uno di questi ne cambia la copertura **senza
+`check-docs-tables.py` esentano **per prefisso di path**: `archive/`, `research/`, `roadmap/plans/`. Spostare un documento dentro o fuori da uno di questi ne cambia la copertura **senza
 che nessuno lo dica** — misurato, con `EXEMPT_DIRS = ()` il primo passa da 155 a 389 documenti e il
 secondo da 165 a 404, ed entrambi diventano rossi. Chi sposta una cartella aggiorna `EXEMPT_DIRS` nello
 stesso commit, e verifica che il **numero di documenti controllati non cali**: un gate il cui scope
@@ -312,13 +313,15 @@ rigenerazione successiva. ⚠️ **I loro nomi sono un contratto**: la Wiki pubb
 `raw.githubusercontent.com`, quindi rinominarli rompe pagine che nessun gate di questo repository vede.
 
 **3. Un'immagine orfana sta solo in area grezza.** Zero riferimenti significa che nessuno sa perché è lì.
-È ammesso in `src/`/`research/` e in `archive/` — è materiale non ancora consumato, o storia — e in
+È ammesso in `research/` e in `archive/` — è materiale non ancora consumato, o storia — o in un'area
+**generata** con owner dichiarato, dove un output non ha riferimenti entranti per costruzione. In
 nessun altro posto. Misurato all'apertura di #1165: le 393 orfane di allora erano **tutte** sotto `src/`,
 e fuori di lì erano **zero**. È una proprietà da conservare, non da riscoprire.
 
 Per le immagini *non* governate da un generatore, il nome è `<topic>--<vista>.<ext>` —
 `ability-effect-system--uml.png`, non `final2`, non `image1`, e non un refuso reso permanente
-(`infografic` accanto a `infographic` è una coppia che esiste davvero in `src/`).
+(`infografic` accanto a `infographic` è una coppia che esiste davvero, in
+`research/design/systems-map/`).
 
 ### Gate anti-deriva
 
@@ -334,7 +337,7 @@ Il gate è deliberatamente **stretto**: controlla solo le righe di tabella la cu
 forma in cui un documento afferma «questo esiste oggi». Non controlla la prosa, dove lo stesso simbolo può
 comparire come storia («è stato rimosso») o come proposta («il DoD introduce…»): distinguerli lessicalmente
 non è affidabile, e un gate che sbaglia viene disattivato al terzo falso positivo. Sono esentati i documenti
-storici, i brief propositivi e le cartelle `archive/`, `src/`, `roadmap/plans/`.
+storici, i brief propositivi e le cartelle `archive/`, `research/`, `roadmap/plans/`.
 
 ### Gate delle tabelle
 

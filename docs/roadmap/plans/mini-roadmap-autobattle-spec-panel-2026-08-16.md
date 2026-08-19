@@ -444,7 +444,7 @@ una partita osservabile, e **richiede un'allocazione prima di cominciare**, non 
 | [`../feature-registry.yaml`](../feature-registry.yaml) | **due feature nuove** (`RT-FEAT-MATCH-AUTOBATTLE`, `RT-FEAT-UI-BOARD-GRAMMAR`) · **quattro** feature esistenti guadagnano una `issues:` — `CORE-PLAYBACK` (955), `TEST-SCENARIO-HARNESS` (957), `CORE-DETERMINISM` (958), `PROD-PACKAGED` (959) |
 | [`../execution-graph.yaml`](../execution-graph.yaml) | **catena D**: sei nodi (`issue:954`–`issue:959`), cinque `requires`, due `follows` · `meta.note` corretta da «tre catene» a quattro |
 | [`../editor-sessions.yaml`](../editor-sessions.yaml) | seduta **U23**, la partita registrata |
-| [`../../technical/scenario-map.md`](../../technical/scenario-map.md) | i quattro `AutoBattle.*` `planned` · conteggio dei `planned` rimisurato e **dotato di un comando**, che non aveva |
+| [`../../technical/tooling/scenario-map.md`](../../technical/tooling/scenario-map.md) | i quattro `AutoBattle.*` `planned` · conteggio dei `planned` rimisurato e **dotato di un comando**, che non aveva |
 | [`../../decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) | **D-145** (execution slice) · **D-146** (grammatica visiva derivata) |
 | [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) | `RNG-1`/`RNG-2`, la varietà pseudo-casuale |
 | [`../../archive/src/README.md`](../../archive/src/README.md) + il sorgente | archiviazione con banner `HISTORICAL` e riga d'indice; totale rimisurato |

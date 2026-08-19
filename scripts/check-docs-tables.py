@@ -29,8 +29,8 @@ Il criterio non e' dedotto: e' stato validato contro il parser vero di GitHub
   - le righe dentro un code fence non sono tabelle.
 
 Esenzioni, per costruzione e non per elenco a mano — stesse cartelle di `check-docs-symbols.py`:
-`docs/archive/` e' storico, `docs/src/` e `docs/research/` sono input non consumato, e
-`docs/roadmap/plans/` sono piani datati. Un documento storico puo' contenere una tabella rotta:
+`docs/archive/` e' storico, `docs/research/` e' input non consumato, e `docs/roadmap/plans/` sono
+piani datati. Un documento storico puo' contenere una tabella rotta:
 descrive com'era. L'elenco vive **una volta sola**, in `EXEMPT_DIRS`: questa riga lo descrive e non
 lo duplica — un elenco scritto due volte diverge alla prima aggiunta.
 """
@@ -45,10 +45,11 @@ DOCS = os.path.join(REPO, "docs")
 # Misurato il 2026-08-17 con `EXEMPT_DIRS = ()`: lo scope passa da 165 a 404 documenti e il gate esce
 # 1 su sei file (i quattro PRD, oggi in `docs/research/prd/`, `docs/roadmap/plans/h5c7-flood-fill-spec.md`,
 # `docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md`).
-# ➕ `docs/research/` dal 2026-08-18, prima che la cartella esista: e' dove la IA v2 di #1165 porta
-# `docs/src/`, e la natura del materiale non cambia col nome. Vedi la nota gemella in
-# `check-docs-symbols.py`, che spiega anche perche' `docs/generated/` resta **fuori**.
-EXEMPT_DIRS = ("docs/archive/", "docs/src/", "docs/research/", "docs/roadmap/plans/")
+# ➕ `docs/research/` dal 2026-08-18, ➖ `docs/src/` dal 2026-08-19 perche' svuotata: **165 documenti**
+# prima e dopo, che e' il modo di dimostrare che uno spostamento non ha spento un pezzo di gate.
+# Vedi la nota gemella in `check-docs-symbols.py`, che spiega anche perche' `docs/generated/` resta
+# **fuori**.
+EXEMPT_DIRS = ("docs/archive/", "docs/research/", "docs/roadmap/plans/")
 
 # Un delimitatore GFM: `|---|---|`, `| :--- | ---: |`, con o senza pipe ai bordi.
 DELIM_RE = re.compile(r"^\s*\|?(\s*:?-+:?\s*\|)+(\s*:?-+:?\s*)?\|?\s*$")

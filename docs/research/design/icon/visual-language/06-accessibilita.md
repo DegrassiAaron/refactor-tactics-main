@@ -2,7 +2,7 @@
 
 > **Statuto**: sorgente di design, non canone. Vedi [`01-principi.md`](01-principi.md).
 >
-> **Owner dei requisiti**: [`progettazione-hud.md`](../../../../technical/progettazione-hud.md) §47-bis
+> **Owner dei requisiti**: [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md) §47-bis
 > definisce i vincoli di accessibilità dell'interfaccia — colore non unico canale, finestra di reazione,
 > leggibilità, scala UI, rimappatura, reduced motion. Qui c'è **solo la parte che riguarda l'asset**: come si
 > produce e come si verifica un glifo.

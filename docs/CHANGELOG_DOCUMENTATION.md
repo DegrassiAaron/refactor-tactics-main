@@ -16,13 +16,13 @@ devono vivere nel repository Git»*. Era stata applicata a **due** documenti su 
 | File | Modifica |
 |---|---|
 | [`archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md`](archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md) | **nuovo** — i tredici PDR `v0.1` in un solo documento, con la tabella «cosa vale oggi» per ciascuno |
-| [`src/prd/prd-visione-e-requisiti.md`](research/prd/prd-visione-e-requisiti.md) | **nuovo** — visione, perimetro, requisiti funzionali, idee fondative |
-| [`src/prd/prd-architettura-rete-e-intenti.md`](research/prd/prd-architettura-rete-e-intenti.md) | **nuovo** — architettura, stack, networking, modding, e il PRD «Intenti condivisi» integrale |
-| [`src/prd/prd-personaggi-azioni-e-bilanciamento.md`](research/prd/prd-personaggi-azioni-e-bilanciamento.md) | **nuovo** — roster, azioni, terreni, coperture, catalogo di bilanciamento |
-| [`src/prd/prd-percorso-didattico-e-produzione.md`](research/prd/prd-percorso-didattico-e-produzione.md) | **nuovo** — curriculum UE, roadmap, rischi, analytics, guida agli asset |
-| [`src/prd/editor-griglia-esagonale-e-mappa.md`](research/prd/editor-griglia-esagonale-e-mappa.md) | **nuovo** — il prompt che ha commissionato il pivot esagonale (era `.docx`) |
+| [`research/prd/prd-visione-e-requisiti.md`](research/prd/prd-visione-e-requisiti.md) | **nuovo** — visione, perimetro, requisiti funzionali, idee fondative |
+| [`research/prd/prd-architettura-rete-e-intenti.md`](research/prd/prd-architettura-rete-e-intenti.md) | **nuovo** — architettura, stack, networking, modding, e il PRD «Intenti condivisi» integrale |
+| [`research/prd/prd-personaggi-azioni-e-bilanciamento.md`](research/prd/prd-personaggi-azioni-e-bilanciamento.md) | **nuovo** — roster, azioni, terreni, coperture, catalogo di bilanciamento |
+| [`research/prd/prd-percorso-didattico-e-produzione.md`](research/prd/prd-percorso-didattico-e-produzione.md) | **nuovo** — curriculum UE, roadmap, rischi, analytics, guida agli asset |
+| [`research/prd/editor-griglia-esagonale-e-mappa.md`](research/prd/editor-griglia-esagonale-e-mappa.md) | **nuovo** — il prompt che ha commissionato il pivot esagonale (era `.docx`) |
 | **24 binari** | rimossi dal working tree (`docs/src/prd/` ×10 PDF + 1 `.docx`, `docs/archive/pdr-v0.1/` ×13 PDF); restano nella storia Git |
-| [`src/`](src/) · [`archive/README.md`](archive/README.md) | Indici riscritti; due affermazioni corrette (sotto) |
+| [`src/`](research/) · [`archive/README.md`](archive/README.md) | Indici riscritti; due affermazioni corrette (sotto) |
 | [`README.md`](../README.md) · [`README.md` di docs](README.md) · [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) · 5 cataloghi `balance/` · ADR-0003 · Decision Log · `roadmap-v0.1.md` · `v0.1-issue-plan.md` · `RT_PDR_10_…v0.2.md` · `gameplay/spec-anima-risoluzione.md` | Riferimenti riscritti verso i nuovi target |
 
 ### Tre cose che l'estrazione ha fatto emergere, e che nessuno stava cercando
@@ -229,7 +229,7 @@ sembrati coperti: il verde diceva soltanto che il JSON era ben formato.
 | `Tests/RTScenarioCorpusTests.cpp` | **nuovo** — `Scenario.EveryShippedScenarioRuns` scopre il corpus dall'indice e lo esegue tutto; `Scenario.ExpectedFailScenariosReallyFail` verifica che i dichiarati-rossi lo siano davvero |
 | `Scenarios/Spec/**` | **5 scenari-specifica**: Overwatch, Objective, Predictive, Perception, CreateCover |
 | [`technical/scenari-validazione-visiva.md`](technical/scenari-validazione-visiva.md) | §6-bis: il corpus come test, gli scenari-spec, e tre lacune dichiarate |
-| [`technical/scenario-index-e-tag.md`](technical/scenario-index-e-tag.md) | vocabolario 20 → **22** (`perception`, `spec`) |
+| [`technical/scenario-index-e-tag.md`](technical/tooling/scenario-index-e-tag.md) | vocabolario 20 → **22** (`perception`, `spec`) |
 
 ### Le due decisioni
 
@@ -320,7 +320,7 @@ Cercando di scriverle sono emersi due limiti che nessun documento dichiarava:
 | [`technical/scenari-validazione-visiva.md`](technical/scenari-validazione-visiva.md) | **nuovo** — owner del corpus: le tre fasce, la tavolozza delle fixture, i quattro eventi disponibili, e in §8 cosa manca in ordine di resa |
 | `Scenarios/Visual/**` | **17 scenari nuovi**, i primi del progetto a riferire una **fixture** invece di generare l'arena |
 | [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) | 17 voci `PIE-VIS-*`; conteggio **rimisurato col comando**: 83 (25/21/37) → **100 (25/21/54)** |
-| [`technical/scenario-index-e-tag.md`](technical/scenario-index-e-tag.md) | vocabolario dei tag da 10 a **20** voci: la fotografia era indietro di **dieci**, e solo quattro erano di questa sessione |
+| [`technical/scenario-index-e-tag.md`](technical/tooling/scenario-index-e-tag.md) | vocabolario dei tag da 10 a **20** voci: la fotografia era indietro di **dieci**, e solo quattro erano di questa sessione |
 
 ### Decisioni prese
 

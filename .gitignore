@@ -153,9 +153,18 @@ Content/**/*.txt
 # Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
 .superpowers/
 
-# Export wiki rigenerabili: non versionati (vedi docs/src/README.md)
+# Export wiki rigenerabili: non versionati.
+# 🔴 **Le due righe `docs/src/` non bastavano piu' dal 2026-08-19** (#1165, fase 3): `git mv` di una
+# CARTELLA sposta anche i file non tracciati che contiene, quindi un `.zip` da 3,8 MB e' uscito
+# dall'area ignorata solo perche' la cartella cambiava nome — e il `git add` successivo lo avrebbe
+# committato. Il file non era mai stato tracciato: nessun gate se ne sarebbe accorto, e la regola
+# che lo proteggeva era rimasta puntata su un path vuoto.
+# Le righe `docs/src/` restano: la cartella non ha piu' file versionati, ma il checkout dell'autore
+# ci tiene ancora un export locale.
 docs/src/**/*.zip
 docs/src/*.zip
+docs/research/**/*.zip
+docs/generated/**/*.zip
 
 # Python bytecode degli script in scripts/
 __pycache__/

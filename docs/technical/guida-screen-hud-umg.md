@@ -2,7 +2,7 @@
 
 > `CURRENT` · **Ricetta d'Editor** per [CP 11.7](../roadmap/roadmap-v0.1.md) ·
 > issue [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) ·
-> owner del *cosa mostrare*: [`progettazione-hud.md`](progettazione-hud.md) §4.1.
+> owner del *cosa mostrare*: [`progettazione-hud.md`](systems/progettazione-hud.md) §4.1.
 
 Questo file dice **come costruire i Blueprint**. Non dice cosa l'HUD mostra — quello è `progettazione-hud.md`
 — e non dichiara regole di gioco.

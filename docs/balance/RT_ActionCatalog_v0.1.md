@@ -558,6 +558,6 @@ lo implica.
 ## 9. Dove finisce questo catalogo
 
 - **Data asset**: `PDA_Action_<Nome>` sotto `Content/RT/…` **feature-first** (le
-  [convenzioni contenuti](../technical/convenzioni-contenuti-ue.md) prevalgono sul `Content/RefactorTactics/Data/` del PDF).
+  [convenzioni contenuti](../technical/tooling/convenzioni-contenuti-ue.md) prevalgono sul `Content/RefactorTactics/Data/` del PDF).
 - **Validator**: CP 1.4 (issue `#30`) confronta i data asset con questo documento.
 - **Motore azioni**: epic **E4** (`#41`–`#45`); reazioni: epic **E5** (`#50`–`#53`).

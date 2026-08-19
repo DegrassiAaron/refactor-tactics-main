@@ -129,6 +129,6 @@ giorno**: [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/9
 | *A che punto è questa epic?* | [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 — misurata sui nomi dei test |
 | *A che punto è questa milestone?* | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) · [`milestonemap.shortlist.md`](milestonemap.shortlist.md) |
 | *Questa feature esiste?* | [`feature-registry.yaml`](feature-registry.yaml) · [`featuremap.shortlist.md`](featuremap.shortlist.md) |
-| *Chi verifica questa regola?* | [`../technical/scenario-map.md`](../technical/scenario-map.md) · [`scenariomap.shortlist.md`](scenariomap.shortlist.md) |
+| *Chi verifica questa regola?* | [`../technical/tooling/scenario-map.md`](../technical/tooling/scenario-map.md) · [`scenariomap.shortlist.md`](scenariomap.shortlist.md) |
 | *Quando la v0.1 è consegnabile?* | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) — gate `G1`–`G15` |
 | *Perché è stato deciso così?* | [`../decisions/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md) + ADR |

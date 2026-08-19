@@ -3,7 +3,7 @@
 > `HISTORICAL` · **Materiale NON autorevole**, archiviato il **2026-08-17** dopo il consolidamento.
 > **Non si applica**: si legge per sapere da dove viene una decisione. Le fonti autorevoli restano
 > [`RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md),
-> [`spec-graybox-placement-contract.md`](../../technical/spec-graybox-placement-contract.md) — l'owner nato
+> [`spec-graybox-placement-contract.md`](../../technical/systems/spec-graybox-placement-contract.md) — l'owner nato
 > da qui — e [`feature-registry.yaml`](../../roadmap/feature-registry.yaml).
 >
 > **Recepito da**: `D-152` (contratto di ingombro, pivot e presentazione) · `D-153` (innesto sulla release
@@ -58,7 +58,7 @@
 > produttore. Il kit «completo» non è raggiungibile in v0.1, e non è un ritardo:
 > sette voci su diciannove descrivono sistemi che il progetto non ha ancora deciso di costruire. Il conto
 > completo è `REUSE 2 · UPDATE 8 · CREATE 2 · DEFER 7`, e la classificazione voce per voce è in
-> [`spec-graybox-placement-contract.md`](../../technical/spec-graybox-placement-contract.md) §8.
+> [`spec-graybox-placement-contract.md`](../../technical/systems/spec-graybox-placement-contract.md) §8.
 
 ## Handoff operativo per Claude Code / Claude Cloud — consolidamento + roadmap + issue
 

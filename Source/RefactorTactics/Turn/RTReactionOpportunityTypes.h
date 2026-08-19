@@ -5,6 +5,7 @@
 #include "Combat/RTOffensiveActionLibrary.h" // FRTSuppressiveZone, FRTSuppressionMover: la geometria e' UNA
 #include "Perception/RTPerceptionLibrary.h"  // ERTAwareness: il trigger richiede `Detected`, non «visibile»
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: header leggero, lo usa anche ARTUnit
+#include "Turn/RTActionEvent.h" // FRTActionEffectSpec: i tre esiti di una maneuver sono primitive del catalogo (§5)
 #include "Turn/RTTurnLog.h" // ERTReactionDecisionOutcome: l'esito di una finestra vive con gli altri esiti di log
 #include "Turn/RTTurnRules.h"
 #include "RTReactionOpportunityTypes.generated.h"
@@ -130,6 +131,63 @@ enum class ERTGrammarIntent : uint8
 
 
 /**
+ * Una **maneuver**: cio' che una risposta del profilo E' — intenzione, costo, e i tre esiti (§5, §11).
+ *
+ * 🔵 **L'id della maneuver E' la stringa della risposta**, e non un campo in piu': `AllowedResponses`
+ * contiene gia' `GROUND`, `SIDESTEP`, `GLANCE LEFT`, e cercarne il significato qui evita una seconda lista
+ * allineata per indice — la struttura che si disallinea, come dice il commento di `FireResponse`. Il profilo
+ * dichiara **quali** risposte offre; questo catalogo dice **cosa sono**.
+ *
+ * ⚠️ **I tre esiti sono `FRTActionEffectSpec` e nient'altro**, ed e' il vincolo di determinismo di §5: mai
+ * una callback. Un `WinOutcome` che richiedesse una primitiva inesistente e' un errore di validazione del
+ * ruleset, non un caso da risolvere nel resolver.
+ *
+ * 🔵 **Win/Tie/Lose non e' successo/fallimento**: il `Tie` di `Hold Ground` e' *«nessun displacement»*, cioe'
+ * esattamente cio' che il difensore voleva. E' questo che rende diversi i profili a parita' di matrice — un
+ * tank tollera il `Lose`, un duellante ha `Win` enorme e `Lose` pesante.
+ *
+ * ⚠️ **Nessun numero di bilanciamento e' deciso qui.** Le liste di effetti nascono **vuote** per le tre
+ * maneuver del roster: resistenza del `Brace`, Charge del `Grounding` e ampiezza della deviazione restano
+ * aperti e si restringono al playtest (§2.5). Una lista vuota e' un esito che non applica niente — non un
+ * dato mancante — ed e' cio' che permette al Clash di girare prima che i numeri esistano.
+ */
+USTRUCT()
+struct FRTManeuverDef
+{
+	GENERATED_BODY()
+
+	/** Coincide con la stringa della risposta in `AllowedResponses`. */
+	UPROPERTY()
+	FName ManeuverId;
+
+	/** L'intenzione che questa maneuver esprime nella matrice di [D-049]. */
+	UPROPERTY()
+	ERTGrammarIntent Intent = ERTGrammarIntent::Stand;
+
+	/** La maneuver costa una risorsa (§9). Il pagamento lo esegue chi la possiede: qui si dichiara solo *se*. */
+	UPROPERTY()
+	bool bHasCost = false;
+
+	/** La **policy diversa** di §9: se vero, il costo non si consuma perdendo. Default `false` — si paga. */
+	UPROPERTY()
+	bool bRefundIfLost = false;
+
+	UPROPERTY()
+	TArray<FRTActionEffectSpec> WinEffects;
+
+	UPROPERTY()
+	TArray<FRTActionEffectSpec> TieEffects;
+
+	UPROPERTY()
+	TArray<FRTActionEffectSpec> LoseEffects;
+
+	FRTManeuverDef() = default;
+	FRTManeuverDef(const FName& InId, ERTGrammarIntent InIntent, bool bInHasCost = false)
+		: ManeuverId(InId), Intent(InIntent), bHasCost(bInHasCost) {}
+};
+
+
+/**
  * Un partecipante a un boundary contested: chi e', e **la sua** opportunity.
  *
  * 🔴 **L'opportunity e' PER PARTECIPANTE, e non e' un dettaglio di comodita': e' la privacy di §7.2.**
@@ -191,6 +249,108 @@ struct FRTContestedBoundary
 	 */
 	UPROPERTY()
 	TArray<FRTReactionParticipant> Participants;
+};
+
+
+/**
+ * La scelta **bloccata** da un partecipante, non ancora rivelata (§7.1).
+ *
+ * "Lock" e non "risposta": la differenza e' che una risposta e' pubblica quando arriva, un lock no. Fra il
+ * lock e il reveal la scelta esiste, e' vincolante, e **nessuno la vede** — nemmeno il fatto che sia
+ * arrivata (§7.2: *«momento del lock dell'altro: non osservabile»*).
+ */
+USTRUCT()
+struct FRTContestedLock
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 UnitId = INDEX_NONE;
+
+	/** Una delle `AllowedResponses` di QUESTO partecipante. */
+	UPROPERTY()
+	FString Response;
+
+	/** L'intenzione di grammatica che la risposta esprime ([D-049]). */
+	UPROPERTY()
+	ERTGrammarIntent Intent = ERTGrammarIntent::Stand;
+
+	/**
+	 * La maneuver scelta ha un **costo** (§9). Falso = gratuita, e allora non c'e' niente da consumare.
+	 *
+	 * ⚠️ **Nessuna risorsa nuova**: §9 dice di usare `Charges`, cooldown e stato del dispositivo che il
+	 * progetto ha gia'. Questo flag dice *se* la maneuver costi, non *cosa*: il pagamento vero lo esegue chi
+	 * possiede la risorsa, e questa struct non lo duplica.
+	 */
+	UPROPERTY()
+	bool bManeuverHasCost = false;
+
+	/**
+	 * La **policy diversa** che §9 lascia dichiarare alla maneuver: se vero, il costo NON si consuma quando
+	 * il Clash e' perso.
+	 *
+	 * ⚠️ Il default e' `false`, ed e' la regola: si paga **al lock valido, anche perdendo**. Senza,
+	 * *«provo comunque, tanto se perdo non costa nulla»* svuota la scelta — che e' cio' che il Clash esiste
+	 * per creare. L'eccezione esiste perche' la spec la prevede, ma va **dichiarata** dalla maneuver: un
+	 * default che rimborsa avrebbe reso la regola l'eccezione.
+	 */
+	UPROPERTY()
+	bool bRefundIfLost = false;
+
+	FRTContestedLock() = default;
+	FRTContestedLock(int32 InUnitId, const FString& InResponse, ERTGrammarIntent InIntent)
+		: UnitId(InUnitId), Response(InResponse), Intent(InIntent) {}
+};
+
+
+/**
+ * L'esito del confronto per un partecipante (§5).
+ *
+ * ⚠️ **Non e' successo/fallimento**: il confronto produce *Vantaggio A · Pari · Vantaggio B*, ed e' la
+ * maneuver a dichiarare cosa significhi ciascuno dei tre. Un tank tollera il `Lose`, un duellante ha `Win`
+ * enorme e `Lose` pesante — a parita' di matrice. E' questo che rende diversi i profili.
+ */
+UENUM()
+enum class ERTClashOutcome : uint8
+{
+	Win,
+	Tie,
+	Lose
+};
+
+
+/**
+ * Cio' che il **reveal** produce, e nient'altro (§7.1).
+ *
+ * 🔴 **`bRevealed` e' la scadenza fissa, resa una proprieta' dei DATI invece che del tempo.** La regola dice
+ * che la finestra dura sempre `FastReactionDuration` e che il reveal avviene **alla scadenza, mai
+ * all'arrivo del secondo lock** — perche' anticipare direbbe a ciascuno *quando* l'altro ha deciso, e la
+ * latenza di decisione e' una lettura dell'avversario che il gioco non offre.
+ *
+ * In un resolver che non dipende dal tempo reale quella regola non puo' essere un timer: diventa
+ * **«nessun esito e' osservabile finche' non hanno lockato tutti»**. Con lock parziali questa struct e'
+ * vuota — non «parzialmente vera» — e non c'e' niente da cui dedurre chi abbia gia' scelto.
+ *
+ * ⚠️ Il **costo** della regola resta dichiarato e non sparisce: ogni Clash paga 3,0 s pieni di resolution
+ * anche quando entrambi lockano subito, ed entra nel budget di §8. Quel costo e' presentazione (CP 14.6);
+ * qui vive solo la parte logica, cioe' che l'esito non anticipi.
+ */
+USTRUCT()
+struct FRTClashResolution
+{
+	GENERATED_BODY()
+
+	/** Falso = non tutti hanno lockato: **niente** e' osservabile, e i due array sono vuoti. */
+	UPROPERTY()
+	bool bRevealed = false;
+
+	/** I partecipanti in ordine canonico (§7.3), non di arrivo. Parallelo a `Outcomes`. */
+	UPROPERTY()
+	TArray<int32> UnitIds;
+
+	/** L'esito di ciascuno, nello stesso ordine di `UnitIds`. */
+	UPROPERTY()
+	TArray<ERTClashOutcome> Outcomes;
 };
 
 
@@ -537,4 +697,82 @@ public:
 	 * nei dati d'eroe finche' il playtest non li promuove (§4.3).
 	 */
 	static int32 CompareGrammarIntents(ERTGrammarIntent A, ERTGrammarIntent B);
+
+	/**
+	 * Il **reveal** di un boundary contested: confronta i lock e produce gli esiti (§7.1, §5).
+	 *
+	 * 🔴 **Rivela solo quando hanno lockato TUTTI.** Con lock parziali restituisce una risoluzione vuota
+	 * (`bRevealed == false`) e non un esito provvisorio: e' cosi' che «il reveal avviene alla scadenza, mai
+	 * all'arrivo del secondo lock» diventa una regola verificabile senza un orologio. Un chiamante che
+	 * volesse anticipare non ha niente da leggere.
+	 *
+	 * ⚠️ **L'ordine dei lock in ingresso e' irrilevante per l'esito** — e' l'invariante #4: due esecuzioni
+	 * della stessa partita in cui i due giocatori premono in ordine diverso devono dare la stessa traccia.
+	 * L'uscita e' in ordine **canonico** (§7.3), mai di arrivo.
+	 *
+	 * ⛔ Un lock di chi non e' partecipante viene **ignorato**, e uno duplicato non conta due volte: la
+	 * cardinalita' del reveal dipende dai partecipanti dichiarati, non da quanti messaggi arrivano.
+	 */
+	static FRTClashResolution ResolveContestedBoundary(const FRTContestedBoundary& Boundary,
+		const TArray<FRTContestedLock>& Locks);
+
+	/**
+	 * Chi consuma il costo della propria maneuver, in ordine canonico (§9).
+	 *
+	 * 🔴 **Si paga al LOCK VALIDO, anche perdendo il Clash.** E' la regola che rende la scelta una scelta:
+	 * senza, *«provo comunque, tanto se perdo non costa nulla»* la svuota. Chi perde paga come chi vince, e
+	 * il `Lose` non e' un rimborso.
+	 *
+	 * L'unica eccezione e' quella che §9 lascia **dichiarare alla maneuver** — `bRefundIfLost` — e non e' un
+	 * caso particolare del resolver: e' un dato del lock.
+	 *
+	 * ⚠️ **Solo dopo il reveal.** Con una risoluzione non rivelata restituisce vuoto: consumare prima
+	 * direbbe che qualcuno ha lockato, e la scadenza fissa (§7.1) esiste per non dirlo. Il costo e' un
+	 * effetto osservabile quanto un esito.
+	 */
+	static TArray<int32> UnitsConsumingCost(const TArray<FRTContestedLock>& Locks,
+		const FRTClashResolution& Resolution);
+
+	/**
+	 * Le voci di TurnLog di un boundary contested, nell'ordine in cui vanno scritte (§10).
+	 *
+	 * Sei tipi di evento — `OpportunityCreated`, `ChoiceLocked` (uno per partecipante), `Revealed`,
+	 * `Compared`, `OutcomeResolved` (uno per partecipante), `CostConsumed` — tutti di categoria
+	 * `ReactionClash`, con `ERTClashLogEvent` in `Outcome`.
+	 *
+	 * 🔴 **Restituisce vuoto se il boundary non e' rivelato**, e non e' una scorciatoia: e' §10 che lo
+	 * impone — *«in rete, nessun evento di scelta viene pubblicato prima del reveal»*. Se `ChoiceLocked`
+	 * fosse scritto all'arrivo del lock, l'ORDINE delle voci direbbe chi ha deciso per primo, cioe' la
+	 * latenza di decisione che §7.1 nasconde. Le voci nascono tutte insieme, al reveal, in ordine canonico.
+	 *
+	 * ⚠️ Il TurnLog canonico **non dipende da timestamp di presentazione**: qui non entra nessun tempo.
+	 */
+	static TArray<FRTTurnLogEntry> MakeClashLogEntries(const FRTContestedBoundary& Boundary,
+		const TArray<FRTContestedLock>& Locks, const FRTClashResolution& Resolution);
+
+	/**
+	 * Il catalogo delle maneuver: cosa significano le risposte che i profili offrono (§5, §11).
+	 *
+	 * `Hold Ground` c'e' **anche se e' universale**, e non e' un'eccezione: e' la maneuver `STAND`, il
+	 * fallback che §9 assegna al difensore allo scadere, e senza una voce propria il suo `Tie` — *«nessun
+	 * displacement»* — non avrebbe dove essere dichiarato.
+	 */
+	static TArray<FRTManeuverDef> GetManeuverCatalog();
+
+	/**
+	 * La maneuver con questo id, o una `STAND` senza effetti se l'id e' sconosciuto.
+	 *
+	 * Fail-closed nel verso giusto: una risposta che il catalogo non conosce non applica **niente** e non
+	 * vince nulla. Inventarle un esito sarebbe far accadere in partita qualcosa che nessuno ha dichiarato.
+	 */
+	static FRTManeuverDef FindManeuver(const FName& ManeuverId);
+
+	/**
+	 * Gli effetti che un partecipante subisce dato il proprio esito (§5).
+	 *
+	 * ⚠️ Restituisce la lista **dichiarata dalla maneuver**, che oggi e' vuota per tutte: i numeri sono
+	 * bilanciamento e non sono decisi. Vuoto significa «questo esito non applica niente», che e' diverso da
+	 * «questo esito non esiste» — ed e' cio' che permette al Clash di girare prima del playtest.
+	 */
+	static TArray<FRTActionEffectSpec> EffectsForOutcome(const FRTManeuverDef& Maneuver, ERTClashOutcome Outcome);
 };

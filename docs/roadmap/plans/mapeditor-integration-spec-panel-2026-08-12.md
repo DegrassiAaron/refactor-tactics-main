@@ -334,5 +334,5 @@ cosa. Delle tredici righe di §1, cinque sono scadute in due ore.
 | [`../editor-sessions.yaml`](../editor-sessions.yaml) · [`../editormap.shortlist.md`](../editormap.shortlist.md) | Owner delle sedute e vista **generata** — §R8 non ne crea una terza |
 | [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) | Owner di **M9**, che ha già `M9.1`…`M9.3` |
 | [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) | Owner delle voci `PIE-*` e dei loro esiti |
-| [`../../technical/brief-editor-map-viz.md`](../../technical/brief-editor-map-viz.md) | Owner della visualizzazione in editor |
+| [`../../technical/tooling/brief-editor-map-viz.md`](../../technical/tooling/brief-editor-map-viz.md) | Owner della visualizzazione in editor |
 | [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) | `MSE-1`, che il Geometry Authoring Tool **cita** invece di riaprire |

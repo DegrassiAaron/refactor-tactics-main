@@ -294,7 +294,7 @@ coordinate rende cieco — un perimetro di edificio, il bordo di una cava. Nessu
 | §17 | Camera: MMB pan, RMB orbit, wheel zoom, WASD, F focus, Shift veloce | **Il viewport di Unreal**, che le fornisce tutte. Un `UEdMode` non possiede la camera del viewport; `RTCameraPawn` è la camera **di gioco**, un oggetto diverso. Residuo reale: `Home` (inquadrare la mappa) e lo snap a 30° |
 | §18 | Toolbar / HUD dell'editor | `FRTHexEditorModeToolkit` + `FRTHexEditorModeCommands`; i pannelli sono `UInteractiveToolPropertySet`. *«Non introdurre CommonUI»* è già rispettato |
 | §21 | Tre «scenari» di authoring | **Classe C** di `scenario-map.md` → `test-manuali-pie.md` (voci `PIE-*`) e `editor-sessions.yaml` (sedute). Non `Scenarios/` |
-| §23 | Integrazione Spatial Debug: griglia, ID, occupancy, classificazione, segmenti, junction | [`brief-editor-map-viz.md`](../../technical/brief-editor-map-viz.md) è l'owner del perimetro, e la serie è già aperta: `#552`, `#553`, `#554` |
+| §23 | Integrazione Spatial Debug: griglia, ID, occupancy, classificazione, segmenti, junction | [`brief-editor-map-viz.md`](../../technical/tooling/brief-editor-map-viz.md) è l'owner del perimetro, e la serie è già aperta: `#552`, `#553`, `#554` |
 | §24 | Validator di mappa | `URTHexMapAsset::ValidateMap` + `RefactorTactics.HexMap.Validate*` — `RT-FEAT-TOOL-VALIDATION`, **DONE**. I nuovi controlli si **aggiungono** lì |
 
 ---
@@ -425,6 +425,6 @@ cuocere) non sono deducibili da qui.
 | [`../roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) | Owner di **E23**, che §4.1 anticipa in parte |
 | [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) | Owner di **M9**, dove vive il residuo dell'editor |
 | [`../editormap.shortlist.md`](../editormap.shortlist.md) · `editor-sessions.yaml` | La vista **generata** delle sedute — §7.2 |
-| [`../../technical/brief-editor-map-viz.md`](../../technical/brief-editor-map-viz.md) | Owner della visualizzazione in editor — §23 del prompt è suo |
-| [`../../technical/scenario-map.md`](../../technical/scenario-map.md) | Owner della ripartizione automatico/umano che §21 ignora |
+| [`../../technical/tooling/brief-editor-map-viz.md`](../../technical/tooling/brief-editor-map-viz.md) | Owner della visualizzazione in editor — §23 del prompt è suo |
+| [`../../technical/tooling/scenario-map.md`](../../technical/tooling/scenario-map.md) | Owner della ripartizione automatico/umano che §21 ignora |
 | [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) | Registro delle voci `PIE-*` — dove finiscono davvero i tre «scenari» di §21 |

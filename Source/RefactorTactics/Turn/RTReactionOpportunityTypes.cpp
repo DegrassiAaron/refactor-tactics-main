@@ -159,6 +159,269 @@ int32 URTReactionOpportunityLibrary::CompareGrammarIntents(ERTGrammarIntent A, E
 	return bAWins ? 1 : -1;
 }
 
+FRTClashResolution URTReactionOpportunityLibrary::ResolveContestedBoundary(
+	const FRTContestedBoundary& Boundary, const TArray<FRTContestedLock>& Locks)
+{
+	FRTClashResolution Out;
+
+	// --- 1. Il lock di ciascun PARTECIPANTE, non di ciascun messaggio ---------------------------------
+	//
+	// Si parte dai partecipanti dichiarati e si cerca il loro lock, invece di iterare i lock: un lock di chi
+	// non partecipa non deve poter aprire un reveal, e un lock duplicato non deve valere due volte. La
+	// cardinalita' del reveal e' una proprieta' del boundary, non di quanti messaggi sono arrivati.
+	//
+	// Si tiene il PRIMO lock di ciascuno: un secondo lock dello stesso partecipante sarebbe un ripensamento
+	// dopo il vincolo, e il vincolo e' il punto — «lock» significa che la scelta non si cambia piu'.
+	TArray<int32> Ids;
+	TArray<ERTGrammarIntent> Intents;
+	for (const FRTReactionParticipant& P : Boundary.Participants)
+	{
+		const FRTContestedLock* Found = Locks.FindByPredicate(
+			[&P](const FRTContestedLock& L) { return L.UnitId == P.UnitId; });
+
+		if (Found == nullptr)
+		{
+			// Manca almeno un lock: NIENTE si rivela. E' la scadenza fissa di §7.1 resa una proprieta' dei
+			// dati — chi chiama non ha un esito parziale da cui dedurre che l'altro ha gia' scelto.
+			return Out;
+		}
+
+		Ids.Add(P.UnitId);
+		Intents.Add(Found->Intent);
+	}
+
+	if (Ids.Num() < 2)
+	{
+		// Un boundary con meno di due partecipanti non e' un Clash e non ha niente da confrontare. Non e' un
+		// errore: e' il single-responder, che si risolve altrove con `AskReactionDecision`.
+		return Out;
+	}
+
+	// --- 2. Ordine CANONICO, non di arrivo (§7.3) -----------------------------------------------------
+	//
+	// Si ordinano gli indici e non gli array in parallelo: due `StableSort` indipendenti su due array
+	// potrebbero disallinearsi, ed e' il tipo di difetto che non si vede finche' i due partecipanti non
+	// hanno intenti diversi.
+	TArray<int32> Order;
+	for (int32 I = 0; I < Ids.Num(); ++I) { Order.Add(I); }
+	Order.StableSort([&Ids](int32 A, int32 B) { return Ids[A] < Ids[B]; });
+
+	// --- 3. Il confronto, e il pareggio applicato UNA volta --------------------------------------------
+	//
+	// Con due partecipanti la matrice di [D-049] decide; con piu' di due il confronto a coppie non e'
+	// definito dalla spec, e qui **non si inventa**: si rivela il pareggio per tutti, che e' l'esito neutro
+	// gia' previsto da §5. Il giorno in cui un boundary a tre esistera', la regola si decide li' e non si
+	// eredita da un'implementazione che nessuno ha discusso.
+	Out.bRevealed = true;
+	for (int32 I : Order)
+	{
+		Out.UnitIds.Add(Ids[I]);
+	}
+
+	if (Ids.Num() == 2)
+	{
+		const int32 FirstIdx = Order[0];
+		const int32 SecondIdx = Order[1];
+		const int32 Cmp = CompareGrammarIntents(Intents[FirstIdx], Intents[SecondIdx]);
+
+		if (Cmp > 0)
+		{
+			Out.Outcomes.Add(ERTClashOutcome::Win);
+			Out.Outcomes.Add(ERTClashOutcome::Lose);
+		}
+		else if (Cmp < 0)
+		{
+			Out.Outcomes.Add(ERTClashOutcome::Lose);
+			Out.Outcomes.Add(ERTClashOutcome::Win);
+		}
+		else
+		{
+			// Pari per entrambi, e **una volta sola**: il Tie non e' un fallimento di nessuno dei due (§5),
+			// quindi non produce due applicazioni dello stesso effetto.
+			Out.Outcomes.Add(ERTClashOutcome::Tie);
+			Out.Outcomes.Add(ERTClashOutcome::Tie);
+		}
+	}
+	else
+	{
+		for (int32 I = 0; I < Ids.Num(); ++I)
+		{
+			Out.Outcomes.Add(ERTClashOutcome::Tie);
+		}
+	}
+
+	return Out;
+}
+
+TArray<FRTManeuverDef> URTReactionOpportunityLibrary::GetManeuverCatalog()
+{
+	// Le quattro maneuver che il roster v0.1 puo' esprimere: la universale piu' le tre dei profili di
+	// [D-047]. Gli id coincidono con le stringhe di `AllowedResponses` — cercare il significato di una
+	// risposta e' guardare qui, non appaiare due liste per indice.
+	//
+	// ⚠️ **Le liste di effetti sono VUOTE, e non e' un lavoro lasciato a meta'**: §2.5 dice che resistenza
+	// del `Brace`, Charge del `Grounding` e ampiezza della deviazione sono bilanciamento e si restringono al
+	// playtest. Un esito senza effetti e' un esito che non applica niente, ed e' quello che serve perche' il
+	// Clash giri prima che i numeri esistano. Scriverne di inventati sarebbe peggio che lasciarli vuoti:
+	// diventerebbero il riferimento contro cui il playtest si confronta.
+	//
+	// `GLANCE LEFT` e `GLANCE RIGHT` sono DUE maneuver e non una con un parametro: §6 dice che la direzione
+	// e' un payload quando serve, ma qui le due sono gia' due risposte legali distinte in `AllowedResponses`
+	// — e la cardinalita' di `Profile.Glance` (3) dipende proprio da questo.
+	return {
+		{ FName(TEXT("Hold Ground")),  ERTGrammarIntent::Stand },
+		{ FName(TEXT("GROUND")),       ERTGrammarIntent::Stand, /*bHasCost=*/ true },
+		{ FName(TEXT("SIDESTEP")),     ERTGrammarIntent::Shift },
+		{ FName(TEXT("GLANCE LEFT")),  ERTGrammarIntent::Read },
+		{ FName(TEXT("GLANCE RIGHT")), ERTGrammarIntent::Read }
+	};
+}
+
+FRTManeuverDef URTReactionOpportunityLibrary::FindManeuver(const FName& ManeuverId)
+{
+	for (const FRTManeuverDef& M : GetManeuverCatalog())
+	{
+		if (M.ManeuverId == ManeuverId)
+		{
+			return M;
+		}
+	}
+
+	// Sconosciuta: `STAND` senza effetti. Non applica niente e non vince nulla — inventarle un esito
+	// farebbe accadere in partita qualcosa che nessuno ha dichiarato.
+	return FRTManeuverDef(ManeuverId, ERTGrammarIntent::Stand);
+}
+
+TArray<FRTActionEffectSpec> URTReactionOpportunityLibrary::EffectsForOutcome(
+	const FRTManeuverDef& Maneuver, ERTClashOutcome Outcome)
+{
+	switch (Outcome)
+	{
+	case ERTClashOutcome::Win:  return Maneuver.WinEffects;
+	case ERTClashOutcome::Tie:  return Maneuver.TieEffects;
+	case ERTClashOutcome::Lose: return Maneuver.LoseEffects;
+	}
+
+	// Funzione TOTALE: un caso per ogni valore dell'enum, nessun `default` che nasconda un esito nuovo.
+	// Se un quarto esito nascesse, questo `return` non lo coprirebbe in silenzio — il compilatore avverte.
+	return TArray<FRTActionEffectSpec>();
+}
+
+TArray<int32> URTReactionOpportunityLibrary::UnitsConsumingCost(const TArray<FRTContestedLock>& Locks,
+	const FRTClashResolution& Resolution)
+{
+	TArray<int32> Consuming;
+
+	// Prima del reveal non si consuma niente: il costo e' un effetto osservabile quanto un esito, e pagarlo
+	// in anticipo direbbe che qualcuno ha lockato. §7.1 esiste per non dirlo.
+	if (!Resolution.bRevealed)
+	{
+		return Consuming;
+	}
+
+	// Si itera l'ordine CANONICO della risoluzione, non l'array dei lock: cosi' l'elenco di chi paga non
+	// dipende dall'ordine di arrivo — che e' la stessa ragione per cui le voci di log sono ordinate.
+	for (int32 I = 0; I < Resolution.UnitIds.Num(); ++I)
+	{
+		const int32 UnitId = Resolution.UnitIds[I];
+		const FRTContestedLock* Lock = Locks.FindByPredicate(
+			[UnitId](const FRTContestedLock& L) { return L.UnitId == UnitId; });
+
+		if (Lock == nullptr || !Lock->bManeuverHasCost)
+		{
+			continue; // niente lock, o maneuver gratuita: non c'e' risorsa da spendere
+		}
+
+		// ⛔ **L'esito NON entra nella decisione, salvo la policy dichiarata dalla maneuver.** Chi perde paga
+		// come chi vince: e' la regola di §9, e toglierla renderebbe il Clash una scommessa gratuita.
+		const bool bLost = Resolution.Outcomes.IsValidIndex(I)
+			&& Resolution.Outcomes[I] == ERTClashOutcome::Lose;
+
+		if (bLost && Lock->bRefundIfLost)
+		{
+			continue; // la maneuver ha dichiarato di rimborsare: e' l'eccezione, non il default
+		}
+
+		Consuming.Add(UnitId);
+	}
+
+	return Consuming;
+}
+
+TArray<FRTTurnLogEntry> URTReactionOpportunityLibrary::MakeClashLogEntries(
+	const FRTContestedBoundary& Boundary, const TArray<FRTContestedLock>& Locks,
+	const FRTClashResolution& Resolution)
+{
+	TArray<FRTTurnLogEntry> Entries;
+
+	// Prima del reveal il boundary non lascia UNA voce: §10 dice che nessun evento di scelta si pubblica
+	// prima. Scrivere `ChoiceLocked` all'arrivo del lock renderebbe l'ORDINE del log una misura di chi ha
+	// deciso per primo — la latenza come informazione, che §7.1 nega.
+	if (!Resolution.bRevealed)
+	{
+		return Entries;
+	}
+
+	const FString OpportunityId = DeriveOpportunityId(Boundary.Key);
+
+	// Ogni voce nasce dalla stessa base: la categoria e l'identita' del boundary sono comuni, e ripeterle a
+	// mano sei volte e' il modo in cui una di esse finisce diversa dalle altre.
+	auto MakeEntry = [&](ERTClashLogEvent Event, int32 UnitId) -> FRTTurnLogEntry
+	{
+		FRTTurnLogEntry E;
+		E.Phase = Boundary.Key.MacroPhase;
+		E.Category = ERTLogCategory::ReactionClash;
+		E.Outcome = static_cast<uint8>(Event);
+		E.OpportunityId = OpportunityId;
+		E.ActionId = Boundary.Key.ReactionDefId;
+		E.TurnNumber = Boundary.Key.TurnNumber;
+		E.UnitId = UnitId;
+		return E;
+	};
+
+	// 1. L'apertura, con la cardinalita' in `Amount`: quante persone avevano davvero una scelta.
+	{
+		FRTTurnLogEntry E = MakeEntry(ERTClashLogEvent::OpportunityCreated, Boundary.Key.OwnerId);
+		E.Amount = CountParticipantsWithChoice(Boundary);
+		Entries.Add(E);
+	}
+
+	// 2. I lock, UNO PER PARTECIPANTE e in ordine canonico. Sono scritti adesso, non quando sono arrivati.
+	for (int32 UnitId : Resolution.UnitIds)
+	{
+		Entries.Add(MakeEntry(ERTClashLogEvent::ChoiceLocked, UnitId));
+	}
+
+	// 3. Il reveal.
+	Entries.Add(MakeEntry(ERTClashLogEvent::Revealed, Boundary.Key.OwnerId));
+
+	// 4. Il confronto: i due contendenti in una voce sola, cosi' il log dice CONTRO CHI si e' misurato
+	// ciascuno senza che il lettore debba appaiare due righe.
+	if (Resolution.UnitIds.Num() == 2)
+	{
+		FRTTurnLogEntry E = MakeEntry(ERTClashLogEvent::Compared, Resolution.UnitIds[0]);
+		E.SelectedTargetUnitId = Resolution.UnitIds[1];
+		Entries.Add(E);
+	}
+
+	// 5. L'esito di ciascuno, con `ERTClashOutcome` in `Amount`.
+	for (int32 I = 0; I < Resolution.UnitIds.Num(); ++I)
+	{
+		FRTTurnLogEntry E = MakeEntry(ERTClashLogEvent::OutcomeResolved, Resolution.UnitIds[I]);
+		E.Amount = Resolution.Outcomes.IsValidIndex(I) ? static_cast<int32>(Resolution.Outcomes[I]) : 0;
+		Entries.Add(E);
+	}
+
+    // 6. Il costo, per chi lo paga. Nessuna voce per chi non ha costo: una riga `CostConsumed` con importo
+	// zero direbbe che qualcosa e' stato speso, e non e' vero.
+	for (int32 UnitId : UnitsConsumingCost(Locks, Resolution))
+	{
+		Entries.Add(MakeEntry(ERTClashLogEvent::CostConsumed, UnitId));
+	}
+
+	return Entries;
+}
+
 FRTReactionDecision URTReactionOpportunityLibrary::DecisionOnTimeout(const FRTReactionOpportunity&)
 {
 	// PURA e costante: `HOLD`, sempre. Non guarda l'opportunity di proposito — se la guardasse, esisterebbe

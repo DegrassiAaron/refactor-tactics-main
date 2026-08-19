@@ -30,7 +30,7 @@ e questo file è **un perimetro dichiarato, non un piano**.
 > 🔴 **Correzione del 2026-08-12, e vale più del resto del file.** La prima stesura diceva che «cosa dei
 > Fab entra in git» era *«una domanda aperta e non registrata»* e la proponeva come primo lavoro della
 > lane. **È falso, tre volte**: la regola sta in `.gitignore` con venti righe di motivazione, in
-> [`../../technical/convenzioni-contenuti-ue.md`](../../technical/convenzioni-contenuti-ue.md) §B.2/§B.2a,
+> [`../../technical/tooling/convenzioni-contenuti-ue.md`](../../technical/tooling/convenzioni-contenuti-ue.md) §B.2/§B.2a,
 > e nel README del magazzino. Non l'avevo cercata: avevo misurato l'**assenza** di VFX e dedotto
 > l'assenza di una **regola**, che è un'altra domanda.
 
@@ -103,7 +103,7 @@ i due materiali degli anelli. Cinque file, 62 KB.
 ⚠️ **`git clean -fdx` cancella i pack** (`-x` include gli ignorati): si usa `git clean -fd`, oppure
 `-e Content/FabAsset`.
 
-Procedura completa e insidie: [`../../technical/convenzioni-contenuti-ue.md`](../../technical/convenzioni-contenuti-ue.md)
+Procedura completa e insidie: [`../../technical/tooling/convenzioni-contenuti-ue.md`](../../technical/tooling/convenzioni-contenuti-ue.md)
 §B.2a, e il README del magazzino per il lato operativo.
 
 ### Le lezioni già pagate, che questa lane eredita

@@ -8,7 +8,7 @@
 >
 > **Il casting non è più aperto** (2026-08-08, [D-037](../decisions/RT_PDR_00_Decision_Log.md)) e dal
 > **2026-08-11 gli asset portano il nome del pack**, non dell'eroe
-> ([`convenzioni-contenuti-ue.md` §5b](convenzioni-contenuti-ue.md)). Questa è la tabella da cui tradurre
+> ([`convenzioni-contenuti-ue.md` §5b](tooling/convenzioni-contenuti-ue.md)). Questa è la tabella da cui tradurre
 > ogni esempio qui sotto — **verificata sul disco l'11-08**, perché tre nomi su otto non sono quelli che ci
 > si aspetta:
 >
@@ -36,7 +36,7 @@
 > 2026-08-03: leggi «Gideon» come «il personaggio che stai importando» e traduci con la tabella. Riscriverli
 > uno per uno introdurrebbe più errori di quanti ne toglierebbe, e la guida resterebbe comunque un esempio.
 
-> Guida operativa per l'editor UE 5.8.1. Riferita a [`spec-asset-pipeline.md`](spec-asset-pipeline.md) (AS.3/AS.4).
+> Guida operativa per l'editor UE 5.8.1. Riferita a [`spec-asset-pipeline.md`](architecture/spec-asset-pipeline.md) (AS.3/AS.4).
 > Presuppone la Fase 2 fatta: un `BP_Unit_<Pack> : ARTUnit` con Skeletal Mesh assegnata, cilindro **nascosto**
 > (`ARTUnit::Mesh` è uno `UStaticMeshComponent` e resta il root: si aggiunge una skeletal accanto, non la si
 > sostituisce), `VisualZOffset=0` e i due materiali degli anelli. I passi completi sono in

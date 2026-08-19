@@ -4,7 +4,7 @@
 > prevalgono [`../../product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md),
 > [`../../decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) e gli ADR
 > applicabili. L'inventario **vero** delle classi è
-> [`../../technical/architettura-codice.md`](../../technical/architettura-codice.md).
+> [`../../technical/architecture/architettura-codice.md`](../../technical/architecture/architettura-codice.md).
 >
 > **Testo estratto dai PDF originari, non riscritto.**
 

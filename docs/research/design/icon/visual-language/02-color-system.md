@@ -3,7 +3,7 @@
 > **Statuto**: sorgente di design, non canone. Vedi [`01-principi.md`](01-principi.md).
 >
 > **Confine**: la palette del **chrome** dell'HUD — fondi, pannelli, bordi, accenti di stato — è di
-> [`progettazione-hud.md`](../../../../technical/progettazione-hud.md) §32 e non si riscrive qui. Questo
+> [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md) §32 e non si riscrive qui. Questo
 > documento definisce la palette **semantica**: i colori che portano un significato di gioco.
 
 ## 1. La regola che governa tutte le altre
@@ -13,7 +13,7 @@ attraverso silhouette, bordo, pattern, simbolo, direzione o forma.
 
 La verifica è meccanica: **portare la tavola in scala di grigi e rileggerla**. Se un'informazione sparisce,
 manca il secondo canale. È lo stesso test di
-[`progettazione-hud.md`](../../../../technical/progettazione-hud.md) §47-bis.1, applicato all'asset invece
+[`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md) §47-bis.1, applicato all'asset invece
 che alla schermata.
 
 ## 2. Palette semantica
@@ -64,7 +64,7 @@ reticolo con impatto.
 
 > ⚠️ **Corretto il 2026-08-12.** La prima stesura assegnava `#009E73` **sia** a `Movement` sia a `Defense`,
 > motivandolo con «non competono mai nella stessa decisione: stanno in gruppi diversi della skill bar». La
-> premessa è **falsa**, ed è falsificata da [`progettazione-hud.md`](../../../../technical/progettazione-hud.md)
+> premessa è **falsa**, ed è falsificata da [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md)
 > §6.7 — dove `Movement` (`Move` · `Sprint` · `Dash`) e `Defense` (`Guard` · `Brace`) sono **due corsie della
 > stessa Action Dock**, viste nello stesso momento. `Defense` passa a `#56B4E9`.
 
