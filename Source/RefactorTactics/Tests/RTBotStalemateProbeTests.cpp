@@ -426,44 +426,53 @@ namespace
 		int32 PeakPerceived = 0;
 		int32 TotalAttackPlans = 0;
 	};
-}
 
-/** Il ciclo percezione -> decisione -> movimento su una mappa qualsiasi. Vedi il test qui sotto. */
-static FRTHeadlessRunReport RTRunHeadlessDecisionLoop(URTHexMapAsset* Arena, FAutomationTestBase& T,
-	const TCHAR* Label)
-{
-	FRTHeadlessRunReport Out;
-	const FRTArenaCriteriaReport Criteria = URTArenaCriteriaLibrary::EvaluateWithDerivedSpawns(Arena);
+	// Nel namespace anonimo, e non piu' dentro la funzione, perche' da qui la usano DUE cicli: quello che
+	// applica `Plan.DestCell` direttamente e quello che lo fa passare dalla risoluzione simultanea.
+	struct FRTProbeUnit { int32 Id; int32 Team; FRTCellId Cell; };
 
-	// Due unita' per squadra, agli spawn derivati e a una cella di distanza: e' il 2v2 del formato spedito.
-	struct FProbeUnit { int32 Id; int32 Team; FRTCellId Cell; };
-	// ⚠️ **NON agli spawn derivati**, e la prima stesura sbagliava proprio qui: quelli distano **8** mentre
-	// `FRTPerceiver::VisionRange` vale **5** di default, quindi nessuno vedeva nessuno **su nessuna arena** —
-	// e il congelamento che ne usciva era un artefatto dell'allestimento, non il difetto. L'ha scoperto il
-	// controllo sull'esagono liscio, che dava contatto zero dove il contatto e' impossibile da bloccare.
-	//
-	// Le due squadre partono quindi a distanza **4**, dentro il raggio visivo e a cavallo del centro: e' la
-	// configurazione in cui le unita' si sono davvero fermate in partita (distanza 3), e l'unica differenza
-	// fra le due arene diventa la **copertura**.
-	TArray<FProbeUnit> Units;
-	Units.Add({ 1, 0, FRTCellId(-2, 0, 0) });
-	Units.Add({ 2, 0, FRTCellId(-2, 1, 0) });
-	Units.Add({ 3, 1, FRTCellId(2, 0, 0) });
-	Units.Add({ 4, 1, FRTCellId(2, -1, 0) });
-
-	TArray<FRTTeamKnowledge> Knowledge;
-	Knowledge.SetNum(2);
-
-	TArray<FRTCellId> PreviousCells;
-
-	for (int32 Turn = 1; Turn <= 12; ++Turn)
+	/**
+	 * Il 2v2 del formato spedito, allo stesso allestimento per tutti i probe di questo file.
+	 *
+	 * ⚠️ **NON agli spawn derivati**, e la prima stesura sbagliava proprio qui: quelli distano **8** mentre
+	 * `FRTPerceiver::VisionRange` vale **5** di default, quindi nessuno vedeva nessuno **su nessuna arena** —
+	 * e il congelamento che ne usciva era un artefatto dell'allestimento, non il difetto. L'ha scoperto il
+	 * controllo sull'esagono liscio, che dava contatto zero dove il contatto e' impossibile da bloccare.
+	 *
+	 * Le due squadre partono quindi a distanza **4**, dentro il raggio visivo e a cavallo del centro: e' la
+	 * configurazione in cui le unita' si sono davvero fermate in partita (distanza 3), e l'unica differenza
+	 * fra le due arene diventa la **copertura**.
+	 */
+	TArray<FRTProbeUnit> MakeProbeRoster()
 	{
+		TArray<FRTProbeUnit> Units;
+		Units.Add({ 1, 0, FRTCellId(-2, 0, 0) });
+		Units.Add({ 2, 0, FRTCellId(-2, 1, 0) });
+		Units.Add({ 3, 1, FRTCellId(2, 0, 0) });
+		Units.Add({ 4, 1, FRTCellId(2, -1, 0) });
+		return Units;
+	}
+
+	/**
+	 * Un turno di percezione e decisione, con le funzioni del gioco. Restituisce la destinazione pianificata
+	 * per ogni unita' (parallela a `Units`) e lo snapshot su cui e' stata decisa.
+	 *
+	 * ⚠️ Estratta perche' due cicli la condividono. Duplicarla significherebbe due percorsi che divergono
+	 * alla prima modifica — lo stesso difetto che `RTTurnManager` documenta per il danno da attraversamento.
+	 */
+	void PlanProbeTurn(URTHexMapAsset* Arena, const TArray<FRTProbeUnit>& Units,
+		TArray<FRTTeamKnowledge>& Knowledge, int32 Turn,
+		FRTHexSnapshot& OutSnapshot, TArray<FRTCellId>& OutPlanned, int32& OutPerceived, int32& OutAttackPlans)
+	{
+		OutPlanned.Reset();
+		OutPerceived = 0;
+
 		// --- 1. Percezione, con la funzione del gioco: ogni squadra osserva con i propri vivi.
 		for (int32 Team = 0; Team < 2; ++Team)
 		{
 			TArray<FRTPerceiver> Observers;
 			TArray<FRTLastKnownContact> EnemiesNow;
-			for (const FProbeUnit& U : Units)
+			for (const FRTProbeUnit& U : Units)
 			{
 				if (U.Team == Team)
 				{
@@ -481,13 +490,11 @@ static FRTHeadlessRunReport RTRunHeadlessDecisionLoop(URTHexMapAsset* Arena, FAu
 		}
 
 		// --- 2. Decisione, unita' per unita', col filtro di percezione di `PlanBots`.
-		int32 TotalPerceived = 0;
 		TArray<FRTHexSimUnit> SimUnits;
-		for (const FProbeUnit& U : Units) { SimUnits.Add(FRTHexSimUnit(U.Id, U.Cell, /*budget*/ 5)); }
-		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena, SimUnits);
+		for (const FRTProbeUnit& U : Units) { SimUnits.Add(FRTHexSimUnit(U.Id, U.Cell, /*budget*/ 5)); }
+		OutSnapshot = URTHexSimLibrary::MakeSnapshot(Arena, SimUnits);
 
-		TArray<FRTCellId> NextCells;
-		for (const FProbeUnit& Self : Units)
+		for (const FRTProbeUnit& Self : Units)
 		{
 			FRTHexBotContext Ctx;
 			Ctx.Origin = Self.Cell;
@@ -495,7 +502,7 @@ static FRTHeadlessRunReport RTRunHeadlessDecisionLoop(URTHexMapAsset* Arena, FAu
 			Ctx.AttackDamage = 21;
 			Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Ctx.AttackRange);
 
-			for (const FProbeUnit& Other : Units)
+			for (const FRTProbeUnit& Other : Units)
 			{
 				if (Other.Team == Self.Team) { continue; }
 
@@ -513,12 +520,34 @@ static FRTHeadlessRunReport RTRunHeadlessDecisionLoop(URTHexMapAsset* Arena, FAu
 				Ctx.EnemyRanges.Add(4);
 				Ctx.EnemyHealth.Add(100);
 			}
-			TotalPerceived += Ctx.Enemies.Num();
+			OutPerceived += Ctx.Enemies.Num();
 
-			const FRTHexBotPlan Plan = URTHexBotLibrary::PlanUnit(Snapshot, Self.Id, Ctx);
-			if (Plan.bHasAttack) { ++Out.TotalAttackPlans; }
-			NextCells.Add(Plan.DestCell);
+			const FRTHexBotPlan Plan = URTHexBotLibrary::PlanUnit(OutSnapshot, Self.Id, Ctx);
+			if (Plan.bHasAttack) { ++OutAttackPlans; }
+			OutPlanned.Add(Plan.DestCell);
 		}
+	}
+}
+
+/** Il ciclo percezione -> decisione -> movimento su una mappa qualsiasi. Vedi il test qui sotto. */
+static FRTHeadlessRunReport RTRunHeadlessDecisionLoop(URTHexMapAsset* Arena, FAutomationTestBase& T,
+	const TCHAR* Label)
+{
+	FRTHeadlessRunReport Out;
+
+	TArray<FRTProbeUnit> Units = MakeProbeRoster();
+
+	TArray<FRTTeamKnowledge> Knowledge;
+	Knowledge.SetNum(2);
+
+	TArray<FRTCellId> PreviousCells;
+
+	for (int32 Turn = 1; Turn <= 12; ++Turn)
+	{
+		int32 TotalPerceived = 0;
+		FRTHexSnapshot Snapshot;
+		TArray<FRTCellId> NextCells;
+		PlanProbeTurn(Arena, Units, Knowledge, Turn, Snapshot, NextCells, TotalPerceived, Out.TotalAttackPlans);
 
 		// --- 3. Le posizioni si muovono ancora?
 		const bool bFrozen = (PreviousCells.Num() == NextCells.Num()) && (PreviousCells == NextCells);
@@ -571,6 +600,217 @@ bool FRTBotStalemateHeadlessMatchTest::RunTest(const FString&)
 	// una delle due righe cade, il comportamento e' cambiato e #1088 va riletta.
 	TestTrue(TEXT("con copertura si congelano NONOSTANTE il contatto"), Covered.FrozenSince != INDEX_NONE);
 	TestTrue(TEXT("e sull'esagono liscio pure"), Open.FrozenSince != INDEX_NONE);
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Chi contende quale cella.
+//
+// I cinque probe qui sopra applicano `Plan.DestCell` DIRETTAMENTE — `Units[i].Cell = NextCells[i]` — cioe'
+// saltano la risoluzione simultanea. E' li' che vive il difetto: nel log della configurazione spedita
+// `fermo: cella contesa` e' l'evento dominante, 43 volte in 12 round.
+//
+// ⚠️ **Il TurnLog non puo' rispondere alla domanda**, e per questo serve un probe: la voce porta la cella di
+// PARTENZA — `RTTurnManager.cpp`, *«la chiave e' la cella di PARTENZA (Paths[i][0])»* — non la cella contesa.
+// Quali unita' si contendano quale cella non e' mai stato scritto da nessuna parte, e decide DOVE va la
+// correzione: fra compagni di squadra e' pianificazione del bot, fra avversari e' la regola di contesa.
+//
+// ⚠️ Il `p50` che si legge nel log e' un'altra cosa ancora: `RTTurnManager` lo scrive nella voce leggendolo
+// dal catalogo (`FindCoreAction("Action.Move").Priority`), ma al resolver **non lo passa** — la fase Move
+// chiama `BeginHexMovement(Paths)` senza l'array delle priorita'. Il resolver confronta zeri.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	struct FRTProbeContestReport
+	{
+		int32 Contests = 0;
+		int32 SameTeamContests = 0;
+		int32 CrossTeamContests = 0;
+		int32 TurnsWithAnyMove = 0;
+		int32 FirstFrozenTurn = INDEX_NONE;
+		int32 BlockedByUnitEvents = 0;
+		int32 AttackPlans = 0;
+		// ⚠️ La cella contesa e' il PRIMO PASSO che non e' stato fatto, non la destinazione: due unita' con
+		// destinazioni diverse possono collidere sul primo passo di un percorso condiviso. Le due cose
+		// vogliono correzioni diverse — una prenotazione delle destinazioni non scioglierebbe la seconda —
+		// quindi si contano separate invece di dedurre l'una dall'altra.
+		int32 ContestsWithSameDestination = 0;
+		int32 ContestsWithDifferentDestination = 0;
+	};
+}
+
+/**
+ * Lo stesso ciclo percezione -> decisione dei probe precedenti, ma i piani passano da `ResolveHexPaths`
+ * invece di essere applicati: e' la differenza fra il ciclo di DECISIONE, gia' isolato e corretto, e la
+ * RISOLUZIONE SIMULTANEA, dove il difetto vive.
+ */
+static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Arena, FAutomationTestBase& T,
+	const TCHAR* Label)
+{
+	FRTProbeContestReport Out;
+
+	TArray<FRTProbeUnit> Units = MakeProbeRoster();
+	TArray<FRTTeamKnowledge> Knowledge;
+	Knowledge.SetNum(2);
+
+	for (int32 Turn = 1; Turn <= 12; ++Turn)
+	{
+		int32 Perceived = 0;
+		FRTHexSnapshot Snapshot;
+		TArray<FRTCellId> Planned;
+		PlanProbeTurn(Arena, Units, Knowledge, Turn, Snapshot, Planned, Perceived, Out.AttackPlans);
+
+		// --- 3. I percorsi come li costruisce la fase Move: la rotta autorevole verso la destinazione
+		// pianificata, e chi non ha un percorso valido resta fermo occupando la propria cella.
+		TArray<TArray<FRTCellId>> Paths;
+		for (int32 i = 0; i < Units.Num(); ++i)
+		{
+			TArray<FRTCellId> Path;
+			if (!(Planned[i] == Units[i].Cell))
+			{
+				Path = URTHexSimLibrary::FindPathForUnit(Snapshot, Units[i].Id, Planned[i]).Path;
+			}
+			if (Path.Num() < 2) { Path = { Units[i].Cell }; }
+			Paths.Add(Path);
+		}
+
+		// ⚠️ Un solo argomento, ed e' il punto: `RTTurnManager` in fase Move chiama `BeginHexMovement(Paths)`
+		// senza `Priorities`. Usare qui l'overload con le priorita' misurerebbe una fase che non esiste.
+		const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths);
+
+		// --- 4. La cella contesa e' il passo che l'unita' NON ha fatto: quello dopo l'ultimo entrato.
+		TArray<FRTCellId> ContestedCell;
+		ContestedCell.Init(FRTCellId(), Units.Num());
+		TArray<bool> bContested;
+		bContested.Init(false, Units.Num());
+
+		int32 MovedThisTurn = 0;
+		for (int32 i = 0; i < Units.Num(); ++i)
+		{
+			if (Resolved[i].Entered.Num() > 0) { ++MovedThisTurn; }
+			if (Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit) { ++Out.BlockedByUnitEvents; }
+			if (Resolved[i].Outcome != ERTMoveOutcome::BlockedContested) { continue; }
+
+			const int32 Step = Resolved[i].Entered.Num();
+			if (!Paths[i].IsValidIndex(Step + 1)) { continue; }
+			ContestedCell[i] = Paths[i][Step + 1];
+			bContested[i] = true;
+		}
+
+		// Una riga per CELLA contesa, non per unita' bloccata: la domanda e' «chi la contende», e contare le
+		// unita' risponderebbe a un'altra — la stessa distinzione che il log della partita non fa.
+		TArray<FRTCellId> AlreadyReported;
+		for (int32 i = 0; i < Units.Num(); ++i)
+		{
+			if (!bContested[i] || AlreadyReported.Contains(ContestedCell[i])) { continue; }
+			AlreadyReported.Add(ContestedCell[i]);
+
+			FString Who;
+			int32 PerTeam[2] = { 0, 0 };
+			// La destinazione del primo contendente, per dire se gli altri puntano LI' o solo di passaggio.
+			FRTCellId FirstDestination = Planned[i];
+			bool bAllSameDestination = true;
+			for (int32 j = 0; j < Units.Num(); ++j)
+			{
+				if (!bContested[j] || !(ContestedCell[j] == ContestedCell[i])) { continue; }
+				Who += FString::Printf(TEXT("%su%d(T%d, dest %s)"), Who.IsEmpty() ? TEXT("") : TEXT(", "),
+					Units[j].Id, Units[j].Team, *Planned[j].ToString());
+				if (Units[j].Team == 0 || Units[j].Team == 1) { ++PerTeam[Units[j].Team]; }
+				if (!(Planned[j] == FirstDestination)) { bAllSameDestination = false; }
+			}
+
+			const bool bSameTeam = (PerTeam[0] == 0) || (PerTeam[1] == 0);
+			++Out.Contests;
+			if (bSameTeam) { ++Out.SameTeamContests; } else { ++Out.CrossTeamContests; }
+			if (bAllSameDestination) { ++Out.ContestsWithSameDestination; }
+			else { ++Out.ContestsWithDifferentDestination; }
+
+			T.AddInfo(FString::Printf(TEXT("[%s] turno %2d: cella %s contesa da %s -> %s, destinazioni %s"),
+				Label, Turn, *ContestedCell[i].ToString(), *Who,
+				bSameTeam ? TEXT("STESSA squadra") : TEXT("squadre DIVERSE"),
+				bAllSameDestination ? TEXT("IDENTICHE") : TEXT("DIVERSE (collisione di percorso)")));
+		}
+
+		if (MovedThisTurn > 0)
+		{
+			++Out.TurnsWithAnyMove;
+		}
+		else if (Out.FirstFrozenTurn == INDEX_NONE)
+		{
+			Out.FirstFrozenTurn = Turn;
+		}
+
+		T.AddInfo(FString::Printf(TEXT("[%s] turno %2d: si sono mosse %d/%d | percepiti %d | piani con attacco %d"),
+			Label, Turn, MovedThisTurn, Units.Num(), Perceived, Out.AttackPlans));
+
+		// --- 5. Si applica il RISULTATO, non il piano: e' l'anello che i probe precedenti saltavano.
+		for (int32 i = 0; i < Units.Num(); ++i)
+		{
+			Units[i].Cell = Resolved[i].Final;
+		}
+	}
+
+	T.AddInfo(FString::Printf(
+		TEXT("[%s] TOTALI: contese %d (stessa squadra %d, squadre diverse %d | destinazione identica %d, diversa %d) | turni con almeno una mossa %d/12 | primo turno fermo %d | bloccate da unita' ferma %d"),
+		Label, Out.Contests, Out.SameTeamContests, Out.CrossTeamContests,
+		Out.ContestsWithSameDestination, Out.ContestsWithDifferentDestination, Out.TurnsWithAnyMove,
+		Out.FirstFrozenTurn, Out.BlockedByUnitEvents));
+
+	return Out;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotStalemateContendersTest,
+	"RefactorTactics.Bot.StalemateProbeContendersAreNamed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTBotStalemateContendersTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { return false; }
+	URTHexMapAsset* Demo = URTMatchSetupLibrary::MakeDemoArena(GetTransientPackage(), 4);
+	if (!TestNotNull(TEXT("arena demo generata"), Demo)) { return false; }
+
+	const FRTProbeContestReport Covered = RTRunSimultaneousResolutionProbe(Arena, *this, TEXT("copertura"));
+	const FRTProbeContestReport Open = RTRunSimultaneousResolutionProbe(Demo, *this, TEXT("esagono liscio"));
+
+	// 🔴 **IL RISULTATO, e ribalta la domanda di #1088**: le contese ci sono, sono ventiquattro, e sono
+	// **tutte fra COMPAGNI DI SQUADRA**. `u1` e `u2` si contendono `(-1,0)` per dodici turni di fila, `u3` e
+	// `u4` si contendono `(1,0)`, e nessuna coppia avversaria contende mai niente.
+	//
+	// ∴ la regola di contesa NON sta sbagliando: due unita' non possono stare nella stessa cella, e a parita'
+	// nessuna entra. A sbagliare e' la pianificazione, che decide **un'unita' alla volta** (`PlanUnit` non
+	// riceve i piani delle compagne) e produce due volte la stessa destinazione. Un tie-break nel resolver
+	// farebbe entrare una delle due e lascerebbe l'altra a ripetere la stessa scelta perdente al turno dopo.
+	TestTrue(TEXT("con copertura le contese ci sono"), Covered.Contests > 0);
+	TestEqual(TEXT("e sono TUTTE fra compagni di squadra"), Covered.CrossTeamContests, 0);
+	TestEqual(TEXT("nessuna contesa fra avversari, contate due volte"),
+		Covered.SameTeamContests, Covered.Contests);
+
+	// Il campo non si sblocca MAI: zero turni con almeno una mossa su dodici. E' lo stallo della partita
+	// reale, riprodotto senza mondo ne' attori.
+	TestEqual(TEXT("con copertura non si muove nessuno, per dodici turni"), Covered.TurnsWithAnyMove, 0);
+
+	// 🔴 **Le contese sono di DUE forme, ed e' questo a vincolare la correzione.** Misurato: `u1` e `u2`
+	// vogliono la STESSA cella finale — `(2,0,L=1)`, l'high ground a est — mentre `u3` e `u4` ne vogliono due
+	// diverse, `(2,0,L=1)` e `(2,-1,L=1)`, e collidono sul PRIMO PASSO di percorsi che condividono `(1,0,L=0)`.
+	//
+	// ∴ prenotare le sole destinazioni durante la pianificazione scioglierebbe **meta'** dello stallo. L'altra
+	// meta' non e' una questione di destinazioni: sono due rotte diverse che passano dalla stessa cella.
+	//
+	// ⚠️ Le due righe non hanno numeri letterali di proposito: il fatto che decide e' che **entrambe le forme
+	// esistano**, non che siano dodici e dodici — quel rapporto dipende dall'arena e invecchierebbe da solo.
+	TestTrue(TEXT("esistono contese sulla stessa destinazione"), Covered.ContestsWithSameDestination > 0);
+	TestTrue(TEXT("ed esistono collisioni di percorso, fra destinazioni diverse"),
+		Covered.ContestsWithDifferentDestination > 0);
+
+	// ⚠️ **Il controllo che toglie la vacuita'.** Sull'esagono liscio — la mappa dove in partita si arriva
+	// all'eliminazione — lo stesso ciclo non produce **nessuna** contesa e qualcuno si muove. Se il
+	// congelamento comparisse anche li' con gli stessi numeri, a essere rotto sarebbe questo modello e non il
+	// gioco: e' la stessa difesa del probe headless qui sopra.
+	TestEqual(TEXT("sull'esagono liscio nessuna contesa"), Open.Contests, 0);
+	TestTrue(TEXT("e li' qualcuno si muove"), Open.TurnsWithAnyMove > 0);
 
 	return true;
 }
