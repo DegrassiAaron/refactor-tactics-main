@@ -6097,7 +6097,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: null
+    branch: docs/1165-fase6-archive-e-navigazione
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6312,11 +6312,28 @@ tracks:
       validazione finale — e i **due mezzi** rimandati per `D-139`: `runbooks/` (7 documenti su 12 sono
       di `playtest`, `content_editor`, `frontend_shell`) e le cartelle `qa/`, che avrebbero preso gli
       stessi file. Si aprono con un `git mv` quando quelle track rilasciano.
+
+      ➕ **Fase 6, 2026-08-19** — archivio e navigazione. **23 piani** lasciano `docs/roadmap/plans/`
+      per `docs/archive/roadmap-plans/`, e il criterio non l'ho inventato: e' scritto nel README
+      dell'archivio — *«raccoglie i soli piani che si dichiaravano `HISTORICAL` o `SNAPSHOT`»* — cioe'
+      il **banner**, non la data nel nome. Misurato: 23 documenti portano `DELIVERED PLAN`, `AS-BUILT`,
+      `DONE` o `BRIEF` e nessuno e' assegnato o `integration_only`. Costo dei riferimenti: **18 link da
+      15 file**, un quarantesimo della fase 4.
+      🔴 **I due README si contraddicevano**, ed e' il difetto vero che questa fase chiude: l'archivio
+      dice «HISTORICAL **o SNAPSHOT**», `plans/` dice che uno `SNAPSHOT` **resta** finche' e' l'ultima
+      misura del suo oggetto. Due owner della stessa regola con due versioni: i 12 `SNAPSHOT` non si
+      spostano, e la riga dell'archivio si allinea alla regola raffinata.
+      ⚠️ **I conteggi di quei README diventano generati.** Il README di `plans/` dichiara di essere
+      andato fuori sincrono **tre volte in un giorno**, e in questo momento si contraddice: la tabella
+      dice `79` e il comando in fondo `# 75`. Lo split e' derivabile dai banner sul disco, quindi si
+      deriva — `docs_inventory.py --emit-plans`.
+      ⚠️ `docs/roadmap/plans/README.md` e' `integration_only`: toccato una volta, non preso nel `writable`.
     writable:
       - docs/README.md
+      - docs/roadmap/plans/
+      - docs/archive/roadmap-plans/
       - docs/generated/
       - docs/control-center/graph.test.mjs
-      - docs/generated/
       - docs/research/
       - scripts/check-docs-symbols.py
       - scripts/check-docs-tables.py
