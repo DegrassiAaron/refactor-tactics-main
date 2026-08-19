@@ -10,7 +10,7 @@
 >
 > | Qui il kit dice | Ma il canone dice |
 > |---|---|
-> | §3.5 — `TEAM READY 2/3` come componente persistente | non si simula un falso stato finche' non e' supportato — [`progettazione-hud.md`](../../../technical/progettazione-hud.md) |
+> | §3.5 — `TEAM READY 2/3` come componente persistente | non si simula un falso stato finche' non e' supportato — [`progettazione-hud.md`](../../../technical/systems/progettazione-hud.md) |
 > | §11, §30, §31 — «Fog of War» | non e' FoW: conoscenza parziale a tre livelli, geometria statica **nota** — [`brief-conoscenza-parziale.md`](../../../gameplay/brief-conoscenza-parziale.md) |
 > | §15 — `Eligible: Gadget / Riktor` | l'eleggibilita' e' per **capability**, mai per nome d'eroe — [`ADR-0006`](../../../decisions/adr-0006-ownership-abilita-sinergie.md) |
 >

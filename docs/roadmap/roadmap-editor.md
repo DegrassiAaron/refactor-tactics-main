@@ -59,7 +59,7 @@ quando la seduta è finita, cosa sblocca.
 
 **Non è** un manuale → la procedura passo-passo sta nelle guide esistenti
 ([`guida-animazioni-paragon.md`](../technical/guida-animazioni-paragon.md),
-[`convenzioni-contenuti-ue.md`](../technical/convenzioni-contenuti-ue.md) §5/§6/§11,
+[`convenzioni-contenuti-ue.md`](../technical/tooling/convenzioni-contenuti-ue.md) §5/§6/§11,
 [`../technical/debug-vs-unreal.md`](../technical/debug-vs-unreal.md)), e viene linkata. I passi espliciti compaiono
 solo dove nessuna guida copre ancora la cosa: oggi **U1** (costruire l'arena) e **U16** (misurare i KPI).
 
@@ -426,6 +426,6 @@ sbagliato.
 | [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 14 epic, 69 checkpoint |
 | *questo file* | **Operativo in editor**: sedute, artefatti, ordine, dipendenze |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | **Registro delle verifiche**: esito atteso e stato delle voci `PIE-*` |
-| [`convenzioni-contenuti-ue.md`](../technical/convenzioni-contenuti-ue.md) | **Normativo**: dove va un asset, come si chiama, come si sposta |
+| [`convenzioni-contenuti-ue.md`](../technical/tooling/convenzioni-contenuti-ue.md) | **Normativo**: dove va un asset, come si chiama, come si sposta |
 | [`guida-animazioni-paragon.md`](../technical/guida-animazioni-paragon.md) | Procedura per personaggi, AnimBP e montaggi |
 | [`../technical/debug-vs-unreal.md`](../technical/debug-vs-unreal.md) | Compilare, avviare, debuggare, eseguire i test |

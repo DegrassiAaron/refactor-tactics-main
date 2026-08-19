@@ -5,10 +5,10 @@
 > | Parte | Stato |
 > |---|---|
 > | **Principi della pipeline** — presentazione-only, riferimenti **soft** con fallback, Blueprint e AnimBP che *consumano* eventi autorevoli e non decidono nulla, licenze da registrare | `CURRENT`. Reggono, e discendono dall'invariante #1 |
-> | **«Stato attuale» e pipeline a due archetipi** (Gideon/Sparrow, Guardian/Ranger) | `HISTORICAL`. Era l'esperimento del 2026-08-03: il roster canonico è **Gadget · Phase · Riktor · Wraith**. La mappatura Paragon → eroe **non è più aperta**: [D-037](../decisions/RT_PDR_00_Decision_Log.md) del 2026-08-08 assegna gli slot `Paragon.Gadget`, `Paragon.Phase`, `Paragon.Riktor` e `Paragon.Wraith`, tabella owner in [`../characters/paragon.md`](../characters/paragon.md#mapping-visuale-del-roster) |
+> | **«Stato attuale» e pipeline a due archetipi** (Gideon/Sparrow, Guardian/Ranger) | `HISTORICAL`. Era l'esperimento del 2026-08-03: il roster canonico è **Gadget · Phase · Riktor · Wraith**. La mappatura Paragon → eroe **non è più aperta**: [D-037](../../decisions/RT_PDR_00_Decision_Log.md) del 2026-08-08 assegna gli slot `Paragon.Gadget`, `Paragon.Phase`, `Paragon.Riktor` e `Paragon.Wraith`, tabella owner in [`../../characters/paragon.md`](../../characters/paragon.md#mapping-visuale-del-roster) |
 >
 > **Non è l'owner di percorsi e naming**: quello è
-> [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md), che è normativo. Dove i due divergono, vince
+> [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md), che è normativo. Dove i due divergono, vince
 > quello. *(Cappello aggiunto il 2026-08-08.)*
 
 > `/sc:spec-panel` del **2026-08-03**. Obiettivo utente: *«selezionare gli asset, inserirli e utilizzarli —
@@ -16,8 +16,8 @@
 > Panel: **Cockburn** (attore/goal), **Fowler** (architettura/aggancio), **Wiegers** (criteri di selezione),
 > **Adzic** (DoD per esempi), **Nygard** (licenze/robustezza/LFS), **Doumont** (chiarezza).
 > Ancorata al codice (`RTUnit`, `RTGameMode`, `RTTurnManager`, `RTAbilityData`), al canone
-> ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)), alla roadmap ([`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)) e
-> al playback della risoluzione ([`spec-anima-risoluzione.md`](../gameplay/spec-anima-risoluzione.md)).
+> ([`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md)), alla roadmap ([`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md)) e
+> al playback della risoluzione ([`spec-anima-risoluzione.md`](../../gameplay/spec-anima-risoluzione.md)).
 > Workflow UE verificati sulla **doc ufficiale Epic** (URL in §7); le incertezze sono marcate esplicitamente.
 > **Documentale: nessuna modifica al codice in questo documento.**
 
@@ -25,7 +25,7 @@
 > *«asset placeholder / Starter Content»* e rimanda la **direzione artistica** al post-MVP; le unità sono
 > **cilindri** (static mesh). La richiesta — **personaggi skeletali animati** — va **oltre lo scope MVP** ed è
 > materiale **north-star**. Decisione dell'utente (2026-08-03) di procedere comunque: recepita e **gated** dietro
-> [`adr-0001-skeletal-unit.md`](../decisions/adr-0001-skeletal-unit.md), con **fallback al cilindro** e **invarianti #1/#4
+> [`adr-0001-skeletal-unit.md`](../../decisions/adr-0001-skeletal-unit.md), con **fallback al cilindro** e **invarianti #1/#4
 > intatti** (60 test verdi). L'MVP-core resta giocabile anche senza alcun asset.
 
 ---
@@ -91,7 +91,7 @@ Tre regole non negoziabili per **ogni** asset di presentazione:
 Scelta raccomandata (canone "presentazione in Blueprint"): **`BP_Unit : ARTUnit`** aggiunge in Blueprint uno
 `USkeletalMeshComponent` + AnimBP; `ARTGameMode` spawna il BP tramite `TSubclassOf<ARTUnit>` **configurabile per
 archetipo**, non più `ARTUnit::StaticClass()` fisso (`RTGameMode.cpp:80`). Dettaglio della decisione in
-[`adr-0001-skeletal-unit.md`](../decisions/adr-0001-skeletal-unit.md).
+[`adr-0001-skeletal-unit.md`](../../decisions/adr-0001-skeletal-unit.md).
 
 Punti che il refactor **deve** gestire (dal codice):
 
@@ -163,7 +163,7 @@ Content/
 > 🗄️ **`HISTORICAL` — questa struttura non è più quella del progetto.** Organizza **per tipo**, che §2 delle
 > convenzioni classifica come anti-pattern, ed è precisamente ciò che **CP 6.0** ha smontato spostando tutto
 > sotto `/Game/RT` **per feature**. Oggi vale
-> [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) §5, e `<CharacterId>` è il nome del **pack
+> [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) §5, e `<CharacterId>` è il nome del **pack
 > Paragon** (§5b, 2026-08-11): un personaggio sta in `/Game/RT/Characters/Gadget/{Blueprints,Animation}/`,
 > non in due rami separati. Resta qui come registro della proposta del 2026-08-03.
 
@@ -321,8 +321,8 @@ Slice successivi (spec separata o estensione): **Audio** (SFX sui delegate + mus
 > `C2`/`E1`» si sarebbe letto come un riferimento all'Epic 1. Trovato in code review: la misura che
 > dichiarava «zero occorrenze» aveva contato il concetto, non il **token**.
 
-Il progetto sapeva dire *quali* asset servono ([`asset-map.md`](asset-map.md)) e *quanto spazio* possono
-occupare ([`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md)). Non sapeva dire
+Il progetto sapeva dire *quali* asset servono ([`asset-map.md`](../tooling/asset-map.md)) e *quanto spazio* possono
+occupare ([`spec-graybox-placement-contract.md`](../systems/spec-graybox-placement-contract.md)). Non sapeva dire
 **a che punto è** un asset fra il segnaposto e l'arte finale, e la conseguenza è concreta: «il cilindro va
 sostituito» e «il modello va texturizzato» sono due lavori diversi che finivano nella stessa frase.
 
@@ -354,7 +354,7 @@ sostituito» e «il modello va texturizzato» sono due lavori diversi che finiva
 | Famiglia | Stadio | Come si verifica |
 |---|---|---|
 | Unità in partita | **AC0** | I quattro `BP_Unit_*` sono committati, ma le Skeletal Mesh che referenziano **no**: stanno sotto `Content/FabAsset/`, che `.gitignore` esclude — `git ls-files Content/FabAsset` dà **0**. Su un clone pulito il personaggio non risolve e resta il cilindro, creato **incondizionatamente** da `/Engine/BasicShapes/Cylinder` |
-| Oggetti di mappa | **AE0** | nessun asset graybox di mappa esiste in `Content/` — [`asset-map.md`](asset-map.md) §2.1 |
+| Oggetti di mappa | **AE0** | nessun asset graybox di mappa esiste in `Content/` — [`asset-map.md`](../tooling/asset-map.md) §2.1 |
 
 ### Le due regole che rendono le lane utili invece che decorative
 
@@ -371,11 +371,11 @@ calendario. `RT-FEAT-CHAR-PRESENTATION` è la feature che porta le unità da `AC
 > a «fra `AC0` e `AC1`» perché i quattro `BP_Unit_*` sono committati — ma un Blueprint che referenzia una
 > mesh **non versionata** non porta niente a chi clona. Lo stadio si misura su ciò che il repository
 > consegna, non su ciò che funziona sulla macchina di chi lo ha costruito: è la stessa distinzione che
-> [`asset-map.md`](asset-map.md) §1 fa fra ✅ *committato* e 🟡 *su disco*.
+> [`asset-map.md`](../tooling/asset-map.md) §1 fa fra ✅ *committato* e 🟡 *su disco*.
 
 > ⚠️ **Cosa queste lane NON sono.** Non un tracker: lo stato vive nel
-> [`feature-registry.yaml`](../roadmap/feature-registry.yaml) e nelle sedute di
-> [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml). Non una tassonomia di dati: **zero enum**,
+> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e nelle sedute di
+> [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml). Non una tassonomia di dati: **zero enum**,
 > come per la placement taxonomy. Sono un **vocabolario** per dire a che punto è una cosa, e servono
 > soprattutto a non confondere «manca l'asset» con «l'asset c'è ma è grezzo».
 
@@ -384,7 +384,7 @@ calendario. `RT-FEAT-CHAR-PRESENTATION` è la feature che porta le unità da `AC
 ## 12. Decisioni
 
 **Prese (2026-08-03):**
-- Personaggi skeletali animati (north-star), **gated** dietro [`adr-0001-skeletal-unit.md`](../decisions/adr-0001-skeletal-unit.md).
+- Personaggi skeletali animati (north-star), **gated** dietro [`adr-0001-skeletal-unit.md`](../../decisions/adr-0001-skeletal-unit.md).
 - Presentazione in **Blueprint** (`BP_Unit : ARTUnit` + AnimBP), spawn via `TSubclassOf` configurabile.
 - Animazioni **pilotate dai delegate**, non da `GetVelocity`.
 - **Fallback cilindro** obbligatorio; asset fuori da logica/test.
@@ -403,10 +403,10 @@ calendario. `RT-FEAT-CHAR-PRESENTATION` è la feature che porta le unità da `AC
 
 ## 13. Riferimenti
 
-- Canone: [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) — invarianti #1 (regole decidono), #4 (determinismo), §5 (convenzioni asset), §9 (art direction aperta).
-- Roadmap: [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md).
-- Playback e delegate: [`spec-anima-risoluzione.md`](../gameplay/spec-anima-risoluzione.md).
-- Decisione architetturale: [`adr-0001-skeletal-unit.md`](../decisions/adr-0001-skeletal-unit.md).
+- Canone: [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) — invarianti #1 (regole decidono), #4 (determinismo), §5 (convenzioni asset), §9 (art direction aperta).
+- Roadmap: [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md).
+- Playback e delegate: [`spec-anima-risoluzione.md`](../../gameplay/spec-anima-risoluzione.md).
+- Decisione architetturale: [`adr-0001-skeletal-unit.md`](../../decisions/adr-0001-skeletal-unit.md).
 - Codice: `RTUnit.cpp/.h`, `RTGameMode.cpp`, `RTTurnManager.cpp/.h`, `RTAbilityData.h`.
 - Doc UE ufficiale: Fab, FBX Import, IK Rig/Retargeter, MetaHuman, Skeletal Mesh Animation (URL in §7–§8).
 

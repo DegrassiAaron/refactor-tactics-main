@@ -1,17 +1,17 @@
 # Spec — Geometria architettonica, occupancy e cottura verso i dati tattici
 
 > `CURRENT` · **Stato**: owner del modello, allineato al codice il **2026-08-13** · **Owner**: questo file
-> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md),
-> [ADR-0002](../decisions/adr-0002-griglia-esagonale.md) e al
-> [Decision Log](../decisions/RT_PDR_00_Decision_Log.md).
-> **Nato da**: [revisione spec panel del 2026-08-13](../roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md),
+> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md),
+> [ADR-0002](../../decisions/adr-0002-griglia-esagonale.md) e al
+> [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md).
+> **Nato da**: [revisione spec panel del 2026-08-13](../../roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md),
 > che ha verificato l'assenza di un owner per questo tema — viveva solo in referti, archivio e registry.
 
 Questo documento risponde a **una** domanda: *cosa succede fra il gesto con cui un designer disegna un muro e
 il dato che il resolver legge per dire «non si passa»?*
 
 > ⚠️ **Non è un tracker.** Lo stato di implementazione vive nel
-> [`feature-registry.yaml`](../roadmap/feature-registry.yaml) e nelle issue. Qui c'è il **modello**: cosa
+> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e nelle issue. Qui c'è il **modello**: cosa
 > significano le cose e perché sono separate. Se una riga di questo file dichiara uno stato, è un difetto.
 
 ---
@@ -20,13 +20,13 @@ il dato che il resolver legge per dire «non si passa»?*
 
 | Tema | Owner |
 |---|---|
-| Coordinate, `FRTCellId`, transizioni fra layer, formato dell'asset | [`spec-mappa-multilivello.md`](spec-mappa-multilivello.md) |
-| A\*, archi percorribili, costi del cammino | [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) |
-| Regole di copertura, riduzione danno, distruzione | [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) · [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md) |
-| Superfici, stati, propagazione | [`../gameplay/spec-terreni-e8.md`](../gameplay/spec-terreni-e8.md) |
+| Coordinate, `FRTCellId`, transizioni fra layer, formato dell'asset | [`spec-mappa-multilivello.md`](../architecture/spec-mappa-multilivello.md) |
+| A\*, archi percorribili, costi del cammino | [`spec-pathfinding-pf3-pf4.md`](../architecture/spec-pathfinding-pf3-pf4.md) |
+| Regole di copertura, riduzione danno, distruzione | [`../../gameplay/spec-copertura-cp91.md`](../../gameplay/spec-copertura-cp91.md) · [`../../gameplay/spec-copertura-alta-cp92.md`](../../gameplay/spec-copertura-alta-cp92.md) |
+| Superfici, stati, propagazione | [`../../gameplay/spec-terreni-e8.md`](../../gameplay/spec-terreni-e8.md) |
 | LOS e forme di targeting | [`h6-4-hex-vision-spec.md`](h6-4-hex-vision-spec.md) |
-| Visualizzazione in editor: cosa serve vedere e perché | [`brief-editor-map-viz.md`](brief-editor-map-viz.md) |
-| Stato di avanzamento | [`../roadmap/feature-registry.yaml`](../roadmap/feature-registry.yaml) |
+| Visualizzazione in editor: cosa serve vedere e perché | [`brief-editor-map-viz.md`](../tooling/brief-editor-map-viz.md) |
+| Stato di avanzamento | [`../../roadmap/feature-registry.yaml`](../../roadmap/feature-registry.yaml) |
 
 ---
 
@@ -69,7 +69,7 @@ GEOMETRIA = gesto d'authoring, forma architettonica
 > ⚠️ Questa riga esiste perché la sua negazione è stata dedotta **due volte** da lettori diversi, a partire
 > dalla frase «le coperture stanno sui bordi». Quella frase parla del **dato cotto**, non del mondo: ciò che
 > sta sul bordo è l'effetto tattico, perché la direzionalità dev'essere esprimibile con interi dentro un hash.
-> Vedi [`spec-mappa-multilivello.md`](spec-mappa-multilivello.md) §4.
+> Vedi [`spec-mappa-multilivello.md`](../architecture/spec-mappa-multilivello.md) §4.
 
 ### 3.1 Ma non è nemmeno float arbitrario
 
@@ -89,7 +89,7 @@ la geometria tattica NON PUÒ avere endpoint o angoli float arbitrari nell'autho
 > 🔎 **«Junction» non è un concetto separato di questa grammatica.** La rappresentazione è a **polilinea**, e
 > la continuità strutturale ne discende: `ComputeMask` fa l'OR dei settori attraversati, quindi una junction
 > è trasparente al modello. Deciso il 2026-08-12 —
-> [referto](../roadmap/plans/level-designer-handoff-spec-panel-2026-08-12.md) §6.
+> [referto](../../roadmap/plans/level-designer-handoff-spec-panel-2026-08-12.md) §6.
 >
 > ⚠️ **L'elenco qui sopra diceva «quattro famiglie» e la quarta era `junction compatibili`**: la nota la
 > toglieva, la lista la rimetteva. Portato a **tre** il 2026-08-13 — perché quella lista è la stessa che
@@ -158,7 +158,7 @@ dalle altre.
 
 I simboli: `FRTGeometrySegment` (l'authority), `ERTTacticalAxis`, `ERTGeometryViolation` e
 `URTGeometryGrammarLibrary` in `Source/RefactorTactics/Map/RTGeometryGrammar.h`. Lo stato di avanzamento
-vive nel [`feature-registry.yaml`](../roadmap/feature-registry.yaml) e nelle issue, non qui — §1.
+vive nel [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e nelle issue, non qui — §1.
 
 ---
 
@@ -321,7 +321,7 @@ se c'è copertura o se una cella è calpestabile: legge dati tattici.
 > `Surface` cotta cambierebbe il confine di ogni futuro flood fill — un effetto sullo **strumento**, non sul
 > dato. La coppia `bBlocksMovement` + `!bBlocksLineOfSight` dice già «non ci si sta sopra, ma ci si vede
 > attraverso», e distingue un precipizio da un muro.
-> [Decisione](../OPEN_DECISIONS.md) · [referto](../roadmap/plans/level-designer-handoff-spec-panel-2026-08-12.md).
+> [Decisione](../../OPEN_DECISIONS.md) · [referto](../../roadmap/plans/level-designer-handoff-spec-panel-2026-08-12.md).
 
 ### 8.2 Una copertura sa se l'ha prodotta il bake — `D-131`
 
@@ -427,7 +427,7 @@ contro una mappa diversa da quella su cui era stato pianificato.
 ## 12. Decisioni aperte
 
 Nessuna di queste si decide in un commit di implementazione. Vivono in
-[`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+[`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
 
 | ID | Domanda | Innesco |
 |---|---|---|
@@ -471,13 +471,13 @@ Ognuno ha la sua issue; qui c'è solo il **contratto** che devono rispettare.
 
 **Le fixture geometriche non sono scenari.** Segmento, angolo, footprint solido e footprint void sono
 l'ingresso di una funzione pura e vivono in
-[`RTOccupancyFixtures.h`](../../Source/RefactorTactics/Tests/RTOccupancyFixtures.h); uno scenario JSON esiste
+[`RTOccupancyFixtures.h`](../../../Source/RefactorTactics/Tests/RTOccupancyFixtures.h); uno scenario JSON esiste
 solo per dimostrare un comportamento **di partita** — per esempio che un'unità non attraversa un muro cotto.
 
 Non estendere lo schema dello Scenario Harness per infilarci input d'editor.
 
-Le verifiche PIE stanno in [`test-manuali-pie.md`](test-manuali-pie.md) e devono comparire in una seduta di
-[`editor-sessions.yaml`](../roadmap/editor-sessions.yaml): una voce PIE senza seduta rischia di non essere
+Le verifiche PIE stanno in [`test-manuali-pie.md`](../test-manuali-pie.md) e devono comparire in una seduta di
+[`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml): una voce PIE senza seduta rischia di non essere
 mai eseguita.
 
 ---

@@ -10,7 +10,7 @@
 
 Prodotta il **2026-08-12** consolidando il pack sorgente elencato più sotto. Definisce **come** un concetto
 viene rappresentato; **dove e quando** appare è di
-[`progettazione-hud.md`](../../../../technical/progettazione-hud.md).
+[`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md).
 
 | File | Contenuto |
 |---|---|

@@ -133,7 +133,7 @@ in [`balance/`](../balance), non in questo documento: qui restano le **decisioni
 
 I 4 PRD (visione north-star) divergono su elementi *load-bearing* del path finding. Decisioni canoniche
 (prevalgono sui PDF); dettaglio e gate di implementazione in
-[`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md).
+[`spec-pathfinding-pf3-pf4.md`](../technical/architecture/spec-pathfinding-pf3-pf4.md).
 
 - **Fasi del turno** — prevale lo schema già canonico (§3, `ERTMatchPhase`):
   `Planning → Prep → Dash → Blast → Move → Cleanup`. Gli schemi del "piano completo"
@@ -250,7 +250,7 @@ Principi non negoziabili (valgono anche in offline, per preparare il multiplayer
 
 > Questa tabella elenca le classi **load-bearing** citate dal canone, non tutte: al 2026-08-08 il comando qui
 > sopra ne restituisce **40**. La mappa completa e aggiornata è di
-> [`../technical/architettura-codice.md`](../technical/architettura-codice.md), che ne è l'owner — il canone
+> [`../technical/architecture/architettura-codice.md`](../technical/architecture/architettura-codice.md), che ne è l'owner — il canone
 > non deve diventare un secondo inventario da tenere sincronizzato.
 
 ### Convenzioni asset
@@ -263,7 +263,7 @@ Naming `<Tipo>_<Feature>_<Nome>_<Variante>`: `BP_` Blueprint · `BPC_` Component
 Gli asset proprietari vivono sotto **`/Game/RT/`** con organizzazione **feature-first** (un asset sta vicino
 alla feature che lo possiede; niente cartelle globali per tipo). Regole vincolanti — struttura, posizionamento,
 dipendenze consentite fra cartelle, procedura di spostamento e checklist —
-in **[`convenzioni-contenuti-ue.md`](../technical/convenzioni-contenuti-ue.md)**.
+in **[`convenzioni-contenuti-ue.md`](../technical/tooling/convenzioni-contenuti-ue.md)**.
 
 ### Layout del progetto (radice repo)
 

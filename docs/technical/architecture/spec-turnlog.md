@@ -7,8 +7,8 @@
 > TurnLog»* — rendere ogni esito del turno **spiegabile** e produrre una traccia deterministica del round.
 > Panel: **Nygard** (osservabilità/robustezza), **Wiegers** (DoD misurabile), **Fowler** (confini), **Crispin/Adzic** (test per esempi).
 > Ancorata al codice (`RTTurnManager`, `RTMovementResolver`, `RTCombatResolver`, `RTCombatLibrary`, `RTResolvedEvent`),
-> al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) invarianti #1/#3/#4/#7, §5.1, §6) e alla roadmap
-> ([`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md)).
+> al canone ([`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) invarianti #1/#3/#4/#7, §5.1, §6) e alla roadmap
+> ([`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md)).
 > **Documentale: questo file non modifica il codice.**
 
 > ✅ **Nessun conflitto di scope**: P3 **non** è north-star. La roadmap lo traccia già come mitigazione del rischio
@@ -28,8 +28,8 @@
 >
 > | La revisione 2026-08-03 diceva | Oggi |
 > |---|---|
-> | «la copertura **non** riduce il danno, blocca la LOS ⇒ attacco scartato» | **Dipende dal tipo**: la copertura **bassa riduce** il danno (CP 9.1), la copertura **alta blocca** il bordo (CP 9.2). La riduzione decade se il colpo arriva fuori dall'arco frontale ([ADR-0005](../decisions/adr-0005-orientamento.md) §4a) |
-> | «l'unico modificatore di danno è l'**altura** (`EffectiveAttackPower`, +danno)» | **Falso oggi.** `OccupantDamageBonus` è un parametro **generico** e ogni call site runtime passa `0` — verificato il 2026-08-08 in `RTTurnManager.cpp`. La quota **non** dà danno ([D-024](../decisions/RT_PDR_00_Decision_Log.md)): vale per geometria |
+> | «la copertura **non** riduce il danno, blocca la LOS ⇒ attacco scartato» | **Dipende dal tipo**: la copertura **bassa riduce** il danno (CP 9.1), la copertura **alta blocca** il bordo (CP 9.2). La riduzione decade se il colpo arriva fuori dall'arco frontale ([ADR-0005](../../decisions/adr-0005-orientamento.md) §4a) |
+> | «l'unico modificatore di danno è l'**altura** (`EffectiveAttackPower`, +danno)» | **Falso oggi.** `OccupantDamageBonus` è un parametro **generico** e ogni call site runtime passa `0` — verificato il 2026-08-08 in `RTTurnManager.cpp`. La quota **non** dà danno ([D-024](../../decisions/RT_PDR_00_Decision_Log.md)): vale per geometria |
 >
 > **Categorie e outcome correnti** (da `Turn/RTTurnLog.h`, non da memoria):
 > `ERTLogCategory = { Move, Combat, Fallback, Reaction, Environment }` ·
@@ -45,7 +45,7 @@
 
 Dal formato **v5** ogni voce porta `BaseActionId` accanto a `ActionId`: l'azione **generica** di cui quella è
 un profilo — `Action.BasicAttack` per `Hero.Riktor.ImpactShot`. Serve a
-[D-033](../decisions/RT_PDR_00_Decision_Log.md), che chiede che un'azione generica con profilo sia
+[D-033](../../decisions/RT_PDR_00_Decision_Log.md), che chiede che un'azione generica con profilo sia
 «spiegabile nel TurnLog come *azione base + profilo*».
 
 **Perché nella voce e non solo nel catalogo.** `Hero.Riktor.ImpactShot` è un'azione **d'eroe**: chi legge una
@@ -75,7 +75,7 @@ colpo destinato a Wraith lo incassa Riktor. `UnitId` porta già l'altro capo —
 incassa — quindi la voce ora nomina **entrambi**.
 
 **Perché un campo e non la sola `SrcCell`**, dove la cella del protetto è già scritta. È l'inferenza
-cella → unità che [D-063](../decisions/RT_PDR_00_Decision_Log.md) ha dichiarato non valida introducendo
+cella → unità che [D-063](../../decisions/RT_PDR_00_Decision_Log.md) ha dichiarato non valida introducendo
 `UnitId`, e qui è pure peggio: la `SrcCell` di questa voce è la cella di **un'altra** unità, quindi chi legge
 deve già sapere che la voce è un'interposizione per interpretarla. Un'assertion di scenario che risolvesse la
 cella troverebbe l'occupante di **fine turno**, non chi era bersagliato al Blast.
@@ -99,8 +99,8 @@ uno scenario: `LogEventCount(Reaction, Activated) == 1` è vero anche col bersag
 Le tracce **dalla v2 alla v8 restano leggibili**, col campo a `INDEX_NONE`, e il loader **non** lo deduce
 dalla `SrcCell` risolvendo l'occupante: su una traccia storica quella cella può aver cambiato inquilino.
 >
-> Dettaglio delle regole di copertura: [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) ·
-> [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md).
+> Dettaglio delle regole di copertura: [`../../gameplay/spec-copertura-cp91.md`](../../gameplay/spec-copertura-cp91.md) ·
+> [`../../gameplay/spec-copertura-alta-cp92.md`](../../gameplay/spec-copertura-alta-cp92.md).
 
 ---
 
@@ -126,7 +126,7 @@ HUD** esistente (stringhe arricchite). Il TurnLog è **in-memory** e coperto da 
 | `ResolvePaths` restituisce `FRTPathResult{Final,Entered}` — **nessun outcome** esposto | `RTMovementResolver.h:39-48` |
 | **Copertura = blocca la LOS** (`GetVisionBlockers`); senza LOS l'attacco è **scartato** (non ridotto) | `RTTurnManager.cpp:567-570,612-618` |
 | **Budget / blocco-su-copertura** rifiutati in **PIANIFICAZIONE** (input), non nella risoluzione | `RTPlayerController.cpp:231-233,265-277` |
-| Danno effettivo = `EffectiveAttackPower(Power, OccupantDamageBonus)` — bonus **generico di cella**, ~~altura +danno~~: ogni call site runtime passa `0` ([D-024](../decisions/RT_PDR_00_Decision_Log.md)) | `RTTurnManager.cpp`; `RTCombatLibrary.h` |
+| Danno effettivo = `EffectiveAttackPower(Power, OccupantDamageBonus)` — bonus **generico di cella**, ~~altura +danno~~: ogni call site runtime passa `0` ([D-024](../../decisions/RT_PDR_00_Decision_Log.md)) | `RTTurnManager.cpp`; `RTCombatLibrary.h` |
 | `URTCombatResolver::ResolveAttacks` applica scudo→HP e somma; morte via `NewlyDefeated(BeforeHP,AfterHP)` | `RTTurnManager.cpp:703-724`; `RTCombatLibrary.h:70-71` |
 | `ARTUnit` senza id esplicito; ha `TeamId` e `GridCell`; vale «max 1 unità/cella» | `RTUnit.h:36,47`; canone §6 |
 
@@ -201,7 +201,7 @@ UENUM(BlueprintType) enum class ERTFacingOutcome : uint8 {
 };
 ```
 
-**Perché scritture e letture stanno nello stesso enum.** [D-020](../decisions/RT_PDR_00_Decision_Log.md)
+**Perché scritture e letture stanno nello stesso enum.** [D-020](../../decisions/RT_PDR_00_Decision_Log.md)
 stabilisce che il facing cambia più volte per round e che ogni consumatore legge il valore autorevole più
 recente. Un log di sole scritture direbbe *quando è cambiato* ma non *cosa ha usato il Blast*, e un round con
 scatto e colpo nella stessa sequenza resterebbe ambiguo. La domanda a cui il replay deve rispondere è una
@@ -213,7 +213,7 @@ in uso: `Amount` è il payload numerico della categoria — danno per `Combat`, 
 
 ⚠️ Dal 2026-08-10 il payload si legge guardando **anche `Outcome`**, non la sola `Category`: le voci `Move`
 con esito `DisplacementResisted` portano in `Amount` un `ERTDisplacementBlockReason` e non un numero di celle
-([D-079](../decisions/RT_PDR_00_Decision_Log.md)). Non è un'eccezione nuova — `Fallback` fa già così — ma è la
+([D-079](../../decisions/RT_PDR_00_Decision_Log.md)). Non è un'eccezione nuova — `Fallback` fa già così — ma è la
 prima volta che una **stessa categoria** ha due letture, e chi scrive un lettore deve saperlo.
 
 **Un non-cambiamento non è un evento.** Riscrivere il facing che l'unità ha già non produce nessuna voce:
@@ -224,7 +224,7 @@ altrimenti l'hash del replay diventerebbe sensibile a scritture che non decidono
 ### 4.2 Categoria `Decision` — il Decision Time Bank *(decisa il 2026-08-09, issue `#361`)*
 
 Questa spec è **owner dei nomi di evento e dei reason code**, e fino a oggi non conteneva la parola `Bank`:
-[`spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) §10 chiede tre contatori
+[`spec-decision-time-bank.md`](../../gameplay/spec-decision-time-bank.md) §10 chiede tre contatori
 (`BankBeforeMs`, `BankConsumedMs`, `BankAfterMs`) e `FRTTurnLogEntry` ha **un solo** `Amount`. La domanda era
 aperta — *tre voci, o un campo nuovo?* — e bloccava CP 14.8. Ecco la risposta.
 
@@ -259,7 +259,7 @@ finestre di decisione. Il precedente è già stato preso due volte: `Facing` por
 `TimeoutReason`, che §10 elenca fra i requisiti informativi: sono identità e motivi, non contatori, e
 seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e sono lavoro di CP 14.7/14.8.
 
-> ✅ **Confermata il 2026-08-17 — [D-166](../decisions/RT_PDR_00_Decision_Log.md) — dopo un conflitto reale
+> ✅ **Confermata il 2026-08-17 — [D-166](../../decisions/RT_PDR_00_Decision_Log.md) — dopo un conflitto reale
 > con il codice.** Con **CP 14.5** è atterrata in coda a `ERTLogCategory` una categoria di nome simile,
 > `ReactionDecision`, già serializzata e presente in cinque call site — **tre letture** e **due scritture**.
 > 🔴 **La divergenza è durata TRE giorni, non uno**: `git log -S ReactionDecision -- Source/RefactorTactics/Turn/RTTurnLog.h`
@@ -283,7 +283,7 @@ seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e
 > `FireChosen` — e farci scrivere anche i millisecondi del bank significherebbe che lo stesso campo, sotto la
 > stessa categoria, cambia unità di misura secondo l'esito. È il difetto che il commento di
 > `ERTReactionDecisionOutcome` argomenta di aver evitato tenendo un enum solo, reintrodotto dall'altra parte.
-> ➕ È il caso particolare della regola generale che [D-162](../decisions/RT_PDR_00_Decision_Log.md) pone
+> ➕ È il caso particolare della regola generale che [D-162](../../decisions/RT_PDR_00_Decision_Log.md) pone
 > lo stesso giorno su un ramo parallelo: **una categoria, un enum**.
 >
 > ⚠️ **Conteggio delle voci**: una finestra di reazione ne produce **tre** — `1 × ReactionDecision` più le
@@ -294,7 +294,7 @@ seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e
 > registra l'esito e l'altra il costo, e nessuna delle due è derivabile dall'altra.
 >
 > 🔴 **Il difetto non era il nome: era che nessuno ha riletto questa § quando CP 14.5 ne ha aggiunta una
-> simile in coda.** Registrato alla riga **75** di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md).
+> simile in coda.** Registrato alla riga **75** di [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md).
 
 ### 4.3 La **causa** di un esito *(2026-08-10, CP 11.3 `#79` + `#307`)*
 
@@ -329,7 +329,7 @@ UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
 | Reazione | *nessun produttore in v0.1* — nessuna reazione del catalogo dichiara `Push`/`Pull`. Quando esisterà, userà lo stesso campo |
 | Spinta **annullata** | `Category=Move`, `Phase=Blast`, **`Outcome=DisplacementResisted`**, `SrcCell == TgtCell`, e il **perché** in `Amount` — vedi sotto |
 
-### La spinta che non sposta ([D-079](../decisions/RT_PDR_00_Decision_Log.md), `#420`)
+### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 
 `#307` ha spiegato lo spostamento **avvenuto** e ha lasciato muto quello **mancato**, che è il caso su cui il
 giocatore fa la domanda: *perché non si è mosso, se l'ho colpito?*. I modi di non muoversi sono **sei**, e
@@ -350,7 +350,7 @@ formato**, per un dato che esiste su un solo esito.
 | `NoDestination` | bordo mappa, ostacolo o unità subito dietro | no |
 | `ContestedDestination` | due bersagli spinti verso la **stessa** cella | no |
 
-⚠️ **`PushResistance` non ha un valore**, ed è deliberato: [D-075](../decisions/RT_PDR_00_Decision_Log.md) l'ha
+⚠️ **`PushResistance` non ha un valore**, ed è deliberato: [D-075](../../decisions/RT_PDR_00_Decision_Log.md) l'ha
 portata a `0` su tutto il roster, quindi un produttore su quel ramo sarebbe codice che nessuna partita
 attraversa e un valore che nessun test può coprire. Il punto in cui andrà scritto porta già il commento.
 
@@ -448,7 +448,7 @@ un ordine di risoluzione mai avvenuto. Per la stessa ragione il combat log non s
 `LockInAndResolve` → i resolver girano come oggi → classificazione → `ARTTurnManager`: (1) accoda `FRTTurnLogEntry`,
 (2) chiama `AddLogEvent` con la stringa **arricchita** dal reason (es. *«Guardian: fermo (cella contesa)»*,
 *«Ranger → Bot: 45 (bonus di cella)»*, *«Ranger → Bot: nessuna linea di tiro»*). *(L'esempio diceva «altura
-+danno»: la quota non dà danno, [D-024](../decisions/RT_PDR_00_Decision_Log.md).)*
++danno»: la quota non dà danno, [D-024](../../decisions/RT_PDR_00_Decision_Log.md).)*
 
 **Ordinamento del TurnLog** (deterministico, invariante #3/§5.1): **fase → categoria → `SrcCell` → `TgtCell` →
 `Outcome` → `Amount` → `ActionId` → `TurnNumber` → `GraphRevision` → `UnitId` → `Priority`**. Non dipende
@@ -461,7 +461,7 @@ un ordine di risoluzione mai avvenuto. Per la stessa ragione il combat log non s
 > stare in questa catena, o due voci che pareggiano su tutto il resto restano a pari merito e a decidere
 > l'ordine resta un sort **non stabile**. Unica eccezione: un campo che non può produrre pareggi perché
 > funzione di un altro già presente — `BaseActionId` rispetto ad `ActionId`.
-> Vedi [D-067](../decisions/RT_PDR_00_Decision_Log.md).
+> Vedi [D-067](../../decisions/RT_PDR_00_Decision_Log.md).
 
 > ⚠️ **La posizione di `fase` in testa alla catena ha un consumatore**, dal 2026-08-10 (`#415`): il seek per
 > fase di `URTReplaySeekLibrary` poggia sul fatto che `Phase` è la **prima** chiave e che `ERTMatchPhase`
@@ -475,7 +475,7 @@ un ordine di risoluzione mai avvenuto. Per la stessa ragione il combat log non s
 ## 7. Determinismo & invarianti
 
 - **Chiave unità = cella di partenza del turno** (max 1/cella ⇒ univoca), **mai** pointer/spawn-order.
-  ⚠️ **Emendato dal 2026-08-10 ([D-063](../decisions/RT_PDR_00_Decision_Log.md))**: resta la chiave di
+  ⚠️ **Emendato dal 2026-08-10 ([D-063](../../decisions/RT_PDR_00_Decision_Log.md))**: resta la chiave di
   **ordinamento**, non è più la chiave di **identità**. La cella non identifica l'attore in tre casi presenti
   nel codice — le voci **ambientali** non hanno un'unità; l'**interposizione** scrive la cella del *protetto*;
   dopo un **Dash** la cella in fase Blast non è più quella di partenza. L'identità la porta `UnitId`
@@ -545,7 +545,7 @@ Slice successivo — **serializzazione versionata** — ✅ **fatto** (`SR`, mer
 **Prese (2026-08-03):**
 - **D-TL-1** — TurnLog come struttura autoritativa separata (`FRTTurnLogEntry`), non estensione di `FRTResolvedEvent`.
 - **D-TL-2** — chiave unità = cella di partenza del turno (permutazione-invariante).
-  **Emendata il 2026-08-10** da [D-063](../decisions/RT_PDR_00_Decision_Log.md): chiave di ordinamento sì,
+  **Emendata il 2026-08-10** da [D-063](../../decisions/RT_PDR_00_Decision_Log.md): chiave di ordinamento sì,
   di identità no — vedi §7.
 - **D-TL-3** — outcome esposti da funzioni pure (resolver + `URTCombatLibrary`); l'Actor è collettore.
 - **D-TL-4** — scope = Movimento + Combat; hash di replay e hazard/status rimandati.
@@ -556,9 +556,9 @@ Slice successivo — **serializzazione versionata** — ✅ **fatto** (`SR`, mer
 
 ---
 
-## 12-bis. Cosa il v6 **non** porta, e perché — `GEO-3` ([D-080](../decisions/RT_PDR_00_Decision_Log.md))
+## 12-bis. Cosa il v6 **non** porta, e perché — `GEO-3` ([D-080](../../decisions/RT_PDR_00_Decision_Log.md))
 
-Il [quinto handoff](../archive/src/handoff/2026-08-10-full-grid-geometry-walls-water.md) §22–§27 propone un
+Il [quinto handoff](../../archive/src/handoff/2026-08-10-full-grid-geometry-walls-water.md) §22–§27 propone un
 modello causale ricco: causa primaria e cause contribuenti, dedup per identità semantica, `EventId`
 match-global, provenance e credit degli oggetti persistenti. È atterrato **lo stesso giorno** del TurnLog v6,
 e `#431` chiedeva di riconciliare i due invece di consolidare al buio.
@@ -570,10 +570,10 @@ un'altra voce.
 
 | Domanda della fonte | Classificazione | Perché |
 |---|---|---|
-| Causa **primaria** + **contribuenti**, o una sola? | **Scartata per la v0.1** | La voce ha *un* `ActionId`. Aggiungere `ContributingCauses[]` significa un campo a lunghezza variabile in una voce a **larghezza fissa** ([spec-turnlog-serialize](spec-turnlog-serialize.md) §85), quindi versione di formato nuova, per zero consumatori. ⚠️ E la v0.1 ha già una risposta operativa: con [D-079](../decisions/RT_PDR_00_Decision_Log.md), quando le cause sono due la voce **non ne nomina nessuna** — normalizza a una, e se non c'è tace invece di sceglierne una a caso |
-| **Dedup** per identità semantica: produttore o lettore? | **Scartata ora**; se mai, **nel produttore** | Non c'è nulla da deduplicare finché non esistono `CauseEventIds[]`. Ma la risposta è già vincolata: l'hash si calcola **sulle voci** ([D-062](../decisions/RT_PDR_00_Decision_Log.md)), quindi una dedup nel lettore produrrebbe due letture diverse della **stessa** traccia a hash identico — cioè romperebbe l'invariante che l'hash esiste per proteggere |
-| `EventId` **match-global** o per-turno: cambia la forma dell'hash? | **Già risposta dalla struttura** | La traccia è **per turno**; il legame fra turni lo tiene il **manifest di partita** di [D-077](../decisions/RT_PDR_00_Decision_Log.md), col GUID fuori da ogni hash. Se un `EventId` nascesse, **non entrerebbe nell'hash**: è identità, e vale il criterio di [D-063](../decisions/RT_PDR_00_Decision_Log.md) che tiene fuori `UnitId` e `TurnNumber` e dentro `GraphRevision` — dentro ciò che cambia *cosa è successo*, fuori ciò che dice *a chi* |
-| Provenance/ownership sopravvivono al replay? | **Da aggiungere — ma non ha ancora un soggetto** | Non è materia di TurnLog: è dato dell'**oggetto persistente**, e in v0.1 non esiste un oggetto controllabile (`CP 10.1` è ⏳: nessun oggetto da attivare in mappa). Quando esisterà, [D-078](../decisions/RT_PDR_00_Decision_Log.md) ne fissa già il vincolo — il Player **non ricalcola**, quindi `OriginEventId`/`OriginTeamId` devono viaggiare **nella traccia** dell'evento di creazione, non essere ricostruiti |
+| Causa **primaria** + **contribuenti**, o una sola? | **Scartata per la v0.1** | La voce ha *un* `ActionId`. Aggiungere `ContributingCauses[]` significa un campo a lunghezza variabile in una voce a **larghezza fissa** ([spec-turnlog-serialize](spec-turnlog-serialize.md) §85), quindi versione di formato nuova, per zero consumatori. ⚠️ E la v0.1 ha già una risposta operativa: con [D-079](../../decisions/RT_PDR_00_Decision_Log.md), quando le cause sono due la voce **non ne nomina nessuna** — normalizza a una, e se non c'è tace invece di sceglierne una a caso |
+| **Dedup** per identità semantica: produttore o lettore? | **Scartata ora**; se mai, **nel produttore** | Non c'è nulla da deduplicare finché non esistono `CauseEventIds[]`. Ma la risposta è già vincolata: l'hash si calcola **sulle voci** ([D-062](../../decisions/RT_PDR_00_Decision_Log.md)), quindi una dedup nel lettore produrrebbe due letture diverse della **stessa** traccia a hash identico — cioè romperebbe l'invariante che l'hash esiste per proteggere |
+| `EventId` **match-global** o per-turno: cambia la forma dell'hash? | **Già risposta dalla struttura** | La traccia è **per turno**; il legame fra turni lo tiene il **manifest di partita** di [D-077](../../decisions/RT_PDR_00_Decision_Log.md), col GUID fuori da ogni hash. Se un `EventId` nascesse, **non entrerebbe nell'hash**: è identità, e vale il criterio di [D-063](../../decisions/RT_PDR_00_Decision_Log.md) che tiene fuori `UnitId` e `TurnNumber` e dentro `GraphRevision` — dentro ciò che cambia *cosa è successo*, fuori ciò che dice *a chi* |
+| Provenance/ownership sopravvivono al replay? | **Da aggiungere — ma non ha ancora un soggetto** | Non è materia di TurnLog: è dato dell'**oggetto persistente**, e in v0.1 non esiste un oggetto controllabile (`CP 10.1` è ⏳: nessun oggetto da attivare in mappa). Quando esisterà, [D-078](../../decisions/RT_PDR_00_Decision_Log.md) ne fissa già il vincolo — il Player **non ricalcola**, quindi `OriginEventId`/`OriginTeamId` devono viaggiare **nella traccia** dell'evento di creazione, non essere ricostruiti |
 
 ⚠️ **Nessuna delle quattro è «no per sempre».** Tre sono rinvii con un innesco dichiarato — e con la forma
 della risposta già vincolata, quindi quando l'innesco scatta restano un diff e non una domanda. La terza è una
@@ -585,7 +585,7 @@ escluso.
 
 ## 13. Riferimenti
 
-- Canone: [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) — invarianti #1/#3/#4/#7, §5.1 (APNAP/tie-break), §6.
-- Roadmap: [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) — risk register, KPI «Replay divergence = 0».
+- Canone: [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) — invarianti #1/#3/#4/#7, §5.1 (APNAP/tie-break), §6.
+- Roadmap: [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) — risk register, KPI «Replay divergence = 0».
 - Codice: `RTTurnManager.h/.cpp`, `RTMovementResolver.h/.cpp`, `RTCombatResolver.h/.cpp`, `RTCombatLibrary.h/.cpp`, `RTResolvedEvent.h`, `RTUnit.h`, `RTPlayerController.cpp`.
-- Playback (struttura sorella, non riusata): [`spec-anima-risoluzione.md`](../gameplay/spec-anima-risoluzione.md).
+- Playback (struttura sorella, non riusata): [`spec-anima-risoluzione.md`](../../gameplay/spec-anima-risoluzione.md).

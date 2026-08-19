@@ -4,13 +4,13 @@
 > rimosso dal codice al **CP 7.2**. Conservata per provenienza: spiega *perche'* il grafo tattico ha la forma
 > che ha, ed e' la fonte di diverse decisioni ancora valide.
 >
-> **Non descrive il gioco di oggi.** Spec corrente: [`spec-pathfinding-pf3-pf4.md`](../../technical/spec-pathfinding-pf3-pf4.md).
+> **Non descrive il gioco di oggi.** Spec corrente: [`spec-pathfinding-pf3-pf4.md`](../../technical/architecture/spec-pathfinding-pf3-pf4.md).
 > Archiviata il 2026-08-08.
 
 # Spec — Path Finding avanzato: PF.3 (cost provider + A* pesato) e PF.4 (grafo multilivello)
 
 > Prodotta da un panel di revisione specifiche (`/sc:spec-panel`) il **2026-08-02**.
-> Segue [`spec-pathfinding.md`](../../technical/spec-pathfinding.md) (PF.1/PF.2, già implementati).
+> Segue [`spec-pathfinding.md`](../../technical/architecture/spec-pathfinding.md) (PF.1/PF.2, già implementati).
 > Autorità: subordinata a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md). I riferimenti PDF = north-star.
 
 ## 0. Riconciliazioni recepite (decisioni 2026-08-02)

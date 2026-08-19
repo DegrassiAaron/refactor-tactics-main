@@ -7,7 +7,7 @@
 > l'unità prima di risolvere**. Vedi la nuova **§2-bis**, che nomina i sei punti della timeline. Il resto
 > dell'ADR — facing come stato di gioco, arco frontale unico, determinismo e privacy — resta invariato.
 > **Contesto sorgente**: `docs/archive/src/design/action-ghosts-fasi-fast-reactions.md` §17 (campo `Facing`
-> nel view model) e [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) §C5, che registrava il punto come aperto.
+> nel view model) e [`brief-planning-visuale.md`](../technical/systems/brief-planning-visuale.md) §C5, che registrava il punto come aperto.
 > **Estende**: [ADR-0003](adr-0003-modello-azioni-v01.md) (stili di movimento) · [ADR-0004](adr-0004-finestre-di-reazione.md) (reazioni direzionali)
 >
 > ⛔ **Superato in parte 2026-08-10 — [ADR-0008](adr-0008-rotazione-e-policy-di-facing.md)**: la **§1** (tabella
@@ -109,7 +109,7 @@ non è ricostruibile e la §5 (determinismo) diventa falsa.
 > effetto che non dichiara nulla si comporta esattamente come descritto qui.
 
 Spinta, knockback e displacement da reazione **non** sono la Move Phase (regola già consolidata in
-[`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) §A7) e quindi non seguono la regola §1. L'unità
+[`brief-planning-visuale.md`](../technical/systems/brief-planning-visuale.md) §A7) e quindi non seguono la regola §1. L'unità
 spostata contro la propria volontà si gira **verso la cella di origine dell'ultimo effetto di spostamento
 subito**, nell'ordine canonico di risoluzione — che è già totale e deterministico.
 

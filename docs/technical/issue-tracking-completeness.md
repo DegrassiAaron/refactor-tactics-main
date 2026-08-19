@@ -135,7 +135,7 @@ Placeholder acceptable: Yes/No
 
 **Non bloccare una Issue di gameplay su un asset finale quando basta un graybox** — dichiaralo.
 
-⚠️ La destinazione segue [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md), ed è normativa. E un
+⚠️ La destinazione segue [`convenzioni-contenuti-ue.md`](tooling/convenzioni-contenuti-ue.md), ed è normativa. E un
 `.uasset` nuovo richiede la **riga di allowlist prima che l'asset esista**: `.gitignore` esclude
 `Content/**/*.uasset` e riammette per file. Nell'ordine inverso `git add` non fa nulla e non lo dice.
 

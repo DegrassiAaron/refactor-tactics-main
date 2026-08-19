@@ -1,8 +1,8 @@
 # Brief — Planning visuale: Action Ghosts e Ghost Timeline
 
 > **Stato**: analizzato, checkpoint proposti · **Data**: 2026-08-07
-> **Sorgente**: [`../archive/src/design/action-ghosts-fasi-fast-reactions.md`](../archive/src/design/action-ghosts-fasi-fast-reactions.md) (22 sezioni)
-> **Destinazione**: epic **E11** di [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) — CP 11.5 e CP 11.6, più un'estensione della DoD di CP 11.2
+> **Sorgente**: [`../../archive/src/design/action-ghosts-fasi-fast-reactions.md`](../../archive/src/design/action-ghosts-fasi-fast-reactions.md) (22 sezioni)
+> **Destinazione**: epic **E11** di [`roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) — CP 11.5 e CP 11.6, più un'estensione della DoD di CP 11.2
 
 Il documento sorgente descrive **come si guarda un turno prima di confermarlo**: copie semitrasparenti del
 personaggio (*Action Ghost*) disposte per fase (*Ghost Timeline*), scrubbing delle fasi, grammatica visiva
@@ -72,7 +72,7 @@ warning è una **predizione** e non un esito, va marcato *previsto* o *incerto* 
 «in quale direzione sarà orientato»). Oggi il facing **non decide nulla**: `Actions.Wait.AllowsFacingAndReaction`
 esiste proprio come promessa di non impedirlo, e nessuna regola di cover o LOS lo consuma.
 
-> ✅ **Deciso il 2026-08-07** — [ADR-0005](../decisions/adr-0005-orientamento.md), epic **E16**. Il facing **diventa stato
+> ✅ **Deciso il 2026-08-07** — [ADR-0005](../../decisions/adr-0005-orientamento.md), epic **E16**. Il facing **diventa stato
 > di gioco**, e la raccomandazione «derivato, finché nessuna regola lo consuma» è superata: i consumatori ora
 > sono tre. Deriva dall'**ultima azione di movimento** (una direzione per i movimenti lineari, tre per il Move
 > a budget — ultimo passo ±1 — sei da fermo) e decide **difesa** (fuori dall'arco frontale copertura e Guard
@@ -83,7 +83,7 @@ esiste proprio come promessa di non impedirlo, e nessuna regola di cover o LOS l
 > `Facing` del view model smette di essere una posa decorativa: è una scelta, e sceglierla senza vederla
 > significa sceglierla alla cieca.
 >
-> ⚠️ **Aggiornato il 2026-08-08 — [D-020](../decisions/RT_PDR_00_Decision_Log.md).** La frase «l'orientamento si
+> ⚠️ **Aggiornato il 2026-08-08 — [D-020](../../decisions/RT_PDR_00_Decision_Log.md).** La frase «l'orientamento si
 > fissa a fine Move» **non vale più**: un'azione con bersaglio orienta l'unità **prima di risolvere**, quindi
 > il facing cambia **più volte dentro il round**. Per la preview la conseguenza è concreta: il ghost non può
 > mostrare *un* facing per unità, deve mostrare **quello della fase selezionata** dallo scrubbing — il facing
@@ -121,5 +121,5 @@ warning di collisione, Fast Reaction reale, conoscenza parziale, multilivello, r
   presentazione di **M8**; i CP qui sopra chiedono che un `PoseId` esista e sia selezionabile, non che le
   animazioni siano prodotte.
 - **Ghost su più livelli** con occlusione fra layer: rinviato, come indica la sorgente.
-- **Facing autorevole**: **non più fuori scope** — è l'epic **E16** ([ADR-0005](../decisions/adr-0005-orientamento.md)).
+- **Facing autorevole**: **non più fuori scope** — è l'epic **E16** ([ADR-0005](../../decisions/adr-0005-orientamento.md)).
   Resta fuori di qui la sua *implementazione*: CP 11.5 lo **mostra**, CP 16.1 lo **decide**.

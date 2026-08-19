@@ -2,7 +2,7 @@
 > provenienza, mai per la regola. Il contenuto recepito vive ora nelle fonti canoniche.
 >
 > **Cosa è entrato** — [D-154](../../decisions/RT_PDR_00_Decision_Log.md): il *Tactical Designer* è un nome
-> di workflow con un owner documentale — [`spec-tactical-designer.md`](../../technical/spec-tactical-designer.md)
+> di workflow con un owner documentale — [`spec-tactical-designer.md`](../../technical/tooling/spec-tactical-designer.md)
 > — non un modulo, non una epic per pannello e non una seconda numerazione di release. Con esso: il
 > checkpoint **M9.4** in [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md), le due feature
 > `RT-FEAT-TOOL-SCENARIO-COMPOSER` e `RT-FEAT-TOOL-SKILL-WORKBENCH` in

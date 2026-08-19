@@ -6,13 +6,13 @@
 > è stata **emendata** da E9 (copertura bassa e alta, bordi che bloccano) e lo sarà da E13/E16 (conoscenza
 > parziale, facing e arco frontale). Le sezioni sotto non vanno aggiornate come se fossero design corrente.
 >
-> Owner corrente: [`architettura-codice.md`](architettura-codice.md) ·
-> [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) ·
-> [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md).
+> Owner corrente: [`architettura-codice.md`](../architecture/architettura-codice.md) ·
+> [`../../gameplay/spec-copertura-cp91.md`](../../gameplay/spec-copertura-cp91.md) ·
+> [`../../gameplay/spec-copertura-alta-cp92.md`](../../gameplay/spec-copertura-alta-cp92.md).
 
 > **Stato**: **Implementata** · **Data**: 2026-08-05 · **Branch**: `feat/hex-vision`
-> *(la suite «156/156» è il numero di allora; oggi si misura col comando in [`../README.md`](../README.md))*
-> **Fonte**: milestone **H6** di [`hex-map-roadmap.md`](../roadmap/hex-map-roadmap.md). Prerequisito dello switch di
+> *(la suite «156/156» è il numero di allora; oggi si misura col comando in [`../../README.md`](../../README.md))*
+> **Fonte**: milestone **H6** di [`hex-map-roadmap.md`](../../roadmap/hex-map-roadmap.md). Prerequisito dello switch di
 > `ARTTurnManager` su hex. Non tocca il turn loop quadrato.
 
 ## 1. Perché adesso

@@ -85,8 +85,8 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 | [`docs/roadmap/roadmap-v0.1.md`](docs/roadmap/roadmap-v0.1.md) | Release **v0.1**: 16 epic, 82 checkpoint, stato feature → file |
 | [`docs/roadmap/v0.1-definition-of-done.md`](docs/roadmap/v0.1-definition-of-done.md) | Gate di release, KPI, checklist di contenuto |
 | [`docs/roadmap/roadmap-checkpoint.md`](docs/roadmap/roadmap-checkpoint.md) | Milestone M6–M11 con DoD misurabile e stato |
-| [`docs/technical/architettura-codice.md`](docs/technical/architettura-codice.md) | Mappa delle classi C++ |
-| [`docs/technical/convenzioni-contenuti-ue.md`](docs/technical/convenzioni-contenuti-ue.md) | Struttura di `Content/`, naming, dipendenze |
+| [`docs/technical/architecture/architettura-codice.md`](docs/technical/architecture/architettura-codice.md) | Mappa delle classi C++ |
+| [`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md) | Struttura di `Content/`, naming, dipendenze |
 | [`docs/technical/test-manuali-pie.md`](docs/technical/test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |
 | ADR [0002](docs/decisions/adr-0002-griglia-esagonale.md) · [0003](docs/decisions/adr-0003-modello-azioni-v01.md) · [0004](docs/decisions/adr-0004-finestre-di-reazione.md) | Pivot esagonale · modello azioni · finestre di reazione |
 | [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md) | Cosa aspetta una decisione, e perché non è deducibile |
@@ -133,7 +133,7 @@ Per averli:
 > ⚠️ Essendo dentro il repo, `git clean -fdx` **cancella** questi 48 GB (`-x` include i file ignorati).
 > Usare `git clean -fd`, oppure `git clean -fdx -e Content/FabAsset`.
 
-Regole complete: [`docs/technical/convenzioni-contenuti-ue.md`](docs/technical/convenzioni-contenuti-ue.md),
+Regole complete: [`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md),
 appendice B.
 
 ## Principi di sviluppo

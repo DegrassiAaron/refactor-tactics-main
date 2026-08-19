@@ -4,7 +4,7 @@
 > Triage: [`consolidamento-chat-openai-triage-2026-08-09.md`](../../../roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md) §«cluster UI / UX».
 >
 > **Esito diverso dagli altri cluster**: su piu' punti il repository era **piu' avanti della fonte**. Owner
-> vivi: [`progettazione-hud.md`](../../../technical/progettazione-hud.md) e le epic E11/E20.
+> vivi: [`progettazione-hud.md`](../../../technical/systems/progettazione-hud.md) e le epic E11/E20.
 >
 > ⚠️ **Non applicare** le 15 `RT-FEAT-UI-*` di §30: sei esistono, nove no, e ne omette due che esistono
 > (`RT-FEAT-UI-ICON-LANGUAGE`, `RT-FEAT-UI-SCENARIO-BROWSER`).

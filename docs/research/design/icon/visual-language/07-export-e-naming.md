@@ -2,7 +2,7 @@
 
 > **Statuto**: sorgente di design, non canone. Vedi [`01-principi.md`](01-principi.md).
 >
-> **Owner della pipeline Unreal**: [`progettazione-hud.md`](../../../../technical/progettazione-hud.md)
+> **Owner della pipeline Unreal**: [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md)
 > §41–§44 — che cosa produrre come asset 2D, che cosa no, struttura di `Content/RT/UI/`. Qui c'è il naming
 > **semantico** e i formati di consegna.
 

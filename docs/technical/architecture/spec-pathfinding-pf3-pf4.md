@@ -1,12 +1,12 @@
 # Spec — Pathfinding sul grafo tattico esagonale
 
 > `CURRENT` · **Stato**: as-built, allineata al codice il **2026-08-08** · **Owner**: questo file
-> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e a
-> [ADR-0002](../decisions/adr-0002-griglia-esagonale.md).
+> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) e a
+> [ADR-0002](../../decisions/adr-0002-griglia-esagonale.md).
 >
 > Si legge **senza conoscere la migrazione**: qui non si parla di quadrato. Il corpo originale, scritto per
 > `FRTGridCoord` a 4 vicini e distanza Manhattan, è conservato in
-> [`spec-pathfinding-pf3-pf4-quadrato.md`](../archive/technical/spec-pathfinding-pf3-pf4-quadrato.md) — le sigle
+> [`spec-pathfinding-pf3-pf4-quadrato.md`](../../archive/technical/spec-pathfinding-pf3-pf4-quadrato.md) — le sigle
 > **PF.3/PF.4** vengono da lì e sopravvivono solo nel nome di questo file.
 
 ---
@@ -31,7 +31,7 @@ La mappa **non** è una matrice di celle adiacenti per posizione: è un grafo, e
 
 Che gli adiacenti orizzontali siano *calcolati* non è un dettaglio implementativo: è la ragione per cui una
 trappola su transizione possiede la propria coppia `(From → To)` invece di appenderla alla mappa
-([D-013](../decisions/RT_PDR_00_Decision_Log.md)). Non c'è un arco su cui appenderla.
+([D-013](../../decisions/RT_PDR_00_Decision_Log.md)). Non c'è un arco su cui appenderla.
 
 `URTHexPathLibrary::GraphNeighbors(Map, Cell)` restituisce i vicini percorribili in **ordine deterministico**:
 prima le sei direzioni nell'ordine `E, NE, NW, W, SW, SE`, poi le transizioni nell'ordine dell'asset.
@@ -103,7 +103,7 @@ Misurate, non stimate. Test `RefactorTactics.Perf.PathfindingMedian`:
 | Mediana del resolver di turno (contesto) | **0,41 ms/turno** (`RefactorTactics.Perf.TurnResolverMedian`) |
 
 I numeri valgono sulla macchina di sviluppo e sulle mappe correnti: l'hardware target non è definito
-([`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)), quindi sono **misure**, non garanzie.
+([`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md)), quindi sono **misure**, non garanzie.
 
 ---
 
@@ -112,7 +112,7 @@ I numeri valgono sulla macchina di sviluppo e sulle mappe correnti: l'hardware t
 | Tema | Owner |
 |---|---|
 | Struttura della mappa, layer, transizioni come contenuto | [`spec-mappa-multilivello.md`](spec-mappa-multilivello.md) |
-| Copertura: tipi, integrità, distruzione | [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) · [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md) |
-| Budget di movimento, profili `Sneak/Move/Sprint`, collisioni simultanee | [`../gameplay/spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md) · [`../balance/RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) |
+| Copertura: tipi, integrità, distruzione | [`../../gameplay/spec-copertura-cp91.md`](../../gameplay/spec-copertura-cp91.md) · [`../../gameplay/spec-copertura-alta-cp92.md`](../../gameplay/spec-copertura-alta-cp92.md) |
+| Budget di movimento, profili `Sneak/Move/Sprint`, collisioni simultanee | [`../../gameplay/spec-sequenza-turno.md`](../../gameplay/spec-sequenza-turno.md) · [`../../balance/RT_ActionCatalog_v0.1.md`](../../balance/RT_ActionCatalog_v0.1.md) |
 | Mappa delle classi C++ | [`architettura-codice.md`](architettura-codice.md) |
-| Stato di avanzamento | [`../roadmap/roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) |
+| Stato di avanzamento | [`../../roadmap/roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) |

@@ -278,7 +278,7 @@ def load_state(directory):
                 "state.json illeggibile (%s). Non va riparato a intuito: rinominalo come backup e "
                 "rilancia — il bootstrap ricostruisce da capo dal massimo canonico, e il contatore "
                 "restera' monotono perche' non riempie mai i buchi. Vedi "
-                "docs/technical/workflow-parallel-claude.md §Recovery." % exc
+                "docs/technical/tooling/workflow-parallel-claude.md §Recovery." % exc
             )
 
 

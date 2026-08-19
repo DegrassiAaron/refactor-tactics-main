@@ -1,9 +1,9 @@
 # Sessioni parallele e ID condivisi — meccanismo
 
-> **Owner del meccanismo.** Le *regole* stanno in [`../../AGENTS.md`](../../AGENTS.md) §Git; qui c'è come
+> **Owner del meccanismo.** Le *regole* stanno in [`../../../AGENTS.md`](../../../AGENTS.md) §Git; qui c'è come
 > funziona e cosa fare quando si rompe. Decisioni:
-> [D-135](../decisions/RT_PDR_00_Decision_Log.md) (worktree e ID condivisi) e
-> [D-139](../decisions/RT_PDR_00_Decision_Log.md) (write-set di batch e lease binaria).
+> [D-135](../../decisions/RT_PDR_00_Decision_Log.md) (worktree e ID condivisi) e
+> [D-139](../../decisions/RT_PDR_00_Decision_Log.md) (write-set di batch e lease binaria).
 >
 > Le §1–§10 rispondono a *«due sessioni possono scegliere lo stesso numero?»*. Le §11–§15 a
 > *«due sessioni possono scrivere lo stesso file?»*, che è un problema diverso e non lo risolve
@@ -220,8 +220,8 @@ Due invarianti li tengono insieme:
 ⚠️ **Questi quattro nomi non sono un dato, e non devono diventarlo.** Non esiste un
 `parallel-tracks.yaml`, non esistono quattro shortlist generate, non esiste un campo `work_tracks` nel
 Feature Registry — e la ragione è misurata in
-[`../roadmap/plans/quattro-processi-paralleli-triage-2026-08-14.md`](../roadmap/plans/quattro-processi-paralleli-triage-2026-08-14.md) §4:
-[`execution-graph.yaml`](../roadmap/execution-graph.yaml) ha già **due** tassonomie validate sugli stessi
+[`../../roadmap/plans/quattro-processi-paralleli-triage-2026-08-14.md`](../../roadmap/plans/quattro-processi-paralleli-triage-2026-08-14.md) §4:
+[`execution-graph.yaml`](../../roadmap/execution-graph.yaml) ha già **due** tassonomie validate sugli stessi
 oggetti — `execution_lanes` (`code`/`pie`/`asset`: *chi esegue*) e `domain_groups` (8 gruppi sulle `area`
 del registry: *di cosa parla*) — e il processo Content/Editor **è** `pie` + `asset`. I tre processi Claude,
 per contro, non sono una funzione di `domain_group`: `characters_content` si spezza su tre di essi e
@@ -237,7 +237,7 @@ header che entrambi estendono, un documento owner. Il dominio non è una garanzi
 write-set sì.
 
 Prima di avviare un lotto di sessioni parallele si dichiara chi scrive cosa, in
-[`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml).
+[`../../roadmap/parallel-batch.yaml`](../../roadmap/parallel-batch.yaml).
 
 ```
 WritableSet(T1) ∩ WritableSet(T2) = ∅
@@ -275,7 +275,7 @@ Tre categorie non si assegnano a nessuno:
   vede intera, e il conflitto che ne esce non si risolve scegliendo un lato.
 
   ➕ Il repository ha **due** toolchain: `feature_registry.py` in Python e `tools/radar/` in Node, che
-  produce otto SVG versionati con un `--check` proprio ([D-108](../decisions/RT_PDR_00_Decision_Log.md)).
+  produce otto SVG versionati con un `--check` proprio ([D-108](../../decisions/RT_PDR_00_Decision_Log.md)).
   Chi tocca `docs/balance/` rende rosso il secondo gate senza che il primo dica niente.
 - **`preexisting`** — i branch già vivi al momento del calcolo. Non fanno parte del batch: sono il vincolo
   che lo determina.
@@ -364,7 +364,7 @@ La lease non previene un conflitto: previene un **lavoro perso**.
 Consentiti: Unreal Editor, Content Browser, editor scripting approvato, commandlet di resave supportati,
 tool del progetto. Vietati: hex editor, patch binarie, rename da filesystem, spostare package senza il
 workflow dei redirector. Rename e move passano da Content Browser + **Fix Up Redirectors** + audit dei
-riferimenti — è la regola di [`../../AGENTS.md`](../../AGENTS.md) §Unreal, che la lease non sostituisce.
+riferimenti — è la regola di [`../../../AGENTS.md`](../../../AGENTS.md) §Unreal, che la lease non sostituisce.
 
 ⚠️ **La ignore policy non si tocca per comodità.** Molti asset Fab vivono nel vault, restano fuori da git e
 vengono migrati per dipendenza: prima di modificare allowlist o `.gitignore` si legge
@@ -383,7 +383,7 @@ risultato è che **non serve estenderlo**:
 | `CP x.y` | no | roadmap owner | manuale — ⚠️ i due spazi (`Enn` e `Mnn`) **collidono già** per costruzione |
 | `ADR-nnnn` | no | `docs/decisions/` | manuale, `0001`…`0009` |
 | `ERTTurnLogFormatVersion` | **sì** | `RTTurnLog.h` | v7 — audit forte |
-| `URTHexMapAsset::CurrentFormatVersion` | **sì** | `RTHexMapAsset.h` | v8, in migrazione ([D-137](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `URTHexMapAsset::CurrentFormatVersion` | **sì** | `RTHexMapAsset.h` | v8, in migrazione ([D-137](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | `ERTReplayManifestVersion` | **sì** | `RTReplayManifest.h` | 1 |
 
 I tre serializzati hanno **una sola sorgente di scrittura** ciascuno: la difesa che serve non è un lock, è
@@ -392,7 +392,7 @@ branch remoti, non solo su `main`*. Una versione di formato duplicata non si rin
 scritte, perché il loader sceglie l'interpretazione dal numero.
 
 Il dettaglio della misura è nel triage
-[§7.3](../roadmap/plans/quattro-processi-paralleli-triage-2026-08-14.md).
+[§7.3](../../roadmap/plans/quattro-processi-paralleli-triage-2026-08-14.md).
 
 ## 15. Chiudere un batch
 
@@ -414,4 +414,4 @@ Non serve un `Gxx` nuovo: l'integration gate è **operativo**, e l'identità del
 
 ⚠️ **Il passo 8 va fatto sull'albero unito, non su un branch.** Un generato prodotto prima del merge è
 corretto sulla propria base e falso dopo — è la stessa lezione che il totale di
-[`../archive/src/README.md`](../archive/src/README.md) ha imparato nove volte.
+[`../../archive/src/README.md`](../../archive/src/README.md) ha imparato nove volte.

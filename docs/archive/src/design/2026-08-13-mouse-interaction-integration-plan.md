@@ -27,7 +27,7 @@
 **Data:** 2026-08-12  
 **Target:** RefactorTactics v0.1 / E11  
 ~~**Documento owner da aggiungere:** `docs/technical/spec-mouse-world-ui-interaction.md`~~
-→ **owner reale**: [`../../../technical/spec-pointer-interaction.md`](../../../technical/spec-pointer-interaction.md)
+→ **owner reale**: [`../../../technical/systems/spec-pointer-interaction.md`](../../../technical/systems/spec-pointer-interaction.md)
 
 ## 1. Nuova issue
 
