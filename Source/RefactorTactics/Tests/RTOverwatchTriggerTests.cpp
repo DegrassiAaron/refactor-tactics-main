@@ -1529,6 +1529,131 @@ bool FRTClashLockOrderIsCanonicalTest::RunTest(const FString&)
 }
 
 /**
+ * Il reveal avviene **alla scadenza**, mai all'arrivo del secondo lock (§7.1).
+ *
+ * In un resolver che non dipende dal tempo reale la regola non puo' essere un timer: diventa «nessun esito
+ * e' osservabile finche' non hanno lockato tutti». Il test verifica le tre configurazioni, e la seconda e'
+ * quella che morde — **un lock su due non rivela niente**, nemmeno l'esito di chi ha gia' scelto.
+ *
+ * ⚠️ Se il reveal anticipasse, un giocatore saprebbe *quando* l'altro ha deciso: e' la latenza di decisione
+ * come lettura dell'avversario, che §7.1 esiste per negare. Qui si vede come assenza di dati.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashRevealIsFixedDeadlineTest,
+	"RefactorTactics.Clash.RevealIsFixedDeadline",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashRevealIsFixedDeadlineTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+
+	FRTContestedBoundary B;
+	B.Participants = { MakeContender(1, 2), MakeContender(9, 2) };
+
+	// (a) NESSUN lock: niente da rivelare.
+	{
+		const FRTClashResolution R = Lib::ResolveContestedBoundary(B, {});
+		TestFalse(TEXT("senza lock non si rivela niente"), R.bRevealed);
+		TestEqual(TEXT("e non c'e' alcun esito da leggere"), R.Outcomes.Num(), 0);
+	}
+
+	// (b) UN lock su due: e' il caso che la regola protegge. Chi ha lockato non deve poter essere dedotto.
+	{
+		const TArray<FRTContestedLock> Solo = { { 1, TEXT("RESPONSE_0"), ERTGrammarIntent::Read } };
+		const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Solo);
+		TestFalse(TEXT("un lock su due NON rivela"), R.bRevealed);
+		TestEqual(TEXT("nessun esito"), R.Outcomes.Num(), 0);
+		TestEqual(TEXT("e nemmeno l'elenco di chi ha lockato"), R.UnitIds.Num(), 0);
+	}
+
+	// (c) entrambi: solo ora si rivela, e per tutti insieme.
+	{
+		const TArray<FRTContestedLock> Both = {
+			{ 1, TEXT("RESPONSE_0"), ERTGrammarIntent::Read },
+			{ 9, TEXT("RESPONSE_1"), ERTGrammarIntent::Stand }
+		};
+		const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Both);
+		TestTrue(TEXT("con tutti i lock si rivela"), R.bRevealed);
+		TestEqual(TEXT("due esiti, uno per partecipante"), R.Outcomes.Num(), 2);
+		if (R.Outcomes.Num() == 2)
+		{
+			// READ batte STAND, e l'unita' 1 e' la prima in ordine canonico.
+			TestTrue(TEXT("chi ha letto vince"), R.Outcomes[0] == ERTClashOutcome::Win);
+			TestTrue(TEXT("e chi ha tenuto perde"), R.Outcomes[1] == ERTClashOutcome::Lose);
+		}
+	}
+
+	// (d) l'ORDINE DI ARRIVO non cambia l'esito: e' l'invariante #4. Gli stessi due lock, invertiti.
+	{
+		const TArray<FRTContestedLock> Ordine1 = {
+			{ 1, TEXT("RESPONSE_0"), ERTGrammarIntent::Read },
+			{ 9, TEXT("RESPONSE_1"), ERTGrammarIntent::Stand }
+		};
+		const TArray<FRTContestedLock> Ordine2 = {
+			{ 9, TEXT("RESPONSE_1"), ERTGrammarIntent::Stand },
+			{ 1, TEXT("RESPONSE_0"), ERTGrammarIntent::Read }
+		};
+		const FRTClashResolution R1 = Lib::ResolveContestedBoundary(B, Ordine1);
+		const FRTClashResolution R2 = Lib::ResolveContestedBoundary(B, Ordine2);
+
+		TestEqual(TEXT("stesso ordine canonico in uscita"), R2.UnitIds, R1.UnitIds);
+		TestTrue(TEXT("stesso esito per il primo"), R1.Outcomes[0] == R2.Outcomes[0]);
+		TestTrue(TEXT("stesso esito per il secondo"), R1.Outcomes[1] == R2.Outcomes[1]);
+	}
+
+	// (e) un lock di chi NON partecipa non apre il reveal, e uno duplicato non vale per due.
+	{
+		const TArray<FRTContestedLock> Estranei = {
+			{ 1, TEXT("RESPONSE_0"), ERTGrammarIntent::Read },
+			{ 1, TEXT("RESPONSE_1"), ERTGrammarIntent::Shift }, // duplicato dello stesso partecipante
+			{ 77, TEXT("RESPONSE_0"), ERTGrammarIntent::Stand } // non e' un partecipante
+		};
+		const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Estranei);
+		TestFalse(TEXT("tre lock che non coprono i due partecipanti non rivelano"), R.bRevealed);
+	}
+
+	return true;
+}
+
+/**
+ * Il **pareggio** si applica una volta per partecipante, e non e' il fallimento di nessuno (§5).
+ *
+ * `Tie` non e' «nessuno dei due ha ottenuto qualcosa»: e' un esito dichiarato, che la maneuver traduce in
+ * effetti propri — per `Hold Ground` e' *«nessun displacement»*, che e' esattamente cio' che il difensore
+ * voleva. Il test verifica che **entrambi** lo ricevano, una volta ciascuno: un `Tie` applicato due volte
+ * allo stesso partecipante raddoppierebbe l'effetto della maneuver.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashTieAppliesOnceTest,
+	"RefactorTactics.Clash.TieAppliesOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashTieAppliesOnceTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+
+	FRTContestedBoundary B;
+	B.Participants = { MakeContender(3, 2), MakeContender(5, 2) };
+
+	// Stessa intenzione da entrambi: e' il pareggio.
+	const TArray<FRTContestedLock> Locks = {
+		{ 3, TEXT("RESPONSE_0"), ERTGrammarIntent::Shift },
+		{ 5, TEXT("RESPONSE_0"), ERTGrammarIntent::Shift }
+	};
+
+	const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Locks);
+
+	if (!TestTrue(TEXT("il boundary si rivela"), R.bRevealed)) { return false; }
+	TestEqual(TEXT("un esito per partecipante, non di piu'"), R.Outcomes.Num(), 2);
+	TestEqual(TEXT("e un partecipante per esito"), R.UnitIds.Num(), 2);
+
+	int32 Ties = 0;
+	for (ERTClashOutcome O : R.Outcomes) { if (O == ERTClashOutcome::Tie) { ++Ties; } }
+	TestEqual(TEXT("entrambi pareggiano"), Ties, 2);
+
+	// Nessun partecipante compare due volte: e' cio' che «una volta sola» significa in pratica.
+	TestTrue(TEXT("i due esiti appartengono a due unita' diverse"), R.UnitIds[0] != R.UnitIds[1]);
+
+	return true;
+}
+
+/**
  * La grammatica e' un **ciclo**: `READ > STAND > SHIFT > READ` ([D-049], §4.1).
  *
  * Le tre relazioni si verificano tutte e in **entrambi i versi** — se `A` batte `B`, `B` deve perdere contro

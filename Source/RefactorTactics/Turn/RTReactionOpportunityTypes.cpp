@@ -159,6 +159,100 @@ int32 URTReactionOpportunityLibrary::CompareGrammarIntents(ERTGrammarIntent A, E
 	return bAWins ? 1 : -1;
 }
 
+FRTClashResolution URTReactionOpportunityLibrary::ResolveContestedBoundary(
+	const FRTContestedBoundary& Boundary, const TArray<FRTContestedLock>& Locks)
+{
+	FRTClashResolution Out;
+
+	// --- 1. Il lock di ciascun PARTECIPANTE, non di ciascun messaggio ---------------------------------
+	//
+	// Si parte dai partecipanti dichiarati e si cerca il loro lock, invece di iterare i lock: un lock di chi
+	// non partecipa non deve poter aprire un reveal, e un lock duplicato non deve valere due volte. La
+	// cardinalita' del reveal e' una proprieta' del boundary, non di quanti messaggi sono arrivati.
+	//
+	// Si tiene il PRIMO lock di ciascuno: un secondo lock dello stesso partecipante sarebbe un ripensamento
+	// dopo il vincolo, e il vincolo e' il punto — «lock» significa che la scelta non si cambia piu'.
+	TArray<int32> Ids;
+	TArray<ERTGrammarIntent> Intents;
+	for (const FRTReactionParticipant& P : Boundary.Participants)
+	{
+		const FRTContestedLock* Found = Locks.FindByPredicate(
+			[&P](const FRTContestedLock& L) { return L.UnitId == P.UnitId; });
+
+		if (Found == nullptr)
+		{
+			// Manca almeno un lock: NIENTE si rivela. E' la scadenza fissa di §7.1 resa una proprieta' dei
+			// dati — chi chiama non ha un esito parziale da cui dedurre che l'altro ha gia' scelto.
+			return Out;
+		}
+
+		Ids.Add(P.UnitId);
+		Intents.Add(Found->Intent);
+	}
+
+	if (Ids.Num() < 2)
+	{
+		// Un boundary con meno di due partecipanti non e' un Clash e non ha niente da confrontare. Non e' un
+		// errore: e' il single-responder, che si risolve altrove con `AskReactionDecision`.
+		return Out;
+	}
+
+	// --- 2. Ordine CANONICO, non di arrivo (§7.3) -----------------------------------------------------
+	//
+	// Si ordinano gli indici e non gli array in parallelo: due `StableSort` indipendenti su due array
+	// potrebbero disallinearsi, ed e' il tipo di difetto che non si vede finche' i due partecipanti non
+	// hanno intenti diversi.
+	TArray<int32> Order;
+	for (int32 I = 0; I < Ids.Num(); ++I) { Order.Add(I); }
+	Order.StableSort([&Ids](int32 A, int32 B) { return Ids[A] < Ids[B]; });
+
+	// --- 3. Il confronto, e il pareggio applicato UNA volta --------------------------------------------
+	//
+	// Con due partecipanti la matrice di [D-049] decide; con piu' di due il confronto a coppie non e'
+	// definito dalla spec, e qui **non si inventa**: si rivela il pareggio per tutti, che e' l'esito neutro
+	// gia' previsto da §5. Il giorno in cui un boundary a tre esistera', la regola si decide li' e non si
+	// eredita da un'implementazione che nessuno ha discusso.
+	Out.bRevealed = true;
+	for (int32 I : Order)
+	{
+		Out.UnitIds.Add(Ids[I]);
+	}
+
+	if (Ids.Num() == 2)
+	{
+		const int32 FirstIdx = Order[0];
+		const int32 SecondIdx = Order[1];
+		const int32 Cmp = CompareGrammarIntents(Intents[FirstIdx], Intents[SecondIdx]);
+
+		if (Cmp > 0)
+		{
+			Out.Outcomes.Add(ERTClashOutcome::Win);
+			Out.Outcomes.Add(ERTClashOutcome::Lose);
+		}
+		else if (Cmp < 0)
+		{
+			Out.Outcomes.Add(ERTClashOutcome::Lose);
+			Out.Outcomes.Add(ERTClashOutcome::Win);
+		}
+		else
+		{
+			// Pari per entrambi, e **una volta sola**: il Tie non e' un fallimento di nessuno dei due (§5),
+			// quindi non produce due applicazioni dello stesso effetto.
+			Out.Outcomes.Add(ERTClashOutcome::Tie);
+			Out.Outcomes.Add(ERTClashOutcome::Tie);
+		}
+	}
+	else
+	{
+		for (int32 I = 0; I < Ids.Num(); ++I)
+		{
+			Out.Outcomes.Add(ERTClashOutcome::Tie);
+		}
+	}
+
+	return Out;
+}
+
 FRTReactionDecision URTReactionOpportunityLibrary::DecisionOnTimeout(const FRTReactionOpportunity&)
 {
 	// PURA e costante: `HOLD`, sempre. Non guarda l'opportunity di proposito — se la guardasse, esisterebbe
