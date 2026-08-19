@@ -6103,7 +6103,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: docs/1165-runbooks-e-rilascio-track
+    branch: null
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6365,9 +6365,17 @@ tracks:
       gli altri quattro vanno in `runbooks/`. Un `qa/` di primo livello sarebbe un **terzo asse** sugli
       stessi file — `test-automatico-unreal.md` e' insieme «strumento» e «QA», e dovrebbe stare in due
       posti. E' la versione-cartella di *un concetto, un owner*, ed e' il motivo per cui non si fa.
+
+      ✅ **`runbooks/` aperta e track chiusa**: PR **#1227** in `main`. `branch: null`.
+      Di #1165 resta **una cosa sola**, e ha un innesco preciso invece di una data: i due documenti di
+      `playtest` — `test-manuali-pie.md` e `qa-prompt-terminal-d-verifiche-pie.md` — entrano in
+      `technical/runbooks/` quando **#1013** chiude. Due righe di `git mv`, piu' i riferimenti: 79 link
+      entrano nel primo dei due, quindi conviene farlo con i tre riscrittori e non a mano.
+      ⛔ `docs/qa/` **non si aprira'**: e' una decisione registrata in `docs/technical/README.md`, non
+      un rinvio. Dopo la divisione di `technical/` sarebbe un terzo asse sugli stessi file.
+      ➖ `docs/technical/` esce dal `writable`: il giro e' finito.
     writable:
       - docs/README.md
-      - docs/technical/
       - docs/roadmap/plans/
       - docs/archive/roadmap-plans/
       - docs/generated/
