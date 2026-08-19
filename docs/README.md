@@ -197,16 +197,21 @@ docs/
 ├── roadmap/     milestone, release v0.1, DoD, requisiti di lungo periodo
 │   └── plans/   piani di esecuzione consegnati (storico)
 ├── decisions/   ADR e Decision Log
-├── wiki/        guida al gioco per il giocatore (meccaniche, fazioni, sinergie) — divulgativa
-│   ├── game/        loop, azioni, ambiente, sinergie e combinazioni
-│   ├── meccaniche/  manuale per regola
-│   └── fazioni/     identità, filosofia, roster, scenari dimostrativi
+├── wiki/        **vuota**: le pagine di gioco vivono nel clone pubblicato (D-076). Resta un puntatore
 ├── characters/  pagine personaggio: v0.1, v0.2, candidati Paragon — **un kit per pagina**
+│   └── radar/   gli otto SVG generati da `tools/radar/`: output, non si editano
+├── control-center/  la vista web sopra gli artefatti generati dal Feature Registry
 ├── src/         sorgenti non normativi ancora da consumare: PRD di visione, dataset, media
 └── archive/     materiale superato
     ├── src/        i sorgenti già recepiti: design, handoff, audit
     └── pdr-v0.1/   il corpus PDR v0.1, consolidato in un Markdown
 ```
+
+> ⚠️ Fino al 2026-08-18 questo albero elencava `wiki/game/`, `wiki/meccaniche/` e `wiki/fazioni/` come
+> se contenessero le pagine del giocatore. Non le contengono dal **2026-08-10**: [D-076](decisions/RT_PDR_00_Decision_Log.md)
+> ha spostato la Wiki in un repository separato, e da allora questa sezione descriveva tre cartelle
+> inesistenti. Un albero disegnato a mano non si accorge di un file che sparisce — è lo stesso difetto
+> per cui i conteggi di questa pagina sono diventati generati.
 
 ### Due deviazioni dichiarate
 
@@ -220,6 +225,33 @@ docs/
    > [`archive/src/`](archive/src/README.md), invece di restare con un banner. La cartella `src/` risponde ora
    > a una domanda sola — *cosa non è ancora stato consumato?* — e la risposta è la posizione del file, non una
    > colonna di un indice.
+
+### Le quattro nature di un file, e perché la posizione le deve dire
+
+Un lettore che arriva deve poter rispondere a *«questa frase decide qualcosa?»* **guardando dove sta il
+file**, prima di aprirlo. Le etichette in testa ai documenti (§*Come si classifica un documento*) lo
+dicono già; la cartella no, e finché non lo dice l'etichetta va cercata un file alla volta.
+
+| Natura | Dove sta | Chi la scrive | Cosa succede se la si edita |
+|---|---|---|---|
+| **authored** | `product/` · `gameplay/` · `technical/` · `balance/` · `decisions/` · `characters/` | una persona | è il posto giusto: qui si cambia una regola |
+| **generated** | `roadmap/*.shortlist.md` · `roadmap/*.json` · `roadmap/charts/` · `characters/radar/` | un generatore | **si perde alla rigenerazione**: si corregge la sorgente |
+| **research** | `src/` oggi, `research/` nella struttura target | chiunque, senza gate | non decide niente, e non risolve un conflitto |
+| **archive** | `archive/` | nessuno: si conserva | riscriverla falsifica la storia |
+
+**`src/` diventa `research/`** ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)):
+stesso contenuto, nome che dice cos'è invece di dove nasce. Non è una rinomina cosmetica —
+`src` è ambiguo in un repository che ha anche `Source/`, e la casella di posta contiene PRD di visione,
+handoff, pipeline di icone e kit non consumati, cioè quattro cose diverse sotto un nome che non ne
+descrive nessuna.
+
+⚠️ **La posizione governa i gate, non solo la leggibilità.** `check-docs-symbols.py` e
+`check-docs-tables.py` esentano **per prefisso di path**: `archive/`, `src/`, `research/`,
+`roadmap/plans/`. Spostare un documento dentro o fuori da uno di questi ne cambia la copertura **senza
+che nessuno lo dica** — misurato, con `EXEMPT_DIRS = ()` il primo passa da 155 a 389 documenti e il
+secondo da 165 a 404, ed entrambi diventano rossi. Chi sposta una cartella aggiorna `EXEMPT_DIRS` nello
+stesso commit, e verifica che il **numero di documenti controllati non cali**: un gate il cui scope
+collassa stampa `OK` lo stesso.
 
 ---
 
@@ -251,6 +283,32 @@ Un documento `AS-BUILT` o `HISTORICAL` che descrive un mondo scomparso **non è 
 riscriverlo falsificherebbe la storia. La correzione va nel documento `CURRENT` che possiede la regola; allo
 storico basta un rimando in testa. Il difetto vero è l'opposto — uno storico *senza* etichetta, che si legge
 come se fosse la specifica di oggi.
+
+### Dove va un'immagine
+
+`docs/` è fatta di immagini più che di prosa — il 2026-08-17 erano **464 file su 888 e il 93,8% dei byte** —
+e fino ad allora nessun gate sapeva dire quante fossero, chi le usasse, quali fossero la stessa immagine due
+volte. Il numero di oggi lo dice
+[`scripts/docs_inventory.py`](../scripts/docs_inventory.py); qui stanno le tre regole.
+
+**1. Un'immagine sta accanto al suo owner.** Un riferimento visuale di una spec vive nella cartella di
+quella spec (`technical/img/`, `characters/images/`), non in una cartella di immagini globale. Se l'owner
+si sposta, l'immagine lo segue nello stesso commit.
+
+**2. Un'immagine generata segue il proprio generatore, e non si edita.** Gli otto SVG di
+[`characters/radar/`](characters/radar/) escono da `tools/radar/generate.ts` e hanno un gate
+(`--check`, exit 1 se divergono dai cataloghi): correggerli a mano significa perdere la correzione alla
+rigenerazione successiva. ⚠️ **I loro nomi sono un contratto**: la Wiki pubblicata li incorpora via
+`raw.githubusercontent.com`, quindi rinominarli rompe pagine che nessun gate di questo repository vede.
+
+**3. Un'immagine orfana sta solo in area grezza.** Zero riferimenti significa che nessuno sa perché è lì.
+È ammesso in `src/`/`research/` e in `archive/` — è materiale non ancora consumato, o storia — e in
+nessun altro posto. Misurato all'apertura di #1165: le 393 orfane di allora erano **tutte** sotto `src/`,
+e fuori di lì erano **zero**. È una proprietà da conservare, non da riscoprire.
+
+Per le immagini *non* governate da un generatore, il nome è `<topic>--<vista>.<ext>` —
+`ability-effect-system--uml.png`, non `final2`, non `image1`, e non un refuso reso permanente
+(`infografic` accanto a `infographic` è una coppia che esiste davvero in `src/`).
 
 ### Gate anti-deriva
 
@@ -318,3 +376,37 @@ scritti in questa pagina.
 Non controlla **ancoraggi** (`#sezione`) né **URL esterni**: il primo richiederebbe di riprodurre la
 slugificazione di GitHub su titoli con accenti ed emoji, il secondo la rete. Stessa disciplina dell'altro
 gate — meglio stretto e creduto che largo e ignorato.
+
+### Gate dell'inventario
+
+```bash
+python scripts/docs_inventory.py                                    # il report
+python scripts/docs_inventory.py --check --wiki-root <clone>        # exit 1 se un invariante cade
+python scripts/test_docs_inventory.py                               # i test della regola
+```
+
+Il terzo gate documentale, e il primo che guarda le **immagini**. Verifica tre cose, tutte di sola
+contabilità e tutte vere il giorno in cui è nato:
+
+| Invariante | Cosa becca |
+|---|---|
+| Nessuna immagine incorporata e mancante | Un `![…](x.png)` che punta a un file che non c'è. `check-docs-links.py` lo vede già; qui il messaggio dice **quale documento** la incorpora |
+| Nessun duplicato esatto taciuto | Due path, stesso SHA-256. Un duplicato legittimo esiste — si dichiara in `DUPLICATI_NOTI` **con la ragione e la data** — uno taciuto no |
+| Nessuna orfana fuori dall'area grezza | Un'immagine che nessuno referenzia, in una cartella di owner |
+
+`DUPLICATI_NOTI` e `ORFANE_NOTE` **non sono esenzioni**: sono promesse datate che il gate verifica al
+contrario, e una voce che non corrisponde più a niente lo fa fallire. Stessa disciplina di `DEBITO_NOTO`.
+
+Due avvertenze, entrambe imparate sbagliando:
+
+- **`--wiki-root` non è opzionale per il terzo invariante.** Il clone è un repository separato
+  ([D-076](decisions/RT_PDR_00_Decision_Log.md)) e incorpora gli otto radar più `roadmap-map.svg` via URL
+  assoluto: senza, nove immagini risultano orfane e non lo sono. La prima esecuzione le ha perse tutte e
+  nove. Senza il clone lo script **dice** che quella metà non è stata eseguita, invece di stampare `OK`.
+- **La somiglianza non è una prova, e una famiglia-template la batte.** I candidati near-duplicate sono
+  candidati: le 38 card di `characters/images/paragon/` sono generate dallo stesso layout e hanno prodotto
+  **558 falsi positivi su 562**, perché un hash percettivo misura la cornice e non il soggetto. Si
+  escludono per **dichiarazione** (`FAMIGLIE_TEMPLATE`), mai alzando una soglia.
+
+Pillow è **facoltativo**: senza, dimensioni e hash percettivi non si calcolano, lo script lo dichiara, e i
+tre invarianti restano verificabili.

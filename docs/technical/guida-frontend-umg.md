@@ -145,7 +145,44 @@ grep -rn "AddToViewport\|RemoveFromParent\|CreateWidget" Source/
 ```
 
 Un Blueprint non compare in quel grep — quindi la regola qui è **disciplina**, non un gate. Se un widget
-deve cambiare schermata, chiama `PushScreen`/`PopScreen` **sul navigatore**.
+deve cambiare schermata, chiama il **navigatore**: mai `CreateWidget`/`AddToViewport` da sé.
+
+> 🔴 **Aggiornato il 2026-08-18 — e per il modale d'errore la riga precedente era una trappola.**
+> Diceva *«chiama `PushScreen`/`PopScreen` sul navigatore»*, e per il `BACK` di `WBP_RT_ErrorModal`
+> **quella è la cosa sbagliata**. `PopScreen` è giusto solo durante il loading; a partita viva serve
+> `ReturnMain`, o resta una partita viva **sotto** il menu. Un Blueprint che scegliesse fra i due sarebbe
+> una seconda autorità sulla navigazione, e la scelta finirebbe dentro un `.uasset` dove nessun test la
+> vede.
+>
+> Chiama **`BackFromError(GetPhaseWhenArmed())`** e la scelta resta nel navigatore. Vedi §5.4.
+
+### 5.4 Il `BACK` del modale d'errore: una chiamata sola
+
+**Nodo da collegare** — `WBP_RT_ErrorModal`, evento `OnClicked` del pulsante `BACK`:
+
+```
+[Button BACK · OnClicked]
+        │
+        ├─ Get Game Instance Subsystem (RT Frontend Navigator)
+        │
+        └─ BackFromError
+              PhaseWhenArmed ← GetPhaseWhenArmed()      ← su SELF, non una costante
+```
+
+Tre modi di sbagliarlo, tutti plausibili e nessuno segnalato da un errore di compilazione:
+
+| Sbagliato | Perché |
+|---|---|
+| `PopScreen()` diretto | funziona durante il loading e **lascia una partita viva sotto il menu** quando l'errore arriva a partita avviata |
+| `ReturnMain()` diretto | smonta anche quando non c'era niente da smontare — e nasconde che i casi fossero due |
+| `BackFromError(Ready)` con la fase **costante** | riporta la decisione dentro la UI per un'altra strada: il nodo sembra giusto e la regola non è più nel navigatore |
+
+⚠️ **Il modale si chiude da sé**: `BackFromError` fa `CloseModal` prima del pop. Non aggiungere un
+`CloseModal` nel Blueprint — un doppio `CloseModal` risponde `NoModalOpen`, che è distinto da `Ok` proprio
+perché un doppio click non mangi una schermata.
+
+⚠️ **Non lo vedrai funzionare in PIE**, e non è un difetto: nessuno chiama ancora `InitializeFrontend`
+(è di CP 46.3, `#938`). La verifica di questa seduta è **nel grafo**, non a schermo.
 
 ---
 
