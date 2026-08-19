@@ -6120,6 +6120,76 @@ tracks:
     derives_from: []
     binary_leases: []
 
+  scenario_vocab:
+    # ➕ **Track NUOVA, nata il 2026-08-18 da una collisione fra due sessioni** — e la collisione è il motivo
+    # per cui esiste, non un incidente da nascondere. Due sessioni hanno riattivato `simulation` nello stesso
+    # pomeriggio: una su `#314` (Reaction Clash), l'altra su `#1060` (il vocabolario del redirect). Il conflitto
+    # git su questo file l'ha resa visibile — che è esattamente il lavoro che `D-139` gli assegna.
+    # ✅ **Il nome `simulation` resta a `#314`, che è atterrata in `main` per prima.** Ceduto senza discutere:
+    # la precedenza è una regola, non una trattativa, e `#1060` non ha bisogno di quel nome per esistere.
+    # ✅ **CHIUSA il 2026-08-19**: la voce 1 del DoD di `#1060` è consegnata — PR **#1196** (`f936e6fb`), suite
+    # **1051/1051**, quattro mutazioni ognuna sul test atteso. La issue **resta APERTA** e non è lavoro
+    # abbandonato: il contenuto del T6 vive in `Scenarios/` (`integration_only`) e non sarebbe comunque
+    # eseguibile finché `#833` lascia vuoto il T5.
+    # ✅ **E con essa si chiude la contesa su `ScenarioHarness/RTScenarioSession.cpp`**, nel modo più semplice
+    # dei due che erano sul tavolo: `#1060` è atterrata per prima, quindi `simulation` (`#314`) trova il file
+    # con due `case` in più in una funzione che non tocca. Il path torna a una sola track — la sua — e
+    # l'invariante, violata e **dichiarata** per un giorno, torna intatta senza che nessuno abbia dovuto
+    # rinunciare al proprio lavoro.
+    status: IDLE
+    issue: null
+    branch: null
+    worktree: "D:/rt-simulation"
+    # 🔴 **UN path è conteso, ed è dichiarato invece che aggirato: `ScenarioHarness/RTScenarioSession.cpp`.**
+    # Sta anche nel `writable` di `simulation` (`#314`). Le misure, perché chi integra decida sui fatti:
+    # · `#314` lo ha **rivendicato ma non ancora scritto** — `git diff c1606488 origin/main -- <file>` è
+    #   **vuoto**, misurato dopo il merge e non dedotto dalla data della rivendicazione;
+    # · `#1060` lo ha **già modificato e verificato**: due `case` nuovi in `EvaluateAssertion`, suite
+    #   **1043/1043**, due mutazioni che cadono sul test atteso;
+    # · i due usi sono in **funzioni diverse** dello stesso file — le assertion qui, le capability là — cioè
+    #   la stessa forma che `spatial` e `simulation` hanno già gestito su `RTTurnManager.cpp` per `#886`.
+    # ⛔ **Non è un'autorizzazione a scrivere in un file di un'altra track**: è la dichiarazione che l'invariante
+    # è violata **adesso**, con i dati per chiuderla. Le uscite sono due e nessuna è mia da scegliere: `#1060`
+    # atterra prima e `#314` fa merge su una funzione che non tocca, oppure `#1060` cede il path e la
+    # valutazione delle due assertion aspetta. Finché nessuno decide, questa track **non scrive altro** lì.
+    # ➖ **Rilasciati il 2026-08-19 con la chiusura**: i dieci path sono atterrati in `main` e tornano liberi
+    # e non assegnati. L'elenco vive nella `note`, che è dove le altre track chiuse tengono la propria storia.
+    # 🔴 **La prima stesura li aveva messi in un campo `released:` inventato sul momento** — cioè un
+    # undicesimo campo in un file che dichiara il proprio elenco **chiuso** e chiede di argomentare ogni
+    # aggiunta contro di esso. Un campo che nessuno legge non è documentazione: è un dato che diverge in
+    # silenzio dal primo giro in cui qualcuno dimentica di aggiornarlo.
+    writable: []
+    note: >-
+      ✅ **CHIUSA il 2026-08-19 — i dieci path rilasciati, uno per uno**: `Turn/RTTurnLog.h` ·
+      `Turn/RTTurnLogLibrary.cpp` · `Turn/RTTurnManager_Blast.cpp` · `ScenarioHarness/RTTestScenario.h` ·
+      `ScenarioHarness/RTScenarioLoader.cpp` · `ScenarioHarness/RTScenarioSession.cpp` ·
+      `Tests/RTScenarioLoaderTests.cpp` · `Tests/RTScenarioRunnerTests.cpp` ·
+      `Tests/RTTurnLogSerializationTests.cpp` · `docs/technical/spec-turnlog.md`.
+      ⚠️ **Il sesto era conteso con `simulation` (`#314`) e la contesa si chiude da sé**: `#1060` è atterrata
+      per prima, quindi quella track trova il file con due `case` in più in una funzione che non tocca. Nessuno
+      ha dovuto rinunciare al proprio lavoro, e l'invariante — violata e **dichiarata** per un giorno — torna
+      intatta. Chi riprende questi path rilegge la contesa invece di ereditarne la risoluzione.
+      --- ⛔ **Da qui in giù è STORIA del giro di `#1060`.** I campi correnti sono quelli in testa alla sezione.
+      Il **vocabolario** che rende verificabile l'interposizione: `OriginalTargetEquals` ed
+      `EffectiveTargetEquals`, più il campo `OriginalTargetUnitId` del formato **v9** su cui poggiano. È il
+      collo di bottiglia che `#170` (CP 15.4, **P1**) dichiara per sé — *«non è il contenuto: è il vocabolario
+      delle assertion»* — e la feature che verifica è in `main` dal `#200` senza che nessuno scenario potesse
+      controllarla.
+      ⚠️ **Otto path su nove sono liberi e non contesi**, misurati uno per uno su 44 branch vivi. Il nono è
+      quello dichiarato sopra.
+      ⛔ **Fuori scope per write-set, non per scelta**: il contenuto del T6 vive in
+      `Scenarios/RT_Showcase_Relay_v01.json` (`integration_only`) e non sarebbe comunque eseguibile finché
+      `#833` lascia vuoto il T5 — i turni dello showcase sono ordinati per dipendenza di stato.
+      🔴 **`derives_from` era `[]` e non poteva esserlo**, corretto dopo la code review: questa track scrive
+      `ScenarioHarness/RTScenarioSession.cpp`, che è **sorgente dichiarata** di due viste generate — questo
+      stesso file lo ripete in tre punti. Vale la regola che il repository applica ovunque, *una vista segue
+      la sorgente*: chi possiede la sorgente eredita i `--check` delle viste, e dichiararli è ciò che impedisce
+      di lasciarle stantie senza che nessun gate lo veda.
+    derives_from:
+      - docs/roadmap/project-graph.json
+      - docs/roadmap/scenariomap.shortlist.md
+    binary_leases: []
+
 # --- Aggiornati una volta in integrazione ------------------------------------------------------
 #
 # ⚠️ Un modulo e il suo test si modificano nello stesso commit: se il modulo è qui, il test

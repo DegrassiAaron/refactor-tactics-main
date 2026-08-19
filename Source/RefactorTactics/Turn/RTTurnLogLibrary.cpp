@@ -41,7 +41,16 @@ bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntr
 	// il resto e si distinguono solo qui.
 	if (A.OpportunityId != B.OpportunityId) { return A.OpportunityId < B.OpportunityId; }
 	if (A.ReactionInstanceId != B.ReactionInstanceId) { return A.ReactionInstanceId < B.ReactionInstanceId; }
-	return A.SelectedTargetUnitId < B.SelectedTargetUnitId;
+	if (A.SelectedTargetUnitId != B.SelectedTargetUnitId) { return A.SelectedTargetUnitId < B.SelectedTargetUnitId; }
+
+	// 🔴 **Il campo della v9 spareggia come tutti gli altri**, e la prima stesura lo aveva dimenticato — cioe'
+	// aveva rifatto il difetto che il commento in cima a questa funzione descrive per `UnitId` in v6. Oggi il
+	// caso non e' raggiungibile (con un solo produttore, `SrcCell` — la cella del protetto — rompe sempre la
+	// parita' prima di arrivare qui), ma l'assertion nuova dichiara di valere per «qualunque redirect che un
+	// giorno venisse aggiunto»: il primo che ne emettesse due pareggianti farebbe dipendere i **byte** del
+	// file, e il suo checksum, dall'ordine d'inserimento. `TArray::Sort` non e' stabile, e `D-SR-1` cadrebbe.
+	// Trovato da una code review; `TurnLog.CanonicalOrderCoversSerializedFields` esiste per questo.
+	return A.OriginalTargetUnitId < B.OriginalTargetUnitId;
 }
 
 void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
@@ -532,7 +541,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -565,6 +574,8 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		AppendStringUtf8(Out, E.OpportunityId);
 		AppendI32LE(Out, E.ReactionInstanceId);
 		AppendI32LE(Out, E.SelectedTargetUnitId);
+		// v9: chi era il bersaglio PRIMA di un redirect (#1060). In coda, i campi precedenti non si spostano.
+		AppendI32LE(Out, E.OriginalTargetUnitId);
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -592,8 +603,12 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// altro valore e' rifiutato: interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
-	const bool bHasReactionDecision =
-		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
+	// v9 (#1060): il redirect. Come per ogni estensione precedente, la versione nuova implica tutte quelle
+	// sotto — le versioni sono cumulative, non alternative.
+	const bool bHasRedirectOrigin =
+		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin));
+	const bool bHasReactionDecision = bHasRedirectOrigin
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
 	const bool bHasPriority = bHasReactionDecision
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithPriority));
 	const bool bHasUnitId = bHasPriority
@@ -640,8 +655,13 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// + 2 byte di lunghezza per ogni stringa presente nel formato: ActionId da v3, BaseActionId da v5.
 	// + 12 byte fissi per UnitId, TurnNumber e GraphRevision da v6, + 4 per Priority da v7.
 	// + 2 di lunghezza per `OpportunityId` e 8 per i due interi della decisione, da v8.
+	// + 4 per `OriginalTargetUnitId` da v9. ⚠️ Va aggiornato a OGNI versione che allunga la voce, o il guard
+	// sottostima e lascia passare un `Count` piu' grande di quanto il buffer regga — che e' esattamente cio'
+	// che questo calcolo esiste per impedire. La prima stesura della v9 l'aveva dimenticato: 61 byte dichiarati
+	// contro 65 reali, il 6% di margine in meno su un controllo fail-closed. Trovato da una code review.
 	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0)
-		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0) + (bHasReactionDecision ? 10 : 0);
+		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0) + (bHasReactionDecision ? 10 : 0)
+		+ (bHasRedirectOrigin ? 4 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{
@@ -728,6 +748,17 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		// Sotto la v8 i tre campi restano ai loro default — id vuoto, `INDEX_NONE` sui due interi — e qui non
 		// c'e' nemmeno la tentazione di dedurli: in quelle versioni nessuna finestra si apriva in partita, e
 		// una traccia senza decisioni e' completa cosi' com'e', non monca.
+		if (bHasRedirectOrigin)
+		{
+			if (!ReadI32LE(Bytes, Pos, E.OriginalTargetUnitId))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
+		// Sotto la v9 resta `INDEX_NONE`, e **non** si deduce dalla `SrcCell` risolvendo l'occupante — che pure
+		// sarebbe possibile. E' la stessa inferenza che D-063 vieta, e su una traccia storica sarebbe peggio:
+		// la cella dice dove il protetto stava al Blast, l'occupante di fine turno puo' essere un altro.
 		OutEntries.Add(E);
 	}
 

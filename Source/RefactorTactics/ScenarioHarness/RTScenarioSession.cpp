@@ -1538,6 +1538,70 @@ void FRTScenarioSession::Finish()
 			}
 			break;
 		}
+		// I due capi di un REDIRECT (#1060). Stessa voce, due campi: `OriginalTargetUnitId` dice da chi il colpo
+		// e' partito, `UnitId` chi l'ha incassato. Entrambi portano uno `StableUnitId`, che e' anche cio' che
+		// `ARTUnit` espone — quindi il confronto non passa da nessuna tabella di conversione.
+		case ERTAssertionKind::OriginalTargetEquals:
+		case ERTAssertionKind::EffectiveTargetEquals:
+		{
+			const bool bWantOriginal = (Exp.Kind == ERTAssertionKind::OriginalTargetEquals);
+			A.Description = FString::Printf(TEXT("%s(%s)"),
+				bWantOriginal ? TEXT("OriginalTargetEquals") : TEXT("EffectiveTargetEquals"), *Exp.UnitId);
+			A.Expected = Exp.UnitId;
+
+			TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
+			const ARTUnit* Want = Found ? Found->Get() : nullptr;
+			if (!Want)
+			{
+				// Un'unita' abbattuta puo' essere stata distrutta: e' lo stesso trattamento di `UnitHpEquals`,
+				// e serve a non far sembrare un difetto di scenario cio' che e' un esito di gioco.
+				A.Actual = TEXT("unita' attesa assente (abbattuta o mai creata)");
+				A.bPassed = false;
+				break;
+			}
+
+			// La PRIMA voce che dichiara un redirect. `OriginalTargetUnitId` valorizzato E' il marcatore: non
+			// serve filtrare per categoria, perche' nessun'altra voce lo scrive — e filtrare per
+			// `Reaction`/`Activated` legherebbe l'assertion all'unico produttore di oggi (l'interposizione),
+			// mentre la domanda che pone — «da chi a chi e' passato il colpo?» — vale per qualunque redirect
+			// che un giorno venisse aggiunto.
+			const FRTTurnLogEntry* Redirect = nullptr;
+			for (const FRTTurnLogEntry& Entry : ScenarioLog)
+			{
+				if (Entry.OriginalTargetUnitId != INDEX_NONE) { Redirect = &Entry; break; }
+			}
+			if (Redirect == nullptr)
+			{
+				// «Nessuno si e' interposto» e «si e' interposto per l'unita' sbagliata» sono due difetti
+				// diversi: confonderli renderebbe il messaggio inutile proprio quando serve. Stesso trattamento
+				// che `LogEventAmount` riserva all'evento assente.
+				A.Actual = TEXT("nessun redirect nel TurnLog");
+				A.bPassed = false;
+				break;
+			}
+
+			const int32 ActualId = bWantOriginal ? Redirect->OriginalTargetUnitId : Redirect->UnitId;
+			A.bPassed = (ActualId == Want->StableUnitId);
+
+			// Il numero da solo non dice a chi appartiene: chi legge il referto avrebbe uno `StableUnitId` e
+			// nessun modo di risalire all'unita' senza rileggere lo scenario.
+			// ⚠️ **Fuori dal ramo del fallimento, e non e' cosmesi**: `Expected` porta un id di scenario
+			// (`"V1"`), quindi lasciando il numero grezzo su `Actual` un'assertion PASSATA si leggerebbe
+			// «Expected V1 / Actual 3» — due domini diversi ai due lati dello stesso confronto. Ogni altro
+			// `Kind` tiene i due lati omogenei (cella contro cella, direzione contro direzione). Trovato da una
+			// code review, che l'ha visto sul percorso verde: quello che nessuno rilegge.
+			A.Actual = FString::FromInt(ActualId);
+			for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+			{
+				const ARTUnit* Other = Pair.Value.Get();
+				if (Other && Other->StableUnitId == ActualId)
+				{
+					A.Actual = FString::Printf(TEXT("%s (id %d)"), *Pair.Key, ActualId);
+					break;
+				}
+			}
+			break;
+		}
 		case ERTAssertionKind::LogEventCount:
 		{
 			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome);
