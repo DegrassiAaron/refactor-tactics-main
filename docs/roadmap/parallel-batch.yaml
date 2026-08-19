@@ -2738,6 +2738,8 @@ tracks:
       - Source/RefactorTactics/Turn/RTTurnManager.cpp
       - Source/RefactorTactics/Turn/RTActionEvent.h
       - Source/RefactorTactics/Ability/RTHeroData.h
+      - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h
+      - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
       - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
       - Source/RefactorTactics/Tests/RTDefensiveReactionTests.cpp
       - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
@@ -2747,14 +2749,46 @@ tracks:
     # come regole di questo giro, che di prestiti non ne ha. Le lezioni che portavano non si perdono: «si
     # prestano i file, mai la cartella» e «un criterio applicato a metà è peggio di uno assente» sono nella
     # sezione `integration_only`, dove valgono per tutti invece che per una track sola.
-    # ⚠️ `#886` non presta nulla: i due path che prende sono **liberi**, e ~~il terzo lo **chiede**~~ — dal
+    # ➕ **`#314` PRESTA due file di `Ability/` da `spatial`, il 2026-08-19, e il prestito sostituisce la
+    # richiesta di rilascio.** La differenza non è formale: un rilascio avrebbe tolto a `#833` un write-set
+    # che il suo DoD **aperto** nomina per nome, e la misura lo dimostra — tre voci non spuntate chiedono
+    # *«un'azione dichiara `ERTActionEffect::SetDoorState` e `grep … Ability/` smette di dare zero»*,
+    # *«`Action.Interact` non è più inerte»* e *«un `ERTStructureOp` … l'enum (`RTActionDef.h:169`)»*.
+    # `spatial` è ferma, **non ha finito**: si presta, non si toglie.
+    # ✅ **E il prestito è sceso da tre file a DUE, misurando invece di ereditare la lista della richiesta**:
+    # `Ability/RTActionDef.h` **non serve**. Il tipo del profilo può nascere in `RTCatalogLibrary.h`, che è
+    # già dentro il perimetro; prenderlo «perché era nella richiesta» avrebbe allargato il prestito di un
+    # file su cui `#833` ha una voce di DoD **puntuale** (`:169`).
+    # ⛔ **Perimetro del prestito, ed è ciò che si presta — non il file in bianco**: una `USTRUCT` per il
+    # profilo, una funzione di catalogo che ne restituisce **tre**, e nient'altro. Sono **aggiunte**: nessun
+    # numero di bilanciamento si muove — costo, fase `Prep`, priorità, `Status.Braced` e i suoi consumatori
+    # restano invariati, ed è una voce esplicita del DoD di `#314`.
+    # ⚠️ **Contesa nota e non risolta da questo atto**: `feat/641-sprint-post-blast` è vivo e tocca
+    # `RTCatalogLibrary.cpp` **dentro `GetCoreActionCatalog()`** (`@@ -717`), che è la funzione accanto a cui
+    # nasce il catalogo dei profili. Il suo ultimo commit è del **2026-08-12** e si dichiara `WIP`. Chi
+    # integra decide l'ordine; il diff di questo prestito è una funzione nuova, non una modifica alla sua.
+    # ➕ **`Ability/RTHeroCatalogLibrary.{h,cpp}` entrano nel `writable`, e NON sono un prestito**: misurati
+    # **liberi** — nessun `writable` li contiene. Sono il posto dove i quattro eroi si costruiscono
+    # (`MakeGadget`, `MakePhase`, `MakeRiktor`, `MakeWraith`), cioè dove il campo che referenzia il profilo
+    # prende il proprio valore. Senza, il profilo esisterebbe e nessun eroe lo porterebbe.
+    writable_on_loan:
+      - path: Source/RefactorTactics/Ability/RTCatalogLibrary.h
+        from: spatial
+        returns_when: "#314 chiude, o prima se `#833` riparte e li richiede"
+      - path: Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+        from: spatial
+        returns_when: "#314 chiude, o prima se `#833` riparte e li richiede"
+    # ⚠️ ~~`#886` non presta nulla~~: i due path che prende sono **liberi**, e ~~il terzo lo **chiede**~~ — dal
     # 2026-08-17 i due del `TurnManager` sono **rilasciati e non assegnati**, quindi non c'è più niente da
     # chiedere e ~~resta lo STOP finché l'atto di questa track non li rivendica~~. Annotato qui perché è un
     # **omonimo** della riga barrata quaranta righe sopra: una code review ne aveva trovato la prima coppia.
     # ✅ **L'atto e' arrivato il 2026-08-18 e lo STOP e' caduto**: i quattro path del `writable` sono tutti
     # **posseduti**, e questa track scrive. Barrata la sola proposizione che il fatto rende falsa — «resta lo
     # STOP» — e non le due misure che la circondano, che reggono ancora.
-    writable_on_loan: []
+    # ➖ **La chiave duplicata è stata rimossa il 2026-08-19**: questo blocco dichiarava `writable_on_loan`
+    # una seconda volta, e in YAML l'ultima vince — il prestito scritto sopra sarebbe stato **silenziosamente
+    # annullato** da un `[]` quattordici righe più giù. È l'ottavo controllo che `#840` dovrà avere
+    # («chiave duplicata dentro una track»), e stavolta l'ha trovato un rilettura del diff, non un gate.
     # ⛔ ~~**NON posseduto: qui non si scrive.**~~ ✅ **Posseduto dal 2026-08-18**, e la proibizione cade con
     # la richiesta che la portava: ~~CHIESTO a `replay_ui` (#472)~~ — ⚠️ **rilasciati, non
     # trasferiti**: non c'e' più nessuno a cui chiedere, e ~~È l'unico path conteso che resta a `#886`~~
@@ -2801,7 +2835,20 @@ tracks:
     # `grep` del path su **tutti** i `writable` del file; la lettura della propria richiesta no.
     # ➕ **Aperta il 2026-08-18 per `#314`, e il perimetro è chirurgico invece che sul dominio**: si chiedono
     # **tre** file di `Ability/`, non la cartella, e per un motivo che la spec owner rende non negoziabile.
-    release_requested:
+    # ➖ **RITIRATA il 2026-08-19, e sostituita da un PRESTITO** (vedi `writable_on_loan`). Non è stata
+    # negata: è stata **misurata sbagliata da chi la aveva scritta**. Il DoD di `#833` è aperto su tre voci
+    # che nominano quei file per nome — `SetDoorState` dentro `Ability/`, la lista effetti di
+    # `Action.Interact`, e `ERTStructureOp` a `RTActionDef.h:169` — quindi un rilascio avrebbe tolto a una
+    # issue viva il write-set con cui si chiude. 💡 «La track è ferma» e «la track ha finito» non sono la
+    # stessa cosa, e la `release_requested` di ieri le confondeva: aveva misurato che *nessuno stia
+    # scrivendo* e concluso che *nessuno abbia bisogno*.
+    # ∴ dei tre file ne servono **due**, in prestito e con perimetro dichiarato; `RTActionDef.h` esce del
+    # tutto — ed è precisamente quello su cui `#833` ha la voce più puntuale.
+    release_requested: []
+    # ⬇️ Il testo della richiesta ritirata resta qui sotto come **provenienza**, sotto una chiave che nessun
+    # consumatore legge: dice perché due file sono in prestito invece che rilasciati, ed è la parte che
+    # invecchia peggio se cancellata.
+    release_requested_ritirata_2026_08_19:
       - from: spatial
         issue: 833
         paths:
