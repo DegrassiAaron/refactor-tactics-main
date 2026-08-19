@@ -95,12 +95,27 @@ struct FRTIntentCertaintyStyle
 	float LineThickness = 1.25f;
 
 	/**
-	 * Frazione ACCESA di ogni tratto, fra 0 e 1: `1` linea continua, valori bassi un tratteggio piu' rado.
+	 * Frazione ACCESA di ogni tratto, fra 0 e 1: `1` linea continua, valori bassi un segno piu' rado.
 	 *
-	 * Serve a rendere il tratteggio riconoscibile **come** tratteggio, non a graduarlo: fra `0,5` e `0,3` di
-	 * acceso, su tratti di un paio di pixel, l'occhio non legge una differenza — misurato in PIE.
+	 * ⚠️ **Da solo non distingue due livelli**: fra `0,5` e `0,3` di acceso, su tratti di un paio di pixel,
+	 * l'occhio non legge una differenza — misurato in PIE il 2026-08-19. Lavora insieme a `DashPeriodPx`.
 	 */
-	float DashDutyCycle = 0.3f;
+	float DashDutyCycle = 0.35f;
+
+	/**
+	 * Lunghezza in pixel di UN periodo del segno (tratto acceso + spazio), misurata **sullo schermo**.
+	 *
+	 * ✅ **E' questo campo, insieme al duty, a separare «tratteggiata» da «puntinata/fading»** — i due stili
+	 * distinti che `progettazione-hud.md` §16 assegna a `Predicted` e `Uncertain`, e che due stesure
+	 * precedenti avevano reso **entrambi** come lo stesso tratteggio, dovendo poi cercare un secondo canale
+	 * per distinguerli. Un periodo lungo con duty alto da' **trattini**; un periodo corto con duty basso da'
+	 * **punti**. La differenza si legge da lontano e non spende ne' il colore ne' l'opacita'.
+	 *
+	 * ⚠️ **In pixel di schermo, non nel mondo**: un segno calcolato in world space si infittisce con la
+	 * distanza fino a tornare pieno, cioe' i due stili convergerebbero sulle unita' lontane — che e'
+	 * esattamente il caso in cui il giocatore ha piu' bisogno di distinguerli.
+	 */
+	float DashPeriodPx = 7.f;
 
 	/**
 	 * La linea che accompagna l'intento va tratteggiata invece che piena.
@@ -256,11 +271,14 @@ public:
 	 * iterazioni per segmento, per ogni segmento, per ogni frame. Prima di questo lavoro la stessa geometria
 	 * costava esattamente **una** `DrawLine`, quindi sarebbe stata una regressione introdotta da qui.
 	 *
-	 * @param DutyCycle frazione accesa di ogni tratto (`FRTIntentCertaintyStyle::DashDutyCycle`); `>= 1`
+	 * @param DutyCycle frazione accesa di ogni periodo (`FRTIntentCertaintyStyle::DashDutyCycle`); `>= 1`
 	 *                  restituisce il segmento intero, cioe' la linea piena.
+	 * @param PeriodPx  lunghezza di un periodo in pixel di schermo (`FRTIntentCertaintyStyle::DashPeriodPx`).
+	 *                  E' cio' che separa **trattini** (periodo lungo) da **punti** (periodo corto), i due
+	 *                  stili che `progettazione-hud.md` §16 assegna a `Predicted` e `Uncertain`.
 	 */
 	static TArray<TPair<FVector2D, FVector2D>> ComposeDashSegments(const FVector2D& A, const FVector2D& B,
-		float DutyCycle);
+		float DutyCycle, float PeriodPx);
 
 	/**
 	 * L'etichetta dell'intento, composta per intero: azione, bersaglio, `?` del livello e reazione armata.

@@ -167,6 +167,7 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 		Style.LineThickness = 2.5f;
 		Style.bDashedLine = false;
 		Style.DashDutyCycle = 1.f;
+		Style.DashPeriodPx = 18.f;   // irrilevante con la linea piena: tenuto coerente con `Predicted`
 		Style.bUncertaintyMark = false;
 		break;
 
@@ -178,9 +179,15 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 		// bocciati. Il collegamento al bersaglio e' l'**unico** elemento su cui questi due livelli
 		// coesistono, e ora e' pieno per uno e tratteggiato per l'altro — il canale che un occhio umano ha
 		// confermato di vedere, speso sull'87 % dei casi reali.
-		Style.LineThickness = 2.5f;
-		Style.bDashedLine = false;
-		Style.DashDutyCycle = 1.f;
+		// «Linea tratteggiata», §16 alla lettera. 🔺 **Torna TRATTEGGIATA il 2026-08-19, e la stesura
+		// precedente la dava PIENA — cioe' invertiva una regola normativa in silenzio**, trovato dalla code
+		// review. L'inversione era nata per separarla da `Uncertain`, che allora era tratteggiata anche lei;
+		// non serve piu', perche' `Uncertain` ha ora lo stile **puntinato** che §16 le assegna e che nessuna
+		// stesura aveva mai reso. Trattini lunghi: periodo `18` px con `0,6` acceso.
+		Style.LineThickness = 2.f;
+		Style.bDashedLine = true;
+		Style.DashDutyCycle = 0.6f;
+		Style.DashPeriodPx = 18.f;
 		Style.bUncertaintyMark = false;
 		break;
 
@@ -200,9 +207,15 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 		// `Predicted` — sia per la rotta, dove non distingue niente perche' le rotte sono tutte incerte. La
 		// seconda non e' una gradazione mascherata: e' un'affermazione vera su una classe intera, e non
 		// toglie leggibilita' a un confronto che non esiste.
+		// «Linea puntinata/fading», §16 — **il terzo stile, reso qui per la prima volta**. Punti fitti:
+		// periodo `7` px con `0,35` acceso, contro i trattini da `18`/`0,6` di `Predicted`. E' la
+		// distinzione che la grammatica prevedeva dall'inizio e che nessuna stesura aveva implementato,
+		// costringendole a cercare un secondo canale — prima l'opacita' (inerte), poi lo spessore
+		// (bocciato in PIE), poi il colore (gia' occupato dall'identita' di squadra).
 		Style.LineThickness = 1.25f;
 		Style.bDashedLine = true;
-		Style.DashDutyCycle = 0.3f;
+		Style.DashDutyCycle = 0.35f;
+		Style.DashPeriodPx = 7.f;
 		Style.bUncertaintyMark = true;
 		break;
 	}
@@ -216,7 +229,7 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 }
 
 TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D& A, const FVector2D& B,
-	float DutyCycle)
+	float DutyCycle, float PeriodPx)
 {
 	// Linea piena: un segmento solo, e nessun costo aggiunto rispetto a prima di CP 11.2.
 	if (DutyCycle >= 1.f)
@@ -226,10 +239,10 @@ TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D&
 
 	const float Len = FVector2D::Distance(A, B);
 
-	// Periodo del tratteggio **in pixel di schermo**, non nel mondo: un tratteggio calcolato in world space si
-	// infittirebbe con la distanza fino a tornare pieno, cioe' «previsto» si leggerebbe come «confermato»
-	// sulle unita' lontane.
-	const float PeriodPx = 14.f;
+	// Il periodo arriva dallo stile ed e' in pixel di **schermo**: un segno calcolato in world space si
+	// infittirebbe con la distanza fino a tornare pieno, e i due stili — trattini e punti — convergerebbero
+	// proprio sulle unita' lontane, dove servono di piu'.
+	const float Period = FMath::Max(2.f, PeriodPx);
 
 	// 🔴 **Il tetto e' la ragione per cui questa funzione esiste.** `UCanvas::Project` divide per una `W` solo
 	// *clampata* a `UE_KINDA_SMALL_NUMBER`: una cella pochi centimetri davanti al piano della camera passa il
@@ -238,7 +251,7 @@ TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D&
 	// migliaio di pixel di diagonale, quindi oltre questo numero di tratti non c'e' piu' niente da vedere —
 	// il tetto toglie lavoro invisibile, non dettaglio.
 	const int32 MaxSteps = 512;
-	const int32 Steps = FMath::Clamp(FMath::RoundToInt(Len / PeriodPx), 1, MaxSteps);
+	const int32 Steps = FMath::Clamp(FMath::RoundToInt(Len / Period), 1, MaxSteps);
 
 	TArray<TPair<FVector2D, FVector2D>> Segments;
 	Segments.Reserve(Steps);
@@ -582,7 +595,7 @@ void ARTHUD::DrawHUD()
 			// Due semantiche sullo stesso canale, e la seconda pagata dalla prima. Qui la certezza parla col
 			// tratteggio, che e' libero.
 			const float Duty = S.bDashedLine ? S.DashDutyCycle : 1.f;
-			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, Duty))
+			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, Duty, S.DashPeriodPx))
 			{
 				DrawLine(Seg.Key.X, Seg.Key.Y, Seg.Value.X, Seg.Value.Y, C, S.LineThickness);
 			}

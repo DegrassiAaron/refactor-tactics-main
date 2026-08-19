@@ -3315,6 +3315,21 @@ tracks:
       - source: Source/RefactorTactics/Tests/RTIntentPrivacyTests.cpp
         only_if: "rinomini o cancelli un test citato in `tests:` dal registry (misurato: 2 su 4)"
         regenerates: [docs/roadmap/project-graph.json]
+    # ➕ **PRESTITO aperto il 2026-08-19, per la ragione per cui il campo esiste: una decisione che blocca.**
+    # La code review ha misurato che questo lavoro stava **invertendo una regola normativa in silenzio** —
+    # `progettazione-hud.md` §16 assegna a «previsto» la linea *tratteggiata*, e il codice le dava la *piena* —
+    # senza aprire nessun `D-nnn`, che `CLAUDE.md` §3 elenca fra le dodici categorie del Tracking Impact Pass.
+    # Una regola violata dal codice che la implementa non aspetta la chiusura del batch: e' il precedente di
+    # `spatial` su `#726` con `docs/OPEN_DECISIONS.md`, e la forma e' la stessa.
+    # ⚠️ **Obbligo di restituzione alla chiusura**: i due path tornano in `integration_only`, dove sono oggi.
+    # ✅ **E l'inversione non serve piu'**: rileggendo §16 per intero, la spec prevede **tre** stili di linea
+    # distinti — solida · tratteggiata · **puntinata/fading** — e il terzo non era mai stato reso. Con quello
+    # implementato, «previsto» resta tratteggiata come la tabella prescrive e la distinzione da «incerto» la
+    # porta la punteggiatura. Il prestito serve quindi a **registrare la matrice**, non a rinegoziare la
+    # grammatica: `D-177`, riservato con `rt_shared_id.py reserve D` e non scelto a mano.
+    writable_on_loan:
+      - docs/decisions/RT_PDR_00_Decision_Log.md
+      - docs/technical/systems/progettazione-hud.md
     binary_leases: []
 
   content_editor:

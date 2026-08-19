@@ -374,18 +374,23 @@ bool FRTIntentCertaintyRenderingTest::RunTest(const FString&)
 	// · `Predicted` vs `Uncertain` → **l'unico confronto grafico che esiste**, sulla linea al bersaglio, che
 	//   e' il solo elemento su cui due livelli coesistono. Lo porta il tratteggio: canale libero (nessun
 	//   altro lo usa) e confermato da un occhio umano — *«le linee tratteggiate si vedevano»*.
-	TestNotEqual(TEXT("previsto e incerto: li separa la linea, piena contro tratteggiata"),
-		Predicted.bDashedLine, Uncertain.bDashedLine);
-	TestFalse(TEXT("previsto: la linea al bersaglio e' PIENA"), Predicted.bDashedLine);
-	TestTrue(TEXT("incerto: tratteggiata"), Uncertain.bDashedLine);
+	// ⚠️ **Entrambi tratteggiati, e li separa il PASSO del segno** — trattini contro punti, cioe' i due stili
+	// distinti che `progettazione-hud.md` §16 assegna ai due livelli e che nessuna stesura aveva reso: le
+	// prime due davano a tutti e due lo stesso tratteggio, poi cercavano un secondo canale per distinguerli
+	// (l'opacita', inerte; lo spessore, bocciato in PIE; il colore, gia' occupato dalla squadra).
+	// 🔴 Un `TestNotEqual` su `bDashedLine` **non direbbe niente qui**, ed e' la trappola in cui la stesura
+	// precedente e' caduta invertendo la grammatica per creare una disuguaglianza su quel flag.
+	TestTrue(TEXT("previsto: tratteggiata, come §16 prescrive"), Predicted.bDashedLine);
+	TestTrue(TEXT("incerto: tratteggiata anch'essa"), Uncertain.bDashedLine);
+	TestTrue(TEXT("previsto e incerto: li separa il PASSO del segno, trattini contro punti"),
+		Predicted.DashPeriodPx >= Uncertain.DashPeriodPx * 2.f);
 
 	// · `Confirmed` vs gli altri due → **non ha un confronto grafico, e il test lo dice invece di fingerlo.**
 	//   Si distingue dal CONTENUTO dell'etichetta, che e' l'unico elemento presente a tutti e tre i livelli:
-	//   non nomina nessun bersaglio e non porta il `?`. Lo verifica `IntentLabelGrammar`.
-	//   ⚠️ Questo assert vale come promemoria eseguibile: se un giorno `Confirmed` disegnasse una linea, i
-	//   suoi valori devono essere gia' sensati — e la riga sotto impedisce che nascano uguali a `Uncertain`.
-	TestNotEqual(TEXT("se un giorno confermato disegnasse una linea, non sarebbe quella dell'incerto"),
-		Confirmed.bDashedLine, Uncertain.bDashedLine);
+	//   non nomina nessun bersaglio e non porta il `?`. Lo verifica `IntentLabelGrammar`, che dal 2026-08-19
+	//   costruisce anche una vista `Predicted` — prima non lo faceva, e la distinzione che questo commento
+	//   delegava non era coperta da nessun assert della suite. Trovato dalla code review.
+	TestFalse(TEXT("confermato: linea piena, §16 alla lettera"), Confirmed.bDashedLine);
 
 	// Lo spessore resta e accompagna, ma non porta da solo nessun confronto: e' quello che la seduta ha
 	// insegnato. Pinnato come rinforzo — spinge nella stessa direzione del canale che decide.
@@ -397,17 +402,14 @@ bool FRTIntentCertaintyRenderingTest::RunTest(const FString&)
 	// un confronto che su quell'elemento non esiste. Se qualcuno lo reintroduce, questo commento e la matrice
 	// sull'intestazione della struct sono il posto dove leggere perche' era stato tolto.
 
-	// 2. Il duty deve essere COERENTE col tratteggio, o la linea «piena» esce spezzata e quella tratteggiata
-	//    continua — cioe' il canale che decide direbbe il contrario di se stesso.
-	//    ⚠️ Il valore non e' libero: un duty di `0,99` su `Predicted` renderebbe la sua linea un tratteggio
-	//    fittissimo, e da lontano sarebbe indistinguibile da quella di `Uncertain`. La coerenza fra i due
-	//    campi e' quindi parte del canale, non una pulizia.
-	TestTrue(TEXT("chi ha la linea piena ha anche il duty pieno"),
-		!Predicted.bDashedLine && Predicted.DashDutyCycle >= 1.f);
-	TestTrue(TEXT("chi ce l'ha tratteggiata ha un duty che stacca davvero"),
-		Uncertain.bDashedLine && Uncertain.DashDutyCycle <= 0.6f);
-	TestTrue(TEXT("e confermato resta continuo"),
-		!Confirmed.bDashedLine && Confirmed.DashDutyCycle >= 1.f);
+	// 2. Coerenza fra i campi del segno. ⚠️ **Un congiunto per assert**, cosi' il log dice QUALE mutazione ha
+	//    colpito: la stesura precedente combinava flag e soglia in un solo `TestTrue`, e lo stesso errore
+	//    produceva due righe rosse per una causa sola. Trovato dalla code review.
+	TestFalse(TEXT("confermato: la linea non e' tratteggiata"), Confirmed.bDashedLine);
+	TestTrue(TEXT("confermato: e il duty e' pieno, o uscirebbe spezzata"), Confirmed.DashDutyCycle >= 1.f);
+	TestTrue(TEXT("previsto: il duty tiene i trattini leggibili"), Predicted.DashDutyCycle >= 0.5f);
+	TestTrue(TEXT("incerto: il duty e' piu' basso, cosi' il segno legge come punto"),
+		Uncertain.DashDutyCycle < Predicted.DashDutyCycle);
 
 	// 3. Il `?` appartiene al SOLO livello incerto. E' l'elemento piu' facile da spargere ovunque «per
 	//    prudenza», e un `?` su tutto non dice piu' niente.
@@ -522,6 +524,34 @@ bool FRTArmedReactionLabelTest::RunTest(const FString&)
 		TestTrue(TEXT("un piano incerto lo porta"), Label(Moving).Contains(TEXT("?")));
 	}
 
+	// 🔴 **`Confirmed` contro `Predicted`: l'unico canale che li separa, e non era coperto da NESSUN assert.**
+	// I due livelli hanno la stessa struct di stile — `Confirmed` non disegna linee, quindi non c'e' niente
+	// da distinguere graficamente — e la distinzione vive tutta nel CONTENUTO dell'etichetta: uno nomina un
+	// bersaglio, l'altro no. `IntentCertaintyRendering` delegava qui la verifica, e qui non c'era: nessun
+	// caso costruiva una vista `Predicted`. Rompendo il primo ramo di `ComposeIntentLabel` — fargli ignorare
+	// `bHasTarget` — i due livelli diventavano indistinguibili su OGNI canale e la suite restava verde.
+	// Trovato dalla code review.
+	{
+		FRTIntentView Still;
+		Still.bIsAlly = true;
+		Still.Certainty = ERTIntentCertainty::Confirmed;
+		Still.ActionName = FText::FromString(TEXT("Guardia"));
+
+		FRTIntentView Aiming = Still;
+		Aiming.Certainty = ERTIntentCertainty::Predicted;
+		Aiming.bHasTarget = true;
+		Aiming.TargetCell = FRTCellId(3, -1);
+
+		const FString Confirmed = Label(Still);
+		const FString Predicted = Label(Aiming);
+		TestNotEqual(TEXT("confermato e previsto NON si leggono uguali"), Confirmed, Predicted);
+		TestTrue(TEXT("previsto nomina la cella del bersaglio"), Predicted.Contains(TEXT("q=3")));
+		TestFalse(TEXT("confermato no"), Confirmed.Contains(TEXT("q=3")));
+		// Nessuno dei due porta il `?`: quello separa l'incerto, non questi due.
+		TestFalse(TEXT("e nessuno dei due porta il ?"),
+			Confirmed.Contains(TEXT("?")) || Predicted.Contains(TEXT("?")));
+	}
+
 	// 🔴 **La voce di DoD «la reazione armata e' resa con la grammatica incerto» non aveva NESSUN test**: il
 	// `?` viveva in un `Printf` dentro `DrawHUD`, e toglierlo lasciava la suite verde. Qui l'etichetta e' un
 	// valore, quindi il glifo si asserisce.
@@ -584,7 +614,7 @@ bool FRTDashSegmentsTest::RunTest(const FString&)
 	// Linea piena: un segmento solo. E' anche la garanzia che il livello «confermato» non paghi il costo del
 	// tratteggio, perche' prima di CP 11.2 quella stessa geometria costava esattamente una `DrawLine`.
 	{
-		const TArray<TPair<FVector2D, FVector2D>> Full = ARTHUD::ComposeDashSegments(A, B, 1.f);
+		const TArray<TPair<FVector2D, FVector2D>> Full = ARTHUD::ComposeDashSegments(A, B, 1.f, 14.f);
 		if (!TestEqual(TEXT("duty pieno: un segmento solo"), Full.Num(), 1)) { return false; }
 		TestEqual(TEXT("che e' il segmento intero"), Full[0].Value, B);
 	}
@@ -592,8 +622,8 @@ bool FRTDashSegmentsTest::RunTest(const FString&)
 	// Tratteggiata: piu' segmenti, e ciascuno copre la frazione ACCESA del proprio periodo. Il duty si legge
 	// dalla geometria, non da un campo: e' cio' che distingue «attenuato» da «dissolto» a schermo.
 	{
-		const TArray<TPair<FVector2D, FVector2D>> Half = ARTHUD::ComposeDashSegments(A, B, 0.5f);
-		const TArray<TPair<FVector2D, FVector2D>> Thin = ARTHUD::ComposeDashSegments(A, B, 0.3f);
+		const TArray<TPair<FVector2D, FVector2D>> Half = ARTHUD::ComposeDashSegments(A, B, 0.5f, 14.f);
+		const TArray<TPair<FVector2D, FVector2D>> Thin = ARTHUD::ComposeDashSegments(A, B, 0.3f, 14.f);
 		if (!TestTrue(TEXT("il tratteggio spezza il segmento"), Half.Num() > 1)) { return false; }
 		TestEqual(TEXT("stesso periodo, stesso numero di tratti"), Thin.Num(), Half.Num());
 
@@ -608,7 +638,7 @@ bool FRTDashSegmentsTest::RunTest(const FString&)
 	// frame — una regressione che questo lavoro avrebbe introdotto. Trovato dalla code review.
 	{
 		const TArray<TPair<FVector2D, FVector2D>> Absurd =
-			ARTHUD::ComposeDashSegments(FVector2D(-1.e6f, 0.f), FVector2D(1.e6f, 0.f), 0.5f);
+			ARTHUD::ComposeDashSegments(FVector2D(-1.e6f, 0.f), FVector2D(1.e6f, 0.f), 0.5f, 14.f);
 		TestTrue(TEXT("una proiezione degenere non produce centinaia di migliaia di tratti"),
 			Absurd.Num() <= 512);
 		TestTrue(TEXT("ma nemmeno zero"), Absurd.Num() >= 1);
@@ -616,7 +646,7 @@ bool FRTDashSegmentsTest::RunTest(const FString&)
 
 	// Un segmento degenere non deve dividere per zero ne' restituire una lista vuota.
 	{
-		const TArray<TPair<FVector2D, FVector2D>> Point = ARTHUD::ComposeDashSegments(A, A, 0.5f);
+		const TArray<TPair<FVector2D, FVector2D>> Point = ARTHUD::ComposeDashSegments(A, A, 0.5f, 14.f);
 		TestEqual(TEXT("un punto resta un tratto"), Point.Num(), 1);
 	}
 	return true;
