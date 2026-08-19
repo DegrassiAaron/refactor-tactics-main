@@ -807,6 +807,16 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	TestEqual(TEXT("dopo la ricostruzione la cella nuova ha la sua istanza nell'ISM"),
 		MapActorIsmCount(Actor, TEXT("Cells")), CelleIniziali + 1);
 
+	// ⚠️ E gli altri tre **non** devono essere cambiati: `Nuova` e' una cella di default, quindi non porta
+	// rilievo, ne' blocco, ne' bordi. Senza queste tre righe la ricostruzione dell'effetto sarebbe l'unica
+	// del test a essere misurata su un componente solo — la stessa cecita' uno-su-quattro, in piccolo.
+	TestEqual(TEXT("la cella nuova non aggiunge rilievi"),
+		MapActorIsmCount(Actor, TEXT("Relief")), ReliefIniziali);
+	TestEqual(TEXT("la cella nuova non aggiunge volumi di blocco"),
+		MapActorIsmCount(Actor, TEXT("Blockers")), BlockersIniziali);
+	TestEqual(TEXT("la cella nuova non aggiunge pannelli di bordo"),
+		MapActorIsmCount(Actor, TEXT("EdgeFeatures")), BordiIniziali);
+
 	// ⚠️ Il totale che cresce NON dice che sia arrivata `Nuova`: una ricostruzione che emettesse un
 	// duplicato di una cella gia' presente darebbe lo stesso `+1` e passerebbe. L'asserzione che conta e'
 	// l'appartenenza, ed e' quella che il test dichiarava in apertura senza mai verificarla.

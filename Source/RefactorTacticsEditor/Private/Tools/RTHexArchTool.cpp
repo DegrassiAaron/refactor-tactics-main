@@ -14,13 +14,9 @@
 
 #define LOCTEXT_NAMESPACE "URTHexArchTool"
 
-namespace
-{
-	// Colore per tipo di transizione (solo visualizzazione).
-	// Colore per Kind e freccia stanno in `RTHexEditor` (RTHexEditorClick.h): li usa anche l'overlay, che
-	// mostra le transizioni SEMPRE e non solo mentre le si crea. Due definizioni dello stesso vocabolario
-	// visivo prima o poi divergono.
-}
+// Colore per Kind e freccia stanno in `RTHexEditor` (RTHexEditorClick.h): li usa anche l'overlay, che
+// mostra le transizioni SEMPRE e non solo mentre le si crea. Due definizioni dello stesso vocabolario
+// visivo prima o poi divergono.
 
 UInteractiveTool* URTHexArchToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
 {
@@ -114,11 +110,19 @@ namespace
 		return TEXT("<motivo non mappato>");
 	}
 
-	// Rete secondaria dello `switch` esaustivo qui sopra, per MSVC dove C4062 e' spento per default.
-	// Se fallisce: aggiungi il `case`, POI aggiorna il numero. Mai il contrario — bumpare il numero da solo
-	// lascia il motivo nuovo senza `case` e il log degrada in silenzio.
+	// ⚠️ **Su MSVC — il toolchain di questo progetto — questa e' la rete PRIMARIA, non la secondaria**:
+	// `-Wswitch` avvisa su Clang, ma C4062 e' spento per default e lo `switch` esaustivo qui sopra non
+	// protegge nulla. Da qui i due assert.
+	//
+	// ⚠️ **E hanno un limite, che e' meglio scritto che scoperto**: coprono un enumeratore inserito PRIMA
+	// di `Count` — il caso normale, visto che `Count` chiude l'elenco — e **non** uno appeso dopo, dove
+	// entrambe le relazioni restano vere. Per quello non c'e' difesa a compile time senza reflection:
+	// `Count` deve restare l'ultimo, ed e' scritto nel commento della sentinella.
+	// Se un assert fallisce: aggiungi il `case`, POI aggiorna il numero. Mai il contrario.
 	static_assert(static_cast<uint8>(ERTArchPendingClose::Count) == 5,
 		"ERTArchPendingClose e' cambiato: aggiungi il case in ArchPendingCloseToString, POI aggiorna questo numero.");
+	static_assert(static_cast<uint8>(ERTArchPendingClose::SwitchedToRemove) + 1 == static_cast<uint8>(ERTArchPendingClose::Count),
+		"Count non e' piu' subito dopo l'ultimo motivo: un enumeratore e' stato inserito senza il suo case.");
 }
 
 /**
@@ -138,8 +142,16 @@ namespace
  */
 void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 {
+	// `Count` non e' un motivo: chi la passa ha sbagliato, e va detto dove succede invece di lasciarlo
+	// leggere a chi passa dal log.
+	ensureMsgf(Reason != ERTArchPendingClose::Count,
+		TEXT("DestroyPendingGizmo chiamata con la sentinella Count: passa un motivo vero."));
+
+	// `bHasFrom` da solo, e non `bHasFrom || Gizmo`: `OnClicked` alza il flag PRIMA di creare il gizmo e
+	// questa funzione li azzera insieme, quindi non esiste uno stato con gizmo e senza flag. Scriverli in
+	// disgiunzione suggerirebbe due segnali indipendenti che non ci sono.
 	// Letto PRIMA di azzerare: dopo, ogni chiamata sembrerebbe a vuoto.
-	const bool bCeraQualcosaDaChiudere = bHasFrom || (Gizmo != nullptr);
+	const bool bCeraQualcosaDaChiudere = bHasFrom;
 
 	if (bCeraQualcosaDaChiudere)
 	{
@@ -150,8 +162,12 @@ void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 	}
 	else
 	{
-		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco: nessun pendente da chiudere (chiamata con motivo %s)."),
-			ArchPendingCloseToString(Reason));
+		// ⚠️ **Il motivo NON si stampa qui**, ed e' il punto dell'AC 7. Le chiamanti passano il proprio
+		// motivo a prescindere: `RemoveNearestArch` manda `SwitchedToRemove` a ogni click in Remove e
+		// `OnClicked` manda `ReClick` anche al primo click. Riportarlo su una chiamata a vuoto farebbe
+		// comparire «passaggio a Remove» o «re-click» su transizioni mai avvenute — la sovraffermazione
+		// che questa riga esiste per togliere. Qui conta che la chiamata c'e' stata, non con che etichetta.
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco: nessun pendente da chiudere (chiamata a vuoto)."));
 	}
 
 	if (GetToolManager() && GetToolManager()->GetPairedGizmoManager())
@@ -162,6 +178,8 @@ void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 	Proxy = nullptr;
 	bHasFrom = false;
 	bToValid = false;
+	// Lo stato torna coerente: il prossimo orfano e' un evento nuovo e va segnalato di nuovo.
+	bOrphanMarkerReported = false;
 	if (Properties) { Properties->bHasFrom = false; Properties->bToValid = false; }
 }
 
@@ -293,14 +311,25 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 	// Arco pendente (indipendente dall'asset).
 	if (bHasFrom)
 	{
-		// ⛔ **Non provare a rilevare qui un gizmo sparito con `bHasFrom && !Gizmo`: non e' osservabile.**
-		// `UInteractiveGizmoManager::DestroyGizmo` (UE 5.8.1) deregistra dall'input router, chiama
-		// `Shutdown()`, rimuove dalla propria `ActiveGizmos` e invalida — **nessun `MarkAsGarbage`**.
-		// Rilascia quindi solo il proprio riferimento: il nostro `Gizmo` e' una `UPROPERTY` forte, l'oggetto
-		// resta raggiungibile, la GC non lo raccoglie e il puntatore non si azzera mai.
-		// (Un `UPROPERTY` forte **viene** azzerato se il referente e' marcato garbage: e' quel passaggio a
-		// mancare, non la forza del riferimento.) Osservare il caso richiede un canale che marchi l'oggetto
-		// o una callback di distruzione, da verificare sull'API prima di scrivere.
+		// `#996` AC 2/3 — la firma positiva di «il gizmo e' sparito senza di noi».
+		//
+		// ⚠️ **Il test NON puo' essere `!Gizmo`**, ed e' la parte che si sbaglia: `Gizmo` e' una `UPROPERTY`
+		// **forte**, quindi tiene l'oggetto raggiungibile e non si azzera mai da solo —
+		// `UInteractiveGizmoManager::DestroyGizmo` rilascia il proprio riferimento e non marca garbage.
+		// Cio' che cambia e' **dentro** il gizmo: `UCombinedTransformGizmo::Shutdown()` fa
+		// `GizmoActor->Destroy(); GizmoActor = nullptr;`, e `IsVisible()` e' `IsValid(GizmoActor) && ...`.
+		// ∴ un gizmo chiuso alle nostre spalle resta puntato ma smette di essere visibile, ed e' quello che
+		// si osserva. (UE 5.8.1, `CombinedTransformGizmo.{h,cpp}`.)
+		//
+		// Una volta sola: `Render` gira a ogni frame, e sessanta righe al secondo sarebbero rumore.
+		if ((!Gizmo || !Gizmo->IsVisible()) && !bOrphanMarkerReported)
+		{
+			bOrphanMarkerReported = true;
+			UE_LOG(LogTemp, Warning,
+				TEXT("[HexMode] Arco: marker pendente su From %s senza un gizmo visibile. ")
+				TEXT("`DestroyPendingGizmo` NON e' stata chiamata: il gizmo e' stato chiuso da fuori."),
+				*From.ToString());
+		}
 
 		RTHexEditor::DrawHexMarker(PDI, FromWorld, MarkerRadius, FColor::Green);
 		if (bToValid)
