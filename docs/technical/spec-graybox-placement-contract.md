@@ -462,13 +462,26 @@ deve cambiare geometria — macerie invece del pannello — la prende **da lì**
 > il punto *(3)* qui sotto — «distrutto non è osservabile dal dato di mappa» — scritto **dentro** una
 > scaletta che lo pretendeva osservabile.
 >
-> *(B)* **L'assenza dell'entry non significa distruzione: significa anche SCADENZA.**
-> `ARTTurnManager::TickDynamicCovers` chiama `URTHexCoverLibrary::RemoveCover` allo scadere della durata
-> ([`RTTurnManager.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager.cpp)) e logga `CoverExpired`, che
-> nello stesso enum è **distinto** da `CoverDestroyed`. Il caso è vivo oggi:
-> `Hero.Riktor.KineticPanel.Reinforced` dichiara `Integrity 45` e `DurationTurns 1`, quindi a Cleanup il
-> pannello sparisce **integro** — e la seconda stesura lo avrebbe renderizzato come macerie. Il TurnLog
-> distingue i due casi; il dato di mappa, dopo `RemoveCover`, non ne conserva nessuno.
+> *(B)* **L'assenza dell'entry non significa distruzione, e i modi di produrla sono TRE.**
+> `URTHexCoverLibrary::RemoveCover` ([`RTTurnManager.cpp`](../../Source/RefactorTactics/Turn/RTTurnManager.cpp))
+> è chiamata da tre percorsi, e ognuno logga un esito **diverso** in `ERTEnvironmentOutcome`:
+>
+> | Percorso | Esito | Il bordo resta nudo perché |
+> |---|---|---|
+> | il danno porta l'integrità a zero | `CoverDestroyed` | è stata **abbattuta** |
+> | `TickDynamicCovers`, allo scadere della durata | `CoverExpired` | è **scaduta**, e sparisce integra |
+> | `Reconfigure`, che sposta un pannello su un altro bordo | `CoverMoved` | si è **spostata**, e il pannello esiste ancora |
+>
+> Il caso della scadenza è vivo oggi: `Hero.Riktor.KineticPanel.Reinforced` dichiara `Integrity 45` e
+> `DurationTurns 1`, quindi a Cleanup il pannello sparisce **integro** — e la seconda stesura lo avrebbe
+> renderizzato come macerie. Quello dello spostamento è peggio: il bordo di partenza sarebbe reso come
+> macerie mentre lo stesso pannello è intero sul bordo accanto. ∴ il TurnLog distingue i tre casi; il dato
+> di mappa, dopo `RemoveCover`, non ne conserva **nessuno**.
+>
+> ⚠️ *Questo punto ne enumerava **due** — distruzione e scadenza — e si qualificava «misurato non dedotto».
+> Il terzo l'ha trovato la code review su [#1208](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1208):
+> un conteggio dichiarato è falsificabile contro `Source/`, e questo lo era. Non invalida `D-175`, lo
+> rafforza.*
 >
 > ✅ **Togliere «distrutto» dalla scaletta chiude entrambi con un emendamento solo**, e non chiede al
 > presentatore nessuno stato che oggi non ha: la scaletta resta una funzione pura di una entry esistente, e
