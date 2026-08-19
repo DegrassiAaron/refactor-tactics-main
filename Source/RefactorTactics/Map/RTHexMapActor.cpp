@@ -146,6 +146,52 @@ ARTHexMapActor::ARTHexMapActor()
 	}
 }
 
+#if WITH_EDITOR
+namespace
+{
+	/** Come e' finita l'iscrizione all'asset. Tre stati, non due: vedi il commento della funzione sotto. */
+	enum class ERTBindOutcome : uint8 { Invariata, Agganciata, Staccata };
+
+	ERTBindOutcome ClassifyBind(const URTHexMapAsset* Prima, const URTHexMapAsset* Dopo)
+	{
+		if (Prima == Dopo) { return ERTBindOutcome::Invariata; }
+		return Dopo ? ERTBindOutcome::Agganciata : ERTBindOutcome::Staccata;
+	}
+
+	const TCHAR* BindOutcomeToString(ERTBindOutcome Outcome)
+	{
+		switch (Outcome)
+		{
+		case ERTBindOutcome::Agganciata: return TEXT("si e' AGGANCIATO a un asset");
+		case ERTBindOutcome::Staccata:   return TEXT("si e' STACCATO e non segue piu' nulla");
+		case ERTBindOutcome::Invariata:  return TEXT("non ha cambiato l'iscrizione");
+		}
+		return TEXT("<esito non mappato>");
+	}
+
+	/**
+	 * La riga che distingue le due funzioni del gesto — `#996` passo 1, completato da `#1052`.
+	 *
+	 * ⚠️ **Chiamata da DUE punti, e il primo e' quello che conta.** La prima stesura la metteva solo in
+	 * `PostEditChangeProperty`, ma il gesto degli AC 2/3 di `#996` e' **spostare l'actor**, che passa per
+	 * `OnConstruction` — come il commento di quella funzione dice da sempre («spostamento dell'actor»).
+	 * L'osservatore restava quindi davanti allo stesso silenzio che la strumentazione doveva togliere.
+	 * Trovato in code review sulla PR di `#1052`.
+	 *
+	 * ⚠️ **Si stampano DUE conteggi, e il secondo e' quello nuovo.** `NumInstanceCells()` e' la lunghezza
+	 * dell'array di mapping, che viene `Reset()` a ogni ricostruzione **anche se** l'ISM non e' stato
+	 * ripulito: da solo direbbe «7 celle» mentre la griglia si sdoppia a schermo. E' il difetto che
+	 * `RebuildInstancesIsIdempotentForInstances` esiste per prendere, e un diagnostico cieco proprio a
+	 * quello non serve a niente.
+	 */
+	void LogRebuildTrace(const TCHAR* Trigger, ERTBindOutcome Bind, int32 CelleMappate, int32 IstanzeISM)
+	{
+		UE_LOG(LogRT, Log, TEXT("[HexMap] %s: BindToMapAsset %s; RebuildInstances -> %d celle mappate, %d istanze in Cells."),
+			Trigger, BindOutcomeToString(Bind), CelleMappate, IstanzeISM);
+	}
+}
+#endif // WITH_EDITOR
+
 void ARTHexMapActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
@@ -156,7 +202,15 @@ void ARTHexMapActor::OnConstruction(const FTransform& Transform)
 	RebuildInstances();
 
 #if WITH_EDITOR
+	const URTHexMapAsset* PrimaDelBind = BoundAsset.Get();
 	BindToMapAsset();
+
+	// ⚠️ Solo in editor: `OnConstruction` gira anche allo `SpawnActor` di gioco, e li' questa riga sarebbe
+	// rumore su ogni spawn senza avere un osservatore che la legge.
+	LogRebuildTrace(TEXT("OnConstruction (apertura livello, spostamento actor, undo)"),
+		ClassifyBind(PrimaDelBind, BoundAsset.Get()),
+		NumInstanceCells(),
+		Cells ? Cells->GetInstanceCount() : INDEX_NONE);
 #endif
 }
 
@@ -169,23 +223,25 @@ void ARTHexMapActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	// vedere: si ricostruisce sempre (l'actor ha poche proprieta' e la ricostruzione e' idempotente).
 	//
 	// ⚠️ **Il gesto passa per DUE funzioni, e il log deve distinguerle** (`#996` passo 1, completato da
-	// `#1052`). Il log di `#996` stava solo in `URTHexArchTool::DestroyPendingGizmo`: eseguendo l'esperimento
-	// degli AC 2/3 — modificare la Transform dell'actor con un arco pendente — se il gizmo spariva senza
-	// righe, l'osservatore imparava «non e' stato il tool» e non poteva ancora dire **quale** delle due
-	// chiamate qui sotto lo avesse fatto. Con due righe distinte la misura smette di essere
-	// un'argomentazione con un'ipotesi in meno.
+	// `#1052`). Il log di `#996` stava solo in `URTHexArchTool::DestroyPendingGizmo`: se il gizmo spariva
+	// senza righe, l'osservatore imparava «non e' stato il tool» e non poteva ancora dire **quale** delle
+	// due chiamate lo avesse fatto.
 	const URTHexMapAsset* AssetPrimaDelBind = BoundAsset.Get();
 	BindToMapAsset(); // se e' cambiato l'asset, si seguono le notifiche di quello nuovo
-	const bool bRiagganciato = (BoundAsset.Get() != AssetPrimaDelBind);
-
-	UE_LOG(LogTemp, Log, TEXT("[HexMode] Actor: PostEditChangeProperty su '%s' — BindToMapAsset %s."),
-		*PropertyChangedEvent.GetPropertyName().ToString(),
-		bRiagganciato ? TEXT("ha RIAGGANCIATO l'asset") : TEXT("non ha cambiato l'iscrizione"));
+	const ERTBindOutcome Esito = ClassifyBind(AssetPrimaDelBind, BoundAsset.Get());
 
 	RebuildInstances();
 
-	UE_LOG(LogTemp, Log, TEXT("[HexMode] Actor: RebuildInstances completata (%d celle mappate)."),
-		NumInstanceCells());
+	// ⚠️ **`Interactive` si salta, e non e' una preferenza di verbosita'.** Unreal chiama questa funzione a
+	// ogni tick del mouse mentre si trascina uno slider (`HexSize`, `LayerHeight`, `DemoRadius`): senza il
+	// filtro sarebbero due righe per movimento, cioe' lo stesso rumore che `URTHexArchTool::Render` gia'
+	// evita con il suo one-shot. Il valore finale arriva comunque con il `ValueSet` che chiude il trascinamento.
+	if (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
+	{
+		const FString Trigger = FString::Printf(TEXT("PostEditChangeProperty su '%s'"),
+			*PropertyChangedEvent.GetPropertyName().ToString());
+		LogRebuildTrace(*Trigger, Esito, NumInstanceCells(), Cells ? Cells->GetInstanceCount() : INDEX_NONE);
+	}
 }
 
 void ARTHexMapActor::BindToMapAsset()

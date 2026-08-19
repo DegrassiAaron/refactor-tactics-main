@@ -639,7 +639,7 @@ bool FRTHexMapActorReliefUnderSlabTest::RunTest(const FString&)
  * cio' che rende la chiamata esplicita qui sotto l'unica causa possibile dell'effetto misurato.
  *
  * 🔴 **La prima stesura misurava solo `NumInstanceCells()`, e il nome del test MENTIVA.** Quel contatore e'
- * `InstanceCells.Num()` — l'array di mapping istanza->cella — e viene `Reset()` a `RTHexMapActor.cpp:485`
+ * `InstanceCells.Num()` — l'array di mapping istanza->cella — e viene `Reset()` in `RebuildInstances`
  * **indipendentemente** da `Cells->ClearInstances()`, che sta alla riga PRIMA. Togliendo `ClearInstances`
  * l'ISM accumula 7, 14, 21 istanze mentre l'array ne dichiara sempre 7: la griglia si sdoppia a schermo e il
  * test restava verde. Misurato, non temuto — la verifica di mutazione ha dato **9 test su 9 verdi** con la
@@ -651,8 +651,14 @@ bool FRTHexMapActorReliefUnderSlabTest::RunTest(const FString&)
  * con l'asset di default gli ultimi tre non erano «non verificati»: erano **strutturalmente non
  * osservabili**. `MakeActorTestAsset` produce celle di default, e da li' `MoveCost = 1` da'
  * `ReliefHeightForCost(1) = 0`, nessun flag accende `Blockers`, nessun Cover accende `EdgeFeatures`.
- * ∴ si potevano cancellare **tre** delle quattro `ClearInstances()` (`RTHexMapActor.cpp:495`, `:500`,
- * `:505`) senza che una sola asserzione cadesse, mentre a schermo quei componenti accumulavano.
+ * ∴ si potevano cancellare **tre** delle quattro `ClearInstances()` di `ARTHexMapActor::RebuildInstances`
+ * — quelle di `Relief`, `Blockers` ed `EdgeFeatures` — senza che una sola asserzione cadesse, mentre a
+ * schermo quei componenti accumulavano.
+ * ⚠️ **I riferimenti qui sopra sono al SIMBOLO e non a `file:riga`, ed e' una correzione di questa stessa
+ * issue**: la prima stesura citava `RTHexMapActor.cpp:495/:500/:505`, e le righe che il commit aggiungeva
+ * a `PostEditChangeProperty` le avevano gia' spostate **nello stesso commit che le scriveva**. Un
+ * `file:riga` non fallisce mai rumorosamente: porta il lettore in mezzo a un'altra funzione e nessun gate
+ * se ne accorge.
  * Per questo l'asset qui sotto porta una cella costosa, una che blocca e una con un bordo: non e' un
  * ampliamento di scope, e' cio' che rende misurabile l'invariante gia' dichiarata.
  */
