@@ -76,7 +76,7 @@ o quando serve alla feature corrente.
 
 La struttura completa di §3 è il **target**; il progetto ne usa oggi solo questo sottoinsieme. Quali cartelle
 servano dipende dal lavoro in corso, ma **questo documento non è un tracker**: per sapere a che punto è il
-progetto si legge [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md), che ne è l'unico owner.
+progetto si legge [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md), che ne è l'unico owner.
 
 Per la domanda vicina ma diversa — **quali asset servono, quali esistono e quanti ne mancano** — l'owner è
 [`asset-map.md`](asset-map.md) *(dal 2026-08-13)*, che deriva da qui ogni percorso e misura lo stato
@@ -110,7 +110,7 @@ milestone corrente (coerente con la regola di scope in `CLAUDE.md`).
 | Input (Enhanced Input) | `/Game/RT/Core/Input/` | `IMC_Tactical`, `IA_CameraPan`, `IA_SelectCell`, … |
 | Camera tattica | `/Game/RT/Core/Camera/` | |
 | Griglia esagonale | `/Game/RT/World/Grid/` | `Hex/` mesh e cella base · `Selection/` selezione e hover · `Visualization/` materiali, path preview, overlay · `Generation/` generatori graybox |
-| Kit graybox degli **oggetti** | `/Game/RT/World/Graybox/` | primitive posabili riusabili fra mappe: `Cover/` · `Doors/` · `Surfaces/` · `Volumes/`. **D-173** ⚠️ Non è `Grid/Generation/`, che sono i **generatori**: qui ci sono gli oggetti che si posano. Owner del contratto di ingombro e pivot: [`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md) |
+| Kit graybox degli **oggetti** | `/Game/RT/World/Graybox/` | primitive posabili riusabili fra mappe: `Cover/` · `Doors/` · `Surfaces/` · `Volumes/`. **D-173** ⚠️ Non è `Grid/Generation/`, che sono i **generatori**: qui ci sono gli oggetti che si posano. Owner del contratto di ingombro e pivot: [`spec-graybox-placement-contract.md`](../systems/spec-graybox-placement-contract.md) |
 | Turni | `/Game/RT/Systems/` | `Planning/` intenti · `Turns/` fase e Ready · `Resolution/` playback · `Movement/` configurazione |
 | Personaggi | `/Game/RT/Characters/<CharacterId>/` | ogni personaggio è **autonomo**. ⚠️ `<CharacterId>` = nome del **pack Paragon** (§5b) |
 | Abilità di un personaggio | `/Game/RT/Characters/<CharacterId>/Abilities/` | |
@@ -156,7 +156,7 @@ Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Bl
 diventa `DA_Hero_Gadget`. Un data asset eroe descrive *statistiche e abilità*, che non dipendono dalla mesh:
 se Gadget cambiasse base visuale, quel file resterebbe valido parola per parola. Lo stesso vale per `HeroId`,
 che in C++ è e resta `Hero.Gadget`. La mappatura fra i due mondi è **D-037**, tabella owner in
-[`../characters/paragon.md`](../characters/paragon.md).
+[`../../characters/paragon.md`](../../characters/paragon.md).
 
 ⚠️ **Costo accettato, non rimosso.** Fino al 2026-08-11 §A raccomandava l'**opposto** — il nome del
 personaggio di gioco — con l'argomento che *«il nome del pack lega l'asset a una mesh sostituibile»*.
@@ -276,7 +276,7 @@ lato dell'esagono = 1,5 m        (esattamente: HexSize = 150)
 ```
 
 > ⏱️ **Questa riga diceva «la scala di *authoring*» e «≈ 1,5 m» fino al 2026-08-17.** Da
-> [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) non è più solo d'authoring — governa anche il mondo — e
+> [`D-163`](../../decisions/RT_PDR_00_Decision_Log.md) non è più solo d'authoring — governa anche il mondo — e
 > il `≈` non è più approssimativo: il valore è esatto. La correzione sta qui e non solo in §11-bis.1 perché
 > **gli altri documenti citano «§11-bis», non la sotto-sezione**, e leggerebbero la versione vecchia.
 
@@ -285,22 +285,22 @@ un'unità e due strutture autorate da persone diverse combacino — **e dal 2026
 mondo** (§11-bis.1): non è più solo una convenzione di modellazione, e `HexSize` non è libero.
 
 > ⚠️ **Non è una metrica di design, e non va usata come tale.**
-> [`../gameplay/spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) è
+> [`../../gameplay/spec-durata-partita-e-scala-mappe.md`](../../gameplay/spec-durata-partita-e-scala-mappe.md) è
 > esplicito: «Metrica primaria — **non i metri**, non il numero assoluto di celle». Una mappa si dimensiona
 > contando i **Move** necessari a raggiungere le zone rilevanti, non i metri quadrati; e
-> [`D-030`](../decisions/RT_PDR_00_Decision_Log.md) ribadisce che il canone non fissa un numero di celle.
+> [`D-030`](../../decisions/RT_PDR_00_Decision_Log.md) ribadisce che il canone non fissa un numero di celle.
 >
 > Le due cose convivono perché rispondono a domande diverse: *quanto è grande questo modello* è una domanda
 > d'arte, *quanto è grande questa mappa* è una domanda di design. La prima ha un metro, la seconda no.
 
 Non derivare da questo valore raggi d'abilità, portate o costi di movimento: quelli sono in celle, e la cella
 è l'unità del gioco. Deciso con l'autore il **2026-08-09**, in sede di consolidamento del cluster Map &
-Environment ([triage](../roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md) §8.1).
+Environment ([triage](../../roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md) §8.1).
 
 ### 11-bis.1 — La scala del mondo segue questa, e per otto giorni non l'ha fatto
 
 ✅ **Confermata dall'autore il 2026-08-17** e promossa da scala d'*authoring* a scala **del mondo**
-([`D-163`](../decisions/RT_PDR_00_Decision_Log.md)). Il lato è `1,5 m`; l'unità di `HexSize` è il
+([`D-163`](../../decisions/RT_PDR_00_Decision_Log.md)). Il lato è `1,5 m`; l'unità di `HexSize` è il
 centimetro — lo dichiara `RTHexMapAsset.h` accanto alla proprietà — e la **dimensione** è il circumraggio,
 cioè il lato (`RTHexLibrary.cpp`: *«un pointy-top di circumraggio HexSize»*). Quindi il valore canonico è
 **`HexSize = 150`**.
@@ -322,9 +322,9 @@ il 17 ha modellato giusto. E finché la issue di migrazione è aperta, la colonn
 
 > 🔴 **Fino al 2026-08-17 questa sezione descriveva una scala che nessuna mappa usava.** Misurato:
 > `HexSize` non compare in **nessun** binario di `Content/RT` — misura e oracolo in
-> [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) — quindi ogni mappa restava al default `100.f` — lato `1,00 m`, e una divergenza di **1,5×** fra ciò che si modellava e il mondo in cui
+> [`D-163`](../../decisions/RT_PDR_00_Decision_Log.md) — quindi ogni mappa restava al default `100.f` — lato `1,00 m`, e una divergenza di **1,5×** fra ciò che si modellava e il mondo in cui
 > atterrava. Non era un errore di questa sezione: era che nessuno aveva chiuso il cerchio sul codice.
-> `GBX-6` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) ha reso visibile il divario e `D-163` lo chiude.
+> `GBX-6` in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) ha reso visibile il divario e `D-163` lo chiude.
 
 ⏱️ **Finché la issue [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) è aperta, il mondo gira ancora a `1,00 m`**: chi modella secondo
 questa sezione produce asset corretti per il canone e `1,5×` grandi per la mappa di oggi. È uno stato
@@ -337,7 +337,7 @@ momento non si possono validare *guardandoli in PIE* — e la validazione visiva
 `GBX-1` e `GBX-5`.
 
 > ⚠️ *La prima stesura diceva «una ragione per non produrre volumi finiti», mentre
-> [`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md) §6.1 diceva «modella a
+> [`spec-graybox-placement-contract.md`](../systems/spec-graybox-placement-contract.md) §6.1 diceva «modella a
 > `2,60 m`»: due owner con istruzioni opposte per la stessa persona, e nessuna gerarchia dichiarata fra
 > loro. Trovato in code review.*
 
@@ -541,7 +541,7 @@ citavano). **Ogni verifica va rifatta in un processo nuovo**, altrimenti si inse
 **Resta da fare in editor** (non verificabile headless): un **PIE su `L_Prototype`** che confermi unità
 colorate, anello di team e anello di selezione visibili — è la prova finale del punto 4 di A.6 — e l'apertura
 di `L_DevSandbox` con la griglia esagonale. Voci `PIE-AS5`/`PIE-SEL` in
-[`test-manuali-pie.md`](test-manuali-pie.md).
+[`test-manuali-pie.md`](../test-manuali-pie.md).
 
 ---
 

@@ -4,7 +4,7 @@
 > ✅ **È il documento più accurato della serie**: 29 verifiche di stato su 29 corrette — dieci issue, sette
 > simboli di codice, otto feature ID, quattro decisioni. Nessuna premessa falsa, primo caso in sei handoff.
 > Il suo §27 aveva ragione: l'owner tecnico mancava davvero, ed è stato creato —
-> [`spec-hex-geometry-authoring.md`](../../../technical/spec-hex-geometry-authoring.md). Il §45 e il §26 sono
+> [`spec-hex-geometry-authoring.md`](../../../technical/systems/spec-hex-geometry-authoring.md). Il §45 e il §26 sono
 > entrati quasi intatti in quell'owner.
 >
 > 🔴 **Una prescrizione è superata, ed è nel percorso critico**: il **§12** dice

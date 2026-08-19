@@ -7,7 +7,7 @@
 > `/sc:design` + implementazione del **2026-08-03**. Obiettivo: attivare la fase **Dash** (finora pass-through)
 > con un riposizionamento rapido che si risolve **prima del Blast**. Documentale + implementato in TDD dove la
 > logica è pura, wiring + PIE per Actor/UI. Ancorata al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md)),
-> al pathfinding a grafo ([`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md)) e all'animazione della
+> al pathfinding a grafo ([`spec-pathfinding-pf3-pf4.md`](../technical/architecture/spec-pathfinding-pf3-pf4.md)) e all'animazione della
 > risoluzione ([`spec-anima-risoluzione.md`](spec-anima-risoluzione.md)).
 >
 > ⚠️ **Superato il 2026-08-08 da [D-028](../decisions/RT_PDR_00_Decision_Log.md)** — **dash + move non e'
@@ -131,7 +131,7 @@ playback: `Prep → Dash → Blast → Move`.
 ## 8. Limiti aperti
 
 - **Dash del giocatore**: cablato (tasto `4` + click + preview), ma la conferma **interattiva** richiede il
-  mouse dell'utente (come il click→layer di [`spec-mappa-multilivello.md`](../technical/spec-mappa-multilivello.md)).
+  mouse dell'utente (come il click→layer di [`spec-mappa-multilivello.md`](../technical/architecture/spec-mappa-multilivello.md)).
 - ~~**Dash "leggero"** (salto che scavalca le coperture in linea retta) **non** implementato: scelto il
   pathfinding (aggira gli ostacoli).~~
   > ✅ **Superato il 2026-08-08**: era il residuo della decisione ribaltata da CP 4.5. Lo scavalcamento

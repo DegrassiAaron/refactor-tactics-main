@@ -4,7 +4,7 @@
 >
 > ⚠️ **Questo documento NON è diventato un owner, e la riga qui sotto che lo propone è superata.** La
 > superficie che descrive aveva già un owner dal 2026-08-12:
-> [`../../../technical/spec-pointer-interaction.md`](../../../technical/spec-pointer-interaction.md)
+> [`../../../technical/systems/spec-pointer-interaction.md`](../../../technical/systems/spec-pointer-interaction.md)
 > (CP 11.8, [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)). Adottarlo avrebbe
 > creato **due** contratti del puntatore, con due nomenclature (`PointerMode` contro i contesti di §4), due
 > spazi di nomi di test (`RefactorTactics.UI.Mouse.*` contro `RefactorTactics.PlayerInput.*`) e due voci PIE

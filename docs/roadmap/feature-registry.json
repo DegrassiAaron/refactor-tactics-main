@@ -206,8 +206,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-turnlog.md",
-        "docs/technical/spec-turnlog-serialize.md"
+        "docs/technical/architecture/spec-turnlog.md",
+        "docs/technical/architecture/spec-turnlog-serialize.md"
       ],
       "issues": [
         81,
@@ -269,7 +269,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-turnlog-serialize.md",
+        "docs/technical/architecture/spec-turnlog-serialize.md",
         "docs/decisions/adr-0009-replay-logico-canonico.md"
       ],
       "issues": [
@@ -530,7 +530,7 @@
       "completed_by": [],
       "owner_specs": [
         "docs/decisions/adr-0002-griglia-esagonale.md",
-        "docs/technical/spec-mappa-multilivello.md"
+        "docs/technical/architecture/spec-mappa-multilivello.md"
       ],
       "issues": [
         31,
@@ -594,8 +594,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-pathfinding.md",
-        "docs/technical/spec-pathfinding-pf3-pf4.md"
+        "docs/technical/architecture/spec-pathfinding.md",
+        "docs/technical/architecture/spec-pathfinding-pf3-pf4.md"
       ],
       "issues": [
         32
@@ -664,7 +664,7 @@
       "completed_by": [],
       "owner_specs": [
         "docs/roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md",
-        "docs/technical/spec-hex-geometry-authoring.md",
+        "docs/technical/systems/spec-hex-geometry-authoring.md",
         "docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md"
       ],
       "issues": [
@@ -1037,7 +1037,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/h6-4-hex-vision-spec.md"
+        "docs/technical/systems/h6-4-hex-vision-spec.md"
       ],
       "issues": [
         34
@@ -1111,7 +1111,7 @@
         "docs/decisions/adr-0005-orientamento.md",
         "docs/decisions/adr-0008-rotazione-e-policy-di-facing.md",
         "docs/decisions/RT_PDR_00_Decision_Log.md",
-        "docs/technical/spec-turnlog.md"
+        "docs/technical/architecture/spec-turnlog.md"
       ],
       "issues": [
         175,
@@ -1407,7 +1407,7 @@
       "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-ponti-cp94.md",
-        "docs/technical/spec-mappa-multilivello.md"
+        "docs/technical/architecture/spec-mappa-multilivello.md"
       ],
       "issues": [
         72,
@@ -3890,7 +3890,7 @@
       "dependencies": [],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/progettazione-hud.md"
+        "docs/technical/systems/progettazione-hud.md"
       ],
       "issues": [
         77,
@@ -3951,8 +3951,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/progettazione-hud.md",
-        "docs/technical/spec-hover-cella.md"
+        "docs/technical/systems/progettazione-hud.md",
+        "docs/technical/systems/spec-hover-cella.md"
       ],
       "issues": [
         77,
@@ -4017,7 +4017,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/progettazione-hud.md",
+        "docs/technical/systems/progettazione-hud.md",
         "docs/technical/guida-screen-hud-umg.md"
       ],
       "issues": [
@@ -4077,7 +4077,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-pointer-interaction.md"
+        "docs/technical/systems/spec-pointer-interaction.md"
       ],
       "issues": [
         705,
@@ -4155,7 +4155,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/brief-planning-visuale.md"
+        "docs/technical/systems/brief-planning-visuale.md"
       ],
       "issues": [
         172,
@@ -4214,8 +4214,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/progettazione-hud.md",
-        "docs/technical/brief-planning-visuale.md"
+        "docs/technical/systems/progettazione-hud.md",
+        "docs/technical/systems/brief-planning-visuale.md"
       ],
       "issues": [
         78
@@ -4285,7 +4285,7 @@
         "RT-FEAT-UI-CERTAINTY"
       ],
       "owner_specs": [
-        "docs/technical/progettazione-hud.md"
+        "docs/technical/systems/progettazione-hud.md"
       ],
       "issues": [
         77,
@@ -4349,7 +4349,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-turnlog.md"
+        "docs/technical/architecture/spec-turnlog.md"
       ],
       "issues": [
         79
@@ -4417,7 +4417,7 @@
       "completed_by": [],
       "owner_specs": [
         "docs/decisions/RT_PDR_00_Decision_Log.md",
-        "docs/technical/brief-icone-v01.md"
+        "docs/technical/tooling/brief-icone-v01.md"
       ],
       "issues": [
         217,
@@ -4537,7 +4537,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/scenario-index-e-tag.md"
+        "docs/technical/tooling/scenario-index-e-tag.md"
       ],
       "issues": [
         209
@@ -4863,8 +4863,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-graybox-placement-contract.md",
-        "docs/technical/asset-map.md"
+        "docs/technical/systems/spec-graybox-placement-contract.md",
+        "docs/technical/tooling/asset-map.md"
       ],
       "issues": [
         1094,
@@ -5122,7 +5122,7 @@
       "completed_by": [],
       "owner_specs": [
         "docs/technical/guida-animazioni-paragon.md",
-        "docs/technical/spec-team-identity.md",
+        "docs/technical/systems/spec-team-identity.md",
         "docs/decisions/adr-0001-skeletal-unit.md",
         "docs/characters/paragon.md"
       ],
@@ -5805,7 +5805,7 @@
       "completed_by": [],
       "owner_specs": [
         "docs/gameplay/spec-bot-hex.md",
-        "docs/technical/h6-5-hex-bot-spec.md"
+        "docs/technical/systems/h6-5-hex-bot-spec.md"
       ],
       "issues": [
         36,
@@ -6123,7 +6123,7 @@
       "owner_specs": [
         "docs/technical/test-e-diagnosi.md",
         "docs/technical/scenari-validazione-visiva.md",
-        "docs/technical/spec-tactical-designer.md"
+        "docs/technical/tooling/spec-tactical-designer.md"
       ],
       "issues": [
         169,
@@ -6260,7 +6260,7 @@
       "owner_specs": [
         "docs/roadmap/editormap.shortlist.md",
         "docs/roadmap/hex-map-roadmap.md",
-        "docs/technical/spec-tactical-designer.md"
+        "docs/technical/tooling/spec-tactical-designer.md"
       ],
       "issues": [
         567,
@@ -6301,7 +6301,7 @@
         "date": "2026-08-12",
         "commit": "4fce92ca"
       },
-      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco. **2026-08-12 (#551, #588)**: l'actor mappa ha un SECONDO `UInstancedStaticMeshComponent` — il rilievo che mostra il costo di attraversamento — e con lui e' cambiato cosa protegge il pennello. Il raycast di selezione confrontava l'ACTOR, mentre `Result.Item` e' l'indice di istanza del COMPONENTE colpito: un colpo su geometria diversa da `Cells` sarebbe stato risolto contro le celle sbagliate e avrebbe prodotto una cella **valida e sbagliata**, cioe' il pennello che dipinge altrove senza un errore a log. Ora il confronto e' sul componente (`ARTHexMapActor::IsPickOnSelectableCell`, pinnato dal test qui sopra) e `NoCollision` sul rilievo resta la prima difesa invece dell'unica: la protezione ha smesso di dipendere dal ricordarsi di una riga. 🔴 **Questa nota diceva che il modulo `RefactorTacticsEditor` non ha test propri, e dal 2026-08-16 e' FALSO**: `#993` ha portato `Private/Tests/RTHexToolPropertiesTests.cpp` con **due** test, e `find Source/RefactorTacticsEditor -iname \"*test*\"` restituisce due voci — rimisurato il 2026-08-17. La conclusione non cambia e la **ragione** si': le regole che riguardano il gioco vanno nel modulo runtime non perche' l'editor sia intestabile, ma perche' una regola di gioco che vive nell'editor e' una **seconda risposta** alla stessa domanda. I due test dell'editor coprono il proprio dominio — il costo che segue la superficie, il readout che non si aggiorna da solo — e nessuno dei due decide un esito di partita. Owner dell'argomento: `docs/technical/spec-tactical-designer.md` §3.\n\nLa vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri a contorno attenuato. Nello stesso passaggio il click ha smesso di scavalcare il piano attivo — in `AllLayers` il raggio poteva agganciare il disco di un altro piano e l'`ImpactPoint` veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale. `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli.\n\nDal 2026-08-12 il perimetro si divide: l'**authoring di geometria architettonica** ha una feature propria (`RT-FEAT-TOOL-MAP-GEOMETRY`), perche' e' un modello di dati e una cottura, non una modalita' d'editor. Qui restano il mode, i quattro tool e la vista. Le due issue nuove sono difetti d'uso osservati costruendo: `#622` la griglia di lavoro dove le celle non esistono ancora — l'unico pezzo di §10 del sorgente che non esisteva gia' — e `#623` la seduta su luci e inquadratura. `#623` e' una **seduta**, non codice: `L_DevSandbox.umap` e' un `.umap`, e la navigazione del viewport la fornisce Unreal (`RTCameraPawn` e' la camera di gioco, un oggetto diverso). Referto: `docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md`.\n\n**2026-08-12 (#552, #553)**: i volumi delle regole di blocco (`Blockers`) e i pannelli di bordo (`EdgeFeatures`) erano stati consegnati **senza test**, e con loro un difetto che nessuno avrebbe visto: lastra della vista e rilievo del costo sono concentrici e partono dalla stessa quota, e la lastra a 16 uu era piu' alta E piu' larga del rilievo piu' alto che il catalogo possa produrre (15 uu, perche' il costo massimo v0.1 e' `2`). Ogni cella costosa che blocca la vista taceva sul proprio costo — e non in un caso limite: in **tutti**. Corretto a 10 uu, col vincolo scritto accanto alla costante. I quattro test aggiunti misurano il COMPORTAMENTO — le istanze che `RebuildInstances` produce — non i valori, cosi' ritoccare le proporzioni resta libero e farle collassare no. ⚠️ Limite noto e dichiarato: i quattro stati di porta si mostrano con **due** forme (`Locked` come `Closed`, `Destroyed` come `Open`), quindi «lo stato e' visibile e cambia quando cambia il dato» — acceptance di #553 — vale per il passaggio, non per chi puo' cambiarlo. Aperta **#695** perche' un limite scritto solo in un commento di test non e' lavoro tracciato. ⚠️ Le acceptance **visive** di entrambe le issue restano non verificate: chiudono su una seduta, e dal 2026-08-12 hanno le cinque voci `PIE-HEX-VIZ-*` in `test-manuali-pie.md` che le registrano — prima non esistevano da nessuna parte se non nel testo di una PR.\n\n**Serie viz editor: 4/4 chiusa il 2026-08-12, e `log_debug` avanza a `done` con lei.** Owner del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e costo leggibili), `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede»), `#553` (coperture, porte e transizioni sui BORDI) e `#554` (le transizioni e la raggiungibilita') sono chiuse e mergiate — PR `#670`, `#673` e `#707`, commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`, `2f3c53cf`, `7ae2ce44`.\nIl gate chiede che **l'esito sia osservabile**, e per una modalita' di authoring l'esito e' la vista: `#554` e' l'anello che l'ha completata, perche' e' l'unica delle quattro che guarda il **grafo** invece della geometria. Le transizioni sono l'unico modo in cui i layer si collegano — due celle sovrapposte NON sono adiacenti senza un arco esplicito — e si vedevano solo dentro il tool Arch: chi dipingeva con Paint o Fill non sapeva se una zona fosse collegata, e una piattaforma senza arco e' irraggiungibile senza dirlo. Verificarlo richiedeva di far girare il pathfinding invece di guardare. `7ae2ce44` rende la raggiungibilita' **pigra** invece che ricalcolata a ogni drag del pennello — cioe' paga il costo che quella vista introduce, invece di lasciarlo sul tavolo.\n\n⚠️ **E l'osservabilita' e' pinnata, non asserita.** `FindUnreachableCells` e' stata ESTRATTA da `CheckReachability` perche' ha due consumatori — il comando di debug `rt.Arena.Check` e l'overlay — e `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells` verifica che i due contino le **stesse** celle. Senza quel test sarebbero due risposte alla stessa domanda, libere di divergere: e' la stessa ragione per cui colore e freccia delle transizioni sono stati spostati nello spazio condiviso `RTHexEditor` invece di essere duplicati.\n\n⚠️ `log_debug: done` **non** significa che la vista sia verificata a schermo: le **sei** voci `PIE-HEX-VIZ-*` di `test-manuali-pie.md` restano il registro di quella verifica, e sono di classe C. Il gate dice che l'esito **e' osservabile**, non che qualcuno l'ha osservato. Dal 2026-08-12 (sera) le sei stanno in **U18**: erano nel registro e in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. La sesta — `PIE-HEX-VIZ-TRANSIZIONI` — **non esisteva**: `#554` ha chiuso lasciando la propria acceptance visiva senza una riga che la registrasse, mentre `#552` e `#553` ne avevano aperte cinque nello stesso passaggio.\n\n🔴 **La lezione di questo record, e vale piu' della correzione.** Fino al 2026-08-12 questa nota diceva *«il gate NON avanza a `done` perche' `#554` e' ancora aperta»* mentre `#554` era chiusa e mergiata da ore, e il suo test non era in `tests:`. La PR era stata aperta verso `test/migrazione-asset-reale` (`#694`, chiusa unmerged), poi il branch e' stato ricollocato e rimergiato come `#707`: chi guardava la PR vecchia concludeva che il lavoro non fosse atterrato. **Lo stato di una PR non e' lo stato del lavoro** — `gh pr list --head <branch>` lo e'. Un handoff esterno (referto: `mapeditor-integration-spec-panel-2026-08-12.md`) ha ripetuto lo stesso ragionamento e ci ha costruito sopra una roadmap, un percorso critico e cinque azioni. ⏱️ Quel documento pero' era **corretto quando e' stato scritto** — timbrato `20:10 CEST`, con `#707` mergiata alle `20:26:29 CEST` — ed e' scaduto sedici minuti dopo: la lezione per chi legge un handoff non e' che l'autore sbagli, ma che uno stato descritto ha una **scadenza** e va rimisurato al consumo. ➕ **Due rami hanno corretto questo record in parallelo e sono arrivati allo stesso gate**, da argomenti diversi — l'anello mancante della vista da un lato, il test che pinna i due consumatori dall'altro. Convergenza, non ridondanza: il paragrafo qui sopra tiene entrambi. Ogni pezzo della serie ha portato il suo test nel modulo runtime, com'e' la regola qui: `OnlyTheCellsComponentIsClickable` (il pick guarda il componente, non l'actor — il secondo ISM dei volumi e' esattamente cio' che rendeva sbagliato il vecchio confronto), `EdgeMidpointIsSharedByBothCells` (la primitiva che mancava: due celle adiacenti devono calcolare lo STESSO punto medio di bordo, o copertura e porta si disegnerebbero due volte in due posti), `UnknownFixtureLeavesTheAssetUntouched` (un nome di fixture sbagliato non svuota l'asset) e `CriterionAndOverlayCountTheSameCells` (il criterio d'arena e l'overlay contano le STESSE celle: senza, la vista direbbe «collegata» dove il criterio dice di no, ed e' esattamente la vista che mente contro cui il brief mette in guardia)."
+      "notes": "`Source/RefactorTacticsEditor/` con tool di paint, fill, select e archi. Il residuo sono **verifiche PIE aperte** (H5: E/F/G/H/L/N, piu' le tre `PIE-HEX-LAYER-*` della vista a livelli) registrate in `test-manuali-pie.md`, non gate impliciti. `packaged: na` — è uno strumento d'editor, non entra nella build di gioco. **2026-08-12 (#551, #588)**: l'actor mappa ha un SECONDO `UInstancedStaticMeshComponent` — il rilievo che mostra il costo di attraversamento — e con lui e' cambiato cosa protegge il pennello. Il raycast di selezione confrontava l'ACTOR, mentre `Result.Item` e' l'indice di istanza del COMPONENTE colpito: un colpo su geometria diversa da `Cells` sarebbe stato risolto contro le celle sbagliate e avrebbe prodotto una cella **valida e sbagliata**, cioe' il pennello che dipinge altrove senza un errore a log. Ora il confronto e' sul componente (`ARTHexMapActor::IsPickOnSelectableCell`, pinnato dal test qui sopra) e `NoCollision` sul rilievo resta la prima difesa invece dell'unica: la protezione ha smesso di dipendere dal ricordarsi di una riga. 🔴 **Questa nota diceva che il modulo `RefactorTacticsEditor` non ha test propri, e dal 2026-08-16 e' FALSO**: `#993` ha portato `Private/Tests/RTHexToolPropertiesTests.cpp` con **due** test, e `find Source/RefactorTacticsEditor -iname \"*test*\"` restituisce due voci — rimisurato il 2026-08-17. La conclusione non cambia e la **ragione** si': le regole che riguardano il gioco vanno nel modulo runtime non perche' l'editor sia intestabile, ma perche' una regola di gioco che vive nell'editor e' una **seconda risposta** alla stessa domanda. I due test dell'editor coprono il proprio dominio — il costo che segue la superficie, il readout che non si aggiorna da solo — e nessuno dei due decide un esito di partita. Owner dell'argomento: `docs/technical/tooling/spec-tactical-designer.md` §3.\n\nLa vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri a contorno attenuato. Nello stesso passaggio il click ha smesso di scavalcare il piano attivo — in `AllLayers` il raggio poteva agganciare il disco di un altro piano e l'`ImpactPoint` veniva proiettato su quello attivo, spostando la cella di circa `LayerHeight` in orizzontale. `LayerFilterOnConstruction` tiene l'invariante che rende vera la seconda cosa: i piani di contesto **non** sono istanze, quindi non hanno collisione e il raycast non puo' vederli.\n\nDal 2026-08-12 il perimetro si divide: l'**authoring di geometria architettonica** ha una feature propria (`RT-FEAT-TOOL-MAP-GEOMETRY`), perche' e' un modello di dati e una cottura, non una modalita' d'editor. Qui restano il mode, i quattro tool e la vista. Le due issue nuove sono difetti d'uso osservati costruendo: `#622` la griglia di lavoro dove le celle non esistono ancora — l'unico pezzo di §10 del sorgente che non esisteva gia' — e `#623` la seduta su luci e inquadratura. `#623` e' una **seduta**, non codice: `L_DevSandbox.umap` e' un `.umap`, e la navigazione del viewport la fornisce Unreal (`RTCameraPawn` e' la camera di gioco, un oggetto diverso). Referto: `docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md`.\n\n**2026-08-12 (#552, #553)**: i volumi delle regole di blocco (`Blockers`) e i pannelli di bordo (`EdgeFeatures`) erano stati consegnati **senza test**, e con loro un difetto che nessuno avrebbe visto: lastra della vista e rilievo del costo sono concentrici e partono dalla stessa quota, e la lastra a 16 uu era piu' alta E piu' larga del rilievo piu' alto che il catalogo possa produrre (15 uu, perche' il costo massimo v0.1 e' `2`). Ogni cella costosa che blocca la vista taceva sul proprio costo — e non in un caso limite: in **tutti**. Corretto a 10 uu, col vincolo scritto accanto alla costante. I quattro test aggiunti misurano il COMPORTAMENTO — le istanze che `RebuildInstances` produce — non i valori, cosi' ritoccare le proporzioni resta libero e farle collassare no. ⚠️ Limite noto e dichiarato: i quattro stati di porta si mostrano con **due** forme (`Locked` come `Closed`, `Destroyed` come `Open`), quindi «lo stato e' visibile e cambia quando cambia il dato» — acceptance di #553 — vale per il passaggio, non per chi puo' cambiarlo. Aperta **#695** perche' un limite scritto solo in un commento di test non e' lavoro tracciato. ⚠️ Le acceptance **visive** di entrambe le issue restano non verificate: chiudono su una seduta, e dal 2026-08-12 hanno le cinque voci `PIE-HEX-VIZ-*` in `test-manuali-pie.md` che le registrano — prima non esistevano da nessuna parte se non nel testo di una PR.\n\n**Serie viz editor: 4/4 chiusa il 2026-08-12, e `log_debug` avanza a `done` con lei.** Owner del perimetro: `docs/technical/tooling/brief-editor-map-viz.md`. `#551` (superficie e costo leggibili), `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede»), `#553` (coperture, porte e transizioni sui BORDI) e `#554` (le transizioni e la raggiungibilita') sono chiuse e mergiate — PR `#670`, `#673` e `#707`, commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`, `2f3c53cf`, `7ae2ce44`.\nIl gate chiede che **l'esito sia osservabile**, e per una modalita' di authoring l'esito e' la vista: `#554` e' l'anello che l'ha completata, perche' e' l'unica delle quattro che guarda il **grafo** invece della geometria. Le transizioni sono l'unico modo in cui i layer si collegano — due celle sovrapposte NON sono adiacenti senza un arco esplicito — e si vedevano solo dentro il tool Arch: chi dipingeva con Paint o Fill non sapeva se una zona fosse collegata, e una piattaforma senza arco e' irraggiungibile senza dirlo. Verificarlo richiedeva di far girare il pathfinding invece di guardare. `7ae2ce44` rende la raggiungibilita' **pigra** invece che ricalcolata a ogni drag del pennello — cioe' paga il costo che quella vista introduce, invece di lasciarlo sul tavolo.\n\n⚠️ **E l'osservabilita' e' pinnata, non asserita.** `FindUnreachableCells` e' stata ESTRATTA da `CheckReachability` perche' ha due consumatori — il comando di debug `rt.Arena.Check` e l'overlay — e `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells` verifica che i due contino le **stesse** celle. Senza quel test sarebbero due risposte alla stessa domanda, libere di divergere: e' la stessa ragione per cui colore e freccia delle transizioni sono stati spostati nello spazio condiviso `RTHexEditor` invece di essere duplicati.\n\n⚠️ `log_debug: done` **non** significa che la vista sia verificata a schermo: le **sei** voci `PIE-HEX-VIZ-*` di `test-manuali-pie.md` restano il registro di quella verifica, e sono di classe C. Il gate dice che l'esito **e' osservabile**, non che qualcuno l'ha osservato. Dal 2026-08-12 (sera) le sei stanno in **U18**: erano nel registro e in nessuna seduta, e una voce che non sta in una seduta non viene eseguita mai. La sesta — `PIE-HEX-VIZ-TRANSIZIONI` — **non esisteva**: `#554` ha chiuso lasciando la propria acceptance visiva senza una riga che la registrasse, mentre `#552` e `#553` ne avevano aperte cinque nello stesso passaggio.\n\n🔴 **La lezione di questo record, e vale piu' della correzione.** Fino al 2026-08-12 questa nota diceva *«il gate NON avanza a `done` perche' `#554` e' ancora aperta»* mentre `#554` era chiusa e mergiata da ore, e il suo test non era in `tests:`. La PR era stata aperta verso `test/migrazione-asset-reale` (`#694`, chiusa unmerged), poi il branch e' stato ricollocato e rimergiato come `#707`: chi guardava la PR vecchia concludeva che il lavoro non fosse atterrato. **Lo stato di una PR non e' lo stato del lavoro** — `gh pr list --head <branch>` lo e'. Un handoff esterno (referto: `mapeditor-integration-spec-panel-2026-08-12.md`) ha ripetuto lo stesso ragionamento e ci ha costruito sopra una roadmap, un percorso critico e cinque azioni. ⏱️ Quel documento pero' era **corretto quando e' stato scritto** — timbrato `20:10 CEST`, con `#707` mergiata alle `20:26:29 CEST` — ed e' scaduto sedici minuti dopo: la lezione per chi legge un handoff non e' che l'autore sbagli, ma che uno stato descritto ha una **scadenza** e va rimisurato al consumo. ➕ **Due rami hanno corretto questo record in parallelo e sono arrivati allo stesso gate**, da argomenti diversi — l'anello mancante della vista da un lato, il test che pinna i due consumatori dall'altro. Convergenza, non ridondanza: il paragrafo qui sopra tiene entrambi. Ogni pezzo della serie ha portato il suo test nel modulo runtime, com'e' la regola qui: `OnlyTheCellsComponentIsClickable` (il pick guarda il componente, non l'actor — il secondo ISM dei volumi e' esattamente cio' che rendeva sbagliato il vecchio confronto), `EdgeMidpointIsSharedByBothCells` (la primitiva che mancava: due celle adiacenti devono calcolare lo STESSO punto medio di bordo, o copertura e porta si disegnerebbero due volte in due posti), `UnknownFixtureLeavesTheAssetUntouched` (un nome di fixture sbagliato non svuota l'asset) e `CriterionAndOverlayCountTheSameCells` (il criterio d'arena e l'overlay contano le STESSE celle: senza, la vista direbbe «collegata» dove il criterio dice di no, ed e' esattamente la vista che mente contro cui il brief mette in guardia)."
     },
     {
       "feature_id": "RT-FEAT-TOOL-MAP-GEOMETRY",
@@ -6338,8 +6338,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-hex-geometry-authoring.md",
-        "docs/technical/spec-tactical-designer.md",
+        "docs/technical/systems/spec-hex-geometry-authoring.md",
+        "docs/technical/tooling/spec-tactical-designer.md",
         "docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md",
         "docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md",
         "docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md"
@@ -6408,7 +6408,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/test-automatico-unreal.md"
+        "docs/technical/tooling/test-automatico-unreal.md"
       ],
       "issues": [
         30
@@ -6578,7 +6578,7 @@
       "owner_specs": [
         "docs/balance/README.md",
         "docs/balance/RT_TestMatrix_v0.1.md",
-        "docs/technical/spec-tactical-designer.md"
+        "docs/technical/tooling/spec-tactical-designer.md"
       ],
       "issues": [
         28,
@@ -6637,7 +6637,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-tactical-designer.md",
+        "docs/technical/tooling/spec-tactical-designer.md",
         "docs/roadmap/plans/tactical-designer-consolidamento-2026-08-17.md"
       ],
       "issues": [],
@@ -6688,7 +6688,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-tactical-designer.md",
+        "docs/technical/tooling/spec-tactical-designer.md",
         "docs/roadmap/plans/tactical-designer-consolidamento-2026-08-17.md"
       ],
       "issues": [],
@@ -6735,7 +6735,7 @@
       "dependencies": [],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/convenzioni-contenuti-ue.md",
+        "docs/technical/tooling/convenzioni-contenuti-ue.md",
         "docs/technical/piano-migrazione-stable-id.md"
       ],
       "issues": [
@@ -6797,8 +6797,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-asset-pipeline.md",
-        "docs/technical/convenzioni-contenuti-ue.md"
+        "docs/technical/architecture/spec-asset-pipeline.md",
+        "docs/technical/tooling/convenzioni-contenuti-ue.md"
       ],
       "issues": [
         28,
@@ -6855,7 +6855,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-turnlog-serialize.md"
+        "docs/technical/architecture/spec-turnlog-serialize.md"
       ],
       "issues": [
         81
@@ -7259,7 +7259,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/convenzioni-contenuti-ue.md"
+        "docs/technical/tooling/convenzioni-contenuti-ue.md"
       ],
       "issues": [
         85,

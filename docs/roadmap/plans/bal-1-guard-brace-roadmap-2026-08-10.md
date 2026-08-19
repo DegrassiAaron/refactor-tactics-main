@@ -161,7 +161,7 @@ sezione**. Ora ce l'ha, e la sezione `Brace` dice cosa fa davvero invece di rima
 
 **Editor**: la Fase 2 non si chiude headless. Voce `PIE-BAL1` nel registro
 [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md), classe **C** secondo
-[`scenario-map.md`](../../technical/scenario-map.md) — l'oracolo è il giudizio, non un'assertion.
+[`scenario-map.md`](../../technical/tooling/scenario-map.md) — l'oracolo è il giudizio, non un'assertion.
 **Non** entra nel subset `RELEASE-V01`: `BAL-1` non blocca la consegna della v0.1, e un gate che si allarga
 senza motivo è il difetto che G9 ha già avuto due volte.
 

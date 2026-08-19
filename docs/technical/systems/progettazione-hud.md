@@ -16,7 +16,7 @@ La style guide visuale di riferimento è il file PNG presente nel repository:
 
 Riferimento Markdown:
 
-![RefactorTactics HUD Style Guide](./img/UI-style-guide.png)
+![RefactorTactics HUD Style Guide](../img/UI-style-guide.png)
 
 La tavola di riferimento è una board da **1536×1024** e definisce il linguaggio grafico di base per:
 
@@ -161,7 +161,7 @@ Finestre temporanee per:
 - Fast Action — scelta live come continuazione di una **propria** azione;
 - Fast Reaction — scelta live provocata da un evento **esterno**;
 
-  > Sono categorie **distinte** ([D-019](../decisions/RT_PDR_00_Decision_Log.md)) sulla stessa
+  > Sono categorie **distinte** ([D-019](../../decisions/RT_PDR_00_Decision_Log.md)) sulla stessa
   > `DecisionWindow`, e nessuna delle due è una *Delayed Action* (che si decide in Planning e non apre
   > finestre). La v0.1 non definisce ancora una Fast Action concreta.
 
@@ -303,7 +303,7 @@ Non deve mai sembrare:
 
 ## 6.7 Bottom center — Action Dock
 
-> ⚠️ **2026-08-12 — [D-025](../decisions/RT_PDR_00_Decision_Log.md): le generiche sono sette, non quattro.**
+> ⚠️ **2026-08-12 — [D-025](../../decisions/RT_PDR_00_Decision_Log.md): le generiche sono sette, non quattro.**
 > Questa sezione ne elencava `Move · Wait · Guard · Overwatch` e ometteva `BasicAttack`, `Brace` e
 > `Interact`. L'elenco canonico è `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`.
 
@@ -464,12 +464,12 @@ Consuma dati prodotti dallo stesso stato/snapshot/regole usate dal gameplay.
 
 Facing è stato logico di gameplay e deve essere leggibile nella UI.
 
-> ⚠️ **2026-08-08 — [D-020](../decisions/RT_PDR_00_Decision_Log.md): il facing cambia più volte per round.**
+> ⚠️ **2026-08-08 — [D-020](../../decisions/RT_PDR_00_Decision_Log.md): il facing cambia più volte per round.**
 > Un'azione con bersaglio orienta l'unità **prima di risolvere**, quindi non esiste «il facing dell'unità in
 > questo turno»: esiste il facing **della fase**. La UI deve mostrare quello della fase selezionata durante lo
 > scrubbing (§8.3), non un valore unico — e il facing **finale**, dopo il `Move`, è quello che l'unità porta
 > nel round successivo. Timeline completa in
-> [ADR-0005](../decisions/adr-0005-orientamento.md) §2-bis.
+> [ADR-0005](../../decisions/adr-0005-orientamento.md) §2-bis.
 
 Possibili usi:
 
@@ -555,7 +555,7 @@ Se più target triggerano nello stesso micro-step:
 # 11-bis. Decision Time Bank
 
 > Aggiunta del **2026-08-09**. Il Time Bank è entrato in v0.1 come **CP 14.8**, e questo documento non lo
-> conosceva. **Owner dei requisiti**: [`../gameplay/spec-decision-time-bank.md`](../gameplay/spec-decision-time-bank.md) §11 — qui c'è
+> conosceva. **Owner dei requisiti**: [`../../gameplay/spec-decision-time-bank.md`](../../gameplay/spec-decision-time-bank.md) §11 — qui c'è
 > soltanto **come si presenta**, non che cosa deve fare. Nessun requisito si riscrive: se le due fonti
 > divergono, prevale lo spec.
 
@@ -586,7 +586,7 @@ non prende un secondo nome.
 
 **3 · Il bank residuo è informazione del proprietario.** Non compare nel prompt dell'avversario, in nessuna
 forma e in nessuna granularità: quantizzare un delta correlato al tempo di lock non chiude il canale, lo
-attenua. Vale [D-021](../decisions/RT_PDR_00_Decision_Log.md) e ADR-0004 §7-bis.
+attenua. Vale [D-021](../../decisions/RT_PDR_00_Decision_Log.md) e ADR-0004 §7-bis.
 
 ## 11-bis.2 Il requisito vincolante
 
@@ -843,7 +843,7 @@ Non deve diventare un pannello permanente.
 # 18-bis. Interaction Inspector
 
 > Aggiunta del **2026-08-09**, superficie UI di
-> [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) (**CP 10.1**). Owner della regola: quello spec.
+> [`../../gameplay/spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) (**CP 10.1**). Owner della regola: quello spec.
 > Qui c'è solo la forma.
 
 Quando il giocatore seleziona un elemento interattivo — porta, consolle, ponte, obiettivo — l'inspector

@@ -7,7 +7,7 @@
 > `CURRENT` · **Ultimo aggiornamento**: 2026-08-08 (verificata contro `Scenarios/` e `ScenarioHarness/`:
 > cinque scenari, quattro comandi console, percorsi corretti — nessuna correzione necessaria).
 > La **spec** dell'harness — schema, assertion, esiti, `StateHash` — è
-> [`test-automatico-unreal.md`](test-automatico-unreal.md).
+> [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md).
 
 ---
 
@@ -307,7 +307,7 @@ candidate** — che è il sintomo tecnico di ciò che questa regola protegge.
 
 File `.json` sotto `Scenarios/`, in **qualunque** sottocartella. L'ID lo dichiara il file, non il percorso:
 spostare uno scenario non ne cambia l'identità, e a trovarlo ci pensano i **tag**. Il modello, il perché e la
-tabella di redirect stanno in [`scenario-index-e-tag.md`](scenario-index-e-tag.md).
+tabella di redirect stanno in [`scenario-index-e-tag.md`](tooling/scenario-index-e-tag.md).
 
 ```json
 {
@@ -336,7 +336,7 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](scenario-index-e-tag.m
 | Campo | Significato |
 |---|---|
 | `scenarioId` | ID stabile e gerarchico, **univoco** fra tutti gli scenari. Non deve corrispondere al percorso |
-| `tags` | *(opzionale)* parole per cui filtrare nell'Editor: tipologia, lente, personaggio. Vedi [`scenario-index-e-tag.md`](scenario-index-e-tag.md) |
+| `tags` | *(opzionale)* parole per cui filtrare nell'Editor: tipologia, lente, personaggio. Vedi [`scenario-index-e-tag.md`](tooling/scenario-index-e-tag.md) |
 | `mapRadius` | arena esagonale piena generata da codice (nessun `.umap` da versionare) |
 | `cells` | *(opzionale)* celle da modificare: `blocksMovement`, `blocksLineOfSight`, `moveCost` |
 | `hero` | ID stabile dal catalogo: `Hero.Gadget` · `Hero.Phase` · `Hero.Riktor` · `Hero.Wraith` |
@@ -537,7 +537,7 @@ negli scenari — così non esistono voci che non filtrano niente.
 
 I filtri sono una **vista, non un vincolo**: restringere l'elenco non tocca mai `ScenarioToRun`. Uno scenario
 già scelto resta scelto ed eseguito anche mentre i filtri mostrano altro. Il perché sta in
-[`scenario-index-e-tag.md`](scenario-index-e-tag.md).
+[`scenario-index-e-tag.md`](tooling/scenario-index-e-tag.md).
 
 Si impostano una volta nei *Class Defaults* di `BP_GameMode`, si salva, e da lì in poi **al primo Play lo
 scenario parte**. Non c'è niente da ridigitare a ogni riavvio dell'editor.

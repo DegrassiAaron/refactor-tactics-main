@@ -38,7 +38,7 @@ di essere veri.
 | [`bot-ai-consolidamento-2026-08-11.md`](bot-ai-consolidamento-2026-08-11.md) | Referto su Bot/AI, Team Planner, Belief e tracking | `HISTORICAL` — sorgenti in `../src/handoff/`; le §21–§27 (sette release bot) **non** applicate |
 | [`e9-5-coperture-temporanee-plan.md`](e9-5-coperture-temporanee-plan.md) | Piano di CP 9.5, pannello cinetico e coperture temporanee | `HISTORICAL` — epic **E9** e [`#73`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/73) chiuse |
 | [`editormap-spec.md`](editormap-spec.md) | Spec della vista operativa in editor | `HISTORICAL` — la vista esiste: [`../../roadmap/editormap.shortlist.md`](../../roadmap/editormap.shortlist.md), generata |
-| [`plan-turnlog.md`](plan-turnlog.md) | Piano di TurnLog e reason code | `HISTORICAL` — si dichiarava già consegnato in prosa; owner [`../../technical/spec-turnlog.md`](../../technical/spec-turnlog.md) |
+| [`plan-turnlog.md`](plan-turnlog.md) | Piano di TurnLog e reason code | `HISTORICAL` — si dichiarava già consegnato in prosa; owner [`../../technical/architecture/spec-turnlog.md`](../../technical/architecture/spec-turnlog.md) |
 | [`roadmap-reconciliation-2026-08-12.md`](roadmap-reconciliation-2026-08-12.md) · [`roadmap-reconciliation-2026-08-13.md`](roadmap-reconciliation-2026-08-13.md) | I due referti di riconciliazione **parziale** | `SNAPSHOT` — il secondo afferma che `FMT-1` è da decidere, e [`D-137`](../../decisions/RT_PDR_00_Decision_Log.md) l'ha chiusa la sera stessa |
 
 **20 documenti** in tutto: **10** `HISTORICAL` e **10** `SNAPSHOT`. Si rimisura con

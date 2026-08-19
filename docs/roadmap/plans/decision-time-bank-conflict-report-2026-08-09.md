@@ -23,10 +23,10 @@ Consultati a HEAD:
 | [`roadmap/feature-registry.yaml`](../feature-registry.yaml) | FeatureId reali |
 | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) · [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) | decisioni aperte e conflitti già registrati |
 | [`product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) | scope MVP |
-| [`technical/architettura-codice.md`](../../technical/architettura-codice.md) | stato di implementazione di E14 |
+| [`technical/architettura-codice.md`](../../technical/architecture/architettura-codice.md) | stato di implementazione di E14 |
 
 **Non** consultati: issue GitHub reali (`gh` non invocato in questa sessione),
-[`technical/spec-turnlog.md`](../../technical/spec-turnlog.md) oltre la citazione come owner dei reason code.
+[`technical/spec-turnlog.md`](../../technical/architecture/spec-turnlog.md) oltre la citazione come owner dei reason code.
 Entrambi restano da verificare prima di toccare TurnLog o numeri di issue — vedi §9.
 
 ---

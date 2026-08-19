@@ -157,7 +157,7 @@ possiede livelli di conoscenza su unità/eventi.
 
 - Prefissi C++: `RT` / `URT`; `PascalCase`; reflection (`UPROPERTY`, `UFUNCTION`) solo quando necessaria.
 - Asset proprietari sotto **`/Game/RT/`**, struttura **feature-first**.
-- Naming e dipendenze contenuti: **`docs/technical/convenzioni-contenuti-ue.md`** è normativo.
+- Naming e dipendenze contenuti: **`docs/technical/tooling/convenzioni-contenuti-ue.md`** è normativo.
 - Terze parti/Paragon restano fuori da `/Game/RT` salvo pipeline esplicitamente documentata.
 - Non modificare `.uasset`/`.umap` a mano e non spostarli da filesystem: usare Content Browser + Fix Up Redirectors.
 - I binari Unreal sono **human-first, non human-only** ([D-139](docs/decisions/RT_PDR_00_Decision_Log.md)):
@@ -340,7 +340,7 @@ coppia `(file, riga)` — mai con una sostituzione globale — contenuto invaria
 perché il controllo *«qual è il primo numero libero»* scade mentre lavori. L'estensione dell'allocatore a
 questi namespace è deliberatamente rimandata a dopo che `D-nnn` avrà dimostrato il meccanismo.
 
-Meccanismo, recovery e cleanup: [`docs/technical/workflow-parallel-claude.md`](docs/technical/workflow-parallel-claude.md).
+Meccanismo, recovery e cleanup: [`docs/technical/tooling/workflow-parallel-claude.md`](docs/technical/tooling/workflow-parallel-claude.md).
 
 ## Lingua
 

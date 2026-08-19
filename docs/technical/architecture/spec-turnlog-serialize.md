@@ -1,7 +1,7 @@
 # Spec — Serializzazione TurnLog versionata (SR + SR.file)
 
 > Slice successivo a [`spec-turnlog.md`](spec-turnlog.md) §11: chiude il ciclo determinismo/replay
-> (KPI [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) «Replay divergence = 0»). **Puro C++, TDD.**
+> (KPI [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) «Replay divergence = 0»). **Puro C++, TDD.**
 > **Stato: implementato** — `SR` (in-memory, merge `8b6dc32`) + `SR.file` (checksum v2 + I/O su file,
 > branch `feat/turnlog-file` → `main`). Suite **126/126**.
 
@@ -34,18 +34,18 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
 > | `WithActionId = 3` | `ActionId` per voce (CP 5.5): `uint16` di lunghezza + byte UTF-8 in coda alla voce — **primo campo a lunghezza variabile** | **sì** | leggibili, `ActionId` vuoto: che è esattamente ciò che quei byte dicevano |
 > | `WithFormatId = 4` | `FormatId` nell'**header** (CP 10.3), dopo i flags. Sta nell'header perché nelle voci sarebbe una costante ripetuta N volte | no | leggibili, `FormatId` neutro |
 > | `WithBaseActionId = 5` | `BaseActionId` per voce ([#354](https://github.com/DegrassiAaron/refactor-tactics-main/issues/354)): l'azione generica di cui `ActionId` è un profilo, scritta come l'ActionId | no — è una **funzione** di `ActionId`, che c'è già | leggibili, `BaseActionId` vuoto |
-> | `WithUnitId = 6` | `UnitId`, `TurnNumber` ([D-063](../decisions/RT_PDR_00_Decision_Log.md)) e `GraphRevision` ([D-067](../decisions/RT_PDR_00_Decision_Log.md)): tre int32 in coda alla voce, dopo `BaseActionId` | i primi due **no** — rendono la traccia spiegabile, non la discriminano. `GraphRevision` **sì**: due tracce possono differire solo per lei, ed è un'altra partita | leggibili, campi a `0` (`UnitId = 0` = nessuna unità) |
+> | `WithUnitId = 6` | `UnitId`, `TurnNumber` ([D-063](../../decisions/RT_PDR_00_Decision_Log.md)) e `GraphRevision` ([D-067](../../decisions/RT_PDR_00_Decision_Log.md)): tre int32 in coda alla voce, dopo `BaseActionId` | i primi due **no** — rendono la traccia spiegabile, non la discriminano. `GraphRevision` **sì**: due tracce possono differire solo per lei, ed è un'altra partita | leggibili, campi a `0` (`UnitId = 0` = nessuna unità) |
 >
 > ⚠️ **Ogni campo che questo formato SCRIVE deve stare anche in `EntryLess`.** La forma canonica è definita
 > dall'ordinamento: un campo serializzato che il confronto non guarda lascia due voci a pari merito, e
 > l'ordine fra loro lo decide `TArray::Sort`, che **non è stabile** — due inserimenti diversi produrrebbero
 > due file diversi con lo stesso contenuto. È esattamente ciò che `D-SR-1` promette non accada, ed è successo:
 > `UnitId` e `TurnNumber` sono arrivati nella v6 senza entrare nel confronto. Corretto in
-> [D-067](../decisions/RT_PDR_00_Decision_Log.md), pinnato da `TurnLog.CanonicalOrderCoversSerializedFields`.
+> [D-067](../../decisions/RT_PDR_00_Decision_Log.md), pinnato da `TurnLog.CanonicalOrderCoversSerializedFields`.
 > L'unica eccezione legittima è un campo che **non può produrre pareggi** perché funzione di un altro:
 > `BaseActionId` è funzione di `ActionId`, e per questo resta fuori.
 >
-> ⚠️ **L'hash ordinato di [D-062](../decisions/RT_PDR_00_Decision_Log.md) NON è in questo formato, ed è
+> ⚠️ **L'hash ordinato di [D-062](../../decisions/RT_PDR_00_Decision_Log.md) NON è in questo formato, ed è
 > deliberato.** La prima stesura di D-062 diceva di metterlo nell'header: sarebbe stato un errore, perché i
 > byte sono in forma canonica (`D-SR-1`) e un hash dell'ordine d'inserimento li renderebbe dipendenti da
 > quell'ordine — cioè romperebbe `SerializeCanonicalPermutationInvariant`. Quel valore appartiene all'header
@@ -120,7 +120,7 @@ guidati da un **RED reale**; bounds-check, caso vuoto, file mancante/corrotto = 
 ## 6. Decisioni
 
 - **D-SR-1** — **forma canonica** (ordinata) → byte permutazione-invarianti; replay confrontabili byte-per-byte.
-  ⚠️ **Conseguenza di [D-062](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-10)**: siccome i byte sono
+  ⚠️ **Conseguenza di [D-062](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-10)**: siccome i byte sono
   **ordinati**, la serializzazione **perde l'ordine di append**. L'hash ordinato quindi **non è ricalcolabile
   da un file**: si calcola in memoria prima di scrivere, e va conservato nell'header del **Replay Archive** —
   **non** in quello del TurnLog, che deve restare permutazione-invariante. Il verificatore lo confronta con
@@ -145,7 +145,7 @@ Il campo flags porta ora la **topologia** (`D-SR-6`): il formato dichiara se le 
 il loader rifiuta i valori sconosciuti (fail-closed) e restituisce la topologia letta. `SerializeTurnLog` col
 default `Square` produce **gli stessi byte di prima** (test `RefactorTactics.TurnLog.SquareBytesUnchanged`).
 La topologia **non** entra nell'hash: due esecuzioni della stessa partita condividono la topologia per
-costruzione, e così l'hash del quadrato resta invariato. Vedi [`h6-hex-sim-spec.md`](h6-hex-sim-spec.md) §H6.3.
+costruzione, e così l'hash del quadrato resta invariato. Vedi [`h6-hex-sim-spec.md`](../systems/h6-hex-sim-spec.md) §H6.3.
 
 ## 7-bis. Il Replay Archive — dove finiscono le tracce (2026-08-10, `#469`)
 
@@ -252,7 +252,7 @@ scritte.
 **`URTReplayPlayerLibrary` riproduce senza ricalcolare.** Vive accanto a `URTReplaySeekLibrary`, e la garanzia
 non è disciplina ma **struttura**: nessuno dei suoi `#include` arriva al resolver, quindi «il Player non chiama
 il resolver» non è una promessa da mantenere — è l'assenza della possibilità di violarla
-([ADR-0009](../decisions/adr-0009-replay-logico-canonico.md) §3, rischio `REPLAY-04`, che si chiude qui).
+([ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md) §3, rischio `REPLAY-04`, che si chiude qui).
 
 | Cosa fa | Cosa **non** fa |
 |---|---|

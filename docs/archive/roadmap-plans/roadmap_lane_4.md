@@ -51,7 +51,7 @@ con un `grep` che conta anche la prosa.
 
 ### 4. Viz editor — la serie 1/4 → 4/4
 
-**Brief**: [`../../technical/brief-editor-map-viz.md`](../../technical/brief-editor-map-viz.md)
+**Brief**: [`../../technical/tooling/brief-editor-map-viz.md`](../../technical/tooling/brief-editor-map-viz.md)
 
 | Issue | Cosa | Stato | Prio |
 |---|---|---|:--:|

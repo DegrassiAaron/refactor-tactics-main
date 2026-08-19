@@ -2,7 +2,7 @@
 
 > **Statuto**: sorgente di design, non canone. Vedi [`01-principi.md`](01-principi.md).
 >
-> **Owner della semantica**: [`progettazione-hud.md`](../../../../technical/progettazione-hud.md) §16
+> **Owner della semantica**: [`progettazione-hud.md`](../../../../technical/systems/progettazione-hud.md) §16
 > definisce che cosa significano i tre stati e quando si applicano. Qui c'è **solo come si disegnano**.
 
 ## 1. Tre assi separati

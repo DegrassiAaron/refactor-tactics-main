@@ -1,12 +1,12 @@
 # Spec — La mappa come grafo tattico esagonale multilivello
 
 > `CURRENT` · **Stato**: as-built, allineata al codice il **2026-08-08** · **Owner**: questo file
-> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) e a
-> [ADR-0002](../decisions/adr-0002-griglia-esagonale.md).
+> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) e a
+> [ADR-0002](../../decisions/adr-0002-griglia-esagonale.md).
 >
 > Si legge **senza conoscere la migrazione**. Il corpo originale — ponte sopraelevato su griglia quadrata
 > 10×10, `FRTGridCoord`, due ISM del vecchio sistema — è conservato in
-> [`spec-mappa-multilivello-quadrato.md`](../archive/technical/spec-mappa-multilivello-quadrato.md): resta la
+> [`spec-mappa-multilivello-quadrato.md`](../../archive/technical/spec-mappa-multilivello-quadrato.md): resta la
 > fonte del *perché* il multilivello ha questa forma, non del *come* è fatto oggi.
 
 ---
@@ -45,7 +45,7 @@ distruggere. Due conseguenze che vincolano tutto il resto:
 
 | Campo | Tipo | Ruolo |
 |---|---|---|
-| `Height` | `int32` | quota; vale per **geometria** — LOS, occlusione, accessibilità. **Nessun bonus a danno o vista** ([D-018](../decisions/RT_PDR_00_Decision_Log.md) · [D-024](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Height` | `int32` | quota; vale per **geometria** — LOS, occlusione, accessibilità. **Nessun bonus a danno o vista** ([D-018](../../decisions/RT_PDR_00_Decision_Log.md) · [D-024](../../decisions/RT_PDR_00_Decision_Log.md)) |
 | `Surface` | `ERTHexSurface` | pavimento, acqua, fuoco, ghiaccio… (E8) |
 | `MoveCost` | `int32` | costo **intero** del terreno per entrare nella cella |
 | `OccupancySurcharge` | `int32` | sovrapprezzo dovuto alla **geometria** che invade la cella (formato v7, `#619`) — vedi §3a |
@@ -67,7 +67,7 @@ che esiste come accessore, e non come somma ripetuta, perché i lettori del cost
 della stessa somma sono cinque posti da cui può sparire.
 
 Il modello che produce quel numero è in
-[`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md) §5–§7.
+[`spec-hex-geometry-authoring.md`](../systems/spec-hex-geometry-authoring.md) §5–§7.
 
 ## 4. Le coperture stanno sui bordi
 
@@ -78,8 +78,8 @@ Una copertura appartiene a **uno dei sei lati**, non alla cella: un muretto ti p
 modellarlo come proprietà della cella renderebbe la direzionalità impossibile da esprimere.
 
 > ⚠️ **Questa riga parla del dato, non del mondo — e la distinzione va tenuta.** Due triage indipendenti
-> ([2026-08-09](../roadmap/plans/map-editor-brief-spec-panel-2026-08-09.md) §4,
-> [2026-08-10](../roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md) §4) hanno letto
+> ([2026-08-09](../../roadmap/plans/map-editor-brief-spec-panel-2026-08-09.md) §4,
+> [2026-08-10](../../roadmap/plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md) §4) hanno letto
 > «copertura sui bordi» come se dicesse *«i muri devono seguire i lati dell'esagono»*. **Non lo dice, e quella
 > regola non esiste in nessun documento canonico.** Un muro può attraversare una cella a 90°, tagliarla a
 > metà, non essere allineato a niente: la griglia si sovrappone alla geometria, non viceversa.
@@ -93,7 +93,7 @@ modellarlo come proprietà della cella renderebbe la direzionalità impossibile 
 > della cella* e *validità della transizione* che serve a coprirlo è in E23.
 
 - **Bassa** — non chiude il bordo: riduce il danno di chi la usa (CP 9.1). La riduzione **decade** se il colpo
-  arriva fuori dall'arco frontale ([ADR-0005](../decisions/adr-0005-orientamento.md) §4a).
+  arriva fuori dall'arco frontale ([ADR-0005](../../decisions/adr-0005-orientamento.md) §4a).
 - **Alta** — **chiude il bordo**: `URTHexCoverLibrary::BlocksTraversal` è consultato **sia** da
   `URTHexPathLibrary::GraphNeighbors` **sia** da `URTHexVisionLibrary`. Movimento e vista non possono
   divergere, perché leggono lo stesso predicato.
@@ -114,16 +114,16 @@ speciale da programmare, è semplicemente un arco solo.
 `Jump` è predisposizione; il teletrasporto resta fuori.
 
 > ⚠️ **Un `Portal` sarebbe un valore di questo enum, non un trasferimento personale**
-> ([D-118](../decisions/RT_PDR_00_Decision_Log.md)). Il confine è netto e vale la pena scriverlo qui: un
+> ([D-118](../../decisions/RT_PDR_00_Decision_Log.md)). Il confine è netto e vale la pena scriverlo qui: un
 > `Transfer` sposta **un'unità** e non tocca la mappa; un portale cambia la **raggiungibilità** e quindi
 > appartiene al grafo — `Transitions`, `Revision`, invalidazione della cache di path. Chi lo implementasse
 > come un'abilità di teletrasporto costruirebbe una scorciatoia che il pathfinding non vede. È **CP 39.10**
-> di [E39](../roadmap/roadmap-post-v0.1.md#e39--spatial-transfer--teleport-blink-e-movimento-istantaneo--p3),
+> di [E39](../../roadmap/roadmap-post-v0.1.md#e39--spatial-transfer--teleport-blink-e-movimento-istantaneo--p3),
 > e la sua prima riga è un audit della serializzazione di questo enum.
 
 > **Gli archi non portano trigger.** Una trap o un tripwire possiede la propria coppia `(From → To)` e la
 > confronta col micro-step del movimento; `FRTHexEdge` resta riservato ai soli salti di layer
-> ([D-013](../decisions/RT_PDR_00_Decision_Log.md)). Il motivo è nella §2 di
+> ([D-013](../../decisions/RT_PDR_00_Decision_Log.md)). Il motivo è nella §2 di
 > [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md): gli adiacenti orizzontali sono **calcolati**,
 > quindi non esiste un arco su cui appendere il trigger.
 
@@ -170,11 +170,11 @@ editor**: il modulo runtime non dipende da UnrealEd.
 
 | Tema | Owner |
 |---|---|
-| Geometria architettonica, grammatica quantizzata, occupancy a 12 settori, cottura verso i dati tattici, confine runtime/editor | [`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md) |
+| Geometria architettonica, grammatica quantizzata, occupancy a 12 settori, cottura verso i dati tattici, confine runtime/editor | [`spec-hex-geometry-authoring.md`](../systems/spec-hex-geometry-authoring.md) |
 | A\*, archi percorribili, costi del cammino | [`spec-pathfinding-pf3-pf4.md`](spec-pathfinding-pf3-pf4.md) |
-| Regole di copertura e distruzione | [`../gameplay/spec-copertura-cp91.md`](../gameplay/spec-copertura-cp91.md) · [`../gameplay/spec-copertura-alta-cp92.md`](../gameplay/spec-copertura-alta-cp92.md) |
-| Superfici, stati, propagazione | [`../gameplay/spec-terreni-e8.md`](../gameplay/spec-terreni-e8.md) |
-| Chi può interagire con che cosa, e perché no | [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md) |
-| LOS e forme di targeting | [`h6-4-hex-vision-spec.md`](h6-4-hex-vision-spec.md) (`AS-BUILT`, emendata da E9/E13) |
-| Percorsi e naming degli asset in `Content/` | [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md) |
-| Stato di avanzamento | [`../roadmap/roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) |
+| Regole di copertura e distruzione | [`../../gameplay/spec-copertura-cp91.md`](../../gameplay/spec-copertura-cp91.md) · [`../../gameplay/spec-copertura-alta-cp92.md`](../../gameplay/spec-copertura-alta-cp92.md) |
+| Superfici, stati, propagazione | [`../../gameplay/spec-terreni-e8.md`](../../gameplay/spec-terreni-e8.md) |
+| Chi può interagire con che cosa, e perché no | [`../../gameplay/spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) |
+| LOS e forme di targeting | [`h6-4-hex-vision-spec.md`](../systems/h6-4-hex-vision-spec.md) (`AS-BUILT`, emendata da E9/E13) |
+| Percorsi e naming degli asset in `Content/` | [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) |
+| Stato di avanzamento | [`../../roadmap/roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) |

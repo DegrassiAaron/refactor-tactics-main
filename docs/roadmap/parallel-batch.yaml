@@ -803,7 +803,7 @@ preexisting:
         risponde `ERROR — checkpoint 'E23.4' che nessun owner dichiara`, perché **E23 è un'epic v0.2**. Una
         issue v0.1 il cui checkpoint sta in un'epic v0.2 è un'incoerenza reale, ed è **decisione d'autore
         aperta**: anticipare E23, riassegnare `#833`, o dichiarare l'eccezione.
-      ⚠️ **Una quarta sede dichiara ancora `v0.2`** e non è stata toccata: `docs/technical/scenario-map.md`
+      ⚠️ **Una quarta sede dichiara ancora `v0.2`** e non è stata toccata: `docs/technical/tooling/scenario-map.md`
       (`integration_only`, `CURRENT`, scritto a mano) alla riga di `RT-FEAT-MAP-INTERACTION-GRAPH`. Segue la
       decisione sull'epic, non la precede.
       ✅ Gate su questo albero: `validate` **0 errori · 45 warning**, identico alla baseline misurata prima
@@ -2063,7 +2063,7 @@ tracks:
     # `generate --check` e `shortlist --check`, per una voce `PIE-V01-PLAYSPEED` di `test-manuali-pie.md`
     # (track `playtest`). Misurato in un worktree isolato su `origin/main` puro, dichiarato nella PR, non
     # corretto — una vista la rigenera chi possiede la sorgente. Al merge erano già verdi.
-    # ⛔ **Un file è rimasto STOP e va detto qui**: `docs/technical/test-automatico-unreal.md` documenta lo
+    # ⛔ **Un file è rimasto STOP e va detto qui**: `docs/technical/tooling/test-automatico-unreal.md` documenta lo
     # schema dello scenario, che ora è indietro di una versione (`2`) e di una chiave di turno
     # (`decisions`). Non è nel `writable` di questa track e non è stato toccato.
     # ---
@@ -2521,7 +2521,7 @@ tracks:
       manager — e oggi non potrebbe entrare comunque: `RTTurnManager.{h,cpp}` sono di `playback`, e il
       `.cpp` è **conteso** da `feat/625-hazard-turnlog`, che ne chiede la riallocazione nello stesso
       lotto. Se l'implementazione contraddicesse il design, si riemenda **prima** di scrivere.
-      ⛔ **E non entra `docs/technical/test-automatico-unreal.md`**, che la fase A aveva lasciato STOP: il
+      ⛔ **E non entra `docs/technical/tooling/test-automatico-unreal.md`**, che la fase A aveva lasciato STOP: il
       §4 documenta già `decisions` e `"version": 2` (righe 90–118) e il §«Politica per le Fast Reaction»
       dichiara la fase B. Il debito è stato pagato da un'altra PR, verificato aprendo il file — non
       ereditato dal commento che lo dichiarava aperto.
@@ -2541,7 +2541,7 @@ tracks:
       Il blocco B di `#170` resta esplicitamente vietato finché A non è finito: un golden pinnato su un
       turno vuoto congela il nulla, e ogni turno riempito dopo costa una ribaseline da spiegare.
       ⛔ **Un file che questa track NON può aggiornare, e va detto adesso invece che alla consegna**:
-      `docs/technical/test-automatico-unreal.md` §5 tiene la **tabella** dei tipi di assertion (riga 157 e
+      `docs/technical/tooling/test-automatico-unreal.md` §5 tiene la **tabella** dei tipi di assertion (riga 157 e
       seguenti, con `UnitFacing` e le tre che leggono il TurnLog). Due kind nuovi la rendono incompleta il
       giorno stesso. Il file è `integration_only` — quindi non è uno STOP da registrare, è una riga della
       lista d'integrazione: si aggiorna una volta, in integrazione, da chi la fa.
@@ -4371,7 +4371,7 @@ tracks:
     note: >-
       ✅ **CHIUSA il 2026-08-16**: PR **#977** mergiata in `main` come `a4d4a274`, issue `#593` chiusa.
       Il write-set qui sotto e' **rilasciato** — `Unit/RTUnit.{h,cpp}`, `Tests/RTUnitTests.cpp` e
-      `docs/technical/spec-team-identity.md` tornano disponibili. L'elenco resta scritto invece di
+      `docs/technical/systems/spec-team-identity.md` tornano disponibili. L'elenco resta scritto invece di
       essere svuotato: dice quali file questa track ha toccato, ed e' cio' che la prossima intersezione
       deve poter leggere.
       🔴 **Il turno ha trovato in code review un difetto che la suite verde non vedeva**:
@@ -4418,7 +4418,7 @@ tracks:
       ⚠️ **Il vincolo che resta non e' sui file, e' la macchina**: una run di automation per volta e un
       mutex di UBT — questa track compila i target Editor e Game, quindi si aspetta con `simulation`
       (#512) e `content_editor` (#451) se ricompilano insieme.
-      ➕ **`docs/technical/spec-team-identity.md` entra il 2026-08-16, in code review e non all'apertura**,
+      ➕ **`docs/technical/systems/spec-team-identity.md` entra il 2026-08-16, in code review e non all'apertura**,
       ed e' esattamente il caso che questo file chiama STOP: non era in nessun insieme — ne' in un
       `writable`, ne' in `integration_only`, ne' in `generated_only`. E' un `owner_spec` di
       `RT-FEAT-CHAR-PRESENTATION`, e le sue sezioni 2-4 descrivono la gerarchia che questa track sta
@@ -4431,13 +4431,13 @@ tracks:
       e i tre comandi non si sovrappongono: `feat/958-corpus-determinismo-autobattle`,
       `feat/937-loading-error` e `feat/472-replay-r6-interfaccia` esistono solo come worktree locali,
       invisibili sia a `gh` sia a `ls-remote`. `git diff --name-only origin/main...<ramo>` per tutti e
-      diciotto: **zero** tocca `docs/technical/spec-team-identity.md` o `docs/characters/`.
+      diciotto: **zero** tocca `docs/technical/systems/spec-team-identity.md` o `docs/characters/`.
       ⚠️ **Limite dichiarato**: la misura vede i COMMIT, non il lavoro non committato negli altri
       worktree. Contro quello un batch non protegge, e non e' questo file a poterlo promettere.
     # ➖ **Rilasciato il 2026-08-17.** La track e' `IDLE` e il suo lavoro e' atterrato, ma il
     # `writable` era rimasto pieno: e' il difetto per cui `roster_rename` e' ricomparsa fra i
     # proprietari di `RTCatalogLibrary.cpp` misurando la contesa per `#63`. Un rilascio si scrive.
-    # Era: `Source/RefactorTactics/Unit/RTUnit.h` · `Source/RefactorTactics/Unit/RTUnit.cpp` · `Source/RefactorTactics/Tests/RTUnitTests.cpp` · `docs/technical/spec-team-identity.md`
+    # Era: `Source/RefactorTactics/Unit/RTUnit.h` · `Source/RefactorTactics/Unit/RTUnit.cpp` · `Source/RefactorTactics/Tests/RTUnitTests.cpp` · `docs/technical/systems/spec-team-identity.md`
     writable: []
     binary_leases: []
 
@@ -5122,9 +5122,9 @@ tracks:
       entrambi.
       ⚠️ **Limite dichiarato**: la misura vede i COMMIT, non il lavoro non committato negli altri worktree.
     # ➖ **Rilasciato alla chiusura**, con le misure che ne giustificavano la presa:
-    #   · `docs/technical/spec-graybox-placement-contract.md` — rientrato da `graybox_kit` per riconciliare
+    #   · `docs/technical/systems/spec-graybox-placement-contract.md` — rientrato da `graybox_kit` per riconciliare
     #     §6 con la scala d'arte; nessun'altra track lo rivendicava, nessun ramo vivo lo toccava.
-    #   · `docs/technical/spec-asset-pipeline.md` — owner dei principi di pipeline, dove sono entrate le
+    #   · `docs/technical/architecture/spec-asset-pipeline.md` — owner dei principi di pipeline, dove sono entrate le
     #     lane `AC0–AC6`/`AE0–AE5`. ⚠️ Non stava in **nessun** insieme di questo file: era la condizione
     #     «file non assegnato» di `D-139`, presa dichiarandola invece di aggirarla.
     # 🔴 **E svuotare il `writable` li rimanderebbe entrambi in quella condizione**, che è il difetto e non
@@ -5177,9 +5177,9 @@ tracks:
       track invece di scegliere un lato.
     # ➖ **Rilasciato alla chiusura**, con le misure che ne giustificavano la presa — servono alla prossima
     # track che li rivendica, ed è la ragione per cui l'elenco non si svuota in silenzio:
-    #   · `docs/technical/spec-graybox-placement-contract.md` — creato da questa track; nessun'altra lo
+    #   · `docs/technical/systems/spec-graybox-placement-contract.md` — creato da questa track; nessun'altra lo
     #     rivendicava. ⏱️ Dal merge di #1099 è in `main`.
-    #   · `docs/technical/asset-map.md` — «verificato non conteso: nessuna track lo rivendica, nessun ramo
+    #   · `docs/technical/tooling/asset-map.md` — «verificato non conteso: nessuna track lo rivendica, nessun ramo
     #     vivo lo tocca» (misura d'apertura, riconfermata al rilascio).
     #   · `docs/archive/src/CLAUDE_RefactorTactics_Graybox_Kit_Cover_CellVolume_Consolidation_2026-08-17.md`
     #     — `git log --all --oneline -- <path>` dà solo i commit di questo ramo.
@@ -5679,7 +5679,7 @@ tracks:
       ➕ **`docs/technical/test-manuali-pie.md` è PRESO IN PRESTITO da `playtest`**, che è `IDLE` su tutti
       e quattro i campi. Torna alla chiusura. È il secondo prestito dello stesso file per la stessa voce,
       e la ragione è nella nota di `playtest`.
-      ➕ **`docs/technical/progettazione-hud.md` va in `integration_only`**, e non resta qui. Il commit
+      ➕ **`docs/technical/systems/progettazione-hud.md` va in `integration_only`**, e non resta qui. Il commit
       di apertura l'aveva trovato in **nessun** insieme — la condizione «non assegnato» di `D-139` — su
       un file che è owner documentale di un checkpoint, e aveva scritto *«va messo in `integration_only`
       da chi riconcilia il batch»*. Rimandarlo una seconda volta lo lascerebbe scoperto esattamente come
@@ -5724,7 +5724,7 @@ tracks:
       precondizione di `PIE-V01-PLAYSPEED`, e **quel file non è di chi lavora la issue**: va passata in
       **handoff**, esattamente come `replay_ui` fa con `PIE-V01-REPLAY-VIEWER` · `docs/roadmap/roadmap-v0.1.md`
       (`integration_only`, righe 118 e 1715 di `E47.7`).
-      🔴 **E un file trovato non assegnato, misurato non dedotto: `docs/technical/progettazione-hud.md`.**
+      🔴 **E un file trovato non assegnato, misurato non dedotto: `docs/technical/systems/progettazione-hud.md`.**
       È l'owner documentale di questo checkpoint — la sua **§29 «Playback Controls»** descrive esattamente
       la manopola, e la §13.2 la colloca nel `Resolution HUD` — eppure `grep` su questo file lo trova in
       **una sola riga, che è questa**: non sta in nessun `writable`, non in `integration_only`, non in
@@ -5797,7 +5797,7 @@ tracks:
       # ➖ **Usciti insieme a loro**: `Player/RTPlayerController.{h,cpp}` e
       # `Tests/RTHudPlaybackSpeedTests.cpp` (liberi, come erano prima), e `Turn/RTTurnManager.h` — preso
       # per un `const` getter e restituito appena l'ha avuto.
-      # ➡️ **`docs/technical/progettazione-hud.md` NON e' fra questi: e' passato in `integration_only`.**
+      # ➡️ **`docs/technical/systems/progettazione-hud.md` NON e' fra questi: e' passato in `integration_only`.**
       # La riga qui sotto diceva *«alla chiusura torna dov'era, cioe' in nessun insieme … va messo in
       # `integration_only` da chi riconcilia»*, ed e' una promessa che si mantiene ora invece di
       # rimandarla a una riconciliazione futura — altrimenti il file torna scoperto com'era.
@@ -6286,7 +6286,7 @@ tracks:
       `Turn/RTTurnLogLibrary.cpp` · `Turn/RTTurnManager_Blast.cpp` · `ScenarioHarness/RTTestScenario.h` ·
       `ScenarioHarness/RTScenarioLoader.cpp` · `ScenarioHarness/RTScenarioSession.cpp` ·
       `Tests/RTScenarioLoaderTests.cpp` · `Tests/RTScenarioRunnerTests.cpp` ·
-      `Tests/RTTurnLogSerializationTests.cpp` · `docs/technical/spec-turnlog.md`.
+      `Tests/RTTurnLogSerializationTests.cpp` · `docs/technical/architecture/spec-turnlog.md`.
       ⚠️ **Il sesto era conteso con `simulation` (`#314`) e la contesa si chiude da sé**: `#1060` è atterrata
       per prima, quindi quella track trova il file con due `case` in più in una funzione che non tocca. Nessuno
       ha dovuto rinunciare al proprio lavoro, e l'invariante — violata e **dichiarata** per un giorno — torna
@@ -6381,7 +6381,7 @@ integration_only:
                             # avrebbe chiuso il caso e non la lacuna. Stessa forma di `docs/balance/`.
   - docs/archive/src/README.md
   - docs/roadmap/plans/README.md
-  - docs/technical/workflow-parallel-claude.md
+  - docs/technical/tooling/workflow-parallel-claude.md
   # ➕ **Entra il 2026-08-17, nato in questo giro e dichiarato PRIMA del merge, non dopo.** È il piano di
   # riduzione degli hotspot (`RTTurnManager.cpp`, questo file, `RTScenarioSession.cpp`,
   # `RTScenarioLoader.cpp`), riscrittura misurata di un handoff che stava non tracciato in root — PR **#1134**.
@@ -6393,7 +6393,7 @@ integration_only:
   # impone al proprio §0.4 (*«un file nuovo si dichiara prima di crearlo»*), applicato in ritardo e detto
   # invece di taciuto: il file esisteva già quando la riga è stata scritta.
   - docs/technical/piano-riduzione-hotspot.md
-  - docs/technical/scenario-map.md
+  - docs/technical/tooling/scenario-map.md
   # ➕ **Entra il 2026-08-16, e fino a oggi non era in NESSUN insieme** — né assegnato a una track, né
   # riconciliato, né generato. Misurato aprendo `#1015`: `grep` su questo file lo trovava in **zero**
   # righe, mentre è l'owner documentale dello Screen HUD (§4.1, §13.2, §29) e due voci di DoD chiedevano
@@ -6402,7 +6402,7 @@ integration_only:
   # lo tocca **chiunque** implementi un pezzo di HUD — `client_tools` per gli intenti, `frontend_shell`
   # per le schermate, `playback` per la §29 — e prenotarlo per una sola track bloccherebbe le altre su un
   # file che nessuna possiede davvero.
-  - docs/technical/progettazione-hud.md
+  - docs/technical/systems/progettazione-hud.md
   # ➕ Entra qui il 2026-08-15, ed è la risposta alla domanda che la chiusura di `simulation` ha posto:
   # un `mandate` sta nel `writable` della track che lo esegue (così lo corregge chi lo misura sbagliato),
   # ma il Terminal A ha **finito** — merge target §10 soddisfatto e misurato — e la track è ripartita su
@@ -6422,7 +6422,7 @@ integration_only:
   # gate la rilegge, e fra il 2026-08-08 e il 2026-08-15 il suo §6 ha argomentato **tre** esiti mentre il
   # codice ne aveva quattro — con il §4.2 dello stesso file che ne usava già un quarto. L'errore è poi
   # passato a valle nel mandato che quella spec governa.
-  - docs/technical/test-automatico-unreal.md
+  - docs/technical/tooling/test-automatico-unreal.md
   # ➕ **Entrano il 2026-08-17 dalla chiusura di `graytoolkit_bundle`, e la ragione è che rilasciarli
   # senza assegnarli avrebbe RIPETUTO il difetto che quella track aveva appena registrato.**
   # `spec-asset-pipeline.md` non stava in **nessun** insieme quando la track l'ha preso: era la condizione
@@ -6433,8 +6433,8 @@ integration_only:
   # ⚠️ **`spec-graybox-placement-contract.md` è nato ieri e ha già cambiato proprietario due volte** —
   # `graybox_kit` → `graytoolkit_bundle` → qui. Non è instabilità del file: è che un contratto nuovo
   # attira le track che lo devono applicare, ed è il segnale che questa categoria esiste per leggere.
-  - docs/technical/spec-asset-pipeline.md
-  - docs/technical/spec-graybox-placement-contract.md
+  - docs/technical/architecture/spec-asset-pipeline.md
+  - docs/technical/systems/spec-graybox-placement-contract.md
   # ➕ **Entra il 2026-08-17 con `D-163`, e la sua stessa riga in `OPEN_DECISIONS.md` denunciava il difetto.**
   # `GBX-4` e `GBX-6` dicevano entrambe, in grassetto, che l'owner della scala **non è assegnato a nessuna
   # track** — cioè lo STOP di `D-139` — e che era «la ragione per cui questa voce è una domanda invece di un
@@ -6457,7 +6457,7 @@ integration_only:
   # caduto» e potrebbe leggerlo come «assegnati il path nello stesso commit», che **non** è la regola.
   # ⚠️ **Assegnarlo NON chiude `GBX-4`**: quella domanda chiede *quale percorso* ospita il kit graybox, ed è
   # di design. Cade solo l'ostacolo procedurale che impediva di scrivere la risposta una volta trovata.
-  - docs/technical/convenzioni-contenuti-ue.md
+  - docs/technical/tooling/convenzioni-contenuti-ue.md
   # `docs/technical/test-manuali-pie.md` è uscito da qui il 2026-08-14. ⏱️ **Il proprietario scritto qui
   # non è più quello vero**: `content_editor` l'ha rilasciato il 2026-08-16, poi `playback` l'ha tenuto in
   # prestito per `#1015`, e oggi sta nel `writable` di `playtest` — tre nomi in tre giorni, misurati in

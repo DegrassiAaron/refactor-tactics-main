@@ -25,13 +25,13 @@ Consultati a HEAD:
 | `Source/RefactorTactics/Turn/RTHexSim.h` | `FRTHexSnapshot` e `MapHash` |
 | `Source/RefactorTactics/ScenarioHarness/` | dove vive davvero `StateHash` (`RTTestResult.h`, `RTScenarioSession.cpp`) |
 | `Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp` | le 100 ripetizioni di CP 12.1 |
-| [`technical/spec-turnlog.md`](../../technical/spec-turnlog.md) · [`spec-turnlog-serialize.md`](../../technical/spec-turnlog-serialize.md) | owner documentali; `D-TL-*`, `D-SR-*` |
+| [`technical/spec-turnlog.md`](../../technical/architecture/spec-turnlog.md) · [`spec-turnlog-serialize.md`](../../technical/architecture/spec-turnlog-serialize.md) | owner documentali; `D-TL-*`, `D-SR-*` |
 | [`decisions/adr-0004-finestre-di-reazione.md`](../../decisions/adr-0004-finestre-di-reazione.md) | timeout `HOLD`, finestra 3,0 s, snapshot a inizio segmento |
 | [`roadmap/feature-registry.yaml`](../feature-registry.yaml) | FeatureId reali e gate |
 | [`roadmap/roadmap-v0.1.md`](../roadmap-v0.1.md) | epic E12, E15 e le tranche `S0`…`S10` |
 | [`roadmap/roadmap-checkpoint.md`](../roadmap-checkpoint.md) | milestone M10, M11 |
 | [`roadmap/roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) | v0.2 / v0.3 / v0.4 |
-| [`technical/scenario-map.md`](../../technical/scenario-map.md) | chi verifica cosa |
+| [`technical/scenario-map.md`](../../technical/tooling/scenario-map.md) | chi verifica cosa |
 | GitHub (`gh`) | `#26`, `#81`, `#153`, `#170`, `#178`, `#295` |
 
 **Non** consultati, e restano da verificare prima delle azioni che li toccano: la Wiki (repo separato),
@@ -254,7 +254,7 @@ Allora il DecisionRecord contiene SelectedResponse=HOLD, Reason=Timeout
 
 L'ultima riga è ciò che coglie la regressione: senza, il test passa anche se il wall-clock è entrato nel
 determinismo. Le verifiche che restano umane vanno nel registro PIE, non qui — la ripartizione è in
-[`scenario-map.md`](../../technical/scenario-map.md).
+[`scenario-map.md`](../../technical/tooling/scenario-map.md).
 
 ---
 

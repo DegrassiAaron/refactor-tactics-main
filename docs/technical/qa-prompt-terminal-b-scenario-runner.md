@@ -28,7 +28,7 @@ Sei il **Processo B** del workstream Test/QA di RefactorTactics.
    repository e **prevalgono su questo documento**;
 2. verifica branch/worktree corrente e aggiorna `main` (`git fetch --prune origin`);
 3. leggi [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml) — §1, decide se puoi scrivere;
-4. leggi la spec del harness: [`test-automatico-unreal.md`](test-automatico-unreal.md). **È l'owner delle
+4. leggi la spec del harness: [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md). **È l'owner delle
    decisioni** — perché gli esiti sono distinti, perché il `seed` non fa niente, perché gli scenari sono
    JSON e non `.uasset`: su queste, se divergiamo, vince la spec.
    ⚠️ **Non è l'owner dei conteggi né degli enum.** Quelli si rimisurano sul codice (§7). La spec è stata
@@ -52,9 +52,9 @@ Baseline: **UE 5.8.x**, core C++ deterministico, vertical slice v0.1 2v2 offline
 | `Source/RefactorTactics/ScenarioHarness/` | ✅ **assegnato**: `writable` della track `spatial`, che porta anche il `mandate` di questo documento | è il tuo write-set — ma la track è `IDLE`, vedi sotto |
 | `Scenarios/` — 76 file JSON: **74** in `Combat/` (9), `Movement/` (6), `Spec/` (38), `Visual/` (21), più `RT_Showcase_Relay_v01.json` alla radice e `_redirects.json`, che **non è uno scenario** | **`integration_only`** | ⛔ **non puoi aggiungere né modificare scenari** |
 | `scripts/feature_registry.py` e i suoi tre test | **`integration_only`** | ⛔ non tuo |
-| `docs/technical/scenario-map.md` | **`integration_only`** | ⛔ non tuo |
+| `docs/technical/tooling/scenario-map.md` | **`integration_only`** | ⛔ non tuo |
 | **questo file** | ✅ nel `writable` di `spatial`, dal 2026-08-15 | **correggilo quando lo misuri sbagliato** — è un passo del mandato, non un atto d'integrazione |
-| `docs/technical/test-automatico-unreal.md` — la spec owner | **`integration_only`**: la usano più processi in parallelo | ⛔ la correzione si propone nell'handoff, anche quando hai ragione |
+| `docs/technical/tooling/test-automatico-unreal.md` — la spec owner | **`integration_only`**: la usano più processi in parallelo | ⛔ la correzione si propone nell'handoff, anche quando hai ragione |
 
 E c'è un vincolo in più, che non è di permesso ma di **conseguenza**:
 
@@ -88,7 +88,7 @@ a chiare lettere: `status` passa ad `ACTIVE` quando una sessione parte **con una
 resta di nessuno.
 
 ⚠️ **Il `writable` è quello sopra, e finisce lì.** Non contiene `Scenarios/`, non contiene
-`docs/technical/scenario-map.md`, non contiene questo file. Se ti serve altro, D-139 vale intero:
+`docs/technical/tooling/scenario-map.md`, non contiene questo file. Se ti serve altro, D-139 vale intero:
 *file non assegnato = STOP*, e non «evita salvo necessità». Il write-set di un branch aperto si **misura**
 (`git diff --name-only origin/main...<branch>`), non si ricorda.
 
@@ -155,7 +155,7 @@ cambiassero numero.
 non è rosso e non è verde: passa senza dirlo. Se conti gli esiti, contalo a parte — mai fra i passati, mai
 fra i falliti.
 
-La spec owner ([`test-automatico-unreal.md`](test-automatico-unreal.md) §6) elencava **tre** esiti fino al
+La spec owner ([`test-automatico-unreal.md`](tooling/test-automatico-unreal.md) §6) elencava **tre** esiti fino al
 2026-08-15 ed è stata allineata: se leggi «e perché sono tre», stai leggendo una copia vecchia.
 
 ∴ **Il mandato non è fondare un runner, è portare avanti lo schema target** che la spec descrive al §10.
@@ -221,7 +221,7 @@ deterministici.** Un agent che decide l'esito è un fake resolver con un altro n
 1. **Verifica le misure del §2** con i comandi del §7. Se una riga non regge più, correggila e dillo —
    ✅ e questo file **è tuo** (§1): correggilo qui, con la misura accanto. Un mandato che si sa sbagliato
    e aspetta l'integrazione resta sbagliato per tutti quelli che lo leggono nel frattempo.
-2. **Leggi il §10 di [`test-automatico-unreal.md`](test-automatico-unreal.md)** — lo schema target. Quella
+2. **Leggi il §10 di [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md)** — lo schema target. Quella
    è la lista, non questa.
 
    🔴 **Il §9 non è la lista di partenza, e va saputo prima di aprirlo.** Misurate il 2026-08-15, le sue
@@ -340,7 +340,7 @@ la spec non falsifica un enum.
    quella che porta il `mandate` di questo documento, gira in `D:/rt-spatial`, e il suo `writable` è
    `Source/RefactorTactics/ScenarioHarness/` più questo file. **È `IDLE`: senza una issue con cui portarla
    ad `ACTIVE` non parti** (§1). Se il `writable` che leggi non è più quello, vince il file, non questa riga.
-3. Apri [`test-automatico-unreal.md`](test-automatico-unreal.md) **§10** e scegli **un** campo dello
+3. Apri [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md) **§10** e scegli **un** campo dello
    schema target. ⛔ **Non il §9**: le sue quattro voci sono tutte bloccate, e §5.2 misura da cosa.
 4. Se il tuo primo istinto è «aggiungo uno scenario» o «metto su una pipeline», rileggi §1 e §3.
 5. Se trovi che questo prompt sbaglia una misura, **correggilo** — è nel tuo `writable`, e sei tu che stai

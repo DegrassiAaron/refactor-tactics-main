@@ -7,12 +7,12 @@
 > ne aveva quattro, e il §3 diceva «cinque scenari» dove il repository ne aveva 76 — e da qui l'errore è
 > passato a valle, nel mandato QA che questo file governa. **Conteggi ed enum si rimisurano sulla
 > sorgente**; questa spec è l'owner delle *decisioni*, non dei numeri.
-> **Guida operativa** (come si lancia, come si legge un esito): [`test-e-diagnosi.md`](test-e-diagnosi.md).
+> **Guida operativa** (come si lancia, come si legge un esito): [`test-e-diagnosi.md`](../test-e-diagnosi.md).
 >
 > *Fino al 2026-08-08 questo file era il **prompt di implementazione** originale — «TASK — progettare e
 > implementare…», 1114 righe di istruzioni a un agente. Un prompt non è una specifica: descrive ciò che si
 > voleva provare a costruire, non ciò che è stato costruito. Il prompt è conservato in
-> [`../archive/src/handoff/scenario-harness-task-originale.md`](../archive/src/handoff/scenario-harness-task-originale.md).*
+> [`../../archive/src/handoff/scenario-harness-task-originale.md`](../../archive/src/handoff/scenario-harness-task-originale.md).*
 
 ---
 
@@ -28,7 +28,7 @@ Mai `SetActorLocation`, mai una scorciatoia che salti il resolver. Un test che n
 non prova niente sul codice vero: proverebbe che l'harness sa spostare un Actor.
 
 È la stessa porta da cui entrano il giocatore e il bot — vedi la pipeline in
-[`architettura-codice.md`](architettura-codice.md).
+[`architettura-codice.md`](../architecture/architettura-codice.md).
 
 ## 2. Cosa fu costruito, e cosa il prompt proponeva
 
@@ -177,7 +177,7 @@ riconciliazione di `#361` ha portato i `Spec.TimeBank.*` da otto a dieci, e i `S
 Con le tre assertion di questa sezione nessuno dei tredici è più bloccato: restano da scrivere.
 
 La terza è arrivata dopo, e non per dimenticanza: `LogEventAmount` legge un numero, e finché non fu deciso
-**quale** numero il Decision Time Bank scrive nel log ([`spec-turnlog.md`](spec-turnlog.md) §4.2, issue
+**quale** numero il Decision Time Bank scrive nel log ([`spec-turnlog.md`](../architecture/spec-turnlog.md) §4.2, issue
 `#361`) l'assertion sarebbe stata scritta due volte. Non è però un'assertion del bank: `Amount` è il payload
 numerico di **ogni** categoria — danno per `Combat`, celle percorse per `Move`, direzione per `Facing` — e
 questa primitiva le serve tutte. `LogEventCount` dice *che* il colpo è avvenuto; `LogEventAmount` dice
@@ -224,7 +224,7 @@ si aspettava costringe a rieseguire il test per capire — e a quel punto tanto 
 
 ## 6. `PASS` · `FAIL` · `ERROR` · `BLOCKED` — e perché sono quattro
 
-`ERTTestOutcome`, in [`RTTestScenario.h`](../../Source/RefactorTactics/ScenarioHarness/RTTestScenario.h):
+`ERTTestOutcome`, in [`RTTestScenario.h`](../../../Source/RefactorTactics/ScenarioHarness/RTTestScenario.h):
 
 | Esito | Significato | Di chi è il difetto |
 |---|---|---|
@@ -251,7 +251,7 @@ o dall'altra descrive una copertura che non c'è.
 > ⚠️ Fino al 2026-08-15 questa sezione si intitolava «*e perché sono tre*» e ne elencava tre, mentre il
 > §4.2 di questo stesso file usava già `BLOCKED` come esito e il codice aveva quattro valori. La
 > divergenza è stata misurata dallo spec panel di Terminal B
-> ([`../roadmap/plans/qa-terminal-b-scenario-runner-spec-panel-2026-08-15.md`](../roadmap/plans/qa-terminal-b-scenario-runner-spec-panel-2026-08-15.md)),
+> ([`../../roadmap/plans/qa-terminal-b-scenario-runner-spec-panel-2026-08-15.md`](../../roadmap/plans/qa-terminal-b-scenario-runner-spec-panel-2026-08-15.md)),
 > che ne aveva ereditato il conteggio nel proprio mandato — è il motivo per cui un enum si legge nell'enum.
 
 ## 7. Output
@@ -265,7 +265,7 @@ delle assertion con expected/actual, e **`StateHash`**.
 
 ### 7.1 `StateHash` e il gate di determinismo
 
-Digest dello stato finale — posizione, salute, scudo, energia e stati di ogni unità, **anche di quelle cadute** (entrano con `bAlive = false`, [D-084](../decisions/RT_PDR_00_Decision_Log.md)) — usato dal gate di
+Digest dello stato finale — posizione, salute, scudo, energia e stati di ogni unità, **anche di quelle cadute** (entrano con `bAlive = false`, [D-084](../../decisions/RT_PDR_00_Decision_Log.md)) — usato dal gate di
 determinismo (CP 12.1): **stesso scenario ⇒ stesso hash**, su qualunque numero di ripetizioni.
 
 È **permutazione-invariante per costruzione**: le unità si ordinano prima di essere mescolate nell'hash.
@@ -306,7 +306,7 @@ numero finto.
 🔴 **Nessuna di queste quattro voci è iniziabile da una sessione che possiede solo `ScenarioHarness/`**, e
 va detto qui perché è questa la tabella che un mandato legge come lista di lavoro. Misurato il 2026-08-15:
 la prima è in **stallo** — chiede uno scenario, e `Scenarios/` è `integration_only` in
-[`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml); la seconda è una **precondizione**, non
+[`../../roadmap/parallel-batch.yaml`](../../roadmap/parallel-batch.yaml); la seconda è una **precondizione**, non
 un task; la terza dipende da **E14**, che non è atterrato; la quarta è un'**invariante**, che si rispetta e
 non si chiude.
 
@@ -317,7 +317,7 @@ Chi arriva a questa tabella cercando da dove partire, parta da lì.
 
 ## 10. Lo schema **target** — cosa serve alla showcase
 
-*Aggiunta il 2026-08-08.* `RT_Showcase_Relay_v01` ([`../product/showcase-v0.1.md`](../product/showcase-v0.1.md))
+*Aggiunta il 2026-08-08.* `RT_Showcase_Relay_v01` ([`../../product/showcase-v0.1.md`](../../product/showcase-v0.1.md))
 è il consumatore che dice quanto manca all'harness. **Si estende lo schema esistente, non se ne fa un altro**:
 il draft JSON dichiarato dall'handoff non esiste nel repository, e quello attuale regge.
 

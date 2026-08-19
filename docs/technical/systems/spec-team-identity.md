@@ -14,14 +14,14 @@
 > accanto, perché il *perché* del cambio vale quanto lo stato finale.
 >
 > **Non aggancia una resa visiva definitiva del roster**: quale personaggio corrisponda a Gadget, Phase, Riktor
-> o Wraith è una decisione **aperta** ([`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md)). L'anello funziona
+> o Wraith è una decisione **aperta** ([`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md)). L'anello funziona
 > indipendentemente da quella scelta — è esattamente il motivo per cui fu preferito al MID `"Color"`.
 
 > Brainstorming del **2026-08-03** (dopo AS.1–AS.4). Obiettivo: rendere i due team distinguibili **dall'alto** con
 > personaggi skeletal texturizzati, dove il MID `"Color"` sul cilindro non si vede.
-> Ancorata al codice (`RTUnit.cpp/.h`), al canone ([`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) invariante #1 «le
+> Ancorata al codice (`RTUnit.cpp/.h`), al canone ([`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) invariante #1 «le
 > regole decidono, la presentazione riproduce»; §6 «leggibilità dall'alto, i due team riconoscibili»),
-> alla pipeline asset ([`spec-asset-pipeline.md`](spec-asset-pipeline.md) §4.1, che rimandava a AS.5).
+> alla pipeline asset ([`spec-asset-pipeline.md`](../architecture/spec-asset-pipeline.md) §4.1, che rimandava a AS.5).
 > **Documentale: questo file non modifica il codice.**
 
 ---
@@ -136,6 +136,6 @@ Slice **di presentazione**: l'unica parte automatizzabile è `TeamColorFor` (1 t
 
 ## 10. Riferimenti
 
-- Canone: [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) — invariante #1, §6 (leggibilità/team).
-- Pipeline asset: [`spec-asset-pipeline.md`](spec-asset-pipeline.md) §4.1 (identità team rimandata a AS.5).
+- Canone: [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) — invariante #1, §6 (leggibilità/team).
+- Pipeline asset: [`spec-asset-pipeline.md`](../architecture/spec-asset-pipeline.md) §4.1 (identità team rimandata a AS.5).
 - Codice: `RTUnit.cpp/.h` (`ApplyTeamColor`, `Mesh`, `VisualZOffset`, colori).

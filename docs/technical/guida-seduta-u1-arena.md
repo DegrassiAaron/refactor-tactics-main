@@ -58,7 +58,7 @@ non te lo direbbe. Non usare `-v` per questa verifica — con `-v` il comando es
 Nuovo livello in `/Game/RT/Maps/Dev/L_HexArena/`, con dentro un **`ARTHexMapActor`**.
 L'asset mappa in `/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena`, assegnato al campo `MapAsset` dell'actor.
 
-Stessa forma di `L_DevSandbox` ([`convenzioni-contenuti-ue.md` §5](convenzioni-contenuti-ue.md)): livello e
+Stessa forma di `L_DevSandbox` ([`convenzioni-contenuti-ue.md` §5](tooling/convenzioni-contenuti-ue.md)): livello e
 cartella `Data/` accanto.
 
 **Perché non estendere `DA_HexMap_Sandbox`**: il sandbox resta il banco per prove distruttive, l'arena è la
