@@ -5,12 +5,12 @@
 > Il piano di esecuzione, gia' eseguito. **Il corpo qui sotto non va aggiornato**: comandi, nomi di branch e percorsi sono quelli di allora, e
 > correggerli falsificherebbe la storia invece di renderla utile.
 >
-> Stato corrente: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) · indice dei documenti correnti:
+> Stato corrente: [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) · indice dei documenti correnti:
 > [`../../README.md`](../../README.md). Banner aggiunto il 2026-08-08.
 
 > **Stato**: codice **completo** (fondamenta + wiring + anteprima) · ⏳ restano `PIE-HEXPLAY-2/3`
 > **Branch**: `feat/33-hex-input-planning` (padre: `main`) · **Data**: 2026-08-05
-> Roadmap: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) CP 6.3 ≡ [`roadmap-v0.1.md`](../roadmap-v0.1.md) CP 2.3
+> Roadmap: [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) CP 6.3 ≡ [`roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) CP 2.3
 
 ## Perché è bloccante: la regressione trovata
 

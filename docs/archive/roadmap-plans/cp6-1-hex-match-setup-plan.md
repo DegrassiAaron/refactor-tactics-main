@@ -5,7 +5,7 @@
 > Il piano di esecuzione, gia' eseguito. **Il corpo qui sotto non va aggiornato**: comandi, nomi di branch e percorsi sono quelli di allora, e
 > correggerli falsificherebbe la storia invece di renderla utile.
 >
-> Stato corrente: [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) · indice dei documenti correnti:
+> Stato corrente: [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) · indice dei documenti correnti:
 > [`../../README.md`](../../README.md). Banner aggiunto il 2026-08-08.
 
 > **Per chi esegue**: i passi usano checkbox (`- [ ]`) per il tracciamento. Ogni task si chiude con build +

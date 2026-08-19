@@ -454,6 +454,17 @@ def controlla_contratto():
                 # quattro volte: un criterio meccanico va validato sul contenuto, non solo scritto.
                 guasti.append(f"{d} non contiene il marcatore {nome}")
 
+    piani_readme = os.path.join(REPO, PIANI_DIR, "README.md")
+    if os.path.exists(piani_readme):
+        t = open(piani_readme, encoding="utf-8").read()
+        if PIANI_BEGIN not in t or PIANI_END not in t:
+            guasti.append(f"{PIANI_DIR}/README.md non ha il blocco dei conteggi generati")
+        else:
+            corpo = t.split(PIANI_BEGIN, 1)[1].split(PIANI_END, 1)[0].strip()
+            if corpo != tabella_piani().strip():
+                guasti.append(f"{PIANI_DIR}/README.md ha conteggi disallineati: "
+                              "`python scripts/docs_inventory.py --emit-plans`")
+
     path = os.path.join(REPO, CONTRATTO_DOC)
     if not os.path.exists(path):
         guasti.append(f"{CONTRATTO_DOC} non esiste: il contratto non ha un owner leggibile")
@@ -467,6 +478,95 @@ def controlla_contratto():
                 guasti.append(f"{CONTRATTO_DOC} non e' allineato: "
                               "`python scripts/docs_inventory.py --emit-contract`")
     return guasti
+
+
+# --- I conteggi dei piani ---------------------------------------------------------------------------
+#
+# `docs/roadmap/plans/README.md` dichiara di essere andato fuori sincrono **tre volte in un giorno**,
+# e al 2026-08-19 si contraddiceva da solo: la tabella diceva `79`, il comando in fondo `# 75`, e lo
+# split contava **1** documento senza banner dove i file ne hanno **2**. Il totale tornava lo stesso —
+# ed e' il caso peggiore, perche' la somma giusta fa credere corretti gli addendi.
+#
+# Nessuno di questi numeri va scritto a mano: il banner sta nei file, quindi si legge dai file.
+PIANI_DIR = "docs/roadmap/plans"
+PIANI_ARCHIVIO = "docs/archive/roadmap-plans"
+PIANI_BEGIN = "<!-- RT_PIANI_BANNER:BEGIN -->"
+PIANI_END = "<!-- RT_PIANI_BANNER:END -->"
+
+# L'ordine e' quello del vocabolario: prima i due canonici, poi i tre del secondo vocabolario, e in
+# fondo l'assenza — che e' un fatto da dichiarare, non una casella in cui far rientrare qualcosa.
+BANNER = ("CURRENT", "SNAPSHOT", "DELIVERED PLAN", "AS-BUILT", "DONE", "BRIEF", "HISTORICAL")
+
+# I dieci `SNAPSHOT` finiti in archivio il 2026-08-14, sotto la regola di allora — «HISTORICAL **o
+# SNAPSHOT**» — prima che `roadmap/plans/README.md` la raffinasse in «uno SNAPSHOT resta finche' e'
+# l'ultima misura del suo oggetto». Non tornano indietro: sono le sette corsie piu' tre
+# riconciliazioni, tutte superate da misure successive, e riportarle in `plans/` direbbe che sono
+# ancora l'ultima parola. L'elenco e' **congelato**: serve a far cadere il test se un *nuovo*
+# snapshot ci finisce dentro, che sarebbe la regola vecchia riapplicata per abitudine.
+SNAPSHOT_ARCHIVIATI_2026_08_14 = frozenset({
+    "roadmap-lane-index.md", "roadmap-reconciliation-2026-08-12.md",
+    "roadmap-reconciliation-2026-08-13.md", "roadmap_lane_1.md", "roadmap_lane_2.md",
+    "roadmap_lane_3.md", "roadmap_lane_4.md", "roadmap_lane_5.md", "roadmap_lane_6.md",
+    "roadmap_lane_7.md",
+})
+
+
+def _banner(path):
+    """Il banner di un documento: la prima etichetta che compare nelle sue prime otto righe."""
+    testo = read_text(path) or ""
+    testa = "\n".join(testo.split("\n")[:8])
+    for b in BANNER:
+        if b in testa:
+            return b
+    return "(nessun banner)"
+
+
+def conteggio_piani():
+    """(totale_plans, {banner: n}, totale_archivio) letti dai file, non incrementati."""
+    import collections
+    piani = [p for p in tracked(REPO)
+             if p.startswith(PIANI_DIR + "/") and p.endswith(".md") and not p.endswith("README.md")]
+    arch = [p for p in tracked(REPO)
+            if p.startswith(PIANI_ARCHIVIO + "/") and p.endswith(".md") and not p.endswith("README.md")]
+    c = collections.Counter(_banner(os.path.join(REPO, p)) for p in piani)
+    return len(piani), c, len(arch)
+
+
+def tabella_piani():
+    tot, c, arch = conteggio_piani()
+    righe = ["| Banner | Significa | Quanti |", "|---|---|--:|"]
+    SIGNIFICA = {
+        "CURRENT": "Vive: quello che dice vale, salvo verifica sull'owner",
+        "SNAPSHOT": "Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto",
+        "DELIVERED PLAN": "Piano gia' eseguito, non normativo — equivale a `HISTORICAL`",
+        "AS-BUILT": "Specifica di cio' che fu consegnato — equivale a `HISTORICAL`",
+        "DONE": "Consumato — equivale a `HISTORICAL`",
+        "BRIEF": "Consumato — equivale a `HISTORICAL`",
+        "HISTORICAL": "Storico dichiarato",
+        "(nessun banner)": "Apre senza dichiararne uno: **un fatto, non un errore di formattazione**",
+    }
+    for b in list(BANNER) + ["(nessun banner)"]:
+        if c.get(b):
+            righe.append(f"| `{b}` | {SIGNIFICA[b]} | {c[b]} |")
+    righe.append(f"| **totale** | | **{tot}** |")
+    righe += ["", f"In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono "
+                  f"**{arch}**: quelli che il banner dichiarava gia' storici."]
+    return "\n".join(righe)
+
+
+def scrivi_piani():
+    """Riscrive il blocco dei conteggi. Ritorna True se il file e' cambiato."""
+    path = os.path.join(REPO, PIANI_DIR, "README.md")
+    text = open(path, encoding="utf-8").read()
+    if PIANI_BEGIN not in text:
+        return False
+    i, j = text.index(PIANI_BEGIN), text.index(PIANI_END)
+    stacco = "\n\n"
+    nuovo = text[:i + len(PIANI_BEGIN)] + stacco + tabella_piani() + stacco + text[j:]
+    if nuovo != text:
+        open(path, "w", encoding="utf-8").write(nuovo)
+        return True
+    return False
 
 
 def inventario(wiki_root=None):
@@ -658,6 +758,8 @@ def main():
     ap.add_argument("--check", action="store_true", help="esce 1 se un invariante cade")
     ap.add_argument("--json", nargs="?", const=os.path.join(REPO, "build", "docs-audit"),
                     metavar="DIR", help="scrive gli artefatti JSON (default build/docs-audit)")
+    ap.add_argument("--emit-plans", action="store_true",
+                    help=f"riscrive i conteggi in {PIANI_DIR}/README.md")
     ap.add_argument("--emit-contract", action="store_true",
                     help=f"riscrive la tabella del contratto in {CONTRATTO_DOC}")
     ap.add_argument("--wiki-root", metavar="PATH",
@@ -668,6 +770,11 @@ def main():
         if not os.path.exists(os.path.join(args.wiki_root, ".git")):
             print(f"--wiki-root non e' un clone git: {args.wiki_root}", file=sys.stderr)
             return 2
+
+    if args.emit_plans:
+        cambiato = scrivi_piani()
+        print(f"{PIANI_DIR}/README.md: {'riscritto' if cambiato else 'gia allineato'}")
+        return 0
 
     if args.emit_contract:
         cambiato = scrivi_contratto()

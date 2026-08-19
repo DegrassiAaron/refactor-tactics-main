@@ -7,7 +7,7 @@
 > perché a radice di `docs/` si leggeva come un documento operativo.
 >
 > Owner corrente della struttura: [`README.md`](../../README.md) · stato corrente:
-> [`roadmap-checkpoint.md`](../roadmap-checkpoint.md).
+> [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md).
 
 > **Stato**: revisione documentale · **Data**: 2026-08-07 · **HEAD analizzato**: `50159c6`
 > **Origine**: `/sc:spec-panel` su [`docs/archive/src/handoff/consolidamento-prd-source-of-truth.md`](../../archive/src/handoff/consolidamento-prd-source-of-truth.md)

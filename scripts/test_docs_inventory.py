@@ -265,6 +265,45 @@ class TestContratto(unittest.TestCase):
         corpo = text.split(inv.CONTRATTO_BEGIN, 1)[1].split(inv.CONTRATTO_END, 1)[0].strip()
         self.assertEqual(corpo, inv.tabella_contratto().strip())
 
+    def test_i_conteggi_dei_piani_sono_letti_dai_file(self):
+        """La somma delle categorie torna col totale contato a parte: e' il controllo che il README
+        di `roadmap/plans/` chiede da se', e che a mano e' fallito tre volte in un giorno."""
+        tot, per_banner, arch = inv.conteggio_piani()
+        self.assertEqual(sum(per_banner.values()), tot,
+                         "la somma dei banner non torna col totale")
+        self.assertGreater(tot, 0)
+        self.assertGreater(arch, 0)
+
+    def test_il_blocco_dei_piani_e_allineato(self):
+        """Il blocco fra i marcatori e' generato: se qualcuno lo riscrive nel documento, il gate
+        lo dice. Il numero che ci stava prima era sbagliato in due modi contemporaneamente."""
+        path = os.path.join(REPO, inv.PIANI_DIR, "README.md")
+        text = open(path, encoding="utf-8").read()
+        self.assertIn(inv.PIANI_BEGIN, text)
+        corpo = text.split(inv.PIANI_BEGIN, 1)[1].split(inv.PIANI_END, 1)[0].strip()
+        self.assertEqual(corpo, inv.tabella_piani().strip())
+
+    def test_in_archivio_niente_di_vivo_e_nessuno_snapshot_nuovo(self):
+        """La regola raffinata: uno `SNAPSHOT` resta in `plans/` finche' e' l'ultima misura del suo
+        oggetto. I due README si contraddicevano, e una contraddizione fra due testi in prosa non
+        la vede nessuno script — qui diventa verificabile.
+
+        Due asserzioni distinte: **nessun CURRENT** in archivio, che sarebbe un errore vero; e
+        nessuno `SNAPSHOT` fuori dall'insieme congelato del 2026-08-14, cosi' l'eredita' resta
+        ammessa e la regola vecchia non puo' rientrare per abitudine."""
+        import subprocess as _s
+        arch = [p for p in _s.run(["git", "-C", REPO, "ls-files", inv.PIANI_ARCHIVIO],
+                                  capture_output=True, text=True, encoding="utf-8").stdout.split()
+                if p.endswith(".md") and not p.endswith("README.md")]
+        vivi = [p for p in arch if inv._banner(os.path.join(REPO, p)) == "CURRENT"]
+        self.assertEqual(vivi, [], "in archivio ci sono documenti CURRENT: " + ", ".join(vivi))
+        nuovi = [p for p in arch
+                 if inv._banner(os.path.join(REPO, p)) == "SNAPSHOT"
+                 and os.path.basename(p) not in inv.SNAPSHOT_ARCHIVIATI_2026_08_14]
+        self.assertEqual(nuovi, [],
+                         "uno SNAPSHOT nuovo e' finito in archivio, cioe' la regola vecchia "
+                         "riapplicata per abitudine: " + ", ".join(nuovi))
+
     def test_ogni_dichiarazione_porta_una_data(self):
         """Una promessa senza data non scade, e un allowlist che non scade diventa un permesso."""
         for chiave, ragione in list(inv.DUPLICATI_NOTI.items()) + list(inv.ORFANE_NOTE.items()):
