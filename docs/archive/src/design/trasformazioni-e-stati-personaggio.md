@@ -15,8 +15,9 @@
 
 ## Correzioni applicate il 2026-08-08
 
-Il documento è stato **archiviato con il testo originale intatto** (la convenzione dei sorgenti, riaffermata
-da [`../README.md`](../README.md)): le correzioni non riscrivono i paragrafi, sono note `⚠️` inserite accanto
+Il documento è stato **archiviato con il testo originale intatto** (la convenzione dei sorgenti, oggi
+enunciata solo in [`../README.md`](../README.md)): le correzioni non riscrivono i paragrafi, sono note `⚠️`
+inserite accanto
 all'affermazione che correggono. Elenco completo, così che non vada cercato nel corpo:
 
 | § | Affermazione originale | Correzione |

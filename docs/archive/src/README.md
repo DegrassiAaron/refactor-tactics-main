@@ -230,7 +230,7 @@
 > senza vedere questa correzione. Al merge il valore misurato col comando buono è **56**. Le due riscritture
 > sono la stessa lezione da due lati: la formula sbagliava *per struttura*, il totale sbagliava *per merge*.)*
 > Il primo lotto era in `docs/src/`, la cartella d'ingresso che oggi si chiama
-> [`../../research/`](../../research/); ogni sorgente si sposta qui quando un owner documentale lo
+> [`docs/research/`](../../research/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
 > **Il testo originale non è stato riscritto.** Dove un sorgente conteneva un errore di fatto, la correzione è
