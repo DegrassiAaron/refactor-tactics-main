@@ -236,8 +236,20 @@ public:
 	 * ⚠️ **Chi prenota rende la pianificazione dipendente dall'ORDINE**: chi decide prima ha piu' scelta.
 	 * Non intacca il determinismo — l'ordine e' quello dello snapshot, stabile — ma e' una regola nuova, e
 	 * chi chiama deve iterare in un ordine stabile, non nell'ordine di enumerazione degli Actor.
+	 *
+	 * 🔴 **Quello che questa prenotazione garantisce e' DESTINAZIONI distinte, non PERCORSI disgiunti.**
+	 * `ARTTurnManager::ResolveMovement` ricalcola la rotta su uno snapshot FRESCO, dove le prenotazioni non
+	 * esistono: chi pianifica dopo sceglie una destinazione libera, ma puo' poi raggiungerla per la via
+	 * diretta, cioe' quella che qui era stata scartata. Il limite e' dichiarato e misurato — sulla
+	 * configurazione spedita non si osserva alcuna contesa, ma non e' impedita per costruzione.
+	 * ⛔ Fissare la rotta su `PlannedPath` **non** chiude il buco: quel ramo di `ResolveMovement` non
+	 * riapplica l'occupazione fresca, e una rotta vecchia di due fasi produce sovrapposizioni reali.
+	 *
+	 * Restituisce la rotta prenotata. Vuota = l'unita' resta dov'e', oppure il pathfinding ha fallito — e in
+	 * quel caso e' loggato e la sola destinazione viene prenotata comunque.
 	 */
-	static void ReservePlannedRoute(FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& DestCell);
+	static TArray<FRTCellId> ReservePlannedRoute(FRTHexSnapshot& Snapshot, int32 UnitId,
+		const FRTCellId& DestCell);
 
 	/**
 	 * La risposta del bot a una finestra di reazione (CP 14.5). Restituisce una delle `AllowedResponses`.

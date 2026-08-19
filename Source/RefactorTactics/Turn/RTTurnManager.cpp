@@ -238,20 +238,58 @@ void ARTTurnManager::PlanBots()
 	// condiviso un bot eviterebbe la cella dove sta per andare un AVVERSARIO, cioe' schiverebbe un intento
 	// che nessun giocatore puo' vedere. Due squadre che si contendono la stessa cella devono continuare a
 	// contendersela — quella e' una collisione legittima, e la risolve il resolver.
+	// ⚠️ Costruiti TUTTI in anticipo, e non su richiesta dentro il ciclo: un `Add` in corsa puo' riallocare
+	// la mappa e invalidare un riferimento gia' preso — e quel riferimento resterebbe vivo per l'intero corpo
+	// dell'iterazione. Con le squadre note prima, la mappa non viene piu' toccata mentre qualcuno la guarda.
 	TMap<int32, FRTHexSnapshot> PlanningSnapshots;
+	for (const ARTUnit* U : Units)
+	{
+		if (U && U->bIsBotControlled && !PlanningSnapshots.Contains(U->TeamId))
+		{
+			PlanningSnapshots.Add(U->TeamId, BaseSnapshot);
+		}
+	}
 
 	// Prenota nello snapshot della squadra la rotta che il bot ha appena scelto.
 	//
-	// ⚠️ **Solo il movimento NORMALE.** Lo scatto risolve in una fase separata e con le proprie priorita', e
-	// la sua traiettoria e' LINEARE: `ReservePlannedRoute` cammina il grafo, quindi per uno scatto
-	// prenoterebbe celle che non verranno attraversate. Lo stallo di #1088 e' tutto in fase Move — nei
-	// dodici turni misurati la fase Dash non e' mai avvenuta — e allargare la prenotazione allo scatto
-	// sarebbe una modifica non misurata a una fase che non ha il difetto.
-	auto ReserveNormalMove = [](FRTHexSnapshot& TeamSnapshot, const ARTUnit* PlannedBot, int32 PlannedIdx)
+	// 🔴 **LIMITE MISURATO, e va letto prima di credere che questa prenotazione basti.** Cio' che arriva
+	// all'esecuzione e' la DESTINAZIONE, non la rotta: `ResolveMovement` ricalcola il percorso su uno
+	// snapshot fresco, dove nessuna prenotazione esiste, quindi per ogni compagna dopo la prima la rotta
+	// eseguita puo' tornare a essere quella DIRETTA — proprio quella che la prenotazione aveva scartato.
+	// ∴ questa prenotazione garantisce **destinazioni distinte**, non **percorsi disgiunti**, e la meta' del
+	// difetto di #1088 fatta di collisioni di percorso (12 contese su 24) resta possibile in linea di
+	// principio. Sulla configurazione spedita non si osserva — misurato, `fermo: cella contesa` = 0 in 12
+	// round — ma «non osservato» non e' «impedito».
+	//
+	// ⛔ **Fissare qui `PlannedPath` NON e' la soluzione, ed e' stato provato**: `ResolveMovement` accetta un
+	// `PlannedPath` gia' pronto **senza** riapplicare l'occupazione fresca — la sua validazione autorevole
+	// vive nel ramo che ricalcola — e una rotta scelta in pianificazione e' vecchia di due fasi (Dash e Blast
+	// muovono, spingono e uccidono). Il risultato misurato e' **due unita' sulla stessa cella**
+	// (`HexMatch.TestArenaKeepsUnitsOnLegalCells`, turno 9). La correzione giusta e' far accumulare le rotte
+	// **dentro** `ResolveMovement`, dove l'occupazione e' fresca e varrebbe anche per le unita' umane: e'
+	// piu' larga di #1088 e va aperta a parte.
+	//
+	// ⚠️ **Solo il movimento NORMALE**, e la ragione e' la geometria: lo scatto ha traiettoria LINEARE mentre
+	// `ReservePlannedRoute` cammina il grafo, quindi per uno scatto prenoterebbe celle che non verranno
+	// attraversate. Della fase Dash si prenota la sola cella d'ARRIVO — vedi piu' sotto: e' li' che l'unita'
+	// si trovera' quando il Move gira, quindi e' l'unica che una compagna non deve poter scegliere.
+	auto ReserveNormalMove = [](FRTHexSnapshot& TeamSnapshot, ARTUnit* PlannedBot, int32 PlannedIdx)
 	{
-		if (!PlannedBot || PlannedBot->PlannedDashAbility != INDEX_NONE)
+		if (!PlannedBot)
 		{
-			return; // scatta: la sua cella di arrivo la decide la fase Dash
+			return;
+		}
+		if (PlannedBot->PlannedDashAbility != INDEX_NONE)
+		{
+			// Scatta: la rotta e' della fase Dash e non passa di qui, ma la cella su cui ATTERRA sara'
+			// occupata quando il Move risolve. Senza prenotarla, una compagna la sceglie come destinazione e
+			// al proprio turno di movimento trova la strada sbarrata: un turno speso per niente.
+			if (!(PlannedBot->PlannedDashCell == PlannedBot->Cell)
+				&& !TeamSnapshot.Occupancy.Contains(PlannedBot->PlannedDashCell))
+			{
+				TeamSnapshot.Occupancy.Add(PlannedBot->PlannedDashCell, PlannedIdx);
+			}
+			return;
 		}
 		URTHexBotLibrary::ReservePlannedRoute(TeamSnapshot, PlannedIdx, PlannedBot->PlannedCell);
 	};
@@ -277,17 +315,16 @@ void ARTTurnManager::PlanBots()
 		Bot->PlannedWaypoints.Reset();
 
 		// Lo snapshot su cui QUESTO bot pianifica: quello della sua squadra, che porta le prenotazioni delle
-		// compagne gia' passate di qui. Il primo bot di ogni squadra lo trova vergine, copiato dalla base.
+		// compagne gia' passate di qui. Esistono tutti da prima del ciclo, quindi qui non si inserisce nulla
+		// e il riferimento non puo' essere invalidato da una riallocazione.
 		FRTHexSnapshot* TeamSnapshotPtr = PlanningSnapshots.Find(Bot->TeamId);
 		if (!TeamSnapshotPtr)
 		{
-			TeamSnapshotPtr = &PlanningSnapshots.Add(Bot->TeamId, BaseSnapshot);
+			continue; // non puo' accadere: la mappa e' costruita sugli stessi bot che questo ciclo visita
 		}
-		// Il resto del corpo legge `Snapshot` come prima: cambia da DOVE viene, non cosa contiene — a parte
-		// le celle che le compagne hanno gia' preso. Nessun `Add` avviene da qui alla fine dell'iterazione,
-		// quindi il riferimento resta valido.
-		FRTHexSnapshot& TeamSnapshot = *TeamSnapshotPtr;
-		const FRTHexSnapshot& Snapshot = TeamSnapshot;
+		// UN SOLO nome, e non due: un alias `const` accanto a uno scrivibile dichiarerebbe un'immutabilita'
+		// che non c'e' — la prenotazione a fine iterazione scrive proprio qui dentro.
+		FRTHexSnapshot& Snapshot = *TeamSnapshotPtr;
 
 		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e salta il turno.
 		//
@@ -536,7 +573,7 @@ void ARTTurnManager::PlanBots()
 			}
 			// #1088 — anche qui, ed e' il ramo che il difetto colpiva per primo: due compagne che cercano il
 			// contatto puntano ENTRAMBE la cella piu' vicina al centro, che e' una sola.
-			ReserveNormalMove(TeamSnapshot, Bot, BotIdx);
+			ReserveNormalMove(Snapshot, Bot, BotIdx);
 			continue; // niente da bersagliare: nessun attacco, nessuno scatto verso un nemico che non si conosce
 		}
 
@@ -562,7 +599,12 @@ void ARTTurnManager::PlanBots()
 			if (Units[j] && Units[j]->IsAlive() && Units[j]->TeamId != Bot->TeamId) { DashHostiles.Add(j); }
 		}
 
-		FRTHexSnapshot DashSnapshot = Snapshot;
+		// 🔴 **Dalla BASE, non dallo snapshot di squadra, e la differenza e' una fase.** Le prenotazioni
+		// descrivono dove le compagne andranno nel MOVE; il Dash risolve PRIMA del Move, quando quelle celle
+		// sono ancora vuote. Copiandole qui, `ResolveLinearMove` e `IsLinearReachable` — che trattano ogni
+		// occupante non ostile come un corpo solido — scarterebbero cariche e scatti perfettamente legali,
+		// in silenzio. La prenotazione e' del Move: che sia CONSUMATA solo dal Move.
+		FRTHexSnapshot DashSnapshot = BaseSnapshot;
 		if (bDashReady)
 		{
 			// Le candidate nascono da `ReachableCells`, che spende PUNTI MOVIMENTO (Dijkstra sui costi). Ma la
@@ -632,7 +674,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, NearestKnownCell);
 			AddLogEvent(FString::Printf(TEXT("%s: arretra -> (q=%d,r=%d,L%d)"),
 				*Bot->GetName(), Bot->PlannedCell.X, Bot->PlannedCell.Y, Bot->PlannedCell.Layer));
-			ReserveNormalMove(TeamSnapshot, Bot, BotIdx);
+			ReserveNormalMove(Snapshot, Bot, BotIdx);
 			continue;
 		}
 
@@ -704,8 +746,12 @@ void ARTTurnManager::PlanBots()
 			const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(DashAb->Def);
 			for (int32 e = 0; e < Ctx.Enemies.Num(); ++e)
 			{
+				// Occupazione dalla BASE, come per `DashSnapshot`: la carica risolve nella fase Dash, e una
+				// cella prenotata per il Move di una compagna li' e' ancora vuota. Con `Snapshot.Occupancy`
+				// la traiettoria si fermerebbe su un corpo che non c'e' e la candidata sparirebbe in silenzio.
 				const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
-					Snapshot.Map, Bot->Cell, Ctx.Enemies[e], DashBudget, DashStyle, Snapshot.Occupancy, DashHostiles);
+					BaseSnapshot.Map, Bot->Cell, Ctx.Enemies[e], DashBudget, DashStyle,
+					BaseSnapshot.Occupancy, DashHostiles);
 
 				// Vale solo se l'impatto colpisce PROPRIO quel nemico: una traiettoria che ne incontra un altro
 				// prima e' una candidata diversa, e la genera il suo giro di ciclo.
@@ -820,7 +866,7 @@ void ARTTurnManager::PlanBots()
 
 		// #1088 — l'ultima cosa che il bot fa: dichiarare alle compagne dove sta andando. Copre i quattro
 		// rami qui sopra; i due `continue` piu' in alto prenotano per conto proprio, perche' escono prima.
-		ReserveNormalMove(TeamSnapshot, Bot, BotIdx);
+		ReserveNormalMove(Snapshot, Bot, BotIdx);
 	}
 }
 

@@ -2735,7 +2735,12 @@ tracks:
       - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
       - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
       - Source/RefactorTactics/Turn/RTTurnManager.h
-      - Source/RefactorTactics/Turn/RTTurnManager.cpp
+      # ➖ `RTTurnManager.cpp` **CEDUTO a `bot_stalemate`** il 2026-08-19, per `#1088`. Non è una rinuncia
+      # gratuita: `feat/314-reaction-profile-e-clash` è interamente mergiato in `main` (PR #1210, #1211) e
+      # questa track non ha lavoro pendente su quel file — misurato,
+      # `git diff <merge-base> origin/main -- Turn/RTTurnManager.cpp` è **vuoto**. Un path con due holder
+      # viola `D-139` («un holder per path») e nessuno script lo intercetta: l'unica applicazione è questa
+      # riga. Se `#314` riapre e serve di nuovo, si richiede — non si ri-dichiara in parallelo.
       - Source/RefactorTactics/Turn/RTActionEvent.h
       - Source/RefactorTactics/Ability/RTHeroData.h
       - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h
@@ -5630,17 +5635,15 @@ tracks:
       liberi e non assegnati, verificato scandendo `writable`/`integration_only`/`writable_on_loan` di ogni
       track: la correzione vive in `URTHexBotLibrary::ReservePlannedRoute`, che segna la rotta scelta come
       occupata per le compagne e libera per chi l'ha presa.
-      🔴 **`Turn/RTTurnManager.cpp` è dichiarato QUI e anche da `simulation`, e la sovrapposizione va
-      letta prima di toccarlo.** Quando questa track ha chiesto il path era libero; nel frattempo
-      `simulation` l'ha preso ripartendo su `#314` (`6382adc0`). L'autore possiede entrambe le track e ha
-      autorizzato l'innesto, **misurata la condizione che lo rende a basso rischio** — e rimisurata al
-      merge, perché nel frattempo `#314` ha mergiato due volte (PR **#1210** e **#1211**): il branch
-      `feat/314-reaction-profile-e-clash` è interamente in `main` (`git diff
-      origin/main...origin/feat/314-…` **vuoto**), e soprattutto **`main` non ha toccato
-      `RTTurnManager.cpp`** dalla base di questa track (`git diff <merge-base> origin/main --
-      Turn/RTTurnManager.cpp` **vuoto**): il lavoro di `#314` è andato in `RTReactionLibrary` e affini.
-      ∴ la sovrapposizione resta **di dichiarazione, non di contenuto**. ⚠️ Non è nulla: se una sessione
-      riapre `#314` e tocca `PlanBots`, i due branch confliggono — e il conflitto va risolto, non dedotto.
+      ➕ **`Turn/RTTurnManager.cpp` è stato CEDUTO da `simulation` nello stesso commit, non dichiarato in
+      parallelo.** La prima stesura di questa nota lo teneva in entrambi i `writable` spiegando perché il
+      rischio fosse basso — ma `D-139` dice «un holder per path», e nessuno script intercetta un doppio
+      holder: l'unica applicazione della regola è la riga che lo dichiara. Una code review l'ha chiamata per
+      quello che era, una violazione con una giustificazione accanto.
+      Condizione della cessione, misurata: `feat/314-reaction-profile-e-clash` è interamente in `main`
+      (PR **#1210**, **#1211**) e **`main` non ha toccato quel file** dalla base di questa track
+      (`git diff <merge-base> origin/main -- Turn/RTTurnManager.cpp` **vuoto**) — il lavoro di `#314` è
+      andato in `RTReactionLibrary` e affini. ⚠️ Se `#314` riapre e serve di nuovo, si **richiede**.
       ⛔ **L'innesto NON è stato «una riga», e la stima iniziale era sbagliata.** `PlanBots` non chiama
       `PlanUnit`: costruisce candidate proprie (`AddCandidates`, quattro pool) e chiama `ChooseBestPlan`,
       con **cinque punti d'uscita**. La modifica reale è uno snapshot di pianificazione **per squadra**

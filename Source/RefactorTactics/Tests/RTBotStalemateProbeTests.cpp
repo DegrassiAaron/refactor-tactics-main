@@ -725,7 +725,16 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			if (Resolved[i].Outcome != ERTMoveOutcome::BlockedContested) { continue; }
 
 			const int32 Step = Resolved[i].Entered.Num();
-			if (!Paths[i].IsValidIndex(Step + 1)) { continue; }
+			// ⚠️ Non un `continue` silenzioso: un'unita' dichiarata `BlockedContested` deve avere un passo
+			// successivo nel proprio percorso. Se non ce l'ha il modello e' rotto, e tacerlo toglierebbe un
+			// contendente dal censimento — falsando proprio la misura che questo file esiste per produrre.
+			if (!Paths[i].IsValidIndex(Step + 1))
+			{
+				T.AddError(FString::Printf(
+					TEXT("[%s] turno %d: u%d e' BlockedContested ma il suo percorso non ha un passo %d"),
+					Label, Turn, Units[i].Id, Step + 1));
+				continue;
+			}
 			ContestedCell[i] = Paths[i][Step + 1];
 			bContested[i] = true;
 		}
@@ -738,20 +747,44 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			if (!bContested[i] || AlreadyReported.Contains(ContestedCell[i])) { continue; }
 			AlreadyReported.Add(ContestedCell[i]);
 
+			// 🔴 **I contendenti si derivano dai PERCORSI, non dal sottoinsieme marcato `BlockedContested`.**
+			// La marcatura e' un esito, e ne esistono altri per la stessa collisione: chi perde per priorita'
+			// prende `BlockedByPriority`, chi trova la cella gia' occupata prende `BlockedByUnit`. Contando
+			// solo i marcati, una contesa fra AVVERSARI in cui uno dei due esce con un altro esito lascia un
+			// solo contendente nel censimento, `PerTeam` diventa {1,0}, e la contesa viene archiviata come
+			// «stessa squadra». L'asserzione `CrossTeamContests == 0` — su cui poggia l'intera misura —
+			// diventerebbe vera per costruzione invece che per misura.
+			//
+			// Chi punta quella cella nel proprio prossimo passo la sta contendendo, qualunque esito abbia poi.
 			FString Who;
 			int32 PerTeam[2] = { 0, 0 };
-			// La destinazione del primo contendente, per dire se gli altri puntano LI' o solo di passaggio.
-			FRTCellId FirstDestination = Planned[i];
+			FRTCellId FirstDestination;
+			bool bHaveFirst = false;
 			bool bAllSameDestination = true;
 			for (int32 j = 0; j < Units.Num(); ++j)
 			{
-				if (!bContested[j] || !(ContestedCell[j] == ContestedCell[i])) { continue; }
-				Who += FString::Printf(TEXT("%su%d(T%d, dest %s)"), Who.IsEmpty() ? TEXT("") : TEXT(", "),
-					Units[j].Id, Units[j].Team, *Planned[j].ToString());
+				const int32 StepJ = Resolved[j].Entered.Num();
+				if (!Paths[j].IsValidIndex(StepJ + 1)) { continue; }        // fermo o percorso esaurito
+				if (!(Paths[j][StepJ + 1] == ContestedCell[i])) { continue; }
+
+				Who += FString::Printf(TEXT("%su%d(T%d, dest %s, esito %d)"),
+					Who.IsEmpty() ? TEXT("") : TEXT(", "),
+					Units[j].Id, Units[j].Team, *Planned[j].ToString(),
+					static_cast<int32>(Resolved[j].Outcome));
 				if (Units[j].Team == 0 || Units[j].Team == 1) { ++PerTeam[Units[j].Team]; }
-				if (!(Planned[j] == FirstDestination)) { bAllSameDestination = false; }
+				if (!bHaveFirst) { FirstDestination = Planned[j]; bHaveFirst = true; }
+				else if (!(Planned[j] == FirstDestination)) { bAllSameDestination = false; }
 			}
 
+			// Cross-team richiede contendenti da ENTRAMBE le squadre. Un gruppo con un solo contendente non e'
+			// una contesa: e' un difetto del censimento, e va detto invece di essere classificato.
+			if (PerTeam[0] + PerTeam[1] < 2)
+			{
+				T.AddError(FString::Printf(
+					TEXT("[%s] turno %d: cella %s marcata contesa ma con %d contendente/i — censimento incoerente"),
+					Label, Turn, *ContestedCell[i].ToString(), PerTeam[0] + PerTeam[1]));
+				continue;
+			}
 			const bool bSameTeam = (PerTeam[0] == 0) || (PerTeam[1] == 0);
 			++Out.Contests;
 			if (bSameTeam) { ++Out.SameTeamContests; } else { ++Out.CrossTeamContests; }
@@ -815,9 +848,10 @@ bool FRTBotStalemateContendersTest::RunTest(const FString&)
 	// riceve i piani delle compagne) e produce due volte la stessa destinazione. Un tie-break nel resolver
 	// farebbe entrare una delle due e lascerebbe l'altra a ripetere la stessa scelta perdente al turno dopo.
 	TestTrue(TEXT("con copertura le contese ci sono"), Covered.Contests > 0);
+	// ⚠️ Una riga sola, ed e' voluto: `Contests == SameTeam + CrossTeam` per costruzione, quindi
+	// «SameTeamContests == Contests» sarebbe aritmetica, non una seconda misura. Sembrava una prova in piu'
+	// e gonfiava l'evidenza della tesi centrale di questo file.
 	TestEqual(TEXT("e sono TUTTE fra compagni di squadra"), Covered.CrossTeamContests, 0);
-	TestEqual(TEXT("nessuna contesa fra avversari, contate due volte"),
-		Covered.SameTeamContests, Covered.Contests);
 
 	// Il campo non si sblocca MAI: zero turni con almeno una mossa su dodici. E' lo stallo della partita
 	// reale, riprodotto senza mondo ne' attori.

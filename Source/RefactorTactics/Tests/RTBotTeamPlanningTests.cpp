@@ -193,27 +193,40 @@ bool FRTPlanBotsNoTeammateOverlapTest::RunTest(const FString&)
 	// sua cella d'arrivo la decide la fase Dash, che ha le proprie priorità e non è dove il difetto vive.
 	auto MovesNormally = [](const ARTUnit* U) { return U && U->PlannedDashAbility == INDEX_NONE; };
 
-	if (MovesNormally(BotA) && MovesNormally(BotB))
+	// ⚠️ **Le due verifiche si fanno PER SQUADRA, e la prima stesura le faceva globali.** Contando le mosse
+	// su tutte e quattro le unità, la squadra 0 poteva essere nello stallo originale — entrambe ferme sulla
+	// propria cella, quindi «celle distinte» vero per costruzione — e il test restava verde perché si era
+	// mossa un'unità della squadra 1. Il difetto che questo test esiste per cogliere sarebbe passato.
+	auto CheckTeam = [&](const TCHAR* Label, ARTUnit* First, ARTUnit* Second)
 	{
-		TestFalse(TEXT("le due compagne della squadra 0 non puntano la stessa cella"),
-			BotA->PlannedCell == BotB->PlannedCell);
-	}
-	if (MovesNormally(FoeA) && MovesNormally(FoeB))
-	{
-		TestFalse(TEXT("ne' quelle della squadra 1"),
-			FoeA->PlannedCell == FoeB->PlannedCell);
-	}
+		// ⚠️ Uno scatto salterebbe il confronto sulle celle: allora la squadra non verifica nulla, e va detto
+		// invece di tacere — un'asserzione che non gira è indistinguibile da una che passa.
+		if (MovesNormally(First) && MovesNormally(Second))
+		{
+			TestFalse(FString::Printf(TEXT("%s: le due compagne non puntano la stessa cella"), Label),
+				First->PlannedCell == Second->PlannedCell);
+		}
+		else
+		{
+			AddWarning(FString::Printf(
+				TEXT("%s: confronto celle NON eseguito (almeno una scatta) — la squadra resta non verificata"),
+				Label));
+		}
 
-	// ⚠️ **Il controllo che rende il test non vacuo**, e senza sarebbe l'errore già commesso una volta in
-	// questo file: se nessun bot si muovesse, «non puntano la stessa cella» sarebbe vero perché tutti
-	// restano fermi sulla propria — cioè lo stallo stesso passerebbe il test.
-	int32 Moving = 0;
-	for (const ARTUnit* U : { BotA, BotB, FoeA, FoeB })
-	{
-		if (U && !(U->PlannedCell == U->Cell)) { ++Moving; }
-	}
-	AddInfo(FString::Printf(TEXT("unita' che hanno pianificato uno spostamento: %d/4"), Moving));
-	TestTrue(TEXT("almeno un bot pianifica di muoversi davvero"), Moving > 0);
+		// Non-vacuità della SQUADRA: almeno una delle due deve davvero spostarsi, altrimenti «celle distinte»
+		// è soddisfatto dallo stallo.
+		int32 Moving = 0;
+		for (const ARTUnit* U : { First, Second })
+		{
+			const bool bDashes = U && U->PlannedDashAbility != INDEX_NONE;
+			if (U && (bDashes ? !(U->PlannedDashCell == U->Cell) : !(U->PlannedCell == U->Cell))) { ++Moving; }
+		}
+		AddInfo(FString::Printf(TEXT("%s: unita' che si spostano %d/2"), Label, Moving));
+		TestTrue(FString::Printf(TEXT("%s: almeno una si muove davvero"), Label), Moving > 0);
+	};
+
+	CheckTeam(TEXT("squadra 0"), BotA, BotB);
+	CheckTeam(TEXT("squadra 1"), FoeA, FoeB);
 
 	DestroyTeamPlanningWorld(World);
 	return true;
