@@ -207,7 +207,6 @@ docs/
 │   └── handoff/    prompt e consegne di sessione, non ancora consumati
 ├── generated/   **output**, non ricerca: ha un generatore committato e non si edita
 │   └── icons/      i master iconografici di `scripts/build-icon-assets.py`
-├── src/         quel che resta della casella di posta, in attesa di triage
 └── archive/     materiale superato
     ├── src/        i sorgenti già recepiti: design, handoff, audit
     └── pdr-v0.1/   il corpus PDR v0.1, consolidato in un Markdown
@@ -224,16 +223,19 @@ docs/
 1. **I nomi dei file restano in italiano kebab-case**, non `UPPER_SNAKE` inglese come nella struttura di
    riferimento. Il repository ha una convenzione consolidata e mescolarla peggiorerebbe la leggibilità;
    la clausola «riutilizzare i file esistenti quando possibile» lo consente.
-2. **`src/` non è documentazione**: è la casella di posta dei sorgenti grezzi (brief non ancora triagiati).
-   > **Dal 2026-08-19 si sta svuotando davvero** ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165),
-   > fase 2): PRD, icone, showcase e griglie sono sotto [`research/`](research/), e i 296 master
-   > iconografici — che hanno un generatore — sotto [`generated/icons/`](generated/icons/). `src` era
-   > ambiguo in un repository che ha anche `Source/`, e conteneva quattro cose diverse sotto un nome
-   > che non ne descriveva nessuna. Vive accanto ai documenti perché è da lì che nascono, ma **non è normativa** e non compare nella
-   gerarchia delle fonti sopra il livello 8.
-   > **Dal 2026-08-08 la casella si svuota.** Un sorgente recepito si sposta in
-   > [`archive/src/`](archive/src/README.md), invece di restare con un banner. La cartella `src/` risponde ora
-   > a una domanda sola — *cosa non è ancora stato consumato?* — e la risposta è la posizione del file, non una
+2. **`research/` non è documentazione**: è la casella di posta dei sorgenti grezzi — PRD di visione,
+   design non canonico, handoff non ancora triagiati. Vive accanto ai documenti perché è da lì che
+   nascono, ma **non è normativa** e non compare nella gerarchia delle fonti sopra il livello 8.
+   > **`src/` non esiste più.** Il 2026-08-19 la fase 3 di
+   > [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165) ha portato via gli ultimi
+   > 112 file: `git ls-files docs/src` restituisce **zero**. `src` era ambiguo in un repository che ha
+   > anche `Source/`, e conteneva quattro cose diverse sotto un nome che non ne descriveva nessuna —
+   > PRD di visione, una pipeline di icone **generate**, kit non consumati e media. Oggi la natura la
+   > dice la cartella: [`research/`](research/) per la ricerca, [`generated/`](generated/) per gli output.
+   >
+   > **La casella continua a svuotarsi**, come dal 2026-08-08: un sorgente recepito si sposta in
+   > [`archive/src/`](archive/src/README.md) invece di restare con un banner. `research/` risponde a una
+   > domanda sola — *cosa non è ancora stato consumato?* — e la risposta è la posizione del file, non una
    > colonna di un indice.
 
 ### Le quattro nature di un file, e perché la posizione le deve dire
@@ -246,18 +248,17 @@ dicono già; la cartella no, e finché non lo dice l'etichetta va cercata un fil
 |---|---|---|---|
 | **authored** | `product/` · `gameplay/` · `technical/` · `balance/` · `decisions/` · `characters/` | una persona | è il posto giusto: qui si cambia una regola |
 | **generated** | `generated/` · `roadmap/*.shortlist.md` · `roadmap/*.json` · `roadmap/charts/` · `characters/radar/` | un generatore | **si perde alla rigenerazione**: si corregge la sorgente |
-| **research** | `research/`, più quel che resta in `src/` | chiunque, senza gate | non decide niente, e non risolve un conflitto |
+| **research** | `research/` | chiunque, senza gate | non decide niente, e non risolve un conflitto |
 | **archive** | `archive/` | nessuno: si conserva | riscriverla falsifica la storia |
 
-**`src/` diventa `research/`** ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)):
-stesso contenuto, nome che dice cos'è invece di dove nasce. Non è una rinomina cosmetica —
+**`src/` è diventata `research/`** ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165),
+chiusa il 2026-08-19): stesso contenuto, nome che dice cos'è invece di dove nasce. Non è una rinomina cosmetica —
 `src` è ambiguo in un repository che ha anche `Source/`, e la casella di posta contiene PRD di visione,
 handoff, pipeline di icone e kit non consumati, cioè quattro cose diverse sotto un nome che non ne
 descrive nessuna.
 
 ⚠️ **La posizione governa i gate, non solo la leggibilità.** `check-docs-symbols.py` e
-`check-docs-tables.py` esentano **per prefisso di path**: `archive/`, `src/`, `research/`,
-`roadmap/plans/`. Spostare un documento dentro o fuori da uno di questi ne cambia la copertura **senza
+`check-docs-tables.py` esentano **per prefisso di path**: `archive/`, `research/`, `roadmap/plans/`. Spostare un documento dentro o fuori da uno di questi ne cambia la copertura **senza
 che nessuno lo dica** — misurato, con `EXEMPT_DIRS = ()` il primo passa da 155 a 389 documenti e il
 secondo da 165 a 404, ed entrambi diventano rossi. Chi sposta una cartella aggiorna `EXEMPT_DIRS` nello
 stesso commit, e verifica che il **numero di documenti controllati non cali**: un gate il cui scope
@@ -312,13 +313,15 @@ rigenerazione successiva. ⚠️ **I loro nomi sono un contratto**: la Wiki pubb
 `raw.githubusercontent.com`, quindi rinominarli rompe pagine che nessun gate di questo repository vede.
 
 **3. Un'immagine orfana sta solo in area grezza.** Zero riferimenti significa che nessuno sa perché è lì.
-È ammesso in `src/`/`research/` e in `archive/` — è materiale non ancora consumato, o storia — e in
+È ammesso in `research/` e in `archive/` — è materiale non ancora consumato, o storia — o in un'area
+**generata** con owner dichiarato, dove un output non ha riferimenti entranti per costruzione. In
 nessun altro posto. Misurato all'apertura di #1165: le 393 orfane di allora erano **tutte** sotto `src/`,
 e fuori di lì erano **zero**. È una proprietà da conservare, non da riscoprire.
 
 Per le immagini *non* governate da un generatore, il nome è `<topic>--<vista>.<ext>` —
 `ability-effect-system--uml.png`, non `final2`, non `image1`, e non un refuso reso permanente
-(`infografic` accanto a `infographic` è una coppia che esiste davvero in `src/`).
+(`infografic` accanto a `infographic` è una coppia che esiste davvero, in
+`research/design/systems-map/`).
 
 ### Gate anti-deriva
 
@@ -334,7 +337,7 @@ Il gate è deliberatamente **stretto**: controlla solo le righe di tabella la cu
 forma in cui un documento afferma «questo esiste oggi». Non controlla la prosa, dove lo stesso simbolo può
 comparire come storia («è stato rimosso») o come proposta («il DoD introduce…»): distinguerli lessicalmente
 non è affidabile, e un gate che sbaglia viene disattivato al terzo falso positivo. Sono esentati i documenti
-storici, i brief propositivi e le cartelle `archive/`, `src/`, `roadmap/plans/`.
+storici, i brief propositivi e le cartelle `archive/`, `research/`, `roadmap/plans/`.
 
 ### Gate delle tabelle
 

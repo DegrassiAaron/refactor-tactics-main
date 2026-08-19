@@ -7,7 +7,7 @@
 >
 > **Stato**: Bozza in revisione (design) · **Data**: 2026-08-10 · **Branch**: `docs/consolidamento-roadmap`
 > **Esito di**: `/sc:spec-panel --mode critique` — panel Wiegers · Cockburn · Adzic · Fowler · Newman · Nygard · Crispin
-> **Fonte**: [`../../src/RefactorTactics_Project_Control_Center_Claude.md`](../../src/RefactorTactics_Project_Control_Center_Claude.md), handoff dell'autore
+> **Fonte**: [`../../research/handoff/RefactorTactics_Project_Control_Center_Claude.md`](../../research/handoff/RefactorTactics_Project_Control_Center_Claude.md), handoff dell'autore
 > **Tracciata da**: `RT-FEAT-TOOL-CONTROL-CENTER` nel registry — `release: future`, fuori dai gate della v0.1.
 > **§9 è decisa** (2026-08-10, con l'autore); di **§11 sono eseguiti i passi 1–8**: contratto dati, gate,
 > config, pagina, filtri, viste, coda e test. Resta il **9** — `CONTEXT_INDEX.md` e i puntatori di ingresso.

@@ -15,6 +15,7 @@ Due gruppi, e la differenza conta — stessa divisione di `docs/control-center/g
 """
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -210,13 +211,24 @@ class TestContratto(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(REPO, generatore)),
                             f"l'area {area} dichiara {generatore}, che non esiste")
 
-    def test_le_aree_grezze_esistono_o_sono_dichiarate_future(self):
-        """`docs/research/` non esiste ancora: e' la destinazione della IA v2, e la riga entra
-        **prima** della cartella di proposito. Le altre due devono esistere."""
-        for prefisso in ("docs/src/", "docs/archive/"):
-            self.assertIn(prefisso, inv.AREE_GREZZE)
-            self.assertTrue(os.path.isdir(os.path.join(REPO, prefisso)))
-        self.assertIn("docs/research/", inv.AREE_GREZZE)
+    def test_ogni_area_grezza_ha_file_versionati(self):
+        """Verificata con **git**, non con `os.path.isdir`, e la differenza e' il difetto che questo
+        test evita: dopo la fase 3 di #1165 `docs/src/` esiste ancora sul disco dell'autore — ci vive
+        un export `.zip` che `.gitignore` copre — ma ha **zero** file versionati. Un controllo sul
+        filesystem sarebbe passato qui e caduto su un clone pulito."""
+        for prefisso in inv.AREE_GREZZE:
+            out = subprocess.run(["git", "-C", REPO, "ls-files", prefisso],
+                                 capture_output=True, text=True, encoding="utf-8").stdout
+            self.assertTrue(out.strip(),
+                            f"AREE_GREZZE nomina {prefisso}, che non ha file versionati")
+
+    def test_docs_src_non_e_piu_un_area(self):
+        """La cartella e' stata svuotata: lasciarla nell'elenco significherebbe tenere aperta
+        un'eccezione per un posto dove non puo' piu' finire niente."""
+        self.assertNotIn("docs/src/", inv.AREE_GREZZE)
+        out = subprocess.run(["git", "-C", REPO, "ls-files", "docs/src"],
+                             capture_output=True, text=True, encoding="utf-8").stdout
+        self.assertEqual(out.strip(), "", "docs/src ha di nuovo file versionati")
 
     def test_ogni_dichiarazione_porta_una_data(self):
         """Una promessa senza data non scade, e un allowlist che non scade diventa un permesso."""
