@@ -6046,7 +6046,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: null
+    branch: docs/1165-fase4-technical-split
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6207,7 +6207,30 @@ tracks:
       differenza `0`. Non era una ridondanza da valutare, era una consolidazione **senza perdita**.
       Restano i composite: 24 file -> 10, 32,8 MB -> 19,7. E restano in `research/`, non in
       `archive/`: nessuno le ha consumate, e archiviarle direbbe il falso su cosa e' successo.
+
+      ➕ **Fase 4, 2026-08-19** — `docs/technical/` si divide per natura: `architecture/` (7),
+      `systems/` (10), `tooling/` (9). **26 documenti su 43**, e i 17 che restano non sono una svista.
+      ⛔ **`runbooks/` NON si apre**: 7 dei suoi 12 documenti sono nel `writable` di altre track —
+      `test-manuali-pie.md` e `qa-prompt-terminal-d` di `playtest` (**ACTIVE**), i tre
+      `qa-prompt-terminal-{a,b,c}` e `guida-seduta-u1-arena` di `content_editor`, `guida-frontend-umg`
+      di `frontend_shell`. Mezza cartella `runbooks/` sarebbe uno stato peggiore di nessuna: si apre
+      quando quelle track rilasciano, ed e' una riga sola di `git mv` in piu'.
+      ⛔ Fuori anche `spec-frontend-navigazione.md` (`frontend_shell`) e `issue-tracking-completeness.md`
+      (`content_editor`), e i tre `piano-*.md`: quelli aprono la domanda «`roadmap/plans/` o
+      `archive/roadmap-plans/`?», che sono **due case per la stessa categoria** e le decide la fase 6.
+
+      ⚠️ **Il costo vero non e' il move, sono i riferimenti**: **503 link e 133 etichette in ~158 file**,
+      venti volte la fase 2. Misurati col gate, non col grep. Fra i file da riscrivere ci sono
+      `AGENTS.md`, `CLAUDE.md`, `CONTEXT_INDEX.md` e il Decision Log — tutti `integration_only`, tutti
+      toccati **una volta** e **nessuno preso nel `writable`**.
+      🔴 La prima stesura di questa dichiarazione ci aveva messo `AGENTS.md` e `CLAUDE.md`, e il
+      controllo delle intersezioni ha risposto **2**: sono gia' nel `writable` di `content_editor`, e
+      sono `integration_only`, cioe' non vanno in nessun `writable`. Un file `integration_only` si tocca
+      in integrazione e si dichiara nella nota — prenderlo e' il modo di trasformare una regola in una
+      contesa. Quattordici rami vivi toccano uno dei 158, da 1 a 3 file ciascuno: i
+      conflitti saranno testuali e su una riga di link.
     writable:
+      - docs/technical/
       - docs/README.md
       - docs/control-center/graph.test.mjs
       - docs/generated/
