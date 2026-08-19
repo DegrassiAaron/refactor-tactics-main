@@ -2690,6 +2690,7 @@
     "PredictiveAction",
     "Reaction",
     "ReactionPlanning",
+    "ReactionProfile",
     "Structures"
   ],
   "execution": {

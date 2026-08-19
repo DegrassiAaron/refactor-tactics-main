@@ -1947,8 +1947,17 @@ tracks:
     # `ResolveCombat`, il traduttore delle risposte di profilo nell'harness, lo sblocco della capability e il
     # T2 dello scenario — e' stato **scartato**, non pushato a meta'. Due PR sugli stessi otto file avrebbero
     # prodotto un conflitto che qualcuno avrebbe dovuto risolvere a mano.
-    status: IDLE
-    issue: null
+    #
+    # 🔴 **`status` e `issue` sono stati RIPORTATI ad `ACTIVE`/`314` il 2026-08-19, e non è un rifiuto del
+    # ritiro: è la sua metà mancante.** L'auto-merge aveva preso i valori del ritiro — `IDLE`/`null` — mentre
+    # `feat/314-clash-finestra-contested` è pushato con la PR **#1217 aperta**, cioè il file avrebbe
+    # dichiarato *«nessuno ci sta lavorando»* di una track che sta scrivendo. È l'accezione che questo file
+    # distingue per prima e che ha già pagato al contrario, scrivendo `null` su una sessione che aveva scritto.
+    # ✅ **Il ritiro è ACCOLTO in ciò che dispone**: una sola sessione prosegue, ed è `#1217`. Ciò che quel
+    # commit non poteva sapere è che l'altra sessione era **ancora viva** — misurava un ramo mergiato e
+    # concludeva sulla track. `IDLE` torna vero col merge di `#1217`, non prima.
+    status: ACTIVE
+    issue: 314
     # ➕ **Riattivata il 2026-08-17 su `#886`** — il Verifier rilegge le decisioni di reazione dal TurnLog.
     # ⛔ **Ed è ACTIVE con un path ~~CHIESTO~~ RILASCIATO e non posseduto**: finché `Turn/RTTurnManager.{h,cpp}` non entra
     # nel `writable` qui sotto vale **STOP**, e `#886` non è iniziata. La track non è però ferma: i due file
@@ -2155,10 +2164,24 @@ tracks:
     # qui è ciò che lo rende misurabile prima del push.
     # ➖ **Mergiato e cancellato il 2026-08-18** (PR #1182). Il campo torna alla prima delle quattro accezioni
     # che questo file distingue: «nessun branch vivo, il lavoro è in `main`».
-    # ➖ **Mergiato per intero e cancellato il 2026-08-19 col ritiro.** Verificato con
-    # `git merge-base --is-ancestor` che `origin/main` lo contiene tutto prima di rimuoverlo: cinque PR
-    # atterrate, nessun commit orfano.
-    branch: null
+    # 🔁 **Riscritto il 2026-08-19 per la TERZA fetta di `#314`**, e il ramo precedente non è più quello di
+    # lavoro: `feat/314-reaction-profile-e-clash` è **interamente in `main`** — misurato con
+    # `git diff --name-only origin/main...origin/feat/314-reaction-profile-e-clash`, che è **vuoto**, e con
+    # `git log origin/main..origin/<ramo>`, pure vuoto. Le sue due fette sono le PR **#1192** (contested
+    # derivato, ordine canonico, grammatica) e **#1204** (D-047, il Reaction Profile).
+    # ➖ **Quel ramo è stato mergiato per intero e cancellato il 2026-08-19 dall'altra sessione**, col proprio
+    # atto di ritiro (`9aaf4284`): `git merge-base --is-ancestor` verificato, cinque PR atterrate, nessun
+    # commit orfano. La riga sopra resta perché descrive la misura al momento in cui la fetta 3 è partita.
+    # ⛔ **La fetta 3 era nata su un ramo NUOVO invece di riusare quello**: due worktree non possono tenere in
+    # checkout lo stesso branch, e `git switch` lì sarebbe fallito. Nato da `origin/main` @ `2b9ddb07`.
+    #
+    # 🔴 **CONFLITTO DI MERGE RISOLTO A FAVORE DI QUESTO RAMO, e la ragione va scritta perché è una scelta.**
+    # L'atto di ritiro portava `branch: null` — e quel `null` parla del **loro** ramo, non del mio: la sua
+    # motivazione dice *«#1217 è più avanti … cede questa track»*. Prendere il loro valore avrebbe dichiarato
+    # che nessun ramo di questa track è vivo mentre `feat/314-clash-finestra-contested` è pushato e ha una PR
+    # **aperta**. Le due sessioni concordano sul fatto — una sola prosegue — e divergono solo su *quale* ramo
+    # il campo stia descrivendo.
+    branch: feat/314-clash-finestra-contested
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -2187,8 +2210,73 @@ tracks:
     # è in **detached HEAD** — la sessione di `#1158` ha finito — e `D:/rt-spatial` è su
     # `feat/314-reaction-profile-e-clash`. 💡 Il campo cambia tre volte in un giorno perché registra un fatto
     # che cambia tre volte; lasciarlo fermo lo renderebbe stabile e falso.
-    worktree: "D:/rt-spatial"
+    # 🔁 **Quarta riscrittura, il 2026-08-19: torna `D:/rt-simulation` con la fetta 3.** Vale la regola scritta
+    # sopra — il campo segue **la sessione** — e la sessione che riprende `#314` è confinata dall'harness qui.
+    # ⛔ **Ciò che questa sessione NON ha potuto misurare, detto invece che assunto**: se `D:/rt-spatial` sia
+    # ancora aperto. `git worktree list` lo mostra agganciato a `feat/314-reaction-profile-e-clash` — ma un
+    # worktree agganciato non è una sessione viva, e da dentro `D:/rt-simulation` non c'è comando che
+    # distingua le due cose. Il campo si riscrive perché **l'autore ha dichiarato di riprendere `#314` qui**,
+    # e quella dichiarazione è la sola fonte che risponde alla domanda. Registrata come tale, non spacciata
+    # per una misura.
+    worktree: "D:/rt-simulation"
     note: >-
+      ➕ **Fetta 3 di `#314`, aperta il 2026-08-19: il Reaction Profile prende un consumatore.** Le due fette
+      precedenti hanno consegnato le funzioni pure (PR #1192) e il dato di catalogo (PR #1204); il profilo
+      però **non è letto da nessuno in partita** — `BraceAllowedResponses` ha zero chiamanti fuori dai test e
+      `ARTUnit::ReactionProfileId` è trasportato e mai consultato. È la forma esatta del difetto che `#583`
+      chiama per nome, e questa fetta lo chiude invece di aggiungerne un secondo strato.
+      ⛔ **Ciò che questa fetta NON fa, deciso prima di scrivere e non scoperto a metà**: la macchina del Clash
+      (D-048 runtime) resta fuori. Aggiungere `LockChoice`/`Reveal`/`ResolveClash` accanto a `IsContested` e
+      `CompareGrammarIntents` — che oggi chiamano solo i test — avrebbe raddoppiato il codice senza
+      consumatore invece di dargliene uno.
+      ⚠️ **Solo UNO dei tre profili ha una semantica decisa, e gli altri due non si inventano.**
+      `Profile.Sidestep` ce l'ha da `BAS-4`, che lo dichiara «risponde al **Forced Movement**» nella stessa
+      forma di `Riva.FlowReaction` (`Reposition 1`) — quindi si esprime con `SelfReposition(1)`, la primitiva
+      che `Reaction.EmergencyDash` e `Reaction.HazardEscape` già usano, e **nessun numero nuovo entra**.
+      Per `GROUND` e `GLANCE` la spec §2.5 e `D-132` dichiarano aperti «Charge del `Grounding`» e «ampiezza
+      della deviazione»: una risposta extra si offre **solo se il profilo ne dichiara gli effetti**, e
+      l'assenza degli altri due è il registro di quelle due decisioni, non una dimenticanza.
+      ✅ **Fetta 3 CONSEGNATA il 2026-08-19** (commit `2d513d9b`, ramo non ancora pushato): il ramo
+      `Status.Braced` di `RTTurnManager_Blast.cpp` costruisce l'opportunity dal profilo e chiede la decisione
+      con la stessa `AskReactionDecision` dell'Overwatch. Suite **1057/1057**, tre mutazioni ognuna sul test
+      atteso e ripristinate byte per byte. `SIDESTEP` si esprime con `SelfReposition 1` — **D-176**, ID
+      riservato, voce canonica da scrivere in integrazione perché il Decision Log è `integration_only`.
+      ✅ **Fetta 4 CONSEGNATA il 2026-08-19** (commit `0e68fe7f`): `Spec.Brace.ProfileChangesResponse` è
+      **PASS (7/7)** e `ReactionProfile` è fra le capability disponibili. Suite **1061/1061**, tre mutazioni
+      ognuna sul test atteso. Il formato scenario sale a **v3** — il vocabolario di `decisions.respond`
+      accetta le risposte di profilo — e il bump è argomentato invece che dato per scontato: il cambiamento è
+      solo espansivo, e si bumpa per il verso che conta (una build vecchia deve rifiutare col messaggio
+      giusto invece di accusare il file).
+      🔴 **Una duplicazione trovata dal rosso e non dalla lettura**: `decisions` era validata in **due** posti
+      — il parser e `Validate` — e aggiornandone uno solo il corpus è diventato rosso col messaggio della
+      copia vecchia. Estratta in `ValidateDecisionForm`, chiamata da entrambi.
+      ➖ **Il prestito di `Scenarios/Spec/Brace/ProfileChangesResponse.json` RIENTRA col merge**, che è la
+      scadenza dichiarata: il file torna a `integration_only` e la sua riga in `writable_on_loan` si cancella
+      invece di invecchiare.
+      ⛔ **Ciò che la fetta 4 NON chiude, e la issue resta OPEN**: `ReactionClash` è tuttora fra le
+      indisponibili. Le sue funzioni pure esistono — `ResolveContestedBoundary`, `MakeClashLogEntries`,
+      arrivate dalle PR #1210/#1211 di un'altra sessione — e **nessun punto del resolver le chiama**. E la
+      decisione del `Brace` non entra nel TurnLog: `ArmRecordedReactionDecisions` ricostruisce la risposta
+      dall'`Outcome` assumendo il vocabolario `HOLD`/`FIRE:`, quindi una traccia `Hold Ground` verrebbe
+      rifiutata in ri-simulazione. Sono le due fette che restano.
+      --- ⛔ **Da qui la misura del 2026-08-19 mattina, superata dalla consegna qui sopra.**
+      ⛔ **La fetta 4 è misurata e NON aperta, e il perimetro è la ragione**: portare
+      `Spec.Brace.ProfileChangesResponse` a verde e togliere `ReactionProfile` da
+      `KnownUnavailableCapabilities()` richiede che il vocabolario delle `decisions` accetti le risposte del
+      profilo — oggi `RTScenarioLoader.cpp:484` rifiuta tutto ciò che non sia `FIRE` o `HOLD`, con un errore
+      esplicito. Servirebbero quindi `ScenarioHarness/RTScenarioLoader.cpp` e `RTTestScenario.h` (liberi, ma
+      **non assegnati**: da rivendicare), un **prestito** di `Scenarios/Spec/Brace/ProfileChangesResponse.json`
+      da `integration_only`, e una **versione di formato** — che questo file tratta come risorsa contesa, da
+      prendere dopo un `gh pr list`. ⚠️ E la capability non si sposta prima: scoprirla con il T2 ancora a
+      `intents: []` farebbe passare uno scenario **senza eseguire ciò che descrive**, che è l'errore già
+      pagato con `DecisionBoundary` e registrato nel commento di `#314` del 2026-08-16.
+      ⚠️ **La contesa su `Ability/RTCatalogLibrary.cpp` è nominale e va registrata, non temuta**:
+      `origin/feat/641-sprint-post-blast` lo tocca, ma è **dormiente** — ultimo commit `WIP` del 2026-08-12,
+      nessuna PR aperta (`gh pr list --head` → `[]`) — e l'intersezione a livello di **funzione è vuota**: il
+      suo hunk è in `GetCoreActionCatalog` a `:717`, i profili stanno in `GetReactionProfileCatalog` a `:8`.
+      Il file è qui in **prestito** da `spatial`, e il prestito non si allarga: si scrive la sola sezione
+      profili. ⚠️ Quel ramo è basato su un `RTCatalogLibrary.cpp` **pre-#1204**, quindi dovrà riconciliare i
+      profili quando riparte — un debito che non nasce qui e non cresce per causa di questa fetta.
       ➕ **Riattivata il 2026-08-18 su `#1158`.** Il difetto è misurato nella issue in cinque punti e nasce da
       una code review, non da un sospetto: `ApplyReactionDecision` calcola `bFire` con
       `Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx])` e **nessun `IsAlive()`**, mentre
@@ -2753,19 +2841,83 @@ tracks:
     # `scenariomap.shortlist.md` lo dichiarano in `derives_from`. Misurato, non ricordato — ed è anche il
     # motivo per cui quel file *sembrava* assegnato a `timebank_decisions`: le sue due occorrenze lì sono
     # righe di `derives_from`, non di `writable`. Una vista che nomina una sorgente non la possiede.
-    writable: []
-    # ─── il write-set che ESCE, elencato per provenienza e non cancellato in silenzio ───
-    #   Turn/RTReactionLibrary.{h,cpp} · Turn/RTReactionOpportunityTypes.{h,cpp} · Turn/RTTurnManager.h
-      # ➖ `RTTurnManager.cpp` **CEDUTO a `bot_stalemate`** il 2026-08-19, per `#1088`. Non è una rinuncia
-      # gratuita: `feat/314-reaction-profile-e-clash` è interamente mergiato in `main` (PR #1210, #1211) e
-      # questa track non ha lavoro pendente su quel file — misurato,
-      # `git diff <merge-base> origin/main -- Turn/RTTurnManager.cpp` è **vuoto**. Un path con due holder
-      # viola `D-139` («un holder per path») e nessuno script lo intercetta: l'unica applicazione è questa
-      # riga. Se `#314` riapre e serve di nuovo, si richiede — non si ri-dichiara in parallelo.
-    #   Turn/RTActionEvent.h · Ability/RTHeroData.h · Ability/RTHeroCatalogLibrary.{h,cpp}
-    #   ScenarioHarness/RTScenarioSession.cpp · Tests/RTDefensiveReactionTests.cpp
-    #   Tests/RTOverwatchTriggerTests.cpp · Unit/RTUnit.{h,cpp} · Tests/RTHeroDataBoundaryTests.cpp
-    #   docs/gameplay/spec-reaction-clash-e14.md
+    # 🔴 **Conflitto risolto a favore di questo ramo il 2026-08-19, e la cessione di `RTTurnManager.cpp` è
+    # ACCOLTA lo stesso.** L'atto di ritiro (`9aaf4284`) svuotava il `writable` perché *«#1217 sta già facendo
+    # la stessa cosa»* — premessa **vera**, conclusione prematura: finché la PR #1217 è aperta il suo
+    # write-set è misurabile (`git diff --name-only origin/main...HEAD`) e questi path sono suoi. Un
+    # `writable: []` con una PR aperta che li scrive è la lacuna che `D-139` chiama STOP, non la sua chiusura.
+    # ✅ **`Turn/RTTurnManager.cpp` ESCE da qui e va a `bot_stalemate`**, come il ritiro dispone: la loro
+    # ragione è misurata e regge anche adesso. ⚠️ Ma la loro misura — «questa track non ha lavoro pendente su
+    # quel file» — era vera per il *loro* ramo e **falsa per questo**: `#1217` lo tocca in
+    # `AskReactionDecision`, dove i sei ripieghi passano da `HoldResponse()` a `SafeResponse()`.
+    # ∴ **rimisurata l'intersezione a livello di FUNZIONE, e risulta vuota**: `bot_stalemate` scrive dentro
+    # `PlanBots` (righe 223-746 del loro diff), questa PR dentro `AskReactionDecision` (3882+). Il merge del
+    # codice è infatti riuscito **senza conflitti** su quel file. Il path resta loro; ciò che questa PR ci ha
+    # già scritto è in volo e atterra col merge — chi tocca quel file dopo lo rilegge da `main`, non da qui.
+    writable:
+      - Source/RefactorTactics/Turn/RTReactionLibrary.h
+      - Source/RefactorTactics/Turn/RTReactionLibrary.cpp
+      - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
+      - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.cpp
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      # ➖ **`Turn/RTTurnManager.cpp` CEDUTO a `bot_stalemate`** (`#1088`) col ritiro del 2026-08-19, e la
+      # cessione è accolta: un path con due holder viola `D-139` e nessuno script lo intercetta. Il write-set
+      # in volo di `#1217` su quel file resta valido — intersezione di funzione vuota, verificata sopra — e
+      # atterra col merge; da lì in poi il file è di `bot_stalemate`.
+      # ➕ **Rivendicato il 2026-08-19 dalla fetta 3, e non ereditato da una misura vecchia.** Il giro di
+      # `#886` lo aveva ESCLUSO con un argomento che allora era giusto — «e' il file dove le funzioni estratte
+      # dalla #1161 sono finite, non dove sta il punto che `#886` tocca» — e per la fetta 3 vale l'opposto: il
+      # ramo che oggi applica `Hold Ground` e' `RTTurnManager_Blast.cpp:1138`, cioe' il punto esatto in cui il
+      # profilo deve poter aprire la finestra. La misura si rifa', non si rilegge.
+      # ✅ **Non e' di nessuno**: `scenario_vocab` lo ha RILASCIATO il 2026-08-19 chiudendo `#1060`, e il
+      # `grep` del path su TUTTI i `writable` piu' `integration_only` da' **zero** occorrenze in campo. Un path
+      # non assegnato non si scrive e basta: lo rivendica chi lo prende, ed e' questo atto a farlo.
+      # ✅ **Nessun branch vivo lo tocca**: misurato con
+      # `git log --remotes=origin --not origin/main -- <path>`, che su tutti e venti i rami remoti restituisce
+      # **un solo** commit — e quello tocca `RTCatalogLibrary.cpp`, non questo file.
+      - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
+      - Source/RefactorTactics/Turn/RTActionEvent.h
+      - Source/RefactorTactics/Ability/RTHeroData.h
+      - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h
+      - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
+      # ➕ **I tre path della fetta 4, rivendicati il 2026-08-19.** Servono perche' il vocabolario di
+      # `decisions` e' oggi CHIUSO a `FIRE`/`HOLD` (`RTScenarioLoader.cpp:484`, con errore esplicito), quindi
+      # le risposte di un Reaction Profile non sono scriptabili in uno scenario e
+      # `Spec.Brace.ProfileChangesResponse` non puo' diventare verde.
+      # ✅ **Nessuno li possiede**: `grep` del path su TUTTI i `writable` piu' `integration_only` → zero.
+      # ✅ **Nessun branch vivo li tocca**: `git log --remotes=origin --not origin/main -- <path>` → vuoto,
+      # sui ventuno rami remoti misurati dopo `git fetch --prune`.
+      # ⚠️ **E la track sorella e' stata rimisurata, non ricordata**: `feat/314-reaction-profile-e-clash` —
+      # dove un'ALTRA sessione ha consegnato D-048 mentre girava la fetta 3 — ha oggi write-set **vuoto**
+      # contro `main` (le PR #1210 e #1211 sono atterrate). Nessuna contesa in volo; e se quella sessione
+      # riparte, questi tre path non sono i suoi: lei vive in `Turn/`, questi stanno in `ScenarioHarness/`.
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h
+      - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp
+      - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
+      # ➕ **Rivendicato il 2026-08-19 dalla code review della PR #1217**, e non è un allargamento
+      # opportunistico: `URTHexBotLibrary::DecideReactionResponse` ripiegava sulla **costante** `HOLD`, che per
+      # una finestra di `Brace` non è fra le `AllowedResponses` — il resolver la rifiutava con `HoldRejected`,
+      # l'esito riservato a una risposta *inventata*. In v0.1, che è **2v2 offline vs bot**, quello era il caso
+      # normale: ogni unità del bot in `Brace` con un profilo.
+      # 💡 Era un **omonimo** della correzione già applicata ai sei ripieghi di `AskReactionDecision`, e non
+      # cercato: il settimo produttore della stessa scelta viveva in un altro file.
+      # ✅ **Non è di nessuno**: `grep` del path su tutti i `writable` più `integration_only` → **zero**
+      # occorrenze in campo. ✅ **Nessun branch vivo lo tocca**:
+      # `git log --remotes=origin --not origin/main -- <path>` → vuoto.
+      - Source/RefactorTactics/Bot/RTHexBotLibrary.cpp
+      - Source/RefactorTactics/Tests/RTDefensiveReactionTests.cpp
+      - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
+      # 🔴 **Ripristinato il 2026-08-19 dopo il merge del ritiro, che lo aveva fatto uscire.** L'auto-merge
+      # aveva preso il `writable: []` di quell'atto per questa riga, e il risultato era uno **STOP silenzioso**:
+      # `#1217` scrive questo file — §2.5-bis, §2.5-ter, §12.1 e il banner di testa — mentre il batch non lo
+      # assegnava più a nessuno. Trovato **misurando**, non rileggendo: `git diff --name-only
+      # origin/main...HEAD` confrontato path per path col `writable`, che è la stessa verifica che il ritiro
+      # prescrive quando dice *«un write-set si misura a ogni fetta»*.
+      # 💡 Un merge senza conflitti su un file di dichiarazioni può cambiare **chi possiede cosa** senza che
+      # nessuna riga risulti in conflitto: qui `writable: []` e un elenco di path non collidono testualmente,
+      # e il risultato è un write-set che si svuota in silenzio.
+      - docs/gameplay/spec-reaction-clash-e14.md
       # ➕ **Tre path aggiunti il 2026-08-19, e non erano previsti: li ha resi necessari un GATE, non una
       # scelta.** Aggiunto `ReactionProfileId` a `URTHeroData`, `Unit.HeroDataCrossesTheBoundary` è
       # diventato rosso — è un test per reflection che pretende che **ogni** campo dell'eroe sia
@@ -2811,16 +2963,48 @@ tracks:
     # **liberi** — nessun `writable` li contiene. Sono il posto dove i quattro eroi si costruiscono
     # (`MakeGadget`, `MakePhase`, `MakeRiktor`, `MakeWraith`), cioè dove il campo che referenzia il profilo
     # prende il proprio valore. Senza, il profilo esisterebbe e nessun eroe lo porterebbe.
-    # ➖ **I due prestiti RIENTRANO col ritiro del 2026-08-19**, e la condizione che li governava si è
-    # avverata alla lettera: `returns_when: "#314 chiude"`. Non chiude come previsto — chiude perché la
-    # track cede la issue a `#1217` — ma per `spatial` la differenza non esiste: i suoi due file di
-    # `Ability/RTCatalogLibrary` tornano suoi, e il perimetro prestato (una `USTRUCT`, una funzione di
-    # catalogo con tre voci) è **atterrato in `main`** con la PR #1204.
-    # ⚠️ **`#1217` li sta toccando adesso**, e chi possiede `spatial` lo sappia: il prestito rientra, la
-    # contesa no. Il terzo prestito — `Scenarios/Spec/Brace/ProfileChangesResponse.json`, preso da
-    # `integration_only` poche ore fa — rientra **senza aver prodotto niente**: il T2 che questa sessione
-    # gli aveva scritto è stato scartato, e il file è quello di `main`.
-    writable_on_loan: []
+    # 🔴 **Conflitto risolto a favore di questo ramo, e l'osservazione dell'altra sessione è ACCOLTA.** Il
+    # ritiro (`9aaf4284`) portava `writable_on_loan: []` con l'argomento che `returns_when: "#314 chiude"` si
+    # era avverato — la track cede la issue, quindi i prestiti rientrano. ⚠️ Vero per **quella** track e falso
+    # per questo ramo: `#1217` scrive ancora tutti e tre i file, e il suo write-set si misura
+    # (`git diff --name-only origin/main...HEAD`). Un prestito chiuso mentre un branch aperto lo scrive è la
+    # stessa lacuna che la code review ha appena fatto correggere sul terzo path, poche righe più giù.
+    # ✅ **Ciò che quel commento dice e resta vero**: il perimetro prestato di `Ability/RTCatalogLibrary` — una
+    # `USTRUCT` e una funzione di catalogo a tre voci — è **già atterrato in `main`** con la PR #1204. Ciò che
+    # `#1217` vi aggiunge sono le due funzioni del vocabolario (`AllReactionProfileResponses`,
+    # `IsKnownReactionProfileResponse`) e gli effetti di `SIDESTEP`. I prestiti rientrano **col merge**.
+    writable_on_loan:
+      - path: Source/RefactorTactics/Ability/RTCatalogLibrary.h
+        from: spatial
+        returns_when: "col merge della PR #1217, o prima se `#833` riparte e li richiede"
+      - path: Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+        from: spatial
+        returns_when: "col merge della PR #1217, o prima se `#833` riparte e li richiede"
+      # 🔴 **Il prestito era stato CHIUSO TROPPO PRESTO, e questa riga lo riapre** (code review del
+      # 2026-08-19). La cancellazione era avvenuta sullo stesso branch che quel file **lo scrive ancora**:
+      # `git diff --name-only origin/main...HEAD` lo elenca, ma dopo quel commit il path non compariva né in
+      # `writable` né in `writable_on_loan`, mentre `Scenarios/` è `integration_only`. Cioè il branch portava
+      # una scrittura su un path che il batch non gli assegnava più — la condizione che `CLAUDE.md` §5
+      # (**D-139**) chiama **STOP**, prodotta da un atto che voleva essere di pulizia.
+      # 💡 «Il prestito rientra col merge» è vero e non autorizza a scriverlo **prima** del merge: il write-set
+      # di un branch aperto si misura, e finché il branch è aperto quel file è suo. La riga si cancella in
+      # **integrazione**, non qui.
+      - path: Scenarios/Spec/Brace/ProfileChangesResponse.json
+        from: integration_only
+        returns_when: "col merge della PR #1217 — la riga si cancella in integrazione, non sul branch"
+      # 🔴 **Aggiunto il 2026-08-19 da una code review, che ha chiamato la cosa col suo nome: era una
+      # violazione di D-139, non una cessione ben documentata.** Il commit di merge aveva tolto
+      # `RTTurnManager.cpp` dal `writable` accogliendo la cessione a `bot_stalemate`, e **nello stesso diff**
+      # riscriveva sei chiamate dentro `AskReactionDecision`. Avevo argomentato che l'intersezione a livello
+      # di funzione fosse vuota — ed è vero, resta misurato — ma `CLAUDE.md` §5 non dice «non collidere con
+      # nessuno»: dice *«il path deve stare nel `writable` della tua track … niente "solo questa piccola
+      # fix"»*. Una misura che giustifica lo STOP invece di toglierlo è il modo in cui questa regola si aggira
+      # in buona fede.
+      # ✅ **La forma giusta esiste ed è questa**: un prestito dichiarato, con la ragione e la scadenza. La
+      # cessione a `bot_stalemate` **resta valida** — è il proprietario, e la riprende intera al merge.
+      - path: Source/RefactorTactics/Turn/RTTurnManager.cpp
+        from: bot_stalemate
+        returns_when: "col merge della PR #1217 — sei chiamate in `AskReactionDecision`, zero in `PlanBots`"
     # ⚠️ ~~`#886` non presta nulla~~: i due path che prende sono **liberi**, e ~~il terzo lo **chiede**~~ — dal
     # 2026-08-17 i due del `TurnManager` sono **rilasciati e non assegnati**, quindi non c'è più niente da
     # chiedere e ~~resta lo STOP finché l'atto di questa track non li rivendica~~. Annotato qui perché è un

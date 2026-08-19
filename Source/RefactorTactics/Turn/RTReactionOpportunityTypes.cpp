@@ -422,12 +422,37 @@ TArray<FRTTurnLogEntry> URTReactionOpportunityLibrary::MakeClashLogEntries(
 	return Entries;
 }
 
-FRTReactionDecision URTReactionOpportunityLibrary::DecisionOnTimeout(const FRTReactionOpportunity&)
+FString URTReactionOpportunityLibrary::SafeResponse(const FRTReactionOpportunity& Opportunity)
 {
-	// PURA e costante: `HOLD`, sempre. Non guarda l'opportunity di proposito — se la guardasse, esisterebbe
-	// un'opportunity per cui lo scadere potrebbe spendere la charge, e ADR-0004 §3 dice che non ne esiste
-	// nessuna. Il parametro resta nella firma perche' il chiamante non debba conoscere la stringa `HOLD`.
-	return FRTReactionDecision(HoldResponse(), ERTReactionDecisionOutcome::HoldTimeout);
+	// `HOLD` PRIMA di tutto, e l'ordine dei due rami e' la regola: e' cio' che garantisce che una finestra
+	// scaduta non spari mai. Cercarla invece di prendere la prima e' necessario perche' nell'Overwatch `HOLD`
+	// e' in CODA, dopo i `FIRE:` — «la prima risposta» li' sarebbe uno sparo.
+	if (IsResponseAllowed(Opportunity, HoldResponse()))
+	{
+		return HoldResponse();
+	}
+
+	// Nessun `HOLD` nel vocabolario: e' il `Brace`, che chiama la propria scelta sicura `Hold Ground` e la
+	// tiene in testa proprio per questo ([D-047] §2.1, e il commento di `BraceAllowedResponses` lo dichiara).
+	// ⚠️ La responsabilita' si sposta su chi COSTRUISCE le risposte: un produttore futuro che mettesse in
+	// testa una risposta costosa la renderebbe l'esito di ogni scadenza. E' il vincolo che sostituisce la
+	// vecchia costante, e va detto qui perche' e' l'unico posto da cui si vede.
+	if (Opportunity.AllowedResponses.Num() > 0)
+	{
+		return Opportunity.AllowedResponses[0];
+	}
+
+	// Zero risposte: non c'e' una prima da prendere. Non e' un caso da gestire con un'invenzione — con zero
+	// risposte `RequiresDecisionBoundary` e' falso e quella finestra non si e' mai aperta.
+	return HoldResponse();
+}
+
+FRTReactionDecision URTReactionOpportunityLibrary::DecisionOnTimeout(const FRTReactionOpportunity& Opportunity)
+{
+	// PURA: lo scadere applica la scelta sicura, che per ogni finestra dell'Overwatch e' `HOLD` — mai `FIRE`,
+	// perche' consuma una risorsa irreversibile e un input mancato non deve spenderla (ADR-0004 §3). La
+	// garanzia sta in `SafeResponse`, non in una costante scritta qui.
+	return FRTReactionDecision(SafeResponse(Opportunity), ERTReactionDecisionOutcome::HoldTimeout);
 }
 
 bool URTReactionOpportunityLibrary::IsConditionSatisfied(const FRTDeclaredCondition& Condition,

@@ -3980,9 +3980,16 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 	// Cardinalita' <= 1: nessuna finestra si apre e non si chiede niente a nessuno (ADR-0004 §2). Il caso
 	// arriva davvero — una condizione dichiarata che filtri via tutti i bersagli lascia il solo `HOLD` — ed e'
 	// cosi' che il regime *Conditional* emerge dai dati invece che da un enum di policy parallelo.
+	//
+	// ⚠️ **I sei ripieghi di questa funzione applicano `SafeResponse(Opportunity)` e non piu' la costante
+	// `HoldResponse()`** (2026-08-19, fetta 3 di E14.7). Per l'Overwatch **non cambia un esito**: `HOLD` e'
+	// sempre fra le sue risposte legali e `SafeResponse` la preferisce a qualunque altra. Cambia per il
+	// `Brace` di [D-047], che chiama la propria scelta sicura `Hold Ground`: con la costante, ognuno dei sei
+	// ripieghi avrebbe applicato una risposta **fuori** dalle sue `AllowedResponses` — cioe' un
+	// `IsResponseAllowed` falso su una decisione presa dal resolver stesso.
 	if (!URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
 	{
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldImmediate);
 	}
 
@@ -4007,7 +4014,7 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 				VerificationDivergences.Add(FString::Printf(
 					TEXT("risposta registrata illegale nella ri-simulazione: '%s' non e' fra le AllowedResponses della finestra %s"),
 					*Recorded->Response, *Key));
-				return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+				return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 					ERTReactionDecisionOutcome::HoldRejected);
 			}
 
@@ -4022,7 +4029,7 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 		// risposto», cioe' da un successo.
 		VerificationDivergences.Add(FString::Printf(
 			TEXT("finestra non coperta dalla traccia: nessuna risposta registrata per %s"), *Key));
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldNoDecider);
 	}
 
@@ -4041,7 +4048,7 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 			// applicare risposte che l'altra rifiuta.
 			if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, BotResponse))
 			{
-				return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+				return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 					ERTReactionDecisionOutcome::HoldRejected);
 			}
 			const bool bBotFires = URTReactionOpportunityLibrary::FireResponseTarget(BotResponse) != INDEX_NONE;
@@ -4052,7 +4059,7 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 		// Un'unita' umana senza UI: la finestra esiste e nessuno puo' rispondere. Fail-closed nel verso
 		// giusto — senza decisore la charge non si spende. Il contrario, sparare per default, spenderebbe una
 		// risorsa irreversibile per una configurazione mancante. La UI e' CP 14.6 (`#166`).
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldNoDecider);
 	}
 
@@ -4075,7 +4082,7 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 	// non c'e' piu'.
 	if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, Response))
 	{
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldRejected);
 	}
 

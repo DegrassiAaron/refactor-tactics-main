@@ -573,11 +573,40 @@ public:
 	static bool IsResponseAllowed(const FRTReactionOpportunity& Opportunity, const FString& Response);
 
 	/**
-	 * La decisione allo scadere della finestra: **sempre** `HOLD` (ADR-0004 §3). Funzione PURA.
+	 * La **scelta sicura** di questa opportunity: cio' che si applica quando nessuno ha deciso.
+	 *
+	 * `HOLD` quando e' fra le risposte legali — cioe' per ogni finestra dell'Overwatch, dove
+	 * `BuildOverwatchTriggers` la aggiunge sempre in coda — altrimenti la **prima** risposta dell'elenco.
+	 *
+	 * 🔴 **Il secondo ramo esiste perche' `HOLD` non e' un vocabolario universale, e fino al 2026-08-19 lo si
+	 * era assunto tale.** Il `Brace` chiama la propria scelta sicura `Hold Ground` ([D-047] §2.1): con un
+	 * ripiego costante su `HOLD` ogni sua finestra sarebbe scaduta su una risposta **non legale**, cioe' su un
+	 * `IsResponseAllowed` falso — un difetto che nessun test dell'Overwatch avrebbe visto, perche' li' la
+	 * stringa c'e' sempre.
+	 *
+	 * ⚠️ **E «la prima» non e' una convenzione estetica**: `URTCatalogLibrary::BraceAllowedResponses` dichiara
+	 * nel proprio commento che `Hold Ground` sta in testa *perche'* e' la scelta sicura di §9. Nell'Overwatch
+	 * l'ordine e' l'opposto — `HOLD` in **coda**, dopo i `FIRE:` — ed e' precisamente per questo che il primo
+	 * ramo viene prima: senza, una finestra dell'Overwatch scaduta **sparerebbe**, che e' ciò che ADR-0004 §3
+	 * vieta con l'argomento asimmetrico («`FIRE` consuma una risorsa irreversibile, un input mancato non deve
+	 * spenderla»).
+	 *
+	 * Elenco vuoto -> `HOLD`. Non c'e' una prima risposta da prendere, e il caso degenere non deve inventarne
+	 * una: quella finestra non si e' aperta (`RequiresDecisionBoundary` e' falso con zero risposte).
+	 */
+	static FString SafeResponse(const FRTReactionOpportunity& Opportunity);
+
+	/**
+	 * La decisione allo scadere della finestra: la **scelta sicura** dell'opportunity (ADR-0004 §3). PURA.
 	 *
 	 * Mai `FIRE`, e la ragione e' asimmetrica: `FIRE` consuma una risorsa irreversibile, e un input mancato
-	 * non deve spenderla. Il valore non dipende dall'opportunity — il parametro c'e' perche' il chiamante non
-	 * debba conoscere la stringa, non perche' serva a calcolarlo.
+	 * non deve spenderla. La garanzia sta in `SafeResponse`, che preferisce `HOLD` a qualunque altra risposta
+	 * quando c'e'.
+	 *
+	 * ⚠️ **Questo commento diceva «sempre `HOLD`, e il valore non dipende dall'opportunity» fino al
+	 * 2026-08-19.** Era vero finche' l'unico produttore di finestre era l'Overwatch; con il `Brace` di [D-047]
+	 * non lo e' piu', e una costante avrebbe fatto scadere le sue finestre su una risposta illegale. Il
+	 * parametro ora si legge, e il perche' sta in `SafeResponse`.
 	 *
 	 * ⚠️ Nessun timer qui dentro, e nessuno nel resolver: **quando** la finestra scada e' un fatto
 	 * dell'orologio, che vive nell'orchestratore. Questa funzione dice solo *cosa* vale allo scadere, ed e'
