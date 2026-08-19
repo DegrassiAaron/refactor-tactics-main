@@ -14,7 +14,40 @@
  * gia' su disco.
  */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision, ReactionClash };
+
+/**
+ * Gli eventi di un boundary **contested** (E14.7 §10, [D-048]). Viaggiano in `FRTTurnLogEntry::Outcome`
+ * delle voci di categoria `ReactionClash`.
+ *
+ * ⚠️ Categoria PROPRIA e non `ReactionDecision`, per la stessa ragione con cui quella si separo' da
+ * `Reaction`: `Outcome` e' un `uint8` il cui significato lo decide la categoria, e due enum diversi sotto la
+ * stessa categoria renderebbero il campo illeggibile senza sapere quale dei due intendeva chi ha scritto.
+ * Aggiunta in **coda**, come `Fallback`, `Reaction` e `ReactionDecision` prima: la categoria viaggia come
+ * `uint8`, quindi i file gia' su disco non cambiano significato e **la versione del formato non cambia**.
+ *
+ * 🔴 **Tutte queste voci si scrivono AL REVEAL, mai al lock**, ed e' la meta' di §7.1 che riguarda il log:
+ * *«in rete, nessun evento di scelta viene pubblicato prima del reveal»*. Se `ChoiceLocked` fosse scritto
+ * quando il lock arriva, l'**ordine delle voci** direbbe chi ha deciso per primo — cioe' esattamente la
+ * latenza di decisione che la scadenza fissa esiste per nascondere. Le due voci `ChoiceLocked` sono scritte
+ * insieme alle altre, in ordine **canonico** (§7.3) e non di arrivo.
+ */
+UENUM(BlueprintType)
+enum class ERTClashLogEvent : uint8
+{
+	/** Il boundary si e' aperto. `OpportunityId` lo identifica; `Amount` porta la cardinalita'. */
+	OpportunityCreated,
+	/** Un partecipante ha bloccato la propria scelta. Una voce per partecipante, in ordine canonico. */
+	ChoiceLocked,
+	/** La scadenza e' arrivata e le scelte sono state svelate insieme. */
+	Revealed,
+	/** Il confronto fra le due intenzioni. `UnitId` e `SelectedTargetUnitId` sono i due contendenti. */
+	Compared,
+	/** L'esito di un partecipante: `Amount` porta `ERTClashOutcome` (Win/Tie/Lose). */
+	OutcomeResolved,
+	/** Una maneuver con costo ha consumato la propria risorsa al lock valido (§9). */
+	CostConsumed
+};
 
 /**
  * Come si e' chiusa una finestra di reazione (CP 14.5): la risposta **e** il perche', in un valore solo.

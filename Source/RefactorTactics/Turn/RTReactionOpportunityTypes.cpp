@@ -253,6 +253,121 @@ FRTClashResolution URTReactionOpportunityLibrary::ResolveContestedBoundary(
 	return Out;
 }
 
+TArray<int32> URTReactionOpportunityLibrary::UnitsConsumingCost(const TArray<FRTContestedLock>& Locks,
+	const FRTClashResolution& Resolution)
+{
+	TArray<int32> Consuming;
+
+	// Prima del reveal non si consuma niente: il costo e' un effetto osservabile quanto un esito, e pagarlo
+	// in anticipo direbbe che qualcuno ha lockato. §7.1 esiste per non dirlo.
+	if (!Resolution.bRevealed)
+	{
+		return Consuming;
+	}
+
+	// Si itera l'ordine CANONICO della risoluzione, non l'array dei lock: cosi' l'elenco di chi paga non
+	// dipende dall'ordine di arrivo — che e' la stessa ragione per cui le voci di log sono ordinate.
+	for (int32 I = 0; I < Resolution.UnitIds.Num(); ++I)
+	{
+		const int32 UnitId = Resolution.UnitIds[I];
+		const FRTContestedLock* Lock = Locks.FindByPredicate(
+			[UnitId](const FRTContestedLock& L) { return L.UnitId == UnitId; });
+
+		if (Lock == nullptr || !Lock->bManeuverHasCost)
+		{
+			continue; // niente lock, o maneuver gratuita: non c'e' risorsa da spendere
+		}
+
+		// ⛔ **L'esito NON entra nella decisione, salvo la policy dichiarata dalla maneuver.** Chi perde paga
+		// come chi vince: e' la regola di §9, e toglierla renderebbe il Clash una scommessa gratuita.
+		const bool bLost = Resolution.Outcomes.IsValidIndex(I)
+			&& Resolution.Outcomes[I] == ERTClashOutcome::Lose;
+
+		if (bLost && Lock->bRefundIfLost)
+		{
+			continue; // la maneuver ha dichiarato di rimborsare: e' l'eccezione, non il default
+		}
+
+		Consuming.Add(UnitId);
+	}
+
+	return Consuming;
+}
+
+TArray<FRTTurnLogEntry> URTReactionOpportunityLibrary::MakeClashLogEntries(
+	const FRTContestedBoundary& Boundary, const TArray<FRTContestedLock>& Locks,
+	const FRTClashResolution& Resolution)
+{
+	TArray<FRTTurnLogEntry> Entries;
+
+	// Prima del reveal il boundary non lascia UNA voce: §10 dice che nessun evento di scelta si pubblica
+	// prima. Scrivere `ChoiceLocked` all'arrivo del lock renderebbe l'ORDINE del log una misura di chi ha
+	// deciso per primo — la latenza come informazione, che §7.1 nega.
+	if (!Resolution.bRevealed)
+	{
+		return Entries;
+	}
+
+	const FString OpportunityId = DeriveOpportunityId(Boundary.Key);
+
+	// Ogni voce nasce dalla stessa base: la categoria e l'identita' del boundary sono comuni, e ripeterle a
+	// mano sei volte e' il modo in cui una di esse finisce diversa dalle altre.
+	auto MakeEntry = [&](ERTClashLogEvent Event, int32 UnitId) -> FRTTurnLogEntry
+	{
+		FRTTurnLogEntry E;
+		E.Phase = Boundary.Key.MacroPhase;
+		E.Category = ERTLogCategory::ReactionClash;
+		E.Outcome = static_cast<uint8>(Event);
+		E.OpportunityId = OpportunityId;
+		E.ActionId = Boundary.Key.ReactionDefId;
+		E.TurnNumber = Boundary.Key.TurnNumber;
+		E.UnitId = UnitId;
+		return E;
+	};
+
+	// 1. L'apertura, con la cardinalita' in `Amount`: quante persone avevano davvero una scelta.
+	{
+		FRTTurnLogEntry E = MakeEntry(ERTClashLogEvent::OpportunityCreated, Boundary.Key.OwnerId);
+		E.Amount = CountParticipantsWithChoice(Boundary);
+		Entries.Add(E);
+	}
+
+	// 2. I lock, UNO PER PARTECIPANTE e in ordine canonico. Sono scritti adesso, non quando sono arrivati.
+	for (int32 UnitId : Resolution.UnitIds)
+	{
+		Entries.Add(MakeEntry(ERTClashLogEvent::ChoiceLocked, UnitId));
+	}
+
+	// 3. Il reveal.
+	Entries.Add(MakeEntry(ERTClashLogEvent::Revealed, Boundary.Key.OwnerId));
+
+	// 4. Il confronto: i due contendenti in una voce sola, cosi' il log dice CONTRO CHI si e' misurato
+	// ciascuno senza che il lettore debba appaiare due righe.
+	if (Resolution.UnitIds.Num() == 2)
+	{
+		FRTTurnLogEntry E = MakeEntry(ERTClashLogEvent::Compared, Resolution.UnitIds[0]);
+		E.SelectedTargetUnitId = Resolution.UnitIds[1];
+		Entries.Add(E);
+	}
+
+	// 5. L'esito di ciascuno, con `ERTClashOutcome` in `Amount`.
+	for (int32 I = 0; I < Resolution.UnitIds.Num(); ++I)
+	{
+		FRTTurnLogEntry E = MakeEntry(ERTClashLogEvent::OutcomeResolved, Resolution.UnitIds[I]);
+		E.Amount = Resolution.Outcomes.IsValidIndex(I) ? static_cast<int32>(Resolution.Outcomes[I]) : 0;
+		Entries.Add(E);
+	}
+
+    // 6. Il costo, per chi lo paga. Nessuna voce per chi non ha costo: una riga `CostConsumed` con importo
+	// zero direbbe che qualcosa e' stato speso, e non e' vero.
+	for (int32 UnitId : UnitsConsumingCost(Locks, Resolution))
+	{
+		Entries.Add(MakeEntry(ERTClashLogEvent::CostConsumed, UnitId));
+	}
+
+	return Entries;
+}
+
 FRTReactionDecision URTReactionOpportunityLibrary::DecisionOnTimeout(const FRTReactionOpportunity&)
 {
 	// PURA e costante: `HOLD`, sempre. Non guarda l'opportunity di proposito — se la guardasse, esisterebbe

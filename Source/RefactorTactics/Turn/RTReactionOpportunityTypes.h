@@ -217,6 +217,28 @@ struct FRTContestedLock
 	UPROPERTY()
 	ERTGrammarIntent Intent = ERTGrammarIntent::Stand;
 
+	/**
+	 * La maneuver scelta ha un **costo** (§9). Falso = gratuita, e allora non c'e' niente da consumare.
+	 *
+	 * ⚠️ **Nessuna risorsa nuova**: §9 dice di usare `Charges`, cooldown e stato del dispositivo che il
+	 * progetto ha gia'. Questo flag dice *se* la maneuver costi, non *cosa*: il pagamento vero lo esegue chi
+	 * possiede la risorsa, e questa struct non lo duplica.
+	 */
+	UPROPERTY()
+	bool bManeuverHasCost = false;
+
+	/**
+	 * La **policy diversa** che §9 lascia dichiarare alla maneuver: se vero, il costo NON si consuma quando
+	 * il Clash e' perso.
+	 *
+	 * ⚠️ Il default e' `false`, ed e' la regola: si paga **al lock valido, anche perdendo**. Senza,
+	 * *«provo comunque, tanto se perdo non costa nulla»* svuota la scelta — che e' cio' che il Clash esiste
+	 * per creare. L'eccezione esiste perche' la spec la prevede, ma va **dichiarata** dalla maneuver: un
+	 * default che rimborsa avrebbe reso la regola l'eccezione.
+	 */
+	UPROPERTY()
+	bool bRefundIfLost = false;
+
 	FRTContestedLock() = default;
 	FRTContestedLock(int32 InUnitId, const FString& InResponse, ERTGrammarIntent InIntent)
 		: UnitId(InUnitId), Response(InResponse), Intent(InIntent) {}
@@ -635,4 +657,38 @@ public:
 	 */
 	static FRTClashResolution ResolveContestedBoundary(const FRTContestedBoundary& Boundary,
 		const TArray<FRTContestedLock>& Locks);
+
+	/**
+	 * Chi consuma il costo della propria maneuver, in ordine canonico (§9).
+	 *
+	 * 🔴 **Si paga al LOCK VALIDO, anche perdendo il Clash.** E' la regola che rende la scelta una scelta:
+	 * senza, *«provo comunque, tanto se perdo non costa nulla»* la svuota. Chi perde paga come chi vince, e
+	 * il `Lose` non e' un rimborso.
+	 *
+	 * L'unica eccezione e' quella che §9 lascia **dichiarare alla maneuver** — `bRefundIfLost` — e non e' un
+	 * caso particolare del resolver: e' un dato del lock.
+	 *
+	 * ⚠️ **Solo dopo il reveal.** Con una risoluzione non rivelata restituisce vuoto: consumare prima
+	 * direbbe che qualcuno ha lockato, e la scadenza fissa (§7.1) esiste per non dirlo. Il costo e' un
+	 * effetto osservabile quanto un esito.
+	 */
+	static TArray<int32> UnitsConsumingCost(const TArray<FRTContestedLock>& Locks,
+		const FRTClashResolution& Resolution);
+
+	/**
+	 * Le voci di TurnLog di un boundary contested, nell'ordine in cui vanno scritte (§10).
+	 *
+	 * Sei tipi di evento — `OpportunityCreated`, `ChoiceLocked` (uno per partecipante), `Revealed`,
+	 * `Compared`, `OutcomeResolved` (uno per partecipante), `CostConsumed` — tutti di categoria
+	 * `ReactionClash`, con `ERTClashLogEvent` in `Outcome`.
+	 *
+	 * 🔴 **Restituisce vuoto se il boundary non e' rivelato**, e non e' una scorciatoia: e' §10 che lo
+	 * impone — *«in rete, nessun evento di scelta viene pubblicato prima del reveal»*. Se `ChoiceLocked`
+	 * fosse scritto all'arrivo del lock, l'ORDINE delle voci direbbe chi ha deciso per primo, cioe' la
+	 * latenza di decisione che §7.1 nasconde. Le voci nascono tutte insieme, al reveal, in ordine canonico.
+	 *
+	 * ⚠️ Il TurnLog canonico **non dipende da timestamp di presentazione**: qui non entra nessun tempo.
+	 */
+	static TArray<FRTTurnLogEntry> MakeClashLogEntries(const FRTContestedBoundary& Boundary,
+		const TArray<FRTContestedLock>& Locks, const FRTClashResolution& Resolution);
 };
