@@ -281,7 +281,7 @@ namespace
 	 * Condiviso dalle due funzioni sotto, che senza divergevano gia' appena nate: una accumulava su tutti i
 	 * componenti omonimi, l'altra usciva al primo — due risposte diverse alla stessa domanda.
 	 *
-	 * ⚠️ **Nome prefissato col dominio del file, come la riga 16 prescrive**: gli helper in namespace
+	 * ⚠️ **Nome prefissato col dominio del file**, come prescrive il commento di `MakeMapActorWorld`: gli helper in namespace
 	 * anonimo di due `.cpp` dello stesso modulo finiscono nella stessa unita' di traduzione con la unity
 	 * build, e due `FindIsm` omonimi sarebbero una ridefinizione — riportata sui call site, non sulla
 	 * definizione, e comparsa/sparita a seconda del raggruppamento.
@@ -332,8 +332,14 @@ namespace
 	int32 MapActorIsmCount(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
 	{
 		const UInstancedStaticMeshComponent* Ism = FindMapActorIsm(Actor, ComponentName);
-		// `INDEX_NONE` = componente assente, distinto da «presente e vuoto», che e' 0.
-		return Ism ? Ism->GetInstanceCount() : INDEX_NONE;
+		// ⚠️ **`0` e non `INDEX_NONE` per un componente assente**, e la scelta e' obbligata dall'uso.
+		// Un sentinella negativo si propaga in silenzio: le baseline lo raccolgono, e ogni confronto
+		// successivo diventa `-1 == -1` e passa. Rinominando `Relief` sarebbero rimaste verdi **sette**
+		// asserzioni su un componente che non esiste piu' — cioe' esattamente il difetto che questa issue
+		// corregge. Con `0` cade la baseline attesa (`== 1`), e cade per prima.
+		// Stessa risposta di `InstancesOf(...).Num()`, che per un componente assente da' `0`: due helper
+		// che rispondono alla stessa domanda devono rispondere allo stesso modo.
+		return Ism ? Ism->GetInstanceCount() : 0;
 	}
 }
 
@@ -691,9 +697,11 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius*/ 1); // 7 celle
 	{
 		// `ReliefHeightForCost(1) = 0`: al costo del pavimento il rilievo non esiste, serve un sovrapprezzo.
-		// ⚠️ Superficie E costo dal **catalogo**, come la riga 10 di questo file dichiara e come fa
-		// `CostReliefSurvivesTheSightSlab`: scrivere `MoveCost = 2` a mano produceva una cella che si
-		// dichiara `Floor` e costa come `Rough`, cioe' un dato che il pennello non potrebbe dipingere.
+		// ⚠️ Superficie E costo dal **catalogo**, come fa `CostReliefSurvivesTheSightSlab` e come dichiara
+		// l'include di `RTTerrainLibrary.h` in testa al file. Non perche' un `MoveCost` scritto a mano sia
+		// impossibile — il pennello ha `Surface` e `MoveCost` come campi indipendenti, quindi `Floor` a
+		// costo 2 si puo' dipingere — ma perche' un numero letterale qui non seguirebbe un ribilanciamento
+		// di `Rough`, e la fixture smetterebbe di rappresentare il terreno che dice di usare.
 		FRTHexCellData Costosa(FRTCellId(1, 0, 0));
 		Costosa.Surface = ERTHexSurface::Rough;
 		Costosa.MoveCost = URTTerrainLibrary::FindTerrainDef(ERTHexSurface::Rough).MoveCost;
