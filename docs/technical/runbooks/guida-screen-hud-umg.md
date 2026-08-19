@@ -1,8 +1,8 @@
 # Guida — costruire i `WBP_RT_*` dello Screen HUD
 
-> `CURRENT` · **Ricetta d'Editor** per [CP 11.7](../roadmap/roadmap-v0.1.md) ·
+> `CURRENT` · **Ricetta d'Editor** per [CP 11.7](../../roadmap/roadmap-v0.1.md) ·
 > issue [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) ·
-> owner del *cosa mostrare*: [`progettazione-hud.md`](systems/progettazione-hud.md) §4.1.
+> owner del *cosa mostrare*: [`progettazione-hud.md`](../systems/progettazione-hud.md) §4.1.
 
 Questo file dice **come costruire i Blueprint**. Non dice cosa l'HUD mostra — quello è `progettazione-hud.md`
 — e non dichiara regole di gioco.
@@ -77,7 +77,7 @@ Le prime due il C++ le rende difficili da violare; la terza è solo tua.
 
 ### 4.1 🔴 Nessun widget referenzia una texture
 
-Le icone viaggiano come **chiave** (`UI.Icon.Action.Move`) e si risolvono dal catalogo — [D-031](../decisions/RT_PDR_00_Decision_Log.md).
+Le icone viaggiano come **chiave** (`UI.Icon.Action.Move`) e si risolvono dal catalogo — [D-031](../../decisions/RT_PDR_00_Decision_Log.md).
 
 - `URTActionSlotWidget::GetIconId()` restituisce un `FName`. **Non aggiungere una variabile `Texture2D` al
   Blueprint** per «comodità»: è esattamente la scorciatoia che il catalogo esiste per impedire, e il giorno in
@@ -155,9 +155,9 @@ Le barre coesistono di proposito: quella ancorata risponde a «quanto è ferito 
 ## 8. Verifica
 
 Quando i sei Blueprint esistono e l'HUD è agganciato, esegui **`PIE-V01-HUD`**
-([`test-manuali-pie.md`](test-manuali-pie.md)) e registra l'esito. È la parte che richiede un occhio:
+([`test-manuali-pie.md`](../test-manuali-pie.md)) e registra l'esito. È la parte che richiede un occhio:
 leggibilità delle barre, ingombro, coerenza visiva durante il playback, e il **centro libero** che nessun
 test automatico può guardare.
 
-I gate di `RT-FEAT-UI-SCREEN-HUD` in [`feature-registry.yaml`](../roadmap/feature-registry.yaml) restano
+I gate di `RT-FEAT-UI-SCREEN-HUD` in [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) restano
 `partial` finché quel passo non è fatto: **lo stato vive lì**, non in questo file.

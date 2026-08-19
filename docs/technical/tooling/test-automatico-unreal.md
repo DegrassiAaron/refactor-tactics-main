@@ -7,7 +7,7 @@
 > ne aveva quattro, e il §3 diceva «cinque scenari» dove il repository ne aveva 76 — e da qui l'errore è
 > passato a valle, nel mandato QA che questo file governa. **Conteggi ed enum si rimisurano sulla
 > sorgente**; questa spec è l'owner delle *decisioni*, non dei numeri.
-> **Guida operativa** (come si lancia, come si legge un esito): [`test-e-diagnosi.md`](../test-e-diagnosi.md).
+> **Guida operativa** (come si lancia, come si legge un esito): [`test-e-diagnosi.md`](../runbooks/test-e-diagnosi.md).
 >
 > *Fino al 2026-08-08 questo file era il **prompt di implementazione** originale — «TASK — progettare e
 > implementare…», 1114 righe di istruzioni a un agente. Un prompt non è una specifica: descrive ciò che si

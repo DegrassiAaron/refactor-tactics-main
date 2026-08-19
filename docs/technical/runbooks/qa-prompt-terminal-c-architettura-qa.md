@@ -16,7 +16,7 @@ Sei il **Processo C** del workstream Test/QA di RefactorTactics.
 ## 0. 🔴 Leggi prima questo: non sei un terminale parallelo
 
 **Il dominio di questo mandato è quasi interamente `integration_only`.** Misurato su
-[`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml), sono `integration_only` — cioè *si
+[`../../roadmap/parallel-batch.yaml`](../../roadmap/parallel-batch.yaml), sono `integration_only` — cioè *si
 aggiornano una volta sola, in integrazione, e non si assegnano a nessuna track*:
 
 ```text
@@ -51,13 +51,13 @@ chiede.
 
 ## 1. Regola fondamentale
 
-1. leggi [`../../AGENTS.md`](../../AGENTS.md) e [`../../CLAUDE.md`](../../CLAUDE.md): prevalgono su questo
+1. leggi [`../../../AGENTS.md`](../../../AGENTS.md) e [`../../../CLAUDE.md`](../../../CLAUDE.md): prevalgono su questo
    documento;
 2. verifica branch/worktree e aggiorna `main` (`git fetch --prune origin`);
 3. **verifica di essere solo**: `git worktree list` e `git ls-remote --heads origin`. Se A o B hanno un
    branch aperto con write-set non vuoto, il tuo turno non è cominciato —
    `git diff --name-only origin/main...origin/<branch>` per ciascuno;
-4. leggi [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml) **per intero**, non solo la tua
+4. leggi [`../../roadmap/parallel-batch.yaml`](../../roadmap/parallel-batch.yaml) **per intero**, non solo la tua
    voce: in integrazione ti servono anche le altre.
 
 ---

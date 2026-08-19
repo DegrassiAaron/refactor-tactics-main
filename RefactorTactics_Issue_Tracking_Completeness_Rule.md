@@ -5,7 +5,7 @@
 > [`AGENTS.md`](AGENTS.md), che è la guida condivisa e ne porta il richiamo in §*Issue*.
 >
 > ⚠️ **In caso di divergenza vince l'owner interno**,
-> [`docs/technical/issue-tracking-completeness.md`](docs/technical/issue-tracking-completeness.md): è la
+> [`docs/technical/tooling/issue-tracking-completeness.md`](docs/technical/tooling/issue-tracking-completeness.md): è la
 > versione riscritta sui vincoli reali di questo repository — `feature-registry.yaml` unico owner dello
 > stato, la Editor Map che cita gli ID delle voci PIE e mai il loro esito, l'allowlist `.gitignore` prima
 > che l'asset esista, `rt_shared_id.py reserve D` per gli ADR, la Wiki come repository separato. Questo

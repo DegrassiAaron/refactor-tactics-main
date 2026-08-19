@@ -244,7 +244,7 @@ validator — un piano che non diventa un file resta visibile invece di sparire.
 
 ### 6.3 Dichiarati e mai scritti · 4
 
-La *fascia D* di [`../technical/scenari-validazione-visiva.md`](../technical/scenari-validazione-visiva.md)
+La *fascia D* di [`../technical/runbooks/scenari-validazione-visiva.md`](../technical/runbooks/scenari-validazione-visiva.md)
 elenca 8 scenari `Visual.*` «scritti adesso»: **nessuno degli otto file esiste**. Quattro temi sono stati poi
 scritti come `Spec.*` — la forma migliore, una specifica eseguibile invece di una vetrina cieca. Restano
 scoperti `Visual.Facing.Cone`, `Visual.Intercept.Revalidation`, `Visual.CoverWindow.OpenFireSeal` e il quarto.

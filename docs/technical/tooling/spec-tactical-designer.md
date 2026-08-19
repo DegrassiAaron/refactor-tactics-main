@@ -23,7 +23,7 @@ diritto di decidere, e che cosa devono invece chiedere al gioco?*
 |---|---|
 | Grammatica dei segmenti, occupancy a dodici settori, cottura verso i bordi | [`spec-hex-geometry-authoring.md`](../systems/spec-hex-geometry-authoring.md) |
 | Coordinate, `FRTCellId`, transizioni fra layer, formato dell'asset mappa | [`spec-mappa-multilivello.md`](../architecture/spec-mappa-multilivello.md) |
-| Come si scrive ed esegue uno scenario | [`test-e-diagnosi.md`](../test-e-diagnosi.md) |
+| Come si scrive ed esegue uno scenario | [`test-e-diagnosi.md`](../runbooks/test-e-diagnosi.md) |
 | Come si identifica e si trova uno scenario | [`scenario-index-e-tag.md`](scenario-index-e-tag.md) |
 | Chi verifica cosa — macchina, occhio umano, nessuno | [`scenario-map.md`](scenario-map.md) |
 | Il registro delle verifiche interattive | [`test-manuali-pie.md`](../test-manuali-pie.md) |

@@ -3,9 +3,9 @@
 > `CURRENT` — la procedura vale ancora, su un'arena nuova.
 > ⚠️ **Nata per** [#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451), che è
 > **chiusa** (`COMPLETED`, 2026-08-16): il documento non è più assegnato a un lavoro da fare — vedi §11.
-> **Owner dei dati della seduta**: [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml), `id: U1` — se i due
+> **Owner dei dati della seduta**: [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), `id: U1` — se i due
 > divergono, vince quello. Qui c'è la **procedura**, lì il DoD.
-> **Owner degli esiti**: [`test-manuali-pie.md`](test-manuali-pie.md) — le sette voci si scrivono lì.
+> **Owner degli esiti**: [`test-manuali-pie.md`](../test-manuali-pie.md) — le sette voci si scrivono lì.
 
 > ⚠️ **Revisione 2026-08-17** — [#868](https://github.com/DegrassiAaron/refactor-tactics-main/issues/868).
 > Tre punti della procedura precedevano **D-139** (write-set di batch e Binary Asset Lease, del 2026-08-14) e
@@ -58,7 +58,7 @@ non te lo direbbe. Non usare `-v` per questa verifica — con `-v` il comando es
 Nuovo livello in `/Game/RT/Maps/Dev/L_HexArena/`, con dentro un **`ARTHexMapActor`**.
 L'asset mappa in `/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena`, assegnato al campo `MapAsset` dell'actor.
 
-Stessa forma di `L_DevSandbox` ([`convenzioni-contenuti-ue.md` §5](tooling/convenzioni-contenuti-ue.md)): livello e
+Stessa forma di `L_DevSandbox` ([`convenzioni-contenuti-ue.md` §5](../tooling/convenzioni-contenuti-ue.md)): livello e
 cartella `Data/` accanto.
 
 **Perché non estendere `DA_HexMap_Sandbox`**: il sandbox resta il banco per prove distruttive, l'arena è la
@@ -218,7 +218,7 @@ danno.
 ## 10. Le sette voci
 
 Si verificano nella stessa apertura, sull'arena appena costruita. Gli esiti si scrivono in
-[`test-manuali-pie.md`](test-manuali-pie.md).
+[`test-manuali-pie.md`](../test-manuali-pie.md).
 
 | Voce | Cosa guardi | Tool |
 |---|---|---|

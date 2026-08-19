@@ -2,14 +2,14 @@
 
 > **Owner** dello strato che esiste **prima e dopo** la partita: main menu, transizioni, stati comuni,
 > pausa, risultato. Non descrive l'HUD in-match, che ha il proprio owner in
-> [`progettazione-hud.md`](systems/progettazione-hud.md).
-> **Nasce da** [D-144](../decisions/RT_PDR_00_Decision_Log.md) · epic **E46** in
-> [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) · revisione della sorgente in
-> [`plans/menu-frontend-spec-panel-2026-08-16.md`](../roadmap/plans/menu-frontend-spec-panel-2026-08-16.md).
+> [`progettazione-hud.md`](../systems/progettazione-hud.md).
+> **Nasce da** [D-144](../../decisions/RT_PDR_00_Decision_Log.md) · epic **E46** in
+> [`roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) · revisione della sorgente in
+> [`plans/menu-frontend-spec-panel-2026-08-16.md`](../../roadmap/plans/menu-frontend-spec-panel-2026-08-16.md).
 > **Stato**: `IMPLEMENTING` *(aggiornato il 2026-08-16)*. Il C++ di **CP 46.1** (navigation controller) e
 > **CP 46.2** (fasi di caricamento, esiti d'avvio, classi base dei widget) è in `main` — **32 test**.
 > ⏳ Restano i `WBP_RT_*`, che sono `.uasset` e quindi lavoro d'editor: la ricetta per costruirli sta in
-> [`guida-frontend-umg.md`](guida-frontend-umg.md).
+> [`guida-frontend-umg.md`](../runbooks/guida-frontend-umg.md).
 > *(Questa riga diceva «`SPECIFIED` — regole decise, **nessun codice**», vero fino al 2026-08-16: la
 > lascio citata perché uno stato che invecchia in silenzio è il difetto che questo repository misura più
 > spesso.)*
@@ -25,7 +25,7 @@ separa le due cose.
 ⚠️ **Non è il completamento di `G13`**, e la prima stesura di questa riga lo affermava. Le due riserve di
 quel gate sono **dati** — la mappa d'autore (`PIE-V01-ARENA`, seduta **U1**) e la via a punti mai
 esercitata — e nessuna delle due si chiude con un menu: `G13` resta 🟡 anche a E46 completa. Questo è
-**scope nuovo**, deciso come tale in [D-144](../decisions/RT_PDR_00_Decision_Log.md).
+**scope nuovo**, deciso come tale in [D-144](../../decisions/RT_PDR_00_Decision_Log.md).
 
 Tutto ciò che eccede quel minimo — Scenario Browser, Bot Simulation, Training, Briefing, Settings
 completo — **non è in v0.1**, per la ragione che D-144 registra. *(D-144 ne portava **due**; la seconda —
@@ -41,7 +41,7 @@ Sono due strati con due root, due cicli di vita e due owner documentali.
 |---|---|---|
 | Root | `WBP_RT_FrontendRoot` | `WBP_RT_TacticalHUD` (CP 11.7) |
 | Vive | fuori dalla partita, e in pausa | dentro la partita |
-| Owner | questo documento | [`progettazione-hud.md`](systems/progettazione-hud.md) §4.1 |
+| Owner | questo documento | [`progettazione-hud.md`](../systems/progettazione-hud.md) §4.1 |
 | Input | navigazione di schermate | contratto del puntatore (CP 11.8) |
 
 ⚠️ **Non esiste un `WBP_GameHUDRoot`.** Il root dell'HUD in-match è già `WBP_RT_TacticalHUD`, deciso a
@@ -70,7 +70,7 @@ fa nulla *senza dirlo* è un dead-end.
 ### 2.2 Le due schermate del replay
 
 ➕ **Entrano il 2026-08-16**, con la revisione di R6 in
-[`../roadmap/plans/replay-r6-spec-panel-2026-08-16.md`](../roadmap/plans/replay-r6-spec-panel-2026-08-16.md)
+[`../../roadmap/plans/replay-r6-spec-panel-2026-08-16.md`](../../roadmap/plans/replay-r6-spec-panel-2026-08-16.md)
 §5(a). Prima di allora [`#472`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/472)
 avrebbe introdotto due schermate in uno strato che non le prevedeva — cioè un secondo flow accanto a
 quello che §3 dichiara unico.
@@ -96,7 +96,7 @@ di `FRTScreenStack` rispetto ai widget di navigazione — *la logica che governa
 qui per la stessa ragione: senza, i criteri di R6 sarebbero verificabili solo a schermo.
 
 ⛔ **Nessuna delle due chiama il resolver**, ed è un requisito ereditato, non una raccomandazione:
-[ADR-0009](../decisions/adr-0009-replay-logico-canonico.md) §3 fissa il confine `Player`/`Verifier` e
+[ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md) §3 fissa il confine `Player`/`Verifier` e
 `#472` lo estende al percorso della UI. Si verifica sugli `#include`, come per il Player.
 
 ⚠️ **Release**: entrambe sono **v0.1**, allineate a E46 con la decisione registrata nel panel §5(b). Il
@@ -133,7 +133,7 @@ Un solo owner del flow. I widget **non** si creano e non si distruggono a vicend
 
 Il navigation controller **non possiede** il contesto `Modal` del `PlayerController`.
 
-[`spec-pointer-interaction.md`](systems/spec-pointer-interaction.md) (CP 11.8) **dichiara** sette contesti —
+[`spec-pointer-interaction.md`](../systems/spec-pointer-interaction.md) (CP 11.8) **dichiara** sette contesti —
 `IdleSelection · Planning · Pathing · Targeting · ResolutionPlayback · ReactionWindow · Modal` — e la
 precedenza `Modal/Reaction UI > HUD > world tactical hit`.
 
@@ -142,7 +142,7 @@ affermava che fosse *«coperta da dieci test `PlayerInput.*`»*. È falso, misur
 `grep -rn "HUDConsumesPointerBeforeWorld\|ReactionWindowOwnsInputPriority" Source/` → **zero**. I dieci
 test `PlayerInput.*` che esistono in `RTPointerInteractionTests.cpp` coprono altro (bersaglio, facing,
 Back, ghost); la precedenza è il **delta (c)** che CP 11.8 esiste per colmare — la nota di quel checkpoint
-in [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) lo scrive a lettere: *«non c'è precedenza
+in [`../../roadmap/roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) lo scrive a lettere: *«non c'è precedenza
 HUD → mondo, perché il Canvas HUD non registra hitbox … oggi **ogni** click passa al mondo»*.
 
 Il confine qui sotto **non ne soffre**: regge sulla spec, che esiste, non sui test, che non ci sono. Ma il
@@ -186,7 +186,7 @@ elencava come *«messaggi di fase reali»* quando `grep -rn "Loading map\|Initia
 bots\|LoadingPhase" Source/` dava **zero**: nessun enum, nessun evento, niente che un widget potesse
 leggere. Tre stringhe scelte a mano sono tre percentuali con un nome — e il divieto due righe sopra le
 avrebbe vietate, se qualcuno avesse guardato. Trovato dallo spec panel di
-[`../roadmap/plans/cp462-loading-error-spec-panel-2026-08-16.md`](../roadmap/plans/cp462-loading-error-spec-panel-2026-08-16.md);
+[`../../roadmap/plans/cp462-loading-error-spec-panel-2026-08-16.md`](../../roadmap/plans/cp462-loading-error-spec-panel-2026-08-16.md);
 l'autore ha scelto di **costruire il produttore** invece di togliere le fasi.
 
 ⚠️ **Conseguenza sul write-set**: CP 46.2 tocca `RTGameMode`, cioè codice d'avvio e non solo UI. Quel file
@@ -335,9 +335,9 @@ Il gate `automation` di `RT-FEAT-UI-FRONTEND-SHELL` passa quindi da `todo` a `do
 consegnata; gli altri restano `todo` finché il loro checkpoint non produce codice.
 
 Le sei voci previste — `PIE-V01-FRONTEND-NAV`, `-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE` — **non
-esistono ancora**, e non per dimenticanza: [`test-manuali-pie.md`](test-manuali-pie.md) non è di questa
+esistono ancora**, e non per dimenticanza: [`test-manuali-pie.md`](../test-manuali-pie.md) non è di questa
 sessione. Dal 2026-08-16 appartiene alla track **`playtest`** — *«l'autore davanti a Unreal»* — secondo
-[`parallel-batch.yaml`](../roadmap/parallel-batch.yaml), e D-139 dice che un file non assegnato è uno
+[`parallel-batch.yaml`](../../roadmap/parallel-batch.yaml), e D-139 dice che un file non assegnato è uno
 **stop**, non una «piccola fix».
 
 ⚠️ **La procedura non è aspettare**, ed è la track stessa a dirlo: *«Le altre track producono, questa

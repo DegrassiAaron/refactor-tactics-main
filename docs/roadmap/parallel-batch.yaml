@@ -241,7 +241,7 @@
 # 🔴 **L'invariante e' VIOLATA adesso, e non da chi scrive questa riga.** Misurata il 2026-08-16 su
 # `origin/main` (`git show origin/main:docs/roadmap/parallel-batch.yaml`, quindi preesistente a qualunque
 # branch aperto): `spatial` e `content_editor` dichiarano **entrambe**
-# `docs/technical/qa-prompt-terminal-b-scenario-runner.md`. E' l'unica intersezione fra le track, e non e'
+# `docs/technical/runbooks/qa-prompt-terminal-b-scenario-runner.md`. E' l'unica intersezione fra le track, e non e'
 # di `frontend_shell` — che la segnala e non la risolve: spostare il confine di due track altrui e'
 # esattamente la «piccola fix» che il paragrafo qui sopra vieta. **La sciolgono i due proprietari.**
 #
@@ -251,7 +251,7 @@
 # dichiarazione.
 #
 # ✅ **Meta' sciolta il 2026-08-16**: `spatial`, riattivata su `#726`, ha **rilasciato**
-# `docs/technical/qa-prompt-terminal-b-scenario-runner.md` dal proprio `writable` — vedi il commento nella
+# `docs/technical/runbooks/qa-prompt-terminal-b-scenario-runner.md` dal proprio `writable` — vedi il commento nella
 # sua sezione. Il path resta a `content_editor` (#451) e a nessun altro, quindi l'intersezione fra i
 # `writable` e' oggi **vuota**, rimisurata col ciclo qui sopra dopo la riattivazione e non ereditata.
 # ⚠️ La riattivazione e' anche il caso che dimostra perche' la violazione dormiente andava sciolta e non
@@ -1764,7 +1764,7 @@ tracks:
       questa track non ha `ScenarioHarness/`. Le resta il solo file del mandato — e con la cartella escono
       i due `derives_from`, perché **una vista segue la sorgente**: `project-graph.json` e
       `scenariomap.shortlist.md` seguono `RTScenarioSession.cpp`, quindi seguono `simulation`.
-    # ➖ `mandate: docs/technical/qa-prompt-terminal-b-scenario-runner.md` **rimosso il 2026-08-16.** Il giro
+    # ➖ `mandate: docs/technical/runbooks/qa-prompt-terminal-b-scenario-runner.md` **rimosso il 2026-08-16.** Il giro
     # precedente lo teneva «prenotato senza write-set», ma lo schema dice l'opposto — «**E il file del mandato
     # entra nel `writable` della track che lo porta**», deciso il 2026-08-15 — quindi calcolando
     # `WritableSet(T) = writable ∪ {mandate} − excludes` la contesa con `content_editor` (che ha quel path nel
@@ -1776,7 +1776,7 @@ tracks:
     # `git worktree list` mostra oggi in detached HEAD.
     worktree: "D:/rt-simulation"
     writable:
-      # ➖ `docs/technical/qa-prompt-terminal-b-scenario-runner.md` **rilasciato il 2026-08-16**, e non e'
+      # ➖ `docs/technical/runbooks/qa-prompt-terminal-b-scenario-runner.md` **rilasciato il 2026-08-16**, e non e'
       # una rinuncia al mandato: e' la meta' di questa track della violazione che l'intestazione dichiara
       # (`spatial` e `content_editor` lo rivendicavano **entrambe** gia' su `origin/main`). Finche' questa
       # era `IDLE` la contesa dormiva; portandola ad `ACTIVE` sarebbe diventata ACTIVE x ACTIVE, cioe' la
@@ -2247,7 +2247,7 @@ tracks:
       branch vivi lo tocca.
       ✅ **`#578` è passata da 5 voci aperte a 1: PR #912 mergiata in `9fd7504f`**, quattro voci del DoD
       chiuse e spuntate, `Packaged` sola aperta. La issue resta `OPEN` per quella — ma il suo residuo
-      **non è scrivibile da qui**: la procedura operativa vive in `docs/technical/test-e-diagnosi.md`,
+      **non è scrivibile da qui**: la procedura operativa vive in `docs/technical/runbooks/test-e-diagnosi.md`,
       che non è nel `writable` di nessuna track. Registrato come STOP nella PR, non scritto.
       ➕ **La track passa quindi a `#915`, che è il delta del mandato** e non un secondo taglio dello
       stesso: `#578` chiedeva *quali* procedure verificare, `#915` chiede l'infrastruttura con cui i test
@@ -2291,7 +2291,7 @@ tracks:
       chi ci è passato in questo lotto; nessuno di essi è oggi assegnato.
       ⛔ **Il mandato Terminal A esce con la track, e ciò che NON ha chiuso va detto invece che dedotto**:
       (1) la voce `Packaged` di `#578`, che resta `OPEN` — il suo residuo è una **procedura** in
-      `docs/technical/test-e-diagnosi.md`, file di nessuna track, quindi è una riallocazione e non un
+      `docs/technical/runbooks/test-e-diagnosi.md`, file di nessuna track, quindi è una riallocazione e non un
       lavoro rimasto a metà; (2) i **40** file di test che dichiarano ancora la propria copia del mondo, e
       che restano corretti come sono: il mandato §2 dice «migra pochi consumatori, non tutti».
       ⚠️ **E con la track esce anche il file del mandato, che torna non assegnato.** Lo stesso giorno
@@ -2305,7 +2305,7 @@ tracks:
       decide **prima** di scrivere, non dopo.
       ✅ **La riattivazione è arrivata poche ore dopo, e la domanda si chiude col secondo ramo.** La track
       riparte su `#578` — una issue, non il mandato — e il mandato A **non riapre**: il suo merge target §10
-      è soddisfatto e misurato. Quindi `docs/technical/qa-prompt-terminal-a-determinismo.md` va in
+      è soddisfatto e misurato. Quindi `docs/technical/runbooks/qa-prompt-terminal-a-determinismo.md` va in
       `integration_only`, dove sta la spec che governa, ed è l'unica delle tre forme in cui non finisce nel
       `writable` di una track che non lo esegue. ⚠️ **La track riparte senza `mandate`**, e la differenza è
       esigibile: un `mandate` su una track che non lo sta eseguendo direbbe il falso al prossimo lettore.
@@ -2318,7 +2318,7 @@ tracks:
       in Shipping**, e si verifica eseguendo: se `rt.Test.Scenario` non arriva, serve un'altra porta
       d'ingresso. ➕ Nota utile: in Shipping `-abslog` resta vuoto — `Display` è compilato fuori — ma
       `result.json` è **file I/O, non log**, quindi il confronto non dipende dal canale che manca.
-      ✅ **`docs/technical/test-e-diagnosi.md` entra nel `writable`, e i due controlli che servivano sono
+      ✅ **`docs/technical/runbooks/test-e-diagnosi.md` entra nel `writable`, e i due controlli che servivano sono
       stati fatti invece che dedotti**: (a) **non** è in `integration_only` né in `generated_only` — era
       semplicemente **non assegnato**, che è la condizione che rende la scrittura uno STOP; (b) perturbato
       di due righe, verificando con `git diff --numstat` che la perturbazione fosse applicata, `generate
@@ -2358,7 +2358,7 @@ tracks:
       sono suoi, e undici dei dodici file di `#923` nemmeno. Tenerla ACTIVE su una issue che non può
       avanzare direbbe il falso: un `writable` senza lavoro possibile è una prenotazione, non un vincolo.
       ⚠️ **Il write-set resta descritto qui e il blocco `writable` esce**, come per `verification`: tre path
-      — `docs/technical/test-e-diagnosi.md`, `docs/product/piano-canonico-mvp.md` e
+      — `docs/technical/runbooks/test-e-diagnosi.md`, `docs/product/piano-canonico-mvp.md` e
       `Source/RefactorTactics/Tests/RTNoisePropagationTests.cpp` — tutti atterrati in `main`, oggi non
       assegnati. ➕ E `test-e-diagnosi.md` **non torna automaticamente `integration_only`**: chi riapre
       `#926` lo rivuole, e la decisione è del prossimo batch.
@@ -3443,7 +3443,7 @@ tracks:
     # li tocca in quanto turno d'integrazione, con le altre track ferme.
     # ⚠️ Questa track è `ACTIVE` su `#451`, che è `OPEN`: il mandato C **non è cominciato** e non
     # comincia finché la seduta U1 non ha chiuso. Verificato il 2026-08-15 con `gh issue view 451`.
-    mandate: docs/technical/qa-prompt-terminal-c-architettura-qa.md
+    mandate: docs/technical/runbooks/qa-prompt-terminal-c-architettura-qa.md
     # ➕ **Il turno C aprirà in `D:/rt-client`, non in `D:/rt-content`** — deciso il 2026-08-15.
     # Non è una seconda sessione in parallelo: il `mandate_gate` qui sotto resta la condizione, e dice
     # che C comincia quando U1 ha chiuso. Il campo dichiara *dove* aprirà.
@@ -3479,6 +3479,9 @@ tracks:
       proprietari e blocca lavoro altrui per settimane. *Un rilascio si scrive.*
       Erano: i tre `qa-prompt-terminal-{a,b,c}`, `guida-seduta-u1-arena.md`,
       `issue-tracking-completeness.md` — tutti spostati in `technical/{runbooks,tooling}/`.
+      ➖ **E anche la copia in root della Issue Tracking Completeness Rule**, per la stessa misura:
+      linka `issue-tracking-completeness.md`, che il 2026-08-19 e' passata in `technical/tooling/`,
+      e un link che non risolve non aspetta che una track `IDLE` si ricordi di esistere.
     writable:
       # ➖ **`docs/technical/test-manuali-pie.md` esce, il 2026-08-16, e passa alla track `playtest`.**
       # Non perché questa track abbia sbagliato a tenerlo: lo teneva per la seduta U1, cioè per una
@@ -3563,7 +3566,7 @@ tracks:
       # 🔴 **`.github/` esce dall'assenza deliberata, e quattro documenti lo dichiaravano assente.** La
       # decisione proteggeva la CI — `AGENTS.md` dice «CI, package manager o build step» — e un issue
       # template **non esegue niente**. Ma uno dei quattro non è prosa:
-      #     docs/technical/qa-prompt-terminal-b-scenario-runner.md:294
+      #     docs/technical/runbooks/qa-prompt-terminal-b-scenario-runner.md:294
       #     git ls-tree -r --name-only origin/main -- .github/   # deve essere vuoto
       # È un ORACOLO, e diventerebbe rosso al primo file creato. Va ristretto a `.github/workflows/`, che
       # è ciò che la decisione proteggeva davvero. Correggere il template senza correggere l'oracolo
@@ -3578,7 +3581,6 @@ tracks:
       # stesso commit. Nome allineato al precedente già in root
       # (`RefactorTactics_FeatureRegistry_Roadmap_Wiki_Claude_2026-08-08.md`): underscore, non spazi —
       # solo 8 file su 1301 hanno spazi nel nome, e un path con spazi va quotato in ogni comando.
-      - RefactorTactics_Issue_Tracking_Completeness_Rule.md
       # ➕ **I primi test del modulo editor.** Tre issue di questa seduta (#871, #921, #931) dichiarano
       # «`Source/RefactorTacticsEditor/` non ha test, quindi la verifica è manuale» e lo trattano come un
       # dato. Misurato: **non c'è nessun impedimento**. Il `Build.cs` ha già `Core` (dove vive
@@ -4780,7 +4782,7 @@ tracks:
       caso e non nell'altro non è prudenza, è incoerenza.
 
       Misura: il worktree `D:/rt-content` è **pulito**, e il branch che esegue tocca **due** file —
-      `parallel-batch.yaml` e `docs/technical/guida-seduta-u1-arena.md` — **nessuno dei due è `AGENTS.md`**.
+      `parallel-batch.yaml` e `docs/technical/runbooks/guida-seduta-u1-arena.md` — **nessuno dei due è `AGENTS.md`**.
       Contesa dichiarata, non esercitata. E `integration_only` significa «si aggiorna una volta in
       integrazione», che è dove questa fetta si trova.
 
@@ -5018,7 +5020,7 @@ tracks:
 
       🔴 **L'invariante NON regge su questo file, e la violazione e' preesistente — misurata, non ereditata.**
       `spatial` (IDLE) e `content_editor` (ACTIVE) rivendicano entrambe
-      `docs/technical/qa-prompt-terminal-b-scenario-runner.md`: la prima come `mandate`, la seconda dentro il
+      `docs/technical/runbooks/qa-prompt-terminal-b-scenario-runner.md`: la prima come `mandate`, la seconda dentro il
       proprio `writable`. Verificato eseguendo il calcolo delle intersezioni **sul file di `origin/main`
       senza le mie modifiche** — 10 track, **1** violazione — e poi su questo ramo: 11 track, **sempre 1**.
       Questa track non ne aggiunge e non ne toglie. Non la risolvo: appartiene a due track che non sono mie,
@@ -5378,7 +5380,7 @@ tracks:
       dichiarato — e' il difetto che questo file ha gia' registrato altrove — e da una sessione isolata
       in `D:/rt-client` non e' misurabile. Resta la misura che si puo' fare, non una che si finge.
 
-      ➖ **`docs/technical/spec-frontend-navigazione.md` NON e' nel `writable` di questa track**, pur
+      ➖ **`docs/technical/architecture/spec-frontend-navigazione.md` NON e' nel `writable` di questa track**, pur
       essendo stato scritto da questo branch: la §2.2 che dichiara le due schermate del replay.
       Sembra una contraddizione e non lo e' — **un `writable` dichiara chi scrivera', non chi ha
       scritto**, e il lavoro di questa track su quel file e' finito con quella sezione.
@@ -6479,7 +6481,7 @@ integration_only:
   #
   # 🔴 **Due difetti PREESISTENTI, misurati mentre si verificava l'aggiunta e NON corretti qui perche' di
   # altre track.** Registrati per non farli riscoprire:
-  #   1. `CLAUDE.md`, `AGENTS.md` e `docs/technical/qa-prompt-terminal-a-determinismo.md` stanno **insieme**
+  #   1. `CLAUDE.md`, `AGENTS.md` e `docs/technical/runbooks/qa-prompt-terminal-a-determinismo.md` stanno **insieme**
   #      nel `writable` di `content_editor` (#451, ACTIVE) **e** in questo elenco — cioe' assegnati e non
   #      assegnati nello stesso file, che e' esattamente la contraddizione per cui `docs/OPEN_DECISIONS.md`
   #      e' stato tolto di qui quando `spatial` lo prese in prestito. Li scioglie chi possiede #451.
@@ -6545,7 +6547,7 @@ integration_only:
   # una issue, senza mandato. Un file di mandato che non esegue nessuno non appartiene a una track: sta
   # dove sta la spec che governa. Gli altri due restano nei rispettivi `writable` perché i loro turni sono
   # ancora aperti; se questo riapre, torna alla track che riparte.
-  - docs/technical/qa-prompt-terminal-a-determinismo.md
+  - docs/technical/runbooks/qa-prompt-terminal-a-determinismo.md
   # ➕ **La spec del harness entra qui il 2026-08-15, e non nel `writable` di `spatial`.**
   # Il candidato ovvio era `spatial`: possiede `ScenarioHarness/`, porta il mandato B, ed è la sessione
   # che ha appena corretto due sezioni della spec rimaste indietro sul codice (`60836b0b`). Sarebbe stato

@@ -9,14 +9,14 @@
 > cancellata da una pulizia degli untracked. Il suo contenuto non è recuperabile: questo documento **non
 > è una ricostruzione**, è un mandato nuovo, ancorato alle misure di `origin/main` @ `79f61f92`.
 > Riprende però le tre correzioni che lo spec panel di Terminal A ha reso vincolanti per tutti e tre i
-> terminali ([`../roadmap/plans/qa-terminal-a-determinism-spec-panel-2026-08-15.md`](../roadmap/plans/qa-terminal-a-determinism-spec-panel-2026-08-15.md)).
+> terminali ([`../../roadmap/plans/qa-terminal-a-determinism-spec-panel-2026-08-15.md`](../../roadmap/plans/qa-terminal-a-determinism-spec-panel-2026-08-15.md)).
 > 🔴 **v2.1 — le affermazioni misurabili della v2 sono state rimisurate, e cinque non reggevano.**
 > L'enum degli esiti ha **quattro** valori e non tre; i nomi console sono **cinque** e non tre;
 > `ScenarioHarness/` **è** assegnato a una track; la ripartizione dei 76 JSON non sommava;
 > `ERTTestOutcome` vive in un altro file. Ogni correzione porta sotto di sé la propria misura. Il
 > referto le elenca una per una, insieme alla ragione per cui la v2 le aveva sbagliate tutte allo
 > stesso modo — trascrivendo l'output del comando che si era già scritta:
-> [`../roadmap/plans/qa-terminal-b-scenario-runner-spec-panel-2026-08-15.md`](../roadmap/plans/qa-terminal-b-scenario-runner-spec-panel-2026-08-15.md).
+> [`../../roadmap/plans/qa-terminal-b-scenario-runner-spec-panel-2026-08-15.md`](../../roadmap/plans/qa-terminal-b-scenario-runner-spec-panel-2026-08-15.md).
 
 Sei il **Processo B** del workstream Test/QA di RefactorTactics.
 
@@ -24,11 +24,11 @@ Sei il **Processo B** del workstream Test/QA di RefactorTactics.
 
 ## 0. Regola fondamentale — verifica prima di modificare
 
-1. leggi [`../../AGENTS.md`](../../AGENTS.md) e [`../../CLAUDE.md`](../../CLAUDE.md): sono il contratto del
+1. leggi [`../../../AGENTS.md`](../../../AGENTS.md) e [`../../../CLAUDE.md`](../../../CLAUDE.md): sono il contratto del
    repository e **prevalgono su questo documento**;
 2. verifica branch/worktree corrente e aggiorna `main` (`git fetch --prune origin`);
-3. leggi [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml) — §1, decide se puoi scrivere;
-4. leggi la spec del harness: [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md). **È l'owner delle
+3. leggi [`../../roadmap/parallel-batch.yaml`](../../roadmap/parallel-batch.yaml) — §1, decide se puoi scrivere;
+4. leggi la spec del harness: [`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md). **È l'owner delle
    decisioni** — perché gli esiti sono distinti, perché il `seed` non fa niente, perché gli scenari sono
    JSON e non `.uasset`: su queste, se divergiamo, vince la spec.
    ⚠️ **Non è l'owner dei conteggi né degli enum.** Quelli si rimisurano sul codice (§7). La spec è stata
@@ -37,7 +37,7 @@ Sei il **Processo B** del workstream Test/QA di RefactorTactics.
    state corrette, ma il meccanismo che le aveva fatte invecchiare è ancora quello: una divergenza su un
    conteggio **si riporta all'owner, non si recepisce** — vedi §8;
 5. leggi Decision Log / ADR applicabili
-   ([`../decisions/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md)).
+   ([`../../decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md)).
 
 Baseline: **UE 5.8.x**, core C++ deterministico, vertical slice v0.1 2v2 offline contro bot.
 
@@ -155,7 +155,7 @@ cambiassero numero.
 non è rosso e non è verde: passa senza dirlo. Se conti gli esiti, contalo a parte — mai fra i passati, mai
 fra i falliti.
 
-La spec owner ([`test-automatico-unreal.md`](tooling/test-automatico-unreal.md) §6) elencava **tre** esiti fino al
+La spec owner ([`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md) §6) elencava **tre** esiti fino al
 2026-08-15 ed è stata allineata: se leggi «e perché sono tre», stai leggendo una copia vecchia.
 
 ∴ **Il mandato non è fondare un runner, è portare avanti lo schema target** che la spec descrive al §10.
@@ -175,7 +175,7 @@ contiene dieci script Python — gate documentali e registry — e **nessun runn
    non c'è);
 2. riservane l'ID con `python scripts/rt_shared_id.py reserve D` — **gli ID non si scelgono a mano**
    (D-135);
-3. portala al Decision Log ([`../decisions/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md)),
+3. portala al Decision Log ([`../../decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md)),
    che è `integration_only`: la scrivi **nell'handoff**, la registra l'integrazione.
    **Non implementarla in attesa di risposta.**
 
@@ -221,7 +221,7 @@ deterministici.** Un agent che decide l'esito è un fake resolver con un altro n
 1. **Verifica le misure del §2** con i comandi del §7. Se una riga non regge più, correggila e dillo —
    ✅ e questo file **è tuo** (§1): correggilo qui, con la misura accanto. Un mandato che si sa sbagliato
    e aspetta l'integrazione resta sbagliato per tutti quelli che lo leggono nel frattempo.
-2. **Leggi il §10 di [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md)** — lo schema target. Quella
+2. **Leggi il §10 di [`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md)** — lo schema target. Quella
    è la lista, non questa.
 
    🔴 **Il §9 non è la lista di partenza, e va saputo prima di aprirlo.** Misurate il 2026-08-15, le sue
@@ -336,11 +336,11 @@ la spec non falsifica un enum.
 
 1. Esegui i comandi del §7 e verifica il §2. **Cinque righe della v2 non reggevano**: aspettati di
    trovarne altre, e misura più fine di come è scritta l'affermazione.
-2. Apri [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml) alla track **`spatial`** — è
+2. Apri [`../../roadmap/parallel-batch.yaml`](../../roadmap/parallel-batch.yaml) alla track **`spatial`** — è
    quella che porta il `mandate` di questo documento, gira in `D:/rt-spatial`, e il suo `writable` è
    `Source/RefactorTactics/ScenarioHarness/` più questo file. **È `IDLE`: senza una issue con cui portarla
    ad `ACTIVE` non parti** (§1). Se il `writable` che leggi non è più quello, vince il file, non questa riga.
-3. Apri [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md) **§10** e scegli **un** campo dello
+3. Apri [`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md) **§10** e scegli **un** campo dello
    schema target. ⛔ **Non il §9**: le sue quattro voci sono tutte bloccate, e §5.2 misura da cosa.
 4. Se il tuo primo istinto è «aggiungo uno scenario» o «metto su una pipeline», rileggi §1 e §3.
 5. Se trovi che questo prompt sbaglia una misura, **correggilo** — è nel tuo `writable`, e sei tu che stai

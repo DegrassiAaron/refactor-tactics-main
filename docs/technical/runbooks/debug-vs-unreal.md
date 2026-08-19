@@ -14,7 +14,7 @@
 
 | Elemento | Valore |
 |---|---|
-| Motore | **UE 5.8.1**, patch bloccata ([D-022](../decisions/RT_PDR_00_Decision_Log.md)): upgrade solo fra milestone |
+| Motore | **UE 5.8.1**, patch bloccata ([D-022](../../decisions/RT_PDR_00_Decision_Log.md)): upgrade solo fra milestone |
 | Target di build | `Development Editor`, `Win64` |
 | Categoria di log | **`LogRT`** |
 | Topologia | **esagonale** multilivello — `FRTCellId{q, r, Layer}` |
@@ -84,7 +84,7 @@ Per agganciare un editor **già aperto**: Debug → **Attach to Process** → `U
 | `rt.Test.Scenario <Id>` | **variabile**: scenario da eseguire automaticamente all'avvio della partita |
 
 `rt.Test.Scenario` va impostata **prima** di premere Play: la partita normale non parte e al suo posto viene
-eseguito lo scenario. Dettagli in [`test-automatico-unreal.md`](tooling/test-automatico-unreal.md).
+eseguito lo scenario. Dettagli in [`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md).
 
 ---
 
@@ -113,6 +113,6 @@ eseguito lo scenario. Dettagli in [`test-automatico-unreal.md`](tooling/test-aut
 ## 7. Dove andare dopo
 
 - Verifica automatica, scenari, lettura degli esiti → [`test-e-diagnosi.md`](test-e-diagnosi.md)
-- Architettura del modulo C++ → [`architettura-codice.md`](architecture/architettura-codice.md)
-- Struttura e naming di `Content/` → [`convenzioni-contenuti-ue.md`](tooling/convenzioni-contenuti-ue.md)
-- Verifiche interattive in editor → [`test-manuali-pie.md`](test-manuali-pie.md)
+- Architettura del modulo C++ → [`architettura-codice.md`](../architecture/architettura-codice.md)
+- Struttura e naming di `Content/` → [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md)
+- Verifiche interattive in editor → [`test-manuali-pie.md`](../test-manuali-pie.md)

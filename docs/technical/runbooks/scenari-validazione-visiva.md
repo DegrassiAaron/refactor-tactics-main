@@ -1,13 +1,13 @@
 # Scenari di validazione visiva
 
 > **Owner** del corpus di scenari che si aprono **per guardare**, non per far girare un'assertion.
-> L'identità e i tag stanno in [`scenario-index-e-tag.md`](tooling/scenario-index-e-tag.md); come si scrive ed esegue
+> L'identità e i tag stanno in [`scenario-index-e-tag.md`](../tooling/scenario-index-e-tag.md); come si scrive ed esegue
 > uno scenario sta in [`test-e-diagnosi.md`](test-e-diagnosi.md); **chi esegue cosa** — quali verifiche sono
-> automatiche e quali richiedono una persona — sta in [`scenario-map.md`](tooling/scenario-map.md), dove questo corpus
+> automatiche e quali richiedono una persona — sta in [`scenario-map.md`](../tooling/scenario-map.md), dove questo corpus
 > è la **classe B**. Qui c'è **quali scenari servono, cosa si guarda in ciascuno, e cosa oggi non è guardabile**.
 >
 > Definito il **2026-08-08**, issue `#231`. Stato al **2026-08-09**: **21 scenari** in `Scenarios/Visual/`,
-> **21** voci `PIE-VIS-*` in [`test-manuali-pie.md`](test-manuali-pie.md) — corrispondenza 1:1, verificata col
+> **21** voci `PIE-VIS-*` in [`test-manuali-pie.md`](../test-manuali-pie.md) — corrispondenza 1:1, verificata col
 > comando di §9. Nessuno ancora eseguito in PIE: i valori numerici vengono dal catalogo e dal codice, e il
 > primo run li conferma.
 >
@@ -490,7 +490,7 @@ mancante non è di scenari da scrivere, è di **formato da estendere**.
 ## 9. Verifiche in PIE
 
 Ogni scenario di questo catalogo, quando viene scritto, porta una voce ⏳ in
-[`test-manuali-pie.md`](test-manuali-pie.md) con la forma `PIE-VIS-<dominio>`. La voce dice **cosa si deve
+[`test-manuali-pie.md`](../test-manuali-pie.md) con la forma `PIE-VIS-<dominio>`. La voce dice **cosa si deve
 vedere**, non «lo scenario passa»: quella parte la dicono già le assertion.
 
 **Fatto il 2026-08-08**: diciassette voci `PIE-VIS-*`, una per scenario, nella sezione *Scenari di validazione
