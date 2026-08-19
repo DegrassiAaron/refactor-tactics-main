@@ -4853,8 +4853,12 @@ features:
     status: DESIGNED
     gates:
       # L'owner del modello esiste da `D-152`: tassonomia, pivot, volume, grammatica degli stati.
-      # `partial` e non `done` perche' quattro domande restano aperte (`GBX-1..4`) e due di esse
-      # — l'inset e le soglie di integrita' — sono numeri che il documento si vieta di inventare.
+      # `partial` e non `done` perche' DUE domande restano aperte — `GBX-1` (l'inset) e `GBX-5` (l'ingombro
+      # dell'unita') — e condividono l'oracolo: si validano guardando, alla seduta U25.
+      # ⏱️ Dal 2026-08-18 sono due e non quattro: `GBX-2`, `GBX-3` e `GBX-4` sono chiuse da `D-171`, `D-172`
+      # e `D-173` (#1188). Questa riga diceva «quattro domande restano aperte (`GBX-1..4`)» e aggiungeva che
+      # «due di esse — l'inset e le soglie di integrita' — sono numeri che il documento si vieta di
+      # inventare»: le soglie ORA sono decise, e sono una frazione del catalogo invece di un numero.
       spec: partial
       # Nessun dato: e' voluto e non e' un ritardo. La tassonomia e' un VOCABOLARIO, non un enum
       # (`D-152`), e le classi non entrano in niente di serializzato. `na` sarebbe falso pero':
@@ -4883,8 +4887,10 @@ features:
     owner_specs:
       - docs/technical/spec-graybox-placement-contract.md
       - docs/technical/asset-map.md
-    # 1094 le quattro domande aperte (`GBX-1..4`) · 1095 la seduta U25 (volume + scena di validazione) ·
-    # 1096 le voci PIE, che sono bloccate da `D-139` e non da mancanza di contenuto.
+    # 1094 le domande aperte del contratto — DUE dal 2026-08-18 (`GBX-1` e `GBX-5`), dopo che `GBX-2`,
+    # `GBX-3` e `GBX-4` sono state chiuse da `D-171`/`D-172`/`D-173` in #1188 · 1095 la seduta U25
+    # (volume + scena di validazione) · 1096 le voci PIE, che sono bloccate da `D-139` e non da mancanza
+    # di contenuto.
     issues: [1094, 1095, 1096]
     tests: []
     scenarios: []

@@ -135,6 +135,20 @@ Content/**/*.txt
 # (invariante 1 di CP 46.1). Riammessi con lo stesso anticipo degli altri, per la stessa ragione.
 !Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset
 !Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset
+# Il kit graybox degli oggetti di mappa — D-173, percorso deciso il 2026-08-18. Riammesso PRIMA che
+# esista un solo asset, che e' la ragione per cui la decisione e la riga stanno nello stesso commit:
+# senza di essa "git add" tace e non segnala nulla, ed e' lo stato in cui e' rimasto ABP_Gadget.
+# Sono primitive posabili riusabili fra mappe (contratto: docs/technical/spec-graybox-placement-contract.md),
+# non arte sostituibile: le verifiche che ci si appoggeranno sono le PIE-GBX-* PROPOSTE in #1096, che nel
+# registro manuale NON esistono ancora — misurato, `grep -c "PIE-GBX" docs/technical/test-manuali-pie.md`
+# da' 0, e quel file e' assegnato a un'altra track.
+# A differenza delle righe qui sopra e' un pattern di CARTELLA e non un elenco di file, e la ragione e'
+# che §8.1 del contratto elenca sette path oggi e li vedra' cambiare: enumerarli qui li renderebbe muti
+# al primo rename — il difetto che la nota di D-037 registra per gli otto path dei personaggi.
+# ⚠️ Copre i soli .uasset: una sorgente .fbx/.png/.tga del kit resta ignorata dalle righe qui sopra, ed e'
+# deliberato — in UE la sorgente non si versiona, si versiona l'asset importato.
+# Oracolo: "git check-ignore -q <file>" -> exit 1 (NON ignorato). Con -v esce 0 in entrambi i casi.
+!Content/RT/World/Graybox/**/*.uasset
 
 # Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
 .superpowers/

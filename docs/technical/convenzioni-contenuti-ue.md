@@ -1,6 +1,6 @@
 # RefactorTactics — Convenzioni per la struttura dei contenuti Unreal
 
-> **Stato**: normativo · **Ultimo aggiornamento**: 2026-08-05
+> **Stato**: normativo · **Ultimo aggiornamento**: 2026-08-18
 > Regole vincolanti per la struttura di `Content/`. Si applicano quando si creano asset, si suggeriscono
 > percorsi, si modificano asset esistenti, si generano script Editor Utility, si propone un refactoring o si
 > implementa una feature. **Non creare directory alternative senza una motivazione tecnica esplicita.**
@@ -91,8 +91,9 @@ una convenzione.)*
 ├── Core/            Framework/ · Input/ · Camera/
 ├── Systems/         Planning/ · Turns/ · Resolution/ · Movement/
 ├── World/Grid/      Hex/ · Selection/ · Visualization/ · Generation/
+├── World/Graybox/   Cover/ · Doors/ · Surfaces/ · Volumes/     (kit CONDIVISO, D-173)
 ├── Characters/      Shared/{Blueprints,Data,Materials}
-├── Maps/Dev/        L_DevSandbox/{Data,Graybox,Tests}
+├── Maps/Dev/        L_DevSandbox/{Data,Graybox,Tests}          (Graybox LOCALE della mappa)
 ├── UI/              HUD/ · Planning/ · Debug/
 ├── Data/            Rulesets/ · GameplayTags/ · AssetManagement/
 ├── Dev/             DebugMaterials/
@@ -109,6 +110,7 @@ milestone corrente (coerente con la regola di scope in `CLAUDE.md`).
 | Input (Enhanced Input) | `/Game/RT/Core/Input/` | `IMC_Tactical`, `IA_CameraPan`, `IA_SelectCell`, … |
 | Camera tattica | `/Game/RT/Core/Camera/` | |
 | Griglia esagonale | `/Game/RT/World/Grid/` | `Hex/` mesh e cella base · `Selection/` selezione e hover · `Visualization/` materiali, path preview, overlay · `Generation/` generatori graybox |
+| Kit graybox degli **oggetti** | `/Game/RT/World/Graybox/` | primitive posabili riusabili fra mappe: `Cover/` · `Doors/` · `Surfaces/` · `Volumes/`. **D-173** ⚠️ Non è `Grid/Generation/`, che sono i **generatori**: qui ci sono gli oggetti che si posano. Owner del contratto di ingombro e pivot: [`spec-graybox-placement-contract.md`](spec-graybox-placement-contract.md) |
 | Turni | `/Game/RT/Systems/` | `Planning/` intenti · `Turns/` fase e Ready · `Resolution/` playback · `Movement/` configurazione |
 | Personaggi | `/Game/RT/Characters/<CharacterId>/` | ogni personaggio è **autonomo**. ⚠️ `<CharacterId>` = nome del **pack Paragon** (§5b) |
 | Abilità di un personaggio | `/Game/RT/Characters/<CharacterId>/Abilities/` | |
@@ -117,6 +119,16 @@ milestone corrente (coerente con la regola di scope in `CLAUDE.md`).
 | UI | `/Game/RT/UI/<funzione>/` | divisa per funzione, non per tipo tecnico |
 | Dati di feature | vicino alla feature | `Characters/Gadget/Data/DA_Hero_Flux` — cartella del pack, nome dell'**eroe** (§5b) |
 | Dati globali e cataloghi | `/Game/RT/Data/` | `Data/Catalogs/DA_HeroCatalog`, `Data/Rulesets/DA_Ruleset_Dev` |
+
+⚠️ **Due cartelle si chiamano `Graybox`, e la regola che decide quale usare esiste già — non è una nuova
+eccezione.** `World/Graybox/` è il **kit condiviso**; `Maps/Dev/L_DevSandbox/Graybox/` è materiale graybox
+**locale a quella mappa**. Le distingue la **regola decisiva sugli asset di mappa** enunciata in §5b: *se
+eliminando la mappa l'asset non serve più, può restare nella cartella della mappa; se è usato da più mappe,
+va in una cartella condivisa.* Non è il caso di `Grid/Generation/` (i **generatori**) accanto a un ipotetico
+`Grid/Graybox/` (gli **oggetti**), dove due cose di natura diversa avrebbero portato lo stesso nome: qui la
+natura è la stessa e cambia lo **scope**, che è precisamente ciò che quel criterio governa. *Registrato il
+2026-08-18 perché `D-173` scartava un'alternativa per ambiguità senza dire perché questa non lo è — trovato
+in code review su #1188.*
 
 **La logica autorevole C++ resta sotto `Source/`, mai dentro `Content/`** (invariante #1: le regole decidono
 l'esito, gli asset no).

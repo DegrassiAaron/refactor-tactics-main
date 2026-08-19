@@ -1147,8 +1147,9 @@ sessions:
       toccare il livello (`D-139`). **Quattro** sedute dichiarano lo stesso allestimento — `U21`, `U22`,
       `U25`, `U26` — e due aperte insieme sullo stesso `.umap` producono due versioni che non si fondono.
       E' l'unica delle tre la cui omissione **distrugge lavoro**.
-      · 🔴 **`GBX-2` chiusa**, o non si modella la porta: come si distinguono `Closed` e `Locked` senza il
-      colore e' una lacuna di grammatica, e modellare senza saperlo viola `D-146` all'atto.
+      · ✅ **`GBX-2` chiusa il 2026-08-18** da `D-171` (#1188): `Locked` si distingue da `Closed` con una
+      **traversa in rilievo** modellata sul pannello, quindi sono due mesh e non una ricolorata. Questa
+      precondizione **e' soddisfatta**; era la sola delle tre che bloccava la modellazione della porta.
       · 🔴 **`U21` fatta**: una scena di leggibilita' valutata prima delle luci direbbe piu' sulle luci che
       sul kit.
 
@@ -1193,7 +1194,9 @@ sessions:
          stati (`Open` · `Closed` · `Locked` · `Destroyed`) · acqua **vs** ghiaccio · **intatto vs
          distrutto**.
          🔴 **Le coppie che il kit sorgente non chiedeva sono quelle che contano**: senza `Locked` la
-         seduta non valida `GBX-2`; senza `Destroyed` non guarda lo stato **terminale** della porta; senza
+         seduta non verifica la traversa che `D-171` ha scelto — la domanda `GBX-2` e' chiusa, il suo
+         **esito** no, e si guarda se quella traversa si legge; senza `Destroyed` non guarda lo stato
+         **terminale** della porta; senza
          intatto/distrutto non verifica il punto (4) di `D-152` — *distrutto cambia geometria, non colore*.
          Una scena senza di esse soddisfa il `done_when` e **non risponde alla domanda**.
       5. **Gli `EdgeBound` si posano con `EdgeMidpointWorld` e `EdgeRotation`**, mai a occhio: il bordo `E`
@@ -1239,10 +1242,16 @@ sessions:
       c'e' un nome. Finche' non ci sono,
       questa seduta produce una scena e non chiude nessuna voce del registro.
       ⚠️ **`artifacts: []` per la ragione di `U21`**: l'oracolo degli artefatti e' `git ls-files`, che sa
-      dire se un path **esiste** e non se e' stato modificato. E qui c'e' un motivo in piu': **il percorso
-      non e' deciso** — `GBX-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) — e
-      [`../technical/asset-map.md`](../technical/asset-map.md) §6 vuole la riga d'allowlist **prima**
-      dell'asset, o `git add` tace e il lavoro resta sul disco di chi l'ha fatto.
+      dire se un path **esiste** e non se e' stato modificato.
+      ✅ **Il secondo motivo e' CADUTO il 2026-08-18, e va ritirato invece che lasciato in piedi.** Questa
+      riga diceva *«il percorso non e' deciso — `GBX-4`»*, e `D-173` (#1188) lo ha deciso:
+      `/Game/RT/World/Graybox/`, con la riga d'allowlist scritta nello stesso commit — misurata con
+      `git check-ignore -q`, che da' exit 1. Cio' che `asset-map.md` §6 chiedeva **prima** dell'asset
+      adesso c'e'.
+      ⏱️ **Ma la seduta non dichiara artefatti nemmeno ora, e la ragione e' un'altra**: finche' #1155 non
+      atterra il mondo gira a `HexSize = 100` mentre si modella alla scala d'arte di `D-163`, quindi un
+      volume finito e' `1,5x` fuori misura sulla mappa in cui si posa. Si modella alla scala nuova e si
+      rimanda il **commit** — non il lavoro.
       ⛔ **Fuori da questa seduta**: i diciannove elementi del catalogo. Sette sono `DEFER` — tre per
       dipendenza da feature `IDEA`, due fuori scope v0.1 dichiarato, due proxy senza produttore — e dei
       dodici restanti la maggior parte e' `UPDATE` di presentazione su asset che esistono. Questa
@@ -1261,9 +1270,13 @@ sessions:
       `editormap.shortlist.md` — cio' che manca e' la CODA, non la visibilita'. Poi diceva «nessuna delle
       DUE code», e le code sono **tre**: `BLOCKING` e' quella da cui si pesca per prima, e scriverne due
       lasciava credere che fosse stata guardata.* Non e'
-      riparabile qui: dichiarare artefatti prima che `GBX-4` scelga il percorso, o voci PIE che non
-      esistono, sarebbe peggio — sono i due difetti che `asset-map.md` §6 documenta. Si chiude quando uno
-      dei due campi diventa vero, ed e' il primo effetto utile della chiusura di `GBX-4`.
+      riparabile qui: dichiarare voci PIE che non esistono sarebbe peggio — e' il difetto che
+      `asset-map.md` §6 documenta. Si chiude quando uno dei due campi diventa vero.
+      ⏱️ **Aggiornato il 2026-08-18**: questa riga diceva *«dichiarare artefatti prima che `GBX-4` scelga il
+      percorso»* e chiudeva con *«e' il primo effetto utile della chiusura di `GBX-4`»* — cioe' **prevedeva**
+      questo aggiornamento. `GBX-4` e' chiusa (`D-173`, #1188) e l'allowlist esiste, quindi il vincolo sugli
+      artefatti non e' piu' il percorso: e' la scala, che aspetta #1155. Delle due condizioni resta in piedi
+      solo quella sulle voci PIE, che dipende da `D-139` e non da questa seduta.
       ⚠️ ID assegnato prima del merge: `U25`, con `U24` come massimo misurato su `main` **e su tutti i
       diciassette branch locali e gli undici remoti**. Chi arriva secondo rinumera, non contende.
 
