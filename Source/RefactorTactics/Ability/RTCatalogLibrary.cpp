@@ -14,13 +14,19 @@ TArray<FRTReactionProfileDef> URTCatalogLibrary::GetReactionProfileCatalog()
 	// I token NON portano il prefisso d'eroe: `Profile.Sidestep` e non `Phase.Sidestep`. E' cio' che permette
 	// di riassegnare un profilo quando il roster cresce, senza che il rename tocchi un dato di gioco.
 	//
+	// ⚠️ **`static const`, e non e' micro-ottimizzazione**: questi dati sono costanti di compilazione, e la
+	// funzione e' sulla strada calda di tre chiamanti diversi — il loader la interroga **per decisione** (due
+	// volte sul ramo d'errore, per comporre il messaggio), l'harness **per finestra**, e il resolver **per
+	// unita' in `Brace` per Blast**. Senza lo `static` ogni giro ricostruiva tre `FRTReactionProfileDef` con
+	// i loro `TArray` annidati e le `FString`. Misurato da una code review, non supposto.
+	//
 	// 🔴 **Gli EFFETTI ci sono per uno solo dei tre, e le due assenze sono un registro.** `spec-reaction-clash-e14.md`
 	// §2.5 e [D-132] dichiarano aperti «Charge del `Grounding`» e «ampiezza della deviazione»: sono
 	// bilanciamento, e inventarli qui sarebbe deciderli di nascosto in un file di catalogo. Finche' restano
 	// aperti, `BraceExecutableResponses` non offre quelle due risposte — la cardinalita' DICHIARATA di [D-132]
 	// (2/2/3) non si muove di un valore, e il resolver non apre una finestra su una scelta che non sa
 	// applicare. Chi chiude una delle due voci aggiunge gli effetti qui, e non serve altro.
-	return {
+	static const TArray<FRTReactionProfileDef> Catalog = {
 		{ FName(TEXT("Profile.Grounding")), { FRTReactionResponseDef(TEXT("GROUND"), {}) } },
 
 		// `SIDESTEP` si esprime con `SelfReposition`, e NON e' una primitiva scelta per comodita': `BAS-4`
@@ -46,6 +52,7 @@ TArray<FRTReactionProfileDef> URTCatalogLibrary::GetReactionProfileCatalog()
 		{ FName(TEXT("Profile.Glance")),    { FRTReactionResponseDef(TEXT("GLANCE LEFT"),  {}),
 		                                      FRTReactionResponseDef(TEXT("GLANCE RIGHT"), {}) } }
 	};
+	return Catalog;
 }
 
 FRTReactionProfileDef URTCatalogLibrary::FindReactionProfile(const FName& ProfileId)
@@ -102,21 +109,28 @@ TArray<FString> URTCatalogLibrary::BraceExecutableResponses(const FName& Profile
 
 TArray<FString> URTCatalogLibrary::AllReactionProfileResponses()
 {
-	// Si parte da `Hold Ground` perche' e' universale: appartiene a ogni profilo, compreso quello base, e
-	// nessuna voce del catalogo la elenca — per costruzione, come dichiara `FRTReactionProfileDef`.
-	TArray<FString> All = BraceAllowedResponses(NAME_None);
-
-	for (const FRTReactionProfileDef& Profile : GetReactionProfileCatalog())
+	// `static const` per la stessa ragione di `GetReactionProfileCatalog`: il loader interroga questa funzione
+	// **per ogni decisione**, e sul ramo d'errore una seconda volta per comporre il messaggio.
+	static const TArray<FString> All = []
 	{
-		for (const FRTReactionResponseDef& Extra : Profile.ExtraResponses)
+		// Si parte da `Hold Ground` perche' e' universale: appartiene a ogni profilo, compreso quello base, e
+		// nessuna voce del catalogo la elenca — per costruzione, come dichiara `FRTReactionProfileDef`.
+		TArray<FString> Responses = BraceAllowedResponses(NAME_None);
+
+		for (const FRTReactionProfileDef& Profile : GetReactionProfileCatalog())
 		{
-			// `AddUnique` e non `Add`: due profili possono offrire la stessa risposta — oggi non capita, e il
-			// giorno in cui capitasse un elenco con un duplicato farebbe stampare due volte lo stesso token
-			// nel messaggio d'errore del loader, che e' il posto in cui si va a leggere quando qualcosa non
-			// torna.
-			All.AddUnique(Extra.Response);
+			for (const FRTReactionResponseDef& Extra : Profile.ExtraResponses)
+			{
+				// `AddUnique` e non `Add`: due profili possono offrire la stessa risposta — oggi non capita, e
+				// il giorno in cui capitasse un elenco con un duplicato farebbe stampare due volte lo stesso
+				// token nel messaggio d'errore del loader, che e' il posto in cui si va a leggere quando
+				// qualcosa non torna.
+				Responses.AddUnique(Extra.Response);
+			}
 		}
-	}
+		return Responses;
+	}();
+
 	return All;
 }
 

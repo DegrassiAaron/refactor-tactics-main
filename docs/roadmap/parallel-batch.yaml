@@ -2992,6 +2992,19 @@ tracks:
       - path: Scenarios/Spec/Brace/ProfileChangesResponse.json
         from: integration_only
         returns_when: "col merge della PR #1217 — la riga si cancella in integrazione, non sul branch"
+      # 🔴 **Aggiunto il 2026-08-19 da una code review, che ha chiamato la cosa col suo nome: era una
+      # violazione di D-139, non una cessione ben documentata.** Il commit di merge aveva tolto
+      # `RTTurnManager.cpp` dal `writable` accogliendo la cessione a `bot_stalemate`, e **nello stesso diff**
+      # riscriveva sei chiamate dentro `AskReactionDecision`. Avevo argomentato che l'intersezione a livello
+      # di funzione fosse vuota — ed è vero, resta misurato — ma `CLAUDE.md` §5 non dice «non collidere con
+      # nessuno»: dice *«il path deve stare nel `writable` della tua track … niente "solo questa piccola
+      # fix"»*. Una misura che giustifica lo STOP invece di toglierlo è il modo in cui questa regola si aggira
+      # in buona fede.
+      # ✅ **La forma giusta esiste ed è questa**: un prestito dichiarato, con la ragione e la scadenza. La
+      # cessione a `bot_stalemate` **resta valida** — è il proprietario, e la riprende intera al merge.
+      - path: Source/RefactorTactics/Turn/RTTurnManager.cpp
+        from: bot_stalemate
+        returns_when: "col merge della PR #1217 — sei chiamate in `AskReactionDecision`, zero in `PlanBots`"
     # ⚠️ ~~`#886` non presta nulla~~: i due path che prende sono **liberi**, e ~~il terzo lo **chiede**~~ — dal
     # 2026-08-17 i due del `TurnManager` sono **rilasciati e non assegnati**, quindi non c'è più niente da
     # chiedere e ~~resta lo STOP finché l'atto di questa track non li rivendica~~. Annotato qui perché è un

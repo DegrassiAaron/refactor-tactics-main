@@ -1345,6 +1345,13 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 					TurnIndex + 1, *D.Unit);
 				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
 				Notes.Add(Motivo);
+				// ⚠️ **Consumata, benche' rifiutata**, e senza incrementare `ScriptedDecisionsApplied`: la
+				// decisione E' stata abbinata alla sua finestra: cio' che e' fallito e' la risposta. Lasciandola
+				// non consumata, il residuo di fine turno aggiungeva una **seconda** nota che diceva l'opposto —
+				// «nessuna finestra si e' aperta per quell'unita'» — e chi legge il referto si trovava due
+				// diagnosi contraddittorie dello stesso fallimento, con la seconda che manda a cercare una
+				// finestra mancante che invece c'era.
+				PendingConsumed[Index] = true;
 				return FString();
 			}
 			return Consuma(URTReactionOpportunityLibrary::HoldResponse());
@@ -1371,6 +1378,9 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 					TurnIndex + 1, *D.Unit, *D.Respond);
 				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
 				Notes.Add(Motivo);
+				// Consumata benche' rifiutata, per la stessa ragione del gemello sopra: la decisione ha trovato
+				// la propria finestra, e una seconda nota sul residuo direbbe il contrario.
+				PendingConsumed[Index] = true;
 				return FString();
 			}
 			return Consuma(D.Respond);

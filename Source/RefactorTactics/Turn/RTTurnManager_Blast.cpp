@@ -1070,6 +1070,16 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		// QUALE difesa ha retto e quale no — un verbo sbagliato e' la stessa lacuna di `#420`, un livello sopra.
 		TSet<const ARTUnit*> Sidestepped;
 
+		// Lo spazio di id alive-only in cui vive `Key.OwnerId`, costruito **al piu' una volta per Blast** e
+		// solo se una finestra si apre davvero.
+		//
+		// 🔴 **Prima stava DENTRO il ciclo**, e una code review ha misurato il costo: `MakeCurrentSnapshot`
+		// fa un `GetAllActorsOfClass` sul livello, costruisce un `FRTHexSnapshot` che qui viene **buttato
+		// via**, e ordina — tutto questo per **ogni** unita' in `Brace`. Il caso di gran lunga piu' comune e'
+		// il profilo base (Riktor), dove `AskReactionDecision` risponde `HoldImmediate` senza mai leggere
+		// `OwnerId`: si pagava un giro completo per un valore che nessuno guardava.
+		TArray<ARTUnit*> BlastAliveUnits;
+
 		for (ARTUnit* T : Units)
 		{
 			const int32* Pushes = KnockCount.Find(T);
@@ -1175,9 +1185,6 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// **da** `MakeCurrentSnapshot` — e questo ramo era l'unico produttore nell'altro spazio.
 				// ⛔ Nessun test lo vedeva: gli scenari hanno tutte le unita' vive, e con zero morti i due
 				// spazi coincidono. Trovato da una code review, non dalla suite.
-				TArray<ARTUnit*> AliveUnits;
-				MakeCurrentSnapshot(AliveUnits);
-				BraceOpportunity.Key.OwnerId = AliveUnits.IndexOfByKey(T);
 				BraceOpportunity.Key.ReactionDefId = FName(TEXT("Action.Brace"));
 
 				// Le ESEGUIBILI, non le dichiarate: `Profile.Grounding` e `Profile.Glance` sono contenuto
@@ -1186,6 +1193,19 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// fare niente. La distanza fra i due elenchi e' misurata da un test, non lasciata implicita.
 				BraceOpportunity.AllowedResponses =
 					URTCatalogLibrary::BraceExecutableResponses(T->ReactionProfileId);
+
+				// L'`OwnerId` si calcola **solo se una finestra si apre**: sotto la soglia di ADR-0004 §2
+				// `AskReactionDecision` risponde `HoldImmediate` senza leggerlo, e costruire lo snapshot per
+				// quel caso e' lavoro speso per un valore che nessuno guarda. Le due domande sono in
+				// quest'ordine perche' la seconda dipende dalla prima.
+				if (URTReactionOpportunityLibrary::RequiresDecisionBoundary(BraceOpportunity))
+				{
+					if (BlastAliveUnits.Num() == 0)
+					{
+						MakeCurrentSnapshot(BlastAliveUnits);
+					}
+					BraceOpportunity.Key.OwnerId = BlastAliveUnits.IndexOfByKey(T);
+				}
 
 				const FRTReactionDecision BraceDecision = AskReactionDecision(
 					BraceOpportunity, BraceOpportunity.Key.OwnerId, T->bIsBotControlled);
