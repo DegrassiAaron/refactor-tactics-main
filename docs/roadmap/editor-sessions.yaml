@@ -1077,7 +1077,7 @@ sessions:
       tracking non li nominava — ne' qui, ne' come `binary_leases`. `grep -n "WBP_RT_" editor-sessions.yaml`
       dava **zero**, e nessuna lease copriva `Content/RT/UI/`. Un `.uasset` senza lease e' il caso che
       `D-139` esiste per impedire: due binari non si fondono.
-      **Cosa costruire e in che ordine** sta in [`../technical/guida-frontend-umg.md`](../technical/guida-frontend-umg.md),
+      **Cosa costruire e in che ordine** sta in [`../technical/runbooks/guida-frontend-umg.md`](../technical/runbooks/guida-frontend-umg.md),
       che e' l'owner del *come*; la spec del *cosa* e' `spec-frontend-navigazione.md`. Qui c'e' solo
       l'esistenza della seduta e il suo write-set.
       ⚠️ **`verifies: []` non e' una dimenticanza, ed e' il punto piu' scomodo di questa seduta**:
@@ -1181,10 +1181,10 @@ sessions:
 
       1. **Il volume**: prisma esagonale sul centro cella, vertici da `URTHexLibrary::HexCorners`, centro
          da `AxialToWorld` — mai angoli incisi a mano, per la ragione che
-         [`../technical/spec-hex-geometry-authoring.md`](../technical/spec-hex-geometry-authoring.md) §4
+         [`../technical/systems/spec-hex-geometry-authoring.md`](../technical/systems/spec-hex-geometry-authoring.md) §4
          scrive gia' per la geometria.
       2. **Il footprint sicuro** e' l'**outer footprint meno un inset**, non l'outer scalato:
-         [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md)
+         [`../technical/systems/spec-graybox-placement-contract.md`](../technical/systems/spec-graybox-placement-contract.md)
          §5 lo definisce e `GBX-1` ne fissa il valore. ⚠️ L'inset e' in frazioni di **`C`** mentre
          `HexCorners` vuole il **raggio**, e i due differiscono di `√3`: la conversione sta in §6.
       3. **Le guide verticali** sono quelle di §6 — cinque, con le loro frazioni. Si leggono di la', non si
@@ -1228,7 +1228,7 @@ sessions:
     notes: >-
       ➕ **Seduta aperta il 2026-08-17** dal consolidamento del kit `Graybox_Kit_Cover_CellVolume`
       ([D-152](../decisions/RT_PDR_00_Decision_Log.md)). Owner del modello:
-      [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md);
+      [`../technical/systems/spec-graybox-placement-contract.md`](../technical/systems/spec-graybox-placement-contract.md);
       qui c'e' solo l'esistenza della seduta.
       **Due cose, e stanno insieme perche' la seconda misura la prima**: il **Cell Placement Volume** —
       prisma esagonale `EditorOnly` con footprint sicuro e guide verticali — e una **scena di
