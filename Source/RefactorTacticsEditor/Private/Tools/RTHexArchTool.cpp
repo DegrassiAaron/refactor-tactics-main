@@ -116,13 +116,17 @@ namespace
 	// `-Wswitch` avvisa su Clang, ma C4062 e' spento per default e lo `switch` esaustivo qui sopra non
 	// protegge nulla. Da qui i due assert.
 	//
-	// ⚠️ **E ha un limite, che e' meglio scritto che scoperto**: copre un enumeratore inserito PRIMA di
-	// `Count` — il caso normale, visto che `Count` chiude l'elenco — e **non** uno appeso dopo, dove la
-	// relazione resta vera. Per quello non c'e' difesa a compile time senza reflection: `Count` deve
-	// restare l'ultimo, ed e' scritto nel commento della sentinella.
+	// ⚠️ **Si pinna il TOTALE, non la posizione dell'ultimo motivo**, e la differenza non e' di stile.
+	// Una relazione del tipo «l'ultimo motivo + 1 == Count» scatta solo per un inserimento **immediatamente
+	// prima** di `Count`: inserendo altrove — dopo `Shutdown`, per dire — tutti gli ordinali successivi
+	// scalano insieme e la relazione resta vera, quindi il motivo nuovo arriva a runtime senza `case` e il
+	// log degrada a `<motivo non mappato>`. Copriva una posizione su sei.
+	// Con il totale, qualunque inserimento fa fallire la compilazione.
+	// ⚠️ Resta scoperto un enumeratore appeso **dopo** `Count`: li' il totale non cambia, e senza reflection
+	// non c'e' difesa. `Count` deve restare l'ultimo — sta nel commento della sentinella.
 	// Se fallisce: aggiungi il `case`, POI aggiorna il numero. Mai il contrario.
-	static_assert(static_cast<uint8>(ERTArchPendingClose::SwitchedToRemove) + 1 == static_cast<uint8>(ERTArchPendingClose::Count),
-		"ERTArchPendingClose e' cambiato: aggiungi il case in ArchPendingCloseToString, POI aggiorna questo assert.");
+	static_assert(static_cast<uint8>(ERTArchPendingClose::Count) == 5,
+		"ERTArchPendingClose e' cambiato: aggiungi il case in ArchPendingCloseToString, POI aggiorna questo numero.");
 }
 
 /**
@@ -184,8 +188,6 @@ void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 	Proxy = nullptr;
 	bHasFrom = false;
 	bToValid = false;
-	// Lo stato torna coerente: il prossimo orfano e' un evento nuovo e va segnalato di nuovo.
-	bOrphanMarkerReported = false;
 	if (Properties) { Properties->bHasFrom = false; Properties->bToValid = false; }
 }
 
@@ -317,40 +319,23 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 	// Arco pendente (indipendente dall'asset).
 	if (bHasFrom)
 	{
-		// `#996` AC 2/3 — la firma positiva di «il gizmo e' sparito senza di noi».
+		// ⏳ **Qui va il rilevatore di «gizmo chiuso senza di noi» — `#996` AC 2/3, tracciato in `#1218`.**
+		// Non e' un buco da riempire alla prima occasione: la misura c'e', il disegno no.
 		//
-		// ⚠️ **Il test NON puo' essere `!Gizmo`**, ed e' la parte che si sbaglia: `Gizmo` e' una `UPROPERTY`
-		// **forte**, quindi tiene l'oggetto raggiungibile e non si azzera mai da solo —
-		// `UInteractiveGizmoManager::DestroyGizmo` rilascia il proprio riferimento e non marca garbage.
-		// Cio' che cambia e' **dentro** il gizmo: `UCombinedTransformGizmo::Shutdown()` fa
-		// `GizmoActor->Destroy(); GizmoActor = nullptr;`, e `IsVisible()` e' `IsValid(GizmoActor) && ...`.
-		// ∴ un gizmo chiuso alle nostre spalle resta puntato ma smette di essere visibile, ed e' quello che
-		// si osserva. (UE 5.8.1, `CombinedTransformGizmo.{h,cpp}`.)
+		// **Cosa si osserva.** Non `!Gizmo`: e' una `UPROPERTY` forte, tiene l'oggetto raggiungibile e non si
+		// azzera — `UInteractiveGizmoManager::DestroyGizmo` rilascia il proprio riferimento e non marca
+		// garbage. Cambia cio' che sta **dentro**: `UCombinedTransformGizmo::Shutdown()` fa
+		// `GizmoActor->Destroy(); GizmoActor = nullptr;` (UE 5.8.1). Quindi il segnale e' il `GizmoActor`,
+		// leggibile da `GetGizmoActor()` — e **non** da `IsVisible()`, che vale
+		// `IsValid(GizmoActor) && !IsHidden()` e confonde «distrutto» con «nascosto da `SetVisibility`».
 		//
-		// Una volta sola, e il flag si legge PRIMA: `Render` gira a ogni frame, e senza il corto circuito
-		// si pagherebbe una chiamata virtuale per frame anche dopo aver gia' segnalato.
-		if (!bOrphanMarkerReported && (!Gizmo || !Gizmo->IsVisible()))
-		{
-			bOrphanMarkerReported = true;
-
-			// ⚠️ **La riga non nomina una causa che non puo' conoscere.** `!Gizmo` copre anche «mai creato»
-			// — `OnClicked` alza `bHasFrom` prima di `CreateCustomTransformGizmo`, il cui esito non e'
-			// controllato — mentre `!IsVisible()` e' la chiusura da fuori. Dire «chiuso da fuori» in
-			// entrambi i casi sarebbe la sovraffermazione che l'AC 7 toglie una funzione piu' su.
-			UE_LOG(LogTemp, Warning,
-				TEXT("[HexMode] Arco: marker pendente su From %s senza gizmo utilizzabile (%s). ")
-				TEXT("`DestroyPendingGizmo` non e' stata chiamata."),
-				*From.ToString(),
-				Gizmo ? TEXT("chiuso da fuori") : TEXT("mai creato, o gia' rilasciato"));
-		}
-
-		// ⚠️ **LIMITE DICHIARATO: qui si osserva, non si ripara.** Da questo punto in poi il pendente resta
-		// disegnato e `Properties->bHasFrom` resta `true`, quindi a schermo sembra ancora editabile mentre
-		// non c'e' piu' un gizmo da trascinare — e `CommitArch()` scriverebbe una transizione da un `To`
-		// fermo all'ultimo `OnGizmoMoved`.
-		// Non e' una dimenticanza: recuperare lo stato e' una **decisione di comportamento** (il pendente si
-		// annulla da solo? si ricrea il gizmo? chi vince fra il gesto dell'autore e il recupero), e va presa
-		// con il caso d'uso in mano invece che qui dentro. Tracciata in `#1218`.
+		// **Cosa resta da decidere, e perche' non si e' deciso qui.**
+		//  · dove agganciarsi: `Render` gira a ogni frame e non e' un canale di stato, mentre
+		//    `OnAboutToClearActiveTarget` e `OnVisibilityChanged` sono eventi esatti e senza latch;
+		//  · se limitarsi a osservare o **riparare**: oggi il pendente resterebbe disegnato, con
+		//    `Properties->bHasFrom` a `true` e `CommitArch()` capace di scrivere da un `To` stale.
+		// Sono scelte di comportamento — chi vince fra il gesto dell'autore e il recupero — e vanno prese
+		// col caso d'uso in mano, non dentro una funzione di disegno.
 
 		RTHexEditor::DrawHexMarker(PDI, FromWorld, MarkerRadius, FColor::Green);
 		if (bToValid)

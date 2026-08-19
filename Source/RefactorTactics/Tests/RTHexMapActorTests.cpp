@@ -739,21 +739,23 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	// qui creerebbe due fatti apparentemente indipendenti che in realta' sono lo stesso.
 	TestEqual(TEXT("l'ISM ha una istanza per cella"), MapActorIsmCount(Actor, TEXT("Cells")), CelleIniziali);
 
-	// I tre ISM che l'asset di default lasciava vuoti. I conteggi si leggono qui una volta sola e si
-	// riusano dopo le ricostruzioni: il test non incide i valori, verifica che NON cambino.
-	const int32 ReliefIniziali = MapActorIsmCount(Actor, TEXT("Relief"));
-	const int32 BlockersIniziali = MapActorIsmCount(Actor, TEXT("Blockers"));
-	const int32 BordiIniziali = MapActorIsmCount(Actor, TEXT("EdgeFeatures"));
+	// ⚠️ **Costanti dichiarate dalla fixture, non misure lette dall'actor**, ed e' la differenza fra un test
+	// e una tautologia. La fixture mette **una** cella costosa, **una** che blocca il movimento e **un**
+	// solo bordo con copertura: i conteggi corretti sono 1/1/1 e si sanno senza guardare l'actor.
+	// 🔴 Leggerli dall'actor e poi confrontarci le misure successive li renderebbe veri per costruzione: se
+	// `RebuildInstances` emettesse un rilievo per OGNI cella, la baseline varrebbe 7, cadrebbe **solo**
+	// l'asserzione che la confronta con 1, e ogni verifica seguente tornerebbe 7 vs 7. Per questo il numero
+	// atteso compare in **tutte** le asserzioni, e nessuna dipende dall'esito di un'altra.
+	constexpr int32 RilieviAttesi = 1;
+	constexpr int32 BlocchiAttesi = 1;
+	constexpr int32 BordiAttesi = 1;
 
-	// ⚠️ **I numeri sono ATTESI dalla fixture, non letti dall'actor**, ed e' la differenza fra un test e una
-	// tautologia. La fixture dichiara **una** cella costosa, **una** che blocca il movimento e **un** solo
-	// bordo con copertura: i conteggi corretti sono 1/1/1 e si sanno senza guardare l'actor. Asserire
-	// `> 0` e poi confrontare le misure post-ricostruzione contro quelle stesse baseline nasconderebbe una
-	// sovra-produzione: un rilievo per OGNI cella darebbe baseline 7, e tutti i confronti seguenti
-	// tornerebbero comunque.
-	TestEqual(TEXT("una sola cella costosa, un solo rilievo"), ReliefIniziali, 1);
-	TestEqual(TEXT("una sola cella che blocca, un solo volume"), BlockersIniziali, 1);
-	TestEqual(TEXT("un solo bordo dichiarato, un solo pannello"), BordiIniziali, 1);
+	TestEqual(TEXT("una sola cella costosa, un solo rilievo"),
+		MapActorIsmCount(Actor, TEXT("Relief")), RilieviAttesi);
+	TestEqual(TEXT("una sola cella che blocca, un solo volume"),
+		MapActorIsmCount(Actor, TEXT("Blockers")), BlocchiAttesi);
+	TestEqual(TEXT("un solo bordo dichiarato, un solo pannello"),
+		MapActorIsmCount(Actor, TEXT("EdgeFeatures")), BordiAttesi);
 
 	TArray<FRTCellId> PrimaDelle;
 	PrimaDelle.Reserve(CelleIniziali);
@@ -777,11 +779,11 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in Cells"),
 		MapActorIsmCount(Actor, TEXT("Cells")), CelleIniziali);
 	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in Relief"),
-		MapActorIsmCount(Actor, TEXT("Relief")), ReliefIniziali);
+		MapActorIsmCount(Actor, TEXT("Relief")), RilieviAttesi);
 	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in Blockers"),
-		MapActorIsmCount(Actor, TEXT("Blockers")), BlockersIniziali);
+		MapActorIsmCount(Actor, TEXT("Blockers")), BlocchiAttesi);
 	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in EdgeFeatures"),
-		MapActorIsmCount(Actor, TEXT("EdgeFeatures")), BordiIniziali);
+		MapActorIsmCount(Actor, TEXT("EdgeFeatures")), BordiAttesi);
 
 	// ⚠️ La guardia `> 0` non e' difensiva: senza, `CelleIniziali == 0` renderebbe il seme vero, il ciclo
 	// non girerebbe mai e l'asserzione passerebbe su un actor vuoto. Stesso schema, stesso file: i due
@@ -819,11 +821,11 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	// rilievo, ne' blocco, ne' bordi. Senza queste tre righe la ricostruzione dell'effetto sarebbe l'unica
 	// del test a essere misurata su un componente solo — la stessa cecita' uno-su-quattro, in piccolo.
 	TestEqual(TEXT("la cella nuova non aggiunge rilievi"),
-		MapActorIsmCount(Actor, TEXT("Relief")), ReliefIniziali);
+		MapActorIsmCount(Actor, TEXT("Relief")), RilieviAttesi);
 	TestEqual(TEXT("la cella nuova non aggiunge volumi di blocco"),
-		MapActorIsmCount(Actor, TEXT("Blockers")), BlockersIniziali);
+		MapActorIsmCount(Actor, TEXT("Blockers")), BlocchiAttesi);
 	TestEqual(TEXT("la cella nuova non aggiunge pannelli di bordo"),
-		MapActorIsmCount(Actor, TEXT("EdgeFeatures")), BordiIniziali);
+		MapActorIsmCount(Actor, TEXT("EdgeFeatures")), BordiAttesi);
 
 	// ⚠️ Il totale che cresce NON dice che sia arrivata `Nuova`: una ricostruzione che emettesse un
 	// duplicato di una cella gia' presente darebbe lo stesso `+1` e passerebbe. L'asserzione che conta e'

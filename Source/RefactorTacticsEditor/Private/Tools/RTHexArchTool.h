@@ -145,13 +145,6 @@ protected:
 	bool bHasFrom = false;
 	bool bToValid = false;
 
-	/**
-	 * Il marker pendente e' gia' stato segnalato come orfano — `#996` AC 2/3.
-	 *
-	 * Si riarma in `DestroyPendingGizmo`, cioe' quando lo stato torna coerente: `Render` gira a ogni frame,
-	 * e senza questo la riga uscirebbe sessanta volte al secondo.
-	 */
-	bool bOrphanMarkerReported = false;
 	bool bSnapping = false;
 	FVector FromWorld = FVector::ZeroVector;
 	FVector ToWorld = FVector::ZeroVector;
