@@ -355,8 +355,14 @@ features:
       # ➕ **2026-08-17 (D-155)**: non e' una dipendenza di comodo. `D-050` dichiara un bank **per
       # giocatore** e nel percorso della Decision Window non esiste nessun giocatore —
       # `AskReactionDecision` prende un `OwnerUnitId` e un `bIsBotControlled` letto da `ARTUnit`.
-      # Il soggetto del bank lo porta CP 19.3 su questa feature: senza, il bank finisce attaccato
-      # all'unita' e `D-050` e' violata dal primo commit che lo implementa.
+      # 🔴 **Corretto il 2026-08-19: CP 19.3 NON porta il soggetto, e nessun altro se ne e' preso
+      # carico.** Questa riga diceva «il soggetto del bank lo porta CP 19.3 su questa feature».
+      # Misurato: CP 19.3 (`#1124`) ha portato il **campo** — `UnitsPerPlayer`, PR `#1149` — e ha
+      # dichiarato il soggetto della Decision Window **fuori scope**, rimandandolo a `#319`; il corpo
+      # di `#319` lo dichiara a sua volta prerequisito e lo rimanda a `#1124`. Un conteggio non e'
+      # un'identita': la dipendenza verso `RT-FEAT-MATCH-FORMAT` resta, ma non basta piu' da sola.
+      # Senza il soggetto il bank finisce attaccato all'unita' e `D-050` e' violata dal primo commit
+      # che lo implementa. Rimpallo registrato alla riga **73** di `docs/DOC_CONFLICT_MATRIX.md`.
       - RT-FEAT-MATCH-FORMAT
     owner_specs:
       - docs/gameplay/spec-decision-time-bank.md
