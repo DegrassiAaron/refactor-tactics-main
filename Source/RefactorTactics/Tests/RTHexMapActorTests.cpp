@@ -293,6 +293,24 @@ namespace
 		}
 		return Out;
 	}
+
+	/**
+	 * Quante istanze ha un ISM, senza costruirne i transform.
+	 *
+	 * Esiste perche' chi vuole il solo conteggio pagava un `TArray<FTransform>` per leggerne `.Num()` e
+	 * buttava via proprio i transform — e il test dell'idempotenza lo faceva tre volte per componente.
+	 * Chi invece **asserisce** sulle posizioni continua a usare `InstancesOf`: le due domande sono diverse.
+	 */
+	int32 InstanceCountOf(const ARTHexMapActor* Actor, const TCHAR* ComponentName)
+	{
+		TArray<UInstancedStaticMeshComponent*> Isms;
+		Actor->GetComponents(Isms);
+		for (const UInstancedStaticMeshComponent* Ism : Isms)
+		{
+			if (Ism->GetName() == ComponentName) { return Ism->GetInstanceCount(); }
+		}
+		return INDEX_NONE; // componente assente: distinto da «presente e vuoto», che e' 0
+	}
 }
 
 /**
@@ -627,6 +645,16 @@ bool FRTHexMapActorReliefUnderSlabTest::RunTest(const FString&)
  * test restava verde. Misurato, non temuto — la verifica di mutazione ha dato **9 test su 9 verdi** con la
  * riga commentata. Per questo si legge anche `GetInstanceCount()` del componente `Cells`, che e' la cosa che
  * la mutazione rompe e che il nome del test promette.
+ *
+ * 🔴 **E la seconda stesura ha corretto quel difetto per UN componente su quattro** (`#1052`, code review
+ * della PR #1048 rientrata dopo il merge). Gli ISM sono `Cells`, `Relief`, `Blockers`, `EdgeFeatures`, e
+ * con l'asset di default gli ultimi tre non erano «non verificati»: erano **strutturalmente non
+ * osservabili**. `MakeActorTestAsset` produce celle di default, e da li' `MoveCost = 1` da'
+ * `ReliefHeightForCost(1) = 0`, nessun flag accende `Blockers`, nessun Cover accende `EdgeFeatures`.
+ * ∴ si potevano cancellare **tre** delle quattro `ClearInstances()` (`RTHexMapActor.cpp:495`, `:500`,
+ * `:505`) senza che una sola asserzione cadesse, mentre a schermo quei componenti accumulavano.
+ * Per questo l'asset qui sotto porta una cella costosa, una che blocca e una con un bordo: non e' un
+ * ampliamento di scope, e' cio' che rende misurabile l'invariante gia' dichiarata.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorRebuildIsIdempotentTest,
 	"RefactorTactics.HexMapActor.RebuildInstancesIsIdempotentForInstances",
@@ -637,7 +665,27 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	TestNotNull(TEXT("World creato"), World);
 	if (!World) { return false; }
 
+	// Sette celle, ma NON di default: tre portano il dato che accende gli altri tre ISM. Con l'asset di
+	// default `Relief`, `Blockers` ed `EdgeFeatures` restano a zero istanze, e le loro `ClearInstances()`
+	// diventano non osservabili — si possono cancellare tutte e tre senza che una sola asserzione cada.
 	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius*/ 1); // 7 celle
+	{
+		// `ReliefHeightForCost(1) = 0`: al costo del pavimento il rilievo non esiste. Serve un sovrapprezzo.
+		FRTHexCellData Costosa(FRTCellId(1, 0, 0));
+		Costosa.MoveCost = 2;
+		Asset->AddOrUpdateCell(Costosa);
+
+		FRTHexCellData Blocco(FRTCellId(0, 1, 0));
+		Blocco.bBlocksMovement = true;
+		Asset->AddOrUpdateCell(Blocco);
+
+		FRTHexCellData ConBordo(FRTCellId(-1, 0, 0));
+		ConBordo.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low));
+		Asset->AddOrUpdateCell(ConBordo);
+
+		Asset->SortCells();
+	}
+
 	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
 	if (!TestNotNull(TEXT("actor spawnato"), Actor))
 	{
@@ -653,7 +701,20 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	// Le DUE misure, e servono entrambe: l'array di mapping (sopra) e le istanze davvero nell'ISM (qui). La
 	// prima regge il raycast di selezione, la seconda e' cio' che si vede. Si scollano se la ricostruzione
 	// smette di ripulire il componente, ed e' proprio il caso che questo test esiste per prendere.
-	TestEqual(TEXT("l'ISM ha una istanza per cella"), InstancesOf(Actor, TEXT("Cells")).Num(), 7);
+	TestEqual(TEXT("l'ISM ha una istanza per cella"), InstanceCountOf(Actor, TEXT("Cells")), 7);
+
+	// I tre ISM che l'asset di default lasciava vuoti. I conteggi si leggono qui una volta sola e si
+	// riusano dopo le ricostruzioni: il test non incide i valori, verifica che NON cambino.
+	const int32 ReliefIniziali = InstanceCountOf(Actor, TEXT("Relief"));
+	const int32 BlockersIniziali = InstanceCountOf(Actor, TEXT("Blockers"));
+	const int32 BordiIniziali = InstanceCountOf(Actor, TEXT("EdgeFeatures"));
+
+	// ⚠️ Il vero contenuto di questo blocco e' `> 0`, non il numero esatto: se uno di questi fosse zero, la
+	// sua `ClearInstances()` tornerebbe cancellabile in silenzio — che e' il difetto che il test esisteva
+	// per prendere e non prendeva.
+	TestTrue(TEXT("il rilievo della cella costosa e' istanziato"), ReliefIniziali > 0);
+	TestTrue(TEXT("il volume della cella che blocca e' istanziato"), BlockersIniziali > 0);
+	TestTrue(TEXT("il pannello del bordo dichiarato e' istanziato"), BordiIniziali > 0);
 
 	TArray<FRTCellId> PrimaDelle;
 	PrimaDelle.Reserve(CelleIniziali);
@@ -670,12 +731,23 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	TestEqual(TEXT("tre ricostruzioni non cambiano il numero di celle mappate"),
 		Actor->NumInstanceCells(), CelleIniziali);
 
-	// LA riga che la mutazione «via `Cells->ClearInstances()`» fa cadere: senza pulizia l'ISM accumula e qui
-	// si leggerebbe 28 invece di 7, mentre ogni altra misura di questo file resterebbe verde.
-	TestEqual(TEXT("tre ricostruzioni non accumulano istanze nell'ISM"),
-		InstancesOf(Actor, TEXT("Cells")).Num(), CelleIniziali);
+	// LE righe che le mutazioni «via `<Componente>->ClearInstances()`» fanno cadere: senza pulizia l'ISM
+	// accumula e qui si leggerebbe il quadruplo, mentre ogni altra misura di questo file resterebbe verde.
+	// Una per componente, perche' le quattro `ClearInstances()` sono quattro righe distinte e togliendone
+	// una sola le altre tre non se ne accorgono.
+	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in Cells"),
+		InstanceCountOf(Actor, TEXT("Cells")), CelleIniziali);
+	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in Relief"),
+		InstanceCountOf(Actor, TEXT("Relief")), ReliefIniziali);
+	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in Blockers"),
+		InstanceCountOf(Actor, TEXT("Blockers")), BlockersIniziali);
+	TestEqual(TEXT("tre ricostruzioni non accumulano istanze in EdgeFeatures"),
+		InstanceCountOf(Actor, TEXT("EdgeFeatures")), BordiIniziali);
 
-	bool bMappaturaStabile = (Actor->NumInstanceCells() == CelleIniziali);
+	// ⚠️ La guardia `> 0` non e' difensiva: senza, `CelleIniziali == 0` renderebbe il seme vero, il ciclo
+	// non girerebbe mai e l'asserzione passerebbe su un actor vuoto. Stesso schema, stesso file, righe 125
+	// e 141.
+	bool bMappaturaStabile = (CelleIniziali > 0) && (Actor->NumInstanceCells() == CelleIniziali);
 	for (int32 I = 0; bMappaturaStabile && I < CelleIniziali; ++I)
 	{
 		bMappaturaStabile = (Actor->CellForInstance(I) == PrimaDelle[I]);
@@ -689,14 +761,28 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	Asset->AddOrUpdateCell(FRTHexCellData(Nuova));
 	Asset->SortCells();
 
-	TestEqual(TEXT("finche' non si ricostruisce, l'actor non vede la cella nuova"),
-		Actor->NumInstanceCells(), CelleIniziali);
+	// ⚠️ Che l'actor non veda ancora la cella e' un PASSO, non un'invariante: passa solo perche' oggi
+	// `AddOrUpdateCell` incrementa `Revision` senza fare broadcast di `OnMapChanged`. Renderlo un
+	// notificatore — che e' il fix naturale per la meta' «osservatori» di #996 — farebbe rosso questo test
+	// per un motivo che non ha nulla a che vedere con l'idempotenza delle istanze. Resta come commento
+	// perche' spiega perche' la chiamata qui sotto e' l'unica causa possibile dell'effetto misurato.
 
 	Actor->RebuildInstances();
 	TestEqual(TEXT("dopo la ricostruzione la cella nuova e' mappata"),
 		Actor->NumInstanceCells(), CelleIniziali + 1);
 	TestEqual(TEXT("dopo la ricostruzione la cella nuova ha la sua istanza nell'ISM"),
-		InstancesOf(Actor, TEXT("Cells")).Num(), CelleIniziali + 1);
+		InstanceCountOf(Actor, TEXT("Cells")), CelleIniziali + 1);
+
+	// ⚠️ Il totale che cresce NON dice che sia arrivata `Nuova`: una ricostruzione che emettesse un
+	// duplicato di una cella gia' presente darebbe lo stesso `+1` e passerebbe. L'asserzione che conta e'
+	// l'appartenenza, ed e' quella che il test dichiarava in apertura senza mai verificarla.
+	bool bNuovaMappata = false;
+	for (int32 I = 0; !bNuovaMappata && I < Actor->NumInstanceCells(); ++I)
+	{
+		bNuovaMappata = (Actor->CellForInstance(I) == Nuova);
+	}
+	TestTrue(TEXT("la cella nuova e' fra quelle mappate, non solo un'unita' in piu' nel totale"),
+		bNuovaMappata);
 
 	DestroyMapActorWorld(World);
 	return true;

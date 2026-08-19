@@ -25,8 +25,15 @@ enum class ERTHexArchOp : uint8
  * successo e non *perche'*, che e' esattamente l'ambiguita' che la issue esiste per sciogliere.
  *
  * ⚠️ **Non c'e' un valore di default, ed e' deliberato**: il parametro senza default costringe una sesta
- * chiamante — se un giorno nascera' — a dichiarare la propria ragione invece di scivolare dentro un
- * `Unknown` che nessuno noterebbe leggendo il log.
+ * chiamante — se un giorno nascera' — a passare **un** valore invece di scivolare dentro un `Unknown` che
+ * nessuno noterebbe leggendo il log.
+ *
+ * 🔴 **E si ferma li': la prima stesura di questo commento prometteva di piu' del vero** (`#1052`). Diceva
+ * che il parametro «costringe a dichiarare la **propria** ragione». Il compilatore non lo fa e non puo':
+ * `DestroyPendingGizmo(ERTArchPendingClose::Shutdown)` da un sito nuovo compila, e fa dire al log una cosa
+ * **falsa** — peggio di un `Unknown`, perche' indistinguibile da uno Shutdown vero. Cio' che il compilatore
+ * garantisce e' solo che un valore ci sia. Il resto e' disciplina di chi aggiunge la chiamante, e va scritto
+ * come tale invece di essere attribuito a una garanzia che non esiste.
  */
 enum class ERTArchPendingClose : uint8
 {
@@ -39,7 +46,17 @@ enum class ERTArchPendingClose : uint8
 	/** `ClearPending`: il bottone `ClearArch` del pannello. */
 	ClearedByUser,
 	/** `RemoveNearestArch`: si esce da un Add pendente perche' l'operazione e' passata a Remove. */
-	SwitchedToRemove
+	SwitchedToRemove,
+
+	/**
+	 * Sentinella di conteggio — **non e' un motivo** e non va passata a `DestroyPendingGizmo`.
+	 *
+	 * Esiste perche' un sesto enumeratore aggiunto senza toccare `ArchPendingCloseToString` degraderebbe
+	 * **in silenzio** al fallback: lo `switch` non ha `default:` e MSVC C4062 e' spento per default. Con
+	 * questa voce lo `static_assert` accanto alla funzione fallisce alla compilazione, che e' il momento
+	 * giusto per accorgersene.
+	 */
+	Count
 };
 
 /** Factory del tool archi. */
@@ -133,6 +150,21 @@ protected:
 	FRTCellId To;
 	bool bHasFrom = false;
 	bool bToValid = false;
+
+	/**
+	 * Il marker verde e' gia' stato segnalato come orfano — `#1052`, punto 3.
+	 *
+	 * `Gizmo` e' una `UPROPERTY TObjectPtr`: se il gizmo manager lo distrugge alle spalle del tool, la GC
+	 * azzera il puntatore mentre `bHasFrom` **resta vero**. `Render` continua a disegnare il marker su una
+	 * scena senza gizmo, e nessuno lo segnala. La coppia `bHasFrom && !Gizmo` e' la **firma positiva** di
+	 * «il gizmo e' sparito senza di noi», ed e' cio' che trasforma gli AC 2/3 di `#996` da *«non abbiamo
+	 * visto righe, quindi probabilmente…»* a un'osservazione registrata — **senza aprire l'editor**.
+	 *
+	 * ⚠️ Serve perche' `Render` gira a ogni frame: senza, la riga uscirebbe sessanta volte al secondo e
+	 * sarebbe rumore invece di evidenza. Si riarma in `DestroyPendingGizmo`, cioe' quando lo stato torna
+	 * coerente.
+	 */
+	bool bOrphanMarkerReported = false;
 	bool bSnapping = false;
 	FVector FromWorld = FVector::ZeroVector;
 	FVector ToWorld = FVector::ZeroVector;

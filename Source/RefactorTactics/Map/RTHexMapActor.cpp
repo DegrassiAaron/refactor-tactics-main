@@ -167,8 +167,25 @@ void ARTHexMapActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 
 	// Cambiare MapAsset, ActiveLayer, LayerView, DemoRadius, HexSize/LayerHeight o CellMesh cambia cosa si deve
 	// vedere: si ricostruisce sempre (l'actor ha poche proprieta' e la ricostruzione e' idempotente).
+	//
+	// ⚠️ **Il gesto passa per DUE funzioni, e il log deve distinguerle** (`#996` passo 1, completato da
+	// `#1052`). Il log di `#996` stava solo in `URTHexArchTool::DestroyPendingGizmo`: eseguendo l'esperimento
+	// degli AC 2/3 — modificare la Transform dell'actor con un arco pendente — se il gizmo spariva senza
+	// righe, l'osservatore imparava «non e' stato il tool» e non poteva ancora dire **quale** delle due
+	// chiamate qui sotto lo avesse fatto. Con due righe distinte la misura smette di essere
+	// un'argomentazione con un'ipotesi in meno.
+	const URTHexMapAsset* AssetPrimaDelBind = BoundAsset.Get();
 	BindToMapAsset(); // se e' cambiato l'asset, si seguono le notifiche di quello nuovo
+	const bool bRiagganciato = (BoundAsset.Get() != AssetPrimaDelBind);
+
+	UE_LOG(LogTemp, Log, TEXT("[HexMode] Actor: PostEditChangeProperty su '%s' — BindToMapAsset %s."),
+		*PropertyChangedEvent.GetPropertyName().ToString(),
+		bRiagganciato ? TEXT("ha RIAGGANCIATO l'asset") : TEXT("non ha cambiato l'iscrizione"));
+
 	RebuildInstances();
+
+	UE_LOG(LogTemp, Log, TEXT("[HexMode] Actor: RebuildInstances completata (%d celle mappate)."),
+		NumInstanceCells());
 }
 
 void ARTHexMapActor::BindToMapAsset()

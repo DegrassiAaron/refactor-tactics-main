@@ -110,6 +110,12 @@ namespace
 		}
 		return TEXT("<motivo non mappato>");
 	}
+
+	// Il fallback qui sopra e' l'ultima difesa, non la prima: senza questo assert un sesto enumeratore
+	// scivolerebbe dentro `<motivo non mappato>` a runtime, e il log direbbe di non sapere invece di
+	// dirlo a chi scrive il codice. `Count` non e' un motivo: e' il modo di contare gli altri.
+	static_assert(static_cast<uint8>(ERTArchPendingClose::Count) == 5,
+		"ERTArchPendingClose e' cambiato: aggiorna ArchPendingCloseToString prima di toccare questo numero.");
 }
 
 /**
@@ -123,13 +129,33 @@ namespace
  *
  * Per questo si stampano anche `bHasFrom` e la presenza del gizmo PRIMA di azzerarli: distinguono una
  * chiusura vera da una chiamata a vuoto, che le cinque chiamanti fanno regolarmente.
+ *
+ * 🔴 **E fino a `#1052` le due cose finivano nella stessa riga, che affermava una transizione mai avvenuta.**
+ * `RemoveNearestArch` e' chiamata a **ogni** click mentre `Operation == Remove`, quindi il secondo click e i
+ * successivi stampavano *«passaggio a Remove»* senza che nessun passaggio fosse avvenuto; simmetricamente il
+ * **primo** click in Add stampava *«re-click su una nuova cella From»* con `bHasFrom=0` e nessun gizmo. In un
+ * log il cui unico compito e' disambiguare, e' la stessa sovraffermazione che il commento dell'enum esiste
+ * per prevenire — e che quel commento a sua volta commetteva.
+ * ∴ la chiamata a vuoto ha ora una riga **propria**, e a `Verbose`: l'evidenza che la chiamata c'e' stata
+ * resta, ma non si traveste da chiusura.
  */
 void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 {
-	UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco: chiusura del pendente — %s (bHasFrom=%d, gizmo %s)."),
-		ArchPendingCloseToString(Reason),
-		bHasFrom ? 1 : 0,
-		Gizmo ? TEXT("presente") : TEXT("assente"));
+	// Letto PRIMA di azzerare: dopo, ogni chiamata sembrerebbe a vuoto.
+	const bool bCeraQualcosaDaChiudere = bHasFrom || (Gizmo != nullptr);
+
+	if (bCeraQualcosaDaChiudere)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco: chiusura del pendente — %s (bHasFrom=%d, gizmo %s)."),
+			ArchPendingCloseToString(Reason),
+			bHasFrom ? 1 : 0,
+			Gizmo ? TEXT("presente") : TEXT("assente"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("[HexMode] Arco: nessun pendente da chiudere (chiamata con motivo %s)."),
+			ArchPendingCloseToString(Reason));
+	}
 
 	if (GetToolManager() && GetToolManager()->GetPairedGizmoManager())
 	{
@@ -139,6 +165,8 @@ void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 	Proxy = nullptr;
 	bHasFrom = false;
 	bToValid = false;
+	// Lo stato torna coerente: il prossimo orfano e' un evento nuovo e va segnalato di nuovo.
+	bOrphanMarkerReported = false;
 	if (Properties) { Properties->bHasFrom = false; Properties->bToValid = false; }
 }
 
@@ -270,6 +298,20 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 	// Arco pendente (indipendente dall'asset).
 	if (bHasFrom)
 	{
+		// `#1052`, punto 3 — lo stato che proverebbe la tesi di `#996` non era mai osservato. Se il gizmo
+		// manager ha distrutto il gizmo alle nostre spalle, la GC azzera `Gizmo` mentre `bHasFrom` resta
+		// vero: da qui in poi si disegna un marker verde su una scena che non ha piu' il gizmo, e nessuno
+		// lo dice. ⚠️ Una volta sola: `Render` gira a ogni frame, e sessanta righe al secondo sarebbero
+		// rumore invece di evidenza.
+		if (!Gizmo && !bOrphanMarkerReported)
+		{
+			bOrphanMarkerReported = true;
+			UE_LOG(LogTemp, Warning,
+				TEXT("[HexMode] Arco: marker pendente senza gizmo (From %s). `DestroyPendingGizmo` NON e' "
+					 "stata chiamata: il gizmo e' sparito senza il tool."),
+				*From.ToString());
+		}
+
 		RTHexEditor::DrawHexMarker(PDI, FromWorld, MarkerRadius, FColor::Green);
 		if (bToValid)
 		{
