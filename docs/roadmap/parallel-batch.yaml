@@ -6097,7 +6097,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: docs/1165-fase6-archive-e-navigazione
+    branch: null
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6328,6 +6328,16 @@ tracks:
       dice `79` e il comando in fondo `# 75`. Lo split e' derivabile dai banner sul disco, quindi si
       deriva — `docs_inventory.py --emit-plans`.
       ⚠️ `docs/roadmap/plans/README.md` e' `integration_only`: toccato una volta, non preso nel `writable`.
+
+      ✅ **Fase 6 CHIUSA**: PR **#1225** in `main`. Con essa **#1165 ha finito le sei fasi previste**.
+      Il bilancio, misurato: `docs/` da **888 a 863** file e da **201,7 a 165,3 MB**; `docs/src/` da 450
+      file a **zero**; duplicati esatti da 4 dichiarati a **0**; orfane fuori area **0**.
+      ⛔ **Restano due mezzi, e non per stanchezza**: `runbooks/` e le cartelle `qa/` prendono gli
+      **stessi** sette documenti, nel `writable` di `playtest` (ACTIVE), `content_editor` e
+      `frontend_shell`. Un `git mv` di dodici righe quando quelle track rilasciano — e la track resta
+      `ACTIVE` proprio per quello.
+      📌 Fuori perimetro e ancora aperte: **#1198** (il `--check` del generatore icone e' morto per un
+      simbolo rinominato) e **#1166** (nomi legacy nei pixel di 30 immagini piu' `Mock-HUD.png`).
     writable:
       - docs/README.md
       - docs/roadmap/plans/
