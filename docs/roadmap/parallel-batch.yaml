@@ -6046,7 +6046,7 @@ tracks:
   docs_ia_v2:
     status: ACTIVE
     issue: 1165
-    branch: null
+    branch: docs/1165-systems-map-consolidamento
     worktree: "D:/Repositories/refactor-tactics-main"
     note: >-
       ➕ **Aperta il 2026-08-18 per la riorganizzazione della information architecture di `docs/`**
@@ -6199,6 +6199,14 @@ tracks:
       composite **e'** i due pannelli affiancati. Non sono duplicati esatti. Tre opzioni misurate:
       solo composite (−14,7 MB), solo pannelli (−16,5 MB), oppure archiviare tutto — il contenuto
       descrive un'architettura **con GAS**, che il canone esclude dalla v0.1.
+
+      ✅ **`systems-map` deciso e chiuso il 2026-08-19**, e la misura ha reso la scelta facile invece
+      che opinabile. La fase 3 aveva lasciato aperto *«tenere i composite, tenere i pannelli o
+      archiviare»* perche' non erano duplicati **esatti**. Ritagliando il composite e confrontando con
+      `ImageChops.difference`: **14 pannelli su 14 pixel-identici** alla meta' corrispondente,
+      differenza `0`. Non era una ridondanza da valutare, era una consolidazione **senza perdita**.
+      Restano i composite: 24 file -> 10, 32,8 MB -> 19,7. E restano in `research/`, non in
+      `archive/`: nessuno le ha consumate, e archiviarle direbbe il falso su cosa e' successo.
     writable:
       - docs/README.md
       - docs/control-center/graph.test.mjs
