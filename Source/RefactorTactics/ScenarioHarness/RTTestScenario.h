@@ -111,10 +111,15 @@ enum class ERTAssertionKind : uint8
 	 * CHI era il bersaglio prima che un colpo venisse redirezionato (`#1060`): `unit` e' il bersaglio
 	 * **originale** atteso.
 	 *
-	 * Cerca la prima voce `Reaction`/`Activated` che porta un `OriginalTargetUnitId` valorizzato — il campo che
-	 * il formato **v9** ha aggiunto — e confronta l'unita' che nomina. Un redirect ASSENTE fallisce dicendo che
-	 * e' assente, come `LogEventAmount` con l'evento mancante: «nessuno si e' interposto» e «si e' interposto
-	 * per l'unita' sbagliata» sono due difetti diversi, e confonderli renderebbe il messaggio inutile.
+	 * Cerca la prima voce che porta un `OriginalTargetUnitId` valorizzato — il campo che il formato **v9** ha
+	 * aggiunto — e confronta l'unita' che nomina. Un redirect ASSENTE fallisce dicendo che e' assente, come
+	 * `LogEventAmount` con l'evento mancante: «nessuno si e' interposto» e «si e' interposto per l'unita'
+	 * sbagliata» sono due difetti diversi, e confonderli renderebbe il messaggio inutile.
+	 *
+	 * ⚠️ **Non filtra per `Reaction`/`Activated`**, ed e' deliberato: il campo valorizzato E' il marcatore —
+	 * nessun'altra voce lo scrive — mentre filtrare per categoria legherebbe l'assertion all'unico produttore
+	 * di oggi. Questa riga diceva il contrario e contraddiceva l'implementazione: corretta dopo una code
+	 * review, perche' due descrizioni della stessa ricerca sono peggio di una descrizione assente.
 	 *
 	 * ⚠️ **Non si risolve la `SrcCell`**, benche' la cella del protetto sia scritta li': e' l'inferenza che
 	 * [D-063] dichiara non valida, e a fine scenario quella cella puo' avere un altro occupante.

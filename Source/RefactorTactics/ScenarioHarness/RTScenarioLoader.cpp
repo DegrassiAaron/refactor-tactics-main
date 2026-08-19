@@ -957,7 +957,10 @@ namespace
 				{
 					// Meglio rifiutare che ignorare: una assertion scritta male che venisse saltata in silenzio
 					// farebbe passare un test che non verifica nulla.
-					OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing, LogEventCount, LogEventOrder, LogEventAmount)"), *Type);
+					// ⚠️ L'elenco va tenuto allineato all'enum: chi scrive `OriginalTargetEqual` (senza la `s`)
+					// legge questa riga per capire cosa esiste, e un elenco stantio gli fa concludere che il
+					// vocabolario non c'e'. La v9 l'aveva dimenticato — trovato da una code review.
+					OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing, LogEventCount, LogEventOrder, LogEventAmount, OriginalTargetEquals, EffectiveTargetEquals)"), *Type);
 					return false;
 				}
 				OutScenario.Expect.Add(Exp);

@@ -1581,20 +1581,23 @@ void FRTScenarioSession::Finish()
 			}
 
 			const int32 ActualId = bWantOriginal ? Redirect->OriginalTargetUnitId : Redirect->UnitId;
-			A.Actual = FString::FromInt(ActualId);
 			A.bPassed = (ActualId == Want->StableUnitId);
-			if (!A.bPassed)
+
+			// Il numero da solo non dice a chi appartiene: chi legge il referto avrebbe uno `StableUnitId` e
+			// nessun modo di risalire all'unita' senza rileggere lo scenario.
+			// ⚠️ **Fuori dal ramo del fallimento, e non e' cosmesi**: `Expected` porta un id di scenario
+			// (`"V1"`), quindi lasciando il numero grezzo su `Actual` un'assertion PASSATA si leggerebbe
+			// «Expected V1 / Actual 3» — due domini diversi ai due lati dello stesso confronto. Ogni altro
+			// `Kind` tiene i due lati omogenei (cella contro cella, direzione contro direzione). Trovato da una
+			// code review, che l'ha visto sul percorso verde: quello che nessuno rilegge.
+			A.Actual = FString::FromInt(ActualId);
+			for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
 			{
-				// Il numero da solo non dice a chi appartiene: chi legge il referto avrebbe uno `StableUnitId`
-				// e nessun modo di risalire all'unita' senza rileggere lo scenario.
-				for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+				const ARTUnit* Other = Pair.Value.Get();
+				if (Other && Other->StableUnitId == ActualId)
 				{
-					const ARTUnit* Other = Pair.Value.Get();
-					if (Other && Other->StableUnitId == ActualId)
-					{
-						A.Actual = FString::Printf(TEXT("%s (id %d)"), *Pair.Key, ActualId);
-						break;
-					}
+					A.Actual = FString::Printf(TEXT("%s (id %d)"), *Pair.Key, ActualId);
+					break;
 				}
 			}
 			break;

@@ -6065,6 +6065,10 @@ tracks:
       - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp
       - Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp
       - Source/RefactorTactics/Tests/RTScenarioRunnerTests.cpp
+      # ➕ Aggiunto dopo la code review: nessun test copriva la serializzazione del campo nuovo, mentre ogni
+      # versione precedente ha la coppia round-trip + `LegacyVersionWithout…IsReadable`. Un errore nell'ordine
+      # dei campi fra `Serialize` e `Deserialize` sarebbe stato **silenzioso**.
+      - Source/RefactorTactics/Tests/RTTurnLogSerializationTests.cpp
       - docs/technical/spec-turnlog.md
     note: >-
       Il **vocabolario** che rende verificabile l'interposizione: `OriginalTargetEquals` ed
@@ -6077,7 +6081,14 @@ tracks:
       ⛔ **Fuori scope per write-set, non per scelta**: il contenuto del T6 vive in
       `Scenarios/RT_Showcase_Relay_v01.json` (`integration_only`) e non sarebbe comunque eseguibile finché
       `#833` lascia vuoto il T5 — i turni dello showcase sono ordinati per dipendenza di stato.
-    derives_from: []
+      🔴 **`derives_from` era `[]` e non poteva esserlo**, corretto dopo la code review: questa track scrive
+      `ScenarioHarness/RTScenarioSession.cpp`, che è **sorgente dichiarata** di due viste generate — questo
+      stesso file lo ripete in tre punti. Vale la regola che il repository applica ovunque, *una vista segue
+      la sorgente*: chi possiede la sorgente eredita i `--check` delle viste, e dichiararli è ciò che impedisce
+      di lasciarle stantie senza che nessun gate lo veda.
+    derives_from:
+      - docs/roadmap/project-graph.json
+      - docs/roadmap/scenariomap.shortlist.md
     binary_leases: []
 
 # --- Aggiornati una volta in integrazione ------------------------------------------------------

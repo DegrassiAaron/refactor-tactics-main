@@ -41,7 +41,16 @@ bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntr
 	// il resto e si distinguono solo qui.
 	if (A.OpportunityId != B.OpportunityId) { return A.OpportunityId < B.OpportunityId; }
 	if (A.ReactionInstanceId != B.ReactionInstanceId) { return A.ReactionInstanceId < B.ReactionInstanceId; }
-	return A.SelectedTargetUnitId < B.SelectedTargetUnitId;
+	if (A.SelectedTargetUnitId != B.SelectedTargetUnitId) { return A.SelectedTargetUnitId < B.SelectedTargetUnitId; }
+
+	// 🔴 **Il campo della v9 spareggia come tutti gli altri**, e la prima stesura lo aveva dimenticato — cioe'
+	// aveva rifatto il difetto che il commento in cima a questa funzione descrive per `UnitId` in v6. Oggi il
+	// caso non e' raggiungibile (con un solo produttore, `SrcCell` — la cella del protetto — rompe sempre la
+	// parita' prima di arrivare qui), ma l'assertion nuova dichiara di valere per «qualunque redirect che un
+	// giorno venisse aggiunto»: il primo che ne emettesse due pareggianti farebbe dipendere i **byte** del
+	// file, e il suo checksum, dall'ordine d'inserimento. `TArray::Sort` non e' stabile, e `D-SR-1` cadrebbe.
+	// Trovato da una code review; `TurnLog.CanonicalOrderCoversSerializedFields` esiste per questo.
+	return A.OriginalTargetUnitId < B.OriginalTargetUnitId;
 }
 
 void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
@@ -646,8 +655,13 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// + 2 byte di lunghezza per ogni stringa presente nel formato: ActionId da v3, BaseActionId da v5.
 	// + 12 byte fissi per UnitId, TurnNumber e GraphRevision da v6, + 4 per Priority da v7.
 	// + 2 di lunghezza per `OpportunityId` e 8 per i due interi della decisione, da v8.
+	// + 4 per `OriginalTargetUnitId` da v9. ⚠️ Va aggiornato a OGNI versione che allunga la voce, o il guard
+	// sottostima e lascia passare un `Count` piu' grande di quanto il buffer regga — che e' esattamente cio'
+	// che questo calcolo esiste per impedire. La prima stesura della v9 l'aveva dimenticato: 61 byte dichiarati
+	// contro 65 reali, il 6% di margine in meno su un controllo fail-closed. Trovato da una code review.
 	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0)
-		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0) + (bHasReactionDecision ? 10 : 0);
+		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0) + (bHasReactionDecision ? 10 : 0)
+		+ (bHasRedirectOrigin ? 4 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{
