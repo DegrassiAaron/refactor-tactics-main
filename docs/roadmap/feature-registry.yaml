@@ -4855,10 +4855,16 @@ features:
       # L'owner del modello esiste da `D-152`: tassonomia, pivot, volume, grammatica degli stati.
       # `partial` e non `done` perche' DUE domande restano aperte — `GBX-1` (l'inset) e `GBX-5` (l'ingombro
       # dell'unita') — e condividono l'oracolo: si validano guardando, alla seduta U25.
-      # ⏱️ Dal 2026-08-18 sono due e non quattro: `GBX-2`, `GBX-3` e `GBX-4` sono chiuse da `D-171`, `D-172`
-      # e `D-173` (#1188). Questa riga diceva «quattro domande restano aperte (`GBX-1..4`)» e aggiungeva che
-      # «due di esse — l'inset e le soglie di integrita' — sono numeri che il documento si vieta di
-      # inventare»: le soglie ORA sono decise, e sono una frazione del catalogo invece di un numero.
+      # ⏱️ Dal 2026-08-18 sono due: `GBX-2`, `GBX-3` e `GBX-4` sono chiuse da `D-171`, `D-172` e `D-173`
+      # (#1188). Questa riga diceva «quattro domande restano aperte (`GBX-1..4`)» e aggiungeva che «due di
+      # esse — l'inset e le soglie di integrita' — sono numeri che il documento si vieta di inventare»: le
+      # soglie ORA sono decise, e sono una frazione del catalogo invece di un numero.
+      # 🔵 **E l'aritmetica non tornava, corretta il 2026-08-19**: la riga diceva «sono due e non quattro»
+      # dopo averne chiuse tre, cioe' 4 - 3 = 1. Le due aperte non sono un sottoinsieme di `GBX-1..4`:
+      # `GBX-5` e' nata il 2026-08-17 da `D-158`, DOPO che quell'insieme era stato scritto, e `GBX-6` e'
+      # stata chiusa da `D-163`. Un commento che esiste per essere verificato non puo' chiedere di fidarsi.
+      # ⚠️ `D-175` (2026-08-19) emenda `D-172` — «distrutto» esce dalla scaletta di lettura — ma NON
+      # riapre `GBX-3`: la domanda resta chiusa, cambia la formulazione della risposta. Il gate non si muove.
       spec: partial
       # Nessun dato: e' voluto e non e' un ritardo. La tassonomia e' un VOCABOLARIO, non un enum
       # (`D-152`), e le classi non entrano in niente di serializzato. `na` sarebbe falso pero':
