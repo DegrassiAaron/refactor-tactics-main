@@ -119,6 +119,21 @@ public:
 	FName Weakness;
 
 	/**
+	 * Il **Reaction Profile** che il `Brace` di quest'unita' arma (E14.7, [D-047]). `NAME_None` = profilo base.
+	 *
+	 * ⚠️ **Trasportato e non risolto dall'`HeroId`**, benche' l'unita' porti anche quello: il resolver legge
+	 * l'unita', non il catalogo eroi, e farlo risalire dall'eroe significherebbe che ogni sito che valuta una
+	 * finestra deve conoscere `URTHeroCatalogLibrary` — cioe' una dipendenza in piu' per ottenere un dato che
+	 * l'unita' puo' portarsi. E' la stessa scelta gia' fatta per `Affinity` e `Weakness`, che pure sarebbero
+	 * deducibili dall'eroe.
+	 *
+	 * 🔵 Resta un **riferimento** al catalogo, non una copia delle risposte: `URTCatalogLibrary::FindReactionProfile`
+	 * risolve l'id quando serve, quindi cambiare le risposte di un profilo non richiede di toccare le unita'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	FName ReactionProfileId;
+
+	/**
 	 * Eroe configurato via `ConfigureFromHeroData`. `NAME_None` = unità mai configurata da un eroe: oggi
 	 * accade a un'unità piazzata a mano in livello o quando `ConfigureFromHeroData` riceve `nullptr` e
 	 * ritorna fail-closed. ⚠️ Fino al 2026-08-13 questo commento diceva «unità legacy configurata via

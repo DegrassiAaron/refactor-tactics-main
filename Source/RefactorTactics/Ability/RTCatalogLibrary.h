@@ -10,6 +10,41 @@ class URTActionData;
 #include "RTCatalogLibrary.generated.h"
 
 /**
+ * Un **Reaction Profile**: cio' che `Action.Brace` arma, oltre alla risposta universale (E14.7, [D-047]).
+ *
+ * ⚠️ **Vive nel catalogo e non fra i dati d'eroe**, ed e' `spec-reaction-clash-e14.md` §2.5 a deciderlo:
+ * *«un profilo e' un'entita' di catalogo, non un'abilita' d'eroe: vive nel namespace `Profile.<Nome>` come
+ * `Action.Brace` e `Reaction.Anchor`»*. Le tre conseguenze che un prefisso d'eroe non avrebbe dato: nessun
+ * profilo puo' collidere con un'abilita', nessun token nasce con un nome che [D-120] ha declassato a legacy,
+ * e un profilo si **riassegna** fra eroi senza rename quando il roster cresce.
+ *
+ * 🔵 **`ExtraResponses` sono le risposte OLTRE `Hold Ground`, e la distinzione porta la cardinalita'.**
+ * `Hold Ground` e' universale e coincide col comportamento di oggi — cioe' con `Status.Braced` — quindi non
+ * si elenca: elencarla renderebbe possibile un profilo che la **omette**, e allora «il profilo base ha
+ * cardinalita' 1» smetterebbe di essere vero per costruzione. Il profilo base e' l'array **vuoto**.
+ */
+USTRUCT()
+struct FRTReactionProfileDef
+{
+	GENERATED_BODY()
+
+	/** `Profile.<Nome>`, senza prefisso d'eroe. Vuoto = profilo base. */
+	UPROPERTY()
+	FName ProfileId;
+
+	/**
+	 * Le risposte oltre `Hold Ground`. **Vuoto per il profilo base**, e in quel caso la cardinalita' resta 1
+	 * — nessuna finestra si apre, che e' il caso di Riktor ([D-047], §2.5).
+	 */
+	UPROPERTY()
+	TArray<FString> ExtraResponses;
+
+	FRTReactionProfileDef() = default;
+	FRTReactionProfileDef(const FName& InProfileId, const TArray<FString>& InExtraResponses)
+		: ProfileId(InProfileId), ExtraResponses(InExtraResponses) {}
+};
+
+/**
  * Lettura e validazione del catalogo azioni: pura, deterministica, senza Actor e senza asset.
  *
  * Il validator e' una funzione pura per costruzione, cosi' a M11 puo' diventare un commandlet di CI senza
@@ -31,6 +66,41 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
 	static ERTMatchPhase MapResolutionPhase(ERTResolutionPhase Phase);
+
+	/**
+	 * I Reaction Profile del roster v0.1 (E14.7, [D-047] · `spec-reaction-clash-e14.md` §2.5).
+	 *
+	 * **Tre, non quattro**: `Profile.Grounding` (Gadget), `Profile.Sidestep` (Phase), `Profile.Glance`
+	 * (Wraith). Riktor **non ne ha uno**, e non e' un taglio di contenuto — la risposta proposta era
+	 * `ANCHOR`, «annulla lo spostamento», ma `Hold Ground` lo fa gia' con la stessa ampiezza: il ramo
+	 * `Braced` del resolver non controlla `KnockDist`. Una seconda risposta che coincide con la prima
+	 * lascerebbe la cardinalita' a **1** senza aprire nulla, e sarebbe stata la terza scrittura della stessa
+	 * regola dopo `Reaction.Anchor` e `Gadget.Anchor`. Il roster conserva cosi' **un eroe senza finestra sul
+	 * `Brace`**, che e' la baseline con cui CP 14.6 confronta gli altri tre.
+	 *
+	 * ⚠️ **Nessun numero di bilanciamento qui**: resistenza del `Brace`, Charge del `Grounding` e ampiezza
+	 * della deviazione restano aperti e si restringono al playtest (§2.5).
+	 */
+	static TArray<FRTReactionProfileDef> GetReactionProfileCatalog();
+
+	/**
+	 * Il profilo con questo id, o il **profilo base** se l'id e' vuoto o sconosciuto.
+	 *
+	 * ⚠️ Fail-closed nel verso giusto: un id che il catalogo non conosce — un piano salvato prima che il
+	 * catalogo cambiasse — da' il profilo base, cioe' **una** risposta e nessuna finestra. Il contrario,
+	 * inventare risposte per un profilo che non c'e', aprirebbe un boundary su scelte che il gioco non ha.
+	 */
+	static FRTReactionProfileDef FindReactionProfile(const FName& ProfileId);
+
+	/**
+	 * Le risposte legali che `Action.Brace` offre con questo profilo: `Hold Ground` **piu'** le sue extra.
+	 *
+	 * E' il punto in cui la cardinalita' di [D-047] nasce, e per questo sta nel catalogo e non nel resolver:
+	 * col profilo base da' **1** — nessun boundary, esattamente cio' che e' verde oggi — e con un profilo
+	 * d'eroe da' **>= 2**, che apre la finestra con la regola che ADR-0004 §2 **ha gia'**. Nessuna regola
+	 * nuova, nessun enum di tipo.
+	 */
+	static TArray<FString> BraceAllowedResponses(const FName& ProfileId);
 
 	/**
 	 * Vero se l'azione e' una mobilita' RAPIDA, cioe' risolve nella macro-fase Dash (scatto, carica, salto,
