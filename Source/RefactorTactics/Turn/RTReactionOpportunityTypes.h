@@ -195,6 +195,86 @@ struct FRTContestedBoundary
 
 
 /**
+ * La scelta **bloccata** da un partecipante, non ancora rivelata (§7.1).
+ *
+ * "Lock" e non "risposta": la differenza e' che una risposta e' pubblica quando arriva, un lock no. Fra il
+ * lock e il reveal la scelta esiste, e' vincolante, e **nessuno la vede** — nemmeno il fatto che sia
+ * arrivata (§7.2: *«momento del lock dell'altro: non osservabile»*).
+ */
+USTRUCT()
+struct FRTContestedLock
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 UnitId = INDEX_NONE;
+
+	/** Una delle `AllowedResponses` di QUESTO partecipante. */
+	UPROPERTY()
+	FString Response;
+
+	/** L'intenzione di grammatica che la risposta esprime ([D-049]). */
+	UPROPERTY()
+	ERTGrammarIntent Intent = ERTGrammarIntent::Stand;
+
+	FRTContestedLock() = default;
+	FRTContestedLock(int32 InUnitId, const FString& InResponse, ERTGrammarIntent InIntent)
+		: UnitId(InUnitId), Response(InResponse), Intent(InIntent) {}
+};
+
+
+/**
+ * L'esito del confronto per un partecipante (§5).
+ *
+ * ⚠️ **Non e' successo/fallimento**: il confronto produce *Vantaggio A · Pari · Vantaggio B*, ed e' la
+ * maneuver a dichiarare cosa significhi ciascuno dei tre. Un tank tollera il `Lose`, un duellante ha `Win`
+ * enorme e `Lose` pesante — a parita' di matrice. E' questo che rende diversi i profili.
+ */
+UENUM()
+enum class ERTClashOutcome : uint8
+{
+	Win,
+	Tie,
+	Lose
+};
+
+
+/**
+ * Cio' che il **reveal** produce, e nient'altro (§7.1).
+ *
+ * 🔴 **`bRevealed` e' la scadenza fissa, resa una proprieta' dei DATI invece che del tempo.** La regola dice
+ * che la finestra dura sempre `FastReactionDuration` e che il reveal avviene **alla scadenza, mai
+ * all'arrivo del secondo lock** — perche' anticipare direbbe a ciascuno *quando* l'altro ha deciso, e la
+ * latenza di decisione e' una lettura dell'avversario che il gioco non offre.
+ *
+ * In un resolver che non dipende dal tempo reale quella regola non puo' essere un timer: diventa
+ * **«nessun esito e' osservabile finche' non hanno lockato tutti»**. Con lock parziali questa struct e'
+ * vuota — non «parzialmente vera» — e non c'e' niente da cui dedurre chi abbia gia' scelto.
+ *
+ * ⚠️ Il **costo** della regola resta dichiarato e non sparisce: ogni Clash paga 3,0 s pieni di resolution
+ * anche quando entrambi lockano subito, ed entra nel budget di §8. Quel costo e' presentazione (CP 14.6);
+ * qui vive solo la parte logica, cioe' che l'esito non anticipi.
+ */
+USTRUCT()
+struct FRTClashResolution
+{
+	GENERATED_BODY()
+
+	/** Falso = non tutti hanno lockato: **niente** e' osservabile, e i due array sono vuoti. */
+	UPROPERTY()
+	bool bRevealed = false;
+
+	/** I partecipanti in ordine canonico (§7.3), non di arrivo. Parallelo a `Outcomes`. */
+	UPROPERTY()
+	TArray<int32> UnitIds;
+
+	/** L'esito di ciascuno, nello stesso ordine di `UnitIds`. */
+	UPROPERTY()
+	TArray<ERTClashOutcome> Outcomes;
+};
+
+
+/**
  * Salute di un bersaglio al micro-step: quanto basta a valutare una condizione dichiarata, e non un byte di
  * piu'.
  *
@@ -537,4 +617,22 @@ public:
 	 * nei dati d'eroe finche' il playtest non li promuove (§4.3).
 	 */
 	static int32 CompareGrammarIntents(ERTGrammarIntent A, ERTGrammarIntent B);
+
+	/**
+	 * Il **reveal** di un boundary contested: confronta i lock e produce gli esiti (§7.1, §5).
+	 *
+	 * 🔴 **Rivela solo quando hanno lockato TUTTI.** Con lock parziali restituisce una risoluzione vuota
+	 * (`bRevealed == false`) e non un esito provvisorio: e' cosi' che «il reveal avviene alla scadenza, mai
+	 * all'arrivo del secondo lock» diventa una regola verificabile senza un orologio. Un chiamante che
+	 * volesse anticipare non ha niente da leggere.
+	 *
+	 * ⚠️ **L'ordine dei lock in ingresso e' irrilevante per l'esito** — e' l'invariante #4: due esecuzioni
+	 * della stessa partita in cui i due giocatori premono in ordine diverso devono dare la stessa traccia.
+	 * L'uscita e' in ordine **canonico** (§7.3), mai di arrivo.
+	 *
+	 * ⛔ Un lock di chi non e' partecipante viene **ignorato**, e uno duplicato non conta due volte: la
+	 * cardinalita' del reveal dipende dai partecipanti dichiarati, non da quanti messaggi arrivano.
+	 */
+	static FRTClashResolution ResolveContestedBoundary(const FRTContestedBoundary& Boundary,
+		const TArray<FRTContestedLock>& Locks);
 };
